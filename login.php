@@ -14,7 +14,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             session_regenerate_id(true); $_SESSION['user_id'] = (int)$user['id'];
             tt_set_last_login((int)$user['id']);
             tt_audit((int)$user['id'], $user['username'], 'Signed in');
-            header('Location: index.php'); exit;
+            header('Location: ' . (!empty($user['must_change_password']) ? 'change-password.php' : 'index.php')); exit;
         }
         tt_audit($user ? (int)$user['id'] : null, $username ?: 'unknown', 'Failed sign-in');
         usleep(350000); $error = 'Incorrect username or password.';
