@@ -86,6 +86,98 @@ function tt_set_last_login(int $id): void {
     });
 }
 
+function tt_list_public_users(): array {
+    return array_map(static function (array $user): array {
+        $permissions = is_array($user['permissions'] ?? null) ? $user['permissions'] : [];
+        return [
+            'id' => (string)$user['id'], 'name' => (string)($user['full_name'] ?? ''),
+            'username' => (string)($user['username'] ?? ''), 'role' => (string)($user['role'] ?? ''),
+            'location' => (string)($user['location'] ?? 'All authorized locations'),
+            'active' => !empty($user['active']), 'modules' => array_keys($permissions),
+            'permissions' => $permissions,
+            'lastActive' => empty($user['last_login_at']) ? 'Not activated' : (string)$user['last_login_at'],
+            'mustChangePassword' => !empty($user['must_change_password']),
+        ];
+    }, tt_read_store()['users']);
+}
+
+function tt_generate_temporary_password(): string {
+    return 'Tt' . random_int(10, 99) . '-' . bin2hex(random_bytes(4)) . 'A';
+}
+
+function tt_create_staff_user(array $input): array {
+    $temporaryPassword = tt_generate_temporary_password();
+    $id = tt_mutate_store(function (&$data) use ($input, $temporaryPassword): int {
+        foreach ($data['users'] as $user) if (strcasecmp((string)($user['username'] ?? ''), $input['username']) === 0) throw new InvalidArgumentException('That username already exists.');
+        $id = random_int(100000, 999999999);
+        $data['users'][] = [
+            'id'=>$id, 'full_name'=>$input['name'], 'username'=>$input['username'],
+            'password_hash'=>password_hash($temporaryPassword, PASSWORD_DEFAULT),
+            'role'=>$input['role'], 'location'=>$input['location'], 'permissions'=>$input['permissions'],
+            'active'=>$input['active'], 'must_change_password'=>true,
+            'created_at'=>gmdate('c'), 'last_login_at'=>null,
+        ];
+        return $id;
+    });
+    return ['id'=>$id, 'temporaryPassword'=>$temporaryPassword];
+}
+
+function tt_update_staff_user(int $id, array $input): void {
+    tt_mutate_store(function (&$data) use ($id, $input): void {
+        foreach ($data['users'] as $existing) if ((int)($existing['id'] ?? 0) !== $id && strcasecmp((string)($existing['username'] ?? ''), $input['username']) === 0) throw new InvalidArgumentException('That username already exists.');
+        foreach ($data['users'] as &$user) {
+            if ((int)($user['id'] ?? 0) !== $id) continue;
+            if (($user['role'] ?? '') === 'Super Admin') throw new RuntimeException('The Super Admin account cannot be changed here.');
+            $user['full_name']=$input['name']; $user['username']=$input['username'];
+            $user['role']=$input['role']; $user['location']=$input['location'];
+            $user['permissions']=$input['permissions']; $user['active']=$input['active'];
+            unset($user); return;
+        }
+        unset($user);
+        throw new RuntimeException('User not found.');
+    });
+}
+
+function tt_delete_staff_user(int $id): void {
+    tt_mutate_store(function (&$data) use ($id): void {
+        foreach ($data['users'] as $user) if ((int)($user['id'] ?? 0) === $id && ($user['role'] ?? '') === 'Super Admin') throw new RuntimeException('The Super Admin account cannot be deleted.');
+        $before=count($data['users']);
+        $data['users']=array_values(array_filter($data['users'], static fn(array $user): bool => (int)($user['id'] ?? 0) !== $id));
+        if ($before === count($data['users'])) throw new RuntimeException('User not found.');
+    });
+}
+
+function tt_reset_staff_password(int $id): string {
+    $temporaryPassword=tt_generate_temporary_password();
+    tt_mutate_store(function (&$data) use ($id, $temporaryPassword): void {
+        foreach ($data['users'] as &$user) {
+            if ((int)($user['id'] ?? 0) !== $id) continue;
+            if (($user['role'] ?? '') === 'Super Admin') throw new RuntimeException('Use the private password-change screen for Super Admin.');
+            $user['password_hash']=password_hash($temporaryPassword, PASSWORD_DEFAULT);
+            $user['must_change_password']=true; unset($user); return;
+        }
+        unset($user); throw new RuntimeException('User not found.');
+    });
+    return $temporaryPassword;
+}
+
+function tt_change_own_password(int $id, string $newPassword): void {
+    tt_mutate_store(function (&$data) use ($id, $newPassword): void {
+        foreach ($data['users'] as &$user) {
+            if ((int)($user['id'] ?? 0) !== $id) continue;
+            $user['password_hash']=password_hash($newPassword, PASSWORD_DEFAULT);
+            $user['must_change_password']=false; unset($user); return;
+        }
+        unset($user); throw new RuntimeException('User not found.');
+    });
+}
+
+function tt_user_can_open_module(array $user, string $module): bool {
+    if (($user['role'] ?? '') === 'Super Admin') return true;
+    $permissions=$user['permissions'][$module] ?? [];
+    return $permissions === 'all' || (is_array($permissions) && (in_array('View', $permissions, true) || count($permissions) > 0));
+}
+
 function tt_current_user(): ?array {
     if (empty($_SESSION['user_id'])) return null;
     $user = tt_find_user_by_id((int)$_SESSION['user_id']);
