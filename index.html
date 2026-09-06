@@ -40,6 +40,7 @@
         <div><strong>Salman</strong><span>Super Admin</span></div>
         <button class="icon-button" aria-label="Account menu">⋮</button>
       </div>
+      <a class="logout-link" href="logout.php">Sign out</a>
     </aside>
 
     <main class="main-area">
@@ -173,7 +174,7 @@
       </div>
       <fieldset><legend>Module access and actions</legend><div class="permission-matrix" id="permissionMatrix"></div></fieldset>
       <label class="switch-row"><span><strong>User active</strong><small>Inactive users cannot sign in.</small></span><input type="checkbox" id="userActive" checked><i></i></label>
-      <div class="modal-actions"><button class="button secondary" type="button" data-close-dialog="userDialog">Cancel</button><button class="button primary" id="saveUserButton" type="submit">Save User</button></div>
+      <div class="modal-actions"><button class="button danger" id="deleteUserButton" type="button" hidden>Delete User</button><button class="button secondary" type="button" data-close-dialog="userDialog">Cancel</button><button class="button primary" id="saveUserButton" type="submit">Save User</button></div>
     </form>
   </dialog>
 
