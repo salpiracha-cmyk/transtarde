@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Transtrade unified Super Admin control centre">
+  <title>Transtrade Super Admin Console</title>
+  <link rel="stylesheet" href="admin/styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar" aria-label="Main navigation">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">TT</div>
+        <div>
+          <strong>TRANSTRADE</strong>
+          <span>International</span>
+        </div>
+      </div>
+
+      <nav class="nav-list">
+        <button class="nav-item active" data-view="dashboard">
+          <span class="nav-icon">⌂</span><span>Control Centre</span>
+        </button>
+        <p class="nav-label">APP MODULES</p>
+        <button class="nav-item" data-view="modules"><span class="nav-icon">▦</span><span>All Modules</span></button>
+        <button class="nav-item" data-module-link="milling"><span class="nav-icon">M</span><span>Mill</span></button>
+        <button class="nav-item" data-module-link="exports"><span class="nav-icon">E</span><span>Exports</span></button>
+        <button class="nav-item" data-module-link="accounts"><span class="nav-icon">A</span><span>Accounts</span></button>
+        <button class="nav-item" data-module-link="directors"><span class="nav-icon">D</span><span>Directors</span></button>
+        <p class="nav-label">ADMINISTRATION</p>
+        <button class="nav-item" data-view="users"><span class="nav-icon">U</span><span>Users & Permissions</span></button>
+        <button class="nav-item" data-view="masters"><span class="nav-icon">◆</span><span>Master Records</span></button>
+        <button class="nav-item" data-view="locks"><span class="nav-icon">L</span><span>Module Locks</span></button>
+        <button class="nav-item" data-view="audit"><span class="nav-icon">≡</span><span>Audit Trail</span></button>
+      </nav>
+
+      <div class="sidebar-user">
+        <div class="avatar">SP</div>
+        <div><strong>Salman</strong><span>Super Admin</span></div>
+        <button class="icon-button" aria-label="Account menu">⋮</button>
+      </div>
+    </aside>
+
+    <main class="main-area">
+      <header class="topbar">
+        <button class="menu-button" id="menuButton" aria-label="Open navigation">☰</button>
+        <div class="search-box">
+          <span aria-hidden="true">⌕</span>
+          <input id="globalSearch" type="search" placeholder="Search modules, users or master records" aria-label="Search">
+          <kbd>Ctrl K</kbd>
+        </div>
+        <div class="top-actions">
+          <div class="save-state" id="saveState"><span></span>All changes saved</div>
+          <button class="icon-button notification-button" id="notificationButton" aria-label="Open notifications">♢<b>3</b></button>
+          <div class="profile-chip"><div class="avatar">SP</div><div><strong>Salman</strong><span>Super Admin</span></div></div>
+        </div>
+      </header>
+
+      <div class="content">
+        <section class="view active" id="view-dashboard">
+          <div class="page-heading">
+            <div><p class="eyebrow">SUPER ADMIN</p><h1>Control Centre</h1><p>One view across Mill, Exports, Accounts and Directors.</p></div>
+            <div class="heading-actions"><button class="button secondary" data-view-target="audit">View Audit Trail</button><button class="button primary" data-action="create-user">+ Create User</button></div>
+          </div>
+
+          <div class="status-strip">
+            <div><span class="status-icon online">✓</span><p><strong>System available</strong><small>Console data is saving automatically</small></p></div>
+            <div><span class="status-icon">4</span><p><strong>Four modules</strong><small>One unified Transtrade application</small></p></div>
+            <div><span class="status-icon amber">3</span><p><strong>Pending approvals</strong><small>Require Super Admin action</small></p></div>
+          </div>
+
+          <div class="section-heading"><div><h2>Modules</h2><p>Open a workspace or review its integration status.</p></div><button class="text-button" data-view-target="modules">View all modules →</button></div>
+          <div class="module-grid" id="dashboardModules"></div>
+
+          <div class="dashboard-lower">
+            <article class="panel approvals-panel">
+              <div class="panel-heading"><div><h2>Approvals requiring you</h2><p>Only Super Admin decisions appear here.</p></div><span class="count-pill">3 open</span></div>
+              <div class="approval-list">
+                <button class="approval-item"><span class="approval-symbol red">!</span><span><strong>Late Soda delivery</strong><small>Soda 26092 · Shams · Mill</small></span><time>Today</time></button>
+                <button class="approval-item"><span class="approval-symbol amber">↗</span><span><strong>Export price approval</strong><small>TTI-EXP-042 · Exports</small></span><time>Today</time></button>
+                <button class="approval-item"><span class="approval-symbol blue">U</span><span><strong>User permission request</strong><small>Jazib · Print final documents</small></span><time>Yesterday</time></button>
+              </div>
+            </article>
+
+            <article class="panel activity-panel">
+              <div class="panel-heading"><div><h2>Recent activity</h2><p>Latest cross-module events.</p></div><button class="text-button" data-view-target="audit">Full audit →</button></div>
+              <div class="timeline" id="recentActivity"></div>
+            </article>
+          </div>
+        </section>
+
+        <section class="view" id="view-modules">
+          <div class="page-heading"><div><p class="eyebrow">APP MODULES</p><h1>All Modules</h1><p>Manage module access without changing approved internal workflows.</p></div></div>
+          <div class="module-grid wide" id="allModules"></div>
+          <article class="panel integration-panel">
+            <div class="panel-heading"><div><h2>Approved information flow</h2><p>Information is entered once and shared only where authorized.</p></div></div>
+            <div class="flow-grid">
+              <div><b>Mill</b><span>Stock, production, bags, arrivals and loading</span></div>
+              <strong>→</strong><div><b>Exports</b><span>Orders, documents and shipment instructions</span></div>
+              <strong>→</strong><div><b>Accounts</b><span>Financial entries without duplicate typing</span></div>
+              <strong>→</strong><div><b>Directors</b><span>Consolidated oversight, alerts and approvals</span></div>
+            </div>
+          </article>
+        </section>
+
+        <section class="view" id="view-users">
+          <div class="page-heading">
+            <div><p class="eyebrow">ADMINISTRATION</p><h1>Users & Permissions</h1><p>Create each person’s ID and show only their authorized work.</p></div>
+            <button class="button primary" data-action="create-user">+ Create User</button>
+          </div>
+          <div class="summary-cards">
+            <div><span>Active users</span><strong id="activeUserCount">0</strong><small>Across all modules</small></div>
+            <div><span>Super Admins</span><strong>1</strong><small>Salman only</small></div>
+            <div><span>Permission changes</span><strong id="permissionChangeCount">0</strong><small>Recorded this session</small></div>
+          </div>
+          <article class="panel table-panel">
+            <div class="table-toolbar"><div class="filter-input"><span>⌕</span><input id="userSearch" type="search" placeholder="Search users"></div><select id="moduleFilter" aria-label="Filter by module"><option value="all">All modules</option><option>Mill</option><option>Exports</option><option>Accounts</option><option>Directors</option></select></div>
+            <div class="table-wrap"><table><thead><tr><th>User</th><th>Role</th><th>Module access</th><th>Locations</th><th>Status</th><th>Last active</th><th></th></tr></thead><tbody id="userRows"></tbody></table></div>
+          </article>
+        </section>
+
+        <section class="view" id="view-masters">
+          <div class="page-heading">
+            <div><p class="eyebrow">SHARED DATA</p><h1>Master Records</h1><p>Maintain common records once for controlled use across modules.</p></div>
+            <button class="button primary" id="addMasterRecord">+ Add Record</button>
+          </div>
+          <div class="master-layout">
+            <div class="master-menu" id="masterMenu"></div>
+            <article class="panel master-content">
+              <div class="panel-heading"><div><h2 id="masterTitle">Companies</h2><p id="masterDescription"></p></div><div class="filter-input compact"><span>⌕</span><input id="masterSearch" type="search" placeholder="Search records"></div></div>
+              <div class="table-wrap"><table><thead id="masterTableHead"></thead><tbody id="masterTableBody"></tbody></table></div>
+            </article>
+          </div>
+        </section>
+
+        <section class="view" id="view-locks">
+          <div class="page-heading"><div><p class="eyebrow">CHANGE CONTROL</p><h1>Module Locks</h1><p>Approved modules remain protected from cross-module changes.</p></div></div>
+          <div class="governance-note"><span>i</span><div><strong>Locked means no silent changes.</strong><p>Any requested change must state the reason, affected screens, workflows, reports, calculations and data links, plus an alternative. Only Salman can approve reopening.</p></div></div>
+          <div class="lock-grid" id="lockGrid"></div>
+        </section>
+
+        <section class="view" id="view-audit">
+          <div class="page-heading"><div><p class="eyebrow">SECURITY & CONTROL</p><h1>Audit Trail</h1><p>Every administrative and cross-module action remains traceable.</p></div><button class="button secondary" id="exportAudit">Export Audit</button></div>
+          <article class="panel table-panel">
+            <div class="table-toolbar"><div class="filter-input"><span>⌕</span><input id="auditSearch" type="search" placeholder="Search activity"></div><select id="auditFilter"><option value="all">All activity</option><option value="User">Users</option><option value="Permission">Permissions</option><option value="Master">Master records</option><option value="Module">Module control</option></select></div>
+            <div class="table-wrap"><table><thead><tr><th>Date & time</th><th>User</th><th>Area</th><th>Action</th><th>Details</th><th>Reference</th></tr></thead><tbody id="auditRows"></tbody></table></div>
+          </article>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <div class="drawer" id="notificationDrawer" aria-hidden="true">
+    <div class="drawer-head"><div><p class="eyebrow">ATTENTION</p><h2>Notifications</h2></div><button class="icon-button" data-action="close-notifications" aria-label="Close notifications">×</button></div>
+    <div class="drawer-list">
+      <div><span class="approval-symbol red">!</span><p><strong>Late Soda delivery</strong><small>Approval requested by Mill</small></p></div>
+      <div><span class="approval-symbol amber">↗</span><p><strong>Export price approval</strong><small>TTI-EXP-042 requires review</small></p></div>
+      <div><span class="approval-symbol blue">U</span><p><strong>Permission request</strong><small>Jazib requested print access</small></p></div>
+    </div>
+  </div>
+  <div class="overlay" id="overlay"></div>
+
+  <dialog id="userDialog" class="modal">
+    <form method="dialog" id="userForm">
+      <div class="modal-head"><div><p class="eyebrow">USER ADMINISTRATION</p><h2 id="userDialogTitle">Create User</h2></div><button class="icon-button" type="button" data-close-dialog="userDialog" aria-label="Close">×</button></div>
+      <input type="hidden" id="editUserId">
+      <div class="form-grid">
+        <label>Full name<input id="userName" required autocomplete="off"></label>
+        <label>Username<input id="username" required autocomplete="off"></label>
+        <label>Role<select id="userRole" required><option value="">Select role</option><option>Super Admin</option><option>Director</option><option>Mill Manager</option><option>Mill Staff</option><option>Accounts</option><option>Exports</option><option>Auditor / Reports</option></select></label>
+        <label>Assigned location<select id="userLocation"><option>All authorized locations</option><option>TTI Rice Mill</option><option>Karachi Office</option><option>External mills only</option></select></label>
+      </div>
+      <fieldset><legend>Module access and actions</legend><div class="permission-matrix" id="permissionMatrix"></div></fieldset>
+      <label class="switch-row"><span><strong>User active</strong><small>Inactive users cannot sign in.</small></span><input type="checkbox" id="userActive" checked><i></i></label>
+      <div class="modal-actions"><button class="button secondary" type="button" data-close-dialog="userDialog">Cancel</button><button class="button primary" id="saveUserButton" type="submit">Save User</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="masterDialog" class="modal small-modal">
+    <form method="dialog" id="masterForm">
+      <div class="modal-head"><div><p class="eyebrow">MASTER RECORD</p><h2>Add Record</h2></div><button class="icon-button" type="button" data-close-dialog="masterDialog" aria-label="Close">×</button></div>
+      <label>Record name<input id="masterRecordName" required autocomplete="off"></label>
+      <label>Code / reference<input id="masterRecordCode" required autocomplete="off"></label>
+      <label>Notes<textarea id="masterRecordNotes" rows="3"></textarea></label>
+      <div class="modal-actions"><button class="button secondary" type="button" data-close-dialog="masterDialog">Cancel</button><button class="button primary" id="saveMasterButton" type="submit">Save Record</button></div>
+    </form>
+  </dialog>
+
+  <div class="toast-region" id="toastRegion" aria-live="polite"></div>
+  <script src="admin/app.js"></script>
+</body>
+</html>
