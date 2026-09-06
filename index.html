@@ -169,13 +169,17 @@
       <div class="form-grid">
         <label>Full name<input id="userName" required autocomplete="off"></label>
         <label>Username<input id="username" required autocomplete="off"></label>
-        <label>Role<select id="userRole" required><option value="">Select role</option><option>Super Admin</option><option>Director</option><option>Mill Manager</option><option>Mill Staff</option><option>Accounts</option><option>Exports</option><option>Auditor / Reports</option></select></label>
+        <label>Role<select id="userRole" required><option value="">Select role</option><option>Director</option><option>Mill Manager</option><option>Mill Staff</option><option>Accounts</option><option>Exports</option><option>Auditor / Reports</option></select></label>
         <label>Assigned location<select id="userLocation"><option>All authorized locations</option><option>TTI Rice Mill</option><option>Karachi Office</option><option>External mills only</option></select></label>
       </div>
       <fieldset><legend>Module access and actions</legend><div class="permission-matrix" id="permissionMatrix"></div></fieldset>
       <label class="switch-row"><span><strong>User active</strong><small>Inactive users cannot sign in.</small></span><input type="checkbox" id="userActive" checked><i></i></label>
-      <div class="modal-actions"><button class="button danger" id="deleteUserButton" type="button" hidden>Delete User</button><button class="button secondary" type="button" data-close-dialog="userDialog">Cancel</button><button class="button primary" id="saveUserButton" type="submit">Save User</button></div>
+      <div class="modal-actions"><button class="button danger" id="deleteUserButton" type="button" hidden>Delete User</button><button class="button secondary" id="resetPasswordButton" type="button" hidden>Reset Password</button><button class="button secondary" type="button" data-close-dialog="userDialog">Cancel</button><button class="button primary" id="saveUserButton" type="submit">Save User</button></div>
     </form>
+  </dialog>
+
+  <dialog id="credentialDialog" class="modal small-modal">
+    <div class="credential-card"><div class="modal-head"><div><p class="eyebrow">PRIVATE STAFF LOGIN</p><h2>Temporary login created</h2></div></div><p>Copy these details now. The temporary password is shown only once and must be changed at first login.</p><label>Username<input id="credentialUsername" readonly></label><label>Temporary password<input id="credentialPassword" readonly></label><div class="modal-actions"><button class="button secondary" id="copyCredentials" type="button">Copy Login</button><button class="button primary" type="button" data-close-dialog="credentialDialog">Done</button></div></div>
   </dialog>
 
   <dialog id="masterDialog" class="modal small-modal">
