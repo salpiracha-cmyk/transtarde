@@ -4,6 +4,8 @@
   const STORAGE_KEY = "transtrade_super_admin_v1";
   const STATE_VERSION = 2;
   const ACTIONS = ["View", "Create", "Edit", "Delete", "Print", "Approve", "Reports"];
+  const SESSION = window.TT_SESSION || { name: "Salman", username: "salman", role: "Super Admin", permissions: { Mill: "all", Exports: "all", Accounts: "all", Directors: "all" }, csrf: "" };
+  const IS_SUPER_ADMIN = SESSION.role === "Super Admin";
   const MODULES = [
     { id: "milling", name: "Mill", code: "M", color: "#16815a", soft: "#e7f7f0", status: "Integration ready", state: "green", version: "V3.3.2 Audited", description: "Arrivals, stocks, production, bags, loading and mill operations.", href: "module.php?id=milling" },
     { id: "exports", name: "Exports", code: "E", color: "#1769d2", soft: "#eaf2ff", status: "Being finalized", state: "blue", version: "V2.6 Stabilized", description: "Contracts, export orders, shipment planning and documentation.", href: "module.php?id=exports" },
@@ -31,10 +33,7 @@
   const defaultState = {
     stateVersion: STATE_VERSION,
     users: [
-      { id: "u-salman", name: "Salman", username: "salman", role: "Super Admin", location: "All locations", active: true, modules: ["Mill", "Exports", "Accounts", "Directors"], permissions: Object.fromEntries(["Mill", "Exports", "Accounts", "Directors"].map(m => [m, [...ACTIONS]])), lastActive: "Now" },
-      { id: "u-jazib", name: "Jazib", username: "jazib.exports", role: "Exports", location: "Karachi Office", active: true, modules: ["Exports"], permissions: { Exports: ["View", "Create", "Edit", "Print"] }, lastActive: "Today, 3:40 PM" },
-      { id: "u-yar", name: "Mr. Yar Azam", username: "yarazam.mill", role: "Mill Manager", location: "TTI Rice Mill", active: true, modules: ["Mill"], permissions: { Mill: ["View", "Create", "Edit", "Print", "Approve", "Reports"] }, lastActive: "Yesterday" },
-      { id: "u-accounts", name: "Accounts User", username: "accounts", role: "Accounts", location: "Karachi Office", active: false, modules: ["Accounts"], permissions: { Accounts: ["View", "Create", "Edit", "Print", "Reports"] }, lastActive: "Not activated" }
+      { id: "u-salman", name: "Salman", username: "salman", role: "Super Admin", location: "All locations", active: true, modules: ["Mill", "Exports", "Accounts", "Directors"], permissions: Object.fromEntries(["Mill", "Exports", "Accounts", "Directors"].map(m => [m, [...ACTIONS]])), lastActive: "Now" }
     ],
     locks: {
       milling: { locked: false, approvedBy: "—", changed: "Integration review open" },
@@ -89,7 +88,47 @@
     return new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date()).replace(",", "");
   }
   function addAudit(area, action, detail, ref = "ADMIN") {
-    state.audit.unshift({ date: nowStamp(), user: "Salman", area, action, detail, ref });
+    state.audit.unshift({ date: nowStamp(), user: SESSION.name, area, action, detail, ref });
+  }
+
+  async function apiRequest(body) {
+    const options = body ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...body, csrf: SESSION.csrf }) } : {};
+    const response = await fetch("api/users.php", options);
+    const data = await response.json().catch(() => ({ ok: false, error: "The server returned an unreadable response." }));
+    if (!response.ok || !data.ok) throw new Error(data.error || "The user action could not be completed.");
+    return data;
+  }
+
+  function canOpenModule(name) {
+    if (IS_SUPER_ADMIN) return true;
+    const permission = SESSION.permissions?.[name];
+    return permission === "all" || (Array.isArray(permission) && permission.length > 0);
+  }
+
+  function showCredentials(username, password) {
+    document.getElementById("credentialUsername").value = username;
+    document.getElementById("credentialPassword").value = password;
+    document.getElementById("credentialDialog").showModal();
+  }
+
+  async function loadServerUsers() {
+    if (!IS_SUPER_ADMIN) return;
+    const data = await apiRequest();
+    state.users = data.users;
+    renderUsers();
+  }
+
+  function applySessionAccess() {
+    document.querySelectorAll(".sidebar-user strong, .profile-chip strong").forEach(node => { node.textContent = SESSION.name; });
+    document.querySelectorAll(".sidebar-user span, .profile-chip span").forEach(node => { node.textContent = SESSION.role; });
+    document.querySelectorAll(".sidebar-user .avatar, .profile-chip .avatar").forEach(node => { node.textContent = initials(SESSION.name); });
+    document.querySelectorAll("[data-module-link]").forEach(node => {
+      const module = MODULES.find(item => item.id === node.dataset.moduleLink);
+      node.hidden = module ? !canOpenModule(module.name) : false;
+    });
+    if (!IS_SUPER_ADMIN) {
+      document.querySelectorAll('[data-view="users"], [data-view="masters"], [data-view="locks"], [data-view="audit"], [data-action="create-user"], [data-view-target="audit"], #addMasterRecord, #exportAudit, .dashboard-lower, #notificationButton').forEach(node => { node.hidden = true; });
+    }
   }
   function toast(message) {
     const region = document.getElementById("toastRegion");
@@ -109,12 +148,14 @@
     </article>`;
   }
   function renderModules() {
-    document.getElementById("dashboardModules").innerHTML = MODULES.map(moduleCard).join("");
-    document.getElementById("allModules").innerHTML = MODULES.map(moduleCard).join("");
+    const modules = MODULES.filter(module => canOpenModule(module.name));
+    document.getElementById("dashboardModules").innerHTML = modules.map(moduleCard).join("");
+    document.getElementById("allModules").innerHTML = modules.map(moduleCard).join("");
   }
   function openModule(id) {
     const module = MODULES.find(item => item.id === id);
     if (!module) return;
+    if (!canOpenModule(module.name)) { toast("You do not have permission to open this module."); return; }
     if (module.href) {
       window.open(module.href, "_blank", "noopener");
       addAudit("Module", "Opened", `${module.name} workspace opened from Super Admin`, module.version);
@@ -166,27 +207,38 @@
       document.querySelectorAll("#userForm input, #userForm select").forEach(input => { if (input.id !== "editUserId") input.disabled = true; });
       document.getElementById("saveUserButton").disabled = true;
       document.getElementById("deleteUserButton").hidden = true;
+      document.getElementById("resetPasswordButton").hidden = true;
       toast("The only Super Admin account cannot be reduced from this screen.");
     } else {
       document.querySelectorAll("#userForm input, #userForm select").forEach(input => input.disabled = false);
       document.getElementById("saveUserButton").disabled = false;
       document.getElementById("deleteUserButton").hidden = !user;
+      document.getElementById("resetPasswordButton").hidden = !user;
     }
     dialog.showModal();
   }
-  function deleteUser() {
+  async function deleteUser() {
     const id = document.getElementById("editUserId").value;
     const user = state.users.find(item => item.id === id);
     if (!user || user.role === "Super Admin") return;
-    if (!window.confirm(`Delete ${user.name}'s trial user record?`)) return;
-    state.users = state.users.filter(item => item.id !== id);
-    addAudit("User", "Deleted", `${user.name} trial user removed`, user.username);
-    state.permissionChanges += 1;
-    saveState(); renderUsers(); renderAudit(); renderRecentActivity();
-    document.getElementById("userDialog").close();
-    toast("User removed.");
+    if (!window.confirm(`Delete ${user.name}'s login? They will no longer be able to sign in.`)) return;
+    try {
+      const data = await apiRequest({ action: "delete", id });
+      state.users = data.users; state.permissionChanges += 1;
+      renderUsers(); document.getElementById("userDialog").close(); toast("User login deleted.");
+    } catch (error) { toast(error.message); }
   }
-  function saveUser(event) {
+  async function resetPassword() {
+    const id = document.getElementById("editUserId").value;
+    const user = state.users.find(item => item.id === id);
+    if (!user || user.role === "Super Admin") return;
+    if (!window.confirm(`Reset ${user.name}'s password and issue a new temporary password?`)) return;
+    try {
+      const data = await apiRequest({ action: "reset-password", id });
+      document.getElementById("userDialog").close(); showCredentials(data.username, data.temporaryPassword);
+    } catch (error) { toast(error.message); }
+  }
+  async function saveUser(event) {
     event.preventDefault();
     const form = document.getElementById("userForm");
     if (!form.reportValidity()) return;
@@ -199,7 +251,7 @@
     const modules = Object.keys(permissions).filter(module => permissions[module].includes("View") || permissions[module].length);
     if (!modules.length) { toast("Select at least one module permission."); return; }
     const user = {
-      id: id || `u-${Date.now()}`,
+      id,
       name: document.getElementById("userName").value.trim(),
       username: document.getElementById("username").value.trim(),
       role: document.getElementById("userRole").value,
@@ -208,20 +260,13 @@
       modules, permissions,
       lastActive: id ? (state.users.find(item => item.id === id)?.lastActive || "Not activated") : "Not activated"
     };
-    const duplicate = state.users.some(item => item.username.toLowerCase() === user.username.toLowerCase() && item.id !== id);
-    if (duplicate) { toast("This username already exists."); return; }
-    if (id) {
-      const index = state.users.findIndex(item => item.id === id);
-      state.users[index] = user;
-      addAudit("Permission", "Updated", `Permissions updated for ${user.name}`, user.username);
-    } else {
-      state.users.push(user);
-      addAudit("User", "Created", `${user.name} created with ${modules.join(", ")} access`, user.username);
-    }
-    state.permissionChanges += 1;
-    saveState(); renderUsers(); renderAudit(); renderRecentActivity();
-    document.getElementById("userDialog").close();
-    toast(id ? "User and permissions updated." : "User created successfully.");
+    try {
+      const data = await apiRequest({ action: id ? "update" : "create", ...user });
+      state.users = data.users; state.permissionChanges += 1; renderUsers();
+      document.getElementById("userDialog").close();
+      if (data.temporaryPassword) showCredentials(data.username, data.temporaryPassword);
+      else toast("User and permissions updated.");
+    } catch (error) { toast(error.message); }
   }
 
   function renderMasters() {
@@ -294,6 +339,7 @@
   }
 
   function showView(id) {
+    if (!IS_SUPER_ADMIN && !["dashboard", "modules"].includes(id)) { toast("Super Admin access required."); return; }
     document.querySelectorAll(".view").forEach(view => view.classList.toggle("active", view.id === `view-${id}`));
     document.querySelectorAll(".nav-item[data-view]").forEach(item => item.classList.toggle("active", item.dataset.view === id));
     document.getElementById("sidebar").classList.remove("open");
@@ -308,9 +354,9 @@
   function globalSearch(value) {
     const query = value.trim().toLowerCase();
     if (!query) return;
-    const user = state.users.find(item => `${item.name} ${item.username} ${item.role}`.toLowerCase().includes(query));
+    const user = IS_SUPER_ADMIN ? state.users.find(item => `${item.name} ${item.username} ${item.role}`.toLowerCase().includes(query)) : null;
     const module = MODULES.find(item => `${item.name} ${item.description}`.toLowerCase().includes(query));
-    const master = MASTER_TYPES.find(item => `${item.name} ${item.description}`.toLowerCase().includes(query));
+    const master = IS_SUPER_ADMIN ? MASTER_TYPES.find(item => `${item.name} ${item.description}`.toLowerCase().includes(query)) : null;
     if (user) { showView("users"); document.getElementById("userSearch").value = value; renderUsers(); }
     else if (module) { showView("modules"); toast(`${module.name} module found.`); }
     else if (master) { currentMaster = master.id; showView("masters"); renderMasters(); }
@@ -337,6 +383,12 @@
   });
   document.getElementById("userForm").addEventListener("submit", saveUser);
   document.getElementById("deleteUserButton").addEventListener("click", deleteUser);
+  document.getElementById("resetPasswordButton").addEventListener("click", resetPassword);
+  document.getElementById("copyCredentials").addEventListener("click", async () => {
+    const text = `Transtrade login\nUsername: ${document.getElementById("credentialUsername").value}\nTemporary password: ${document.getElementById("credentialPassword").value}\nWebsite: https://app.transtradeinternational.com`;
+    try { await navigator.clipboard.writeText(text); toast("Login details copied."); }
+    catch (_) { document.getElementById("credentialPassword").select(); toast("Select and copy the login details."); }
+  });
   document.getElementById("masterForm").addEventListener("submit", saveMasterRecord);
   document.getElementById("addMasterRecord").addEventListener("click", () => document.getElementById("masterDialog").showModal());
   document.getElementById("userSearch").addEventListener("input", renderUsers);
@@ -354,5 +406,12 @@
     if (event.key === "Escape") openNotifications(false);
   });
 
-  renderModules(); renderUsers(); renderMasters(); renderLocks(); renderAudit(); renderRecentActivity(); saveState("All changes saved");
+  async function initialize() {
+    applySessionAccess(); renderModules(); renderUsers(); renderMasters(); renderLocks(); renderAudit(); renderRecentActivity();
+    if (IS_SUPER_ADMIN) {
+      try { await loadServerUsers(); } catch (error) { toast(error.message); }
+    }
+    saveState("All changes saved");
+  }
+  initialize();
 })();
