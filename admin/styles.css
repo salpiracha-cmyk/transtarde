@@ -263,3 +263,5 @@ legend { margin-bottom: 10px; color: #445469; font-size: .79rem; font-weight: 75
   .table-toolbar, .panel-heading { align-items: flex-start; flex-direction: column; }
   .filter-input, .filter-input.compact { width: 100%; min-width: 0; }
 }
+.logout-link{display:block;margin:0 18px 18px;padding:10px 12px;border:1px solid rgba(255,255,255,.16);border-radius:9px;color:#e7eef7;text-align:center;text-decoration:none;font-size:13px}.logout-link:hover{background:rgba(255,255,255,.08)}
+.button.danger{margin-right:auto;background:#fff1f1;border-color:#efb4b4;color:#b42318}.button.danger:hover{background:#ffe4e4}
