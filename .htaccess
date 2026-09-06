@@ -1,0 +1,16 @@
+DirectoryIndex index.php
+Options -Indexes
+
+<FilesMatch "^(index\.html|auth\.php|auth_store\.php)$">
+  Require all denied
+</FilesMatch>
+
+<FilesMatch "\.(sqlite|sqlite3|db|log)$">
+  Require all denied
+</FilesMatch>
+
+<IfModule mod_headers.c>
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set X-Frame-Options "SAMEORIGIN"
+  Header always set Referrer-Policy "same-origin"
+</IfModule>
