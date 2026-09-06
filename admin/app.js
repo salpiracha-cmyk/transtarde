@@ -2,10 +2,11 @@
   "use strict";
 
   const STORAGE_KEY = "transtrade_super_admin_v1";
+  const STATE_VERSION = 2;
   const ACTIONS = ["View", "Create", "Edit", "Delete", "Print", "Approve", "Reports"];
   const MODULES = [
-    { id: "milling", name: "Mill", code: "M", color: "#16815a", soft: "#e7f7f0", status: "Integration ready", state: "green", version: "V3.3.2 Audited", description: "Arrivals, stocks, production, bags, loading and mill operations.", href: "milling/Transtrade_Master_Milling_V3_3_2_AUDITED.html" },
-    { id: "exports", name: "Exports", code: "E", color: "#1769d2", soft: "#eaf2ff", status: "Being finalized", state: "blue", version: "V2.6 Stabilized", description: "Contracts, export orders, shipment planning and documentation.", href: "exports/Transtrade_Exports_Master_Prototype_V2_6_Final_Stabilized.html" },
+    { id: "milling", name: "Mill", code: "M", color: "#16815a", soft: "#e7f7f0", status: "Integration ready", state: "green", version: "V3.3.2 Audited", description: "Arrivals, stocks, production, bags, loading and mill operations.", href: "module.php?id=milling" },
+    { id: "exports", name: "Exports", code: "E", color: "#1769d2", soft: "#eaf2ff", status: "Being finalized", state: "blue", version: "V2.6 Stabilized", description: "Contracts, export orders, shipment planning and documentation.", href: "module.php?id=exports" },
     { id: "accounts", name: "Accounts", code: "A", color: "#8a55c7", soft: "#f3ecfb", status: "Awaiting module", state: "amber", version: "Not connected", description: "Purchases, ledgers, banking, receivables, payables and reporting." },
     { id: "directors", name: "Directors", code: "D", color: "#d17b0f", soft: "#fff3e2", status: "Awaiting module", state: "amber", version: "Not connected", description: "Consolidated oversight, Cashflow, alerts, approvals and reports." }
   ];
@@ -28,10 +29,10 @@
   };
 
   const defaultState = {
+    stateVersion: STATE_VERSION,
     users: [
       { id: "u-salman", name: "Salman", username: "salman", role: "Super Admin", location: "All locations", active: true, modules: ["Mill", "Exports", "Accounts", "Directors"], permissions: Object.fromEntries(["Mill", "Exports", "Accounts", "Directors"].map(m => [m, [...ACTIONS]])), lastActive: "Now" },
       { id: "u-jazib", name: "Jazib", username: "jazib.exports", role: "Exports", location: "Karachi Office", active: true, modules: ["Exports"], permissions: { Exports: ["View", "Create", "Edit", "Print"] }, lastActive: "Today, 3:40 PM" },
-      { id: "u-irfan", name: "Irfan", username: "irfan.mill", role: "Mill Staff", location: "TTI Rice Mill", active: true, modules: ["Mill"], permissions: { Mill: ["View", "Create", "Edit", "Print"] }, lastActive: "Today, 2:18 PM" },
       { id: "u-yar", name: "Mr. Yar Azam", username: "yarazam.mill", role: "Mill Manager", location: "TTI Rice Mill", active: true, modules: ["Mill"], permissions: { Mill: ["View", "Create", "Edit", "Print", "Approve", "Reports"] }, lastActive: "Yesterday" },
       { id: "u-accounts", name: "Accounts User", username: "accounts", role: "Accounts", location: "Karachi Office", active: false, modules: ["Accounts"], permissions: { Accounts: ["View", "Create", "Edit", "Print", "Reports"] }, lastActive: "Not activated" }
     ],
@@ -45,7 +46,6 @@
     audit: [
       { date: "06-09-2026 17:40", user: "Salman", area: "Module", action: "Reviewed", detail: "Milling module marked integration ready", ref: "MILL-V3.3.2" },
       { date: "06-09-2026 16:54", user: "System", area: "Module", action: "Stabilized", detail: "Exports module workflow build available", ref: "EXP-V2.6" },
-      { date: "06-09-2026 15:18", user: "Irfan", area: "Master", action: "Viewed", detail: "Arrival quality defaults", ref: "QUAL-DEFAULT" },
       { date: "05-09-2026 18:02", user: "Jazib", area: "Exports", action: "Saved", detail: "Export sales contract draft", ref: "TTI-EXP-042" }
     ],
     permissionChanges: 0
@@ -58,7 +58,19 @@
   function loadState() {
     try {
       const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
-      return saved && saved.users && saved.audit ? { ...cloneDefault(), ...saved } : cloneDefault();
+      if (!saved || !saved.users || !saved.audit) return cloneDefault();
+      const loaded = { ...cloneDefault(), ...saved };
+      if ((loaded.stateVersion || 1) < STATE_VERSION) {
+        loaded.users = loaded.users.filter(user => {
+          const identity = `${user.name || ""} ${user.username || ""}`.toLowerCase();
+          return user.id !== "u-irfan" && !identity.includes("irfan");
+        });
+        loaded.audit = loaded.audit.filter(item => String(item.user).toLowerCase() !== "irfan");
+        loaded.audit.unshift({ date: nowStamp(), user: "System", area: "User", action: "Removed", detail: "Accidental Irfan trial user removed", ref: "ADMIN-CLEANUP" });
+        loaded.stateVersion = STATE_VERSION;
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(loaded));
+      }
+      return loaded;
     } catch (_) { return cloneDefault(); }
   }
   function saveState(message = "All changes saved") {
@@ -153,12 +165,26 @@
     if (user?.role === "Super Admin") {
       document.querySelectorAll("#userForm input, #userForm select").forEach(input => { if (input.id !== "editUserId") input.disabled = true; });
       document.getElementById("saveUserButton").disabled = true;
+      document.getElementById("deleteUserButton").hidden = true;
       toast("The only Super Admin account cannot be reduced from this screen.");
     } else {
       document.querySelectorAll("#userForm input, #userForm select").forEach(input => input.disabled = false);
       document.getElementById("saveUserButton").disabled = false;
+      document.getElementById("deleteUserButton").hidden = !user;
     }
     dialog.showModal();
+  }
+  function deleteUser() {
+    const id = document.getElementById("editUserId").value;
+    const user = state.users.find(item => item.id === id);
+    if (!user || user.role === "Super Admin") return;
+    if (!window.confirm(`Delete ${user.name}'s trial user record?`)) return;
+    state.users = state.users.filter(item => item.id !== id);
+    addAudit("User", "Deleted", `${user.name} trial user removed`, user.username);
+    state.permissionChanges += 1;
+    saveState(); renderUsers(); renderAudit(); renderRecentActivity();
+    document.getElementById("userDialog").close();
+    toast("User removed.");
   }
   function saveUser(event) {
     event.preventDefault();
@@ -310,6 +336,7 @@
     if (event.target.closest('[data-action="close-notifications"]')) openNotifications(false);
   });
   document.getElementById("userForm").addEventListener("submit", saveUser);
+  document.getElementById("deleteUserButton").addEventListener("click", deleteUser);
   document.getElementById("masterForm").addEventListener("submit", saveMasterRecord);
   document.getElementById("addMasterRecord").addEventListener("click", () => document.getElementById("masterDialog").showModal());
   document.getElementById("userSearch").addEventListener("input", renderUsers);
