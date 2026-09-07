@@ -46,12 +46,17 @@
     if(!dl){dl=document.createElement('datalist');dl.id='ttExpenseList';(accountingMaster.chart||[]).filter(a=>['6100','6200','6300','6400','6500','6600','6700','6800','6900'].includes(a.code)).forEach(a=>{const o=document.createElement('option');o.value=a.name;o.label=a.code;dl.appendChild(o)});document.body.appendChild(dl)}
     qa('.ccDetail').forEach(x=>x.setAttribute('list','ttExpenseList'));
   }
+  function installUtilityReminderButton(){
+    const save=q('#saveUtility');if(!save||q('#saveUtilityReminder'))return;
+    const b=document.createElement('button');b.className='btn';b.id='saveUtilityReminder';b.type='button';b.textContent='Save Due-Date Reminder Only';
+    save.parentElement.insertBefore(b,save);
+  }
   async function refresh(){
     try{
       const data=await request();accountingMaster=data.accountingMaster||accountingMaster;
       const count=Object.values(data.reminders||{}).filter(r=>r.entity===entity()&&r.status==='Open').length;
       const el=q('#attentionCount');if(el)el.textContent=String(count);
-      installAccountDatalist();installCardExpenseDatalist();
+      installAccountDatalist();installCardExpenseDatalist();installUtilityReminderButton();
     }catch(e){console.error(e)}
   }
 
@@ -68,17 +73,29 @@
       return;
     }
 
+    const reminder=e.target.closest('#saveUtilityReminder');
+    if(reminder){
+      e.preventDefault();e.stopImmediatePropagation();
+      const due=q('#utilDue')?.value||'';
+      if(!due){toast('Enter the due date first.',false);return}
+      reminder.disabled=true;
+      try{
+        await request('POST',{action:'save_reminder',entity:entity(),type:'Utility',label:(q('#utilType')?.value||'Utility')+' — '+(q('#utilLoc')?.value||''),dueDate:due,expectedAmount:amount(q('#utilAmt')?.value)});
+        toast('Due-date reminder saved. No ledger entry was created.');refresh();
+      }catch(err){toast(err.message,false)}finally{reminder.disabled=false}
+      return;
+    }
+
     const utility=e.target.closest('#saveUtility');
     if(utility){
       e.preventDefault();e.stopImmediatePropagation();
+      if(/credit card/i.test(q('#utilPay')?.value||'')){toast('Allocate a credit-card-paid utility inside Credit Cards when the card is being paid, so it is not counted twice.',false);return}
       const amt=amount(q('#utilAmt')?.value),date=q('#utilDate')?.value||'',key=sourceKey(utility,'UTIL');
       if(!(amt>0)||!date){toast('Enter payment date and amount.',false);return}
       utility.disabled=true;
       try{
-        const data=await request('POST',{action:'post_event',eventType:'UTILITY_PAYMENT',entity:entity(),date,sourceKey:key,reference:q('#utilRef')?.value||key,narration:(q('#utilType')?.value||'Utility')+' — '+(q('#utilLoc')?.value||''),amount:amt,expenseAccount:'6100',payAccount:payCode(q('#utilPay')?.value),meta:{billingMonth:q('#utilMonth')?.value||'',location:q('#utilLoc')?.value||'',remarks:q('#utilRemarks')?.value||''}});
-        const due=q('#utilDue')?.value||'';
-        if(due)await request('POST',{action:'save_reminder',entity:entity(),type:'Utility',label:(q('#utilType')?.value||'Utility')+' — '+(q('#utilLoc')?.value||''),dueDate:due,expectedAmount:amt});
-        toast('Posted '+data.journal.id+(due?' · reminder saved':''));clearSourceKey(utility);refresh();
+        const data=await request('POST',{action:'post_event',eventType:'UTILITY_PAYMENT',entity:entity(),date,sourceKey:key,reference:q('#utilRef')?.value||key,narration:(q('#utilType')?.value||'Utility')+' — '+(q('#utilLoc')?.value||''),amount:amt,expenseAccount:'6100',payAccount:payCode(q('#utilPay')?.value),meta:{billingMonth:q('#utilMonth')?.value||'',dueDate:q('#utilDue')?.value||'',location:q('#utilLoc')?.value||'',remarks:q('#utilRemarks')?.value||''}});
+        toast('Posted '+data.journal.id);clearSourceKey(utility);refresh();
       }catch(err){toast(err.message,false)}finally{utility.disabled=false}
       return;
     }
@@ -119,7 +136,7 @@
     }
   },true);
 
-  const observer=new MutationObserver(()=>{qa('.jvAccount').forEach(x=>x.setAttribute('list','ttAccountList'));installCardExpenseDatalist()});
+  const observer=new MutationObserver(()=>{qa('.jvAccount').forEach(x=>x.setAttribute('list','ttAccountList'));installCardExpenseDatalist();installUtilityReminderButton()});
   observer.observe(document.documentElement,{childList:true,subtree:true});
   document.addEventListener('click',e=>{if(e.target.closest('.entityBtn'))setTimeout(refresh,0)});
   refresh();
