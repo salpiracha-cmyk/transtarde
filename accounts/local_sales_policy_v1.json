@@ -1,10 +1,10 @@
 {
-  "version": 1,
+  "version": 2,
   "status": "TRANSTRADE_INTERNAL_CONTROL_PENDING_AUDITOR_LEGAL_CONFIRMATION",
-  "purpose": "Local sales are an exception to the export business and must be separately monitored and controlled.",
+  "purpose": "Local sales are an exception to the export business and must be separately monitored and controlled without ever preventing Accounts from recording an actual transaction.",
   "financialYearEnd": "06-30",
   "warningPercent": 4.8,
-  "hardLimitPercent": 5.0,
+  "criticalPercent": 5.0,
   "calculation": "recognized Pakistan local sales / recognized Pakistan export sales * 100",
   "scope": {
     "localSaleEntities": ["TTI", "BRM"],
@@ -21,9 +21,14 @@
     "accountsApprovalRequired": true,
     "millCanPostLedger": false,
     "warningAtOrAbovePercent": 4.8,
-    "blockApprovalAbovePercent": 5.0,
+    "criticalAlarmAtOrAbovePercent": 5.0,
+    "neverBlockAccountingPosting": true,
     "showProjectedRatioBeforeApproval": true,
     "showRemainingHeadroom": true,
-    "showByProductBreakdown": true
+    "showByProductBreakdown": true,
+    "raiseAccountsAlert": true,
+    "raiseOwnerDirectorAlertAtCritical": true,
+    "closingExceptionIfCriticalExceeded": true,
+    "rule": "Accounts must always be able to post a real completed sale. Breaches are controlled through alarms, exception reporting, audit trail and prospective operational approvals, not by suppressing or blocking accounting recognition."
   }
 }
