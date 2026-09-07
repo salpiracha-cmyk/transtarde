@@ -4,6 +4,18 @@ declare(strict_types=1);
 const TT_DATA_DIR = __DIR__ . '/data';
 const TT_STORE_FILE = TT_DATA_DIR . '/auth.json';
 
+function tt_default_masters(): array {
+    return [
+        'companies'=>[['id'=>'companies-1','values'=>['Transtrade International','TTI','Pakistan operations']],['id'=>'companies-2','values'=>['BRM','BRM','Authorized documents']]],
+        'parties'=>[['id'=>'parties-1','values'=>['Shams','BRK-001','Broker']],['id'=>'parties-2','values'=>['Sample Overseas Buyer','BUY-001','Export buyer']]],
+        'products'=>[['id'=>'products-1','values'=>['IRRI-6 White Rice','IR6-W','Ready rice']],['id'=>'products-2','values'=>['IRRI-6 Parboiled Rice','IR6-P','Ready rice']],['id'=>'products-3','values'=>['B2 Sortex Broken','B2-S','By-product']]],
+        'mills'=>[['id'=>'mills-1','values'=>['TTI Rice Mill','TTI-MILL','Own mill']],['id'=>'mills-2','values'=>['Karachi Office','KHI-OFF','Office']]],
+        'banks'=>[['id'=>'banks-1','values'=>['Sample Operating Bank ••••• 12345','BANK-01','Accounts / Directors']],['id'=>'banks-2','values'=>['Sample Collection Bank ••••• 48291','BANK-02','Accounts only']]],
+        'bags'=>[['id'=>'bags-1','values'=>['Generic 25 KG Export Bag','BAG-25','New export bag']],['id'=>'bags-2','values'=>['Arrival Used Bags','USED-ARR','Used bag source']],['id'=>'bags-3','values'=>['Outside Used Bags','USED-EXT','Separate used bag source']]],
+        'ports'=>[['id'=>'ports-1','values'=>['Port Qasim','PKBQM','Port']],['id'=>'ports-2','values'=>['Karachi Port','PKKHI','Port']]],
+    ];
+}
+
 ini_set('session.use_strict_mode', '1');
 ini_set('session.use_only_cookies', '1');
 session_name('TRANSTRADE_SESSION');
@@ -20,10 +32,10 @@ function tt_ensure_data_dir(): void {
 
 function tt_read_store(): array {
     tt_ensure_data_dir();
-    if (!is_file(TT_STORE_FILE)) return ['users' => [], 'audit' => []];
+    if (!is_file(TT_STORE_FILE)) return ['users' => [], 'audit' => [], 'masters'=>tt_default_masters()];
     $raw = file_get_contents(TT_STORE_FILE);
     $data = $raw === false || $raw === '' ? null : json_decode($raw, true);
-    return is_array($data) ? array_merge(['users' => [], 'audit' => []], $data) : ['users' => [], 'audit' => []];
+    return is_array($data) ? array_merge(['users' => [], 'audit' => [], 'masters'=>tt_default_masters()], $data) : ['users' => [], 'audit' => [], 'masters'=>tt_default_masters()];
 }
 
 function tt_mutate_store(callable $callback): mixed {
@@ -34,8 +46,8 @@ function tt_mutate_store(callable $callback): mixed {
         rewind($handle);
         $raw = stream_get_contents($handle);
         $data = $raw ? json_decode($raw, true) : null;
-        if (!is_array($data)) $data = ['users' => [], 'audit' => []];
-        $data = array_merge(['users' => [], 'audit' => []], $data);
+        if (!is_array($data)) $data = ['users' => [], 'audit' => [], 'masters'=>tt_default_masters()];
+        $data = array_merge(['users' => [], 'audit' => [], 'masters'=>tt_default_masters()], $data);
         $result = $callback($data);
         rewind($handle);
         if (!ftruncate($handle, 0)) throw new RuntimeException('Secure storage could not be updated.');
@@ -176,6 +188,31 @@ function tt_user_can_open_module(array $user, string $module): bool {
     if (($user['role'] ?? '') === 'Super Admin') return true;
     $permissions=$user['permissions'][$module] ?? [];
     return $permissions === 'all' || (is_array($permissions) && (in_array('View', $permissions, true) || count($permissions) > 0));
+}
+
+function tt_list_masters(): array { return tt_read_store()['masters']; }
+
+function tt_create_master(string $type, array $values): string {
+    return tt_mutate_store(function (&$data) use ($type,$values): string {
+        $id=$type.'-'.random_int(100000,999999999);
+        $data['masters'][$type][]= ['id'=>$id,'values'=>$values];
+        return $id;
+    });
+}
+
+function tt_update_master(string $type, string $id, array $values): void {
+    tt_mutate_store(function (&$data) use ($type,$id,$values): void {
+        foreach ($data['masters'][$type] as &$row) if (($row['id'] ?? '')===$id) { $row['values']=$values; unset($row); return; }
+        unset($row); throw new RuntimeException('Master record not found.');
+    });
+}
+
+function tt_delete_master(string $type, string $id): void {
+    tt_mutate_store(function (&$data) use ($type,$id): void {
+        $before=count($data['masters'][$type]);
+        $data['masters'][$type]=array_values(array_filter($data['masters'][$type],static fn(array $row): bool => ($row['id'] ?? '')!==$id));
+        if ($before===count($data['masters'][$type])) throw new RuntimeException('Master record not found.');
+    });
 }
 
 function tt_current_user(): ?array {
