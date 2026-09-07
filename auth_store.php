@@ -187,6 +187,24 @@ function tt_change_own_password(int $id, string $newPassword): void {
     });
 }
 
+function tt_recovery_code_valid(string $code): bool {
+    $normalized=strtoupper((string)preg_replace('/[^A-Z0-9]/i','',$code));
+    return hash_equals('e008e96b8c1bebbe165ebd3132afc540a9c237ca6dc1d2ac0b47c98edf12648c',hash('sha256',$normalized));
+}
+
+function tt_reset_admin_with_recovery(string $newPassword): int {
+    return tt_mutate_store(function (&$data) use ($newPassword): int {
+        foreach ($data['users'] as &$user) {
+            if (($user['role'] ?? '')!=='Super Admin') continue;
+            $user['password_hash']=password_hash($newPassword,PASSWORD_DEFAULT);
+            $user['must_change_password']=false;
+            $user['recovered_at']=gmdate('c');
+            $id=(int)$user['id']; unset($user); return $id;
+        }
+        unset($user); throw new RuntimeException('Super Admin account not found.');
+    });
+}
+
 function tt_user_can_open_module(array $user, string $module): bool {
     if (($user['role'] ?? '') === 'Super Admin') return true;
     $permissions=$user['permissions'][$module] ?? [];
