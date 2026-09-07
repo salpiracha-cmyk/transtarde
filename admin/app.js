@@ -2,7 +2,7 @@
   "use strict";
 
   const STORAGE_KEY = "transtrade_super_admin_v1";
-  const STATE_VERSION = 2;
+  const STATE_VERSION = 3;
   const ACTIONS = ["View", "Create", "Edit", "Delete", "Print", "Approve", "Reports"];
   const ICON_ACTIONS = ["View", "Create", "Edit"];
   const MODULE_ICONS = {
@@ -33,13 +33,109 @@
   ];
 
   const MASTER_TYPES = [
-    { id: "companies", name: "Companies", description: "Pakistan and authorized group company identities used in documents.", columns: ["Company", "Code", "Use"], rows: [["Transtrade International", "TTI", "Pakistan operations"], ["BRM", "BRM", "Authorized documents"]] },
-    { id: "parties", name: "Parties", description: "Buyers, suppliers, brokers and local parties stored once.", columns: ["Party", "Code", "Type"], rows: [["Shams", "BRK-001", "Broker"], ["Sample Overseas Buyer", "BUY-001", "Export buyer"]] },
-    { id: "products", name: "Products & Quality", description: "Rice varieties, outputs and approved quality standards.", columns: ["Product", "Code", "Category"], rows: [["IRRI-6 White Rice", "IR6-W", "Ready rice"], ["IRRI-6 Parboiled Rice", "IR6-P", "Ready rice"], ["B2 Sortex Broken", "B2-S", "By-product"]] },
-    { id: "mills", name: "Mills & Locations", description: "Own mill, external mills and stock locations.", columns: ["Mill / Location", "Code", "Type"], rows: [["TTI Rice Mill", "TTI-MILL", "Own mill"], ["Karachi Office", "KHI-OFF", "Office"]] },
-    { id: "banks", name: "Banks", description: "Authorized accounts and module-level visibility settings.", columns: ["Bank", "Code", "Visibility"], rows: [["Sample Operating Bank ••••• 12345", "BANK-01", "Accounts / Directors"], ["Sample Collection Bank ••••• 48291", "BANK-02", "Accounts only"]] },
-    { id: "bags", name: "Bags & Brands", description: "New export bags, used-bag sources and approved brands.", columns: ["Bag / Brand", "Code", "Type"], rows: [["Generic 25 KG Export Bag", "BAG-25", "New export bag"], ["Arrival Used Bags", "USED-ARR", "Used bag source"], ["Outside Used Bags", "USED-EXT", "Separate used bag source"]] },
-    { id: "ports", name: "Ports & Shipping", description: "Ports, shipping lines, agents and document defaults.", columns: ["Record", "Code", "Type"], rows: [["Port Qasim", "PKBQM", "Port"], ["Karachi Port", "PKKHI", "Port"]] }
+    {
+      id: "companies", name: "Companies", description: "Define what each legal/group company means to Transtrade, not only its name.",
+      fields: [
+        { label: "Legal company name", required: true }, { label: "Short code", required: true }, { label: "Country" },
+        { label: "Entity scope", type: "select", options: ["", "Pakistan", "Offshore", "Other"] },
+        { label: "Company roles", type: "checks", full: true, options: ["Group Company", "Pakistan Operating Entity", "Offshore Export Contracting", "Exporter", "Mill / Processor", "Seller", "Buyer", "Intercompany", "Accounting Entity"] },
+        { label: "TG special handling", type: "select", options: ["No", "Yes"] },
+        { label: "System behaviour / notes", type: "textarea", full: true }
+      ],
+      rows: [
+        ["Transtrade International", "TTI", "Pakistan", "Pakistan", "Group Company; Pakistan Operating Entity; Exporter; Seller; Buyer; Accounting Entity", "No", "Primary Pakistan operating/export entity."],
+        ["Buksh Rice Mills", "BRM", "Pakistan", "Pakistan", "Group Company; Mill / Processor; Seller; Buyer; Accounting Entity", "No", "Mill/processing entity and authorized document identity."],
+        ["Trans Grains Foodstuff Trading L.L.C", "TG", "United Arab Emirates", "Offshore", "Group Company; Offshore Export Contracting; Intercompany; Accounting Entity", "Yes", "TG-linked group workflow. Keep Pakistan and offshore accounting/legal records separated while allowing authorized group-owner visibility."]
+      ]
+    },
+    {
+      id: "commodities", name: "Commodity Master", description: "Expandable commodity setup used by Soda, quality, KAT and Accounts mappings.",
+      fields: [
+        { label: "Commodity", required: true }, { label: "Code", required: true }, { label: "Base unit" },
+        { label: "Soda / contract enabled", type: "select", options: ["Yes", "No"] }, { label: "Quality / specification profile" },
+        { label: "KAT / deduction profile" }, { label: "Default accounting mapping" }, { label: "Notes", type: "textarea", full: true }
+      ],
+      rows: [
+        ["Rice", "RICE", "MT / KG", "Yes", "PSQCA PS:3342-2007 baseline + variety/contract profile", "Variety-specific purchase KAT", "Rice purchase / stock mappings", "PSQCA lists PS:3342-2007 Rice (1st Revision). Basmati products also use TDAP Basmati GI identity requirements where applicable. Product/contract defect limits remain profile-specific; export specs never create purchase KAT automatically."],
+        ["Corn", "CORN", "MT / KG", "Yes", "Corn-specific", "Corn-specific", "Corn purchase / stock mappings", "Use the same expandable Soda framework as rice."],
+        ["Sesame Seed", "SESAME", "MT / KG", "Yes", "To configure", "To configure", "To configure", "Future-ready commodity; may remain partly configured until activated."]
+      ]
+    },
+    {
+      id: "products", name: "Products & Quality", description: "Pre-filled Transtrade, Pakistan-origin trade and market-benchmark profiles. PSQCA PS:3342-2007 is stored as the general Pakistan rice baseline; numeric variety/grade limits remain source- and contract-specific. For Basmati, TDAP GI identity characteristics are retained in the source/basis notes. All fields remain editable.",
+      fields: [
+        { label: "Commodity", required: true }, { label: "Variety / product", required: true }, { label: "Processing / grade" }, { label: "Code", required: true },
+        { label: "Origin" }, { label: "Profile / use" }, { label: "Avg. grain length" }, { label: "Broken" }, { label: "Moisture" },
+        { label: "Damaged / Shriveled / Yellow" }, { label: "Chalky / Immature" }, { label: "Contrasting / Other varieties" },
+        { label: "Foreign grains" }, { label: "Foreign matter" }, { label: "Paddy" }, { label: "Red kernels / Red rice" },
+        { label: "Under-milled / Red-striped" }, { label: "Milling / polishing" },
+        { label: "Additional quality wording", type: "textarea", full: true }, { label: "Source / basis", type: "textarea", full: true }
+      ],
+      rows: [
+        ["Rice", "IRRI-6", "White Rice 5% Broken", "IR6-W5", "Pakistan", "Active Transtrade default", "6.0 mm", "5% max", "14% max", "2.5% max", "5% max", "4% max", "", "0.8% max", "0.5% max", "1% max", "2% max", "Well milled; double-polished; well sortexed", "Free from live insects, bad odour and rice fit for human consumption. New crop as stated in contract.", "Transtrade / TG 2026 specimen working specification. 6.0 mm grain-length reference cross-checked against current Pakistan market benchmark."],
+        ["Rice", "IRRI-6", "White Rice 25% Broken", "IR6-W25", "Pakistan", "Historical Transtrade reference", "6.0 mm basis", "25% max", "14% max", "6.5% max", "12% max", "", "", "1.2% max", "0.8% max", "", "4% max combined red and/or undermilled", "Reasonably well milled", "Free from live insects, bad odour and rice fit for human consumption. 2/3 size and above counted as full grain on 6 mm basis.", "Transtrade SILAC 2009 specimen. Kept as editable historical/reference profile, not a silent current default."],
+        ["Rice", "IRRI-6", "White Rice 5% Broken", "IR6-W5-SP", "Pakistan", "Reference market benchmark – inactive", "6.0 mm", "5% max", "14% max", "1.5% max", "2% max", "2% max", "0.5% max", "0.5% max", "1 per 100 grains max", "1% max", "1% max", "Well milled; min 40 Kett", "Free from live insects, bad odour and rice fit for human consumption.", "S&P Global Specifications Guide July 2026 — Pakistan Long Grain White Rice 5% Broken FOB assessment benchmark. Reference only; it does not replace Transtrade's active buyer/contract profile."],
+        ["Rice", "IRRI-6", "White Rice 25% Broken", "IR6-W25-SP", "Pakistan", "Reference market benchmark – inactive", "6.0 mm", "25% max", "14% max", "4% max", "10% max", "9% max", "2.5% max", "1.2% max", "5 per 100 grains max", "3% max", "3% max", "Reasonably well milled; min 35 Kett", "Free from live insects, bad odour and rice fit for human consumption.", "S&P Global Specifications Guide July 2026 — Pakistan Long Grain White Rice 25% Broken FOB assessment benchmark. Reference only."],
+        ["Rice", "IRRI-6", "100% Broken", "IR6-B100-SP", "Pakistan", "Reference market benchmark – inactive", "", "100% max", "14% max", "10% max", "20% max", "", "4% max", "2% max", "5 per 100 grains max", "6% max", "", "Well milled", "Free from live insects, bad odour and rice fit for human consumption.", "S&P Global Specifications Guide July 2026 — Pakistan Long Grain White Rice 100% Broken FOB assessment benchmark. Kept separate from Transtrade B2 Sortex by-product."],
+        ["Rice", "IRRI-6", "Parboiled Rice 5% Broken", "IR6-P5", "Pakistan", "Active product – commercial reference", "6.0 mm", "5% max", "14% max", "1.5% max", "4% max", "", "0.5% max", "0.5% max", "0.2% max", "", "1.5% max", "Double silky polished; colour sortexed", "Free from live insects, bad odour and rice fit for human consumption.", "Common Pakistan exporter commercial profile; review against buyer contract before use."],
+        ["Rice", "C-9", "White Rice 5% Broken", "C9-W5", "Pakistan", "Active Transtrade product – reference profile", "6.8 mm", "5% max", "13.5% max", "1.5% max", "4% max", "7% max", "0.5% max", "0.5% max", "15 pcs/kg max", "", "2% max", "Double silky polished; colour sortexed", "Free from live insects, bad odour and rice fit for human consumption.", "Pakistan exporter reference profile commonly sold as IRRI-9/C-9; TDAP identifies C-9 among Pakistan non-Basmati export varieties. Kept as C-9 in Transtrade because that is the business variety name."],
+        ["Rice", "C-9", "Parboiled / Sella 5% Broken", "C9-P5", "Pakistan", "Active product – reference profile", "6.8 mm", "5% max", "13.5% max", "1.5% max", "4% max", "7% max", "0.5% max", "0.5% max", "15 pcs/kg max", "", "2% max", "Silky polished; colour sortexed; parboiled", "Free from live insects, bad odour and rice fit for human consumption.", "Commercial reference based on Pakistan IRRI-9/C-9 parboiled export profiles; confirm processing-specific buyer limits."],
+        ["Rice", "PK-386", "White Rice", "PK386-W", "Pakistan", "Active Transtrade product – grade selectable", "6.8–6.85 mm", "2–5% max (grade dependent)", "13–14% max", "1.5% max", "3–4% max", "7% max", "0.5% max", "0.5% max", "0.2 per 100 grains max / profile dependent", "", "2% max", "Double / silky polished; colour sortexed", "Free from live insects, bad odour and rice fit for human consumption.", "Pakistan exporter references show 2% premium and 5% common export grades. Exact grade must be selected per contract."],
+        ["Rice", "PK-386", "Parboiled / Sella", "PK386-P", "Pakistan", "Active product – grade selectable", "6.8–6.85 mm", "2–5% max (grade dependent)", "13–14% max", "1.5% max", "3–4% max", "7% max", "0.5% max", "0.5% max", "0.2 per 100 grains max / profile dependent", "", "2% max", "Colour sortexed; parboiled / sella", "Free from live insects, bad odour and rice fit for human consumption.", "Commercial Pakistan PK-386 reference. Exact limits remain contract-specific and editable."],
+        ["Rice", "Super Kernel Basmati", "White Rice", "SKB-W", "Pakistan", "Active Transtrade product – common export profile", "7.0–7.2 mm", "2% max", "13% max", "1% max", "3% max", "7% max", "0.1% max", "0.1% max", "0.2% max", "", "2% max", "Double silky polished; colour sortexed", "Free from live insects, bad odour and rice fit for human consumption. Natural Basmati aroma.", "Common Pakistan exporter profile. Current S&P Pakistan benchmark uses a different assessment basket; contract selection remains authoritative."],
+        ["Rice", "Super Kernel Basmati", "Parboiled / Sella", "SKB-P", "Pakistan", "Reference Pakistan benchmark", "7.2 mm", "4% max", "14% max", "1% max", "1% max", "7% max", "0.05% max", "0.1% max", "0.1 per 100 grains max", "", "2% max", "Very well milled", "Free from live insects, bad odour and rice fit for human consumption.", "S&P Global Specifications Guide — Pakistan Super Kernel Parboiled market assessment benchmark, July 2026. Editable; buyer contract may use tighter 2% grade."],
+        ["Rice", "D-98 / PK-198", "White Rice", "D98-W", "Pakistan", "Active Transtrade product – common export profile", "6.8 mm", "2% max", "13% max", "1.5% max", "3% max", "7% max", "0.2% max", "0.1% max", "0.2% max", "", "2% max", "Double silky polished; colour sortexed", "Free from live insects, bad odour and rice fit for human consumption. Natural Basmati aroma.", "REAP lists Basmati D-98 / PK-198. Limits pre-filled from common Pakistan exporter D-98 profiles."],
+        ["Rice", "D-98 / PK-198", "Parboiled / Sella", "D98-P", "Pakistan", "Active product – reference profile", "6.8 mm", "2% max", "13% max", "1.5% max", "3% max", "7% max", "0.2% max", "0.1% max", "0.2% max", "", "2% max", "Colour sortexed; parboiled / sella", "Free from live insects, bad odour and rice fit for human consumption.", "Commercial D-98 reference profile; confirm buyer-specific parboiled limits."],
+        ["Rice", "1121 Basmati", "White Rice", "1121-W", "Pakistan", "Active Transtrade product – common export profile", "8.0–8.2 mm", "2% max", "13% max", "1.5% max", "3% max", "7% max", "0.2% max", "0.1% max", "0.2% max", "", "2% max", "Double silky polished; colour sortexed", "Free from live insects, bad odour and rice fit for human consumption. Natural Basmati aroma.", "Common Pakistan 1121 white export profile. TDAP Basmati GI Book lists PK 1121 Aromatic as a registered Pakistan Basmati variety; Punjab Agriculture lists 8.16 mm varietal kernel length. Commercial defect limits remain editable/contract-specific."],
+        ["Rice", "1121 Basmati", "Steam 2% Broken", "1121-S", "Pakistan", "Reference Pakistan benchmark", "8.0 mm", "2% max", "13% max", "0.5% max", "3% max", "7% max", "", "", "", "0.5% max", "0.5% max", "Very well milled; min 38 Kett", "Free from live insects, bad odour and rice fit for human consumption.", "S&P Global Specifications Guide — Pakistan 1121 Steam Basmati market assessment benchmark, July 2026; includes 2% max ungelatinized kernels. TDAP Basmati GI Book lists PK 1121 Aromatic as a registered Pakistan Basmati variety."],
+        ["Rice", "1121 Basmati", "Parboiled / Sella 2% Broken", "1121-P", "Pakistan", "Active product – Pakistan benchmark", "8.0 mm", "2% max", "13% max", "0.5% max", "4% max", "7% max", "0.05% max", "0.05% max", "0.05 per 100 grains max", "0.5% max", "1% max", "Very well milled; min 38 Kett", "Free from live insects, bad odour and rice fit for human consumption.", "S&P Global Specifications Guide — Pakistan 1121 Parboiled Basmati market assessment benchmark, July 2026. TDAP Basmati GI Book lists PK 1121 Aromatic as a registered Pakistan Basmati variety."],
+        ["Rice", "B2 Sortex Broken", "By-product", "B2-S", "Pakistan", "Active Transtrade by-product", "", "By-product / contract specific", "", "", "", "", "", "", "", "", "", "Sortexed as instructed", "Fit for intended sale/use and free from infestation or bad odour where sold as food grade.", "Transtrade operational by-product. Final buyer specification remains sale-specific."],
+        ["Rice", "Super Basmati", "White Rice", "SUPER-BAS-W", "Pakistan", "Reference only – inactive", "7.45 mm variety characteristic", "2% max", "13% max", "1–1.5% max", "3% max", "7% max", "0.2% max", "0.1–0.2% max", "0.2% max", "", "2% max", "Double / silky polished; colour sortexed", "Free from live insects, bad odour and rice fit for human consumption. Natural Basmati aroma.", "TDAP Basmati GI Book lists Super Basmati as a registered Pakistan Basmati variety; Punjab Agriculture lists 7.45 mm varietal kernel length. Defect limits shown here are common exporter references, not the GI identity limits."],
+        ["Rice", "Basmati 385 / PK-385", "White Rice", "PK385-W", "Pakistan", "Reference only – inactive", "6.73 mm variety characteristic", "2% max", "13% max", "1.5% max", "3% max", "7% max", "0.2% max", "0.1% max", "0.2% max", "", "2% max", "Colour sortexed", "Free from live insects, bad odour and rice fit for human consumption. Natural Basmati aroma.", "TDAP Basmati GI Book lists Basmati 385 as a registered Pakistan Basmati variety; Punjab Agriculture lists 6.73 mm varietal kernel length. Common exporter defect profile pre-filled for review."],
+        ["Rice", "IRRI-9", "White Rice 5% Broken", "IR9-W5", "Pakistan", "Reference only – inactive", "6.8 mm", "5% max", "13.5–14% max", "1.5% max", "4% max", "7% max", "0.5% max", "0.5% max", "15 pcs/kg max", "", "2% max", "Double / silky polished; colour sortexed", "Free from live insects, bad odour and rice fit for human consumption.", "REAP lists IRRI-9. Common Pakistan exporter IRRI-9 profile pre-filled."],
+        ["Rice", "Basmati 515", "White / processed", "BAS515", "Pakistan", "Reference only – inactive", "7.56 mm variety characteristic", "", "", "", "", "", "", "", "", "", "", "To configure by processing", "Free from live insects, bad odour and rice fit for human consumption. Natural Basmati aroma.", "TDAP Basmati GI Book lists Basmati 515 as a registered Pakistan Basmati variety; Punjab Agriculture lists 7.56 mm varietal kernel length. Export defect profile left blank pending an approved Transtrade/buyer standard."],
+        ["Rice", "KS-282", "White / processed", "KS282", "Pakistan", "Reference only – inactive", "", "", "", "", "", "", "", "", "", "", "", "To configure by processing", "Free from live insects, bad odour and rice fit for human consumption.", "REAP lists KS-282 as a Pakistan rice type. Grain length and export defect limits intentionally left blank rather than conflating KS-282 with similarly named KSK varieties."]
+      ]
+    },
+    {
+      id: "purchase_kat", name: "Purchase KAT Rules", description: "Internal purchase deductions are kept separate from export specifications. Confirmed IRRI-6 rules are pre-filled; other varieties are created as review-required drafts so no unconfirmed KAT applies silently.",
+      fields: [
+        { label: "Commodity", required: true }, { label: "Variety / product", required: true }, { label: "Quality parameter", required: true },
+        { label: "Free / default allowance" }, { label: "Deduction / KAT rule or slab", type: "textarea", full: true },
+        { label: "Unit" }, { label: "Effective / seasonal profile" }, { label: "Rule status", type: "select", options: ["Active", "Draft – review required", "Inactive"] },
+        { label: "Notes", type: "textarea", full: true }
+      ],
+      rows: [
+        ["Rice", "IRRI-6", "Broken", "20% free", "20–30: 1 paisa/%; 31–35: 3 paisa/%; 36–40: 8 paisa/%; 41–45: 15 paisa/%; 46–50: 20 paisa/%; 51–55: 25 paisa/%; 56–60: 40 paisa/%", "paisa per %", "Default profile", "Active", "Known Transtrade purchase KAT rule."],
+        ["Rice", "IRRI-6", "Chalky", "5% free / operational default", "Above free allowance: 10 paisa per excess percentage point.", "paisa per %", "Default profile", "Draft – review required", "5% is the current Arrival default. Earlier discussion included 4%; keep editable until Salman confirms final active free allowance."],
+        ["Rice", "IRRI-6", "Damage / Yellow", "2% free", "Above 2% up to 5%: 10 paisa per excess percentage point; above 5%: 25 paisa per excess percentage point.", "paisa per %", "Default profile", "Active", "Known Transtrade purchase KAT rule."],
+        ["Rice", "IRRI-6", "Moisture", "14% free", "14.1–14.5: 0.5% weight deduction; 14.6–15.0: 1% weight deduction; above 15.0 up to 16.0: 2% weight deduction.", "weight %", "Standard 14% profile", "Draft – review required", "Known discussed slab. Keep >16 handling manual/reject until explicitly approved."],
+        ["Rice", "IRRI-6", "Moisture", "15% free / seasonal alternative", "Seasonal alternate discussed: 15% free, with optional half-kg treatment up to 15.4 depending on season. Exact slab above this point must be selected/confirmed before activation.", "weight / seasonal profile", "Seasonal 15% profile", "Draft – review required", "Do not infer or auto-switch seasonal moisture profile."],
+        ["Rice", "IRRI-6", "Paddy", "80 grains operational default", "No final automatic KAT slab confirmed. Above-default handling remains manual until a rule is approved.", "No. of Grains", "Default profile", "Draft – review required", "Paddy is a plain grain count, not a percentage."],
+        ["Rice", "C-9", "Broken / Chalky / Damage / Moisture / Paddy", "Not confirmed", "No automatic deduction. Complete variety-specific rule before activation.", "Profile", "Variety profile", "Draft – review required", "Placeholder intentionally prevents IRRI-6 KAT from being silently reused."],
+        ["Rice", "PK-386", "Broken / Chalky / Damage / Moisture / Paddy", "Not confirmed", "No automatic deduction. Complete variety-specific rule before activation.", "Profile", "Variety profile", "Draft – review required", "Internal purchase KAT is not derived from export standard."],
+        ["Rice", "Super Kernel Basmati", "Broken / Chalky / Damage / Moisture / Paddy", "Not confirmed", "No automatic deduction. Complete variety-specific rule before activation.", "Profile", "Variety profile", "Draft – review required", "Internal purchase KAT is not derived from export standard."],
+        ["Rice", "D-98 / PK-198", "Broken / Chalky / Damage / Moisture / Paddy", "Not confirmed", "No automatic deduction. Complete variety-specific rule before activation.", "Profile", "Variety profile", "Draft – review required", "Internal purchase KAT is not derived from export standard."],
+        ["Rice", "1121 Basmati", "Broken / Chalky / Damage / Moisture / Paddy", "Not confirmed", "No automatic deduction. Complete variety-specific rule before activation.", "Profile", "Variety profile", "Draft – review required", "Internal purchase KAT is not derived from export standard."],
+        ["Rice", "Basmati 385 / PK-385", "Broken / Chalky / Damage / Moisture / Paddy", "Not confirmed", "No automatic deduction. Complete variety-specific rule before activation.", "Profile", "Reference variety", "Draft – review required", "Reference-only until Transtrade activates the variety."],
+        ["Rice", "IRRI-9", "Broken / Chalky / Damage / Moisture / Paddy", "Not confirmed", "No automatic deduction. Complete variety-specific rule before activation.", "Profile", "Reference variety", "Draft – review required", "Reference-only until Transtrade activates the variety."],
+        ["Rice", "Basmati 515", "Broken / Chalky / Damage / Moisture / Paddy", "Not confirmed", "No automatic deduction. Complete variety-specific rule before activation.", "Profile", "Reference variety", "Draft – review required", "Reference-only until Transtrade activates the variety."],
+        ["Rice", "KS-282", "Broken / Chalky / Damage / Moisture / Paddy", "Not confirmed", "No automatic deduction. Complete variety-specific rule before activation.", "Profile", "Reference variety", "Draft – review required", "Reference-only until Transtrade activates the variety."]
+      ]
+    },
+    { id: "parties", name: "Parties", description: "Buyers, suppliers, brokers and local parties stored once.", fields: [{label:"Party",required:true},{label:"Code / reference"},{label:"Type / notes"}], rows: [["Shams", "BRK-001", "Broker"], ["Sample Overseas Buyer", "BUY-001", "Export buyer"]] },
+    { id: "mills", name: "Mills & Locations", description: "Own mill, external mills and stock locations.", fields: [{label:"Mill / location",required:true},{label:"Code / reference"},{label:"Type / notes"}], rows: [["TTI Rice Mill", "TTI-MILL", "Own mill"], ["Karachi Office", "KHI-OFF", "Office"]] },
+    { id: "banks", name: "Banks & Accounts", description: "Company and personal bank accounts with ownership, document use and controlled module visibility.", fields: [
+      {label:"Account type",required:true,type:"select",options:["Company Account","Personal Account"]},
+      {label:"Linked company",type:"select",options:["","TTI — Transtrade International","BRM — Buksh Rice Mills","TG — Trans Grains Foodstuff Trading L.L.C","Other"]},
+      {label:"Personal account owner"},{label:"Exact account title",required:true},{label:"Bank name",required:true},{label:"Branch"},
+      {label:"Country"},{label:"Currency"},{label:"Account number"},{label:"IBAN"},{label:"SWIFT / BIC"},
+      {label:"Purpose / classification"},{label:"Module visibility and document use",type:"textarea",full:true},{label:"Status / notes",type:"textarea",full:true}
+    ], rows: [
+      ["Company Account","TTI — Transtrade International","","Transtrade International","Meezan Bank Limited","Jodia Bazar Branch, Karachi","Pakistan","PKR","","","","Pakistan operating account","Accounts / Directors; document use to be confirmed","Incomplete — enter account number/IBAN and confirm use"],
+      ["Company Account","BRM — Buksh Rice Mills","","Buksh Rice Mills","Meezan Bank Limited","Karachi","Pakistan","PKR","","","","Mill / operating account","Accounts / Directors; document use to be confirmed","Incomplete — enter branch/account number/IBAN"],
+      ["Company Account","TG — Trans Grains Foodstuff Trading L.L.C","","Trans Grains Foodstuff Trading L.L.C","Habib Bank AG Zurich","Baniyas Square, Dubai","United Arab Emirates","USD","","","","TG offshore trading account","Authorized TG / Exports / Accounts / Directors only","Incomplete — enter account number/IBAN/SWIFT and confirm use"]
+    ] }
   ];
 
   const DEFAULT_PERMISSIONS = {
@@ -78,6 +174,7 @@
       const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
       if (!saved || !saved.users || !saved.audit) return cloneDefault();
       const loaded = { ...cloneDefault(), ...saved };
+      loaded.masters = ensureMasterSections(loaded.masters);
       if ((loaded.stateVersion || 1) < STATE_VERSION) {
         loaded.users = loaded.users.filter(user => {
           const identity = `${user.name || ""} ${user.username || ""}`.toLowerCase();
@@ -140,7 +237,7 @@
   async function loadServerMasters() {
     if (!IS_SUPER_ADMIN) return;
     const data = await apiRequest(null, "masters");
-    state.masters = data.masters;
+    state.masters = ensureMasterSections(data.masters);
     renderMasters();
   }
 
@@ -305,48 +402,136 @@
     } catch (error) { toast(error.message); }
   }
 
+  function ensureMasterSections(masters = {}) {
+    const result = { ...(masters || {}) };
+    MASTER_TYPES.forEach(type => {
+      if (!Array.isArray(result[type.id])) {
+        result[type.id] = type.rows.map((row, index) => ({ id: `${type.id}-${index + 1}`, values: [...row] }));
+      }
+    });
+
+    const companyType = MASTER_TYPES.find(type => type.id === "companies");
+    const companyDefaults = new Map((companyType?.rows || []).map(row => [String(row[1]).toUpperCase(), row]));
+    const seenCompanies = new Set();
+    result.companies = (result.companies || []).map(row => {
+      const values = [...(row.values || [])];
+      const code = String(values[1] || "").toUpperCase();
+      if (code) seenCompanies.add(code);
+      if (companyDefaults.has(code) && (values.length <= 3 || (code === "BRM" && values[0] === "BRM"))) return { ...row, values: [...companyDefaults.get(code)] };
+      return row;
+    });
+    companyDefaults.forEach((values, code) => {
+      if (!seenCompanies.has(code)) result.companies.push({ id: `companies-${code.toLowerCase()}-default`, values: [...values] });
+    });
+
+    const productType = MASTER_TYPES.find(type => type.id === "products");
+    const productDefaults = new Map((productType?.rows || []).map(row => [String(row[3]).toUpperCase(), row]));
+    const legacyProductCodes = new Map([["IR6-W","IR6-W5"],["IR6-P","IR6-P5"],["C9-W","C9-W5"]]);
+    const seenProducts = new Set();
+    result.products = (result.products || []).map(row => {
+      const values = [...(row.values || [])];
+      const legacyCode = String(values[1] || "").toUpperCase();
+      const rawCode = values.length <= 3 ? legacyCode : String(values[3] || "").toUpperCase();
+      const code = legacyProductCodes.get(rawCode) || rawCode;
+      if (code) seenProducts.add(code);
+      if (productDefaults.has(code) && values.length < 20) return { ...row, values: [...productDefaults.get(code)] };
+      return row;
+    });
+    productDefaults.forEach((values, code) => {
+      if (!seenProducts.has(code)) result.products.push({ id: `products-${code.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-default`, values: [...values] });
+    });
+    return result;
+  }
+  function masterType() { return MASTER_TYPES.find(item => item.id === currentMaster); }
+  function masterInputId(index) { return `masterField${index}`; }
+  function masterFieldsHtml(type, values = []) {
+    return type.fields.map((field, index) => {
+      const value = String(values[index] ?? "");
+      const full = field.full ? " full-span" : "";
+      if (field.type === "checks") {
+        const selected = new Set(value.split(";").map(v => v.trim()).filter(Boolean));
+        return `<div class="check-field${full}"><span>${escapeHtml(field.label)}</span><div class="master-checks">${field.options.map(option => `<label><input type="checkbox" data-master-field-index="${index}" value="${escapeHtml(option)}" ${selected.has(option) ? "checked" : ""}>${escapeHtml(option)}</label>`).join("")}</div></div>`;
+      }
+      if (field.type === "select") {
+        return `<label class="${full.trim()}">${escapeHtml(field.label)}<select id="${masterInputId(index)}" data-master-field-index="${index}" ${field.required ? "required" : ""}>${field.options.map(option => `<option value="${escapeHtml(option)}" ${option === value ? "selected" : ""}>${escapeHtml(option || "Select")}</option>`).join("")}</select></label>`;
+      }
+      if (field.type === "textarea") {
+        return `<label class="${full.trim()}">${escapeHtml(field.label)}<textarea id="${masterInputId(index)}" data-master-field-index="${index}" rows="3" ${field.required ? "required" : ""}>${escapeHtml(value)}</textarea></label>`;
+      }
+      return `<label class="${full.trim()}">${escapeHtml(field.label)}<input id="${masterInputId(index)}" data-master-field-index="${index}" value="${escapeHtml(value)}" ${field.required ? "required" : ""} autocomplete="off"></label>`;
+    }).join("");
+  }
+  function masterValuesFromForm(type) {
+    return type.fields.map((field, index) => {
+      if (field.type === "checks") {
+        return [...document.querySelectorAll(`[data-master-field-index="${index}"]:checked`)].map(input => input.value).join("; ");
+      }
+      return document.getElementById(masterInputId(index))?.value.trim() || "";
+    });
+  }
+  function displayColumns(type) {
+    if (type.id === "companies") return [0, 1, 2, 3, 4, 5];
+    if (type.id === "commodities") return [0, 1, 2, 3, 4, 5];
+    if (type.id === "products") return [0, 1, 2, 3, 5, 6, 7, 8, 9, 10];
+    if (type.id === "purchase_kat") return [0, 1, 2, 3, 4, 5, 6, 7];
+    return type.fields.map((_, index) => index);
+  }
+  function masterRowStatus(type, row) {
+    if (type.id === "products") {
+      const profile = String(row.values?.[5] || "");
+      if (/inactive|reference/i.test(profile)) return profile;
+      return profile || "Active";
+    }
+    if (type.id === "purchase_kat") return String(row.values?.[7] || "Draft – review required");
+    return "Active";
+  }
+
   function renderMasters() {
+    state.masters = ensureMasterSections(state.masters);
     document.getElementById("masterMenu").innerHTML = MASTER_TYPES.map(type => `<button class="${type.id === currentMaster ? "active" : ""}" data-master="${type.id}">${type.name}<span>${state.masters[type.id]?.length || 0}</span></button>`).join("");
-    const type = MASTER_TYPES.find(item => item.id === currentMaster);
+    const type = masterType();
     document.getElementById("masterTitle").textContent = type.name;
     document.getElementById("masterDescription").textContent = type.description;
-    document.getElementById("masterTableHead").innerHTML = `<tr>${type.columns.map(col => `<th>${col}</th>`).join("")}<th>Status</th><th>Super Admin actions</th></tr>`;
+    document.getElementById("addMasterRecord").textContent = `+ Add ${type.id === "purchase_kat" ? "KAT Rule" : type.id === "companies" ? "Company" : type.id === "commodities" ? "Commodity" : type.id === "products" ? "Product" : "Record"}`;
+    const columns = displayColumns(type);
+    document.getElementById("masterTableHead").innerHTML = `<tr>${columns.map(index => `<th>${escapeHtml(type.fields[index].label)}</th>`).join("")}<th>Status</th><th>Super Admin actions</th></tr>`;
     const query = document.getElementById("masterSearch")?.value.toLowerCase() || "";
     const rows = (state.masters[currentMaster] || []).filter(row => row.values.join(" ").toLowerCase().includes(query));
-    document.getElementById("masterTableBody").innerHTML = rows.length ? rows.map(row => `<tr>${type.columns.map((_, i) => `<td>${escapeHtml(row.values[i] || "—")}</td>`).join("")}<td><span class="status">Active</span></td><td><div class="row-actions"><button class="row-action" data-edit-master="${escapeHtml(row.id)}">Edit</button><button class="row-action delete" data-delete-master="${escapeHtml(row.id)}">Delete</button></div></td></tr>`).join("") : `<tr><td colspan="${type.columns.length + 2}">No matching records.</td></tr>`;
+    document.getElementById("masterTableBody").innerHTML = rows.length ? rows.map(row => `<tr>${columns.map(index => `<td>${escapeHtml(row.values[index] || "—")}</td>`).join("")}<td><span class="tag">${escapeHtml(masterRowStatus(type, row))}</span></td><td><div class="row-actions"><button class="row-action" data-edit-master="${escapeHtml(row.id)}">Edit</button><button class="row-action delete" data-delete-master="${escapeHtml(row.id)}">Delete</button></div></td></tr>`).join("") : `<tr><td colspan="${columns.length + 2}">No matching records.</td></tr>`;
   }
   function openMasterDialog(id = "") {
-    const row=(state.masters[currentMaster] || []).find(item => item.id === id);
+    const type = masterType();
+    const row = (state.masters[currentMaster] || []).find(item => item.id === id);
     document.getElementById("masterForm").reset();
-    document.getElementById("editMasterId").value=row?.id || "";
-    document.getElementById("masterRecordName").value=row?.values?.[0] || "";
-    document.getElementById("masterRecordCode").value=row?.values?.[1] || "";
-    document.getElementById("masterRecordNotes").value=row?.values?.[2] || "";
-    document.getElementById("deleteMasterButton").hidden=!row;
-    document.getElementById("saveMasterButton").textContent=row ? "Save Changes" : "Save Record";
+    document.getElementById("editMasterId").value = row?.id || "";
+    document.getElementById("masterDialogTitle").textContent = `${row ? "Edit" : "Add"} ${type.name}`;
+    document.getElementById("masterDialogHelp").textContent = type.description + " Complete as much information as available; only the essential identity fields are mandatory.";
+    document.getElementById("masterFormFields").innerHTML = masterFieldsHtml(type, row?.values || []);
+    document.getElementById("deleteMasterButton").hidden = !row;
+    document.getElementById("saveMasterButton").textContent = row ? "Save Changes" : "Save Record";
     document.getElementById("masterDialog").showModal();
   }
   async function saveMasterRecord(event) {
     event.preventDefault();
     const form = document.getElementById("masterForm");
     if (!form.reportValidity()) return;
-    const type = MASTER_TYPES.find(item => item.id === currentMaster);
-    const id=document.getElementById("editMasterId").value;
-    const name = document.getElementById("masterRecordName").value.trim();
-    const code = document.getElementById("masterRecordCode").value.trim().toUpperCase();
-    const notes = document.getElementById("masterRecordNotes").value.trim() || "General";
+    const type = masterType();
+    const id = document.getElementById("editMasterId").value;
+    const values = masterValuesFromForm(type);
+    const primary = values[0] || type.name;
+    const ref = values[1] || currentMaster.toUpperCase();
     try {
-      const data=await apiRequest({action:id ? "update" : "create",type:currentMaster,id,name,code,notes},"masters");
-      state.masters=data.masters; addAudit("Master",id ? "Updated" : "Created",`${type.name}: ${name}`,code);
+      const data = await apiRequest({ action: id ? "update" : "create", type: currentMaster, id, values }, "masters");
+      state.masters = ensureMasterSections(data.masters); addAudit("Master", id ? "Updated" : "Created", `${type.name}: ${primary}`, ref);
       saveState(); renderMasters(); renderAudit(); renderRecentActivity(); document.getElementById("masterDialog").close(); form.reset(); toast(id ? "Master record updated." : "Master record saved.");
-    } catch(error) { toast(error.message); }
+    } catch (error) { toast(error.message); }
   }
   async function deleteMasterRecord(selectedId) {
-    const id=String(selectedId || document.getElementById("editMasterId").value);
-    const row=(state.masters[currentMaster] || []).find(item => item.id===id); if(!row) return;
-    if(!window.confirm(`Delete ${row.values[0]} from ${MASTER_TYPES.find(item=>item.id===currentMaster).name}?`)) return;
-    try { const data=await apiRequest({action:"delete",type:currentMaster,id},"masters"); state.masters=data.masters; saveState(); renderMasters(); document.getElementById("masterDialog").close(); toast("Master record deleted."); }
-    catch(error) { toast(error.message); }
+    const id = String(selectedId || document.getElementById("editMasterId").value);
+    const row = (state.masters[currentMaster] || []).find(item => item.id === id); if (!row) return;
+    if (!window.confirm(`Delete ${row.values[0]} from ${masterType().name}?`)) return;
+    try { const data = await apiRequest({ action: "delete", type: currentMaster, id }, "masters"); state.masters = ensureMasterSections(data.masters); saveState(); renderMasters(); document.getElementById("masterDialog").close(); toast("Master record deleted."); }
+    catch (error) { toast(error.message); }
   }
 
   function renderLocks() {

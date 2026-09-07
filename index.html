@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="Transtrade unified Super Admin control centre">
   <title>Transtrade Super Admin Console</title>
-  <link rel="stylesheet" href="admin/styles.css?v=20260907-1">
+  <link rel="stylesheet" href="admin/styles.css?v=20260907-3">
 </head>
 <body>
   <div class="app-shell">
@@ -38,9 +38,7 @@
       <div class="sidebar-user">
         <div class="avatar">SP</div>
         <div><strong>Salman</strong><span>Super Admin</span></div>
-        <button class="icon-button" aria-label="Account menu">⋮</button>
       </div>
-      <a class="logout-link" href="logout.php">Sign out</a>
     </aside>
 
     <main class="main-area">
@@ -53,8 +51,9 @@
         </div>
         <div class="top-actions">
           <div class="save-state" id="saveState"><span></span>All changes saved</div>
-          <button class="icon-button notification-button" id="notificationButton" aria-label="Open notifications">♢<b>3</b></button>
+          <button class="icon-button notification-button" id="notificationButton" aria-label="Open notifications" title="Updates and notifications">♢<b>3</b></button>
           <div class="profile-chip"><div class="avatar">SP</div><div><strong>Salman</strong><span>Super Admin</span></div></div>
+          <a class="logout-power" href="logout.php" aria-label="Log out" title="Log out">⏻</a>
         </div>
       </header>
 
@@ -131,6 +130,7 @@
             <article class="panel master-content">
               <div class="panel-heading"><div><h2 id="masterTitle">Companies</h2><p id="masterDescription"></p></div><div class="filter-input compact"><span>⌕</span><input id="masterSearch" type="search" placeholder="Search records"></div></div>
               <div class="table-wrap"><table><thead id="masterTableHead"></thead><tbody id="masterTableBody"></tbody></table></div>
+              <div class="master-scope-note">Bags / brands stay inside their operational workflows. Port / loading references stay in system reference settings rather than cluttering Master Records.</div>
             </article>
           </div>
         </section>
@@ -182,17 +182,16 @@
     <div class="credential-card"><div class="modal-head"><div><p class="eyebrow">PRIVATE STAFF LOGIN</p><h2>Temporary login created</h2></div></div><p>Copy these details now. The temporary password is shown only once and must be changed at first login.</p><label>Username<input id="credentialUsername" readonly></label><label>Temporary password<input id="credentialPassword" readonly></label><div class="modal-actions"><button class="button secondary" id="copyCredentials" type="button">Copy Login</button><button class="button primary" type="button" data-close-dialog="credentialDialog">Done</button></div></div>
   </dialog>
 
-  <dialog id="masterDialog" class="modal small-modal">
+  <dialog id="masterDialog" class="modal master-modal">
     <form method="dialog" id="masterForm">
-      <div class="modal-head"><div><p class="eyebrow">MASTER RECORD</p><h2>Add Record</h2></div><button class="icon-button" type="button" data-close-dialog="masterDialog" aria-label="Close">×</button></div>
-      <input type="hidden" id="editMasterId"><label>Record name<input id="masterRecordName" required autocomplete="off"></label>
-      <label>Code / reference<input id="masterRecordCode" required autocomplete="off"></label>
-      <label>Notes<textarea id="masterRecordNotes" rows="3"></textarea></label>
+      <div class="modal-head"><div><p class="eyebrow">MASTER RECORD</p><h2 id="masterDialogTitle">Add Record</h2><p id="masterDialogHelp" class="modal-help"></p></div><button class="icon-button" type="button" data-close-dialog="masterDialog" aria-label="Close">×</button></div>
+      <input type="hidden" id="editMasterId">
+      <div class="master-form-grid" id="masterFormFields"></div>
       <div class="modal-actions"><button class="button danger" id="deleteMasterButton" type="button" hidden>Delete Record</button><button class="button secondary" type="button" data-close-dialog="masterDialog">Cancel</button><button class="button primary" id="saveMasterButton" type="submit">Save Record</button></div>
     </form>
   </dialog>
 
   <div class="toast-region" id="toastRegion" aria-live="polite"></div>
-<script src="admin/app.js?v=20260907-2"></script>
+<script src="admin/app.js?v=20260907-3"></script>
 </body>
 </html>

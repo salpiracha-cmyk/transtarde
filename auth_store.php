@@ -9,14 +9,108 @@ const TT_STORE_FILE = TT_DATA_DIR . '/auth.json';
 
 function tt_default_masters(): array {
     return [
-        'companies'=>[['id'=>'companies-1','values'=>['Transtrade International','TTI','Pakistan operations']],['id'=>'companies-2','values'=>['BRM','BRM','Authorized documents']]],
+        'companies'=>[
+            ['id'=>'companies-1','values'=>['Transtrade International','TTI','Pakistan','Pakistan','Group Company; Pakistan Operating Entity; Exporter; Seller; Buyer; Accounting Entity','No','Primary Pakistan operating/export entity.']],
+            ['id'=>'companies-2','values'=>['Buksh Rice Mills','BRM','Pakistan','Pakistan','Group Company; Mill / Processor; Seller; Buyer; Accounting Entity','No','Mill/processing entity and authorized document identity.']],
+            ['id'=>'companies-3','values'=>['Trans Grains Foodstuff Trading L.L.C','TG','United Arab Emirates','Offshore','Group Company; Offshore Export Contracting; Intercompany; Accounting Entity','Yes','TG-linked group workflow. Keep Pakistan and offshore accounting/legal records separated while allowing authorized group-owner visibility.']],
+        ],
+        'commodities'=>[
+            ['id'=>'commodities-1','values'=>['Rice','RICE','MT / KG','Yes','PSQCA PS:3342-2007 baseline + variety/contract profile','Variety-specific purchase KAT','Rice purchase / stock mappings','PSQCA lists PS:3342-2007 Rice (1st Revision). Basmati products also use TDAP Basmati GI identity requirements where applicable. Product/contract defect limits remain profile-specific; export specs never create purchase KAT automatically.']],
+            ['id'=>'commodities-2','values'=>['Corn','CORN','MT / KG','Yes','Corn-specific','Corn-specific','Corn purchase / stock mappings','Uses the same expandable Soda framework as rice.']],
+            ['id'=>'commodities-3','values'=>['Sesame Seed','SESAME','MT / KG','Yes','To configure','To configure','To configure','Future-ready commodity; partial setup is allowed.']],
+        ],
+        'products'=>[
+            ['id'=>'products-1','values'=>['Rice','IRRI-6','White Rice 5% Broken','IR6-W5','Pakistan','Active Transtrade default','6.0 mm','5% max','14% max','2.5% max','5% max','4% max','','0.8% max','0.5% max','1% max','2% max','Well milled; double-polished; well sortexed','Free from live insects, bad odour and rice fit for human consumption. New crop as stated in contract.','Transtrade / TG 2026 specimen working specification. 6.0 mm grain-length reference cross-checked against current Pakistan market benchmark.']],
+            ['id'=>'products-2','values'=>['Rice','IRRI-6','White Rice 25% Broken','IR6-W25','Pakistan','Historical Transtrade reference','6.0 mm basis','25% max','14% max','6.5% max','12% max','','','1.2% max','0.8% max','','4% max combined red and/or undermilled','Reasonably well milled','Free from live insects, bad odour and rice fit for human consumption. 2/3 size and above counted as full grain on 6 mm basis.','Transtrade SILAC 2009 specimen. Kept as editable historical/reference profile, not a silent current default.']],
+            ['id'=>'products-sp-ir6-5','values'=>['Rice','IRRI-6','White Rice 5% Broken','IR6-W5-SP','Pakistan','Reference market benchmark – inactive','6.0 mm','5% max','14% max','1.5% max','2% max','2% max','0.5% max','0.5% max','1 per 100 grains max','1% max','1% max','Well milled; min 40 Kett','Free from live insects, bad odour and rice fit for human consumption.','S&P Global Specifications Guide July 2026 — Pakistan Long Grain White Rice 5% Broken FOB assessment benchmark. Reference only; it does not replace Transtrade active buyer/contract profile.']],
+            ['id'=>'products-sp-ir6-25','values'=>['Rice','IRRI-6','White Rice 25% Broken','IR6-W25-SP','Pakistan','Reference market benchmark – inactive','6.0 mm','25% max','14% max','4% max','10% max','9% max','2.5% max','1.2% max','5 per 100 grains max','3% max','3% max','Reasonably well milled; min 35 Kett','Free from live insects, bad odour and rice fit for human consumption.','S&P Global Specifications Guide July 2026 — Pakistan Long Grain White Rice 25% Broken FOB assessment benchmark. Reference only.']],
+            ['id'=>'products-sp-ir6-100','values'=>['Rice','IRRI-6','100% Broken','IR6-B100-SP','Pakistan','Reference market benchmark – inactive','','100% max','14% max','10% max','20% max','','4% max','2% max','5 per 100 grains max','6% max','','Well milled','Free from live insects, bad odour and rice fit for human consumption.','S&P Global Specifications Guide July 2026 — Pakistan Long Grain White Rice 100% Broken FOB assessment benchmark. Kept separate from Transtrade B2 Sortex by-product.']],
+            ['id'=>'products-3','values'=>['Rice','IRRI-6','Parboiled Rice 5% Broken','IR6-P5','Pakistan','Active product – commercial reference','6.0 mm','5% max','14% max','1.5% max','4% max','','0.5% max','0.5% max','0.2% max','','1.5% max','Double silky polished; colour sortexed','Free from live insects, bad odour and rice fit for human consumption.','Common Pakistan exporter commercial profile; review against buyer contract before use.']],
+            ['id'=>'products-4','values'=>['Rice','C-9','White Rice 5% Broken','C9-W5','Pakistan','Active Transtrade product – reference profile','6.8 mm','5% max','13.5% max','1.5% max','4% max','7% max','0.5% max','0.5% max','15 pcs/kg max','','2% max','Double silky polished; colour sortexed','Free from live insects, bad odour and rice fit for human consumption.','Pakistan exporter reference profile commonly sold as IRRI-9/C-9; TDAP identifies C-9 among Pakistan non-Basmati export varieties. Kept as C-9 in Transtrade because that is the business variety name.']],
+            ['id'=>'products-5','values'=>['Rice','C-9','Parboiled / Sella 5% Broken','C9-P5','Pakistan','Active product – reference profile','6.8 mm','5% max','13.5% max','1.5% max','4% max','7% max','0.5% max','0.5% max','15 pcs/kg max','','2% max','Silky polished; colour sortexed; parboiled','Free from live insects, bad odour and rice fit for human consumption.','Commercial reference based on Pakistan IRRI-9/C-9 parboiled export profiles; confirm processing-specific buyer limits.']],
+            ['id'=>'products-6','values'=>['Rice','PK-386','White Rice','PK386-W','Pakistan','Active Transtrade product – grade selectable','6.8–6.85 mm','2–5% max (grade dependent)','13–14% max','1.5% max','3–4% max','7% max','0.5% max','0.5% max','0.2 per 100 grains max / profile dependent','','2% max','Double / silky polished; colour sortexed','Free from live insects, bad odour and rice fit for human consumption.','Pakistan exporter references show 2% premium and 5% common export grades. Exact grade must be selected per contract.']],
+            ['id'=>'products-7','values'=>['Rice','PK-386','Parboiled / Sella','PK386-P','Pakistan','Active product – grade selectable','6.8–6.85 mm','2–5% max (grade dependent)','13–14% max','1.5% max','3–4% max','7% max','0.5% max','0.5% max','0.2 per 100 grains max / profile dependent','','2% max','Colour sortexed; parboiled / sella','Free from live insects, bad odour and rice fit for human consumption.','Commercial Pakistan PK-386 reference. Exact limits remain contract-specific and editable.']],
+            ['id'=>'products-8','values'=>['Rice','Super Kernel Basmati','White Rice','SKB-W','Pakistan','Active Transtrade product – common export profile','7.0–7.2 mm','2% max','13% max','1% max','3% max','7% max','0.1% max','0.1% max','0.2% max','','2% max','Double silky polished; colour sortexed','Free from live insects, bad odour and rice fit for human consumption. Natural Basmati aroma.','Common Pakistan exporter profile. Current S&P Pakistan benchmark uses a different assessment basket; contract selection remains authoritative.']],
+            ['id'=>'products-9','values'=>['Rice','Super Kernel Basmati','Parboiled / Sella','SKB-P','Pakistan','Reference Pakistan benchmark','7.2 mm','4% max','14% max','1% max','1% max','7% max','0.05% max','0.1% max','0.1 per 100 grains max','','2% max','Very well milled','Free from live insects, bad odour and rice fit for human consumption.','S&P Global Specifications Guide — Pakistan Super Kernel Parboiled market assessment benchmark, July 2026. Editable; buyer contract may use tighter 2% grade.']],
+            ['id'=>'products-10','values'=>['Rice','D-98 / PK-198','White Rice','D98-W','Pakistan','Active Transtrade product – common export profile','6.8 mm','2% max','13% max','1.5% max','3% max','7% max','0.2% max','0.1% max','0.2% max','','2% max','Double silky polished; colour sortexed','Free from live insects, bad odour and rice fit for human consumption. Natural Basmati aroma.','REAP lists Basmati D-98 / PK-198. Limits pre-filled from common Pakistan exporter D-98 profiles.']],
+            ['id'=>'products-11','values'=>['Rice','D-98 / PK-198','Parboiled / Sella','D98-P','Pakistan','Active product – reference profile','6.8 mm','2% max','13% max','1.5% max','3% max','7% max','0.2% max','0.1% max','0.2% max','','2% max','Colour sortexed; parboiled / sella','Free from live insects, bad odour and rice fit for human consumption.','Commercial D-98 reference profile; confirm buyer-specific parboiled limits.']],
+            ['id'=>'products-12','values'=>['Rice','1121 Basmati','White Rice','1121-W','Pakistan','Active Transtrade product – common export profile','8.0–8.2 mm','2% max','13% max','1.5% max','3% max','7% max','0.2% max','0.1% max','0.2% max','','2% max','Double silky polished; colour sortexed','Free from live insects, bad odour and rice fit for human consumption. Natural Basmati aroma.','Common Pakistan 1121 white export profile. TDAP Basmati GI Book lists PK 1121 Aromatic as a registered Pakistan Basmati variety; Punjab Agriculture lists 8.16 mm varietal kernel length. Commercial defect limits remain editable/contract-specific.']],
+            ['id'=>'products-13','values'=>['Rice','1121 Basmati','Steam 2% Broken','1121-S','Pakistan','Reference Pakistan benchmark','8.0 mm','2% max','13% max','0.5% max','3% max','7% max','','','','0.5% max','0.5% max','Very well milled; min 38 Kett','Free from live insects, bad odour and rice fit for human consumption.','S&P Global Specifications Guide — Pakistan 1121 Steam Basmati market assessment benchmark, July 2026; includes 2% max ungelatinized kernels. TDAP Basmati GI Book lists PK 1121 Aromatic as a registered Pakistan Basmati variety.']],
+            ['id'=>'products-14','values'=>['Rice','1121 Basmati','Parboiled / Sella 2% Broken','1121-P','Pakistan','Active product – Pakistan benchmark','8.0 mm','2% max','13% max','0.5% max','4% max','7% max','0.05% max','0.05% max','0.05 per 100 grains max','0.5% max','1% max','Very well milled; min 38 Kett','Free from live insects, bad odour and rice fit for human consumption.','S&P Global Specifications Guide — Pakistan 1121 Parboiled Basmati market assessment benchmark, July 2026. TDAP Basmati GI Book lists PK 1121 Aromatic as a registered Pakistan Basmati variety.']],
+            ['id'=>'products-15','values'=>['Rice','B2 Sortex Broken','By-product','B2-S','Pakistan','Active Transtrade by-product','','By-product / contract specific','','','','','','','','','','Sortexed as instructed','Fit for intended sale/use and free from infestation or bad odour where sold as food grade.','Transtrade operational by-product. Final buyer specification remains sale-specific.']],
+            ['id'=>'products-16','values'=>['Rice','Super Basmati','White Rice','SUPER-BAS-W','Pakistan','Reference only – inactive','7.45 mm variety characteristic','2% max','13% max','1–1.5% max','3% max','7% max','0.2% max','0.1–0.2% max','0.2% max','','2% max','Double / silky polished; colour sortexed','Free from live insects, bad odour and rice fit for human consumption. Natural Basmati aroma.','TDAP Basmati GI Book lists Super Basmati as a registered Pakistan Basmati variety; Punjab Agriculture lists 7.45 mm varietal kernel length. Defect limits shown here are common exporter references, not the GI identity limits.']],
+            ['id'=>'products-17','values'=>['Rice','Basmati 385 / PK-385','White Rice','PK385-W','Pakistan','Reference only – inactive','6.73 mm variety characteristic','2% max','13% max','1.5% max','3% max','7% max','0.2% max','0.1% max','0.2% max','','2% max','Colour sortexed','Free from live insects, bad odour and rice fit for human consumption. Natural Basmati aroma.','TDAP Basmati GI Book lists Basmati 385 as a registered Pakistan Basmati variety; Punjab Agriculture lists 6.73 mm varietal kernel length. Common exporter defect profile pre-filled for review.']],
+            ['id'=>'products-18','values'=>['Rice','IRRI-9','White Rice 5% Broken','IR9-W5','Pakistan','Reference only – inactive','6.8 mm','5% max','13.5–14% max','1.5% max','4% max','7% max','0.5% max','0.5% max','15 pcs/kg max','','2% max','Double / silky polished; colour sortexed','Free from live insects, bad odour and rice fit for human consumption.','REAP lists IRRI-9. Common Pakistan exporter IRRI-9 profile pre-filled.']],
+            ['id'=>'products-20','values'=>['Rice','Basmati 515','White / processed','BAS515','Pakistan','Reference only – inactive','7.56 mm variety characteristic','','','','','','','','','','','To configure by processing','Free from live insects, bad odour and rice fit for human consumption. Natural Basmati aroma.','TDAP Basmati GI Book lists Basmati 515 as a registered Pakistan Basmati variety; Punjab Agriculture lists 7.56 mm varietal kernel length. Export defect profile left blank pending an approved Transtrade/buyer standard.']],
+            ['id'=>'products-21','values'=>['Rice','KS-282','White / processed','KS282','Pakistan','Reference only – inactive','','','','','','','','','','','','To configure by processing','Free from live insects, bad odour and rice fit for human consumption.','REAP lists KS-282 as a Pakistan rice type. Grain length and export defect limits intentionally left blank rather than conflating KS-282 with similarly named KSK varieties.']],
+        ],
+        'purchase_kat'=>[
+            ['id'=>'purchase_kat-1','values'=>['Rice','IRRI-6','Broken','20% free','20–30: 1 paisa/%; 31–35: 3 paisa/%; 36–40: 8 paisa/%; 41–45: 15 paisa/%; 46–50: 20 paisa/%; 51–55: 25 paisa/%; 56–60: 40 paisa/%','paisa per %','Default profile','Active','Known Transtrade purchase KAT rule.']],
+            ['id'=>'purchase_kat-2','values'=>['Rice','IRRI-6','Chalky','5% free / operational default','Above free allowance: 10 paisa per excess percentage point.','paisa per %','Default profile','Draft – review required','5% is the current Arrival default. Earlier discussion included 4%; keep editable until Salman confirms final active free allowance.']],
+            ['id'=>'purchase_kat-3','values'=>['Rice','IRRI-6','Damage / Yellow','2% free','Above 2% up to 5%: 10 paisa per excess percentage point; above 5%: 25 paisa per excess percentage point.','paisa per %','Default profile','Active','Known Transtrade purchase KAT rule.']],
+            ['id'=>'purchase_kat-4','values'=>['Rice','IRRI-6','Moisture','14% free','14.1–14.5: 0.5% weight deduction; 14.6–15.0: 1% weight deduction; above 15.0 up to 16.0: 2% weight deduction.','weight %','Standard 14% profile','Draft – review required','Known discussed slab. Keep >16 handling manual/reject until explicitly approved.']],
+            ['id'=>'purchase_kat-5','values'=>['Rice','IRRI-6','Moisture','15% free / seasonal alternative','Seasonal alternate discussed: 15% free, with optional half-kg treatment up to 15.4 depending on season. Exact slab above this point must be selected/confirmed before activation.','weight / seasonal profile','Seasonal 15% profile','Draft – review required','Do not infer or auto-switch seasonal moisture profile.']],
+            ['id'=>'purchase_kat-6','values'=>['Rice','IRRI-6','Paddy','80 grains operational default','No final automatic KAT slab confirmed. Above-default handling remains manual until a rule is approved.','No. of Grains','Default profile','Draft – review required','Paddy is a plain grain count, not a percentage.']],
+            ['id'=>'purchase_kat-7','values'=>['Rice','C-9','Broken / Chalky / Damage / Moisture / Paddy','Not confirmed','No automatic deduction. Complete variety-specific rule before activation.','Profile','Variety profile','Draft – review required','Placeholder intentionally prevents IRRI-6 KAT from being silently reused.']],
+            ['id'=>'purchase_kat-8','values'=>['Rice','PK-386','Broken / Chalky / Damage / Moisture / Paddy','Not confirmed','No automatic deduction. Complete variety-specific rule before activation.','Profile','Variety profile','Draft – review required','Internal purchase KAT is not derived from export standard.']],
+            ['id'=>'purchase_kat-9','values'=>['Rice','Super Kernel Basmati','Broken / Chalky / Damage / Moisture / Paddy','Not confirmed','No automatic deduction. Complete variety-specific rule before activation.','Profile','Variety profile','Draft – review required','Internal purchase KAT is not derived from export standard.']],
+            ['id'=>'purchase_kat-10','values'=>['Rice','D-98 / PK-198','Broken / Chalky / Damage / Moisture / Paddy','Not confirmed','No automatic deduction. Complete variety-specific rule before activation.','Profile','Variety profile','Draft – review required','Internal purchase KAT is not derived from export standard.']],
+            ['id'=>'purchase_kat-11','values'=>['Rice','1121 Basmati','Broken / Chalky / Damage / Moisture / Paddy','Not confirmed','No automatic deduction. Complete variety-specific rule before activation.','Profile','Variety profile','Draft – review required','Internal purchase KAT is not derived from export standard.']],
+            ['id'=>'purchase_kat-12','values'=>['Rice','Basmati 385 / PK-385','Broken / Chalky / Damage / Moisture / Paddy','Not confirmed','No automatic deduction. Complete variety-specific rule before activation.','Profile','Reference variety','Draft – review required','Reference-only until Transtrade activates the variety.']],
+            ['id'=>'purchase_kat-13','values'=>['Rice','IRRI-9','Broken / Chalky / Damage / Moisture / Paddy','Not confirmed','No automatic deduction. Complete variety-specific rule before activation.','Profile','Reference variety','Draft – review required','Reference-only until Transtrade activates the variety.']],
+            ['id'=>'purchase_kat-15','values'=>['Rice','Basmati 515','Broken / Chalky / Damage / Moisture / Paddy','Not confirmed','No automatic deduction. Complete variety-specific rule before activation.','Profile','Reference variety','Draft – review required','Reference-only until Transtrade activates the variety.']],
+            ['id'=>'purchase_kat-16','values'=>['Rice','KS-282','Broken / Chalky / Damage / Moisture / Paddy','Not confirmed','No automatic deduction. Complete variety-specific rule before activation.','Profile','Reference variety','Draft – review required','Reference-only until Transtrade activates the variety.']],
+        ],
         'parties'=>[['id'=>'parties-1','values'=>['Shams','BRK-001','Broker']],['id'=>'parties-2','values'=>['Sample Overseas Buyer','BUY-001','Export buyer']]],
-        'products'=>[['id'=>'products-1','values'=>['IRRI-6 White Rice','IR6-W','Ready rice']],['id'=>'products-2','values'=>['IRRI-6 Parboiled Rice','IR6-P','Ready rice']],['id'=>'products-3','values'=>['B2 Sortex Broken','B2-S','By-product']]],
         'mills'=>[['id'=>'mills-1','values'=>['TTI Rice Mill','TTI-MILL','Own mill']],['id'=>'mills-2','values'=>['Karachi Office','KHI-OFF','Office']]],
-        'banks'=>[['id'=>'banks-1','values'=>['Sample Operating Bank ••••• 12345','BANK-01','Accounts / Directors']],['id'=>'banks-2','values'=>['Sample Collection Bank ••••• 48291','BANK-02','Accounts only']]],
-        'bags'=>[['id'=>'bags-1','values'=>['Generic 25 KG Export Bag','BAG-25','New export bag']],['id'=>'bags-2','values'=>['Arrival Used Bags','USED-ARR','Used bag source']],['id'=>'bags-3','values'=>['Outside Used Bags','USED-EXT','Separate used bag source']]],
-        'ports'=>[['id'=>'ports-1','values'=>['Port Qasim','PKBQM','Port']],['id'=>'ports-2','values'=>['Karachi Port','PKKHI','Port']]],
+        'banks'=>[
+            ['id'=>'banks-tti','values'=>['Company Account','TTI — Transtrade International','','Transtrade International','Meezan Bank Limited','Jodia Bazar Branch, Karachi','Pakistan','PKR','','','','Pakistan operating account','Accounts / Directors; document use to be confirmed','Incomplete — enter account number/IBAN and confirm use']],
+            ['id'=>'banks-brm','values'=>['Company Account','BRM — Buksh Rice Mills','','Buksh Rice Mills','Meezan Bank Limited','Karachi','Pakistan','PKR','','','','Mill / operating account','Accounts / Directors; document use to be confirmed','Incomplete — enter branch/account number/IBAN']],
+            ['id'=>'banks-tg','values'=>['Company Account','TG — Trans Grains Foodstuff Trading L.L.C','','Trans Grains Foodstuff Trading L.L.C','Habib Bank AG Zurich','Baniyas Square, Dubai','United Arab Emirates','USD','','','','TG offshore trading account','Authorized TG / Exports / Accounts / Directors only','Incomplete — enter account number/IBAN/SWIFT and confirm use']],
+        ],
     ];
+}
+
+function tt_normalize_masters(array $masters): array {
+    $defaults=tt_default_masters();
+    foreach ($defaults as $type=>$rows) if (!isset($masters[$type]) || !is_array($masters[$type])) $masters[$type]=$rows;
+
+    $companyDefaults=[];
+    foreach ($defaults['companies'] as $row) $companyDefaults[strtoupper((string)$row['values'][1])]=$row;
+    $seen=[];
+    foreach ($masters['companies'] as &$row) {
+        $code=strtoupper(trim((string)($row['values'][1] ?? ''))); if ($code==='') continue; $seen[$code]=true;
+        if (isset($companyDefaults[$code]) && count((array)($row['values'] ?? []))<=3) $row['values']=$companyDefaults[$code]['values'];
+        if ($code==='BRM' && (($row['values'][0] ?? '')==='BRM')) $row['values']=$companyDefaults['BRM']['values'];
+    }
+    unset($row);
+    foreach ($companyDefaults as $code=>$row) if (empty($seen[$code])) $masters['companies'][]=$row;
+
+    $productDefaults=[];
+    foreach ($defaults['products'] as $row) $productDefaults[strtoupper((string)$row['values'][3])]=$row;
+    $legacyProductCodes=['IR6-W'=>'IR6-W5','IR6-P'=>'IR6-P5','C9-W'=>'C9-W5'];
+    $seenProducts=[];
+    foreach ($masters['products'] as &$row) {
+        $values=(array)($row['values'] ?? []);
+        $legacyCode=strtoupper(trim((string)($values[1] ?? '')));
+        $rawCode=count($values)<=3 ? $legacyCode : strtoupper(trim((string)($values[3] ?? '')));
+        $code=$legacyProductCodes[$rawCode] ?? $rawCode;
+        if ($code!=='') $seenProducts[$code]=true;
+        if ($code!=='' && count($values)<20 && isset($productDefaults[$code])) $row['values']=$productDefaults[$code]['values'];
+    }
+    unset($row);
+    foreach ($productDefaults as $code=>$row) if (empty($seenProducts[$code])) $masters['products'][]=$row;
+    foreach ($masters['banks'] as &$row) {
+        $values=(array)($row['values'] ?? []);
+        if (count($values)<=3) $row['values']=['Company Account','','',$values[0] ?? '','','','','','', '', '', '',$values[2] ?? '','Incomplete legacy bank record · reference '.($values[1] ?? '')];
+    }
+    unset($row);
+    return $masters;
+}
+
+function tt_visible_masters(array $masters): array {
+    $visible=['companies','commodities','products','purchase_kat','parties','mills','banks'];
+    return array_intersect_key(tt_normalize_masters($masters),array_flip($visible));
 }
 
 ini_set('session.use_strict_mode', '1');
@@ -38,7 +132,10 @@ function tt_read_store(): array {
     if (!is_file(TT_STORE_FILE)) return ['users' => [], 'audit' => [], 'masters'=>tt_default_masters()];
     $raw = file_get_contents(TT_STORE_FILE);
     $data = $raw === false || $raw === '' ? null : json_decode($raw, true);
-    return is_array($data) ? array_merge(['users' => [], 'audit' => [], 'masters'=>tt_default_masters()], $data) : ['users' => [], 'audit' => [], 'masters'=>tt_default_masters()];
+    if (!is_array($data)) return ['users' => [], 'audit' => [], 'masters'=>tt_default_masters()];
+    $data=array_merge(['users' => [], 'audit' => [], 'masters'=>tt_default_masters()], $data);
+    $data['masters']=tt_normalize_masters(is_array($data['masters'] ?? null) ? $data['masters'] : []);
+    return $data;
 }
 
 function tt_mutate_store(callable $callback): mixed {
@@ -51,6 +148,7 @@ function tt_mutate_store(callable $callback): mixed {
         $data = $raw ? json_decode($raw, true) : null;
         if (!is_array($data)) $data = ['users' => [], 'audit' => [], 'masters'=>tt_default_masters()];
         $data = array_merge(['users' => [], 'audit' => [], 'masters'=>tt_default_masters()], $data);
+        $data['masters']=tt_normalize_masters(is_array($data['masters'] ?? null) ? $data['masters'] : []);
         $result = $callback($data);
         rewind($handle);
         if (!ftruncate($handle, 0)) throw new RuntimeException('Secure storage could not be updated.');
@@ -223,10 +321,11 @@ function tt_user_landing_url(array $user): string {
     return 'staff-home.php';
 }
 
-function tt_list_masters(): array { return tt_read_store()['masters']; }
+function tt_list_masters(): array { return tt_visible_masters(tt_read_store()['masters']); }
 
 function tt_create_master(string $type, array $values): string {
     return tt_mutate_store(function (&$data) use ($type,$values): string {
+        if (!isset($data['masters'][$type]) || !is_array($data['masters'][$type])) $data['masters'][$type]=[];
         $id=$type.'-'.random_int(100000,999999999);
         $data['masters'][$type][]= ['id'=>$id,'values'=>$values];
         return $id;

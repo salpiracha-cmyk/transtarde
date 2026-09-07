@@ -10,16 +10,43 @@ try {
     if ($_SERVER['REQUEST_METHOD']!=='POST') master_respond(['ok'=>false,'error'=>'Method not allowed.'],405);
     $body=json_decode(file_get_contents('php://input') ?: '{}',true);
     if (!is_array($body) || !tt_verify_csrf((string)($body['csrf'] ?? ''))) master_respond(['ok'=>false,'error'=>'Your session expired. Refresh and try again.'],419);
-    $types=['companies','parties','products','mills','banks','bags','ports'];
-    $type=(string)($body['type'] ?? ''); if (!in_array($type,$types,true)) throw new InvalidArgumentException('Select a valid master section.');
+
+    $schemas=[
+        'companies'=>7,'commodities'=>8,'products'=>20,'purchase_kat'=>9,
+        'parties'=>3,'mills'=>3,'banks'=>14,
+    ];
+    $type=(string)($body['type'] ?? '');
+    if (!isset($schemas[$type])) throw new InvalidArgumentException('Select a valid master section.');
     $action=(string)($body['action'] ?? ''); $id=trim((string)($body['id'] ?? ''));
-    if ($action==='delete') { if ($id==='') throw new InvalidArgumentException('Select a master record.'); tt_delete_master($type,$id); tt_audit((int)$admin['id'],$admin['username'],'Deleted '.$type.' master '.$id); master_respond(['ok'=>true,'masters'=>tt_list_masters()]); }
-    $name=trim((string)($body['name'] ?? '')); $code=strtoupper(trim((string)($body['code'] ?? ''))); $notes=trim((string)($body['notes'] ?? 'General')) ?: 'General';
-    if ($name==='' || strlen($name)>150) throw new InvalidArgumentException('Enter a valid record name.');
-    if ($code==='' || strlen($code)>50) throw new InvalidArgumentException('Enter a valid code or reference.');
-    $values=[$name,$code,$notes];
-    if ($action==='create') { $id=tt_create_master($type,$values); tt_audit((int)$admin['id'],$admin['username'],'Created '.$type.' master '.$code); master_respond(['ok'=>true,'masters'=>tt_list_masters()]); }
-    if ($action==='update') { if ($id==='') throw new InvalidArgumentException('Select a master record.'); tt_update_master($type,$id,$values); tt_audit((int)$admin['id'],$admin['username'],'Updated '.$type.' master '.$code); master_respond(['ok'=>true,'masters'=>tt_list_masters()]); }
+    if ($action==='delete') {
+        if ($id==='') throw new InvalidArgumentException('Select a master record.');
+        tt_delete_master($type,$id); tt_audit((int)$admin['id'],$admin['username'],'Deleted '.$type.' master '.$id);
+        master_respond(['ok'=>true,'masters'=>tt_list_masters()]);
+    }
+
+    $raw=$body['values'] ?? null;
+    if (!is_array($raw)) throw new InvalidArgumentException('Enter the master record details.');
+    $values=[];
+    foreach (array_slice($raw,0,$schemas[$type]) as $value) {
+        if (is_array($value) || is_object($value)) throw new InvalidArgumentException('Master fields must contain text values.');
+        $value=trim((string)$value);
+        if (strlen($value)>1200) throw new InvalidArgumentException('One of the master fields is too long.');
+        $values[]=$value;
+    }
+    while (count($values)<$schemas[$type]) $values[]='';
+    if (($values[0] ?? '')==='') throw new InvalidArgumentException('Enter the main record name / commodity / product.');
+    if (in_array($type,['companies','commodities'],true) && ($values[1] ?? '')==='') throw new InvalidArgumentException('Enter the short code.');
+
+    $reference=strtoupper(trim((string)($values[1] ?? ''))) ?: strtoupper($type);
+    if ($action==='create') {
+        $id=tt_create_master($type,$values); tt_audit((int)$admin['id'],$admin['username'],'Created '.$type.' master '.$reference);
+        master_respond(['ok'=>true,'masters'=>tt_list_masters()]);
+    }
+    if ($action==='update') {
+        if ($id==='') throw new InvalidArgumentException('Select a master record.');
+        tt_update_master($type,$id,$values); tt_audit((int)$admin['id'],$admin['username'],'Updated '.$type.' master '.$reference);
+        master_respond(['ok'=>true,'masters'=>tt_list_masters()]);
+    }
     master_respond(['ok'=>false,'error'=>'Unknown action.'],400);
 } catch (InvalidArgumentException $e) { master_respond(['ok'=>false,'error'=>$e->getMessage()],422); }
 catch (Throwable $e) { master_respond(['ok'=>false,'error'=>'The master-record action could not be completed.'],500); }

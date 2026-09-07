@@ -82,7 +82,7 @@ $sharedBootstrap = <<<'HTML'
   }
   function bridge(){try{exportsToMill();millToExports()}catch(e){console.error('Transtrade inter-module bridge',e)}}
   function notifyRemote(){
-    let b=document.getElementById('ttSyncNotice');if(!b){b=document.createElement('button');b.id='ttSyncNotice';b.type='button';b.style.cssText='position:fixed;right:12px;bottom:54px;z-index:100000;border:0;border-radius:10px;padding:10px 13px;background:#16825d;color:#fff;font:700 12px Arial;box-shadow:0 5px 18px #0004';b.onclick=()=>location.reload();document.body.appendChild(b)}b.textContent='Updated'+(lastRemoteBy?' by '+lastRemoteBy:'')+' — refresh';
+    let b=document.getElementById('ttSyncNotice');if(!b){b=document.createElement('button');b.id='ttSyncNotice';b.type='button';b.style.cssText='position:fixed;right:12px;top:56px;z-index:100000;border:0;border-radius:10px;padding:10px 13px;background:#16825d;color:#fff;font:700 12px Arial;box-shadow:0 5px 18px #0004';b.onclick=()=>location.reload();document.body.appendChild(b)}b.textContent='Updated'+(lastRemoteBy?' by '+lastRemoteBy:'')+' — refresh';
     const el=document.activeElement,editing=el&&/INPUT|TEXTAREA|SELECT/.test(el.tagName);if(!editing)setTimeout(()=>location.reload(),1200);
   }
   function showSyncError(msg){let b=document.getElementById('saveBadge');if(b){b.textContent='Shared save retry needed';b.style.background='#8d2b2b'}console.error(msg)}
@@ -94,8 +94,8 @@ $sharedBootstrap = <<<'HTML'
 HTML;
 
 $guard = <<<'HTML'
-<style>#ttUserBar{position:fixed;right:12px;bottom:12px;z-index:99999;background:#102a46;color:#fff;padding:8px 11px;border-radius:10px;box-shadow:0 5px 18px #0004;font:12px Arial}#ttUserBar a{color:#fff;font-weight:800;margin-left:10px}.tt-no-access{display:none!important}</style>
-<div id="ttUserBar"><span id="ttUserName"></span><a href="logout.php">Sign out</a></div>
+<style>#ttUserBar{position:fixed;right:12px;top:12px;z-index:99999;display:flex;align-items:center;gap:9px;background:#102a46;color:#fff;padding:6px 7px 6px 11px;border-radius:10px;box-shadow:0 5px 18px #0004;font:12px Arial}#ttUserBar .ttPower{width:31px;height:31px;display:grid;place-items:center;border-radius:8px;background:#fff;color:#b42318;text-decoration:none;font-size:18px;font-weight:900;line-height:1}#ttUserBar .ttPower:hover{background:#fff0ee}.tt-no-access{display:none!important}</style>
+<div id="ttUserBar"><span id="ttUserName"></span><a class="ttPower" href="logout.php" title="Log out" aria-label="Log out">⏻</a></div>
 <script>
 (()=>{const c=window.TT_MODULE_ACCESS||{},p=c.permissions||{},superUser=!!c.super;document.getElementById('ttUserName').textContent=c.user+' · '+c.role;if(superUser)return;
 const norm=s=>String(s||'').toLowerCase().replace(/&/g,'and').replace(/[^a-z0-9]+/g,' ').trim();
