@@ -23,5 +23,5 @@ $access = [
 ];
 $bootstrap = '<script>window.TT_ACCOUNT_ACCESS=' . json_encode($access, JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT) . ';</script>';
 $html = preg_replace('/<head(\s[^>]*)?>/i', '$0' . $bootstrap, $html, 1) ?? $html;
-$html = preg_replace('/<\/body>/i', '<script src="accounts-live.js?v=20260907-3"></script><script src="accounts-enhancements.js?v=20260907-1"></script></body>', $html, 1) ?? $html;
+$html = preg_replace('/<\/body>/i', '<script src="accounts-live.js?v=20260907-3"></script><script src="accounts-enhancements.js?v=20260907-1"></script><script src="bill-smart-ui.js?v=20260908-1"></script></body>', $html, 1) ?? $html;
 echo $html;
