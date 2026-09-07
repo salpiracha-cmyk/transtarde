@@ -1,0 +1,39 @@
+{
+  "version": 1,
+  "framework": "UK GAAP / FRS 102 design baseline",
+  "principle": "Revenue is recognized when the approved contract-control policy says control transfers. Incoterms, shipment completion, invoice creation, customs documents and document dispatch are evidence inputs; none is treated as a universal accounting trigger by itself.",
+  "entities": {
+    "TTI": {"functionalCurrency":"PKR","rateRequiredForForeignCurrency":true},
+    "BRM": {"functionalCurrency":"PKR","rateRequiredForForeignCurrency":true},
+    "TG": {"functionalCurrency":null,"status":"TO_CONFIRM","rateRequiredForForeignCurrency":true}
+  },
+  "incotermEvidence": {
+    "FOB": {"expectedEvidence":"Final B/L shipped-on-board date","automaticRecognition":false},
+    "CFR": {"expectedEvidence":"Final B/L shipped-on-board date plus contract-control review","automaticRecognition":false},
+    "CIF": {"expectedEvidence":"Final B/L shipped-on-board date plus contract-control review","automaticRecognition":false},
+    "OTHER": {"expectedEvidence":"Contract-specific control-transfer evidence","automaticRecognition":false}
+  },
+  "candidateRules": {
+    "CUSTOMER_EXPORT_SALE": {
+      "debit":"1210 Export Receivables",
+      "credit":"4100 Export Sales",
+      "requiresControlConfirmation":true,
+      "requiresFunctionalCurrencyAmount":true,
+      "costOfSales":"Must be paired/reconciled to finished-goods inventory cost before period close."
+    },
+    "TG_PAKISTAN_INTERCOMPANY": {
+      "debit":"1240 Intercompany Receivables",
+      "credit":"4500 Intercompany Sales",
+      "requiresControlConfirmation":true,
+      "requiresExplicitIntercompanyValue":true,
+      "requiresFunctionalCurrencyAmount":true,
+      "rule":"Never derive the Pakistan-to-TG value or TG margin from the TG customer selling price."
+    }
+  },
+  "periodCloseBlocks": [
+    "Completed export lots with no recognition decision",
+    "Recognized export revenue with unresolved functional-currency translation",
+    "Recognized export revenue whose cost-of-sales / inventory-cost posting is still unresolved",
+    "TG-linked shipments where the Pakistan and TG intercompany sides do not reconcile"
+  ]
+}
