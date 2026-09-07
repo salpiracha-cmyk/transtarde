@@ -1,5 +1,5 @@
 Require all denied
 
-<FilesMatch "\.(?:css|js|b64|png|jpe?g|webp)$">
+<FilesMatch "\.(?:css|js|txt|b64|png|jpe?g|webp)$">
     Require all granted
 </FilesMatch>
