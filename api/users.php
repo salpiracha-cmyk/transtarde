@@ -11,14 +11,17 @@ function clean_input(array $body): array {
     if ($name==='' || strlen($name)>100) throw new InvalidArgumentException('Enter the staff member’s full name.');
     if (!preg_match('/^[a-z0-9._-]{3,40}$/',$username)) throw new InvalidArgumentException('Username must contain 3–40 letters, numbers, dots, dashes or underscores.');
     if (!in_array($role,$allowedRoles,true)) throw new InvalidArgumentException('Select a valid staff role.');
-    $allowedActions=['View','Create','Edit','Delete','Print','Approve','Reports']; $allowedModules=['Mill','Exports','Accounts','Directors']; $permissions=[];
-    foreach ((array)($body['permissions'] ?? []) as $module=>$actions) {
+    $allowedActions=['View','Create','Edit']; $allowedModules=['Mill','Exports','Accounts']; $permissions=[];
+    foreach ((array)($body['permissions'] ?? []) as $module=>$icons) {
         if (!in_array($module,$allowedModules,true)) continue;
-        $clean=array_values(array_unique(array_intersect($allowedActions,(array)$actions)));
-        if ($clean && !in_array('View',$clean,true)) array_unshift($clean,'View');
-        if ($clean) $permissions[$module]=$clean;
+        foreach ((array)$icons as $icon=>$actions) {
+            if (!preg_match('/^[a-z0-9_-]{1,60}$/',(string)$icon)) continue;
+            $clean=array_values(array_unique(array_intersect($allowedActions,(array)$actions)));
+            if ($clean && !in_array('View',$clean,true)) array_unshift($clean,'View');
+            if ($clean) $permissions[$module][(string)$icon]=$clean;
+        }
     }
-    if (!$permissions) throw new InvalidArgumentException('Select at least one module permission.');
+    if (!$permissions) throw new InvalidArgumentException('Allow View for at least one module icon.');
     return ['name'=>$name,'username'=>$username,'role'=>$role,'location'=>$location ?: 'All authorized locations','permissions'=>$permissions,'active'=>!empty($body['active'])];
 }
 

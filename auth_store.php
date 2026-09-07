@@ -190,7 +190,19 @@ function tt_change_own_password(int $id, string $newPassword): void {
 function tt_user_can_open_module(array $user, string $module): bool {
     if (($user['role'] ?? '') === 'Super Admin') return true;
     $permissions=$user['permissions'][$module] ?? [];
-    return $permissions === 'all' || (is_array($permissions) && (in_array('View', $permissions, true) || count($permissions) > 0));
+    if ($permissions === 'all') return true;
+    if (!is_array($permissions)) return false;
+    if (in_array('View', $permissions, true)) return true; // legacy records
+    foreach ($permissions as $actions) if (is_array($actions) && in_array('View', $actions, true)) return true;
+    return false;
+}
+
+function tt_user_landing_url(array $user): string {
+    if (($user['role'] ?? '') === 'Super Admin') return 'index.php';
+    foreach (['Mill'=>'milling','Exports'=>'exports'] as $name=>$id) {
+        if (tt_user_can_open_module($user, $name)) return 'module.php?id=' . $id;
+    }
+    return 'staff-home.php';
 }
 
 function tt_list_masters(): array { return tt_read_store()['masters']; }

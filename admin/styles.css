@@ -208,7 +208,10 @@ label input, label select, label textarea { width: 100%; min-height: 42px; paddi
 fieldset { margin: 20px 0; padding: 0; border: 0; }
 legend { margin-bottom: 10px; color: #445469; font-size: .79rem; font-weight: 750; }
 .permission-matrix { border: 1px solid var(--line); border-radius: 10px; overflow-x: auto; }
-.permission-row { min-width: 680px; display: grid; grid-template-columns: 118px repeat(7, 1fr); align-items: center; border-bottom: 1px solid var(--line); }
+.permission-module { min-width: 520px; border: 1px solid var(--line); border-radius: 12px; margin: 12px 0; overflow: hidden; }
+.permission-module-head { display:flex; align-items:center; justify-content:space-between; padding:12px; background:#eef4ff; }
+.permission-module-head label { font-size:.75rem; font-weight:800; display:flex; gap:7px; align-items:center; }
+.permission-row { min-width: 500px; display: grid; grid-template-columns: minmax(190px,1fr) repeat(3, 80px); align-items: center; border-bottom: 1px solid var(--line); }
 .permission-row:last-child { border-bottom: 0; }
 .permission-row.header { color: var(--muted); background: #f8fafc; font-size: .66rem; font-weight: 800; text-transform: uppercase; }
 .permission-row > * { padding: 9px 6px; text-align: center; }

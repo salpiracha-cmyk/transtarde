@@ -4,6 +4,25 @@
   const STORAGE_KEY = "transtrade_super_admin_v1";
   const STATE_VERSION = 2;
   const ACTIONS = ["View", "Create", "Edit", "Delete", "Print", "Approve", "Reports"];
+  const ICON_ACTIONS = ["View", "Create", "Edit"];
+  const MODULE_ICONS = {
+    Mill: [
+      ["stock","Stock"],["queue","Arrival List"],["arrival","Arrival / Pohanch"],["newbags","New Export Bags"],
+      ["instructions","Exports Specifications"],["production","Production"],["export","Export Loading"],["local","Local Sales"],
+      ["petty","Petty Cash"],["labour","Processing Expense"],["reprocessbill","Reprocessing Bill"],["oldbags","Used Bags (In & Out)"],["reports","Reports"]
+    ],
+    Exports: [
+      ["active","Active Shipments"],["contracts","Sales Contracts"],["completed","Completed Shipments"],["cancelled","Cancelled"],
+      ["fi","FI Register"],["reports","Reports & Registers"],["contract","Sales Contract"],["bags","Bag Order"],
+      ["production","Production Instructions"],["loading","Loading Instructions"],["customs","Customs Documents"],["bl","B/L Documents"],
+      ["commercial","Commercial Documents"],["coo","Certificate of Origin"],["certs","Certificates"],["cover","Bank Covering & Dispatch"],
+      ["tg","TG Documents"],["lcdraft","L/C Exchange Draft"],["print","Document Output"],["history","History & Versions"]
+    ],
+    Accounts: [
+      ["dashboard","Accounts Dashboard"],["vouchers","Vouchers"],["payments","Payments & Receipts"],["ledgers","Party Ledgers"],
+      ["banking","Banking"],["receivables","Receivables"],["payables","Payables"],["expenses","Expenses"],["reports","Reports"]
+    ]
+  };
   const SESSION = window.TT_SESSION || { name: "Salman", username: "salman", role: "Super Admin", permissions: { Mill: "all", Exports: "all", Accounts: "all", Directors: "all" }, csrf: "" };
   const IS_SUPER_ADMIN = SESSION.role === "Super Admin";
   const MODULES = [
@@ -193,9 +212,18 @@
     document.getElementById("permissionChangeCount").textContent = state.permissionChanges;
   }
 
+  function permissionChecked(permissions,module,icon,action) {
+    const saved=permissions?.[module];
+    if (saved==="all") return true;
+    if (Array.isArray(saved)) return saved.includes(action); // previous user records
+    return Array.isArray(saved?.[icon]) && saved[icon].includes(action);
+  }
   function permissionMatrix(permissions = {}) {
-    return `<div class="permission-row header"><strong>Module</strong>${ACTIONS.map(action => `<span>${action}</span>`).join("")}</div>` +
-      ["Mill", "Exports", "Accounts", "Directors"].map(module => `<div class="permission-row"><strong>${module}</strong>${ACTIONS.map(action => `<label title="${module}: ${action}"><input type="checkbox" data-permission-module="${module}" value="${action}" ${permissions[module]?.includes(action) ? "checked" : ""}></label>`).join("")}</div>`).join("");
+    return Object.entries(MODULE_ICONS).map(([module,icons]) => `<section class="permission-module">
+      <div class="permission-module-head"><strong>${module}</strong><label><input type="checkbox" data-select-module="${module}"> Select all ${module}</label></div>
+      <div class="permission-row header"><strong>Icon / Screen</strong>${ICON_ACTIONS.map(action=>`<span>${action}</span>`).join("")}</div>
+      ${icons.map(([id,label])=>`<div class="permission-row"><strong>${label}</strong>${ICON_ACTIONS.map(action=>`<label title="${module} · ${label} · ${action}"><input type="checkbox" data-permission-module="${module}" data-permission-icon="${id}" value="${action}" ${permissionChecked(permissions,module,id,action)?"checked":""}></label>`).join("")}</div>`).join("")}
+    </section>`).join("");
   }
   function openUserDialog(userId) {
     const dialog = document.getElementById("userDialog");
@@ -251,11 +279,12 @@
     if (!form.reportValidity()) return;
     const id = document.getElementById("editUserId").value;
     const permissions = {};
-    document.querySelectorAll("#permissionMatrix input:checked").forEach(input => {
+    document.querySelectorAll("#permissionMatrix input[data-permission-icon]:checked").forEach(input => {
       const module = input.dataset.permissionModule;
-      (permissions[module] ||= []).push(input.value);
+      const icon = input.dataset.permissionIcon;
+      ((permissions[module] ||= {})[icon] ||= []).push(input.value);
     });
-    const modules = Object.keys(permissions).filter(module => permissions[module].includes("View") || permissions[module].length);
+    const modules = Object.keys(permissions).filter(module => Object.values(permissions[module]).some(actions=>actions.includes("View")));
     if (!modules.length) { toast("Select at least one module permission."); return; }
     const user = {
       id,
@@ -418,6 +447,14 @@
     if (lockButton) toggleLock(lockButton.dataset.toggleLock);
     if (closeDialog) document.getElementById(closeDialog.dataset.closeDialog)?.close();
     if (event.target.closest('[data-action="close-notifications"]')) openNotifications(false);
+    const selectModule=event.target.closest("[data-select-module]");
+    if (selectModule) document.querySelectorAll(`#permissionMatrix input[data-permission-module="${selectModule.dataset.selectModule}"][data-permission-icon]`).forEach(input=>{input.checked=selectModule.checked;});
+  });
+  document.getElementById("permissionMatrix").addEventListener("change", event => {
+    const input=event.target.closest("input[data-permission-icon]"); if(!input)return;
+    const row=input.closest(".permission-row"),view=row?.querySelector('input[value="View"]');
+    if(input.value!=="View"&&input.checked&&view)view.checked=true;
+    if(input.value==="View"&&!input.checked)row?.querySelectorAll('input[value="Create"],input[value="Edit"]').forEach(x=>x.checked=false);
   });
   document.getElementById("userForm").addEventListener("submit", saveUser);
   document.getElementById("deleteUserButton").addEventListener("click", () => deleteUser());
