@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "status": "TRANSTRADE_INTERNAL_CONTROL_PENDING_AUDITOR_LEGAL_CONFIRMATION",
+  "purpose": "Local sales are an exception to the export business and must be separately monitored and controlled.",
+  "financialYearEnd": "06-30",
+  "warningPercent": 4.8,
+  "hardLimitPercent": 5.0,
+  "calculation": "recognized Pakistan local sales / recognized Pakistan export sales * 100",
+  "scope": {
+    "localSaleEntities": ["TTI", "BRM"],
+    "exportSaleEntities": ["TTI", "BRM"],
+    "excludedEntities": ["TG"],
+    "localRevenueAccount": "4200",
+    "exportRevenueAccount": "4100",
+    "excludedRevenueAccount": "4500",
+    "note": "TG customer turnover and Pakistan/TG intercompany revenue are excluded from the denominator. Scope remains configurable if auditors advise an entity-specific statutory calculation."
+  },
+  "controls": {
+    "separateFromExportSales": true,
+    "productOrByProductRequired": true,
+    "accountsApprovalRequired": true,
+    "millCanPostLedger": false,
+    "warningAtOrAbovePercent": 4.8,
+    "blockApprovalAbovePercent": 5.0,
+    "showProjectedRatioBeforeApproval": true,
+    "showRemainingHeadroom": true,
+    "showByProductBreakdown": true
+  }
+}
