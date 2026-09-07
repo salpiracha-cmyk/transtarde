@@ -1,1 +1,0 @@
-Binary transparent PNG artwork is committed through Git data; .b64 staging helpers are temporary and removed before merge.
