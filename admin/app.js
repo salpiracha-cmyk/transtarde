@@ -7,8 +7,8 @@
   const SESSION = window.TT_SESSION || { name: "Salman", username: "salman", role: "Super Admin", permissions: { Mill: "all", Exports: "all", Accounts: "all", Directors: "all" }, csrf: "" };
   const IS_SUPER_ADMIN = SESSION.role === "Super Admin";
   const MODULES = [
-    { id: "milling", name: "Mill", code: "M", color: "#16815a", soft: "#e7f7f0", status: "Integration ready", state: "green", version: "V3.3.2 Audited", description: "Arrivals, stocks, production, bags, loading and mill operations.", href: "module.php?id=milling" },
-    { id: "exports", name: "Exports", code: "E", color: "#1769d2", soft: "#eaf2ff", status: "Being finalized", state: "blue", version: "V2.6 Stabilized", description: "Contracts, export orders, shipment planning and documentation.", href: "module.php?id=exports" },
+    { id: "milling", name: "Mill", code: "M", color: "#16815a", soft: "#e7f7f0", status: "Live trial", state: "green", version: "V3.3.5 Working", description: "Arrivals, stocks, production, bags, loading and mill operations.", href: "module.php?id=milling" },
+    { id: "exports", name: "Exports", code: "E", color: "#1769d2", soft: "#eaf2ff", status: "Live trial", state: "green", version: "V2.6 Latest Stabilized", description: "Contracts, export orders, shipment planning and documentation.", href: "module.php?id=exports" },
     { id: "accounts", name: "Accounts", code: "A", color: "#8a55c7", soft: "#f3ecfb", status: "Awaiting module", state: "amber", version: "Not connected", description: "Purchases, ledgers, banking, receivables, payables and reporting." },
     { id: "directors", name: "Directors", code: "D", color: "#d17b0f", soft: "#fff3e2", status: "Awaiting module", state: "amber", version: "Not connected", description: "Consolidated oversight, Cashflow, alerts, approvals and reports." }
   ];
@@ -91,9 +91,9 @@
     state.audit.unshift({ date: nowStamp(), user: SESSION.name, area, action, detail, ref });
   }
 
-  async function apiRequest(body) {
+  async function apiRequest(body, endpoint = "users") {
     const options = body ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...body, csrf: SESSION.csrf }) } : {};
-    const response = await fetch("api/users.php", options);
+    const response = await fetch(`api/${endpoint}.php`, options);
     const data = await response.json().catch(() => ({ ok: false, error: "The server returned an unreadable response." }));
     if (!response.ok || !data.ok) throw new Error(data.error || "The user action could not be completed.");
     return data;
@@ -116,6 +116,13 @@
     const data = await apiRequest();
     state.users = data.users;
     renderUsers();
+  }
+
+  async function loadServerMasters() {
+    if (!IS_SUPER_ADMIN) return;
+    const data = await apiRequest(null, "masters");
+    state.masters = data.masters;
+    renderMasters();
   }
 
   function applySessionAccess() {
@@ -180,7 +187,7 @@
       <td>${escapeHtml(user.role)}</td>
       <td><div class="tag-row">${user.modules.map(m => `<span class="tag ${user.role === "Super Admin" ? "super" : ""}">${m}</span>`).join("")}</div></td>
       <td>${escapeHtml(user.location)}</td><td><span class="status ${user.active ? "" : "inactive"}">${user.active ? "Active" : "Inactive"}</span></td>
-      <td>${escapeHtml(user.lastActive)}</td><td><button class="row-menu" data-edit-user="${user.id}" aria-label="Edit ${escapeHtml(user.name)}">•••</button></td>
+      <td>${escapeHtml(user.lastActive)}</td><td>${user.role === "Super Admin" ? `<div class="row-actions"><a class="row-action" href="change-password.php">Change Password</a><span class="tag super">Protected owner</span></div>` : `<div class="row-actions"><button class="row-action" data-edit-user="${user.id}">Edit</button><button class="row-action" data-reset-user="${user.id}">Reset Password</button><button class="row-action delete" data-delete-user="${user.id}">Delete</button></div>`}</td>
     </tr>`).join("");
     document.getElementById("activeUserCount").textContent = state.users.filter(user => user.active).length;
     document.getElementById("permissionChangeCount").textContent = state.permissionChanges;
@@ -217,8 +224,8 @@
     }
     dialog.showModal();
   }
-  async function deleteUser() {
-    const id = document.getElementById("editUserId").value;
+  async function deleteUser(selectedId) {
+    const id = String(selectedId || document.getElementById("editUserId").value);
     const user = state.users.find(item => item.id === id);
     if (!user || user.role === "Super Admin") return;
     if (!window.confirm(`Delete ${user.name}'s login? They will no longer be able to sign in.`)) return;
@@ -228,8 +235,8 @@
       renderUsers(); document.getElementById("userDialog").close(); toast("User login deleted.");
     } catch (error) { toast(error.message); }
   }
-  async function resetPassword() {
-    const id = document.getElementById("editUserId").value;
+  async function resetPassword(selectedId) {
+    const id = String(selectedId || document.getElementById("editUserId").value);
     const user = state.users.find(item => item.id === id);
     if (!user || user.role === "Super Admin") return;
     if (!window.confirm(`Reset ${user.name}'s password and issue a new temporary password?`)) return;
@@ -274,23 +281,43 @@
     const type = MASTER_TYPES.find(item => item.id === currentMaster);
     document.getElementById("masterTitle").textContent = type.name;
     document.getElementById("masterDescription").textContent = type.description;
-    document.getElementById("masterTableHead").innerHTML = `<tr>${type.columns.map(col => `<th>${col}</th>`).join("")}<th>Status</th></tr>`;
+    document.getElementById("masterTableHead").innerHTML = `<tr>${type.columns.map(col => `<th>${col}</th>`).join("")}<th>Status</th><th>Super Admin actions</th></tr>`;
     const query = document.getElementById("masterSearch")?.value.toLowerCase() || "";
     const rows = (state.masters[currentMaster] || []).filter(row => row.values.join(" ").toLowerCase().includes(query));
-    document.getElementById("masterTableBody").innerHTML = rows.length ? rows.map(row => `<tr>${type.columns.map((_, i) => `<td>${escapeHtml(row.values[i] || "—")}</td>`).join("")}<td><span class="status">Active</span></td></tr>`).join("") : `<tr><td colspan="${type.columns.length + 1}">No matching records.</td></tr>`;
+    document.getElementById("masterTableBody").innerHTML = rows.length ? rows.map(row => `<tr>${type.columns.map((_, i) => `<td>${escapeHtml(row.values[i] || "—")}</td>`).join("")}<td><span class="status">Active</span></td><td><div class="row-actions"><button class="row-action" data-edit-master="${escapeHtml(row.id)}">Edit</button><button class="row-action delete" data-delete-master="${escapeHtml(row.id)}">Delete</button></div></td></tr>`).join("") : `<tr><td colspan="${type.columns.length + 2}">No matching records.</td></tr>`;
   }
-  function saveMasterRecord(event) {
+  function openMasterDialog(id = "") {
+    const row=(state.masters[currentMaster] || []).find(item => item.id === id);
+    document.getElementById("masterForm").reset();
+    document.getElementById("editMasterId").value=row?.id || "";
+    document.getElementById("masterRecordName").value=row?.values?.[0] || "";
+    document.getElementById("masterRecordCode").value=row?.values?.[1] || "";
+    document.getElementById("masterRecordNotes").value=row?.values?.[2] || "";
+    document.getElementById("deleteMasterButton").hidden=!row;
+    document.getElementById("saveMasterButton").textContent=row ? "Save Changes" : "Save Record";
+    document.getElementById("masterDialog").showModal();
+  }
+  async function saveMasterRecord(event) {
     event.preventDefault();
     const form = document.getElementById("masterForm");
     if (!form.reportValidity()) return;
     const type = MASTER_TYPES.find(item => item.id === currentMaster);
+    const id=document.getElementById("editMasterId").value;
     const name = document.getElementById("masterRecordName").value.trim();
     const code = document.getElementById("masterRecordCode").value.trim().toUpperCase();
     const notes = document.getElementById("masterRecordNotes").value.trim() || "General";
-    state.masters[currentMaster].push({ id: `${currentMaster}-${Date.now()}`, values: [name, code, notes] });
-    addAudit("Master", "Created", `${type.name}: ${name}`, code);
-    saveState(); renderMasters(); renderAudit(); renderRecentActivity();
-    document.getElementById("masterDialog").close(); form.reset(); toast("Master record saved.");
+    try {
+      const data=await apiRequest({action:id ? "update" : "create",type:currentMaster,id,name,code,notes},"masters");
+      state.masters=data.masters; addAudit("Master",id ? "Updated" : "Created",`${type.name}: ${name}`,code);
+      saveState(); renderMasters(); renderAudit(); renderRecentActivity(); document.getElementById("masterDialog").close(); form.reset(); toast(id ? "Master record updated." : "Master record saved.");
+    } catch(error) { toast(error.message); }
+  }
+  async function deleteMasterRecord(selectedId) {
+    const id=String(selectedId || document.getElementById("editMasterId").value);
+    const row=(state.masters[currentMaster] || []).find(item => item.id===id); if(!row) return;
+    if(!window.confirm(`Delete ${row.values[0]} from ${MASTER_TYPES.find(item=>item.id===currentMaster).name}?`)) return;
+    try { const data=await apiRequest({action:"delete",type:currentMaster,id},"masters"); state.masters=data.masters; saveState(); renderMasters(); document.getElementById("masterDialog").close(); toast("Master record deleted."); }
+    catch(error) { toast(error.message); }
   }
 
   function renderLocks() {
@@ -305,8 +332,11 @@
     const lock = state.locks[id];
     const module = MODULES.find(item => item.id === id);
     if (lock.locked) {
-      toast(`${module.name} remains locked. Create an impact request before reopening.`);
-      addAudit("Module", "Reopen blocked", `${module.name} requires documented impact approval`, module.version);
+      const confirmed=window.confirm(`Reopen the ${module.name} module for development? You will be able to change it again until you lock it.`);
+      if(!confirmed) return;
+      lock.locked=false; lock.approvedBy="—"; lock.changed=`Reopened by Salman · ${nowStamp()}`;
+      addAudit("Module", "Reopened", `${module.name} reopened by Super Admin`, module.version);
+      toast(`${module.name} is open for development.`);
     } else {
       const confirmed = window.confirm(`Lock the ${module.name} module? After locking, no cross-module change can alter it without your documented approval.`);
       if (!confirmed) return;
@@ -368,7 +398,11 @@
     const viewTarget = event.target.closest("[data-view-target]");
     const moduleButton = event.target.closest("[data-open-module], [data-module-link]");
     const editUser = event.target.closest("[data-edit-user]");
+    const resetUser = event.target.closest("[data-reset-user]");
+    const deleteUserButton = event.target.closest("[data-delete-user]");
     const masterButton = event.target.closest("[data-master]");
+    const editMaster = event.target.closest("[data-edit-master]");
+    const deleteMaster = event.target.closest("[data-delete-master]");
     const lockButton = event.target.closest("[data-toggle-lock]");
     const closeDialog = event.target.closest("[data-close-dialog]");
     if (viewButton) showView(viewButton.dataset.view);
@@ -376,21 +410,26 @@
     if (moduleButton) openModule(moduleButton.dataset.openModule || moduleButton.dataset.moduleLink);
     if (event.target.closest('[data-action="create-user"]')) openUserDialog();
     if (editUser) openUserDialog(editUser.dataset.editUser);
+    if (resetUser) resetPassword(resetUser.dataset.resetUser);
+    if (deleteUserButton) deleteUser(deleteUserButton.dataset.deleteUser);
     if (masterButton) { currentMaster = masterButton.dataset.master; renderMasters(); }
+    if (editMaster) openMasterDialog(editMaster.dataset.editMaster);
+    if (deleteMaster) deleteMasterRecord(deleteMaster.dataset.deleteMaster);
     if (lockButton) toggleLock(lockButton.dataset.toggleLock);
     if (closeDialog) document.getElementById(closeDialog.dataset.closeDialog)?.close();
     if (event.target.closest('[data-action="close-notifications"]')) openNotifications(false);
   });
   document.getElementById("userForm").addEventListener("submit", saveUser);
-  document.getElementById("deleteUserButton").addEventListener("click", deleteUser);
-  document.getElementById("resetPasswordButton").addEventListener("click", resetPassword);
+  document.getElementById("deleteUserButton").addEventListener("click", () => deleteUser());
+  document.getElementById("resetPasswordButton").addEventListener("click", () => resetPassword());
+  document.getElementById("deleteMasterButton").addEventListener("click", () => deleteMasterRecord());
   document.getElementById("copyCredentials").addEventListener("click", async () => {
     const text = `Transtrade login\nUsername: ${document.getElementById("credentialUsername").value}\nTemporary password: ${document.getElementById("credentialPassword").value}\nWebsite: https://app.transtradeinternational.com`;
     try { await navigator.clipboard.writeText(text); toast("Login details copied."); }
     catch (_) { document.getElementById("credentialPassword").select(); toast("Select and copy the login details."); }
   });
   document.getElementById("masterForm").addEventListener("submit", saveMasterRecord);
-  document.getElementById("addMasterRecord").addEventListener("click", () => document.getElementById("masterDialog").showModal());
+  document.getElementById("addMasterRecord").addEventListener("click", () => openMasterDialog());
   document.getElementById("userSearch").addEventListener("input", renderUsers);
   document.getElementById("moduleFilter").addEventListener("change", renderUsers);
   document.getElementById("masterSearch").addEventListener("input", renderMasters);
@@ -409,7 +448,7 @@
   async function initialize() {
     applySessionAccess(); renderModules(); renderUsers(); renderMasters(); renderLocks(); renderAudit(); renderRecentActivity();
     if (IS_SUPER_ADMIN) {
-      try { await loadServerUsers(); } catch (error) { toast(error.message); }
+      try { await Promise.all([loadServerUsers(),loadServerMasters()]); } catch (error) { toast(error.message); }
     }
     saveState("All changes saved");
   }
