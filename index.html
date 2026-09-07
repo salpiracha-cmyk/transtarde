@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="Transtrade unified Super Admin control centre">
   <title>Transtrade Super Admin Console</title>
-  <link rel="stylesheet" href="admin/styles.css">
+  <link rel="stylesheet" href="admin/styles.css?v=20260907-1">
 </head>
 <body>
   <div class="app-shell">
@@ -117,7 +117,7 @@
           </div>
           <article class="panel table-panel">
             <div class="table-toolbar"><div class="filter-input"><span>⌕</span><input id="userSearch" type="search" placeholder="Search users"></div><select id="moduleFilter" aria-label="Filter by module"><option value="all">All modules</option><option>Mill</option><option>Exports</option><option>Accounts</option><option>Directors</option></select></div>
-            <div class="table-wrap"><table><thead><tr><th>User</th><th>Role</th><th>Module access</th><th>Locations</th><th>Status</th><th>Last active</th><th></th></tr></thead><tbody id="userRows"></tbody></table></div>
+            <div class="table-wrap"><table><thead><tr><th>User</th><th>Role</th><th>Module access</th><th>Locations</th><th>Status</th><th>Last active</th><th>Super Admin actions</th></tr></thead><tbody id="userRows"></tbody></table></div>
           </article>
         </section>
 
@@ -185,14 +185,14 @@
   <dialog id="masterDialog" class="modal small-modal">
     <form method="dialog" id="masterForm">
       <div class="modal-head"><div><p class="eyebrow">MASTER RECORD</p><h2>Add Record</h2></div><button class="icon-button" type="button" data-close-dialog="masterDialog" aria-label="Close">×</button></div>
-      <label>Record name<input id="masterRecordName" required autocomplete="off"></label>
+      <input type="hidden" id="editMasterId"><label>Record name<input id="masterRecordName" required autocomplete="off"></label>
       <label>Code / reference<input id="masterRecordCode" required autocomplete="off"></label>
       <label>Notes<textarea id="masterRecordNotes" rows="3"></textarea></label>
-      <div class="modal-actions"><button class="button secondary" type="button" data-close-dialog="masterDialog">Cancel</button><button class="button primary" id="saveMasterButton" type="submit">Save Record</button></div>
+      <div class="modal-actions"><button class="button danger" id="deleteMasterButton" type="button" hidden>Delete Record</button><button class="button secondary" type="button" data-close-dialog="masterDialog">Cancel</button><button class="button primary" id="saveMasterButton" type="submit">Save Record</button></div>
     </form>
   </dialog>
 
   <div class="toast-region" id="toastRegion" aria-live="polite"></div>
-  <script src="admin/app.js"></script>
+  <script src="admin/app.js?v=20260907-1"></script>
 </body>
 </html>
