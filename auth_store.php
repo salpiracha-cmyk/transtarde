@@ -1,7 +1,10 @@
 <?php
 declare(strict_types=1);
 
-const TT_DATA_DIR = __DIR__ . '/data';
+// Keep live credentials and master records outside public_html. Hostinger Git
+// deployments replace the application directory, but must never replace the
+// operational data created by Salman and his staff.
+const TT_DATA_DIR = __DIR__ . '/../transtrade_private';
 const TT_STORE_FILE = TT_DATA_DIR . '/auth.json';
 
 function tt_default_masters(): array {
