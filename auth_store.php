@@ -357,7 +357,7 @@ function tt_current_user(): ?array {
 
 function tt_require_login(): array {
     $user = tt_current_user();
-    if (!$user) { $_SESSION = []; header('Location: login.php'); exit; }
+    if (!$user) { $_SESSION = []; header('Location: /login.php'); exit; }
     return $user;
 }
 
