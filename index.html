@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="Transtrade unified Super Admin control centre">
   <title>Transtrade Super Admin Console</title>
-  <link rel="stylesheet" href="admin/styles.css?v=20260907-3">
+  <link rel="stylesheet" href="admin/styles.css?v=20260907-4">
 </head>
 <body>
   <div class="app-shell">
@@ -33,6 +33,7 @@
         <button class="nav-item" data-view="masters"><span class="nav-icon">◆</span><span>Master Records</span></button>
         <button class="nav-item" data-view="locks"><span class="nav-icon">L</span><span>Module Locks</span></button>
         <button class="nav-item" data-view="audit"><span class="nav-icon">≡</span><span>Audit Trail</span></button>
+        <button class="nav-item" data-view="backup"><span class="nav-icon">B</span><span>Backup & Data Export</span></button>
       </nav>
 
       <div class="sidebar-user">
@@ -135,6 +136,66 @@
           </div>
         </section>
 
+
+        <section class="view" id="view-backup">
+          <div class="page-heading">
+            <div><p class="eyebrow">DATA PROTECTION</p><h1>Backup & Data Export</h1><p>Keep a readable owner copy on your computer and a separate technical recovery copy of Transtrade.</p></div>
+            <button class="button secondary" id="refreshBackupStatus">Refresh Status</button>
+          </div>
+
+          <div class="summary-cards backup-summary">
+            <div><span>Last automatic server backup</span><strong id="backupLastAuto">Checking…</strong><small id="backupAutoDetail">Secure server-side recovery copy</small></div>
+            <div><span>Server recovery snapshots</span><strong id="backupSnapshotCount">—</strong><small id="backupSnapshotSize">Rolling backup history</small></div>
+            <div><span>Last owner download</span><strong id="backupLastOwner">Not downloaded yet</strong><small>Independent copy saved by an owner</small></div>
+          </div>
+
+          <div class="backup-grid">
+            <article class="panel backup-card">
+              <div class="backup-card-head"><span class="backup-symbol excel">X</span><div><h2>Download Business Data</h2><p>A human-readable owner copy that can be opened even if Transtrade is unavailable.</p></div></div>
+              <div class="backup-file-list">
+                <span>✓ Real Excel workbook (.xlsx)</span><span>✓ CSV copies of data tables</span><span>✓ Word backup summary (.docx)</span><span>✓ PDF backup summary</span><span>✓ Original stored documents where available</span>
+              </div>
+              <button class="button primary" id="downloadBusinessBackup">Download Business Data</button>
+              <small class="backup-note">This copy deliberately excludes password hashes and technical login secrets.</small>
+            </article>
+
+            <article class="panel backup-card recovery-card">
+              <div class="backup-card-head"><span class="backup-symbol recovery">R</span><div><h2>Download Complete Transtrade Backup</h2><p>Everything required for disaster recovery, plus the readable Excel / Word / PDF owner files.</p></div></div>
+              <label class="backup-password">Recovery ZIP password<input id="recoveryBackupPassword" type="password" minlength="12" autocomplete="new-password" placeholder="Minimum 12 characters"></label>
+              <div class="backup-file-list">
+                <span>✓ Business Data package</span><span>✓ Raw auth / master / audit data</span><span>✓ Shared Mill / Export operational data</span><span>✓ Private stored documents / uploads</span><span>✓ Backup manifest and integrity hashes</span><span>✓ Encrypted application-code snapshot for your offline computer copy</span>
+              </div>
+              <button class="button primary" id="downloadFullBackup">Download Complete Backup</button>
+              <small class="backup-note">Sensitive recovery contents are AES-encrypted with the password you enter. Transtrade does not save that password.</small>
+            </article>
+          </div>
+
+          <article class="panel backup-policy-panel">
+            <div class="panel-heading"><div><h2>Automatic server protection</h2><p>Transtrade keeps private recovery snapshots outside the deployable website folder.</p></div><button class="button secondary" id="createServerSnapshot">Create Snapshot Now</button></div>
+            <div class="backup-policy-grid">
+              <div><strong>Hourly</strong><span>Keep every available snapshot for 48 hours</span></div>
+              <div><strong>Daily</strong><span>Then retain one per day for 30 days</span></div>
+              <div><strong>Monthly</strong><span>Then retain one per month for 12 months</span></div>
+              <div><strong>GitHub</strong><span>Separate version history for the application code</span></div>
+            </div>
+          </article>
+
+          <article class="panel restore-panel">
+            <div class="panel-heading"><div><h2>Restore a Complete Backup</h2><p>Owner-only disaster recovery. Transtrade creates a safety snapshot of the current data before any restore.</p></div><span class="danger-pill">Protected action</span></div>
+            <div class="restore-grid">
+              <label>Complete backup ZIP<input id="restoreBackupFile" type="file" accept=".zip,application/zip"></label>
+              <label>Backup password<input id="restoreBackupPassword" type="password" autocomplete="off"></label>
+              <button class="button secondary" id="verifyBackupFile" type="button">Verify Backup</button>
+            </div>
+            <div class="restore-verification" id="restoreVerification" hidden></div>
+            <div class="restore-confirm" id="restoreConfirmArea" hidden>
+              <label>Type <strong>RESTORE</strong> to enable recovery<input id="restoreConfirmation" autocomplete="off" placeholder="RESTORE"></label>
+              <button class="button danger" id="restoreBackupNow" type="button" disabled>Restore This Backup</button>
+            </div>
+            <small class="backup-note">Restore never runs just because a ZIP is selected. The file must first pass Transtrade verification and then receive explicit owner confirmation.</small>
+          </article>
+        </section>
+
         <section class="view" id="view-locks">
           <div class="page-heading"><div><p class="eyebrow">CHANGE CONTROL</p><h1>Module Locks</h1><p>Approved modules remain protected from cross-module changes.</p></div></div>
           <div class="governance-note"><span>i</span><div><strong>Locked means no silent changes.</strong><p>Any requested change must state the reason, affected screens, workflows, reports, calculations and data links, plus an alternative. Only Salman can approve reopening.</p></div></div>
@@ -192,6 +253,6 @@
   </dialog>
 
   <div class="toast-region" id="toastRegion" aria-live="polite"></div>
-<script src="admin/app.js?v=20260907-3"></script>
+<script src="admin/app.js?v=20260907-4"></script>
 </body>
 </html>

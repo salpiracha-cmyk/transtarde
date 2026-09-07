@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require dirname(__DIR__) . '/auth_store.php';
+require dirname(__DIR__) . '/backup_lib.php';
 header('Content-Type: application/json; charset=UTF-8');
 header('Cache-Control: no-store, no-cache, must-revalidate');
 
@@ -64,6 +65,7 @@ try {
     if (strlen($raw) > 16 * 1024 * 1024) operations_respond(['ok' => false, 'error' => 'Operational update is too large.'], 413);
     $body = json_decode($raw, true);
     if (!is_array($body) || !tt_verify_csrf((string)($body['csrf'] ?? ''))) operations_respond(['ok' => false, 'error' => 'Your session expired. Refresh and try again.'], 419);
+    tt_maybe_auto_backup();
     $key = (string)($body['key'] ?? '');
     $value = $body['value'] ?? null;
     if (!operations_key_allowed($key) || !is_string($value)) operations_respond(['ok' => false, 'error' => 'Invalid operational update.'], 422);

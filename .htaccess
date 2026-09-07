@@ -1,11 +1,11 @@
 DirectoryIndex index.php
 Options -Indexes
 
-<FilesMatch "^(index\.html|auth\.php|auth_store\.php)$">
+<FilesMatch "^(index\.html|auth\.php|auth_store\.php|backup_lib\.php)$">
   Require all denied
 </FilesMatch>
 
-<FilesMatch "\.(sqlite|sqlite3|db|log)$">
+<FilesMatch "\.(sqlite|sqlite3|db|log|zip)$">
   Require all denied
 </FilesMatch>
 

@@ -281,3 +281,49 @@ legend { margin-bottom: 10px; color: #445469; font-size: .79rem; font-weight: 75
 .button.danger{margin-right:auto;background:#fff1f1;border-color:#efb4b4;color:#b42318}.button.danger:hover{background:#ffe4e4}
 .credential-card{padding:22px}.credential-card>p{color:var(--muted);line-height:1.5}.credential-card label{margin-top:13px}.credential-card input[readonly]{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;background:#f7fafc;color:#173451;font-weight:750}
 .row-actions{display:flex;align-items:center;gap:6px;min-width:245px}.row-action{border:1px solid var(--line);border-radius:7px;background:#fff;color:#24516d;padding:7px 9px;font-size:.72rem;font-weight:750;cursor:pointer;text-decoration:none;white-space:nowrap}.row-action:hover{background:#edf6fb}.row-action.delete{color:#b42318;border-color:#efc1bd}.row-action.delete:hover{background:#fff1f0}
+
+
+/* Backup & Data Export */
+.backup-summary { margin-bottom: 20px; }
+.backup-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; margin-bottom: 18px; }
+.backup-card { padding: 22px; }
+.backup-card-head { display: flex; align-items: flex-start; gap: 14px; }
+.backup-card h2 { margin: 0; color: var(--navy); font-size: 1.15rem; }
+.backup-card p { margin: 5px 0 0; color: var(--muted); font-size: .84rem; line-height: 1.45; }
+.backup-symbol { width: 44px; height: 44px; flex: 0 0 44px; display: grid; place-items: center; border-radius: 11px; font-weight: 900; }
+.backup-symbol.excel { color: var(--green); background: var(--green-soft); }
+.backup-symbol.recovery { color: var(--blue); background: var(--blue-soft); }
+.backup-file-list { display: grid; gap: 7px; margin: 18px 0; color: #435268; font-size: .82rem; }
+.backup-file-list span { display: block; }
+.backup-card .button { width: 100%; }
+.backup-note { display: block; margin-top: 10px; color: var(--muted); font-size: .72rem; line-height: 1.45; }
+.backup-password { display: grid; gap: 6px; margin-top: 17px; color: #445469; font-size: .78rem; font-weight: 750; }
+.backup-password input, .restore-grid input, .restore-confirm input { width: 100%; min-height: 42px; padding: 9px 11px; border: 1px solid var(--line); border-radius: 9px; color: var(--ink); background: #fff; }
+.backup-policy-panel { margin-bottom: 18px; }
+.backup-policy-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.backup-policy-grid > div { min-height: 104px; padding: 18px 20px; border-right: 1px solid var(--line); }
+.backup-policy-grid > div:last-child { border-right: 0; }
+.backup-policy-grid strong, .backup-policy-grid span { display: block; }
+.backup-policy-grid strong { color: var(--navy); font-size: .95rem; }
+.backup-policy-grid span { margin-top: 6px; color: var(--muted); font-size: .78rem; line-height: 1.45; }
+.restore-panel { overflow: hidden; }
+.danger-pill { display: inline-flex; align-items: center; min-height: 25px; padding: 4px 9px; border-radius: 20px; color: var(--red); background: var(--red-soft); font-size: .7rem; font-weight: 800; }
+.restore-grid { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) auto; align-items: end; gap: 14px; padding: 20px; }
+.restore-grid label, .restore-confirm label { display: grid; gap: 6px; color: #445469; font-size: .78rem; font-weight: 750; }
+.restore-verification { margin: 0 20px 18px; padding: 14px 16px; border: 1px solid #b9dfc9; border-radius: 10px; color: #20603f; background: #f1fbf5; font-size: .8rem; line-height: 1.55; }
+.restore-verification.error { border-color: #edc0bc; color: var(--red); background: var(--red-soft); }
+.restore-confirm { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 14px; margin: 0 20px 18px; padding: 16px; border: 1px solid #edc0bc; border-radius: 10px; background: #fff8f7; }
+.button.danger { color: #fff; background: var(--red); border-color: var(--red); }
+.button.danger:hover { background: #941c14; }
+#view-backup > .backup-note, .restore-panel > .backup-note { padding: 0 20px 18px; }
+
+@media (max-width: 900px) {
+  .backup-grid { grid-template-columns: 1fr; }
+  .backup-policy-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .backup-policy-grid > div { border-bottom: 1px solid var(--line); }
+  .restore-grid, .restore-confirm { grid-template-columns: 1fr; }
+}
+@media (max-width: 620px) {
+  .backup-policy-grid { grid-template-columns: 1fr; }
+  .backup-policy-grid > div { border-right: 0; }
+}

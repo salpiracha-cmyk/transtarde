@@ -139,6 +139,8 @@ function tt_read_store(): array {
 }
 
 function tt_mutate_store(callable $callback): mixed {
+    $backupLib=__DIR__ . '/backup_lib.php';
+    if (is_file($backupLib)) { require_once $backupLib; if (function_exists('tt_maybe_auto_backup')) tt_maybe_auto_backup(); }
     tt_ensure_data_dir();
     $handle = fopen(TT_STORE_FILE, 'c+');
     if ($handle === false || !flock($handle, LOCK_EX)) throw new RuntimeException('Secure storage is unavailable.');
