@@ -1,0 +1,20 @@
+{
+  "version": 1,
+  "purpose": "Professional settlement rules for supplier payments, supplier advances and direct third-party payments without creating fictitious Transtrade bank movements.",
+  "accounts": [
+    {"code":"1250","name":"Supplier / Broker Advances","class":"Asset","normal":"Debit","subledger":true},
+    {"code":"2160","name":"Customer Advances / Unapplied Receipts","class":"Liability","normal":"Credit","subledger":true},
+    {"code":"2170","name":"Due to Third Party / Settlement Payable","class":"Liability","normal":"Credit","subledger":true}
+  ],
+  "rules": {
+    "normalSupplierPayment": "Debit the actual supplier/broker liability component being settled and credit the selected Transtrade bank/cash account.",
+    "supplierAdvanceFromOwnFunds": "Debit Supplier / Broker Advances and credit selected Transtrade bank/cash. When a later supplier bill is approved, apply the advance against that supplier/Soda/truck with full allocation traceability.",
+    "customerPaysSupplierAgainstExistingReceivable": "Debit the supplier liability or Supplier / Broker Advances, as applicable, and credit the identified customer receivable. No Transtrade bank movement is posted.",
+    "customerPaysSupplierBeforeCustomerSaleRecognition": "Debit Supplier / Broker Advances (or the existing supplier liability if already posted) and credit Customer Advances / Unapplied Receipts. Later allocate the customer advance when the sale is recognized.",
+    "unrelatedThirdPartyPaysSupplier": "Debit the supplier liability or Supplier / Broker Advances and credit Due to Third Party / Settlement Payable. No Transtrade bank movement is posted.",
+    "groupEntityPaysAnotherEntitySupplier": "Use explicit intercompany due-to/due-from treatment in both legal books; do not use ordinary Third Party Settlement.",
+    "familyOrStaffPaysOnBehalf": "Use the approved person-specific reimbursement payable when the payer is a configured family/staff person and the payment is genuinely on behalf of the business.",
+    "allocation": "If a payment/advance is explicitly linked to a Soda or truck/Pohanch, use that linkage. If it is only a general broker/supplier advance, do not guess the Soda; show it as unallocated and let Accounts confirm allocation.",
+    "bankRule": "A direct third-party settlement must never create a fictitious Transtrade bank or cash entry."
+  }
+}
