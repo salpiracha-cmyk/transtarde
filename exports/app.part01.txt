@@ -1,0 +1,62 @@
+(()=>{'use strict';
+const STORE='transtrade_export_v2_operational';
+const TODAY=()=>new Date().toLocaleDateString('en-CA');
+const uid=p=>`${p}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,7)}`;
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const num=v=>Number(v||0);
+const round=(v,d=3)=>Number(num(v).toFixed(d));
+const money=(v,c='USD')=>`${c} ${num(v).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
+const fmt=d=>{if(!d)return'';const m=String(d).match(/^(\d{4})-(\d{2})-(\d{2})$/);return m?`${m[3]}-${m[2]}-${m[1]}`:String(d)};
+const longDate=d=>{if(!d)return'';const x=new Date(`${String(d).slice(0,10)}T12:00:00`);return isNaN(x)?String(d).toUpperCase():x.toLocaleDateString('en-GB',{day:'2-digit',month:'long',year:'numeric'}).toUpperCase()};
+const addDays=(iso,n)=>{const d=new Date(`${iso}T12:00:00`);d.setDate(d.getDate()+n);return d.toLocaleDateString('en-CA')};
+const addBankDays=(iso,n)=>{let d=new Date(`${iso}T12:00:00`),c=0;while(c<n){d.setDate(d.getDate()+1);if(d.getDay()!==0&&d.getDay()!==6)c++}return d.toLocaleDateString('en-CA')};
+const clone=o=>JSON.parse(JSON.stringify(o));
+const byId=id=>document.getElementById(id);
+const CONTAINER_RE=/^[A-Z]{4}\d{6}-\d$/;
+const normalizeContainer=v=>{let s=String(v||'').toUpperCase().replace(/[^A-Z0-9]/g,'');if(s.length===11)return `${s.slice(0,10)}-${s.slice(10)}`;return String(v||'').toUpperCase()};
+const DEFAULT_QUALITY='Free from live insects, bad odour and rice fit for human consumption.';
+const PAYMENT_LABELS={ADV_SCAN:'Advance + Balance Against Scan Copies',ADV_CAD:'Advance + Balance CAD',ADV100:'100% Advance',LC_SIGHT:'100% Irrevocable L/C at Sight',LC_USANCE:'Usance L/C',CAD100:'100% CAD',CUSTOM:'Custom Payment Terms'};
+const BRAND_ASSETS=window.__TT_ASSETS||{};
+const SELLERS={
+ TTI:{name:'TRANSTRADE INTERNATIONAL',short:'TTI',address:'Office No. 11, 3rd Floor, Arkay Square, Ext. Shahrah e Liaquat, New Challi, Karachi South, Pakistan.',country:'Pakistan',phone:'+92-21 32410255, 32410677',email:'info@transtradeinternational.com',website:'www.transtradeinternational.com',taxId:'',kcci:'36453',header:BRAND_ASSETS.TTI_header,footer:'',sign:BRAND_ASSETS.TTI_sign,banks:[{name:'Meezan Bank Limited - Jodia Bazar Branch, Karachi',iban:'PK00MEZN0000000000000000',swift:'MEZNPKKAXXX',address:'Karachi, Pakistan'}]},
+ BRM:{name:'BUKSH RICE MILLS',short:'BRM',address:'S-94/A, S.I.T.E., Karachi, Pakistan.',country:'Pakistan',phone:'0092-21-32560333',email:'bukshrice@gmail.com',website:'',taxId:'',kcci:'120033',header:BRAND_ASSETS.BRM_header,footer:'',sign:BRAND_ASSETS.BRM_sign,banks:[{name:'Meezan Bank Limited - Karachi',iban:'',swift:'MEZNPKKAXXX',address:'Karachi, Pakistan'}]},
+ TG:{name:'TRANS GRAINS FOODSTUFF TRADING L.L.C',short:'TG',address:'Office No. 376, The Bestal Hotel, Al Muraqqabat, P.O. Box 46959, Dubai - U.A.E.',country:'United Arab Emirates',phone:'+971-4-251-8979',email:'info@transgrains.com',website:'www.transgrains.com',taxId:'',kcci:'',header:BRAND_ASSETS.TG_header,footer:BRAND_ASSETS.TG_footer,sign:BRAND_ASSETS.TG_sign,banks:[{name:'Habib Bank AG Zurich - Baniyas Square, Dubai',iban:'AE390290120311333747420',swift:'HBZUAEADXXX',address:'Baniyas Square, P.O. Box 3306, Dubai, U.A.E.'}]}
+};
+const PRODUCTS=['IRRI-6 White Rice','IRRI-6 Parboiled Rice','C-9 White Rice','PK-386 White Rice','Super Kernel Basmati','D-98 White Rice','1121 White Rice','1121 Parboiled Rice'];
+const DEFAULT_DOCS=[['SIGNED COMMERCIAL INVOICE',3,2],['PACKING LIST',3,2],['FULL SET CLEAN ON BOARD BILL OF LADING',3,2],['CERTIFICATE OF ORIGIN',1,2],['PHYTOSANITARY CERTIFICATE',1,2],['FUMIGATION CERTIFICATE',1,2]];
+const DEFAULT_TERMS=[
+ 'Partial shipment allowed unless otherwise stated in the contract.',
+ 'Trans-shipment allowed unless otherwise stated in the contract.',
+ 'All present and/or future customs taxes and/or duties/levies on the cargo in the country of origin shall be for Seller’s account. All present and/or future customs taxes and/or duties/levies on the cargo in the country of destination shall be for Buyer’s account.',
+ 'Risk of weight and quality transfers after loading on board.',
+ 'Third-party documents are acceptable where applicable and agreed.',
+ 'Any amendment after acceptance is subject to Seller confirmation and audit trail.'
+];
+function seed(){return {version:'exports-clean-v1-audit-party-branding',customers:[{id:'C-DAYA',name:'Daya Marketing Unipessoal LDA',code:'DM',address:'Rua Jacinto Candido No. 7, Akadiruhun, Dili, Timor-Leste.',country:'Timor-Leste',contact:'',phone:'',email:'',taxId:'',packingDefault:'KG',nextSeq:4}],suppliers:[{id:'SUP-ALEEM',name:'Aleem Bags'}],fi:[],lettersOfCredit:[],contracts:[],shipments:[],cancelled:[],millSync:{newExportBags:[],productionInstructions:[],exportLoading:[]},audits:[],alerts:[],settings:{}}}
+function normalizeCustomer(c){c.name=c.name||'';c.code=String(c.code||'CUS').toUpperCase();c.address=c.address||'';c.country=c.country||'';c.contact=c.contact||'';c.phone=c.phone||'';c.email=c.email||'';c.taxId=c.taxId||'';c.packingDefault=c.packingDefault||'KG';c.nextSeq=Math.max(1,num(c.nextSeq)||1);return c}
+function defaultPartyDisplay(){return {seller:{phone:false,email:false,taxId:false},buyer:{phone:false,email:false,taxId:false}}}
+function sellerMasterDetails(code){const x=SELLERS[code]||{};return {name:x.name||code||'',address:x.address||'',country:x.country||'',phone:x.phone||'',email:x.email||'',taxId:x.taxId||''}}
+function buyerMasterDetails(id){const x=customer(id)||{};return {name:x.name||'',address:x.address||'',country:x.country||'',phone:x.phone||'',email:x.email||'',taxId:x.taxId||''}}
+function ensurePartyDetails(c){c.partyDisplay=c.partyDisplay&&c.partyDisplay.seller&&c.partyDisplay.buyer?c.partyDisplay:defaultPartyDisplay();c.sellerDetails=c.sellerDetails||sellerMasterDetails(c.seller);c.buyerDetails=c.buyerDetails||buyerMasterDetails(c.customerId);for(const role of ['seller','buyer']){c.partyDisplay[role]=Object.assign({phone:false,email:false,taxId:false},c.partyDisplay[role]||{});const d=c[role+'Details']||{};for(const k of ['name','address','country','phone','email','taxId'])d[k]=d[k]||'';c[role+'Details']=d}return c}
+function parseRefSequence(ref){const parts=String(ref||'').split('/').filter(Boolean);for(let i=parts.length-1;i>=0;i--){if(/^\d+$/.test(parts[i]))return Number(parts[i])}return 0}
+function maxUsedSequence(custId,seller){return state.contracts.filter(c=>c.customerId===custId&&c.seller===seller).reduce((m,c)=>Math.max(m,parseRefSequence(c.ref)),0)}
+function effectiveNextSequence(custId,seller){const cu=customer(custId)||state.customers[0];return Math.max(1,num(cu?.nextSeq)||1,maxUsedSequence(custId,seller)+1)}
+function advanceSequenceFromContract(c){const cu=customer(c.customerId);if(!cu)return;const n=parseRefSequence(c.ref);cu.nextSeq=Math.max(num(cu.nextSeq)||1,maxUsedSequence(c.customerId,c.seller)+1,n?n+1:1)}
+function partyDetails(c,role,overrideSeller=''){ensurePartyDetails(c);if(role==='seller'&&overrideSeller&&overrideSeller!==c.seller)return sellerMasterDetails(overrideSeller);return clone(c[role+'Details']||{})}
+function partyPrintLines(c,role,overrideSeller=''){const d=partyDetails(c,role,overrideSeller),show=(c.partyDisplay||defaultPartyDisplay())[role]||{},bits=[];if(d.address)bits.push(`<div class="partyLine">${esc(d.address)}</div>`);if(show.phone&&d.phone)bits.push(`<div class="partyLine"><b>Tel:</b> ${esc(d.phone)}</div>`);if(show.email&&d.email)bits.push(`<div class="partyLine"><b>Email:</b> ${esc(d.email)}</div>`);if(show.taxId&&d.taxId)bits.push(`<div class="partyLine"><b>VAT / Tax ID:</b> ${esc(d.taxId)}</div>`);return bits.join('')}
+function partyContactLines(c,role,overrideSeller=''){const d=partyDetails(c,role,overrideSeller),show=(c.partyDisplay||defaultPartyDisplay())[role]||{},bits=[];if(show.phone&&d.phone)bits.push(`<div class="partyLine"><b>Tel:</b> ${esc(d.phone)}</div>`);if(show.email&&d.email)bits.push(`<div class="partyLine"><b>Email:</b> ${esc(d.email)}</div>`);if(show.taxId&&d.taxId)bits.push(`<div class="partyLine"><b>VAT / Tax ID:</b> ${esc(d.taxId)}</div>`);return bits.join('')}
+function partyBoxHTML(c,role,label,overrideSeller=''){const d=partyDetails(c,role,overrideSeller);return `<div class="docPartyBox"><b>${esc(label)}: ${esc(d.name||'')}</b>${partyPrintLines(c,role,overrideSeller)}</div>`}
+function brandHeaderHTML(code){const x=SELLERS[code]||{};return x.header?`<div class="brandLetterhead"><img src="${x.header}" alt="${esc(x.name||code)} letterhead"></div>`:`<div class="brandLetterhead fallback">${esc(x.name||code)}</div>`}
+function brandFooterHTML(code,cls='brandFooterArt'){const x=SELLERS[code]||{};return x.footer?`<div class="${cls}"><img src="${x.footer}" alt=""></div>`:''}
+function brandSignHTML(code,cls='scSignImg'){const x=SELLERS[code]||{};return x.sign?`<img class="${cls}" src="${x.sign}" alt="Authorized signature">`:''}
+function docBrandHeader(code,title){const x=SELLERS[code]||{};return `${x.header?`<div class="docLetterhead"><img src="${x.header}" alt="${esc(x.name||code)} letterhead"></div>`:''}<h1 class="docTitle">${esc(title)}</h1>`}
+function normalizeState(x){x=x&&typeof x==='object'?x:seed();x.version='exports-clean-v1-audit';for(const k of ['customers','suppliers','fi','lettersOfCredit','contracts','shipments','cancelled','audits','alerts'])x[k]=Array.isArray(x[k])?x[k]:[];x.millSync=x.millSync||{};for(const k of ['newExportBags','productionInstructions','exportLoading'])x.millSync[k]=Array.isArray(x.millSync[k])?x.millSync[k]:[];if(!x.customers.length)x.customers=seed().customers;if(!x.suppliers.length)x.suppliers=seed().suppliers;for(const cu of x.customers)normalizeCustomer(cu);for(const c of x.contracts)normalizeContract(c);for(const s of x.shipments)normalizeShipment(s);return x}
+function normalizeContract(c){c.versions=Array.isArray(c.versions)?c.versions:[];c.docs=Array.isArray(c.docs)&&c.docs.length?c.docs:clone(DEFAULT_DOCS);c.terms=Array.isArray(c.terms)&&c.terms.length?c.terms:clone(DEFAULT_TERMS);c.packings=Array.isArray(c.packings)?c.packings:[];c.specRows=Array.isArray(c.specRows)?c.specRows:[];c.usanceDays=num(c.usanceDays)||90;c.quality=c.quality||DEFAULT_QUALITY;c.paymentCode=c.paymentCode||'ADV_SCAN';c.status=c.status||'Draft';ensurePartyDetails(c);return c}
+function normalizeShipment(s){s.lcId=s.lcId||'';s.bagOrders=Array.isArray(s.bagOrders)?s.bagOrders:[];s.loading=s.loading||{};s.loading.lots=Array.isArray(s.loading.lots)?s.loading.lots:[];s.millActuals=Array.isArray(s.millActuals)?s.millActuals:[];s.production=s.production||{sentToMill:false,dryOn:'No',craftPaper:'No',dpp:'Yes',inspection:'None',qualityNotes:''};s.customs=s.customs||{};s.bl=s.bl||{};s.commercial=s.commercial||{};s.coo=s.coo||{};s.certs=Array.isArray(s.certs)?s.certs:[];s.covering=s.covering||{};s.tgdocs=s.tgdocs||{};s.lcDraft=s.lcDraft||{};s.partySnapshot=s.partySnapshot||null;return s}
+const memStore=new Map();
+const STORAGE={getItem(k){try{return localStorage.getItem(k)}catch{return memStore.get(String(k))??null}},setItem(k,v){try{localStorage.setItem(k,v)}catch{memStore.set(String(k),String(v))}},removeItem(k){try{localStorage.removeItem(k)}catch{memStore.delete(String(k))}}};
+function load(){try{return normalizeState(JSON.parse(STORAGE.getItem(STORE)||'null'))}catch{return seed()}}
+let state=load(),view='home',currentShipmentId='',activeWorkspace='',contractDraft=null,contractStep=1,modalStack=[],contractOriginal=null;
+function save(){STORAGE.setItem(STORE,JSON.stringify(state));const b=byId('saveBadge');if(b)b.textContent=`Saved ${new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}`;window.TT_SHARED_SYNC?.flush?.()}
+function reloadStateFromStorage(){state=load();view='home';currentShipmentId='';activeWorkspace='';contractDraft=null;contractOriginal=null;contractStep=1;render();return state}
+function audit(area,action,detail=''){state.audits.unshift({at:new Date().t
