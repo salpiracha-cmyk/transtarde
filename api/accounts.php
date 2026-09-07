@@ -14,14 +14,31 @@ function accounts_respond(array $data, int $status = 200): never {
     exit;
 }
 
-function accounts_can_write(array $user): bool {
+function accounts_user_has_module_write(array $user, string $moduleName): bool {
     if (($user['role'] ?? '') === 'Super Admin') return true;
-    $module = $user['permissions']['Accounts'] ?? null;
+    $module = $user['permissions'][$moduleName] ?? null;
     if ($module === 'all') return true;
-    foreach ((array)$module as $actions) {
+    if (!is_array($module)) return false;
+    if (in_array('Create', $module, true) || in_array('Edit', $module, true)) return true;
+    foreach ($module as $actions) {
         if (is_array($actions) && (in_array('Create', $actions, true) || in_array('Edit', $actions, true))) return true;
     }
     return false;
+}
+
+function accounts_can_write(array $user): bool {
+    return accounts_user_has_module_write($user, 'Accounts');
+}
+
+function accounts_source_event_allowed(array $user, string $eventType): bool {
+    if (accounts_can_write($user)) return true;
+    $map = [
+        'COMMODITY_RECEIPT_ACCEPTED' => 'Mill',
+        'LOCAL_SALE_RECOGNIZED' => 'Mill',
+        'EXPORT_SALE_RECOGNIZED' => 'Exports',
+    ];
+    $module = $map[$eventType] ?? null;
+    return $module ? accounts_user_has_module_write($user, $module) : false;
 }
 
 function accounts_master(): array {
@@ -280,9 +297,9 @@ function accounts_event_lines(string $eventType, array $body): array {
 
 try {
     $user = tt_require_login();
-    if (!tt_user_can_open_module($user, 'Accounts')) accounts_respond(['ok'=>false,'error'=>'Accounts permission required.'], 403);
 
     if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+        if (!tt_user_can_open_module($user, 'Accounts')) accounts_respond(['ok'=>false,'error'=>'Accounts permission required.'], 403);
         $store = accounts_read(); $master = accounts_master();
         accounts_respond([
             'ok'=>true,'revision'=>(int)$store['revision'],'journals'=>$store['journals'],'events'=>$store['events'],
@@ -290,13 +307,18 @@ try {
         ]);
     }
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') accounts_respond(['ok'=>false,'error'=>'Method not allowed.'], 405);
-    if (!accounts_can_write($user)) accounts_respond(['ok'=>false,'error'=>'Create or Edit permission is required.'], 403);
 
     $raw = file_get_contents('php://input') ?: '';
     if (strlen($raw) > 1024 * 1024) accounts_respond(['ok'=>false,'error'=>'Accounts update is too large.'], 413);
     $body = json_decode($raw, true);
     if (!is_array($body) || !tt_verify_csrf((string)($body['csrf'] ?? ''))) accounts_respond(['ok'=>false,'error'=>'Your session expired. Refresh and try again.'], 419);
     $action = (string)($body['action'] ?? '');
+    $eventTypeForPermission = strtoupper(trim((string)($body['eventType'] ?? '')));
+    if ($action === 'post_event') {
+        if (!accounts_source_event_allowed($user, $eventTypeForPermission)) accounts_respond(['ok'=>false,'error'=>'You do not have permission to create this accounting event.'], 403);
+    } elseif (!accounts_can_write($user)) {
+        accounts_respond(['ok'=>false,'error'=>'Accounts Create or Edit permission is required.'], 403);
+    }
 
     if ($action === 'post_journal') {
         $entity = accounts_validate_entity((string)($body['entity'] ?? ''));
@@ -316,7 +338,7 @@ try {
     if ($action === 'post_event') {
         $entity = accounts_validate_entity((string)($body['entity'] ?? ''));
         $date = accounts_valid_date((string)($body['date'] ?? ''));
-        $eventType = strtoupper(trim((string)($body['eventType'] ?? '')));
+        $eventType = $eventTypeForPermission;
         $sourceKey = trim((string)($body['sourceKey'] ?? ''));
         if ($sourceKey === '' || strlen($sourceKey) > 180) accounts_respond(['ok'=>false,'error'=>'A stable source reference is required to prevent duplicate posting.'], 422);
         $reference = trim((string)($body['reference'] ?? $sourceKey));
@@ -327,7 +349,7 @@ try {
             $eventId = $entity.'|'.$eventType.'|'.$sourceKey;
             if (isset($store['events'][$eventId])) accounts_respond(['ok'=>false,'error'=>'This source event has already been posted.','existing'=>$store['events'][$eventId]], 409);
             $journal = accounts_post_journal_to_store($store,$user,$entity,$date,$eventType,$reference,$narration,$lines,array_merge($meta,['sourceKey'=>$sourceKey]),'AUTO');
-            $store['events'][$eventId] = ['id'=>$eventId,'entity'=>$entity,'eventType'=>$eventType,'sourceKey'=>$sourceKey,'journalId'=>$journal['id'],'postedAt'=>gmdate('c')];
+            $store['events'][$eventId] = ['id'=>$eventId,'entity'=>$entity,'eventType'=>$eventType,'sourceKey'=>$sourceKey,'journalId'=>$journal['id'],'postedAt'=>gmdate('c'),'postedBy'=>(string)($user['full_name'] ?? $user['username'] ?? 'Staff')];
             return ['event'=>$store['events'][$eventId],'journal'=>$journal];
         });
         accounts_respond(['ok'=>true,'event'=>$written['result']['event'],'journal'=>$written['result']['journal'],'revision'=>(int)$written['store']['revision']]);
