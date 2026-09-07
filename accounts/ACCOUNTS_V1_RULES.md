@@ -119,15 +119,42 @@ Transtrade internal Local Sales control for the 30 June financial year:
 - monitor recognized Pakistan Local Sales separately from recognized Pakistan Export Sales;
 - calculate Local Sales / Export Sales as a percentage;
 - exclude TG customer turnover and Pakistan/TG intercompany revenue from the denominator;
-- show a warning at 4.8%;
-- block Accounts approval of a Local Sale that would take the monitored percentage above 5.0%;
+- raise a prominent warning at 4.8%;
+- raise a critical alarm at 5.0% and above;
 - show remaining rupee headroom to 5%;
 - show a by-product-wise Local Sales breakdown;
-- show the projected ratio before Accounts approves a pending Local Sale.
+- show the projected ratio before Accounts approves a pending Local Sale;
+- never block Accounts from recording/posting an actual completed sale solely because the ratio is above 5%.
 
-The 5% ceiling is currently implemented as a Transtrade internal control pending auditor/legal confirmation of the precise statutory basis and scope. The policy is configurable so an auditor-confirmed entity-specific denominator can replace the management scope without redesign.
+Accounting must reflect actual transactions even when a management/compliance limit has been breached. A 5% breach therefore creates alerts, exception reporting, owner/director visibility and a closing exception; it does not suppress accounting recognition. Any prospective business restriction should be handled before the transaction occurs through operational approval controls, not by preventing Accounts from recording a completed sale.
 
-## 14. Migration intent
+The 5% ceiling remains a Transtrade internal control pending auditor/legal confirmation of the precise statutory basis and scope. The policy is configurable so an auditor-confirmed entity-specific denominator can replace the management scope without redesign.
+
+## 14. Third-party settlements
+A payment made directly by a third party to a Transtrade supplier or service provider must never be represented as if money moved through a Transtrade bank or cash account.
+
+Accounts uses a distinct `Third Party Settlement` workflow and records:
+- legal entity;
+- third party / payer;
+- supplier or service provider receiving the money;
+- linked supplier bill, Soda, service invoice or expense;
+- amount and settlement date;
+- settlement reason / relationship;
+- source party ledger or settlement basis;
+- documentary reference / proof;
+- Accounts approver and audit trail.
+
+Treatment depends on why the third party paid:
+
+1. If the third party already owes Transtrade money and pays a Transtrade supplier/service provider on Transtrade's behalf, the third party receivable is reduced. If the supplier liability already exists: Dr Supplier / Service Payable; Cr Third Party Receivable. If no payable has yet been recognized under the normal workflow: Dr the correct Expense / Asset / Inventory account; Cr Third Party Receivable.
+
+2. If the third party does not owe Transtrade and simply pays on Transtrade's behalf, Transtrade becomes liable to that third party. If the supplier liability already exists: Dr Supplier / Service Payable; Cr Due to Third Party. If no payable has yet been recognized: Dr the correct Expense / Asset / Inventory account; Cr Due to Third Party. When Transtrade later reimburses the third party: Dr Due to Third Party; Cr Bank / Cash.
+
+3. If the payer is another legal entity in the group, use the appropriate intercompany due-to / due-from ledger rather than an ordinary third-party payable.
+
+The system must not net unrelated party balances silently. A third-party settlement must retain the original payer, beneficiary, linked transaction and settlement reason so Accounts can trace both sides.
+
+## 15. Migration intent
 Legacy SQL Server data can be used to migrate/clean:
 - Chart of Accounts hierarchy
 - subsidiary/party ledgers
@@ -138,5 +165,5 @@ Legacy SQL Server data can be used to migrate/clean:
 
 Legacy passwords are never migrated.
 
-## 15. Current implementation status on `accounts-v1-foundation`
+## 16. Current implementation status on `accounts-v1-foundation`
 The branch contains the Accounts V1 app-style UI, authenticated Accounts entry point, secure JSON-backed Accounts API, balanced immutable journals, reversals, non-ledger reminders, receipt-linked commodity bills, export recognition review, and Local Sales control/approval monitoring. Operational source modules remain separated from posting authority: source staff record business facts; Accounts approves controlled financial events; Transtrade creates the accounting entry.
