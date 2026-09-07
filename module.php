@@ -32,5 +32,14 @@ new MutationObserver(apply).observe(document.body,{childList:true,subtree:true})
 })();
 </script>
 HTML;
-$html=str_replace('</head>',$bootstrap.'</head>',$html);
-echo str_replace('</body>',$guard.'</body>',$html);
+$headPos=stripos($html,'</head>');
+if ($headPos !== false) {
+    $html=substr_replace($html,$bootstrap,$headPos,0);
+}
+$bodyPos=strripos($html,'</body>');
+if ($bodyPos !== false) {
+    $html=substr_replace($html,$guard,$bodyPos,0);
+} else {
+    $html.=$guard;
+}
+echo $html;
