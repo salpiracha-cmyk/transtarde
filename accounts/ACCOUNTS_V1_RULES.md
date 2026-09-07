@@ -106,7 +106,28 @@ TTI / BRM / TG books remain separate but linked. TG-linked transactions must pre
 
 No silent price inference or hidden netting.
 
-## 13. Migration intent
+## 13. Local Sales — controlled exception
+Local Sales and Export Sales are separate accounting/reporting streams. Local Sales are not treated as Transtrade's core business activity and require special monitoring.
+
+Every Local Sale must carry a mandatory Product / By-product dimension so Local Sales can be reported by B2, CSR, Powder or any other approved by-product/product without creating an overcrowded Chart of Accounts.
+
+Mill staff may enter Local Sale operational details and payment intimations, but they do not post accounting entries. Local Sale accounting and Local Sale payment accounting require Accounts approval. Pending Mill entries have zero ledger effect until Accounts approves them.
+
+A Local Sale must also identify the actual Selling Entity (TTI or BRM) from the approved entity master. The mill/location must never silently determine the legal seller.
+
+Transtrade internal Local Sales control for the 30 June financial year:
+- monitor recognized Pakistan Local Sales separately from recognized Pakistan Export Sales;
+- calculate Local Sales / Export Sales as a percentage;
+- exclude TG customer turnover and Pakistan/TG intercompany revenue from the denominator;
+- show a warning at 4.8%;
+- block Accounts approval of a Local Sale that would take the monitored percentage above 5.0%;
+- show remaining rupee headroom to 5%;
+- show a by-product-wise Local Sales breakdown;
+- show the projected ratio before Accounts approves a pending Local Sale.
+
+The 5% ceiling is currently implemented as a Transtrade internal control pending auditor/legal confirmation of the precise statutory basis and scope. The policy is configurable so an auditor-confirmed entity-specific denominator can replace the management scope without redesign.
+
+## 14. Migration intent
 Legacy SQL Server data can be used to migrate/clean:
 - Chart of Accounts hierarchy
 - subsidiary/party ledgers
@@ -117,5 +138,5 @@ Legacy SQL Server data can be used to migrate/clean:
 
 Legacy passwords are never migrated.
 
-## 14. Current implementation status on `accounts-v1-foundation`
-The branch contains the Accounts V1 app-style UI, an authenticated Accounts entry point, and a secure JSON-backed Accounts API supporting balanced immutable journals, reversals and non-ledger reminders. Operational auto-posting remains intentionally blocked until account mappings and posting rules are defined in Masters.
+## 15. Current implementation status on `accounts-v1-foundation`
+The branch contains the Accounts V1 app-style UI, authenticated Accounts entry point, secure JSON-backed Accounts API, balanced immutable journals, reversals, non-ledger reminders, receipt-linked commodity bills, export recognition review, and Local Sales control/approval monitoring. Operational source modules remain separated from posting authority: source staff record business facts; Accounts approves controlled financial events; Transtrade creates the accounting entry.
