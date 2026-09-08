@@ -29,12 +29,12 @@
 - Incoming bank charges may reduce the native amount credited to the bank while the gross receivable settlement remains traceable.
 - Any difference between the receivable AED carrying amount and the AED value of bank credit + bank charges posts to FX gain/loss.
 - Intercompany and other existing receivable recoveries may be settled with an explicit AED carrying amount.
-- A genuine customer receipt before invoice/revenue recognition must NOT be credited to a receivable asset. It requires the dedicated Customer Advance / Unapplied Receipt liability control account before this case is enabled.
+- A genuine customer receipt before invoice/revenue recognition posts to 2510 Customer Advances / Unapplied Receipts. It is later allocated against the receivable only after the sale/invoice is recognized.
 
 ## TG payments
 Accounts selects the business substance; Transtrade creates the journal:
 - Direct expense/service → approved expense account.
-- Supplier/service advance → Other Receivables / Advances asset until the supplier bill/service is recognized and allocated.
+- Supplier/service advance → 1250 Supplier / Service Advances until the supplier bill/service is recognized and allocated.
 - Existing payable → approved payable account; Accounts confirms the AED carrying amount being cleared.
 - Intercompany payment → Intercompany Payable; Accounts confirms the AED carrying amount being cleared.
 - Fixed asset purchase → approved fixed-asset account.
@@ -57,7 +57,12 @@ Accounts selects the business substance; Transtrade creates the journal:
 - Payment amount plus charges cannot exceed the bank's native book balance.
 - Posted transactions are journal-backed and retain user, date, bank reference, counterparty, rates and source linkage.
 
-## Closing
+## 31 December AED remeasurement
 - TG final accounts/tax reporting closes on 31 December in AED.
-- USD bank and other USD monetary balances require year-end AED remeasurement using the TG Master closing/tax rate.
-- The dedicated 31 December revaluation/closing routine is a separate control from normal daily USD↔AED conversion.
+- The year-end FX routine previews supported USD monetary assets before posting.
+- TG USD bank native balances remain unchanged; only their AED carrying value is adjusted to the TG Master closing/tax rate.
+- Open recognized TG USD Export Receivables are remeasured to the same closing rate.
+- After remeasurement, the remaining receivable carries forward at the new closing rate so a later receipt clears the correct AED carrying value without recreating the old pre-close rate.
+- The routine refuses future posting and duplicate posting for the same year-end.
+- The current automated scope covers TG USD banks and recognized TG USD export receivables. Foreign-currency payable/intercompany liabilities still require native-currency subledger tagging before they can be included automatically.
+- This remeasurement is not by itself the final statutory/tax close or period lock; wider cutoff, liability, reconciliation and tax review remains required.
