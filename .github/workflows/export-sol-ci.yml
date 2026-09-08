@@ -1,0 +1,22 @@
+name: Export SOL CI
+
+on:
+  push:
+    branches: [exports-clean-v1]
+  pull_request:
+    branches: [main]
+    paths:
+      - 'exports/**'
+      - 'tests/export_sol_ci.js'
+      - '.github/workflows/export-sol-ci.yml'
+
+jobs:
+  export-sol:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run Export SOL acceptance checks
+        run: node tests/export_sol_ci.js
