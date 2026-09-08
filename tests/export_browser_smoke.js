@@ -1,0 +1,24 @@
+const { chromium }=require('playwright');
+(async()=>{
+ const browser=await chromium.launch({headless:true});
+ const page=await browser.newPage();
+ const seed={version:1,customers:[{id:'C1',name:'Test Buyer LLC',code:'TB',address:'Dubai, UAE',country:'UAE',nextSeq:48}],contracts:[{id:'K1',ref:'TTI/DM/47',seller:'TTI',customerId:'C1',customer:'Test Buyer LLC',date:'2026-09-09',product:'IRRI-6 Rice',broken:5,finish:'Silky Polished & Sortexed',quality:'Free from live insects, bad odour and rice fit for human consumption.',qty:27,tolerance:5,containers:1,weightPer:27,packingUnit:'KG',packings:[{type:'PP Bags',size:25,unit:'KG',brand:'TEST BRAND',tare:80,containers:1,weightPer:27,price:440,masterBag:{enabled:false,qty:0,tare:0}}],currency:'USD',incoterm:'CFR',pol:'Karachi Port, Pakistan',podPort:'Jebel Ali',podCountry:'UAE',destPort:'Dubai',destCountry:'UAE',shipmentDate:'2026-10-01',inspection:'None',insurance:"Buyer's Account",paymentCode:'LC_SIGHT',paymentText:'',advancePct:0,usanceDays:0,docs:[],terms:[],issued:true,received:true,status:'Contract Received',sellerDetails:{name:'TRANSTRADE INTERNATIONAL',address:'Karachi, Pakistan'},buyerDetails:{name:'Test Buyer LLC',address:'Dubai, UAE'},partyDisplay:{seller:{phone:false,email:false,taxId:false},buyer:{phone:false,email:false,taxId:false}}}],shipments:[{id:'S1',contractRef:'TTI/DM/47',buyer:'Test Buyer LLC',plannedQty:27,status:'Contract Received',cancelled:false,completed:false,bagOrders:[],millActuals:[],loading:{lots:[]}}],fi:[],banks:[],suppliers:[],alerts:[{id:'A1',area:'BAG',contractRef:'TTI/DM/47',kind:'Export Update',message:'Bag update for browser smoke.',seen:false}],audits:[],cancelled:[],lettersOfCredit:[],millSync:{newExportBags:[],productionInstructions:[],exportLoading:[],millReturns:[]}};
+ await page.addInitScript(v=>localStorage.setItem('transtrade_export_v2_operational',JSON.stringify(v)),seed);
+ await page.goto('http://127.0.0.1:8000/tests/export_harness.html',{waitUntil:'networkidle'});
+ await page.waitForSelector('#app .topbar');
+ const power=await page.locator('#logoutTop').count();if(power!==1)throw new Error('Top-right power logout missing');
+ const hidden=await page.locator('#ttUserBar').evaluate(el=>getComputedStyle(el).display);if(hidden!=='none')throw new Error('Shared bottom-right Sign out is visible');
+ const noticeBottom=await page.locator('#ttSyncNotice').evaluate(el=>getComputedStyle(el).bottom);if(noticeBottom!=='auto')throw new Error('Sync notice still occupies bottom-right');
+ await page.locator('[data-nav="shipments"]').click();await page.locator('[data-ship="S1"]').click();
+ await page.locator('[data-workspace="bags"]').click();
+ const bag=page.locator('[data-workspace="bags"]');const bagRow=bag.locator('xpath=ancestor::div[contains(@class,"workspaceRow")]');const detail=bagRow.locator('xpath=following-sibling::*[1][contains(@class,"workspaceDetail")]');if(await detail.count()!==1)throw new Error('BAG ORDER detail is not directly below its icon row');
+ if(!(await detail.textContent()).includes('BAG ORDER'))throw new Error('BAG ORDER workspace did not render');
+ await page.locator('[data-workspace="production"]').click();if(await page.locator('.workspaceDetail').count()!==1)throw new Error('More than one workspace detail is open');if(!(await page.locator('.workspaceDetail').textContent()).includes('PRODUCTION INSTRUCTIONS'))throw new Error('Production workspace did not replace BAG ORDER workspace');
+ await page.locator('[data-workspace="loading"]').click();const loadingText=await page.locator('.workspaceDetail').textContent();if(!loadingText.includes('LOADING FROM')||!loadingText.includes('CREATE LOT AND SEND INSTRUCTIONS TO MILL'))throw new Error('Loading workspace incomplete');if(/CONTAINER\s+NO\.|SEAL\s+NO\./i.test(loadingText))throw new Error('Export Loading exposes actual container/seal entry');
+ await page.locator('[data-nav="reports"]').click();const reportText=await page.locator('#main').textContent();if(!reportText.includes('FI Register / FI Utilisation')||!reportText.includes('Container / Loading Register'))throw new Error('Required release reports missing');
+ console.log('PASS browser mount / power logout / clean bottom-right');
+ console.log('PASS row accordion placement / single active workspace');
+ console.log('PASS Loading UI source-of-truth guard');
+ console.log('PASS two-report release UI');
+ await browser.close();
+})().catch(e=>{console.error(e);process.exit(1)});
