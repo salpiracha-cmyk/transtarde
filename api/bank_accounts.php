@@ -74,16 +74,16 @@ function ba_default_setting(array $a): array {
         'visibleToMill'=>false,'reconciliationEnabled'=>true,'displayName'=>'','notes'=>'','updatedAt'=>null,'updatedBy'=>null
     ];
 }
-function ba_balance(array $store,string $entity,string $bankId): float {
-    $bal=0.0;
+function ba_balance(array $store,string $entity,string $bankId,string $currency): float {
+    $bal=0.0;$currency=strtoupper(trim($currency));
     foreach((array)($store['journals']??[]) as $j){
         if(!is_array($j)||($j['status']??'')!=='Posted'||($j['entity']??'')!==$entity)continue;
         $jm=is_array($j['meta']??null)?$j['meta']:[];
         foreach((array)($j['lines']??[]) as $line){
             if(!is_array($line)||(string)($line['account']??'')!=='1110')continue;
-            $lineBank=(string)($line['bankAccountId']??$jm['bankAccountId']??'');
-            if($lineBank!==$bankId)continue;
-            $bal+=(float)($line['debit']??0)-(float)($line['credit']??0);
+            $lineBank=(string)($line['bankAccountId']??$jm['bankAccountId']??'');if($lineBank!==$bankId)continue;
+            if($currency==='PKR'){$bal+=(float)($line['debit']??0)-(float)($line['credit']??0);continue;}
+            $bal+=(float)($line['bankDebit']??0)-(float)($line['bankCredit']??0);
         }
     }
     return round($bal,2);
@@ -110,24 +110,28 @@ function ba_unassigned_bank_balance(array $store,string $entity): float {
     return round($bal,2);
 }
 function ba_payload(array $store,string $entity): array {
-    $masters=ba_master_accounts();$rows=[];$planning=0.0;
+    $masters=ba_master_accounts();$rows=[];$planning=0.0;$planningCurrency=$entity==='TG'?'USD':'PKR';$balances=[];
     foreach($masters as $id=>$a){
         if(($a['entity']??'')!==$entity)continue;
         $setting=array_replace(ba_default_setting($a),is_array($store['bankAccountSettings'][$id]??null)?$store['bankAccountSettings'][$id]:[]);
-        $book=ba_balance($store,$entity,$id);
-        if(!empty($setting['active'])&&!empty($setting['includeInPaymentPlanning']))$planning+=max(0,$book);
+        $currency=strtoupper(trim((string)($a['currency']??'')))?:$planningCurrency;$book=ba_balance($store,$entity,$id,$currency);
+        $balances[$currency]=round(($balances[$currency]??0)+$book,2);
+        if($currency===$planningCurrency&&!empty($setting['active'])&&!empty($setting['includeInPaymentPlanning']))$planning+=max(0,$book);
         $rows[]=array_merge($a,['settings'=>$setting,'bookBalance'=>$book,'needsCompletion'=>(trim((string)$a['accountNumber'])===''&&trim((string)$a['iban'])==='')]);
     }
     usort($rows,static fn($a,$b)=>strcmp((string)$a['bankName'],(string)$b['bankName'])?:strcmp((string)$a['accountTitle'],(string)$b['accountTitle']));
-    $cashKey='CASH|'.$entity;$cashSetting=array_replace([
+    $cashKey='CASH|'.$entity;$cashCurrency=$entity==='TG'?'AED':'PKR';$cashSetting=array_replace([
         'active'=>true,'allowPayments'=>true,'allowReceipts'=>true,'includeInPaymentPlanning'=>false,'visibleToMill'=>false,
         'reconciliationEnabled'=>true,'displayName'=>'Cash / Petty Cash','notes'=>'','updatedAt'=>null,'updatedBy'=>null
     ],is_array($store['bankAccountSettings'][$cashKey]??null)?$store['bankAccountSettings'][$cashKey]:[]);
-    $cash=ba_cash_balance($store,$entity);if(!empty($cashSetting['active'])&&!empty($cashSetting['includeInPaymentPlanning']))$planning+=max(0,$cash);
+    $cash=ba_cash_balance($store,$entity);$balances[$cashCurrency]=round(($balances[$cashCurrency]??0)+$cash,2);
+    if($cashCurrency===$planningCurrency&&!empty($cashSetting['active'])&&!empty($cashSetting['includeInPaymentPlanning']))$planning+=max(0,$cash);
+    ksort($balances);
     return [
-        'accounts'=>$rows,
-        'cash'=>['id'=>$cashKey,'entity'=>$entity,'accountTitle'=>'Cash / Petty Cash','currency'=>$entity==='TG'?'AED':'PKR','bookBalance'=>$cash,'settings'=>$cashSetting],
-        'paymentPlanningFunds'=>round($planning,2),'unassignedBankBalance'=>ba_unassigned_bank_balance($store,$entity)
+        'accounts'=>$rows,'balancesByCurrency'=>$balances,
+        'cash'=>['id'=>$cashKey,'entity'=>$entity,'accountTitle'=>'Cash / Petty Cash','currency'=>$cashCurrency,'bookBalance'=>$cash,'settings'=>$cashSetting],
+        'paymentPlanningCurrency'=>$planningCurrency,'paymentPlanningFunds'=>round($planning,2),
+        'unassignedBankBalance'=>ba_unassigned_bank_balance($store,$entity),'unassignedBankBalanceCurrency'=>'PKR'
     ];
 }
 
