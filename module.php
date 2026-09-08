@@ -12,6 +12,20 @@ $permissionName = $id === 'milling' ? 'Mill' : 'Exports';
 if (!tt_user_can_open_module($user, $permissionName)) { http_response_code(403); exit('You do not have permission to open this module.'); }
 header('Content-Type: text/html; charset=UTF-8');
 $html = (string)file_get_contents($modules[$id]);
+if ($id === 'exports') {
+    $cssFile = __DIR__ . '/exports/app.css';
+    $jsFile = __DIR__ . '/exports/app.js';
+    if (!is_file($cssFile) || !is_file($jsFile)) { http_response_code(503); exit('Export module assets are unavailable.'); }
+    $css = (string)file_get_contents($cssFile);
+    $js = (string)file_get_contents($jsFile);
+    foreach (['TTI_header.png','TTI_sign.png','BRM_header.png','BRM_sign.png','TG_header.png','TG_footer.png','TG_sign.png'] as $asset) {
+        $path = __DIR__ . '/exports/assets/' . $asset;
+        if (is_file($path)) $js = str_replace('exports/assets/' . $asset, 'data:image/png;base64,' . base64_encode((string)file_get_contents($path)), $js);
+    }
+    $html = preg_replace('~<link\b[^>]*href=["\']exports/app\.css[^"\']*["\'][^>]*>~i', '<style id="exports-app-css">' . $css . '</style>', $html, 1) ?? $html;
+    $inlineJs = str_replace('</script', '<\/script', $js);
+    $html = preg_replace('~<script\b[^>]*src=["\']exports/app\.js[^"\']*["\'][^>]*>\s*</script>~i', '<script id="exports-app-js">' . $inlineJs . '</script>', $html, 1) ?? $html;
+}
 $modulePermissions = $user['permissions'][$permissionName] ?? [];
 $access = [
     'module'=>$permissionName, 'moduleId'=>$id, 'user'=>(string)$user['full_name'],
