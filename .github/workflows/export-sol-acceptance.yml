@@ -39,7 +39,7 @@ jobs:
             test -s "exports/assets/$f" || { echo "Missing exports/assets/$f"; exit 1; }
           done
 
-      - name: Validate real Export JavaScript bundle syntax
+      - name: Assemble real Export JavaScript bundle
         shell: bash
         run: |
           set -euo pipefail
@@ -47,6 +47,18 @@ jobs:
           for n in $(seq -w 1 16); do cat "exports/app.part${n}.txt" >> /tmp/transtrade-export-bundle.js; done
           cat exports/app.part18.txt >> /tmp/transtrade-export-bundle.js
           cat exports/app.part17.txt >> /tmp/transtrade-export-bundle.js
+
+      - name: Preserve assembled bundle for diagnostics
+        uses: actions/upload-artifact@v4
+        with:
+          name: export-sol-assembled-bundle
+          path: /tmp/transtrade-export-bundle.js
+          retention-days: 3
+
+      - name: Validate real Export JavaScript bundle syntax
+        shell: bash
+        run: |
+          set -euo pipefail
           node --check /tmp/transtrade-export-bundle.js
           node --check exports/app.js
 
