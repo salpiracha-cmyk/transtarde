@@ -2,7 +2,12 @@
 declare(strict_types=1);
 require __DIR__ . '/auth_store.php';
 if (!tt_has_admin()) { header('Location: setup.php'); exit; }
-if ($current=tt_current_user()) { header('Location: ' . tt_user_landing_url($current)); exit; }
+function tt_login_landing(array $user): string {
+    if (($user['role'] ?? '')==='Super Admin') return 'index.php';
+    if (tt_user_can_open_module($user,'Directors')) return 'directors/index.php';
+    return tt_user_landing_url($user);
+}
+if ($current=tt_current_user()) { header('Location: ' . tt_login_landing($current)); exit; }
 $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $username = strtolower(trim($_POST['username'] ?? ''));
@@ -14,7 +19,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             session_regenerate_id(true); $_SESSION['user_id'] = (int)$user['id'];
             tt_set_last_login((int)$user['id']);
             tt_audit((int)$user['id'], $user['username'], 'Signed in');
-            header('Location: ' . (!empty($user['must_change_password']) ? 'change-password.php' : tt_user_landing_url($user))); exit;
+            header('Location: ' . (!empty($user['must_change_password']) ? 'change-password.php' : tt_login_landing($user))); exit;
         }
         tt_audit($user ? (int)$user['id'] : null, $username ?: 'unknown', 'Failed sign-in');
         usleep(350000); $error = 'Incorrect username or password.';
