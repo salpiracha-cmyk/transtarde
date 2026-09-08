@@ -1,20 +1,24 @@
 {
-  "version": 2,
+  "version": 3,
   "scope": "Pakistan export/customer/intercompany receipts credited or retained through Pakistan banks",
   "principles": [
     "The exact foreign amount, transaction currency, bank realization/conversion rate, PKR equivalent, actual PKR bank credit, retention amount and every bank deduction remain separately traceable.",
     "FI, Commercial Invoice, Sales Contract advance terms and TG intercompany references flow from Exports; Accounts confirms allocation rather than retyping known source data.",
     "Actual amounts on the bank credit/debit advice are authoritative for posting. Effective-dated master rates are controls for expected calculation and exception review, not a reason to overwrite bank evidence.",
     "Pakistan ordinary foreign-currency export proceeds are recorded as PKR bank realization unless an approved amount is specifically credited to an authorized foreign-currency retention account.",
+    "A retention account is a normal usable foreign-currency bank account. The exact foreign amount directed to retention is credited to that retention bank account; it is not netted by Pakistan withholding tax or treated as a tax deduction.",
+    "Current operating assumption for the receipt helper is that withholding tax is calculated on the gross realization / settlement amount before retention. This is a configurable working basis, not a hard-coded legal conclusion; Accounts records the actual bank/tax deduction and the master can be patched/effective-dated if the legal basis is confirmed differently.",
     "Historical FTR withholding tax, fixed/non-adjustable withholding tax and NTR advance/adjustable withholding tax are separate tax components and must never be merged, netted or retrospectively relabelled.",
     "More than one withholding component may apply to the same receipt. Each component retains its own rate, basis, amount, tax character, GL mapping, bank-certificate matching and effective dates.",
     "The legal tax calculation base is deliberately configurable. Until the applicable rule is confirmed, Transtrade may show an expected calculation but Accounts can amend the calculation base, rate and actual deduction to match authoritative bank/tax evidence.",
     "Tax master changes create new effective-dated rules; prior receipts and certificates retain the rule that applied when they were posted.",
+    "Foreign-currency charges deducted before Pakistan realization, including L/C discrepancy or correspondent-bank charges, may be recorded as separate named rows in the transaction currency and converted to PKR at the realization rate for accounting.",
+    "Accounts may add a one-off charge with a free-text explanation. A one-off description does not automatically create a new Chart-of-Accounts ledger; it posts to the appropriate Export / Foreign Banking Charges control account with the description retained as transaction detail. Repeated/material charge types should be promoted to the shared effective-dated master.",
     "A small difference between an invoice/intercompany transfer and the final amount received may be classified as Foreign Banking Charges only after Accounts explicitly confirms it is a genuine bank/correspondent charge. The system must never silently write off a receivable or TG intercompany difference."
   ],
   "accounts": [
     {"code":"1260","name":"Advance Income Tax / Export WHT Recoverable","class":"Asset","normal":"Debit","purpose":"NTR advance withholding / tax deducted at source on Pakistan export realizations, reconciled to bank tax certificates and income-tax records."},
-    {"code":"6810","name":"Export Realization / Foreign Banking Charges","class":"Expense","normal":"Debit","purpose":"FDBC, collection, negotiation, service, handling, correspondent/foreign-bank shortfalls, courier and similar export-realization bank charges after Accounts confirmation."},
+    {"code":"6810","name":"Export Realization / Foreign Banking Charges","class":"Expense","normal":"Debit","purpose":"FDBC, collection, negotiation, L/C discrepancy, service, handling, correspondent/foreign-bank shortfalls, courier and similar export-realization bank charges after Accounts confirmation."},
     {"code":"6820","name":"FED / Indirect Tax on Bank Charges","class":"Expense","normal":"Debit","purpose":"FED or similar indirect tax identified separately on export/bank service charges unless an effective-dated master later maps it as recoverable."},
     {"code":"6830","name":"Export Development Surcharge","class":"Expense","normal":"Debit","purpose":"EDS or successor export-development surcharge when applicable; inactive when current master says not charged."},
     {"code":"7200","name":"Income Tax / Final or Fixed Tax Expense","class":"Tax","normal":"Debit","purpose":"Legacy FTR final-tax treatment and fixed/non-adjustable withholding components where the effective-dated tax master and auditor-approved policy require expense classification."}
@@ -31,6 +35,19 @@
     "supportsManyToMany": true,
     "sources": ["FI", "Commercial Invoice", "Sales Contract Advance", "TG Intercompany Receivable", "Unapplied Advance"],
     "rule": "One receipt may settle multiple invoices/FIs and one invoice/FI may be realized through multiple receipts. FI customs utilization and bank realization are related but distinct statuses."
+  },
+  "retentionAccount": {
+    "type": "Usable foreign-currency bank account",
+    "creditRule": "Credit the exact foreign amount directed to retention. Do not reduce the retention foreign amount by Pakistan withholding tax.",
+    "uses": ["Approved outward remittances", "Permitted foreign-currency payments", "Related bank/remittance charges"],
+    "accountingRule": "Retention-bank movements remain bank-account transactions in the retention currency with PKR functional-value reporting and full outward-remittance/charge references."
+  },
+  "foreignChargeRows": {
+    "allowOneOff": true,
+    "oneOffAccount": "6810",
+    "requiresExplanation": true,
+    "examples": ["L/C discrepancy charge", "Correspondent bank charge", "Foreign remittance handling charge", "Other evidenced foreign banking charge"],
+    "masterPromotionRule": "If a charge becomes recurring or requires distinct reporting/tax treatment, add it as a dedicated effective-dated shared master row instead of creating ad-hoc GL accounts per transaction."
   },
   "foreignBankShortfall": {
     "masterCode": "EXP-BANK-SHORTFALL",
