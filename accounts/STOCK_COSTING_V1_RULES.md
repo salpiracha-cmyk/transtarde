@@ -3,52 +3,55 @@
 ## Simple rule
 Mill / Exports record the physical movement and actual quantity. Accounts records the money value of that stock movement. Staff must not enter the same quantity again in Accounts.
 
+## Directors costing sheet and live fallback
+The long-term daily costing sheet belongs in the Directors Module. It will hold the Directors daily Raw Rice rate, by-product rates and estimated Ready Rice cost.
+
+Until that Directors data is available for a day, Transtrade prepares a live costing sheet automatically:
+- Raw Rice uses the actual purchase cost available in Accounts for the relevant variety. If the final purchase bill is still pending, the sheet clearly says the Raw Rice value is provisional.
+- Each by-product uses the latest saved Mill sale rate for that same by-product on or before the costing date.
+- Milling / processing is added at **Rs 3 per kg of Raw Rice input**.
+- Stone, sutli and dust remain nil-value waste unless another approved treatment is later set.
+- If a by-product has never had a saved Mill sale and the Directors sheet has no rate, Transtrade does not invent a rate. The costing sheet stays Waiting for that item.
+
+The live Ready Rice estimate is:
+
+`Raw Rice value + (Raw Rice input kg × Rs 3 milling) - by-product value = estimated Ready Rice value`
+
+`estimated Ready Rice value ÷ actual Ready Rice output kg = estimated Ready Rice cost per kg`
+
+When the Directors daily costing sheet is later available, its daily figures replace the fallback figures for management costing without changing the Mill screen.
+
+Every live costing sheet has its own sheet ID. Local Sales and Export cost records keep a link to the applicable costing sheet so the source of the Cost of Goods figure can be opened later. The same sheet can also be used by future Directors working-capital and cash-flow views.
+
+The Rs 3/kg figure is the management milling estimate. Actual KE, labour, rent, salary and other processing bills remain separately recorded in Accounts for final accounts and audit. The management estimate must not erase those real expenses.
+
 ## One stock-cost master
 Local Sales and Export Sales use the same effective-dated stock-cost rates. A product cost saved once can be used by both workflows when the company, product and date match.
 
 Existing older Local Sales cost rates remain readable for backward compatibility. New rates are saved in the shared stock-cost rate store.
 
+Management costing-sheet rates are marked as estimates and carry the costing-sheet ID. A final approved stock cost remains the stronger Accounts value for final reporting. Any management estimate already used before the final cost is known must remain traceable for later reconciliation rather than being silently rewritten.
+
 ## If cost is not known
-Revenue/sale recognition is not given a fake stock cost. The item stays `Cost Waiting` until a valid cost source exists. Period close must show unresolved cost items.
+Revenue/sale recognition is not given a fake final stock cost. A live management estimate may still be shown from the costing sheet. If neither an approved cost nor a usable costing sheet exists, the item stays `Cost Waiting`. Period close must show unresolved cost items.
 
 ## Automatic production stock cost
-Accounts has a production-cost calculation that reads the operational data already saved by Mill. It does not add a new Mill field or ask Mill staff to enter the same data again.
+Accounts also has a final production-cost calculation that reads the operational data already saved by Mill. It does not add a new Mill field or ask Mill staff to enter the same data again.
 
-The calculation uses:
+The final Accounts calculation can use:
 - finalized Pohanch / commodity purchase value, including purchase brokerage that forms part of inventory cost;
 - saved production quantity and output mix;
 - saved labour bills;
 - saved KE / electricity bills;
 - saved processing expenses;
-- saved Accounts by-product values.
+- approved by-product values;
+- eligible Mill Staff salary and Mill Rent.
 
 Production input remains the existing Transtrade inferred input: the total stock-posting production outputs for the saved shift/day. The costing engine does not create a second physical stock movement.
 
 Purchase stock is costed using a moving weighted average by recognized rice variety. Receipts on a date are made available before production on that same date for the costing calculation.
 
-A production cost cannot be approved when:
-- the relevant purchase bill is still provisional / not finalized;
-- recorded production exceeds the available purchase stock for that variety;
-- Ready Rice output is missing;
-- a material by-product does not yet have an Accounts stock value;
-- no labour/electricity/processing cost source has been found for the production period;
-- by-product values exceed the available joint production cost.
-
-Stone / sutli / dust output is treated as nil-value waste unless Accounts later defines another approved treatment.
-
-## Ready Rice calculation
-The working calculation is:
-
-`final purchase stock cost + saved production costs - saved by-product values = Ready Rice stock cost`
-
-The remaining Ready Rice cost is divided by the actual Ready Rice output kg to produce the effective Ready Rice cost per kg.
-
-Accounts sees the purchase cost, production-cost share, by-product values and final suggested Ready Rice cost before approval. Approval also confirms that Accounts has checked the source bills.
-
-Once approved, the generated Ready Rice cost is saved into the same shared stock-cost master used by Local Sales and Export Sales. Waiting Local/Export cost items can then pick it up automatically.
-
-## Production overhead review
-The engine uses the production costs that are actually available in Transtrade. Accounts must not approve the generated cost until all material production costs for that period have been entered and checked. Mill Staff salary and Mill Rent that are marked for production cost are included through the Accounts Rent / Salary workflow.
+A final production cost cannot be approved when important source information is missing or inconsistent. Transtrade keeps the item Waiting rather than inventing a final cost.
 
 ## Production stock value transfer
 After the final production cost is approved, Accounts posts the value movement for that production run.
@@ -64,10 +67,10 @@ The value movement is:
 
 A production run cannot be posted twice. If the approved production cost later changes, the original stock-value journal is not silently rewritten; a controlled stock-value adjustment is required.
 
-## Pakistan export sales
-For recognized TTI / Pakistan-to-TG export sales, the completed shipment supplies the actual shipped quantity. Accounts applies the approved stock cost per kg and posts the matching stock value out of Raw/Purchased Stock, Finished/Ready Rice, or By-product Stock as applicable.
+## Pakistan Local and Export Sales
+Local and Export sales use the physical quantity already saved by the operational module. Accounts never reduces the same quantity a second time.
 
-The physical stock quantity is not reduced again by Accounts because the operational loading already reduced it.
+The sale can carry a live management Cost of Goods estimate from its costing sheet while final Accounts costing is still being completed. The costing-sheet ID, rate and estimated amount stay with the sale for working-capital and management reporting.
 
 ## TG-linked customer sales
 For a TG customer sale linked to the Pakistan intercompany purchase:
@@ -76,3 +79,6 @@ For a TG customer sale linked to the Pakistan intercompany purchase:
 - if the TG intercompany purchase is still waiting for Accounts approval/classification, the TG customer sale shows `Cost Waiting`.
 
 This prevents double costing and prevents the TG cost from being guessed from the customer selling price.
+
+## Mill screen rule
+The costing sheet reads existing Mill production and sale data. It must not add or change a Mill field or change what Mill staff have to do. Any future Mill-facing change requires owner approval first.
