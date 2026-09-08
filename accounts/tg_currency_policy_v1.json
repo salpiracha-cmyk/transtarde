@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "entity": "TG",
+  "operationalCurrencies": ["USD", "AED"],
+  "principles": [
+    "TG may receive, hold and pay directly from both USD and AED company bank accounts. Native bank balances remain in the currency of the actual bank account.",
+    "USD to AED own-bank conversion uses the active Sell USD / Receive AED master rate unless the actual bank transaction proves a different rate.",
+    "AED to USD own-bank conversion uses the active Buy USD / Pay AED master rate unless the actual bank transaction proves a different rate.",
+    "Own-account USD/AED conversion has no fee by default. Record a fee only if the bank actually charges one.",
+    "TG financial year closes on 31 December.",
+    "For system final-accounts and tax presentation, TG is translated/presented in AED. This does not stop daily USD transactions or convert native USD bank balances into AED operational balances.",
+    "The Final Accounts / Tax conversion rate is separately effective-dated from operational buy/sell rates. Current management rate is AED 3.6700 per USD and may be changed later without rewriting historical transactions.",
+    "At closing, USD monetary balances are remeasured/translated to AED using the approved closing/tax master rate and the resulting accounting difference is separately traceable."
+  ],
+  "currentManagementRates": {
+    "sellUsdReceiveAed": 3.6700,
+    "buyUsdPayAed": 3.6750,
+    "finalAccountsTaxRate": 3.6700,
+    "yearEnd": "12-31",
+    "closingPresentationCurrency": "AED"
+  }
+}
