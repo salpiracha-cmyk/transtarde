@@ -1,0 +1,39 @@
+const fs=require('fs');
+const path=require('path');
+const root=path.resolve(__dirname,'..');
+const files=Array.from({length:17},(_,i)=>path.join(root,'exports',`app.part${String(i+1).padStart(2,'0')}.txt`));
+for(const f of files){if(!fs.existsSync(f))throw new Error(`Missing bundle part: ${path.basename(f)}`)}
+const src=files.map(f=>fs.readFileSync(f,'utf8')).join('');
+try{new Function(src)}catch(e){console.error('BUNDLE SYNTAX FAILURE');throw e}
+
+globalThis.window=globalThis;
+globalThis.__TT_ASSETS={};
+try{delete globalThis.document}catch{}
+try{(0,eval)(src)}catch(e){console.error('BUNDLE SAFE-LOAD FAILURE');throw e}
+if(!globalThis.__TT_EXPORT_TEST__)throw new Error('Export self-test API not exposed');
+const result=globalThis.__TT_EXPORT_TEST__.runAcceptanceSelfTests();
+for(const r of result.results)console.log(`${r.pass?'PASS':'FAIL'}  ${r.name}${r.detail?` — ${r.detail}`:''}`);
+if(result.passed!==result.total)throw new Error(`Business-rule self-tests failed ${result.passed}/${result.total}`);
+
+const mustInclude=[
+ 'SAVE CUSTOMER & RETURN TO CONTRACT',
+ 'REQUEST DIRECTOR REOPEN',
+ 'GENERATE PO PDF & SEND TO MILL',
+ 'PRODUCTION INSTRUCTIONS ALREADY SENT',
+ 'SEND PRODUCTION INSTRUCTIONS TO MILL',
+ 'CREATE LOT AND SEND INSTRUCTIONS TO MILL',
+ 'TG-linked Pakistan Customs shipment',
+ 'BANK COVERING — LAST',
+ 'FI Register / FI Utilisation',
+ 'Container / Loading Register'
+];
+for(const s of mustInclude)if(!src.includes(s))throw new Error(`Required workflow text missing: ${s}`);
+if(!src.includes("footer:''")||!src.includes('footer:BRAND_ASSETS.TG_footer'))throw new Error('TTI/BRM/TG footer rule not present');
+if(!src.includes('WORKSPACE_ROWS'))throw new Error('Row accordion workspace implementation missing');
+if(src.includes('Deferred Payment L/C'))throw new Error('Unexpected user-facing Deferred Payment L/C option found');
+const loader=fs.readFileSync(path.join(root,'exports','app.js'),'utf8');
+if(loader.includes('asset.TG_header.part')||loader.includes('asset.TTI_header.part'))throw new Error('Loader still depends on missing asset fragment files');
+const css=fs.readFileSync(path.join(root,'exports','sol-fixes.css'),'utf8');
+if(!css.includes('#ttUserBar{display:none!important}'))throw new Error('Bottom-right shared Sign out is not hidden in Export');
+if(!css.includes('#ttSyncNotice{top:70px!important;bottom:auto!important'))throw new Error('Bottom-right sync notice is not relocated');
+console.log(`\nExport SOL acceptance self-tests: ${result.passed}/${result.total} passed.`);
