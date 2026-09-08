@@ -83,8 +83,24 @@ jobs:
           php -l module.php
           php -l api/operations.php
 
+      - name: Install Chromium acceptance harness
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --no-save @playwright/test@1.55.0
+          npx playwright install --with-deps chromium
+
+      - name: Run Export browser regression
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 -m http.server 4173 >/tmp/transtrade-export-http.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          npx playwright test exports/tests/export-sol.spec.js --reporter=line --workers=1
+
       - name: Confirm acceptance-only workflow
         shell: bash
         run: |
           set -euo pipefail
-          echo 'This job only checks source, syntax, resources and PHP lint. It contains no publish or hosting action.'
+          echo 'This job only checks source, syntax, resources, PHP lint and local-browser behavior. It contains no publish or hosting action.'
