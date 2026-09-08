@@ -11,7 +11,7 @@ function clean_input(array $body): array {
     if ($name==='' || strlen($name)>100) throw new InvalidArgumentException('Enter the staff member’s full name.');
     if (!preg_match('/^[a-z0-9._-]{3,40}$/',$username)) throw new InvalidArgumentException('Username must contain 3–40 letters, numbers, dots, dashes or underscores.');
     if (!in_array($role,$allowedRoles,true)) throw new InvalidArgumentException('Select a valid staff role.');
-    $allowedActions=['View','Create','Edit']; $allowedModules=['Mill','Exports','Accounts']; $permissions=[];
+    $allowedActions=['View','Create','Edit']; $allowedModules=['Mill','Exports','Accounts','Directors']; $permissions=[];
     foreach ((array)($body['permissions'] ?? []) as $module=>$icons) {
         if (!in_array($module,$allowedModules,true)) continue;
         foreach ((array)$icons as $icon=>$actions) {
