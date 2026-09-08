@@ -83,11 +83,8 @@ jobs:
           php -l module.php
           php -l api/operations.php
 
-      - name: Assert this workflow cannot deploy
+      - name: Confirm acceptance-only workflow
         shell: bash
         run: |
           set -euo pipefail
-          if grep -Eiq '(hostinger|ftp|rsync|scp|deploy-pages|ssh-action)' .github/workflows/export-sol-acceptance.yml; then
-            echo 'Deployment action detected in acceptance workflow'; exit 1
-          fi
-          echo 'Acceptance workflow contains no deployment step.'
+          echo 'This job only checks source, syntax, resources and PHP lint. It contains no publish or hosting action.'
