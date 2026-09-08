@@ -4,7 +4,7 @@ const fail=e=>{console.error('Transtrade Export bundle failed to load',e);const 
  const scriptUrl=document.currentScript?.src||new URL('exports/app.js',location.href).href;
  const base=new URL('.',scriptUrl);
  const asset=name=>new URL('assets/'+name,base).href;
- const appNames=Array.from({length:17},(_,i)=>`app.part${String(i+1).padStart(2,'0')}.txt`);
+ const appNames=Array.from({length:18},(_,i)=>`app.part${String(i+1).padStart(2,'0')}.txt`);
  window.__TT_ASSETS={
   TTI_header:asset('TTI_header.png'),TTI_sign:asset('TTI_sign.png'),
   BRM_header:asset('BRM_header.png'),BRM_sign:asset('BRM_sign.png'),
