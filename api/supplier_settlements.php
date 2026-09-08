@@ -114,6 +114,11 @@ function ss_bank_source(array $store,string $entity,string $bankId,string $permi
     if($permission==='receipt'&&empty($s['allowReceipts']))ss_respond(['ok'=>false,'error'=>'Receipts are not enabled for the selected bank account.'],422);
     return $a;
 }
+function ss_require_pkr_bank(array $bank): array {
+    $currency=strtoupper(trim((string)($bank['currency']??'')));
+    if($currency!=='PKR')ss_respond(['ok'=>false,'error'=>'Pakistan supplier-market payables are PKR. Select a PKR bank account, or use the dedicated FX / foreign-currency settlement workflow when that is configured.'],422);
+    return $bank;
+}
 function ss_cash_source(array $store,string $entity,string $permission): array {
     $id='CASH|'.$entity;$s=is_array($store['bankAccountSettings'][$id]??null)?$store['bankAccountSettings'][$id]:['active'=>true,'allowPayments'=>true,'allowReceipts'=>true];
     if(empty($s['active']))ss_respond(['ok'=>false,'error'=>'Cash / Petty Cash is not active in Accounts.'],422);
@@ -201,7 +206,7 @@ try{
         if($action==='post_supplier_payment'){
             $prepared=ss_prepare_allocations($store,$entity,(array)($body['allocations']??[]));$mode=strtoupper(trim((string)($body['paymentMode']??'')));$bankId=trim((string)($body['bankAccountId']??''));
             $sourceMeta=[];$sourceLabel='';
-            if($mode==='BANK'){$bank=ss_bank_source($store,$entity,$bankId,'payment');$creditLine=ss_line('1110',0,$prepared['total'],$catalog,['bankAccountId'=>$bankId,'bankName'=>$bank['bankName'],'bankAccountTitle'=>$bank['accountTitle'],'currency'=>$bank['currency']]);$sourceMeta=['paymentMode'=>'BANK','bankAccountId'=>$bankId,'bankName'=>$bank['bankName'],'bankAccountTitle'=>$bank['accountTitle'],'currency'=>$bank['currency']];$sourceLabel=$bank['bankName'].' — '.$bank['accountTitle'];}
+            if($mode==='BANK'){$bank=ss_require_pkr_bank(ss_bank_source($store,$entity,$bankId,'payment'));$creditLine=ss_line('1110',0,$prepared['total'],$catalog,['bankAccountId'=>$bankId,'bankName'=>$bank['bankName'],'bankAccountTitle'=>$bank['accountTitle'],'currency'=>$bank['currency']]);$sourceMeta=['paymentMode'=>'BANK','bankAccountId'=>$bankId,'bankName'=>$bank['bankName'],'bankAccountTitle'=>$bank['accountTitle'],'currency'=>$bank['currency']];$sourceLabel=$bank['bankName'].' — '.$bank['accountTitle'];}
             elseif($mode==='CASH'){$cash=ss_cash_source($store,$entity,'payment');$creditLine=ss_line('1120',0,$prepared['total'],$catalog,['cashAccountId'=>$cash['id']]);$sourceMeta=['paymentMode'=>'CASH','cashAccountId'=>$cash['id']];$sourceLabel='Cash / Petty Cash';}
             else ss_respond(['ok'=>false,'error'=>'Select an actual Bank Account or Cash payment source.'],422);
             $lines=[];if($prepared['commodity']>0)$lines[]=ss_line('2110',$prepared['commodity'],0,$catalog);if($prepared['brokerage']>0)$lines[]=ss_line('2120',$prepared['brokerage'],0,$catalog);$lines[]=$creditLine;
@@ -211,7 +216,7 @@ try{
         elseif($action==='record_supplier_advance'){
             $amount=ss_money($body['amount']??0,'Advance amount');$supplier=trim((string)($body['supplier']??''));if($supplier==='')ss_respond(['ok'=>false,'error'=>'Supplier / broker is required.'],422);
             $relationship=strtoupper(trim((string)($body['payerRelationship']??'')));$payer=trim((string)($body['payer']??''));$person=trim((string)($body['person']??''));$credit=ss_advance_credit_account($relationship,$person);$creditExtra=[];$sourceMeta=[];
-            if($relationship==='OWN_BANK'){$bankId=trim((string)($body['bankAccountId']??''));$bank=ss_bank_source($store,$entity,$bankId,'payment');$creditExtra=['bankAccountId'=>$bankId,'bankName'=>$bank['bankName'],'bankAccountTitle'=>$bank['accountTitle'],'currency'=>$bank['currency']];$sourceMeta=$creditExtra;}
+            if($relationship==='OWN_BANK'){$bankId=trim((string)($body['bankAccountId']??''));$bank=ss_require_pkr_bank(ss_bank_source($store,$entity,$bankId,'payment'));$creditExtra=['bankAccountId'=>$bankId,'bankName'=>$bank['bankName'],'bankAccountTitle'=>$bank['accountTitle'],'currency'=>$bank['currency']];$sourceMeta=$creditExtra;}
             elseif($relationship==='OWN_CASH'){$cash=ss_cash_source($store,$entity,'payment');$creditExtra=['cashAccountId'=>$cash['id']];$sourceMeta=$creditExtra;}
             if(in_array($relationship,['CUSTOMER_RECEIVABLE','CUSTOMER_ADVANCE','OTHER_THIRD_PARTY'],true)&&$payer==='')ss_respond(['ok'=>false,'error'=>'Who paid is required for a third-party supplier advance.'],422);
             $soda=trim((string)($body['soda']??''));$sourceKey=trim((string)($body['sourceKey']??''));$reference=trim((string)($body['reference']??''));$id=ss_next_id((array)$store['supplierAdvances'],'SA');$lines=[ss_line('1250',$amount,0,$catalog),ss_line($credit,0,$amount,$catalog,$creditExtra)];
