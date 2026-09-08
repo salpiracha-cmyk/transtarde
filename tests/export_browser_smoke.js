@@ -8,7 +8,7 @@ const { chromium }=require('playwright');
  await page.waitForSelector('#app .topbar');
  const power=await page.locator('#logoutTop').count();if(power!==1)throw new Error('Top-right power logout missing');
  const hidden=await page.locator('#ttUserBar').evaluate(el=>getComputedStyle(el).display);if(hidden!=='none')throw new Error('Shared bottom-right Sign out is visible');
- const noticeBottom=await page.locator('#ttSyncNotice').evaluate(el=>getComputedStyle(el).bottom);if(noticeBottom!=='auto')throw new Error('Sync notice still occupies bottom-right');
+ const noticeDisplay=await page.locator('#ttSyncNotice').evaluate(el=>getComputedStyle(el).display);if(noticeDisplay!=='none')throw new Error('Shared sync/update notice is visible in Export');
  await page.locator('[data-nav="shipments"]').click();await page.locator('[data-ship="S1"]').click();
  await page.locator('[data-workspace="bags"]').click();
  const bag=page.locator('[data-workspace="bags"]');const bagRow=bag.locator('xpath=ancestor::div[contains(@class,"workspaceRow")]');const detail=bagRow.locator('xpath=following-sibling::*[1][contains(@class,"workspaceDetail")]');if(await detail.count()!==1)throw new Error('BAG ORDER detail is not directly below its icon row');
