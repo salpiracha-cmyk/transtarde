@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "framework": "UK GAAP / FRS 102 design baseline",
   "principle": "Revenue is recognized when the approved contract-control policy says control transfers. Incoterms, shipment completion, invoice creation, customs documents and document dispatch are evidence inputs; none is treated as a universal accounting trigger by itself.",
   "entities": {
@@ -35,12 +35,21 @@
       "requiresExplicitIntercompanyValue":true,
       "requiresFunctionalCurrencyAmount":true,
       "rule":"Never derive the Pakistan-to-TG value or TG margin from the TG customer selling price."
+    },
+    "TG_INTERCOMPANY_PAYABLE": {
+      "debitOptions":["1310 Raw / Purchased Commodity Inventory","1320 Finished Rice / Ready Goods Inventory","5100 Commodity Cost of Sales"],
+      "credit":"2500 Intercompany Payables",
+      "requiresExplicitIntercompanyValue":true,
+      "requiresFunctionalCurrencyAmount":true,
+      "requiresAccountsCostClassification":true,
+      "rule":"The native intercompany amount must come from the same explicit Pakistan-to-TG value already carried by Exports. Accounts chooses the correct TG cost-side classification; the amount is never re-entered or inferred from TG customer sales."
     }
   },
   "periodCloseBlocks": [
     "Completed export lots with no recognition decision",
     "Recognized export revenue with unresolved functional/reporting-currency translation",
     "Recognized export revenue whose cost-of-sales / inventory-cost posting is still unresolved",
-    "TG-linked shipments where the Pakistan and TG intercompany sides do not reconcile"
+    "TG-linked shipments where the Pakistan and TG intercompany sides do not reconcile",
+    "Recognized Pakistan-to-TG intercompany sales whose TG payable mirror is not recognized/classified"
   ]
 }
