@@ -7,7 +7,10 @@ if (!tt_has_admin()) {
 }
 $user = tt_require_login();
 if (!empty($user['must_change_password'])) { header('Location: change-password.php'); exit; }
-if (($user['role'] ?? '') !== 'Super Admin') { header('Location: '.tt_user_landing_url($user)); exit; }
+if (($user['role'] ?? '') !== 'Super Admin') {
+    header('Location: '.(tt_user_can_open_module($user,'Directors') ? 'directors/index.php' : tt_user_landing_url($user)));
+    exit;
+}
 header('Content-Type: text/html; charset=UTF-8');
 $html = file_get_contents(__DIR__ . '/index.html');
 $session = [
