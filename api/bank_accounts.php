@@ -148,7 +148,7 @@ try{
     if(!is_array($body)||!tt_verify_csrf((string)($body['csrf']??'')))ba_respond(['ok'=>false,'error'=>'Your session expired. Refresh and try again.'],419);
     if((string)($body['action']??'')!=='save_settings')ba_respond(['ok'=>false,'error'=>'Unknown bank-account action.'],422);
     $entity=ba_entity((string)($body['entity']??''));$id=trim((string)($body['accountId']??''));if($id==='')ba_respond(['ok'=>false,'error'=>'Select a bank or cash account.'],422);
-    $masters=ba_master_accounts();$cashKey='CASH|'.$entity;
+    $masters=ba_master_accounts();$cashKey='CASH|'.$entity;$planningCurrency=$entity==='TG'?'USD':'PKR';$sourceCurrency=$id===$cashKey?($entity==='TG'?'AED':'PKR'):strtoupper(trim((string)(($masters[$id]['currency']??'')?:$planningCurrency)));
     if($id!==$cashKey){$a=$masters[$id]??null;if(!is_array($a)||($a['entity']??'')!==$entity)ba_respond(['ok'=>false,'error'=>'Bank account does not belong to these company books.'],422);}
     $setting=[
         'active'=>(bool)($body['active']??false),'allowPayments'=>(bool)($body['allowPayments']??false),'allowReceipts'=>(bool)($body['allowReceipts']??false),
@@ -156,6 +156,7 @@ try{
         'reconciliationEnabled'=>(bool)($body['reconciliationEnabled']??true),'displayName'=>trim((string)($body['displayName']??'')),
         'notes'=>trim((string)($body['notes']??'')),'updatedAt'=>gmdate('c'),'updatedBy'=>(string)($user['full_name']??$user['username']??'Accounts')
     ];
+    if($sourceCurrency!==$planningCurrency)$setting['includeInPaymentPlanning']=false;
     if($id!==$cashKey&&($setting['allowPayments']||$setting['allowReceipts'])){
         $a=$masters[$id];if(trim((string)$a['accountNumber'])===''&&trim((string)$a['iban'])==='')ba_respond(['ok'=>false,'error'=>'Complete the account number or IBAN in the shared Banks & Accounts master before enabling payments or receipts.'],422);
     }
