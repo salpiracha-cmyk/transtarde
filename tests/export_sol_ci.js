@@ -23,5 +23,5 @@ const loader=fs.readFileSync(path.join(root,'exports','app.js'),'utf8');
 if(loader.includes('asset.TG_header.part')||loader.includes('asset.TTI_header.part'))throw new Error('Loader still depends on missing asset fragment files');
 const css=fs.readFileSync(path.join(root,'exports','sol-fixes.css'),'utf8');
 if(!css.includes('#ttUserBar{display:none!important}'))throw new Error('Bottom-right shared Sign out is not hidden in Export');
-if(!css.includes('#ttSyncNotice{top:70px!important;bottom:auto!important'))throw new Error('Bottom-right sync notice is not relocated');
+if(!css.includes('#ttSyncNotice{display:none!important}'))throw new Error('Shared sync/update notice is still visible in Export');
 console.log(`\nExport SOL acceptance self-tests: ${result.passed}/${result.total} passed.`);
