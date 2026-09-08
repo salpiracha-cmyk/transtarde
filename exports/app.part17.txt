@@ -1,0 +1,3 @@
+
+if(typeof document!=='undefined'&&document.getElementById('app'))mount();
+})();
