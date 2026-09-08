@@ -68,9 +68,8 @@ function ba_master_accounts(): array {
     return $out;
 }
 function ba_default_setting(array $a): array {
-    $complete=trim((string)($a['accountNumber']??''))!=='' || trim((string)($a['iban']??''))!=='';
     return [
-        'active'=>$complete,'allowPayments'=>$complete,'allowReceipts'=>$complete,'includeInPaymentPlanning'=>false,
+        'active'=>false,'allowPayments'=>false,'allowReceipts'=>false,'includeInPaymentPlanning'=>false,
         'visibleToMill'=>false,'reconciliationEnabled'=>true,'displayName'=>'','notes'=>'','updatedAt'=>null,'updatedBy'=>null
     ];
 }
@@ -112,7 +111,7 @@ function ba_unassigned_bank_balance(array $store,string $entity): float {
 function ba_payload(array $store,string $entity): array {
     $masters=ba_master_accounts();$rows=[];$planning=0.0;$planningCurrency=$entity==='TG'?'USD':'PKR';$balances=[];
     foreach($masters as $id=>$a){
-        if(($a['entity']??'')!==$entity)continue;
+        if(($a['entity']??'')!==$entity||($a['accountType']??'')!=='Company Account')continue;
         $setting=array_replace(ba_default_setting($a),is_array($store['bankAccountSettings'][$id]??null)?$store['bankAccountSettings'][$id]:[]);
         $currency=strtoupper(trim((string)($a['currency']??'')))?:$planningCurrency;$book=ba_balance($store,$entity,$id,$currency);
         $balances[$currency]=round(($balances[$currency]??0)+$book,2);
@@ -148,8 +147,13 @@ try{
     if(!is_array($body)||!tt_verify_csrf((string)($body['csrf']??'')))ba_respond(['ok'=>false,'error'=>'Your session expired. Refresh and try again.'],419);
     if((string)($body['action']??'')!=='save_settings')ba_respond(['ok'=>false,'error'=>'Unknown bank-account action.'],422);
     $entity=ba_entity((string)($body['entity']??''));$id=trim((string)($body['accountId']??''));if($id==='')ba_respond(['ok'=>false,'error'=>'Select a bank or cash account.'],422);
-    $masters=ba_master_accounts();$cashKey='CASH|'.$entity;$planningCurrency=$entity==='TG'?'USD':'PKR';$sourceCurrency=$id===$cashKey?($entity==='TG'?'AED':'PKR'):strtoupper(trim((string)(($masters[$id]['currency']??'')?:$planningCurrency)));
-    if($id!==$cashKey){$a=$masters[$id]??null;if(!is_array($a)||($a['entity']??'')!==$entity)ba_respond(['ok'=>false,'error'=>'Bank account does not belong to these company books.'],422);}
+    $masters=ba_master_accounts();$cashKey='CASH|'.$entity;$planningCurrency=$entity==='TG'?'USD':'PKR';
+    if($id!==$cashKey){
+        $a=$masters[$id]??null;
+        if(!is_array($a)||($a['entity']??'')!==$entity)ba_respond(['ok'=>false,'error'=>'Bank account does not belong to these company books.'],422);
+        if(($a['accountType']??'')!=='Company Account')ba_respond(['ok'=>false,'error'=>'Personal / family bank accounts cannot be activated as company Cash & Bank accounts.'],422);
+        $sourceCurrency=strtoupper(trim((string)(($a['currency']??'')?:$planningCurrency)));
+    }else $sourceCurrency=$entity==='TG'?'AED':'PKR';
     $setting=[
         'active'=>(bool)($body['active']??false),'allowPayments'=>(bool)($body['allowPayments']??false),'allowReceipts'=>(bool)($body['allowReceipts']??false),
         'includeInPaymentPlanning'=>(bool)($body['includeInPaymentPlanning']??false),'visibleToMill'=>(bool)($body['visibleToMill']??false),
@@ -158,7 +162,7 @@ try{
     ];
     if($sourceCurrency!==$planningCurrency)$setting['includeInPaymentPlanning']=false;
     if($id!==$cashKey&&($setting['allowPayments']||$setting['allowReceipts'])){
-        $a=$masters[$id];if(trim((string)$a['accountNumber'])===''&&trim((string)$a['iban'])==='')ba_respond(['ok'=>false,'error'=>'Complete the account number or IBAN in the shared Banks & Accounts master before enabling payments or receipts.'],422);
+        if(trim((string)$a['accountNumber'])===''&&trim((string)$a['iban'])==='')ba_respond(['ok'=>false,'error'=>'Complete the account number or IBAN in the shared Banks & Accounts master before enabling payments or receipts.'],422);
     }
     tt_ensure_data_dir();$h=fopen(TT_BANK_ACCOUNTS_FILE,'c+');if($h===false||!flock($h,LOCK_EX))throw new RuntimeException('Accounts storage unavailable.');
     try{
