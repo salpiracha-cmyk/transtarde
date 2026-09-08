@@ -1,6 +1,6 @@
 /* Export SOL release-only overrides. Keep shared module/Milling untouched. */
 #ttUserBar{display:none!important}
-#ttSyncNotice{top:70px!important;bottom:auto!important;right:12px!important;left:auto!important}
+#ttSyncNotice{display:none!important}
 .workspaceRow{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;margin:12px 0 0}
 .workspaceDetail{margin:9px 0 15px;padding-top:2px}
 .workspaceIcon{position:relative;min-height:88px}
