@@ -1,0 +1,38 @@
+
+/* Final interaction/source-of-truth hardening. Loaded after all stabilized and release override parts. */
+
+/* Clear an update as soon as the user interacts, but never remove layout on pointer-down.
+   The normal target click is allowed to finish and rerender first. */
+document.addEventListener('pointerdown',()=>{
+  if(!workspaceUpdateMessage)return;
+  workspaceUpdateMessage='';
+  clearTimeout(workspaceUpdateTimer);
+  const notice=byId('workspaceUpdateNotice');
+  if(notice)setTimeout(()=>{if(notice.isConnected)notice.remove()},250);
+},true);
+
+/* Customs is the controlling source for GD identity. Commercial may intentionally override it,
+   but a blank Commercial GD field must never force duplicate re-entry or block finalization
+   when approved Customs GD references already exist. */
+const _wireCommercialReleaseFinal=wireCommercial;
+wireCommercial=function(){
+  _wireCommercialReleaseFinal();
+  const btn=byId('finalCommercial');
+  if(!btn)return;
+  btn.onclick=()=>{
+    const s=shipment(),c=contractByRef(s.contractRef),x=captureCommercial();
+    if(!x.gdRefs.length&&s.customs?.gdRefs?.length)x.gdRefs=clone(s.customs.gdRefs);
+    const e=validateAdvanceAllocations(s,x),z=blCompleteness(s,c);
+    if(e)return alert(e);
+    if(num(x.rate)<=0)return alert('Commercial Rate is required.');
+    if(!z.complete)return alert('Expected containers and valid seals must be complete.');
+    if(!s.bl?.finalized||!s.bl?.vessel||!s.bl?.voyage)return alert('Final / Original B/L particulars and Vessel / Voyage are required.');
+    if(!x.gdRefs.length)return alert('Complete GD information before Final Commercial Invoice.');
+    x.saved=true;x.finalized=true;x.finalizedAt=new Date().toISOString();
+    s.status='Commercial Documents Finalized';
+    audit('COMMERCIAL','Final Commercial Invoice prepared',`${x.invoiceNo} · ${money(commercialValue(s,c),x.currency)}`);
+    save();printCommercialInvoice(s,c);renderShipmentWorkspace();
+  };
+};
+
+if(window.__TT_EXPORT_TEST__){window.__TT_EXPORT_TEST__.wireCommercial=wireCommercial}
