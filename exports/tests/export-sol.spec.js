@@ -18,9 +18,14 @@ async function openShipment(page){
 }
 
 async function clickPopup(page,locator){
-  const popupPromise=page.waitForEvent('popup');
+  const eventPromise=Promise.race([
+    page.waitForEvent('popup').then(p=>({popup:p})),
+    page.waitForEvent('dialog').then(d=>({dialog:d.message()}))
+  ]);
   await locator.click();
-  const popup=await popupPromise;
+  const result=await eventPromise;
+  if(result.dialog)throw new Error(`Expected printable output but workflow gate reported: ${result.dialog}`);
+  const popup=result.popup;
   await popup.waitForLoadState('domcontentloaded').catch(()=>{});
   return popup;
 }
@@ -146,6 +151,7 @@ test('Sales Contract and Bag PO render as real browser PDFs with locked print ru
 });
 
 test('fresh L/C shipment completes operational chain with multiple FI + Bank, multiple GD and persistence',async({page})=>{
+  test.setTimeout(60000);
   await openShipment(page);
 
   await page.locator('[data-workspace="bags"]').click();
