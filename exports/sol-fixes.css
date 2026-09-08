@@ -1,0 +1,15 @@
+/* Export SOL release-only overrides. Keep shared module/Milling untouched. */
+#ttUserBar{display:none!important}
+#ttSyncNotice{top:70px!important;bottom:auto!important;right:12px!important;left:auto!important}
+.workspaceRow{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;margin:12px 0 0}
+.workspaceDetail{margin:9px 0 15px;padding-top:2px}
+.workspaceIcon{position:relative;min-height:88px}
+.unseenBadge{position:absolute;right:8px;top:7px;min-width:22px;height:22px;padding:0 6px;border-radius:999px;background:#16825d;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:900;box-shadow:0 1px 4px #0002}
+.nav button{position:relative}.navBadge{position:static;margin-left:5px;vertical-align:middle;display:inline-flex}
+.powerLogout{font-size:19px;line-height:1;width:39px;height:36px;align-items:center;justify-content:center}
+.reviewFlag{font-size:10px;color:#9b3434;font-weight:700;margin-top:3px}.needsReview input,.needsReview textarea{border-color:#d18888!important;background:#fff8f8!important}
+.stamp{width:150px!important;height:150px!important;border:5px solid #16825d!important;color:#16825d!important;background:#fff!important;border-radius:50%!important;font-size:13px!important;line-height:1.15!important}
+.greenBox{border:1px solid #16825d;background:#edf9f4;padding:10px;margin:10px 0;color:#215d48}
+.good{color:#16825d}.bad{color:#a63b3b}.fileNote{font-size:10px;color:#65747d;max-width:180px;overflow-wrap:anywhere}
+@media(max-width:900px){.workspaceRow{grid-template-columns:repeat(2,minmax(0,1fr))}.grid4{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:560px){.workspaceRow,.grid2,.grid3,.grid4{grid-template-columns:1fr}.workspaceIcon{min-height:70px}}
