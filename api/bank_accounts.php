@@ -70,7 +70,7 @@ function ba_master_accounts(): array {
 function ba_default_setting(array $a): array {
     return [
         'active'=>false,'allowPayments'=>false,'allowReceipts'=>false,'includeInPaymentPlanning'=>false,
-        'visibleToMill'=>false,'reconciliationEnabled'=>true,'displayName'=>'','notes'=>'','updatedAt'=>null,'updatedBy'=>null
+        'visibleToMill'=>false,'reconciliationEnabled'=>true,'retentionAccount'=>false,'displayName'=>'','notes'=>'','updatedAt'=>null,'updatedBy'=>null
     ];
 }
 function ba_balance(array $store,string $entity,string $bankId,string $currency): float {
@@ -121,7 +121,7 @@ function ba_payload(array $store,string $entity): array {
     usort($rows,static fn($a,$b)=>strcmp((string)$a['bankName'],(string)$b['bankName'])?:strcmp((string)$a['accountTitle'],(string)$b['accountTitle']));
     $cashKey='CASH|'.$entity;$cashCurrency=$entity==='TG'?'AED':'PKR';$cashSetting=array_replace([
         'active'=>true,'allowPayments'=>true,'allowReceipts'=>true,'includeInPaymentPlanning'=>false,'visibleToMill'=>false,
-        'reconciliationEnabled'=>true,'displayName'=>'Cash / Petty Cash','notes'=>'','updatedAt'=>null,'updatedBy'=>null
+        'reconciliationEnabled'=>true,'retentionAccount'=>false,'displayName'=>'Cash / Petty Cash','notes'=>'','updatedAt'=>null,'updatedBy'=>null
     ],is_array($store['bankAccountSettings'][$cashKey]??null)?$store['bankAccountSettings'][$cashKey]:[]);
     $cash=ba_cash_balance($store,$entity);$balances[$cashCurrency]=round(($balances[$cashCurrency]??0)+$cash,2);
     if($cashCurrency===$planningCurrency&&!empty($cashSetting['active'])&&!empty($cashSetting['includeInPaymentPlanning']))$planning+=max(0,$cash);
@@ -154,11 +154,13 @@ try{
         if(($a['accountType']??'')!=='Company Account')ba_respond(['ok'=>false,'error'=>'Personal / family bank accounts cannot be activated as company Cash & Bank accounts.'],422);
         $sourceCurrency=strtoupper(trim((string)(($a['currency']??'')?:$planningCurrency)));
     }else $sourceCurrency=$entity==='TG'?'AED':'PKR';
+    $retentionRequested=(bool)($body['retentionAccount']??false);
+    if($retentionRequested&&($entity==='TG'||$sourceCurrency==='PKR'||$id===$cashKey))ba_respond(['ok'=>false,'error'=>'Foreign Retention Account can only be enabled for a non-PKR TTI/BRM company bank.'],422);
     $setting=[
         'active'=>(bool)($body['active']??false),'allowPayments'=>(bool)($body['allowPayments']??false),'allowReceipts'=>(bool)($body['allowReceipts']??false),
         'includeInPaymentPlanning'=>(bool)($body['includeInPaymentPlanning']??false),'visibleToMill'=>(bool)($body['visibleToMill']??false),
-        'reconciliationEnabled'=>(bool)($body['reconciliationEnabled']??true),'displayName'=>trim((string)($body['displayName']??'')),
-        'notes'=>trim((string)($body['notes']??'')),'updatedAt'=>gmdate('c'),'updatedBy'=>(string)($user['full_name']??$user['username']??'Accounts')
+        'reconciliationEnabled'=>(bool)($body['reconciliationEnabled']??true),'retentionAccount'=>$retentionRequested,
+        'displayName'=>trim((string)($body['displayName']??'')),'notes'=>trim((string)($body['notes']??'')),'updatedAt'=>gmdate('c'),'updatedBy'=>(string)($user['full_name']??$user['username']??'Accounts')
     ];
     if($sourceCurrency!==$planningCurrency)$setting['includeInPaymentPlanning']=false;
     if($id!==$cashKey&&($setting['allowPayments']||$setting['allowReceipts'])){
