@@ -108,8 +108,9 @@ new MutationObserver(apply).observe(document.body,{childList:true,subtree:true})
 </script>
 HTML;
 
+$sourceBridge = '<script src="accounts/source-bridge.js?v=20260908-5"></script>';
 $headPos = stripos($html, '</head>');
 if ($headPos !== false) $html = substr_replace($html, $bootstrap.$sharedBootstrap, $headPos, 0);
 $bodyPos = strripos($html, '</body>');
-if ($bodyPos !== false) $html = substr_replace($html, $guard, $bodyPos, 0); else $html .= $guard;
+if ($bodyPos !== false) $html = substr_replace($html, $sourceBridge.$guard, $bodyPos, 0); else $html .= $sourceBridge.$guard;
 echo $html;
