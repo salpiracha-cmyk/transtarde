@@ -1,5 +1,7 @@
 (()=>{'use strict';
-const fail=e=>{console.error('Transtrade Export bundle failed to load',e);const a=document.getElementById('app');if(a)a.innerHTML='<div style="margin:24px;padding:18px;border:1px solid #c33;border-radius:10px;font-family:Arial"><b>Export module could not load.</b><br>Please refresh. If this continues, contact the administrator.</div>'};
+let unloading=false;
+addEventListener('pagehide',()=>{unloading=true},{once:true});
+const fail=e=>{if(unloading)return;console.error('Transtrade Export bundle failed to load',e);const a=document.getElementById('app');if(a)a.innerHTML='<div style="margin:24px;padding:18px;border:1px solid #c33;border-radius:10px;font-family:Arial"><b>Export module could not load.</b><br>Please refresh. If this continues, contact the administrator.</div>'};
 (async()=>{try{
  const scriptUrl=document.currentScript?.src||new URL('exports/app.js',location.href).href;
  const base=new URL('.',scriptUrl);
