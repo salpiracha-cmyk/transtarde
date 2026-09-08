@@ -1,11 +1,18 @@
 {
-  "version": 1,
+  "version": 2,
   "framework": "UK GAAP / FRS 102 design baseline",
   "principle": "Revenue is recognized when the approved contract-control policy says control transfers. Incoterms, shipment completion, invoice creation, customs documents and document dispatch are evidence inputs; none is treated as a universal accounting trigger by itself.",
   "entities": {
-    "TTI": {"functionalCurrency":"PKR","rateRequiredForForeignCurrency":true},
-    "BRM": {"functionalCurrency":"PKR","rateRequiredForForeignCurrency":true},
-    "TG": {"functionalCurrency":null,"status":"TO_CONFIRM","rateRequiredForForeignCurrency":true}
+    "TTI": {"functionalCurrency":"PKR","rateRequiredForForeignCurrency":true,"yearEnd":"06-30"},
+    "BRM": {"functionalCurrency":"PKR","rateRequiredForForeignCurrency":true,"yearEnd":"06-30"},
+    "TG": {
+      "functionalCurrency":"AED",
+      "status":"AED_CLOSING_REPORTING_BASIS_CONFIRMED",
+      "rateRequiredForForeignCurrency":true,
+      "operationalBankCurrencies":["USD","AED"],
+      "yearEnd":"12-31",
+      "note":"TG may transact, receive, hold and pay natively in both USD and AED. The internal functionalCurrency field is used as the AED closing/reporting basis needed to produce one Trial Balance/final accounts set; it does not force daily USD bank balances to be converted operationally. USD monetary balances are translated/re-measured for reporting using the approved effective-dated TG closing/tax rate."
+    }
   },
   "incotermEvidence": {
     "FOB": {"expectedEvidence":"Final B/L shipped-on-board date","automaticRecognition":false},
@@ -32,7 +39,7 @@
   },
   "periodCloseBlocks": [
     "Completed export lots with no recognition decision",
-    "Recognized export revenue with unresolved functional-currency translation",
+    "Recognized export revenue with unresolved functional/reporting-currency translation",
     "Recognized export revenue whose cost-of-sales / inventory-cost posting is still unresolved",
     "TG-linked shipments where the Pakistan and TG intercompany sides do not reconcile"
   ]
