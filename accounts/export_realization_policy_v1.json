@@ -1,5 +1,5 @@
 {
-  "version": 3,
+  "version": 4,
   "scope": "Pakistan export/customer/intercompany receipts credited or retained through Pakistan banks",
   "principles": [
     "The exact foreign amount, transaction currency, bank realization/conversion rate, PKR equivalent, actual PKR bank credit, retention amount and every bank deduction remain separately traceable.",
@@ -14,7 +14,8 @@
     "Tax master changes create new effective-dated rules; prior receipts and certificates retain the rule that applied when they were posted.",
     "Foreign-currency charges deducted before Pakistan realization, including L/C discrepancy or correspondent-bank charges, may be recorded as separate named rows in the transaction currency and converted to PKR at the realization rate for accounting.",
     "Accounts may add a one-off charge with a free-text explanation. A one-off description does not automatically create a new Chart-of-Accounts ledger; it posts to the appropriate Export / Foreign Banking Charges control account with the description retained as transaction detail. Repeated/material charge types should be promoted to the shared effective-dated master.",
-    "A small difference between an invoice/intercompany transfer and the final amount received may be classified as Foreign Banking Charges only after Accounts explicitly confirms it is a genuine bank/correspondent charge. The system must never silently write off a receivable or TG intercompany difference."
+    "A small difference between an invoice/intercompany transfer and the final amount received may be classified as Foreign Banking Charges only after Accounts explicitly confirms it is a genuine bank/correspondent charge. The system must never silently write off a receivable or TG intercompany difference.",
+    "Retention outward remittances reduce the exact foreign-currency bank balance by the remitted amount plus foreign charges. The same journal also reduces the bank's PKR carrying amount and records any resulting exchange difference separately."
   ],
   "accounts": [
     {"code":"1260","name":"Advance Income Tax / Export WHT Recoverable","class":"Asset","normal":"Debit","purpose":"NTR advance withholding / tax deducted at source on Pakistan export realizations, reconciled to bank tax certificates and income-tax records."},
@@ -25,9 +26,7 @@
   ],
   "taxCertificateRegister": {
     "requiredForCodes": ["EXP-WHT-FTR", "EXP-WHT-FIXED", "EXP-AWT-NTR"],
-    "minimumFields": [
-      "entity", "financialYear", "bankAccountId", "bankName", "certificateNo", "certificateDate", "periodFrom", "periodTo", "taxCode", "taxSectionAsPrinted", "certificateAmount", "matchedReceiptTaxAmount", "difference", "status", "fileReference"
-    ],
+    "minimumFields": ["entity", "financialYear", "bankAccountId", "bankName", "certificateNo", "certificateDate", "periodFrom", "periodTo", "taxCode", "taxSectionAsPrinted", "certificateAmount", "matchedReceiptTaxAmount", "difference", "status", "fileReference"],
     "statuses": ["Awaiting Certificate", "Partly Matched", "Matched", "Difference / Review", "Not Applicable"],
     "closeRule": "Pakistan entity financial year cannot be treated as tax-certificate reconciled until all material fixed, final and advance export withholding deductions are matched bank-wise and tax-type-wise to certificate totals or carry a documented review exception."
   },
@@ -41,6 +40,14 @@
     "creditRule": "Credit the exact foreign amount directed to retention. Do not reduce the retention foreign amount by Pakistan withholding tax.",
     "uses": ["Approved outward remittances", "Permitted foreign-currency payments", "Related bank/remittance charges"],
     "accountingRule": "Retention-bank movements remain bank-account transactions in the retention currency with PKR functional-value reporting and full outward-remittance/charge references."
+  },
+  "retentionOutwardRemittance": {
+    "approval": "Accounts only",
+    "supportedPurposes": ["Supplier / service advance", "Settlement of existing payable", "Direct overseas expense / service", "Fixed asset purchase"],
+    "foreignBalanceRule": "Remittance plus all charges deducted from the retention account cannot exceed the bank's available foreign-currency book balance.",
+    "carryingValueRule": "Reduce the retention bank's PKR carrying value using the bank ledger carrying rate immediately before the remittance; compare this with the payment/payable transaction value and post the balancing exchange difference to FX gain/loss.",
+    "chargeRule": "Each remittance charge is recorded separately with a mandatory description, foreign amount, PKR equivalent and remittance reference. One-off charges post to Export / Foreign Banking Charges unless a dedicated effective-dated master exists.",
+    "auditRule": "Retain bank account, date, payee/beneficiary, purpose, SWIFT/bank reference, settlement type, supporting-document reference, foreign amount, transaction rate, bank carrying rate, charges, Accounts user and journal reference."
   },
   "foreignChargeRows": {
     "allowOneOff": true,
