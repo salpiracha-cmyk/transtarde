@@ -1,0 +1,93 @@
+name: Export SOL Acceptance
+
+on:
+  push:
+    branches: [exports-clean-v1]
+    paths:
+      - 'exports/**'
+      - 'module.php'
+      - 'api/operations.php'
+      - '.github/workflows/export-sol-acceptance.yml'
+  pull_request:
+    paths:
+      - 'exports/**'
+      - 'module.php'
+      - 'api/operations.php'
+      - '.github/workflows/export-sol-acceptance.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  export-static-acceptance:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout candidate
+        uses: actions/checkout@v4
+
+      - name: Verify Export bundle resources
+        shell: bash
+        run: |
+          set -euo pipefail
+          for n in $(seq -w 1 18); do
+            test -s "exports/app.part${n}.txt" || { echo "Missing exports/app.part${n}.txt"; exit 1; }
+          done
+          for f in app.css sol-fixes.css app.js index.html Transtrade_Exports_Master_Prototype_V2_6_Final_Stabilized.html; do
+            test -s "exports/$f" || { echo "Missing exports/$f"; exit 1; }
+          done
+          for f in TTI_header.png TTI_sign.png BRM_header.png BRM_sign.png TG_header.png TG_footer.png TG_sign.png; do
+            test -s "exports/assets/$f" || { echo "Missing exports/assets/$f"; exit 1; }
+          done
+
+      - name: Validate real Export JavaScript bundle syntax
+        shell: bash
+        run: |
+          set -euo pipefail
+          : > /tmp/transtrade-export-bundle.js
+          for n in $(seq -w 1 16); do cat "exports/app.part${n}.txt" >> /tmp/transtrade-export-bundle.js; done
+          cat exports/app.part18.txt >> /tmp/transtrade-export-bundle.js
+          cat exports/app.part17.txt >> /tmp/transtrade-export-bundle.js
+          node --check /tmp/transtrade-export-bundle.js
+          node --check exports/app.js
+
+      - name: Verify authenticated route carries release CSS
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -q 'exports/sol-fixes.css' exports/Transtrade_Exports_Master_Prototype_V2_6_Final_Stabilized.html
+          grep -q '#ttUserBar{display:none!important}' exports/sol-fixes.css
+          grep -q '#ttSyncNotice{display:none!important}' exports/sol-fixes.css
+          grep -q 'app.part18.txt' exports/app.js
+
+      - name: Verify locked downstream release markers
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat exports/app.part*.txt > /tmp/export-source.txt
+          grep -q 'GENERATE PO PDF & SEND TO MILL' /tmp/export-source.txt
+          grep -q 'PRODUCTION INSTRUCTIONS ALREADY SENT' /tmp/export-source.txt
+          grep -q 'SEND PRODUCTION INSTRUCTIONS TO MILL' /tmp/export-source.txt
+          grep -q 'CREATE LOT AND SEND INSTRUCTIONS TO MILL' /tmp/export-source.txt
+          grep -q 'LOADING FROM' /tmp/export-source.txt
+          grep -q 'FI Register / FI Utilisation' /tmp/export-source.txt
+          grep -q 'Container / Loading Register' /tmp/export-source.txt
+          grep -q 'BANK COVERING — LAST' /tmp/export-source.txt
+          grep -q 'DEFERRED PAYMENT L/C IS NOT ACCEPTABLE' /tmp/export-source.txt
+          grep -q 'TG customer selling price will not be inferred' /tmp/export-source.txt
+          grep -q 'FI allocation(s) and Bank/IBAN may appear together' /tmp/export-source.txt
+
+      - name: Lint shared route and persistence PHP
+        shell: bash
+        run: |
+          set -euo pipefail
+          php -l module.php
+          php -l api/operations.php
+
+      - name: Assert this workflow cannot deploy
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -Eiq '(hostinger|ftp|rsync|scp|deploy-pages|ssh-action)' .github/workflows/export-sol-acceptance.yml; then
+            echo 'Deployment action detected in acceptance workflow'; exit 1
+          fi
+          echo 'Acceptance workflow contains no deployment step.'
