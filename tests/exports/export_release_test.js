@@ -49,7 +49,11 @@ assert.equal(contract.quality,t.DEFAULT_QUALITY);
 const multi=t.parseContractText(`BUYER: A\nQUANTITY: 540 MT\nNUMBER OF CONTAINERS: 20\n10 CONTAINERS 25 KG PP BAGS BRAND ALPHA TARE 80\n10 CONTAINERS 10 KG PP BAGS BRAND BETA TARE 45\nPRICE PER MT: USD 400`);
 assert.equal(multi.packings.length,2);
 assert.equal(multi.packings[0].containers,10);
+assert.equal(multi.packings[0].brand,'ALPHA');
+assert.equal(multi.packings[0].tare,80);
+assert.equal(multi.packings[0].weightPer,27);
 assert.equal(multi.packings[1].size,10);
+assert.equal(multi.packings[1].brand,'BETA');
 
 const lc=t.parseLCText(`
 FIELD 20: LC-99881
