@@ -48,7 +48,21 @@ Accounts sees the purchase cost, production-cost share, by-product values and fi
 Once approved, the generated Ready Rice cost is saved into the same shared stock-cost master used by Local Sales and Export Sales. Waiting Local/Export cost items can then pick it up automatically.
 
 ## Production overhead review
-The engine uses the production costs that are actually available in Transtrade. Accounts must not approve the generated cost until all material production costs for that period have been entered and checked. Future Accounts Rent/Salary masters can feed the same engine without changing the Mill workflow or the Local/Export costing flow.
+The engine uses the production costs that are actually available in Transtrade. Accounts must not approve the generated cost until all material production costs for that period have been entered and checked. Mill Staff salary and Mill Rent that are marked for production cost are included through the Accounts Rent / Salary workflow.
+
+## Production stock value transfer
+After the final production cost is approved, Accounts posts the value movement for that production run.
+
+The physical quantity remains controlled by the Mill production record. Accounts does not create another quantity movement.
+
+The value movement is:
+- Raw / Purchased Rice Inventory decreases by the finalized raw rice value used in production.
+- Ready / Finished Rice Inventory increases by the final Ready Rice value.
+- By-product Inventory increases by the approved by-product value.
+- production/conversion costs included in inventory are absorbed from the approved conversion-cost pool;
+- eligible Mill Staff salary and Mill Rent included in inventory are capitalized out of their expense accounts for the amount allocated to that production run.
+
+A production run cannot be posted twice. If the approved production cost later changes, the original stock-value journal is not silently rewritten; a controlled stock-value adjustment is required.
 
 ## Pakistan export sales
 For recognized TTI / Pakistan-to-TG export sales, the completed shipment supplies the actual shipped quantity. Accounts applies the approved stock cost per kg and posts the matching stock value out of Raw/Purchased Stock, Finished/Ready Rice, or By-product Stock as applicable.
