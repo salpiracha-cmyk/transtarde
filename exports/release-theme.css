@@ -1,0 +1,24 @@
+/* Transtrade Export release polish — visual only, business workflow unchanged */
+:root{--tt-deep:#0d3344;--tt-teal:#0f766e;--tt-green:#16815a;--tt-blue:#1769d2;--tt-soft:#f4f8fb;--tt-line:#dbe5eb}
+body{background:linear-gradient(180deg,#eef5f7 0,#f7f9fb 240px,#f5f7f9 100%)!important}
+.shell{min-height:100vh}
+.topbar{background:linear-gradient(112deg,#0a3042 0%,#0e4650 55%,#123b52 100%)!important;box-shadow:0 8px 26px rgba(7,38,53,.18);border-bottom:1px solid rgba(255,255,255,.09)}
+.topbar h1{letter-spacing:.045em}.topbar .sub{color:#c7dce3!important}
+.nav{background:rgba(255,255,255,.94)!important;backdrop-filter:blur(8px);box-shadow:0 4px 15px rgba(15,55,70,.07);border-bottom:1px solid #dce7eb!important}
+.nav button{border-radius:10px 10px 0 0!important;transition:.18s ease}.nav button:hover{background:#eef7f5!important;transform:translateY(-1px)}.nav button.active{color:#0d6658!important;background:linear-gradient(180deg,#e8f7f2,#fff)!important;box-shadow:inset 0 -3px 0 #16815a}
+main{max-width:1420px!important}
+.homeLead{background:linear-gradient(135deg,#ffffff 0%,#f0faf7 58%,#edf6fb 100%)!important;border:1px solid #d5e6e3!important;border-radius:20px!important;padding:22px!important;box-shadow:0 12px 32px rgba(17,70,73,.08);position:relative;overflow:hidden}
+.homeLead:after{content:"";position:absolute;width:220px;height:220px;border-radius:50%;right:-80px;top:-120px;background:rgba(23,105,210,.055);pointer-events:none}.homeLead h2{font-size:30px!important;letter-spacing:-.02em}
+.summaryBox{background:rgba(255,255,255,.9)!important;border:1px solid #d9e8e5!important;border-radius:14px!important;box-shadow:0 5px 14px rgba(17,70,73,.05)}.summaryBox b{color:#0e695c!important;font-size:22px!important}
+.contractCard{border:1px solid #dce6ea!important;border-radius:17px!important;box-shadow:0 6px 18px rgba(20,56,73,.055);transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease;position:relative;overflow:hidden}.contractCard:before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:linear-gradient(#16815a,#1769d2);opacity:.75}.contractCard:hover{transform:translateY(-2px);box-shadow:0 13px 28px rgba(20,56,73,.1);border-color:#bed6d7!important}
+.processButtons .btn{border-radius:11px!important}.processButtons .btn.green{background:linear-gradient(135deg,#14825c,#0f766e)!important;box-shadow:0 4px 10px rgba(20,130,92,.15)}
+.panel,.section{border-radius:16px!important}.panel{box-shadow:0 8px 24px rgba(25,55,70,.055)}
+.workspaceTiles,.cards{gap:13px!important}.workspaceTile,.card{transition:transform .16s ease,box-shadow .16s ease,border-color .16s ease}.workspaceTile:hover,.card:hover{transform:translateY(-1px);box-shadow:0 8px 19px rgba(20,60,75,.075)}.workspaceTile.active,.workspaceTile.selected{border-color:#16815a!important;background:linear-gradient(145deg,#effaf6,#fff)!important;box-shadow:0 0 0 2px rgba(22,129,90,.10),0 8px 20px rgba(22,129,90,.08)}
+.table thead th,table thead th{background:linear-gradient(180deg,#0d3b49,#103747)!important;color:#fff!important;letter-spacing:.025em}.table tbody tr:hover,table tbody tr:hover{background:#f5fbf9}
+.btn{transition:transform .14s ease,box-shadow .14s ease,filter .14s ease}.btn:hover{transform:translateY(-1px);filter:brightness(1.02)}.btn.green{background:linear-gradient(135deg,#16815a,#0f766e)!important}.btn.navy{background:linear-gradient(135deg,#173c55,#102f48)!important}
+.notice{border-radius:11px!important}.status{box-shadow:inset 0 0 0 1px rgba(0,0,0,.04)}
+.field input,.field select,.field textarea,input,select,textarea{transition:border-color .14s ease,box-shadow .14s ease,background .14s ease}.field input:focus,.field select:focus,.field textarea:focus,input:focus,select:focus,textarea:focus{border-color:#4e9e91!important;box-shadow:0 0 0 3px rgba(22,129,90,.10)!important;outline:0}
+#boDeliver{font-weight:700;background:#f8fbfb}.tt-contract-toggle{display:flex!important;align-items:center;gap:6px;margin-top:5px!important;font-size:11px!important;color:#47616b!important}.tt-contract-toggle input{width:auto!important;box-shadow:none!important}
+.tt-bag-marks-help{display:block;margin-top:5px;color:#61727b;font-size:11px;line-height:1.3}
+.approvedPdfMarks{min-height:340px;border:4px double #16815a;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:34px;border-radius:12px;background:#f4fbf8;color:#145b43}.approvedPdfMarks b{font-size:26px}.approvedPdfMarks p{font-size:16px}
+@media(max-width:800px){.homeLead{padding:16px!important}.homeLead h2{font-size:25px!important}.contractCard:hover,.workspaceTile:hover,.card:hover{transform:none}}
