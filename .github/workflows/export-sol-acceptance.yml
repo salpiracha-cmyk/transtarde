@@ -29,7 +29,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          for n in $(seq -w 1 18); do
+          for n in $(seq -w 1 19); do
             test -s "exports/app.part${n}.txt" || { echo "Missing exports/app.part${n}.txt"; exit 1; }
           done
           for f in app.css sol-fixes.css app.js index.html Transtrade_Exports_Master_Prototype_V2_6_Final_Stabilized.html; do
@@ -47,6 +47,7 @@ jobs:
           for n in $(seq -w 1 16); do cat "exports/app.part${n}.txt" >> /tmp/transtrade-export-bundle.js; done
           cat exports/app.part18.txt >> /tmp/transtrade-export-bundle.js
           cat exports/app.part17.txt >> /tmp/transtrade-export-bundle.js
+          cat exports/app.part19.txt >> /tmp/transtrade-export-bundle.js
 
       - name: Preserve assembled bundle for diagnostics
         uses: actions/upload-artifact@v4
@@ -69,7 +70,7 @@ jobs:
           grep -q 'exports/sol-fixes.css' exports/Transtrade_Exports_Master_Prototype_V2_6_Final_Stabilized.html
           grep -q '#ttUserBar{display:none!important}' exports/sol-fixes.css
           grep -q '#ttSyncNotice{display:none!important}' exports/sol-fixes.css
-          grep -q 'app.part18.txt' exports/app.js
+          grep -q 'app.part19.txt' exports/app.js
 
       - name: Verify locked downstream release markers
         shell: bash
