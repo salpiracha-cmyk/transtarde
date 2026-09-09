@@ -11,7 +11,7 @@ function customer_respond(array $data, int $status = 200): never {
 function customer_text(mixed $value, int $max = 1200): string {
     if (is_array($value) || is_object($value)) return '';
     $value = trim((string)$value);
-    return mb_substr($value, 0, $max);
+    return substr($value, 0, $max);
 }
 function customer_roles(string $roles): string {
     $items = preg_split('/\s*[;,\n]+\s*/', $roles) ?: [];
@@ -66,6 +66,51 @@ function customer_row(array $row): array {
         'notes'=>(string)($v[11] ?? ''),
     ];
 }
+
+function customer_db_env(string $name): string {
+    $constant='TT_'.$name;
+    if (defined($constant)) return (string)constant($constant);
+    $value=getenv($constant);
+    return $value===false?'':(string)$value;
+}
+function customer_export_state(): ?array {
+    try {
+        $host=customer_db_env('DB_HOST'); $name=customer_db_env('DB_NAME'); $dbUser=customer_db_env('DB_USER'); $pass=customer_db_env('DB_PASS');
+        if ($host!=='' && $name!=='' && $dbUser!=='') {
+            $db=new PDO("mysql:host={$host};dbname={$name};charset=utf8mb4",$dbUser,$pass,[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC,PDO::ATTR_EMULATE_PREPARES=>false]);
+            $stmt=$db->prepare('SELECT payload FROM tt_operation_records WHERE storage_key=? LIMIT 1');
+            $stmt->execute(['transtrade_export_v3_operational']);
+            $payload=$stmt->fetchColumn();
+            if (is_string($payload) && $payload!=='') { $root=json_decode($payload,true); return is_array($root)?$root:null; }
+        }
+    } catch (Throwable $e) { /* fall back to file storage below */ }
+    $path=rtrim((string)TT_DATA_DIR,DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR.'operations.json';
+    if (!is_file($path)) return null;
+    $raw=@file_get_contents($path); if (!is_string($raw)||$raw==='') return null;
+    $store=json_decode($raw,true); if (!is_array($store)) return null;
+    $payload=$store['values']['transtrade_export_v3_operational'] ?? null;
+    if (!is_string($payload)||$payload==='') return null;
+    $root=json_decode($payload,true); return is_array($root)?$root:null;
+}
+function customer_is_used(array $masterRow): bool {
+    $root=customer_export_state(); if (!$root) return false;
+    $v=$masterRow['values'] ?? []; $masterId=(string)($masterRow['id'] ?? ''); $name=strtolower(trim((string)($v[0] ?? ''))); $code=strtoupper(trim((string)($v[1] ?? '')));
+    $local=null;
+    foreach ((array)($root['customers'] ?? []) as $c) {
+        if (!is_array($c)) continue;
+        if (($masterId!=='' && (string)($c['masterId'] ?? '')===$masterId) || ($name!=='' && strtolower(trim((string)($c['name'] ?? '')))===$name) || ($code!=='' && strtoupper(trim((string)($c['code'] ?? '')))===$code)) { $local=$c; break; }
+    }
+    $localId=(string)($local['id'] ?? '');
+    foreach ((array)($root['contracts'] ?? []) as $c) {
+        if (!is_array($c)) continue;
+        if (($localId!=='' && (string)($c['customerId'] ?? '')===$localId) || ($name!=='' && strtolower(trim((string)($c['customer'] ?? '')))===$name)) return true;
+    }
+    foreach ((array)($root['shipments'] ?? []) as $sh) {
+        if (is_array($sh) && $name!=='' && strtolower(trim((string)($sh['buyer'] ?? '')))===$name) return true;
+    }
+    return false;
+}
+
 function customer_rows(): array {
     $masters=tt_list_masters();
     $rows=is_array($masters['parties'] ?? null) ? $masters['parties'] : [];
@@ -158,7 +203,7 @@ try {
         if (!$match) throw new InvalidArgumentException('Customer master record not found.');
         $values=array_values(is_array($match['values'] ?? null)?$match['values']:[]);
         while(count($values)<12) $values[]='';
-        $used=!empty($body['used']);
+        $used=customer_is_used($match) || !empty($body['used']);
         if ($used) {
             $values[10]='Inactive';
             tt_update_master('parties',$masterId,$values);
