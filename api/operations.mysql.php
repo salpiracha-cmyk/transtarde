@@ -195,8 +195,63 @@ function operations_merge_export(string $currentJson, string $incomingJson, stri
     return json_encode($merged, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
 }
 
+/**
+ * Hostinger-compatible persistence when no MySQL credentials are configured.
+ * It uses the existing private operations.json shared by Mill and Accounts,
+ * while preserving V3 revision checks and module-aware Export merging.
+ */
+function operations_file_fallback(array $user): never {
+    $path = rtrim((string)TT_DATA_DIR, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'operations.json';
+    tt_ensure_data_dir();
+    if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+        if (!is_file($path)) operations_respond(['ok'=>true,'revision'=>0,'values'=>[],'meta'=>[],'serverNow'=>gmdate('c')]);
+        $handle = fopen($path, 'r');
+        if ($handle === false || !flock($handle, LOCK_SH)) throw new RuntimeException('Shared operational storage is unavailable.');
+        try { $raw = stream_get_contents($handle); }
+        finally { flock($handle, LOCK_UN); fclose($handle); }
+        $store = $raw ? json_decode($raw, true) : null;
+        if (!is_array($store)) $store = ['revision'=>0,'values'=>[],'meta'=>[]];
+        operations_respond(['ok'=>true,'revision'=>(int)($store['revision']??0),'values'=>(array)($store['values']??[]),'meta'=>(array)($store['meta']??[]),'serverNow'=>gmdate('c')]);
+    }
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') operations_respond(['ok'=>false,'error'=>'Method not allowed.'],405);
+    $raw = file_get_contents('php://input') ?: '';
+    if (strlen($raw) > 16 * 1024 * 1024) operations_respond(['ok'=>false,'error'=>'Operational update is too large.'],413);
+    $body = json_decode($raw, true);
+    if (!is_array($body) || !tt_verify_csrf((string)($body['csrf']??''))) operations_respond(['ok'=>false,'error'=>'Your session expired. Refresh and try again.'],419);
+    $key=(string)($body['key']??''); $value=$body['value']??null; $baseVersion=max(0,(int)($body['baseVersion']??0)); $sourceModule=trim((string)($body['sourceModule']??''));
+    if (!operations_key_allowed($key) || !is_string($value)) operations_respond(['ok'=>false,'error'=>'Invalid operational update.'],422);
+    json_decode($value,true); if (json_last_error()!==JSON_ERROR_NONE) operations_respond(['ok'=>false,'error'=>'Operational data must be valid JSON.'],422);
+    if (!in_array($sourceModule,['Exports','Mill','Milling','Accounts','Super Admin'],true)) operations_respond(['ok'=>false,'error'=>'Invalid source module.'],422);
+    if (!operations_can_write($user,$sourceModule)) operations_respond(['ok'=>false,'error'=>'Create or Edit permission is required for this module.'],403);
+    tt_maybe_auto_backup();
+    $handle=fopen($path,'c+'); if ($handle===false || !flock($handle,LOCK_EX)) throw new RuntimeException('Shared operational storage is unavailable.');
+    $conflict=false;
+    try {
+        rewind($handle); $existing=stream_get_contents($handle); $store=$existing?json_decode($existing,true):null;
+        if (!is_array($store)) $store=['revision'=>0,'values'=>[],'meta'=>[]];
+        $old=(string)($store['values'][$key]??''); $keyVersion=(int)($store['meta'][$key]['version']??0);
+        if ($baseVersion!==$keyVersion) $conflict=true;
+        else {
+            if ($key==='transtrade_export_v3_operational' && $old!=='') $value=operations_merge_export($old,$value,$sourceModule);
+            if (!hash_equals(hash('sha256',$old),hash('sha256',$value))) {
+                $store['values'][$key]=$value; $store['revision']=(int)($store['revision']??0)+1; $keyVersion++;
+                $store['meta'][$key]=['version'=>$keyVersion,'updatedAt'=>gmdate('c'),'updatedBy'=>(string)($user['full_name']??$user['username']??'Staff'),'userId'=>(int)($user['id']??0),'module'=>$sourceModule];
+                rewind($handle); if (!ftruncate($handle,0)) throw new RuntimeException('Shared operational storage could not be updated.');
+                $encoded=json_encode($store,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);
+                if (fwrite($handle,$encoded)===false) throw new RuntimeException('Shared operational storage could not be written.'); fflush($handle);
+            }
+        }
+        $revision=(int)($store['revision']??0);
+    } finally { flock($handle,LOCK_UN); fclose($handle); }
+    if ($conflict) operations_respond(['ok'=>false,'conflict'=>true,'error'=>'A newer shared update is available. Refresh before saving again.','keyVersion'=>$keyVersion],409);
+    operations_respond(['ok'=>true,'revision'=>$revision,'keyVersion'=>$keyVersion,'updatedAt'=>gmdate('c')]);
+}
+
 try {
     $user = tt_require_login();
+    if (operations_env('DB_HOST') === '' || operations_env('DB_NAME') === '' || operations_env('DB_USER') === '') {
+        operations_file_fallback($user);
+    }
     $db = operations_db();
     operations_install($db);
 
