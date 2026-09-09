@@ -19,7 +19,7 @@ if ($id === 'exports') {
     $css = (string)file_get_contents($cssFile);
     $js = (string)file_get_contents($jsFile);
     foreach (['TTI_header.png','TTI_sign.png','BRM_header.png','BRM_sign.png','TG_header.jpg','TG_footer.jpg','TG_sign.jpg'] as $asset) {
-        $path = __DIR__ . '/exports-canary/assets/' . $asset;
+        $path = __DIR__ . '/exports/assets/' . $asset;
         if (is_file($path)) {
             $mime = str_ends_with(strtolower($asset), '.jpg') || str_ends_with(strtolower($asset), '.jpeg') ? 'image/jpeg' : 'image/png';
             $js = str_replace('assets/' . $asset, 'data:' . $mime . ';base64,' . base64_encode((string)file_get_contents($path)), $js);
@@ -34,14 +34,15 @@ $access = [
     'module'=>$permissionName, 'moduleId'=>$id, 'user'=>(string)$user['full_name'],
     'role'=>(string)$user['role'], 'permissions'=>$modulePermissions,
     'super'=>(($user['role'] ?? '')==='Super Admin'), 'csrf'=>tt_csrf(),
-    'masters'=>in_array($id,['exports','milling'],true) ? tt_list_masters() : [],
+    'masters'=>$id==='exports' ? tt_list_masters() : [],
 ];
 $bootstrap = '<script>window.TT_MODULE_ACCESS='.json_encode($access, JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT).';</script>';
 $sharedBootstrap = <<<'HTML'
 <script id="tt-shared-operations-bootstrap">
 (()=>{
   const access=window.TT_MODULE_ACCESS||{}, endpoint='api/operations.mysql.php';
-  const allowed=k=>k==='transtrade_export_v3_operational'||/^tt[0-9]{2}[a-z0-9_]{2,60}$/.test(k);
+  const EXPORT_STORE='transtrade_export_v3_operational';
+  const allowed=k=>k===EXPORT_STORE||/^tt[0-9]{2}[a-z0-9_]{2,60}$/.test(k);
   const originalSet=Storage.prototype.setItem, originalRemove=Storage.prototype.removeItem;
   let applying=false, revision=0, remoteKeys=new Set(), pending=new Map(), keyVersions=new Map(), timer=0, lastRemoteBy='';
   const directSet=(k,v)=>originalSet.call(localStorage,k,v);
@@ -77,10 +78,10 @@ $sharedBootstrap = <<<'HTML'
   Storage.prototype.setItem=function(k,v){originalSet.call(this,k,v);if(this===localStorage)queue(String(k),String(v))};
   Storage.prototype.removeItem=function(k){originalRemove.call(this,k);};
 
-  const initial=getRemote(true);if(initial?.ok&&!Object.prototype.hasOwnProperty.call(initial.values||{},'transtrade_export_v3_operational')){applying=true;originalRemove.call(localStorage,'transtrade_export_v3_operational');applying=false}if(initial)applyRemote(initial,true);
+  const initial=getRemote(true);if(initial?.ok&&!Object.prototype.hasOwnProperty.call(initial.values||{},EXPORT_STORE)){applying=true;originalRemove.call(localStorage,EXPORT_STORE);applying=false}if(initial)applyRemote(initial,true);
 
   function exportsToMill(){
-    const root=parse('transtrade_export_v3_operational',null);if(!root?.millSync)return;
+    const root=parse(EXPORT_STORE,null);if(!root?.millSync)return;
     const contracts=root.contracts||[], contract=ref=>contracts.find(c=>c.ref===ref)||{};
     let bags=parse('tt30bags',[]), oldBags=new Map(bags.filter(x=>x._ttBridge==='exports').map(x=>[x._ttBridgeId,x]));bags=bags.filter(x=>x._ttBridge!=='exports');
     (root.millSync.newExportBags||[]).forEach(x=>{const bid=x.poNo+'|'+x.line,old=oldBags.get(bid)||{};bags.push({...old,id:old.id||stableId('bag|'+bid),_ttBridge:'exports',_ttBridgeId:bid,contractRef:x.contractRef,poNo:x.poNo,brand:x.brand||'UNNAMED BRAND',size:String(x.size||'')+' '+(String(x.unit||'KG').toUpperCase().startsWith('LB')?'lb':'kg'),tare:String(x.orderedTare||0)+' g',supplier:x.supplier||'',ordered:Number(x.totalOrdered||x.requiredBags||0),mill:x.deliverTo||'TTI Rice Mills',received:Number(old.received||0),artworkName:x.artworkName||'',artworkData:x.artworkData||'',status:x.status||'Order from Export — Awaiting Receipt'})});put('tt30bags',bags);
@@ -94,11 +95,11 @@ $sharedBootstrap = <<<'HTML'
   }
 
   function millToExports(){
-    const root=parse('transtrade_export_v3_operational',null);if(!root?.shipments)return;let changed=false;
+    const root=parse(EXPORT_STORE,null);if(!root?.shipments)return;let changed=false;
     const add=(shipment,row,location)=>{const ref=String(shipment||''),target=root.shipments.find(s=>String(s.id)===ref||String(s.lotId||'')===ref)||root.shipments.find(s=>(s.loading?.lots||[]).some(l=>String(l.lotId)===ref))||root.shipments.find(s=>String(s.contractRef)===ref&&s.kind==='lot');if(!target||!row?.container)return;target.millActuals=target.millActuals||[];const clean=String(row.container).replace(/[^A-Za-z0-9]/g,'').toUpperCase(),number=/^[A-Z]{4}\d{7}$/.test(clean)?clean.slice(0,10)+'-'+clean.slice(10):String(row.container).toUpperCase(),contributionId=String(row._contributionId||[location,row.brand,row.gate,row.date,row.bags,row.weight??row.kg].join('|'));const c=(root.contracts||[]).find(c=>c.ref===target.contractRef)||{},pk=(c.packings||[]).find(p=>String(p.brand||'').toUpperCase()===String(row.brand||'').toUpperCase())||(c.packings||[])[0]||{},bags=Number(row.bags||0),tare=bags*Number(pk.tare||0)/1000+(pk.masterBag?.enabled?Number(pk.masterBag.qty||0)*Number(pk.masterBag.tare||0)/1000:0),net=Number(row.weight??row.kg??0),contribution={id:contributionId,location,brand:row.brand||pk.brand||'',packing:`${pk.size||''} ${c.packingUnit||'KG'}`,bags,netKg:net,tareKg:tare,grossKg:net+tare,truck:row.truck||'',gatePass:row.gate||'',loadedDate:row.date||''};let actual=target.millActuals.find(a=>String(a.number).replace(/[^A-Za-z0-9]/g,'').toUpperCase()===clean);if(actual){actual.contributions=Array.isArray(actual.contributions)&&actual.contributions.length?actual.contributions:[{id:'legacy',location:actual.location,brand:actual.brand,packing:actual.packing,bags:Number(actual.bags||0),netKg:Number(actual.netKg||0),tareKg:Number(actual.tareKg||0),grossKg:Number(actual.grossKg||0)}];if(actual.contributions.some(x=>String(x.id)===contributionId))return;if(actual.seal&&row.seal&&String(actual.seal).toUpperCase()!==String(row.seal).toUpperCase()){root.alerts=root.alerts||[];root.alerts.unshift({id:'AL-'+Date.now()+'-'+Math.random().toString(36).slice(2,7),area:'MILL ACTUALS',contractRef:target.contractRef,kind:'Mill Conflict',message:`Container ${number} returned with conflicting seals ${actual.seal} / ${row.seal}. Export review required.`,createdAt:new Date().toISOString(),seen:false});return}actual.contributions.push(contribution);actual.bags=actual.contributions.reduce((n,x)=>n+Number(x.bags||0),0);actual.netKg=actual.contributions.reduce((n,x)=>n+Number(x.netKg||0),0);actual.tareKg=actual.contributions.reduce((n,x)=>n+Number(x.tareKg||0),0);actual.grossKg=actual.contributions.reduce((n,x)=>n+Number(x.grossKg||0),0);actual.location=[...new Set(actual.contributions.map(x=>x.location).filter(Boolean))].join(' + ');actual.brand=[...new Set(actual.contributions.map(x=>x.brand).filter(Boolean))].join(' + ');actual.packing=[...new Set(actual.contributions.map(x=>x.packing).filter(Boolean))].join(' + ');actual.truck=[...new Set(actual.contributions.map(x=>x.truck).filter(Boolean))].join(' + ');actual.gatePass=[...new Set(actual.contributions.map(x=>x.gatePass).filter(Boolean))].join(' + ');actual.loadedDate=[...new Set(actual.contributions.map(x=>x.loadedDate).filter(Boolean))].join(' + ')}else{actual={number,seal:String(row.seal||'').toUpperCase(),packing:contribution.packing,packSize:Number(pk.size||0),unit:c.packingUnit||'KG',bags,netKg:net,tareKg:tare,grossKg:net+tare,brand:contribution.brand,location,truck:contribution.truck,gatePass:contribution.gatePass,loadedDate:contribution.loadedDate,lotRef:ref,source:'Milling',contributions:[contribution]};target.millActuals.push(actual)}root.alerts=root.alerts||[];root.alerts.unshift({id:'AL-'+Date.now()+'-'+Math.random().toString(36).slice(2,7),area:'MILL ACTUALS',contractRef:target.contractRef,kind:'Mill Update',message:`Container ${number} / seal ${row.seal||''} contribution received from ${location}`,createdAt:new Date().toISOString(),seen:false});changed=true};
     const ships=parse('tt30ship',[]);(parse('tt32exportsync',[])||[]).forEach(f=>{const s=ships.find(x=>String(x.ref)===String(f.shipment));const c=s?.containers?.find(x=>String(x.container)===String(f.container));add(f.shipment,{...f,...c,brand:f.brand||s?.brand,_contributionId:`TTI|${f.shipment}|${f.container}|${f.brand||s?.brand||''}|${f.gate||c?.gate||''}`},'TTI Rice Mills')});
     const sodas=parse('tt35exmill',[]);(parse('tt35exload',[])||[]).forEach(x=>{const s=sodas.find(z=>z.id===x.sodaId);add(x.shipment||s?.shipment,{...x,weight:x.kg,brand:s?.brand||'',_contributionId:`EX|${x.sodaId||''}|${x.shipment||s?.shipment||''}|${x.container}|${x.gate||''}`},s?.mill||'Ex-Mill')});
-    if(changed)put('transtrade_export_v3_operational',root);
+    if(changed)put(EXPORT_STORE,root);
   }
   function bridge(){try{exportsToMill();millToExports()}catch(e){console.error('Transtrade inter-module bridge',e)}}
   function notifyRemote(){
@@ -114,21 +115,10 @@ $sharedBootstrap = <<<'HTML'
 HTML;
 
 $guard = <<<'HTML'
-<style>
-#ttUserBar{display:flex;align-items:center;gap:10px;color:#fff;font:600 12px Arial;white-space:nowrap;margin-left:auto;padding-left:12px}
-#ttUserBar .ttPower{width:31px;height:31px;display:grid;place-items:center;border:0;border-left:1px solid rgba(255,255,255,.24);border-radius:0;background:transparent;color:#fff;text-decoration:none;font-size:18px;font-weight:900;line-height:1;padding-left:9px}
-#ttUserBar .ttPower:hover{color:#ffd7d2;background:transparent}
-#ttUserBar.tt-header-integrated{position:static;right:auto;top:auto;z-index:auto;background:transparent;box-shadow:none;padding-top:0;padding-bottom:0}
-#ttUserBar.tt-header-fallback{position:fixed;right:14px;top:14px;z-index:99999;background:#102a46;padding:7px 8px 7px 11px;border-radius:10px;box-shadow:0 5px 18px #0004}
-.tt-no-access{display:none!important}
-@media(max-width:720px){#ttUserBar{gap:7px;font-size:11px;padding-left:8px}#ttUserBar .ttPower{width:28px;height:28px;font-size:16px}}
-</style>
+<style>#ttUserBar{position:fixed;right:12px;top:12px;z-index:99999;display:flex;align-items:center;gap:9px;background:#102a46;color:#fff;padding:6px 7px 6px 11px;border-radius:10px;box-shadow:0 5px 18px #0004;font:12px Arial}#ttUserBar.ttHeaderUser{position:static;z-index:auto;flex:0 0 auto;background:rgba(255,255,255,.09);padding:5px 6px 5px 11px;border:1px solid rgba(255,255,255,.16);border-radius:12px;box-shadow:none;font:700 12px Arial;white-space:nowrap}#ttUserBar .ttPower{width:31px;height:31px;display:grid;place-items:center;border-radius:8px;background:#fff;color:#b42318;text-decoration:none;font-size:18px;font-weight:900;line-height:1}#ttUserBar .ttPower:hover{background:#fff0ee}.tt-no-access{display:none!important}</style>
 <div id="ttUserBar"><span id="ttUserName"></span><a class="ttPower" href="logout.php" title="Log out" aria-label="Log out">⏻</a></div>
 <script>
-(()=>{const c=window.TT_MODULE_ACCESS||{},p=c.permissions||{},superUser=!!c.super,bar=document.getElementById('ttUserBar');document.getElementById('ttUserName').textContent=c.user+' · '+c.role;
-const placeInHeader=()=>{const header=document.querySelector('.topbar,header,.app-header,.page-header');if(!header){bar.classList.add('tt-header-fallback');return}let host=header;if(header.matches('header')&&header.lastElementChild?.tagName==='DIV')host=header.lastElementChild;host.appendChild(bar);bar.classList.remove('tt-header-fallback');bar.classList.add('tt-header-integrated')};
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',placeInHeader,{once:true});else placeInHeader();
-if(superUser)return;
+(()=>{const c=window.TT_MODULE_ACCESS||{},p=c.permissions||{},superUser=!!c.super,bar=document.getElementById('ttUserBar');document.getElementById('ttUserName').textContent=c.user+' · '+c.role;const placeHeaderUser=()=>{if(c.moduleId!=='exports'||!bar)return;const top=document.querySelector('.topbar');if(!top)return;document.getElementById('logoutTop')?.remove();bar.classList.add('ttHeaderUser');top.appendChild(bar)};if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',placeHeaderUser);else placeHeaderUser();if(superUser)return;
 const norm=s=>String(s||'').toLowerCase().replace(/&/g,'and').replace(/[^a-z0-9]+/g,' ').trim();
 const names={'stock':'stock','arrival list':'queue','arrival pohanch':'arrival','new export bags':'newbags','exports specifications':'instructions','production':'production','export loading':'export','local sales':'local','petty cash':'petty','processing expense':'labour','reprocessing bill':'reprocessbill','used bags in and out':'oldbags','reports':'reports','active shipments':'active','sales contracts':'contracts','completed shipments':'completed','cancelled':'cancelled','fi register':'fi','reports and registers':'reports','sales contract':'contract','bag order':'bags','bag artwork and bag order':'bags','production instructions':'production','loading instructions':'loading','customs documents':'customs','b l documents':'bl','commercial documents':'commercial','certificate of origin':'coo','certificates':'certs','bank covering and dispatch':'cover','tg documents':'tg','l c exchange draft':'lcdraft','document output':'print','history and versions':'history'};
 let current='';const actions=i=>p==='all'?['View','Create','Edit']:(Array.isArray(p)?p:(p[i]||[]));const can=(i,a)=>p==='all'||actions(i).includes(a);
