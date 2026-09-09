@@ -3,7 +3,7 @@
 
 /* Clear an update as soon as the user interacts, but never remove layout on pointer-down.
    The normal target click is allowed to finish and rerender first. */
-document.addEventListener('pointerdown',()=>{
+if(typeof document!=='undefined')document.addEventListener('pointerdown',()=>{
   if(!workspaceUpdateMessage)return;
   workspaceUpdateMessage='';
   clearTimeout(workspaceUpdateTimer);
