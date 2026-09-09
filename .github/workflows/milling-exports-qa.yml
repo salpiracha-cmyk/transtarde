@@ -1,0 +1,66 @@
+name: Milling and Exports QA
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'exports/**'
+      - 'milling/**'
+      - 'module.php'
+      - 'api/**'
+      - 'auth_store.php'
+      - 'customer-master.js'
+      - 'admin/app.js'
+      - 'tests/**'
+      - '.github/workflows/milling-exports-qa.yml'
+  pull_request:
+    paths:
+      - 'exports/**'
+      - 'milling/**'
+      - 'module.php'
+      - 'api/**'
+      - 'auth_store.php'
+      - 'customer-master.js'
+      - 'admin/app.js'
+      - 'tests/**'
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Prepare isolated audit workspace
+        run: |
+          cp exports/app.js tests/exports-v3/app.js
+          cp exports/app.css tests/exports-v3/app.css
+          cp exports/index.html tests/exports-v3/index.html
+          mkdir -p tests/exports-v3/assets tests/main/api
+          cp exports/assets/* tests/exports-v3/assets/
+          cp module.php tests/main/module.php
+          cp api/operations.mysql.php api/export_documents.php tests/main/api/
+      - name: Install DOM test dependency
+        run: npm install --no-save jsdom@27
+      - name: Run Export and bridge audits
+        run: |
+          node tests/exports-v3/backend_static_audit.js
+          node tests/exports-v3/bridge_integration_test.js
+          node tests/exports-v3/browser_dom_audit.js
+          node tests/exports-v3/export_release_test.js
+          node tests/exports-v3/full_workflow_audit.js
+          node tests/exports-v3/import_master_audit.js
+          node tests/exports-v3/strengthened_workflow_audit.js
+          node tests/exports-v3/tg_route_audit.js
+          node tests/exports-v3/v3_dummy_workflow_audit.js
+          node tests/exports_v32_corrections_audit.js
+      - name: PHP syntax audit
+        run: |
+          php -l module.php
+          php -l api/operations.mysql.php
+          php -l api/export_documents.php
