@@ -3,6 +3,15 @@ declare(strict_types=1);
 require dirname(__DIR__) . '/auth_store.php';
 header('Content-Type: application/json; charset=UTF-8');
 function master_respond(array $data,int $status=200): never { http_response_code($status); echo json_encode($data,JSON_UNESCAPED_SLASHES); exit; }
+function master_find_row(string $type,string $id): ?array {
+    $masters=tt_list_masters();
+    foreach ((array)($masters[$type] ?? []) as $row) if ((string)($row['id'] ?? '')===$id) return $row;
+    return null;
+}
+function master_is_export_buyer(?array $row): bool {
+    $values=is_array($row['values'] ?? null)?$row['values']:[];
+    return (bool)preg_match('/\bbuyer\b/i',(string)($values[2] ?? ''));
+}
 try {
     $admin=tt_require_login();
     if (($admin['role'] ?? '')!=='Super Admin') master_respond(['ok'=>false,'error'=>'Super Admin access required.'],403);
@@ -20,6 +29,9 @@ try {
     $action=(string)($body['action'] ?? ''); $id=trim((string)($body['id'] ?? ''));
     if ($action==='delete') {
         if ($id==='') throw new InvalidArgumentException('Select a master record.');
+        if ($type==='parties' && master_is_export_buyer(master_find_row($type,$id))) {
+            throw new InvalidArgumentException('Export Buyer records are controlled by Customer Management so shipment history can be protected. Use CUSTOMER MANAGEMENT to amend, archive or delete this customer.');
+        }
         tt_delete_master($type,$id); tt_audit((int)$admin['id'],$admin['username'],'Deleted '.$type.' master '.$id);
         master_respond(['ok'=>true,'masters'=>tt_list_masters()]);
     }
@@ -36,6 +48,13 @@ try {
     while (count($values)<$schemas[$type]) $values[]='';
     if (($values[0] ?? '')==='') throw new InvalidArgumentException('Enter the main record name / commodity / product.');
     if (in_array($type,['companies','commodities'],true) && ($values[1] ?? '')==='') throw new InvalidArgumentException('Enter the short code.');
+
+    if ($type==='parties') {
+        $existing=$id!==''?master_find_row($type,$id):null;
+        if (master_is_export_buyer($existing) || preg_match('/\bbuyer\b/i',(string)($values[2] ?? ''))) {
+            throw new InvalidArgumentException('Export Buyer records are controlled by Customer Management. Use CUSTOMER MANAGEMENT so address, contacts, notify parties and shipment history remain synchronized with Exports.');
+        }
+    }
 
     $reference=strtoupper(trim((string)($values[1] ?? ''))) ?: strtoupper($type);
     if ($action==='create') {
