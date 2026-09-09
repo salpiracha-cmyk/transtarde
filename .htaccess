@@ -3,7 +3,7 @@ Options -Indexes
 
 <IfModule mod_rewrite.c>
   RewriteEngine On
-  RewriteRule ^module\.php$ module_quality_release.php [L]
+  RewriteRule ^module\.php$ module_release.php [L]
 </IfModule>
 
 <FilesMatch "^(index\.html|auth\.php|auth_store\.php|backup_lib\.php)$">
