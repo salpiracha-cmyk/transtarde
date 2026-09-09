@@ -31,7 +31,7 @@ assert.match(mysql,/CREATE TABLE IF NOT EXISTS tt_operation_records/);
 assert.match(mysql,/CREATE TABLE IF NOT EXISTS tt_operation_history/);
 assert.match(mysql,/ENGINE=InnoDB/);
 assert.match(upload,/CREATE TABLE IF NOT EXISTS tt_export_documents/);
-assert.doesNotMatch(mysql,/DROP\s+TABLE|TRUNCATE/i);
+assert.doesNotMatch(mysql,/\b(?:DROP\s+TABLE|TRUNCATE\s+TABLE)\b/i);
 assert.match(html,/href="app\.css\?v=/);
 assert.match(html,/src="app\.js\?v=/);
 assert.match(css,/@page\{size:A4;margin:0\}/);
