@@ -26,8 +26,8 @@
   const SESSION = window.TT_SESSION || { name: "Salman", username: "salman", role: "Super Admin", permissions: { Mill: "all", Exports: "all", Accounts: "all", Directors: "all" }, csrf: "" };
   const IS_SUPER_ADMIN = SESSION.role === "Super Admin";
   const MODULES = [
-    { id: "milling", name: "Mill", code: "M", color: "#16815a", soft: "#e7f7f0", status: "Live trial", state: "green", version: "V3.3.5 Working", description: "Arrivals, stocks, production, bags, loading and mill operations.", href: "module.php?id=milling" },
-    { id: "exports", name: "Exports", code: "E", color: "#1769d2", soft: "#eaf2ff", status: "Live trial", state: "green", version: "V2.6 Latest Stabilized", description: "Contracts, export orders, shipment planning and documentation.", href: "module.php?id=exports" },
+    { id: "milling", name: "Mill", code: "M", color: "#16815a", soft: "#e7f7f0", status: "Live trial", state: "green", version: "V3.3.2 Audited", description: "Arrivals, stocks, production, bags, loading and mill operations.", href: "module.php?id=milling" },
+    { id: "exports", name: "Exports", code: "E", color: "#1769d2", soft: "#eaf2ff", status: "Live trial", state: "green", version: "V3 Clean Operational", description: "Contracts, export orders, shipment planning and documentation.", href: "module.php?id=exports" },
     { id: "accounts", name: "Accounts", code: "A", color: "#8a55c7", soft: "#f3ecfb", status: "Awaiting module", state: "amber", version: "Not connected", description: "Purchases, ledgers, banking, receivables, payables and reporting." },
     { id: "directors", name: "Directors", code: "D", color: "#d17b0f", soft: "#fff3e2", status: "Awaiting module", state: "amber", version: "Not connected", description: "Consolidated oversight, Cashflow, alerts, approvals and reports." }
   ];
@@ -49,11 +49,11 @@
       ]
     },
     {
-      id: "commodities", name: "Commodity Master", description: "Expandable commodity setup used by Soda, quality, KAT and Accounts mappings.",
+      id: "commodities", name: "Commodity Master", description: "Expandable commodity setup used by Soda, quality and Accounts mappings. KAT rules are defined separately for each approved commodity and variety.",
       fields: [
         { label: "Commodity", required: true }, { label: "Code", required: true }, { label: "Base unit" },
         { label: "Soda / contract enabled", type: "select", options: ["Yes", "No"] }, { label: "Quality / specification profile" },
-        { label: "KAT / deduction profile" }, { label: "Default accounting mapping" }, { label: "Notes", type: "textarea", full: true }
+        { label: "KAT / deduction profile" }, { label: "Default accounting mapping" }, { label: "Staff instruction / message", type: "textarea", full: true }
       ],
       rows: [
         ["Rice", "RICE", "MT / KG", "Yes", "PSQCA PS:3342-2007 baseline + variety/contract profile", "Variety-specific purchase KAT", "Rice purchase / stock mappings", "PSQCA lists PS:3342-2007 Rice (1st Revision). Basmati products also use TDAP Basmati GI identity requirements where applicable. Product/contract defect limits remain profile-specific; export specs never create purchase KAT automatically."],
@@ -69,7 +69,8 @@
         { label: "Damaged / Shriveled / Yellow" }, { label: "Chalky / Immature" }, { label: "Contrasting / Other varieties" },
         { label: "Foreign grains" }, { label: "Foreign matter" }, { label: "Paddy" }, { label: "Red kernels / Red rice" },
         { label: "Under-milled / Red-striped" }, { label: "Milling / polishing" },
-        { label: "Additional quality wording", type: "textarea", full: true }, { label: "Source / basis", type: "textarea", full: true }
+        { label: "Additional quality wording", type: "textarea", full: true }, { label: "Source / basis", type: "textarea", full: true },
+        { label: "Custom specifications", type: "hidden", full: true }
       ],
       rows: [
         ["Rice", "IRRI-6", "White Rice 5% Broken", "IR6-W5", "Pakistan", "Active Transtrade default", "6.0 mm", "5% max", "14% max", "2.5% max", "5% max", "4% max", "", "0.8% max", "0.5% max", "1% max", "2% max", "Well milled; double-polished; well sortexed", "Free from live insects, bad odour and rice fit for human consumption. New crop as stated in contract.", "Transtrade / TG 2026 specimen working specification. 6.0 mm grain-length reference cross-checked against current Pakistan market benchmark."],
@@ -98,12 +99,12 @@
       ]
     },
     {
-      id: "purchase_kat", name: "Purchase KAT Rules", description: "Internal purchase deductions are kept separate from export specifications. Confirmed IRRI-6 rules are pre-filled; other varieties are created as review-required drafts so no unconfirmed KAT applies silently.",
+      id: "purchase_kat", name: "Purchase KAT Rules", description: "Owner-controlled purchase deductions shared with Accounts. Only IRRI-6 rules are currently defined; other rice varieties and corn remain blank until Salman enters their separate KAT systems.",
       fields: [
         { label: "Commodity", required: true }, { label: "Variety / product", required: true }, { label: "Quality parameter", required: true },
-        { label: "Free / default allowance" }, { label: "Deduction / KAT rule or slab", type: "textarea", full: true },
+        { label: "Free / default allowance" }, { label: "KAT calculation / slab", type: "textarea", full: true },
         { label: "Unit" }, { label: "Effective / seasonal profile" }, { label: "Rule status", type: "select", options: ["Active", "Draft – review required", "Inactive"] },
-        { label: "Notes", type: "textarea", full: true }
+        { label: "Notes", type: "textarea", full: true }, { label: "Structured KAT ranges", type: "hidden", full: true }
       ],
       rows: [
         ["Rice", "IRRI-6", "Broken", "20% free", "20–30: 1 paisa/%; 31–35: 3 paisa/%; 36–40: 8 paisa/%; 41–45: 15 paisa/%; 46–50: 20 paisa/%; 51–55: 25 paisa/%; 56–60: 40 paisa/%", "paisa per %", "Default profile", "Active", "Known Transtrade purchase KAT rule."],
@@ -121,10 +122,10 @@
         ["Rice", "IRRI-9", "Broken / Chalky / Damage / Moisture / Paddy", "Not confirmed", "No automatic deduction. Complete variety-specific rule before activation.", "Profile", "Reference variety", "Draft – review required", "Reference-only until Transtrade activates the variety."],
         ["Rice", "Basmati 515", "Broken / Chalky / Damage / Moisture / Paddy", "Not confirmed", "No automatic deduction. Complete variety-specific rule before activation.", "Profile", "Reference variety", "Draft – review required", "Reference-only until Transtrade activates the variety."],
         ["Rice", "KS-282", "Broken / Chalky / Damage / Moisture / Paddy", "Not confirmed", "No automatic deduction. Complete variety-specific rule before activation.", "Profile", "Reference variety", "Draft – review required", "Reference-only until Transtrade activates the variety."]
-      ]
+      ].filter(row => row[1] === "IRRI-6")
     },
-    { id: "parties", name: "Parties", description: "Buyers, suppliers, brokers and local parties stored once.", fields: [{label:"Party",required:true},{label:"Code / reference"},{label:"Type / notes"}], rows: [["Shams", "BRK-001", "Broker"], ["Sample Overseas Buyer", "BUY-001", "Export buyer"]] },
-    { id: "mills", name: "Mills & Locations", description: "Own mill, external mills and stock locations.", fields: [{label:"Mill / location",required:true},{label:"Code / reference"},{label:"Type / notes"}], rows: [["TTI Rice Mill", "TTI-MILL", "Own mill"], ["Karachi Office", "KHI-OFF", "Office"]] },
+    { id: "parties", name: "Parties", description: "Buyers, suppliers, brokers and other parties stored once and reused across authorized modules.", fields: [{label:"Party name",required:true},{label:"Code / reference"},{label:"Party role"},{label:"Notes",type:"textarea",full:true}], rows: [["Shams", "BRK-001", "Broker", ""], ["Sample Overseas Buyer", "BUY-001", "Export Buyer", ""]] },
+    { id: "mills", name: "Mills & Locations", description: "Own mill, external mills, offices and stock locations used by authorized modules.", fields: [{label:"Mill / location",required:true},{label:"Code / reference"},{label:"Location type"},{label:"Notes",type:"textarea",full:true}], rows: [["TTI Rice Mill", "TTI-MILL", "Own Mill", ""], ["Karachi Office", "KHI-OFF", "Office", ""]] },
     { id: "banks", name: "Banks & Accounts", description: "Company and personal bank accounts with ownership, document use and controlled module visibility.", fields: [
       {label:"Account type",required:true,type:"select",options:["Company Account","Personal Account"]},
       {label:"Linked company",type:"select",options:["","TTI — Transtrade International","BRM — Buksh Rice Mills","TG — Trans Grains Foodstuff Trading L.L.C","Other"]},
@@ -162,7 +163,8 @@
       { date: "06-09-2026 16:54", user: "System", area: "Module", action: "Stabilized", detail: "Exports module workflow build available", ref: "EXP-V2.6" },
       { date: "05-09-2026 18:02", user: "Jazib", area: "Exports", action: "Saved", detail: "Export sales contract draft", ref: "TTI-EXP-042" }
     ],
-    permissionChanges: 0
+    permissionChanges: 0,
+    masterOptions: { party_roles: ["Buyer","Supplier","Broker","Export Buyer","Local Buyer","Customer","Agent","Service Provider","Other"] }
   };
 
   let state = loadState();
@@ -238,6 +240,7 @@
     if (!IS_SUPER_ADMIN) return;
     const data = await apiRequest(null, "masters");
     state.masters = ensureMasterSections(data.masters);
+    if (data.options) state.masterOptions = data.options;
     renderMasters();
   }
 
@@ -440,11 +443,185 @@
     productDefaults.forEach((values, code) => {
       if (!seenProducts.has(code)) result.products.push({ id: `products-${code.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-default`, values: [...values] });
     });
+    result.products = (result.products || []).map(row => {
+      const values = [...(row.values || [])];
+      while (values.length < 21) values.push("");
+      return { ...row, values };
+    });
     return result;
   }
   function masterType() { return MASTER_TYPES.find(item => item.id === currentMaster); }
   function masterInputId(index) { return `masterField${index}`; }
+
+  function companyMasterFieldsHtml(values = []) {
+    const roles = ["Group Company", "Pakistan Operating Entity", "Offshore Export Contracting", "Exporter", "Mill / Processor", "Seller", "Buyer", "Intercompany", "Accounting Entity"];
+    const selected = new Set(String(values[4] || "").split(";").map(v => v.trim()).filter(Boolean));
+    return `<section class="master-editor-section"><div class="master-editor-heading"><div><h3>Company identity</h3><p>The list shows only identity. Legal and workflow detail stays inside Edit.</p></div></div><div class="master-identity-grid">
+      <label>Legal company name<input id="${masterInputId(0)}" data-master-field-index="0" value="${escapeHtml(values[0] || "")}" required></label>
+      <label>Short code<input id="${masterInputId(1)}" data-master-field-index="1" value="${escapeHtml(values[1] || "")}" required></label>
+      <label>Country<input id="${masterInputId(2)}" data-master-field-index="2" value="${escapeHtml(values[2] || "")}"></label>
+      <label>Entity scope<select id="${masterInputId(3)}" data-master-field-index="3">${["","Pakistan","Offshore","Other"].map(x => `<option value="${escapeHtml(x)}" ${x===String(values[3]||"")?"selected":""}>${escapeHtml(x||"Select")}</option>`).join("")}</select></label>
+    </div></section>
+    <section class="master-editor-section"><div class="master-editor-heading"><div><h3>Company roles</h3><p>These roles tell Transtrade where the entity may be used.</p></div></div><div class="master-checks">${roles.map(role => `<label><input type="checkbox" data-master-field-index="4" value="${escapeHtml(role)}" ${selected.has(role)?"checked":""}>${escapeHtml(role)}</label>`).join("")}</div></section>
+    <section class="master-editor-section"><div class="master-editor-heading"><div><h3>Special workflow & behaviour</h3><p>Keep exceptional entity handling separate from ordinary identity.</p></div></div><div class="master-form-grid"><label>TG special handling<select id="${masterInputId(5)}" data-master-field-index="5">${["No","Yes"].map(x=>`<option ${x===String(values[5]||"No")?"selected":""}>${x}</option>`).join("")}</select></label><label class="full-span">System behaviour / notes<textarea id="${masterInputId(6)}" data-master-field-index="6" rows="4">${escapeHtml(values[6] || "")}</textarea></label></div></section>`;
+  }
+  function commodityMasterFieldsHtml(values = []) {
+    return `<section class="master-editor-section"><div class="master-editor-heading"><div><h3>Commodity identity</h3><p>Basic identity stays separate from rules and accounting setup.</p></div></div><div class="master-identity-grid">
+      <label>Commodity<input id="${masterInputId(0)}" data-master-field-index="0" value="${escapeHtml(values[0] || "")}" required></label>
+      <label>Code<input id="${masterInputId(1)}" data-master-field-index="1" value="${escapeHtml(values[1] || "")}" required></label>
+      <label>Base unit<input id="${masterInputId(2)}" data-master-field-index="2" value="${escapeHtml(values[2] || "")}"></label>
+      <label>Soda / contract enabled<select id="${masterInputId(3)}" data-master-field-index="3">${["Yes","No"].map(x=>`<option ${x===String(values[3]||"Yes")?"selected":""}>${x}</option>`).join("")}</select></label>
+    </div></section>
+    <section class="master-editor-section"><div class="master-editor-heading"><div><h3>Operational rules</h3><p>References to quality and KAT profiles belong here, not across the main list.</p></div></div><div class="master-form-grid"><label>Quality / specification profile<input id="${masterInputId(4)}" data-master-field-index="4" value="${escapeHtml(values[4] || "")}"></label><label>KAT / deduction profile<input id="${masterInputId(5)}" data-master-field-index="5" value="${escapeHtml(values[5] || "")}"></label></div></section>
+    <section class="master-editor-section"><div class="master-editor-heading"><div><h3>Accounts linkage</h3><p>Accounting mapping is kept distinct so it can later follow the approved master ownership rule.</p></div></div><div class="master-form-grid"><label class="full-span">Default accounting mapping<input id="${masterInputId(6)}" data-master-field-index="6" value="${escapeHtml(values[6] || "")}"></label><label class="full-span">Notes<textarea id="${masterInputId(7)}" data-master-field-index="7" rows="4">${escapeHtml(values[7] || "")}</textarea></label></div></section>`;
+  }
+  function partyRoleOptions(current = "") {
+    const defaults=["Buyer","Supplier","Broker","Export Buyer","Local Buyer","Customer","Agent","Service Provider","Other"];
+    const roles=[...new Set([...(state.masterOptions?.party_roles||defaults),...(current?[current]:[])])].filter(Boolean).sort((a,b)=>a.localeCompare(b));
+    return roles.map(role=>`<option value="${escapeHtml(role)}" ${role===current?"selected":""}>${escapeHtml(role)}</option>`).join("");
+  }
+  function partyMasterFieldsHtml(values = []) {
+    const current=String(values[2] || "");
+    return `<section class="master-editor-section"><div class="master-editor-heading"><div><h3>Party identity</h3><p>Keep the party simple; choose one role from the saved list.</p></div></div><div class="master-identity-grid">
+      <label>Party name<input id="${masterInputId(0)}" data-master-field-index="0" value="${escapeHtml(values[0] || "")}" required></label>
+      <label>Code / reference<input id="${masterInputId(1)}" data-master-field-index="1" value="${escapeHtml(values[1] || "")}"></label>
+      <label>Party Role<select id="${masterInputId(2)}" data-master-field-index="2" onchange="toggleNewPartyRole(this.value)"><option value="">Select role</option>${partyRoleOptions(current)}<option value="__ADD_NEW__">+ Add New Role…</option></select></label>
+      <label id="newPartyRoleWrap" ${current?"hidden":"hidden"}>New Role<input id="newPartyRole" maxlength="80" placeholder="Enter new role"></label>
+    </div></section>
+    <section class="master-editor-section"><label class="full-span">Notes<textarea id="${masterInputId(3)}" data-master-field-index="3" rows="4">${escapeHtml(values[3] || "")}</textarea></label></section>`;
+  }
+  function toggleNewPartyRole(value) {
+    const wrap=document.getElementById("newPartyRoleWrap");
+    if (!wrap) return;
+    wrap.hidden=value!=="__ADD_NEW__";
+    if (!wrap.hidden) document.getElementById("newPartyRole")?.focus();
+  }
+  async function resolvePartyRoleBeforeSave(type) {
+    if (type.id!=="parties") return null;
+    const select=document.getElementById(masterInputId(2));
+    if (!select || select.value!=="__ADD_NEW__") return select?.value || "";
+    const role=document.getElementById("newPartyRole")?.value.trim() || "";
+    if (!role) throw new Error("Enter the new Party Role.");
+    const data=await apiRequest({action:"add-party-role",role},"masters");
+    if (data.options) state.masterOptions=data.options;
+    select.innerHTML=`<option value="">Select role</option>${partyRoleOptions(role)}<option value="__ADD_NEW__">+ Add New Role…</option>`;
+    select.value=role;
+    toggleNewPartyRole(role);
+    return role;
+  }
+  function millMasterFieldsHtml(values = []) {
+    const types = ["","Own Mill","External Mill","Office","Warehouse","Stock Location","Other"];
+    return `<section class="master-editor-section"><div class="master-editor-heading"><div><h3>Location identity</h3><p>Keep operational location identity short and clear.</p></div></div><div class="master-identity-grid"><label>Mill / location<input id="${masterInputId(0)}" data-master-field-index="0" value="${escapeHtml(values[0] || "")}" required></label><label>Code / reference<input id="${masterInputId(1)}" data-master-field-index="1" value="${escapeHtml(values[1] || "")}"></label><label>Location type<select id="${masterInputId(2)}" data-master-field-index="2">${types.map(x=>`<option value="${escapeHtml(x)}" ${x===String(values[2]||"")?"selected":""}>${escapeHtml(x||"Select")}</option>`).join("")}</select></label></div></section><section class="master-editor-section"><label class="full-span">Notes<textarea id="${masterInputId(3)}" data-master-field-index="3" rows="4">${escapeHtml(values[3] || "")}</textarea></label></section>`;
+  }
+  function linkedCompanyOptions(current = "") {
+    const companies=(state.masters?.companies||[]).map(row=>{
+      const name=String(row.values?.[0]||"").trim();
+      const code=String(row.values?.[1]||"").trim();
+      return name ? [code,name].filter(Boolean).join(" — ") : "";
+    }).filter(Boolean);
+    const options=["",...new Set([...companies,...(current?[current]:[])]),"Other"];
+    return options.map(option=>`<option value="${escapeHtml(option)}" ${option===current?"selected":""}>${escapeHtml(option||"Select")}</option>`).join("");
+  }
+  function bankMasterFieldsHtml(values = []) {
+    return `<section class="master-editor-section"><div class="master-editor-heading"><div><h3>Ownership</h3><p>Who owns the account and which legal entity it belongs to.</p></div></div><div class="master-identity-grid">
+      <label>Account type<select id="${masterInputId(0)}" data-master-field-index="0">${["Company Account","Personal Account"].map(x=>`<option ${x===String(values[0]||"")?"selected":""}>${x}</option>`).join("")}</select></label>
+      <label>Linked company<select id="${masterInputId(1)}" data-master-field-index="1">${linkedCompanyOptions(String(values[1]||""))}</select></label>
+      <label>Personal account owner<input id="${masterInputId(2)}" data-master-field-index="2" value="${escapeHtml(values[2] || "")}"></label>
+    </div></section>
+    <section class="master-editor-section"><div class="master-editor-heading"><div><h3>Bank details</h3><p>The main register will not expose all banking identifiers.</p></div></div><div class="master-identity-grid">
+      <label>Exact account title<input id="${masterInputId(3)}" data-master-field-index="3" value="${escapeHtml(values[3] || "")}" required></label>
+      <label>Bank name<input id="${masterInputId(4)}" data-master-field-index="4" value="${escapeHtml(values[4] || "")}" required></label>
+      <label>Branch<input id="${masterInputId(5)}" data-master-field-index="5" value="${escapeHtml(values[5] || "")}"></label>
+      <label>Country<input id="${masterInputId(6)}" data-master-field-index="6" value="${escapeHtml(values[6] || "")}"></label>
+      <label>Currency<input id="${masterInputId(7)}" data-master-field-index="7" value="${escapeHtml(values[7] || "")}"></label>
+    </div></section>
+    <section class="master-editor-section"><div class="master-editor-heading"><div><h3>Account identifiers</h3><p>Full identifiers remain inside the protected Edit view.</p></div></div><div class="master-identity-grid"><label>Account number<input id="${masterInputId(8)}" data-master-field-index="8" value="${escapeHtml(values[8] || "")}"></label><label>IBAN<input id="${masterInputId(9)}" data-master-field-index="9" value="${escapeHtml(values[9] || "")}"></label><label>SWIFT / BIC<input id="${masterInputId(10)}" data-master-field-index="10" value="${escapeHtml(values[10] || "")}"></label></div></section>
+    <section class="master-editor-section"><div class="master-editor-heading"><div><h3>Usage, visibility & status</h3><p>Operational/document visibility is kept away from banking identifiers.</p></div></div><div class="master-form-grid"><label>Purpose / classification<input id="${masterInputId(11)}" data-master-field-index="11" value="${escapeHtml(values[11] || "")}"></label><label class="full-span">Module visibility and document use<textarea id="${masterInputId(12)}" data-master-field-index="12" rows="4">${escapeHtml(values[12] || "")}</textarea></label><label class="full-span">Status / notes<textarea id="${masterInputId(13)}" data-master-field-index="13" rows="4">${escapeHtml(values[13] || "")}</textarea></label></div></section>`;
+  }
+
+  const PRODUCT_CORE_SPECS = [
+    [6, "Avg. grain length"], [7, "Broken"], [8, "Moisture"], [9, "Damaged / Shriveled / Yellow"],
+    [10, "Chalky / Immature"], [11, "Contrasting / Other varieties"], [12, "Foreign grains"],
+    [13, "Foreign matter"], [14, "Paddy"], [15, "Red kernels / Red rice"],
+    [16, "Under-milled / Red-striped"], [17, "Milling / polishing"]
+  ];
+  function productCustomSpecs(values = []) {
+    try {
+      const parsed = JSON.parse(String(values[20] || "[]"));
+      return Array.isArray(parsed) ? parsed.filter(row => row && typeof row === "object").map(row => ({ name: String(row.name || ""), limit: String(row.limit || "") })) : [];
+    } catch (_) { return []; }
+  }
+  function productSpecRow(name = "", limit = "", custom = true, fieldIndex = null) {
+    if (!custom) {
+      return `<tr class="spec-editor-row"><td><strong>${escapeHtml(name)}</strong></td><td><input data-master-field-index="${fieldIndex}" value="${escapeHtml(limit)}" autocomplete="off"></td><td></td></tr>`;
+    }
+    return `<tr class="spec-editor-row custom-spec-row"><td><input data-custom-spec-name value="${escapeHtml(name)}" placeholder="Specification"></td><td><input data-custom-spec-limit value="${escapeHtml(limit)}" placeholder="Limit / requirement"></td><td><button class="row-action delete" type="button" data-remove-product-spec aria-label="Remove specification">Remove</button></td></tr>`;
+  }
+  function productMasterFieldsHtml(values = []) {
+    const identity = [
+      [0,"Commodity",true],[1,"Variety / product",true],[2,"Processing / grade",false],[3,"Code",true],[4,"Origin",false],[5,"Profile / use",false]
+    ].map(([index,label,required]) => `<label>${label}<input id="${masterInputId(index)}" data-master-field-index="${index}" value="${escapeHtml(values[index] || "")}" ${required ? "required" : ""} autocomplete="off"></label>`).join("");
+    const core = PRODUCT_CORE_SPECS.map(([index,name]) => productSpecRow(name, values[index] || "", false, index)).join("");
+    const custom = productCustomSpecs(values).map(row => productSpecRow(row.name, row.limit, true)).join("");
+    return `<section class="master-editor-section"><div class="master-editor-heading"><div><h3>Product identity</h3><p>Keep the master list short; edit the detailed quality only here.</p></div></div><div class="master-identity-grid">${identity}</div></section>
+      <section class="master-editor-section"><div class="master-editor-heading"><div><h3>Specifications & limits</h3><p>One specification per line. Leave a limit blank when it is not confirmed.</p></div></div><div class="spec-editor-wrap"><table class="spec-editor-table"><thead><tr><th>Specification</th><th>Limit / Requirement</th><th></th></tr></thead><tbody id="productSpecRows">${core}${custom}</tbody></table></div><button class="button secondary add-spec-button" id="addProductSpecification" type="button">+ Add Specification</button></section>
+      <section class="master-editor-section"><div class="master-editor-heading"><div><h3>Wording & source</h3><p>Quality wording and reference source stay separate from the numeric specification table.</p></div></div><div class="master-form-grid"><label class="full-span">Additional quality wording<textarea id="${masterInputId(18)}" data-master-field-index="18" rows="3">${escapeHtml(values[18] || "")}</textarea></label><label class="full-span">Source / basis<textarea id="${masterInputId(19)}" data-master-field-index="19" rows="3">${escapeHtml(values[19] || "")}</textarea></label></div></section>`;
+  }
+  function katRangeDefaults(values = []) {
+    const saved = String(values[9] || "");
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed.map(row => ({
+          from: String(row.from ?? ""), to: String(row.to ?? ""), value: String(row.value ?? ""), unit: String(row.unit ?? values[5] ?? "paisa per %")
+        }));
+      } catch (_) {}
+    }
+    const parameter = String(values[2] || "").toLowerCase();
+    const variety = String(values[1] || "").toLowerCase();
+    if (variety.includes("irri-6") && parameter === "broken") return [
+      {from:"20",to:"30",value:"1",unit:"paisa per %"}, {from:"30",to:"35",value:"3",unit:"paisa per %"},
+      {from:"35",to:"40",value:"8",unit:"paisa per %"}, {from:"40",to:"45",value:"15",unit:"paisa per %"},
+      {from:"45",to:"50",value:"20",unit:"paisa per %"}, {from:"50",to:"55",value:"25",unit:"paisa per %"},
+      {from:"55",to:"60",value:"40",unit:"paisa per %"}
+    ];
+    if (variety.includes("irri-6") && parameter.includes("damage")) return [
+      {from:"2",to:"5",value:"10",unit:"paisa per %"}, {from:"5",to:"",value:"25",unit:"paisa per %"}
+    ];
+    if (variety.includes("irri-6") && parameter === "chalky") return [
+      {from:"5",to:"",value:"10",unit:"paisa per %"}
+    ];
+    if (variety.includes("irri-6") && parameter === "moisture" && String(values[6] || "").includes("14%")) return [
+      {from:"14",to:"14.5",value:"0.5",unit:"weight %"}, {from:"14.5",to:"15",value:"1",unit:"weight %"}, {from:"15",to:"16",value:"2",unit:"weight %"}
+    ];
+    return [];
+  }
+  function katRangeRow(row = {}) {
+    const units = ["paisa per %","rupees per %","weight %","kg per MT","manual / note only"];
+    const unit = String(row.unit || "paisa per %");
+    return `<tr class="kat-range-row"><td><input data-kat-from inputmode="decimal" value="${escapeHtml(row.from || "")}" placeholder="e.g. 20"></td><td><input data-kat-to inputmode="decimal" value="${escapeHtml(row.to || "")}" placeholder="blank = and above"></td><td><input data-kat-value inputmode="decimal" value="${escapeHtml(row.value || "")}" placeholder="e.g. 1"></td><td><select data-kat-unit>${units.map(x => `<option ${x===unit?"selected":""}>${x}</option>`).join("")}</select></td><td><button class="row-action delete" type="button" data-remove-kat-range>Remove</button></td></tr>`;
+  }
+  function katMasterFieldsHtml(values = []) {
+    const statusOptions = ["Active", "Draft – review required", "Inactive"];
+    return `<section class="master-editor-section"><div class="master-editor-heading"><div><h3>KAT identity</h3><p>Define which quality measurement this rule belongs to.</p></div></div><div class="master-identity-grid">
+      <label>Commodity<input id="${masterInputId(0)}" data-master-field-index="0" value="${escapeHtml(values[0] || "")}" required></label>
+      <label>Variety / product<input id="${masterInputId(1)}" data-master-field-index="1" value="${escapeHtml(values[1] || "")}" required></label>
+      <label>Quality parameter<input id="${masterInputId(2)}" data-master-field-index="2" value="${escapeHtml(values[2] || "")}" required></label>
+      <label>Effective / seasonal profile<input id="${masterInputId(6)}" data-master-field-index="6" value="${escapeHtml(values[6] || "")}"></label>
+      <label>Rule status<select id="${masterInputId(7)}" data-master-field-index="7">${statusOptions.map(option => `<option ${option === String(values[7] || "") ? "selected" : ""}>${option}</option>`).join("")}</select></label>
+    </div></section>
+    <section class="master-editor-section kat-calc-section"><div class="master-editor-heading"><div><h3>KAT calculation</h3><p>Enter the percentage bands as rows. “Above” is exclusive and “Up to” is inclusive. Leave “Up to” blank for an open-ended final slab.</p></div></div><div class="master-form-grid"><label>Free / default allowance<input id="${masterInputId(3)}" data-master-field-index="3" value="${escapeHtml(values[3] || "")}"></label><label>Default deduction unit<input id="${masterInputId(5)}" data-master-field-index="5" value="${escapeHtml(values[5] || "paisa per %")}"></label></div><div class="kat-range-wrap"><table class="kat-range-table"><thead><tr><th>Above %</th><th>Up to %</th><th>Deduction</th><th>Unit</th><th></th></tr></thead><tbody id="katRangeRows">${katRangeDefaults(values).map(katRangeRow).join("")}</tbody></table></div><button class="button secondary add-spec-button" id="addKatRange" type="button">+ Add Range</button><input type="hidden" id="${masterInputId(4)}" data-master-field-index="4" value="${escapeHtml(values[4] || "")}"></section>
+    <section class="master-editor-section kat-message-section"><div class="master-editor-heading"><div><h3>Staff instruction / message</h3><p>Plain-language instruction shown to operational staff when this KAT rule is relevant.</p></div></div><label class="full-span">Message<textarea id="${masterInputId(8)}" data-master-field-index="8" rows="4" placeholder="Example: Automatic KAT disabled until this profile is approved.">${escapeHtml(values[8] || "")}</textarea></label></section>`;
+  }
+
   function masterFieldsHtml(type, values = []) {
+    if (type.id === "companies") return companyMasterFieldsHtml(values);
+    if (type.id === "commodities") return commodityMasterFieldsHtml(values);
+    if (type.id === "parties") return partyMasterFieldsHtml(values);
+    if (type.id === "mills") return millMasterFieldsHtml(values);
+    if (type.id === "banks") return bankMasterFieldsHtml(values);
+    if (type.id === "products") return productMasterFieldsHtml(values);
+    if (type.id === "purchase_kat") return katMasterFieldsHtml(values);
     return type.fields.map((field, index) => {
       const value = String(values[index] ?? "");
       const full = field.full ? " full-span" : "";
@@ -462,6 +639,37 @@
     }).join("");
   }
   function masterValuesFromForm(type) {
+    if (type.id === "products") {
+      const values = Array(21).fill("");
+      for (let index = 0; index < 20; index += 1) values[index] = document.querySelector(`[data-master-field-index="${index}"]`)?.value.trim() || "";
+      const custom = [...document.querySelectorAll("#productSpecRows .custom-spec-row")].map(row => ({
+        name: row.querySelector("[data-custom-spec-name]")?.value.trim() || "",
+        limit: row.querySelector("[data-custom-spec-limit]")?.value.trim() || ""
+      })).filter(row => row.name || row.limit);
+      values[20] = JSON.stringify(custom);
+      return values;
+    }
+    if (["companies","commodities","parties","mills","banks"].includes(type.id)) {
+      return type.fields.map((field, index) => {
+        if (field.type === "checks" || (type.id === "companies" && index === 4)) {
+          return [...document.querySelectorAll(`[data-master-field-index="${index}"]:checked`)].map(input => input.value).join("; ");
+        }
+        return document.getElementById(masterInputId(index))?.value.trim() || "";
+      });
+    }
+    if (type.id === "purchase_kat") {
+      const values = Array(10).fill("");
+      [0,1,2,3,5,6,7,8].forEach(index => { values[index] = document.getElementById(masterInputId(index))?.value.trim() || ""; });
+      const ranges = [...document.querySelectorAll("#katRangeRows .kat-range-row")].map(row => ({
+        from: row.querySelector("[data-kat-from]")?.value.trim() || "",
+        to: row.querySelector("[data-kat-to]")?.value.trim() || "",
+        value: row.querySelector("[data-kat-value]")?.value.trim() || "",
+        unit: row.querySelector("[data-kat-unit]")?.value.trim() || values[5] || "paisa per %"
+      })).filter(row => row.from || row.to || row.value);
+      values[9] = JSON.stringify(ranges);
+      values[4] = ranges.map(row => `Above ${row.from || "start"}%${row.to ? ` up to ${row.to}%` : " and above"}: ${row.value || "—"} ${row.unit}`).join("; ");
+      return values;
+    }
     return type.fields.map((field, index) => {
       if (field.type === "checks") {
         return [...document.querySelectorAll(`[data-master-field-index="${index}"]:checked`)].map(input => input.value).join("; ");
@@ -470,11 +678,14 @@
     });
   }
   function displayColumns(type) {
-    if (type.id === "companies") return [0, 1, 2, 3, 4, 5];
-    if (type.id === "commodities") return [0, 1, 2, 3, 4, 5];
-    if (type.id === "products") return [0, 1, 2, 3, 5, 6, 7, 8, 9, 10];
-    if (type.id === "purchase_kat") return [0, 1, 2, 3, 4, 5, 6, 7];
-    return type.fields.map((_, index) => index);
+    if (type.id === "companies") return [1, 0, 3, 2];
+    if (type.id === "commodities") return [1, 0, 2, 3];
+    if (type.id === "products") return [0, 1, 2, 3, 5];
+    if (type.id === "purchase_kat") return [0, 1, 2, 3, 6, 7];
+    if (type.id === "parties") return [0, 1, 2];
+    if (type.id === "mills") return [0, 1, 2];
+    if (type.id === "banks") return [3, 4, 0, 7, 11];
+    return type.fields.map((_, index) => index).slice(0, 5);
   }
   function masterRowStatus(type, row) {
     if (type.id === "products") {
@@ -483,6 +694,7 @@
       return profile || "Active";
     }
     if (type.id === "purchase_kat") return String(row.values?.[7] || "Draft – review required");
+    if (type.id === "banks") { const note=String(row.values?.[13] || ""); return /incomplete/i.test(note) ? "Incomplete" : (/inactive/i.test(note) ? "Inactive" : "Active"); }
     return "Active";
   }
 
@@ -494,7 +706,7 @@
     document.getElementById("masterDescription").textContent = type.description;
     document.getElementById("addMasterRecord").textContent = `+ Add ${type.id === "purchase_kat" ? "KAT Rule" : type.id === "companies" ? "Company" : type.id === "commodities" ? "Commodity" : type.id === "products" ? "Product" : "Record"}`;
     const columns = displayColumns(type);
-    document.getElementById("masterTableHead").innerHTML = `<tr>${columns.map(index => `<th>${escapeHtml(type.fields[index].label)}</th>`).join("")}<th>Status</th><th>Super Admin actions</th></tr>`;
+    document.getElementById("masterTableHead").innerHTML = `<tr>${columns.map(index => `<th>${escapeHtml(type.fields[index].label)}</th>`).join("")}<th>Status</th><th>Actions</th></tr>`;
     const query = document.getElementById("masterSearch")?.value.toLowerCase() || "";
     const rows = (state.masters[currentMaster] || []).filter(row => row.values.join(" ").toLowerCase().includes(query));
     document.getElementById("masterTableBody").innerHTML = rows.length ? rows.map(row => `<tr>${columns.map(index => `<td>${escapeHtml(row.values[index] || "—")}</td>`).join("")}<td><span class="tag">${escapeHtml(masterRowStatus(type, row))}</span></td><td><div class="row-actions"><button class="row-action" data-edit-master="${escapeHtml(row.id)}">Edit</button><button class="row-action delete" data-delete-master="${escapeHtml(row.id)}">Delete</button></div></td></tr>`).join("") : `<tr><td colspan="${columns.length + 2}">No matching records.</td></tr>`;
@@ -517,12 +729,13 @@
     if (!form.reportValidity()) return;
     const type = masterType();
     const id = document.getElementById("editMasterId").value;
+    try { await resolvePartyRoleBeforeSave(type); } catch (error) { toast(error.message); return; }
     const values = masterValuesFromForm(type);
     const primary = values[0] || type.name;
     const ref = values[1] || currentMaster.toUpperCase();
     try {
       const data = await apiRequest({ action: id ? "update" : "create", type: currentMaster, id, values }, "masters");
-      state.masters = ensureMasterSections(data.masters); addAudit("Master", id ? "Updated" : "Created", `${type.name}: ${primary}`, ref);
+      state.masters = ensureMasterSections(data.masters); if (data.options) state.masterOptions=data.options; addAudit("Master", id ? "Updated" : "Created", `${type.name}: ${primary}`, ref);
       saveState(); renderMasters(); renderAudit(); renderRecentActivity(); document.getElementById("masterDialog").close(); form.reset(); toast(id ? "Master record updated." : "Master record saved.");
     } catch (error) { toast(error.message); }
   }
@@ -715,6 +928,8 @@
     const editMaster = event.target.closest("[data-edit-master]");
     const deleteMaster = event.target.closest("[data-delete-master]");
     const lockButton = event.target.closest("[data-toggle-lock]");
+    const removeProductSpec = event.target.closest("[data-remove-product-spec]");
+    const removeKatRange = event.target.closest("[data-remove-kat-range]");
     const closeDialog = event.target.closest("[data-close-dialog]");
     if (viewButton) showView(viewButton.dataset.view);
     if (viewTarget) showView(viewTarget.dataset.viewTarget);
@@ -727,6 +942,10 @@
     if (editMaster) openMasterDialog(editMaster.dataset.editMaster);
     if (deleteMaster) deleteMasterRecord(deleteMaster.dataset.deleteMaster);
     if (lockButton) toggleLock(lockButton.dataset.toggleLock);
+    if (event.target.closest("#addProductSpecification")) document.getElementById("productSpecRows")?.insertAdjacentHTML("beforeend", productSpecRow("", "", true));
+    if (removeProductSpec) removeProductSpec.closest("tr")?.remove();
+    if (event.target.closest("#addKatRange")) document.getElementById("katRangeRows")?.insertAdjacentHTML("beforeend", katRangeRow({unit: document.getElementById(masterInputId(5))?.value || "paisa per %"}));
+    if (removeKatRange) removeKatRange.closest("tr")?.remove();
     if (closeDialog) document.getElementById(closeDialog.dataset.closeDialog)?.close();
     if (event.target.closest('[data-action="close-notifications"]')) openNotifications(false);
     const selectModule=event.target.closest("[data-select-module]");

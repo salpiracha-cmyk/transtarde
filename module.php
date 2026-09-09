@@ -34,7 +34,7 @@ $access = [
     'module'=>$permissionName, 'moduleId'=>$id, 'user'=>(string)$user['full_name'],
     'role'=>(string)$user['role'], 'permissions'=>$modulePermissions,
     'super'=>(($user['role'] ?? '')==='Super Admin'), 'csrf'=>tt_csrf(),
-    'masters'=>$id==='exports' ? tt_list_masters() : [],
+    'masters'=>in_array($id,['exports','milling'],true) ? tt_list_masters() : [],
 ];
 $bootstrap = '<script>window.TT_MODULE_ACCESS='.json_encode($access, JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT).';</script>';
 $sharedBootstrap = <<<'HTML'

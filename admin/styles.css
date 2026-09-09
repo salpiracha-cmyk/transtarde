@@ -327,3 +327,48 @@ legend { margin-bottom: 10px; color: #445469; font-size: .79rem; font-weight: 75
   .backup-policy-grid { grid-template-columns: 1fr; }
   .backup-policy-grid > div { border-right: 0; }
 }
+
+
+/* Products & Quality / Purchase KAT master usability redesign */
+.master-content .table-wrap { position: relative; }
+.master-content table th:last-child,
+.master-content table td:last-child { position: sticky; right: 0; z-index: 2; background: #fff; box-shadow: -8px 0 14px rgba(18,43,70,.04); }
+.master-content table th:last-child { z-index: 3; background: #f8fafc; }
+.master-editor-section { margin: 0 0 18px; padding: 16px; border: 1px solid var(--line); border-radius: 12px; background: #fbfcfe; }
+.master-editor-heading { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:13px; }
+.master-editor-heading h3 { margin:0; color:var(--navy); font-size:1rem; }
+.master-editor-heading p { margin:4px 0 0; color:var(--muted); font-size:.8rem; line-height:1.45; }
+.master-identity-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }
+.master-identity-grid label, .master-editor-section > label { display:grid; gap:6px; color:var(--ink); font-size:.78rem; font-weight:700; }
+.spec-editor-wrap { width:100%; overflow-x:auto; border:1px solid var(--line); border-radius:10px; background:#fff; }
+.spec-editor-table { width:100%; min-width:0; border-collapse:collapse; }
+.spec-editor-table th { padding:9px 10px; color:var(--muted); background:#f5f8fb; font-size:.72rem; text-align:left; }
+.spec-editor-table td { padding:8px 10px; border-top:1px solid #edf1f5; vertical-align:middle; }
+.spec-editor-table th:first-child, .spec-editor-table td:first-child { width:40%; }
+.spec-editor-table th:last-child, .spec-editor-table td:last-child { width:88px; position:static !important; box-shadow:none !important; }
+.spec-editor-table input { width:100%; min-height:36px; padding:7px 9px; border:1px solid var(--line); border-radius:7px; background:#fff; }
+.add-spec-button { margin-top:10px; }
+.kat-calc-section { border-left:4px solid var(--blue); }
+.kat-message-section { border-left:4px solid var(--amber); }
+@media (max-width: 900px) { .master-identity-grid { grid-template-columns:1fr 1fr; } }
+@media (max-width: 620px) { .master-identity-grid { grid-template-columns:1fr; } .spec-editor-table th:first-child,.spec-editor-table td:first-child{width:46%;} }
+
+
+/* Structured Purchase KAT range editor */
+.kat-range-wrap { width:100%; overflow-x:auto; margin-top:12px; border:1px solid var(--line); border-radius:10px; background:#fff; }
+.kat-range-table { width:100%; min-width:650px; border-collapse:collapse; }
+.kat-range-table th { padding:9px 10px; background:#f5f8fb; color:var(--muted); font-size:.72rem; text-align:left; }
+.kat-range-table td { padding:8px 10px; border-top:1px solid #edf1f5; }
+.kat-range-table input,.kat-range-table select { width:100%; min-height:36px; padding:7px 9px; border:1px solid var(--line); border-radius:7px; background:#fff; }
+.kat-range-table th:nth-child(1),.kat-range-table td:nth-child(1),.kat-range-table th:nth-child(2),.kat-range-table td:nth-child(2),.kat-range-table th:nth-child(3),.kat-range-table td:nth-child(3){width:18%;}
+.kat-range-table th:nth-child(4),.kat-range-table td:nth-child(4){width:28%;}
+.kat-range-table th:last-child,.kat-range-table td:last-child{width:88px;position:static!important;box-shadow:none!important;}
+
+
+/* All-master usability review */
+.master-content table td { max-width: 270px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.master-content table td:last-child { overflow: visible; white-space: normal; max-width: none; }
+.master-modal { width: min(980px, 94vw); }
+.master-editor-section .master-checks { grid-template-columns: repeat(3,minmax(0,1fr)); }
+@media (max-width: 800px) { .master-editor-section .master-checks { grid-template-columns: repeat(2,minmax(0,1fr)); } }
+@media (max-width: 520px) { .master-editor-section .master-checks { grid-template-columns: 1fr; } }

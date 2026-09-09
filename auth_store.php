@@ -8,7 +8,7 @@ const TT_DATA_DIR = __DIR__ . '/../transtrade_private';
 const TT_STORE_FILE = TT_DATA_DIR . '/auth.json';
 
 function tt_default_masters(): array {
-    return [
+    $masters = [
         'companies'=>[
             ['id'=>'companies-1','values'=>['Transtrade International','TTI','Pakistan','Pakistan','Group Company; Pakistan Operating Entity; Exporter; Seller; Buyer; Accounting Entity','No','Primary Pakistan operating/export entity.']],
             ['id'=>'companies-2','values'=>['Buksh Rice Mills','BRM','Pakistan','Pakistan','Group Company; Mill / Processor; Seller; Buyer; Accounting Entity','No','Mill/processing entity and authorized document identity.']],
@@ -69,11 +69,26 @@ function tt_default_masters(): array {
             ['id'=>'banks-tg','values'=>['Company Account','TG — Trans Grains Foodstuff Trading L.L.C','','Trans Grains Foodstuff Trading L.L.C','Habib Bank AG Zurich','Baniyas Square, Dubai','United Arab Emirates','USD','','','','TG offshore trading account','Authorized TG / Exports / Accounts / Directors only','Incomplete — enter account number/IBAN/SWIFT and confirm use']],
         ],
     ];
+    // Only the approved IRRI-6 purchase KAT is seeded. Other rice varieties
+    // and corn require their own owner-approved rule sets and must never
+    // inherit IRRI-6 deductions implicitly.
+    $masters['purchase_kat']=array_values(array_filter(
+        $masters['purchase_kat'],
+        static fn(array $row): bool => strcasecmp((string)($row['values'][1] ?? ''),'IRRI-6')===0
+    ));
+    return $masters;
 }
 
 function tt_normalize_masters(array $masters): array {
     $defaults=tt_default_masters();
     foreach ($defaults as $type=>$rows) if (!isset($masters[$type]) || !is_array($masters[$type])) $masters[$type]=$rows;
+
+    // Remove only the old generated placeholders. Future owner-entered rules
+    // for other varieties/corn are preserved when Salman defines them.
+    $legacyKatPlaceholders=['purchase_kat-7','purchase_kat-8','purchase_kat-9','purchase_kat-10','purchase_kat-11','purchase_kat-12','purchase_kat-13','purchase_kat-15','purchase_kat-16'];
+    $masters['purchase_kat']=array_values(array_filter((array)$masters['purchase_kat'],static function ($row) use ($legacyKatPlaceholders): bool {
+        return !in_array((string)($row['id'] ?? ''),$legacyKatPlaceholders,true);
+    }));
 
     $companyDefaults=[];
     foreach ($defaults['companies'] as $row) $companyDefaults[strtoupper((string)$row['values'][1])]=$row;
@@ -100,9 +115,50 @@ function tt_normalize_masters(array $masters): array {
     }
     unset($row);
     foreach ($productDefaults as $code=>$row) if (empty($seenProducts[$code])) $masters['products'][]=$row;
+
+    foreach (['parties','mills'] as $simpleType) {
+        foreach ($masters[$simpleType] as &$row) {
+            $values=array_values((array)($row['values'] ?? []));
+            if (count($values)===3) $values=[$values[0] ?? '',$values[1] ?? '',$values[2] ?? '',''];
+            while (count($values)<4) $values[]='';
+            $row['values']=$values;
+        }
+        unset($row);
+    }
     foreach ($masters['banks'] as &$row) {
         $values=(array)($row['values'] ?? []);
         if (count($values)<=3) $row['values']=['Company Account','','',$values[0] ?? '','','','','','', '', '', '',$values[2] ?? '','Incomplete legacy bank record · reference '.($values[1] ?? '')];
+    }
+    unset($row);
+    foreach ($masters['purchase_kat'] as &$row) {
+        $values=array_values((array)($row['values'] ?? []));
+        while (count($values)<10) $values[]='';
+        if (($values[9] ?? '')==='') {
+            $parameter=strtolower((string)($values[2] ?? ''));
+            $variety=strtolower((string)($values[1] ?? ''));
+            $ranges=[];
+            if (str_contains($variety,'irri-6') && $parameter==='broken') $ranges=[
+                ['from'=>'20','to'=>'30','value'=>'1','unit'=>'paisa per %'],['from'=>'30','to'=>'35','value'=>'3','unit'=>'paisa per %'],
+                ['from'=>'35','to'=>'40','value'=>'8','unit'=>'paisa per %'],['from'=>'40','to'=>'45','value'=>'15','unit'=>'paisa per %'],
+                ['from'=>'45','to'=>'50','value'=>'20','unit'=>'paisa per %'],['from'=>'50','to'=>'55','value'=>'25','unit'=>'paisa per %'],
+                ['from'=>'55','to'=>'60','value'=>'40','unit'=>'paisa per %']
+            ];
+            elseif (str_contains($variety,'irri-6') && str_contains($parameter,'damage')) $ranges=[
+                ['from'=>'2','to'=>'5','value'=>'10','unit'=>'paisa per %'],['from'=>'5','to'=>'','value'=>'25','unit'=>'paisa per %']
+            ];
+            elseif (str_contains($variety,'irri-6') && $parameter==='chalky') $ranges=[['from'=>'5','to'=>'','value'=>'10','unit'=>'paisa per %']];
+            elseif (str_contains($variety,'irri-6') && $parameter==='moisture' && str_contains((string)($values[6] ?? ''),'14%')) $ranges=[
+                ['from'=>'14','to'=>'14.5','value'=>'0.5','unit'=>'weight %'],['from'=>'14.5','to'=>'15','value'=>'1','unit'=>'weight %'],['from'=>'15','to'=>'16','value'=>'2','unit'=>'weight %']
+            ];
+            if ($ranges) $values[9]=json_encode($ranges,JSON_UNESCAPED_SLASHES);
+        }
+        $row['values']=$values;
+    }
+    unset($row);
+    foreach ($masters['products'] as &$row) {
+        $values=array_values((array)($row['values'] ?? []));
+        while (count($values)<21) $values[]='';
+        $row['values']=$values;
     }
     unset($row);
     return $masters;
@@ -123,17 +179,85 @@ session_set_cookie_params([
 ]);
 if (session_status() !== PHP_SESSION_ACTIVE) session_start();
 
+function tt_default_party_roles(): array {
+    return ['Buyer','Supplier','Broker','Export Buyer','Local Buyer','Customer','Agent','Service Provider','Other'];
+}
+
+function tt_master_options(): array {
+    $data=tt_read_store();
+    $options=is_array($data['master_options'] ?? null) ? $data['master_options'] : [];
+    $roles=array_values(array_unique(array_filter(array_map(static fn($v)=>trim((string)$v),(array)($options['party_roles'] ?? [])))));
+    foreach (tt_default_party_roles() as $role) if (!in_array($role,$roles,true)) $roles[]=$role;
+    sort($roles,SORT_NATURAL|SORT_FLAG_CASE);
+    return ['party_roles'=>$roles];
+}
+
+function tt_add_party_role_option(string $role): string {
+    $role=trim(preg_replace('/\\s+/',' ',$role) ?? '');
+    if ($role==='' || strlen($role)>80) throw new InvalidArgumentException('Enter a valid Party Role.');
+    tt_mutate_store(function (&$data) use ($role): void {
+        if (!isset($data['master_options']) || !is_array($data['master_options'])) $data['master_options']=[];
+        $roles=array_values(array_filter(array_map(static fn($v)=>trim((string)$v),(array)($data['master_options']['party_roles'] ?? []))));
+        foreach ($roles as $existing) if (strcasecmp($existing,$role)===0) return;
+        $roles[]=$role;
+        sort($roles,SORT_NATURAL|SORT_FLAG_CASE);
+        $data['master_options']['party_roles']=$roles;
+    });
+    return $role;
+}
+
+function tt_normalize_location_type(string $type): string {
+    $t=strtolower(trim($type));
+    if (str_contains($t,'reprocess')) return 'Reprocessing Mill';
+    if (str_contains($t,'external') || str_contains($t,'ex-mill') || str_contains($t,'ex mill')) return 'External Mill';
+    if (str_contains($t,'own') || str_contains($t,'tti rice')) return 'Own Mill';
+    if (str_contains($t,'warehouse')) return 'Warehouse';
+    if (str_contains($t,'office')) return 'Office';
+    if (str_contains($t,'stock')) return 'Stock Location';
+    return trim($type) ?: 'Other';
+}
+
+function tt_upsert_location_master(string $name,string $type,string $source='System',string $notes=''): array {
+    $name=trim(preg_replace('/\\s+/',' ',$name) ?? '');
+    if ($name==='' || strlen($name)>160) throw new InvalidArgumentException('Enter a valid mill / location name.');
+    $type=tt_normalize_location_type($type);
+    $source=trim($source) ?: 'System';
+    return tt_mutate_store(function (&$data) use ($name,$type,$source,$notes): array {
+        if (!isset($data['masters']['mills']) || !is_array($data['masters']['mills'])) $data['masters']['mills']=[];
+        foreach ($data['masters']['mills'] as &$row) {
+            $values=array_values((array)($row['values'] ?? []));
+            while (count($values)<4) $values[]='';
+            if (strcasecmp(trim((string)$values[0]),$name)!==0) continue;
+            if (($values[2] ?? '')==='' || strcasecmp((string)$values[2],'Other')===0) $values[2]=$type;
+            $autoNote='Linked automatically from '.$source.'.';
+            $existing=trim((string)($values[3] ?? ''));
+            if ($notes!=='') $autoNote.=' '.trim($notes);
+            if ($existing==='' || !str_contains($existing,$autoNote)) $values[3]=trim($existing.' '.$autoNote);
+            $row['values']=$values;
+            $out=$row;
+            unset($row);
+            return $out;
+        }
+        unset($row);
+        $id='mills-auto-'.substr(hash('sha256',strtolower($name)),0,12);
+        $note='Linked automatically from '.$source.'.'.($notes!==''?' '.trim($notes):'');
+        $row=['id'=>$id,'values'=>[$name,'',$type,$note]];
+        $data['masters']['mills'][]=$row;
+        return $row;
+    });
+}
+
 function tt_ensure_data_dir(): void {
     if (!is_dir(TT_DATA_DIR) && !mkdir(TT_DATA_DIR, 0700, true) && !is_dir(TT_DATA_DIR)) throw new RuntimeException('The secure data folder could not be created.');
 }
 
 function tt_read_store(): array {
     tt_ensure_data_dir();
-    if (!is_file(TT_STORE_FILE)) return ['users' => [], 'audit' => [], 'masters'=>tt_default_masters()];
+    if (!is_file(TT_STORE_FILE)) return ['users' => [], 'audit' => [], 'masters'=>tt_default_masters(), 'master_options'=>['party_roles'=>tt_default_party_roles()]];
     $raw = file_get_contents(TT_STORE_FILE);
     $data = $raw === false || $raw === '' ? null : json_decode($raw, true);
-    if (!is_array($data)) return ['users' => [], 'audit' => [], 'masters'=>tt_default_masters()];
-    $data=array_merge(['users' => [], 'audit' => [], 'masters'=>tt_default_masters()], $data);
+    if (!is_array($data)) return ['users' => [], 'audit' => [], 'masters'=>tt_default_masters(), 'master_options'=>['party_roles'=>tt_default_party_roles()]];
+    $data=array_merge(['users' => [], 'audit' => [], 'masters'=>tt_default_masters(), 'master_options'=>['party_roles'=>tt_default_party_roles()]], $data);
     $data['masters']=tt_normalize_masters(is_array($data['masters'] ?? null) ? $data['masters'] : []);
     return $data;
 }
@@ -149,7 +273,7 @@ function tt_mutate_store(callable $callback): mixed {
         $raw = stream_get_contents($handle);
         $data = $raw ? json_decode($raw, true) : null;
         if (!is_array($data)) $data = ['users' => [], 'audit' => [], 'masters'=>tt_default_masters()];
-        $data = array_merge(['users' => [], 'audit' => [], 'masters'=>tt_default_masters()], $data);
+        $data = array_merge(['users' => [], 'audit' => [], 'masters'=>tt_default_masters(), 'master_options'=>['party_roles'=>tt_default_party_roles()]], $data);
         $data['masters']=tt_normalize_masters(is_array($data['masters'] ?? null) ? $data['masters'] : []);
         $result = $callback($data);
         rewind($handle);
