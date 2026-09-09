@@ -15,7 +15,7 @@ const SELLERS={TTI:'TRANSTRADE INTERNATIONAL',BRM:'BUKSH RICE MILLS',TG:'TRANS G
 const SELLER_DETAILS={
  TTI:{name:SELLERS.TTI,address:'Office No. 11, 3rd Floor, Arkay Square, Ext. Shahrah-e-Liaquat, New Challi, Karachi South, Pakistan.',phone:'+92-21 32410255, 32410677',email:'info@transtradeinternational.com',website:'www.transtradeinternational.com',header:'assets/TTI_header.png',footer:'',sign:'assets/TTI_sign.png'},
  BRM:{name:SELLERS.BRM,address:'S-94/A, S.I.T.E., Karachi, Pakistan.',phone:'+92-21-32560333',email:'bukshrice@gmail.com',website:'',header:'assets/BRM_header.png',footer:'',sign:'assets/BRM_sign.png'},
- TG:{name:SELLERS.TG,address:'Office No. 376, The Bestal Hotel, Al Muraqqabat, P.O. Box 46959, Dubai, U.A.E.',phone:'+971-4-251-8979',email:'info@transgrains.com',website:'www.transgrains.com',header:'assets/TG_header.jpg',footer:'assets/TG_footer.jpg',sign:'assets/TG_sign.jpg'}
+ TG:{name:SELLERS.TG,address:'Office No. 376, The Bestal Hotel, Al Muraqqabat, P.O. Box 46959, Dubai, U.A.E.',phone:'+971-4-251-8979',email:'info@transgrains.com',website:'www.transgrains.com',header:'assets/TG_header.png',footer:'assets/TG_footer.png',sign:'assets/TG_sign.png'}
 };
 const DEFAULT_DOCS=['Commercial Invoice','Commercial Packing List','Full set clean on-board Bill of Lading','Certificate of Origin in quadruplicate','One printout of e-Phyto issued by Department of Plant Protection, Government of Pakistan, (QR verifiable)','Fumigation Certificate — 1 original + 1 copy'];
 const DEFAULT_TERMS=[
