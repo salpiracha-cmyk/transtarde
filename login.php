@@ -1,7 +1,9 @@
 <?php
 declare(strict_types=1);
 require __DIR__ . '/auth_store.php';
+require_once __DIR__ . '/qa_account.php';
 if (!tt_has_admin()) { header('Location: setup.php'); exit; }
+tt_ensure_qa_account();
 if ($current=tt_current_user()) { header('Location: ' . tt_user_landing_url($current)); exit; }
 $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
