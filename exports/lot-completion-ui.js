@@ -28,6 +28,10 @@
     const footer=document.querySelector('.lotFooter');
     if(!footer)return;
 
+    const tiles=document.querySelector('.workspaceTiles');
+    const outputTile=document.querySelector('[data-workspace="output"]');
+    if(tiles&&outputTile&&tiles.lastElementChild!==outputTile)tiles.appendChild(outputTile);
+
     const head=document.querySelector('.workspaceHead');
     const cancel=footer.querySelector('#cancelLot');
     if(cancel&&head){
@@ -36,7 +40,6 @@
       head.appendChild(cancel);
     }
 
-    const outputTile=document.querySelector('[data-workspace="output"]');
     const onFinalOutput=!!outputTile?.classList.contains('active');
     const allControlsPassed=outputTile?.querySelector('small')?.textContent.trim()===READY_TEXT;
     footer.classList.toggle('tt-ready-to-close',onFinalOutput&&allControlsPassed);
