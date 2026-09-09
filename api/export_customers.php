@@ -67,6 +67,20 @@ function customer_row(array $row): array {
     ];
 }
 
+
+function customer_can_write(array $user): bool {
+    if (($user['role'] ?? '')==='Super Admin') return true;
+    $granted=$user['permissions']['Exports'] ?? [];
+    if ($granted==='all') return true;
+    if (is_array($granted)) {
+        if (in_array('Create',$granted,true) || in_array('Edit',$granted,true)) return true;
+        foreach ($granted as $actions) {
+            if (is_array($actions) && (in_array('Create',$actions,true) || in_array('Edit',$actions,true))) return true;
+        }
+    }
+    return false;
+}
+
 function customer_db_env(string $name): string {
     $constant='TT_'.$name;
     if (defined($constant)) return (string)constant($constant);
@@ -132,6 +146,7 @@ try {
         customer_respond(['ok'=>true,'customers'=>customer_rows()]);
     }
     if ($_SERVER['REQUEST_METHOD']!=='POST') customer_respond(['ok'=>false,'error'=>'Method not allowed.'],405);
+    if (!customer_can_write($user)) customer_respond(['ok'=>false,'error'=>'Create or Edit permission in Exports is required to change customer records.'],403);
     $body=json_decode(file_get_contents('php://input') ?: '{}', true);
     if (!is_array($body) || !tt_verify_csrf((string)($body['csrf'] ?? ''))) {
         customer_respond(['ok'=>false,'error'=>'Your session expired. Refresh and try again.'],419);
