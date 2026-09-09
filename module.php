@@ -44,7 +44,7 @@ $sharedBootstrap = <<<'HTML'
   const EXPORT_STORE='transtrade_export_v3_operational';
   const allowed=k=>k===EXPORT_STORE||/^tt[0-9]{2}[a-z0-9_]{2,60}$/.test(k);
   const originalSet=Storage.prototype.setItem, originalRemove=Storage.prototype.removeItem;
-  let applying=false, revision=0, remoteKeys=new Set(), pending=new Map(), keyVersions=new Map(), timer=0, lastRemoteBy='';
+  let applying=false, revision=0, remoteKeys=new Set(), pending=new Map(), inFlight=new Set(), keyVersions=new Map(), timer=0, lastRemoteBy='';
   const directSet=(k,v)=>originalSet.call(localStorage,k,v);
   const parse=(k,d)=>{try{const v=JSON.parse(localStorage.getItem(k));return v??d}catch{return d}};
   const stableId=s=>{let h=2166136261;for(const c of String(s)){h^=c.charCodeAt(0);h=Math.imul(h,16777619)}return 600000000+(h>>>0)%300000000};
@@ -78,10 +78,12 @@ $sharedBootstrap = <<<'HTML'
   function flush(){
     clearTimeout(timer);timer=0;
     for(const [key,value] of [...pending]){
+      if(inFlight.has(key))continue;
       pending.delete(key);
+      inFlight.add(key);
       fetch(endpoint,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({csrf:access.csrf,key,value,baseVersion:Number(keyVersions.get(key)||0),sourceModule:access.module||'Super Admin'})})
-        .then(r=>r.json()).then(r=>{if(r.ok){revision=Math.max(revision,Number(r.revision||0));keyVersions.set(key,Number(r.keyVersion||r.revision||0));return}if(r.conflict){retryConflict(key,value,r.keyVersion);return}if(!pending.has(key))pending.set(key,value);clearTimeout(timer);timer=setTimeout(flush,2500);showSyncError(r.error,false)})
-        .catch(()=>{if(!pending.has(key))pending.set(key,value);clearTimeout(timer);timer=setTimeout(flush,2500);showSyncError('Shared save is temporarily unavailable.');});
+        .then(r=>r.json()).then(r=>{inFlight.delete(key);if(r.ok){revision=Math.max(revision,Number(r.revision||0));keyVersions.set(key,Number(r.keyVersion||r.revision||0));if(pending.has(key)){clearTimeout(timer);timer=setTimeout(flush,180)}return}if(r.conflict){retryConflict(key,value,r.keyVersion);return}if(!pending.has(key))pending.set(key,value);clearTimeout(timer);timer=setTimeout(flush,2500);showSyncError(r.error,false)})
+        .catch(()=>{inFlight.delete(key);if(!pending.has(key))pending.set(key,value);clearTimeout(timer);timer=setTimeout(flush,2500);showSyncError('Shared save is temporarily unavailable.');});
     }
   }
   function queue(key,value){if(!allowed(key)||applying)return;pending.set(key,String(value));clearTimeout(timer);timer=setTimeout(flush,180)}
