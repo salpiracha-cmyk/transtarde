@@ -37,4 +37,8 @@
   function releaseDomTweaks(){hydrateEditor();enforceApprovedReports()}
   new MutationObserver(releaseDomTweaks).observe(document.documentElement,{childList:true,subtree:true});
   addEventListener('DOMContentLoaded',async()=>{try{const r=await nativeFetch('/api/export_customers.php',{credentials:'same-origin'});remember(await r.json())}catch{}releaseDomTweaks()});
+  const lotCompletionScript=document.createElement('script');
+  lotCompletionScript.src='/exports/lot-completion-ui.js?v=20260909-1';
+  lotCompletionScript.defer=true;
+  document.head.appendChild(lotCompletionScript);
 })();
