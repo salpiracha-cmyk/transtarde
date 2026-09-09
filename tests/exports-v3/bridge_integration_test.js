@@ -2,7 +2,7 @@ const fs=require('fs');
 const vm=require('vm');
 const assert=require('assert');
 const php=fs.readFileSync(__dirname+'/../main/module.php','utf8');
-assert.match(php,/'masters'=>\$id==='exports' \? tt_list_masters\(\) : \[\]/,'Export module receives the canonical Super Admin masters');
+assert.match(php,/'masters'=>tt_list_masters\(\)/,'Milling and Exports receive the canonical shared Super Admin masters');
 const match=php.match(/<script id="tt-shared-operations-bootstrap">([\s\S]*?)<\/script>/);
 assert.ok(match,'shared bridge bootstrap found');
 
@@ -16,11 +16,11 @@ class Storage{
 }
 const localStorage=new Storage();
 const root={contracts:[{ref:'TTI/NS/01',product:'IRRI-6 White Rice',packingUnit:'KG',quality:'Export quality',packings:[{brand:'STAR',size:25,type:'PP Bags',tare:80,containers:1,weightPer:27}]}],shipments:[{id:'P-1',kind:'process',contractRef:'TTI/NS/01',loading:{lots:[{lotId:'LOT-01',lotRecordId:'L-1'}]},millActuals:[]},{id:'L-1',kind:'lot',parentProcessId:'P-1',lotId:'LOT-01',contractRef:'TTI/NS/01',millActuals:[]}],millSync:{newExportBags:[],productionInstructions:[],exportLoading:[{contractRef:'TTI/NS/01',shipmentId:'L-1',lotId:'LOT-01',production:{dryOn:'No',craftPaper:'No'},plan:{allocations:[{packIndex:0,name:'TTI Rice Mills',type:'TTI',containers:1,weightPer:27,emptyBags:0,dryOn:'Yes',craftPaper:'Yes',dpp:'Yes',inspection:'SGS'}]}}]},alerts:[]};
-localStorage.setItem('transtrade_export_v2_operational',JSON.stringify(root));
-localStorage.setItem('tt32exportsync',JSON.stringify([{shipment:'LOT-01',container:'MSCU1234567',seal:'SL001',bags:1080,weight:27000,brand:'STAR',gate:'GP-9',truck:'TRK-1',date:'2026-09-08'}]));
+localStorage.setItem('transtrade_export_v3_operational',JSON.stringify(root));
+localStorage.setItem('tt32exportsync',JSON.stringify([{shipment:'LOT-01',shipmentId:'L-1',contractRef:'TTI/NS/01',lotRef:'LOT-01',container:'MSCU1234567',seal:'SL001',bags:1080,weight:27000,brand:'STAR',gate:'GP-9',truck:'TRK-1',date:'2026-09-08'}]));
 const listeners={};
 const document={activeElement:null,body:{appendChild(){}},getElementById(){return null},createElement(){return{style:{},appendChild(){}}},addEventListener(){}};
-class XMLHttpRequest{open(){}send(){this.status=200;this.responseText=JSON.stringify({ok:true,revision:1,values:{transtrade_export_v2_operational:JSON.stringify(root)},meta:{}});if(this.onload)this.onload()}}
+class XMLHttpRequest{open(){}send(){this.status=200;this.responseText=JSON.stringify({ok:true,revision:1,values:{transtrade_export_v3_operational:JSON.stringify(root)},meta:{}});if(this.onload)this.onload()}}
 const posts=[];const context={window:{TT_MODULE_ACCESS:{csrf:'test',module:'Exports'},TRANSTRADE_SERVER_NOW_ISO:''},Storage,localStorage,document,XMLHttpRequest,console,fetch:(url,options)=>{posts.push(JSON.parse(options.body));return Promise.resolve({json:()=>Promise.resolve({ok:true,revision:1,keyVersion:1})})},setTimeout:()=>0,clearTimeout(){},setInterval:()=>0,addEventListener:(n,fn)=>listeners[n]=fn,location:{reload(){}}};
 context.window.localStorage=localStorage;context.window.document=document;context.window.Storage=Storage;context.globalThis=context;
 vm.runInNewContext(match[1],context,{filename:'shared-bridge.js'});
@@ -29,11 +29,16 @@ const millInstruction=JSON.parse(localStorage.getItem('tt30ship'))[0];
 assert.equal(millInstruction.dryon,'Yes');
 assert.equal(millInstruction.craft,'Yes');
 assert.equal(millInstruction.inspection,'SGS');
-const synced=JSON.parse(localStorage.getItem('transtrade_export_v2_operational'));
+const synced=JSON.parse(localStorage.getItem('transtrade_export_v3_operational'));
 assert.equal(synced.shipments[0].millActuals.length,0,'process shell must not receive lot actuals');
 assert.equal(synced.shipments[1].millActuals.length,1);
 assert.equal(synced.shipments[1].millActuals[0].number,'MSCU123456-7');
 assert.equal(synced.shipments[1].millActuals[0].gatePass,'GP-9');
 assert.equal(synced.shipments[1].millActuals[0].source,'Milling');
+assert.equal(synced.shipments[1].millActuals[0].shipmentId,'L-1');
+assert.equal(synced.shipments[1].millActuals[0].contractRef,'TTI/NS/01');
+assert.equal(synced.shipments[1].millActuals[0].lotRef,'LOT-01');
+assert.equal(synced.shipments[1].millActuals[0].millNetKg,27000);
+assert.equal(synced.shipments[1].millActuals[0].documentNetKg,27000);
 assert.ok(posts.length>0);assert.ok(posts.every(x=>Number.isInteger(x.baseVersion)));assert.ok(posts.every(x=>x.sourceModule==='Exports'));
 console.log('PASS Export ⇄ Milling lot-reference bridge');
