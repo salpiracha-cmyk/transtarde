@@ -275,8 +275,5 @@ try {
 } catch (Throwable $e) {
     if (isset($db) && $db instanceof PDO && $db->inTransaction()) $db->rollBack();
     error_log('Transtrade operations API: ' . $e->getMessage());
-    if (isset($user) && is_array($user) && (($user['role'] ?? '') === 'Super Admin')) {
-        operations_respond(['ok' => false, 'error' => 'Shared update diagnostic: ' . $e->getMessage()], 500);
-    }
     operations_respond(['ok' => false, 'error' => 'The shared operational update could not be completed.'], 500);
 }
