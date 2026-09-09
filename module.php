@@ -114,10 +114,21 @@ $sharedBootstrap = <<<'HTML'
 HTML;
 
 $guard = <<<'HTML'
-<style>#ttUserBar{position:fixed;right:12px;top:12px;z-index:99999;display:flex;align-items:center;gap:9px;background:#102a46;color:#fff;padding:6px 7px 6px 11px;border-radius:10px;box-shadow:0 5px 18px #0004;font:12px Arial}#ttUserBar .ttPower{width:31px;height:31px;display:grid;place-items:center;border-radius:8px;background:#fff;color:#b42318;text-decoration:none;font-size:18px;font-weight:900;line-height:1}#ttUserBar .ttPower:hover{background:#fff0ee}.tt-no-access{display:none!important}</style>
+<style>
+#ttUserBar{display:flex;align-items:center;gap:10px;color:#fff;font:600 12px Arial;white-space:nowrap;margin-left:auto;padding-left:12px}
+#ttUserBar .ttPower{width:31px;height:31px;display:grid;place-items:center;border:0;border-left:1px solid rgba(255,255,255,.24);border-radius:0;background:transparent;color:#fff;text-decoration:none;font-size:18px;font-weight:900;line-height:1;padding-left:9px}
+#ttUserBar .ttPower:hover{color:#ffd7d2;background:transparent}
+#ttUserBar.tt-header-integrated{position:static;right:auto;top:auto;z-index:auto;background:transparent;box-shadow:none;padding-top:0;padding-bottom:0}
+#ttUserBar.tt-header-fallback{position:fixed;right:14px;top:14px;z-index:99999;background:#102a46;padding:7px 8px 7px 11px;border-radius:10px;box-shadow:0 5px 18px #0004}
+.tt-no-access{display:none!important}
+@media(max-width:720px){#ttUserBar{gap:7px;font-size:11px;padding-left:8px}#ttUserBar .ttPower{width:28px;height:28px;font-size:16px}}
+</style>
 <div id="ttUserBar"><span id="ttUserName"></span><a class="ttPower" href="logout.php" title="Log out" aria-label="Log out">⏻</a></div>
 <script>
-(()=>{const c=window.TT_MODULE_ACCESS||{},p=c.permissions||{},superUser=!!c.super;document.getElementById('ttUserName').textContent=c.user+' · '+c.role;if(superUser)return;
+(()=>{const c=window.TT_MODULE_ACCESS||{},p=c.permissions||{},superUser=!!c.super,bar=document.getElementById('ttUserBar');document.getElementById('ttUserName').textContent=c.user+' · '+c.role;
+const placeInHeader=()=>{const header=document.querySelector('.topbar,header,.app-header,.page-header');if(!header){bar.classList.add('tt-header-fallback');return}let host=header;if(header.matches('header')&&header.lastElementChild?.tagName==='DIV')host=header.lastElementChild;host.appendChild(bar);bar.classList.remove('tt-header-fallback');bar.classList.add('tt-header-integrated')};
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',placeInHeader,{once:true});else placeInHeader();
+if(superUser)return;
 const norm=s=>String(s||'').toLowerCase().replace(/&/g,'and').replace(/[^a-z0-9]+/g,' ').trim();
 const names={'stock':'stock','arrival list':'queue','arrival pohanch':'arrival','new export bags':'newbags','exports specifications':'instructions','production':'production','export loading':'export','local sales':'local','petty cash':'petty','processing expense':'labour','reprocessing bill':'reprocessbill','used bags in and out':'oldbags','reports':'reports','active shipments':'active','sales contracts':'contracts','completed shipments':'completed','cancelled':'cancelled','fi register':'fi','reports and registers':'reports','sales contract':'contract','bag order':'bags','bag artwork and bag order':'bags','production instructions':'production','loading instructions':'loading','customs documents':'customs','b l documents':'bl','commercial documents':'commercial','certificate of origin':'coo','certificates':'certs','bank covering and dispatch':'cover','tg documents':'tg','l c exchange draft':'lcdraft','document output':'print','history and versions':'history'};
 let current='';const actions=i=>p==='all'?['View','Create','Edit']:(Array.isArray(p)?p:(p[i]||[]));const can=(i,a)=>p==='all'||actions(i).includes(a);
