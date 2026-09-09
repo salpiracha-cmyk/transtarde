@@ -7,7 +7,7 @@ const fail=e=>{if(unloading)return;console.error('Transtrade Export bundle faile
  const base=new URL('.',scriptUrl);
  const asset=name=>new URL('assets/'+name,base).href;
  const numbered=Array.from({length:16},(_,i)=>`app.part${String(i+1).padStart(2,'0')}.txt`);
- const appNames=[...numbered,'app.part18.txt','app.part17.txt','app.part19.txt'];
+ const appNames=[...numbered,'app.part18.txt','app.part19.txt','app.part17.txt'];
  window.__TT_ASSETS={
   TTI_header:asset('TTI_header.png'),TTI_sign:asset('TTI_sign.png'),
   BRM_header:asset('BRM_header.png'),BRM_sign:asset('BRM_sign.png'),
