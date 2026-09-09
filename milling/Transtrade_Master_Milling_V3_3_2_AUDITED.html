@@ -1173,7 +1173,16 @@ function finalizeNilGainRows(rec){let refs=(rec.rows||[]).filter(r=>r.systemFixe
 function renderGhatiStatement(){let body=document.getElementById('ghatiStatementBody');if(!body)return;let a=get(STORE_GHATI,[]),st=ghatiState(),rate=weightedRawRiceRate10Days();ghatiNet.textContent=st.ghati?formatVarianceQty(st.ghati):'NIL';ghatiGain.textContent=st.gain?formatVarianceQty(st.gain):'NIL';ghatiRate.textContent=rate?('Rs. '+rate.toFixed(2)+' / kg'):'Pending receipt-rate data';ghatiLossValue.textContent=st.ghati&&rate?'Anticipated weight-loss impact at current 10-day weighted Raw Rice rate: Rs. '+Math.round(st.ghati*rate).toLocaleString()+'. Ghati quantity is not part of physical stock.':'Ghati is informational and not physical inventory.';body.innerHTML=a.length?a.slice().reverse().map(x=>`<tr><td>${x.time||x.date}</td><td>${x.kind==='shortage'?'GHATI +':'GAIN −'}</td><td><b>${x.product||'—'}</b></td><td>${x.narration}</td><td>${x.kind==='shortage'?formatVarianceQty(x.kg):'—'}</td><td>${x.kind==='gain'?formatVarianceQty(x.kg):'—'}</td><td>${x.ghatiAfter?formatVarianceQty(x.ghatiAfter):'NIL'}</td><td>${x.gainAfter?formatVarianceQty(x.gainAfter):'NIL'}</td></tr>`).join(''):'<tr><td colspan="8">No Physical NIL weight variances recorded.</td></tr>'}
 function formatVarianceQty(kg){kg=+kg||0;return kg>=1000?(kg/1000).toFixed(3)+' MT':Math.round(kg).toLocaleString()+' KG'}
 // Initial prototype boot. Final production boot receives authoritative server time before rendering.
-seedDemoData();renderMillCards();setTodayTextDefaults();queueViewDate.value=today();renderQueue();fillMasters();toggleArrivalKats();initProduction();renderBagOrders();renderProductionInstructions();renderSavedExporterSales();renderPetty();document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!nilConfirmPanel.classList.contains('hidden'))closeNilConfirm()});
+// Production never seeds or displays prototype example transactions. Genuine
+// shared records still arrive through the authenticated operations bridge.
+if(window.TT_MODULE_ACCESS){
+ defaultExMillSodas=()=>[];
+ defaultProductionInstructions=()=>[];
+ defaultBagOrders=()=>[];
+ defaultExporterSales=()=>[];
+ defaultShipments=()=>[];
+}
+renderMillCards();setTodayTextDefaults();queueViewDate.value=today();renderQueue();fillMasters();toggleArrivalKats();initProduction();renderBagOrders();renderProductionInstructions();renderSavedExporterSales();renderPetty();document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!nilConfirmPanel.classList.contains('hidden'))closeNilConfirm()});
 // TRANSTRADE UI THUMB RULE: Home module icons may navigate; within modules, expandable actions/forms open directly below the clicked item and same-click closes.
 </script>
 </body>
