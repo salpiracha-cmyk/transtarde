@@ -14,7 +14,7 @@ function operations_respond(array $data, int $status = 200): never {
 }
 
 function operations_key_allowed(string $key): bool {
-    return $key === 'transtrade_export_v2_operational'
+    return $key === 'transtrade_export_v3_operational'
         || (bool)preg_match('/^tt[0-9]{2}[a-z0-9_]{2,60}$/', $key);
 }
 
@@ -256,7 +256,7 @@ try {
             'keyVersion' => $version,
         ], 409);
     }
-    if ($key === 'transtrade_export_v2_operational' && $oldPayload !== '') {
+    if ($key === 'transtrade_export_v3_operational' && $oldPayload !== '') {
         $value = operations_merge_export($oldPayload, $value, $sourceModule);
     }
     $changed = $oldPayload === '' || !hash_equals(hash('sha256', $oldPayload), hash('sha256', $value));
