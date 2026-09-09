@@ -35,4 +35,27 @@ wireCommercial=function(){
   };
 };
 
-if(window.__TT_EXPORT_TEST__){window.__TT_EXPORT_TEST__.wireCommercial=wireCommercial}
+/* ensureCover normalizes by replacing s.covering. Always validate/save the object returned by
+   captureCover rather than the pre-capture reference retained by the original event closure. */
+wireCover=function(){
+  const s=shipment(),c=contractByRef(s.contractRef);
+  byId('saveCover').onclick=()=>{
+    const x=captureCover();
+    if(!x.bank)return alert('Presenting Bank is required.');
+    x.saved=true;x.savedAt=new Date().toISOString();
+    audit('BANK COVERING','Prepared',s.contractRef);
+    save();renderShipmentWorkspace();
+  };
+  byId('dispatchCover').onclick=()=>{
+    const x=captureCover();
+    if(!x.bank)return alert('Presenting Bank is required.');
+    if(!x.dispatchDate||!x.tracking)return alert('Dispatch Date and AWB / Tracking Number are required.');
+    x.saved=true;x.dispatched=true;x.dispatchedAt=new Date().toISOString();
+    audit('DISPATCH',`${x.sentThrough} documents dispatched`,x.tracking);
+    save();renderShipmentWorkspace();
+  };
+  byId('printCover').onclick=()=>printBankCovering(s,c);
+  byId('printExchange')?.addEventListener('click',()=>printExchangeDraft(s,c));
+};
+
+if(window.__TT_EXPORT_TEST__){window.__TT_EXPORT_TEST__.wireCommercial=wireCommercial;window.__TT_EXPORT_TEST__.wireCover=wireCover}
