@@ -25,7 +25,7 @@ assert.equal((app.match(/\['[^']+','[^']+','[^']+'\]/g)||[]).filter(x=>/Register
 assert.match(upload,/tt_require_login/);
 assert.match(upload,/tt_verify_csrf/);
 assert.match(upload,/move_uploaded_file/);
-assert.match(upload,/10 \* 1024 \* 1024/);
+assert.match(upload,/10\s*\*\s*1024\s*\*\s*1024/);
 assert.match(upload,/TT_DATA_DIR/);
 assert.match(upload,/CREATE TABLE IF NOT EXISTS tt_export_documents/);
 assert.match(api,/strcasecmp\(\$sourceModule, 'Accounts'\)/);
