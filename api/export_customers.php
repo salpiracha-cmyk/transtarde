@@ -72,11 +72,12 @@ function customer_can_write(array $user): bool {
     if (($user['role'] ?? '')==='Super Admin') return true;
     $granted=$user['permissions']['Exports'] ?? [];
     if ($granted==='all') return true;
-    if (is_array($granted)) {
-        if (in_array('Create',$granted,true) || in_array('Edit',$granted,true)) return true;
-        foreach ($granted as $actions) {
-            if (is_array($actions) && (in_array('Create',$actions,true) || in_array('Edit',$actions,true))) return true;
-        }
+    if (!is_array($granted)) return false;
+    if (in_array('Create',$granted,true) || in_array('Edit',$granted,true)) return true; // legacy flat permissions
+    foreach (['customers','contracts','contract'] as $icon) {
+        $actions=$granted[$icon] ?? [];
+        if ($actions==='all') return true;
+        if (is_array($actions) && (in_array('Create',$actions,true) || in_array('Edit',$actions,true))) return true;
     }
     return false;
 }
