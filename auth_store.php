@@ -61,6 +61,24 @@ function tt_default_masters(): array {
             ['id'=>'purchase_kat-15','values'=>['Rice','Basmati 515','Broken / Chalky / Damage / Moisture / Paddy','Not confirmed','No automatic deduction. Complete variety-specific rule before activation.','Profile','Reference variety','Draft – review required','Reference-only until Transtrade activates the variety.']],
             ['id'=>'purchase_kat-16','values'=>['Rice','KS-282','Broken / Chalky / Damage / Moisture / Paddy','Not confirmed','No automatic deduction. Complete variety-specific rule before activation.','Profile','Reference variety','Draft – review required','Reference-only until Transtrade activates the variety.']],
         ],
+        'export_documents'=>[
+            ['id'=>'export-doc-1','values'=>['Commercial Invoice','3','0','ALL','Active']],
+            ['id'=>'export-doc-2','values'=>['Commercial Packing List','3','0','ALL','Active']],
+            ['id'=>'export-doc-3','values'=>['Full set clean on-board Bill of Lading','3','3','ALL','Active']],
+            ['id'=>'export-doc-4','values'=>['Certificate of Origin','1','3','ALL','Active']],
+            ['id'=>'export-doc-5','values'=>['e-Phyto issued by Department of Plant Protection, Government of Pakistan','1','0','ALL','Active']],
+            ['id'=>'export-doc-6','values'=>['Fumigation Certificate','1','1','ALL','Active']],
+            ['id'=>'export-doc-7','values'=>['Insurance Policy / Certificate','1','0','CIF','Active']],
+        ],
+        'export_terms'=>[
+            ['id'=>'export-term-base-1','values'=>['BASE','All present and/or future customs taxes and/or duties/levies on the cargo in the country of origin shall be for Seller’s account. All present and/or future customs taxes and/or duties/levies on the cargo in the country of destination shall be for Buyer’s account.','Active']],
+            ['id'=>'export-term-base-2','values'=>['BASE','Risk of weight and quality is transferred to Buyer once cargo is loaded on board the vessel from Pakistan.','Active']],
+            ['id'=>'export-term-base-3','values'=>['BASE','Ownership of cargo is transferred to Buyer upon receipt of full payment of the invoice.','Active']],
+            ['id'=>'export-term-base-4','values'=>['BASE','All other terms and conditions as per applicable GAFTA London rules, of which both parties admit full notice and knowledge. English law to apply.','Active']],
+            ['id'=>'export-term-base-5','values'=>['BASE','Should any dispute arise which cannot be amicably settled between Buyer and Seller, the dispute shall be settled by arbitration in London as per applicable GAFTA rules.','Active']],
+            ['id'=>'export-term-advance','values'=>['ADVANCE','Partial shipment allowed.','Active']],
+            ['id'=>'export-term-cad','values'=>['CAD','Partial shipment allowed.','Active']],
+        ],
         'parties'=>[['id'=>'parties-1','values'=>['Shams','BRK-001','Broker']],['id'=>'parties-2','values'=>['Sample Overseas Buyer','BUY-001','Export buyer']]],
         'mills'=>[['id'=>'mills-1','values'=>['TTI Rice Mill','TTI-MILL','Own mill']],['id'=>'mills-2','values'=>['Karachi Office','KHI-OFF','Office']]],
         'banks'=>[
@@ -165,7 +183,7 @@ function tt_normalize_masters(array $masters): array {
 }
 
 function tt_visible_masters(array $masters): array {
-    $visible=['companies','commodities','products','purchase_kat','parties','mills','banks'];
+    $visible=['companies','commodities','products','purchase_kat','export_documents','export_terms','parties','mills','banks'];
     return array_intersect_key(tt_normalize_masters($masters),array_flip($visible));
 }
 
