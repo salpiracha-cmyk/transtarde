@@ -14,12 +14,8 @@
         const body=JSON.parse(init.body);
         if(body?.action==='upsert'&&body.customer){
           const editor=document.getElementById('ttCustomerMasterOverlay');
-          if(editor){
-            for(const k of ['Country','Email','Phone','Tax']){const el=editor.querySelector('#ttShow'+k);if(el)body.customer['show'+k]=!!el.checked}
-          }else{
-            const local=localByName(body.customer.name);
-            if(local)for(const k of ['Country','Email','Phone','Tax'])if(local['show'+k]!==undefined)body.customer['show'+k]=!!local['show'+k];
-          }
+          if(editor){for(const k of ['Country','Email','Phone','Tax']){const el=editor.querySelector('#ttShow'+k);if(el)body.customer['show'+k]=!!el.checked}}
+          else{const local=localByName(body.customer.name);if(local)for(const k of ['Country','Email','Phone','Tax'])if(local['show'+k]!==undefined)body.customer['show'+k]=!!local['show'+k]}
           init={...init,body:JSON.stringify(body)};
         }
       }catch{}
@@ -30,18 +26,15 @@
   };
   function addToggle(input,key,label){
     if(!input||document.getElementById('ttShow'+key))return;
-    const wrap=input.closest('.tt-cm-field,.field')||input.parentElement;
-    const row=document.createElement('label');row.className='tt-contract-show-toggle';row.style.cssText='display:flex;align-items:center;gap:7px;margin-top:6px;font-size:11px;font-weight:700;color:#47616b';
-    row.innerHTML=`<input id="ttShow${key}" type="checkbox" style="width:auto"> Show ${label} on Sales Contract`;
-    wrap.appendChild(row);
+    const wrap=input.closest('.tt-cm-field,.field')||input.parentElement,row=document.createElement('label');row.className='tt-contract-show-toggle';row.style.cssText='display:flex;align-items:center;gap:7px;margin-top:6px;font-size:11px;font-weight:700;color:#47616b';row.innerHTML=`<input id="ttShow${key}" type="checkbox" style="width:auto"> Show ${label} on Sales Contract`;wrap.appendChild(row);
   }
   function hydrateEditor(){
-    const overlay=document.getElementById('ttCustomerMasterOverlay');if(!overlay)return;
-    const name=overlay.querySelector('#ttCName')?.value||'';if(!name)return;
+    const overlay=document.getElementById('ttCustomerMasterOverlay');if(!overlay)return;const name=overlay.querySelector('#ttCName')?.value||'';if(!name)return;
     addToggle(overlay.querySelector('#ttCCountry'),'Country','Country');addToggle(overlay.querySelector('#ttCEmail'),'Email','Email');addToggle(overlay.querySelector('#ttCPhone'),'Phone','Phone');addToggle(overlay.querySelector('#ttCTax'),'Tax','VAT / Tax / Registration');
-    const row=cache.find(c=>String(c.name||'').toLowerCase()===String(name).toLowerCase())||localByName(name)||{};
-    for(const k of ['Country','Email','Phone','Tax']){const el=overlay.querySelector('#ttShow'+k);if(el&&!el.dataset.hydrated){el.checked=bool(row['show'+k]);el.dataset.hydrated='1'}}
+    const row=cache.find(c=>String(c.name||'').toLowerCase()===String(name).toLowerCase())||localByName(name)||{};for(const k of ['Country','Email','Phone','Tax']){const el=overlay.querySelector('#ttShow'+k);if(el&&!el.dataset.hydrated){el.checked=bool(row['show'+k]);el.dataset.hydrated='1'}}
   }
-  new MutationObserver(()=>hydrateEditor()).observe(document.documentElement,{childList:true,subtree:true});
-  addEventListener('DOMContentLoaded',async()=>{try{const r=await nativeFetch('/api/export_customers.php',{credentials:'same-origin'});remember(await r.json())}catch{}hydrateEditor()});
+  function enforceApprovedReports(){document.querySelectorAll('[data-report]').forEach(el=>{if(!['fi','containers'].includes(String(el.dataset.report||'')))el.remove()})}
+  function releaseDomTweaks(){hydrateEditor();enforceApprovedReports()}
+  new MutationObserver(releaseDomTweaks).observe(document.documentElement,{childList:true,subtree:true});
+  addEventListener('DOMContentLoaded',async()=>{try{const r=await nativeFetch('/api/export_customers.php',{credentials:'same-origin'});remember(await r.json())}catch{}releaseDomTweaks()});
 })();
