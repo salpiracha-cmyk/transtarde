@@ -10,6 +10,14 @@ function cl_respond(array $data, int $status = 200): never {
     echo json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
     exit;
 }
+function cl_commodity(array $event, array $meta): string {
+    $saved = strtoupper(trim((string)($event['commodity'] ?? $meta['commodity'] ?? '')));
+    if (in_array($saved, ['RICE','CORN','SESAME'], true)) return $saved;
+    $v = strtoupper((string)($meta['variety'] ?? ''));
+    if (str_contains($v, 'CORN') || str_contains($v, 'MAIZE')) return 'CORN';
+    if (str_contains($v, 'SESAME')) return 'SESAME';
+    return 'RICE';
+}
 
 try {
     $user = tt_require_login();
@@ -46,6 +54,7 @@ try {
         $journal = $store['journals'][$event['journalId'] ?? ''] ?? null;
         if (!is_array($journal)) continue;
         $meta = is_array($journal['meta'] ?? null) ? $journal['meta'] : [];
+        $commodity = cl_commodity($event, $meta);
         $billId = (string)($event['billId'] ?? '');
         $bill = $billId !== '' && isset($bills[$billId]) && is_array($bills[$billId]) ? $bills[$billId] : null;
         $rows[] = [
@@ -56,6 +65,7 @@ try {
             'date'=>(string)($journal['date'] ?? ''),
             'reference'=>(string)($journal['reference'] ?? ''),
             'provisionalAmount'=>(float)($journal['totalDebit'] ?? 0),
+            'commodity'=>$commodity,
             'soda'=>(string)($meta['soda'] ?? ''),
             'pohanch'=>(string)($meta['pohanch'] ?? $journal['reference'] ?? ''),
             'truck'=>(string)($meta['truck'] ?? ''),
