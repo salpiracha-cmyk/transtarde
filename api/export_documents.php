@@ -1,93 +1,38 @@
 <?php
 declare(strict_types=1);
-
 require dirname(__DIR__) . '/auth_store.php';
 
-function export_docs_respond(array $data, int $status = 200): never {
-    http_response_code($status);
-    header('Content-Type: application/json; charset=UTF-8');
-    header('Cache-Control: no-store');
-    echo json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-    exit;
+function export_docs_respond(array $data,int $status=200): never {http_response_code($status);header('Content-Type: application/json; charset=UTF-8');header('Cache-Control: no-store');echo json_encode($data,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);exit;}
+function export_docs_env(string $name): string {$c='TT_'.$name;if(defined($c))return(string)constant($c);$v=getenv($c);return$v===false?'':(string)$v;}
+function export_docs_db_configured(): bool {return export_docs_env('DB_HOST')!==''&&export_docs_env('DB_NAME')!==''&&export_docs_env('DB_USER')!=='';}
+function export_docs_db(): PDO {return new PDO('mysql:host='.export_docs_env('DB_HOST').';dbname='.export_docs_env('DB_NAME').';charset=utf8mb4',export_docs_env('DB_USER'),export_docs_env('DB_PASS'),[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC,PDO::ATTR_EMULATE_PREPARES=>false]);}
+function export_docs_can_write(array $user): bool {if(($user['role']??'')==='Super Admin')return true;$g=$user['permissions']['Exports']??[];if($g==='all')return true;if(!is_array($g))return false;if(in_array('Create',$g,true)||in_array('Edit',$g,true))return true;foreach(['bags','contracts','contract','customers'] as $k){$a=$g[$k]??[];if($a==='all'||(is_array($a)&&(in_array('Create',$a,true)||in_array('Edit',$a,true))))return true;}return false;}
+function export_docs_base(): string {tt_ensure_data_dir();$base=rtrim((string)TT_DATA_DIR,DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR.'export_documents';if(!is_dir($base)&&!mkdir($base,0700,true)&&!is_dir($base))throw new RuntimeException('Document storage directory is unavailable.');return$base;}
+function export_docs_index_path(): string {return export_docs_base().DIRECTORY_SEPARATOR.'index.json';}
+function export_docs_index_read(): array {$path=export_docs_index_path();if(!is_file($path))return[];$h=fopen($path,'r');if(!$h||!flock($h,LOCK_SH))return[];try{$raw=stream_get_contents($h);}finally{flock($h,LOCK_UN);fclose($h);} $d=$raw?json_decode($raw,true):[];return is_array($d)?$d:[];}
+function export_docs_index_write(array $rows): void {$path=export_docs_index_path();$h=fopen($path,'c+');if(!$h||!flock($h,LOCK_EX))throw new RuntimeException('Document metadata storage is unavailable.');try{rewind($h);if(!ftruncate($h,0))throw new RuntimeException('Document metadata could not be updated.');$json=json_encode($rows,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);if(fwrite($h,$json)===false)throw new RuntimeException('Document metadata could not be written.');fflush($h);}finally{flock($h,LOCK_UN);fclose($h);}}
+function export_docs_file_find(string $id): ?array {$rows=export_docs_index_read();$r=$rows[$id]??null;return is_array($r)&&empty($r['deleted_at'])?$r:null;}
+function export_docs_file_insert(array $row): void {$rows=export_docs_index_read();$rows[(string)$row['id']]=$row;export_docs_index_write($rows);}
+function export_docs_find(string $id): ?array {
+    if(export_docs_db_configured())try{$db=export_docs_db();$q=$db->prepare('SELECT id,contract_ref,lot_ref,category,original_name,stored_name,mime_type,file_size,uploaded_at,uploaded_by,uploaded_by_user,deleted_at FROM tt_export_documents WHERE id=? AND deleted_at IS NULL');$q->execute([$id]);$row=$q->fetch();if($row)return$row;}catch(Throwable $e){error_log('Export document DB lookup fallback: '.$e->getMessage());}
+    return export_docs_file_find($id);
 }
-
-function export_docs_env(string $name): string {
-    $constant = 'TT_' . $name;
-    if (defined($constant)) return (string)constant($constant);
-    $value = getenv($constant);
-    return $value === false ? '' : $value;
+function export_docs_insert(array $row): void {
+    if(export_docs_db_configured())try{$db=export_docs_db();$db->exec("CREATE TABLE IF NOT EXISTS tt_export_documents (id CHAR(32) NOT NULL PRIMARY KEY,contract_ref VARCHAR(100) NOT NULL,lot_ref VARCHAR(100) NOT NULL DEFAULT '',category VARCHAR(64) NOT NULL,original_name VARCHAR(255) NOT NULL,stored_name VARCHAR(80) NOT NULL UNIQUE,mime_type VARCHAR(100) NOT NULL,file_size BIGINT UNSIGNED NOT NULL,uploaded_at DATETIME(6) NOT NULL,uploaded_by VARCHAR(160) NOT NULL,uploaded_by_user BIGINT NULL,deleted_at DATETIME(6) NULL,INDEX idx_export_documents_lot (contract_ref,lot_ref,category),INDEX idx_export_documents_uploaded (uploaded_at)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");$q=$db->prepare('INSERT INTO tt_export_documents (id,contract_ref,lot_ref,category,original_name,stored_name,mime_type,file_size,uploaded_at,uploaded_by,uploaded_by_user) VALUES (?,?,?,?,?,?,?,?,UTC_TIMESTAMP(6),?,?)');$q->execute([$row['id'],$row['contract_ref'],$row['lot_ref'],$row['category'],$row['original_name'],$row['stored_name'],$row['mime_type'],$row['file_size'],$row['uploaded_by'],$row['uploaded_by_user']]);return;}catch(Throwable $e){error_log('Export document DB insert fallback: '.$e->getMessage());}
+    export_docs_file_insert($row);
 }
+function export_docs_upload_error(int $code): string {return match($code){UPLOAD_ERR_INI_SIZE,UPLOAD_ERR_FORM_SIZE=>'The selected file is larger than the server upload limit.',UPLOAD_ERR_PARTIAL=>'The file upload was interrupted. Please choose the file again.',UPLOAD_ERR_NO_FILE=>'Choose a PDF, JPEG, PNG or WebP file.',UPLOAD_ERR_NO_TMP_DIR,UPLOAD_ERR_CANT_WRITE,UPLOAD_ERR_EXTENSION=>'Document storage is temporarily unavailable. The file was not saved.',default=>'The selected file could not be uploaded.'};}
 
-function export_docs_db(): PDO {
-    $host = export_docs_env('DB_HOST');
-    $name = export_docs_env('DB_NAME');
-    $user = export_docs_env('DB_USER');
-    $pass = export_docs_env('DB_PASS');
-    if ($host === '' || $name === '' || $user === '') throw new RuntimeException('MySQL is not configured.');
-    return new PDO("mysql:host={$host};dbname={$name};charset=utf8mb4", $user, $pass, [
-        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
-        PDO::ATTR_EMULATE_PREPARES => false,
-    ]);
-}
-
-function export_docs_can_write(array $user): bool {
-    if (($user['role'] ?? '') === 'Super Admin') return true;
-    $granted = (array)(($user['permissions'] ?? [])['Exports'] ?? []);
-    return in_array('Create', $granted, true) || in_array('Edit', $granted, true);
-}
-
-try {
-    $user = tt_require_login();
-    if (!tt_user_can_open_module($user, 'Exports')) export_docs_respond(['ok' => false, 'error' => 'Exports access is required.'], 403);
-    $db = export_docs_db();
-
-    if ($_SERVER['REQUEST_METHOD'] === 'GET') {
-        $id = strtolower(trim((string)($_GET['id'] ?? '')));
-        if (!preg_match('/^[a-f0-9]{32}$/', $id)) export_docs_respond(['ok' => false, 'error' => 'Invalid document reference.'], 422);
-        $query = $db->prepare('SELECT original_name, stored_name, mime_type, file_size FROM tt_export_documents WHERE id = ? AND deleted_at IS NULL');
-        $query->execute([$id]);
-        $row = $query->fetch();
-        if (!$row) export_docs_respond(['ok' => false, 'error' => 'Document not found.'], 404);
-        $base = rtrim((string)TT_DATA_DIR, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'export_documents';
-        $path = $base . DIRECTORY_SEPARATOR . basename((string)$row['stored_name']);
-        if (!is_file($path)) export_docs_respond(['ok' => false, 'error' => 'Stored document is unavailable.'], 404);
-        header('Content-Type: ' . (string)$row['mime_type']);
-        header('Content-Length: ' . (string)filesize($path));
-        header("Content-Disposition: inline; filename*=UTF-8''" . rawurlencode((string)$row['original_name']));
-        header('X-Content-Type-Options: nosniff');
-        header('Cache-Control: private, no-store');
-        readfile($path);
-        exit;
+try{
+    $user=tt_require_login();if(!tt_user_can_open_module($user,'Exports'))export_docs_respond(['ok'=>false,'error'=>'Exports access is required.'],403);
+    if($_SERVER['REQUEST_METHOD']==='GET'){
+        $id=strtolower(trim((string)($_GET['id']??'')));if(!preg_match('/^[a-f0-9]{32}$/',$id))export_docs_respond(['ok'=>false,'error'=>'Invalid document reference.'],422);$row=export_docs_find($id);if(!$row)export_docs_respond(['ok'=>false,'error'=>'Document not found.'],404);$path=export_docs_base().DIRECTORY_SEPARATOR.basename((string)$row['stored_name']);if(!is_file($path))export_docs_respond(['ok'=>false,'error'=>'Stored document is unavailable.'],404);header('Content-Type: '.(string)$row['mime_type']);header('Content-Length: '.filesize($path));header("Content-Disposition: inline; filename*=UTF-8''".rawurlencode((string)$row['original_name']));header('X-Content-Type-Options: nosniff');header('Cache-Control: private, no-store');readfile($path);exit;
     }
-
-    if ($_SERVER['REQUEST_METHOD'] !== 'POST') export_docs_respond(['ok' => false, 'error' => 'Method not allowed.'], 405);
-    if (!export_docs_can_write($user)) export_docs_respond(['ok' => false, 'error' => 'Create or Edit permission is required.'], 403);
-    if (!tt_verify_csrf((string)($_POST['csrf'] ?? ''))) export_docs_respond(['ok' => false, 'error' => 'Your session expired. Refresh and try again.'], 419);
-    if (!isset($_FILES['file']) || !is_array($_FILES['file']) || (int)$_FILES['file']['error'] !== UPLOAD_ERR_OK) export_docs_respond(['ok' => false, 'error' => 'Choose a valid document file.'], 422);
-    $size = (int)$_FILES['file']['size'];
-    if ($size < 1 || $size > 10 * 1024 * 1024) export_docs_respond(['ok' => false, 'error' => 'Document must be between 1 byte and 10 MB.'], 413);
-    $tmp = (string)$_FILES['file']['tmp_name'];
-    $mime = (new finfo(FILEINFO_MIME_TYPE))->file($tmp) ?: '';
-    $allowed = ['application/pdf' => 'pdf', 'image/png' => 'png', 'image/jpeg' => 'jpg', 'image/webp' => 'webp'];
-    if (!isset($allowed[$mime])) export_docs_respond(['ok' => false, 'error' => 'Only PDF, PNG, JPEG and WebP documents are accepted.'], 415);
-    $category = strtolower(trim((string)($_POST['category'] ?? '')));
-    if (!preg_match('/^[a-z0-9-]{3,64}$/', $category)) export_docs_respond(['ok' => false, 'error' => 'Invalid document category.'], 422);
-    $contractRef = trim((string)($_POST['contractRef'] ?? ''));
-    $lotId = trim((string)($_POST['lotId'] ?? ''));
-    if ($contractRef === '' || strlen($contractRef) > 100 || strlen($lotId) > 100) export_docs_respond(['ok' => false, 'error' => 'Invalid contract or lot reference.'], 422);
-    $id = bin2hex(random_bytes(16));
-    $stored = $id . '.' . $allowed[$mime];
-    tt_ensure_data_dir();
-    $base = rtrim((string)TT_DATA_DIR, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'export_documents';
-    if (!is_dir($base) && !mkdir($base, 0700, true) && !is_dir($base)) throw new RuntimeException('Document storage could not be created.');
-    if (!move_uploaded_file($tmp, $base . DIRECTORY_SEPARATOR . $stored)) throw new RuntimeException('Document could not be stored.');
-    $name = trim((string)$_FILES['file']['name']);
-    $name = preg_replace('/[\x00-\x1F\x7F]+/u', '', $name) ?: ('document.' . $allowed[$mime]);
-    $insert = $db->prepare('INSERT INTO tt_export_documents (id, contract_ref, lot_ref, category, original_name, stored_name, mime_type, file_size, uploaded_at, uploaded_by, uploaded_by_user) VALUES (?,?,?,?,?,?,?,?,UTC_TIMESTAMP(6),?,?)');
-    $insert->execute([$id, $contractRef, $lotId, $category, mb_substr($name, 0, 255), $stored, $mime, $size, (string)($user['full_name'] ?? $user['username'] ?? 'Staff'), isset($user['id']) ? (int)$user['id'] : null]);
-    export_docs_respond(['ok' => true, 'document' => ['id' => $id, 'name' => $name, 'mime' => $mime, 'size' => $size, 'category' => $category, 'uploadedAt' => gmdate('c'), 'downloadUrl' => 'api/export_documents.php?id=' . $id]]);
-} catch (Throwable $e) {
-    error_log('Transtrade export document API: ' . $e->getMessage());
-    export_docs_respond(['ok' => false, 'error' => 'The protected document operation could not be completed.'], 500);
-}
+    if($_SERVER['REQUEST_METHOD']!=='POST')export_docs_respond(['ok'=>false,'error'=>'Method not allowed.'],405);if(!export_docs_can_write($user))export_docs_respond(['ok'=>false,'error'=>'Create or Edit permission is required.'],403);if(!tt_verify_csrf((string)($_POST['csrf']??'')))export_docs_respond(['ok'=>false,'error'=>'Your session expired. Refresh and try again.'],419);
+    if(!isset($_FILES['file'])||!is_array($_FILES['file']))export_docs_respond(['ok'=>false,'error'=>'Choose a PDF, JPEG, PNG or WebP file.'],422);$err=(int)($_FILES['file']['error']??UPLOAD_ERR_NO_FILE);if($err!==UPLOAD_ERR_OK)export_docs_respond(['ok'=>false,'error'=>export_docs_upload_error($err)],$err===UPLOAD_ERR_INI_SIZE||$err===UPLOAD_ERR_FORM_SIZE?413:422);
+    $size=(int)$_FILES['file']['size'];if($size<1||$size>10*1024*1024)export_docs_respond(['ok'=>false,'error'=>'Bag marks and export documents must be 10 MB or smaller.'],413);$tmp=(string)$_FILES['file']['tmp_name'];$mime=(new finfo(FILEINFO_MIME_TYPE))->file($tmp)?:'';$allowed=['application/pdf'=>'pdf','image/png'=>'png','image/jpeg'=>'jpg','image/webp'=>'webp'];if(!isset($allowed[$mime]))export_docs_respond(['ok'=>false,'error'=>'Only PDF, JPEG, PNG and WebP files are accepted.'],415);
+    $category=strtolower(trim((string)($_POST['category']??'')));if(!preg_match('/^[a-z0-9-]{3,64}$/',$category))export_docs_respond(['ok'=>false,'error'=>'Invalid document category.'],422);$contractRef=trim((string)($_POST['contractRef']??''));$lotId=trim((string)($_POST['lotId']??''));if($contractRef===''||strlen($contractRef)>100||strlen($lotId)>100)export_docs_respond(['ok'=>false,'error'=>'Select a valid contract before uploading the file.'],422);
+    $id=bin2hex(random_bytes(16));$stored=$id.'.'.$allowed[$mime];$base=export_docs_base();if(!move_uploaded_file($tmp,$base.DIRECTORY_SEPARATOR.$stored))throw new RuntimeException('Uploaded file could not be moved to protected storage.');$name=trim((string)$_FILES['file']['name']);$name=preg_replace('/[\x00-\x1F\x7F]+/u','',$name)?:('document.'.$allowed[$mime]);$name=substr($name,0,255);$row=['id'=>$id,'contract_ref'=>$contractRef,'lot_ref'=>$lotId,'category'=>$category,'original_name'=>$name,'stored_name'=>$stored,'mime_type'=>$mime,'file_size'=>$size,'uploaded_at'=>gmdate('c'),'uploaded_by'=>(string)($user['full_name']??$user['username']??'Staff'),'uploaded_by_user'=>isset($user['id'])?(int)$user['id']:null,'deleted_at'=>null];
+    try{export_docs_insert($row);}catch(Throwable $e){@unlink($base.DIRECTORY_SEPARATOR.$stored);throw$e;}
+    export_docs_respond(['ok'=>true,'document'=>['id'=>$id,'name'=>$name,'mime'=>$mime,'size'=>$size,'category'=>$category,'uploadedAt'=>gmdate('c'),'downloadUrl'=>'api/export_documents.php?id='.$id]]);
+}catch(Throwable $e){error_log('Transtrade export document API: '.$e->getMessage());export_docs_respond(['ok'=>false,'error'=>'Document storage is temporarily unavailable. The file was not saved. Please retry.'],500);}
