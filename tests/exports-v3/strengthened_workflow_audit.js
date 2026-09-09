@@ -7,7 +7,6 @@ const css=fs.readFileSync(path.join(__dirname,'app.css'),'utf8');
 const modulePhp=fs.readFileSync(path.join(__dirname,'../main/module.php'),'utf8');
 const api=fs.readFileSync(path.join(__dirname,'../main/api/operations.mysql.php'),'utf8');
 const upload=fs.readFileSync(path.join(__dirname,'../main/api/export_documents.php'),'utf8');
-const schema=fs.readFileSync(path.join(__dirname,'../main/api/operations_schema.sql'),'utf8');
 
 const names=[...app.matchAll(/function\s+([A-Za-z_$][\w$]*)\s*\(/g)].map(m=>m[1]);
 const duplicates=names.filter((name,index)=>names.indexOf(name)!==index);
@@ -28,7 +27,7 @@ assert.match(upload,/tt_verify_csrf/);
 assert.match(upload,/move_uploaded_file/);
 assert.match(upload,/10 \* 1024 \* 1024/);
 assert.match(upload,/TT_DATA_DIR/);
-assert.match(schema,/tt_export_documents/);
+assert.match(upload,/CREATE TABLE IF NOT EXISTS tt_export_documents/);
 assert.match(api,/strcasecmp\(\$sourceModule, 'Accounts'\)/);
 assert.match(api,/accountsReceipts/);
 assert.match(modulePhp,/contributions/);
