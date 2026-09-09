@@ -46,8 +46,8 @@ jobs:
           : > /tmp/transtrade-export-bundle.js
           for n in $(seq -w 1 16); do cat "exports/app.part${n}.txt" >> /tmp/transtrade-export-bundle.js; done
           cat exports/app.part18.txt >> /tmp/transtrade-export-bundle.js
-          cat exports/app.part17.txt >> /tmp/transtrade-export-bundle.js
           cat exports/app.part19.txt >> /tmp/transtrade-export-bundle.js
+          cat exports/app.part17.txt >> /tmp/transtrade-export-bundle.js
 
       - name: Preserve assembled bundle for diagnostics
         uses: actions/upload-artifact@v4
