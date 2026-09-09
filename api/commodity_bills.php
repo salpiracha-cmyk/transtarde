@@ -57,6 +57,14 @@ function cb_next_id(array $items,string $prefix): string {
     do{$id=$prefix.'-'.gmdate('Y').'-'.str_pad((string)$n,6,'0',STR_PAD_LEFT);$n++;}while(isset($items[$id]));
     return $id;
 }
+function cb_commodity(array $event,array $meta): string {
+    $saved=strtoupper(trim((string)($event['commodity']??$meta['commodity']??'')));
+    if(in_array($saved,['RICE','CORN','SESAME'],true)) return $saved;
+    $v=strtoupper((string)($meta['variety']??''));
+    if(str_contains($v,'CORN')||str_contains($v,'MAIZE')) return 'CORN';
+    if(str_contains($v,'SESAME')) return 'SESAME';
+    return 'RICE';
+}
 function cb_receipts(array $store,?string $entity=null): array {
     $rows=[];
     foreach((array)($store['events']??[]) as $event){
@@ -69,7 +77,7 @@ function cb_receipts(array $store,?string $entity=null): array {
         $rows[]=[
             'eventId'=>(string)($event['id']??''),'sourceKey'=>(string)($event['sourceKey']??''),'entity'=>(string)($event['entity']??''),
             'journalId'=>(string)($event['journalId']??''),'date'=>(string)($j['date']??''),'reference'=>(string)($j['reference']??''),
-            'provisionalAmount'=>(float)($j['totalDebit']??0),'soda'=>(string)($meta['soda']??''),'pohanch'=>(string)($meta['pohanch']??$j['reference']??''),
+            'provisionalAmount'=>(float)($j['totalDebit']??0),'commodity'=>cb_commodity($event,$meta),'soda'=>(string)($meta['soda']??''),'pohanch'=>(string)($meta['pohanch']??$j['reference']??''),
             'truck'=>(string)($meta['truck']??''),'broker'=>(string)($meta['broker']??''),'party'=>(string)($meta['party']??''),'variety'=>(string)($meta['variety']??''),
             'payableWeightKg'=>(float)($meta['payableWeightKg']??0),'grossRatePerKg'=>(float)($meta['grossRatePerKg']??0),
             'katPaisaPerKg'=>(float)($meta['katPaisaPerKg']??0),'provisionalNetRatePerKg'=>(float)($meta['provisionalNetRatePerKg']??0)
@@ -109,7 +117,7 @@ function cb_allocate_payable(array $receiptRows,float $total,int $creditDays): a
         $receiptDate=(string)($r['date']??'');
         $alloc[]=[
             'sourceKey'=>(string)($r['sourceKey']??''),'eventId'=>(string)($r['eventId']??''),
-            'pohanch'=>(string)($r['pohanch']??''),'truck'=>(string)($r['truck']??''),'receiptDate'=>$receiptDate,
+            'commodity'=>(string)($r['commodity']??''),'pohanch'=>(string)($r['pohanch']??''),'truck'=>(string)($r['truck']??''),'receiptDate'=>$receiptDate,
             'dueDate'=>cb_add_days($receiptDate,$creditDays),'creditDays'=>$creditDays,
             'supplierPayableShare'=>$share,'provisionalAmount'=>round((float)($r['provisionalAmount']??0),2),
             'status'=>'Outstanding'
@@ -168,16 +176,20 @@ try{
             $j=$store['journals'][$ev['journalId']??'']??null;
             if(!is_array($j)) cb_respond(['ok'=>false,'error'=>'Receipt journal is missing for '.$key.'.'],422);
             $meta=is_array($j['meta']??null)?$j['meta']:[];
+            $commodity=cb_commodity($ev,$meta);
             $row=[
                 'eventId'=>$eventId,'sourceKey'=>$key,'date'=>(string)($j['date']??''),'provisionalAmount'=>round((float)($j['totalDebit']??0),2),
-                'soda'=>(string)($meta['soda']??''),'pohanch'=>(string)($meta['pohanch']??$j['reference']??''),
+                'commodity'=>$commodity,'soda'=>(string)($meta['soda']??''),'pohanch'=>(string)($meta['pohanch']??$j['reference']??''),
                 'truck'=>(string)($meta['truck']??''),'broker'=>(string)($meta['broker']??''),'variety'=>(string)($meta['variety']??'')
             ];
-            $provisional+=$row['provisionalAmount'];$sodas[]=$row['soda'];$brokers[]=$row['broker'];$commodities[]=$row['variety'];
+            $provisional+=$row['provisionalAmount'];$sodas[]=$row['soda'];$brokers[]=$row['broker'];$commodities[]=$commodity;
             $receiptRows[]=$row;$events[$eventId]=&$store['events'][$eventId];
         }
         $uniqueSodas=array_values(array_unique(array_filter(array_map('trim',$sodas))));
         if(count($uniqueSodas)!==1) cb_respond(['ok'=>false,'error'=>'One commodity bill must contain Pohanch receipts from one Soda only.'],422);
+        $uniqueCommodities=array_values(array_unique(array_filter(array_map('trim',$commodities))));
+        if(count($uniqueCommodities)!==1) cb_respond(['ok'=>false,'error'=>'One purchase bill cannot mix Rice and Corn / Maize receipts.'],422);
+        $commodity=$uniqueCommodities[0];
         $uniqueBrokers=array_values(array_unique(array_filter(array_map('trim',$brokers))));
         if(count($uniqueBrokers)>1) cb_respond(['ok'=>false,'error'=>'One commodity bill cannot mix different brokers / payees.'],422);
         $broker=$brokerInput!==''?$brokerInput:($uniqueBrokers[0]??'');
@@ -202,20 +214,21 @@ try{
         $billId=cb_next_id((array)$store['commodityBills'],'CB');
         $journalId=cb_next_id((array)$store['journals'],'AUTO');
         $dueDates=array_column($receiptAllocations,'dueDate');sort($dueDates);
+        $label=$commodity==='CORN'?'Corn / Maize':($commodity==='RICE'?'Rice':ucfirst(strtolower($commodity)));
         $meta=[
-            'billId'=>$billId,'sourceKeys'=>$sourceKeys,'sodas'=>$uniqueSodas,'broker'=>$broker,'adjustments'=>$adjustments,
+            'billId'=>$billId,'commodity'=>$commodity,'sourceKeys'=>$sourceKeys,'sodas'=>$uniqueSodas,'broker'=>$broker,'adjustments'=>$adjustments,
             'provisionalValue'=>$provisional,'finalCommodityValue'=>$finalValue,'brokerageGross'=>$brokerageGross,
             'brokerageWithholding'=>$brokerageWithholding,'supplierPayableTotal'=>$supplierPayableTotal,
             'creditDays'=>$creditDays,'dueBasis'=>'Unloading Date','receiptAllocations'=>$receiptAllocations
         ];
         $store['journals'][$journalId]=[
             'id'=>$journalId,'entity'=>$entity,'date'=>$date,'sourceType'=>'COMMODITY_BILL_VERIFIED','reference'=>$billNo?:$billId,
-            'narration'=>'Commodity purchase bill '.($billNo?:$billId).($broker?' — '.$broker:''),'lines'=>$lines,
+            'narration'=>$label.' purchase bill '.($billNo?:$billId).($broker?' — '.$broker:''),'lines'=>$lines,
             'totalDebit'=>$dr,'totalCredit'=>$cr,'status'=>'Posted','meta'=>$meta,'createdAt'=>gmdate('c'),
             'createdBy'=>(string)($user['full_name']??$user['username']??'Staff'),'userId'=>(int)($user['id']??0),'reversalOf'=>null
         ];
         $store['commodityBills'][$billId]=[
-            'id'=>$billId,'entity'=>$entity,'billDate'=>$date,'billNo'=>$billNo,'broker'=>$broker,'sourceKeys'=>$sourceKeys,
+            'id'=>$billId,'entity'=>$entity,'commodity'=>$commodity,'billDate'=>$date,'billNo'=>$billNo,'broker'=>$broker,'sourceKeys'=>$sourceKeys,
             'sodas'=>$uniqueSodas,'provisionalValue'=>$provisional,'finalCommodityValue'=>$finalValue,'brokerageGross'=>$brokerageGross,
             'brokerageWithholding'=>$brokerageWithholding,'supplierPayableTotal'=>$supplierPayableTotal,'journalId'=>$journalId,
             'adjustments'=>$adjustments,'remarks'=>$remarks,'creditDays'=>$creditDays,'dueBasis'=>'Unloading Date',
@@ -226,6 +239,7 @@ try{
         foreach($receiptAllocations as $a){
             $eventId=(string)$a['eventId'];
             $store['events'][$eventId]['billId']=$billId;
+            $store['events'][$eventId]['commodity']=$commodity;
             $store['events'][$eventId]['creditDays']=$creditDays;
             $store['events'][$eventId]['dueDate']=$a['dueDate'];
             $store['events'][$eventId]['supplierPayableShare']=$a['supplierPayableShare'];
