@@ -28,7 +28,7 @@ lot.millActuals=[{number:'MSCU1234567',seal:'SEAL-1',bags:1080,netKg:27000,gross
 Object.assign(lot.customs,{exporter:'BRM',rate:350,invoiceNo:'BRM/TG/01',bank:'Meezan Bank Limited',iban:'PK66MEZN0001020103869880',openAccount:4450,fiAllocations:[{number:'FI-TG-01',amount:5000,currency:'USD'}],gdRefs:[{number:'GD-TG-01',date:'2026-09-10'}],saved:true});
 
 const customerInvoice=t.commercialInvoiceDoc(lot,contract,false);
-assert.match(customerInvoice,/assets\/TG_header\.jpg/);
+assert.match(customerInvoice,/assets\/TG_header\.png/);
 assert.match(customerInvoice,/FINAL BUYER LLC/);
 assert.match(customerInvoice,/410\.00/);
 
