@@ -22,10 +22,10 @@ assert.match(modulePhp,/tt_user_can_open_module/);
 assert.match(modulePhp,/'masters'=>tt_list_masters\(\)/);
 assert.match(modulePhp,/pending\.set\(key,value\)/,'transient shared-save failures remain pending for retry');
 assert.match(modulePhp,/endpoint='api\/operations\.mysql\.php'/);
-assert.match(modulePhp,/TG_header\.jpg/);
-assert.match(modulePhp,/TG_footer\.jpg/);
-assert.match(modulePhp,/TG_sign\.jpg/);
-assert.doesNotMatch(modulePhp,/TG_(?:header|footer|sign)\.png/);
+assert.match(modulePhp,/TG_header\.png/);
+assert.match(modulePhp,/TG_footer\.png/);
+assert.match(modulePhp,/TG_sign\.png/);
+assert.doesNotMatch(modulePhp,/TG_(?:header|footer|sign)\.jpg/);
 assert.match(modulePhp,/data:' \. \$mime \. ';base64,/,'server wrapper must inline each artwork with its real MIME type');
 assert.match(mysql,/CREATE TABLE IF NOT EXISTS tt_operation_records/);
 assert.match(mysql,/CREATE TABLE IF NOT EXISTS tt_operation_history/);
@@ -40,8 +40,8 @@ assert.match(css,/\.docAutoSign img\{display:block;width:auto;height:20mm/,'sign
 assert.match(js,/WITH \$\{label\}/);
 assert.match(js,/WITHOUT \$\{label\}/);
 assert.match(js,/this company has no footer/);
-for(const asset of ['TTI_header.png','TTI_sign.png','BRM_header.png','BRM_sign.png','TG_header.jpg','TG_footer.jpg','TG_sign.jpg']){
+for(const asset of ['TTI_header.png','TTI_sign.png','BRM_header.png','BRM_sign.png','TG_header.png','TG_footer.png','TG_sign.png']){
   assert.ok(js.includes(`assets/${asset}`),asset+' reference missing');
   assert.ok(fs.existsSync(__dirname+'/assets/'+asset),asset+' file missing');
 }
-console.log('PASS backend/static release audit: auth, CSRF, concurrency, clean-start scope, links and A4 print controls');
+console.log('PASS backend/static release audit: auth, CSRF, concurrency, self-initializing schema, links and A4 print controls');
