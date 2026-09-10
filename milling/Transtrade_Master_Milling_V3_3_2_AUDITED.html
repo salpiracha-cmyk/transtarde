@@ -407,7 +407,7 @@ function stat(s){
 
 function render(){
  persistSales();
- activeBody.innerHTML=sales.filter(s=&gt;!(s.closed&amp;&amp;s.approved)).map(s=&gt;`&lt;tr id=&quot;saleRow_${s.soda}&quot; class=&quot;click&quot; role=&quot;button&quot; tabindex=&quot;0&quot; onclick=&quot;openSale(&#x27;${s.soda}&#x27;)&quot; onkeydown=&quot;if(event.key===&#x27;Enter&#x27;||event.key===&#x27; &#x27;){event.preventDefault();openSale(&#x27;${s.soda}&#x27;)}&quot;&gt;&lt;td&gt;&lt;b&gt;${s.soda}&lt;/b&gt;&lt;/td&gt;&lt;td&gt;${s.date}&lt;/td&gt;&lt;td&gt;${s.party}&lt;/td&gt;&lt;td&gt;${s.product}&lt;/td&gt;&lt;td&gt;${s.tons}&lt;/td&gt;&lt;td&gt;${s.rate}&lt;/td&gt;&lt;td&gt;${s.doneBy||&#x27;—&#x27;}&lt;/td&gt;&lt;td&gt;&lt;span class=&quot;badge&quot;&gt;${stat(s)}&lt;/span&gt;&lt;/td&gt;&lt;/tr&gt;`).join(&#x27;&#x27;);
+ activeBody.innerHTML=sales.filter(s=&gt;!(s.closed&amp;&amp;s.approved)).map(s=&gt;`&lt;tr id=&quot;saleRow_${s.soda}&quot; class=&quot;click&quot; role=&quot;button&quot; tabindex=&quot;0&quot; onclick=&quot;openSale(&#x27;${s.soda}&#x27;)&quot; onkeydown=&quot;if(event.target===this&amp;&amp;(event.key===&#x27;Enter&#x27;||event.key===&#x27; &#x27;)){event.preventDefault();openSale(&#x27;${s.soda}&#x27;)}&quot;&gt;&lt;td&gt;&lt;b&gt;${s.soda}&lt;/b&gt;&lt;/td&gt;&lt;td&gt;${s.date}&lt;/td&gt;&lt;td&gt;${s.party}&lt;/td&gt;&lt;td&gt;${s.product}&lt;/td&gt;&lt;td&gt;${s.tons}&lt;/td&gt;&lt;td&gt;${s.rate}&lt;/td&gt;&lt;td&gt;${s.doneBy||&#x27;—&#x27;}&lt;/td&gt;&lt;td&gt;&lt;span class=&quot;badge&quot;&gt;${stat(s)}&lt;/span&gt;&lt;/td&gt;&lt;/tr&gt;`).join(&#x27;&#x27;);
  renderExcess();
 }
 
