@@ -14,9 +14,11 @@ const storage=new Map(),localStorage={getItem:k=>storage.get(k)||null,setItem:(k
 const window={document,localStorage,TT_MODULE_ACCESS:{user:'Director Test',role:'Director',module:'Exports'},addEventListener(){},open(){},print(){},setTimeout:fn=>fn(),setInterval:()=>0};
 const context={window,document,localStorage,console,structuredClone,alert:m=>{throw Error(m)},prompt:()=>'',confirm:()=>true,location:{href:''},setTimeout:fn=>fn(),setInterval:()=>0,clearTimeout(){},FileReader:class{},FormData:class{},fetch:async()=>({ok:true,json:async()=>({ok:true})}),Date,Intl};context.globalThis=context;
 let source=fs.readFileSync(__dirname+'/app.js','utf8');
-source=source.replace('mount();',`window.__V3__={state,makeShipment,makeLotRecord,loadingRemainingByPack,completionMissing,accountsFor,accountsTotal,purchaseOrderPrint,reportTable,REPORT_DEFS,lcRegisterRows,setCurrent:id=>currentShipmentId=id};mount();`);
+source=source.replace('mount();',`window.__V3__={state,makeShipment,makeLotRecord,loadingRemainingByPack,upgradeState,completionMissing,accountsFor,accountsTotal,purchaseOrderPrint,reportTable,REPORT_DEFS,lcRegisterRows,setCurrent:id=>currentShipmentId=id};mount();`);
 vm.runInNewContext(source,context,{filename:'app.js'});
 const t=window.__V3__;
+t.state.alerts.push({id:'A1',area:'MILL ACTUALS',contractRef:'TTI/DB/01',kind:'Container Limit',message:'Same rejected container',seen:false},{id:'A2',area:'MILL ACTUALS',contractRef:'TTI/DB/01',kind:'Container Limit',message:'Same rejected container',seen:false});t.upgradeState();
+assert.equal(t.state.alerts.filter(x=>x.message==='Same rejected container').length,1,'duplicate bridge alerts must compact in the active Export state');
 
 const buyer={id:'BUYER',name:'Dummy Buyer',code:'DB',address:'Dubai',packingDefault:'KG',nextSeq:1,notifies:[{name:'Notify Co',address:'Jebel Ali'}]};
 const contract={id:'C1',ref:'TTI/DB/01',seller:'TTI',customerId:buyer.id,date:'2026-09-08',product:'IRRI-6 White Rice',quality:'Fit for human consumption',containers:1,weightPer:27,qty:27,tolerance:5,pol:'Port Qasim',podPort:'Jebel Ali',destPort:'Dubai',packingUnit:'KG',currency:'USD',incoterm:'FOB',inspection:'None',paymentCode:'ADV_SCAN',docs:['Commercial Invoice','Full set clean on-board Bill of Lading','Certificate of Origin','e-Phyto','Fumigation Certificate'],terms:[],received:true,status:'Contract Received',packings:[{type:'PP Bags',size:25,brand:'DUMMY',tare:80,containers:1,weightPer:27,price:420,freight:0,insurance:0,masterBag:{enabled:false,qty:0,tare:0}}]};
