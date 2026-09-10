@@ -13,10 +13,7 @@ function pp_respond(array $data,int $status=200): never {
     exit;
 }
 function pp_default_store(): array {
-    return [
-        'revision'=>0,'journals'=>[],'events'=>[],'commodityBills'=>[],
-        'supplierSettlements'=>[],'payableHolds'=>[]
-    ];
+    return ['revision'=>0,'journals'=>[],'events'=>[],'commodityBills'=>[],'supplierSettlements'=>[],'payableHolds'=>[]];
 }
 function pp_read(): array {
     tt_ensure_data_dir();
@@ -45,6 +42,18 @@ function pp_entity(string $v): string {
     if(!in_array($v,['TTI','BRM'],true))pp_respond(['ok'=>false,'error'=>'Payables planning is available for TTI or BRM.'],422);
     return $v;
 }
+function pp_commodity(string $v,bool $optional=true): string {
+    $v=strtoupper(trim($v));
+    if($v===''&&$optional)return '';
+    if(!in_array($v,['RICE','CORN'],true))pp_respond(['ok'=>false,'error'=>'Payment commodity must be Rice or Corn / Maize.'],422);
+    return $v;
+}
+function pp_commodity_from(array $event,array $meta): string {
+    $saved=strtoupper(trim((string)($event['commodity']??$meta['commodity']??'')));
+    if(in_array($saved,['RICE','CORN'],true))return $saved;
+    $v=strtoupper((string)($meta['variety']??''));
+    return (str_contains($v,'CORN')||str_contains($v,'MAIZE'))?'CORN':'RICE';
+}
 function pp_money(mixed $v): float {return max(0,round((float)$v,2));}
 function pp_days_between(string $from,string $to): int {
     $a=new DateTimeImmutable($from.' 00:00:00',new DateTimeZone('Asia/Karachi'));
@@ -70,21 +79,20 @@ function pp_hold(array $store,string $entity,string $sourceKey): ?array {
     $h=$store['payableHolds'][$key]??null;
     return is_array($h)&&!empty($h['active'])?$h:null;
 }
-function pp_rows(array $store,string $entity): array {
+function pp_rows(array $store,string $entity,string $commodity=''): array {
     $rows=[];
     foreach((array)($store['commodityBills']??[]) as $bill){
         if(!is_array($bill)||($bill['entity']??'')!==$entity)continue;
         if(!in_array((string)($bill['status']??''),['Verified / Posted','Posted','Outstanding'],true))continue;
+        $billCommodity=strtoupper(trim((string)($bill['commodity']??'RICE')));
+        if($billCommodity==='MAIZE')$billCommodity='CORN';
+        if($commodity!==''&&$billCommodity!==$commodity)continue;
         $billId=(string)($bill['id']??'');$billNo=(string)($bill['billNo']??'');$broker=(string)($bill['broker']??'');
         $soda=(string)(($bill['sodas'][0]??'')?:'');
         $allocs=is_array($bill['receiptAllocations']??null)?$bill['receiptAllocations']:[];
         if(!$allocs){
             $gross=pp_money($bill['supplierPayableTotal']??((float)($bill['finalCommodityValue']??0)+max(0,(float)($bill['brokerageGross']??0)-(float)($bill['brokerageWithholding']??0))));
-            $allocs=[[
-                'sourceKey'=>'','pohanch'=>'','truck'=>'','receiptDate'=>(string)($bill['billDate']??''),
-                'dueDate'=>(string)($bill['dueDateTo']??$bill['billDate']??''),'creditDays'=>(int)($bill['creditDays']??0),
-                'supplierPayableShare'=>$gross
-            ]];
+            $allocs=[['sourceKey'=>'','pohanch'=>'','truck'=>'','receiptDate'=>(string)($bill['billDate']??''),'dueDate'=>(string)($bill['dueDateTo']??$bill['billDate']??''),'creditDays'=>(int)($bill['creditDays']??0),'supplierPayableShare'=>$gross]];
         }
         foreach($allocs as $a){
             if(!is_array($a))continue;
@@ -96,7 +104,7 @@ function pp_rows(array $store,string $entity): array {
             $due=(string)($a['dueDate']??'');if($due==='')$due=(string)($bill['dueDateTo']??$bill['billDate']??'');
             $hold=pp_hold($store,$entity,$sourceKey!==''?$sourceKey:'BILL|'.$billId);
             $rows[]=[
-                'entity'=>$entity,'billId'=>$billId,'billNo'=>$billNo,'broker'=>$broker,'soda'=>$soda,
+                'entity'=>$entity,'commodity'=>$billCommodity,'billId'=>$billId,'billNo'=>$billNo,'broker'=>$broker,'soda'=>$soda,
                 'sourceKey'=>$sourceKey,'pohanch'=>(string)($a['pohanch']??''),'truck'=>(string)($a['truck']??''),
                 'receiptDate'=>(string)($a['receiptDate']??$bill['billDate']??''),'creditDays'=>(int)($a['creditDays']??$bill['creditDays']??0),
                 'dueDate'=>$due,'grossPayable'=>$gross,'settled'=>$paid,'outstanding'=>$out,
@@ -107,40 +115,24 @@ function pp_rows(array $store,string $entity): array {
     usort($rows,static fn($a,$b)=>strcmp((string)$a['dueDate'],(string)$b['dueDate'])?:strcmp((string)$a['broker'],(string)$b['broker'])?:strcmp((string)$a['soda'],(string)$b['soda'])?:strcmp((string)$a['truck'],(string)$b['truck']));
     return $rows;
 }
-function pp_unposted(array $store,string $entity,string $asOf): array {
+function pp_unposted(array $store,string $entity,string $asOf,string $commodity=''): array {
     $rows=[];
     foreach((array)($store['events']??[]) as $ev){
         if(!is_array($ev)||($ev['eventType']??'')!=='COMMODITY_RECEIPT_ACCEPTED'||($ev['entity']??'')!==$entity||!empty($ev['billId']))continue;
         $j=$store['journals'][$ev['journalId']??'']??null;if(!is_array($j))continue;
         $meta=is_array($j['meta']??null)?$j['meta']:[];$date=(string)($j['date']??'');
+        $rowCommodity=pp_commodity_from($ev,$meta);if($commodity!==''&&$rowCommodity!==$commodity)continue;
         $age=$date!==''?max(0,pp_days_between($date,$asOf)):0;
-        $rows[]=[
-            'sourceKey'=>(string)($ev['sourceKey']??''),'date'=>$date,'ageDays'=>$age,
-            'broker'=>(string)($meta['broker']??''),'soda'=>(string)($meta['soda']??''),'pohanch'=>(string)($meta['pohanch']??$j['reference']??''),
-            'truck'=>(string)($meta['truck']??''),'variety'=>(string)($meta['variety']??''),'provisionalAmount'=>pp_money($j['totalDebit']??0),
-            'status'=>'Received / Bill Not Posted'
-        ];
+        $rows[]=['sourceKey'=>(string)($ev['sourceKey']??''),'commodity'=>$rowCommodity,'date'=>$date,'ageDays'=>$age,'broker'=>(string)($meta['broker']??''),'soda'=>(string)($meta['soda']??''),'pohanch'=>(string)($meta['pohanch']??$j['reference']??''),'truck'=>(string)($meta['truck']??''),'variety'=>(string)($meta['variety']??''),'provisionalAmount'=>pp_money($j['totalDebit']??0),'status'=>'Received / Bill Not Posted'];
     }
     usort($rows,static fn($a,$b)=>strcmp((string)$a['date'],(string)$b['date']));
     return $rows;
 }
 function pp_ladder(array $rows,float $funds): array {
     $daily=[];
-    foreach($rows as $r){
-        $d=(string)$r['dueDate'];if($d==='')continue;
-        if(!isset($daily[$d]))$daily[$d]=['dueDate'=>$d,'dueThatDay'=>0.0,'heldThatDay'=>0.0,'eligibleCount'=>0,'heldCount'=>0];
-        if(!empty($r['held'])){$daily[$d]['heldThatDay']+=pp_money($r['outstanding']);$daily[$d]['heldCount']++;}
-        else{$daily[$d]['dueThatDay']+=pp_money($r['outstanding']);$daily[$d]['eligibleCount']++;}
-    }
+    foreach($rows as $r){$d=(string)$r['dueDate'];if($d==='')continue;if(!isset($daily[$d]))$daily[$d]=['dueDate'=>$d,'dueThatDay'=>0.0,'heldThatDay'=>0.0,'eligibleCount'=>0,'heldCount'=>0];if(!empty($r['held'])){$daily[$d]['heldThatDay']+=pp_money($r['outstanding']);$daily[$d]['heldCount']++;}else{$daily[$d]['dueThatDay']+=pp_money($r['outstanding']);$daily[$d]['eligibleCount']++;}}
     ksort($daily);$cum=0.0;$out=[];$clearThrough=null;$next=null;
-    foreach($daily as $d=>$x){
-        $previous=$cum;$cum=round($cum+$x['dueThatDay'],2);
-        $row=$x;$row['previousUnpaid']=$previous;$row['cumulativeThroughDate']=$cum;
-        $row['remainingAfterFunds']=max(0,round($cum-$funds,2));
-        if($funds>0&&$cum<=$funds+0.005)$clearThrough=$d;
-        elseif($funds>0&&$next===null&&$cum>$funds+0.005)$next=['dueDate'=>$d,'previousUnpaid'=>$previous,'dueThatDay'=>$x['dueThatDay'],'cumulativeThroughDate'=>$cum,'amountAvailableForThisDay'=>max(0,round($funds-$previous,2)),'shortfallToClearThroughDate'=>round($cum-$funds,2)];
-        $out[]=$row;
-    }
+    foreach($daily as $d=>$x){$previous=$cum;$cum=round($cum+$x['dueThatDay'],2);$row=$x;$row['previousUnpaid']=$previous;$row['cumulativeThroughDate']=$cum;$row['remainingAfterFunds']=max(0,round($cum-$funds,2));if($funds>0&&$cum<=$funds+0.005)$clearThrough=$d;elseif($funds>0&&$next===null&&$cum>$funds+0.005)$next=['dueDate'=>$d,'previousUnpaid'=>$previous,'dueThatDay'=>$x['dueThatDay'],'cumulativeThroughDate'=>$cum,'amountAvailableForThisDay'=>max(0,round($funds-$previous,2)),'shortfallToClearThroughDate'=>round($cum-$funds,2)];$out[]=$row;}
     return ['rows'=>$out,'totalEligibleOutstanding'=>$cum,'clearThroughDate'=>$clearThrough,'nextDate'=>$next,'funds'=>$funds,'fundsUnallocated'=>max(0,round($funds-($clearThrough!==null?min($funds,$cum):0),2))];
 }
 function pp_ageing(array $rows,string $asOf): array {
@@ -156,14 +148,13 @@ function pp_brokers(array $rows): array {
 try{
     $user=tt_require_login();
     if(!tt_user_can_open_module($user,'Accounts'))pp_respond(['ok'=>false,'error'=>'Accounts permission required.'],403);
-
     if($_SERVER['REQUEST_METHOD']==='GET'){
         $entity=pp_entity((string)($_GET['entity']??'TTI'));
         $asOf=pp_date((string)($_GET['asOf']??(new DateTimeImmutable('now',new DateTimeZone('Asia/Karachi')))->format('Y-m-d')),'As-of date');
-        $funds=pp_money($_GET['funds']??0);$store=pp_read();$rows=pp_rows($store,$entity);$ladder=pp_ladder($rows,$funds);
-        pp_respond(['ok'=>true,'entity'=>$entity,'asOf'=>$asOf,'funds'=>$funds,'ladder'=>$ladder,'ageing'=>pp_ageing($rows,$asOf),'brokers'=>pp_brokers($rows),'payables'=>$rows,'unpostedReceipts'=>pp_unposted($store,$entity,$asOf),'serverNow'=>gmdate('c')]);
+        $commodity=pp_commodity((string)($_GET['commodity']??''));
+        $funds=pp_money($_GET['funds']??0);$store=pp_read();$rows=pp_rows($store,$entity,$commodity);$ladder=pp_ladder($rows,$funds);
+        pp_respond(['ok'=>true,'entity'=>$entity,'commodity'=>$commodity,'asOf'=>$asOf,'funds'=>$funds,'ladder'=>$ladder,'ageing'=>pp_ageing($rows,$asOf),'brokers'=>pp_brokers($rows),'payables'=>$rows,'unpostedReceipts'=>pp_unposted($store,$entity,$asOf,$commodity),'serverNow'=>gmdate('c')]);
     }
-
     if($_SERVER['REQUEST_METHOD']!=='POST')pp_respond(['ok'=>false,'error'=>'Method not allowed.'],405);
     if(!pp_can_accounts_write($user))pp_respond(['ok'=>false,'error'=>'Accounts approval / edit permission required.'],403);
     $body=json_decode(file_get_contents('php://input')?:'',true);
