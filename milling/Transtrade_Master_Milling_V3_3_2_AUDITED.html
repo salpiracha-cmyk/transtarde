@@ -996,17 +996,17 @@ function reportedProductionKg(s){let a=get(STORE_PROD,[]),sum=0,needle=String(s.
 function postProcessingReconciliation(s,mode,details={}){let reported=reportedProductionKg(s),actual=(details.establishedKg??shipmentLoadedWeight(s)),nonProd=+details.nonProductionCoverKg||0,comparableReported=reported+nonProd,readyAdj=actual-comparableReported,recovery=+s.recovery||0.60,rawAdj=recovery?readyAdj/recovery:readyAdj,byTotal=rawAdj-readyAdj,parts=s.byProducts||{},partSum=Object.values(parts).reduce((a,b)=>a+(+b||0),0),bp={};Object.entries(parts).forEach(([k,v])=>bp[k]=partSum?byTotal*((+v||0)/partSum):0);let rec={id:Date.now(),date:today(),shipment:s.ref,brand:s.brand,reported,comparableReported,actual,readyAdj,rawAdj,byProducts:bp,mode,source:details.source||'',productionDate:details.productionDate||'',shift:details.shift||'',note:details.note||''};let arr=get(STORE_RECON,[]);arr.push(rec);set(STORE_RECON,arr);let stk=get(STORE_STOCKADJ,[]);stk.push({id:Date.now(),shipment:s.ref,brand:s.brand,readyRiceKg:readyAdj,rawRiceKg:-rawAdj,byProducts:bp,time:nowText(),system:true});set(STORE_STOCKADJ,stk);return rec}
 function finalizeShipmentCompletion(){
   let mode=completionBox?.querySelector('input[name="completionMode"]:checked')?.value;
-  if(!mode) return alert('Select Stock Complete, SHORT IN PRODUCTION, or Excess Bags in Stock.');
+  if(!mode){showNonBlockingMessage('Select Stock Complete, SHORT IN PRODUCTION, or Excess Bags in Stock.');return;}
   let a=get(STORE_SHIP,defaultShipments());
   let s=a.find(x=>x.id===currentShipment);
-  if(!s||!canCompleteShipment(s)) return alert('Required container and seal information is incomplete.');
+  if(!s||!canCompleteShipment(s)){showNonBlockingMessage('Required container and seal information is incomplete.');return;}
   let details={};
   if(mode==='shortprod'){
-    if(!paltaiTick.checked&&!prodCoverTick.checked) return alert('For SHORT IN PRODUCTION, tick Paltai, From Production, or both.');
+    if(!paltaiTick.checked&&!prodCoverTick.checked){showNonBlockingMessage('For SHORT IN PRODUCTION, tick Paltai, From Production, or both.');return;}
     let coveredKg=0;
     if(paltaiTick.checked){
       let b=+paltaiBags.value||0;
-      if(b<=0||!paltaiSource.value) return alert('Enter Paltai bags and select the source bags.');
+      if(b<=0||!paltaiSource.value){showNonBlockingMessage('Enter Paltai bags and select the source bags.');return;}
       let kg=b*(+s.bagSize||0),sweep=+paltaiCloseSweepingKg.value||0;
       coveredKg+=kg;
       let [sourceName,sourceBagSizeRaw]=String(paltaiSource.value).split('|'),sourceBagSize=+sourceBagSizeRaw||(+s.bagSize||0),sourceBags=sourceBagSize?kg/sourceBagSize:0;
@@ -1017,7 +1017,7 @@ function finalizeShipmentCompletion(){
     }
     if(prodCoverTick.checked){
       let kg=+prodCoverKg.value||0;
-      if(!prodCoverDate.value||!prodCoverShift.value||kg<=0) return alert('Production Date, Shift and Quantity Covered are required.');
+      if(!prodCoverDate.value||!prodCoverShift.value||kg<=0){showNonBlockingMessage('Production Date, Shift and Quantity Covered are required.');return;}
       coveredKg+=kg;
       applyProductionCover(s,kg,prodCoverDate.value,prodCoverShift.value);
       details.source=(details.source?details.source+' + ':'')+'Production '+prodCoverDate.value+' '+prodCoverShift.value;
@@ -1027,7 +1027,7 @@ function finalizeShipmentCompletion(){
     details.note='SHORT IN PRODUCTION covered '+coveredKg+' kg';
   } else if(mode==='excess'){
     let b=+excessBags.value||0;
-    if(b<=0) return alert('Enter excess bags.');
+    if(b<=0){showNonBlockingMessage('Enter excess bags.');return;}
     let kg=b*(+s.bagSize||0);
     details.source='EXCESS IN PRODUCTION / Excess Bags in Stock';
     details.note=b+' excess bags / '+kg+' kg';
