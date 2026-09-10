@@ -76,7 +76,7 @@ lot.customs.invoiceValue=11340;lot.customs.openAccount=11340;lot.customs.saved=t
 lot.bl={...lot.bl,blNo:'BL-01',onBoardDate:'2026-09-12',finalized:true,finalDocument:{id:'D1',name:'BL-01.pdf',downloadUrl:'api/export_documents.php?id=11111111111111111111111111111111'}};
 lot.commercial.saved=true;lot.coo={...lot.coo,saved:true,finalDocument:{id:'D2',name:'COO.pdf'}};
 lot.certs=[{type:'e-Phyto Certificate',finalDocument:{id:'D3',name:'phyto.pdf'}},{type:'Fumigation Certificate',finalDocument:{id:'D4',name:'fumigation.pdf'}}];
-lot.covering={...lot.covering,dispatched:true,frozen:true,dispatchDate:'2026-09-13',sentThrough:'DHL',tracking:'AWB-1'};
+lot.covering={...lot.covering,dispatched:true,frozen:true,dispatchDate:'2026-09-13',sentThrough:'DHL',tracking:'AWB-1',documentCounts:Object.fromEntries(contract.docs.map(name=>[name,{originals:1,copies:0}]))};
 assert.deepEqual([...t.completionMissing(lot,contract)],[],'all final completion gates pass only when originals and dispatch exist');
 lot.bl.finalDocument=null;assert.ok(t.completionMissing(lot,contract).some(x=>x.includes('Final / Original B/L')));lot.bl.finalDocument={id:'D1',name:'BL-01.pdf'};
 
