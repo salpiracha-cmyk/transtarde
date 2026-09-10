@@ -613,6 +613,7 @@ function closeMill(){
  let v=finalValue(sel),p=paid(sel);
  if(!sel.loads.length || p&lt;v)return alert(&#x27;Total Payment Received must be equal to or greater than Final Sale Value.&#x27;);
  sel.closed=true;
+ persistSales();
  back();
  toastMsg(&#x27;Closed by Mill — Pending Accounts Approval&#x27;);
 }
