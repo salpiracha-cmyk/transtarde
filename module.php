@@ -118,8 +118,10 @@ $sharedBootstrap = <<<'HTML'
     let b=document.getElementById('ttSyncNotice');if(!b){b=document.createElement('button');b.id='ttSyncNotice';b.type='button';b.style.cssText='position:fixed;right:12px;top:56px;z-index:100000;border:0;border-radius:10px;padding:10px 13px;background:#16825d;color:#fff;font:700 12px Arial;box-shadow:0 5px 18px #0004';b.onclick=()=>{bridge();dispatchEvent(new CustomEvent('tt:shared-updated',{detail:{by:lastRemoteBy}}))};document.body.appendChild(b)}b.textContent='Updated'+(lastRemoteBy?' by '+lastRemoteBy:'')+' — synced';dispatchEvent(new CustomEvent('tt:shared-updated',{detail:{by:lastRemoteBy}}));
   }
   function showSyncError(msg,conflict){let b=document.getElementById('saveBadge');if(b){b.textContent=conflict?'Newer shared update — refresh':'Shared save retry needed';b.style.background='#8d2b2b'}console.error(msg);if(conflict)notifyRemote()}
-  window.TT_SHARED_SYNC={flush,bridge,poll:()=>getRemote(false)};
-  addEventListener('DOMContentLoaded',()=>{bridge();for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(allowed(k)&&!remoteKeys.has(k))queue(k,localStorage.getItem(k))}flush();setInterval(()=>getRemote(false),8000)});
+  window.TT_SHARED_SYNC={flush,bridge,poll:()=>{}};
+  // Permanent rule: shared state loads once at page start. No timer may refresh or save while a form is being edited.
+  // Explicit application actions write localStorage; that write alone queues the corresponding server save.
+  addEventListener('DOMContentLoaded',()=>{bridge()});
   addEventListener('pagehide',flush);
 })();
 </script>

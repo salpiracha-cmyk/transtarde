@@ -36,6 +36,10 @@ assert.match(upload,/action===?'delete-shipment'/,'document API must route confi
 assert.match(js,/data-delete-shipment/,'active shipment cards must expose the requested delete control');
 assert.match(js,/function deleteShipmentDocuments/,'shipment deletion must remove protected uploads');
 assert.match(js,/function deleteShipmentData/,'shipment deletion must remove linked operational data');
+assert.doesNotMatch(js,/setInterval\(\(\)=>window\.TT_SHARED_SYNC\?\.poll/,'Exports must not poll or rebuild active forms in the background');
+assert.match(js,/Manual save only/,'Exports must visibly state the manual-save rule');
+assert.doesNotMatch(modulePhp,/setInterval\(\(\)=>getRemote\(false\),8000\)/,'shared project state must not background-refresh forms');
+assert.match(modulePhp,/poll:\(\)=>\{\}/,'legacy poll entry point must remain inert');
 assert.match(js,/class="btn small red shipmentDeleteButton" data-delete-shipment=/,'every active shipment card must expose the top-right red delete control');
 assert.match(js,/Are you sure you want to delete this shipment\?/,'shipment deletion must require an explicit in-page confirmation');
 assert.match(js,/Yes — Delete Shipment/,'confirmation must require the user to press Yes before deletion');

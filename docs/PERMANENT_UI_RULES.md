@@ -20,3 +20,11 @@ This rule applies across Super Admin, Milling, Exports, Accounts, Directors, sta
 - Module wrapper integrates the authenticated user identity and power icon into the existing Milling/Exports header instead of the former floating capsule.
 - Staff landing page uses the same header-integrated pattern.
 - Accounts and Directors must inherit this pattern when their live interfaces are connected.
+
+## Manual save only — whole project
+
+- Timed/background autosave and timed background refresh are prohibited in every module.
+- Typing, selecting, changing a field, or waiting must never commit data or rebuild/clear an active form.
+- Data is committed only by the screen's final explicit action, such as **Next**, **Save**, **Confirm**, **Issue**, **Post**, **Create**, **Complete**, or the equivalent action for that workflow.
+- Shared cross-module synchronization may run as a consequence of that explicit committed action, but it must not independently save a draft or replace a form being edited.
+- A page may load the latest shared state once when opened. Later remote changes require an intentional user refresh/reopen action; they must not interrupt active entry.
