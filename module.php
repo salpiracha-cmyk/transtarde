@@ -44,7 +44,7 @@ $sharedBootstrap = <<<'HTML'
   const EXPORT_STORE='transtrade_export_v3_operational';
   const allowed=k=>k===EXPORT_STORE||/^tt[0-9]{2}[a-z0-9_]{2,60}$/.test(k);
   const originalSet=Storage.prototype.setItem, originalRemove=Storage.prototype.removeItem;
-  let applying=false, revision=0, remoteKeys=new Set(), pending=new Map(), inFlight=new Set(), keyVersions=new Map(), timer=0, inboundRetry=0, lastRemoteBy='', lastInboundCheck=0;
+  let applying=false, revision=0, remoteKeys=new Set(), pending=new Map(), inFlight=new Set(), keyVersions=new Map(), timer=0, inboundRetry=0, lastRemoteBy='', lastInboundCheck=0, commitWaiters=[];
   const directSet=(k,v)=>originalSet.call(localStorage,k,v);
   const markSaveState=(message,error=false)=>{const b=document.getElementById('saveBadge');if(!b)return;b.textContent=message;b.style.background=error?'#8d2b2b':''};
   const parse=(k,d)=>{try{const v=JSON.parse(localStorage.getItem(k));return v??d}catch{return d}};
@@ -76,6 +76,18 @@ $sharedBootstrap = <<<'HTML'
     applying=false;revision=Math.max(revision,incoming);window.TRANSTRADE_SERVER_NOW_ISO=data.serverNow||window.TRANSTRADE_SERVER_NOW_ISO;
     if(changed.length&&!initial){bridge();notifyRemote()}
   }
+  function settleCommits(error=''){
+    if(!error&&(pending.size||inFlight.size))return;
+    const waiters=commitWaiters.splice(0);for(const w of waiters){clearTimeout(w.timer);error?w.reject(new Error(error)):w.resolve({ok:true,revision})}
+  }
+  function saveNow(){
+    if(!pending.size&&!inFlight.size)return Promise.resolve({ok:true,revision});
+    return new Promise((resolve,reject)=>{const waiter={resolve,reject,timer:0};waiter.timer=setTimeout(()=>{const i=commitWaiters.indexOf(waiter);if(i>=0)commitWaiters.splice(i,1);reject(new Error('Shared save was not confirmed. Do not create another record; retry this same save.'))},20000);commitWaiters.push(waiter);flush()})
+  }
+  function refreshNow(){
+    if(pending.size||inFlight.size)return Promise.reject(new Error('Finish the current save before refreshing.'));
+    return fetch(endpoint+'?r='+Date.now(),{credentials:'same-origin'}).then(r=>r.json()).then(data=>{if(!data?.ok)throw new Error(data?.error||'Shared data could not be refreshed.');applyRemote(data,false);return data})
+  }
   function flush(){
     clearTimeout(timer);timer=0;
     for(const [key,value] of [...pending]){
@@ -83,8 +95,8 @@ $sharedBootstrap = <<<'HTML'
       pending.delete(key);
       inFlight.add(key);
       fetch(endpoint,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({csrf:access.csrf,key,value,baseVersion:Number(keyVersions.get(key)||0),sourceModule:access.module||'Super Admin'})})
-        .then(r=>r.json()).then(r=>{inFlight.delete(key);if(r.ok){revision=Math.max(revision,Number(r.revision||0));keyVersions.set(key,Number(r.keyVersion||r.revision||0));if(pending.has(key)){clearTimeout(timer);timer=setTimeout(flush,180);return}if(!pending.size&&!inFlight.size){markSaveState('Saved to shared system '+new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}));if(typeof dispatchEvent==='function'&&typeof CustomEvent==='function')dispatchEvent(new CustomEvent('tt:shared-saved',{detail:{key}}))}return}if(r.conflict){retryConflict(key,pending.get(key)||localStorage.getItem(key)||value,r.keyVersion);return}if(!pending.has(key))pending.set(key,value);clearTimeout(timer);timer=setTimeout(flush,2500);showSyncError(r.error,false)})
-        .catch(()=>{inFlight.delete(key);if(!pending.has(key))pending.set(key,value);clearTimeout(timer);timer=setTimeout(flush,2500);showSyncError('Shared save is temporarily unavailable.');});
+        .then(r=>r.json()).then(r=>{inFlight.delete(key);if(r.ok){revision=Math.max(revision,Number(r.revision||0));keyVersions.set(key,Number(r.keyVersion||r.revision||0));if(pending.has(key)){clearTimeout(timer);timer=setTimeout(flush,180);return}if(!pending.size&&!inFlight.size){markSaveState('Saved to shared system '+new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}));settleCommits();if(typeof dispatchEvent==='function'&&typeof CustomEvent==='function')dispatchEvent(new CustomEvent('tt:shared-saved',{detail:{key}}))}return}if(r.conflict){retryConflict(key,pending.get(key)||localStorage.getItem(key)||value,r.keyVersion);return}if(!pending.has(key))pending.set(key,value);clearTimeout(timer);timer=setTimeout(flush,2500);showSyncError(r.error,false);settleCommits(r.error||'Shared save was not confirmed.')})
+        .catch(()=>{inFlight.delete(key);if(!pending.has(key))pending.set(key,value);clearTimeout(timer);timer=setTimeout(flush,2500);showSyncError('Shared save is temporarily unavailable.');settleCommits('Shared save is temporarily unavailable. Retry this same save.');});
     }
   }
   function queue(key,value){if(!allowed(key)||applying)return;pending.set(key,String(value));setTimeout(()=>markSaveState('Saving to shared system…'),0);clearTimeout(timer);timer=setTimeout(flush,180)}
@@ -120,7 +132,7 @@ $sharedBootstrap = <<<'HTML'
   }
   function showSyncError(msg,conflict){let b=document.getElementById('saveBadge');if(b){b.textContent=conflict?'Newer shared update — refresh':'Shared save retry needed';b.style.background='#8d2b2b'}console.error(msg);if(conflict)notifyRemote()}
   function checkInbound(){const now=Date.now();if(pending.size||inFlight.size){clearTimeout(inboundRetry);inboundRetry=setTimeout(checkInbound,300);return}if(now-lastInboundCheck<800)return;lastInboundCheck=now;getRemote(false)}
-  window.TT_SHARED_SYNC={flush,bridge,poll:checkInbound};
+  window.TT_SHARED_SYNC={flush,saveNow,refresh:refreshNow,bridge,poll:checkInbound};
   // Permanent rule: only explicit application actions save. Inbound checks are read-only and run when staff return to a tab.
   // Remote changes are staged locally and shown through the top update notice; applying them reloads only after shared writes finish.
   addEventListener('DOMContentLoaded',()=>{bridge()});
