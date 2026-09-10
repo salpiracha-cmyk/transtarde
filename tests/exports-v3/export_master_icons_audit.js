@@ -1,7 +1,7 @@
 const fs=require('fs');
 const assert=require('assert');
-const source=fs.readFileSync(__dirname+'/../../../customer-master.js','utf8');
-const api=fs.readFileSync(__dirname+'/../../../api/masters.php','utf8');
+const source=fs.readFileSync(__dirname+'/../../customer-master.js','utf8');
+const api=fs.readFileSync(__dirname+'/../../api/masters.php','utf8');
 
 assert.match(source,/tt-cm-icon-grid/,'Master Data starts with an icon grid');
 assert.match(source,/activeMaster===b\.dataset\.cmMaster\?'':b\.dataset\.cmMaster/,'same icon closes and another icon replaces the open master');
