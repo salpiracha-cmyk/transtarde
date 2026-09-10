@@ -37,7 +37,7 @@ function seed(){return {version:'clean-v3',customers:[],suppliers:[],fi:[],contr
 function normalize(x){x=x&&typeof x==='object'?x:seed();x.version='clean-v3';for(const k of ['customers','suppliers','fi','contracts','shipments','accountsReceipts','audits','alerts'])x[k]=Array.isArray(x[k])?x[k]:[];x.millSync=x.millSync||{};for(const k of ['newExportBags','productionInstructions','exportLoading'])x.millSync[k]=Array.isArray(x.millSync[k])?x.millSync[k]:[];return x}
 function load(){try{return normalize(JSON.parse(localStorage.getItem(STORE)||'null'))}catch{return seed()}}
 let state=load(), view='home', currentShipmentId='', activeWorkspace='', contractDraft=null, contractStep=1, modalStack=[];
-function save(){const b=document.getElementById('saveBadge');if(b)b.textContent='Saving to shared system…';localStorage.setItem(STORE,JSON.stringify(state));if(b&&!window.TT_SHARED_SYNC)b.textContent=`Saved ${new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})`}
+function save(){const b=document.getElementById('saveBadge');if(b)b.textContent='Saving to shared system…';localStorage.setItem(STORE,JSON.stringify(state));if(b&&!window.TT_SHARED_SYNC)b.textContent=`Saved ${new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'})}`}
 function audit(area,action,detail=''){state.audits.unshift({id:uid('AUD'),at:new Date().toISOString(),user:window.TT_MODULE_ACCESS?.user||'User',area,action,detail});save();window.TT_SHARED_SYNC?.flush()}
 function currentUser(){return window.TT_MODULE_ACCESS?.user||'User'}
 function currentRole(){return window.TT_MODULE_ACCESS?.role||'User'}
