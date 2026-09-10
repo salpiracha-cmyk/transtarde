@@ -55,6 +55,7 @@ jobs:
           node tests/exports-v3/export_release_test.js
           node tests/exports-v3/full_workflow_audit.js
           node tests/exports-v3/import_master_audit.js
+          node tests/exports-v3/lot_completion_stage_audit.js
           node tests/exports-v3/strengthened_workflow_audit.js
           node tests/exports-v3/tg_route_audit.js
           node tests/exports-v3/v3_dummy_workflow_audit.js
