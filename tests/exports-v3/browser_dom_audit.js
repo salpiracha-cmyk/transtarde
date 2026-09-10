@@ -8,7 +8,7 @@ const html=`<!doctype html><html><head><style>${css}</style></head><body><div id
 const errors=[],vc=new VirtualConsole();vc.on('jsdomError',e=>errors.push(e.message));vc.on('error',e=>errors.push(String(e)));
 const dom=new JSDOM(html,{runScripts:'dangerously',pretendToBeVisual:true,url:'https://exports.audit.local/',virtualConsole:vc,beforeParse(w){w.TT_MODULE_ACCESS={user:'Jazib',module:'Exports'};w.alert=m=>{throw Error(String(m))};w.confirm=()=>true;w.print=()=>{};w.scrollTo=()=>{};w.setInterval=()=>0;w.structuredClone=value=>JSON.parse(JSON.stringify(value));w.FileReader=class{};}});
 const w=dom.window,d=w.document,t=w.__DOM_AUDIT__;
-assert.ok(t,'test API is available');
+assert.ok(t,'test API is available: '+errors.join(' | '));
 assert.equal(t.state.contracts.length,0,'release must start without dummy contracts');
 const customer={id:'DOM-C',name:'DOM Buyer',code:'DOM',address:'Dubai',packingDefault:'KG',nextSeq:1};
 t.state.customers.push(customer);
