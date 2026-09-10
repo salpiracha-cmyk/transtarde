@@ -44,7 +44,7 @@ $sharedBootstrap = <<<'HTML'
   const EXPORT_STORE='transtrade_export_v3_operational';
   const allowed=k=>k===EXPORT_STORE||/^tt[0-9]{2}[a-z0-9_]{2,60}$/.test(k);
   const originalSet=Storage.prototype.setItem, originalRemove=Storage.prototype.removeItem;
-  let applying=false, revision=0, remoteKeys=new Set(), pending=new Map(), inFlight=new Set(), keyVersions=new Map(), timer=0, lastRemoteBy='', lastInboundCheck=0;
+  let applying=false, revision=0, remoteKeys=new Set(), pending=new Map(), inFlight=new Set(), keyVersions=new Map(), timer=0, inboundRetry=0, lastRemoteBy='', lastInboundCheck=0;
   const directSet=(k,v)=>originalSet.call(localStorage,k,v);
   const markSaveState=(message,error=false)=>{const b=document.getElementById('saveBadge');if(!b)return;b.textContent=message;b.style.background=error?'#8d2b2b':''};
   const parse=(k,d)=>{try{const v=JSON.parse(localStorage.getItem(k));return v??d}catch{return d}};
@@ -119,7 +119,7 @@ $sharedBootstrap = <<<'HTML'
     let b=document.getElementById('ttSyncNotice');if(!b){b=document.createElement('button');b.id='ttSyncNotice';b.type='button';b.style.cssText='position:fixed;right:12px;top:56px;z-index:100000;border:0;border-radius:10px;padding:10px 13px;background:#16825d;color:#fff;font:700 12px Arial;box-shadow:0 5px 18px #0004';b.onclick=()=>{if(pending.size||inFlight.size){b.textContent='Finishing shared sync — click again';return}location.reload()};document.body.appendChild(b)}b.textContent='Updated'+(lastRemoteBy?' by '+lastRemoteBy:'')+' — refresh';dispatchEvent(new CustomEvent('tt:shared-updated',{detail:{by:lastRemoteBy}}));
   }
   function showSyncError(msg,conflict){let b=document.getElementById('saveBadge');if(b){b.textContent=conflict?'Newer shared update — refresh':'Shared save retry needed';b.style.background='#8d2b2b'}console.error(msg);if(conflict)notifyRemote()}
-  function checkInbound(){const now=Date.now();if(now-lastInboundCheck<800||pending.size||inFlight.size)return;lastInboundCheck=now;getRemote(false)}
+  function checkInbound(){const now=Date.now();if(pending.size||inFlight.size){clearTimeout(inboundRetry);inboundRetry=setTimeout(checkInbound,300);return}if(now-lastInboundCheck<800)return;lastInboundCheck=now;getRemote(false)}
   window.TT_SHARED_SYNC={flush,bridge,poll:checkInbound};
   // Permanent rule: only explicit application actions save. Inbound checks are read-only and run when staff return to a tab.
   // Remote changes are staged locally and shown through the top update notice; applying them reloads only after shared writes finish.
