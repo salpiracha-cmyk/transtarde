@@ -36,7 +36,7 @@ for (const token of ['export_documents', 'export_terms']) {
   assert(auth.includes(`'${token}'`), `missing shared ${token} master`);
   assert(admin.includes(`id: "${token}"`), `missing Super Admin ${token} editor`);
 }
-for (const token of ['MASTER DATA', 'Export Master Data', 'CUSTOMER DATA', 'CONTRACT DATA', 'SHIPMENT / OPERATIONAL DATA']) {
+for (const token of ['MASTER DATA', 'Export Master Data', 'Customers & Notify Parties', 'Products & Quality', 'Documents Presented', 'Other Terms', 'Other Parties', 'Mills & Locations', 'Companies', 'Banks & Accounts']) {
   assert(customers.includes(token), `missing Master Data interface: ${token}`);
 }
 
