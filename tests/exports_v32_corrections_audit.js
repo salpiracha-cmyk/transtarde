@@ -31,6 +31,8 @@ assert(!app.includes('Destination Country</label>'));
 assert(!app.includes('Bags Required</th>'));
 assert(!app.includes("invoiceNo:`CI-${c.ref"));
 assert(!app.includes('id="saveContract">SAVE CONTRACT'));
+assert(!app.includes('<button class="btn green" id="completeLot">Mark Lot Complete</button>'));
+assert(app.includes("!missing.length&&!s.completed?'<button class=\"btn green\" id=\"completeLot\">MARK LOT COMPLETE</button>'"));
 
 for (const token of ['export_documents', 'export_terms']) {
   assert(auth.includes(`'${token}'`), `missing shared ${token} master`);
