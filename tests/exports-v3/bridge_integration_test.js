@@ -22,7 +22,8 @@ const listeners={};
 const document={activeElement:null,body:{appendChild(){}},getElementById(){return null},createElement(){return{style:{},appendChild(){}}},addEventListener(){}};
 let serverValues={transtrade_export_v3_operational:JSON.stringify(root)};
 class XMLHttpRequest{open(method,url,async){this.async=async}send(){this.status=200;this.responseText=JSON.stringify({ok:true,revision:1,values:serverValues,meta:{}});if(this.onload)this.onload()}}
-const posts=[];const context={window:{TT_MODULE_ACCESS:{csrf:'test',module:'Exports'},TRANSTRADE_SERVER_NOW_ISO:''},Storage,localStorage,document,XMLHttpRequest,console,fetch:(url,options)=>{posts.push(JSON.parse(options.body));return Promise.resolve({json:()=>Promise.resolve({ok:true,revision:1,keyVersion:1})})},setTimeout:()=>0,clearTimeout(){},setInterval:()=>0,addEventListener:(n,fn)=>listeners[n]=fn,location:{reload(){}}};
+const resolved=v=>({then(fn){try{const next=fn(v);return next&&typeof next.then==='function'?next:resolved(next)}catch(error){return rejected(error)}},catch(){return this}}),rejected=error=>({then(){return this},catch(fn){return resolved(fn(error))}});
+const posts=[];const context={window:{TT_MODULE_ACCESS:{csrf:'test',module:'Exports'},TRANSTRADE_SERVER_NOW_ISO:''},Storage,localStorage,document,XMLHttpRequest,console,fetch:(url,options)=>{posts.push(JSON.parse(options.body));return resolved({json:()=>resolved({ok:true,revision:1,keyVersion:1})})},setTimeout:()=>0,clearTimeout(){},setInterval:()=>0,addEventListener:(n,fn)=>listeners[n]=fn,location:{reload(){}}};
 context.window.localStorage=localStorage;context.window.document=document;context.window.Storage=Storage;context.globalThis=context;
 vm.runInNewContext(match[1],context,{filename:'shared-bridge.js'});
 listeners.DOMContentLoaded();
