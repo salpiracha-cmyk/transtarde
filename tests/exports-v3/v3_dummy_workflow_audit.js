@@ -14,7 +14,7 @@ const storage=new Map(),localStorage={getItem:k=>storage.get(k)||null,setItem:(k
 const window={document,localStorage,TT_MODULE_ACCESS:{user:'Director Test',role:'Director',module:'Exports'},addEventListener(){},open(){},print(){},setTimeout:fn=>fn(),setInterval:()=>0};
 const context={window,document,localStorage,console,structuredClone,alert:m=>{throw Error(m)},prompt:()=>'',confirm:()=>true,location:{href:''},setTimeout:fn=>fn(),setInterval:()=>0,clearTimeout(){},FileReader:class{},FormData:class{},fetch:async()=>({ok:true,json:async()=>({ok:true})}),Date,Intl};context.globalThis=context;
 let source=fs.readFileSync(__dirname+'/app.js','utf8');
-source=source.replace('mount();',`window.__V3__={state,makeShipment,makeLotRecord,loadingRemainingByPack,upgradeState,completionMissing,accountsFor,accountsTotal,purchaseOrderPrint,reportTable,REPORT_DEFS,lcRegisterRows,deleteShipmentData,setCurrent:id=>currentShipmentId=id};mount();`);
+source=source.replace('mount();',`window.__V3__={state,makeShipment,makeLotRecord,loadingRemainingByPack,upgradeState,completionMissing,accountsFor,accountsTotal,purchaseOrderPrint,reportTable,REPORT_DEFS,lcRegisterRows,deleteShipmentData,restartShipmentData,setCurrent:id=>currentShipmentId=id};mount();`);
 vm.runInNewContext(source,context,{filename:'app.js'});
 assert.match(source,/data-delete-shipment/,'every active shipment card exposes the red delete control');
 assert.match(source,/Are you sure you want to delete this shipment\?/,'shipment deletion asks for confirmation');
@@ -64,6 +64,10 @@ assert.equal(t.state.customers.length,keptCustomerCount,'customer masters remain
 assert.equal(t.state.audits.length,auditsBeforePurge,'audit history remains');
 assert.equal(t.state.accountsReceipts.length,receiptsBeforePurge,'Accounts data remains');
 assert.equal(keptAuditCount+1,t.state.audits.length,'pre-existing and cleanup audit context remains');
+const restarted=t.restartShipmentData(partialContract.id);
+assert.ok(restarted&&restarted.kind==='process','retained Sales Contract can start a replacement shipment');
+assert.equal(restarted.contractRef,partialContract.ref,'replacement shipment keeps the exact Contract Reference');
+assert.equal(t.state.shipments.filter(x=>x.kind!=='lot'&&x.contractRef===partialContract.ref).length,1,'restart cannot duplicate a shipment process');
 
 const po={poNo:'PO-TEST',supplier:'Bag Supplier',deliverTo:'TTI Rice Mills',requiredDate:'2026-09-10',issuedAt:'2026-09-08T12:00:00Z',lines:[{brand:'DUMMY',type:'PP Bags',size:25,unit:'KG',tare:80,handle:'No',requiredBags:1080,extraBags:20,extraPct:1.85,totalBags:1100,masterBag:{enabled:false},artworkAttached:true,approved:true,artworkData:'data:image/png;base64,AAA'}]};
 const poHtml=t.purchaseOrderPrint(po);assert.match(poHtml,/APPROVED BAG MARKING/);assert.match(poHtml,/APPROVED · GOOD SIDE/);assert.match(poHtml,/data:image\/png/);
