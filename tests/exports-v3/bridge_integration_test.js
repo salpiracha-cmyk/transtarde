@@ -17,7 +17,7 @@ class Storage{
 const localStorage=new Storage();
 const root={contracts:[{ref:'TTI/NS/01',product:'IRRI-6 White Rice',packingUnit:'KG',quality:'Export quality',packings:[{brand:'STAR',size:25,type:'PP Bags',tare:80,containers:1,weightPer:27}]}],shipments:[{id:'P-1',kind:'process',contractRef:'TTI/NS/01',loading:{lots:[{lotId:'LOT-01',lotRecordId:'L-1'}]},millActuals:[]},{id:'L-1',kind:'lot',parentProcessId:'P-1',lotId:'LOT-01',contractRef:'TTI/NS/01',containers:1,plannedQty:27,millActuals:[]}],millSync:{newExportBags:[],productionInstructions:[],exportLoading:[{contractRef:'TTI/NS/01',shipmentId:'L-1',lotId:'LOT-01',production:{dryOn:'No',craftPaper:'No'},plan:{allocations:[{packIndex:0,name:'TTI Rice Mills',type:'TTI',containers:1,weightPer:27,emptyBags:0,dryOn:'Yes',craftPaper:'Yes',dpp:'Yes',inspection:'SGS'}]}}]},alerts:[]};
 localStorage.setItem('transtrade_export_v3_operational',JSON.stringify(root));
-localStorage.setItem('tt32exportsync',JSON.stringify([{shipment:'LOT-01',shipmentId:'L-1',contractRef:'TTI/NS/01',lotRef:'LOT-01',container:'MSCU1234567',seal:'SL001',bags:1080,weight:27000,brand:'STAR',gate:'GP-9',truck:'TRK-1',date:'2026-09-08'},{shipment:'LOT-01',shipmentId:'L-1',contractRef:'TTI/NS/01',lotRef:'LOT-01',container:'MSCU7654321',seal:'SL002',bags:1080,weight:27000,brand:'STAR',gate:'GP-10',truck:'TRK-2',date:'2026-09-08'}]));
+localStorage.setItem('tt32exportsync','[]');
 const listeners={};
 const document={activeElement:null,body:{appendChild(){}},getElementById(){return null},createElement(){return{style:{},appendChild(){}}},addEventListener(){}};
 let serverValues={transtrade_export_v3_operational:JSON.stringify(root)};
@@ -27,6 +27,9 @@ const posts=[];const context={window:{TT_MODULE_ACCESS:{csrf:'test',module:'Expo
 context.window.localStorage=localStorage;context.window.document=document;context.window.Storage=Storage;context.globalThis=context;
 vm.runInNewContext(match[1],context,{filename:'shared-bridge.js'});
 listeners.DOMContentLoaded();
+const directInstruction=JSON.parse(localStorage.getItem('tt30ship'))[0];
+directInstruction.containers=[{id:'C-1',container:'MSCU1234567',seal:'SL001',bags:1080,weight:27000,gate:'GP-9',truck:'TRK-1',date:'2026-09-08'},{id:'C-2',container:'MSCU7654321',seal:'SL002',bags:1080,weight:27000,gate:'GP-10',truck:'TRK-2',date:'2026-09-08'}];
+localStorage.setItem('tt30ship',JSON.stringify([directInstruction]));
 context.window.TT_SHARED_SYNC.bridge();context.window.TT_SHARED_SYNC.bridge();
 context.window.TT_SHARED_SYNC.flush(); // explicit committed action; page load alone must never autosave
 const millInstruction=JSON.parse(localStorage.getItem('tt30ship'))[0];
