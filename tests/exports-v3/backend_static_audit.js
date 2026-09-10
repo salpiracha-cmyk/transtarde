@@ -36,6 +36,9 @@ assert.match(upload,/action===?'delete-shipment'/,'document API must route confi
 assert.match(js,/data-delete-shipment/,'active shipment cards must expose the requested delete control');
 assert.match(js,/function deleteShipmentDocuments/,'shipment deletion must remove protected uploads');
 assert.match(js,/function deleteShipmentData/,'shipment deletion must remove linked operational data');
+assert.match(js,/class="btn small red shipmentDeleteButton" data-delete-shipment=/,'every active shipment card must expose the top-right red delete control');
+assert.match(js,/Are you sure you want to delete this shipment\?/,'shipment deletion must require an explicit in-page confirmation');
+assert.match(js,/Yes — Delete Shipment/,'confirmation must require the user to press Yes before deletion');
 assert.doesNotMatch(mysql,/\b(?:DROP\s+TABLE|TRUNCATE\s+TABLE)\b/i);
 assert.match(html,/href="app\.css\?v=/);
 assert.match(html,/src="app\.js\?v=/);
