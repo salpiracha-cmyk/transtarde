@@ -26,6 +26,7 @@ context.window.localStorage=localStorage;context.window.document=document;contex
 vm.runInNewContext(match[1],context,{filename:'shared-bridge.js'});
 listeners.DOMContentLoaded();
 context.window.TT_SHARED_SYNC.bridge();context.window.TT_SHARED_SYNC.bridge();
+context.window.TT_SHARED_SYNC.flush(); // explicit committed action; page load alone must never autosave
 const millInstruction=JSON.parse(localStorage.getItem('tt30ship'))[0];
 assert.equal(millInstruction.dryon,'Yes');
 assert.equal(millInstruction.craft,'Yes');
