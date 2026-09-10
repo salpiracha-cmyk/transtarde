@@ -70,7 +70,7 @@ $sharedBootstrap = <<<'HTML'
   function applyRemote(data,initial){
     if(!data?.ok)return;
     const incoming=Number(data.revision||0), changed=[];applying=true;
-    Object.entries(data.values||{}).forEach(([k,v])=>{remoteKeys.add(k);if(allowed(k)&&typeof v==='string'&&!pending.has(k)&&localStorage.getItem(k)!==v){directSet(k,v);changed.push(k);lastRemoteBy=data.meta?.[k]?.updatedBy||lastRemoteBy}});
+    Object.entries(data.values||{}).forEach(([k,v])=>{remoteKeys.add(k);if(allowed(k)&&typeof v==='string'&&!pending.has(k)&&!inFlight.has(k)&&localStorage.getItem(k)!==v){directSet(k,v);changed.push(k);lastRemoteBy=data.meta?.[k]?.updatedBy||lastRemoteBy}});
     Object.entries(data.meta||{}).forEach(([k,m])=>keyVersions.set(k,Number(m?.version||0)));
     applying=false;revision=Math.max(revision,incoming);window.TRANSTRADE_SERVER_NOW_ISO=data.serverNow||window.TRANSTRADE_SERVER_NOW_ISO;
     if(changed.length&&!initial){bridge();notifyRemote()}
@@ -82,7 +82,7 @@ $sharedBootstrap = <<<'HTML'
       pending.delete(key);
       inFlight.add(key);
       fetch(endpoint,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({csrf:access.csrf,key,value,baseVersion:Number(keyVersions.get(key)||0),sourceModule:access.module||'Super Admin'})})
-        .then(r=>r.json()).then(r=>{inFlight.delete(key);if(r.ok){revision=Math.max(revision,Number(r.revision||0));keyVersions.set(key,Number(r.keyVersion||r.revision||0));if(pending.has(key)){clearTimeout(timer);timer=setTimeout(flush,180)}return}if(r.conflict){retryConflict(key,value,r.keyVersion);return}if(!pending.has(key))pending.set(key,value);clearTimeout(timer);timer=setTimeout(flush,2500);showSyncError(r.error,false)})
+        .then(r=>r.json()).then(r=>{inFlight.delete(key);if(r.ok){revision=Math.max(revision,Number(r.revision||0));keyVersions.set(key,Number(r.keyVersion||r.revision||0));if(pending.has(key)){clearTimeout(timer);timer=setTimeout(flush,180)}return}if(r.conflict){retryConflict(key,pending.get(key)||localStorage.getItem(key)||value,r.keyVersion);return}if(!pending.has(key))pending.set(key,value);clearTimeout(timer);timer=setTimeout(flush,2500);showSyncError(r.error,false)})
         .catch(()=>{inFlight.delete(key);if(!pending.has(key))pending.set(key,value);clearTimeout(timer);timer=setTimeout(flush,2500);showSyncError('Shared save is temporarily unavailable.');});
     }
   }
