@@ -53,6 +53,7 @@ jobs:
           node tests/exports-v3/bridge_integration_test.js
           node tests/exports-v3/browser_dom_audit.js
           node tests/exports-v3/export_release_test.js
+          node tests/exports-v3/export_master_icons_audit.js
           node tests/exports-v3/full_workflow_audit.js
           node tests/exports-v3/import_master_audit.js
           node tests/exports-v3/lot_completion_stage_audit.js
