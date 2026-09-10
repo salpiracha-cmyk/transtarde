@@ -48,6 +48,7 @@ assert.match(js,/Are you sure you want to delete this shipment\?/,'shipment dele
 assert.match(js,/Yes — Delete Shipment/,'confirmation must require the user to press Yes before deletion');
 assert.match(milling,/shipment:\(s\.contractRef\?s\.contractRef\+' · ':''\)\+\(s\._ttLotId\|\|s\.ref\|\|''\)/,'new reconciliation rows must persist Contract · Lot identity');
 assert.match(milling,/shipLabel=match\.contractRef\+' · '\+\(match\._ttLotId\|\|match\.ref\|\|shipLabel\)/,'legacy reconciliation rows must render with full Contract · Lot identity');
+assert.match(milling,/matches\.find\(s=>s\.status==='Completed'\)\|\|matches\[0\]/,'ambiguous legacy brand/lot rows must prefer the completed shipment');
 for(const id of ['bagReportMode','bagReportFrom','bagReportTo','bagReportBrand','bagReportMovement','exportReportSource','exportReportFrom','exportReportTo','exportReportBrand','exportReportStatus','exportReportMill']) assert.match(milling,new RegExp('id=["\\\']'+id+'["\\\']'),id+' report control must be wired');
 assert.match(milling,/brands=\[\.\.\.new Set\(rows\.map\(x=>x\.brand\)/,'report brands must come from live rows');
 assert.match(milling,/No export loading records match the filters/,'export loading filters must render an empty state');
