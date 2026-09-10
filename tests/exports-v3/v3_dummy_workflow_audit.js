@@ -16,6 +16,9 @@ const context={window,document,localStorage,console,structuredClone,alert:m=>{th
 let source=fs.readFileSync(__dirname+'/app.js','utf8');
 source=source.replace('mount();',`window.__V3__={state,makeShipment,makeLotRecord,loadingRemainingByPack,upgradeState,completionMissing,accountsFor,accountsTotal,purchaseOrderPrint,reportTable,REPORT_DEFS,lcRegisterRows,purgeContractData,setCurrent:id=>currentShipmentId=id};mount();`);
 vm.runInNewContext(source,context,{filename:'app.js'});
+assert.match(source,/Permanent QA Shipment Cleanup/,'permanent cleanup uses an in-page confirmation form');
+const purgeUiSource=source.slice(source.indexOf('function purgeContract(id)'),source.indexOf('function priceComponents'));
+assert.doesNotMatch(purgeUiSource,/prompt\(|confirm\(/,'permanent cleanup must not use blocking browser dialogs');
 const t=window.__V3__;
 t.state.alerts.push({id:'A1',area:'MILL ACTUALS',contractRef:'TTI/DB/01',kind:'Container Limit',message:'Same rejected container',seen:false},{id:'A2',area:'MILL ACTUALS',contractRef:'TTI/DB/01',kind:'Container Limit',message:'Same rejected container',seen:false});t.upgradeState();
 assert.equal(t.state.alerts.filter(x=>x.message==='Same rejected container').length,1,'duplicate bridge alerts must compact in the active Export state');
