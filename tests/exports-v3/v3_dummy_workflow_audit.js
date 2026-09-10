@@ -14,11 +14,12 @@ const storage=new Map(),localStorage={getItem:k=>storage.get(k)||null,setItem:(k
 const window={document,localStorage,TT_MODULE_ACCESS:{user:'Director Test',role:'Director',module:'Exports'},addEventListener(){},open(){},print(){},setTimeout:fn=>fn(),setInterval:()=>0};
 const context={window,document,localStorage,console,structuredClone,alert:m=>{throw Error(m)},prompt:()=>'',confirm:()=>true,location:{href:''},setTimeout:fn=>fn(),setInterval:()=>0,clearTimeout(){},FileReader:class{},FormData:class{},fetch:async()=>({ok:true,json:async()=>({ok:true})}),Date,Intl};context.globalThis=context;
 let source=fs.readFileSync(__dirname+'/app.js','utf8');
-source=source.replace('mount();',`window.__V3__={state,makeShipment,makeLotRecord,loadingRemainingByPack,upgradeState,completionMissing,accountsFor,accountsTotal,purchaseOrderPrint,reportTable,REPORT_DEFS,lcRegisterRows,purgeContractData,setCurrent:id=>currentShipmentId=id};mount();`);
+source=source.replace('mount();',`window.__V3__={state,makeShipment,makeLotRecord,loadingRemainingByPack,upgradeState,completionMissing,accountsFor,accountsTotal,purchaseOrderPrint,reportTable,REPORT_DEFS,lcRegisterRows,deleteShipmentData,setCurrent:id=>currentShipmentId=id};mount();`);
 vm.runInNewContext(source,context,{filename:'app.js'});
-assert.match(source,/Permanent QA Shipment Cleanup/,'permanent cleanup uses an in-page confirmation form');
-const purgeUiSource=source.slice(source.indexOf('function purgeContract(id)'),source.indexOf('function priceComponents'));
-assert.doesNotMatch(purgeUiSource,/prompt\(|confirm\(/,'permanent cleanup must not use blocking browser dialogs');
+assert.match(source,/data-delete-shipment/,'every active shipment card exposes the red delete control');
+assert.match(source,/Are you sure you want to delete this shipment\?/,'shipment deletion asks for confirmation');
+const purgeUiSource=source.slice(source.indexOf('function confirmShipmentDelete'),source.indexOf('function priceComponents'));
+assert.doesNotMatch(purgeUiSource,/prompt\(|confirm\(/,'shipment deletion must use the in-page confirmation and avoid blocking browser dialogs');
 const t=window.__V3__;
 t.state.alerts.push({id:'A1',area:'MILL ACTUALS',contractRef:'TTI/DB/01',kind:'Container Limit',message:'Same rejected container',seen:false},{id:'A2',area:'MILL ACTUALS',contractRef:'TTI/DB/01',kind:'Container Limit',message:'Same rejected container',seen:false});t.upgradeState();
 assert.equal(t.state.alerts.filter(x=>x.message==='Same rejected container').length,1,'duplicate bridge alerts must compact in the active Export state');
@@ -48,9 +49,9 @@ localStorage.setItem('tt30ship',JSON.stringify([{id:'S-PURGE',contractRef:partia
 localStorage.setItem('tt35exmill',JSON.stringify([{id:'EX-PURGE',contractRef:partialContract.ref,shipmentId:partialLot.id},{id:'EX-KEEP',contractRef:contract.ref}]));
 localStorage.setItem('tt35exload',JSON.stringify([{id:'LOAD-PURGE',sodaId:'EX-PURGE'},{id:'LOAD-KEEP',sodaId:'EX-KEEP'}]));
 t.state.fi.push({id:'FI-PURGE',allocations:[{contractRef:partialContract.ref,shipmentId:partialLot.id},{contractRef:contract.ref,shipmentId:lot.id}]});
-const purged=t.purgeContractData(partialContract.ref);
+const purged=t.deleteShipmentData(partialProcess.id);
 assert.equal(purged.lotCount,1,'cleanup reports its deleted lot');
-assert.ok(!t.state.contracts.some(x=>x.ref===partialContract.ref),'cleanup removes only the selected contract');
+assert.ok(t.state.contracts.some(x=>x.ref===partialContract.ref),'shipment cleanup preserves its Sales Contract');
 assert.ok(!t.state.shipments.some(x=>x.contractRef===partialContract.ref),'cleanup removes its process and lots');
 assert.ok(!t.state.millSync.newExportBags.some(x=>x.contractRef===partialContract.ref),'cleanup removes linked bag instructions');
 assert.ok(!t.state.millSync.productionInstructions.some(x=>x.contractRef===partialContract.ref),'cleanup removes linked production instructions');
