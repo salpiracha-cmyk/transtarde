@@ -9,6 +9,7 @@ const upload=fs.readFileSync(path.join(root,'main/api/export_documents.php'),'ut
 const html=fs.readFileSync(path.join(__dirname,'index.html'),'utf8');
 const css=fs.readFileSync(path.join(__dirname,'app.css'),'utf8');
 const js=fs.readFileSync(path.join(__dirname,'app.js'),'utf8');
+const milling=fs.readFileSync(path.join(__dirname,'../../milling/Transtrade_Master_Milling_V3_3_2_AUDITED.html'),'utf8');
 
 assert.match(mysql,/tt_require_login\(\)/);
 assert.match(mysql,/tt_verify_csrf/);
@@ -45,6 +46,8 @@ assert.match(modulePhp,/x\.line\?\?x\.lineId\?\?index/,'bag bridge identity must
 assert.match(js,/class="btn small red shipmentDeleteButton" data-delete-shipment=/,'every active shipment card must expose the top-right red delete control');
 assert.match(js,/Are you sure you want to delete this shipment\?/,'shipment deletion must require an explicit in-page confirmation');
 assert.match(js,/Yes — Delete Shipment/,'confirmation must require the user to press Yes before deletion');
+assert.match(milling,/shipment:\(s\.contractRef\?s\.contractRef\+' · ':''\)\+\(s\._ttLotId\|\|s\.ref\|\|''\)/,'new reconciliation rows must persist Contract · Lot identity');
+assert.match(milling,/shipLabel=match\.contractRef\+' · '\+\(match\._ttLotId\|\|match\.ref\|\|shipLabel\)/,'legacy reconciliation rows must render with full Contract · Lot identity');
 assert.doesNotMatch(mysql,/\b(?:DROP\s+TABLE|TRUNCATE\s+TABLE)\b/i);
 assert.match(html,/href="app\.css\?v=/);
 assert.match(html,/src="app\.js\?v=/);
