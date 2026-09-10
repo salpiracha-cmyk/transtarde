@@ -109,8 +109,9 @@ new MutationObserver(apply).observe(document.body,{childList:true,subtree:true})
 HTML;
 
 $sourceBridge = '<script src="accounts/source-bridge.js?v=20260908-5"></script>';
+$approvedExportBagPO = $id === 'exports' ? '<script src="accounts/bag-po-export-ui.js?v=20260910-1"></script>' : '';
 $headPos = stripos($html, '</head>');
 if ($headPos !== false) $html = substr_replace($html, $bootstrap.$sharedBootstrap, $headPos, 0);
 $bodyPos = strripos($html, '</body>');
-if ($bodyPos !== false) $html = substr_replace($html, $sourceBridge.$guard, $bodyPos, 0); else $html .= $sourceBridge.$guard;
+if ($bodyPos !== false) $html = substr_replace($html, $sourceBridge.$approvedExportBagPO.$guard, $bodyPos, 0); else $html .= $sourceBridge.$approvedExportBagPO.$guard;
 echo $html;
