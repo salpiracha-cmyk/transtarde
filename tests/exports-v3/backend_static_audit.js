@@ -46,6 +46,11 @@ assert.match(modulePhp,/x\.line\?\?x\.lineId\?\?index/,'bag bridge identity must
 assert.match(js,/class="btn small red shipmentDeleteButton" data-delete-shipment=/,'every active shipment card must expose the top-right red delete control');
 assert.match(js,/Are you sure you want to delete this shipment\?/,'shipment deletion must require an explicit in-page confirmation');
 assert.match(js,/Yes — Delete Shipment/,'confirmation must require the user to press Yes before deletion');
+assert.match(js,/id="cuGDFile"/,'Customs must expose a Goods Declaration upload');
+assert.match(js,/uploadDocument\(f,'goods-declaration',s\)/,'GD uploads must use protected document storage');
+assert.match(js,/gdRefsFingerprint/,'GD upload must stay bound to its saved GD number and date references');
+assert.match(js,/Goods Declaration \(GD\) file matching the saved GD number\(s\) and date\(s\)/,'final lot closure must require a matching GD file');
+assert.match(js,/\['goodsDeclaration','Goods Declaration \(GD\)',s\.customs\?\.gdDocument\]/,'final uploaded-document set must include the GD');
 assert.match(milling,/shipment:\(s\.contractRef\?s\.contractRef\+' · ':''\)\+\(s\._ttLotId\|\|s\.ref\|\|''\)/,'new reconciliation rows must persist Contract · Lot identity');
 assert.match(milling,/shipLabel=match\.contractRef\+' · '\+\(match\._ttLotId\|\|match\.ref\|\|shipLabel\)/,'legacy reconciliation rows must render with full Contract · Lot identity');
 assert.match(milling,/matches\.find\(s=>s\.status==='Completed'\)\|\|matches\[0\]/,'ambiguous legacy brand/lot rows must prefer the completed shipment');
