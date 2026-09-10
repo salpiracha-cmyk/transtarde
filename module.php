@@ -44,8 +44,9 @@ $sharedBootstrap = <<<'HTML'
   const EXPORT_STORE='transtrade_export_v3_operational';
   const allowed=k=>k===EXPORT_STORE||/^tt[0-9]{2}[a-z0-9_]{2,60}$/.test(k);
   const originalSet=Storage.prototype.setItem, originalRemove=Storage.prototype.removeItem;
-  let applying=false, revision=0, remoteKeys=new Set(), pending=new Map(), inFlight=new Set(), keyVersions=new Map(), timer=0, lastRemoteBy='';
+  let applying=false, revision=0, remoteKeys=new Set(), pending=new Map(), inFlight=new Set(), keyVersions=new Map(), timer=0, lastRemoteBy='', lastInboundCheck=0;
   const directSet=(k,v)=>originalSet.call(localStorage,k,v);
+  const markSaveState=(message,error=false)=>{const b=document.getElementById('saveBadge');if(!b)return;b.textContent=message;b.style.background=error?'#8d2b2b':''};
   const parse=(k,d)=>{try{const v=JSON.parse(localStorage.getItem(k));return v??d}catch{return d}};
   const stableId=s=>{let h=2166136261;for(const c of String(s)){h^=c.charCodeAt(0);h=Math.imul(h,16777619)}return 600000000+(h>>>0)%300000000};
   const put=(k,v)=>{const s=JSON.stringify(v);if(localStorage.getItem(k)!==s)localStorage.setItem(k,s)};
@@ -82,11 +83,11 @@ $sharedBootstrap = <<<'HTML'
       pending.delete(key);
       inFlight.add(key);
       fetch(endpoint,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({csrf:access.csrf,key,value,baseVersion:Number(keyVersions.get(key)||0),sourceModule:access.module||'Super Admin'})})
-        .then(r=>r.json()).then(r=>{inFlight.delete(key);if(r.ok){revision=Math.max(revision,Number(r.revision||0));keyVersions.set(key,Number(r.keyVersion||r.revision||0));if(pending.has(key)){clearTimeout(timer);timer=setTimeout(flush,180)}return}if(r.conflict){retryConflict(key,pending.get(key)||localStorage.getItem(key)||value,r.keyVersion);return}if(!pending.has(key))pending.set(key,value);clearTimeout(timer);timer=setTimeout(flush,2500);showSyncError(r.error,false)})
+        .then(r=>r.json()).then(r=>{inFlight.delete(key);if(r.ok){revision=Math.max(revision,Number(r.revision||0));keyVersions.set(key,Number(r.keyVersion||r.revision||0));if(pending.has(key)){clearTimeout(timer);timer=setTimeout(flush,180);return}if(!pending.size&&!inFlight.size){markSaveState('Saved to shared system '+new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}));if(typeof dispatchEvent==='function'&&typeof CustomEvent==='function')dispatchEvent(new CustomEvent('tt:shared-saved',{detail:{key}}))}return}if(r.conflict){retryConflict(key,pending.get(key)||localStorage.getItem(key)||value,r.keyVersion);return}if(!pending.has(key))pending.set(key,value);clearTimeout(timer);timer=setTimeout(flush,2500);showSyncError(r.error,false)})
         .catch(()=>{inFlight.delete(key);if(!pending.has(key))pending.set(key,value);clearTimeout(timer);timer=setTimeout(flush,2500);showSyncError('Shared save is temporarily unavailable.');});
     }
   }
-  function queue(key,value){if(!allowed(key)||applying)return;pending.set(key,String(value));clearTimeout(timer);timer=setTimeout(flush,180)}
+  function queue(key,value){if(!allowed(key)||applying)return;pending.set(key,String(value));setTimeout(()=>markSaveState('Saving to shared system…'),0);clearTimeout(timer);timer=setTimeout(flush,180)}
   Storage.prototype.setItem=function(k,v){originalSet.call(this,k,v);if(this===localStorage)queue(String(k),String(v))};
   Storage.prototype.removeItem=function(k){originalRemove.call(this,k);};
 
@@ -115,13 +116,16 @@ $sharedBootstrap = <<<'HTML'
   }
   function bridge(){try{exportsToMill();millToExports()}catch(e){console.error('Transtrade inter-module bridge',e)}}
   function notifyRemote(){
-    let b=document.getElementById('ttSyncNotice');if(!b){b=document.createElement('button');b.id='ttSyncNotice';b.type='button';b.style.cssText='position:fixed;right:12px;top:56px;z-index:100000;border:0;border-radius:10px;padding:10px 13px;background:#16825d;color:#fff;font:700 12px Arial;box-shadow:0 5px 18px #0004';b.onclick=()=>{bridge();dispatchEvent(new CustomEvent('tt:shared-updated',{detail:{by:lastRemoteBy}}))};document.body.appendChild(b)}b.textContent='Updated'+(lastRemoteBy?' by '+lastRemoteBy:'')+' — synced';dispatchEvent(new CustomEvent('tt:shared-updated',{detail:{by:lastRemoteBy}}));
+    let b=document.getElementById('ttSyncNotice');if(!b){b=document.createElement('button');b.id='ttSyncNotice';b.type='button';b.style.cssText='position:fixed;right:12px;top:56px;z-index:100000;border:0;border-radius:10px;padding:10px 13px;background:#16825d;color:#fff;font:700 12px Arial;box-shadow:0 5px 18px #0004';b.onclick=()=>{if(pending.size||inFlight.size){b.textContent='Finishing shared sync — click again';return}location.reload()};document.body.appendChild(b)}b.textContent='Updated'+(lastRemoteBy?' by '+lastRemoteBy:'')+' — refresh';dispatchEvent(new CustomEvent('tt:shared-updated',{detail:{by:lastRemoteBy}}));
   }
   function showSyncError(msg,conflict){let b=document.getElementById('saveBadge');if(b){b.textContent=conflict?'Newer shared update — refresh':'Shared save retry needed';b.style.background='#8d2b2b'}console.error(msg);if(conflict)notifyRemote()}
-  window.TT_SHARED_SYNC={flush,bridge,poll:()=>{}};
-  // Permanent rule: shared state loads once at page start. No timer may refresh or save while a form is being edited.
-  // Explicit application actions write localStorage; that write alone queues the corresponding server save.
+  function checkInbound(){const now=Date.now();if(now-lastInboundCheck<800||pending.size||inFlight.size)return;lastInboundCheck=now;getRemote(false)}
+  window.TT_SHARED_SYNC={flush,bridge,poll:checkInbound};
+  // Permanent rule: only explicit application actions save. Inbound checks are read-only and run when staff return to a tab.
+  // Remote changes are staged locally and shown through the top update notice; applying them reloads only after shared writes finish.
   addEventListener('DOMContentLoaded',()=>{bridge()});
+  addEventListener('focus',checkInbound);
+  document.addEventListener('visibilitychange',()=>{if(!document.hidden)checkInbound()});
   addEventListener('pagehide',flush);
 })();
 </script>
