@@ -58,6 +58,7 @@ jobs:
           node tests/exports-v3/lot_completion_stage_audit.js
           node tests/exports-v3/strengthened_workflow_audit.js
           node tests/exports-v3/tg_route_audit.js
+          node tests/exports-v3/tti_qa02_closure_audit.js
           node tests/exports-v3/v3_dummy_workflow_audit.js
           node tests/exports_v32_corrections_audit.js
           node tests/milling_container_audit.js
