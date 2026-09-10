@@ -76,7 +76,7 @@ t.state.accountsReceipts.push({id:'R1',receiptNo:'RCPT-01',contractRef:contract.
 assert.equal(t.accountsTotal(lot,contract),4000,'Accounts receipt flows once to commercial documents');
 
 lot.millActuals=[{number:'MSCU123456-7',seal:'SL001',bags:1080,netKg:27000,tareKg:86.4,grossKg:27086.4,brand:'DUMMY',packing:'25 KG',location:'TTI Rice Mills + Partner Mill'}];
-lot.customs.invoiceValue=11340;lot.customs.openAccount=11340;lot.customs.saved=true;lot.customs.gdRefs=[{number:'GD-01',date:'2026-09-11'}];
+lot.customs.invoiceValue=11340;lot.customs.openAccount=11340;lot.customs.saved=true;lot.customs.gdRefs=[{number:'GD-01',date:'2026-09-11'}];lot.customs.gdDocument={id:'D-GD',name:'GD-01.pdf',gdRefsFingerprint:JSON.stringify([{number:'GD-01',date:'2026-09-11'}])};
 lot.bl={...lot.bl,blNo:'BL-01',onBoardDate:'2026-09-12',finalized:true,finalDocument:{id:'D1',name:'BL-01.pdf',downloadUrl:'api/export_documents.php?id=11111111111111111111111111111111'}};
 lot.commercial.saved=true;lot.coo={...lot.coo,saved:true,finalDocument:{id:'D2',name:'COO.pdf'}};
 lot.certs=[{type:'e-Phyto Certificate',finalDocument:{id:'D3',name:'phyto.pdf'}},{type:'Fumigation Certificate',finalDocument:{id:'D4',name:'fumigation.pdf'}}];
