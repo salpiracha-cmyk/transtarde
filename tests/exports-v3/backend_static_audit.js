@@ -10,6 +10,7 @@ const html=fs.readFileSync(path.join(__dirname,'index.html'),'utf8');
 const css=fs.readFileSync(path.join(__dirname,'app.css'),'utf8');
 const js=fs.readFileSync(path.join(__dirname,'app.js'),'utf8');
 const milling=fs.readFileSync(path.join(__dirname,'../../milling/Transtrade_Master_Milling_V3_3_2_AUDITED.html'),'utf8');
+const customerMaster=fs.readFileSync(path.join(__dirname,'../../customer-master.js'),'utf8');
 
 assert.match(mysql,/tt_require_login\(\)/);
 assert.match(mysql,/tt_verify_csrf/);
@@ -50,7 +51,11 @@ assert.match(modulePhp,/visibilitychange/,'restoring a module tab must check for
 assert.match(modulePhp,/poll:checkInbound/,'legacy manual poll entry point must perform only the inbound check');
 assert.match(modulePhp,/function saveNow\(\)/,'shared bridge must expose an awaitable explicit-save acknowledgement');
 assert.match(modulePhp,/function refreshNow\(\)/,'receiving modules must expose an explicit authoritative refresh');
-assert.match(js,/id="refreshMillUpdates"/,'Exports must provide an explicit Mill-container refresh action');
+assert.doesNotMatch(js,/id="refreshMillUpdates"/,'Exports home must not duplicate the shared top-header refresh notice');
+assert.match(customerMaster,/nav\.appendChild\(b\)/,'top navigation must retain the Export Master Data entry');
+assert.doesNotMatch(customerMaster,/tt-cm-home-button|actions\.insertBefore\(b,actions\.firstChild\)/,'Export home must not duplicate the top Master Data entry');
+assert.match(modulePhp,/#ttSyncNotice\.ttHeaderNotice/,'shared update notice must participate in the header layout');
+assert.match(modulePhp,/c\.moduleId==='milling'\?document\.querySelector\('header'\)/,'Milling login and power controls must be placed inside its header');
 assert.match(milling,/id="refreshExportInstructions"/,'Milling must provide an explicit Loading Instruction refresh action');
 assert.match(js,/RETRY SAME LOADING INSTRUCTION SAVE/,'Exports must retry the same pending lot rather than create a duplicate');
 assert.match(milling,/RETRY SAME CONTAINER SAVE/,'Milling must retry the same pending container rather than create a duplicate');
