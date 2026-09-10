@@ -40,6 +40,8 @@ assert.doesNotMatch(js,/setInterval\(\(\)=>window\.TT_SHARED_SYNC\?\.poll/,'Expo
 assert.match(js,/Manual save only/,'Exports must visibly state the manual-save rule');
 assert.doesNotMatch(modulePhp,/setInterval\(\(\)=>getRemote\(false\),8000\)/,'shared project state must not background-refresh forms');
 assert.match(modulePhp,/poll:\(\)=>\{\}/,'legacy poll entry point must remain inert');
+assert.match(modulePhp,/x\.poNo\|\|x\.contractRef\|\|'NO-PO'/,'bag bridge identity must not collapse orders when PO number is absent');
+assert.match(modulePhp,/x\.line\?\?x\.lineId\?\?index/,'bag bridge identity must remain unique when PO line is absent');
 assert.match(js,/class="btn small red shipmentDeleteButton" data-delete-shipment=/,'every active shipment card must expose the top-right red delete control');
 assert.match(js,/Are you sure you want to delete this shipment\?/,'shipment deletion must require an explicit in-page confirmation');
 assert.match(js,/Yes — Delete Shipment/,'confirmation must require the user to press Yes before deletion');
