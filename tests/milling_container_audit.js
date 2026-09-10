@@ -18,4 +18,10 @@ assert.equal(context.validContainer('TTQU000008-6'),false,'wrong ISO 6346 check 
 assert.match(html,/function containerExists\(c\)[\s\S]{0,700}containerIdentity\(v\)===id/,'duplicate lookup compares permanent container identities');
 assert.ok(html.includes('Changing only the check digit is not allowed.'),'operator receives a clear duplicate-identity message');
 
-console.log('PASS milling container audit: ISO check digit and permanent duplicate identity are enforced');
+const syncStart=html.indexOf('function syncContainerToExport');
+const syncEnd=html.indexOf('function clearContainerForm',syncStart);
+const syncBody=html.slice(syncStart,syncEnd);
+assert.doesNotMatch(syncBody,/set\(STORE_EXPORTSYNC/,'new container saves must use one canonical tt30ship write, not a second partial Export-sync write');
+assert.match(html,/if\(containerCommitPending\)\{const pending=containerCommitPending;containerCommitPending=null;currentShipment=pending\.s\.id;editingContainerId=pending\.c\.id/,'a failed shared save must reopen the same stable record for correction and full validation');
+assert.match(html,/RETRY OR CORRECT CONTAINER SAVE/,'the operator must be told that the pending record can be corrected');
+console.log('PASS milling container audit: ISO identity, canonical persistence, and failed-save correction are enforced');
