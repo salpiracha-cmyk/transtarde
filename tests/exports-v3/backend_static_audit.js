@@ -41,6 +41,7 @@ assert.match(html,/href="app\.css\?v=/);
 assert.match(html,/src="app\.js\?v=/);
 assert.match(css,/@page\{size:A4;margin:0\}/);
 assert.match(css,/\.docLetterhead\{position:absolute;left:0;right:0/);
+assert.match(css,/\.shipmentCardActions\{[^}]*align-items:flex-end/,'shipment delete control must stay at the top-right of each card');
 assert.match(css,/\.docAutoSign img\{display:block;width:auto;height:20mm/,'signatures must remain with the document body and not create orphan pages');
 assert.match(js,/WITH \$\{label\}/);
 assert.match(js,/WITHOUT \$\{label\}/);
