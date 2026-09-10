@@ -60,6 +60,7 @@ jobs:
           node tests/exports-v3/tg_route_audit.js
           node tests/exports-v3/v3_dummy_workflow_audit.js
           node tests/exports_v32_corrections_audit.js
+          node tests/milling_container_audit.js
       - name: PHP syntax audit
         run: |
           php -l module.php
