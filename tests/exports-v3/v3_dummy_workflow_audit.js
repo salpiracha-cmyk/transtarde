@@ -14,7 +14,7 @@ const storage=new Map(),localStorage={getItem:k=>storage.get(k)||null,setItem:(k
 const window={document,localStorage,TT_MODULE_ACCESS:{user:'Director Test',role:'Director',module:'Exports'},addEventListener(){},open(){},print(){},setTimeout:fn=>fn(),setInterval:()=>0};
 const context={window,document,localStorage,console,structuredClone,alert:m=>{throw Error(m)},prompt:()=>'',confirm:()=>true,location:{href:''},setTimeout:fn=>fn(),setInterval:()=>0,clearTimeout(){},FileReader:class{},FormData:class{},fetch:async()=>({ok:true,json:async()=>({ok:true})}),Date,Intl};context.globalThis=context;
 let source=fs.readFileSync(__dirname+'/app.js','utf8');
-source=source.replace('mount();',`window.__V3__={state,makeShipment,makeLotRecord,completionMissing,accountsFor,accountsTotal,purchaseOrderPrint,reportTable,REPORT_DEFS,lcRegisterRows,setCurrent:id=>currentShipmentId=id};mount();`);
+source=source.replace('mount();',`window.__V3__={state,makeShipment,makeLotRecord,loadingRemainingByPack,completionMissing,accountsFor,accountsTotal,purchaseOrderPrint,reportTable,REPORT_DEFS,lcRegisterRows,setCurrent:id=>currentShipmentId=id};mount();`);
 vm.runInNewContext(source,context,{filename:'app.js'});
 const t=window.__V3__;
 
@@ -27,6 +27,10 @@ const lot=t.makeLotRecord(process,plan);t.state.shipments.push(lot);t.setCurrent
 assert.equal(lot.containers,1,'one physical container remains one record across two source contributions');
 assert.equal(lot.contributionCount,1);
 assert.equal(lot.plannedQty,27);
+assert.deepEqual(Array.from(t.loadingRemainingByPack(process,contract)),[0],'a fully allocated contract must not offer another loading lot');
+const partialContract=structuredClone(contract);partialContract.id='C2';partialContract.ref='TTI/DB/02';partialContract.containers=3;partialContract.qty=81;partialContract.packings[0].containers=3;
+t.state.contracts.push(partialContract);const partialProcess=t.makeShipment(partialContract);t.state.shipments.push(partialProcess);const partialLot=t.makeLotRecord(partialProcess,{lotId:'LOT-01',physicalContainers:1,loadingDate:'2026-09-09',allocations:[{packIndex:0,name:'TTI Rice Mills',type:'TTI',containers:1,weightPer:27}]});t.state.shipments.push(partialLot);
+assert.deepEqual(Array.from(t.loadingRemainingByPack(partialProcess,partialContract)),[2],'a partial contract must offer only its remaining containers');
 
 const po={poNo:'PO-TEST',supplier:'Bag Supplier',deliverTo:'TTI Rice Mills',requiredDate:'2026-09-10',issuedAt:'2026-09-08T12:00:00Z',lines:[{brand:'DUMMY',type:'PP Bags',size:25,unit:'KG',tare:80,handle:'No',requiredBags:1080,extraBags:20,extraPct:1.85,totalBags:1100,masterBag:{enabled:false},artworkAttached:true,approved:true,artworkData:'data:image/png;base64,AAA'}]};
 const poHtml=t.purchaseOrderPrint(po);assert.match(poHtml,/APPROVED BAG MARKING/);assert.match(poHtml,/APPROVED · GOOD SIDE/);assert.match(poHtml,/data:image\/png/);
