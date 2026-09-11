@@ -34,6 +34,20 @@ async function fillMillContainerNumber(page, value) {
   await expect(page.locator('#contNo')).toHaveValue(`${raw.slice(0, 10)}-${raw.slice(10, 11)}`);
 }
 
+async function signInQa(page) {
+  expect(QA_USERNAME, 'TRANSTRADE_QA_USERNAME GitHub secret is required').toBeTruthy();
+  expect(QA_PASSWORD, 'TRANSTRADE_QA_PASSWORD GitHub secret is required').toBeTruthy();
+  await page.goto(`${BASE_URL}/login.php`, { waitUntil: 'domcontentloaded' });
+  await page.getByLabel('Username').fill(QA_USERNAME);
+  await page.getByLabel('Password').fill(QA_PASSWORD);
+  await Promise.all([
+    page.waitForURL(url => !url.pathname.endsWith('/login.php'), { timeout: 30_000 }),
+    page.getByRole('button', { name: 'Sign in' }).click(),
+  ]);
+  expect(page.url(), 'QA user must not land in Super Admin').toMatch(/module\.php\?id=(milling|exports)|staff-home\.php/);
+  expect(page.url(), 'QA account must not land in Super Admin Control Centre').not.toMatch(/\/index\.php$/);
+}
+
 test.use({
   viewport: { width: 1440, height: 1000 },
   trace: 'retain-on-failure',
@@ -43,9 +57,6 @@ test.use({
 
 test('manual Hostinger QA: Export instruction to Mill and container return', async ({ page }, testInfo) => {
   test.setTimeout(240_000);
-  expect(QA_USERNAME, 'TRANSTRADE_QA_USERNAME GitHub secret is required').toBeTruthy();
-  expect(QA_PASSWORD, 'TRANSTRADE_QA_PASSWORD GitHub secret is required').toBeTruthy();
-
   const suffix = RUN_ID.slice(-8);
   const customerName = `QA GITHUB ${suffix}`;
   const customerCode = `Q${suffix.slice(-5)}`;
@@ -61,15 +72,7 @@ test('manual Hostinger QA: Export instruction to Mill and container return', asy
   page.on('popup', async popup => popup.close().catch(() => {}));
   page.on('dialog', async dialog => dialog.dismiss());
 
-  await page.goto(`${BASE_URL}/login.php`, { waitUntil: 'domcontentloaded' });
-  await page.getByLabel('Username').fill(QA_USERNAME);
-  await page.getByLabel('Password').fill(QA_PASSWORD);
-  await Promise.all([
-    page.waitForURL(url => !url.pathname.endsWith('/login.php'), { timeout: 30_000 }),
-    page.getByRole('button', { name: 'Sign in' }).click(),
-  ]);
-  expect(page.url(), 'QA user must not land in Super Admin').toMatch(/module\.php\?id=(milling|exports)|staff-home\.php/);
-  expect(page.url(), 'QA account must not land in Super Admin Control Centre').not.toMatch(/\/index\.php$/);
+  await signInQa(page);
 
   await page.goto(`${BASE_URL}/module.php?id=exports`, { waitUntil: 'domcontentloaded' });
   await expect(page.getByRole('heading', { name: 'TRANSTRADE EXPORTS' })).toBeVisible();
@@ -216,4 +219,109 @@ test('manual Hostinger QA: Export instruction to Mill and container return', asy
   await expect(page.getByText(containerOne, { exact: false }).first()).toBeVisible();
   await expect(page.getByText(containerTwo, { exact: false }).first()).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath('05-bl-draft-container-return.png'), fullPage: true });
+
+  // Every lot workspace must open and render after the round trip.
+  for (const workspace of ['customs', 'bl', 'commercial', 'coo', 'certs', 'cover', 'output', 'history']) {
+    const control = page.locator(`[data-workspace="${workspace}"]`);
+    if (await control.count()) {
+      await control.click();
+      await expect(page.locator('.workspaceDetail').first(), `${workspace} workspace must render`).toBeVisible();
+      expect((await page.locator('.workspaceDetail').first().innerText()).trim().length).toBeGreaterThan(10);
+    }
+  }
+});
+
+test('automatic bulk QA: every Milling page plus 15 Arrivals and Pohanch records', async ({ page }, testInfo) => {
+  test.setTimeout(480_000);
+  const suffix = RUN_ID.slice(-6);
+  const pageErrors = [];
+  page.on('pageerror', error => pageErrors.push(String(error)));
+  page.on('popup', async popup => popup.close().catch(() => {}));
+  page.on('dialog', async dialog => dialog.dismiss());
+
+  await signInQa(page);
+  await page.goto(`${BASE_URL}/module.php?id=milling`, { waitUntil: 'domcontentloaded' });
+  await expect(page.getByText(/MASTER MILLING/i).first()).toBeVisible();
+  if (await page.locator('.mill-card').count()) {
+    await page.locator('.mill-card').filter({ hasText: /TTI Rice Mills/i }).first().click();
+  }
+  await expect(page.locator('#home')).toHaveClass(/active/);
+
+  const pageMap = [
+    ['stock', 'STOCK'],
+    ['queue', 'Arrival List'],
+    ['arrival', 'Arrival / Pohanch'],
+    ['newbags', 'New Export Bags'],
+    ['instructions', 'Exports Specifications'],
+    ['production', 'Production'],
+    ['export', 'Export Loading'],
+    ['local', 'Local Sales'],
+    ['petty', 'Petty Cash'],
+    ['labour', 'Labour / Mill Expenses'],
+    ['oldbags', 'USED BAGS'],
+    ['reports', 'Reports'],
+    ['masters', 'Master'],
+    ['users', 'User'],
+  ];
+  for (const [panel, label] of pageMap) {
+    const control = page.locator(`[onclick="openPanel('${panel}')"]`).filter({ visible: true }).first();
+    if (await control.count()) {
+      await control.click();
+      await expect(page.locator(`#${panel}`), `${label} page must become active`).toHaveClass(/active/);
+      const heading = page.locator(`#${panel} h2, #${panel} h3`).first();
+      if (await heading.count()) await expect(heading).toBeVisible();
+      const back = page.locator(`#${panel} .back`).first();
+      if (await back.count()) await back.click();
+      if (!await page.locator('#home').getAttribute('class').then(v => /active/.test(v || ''))) {
+        const homeControl = page.locator(`[onclick="openPanel('home')"]`).filter({ visible: true }).first();
+        if (await homeControl.count()) await homeControl.click();
+      }
+    }
+  }
+
+  // Verify the Ex-Mill icon itself opens its dedicated workspace.
+  const changeMill = page.getByText(/Change Mill/i).first();
+  if (await changeMill.count()) await changeMill.click();
+  const exMill = page.locator('.mill-card').filter({ hasText: /^\s*🚚?\s*Ex-Mill/i }).first();
+  if (await exMill.count()) {
+    await exMill.click();
+    await expect(page.locator('#exmill')).toHaveClass(/active/);
+    const back = page.locator('#exmill .back').first();
+    if (await back.count()) await back.click();
+  }
+  if (await page.locator('.mill-card').count()) {
+    await page.locator('.mill-card').filter({ hasText: /TTI Rice Mills/i }).first().click();
+  }
+
+  await page.locator(`[onclick="openPanel('queue')"]`).filter({ visible: true }).first().click();
+  const trucks = [];
+  for (let i = 1; i <= 15; i += 1) {
+    const truck = `QA-${suffix}${String(i).padStart(2, '0')}`;
+    trucks.push(truck);
+    await page.locator('#qVehicle').fill(truck);
+    await page.locator('#qBags').fill(String(500 + i));
+    await page.locator('#qWeight').fill(String(25_000 + i * 10));
+    await page.locator('#qParty').fill(`QA BULK PARTY ${suffix}`);
+    await page.locator('#qBroker').fill(`QA BULK BROKER ${suffix}`);
+    await page.locator('#qStation').fill('QA KARACHI');
+    await page.locator('#qBroken').fill('5');
+    await page.locator('#queueSaveBtn').click();
+    await expect(page.locator('#queueTable')).toContainText(truck);
+  }
+  await page.screenshot({ path: testInfo.outputPath('06-milling-15-arrivals.png'), fullPage: true });
+
+  await page.locator('#queue .back').first().click();
+  await page.locator(`[onclick="openPanel('arrival')"]`).filter({ visible: true }).first().click();
+  for (let i = 0; i < trucks.length; i += 1) {
+    await page.locator('#arrivalQueue').selectOption({ label: trucks[i] });
+    await page.locator('#arrivalSoda').selectOption('26092');
+    await page.locator('#karachiWeight').fill(String(24_900 + i * 10));
+    await page.getByRole('button', { name: 'Save Pohanch' }).click();
+    await expect(page.locator('#pohanchFeedback')).toContainText('Pohanch saved');
+  }
+  for (const truck of trucks) await expect(page.locator('#unprintedSlips')).toContainText(truck);
+  await waitForSharedSave(page);
+  await page.screenshot({ path: testInfo.outputPath('07-milling-15-pohanch.png'), fullPage: true });
+
+  expect(pageErrors, 'Milling pages must not throw JavaScript errors').toEqual([]);
 });
