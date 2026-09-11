@@ -1,0 +1,10 @@
+'use strict';
+const fs=require('node:fs'),assert=require('node:assert/strict'),read=f=>fs.readFileSync(f,'utf8');
+const auth=read('auth_store.php'),accounts=read('api/accounts.php'),flows=read('api/accounts_workflows_v1.php'),bills=read('api/commodity_bills.php'),settle=read('api/supplier_settlements.php'),planning=read('api/payables_planning.php'),reports=read('api/accounts_reports.php'),exportsApp=read('exports/app.js'),modulePhp=read('module.php'),index=read('accounts/index.php'),master=JSON.parse(read('accounts/accounting_master_v1.json'));
+assert.match(auth,/function tt_user_can_access_entity/);assert.match(auth,/entity-tti/);assert.match(accounts,/array_filter\(\(array\)\$store\['journals'\]/);assert.match(accounts,/accounts_require_entity_access/);assert.match(index,/tt_user_accounts_entities/);
+assert.match(flows,/'supplierBills'=>\[\]/);assert.match(flows,/aw_post_logistics_bill/);assert.match(flows,/acceptedLiability/);assert.match(flows,/cannot be lower than the amount already settled/);assert.match(settle,/\$store\['supplierBills'\]/);assert.match(settle,/'2130'/);assert.match(planning,/\$store\['supplierBills'\]/);
+assert.match(bills,/cb_nonrice_calculation/);assert.match(bills,/moistureFreePct/);assert.match(bills,/damageFungusFreePct/);assert.match(bills,/admixtureFreePct/);assert.match(bills,/otherDeductionReason/);assert.match(bills,/\$term==='CASH'\?2/);
+for(const code of ['5510','5520','5530','5540'])assert(master.chart.some(x=>x.code===code));
+assert.match(exportsApp,/nextLoadingProgrammeNo/);assert.match(exportsApp,/LOADING PROGRAMME/);assert.match(modulePhp,/loading-programme-sync\.js/);assert.match(reports,/trialBalance/);assert.match(reports,/profitAndLoss/);assert.match(reports,/balanceSheet/);
+assert.doesNotMatch(index,/href="logout\.php"[^>]*>[^⏻]*Logout/i);
+console.log('Accounts V1 static control audit passed.');
