@@ -53,7 +53,7 @@ assert.match(modulePhp,/function saveNow\(\)/,'shared bridge must expose an awai
 assert.match(modulePhp,/function refreshNow\(\)/,'receiving modules must expose an explicit authoritative refresh');
 assert.match(modulePhp,/if\(access\.moduleId==='exports'\)bridge\(\);else addEventListener\('DOMContentLoaded'/,'Exports must reconcile Mill actuals before loading state while Milling waits until its startup completes');
 assert.doesNotMatch(js,/id="refreshMillUpdates"/,'Exports home must not duplicate the shared top-header refresh notice');
-assert.match(customerMaster,/nav\.appendChild\(b\)/,'top navigation must retain the Export Master Data entry');
+assert.doesNotMatch(customerMaster,/nav\.appendChild\(b\)/,'Export must not inject the removed Master Data button beside +FI');
 assert.doesNotMatch(customerMaster,/tt-cm-home-button|actions\.insertBefore\(b,actions\.firstChild\)/,'Export home must not duplicate the top Master Data entry');
 assert.match(modulePhp,/#ttSyncNotice\.ttHeaderNotice/,'shared update notice must participate in the header layout');
 assert.match(modulePhp,/c\.moduleId==='milling'\?document\.querySelector\('header'\)/,'Milling login and power controls must be placed inside its header');
