@@ -38,6 +38,7 @@ test('authenticated Accounts live smoke: all approved workspaces render without 
     await expect(page.getByRole('button', { name: new RegExp(label, 'i') })).toBeVisible();
   }
 
+  await page.getByRole('button', { name: /Expenses & Overheads/i }).click();
   await page.getByRole('button', { name: /Salaries & Staff/i }).click();
   await expect(page.getByText('Add Salary Master', { exact: false })).toBeVisible({ timeout: 30_000 });
   await expect(page.getByText(/Salary advances are not used/i)).toBeVisible();
