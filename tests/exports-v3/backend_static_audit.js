@@ -51,7 +51,7 @@ assert.match(modulePhp,/visibilitychange/,'restoring a module tab must check for
 assert.match(modulePhp,/poll:checkInbound/,'legacy manual poll entry point must perform only the inbound check');
 assert.match(modulePhp,/function saveNow\(\)/,'shared bridge must expose an awaitable explicit-save acknowledgement');
 assert.match(modulePhp,/function refreshNow\(\)/,'receiving modules must expose an explicit authoritative refresh');
-assert.match(modulePhp,/Reconcile cross-module data before either application reads its in-memory state\.\s*bridge\(\);/,'initial Mill/Exports bridge must complete before either application loads its in-memory state');
+assert.match(modulePhp,/if\(access\.moduleId==='exports'\)bridge\(\);else addEventListener\('DOMContentLoaded'/,'Exports must reconcile Mill actuals before loading state while Milling waits until its startup completes');
 assert.doesNotMatch(js,/id="refreshMillUpdates"/,'Exports home must not duplicate the shared top-header refresh notice');
 assert.match(customerMaster,/nav\.appendChild\(b\)/,'top navigation must retain the Export Master Data entry');
 assert.doesNotMatch(customerMaster,/tt-cm-home-button|actions\.insertBefore\(b,actions\.firstChild\)/,'Export home must not duplicate the top Master Data entry');
