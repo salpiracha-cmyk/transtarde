@@ -446,7 +446,7 @@
     "SALM-SEPT-D003": {
       "id": "SALM-SEPT-D003",
       "entity": "TTI",
-      "name": "TALLAH",
+      "name": "TALHA",
       "category": "DIRECTOR_REMUNERATION",
       "monthlyAmount": 75000,
       "zakatAmount": 0,
@@ -456,7 +456,7 @@
       "accountingTreatment": "TO_CONFIRM",
       "productionCostEligible": false,
       "status": "Active",
-      "notes": "Directors remuneration section; name preserved exactly from source",
+      "notes": "Directors remuneration section; spelling confirmed as Talha",
       "source": "SEPT(1).xlsx"
     },
     "SALM-SEPT-W001": {
