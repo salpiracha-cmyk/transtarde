@@ -76,6 +76,7 @@ function sm_from_values(array $values,array $user,string $id=''): array {
     $entity=strtoupper(trim((string)$values[1]));
     if (!in_array($entity,['TTI','BRM'],true)) throw new InvalidArgumentException('Select TTI or BRM as the legal book.');
     $category=sm_category((string)$values[2]);
+    if ($category==='MILL_STAFF' && $entity!=='TTI') throw new InvalidArgumentException('Mill salaries belong to TTI only.');
     $net=sm_amount($values[3],'Net salary / remuneration');
     $zakat=sm_amount($values[4],'Zakat');
     $allowance=sm_amount($values[5],'Other allowance');
