@@ -37,5 +37,5 @@ assert.match(ui,/reminders only/);
 assert.match(ui,/First Payment Month/);
 assert.match(ui,/data-rs-rentdue/);
 assert.match(ui,/Past prepared months and payments will remain unchanged/);
-assert.match(index,/rent-salary-ui\.js\?v=20260911-3/);
+assert.match(index,/rent-salary-ui\.js\?v=20260911-4/);
 console.log('Rent and Recurring Payments deterministic QA passed.');
