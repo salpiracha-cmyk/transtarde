@@ -34,8 +34,8 @@ for(const row of rows){
   assert.ok(lines.every(line=>approved.has(line[0])));
   assert.equal(lines.reduce((value,line)=>value+line[1],0),lines.reduce((value,line)=>value+line[2],0),row.name+' salary journal must balance');
   for(const [account,debit,credit] of lines){
-    totals.debit[account]=(totals.debit[account]||0)+debit;
-    totals.credit[account]=(totals.credit[account]||0)+credit;
+    if(debit)totals.debit[account]=(totals.debit[account]||0)+debit;
+    if(credit)totals.credit[account]=(totals.credit[account]||0)+credit;
   }
 }
 assert.deepEqual(totals.debit,{'3200':610000,'6210':888692,'7210':19000,'6220':52000});
