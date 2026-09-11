@@ -37,14 +37,14 @@ function bo_can_write(array $user, string $module): bool {
 }
 
 function bo_kind(string $kind): string {
-    if (!in_array($kind, ['accountEvent', 'exportCandidate', 'localSaleCandidate', 'localPaymentCandidate'], true)) {
+    if (!in_array($kind, ['accountEvent', 'exportCandidate', 'localSaleCandidate', 'localPaymentCandidate', 'loadingProgramme'], true)) {
         bo_out(['ok' => false, 'error' => 'Unsupported bridge handoff type.'], 422);
     }
     return $kind;
 }
 
 function bo_module(string $kind): string {
-    return $kind === 'exportCandidate' ? 'Exports' : 'Mill';
+    return ($kind === 'exportCandidate' || $kind === 'loadingProgramme') ? 'Exports' : 'Mill';
 }
 
 function bo_entity(string $kind, array $body): string {
