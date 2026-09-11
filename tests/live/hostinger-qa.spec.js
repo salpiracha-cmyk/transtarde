@@ -27,6 +27,13 @@ async function waitForSharedSave(page) {
   await expect(page.locator('#saveBadge')).toContainText(/Saved to shared system/i, { timeout: 35_000 });
 }
 
+async function fillMillContainerNumber(page, value) {
+  const raw = String(value).toUpperCase().replace(/[^A-Z0-9]/g, '');
+  await page.locator('.tt-container-main').fill(raw.slice(0, 10));
+  await page.locator('.tt-container-check').fill(raw.slice(10, 11));
+  await expect(page.locator('#contNo')).toHaveValue(`${raw.slice(0, 10)}-${raw.slice(10, 11)}`);
+}
+
 test.use({
   viewport: { width: 1440, height: 1000 },
   trace: 'retain-on-failure',
@@ -162,7 +169,7 @@ test('manual Hostinger QA: Export instruction to Mill and container return', asy
   await shipmentRow.click();
   await expect(page.locator('#instructionBanner')).toContainText(lotRef);
 
-  await page.locator('#contNo').fill(containerOne);
+  await fillMillContainerNumber(page, containerOne);
   await page.locator('#contTruck').fill('KHI-1001');
   await page.locator('#contWeight').fill('26000');
   await page.locator('#contBags').fill('1040');
@@ -173,14 +180,14 @@ test('manual Hostinger QA: Export instruction to Mill and container return', asy
   await page.locator('#saveContainerBtn').click();
   await expect(page.locator('#containerTable')).toContainText(containerOne, { timeout: 35_000 });
 
-  await page.locator('#contNo').fill(containerOne);
+  await fillMillContainerNumber(page, containerOne);
   await page.locator('#contTruck').fill('KHI-1002');
   await page.locator('#contWeight').fill('26000');
   await page.locator('#contBags').fill('1040');
   await page.locator('#contSeal').fill(`QA-S-${suffix}-2`);
   await page.locator('#saveContainerBtn').click();
   await expect(page.locator('#containerFeedback')).toContainText(/already exists|Changing only the check digit/i);
-  await page.locator('#contNo').fill(containerTwo);
+  await fillMillContainerNumber(page, containerTwo);
   await page.locator('#saveContainerBtn').click();
   await expect(page.locator('#containerTable')).toContainText(containerTwo, { timeout: 35_000 });
   await page.screenshot({ path: testInfo.outputPath('04-milling-containers-saved.png'), fullPage: true });
