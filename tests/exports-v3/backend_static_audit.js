@@ -58,7 +58,7 @@ assert.match(modulePhp,/#ttSyncNotice\.ttHeaderNotice/,'shared update notice mus
 assert.match(modulePhp,/c\.moduleId==='milling'\?document\.querySelector\('header'\)/,'Milling login and power controls must be placed inside its header');
 assert.match(milling,/id="refreshExportInstructions"/,'Milling must provide an explicit Loading Instruction refresh action');
 assert.match(js,/RETRY SAME LOADING INSTRUCTION SAVE/,'Exports must retry the same pending lot rather than create a duplicate');
-assert.match(milling,/RETRY SAME CONTAINER SAVE/,'Milling must retry the same pending container rather than create a duplicate');
+assert.match(milling,/RETRY OR CORRECT CONTAINER SAVE/,'Milling must preserve the pending container so staff can correct validation errors or retry the same save without creating a duplicate');
 assert.match(modulePhp,/Saved to shared system/,'the UI must confirm server acknowledgement rather than only a local write');
 assert.match(modulePhp,/location\.reload\(\)/,'the update notice must actually apply fresh shared state');
 assert.doesNotMatch(modulePhp,/setInterval\(/,'shared bridge must never use timed background polling or autosave');
