@@ -7,6 +7,11 @@ on:
       - 'exports/**'
       - 'milling/**'
       - 'module.php'
+      - 'module_release.php'
+      - '.htaccess'
+      - 'customer-contract-options.js'
+      - 'global-validation.js'
+      - 'milling-quality-identity.js'
       - 'api/**'
       - 'auth_store.php'
       - 'customer-master.js'
@@ -43,7 +48,7 @@ jobs:
           cp exports/index.html tests/exports-v3/index.html
           mkdir -p tests/exports-v3/assets tests/main/api
           cp exports/assets/* tests/exports-v3/assets/
-          cp module.php tests/main/module.php
+          cp module_release.php tests/main/module.php
           cp api/operations.mysql.php api/export_documents.php tests/main/api/
       - name: Install DOM test dependency
         run: npm install --no-save jsdom@27
@@ -66,5 +71,6 @@ jobs:
       - name: PHP syntax audit
         run: |
           php -l module.php
+          php -l module_release.php
           php -l api/operations.mysql.php
           php -l api/export_documents.php
