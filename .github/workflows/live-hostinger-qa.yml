@@ -7,6 +7,10 @@ on:
         description: 'Type CREATE TWO QA CONTAINERS to authorize uniquely labelled live dummy data'
         required: true
         type: string
+  workflow_run:
+    workflows: ['Milling and Exports QA']
+    types: [completed]
+    branches: [main]
 
 permissions:
   contents: read
@@ -17,11 +21,13 @@ concurrency:
 
 jobs:
   live-qa:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 12
     environment: live-qa
     steps:
       - name: Enforce manual live-data confirmation
+        if: ${{ github.event_name == 'workflow_dispatch' }}
         env:
           LIVE_CONFIRMATION: ${{ inputs.confirmation }}
         run: |
