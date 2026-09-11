@@ -162,6 +162,7 @@ HTML;
 
 $headPos = stripos($html, '</head>');
 if ($headPos !== false) $html = substr_replace($html, $bootstrap.$sharedBootstrap, $headPos, 0);
+$accountsSourceBridge = '<script src="accounts/source-bridge.js?v=20260911-2"></script><script src="accounts/loading-programme-sync.js?v=20260911-1"></script>';
 $bodyPos = strripos($html, '</body>');
-if ($bodyPos !== false) $html = substr_replace($html, $guard, $bodyPos, 0); else $html .= $guard;
+if ($bodyPos !== false) $html = substr_replace($html, $accountsSourceBridge.$guard, $bodyPos, 0); else $html .= $accountsSourceBridge.$guard;
 echo $html;

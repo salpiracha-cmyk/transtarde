@@ -457,8 +457,35 @@ function tt_user_can_open_module(array $user, string $module): bool {
     return false;
 }
 
+/**
+ * Entity access is stored inside the Accounts permission matrix as
+ * entity-tti/entity-brm/entity-tg rows. Existing owner records using `all`
+ * retain full access; restricted staff must be granted each legal book
+ * explicitly. This keeps entity scope in the same audited user record as the
+ * per-screen permissions and prevents a client-supplied entity from widening
+ * access at an API endpoint.
+ */
+function tt_user_can_access_entity(array $user, string $entity, string $action = 'View'): bool {
+    if (($user['role'] ?? '') === 'Super Admin') return true;
+    $entity = strtoupper(trim($entity));
+    if (!in_array($entity, ['TTI','BRM','TG'], true)) return false;
+    $permissions = $user['permissions']['Accounts'] ?? null;
+    if ($permissions === 'all') return true;
+    if (!is_array($permissions)) return false;
+    $row = $permissions['entity-' . strtolower($entity)] ?? [];
+    if (!is_array($row)) return false;
+    return in_array($action, $row, true)
+        || ($action === 'View' && (in_array('Create', $row, true) || in_array('Edit', $row, true) || in_array('Approve', $row, true)));
+}
+
+function tt_user_accounts_entities(array $user): array {
+    return array_values(array_filter(['TTI','BRM','TG'], static fn(string $entity): bool => tt_user_can_access_entity($user, $entity, 'View')));
+}
+
 function tt_user_landing_url(array $user): string {
     if (($user['role'] ?? '') === 'Super Admin') return 'index.php';
+    if (tt_user_can_open_module($user, 'Accounts')) return 'accounts/index.php';
+    if (tt_user_can_open_module($user, 'Directors')) return 'directors/index.php';
     foreach (['Mill'=>'milling','Exports'=>'exports'] as $name=>$id) {
         if (tt_user_can_open_module($user, $name)) return 'module.php?id=' . $id;
     }
@@ -500,6 +527,18 @@ function tt_current_user(): ?array {
 function tt_require_login(): array {
     $user = tt_current_user();
     if (!$user) { $_SESSION = []; header('Location: /login.php'); exit; }
+    $path=(string)parse_url((string)($_SERVER['REQUEST_URI']??''),PHP_URL_PATH);
+    if(str_starts_with($path,'/api/')&&tt_user_can_open_module($user,'Accounts')){
+        $entity=strtoupper(trim((string)($_GET['entity']??'')));
+        if($entity===''&&strtoupper((string)($_SERVER['REQUEST_METHOD']??'GET'))!=='GET'&&str_contains(strtolower((string)($_SERVER['CONTENT_TYPE']??'')),'application/json')){
+            $raw=file_get_contents('php://input')?:'';$body=$raw!==''?json_decode($raw,true):null;if(is_array($body))$entity=strtoupper(trim((string)($body['entity']??'')));
+        }
+        if(in_array($entity,['TTI','BRM','TG'],true)){
+            $read=strtoupper((string)($_SERVER['REQUEST_METHOD']??'GET'))==='GET';
+            $allowed=$read?tt_user_can_access_entity($user,$entity,'View'):(tt_user_can_access_entity($user,$entity,'Create')||tt_user_can_access_entity($user,$entity,'Edit')||tt_user_can_access_entity($user,$entity,'Approve'));
+            if(!$allowed){http_response_code(403);header('Content-Type: application/json; charset=UTF-8');echo json_encode(['ok'=>false,'error'=>'You do not have permission for this legal entity.']);exit;}
+        }
+    }
     return $user;
 }
 
