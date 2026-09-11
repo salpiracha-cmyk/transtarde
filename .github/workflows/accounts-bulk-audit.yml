@@ -5,6 +5,8 @@ on:
   push:
     branches: [main]
     paths:
+      - 'api/accounts.php'
+      - 'api/accounts_reports.php'
       - 'tests/live/accounts-bulk-hostinger-qa.spec.js'
       - '.github/workflows/accounts-bulk-audit.yml'
 
