@@ -33,7 +33,7 @@ async function gotoLive(page, url, options = {}) {
   let lastError;
   for (let attempt = 1; attempt <= 3; attempt += 1) {
     try {
-      return await gotoLive(page, url, options);
+      return await page.goto(url, options);
     } catch (error) {
       lastError = error;
       if (attempt < 3) await page.waitForTimeout(1_000 * attempt);
