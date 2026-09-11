@@ -1,0 +1,73 @@
+name: Manual Hostinger Live QA
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: 'Type CREATE TWO QA CONTAINERS to authorize uniquely labelled live dummy data'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: transtrade-live-qa
+  cancel-in-progress: false
+
+jobs:
+  live-qa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    environment: live-qa
+    steps:
+      - name: Enforce manual live-data confirmation
+        env:
+          LIVE_CONFIRMATION: ${{ inputs.confirmation }}
+        run: |
+          if [ "$LIVE_CONFIRMATION" != "CREATE TWO QA CONTAINERS" ]; then
+            echo "Live dummy-data authorization phrase does not match."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Verify QA secrets are configured
+        env:
+          QA_USERNAME: ${{ secrets.TRANSTRADE_QA_USERNAME }}
+          QA_PASSWORD: ${{ secrets.TRANSTRADE_QA_PASSWORD }}
+        run: |
+          test -n "$QA_USERNAME" || { echo "Missing TRANSTRADE_QA_USERNAME secret"; exit 1; }
+          test -n "$QA_PASSWORD" || { echo "Missing TRANSTRADE_QA_PASSWORD secret"; exit 1; }
+
+      - name: Install isolated browser test runtime
+        run: |
+          npm install --no-save @playwright/test@1.55.0
+          npx playwright install --with-deps chromium
+
+      - name: Create harmless QA bag-marking fixture
+        run: |
+          mkdir -p tests/live
+          printf '%s' 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=' | base64 --decode > tests/live/qa-bag-mark.png
+
+      - name: Run live Exports to Milling round trip
+        env:
+          TRANSTRADE_BASE_URL: https://app.transtradeinternational.com
+          TRANSTRADE_QA_USERNAME: ${{ secrets.TRANSTRADE_QA_USERNAME }}
+          TRANSTRADE_QA_PASSWORD: ${{ secrets.TRANSTRADE_QA_PASSWORD }}
+          PLAYWRIGHT_HTML_OPEN: never
+        run: npx playwright test tests/live/hostinger-qa.spec.js --reporter=line,html
+
+      - name: Upload screenshots, video, trace and report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hostinger-live-qa-${{ github.run_id }}
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 14
