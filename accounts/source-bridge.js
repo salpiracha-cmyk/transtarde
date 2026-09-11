@@ -18,6 +18,7 @@
     await persistItem(item);
     let endpoint=accountsApi,body={action:'post_event',csrf:access.csrf,...item.body};
     if(item.kind==='exportCandidate'){endpoint=exportApi;body={action:'queue_candidate',csrf:access.csrf,...item.body}}
+    else if(item.kind==='loadingProgramme'){endpoint='api/accounts_workflows_v1.php';body={csrf:access.csrf,...item.body}}
     else if(item.kind==='localSaleCandidate'){endpoint=localApi;body={action:'queue_candidate',csrf:access.csrf,...item.body}}
     else if(item.kind==='localPaymentCandidate'){endpoint=localPayApi;body={action:'queue_payment',csrf:access.csrf,...item.body}}
     const r=await fetch(endpoint,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify(body)});let d={};try{d=await r.json()}catch{}
