@@ -13,7 +13,7 @@ permissions:
 
 concurrency:
   group: accounts-bulk-dummy-audit
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   repository-and-live-audit:
