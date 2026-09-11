@@ -1,0 +1,62 @@
+name: Accounts Hostinger Live Smoke
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'tests/live/accounts-hostinger-qa.spec.js'
+      - '.github/workflows/accounts-live-hostinger-qa.yml'
+      - 'accounts/**'
+      - 'api/accounts.php'
+      - 'api/donations.php'
+      - 'api/expenses_v1.php'
+      - 'api/journal_vouchers.php'
+      - 'api/other_purchases.php'
+      - 'api/rent_salary_v2.php'
+      - 'api/salary_master_store.php'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: accounts-hostinger-live-smoke
+  cancel-in-progress: true
+
+jobs:
+  accounts-live-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    environment: live-qa
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify QA secrets
+        env:
+          QA_USERNAME: ${{ secrets.TRANSTRADE_QA_USERNAME }}
+          QA_PASSWORD: ${{ secrets.TRANSTRADE_QA_PASSWORD }}
+        run: |
+          test -n "$QA_USERNAME" || { echo "Missing TRANSTRADE_QA_USERNAME"; exit 1; }
+          test -n "$QA_PASSWORD" || { echo "Missing TRANSTRADE_QA_PASSWORD"; exit 1; }
+      - name: Install browser runtime
+        run: |
+          npm install --no-save @playwright/test@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Run authenticated read-only Accounts smoke test
+        env:
+          TRANSTRADE_BASE_URL: https://app.transtradeinternational.com
+          TRANSTRADE_QA_USERNAME: ${{ secrets.TRANSTRADE_QA_USERNAME }}
+          TRANSTRADE_QA_PASSWORD: ${{ secrets.TRANSTRADE_QA_PASSWORD }}
+          PLAYWRIGHT_HTML_OPEN: never
+        run: npx playwright test tests/live/accounts-hostinger-qa.spec.js --reporter=line,html
+      - name: Upload failure evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: accounts-live-smoke-${{ github.run_id }}
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 14
