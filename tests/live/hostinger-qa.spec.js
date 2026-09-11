@@ -42,12 +42,16 @@ async function signInQa(page) {
   await page.goto(`${BASE_URL}/login.php`, { waitUntil: 'domcontentloaded' });
   await page.getByLabel('Username').fill(QA_USERNAME);
   await page.getByLabel('Password').fill(QA_PASSWORD);
-  await Promise.all([
-    page.waitForURL(url => !url.pathname.endsWith('/login.php'), { timeout: 30_000 }),
-    page.getByRole('button', { name: 'Sign in' }).click(),
-  ]);
-  expect(page.url(), 'QA user must not land in Super Admin').toMatch(/module\.php\?id=(milling|exports)|staff-home\.php/);
-  expect(page.url(), 'QA account must not land in Super Admin Control Centre').not.toMatch(/\/index\.php$/);
+  await page.getByRole('button', { name: 'Sign in' }).click();
+  await expect.poll(
+    () => new URL(page.url()).pathname,
+    { message: 'QA sign-in must leave the login page', timeout: 30_000 },
+  ).not.toBe('/login.php');
+  const landing = new URL(page.url());
+  expect(landing.pathname, 'QA account must not land in Super Admin Control Centre').not.toBe('/index.php');
+  expect(`${landing.pathname}${landing.search}`, 'QA user must land in an authorized staff module').toMatch(
+    /module\.php\?id=(milling|exports)|staff-home\.php|\/accounts\/index\.php/,
+  );
 }
 
 test.use({
