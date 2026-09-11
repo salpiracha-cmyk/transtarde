@@ -143,6 +143,8 @@ async function createBulkQaShipment(page, { suffix, index, lotRef, contractRef, 
   await page.locator('[data-li-cont="0"]').fill('1');
   await page.locator('[data-li-weight="0"]').fill('26');
   if (await page.locator('#liPhysicalContainers').count()) await page.locator('#liPhysicalContainers').fill('1');
+  await page.locator('#liIntendedVessel').fill(`QA VESSEL ${suffix}`);
+  await page.locator('#liShippingLine').fill(`QA SHIPPING LINE ${suffix}`);
   await page.locator('#sendLoading').click();
   await expect(page.getByRole('heading', { name: new RegExp(lotRef) })).toBeVisible({ timeout: 30_000 });
   await waitForSharedSave(page);
@@ -257,6 +259,8 @@ test('manual Hostinger QA: Export instruction to Mill and container return', asy
   await page.locator('[data-li-cont="0"]').fill('2');
   await page.locator('[data-li-weight="0"]').fill('26');
   if (await page.locator('#liPhysicalContainers').count()) await page.locator('#liPhysicalContainers').fill('2');
+  await page.locator('#liIntendedVessel').fill(`QA VESSEL ${suffix}`);
+  await page.locator('#liShippingLine').fill(`QA SHIPPING LINE ${suffix}`);
   await page.locator('#sendLoading').click();
   await expect(page.getByRole('heading', { name: new RegExp(lotRef) })).toBeVisible({ timeout: 30_000 });
   await waitForSharedSave(page);
