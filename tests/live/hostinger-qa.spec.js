@@ -57,6 +57,92 @@ test.use({
   video: 'retain-on-failure',
 });
 
+async function createBulkQaShipment(page, { suffix, index, lotRef, contractRef, brand }) {
+  const customerName = `QA BULK ${suffix} ${index}`;
+  const customerCode = `QB${index}${suffix.slice(-3)}`;
+  const supplier = `QA BULK BAG SUPPLIER ${suffix} ${index}`;
+  const shipmentDate = new Date(Date.now() + (30 + index) * 86400_000).toISOString().slice(0, 10);
+
+  await page.goto(`${BASE_URL}/module.php?id=exports`, { waitUntil: 'domcontentloaded' });
+  await expect(page.getByRole('heading', { name: 'TRANSTRADE EXPORTS' })).toBeVisible();
+  await page.getByRole('button', { name: /NEW SALES CONTRACT/i }).click();
+  await page.locator('#addCustomer').click();
+  await page.locator('#mCustName').fill(customerName);
+  await page.locator('#mCustCode').fill(customerCode);
+  await page.locator('#mCustAddress').fill('TEST / DUMMY — automated multi-shipment bulk QA only');
+  await page.locator('#mCustCountry').fill('Pakistan');
+  await page.locator('#saveNewCustomer').click();
+  await page.locator('#cRef').fill(contractRef);
+  await page.locator('#nextStep').click();
+
+  await page.locator('#cProduct').selectOption({ index: 1 });
+  await page.locator('#cBroken').fill('5');
+  await page.locator('#cFinish').fill('TEST / DUMMY — silky polished and sortexed');
+  await page.locator('#nextStep').click();
+
+  await page.locator('#cContainers').fill('1');
+  await page.locator('#cWeightPer').fill('26');
+  await page.locator('#cShipmentDate').fill(shipmentDate);
+  await page.locator('#cPOD').fill('Jebel Ali');
+  await page.locator('#cPODCountry').fill('United Arab Emirates');
+  await page.locator('#nextStep').click();
+
+  await page.locator('#addPacking').click();
+  await page.locator('#mPackType').fill('PP Bags — TEST / DUMMY');
+  await page.locator('#mPackSize').fill('25');
+  await page.locator('#mPackBrand').fill(brand);
+  await page.locator('#mPackTare').fill('80');
+  await page.locator('#mPackContainers').fill('1');
+  await page.locator('#mPackWeight').fill('26');
+  await page.locator('#mPackExtra').fill('1');
+  await page.locator('#savePacking').click();
+  await page.locator('#nextStep').click();
+
+  await page.locator('#cIncoterm').selectOption('FOB');
+  await page.locator('[data-contract-rate="0"]').fill(String(400 + index));
+  await page.locator('#nextStep').click();
+  await page.locator('#cPayment').selectOption('ADV100');
+  await page.locator('#nextStep').click();
+  await page.locator('#nextStep').click();
+  await page.locator('#issueContract').click();
+  await expect(page.getByText(contractRef, { exact: true }).first()).toBeVisible({ timeout: 30_000 });
+  await waitForSharedSave(page);
+
+  const processCard = page.locator('article.contractCard').filter({ hasText: contractRef });
+  await processCard.getByRole('button', { name: 'Shipment Process' }).click();
+  await page.locator('[data-workspace="contract"]').click();
+  await page.locator('#markReceived').click();
+
+  await page.locator('[data-workspace="bags"]').click();
+  await page.locator('#addSupplier').click();
+  await page.locator('#newSupplierName').fill(supplier);
+  await page.locator('#saveSupplier').click();
+  await page.locator('#boSupplier').selectOption({ label: supplier });
+  await page.locator('[data-bo-art="0"]').setInputFiles('tests/live/qa-bag-mark.png');
+  await expect(page.getByText('APPROVED ON UPLOAD')).toBeVisible({ timeout: 30_000 });
+  await page.locator('#generatePO').click();
+  await waitForSharedSave(page);
+  const printModal = page.locator('.modalBackdrop').filter({ hasText: /Print \/ Save/i }).last();
+  await expect(printModal).toBeVisible();
+  await printModal.locator('[data-modal-close]').first().click();
+
+  await page.locator('[data-workspace="production"]').click();
+  await page.locator('#sendPI').click();
+  await waitForSharedSave(page);
+
+  await page.locator('[data-workspace="loading"]').click();
+  await page.locator('#liLot').fill(lotRef);
+  await page.locator('[data-li-name="0"]').fill('TTI Rice Mills');
+  await page.locator('[data-li-type="0"]').selectOption('TTI');
+  await page.locator('[data-li-cont="0"]').fill('1');
+  await page.locator('[data-li-weight="0"]').fill('26');
+  if (await page.locator('#liPhysicalContainers').count()) await page.locator('#liPhysicalContainers').fill('1');
+  await page.locator('#sendLoading').click();
+  await expect(page.getByRole('heading', { name: new RegExp(lotRef) })).toBeVisible({ timeout: 30_000 });
+  await waitForSharedSave(page);
+}
+
+
 test('manual Hostinger QA: Export instruction to Mill and container return', async ({ page }, testInfo) => {
   test.setTimeout(300_000);
   const exportPageErrors = [];
@@ -266,6 +352,118 @@ test('manual Hostinger QA: Export instruction to Mill and container return', asy
   }
   await page.locator('[data-cm-close]').click();
   expect(exportPageErrors, 'Exports pages must not throw JavaScript errors').toEqual([]);
+});
+
+test('live bulk QA: same lot reference across shipments and isolated B/L returns', async ({ page }, testInfo) => {
+  test.setTimeout(480_000);
+  const errors = [];
+  page.on('pageerror', error => errors.push(String(error)));
+  page.on('popup', async popup => popup.close().catch(() => {}));
+  page.on('dialog', async dialog => dialog.dismiss());
+
+  const suffix = RUN_TOKEN.slice(-7);
+  const sameLot = `LOT-SAME-${suffix}`;
+  const differentLot = `LOT-DIFF-${suffix}`;
+  const serialBase = (Number(RUN_ID.slice(-6)) + 100) % 999_996 || 100;
+  const shipments = [
+    {
+      index: 1,
+      contractRef: `TTI/QA/BULK-${suffix}-A`,
+      lotRef: sameLot,
+      brand: `QA DUMMY BULK ${suffix} A`,
+      container: isoContainer('QABU', serialBase),
+    },
+    {
+      index: 2,
+      contractRef: `TTI/QA/BULK-${suffix}-B`,
+      lotRef: sameLot,
+      brand: `QA DUMMY BULK ${suffix} B`,
+      container: isoContainer('QACU', serialBase + 1),
+    },
+    {
+      index: 3,
+      contractRef: `TTI/QA/BULK-${suffix}-C`,
+      lotRef: differentLot,
+      brand: `QA DUMMY BULK ${suffix} C`,
+      container: isoContainer('QADU', serialBase + 2),
+    },
+  ];
+
+  await signInQa(page);
+  for (const shipment of shipments) {
+    await createBulkQaShipment(page, { suffix, ...shipment });
+  }
+  await page.screenshot({ path: testInfo.outputPath('09-three-loading-instructions.png'), fullPage: true });
+
+  await page.goto(`${BASE_URL}/module.php?id=milling`, { waitUntil: 'domcontentloaded' });
+  if (await page.locator('.mill-card').count()) {
+    await page.locator('.mill-card').filter({ hasText: /TTI Rice Mills/i }).first().click();
+  }
+  await page.locator(".tile[onclick=\"openPanel('export')\"]").click();
+
+  const processed = [];
+  for (const shipment of [shipments[1], shipments[2], shipments[0]]) {
+    const row = page.locator('#shipmentBody tr[data-shipment-id]').filter({ hasText: shipment.brand }).first();
+    await expect(row, `${shipment.contractRef} loading instruction must reach Milling`).toBeVisible({ timeout: 35_000 });
+    await row.click();
+    await expect(page.locator('#instructionBanner')).toContainText(shipment.lotRef);
+
+    const beforeText = await page.locator('#containerTable').innerText();
+    for (const otherContainer of processed) {
+      expect(beforeText, `container from another shipment must not leak into ${shipment.contractRef}`).not.toContain(otherContainer);
+    }
+
+    await fillMillContainerNumber(page, shipment.container);
+    await page.locator('#contTruck').fill(`QA-${suffix}-${shipment.index}`);
+    await page.locator('#contWeight').fill('26000');
+    await page.locator('#contBags').fill('1040');
+    await page.locator('#contSeal').fill(`QA-DUMMY-SEAL-${suffix}-${shipment.index}`);
+    await page.locator('#contDriver').fill(`QA DUMMY DRIVER ${shipment.index}`);
+    await page.locator('#saveContainerBtn').click();
+    await expect(page.locator('#containerTable')).toContainText(shipment.container, { timeout: 35_000 });
+
+    const afterText = await page.locator('#containerTable').innerText();
+    for (const otherContainer of processed) {
+      expect(afterText, `saved container must remain isolated to ${shipment.contractRef}`).not.toContain(otherContainer);
+    }
+    processed.push(shipment.container);
+  }
+  await page.screenshot({ path: testInfo.outputPath('10-three-milling-container-returns.png'), fullPage: true });
+
+  await page.goto(`${BASE_URL}/module.php?id=exports`, { waitUntil: 'domcontentloaded' });
+  await page.waitForFunction(rows => {
+    const root = JSON.parse(localStorage.getItem('transtrade_export_v3_operational') || '{}');
+    return rows.every(row => {
+      const exact = (root.shipments || []).filter(x => x.contractRef === row.contractRef && x.lotId === row.lotRef);
+      if (exact.length !== 1) return false;
+      const actuals = exact[0].millActuals || [];
+      return actuals.some(x => x.number === row.container)
+        && rows.filter(other => other.contractRef !== row.contractRef)
+          .every(other => !actuals.some(x => x.number === other.container));
+    });
+  }, shipments.map(({ contractRef, lotRef, container }) => ({ contractRef, lotRef, container })), { timeout: 40_000 });
+
+  for (const shipment of shipments) {
+    await page.goto(`${BASE_URL}/module.php?id=exports`, { waitUntil: 'domcontentloaded' });
+    await page.locator('#homeSearch').fill(shipment.contractRef);
+    const card = page.locator('article.contractCard').filter({ hasText: shipment.contractRef });
+    await expect(card).toBeVisible();
+    await card.locator('[data-open-lot]').first().click();
+
+    await page.locator('[data-workspace="customs"]').click();
+    const customsText = await page.locator('.workspaceDetail').first().innerText();
+    expect(customsText, 'Customs must remain separate from Milling container actuals').not.toContain(shipment.container);
+
+    await page.locator('[data-workspace="bl"]').click();
+    await expect(page.getByRole('heading', { name: 'B/L DOCUMENTS' })).toBeVisible();
+    const blText = await page.locator('.workspaceDetail').first().innerText();
+    expect(blText, `B/L Draft must receive ${shipment.container}`).toContain(shipment.container);
+    for (const other of shipments.filter(x => x.contractRef !== shipment.contractRef)) {
+      expect(blText, `B/L Draft for ${shipment.contractRef} must exclude ${other.container}`).not.toContain(other.container);
+    }
+  }
+  await page.screenshot({ path: testInfo.outputPath('11-isolated-bl-draft-return.png'), fullPage: true });
+  expect(errors, 'multi-shipment bulk QA must not throw JavaScript errors').toEqual([]);
 });
 
 test('automatic bulk QA: every Milling page plus 15 Arrivals and Pohanch records', async ({ page, browser }, testInfo) => {
