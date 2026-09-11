@@ -180,7 +180,8 @@
 
   function addExportButtons(){
     if(!isExports)return;
-    // Master Data remains available through Super Admin masters; it is intentionally not injected beside +FI.
+    window.TT_OPEN_EXPORT_MASTER_DATA=openManager;
+    // Master Data is opened from the compact M button in the Export header.
   }
 
   function addAdminButton(){

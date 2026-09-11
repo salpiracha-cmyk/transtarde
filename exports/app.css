@@ -50,3 +50,7 @@
 .customerMatches button:hover,.customerMatches button:focus{background:#edf6ff;outline:none}
 .customerMatches button span,.customerNoMatch{font-size:12px;color:#64748b}
 .customerNoMatch{padding:11px 12px}
+
+
+.masterTopButton{width:34px;height:34px;border:1px solid rgba(255,255,255,.5);border-radius:9px;background:#fff;color:#17324d;font:900 18px/1 Arial;display:grid;place-items:center;cursor:pointer}.masterTopButton:hover,.masterTopButton:focus{background:#e8f2fb;outline:2px solid rgba(255,255,255,.45)}
+.packingTabs{display:flex;gap:8px;align-items:stretch;flex-wrap:wrap;margin:12px 0}.packingTab{min-width:112px;border:1px solid #cbd5e1;border-radius:11px;background:#f8fafc;color:#17324d;padding:10px 13px;display:flex;flex-direction:column;gap:3px;align-items:flex-start;cursor:pointer}.packingTab span{font-size:11px;color:#64748b}.packingTab.active{background:#eaf7f1;border-color:#16815a;box-shadow:0 4px 12px rgba(22,129,90,.12)}.packingTab.add{border-style:dashed}.packingInline{border:1px solid #dbe4ee;border-radius:13px;background:#fff;padding:16px}.masterBagToggle{display:flex;align-items:center;gap:8px;align-self:end;min-height:42px;color:#17324d}.masterBagToggle input{width:18px;height:18px}.packingActions{margin-top:14px}
