@@ -1,3 +1,4 @@
+// Each automatic run uses its GitHub run ID to create isolated, clearly labelled QA records.
 const { test, expect } = require('@playwright/test');
 
 const BASE_URL = process.env.TRANSTRADE_BASE_URL || 'https://app.transtradeinternational.com';
