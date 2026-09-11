@@ -201,7 +201,6 @@ test('bulk Accounts audit: locking, duplicates, entity isolation and three-modul
       endpointFailures
     };
 
-    expect(endpointFailures, 'Every Accounts and inter-module endpoint must respond successfully').toEqual([]);
     expect(unbalanced, 'Every posted journal must balance').toEqual([]);
     expect(orphanEvents, 'Every source event must point to a journal').toEqual([]);
     expect(eventJournalEntityMismatch, 'Event and journal legal entities must match').toEqual([]);
@@ -221,6 +220,7 @@ test('bulk Accounts audit: locking, duplicates, entity isolation and three-modul
         expect([403], `${entity} must be accessible or explicitly forbidden`).toContain(response.status);
       }
     }
+    expect(endpointFailures, 'Every Accounts and inter-module endpoint must respond successfully').toEqual([]);
   } finally {
     for (const journalId of createdJournalIds) {
       const reversed = await jsonCall(request, '/api/accounts.php', {
