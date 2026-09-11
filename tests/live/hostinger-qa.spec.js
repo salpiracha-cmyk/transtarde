@@ -107,6 +107,8 @@ async function createBulkQaShipment(page, { suffix, index, lotRef, contractRef, 
   await page.locator('#nextStep').click();
   await page.locator('#cPayment').selectOption('ADV100');
   await page.locator('#nextStep').click();
+  await page.locator('#cSignedDeadline').fill(shipmentDate);
+  await page.locator('#cPaymentDeadline').fill(shipmentDate);
   await page.locator('#nextStep').click();
   await page.locator('#issueContract').click();
   await expect(page.getByText(contractRef, { exact: true }).first()).toBeVisible({ timeout: 30_000 });
@@ -218,6 +220,8 @@ test('manual Hostinger QA: Export instruction to Mill and container return', asy
   await page.locator('#nextStep').click();
   await page.locator('#cPayment').selectOption('ADV100');
   await page.locator('#nextStep').click();
+  await page.locator('#cSignedDeadline').fill(tomorrow);
+  await page.locator('#cPaymentDeadline').fill(tomorrow);
   await page.locator('#nextStep').click();
   await page.locator('#issueContract').click();
   await expect(page.getByText(contractRef, { exact: true }).first()).toBeVisible({ timeout: 30_000 });
