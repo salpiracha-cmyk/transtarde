@@ -29,6 +29,7 @@ jobs:
           node tests/accounts-v1/expenses_v1_test.js
           node tests/accounts-v1/reimbursements_general_expenses_test.js
           node tests/accounts-v1/other_purchases_fixed_assets_test.js
+          node tests/accounts-v1/rent_recurring_test.js
           node tests/accounts-v1/static_audit.js
       - name: PHP syntax
         run: find . -path './.git' -prune -o -name '*.php' -print0 | xargs -0 -n1 php -l
