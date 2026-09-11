@@ -56,7 +56,9 @@ test.use({
 });
 
 test('manual Hostinger QA: Export instruction to Mill and container return', async ({ page }, testInfo) => {
-  test.setTimeout(240_000);
+  test.setTimeout(300_000);
+  const exportPageErrors = [];
+  page.on('pageerror', error => exportPageErrors.push(String(error)));
   const suffix = RUN_ID.slice(-8);
   const customerName = `QA GITHUB ${suffix}`;
   const customerCode = `Q${suffix.slice(-5)}`;
@@ -229,6 +231,38 @@ test('manual Hostinger QA: Export instruction to Mill and container return', asy
       expect((await page.locator('.workspaceDetail').first().innerText()).trim().length).toBeGreaterThan(10);
     }
   }
+
+  // Open every Exports navigation page and every report/register icon.
+  for (const nav of ['home', 'contracts', 'completed', 'cancelled', 'fi', 'reports']) {
+    const control = page.locator(`[data-nav="${nav}"]`);
+    await expect(control, `${nav} navigation icon must exist`).toBeVisible();
+    await control.click();
+    await expect(control).toHaveClass(/active/);
+    expect((await page.locator('#main').innerText()).trim().length).toBeGreaterThan(10);
+    if (nav === 'reports') {
+      const reportControls = page.locator('[data-report]');
+      const reportCount = await reportControls.count();
+      expect(reportCount, 'all Export report/register icons must be present').toBeGreaterThanOrEqual(15);
+      for (let i = 0; i < reportCount; i += 1) {
+        await reportControls.nth(i).click();
+        await expect(page.locator('#reportDetail h3')).toBeVisible();
+      }
+    }
+  }
+
+  const masterData = page.locator('[data-tt-customers]').first();
+  await expect(masterData, 'single Master Data icon must be available').toBeVisible();
+  await masterData.click();
+  await expect(page.locator('#ttCustomerMasterOverlay')).toBeVisible();
+  const masterIcons = page.locator('[data-cm-master]');
+  const masterCount = await masterIcons.count();
+  expect(masterCount, 'Master Data categories must render').toBeGreaterThanOrEqual(8);
+  for (let i = 0; i < masterCount; i += 1) {
+    await masterIcons.nth(i).click();
+    await expect(page.locator('#ttCmMasterDetail')).not.toHaveText('');
+  }
+  await page.locator('[data-cm-close]').click();
+  expect(exportPageErrors, 'Exports pages must not throw JavaScript errors').toEqual([]);
 });
 
 test('automatic bulk QA: every Milling page plus 15 Arrivals and Pohanch records', async ({ page, browser }, testInfo) => {
