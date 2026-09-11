@@ -203,8 +203,17 @@ test('manual Hostinger QA: Export instruction to Mill and container return', asy
   await page.locator('#homeSearch').fill(contractRef);
   const returnedCard = page.locator('article.contractCard').filter({ hasText: contractRef });
   await returnedCard.locator('[data-open-lot]').first().click();
+
+  // Customs is a separate workflow and must not display Mill container/seal actuals.
   await page.locator('[data-workspace="customs"]').click();
+  await expect(page.getByText('MILL CONTAINER ACTUALS', { exact: true })).toHaveCount(0);
+  await expect(page.getByText(containerOne, { exact: false })).toHaveCount(0);
+  await expect(page.getByText(containerTwo, { exact: false })).toHaveCount(0);
+
+  // The exact Mill return belongs in the B/L Draft workflow.
+  await page.locator('[data-workspace="bl"]').click();
+  await expect(page.getByRole('heading', { name: 'B/L DOCUMENTS' })).toBeVisible();
   await expect(page.getByText(containerOne, { exact: false }).first()).toBeVisible();
   await expect(page.getByText(containerTwo, { exact: false }).first()).toBeVisible();
-  await page.screenshot({ path: testInfo.outputPath('05-exports-container-return.png'), fullPage: true });
+  await page.screenshot({ path: testInfo.outputPath('05-bl-draft-container-return.png'), fullPage: true });
 });
