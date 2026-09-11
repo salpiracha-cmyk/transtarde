@@ -180,8 +180,7 @@
 
   function addExportButtons(){
     if(!isExports)return;
-    const nav=document.getElementById('nav');if(nav&&!nav.querySelector('[data-tt-customers]')){const b=document.createElement('button');b.textContent='Master Data';b.dataset.ttCustomers='1';b.onclick=openManager;nav.appendChild(b)}
-    const root=parseRoot();if(root?.customers){const inactive=new Set(root.customers.filter(c=>c.inactive).map(c=>c.id));document.querySelectorAll('select#cCustomer option').forEach(o=>{if(inactive.has(o.value)){o.disabled=true;if(!/Inactive/.test(o.textContent))o.textContent+=' (Inactive)'}})}
+    // Master Data remains available through Super Admin masters; it is intentionally not injected beside +FI.
   }
 
   function addAdminButton(){

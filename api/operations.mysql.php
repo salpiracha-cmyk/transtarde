@@ -140,11 +140,133 @@ function operations_union_rows(array $current, array $incoming, array $identitie
     ));
 }
 
+function operations_export_reset_marker(): string {
+    return '2026-09-11-operational-reset-v1';
+}
+
+function operations_reset_export_payload(string $json): array {
+    $root = json_decode($json, true);
+    if (!is_array($root)) return [$json, false];
+    $settings = (array)($root['settings'] ?? []);
+    if (($settings['exportOperationalReset'] ?? '') === operations_export_reset_marker()) return [$json, false];
+    foreach (['fi', 'contracts', 'shipments', 'accountsReceipts', 'alerts'] as $key) $root[$key] = [];
+    $root['millSync'] = ['newExportBags'=>[], 'productionInstructions'=>[], 'exportLoading'=>[]];
+    $root['audits'] = (array)($root['audits'] ?? []);
+    array_unshift($root['audits'], [
+        'id'=>'AUD-EXPORT-RESET-20260911',
+        'at'=>gmdate('c'),
+        'user'=>'System',
+        'area'=>'Exports',
+        'action'=>'Operational data reset approved by Super Admin',
+        'detail'=>'Contracts, shipments/lots, FI, receipts, alerts, linked Mill instructions and uploaded operational documents cleared; customer and shared masters preserved.'
+    ]);
+    $settings['exportOperationalReset'] = operations_export_reset_marker();
+    $root['settings'] = $settings;
+    return [json_encode($root, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR), true];
+}
+
+function operations_reset_export_documents(?PDO $db = null): void {
+    $base = rtrim((string)TT_DATA_DIR, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'export_documents';
+    $stored = [];
+    if ($db instanceof PDO) {
+        try {
+            $rows = $db->query('SELECT stored_name FROM tt_export_documents WHERE deleted_at IS NULL')->fetchAll();
+            foreach ($rows as $row) $stored[] = basename((string)($row['stored_name'] ?? ''));
+            $db->exec('UPDATE tt_export_documents SET deleted_at=UTC_TIMESTAMP(6) WHERE deleted_at IS NULL');
+        } catch (Throwable $e) {
+            error_log('Export document reset DB cleanup: ' . $e->getMessage());
+        }
+    }
+    $index = $base . DIRECTORY_SEPARATOR . 'index.json';
+    if (is_file($index)) {
+        $rows = json_decode((string)file_get_contents($index), true);
+        if (is_array($rows)) {
+            foreach ($rows as &$row) {
+                if (!is_array($row) || !empty($row['deleted_at'])) continue;
+                $stored[] = basename((string)($row['stored_name'] ?? ''));
+                $row['deleted_at'] = gmdate('c');
+            }
+            unset($row);
+            file_put_contents($index, json_encode($rows, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR), LOCK_EX);
+        }
+    }
+    foreach (array_unique(array_filter($stored)) as $name) {
+        $path = $base . DIRECTORY_SEPARATOR . $name;
+        if (is_file($path) && !@unlink($path)) error_log('Export reset could not remove protected file ' . $name);
+    }
+}
+
+function operations_apply_export_reset_file(string $path, array $user): void {
+    if (!is_file($path)) return;
+    $preview = json_decode((string)file_get_contents($path), true);
+    $old = is_array($preview) ? (string)($preview['values']['transtrade_export_v3_operational'] ?? '') : '';
+    [, $needed] = operations_reset_export_payload($old);
+    if (!$needed) return;
+    tt_maybe_auto_backup();
+    $handle = fopen($path, 'c+');
+    if ($handle === false || !flock($handle, LOCK_EX)) throw new RuntimeException('Shared operational storage is unavailable.');
+    $changed = false;
+    try {
+        rewind($handle);
+        $raw = stream_get_contents($handle);
+        $store = $raw ? json_decode($raw, true) : null;
+        if (!is_array($store)) $store = ['revision'=>0, 'values'=>[], 'meta'=>[]];
+        [$value, $changed] = operations_reset_export_payload((string)($store['values']['transtrade_export_v3_operational'] ?? ''));
+        if ($changed) {
+            $key = 'transtrade_export_v3_operational';
+            $store['values'][$key] = $value;
+            $store['revision'] = (int)($store['revision'] ?? 0) + 1;
+            $version = (int)($store['meta'][$key]['version'] ?? 0) + 1;
+            $store['meta'][$key] = ['version'=>$version, 'updatedAt'=>gmdate('c'), 'updatedBy'=>'System reset approved by Super Admin', 'userId'=>(int)($user['id'] ?? 0), 'module'=>'Exports'];
+            rewind($handle);
+            if (!ftruncate($handle, 0)) throw new RuntimeException('Shared operational storage could not be reset.');
+            if (fwrite($handle, json_encode($store, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR)) === false) throw new RuntimeException('Shared operational storage could not be reset.');
+            fflush($handle);
+        }
+    } finally {
+        flock($handle, LOCK_UN);
+        fclose($handle);
+    }
+    if ($changed) operations_reset_export_documents();
+}
+
+function operations_apply_export_reset_db(PDO $db, array $user): void {
+    $db->beginTransaction();
+    $changed = false;
+    try {
+        $select = $db->prepare('SELECT payload, version FROM tt_operation_records WHERE storage_key=? FOR UPDATE');
+        $select->execute(['transtrade_export_v3_operational']);
+        $row = $select->fetch();
+        if ($row) {
+            [$value, $changed] = operations_reset_export_payload((string)$row['payload']);
+            if ($changed) {
+                tt_maybe_auto_backup();
+                $version = (int)$row['version'] + 1;
+                $now = (new DateTimeImmutable('now', new DateTimeZone('UTC')))->format('Y-m-d H:i:s.u');
+                $update = $db->prepare('UPDATE tt_operation_records SET payload=?,version=?,updated_at=?,updated_by=?,updated_by_user=?,updated_by_module=? WHERE storage_key=?');
+                $update->execute([$value, $version, $now, 'System reset approved by Super Admin', (int)($user['id'] ?? 0), 'Exports', 'transtrade_export_v3_operational']);
+                $history = $db->prepare('INSERT INTO tt_operation_history (storage_key,version,payload_sha256,updated_at,updated_by,updated_by_user,updated_by_module) VALUES (?,?,?,?,?,?,?)');
+                $history->execute(['transtrade_export_v3_operational', $version, hash('sha256', $value), $now, 'System reset approved by Super Admin', (int)($user['id'] ?? 0), 'Exports']);
+            }
+        }
+        $db->commit();
+    } catch (Throwable $e) {
+        if ($db->inTransaction()) $db->rollBack();
+        throw $e;
+    }
+    if ($changed) operations_reset_export_documents($db);
+}
+
 function operations_merge_export(string $currentJson, string $incomingJson, string $sourceModule): string {
     $current = json_decode($currentJson, true);
     $incoming = json_decode($incomingJson, true);
     if (!is_array($current)) return $incomingJson;
     if (!is_array($incoming)) return $currentJson;
+    $currentMarker = (string)($current['settings']['exportOperationalReset'] ?? '');
+    $incomingMarker = (string)($incoming['settings']['exportOperationalReset'] ?? '');
+    if (($sourceModule === 'Exports' || $sourceModule === 'Super Admin') && $currentMarker !== '' && $incomingMarker !== $currentMarker) {
+        return $currentJson;
+    }
 
     if (strcasecmp($sourceModule, 'Accounts') === 0) {
         $merged = $current;
@@ -203,6 +325,7 @@ function operations_merge_export(string $currentJson, string $incomingJson, stri
 function operations_file_fallback(array $user): never {
     $path = rtrim((string)TT_DATA_DIR, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'operations.json';
     tt_ensure_data_dir();
+    operations_apply_export_reset_file($path, $user);
     if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         if (!is_file($path)) operations_respond(['ok'=>true,'revision'=>0,'values'=>[],'meta'=>[],'serverNow'=>gmdate('c')]);
         $handle = fopen($path, 'r');
@@ -254,6 +377,7 @@ try {
     }
     $db = operations_db();
     operations_install($db);
+    operations_apply_export_reset_db($db, $user);
 
     if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         $rows = $db->query('SELECT storage_key, payload, version, updated_at, updated_by, updated_by_user, updated_by_module FROM tt_operation_records')->fetchAll();
