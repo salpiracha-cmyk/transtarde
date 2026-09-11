@@ -129,6 +129,7 @@
     injectStyle();const o=overlayBase('Export Master Data');const body=o.querySelector('#ttCustomerMasterBody');body.innerHTML='<div class="tt-cm-note">Loading shared Export master data…</div>';
     try{await loadList();renderManager(body)}catch(e){body.innerHTML=`<div class="tt-cm-error">${esc(e.message)}</div>`}
   }
+  window.TTOpenMasterData=openManager;
   function masterCount(type){
     if(type==='customers')return listCache.filter(x=>String(x.status||'Active').toLowerCase()!=='inactive').length;
     return sharedRows(type).filter(r=>String(r?.values?.at(-1)||'Active').toLowerCase()!=='inactive').length;

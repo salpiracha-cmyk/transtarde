@@ -62,79 +62,16 @@
   }
 
   document.addEventListener('click',async e=>{
-    const post=e.target.closest('#postJv');
-    if(post){
-      e.preventDefault();e.stopImmediatePropagation();
-      const lines=qa('.jvRow').map(r=>({account:r.querySelector('.jvAccount')?.value?.trim()||'',debit:amount(r.querySelector('.jvDr')?.value),credit:amount(r.querySelector('.jvCr')?.value)})).filter(x=>x.account||x.debit||x.credit);
-      post.disabled=true;
-      try{
-        const data=await request('POST',{action:'post_journal',entity:entity(),date:q('#jvDate')?.value||'',reference:q('#jvRef')?.value||'',narration:q('#jvNarr')?.value||'',sourceType:'JV',lines});
-        toast('Posted '+data.journal.id);q('#jvRef').value='';q('#jvNarr').value='';qa('.jvDr,.jvCr,.jvAccount').forEach(x=>x.value='');
-      }catch(err){toast(err.message,false)}finally{post.disabled=false}
-      return;
-    }
-
     const reminder=e.target.closest('#saveUtilityReminder');
-    if(reminder){
-      e.preventDefault();e.stopImmediatePropagation();
-      const due=q('#utilDue')?.value||'';
-      if(!due){toast('Enter the due date first.',false);return}
-      reminder.disabled=true;
-      try{
-        await request('POST',{action:'save_reminder',entity:entity(),type:'Utility',label:(q('#utilType')?.value||'Utility')+' — '+(q('#utilLoc')?.value||''),dueDate:due,expectedAmount:amount(q('#utilAmt')?.value)});
-        toast('Due-date reminder saved. No ledger entry was created.');refresh();
-      }catch(err){toast(err.message,false)}finally{reminder.disabled=false}
-      return;
-    }
-
-    const utility=e.target.closest('#saveUtility');
-    if(utility){
-      e.preventDefault();e.stopImmediatePropagation();
-      if(/credit card/i.test(q('#utilPay')?.value||'')){toast('Allocate a credit-card-paid utility inside Credit Cards when the card is being paid, so it is not counted twice.',false);return}
-      const amt=amount(q('#utilAmt')?.value),date=q('#utilDate')?.value||'',key=sourceKey(utility,'UTIL');
-      if(!(amt>0)||!date){toast('Enter payment date and amount.',false);return}
-      utility.disabled=true;
-      try{
-        const data=await request('POST',{action:'post_event',eventType:'UTILITY_PAYMENT',entity:entity(),date,sourceKey:key,reference:q('#utilRef')?.value||key,narration:(q('#utilType')?.value||'Utility')+' — '+(q('#utilLoc')?.value||''),amount:amt,expenseAccount:'6100',payAccount:payCode(q('#utilPay')?.value),meta:{billingMonth:q('#utilMonth')?.value||'',dueDate:q('#utilDue')?.value||'',location:q('#utilLoc')?.value||'',remarks:q('#utilRemarks')?.value||''}});
-        toast('Posted '+data.journal.id);clearSourceKey(utility);refresh();
-      }catch(err){toast(err.message,false)}finally{utility.disabled=false}
-      return;
-    }
-
-    const reimbursement=e.target.closest('#saveR');
-    if(reimbursement){
-      e.preventDefault();e.stopImmediatePropagation();
-      const person=q('#rPerson')?.value||'',amt=amount(q('#rAmt')?.value),date=q('#rDate')?.value||'',base=sourceKey(reimbursement,'REIMB'),expense=expenseCode(q('#rCat')?.value);
-      if(!(amt>0)||!date){toast('Enter expense date and amount.',false);return}
-      reimbursement.disabled=true;
-      try{
-        const cap=await request('POST',{action:'post_event',eventType:'EXPENSE_REIMBURSEMENT_CAPTURE',entity:entity(),date,sourceKey:base+'-CAP',reference:base,narration:(q('#rCat')?.value||'Business expense')+' paid personally by '+person,amount:amt,person,expenseAccount:expense});
-        let msg='Captured '+cap.journal.id;
-        if((q('#rNow')?.value||'yes')==='yes'){
-          const set=await request('POST',{action:'post_event',eventType:'EXPENSE_REIMBURSEMENT_SETTLE',entity:entity(),date:new Date().toISOString().slice(0,10),sourceKey:base+'-SET',reference:base,narration:'Reimburse '+person,amount:amt,person,payAccount:payCode(q('#rPay')?.value)});msg+=' · settled '+set.journal.id;
-        }
-        toast(msg);clearSourceKey(reimbursement);
-      }catch(err){toast(err.message,false)}finally{reimbursement.disabled=false}
-      return;
-    }
-
-    const card=e.target.closest('#saveCc');
-    if(card){
-      e.preventDefault();e.stopImmediatePropagation();installCardExpenseDatalist();
-      const total=amount(q('#ccTotal')?.value),date=q('#ccDate')?.value||'',key=sourceKey(card,'CARD');
-      const allocations=qa('.allocRow').map(r=>{
-        const kindText=r.querySelector('.ccKind')?.value||'Business Expense',a=amount(r.querySelector('.ccAmt')?.value),detail=r.querySelector('.ccDetail')?.value?.trim()||'';
-        const pm=kindText.match(/^(Salman|Talha|Abu|Tayyab)/i);
-        return pm?{kind:'PERSONAL',person:pm[1],amount:a,detail}:{kind:'BUSINESS',account:detail||'6900',amount:a,detail};
-      }).filter(x=>x.amount>0);
-      if(!(total>0)||!date){toast('Enter card payment date and amount.',false);return}
-      card.disabled=true;
-      try{
-        const data=await request('POST',{action:'post_event',eventType:'CREDIT_CARD_PAYMENT',entity:entity(),date,sourceKey:key,reference:q('#ccCard')?.value||key,narration:'Credit card payment — '+(q('#ccCard')?.value||''),amount:total,payAccount:payCode(q('#ccPay')?.value),allocations});
-        toast('Posted '+data.journal.id);clearSourceKey(card);
-      }catch(err){toast(err.message,false)}finally{card.disabled=false}
-      return;
-    }
+    if(!reminder)return;
+    e.preventDefault();e.stopImmediatePropagation();
+    const due=q('#utilDue')?.value||'';
+    if(!due){toast('Enter the due date first.',false);return}
+    reminder.disabled=true;
+    try{
+      await request('POST',{action:'save_reminder',entity:entity(),type:'Utility',label:(q('#utilType')?.value||'Utility')+' — '+(q('#utilLoc')?.value||''),dueDate:due,expectedAmount:amount(q('#utilAmt')?.value)});
+      toast('Due-date reminder saved. No ledger entry was created.');refresh();
+    }catch(err){toast(err.message,false)}finally{reminder.disabled=false}
   },true);
 
   const observer=new MutationObserver(()=>{qa('.jvAccount').forEach(x=>x.setAttribute('list','ttAccountList'));installCardExpenseDatalist();installUtilityReminderButton()});

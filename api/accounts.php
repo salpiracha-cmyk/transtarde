@@ -55,6 +55,7 @@ function accounts_store_default(): array {
         'revision' => 0,
         'journals' => [],
         'events' => [],
+        'postingIdentities' => [],
         'reminders' => [],
         'masters' => [
             'commodities' => (array)($master['commodities'] ?? []),
@@ -353,9 +354,18 @@ try {
         $meta = is_array($body['meta'] ?? null) ? $body['meta'] : [];
         $written = accounts_write_locked(function(array &$store) use ($user,$entity,$date,$eventType,$sourceKey,$reference,$narration,$lines,$meta) {
             $eventId = $entity.'|'.$eventType.'|'.$sourceKey;
-            if (isset($store['events'][$eventId])) accounts_respond(['ok'=>false,'error'=>'This source event has already been posted.','existing'=>$store['events'][$eventId]], 409);
-            $journal = accounts_post_journal_to_store($store,$user,$entity,$date,$eventType,$reference,$narration,$lines,array_merge($meta,['sourceKey'=>$sourceKey]),'AUTO');
-            $store['events'][$eventId] = ['id'=>$eventId,'entity'=>$entity,'eventType'=>$eventType,'sourceKey'=>$sourceKey,'journalId'=>$journal['id'],'postedAt'=>gmdate('c'),'postedBy'=>(string)($user['full_name'] ?? $user['username'] ?? 'Staff')];
+            $identityId = $entity.'|'.$sourceKey;
+            if (!isset($store['postingIdentities']) || !is_array($store['postingIdentities'])) $store['postingIdentities'] = [];
+            $existing = $store['postingIdentities'][$identityId] ?? $store['events'][$eventId] ?? null;
+            if (!is_array($existing)) {
+                foreach ((array)($store['events'] ?? []) as $priorEvent) {
+                    if (is_array($priorEvent) && ($priorEvent['entity'] ?? '') === $entity && ($priorEvent['sourceKey'] ?? '') === $sourceKey) { $existing = $priorEvent; break; }
+                }
+            }
+            if (is_array($existing)) accounts_respond(['ok'=>false,'error'=>'This source record has already created an Accounts posting.','existing'=>$existing], 409);
+            $journal = accounts_post_journal_to_store($store,$user,$entity,$date,$eventType,$reference,$narration,$lines,array_merge($meta,['sourceKey'=>$sourceKey,'postingIdentity'=>$identityId]),'AUTO');
+            $store['events'][$eventId] = ['id'=>$eventId,'entity'=>$entity,'eventType'=>$eventType,'sourceKey'=>$sourceKey,'postingIdentity'=>$identityId,'journalId'=>$journal['id'],'postedAt'=>gmdate('c'),'postedBy'=>(string)($user['full_name'] ?? $user['username'] ?? 'Staff')];
+            $store['postingIdentities'][$identityId] = $store['events'][$eventId];
             return ['event'=>$store['events'][$eventId],'journal'=>$journal];
         });
         accounts_respond(['ok'=>true,'event'=>$written['result']['event'],'journal'=>$written['result']['journal'],'revision'=>(int)$written['store']['revision']]);
