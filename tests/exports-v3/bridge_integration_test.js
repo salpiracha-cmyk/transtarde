@@ -26,7 +26,7 @@ const resolved=v=>({then(fn){try{const next=fn(v);return next&&typeof next.then=
 const posts=[];const context={window:{TT_MODULE_ACCESS:{csrf:'test',module:'Exports'},TRANSTRADE_SERVER_NOW_ISO:''},Storage,localStorage,document,XMLHttpRequest,console,fetch:(url,options)=>{posts.push(JSON.parse(options.body));return resolved({json:()=>resolved({ok:true,revision:1,keyVersion:1})})},setTimeout:()=>0,clearTimeout(){},setInterval:()=>0,addEventListener:(n,fn)=>listeners[n]=fn,location:{reload(){}}};
 context.window.localStorage=localStorage;context.window.document=document;context.window.Storage=Storage;context.globalThis=context;
 vm.runInNewContext(match[1],context,{filename:'shared-bridge.js'});
-listeners.DOMContentLoaded();
+assert.equal(listeners.DOMContentLoaded,undefined,'initial bridge must run before module application state loads');
 const directInstruction=JSON.parse(localStorage.getItem('tt30ship'))[0];
 directInstruction.containers=[{id:'C-1',container:'MSCU1234567',seal:'SL001',bags:1080,weight:27000,gate:'GP-9',truck:'TRK-1',date:'2026-09-08'},{id:'C-2',container:'MSCU7654321',seal:'SL002',bags:1080,weight:27000,gate:'GP-10',truck:'TRK-2',date:'2026-09-08'}];
 localStorage.setItem('tt30ship',JSON.stringify([directInstruction]));
