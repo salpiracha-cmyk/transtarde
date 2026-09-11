@@ -23,11 +23,17 @@ on:
       - 'exports/**'
       - 'milling/**'
       - 'module.php'
+      - 'module_release.php'
+      - '.htaccess'
+      - 'customer-contract-options.js'
+      - 'global-validation.js'
+      - 'milling-quality-identity.js'
       - 'api/**'
       - 'auth_store.php'
       - 'customer-master.js'
       - 'admin/app.js'
       - 'tests/**'
+      - '.github/workflows/milling-exports-qa.yml'
 
 permissions:
   contents: read
@@ -48,7 +54,7 @@ jobs:
           cp exports/index.html tests/exports-v3/index.html
           mkdir -p tests/exports-v3/assets tests/main/api
           cp exports/assets/* tests/exports-v3/assets/
-          cp module_release.php tests/main/module.php
+          cp module.php tests/main/module.php
           cp api/operations.mysql.php api/export_documents.php tests/main/api/
       - name: Install DOM test dependency
         run: npm install --no-save jsdom@27
@@ -68,6 +74,21 @@ jobs:
           node tests/exports-v3/v3_dummy_workflow_audit.js
           node tests/exports_v32_corrections_audit.js
           node tests/milling_container_audit.js
+      - name: Audit live release route
+        run: |
+          node <<'NODE'
+          const assert = require('node:assert/strict');
+          const fs = require('node:fs');
+          const htaccess = fs.readFileSync('.htaccess', 'utf8');
+          const release = fs.readFileSync('module_release.php', 'utf8');
+          const options = fs.readFileSync('customer-contract-options.js', 'utf8');
+          assert.match(htaccess, /RewriteRule \^module\\\.php\$ module_release\.php \[L\]/);
+          assert.match(release, /require __DIR__ \. '\/module\.php';/);
+          assert.match(release, /customer-contract-options\.js\?v=20260911-reports-1/);
+          assert.doesNotMatch(options, /enforceApprovedReports/);
+          assert.match(options, /function releaseDomTweaks\(\)\{hydrateEditor\(\)\}/);
+          console.log('Live release route and report compatibility audit passed.');
+          NODE
       - name: PHP syntax audit
         run: |
           php -l module.php
