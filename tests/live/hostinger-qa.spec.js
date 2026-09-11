@@ -257,6 +257,7 @@ test('manual Hostinger QA: Export instruction to Mill and container return', asy
   await masterData.click();
   await expect(page.locator('#ttCustomerMasterOverlay')).toBeVisible();
   const masterIcons = page.locator('[data-cm-master]');
+  await expect(masterIcons.first(), 'Master Data categories must finish loading').toBeVisible({ timeout: 20_000 });
   const masterCount = await masterIcons.count();
   expect(masterCount, 'Master Data categories must render').toBeGreaterThanOrEqual(8);
   for (let i = 0; i < masterCount; i += 1) {
