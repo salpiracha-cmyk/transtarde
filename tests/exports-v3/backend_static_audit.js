@@ -68,6 +68,7 @@ assert.match(js,/class="btn small red shipmentDeleteButton" data-delete-shipment
 assert.match(js,/Are you sure you want to delete this shipment\?/,'shipment deletion must require an explicit in-page confirmation');
 assert.match(js,/Yes — Delete Shipment/,'confirmation must require the user to press Yes before deletion');
 assert.match(js,/id="cuGDFile"/,'Customs must expose a Goods Declaration upload');
+assert.match(js,/MILL CONTAINER ACTUALS/,'Customs must visibly list the container and seal actuals returned by Milling');
 assert.match(js,/uploadDocument\(f,'goods-declaration',s\)/,'GD uploads must use protected document storage');
 assert.match(js,/gdRefsFingerprint/,'GD upload must stay bound to its saved GD number and date references');
 assert.match(js,/Goods Declaration \(GD\) file matching the saved GD number\(s\) and date\(s\)/,'final lot closure must require a matching GD file');
