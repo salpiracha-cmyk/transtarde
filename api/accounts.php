@@ -337,19 +337,7 @@ try {
     }
 
     if ($action === 'post_journal') {
-        $entity = accounts_validate_entity((string)($body['entity'] ?? ''));
-        accounts_require_entity_access($user, $entity, 'Create');
-        $date = accounts_valid_date((string)($body['date'] ?? ''));
-        $narration = trim((string)($body['narration'] ?? ''));
-        if ($narration === '') accounts_respond(['ok'=>false,'error'=>'Narration is required.'], 422);
-        $sourceType = trim((string)($body['sourceType'] ?? 'JV')) ?: 'JV';
-        $reference = trim((string)($body['reference'] ?? ''));
-        $meta = is_array($body['meta'] ?? null) ? $body['meta'] : [];
-        $rawLines = $body['lines'] ?? null;
-        $written = accounts_write_locked(function(array &$store) use ($user,$entity,$date,$narration,$sourceType,$reference,$meta,$rawLines) {
-            return accounts_post_journal_to_store($store,$user,$entity,$date,$sourceType,$reference,$narration,(array)$rawLines,$meta,'JV');
-        });
-        accounts_respond(['ok'=>true,'journal'=>$written['result'],'revision'=>(int)$written['store']['revision']]);
+        accounts_respond(['ok'=>false,'error'=>'Direct JV posting has been retired. Use the controlled JV Draft and Approval workflow.'], 410);
     }
 
     if ($action === 'post_event') {
