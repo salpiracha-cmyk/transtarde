@@ -10,7 +10,7 @@ async function signIn(page) {
   await page.goto(`${BASE_URL}/login.php`, { waitUntil: 'domcontentloaded', timeout: 30_000 });
   await page.getByLabel('Username').fill(QA_USERNAME);
   await page.getByLabel('Password').fill(QA_PASSWORD);
-  await page.getByRole('button', { name: 'Sign in' }).click({ force: true });
+  await activate(page.getByRole('button', { name: 'Sign in' }));
   await expect.poll(() => new URL(page.url()).pathname, { timeout: 30_000 }).not.toBe('/login.php');
   if (new URL(page.url()).pathname !== '/accounts/index.php') {
     await page.goto(`${BASE_URL}/accounts/index.php`, { waitUntil: 'domcontentloaded', timeout: 30_000 });
