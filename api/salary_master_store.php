@@ -4,7 +4,13 @@ declare(strict_types=1);
 // Salary Master is stored in the Accounts store so Accounts and the owner's
 // Master Records screen always edit the same records.
 function sm_file(): string { return TT_DATA_DIR . '/accounts.json'; }
-function sm_default_store(): array { return ['revision'=>0,'salaryMasters'=>[]]; }
+function sm_seed_masters(): array {
+    $path=dirname(__DIR__).'/accounts/salary_master_seed_v1.json';
+    if (!is_file($path)) return [];
+    $decoded=json_decode((string)file_get_contents($path),true);
+    return is_array($decoded['salaryMasters']??null)?$decoded['salaryMasters']:[];
+}
+function sm_default_store(): array { return ['revision'=>0,'salaryMasters'=>sm_seed_masters()]; }
 function sm_read_store(): array {
     tt_ensure_data_dir();
     if (!is_file(sm_file())) return sm_default_store();
