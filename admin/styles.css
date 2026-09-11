@@ -372,3 +372,103 @@ legend { margin-bottom: 10px; color: #445469; font-size: .79rem; font-weight: 75
 .master-editor-section .master-checks { grid-template-columns: repeat(3,minmax(0,1fr)); }
 @media (max-width: 800px) { .master-editor-section .master-checks { grid-template-columns: repeat(2,minmax(0,1fr)); } }
 @media (max-width: 520px) { .master-editor-section .master-checks { grid-template-columns: 1fr; } }
+
+
+/* Mobile Users & Permissions */
+@media (max-width: 800px) {
+  /* Keep the opened navigation above its dismiss overlay so mobile taps reach it. */
+  .sidebar,
+  .sidebar.open { z-index: 70; }
+
+  /* Present each user as a readable card instead of a desktop-width table. */
+  #view-users .table-panel,
+  #view-users .table-wrap { overflow: visible; }
+  #view-users table { display: block; white-space: normal; }
+  #view-users thead { display: none; }
+  #view-users tbody {
+    display: grid;
+    gap: 12px;
+    padding: 12px;
+  }
+  #view-users tbody tr {
+    display: grid;
+    overflow: hidden;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    background: #fff;
+    box-shadow: 0 6px 18px rgba(18, 43, 70, .06);
+  }
+  #view-users tbody tr:hover { background: #fff; }
+  #view-users tbody td {
+    display: grid;
+    grid-template-columns: minmax(104px, .7fr) minmax(0, 1fr);
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+    padding: 10px 12px;
+    border-bottom: 1px solid #edf1f5;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  #view-users tbody td:last-child { border-bottom: 0; }
+  #view-users tbody td::before {
+    color: var(--muted);
+    font-size: .68rem;
+    font-weight: 800;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+  }
+  #view-users tbody td:nth-child(1)::before { content: "User"; }
+  #view-users tbody td:nth-child(2)::before { content: "Role"; }
+  #view-users tbody td:nth-child(3)::before { content: "Module access"; }
+  #view-users tbody td:nth-child(4)::before { content: "Locations"; }
+  #view-users tbody td:nth-child(5)::before { content: "Status"; }
+  #view-users tbody td:nth-child(6)::before { content: "Last active"; }
+  #view-users tbody td:nth-child(7)::before { content: "Actions"; }
+  #view-users .user-cell,
+  #view-users .tag-row { min-width: 0; }
+  #view-users .row-actions {
+    min-width: 0;
+    flex-wrap: wrap;
+  }
+  #view-users .row-action {
+    min-height: 40px;
+    display: inline-flex;
+    align-items: center;
+  }
+
+  /* Keep user creation/editing usable inside a phone-height viewport. */
+  .modal {
+    max-height: calc(100dvh - 20px);
+    overflow-y: auto;
+  }
+  #userDialog .modal-actions {
+    position: sticky;
+    bottom: -22px;
+    z-index: 2;
+    flex-wrap: wrap;
+    padding-bottom: 4px;
+    background: #fff;
+  }
+}
+
+@media (max-width: 560px) {
+  #view-users tbody { padding: 10px; }
+  #view-users tbody td { grid-template-columns: 1fr; gap: 5px; }
+  #view-users .row-actions { width: 100%; }
+  #view-users .row-action { flex: 1 1 auto; justify-content: center; }
+
+  #userDialog form { padding: 16px; }
+  #userDialog .permission-module { min-width: 0; }
+  #userDialog .permission-module-head { align-items: flex-start; flex-wrap: wrap; }
+  #userDialog .permission-row {
+    min-width: 0;
+    grid-template-columns: minmax(122px, 1fr) repeat(3, 52px);
+  }
+  #userDialog .permission-row > * { padding: 8px 2px; }
+  #userDialog .permission-row > strong {
+    padding-left: 8px;
+    overflow-wrap: anywhere;
+  }
+  #userDialog .modal-actions { bottom: -16px; }
+}
