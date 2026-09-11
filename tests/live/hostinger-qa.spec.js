@@ -231,7 +231,7 @@ test('manual Hostinger QA: Export instruction to Mill and container return', asy
   }
 });
 
-test('automatic bulk QA: every Milling page plus 15 Arrivals and Pohanch records', async ({ page }, testInfo) => {
+test('automatic bulk QA: every Milling page plus 15 Arrivals and Pohanch records', async ({ page, browser }, testInfo) => {
   test.setTimeout(480_000);
   const suffix = RUN_ID.slice(-6);
   const pageErrors = [];
@@ -320,8 +320,24 @@ test('automatic bulk QA: every Milling page plus 15 Arrivals and Pohanch records
     await expect(page.locator('#pohanchFeedback')).toContainText('Pohanch saved');
   }
   for (const truck of trucks) await expect(page.locator('#unprintedSlips')).toContainText(truck);
-  await waitForSharedSave(page);
   await page.screenshot({ path: testInfo.outputPath('07-milling-15-pohanch.png'), fullPage: true });
+
+  // Verify persistence from a clean browser context, not the page's own localStorage cache.
+  await page.waitForTimeout(4_000);
+  const verifyContext = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+  const verifyPage = await verifyContext.newPage();
+  await signInQa(verifyPage);
+  await verifyPage.goto(`${BASE_URL}/module.php?id=milling`, { waitUntil: 'domcontentloaded' });
+  if (await verifyPage.locator('.mill-card').count()) {
+    await verifyPage.locator('.mill-card').filter({ hasText: /TTI Rice Mills/i }).first().click();
+  }
+  await verifyPage.locator(`[onclick="openPanel('queue')"]`).filter({ visible: true }).first().click();
+  for (const truck of trucks) await expect(verifyPage.locator('#queueTable')).toContainText(truck);
+  await verifyPage.locator('#queue .back').first().click();
+  await verifyPage.locator(`[onclick="openPanel('arrival')"]`).filter({ visible: true }).first().click();
+  for (const truck of trucks) await expect(verifyPage.locator('#unprintedSlips')).toContainText(truck);
+  await verifyPage.screenshot({ path: testInfo.outputPath('08-milling-shared-reload.png'), fullPage: true });
+  await verifyContext.close();
 
   expect(pageErrors, 'Milling pages must not throw JavaScript errors').toEqual([]);
 });
