@@ -26,6 +26,7 @@ jobs:
         run: |
           node tests/accounts-v1/rules_engine_test.js
           node tests/accounts-v1/salary_donations_test.js
+          node tests/accounts-v1/expenses_v1_test.js
           node tests/accounts-v1/static_audit.js
       - name: PHP syntax
         run: find . -path './.git' -prune -o -name '*.php' -print0 | xargs -0 -n1 php -l
