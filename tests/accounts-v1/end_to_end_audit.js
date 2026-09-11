@@ -12,8 +12,8 @@ for(const key of ['commodity','other'])assert.match(allUi,new RegExp('data-purch
 const secured=['api/accounts.php','api/donations.php','api/expenses_v1.php','api/journal_vouchers.php','api/other_purchases.php','api/rent_salary_v2.php','api/production_costing.php','api/production_fixed_overhead.php','api/export_accounting.php','api/accounts_workflows_v1.php'];
 for(const file of secured){const s=read(file);assert.match(s,/tt_require_login/,file+' login');assert.match(s,/tt_user_can_open_module/,file+' module access');assert.match(s,/tt_verify_csrf/,file+' CSRF');assert.match(s,/LOCK_EX/,file+' locked writes');assert.match(s,/tt_user_can_access_entity/,file+' entity access');}
 const reports=read('api/accounts_reports.php');
-assert.match(reports,/\(\$j\['entity'\]\?\?''\)===\$entity/);
-assert.match(reports,/\(\$j\['status'\]\?\?''\)==='Posted'/);
+assert.match(reports,/\(\$journal\['entity'\]\s*\?\?\s*''\)\s*===\s*\$entity/);
+assert.match(reports,/\(\$journal\['status'\]\s*\?\?\s*''\)\s*===\s*'Posted'/);
 assert.doesNotMatch(reports,/jvDrafts/,'draft JVs must never enter financial reports');
 
 const jv=read('api/journal_vouchers.php'),legacy=read('api/accounts.php');
