@@ -37,7 +37,7 @@
 
   const MASTER_TYPES = [
     {
-      id: "salary_staff", name: "Salary & Staff", description: "The owner's recurring Salary Master shared with Accounts. Keep only net salary or remuneration, Zakat and other recurring allowances here.",
+      id: "salary_staff", name: "Salary & Staff", description: "The owner's recurring Salary Master shared with Accounts. Keep only net salary or remuneration, Zakat and other recurring allowances here. Mill salaries belong to TTI only.",
       fields: [
         { label: "Staff / person name", required: true },
         { label: "Legal book", required: true, type: "select", options: ["TTI", "BRM"] },
@@ -759,11 +759,25 @@
     document.getElementById("masterDialogTitle").textContent = `${row ? "Edit" : "Add"} ${type.name}`;
     document.getElementById("masterDialogHelp").textContent = type.description + " Complete as much information as available; only the essential identity fields are mandatory.";
     document.getElementById("masterFormFields").innerHTML = masterFieldsHtml(type, row?.values || []);
-    if (type.id === "salary_staff") document.getElementById(masterInputId(2))?.addEventListener("change", event => {
-      const cat=event.target.value;
-      document.getElementById(masterInputId(8)).value=cat==="HOME_MONTHLY_GIVE"?"FAMILY_ALLOCATION":cat==="DIRECTOR_REMUNERATION"?"TO_CONFIRM":"STAFF_COST";
-      document.getElementById(masterInputId(9)).value=cat==="MILL_STAFF"?"Yes":"No";
-    });
+    if (type.id === "salary_staff") {
+      const legalBook=document.getElementById(masterInputId(1));
+      const salaryGroup=document.getElementById(masterInputId(2));
+      const syncSalaryEntity=()=>{
+        const isMill=salaryGroup?.value==="MILL_STAFF";
+        if (isMill && legalBook) legalBook.value="TTI";
+        if (legalBook) {
+          legalBook.disabled=isMill;
+          legalBook.title=isMill?"Mill salaries belong to TTI only.":"";
+        }
+      };
+      salaryGroup?.addEventListener("change", event => {
+        const cat=event.target.value;
+        document.getElementById(masterInputId(8)).value=cat==="HOME_MONTHLY_GIVE"?"FAMILY_ALLOCATION":cat==="DIRECTOR_REMUNERATION"?"TO_CONFIRM":"STAFF_COST";
+        document.getElementById(masterInputId(9)).value=cat==="MILL_STAFF"?"Yes":"No";
+        syncSalaryEntity();
+      });
+      syncSalaryEntity();
+    }
     document.getElementById("deleteMasterButton").hidden = !row || (type.id === "salary_staff" && String(row.values?.[10] || "Active") === "Inactive");
     document.getElementById("deleteMasterButton").textContent = type.id === "salary_staff" ? "Remove Staff" : "Delete Record";
     document.getElementById("saveMasterButton").textContent = row ? "Save Changes" : "Save Record";
