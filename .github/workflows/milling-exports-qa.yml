@@ -76,6 +76,7 @@ jobs:
           node tests/exports-v3/v3_dummy_workflow_audit.js
           node tests/exports_v32_corrections_audit.js
           node tests/milling_container_audit.js
+          node tests/master_data_topbar_audit.js
       - name: Audit live release route
         run: |
           node <<'NODE'
