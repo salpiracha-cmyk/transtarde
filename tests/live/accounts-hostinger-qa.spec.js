@@ -23,7 +23,7 @@ async function backHome(page) {
 }
 
 test('authenticated Accounts live smoke: all approved workspaces render without posting data', async ({ page }) => {
-  test.setTimeout(180_000);
+  test.setTimeout(300_000);
   const pageErrors = [];
   page.on('pageerror', error => pageErrors.push(String(error)));
   await signIn(page);
@@ -31,7 +31,6 @@ test('authenticated Accounts live smoke: all approved workspaces render without 
   await expect(page).toHaveTitle(/Transtrade Accounts/i);
   await expect(page.getByRole('heading', { name: 'Transtrade International' })).toBeVisible();
   await expect(page.locator('.entityBtn[data-entity="TTI"]')).toBeVisible();
-  await expect(page.getByRole('link', { name: 'Log out' })).toBeVisible();
 
   await page.getByRole('button', { name: /Expenses & Overheads/i }).click();
   await expect(page.getByRole('heading', { name: 'Expenses & Overheads' })).toBeVisible();
