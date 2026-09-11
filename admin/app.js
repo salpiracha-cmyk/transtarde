@@ -772,7 +772,7 @@
       };
       salaryGroup?.addEventListener("change", event => {
         const cat=event.target.value;
-        document.getElementById(masterInputId(8)).value=cat==="HOME_MONTHLY_GIVE"?"FAMILY_ALLOCATION":cat==="DIRECTOR_REMUNERATION"?"TO_CONFIRM":"STAFF_COST";
+        document.getElementById(masterInputId(8)).value=cat==="HOME_MONTHLY_GIVE"?"FAMILY_ALLOCATION":"STAFF_COST";
         document.getElementById(masterInputId(9)).value=cat==="MILL_STAFF"?"Yes":"No";
         syncSalaryEntity();
       });
