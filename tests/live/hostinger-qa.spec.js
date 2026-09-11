@@ -5,6 +5,8 @@ const BASE_URL = process.env.TRANSTRADE_BASE_URL || 'https://app.transtradeinter
 const QA_USERNAME = process.env.TRANSTRADE_QA_USERNAME;
 const QA_PASSWORD = process.env.TRANSTRADE_QA_PASSWORD;
 const RUN_ID = String(process.env.GITHUB_RUN_ID || Date.now());
+const RUN_ATTEMPT = String(process.env.GITHUB_RUN_ATTEMPT || '1');
+const RUN_TOKEN = `${RUN_ID}${RUN_ATTEMPT}`.replace(/\D/g, '');
 
 function isoContainer(prefix, serialNumber) {
   const values = {};
@@ -59,7 +61,7 @@ test('manual Hostinger QA: Export instruction to Mill and container return', asy
   test.setTimeout(300_000);
   const exportPageErrors = [];
   page.on('pageerror', error => exportPageErrors.push(String(error)));
-  const suffix = RUN_ID.slice(-8);
+  const suffix = RUN_TOKEN.slice(-8);
   const customerName = `QA GITHUB ${suffix}`;
   const customerCode = `Q${suffix.slice(-5)}`;
   const contractRef = `TTI/QA/GH-${suffix}`;
@@ -267,7 +269,7 @@ test('manual Hostinger QA: Export instruction to Mill and container return', asy
 
 test('automatic bulk QA: every Milling page plus 15 Arrivals and Pohanch records', async ({ page, browser }, testInfo) => {
   test.setTimeout(480_000);
-  const suffix = RUN_ID.slice(-6);
+  const suffix = RUN_TOKEN.slice(-6);
   const pageErrors = [];
   page.on('pageerror', error => pageErrors.push(String(error)));
   page.on('popup', async popup => popup.close().catch(() => {}));
