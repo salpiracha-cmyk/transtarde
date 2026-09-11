@@ -70,7 +70,7 @@ JS;
 }
 
 $releaseScripts='<script src="/global-validation.js?v=20260909-1"></script>';
-if($id==='exports')$releaseScripts.='<script src="/customer-contract-options.js?v=20260909-1"></script>';
+if($id==='exports')$releaseScripts.='<script src="/customer-contract-options.js?v=20260911-reports-1"></script>';
 if($id==='milling')$releaseScripts.='<script src="/milling-quality-identity.js?v=20260910-1"></script>';
 if(str_contains($html,'</body>'))$html=str_replace('</body>',$releaseScripts.'</body>',$html);else$html.=$releaseScripts;
 
