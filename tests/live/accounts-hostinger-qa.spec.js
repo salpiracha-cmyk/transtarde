@@ -17,7 +17,18 @@ async function signIn(page) {
     timeout: 30_000,
   });
   expect(signed.status(), 'QA login must succeed').toBe(200);
-  await page.goto(`${BASE_URL}/accounts/index.php`, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+  let lastError;
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    try {
+      await page.goto(`${BASE_URL}/accounts/index.php`, { waitUntil: 'domcontentloaded', timeout: 30_000 });
+      lastError = null;
+      break;
+    } catch (error) {
+      lastError = error;
+      if (attempt < 3) await page.waitForTimeout(1_000 * attempt);
+    }
+  }
+  if (lastError) throw lastError;
 }
 
 async function activate(locator) {
