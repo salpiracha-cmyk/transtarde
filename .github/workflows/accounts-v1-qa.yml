@@ -1,0 +1,30 @@
+name: Accounts V1 QA
+
+on:
+  push:
+    branches: [main, accounts-v1-foundation]
+    paths: ['accounts/**','api/**','auth_store.php','module.php','exports/**','admin/**','tests/accounts-v1/**','.github/workflows/accounts-v1-qa.yml']
+  pull_request:
+    paths: ['accounts/**','api/**','auth_store.php','module.php','exports/**','admin/**','tests/accounts-v1/**','.github/workflows/accounts-v1-qa.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  accounts-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: JavaScript and JSON syntax
+        run: |
+          find accounts exports admin tests/accounts-v1 -name '*.js' -print0 | xargs -0 -n1 node --check
+          node -e "JSON.parse(require('fs').readFileSync('accounts/accounting_master_v1.json','utf8'))"
+      - name: Accounts rule and control audits
+        run: |
+          node tests/accounts-v1/rules_engine_test.js
+          node tests/accounts-v1/static_audit.js
+      - name: PHP syntax
+        run: find . -path './.git' -prune -o -name '*.php' -print0 | xargs -0 -n1 php -l
