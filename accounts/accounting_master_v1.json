@@ -714,42 +714,58 @@
     {
       "code": "FAM-SALMAN",
       "name": "Salman — Personal / Family Allocation",
-      "parent": "3200"
+      "parent": "3200",
+      "class": "Equity",
+      "normal": "Debit"
     },
     {
       "code": "FAM-TALHA",
       "name": "Talha — Personal / Family Allocation",
-      "parent": "3200"
+      "parent": "3200",
+      "class": "Equity",
+      "normal": "Debit"
     },
     {
       "code": "FAM-ABU",
       "name": "Abu — Personal / Family Allocation",
-      "parent": "3200"
+      "parent": "3200",
+      "class": "Equity",
+      "normal": "Debit"
     },
     {
       "code": "FAM-TAYYAB",
       "name": "Tayyab — Personal / Family Allocation",
-      "parent": "3200"
+      "parent": "3200",
+      "class": "Equity",
+      "normal": "Debit"
     },
     {
       "code": "REIMB-SALMAN",
       "name": "Salman — Expense Reimbursement Payable",
-      "parent": "2150"
+      "parent": "2150",
+      "class": "Liability",
+      "normal": "Credit"
     },
     {
       "code": "REIMB-TALHA",
       "name": "Talha — Expense Reimbursement Payable",
-      "parent": "2150"
+      "parent": "2150",
+      "class": "Liability",
+      "normal": "Credit"
     },
     {
       "code": "REIMB-ABU",
       "name": "Abu — Expense Reimbursement Payable",
-      "parent": "2150"
+      "parent": "2150",
+      "class": "Liability",
+      "normal": "Credit"
     },
     {
       "code": "REIMB-TAYYAB",
       "name": "Tayyab — Expense Reimbursement Payable",
-      "parent": "2150"
+      "parent": "2150",
+      "class": "Liability",
+      "normal": "Credit"
     }
   ],
   "commodities": [
@@ -889,6 +905,12 @@
       "debit": "7210 Zakat, 7220 Sadqa or 7230 Fi Sabilillah",
       "credit": "selected bank/cash account",
       "rule": "Each donation category keeps a separate ledger and transaction history."
+    },
+    {
+      "event": "GENERAL_EXPENSE_PAYMENT",
+      "debit": "approved business expense",
+      "credit": "selected bank/cash account",
+      "rule": "Recognize and pay a direct Office, Mill or Other business expense once, on the payment date."
     }
   ],
   "closeControls": [
