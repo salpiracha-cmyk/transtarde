@@ -33,8 +33,7 @@
     addToggle(overlay.querySelector('#ttCCountry'),'Country','Country');addToggle(overlay.querySelector('#ttCEmail'),'Email','Email');addToggle(overlay.querySelector('#ttCPhone'),'Phone','Phone');addToggle(overlay.querySelector('#ttCTax'),'Tax','VAT / Tax / Registration');
     const row=cache.find(c=>String(c.name||'').toLowerCase()===String(name).toLowerCase())||localByName(name)||{};for(const k of ['Country','Email','Phone','Tax']){const el=overlay.querySelector('#ttShow'+k);if(el&&!el.dataset.hydrated){el.checked=bool(row['show'+k]);el.dataset.hydrated='1'}}
   }
-  function enforceApprovedReports(){document.querySelectorAll('[data-report]').forEach(el=>{if(!['fi','containers'].includes(String(el.dataset.report||'')))el.remove()})}
-  function releaseDomTweaks(){hydrateEditor();enforceApprovedReports()}
+  function releaseDomTweaks(){hydrateEditor()}
   new MutationObserver(releaseDomTweaks).observe(document.documentElement,{childList:true,subtree:true});
   addEventListener('DOMContentLoaded',async()=>{try{const r=await nativeFetch('/api/export_customers.php',{credentials:'same-origin'});remember(await r.json())}catch{}releaseDomTweaks()});
   const lotCompletionScript=document.createElement('script');
