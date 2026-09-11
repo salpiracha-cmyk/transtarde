@@ -80,6 +80,8 @@
     {"code":"6000","name":"OPERATING EXPENSES","class":"Expense","level":"heading","normal":"Debit","legacy":["EXPENSE","EXPENSES ACCOUNTS","GENERAL EXPENSES"]},
     {"code":"6100","name":"Utilities","class":"Expense","level":"control","normal":"Debit","subledger":true},
     {"code":"6200","name":"Salaries, Wages & Staff Costs","class":"Expense","level":"control","normal":"Debit","subledger":true},
+    {"code":"6210","name":"Net Salaries & Remuneration","class":"Expense","level":"general","normal":"Debit","subledger":true},
+    {"code":"6220","name":"Other Staff Allowances","class":"Expense","level":"general","normal":"Debit","subledger":true},
     {"code":"6300","name":"Rent & Occupancy","class":"Expense","level":"control","normal":"Debit","subledger":true},
     {"code":"6400","name":"Repairs & Maintenance","class":"Expense","level":"control","normal":"Debit","subledger":true},
     {"code":"6500","name":"Travel & Conveyance","class":"Expense","level":"control","normal":"Debit","subledger":true},
@@ -88,7 +90,11 @@
     {"code":"6800","name":"Bank & Finance Charges","class":"Expense","level":"control","normal":"Debit","subledger":true},
     {"code":"6900","name":"Office & General Administration","class":"Expense","level":"control","normal":"Debit","subledger":true},
     {"code":"6950","name":"Depreciation Expense","class":"Expense","level":"general","normal":"Debit","subledger":true},
-    {"code":"7100","name":"Foreign Exchange Gain / Loss","class":"Other","level":"control","normal":"Debit","subledger":true}
+    {"code":"7100","name":"Foreign Exchange Gain / Loss","class":"Other","level":"control","normal":"Debit","subledger":true},
+    {"code":"7200","name":"Donations","class":"Expense","level":"control","normal":"Debit","subledger":true},
+    {"code":"7210","name":"Zakat","class":"Expense","level":"general","normal":"Debit","subledger":true},
+    {"code":"7220","name":"Sadqa","class":"Expense","level":"general","normal":"Debit","subledger":true},
+    {"code":"7230","name":"Fi Sabilillah","class":"Expense","level":"general","normal":"Debit","subledger":true}
   ],
   "peopleSubledgers": [
     {"code":"FAM-SALMAN","name":"Salman — Personal / Family Allocation","parent":"3200"},
@@ -122,7 +128,9 @@
     {"event":"TG_INTERCOMPANY_PAKISTAN","debit":"intercompany receivable from TG","credit":"intercompany/export sales as approved","rule":"The intercompany price is explicitly entered/approved shipment-wise; never infer TG margin from customer price."},
     {"event":"TG_INTERCOMPANY_TG","debit":"TG inventory/purchase/COGS side as approved","credit":"intercompany payable to Pakistan entity","rule":"Mirror linkage uses the same intercompany reference while keeping books legally separate."},
     {"event":"BANK_TRANSFER","debit":"destination bank/cash","credit":"source bank/cash","rule":"Own-account transfer only; no income/expense."},
-    {"event":"FIXED_ASSET_PURCHASE","debit":"selected fixed-asset account","credit":"bank/cash/payable","rule":"Capitalization threshold and depreciation category come from approved Masters; the UI cannot force an expense treatment contrary to policy."}
+    {"event":"FIXED_ASSET_PURCHASE","debit":"selected fixed-asset account","credit":"bank/cash/payable","rule":"Capitalization threshold and depreciation category come from approved Masters; the UI cannot force an expense treatment contrary to policy."},
+    {"event":"SALARY_MONTHLY_ACCRUAL","debit":"6210 net salary/remuneration or approved family allocation; 7210 Zakat; 6220 other staff allowances","credit":"2140 salary payable","rule":"The recurring master contains only net salary/remuneration, Zakat and other recurring allowances. Salary advances are not used in this workflow."},
+    {"event":"DONATION_PAYMENT","debit":"7210 Zakat, 7220 Sadqa or 7230 Fi Sabilillah","credit":"selected bank/cash account","rule":"Each donation category keeps a separate ledger and transaction history."}
   ],
   "closeControls": [
     "Unbilled accepted commodity receipts / GRNI reconciled to Soda and Pohanch",

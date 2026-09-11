@@ -11,7 +11,9 @@ Salary records may be grouped as:
 - Director Remuneration
 - Home Monthly Give
 
-Each record keeps the name, monthly amount, start date, optional end date, category and notes.
+Each record keeps the name, legal entity, category, net monthly salary/remuneration, monthly Zakat, other recurring allowances, start date, optional end date and notes. These are the only recurring Salary Master amounts in the first live version.
+
+Accounts and the owner's Master Records screen edit the same Salary Master. Staff may be added, amended or removed from future Salary Sheets. Removing staff makes the record inactive and preserves prepared history.
 
 When an amount changes, Accounts enters the same person/category with the new amount and a new start date. Transtrade closes the older rate on the previous day. Old months are not overwritten.
 
@@ -23,17 +25,23 @@ When an amount changes, Accounts enters the same person/category with the new am
 
 The app title Director is an internal role/title. It does not by itself decide the legal or accounting treatment.
 
-## Salary advances and payments
-A payment made before the month is prepared is held as that person's advance for that month. When the month is prepared, the advance reduces the amount still payable.
+## Salary payments
+Salary advances are not used in this version. Accounts prepares the month first, then records payments against that month's exact outstanding salary balance. Payment can only use an enabled PKR company bank account or company cash.
 
-After the month is prepared, later payments reduce the exact outstanding salary balance. Payment can only use an enabled PKR company bank account or company cash.
-
-An advance for a month cannot exceed that month's salary amount.
+Net salary/remuneration, Zakat and other allowances remain separate in the Salary Sheet and journal detail. Zakat posts to the separate Zakat ledger.
 
 ## Monthly preparation
 Prepare Month records what is due for the selected month. It does not mean that the amount has been paid.
 
 If any salary item still needs an Accounts Treatment decision, Transtrade prepares the other valid items but clearly shows which item is still waiting.
+
+## Donations
+Donations appear under Expenses & Overheads and maintain three separate ledgers:
+- Zakat
+- Sadqa
+- Fi Sabilillah
+
+Salary-sheet Zakat and direct Zakat donations post to the Zakat ledger. Sadqa and Fi Sabilillah never mix into that ledger or into each other.
 
 ## Mill Rent Master
 Each rent record keeps:
