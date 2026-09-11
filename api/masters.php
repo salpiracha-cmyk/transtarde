@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require dirname(__DIR__) . '/auth_store.php';
+require __DIR__ . '/salary_master_store.php';
 header('Content-Type: application/json; charset=UTF-8');
 function master_respond(array $data,int $status=200): never { http_response_code($status); echo json_encode($data,JSON_UNESCAPED_SLASHES); exit; }
 function master_find_row(string $type,string $id): ?array {
@@ -12,25 +13,48 @@ function master_is_export_buyer(?array $row): bool {
     $values=is_array($row['values'] ?? null)?$row['values']:[];
     return (bool)preg_match('/\bbuyer\b/i',(string)($values[2] ?? ''));
 }
+function master_all(): array {
+    $masters=tt_list_masters();
+    $masters['salary_staff']=sm_master_rows();
+    return $masters;
+}
 try {
     $admin=tt_require_login();
     if (($admin['role'] ?? '')!=='Super Admin') master_respond(['ok'=>false,'error'=>'Super Admin access required.'],403);
-    if ($_SERVER['REQUEST_METHOD']==='GET') master_respond(['ok'=>true,'masters'=>tt_list_masters(),'options'=>tt_master_options()]);
+    if ($_SERVER['REQUEST_METHOD']==='GET') master_respond(['ok'=>true,'masters'=>master_all(),'options'=>tt_master_options()]);
     if ($_SERVER['REQUEST_METHOD']!=='POST') master_respond(['ok'=>false,'error'=>'Method not allowed.'],405);
     $body=json_decode(file_get_contents('php://input') ?: '{}',true);
     if (!is_array($body) || !tt_verify_csrf((string)($body['csrf'] ?? ''))) master_respond(['ok'=>false,'error'=>'Your session expired. Refresh and try again.'],419);
+
+    $type=(string)($body['type'] ?? '');
+    $action=(string)($body['action'] ?? ''); $id=trim((string)($body['id'] ?? ''));
+    if ($type==='salary_staff') {
+        if ($action==='delete') {
+            if ($id==='') throw new InvalidArgumentException('Select a staff record.');
+            sm_deactivate_master($id,$admin);
+            tt_audit((int)$admin['id'],$admin['username'],'Removed staff from active Salary Master '.$id);
+            master_respond(['ok'=>true,'masters'=>master_all(),'options'=>tt_master_options()]);
+        }
+        $values=$body['values']??null;
+        if (!is_array($values)) throw new InvalidArgumentException('Enter the Salary Master details.');
+        if ($action==='create') $id=sm_save_master($values,$admin);
+        elseif ($action==='update') {
+            if ($id==='') throw new InvalidArgumentException('Select a staff record.');
+            sm_save_master($values,$admin,$id);
+        } else master_respond(['ok'=>false,'error'=>'Unknown Salary Master action.'],400);
+        tt_audit((int)$admin['id'],$admin['username'],($action==='create'?'Created ':'Updated ').'Salary Master '.$id);
+        master_respond(['ok'=>true,'masters'=>master_all(),'options'=>tt_master_options()]);
+    }
 
     $schemas=[
         'companies'=>7,'commodities'=>8,'products'=>21,'purchase_kat'=>10,
         'parties'=>4,'mills'=>4,'banks'=>14,'export_documents'=>5,'export_terms'=>3,
     ];
-    $type=(string)($body['type'] ?? '');
     if (!isset($schemas[$type])) throw new InvalidArgumentException('Select a valid master section.');
-    $action=(string)($body['action'] ?? ''); $id=trim((string)($body['id'] ?? ''));
     if ($action==='add-party-role') {
         $role=tt_add_party_role_option((string)($body['role'] ?? ''));
         tt_audit((int)$admin['id'],$admin['username'],'Added Party Role '.$role);
-        master_respond(['ok'=>true,'masters'=>tt_list_masters(),'options'=>tt_master_options(),'role'=>$role]);
+        master_respond(['ok'=>true,'masters'=>master_all(),'options'=>tt_master_options(),'role'=>$role]);
     }
     if ($action==='delete') {
         if ($id==='') throw new InvalidArgumentException('Select a master record.');
@@ -38,7 +62,7 @@ try {
             throw new InvalidArgumentException('Export Buyer records are controlled by Customer Management so shipment history can be protected. Use CUSTOMER MANAGEMENT to amend, archive or delete this customer.');
         }
         tt_delete_master($type,$id); tt_audit((int)$admin['id'],$admin['username'],'Deleted '.$type.' master '.$id);
-        master_respond(['ok'=>true,'masters'=>tt_list_masters(),'options'=>tt_master_options()]);
+        master_respond(['ok'=>true,'masters'=>master_all(),'options'=>tt_master_options()]);
     }
 
     $raw=$body['values'] ?? null;
@@ -64,12 +88,12 @@ try {
     $reference=strtoupper(trim((string)($values[1] ?? ''))) ?: strtoupper($type);
     if ($action==='create') {
         $id=tt_create_master($type,$values); tt_audit((int)$admin['id'],$admin['username'],'Created '.$type.' master '.$reference);
-        master_respond(['ok'=>true,'masters'=>tt_list_masters(),'options'=>tt_master_options()]);
+        master_respond(['ok'=>true,'masters'=>master_all(),'options'=>tt_master_options()]);
     }
     if ($action==='update') {
         if ($id==='') throw new InvalidArgumentException('Select a master record.');
         tt_update_master($type,$id,$values); tt_audit((int)$admin['id'],$admin['username'],'Updated '.$type.' master '.$reference);
-        master_respond(['ok'=>true,'masters'=>tt_list_masters(),'options'=>tt_master_options()]);
+        master_respond(['ok'=>true,'masters'=>master_all(),'options'=>tt_master_options()]);
     }
     master_respond(['ok'=>false,'error'=>'Unknown action.'],400);
 } catch (InvalidArgumentException $e) { master_respond(['ok'=>false,'error'=>$e->getMessage()],422); }

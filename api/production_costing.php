@@ -26,6 +26,12 @@ function pc_can_write(array $user): bool {
     return false;
 }
 
+function pc_require_entity(array $user,string $entity,bool $write=false): void {
+    if (($user['role'] ?? '') === 'Super Admin') return;
+    $allowed=$write?(tt_user_can_access_entity($user,$entity,'Create')||tt_user_can_access_entity($user,$entity,'Edit')||tt_user_can_access_entity($user,$entity,'Approve')):tt_user_can_access_entity($user,$entity,'View');
+    if(!$allowed) pc_out(['ok'=>false,'error'=>'You do not have permission for this legal entity.'],403);
+}
+
 function pc_accounts_default(): array {
     return [
         'revision' => 0,
@@ -457,6 +463,8 @@ try {
         pc_out(['ok' => true, 'entity' => $entity, 'groups' => [], 'sourceCosts' => [], 'message' => 'Production stock costing is not used for TG.']);
     }
 
+    pc_require_entity($user,$entity,false);
+
     if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         $store = pc_read_accounts();
         $ops = pc_read_operations();
@@ -484,6 +492,7 @@ try {
 
         if ($action === 'save_byproduct_value') {
             $entity = pc_entity((string)($body['entity'] ?? ''));
+            pc_require_entity($user,$entity,true);
             $product = trim((string)($body['product'] ?? ''));
             if ($product === '') pc_out(['ok' => false, 'error' => 'By-product is required.'], 422);
             $effectiveFrom = pc_date((string)($body['effectiveFrom'] ?? ''));
@@ -506,6 +515,7 @@ try {
             $result = ['rateId' => $id];
         } elseif ($action === 'approve_rate') {
             $entity = pc_entity((string)($body['entity'] ?? ''));
+            pc_require_entity($user,$entity,true);
             if (($body['costsReviewed'] ?? false) !== true) pc_out(['ok' => false, 'error' => 'Confirm that Accounts checked the purchase and production-cost figures first.'], 422);
             $groupId = trim((string)($body['groupId'] ?? ''));
             $calc = pc_calculate($store, $ops, $entity);

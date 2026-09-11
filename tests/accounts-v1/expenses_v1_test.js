@@ -1,0 +1,28 @@
+'use strict';
+const fs=require('node:fs'),assert=require('node:assert/strict'),read=p=>fs.readFileSync(p,'utf8');
+const master=JSON.parse(read('accounts/accounting_master_v1.json')),api=read('api/expenses_v1.php'),ui=read('accounts/expenses-v1-ui.js'),index=read('accounts/index.php');
+const chart=Object.fromEntries(master.chart.map(x=>[String(x.code),x]));
+const utilityAccounts={ELECTRICITY:'6110',GAS:'6120',WATER:'6130',INTERNET:'6140',TELEPHONE_MOBILE:'6150',OTHER_UTILITY:'6190'};
+for(const [type,account] of Object.entries(utilityAccounts)){assert.ok(chart[account]);assert.equal(chart[account].class,'Expense');assert.match(api,new RegExp("'"+type+"'=>'"+account+"'"))}
+const people=new Set((master.peopleSubledgers||[]).map(x=>x.code));
+for(const code of ['FAM-SALMAN','FAM-TALHA','FAM-ABU','FAM-TAYYAB'])assert.ok(people.has(code));
+const journal=(debits,total)=>({debits,credit:{account:'1110',amount:total}});
+const utilityBusiness=journal([{account:utilityAccounts.ELECTRICITY,amount:125000}],125000);
+const utilityHome=journal([{account:'FAM-SALMAN',amount:18000}],18000);
+const card=journal([{account:'6900',amount:20000},{account:'6600',amount:15000},{account:'FAM-TALHA',amount:25000}],60000);
+for(const entry of [utilityBusiness,utilityHome,card])assert.equal(entry.debits.reduce((s,x)=>s+x.amount,0),entry.credit.amount);
+assert.equal(card.debits.filter(x=>x.account.startsWith('FAM-')).reduce((s,x)=>s+x.amount,0),25000);
+assert.match(api,/sourceType'=>\$source/);
+assert.match(api,/'UTILITY_PAYMENT'/);
+assert.match(api,/'CREDIT_CARD_PAYMENT'/);
+assert.match(api,/journalCreated'=>false/);
+assert.match(api,/Credit-card allocations must equal the full statement total/);
+assert.match(api,/Paid statements cannot be edited/);
+assert.match(api,/A statement already exists for this card and month/);
+assert.match(api,/tt_user_can_access_entity/);
+assert.match(api,/\['TTI','BRM','TG'\]/);
+assert.match(ui,/\.\.\/api\/expenses_v1\.php/);
+assert.match(ui,/No ledger entry is made until the statement is actually paid/);
+assert.match(ui,/FAM-SALMAN/);assert.match(ui,/FAM-TALHA/);assert.match(ui,/FAM-ABU/);assert.match(ui,/FAM-TAYYAB/);
+assert.match(index,/expenses-v1-ui\.js/);
+console.log('Utilities and Credit Cards deterministic QA passed.');

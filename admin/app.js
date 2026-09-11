@@ -37,6 +37,24 @@
 
   const MASTER_TYPES = [
     {
+      id: "salary_staff", name: "Salary & Staff", description: "The owner's recurring Salary Master shared with Accounts. Keep only net salary or remuneration, Zakat and other recurring allowances here. Mill salaries belong to TTI only.",
+      fields: [
+        { label: "Staff / person name", required: true },
+        { label: "Legal book", required: true, type: "select", options: ["TTI", "BRM"] },
+        { label: "Salary group", required: true, type: "select", options: ["MILL_STAFF", "OFFICE_STAFF", "HOME_STAFF", "DIRECTOR_REMUNERATION", "HOME_MONTHLY_GIVE"] },
+        { label: "Net salary / remuneration (Rs)", type: "number" },
+        { label: "Zakat (Rs)", type: "number" },
+        { label: "Other recurring allowances (Rs)", type: "number" },
+        { label: "Effective from", required: true, type: "date" },
+        { label: "Effective to", type: "date" },
+        { label: "Accounts treatment", required: true, type: "select", options: ["STAFF_COST", "FAMILY_ALLOCATION", "TO_CONFIRM"] },
+        { label: "Include in Mill production cost", type: "select", options: ["No", "Yes"] },
+        { label: "Status", type: "select", options: ["Active", "Inactive"] },
+        { label: "Notes", type: "textarea", full: true }
+      ],
+      rows: []
+    },
+    {
       id: "companies", name: "Companies", description: "Define what each legal/group company means to Transtrade, not only its name.",
       fields: [
         { label: "Legal company name", required: true }, { label: "Short code", required: true }, { label: "Country" },
@@ -620,6 +638,20 @@
   }
 
   function masterFieldsHtml(type, values = []) {
+    if (type.id === "salary_staff") {
+      const today = new Date().toISOString().slice(0, 10);
+      const v = [...values];
+      v[1] = v[1] || "TTI"; v[2] = v[2] || "MILL_STAFF"; v[6] = v[6] || today;
+      v[8] = v[8] || (v[2] === "HOME_MONTHLY_GIVE" ? "FAMILY_ALLOCATION" : v[2] === "DIRECTOR_REMUNERATION" ? "TO_CONFIRM" : "STAFF_COST");
+      v[9] = v[9] || (v[2] === "MILL_STAFF" ? "Yes" : "No"); v[10] = v[10] || "Active";
+      return type.fields.map((field, index) => {
+        const value=String(v[index]??""),full=field.full?" full-span":"";
+        if(field.type==="select") return `<label class="${full.trim()}">${escapeHtml(field.label)}<select id="${masterInputId(index)}" data-master-field-index="${index}" ${field.required?"required":""}>${field.options.map(option=>`<option value="${escapeHtml(option)}" ${option===value?"selected":""}>${escapeHtml(option.replaceAll("_"," "))}</option>`).join("")}</select></label>`;
+        if(field.type==="textarea") return `<label class="${full.trim()}">${escapeHtml(field.label)}<textarea id="${masterInputId(index)}" data-master-field-index="${index}" rows="3">${escapeHtml(value)}</textarea></label>`;
+        const inputType=["number","date"].includes(field.type)?field.type:"text",numberRules=inputType==="number"?' min="0" step="0.01"':"";
+        return `<label class="${full.trim()}">${escapeHtml(field.label)}<input type="${inputType}"${numberRules} id="${masterInputId(index)}" data-master-field-index="${index}" value="${escapeHtml(value)}" ${field.required?"required":""}></label>`;
+      }).join("");
+    }
     if (type.id === "companies") return companyMasterFieldsHtml(values);
     if (type.id === "commodities") return commodityMasterFieldsHtml(values);
     if (type.id === "parties") return partyMasterFieldsHtml(values);
@@ -640,7 +672,9 @@
       if (field.type === "textarea") {
         return `<label class="${full.trim()}">${escapeHtml(field.label)}<textarea id="${masterInputId(index)}" data-master-field-index="${index}" rows="3" ${field.required ? "required" : ""}>${escapeHtml(value)}</textarea></label>`;
       }
-      return `<label class="${full.trim()}">${escapeHtml(field.label)}<input id="${masterInputId(index)}" data-master-field-index="${index}" value="${escapeHtml(value)}" ${field.required ? "required" : ""} autocomplete="off"></label>`;
+      const inputType = ["number", "date"].includes(field.type) ? field.type : "text";
+      const numberRules = inputType === "number" ? ' min="0" step="0.01"' : "";
+      return `<label class="${full.trim()}">${escapeHtml(field.label)}<input type="${inputType}"${numberRules} id="${masterInputId(index)}" data-master-field-index="${index}" value="${escapeHtml(value)}" ${field.required ? "required" : ""} autocomplete="off"></label>`;
     }).join("");
   }
   function masterValuesFromForm(type) {
@@ -693,6 +727,7 @@
     return type.fields.map((_, index) => index).slice(0, 5);
   }
   function masterRowStatus(type, row) {
+    if (type.id === "salary_staff") return String(row.values?.[10] || "Active");
     if (type.id === "products") {
       const profile = String(row.values?.[5] || "");
       if (/inactive|reference/i.test(profile)) return profile;
@@ -709,7 +744,7 @@
     const type = masterType();
     document.getElementById("masterTitle").textContent = type.name;
     document.getElementById("masterDescription").textContent = type.description;
-    document.getElementById("addMasterRecord").textContent = `+ Add ${type.id === "purchase_kat" ? "KAT Rule" : type.id === "companies" ? "Company" : type.id === "commodities" ? "Commodity" : type.id === "products" ? "Product" : "Record"}`;
+    document.getElementById("addMasterRecord").textContent = `+ Add ${type.id === "salary_staff" ? "Staff" : type.id === "purchase_kat" ? "KAT Rule" : type.id === "companies" ? "Company" : type.id === "commodities" ? "Commodity" : type.id === "products" ? "Product" : "Record"}`;
     const columns = displayColumns(type);
     document.getElementById("masterTableHead").innerHTML = `<tr>${columns.map(index => `<th>${escapeHtml(type.fields[index].label)}</th>`).join("")}<th>Status</th><th>Actions</th></tr>`;
     const query = document.getElementById("masterSearch")?.value.toLowerCase() || "";
@@ -724,7 +759,27 @@
     document.getElementById("masterDialogTitle").textContent = `${row ? "Edit" : "Add"} ${type.name}`;
     document.getElementById("masterDialogHelp").textContent = type.description + " Complete as much information as available; only the essential identity fields are mandatory.";
     document.getElementById("masterFormFields").innerHTML = masterFieldsHtml(type, row?.values || []);
-    document.getElementById("deleteMasterButton").hidden = !row;
+    if (type.id === "salary_staff") {
+      const legalBook=document.getElementById(masterInputId(1));
+      const salaryGroup=document.getElementById(masterInputId(2));
+      const syncSalaryEntity=()=>{
+        const isMill=salaryGroup?.value==="MILL_STAFF";
+        if (isMill && legalBook) legalBook.value="TTI";
+        if (legalBook) {
+          legalBook.disabled=isMill;
+          legalBook.title=isMill?"Mill salaries belong to TTI only.":"";
+        }
+      };
+      salaryGroup?.addEventListener("change", event => {
+        const cat=event.target.value;
+        document.getElementById(masterInputId(8)).value=cat==="HOME_MONTHLY_GIVE"?"FAMILY_ALLOCATION":"STAFF_COST";
+        document.getElementById(masterInputId(9)).value=cat==="MILL_STAFF"?"Yes":"No";
+        syncSalaryEntity();
+      });
+      syncSalaryEntity();
+    }
+    document.getElementById("deleteMasterButton").hidden = !row || (type.id === "salary_staff" && String(row.values?.[10] || "Active") === "Inactive");
+    document.getElementById("deleteMasterButton").textContent = type.id === "salary_staff" ? "Remove Staff" : "Delete Record";
     document.getElementById("saveMasterButton").textContent = row ? "Save Changes" : "Save Record";
     document.getElementById("masterDialog").showModal();
   }
@@ -747,8 +802,9 @@
   async function deleteMasterRecord(selectedId) {
     const id = String(selectedId || document.getElementById("editMasterId").value);
     const row = (state.masters[currentMaster] || []).find(item => item.id === id); if (!row) return;
-    if (!window.confirm(`Delete ${row.values[0]} from ${masterType().name}?`)) return;
-    try { const data = await apiRequest({ action: "delete", type: currentMaster, id }, "masters"); state.masters = ensureMasterSections(data.masters); saveState(); renderMasters(); document.getElementById("masterDialog").close(); toast("Master record deleted."); }
+    const removingStaff=currentMaster==="salary_staff";
+    if (!window.confirm(`${removingStaff ? "Remove" : "Delete"} ${row.values[0]} ${removingStaff ? "from future Salary Sheets" : `from ${masterType().name}`}?`)) return;
+    try { const data = await apiRequest({ action: "delete", type: currentMaster, id }, "masters"); state.masters = ensureMasterSections(data.masters); saveState(); renderMasters(); document.getElementById("masterDialog").close(); toast(removingStaff ? "Staff removed from future Salary Sheets." : "Master record deleted."); }
     catch (error) { toast(error.message); }
   }
 

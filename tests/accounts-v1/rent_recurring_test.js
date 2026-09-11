@@ -1,0 +1,41 @@
+'use strict';
+const fs=require('node:fs'),assert=require('node:assert/strict'),read=p=>fs.readFileSync(p,'utf8');
+const api=read('api/rent_salary_v2.php'),ui=read('accounts/rent-salary-ui.js'),master=JSON.parse(read('accounts/accounting_master_v1.json')),index=read('accounts/index.php');
+const chart=Object.fromEntries(master.chart.map(x=>[String(x.code),x]));
+assert.equal(chart['6300'].class,'Expense');
+assert.equal(chart['1400'].class,'Asset');
+assert.equal(chart['2140'].class,'Liability');
+
+const monthsFor=p=>p==='Quarterly'?3:p==='Twice-Yearly'?6:1;
+assert.equal(monthsFor('Monthly'),1);
+assert.equal(monthsFor('Quarterly'),3);
+assert.equal(monthsFor('Twice-Yearly'),6);
+const monthly=125000;
+assert.equal(monthly*monthsFor('Quarterly'),375000);
+assert.equal(monthly*monthsFor('Twice-Yearly'),750000);
+
+const monthlyAccrual={debit:{account:'6300',amount:monthly},credit:{account:'2140',amount:monthly}};
+const advanceQuarter={debit:{account:'1400',amount:375000},credit:{account:'1110',amount:375000}};
+const usePrepayment={debit:{account:'6300',amount:monthly},credit:{account:'1400',amount:monthly}};
+for(const j of [monthlyAccrual,advanceQuarter,usePrepayment])assert.equal(j.debit.amount,j.credit.amount);
+
+assert.match(api,/rsv2_pattern_months/);
+assert.match(api,/'Quarterly'=>3/);
+assert.match(api,/'Half-Yearly','Twice-Yearly'=>6/);
+assert.match(api,/rentReminders/);
+assert.match(api,/firstPaymentMonth/);
+assert.match(api,/dueDay/);
+assert.match(api,/update_rent_master/);
+assert.match(api,/deactivate_rent_master/);
+assert.match(api,/This rent master already exists/);
+assert.match(api,/tt_user_can_access_entity/);
+assert.match(api,/RENT_MONTHLY_ACCRUAL/);
+assert.match(api,/RENT_PAYMENT/);
+assert.match(api,/prepaidRent/);
+assert.match(ui,/Scheduled Rent Payments/);
+assert.match(ui,/reminders only/);
+assert.match(ui,/First Payment Month/);
+assert.match(ui,/data-rs-rentdue/);
+assert.match(ui,/Past prepared months and payments will remain unchanged/);
+assert.match(index,/rent-salary-ui\.js\?v=20260911-3/);
+console.log('Rent and Recurring Payments deterministic QA passed.');
