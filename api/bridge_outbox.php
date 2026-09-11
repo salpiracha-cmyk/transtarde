@@ -155,9 +155,30 @@ try {
         $written = bo_read_locked(LOCK_EX, function(array &$store) use ($user, $key, $kind, $body, $module, $entity, $fingerprint): array {
             $old = $store['bridgeOutbox'][$key] ?? null;
             if (is_array($old)) {
-                if (!hash_equals((string)($old['fingerprint'] ?? ''), $fingerprint)) {
-                    bo_out(['ok' => false, 'error' => 'This bridge key already belongs to different source data.'], 409);
+                if (hash_equals((string)($old['fingerprint'] ?? ''), $fingerprint)) {
+                    return $old;
                 }
+                $history = is_array($old['versions'] ?? null) ? $old['versions'] : [];
+                $history[] = [
+                    'fingerprint' => (string)($old['fingerprint'] ?? ''),
+                    'body' => is_array($old['body'] ?? null) ? $old['body'] : [],
+                    'status' => (string)($old['status'] ?? 'Pending'),
+                    'postedAt' => (string)($old['postedAt'] ?? ''),
+                    'result' => is_array($old['result'] ?? null) ? $old['result'] : [],
+                    'supersededAt' => gmdate('c'),
+                ];
+                $old['kind'] = $kind;
+                $old['body'] = $body;
+                $old['module'] = $module;
+                $old['entity'] = $entity;
+                $old['status'] = 'Pending';
+                $old['tries'] = 0;
+                $old['lastError'] = '';
+                $old['fingerprint'] = $fingerprint;
+                $old['versions'] = $history;
+                $old['updatedAt'] = gmdate('c');
+                unset($old['postedAt'], $old['postedBy'], $old['result']);
+                $store['bridgeOutbox'][$key] = $old;
                 return $old;
             }
             $item = [
