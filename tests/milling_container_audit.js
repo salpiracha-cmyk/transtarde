@@ -24,4 +24,5 @@ const syncBody=html.slice(syncStart,syncEnd);
 assert.doesNotMatch(syncBody,/set\(STORE_EXPORTSYNC/,'new container saves must use one canonical tt30ship write, not a second partial Export-sync write');
 assert.match(html,/if\(containerCommitPending\)\{const pending=containerCommitPending;containerCommitPending=null;currentShipment=pending\.s\.id;editingContainerId=pending\.c\.id/,'a failed shared save must reopen the same stable record for correction and full validation');
 assert.match(html,/RETRY OR CORRECT CONTAINER SAVE/,'the operator must be told that the pending record can be corrected');
+assert.match(html,/SHIPMENT: \$\{escHtml\(x\._ttShipmentId[\s\S]{0,300}CONTRACT: \$\{escHtml\(x\.contractRef[\s\S]{0,300}LOT: \$\{escHtml\(x\.ref/,'selected Milling loading instructions must show the exact shipment, contract, and lot identity');
 console.log('PASS milling container audit: ISO identity, canonical persistence, and failed-save correction are enforced');
