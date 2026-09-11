@@ -135,8 +135,9 @@ $sharedBootstrap = <<<'HTML'
   window.TT_SHARED_SYNC={flush,saveNow,refresh:refreshNow,bridge,poll:checkInbound};
   // Permanent rule: only explicit application actions save. Inbound checks are read-only and run when staff return to a tab.
   // Remote changes are staged locally and shown through the top update notice; applying them reloads only after shared writes finish.
-  // Reconcile cross-module data before either application reads its in-memory state.
-  bridge();
+  // Exports must reconcile Mill actuals before app.js reads state. Milling must finish its legacy startup first,
+  // otherwise that startup can overwrite newly delivered Loading Instructions.
+  if(access.moduleId==='exports')bridge();else addEventListener('DOMContentLoaded',()=>{bridge()});
   addEventListener('focus',checkInbound);
   document.addEventListener('visibilitychange',()=>{if(!document.hidden)checkInbound()});
   addEventListener('pagehide',flush);
