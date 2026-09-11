@@ -39,8 +39,8 @@ test('authenticated Accounts live smoke: all approved workspaces render without 
 
   await activate(page.getByRole('button', { name: /Expenses & Overheads/i }));
   await expect(page.getByRole('heading', { name: 'Expenses & Overheads' })).toBeVisible();
-  for (const label of ['Utilities & Bills', 'Credit Cards', 'Rent & Recurring', 'Salaries & Staff', 'Donations', 'Reimburse Someone', 'Office / Mill Expense']) {
-    await expect(page.getByRole('button', { name: new RegExp(label, 'i') })).toBeVisible();
+  for (const key of ['utility', 'card', 'rent', 'salary', 'donations', 'reimburse', 'general']) {
+    await expect(page.locator(`[data-expense="${key}"]`), `${key} expense control must be visible`).toBeVisible();
   }
 
   await activate(page.getByRole('button', { name: /Expenses & Overheads/i }));
