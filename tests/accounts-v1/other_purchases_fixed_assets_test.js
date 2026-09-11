@@ -31,5 +31,5 @@ assert.match(ui,/Fixed Asset Register/);
 assert.match(ui,/Unique Asset Tag/);
 assert.match(ui,/No depreciation is posted merely by adding an asset/);
 assert.match(ui,/data-purchase="other"/);
-assert.match(index,/other-purchases-ui\.js\?v=20260911-2/);
+assert.match(index,/other-purchases-ui\.js\?v=20260911-3/);
 console.log('Other Purchases and Fixed Assets deterministic QA passed.');
