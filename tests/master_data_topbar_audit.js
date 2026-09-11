@@ -6,7 +6,8 @@ const customerMaster=fs.readFileSync(__dirname+'/../customer-master.js','utf8');
 const exportIndex=fs.readFileSync(__dirname+'/../exports/index.html','utf8');
 const milling=fs.readFileSync(__dirname+'/../milling/Transtrade_Master_Milling_V3_3_2_AUDITED.html','utf8');
 
-assert.match(modulePhp,/master\.id='ttMasterTop'/,'operational header creates one Master Data button');
+assert.match(modulePhp,/getElementById\('ttMasterTop'\)\|\|document\.getElementById\('masterTop'\)/,'shared header reuses the existing Exports Master Data button');
+assert.match(modulePhp,/master\.id='ttMasterTop'/,'operational header normalizes one Master Data button');
 assert.match(modulePhp,/master\.textContent='M'/,'Master Data button is the requested bold M');
 assert.doesNotMatch(modulePhp,/master\.dataset\.homeRole='admin-only'/,'M remains visible to ordinary module users');
 assert.match(modulePhp,/top\.insertBefore\(master,date\)/,'M is fixed immediately before the header date');
