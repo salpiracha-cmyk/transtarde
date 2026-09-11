@@ -19,8 +19,11 @@
       ["tg","TG Documents"],["lcdraft","L/C Exchange Draft"],["print","Document Output"],["history","History & Versions"]
     ],
     Accounts: [
-      ["dashboard","Accounts Dashboard"],["vouchers","Vouchers"],["payments","Payments & Receipts"],["ledgers","Party Ledgers"],
-      ["banking","Banking"],["receivables","Receivables"],["payables","Payables"],["expenses","Expenses"],["reports","Reports"]
+      ["entity-tti","Legal Book · TTI"],["entity-brm","Legal Book · BRM"],["entity-tg","Legal Book · TG"],
+      ["dashboard","Needs Attention / Dashboard"],["purchases","Purchases / Sodas"],["due","Due Date Report"],
+      ["supplier","Supplier Ledgers & Payments"],["customer","Customer Ledgers & Receipts"],["expenses","Expenses & Overheads"],
+      ["transport","Transport"],["freight","Freight"],["services","Export Service Bills"],["cashbank","Cash & Bank"],
+      ["jv","Journal Voucher"],["reconciliation","Reconciliation"],["tg","TG / Intercompany"],["reports","Reports"],["masters","Accounts Masters"]
     ]
   };
   const SESSION = window.TT_SESSION || { name: "Salman", username: "salman", role: "Super Admin", permissions: { Mill: "all", Exports: "all", Accounts: "all", Directors: "all" }, csrf: "" };
@@ -323,8 +326,8 @@
   function permissionMatrix(permissions = {}) {
     return Object.entries(MODULE_ICONS).map(([module,icons]) => `<section class="permission-module">
       <div class="permission-module-head"><strong>${module}</strong><label><input type="checkbox" data-select-module="${module}"> Select all ${module}</label></div>
-      <div class="permission-row header"><strong>Icon / Screen</strong>${ICON_ACTIONS.map(action=>`<span>${action}</span>`).join("")}</div>
-      ${icons.map(([id,label])=>`<div class="permission-row"><strong>${label}</strong>${ICON_ACTIONS.map(action=>`<label title="${module} · ${label} · ${action}"><input type="checkbox" data-permission-module="${module}" data-permission-icon="${id}" value="${action}" ${permissionChecked(permissions,module,id,action)?"checked":""}></label>`).join("")}</div>`).join("")}
+      <div class="permission-row header"><strong>Icon / Screen</strong>${(module==="Accounts"?["View","Create","Edit","Approve","Reports"]:ICON_ACTIONS).map(action=>`<span>${action}</span>`).join("")}</div>
+      ${icons.map(([id,label])=>`<div class="permission-row"><strong>${label}</strong>${(module==="Accounts"?["View","Create","Edit","Approve","Reports"]:ICON_ACTIONS).map(action=>`<label title="${module} · ${label} · ${action}"><input type="checkbox" data-permission-module="${module}" data-permission-icon="${id}" value="${action}" ${permissionChecked(permissions,module,id,action)?"checked":""}></label>`).join("")}</div>`).join("")}
     </section>`).join("");
   }
   function openUserDialog(userId) {
