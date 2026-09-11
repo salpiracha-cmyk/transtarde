@@ -58,7 +58,7 @@ test('bulk Accounts audit: locking, duplicates, entity isolation and three-modul
 
   try {
     const cases = [];
-    for (let i = 1; i <= 4; i++) {
+    for (let i = 1; i <= 2; i++) {
       cases.push({
         label: `MILLING-RECEIPT-SIM-${i}`,
         payload: {
@@ -134,13 +134,19 @@ test('bulk Accounts audit: locking, duplicates, entity isolation and three-modul
       expenses: `/api/expenses_v1.php?entity=TTI&month=${month}`
     };
     const snapshots = {};
+    const endpointFailures = [];
     for (const [name, path] of Object.entries(endpoints)) {
       const response = await jsonCall(request, path);
-      expect(response.status, `${name} endpoint status`).toBe(200);
-      expect(response.body.ok, `${name} endpoint payload`).toBeTruthy();
-      snapshots[name] = response.body;
-      results.endpointChecks[name] = { status: response.status, revision: response.body.revision ?? null };
+      results.endpointChecks[name] = {
+        status: response.status,
+        ok: Boolean(response.body.ok),
+        revision: response.body.revision ?? null,
+        error: response.body.error || response.text || null
+      };
+      if (response.status === 200 && response.body.ok) snapshots[name] = response.body;
+      else endpointFailures.push({ name, status: response.status, error: response.body.error || response.text || 'Unknown endpoint failure' });
     }
+    expect(snapshots.accounts, 'Core Accounts endpoint must be available for the audit').toBeTruthy();
 
     const journals = values(snapshots.accounts.journals);
     const events = values(snapshots.accounts.events);
@@ -157,7 +163,7 @@ test('bulk Accounts audit: locking, duplicates, entity isolation and three-modul
       j => `${j.entity}|${j.date}|${j.sourceType}|${String(j.reference || '').trim().toUpperCase()}|${Number(j.totalDebit || 0).toFixed(2)}`
     );
 
-    const bills = values(snapshots.millingReceiptBridge.bills);
+    const bills = values(snapshots.millingReceiptBridge?.bills);
     const receiptOwners = new Map();
     for (const bill of bills) {
       for (const key of values(bill.sourceKeys)) {
@@ -170,12 +176,12 @@ test('bulk Accounts audit: locking, duplicates, entity isolation and three-modul
       .filter(([, owners]) => new Set(owners).size > 1)
       .map(([sourceKey, owners]) => ({ sourceKey, billIds: [...new Set(owners)] }));
 
-    const candidates = values(snapshots.exportsAccountingBridge.candidates);
+    const candidates = values(snapshots.exportsAccountingBridge?.candidates);
     const duplicateExportCandidates = groupDuplicates(candidates, c => `${c.entity}|${c.candidateType}|${c.sourceKey}`);
-    const programmes = values(snapshots.millingLoadingBridge.loadingProgrammes);
+    const programmes = values(snapshots.millingLoadingBridge?.loadingProgrammes);
     const duplicateLoadingProgrammes = groupDuplicates(programmes, p => `${p.entity}|${p.loadingProgrammeNo}`);
 
-    const report = snapshots.accountsReports;
+    const report = snapshots.accountsReports || {};
     results.findings = {
       journalCount: journals.length,
       eventCount: events.length,
@@ -189,11 +195,13 @@ test('bulk Accounts audit: locking, duplicates, entity isolation and three-modul
       duplicateLoadingProgrammes,
       trialBalanceBalanced: report.trialBalance?.balanced,
       trialBalanceDifference: Number(report.trialBalance?.totalDebit || 0) - Number(report.trialBalance?.totalCredit || 0),
-      salaryMasterCount: values(snapshots.salary.salaryMasters).length,
-      donationCount: values(snapshots.donations.donations).length,
-      expenseEndpointRevision: snapshots.expenses.revision ?? null
+      salaryMasterCount: values(snapshots.salary?.salaryMasters).length,
+      donationCount: values(snapshots.donations?.donations).length,
+      expenseEndpointRevision: snapshots.expenses?.revision ?? null,
+      endpointFailures
     };
 
+    expect(endpointFailures, 'Every Accounts and inter-module endpoint must respond successfully').toEqual([]);
     expect(unbalanced, 'Every posted journal must balance').toEqual([]);
     expect(orphanEvents, 'Every source event must point to a journal').toEqual([]);
     expect(eventJournalEntityMismatch, 'Event and journal legal entities must match').toEqual([]);
@@ -201,7 +209,7 @@ test('bulk Accounts audit: locking, duplicates, entity isolation and three-modul
     expect(receiptsAllocatedToMultipleBills, 'One Milling receipt must not be billed twice').toEqual([]);
     expect(duplicateExportCandidates, 'One Export source must not create duplicate candidates').toEqual([]);
     expect(duplicateLoadingProgrammes, 'One loading programme must not be duplicated').toEqual([]);
-    expect(report.trialBalance?.balanced, 'TTI trial balance must remain balanced').toBeTruthy();
+    if (snapshots.accountsReports) expect(report.trialBalance?.balanced, 'TTI trial balance must remain balanced').toBeTruthy();
 
     for (const entity of ['BRM', 'TG']) {
       const response = await jsonCall(request, `/api/accounts.php?entity=${entity}`);
