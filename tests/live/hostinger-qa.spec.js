@@ -132,6 +132,10 @@ test('manual Hostinger QA: Export instruction to Mill and container return', asy
   await expect(page.getByText('APPROVED ON UPLOAD')).toBeVisible({ timeout: 30_000 });
   await page.locator('#generatePO').click();
   await waitForSharedSave(page);
+  const poPrintModal = page.locator('.modalBackdrop').filter({ hasText: /Print \/ Save/i }).last();
+  await expect(poPrintModal, 'Bag PO print preview must open after the explicit save').toBeVisible();
+  await poPrintModal.locator('[data-modal-close]').first().click();
+  await expect(poPrintModal).toHaveCount(0);
 
   await page.locator('[data-workspace="production"]').click();
   await page.locator('#sendPI').click();
