@@ -1,0 +1,72 @@
+name: Accounts Bulk Dummy Audit
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'tests/live/accounts-bulk-hostinger-qa.spec.js'
+      - '.github/workflows/accounts-bulk-audit.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: accounts-bulk-dummy-audit
+  cancel-in-progress: false
+
+jobs:
+  repository-and-live-audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: live-qa
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify QA secrets
+        env:
+          QA_USERNAME: ${{ secrets.TRANSTRADE_QA_USERNAME }}
+          QA_PASSWORD: ${{ secrets.TRANSTRADE_QA_PASSWORD }}
+        run: |
+          test -n "$QA_USERNAME" || { echo "Missing TRANSTRADE_QA_USERNAME"; exit 1; }
+          test -n "$QA_PASSWORD" || { echo "Missing TRANSTRADE_QA_PASSWORD"; exit 1; }
+      - name: PHP syntax check
+        run: find api accounts -name '*.php' -print0 | xargs -0 -n1 php -l
+      - name: Existing Accounts rule suite
+        run: |
+          for test_file in tests/accounts-v1/*.js; do
+            node "$test_file"
+          done
+      - name: Install isolated browser test runtime
+        run: |
+          npm install --no-save @playwright/test@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Wait for Hostinger deployment
+        run: |
+          sleep 90
+          for attempt in 1 2 3 4 5 6; do
+            if curl --fail --silent --show-error --max-time 20 --output /dev/null https://app.transtradeinternational.com/login.php; then
+              exit 0
+            fi
+            sleep 15
+          done
+          echo "Hostinger did not become reachable"
+          exit 1
+      - name: Run bulk dummy posting and connectivity audit
+        env:
+          TRANSTRADE_BASE_URL: https://app.transtradeinternational.com
+          TRANSTRADE_QA_USERNAME: ${{ secrets.TRANSTRADE_QA_USERNAME }}
+          TRANSTRADE_QA_PASSWORD: ${{ secrets.TRANSTRADE_QA_PASSWORD }}
+          PLAYWRIGHT_HTML_OPEN: never
+        run: npx playwright test tests/live/accounts-bulk-hostinger-qa.spec.js --reporter=line,html
+      - name: Upload audit evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: accounts-bulk-audit-${{ github.run_id }}
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 30
