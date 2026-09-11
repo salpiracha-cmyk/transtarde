@@ -54,7 +54,7 @@ function sm_category(string $value): string {
 }
 function sm_treatment(string $value,string $category): string {
     $value=strtoupper(trim($value));
-    if ($value==='') $value=$category==='HOME_MONTHLY_GIVE'?'FAMILY_ALLOCATION':($category==='DIRECTOR_REMUNERATION'?'TO_CONFIRM':'STAFF_COST');
+    if ($value==='') $value=$category==='HOME_MONTHLY_GIVE'?'FAMILY_ALLOCATION':'STAFF_COST';
     if (!in_array($value,['STAFF_COST','FAMILY_ALLOCATION','TO_CONFIRM'],true)) throw new InvalidArgumentException('Select a valid Accounts treatment.');
     return $value;
 }
