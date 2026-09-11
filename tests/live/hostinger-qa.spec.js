@@ -155,7 +155,7 @@ test('manual Hostinger QA: Export instruction to Mill and container return', asy
 
   await page.goto(`${BASE_URL}/module.php?id=milling`, { waitUntil: 'domcontentloaded' });
   if (await page.locator('.mill-card').count()) await page.locator('.mill-card').filter({ hasText: /TTI Rice Mills/i }).first().click();
-  await page.locator('.tile').filter({ hasText: 'Export Loading' }).click();
+  await page.locator('.tile[onclick="openPanel(\'export\')"]').click();
   await expect(page.getByText(brand, { exact: false }).first()).toBeVisible({ timeout: 30_000 });
   const shipmentRow = page.locator('#shipmentBody tr[data-shipment-id]').filter({ hasText: brand }).first();
   await shipmentRow.click();
