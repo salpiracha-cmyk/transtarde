@@ -300,6 +300,6 @@ function openLoadingReissue(lotId){const lot=state.shipments.find(x=>x.id===lotI
 
 window.addEventListener('error',e=>console.error('Transtrade Export Clean V2',e.error||e.message));
 const refreshAfterInitialBridge=()=>{state=load();if(view==='shipments'&&currentShipmentId)renderShipmentWorkspace();else render()};
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',refreshAfterInitialBridge,{once:true});else setTimeout(refreshAfterInitialBridge,0);
 mount();
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',refreshAfterInitialBridge,{once:true});else setTimeout(refreshAfterInitialBridge,0);
 })();
