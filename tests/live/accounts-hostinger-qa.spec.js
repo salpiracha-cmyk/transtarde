@@ -7,14 +7,17 @@ const QA_PASSWORD = process.env.TRANSTRADE_QA_PASSWORD;
 async function signIn(page) {
   expect(QA_USERNAME, 'TRANSTRADE_QA_USERNAME is required').toBeTruthy();
   expect(QA_PASSWORD, 'TRANSTRADE_QA_PASSWORD is required').toBeTruthy();
-  await page.goto(`${BASE_URL}/login.php`, { waitUntil: 'domcontentloaded', timeout: 30_000 });
-  await page.getByLabel('Username').fill(QA_USERNAME);
-  await page.getByLabel('Password').fill(QA_PASSWORD);
-  await activate(page.getByRole('button', { name: 'Sign in' }));
-  await expect.poll(() => new URL(page.url()).pathname, { timeout: 30_000 }).not.toBe('/login.php');
-  if (new URL(page.url()).pathname !== '/accounts/index.php') {
-    await page.goto(`${BASE_URL}/accounts/index.php`, { waitUntil: 'domcontentloaded', timeout: 30_000 });
-  }
+  const login = await page.request.get(`${BASE_URL}/login.php`, { timeout: 30_000 });
+  expect(login.status(), 'Login page must be reachable').toBe(200);
+  const html = await login.text();
+  const token = html.match(/name="csrf" value="([^"]+)"/)?.[1];
+  expect(token, 'Login CSRF token must be present').toBeTruthy();
+  const signed = await page.request.post(`${BASE_URL}/login.php`, {
+    form: { csrf: token, username: QA_USERNAME, password: QA_PASSWORD },
+    timeout: 30_000,
+  });
+  expect(signed.status(), 'QA login must succeed').toBe(200);
+  await page.goto(`${BASE_URL}/accounts/index.php`, { waitUntil: 'domcontentloaded', timeout: 30_000 });
 }
 
 async function activate(locator) {
