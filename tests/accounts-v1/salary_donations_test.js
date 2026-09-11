@@ -62,5 +62,5 @@ assert.match(donationsApi,/tt_user_can_access_entity\(\$u,\$entity,'Create'\)/);
 for(const [type,account] of Object.entries(donationAccounts)){
   assert.match(donationsApi,new RegExp("'"+type+"'=>'"+account+"'"));
 }
-assert.match(reportsApi,/tt_user_can_access_entity\(\$user,\$entity,'View'\)/);
+assert.match(reportsApi,/tt_user_can_access_entity\(\$user,\s*\$entity,\s*'View'\)/);
 console.log('Salary and Donations deterministic QA passed.');
