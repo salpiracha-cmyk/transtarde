@@ -31,7 +31,7 @@
   const MODULES = [
     { id: "milling", name: "Mill", code: "M", color: "#16815a", soft: "#e7f7f0", status: "Live trial", state: "green", version: "V3.3.2 Audited", description: "Arrivals, stocks, production, bags, loading and mill operations.", href: "module.php?id=milling" },
     { id: "exports", name: "Exports", code: "E", color: "#1769d2", soft: "#eaf2ff", status: "Live trial", state: "green", version: "V3 Clean Operational", description: "Contracts, export orders, shipment planning and documentation.", href: "module.php?id=exports" },
-    { id: "accounts", name: "Accounts", code: "A", color: "#8a55c7", soft: "#f3ecfb", status: "Awaiting module", state: "amber", version: "Not connected", description: "Purchases, ledgers, banking, receivables, payables and reporting." },
+    { id: "accounts", name: "Accounts", code: "A", color: "#8a55c7", soft: "#f3ecfb", status: "Live trial", state: "green", version: "Accounts V1", description: "Purchases, ledgers, banking, receivables, payables and reporting.", href: "accounts/index.php" },
     { id: "directors", name: "Directors", code: "D", color: "#d17b0f", soft: "#fff3e2", status: "Awaiting module", state: "amber", version: "Not connected", description: "Consolidated oversight, Cashflow, alerts, approvals and reports." }
   ];
 
@@ -177,7 +177,7 @@
     locks: {
       milling: { locked: false, approvedBy: "—", changed: "Integration review open" },
       exports: { locked: false, approvedBy: "—", changed: "Finalization in progress" },
-      accounts: { locked: false, approvedBy: "—", changed: "Module not yet connected" },
+      accounts: { locked: false, approvedBy: "—", changed: "Connected to Accounts V1 live workspace" },
       directors: { locked: false, approvedBy: "—", changed: "Module not yet connected" }
     },
     masters: Object.fromEntries(MASTER_TYPES.map(t => [t.id, t.rows.map((row, index) => ({ id: `${t.id}-${index + 1}`, values: row }))])),
