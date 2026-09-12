@@ -17,7 +17,7 @@ if(scriptRefs.some(x=>x.split('?')[0]==='app-bundle.php')){
   uiRefs.push(...bundledRefs);
 }
 assert.equal(new Set(uiRefs).size,uiRefs.length,'Accounts bundle must not load a script twice');
-for(const file of uiRefs)assert.ok(fs.existsSync(path.join('accounts',file)),file+' referenced by Accounts bundle must exist');
+for(const file of uiRefs){const resolved=file.startsWith('/')?file.slice(1):path.join('accounts',file);assert.ok(fs.existsSync(resolved),file+' referenced by Accounts bundle must exist');}
 const allUi=uiRefs.map(x=>read(path.join('accounts',x))).join('\n');
 for(const key of ['utility','card','rent','salary','donations','reimburse','general'])assert.match(allUi,new RegExp('data-expense=[\\\'"]'+key));
 for(const key of ['commodity','other'])assert.match(allUi,new RegExp('data-purchase=[\\\'"]'+key));
