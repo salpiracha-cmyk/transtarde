@@ -230,6 +230,18 @@ test('bulk Accounts audit: locking, duplicates, entity isolation and three-modul
       results.cleanup.push({ journalId, status: reversed.status, reversalJournalId: reversed.body.journal?.id || null });
       expect([200, 409], `Cleanup reversal for ${journalId}`).toContain(reversed.status);
     }
+    const purged = await jsonCall(request, '/api/accounts_bulk_test_cleanup.php', {
+      method: 'POST',
+      data: { action: 'execute', csrf, confirm: 'PURGE_TEST_DUMMY_ACCOUNTS_BULK' }
+    });
+    results.cleanupPurge = {
+      status: purged.status,
+      deleted: purged.body.deleted || null,
+      remaining: purged.body.remaining || null,
+      backupFile: purged.body.backupFile || null
+    };
+    expect(purged.status, purged.text).toBe(200);
+    expect(purged.body.remaining).toEqual({ journals: 0, events: 0, postingIdentities: 0 });
     await testInfo.attach('accounts-bulk-audit.json', {
       body: Buffer.from(JSON.stringify(results, null, 2)),
       contentType: 'application/json'
