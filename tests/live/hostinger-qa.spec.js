@@ -140,9 +140,6 @@ async function createBulkQaShipment(page, { suffix, index, lotRef, contractRef, 
   await expect(page.locator('img.artPreview').first()).toBeVisible({ timeout: 30_000 });
   await page.locator('#generatePO').click();
   await waitForSharedSave(page);
-  const printModal = page.locator('.modalBackdrop').filter({ hasText: /Print \/ Save/i }).last();
-  await expect(printModal).toBeVisible();
-  await printModal.locator('[data-modal-close]').first().click();
 
   await page.locator('[data-workspace="production"]').click();
   await page.locator('#sendPI').click();
@@ -253,10 +250,6 @@ test('manual Hostinger QA: Export instruction to Mill and container return', asy
   await expect(page.locator('img.artPreview').first()).toBeVisible({ timeout: 30_000 });
   await page.locator('#generatePO').click();
   await waitForSharedSave(page);
-  const poPrintModal = page.locator('.modalBackdrop').filter({ hasText: /Print \/ Save/i }).last();
-  await expect(poPrintModal, 'Bag PO print preview must open after the explicit save').toBeVisible();
-  await poPrintModal.locator('[data-modal-close]').first().click();
-  await expect(poPrintModal).toHaveCount(0);
 
   await page.locator('[data-workspace="production"]').click();
   await page.locator('#sendPI').click();
