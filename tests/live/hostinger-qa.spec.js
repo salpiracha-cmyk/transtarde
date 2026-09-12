@@ -351,7 +351,7 @@ test('manual Hostinger QA: Export instruction to Mill and container return', asy
     }
   }
 
-  const masterData = page.locator('[data-tt-customers]').first();
+  const masterData = page.locator('#ttMasterTop');
   await expect(masterData, 'single Master Data icon must be available').toBeVisible();
   await masterData.click();
   await expect(page.locator('#ttCustomerMasterOverlay')).toBeVisible();
