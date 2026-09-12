@@ -80,7 +80,8 @@ test('authenticated Accounts live smoke: clean icon hub and popup workflows', as
 
   await openGroupItem(page, 'purchases', 'Sodas');
   await expect(page.locator('#ws-purchases')).toHaveClass(/tt-clean-modal/);
-  await expect(page.locator('#ttvSoda')).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('#purchaseEditor')).toHaveClass(/tt-editor-stage/);
+  await expect(page.locator('#purchaseEditor').getByText(/Start with what you know/i)).toBeVisible({ timeout: 30_000 });
   await closeWorkspace(page);
 
   await openGroupItem(page, 'purchases', 'Arrival Bill Posting');
