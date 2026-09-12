@@ -40,6 +40,8 @@ async function responsive(page, label) {
 async function backHome(page) {
   await activate(page.getByRole('button', { name: /Accounts Home/i }));
   await expect(page.getByRole('heading', { name: 'Transtrade International' })).toBeVisible();
+  await page.waitForTimeout(1_000);
+  await expect(page.locator('#entityHome'), 'Accounts home must remain visible after delayed feature refreshes').toBeVisible();
   await responsive(page, 'Accounts home');
 }
 
