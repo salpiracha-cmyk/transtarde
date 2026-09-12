@@ -66,6 +66,7 @@ jobs:
           node tests/exports-v3/export_release_test.js
           node tests/exports-v3/export_master_icons_audit.js
           node tests/exports-v3/export_entry_ux_audit.js
+          node tests/exports-v3/fob_removable_options_audit.js
           node tests/exports-v3/new_contract_reset_audit.js
           node tests/exports-v3/full_workflow_audit.js
           node tests/exports-v3/import_master_audit.js
