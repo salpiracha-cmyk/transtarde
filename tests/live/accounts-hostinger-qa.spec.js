@@ -78,13 +78,13 @@ test('authenticated Accounts live smoke: full module loads and every workspace r
     await backHome(page);
   }
 
-  await activate(page.getByRole('button', { name: /Expenses & Overheads/i }));
+  await activate(page.locator('.appCard[data-key="expenses"]'));
   await expect(page.getByRole('heading', { name: 'Expenses & Overheads' })).toBeVisible();
   for (const key of ['utility', 'card', 'rent', 'salary', 'donations', 'reimburse', 'general']) {
     await expect(page.locator(`[data-expense="${key}"]`), `${key} expense control must be visible`).toBeVisible();
   }
 
-  await activate(page.getByRole('button', { name: /Salaries & Staff/i }));
+  await activate(page.locator('[data-expense="salary"]'));
   const salaryPanel = page.locator('#expenseEditor');
   await expect(salaryPanel.getByText('Add Salary Master', { exact: false })).toBeVisible({ timeout: 30_000 });
   await expect(salaryPanel.getByText(/Salary advances are not used/i)).toBeVisible();
@@ -92,8 +92,8 @@ test('authenticated Accounts live smoke: full module loads and every workspace r
   await expect(salaryPanel.getByText(/^Talha$/i).first()).toBeVisible({ timeout: 30_000 });
   await backHome(page);
 
-  await activate(page.getByRole('button', { name: /Expenses & Overheads/i }));
-  await activate(page.getByRole('button', { name: /^Donations/i }));
+  await activate(page.locator('.appCard[data-key="expenses"]'));
+  await activate(page.locator('[data-expense="donations"]'));
   const donationPanel = page.locator('#expenseEditor');
   await expect(donationPanel.getByRole('heading', { name: 'Record Donation' })).toBeVisible({ timeout: 30_000 });
   for (const ledger of ['Zakat Ledger', 'Sadqa Ledger', 'Fi Sabilillah Ledger']) {
@@ -101,23 +101,23 @@ test('authenticated Accounts live smoke: full module loads and every workspace r
   }
   await backHome(page);
 
-  await activate(page.getByRole('button', { name: /Expenses & Overheads/i }));
-  await activate(page.getByRole('button', { name: /Rent & Recurring/i }));
+  await activate(page.locator('.appCard[data-key="expenses"]'));
+  await activate(page.locator('[data-expense="rent"]'));
   await expect(page.locator('#expenseEditor').getByText('Add Rent Master', { exact: false })).toBeVisible({ timeout: 30_000 });
   await backHome(page);
 
-  await activate(page.getByRole('button', { name: /^Purchases/i }));
-  await activate(page.getByRole('button', { name: /Other Purchase/i }));
+  await activate(page.locator('.appCard[data-key="purchases"]'));
+  await activate(page.locator('[data-purchase="other"]'));
   const purchasePanel = page.locator('#purchaseEditor');
   await expect(purchasePanel.getByRole('heading', { name: 'Other Purchase' })).toBeVisible({ timeout: 30_000 });
   await expect(purchasePanel.getByRole('heading', { name: 'Fixed Asset Register' })).toBeVisible();
   await backHome(page);
 
-  await activate(page.getByRole('button', { name: /Journal Voucher/i }));
+  await activate(page.locator('.appCard[data-key="jv"]'));
   await expect(page.locator('#ws-jv').getByRole('heading', { name: 'Journal Voucher' })).toBeVisible({ timeout: 30_000 });
   await backHome(page);
 
-  await activate(page.getByRole('button', { name: /^Reports/i }));
+  await activate(page.locator('.appCard[data-key="reports"]'));
   await expect(page.locator('#ws-reports').getByText(/General Ledger/i).first()).toBeVisible({ timeout: 30_000 });
   await responsive(page, 'Reports workspace');
 
