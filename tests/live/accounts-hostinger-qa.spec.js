@@ -128,7 +128,7 @@ test('authenticated Accounts live smoke: full module loads and every workspace r
   await backHome(page);
 
   await activate(page.locator('.appCard[data-key="reports"]'));
-  await expect(page.locator('#ws-reports').getByText(/General Ledger/i).first()).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('#ttReportsPanel [data-rpt="gl"]')).toBeVisible({ timeout: 30_000 });
   await responsive(page, 'Reports workspace');
 
   expect(failedRequests, 'Accounts resources must not fail').toEqual([]);
