@@ -322,11 +322,21 @@
   }
 
   function scan(root = document) {
+    captureLateLaunchers();
     qa('select', root).forEach(searchable);
     simplifyCommodity(root);
     markGenerated(root);
     salaryView(root);
     if (q('.workspace.active')) prepareModal();
+  }
+
+  function captureLateLaunchers() {
+    const source = q('#ttNativeLaunchers');
+    if (!source) return;
+    qa('#homeGrid > .appCard[data-key]:not(.tt-clean-card)').forEach(card => {
+      nativeCards.set(card.dataset.key, card);
+      source.appendChild(card);
+    });
   }
 
   function rebuildHome() {
