@@ -516,6 +516,8 @@ purchaseOrderPrint=function(po){const rows=[];for(const [i,l] of po.lines.entrie
 
 const renderBagOrderBeforeSequentialRows=renderBagOrder;
 renderBagOrder=function(d){renderBagOrderBeforeSequentialRows(d);let sequence=1;d.querySelectorAll('tbody tr').forEach(row=>{const first=row.querySelector('td');if(first)first.textContent=String(sequence++)})};
+const renderBagOrderBeforeApprovalNote=renderBagOrder;
+renderBagOrder=function(d){renderBagOrderBeforeApprovalNote(d);const subtitle=d.querySelector('.metaText');if(subtitle)subtitle.insertAdjacentText('beforeend',' Uploading a GOOD SIDE bag marking means it is approved.')};
 const purchaseOrderPrintBeforeSequentialRows=purchaseOrderPrint;
 purchaseOrderPrint=function(po){const shell=document.createElement('div');shell.innerHTML=purchaseOrderPrintBeforeSequentialRows(po);let sequence=1;shell.querySelectorAll('.docPage:first-child tbody tr').forEach(row=>{const first=row.querySelector('td');if(first)first.textContent=String(sequence++)});return shell.innerHTML};
 
