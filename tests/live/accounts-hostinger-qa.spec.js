@@ -38,11 +38,11 @@ async function responsive(page, label) {
 
 const cleanCard = (page, key) => page.locator(`.tt-clean-card[data-clean-key="${key}"]`);
 
-async function openGroupItem(page, group, item) {
+async function openGroupItem(page, group, item, workspace) {
   await activate(cleanCard(page, group));
   await expect(page.locator('#ttQuickDialog')).toBeVisible();
   await activate(page.locator('#ttQuickDialog .tt-quick-item').filter({ hasText: item }));
-  await expect(page.locator('.workspace.active')).toHaveClass(/tt-clean-modal/, { timeout: 30_000 });
+  await expect(page.locator(workspace)).toHaveClass(/active.*tt-clean-modal|tt-clean-modal.*active/, { timeout: 30_000 });
 }
 
 async function closeWorkspace(page) {
@@ -79,13 +79,13 @@ test('authenticated Accounts live smoke: clean icon hub and popup workflows', as
   await activate(page.locator('.entityBtn[data-entity="TTI"]'));
   await expect(page.locator('.entityBtn[data-entity="TTI"]')).toBeHidden();
 
-  await openGroupItem(page, 'purchases', 'Sodas');
+  await openGroupItem(page, 'purchases', 'Sodas', '#ws-purchases');
   await expect(page.locator('#ws-purchases')).toHaveClass(/tt-clean-modal/);
   await expect(page.locator('#purchaseEditor')).toHaveClass(/tt-editor-stage/);
   await expect(page.locator('#purchaseEditor').getByText(/Start with what you know/i)).toBeVisible({ timeout: 30_000 });
   await closeWorkspace(page);
 
-  await openGroupItem(page, 'purchases', 'Arrival Bill Posting');
+  await openGroupItem(page, 'purchases', 'Arrival Bill Posting', '#ws-purchases');
   await expect(page.locator('#purchaseEditor')).toHaveClass(/tt-editor-stage/);
   await expect(page.locator('#purchaseEditor').getByText(/Commodity Purchase Bills|Commodity Purchase Bill/i).first()).toBeVisible({ timeout: 30_000 });
   await closeWorkspace(page);
@@ -98,31 +98,31 @@ test('authenticated Accounts live smoke: clean icon hub and popup workflows', as
   await expect(page.locator('#rsSaveSal')).toBeHidden();
   await closeWorkspace(page);
 
-  await openGroupItem(page, 'masters', 'Salary Master');
+  await openGroupItem(page, 'masters', 'Salary Master', '#ws-expenses');
   await expect(page.locator('#ws-expenses')).toHaveClass(/tt-master-only/);
   await expect(page.locator('.tt-master-add:visible').first()).toBeVisible({ timeout: 30_000 });
   await expect(page.getByText(/^Talha$/i).first()).toBeVisible({ timeout: 30_000 });
   await closeWorkspace(page);
 
-  await openGroupItem(page, 'masters', 'Rent & Recurring Master');
+  await openGroupItem(page, 'masters', 'Rent & Recurring Master', '#ws-expenses');
   await expect(page.locator('.tt-master-add:visible').first()).toBeVisible({ timeout: 30_000 });
   await expect(page.locator('#rsSaveRent')).toBeHidden();
   await closeWorkspace(page);
 
-  await openGroupItem(page, 'export', 'Inspection');
+  await openGroupItem(page, 'export', 'Inspection', '#ws-services');
   await expect(page.locator('#ws-services')).toHaveClass(/tt-clean-modal/);
   await expect(page.locator('#svKind')).toHaveValue('INSPECTION');
   await closeWorkspace(page);
 
-  await openGroupItem(page, 'bags', 'Bag Bill');
+  await openGroupItem(page, 'bags', 'Bag Bill', '#ws-purchases');
   await expect(page.locator('#purchaseEditor .ttbag')).toBeVisible({ timeout: 30_000 });
   await closeWorkspace(page);
 
-  await openGroupItem(page, 'local', 'Sale Approvals');
+  await openGroupItem(page, 'local', 'Sale Approvals', '#ws-receivables');
   await expect(page.locator('#ws-receivables')).toHaveClass(/tt-clean-modal/);
   await closeWorkspace(page);
 
-  await openGroupItem(page, 'ledgers', 'Supplier Ledger');
+  await openGroupItem(page, 'ledgers', 'Supplier Ledger', '#ws-payables');
   await expect(page.locator('#ws-payables')).toHaveClass(/tt-clean-modal/);
   await closeWorkspace(page);
 
