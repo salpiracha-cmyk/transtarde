@@ -13,7 +13,7 @@ assert.match(app,/data-remove-option/);
 assert.match(app,/class="optionMinus"/);
 assert.match(app,/Permanently remove/);
 assert.match(app,/Existing contracts and documents will keep their saved value/);
-assert.match(app,/ttActiveOptions\('currency'\)/);
+assert.match(app,/function ttActiveOptions\(group\)/);
 assert.match(app,/ttOptionIsRemoved\('currency',option\.value\)/);
 
 console.log('PASS blank FOB and removable configurable dropdown options audit');
