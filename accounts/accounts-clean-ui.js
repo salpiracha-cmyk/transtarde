@@ -211,7 +211,10 @@
   }
 
   function prepareModal() {
-    const workspace = q('.workspace.active');
+    const activeWorkspaces = qa('.workspace.active');
+    const workspace = activeWorkspaces.find(candidate => candidate.offsetParent !== null)
+      || activeWorkspaces[activeWorkspaces.length - 1]
+      || null;
     if (!workspace) return;
     workspace.classList.add('tt-clean-modal');
     workspace.classList.toggle('tt-master-only', !!masterMode);
