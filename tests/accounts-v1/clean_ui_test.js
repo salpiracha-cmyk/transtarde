@@ -34,6 +34,6 @@ requireText(workflowApi, "'INSPECTION'=>['5530'", 'inspection posting');
 
 requireText(bundle, "'accounts-clean-ui.js'", 'bundle');
 if (bundle.indexOf("'accounts-clean-ui.js'") < bundle.indexOf("'reports-ui.js'")) throw new Error('Clean UI must load after feature modules.');
-requireText(index, 'app-bundle.php?v=20260912-4', 'cache version');
+requireText(index, 'app-bundle.php?v=20260912-5', 'cache version');
 
 console.log('Accounts clean UI and workflow assertions passed.');
