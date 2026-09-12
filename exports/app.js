@@ -537,9 +537,9 @@ mount();
 
 /* 2026-09-12 blank FOB and removable configurable dropdown options. */
 const TT_REMOVABLE_OPTION_GROUPS={
- packing:{label:'Packing',fixed:TT_PACKINGS,customKey:'customPackingTypes',removedKey:'removedPackingTypes'},
- currency:{label:'Currency',fixed:TT_CURRENCIES,customKey:'customCurrencies',removedKey:'removedCurrencies'},
- inspection:{label:'Inspection',fixed:TT_INSPECTIONS,customKey:'customInspections',removedKey:'removedInspections'}
+ packing:{label:'Packing',fixed:['P.P. Bags','BOPP laminated Bags','Cotton Bags','Non- Woven Bags','Jute Bags'],customKey:'customPackingTypes',removedKey:'removedPackingTypes'},
+ currency:{label:'Currency',fixed:['USD','EUR','GBP','AED','PKR'],customKey:'customCurrencies',removedKey:'removedCurrencies'},
+ inspection:{label:'Inspection',fixed:['No','SGS Pakistan Private Limited','Intertek'],customKey:'customInspections',removedKey:'removedInspections'}
 };
 function ttOptionToken(value){return String(value||'').trim().toLowerCase()}
 function ttOptionSettings(group){
