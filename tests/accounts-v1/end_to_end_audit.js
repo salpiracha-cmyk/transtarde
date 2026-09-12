@@ -4,6 +4,9 @@ const index=read('accounts/index.php'),html=read('accounts/Transtrade_Accounts_M
 const scriptRefs=[...index.matchAll(/script src="([^"]+)"/g)].map(x=>x[1]);
 assert.equal(new Set(scriptRefs).size,scriptRefs.length,'Accounts must not load a script twice');
 for(const ref of scriptRefs){const file=ref.split('?')[0];assert.ok(fs.existsSync(path.join('accounts',file)),file+' referenced by Accounts must exist');}
+const bundledScripts=[...read('accounts/app-bundle.php').matchAll(/'([^']+\.js)'/g)].map(x=>x[1]);
+assert.equal(new Set(bundledScripts).size,bundledScripts.length,'Accounts bundle must not load a script twice');
+for(const file of bundledScripts)assert.ok(fs.existsSync(path.join('accounts',file)),file+' referenced by Accounts bundle must exist');
 for(const key of ['expenses','purchases','bank','receivables','payables','jv','reconciliation','tg','reports','masters'])assert.match(html,new RegExp('data-key="'+key+'"'));
 
 const uiRefs=scriptRefs.map(x=>x.split('?')[0]).filter(x=>x.endsWith('.js'));
