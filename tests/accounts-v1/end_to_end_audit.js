@@ -5,7 +5,17 @@ const scriptRefs=[...index.matchAll(/script src="([^"]+)"/g)].map(x=>x[1]);
 assert.equal(new Set(scriptRefs).size,scriptRefs.length,'Accounts must not load a script twice');
 for(const ref of scriptRefs){const file=ref.split('?')[0];assert.ok(fs.existsSync(path.join('accounts',file)),file+' referenced by Accounts must exist');}
 for(const key of ['expenses','purchases','bank','receivables','payables','jv','reconciliation','tg','reports','masters'])assert.match(html,new RegExp('data-key="'+key+'"'));
-const allUi=scriptRefs.map(x=>read(path.join('accounts',x.split('?')[0]))).join('\n');
+
+const uiRefs=scriptRefs.map(x=>x.split('?')[0]).filter(x=>x.endsWith('.js'));
+if(scriptRefs.some(x=>x.split('?')[0]==='app-bundle.php')){
+  const bundle=read('accounts/app-bundle.php');
+  const bundledRefs=[...bundle.matchAll(/^\s*'([^']+\.js)',\s*$/gm)].map(x=>x[1]);
+  assert.ok(bundledRefs.length>0,'Accounts bundle must declare its ordered JavaScript files');
+  uiRefs.push(...bundledRefs);
+}
+assert.equal(new Set(uiRefs).size,uiRefs.length,'Accounts bundle must not load a script twice');
+for(const file of uiRefs)assert.ok(fs.existsSync(path.join('accounts',file)),file+' referenced by Accounts bundle must exist');
+const allUi=uiRefs.map(x=>read(path.join('accounts',x))).join('\n');
 for(const key of ['utility','card','rent','salary','donations','reimburse','general'])assert.match(allUi,new RegExp('data-expense=[\\\'"]'+key));
 for(const key of ['commodity','other'])assert.match(allUi,new RegExp('data-purchase=[\\\'"]'+key));
 
