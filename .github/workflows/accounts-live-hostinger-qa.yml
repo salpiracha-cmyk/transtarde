@@ -26,7 +26,7 @@ concurrency:
 jobs:
   accounts-live-smoke:
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 15
     environment: live-qa
     steps:
       - uses: actions/checkout@v4
@@ -47,14 +47,17 @@ jobs:
       - name: Wait for Hostinger deployment to settle
         run: |
           sleep 75
-          for attempt in 1 2 3 4 5 6; do
-            if curl --fail --silent --show-error --max-time 15 --output /dev/null https://app.transtradeinternational.com/login.php; then
-              exit 0
+          ready=0
+          for attempt in 1 2 3; do
+            if curl --fail --silent --show-error --max-time 30 --output /dev/null https://app.transtradeinternational.com/login.php; then
+              ready=1
+              break
             fi
             sleep 10
           done
-          echo "Hostinger did not become stable in time"
-          exit 1
+          if [ "$ready" -ne 1 ]; then
+            echo "::warning::Preflight could not reach Hostinger; continuing to the authoritative browser test."
+          fi
       - name: Run authenticated read-only Accounts smoke test
         env:
           TRANSTRADE_BASE_URL: https://app.transtradeinternational.com
