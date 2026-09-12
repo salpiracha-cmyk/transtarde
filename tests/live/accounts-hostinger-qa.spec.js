@@ -85,37 +85,40 @@ test('authenticated Accounts live smoke: full module loads and every workspace r
   }
 
   await activate(page.getByRole('button', { name: /Salaries & Staff/i }));
-  await expect(page.getByText('Add Salary Master', { exact: false })).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByText(/Salary advances are not used/i)).toBeVisible();
-  await expect(page.getByText('Salary Master', { exact: true })).toBeVisible();
-  await expect(page.getByText('Talha', { exact: true }).first()).toBeVisible({ timeout: 30_000 });
+  const salaryPanel = page.locator('#expenseEditor');
+  await expect(salaryPanel.getByText('Add Salary Master', { exact: false })).toBeVisible({ timeout: 30_000 });
+  await expect(salaryPanel.getByText(/Salary advances are not used/i)).toBeVisible();
+  await expect(salaryPanel.getByText('Salary Master', { exact: true })).toBeVisible();
+  await expect(salaryPanel.getByText('Talha', { exact: true }).first()).toBeVisible({ timeout: 30_000 });
   await backHome(page);
 
   await activate(page.getByRole('button', { name: /Expenses & Overheads/i }));
   await activate(page.getByRole('button', { name: /^Donations/i }));
-  await expect(page.getByRole('heading', { name: 'Record Donation' })).toBeVisible({ timeout: 30_000 });
+  const donationPanel = page.locator('#expenseEditor');
+  await expect(donationPanel.getByRole('heading', { name: 'Record Donation' })).toBeVisible({ timeout: 30_000 });
   for (const ledger of ['Zakat Ledger', 'Sadqa Ledger', 'Fi Sabilillah Ledger']) {
-    await expect(page.getByText(ledger, { exact: true }).first()).toBeVisible();
+    await expect(donationPanel.getByText(ledger, { exact: true }).first()).toBeVisible();
   }
   await backHome(page);
 
   await activate(page.getByRole('button', { name: /Expenses & Overheads/i }));
   await activate(page.getByRole('button', { name: /Rent & Recurring/i }));
-  await expect(page.getByText('Add Rent Master', { exact: false })).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('#expenseEditor').getByText('Add Rent Master', { exact: false })).toBeVisible({ timeout: 30_000 });
   await backHome(page);
 
   await activate(page.getByRole('button', { name: /^Purchases/i }));
   await activate(page.getByRole('button', { name: /Other Purchase/i }));
-  await expect(page.getByRole('heading', { name: 'Other Purchase' })).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByRole('heading', { name: 'Fixed Asset Register' })).toBeVisible();
+  const purchasePanel = page.locator('#purchaseEditor');
+  await expect(purchasePanel.getByRole('heading', { name: 'Other Purchase' })).toBeVisible({ timeout: 30_000 });
+  await expect(purchasePanel.getByRole('heading', { name: 'Fixed Asset Register' })).toBeVisible();
   await backHome(page);
 
   await activate(page.getByRole('button', { name: /Journal Voucher/i }));
-  await expect(page.getByRole('heading', { name: 'Journal Voucher' })).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('#ws-jv').getByRole('heading', { name: 'Journal Voucher' })).toBeVisible({ timeout: 30_000 });
   await backHome(page);
 
   await activate(page.getByRole('button', { name: /^Reports/i }));
-  await expect(page.getByText(/General Ledger/i).first()).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('#ws-reports').getByText(/General Ledger/i).first()).toBeVisible({ timeout: 30_000 });
   await responsive(page, 'Reports workspace');
 
   expect(failedRequests, 'Accounts resources must not fail').toEqual([]);
