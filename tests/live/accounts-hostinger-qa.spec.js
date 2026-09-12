@@ -99,12 +99,12 @@ test('authenticated Accounts live smoke: clean icon hub and popup workflows', as
 
   await openGroupItem(page, 'masters', 'Salary Master');
   await expect(page.locator('#ws-expenses')).toHaveClass(/tt-master-only/);
-  await expect(page.locator('.tt-master-add')).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('.tt-master-add:visible').first()).toBeVisible({ timeout: 30_000 });
   await expect(page.getByText(/^Talha$/i).first()).toBeVisible({ timeout: 30_000 });
   await closeWorkspace(page);
 
   await openGroupItem(page, 'masters', 'Rent & Recurring Master');
-  await expect(page.locator('.tt-master-add')).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('.tt-master-add:visible').first()).toBeVisible({ timeout: 30_000 });
   await expect(page.locator('#rsSaveRent')).toBeHidden();
   await closeWorkspace(page);
 
