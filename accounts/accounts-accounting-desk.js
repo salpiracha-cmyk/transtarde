@@ -388,7 +388,30 @@
       head.appendChild(button);
     };
     qa('.workspace.active').forEach(add);
-    new MutationObserver(() => qa('.workspace.active').forEach(add)).observe(document.body, {subtree:true, attributes:true, attributeFilter:['class']});
+    const refresh = () => { qa('.workspace.active').forEach(add); ensureLiveTreatments(); };
+    new MutationObserver(refresh).observe(document.body, {subtree:true, childList:true, attributes:true, attributeFilter:['class']});
+  }
+
+  function ensureLiveTreatments() {
+    const amount = q('#evPayAmount');
+    const account = q('#evPayAccount');
+    const treatment = q('#evTreatment');
+    const save = q('#evPayUtility');
+    if (!amount || !account || !treatment || !save || q('#ttUtilityTreatment')) return;
+    const box = document.createElement('div');
+    box.id = 'ttUtilityTreatment';
+    box.className = 'tt-treatment';
+    save.closest('.tte-actions')?.insertAdjacentElement('beforebegin', box);
+    const render = () => {
+      const value = Number(amount.value || 0);
+      const debit = treatment.value === 'FAMILY_ALLOCATION'
+        ? (q('#evPerson')?.selectedOptions?.[0]?.textContent || 'Selected personal / family account')
+        : (q('#evPayType')?.selectedOptions?.[0]?.textContent || 'Utility Expense');
+      const credit = account.selectedOptions?.[0]?.textContent || 'Select bank or cash account';
+      box.innerHTML = `<strong>Accounting treatment before posting</strong><div class="tt-treatment-row"><span>Debit</span><span>${esc(debit)}</span><b>Rs ${money(value)}</b></div><div class="tt-treatment-row"><span>Credit</span><span>${esc(credit)}</span><b>Rs ${money(value)}</b></div><div class="tt-treatment-row tt-treatment-total"><span>Total</span><span>Debit Rs ${money(value)} · Credit Rs ${money(value)}</span><b>${value > 0 && account.value ? 'Balanced' : 'Complete form'}</b></div>`;
+    };
+    [amount, account, treatment, q('#evPerson'), q('#evPayType')].filter(Boolean).forEach(control => { control.addEventListener('input', render); control.addEventListener('change', render); });
+    render();
   }
 
   function init() {
@@ -396,6 +419,7 @@
     buildTopbar();
     buildDesk();
     installPreviousSearch();
+    ensureLiveTreatments();
     document.addEventListener('click', event => { if (event.target.closest('.entityBtn')) setTimeout(refreshEntityLabels, 0); }, true);
   }
 
