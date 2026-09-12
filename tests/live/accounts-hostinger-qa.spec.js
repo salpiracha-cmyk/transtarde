@@ -47,7 +47,7 @@ async function openGroupItem(page, group, item) {
 async function closeWorkspace(page) {
   const editorClose = page.locator('[data-editor-back]:visible');
   if (await editorClose.count()) await activate(editorClose.first());
-  const workspaceClose = page.locator('.workspace.active > .panelHead [data-back]:visible');
+  const workspaceClose = page.locator('.workspace.active .tt-clean-close:visible');
   if (await workspaceClose.count()) await activate(workspaceClose.first());
   await expect(page.locator('#entityHome')).toBeVisible();
   await expect(page.locator('body')).not.toHaveClass(/tt-modal-open/);
