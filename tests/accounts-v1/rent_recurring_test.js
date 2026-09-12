@@ -1,6 +1,6 @@
 'use strict';
 const fs=require('node:fs'),assert=require('node:assert/strict'),read=p=>fs.readFileSync(p,'utf8');
-const api=read('api/rent_salary_v2.php'),ui=read('accounts/rent-salary-ui.js'),master=JSON.parse(read('accounts/accounting_master_v1.json')),index=read('accounts/index.php');
+const api=read('api/rent_salary_v2.php'),ui=read('accounts/rent-salary-ui.js'),master=JSON.parse(read('accounts/accounting_master_v1.json')),index=read('accounts/index.php'),bundle=read('accounts/app-bundle.php');
 const chart=Object.fromEntries(master.chart.map(x=>[String(x.code),x]));
 assert.equal(chart['6300'].class,'Expense');
 assert.equal(chart['1400'].class,'Asset');
@@ -37,5 +37,5 @@ assert.match(ui,/reminders only/);
 assert.match(ui,/First Payment Month/);
 assert.match(ui,/data-rs-rentdue/);
 assert.match(ui,/Past prepared months and payments will remain unchanged/);
-assert.match(index,/rent-salary-ui\.js\?v=20260911-4/);
+assert.match(index,/app-bundle\.php/);\nassert.match(bundle,/'rent-salary-ui\.js'/);
 console.log('Rent and Recurring Payments deterministic QA passed.');
