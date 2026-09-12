@@ -90,6 +90,7 @@
       .tt-select-menu button{display:block;width:100%;border:0;background:#fff;padding:9px 10px;text-align:left;cursor:pointer}.tt-select-menu button:hover,.tt-select-menu button:focus{background:#edf3f8}.tt-select-empty{padding:9px;color:#6f7a89;font-size:11px}
       .tt-optional-details{grid-column:1/-1;border:1px solid #e2e8ee;border-radius:10px;padding:9px 11px;background:#fafbfd}.tt-optional-details summary{cursor:pointer;font-weight:800;color:#42566a}.tt-optional-grid{display:grid;grid-template-columns:repeat(3,minmax(150px,1fr));gap:10px;margin-top:10px}
       .tt-master-only .ttrs-head,.tt-master-only .ttrs-pay,.tt-master-only .ttrs-box:has(table tbody [data-rs-salpay]),.tt-master-only .ttrs-box:has(table tbody [data-rs-rentdue]){display:none!important}
+      .tt-entry-only .ttrs-head{display:flex!important}
       .tt-entry-only .ttrs>div:nth-child(2),.tt-entry-only .ttrs>div:nth-child(3){display:none!important}
       .tt-clean-hidden{display:none!important}.tt-master-add{margin:10px 0 12px}.tt-salary-batch{border:1px solid #dfe6ec;border-radius:13px;background:#fff;padding:14px;margin:12px 0}.tt-salary-batch h3{margin:0 0 5px}.tt-salary-batch .tt-batch-grid{display:grid;grid-template-columns:1fr 1.4fr 1fr auto;gap:10px;align-items:end;margin-top:10px}.tt-salary-batch .tt-batch-total{font-size:18px;font-weight:900;padding:8px 0}
       @media(max-width:800px){#homeGrid.tt-clean-grid{grid-template-columns:repeat(2,1fr)!important}.tt-quick-items{grid-template-columns:1fr 1fr}.workspace.tt-clean-modal .grid2,.workspace.tt-clean-modal .grid3,.workspace.tt-clean-modal .ttv-grid,.workspace.tt-clean-modal .ttrs-grid,.tt-optional-grid{grid-template-columns:1fr!important}.workspace.tt-clean-modal>.subGrid{grid-template-columns:1fr 1fr}}
@@ -281,10 +282,12 @@
   }
 
   function salaryView(root) {
-    const editor = q('#expenseEditor', root) || (root.id === 'expenseEditor' ? root : null);
+    const editor = (root.matches?.('#expenseEditor') ? root : root.closest?.('#expenseEditor')) || q('#expenseEditor', root);
     if (!editor || !q('.ttrs', editor)) return;
     const workspace = editor.closest('.workspace');
     if (!workspace) return;
+    workspace.classList.add('active', 'tt-clean-modal');
+    document.body.classList.add('tt-modal-open');
     workspace.classList.toggle('tt-master-only', !!masterMode);
     workspace.classList.toggle('tt-entry-only', !masterMode);
     const masterBoxes = qa('.ttrs-box', editor).filter(box => q('#rsSaveSal,#rsSaveRent,[data-rs-edit],[data-rs-remove],[data-rs-rentedit],[data-rs-rentremove]', box));
