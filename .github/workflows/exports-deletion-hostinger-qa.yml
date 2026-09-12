@@ -1,0 +1,60 @@
+name: Export Deletion Hostinger QA
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'exports/app.js'
+      - 'tests/live/hostinger-qa.spec.js'
+      - '.github/workflows/exports-deletion-hostinger-qa.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: export-deletion-live-qa
+  cancel-in-progress: false
+
+jobs:
+  deletion-login-cycle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    environment: live-qa
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Verify QA secrets are configured
+        env:
+          QA_USERNAME: ${{ secrets.TRANSTRADE_QA_USERNAME }}
+          QA_PASSWORD: ${{ secrets.TRANSTRADE_QA_PASSWORD }}
+        run: |
+          test -n "$QA_USERNAME" || { echo "Missing TRANSTRADE_QA_USERNAME secret"; exit 1; }
+          test -n "$QA_PASSWORD" || { echo "Missing TRANSTRADE_QA_PASSWORD secret"; exit 1; }
+
+      - name: Install isolated browser test runtime
+        run: |
+          npm install --no-save @playwright/test@1.55.0
+          npx playwright install --with-deps chromium
+
+      - name: Verify deletion survives a new login
+        env:
+          TRANSTRADE_BASE_URL: https://app.transtradeinternational.com
+          TRANSTRADE_QA_USERNAME: ${{ secrets.TRANSTRADE_QA_USERNAME }}
+          TRANSTRADE_QA_PASSWORD: ${{ secrets.TRANSTRADE_QA_PASSWORD }}
+          PLAYWRIGHT_HTML_OPEN: never
+        run: npx playwright test tests/live/hostinger-qa.spec.js --grep "live deletion survives sign-out and sign-in" --reporter=line,html
+
+      - name: Upload failure evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: export-deletion-live-qa-${{ github.run_id }}
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 14
