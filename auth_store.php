@@ -6,6 +6,7 @@ declare(strict_types=1);
 // operational data created by Salman and his staff.
 const TT_DATA_DIR = __DIR__ . '/../transtrade_private';
 const TT_STORE_FILE = TT_DATA_DIR . '/auth.json';
+require_once __DIR__ . '/offline_idempotency.php';
 
 function tt_default_masters(): array {
     $masters = [
@@ -527,6 +528,7 @@ function tt_current_user(): ?array {
 function tt_require_login(): array {
     $user = tt_current_user();
     if (!$user) { $_SESSION = []; header('Location: /login.php'); exit; }
+    tt_offline_request_guard($user);
     $path=(string)parse_url((string)($_SERVER['REQUEST_URI']??''),PHP_URL_PATH);
     if(str_starts_with($path,'/api/')&&tt_user_can_open_module($user,'Accounts')){
         $entity=strtoupper(trim((string)($_GET['entity']??'')));
