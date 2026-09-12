@@ -203,7 +203,8 @@
   function makeCloseButton(button, workspace) {
     if (!button) return;
     button.removeAttribute('data-back');
-    button.removeAttribute('data-editor-back');
+    if (button.closest('.tt-editor-bar')) button.setAttribute('data-editor-back', '');
+    else button.removeAttribute('data-editor-back');
     button.classList.add('tt-clean-close');
     button.textContent = '× Cancel';
     button.onclick = event => { event.preventDefault(); event.stopPropagation(); closeModal(workspace); };
