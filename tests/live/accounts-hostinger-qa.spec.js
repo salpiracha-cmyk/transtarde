@@ -59,7 +59,7 @@ test('authenticated Accounts live smoke: full module loads and every workspace r
   test.setTimeout(480_000);
   const pageErrors = [];
   const failedRequests = [];
-  page.on('pageerror', error => pageErrors.push(String(error)));
+  page.on('pageerror', error => pageErrors.push(error.stack || String(error)));
   page.on('requestfailed', request => {
     if (request.url().includes('/accounts/')) failedRequests.push(`${request.method()} ${request.url()}: ${request.failure()?.errorText || 'failed'}`);
   });
