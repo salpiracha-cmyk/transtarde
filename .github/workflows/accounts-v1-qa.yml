@@ -3,9 +3,9 @@ name: Accounts V1 QA
 on:
   push:
     branches: [main, accounts-v1-foundation]
-    paths: ['accounts/**','api/**','auth_store.php','module.php','exports/**','admin/**','tests/accounts-v1/**','tests/live/accounts-hostinger-qa.spec.js','.github/workflows/accounts-v1-qa.yml']
+    paths: ['accounts/**','api/**','auth_store.php','module.php','offline-outbox.js','offline_idempotency.php','exports/**','admin/**','tests/accounts-v1/**','tests/offline_recovery_audit.js','tests/live/accounts-hostinger-qa.spec.js','.github/workflows/accounts-v1-qa.yml']
   pull_request:
-    paths: ['accounts/**','api/**','auth_store.php','module.php','exports/**','admin/**','tests/accounts-v1/**','tests/live/accounts-hostinger-qa.spec.js','.github/workflows/accounts-v1-qa.yml']
+    paths: ['accounts/**','api/**','auth_store.php','module.php','offline-outbox.js','offline_idempotency.php','exports/**','admin/**','tests/accounts-v1/**','tests/offline_recovery_audit.js','tests/live/accounts-hostinger-qa.spec.js','.github/workflows/accounts-v1-qa.yml']
 
 permissions:
   contents: read
@@ -21,6 +21,7 @@ jobs:
       - name: JavaScript and JSON syntax
         run: |
           find accounts exports admin tests/accounts-v1 -name '*.js' -print0 | xargs -0 -n1 node --check
+          node --check offline-outbox.js
           node -e "JSON.parse(require('fs').readFileSync('accounts/accounting_master_v1.json','utf8'))"
       - name: Accounts rule and control audits
         run: |
@@ -34,5 +35,6 @@ jobs:
           node tests/accounts-v1/end_to_end_audit.js
           node tests/accounts-v1/static_audit.js
           node tests/accounts-v1/clean_ui_test.js
+          node tests/offline_recovery_audit.js
       - name: PHP syntax
         run: find . -path './.git' -prune -o -name '*.php' -print0 | xargs -0 -n1 php -l
