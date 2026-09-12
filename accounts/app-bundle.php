@@ -13,6 +13,7 @@ $files = [
     'accounts-runtime.js',
     'accounts-live.js',
     'accounts-enhancements.js',
+    'accounts-navigation-ui.js',
     'rent-salary-ui.js',
     'donations-ui.js',
     'expenses-v1-ui.js',
@@ -74,7 +75,6 @@ $files = [
     'transport-controls-ui.js',
     'reports-ui.js',
     'profitability-ui.js',
-    'accounts-navigation-ui.js',
 ];
 
 $versionParts = [];

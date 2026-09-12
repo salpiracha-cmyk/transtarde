@@ -16,7 +16,7 @@ assert.match(exportsApp,/nextLoadingProgrammeNo/);assert.match(exportsApp,/LOADI
 assert.match(index,/app-bundle\.php\?v=/);assert.doesNotMatch(index,/src="(?:accounts-live|profitability-ui|expenses-v1-ui)\.js/);
 assert.match(bundle,/accounts-runtime\.js/);assert.match(bundle,/accounts-live\.js/);assert.match(bundle,/expenses-v1-ui\.js/);assert.match(bundle,/profitability-ui\.js/);assert.match(bundle,/accounts-navigation-ui\.js/);
 assert.ok(bundle.indexOf("'accounts-runtime.js'")<bundle.indexOf("'accounts-live.js'"),'Accounts runtime must load before feature scripts');
-assert.ok(bundle.indexOf("'accounts-navigation-ui.js'")>bundle.indexOf("'profitability-ui.js'"),'Accounts navigation must load after feature scripts');
+assert.ok(bundle.indexOf("'accounts-navigation-ui.js'")>bundle.indexOf("'accounts-enhancements.js'")&&bundle.indexOf("'accounts-navigation-ui.js'")<bundle.indexOf("'rent-salary-ui.js'"),'Accounts navigation must register before feature click interceptors');
 assert.match(navigation,/directLanding: true/);assert.match(navigation,/topLevelEditors: true/);assert.match(navigation,/compactHome: true/);assert.match(navigation,/Change Company/);assert.match(navigation,/tt-editor-open/);
 assert.match(baseHtml,/const jvEntity=\$\('#jvEntity'\);if\(jvEntity\)jvEntity\.value=/);assert.match(runtime,/NativeMutationObserver/);assert.match(runtime,/settleAccountsHome/);assert.match(runtime,/COALESCE_MS = 80/);assert.match(runtime,/observerCoalescing: true/);
 assert.doesNotMatch(index,/href="logout\.php"[^>]*>[^⏻]*Logout/i);
