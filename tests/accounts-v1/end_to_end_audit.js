@@ -3,7 +3,7 @@ const fs=require('node:fs'),path=require('node:path'),assert=require('node:asser
 const index=read('accounts/index.php'),html=read('accounts/Transtrade_Accounts_Master_V1.html'),master=JSON.parse(read('accounts/accounting_master_v1.json'));
 const scriptRefs=[...index.matchAll(/script src="([^"]+)"/g)].map(x=>x[1]);
 assert.equal(new Set(scriptRefs).size,scriptRefs.length,'Accounts must not load a script twice');
-for(const ref of scriptRefs){const file=ref.split('?')[0];assert.ok(fs.existsSync(path.join('accounts',file)),file+' referenced by Accounts must exist');}
+for(const ref of scriptRefs){const file=ref.split('?')[0],resolved=file.startsWith('/')?file.slice(1):path.join('accounts',file);assert.ok(fs.existsSync(resolved),file+' referenced by Accounts must exist');}
 const bundledScripts=[...read('accounts/app-bundle.php').matchAll(/'([^']+\.js)'/g)].map(x=>x[1]);
 assert.equal(new Set(bundledScripts).size,bundledScripts.length,'Accounts bundle must not load a script twice');
 for(const file of bundledScripts)assert.ok(fs.existsSync(path.join('accounts',file)),file+' referenced by Accounts bundle must exist');
