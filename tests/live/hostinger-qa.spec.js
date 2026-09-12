@@ -589,3 +589,75 @@ test('automatic bulk QA: every Milling page plus 15 Arrivals and Pohanch records
 
   expect(pageErrors, 'Milling pages must not throw JavaScript errors').toEqual([]);
 });
+
+
+test('live deletion survives sign-out and sign-in', async ({ page }) => {
+  test.setTimeout(180_000);
+  page.on('popup', async popup => popup.close().catch(() => {}));
+  page.on('dialog', async dialog => dialog.accept());
+
+  const suffix = RUN_TOKEN.slice(-8);
+  const customerName = `QA DELETE ${suffix}`;
+  const contractRef = `TTI/QA/DELETE-${suffix}`;
+  const shipmentDate = new Date(Date.now() + 30 * 86400_000).toISOString().slice(0, 10);
+
+  await signInQa(page);
+  await gotoLive(page, `${BASE_URL}/module.php?id=exports`, { waitUntil: 'domcontentloaded' });
+  await page.getByRole('button', { name: /NEW SALES CONTRACT/i }).click();
+  await page.locator('#addCustomer').click();
+  await page.locator('#mCustName').fill(customerName);
+  await page.locator('#mCustCode').fill(`QD${suffix.slice(-4)}`);
+  await page.locator('#mCustAddress').fill('TEST / DUMMY — persistent deletion QA only');
+  await page.locator('#mCustCountry').fill('Pakistan');
+  await page.locator('#saveNewCustomer').click();
+  await page.locator('#cRef').fill(contractRef);
+  await page.locator('#nextStep').click();
+
+  await page.locator('#cProduct').selectOption({ index: 1 });
+  await page.locator('#cBroken').fill('5');
+  await page.locator('#cFinish').fill('TEST / DUMMY');
+  await page.locator('#nextStep').click();
+
+  await page.locator('#cContainers').fill('1');
+  await page.locator('#cWeightPer').fill('26');
+  await page.locator('#cShipmentDate').fill(shipmentDate);
+  await page.locator('#cPOD').fill('Jebel Ali');
+  await page.locator('#cPODCountry').fill('United Arab Emirates');
+  await page.locator('#nextStep').click();
+
+  await page.locator('#addPacking').click();
+  await page.locator('#mPackType').selectOption('__custom__');
+  await page.locator('#mPackTypeCustom').fill(`QA DELETE PACKING ${suffix}`);
+  await page.locator('#mPackSize').fill('25');
+  await page.locator('#mPackBrand').fill(`QA DELETE BRAND ${suffix}`);
+  await page.locator('#mPackTare').fill('80');
+  await page.locator('#mPackContainers').fill('1');
+  await page.locator('#mPackExtra').fill('1');
+  await page.locator('#nextStep').click();
+
+  await page.locator('#cIncoterm').selectOption('CFR');
+  await page.locator('[data-contract-rate="0"]').fill('400');
+  await page.locator('[data-freight="0"]').fill('20');
+  await page.locator('#nextStep').click();
+  await page.locator('#cPayment').selectOption('ADV100');
+  await page.locator('#nextStep').click();
+  await page.locator('#cSignedDeadline').fill(shipmentDate);
+  await page.locator('#cPaymentDeadline').fill(shipmentDate);
+  await page.locator('#nextStep').click();
+  await page.locator('#issueContract').click();
+  await waitForSharedSave(page);
+
+  let card = page.locator('article.contractCard').filter({ hasText: contractRef });
+  await expect(card).toHaveCount(1);
+  await card.getByRole('button', { name: /Cancel \/ Delete Shipment/i }).click();
+  await page.getByRole('button', { name: /Yes — Delete Shipment/i }).click();
+  await expect(page.locator('#shipmentDeleteError')).toHaveCount(0);
+  await expect(page.locator('article.contractCard').filter({ hasText: contractRef })).toHaveCount(0, { timeout: 35_000 });
+  await waitForSharedSave(page);
+
+  await gotoLive(page, `${BASE_URL}/logout.php`, { waitUntil: 'domcontentloaded' });
+  await signInQa(page);
+  await gotoLive(page, `${BASE_URL}/module.php?id=exports`, { waitUntil: 'domcontentloaded' });
+  card = page.locator('article.contractCard').filter({ hasText: contractRef });
+  await expect(card, 'server-confirmed deleted shipment must not return after a new login').toHaveCount(0);
+});
