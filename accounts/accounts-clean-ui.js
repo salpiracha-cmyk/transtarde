@@ -179,25 +179,30 @@
     if (!bar) {
       bar = document.createElement('div');
       bar.className = 'tt-editor-bar';
-      bar.innerHTML = '<button class="backBtn" type="button" data-editor-back>× Cancel</button><h2></h2>';
+      bar.innerHTML = '<button class="backBtn tt-clean-close" type="button">× Cancel</button><h2></h2>';
       workspace.insertBefore(bar, editor);
-      q('[data-editor-back]', bar).onclick = () => {
-        workspace.classList.remove('tt-editor-open');
-        editor.classList.remove('tt-editor-stage');
-      };
     }
+    makeCloseButton(q('button', bar), workspace);
     q('h2', bar).textContent = title;
     editor.classList.add('tt-editor-stage');
     workspace.classList.add('tt-editor-open');
   }
 
   function closeModal(workspace) {
-    const back = q(':scope > .panelHead [data-back]', workspace) || q('[data-back]', workspace);
-    if (back) back.click(); else workspace.classList.remove('active');
-    workspace.classList.remove('tt-clean-modal', 'tt-master-only', 'tt-entry-only');
+    workspace.classList.remove('active', 'tt-clean-modal', 'tt-editor-open', 'tt-master-only', 'tt-entry-only');
+    qa('.tt-editor-stage', workspace).forEach(editor => editor.classList.remove('tt-editor-stage'));
     document.body.classList.remove('tt-modal-open');
     q('#entityHome').style.display = 'block';
     masterMode = '';
+  }
+
+  function makeCloseButton(button, workspace) {
+    if (!button) return;
+    button.removeAttribute('data-back');
+    button.removeAttribute('data-editor-back');
+    button.classList.add('tt-clean-close');
+    button.textContent = '× Cancel';
+    button.onclick = event => { event.preventDefault(); event.stopPropagation(); closeModal(workspace); };
   }
 
   function prepareModal() {
@@ -206,9 +211,8 @@
     workspace.classList.add('tt-clean-modal');
     workspace.classList.toggle('tt-master-only', !!masterMode);
     workspace.classList.toggle('tt-entry-only', !masterMode && /salary|rent/.test(workspace.textContent.toLowerCase()));
-    const back = q(':scope > .panelHead [data-back]', workspace);
-    if (back) back.textContent = '× Cancel';
-    qa('[data-editor-back]', workspace).forEach(button => { button.textContent = '× Cancel'; });
+    makeCloseButton(q(':scope > .panelHead [data-back], :scope > .panelHead .tt-clean-close', workspace), workspace);
+    qa('[data-editor-back], .tt-editor-bar .tt-clean-close', workspace).forEach(button => makeCloseButton(button, workspace));
     document.body.classList.add('tt-modal-open');
     q('#entityHome').style.display = 'block';
   }
@@ -310,7 +314,7 @@
       delete workspace.dataset.ttMasterAdd;
       installSalaryBatch(editor);
     }
-    qa('[data-editor-back]', workspace).forEach(button => { button.textContent = '× Cancel'; });
+    qa('[data-editor-back], .tt-editor-bar .tt-clean-close', workspace).forEach(button => makeCloseButton(button, workspace));
   }
 
   function numberFrom(text) { return Number(String(text || '').replace(/[^0-9.-]/g, '')) || 0; }
