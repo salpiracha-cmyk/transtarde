@@ -132,11 +132,12 @@
   async function launch(item) {
     closeGroup();
     masterMode = item.master || '';
+    if (item.soda) sessionStorage.setItem('tt_purchase_focus', 'ALL');
     const card = nativeCards.get(item.native) || q(`#ttNativeLaunchers .appCard[data-key="${item.native}"]`);
     if (!card) return;
     card.click();
     if (item.soda) {
-      await sleep(35);
+      await sleep(180);
       document.dispatchEvent(new CustomEvent('tt:purchase-focus', {detail:{focus:'ALL'}}));
       stageEditor(q('#purchaseEditor'), 'Sodas');
     }
