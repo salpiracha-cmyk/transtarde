@@ -1,6 +1,6 @@
 'use strict';
 const fs=require('node:fs'),assert=require('node:assert/strict'),read=p=>fs.readFileSync(p,'utf8');
-const api=read('api/journal_vouchers.php'),legacy=read('api/accounts.php'),ui=read('accounts/jv-workflow-ui.js'),index=read('accounts/index.php'),master=JSON.parse(read('accounts/accounting_master_v1.json'));
+const api=read('api/journal_vouchers.php'),legacy=read('api/accounts.php'),ui=read('accounts/jv-workflow-ui.js'),index=read('accounts/index.php'),bundle=read('accounts/app-bundle.php'),master=JSON.parse(read('accounts/accounting_master_v1.json'));
 const accounts=new Set(master.chart.map(x=>String(x.code)));
 for(const code of ['1400','2140','3200','6900'])assert.ok(accounts.has(code));
 const draft={status:'Draft',lines:[{account:'6900',debit:100000,credit:0},{account:'2140',debit:0,credit:100000}]};
@@ -31,5 +31,5 @@ assert.match(ui,/Approve & Post/);
 assert.match(ui,/JV Register & Audit Trail/);
 assert.match(ui,/It will remain in the audit trail/);
 assert.match(ui,/Post a complete reversing journal/);
-assert.match(index,/jv-workflow-ui\.js\?v=20260911-1/);
+assert.match(index,/app-bundle\.php/);\nassert.match(bundle,/'jv-workflow-ui\.js'/);
 console.log('Journal Voucher workflow deterministic QA passed.');
