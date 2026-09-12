@@ -29,6 +29,5 @@ $access = [
 ];
 $bootstrap = '<script>window.TT_ACCOUNT_ACCESS=' . json_encode($access, JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT) . ';</script>';
 $html = preg_replace('/<head(\s[^>]*)?>/i', '$0' . $bootstrap, $html, 1) ?? $html;
-$html = preg_replace('/<\/body>/i', '<script src="/offline-outbox.js?v=20260912-1"></script><script src="app-bundle.php?v=20260912-13"></script></body>', $html, 1) ?? $html;
+$html = preg_replace('/<\/body>/i', '<script src="/offline-outbox.js?v=20260912-1"></script><script src="app-bundle.php?v=20260912-14"></script></body>', $html, 1) ?? $html;
 echo $html;
-
