@@ -268,6 +268,25 @@ function operations_merge_export(string $currentJson, string $incomingJson, stri
         return $currentJson;
     }
 
+    $applyTombstones = static function (array $merged) use ($current, $incoming, $sourceModule): array {
+        $authoritative = strcasecmp($sourceModule, 'Exports') === 0 || strcasecmp($sourceModule, 'Super Admin') === 0;
+        $tombstones = $authoritative ? (array)($incoming['deletedShipments'] ?? []) : (array)($current['deletedShipments'] ?? []);
+        $merged['deletedShipments'] = $tombstones;
+        $ids = [];$refs = [];
+        foreach ($tombstones as $row) {
+            if (!is_array($row) || !empty($row['restoredAt'])) continue;
+            $id = (string)($row['processId'] ?? $row['id'] ?? '');
+            $ref = (string)($row['contractRef'] ?? '');
+            if ($id !== '') $ids[$id] = true;
+            if ($ref !== '') $refs[$ref] = true;
+        }
+        $merged['shipments'] = array_values(array_filter((array)($merged['shipments'] ?? []), static function ($row) use ($ids, $refs): bool {
+            if (!is_array($row)) return false;
+            return !isset($ids[(string)($row['id'] ?? '')]) && !isset($refs[(string)($row['contractRef'] ?? '')]);
+        }));
+        return $merged;
+    };
+
     if (strcasecmp($sourceModule, 'Accounts') === 0) {
         $merged = $current;
         $merged['accountsReceipts'] = operations_union_rows(
@@ -277,7 +296,7 @@ function operations_merge_export(string $currentJson, string $incomingJson, stri
         );
         $merged['alerts'] = operations_union_rows((array)($current['alerts'] ?? []), (array)($incoming['alerts'] ?? []), ['id', 'at']);
         $merged['audits'] = operations_union_rows((array)($current['audits'] ?? []), (array)($incoming['audits'] ?? []), ['id', 'at']);
-        return json_encode($merged, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+        return json_encode($applyTombstones($merged), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
     }
 
     if (strcasecmp($sourceModule, 'Mill') === 0 || strcasecmp($sourceModule, 'Milling') === 0) {
@@ -296,7 +315,7 @@ function operations_merge_export(string $currentJson, string $incomingJson, stri
         $merged['shipments'] = array_values($currentShipments);
         $merged['alerts'] = operations_union_rows((array)($current['alerts'] ?? []), (array)($incoming['alerts'] ?? []), ['id', 'at']);
         $merged['audits'] = operations_union_rows((array)($current['audits'] ?? []), (array)($incoming['audits'] ?? []), ['id', 'at']);
-        return json_encode($merged, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+        return json_encode($applyTombstones($merged), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
     }
 
     $merged = $incoming;
@@ -314,7 +333,7 @@ function operations_merge_export(string $currentJson, string $incomingJson, stri
     unset($shipment);
     $merged['alerts'] = operations_union_rows((array)($current['alerts'] ?? []), (array)($incoming['alerts'] ?? []), ['id', 'at']);
     $merged['audits'] = operations_union_rows((array)($current['audits'] ?? []), (array)($incoming['audits'] ?? []), ['id', 'at']);
-    return json_encode($merged, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+    return json_encode($applyTombstones($merged), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
 }
 
 /**
