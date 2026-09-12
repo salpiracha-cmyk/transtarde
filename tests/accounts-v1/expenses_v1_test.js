@@ -1,6 +1,6 @@
 'use strict';
 const fs=require('node:fs'),assert=require('node:assert/strict'),read=p=>fs.readFileSync(p,'utf8');
-const master=JSON.parse(read('accounts/accounting_master_v1.json')),api=read('api/expenses_v1.php'),ui=read('accounts/expenses-v1-ui.js'),index=read('accounts/index.php');
+const master=JSON.parse(read('accounts/accounting_master_v1.json')),api=read('api/expenses_v1.php'),ui=read('accounts/expenses-v1-ui.js'),index=read('accounts/index.php'),bundle=read('accounts/app-bundle.php');
 const chart=Object.fromEntries(master.chart.map(x=>[String(x.code),x]));
 const utilityAccounts={ELECTRICITY:'6110',GAS:'6120',WATER:'6130',INTERNET:'6140',TELEPHONE_MOBILE:'6150',OTHER_UTILITY:'6190'};
 for(const [type,account] of Object.entries(utilityAccounts)){assert.ok(chart[account]);assert.equal(chart[account].class,'Expense');assert.match(api,new RegExp("'"+type+"'=>'"+account+"'"))}
@@ -24,5 +24,6 @@ assert.match(api,/\['TTI','BRM','TG'\]/);
 assert.match(ui,/\.\.\/api\/expenses_v1\.php/);
 assert.match(ui,/No ledger entry is made until the statement is actually paid/);
 assert.match(ui,/FAM-SALMAN/);assert.match(ui,/FAM-TALHA/);assert.match(ui,/FAM-ABU/);assert.match(ui,/FAM-TAYYAB/);
-assert.match(index,/expenses-v1-ui\.js/);
+assert.match(index,/app-bundle\.php/);
+assert.match(bundle,/'expenses-v1-ui\.js'/);
 console.log('Utilities and Credit Cards deterministic QA passed.');
