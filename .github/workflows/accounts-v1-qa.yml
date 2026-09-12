@@ -33,5 +33,6 @@ jobs:
           node tests/accounts-v1/journal_vouchers_test.js
           node tests/accounts-v1/end_to_end_audit.js
           node tests/accounts-v1/static_audit.js
+          node tests/accounts-v1/clean_ui_test.js
       - name: PHP syntax
         run: find . -path './.git' -prune -o -name '*.php' -print0 | xargs -0 -n1 php -l

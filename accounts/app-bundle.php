@@ -75,6 +75,7 @@ $files = [
     'transport-controls-ui.js',
     'reports-ui.js',
     'profitability-ui.js',
+    'accounts-clean-ui.js',
 ];
 
 $versionParts = [];
