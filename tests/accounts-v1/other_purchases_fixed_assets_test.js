@@ -1,6 +1,6 @@
 'use strict';
 const fs=require('node:fs'),assert=require('node:assert/strict'),read=p=>fs.readFileSync(p,'utf8');
-const master=JSON.parse(read('accounts/accounting_master_v1.json')),api=read('api/other_purchases.php'),ui=read('accounts/other-purchases-ui.js'),index=read('accounts/index.php');
+const master=JSON.parse(read('accounts/accounting_master_v1.json')),api=read('api/other_purchases.php'),ui=read('accounts/other-purchases-ui.js'),index=read('accounts/index.php'),bundle=read('accounts/app-bundle.php');
 const chart=Object.fromEntries(master.chart.map(x=>[String(x.code),x]));
 for(const code of ['1510','1520','1530','1540']){assert.ok(chart[code],code+' missing');assert.equal(chart[code].class,'Asset');assert.equal(chart[code].normal,'Debit');}
 for(const code of ['6400','6500','6600','6700','6900']){assert.ok(chart[code],code+' missing');assert.equal(chart[code].class,'Expense');assert.equal(chart[code].normal,'Debit');}
@@ -31,5 +31,6 @@ assert.match(ui,/Fixed Asset Register/);
 assert.match(ui,/Unique Asset Tag/);
 assert.match(ui,/No depreciation is posted merely by adding an asset/);
 assert.match(ui,/data-purchase="other"/);
-assert.match(index,/other-purchases-ui\.js\?v=20260911-3/);
+assert.match(index,/app-bundle\.php/);
+assert.match(bundle,/'other-purchases-ui\.js'/);
 console.log('Other Purchases and Fixed Assets deterministic QA passed.');

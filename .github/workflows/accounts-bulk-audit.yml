@@ -6,6 +6,9 @@ on:
     branches: [main]
     paths:
       - 'api/accounts.php'
+      - 'accounts/index.php'
+      - 'accounts/app-bundle.php'
+      - 'accounts/accounts-runtime.js'
       - 'api/accounts_reports.php'
       - 'tests/live/accounts-bulk-hostinger-qa.spec.js'
       - '.github/workflows/accounts-bulk-audit.yml'
