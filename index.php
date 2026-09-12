@@ -16,7 +16,7 @@ $session = [
     'permissions'=>$user['permissions'] ?? [], 'csrf'=>tt_csrf(),
 ];
 $bootstrap = '<script>window.TT_SESSION=' . json_encode($session, JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT) . ';</script>';
-$adminApp = '<script src="admin/app.js?v=20260909-2"></script>';
+$adminApp = '<script src="admin/app.js?v=20260912-1"></script>';
 $customerMaster = '<script src="/customer-master.js?v=20260909-1"></script>';
 $release = '<script src="/customer-contract-options.js?v=20260909-1"></script><script src="/global-validation.js?v=20260909-1"></script>';
 echo str_replace($adminApp, $bootstrap . $adminApp . $customerMaster . $release, (string)$html);
