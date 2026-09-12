@@ -132,6 +132,10 @@
   async function launch(item) {
     closeGroup();
     masterMode = item.master || '';
+    qa('.workspace').forEach(workspace => workspace.classList.remove('active', 'tt-clean-modal', 'tt-editor-open', 'tt-master-only', 'tt-entry-only'));
+    qa('.tt-editor-stage').forEach(editor => editor.classList.remove('tt-editor-stage'));
+    document.body.classList.remove('tt-modal-open');
+    q('#entityHome').style.display = 'block';
     if (item.soda) sessionStorage.setItem('tt_purchase_focus', 'ALL');
     const card = nativeCards.get(item.native) || q(`#ttNativeLaunchers .appCard[data-key="${item.native}"]`);
     if (!card) return;
