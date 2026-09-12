@@ -4,6 +4,7 @@
   if (window.TT_ACCOUNT_RUNTIME?.observerCoalescing) return;
 
   const NativeMutationObserver = window.MutationObserver;
+  const COALESCE_MS = 80;
   const runtime = window.TT_ACCOUNT_RUNTIME = {
     observerCoalescing: true,
     observerCount: 0,
@@ -30,7 +31,7 @@
           runtime.callbackCount += 1;
           runtime.lastCallbackAt = Date.now();
           this.callback(pending, this);
-        }, 80);
+        }, COALESCE_MS);
       });
     }
 
