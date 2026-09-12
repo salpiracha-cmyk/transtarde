@@ -34,7 +34,7 @@
     .tt-editor-bar h2{margin:0;font-size:20px}
     .tt-editor-bar .backBtn{flex:0 0 auto}
     #expenseEditor:not(.tt-editor-stage),#purchaseEditor:not(.tt-editor-stage){display:none!important}
-    .workspace.tt-editor-open>.panelHead,.workspace.tt-editor-open>.subGrid{display:none!important}
+    .workspace.tt-editor-open>:not(.tt-editor-bar):not(.tt-editor-stage){display:none!important}
     .workspace.tt-editor-open>.tt-editor-stage{display:block!important}
     .workspace.tt-editor-open>.tt-editor-stage>.split,.workspace.tt-editor-open>.tt-editor-stage>.tte{padding-top:0}
     @media(max-width:1250px){#homeGrid{grid-template-columns:repeat(5,minmax(0,1fr))}}
@@ -154,6 +154,7 @@
     installed: true,
     directLanding: true,
     topLevelEditors: true,
+    isolatedEditorSiblings: true,
     compactHome: true
   };
 })();
