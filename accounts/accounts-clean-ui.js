@@ -149,7 +149,11 @@
     if (item.then) {
       let target = null;
       for (let tries = 0; tries < 30 && !target; tries += 1) { target = q(item.then); if (!target) await sleep(35); }
-      target?.click();
+      if (target) {
+        target.click();
+        const editor = q('#purchaseEditor,#expenseEditor', target.closest('.workspace') || document);
+        if (editor) stageEditor(editor, item.title);
+      }
     }
     if (item.text) {
       await sleep(30);
