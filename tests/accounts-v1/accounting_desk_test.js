@@ -1,0 +1,30 @@
+'use strict';
+
+const fs = require('fs');
+const assert = require('assert');
+
+const desk = fs.readFileSync('accounts/accounts-accounting-desk.js', 'utf8');
+const bundle = fs.readFileSync('accounts/app-bundle.php', 'utf8');
+const sodaApi = fs.readFileSync('api/purchase_sodas.php', 'utf8');
+const searchApi = fs.readFileSync('api/accounts_search.php', 'utf8');
+const auth = fs.readFileSync('auth_store.php', 'utf8');
+
+assert(bundle.includes("'accounts-accounting-desk.js'"), 'professional Accounts desk must be loaded last');
+assert(desk.includes("master.id = 'ttMasterTop'"), 'Masters must be available through top-bar M');
+assert(desk.includes('New Soda') && desk.includes('Search / Amend Soda'), 'Soda Centre must have New and Search/Amend choices');
+assert(desk.includes('Saving a Soda creates an open purchase commitment only'), 'Soda form must explain that no GL entry is made');
+assert(desk.includes('Reason for Amendment'), 'Soda amendment reason must be visible and compulsory');
+assert(desk.includes('Search Previous Accounts Entry'), 'every workspace must expose previous-entry search');
+assert(desk.includes('Print Voucher'), 'third-party accounting search results must expose voucher print');
+assert(desk.includes('Export Payment Received') && desk.includes('Local Sale Payment') && desk.includes('Other Payment Received'), 'receipt work must use the three approved categories');
+assert(desk.includes('Freight') && desk.includes('Clearing') && desk.includes('Fumigation') && desk.includes('Inspection') && desk.includes('Transport'), 'shipment bill categories must remain available');
+assert(desk.includes(".workspace.tt-clean-modal .accountPreview{display:block!important"), 'live accounting preview must not be hidden');
+assert(desk.includes('Generated automatically'), 'Soda/internal number must be system-generated');
+assert(sodaApi.includes("$action === 'amend'"), 'Soda API must support amendments');
+assert(sodaApi.includes("'reason'=>$reason") && sodaApi.includes("'changes'=>$changes"), 'Soda audit must retain reason and old/new changes');
+assert(sodaApi.includes("['RICE','CORN','SESAME']"), 'Soda must support approved commodity choices');
+assert(searchApi.includes("'voucherNo','journalId','billNo','invoiceNo','sodaNo','pohanch','chequeNo','reference'"), 'universal search must cover accounting and operational references');
+assert(searchApi.includes("as_text($row)"), 'universal search must include linked shipment fields such as container, B/L, vessel, line and port');
+assert(auth.includes("return 'accounts/index.php'"), 'Accounts remains the direct landing page after sign-in');
+
+console.log('Accounts professional desk: passed');
