@@ -47,14 +47,17 @@ for(const html of [t.packingListDoc(lot,contract,true),t.phytoInvoiceDoc(lot,con
   assert.match(html,/assets\/BRM_header\.png/);
   assert.match(html,/TRANS GRAINS FOODSTUFF TRADING L\.L\.C/);
 }
-for(const html of [t.blDraftDoc(lot,contract),t.cooDoc(lot,contract,false)]){
-  assert.match(html,/assets\/BRM_header\.png/);
-  assert.match(html,/FINAL BUYER LLC/);
-}
+const bl=t.blDraftDoc(lot,contract);
+assert.match(bl,/plainBlPage/);
+assert.match(bl,/FINAL BUYER LLC/);
+assert.doesNotMatch(bl,/assets\/BRM_header\.png|docFooterArt|docAutoSign|bagMarking/);
+assert.match(t.cooDoc(lot,contract,false),/assets\/BRM_header\.png/);
+assert.match(t.cooDoc(lot,contract,false),/FINAL BUYER LLC/);
 for(const html of [t.tgInternalDoc(lot,contract),t.tgPakistanCoveringDoc(lot,contract)]){
   assert.match(html,/assets\/BRM_header\.png/);
   assert.match(html,/FI-TG-01/);
   assert.match(html,/GD-TG-01/);
   assert.doesNotMatch(html,/410\.00/);
+  assert.doesNotMatch(html,/intercompany|intra[- ]?group/i);
 }
 console.log('PASS TG route audit: TG customer pack and BRM/TTI Pakistan pack remain legally and financially separate');
