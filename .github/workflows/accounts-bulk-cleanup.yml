@@ -1,0 +1,55 @@
+name: Accounts Bulk Test Cleanup
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'api/accounts_bulk_test_cleanup.php'
+      - 'tests/live/accounts-bulk-cleanup.spec.js'
+      - '.github/workflows/accounts-bulk-cleanup.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: accounts-bulk-test-cleanup
+  cancel-in-progress: false
+
+jobs:
+  purge-marked-qa-data:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: live-qa
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify cleanup files
+        run: |
+          php -l api/accounts_bulk_test_cleanup.php
+          node --check tests/live/accounts-bulk-cleanup.spec.js
+      - name: Verify QA credentials
+        env:
+          QA_USERNAME: ${{ secrets.TRANSTRADE_QA_USERNAME }}
+          QA_PASSWORD: ${{ secrets.TRANSTRADE_QA_PASSWORD }}
+        run: |
+          test -n "$QA_USERNAME" || { echo "Missing TRANSTRADE_QA_USERNAME"; exit 1; }
+          test -n "$QA_PASSWORD" || { echo "Missing TRANSTRADE_QA_PASSWORD"; exit 1; }
+      - name: Install browser request runtime
+        run: npm install --no-save @playwright/test@1.55.0
+      - name: Wait for Hostinger deployment
+        run: sleep 90
+      - name: Back up and delete marked Accounts bulk-test records
+        env:
+          TRANSTRADE_BASE_URL: https://app.transtradeinternational.com
+          TRANSTRADE_QA_USERNAME: ${{ secrets.TRANSTRADE_QA_USERNAME }}
+          TRANSTRADE_QA_PASSWORD: ${{ secrets.TRANSTRADE_QA_PASSWORD }}
+        run: npx playwright test tests/live/accounts-bulk-cleanup.spec.js --reporter=line
+      - name: Upload cleanup evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: accounts-bulk-cleanup-${{ github.run_id }}
+          path: test-results/
+          retention-days: 30
