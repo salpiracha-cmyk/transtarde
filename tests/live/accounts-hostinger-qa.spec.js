@@ -113,7 +113,7 @@ test('authenticated Accounts live smoke: full module loads and every workspace r
 
   await activate(page.locator('.appCard[data-key="expenses"]'));
   await activate(page.locator('[data-expense="rent"]'));
-  await expect(page.locator('#expenseEditor').getByText('Add Rent Master', { exact: false })).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('#expenseEditor').getByText('Add Rent Master', { exact: true }).first()).toBeVisible({ timeout: 30_000 });
   await backHome(page);
 
   await activate(page.locator('.appCard[data-key="purchases"]'));
