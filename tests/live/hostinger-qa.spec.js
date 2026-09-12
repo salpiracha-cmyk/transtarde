@@ -105,14 +105,13 @@ async function createBulkQaShipment(page, { suffix, index, lotRef, contractRef, 
   await page.locator('#nextStep').click();
 
   await page.locator('#addPacking').click();
-  await page.locator('#mPackType').fill('PP Bags — TEST / DUMMY');
+  await page.locator('#mPackType').selectOption('__custom__');
+  await page.locator('#mPackTypeCustom').fill('PP Bags — TEST / DUMMY');
   await page.locator('#mPackSize').fill('25');
   await page.locator('#mPackBrand').fill(brand);
   await page.locator('#mPackTare').fill('80');
   await page.locator('#mPackContainers').fill('1');
-  await page.locator('#mPackWeight').fill('26');
   await page.locator('#mPackExtra').fill('1');
-  await page.locator('#savePacking').click();
   await page.locator('#nextStep').click();
 
   await page.locator('#cIncoterm').selectOption('FOB');
@@ -150,9 +149,9 @@ async function createBulkQaShipment(page, { suffix, index, lotRef, contractRef, 
   await waitForSharedSave(page);
 
   await page.locator('[data-workspace="loading"]').click();
-  await page.locator('#liLot').fill(lotRef);
+  await page.locator('#liDate').fill(shipmentDate);
+  await page.locator('#liProgramme').fill(`QA-LP-${suffix}-${index}`);
   await page.locator('[data-li-name="0"]').fill('TTI Rice Mills');
-  await page.locator('[data-li-type="0"]').selectOption('TTI');
   await page.locator('[data-li-cont="0"]').fill('1');
   await page.locator('[data-li-weight="0"]').fill('26');
   if (await page.locator('#liPhysicalContainers').count()) await page.locator('#liPhysicalContainers').fill('1');
@@ -174,7 +173,7 @@ test('manual Hostinger QA: Export instruction to Mill and container return', asy
   const contractRef = `TTI/QA/GH-${suffix}`;
   const brand = `QA LIVE ${suffix}`;
   const supplier = `QA BAG SUPPLIER ${suffix}`;
-  const lotRef = `LOT-GH-${suffix}`;
+  const lotRef = `${contractRef}/L01`;
   const serialBase = Number(RUN_ID.slice(-6)) % 999_998;
   const containerOne = isoContainer('TGHU', serialBase || 1);
   const containerTwo = isoContainer('TGHU', (serialBase || 1) + 1);
@@ -220,14 +219,12 @@ test('manual Hostinger QA: Export instruction to Mill and container return', asy
   await page.locator('#nextStep').click();
 
   await page.locator('#addPacking').click();
-  await page.locator('#mPackType').fill('PP Bags');
+  await page.locator('#mPackType').selectOption({ label: 'P.P. Bags' });
   await page.locator('#mPackSize').fill('25');
   await page.locator('#mPackBrand').fill(brand);
   await page.locator('#mPackTare').fill('80');
   await page.locator('#mPackContainers').fill('2');
-  await page.locator('#mPackWeight').fill('26');
   await page.locator('#mPackExtra').fill('1');
-  await page.locator('#savePacking').click();
   await page.locator('#nextStep').click();
 
   await page.locator('#cIncoterm').selectOption('FOB');
@@ -266,9 +263,9 @@ test('manual Hostinger QA: Export instruction to Mill and container return', asy
   await waitForSharedSave(page);
 
   await page.locator('[data-workspace="loading"]').click();
-  await page.locator('#liLot').fill(lotRef);
+  await page.locator('#liDate').fill(tomorrow);
+  await page.locator('#liProgramme').fill(`QA-LP-${suffix}`);
   await page.locator('[data-li-name="0"]').fill('TTI Rice Mills');
-  await page.locator('[data-li-type="0"]').selectOption('TTI');
   await page.locator('[data-li-cont="0"]').fill('2');
   await page.locator('[data-li-weight="0"]').fill('26');
   if (await page.locator('#liPhysicalContainers').count()) await page.locator('#liPhysicalContainers').fill('2');
@@ -379,7 +376,7 @@ test('manual Hostinger QA: Export instruction to Mill and container return', asy
   expect(exportPageErrors, 'Exports pages must not throw JavaScript errors').toEqual([]);
 });
 
-test('live bulk QA: same lot reference across shipments and isolated B/L returns', async ({ page }, testInfo) => {
+test('live bulk QA: automatic lot references and isolated B/L returns', async ({ page }, testInfo) => {
   test.setTimeout(480_000);
   const errors = [];
   page.on('pageerror', error => errors.push(String(error)));
@@ -394,21 +391,21 @@ test('live bulk QA: same lot reference across shipments and isolated B/L returns
     {
       index: 1,
       contractRef: `TTI/QA/BULK-${suffix}-A`,
-      lotRef: sameLot,
+      lotRef: `TTI/QA/BULK-${suffix}-A/L01`,
       brand: `QA DUMMY BULK ${suffix} A`,
       container: isoContainer('QABU', serialBase),
     },
     {
       index: 2,
       contractRef: `TTI/QA/BULK-${suffix}-B`,
-      lotRef: sameLot,
+      lotRef: `TTI/QA/BULK-${suffix}-B/L01`,
       brand: `QA DUMMY BULK ${suffix} B`,
       container: isoContainer('QACU', serialBase + 1),
     },
     {
       index: 3,
       contractRef: `TTI/QA/BULK-${suffix}-C`,
-      lotRef: differentLot,
+      lotRef: `TTI/QA/BULK-${suffix}-C/L01`,
       brand: `QA DUMMY BULK ${suffix} C`,
       container: isoContainer('QADU', serialBase + 2),
     },
