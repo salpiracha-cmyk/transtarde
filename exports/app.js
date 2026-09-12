@@ -530,11 +530,6 @@ purchaseOrderPrint=function(po){return purchaseOrderPrintBeforeApprovalLabels(po
 const renderUploadDocumentsBeforeGDEntry=renderUploadDocuments;
 renderUploadDocuments=function(d){renderUploadDocumentsBeforeGDEntry(d);const s=shipment(),select=d.querySelector('#uploadDocumentType'),button=d.querySelector('#saveLotDocument'),file=d.querySelector('#lotDocumentFile');if(!select||!button||!file)return;select.closest('.grid2')?.insertAdjacentHTML('beforeend','<div class="field full hidden" id="gdUploadDetails"><label>GD Number and Date — one per line</label><textarea id="uploadGDRefs" placeholder="GD-12345 | 2026-09-12"></textarea></div>');const details=d.querySelector('#gdUploadDetails'),toggle=()=>details.classList.toggle('hidden',!/^Goods Declaration/i.test(select.value));select.addEventListener('change',toggle);toggle();const replacement=button.cloneNode(true);button.replaceWith(replacement);replacement.onclick=async()=>{if(replacement.disabled)return;try{const name=select.value==='Custom'?d.querySelector('#customUploadName').value.trim():select.value,chosen=file.files[0];if(!name)return alert('Enter the custom document name.');if(!chosen)return alert('Choose a document to upload.');let gdRefs=[];if(/^Goods Declaration/i.test(name)){gdRefs=parseGDRefs(d.querySelector('#uploadGDRefs').value);if(!gdRefs.length||gdRefs.some(x=>!x.number||!x.date))return alert('Enter each GD number and date before uploading the issued GD.')}replacement.disabled=true;replacement.textContent='UPLOADING…';const doc=await uploadDocument(chosen,'lot-document-'+name.toLowerCase().replace(/[^a-z0-9]+/g,'-'),s),entry={id:uid('UPDOC'),name,uploadedAt:new Date().toISOString(),uploadedBy:currentUser(),finalDocument:doc};s.uploadedDocuments=Array.isArray(s.uploadedDocuments)?s.uploadedDocuments:[];s.uploadedDocuments.push(entry);if(/^Goods Declaration/i.test(name)){s.customs.gdRefs=gdRefs;doc.gdRefsFingerprint=gdRefsFingerprint(gdRefs);s.customs.gdDocument=doc}else if(/^Final \/ Original B\/L$/i.test(name)){s.bl.finalDocument=doc;s.bl.finalFile=doc.name;s.bl.finalized=!!s.bl.blNo&&!!s.bl.onBoardDate}else if(/^Certificate of Origin$/i.test(name))s.coo.finalDocument=doc;audit('Upload Documents','Completed document uploaded',`${s.contractRef} · ${s.lotId} · ${name}`);renderShipmentWorkspace()}catch(error){replacement.disabled=false;replacement.textContent='UPLOAD DOCUMENT';alert(error.message)}}};
 
-window.addEventListener('error',e=>console.error('Transtrade Export Clean V2',e.error||e.message));
-mount();
-})();
-
-
 /* 2026-09-12 blank FOB and removable configurable dropdown options. */
 const TT_REMOVABLE_OPTION_GROUPS={
  packing:{label:'Packing',fixed:['P.P. Bags','BOPP laminated Bags','Cotton Bags','Non- Woven Bags','Jute Bags'],customKey:'customPackingTypes',removedKey:'removedPackingTypes'},
@@ -630,3 +625,7 @@ openFIModal=function(){
  const currency=document.getElementById('mFICur');
  if(currency)[...currency.options].forEach(option=>{if(ttOptionIsRemoved('currency',option.value))option.remove()})
 };
+
+window.addEventListener('error',e=>console.error('Transtrade Export Clean V2',e.error||e.message));
+mount();
+})();
