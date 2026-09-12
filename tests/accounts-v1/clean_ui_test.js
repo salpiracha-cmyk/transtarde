@@ -25,6 +25,7 @@ requireText(ui, 'settleSalaryView', 'render-aware salary and rent mode');
 requireText(ui, "root.closest?.('#expenseEditor')", 'salary mutation ancestor detection');
 requireText(ui, "button.removeAttribute('data-back')", 'independent popup close control');
 requireText(ui, "stageEditor(editor, item.title)", 'direct grouped editor staging');
+requireText(ui, "button.setAttribute('data-editor-back', '')", 'legacy editor compatibility');
 
 requireText(ui, "action:'salary_batch_payment'", 'salary client');
 requireText(salaryApi, "$action==='salary_batch_payment'", 'salary API');
@@ -38,6 +39,6 @@ requireText(workflowApi, "'INSPECTION'=>['5530'", 'inspection posting');
 
 requireText(bundle, "'accounts-clean-ui.js'", 'bundle');
 if (bundle.indexOf("'accounts-clean-ui.js'") < bundle.indexOf("'reports-ui.js'")) throw new Error('Clean UI must load after feature modules.');
-requireText(index, 'app-bundle.php?v=20260912-12', 'cache version');
+requireText(index, 'app-bundle.php?v=20260912-13', 'cache version');
 
 console.log('Accounts clean UI and workflow assertions passed.');
