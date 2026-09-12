@@ -48,11 +48,25 @@ async function responsive(page, label) {
 }
 
 async function backHome(page) {
+  const editorBack = page.locator('[data-editor-back]:visible');
+  if (await editorBack.count()) {
+    await activate(editorBack.first());
+  }
   await activate(page.getByRole('button', { name: /Accounts Home/i }));
   await expect(page.locator('#entityTitle')).toBeVisible();
   await page.waitForTimeout(1_000);
   await expect(page.locator('#entityHome'), 'Accounts home must remain visible after delayed feature refreshes').toBeVisible();
   await responsive(page, 'Accounts home');
+}
+
+async function expectTopEditor(page, editorSelector) {
+  const editor = page.locator(editorSelector);
+  await expect(editor).toHaveClass(/tt-editor-stage/);
+  await expect(page.locator('.workspace.tt-editor-open > .tt-editor-bar')).toBeVisible();
+  await expect(page.locator('.workspace.tt-editor-open > .subGrid')).toBeHidden();
+  const box = await editor.boundingBox();
+  expect(box, 'Top-level editor must have a visible layout box').not.toBeNull();
+  expect(box.y, 'Editor must open near the top of the Accounts page').toBeLessThan(260);
 }
 
 test('authenticated Accounts live smoke: full module loads and every workspace remains responsive', async ({ page }) => {
@@ -67,7 +81,18 @@ test('authenticated Accounts live smoke: full module loads and every workspace r
 
   await expect(page).toHaveTitle(/Transtrade Accounts/i);
   await expect(page.locator('#entityTitle')).toBeVisible();
+  await expect(page.locator('#ttEntityLanding')).toHaveCount(0);
+  await expect.poll(() => page.evaluate(() => window.TT_ACCOUNTS_NAVIGATION?.directLanding || false), {
+    timeout: 30_000,
+    message: 'Accounts must land directly on the entity home',
+  }).toBe(true);
+  const companyMenu = page.getByRole('button', { name: 'Change Company' });
+  await expect(companyMenu).toBeVisible();
+  await expect(page.locator('.entityBtn[data-entity="TTI"]')).toBeHidden();
+  await activate(companyMenu);
   await expect(page.locator('.entityBtn[data-entity="TTI"]')).toBeVisible();
+  await activate(page.locator('.entityBtn[data-entity="TTI"]'));
+  await expect(page.locator('.entityBtn[data-entity="TTI"]')).toBeHidden();
   await expect.poll(() => page.evaluate(() => window.TT_ACCOUNT_RUNTIME?.observerCoalescing || false), {
     timeout: 30_000,
     message: 'Accounts observer coalescing runtime must be active',
@@ -96,6 +121,7 @@ test('authenticated Accounts live smoke: full module loads and every workspace r
 
   await activate(page.locator('[data-expense="salary"]'));
   const salaryPanel = page.locator('#expenseEditor');
+  await expectTopEditor(page, '#expenseEditor');
   await expect(salaryPanel.getByText('Add Salary Master', { exact: false })).toBeVisible({ timeout: 30_000 });
   await expect(salaryPanel.getByText(/Salary advances are not used/i)).toBeVisible();
   await expect(salaryPanel.getByText('Salary Master', { exact: true })).toBeVisible();
@@ -119,6 +145,7 @@ test('authenticated Accounts live smoke: full module loads and every workspace r
   await activate(page.locator('.appCard[data-key="purchases"]'));
   await activate(page.locator('[data-purchase="other"]'));
   const purchasePanel = page.locator('#purchaseEditor');
+  await expectTopEditor(page, '#purchaseEditor');
   await expect(purchasePanel.getByRole('heading', { name: 'Other Purchase' })).toBeVisible({ timeout: 30_000 });
   await expect(purchasePanel.getByRole('heading', { name: 'Fixed Asset Register' })).toBeVisible();
   await backHome(page);
