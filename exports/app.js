@@ -626,6 +626,45 @@ openFIModal=function(){
  if(currency)[...currency.options].forEach(option=>{if(ttOptionIsRemoved('currency',option.value))option.remove()})
 };
 
+/* 2026-09-12 server-confirmed permanent shipment deletion. */
+confirmShipmentDelete=function(processId){
+ const shipmentRecord=state.shipments.find(x=>x.id===processId&&x.kind!=='lot');
+ if(!shipmentRecord)return renderHome();
+ const contractRef=shipmentRecord.contractRef||'';
+ view='home';
+ renderNav();
+ document.getElementById('main').innerHTML=`<div class="panel"><div class="toolbar"><div><h2>Are you sure you want to delete this shipment?</h2><div class="metaText">${esc(contractRef)} · ${esc(shipmentRecord.buyer||'')}</div></div></div><div class="notice warn" style="margin-top:14px"><b>This cannot be undone.</b> The shipment process, all its lots and uploaded documents, and linked Milling instructions/loading data will be deleted. The Sales Contract, customer/master records, Accounts data and audit history will remain.</div><div id="shipmentDeleteError" class="notice bad" style="display:none;margin-top:12px"></div><div class="toolbar" style="margin-top:16px"><div class="spacer"></div><button class="btn" id="keepShipment">No — Keep Shipment</button><button class="btn red" id="deleteShipmentYes">Yes — Delete Shipment</button></div></div>`;
+ const keep=document.getElementById('keepShipment'),button=document.getElementById('deleteShipmentYes'),error=document.getElementById('shipmentDeleteError');
+ let prepared=false,result=null;
+ keep.onclick=()=>prepared?alert('Deletion is waiting for shared-server confirmation. Retry the same deletion before leaving this screen.'):renderHome();
+ button.onclick=async()=>{
+  button.disabled=true;
+  button.textContent=prepared?'Retrying Server Deletion…':'Deleting from Shared Server…';
+  error.style.display='none';
+  try{
+   if(!prepared){
+    result=deleteShipmentData(processId);
+    state.audits.unshift({id:uid('AUD'),at:new Date().toISOString(),user:currentUser(),area:'Shipment',action:'Permanently deleted after server confirmation',detail:result.contractRef+' · '+result.shipmentCount+' shipment record(s) · '+result.lotCount+' lot(s)'});
+    save();
+    prepared=true
+   }else save();
+   const shared=window.TT_SHARED_SYNC;
+   if(!shared?.saveNow)throw new Error('Shared-server confirmation is unavailable. The shipment has not been confirmed as deleted.');
+   await shared.saveNow();
+   let documentWarning='';
+   try{await deleteShipmentDocuments(contractRef)}catch(documentError){documentWarning=documentError.message||'Uploaded document cleanup will be retried.'}
+   shared.bridge?.();
+   renderHome();
+   if(documentWarning)setTimeout(()=>alert('The shipment deletion is confirmed by the shared server. '+documentWarning),0)
+  }catch(saveError){
+   error.textContent=(saveError.message||'Shared server did not confirm the deletion.')+' The shipment has not been confirmed as permanently deleted. Retry this same deletion and do not sign out until confirmation succeeds.';
+   error.style.display='block';
+   button.disabled=false;
+   button.textContent='Retry Server Deletion'
+  }
+ }
+};
+
 window.addEventListener('error',e=>console.error('Transtrade Export Clean V2',e.error||e.message));
 mount();
 })();
