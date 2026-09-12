@@ -132,7 +132,8 @@ test('authenticated Accounts live smoke: professional desk and popup workflows',
 
   await deskAction(page, 'expenses', 'Utilities & Bills');
   await expect(page.locator('#expenseEditor .tt-search-select input').first()).toBeVisible({ timeout: 30_000 });
-  await expect(page.locator('#expenseEditor .accountPreview').first()).toBeVisible();
+  await expect(page.locator('#ttUtilityTreatment')).toBeVisible();
+  await expect(page.locator('#ttUtilityTreatment')).toContainText(/Debit.*Credit.*Balanced|Complete form/s);
   await responsive(page, 'professional Accounts modal');
 
   expect(failedRequests, 'Accounts resources must not fail').toEqual([]);
