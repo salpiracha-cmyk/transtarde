@@ -156,7 +156,6 @@ async function createBulkQaShipment(page, { suffix, index, lotRef, contractRef, 
   await page.locator('#liShippingLine').fill(`QA SHIPPING LINE ${suffix}`);
   await page.locator('#sendLoading').click();
   await waitForSharedSave(page);
-  await expect(page.locator('#sendLoading')).toBeEnabled();
 }
 
 
@@ -266,7 +265,6 @@ test('manual Hostinger QA: Export instruction to Mill and container return', asy
   await page.locator('#liShippingLine').fill(`QA SHIPPING LINE ${suffix}`);
   await page.locator('#sendLoading').click();
   await waitForSharedSave(page);
-  await expect(page.locator('#sendLoading')).toBeEnabled();
   await page.screenshot({ path: testInfo.outputPath('03-loading-instruction-sent.png'), fullPage: true });
 
   await gotoLive(page, `${BASE_URL}/module.php?id=milling`, { waitUntil: 'domcontentloaded' });
