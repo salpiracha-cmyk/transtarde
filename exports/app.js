@@ -603,18 +603,10 @@ function ttSyncFobVisibility(){
   fob.value=entered?priceComponents(packing,contractDraft).fob.toFixed(2):''
  })
 }
-const persistPackingDraftBeforeRemovableOptions=persistPackingDraft;
-persistPackingDraft=function(){
- const control=document.getElementById('mPackType'),custom=document.getElementById('mPackTypeCustom');
- const customValue=control?.value==='__custom__'?String(custom?.value||'').trim():'';
- const result=persistPackingDraftBeforeRemovableOptions();
- if(result&&customValue)ttRestoreOption('packing',customValue);
- return result
-};
 const renderContractStepBeforeRemovableOptions=renderContractStep;
 renderContractStep=function(){
  renderContractStepBeforeRemovableOptions();
- if(contractStep===4)ttPrepareRemovableSelect(document.getElementById('mPackType'),'packing',packingDraft?.type||'');
+ if(contractStep===4){const packingSelect=document.getElementById('mPackType'),customPacking=document.getElementById('mPackTypeCustom');ttPrepareRemovableSelect(packingSelect,'packing',packingDraft?.type||'');customPacking?.addEventListener('input',()=>{if(packingSelect?.value==='__custom__'&&customPacking.value.trim())ttRestoreOption('packing',customPacking.value.trim())})}
  if(contractStep===5){
   const currency=document.getElementById('cCurrency'),inspection=document.getElementById('cInspection');
   ttPrepareRemovableSelect(currency,'currency',contractDraft.currency);
