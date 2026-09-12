@@ -138,6 +138,7 @@
     if (item.soda) {
       await sleep(35);
       document.dispatchEvent(new CustomEvent('tt:purchase-focus', {detail:{focus:'ALL'}}));
+      stageEditor(q('#purchaseEditor'), 'Sodas');
     }
     if (item.then) {
       let target = null;
@@ -163,6 +164,25 @@
     await sleep(20);
     prepareModal();
     scan(q('.workspace.active') || document);
+  }
+
+  function stageEditor(editor, title) {
+    const workspace = editor?.closest('.workspace');
+    if (!workspace) return;
+    let bar = q(':scope > .tt-editor-bar', workspace);
+    if (!bar) {
+      bar = document.createElement('div');
+      bar.className = 'tt-editor-bar';
+      bar.innerHTML = '<button class="backBtn" type="button" data-editor-back>× Cancel</button><h2></h2>';
+      workspace.insertBefore(bar, editor);
+      q('[data-editor-back]', bar).onclick = () => {
+        workspace.classList.remove('tt-editor-open');
+        editor.classList.remove('tt-editor-stage');
+      };
+    }
+    q('h2', bar).textContent = title;
+    editor.classList.add('tt-editor-stage');
+    workspace.classList.add('tt-editor-open');
   }
 
   function closeModal(workspace) {
