@@ -31,5 +31,6 @@ assert.match(ui,/Approve & Post/);
 assert.match(ui,/JV Register & Audit Trail/);
 assert.match(ui,/It will remain in the audit trail/);
 assert.match(ui,/Post a complete reversing journal/);
-assert.match(index,/app-bundle\.php/);\nassert.match(bundle,/'jv-workflow-ui\.js'/);
+assert.match(index,/app-bundle\.php/);
+assert.match(bundle,/'jv-workflow-ui\.js'/);
 console.log('Journal Voucher workflow deterministic QA passed.');
