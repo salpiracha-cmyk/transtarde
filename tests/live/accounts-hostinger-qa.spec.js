@@ -89,7 +89,7 @@ test('authenticated Accounts live smoke: full module loads and every workspace r
   await expect(salaryPanel.getByText('Add Salary Master', { exact: false })).toBeVisible({ timeout: 30_000 });
   await expect(salaryPanel.getByText(/Salary advances are not used/i)).toBeVisible();
   await expect(salaryPanel.getByText('Salary Master', { exact: true })).toBeVisible();
-  await expect(salaryPanel.getByText('Talha', { exact: true }).first()).toBeVisible({ timeout: 30_000 });
+  await expect(salaryPanel.getByText(/^Talha$/i).first()).toBeVisible({ timeout: 30_000 });
   await backHome(page);
 
   await activate(page.getByRole('button', { name: /Expenses & Overheads/i }));
