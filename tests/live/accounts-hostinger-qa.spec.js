@@ -42,6 +42,7 @@ async function openGroupItem(page, group, item) {
   await activate(cleanCard(page, group));
   await expect(page.locator('#ttQuickDialog')).toBeVisible();
   await activate(page.locator('#ttQuickDialog .tt-quick-item').filter({ hasText: item }));
+  await expect(page.locator('.workspace.active')).toHaveClass(/tt-clean-modal/, { timeout: 30_000 });
 }
 
 async function closeWorkspace(page) {
