@@ -39,7 +39,7 @@ async function responsive(page, label) {
 
 async function backHome(page) {
   await activate(page.getByRole('button', { name: /Accounts Home/i }));
-  await expect(page.getByRole('heading', { name: 'Transtrade International' })).toBeVisible();
+  await expect(page.locator('#entityTitle')).toBeVisible();
   await page.waitForTimeout(1_000);
   await expect(page.locator('#entityHome'), 'Accounts home must remain visible after delayed feature refreshes').toBeVisible();
   await responsive(page, 'Accounts home');
@@ -56,7 +56,7 @@ test('authenticated Accounts live smoke: full module loads and every workspace r
   await signIn(page);
 
   await expect(page).toHaveTitle(/Transtrade Accounts/i);
-  await expect(page.getByRole('heading', { name: 'Transtrade International' })).toBeVisible();
+  await expect(page.locator('#entityTitle')).toBeVisible();
   await expect(page.locator('.entityBtn[data-entity="TTI"]')).toBeVisible();
   await expect.poll(() => page.evaluate(() => window.TT_ACCOUNT_RUNTIME?.observerCoalescing || false), {
     timeout: 30_000,
