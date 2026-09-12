@@ -31,5 +31,6 @@ assert.match(ui,/Fixed Asset Register/);
 assert.match(ui,/Unique Asset Tag/);
 assert.match(ui,/No depreciation is posted merely by adding an asset/);
 assert.match(ui,/data-purchase="other"/);
-assert.match(index,/app-bundle\.php/);\nassert.match(bundle,/'other-purchases-ui\.js'/);
+assert.match(index,/app-bundle\.php/);
+assert.match(bundle,/'other-purchases-ui\.js'/);
 console.log('Other Purchases and Fixed Assets deterministic QA passed.');
