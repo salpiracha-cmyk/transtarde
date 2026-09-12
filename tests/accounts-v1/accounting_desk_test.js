@@ -19,6 +19,7 @@ assert(desk.includes('Print Voucher'), 'third-party accounting search results mu
 assert(desk.includes('Export Payment Received') && desk.includes('Local Sale Payment') && desk.includes('Other Payment Received'), 'receipt work must use the three approved categories');
 assert(desk.includes('Freight') && desk.includes('Clearing') && desk.includes('Fumigation') && desk.includes('Inspection') && desk.includes('Transport'), 'shipment bill categories must remain available');
 assert(desk.includes(".workspace.tt-clean-modal .accountPreview{display:block!important"), 'live accounting preview must not be hidden');
+assert(desk.includes("box.id = 'ttUtilityTreatment'") && desk.includes('Accounting treatment before posting'), 'utility entry must render a live Debit/Credit preview');
 assert(desk.includes('Generated automatically'), 'Soda/internal number must be system-generated');
 assert(sodaApi.includes("$action === 'amend'"), 'Soda API must support amendments');
 assert(sodaApi.includes("'reason'=>$reason") && sodaApi.includes("'changes'=>$changes"), 'Soda audit must retain reason and old/new changes');
