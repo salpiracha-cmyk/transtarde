@@ -355,6 +355,16 @@
     if (q('.workspace.active')) prepareModal();
   }
 
+  async function settleSalaryView(expectedMasterMode) {
+    const editor = q('#expenseEditor');
+    for (let tries = 0; tries < 80 && editor && !q('.ttrs', editor); tries += 1) await sleep(50);
+    const workspace = editor?.closest('.workspace');
+    if (!workspace?.classList.contains('active') || masterMode !== expectedMasterMode || !q('.ttrs', editor)) return;
+    prepareModal();
+    salaryView(editor);
+    scan(editor);
+  }
+
   function captureLateLaunchers() {
     const source = q('#ttNativeLaunchers');
     if (!source) return;
@@ -391,7 +401,7 @@
     document.addEventListener('click', event => {
       if (event.target.closest('.entityBtn')) window.setTimeout(() => { q('#entityHome').style.display = 'block'; }, 0);
       if (event.target.closest('[data-back]')) window.setTimeout(() => { document.body.classList.remove('tt-modal-open'); masterMode = ''; }, 0);
-      if (event.target.closest('[data-expense="salary"],[data-expense="rent"]') && !masterMode) window.setTimeout(() => { prepareModal(); scan(q('#expenseEditor')); }, 30);
+      if (event.target.closest('[data-expense="salary"],[data-expense="rent"]')) void settleSalaryView(masterMode);
     }, true);
     document.addEventListener('click', event => {
       if (!event.target.closest('.tt-search-select')) qa('.tt-select-menu').forEach(menu => { menu.hidden = true; });
