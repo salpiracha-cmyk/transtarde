@@ -52,4 +52,18 @@
   }
 
   window.MutationObserver = CoalescedMutationObserver;
+
+  const settleAccountsHome = () => {
+    const home = document.querySelector('#entityHome');
+    if (!home) return;
+    document.querySelectorAll('.workspace').forEach(workspace => workspace.classList.remove('active'));
+    home.style.display = 'block';
+  };
+
+  document.addEventListener('click', event => {
+    if (!event.target.closest?.('[data-back]')) return;
+    settleAccountsHome();
+    window.setTimeout(settleAccountsHome, 200);
+    window.setTimeout(settleAccountsHome, 800);
+  }, true);
 })();
