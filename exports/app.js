@@ -530,6 +530,102 @@ purchaseOrderPrint=function(po){return purchaseOrderPrintBeforeApprovalLabels(po
 const renderUploadDocumentsBeforeGDEntry=renderUploadDocuments;
 renderUploadDocuments=function(d){renderUploadDocumentsBeforeGDEntry(d);const s=shipment(),select=d.querySelector('#uploadDocumentType'),button=d.querySelector('#saveLotDocument'),file=d.querySelector('#lotDocumentFile');if(!select||!button||!file)return;select.closest('.grid2')?.insertAdjacentHTML('beforeend','<div class="field full hidden" id="gdUploadDetails"><label>GD Number and Date — one per line</label><textarea id="uploadGDRefs" placeholder="GD-12345 | 2026-09-12"></textarea></div>');const details=d.querySelector('#gdUploadDetails'),toggle=()=>details.classList.toggle('hidden',!/^Goods Declaration/i.test(select.value));select.addEventListener('change',toggle);toggle();const replacement=button.cloneNode(true);button.replaceWith(replacement);replacement.onclick=async()=>{if(replacement.disabled)return;try{const name=select.value==='Custom'?d.querySelector('#customUploadName').value.trim():select.value,chosen=file.files[0];if(!name)return alert('Enter the custom document name.');if(!chosen)return alert('Choose a document to upload.');let gdRefs=[];if(/^Goods Declaration/i.test(name)){gdRefs=parseGDRefs(d.querySelector('#uploadGDRefs').value);if(!gdRefs.length||gdRefs.some(x=>!x.number||!x.date))return alert('Enter each GD number and date before uploading the issued GD.')}replacement.disabled=true;replacement.textContent='UPLOADING…';const doc=await uploadDocument(chosen,'lot-document-'+name.toLowerCase().replace(/[^a-z0-9]+/g,'-'),s),entry={id:uid('UPDOC'),name,uploadedAt:new Date().toISOString(),uploadedBy:currentUser(),finalDocument:doc};s.uploadedDocuments=Array.isArray(s.uploadedDocuments)?s.uploadedDocuments:[];s.uploadedDocuments.push(entry);if(/^Goods Declaration/i.test(name)){s.customs.gdRefs=gdRefs;doc.gdRefsFingerprint=gdRefsFingerprint(gdRefs);s.customs.gdDocument=doc}else if(/^Final \/ Original B\/L$/i.test(name)){s.bl.finalDocument=doc;s.bl.finalFile=doc.name;s.bl.finalized=!!s.bl.blNo&&!!s.bl.onBoardDate}else if(/^Certificate of Origin$/i.test(name))s.coo.finalDocument=doc;audit('Upload Documents','Completed document uploaded',`${s.contractRef} · ${s.lotId} · ${name}`);renderShipmentWorkspace()}catch(error){replacement.disabled=false;replacement.textContent='UPLOAD DOCUMENT';alert(error.message)}}};
 
+/* 2026-09-12 blank FOB and removable configurable dropdown options. */
+const TT_REMOVABLE_OPTION_GROUPS={
+ packing:{label:'Packing',fixed:['P.P. Bags','BOPP laminated Bags','Cotton Bags','Non- Woven Bags','Jute Bags'],customKey:'customPackingTypes',removedKey:'removedPackingTypes'},
+ currency:{label:'Currency',fixed:['USD','EUR','GBP','AED','PKR'],customKey:'customCurrencies',removedKey:'removedCurrencies'},
+ inspection:{label:'Inspection',fixed:['No','SGS Pakistan Private Limited','Intertek'],customKey:'customInspections',removedKey:'removedInspections'}
+};
+function ttOptionToken(value){return String(value||'').trim().toLowerCase()}
+function ttOptionSettings(group){
+ const config=TT_REMOVABLE_OPTION_GROUPS[group],settings=uxSettings();
+ settings[config.customKey]=Array.isArray(settings[config.customKey])?settings[config.customKey]:[];
+ settings[config.removedKey]=Array.isArray(settings[config.removedKey])?settings[config.removedKey]:[];
+ return{config,settings}
+}
+function ttOptionIsRemoved(group,value){
+ const {config,settings}=ttOptionSettings(group),token=ttOptionToken(value);
+ return settings[config.removedKey].some(item=>ttOptionToken(item)===token)
+}
+function ttActiveOptions(group){
+ const {config,settings}=ttOptionSettings(group);
+ return uniqueValues(config.fixed,settings[config.customKey]).filter(value=>!ttOptionIsRemoved(group,value))
+}
+function ttRestoreOption(group,value){
+ const {config,settings}=ttOptionSettings(group),token=ttOptionToken(value);
+ settings[config.removedKey]=settings[config.removedKey].filter(item=>ttOptionToken(item)!==token)
+}
+function ttRemoveOption(group,value){
+ const {config,settings}=ttOptionSettings(group),token=ttOptionToken(value);
+ if(!token)return;
+ if(!confirm('Permanently remove "'+value+'" from future '+config.label+' dropdowns? Existing contracts and documents will keep their saved value.'))return;
+ if(!settings[config.removedKey].some(item=>ttOptionToken(item)===token))settings[config.removedKey].push(value);
+ settings[config.customKey]=settings[config.customKey].filter(item=>ttOptionToken(item)!==token);
+ audit('Dropdown Options',config.label+' option removed',value);
+ const result=save();
+ if(result&&typeof result.catch==='function')result.catch(error=>console.error('Option removal save',error));
+ renderContractStep()
+}
+function ttPrepareRemovableSelect(select,group,current){
+ if(!select)return;
+ const retained=ttOptionToken(current);
+ [...select.options].forEach(option=>{
+  const value=option.value;
+  if(value&&value!=='__custom__'&&ttOptionIsRemoved(group,value)&&ttOptionToken(value)!==retained)option.remove()
+ });
+ const field=select.closest('.field');
+ if(!field||field.querySelector('[data-option-manager="'+group+'"]'))return;
+ const manager=document.createElement('div');
+ manager.className='removableOptionManager';
+ manager.dataset.optionManager=group;
+ manager.innerHTML=ttActiveOptions(group).map(value=>`<span class="removableOptionItem"><button type="button" class="optionMinus" data-remove-option="${esc(value)}" aria-label="Remove ${esc(value)}">−</button><span>${esc(value)}</span></span>`).join('');
+ field.appendChild(manager);
+ manager.querySelectorAll('[data-remove-option]').forEach(button=>button.onclick=()=>ttRemoveOption(group,button.dataset.removeOption));
+ if(current&&ttOptionIsRemoved(group,current)){
+  const note=document.createElement('div');
+  note.className='metaText';
+  note.textContent='This saved value is retained on the current record but removed from future dropdowns.';
+  field.appendChild(note)
+ }
+}
+function ttSyncFobVisibility(){
+ contractDraft.packings.forEach((packing,index)=>{
+  const freight=document.querySelector('[data-freight="'+index+'"]');
+  const fob=document.querySelector('[data-fob="'+index+'"]');
+  if(!freight||!fob)return;
+  const entered=String(freight.value||'').trim()!=='';
+  packing.freightEntered=entered;
+  fob.value=entered?priceComponents(packing,contractDraft).fob.toFixed(2):''
+ })
+}
+const renderContractStepBeforeRemovableOptions=renderContractStep;
+renderContractStep=function(){
+ renderContractStepBeforeRemovableOptions();
+ if(contractStep===4){const packingSelect=document.getElementById('mPackType'),customPacking=document.getElementById('mPackTypeCustom');ttPrepareRemovableSelect(packingSelect,'packing',packingDraft?.type||'');customPacking?.addEventListener('input',()=>{if(packingSelect?.value==='__custom__'&&customPacking.value.trim())ttRestoreOption('packing',customPacking.value.trim())})}
+ if(contractStep===5){
+  const currency=document.getElementById('cCurrency'),inspection=document.getElementById('cInspection');
+  ttPrepareRemovableSelect(currency,'currency',contractDraft.currency);
+  ttPrepareRemovableSelect(inspection,'inspection',contractDraft.inspection);
+  for(const [select,group,key] of [[currency,'currency','currency'],[inspection,'inspection','inspection']]){
+   if(!select)continue;
+   const originalChange=select.onchange;
+   select.onchange=function(event){
+    const adding=select.value==='__custom__';
+    if(originalChange)originalChange.call(select,event);
+    if(adding&&contractDraft[key]){ttRestoreOption(group,contractDraft[key]);renderContractStep()}
+   }
+  }
+  ttSyncFobVisibility();
+  document.querySelectorAll('[data-contract-rate],[data-freight],[data-ins]').forEach(input=>input.addEventListener('input',ttSyncFobVisibility))
+ }
+};
+const openFIModalBeforeRemovableOptions=openFIModal;
+openFIModal=function(){
+ openFIModalBeforeRemovableOptions();
+ const currency=document.getElementById('mFICur');
+ if(currency)[...currency.options].forEach(option=>{if(ttOptionIsRemoved('currency',option.value))option.remove()})
+};
+
 window.addEventListener('error',e=>console.error('Transtrade Export Clean V2',e.error||e.message));
 mount();
 })();
