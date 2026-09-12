@@ -86,7 +86,7 @@ test('authenticated Accounts live smoke: clean icon hub and popup workflows', as
 
   await openGroupItem(page, 'purchases', 'Arrival Bill Posting');
   await expect(page.locator('#purchaseEditor')).toHaveClass(/tt-editor-stage/);
-  await expect(page.locator('#purchaseEditor .tt-optional-details')).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('#purchaseEditor').getByText(/Commodity Purchase Bills|Commodity Purchase Bill/i).first()).toBeVisible({ timeout: 30_000 });
   await closeWorkspace(page);
 
   await activate(cleanCard(page, 'expenses'));
