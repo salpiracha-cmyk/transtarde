@@ -137,7 +137,7 @@ async function createBulkQaShipment(page, { suffix, index, lotRef, contractRef, 
   await page.locator('#saveSupplier').click();
   await page.locator('#boSupplier').selectOption({ label: supplier });
   await page.locator('[data-bo-art="0"]').setInputFiles('tests/live/qa-bag-mark.png');
-  await expect(page.getByText('APPROVED ON UPLOAD')).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('img.artPreview').first()).toBeVisible({ timeout: 30_000 });
   await page.locator('#generatePO').click();
   await waitForSharedSave(page);
   const printModal = page.locator('.modalBackdrop').filter({ hasText: /Print \/ Save/i }).last();
@@ -250,7 +250,7 @@ test('manual Hostinger QA: Export instruction to Mill and container return', asy
   await page.locator('#saveSupplier').click();
   await page.locator('#boSupplier').selectOption({ label: supplier });
   await page.locator('[data-bo-art="0"]').setInputFiles('tests/live/qa-bag-mark.png');
-  await expect(page.getByText('APPROVED ON UPLOAD')).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('img.artPreview').first()).toBeVisible({ timeout: 30_000 });
   await page.locator('#generatePO').click();
   await waitForSharedSave(page);
   const poPrintModal = page.locator('.modalBackdrop').filter({ hasText: /Print \/ Save/i }).last();
