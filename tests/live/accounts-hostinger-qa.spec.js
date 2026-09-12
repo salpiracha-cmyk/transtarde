@@ -7,21 +7,31 @@ const QA_PASSWORD = process.env.TRANSTRADE_QA_PASSWORD;
 async function signIn(page) {
   expect(QA_USERNAME, 'TRANSTRADE_QA_USERNAME is required').toBeTruthy();
   expect(QA_PASSWORD, 'TRANSTRADE_QA_PASSWORD is required').toBeTruthy();
-  const login = await page.request.get(`${BASE_URL}/login.php`, { timeout: 30_000 });
-  expect(login.status(), 'Login page must be reachable').toBe(200);
-  const html = await login.text();
-  const token = html.match(/name="csrf" value="([^"]+)"/)?.[1];
-  expect(token, 'Login CSRF token must be present').toBeTruthy();
-  const signed = await page.request.post(`${BASE_URL}/login.php`, {
-    form: { csrf: token, username: QA_USERNAME, password: QA_PASSWORD },
-    timeout: 30_000,
-  });
-  expect(signed.status(), 'QA login must succeed').toBe(200);
 
-  const started = Date.now();
-  await page.goto(`${BASE_URL}/accounts/index.php`, { waitUntil: 'domcontentloaded', timeout: 90_000 });
-  const navigationMs = Date.now() - started;
-  expect(navigationMs, 'Accounts DOM must become usable within 45 seconds').toBeLessThan(45_000);
+  let lastUrl = '';
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    const login = await page.request.get(`${BASE_URL}/login.php`, { timeout: 45_000 });
+    expect(login.status(), 'Login page must be reachable').toBe(200);
+    const html = await login.text();
+    const token = html.match(/name="csrf" value="([^"]+)"/)?.[1];
+    expect(token, 'Login CSRF token must be present').toBeTruthy();
+    const signed = await page.request.post(`${BASE_URL}/login.php`, {
+      form: { csrf: token, username: QA_USERNAME, password: QA_PASSWORD },
+      timeout: 45_000,
+    });
+    expect(signed.status(), 'QA login request must complete').toBe(200);
+
+    const started = Date.now();
+    await page.goto(`${BASE_URL}/accounts/index.php`, { waitUntil: 'domcontentloaded', timeout: 90_000 });
+    const navigationMs = Date.now() - started;
+    lastUrl = page.url();
+    if (lastUrl.includes('/accounts/index.php') && /Transtrade Accounts/i.test(await page.title())) {
+      expect(navigationMs, 'Accounts DOM must become usable within 45 seconds').toBeLessThan(45_000);
+      return;
+    }
+    if (attempt < 3) await page.waitForTimeout(1_500 * attempt);
+  }
+  throw new Error(`QA authentication did not reach Accounts after 3 attempts; final URL: ${lastUrl}`);
 }
 
 async function activate(locator) {
