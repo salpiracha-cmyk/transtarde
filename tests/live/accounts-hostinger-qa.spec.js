@@ -121,7 +121,7 @@ test('authenticated Accounts live smoke: professional desk and popup workflows',
   await expect(page.locator('#ws-payables')).toHaveClass(/tt-clean-modal/, { timeout: 30_000 });
   await closeWorkspace(page);
 
-  await deskAction(page, 'reports', 'General Ledger');
+  await deskAction(page, 'ledgers', 'General Ledger');
   await expect(page.locator('#ttReportsPanel [data-rpt="gl"]')).toBeVisible({ timeout: 30_000 });
   await closeWorkspace(page);
 
