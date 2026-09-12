@@ -533,3 +533,108 @@ renderUploadDocuments=function(d){renderUploadDocumentsBeforeGDEntry(d);const s=
 window.addEventListener('error',e=>console.error('Transtrade Export Clean V2',e.error||e.message));
 mount();
 })();
+
+
+/* 2026-09-12 blank FOB and removable configurable dropdown options. */
+const TT_REMOVABLE_OPTION_GROUPS={
+ packing:{label:'Packing',fixed:TT_PACKINGS,customKey:'customPackingTypes',removedKey:'removedPackingTypes'},
+ currency:{label:'Currency',fixed:TT_CURRENCIES,customKey:'customCurrencies',removedKey:'removedCurrencies'},
+ inspection:{label:'Inspection',fixed:TT_INSPECTIONS,customKey:'customInspections',removedKey:'removedInspections'}
+};
+function ttOptionToken(value){return String(value||'').trim().toLowerCase()}
+function ttOptionSettings(group){
+ const config=TT_REMOVABLE_OPTION_GROUPS[group],settings=uxSettings();
+ settings[config.customKey]=Array.isArray(settings[config.customKey])?settings[config.customKey]:[];
+ settings[config.removedKey]=Array.isArray(settings[config.removedKey])?settings[config.removedKey]:[];
+ return{config,settings}
+}
+function ttOptionIsRemoved(group,value){
+ const {config,settings}=ttOptionSettings(group),token=ttOptionToken(value);
+ return settings[config.removedKey].some(item=>ttOptionToken(item)===token)
+}
+function ttActiveOptions(group){
+ const {config,settings}=ttOptionSettings(group);
+ return uniqueValues(config.fixed,settings[config.customKey]).filter(value=>!ttOptionIsRemoved(group,value))
+}
+function ttRestoreOption(group,value){
+ const {config,settings}=ttOptionSettings(group),token=ttOptionToken(value);
+ settings[config.removedKey]=settings[config.removedKey].filter(item=>ttOptionToken(item)!==token)
+}
+function ttRemoveOption(group,value){
+ const {config,settings}=ttOptionSettings(group),token=ttOptionToken(value);
+ if(!token)return;
+ if(!confirm('Permanently remove "'+value+'" from future '+config.label+' dropdowns? Existing contracts and documents will keep their saved value.'))return;
+ if(!settings[config.removedKey].some(item=>ttOptionToken(item)===token))settings[config.removedKey].push(value);
+ settings[config.customKey]=settings[config.customKey].filter(item=>ttOptionToken(item)!==token);
+ audit('Dropdown Options',config.label+' option removed',value);
+ const result=save();
+ if(result&&typeof result.catch==='function')result.catch(error=>console.error('Option removal save',error));
+ renderContractStep()
+}
+function ttPrepareRemovableSelect(select,group,current){
+ if(!select)return;
+ const retained=ttOptionToken(current);
+ [...select.options].forEach(option=>{
+  const value=option.value;
+  if(value&&value!=='__custom__'&&ttOptionIsRemoved(group,value)&&ttOptionToken(value)!==retained)option.remove()
+ });
+ const field=select.closest('.field');
+ if(!field||field.querySelector('[data-option-manager="'+group+'"]'))return;
+ const manager=document.createElement('div');
+ manager.className='removableOptionManager';
+ manager.dataset.optionManager=group;
+ manager.innerHTML=ttActiveOptions(group).map(value=>`<span class="removableOptionItem"><button type="button" class="optionMinus" data-remove-option="${esc(value)}" aria-label="Remove ${esc(value)}">−</button><span>${esc(value)}</span></span>`).join('');
+ field.appendChild(manager);
+ manager.querySelectorAll('[data-remove-option]').forEach(button=>button.onclick=()=>ttRemoveOption(group,button.dataset.removeOption));
+ if(current&&ttOptionIsRemoved(group,current)){
+  const note=document.createElement('div');
+  note.className='metaText';
+  note.textContent='This saved value is retained on the current record but removed from future dropdowns.';
+  field.appendChild(note)
+ }
+}
+function ttSyncFobVisibility(){
+ contractDraft.packings.forEach((packing,index)=>{
+  const freight=document.querySelector('[data-freight="'+index+'"]');
+  const fob=document.querySelector('[data-fob="'+index+'"]');
+  if(!freight||!fob)return;
+  const entered=String(freight.value||'').trim()!=='';
+  packing.freightEntered=entered;
+  fob.value=entered?priceComponents(packing,contractDraft).fob.toFixed(2):''
+ })
+}
+const persistPackingDraftBeforeRemovableOptions=persistPackingDraft;
+persistPackingDraft=function(){
+ const control=document.getElementById('mPackType'),custom=document.getElementById('mPackTypeCustom');
+ const customValue=control?.value==='__custom__'?String(custom?.value||'').trim():'';
+ const result=persistPackingDraftBeforeRemovableOptions();
+ if(result&&customValue)ttRestoreOption('packing',customValue);
+ return result
+};
+const renderContractStepBeforeRemovableOptions=renderContractStep;
+renderContractStep=function(){
+ renderContractStepBeforeRemovableOptions();
+ if(contractStep===4)ttPrepareRemovableSelect(document.getElementById('mPackType'),'packing',packingDraft?.type||'');
+ if(contractStep===5){
+  const currency=document.getElementById('cCurrency'),inspection=document.getElementById('cInspection');
+  ttPrepareRemovableSelect(currency,'currency',contractDraft.currency);
+  ttPrepareRemovableSelect(inspection,'inspection',contractDraft.inspection);
+  for(const [select,group,key] of [[currency,'currency','currency'],[inspection,'inspection','inspection']]){
+   if(!select)continue;
+   const originalChange=select.onchange;
+   select.onchange=function(event){
+    const adding=select.value==='__custom__';
+    if(originalChange)originalChange.call(select,event);
+    if(adding&&contractDraft[key]){ttRestoreOption(group,contractDraft[key]);renderContractStep()}
+   }
+  }
+  ttSyncFobVisibility();
+  document.querySelectorAll('[data-contract-rate],[data-freight],[data-ins]').forEach(input=>input.addEventListener('input',ttSyncFobVisibility))
+ }
+};
+const openFIModalBeforeRemovableOptions=openFIModal;
+openFIModal=function(){
+ openFIModalBeforeRemovableOptions();
+ const currency=document.getElementById('mFICur');
+ if(currency)[...currency.options].forEach(option=>{if(ttOptionIsRemoved('currency',option.value))option.remove()})
+};
