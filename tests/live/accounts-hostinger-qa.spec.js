@@ -36,13 +36,9 @@ async function responsive(page, label) {
   expect(elapsed, `${label} must remain responsive`).toBeLessThan(5_000);
 }
 
-const cleanCard = (page, key) => page.locator(`.tt-clean-card[data-clean-key="${key}"]`);
-
-async function openGroupItem(page, group, item, workspace) {
-  await activate(cleanCard(page, group));
-  await expect(page.locator('#ttQuickDialog')).toBeVisible();
-  await activate(page.locator('#ttQuickDialog .tt-quick-item').filter({ hasText: item }));
-  await expect(page.locator(workspace)).toHaveClass(/active.*tt-clean-modal|tt-clean-modal.*active/, { timeout: 30_000 });
+async function deskAction(page, area, action) {
+  await activate(page.locator(`[data-tt-area="${area}"]`));
+  await activate(page.locator('#ttDeskWork .tt-action').filter({ hasText: action }));
 }
 
 async function closeWorkspace(page) {
@@ -54,86 +50,90 @@ async function closeWorkspace(page) {
   await expect(page.locator('body')).not.toHaveClass(/tt-modal-open/);
 }
 
-test('authenticated Accounts live smoke: clean icon hub and popup workflows', async ({ page }) => {
+test('authenticated Accounts live smoke: professional desk and popup workflows', async ({ page }) => {
   test.setTimeout(480_000);
   const pageErrors = [];
   const failedRequests = [];
   page.on('pageerror', error => pageErrors.push(error.stack || String(error)));
   page.on('requestfailed', request => {
-    if (request.url().includes('/accounts/')) failedRequests.push(`${request.method()} ${request.url()}: ${request.failure()?.errorText || 'failed'}`);
+    if (request.url().includes('/accounts/') || request.url().includes('/api/accounts_') || request.url().includes('/api/purchase_sodas')) failedRequests.push(`${request.method()} ${request.url()}: ${request.failure()?.errorText || 'failed'}`);
   });
   await signIn(page);
 
   await expect(page.locator('#ttEntityLanding')).toHaveCount(0);
-  await expect(page.locator('#entityTitle')).toBeVisible();
+  await expect.poll(() => page.evaluate(() => window.TT_ACCOUNTING_DESK?.installed || false), { timeout: 30_000 }).toBe(true);
   await expect.poll(() => page.evaluate(() => window.TT_ACCOUNTS_CLEAN_UI?.installed || false), { timeout: 30_000 }).toBe(true);
   await expect.poll(() => page.evaluate(() => window.TT_ACCOUNT_RUNTIME?.observerCoalescing || false), { timeout: 30_000 }).toBe(true);
+  await expect(page.locator('#ttAccountingDesk')).toBeVisible();
+  await expect(page.locator('#ttAccountingDesk [data-tt-entity-name]').first()).toContainText(/Transtrade|Buksh|Trans Grains/);
 
-  const icons = ['purchases','ledgers','bags','local','export','expenses','reports','masters'];
-  for (const key of icons) await expect(cleanCard(page, key), `${key} icon must be visible`).toBeVisible();
-  await expect(page.locator('#homeGrid > .appCard')).toHaveCount(8);
+  const areas = ['purchases','payments','receipts','expenses','ledgers','reports','control'];
+  for (const key of areas) await expect(page.locator(`[data-tt-area="${key}"]`), `${key} work area must be visible`).toBeVisible();
+  await expect(page.locator('#ttNativeLaunchers')).toBeHidden();
 
-  const companyMenu = page.getByRole('button', { name: 'Change Company' });
-  await activate(companyMenu);
-  await expect(page.locator('.entityBtn[data-entity="TTI"]')).toBeVisible();
-  await activate(page.locator('.entityBtn[data-entity="TTI"]'));
-  await expect(page.locator('.entityBtn[data-entity="TTI"]')).toBeHidden();
+  await activate(page.locator('#ttChangeCompanyDesk'));
+  await expect(page.locator('#ttCompanyMenu')).toBeVisible();
+  await activate(page.locator('#ttCompanyMenu [data-entity="TTI"]'));
+  await expect(page.locator('#ttCompanyMenu')).toBeHidden();
 
-  await openGroupItem(page, 'purchases', 'Sodas', '#ws-purchases');
-  await expect(page.locator('#ws-purchases')).toHaveClass(/tt-clean-modal/);
-  await expect(page.locator('#purchaseEditor')).toHaveClass(/tt-editor-stage/);
-  await expect(page.locator('#purchaseEditor').getByText(/Start with what you know/i)).toBeVisible({ timeout: 30_000 });
+  await activate(page.locator('#ttMasterTop'));
+  await expect(page.locator('#ws-masters')).toHaveClass(/active.*tt-clean-modal|tt-clean-modal.*active/, { timeout: 30_000 });
+  await expect(page.locator('#ws-masters .masterTabs')).toBeVisible();
   await closeWorkspace(page);
 
-  await openGroupItem(page, 'purchases', 'Arrival Bill Posting', '#ws-purchases');
+  await deskAction(page, 'purchases', 'Soda Centre');
+  await expect(page.locator('#ttSodaLayer')).toBeVisible();
+  await expect(page.locator('#ttSodaForm')).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('#ttSodaForm').getByText(/does not create a General Ledger entry/i)).toBeVisible();
+  await activate(page.locator('#ttSodaLayer [data-soda-mode="search"]'));
+  await expect(page.locator('#ttSodaSearch')).toBeVisible();
+  await activate(page.locator('#ttSodaLayer .tt-window-close'));
+
+  await deskAction(page, 'purchases', 'Arrival / Rice Bill');
+  await expect(page.locator('#ws-purchases')).toHaveClass(/tt-clean-modal/);
   await expect(page.locator('#purchaseEditor')).toHaveClass(/tt-editor-stage/);
   await expect(page.locator('#purchaseEditor')).toBeVisible({ timeout: 30_000 });
   await closeWorkspace(page);
 
-  await activate(cleanCard(page, 'expenses'));
-  await expect(page.locator('#ws-expenses')).toHaveClass(/tt-clean-modal/);
-  await activate(page.locator('[data-expense="salary"]'));
+  await deskAction(page, 'expenses', 'Prepare Salaries');
   await expect(page.locator('#ws-expenses')).toHaveClass(/tt-entry-only/);
   await expect(page.locator('#rsPrepare')).toBeVisible({ timeout: 30_000 });
   await expect(page.locator('#rsSaveSal')).toBeHidden();
   await closeWorkspace(page);
 
-  await openGroupItem(page, 'masters', 'Salary Master', '#ws-expenses');
-  await expect(page.locator('#ws-expenses')).toHaveClass(/tt-master-only/);
-  await expect(page.locator('.tt-master-add:visible').first()).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByText(/^Talha$/i).first()).toBeVisible({ timeout: 30_000 });
-  await closeWorkspace(page);
-
-  await openGroupItem(page, 'masters', 'Rent & Recurring Master', '#ws-expenses');
-  await expect(page.locator('.tt-master-add:visible').first()).toBeVisible({ timeout: 30_000 });
-  await expect(page.locator('#rsSaveRent')).toBeHidden();
-  await closeWorkspace(page);
-
-  await openGroupItem(page, 'export', 'Inspection', '#ws-services');
-  await expect(page.locator('#ws-services')).toHaveClass(/tt-clean-modal/);
+  await deskAction(page, 'payments', 'Export Shipment Bills');
+  await expect(page.locator('#ttShipmentLayer')).toBeVisible();
+  await activate(page.locator('#ttShipmentLayer .tt-action').filter({ hasText: 'Inspection' }));
+  await expect(page.locator('#ws-services')).toHaveClass(/tt-clean-modal/, { timeout: 30_000 });
   await expect(page.locator('#svKind')).toHaveValue('INSPECTION');
   await closeWorkspace(page);
 
-  await openGroupItem(page, 'bags', 'Bag Bill', '#ws-purchases');
+  await deskAction(page, 'purchases', 'Bags');
   await expect(page.locator('#purchaseEditor .ttbag')).toBeVisible({ timeout: 30_000 });
   await closeWorkspace(page);
 
-  await openGroupItem(page, 'local', 'Sale Approvals', '#ws-receivables');
-  await expect(page.locator('#ws-receivables')).toHaveClass(/tt-clean-modal/);
+  await deskAction(page, 'receipts', 'Local Sale Payment');
+  await expect(page.locator('#ws-receivables')).toHaveClass(/tt-clean-modal/, { timeout: 30_000 });
+  await expect(page.locator('#ws-receivables .tt-prev-search')).toBeVisible();
   await closeWorkspace(page);
 
-  await openGroupItem(page, 'ledgers', 'Supplier Ledger', '#ws-payables');
-  await expect(page.locator('#ws-payables')).toHaveClass(/tt-clean-modal/);
+  await deskAction(page, 'ledgers', 'Supplier Ledger');
+  await expect(page.locator('#ws-payables')).toHaveClass(/tt-clean-modal/, { timeout: 30_000 });
   await closeWorkspace(page);
 
-  await activate(cleanCard(page, 'reports'));
+  await deskAction(page, 'reports', 'General Ledger');
   await expect(page.locator('#ttReportsPanel [data-rpt="gl"]')).toBeVisible({ timeout: 30_000 });
   await closeWorkspace(page);
 
-  await activate(cleanCard(page, 'expenses'));
-  await activate(page.locator('[data-expense="utility"]'));
+  await deskAction(page, 'control', 'Search Previous');
+  await expect(page.locator('#ttSearchLayer')).toBeVisible();
+  await expect(page.locator('#ttUniversalSearch')).toBeVisible();
+  await activate(page.locator('#ttSearchLayer .tt-window-close'));
+
+  await deskAction(page, 'expenses', 'Utilities & Bills');
   await expect(page.locator('#expenseEditor .tt-search-select input').first()).toBeVisible({ timeout: 30_000 });
-  await responsive(page, 'clean Accounts modal');
+  await expect(page.locator('#expenseEditor .accountPreview').first()).toBeVisible();
+  await responsive(page, 'professional Accounts modal');
 
   expect(failedRequests, 'Accounts resources must not fail').toEqual([]);
   expect(pageErrors, 'Accounts must not raise uncaught browser errors').toEqual([]);
