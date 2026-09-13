@@ -38,7 +38,7 @@ jobs:
 
       - name: Install isolated browser test runtime
         run: |
-          npm install --no-save @playwright/test@1.55.0
+          npm install --no-save @playwright/test@1.63.0
           npx playwright install --with-deps chromium
 
       - name: Verify deletion survives a new login
@@ -51,7 +51,7 @@ jobs:
 
       - name: Upload failure evidence
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: export-deletion-live-qa-${{ github.run_id }}
           path: |
