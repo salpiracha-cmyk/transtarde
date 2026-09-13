@@ -19,7 +19,7 @@ const window={document,localStorage,TT_MODULE_ACCESS:{user:'Test User',masters:{
 const context={window,document,localStorage,console,structuredClone,alert:m=>{throw new Error('Unexpected alert: '+m)},location:{href:''},setTimeout:fn=>fn(),setInterval:()=>0,clearTimeout(){},FileReader:class{},Date,Intl};
 context.globalThis=context;
 let source=fs.readFileSync(__dirname+'/../../exports/app.js','utf8');
-source=source.replace('mount();','window.__EXPORT_TEST__={parseContractText,parseLCText,paymentText,lcSpecificTerms,packingPrefix,unitRate,makeShipment,salesContractPrint,commercialInvoiceDoc,packingListDoc,phytoInvoiceDoc,blDraftDoc,coveringDoc,lcControlDoc,lcDraftDoc,millActualsComplete,applyProductMaster,productLabel,productMasters,qualityDescription,contractSpecRows,currentCropYear,millLocations,brokenEntry,normalizeBrokenEntry,brokenEntryValid,finishChoices,DEFAULT_QUALITY,CONTAINER_RE,state};\nmount();');
+source=source.replace('mount();','window.__EXPORT_TEST__={parseContractText,parseLCText,paymentText,lcSpecificTerms,packingPrefix,unitRate,makeShipment,salesContractPrint,purchaseOrderPrint,commercialInvoiceDoc,packingListDoc,phytoInvoiceDoc,blDraftDoc,coveringDoc,lcControlDoc,lcDraftDoc,millActualsComplete,applyProductMaster,productLabel,productMasters,qualityDescription,contractSpecRows,currentCropYear,millLocations,brokenEntry,normalizeBrokenEntry,brokenEntryValid,finishChoices,DEFAULT_QUALITY,CONTAINER_RE,state};\nmount();');
 vm.runInNewContext(source,context,{filename:'app.js'});
 const t=window.__EXPORT_TEST__;
 
@@ -120,14 +120,17 @@ assert.ok(!t.contractSpecRows(masterDraft).some(x=>/broken|finish|crop year/i.te
 assert.match(t.salesContractPrint({...masterDraft,id:'PM1',ref:'TTI/TEST/01',seller:'TTI',customerId:'',date:'2026-09-13',qty:27,tolerance:5,shipmentDate:'2026-09-30',pol:'Karachi Port, Pakistan',podPort:'Banjul, The Gambia',packingUnit:'KG',currency:'USD',incoterm:'FOB',paymentCode:'ADV100',advancePct:100,signedDeadline:'2026-09-15',paymentDeadline:'2026-09-16',docs:[],terms:[],packings:[{size:50,type:'PP Bags',brand:'TEST',tare:100,containers:1,weightPer:27,price:500,freight:0,insurance:0,masterBag:{enabled:false}}]}),/PAKISTAN LONG GRAIN IRRI-6/);
 assert.ok(t.millLocations().some(x=>x.name==='Master Mill'));
 
-const c={id:'C1',ref:'TTI/NS/01',seller:'TTI',customerId:'C-DAYA',date:'2026-09-08',product:'IRRI-6 White Rice',broken:5,finish:'Silky Polished & Sortexed',quality:t.DEFAULT_QUALITY,qty:540,tolerance:5,shipmentDate:'2026-09-30',pol:'Port Qasim, Pakistan',podPort:'Jebel Ali, UAE',packingUnit:'KG',currency:'USD',incoterm:'CFR',paymentCode:'LC_SIGHT',advancePct:0,usanceDays:0,docs:['Commercial Invoice','Packing List'],packings:[{size:25,type:'PP Bags',brand:'STAR',tare:80,containers:20,weightPer:27,price:410,masterBag:{enabled:false,qty:0,tare:0}}]};
+const c={id:'C1',ref:'TTI/NS/01',seller:'TTI',customerId:'C-DAYA',date:'2026-09-08',product:'IRRI-6 White Rice',hsCode:'1006.30',broken:5,finish:'Silky Polished & Sortexed',quality:t.DEFAULT_QUALITY,qty:540,tolerance:5,shipmentDate:'2026-09-30',pol:'Port Qasim, Pakistan',podPort:'Jebel Ali',podCountry:'United Arab Emirates',packingUnit:'KG',currency:'USD',incoterm:'CFR',paymentCode:'LC_SIGHT',advancePct:0,usanceDays:0,docs:['Commercial Invoice','Packing List'],packings:[{size:25,type:'PP Bags',brand:'STAR',tare:80,containers:20,weightPer:27,price:410,masterBag:{enabled:false,qty:0,tare:0}}]};
 const s=t.makeShipment(c);s.lc={saved:true,lcNo:'LC-99881',lcDate:'2026-09-08',issuingBank:'FIRST BANK',advisingBank:'MEEZAN BANK',documents:['Commercial Invoice','Packing List']};s.millActuals=[{number:'MSCU123456-7',seal:'SL001',bags:1080,netKg:27000,tareKg:86.4,grossKg:27086.4,brand:'STAR',packing:'25 KG'}];s.bl={...s.bl,blNo:'BL001',onBoardDate:'2026-09-20',vessel:'MV TEST',voyage:'V01'};s.customs={...s.customs,fiAllocations:['FI-1'],gdRefs:['GD-1'],bank:'Meezan Bank',iban:'PK00TEST'};
 for(const [name,html] of Object.entries({invoice:t.commercialInvoiceDoc(s,c,false),packing:t.packingListDoc(s,c,false),phyto:t.phytoInvoiceDoc(s,c),cover:t.coveringDoc(s,c),draft:t.lcDraftDoc(s,c)})){
   assert.match(html,/docPage/);assert.match(html,/TTI_header\.png/);assert.ok(!/undefined|null/.test(html),name+' leaked invalid text');
 }
 const plainBL=t.blDraftDoc(s,c);assert.match(plainBL,/plainBlPage/);assert.doesNotMatch(plainBL,/TTI_header\.png|docFooterArt|docAutoSign/);
+assert.match(plainBL,/SAID TO CONTAIN/);assert.match(plainBL,/1 X 20 FEET CONTAINERS/);assert.match(plainBL,/TOTAL .* BAGS OF 25 KG EACH/);assert.match(plainBL,/HS CODE: 1006\.30/);assert.match(plainBL,/TOTAL NET WEIGHT/);assert.match(plainBL,/TOTAL GROSS WEIGHT/);assert.match(plainBL,/Non-Negotiable Copies<\/td><td><b>5/);assert.match(plainBL,/MARKS AND NUMBERS, NUMBER AND KIND OF PACKAGES, DESCRIPTION OF GOODS/);assert.doesNotMatch(plainBL,/Gross Weight<\/th>|KG NET<\/td>/);
 assert.match(t.commercialInvoiceDoc(s,c,false),/LC-99881/);
-assert.doesNotMatch(t.commercialInvoiceDoc(s,c,false),/FI-1/);
+assert.match(t.commercialInvoiceDoc(s,c,false),/DRAWEE/);assert.match(t.commercialInvoiceDoc(s,c,false),/CFR Jebel Ali, United Arab Emirates/);assert.match(t.commercialInvoiceDoc(s,c,false),/HS CODE: 1006\.30/);assert.doesNotMatch(t.commercialInvoiceDoc(s,c,false),/<b>PAYMENT<\/b>|PAYMENT TERMS/);
+assert.match(t.commercialInvoiceDoc(s,c,false),/FI-1/);
+assert.match(t.phytoInvoiceDoc(s,c),/CFR Jebel Ali, United Arab Emirates/);assert.match(t.phytoInvoiceDoc(s,c),/HS CODE: 1006\.30/);assert.match(t.phytoInvoiceDoc(s,c),/BRAND &amp; MARKING/);
 assert.match(t.coveringDoc(s,c),/GD-1/);
 const validLot={containers:2,millActuals:[{number:'MSCU123456-7',seal:'S1'},{number:'TGHU765432-1',seal:'S2'}]};
 assert.ok(t.millActualsComplete(validLot));
@@ -148,6 +151,11 @@ assert.match(normalContract,/USD\. 410\.00\/= CFR Jebel Ali, United Arab Emirate
 assert.match(normalContract,/TOTAL CFR VALUE 540\.000 MT × USD 410\.00 = <b>USD 221,400\.00\/=</);
 assert.match(normalContract,/UNITED STATES DOLLARS TWO HUNDRED TWENTY ONE THOUSAND FOUR HUNDRED ONLY/);
 assert.match(normalContract,/EDITABLE TERM/);
+const purchaseOrder=t.purchaseOrderPrint({poNo:'PO-260001',supplier:'QA BAG SUPPLIER',requiredDate:'2026-09-20',deliverTo:'TTI RICE MILLS',lines:[{brand:'STAR',type:'P.P. Bags',size:25,unit:'KG',tare:80,totalBags:21816,handle:'No',artworkData:'data:image/png;base64,AA==',masterBag:{enabled:true,bagsPerMaster:20,quantity:1091,tare:120,printed:false}}]});
+assert.equal((purchaseOrder.match(/class="docPage/g)||[]).length,1,'Bag Purchase Order including its marking stays on one page');
+assert.match(purchaseOrder,/Total Order/);assert.match(purchaseOrder,/21,816/);assert.match(purchaseOrder,/MASTER BAG/);assert.match(purchaseOrder,/1,091/);assert.match(purchaseOrder,/BAG MARKING/);
+assert.doesNotMatch(purchaseOrder,/Required \+ Extra|EMPTY BAGS|Unit Rate|Line Amount|Tax|Customer|Sales Contract|Authorised Signatory|HANDLE: YES/);
+assert.match(purchaseOrder,/P\.O\. NUMBER MUST BE MENTIONED ON THE DELIVERY ORDER AND ALSO ON THE FINAL BILL/);
 const longContract={...c,terms:Array.from({length:18},(_,i)=>`Long contract term ${i+1}`),documentsPresented:Array.from({length:12},(_,i)=>({sequence:i+1,name:`Document ${i+1}`,original:1,copies:1}))};
 assert.equal((t.salesContractPrint(longContract).match(/salesContractPage/g)||[]).length,4,'extreme sales contract expands to four pages');
 assert.match(source,/contractSplitWorkspace/);
