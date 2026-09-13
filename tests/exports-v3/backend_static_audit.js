@@ -8,7 +8,7 @@ const modulePhp=fs.readFileSync(path.join(root,'main/module.php'),'utf8');
 const upload=fs.readFileSync(path.join(root,'main/api/export_documents.php'),'utf8');
 const html=fs.readFileSync(path.join(__dirname,'index.html'),'utf8');
 const css=fs.readFileSync(path.join(__dirname,'app.css'),'utf8');
-const js=fs.readFileSync(path.join(__dirname,'app.js'),'utf8');
+const js=fs.readFileSync(path.join(__dirname,'../../exports/app.js'),'utf8');
 const milling=fs.readFileSync(path.join(__dirname,'../../milling/Transtrade_Master_Milling_V3_3_2_AUDITED.html'),'utf8');
 const customerMaster=fs.readFileSync(path.join(__dirname,'../../customer-master.js'),'utf8');
 
