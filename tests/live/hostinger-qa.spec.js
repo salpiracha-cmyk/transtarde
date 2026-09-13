@@ -175,7 +175,7 @@ test('manual Hostinger QA: Export instruction to Mill and container return', asy
   const tomorrow = new Date(Date.now() + 30 * 86400_000).toISOString().slice(0, 10);
 
   page.on('popup', async popup => popup.close().catch(() => {}));
-  page.on('dialog', async dialog => dialog.dismiss());
+  page.on('dialog', async dialog => dialog.dismiss().catch(() => {}));
 
   await signInQa(page);
 
@@ -371,7 +371,7 @@ test('live bulk QA: automatic lot references and isolated B/L returns', async ({
   const errors = [];
   page.on('pageerror', error => errors.push(String(error)));
   page.on('popup', async popup => popup.close().catch(() => {}));
-  page.on('dialog', async dialog => dialog.dismiss());
+  page.on('dialog', async dialog => dialog.dismiss().catch(() => {}));
 
   const suffix = RUN_TOKEN.slice(-7);
   const sameLot = `LOT-SAME-${suffix}`;
@@ -484,7 +484,7 @@ test('automatic bulk QA: every Milling page plus 15 Arrivals and Pohanch records
   const pageErrors = [];
   page.on('pageerror', error => pageErrors.push(String(error)));
   page.on('popup', async popup => popup.close().catch(() => {}));
-  page.on('dialog', async dialog => dialog.dismiss());
+  page.on('dialog', async dialog => dialog.dismiss().catch(() => {}));
 
   await signInQa(page);
   await gotoLive(page, `${BASE_URL}/module.php?id=milling`, { waitUntil: 'domcontentloaded' });
@@ -570,6 +570,7 @@ test('automatic bulk QA: every Milling page plus 15 Arrivals and Pohanch records
   await page.screenshot({ path: testInfo.outputPath('07-milling-15-pohanch.png'), fullPage: true });
 
   // Verify persistence from a clean browser context, not the page's own localStorage cache.
+  const queueDate = await page.locator('#queueViewDate').inputValue();
   await page.waitForTimeout(4_000);
   const verifyContext = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
   const verifyPage = await verifyContext.newPage();
@@ -579,6 +580,8 @@ test('automatic bulk QA: every Milling page plus 15 Arrivals and Pohanch records
     await verifyPage.locator('.mill-card').filter({ hasText: /TTI Rice Mills/i }).first().click();
   }
   await verifyPage.locator(`[onclick="openPanel('queue')"]`).filter({ visible: true }).first().click();
+  await verifyPage.locator('#queueViewDate').fill(queueDate);
+  await verifyPage.locator('#queueViewDate').dispatchEvent('change');
   for (const truck of trucks) await expect(verifyPage.locator('#queueTable')).toContainText(truck);
   await verifyPage.locator('#queue .back').first().click();
   await verifyPage.locator(`[onclick="openPanel('arrival')"]`).filter({ visible: true }).first().click();
