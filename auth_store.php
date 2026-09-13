@@ -218,34 +218,92 @@ session_set_cookie_params([
 ]);
 if (session_status() !== PHP_SESSION_ACTIVE) session_start();
 
-function tt_default_party_roles(): array {
-    return ['Buyer','Supplier','Broker','Export Buyer','Local Buyer','Customer','Agent','Service Provider','Other'];
+function tt_default_master_options(): array {
+    return [
+        'party_roles'=>['Buyer','Supplier','Broker','Export Buyer','Local Buyer','Customer','Agent','Service Provider','Other'],
+        'product_commodities'=>['Rice','Corn','Sesame Seed'],
+        'product_varieties'=>['IRRI-6','C-9','PK-386','Super Kernel Basmati','D-98','1121'],
+        'product_rice_types'=>['White Rice','Parboiled Rice','Steam Rice','Brown Rice','100% Broken Rice'],
+        'product_broken'=>['5% max','10% max','15-20%','25% max','100%'],
+        'product_finishes'=>['Well milled, silky polished and well sortexed','Well milled, double polished and well sortexed','Reasonably well milled'],
+        'product_origins'=>['Pakistan'],
+        'product_profiles'=>['Active Transtrade default','Contract specific','Historical reference'],
+        'currencies'=>['USD','EUR','GBP','AED','PKR'],
+        'inspection_companies'=>['No','SGS Pakistan Private Limited','Intertek'],
+    ];
 }
+
+function tt_default_party_roles(): array { return tt_default_master_options()['party_roles']; }
 
 function tt_master_options(): array {
     $data=tt_read_store();
-    $options=is_array($data['master_options'] ?? null) ? $data['master_options'] : [];
-    $roles=array_values(array_unique(array_filter(array_map(static fn($v)=>trim((string)$v),(array)($options['party_roles'] ?? [])))));
-    foreach (tt_default_party_roles() as $role) if (!in_array($role,$roles,true)) $roles[]=$role;
-    sort($roles,SORT_NATURAL|SORT_FLAG_CASE);
-    return ['party_roles'=>$roles];
+    $defaults=tt_default_master_options();
+    $stored=is_array($data['master_options'] ?? null) ? $data['master_options'] : [];
+    $disabled=is_array($data['master_options_disabled'] ?? null) ? $data['master_options_disabled'] : [];
+    $productFields=['product_commodities'=>0,'product_varieties'=>1,'product_rice_types'=>2,'product_broken'=>7,'product_finishes'=>17,'product_origins'=>4,'product_profiles'=>5];
+    $out=[];
+    foreach ($defaults as $key=>$base) {
+        $values=array_merge($base,(array)($stored[$key] ?? []));
+        if (isset($productFields[$key])) {
+            foreach ((array)($data['masters']['products'] ?? []) as $row) {
+                $value=trim((string)(($row['values'] ?? [])[$productFields[$key]] ?? ''));
+                if ($value!=='') $values[]=$value;
+            }
+        }
+        $blocked=array_map(static fn($v)=>strtolower(trim((string)$v)),(array)($disabled[$key] ?? []));
+        $unique=[];
+        foreach ($values as $value) {
+            $value=trim(preg_replace('/\s+/',' ',(string)$value) ?? '');
+            if ($value==='' || in_array(strtolower($value),$blocked,true)) continue;
+            $norm=strtolower($value);
+            if (!isset($unique[$norm])) $unique[$norm]=$value;
+        }
+        $out[$key]=array_values($unique);
+        sort($out[$key],SORT_NATURAL|SORT_FLAG_CASE);
+    }
+    return $out;
+}
+
+function tt_manage_master_option(string $key,string $action,string $value,string $old=''): string {
+    $defaults=tt_default_master_options();
+    if (!array_key_exists($key,$defaults)) throw new InvalidArgumentException('Select a valid option list.');
+    $clean=static fn(string $v): string=>trim(preg_replace('/\s+/',' ',$v) ?? '');
+    $value=$clean($value); $old=$clean($old);
+    if (!in_array($action,['add','rename','delete'],true)) throw new InvalidArgumentException('Select add, rename or delete.');
+    if ($action!=='delete' && ($value==='' || strlen($value)>120)) throw new InvalidArgumentException('Enter a valid option.');
+    if ($action!=='add' && $old==='') throw new InvalidArgumentException('Select the option to change.');
+    tt_mutate_store(function (&$data) use ($key,$action,$value,$old,$clean): void {
+        if (!isset($data['master_options']) || !is_array($data['master_options'])) $data['master_options']=[];
+        if (!isset($data['master_options_disabled']) || !is_array($data['master_options_disabled'])) $data['master_options_disabled']=[];
+        $active=array_values(array_filter(array_map(static fn($v)=>trim((string)$v),(array)($data['master_options'][$key] ?? []))));
+        $disabled=array_values(array_filter(array_map(static fn($v)=>trim((string)$v),(array)($data['master_options_disabled'][$key] ?? []))));
+        $removeCaseInsensitive=static function(array $rows,string $needle): array {
+            return array_values(array_filter($rows,static fn($v)=>strcasecmp((string)$v,$needle)!==0));
+        };
+        if ($action==='add') {
+            $disabled=$removeCaseInsensitive($disabled,$value);
+            foreach ($active as $existing) if (strcasecmp((string)$existing,$value)===0) { $data['master_options_disabled'][$key]=$disabled; return; }
+            $active[]=$value;
+        } else {
+            $active=$removeCaseInsensitive($active,$old);
+            if (!array_filter($disabled,static fn($v)=>strcasecmp((string)$v,$old)===0)) $disabled[]=$old;
+            if ($action==='rename') {
+                $disabled=$removeCaseInsensitive($disabled,$value);
+                if (!array_filter($active,static fn($v)=>strcasecmp((string)$v,$value)===0)) $active[]=$value;
+            }
+        }
+        sort($active,SORT_NATURAL|SORT_FLAG_CASE); sort($disabled,SORT_NATURAL|SORT_FLAG_CASE);
+        $data['master_options'][$key]=$active;
+        $data['master_options_disabled'][$key]=$disabled;
+    });
+    return $action==='delete' ? $old : $value;
 }
 
 function tt_add_party_role_option(string $role): string {
-    $role=trim(preg_replace('/\\s+/',' ',$role) ?? '');
-    if ($role==='' || strlen($role)>80) throw new InvalidArgumentException('Enter a valid Party Role.');
-    tt_mutate_store(function (&$data) use ($role): void {
-        if (!isset($data['master_options']) || !is_array($data['master_options'])) $data['master_options']=[];
-        $roles=array_values(array_filter(array_map(static fn($v)=>trim((string)$v),(array)($data['master_options']['party_roles'] ?? []))));
-        foreach ($roles as $existing) if (strcasecmp($existing,$role)===0) return;
-        $roles[]=$role;
-        sort($roles,SORT_NATURAL|SORT_FLAG_CASE);
-        $data['master_options']['party_roles']=$roles;
-    });
-    return $role;
+    return tt_manage_master_option('party_roles','add',$role);
 }
 
-function tt_normalize_location_type(string $type): string {
+function tt_normalize_location_typefunction tt_normalize_location_type(string $type): string {
     $t=strtolower(trim($type));
     if (str_contains($t,'reprocess')) return 'Reprocessing Mill';
     if (str_contains($t,'external') || str_contains($t,'ex-mill') || str_contains($t,'ex mill')) return 'External Mill';
@@ -292,11 +350,11 @@ function tt_ensure_data_dir(): void {
 
 function tt_read_store(): array {
     tt_ensure_data_dir();
-    if (!is_file(TT_STORE_FILE)) return ['users' => [], 'audit' => [], 'masters'=>tt_default_masters(), 'master_options'=>['party_roles'=>tt_default_party_roles()]];
+    if (!is_file(TT_STORE_FILE)) return ['users' => [], 'audit' => [], 'masters'=>tt_default_masters(), 'master_options'=>tt_default_master_options(), 'master_options_disabled'=>[]];
     $raw = file_get_contents(TT_STORE_FILE);
     $data = $raw === false || $raw === '' ? null : json_decode($raw, true);
-    if (!is_array($data)) return ['users' => [], 'audit' => [], 'masters'=>tt_default_masters(), 'master_options'=>['party_roles'=>tt_default_party_roles()]];
-    $data=array_merge(['users' => [], 'audit' => [], 'masters'=>tt_default_masters(), 'master_options'=>['party_roles'=>tt_default_party_roles()]], $data);
+    if (!is_array($data)) return ['users' => [], 'audit' => [], 'masters'=>tt_default_masters(), 'master_options'=>tt_default_master_options(), 'master_options_disabled'=>[]];
+    $data=array_merge(['users' => [], 'audit' => [], 'masters'=>tt_default_masters(), 'master_options'=>tt_default_master_options(), 'master_options_disabled'=>[]], $data);
     $data['masters']=tt_normalize_masters(is_array($data['masters'] ?? null) ? $data['masters'] : []);
     return $data;
 }
@@ -312,7 +370,7 @@ function tt_mutate_store(callable $callback): mixed {
         $raw = stream_get_contents($handle);
         $data = $raw ? json_decode($raw, true) : null;
         if (!is_array($data)) $data = ['users' => [], 'audit' => [], 'masters'=>tt_default_masters()];
-        $data = array_merge(['users' => [], 'audit' => [], 'masters'=>tt_default_masters(), 'master_options'=>['party_roles'=>tt_default_party_roles()]], $data);
+        $data = array_merge(['users' => [], 'audit' => [], 'masters'=>tt_default_masters(), 'master_options'=>tt_default_master_options(), 'master_options_disabled'=>[]], $data);
         $data['masters']=tt_normalize_masters(is_array($data['masters'] ?? null) ? $data['masters'] : []);
         $result = $callback($data);
         rewind($handle);

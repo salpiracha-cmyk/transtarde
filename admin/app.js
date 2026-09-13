@@ -581,15 +581,42 @@
     }
     return `<tr class="spec-editor-row custom-spec-row"><td><input data-custom-spec-name value="${escapeHtml(name)}" placeholder="Specification"></td><td><input data-custom-spec-limit value="${escapeHtml(limit)}" placeholder="Limit / requirement"></td><td><button class="row-action delete" type="button" data-remove-product-spec aria-label="Remove specification">Remove</button></td></tr>`;
   }
+  const PRODUCT_OPTION_FIELDS = {
+    0:["Commodity","product_commodities"],1:["Variety","product_varieties"],2:["Rice type","product_rice_types"],
+    7:["Broken","product_broken"],17:["Finish","product_finishes"],4:["Origin","product_origins"],5:["Profile / use","product_profiles"]
+  };
+  function productOptionSelect(index,label,key,value,required=false) {
+    const options=[...new Set([...(state.masterOptions?.[key]||[]),...(value?[value]:[])])].filter(Boolean).sort((a,b)=>a.localeCompare(b));
+    return `<label>${label}<select id="${masterInputId(index)}" data-master-field-index="${index}" data-product-option="${key}" ${required?"required":""}><option value="">Select ${escapeHtml(label)}</option>${options.map(x=>`<option value="${escapeHtml(x)}" ${x===String(value||"")?"selected":""}>${escapeHtml(x)}</option>`).join("")}<option value="__CUSTOM__">+ Custom…</option></select><input data-product-custom="${index}" hidden maxlength="120" placeholder="Enter new ${escapeHtml(label.toLowerCase())}"></label>`;
+  }
+  function wireProductOptionFields() {
+    document.querySelectorAll("[data-product-option]").forEach(select=>{
+      const custom=document.querySelector(`[data-product-custom="${select.dataset.masterFieldIndex}"]`);
+      select.addEventListener("change",()=>{if(custom){custom.hidden=select.value!=="__CUSTOM__";if(!custom.hidden)custom.focus()}});
+    });
+  }
+  async function resolveProductOptionsBeforeSave(type) {
+    if (type.id!=="products") return;
+    for (const select of document.querySelectorAll("[data-product-option]")) {
+      if (select.value!=="__CUSTOM__") continue;
+      const custom=document.querySelector(`[data-product-custom="${select.dataset.masterFieldIndex}"]`);
+      const value=custom?.value.trim()||"";
+      if (!value) throw new Error("Enter the custom option before saving.");
+      const data=await apiRequest({action:"manage-option",optionAction:"add",optionKey:select.dataset.productOption,value},"masters");
+      if(data.options)state.masterOptions=data.options;
+      select.insertAdjacentHTML("afterbegin",`<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`);
+      select.value=value;
+    }
+  }
   function productMasterFieldsHtml(values = []) {
     const legacyType=String(values[2]||"").replace(/\s+\d+(?:\.\d+)?%\s*(?:MAX\s*)?BROKEN\b/i,"").trim() || (/\d+(?:\.\d+)?%\s*(?:MAX\s*)?BROKEN/i.test(String(values[2]||"")) ? "White Rice" : String(values[2]||""));
     const cropYear=String(state.masters?.product_settings?.[0]?.values?.[0]||"2025/2026");
-    const identity = [
-      [0,"Commodity",true,values[0]],[1,"Variety",true,values[1]],[2,"Rice type",true,legacyType],[7,"Broken",true,values[7]],[17,"Finish",true,values[17]],[3,"Code",true,values[3]],[21,"HS Code",false,values[21]],[4,"Origin",false,values[4]],[5,"Profile / use",false,values[5]]
-    ].map(([index,label,required,value]) => `<label>${label}<input id="${masterInputId(index)}" data-master-field-index="${index}" value="${escapeHtml(value || "")}" ${required ? "required" : ""} autocomplete="off"></label>`).join("");
+    const selected={...values,2:legacyType};
+    const identity = [0,1,2,7,17,4,5].map(index=>productOptionSelect(index,PRODUCT_OPTION_FIELDS[index][0],PRODUCT_OPTION_FIELDS[index][1],selected[index],[0,1,2,7,17].includes(index))).join("")+
+      `<label>Code<input id="${masterInputId(3)}" data-master-field-index="3" value="${escapeHtml(values[3]||"")}" required autocomplete="off"></label><label>HS Code<input id="${masterInputId(21)}" data-master-field-index="21" value="${escapeHtml(values[21]||"")}" autocomplete="off"></label>`;
     const core = PRODUCT_CORE_SPECS.map(([index,name]) => productSpecRow(name, values[index] || "", false, index)).join("");
     const custom = productCustomSpecs(values).map(row => productSpecRow(row.name, row.limit, true)).join("");
-    return `<section class="master-editor-section"><div class="master-editor-heading"><div><h3>Product identity</h3><p>These fields form the Sales Contract Quality sentence. Crop Year is changed once from the Products & Quality screen.</p></div></div><div class="master-identity-grid">${identity}<label>Current Crop Year<input value="${escapeHtml(cropYear)}" readonly title="Change this once from the Products & Quality screen"></label></div></section>
+    return `<section class="master-editor-section"><div class="master-editor-heading"><div><h3>Product identity</h3><p>Choose approved wording from each list. Use + Custom only when a genuinely new value is required. Crop Year remains separate.</p></div></div><div class="master-identity-grid">${identity}<label>Current Crop Year<input value="${escapeHtml(cropYear)}" readonly title="Change this once from the Products & Quality screen"></label></div></section>
       <section class="master-editor-section"><div class="master-editor-heading"><div><h3>Specifications & limits</h3><p>One specification per line. Leave a limit blank when it is not confirmed.</p></div></div><div class="spec-editor-wrap"><table class="spec-editor-table"><thead><tr><th>Specification</th><th>Limit / Requirement</th><th></th></tr></thead><tbody id="productSpecRows">${core}${custom}</tbody></table></div><button class="button secondary add-spec-button" id="addProductSpecification" type="button">+ Add Specification</button></section>
       <section class="master-editor-section"><div class="master-editor-heading"><div><h3>Wording & source</h3><p>Quality wording and reference source stay separate from the numeric specification table.</p></div></div><div class="master-form-grid"><label class="full-span">Additional quality wording<textarea id="${masterInputId(18)}" data-master-field-index="18" rows="3">${escapeHtml(values[18] || "")}</textarea></label><label class="full-span">Source / basis<textarea id="${masterInputId(19)}" data-master-field-index="19" rows="3">${escapeHtml(values[19] || "")}</textarea></label></div></section>`;
   }
@@ -785,6 +812,7 @@
     document.getElementById("masterDialogTitle").textContent = `${row ? "Edit" : "Add"} ${type.name}`;
     document.getElementById("masterDialogHelp").textContent = type.description + " Complete as much information as available; only the essential identity fields are mandatory.";
     document.getElementById("masterFormFields").innerHTML = masterFieldsHtml(type, row?.values || []);
+    if (type.id === "products") wireProductOptionFields();
     if (type.id === "salary_staff") {
       const legalBook=document.getElementById(masterInputId(1));
       const salaryGroup=document.getElementById(masterInputId(2));
@@ -815,7 +843,7 @@
     if (!form.reportValidity()) return;
     const type = masterType();
     const id = document.getElementById("editMasterId").value;
-    try { await resolvePartyRoleBeforeSave(type); } catch (error) { toast(error.message); return; }
+    try { await resolvePartyRoleBeforeSave(type); await resolveProductOptionsBeforeSave(type); } catch (error) { toast(error.message); return; }
     const values = masterValuesFromForm(type);
     const primary = values[0] || type.name;
     const ref = values[1] || currentMaster.toUpperCase();

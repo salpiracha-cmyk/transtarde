@@ -34,7 +34,7 @@ $access = [
     'module'=>$permissionName, 'moduleId'=>$id, 'user'=>(string)$user['full_name'],
     'role'=>(string)$user['role'], 'permissions'=>$modulePermissions,
     'super'=>(($user['role'] ?? '')==='Super Admin'), 'csrf'=>tt_csrf(),
-    'masters'=>tt_list_masters(),
+    'masters'=>tt_list_masters(), 'masterOptions'=>tt_master_options(),
 ];
 $bootstrap = '<script>window.TT_MODULE_ACCESS='.json_encode($access, JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT).';</script>';
 $sharedBootstrap = <<<'HTML'
@@ -44,9 +44,12 @@ $sharedBootstrap = <<<'HTML'
   const EXPORT_STORE='transtrade_export_v3_operational';
   const allowed=k=>k===EXPORT_STORE||/^tt[0-9]{2}[a-z0-9_]{2,60}$/.test(k);
   const originalSet=Storage.prototype.setItem, originalRemove=Storage.prototype.removeItem;
-  let applying=false, revision=0, remoteKeys=new Set(), pending=new Map(), inFlight=new Set(), keyVersions=new Map(), timer=0, inboundRetry=0, lastRemoteBy='', lastInboundCheck=0, commitWaiters=[];
+  const QUEUE_STORE='tt_shared_commit_queue_v1';
+  let applying=false, revision=0, remoteKeys=new Set(), pending=new Map(), inFlight=new Set(), keyVersions=new Map(), queuedBase=new Map(), timer=0, inboundRetry=0, lastRemoteBy='', lastInboundCheck=0, commitWaiters=[];
   const directSet=(k,v)=>originalSet.call(localStorage,k,v);
-  const markSaveState=(message,error=false)=>{const b=document.getElementById('saveBadge');if(!b)return;b.textContent=message;b.style.background=error?'#8d2b2b':''};
+  const markSaveState=(message,error=false)=>{const b=document.getElementById('saveBadge');if(!b)return;b.textContent=message;b.style.background=error?'#8d2b2b':'';if(message==='Saved')setTimeout(()=>{if(b.textContent==='Saved')b.textContent=''},1800)};
+  const persistQueue=()=>{const rows={};for(const [key,value] of pending)rows[key]={value,baseVersion:Number(queuedBase.get(key)||0)};try{directSet(QUEUE_STORE,JSON.stringify(rows))}catch{}};
+  try{const saved=JSON.parse(localStorage.getItem(QUEUE_STORE)||'{}');for(const [key,row] of Object.entries(saved||{}))if(allowed(key)&&row&&typeof row.value==='string'){pending.set(key,row.value);queuedBase.set(key,Number(row.baseVersion||0))}}catch{}
   const parse=(k,d)=>{try{const v=JSON.parse(localStorage.getItem(k));return v??d}catch{return d}};
   const stableId=s=>{let h=2166136261;for(const c of String(s)){h^=c.charCodeAt(0);h=Math.imul(h,16777619)}return 600000000+(h>>>0)%300000000};
   const put=(k,v)=>{const s=JSON.stringify(v);if(localStorage.getItem(k)!==s)localStorage.setItem(k,s)};
@@ -72,7 +75,7 @@ $sharedBootstrap = <<<'HTML'
     if(!data?.ok)return;
     const incoming=Number(data.revision||0), changed=[];applying=true;
     Object.entries(data.values||{}).forEach(([k,v])=>{remoteKeys.add(k);if(allowed(k)&&typeof v==='string'&&!pending.has(k)&&!inFlight.has(k)&&localStorage.getItem(k)!==v){directSet(k,v);changed.push(k);lastRemoteBy=data.meta?.[k]?.updatedBy||lastRemoteBy}});
-    Object.entries(data.meta||{}).forEach(([k,m])=>keyVersions.set(k,Number(m?.version||0)));
+    Object.entries(data.meta||{}).forEach(([k,m])=>{if(!pending.has(k)&&!inFlight.has(k))keyVersions.set(k,Number(m?.version||0))});
     applying=false;revision=Math.max(revision,incoming);window.TRANSTRADE_SERVER_NOW_ISO=data.serverNow||window.TRANSTRADE_SERVER_NOW_ISO;
     if(changed.length&&!initial){bridge();notifyRemote()}
   }
@@ -80,9 +83,10 @@ $sharedBootstrap = <<<'HTML'
     if(!error&&(pending.size||inFlight.size))return;
     const waiters=commitWaiters.splice(0);for(const w of waiters){clearTimeout(w.timer);error?w.reject(new Error(error)):w.resolve({ok:true,revision})}
   }
+  function settleQueued(){const waiters=commitWaiters.splice(0);for(const w of waiters){clearTimeout(w.timer);w.resolve({ok:true,queued:true,revision})}}
   function saveNow(){
     if(!pending.size&&!inFlight.size)return Promise.resolve({ok:true,revision});
-    return new Promise((resolve,reject)=>{const waiter={resolve,reject,timer:0};waiter.timer=setTimeout(()=>{const i=commitWaiters.indexOf(waiter);if(i>=0)commitWaiters.splice(i,1);reject(new Error('Shared save was not confirmed. Do not create another record; retry this same save.'))},20000);commitWaiters.push(waiter);flush()})
+    return new Promise((resolve,reject)=>{const waiter={resolve,reject,timer:0};waiter.timer=setTimeout(()=>{const i=commitWaiters.indexOf(waiter);if(i>=0){commitWaiters.splice(i,1);resolve({ok:true,queued:true,revision})}},20000);commitWaiters.push(waiter);flush()})
   }
   function refreshNow(){
     if(pending.size||inFlight.size)return Promise.reject(new Error('Finish the current save before refreshing.'));
@@ -94,16 +98,16 @@ $sharedBootstrap = <<<'HTML'
       if(inFlight.has(key))continue;
       pending.delete(key);
       inFlight.add(key);
-      fetch(endpoint,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({csrf:access.csrf,key,value,baseVersion:Number(keyVersions.get(key)||0),sourceModule:access.module||'Super Admin'})})
-        .then(r=>r.json()).then(r=>{inFlight.delete(key);if(r.ok){revision=Math.max(revision,Number(r.revision||0));keyVersions.set(key,Number(r.keyVersion||r.revision||0));if(pending.has(key)){clearTimeout(timer);timer=setTimeout(flush,180);return}if(!pending.size&&!inFlight.size){markSaveState('Saved to shared system '+new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}));settleCommits();if(typeof dispatchEvent==='function'&&typeof CustomEvent==='function')dispatchEvent(new CustomEvent('tt:shared-saved',{detail:{key}}))}return}if(r.conflict){retryConflict(key,pending.get(key)||localStorage.getItem(key)||value,r.keyVersion);return}if(!pending.has(key))pending.set(key,value);clearTimeout(timer);timer=setTimeout(flush,2500);showSyncError(r.error,false);settleCommits(r.error||'Shared save was not confirmed.')})
-        .catch(()=>{inFlight.delete(key);if(!pending.has(key))pending.set(key,value);clearTimeout(timer);timer=setTimeout(flush,2500);showSyncError('Shared save is temporarily unavailable.');settleCommits('Shared save is temporarily unavailable. Retry this same save.');});
+      fetch(endpoint,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({csrf:access.csrf,key,value,baseVersion:Number(queuedBase.get(key)??keyVersions.get(key)??0),sourceModule:access.module||'Super Admin'})})
+        .then(r=>r.json()).then(r=>{inFlight.delete(key);if(r.ok){revision=Math.max(revision,Number(r.revision||0));keyVersions.set(key,Number(r.keyVersion||r.revision||0));queuedBase.delete(key);persistQueue();if(pending.has(key)){clearTimeout(timer);timer=setTimeout(flush,180);return}if(!pending.size&&!inFlight.size){markSaveState('Saved');settleCommits();if(typeof dispatchEvent==='function'&&typeof CustomEvent==='function')dispatchEvent(new CustomEvent('tt:shared-saved',{detail:{key}}))}return}if(r.conflict){retryConflict(key,pending.get(key)||localStorage.getItem(key)||value,r.keyVersion);return}if(!pending.has(key))pending.set(key,value);clearTimeout(timer);timer=setTimeout(flush,2500);showSyncError(r.error,false);settleCommits(r.error||'Shared save was not confirmed.')})
+        .catch(()=>{inFlight.delete(key);if(!pending.has(key))pending.set(key,value);persistQueue();clearTimeout(timer);timer=setTimeout(flush,2500);showSyncError('Shared save is temporarily unavailable.');settleQueued();});
     }
   }
-  function queue(key,value){if(!allowed(key)||applying)return;pending.set(key,String(value));setTimeout(()=>markSaveState('Saving to shared system…'),0);clearTimeout(timer);timer=setTimeout(flush,180)}
+  function queue(key,value){if(!allowed(key)||applying)return;if(!pending.has(key))queuedBase.set(key,Number(keyVersions.get(key)||0));pending.set(key,String(value));persistQueue();clearTimeout(timer);timer=setTimeout(flush,180)}
   Storage.prototype.setItem=function(k,v){originalSet.call(this,k,v);if(this===localStorage)queue(String(k),String(v))};
   Storage.prototype.removeItem=function(k){originalRemove.call(this,k);};
 
-  const initial=getRemote(true);if(initial?.ok&&!Object.prototype.hasOwnProperty.call(initial.values||{},EXPORT_STORE)){applying=true;originalRemove.call(localStorage,EXPORT_STORE);applying=false}if(initial)applyRemote(initial,true);
+  const initial=getRemote(true);if(initial?.ok&&!Object.prototype.hasOwnProperty.call(initial.values||{},EXPORT_STORE)&&!pending.has(EXPORT_STORE)){applying=true;originalRemove.call(localStorage,EXPORT_STORE);applying=false}if(initial)applyRemote(initial,true);if(pending.size){clearTimeout(timer);timer=setTimeout(flush,50)}
 
   function exportsToMill(){
     const root=parse(EXPORT_STORE,null);if(!root?.millSync)return;
@@ -130,7 +134,7 @@ $sharedBootstrap = <<<'HTML'
   function notifyRemote(){
     let b=document.getElementById('ttSyncNotice');if(!b){b=document.createElement('button');b.id='ttSyncNotice';b.type='button';b.style.cssText='border:0;border-radius:10px;padding:8px 11px;background:#16825d;color:#fff;font:700 11px Arial';b.onclick=()=>{if(pending.size||inFlight.size){b.textContent='Finishing shared sync — click again';return}location.reload()};document.body.appendChild(b)}const userBar=document.getElementById('ttUserBar'),header=userBar?.parentElement;if(header&&(header.matches('.topbar')||header.matches('header'))){b.classList.add('ttHeaderNotice');header.insertBefore(b,userBar)}b.textContent='Updated'+(lastRemoteBy?' by '+lastRemoteBy:'')+' — refresh';dispatchEvent(new CustomEvent('tt:shared-updated',{detail:{by:lastRemoteBy}}));
   }
-  function showSyncError(msg,conflict){let b=document.getElementById('saveBadge');if(b){b.textContent=conflict?'Newer shared update — refresh':'Shared save retry needed';b.style.background='#8d2b2b'}console.error(msg);if(conflict)notifyRemote()}
+  function showSyncError(msg,conflict){console.error(msg);if(conflict){let b=document.getElementById('saveBadge');if(b){b.textContent='Update needs review';b.style.background='#8d2b2b'}notifyRemote()}}
   function checkInbound(){const now=Date.now();if(pending.size||inFlight.size){clearTimeout(inboundRetry);inboundRetry=setTimeout(checkInbound,300);return}if(now-lastInboundCheck<800)return;lastInboundCheck=now;getRemote(false)}
   window.TT_SHARED_SYNC={flush,saveNow,refresh:refreshNow,bridge,poll:checkInbound};
   // Permanent rule: only explicit application actions save. Inbound checks are read-only and run when staff return to a tab.

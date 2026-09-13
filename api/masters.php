@@ -28,6 +28,13 @@ try {
 
     $type=(string)($body['type'] ?? '');
     $action=(string)($body['action'] ?? ''); $id=trim((string)($body['id'] ?? ''));
+    if ($action==='manage-option') {
+        $optionAction=(string)($body['optionAction'] ?? '');
+        $optionKey=(string)($body['optionKey'] ?? '');
+        $value=tt_manage_master_option($optionKey,$optionAction,(string)($body['value'] ?? ''),(string)($body['old'] ?? ''));
+        tt_audit((int)$admin['id'],$admin['username'],ucfirst($optionAction).' '.$optionKey.' option '.$value);
+        master_respond(['ok'=>true,'masters'=>master_all(),'options'=>tt_master_options(),'value'=>$value]);
+    }
     if ($type==='salary_staff') {
         if ($action==='delete') {
             if ($id==='') throw new InvalidArgumentException('Select a staff record.');
