@@ -144,14 +144,14 @@ function tt_normalize_masters(array $masters): array {
     // from Rice type so Sales Contracts cannot receive two conflicting values.
     foreach ($masters['products'] as &$row) {
         $values=array_values((array)($row['values'] ?? []));
-        while (count($values)<21) $values[]='';
+        while (count($values)<22) $values[]='';
         $legacyType=trim((string)($values[2] ?? ''));
         if (preg_match('/^(.*?)\s*(\d+(?:\.\d+)?\s*%)(?:\s*MAX)?\s*BROKEN$/i',$legacyType,$match)) {
             $riceType=trim((string)$match[1]);
             $values[2]=$riceType!==''?$riceType:'White Rice';
             if (trim((string)($values[7] ?? ''))==='') $values[7]=preg_replace('/\s+/', '', (string)$match[2]);
         }
-        $row['values']=array_slice($values,0,21);
+        $row['values']=array_slice($values,0,22);
     }
     unset($row);
 
@@ -196,7 +196,7 @@ function tt_normalize_masters(array $masters): array {
     unset($row);
     foreach ($masters['products'] as &$row) {
         $values=array_values((array)($row['values'] ?? []));
-        while (count($values)<21) $values[]='';
+        while (count($values)<22) $values[]='';
         $row['values']=$values;
     }
     unset($row);
