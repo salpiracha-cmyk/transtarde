@@ -594,7 +594,7 @@ test('automatic bulk QA: every Milling page plus 15 Arrivals and Pohanch records
 test('live deletion survives sign-out and sign-in', async ({ page }) => {
   test.setTimeout(180_000);
   page.on('popup', async popup => popup.close().catch(() => {}));
-  page.on('dialog', async dialog => dialog.accept());
+  page.on('dialog', dialog => dialog.accept().catch(() => {}));
 
   const suffix = RUN_TOKEN.slice(-8);
   const customerName = `QA DELETE ${suffix}`;
