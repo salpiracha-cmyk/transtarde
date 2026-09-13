@@ -92,9 +92,9 @@ async function createBulkQaShipment(page, { suffix, index, lotRef, contractRef, 
   await page.locator('#cRef').fill(contractRef);
   await page.locator('#nextStep').click();
 
-  await page.locator('#cProduct').selectOption({ index: 1 });
-  await page.locator('#cBroken').fill('5');
-  await page.locator('#cFinish').fill('TEST / DUMMY — silky polished and sortexed');
+  await page.locator('#cProductIdentity').selectOption({ index: 1 });
+  await page.locator('#cBrokenContract').fill('5');
+  await page.locator('#cFinishContract').selectOption({ index: 0 });
   await page.locator('#nextStep').click();
 
   await page.locator('#cContainers').fill('1');
@@ -202,9 +202,9 @@ test('manual Hostinger QA: Export instruction to Mill and container return', asy
   await page.locator('#cRef').fill(contractRef);
   await page.locator('#nextStep').click();
 
-  await page.locator('#cProduct').selectOption({ index: 1 });
-  await page.locator('#cBroken').fill('5');
-  await page.locator('#cFinish').fill('Silky polished and sortexed — QA TEST');
+  await page.locator('#cProductIdentity').selectOption({ index: 1 });
+  await page.locator('#cBrokenContract').fill('5');
+  await page.locator('#cFinishContract').selectOption({ index: 0 });
   await page.locator('#nextStep').click();
 
   await page.locator('#cContainers').fill('2');
@@ -613,9 +613,9 @@ test('live deletion survives sign-out and sign-in', async ({ page }) => {
   await page.locator('#cRef').fill(contractRef);
   await page.locator('#nextStep').click();
 
-  await page.locator('#cProduct').selectOption({ index: 1 });
-  await page.locator('#cBroken').fill('5');
-  await page.locator('#cFinish').fill('TEST / DUMMY');
+  await page.locator('#cProductIdentity').selectOption({ index: 1 });
+  await page.locator('#cBrokenContract').fill('5');
+  await page.locator('#cFinishContract').selectOption({ index: 0 });
   await page.locator('#nextStep').click();
 
   await page.locator('#cContainers').fill('1');
