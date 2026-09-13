@@ -33,7 +33,7 @@ async function gotoLive(page, url, options = {}) {
   let lastError;
   for (let attempt = 1; attempt <= 3; attempt += 1) {
     try {
-      return await page.goto(url, options);
+      return await page.goto(url, { timeout: 45_000, ...options });
     } catch (error) {
       lastError = error;
       if (attempt < 3) await page.waitForTimeout(1_000 * attempt);
@@ -385,7 +385,7 @@ test('manual Hostinger QA: Export instruction to Mill and container return', asy
 });
 
 test('live bulk QA: automatic lot references and isolated B/L returns', async ({ page }, testInfo) => {
-  test.setTimeout(720_000);
+  test.setTimeout(480_000);
   const errors = [];
   page.on('pageerror', error => errors.push(String(error)));
   page.on('popup', async popup => popup.close().catch(() => {}));
