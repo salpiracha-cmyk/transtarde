@@ -47,7 +47,7 @@ try {
     }
 
     $schemas=[
-        'companies'=>7,'commodities'=>8,'products'=>21,'purchase_kat'=>10,
+        'companies'=>7,'commodities'=>8,'product_settings'=>1,'products'=>21,'purchase_kat'=>10,
         'parties'=>4,'mills'=>4,'banks'=>14,'export_documents'=>5,'export_terms'=>3,
     ];
     if (!isset($schemas[$type])) throw new InvalidArgumentException('Select a valid master section.');
@@ -77,6 +77,37 @@ try {
     while (count($values)<$schemas[$type]) $values[]='';
     if (($values[0] ?? '')==='') throw new InvalidArgumentException('Enter the main record name / commodity / product.');
     if (in_array($type,['companies','commodities'],true) && ($values[1] ?? '')==='') throw new InvalidArgumentException('Enter the short code.');
+    if ($type==='product_settings' && !preg_match('/^\d{4}\/\d{4}$/',(string)$values[0])) {
+        throw new InvalidArgumentException('Enter Crop Year as YYYY/YYYY, for example 2025/2026.');
+    }
+    if ($type==='product_settings') {
+        [$cropStart,$cropEnd]=array_map('intval',explode('/',(string)$values[0]));
+        if ($cropEnd!==$cropStart+1) throw new InvalidArgumentException('Crop Year must contain consecutive years, for example 2025/2026.');
+        $existingSettings=(array)(master_all()['product_settings']??[]);
+        if ($action==='create' && count($existingSettings)>0) throw new InvalidArgumentException('Current Crop Year already exists. Update the existing value.');
+    }
+    if ($type==='products') {
+        foreach ([1=>'Variety',2=>'Rice type',7=>'Broken',17=>'Finish'] as $field=>$label) {
+            if (($values[$field]??'')==='') throw new InvalidArgumentException('Enter '.$label.' for the complete Product Identity.');
+        }
+        if (preg_match('/\d+(?:\.\d+)?\s*%\s*(?:MAX\s*)?BROKEN/i',(string)$values[2])) {
+            throw new InvalidArgumentException('Keep Rice type separate from Broken. For example, use Rice type “White Rice” and Broken “10%”.');
+        }
+        if (!preg_match('/\d+(?:\.\d+)?\s*%/',(string)$values[7])) {
+            throw new InvalidArgumentException('Enter Broken as a percentage, for example 10%.');
+        }
+        $identity=static function(array $row): string {
+            $parts=[(string)($row[1]??''),(string)($row[2]??''),(string)($row[7]??''),(string)($row[17]??'')];
+            return strtolower((string)preg_replace('/[^a-z0-9]+/i','',implode('|',$parts)));
+        };
+        $candidate=$identity($values);
+        foreach ((array)(master_all()['products']??[]) as $row) {
+            if ($id!=='' && (string)($row['id']??'')===$id) continue;
+            if ($candidate!=='' && $identity((array)($row['values']??[]))===$candidate) {
+                throw new InvalidArgumentException('This Product Identity already exists. Edit the existing record instead.');
+            }
+        }
+    }
 
     if ($type==='parties') {
         $existing=$id!==''?master_find_row($type,$id):null;

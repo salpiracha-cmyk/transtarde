@@ -14,12 +14,12 @@ const elements=new Map([['app',new Element('app')],['printRoot',new Element('pri
 const document={title:'Test',body:new Element('body'),head:new Element('head'),getElementById:id=>elements.get(id)||null,querySelectorAll:()=>[],querySelector:()=>null,createElement:()=>new Element(),addEventListener(){}};
 const storage=new Map();
 const localStorage={getItem:k=>storage.has(k)?storage.get(k):null,setItem:(k,v)=>storage.set(k,String(v)),removeItem:k=>storage.delete(k),get length(){return storage.size},key:i=>[...storage.keys()][i]};
-const masterProduct=['Rice','IRRI-6','White Rice 5% Broken','IR6-W5','Pakistan','Active','6.0 mm','5% max','14% max','2.5% max','5% max','','','0.8% max','0.5% max','1% max','2% max','Well milled','Master quality wording','Master source'];
-const window={document,localStorage,TT_MODULE_ACCESS:{user:'Test User',masters:{products:[{id:'P1',values:masterProduct}],mills:[{id:'M1',values:['Master Mill','MM','External']}] }},addEventListener(){},print(){},setTimeout:fn=>fn(),setInterval:()=>0};
+const masterProduct=['Rice','IRRI-6','White Rice','IR6-W5','Pakistan','Active','6.0 mm','5% max','14% max','2.5% max','5% max','','','0.8% max','0.5% max','1% max','2% max','Well milled; silky polished; sortexed','Free from live insects, bad odour and rice fit for human consumption.','Master source'];
+const window={document,localStorage,TT_MODULE_ACCESS:{user:'Test User',masters:{product_settings:[{id:'PS1',values:['2025/2026']}],products:[{id:'P1',values:masterProduct}],mills:[{id:'M1',values:['Master Mill','MM','External']}] }},addEventListener(){},print(){},setTimeout:fn=>fn(),setInterval:()=>0};
 const context={window,document,localStorage,console,structuredClone,alert:m=>{throw new Error('Unexpected alert: '+m)},location:{href:''},setTimeout:fn=>fn(),setInterval:()=>0,clearTimeout(){},FileReader:class{},Date,Intl};
 context.globalThis=context;
-let source=fs.readFileSync(__dirname+'/app.js','utf8');
-source=source.replace('mount();','window.__EXPORT_TEST__={parseContractText,parseLCText,paymentText,lcSpecificTerms,packingPrefix,unitRate,makeShipment,salesContractPrint,commercialInvoiceDoc,packingListDoc,phytoInvoiceDoc,blDraftDoc,coveringDoc,lcControlDoc,lcDraftDoc,millActualsComplete,applyProductMaster,productLabel,productMasters,millLocations,DEFAULT_QUALITY,CONTAINER_RE,state};\nmount();');
+let source=fs.readFileSync(__dirname+'/../../exports/app.js','utf8');
+source=source.replace('mount();','window.__EXPORT_TEST__={parseContractText,parseLCText,paymentText,lcSpecificTerms,packingPrefix,unitRate,makeShipment,salesContractPrint,commercialInvoiceDoc,packingListDoc,phytoInvoiceDoc,blDraftDoc,coveringDoc,lcControlDoc,lcDraftDoc,millActualsComplete,applyProductMaster,productLabel,productMasters,qualityDescription,contractSpecRows,currentCropYear,millLocations,DEFAULT_QUALITY,CONTAINER_RE,state};\nmount();');
 vm.runInNewContext(source,context,{filename:'app.js'});
 const t=window.__EXPORT_TEST__;
 
@@ -105,9 +105,13 @@ assert.match(lockedLC,/IF THE L\/C IS ISSUED BY A BANK WHICH IS NOT A FIRST-CLAS
 assert.match(lockedLC,/ALL BANK CHARGES OUTSIDE PAKISTAN SHALL BE FOR BUYER’S ACCOUNT\. CONFIRMATION CHARGES, IF ANY, SHALL ALSO BE FOR BUYER’S ACCOUNT\./);
 const masterDraft={product:'',broken:0,finish:'',quality:'',specMode:'Pakistan Origin Standard',specRows:[]};
 t.applyProductMaster(masterDraft,t.productLabel(t.productMasters()[0]));
-assert.equal(masterDraft.quality,'Master quality wording');
+assert.equal(masterDraft.quality,'PAKISTAN LONG GRAIN IRRI-6 WHITE RICE, 5% BROKEN, WELL MILLED, SILKY POLISHED AND SORTEXED, NEW CROP 2025/2026, AS PER ORIGIN STANDARD.');
+assert.equal(masterDraft.cropYear,'2025/2026');
+assert.equal(masterDraft.productIdentityCode,'IR6-W5');
 assert.equal(masterDraft.specMode,'Contract Specific');
 assert.ok(masterDraft.specRows.some(x=>x.name==='Moisture'&&x.value==='14% max'));
+assert.ok(!t.contractSpecRows(masterDraft).some(x=>/broken|finish|crop year/i.test(x.name)));
+assert.match(t.salesContractPrint({...masterDraft,id:'PM1',ref:'TTI/TEST/01',seller:'TTI',customerId:'',date:'2026-09-13',qty:27,tolerance:5,shipmentDate:'2026-09-30',pol:'Karachi Port, Pakistan',podPort:'Banjul, The Gambia',packingUnit:'KG',currency:'USD',incoterm:'FOB',paymentCode:'ADV100',advancePct:100,signedDeadline:'2026-09-15',paymentDeadline:'2026-09-16',docs:[],terms:[],packings:[{size:50,type:'PP Bags',brand:'TEST',tare:100,containers:1,weightPer:27,price:500,freight:0,insurance:0,masterBag:{enabled:false}}]}),/PAKISTAN LONG GRAIN IRRI-6/);
 assert.ok(t.millLocations().some(x=>x.name==='Master Mill'));
 
 const c={id:'C1',ref:'TTI/NS/01',seller:'TTI',customerId:'C-DAYA',date:'2026-09-08',product:'IRRI-6 White Rice',broken:5,finish:'Silky Polished & Sortexed',quality:t.DEFAULT_QUALITY,qty:540,tolerance:5,shipmentDate:'2026-09-30',pol:'Port Qasim, Pakistan',podPort:'Jebel Ali, UAE',packingUnit:'KG',currency:'USD',incoterm:'CFR',paymentCode:'LC_SIGHT',advancePct:0,usanceDays:0,docs:['Commercial Invoice','Packing List'],packings:[{size:25,type:'PP Bags',brand:'STAR',tare:80,containers:20,weightPer:27,price:410,masterBag:{enabled:false,qty:0,tare:0}}]};

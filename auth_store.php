@@ -20,6 +20,9 @@ function tt_default_masters(): array {
             ['id'=>'commodities-2','values'=>['Corn','CORN','MT / KG','Yes','Corn-specific','Corn-specific','Corn purchase / stock mappings','Uses the same expandable Soda framework as rice.']],
             ['id'=>'commodities-3','values'=>['Sesame Seed','SESAME','MT / KG','Yes','To configure','To configure','To configure','Future-ready commodity; partial setup is allowed.']],
         ],
+        'product_settings'=>[
+            ['id'=>'product-settings-1','values'=>['2025/2026']],
+        ],
         'products'=>[
             ['id'=>'products-1','values'=>['Rice','IRRI-6','White Rice 5% Broken','IR6-W5','Pakistan','Active Transtrade default','6.0 mm','5% max','14% max','2.5% max','5% max','4% max','','0.8% max','0.5% max','1% max','2% max','Well milled; double-polished; well sortexed','Free from live insects, bad odour and rice fit for human consumption. New crop as stated in contract.','Transtrade / TG 2026 specimen working specification. 6.0 mm grain-length reference cross-checked against current Pakistan market benchmark.']],
             ['id'=>'products-2','values'=>['Rice','IRRI-6','White Rice 25% Broken','IR6-W25','Pakistan','Historical Transtrade reference','6.0 mm basis','25% max','14% max','6.5% max','12% max','','','1.2% max','0.8% max','','4% max combined red and/or undermilled','Reasonably well milled','Free from live insects, bad odour and rice fit for human consumption. 2/3 size and above counted as full grain on 6 mm basis.','Transtrade SILAC 2009 specimen. Kept as editable historical/reference profile, not a silent current default.']],
@@ -184,7 +187,7 @@ function tt_normalize_masters(array $masters): array {
 }
 
 function tt_visible_masters(array $masters): array {
-    $visible=['companies','commodities','products','purchase_kat','export_documents','export_terms','parties','mills','banks'];
+    $visible=['companies','commodities','product_settings','products','purchase_kat','export_documents','export_terms','parties','mills','banks'];
     return array_intersect_key(tt_normalize_masters($masters),array_flip($visible));
 }
 

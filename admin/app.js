@@ -84,13 +84,13 @@
       ]
     },
     {
-      id: "products", name: "Products & Quality", description: "Pre-filled Transtrade, Pakistan-origin trade and market-benchmark profiles. PSQCA PS:3342-2007 is stored as the general Pakistan rice baseline; numeric variety/grade limits remain source- and contract-specific. For Basmati, TDAP GI identity characteristics are retained in the source/basis notes. All fields remain editable.",
+      id: "products", name: "Products & Quality", description: "Each Product Identity supplies the complete Sales Contract quality description. Broken percentage and finish belong to the identity; measurable limits remain in Specifications.",
       fields: [
-        { label: "Commodity", required: true }, { label: "Variety / product", required: true }, { label: "Processing / grade" }, { label: "Code", required: true },
+        { label: "Commodity", required: true }, { label: "Variety", required: true }, { label: "Rice type", required: true }, { label: "Code", required: true },
         { label: "Origin" }, { label: "Profile / use" }, { label: "Avg. grain length" }, { label: "Broken" }, { label: "Moisture" },
         { label: "Damaged / Shriveled / Yellow" }, { label: "Chalky / Immature" }, { label: "Contrasting / Other varieties" },
         { label: "Foreign grains" }, { label: "Foreign matter" }, { label: "Paddy" }, { label: "Red kernels / Red rice" },
-        { label: "Under-milled / Red-striped" }, { label: "Milling / polishing" },
+        { label: "Under-milled / Red-striped" }, { label: "Finish" },
         { label: "Additional quality wording", type: "textarea", full: true }, { label: "Source / basis", type: "textarea", full: true },
         { label: "Custom specifications", type: "hidden", full: true }
       ],
@@ -564,10 +564,10 @@
   }
 
   const PRODUCT_CORE_SPECS = [
-    [6, "Avg. grain length"], [7, "Broken"], [8, "Moisture"], [9, "Damaged / Shriveled / Yellow"],
+    [6, "Avg. grain length"], [8, "Moisture"], [9, "Damaged / Shriveled / Yellow"],
     [10, "Chalky / Immature"], [11, "Contrasting / Other varieties"], [12, "Foreign grains"],
     [13, "Foreign matter"], [14, "Paddy"], [15, "Red kernels / Red rice"],
-    [16, "Under-milled / Red-striped"], [17, "Milling / polishing"]
+    [16, "Under-milled / Red-striped"]
   ];
   function productCustomSpecs(values = []) {
     try {
@@ -582,12 +582,14 @@
     return `<tr class="spec-editor-row custom-spec-row"><td><input data-custom-spec-name value="${escapeHtml(name)}" placeholder="Specification"></td><td><input data-custom-spec-limit value="${escapeHtml(limit)}" placeholder="Limit / requirement"></td><td><button class="row-action delete" type="button" data-remove-product-spec aria-label="Remove specification">Remove</button></td></tr>`;
   }
   function productMasterFieldsHtml(values = []) {
+    const legacyType=String(values[2]||"").replace(/\s+\d+(?:\.\d+)?%\s*(?:MAX\s*)?BROKEN\b/i,"").trim() || (/\d+(?:\.\d+)?%\s*(?:MAX\s*)?BROKEN/i.test(String(values[2]||"")) ? "White Rice" : String(values[2]||""));
+    const cropYear=String(state.masters?.product_settings?.[0]?.values?.[0]||"2025/2026");
     const identity = [
-      [0,"Commodity",true],[1,"Variety / product",true],[2,"Processing / grade",false],[3,"Code",true],[4,"Origin",false],[5,"Profile / use",false]
-    ].map(([index,label,required]) => `<label>${label}<input id="${masterInputId(index)}" data-master-field-index="${index}" value="${escapeHtml(values[index] || "")}" ${required ? "required" : ""} autocomplete="off"></label>`).join("");
+      [0,"Commodity",true,values[0]],[1,"Variety",true,values[1]],[2,"Rice type",true,legacyType],[7,"Broken",true,values[7]],[17,"Finish",true,values[17]],[3,"Code",true,values[3]],[4,"Origin",false,values[4]],[5,"Profile / use",false,values[5]]
+    ].map(([index,label,required,value]) => `<label>${label}<input id="${masterInputId(index)}" data-master-field-index="${index}" value="${escapeHtml(value || "")}" ${required ? "required" : ""} autocomplete="off"></label>`).join("");
     const core = PRODUCT_CORE_SPECS.map(([index,name]) => productSpecRow(name, values[index] || "", false, index)).join("");
     const custom = productCustomSpecs(values).map(row => productSpecRow(row.name, row.limit, true)).join("");
-    return `<section class="master-editor-section"><div class="master-editor-heading"><div><h3>Product identity</h3><p>Keep the master list short; edit the detailed quality only here.</p></div></div><div class="master-identity-grid">${identity}</div></section>
+    return `<section class="master-editor-section"><div class="master-editor-heading"><div><h3>Product identity</h3><p>These fields form the Sales Contract Quality sentence. Crop Year is changed once from the Products & Quality screen.</p></div></div><div class="master-identity-grid">${identity}<label>Current Crop Year<input value="${escapeHtml(cropYear)}" readonly title="Change this once from the Products & Quality screen"></label></div></section>
       <section class="master-editor-section"><div class="master-editor-heading"><div><h3>Specifications & limits</h3><p>One specification per line. Leave a limit blank when it is not confirmed.</p></div></div><div class="spec-editor-wrap"><table class="spec-editor-table"><thead><tr><th>Specification</th><th>Limit / Requirement</th><th></th></tr></thead><tbody id="productSpecRows">${core}${custom}</tbody></table></div><button class="button secondary add-spec-button" id="addProductSpecification" type="button">+ Add Specification</button></section>
       <section class="master-editor-section"><div class="master-editor-heading"><div><h3>Wording & source</h3><p>Quality wording and reference source stay separate from the numeric specification table.</p></div></div><div class="master-form-grid"><label class="full-span">Additional quality wording<textarea id="${masterInputId(18)}" data-master-field-index="18" rows="3">${escapeHtml(values[18] || "")}</textarea></label><label class="full-span">Source / basis<textarea id="${masterInputId(19)}" data-master-field-index="19" rows="3">${escapeHtml(values[19] || "")}</textarea></label></div></section>`;
   }
@@ -738,6 +740,23 @@
     if (type.id === "banks") { const note=String(row.values?.[13] || ""); return /incomplete/i.test(note) ? "Incomplete" : (/inactive/i.test(note) ? "Inactive" : "Active"); }
     return "Active";
   }
+  function currentProductCropYear() {
+    return String(state.masters?.product_settings?.[0]?.values?.[0] || "2025/2026");
+  }
+  async function saveCurrentProductCropYear() {
+    const input=document.getElementById("currentProductCropYear");
+    const value=String(input?.value||"").trim();
+    const match=value.match(/^(\d{4})\/(\d{4})$/);
+    if (!match || Number(match[2])!==Number(match[1])+1) return toast("Enter consecutive Crop Years as YYYY/YYYY, for example 2025/2026.");
+    const existing=state.masters?.product_settings?.[0];
+    try {
+      const data=await apiRequest({action:existing?"update":"create",type:"product_settings",id:existing?.id||"",values:[value]},"masters");
+      state.masters=ensureMasterSections(data.masters);
+      saveState();
+      renderMasters();
+      toast("Current Crop Year updated for new Sales Contracts.");
+    } catch (error) { toast(error.message); }
+  }
 
   function renderMasters() {
     state.masters = ensureMasterSections(state.masters);
@@ -745,6 +764,11 @@
     const type = masterType();
     document.getElementById("masterTitle").textContent = type.name;
     document.getElementById("masterDescription").textContent = type.description;
+    document.getElementById("productCropYearControl")?.remove();
+    if (type.id === "products") {
+      document.getElementById("masterDescription").insertAdjacentHTML("afterend", `<section id="productCropYearControl" class="master-editor-section"><div class="master-editor-heading"><div><h3>Current Crop Year</h3><p>Change this once a year. New Sales Contracts use it automatically; saved contracts keep their original crop year.</p></div></div><div class="master-identity-grid"><label>Crop Year<input id="currentProductCropYear" value="${escapeHtml(currentProductCropYear())}" placeholder="2025/2026"></label><div><button class="button primary" id="saveCurrentProductCropYear" type="button">Save Crop Year</button></div></div></section>`);
+      document.getElementById("saveCurrentProductCropYear").onclick=saveCurrentProductCropYear;
+    }
     document.getElementById("addMasterRecord").textContent = `+ Add ${type.id === "salary_staff" ? "Staff" : type.id === "purchase_kat" ? "KAT Rule" : type.id === "companies" ? "Company" : type.id === "commodities" ? "Commodity" : type.id === "products" ? "Product" : "Record"}`;
     const columns = displayColumns(type);
     document.getElementById("masterTableHead").innerHTML = `<tr>${columns.map(index => `<th>${escapeHtml(type.fields[index].label)}</th>`).join("")}<th>Status</th><th>Actions</th></tr>`;

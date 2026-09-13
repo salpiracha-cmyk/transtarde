@@ -13,7 +13,7 @@ const document={title:'Audit',body:new Element('body'),head:new Element('head'),
 const storage=new Map(),localStorage={getItem:k=>storage.get(k)||null,setItem:(k,v)=>storage.set(k,String(v)),removeItem:k=>storage.delete(k),get length(){return storage.size},key:i=>[...storage.keys()][i]};
 const window={document,localStorage,TT_MODULE_ACCESS:{user:'Jazib',module:'Exports'},addEventListener(){},print(){},setTimeout:fn=>fn(),setInterval:()=>0};
 const context={window,document,localStorage,console,structuredClone,alert:m=>{throw Error(m)},confirm:()=>true,location:{href:''},setTimeout:fn=>fn(),setInterval:()=>0,clearTimeout(){},FileReader:class{},Date,Intl};context.globalThis=context;
-let source=fs.readFileSync(__dirname+'/app.js','utf8');
+let source=fs.readFileSync(__dirname+'/../../exports/app.js','utf8');
 source=source.replace('mount();',`window.__AUDIT__={state,makeShipment,makeLotRecord,blankDocuments,processStatus,lotStatus,fiUsed,actualTotals,plannedTotals,customsPlannedRows,plannedPhysicalRows,millActualsComplete,invoiceLines,commercialInvoiceDoc,packingListDoc,phytoInvoiceDoc,blDraftDoc,cooDoc,coveringDoc,lcDraftDoc,lcControlDoc,tgInternalDoc,salesContractPrint,defaultDocsFor,effectiveTerms,lcSpecificTerms,contractSpecRows,DEFAULT_QUALITY};mount();`);
 vm.runInNewContext(source,context,{filename:'app.js'});
 const t=window.__AUDIT__;
@@ -57,7 +57,7 @@ const mixedLines=t.invoiceLines(mixed,contract,false);assert.equal(mixedLines.le
 const fi={value:100000,allocations:[{amount:25000},{amount:15000}]};assert.equal(t.fiUsed(fi),40000);
 assert.match(elements.get('main').innerHTML,/Active Contracts/);assert.match(elements.get('main').innerHTML,/millPopover/);
 
-const css=fs.readFileSync(__dirname+'/app.css','utf8');assert.match(css,/\.millPopover\{display:none/);assert.match(css,/\.millHover:hover \.millPopover/);assert.match(css,/\.docLetterhead\{position:absolute;left:0;right:0/);assert.match(css,/@page\{size:A4;margin:0/);
+const css=fs.readFileSync(__dirname+'/../../exports/app.css','utf8');assert.match(css,/\.millPopover\{display:none/);assert.match(css,/\.millHover:hover \.millPopover/);assert.match(css,/\.docLetterhead\{position:absolute;left:0;right:0/);assert.match(css,/@page\{size:A4;margin:0/);
 const names=[...source.matchAll(/^function\s+([\w$]+)\s*\(/gm)].map(m=>m[1]),duplicates=names.filter((n,i)=>names.indexOf(n)!==i);assert.deepEqual(duplicates,[],'duplicate function declarations remain');
 const php=fs.readFileSync(__dirname+'/../main/api/operations.mysql.php','utf8');assert.match(php,/SELECT payload, version FROM tt_operation_records WHERE storage_key = \? FOR UPDATE/);assert.match(php,/operations_merge_export/);assert.match(php,/operations_can_write\(\$user, \$sourceModule\)/);
 assert.doesNotMatch(php,/in_array\('all', \$permissions/,'one module must never grant write access to another module');
