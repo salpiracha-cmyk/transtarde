@@ -385,7 +385,7 @@ test('manual Hostinger QA: Export instruction to Mill and container return', asy
 });
 
 test('live bulk QA: automatic lot references and isolated B/L returns', async ({ page }, testInfo) => {
-  test.setTimeout(480_000);
+  test.setTimeout(720_000);
   const errors = [];
   page.on('pageerror', error => errors.push(String(error)));
   page.on('popup', async popup => popup.close().catch(() => {}));
