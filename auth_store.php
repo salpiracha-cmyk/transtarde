@@ -138,6 +138,23 @@ function tt_normalize_masters(array $masters): array {
     unset($row);
     foreach ($productDefaults as $code=>$row) if (empty($seenProducts[$code])) $masters['products'][]=$row;
 
+    // Upgrade every previously saved product to the structured Product Identity.
+    // Older records stored values such as "White Rice 5% Broken" together in
+    // Rice type. Keep the percentage authoritative in Broken and remove it
+    // from Rice type so Sales Contracts cannot receive two conflicting values.
+    foreach ($masters['products'] as &$row) {
+        $values=array_values((array)($row['values'] ?? []));
+        while (count($values)<21) $values[]='';
+        $legacyType=trim((string)($values[2] ?? ''));
+        if (preg_match('/^(.*?)\s*(\d+(?:\.\d+)?\s*%)(?:\s*MAX)?\s*BROKEN$/i',$legacyType,$match)) {
+            $riceType=trim((string)$match[1]);
+            $values[2]=$riceType!==''?$riceType:'White Rice';
+            if (trim((string)($values[7] ?? ''))==='') $values[7]=preg_replace('/\s+/', '', (string)$match[2]);
+        }
+        $row['values']=array_slice($values,0,21);
+    }
+    unset($row);
+
     foreach (['parties','mills'] as $simpleType) {
         foreach ($masters[$simpleType] as &$row) {
             $values=array_values((array)($row['values'] ?? []));
