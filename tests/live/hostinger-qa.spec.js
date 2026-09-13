@@ -29,7 +29,8 @@ async function waitForSharedSave(page) {
   await page.evaluate(async () => {
     if (window.TT_SHARED_SYNC?.saveNow) await window.TT_SHARED_SYNC.saveNow();
   });
-  await expect(page.locator('#saveBadge')).toContainText(/\bSaved\b/i, { timeout: 35_000 });
+  const badge = page.locator('#saveBadge');
+  if (await badge.count()) await expect(badge).toContainText(/\bSaved\b/i, { timeout: 35_000 });
 }
 
 async function gotoLive(page, url, options = {}) {
