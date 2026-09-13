@@ -181,6 +181,7 @@ test('manual Hostinger QA: Export instruction to Mill and container return', asy
 
   await gotoLive(page, `${BASE_URL}/module.php?id=exports`, { waitUntil: 'domcontentloaded' });
   await expect(page.getByRole('button', { name: /NEW SALES CONTRACT/i })).toBeVisible();
+  await expect(page.locator('.ttBrandLogo').first(), 'approved Transtrade logo must render').toBeVisible();
   await expect(page.locator('#refreshMillUpdates')).toHaveCount(0);
   await expect(page.getByRole('button', { name: /MASTER DATA/i })).toHaveCount(1);
   await page.screenshot({ path: testInfo.outputPath('01-exports-desktop.png'), fullPage: true });
@@ -192,6 +193,8 @@ test('manual Hostinger QA: Export instruction to Mill and container return', asy
   await page.setViewportSize({ width: 1440, height: 1000 });
 
   await page.getByRole('button', { name: /NEW SALES CONTRACT/i }).click();
+  await expect(page.locator('.contractFormPane'), 'Sales Contract entry pane must render').toBeVisible();
+  await expect(page.locator('.contractPreviewPane'), 'Sales Contract live preview pane must render beside entry').toBeVisible();
   await page.locator('#addCustomer').click();
   await page.locator('#mCustName').fill(customerName);
   await page.locator('#mCustCode').fill(customerCode);
@@ -214,6 +217,7 @@ test('manual Hostinger QA: Export instruction to Mill and container return', asy
   await page.locator('#nextStep').click();
 
   await page.locator('#addPacking').click();
+  await expect(page.locator('#mPackType option', { hasText: 'P.P. Bags' }), 'managed Packing Type dropdown must contain P.P. Bags').toHaveCount(1);
   await page.locator('#mPackType').selectOption({ label: 'P.P. Bags' });
   await page.locator('#mPackSize').fill('25');
   await page.locator('#mPackBrand').fill(brand);
@@ -230,6 +234,20 @@ test('manual Hostinger QA: Export instruction to Mill and container return', asy
   await page.locator('#cSignedDeadline').fill(tomorrow);
   await page.locator('#cPaymentDeadline').fill(tomorrow);
   await page.locator('#nextStep').click();
+  const contractPreview = page.locator('#salesContractPreview');
+  await expect(contractPreview).toContainText('PORT OF LOADING');
+  await expect(contractPreview).toContainText('PORT OF DISCHARGE');
+  await expect(contractPreview).toContainText('INSURANCE');
+  await expect(contractPreview).toContainText('PACKING / BRAND-MARKING');
+  await expect(contractPreview).toContainText('PACKED IN NEW SINGLE P.P. BAGS OF 25 KG EACH');
+  await expect(contractPreview).toContainText(brand);
+  await expect(contractPreview).toContainText('FOB UNIT PRICE');
+  await expect(contractPreview).toContainText('TOTAL CONTRACT VALUE');
+  await expect(contractPreview).toContainText('AMOUNT IN WORDS');
+  await expect(contractPreview).toContainText('OTHER TERMS AND CONDITIONS');
+  await expect(contractPreview).toContainText('DOCUMENTS TO BE PRESENTED FOR NEGOTIATION');
+  const previewPages = await contractPreview.locator('.salesContractPage').count();
+  expect(previewPages, 'Sales Contract preview must paginate from content').toBeGreaterThanOrEqual(2);
   await page.locator('#issueContract').click();
   await expect(page.getByText(contractRef, { exact: true }).first()).toBeVisible({ timeout: 30_000 });
   await waitForSharedSave(page);
