@@ -19,7 +19,7 @@ const window={document,localStorage,TT_MODULE_ACCESS:{user:'Test User',masters:{
 const context={window,document,localStorage,console,structuredClone,alert:m=>{throw new Error('Unexpected alert: '+m)},location:{href:''},setTimeout:fn=>fn(),setInterval:()=>0,clearTimeout(){},FileReader:class{},Date,Intl};
 context.globalThis=context;
 let source=fs.readFileSync(__dirname+'/../../exports/app.js','utf8');
-source=source.replace('mount();','window.__EXPORT_TEST__={parseContractText,parseLCText,paymentText,lcSpecificTerms,packingPrefix,unitRate,makeShipment,salesContractPrint,commercialInvoiceDoc,packingListDoc,phytoInvoiceDoc,blDraftDoc,coveringDoc,lcControlDoc,lcDraftDoc,millActualsComplete,applyProductMaster,productLabel,productMasters,qualityDescription,contractSpecRows,currentCropYear,millLocations,DEFAULT_QUALITY,CONTAINER_RE,state};\nmount();');
+source=source.replace('mount();','window.__EXPORT_TEST__={parseContractText,parseLCText,paymentText,lcSpecificTerms,packingPrefix,unitRate,makeShipment,salesContractPrint,commercialInvoiceDoc,packingListDoc,phytoInvoiceDoc,blDraftDoc,coveringDoc,lcControlDoc,lcDraftDoc,millActualsComplete,applyProductMaster,applyProductBase,productLabel,productBaseLabel,productMasters,normalizeBrokenValue,composeProductDescription,qualityDescription,contractSpecRows,currentCropYear,millLocations,DEFAULT_QUALITY,CONTAINER_RE,state};\nmount();');
 vm.runInNewContext(source,context,{filename:'app.js'});
 const t=window.__EXPORT_TEST__;
 
@@ -103,15 +103,21 @@ assert.equal(t.unitRate({price:400,freight:30,insurance:2},{incoterm:'CIF'}),432
 const lockedLC=t.lcSpecificTerms({paymentCode:'LC_SIGHT',paymentDeadline:'2026-09-15'}).join('\n');
 assert.match(lockedLC,/IF THE L\/C IS ISSUED BY A BANK WHICH IS NOT A FIRST-CLASS BANK ACCEPTABLE TO THE SELLER/);
 assert.match(lockedLC,/ALL BANK CHARGES OUTSIDE PAKISTAN SHALL BE FOR BUYER’S ACCOUNT\. CONFIRMATION CHARGES, IF ANY, SHALL ALSO BE FOR BUYER’S ACCOUNT\./);
-const masterDraft={product:'',broken:0,finish:'',quality:'',specMode:'Pakistan Origin Standard',specRows:[]};
+const masterDraft={product:'',productBase:'',broken:'',finish:'',quality:'',cropYear:'',productIdentityCode:'',specMode:'Pakistan Origin Standard',specRows:[]};
 t.applyProductMaster(masterDraft,t.productLabel(t.productMasters()[0]));
-assert.equal(masterDraft.quality,'PAKISTAN LONG GRAIN IRRI-6 WHITE RICE, 5% BROKEN, WELL MILLED, SILKY POLISHED AND SORTEXED, NEW CROP 2025/2026, AS PER ORIGIN STANDARD.');
+assert.equal(masterDraft.productBase,'IRRI-6 White Rice');
+assert.equal(masterDraft.broken,'5%');
+assert.equal(masterDraft.finish,'Well milled; silky polished; sortexed');
+assert.equal(masterDraft.product,'IRRI-6 White Rice, 5% Broken, Well milled; silky polished; sortexed');
+assert.equal(masterDraft.quality,'Free from live insects, bad odour and rice fit for human consumption.');
 assert.equal(masterDraft.cropYear,'2025/2026');
 assert.equal(masterDraft.productIdentityCode,'IR6-W5');
-assert.equal(masterDraft.specMode,'Contract Specific');
 assert.ok(masterDraft.specRows.some(x=>x.name==='Moisture'&&x.value==='14% max'));
-assert.ok(!t.contractSpecRows(masterDraft).some(x=>/broken|finish|crop year/i.test(x.name)));
-assert.match(t.salesContractPrint({...masterDraft,id:'PM1',ref:'TTI/TEST/01',seller:'TTI',customerId:'',date:'2026-09-13',qty:27,tolerance:5,shipmentDate:'2026-09-30',pol:'Karachi Port, Pakistan',podPort:'Banjul, The Gambia',packingUnit:'KG',currency:'USD',incoterm:'FOB',paymentCode:'ADV100',advancePct:100,signedDeadline:'2026-09-15',paymentDeadline:'2026-09-16',docs:[],terms:[],packings:[{size:50,type:'PP Bags',brand:'TEST',tare:100,containers:1,weightPer:27,price:500,freight:0,insurance:0,masterBag:{enabled:false}}]}),/PAKISTAN LONG GRAIN IRRI-6/);
+assert.ok(t.contractSpecRows(masterDraft).some(x=>x.name==='Broken'&&x.value==='5%'));
+assert.ok(t.contractSpecRows(masterDraft).some(x=>x.name==='Processing / Finish'&&/silky polished/i.test(x.value)));
+assert.equal(t.normalizeBrokenValue('15–20% Broken'),'15-20%');
+assert.equal(t.composeProductDescription('IRRI-6 White Rice','15-20%','Silky Polished'),'IRRI-6 White Rice, 15-20% Broken, Silky Polished');
+assert.match(t.salesContractPrint({...masterDraft,id:'PM1',ref:'TTI/TEST/01',seller:'TTI',customerId:'',date:'2026-09-13',qty:27,tolerance:5,shipmentDate:'2026-09-30',pol:'Karachi Port, Pakistan',podPort:'Banjul, The Gambia',packingUnit:'KG',currency:'USD',incoterm:'FOB',paymentCode:'ADV100',advancePct:100,signedDeadline:'2026-09-15',paymentDeadline:'2026-09-16',docs:[],terms:[],packings:[{size:50,type:'PP Bags',brand:'TEST',tare:100,containers:1,weightPer:27,price:500,freight:0,insurance:0,masterBag:{enabled:false}}]}),/IRRI-6 White Rice/);
 assert.ok(t.millLocations().some(x=>x.name==='Master Mill'));
 
 const c={id:'C1',ref:'TTI/NS/01',seller:'TTI',customerId:'C-DAYA',date:'2026-09-08',product:'IRRI-6 White Rice',broken:5,finish:'Silky Polished & Sortexed',quality:t.DEFAULT_QUALITY,qty:540,tolerance:5,shipmentDate:'2026-09-30',pol:'Port Qasim, Pakistan',podPort:'Jebel Ali, UAE',packingUnit:'KG',currency:'USD',incoterm:'CFR',paymentCode:'LC_SIGHT',advancePct:0,usanceDays:0,docs:['Commercial Invoice','Packing List'],packings:[{size:25,type:'PP Bags',brand:'STAR',tare:80,containers:20,weightPer:27,price:410,masterBag:{enabled:false,qty:0,tare:0}}]};
