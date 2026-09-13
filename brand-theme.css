@@ -1,0 +1,63 @@
+:root{
+  --tt-brand-deep:#2e4527;
+  --tt-brand-deep-2:#3b5d3d;
+  --tt-brand-main:#4f7650;
+  --tt-brand-soft:#e8f0e5;
+  --tt-brand-ivory:#f4f0e6;
+  --tt-brand-line:#cbd8c7;
+  --tt-brand-ink:#2b2217;
+  --tt-brand-muted:#6c7167;
+  --tt-brand-gold:#bf892b;
+}
+
+/* Interface palette only. Existing layout, sizing and workflow stay untouched. */
+html,body{background:var(--tt-brand-ivory)!important;color:var(--tt-brand-ink)}
+.topbar,body>header:not(.tt-staff-header){background:var(--tt-brand-deep)!important;color:#fff!important}
+.topbar{background:linear-gradient(90deg,var(--tt-brand-deep),var(--tt-brand-deep-2))!important}
+.nav button.active,.btn.navy,.btn.primary,.tab.active,.step.active,
+button:not(.danger):not(.red):not(.xBtn):not(.optionMinus).active{
+  background:var(--tt-brand-deep)!important;
+  border-color:var(--tt-brand-deep)!important;
+  color:#fff!important;
+}
+.btn.green,.ok,.workspaceIcon.active .workspaceGlyph,#ttMasterTop,.masterTopButton{
+  background:var(--tt-brand-main)!important;
+  border-color:var(--tt-brand-main)!important;
+  color:#fff!important;
+}
+.workspaceIcon.active,.card.clickable:hover,.entityBtn.active,.subCard:hover,
+.appCard:hover,input:focus,select:focus,textarea:focus{border-color:var(--tt-brand-main)!important}
+.workspaceIcon.active{box-shadow:inset 0 0 0 2px rgba(79,118,80,.16)!important}
+.appIcon,.workspaceGlyph,.status.green,.pill.green,.notice:not(.warn):not(.red):not(.error){
+  background:var(--tt-brand-soft)!important;
+  color:var(--tt-brand-main)!important;
+}
+.panel,.card,.appCard,.subCard,.section,.metric,.formCard,.infoCard{border-color:var(--tt-brand-line)!important}
+.eyebrow,.good,.balanceOk{color:var(--tt-brand-main)!important}
+
+/* Shared header branding; dimensions remain compact so controls keep their positions. */
+.ttBrandLockup{display:flex!important;align-items:center!important;gap:10px!important;min-width:0!important}
+.ttBrandLogo{display:block;width:248px;height:43px;object-fit:contain;object-position:left center;flex:0 1 248px;background:var(--tt-brand-ivory);padding:4px 7px;border-radius:8px;box-sizing:border-box}
+.ttBrandModule{padding-left:10px;border-left:1px solid rgba(255,255,255,.45);color:#fff;font-weight:900;font-size:14px;letter-spacing:.12em;white-space:nowrap}
+.topbar .ttBrandLockup,.topbar .ttBrandLockup *,.topbar .ttBrandModule,
+body>header .ttBrandLockup,body>header .ttBrandModule{color:#fff!important}
+.ttBrandLockup small{display:block;color:rgba(255,255,255,.72)!important;font-size:10px;letter-spacing:0;margin-top:2px}
+
+/* Login uses the same brand palette and exact company artwork. */
+.auth-card{border-color:var(--tt-brand-line)!important;box-shadow:0 22px 55px rgba(46,69,39,.16)!important}
+.authBrandLockup{display:flex;justify-content:center;margin:0 0 18px}
+.authBrandLogo{display:block;width:min(100%,340px);height:auto}
+.auth-card .eyebrow{color:var(--tt-brand-main)!important}
+.auth-card input:focus{border-color:var(--tt-brand-main)!important;box-shadow:0 0 0 3px rgba(79,118,80,.15)!important;outline:none}
+.auth-card button{background:var(--tt-brand-deep)!important}
+.auth-card button:hover{background:var(--tt-brand-deep-2)!important}
+
+/* Printed business documents retain their existing independent palette. */
+#printRoot,.printDoc{--navy:#0d2b38;--nav2:#153f50;--nav:#102a46;--blue:#1c6c9e;--green:#16825d;--bg:#fff;--line:#d9e2e7;--ink:#182630}
+.printDoc,.printDoc .docPage{background:#fff!important;color:#111!important}
+
+@media(max-width:760px){
+  .ttBrandLogo{width:185px;height:36px;flex-basis:185px}
+  .ttBrandModule{font-size:11px;padding-left:7px}
+}
+

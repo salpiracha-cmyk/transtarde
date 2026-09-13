@@ -83,3 +83,5 @@
 .removableOptionItem{display:inline-flex;align-items:center;gap:4px;border:1px solid #d7e0e9;border-radius:12px;background:#f8fafc;padding:2px 7px 2px 3px;font-size:11px;color:#334155}
 .optionMinus{display:inline-grid;place-items:center;width:17px;height:17px;padding:0;border:1px solid #fecaca;border-radius:50%;background:#fff1f2;color:#b91c1c;font-weight:800;line-height:1;cursor:pointer}
 .optionMinus:hover,.optionMinus:focus{background:#b91c1c;color:#fff;outline:none}
+.contractTermRow{display:grid;grid-template-columns:28px minmax(0,1fr) auto;gap:8px;align-items:start;margin:8px 0}.contractTermRow b{padding-top:10px}.contractTermRow textarea{min-height:54px;resize:vertical}.contractTermsEditor>.btn{margin-top:8px}
+.contractTermRow{display:grid;grid-template-columns:28px minmax(0,1fr) auto;gap:8px;align-items:start;margin:8px 0}.contractTermRow b{padding-top:10px}.contractTermRow textarea{min-height:54px;resize:vertical}.contractTermsEditor>.btn{margin-top:8px}
