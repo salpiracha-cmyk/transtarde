@@ -108,7 +108,7 @@ t.applyProductMaster(masterDraft,t.productLabel(t.productMasters()[0]));
 assert.equal(masterDraft.quality,'PAKISTAN LONG GRAIN IRRI-6 WHITE RICE, 5% BROKEN, WELL MILLED, SILKY POLISHED AND SORTEXED, NEW CROP 2025/2026, AS PER ORIGIN STANDARD.');
 assert.equal(masterDraft.cropYear,'2025/2026');
 assert.equal(masterDraft.productIdentityCode,'IR6-W5');
-assert.equal(masterDraft.specMode,'Contract Specific');
+assert.equal(masterDraft.specMode,'As per Pakistan Origin Standards');
 assert.equal(t.normalizeBrokenEntry('15 - 20 %'),'15-20');
 assert.ok(t.brokenEntryValid('5%'));
 assert.ok(t.brokenEntryValid('15-20%'));
@@ -117,7 +117,7 @@ const selectedQuality={...masterDraft,brokenText:'10%',broken:10,finish:'Well mi
 assert.equal(t.qualityDescription(selectedQuality),'PAKISTAN LONG GRAIN IRRI-6 WHITE RICE, 10% BROKEN, WELL MILLED, DOUBLE POLISHED AND WELL SORTEXED, NEW CROP 2025/2026, AS PER ORIGIN STANDARD.');
 assert.ok(masterDraft.specRows.some(x=>x.name==='Moisture'&&x.value==='14% max'));
 assert.ok(!t.contractSpecRows(masterDraft).some(x=>/broken|finish|crop year/i.test(x.name)));
-assert.match(t.salesContractPrint({...masterDraft,id:'PM1',ref:'TTI/TEST/01',seller:'TTI',customerId:'',date:'2026-09-13',qty:27,tolerance:5,shipmentDate:'2026-09-30',pol:'Karachi Port, Pakistan',podPort:'Banjul, The Gambia',packingUnit:'KG',currency:'USD',incoterm:'FOB',paymentCode:'ADV100',advancePct:100,signedDeadline:'2026-09-15',paymentDeadline:'2026-09-16',docs:[],terms:[],packings:[{size:50,type:'PP Bags',brand:'TEST',tare:100,containers:1,weightPer:27,price:500,freight:0,insurance:0,masterBag:{enabled:false}}]}),/PAKISTAN LONG GRAIN IRRI-6/);
+assert.match(t.salesContractPrint({...masterDraft,id:'PM1',ref:'TTI/TEST/01',seller:'TTI',customerId:'',date:'2026-09-13',qty:27,tolerance:5,shipmentDate:'2026-09-30',pol:'Karachi Port, Pakistan',podPort:'Banjul, The Gambia',packingUnit:'KG',currency:'USD',incoterm:'FOB',paymentCode:'ADV100',advancePct:100,signedDeadline:'2026-09-15',paymentDeadline:'2026-09-16',docs:[],terms:[],packings:[{size:50,type:'PP Bags',brand:'TEST',tare:100,containers:1,weightPer:27,price:500,freight:0,insurance:0,masterBag:{enabled:false}}]}),/Pakistan IRRI-6 long grain white rice/i);
 assert.ok(t.millLocations().some(x=>x.name==='Master Mill'));
 
 const c={id:'C1',ref:'TTI/NS/01',seller:'TTI',customerId:'C-DAYA',date:'2026-09-08',product:'IRRI-6 White Rice',hsCode:'1006.30',broken:5,finish:'Silky Polished & Sortexed',quality:t.DEFAULT_QUALITY,qty:540,tolerance:5,shipmentDate:'2026-09-30',pol:'Port Qasim, Pakistan',podPort:'Jebel Ali',podCountry:'United Arab Emirates',packingUnit:'KG',currency:'USD',incoterm:'CFR',paymentCode:'LC_SIGHT',advancePct:0,usanceDays:0,docs:['Commercial Invoice','Packing List'],packings:[{size:25,type:'PP Bags',brand:'STAR',tare:80,containers:20,weightPer:27,price:410,masterBag:{enabled:false,qty:0,tare:0}}]};
