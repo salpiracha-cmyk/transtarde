@@ -92,7 +92,7 @@
         { label: "Foreign grains" }, { label: "Foreign matter" }, { label: "Paddy" }, { label: "Red kernels / Red rice" },
         { label: "Under-milled / Red-striped" }, { label: "Finish" },
         { label: "Additional quality wording", type: "textarea", full: true }, { label: "Source / basis", type: "textarea", full: true },
-        { label: "Custom specifications", type: "hidden", full: true }
+        { label: "Custom specifications", type: "hidden", full: true }, { label: "HS Code" }
       ],
       rows: [
         ["Rice", "IRRI-6", "White Rice 5% Broken", "IR6-W5", "Pakistan", "Active Transtrade default", "6.0 mm", "5% max", "14% max", "2.5% max", "5% max", "4% max", "", "0.8% max", "0.5% max", "1% max", "2% max", "Well milled; double-polished; well sortexed", "Free from live insects, bad odour and rice fit for human consumption. New crop as stated in contract.", "Transtrade / TG 2026 specimen working specification. 6.0 mm grain-length reference cross-checked against current Pakistan market benchmark."],
@@ -469,7 +469,7 @@
     });
     result.products = (result.products || []).map(row => {
       const values = [...(row.values || [])];
-      while (values.length < 21) values.push("");
+      while (values.length < 22) values.push("");
       return { ...row, values };
     });
     return result;
@@ -585,7 +585,7 @@
     const legacyType=String(values[2]||"").replace(/\s+\d+(?:\.\d+)?%\s*(?:MAX\s*)?BROKEN\b/i,"").trim() || (/\d+(?:\.\d+)?%\s*(?:MAX\s*)?BROKEN/i.test(String(values[2]||"")) ? "White Rice" : String(values[2]||""));
     const cropYear=String(state.masters?.product_settings?.[0]?.values?.[0]||"2025/2026");
     const identity = [
-      [0,"Commodity",true,values[0]],[1,"Variety",true,values[1]],[2,"Rice type",true,legacyType],[7,"Broken",true,values[7]],[17,"Finish",true,values[17]],[3,"Code",true,values[3]],[4,"Origin",false,values[4]],[5,"Profile / use",false,values[5]]
+      [0,"Commodity",true,values[0]],[1,"Variety",true,values[1]],[2,"Rice type",true,legacyType],[7,"Broken",true,values[7]],[17,"Finish",true,values[17]],[3,"Code",true,values[3]],[21,"HS Code",false,values[21]],[4,"Origin",false,values[4]],[5,"Profile / use",false,values[5]]
     ].map(([index,label,required,value]) => `<label>${label}<input id="${masterInputId(index)}" data-master-field-index="${index}" value="${escapeHtml(value || "")}" ${required ? "required" : ""} autocomplete="off"></label>`).join("");
     const core = PRODUCT_CORE_SPECS.map(([index,name]) => productSpecRow(name, values[index] || "", false, index)).join("");
     const custom = productCustomSpecs(values).map(row => productSpecRow(row.name, row.limit, true)).join("");
@@ -682,13 +682,14 @@
   }
   function masterValuesFromForm(type) {
     if (type.id === "products") {
-      const values = Array(21).fill("");
+      const values = Array(22).fill("");
       for (let index = 0; index < 20; index += 1) values[index] = document.querySelector(`[data-master-field-index="${index}"]`)?.value.trim() || "";
       const custom = [...document.querySelectorAll("#productSpecRows .custom-spec-row")].map(row => ({
         name: row.querySelector("[data-custom-spec-name]")?.value.trim() || "",
         limit: row.querySelector("[data-custom-spec-limit]")?.value.trim() || ""
       })).filter(row => row.name || row.limit);
       values[20] = JSON.stringify(custom);
+      values[21] = document.querySelector('[data-master-field-index="21"]')?.value.trim() || "";
       return values;
     }
     if (["companies","commodities","parties","mills","banks"].includes(type.id)) {
