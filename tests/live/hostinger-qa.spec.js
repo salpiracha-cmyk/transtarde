@@ -8,6 +8,16 @@ const RUN_ID = String(process.env.GITHUB_RUN_ID || Date.now());
 const RUN_ATTEMPT = String(process.env.GITHUB_RUN_ATTEMPT || '1');
 const RUN_TOKEN = `${RUN_ID}${RUN_ATTEMPT}`.replace(/\D/g, '');
 
+function runContainerPrefix(offset = 0) {
+  let value = (BigInt(RUN_TOKEN || '0') + BigInt(offset)) % 17576n;
+  const letters = Array(3);
+  for (let index = 2; index >= 0; index -= 1) {
+    letters[index] = String.fromCharCode(65 + Number(value % 26n));
+    value /= 26n;
+  }
+  return `${letters.join('')}U`;
+}
+
 function isoContainer(prefix, serialNumber) {
   const values = {};
   let value = 10;
@@ -174,8 +184,8 @@ test('manual Hostinger QA: Export instruction to Mill and container return', asy
   const supplier = `QA BAG SUPPLIER ${suffix}`;
   const lotRef = `${contractRef}/L01`;
   const serialBase = (Number(RUN_TOKEN.slice(-6)) * 10) % 999_990;
-  const containerOne = isoContainer('TGHU', serialBase || 1);
-  const containerTwo = isoContainer('TGHU', (serialBase || 1) + 1);
+  const containerOne = isoContainer(runContainerPrefix(0), serialBase || 1);
+  const containerTwo = isoContainer(runContainerPrefix(0), (serialBase || 1) + 1);
   const tomorrow = new Date(Date.now() + 30 * 86400_000).toISOString().slice(0, 10);
 
   page.on('popup', async popup => popup.close().catch(() => {}));
@@ -407,21 +417,21 @@ test('live bulk QA: automatic lot references and isolated B/L returns', async ({
       contractRef: `TTI/QA/BULK-${suffix}-A`,
       lotRef: `TTI/QA/BULK-${suffix}-A/L01`,
       brand: `QA DUMMY BULK ${suffix} A`,
-      container: isoContainer('QABU', serialBase),
+      container: isoContainer(runContainerPrefix(1), serialBase),
     },
     {
       index: 2,
       contractRef: `TTI/QA/BULK-${suffix}-B`,
       lotRef: `TTI/QA/BULK-${suffix}-B/L01`,
       brand: `QA DUMMY BULK ${suffix} B`,
-      container: isoContainer('QACU', serialBase + 1),
+      container: isoContainer(runContainerPrefix(2), serialBase + 1),
     },
     {
       index: 3,
       contractRef: `TTI/QA/BULK-${suffix}-C`,
       lotRef: `TTI/QA/BULK-${suffix}-C/L01`,
       brand: `QA DUMMY BULK ${suffix} C`,
-      container: isoContainer('QADU', serialBase + 2),
+      container: isoContainer(runContainerPrefix(3), serialBase + 2),
     },
   ];
 
