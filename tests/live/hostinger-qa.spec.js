@@ -173,7 +173,7 @@ test('manual Hostinger QA: Export instruction to Mill and container return', asy
   const brand = `QA LIVE ${suffix}`;
   const supplier = `QA BAG SUPPLIER ${suffix}`;
   const lotRef = `${contractRef}/L01`;
-  const serialBase = Number(RUN_TOKEN.slice(-6)) % 999_998;
+  const serialBase = (Number(RUN_TOKEN.slice(-6)) * 10) % 999_990;
   const containerOne = isoContainer('TGHU', serialBase || 1);
   const containerTwo = isoContainer('TGHU', (serialBase || 1) + 1);
   const tomorrow = new Date(Date.now() + 30 * 86400_000).toISOString().slice(0, 10);
@@ -400,7 +400,7 @@ test('live bulk QA: automatic lot references and isolated B/L returns', async ({
   const suffix = RUN_TOKEN.slice(-7);
   const sameLot = `LOT-SAME-${suffix}`;
   const differentLot = `LOT-DIFF-${suffix}`;
-  const serialBase = (Number(RUN_TOKEN.slice(-6)) + 100) % 999_996 || 100;
+  const serialBase = (Number(RUN_TOKEN.slice(-6)) * 10 + 100) % 999_980 || 100;
   const shipments = [
     {
       index: 1,
