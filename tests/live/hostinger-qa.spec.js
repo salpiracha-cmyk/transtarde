@@ -26,6 +26,9 @@ function isoContainer(prefix, serialNumber) {
 }
 
 async function waitForSharedSave(page) {
+  await page.evaluate(async () => {
+    if (window.TT_SHARED_SYNC?.saveNow) await window.TT_SHARED_SYNC.saveNow();
+  });
   await expect(page.locator('#saveBadge')).toContainText(/\bSaved\b/i, { timeout: 35_000 });
 }
 
@@ -226,8 +229,8 @@ test('manual Hostinger QA: Export instruction to Mill and container return', asy
   await page.locator('#mPackExtra').fill('1');
   await page.locator('#nextStep').click();
 
-  await page.locator('#cCurrency').selectOption('USD');
   await page.locator('#cIncoterm').selectOption('FOB');
+  await expect(page.locator('#cCurrency'), 'new-customer contracts must default to USD').toHaveValue('USD');
   await page.locator('[data-contract-rate="0"]').fill('400');
   await page.locator('#nextStep').click();
   await page.locator('#cPayment').selectOption('ADV100');
@@ -242,6 +245,7 @@ test('manual Hostinger QA: Export instruction to Mill and container return', asy
   await expect(contractPreview).toContainText('PACKING / BRAND-MARKING');
   await expect(contractPreview).toContainText('PACKED IN NEW SINGLE P.P. BAGS OF 25 KG EACH');
   await expect(contractPreview).toContainText(brand);
+  await expect(contractPreview).toContainText('PRICE');
   await expect(contractPreview).toContainText('USD. 400.00/= FOB');
   await expect(contractPreview).toContainText('TOTAL FOB VALUE');
   await expect(contractPreview).toContainText('UNITED STATES DOLLARS');
@@ -590,7 +594,7 @@ test('automatic bulk QA: every Milling page plus 15 Arrivals and Pohanch records
 
   // Verify persistence from a clean browser context, not the page's own localStorage cache.
   const queueDate = await page.locator('#queueViewDate').inputValue();
-  await page.waitForTimeout(4_000);
+  await waitForSharedSave(page);
   const verifyContext = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
   const verifyPage = await verifyContext.newPage();
   await signInQa(verifyPage);
