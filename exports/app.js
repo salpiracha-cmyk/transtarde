@@ -733,7 +733,7 @@ function renderContractEditor(){view='contracts';renderNav();document.getElement
 /* Sales Contract completion pass — historical headings, contract-owned clauses and managed packing. */
 const effectiveTermsFromMaster=effectiveTerms;
 function ensureContractTerms(c){if(c.termsInitialized)return;c.terms=[...new Set(effectiveTermsFromMaster(c).map(x=>String(x||'').trim()).filter(Boolean))];c.termsInitialized=true}
-effectiveTerms=function(c){return(Array.isArray(c?.terms)?c.terms:[]).map(x=>String(x||'').trim()).filter(Boolean)};
+effectiveTerms=function(c){ensureContractTerms(c);return(Array.isArray(c?.terms)?c.terms:[]).map(x=>String(x||'').trim()).filter(Boolean)};
 
 const newContractShapeBeforeCompletion=newContractShape;
 newContractShape=function(){return{...newContractShapeBeforeCompletion(),buyerPoNo:'',termsInitialized:false}};
