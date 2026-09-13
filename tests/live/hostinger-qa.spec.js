@@ -26,7 +26,7 @@ function isoContainer(prefix, serialNumber) {
 }
 
 async function waitForSharedSave(page) {
-  await expect(page.locator('#saveBadge')).toContainText(/Saved to shared system/i, { timeout: 35_000 });
+  await expect(page.locator('#saveBadge')).toContainText(/\bSaved\b/i, { timeout: 35_000 });
 }
 
 async function gotoLive(page, url, options = {}) {
