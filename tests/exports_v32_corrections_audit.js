@@ -10,7 +10,7 @@ const admin = fs.readFileSync(__dirname + '/../admin/app.js', 'utf8');
 const customers = fs.readFileSync(__dirname + '/../customer-master.js', 'utf8');
 
 for (const token of [
-  'Manual save only', 'function applyBuyerTemplate(customerId)',
+  'function managedOptionSelectHTML', 'function applyBuyerTemplate(customerId)',
   'Final Place of Delivery', 'How many bags in one master bag?',
   'Extra Bags (%)', 'Master Bag Tare', 'CNF/CFR value per MT',
   'Freight per MT', 'Insurance per MT', 'FOB value per MT',

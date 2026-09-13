@@ -28,7 +28,7 @@ vm.runInNewContext(source,context,{filename:'app.js'});
 const t=window.__QA02__;
 
 assert.doesNotMatch(source,/setInterval\(\(\)=>window\.TT_SHARED_SYNC\?\.poll/,'Exports must not autosave or refresh an active form in the background');
-assert.match(source,/Manual save only/,'manual-save thumb rule must remain visible');
+assert.doesNotMatch(source,/Manual save only/,'technical sync/save-mode wording must stay out of the operational header');
 
 const buyer={id:'BUY-QA02',name:'Global Transit',code:'GT',address:'Dubai, UAE',packingDefault:'KG',nextSeq:3,notifies:[]};
 const contract={
