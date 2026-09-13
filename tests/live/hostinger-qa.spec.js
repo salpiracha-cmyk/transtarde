@@ -479,8 +479,12 @@ test('live bulk QA: automatic lot references and isolated B/L returns', async ({
     });
   }, shipments.map(({ contractRef, lotRef, container }) => ({ contractRef, lotRef, container })), { timeout: 40_000 });
 
-  for (const shipment of shipments) {
-    await gotoLive(page, `${BASE_URL}/module.php?id=exports`, { waitUntil: 'domcontentloaded' });
+  for (let shipmentIndex = 0; shipmentIndex < shipments.length; shipmentIndex += 1) {
+    const shipment = shipments[shipmentIndex];
+    if (shipmentIndex) {
+      await page.locator('[data-nav="home"]').click();
+      await expect(page.locator('#homeSearch')).toBeVisible();
+    }
     await page.locator('#homeSearch').fill(shipment.contractRef);
     const card = page.locator('article.contractCard').filter({ hasText: shipment.contractRef });
     await expect(card).toBeVisible();
