@@ -62,6 +62,6 @@ const names=[...source.matchAll(/^function\s+([\w$]+)\s*\(/gm)].map(m=>m[1]),dup
 const php=fs.readFileSync(__dirname+'/../main/api/operations.mysql.php','utf8');assert.match(php,/SELECT payload, version FROM tt_operation_records WHERE storage_key = \? FOR UPDATE/);assert.match(php,/operations_merge_export/);assert.match(php,/operations_can_write\(\$user, \$sourceModule\)/);
 assert.doesNotMatch(php,/in_array\('all', \$permissions/,'one module must never grant write access to another module');
 assert.match(php,/\$baseVersion !== \$version/);assert.match(php,/409/);
-const wrapper=fs.readFileSync(__dirname+'/../main/module.php','utf8');assert.match(wrapper,/baseVersion:Number\(keyVersions\.get\(key\)\|\|0\)/);assert.match(wrapper,/Newer shared update/);
+const wrapper=fs.readFileSync(__dirname+'/../main/module.php','utf8');assert.match(wrapper,/baseVersion:Number\(queuedBase\.get\(key\)\?\?keyVersions\.get\(key\)\?\?0\)/);assert.match(wrapper,/Update needs review/);assert.match(wrapper,/tt_shared_commit_queue_v1/);
 assert.match(source,/ADD LOADING SOURCE/);assert.match(source,/Loading allocations exceed the remaining containers/);assert.match(source,/Final document set is blocked/);assert.match(source,/tt30mills/);
 console.log('PASS full Export workflow audit: process, lots, Mill actuals, FI, L/C, TG and print outputs');
