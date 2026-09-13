@@ -81,7 +81,7 @@ async function createBulkQaShipment(page, { suffix, index, lotRef, contractRef, 
   const shipmentDate = new Date(Date.now() + (30 + index) * 86400_000).toISOString().slice(0, 10);
 
   await gotoLive(page, `${BASE_URL}/module.php?id=exports`, { waitUntil: 'domcontentloaded' });
-  await expect(page.getByRole('heading', { name: 'TRANSTRADE EXPORTS' })).toBeVisible();
+  await expect(page.getByRole('button', { name: /NEW SALES CONTRACT/i })).toBeVisible();
   await page.getByRole('button', { name: /NEW SALES CONTRACT/i }).click();
   await page.locator('#addCustomer').click();
   await page.locator('#mCustName').fill(customerName);
@@ -105,8 +105,7 @@ async function createBulkQaShipment(page, { suffix, index, lotRef, contractRef, 
   await page.locator('#nextStep').click();
 
   await page.locator('#addPacking').click();
-  await page.locator('#mPackType').selectOption('__custom__');
-  await page.locator('#mPackTypeCustom').fill('PP Bags — TEST / DUMMY');
+  await page.locator('#mPackType').selectOption({ label: 'P.P. Bags' });
   await page.locator('#mPackSize').fill('25');
   await page.locator('#mPackBrand').fill(brand);
   await page.locator('#mPackTare').fill('80');
@@ -181,7 +180,7 @@ test('manual Hostinger QA: Export instruction to Mill and container return', asy
   await signInQa(page);
 
   await gotoLive(page, `${BASE_URL}/module.php?id=exports`, { waitUntil: 'domcontentloaded' });
-  await expect(page.getByRole('heading', { name: 'TRANSTRADE EXPORTS' })).toBeVisible();
+  await expect(page.getByRole('button', { name: /NEW SALES CONTRACT/i })).toBeVisible();
   await expect(page.locator('#refreshMillUpdates')).toHaveCount(0);
   await expect(page.getByRole('button', { name: /MASTER DATA/i })).toHaveCount(1);
   await page.screenshot({ path: testInfo.outputPath('01-exports-desktop.png'), fullPage: true });
@@ -489,7 +488,7 @@ test('automatic bulk QA: every Milling page plus 15 Arrivals and Pohanch records
 
   await signInQa(page);
   await gotoLive(page, `${BASE_URL}/module.php?id=milling`, { waitUntil: 'domcontentloaded' });
-  await expect(page.getByText(/MASTER MILLING/i).first()).toBeVisible();
+  await expect(page.locator('.mill-card, #home').first()).toBeVisible();
   if (await page.locator('.mill-card').count()) {
     await page.locator('.mill-card').filter({ hasText: /TTI Rice Mills/i }).first().click();
   }
@@ -626,8 +625,7 @@ test('live deletion survives sign-out and sign-in', async ({ page }) => {
   await page.locator('#nextStep').click();
 
   await page.locator('#addPacking').click();
-  await page.locator('#mPackType').selectOption('__custom__');
-  await page.locator('#mPackTypeCustom').fill(`QA DELETE PACKING ${suffix}`);
+  await page.locator('#mPackType').selectOption({ label: 'P.P. Bags' });
   await page.locator('#mPackSize').fill('25');
   await page.locator('#mPackBrand').fill(`QA DELETE BRAND ${suffix}`);
   await page.locator('#mPackTare').fill('80');
