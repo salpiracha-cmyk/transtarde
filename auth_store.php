@@ -303,7 +303,7 @@ function tt_add_party_role_option(string $role): string {
     return tt_manage_master_option('party_roles','add',$role);
 }
 
-function tt_normalize_location_typefunction tt_normalize_location_type(string $type): string {
+function tt_normalize_location_type(string $type): string {
     $t=strtolower(trim($type));
     if (str_contains($t,'reprocess')) return 'Reprocessing Mill';
     if (str_contains($t,'external') || str_contains($t,'ex-mill') || str_contains($t,'ex mill')) return 'External Mill';
