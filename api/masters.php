@@ -47,7 +47,7 @@ try {
     }
 
     $schemas=[
-        'companies'=>7,'commodities'=>8,'product_settings'=>1,'products'=>21,'purchase_kat'=>10,
+        'companies'=>7,'commodities'=>8,'product_settings'=>1,'products'=>22,'purchase_kat'=>10,
         'parties'=>4,'mills'=>4,'banks'=>14,'export_documents'=>5,'export_terms'=>3,
     ];
     if (!isset($schemas[$type])) throw new InvalidArgumentException('Select a valid master section.');
