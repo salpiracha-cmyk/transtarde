@@ -105,8 +105,7 @@ async function createBulkQaShipment(page, { suffix, index, lotRef, contractRef, 
   await page.locator('#nextStep').click();
 
   await page.locator('#addPacking').click();
-  await page.locator('#mPackType').selectOption('__custom__');
-  await page.locator('#mPackTypeCustom').fill('PP Bags — TEST / DUMMY');
+  await page.locator('#mPackType').selectOption({ label: 'P.P. Bags' });
   await page.locator('#mPackSize').fill('25');
   await page.locator('#mPackBrand').fill(brand);
   await page.locator('#mPackTare').fill('80');
@@ -626,8 +625,7 @@ test('live deletion survives sign-out and sign-in', async ({ page }) => {
   await page.locator('#nextStep').click();
 
   await page.locator('#addPacking').click();
-  await page.locator('#mPackType').selectOption('__custom__');
-  await page.locator('#mPackTypeCustom').fill(`QA DELETE PACKING ${suffix}`);
+  await page.locator('#mPackType').selectOption({ label: 'P.P. Bags' });
   await page.locator('#mPackSize').fill('25');
   await page.locator('#mPackBrand').fill(`QA DELETE BRAND ${suffix}`);
   await page.locator('#mPackTare').fill('80');
