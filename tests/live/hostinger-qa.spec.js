@@ -226,6 +226,7 @@ test('manual Hostinger QA: Export instruction to Mill and container return', asy
   await page.locator('#mPackExtra').fill('1');
   await page.locator('#nextStep').click();
 
+  await page.locator('#cCurrency').selectOption('USD');
   await page.locator('#cIncoterm').selectOption('FOB');
   await page.locator('[data-contract-rate="0"]').fill('400');
   await page.locator('#nextStep').click();
@@ -241,9 +242,9 @@ test('manual Hostinger QA: Export instruction to Mill and container return', asy
   await expect(contractPreview).toContainText('PACKING / BRAND-MARKING');
   await expect(contractPreview).toContainText('PACKED IN NEW SINGLE P.P. BAGS OF 25 KG EACH');
   await expect(contractPreview).toContainText(brand);
-  await expect(contractPreview).toContainText('FOB UNIT PRICE');
-  await expect(contractPreview).toContainText('TOTAL CONTRACT VALUE');
-  await expect(contractPreview).toContainText('AMOUNT IN WORDS');
+  await expect(contractPreview).toContainText('USD. 400.00/= FOB');
+  await expect(contractPreview).toContainText('TOTAL FOB VALUE');
+  await expect(contractPreview).toContainText('UNITED STATES DOLLARS');
   await expect(contractPreview).toContainText('OTHER TERMS AND CONDITIONS');
   await expect(contractPreview).toContainText('DOCUMENTS TO BE PRESENTED FOR NEGOTIATION');
   const previewPages = await contractPreview.locator('.salesContractPage').count();
