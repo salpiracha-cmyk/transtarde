@@ -78,3 +78,18 @@
 .removableOptionItem{display:inline-flex;align-items:center;gap:4px;border:1px solid #d7e0e9;border-radius:12px;background:#f8fafc;padding:2px 7px 2px 3px;font-size:11px;color:#334155}
 .optionMinus{display:inline-grid;place-items:center;width:17px;height:17px;padding:0;border:1px solid #fecaca;border-radius:50%;background:#fff1f2;color:#b91c1c;font-weight:800;line-height:1;cursor:pointer}
 .optionMinus:hover,.optionMinus:focus{background:#b91c1c;color:#fff;outline:none}
+
+/* Final approved single-page Bags Purchase Order and merged B/L goods box. */
+.poOnePage{padding:15mm 14mm 14mm!important;font-size:10px}
+.poCompany{text-align:center;font:900 18px Georgia,"Times New Roman",serif;letter-spacing:.05em;margin-bottom:3px}
+.poOnePage .docTitle{font-size:17px;text-decoration:underline;margin-bottom:8px}
+.poOrderTable{table-layout:fixed;margin-top:8px}
+.poOrderTable th:nth-child(1){width:5%}.poOrderTable th:nth-child(2){width:30%}.poOrderTable th:nth-child(3){width:27%}.poOrderTable th:nth-child(4){width:10%}.poOrderTable th:nth-child(5){width:12%}.poOrderTable th:nth-child(6){width:16%}
+.poOrderTable td{height:31mm;vertical-align:middle;text-align:center}
+.poInlineMarking{display:block;max-width:38mm;max-height:25mm;object-fit:contain;margin:2px auto}
+.poMasterLine{display:flex;align-items:center;gap:8px;border:1px solid #aeb8be;border-top:0;padding:6px 8px;font-size:9.5px}
+.poMasterLine .poInlineMarking{margin:0 0 0 auto;max-height:18mm}
+.poTerms{margin:9px 0 7px;padding-left:20px;font-size:9px;line-height:1.35}.poTerms li{margin-bottom:3px}
+.poCritical{margin-top:9px;text-align:center;font-size:13px;line-height:1.4;font-weight:900;text-decoration:underline;text-transform:uppercase}
+.blGoodsMerged{margin-top:8px;table-layout:fixed}.blGoodsMerged td{min-height:92mm;height:92mm;line-height:1.55;font-size:10px}
+
