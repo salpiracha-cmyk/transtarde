@@ -35,18 +35,9 @@ button:not(.danger):not(.red):not(.xBtn):not(.optionMinus).active{
 .panel,.card,.appCard,.subCard,.section,.metric,.formCard,.infoCard{border-color:var(--tt-brand-line)!important}
 .eyebrow,.good,.balanceOk{color:var(--tt-brand-main)!important}
 
-/* Shared header branding; dimensions remain compact so controls keep their positions. */
-.ttBrandLockup{display:flex!important;align-items:center!important;gap:10px!important;min-width:0!important}
-.ttBrandLogo{display:block;width:248px;height:43px;object-fit:contain;object-position:left center;flex:0 1 248px;background:var(--tt-brand-ivory);padding:4px 7px;border-radius:8px;box-sizing:border-box}
-.ttBrandModule{padding-left:10px;border-left:1px solid rgba(255,255,255,.45);color:#fff;font-weight:900;font-size:14px;letter-spacing:.12em;white-space:nowrap}
-.topbar .ttBrandLockup,.topbar .ttBrandLockup *,.topbar .ttBrandModule,
-body>header .ttBrandLockup,body>header .ttBrandModule{color:#fff!important}
-.ttBrandLockup small{display:block;color:rgba(255,255,255,.72)!important;font-size:10px;letter-spacing:0;margin-top:2px}
-
-/* Login uses the same brand palette and exact company artwork. */
+/* Text-only application and login branding. Original module headings remain in place. */
 .auth-card{border-color:var(--tt-brand-line)!important;box-shadow:0 22px 55px rgba(46,69,39,.16)!important}
-.authBrandLockup{display:flex;justify-content:center;margin:0 0 18px}
-.authBrandLogo{display:block;width:min(100%,340px);height:auto}
+.authBrandName{text-align:center;margin:0 0 18px;color:var(--tt-brand-deep);font:900 23px/1.2 Arial,sans-serif;letter-spacing:.055em}
 .auth-card .eyebrow{color:var(--tt-brand-main)!important}
 .auth-card input:focus{border-color:var(--tt-brand-main)!important;box-shadow:0 0 0 3px rgba(79,118,80,.15)!important;outline:none}
 .auth-card button{background:var(--tt-brand-deep)!important}
@@ -55,9 +46,4 @@ body>header .ttBrandLockup,body>header .ttBrandModule{color:#fff!important}
 /* Printed business documents retain their existing independent palette. */
 #printRoot,.printDoc{--navy:#0d2b38;--nav2:#153f50;--nav:#102a46;--blue:#1c6c9e;--green:#16825d;--bg:#fff;--line:#d9e2e7;--ink:#182630}
 .printDoc,.printDoc .docPage{background:#fff!important;color:#111!important}
-
-@media(max-width:760px){
-  .ttBrandLogo{width:185px;height:36px;flex-basis:185px}
-  .ttBrandModule{font-size:11px;padding-left:7px}
-}
 

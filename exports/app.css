@@ -86,3 +86,17 @@
 .optionMinus:hover,.optionMinus:focus{background:#b91c1c;color:#fff;outline:none}
 .contractTermRow{display:grid;grid-template-columns:28px minmax(0,1fr) auto;gap:8px;align-items:start;margin:8px 0}.contractTermRow b{padding-top:10px}.contractTermRow textarea{min-height:54px;resize:vertical}.contractTermsEditor>.btn{margin-top:8px}
 .contractTermRow{display:grid;grid-template-columns:28px minmax(0,1fr) auto;gap:8px;align-items:start;margin:8px 0}.contractTermRow b{padding-top:10px}.contractTermRow textarea{min-height:54px;resize:vertical}.contractTermsEditor>.btn{margin-top:8px}
+
+/* Approved Sales Contract print hierarchy. */
+.salesContractPage .docSection{margin:12px 0 1px!important;color:#111!important;font-family:Arial,Helvetica,sans-serif!important;font-size:10.5px!important;font-weight:900!important;letter-spacing:.025em!important;text-decoration:underline!important;text-transform:uppercase!important}
+.salesContractPage .docValue{margin:0 0 5px;font-size:10.8px;line-height:1.38;font-weight:400}
+.salesContractPage .contractSpecificationTable{margin:4px 0 7px}
+.salesContractPage .contractPriceBlock{text-align:center;margin:0 0 7px;padding:2px 8px 6px}
+.salesContractPage .contractPriceLine{font-size:12px;line-height:1.55}.salesContractPage .contractPriceLine strong{font-size:13px}
+.salesContractPage .contractPriceTotal{font-size:12px;font-weight:800}.salesContractPage .contractPriceWords{font-size:10.8px}
+.salesContractPage .contractPaymentSummary{margin:0 0 4px;font-size:10.8px;line-height:1.4}
+.salesContractPage .contractBankDetails{display:grid;grid-template-columns:1fr 1fr;gap:4px 14px;margin:0 0 7px}
+.salesContractPage .contractBankDetails>div{min-width:0}.salesContractPage .contractBankDetails b{display:block;font-size:8.8px;text-decoration:underline}.salesContractPage .contractBankDetails span{display:block;font-size:10.5px;font-weight:400;overflow-wrap:anywhere}
+.salesContractPage .contractBankMissing{color:#8d2b2b;font-weight:700}
+.salesContractPage .contractSignatureGrid{display:grid;grid-template-columns:1fr 1fr;gap:60px;margin-top:24px;break-inside:avoid;page-break-inside:avoid}
+.salesContractPage .contractSignatureGrid h3{margin:0;text-decoration:underline;font-size:11px}.salesContractPage .contractSignatureSpace{height:62px;display:flex;align-items:flex-end}.salesContractPage .contractSignatureSpace img{display:block;max-width:52mm;max-height:20mm;object-fit:contain;object-position:left bottom}

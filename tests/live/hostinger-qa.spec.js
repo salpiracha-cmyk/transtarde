@@ -39,8 +39,6 @@ async function waitForSharedSave(page) {
   await page.evaluate(async () => {
     if (window.TT_SHARED_SYNC?.saveNow) await window.TT_SHARED_SYNC.saveNow();
   });
-  const badge = page.locator('#saveBadge');
-  if (await badge.count()) await expect(badge).toContainText(/\bSaved\b/i, { timeout: 35_000 });
 }
 
 async function gotoLive(page, url, options = {}) {
@@ -195,7 +193,9 @@ test('manual Hostinger QA: Export instruction to Mill and container return', asy
 
   await gotoLive(page, `${BASE_URL}/module.php?id=exports`, { waitUntil: 'domcontentloaded' });
   await expect(page.getByRole('button', { name: /NEW SALES CONTRACT/i })).toBeVisible();
-  await expect(page.locator('.ttBrandLogo').first(), 'approved Transtrade logo must render').toBeVisible();
+  await expect(page.locator('.topbar h1'), 'original text-only Transtrade module name must render').toContainText('TRANSTRADE EXPORTS');
+  await expect(page.locator('.ttBrandLogo')).toHaveCount(0);
+  await expect(page.locator('#saveBadge')).toHaveCount(0);
   await expect(page.locator('#refreshMillUpdates')).toHaveCount(0);
   await expect(page.getByRole('button', { name: /MASTER DATA/i })).toHaveCount(1);
   await page.screenshot({ path: testInfo.outputPath('01-exports-desktop.png'), fullPage: true });
