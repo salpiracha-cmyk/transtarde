@@ -19,7 +19,7 @@ const window={document,localStorage,TT_MODULE_ACCESS:{user:'Test User',masters:{
 const context={window,document,localStorage,console,structuredClone,alert:m=>{throw new Error('Unexpected alert: '+m)},location:{href:''},setTimeout:fn=>fn(),setInterval:()=>0,clearTimeout(){},FileReader:class{},Date,Intl};
 context.globalThis=context;
 let source=fs.readFileSync(__dirname+'/../../exports/app.js','utf8');
-source=source.replace('mount();','window.__EXPORT_TEST__={parseContractText,parseLCText,paymentText,lcSpecificTerms,packingPrefix,unitRate,makeShipment,salesContractPrint,commercialInvoiceDoc,packingListDoc,phytoInvoiceDoc,blDraftDoc,coveringDoc,lcControlDoc,lcDraftDoc,millActualsComplete,applyProductMaster,productLabel,productMasters,qualityDescription,contractSpecRows,currentCropYear,millLocations,DEFAULT_QUALITY,CONTAINER_RE,state};\nmount();');
+source=source.replace('mount();','window.__EXPORT_TEST__={parseContractText,parseLCText,paymentText,lcSpecificTerms,packingPrefix,unitRate,makeShipment,salesContractPrint,commercialInvoiceDoc,packingListDoc,phytoInvoiceDoc,blDraftDoc,coveringDoc,lcControlDoc,lcDraftDoc,millActualsComplete,applyProductMaster,productLabel,productMasters,qualityDescription,contractSpecRows,currentCropYear,millLocations,brokenEntry,normalizeBrokenEntry,brokenEntryValid,finishChoices,DEFAULT_QUALITY,CONTAINER_RE,state};\nmount();');
 vm.runInNewContext(source,context,{filename:'app.js'});
 const t=window.__EXPORT_TEST__;
 
@@ -109,6 +109,12 @@ assert.equal(masterDraft.quality,'PAKISTAN LONG GRAIN IRRI-6 WHITE RICE, 5% BROK
 assert.equal(masterDraft.cropYear,'2025/2026');
 assert.equal(masterDraft.productIdentityCode,'IR6-W5');
 assert.equal(masterDraft.specMode,'Contract Specific');
+assert.equal(t.normalizeBrokenEntry('15 - 20 %'),'15-20');
+assert.ok(t.brokenEntryValid('5%'));
+assert.ok(t.brokenEntryValid('15-20%'));
+assert.ok(!t.brokenEntryValid('20-15%'));
+const selectedQuality={...masterDraft,brokenText:'10%',broken:10,finish:'Well milled, double polished and well sortexed'};
+assert.equal(t.qualityDescription(selectedQuality),'PAKISTAN LONG GRAIN IRRI-6 WHITE RICE, 10% BROKEN, WELL MILLED, DOUBLE POLISHED AND WELL SORTEXED, NEW CROP 2025/2026, AS PER ORIGIN STANDARD.');
 assert.ok(masterDraft.specRows.some(x=>x.name==='Moisture'&&x.value==='14% max'));
 assert.ok(!t.contractSpecRows(masterDraft).some(x=>/broken|finish|crop year/i.test(x.name)));
 assert.match(t.salesContractPrint({...masterDraft,id:'PM1',ref:'TTI/TEST/01',seller:'TTI',customerId:'',date:'2026-09-13',qty:27,tolerance:5,shipmentDate:'2026-09-30',pol:'Karachi Port, Pakistan',podPort:'Banjul, The Gambia',packingUnit:'KG',currency:'USD',incoterm:'FOB',paymentCode:'ADV100',advancePct:100,signedDeadline:'2026-09-15',paymentDeadline:'2026-09-16',docs:[],terms:[],packings:[{size:50,type:'PP Bags',brand:'TEST',tare:100,containers:1,weightPer:27,price:500,freight:0,insurance:0,masterBag:{enabled:false}}]}),/PAKISTAN LONG GRAIN IRRI-6/);
