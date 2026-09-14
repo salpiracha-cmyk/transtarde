@@ -22,6 +22,8 @@ on:
       - '.github/workflows/milling-exports-qa.yml'
       - '.github/workflows/live-hostinger-qa.yml'
       - '.github/workflows/exports-deletion-hostinger-qa.yml'
+      - '.github/workflows/accounts-v1-qa.yml'
+      - '.github/workflows/deploy-production.yml'
   pull_request:
     paths:
       - 'exports/**'
@@ -42,6 +44,8 @@ on:
       - '.github/workflows/milling-exports-qa.yml'
       - '.github/workflows/live-hostinger-qa.yml'
       - '.github/workflows/exports-deletion-hostinger-qa.yml'
+      - '.github/workflows/accounts-v1-qa.yml'
+      - '.github/workflows/deploy-production.yml'
 
 permissions:
   contents: read
