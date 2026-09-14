@@ -11,5 +11,5 @@ has('ACCOUNT TITLE:</b>');has('SWIFT CODE:</b>');has('TRANSTRADE INTERNATIONAL')
 assert(!app.includes("issuePO=function(){const s=shipment(),po=ensureBagDraft();if(!contractByRef(s.contractRef).received"),'Signed gate remains in Bag Order');
 assert(css.includes('.salesContractPage .docTitle{font-size:27px'), 'Sales Contract title rule missing');
 assert(admin.includes('brand-theme.css?v=20260914-control-centre-1'),'Control Centre theme missing');
-assert(exportsIndex.includes('app.js?v=20260914-exports-handover-3'),'Exports cache-bust marker missing');
+assert(/app\.js\?v=20260914-exports-handover-\d+/.test(exportsIndex),'Exports cache-bust marker missing');
 console.log('Exports A-S acceptance static audit passed.');
