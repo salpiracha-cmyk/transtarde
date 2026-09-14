@@ -56,10 +56,11 @@ test('server-confirmed full Export reset survives a new login', async ({ page })
   await signIn(page);
   await gotoWithRetry(page, BASE_URL + '/module.php?id=exports');
   await expect(page.getByRole('button', { name: /NEW SALES CONTRACT/i })).toBeVisible({ timeout: 60_000 });
-  const csrf = await expect.poll(
+  await expect.poll(
     () => page.evaluate(() => window.TT_MODULE_ACCESS?.csrf || '').catch(() => ''),
     { timeout: 60_000 },
   ).not.toBe('');
+  const csrf = await page.evaluate(() => window.TT_MODULE_ACCESS?.csrf || '');
 
   const snapshot = await readShared(page.request);
   const root = parse(snapshot.values?.[STORE], {});
