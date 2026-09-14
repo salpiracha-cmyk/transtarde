@@ -46,7 +46,7 @@ jobs:
           TRANSTRADE_QA_USERNAME: ${{ secrets.TRANSTRADE_QA_USERNAME }}
           TRANSTRADE_QA_PASSWORD: ${{ secrets.TRANSTRADE_QA_PASSWORD }}
           PLAYWRIGHT_HTML_OPEN: never
-        run: npx playwright test tests/live/hostinger-qa.spec.js --grep "live deletion survives sign-out and sign-in" --reporter=line,html
+        run: npx playwright test tests/live/exports-reset-only.spec.js --reporter=line,html
 
       - name: Upload failure evidence
         if: failure()
