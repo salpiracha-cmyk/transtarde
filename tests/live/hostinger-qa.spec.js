@@ -148,9 +148,6 @@ async function createBulkQaShipment(page, { suffix, index, lotRef, contractRef, 
 
   const processCard = page.locator('article.contractCard').filter({ hasText: contractRef });
   await processCard.getByRole('button', { name: 'Shipment Process' }).click();
-  await page.locator('[data-workspace="contract"]').click();
-  await page.locator('#markReceived').click();
-
   await page.locator('[data-workspace="bags"]').click();
   await page.locator('#addSupplier').click();
   await page.locator('#newSupplierName').fill(supplier);
@@ -162,6 +159,8 @@ async function createBulkQaShipment(page, { suffix, index, lotRef, contractRef, 
   await waitForSharedSave(page);
 
   await page.locator('[data-workspace="production"]').click();
+  await expect(page.locator('#piInspection')).toHaveValue('No');
+  await expect(page.locator('#piInspection')).toHaveAttribute('readonly', '');
   await page.locator('#sendPI').click();
   await waitForSharedSave(page);
 
@@ -196,7 +195,10 @@ test('manual Hostinger QA: Export instruction to Mill and container return', asy
   const tomorrow = new Date(Date.now() + 30 * 86400_000).toISOString().slice(0, 10);
 
   page.on('popup', async popup => popup.close().catch(() => {}));
-  page.on('dialog', async dialog => dialog.dismiss().catch(() => {}));
+  page.on('dialog', async dialog => {
+    if (/received the signed Sales Contract/i.test(dialog.message())) await dialog.accept().catch(() => {});
+    else await dialog.dismiss().catch(() => {});
+  });
 
   await signInQa(page);
 
@@ -248,9 +250,13 @@ test('manual Hostinger QA: Export instruction to Mill and container return', asy
   await page.locator('#mPackExtra').fill('1');
   await page.locator('#nextStep').click();
 
-  await page.locator('#cIncoterm').selectOption('FOB');
+  await page.locator('#cIncoterm').selectOption('CIF');
+  await expect(page.locator('#cInsurance'), 'CIF must automatically use Seller insurance').toHaveValue("Seller's Account");
   await expect(page.locator('#cCurrency'), 'new-customer contracts must default to USD').toHaveValue('USD');
   await page.locator('[data-contract-rate="0"]').fill('400');
+  await page.locator('[data-freight="0"]').fill('25');
+  await page.locator('[data-ins="0"]').fill('2');
+  await page.locator('#showAllContractPrices').check();
   await page.locator('#nextStep').click();
   await page.locator('#cPayment').selectOption('ADV100');
   await page.locator('#nextStep').click();
@@ -267,13 +273,21 @@ test('manual Hostinger QA: Export instruction to Mill and container return', asy
   await expect(contractPreview).toContainText(/25 kgs each/i);
   await expect(contractPreview).toContainText(brand, { ignoreCase: true });
   await expect(contractPreview).toContainText('PRICE');
-  await expect(contractPreview).toContainText('USD 400.00 PMT FOB');
+  await expect(contractPreview).toContainText('USD 400.00 PMT CIF');
+  await expect(contractPreview).toContainText('FOB VALUE: USD 373.00 PMT');
+  await expect(contractPreview).toContainText('FREIGHT: USD 25.00 PMT');
+  await expect(contractPreview).toContainText('INSURANCE: USD 2.00 PMT');
+  await expect(contractPreview).toContainText('Insurance Seller’s account.');
+  await expect(contractPreview).toContainText('Insurance shall be for Seller’s account.');
+  await expect(contractPreview).toContainText('PAYMENT');
+  await expect(contractPreview).toContainText('ADVANCE');
   await expect(contractPreview).toContainText('TOTAL CONTRACT VALUE');
   await expect(contractPreview).toContainText('UNITED STATES DOLLARS');
   await expect(contractPreview).toContainText('OTHER TERMS AND CONDITIONS');
   await expect(contractPreview).toContainText('DOCUMENTS TO BE PRESENTED FOR NEGOTIATION');
-  const previewPages = await contractPreview.locator('.salesContractPage').count();
-  expect(previewPages, 'Sales Contract preview must paginate from content').toBeGreaterThanOrEqual(2);
+  await expect(contractPreview.locator('.salesContractFlowPage')).toHaveCount(1);
+  await expect(contractPreview.locator('.salesContractPage')).toHaveCount(0);
+  await expect(contractPreview.locator('.contractFlowLayout')).toHaveCount(1);
   await page.locator('#issueContract').click();
   await expect(page.getByText(contractRef, { exact: true }).first()).toBeVisible({ timeout: 30_000 });
   await waitForSharedSave(page);
@@ -358,6 +372,26 @@ test('manual Hostinger QA: Export instruction to Mill and container return', asy
   await expect(page.getByText('MILL CONTAINER ACTUALS', { exact: true })).toHaveCount(0);
   await expect(page.getByText(containerOne, { exact: false })).toHaveCount(0);
   await expect(page.getByText(containerTwo, { exact: false })).toHaveCount(0);
+  await expect(page.locator('#customsOutputReviews'), 'obsolete duplicate Customs review must be absent').toHaveCount(0);
+  const customsStack = page.locator('.customsPreviewStack');
+  await expect(customsStack.locator(':scope > section')).toHaveCount(3);
+  await expect(customsStack.locator(':scope > section > h4').nth(0)).toHaveText('Custom Invoice Review');
+  await expect(customsStack.locator(':scope > section > h4').nth(1)).toHaveText('Custom Packing Review');
+  await expect(customsStack.locator(':scope > section > h4').nth(2)).toHaveText('Phytosanitary Invoice Review');
+  const customInvoice = customsStack.locator(':scope > section').nth(0);
+  await expect(customInvoice).toContainText('TOTAL NET WEIGHT');
+  await expect(customInvoice).toContainText('TOTAL GROSS WEIGHT');
+  await expect(customInvoice).toContainText(selectedPackingType, { ignoreCase: true });
+  await expect(customInvoice).toContainText('of 25 KG', { ignoreCase: true });
+  await expect(customInvoice).toContainText('PAYMENT TERMS');
+  const customPacking = customsStack.locator(':scope > section').nth(1);
+  await expect(customPacking).toContainText('TOTAL NET WEIGHT');
+  await expect(customPacking).toContainText('TOTAL GROSS WEIGHT');
+  await expect(customPacking).not.toContainText('NAME & ADDRESS');
+  const invoiceHtml = await customsStack.locator(':scope > section .printDoc').nth(0).innerHTML();
+  const phytoHtml = await customsStack.locator(':scope > section .printDoc').nth(2).innerHTML();
+  expect(phytoHtml.replaceAll('PHYTOSANITARY INVOICE', 'CUSTOM INVOICE'), 'Phytosanitary must replicate the Customs Invoice structure').toBe(invoiceHtml);
+  await page.screenshot({ path: testInfo.outputPath('05-customs-document-stack.png'), fullPage: true });
 
   // The exact Mill return belongs in the B/L Draft workflow.
   await page.locator('[data-workspace="bl"]').click();
