@@ -221,7 +221,7 @@ const orderedPo=t.purchaseOrderPrint({poNo:'PO-ORDER',supplier:'SUPPLIER',requir
  {brand:'SECOND',type:'Cotton Bags',size:25,unit:'KG',tare:90,totalBags:200,handle:'Yes',masterBag:{enabled:false}}
 ]});
 assert.match(orderedPo,/<td>1<\/td>[\s\S]*First[\s\S]*<td>2<\/td>[\s\S]*Second[\s\S]*masterBagOrderRow[\s\S]*<td>3<\/td>[\s\S]*Master Bag/i);
-assert.match(orderedPo,/Second[\s\S]*<b>YES<\/b>/i);
+assert.match(orderedPo,/Second[\s\S]*<b>With handle<\/b>/i);
 assert.doesNotMatch(orderedPo,/Unit Rate|Line Amount|Sales Contract|Customer/);
 
 console.log('PASS export release unit/integration assertions');
