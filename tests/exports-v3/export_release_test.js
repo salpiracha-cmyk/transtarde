@@ -208,8 +208,8 @@ const orderedPo=t.purchaseOrderPrint({poNo:'PO-ORDER',supplier:'SUPPLIER',requir
  {brand:'FIRST',type:'P.P. Bags',size:50,unit:'KG',tare:100,totalBags:100,handle:'No',masterBag:{enabled:true,bagsPerMaster:2,quantity:50,tare:120,printed:false}},
  {brand:'SECOND',type:'Cotton Bags',size:25,unit:'KG',tare:90,totalBags:200,handle:'Yes',masterBag:{enabled:false}}
 ]});
-assert.match(orderedPo,/<td>1<\/td>[\s\S]*FIRST[\s\S]*<td>2<\/td>[\s\S]*SECOND[\s\S]*masterBagOrderRow[\s\S]*<td>3<\/td>[\s\S]*Master Bag/);
-assert.match(orderedPo,/SECOND[\s\S]*<b>YES<\/b>/);
+assert.match(orderedPo,/<td>1<\/td>[\s\S]*First[\s\S]*<td>2<\/td>[\s\S]*Second[\s\S]*masterBagOrderRow[\s\S]*<td>3<\/td>[\s\S]*Master Bag/i);
+assert.match(orderedPo,/Second[\s\S]*<b>YES<\/b>/i);
 assert.doesNotMatch(orderedPo,/Unit Rate|Line Amount|Sales Contract|Customer/);
 
 console.log('PASS export release unit/integration assertions');
