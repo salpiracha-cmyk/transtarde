@@ -1,6 +1,6 @@
 (()=>{'use strict';
 const STORE='transtrade_export_v3_operational';
-const EXPORT_RESET_MARKER='2026-09-11-operational-reset-v1';
+const EXPORT_RESET_MARKER='2026-09-14-operational-reset-v2';
 const TODAY=()=>new Date().toLocaleDateString('en-CA');
 const uid=p=>`${p}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,7)}`;
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));

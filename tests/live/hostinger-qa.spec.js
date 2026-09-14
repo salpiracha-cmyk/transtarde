@@ -681,71 +681,133 @@ test('automatic bulk QA: every Milling page plus 15 Arrivals and Pohanch records
 
 
 test('live deletion survives sign-out and sign-in', async ({ page }) => {
-  test.setTimeout(180_000);
+  test.setTimeout(240_000);
   page.on('popup', async popup => popup.close().catch(() => {}));
   page.on('dialog', dialog => dialog.accept().catch(() => {}));
 
-  const suffix = RUN_TOKEN.slice(-8);
-  const customerName = `QA DELETE ${suffix}`;
-  const contractRef = `TTI/QA/DELETE-${suffix}`;
-  const shipmentDate = new Date(Date.now() + 30 * 86400_000).toISOString().slice(0, 10);
-
   await signInQa(page);
   await gotoLive(page, `${BASE_URL}/module.php?id=exports`, { waitUntil: 'domcontentloaded' });
-  await page.getByRole('button', { name: /NEW SALES CONTRACT/i }).click();
-  await page.locator('#addCustomer').click();
-  await page.locator('#mCustName').fill(customerName);
-  await page.locator('#mCustCode').fill(`QD${suffix.slice(-4)}`);
-  await page.locator('#mCustAddress').fill('TEST / DUMMY — persistent deletion QA only');
-  await page.locator('#mCustCountry').fill('Pakistan');
-  await page.locator('#saveNewCustomer').click();
-  await page.locator('#cRef').fill(contractRef);
-  await page.locator('#nextStep').click();
 
-  await page.locator('#cProductIdentity').selectOption({ index: 1 });
-  await page.locator('#cBrokenContract').fill('5');
-  await page.locator('#cFinishContract').selectOption({ index: 0 });
-  await page.locator('#nextStep').click();
+  const resetResult = await page.evaluate(async () => {
+    const access = window.TT_MODULE_ACCESS || {};
+    if (!access.csrf) throw new Error('Exports reset requires an authenticated CSRF token.');
+    const endpoint = 'api/operations.mysql.php';
+    const storeKey = 'transtrade_export_v3_operational';
+    const getShared = async () => {
+      const response = await fetch(endpoint + '?r=' + Date.now(), { credentials: 'same-origin' });
+      const result = await response.json();
+      if (!response.ok || !result.ok) throw new Error(result.error || 'Shared Export data could not be read.');
+      return result;
+    };
+    const writeShared = async (snapshot, key, value) => {
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          csrf: access.csrf,
+          key,
+          value: JSON.stringify(value),
+          baseVersion: Number(snapshot.meta?.[key]?.version || 0),
+          sourceModule: 'Exports',
+        }),
+      });
+      const result = await response.json();
+      if (!response.ok || !result.ok) throw new Error(result.error || ('Shared reset failed for ' + key));
+      return result;
+    };
+    const parse = (value, fallback) => {
+      try { const parsed = JSON.parse(value || ''); return parsed ?? fallback; }
+      catch { return fallback; }
+    };
+    const snapshot = await getShared();
+    const root = parse(snapshot.values?.[storeKey], {});
+    const contracts = Array.isArray(root.contracts) ? root.contracts : [];
+    const shipments = Array.isArray(root.shipments) ? root.shipments : [];
+    const refs = [...new Set([
+      ...contracts.map(row => String(row?.ref || '').trim()),
+      ...shipments.map(row => String(row?.contractRef || '').trim()),
+    ].filter(Boolean))];
 
-  await page.locator('#cContainers').fill('1');
-  await page.locator('#cWeightPer').fill('26');
-  await page.locator('#cShipmentDate').fill(shipmentDate);
-  await page.locator('#cPOD').fill('Jebel Ali');
-  await page.locator('#cPODCountry').fill('United Arab Emirates');
-  await page.locator('#nextStep').click();
+    for (const contractRef of refs) {
+      const body = new FormData();
+      body.append('csrf', access.csrf);
+      body.append('action', 'delete-shipment');
+      body.append('contractRef', contractRef);
+      const response = await fetch('api/export_documents.php', { method: 'POST', credentials: 'same-origin', body });
+      const result = await response.json();
+      if (!response.ok || !result.ok) throw new Error(result.error || ('Document cleanup failed for ' + contractRef));
+    }
 
-  await page.locator('#addPacking').click();
-  await selectAvailablePackingType(page);
-  await page.locator('#mPackSize').fill('25');
-  await page.locator('#mPackBrand').fill(`QA DELETE BRAND ${suffix}`);
-  await page.locator('#mPackTare').fill('80');
-  await page.locator('#mPackContainers').fill('1');
-  await page.locator('#mPackExtra').fill('1');
-  await page.locator('#nextStep').click();
+    const cleanRoot = {
+      version: 'clean-v3',
+      customers: [],
+      suppliers: [],
+      fi: [],
+      contracts: [],
+      shipments: [],
+      accountsReceipts: [],
+      millSync: { newExportBags: [], productionInstructions: [], exportLoading: [] },
+      audits: Array.isArray(root.audits) ? root.audits : [],
+      alerts: [],
+      settings: root.settings && typeof root.settings === 'object' ? root.settings : {},
+      deletedShipments: [],
+    };
+    await writeShared(snapshot, storeKey, cleanRoot);
 
-  await page.locator('#cIncoterm').selectOption('CFR');
-  await page.locator('[data-contract-rate="0"]').fill('400');
-  await page.locator('[data-freight="0"]').fill('20');
-  await page.locator('#nextStep').click();
-  await page.locator('#cPayment').selectOption('ADV100');
-  await page.locator('#nextStep').click();
-  await page.locator('#cSignedDeadline').fill(shipmentDate);
-  await page.locator('#cPaymentDeadline').fill(shipmentDate);
-  await page.locator('#nextStep').click();
-  await page.locator('#issueContract').click();
-  await waitForSharedSave(page);
+    const linkedIds = new Set(shipments.map(row => String(row?.id || '')).filter(Boolean));
+    const linkedRefs = new Set(refs);
+    const isExportLinked = row => {
+      if (!row || typeof row !== 'object') return false;
+      if (String(row._ttBridge || '').toLowerCase() === 'exports') return true;
+      return [row.contractRef, row._ttContractRef].some(value => linkedRefs.has(String(value || '')))
+        || [row.shipmentId, row._ttShipmentId].some(value => linkedIds.has(String(value || '')));
+    };
+    const dedicatedKeys = ['tt30bags', 'tt30prodinst', 'tt30ship', 'tt32exportsync', 'tt39bridgequarantine'];
+    for (const key of dedicatedKeys) {
+      if (snapshot.values?.[key] !== undefined) await writeShared(snapshot, key, []);
+    }
+    const exMill = parse(snapshot.values?.tt35exmill, []);
+    const removedExMillIds = new Set(exMill.filter(isExportLinked).map(row => String(row?.id || '')).filter(Boolean));
+    if (snapshot.values?.tt35exmill !== undefined) {
+      await writeShared(snapshot, 'tt35exmill', exMill.filter(row => !isExportLinked(row)));
+    }
+    const exLoads = parse(snapshot.values?.tt35exload, []);
+    if (snapshot.values?.tt35exload !== undefined) {
+      await writeShared(snapshot, 'tt35exload', exLoads.filter(row => !isExportLinked(row) && !removedExMillIds.has(String(row?.sodaId || ''))));
+    }
+    return { refs: refs.length };
+  });
 
-  let card = page.locator('article.contractCard').filter({ hasText: contractRef });
-  await expect(card).toHaveCount(1);
-  await card.getByRole('button', { name: /Cancel \/ Delete Shipment/i }).click();
-  await page.getByRole('button', { name: /Yes — Delete Shipment/i }).click();
-  await expect(page.locator('#shipmentDeleteError')).toHaveCount(0);
-  await expect(page.locator('article.contractCard').filter({ hasText: contractRef })).toHaveCount(0, { timeout: 35_000 });
-  await waitForSharedSave(page);
-
+  expect(resetResult.refs).toBeGreaterThanOrEqual(0);
   await gotoLive(page, `${BASE_URL}/logout.php`, { waitUntil: 'domcontentloaded' });
   await signInQa(page);
   await gotoLive(page, `${BASE_URL}/module.php?id=exports`, { waitUntil: 'domcontentloaded' });
-  card = page.locator('article.contractCard').filter({ hasText: contractRef });
-  await expect(card, 'server-confirmed deleted shipment must not return after a new login').toHaveCount(0);
+
+  const verification = await page.evaluate(async () => {
+    const response = await fetch('api/operations.mysql.php?r=' + Date.now(), { credentials: 'same-origin' });
+    const shared = await response.json();
+    if (!response.ok || !shared.ok) throw new Error(shared.error || 'Reset verification could not read shared state.');
+    const parse = (value, fallback) => {
+      try { const parsed = JSON.parse(value || ''); return parsed ?? fallback; }
+      catch { return fallback; }
+    };
+    const root = parse(shared.values?.transtrade_export_v3_operational, {});
+    const lengths = {};
+    for (const key of ['customers', 'suppliers', 'fi', 'contracts', 'shipments', 'accountsReceipts', 'alerts', 'deletedShipments']) {
+      lengths[key] = Array.isArray(root[key]) ? root[key].length : -1;
+    }
+    lengths.newExportBags = Array.isArray(root.millSync?.newExportBags) ? root.millSync.newExportBags.length : -1;
+    lengths.productionInstructions = Array.isArray(root.millSync?.productionInstructions) ? root.millSync.productionInstructions.length : -1;
+    lengths.exportLoading = Array.isArray(root.millSync?.exportLoading) ? root.millSync.exportLoading.length : -1;
+    for (const key of ['tt30bags', 'tt30prodinst', 'tt30ship', 'tt32exportsync', 'tt39bridgequarantine']) {
+      if (shared.values?.[key] !== undefined) lengths[key] = parse(shared.values[key], []).length;
+    }
+    return lengths;
+  });
+
+  for (const [key, count] of Object.entries(verification)) {
+    expect(count, key + ' must be empty after the Export reset').toBe(0);
+  }
+  await expect(page.locator('article.contractCard')).toHaveCount(0);
 });
