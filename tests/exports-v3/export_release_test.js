@@ -19,7 +19,7 @@ const window={document,localStorage,TT_MODULE_ACCESS:{user:'Test User',masters:{
 const context={window,document,localStorage,console,structuredClone,alert:m=>{throw new Error('Unexpected alert: '+m)},location:{href:''},setTimeout:fn=>fn(),setInterval:()=>0,clearTimeout(){},FileReader:class{},Date,Intl};
 context.globalThis=context;
 let source=fs.readFileSync(__dirname+'/../../exports/app.js','utf8');
-source=source.replace('mount();','window.__EXPORT_TEST__={parseContractText,parseLCText,paymentText,lcSpecificTerms,packingPrefix,unitRate,makeShipment,salesContractPrint,purchaseOrderPrint,commercialInvoiceDoc,packingListDoc,phytoInvoiceDoc,blDraftDoc,coveringDoc,lcControlDoc,lcDraftDoc,millActualsComplete,applyProductMaster,productLabel,productMasters,qualityDescription,contractSpecRows,currentCropYear,millLocations,brokenEntry,normalizeBrokenEntry,brokenEntryValid,finishChoices,DEFAULT_QUALITY,CONTAINER_RE,state};\nmount();');
+source=source.replace('mount();','window.__EXPORT_TEST__={parseContractText,parseLCText,paymentText,lcSpecificTerms,effectiveTerms,packingPrefix,unitRate,makeShipment,salesContractPrint,purchaseOrderPrint,commercialInvoiceDoc,packingListDoc,phytoInvoiceDoc,blDraftDoc,coveringDoc,lcControlDoc,lcDraftDoc,millActualsComplete,applyProductMaster,productLabel,productMasters,qualityDescription,contractSpecRows,currentCropYear,millLocations,brokenEntry,normalizeBrokenEntry,brokenEntryValid,finishChoices,DEFAULT_QUALITY,CONTAINER_RE,state};\nmount();');
 vm.runInNewContext(source,context,{filename:'app.js'});
 const t=window.__EXPORT_TEST__;
 
@@ -176,4 +176,40 @@ assert.match(modulePhp,/brand-theme\.css/);
 assert.match(accountsPhp,/brand-theme\.js/);
 assert.doesNotMatch(loginPhp,/authBrandLogo|TTI_header\.png/);
 assert.match(loginPhp,/authBrandName">TRANSTRADE INTERNATIONAL/);
+
+/* Exact final-output regression proof for the September 14 repair. */
+const customsInvoice=t.commercialInvoiceDoc(s,c,true);
+const customsPacking=t.packingListDoc(s,c,true);
+const phytosanitary=t.phytoInvoiceDoc(s,c);
+for(const label of ['CUSTOM INVOICE','DRAWEE','VESSEL / VOYAGE','PAYMENT TERMS','TOTAL NET WEIGHT','TOTAL GROSS WEIGHT','TOTAL PAYABLE'])assert.match(customsInvoice,new RegExp(label.replace('/','\\/')));
+assert.match(customsInvoice,/PP Bags of 25 KG/i);
+assert.doesNotMatch(customsInvoice,/customsBankOutput|ACCOUNT TITLE:|SWIFT CODE:/);
+assert.match(customsPacking,/CUSTOM PACKING LIST/);
+assert.match(customsPacking,/TOTAL NET WEIGHT/);
+assert.match(customsPacking,/TOTAL GROSS WEIGHT/);
+assert.doesNotMatch(customsPacking,/NAME &amp; ADDRESS|NAME & ADDRESS/);
+assert.equal(phytosanitary.replaceAll('PHYTOSANITARY INVOICE','CUSTOM INVOICE'),customsInvoice,'Phytosanitary must be the Customs Invoice structure with title change only');
+
+const cifContract={...c,incoterm:'CIF',insurance:"Seller's Account",showAllPrices:true,paymentCode:'ADV_CAD',advancePct:30,terms:["Insurance shall be for Buyer’s account."],termsInitialized:true,packings:c.packings.map(p=>({...p,contractRate:425,price:398,freight:25,insurance:2}))};
+const cifOutput=t.salesContractPrint(cifContract);
+assert.match(cifOutput,/USD <\/span><strong>425\.00<\/strong><span> PMT CIF/);
+assert.match(cifOutput,/FOB VALUE:<\/b> USD 398\.00 PMT/);
+assert.match(cifOutput,/FREIGHT:<\/b> USD 25\.00 PMT/);
+assert.match(cifOutput,/INSURANCE:<\/b> USD 2\.00 PMT/);
+assert.match(cifOutput,/Insurance Seller’s account\./);
+assert.match(cifOutput,/Insurance shall be for Seller’s account\./);
+assert.doesNotMatch(cifOutput,/Insurance shall be for Buyer’s account\./);
+assert.match(cifOutput,/PAYMENT[\s\S]*ADVANCE[\s\S]*BALANCE/);
+const cfrTerms=t.effectiveTerms({...cifContract,incoterm:'CFR',insurance:"Buyer's Account"});
+assert.ok(cfrTerms.includes('Insurance shall be for Buyer’s account.'));
+assert.ok(!cfrTerms.includes('Insurance shall be for Seller’s account.'));
+
+const orderedPo=t.purchaseOrderPrint({poNo:'PO-ORDER',supplier:'SUPPLIER',requiredDate:'2026-09-20',deliverTo:'MILL',lines:[
+ {brand:'FIRST',type:'P.P. Bags',size:50,unit:'KG',tare:100,totalBags:100,handle:'No',masterBag:{enabled:true,bagsPerMaster:2,quantity:50,tare:120,printed:false}},
+ {brand:'SECOND',type:'Cotton Bags',size:25,unit:'KG',tare:90,totalBags:200,handle:'Yes',masterBag:{enabled:false}}
+]});
+assert.match(orderedPo,/<td>1<\/td>[\s\S]*FIRST[\s\S]*<td>2<\/td>[\s\S]*SECOND[\s\S]*masterBagOrderRow[\s\S]*<td>3<\/td>[\s\S]*Master Bag/);
+assert.match(orderedPo,/SECOND[\s\S]*<b>YES<\/b>/);
+assert.doesNotMatch(orderedPo,/Unit Rate|Line Amount|Sales Contract|Customer/);
+
 console.log('PASS export release unit/integration assertions');
