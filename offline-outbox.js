@@ -7,7 +7,7 @@ const MODULE=access.moduleId||access.module||'module';
 const USER_KEY=[MODULE,access.user||'user'].join('|');
 const nativeFetch=window.fetch.bind(window);
 const resourceVersions=new Map();
-let explicitAction=null, promptShown=false;
+let explicitAction=null,recoveryRunning=false,recoveryTimer=0;
 
 const uuid=()=>globalThis.crypto?.randomUUID?.()||'tt-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2);
 const methodOf=(input,init)=>String(init?.method||input?.method||'GET').toUpperCase();
@@ -46,7 +46,8 @@ async function serializeBody(body){
 }
 function restoreBody(saved){if(saved.kind==='text')return saved.value;if(saved.kind==='params')return new URLSearchParams(saved.value);if(saved.kind==='form'){const fd=new FormData();for(const [k,v] of saved.value||[])fd.append(k,v);return fd}return undefined}
 function headersWith(initHeaders,entry){const h=new Headers(initHeaders||{});h.set('X-TT-Transaction-ID',entry.id);if(entry.baseResourceVersion!==null)h.set('X-TT-Base-Resource-Version',String(entry.baseResourceVersion));return h}
-async function updateNotice(){let entries=[];try{entries=await list()}catch(e){console.error('Offline outbox',e)}let b=document.getElementById('ttOfflineNotice');if(!entries.length){b?.remove();return}if(!b){b=document.createElement('button');b.id='ttOfflineNotice';b.type='button';b.style.cssText='border:0;border-radius:9px;padding:8px 11px;background:#b42318;color:#fff;font:800 11px Arial;cursor:pointer;z-index:99999';b.onclick=()=>offerRecovery(true);(document.querySelector('.topbar,header')||document.body).appendChild(b)}b.textContent=entries.length+' unsynced';b.title='Saved on this device but not confirmed by the server'}
+async function updateNotice(){document.getElementById('ttOfflineNotice')?.remove()}
+function scheduleRecovery(delay=10000){clearTimeout(recoveryTimer);recoveryTimer=setTimeout(()=>recoverPending(),delay)}
 
 async function prepareEntry(input,init,url,saved,action){
   const key=resourceKey(url,saved.parsed),id=uuid();
@@ -76,8 +77,32 @@ window.fetch=async function(input,init={}){
 function reopenWorkflow(ui){for(const id of ui?.visibleIds||[]){const short=id.replace(/^ws-/,'');if(typeof window.openPanel==='function'&&document.getElementById(id)?.matches('section.panel')){try{window.openPanel(id)}catch{}}const opener=document.querySelector(`[data-workspace="${CSS.escape(short)}"],[data-target="${CSS.escape(id)}"],[href="#${CSS.escape(id)}"]`);opener?.click?.()}}
 function restoreUi(ui){if(!ui)return;reopenWorkflow(ui);requestAnimationFrame(()=>requestAnimationFrame(()=>{for(const f of ui.fields||[]){const selector=f.id?'#'+CSS.escape(f.id):f.name?'[name="'+CSS.escape(f.name)+'"]':null,el=selector?document.querySelector(selector):null;if(!el||el.type==='password'||el.type==='file')continue;if(f.type==='checkbox'||f.type==='radio')el.checked=!!f.checked;else el.value=f.value??'';el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}))}scrollTo(Number(ui.scrollX||0),Number(ui.scrollY||0));if(ui.focus){const el=document.getElementById(ui.focus)||document.querySelector('[name="'+CSS.escape(ui.focus)+'"]');el?.focus?.()}}))}
 async function replay(entry){const init={method:entry.method,credentials:'same-origin',headers:headersWith(entry.headers,entry),body:restoreBody(entry.body)};const response=await nativeFetch(entry.url,init);await processResponse(entry,response);return{ok:await acknowledged(response),conflict:response.status===409,status:response.status}}
-async function offerRecovery(force=false){const entries=await list();if(!entries.length)return;if(promptShown&&!force)return;promptShown=true;restoreUi(entries[entries.length-1].ui);const yes=confirm(entries.length+' saved entr'+(entries.length===1?'y was':'ies were')+' kept on this device because the server did not confirm the upload.\n\nUpload '+(entries.length===1?'it':'them')+' now and continue where you left off?');if(!yes){await updateNotice();return}const failures=[];let lastUi=null;for(const entry of entries){if(!navigator.onLine){failures.push('Internet connection is still offline.');break}try{const result=await replay(entry);if(result.ok)lastUi=entry.ui;else failures.push(result.conflict?'A newer server version exists. The pending entry was not uploaded.':'The server did not confirm the pending entry.')}catch{failures.push('Server could not be reached.');break}}await updateNotice();if(failures.length){alert('Pending entries remain safely on this device.\n\n'+[...new Set(failures)].join('\n'));return}sessionStorage.setItem('tt-offline-resume-ui',JSON.stringify(lastUi||{}));alert('Pending entries were uploaded successfully. The module will reopen where you left off.');location.reload()}
-async function boot(){const resume=sessionStorage.getItem('tt-offline-resume-ui');if(resume){sessionStorage.removeItem('tt-offline-resume-ui');try{restoreUi(JSON.parse(resume))}catch{}}await updateNotice();const entries=await list();if(entries.length)offerRecovery(false);if(window.TT_SHARED_SYNC?.saveNow){const original=window.TT_SHARED_SYNC.saveNow.bind(window.TT_SHARED_SYNC);window.TT_SHARED_SYNC.saveNow=(...args)=>{beginAction('Shared final save');return original(...args)}}}
+async function recoverPending(){
+  if(recoveryRunning||!navigator.onLine)return;
+  recoveryRunning=true;
+  try{
+    const entries=await list();
+    for(const entry of entries){
+      if(!navigator.onLine)break;
+      try{
+        const result=await replay(entry);
+        if(result.conflict)break;
+        if(!result.ok){scheduleRecovery();break}
+      }catch{scheduleRecovery();break}
+    }
+  }catch(error){console.error('Offline recovery',error);scheduleRecovery()}
+  finally{recoveryRunning=false;await updateNotice()}
+}
+async function boot(){
+  sessionStorage.removeItem('tt-offline-resume-ui');
+  await updateNotice();
+  recoverPending();
+  addEventListener('online',recoverPending);
+  if(window.TT_SHARED_SYNC?.saveNow){
+    const original=window.TT_SHARED_SYNC.saveNow.bind(window.TT_SHARED_SYNC);
+    window.TT_SHARED_SYNC.saveNow=(...args)=>{beginAction('Shared final save');return original(...args)}
+  }
+}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
-window.TT_OFFLINE_OUTBOX={list,offerRecovery,beginAction};
+window.TT_OFFLINE_OUTBOX={list,recoverPending,offerRecovery:recoverPending,beginAction};
 })();

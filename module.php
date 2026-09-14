@@ -170,7 +170,7 @@ HTML;
 $brandHead = '<link rel="stylesheet" href="/brand-theme.css?v=20260913-3">';
 $headPos = stripos($html, '</head>');
 if ($headPos !== false) $html = substr_replace($html, $brandHead.$bootstrap.$sharedBootstrap, $headPos, 0);
-$accountsSourceBridge = '<script src="accounts/source-bridge.js?v=20260911-3"></script><script src="accounts/loading-programme-sync.js?v=20260911-2"></script><script src="offline-outbox.js?v=20260912-1"></script>';
+$accountsSourceBridge = '<script src="accounts/source-bridge.js?v=20260911-3"></script><script src="accounts/loading-programme-sync.js?v=20260911-2"></script><script src="offline-outbox.js?v=20260914-silent-1"></script>';
 $brandBody = '<script src="/brand-theme.js?v=20260913-3"></script>';
 $bodyPos = strripos($html, '</body>');
 if ($bodyPos !== false) $html = substr_replace($html, $accountsSourceBridge.$guard.$brandBody, $bodyPos, 0); else $html .= $accountsSourceBridge.$guard.$brandBody;

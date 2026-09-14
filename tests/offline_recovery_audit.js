@@ -11,7 +11,9 @@ assert.match(outbox,/finalWords/,'only explicit final-action controls arm recove
 assert.match(outbox,/TT_SHARED_SYNC\.saveNow/,'Milling and Exports explicit shared commits arm recovery');
 assert.doesNotMatch(outbox,/setInterval\s*\(/,'no timed background autosave exists');
 assert.match(outbox,/addEventListener\('input',\(\)=>\{explicitAction=null\}/,'typing cancels rather than triggers an armed recovery action');
-assert.match(outbox,/confirm\(entries\.length/,'staff choose whether to upload pending entries');
+assert.doesNotMatch(outbox,/confirm\(entries\.length|unsynced|saved entr/,'offline recovery has no badge or confirmation popup');
+assert.match(outbox,/addEventListener\('online',recoverPending\)/,'pending saves retry silently when connectivity returns');
+assert.match(outbox,/window\.TT_OFFLINE_OUTBOX=\{list,recoverPending/,'silent recovery remains available for diagnostics');
 assert.match(outbox,/response\.status===409\?'conflict'/,'conflicts remain pending instead of overwriting');
 assert.match(outbox,/if\(await acknowledged\(response\)\)\{await remove/,'local copy clears only after acknowledgement');
 assert.match(guard,/X-TT-Idempotent-Replay/,'server replays completed transactions without duplicate writes');
