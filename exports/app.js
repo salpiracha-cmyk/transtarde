@@ -1371,7 +1371,7 @@ function ttMorningSalesContractPrint(c){
  const title=head.querySelector('.docTitle');title?.remove();
  const ref=body.querySelector('.docRefGrid');if(ref){head.appendChild(ref.cloneNode(true));ref.remove()}
  if(title)body.insertBefore(title,body.firstChild);
- const footer=body.querySelector('.sellerFooter');footer?.remove();
+ const footer=body.querySelector('.docFooterArt,.sellerFooter');footer?.remove();
  const foot=document.createElement('tfoot');foot.innerHTML=`<tr><td><div class="contractPrintFooter">${footer?footer.outerHTML:''}<span class="contractPageNumber"></span></div></td></tr>`;table.appendChild(foot);
  return shell.innerHTML
 }
