@@ -227,3 +227,31 @@
  .oceanBlPage{width:210mm!important;height:297mm!important}
  .bagPoPage{width:210mm!important;height:297mm!important}
 }
+
+
+/* TG/ASAS/04 locked Sales Contract alignment and restored one-page Bags PO. */
+.salesContractFlowPage .contractFlowLayout{width:100%;border-collapse:collapse;border-spacing:0;table-layout:fixed}
+.salesContractFlowPage .contractFlowLayout>thead>tr>td,
+.salesContractFlowPage .contractFlowLayout>tbody>tr>td{padding-left:0!important;padding-right:0!important}
+.salesContractFlowPage .contractFlowLayout .docLetterhead,
+.salesContractFlowPage .contractFlowLayout .docLetterheadText{width:100%;margin-left:0!important;margin-right:0!important}
+.salesContractFlowPage .contractFlowLayout .docLetterhead img{display:block;width:100%;margin:0 auto}
+.salesContractFlowPage .docFooterArt{left:16mm!important;right:16mm!important;width:auto!important}
+.salesContractFlowPage .docFooterArt img{display:block;width:100%;margin:0 auto}
+.salesContractFlowPage .contractSpecificationTable{width:100%;table-layout:fixed}
+.salesContractFlowPage .contractSpecificationTable col.contractSpecificationSequence{width:12mm}
+.salesContractFlowPage .contractSpecificationTable th:first-child{width:12mm}
+.salesContractFlowPage .contractSpecificationTable td:first-child{width:12mm;text-align:center!important;font-variant-numeric:tabular-nums}
+.salesContractFlowPage .contractSpecificationTable td:nth-child(2),
+.salesContractFlowPage .contractSpecificationTable td:nth-child(3){text-align:left!important}
+
+.poOnePage{padding:15mm 14mm 14mm!important;font-size:10px;overflow:hidden}
+.poOnePage .poCompany{text-align:center;font:900 18px Georgia,"Times New Roman",serif;letter-spacing:.05em;margin-bottom:3px}
+.poOnePage .docTitle{font-size:17px;text-decoration:underline;margin:0 0 8px!important}
+.poOrderTable{width:100%;table-layout:fixed;margin-top:8px}
+.poOrderTable th:nth-child(1){width:5%}.poOrderTable th:nth-child(2){width:30%}.poOrderTable th:nth-child(3){width:27%}.poOrderTable th:nth-child(4){width:10%}.poOrderTable th:nth-child(5){width:12%}.poOrderTable th:nth-child(6){width:16%}
+.poOrderTable td{height:27mm;vertical-align:middle;text-align:center}
+.poOrderTable .poSerial{text-align:center;font-variant-numeric:tabular-nums}
+.poInlineMarking{display:block;max-width:38mm;max-height:22mm;object-fit:contain;margin:2px auto}
+.poTerms{margin:8px 0 6px;padding-left:20px;font-size:8.7px;line-height:1.3}.poTerms li{margin-bottom:2px}
+.poCritical{margin-top:8px;text-align:center;font-size:12px;line-height:1.35;font-weight:900;text-decoration:underline}
