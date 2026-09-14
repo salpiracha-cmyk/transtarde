@@ -15,7 +15,7 @@ assert.match(app,/function reusableContractTemplate\(customerId\)/,'last custome
 assert.match(app,/const reusable=\['seller','product'/,'previous contract commercial fields load after customer selection');
 assert.match(css,/\.customerMatches/,'customer result list is styled below the search box');
 assert.doesNotMatch(customerMaster,/nav\.appendChild\(b\)/,'Master Data is not injected beside +FI');
-assert.match(operations,/2026-09-14-operational-reset-v2/,'Super Admin-requested operational reset is versioned');
+assert.match(operations,/2026-09-14-operational-reset-v3/,'Super Admin-requested operational reset is versioned');
 for(const key of ["'customers', 'suppliers', 'fi', 'contracts', 'shipments', 'accountsReceipts', 'alerts', 'deletedShipments'"])assert.ok(operations.includes(key),'full operational reset arrays missing');
 assert.match(operations,/settings and shared master definitions preserved/,'reset explicitly preserves configuration and shared master definitions');
 assert.match(operations,/\$root\['audits'\] = \[\[/,'prior user and bulk-test audit entries are cleared');

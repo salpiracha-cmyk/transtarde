@@ -141,7 +141,7 @@ function operations_union_rows(array $current, array $incoming, array $identitie
 }
 
 function operations_export_reset_marker(): string {
-    return '2026-09-14-operational-reset-v2';
+    return '2026-09-14-operational-reset-v3';
 }
 
 function operations_reset_export_payload(string $json): array {
