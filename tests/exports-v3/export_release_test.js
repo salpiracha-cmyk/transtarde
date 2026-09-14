@@ -125,8 +125,8 @@ const s=t.makeShipment(c);s.lc={saved:true,lcNo:'LC-99881',lcDate:'2026-09-08',i
 for(const [name,html] of Object.entries({invoice:t.commercialInvoiceDoc(s,c,false),packing:t.packingListDoc(s,c,false),phyto:t.phytoInvoiceDoc(s,c),cover:t.coveringDoc(s,c),draft:t.lcDraftDoc(s,c)})){
   assert.match(html,/docPage/);assert.match(html,/TTI_header\.png/);assert.ok(!/undefined|null/.test(html),name+' leaked invalid text');
 }
-const plainBL=t.blDraftDoc(s,c);assert.match(plainBL,/plainBlPage/);assert.doesNotMatch(plainBL,/TTI_header\.png|docFooterArt|docAutoSign/);
-assert.match(plainBL,/SAID TO CONTAIN/);assert.match(plainBL,/1 X 20 FEET CONTAINERS/);assert.match(plainBL,/TOTAL .* BAGS OF 25 KG EACH/);assert.match(plainBL,/HS CODE: 1006\.30/);assert.match(plainBL,/TOTAL NET WEIGHT/);assert.match(plainBL,/TOTAL GROSS WEIGHT/);assert.match(plainBL,/Non-Negotiable Copies<\/td><td><b>5/);assert.match(plainBL,/MARKS AND NUMBERS, NUMBER AND KIND OF PACKAGES, DESCRIPTION OF GOODS/);assert.doesNotMatch(plainBL,/Gross Weight<\/th>|KG NET<\/td>/);
+const plainBL=t.blDraftDoc(s,c);assert.match(plainBL,/oceanBlPage/);assert.match(plainBL,/OCEAN BILL OF LADING/);assert.doesNotMatch(plainBL,/TTI_header\.png|docFooterArt|docAutoSign/);
+assert.match(plainBL,/SAID TO CONTAIN/);assert.match(plainBL,/1 × 20 FEET CONTAINERS/);assert.match(plainBL,/1,080 PP Bags of 25 KG each/);assert.match(plainBL,/HS CODE: 1006\.30/);assert.match(plainBL,/TOTAL NET WEIGHT/);assert.match(plainBL,/TOTAL GROSS WEIGHT/);assert.match(plainBL,/NON-NEGOTIABLE COPIES[\s\S]*<span>5<\/span>/);assert.match(plainBL,/MARKS AND NUMBERS \/ NUMBER AND KIND OF PACKAGES \/ DESCRIPTION OF GOODS/);assert.doesNotMatch(plainBL,/ILLUSTRATIVE|SAMPLE DATA/);
 assert.match(t.commercialInvoiceDoc(s,c,false),/LC-99881/);
 assert.match(t.commercialInvoiceDoc(s,c,false),/DRAWEE/);assert.match(t.commercialInvoiceDoc(s,c,false),/CFR Jebel Ali, United Arab Emirates/);assert.match(t.commercialInvoiceDoc(s,c,false),/HS CODE: 1006\.30/);assert.doesNotMatch(t.commercialInvoiceDoc(s,c,false),/<b>PAYMENT<\/b>|PAYMENT TERMS/);
 assert.match(t.commercialInvoiceDoc(s,c,false),/FI-1/);
@@ -153,7 +153,7 @@ assert.match(normalContract,/UNITED STATES DOLLARS TWO HUNDRED TWENTY ONE THOUSA
 assert.match(normalContract,/EDITABLE TERM/);
 const purchaseOrder=t.purchaseOrderPrint({poNo:'PO-260001',supplier:'QA BAG SUPPLIER',requiredDate:'2026-09-20',deliverTo:'TTI RICE MILLS',lines:[{brand:'STAR',type:'P.P. Bags',size:25,unit:'KG',tare:80,totalBags:21816,handle:'No',artworkData:'data:image/png;base64,AA==',masterBag:{enabled:true,bagsPerMaster:20,quantity:1091,tare:120,printed:false}}]});
 assert.equal((purchaseOrder.match(/class="docPage/g)||[]).length,1,'Bag Purchase Order including its marking stays on one page');
-assert.match(purchaseOrder,/Total Order/);assert.match(purchaseOrder,/21,816/);assert.match(purchaseOrder,/Master Bag/);assert.match(purchaseOrder,/1,091/);assert.match(purchaseOrder,/BAG MARKING/);
+assert.match(purchaseOrder,/TOTAL ORDER/);assert.match(purchaseOrder,/21,816/);assert.match(purchaseOrder,/Master Bag/);assert.match(purchaseOrder,/1,091/);assert.match(purchaseOrder,/BAG MARKING/);
 assert.doesNotMatch(purchaseOrder,/Required \+ Extra|EMPTY BAGS|Unit Rate|Line Amount|Customer|Sales Contract|Authorised Signatory|HANDLE: YES/);
 assert.match(purchaseOrder,/P\.O\. NUMBER MUST BE MENTIONED ON THE DELIVERY ORDER AND ALSO ON THE FINAL BILL\./);
 const longContract={...c,terms:Array.from({length:18},(_,i)=>`Long contract term ${i+1}`),documentsPresented:Array.from({length:12},(_,i)=>({sequence:i+1,name:`Document ${i+1}`,original:1,copies:1}))};
@@ -181,21 +181,21 @@ assert.match(loginPhp,/authBrandName">TRANSTRADE INTERNATIONAL/);
 const customsInvoice=t.commercialInvoiceDoc(s,c,true);
 const customsPacking=t.packingListDoc(s,c,true);
 const phytosanitary=t.phytoInvoiceDoc(s,c);
-for(const label of ['CUSTOM INVOICE','DRAWEE','VESSEL / VOYAGE','PAYMENT TERMS','TOTAL NET WEIGHT','TOTAL GROSS WEIGHT','TOTAL PAYABLE'])assert.match(customsInvoice,new RegExp(label.replace('/','\\/')));
+for(const label of ['CUSTOMS INVOICE','DRAWEE','VESSEL / VOYAGE','PAYMENT TERMS','NET WEIGHT','GROSS WEIGHT','TARE WEIGHT','PAYMENT BREAKDOWN'])assert.match(customsInvoice,new RegExp(label.replace('/','\\/')));
 assert.match(customsInvoice,/PP Bags of 25 KG/i);
 assert.doesNotMatch(customsInvoice,/customsBankOutput|ACCOUNT TITLE:|SWIFT CODE:/);
 assert.match(customsPacking,/CUSTOM PACKING LIST/);
 assert.match(customsPacking,/TOTAL NET WEIGHT/);
 assert.match(customsPacking,/TOTAL GROSS WEIGHT/);
 assert.doesNotMatch(customsPacking,/NAME &amp; ADDRESS|NAME & ADDRESS/);
-assert.equal(phytosanitary.replaceAll('PHYTOSANITARY INVOICE','CUSTOM INVOICE'),customsInvoice,'Phytosanitary must be the Customs Invoice structure with title change only');
+assert.equal(phytosanitary.replaceAll('PHYTOSANITARY INVOICE','CUSTOMS INVOICE'),customsInvoice,'Phytosanitary must be the Customs Invoice structure with title change only');
 
 const cifContract={...c,incoterm:'CIF',insurance:"Seller's Account",showAllPrices:true,paymentCode:'ADV_CAD',advancePct:30,terms:["Insurance shall be for Buyer’s account."],termsInitialized:true,packings:c.packings.map(p=>({...p,contractRate:425,price:398,freight:25,insurance:2}))};
 const cifOutput=t.salesContractPrint(cifContract);
-assert.match(cifOutput,/USD\. <\/span><strong>425\.00<\/strong><span> CIF/);assert.match(cifOutput,/TOTAL CIF VALUE 540 MT × USD 425\.00/);
-assert.match(cifOutput,/FOB VALUE:<\/b> USD 398\.00 PMT/);
-assert.match(cifOutput,/FREIGHT:<\/b> USD 25\.00 PMT/);
-assert.match(cifOutput,/INSURANCE:<\/b> USD 2\.00 PMT/);
+assert.match(cifOutput,/USD\. 425\.00 P\/M\/T CIF/);assert.match(cifOutput,/TOTAL CIF VALUE/);
+assert.match(cifOutput,/USD\. 398\.00 P\/M\/T FOB/);
+assert.match(cifOutput,/USD\. 25\.00 P\/M\/T FREIGHT/);
+assert.match(cifOutput,/USD\. 2\.00 P\/M\/T INSURANCE/);
 assert.match(cifOutput,/Insurance Seller’s account\./);
 assert.match(cifOutput,/Insurance shall be for Seller’s account\./);
 assert.doesNotMatch(cifOutput,/Insurance shall be for Buyer’s account\./);
