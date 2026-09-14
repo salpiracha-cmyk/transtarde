@@ -19,7 +19,7 @@ const window={document,localStorage,TT_MODULE_ACCESS:{user:'Test User',masters:{
 const context={window,document,localStorage,console,structuredClone,alert:m=>{throw new Error('Unexpected alert: '+m)},location:{href:''},setTimeout:fn=>fn(),setInterval:()=>0,clearTimeout(){},FileReader:class{},Date,Intl};
 context.globalThis=context;
 let source=fs.readFileSync(__dirname+'/../../exports/app.js','utf8');
-const mutableExportOverrides=[...source.matchAll(/(?:^|\\n)([A-Za-z_$][\\w$]*)\\s*=\\s*function\\s*\\(/g)].map(match=>match[1]);
+const mutableExportOverrides=source.split('\n').filter(line=>/^[A-Za-z_$][\w$]*\s*=\s*function\s*\(/.test(line)).map(line=>line.match(/^([A-Za-z_$][\w$]*)/)[1]);
 assert.deepEqual(mutableExportOverrides,[],'Export module must not contain mutable function override assignments');
 source=source.replace('mount();','window.__EXPORT_TEST__={parseContractText,parseLCText,paymentText,lcSpecificTerms,effectiveTerms,packingPrefix,unitRate,makeShipment,salesContractPrint,purchaseOrderPrint,commercialInvoiceDoc,packingListDoc,phytoInvoiceDoc,blDraftDoc,coveringDoc,lcControlDoc,lcDraftDoc,millActualsComplete,applyProductMaster,productLabel,productMasters,qualityDescription,contractSpecRows,currentCropYear,millLocations,brokenEntry,normalizeBrokenEntry,brokenEntryValid,finishChoices,DEFAULT_QUALITY,CONTAINER_RE,state};\nmount();');
 vm.runInNewContext(source,context,{filename:'app.js'});
