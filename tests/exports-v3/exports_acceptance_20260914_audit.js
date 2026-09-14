@@ -6,6 +6,8 @@ has('Have you received the signed Sales Contract?');
 has('SAVE & REISSUE SAME LOADING INSTRUCTION');
 has('const reissueDraft=shipment()?.loading?.draft');
 has('Calculated proportionally from the Bag Order');
+has('function ttRecoverEmptyManagedOptions(select,group)');
+has('At least one '+"'+TT_REMOVABLE_OPTION_GROUPS[group].label+'"+' option must remain available.');
 has('Automatically taken from the Sales Contract inspection.');
 has("create.textContent='+ FI'");
 has('An FI allocation of at least');
