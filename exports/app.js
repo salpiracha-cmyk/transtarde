@@ -461,7 +461,7 @@ const renderTGBeforeCleanOutputPacks=renderTG;
 renderTG=function(d){renderTGBeforeCleanOutputPacks(d);const s=shipment(),c=contractByRef(s.contractRef),button=d.querySelector('#printTGPakistan');if(button)button.onclick=()=>{if(num(s.customs.rate)<=0)return alert('Enter the Pakistan Exporter to Trans Grains rate.');if(!customsBalanced(s,c))return alert('Save the balanced Customs master after selecting exporter, rate, bank, IBAN and payment allocation.');s.tgdocs={saved:true,at:new Date().toISOString(),exporter:pakistanExporterKey(s),rate:num(s.customs.rate),customsInvoiceNo:s.customs.invoiceNo};audit('TG Documents','Pakistan export pack prepared',`${s.contractRef} · ${s.lotId} · ${pakistanExporterKey(s)}`);printShipmentDoc('PAKISTAN EXPORT DOCUMENT PACK',packingListDoc(s,c,true)+tgPakistanCoveringDoc(s,c),pakistanExporterKey(s))}};
 
 /* 2026-09-12 approved entry, packing, loading, FI and persistence corrections. */
-const TT_PORTS=['Port Qasim, Pakistan or Karachi Port, Pakistan','Port Qasim, Pakistan','Karachi Port, Pakistan'];
+const TT_PORTS=['Port Qasim, Pakistan','Karachi Port, Pakistan'];
 const TT_PACKINGS=['P.P. Bags','BOPP laminated Bags','Cotton Bags','Non- Woven Bags','Jute Bags'];
 const TT_CURRENCIES=['USD','EUR','GBP','AED','PKR'];
 const TT_INSPECTIONS=['No','SGS Pakistan Private Limited','Intertek'];
@@ -542,7 +542,7 @@ renderBagOrder=function(d){const s=shipment(),po=ensureBagDraft(),rows=po.lines.
 async function uploadBagArtwork(input,line,target){const file=input.files[0];if(!file)return;if(file.size>1536*1024){input.value='';throw new Error('Each bag marking file must be 1.5 MB or smaller.')}if(!file.type.startsWith('image/')){input.value='';throw new Error('Bag marking must be an image.')}input.disabled=true;try{const doc=await uploadDocument(file,target==='master'?'master-bag-marking':'bag-marking',shipment()),holder=target==='master'?line.masterBag:line;holder.artworkName=doc.name;holder.artworkDocument=doc;holder.artworkData=doc.downloadUrl||doc.dataUrl;holder.artworkAttached=true;if(target!=='master'){line.approved=true;line.approvedAt=new Date().toISOString()}save();renderShipmentWorkspace()}catch(error){input.disabled=false;input.value='';throw error}}
 wireBagOrder=function(){const s=shipment(),po=ensureBagDraft();addSupplier.onclick=openSupplierModal;boNo.oninput=e=>po.poNo=e.target.value;boSupplier.onchange=e=>po.supplier=e.target.value;boDeliver.oninput=e=>po.deliverTo=e.target.value;boDate.onchange=e=>po.requiredDate=e.target.value;newPODraft.onclick=()=>{s.bagOrderDraft=null;save();renderShipmentWorkspace()};document.querySelectorAll('[data-bo-empty]').forEach(x=>x.oninput=e=>{const l=po.lines[num(x.dataset.boEmpty)];l.emptyBags=Math.max(0,Math.round(num(e.target.value)));l.totalBags=l.requiredBags+l.emptyBags;if(l.masterBag.enabled&&num(l.masterBag.bagsPerMaster)>0){l.masterBag.quantity=Math.ceil(l.totalBags/num(l.masterBag.bagsPerMaster));l.masterBag.qty=l.masterBag.quantity}document.querySelector(`[data-total-bags="${x.dataset.boEmpty}"]`).textContent=l.totalBags.toLocaleString()});document.querySelectorAll('[data-bo-handle]').forEach(x=>x.onchange=e=>po.lines[num(x.dataset.boHandle)].handle=e.target.value);document.querySelectorAll('[data-bo-master-print]').forEach(x=>x.onchange=e=>{const i=num(x.dataset.boMasterPrint),m=po.lines[i].masterBag;m.printed=e.target.checked;document.querySelector(`[data-master-art-wrap="${i}"]`)?.classList.toggle('hidden',!m.printed)});document.querySelectorAll('[data-bo-art]').forEach(x=>x.onchange=async()=>{try{await uploadBagArtwork(x,po.lines[num(x.dataset.boArt)],'main')}catch(e){alert(e.message)}});document.querySelectorAll('[data-bo-master-art]').forEach(x=>x.onchange=async()=>{try{await uploadBagArtwork(x,po.lines[num(x.dataset.boMasterArt)],'master')}catch(e){alert(e.message)}});generatePO.onclick=issuePO;document.querySelectorAll('[data-load-po]').forEach(x=>x.onclick=()=>{s.bagOrderDraft=structuredClone(s.bagOrders[num(x.dataset.loadPo)]);s.bagOrderDraft._updateIndex=num(x.dataset.loadPo);renderShipmentWorkspace()})};
 
-issuePO=function(){const s=shipment(),po=ensureBagDraft();if(!contractByRef(s.contractRef).received)return alert('Mark the signed Sales Contract received before issuing the Bag Order.');if(!po.supplier)return alert('Select Supplier.');if(po.lines.some(l=>!l.artworkAttached))return alert('Upload the bag marking for every main bag size.');if(po.lines.some(l=>l.masterBag?.enabled&&l.masterBag.printed&&!l.masterBag.artworkAttached))return alert('Upload the marking for every printed Master Bag.');const out=structuredClone(po);out.issuedAt=new Date().toISOString();out.status='Synced to Mill';if(Number.isInteger(po._updateIndex)){out.poNo=s.bagOrders[po._updateIndex].poNo;s.bagOrders[po._updateIndex]=out}else s.bagOrders.push(out);state.millSync.newExportBags=state.millSync.newExportBags.filter(x=>!(x.contractRef===s.contractRef&&x.poNo===out.poNo));out.lines.forEach((l,i)=>state.millSync.newExportBags.push({contractRef:s.contractRef,poNo:out.poNo,supplier:out.supplier,deliverTo:out.deliverTo,requiredDate:out.requiredDate,line:i+1,brand:l.brand,type:l.type,size:l.size,unit:l.unit,orderedTare:l.tare,requiredBags:l.requiredBags,emptyBags:l.emptyBags,totalOrdered:l.totalBags,artworkName:l.artworkName,artworkData:l.artworkData,artworkDocument:l.artworkDocument||null,approved:true,handle:l.handle,masterBag:l.masterBag,status:'Order from Export — Awaiting Receipt'}));audit('BAG ORDER','Generated one white-paper PO and sent to Mill',s.contractRef+' · '+out.poNo);s.bagOrderDraft=null;directPrint('PURCHASE ORDER',purchaseOrderPrint(out),'without');renderShipmentWorkspace()};
+issuePO=function(){const s=shipment(),po=ensureBagDraft();if(!po.supplier)return alert('Select Supplier.');if(po.lines.some(l=>!l.artworkAttached))return alert('Upload the bag marking for every main bag size.');if(po.lines.some(l=>l.masterBag?.enabled&&l.masterBag.printed&&!l.masterBag.artworkAttached))return alert('Upload the marking for every printed Master Bag.');const out=structuredClone(po);out.issuedAt=new Date().toISOString();out.status='Synced to Mill';if(Number.isInteger(po._updateIndex)){out.poNo=s.bagOrders[po._updateIndex].poNo;s.bagOrders[po._updateIndex]=out}else s.bagOrders.push(out);state.millSync.newExportBags=state.millSync.newExportBags.filter(x=>!(x.contractRef===s.contractRef&&x.poNo===out.poNo));out.lines.forEach((l,i)=>state.millSync.newExportBags.push({contractRef:s.contractRef,poNo:out.poNo,supplier:out.supplier,deliverTo:out.deliverTo,requiredDate:out.requiredDate,line:i+1,brand:l.brand,type:l.type,size:l.size,unit:l.unit,orderedTare:l.tare,requiredBags:l.requiredBags,emptyBags:l.emptyBags,totalOrdered:l.totalBags,artworkName:l.artworkName,artworkData:l.artworkData,artworkDocument:l.artworkDocument||null,approved:true,handle:l.handle,masterBag:l.masterBag,status:'Order from Export — Awaiting Receipt'}));audit('BAG ORDER','Generated one white-paper PO and sent to Mill',s.contractRef+' · '+out.poNo);s.bagOrderDraft=null;directPrint('PURCHASE ORDER',purchaseOrderPrint(out),'without');renderShipmentWorkspace()};
 purchaseOrderPrint=function(po){const rows=[];for(const [i,l] of po.lines.entries()){rows.push(`<tr><td>${i+1}</td><td>${esc(l.brand)}</td><td>${num(l.tare)} g</td><td>${esc(l.type)}</td><td>${num(l.size)} ${esc(l.unit)}</td><td>${num(l.requiredBags).toLocaleString()}</td><td>${num(l.emptyBags).toLocaleString()}</td><td>${num(l.totalBags).toLocaleString()}</td></tr>`);if(l.masterBag?.enabled)rows.push(`<tr><td>${i+1}.2</td><td>${esc(l.brand)} — MASTER BAG</td><td>${num(l.masterBag.tare)} g</td><td>MASTER BAG</td><td>${num(l.masterBag.bagsPerMaster)*num(l.size)} ${esc(l.unit)}</td><td>${num(l.masterBag.quantity||l.masterBag.qty).toLocaleString()}</td><td>—</td><td>${num(l.masterBag.quantity||l.masterBag.qty).toLocaleString()}</td></tr>`)}const art=[];for(const l of po.lines){if(l.artworkData)art.push(`<section class="docPage plainOrderPage"><h1>APPROVED BAG MARKING — ${esc(l.brand)}</h1><img class="poMarking" src="${esc(l.artworkData)}" alt="Bag marking"></section>`);if(l.masterBag?.printed&&l.masterBag.artworkData)art.push(`<section class="docPage plainOrderPage"><h1>APPROVED MASTER BAG MARKING — ${esc(l.brand)}</h1><img class="poMarking" src="${esc(l.masterBag.artworkData)}" alt="Master bag marking"></section>`)}return`<div class="printDoc"><section class="docPage plainOrderPage"><h1 class="docTitle">PURCHASE ORDER</h1><table class="docMeta"><tr><td class="lbl">PO Number</td><td>${esc(po.poNo)}</td><td class="lbl">Supplier</td><td>${esc(po.supplier)}</td></tr><tr><td class="lbl">Required Delivery</td><td>${po.requiredDate?fmt(po.requiredDate):'TO BE ADVISED LATER'}</td><td class="lbl">Deliver To</td><td>${esc(po.deliverTo)}</td></tr></table><table class="docTable"><thead><tr><th>#</th><th>Brand</th><th>Tare G</th><th>BAG TYPE</th><th>BAG SIZE</th><th>Required</th><th>EMPTY BAGS</th><th>Total</th></tr></thead><tbody>${rows.join('')}</tbody></table><div class="greenBox"><b>DELIVERY CHALLAN MUST CLEARLY MENTION THE BRAND NAME AND P.O. NUMBER.</b></div></section>${art.join('')}</div>`};
 
 const renderBagOrderBeforeSequentialRows=renderBagOrder;
@@ -859,6 +859,203 @@ renderContractStep=function(){if(contractStep!==2){renderContractStepBeforeAppro
 const validateContractStepBeforeApprovedSpecification=validateContractStep;
 validateContractStep=function(n){const error=validateContractStepBeforeApprovedSpecification(n);if(error)return error;if(n===2&&buyerSpecificationSelected(contractDraft)&&!contractSpecRows(contractDraft).length)return'Enter at least one Buyer Specification.';if(n===6&&paymentNeedsSellerBank(contractDraft)&&!selectedContractBank(contractDraft))return'Select the Seller bank account for the advance payment.';return''};
 salesContractPrint=function(c){ensureContractTerms(c);const b=buyerOf(c),packings=c.packings||[],buyerSpec=buyerSpecificationSelected(c),specs=buyerSpec?contractSpecRows(c):[],terms=effectiveTerms(c),docs=documentsPresented(c),total=packings.length,ref=`<div class="docRefGrid"><div class="docRefBox"><b>REF</b>${esc(c.ref)}</div><div class="docRefBox"><b>BUYER</b>${esc(b.name)}</div></div>`,top=`<div class="docRefGrid">${c.buyerPoNo?`<div class="docRefBox"><b>BUYER P.O. NO.</b>${esc(c.buyerPoNo)}</div>`:''}<div class="docRefBox"><b>REF</b>${esc(c.ref)}</div><div class="docRefBox"><b>DATE</b>${fmt(c.date)}</div></div>`;const field=(heading,value,cls='')=>`<h3 class="docSection">${heading}</h3><div class="docValue ${cls}">${value}</div>`;const specifications=field('SPECIFICATIONS',buyerSpec?'As per below specification.':'As per Pakistan origin standards.')+(buyerSpec?`<table class="docTable contractSpecificationTable"><thead><tr><th>SEQUENCE</th><th>SPECIFICATION</th><th>VALUE</th></tr></thead><tbody>${specs.map((x,i)=>`<tr><td>${i+1}</td><td>${esc(x.name)}</td><td>${esc(x.value)}</td></tr>`).join('')}</tbody></table>`:'');const main=`${top}${contractPartyGrid(c)}${field('QUALITY',esc(contractQualityValue(c)))}${specifications}${field('ADDITIONAL QUALITY CONDITIONS',esc(c.additionalQuality||DEFAULT_QUALITY))}${field('QUANTITY',`${num(c.containers)} × 20' FCL — ${num(c.qty).toFixed(3)} M/tons ±${num(c.tolerance)}% Seller’s option`)}${field('PORT OF LOADING',esc(c.pol))}${field('PORT OF DISCHARGE',esc(contractPort(c)))}${field('SHIPMENT',`On or before ${esc(fmt(c.shipmentDate)||'to be advised')}`)}${field('PACKING / BRAND-MARKING',packings.map((p,i)=>salesPackingLine(p,c,i,total)).join('<br>'))}${field('INSURANCE',`Insurance ${c.insurance==="Seller's Account"?'Seller’s':'Buyer’s'} account.`)}<h3 class="docSection">PRICE</h3>${contractPriceHTML(c,packings)}<h3 class="docSection">PAYMENT</h3>${contractPaymentHTML(c)}`;const termsHtml=list=>list.length?`<h3 class="docSection">OTHER TERMS AND CONDITIONS</h3><ol>${list.map(x=>`<li>${esc(x)}</li>`).join('')}</ol>`:'';const docsHtml=`${docs.length?`<h3 class="docSection">DOCUMENTS TO BE PRESENTED FOR NEGOTIATION</h3><table class="docTable"><thead><tr><th>SEQUENCE</th><th>DOCUMENT NAME</th><th>ORIGINAL</th><th>COPIES</th></tr></thead><tbody>${docs.map(r=>`<tr><td>${r.sequence}</td><td>${esc(r.name)}</td><td>${r.original}</td><td>${r.copies}</td></tr>`).join('')}</tbody></table>`:''}${field('VALIDITY',`Signed / stamped copy of Sales Contract to be received latest by ${esc(fmt(c.signedDeadline))}. ${String(c.paymentCode||'').startsWith('LC_')?'L/C':'Payment'} to be received latest by ${esc(fmt(c.paymentDeadline))}. Thereafter subject to Seller’s re-confirmation.`)}${contractSignatureHTML(c)}`;const heavy=specs.length>10||packings.length>3||terms.length+docs.length>16,extreme=specs.length>16||packings.length>5||terms.length+docs.length>27,pages=[main];if(!heavy)pages.push(ref+termsHtml(terms)+docsHtml);else if(!extreme){pages.push(ref+termsHtml(terms));pages.push(ref+docsHtml)}else{const cut=Math.ceil(terms.length/2);pages.push(ref+termsHtml(terms.slice(0,cut)));pages.push(ref+termsHtml(terms.slice(cut)));pages.push(ref+docsHtml)}return pages.map((body,index)=>salesContractPage(c,index?'SALES CONTRACT — CONTINUED':'SALES CONTRACT',body,index+1,pages.length)).join('')};
+
+
+/* 2026-09-14 Exports A-S acceptance correction: authoritative final overrides. */
+function ttOutputEnglish(value){
+ const source=String(value??'').trim();
+ if(!source)return'';
+ if(source!==source.toUpperCase())return source.replace(/\s+/g,' ');
+ const keep=new Set(['TTI','TG','BRM','P.P.','BOPP','DPP','SGS','FI','GD','IBAN','SWIFT','FOB','CFR','CNF','CIF','FCL','LC','L/C','UAE','UK','USA','HS','PO','P.O.','MT','KG','KGS']);
+ return source.toLowerCase().replace(/\b[\w./'-]+\b/g,(word,index)=>{
+  const upper=word.toUpperCase();
+  if(keep.has(upper))return upper;
+  if(index>0&&['and','or','of','the','in','to','for'].includes(word))return word;
+  return word.charAt(0).toUpperCase()+word.slice(1)
+ }).replace(/\bP\.p\./g,'P.P.').replace(/\bBopp\b/g,'BOPP');
+}
+function ttPartyOutput(party){return{name:ttOutputEnglish(party?.name||''),address:ttOutputEnglish(party?.address||'')}}
+const ttContractPortBeforeAcceptance=contractPort;
+contractPort=function(c){return ttOutputEnglish(ttContractPortBeforeAcceptance(c))};
+const ttPricePortBeforeAcceptance=pricePort;
+pricePort=function(c){return ttOutputEnglish(ttPricePortBeforeAcceptance(c))};
+partyGrid=function(c){const s=ttPartyOutput(sellerOf(c)),b=ttPartyOutput(buyerOf(c));return`<div class="docPartyGrid"><div><div class="docPartyLabel">SELLER</div><div class="docPartyName">${esc(s.name)}</div><div>${esc(s.address)}</div></div><div><div class="docPartyLabel">BUYER</div><div class="docPartyName">${esc(b.name)}</div><div>${esc(b.address)}</div></div></div>`};
+contractPartyGrid=function(c){return partyGrid(c)};
+specimenPartyBox=function(label,party){const p=ttPartyOutput(party);return`<div class="specimenParty"><b>${esc(label)}</b><strong>${esc(p.name)}</strong><span>${esc(p.address)}</span></div>`};
+specimenReference=function(ref,date,extra=''){return`<div class="specimenReference"><div class="specimenDate"><b>DATE</b><span>${fmt(date||TODAY())}</span></div>${extra}<div class="specimenRef"><b>REF NO.</b><span>${esc(ref||'')}</span></div></div>`};
+specimenDescription=function(c,line,extra=''){return`<b>${esc(ttOutputEnglish(c.product||line.description||''))}</b><br>${esc(ttOutputEnglish(c.quality||DEFAULT_QUALITY))}<br>${esc(ttOutputEnglish(line.packing||''))}${extra?`<br>${esc(extra)}`:''}`};
+salesPackingLine=function(p,c,i,total){
+ const prefix=packingPrefix(i,total),type=ttOutputEnglish(p.type||'Bags'),unit=String(c.packingUnit||'KG').toUpperCase(),brand=p.brand?` with buyer’s marking / ${ttOutputEnglish(p.brand)} brand`:' with buyer’s marking';
+ const main=`${prefix}Packed in new single ${esc(type)} of ${num(p.size)} ${esc(unit.toLowerCase()==='kg'?'kgs':unit)} each${esc(brand)}.`;
+ if(!p.masterBag?.enabled)return main;
+ const per=num(p.masterBag.bagsPerMaster)||num(p.masterBag.qty),weight=num(p.masterBag.weight)||per*num(p.size);
+ return`${main}<br>Further packed in master bags of ${weight} ${esc(unit.toLowerCase()==='kg'?'kgs':unit)} each ( ${per} bags x ${num(p.size)} ${esc(unit.toLowerCase()==='kg'?'kgs':unit)} in one master).`
+};
+contractBankDetailsHTML=function(c){
+ const row=selectedContractBank(c);
+ if(!row)return paymentNeedsSellerBank(c)?`<div class="contractBankMissing">Seller bank account must be selected before issue.</div>`:'';
+ return`<div class="contractBankDetails contractBankLines"><div><b>ACCOUNT TITLE:</b> <span>${esc(row[3]||'')}</span></div><div><b>BANK:</b> <span>${esc(row[4]||'')}</span></div><div><b>BRANCH:</b> <span>${esc(row[5]||'')}</span></div><div><b>IBAN:</b> <span>${esc(row[9]||'')}</span></div><div><b>SWIFT CODE:</b> <span>${esc(row[10]||'')}</span></div><div><b>Country:</b> <span>${esc(ttOutputEnglish(row[6]||''))}</span></div></div>`
+};
+const ttDirectPrintBeforeAcceptance=directPrint;
+directPrint=function(title,html,mode='with'){
+ const filename=/^SALES CONTRACT$/i.test(String(title))&&contractDraft?.ref?contractDraft.ref:title;
+ return ttDirectPrintBeforeAcceptance(filename,html,mode)
+};
+
+ttPrepareRemovableSelect=function(select,group,current){
+ if(!select)return;
+ const retained=ttOptionToken(current);
+ [...select.options].forEach(option=>{const value=option.value;if(value&&value!=='__custom__'&&ttOptionIsRemoved(group,value)&&ttOptionToken(value)!==retained)option.remove()});
+ const field=select.closest('.field');
+ field?.querySelector('[data-option-manager="'+group+'"]')?.remove();
+ if(!field||field.querySelector('[data-managed-select="'+group+'"]'))return;
+ const box=document.createElement('div');box.className='managedSelectBox';box.dataset.managedSelect=group;
+ select.parentNode.insertBefore(box,select);box.appendChild(select);
+ const remove=document.createElement('button');remove.type='button';remove.className='optionMinus managedSelectDelete';remove.textContent='−';remove.title='Delete selected option';remove.setAttribute('aria-label','Delete selected '+group+' option');box.appendChild(remove);
+ remove.onclick=()=>{const value=select.value;if(!value||value==='__custom__')return alert('Select the option to delete first.');ttRemoveOption(group,value)}
+};
+
+const ttRenderProductionBeforeAcceptance=renderProduction;
+renderProduction=function(d){
+ const s=shipment(),c=contractByRef(s.contractRef),p=s.production;
+ p.inspection=c.inspection||'No';
+ ttRenderProductionBeforeAcceptance(d);
+ const inspection=d.querySelector('#piInspection');if(inspection){inspection.value=c.inspection||'No';inspection.readOnly=true;inspection.title='Automatically taken from the Sales Contract inspection.'}
+ const button=d.querySelector('#sendPI'),original=button?.onclick;
+ if(button&&original)button.onclick=event=>{
+  if(!c.received){
+   if(!confirm('Have you received the signed Sales Contract?'))return;
+   c.received=true;c.receivedAt=new Date().toISOString();c.receivedBy=currentUser();
+   audit('Sales Contract','Signed Sales Contract received from Production Instructions',c.ref);save()
+  }
+  p.inspection=c.inspection||'No';
+  return original.call(button,event)
+ }
+};
+
+function ttDedupeSelectOptions(root){
+ root.querySelectorAll('select').forEach(select=>{
+  const seen=new Set();
+  [...select.options].forEach(option=>{
+   if(!option.value||option.value==='__custom__')return;
+   const key=String(option.textContent||option.value).toLowerCase().replace(/[^a-z0-9]/g,'').replace(/s$/,'');
+   if(seen.has(key))option.remove();else seen.add(key)
+  })
+ })
+}
+const ttRenderBagOrderBeforeAcceptance=renderBagOrder;
+renderBagOrder=function(d){ttRenderBagOrderBeforeAcceptance(d);ttDedupeSelectOptions(d)};
+
+purchaseOrderPrint=function(po){
+ const c=contractByRef(shipment().contractRef),rows=[];
+ for(const [i,l] of po.lines.entries()){
+  rows.push(`<tr><td>${i+1}</td><td>${esc(ttOutputEnglish(l.brand))}</td><td>${esc(ttOutputEnglish(l.type))} of ${num(l.size)} ${esc(String(l.unit||'KG').toUpperCase())}</td><td>${num(l.tare)} g</td><td>${num(l.totalBags).toLocaleString()}</td><td>${l.masterBag?.enabled?`${num(l.masterBag.quantity||l.masterBag.qty).toLocaleString()} master bags of ${num(l.masterBag.bagsPerMaster)*num(l.size)} ${esc(String(l.unit||'KG').toUpperCase())}`:'—'}</td></tr>`)
+ }
+ const notes=`<div class="poNotes"><b>NOTES</b><ol><li>Kindly ensure the P.O. number is mentioned on the Delivery Order and also on the final bill.</li><li>Please confirm from our office which company name the Sales Tax Invoice will be issued in.</li></ol></div>`;
+ const markings=po.lines.map(l=>`<section class="docPage plainOrderPage"><h1 class="docTitle">APPROVED BAG MARKING</h1><h2>${esc(ttOutputEnglish(l.brand))}</h2>${l.artworkData?`<img class="poMarking" src="${esc(l.artworkData)}" alt="Approved bag marking">`:''}<div class="poMarkingCaption">${esc(ttOutputEnglish(l.type))} · ${num(l.size)} ${esc(String(l.unit||'KG').toUpperCase())} · P.O. ${esc(po.poNo)}</div></section>`).join('');
+ return`<div class="printDoc"><section class="docPage plainOrderPage"><div class="poCompany">TRANSTRADE INTERNATIONAL</div><h1 class="docTitle">PURCHASE ORDER</h1><table class="docMeta"><tr><td class="lbl">P.O. Reference</td><td>${esc(po.poNo)}</td><td class="lbl">Order Date</td><td>${fmt((po.issuedAt||TODAY()).slice(0,10))}</td></tr><tr><td class="lbl">Supplier</td><td>${esc(ttOutputEnglish(po.supplier))}</td><td class="lbl">Required Delivery</td><td>${po.requiredDate?fmt(po.requiredDate):'To Be Advised Later'}</td></tr><tr><td class="lbl">Deliver To</td><td colspan="3">${esc(ttOutputEnglish(po.deliverTo||'To Be Advised Later'))}</td></tr></table><table class="docTable poApprovedTable"><thead><tr><th>#</th><th>Brand</th><th>Packing</th><th>Tare</th><th>Total Bags</th><th>Master Packing</th></tr></thead><tbody>${rows.join('')}</tbody></table>${notes}</section>${markings}</div>`
+};
+
+function ttProportionalEmptyBags(process,contract,draft){
+ const order=(process.bagOrders||[]).at(-1);if(!order)return;
+ const groups=new Map();draft.allocations.forEach((a,i)=>{const k=num(a.packIndex),list=groups.get(k)||[];list.push({a,i});groups.set(k,list)});
+ for(const [packIndex,list] of groups){
+  const pack=contract.packings[packIndex]||{},line=(order.lines||[]).find(x=>num(x.packingIndex)===packIndex)||order.lines?.[packIndex],totalEmpty=num(line?.emptyBags),contractContainers=num(pack.containers);
+  const exact=list.map(x=>contractContainers>0?totalEmpty*num(x.a.containers)/contractContainers:0),target=Math.round(exact.reduce((a,v)=>a+v,0)),values=exact.map(Math.floor);
+  let remainder=target-values.reduce((a,v)=>a+v,0);
+  exact.map((v,i)=>({i,f:v-Math.floor(v)})).sort((a,b)=>b.f-a.f).forEach(x=>{if(remainder>0){values[x.i]++;remainder--}});
+  list.forEach((x,i)=>x.a.emptyBags=values[i])
+ }
+}
+const ttRenderLoadingBeforeAcceptance=renderLoading;
+renderLoading=function(d){
+ ttRenderLoadingBeforeAcceptance(d);
+ const p=shipment(),c=p&&contractByRef(p.contractRef),draft=p?.loading?.draft;if(!draft||!c)return;
+ const head=d.querySelector('.grid3'),physical=d.querySelector('#liPhysicalContainers')?.closest('.field'),programme=d.querySelector('#liProgramme')?.closest('.field'),booking=d.querySelector('#liBooking');
+ if(booking){booking.value=draft.loadingProgrammeNo||booking.value;booking.closest('.field')?.remove()}
+ if(physical&&programme)physical.after(programme);
+ const vessel=d.querySelector('#liIntendedVessel'),vesselField=vessel?.closest('.field');
+ if(vessel&&vesselField){
+  const combined=document.createElement('div');combined.className='field full loadingVesselVoyage';combined.innerHTML='<label>Vessel / Voyage</label><div class="loadingVesselVoyageInputs"></div>';
+  vesselField.parentNode.insertBefore(combined,vesselField);combined.querySelector('div').appendChild(vessel);vessel.placeholder='Vessel name';
+  const voyage=document.createElement('input');voyage.id='liVoyage';voyage.placeholder='Voyage';voyage.value=draft.voyage||'';combined.querySelector('div').appendChild(voyage);voyage.oninput=e=>draft.voyage=e.target.value;
+  vesselField.remove()
+ }
+ if(head&&programme&&!physical)head.appendChild(programme);
+ const addSource=d.querySelector('#addLoadingSource'),toolbar=addSource?.closest('.toolbar');if(addSource&&toolbar){toolbar.appendChild(addSource)}
+ ttProportionalEmptyBags(p,c,draft);
+ d.querySelectorAll('[data-li-empty]').forEach(input=>{const i=num(input.dataset.liEmpty);input.value=num(draft.allocations[i]?.emptyBags);input.readOnly=true;input.title='Calculated proportionally from the Bag Order and the containers in this lot.'});
+ const inspect=d.querySelectorAll('[data-li-inspect]');inspect.forEach((input,i)=>{draft.allocations[i].inspection=c.inspection||'No';input.value=c.inspection||'No';input.readOnly=true});
+ const button=d.querySelector('#sendLoading'),original=button?.onclick,programmeInput=d.querySelector('#liProgramme'),voyageInput=d.querySelector('#liVoyage');
+ if(button&&original&&!draft._reissueLotId)button.onclick=async event=>{
+  if(booking)booking.value=programmeInput?.value||'';
+  draft.bookingNumber=draft.loadingProgrammeNo=programmeInput?.value.trim()||'';
+  draft.voyage=voyageInput?.value.trim()||'';
+  const before=new Set(lotsFor(p).map(x=>x.id)),result=await original.call(button,event),lot=lotsFor(p).find(x=>!before.has(x.id));
+  if(lot){lot.loadingPlan=lot.loadingPlan||{};lot.bl=lot.bl||{};lot.loadingPlan.voyage=draft.voyage;lot.bl.voyage=draft.voyage;lot.bl.bookingNumber='';save()}
+  return result
+ };
+ if(button&&draft._reissueLotId){
+  const reasonField=document.createElement('div');reasonField.className='field';reasonField.innerHTML='<label>Reason for Reissue</label><textarea id="liReissueReason" placeholder="Enter the reason for this change"></textarea>';
+  d.querySelector('#loadingFeedback')?.before(reasonField);button.textContent='SAVE & REISSUE SAME LOADING INSTRUCTION';
+  button.onclick=()=>{
+   const lot=state.shipments.find(x=>x.id===draft._reissueLotId),reason=d.querySelector('#liReissueReason')?.value.trim(),normalized=normalizeLoadingAllocations(draft.allocations),total=normalized.reduce((sum,a)=>sum+num(a.containers)*num(a.weightPer),0);
+   if(!lot||!reason)return setLoadingFeedback('loadingFeedback','Enter the mandatory reason for reissue.');
+   if(normalized.some(a=>!a.name||a.containers<=0||a.weightPer<=0))return setLoadingFeedback('loadingFeedback','Complete every loading source.');
+   if(Math.abs(total-num(lot.plannedQty))>.001)return setLoadingFeedback('loadingFeedback','Reissued allocation total must equal the existing lot quantity.');
+   snapshot(lot.loadingPlan,reason,'Loading Instructions reissued');delete draft._reissueLotId;draft.allocations=normalized;draft.reissuedAt=new Date().toISOString();draft.reissuedBy=currentUser();draft.reissueReason=reason;
+   lot.loadingPlan=structuredClone(draft);lot.loadingProgrammeNo=draft.loadingProgrammeNo;lot.containers=num(draft.physicalContainers)||lot.containers;lot.bl={...(lot.bl||{}),vessel:draft.intendedVessel||lot.bl?.vessel,voyage:draft.voyage||'',bookingNumber:'',portOfLoading:draft.portOfLoading};
+   lot.loadingVersions=[...(lot.loadingVersions||[]),{at:draft.reissuedAt,by:currentUser(),reason,plan:structuredClone(draft)}];
+   const summary=(p.loading.lots||[]).find(x=>x.lotRecordId===lot.id);if(summary)Object.assign(summary,{plan:structuredClone(draft),loadingProgrammeNo:draft.loadingProgrammeNo,intendedVessel:draft.intendedVessel,shippingLine:draft.shippingLine,reissuedAt:draft.reissuedAt});
+   state.millSync.exportLoading=state.millSync.exportLoading.filter(x=>x.shipmentId!==lot.id);state.millSync.exportLoading.push({contractRef:p.contractRef,shipmentId:lot.id,processId:p.id,lotId:lot.lotId,loadingProgrammeNo:draft.loadingProgrammeNo,intendedVessel:draft.intendedVessel,shippingLine:draft.shippingLine,portOfLoading:draft.portOfLoading,plan:structuredClone(draft),production:structuredClone(p.production),sentAt:draft.reissuedAt,reissue:true,reason});
+   p.loading.draft=null;audit('LOADING INSTRUCTIONS','Reallocated and reissued from the same Loading Instructions page',`${p.contractRef} · ${lot.lotId} · ${reason}`);save();renderShipmentWorkspace()
+  }
+ }
+};
+openLoadingReissue=function(lotId){
+ const lot=state.shipments.find(x=>x.id===lotId),p=processFor(lot);if(!lot||!p)return;
+ if((lot.millActuals||[]).length)return alert('Loading Instructions cannot be reissued after Mill actuals arrive.');
+ const draft=structuredClone(lot.loadingPlan||{});draft._reissueLotId=lot.id;draft.lotId=lot.lotId;draft.physicalContainers=lot.containers;draft.loadingProgrammeNo=lot.loadingProgrammeNo||draft.loadingProgrammeNo||'';draft.voyage=lot.bl?.voyage||draft.voyage||'';
+ lot.cancelled=true;p.loading.draft=draft;currentShipmentId=p.id;activeWorkspace='loading';renderShipmentWorkspace();lot.cancelled=false
+};
+
+function ttCustomsBankRow(s,c){
+ const dc=customsDocumentContext(s,c),rows=contractSellerBanks(dc),bank=String(s.customs?.bank||''),iban=String(s.customs?.iban||'');
+ return rows.find(row=>String(row[9]||'')===iban)||rows.find(row=>String(row[4]||'')===bank)||rows[0]||null
+}
+customsBankDetails=function(s){
+ const c=contractByRef(s.contractRef),row=c&&ttCustomsBankRow(s,c),x=s.customs||{};
+ const title=row?.[3]||'',bank=row?.[4]||x.bank||'',branch=row?.[5]||'',iban=row?.[9]||x.iban||'',swift=row?.[10]||'',country=row?.[6]||'';
+ if(!bank&&!iban)return'';
+ return`<div class="docPartyBox customsBankOutput"><b>BANK DETAILS</b><br><b>ACCOUNT TITLE:</b> ${esc(title)}<br><b>BANK:</b> ${esc(bank)}<br><b>BRANCH:</b> ${esc(branch)}<br><b>IBAN:</b> ${esc(iban)}<br><b>SWIFT CODE:</b> ${esc(swift)}<br><b>Country:</b> ${esc(ttOutputEnglish(country))}</div>`
+};
+const ttCommercialInvoiceBeforeAcceptance=commercialInvoiceDoc;
+commercialInvoiceDoc=function(s,c,custom=false){
+ const html=ttCommercialInvoiceBeforeAcceptance(s,c,custom);if(!custom)return html;
+ const shell=document.createElement('div');shell.innerHTML=html;const dc=customsDocumentContext(s,c),lines=invoiceLines(s,dc,true);
+ shell.querySelectorAll('.customInvoiceGoods tbody tr').forEach((tr,i)=>{const p=(dc.packings||[]).find(x=>x.brand===lines[i]?.brand)||dc.packings?.[i],cell=tr.children[1];if(cell&&p)cell.textContent=`${Math.round(num(lines[i]?.mt)*1000/Math.max(1,num(p.size))).toLocaleString()} ${ttOutputEnglish(p.type)} of ${num(p.size)} ${String(dc.packingUnit||'KG').toUpperCase()}`});
+ const top=shell.querySelector('.specimenTopGrid'),payment=[...shell.querySelectorAll('.specimenTerms')].find(x=>/PAYMENT TERMS/i.test(x.textContent));if(top&&payment){const route=top.querySelector('.specimenRoute');route?.appendChild(payment)}
+ const first=shell.querySelector('.customInvoiceGoods tfoot tr');if(first&&/TOTAL NET \/ GROSS/i.test(first.textContent)){first.innerHTML=`<th colspan="2">TOTAL NET</th><th>${(num(plannedTotals(s,dc).net)/1000).toFixed(3)} MT</th><th>TOTAL GROSS</th><th colspan="2">${(num(plannedTotals(s,dc).gross)/1000).toFixed(3)} MT</th>`}
+ return shell.innerHTML
+};
+
+const ttRenderCustomsBeforeAcceptance=renderCustoms;
+renderCustoms=function(d){
+ const s=shipment(),c=contractByRef(s.contractRef),x=s.customs,contractDescription=contractQualityValue(c);
+ if(x.descriptionSource!=='amended'){x.description=contractDescription;x.descriptionSource='contract'}
+ ttRenderCustomsBeforeAcceptance(d);
+ const oldBank=d.querySelector('#cuBank'),iban=d.querySelector('#cuIBAN'),dc=customsDocumentContext(s,c),rows=contractSellerBanks(dc);
+ if(oldBank&&oldBank.tagName!=='SELECT'){
+  const select=document.createElement('select');select.id='cuBank';select.innerHTML='<option value="">Select shipper bank</option>'+rows.map(row=>`<option value="${esc(row[4]||'')}" data-iban="${esc(row[9]||'')}" ${String(row[4]||'')===String(x.bank||'')?'selected':''}>${esc(row[4]||'Bank')}${row[9]?` · ${esc(row[9])}`:''}</option>`).join('');oldBank.replaceWith(select);
+  select.onchange=()=>{const option=select.selectedOptions[0];x.bank=select.value;x.iban=option?.dataset.iban||'';if(iban)iban.value=x.iban}
+ }
+ if(iban){iban.readOnly=true;iban.value=x.iban||ttCustomsBankRow(s,c)?.[9]||'';iban.title='Filled automatically from the selected shipper bank.'}
+ const desc=d.querySelector('#cuDesc');if(desc&&x.descriptionSource!=='amended')desc.value=contractDescription;
+ const output=[...d.querySelectorAll('.section')].find(section=>/CUSTOMS PDF OUTPUT/i.test(section.textContent));
+ if(output&&!d.querySelector('#customsOutputReviews')){
+  output.insertAdjacentHTML('beforeend',`<div id="customsOutputReviews" class="customsOutputReviews"><div><h4>Custom Invoice Review</h4><div class="outputReviewPaper">${commercialInvoiceDoc(s,c,true)}</div></div><div><h4>Custom Packing Review</h4><div class="outputReviewPaper">${packingListDoc(s,c,true)}</div></div><div><h4>Phytosanitary Invoice Review</h4><div class="outputReviewPaper">${phytoInvoiceDoc(s,c)}</div></div></div>`)
+ }
+};
 
 window.addEventListener('error',e=>console.error('Transtrade Export Clean V2',e.error||e.message));
 mount();

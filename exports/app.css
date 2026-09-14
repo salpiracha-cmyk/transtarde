@@ -100,3 +100,15 @@
 .salesContractPage .contractBankMissing{color:#8d2b2b;font-weight:700}
 .salesContractPage .contractSignatureGrid{display:grid;grid-template-columns:1fr 1fr;gap:60px;margin-top:24px;break-inside:avoid;page-break-inside:avoid}
 .salesContractPage .contractSignatureGrid h3{margin:0;text-decoration:underline;font-size:11px}.salesContractPage .contractSignatureSpace{height:62px;display:flex;align-items:flex-end}.salesContractPage .contractSignatureSpace img{display:block;max-width:52mm;max-height:20mm;object-fit:contain;object-position:left bottom}
+
+/* 2026-09-14 accepted output and form layout corrections */
+.docPage.branded{padding-top:64mm!important}
+.docTitle{margin-top:0!important;margin-bottom:7px!important}
+.salesContractPage .docTitle{font-size:27px!important;text-decoration:underline;text-underline-offset:4px}
+.contractBankLines{display:block!important}.contractBankLines>div{display:flex!important;gap:5px;margin:2px 0}.contractBankLines b{display:inline!important;min-width:82px;text-decoration:none!important}.contractBankLines span{display:inline!important}
+.managedSelectBox{display:grid;grid-template-columns:minmax(0,1fr) 36px;border:1px solid #ccd6dc;border-radius:8px;overflow:hidden;background:#fff}.managedSelectBox select{border:0!important;border-radius:0!important}.managedSelectDelete{width:36px;border:0;border-left:1px solid #ccd6dc;border-radius:0}
+.loadingVesselVoyageInputs{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.specimenReference{grid-template-columns:repeat(3,minmax(0,1fr))}.specimenReference>div{border-bottom:0!important}.specimenReference>div span{display:inline-block;border-bottom:1px solid #222;padding:0 0 2px}.specimenReference .specimenDate{grid-column:1}.specimenReference .specimenRef{grid-column:3;text-align:right}.specimenRoute .specimenTerms{margin:7px 0 0}
+.customInvoiceGoods th:nth-child(1){width:16%}.customInvoiceGoods th:nth-child(2){width:17%}.customInvoiceGoods th:nth-child(3){width:28%}.customInvoiceGoods th:nth-child(4){width:10%}.customInvoiceGoods th:nth-child(5){width:14%}.customInvoiceGoods th:nth-child(6){width:15%}.customInvoiceGoods td{overflow-wrap:anywhere;word-break:normal}
+.customsOutputReviews{display:grid;grid-template-columns:1fr;gap:16px;margin-top:14px}.customsOutputReviews>div{border-top:1px solid var(--line);padding-top:10px}.outputReviewPaper{height:560px;overflow:auto;background:#dfe5e8;padding:10px}.outputReviewPaper>.printDoc{width:210mm;transform:scale(.55);transform-origin:top left;margin-bottom:-130mm}.outputReviewPaper .docPage{box-shadow:0 8px 24px #102b3b24}
+.poCompany{text-align:center;font:900 21px Georgia,"Times New Roman",serif;letter-spacing:.06em;margin-bottom:7px}.poNotes{margin-top:14px;border:1px solid #222;padding:8px}.poNotes ol{margin:6px 0 0 20px;padding:0}.poNotes li{margin:4px 0}.poMarkingCaption{text-align:center;margin-top:8px;font-weight:700}

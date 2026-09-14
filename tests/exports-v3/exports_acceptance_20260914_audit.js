@@ -1,0 +1,13 @@
+const fs=require('fs'),assert=require('assert');
+const app=fs.readFileSync('exports/app.js','utf8'),css=fs.readFileSync('exports/app.css','utf8'),admin=fs.readFileSync('index.html','utf8');
+const has=x=>assert(app.includes(x),'Missing acceptance marker: '+x);
+has("const TT_PORTS=['Port Qasim, Pakistan','Karachi Port, Pakistan'];");
+has('Have you received the signed Sales Contract?');
+has('SAVE & REISSUE SAME LOADING INSTRUCTION');
+has('Calculated proportionally from the Bag Order');
+has('Custom Packing Review');has('Phytosanitary Invoice Review');
+has('ACCOUNT TITLE:</b>');has('SWIFT CODE:</b>');has('TRANSTRADE INTERNATIONAL');
+assert(!app.includes("issuePO=function(){const s=shipment(),po=ensureBagDraft();if(!contractByRef(s.contractRef).received"),'Signed gate remains in Bag Order');
+assert(css.includes('.salesContractPage .docTitle{font-size:27px'), 'Sales Contract title rule missing');
+assert(admin.includes('brand-theme.css?v=20260914-control-centre-1'),'Control Centre theme missing');
+console.log('Exports A-S acceptance static audit passed.');

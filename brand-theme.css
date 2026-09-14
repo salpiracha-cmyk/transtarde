@@ -47,3 +47,7 @@ button:not(.danger):not(.red):not(.xBtn):not(.optionMinus).active{
 #printRoot,.printDoc{--navy:#0d2b38;--nav2:#153f50;--nav:#102a46;--blue:#1c6c9e;--green:#16825d;--bg:#fff;--line:#d9e2e7;--ink:#182630}
 .printDoc,.printDoc .docPage{background:#fff!important;color:#111!important}
 
+
+/* Super Admin Control Centre — approved Transtrade green palette */
+:root{--navy:#2e4527;--navy-2:#3b5d3d;--blue:#4f7650;--blue-soft:#e8f0e5;--canvas:#f4f0e6;--line:#cbd8c7;--ink:#2b2217;--muted:#6c7167;--green:#4f7650;--green-soft:#e8f0e5}
+.sidebar{background:linear-gradient(180deg,#2e4527 0%,#23371f 100%)!important}.nav-item.active{background:linear-gradient(90deg,#4f7650,#608960)!important;box-shadow:0 8px 20px rgba(46,69,39,.30)!important}.avatar,.button.primary{background:#4f7650!important}.button.primary:hover{background:#3b5d3d!important}.module-card::before{background:#4f7650!important}.topbar{border-color:#cbd8c7!important}
