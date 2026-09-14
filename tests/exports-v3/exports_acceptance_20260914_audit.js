@@ -6,6 +6,8 @@ has('Have you received the signed Sales Contract?');
 has('SAVE & REISSUE SAME LOADING INSTRUCTION');
 has('const reissueDraft=shipment()?.loading?.draft');
 has('Calculated proportionally from the Bag Order');
+has('function ttRecoverEmptyManagedOptions(select,group)');
+has('At least one '+"'+TT_REMOVABLE_OPTION_GROUPS[group].label+'"+' option must remain available.');
 has('Automatically taken from the Sales Contract inspection.');
 has("create.textContent='+ FI'");
 has('An FI allocation of at least');
@@ -33,5 +35,5 @@ assert(css.includes('.salesContractFlowPage .docTitle'),'Continuous Sales Contra
 assert(css.includes('.contractFlowLayout>thead{display:table-header-group}'),'Repeated heading print rule missing');
 assert(css.includes('.customsPreviewStack'),'Single Customs preview stack style missing');
 assert(admin.includes('brand-theme.css?v=20260914-control-centre-1'),'Control Centre theme missing');
-assert(/app\.js\?v=20260914-exports-handover-7/.test(exportsIndex),'Exports cache-bust marker missing');
+assert(/app\.js\?v=20260914-exports-handover-8/.test(exportsIndex),'Exports cache-bust marker missing');
 console.log('Exports September 14 exact acceptance audit passed.');
