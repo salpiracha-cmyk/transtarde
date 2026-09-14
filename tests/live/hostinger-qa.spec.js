@@ -162,6 +162,7 @@ async function createBulkQaShipment(page, { suffix, index, lotRef, contractRef, 
   await expect(page.locator('#piInspection')).toHaveValue('No');
   await expect(page.locator('#piInspection')).toHaveAttribute('readonly', '');
   await page.locator('#sendPI').click();
+  await expect(page.getByText('PRODUCTION INSTRUCTIONS ALREADY SENT')).toBeVisible();
   await waitForSharedSave(page);
 
   await page.locator('[data-workspace="loading"]').click();
@@ -449,7 +450,10 @@ test('live bulk QA: automatic lot references and isolated B/L returns', async ({
   const errors = [];
   page.on('pageerror', error => errors.push(String(error)));
   page.on('popup', async popup => popup.close().catch(() => {}));
-  page.on('dialog', async dialog => dialog.dismiss().catch(() => {}));
+  page.on('dialog', async dialog => {
+    if (/received the signed Sales Contract/i.test(dialog.message())) await dialog.accept().catch(() => {});
+    else await dialog.dismiss().catch(() => {});
+  });
 
   const suffix = RUN_TOKEN.slice(-7);
   const sameLot = `LOT-SAME-${suffix}`;
