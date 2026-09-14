@@ -112,3 +112,44 @@
 .customInvoiceGoods th:nth-child(1){width:16%}.customInvoiceGoods th:nth-child(2){width:17%}.customInvoiceGoods th:nth-child(3){width:28%}.customInvoiceGoods th:nth-child(4){width:10%}.customInvoiceGoods th:nth-child(5){width:14%}.customInvoiceGoods th:nth-child(6){width:15%}.customInvoiceGoods td{overflow-wrap:anywhere;word-break:normal}
 .customsOutputReviews{display:grid;grid-template-columns:1fr;gap:16px;margin-top:14px}.customsOutputReviews>div{border-top:1px solid var(--line);padding-top:10px}.outputReviewPaper{height:560px;overflow:auto;background:#dfe5e8;padding:10px}.outputReviewPaper>.printDoc{width:210mm;transform:scale(.55);transform-origin:top left;margin-bottom:-130mm}.outputReviewPaper .docPage{box-shadow:0 8px 24px #102b3b24}
 .poCompany{text-align:center;font:900 21px Georgia,"Times New Roman",serif;letter-spacing:.06em;margin-bottom:7px}.poNotes{margin-top:14px;border:1px solid #222;padding:8px}.poNotes ol{margin:6px 0 0 20px;padding:0}.poNotes li{margin:4px 0}.poMarkingCaption{text-align:center;margin-top:8px;font-weight:700}
+
+/* Fresh consolidated document-output layout. */
+.docPage.branded{padding-top:57mm!important}
+.docPage.branded>.docTitle{margin-top:0!important;margin-bottom:4px!important}
+.salesContractFlowPage{height:auto!important;min-height:297mm!important;overflow:visible!important;padding:8mm 16mm 16mm!important;page-break-after:auto!important}
+.contractFlowLayout{width:100%;border-collapse:collapse}
+.contractFlowLayout>thead>tr>td,.contractFlowLayout>tbody>tr>td{padding:0;border:0}
+.contractFlowLayout .docLetterhead{position:relative;inset:auto;height:54mm;margin:0;overflow:hidden}
+.contractFlowLayout .docLetterheadText{position:relative;inset:auto;height:48mm;margin:0;border-bottom:2px solid #446b54}
+.salesContractFlowPage .docTitle{margin:0 0 5px!important;font-size:28px!important;line-height:1.1;text-decoration:underline;text-underline-offset:4px}
+.salesContractFlowPage .docSection{margin:10px 0 1px!important;color:#111!important;font-family:Arial,Helvetica,sans-serif!important;font-size:10.5px!important;font-weight:900!important;letter-spacing:.025em!important;text-decoration:underline!important;text-transform:uppercase!important}
+.salesContractFlowPage .docValue{margin:0 0 5px;font-size:10.8px;line-height:1.38}
+.salesContractFlowPage .contractPriceBlock{text-align:center;margin:0 0 7px;padding:2px 8px 6px}
+.salesContractFlowPage .contractPriceLine{font-size:12px;line-height:1.55}
+.salesContractFlowPage .contractPriceLine strong{font-size:13px}
+.contractPriceItem{break-inside:avoid;page-break-inside:avoid;margin-bottom:4px}
+.contractPriceComponents{display:inline-grid;grid-template-columns:repeat(3,auto);gap:4px 18px;margin:3px auto 0;text-align:left;font-size:10px}
+.contractPriceComponents b{font-size:9px}
+.salesContractFlowPage .contractPaymentSummary{font-size:10.8px;line-height:1.4}
+.salesContractFlowPage .contractBankLines>div{display:flex;gap:5px;margin:2px 0}
+.salesContractFlowPage .contractSignatureGrid{display:grid;grid-template-columns:1fr 1fr;gap:60px;margin-top:18px;break-inside:avoid;page-break-inside:avoid}
+.customInvoiceGoods th:nth-child(1){width:15%}.customInvoiceGoods th:nth-child(2){width:18%}.customInvoiceGoods th:nth-child(3){width:27%}.customInvoiceGoods th:nth-child(4){width:10%}.customInvoiceGoods th:nth-child(5){width:14%}.customInvoiceGoods th:nth-child(6){width:16%}
+.customPackingGoods th:nth-child(1){width:18%}.customPackingGoods th:nth-child(2){width:22%}.customPackingGoods th:nth-child(3){width:30%}.customPackingGoods th:nth-child(4),.customPackingGoods th:nth-child(5){width:15%}
+.customInvoiceGoods td,.customPackingGoods td{overflow-wrap:anywhere;word-break:normal}
+.customsPreviewStack{display:grid;gap:18px}
+.customsPreviewStack>section{border-bottom:1px solid #bac5ca;padding-bottom:12px}
+.customsPreviewStack>section>h4{margin:0 0 7px;color:#26343c}
+.customsPreviewStack .printDoc{width:210mm;transform:scale(.55);transform-origin:top left;margin-bottom:-128mm}
+.customsPreviewStack .docPage{box-shadow:0 8px 24px #102b3b24}
+.poTaxNote{margin:7px 0 0;font-size:10px;font-weight:700}
+.bagPoPage .bagPoMarks{margin-top:3mm;gap:3mm}
+.bagPoPage .bagPoMark{padding:2mm}
+.bagPoPage .bagPoMark img{height:48mm}
+.bagPoPage .bagPoInstruction{margin-top:3mm;padding:3mm;font-size:14px;font-weight:900}
+@media print{
+ .contractFlowLayout>thead{display:table-header-group}
+ .contractFlowLayout>tbody{display:table-row-group}
+ .salesContractFlowPage{width:210mm!important}
+ .salesContractFlowPage h3,.salesContractFlowPage .contractPriceItem,.salesContractFlowPage .contractPaymentSummary{break-after:avoid;page-break-after:avoid}
+ .salesContractFlowPage table,.salesContractFlowPage .contractSignatureGrid{break-inside:avoid;page-break-inside:avoid}
+}
