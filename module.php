@@ -11,6 +11,11 @@ if (!isset($modules[$id]) || !is_file($modules[$id])) { http_response_code(404);
 $permissionName = $id === 'milling' ? 'Mill' : 'Exports';
 if (!tt_user_can_open_module($user, $permissionName)) { http_response_code(403); exit('You do not have permission to open this module.'); }
 header('Content-Type: text/html; charset=UTF-8');
+header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
+header('Pragma: no-cache');
+header('Expires: 0');
+header('Vary: Cookie');
+header('X-LiteSpeed-Cache-Control: no-cache');
 $html = (string)file_get_contents($modules[$id]);
 if ($id === 'exports') {
     $cssFile = __DIR__ . '/exports/app.css';
