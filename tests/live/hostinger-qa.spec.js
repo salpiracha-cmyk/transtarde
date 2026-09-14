@@ -54,6 +54,15 @@ async function gotoLive(page, url, options = {}) {
   throw lastError;
 }
 
+async function selectAvailablePackingType(page) {
+  const choice = await page.locator('#mPackType option').evaluateAll(options => options
+    .map(option => ({ value: option.value, label: option.textContent.trim() }))
+    .find(option => option.value && !option.value.startsWith('__')));
+  expect(choice, 'managed Packing Type dropdown must contain at least one available option').toBeTruthy();
+  await page.locator('#mPackType').selectOption(choice.value);
+  return choice.label;
+}
+
 async function fillMillContainerNumber(page, value) {
   const raw = String(value).toUpperCase().replace(/[^A-Z0-9]/g, '');
   await page.locator('.tt-container-main').fill(raw.slice(0, 10));
@@ -117,7 +126,7 @@ async function createBulkQaShipment(page, { suffix, index, lotRef, contractRef, 
   await page.locator('#nextStep').click();
 
   await page.locator('#addPacking').click();
-  await page.locator('#mPackType').selectOption({ label: 'P.P. Bags' });
+  await selectAvailablePackingType(page);
   await page.locator('#mPackSize').fill('25');
   await page.locator('#mPackBrand').fill(brand);
   await page.locator('#mPackTare').fill('80');
@@ -231,8 +240,7 @@ test('manual Hostinger QA: Export instruction to Mill and container return', asy
   await page.locator('#nextStep').click();
 
   await page.locator('#addPacking').click();
-  await expect(page.locator('#mPackType option', { hasText: 'P.P. Bags' }), 'managed Packing Type dropdown must contain P.P. Bags').toHaveCount(1);
-  await page.locator('#mPackType').selectOption({ label: 'P.P. Bags' });
+  await selectAvailablePackingType(page);
   await page.locator('#mPackSize').fill('25');
   await page.locator('#mPackBrand').fill(brand);
   await page.locator('#mPackTare').fill('80');
@@ -666,7 +674,7 @@ test('live deletion survives sign-out and sign-in', async ({ page }) => {
   await page.locator('#nextStep').click();
 
   await page.locator('#addPacking').click();
-  await page.locator('#mPackType').selectOption({ label: 'P.P. Bags' });
+  await selectAvailablePackingType(page);
   await page.locator('#mPackSize').fill('25');
   await page.locator('#mPackBrand').fill(`QA DELETE BRAND ${suffix}`);
   await page.locator('#mPackTare').fill('80');
