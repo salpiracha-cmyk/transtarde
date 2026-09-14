@@ -14,7 +14,7 @@ function finalSlice(start, end, limit = 30000) {
   return app.slice(at, stop > at ? stop : at + limit);
 }
 
-const customs = finalSlice('function freshCustomsInvoiceDocument', 'function freshCustomPackingDocument');
+const customs = finalSlice('freshCustomsInvoiceDocument=function', 'freshCustomPackingDocument=function');
 assert.match(customs, /CUSTOMS INVOICE/);
 assert.match(customs, /NUMBER AND KIND OF PACKAGES/);
 assert.match(customs, /TOTAL NET WEIGHT|NET WEIGHT/);
@@ -27,7 +27,7 @@ assert.match(customs, /BANK NAME/);
 assert.match(customs, /IBAN/);
 assert.doesNotMatch(customs, /ILLUSTRATIVE PREVIEW|SAMPLE DATA/);
 
-const packing = finalSlice('function freshCustomPackingDocument', 'phytoInvoiceDoc=function');
+const packing = finalSlice('freshCustomPackingDocument=function', 'phytoInvoiceDoc=function');
 assert.match(packing, /CUSTOM PACKING LIST/);
 assert.match(packing, /TOTAL NET WEIGHT/);
 assert.match(packing, /TARE WEIGHT/);
