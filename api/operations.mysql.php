@@ -141,7 +141,7 @@ function operations_union_rows(array $current, array $incoming, array $identitie
 }
 
 function operations_export_reset_marker(): string {
-    return '2026-09-11-operational-reset-v1';
+    return '2026-09-14-operational-reset-v2';
 }
 
 function operations_reset_export_payload(string $json): array {
@@ -149,17 +149,16 @@ function operations_reset_export_payload(string $json): array {
     if (!is_array($root)) return [$json, false];
     $settings = (array)($root['settings'] ?? []);
     if (($settings['exportOperationalReset'] ?? '') === operations_export_reset_marker()) return [$json, false];
-    foreach (['fi', 'contracts', 'shipments', 'accountsReceipts', 'alerts'] as $key) $root[$key] = [];
+    foreach (['customers', 'suppliers', 'fi', 'contracts', 'shipments', 'accountsReceipts', 'alerts', 'deletedShipments'] as $key) $root[$key] = [];
     $root['millSync'] = ['newExportBags'=>[], 'productionInstructions'=>[], 'exportLoading'=>[]];
-    $root['audits'] = (array)($root['audits'] ?? []);
-    array_unshift($root['audits'], [
-        'id'=>'AUD-EXPORT-RESET-20260911',
+    $root['audits'] = [[
+        'id'=>'AUD-EXPORT-RESET-20260914',
         'at'=>gmdate('c'),
         'user'=>'System',
         'area'=>'Exports',
         'action'=>'Operational data reset approved by Super Admin',
-        'detail'=>'Contracts, shipments/lots, FI, receipts, alerts, linked Mill instructions and uploaded operational documents cleared; customer and shared masters preserved.'
-    ]);
+        'detail'=>'All user-entered and bulk-test Export operational data cleared. Module code, users, permissions, settings and shared master definitions preserved.'
+    ]];
     $settings['exportOperationalReset'] = operations_export_reset_marker();
     $root['settings'] = $settings;
     return [json_encode($root, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR), true];
