@@ -124,12 +124,14 @@
 .salesContractFlowPage .docTitle{margin:0 0 5px!important;font-size:28px!important;line-height:1.1;text-decoration:underline;text-underline-offset:4px}
 .salesContractFlowPage .docSection{margin:10px 0 1px!important;color:#111!important;font-family:Arial,Helvetica,sans-serif!important;font-size:10.5px!important;font-weight:900!important;letter-spacing:.025em!important;text-decoration:underline!important;text-transform:uppercase!important}
 .salesContractFlowPage .docValue{margin:0 0 5px;font-size:10.8px;line-height:1.38}
-.salesContractFlowPage .contractPriceBlock{text-align:center;margin:0 0 7px;padding:2px 8px 6px}
+.salesContractFlowPage .contractPriceBlock{text-align:left;margin:0 0 7px;padding:2px 8px 6px}
 .salesContractFlowPage .contractPriceLine{font-size:12px;line-height:1.55}
 .salesContractFlowPage .contractPriceLine strong{font-size:13px}
-.contractPriceItem{break-inside:avoid;page-break-inside:avoid;margin-bottom:4px}
-.contractPriceComponents{display:inline-grid;grid-template-columns:repeat(3,auto);gap:4px 18px;margin:3px auto 0;text-align:left;font-size:10px}
+.contractPriceItem{break-inside:avoid;page-break-inside:avoid;margin-bottom:7px}
+.contractPriceComponents{display:grid;grid-template-columns:repeat(3,max-content);justify-content:start;gap:4px 18px;margin:3px 0;font-size:10px}
 .contractPriceComponents b{font-size:9px}
+.salesContractFlowPage .contractPriceCalculation,.salesContractFlowPage .contractPriceGrandTotal{text-align:center;font-size:11px;line-height:1.35;margin:5px 0 0}
+.salesContractFlowPage .contractPriceWords{text-align:center;font-size:10.8px;line-height:1.3;margin-top:2px}
 .salesContractFlowPage .contractPaymentSummary{font-size:10.8px;line-height:1.4}
 .salesContractFlowPage .contractBankLines>div{display:flex;gap:5px;margin:2px 0}
 .salesContractFlowPage .contractSignatureGrid{display:grid;grid-template-columns:1fr 1fr;gap:60px;margin-top:18px;break-inside:avoid;page-break-inside:avoid}

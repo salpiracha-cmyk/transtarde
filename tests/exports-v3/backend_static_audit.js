@@ -109,7 +109,7 @@ assert.match(js,/As per Buyer Specification/,'Sales Contract must offer Buyer Sp
 assert.match(js,/No specification chart is required for Pakistan Origin Standards/,'origin-standard contracts must hide the specification chart');
 assert.match(js,/As per below specification\./,'buyer-specific contracts must introduce the specification table');
 assert.match(js,/On or before/,'contract shipment output must use the approved date wording');
-assert.match(js,/PMT \$\{esc\(c\.incoterm\)\}/,'contract price must show PMT and Incoterm');
+assert.match(js,/TOTAL \$\{esc\(c\.incoterm\)\} VALUE/,'contract price must show the specimen Incoterm calculation');
 assert.match(js,/balance on scan copies of shipment documents/,'scan-copy payment summary must use approved wording');
 assert.match(js,/shall be received latest by/,'advance clause must use the single payment-validity date');
 assert.match(js,/upon receipt of scan copies of shipment documents by Buyer/,'scan balance clause must use approved wording');

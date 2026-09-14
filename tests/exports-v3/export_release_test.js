@@ -147,8 +147,8 @@ assert.match(normalContract,/contractFlowLayout/);
 assert.doesNotMatch(normalContract,/PAGE 1 OF|PAGE 2 OF/);
 for(const heading of ['PORT OF LOADING','PORT OF DISCHARGE','INSURANCE','PACKING / BRAND-MARKING','OTHER TERMS AND CONDITIONS','DOCUMENTS TO BE PRESENTED FOR NEGOTIATION'])assert.match(normalContract,new RegExp(heading));
 assert.match(normalContract,/Packed in new single PP Bags of 25 kgs each with buyer’s marking \/ Star brand\./);
-assert.match(normalContract,/USD <\/span><strong>410\.00<\/strong><span> PMT CFR Jebel Ali, United Arab Emirates/);
-assert.match(normalContract,/TOTAL CONTRACT VALUE[\s\S]*USD 221,400\.00/);
+assert.match(normalContract,/USD\. <\/span><strong>410\.00<\/strong><span> CFR Jebel Ali, United Arab Emirates\./);
+assert.match(normalContract,/TOTAL CFR VALUE 540 MT × USD 410\.00[\s\S]*USD\. 221,400\.00\/=/);
 assert.match(normalContract,/UNITED STATES DOLLARS TWO HUNDRED TWENTY ONE THOUSAND FOUR HUNDRED ONLY/);
 assert.match(normalContract,/EDITABLE TERM/);
 const purchaseOrder=t.purchaseOrderPrint({poNo:'PO-260001',supplier:'QA BAG SUPPLIER',requiredDate:'2026-09-20',deliverTo:'TTI RICE MILLS',lines:[{brand:'STAR',type:'P.P. Bags',size:25,unit:'KG',tare:80,totalBags:21816,handle:'No',artworkData:'data:image/png;base64,AA==',masterBag:{enabled:true,bagsPerMaster:20,quantity:1091,tare:120,printed:false}}]});
@@ -192,7 +192,7 @@ assert.equal(phytosanitary.replaceAll('PHYTOSANITARY INVOICE','CUSTOM INVOICE'),
 
 const cifContract={...c,incoterm:'CIF',insurance:"Seller's Account",showAllPrices:true,paymentCode:'ADV_CAD',advancePct:30,terms:["Insurance shall be for Buyer’s account."],termsInitialized:true,packings:c.packings.map(p=>({...p,contractRate:425,price:398,freight:25,insurance:2}))};
 const cifOutput=t.salesContractPrint(cifContract);
-assert.match(cifOutput,/USD <\/span><strong>425\.00<\/strong><span> PMT CIF/);
+assert.match(cifOutput,/USD\. <\/span><strong>425\.00<\/strong><span> CIF/);assert.match(cifOutput,/TOTAL CIF VALUE 540 MT × USD 425\.00/);
 assert.match(cifOutput,/FOB VALUE:<\/b> USD 398\.00 PMT/);
 assert.match(cifOutput,/FREIGHT:<\/b> USD 25\.00 PMT/);
 assert.match(cifOutput,/INSURANCE:<\/b> USD 2\.00 PMT/);
