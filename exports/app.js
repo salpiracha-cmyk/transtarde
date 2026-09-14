@@ -971,7 +971,9 @@ function ttProportionalEmptyBags(process,contract,draft){
 }
 const ttRenderLoadingBeforeAcceptance=renderLoading;
 renderLoading=function(d){
- ttRenderLoadingBeforeAcceptance(d);
+ const reissueDraft=shipment()?.loading?.draft,reissueLot=reissueDraft?._reissueLotId?state.shipments.find(x=>x.id===reissueDraft._reissueLotId):null,reissueWasCancelled=reissueLot?.cancelled;
+ if(reissueLot)reissueLot.cancelled=true;
+ try{ttRenderLoadingBeforeAcceptance(d)}finally{if(reissueLot)reissueLot.cancelled=!!reissueWasCancelled}
  const p=shipment(),c=p&&contractByRef(p.contractRef),draft=p?.loading?.draft;if(!draft||!c)return;
  const head=d.querySelector('.grid3'),physical=d.querySelector('#liPhysicalContainers')?.closest('.field'),programme=d.querySelector('#liProgramme')?.closest('.field'),booking=d.querySelector('#liBooking');
  if(booking){booking.value=draft.loadingProgrammeNo||booking.value;booking.closest('.field')?.remove()}
