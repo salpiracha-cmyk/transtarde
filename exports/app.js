@@ -419,7 +419,7 @@ function renderWorkspaceDetail(){renderWorkspaceDetailBeforeRestoredLot();const 
 
 function restoredLotTiles(s,c){const tiles=LOT_TILES.filter(([k])=>(k!=='lcdraft'||lcApplies(s,c))&&(k!=='tg'||s.seller==='TG')).map(row=>row[0]==='certs'?[row[0],row[1],'+ Certificate']:row);const certificateIndex=tiles.findIndex(([k])=>k==='certs');if(!tiles.some(([k])=>k==='uploads'))tiles.splice(certificateIndex<0?tiles.length:certificateIndex+1,0,['uploads','⇧','Upload Documents']);return tiles}
 
-function renderShipmentWorkspace(){const s=shipment();if(!s||s.kind!=='lot')return renderShipmentWorkspaceBeforeLotDocuments();renderNav();const c=contractByRef(s.contractRef);if(!c)return renderShipments();const tiles=restoredLotTiles(s,c),editor=activeWorkspace?`<section class="lotEditorShell" aria-label="${esc(LOT_EDITOR_TITLES[activeWorkspace]||'Lot document')}"><div class="lotEditorHead"><h3>${esc(LOT_EDITOR_TITLES[activeWorkspace]||'Lot document')}</h3><button class="lotEditorClose" id="closeLotEditor" type="button" aria-label="Close document editor">×</button></div><div class="workspaceDetail" id="workspaceDetail"></div></section>`:'';document.getElementById('main').innerHTML=`<button class="backLink" id="backShipments">← Back to Export Home</button><div class="panel workspaceHead"><div><h2>${esc(s.contractRef)} — ${esc(s.lotId)}</h2><div class="metaText">${esc(s.buyer)} · ${num(s.plannedQty).toFixed(3)} MT · ${num(s.containers)} container(s)</div></div><div class="toolbar"><button class="btn soft" id="combineLots">Combine Lots / GDs</button><button class="btn red small" id="cancelLot">Cancel Lot</button></div></div>${editor}<div class="workspacePanel"><div class="workspaceTiles">${tiles.map(([k,icon,label])=>`<button class="workspaceTile ${activeWorkspace===k?'active':''}" data-workspace="${k}" aria-expanded="${activeWorkspace===k}"><span class="workspaceGlyph">${icon}</span><b>${label}</b><small>${tileStatus(k,s)}</small></button>`).join('')}</div></div>`;document.getElementById('backShipments').onclick=()=>{activeWorkspace='';view='home';render()};document.getElementById('combineLots').onclick=()=>openCombineLots(s);document.getElementById('closeLotEditor')?.addEventListener('click',closeLotEditor);document.querySelectorAll('[data-workspace]').forEach(button=>button.onclick=()=>{activeWorkspace=button.dataset.workspace;renderShipmentWorkspace();document.querySelector('.lotEditorShell')?.scrollIntoView?.({behavior:'smooth',block:'start'})});renderWorkspaceDetail()};
+function renderShipmentWorkspace__morning_base(){const s=shipment();if(!s||s.kind!=='lot')return renderShipmentWorkspaceBeforeLotDocuments();renderNav();const c=contractByRef(s.contractRef);if(!c)return renderShipments();const tiles=restoredLotTiles(s,c),editor=activeWorkspace?`<section class="lotEditorShell" aria-label="${esc(LOT_EDITOR_TITLES[activeWorkspace]||'Lot document')}"><div class="lotEditorHead"><h3>${esc(LOT_EDITOR_TITLES[activeWorkspace]||'Lot document')}</h3><button class="lotEditorClose" id="closeLotEditor" type="button" aria-label="Close document editor">×</button></div><div class="workspaceDetail" id="workspaceDetail"></div></section>`:'';document.getElementById('main').innerHTML=`<button class="backLink" id="backShipments">← Back to Export Home</button><div class="panel workspaceHead"><div><h2>${esc(s.contractRef)} — ${esc(s.lotId)}</h2><div class="metaText">${esc(s.buyer)} · ${num(s.plannedQty).toFixed(3)} MT · ${num(s.containers)} container(s)</div></div><div class="toolbar"><button class="btn soft" id="combineLots">Combine Lots / GDs</button><button class="btn red small" id="cancelLot">Cancel Lot</button></div></div>${editor}<div class="workspacePanel"><div class="workspaceTiles">${tiles.map(([k,icon,label])=>`<button class="workspaceTile ${activeWorkspace===k?'active':''}" data-workspace="${k}" aria-expanded="${activeWorkspace===k}"><span class="workspaceGlyph">${icon}</span><b>${label}</b><small>${tileStatus(k,s)}</small></button>`).join('')}</div></div>`;document.getElementById('backShipments').onclick=()=>{activeWorkspace='';view='home';render()};document.getElementById('combineLots').onclick=()=>openCombineLots(s);document.getElementById('closeLotEditor')?.addEventListener('click',closeLotEditor);document.querySelectorAll('[data-workspace]').forEach(button=>button.onclick=()=>{activeWorkspace=button.dataset.workspace;renderShipmentWorkspace();document.querySelector('.lotEditorShell')?.scrollIntoView?.({behavior:'smooth',block:'start'})});renderWorkspaceDetail()};
 
 const renderContractEditorBeforePackingSource=renderContractEditor;
 function renderContractEditor__legacy_v0(){if(contractDraft){contractDraft.packings.forEach(p=>p.weightPer=num(contractDraft.weightPer));syncQty()}return renderContractEditorBeforePackingSource()};
@@ -922,7 +922,7 @@ function salesPackingLine(p,c,i,total){
  return`${main}<br>Further packed in master bags of ${weight} ${esc(unit.toLowerCase()==='kg'?'kgs':unit)} each ( ${per} bags x ${num(p.size)} ${esc(unit.toLowerCase()==='kg'?'kgs':unit)} in one master).`
 };
 const ttSalesContractBeforeAcceptance=salesContractPrint__legacy_v2;
-function salesContractPrint(c){
+function salesContractPrint__morning_base(c){
  ensureContractTerms(c);
  const b=buyerOf(c),packings=c.packings||[],buyerSpec=buyerSpecificationSelected(c),specs=buyerSpec?contractSpecRows(c):[],terms=effectiveTerms(c),docs=documentsPresented(c),total=packings.length;
  const field=(heading,value,cls='')=>`<h3 class="docSection">${heading}</h3><div class="docValue ${cls}">${value}</div>`;
@@ -1209,7 +1209,7 @@ function freshCustomPackingDocument(s,c){
 };
 function phytoInvoiceDoc(s,c){return freshCustomsInvoiceDocument(s,c,'PHYTOSANITARY INVOICE')};
 const ttCommercialInvoiceHandoverBase=commercialInvoiceDoc__legacy_v7;
-function commercialInvoiceDoc(s,c,custom=false){return custom?freshCustomsInvoiceDocument(s,c,'CUSTOMS INVOICE'):ttCommercialInvoiceHandoverBase(s,c,false)};
+function commercialInvoiceDoc__morning_base(s,c,custom=false){return custom?freshCustomsInvoiceDocument(s,c,'CUSTOMS INVOICE'):ttCommercialInvoiceHandoverBase(s,c,false)};
 function packingListDoc(s,c,custom=false){if(custom)return freshCustomPackingDocument(s,c);return ttFreshPackingBase(s,c,false)};
 
 function ttBlValue(value,fallback=''){return esc(ttOutputEnglish(String(value||fallback||'')))}
@@ -1249,7 +1249,7 @@ function issuePO(){
  return ttIssuePOBeforeHandover()
 };
 
-function purchaseOrderPrint(po){
+function purchaseOrderPrint__morning_base(po){
  const lines=po.lines||[],normalRows=[],masterRows=[];let serial=1;
  for(const line of lines){
   const marking=line.artworkData?`<img class="poInlineMarking" src="${esc(line.artworkData)}" alt="${esc(ttOutputEnglish(line.brand))} approved bag marking">`:'';
@@ -1363,9 +1363,8 @@ function customsOutputPayment(s,c){
 
 
 /* 2026-09-15 final document presentation and process-status authority. */
-const ttMorningSalesBase=salesContractPrint;
-function ttMorningSalesContractPrint(c){
- const html=ttMorningSalesBase(c),shell=document.createElement('template');shell.innerHTML=html;
+function salesContractPrint(c){
+ const html=salesContractPrint__morning_base(c),shell=document.createElement('template');shell.innerHTML=html;
  const page=shell.content.querySelector('.salesContractFlowPage'),table=page?.querySelector('.contractFlowLayout'),head=table?.querySelector('thead td'),body=table?.querySelector('tbody td');
  if(!table||!head||!body)return html;
  const title=head.querySelector('.docTitle');title?.remove();
@@ -1375,9 +1374,7 @@ function ttMorningSalesContractPrint(c){
  const foot=document.createElement('tfoot');foot.innerHTML=`<tr><td><div class="contractPrintFooter">${footer?footer.outerHTML:''}<span class="contractPageNumber"></span></div></td></tr>`;table.appendChild(foot);
  return shell.innerHTML
 }
-salesContractPrint=ttMorningSalesContractPrint;
-const ttMorningPOBase=purchaseOrderPrint;
-function ttMorningPurchaseOrderPrint(po){
+function purchaseOrderPrint(po){
  const lines=po.lines||[],normal=[],masters=[],summaries=new Map();let serial=1,grand=0;
  const addSummary=(type,size,unit,quantity)=>{const key=[ttOutputEnglish(type),num(size),String(unit||'KG').toUpperCase()].join('|'),row=summaries.get(key)||{type:ttOutputEnglish(type),size:num(size),unit:String(unit||'KG').toUpperCase(),quantity:0};row.quantity+=num(quantity);summaries.set(key,row);grand+=num(quantity)};
  for(const line of lines){
@@ -1393,42 +1390,35 @@ function ttMorningPurchaseOrderPrint(po){
  const rowCount=normal.length+masters.length;
  return`<div class="printDoc"><section class="docPage plainOrderPage poOnePage poRowCount${rowCount}"><div class="poCompany">TRANSTRADE INTERNATIONAL</div><h1 class="docTitle">PURCHASE ORDER</h1><table class="docMeta"><tr><td class="lbl">P.O. Number</td><td>${esc(po.poNo)}</td><td class="lbl">Order Date</td><td>${fmt((po.issuedAt||TODAY()).slice(0,10))}</td></tr><tr><td class="lbl">Supplier</td><td>${esc(ttOutputEnglish(po.supplier))}</td><td class="lbl">Required Delivery</td><td>${po.requiredDate?fmt(po.requiredDate):'To Be Advised Later'}</td></tr><tr><td class="lbl">Deliver To</td><td colspan="3">${esc(ttOutputEnglish(po.deliverTo||'To Be Advised Later'))}</td></tr></table><table class="docTable poOrderTable"><thead><tr><th>#</th><th>BRAND AND BAG SPECIFICATION</th><th>APPROVED BAG MARKING<br>GOOD SIDE</th><th>TARE</th><th>BAG SIZE</th><th>TOTAL ORDER</th></tr></thead><tbody>${normal.join('')}${masters.join('')}</tbody></table><div class="poTermsCompact">Bag material, dimensions, tare, printing and workmanship must conform to the approved artwork and specification. No change without prior written approval. Quantity is subject to count and quality inspection.</div><div class="poCritical">KINDLY ENSURE THE P.O. NUMBER IS MENTIONED ON THE DELIVERY ORDER AND ALSO ON THE FINAL BILL.</div><div class="poBagTotals"><b>TOTAL BAGS BY BAG SIZE</b>${totals}<div class="poGrandTotal"><span>GRAND TOTAL — ALL BAGS ORDERED</span><strong>${grand.toLocaleString()} BAGS</strong></div></div><div class="docPageNo">PAGE 1 OF 1</div></section></div>`
 }
-purchaseOrderPrint=ttMorningPurchaseOrderPrint;
-const ttMorningCommercialBase=commercialInvoiceDoc;
-function ttMorningCommercialInvoiceDoc(s,c,custom=false){
+function commercialInvoiceDoc(s,c,custom=false){
  if(custom)return freshCustomsInvoiceDocument(s,c,'CUSTOMS INVOICE');
- const html=ttMorningCommercialBase(s,c,false),shell=document.createElement('template');shell.innerHTML=html,dc=c,x=s.commercial||{},currency=x.currency||dc.currency,lines=invoiceLines(s,dc,false),total=lines.reduce((sum,line)=>sum+num(line.amount),0),advance=Math.min(total,accountsTotal(s,c)),receivable=Math.max(0,total-advance);
+ const html=commercialInvoiceDoc__morning_base(s,c,false),shell=document.createElement('template');shell.innerHTML=html,dc=c,x=s.commercial||{},currency=x.currency||dc.currency,lines=invoiceLines(s,dc,false),total=lines.reduce((sum,line)=>sum+num(line.amount),0),advance=Math.min(total,accountsTotal(s,c)),receivable=Math.max(0,total-advance);
  const table=shell.content.querySelector('.commercialInvoiceGoods'),foot=table?.querySelector('tfoot');
  if(foot){[...foot.querySelectorAll('tr')].slice(1).forEach(row=>row.remove());const first=foot.querySelector('tr');if(first){const cells=first.querySelectorAll('th,td');if(cells.length>=2){cells[cells.length-2].textContent='TOTAL INVOICE VALUE';cells[cells.length-1].textContent=`${currency} ${total.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}`}}}
  const words=shell.content.querySelector('.amountWords'),settlement=document.createElement('div');settlement.className='commercialSettlement';settlement.innerHTML=`<div><span>TOTAL INVOICE VALUE</span><strong>${esc(currency)} ${total.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</strong></div><div><span>LESS ADVANCE RECEIVED</span><strong>${esc(currency)} ${advance.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</strong></div><div class="commercialReceivable"><span>TOTAL RECEIVABLE</span><strong>${esc(currency)} ${receivable.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</strong></div>`;
  if(words){words.before(settlement);words.innerHTML=`<b>AMOUNT IN WORDS — TOTAL RECEIVABLE</b><br>${esc(amountInWords(receivable,currency))}`}
  return shell.innerHTML
 }
-commercialInvoiceDoc=ttMorningCommercialInvoiceDoc;
-function ttMorningPackingListDoc(s,c,custom=false){
+function packingListDoc(s,c,custom=false){
  if(custom)return freshCustomPackingDocument(s,c);
  const dc=c,x=s.commercial||{},t=actualTotals(s,dc),rows=t.rows||[],groups=new Map();
  for(const row of rows){const key=[row.brand,row.packing].join('|'),g=groups.get(key)||{brand:row.brand||'',packing:row.packing||'',bags:0};g.bags+=num(row.bags);groups.set(key,g)}
  const summary=[...groups.values()].map(row=>`${esc(ttOutputEnglish(row.brand))} — ${esc(ttOutputEnglish(row.packing))} — <b>${row.bags.toLocaleString()} BAGS</b>`).join('<br>');
  return pageDoc(dc,'COMMERCIAL PACKING LIST',`${specimenReference(x.invoiceNo||dc.ref,x.date,`<div><b>B/L NO.</b>${esc(s.bl.blNo||'PENDING')}</div>${lcApplies(s,c)?`<div><b>L/C NO.</b>${esc(s.lc.lcNo||'PENDING')}</div>`:''}`)}${specimenPartyBox('CONSIGNEE',buyerOf(dc))}<table class="specimenPackingSummary"><tr><th>DESCRIPTION OF GOODS</th><td>${esc(ttOutputEnglish(dc.product||''))}<br>${esc(ttOutputEnglish(dc.quality||DEFAULT_QUALITY))}</td></tr><tr><th>VESSEL / VOYAGE</th><td>${esc(ttOutputEnglish(s.bl.vessel||intendedVesselFor(s)||'TBA'))} / ${esc(ttOutputEnglish(s.bl.voyage||'TBA'))}</td></tr><tr><th>PACKING</th><td>${summary}</td></tr><tr><th>PORT OF LOADING</th><td>${esc(ttProperNounOutput(s.bl.portOfLoading||dc.pol||''))}</td></tr><tr><th>PORT OF DISCHARGE</th><td>${esc(contractPort(dc))}</td></tr></table><table class="docTable specimenContainerTable commercialPackingContainers"><thead><tr><th>CONTAINER NO.</th><th>SEAL NO.</th><th>PACKAGES</th><th>NET WEIGHT</th><th>TARE WEIGHT</th><th>GROSS WEIGHT</th></tr></thead><tbody>${rows.map(row=>`<tr><td>${esc(row.number||'PENDING')}</td><td>${esc(row.seal||'PENDING')}</td><td>${num(row.bags).toLocaleString()} BAGS</td><td>${(num(row.netKg)/1000).toFixed(3)} MT<br>${num(row.netKg).toFixed(3)} KG</td><td>${(num(row.tareKg)/1000).toFixed(3)} MT<br>${num(row.tareKg).toFixed(3)} KG</td><td>${(num(row.grossKg||row.netKg)/1000).toFixed(3)} MT<br>${num(row.grossKg||row.netKg).toFixed(3)} KG</td></tr>`).join('')}</tbody><tfoot><tr><th colspan="2">TOTAL</th><th>${num(t.bags).toLocaleString()} BAGS</th><th>${(num(t.net)/1000).toFixed(3)} MT<br>${num(t.net).toFixed(3)} KG</th><th>${(num(t.tare)/1000).toFixed(3)} MT<br>${num(t.tare).toFixed(3)} KG</th><th>${(num(t.gross)/1000).toFixed(3)} MT<br>${num(t.gross).toFixed(3)} KG</th></tr></tfoot></table>${signature(dc)}`)
 }
-packingListDoc=ttMorningPackingListDoc;
-function ttMorningCooDoc(s,c,overlay=false){
+function cooDoc(s,c,overlay=false){
  const dc=s.seller==='TG'?pakistanOriginContext(s,c):c,t=actualTotals(s,dc),party=buyerOf(dc),seller=sellerOf(dc),rows=t.rows||[],packages=[...new Map(rows.map(row=>[row.packing,row])).values()].map(row=>{const bags=rows.filter(x=>x.packing===row.packing).reduce((sum,x)=>sum+num(x.bags),0);return`${bags.toLocaleString()} ${esc(ttOutputEnglish(row.packing||'Bags'))}`}).join('<br>'),marks=String(s.customs?.marks||(dc.packings||[]).map(p=>p.brand).filter(Boolean).join(' / '));
  const body=`<div class="cooCertificate"><div class="cooReference"><div><b>CERTIFICATE NO.</b>${esc(s.coo?.reference||dc.ref)}</div><div><b>DATE</b>${fmt(s.coo?.date||TODAY())}</div></div><div class="cooParties"><div><b>EXPORTER</b><strong>${esc(ttProperNounOutput(seller.name))}</strong><span>${esc(ttProperNounOutput(seller.address))}</span></div><div><b>CONSIGNEE</b><strong>${esc(ttProperNounOutput(party.name))}</strong><span>${esc(ttProperNounOutput(party.address))}</span></div></div><div class="cooTransport"><div><b>MEANS OF TRANSPORT</b>Sea</div><div><b>VESSEL / VOYAGE</b>${esc(ttOutputEnglish(s.bl?.vessel||intendedVesselFor(s)||''))} / ${esc(ttOutputEnglish(s.bl?.voyage||''))}</div><div><b>PORT OF LOADING</b>${esc(ttProperNounOutput(s.bl?.portOfLoading||dc.pol||''))}</div><div><b>PORT OF DISCHARGE</b>${esc(contractPort(dc))}</div></div><table class="docTable cooGoods approvedCooGoods"><thead><tr><th>MARKS &amp; NUMBERS</th><th>NUMBER AND KIND OF PACKAGES</th><th>DESCRIPTION OF GOODS</th><th>QUANTITY</th></tr></thead><tbody><tr><td>${esc(ttOutputEnglish(marks||'As per B/L'))}</td><td>${packages||`${num(t.bags).toLocaleString()} BAGS`}</td><td><b>${esc(ttOutputEnglish(dc.product||''))}</b><br>${esc(ttOutputEnglish(dc.quality||DEFAULT_QUALITY))}<br><b>HS CODE: ${esc(docHsCode(s,dc)||'')}</b></td><td><b>${num(t.mt).toFixed(3)} MT</b><br>${num(t.net).toFixed(3)} KG</td></tr></tbody></table><div class="cooDeclaration"><b>DECLARATION OF ORIGIN</b><p>We hereby certify that the goods described above are of Pakistan origin.</p><strong>COUNTRY OF ORIGIN: PAKISTAN</strong></div>${signature(dc)}</div>`;
  if(overlay)return`<div class="printDoc"><section class="docPage cooOverlay">${body}</section></div>`;
  return pageDoc(dc,'CERTIFICATE OF ORIGIN',body)
 }
-cooDoc=ttMorningCooDoc;
-const ttMorningWorkspaceBase=renderShipmentWorkspace;
-function ttMorningRenderShipmentWorkspace(){
- const result=ttMorningWorkspaceBase();
+function renderShipmentWorkspace(){
+ const result=renderShipmentWorkspace__morning_base();
  const s=shipment();if(s?.kind!=='lot'&&s?.production?.sentToMill){
   const tile=document.querySelector('[data-workspace="production"]');if(tile&&!tile.querySelector('.productionSentStamp'))tile.insertAdjacentHTML('beforeend','<span class="productionSentStamp">SENT TO MILL</span>')
  }
  return result
 }
-renderShipmentWorkspace=ttMorningRenderShipmentWorkspace;
 
 window.addEventListener('error',e=>console.error('Transtrade Export Clean V2',e.error||e.message));
 mount();restoreContractCheckpoint();
