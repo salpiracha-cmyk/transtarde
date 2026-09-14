@@ -155,3 +155,75 @@
  .salesContractFlowPage h3,.salesContractFlowPage .contractPriceItem,.salesContractFlowPage .contractPaymentSummary{break-after:avoid;page-break-after:avoid}
  .salesContractFlowPage table,.salesContractFlowPage .contractSignatureGrid{break-inside:avoid;page-break-inside:avoid}
 }
+
+
+/* 2026-09-14 Document Output Section handover — locked output layouts. */
+.approvedInvoiceReference{display:grid;grid-template-columns:1fr 1fr;gap:18mm;margin:0 0 3mm;font-size:9px}
+.approvedInvoiceReference>div{display:flex;align-items:end;gap:3mm;border-bottom:1px solid #111;padding:0 1mm 1mm}
+.approvedInvoiceReference>div:last-child{justify-content:flex-end;text-align:right}
+.approvedInvoiceReference b{font-size:8px;letter-spacing:.05em}
+.approvedCustomsTop{border-radius:0;margin:2mm 0 0}
+.approvedCustomsTop .specimenRoute{display:grid;grid-template-columns:29mm 1fr;gap:1mm 2mm;align-content:start}
+.approvedCustomsTop .specimenRoute b{margin:0}
+.approvedCustomsGoods{table-layout:fixed;margin-top:0;font-size:8.3px}
+.approvedCustomsGoods th:nth-child(1){width:14%}.approvedCustomsGoods th:nth-child(2){width:17%}.approvedCustomsGoods th:nth-child(3){width:25%}.approvedCustomsGoods th:nth-child(4){width:11%}.approvedCustomsGoods th:nth-child(5){width:16%}.approvedCustomsGoods th:nth-child(6){width:17%}
+.approvedCustomsGoods td{height:55mm;text-align:center;vertical-align:middle;overflow-wrap:anywhere}
+.approvedWeightGrid{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid #222;border-top:0}
+.approvedWeightCell{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1mm;min-height:15mm;padding:2mm;border-right:1px solid #222;text-align:center;font-size:9px}
+.approvedWeightCell:last-child{border-right:0}.approvedWeightCell b{font-size:8px;letter-spacing:.04em}
+.approvedPaymentBankGrid{display:grid;grid-template-columns:1fr 1fr;border:1px solid #222;border-top:0;font-size:9px}
+.approvedPaymentBankGrid>div{display:flex;flex-direction:column;gap:1mm;min-height:21mm;padding:2.5mm}
+.approvedPaymentBankGrid>div+div{border-left:1px solid #222}.approvedPaymentBankGrid b{font-size:9px}.approvedPaymentBankGrid span{display:block}
+.approvedCustomPackingGoods{table-layout:fixed;margin-top:0;font-size:8.2px}
+.approvedCustomPackingGoods th:nth-child(1){width:14%}.approvedCustomPackingGoods th:nth-child(2){width:18%}.approvedCustomPackingGoods th:nth-child(3){width:26%}.approvedCustomPackingGoods th:nth-child(4),.approvedCustomPackingGoods th:nth-child(5),.approvedCustomPackingGoods th:nth-child(6){width:14%}
+.approvedCustomPackingGoods td{height:48mm;text-align:center;vertical-align:middle;overflow-wrap:anywhere}
+
+.oceanBlPage{padding:8mm!important;background:#fff!important;color:#111;font-family:Arial,Helvetica,sans-serif;font-size:9px;overflow:hidden}
+.oceanBlPage:before,.oceanBlPage:after{display:none!important}
+.oceanBlHeader{display:grid;grid-template-columns:1fr 1fr;background:#173f5d;color:#fff;border:1px solid #173f5d;min-height:16mm}
+.oceanBlHeader>div{padding:3mm}.oceanBlHeader>div:last-child{border-left:1px solid #fff;text-align:right;font-size:12px;font-weight:900}
+.oceanBlHeader h1{margin:0;font-size:22px;line-height:1}.oceanBlHeader b{font-size:12px}
+.oceanBlGrid{display:grid;grid-template-columns:1fr 1fr;border-left:1px solid #62798b}
+.oceanBlGrid>div{display:flex;flex-direction:column;min-height:28mm;padding:2mm;border-right:1px solid #62798b;border-bottom:1px solid #62798b}
+.oceanBlGrid b,.oceanBlVoyage b,.oceanBlBottom b{color:#234f70;font-size:8px}.oceanBlGrid strong{font-size:10px}.oceanBlGrid span{white-space:pre-line}
+.oceanBlGrid>div:nth-child(2) div{display:grid;grid-template-columns:29mm 1fr;gap:2mm;min-height:auto;padding:0;border:0}
+.oceanBlGrid>div:nth-child(2) div b{color:#111}.oceanBlGrid>div:nth-child(2) div span{font-weight:700}
+.oceanBlVoyage{display:grid;grid-template-columns:repeat(4,1fr);border-left:1px solid #62798b}
+.oceanBlVoyage>div{display:flex;flex-direction:column;justify-content:center;align-items:center;min-height:13mm;padding:1.5mm;border-right:1px solid #62798b;border-bottom:1px solid #62798b;text-align:center}
+.oceanBlVoyage>div:nth-child(n+5){min-height:12mm}.oceanBlVoyage span{font-weight:800}
+.oceanBlGoodsTitle{padding:2mm;border:1px solid #62798b;border-top:0;background:#e7eef3;text-align:center;font-weight:900}
+.oceanBlGoods{display:flex;flex-direction:column;min-height:48mm;padding:3mm;border:1px solid #62798b;border-top:0;font-size:10px;line-height:1.3}
+.oceanBlGoods>b:first-child{margin-bottom:2mm}.oceanBlGoods strong{font-size:10px}.oceanBlGoods span{white-space:pre-line}
+.oceanBlContainers{width:100%;border-collapse:collapse;font-size:9px;text-align:center}
+.oceanBlContainers th,.oceanBlContainers td{padding:1.5mm;border:1px solid #62798b}.oceanBlContainers thead th{background:#173f5d;color:#fff}.oceanBlContainers tfoot th{background:#e7eef3}
+.oceanBlBottom{display:grid;grid-template-columns:1fr 1fr;border-left:1px solid #62798b}
+.oceanBlBottom>div{display:flex;flex-direction:column;min-height:21mm;padding:2mm;border-right:1px solid #62798b;border-bottom:1px solid #62798b}.oceanBlBottom strong{font-size:11px}
+
+.approvedContractPriceItem{margin:0 0 3mm;break-inside:avoid}
+.approvedPackingPriceLabel{font-size:10.5px;font-weight:800;margin:0 0 1.5mm}
+.approvedContractPriceGrid{border:1px solid #111;font-family:"Courier New",monospace;font-size:10px;font-weight:700}
+.approvedContractPriceGrid>div{display:grid;grid-template-columns:1.25fr .78fr 1.05fr .9fr;align-items:baseline;padding:1.1mm 2mm;border-bottom:1px solid #bbb}
+.approvedContractPriceGrid>div:last-child{border-bottom:0}.approvedContractPriceGrid span:nth-child(2){text-align:center}.approvedContractPriceGrid span:nth-child(3){text-align:left}.approvedContractPriceGrid span:last-child{text-align:right}
+.approvedContractPriceGrid .priceTotalRow{font-weight:900;border-top:1.5px solid #111}
+.approvedSimplePrice{font-size:11px;font-weight:700}.approvedSimpleTotal{text-align:center;margin:2mm 0 0;font-size:10.5px;font-weight:900}
+.salesContractFlowPage .contractPriceBlock{padding:0;margin:0 0 2mm}
+.salesContractFlowPage .contractPriceWords{text-align:center;margin-top:2mm;font-weight:900}
+.salesContractFlowPage .contractSignatureGrid{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20mm;align-items:start}
+.salesContractFlowPage .contractSignatureGrid>div{display:grid;grid-template-rows:auto 26mm auto;min-width:0}
+.salesContractFlowPage .contractSignatureSpace{height:26mm;min-height:26mm}
+.salesContractFlowPage .contractSignatureGrid>div>div:last-child{white-space:nowrap;font-size:9.5px}
+.salesContractFlowPage .contractFlowLayout{margin-top:0}
+.salesContractFlowPage .contractFlowLayout>thead td{padding:0}
+.salesContractFlowPage .letterhead{margin-bottom:1mm}
+.salesContractFlowPage .docTitle{margin:1mm 0 3mm!important;font-size:18px!important;text-decoration:underline}
+.poGrandTotal th{border-top:2px solid #111}
+.poTaxNote{text-transform:uppercase;text-align:center;border:1px solid #111;padding:2mm;margin-top:2mm}
+.bagPoPage{display:flex;flex-direction:column;max-height:297mm}
+.bagPoPage .bagPoMarks{grid-template-columns:repeat(2,minmax(0,1fr));margin-top:2mm}
+.bagPoPage .bagPoMark img{height:38mm}
+
+@media print{
+ .approvedContractPriceGrid>div{break-inside:avoid}
+ .oceanBlPage{width:210mm!important;height:297mm!important}
+ .bagPoPage{width:210mm!important;height:297mm!important}
+}

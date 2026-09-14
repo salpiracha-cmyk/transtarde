@@ -48,7 +48,7 @@ for(const html of [t.packingListDoc(lot,contract,true),t.phytoInvoiceDoc(lot,con
   assert.match(html,/TRANS GRAINS FOODSTUFF TRADING L\.L\.C/i);
 }
 const bl=t.blDraftDoc(lot,contract);
-assert.match(bl,/plainBlPage/);
+assert.match(bl,/oceanBlPage/);
 assert.match(bl,/FINAL BUYER LLC/i);
 assert.doesNotMatch(bl,/assets\/BRM_header\.png|docFooterArt|docAutoSign|bagMarking/);
 assert.match(t.cooDoc(lot,contract,false),/assets\/BRM_header\.png/);
