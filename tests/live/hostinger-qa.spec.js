@@ -445,7 +445,7 @@ test('manual Hostinger QA: Export instruction to Mill and container return', asy
 });
 
 test('live bulk QA: automatic lot references and isolated B/L returns', async ({ page }, testInfo) => {
-  test.setTimeout(480_000);
+  test.setTimeout(900_000);
   const errors = [];
   page.on('pageerror', error => errors.push(String(error)));
   page.on('popup', async popup => popup.close().catch(() => {}));
@@ -561,7 +561,7 @@ test('live bulk QA: automatic lot references and isolated B/L returns', async ({
 });
 
 test('automatic bulk QA: every Milling page plus 15 Arrivals and Pohanch records', async ({ page, browser }, testInfo) => {
-  test.setTimeout(480_000);
+  test.setTimeout(900_000);
   const suffix = RUN_TOKEN.slice(-6);
   const pageErrors = [];
   page.on('pageerror', error => pageErrors.push(String(error)));

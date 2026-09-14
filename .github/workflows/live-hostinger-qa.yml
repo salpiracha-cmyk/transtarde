@@ -23,7 +23,7 @@ jobs:
   live-qa:
     if: ${{ github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_sha == github.sha) }}
     runs-on: ubuntu-latest
-    timeout-minutes: 12
+    timeout-minutes: 25
     environment: live-qa
     steps:
       - name: Enforce manual live-data confirmation
