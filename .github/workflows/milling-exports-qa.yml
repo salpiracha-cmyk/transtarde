@@ -70,13 +70,15 @@ jobs:
           cp api/operations.mysql.php api/export_documents.php tests/main/api/
       - name: Install DOM test dependency
         run: npm install --no-save jsdom@27
+      - name: Verify exact September document-output acceptance
+        run: node tests/exports-v3/exports_acceptance_20260914_audit.js
+      - name: Verify rendered Export document behavior
+        run: node tests/exports-v3/export_release_test.js
       - name: Run Export and bridge audits
         run: |
-          node tests/exports-v3/exports_acceptance_20260914_audit.js
           node tests/exports-v3/backend_static_audit.js
           node tests/exports-v3/bridge_integration_test.js
           node tests/exports-v3/browser_dom_audit.js
-          node tests/exports-v3/export_release_test.js
           node tests/exports-v3/export_master_icons_audit.js
           node tests/exports-v3/export_entry_ux_audit.js
           node tests/exports-v3/deletion_server_ack_audit.js
