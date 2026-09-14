@@ -1155,7 +1155,7 @@ liveLotDocument=function(key,s,c){
  if(key!=='customs')return ttFreshLiveLotDocument(key,s,c);
  const copy=structuredClone(s),value=id=>document.getElementById(id)?.value;
  Object.assign(copy.customs,{date:value('cuDate')??copy.customs.date,paymentTerms:value('cuPaymentTerms')??copy.customs.paymentTerms,hsCode:value('cuHS')??copy.customs.hsCode,bank:value('cuBank')??copy.customs.bank,iban:value('cuIBAN')??copy.customs.iban,marks:value('cuMarks')??copy.customs.marks,description:value('cuDesc')??copy.customs.description,rate:num(value('cuRate')??copy.customs.rate)});
- return`<div class="customsPreviewStack"><section><h4>Custom Invoice Review</h4>${freshCustomsInvoiceDocument(copy,c,'CUSTOM INVOICE')}</section><section><h4>Custom Packing Review</h4>${freshCustomPackingDocument(copy,c)}</section><section><h4>Phytosanitary Invoice Review</h4>${freshCustomsInvoiceDocument(copy,c,'PHYTOSANITARY INVOICE')}</section></div>`
+ return`<div class="customsPreviewStack"><section><h4>Customs Invoice Review</h4>${freshCustomsInvoiceDocument(copy,c,'CUSTOM INVOICE')}</section><section><h4>Custom Packing Review</h4>${freshCustomPackingDocument(copy,c)}</section><section><h4>Phytosanitary Invoice Review</h4>${freshCustomsInvoiceDocument(copy,c,'PHYTOSANITARY INVOICE')}</section></div>`
 };
 
 
