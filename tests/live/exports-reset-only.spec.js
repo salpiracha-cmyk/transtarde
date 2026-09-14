@@ -100,6 +100,17 @@ test('server-confirmed full Export reset survives a new login', async ({ page })
     if (snapshot.values?.[key] !== undefined) await writeShared(page.request, csrf, snapshot, key, []);
   }
 
+  const exportLinked = row => row && typeof row === 'object' && String(row._ttBridge || '').toLowerCase() === 'exports';
+  const exMill = parse(snapshot.values?.tt35exmill, []);
+  const removedExMillIds = new Set(exMill.filter(exportLinked).map(row => String(row?.id || '')).filter(Boolean));
+  if (snapshot.values?.tt35exmill !== undefined) {
+    await writeShared(page.request, csrf, snapshot, 'tt35exmill', exMill.filter(row => !exportLinked(row)));
+  }
+  const exLoads = parse(snapshot.values?.tt35exload, []);
+  if (snapshot.values?.tt35exload !== undefined) {
+    await writeShared(page.request, csrf, snapshot, 'tt35exload', exLoads.filter(row => !exportLinked(row) && !removedExMillIds.has(String(row?.sodaId || ''))));
+  }
+
   await gotoWithRetry(page, BASE_URL + '/logout.php');
   await signIn(page);
   const verification = await readShared(page.request);
@@ -113,6 +124,11 @@ test('server-confirmed full Export reset survives a new login', async ({ page })
   for (const key of ['tt30bags', 'tt30prodinst', 'tt30ship', 'tt32exportsync', 'tt39bridgequarantine']) {
     if (verification.values?.[key] !== undefined) {
       expect(parse(verification.values[key], []).length, key + ' must be empty').toBe(0);
+    }
+  }
+  for (const key of ['tt35exmill', 'tt35exload']) {
+    if (verification.values?.[key] !== undefined) {
+      expect(parse(verification.values[key], []).filter(row => row && typeof row === 'object' && String(row._ttBridge || '').toLowerCase() === 'exports').length, key + ' must not retain Export-linked rows').toBe(0);
     }
   }
 });
