@@ -6,7 +6,7 @@ class Element{
   constructor(id=''){this.id=id;this.dataset={};this.style={setProperty(){}};this.attributes={};this.value='';this.checked=false;this.files=[];this.hidden=false}
   set innerHTML(v){this._html=String(v);for(const m of this._html.matchAll(/id="([^"]+)"/g))elements.set(m[1],new Element(m[1]))}
   get innerHTML(){return this._html||''} set textContent(v){this._text=String(v)} get textContent(){return this._text||''}
-  setAttribute(k,v){this.attributes[k]=v} getAttribute(k){return this.attributes[k]} addEventListener(k,v){this['on'+k]=v} querySelectorAll(){return[]} remove(){}
+  setAttribute(k,v){this.attributes[k]=v} getAttribute(k){return this.attributes[k]} addEventListener(k,v){this['on'+k]=v} querySelector(){return null} querySelectorAll(){return[]} remove(){}
 }
 const elements=new Map([['app',new Element('app')],['printRoot',new Element('printRoot')]]);
 const document={title:'Audit',body:new Element('body'),head:new Element('head'),getElementById:id=>elements.get(id)||null,querySelectorAll:()=>[],querySelector:()=>null,createElement:()=>new Element(),addEventListener(){}};
