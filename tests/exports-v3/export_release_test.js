@@ -155,7 +155,7 @@ assert.match(normalContract,/UNITED STATES DOLLARS TWO HUNDRED TWENTY ONE THOUSA
 assert.match(normalContract,/EDITABLE TERM/);
 const purchaseOrder=t.purchaseOrderPrint({poNo:'PO-260001',supplier:'QA BAG SUPPLIER',requiredDate:'2026-09-20',deliverTo:'TTI RICE MILLS',lines:[{brand:'STAR',type:'P.P. Bags',size:25,unit:'KG',tare:80,totalBags:21816,handle:'No',artworkData:'data:image/png;base64,AA==',masterBag:{enabled:true,bagsPerMaster:20,quantity:1091,tare:120,printed:false}}]});
 assert.equal((purchaseOrder.match(/class="docPage plainOrderPage poOnePage"/g)||[]).length,1,'Bag Purchase Order including its marking stays on one page');
-assert.match(purchaseOrder,/TOTAL ORDER/);assert.match(purchaseOrder,/21,816/);assert.match(purchaseOrder,/Master Bag/);assert.match(purchaseOrder,/1,091/);assert.match(purchaseOrder,/BAG MARKING/);
+assert.match(purchaseOrder,/TOTAL ORDER/);assert.match(purchaseOrder,/21,816/);assert.match(purchaseOrder,/MASTER BAG/);assert.match(purchaseOrder,/1,091/);assert.match(purchaseOrder,/BAG MARKING/);
 assert.doesNotMatch(purchaseOrder,/Required \+ Extra|EMPTY BAGS|Unit Rate|Line Amount|Customer|Sales Contract|Authorised Signatory|HANDLE: YES/);
 assert.match(purchaseOrder,/poOnePage/);
 assert.match(purchaseOrder,/TRANSTRADE INTERNATIONAL/);
@@ -167,7 +167,7 @@ const purchaseOrderTwoLines=t.purchaseOrderPrint({poNo:'PO-260002',supplier:'QA 
 assert.match(purchaseOrderTwoLines,/<td class="poSerial">1<\/td>[\s\S]*<td class="poSerial">2<\/td>[\s\S]*<td class="poSerial">3<\/td>/,'primary bags are numbered first and master bag follows as serial 3');
 assert.doesNotMatch(purchaseOrderTwoLines,/3\.1|2\.1/);
 assert.match(normalContract,/contractSpecificationSequence/);
-assert.match(purchaseOrder,/P\.O\. NUMBER MUST BE MENTIONED ON THE DELIVERY ORDER AND ALSO ON THE FINAL BILL\./);
+assert.match(purchaseOrder,/KINDLY ENSURE THE P\.O\. NUMBER IS MENTIONED ON THE DELIVERY ORDER AND ALSO ON THE FINAL BILL\./);
 const longContract={...c,terms:Array.from({length:18},(_,i)=>`Long contract term ${i+1}`),documentsPresented:Array.from({length:12},(_,i)=>({sequence:i+1,name:`Document ${i+1}`,original:1,copies:1}))};
 assert.equal((t.salesContractPrint(longContract).match(/salesContractFlowPage/g)||[]).length,1,'long Sales Contract remains one continuous flow without fixed page locking');
 assert.match(source,/contractSplitWorkspace/);
