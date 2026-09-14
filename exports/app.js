@@ -1274,6 +1274,93 @@ function persistContractStepDraft(){
  contractDraft=structuredClone(draft);checkpointContractDraft();if(created)audit('Sales Contract','Draft created after Buyer & Reference',draft.ref);save();return true
 }
 function restoreContractCheckpoint(){try{const saved=JSON.parse(localStorage.getItem(CONTRACT_DRAFT_STORE)||'null');if(!saved?.draft||saved.user!==currentUser())return;const age=Date.now()-Date.parse(saved.at||0);if(!Number.isFinite(age)||age>7*24*60*60*1000){clearContractCheckpoint();return}const serverDraft=state.contracts.find(x=>x.id===saved.draft.id&&!x.issued&&x.status==='Draft');if(serverDraft){clearContractCheckpoint();view='contracts';renderContracts();return}contractDraft=saved.draft;contractStep=Math.min(8,Math.max(1,num(saved.step)||1));activePackingIndex=-1;packingDraft=null;view='contracts';renderContractEditor()}catch{clearContractCheckpoint()}}
+
+/* 2026-09-15 TG direct-shipment Customs payment authority. */
+function ttDirectCustomsPaymentCode(x){
+ const saved=String(x?.customsPaymentCode||'').toUpperCase();if(['ADV100','CAD100','ADV_CAD'].includes(saved))return saved;
+ const terms=String(x?.paymentTerms||'').toLowerCase();
+ if(/100%.*advance/.test(terms))return'ADV100';
+ if(/advance.*cash against|advance.*cad/.test(terms))return'ADV_CAD';
+ return'CAD100'
+}
+function ttDirectCustomsPaymentLabel(code){return({ADV100:'100% Advance',CAD100:'100% Cash Against Documents',ADV_CAD:'Advance + Cash Against Documents'})[code]||'100% Cash Against Documents'}
+function ttSetCustomsInlineError(d,message){
+ let box=d.querySelector('#customsInlineError');
+ if(!box){box=document.createElement('div');box.id='customsInlineError';box.className='notice bad customsInlineError';const save=d.querySelector('#saveCustoms');(save?.closest('.toolbar')||save?.parentElement||d).before(box)}
+ box.textContent=message||'';box.classList.toggle('hidden',!message);
+ if(message)box.scrollIntoView({block:'nearest',behavior:'smooth'})
+}
+function renderCustoms(d){
+ const s=shipment(),c=contractByRef(s.contractRef),x=s.customs,contractDescription=contractQualityValue(c),isTG=s.seller==='TG';
+ if(x.descriptionSource!=='amended'){x.description=contractDescription;x.descriptionSource='contract'}
+ if(isTG){x.customsPaymentCode=ttDirectCustomsPaymentCode(x);x.paymentTerms=ttDirectCustomsPaymentLabel(x.customsPaymentCode)}
+ ttRenderCustomsBeforeAcceptance(d);
+ d.querySelector('#customsOutputReviews')?.remove();
+ const exporter=d.querySelector('#cuExporter');if(exporter){const label=exporter.closest('.field')?.querySelector('label');if(label)label.textContent='Direct Shipment — Pakistan Exporter / Letterhead'}
+ const oldBank=d.querySelector('#cuBank'),iban=d.querySelector('#cuIBAN'),dc=customsDocumentContext(s,c),rows=contractSellerBanks(dc);
+ if(oldBank&&oldBank.tagName!=='SELECT'){
+  const select=document.createElement('select');select.id='cuBank';select.innerHTML='<option value="">Select shipper bank</option>'+rows.map(row=>`<option value="${esc(row[4]||'')}" data-iban="${esc(row[9]||'')}" ${String(row[4]||'')===String(x.bank||'')?'selected':''}>${esc(row[4]||'Bank')}${row[9]?` · ${esc(row[9])}`:''}</option>`).join('');oldBank.replaceWith(select);
+  select.onchange=()=>{const option=select.selectedOptions[0];x.bank=select.value;x.iban=option?.dataset.iban||'';if(iban)iban.value=x.iban}
+ }
+ if(iban){iban.readOnly=true;iban.value=x.iban||ttCustomsBankRow(s,c)?.[9]||'';iban.title='Filled automatically from the selected shipper bank.'}
+ const desc=d.querySelector('#cuDesc');if(desc&&x.descriptionSource!=='amended')desc.value=contractDescription;
+ let payment=d.querySelector('#cuPaymentTerms');
+ if(isTG&&payment){
+  const select=document.createElement('select');select.id='cuPaymentTerms';select.innerHTML=['ADV100','CAD100','ADV_CAD'].map(code=>`<option value="${ttDirectCustomsPaymentLabel(code)}" data-code="${code}" ${code===x.customsPaymentCode?'selected':''}>${ttDirectCustomsPaymentLabel(code)}</option>`).join('');
+  payment.replaceWith(select);payment=select;
+  const paymentField=select.closest('.field'),fiField=d.querySelector('#cuFIAllocated')?.closest('.field');if(paymentField&&fiField)fiField.before(paymentField);
+  const balanceInput=d.querySelector('#cuOpen'),syncBalance=()=>{
+   x.customsPaymentCode=select.selectedOptions[0]?.dataset.code||'CAD100';x.paymentTerms=ttDirectCustomsPaymentLabel(x.customsPaymentCode);
+   const invoice=customsInvoiceValue(s,c,num(d.querySelector('#cuRate')?.value)),allocated=(x.fiAllocations||[]).reduce((sum,row)=>sum+num(row.amount),0);
+   x.openAccount=x.customsPaymentCode==='ADV100'?0:Math.max(0,invoice-allocated);
+   if(balanceInput){balanceInput.value=num(x.openAccount).toFixed(2);balanceInput.readOnly=true;balanceInput.title='Calculated automatically from the Customs Invoice value less FI allocation.'}
+   ttSetCustomsInlineError(d,'')
+  };
+  select.onchange=syncBalance;d.querySelector('#cuRate')?.addEventListener('input',syncBalance);syncBalance()
+ }
+ const fiSelect=d.querySelector('#cuFISelect');
+ if(fiSelect&&!fiSelect.querySelector('option[value="__ADD_FI__"]')){
+  const option=document.createElement('option');option.value='__ADD_FI__';option.textContent='+ Add FI';fiSelect.appendChild(option);
+  const original=fiSelect.onchange;fiSelect.onchange=event=>{
+   if(fiSelect.value!=='__ADD_FI__')return original?.call(fiSelect,event);
+   fiSelect.value='';const before=state.fi.length;openFIModal();const saveFi=document.getElementById('saveFI'),saveFiOriginal=saveFi?.onclick;
+   if(saveFi&&saveFiOriginal)saveFi.onclick=()=>{saveFiOriginal();if(state.fi.length>before){currentShipmentId=s.id;activeWorkspace='customs';view='shipments';renderShipmentWorkspace()}}
+  }
+ }
+ const saveButton=d.querySelector('#saveCustoms'),saveOriginal=saveButton?.onclick;
+ if(saveButton&&saveOriginal)saveButton.onclick=event=>{
+  const invoiceValue=customsInvoiceValue(s,c,num(d.querySelector('#cuRate')?.value)),allocated=(x.fiAllocations||[]).reduce((sum,row)=>sum+num(row.amount),0),code=isTG?ttDirectCustomsPaymentCode(x):'',currency=x.currency||c.currency;
+  if(isTG){
+   if(allocated>invoiceValue+.01)return ttSetCustomsInlineError(d,`FI allocation cannot exceed the Customs Invoice value of ${money(invoiceValue,currency)}.`);
+   if(code==='ADV100'&&Math.abs(allocated-invoiceValue)>.01)return ttSetCustomsInlineError(d,`100% Advance requires FI allocation equal to the full Customs Invoice value of ${money(invoiceValue,currency)}.`);
+   if(code==='ADV_CAD'&&(allocated<=.01||allocated>=invoiceValue-.01))return ttSetCustomsInlineError(d,'Advance + Cash Against Documents requires an FI advance above zero and below the full invoice value.');
+   x.customsPaymentCode=code;x.paymentTerms=ttDirectCustomsPaymentLabel(code);x.openAccount=code==='ADV100'?0:Math.max(0,invoiceValue-allocated);
+   const balance=d.querySelector('#cuOpen');if(balance)balance.value=num(x.openAccount).toFixed(2)
+  }
+  ttSetCustomsInlineError(d,'');
+  const isContract=String(desc?.value||'').trim()===contractDescription,product=c.product;if(isContract)c.product=contractDescription;
+  try{return saveOriginal.call(saveButton,event)}finally{c.product=product;if(isContract){x.description=contractDescription;x.descriptionSource='contract';x.descriptionAmended=false;x.descriptionAmendmentReason='';save()}}
+ }
+}
+function customsBalanced(s,c){
+ if(!s?.customs?.saved)return false;
+ const x=s.customs,value=customsInvoiceValue(s,c),allocated=(x.fiAllocations||[]).reduce((sum,row)=>sum+num(row.amount),0),open=num(x.openAccount);
+ if(s.seller==='TG'){
+  const code=ttDirectCustomsPaymentCode(x);
+  if(code==='ADV100'&&Math.abs(allocated-value)>.01)return false;
+  if(code==='ADV_CAD'&&(allocated<=.01||allocated>=value-.01))return false
+ }
+ return Math.abs(allocated+open-value)<=.01&&Math.abs(num(x.invoiceValue)-value)<=.01
+}
+function customsOutputPayment(s,c){
+ const x=s.customs||{};
+ if(s.seller==='TG')return x.paymentTerms||ttDirectCustomsPaymentLabel(ttDirectCustomsPaymentCode(x));
+ const fi=(x.fiAllocations||[]).reduce((sum,row)=>sum+num(row.amount),0),open=num(x.openAccount);
+ if(fi>0&&open>0)return`Advance ${money(fi,x.currency||c.currency)} + balance Cash Against Documents`;
+ if(fi>0&&!open)return'100% Advance';
+ return x.paymentTerms||'100% Cash Against Documents'
+}
+
 window.addEventListener('error',e=>console.error('Transtrade Export Clean V2',e.error||e.message));
 mount();restoreContractCheckpoint();
 })();
