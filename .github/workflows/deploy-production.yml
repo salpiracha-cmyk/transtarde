@@ -30,7 +30,7 @@ jobs:
 
     steps:
       - name: Check out the exact approved commit
-        uses: actions/checkout@v7
+        uses: actions/checkout@v4
         with:
           ref: ${{ env.DEPLOY_SHA }}
 

@@ -47,8 +47,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: '22'
       - name: Prepare isolated audit workspace
@@ -64,6 +64,7 @@ jobs:
         run: npm install --no-save jsdom@27
       - name: Run Export and bridge audits
         run: |
+          node tests/exports-v3/exports_acceptance_20260914_audit.js
           node tests/exports-v3/backend_static_audit.js
           node tests/exports-v3/bridge_integration_test.js
           node tests/exports-v3/browser_dom_audit.js
