@@ -146,7 +146,7 @@ assert.equal((normalContract.match(/salesContractPage/g)||[]).length,2,'normal s
 assert.match(normalContract,/PAGE 1 OF 2/);
 assert.match(normalContract,/PAGE 2 OF 2/);
 for(const heading of ['PORT OF LOADING','PORT OF DISCHARGE','INSURANCE','PACKING / BRAND-MARKING','OTHER TERMS AND CONDITIONS','DOCUMENTS TO BE PRESENTED FOR NEGOTIATION'])assert.match(normalContract,new RegExp(heading));
-assert.match(normalContract,/PACKED IN NEW SINGLE PP BAGS OF 25 KG EACH WITH BUYER’S MARKING \/ STAR BRAND/);
+assert.match(normalContract,/Packed in new single PP Bags of 25 kgs each with buyer’s marking \/ Star brand\./);
 assert.match(normalContract,/USD <\/span><strong>410\.00<\/strong><span> PMT CFR Jebel Ali, United Arab Emirates/);
 assert.match(normalContract,/TOTAL CONTRACT VALUE[\s\S]*USD 221,400\.00/);
 assert.match(normalContract,/UNITED STATES DOLLARS TWO HUNDRED TWENTY ONE THOUSAND FOUR HUNDRED ONLY/);
