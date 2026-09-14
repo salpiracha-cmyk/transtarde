@@ -3,6 +3,9 @@ Options -Indexes
 
 <IfModule mod_rewrite.c>
   RewriteEngine On
+  <IfModule LiteSpeed>
+    RewriteRule ^(?:module|module_release)\.php$ - [E=Cache-Control:no-cache]
+  </IfModule>
   RewriteRule ^module\.php$ module_release.php [L]
 </IfModule>
 
