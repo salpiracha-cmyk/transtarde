@@ -949,7 +949,7 @@ const ttRenderBagOrderBeforeAcceptance=renderBagOrder;
 renderBagOrder=function(d){ttRenderBagOrderBeforeAcceptance(d);ttDedupeSelectOptions(d)};
 
 purchaseOrderPrint=function(po){
- const c=contractByRef(shipment().contractRef),rows=[];
+ const rows=[];
  for(const [i,l] of po.lines.entries()){
   rows.push(`<tr><td>${i+1}</td><td>${esc(ttOutputEnglish(l.brand))}</td><td>${esc(ttOutputEnglish(l.type))} of ${num(l.size)} ${esc(String(l.unit||'KG').toUpperCase())}</td><td>${num(l.tare)} g</td><td>${num(l.totalBags).toLocaleString()}</td><td>${l.masterBag?.enabled?`${num(l.masterBag.quantity||l.masterBag.qty).toLocaleString()} master bags of ${num(l.masterBag.bagsPerMaster)*num(l.size)} ${esc(String(l.unit||'KG').toUpperCase())}`:'—'}</td></tr>`)
  }
