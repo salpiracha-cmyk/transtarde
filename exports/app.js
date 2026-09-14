@@ -891,6 +891,8 @@ salesPackingLine=function(p,c,i,total){
  const per=num(p.masterBag.bagsPerMaster)||num(p.masterBag.qty),weight=num(p.masterBag.weight)||per*num(p.size);
  return`${main}<br>Further packed in master bags of ${weight} ${esc(unit.toLowerCase()==='kg'?'kgs':unit)} each ( ${per} bags x ${num(p.size)} ${esc(unit.toLowerCase()==='kg'?'kgs':unit)} in one master).`
 };
+const ttSalesContractBeforeAcceptance=salesContractPrint;
+salesContractPrint=function(c){const saved=c.pol;c.pol=ttOutputEnglish(c.pol);try{return ttSalesContractBeforeAcceptance(c)}finally{c.pol=saved}};
 contractBankDetailsHTML=function(c){
  const row=selectedContractBank(c);
  if(!row)return paymentNeedsSellerBank(c)?`<div class="contractBankMissing">Seller bank account must be selected before issue.</div>`:'';
@@ -1035,7 +1037,7 @@ commercialInvoiceDoc=function(s,c,custom=false){
  const shell=document.createElement('div');shell.innerHTML=html;const dc=customsDocumentContext(s,c),lines=invoiceLines(s,dc,true);
  shell.querySelectorAll('.customInvoiceGoods tbody tr').forEach((tr,i)=>{const p=(dc.packings||[]).find(x=>x.brand===lines[i]?.brand)||dc.packings?.[i],cell=tr.children[1];if(cell&&p)cell.textContent=`${Math.round(num(lines[i]?.mt)*1000/Math.max(1,num(p.size))).toLocaleString()} ${ttOutputEnglish(p.type)} of ${num(p.size)} ${String(dc.packingUnit||'KG').toUpperCase()}`});
  const top=shell.querySelector('.specimenTopGrid'),payment=[...shell.querySelectorAll('.specimenTerms')].find(x=>/PAYMENT TERMS/i.test(x.textContent));if(top&&payment){const route=top.querySelector('.specimenRoute');route?.appendChild(payment)}
- const first=shell.querySelector('.customInvoiceGoods tfoot tr');if(first&&/TOTAL NET \/ GROSS/i.test(first.textContent)){first.innerHTML=`<th colspan="2">TOTAL NET</th><th>${(num(plannedTotals(s,dc).net)/1000).toFixed(3)} MT</th><th>TOTAL GROSS</th><th colspan="2">${(num(plannedTotals(s,dc).gross)/1000).toFixed(3)} MT</th>`}
+ const first=shell.querySelector('.customInvoiceGoods tfoot tr');if(first&&/TOTAL NET \/ GROSS/i.test(first.textContent)){const totals=plannedTotals(s,dc),total=lines.reduce((sum,line)=>sum+num(line.amount),0),currency=s.customs?.currency||dc.currency;first.innerHTML=`<th colspan="2">TOTAL NET</th><th>${(num(totals.net)/1000).toFixed(3)} MT</th><th>TOTAL GROSS</th><th colspan="2">${(num(totals.gross)/1000).toFixed(3)} MT</th>`;first.insertAdjacentHTML('afterend',`<tr><th colspan="5">TOTAL PAYABLE</th><th>${esc(currency)} ${total.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</th></tr>`)}
  return shell.innerHTML
 };
 
@@ -1051,6 +1053,7 @@ renderCustoms=function(d){
  }
  if(iban){iban.readOnly=true;iban.value=x.iban||ttCustomsBankRow(s,c)?.[9]||'';iban.title='Filled automatically from the selected shipper bank.'}
  const desc=d.querySelector('#cuDesc');if(desc&&x.descriptionSource!=='amended')desc.value=contractDescription;
+ const saveButton=d.querySelector('#saveCustoms'),saveOriginal=saveButton?.onclick;if(saveButton&&saveOriginal)saveButton.onclick=event=>{const isContract=String(desc?.value||'').trim()===contractDescription,product=c.product;if(isContract)c.product=contractDescription;try{return saveOriginal.call(saveButton,event)}finally{c.product=product;if(isContract){x.description=contractDescription;x.descriptionSource='contract';x.descriptionAmended=false;x.descriptionAmendmentReason='';save()}}};
  const output=[...d.querySelectorAll('.section')].find(section=>/CUSTOMS PDF OUTPUT/i.test(section.textContent));
  if(output&&!d.querySelector('#customsOutputReviews')){
   output.insertAdjacentHTML('beforeend',`<div id="customsOutputReviews" class="customsOutputReviews"><div><h4>Custom Invoice Review</h4><div class="outputReviewPaper">${commercialInvoiceDoc(s,c,true)}</div></div><div><h4>Custom Packing Review</h4><div class="outputReviewPaper">${packingListDoc(s,c,true)}</div></div><div><h4>Phytosanitary Invoice Review</h4><div class="outputReviewPaper">${phytoInvoiceDoc(s,c)}</div></div></div>`)
