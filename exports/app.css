@@ -315,8 +315,8 @@
 .poOnePage .poOrderTable td{height:25mm;padding:2mm}
 .poOnePage .poOrderTable td:nth-child(6) strong{font-size:14px;color:#173c29}
 .poOnePage .poInlineMarking{max-width:43mm;max-height:27mm}
-.poOnePage.poRowCount1 .poOrderTable td,.poOnePage.poRowCount2 .poOrderTable td{height:34mm}
-.poOnePage.poRowCount1 .poInlineMarking,.poOnePage.poRowCount2 .poInlineMarking{max-width:48mm;max-height:35mm}
+.poOnePage[data-po-row-count="1"] .poOrderTable td,.poOnePage[data-po-row-count="2"] .poOrderTable td{height:34mm}
+.poOnePage[data-po-row-count="1"] .poInlineMarking,.poOnePage[data-po-row-count="2"] .poInlineMarking{max-width:48mm;max-height:35mm}
 .poNoMarking{display:block;color:#555;font-size:9px;font-weight:800}
 .poTermsCompact{margin:3mm 0;padding:2mm;border-left:3px solid #5e806b;background:#f1f5f2;font-size:8px;line-height:1.35}
 .poCritical{margin:3mm 0;padding:2.2mm;border:1.5px solid #315c43;background:#fff;font-size:10px}
