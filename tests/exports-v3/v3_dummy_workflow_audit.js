@@ -70,7 +70,7 @@ assert.equal(restarted.contractRef,partialContract.ref,'replacement shipment kee
 assert.equal(t.state.shipments.filter(x=>x.kind!=='lot'&&x.contractRef===partialContract.ref).length,1,'restart cannot duplicate a shipment process');
 
 const po={poNo:'PO-TEST',supplier:'Bag Supplier',deliverTo:'TTI Rice Mills',requiredDate:'2026-09-10',issuedAt:'2026-09-08T12:00:00Z',lines:[{brand:'DUMMY',type:'PP Bags',size:25,unit:'KG',tare:80,handle:'No',requiredBags:1080,extraBags:20,extraPct:1.85,totalBags:1100,masterBag:{enabled:false},artworkAttached:true,approved:true,artworkData:'data:image/png;base64,AAA'}]};
-const poHtml=t.purchaseOrderPrint(po);assert.match(poHtml,/DUMMY — BAG MARKING/);assert.doesNotMatch(poHtml,/APPROVED · GOOD SIDE/);assert.match(poHtml,/data:image\/png/);
+const poHtml=t.purchaseOrderPrint(po);assert.match(poHtml,/DUMMY — APPROVED BAG MARKING/i);assert.doesNotMatch(poHtml,/APPROVED · GOOD SIDE/);assert.match(poHtml,/data:image\/png/);
 
 t.state.accountsReceipts.push({id:'R1',receiptNo:'RCPT-01',contractRef:contract.ref,lotRef:lot.lotId,currency:'USD',amount:4000,date:'2026-09-10',status:'Posted'});
 assert.equal(t.accountsTotal(lot,contract),4000,'Accounts receipt flows once to commercial documents');
