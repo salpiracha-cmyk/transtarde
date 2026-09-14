@@ -19,7 +19,7 @@ const window={document,localStorage,TT_MODULE_ACCESS:{user:'Test User',masters:{
 const context={window,document,localStorage,console,structuredClone,alert:m=>{throw new Error('Unexpected alert: '+m)},location:{href:''},setTimeout:fn=>fn(),setInterval:()=>0,clearTimeout(){},FileReader:class{},Date,Intl};
 context.globalThis=context;
 let source=fs.readFileSync(__dirname+'/../../exports/app.js','utf8');
-source=source.replace('mount();','window.__EXPORT_TEST__={parseContractText,parseLCText,paymentText,lcSpecificTerms,packingPrefix,unitRate,makeShipment,salesContractPrint,purchaseOrderPrint,commercialInvoiceDoc,packingListDoc,phytoInvoiceDoc,blDraftDoc,coveringDoc,lcControlDoc,lcDraftDoc,millActualsComplete,applyProductMaster,productLabel,productMasters,qualityDescription,contractSpecRows,currentCropYear,millLocations,brokenEntry,normalizeBrokenEntry,brokenEntryValid,finishChoices,DEFAULT_QUALITY,CONTAINER_RE,state};\nmount();');
+source=source.replace('mount();','window.__EXPORT_TEST__={parseContractText,parseLCText,paymentText,lcSpecificTerms,effectiveTerms,packingPrefix,unitRate,makeShipment,salesContractPrint,purchaseOrderPrint,commercialInvoiceDoc,packingListDoc,phytoInvoiceDoc,blDraftDoc,coveringDoc,lcControlDoc,lcDraftDoc,millActualsComplete,applyProductMaster,productLabel,productMasters,qualityDescription,contractSpecRows,currentCropYear,millLocations,brokenEntry,normalizeBrokenEntry,brokenEntryValid,finishChoices,DEFAULT_QUALITY,CONTAINER_RE,state};\nmount();');
 vm.runInNewContext(source,context,{filename:'app.js'});
 const t=window.__EXPORT_TEST__;
 
@@ -142,9 +142,9 @@ s.lc.conditions=Array.from({length:20},(_,i)=>`Condition ${i+1}`);
 assert.equal((t.lcControlDoc(s,c).match(/class="docPage branded"/g)||[]).length,5,'long L/C control paginates');
 Object.assign(c,{containers:20,podPort:'Jebel Ali',podCountry:'United Arab Emirates',insurance:"Buyer's Account",terms:['EDITABLE TERM'],termsInitialized:true});
 const normalContract=t.salesContractPrint(c);
-assert.equal((normalContract.match(/salesContractPage/g)||[]).length,2,'normal sales contract uses two content-driven pages');
-assert.match(normalContract,/PAGE 1 OF 2/);
-assert.match(normalContract,/PAGE 2 OF 2/);
+assert.equal((normalContract.match(/salesContractFlowPage/g)||[]).length,1,'Sales Contract uses one continuous flowing document');
+assert.match(normalContract,/contractFlowLayout/);
+assert.doesNotMatch(normalContract,/PAGE 1 OF|PAGE 2 OF/);
 for(const heading of ['PORT OF LOADING','PORT OF DISCHARGE','INSURANCE','PACKING / BRAND-MARKING','OTHER TERMS AND CONDITIONS','DOCUMENTS TO BE PRESENTED FOR NEGOTIATION'])assert.match(normalContract,new RegExp(heading));
 assert.match(normalContract,/Packed in new single PP Bags of 25 kgs each with buyer’s marking \/ Star brand\./);
 assert.match(normalContract,/USD <\/span><strong>410\.00<\/strong><span> PMT CFR Jebel Ali, United Arab Emirates/);
@@ -153,11 +153,11 @@ assert.match(normalContract,/UNITED STATES DOLLARS TWO HUNDRED TWENTY ONE THOUSA
 assert.match(normalContract,/EDITABLE TERM/);
 const purchaseOrder=t.purchaseOrderPrint({poNo:'PO-260001',supplier:'QA BAG SUPPLIER',requiredDate:'2026-09-20',deliverTo:'TTI RICE MILLS',lines:[{brand:'STAR',type:'P.P. Bags',size:25,unit:'KG',tare:80,totalBags:21816,handle:'No',artworkData:'data:image/png;base64,AA==',masterBag:{enabled:true,bagsPerMaster:20,quantity:1091,tare:120,printed:false}}]});
 assert.equal((purchaseOrder.match(/class="docPage/g)||[]).length,1,'Bag Purchase Order including its marking stays on one page');
-assert.match(purchaseOrder,/Total Bags/);assert.match(purchaseOrder,/21,816/);assert.match(purchaseOrder,/MASTER BAG/);assert.match(purchaseOrder,/1,091/);assert.match(purchaseOrder,/BAG MARKING/);
+assert.match(purchaseOrder,/Total Order/);assert.match(purchaseOrder,/21,816/);assert.match(purchaseOrder,/Master Bag/);assert.match(purchaseOrder,/1,091/);assert.match(purchaseOrder,/BAG MARKING/);
 assert.doesNotMatch(purchaseOrder,/Required \+ Extra|EMPTY BAGS|Unit Rate|Line Amount|Customer|Sales Contract|Authorised Signatory|HANDLE: YES/);
-assert.match(purchaseOrder,/Kindly ensure the P\.O\. number is mentioned on the Delivery Order and also on the final bill\./);
+assert.match(purchaseOrder,/P\.O\. NUMBER MUST BE MENTIONED ON THE DELIVERY ORDER AND ALSO ON THE FINAL BILL\./);
 const longContract={...c,terms:Array.from({length:18},(_,i)=>`Long contract term ${i+1}`),documentsPresented:Array.from({length:12},(_,i)=>({sequence:i+1,name:`Document ${i+1}`,original:1,copies:1}))};
-assert.equal((t.salesContractPrint(longContract).match(/salesContractPage/g)||[]).length,4,'extreme sales contract expands to four pages');
+assert.equal((t.salesContractPrint(longContract).match(/salesContractFlowPage/g)||[]).length,1,'long Sales Contract remains one continuous flow without fixed page locking');
 assert.match(source,/contractSplitWorkspace/);
 assert.match(source,/cBrokenContract/);
 assert.match(source,/cFinishContract/);
@@ -176,4 +176,40 @@ assert.match(modulePhp,/brand-theme\.css/);
 assert.match(accountsPhp,/brand-theme\.js/);
 assert.doesNotMatch(loginPhp,/authBrandLogo|TTI_header\.png/);
 assert.match(loginPhp,/authBrandName">TRANSTRADE INTERNATIONAL/);
+
+/* Exact final-output regression proof for the September 14 repair. */
+const customsInvoice=t.commercialInvoiceDoc(s,c,true);
+const customsPacking=t.packingListDoc(s,c,true);
+const phytosanitary=t.phytoInvoiceDoc(s,c);
+for(const label of ['CUSTOM INVOICE','DRAWEE','VESSEL / VOYAGE','PAYMENT TERMS','TOTAL NET WEIGHT','TOTAL GROSS WEIGHT','TOTAL PAYABLE'])assert.match(customsInvoice,new RegExp(label.replace('/','\\/')));
+assert.match(customsInvoice,/PP Bags of 25 KG/i);
+assert.doesNotMatch(customsInvoice,/customsBankOutput|ACCOUNT TITLE:|SWIFT CODE:/);
+assert.match(customsPacking,/CUSTOM PACKING LIST/);
+assert.match(customsPacking,/TOTAL NET WEIGHT/);
+assert.match(customsPacking,/TOTAL GROSS WEIGHT/);
+assert.doesNotMatch(customsPacking,/NAME &amp; ADDRESS|NAME & ADDRESS/);
+assert.equal(phytosanitary.replaceAll('PHYTOSANITARY INVOICE','CUSTOM INVOICE'),customsInvoice,'Phytosanitary must be the Customs Invoice structure with title change only');
+
+const cifContract={...c,incoterm:'CIF',insurance:"Seller's Account",showAllPrices:true,paymentCode:'ADV_CAD',advancePct:30,terms:["Insurance shall be for Buyer’s account."],termsInitialized:true,packings:c.packings.map(p=>({...p,contractRate:425,price:398,freight:25,insurance:2}))};
+const cifOutput=t.salesContractPrint(cifContract);
+assert.match(cifOutput,/USD <\/span><strong>425\.00<\/strong><span> PMT CIF/);
+assert.match(cifOutput,/FOB VALUE:<\/b> USD 398\.00 PMT/);
+assert.match(cifOutput,/FREIGHT:<\/b> USD 25\.00 PMT/);
+assert.match(cifOutput,/INSURANCE:<\/b> USD 2\.00 PMT/);
+assert.match(cifOutput,/Insurance Seller’s account\./);
+assert.match(cifOutput,/Insurance shall be for Seller’s account\./);
+assert.doesNotMatch(cifOutput,/Insurance shall be for Buyer’s account\./);
+assert.match(cifOutput,/PAYMENT[\s\S]*ADVANCE[\s\S]*BALANCE/);
+const cfrTerms=t.effectiveTerms({...cifContract,incoterm:'CFR',insurance:"Buyer's Account"});
+assert.ok(cfrTerms.includes('Insurance shall be for Buyer’s account.'));
+assert.ok(!cfrTerms.includes('Insurance shall be for Seller’s account.'));
+
+const orderedPo=t.purchaseOrderPrint({poNo:'PO-ORDER',supplier:'SUPPLIER',requiredDate:'2026-09-20',deliverTo:'MILL',lines:[
+ {brand:'FIRST',type:'P.P. Bags',size:50,unit:'KG',tare:100,totalBags:100,handle:'No',masterBag:{enabled:true,bagsPerMaster:2,quantity:50,tare:120,printed:false}},
+ {brand:'SECOND',type:'Cotton Bags',size:25,unit:'KG',tare:90,totalBags:200,handle:'Yes',masterBag:{enabled:false}}
+]});
+assert.match(orderedPo,/<td>1<\/td>[\s\S]*First[\s\S]*<td>2<\/td>[\s\S]*Second[\s\S]*masterBagOrderRow[\s\S]*<td>3<\/td>[\s\S]*Master Bag/i);
+assert.match(orderedPo,/Second[\s\S]*<b>YES<\/b>/i);
+assert.doesNotMatch(orderedPo,/Unit Rate|Line Amount|Sales Contract|Customer/);
+
 console.log('PASS export release unit/integration assertions');
