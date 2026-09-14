@@ -240,7 +240,7 @@ test('manual Hostinger QA: Export instruction to Mill and container return', asy
   await page.locator('#nextStep').click();
 
   await page.locator('#addPacking').click();
-  await selectAvailablePackingType(page);
+  const selectedPackingType = await selectAvailablePackingType(page);
   await page.locator('#mPackSize').fill('25');
   await page.locator('#mPackBrand').fill(brand);
   await page.locator('#mPackTare').fill('80');
@@ -262,11 +262,13 @@ test('manual Hostinger QA: Export instruction to Mill and container return', asy
   await expect(contractPreview).toContainText('PORT OF DISCHARGE');
   await expect(contractPreview).toContainText('INSURANCE');
   await expect(contractPreview).toContainText('PACKING / BRAND-MARKING');
-  await expect(contractPreview).toContainText('PACKED IN NEW SINGLE P.P. BAGS OF 25 KG EACH');
-  await expect(contractPreview).toContainText(brand);
+  await expect(contractPreview).toContainText(/Packed in new single/i);
+  await expect(contractPreview).toContainText(selectedPackingType, { ignoreCase: true });
+  await expect(contractPreview).toContainText(/25 kgs each/i);
+  await expect(contractPreview).toContainText(brand, { ignoreCase: true });
   await expect(contractPreview).toContainText('PRICE');
-  await expect(contractPreview).toContainText('USD. 400.00/= FOB');
-  await expect(contractPreview).toContainText('TOTAL FOB VALUE');
+  await expect(contractPreview).toContainText('USD 400.00 PMT FOB');
+  await expect(contractPreview).toContainText('TOTAL CONTRACT VALUE');
   await expect(contractPreview).toContainText('UNITED STATES DOLLARS');
   await expect(contractPreview).toContainText('OTHER TERMS AND CONDITIONS');
   await expect(contractPreview).toContainText('DOCUMENTS TO BE PRESENTED FOR NEGOTIATION');
