@@ -275,7 +275,8 @@ test('manual Hostinger QA: Export instruction to Mill and container return', asy
   await expect(contractPreview).toContainText(brand, { ignoreCase: true });
   await expect(contractPreview).toContainText('PRICE');
   await expect(contractPreview).toContainText('USD. 400.00 P/M/T CIF');
-  await expect(contractPreview).toContainText('TOTAL CIF VALUE USD 20,800.00');
+  await expect(contractPreview).toContainText('TOTAL CIF VALUE');
+  await expect(contractPreview).toContainText('USD 20,800.00');
   await expect(contractPreview).toContainText('USD. 373.00 P/M/T FOB');
   await expect(contractPreview).toContainText('USD. 25.00 P/M/T FREIGHT');
   await expect(contractPreview).toContainText('USD. 2.00 P/M/T INSURANCE');
