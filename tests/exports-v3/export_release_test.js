@@ -148,7 +148,7 @@ assert.doesNotMatch(normalContract,/PAGE 1 OF|PAGE 2 OF/);
 for(const heading of ['PORT OF LOADING','PORT OF DISCHARGE','INSURANCE','PACKING / BRAND-MARKING','OTHER TERMS AND CONDITIONS','DOCUMENTS TO BE PRESENTED FOR NEGOTIATION'])assert.match(normalContract,new RegExp(heading));
 assert.match(normalContract,/Packed in new single PP Bags of 25 kgs each with buyer’s marking \/ Star brand\./);
 assert.match(normalContract,/USD\. <\/span><strong>410\.00<\/strong><span> CFR Jebel Ali, United Arab Emirates\./);
-assert.match(normalContract,/TOTAL CFR VALUE 540 MT × USD 410\.00[\s\S]*USD\. 221,400\.00\/=\/);
+assert.match(normalContract,/TOTAL CFR VALUE 540 MT × USD 410\.00[\s\S]*USD\. 221,400\.00\/=/);
 assert.match(normalContract,/UNITED STATES DOLLARS TWO HUNDRED TWENTY ONE THOUSAND FOUR HUNDRED ONLY/);
 assert.match(normalContract,/EDITABLE TERM/);
 const purchaseOrder=t.purchaseOrderPrint({poNo:'PO-260001',supplier:'QA BAG SUPPLIER',requiredDate:'2026-09-20',deliverTo:'TTI RICE MILLS',lines:[{brand:'STAR',type:'P.P. Bags',size:25,unit:'KG',tare:80,totalBags:21816,handle:'No',artworkData:'data:image/png;base64,AA==',masterBag:{enabled:true,bagsPerMaster:20,quantity:1091,tare:120,printed:false}}]});
