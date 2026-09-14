@@ -1364,15 +1364,12 @@ function customsOutputPayment(s,c){
 
 /* 2026-09-15 final document presentation and process-status authority. */
 function salesContractPrint(c){
- const html=salesContractPrint__morning_base(c),shell=document.createElement('div');shell.innerHTML=html;
- const page=shell.querySelector('.salesContractFlowPage'),table=page?.querySelector('.contractFlowLayout'),head=table?.querySelector('thead td'),body=table?.querySelector('tbody td');
- if(!table||!head||!body)return html;
- const title=head.querySelector('.docTitle');title?.remove();
- const ref=body.querySelector('.docRefGrid');if(ref){head.appendChild(ref.cloneNode(true));ref.remove()}
- if(title)body.insertBefore(title,body.firstChild);
- const footer=body.querySelector('.docFooterArt,.sellerFooter');footer?.remove();
- const foot=document.createElement('tfoot');foot.innerHTML=`<tr><td><div class="contractPrintFooter">${footer?footer.outerHTML:''}<span class="contractPageNumber"></span></div></td></tr>`;table.appendChild(foot);
- return shell.innerHTML
+ let html=salesContractPrint__morning_base(c);
+ const repeated=`<div class="docRefGrid contractRepeatedReference">${c.buyerPoNo?`<div class="docRefBox"><b>BUYER P.O. NO.</b>${esc(c.buyerPoNo)}</div>`:''}<div class="docRefBox"><b>REF</b>${esc(c.ref)}</div><div class="docRefBox"><b>DATE</b>${fmt(c.date)}</div></div>`;
+ const original=`<div class="docRefGrid">${c.buyerPoNo?`<div class="docRefBox"><b>BUYER P.O. NO.</b>${esc(c.buyerPoNo)}</div>`:''}<div class="docRefBox"><b>REF</b>${esc(c.ref)}</div><div class="docRefBox"><b>DATE</b>${fmt(c.date)}</div></div>`;
+ html=html.replace(original,'').replace('<h1 class="docTitle">SALES CONTRACT</h1>',repeated).replace('<div class="contractFlowBody">','<div class="contractFlowBody"><h1 class="docTitle">SALES CONTRACT</h1>');
+ const footer=footerArt(c);if(footer)html=html.replace(footer,'');
+ return html.replace('</table></section></div>',`<tfoot><tr><td><div class="contractPrintFooter">${footer}<span class="contractPageNumber"></span></div></td></tr></tfoot></table></section></div>`)
 }
 function purchaseOrderPrint(po){
  const lines=po.lines||[],normal=[],masters=[],summaries=new Map();let serial=1,grand=0;
@@ -1392,12 +1389,16 @@ function purchaseOrderPrint(po){
 }
 function commercialInvoiceDoc(s,c,custom=false){
  if(custom)return freshCustomsInvoiceDocument(s,c,'CUSTOMS INVOICE');
- const html=commercialInvoiceDoc__morning_base(s,c,false),shell=document.createElement('div');shell.innerHTML=html,dc=c,x=s.commercial||{},currency=x.currency||dc.currency,lines=invoiceLines(s,dc,false),total=lines.reduce((sum,line)=>sum+num(line.amount),0),advance=Math.min(total,accountsTotal(s,c)),receivable=Math.max(0,total-advance);
- const table=shell.querySelector('.commercialInvoiceGoods'),foot=table?.querySelector('tfoot');
- if(foot){[...foot.querySelectorAll('tr')].slice(1).forEach(row=>row.remove());const first=foot.querySelector('tr');if(first){const cells=first.querySelectorAll('th,td');if(cells.length>=2){cells[cells.length-2].textContent='TOTAL INVOICE VALUE';cells[cells.length-1].textContent=`${currency} ${total.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}`}}}
- const words=shell.querySelector('.amountWords'),settlement=document.createElement('div');settlement.className='commercialSettlement';settlement.innerHTML=`<div><span>TOTAL INVOICE VALUE</span><strong>${esc(currency)} ${total.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</strong></div><div><span>LESS ADVANCE RECEIVED</span><strong>${esc(currency)} ${advance.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</strong></div><div class="commercialReceivable"><span>TOTAL RECEIVABLE</span><strong>${esc(currency)} ${receivable.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</strong></div>`;
- if(words){words.before(settlement);words.innerHTML=`<b>AMOUNT IN WORDS — TOTAL RECEIVABLE</b><br>${esc(amountInWords(receivable,currency))}`}
- return shell.innerHTML
+ let html=commercialInvoiceDoc__morning_base(s,c,false);
+ const x=s.commercial||{},currency=x.currency||c.currency,lines=invoiceLines(s,c,false),total=lines.reduce((sum,line)=>sum+num(line.amount),0),advance=Math.min(total,accountsTotal(s,c)),receivable=Math.max(0,total-advance),showSettlement=advance>0;
+ if(showSettlement){
+  const old=`<tr><td colspan="5">LESS ADVANCE RECEIVED</td><td>${esc(currency)} ${advance.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</td></tr><tr><th colspan="5">BALANCE PAYABLE</th><th>${esc(currency)} ${receivable.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</th></tr>`;
+  html=html.replace(old,'')
+ }
+ html=html.replace('<th>TOTAL PAYABLE</th>','<th>TOTAL INVOICE VALUE</th>');
+ const settlement=`<div class="commercialSettlement"><div><span>TOTAL INVOICE VALUE</span><strong>${esc(currency)} ${total.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</strong></div><div><span>LESS ADVANCE RECEIVED</span><strong>${esc(currency)} ${advance.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</strong></div><div class="commercialReceivable"><span>TOTAL RECEIVABLE</span><strong>${esc(currency)} ${receivable.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</strong></div></div>`;
+ html=html.replace(/<div class="amountWords">[\s\S]*?<\/div>/,`${settlement}<div class="amountWords"><b>AMOUNT IN WORDS — TOTAL RECEIVABLE</b><br>${esc(amountInWords(receivable,currency))}</div>`);
+ return html
 }
 function packingListDoc(s,c,custom=false){
  if(custom)return freshCustomPackingDocument(s,c);
