@@ -902,7 +902,7 @@ function ttOutputEnglish(value){
 function ttProperNounOutput(value){
  const source=String(value??'').trim().replace(/\s+/g,' ');if(!source)return'';
  const keep=new Set(['TTI','TG','BRM','P.P.','BOPP','DPP','SGS','FI','GD','IBAN','SWIFT','FOB','CFR','CNF','CIF','FCL','LC','L/C','UAE','UK','USA','HS','PO','P.O.','MT','KG','KGS']);
- return source.toLowerCase().replace(/\b[\w./'-]+\b/g,(word,index)=>{const upper=word.toUpperCase();if(keep.has(upper))return upper;if(index>0&&['and','or','of','the','in','to','for'].includes(word))return word;return word.charAt(0).toUpperCase()+word.slice(1)}).replace(/\bP\.p\./g,'P.P.').replace(/\bBopp\b/g,'BOPP')
+ return source.toLowerCase().replace(/\b[\w./'-]+\b/g,(word,index)=>{const upper=word.toUpperCase();if(keep.has(upper)||/^(?:[A-Z]\.)+[A-Z]?$/.test(upper))return upper;if(index>0&&['and','or','of','the','in','to','for'].includes(word))return word;return word.charAt(0).toUpperCase()+word.slice(1)}).replace(/\bP\.p\./g,'P.P.').replace(/\bBopp\b/g,'BOPP')
 }
 function ttPartyOutput(party){return{name:ttProperNounOutput(party?.name||''),address:ttProperNounOutput(party?.address||'')}}
 const ttContractPortBeforeAcceptance=contractPort__legacy_v0;
