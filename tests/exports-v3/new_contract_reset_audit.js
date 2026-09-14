@@ -40,5 +40,6 @@ assert.match(app,/const CONTRACT_DRAFT_STORE='tt-export-contract-draft-v1'/,'Sal
 assert.match(app,/contractStep\+\+;packingDraft=null;checkpointContractDraft\(\);renderContractEditor\(\)/,'each successful Next checkpoints the in-progress contract');
 assert.match(app,/mount\(\);restoreContractCheckpoint\(\);/,'same-user contract checkpoint is restored after reload or renewed login');
 assert.match(app,/function ttPartyOutput\(party\)\{return\{name:ttProperNounOutput\(party\?\.name\|\|''\),address:ttProperNounOutput\(party\?\.address\|\|''\)\}\}/,'seller and buyer output capitalization is normalized independently of entry casing');
+assert.match(app,/\^\(\?:\[A-Z\]\\\\\.\)\+\[A-Z\]\?\$\/\.test\(upper\)/,'dotted proper-noun abbreviations such as L.L.C. and U.A.E. remain uppercase');
 
 console.log('PASS Export reset, blank new contract, prefix customer picker, +1 reference and removed Master Data nav icon');
