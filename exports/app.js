@@ -1364,8 +1364,8 @@ function customsOutputPayment(s,c){
 
 /* 2026-09-15 final document presentation and process-status authority. */
 function salesContractPrint(c){
- const html=salesContractPrint__morning_base(c),shell=document.createElement('template');shell.innerHTML=html;
- const page=shell.content.querySelector('.salesContractFlowPage'),table=page?.querySelector('.contractFlowLayout'),head=table?.querySelector('thead td'),body=table?.querySelector('tbody td');
+ const html=salesContractPrint__morning_base(c),shell=document.createElement('div');shell.innerHTML=html;
+ const page=shell.querySelector('.salesContractFlowPage'),table=page?.querySelector('.contractFlowLayout'),head=table?.querySelector('thead td'),body=table?.querySelector('tbody td');
  if(!table||!head||!body)return html;
  const title=head.querySelector('.docTitle');title?.remove();
  const ref=body.querySelector('.docRefGrid');if(ref){head.appendChild(ref.cloneNode(true));ref.remove()}
@@ -1392,10 +1392,10 @@ function purchaseOrderPrint(po){
 }
 function commercialInvoiceDoc(s,c,custom=false){
  if(custom)return freshCustomsInvoiceDocument(s,c,'CUSTOMS INVOICE');
- const html=commercialInvoiceDoc__morning_base(s,c,false),shell=document.createElement('template');shell.innerHTML=html,dc=c,x=s.commercial||{},currency=x.currency||dc.currency,lines=invoiceLines(s,dc,false),total=lines.reduce((sum,line)=>sum+num(line.amount),0),advance=Math.min(total,accountsTotal(s,c)),receivable=Math.max(0,total-advance);
- const table=shell.content.querySelector('.commercialInvoiceGoods'),foot=table?.querySelector('tfoot');
+ const html=commercialInvoiceDoc__morning_base(s,c,false),shell=document.createElement('div');shell.innerHTML=html,dc=c,x=s.commercial||{},currency=x.currency||dc.currency,lines=invoiceLines(s,dc,false),total=lines.reduce((sum,line)=>sum+num(line.amount),0),advance=Math.min(total,accountsTotal(s,c)),receivable=Math.max(0,total-advance);
+ const table=shell.querySelector('.commercialInvoiceGoods'),foot=table?.querySelector('tfoot');
  if(foot){[...foot.querySelectorAll('tr')].slice(1).forEach(row=>row.remove());const first=foot.querySelector('tr');if(first){const cells=first.querySelectorAll('th,td');if(cells.length>=2){cells[cells.length-2].textContent='TOTAL INVOICE VALUE';cells[cells.length-1].textContent=`${currency} ${total.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}`}}}
- const words=shell.content.querySelector('.amountWords'),settlement=document.createElement('div');settlement.className='commercialSettlement';settlement.innerHTML=`<div><span>TOTAL INVOICE VALUE</span><strong>${esc(currency)} ${total.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</strong></div><div><span>LESS ADVANCE RECEIVED</span><strong>${esc(currency)} ${advance.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</strong></div><div class="commercialReceivable"><span>TOTAL RECEIVABLE</span><strong>${esc(currency)} ${receivable.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</strong></div>`;
+ const words=shell.querySelector('.amountWords'),settlement=document.createElement('div');settlement.className='commercialSettlement';settlement.innerHTML=`<div><span>TOTAL INVOICE VALUE</span><strong>${esc(currency)} ${total.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</strong></div><div><span>LESS ADVANCE RECEIVED</span><strong>${esc(currency)} ${advance.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</strong></div><div class="commercialReceivable"><span>TOTAL RECEIVABLE</span><strong>${esc(currency)} ${receivable.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}</strong></div>`;
  if(words){words.before(settlement);words.innerHTML=`<b>AMOUNT IN WORDS — TOTAL RECEIVABLE</b><br>${esc(amountInWords(receivable,currency))}`}
  return shell.innerHTML
 }
