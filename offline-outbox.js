@@ -7,7 +7,7 @@ const MODULE=access.moduleId||access.module||'module';
 const USER_KEY=[MODULE,access.user||'user'].join('|');
 const nativeFetch=window.fetch.bind(window);
 const resourceVersions=new Map();
-let explicitAction=null,recoveryRunning=false,recoveryTimer=0;
+let explicitAction=null,recoveryRunning=false,recoveryPromptOpen=false;
 
 const uuid=()=>globalThis.crypto?.randomUUID?.()||'tt-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2);
 const methodOf=(input,init)=>String(init?.method||input?.method||'GET').toUpperCase();
@@ -46,8 +46,23 @@ async function serializeBody(body){
 }
 function restoreBody(saved){if(saved.kind==='text')return saved.value;if(saved.kind==='params')return new URLSearchParams(saved.value);if(saved.kind==='form'){const fd=new FormData();for(const [k,v] of saved.value||[])fd.append(k,v);return fd}return undefined}
 function headersWith(initHeaders,entry){const h=new Headers(initHeaders||{});h.set('X-TT-Transaction-ID',entry.id);if(entry.baseResourceVersion!==null)h.set('X-TT-Base-Resource-Version',String(entry.baseResourceVersion));return h}
-async function updateNotice(){document.getElementById('ttOfflineNotice')?.remove()}
-function scheduleRecovery(delay=10000){clearTimeout(recoveryTimer);recoveryTimer=setTimeout(()=>recoverPending(),delay)}
+async function updateNotice(knownEntries=null){
+  const entries=knownEntries||await list(),count=entries.length,conflicts=entries.filter(x=>x.status==='conflict').length;
+  let notice=document.getElementById('ttOfflineNotice');
+  if(!count){notice?.remove();return}
+  if(!notice){
+    notice=document.createElement('button');
+    notice.id='ttOfflineNotice';
+    notice.type='button';
+    notice.setAttribute('aria-live','polite');
+    notice.style.cssText='position:fixed;right:12px;top:98px;z-index:100000;border:0;border-radius:10px;padding:9px 12px;background:#9a6000;color:#fff;font:700 11px Arial;box-shadow:0 5px 18px #0003;cursor:pointer';
+    notice.addEventListener('click',()=>offerRecovery({restore:true}));
+    document.body?.appendChild(notice);
+  }
+  notice.style.background=conflicts?'#a93a34':navigator.onLine?'#9a6000':'#6c4a00';
+  notice.textContent=count+' offline / unsynced entr'+(count===1?'y':'ies')+(conflicts?' · '+conflicts+' conflict'+(conflicts===1?'':'s'):'');
+  notice.title=navigator.onLine?'Review and upload pending entries':'Entries are safe on this device until connectivity returns';
+}
 
 async function prepareEntry(input,init,url,saved,action){
   const key=resourceKey(url,saved.parsed),id=uuid();
@@ -55,7 +70,15 @@ async function prepareEntry(input,init,url,saved,action){
   await put(entry);await updateNotice();return entry;
 }
 async function acknowledged(response){if(!response.ok)return false;const type=response.headers.get('content-type')||'';if(!/json/i.test(type))return true;try{const data=await response.clone().json();return data?.ok===true}catch{return false}}
-async function processResponse(entry,response){const version=response.headers.get('X-TT-Resource-Version');if(version!==null)resourceVersions.set(entry.resourceKey,Number(version));if(await acknowledged(response)){await remove(entry.id);await updateNotice();return}if(response.status>=400&&response.status<500&&response.status!==409){await remove(entry.id);await updateNotice();return}entry.status=response.status===409?'conflict':'failed';entry.error=response.status===409?'A newer server version exists. Review before uploading.':'The server did not confirm this action.';entry.updatedAt=new Date().toISOString();await put(entry);await updateNotice()}
+async function processResponse(entry,response){
+  const version=response.headers.get('X-TT-Resource-Version');
+  if(version!==null)resourceVersions.set(entry.resourceKey,Number(version));
+  if(await acknowledged(response)){await remove(entry.id);await updateNotice();return}
+  entry.status=response.status===409?'conflict':'failed';
+  entry.error=response.status===409?'A newer server version exists. Review before uploading.':'The server did not confirm this action. The submitted entry remains on this device.';
+  entry.updatedAt=new Date().toISOString();
+  await put(entry);await updateNotice()
+}
 
 window.fetch=async function(input,init={}){
   const url=urlOf(input),method=methodOf(input,init);
@@ -75,34 +98,44 @@ window.fetch=async function(input,init={}){
 };
 
 function reopenWorkflow(ui){for(const id of ui?.visibleIds||[]){const short=id.replace(/^ws-/,'');if(typeof window.openPanel==='function'&&document.getElementById(id)?.matches('section.panel')){try{window.openPanel(id)}catch{}}const opener=document.querySelector(`[data-workspace="${CSS.escape(short)}"],[data-target="${CSS.escape(id)}"],[href="#${CSS.escape(id)}"]`);opener?.click?.()}}
-function restoreUi(ui){if(!ui)return;reopenWorkflow(ui);requestAnimationFrame(()=>requestAnimationFrame(()=>{for(const f of ui.fields||[]){const selector=f.id?'#'+CSS.escape(f.id):f.name?'[name="'+CSS.escape(f.name)+'"]':null,el=selector?document.querySelector(selector):null;if(!el||el.type==='password'||el.type==='file')continue;if(f.type==='checkbox'||f.type==='radio')el.checked=!!f.checked;else el.value=f.value??'';el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}))}scrollTo(Number(ui.scrollX||0),Number(ui.scrollY||0));if(ui.focus){const el=document.getElementById(ui.focus)||document.querySelector('[name="'+CSS.escape(ui.focus)+'"]');el?.focus?.()}}))}
+function restoreUi(ui){return new Promise(resolve=>{if(!ui){resolve();return}reopenWorkflow(ui);requestAnimationFrame(()=>requestAnimationFrame(()=>{for(const f of ui.fields||[]){const selector=f.id?'#'+CSS.escape(f.id):f.name?'[name="'+CSS.escape(f.name)+'"]':null,el=selector?document.querySelector(selector):null;if(!el||el.type==='password'||el.type==='file')continue;if(f.type==='checkbox'||f.type==='radio')el.checked=!!f.checked;else el.value=f.value??'';el.dispatchEvent(new Event('input',{bubbles:true}));el.dispatchEvent(new Event('change',{bubbles:true}))}scrollTo(Number(ui.scrollX||0),Number(ui.scrollY||0));if(ui.focus){const el=document.getElementById(ui.focus)||document.querySelector('[name="'+CSS.escape(ui.focus)+'"]');el?.focus?.()}resolve()}))})}
 async function replay(entry){const init={method:entry.method,credentials:'same-origin',headers:headersWith(entry.headers,entry),body:restoreBody(entry.body)};const response=await nativeFetch(entry.url,init);await processResponse(entry,response);return{ok:await acknowledged(response),conflict:response.status===409,status:response.status}}
-async function recoverPending(){
-  if(recoveryRunning||!navigator.onLine)return;
+async function offerRecovery({restore=false}={}){
+  if(recoveryRunning||recoveryPromptOpen)return;
+  const entries=await list();
+  await updateNotice(entries);
+  if(!entries.length)return;
+  if(restore)await restoreUi(entries[0]?.ui);
+  if(!navigator.onLine){alert(entries.length+' offline / unsynced entr'+(entries.length===1?'y is':'ies are')+' safe on this device. Reconnect, then choose the unsynced notice to upload.');return}
+  recoveryPromptOpen=true;
+  const approved=confirm(entries.length+' offline / unsynced entr'+(entries.length===1?'y is':'ies are')+' saved on this device. Upload pending '+(entries.length===1?'entry':'entries')+' and continue?');
+  recoveryPromptOpen=false;
+  if(!approved)return;
   recoveryRunning=true;
   try{
-    const entries=await list();
     for(const entry of entries){
-      if(!navigator.onLine)break;
+      if(entry.status==='conflict'){alert('Upload stopped: newer server data exists. The local entry was not overwritten or removed.');break}
+      if(!navigator.onLine){alert('Connectivity was lost again. Remaining entries are still safe on this device.');break}
       try{
         const result=await replay(entry);
-        if(result.conflict)break;
-        if(!result.ok){scheduleRecovery();break}
-      }catch{scheduleRecovery();break}
+        if(result.conflict){alert('Upload stopped: newer server data exists. The local entry was not overwritten or removed.');break}
+        if(!result.ok){alert('The server did not acknowledge this entry. It remains unsynced on this device.');break}
+      }catch{alert('The server could not be reached. Remaining entries are still safe on this device.');break}
     }
-  }catch(error){console.error('Offline recovery',error);scheduleRecovery()}
+  }catch(error){console.error('Offline recovery',error)}
   finally{recoveryRunning=false;await updateNotice()}
 }
+const recoverPending=()=>offerRecovery({restore:true});
 async function boot(){
-  sessionStorage.removeItem('tt-offline-resume-ui');
-  await updateNotice();
-  recoverPending();
-  addEventListener('online',recoverPending);
+  const entries=await list();
+  await updateNotice(entries);
+  if(entries.length)await offerRecovery({restore:true});
+  addEventListener('online',()=>offerRecovery({restore:true}));
   if(window.TT_SHARED_SYNC?.saveNow){
     const original=window.TT_SHARED_SYNC.saveNow.bind(window.TT_SHARED_SYNC);
     window.TT_SHARED_SYNC.saveNow=(...args)=>{beginAction('Shared final save');return original(...args)}
   }
 }
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
-window.TT_OFFLINE_OUTBOX={list,recoverPending,offerRecovery:recoverPending,beginAction};
+window.TT_OFFLINE_OUTBOX={list,recoverPending,offerRecovery,beginAction};
 })();
