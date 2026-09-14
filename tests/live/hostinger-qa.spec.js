@@ -274,11 +274,11 @@ test('manual Hostinger QA: Export instruction to Mill and container return', asy
   await expect(contractPreview).toContainText(/25 kgs each/i);
   await expect(contractPreview).toContainText(brand, { ignoreCase: true });
   await expect(contractPreview).toContainText('PRICE');
-  await expect(contractPreview).toContainText('USD. 400.00 CIF');
-  await expect(contractPreview).toContainText('TOTAL CIF VALUE 52 MT × USD 400.00 USD. 20,800.00/=');
-  await expect(contractPreview).toContainText('FOB VALUE: USD 373.00 PMT');
-  await expect(contractPreview).toContainText('FREIGHT: USD 25.00 PMT');
-  await expect(contractPreview).toContainText('INSURANCE: USD 2.00 PMT');
+  await expect(contractPreview).toContainText('USD. 400.00 P/M/T CIF');
+  await expect(contractPreview).toContainText('TOTAL CIF VALUE USD 20,800.00');
+  await expect(contractPreview).toContainText('USD. 373.00 P/M/T FOB');
+  await expect(contractPreview).toContainText('USD. 25.00 P/M/T FREIGHT');
+  await expect(contractPreview).toContainText('USD. 2.00 P/M/T INSURANCE');
   await expect(contractPreview).toContainText('Insurance Seller’s account.');
   await expect(contractPreview).toContainText('Insurance shall be for Seller’s account.');
   await expect(contractPreview).toContainText('PAYMENT');
@@ -376,7 +376,7 @@ test('manual Hostinger QA: Export instruction to Mill and container return', asy
   await expect(page.locator('#customsOutputReviews'), 'obsolete duplicate Customs review must be absent').toHaveCount(0);
   const customsStack = page.locator('.customsPreviewStack');
   await expect(customsStack.locator(':scope > section')).toHaveCount(3);
-  await expect(customsStack.locator(':scope > section > h4').nth(0)).toHaveText('Custom Invoice Review');
+  await expect(customsStack.locator(':scope > section > h4').nth(0)).toHaveText('Customs Invoice Review');
   await expect(customsStack.locator(':scope > section > h4').nth(1)).toHaveText('Custom Packing Review');
   await expect(customsStack.locator(':scope > section > h4').nth(2)).toHaveText('Phytosanitary Invoice Review');
   const customInvoice = customsStack.locator(':scope > section').nth(0);
@@ -391,7 +391,7 @@ test('manual Hostinger QA: Export instruction to Mill and container return', asy
   await expect(customPacking).not.toContainText('NAME & ADDRESS');
   const invoiceHtml = await customsStack.locator(':scope > section .printDoc').nth(0).innerHTML();
   const phytoHtml = await customsStack.locator(':scope > section .printDoc').nth(2).innerHTML();
-  expect(phytoHtml.replaceAll('PHYTOSANITARY INVOICE', 'CUSTOM INVOICE'), 'Phytosanitary must replicate the Customs Invoice structure').toBe(invoiceHtml);
+  expect(phytoHtml.replaceAll('PHYTOSANITARY INVOICE', 'CUSTOMS INVOICE'), 'Phytosanitary must replicate the Customs Invoice structure').toBe(invoiceHtml);
   await page.screenshot({ path: testInfo.outputPath('05-customs-document-stack.png'), fullPage: true });
 
   // The exact Mill return belongs in the B/L Draft workflow.
