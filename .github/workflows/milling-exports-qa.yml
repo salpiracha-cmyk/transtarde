@@ -20,6 +20,8 @@ on:
       - 'admin/app.js'
       - 'tests/**'
       - '.github/workflows/milling-exports-qa.yml'
+      - '.github/workflows/live-hostinger-qa.yml'
+      - '.github/workflows/exports-deletion-hostinger-qa.yml'
   pull_request:
     paths:
       - 'exports/**'
@@ -38,6 +40,8 @@ on:
       - 'admin/app.js'
       - 'tests/**'
       - '.github/workflows/milling-exports-qa.yml'
+      - '.github/workflows/live-hostinger-qa.yml'
+      - '.github/workflows/exports-deletion-hostinger-qa.yml'
 
 permissions:
   contents: read
