@@ -29,7 +29,7 @@ Object.assign(lot.customs,{exporter:'BRM',rate:350,invoiceNo:'BRM/TG/01',bank:'M
 
 const customerInvoice=t.commercialInvoiceDoc(lot,contract,false);
 assert.match(customerInvoice,/assets\/TG_header\.png/);
-assert.match(customerInvoice,/FINAL BUYER LLC/);
+assert.match(customerInvoice,/Final Buyer Llc/);
 assert.match(customerInvoice,/410\.00/);
 
 const pakistanInvoice=t.commercialInvoiceDoc(lot,contract,true);
@@ -49,10 +49,10 @@ for(const html of [t.packingListDoc(lot,contract,true),t.phytoInvoiceDoc(lot,con
 }
 const bl=t.blDraftDoc(lot,contract);
 assert.match(bl,/plainBlPage/);
-assert.match(bl,/FINAL BUYER LLC/);
+assert.match(bl,/Final Buyer Llc/);
 assert.doesNotMatch(bl,/assets\/BRM_header\.png|docFooterArt|docAutoSign|bagMarking/);
 assert.match(t.cooDoc(lot,contract,false),/assets\/BRM_header\.png/);
-assert.match(t.cooDoc(lot,contract,false),/FINAL BUYER LLC/);
+assert.match(t.cooDoc(lot,contract,false),/Final Buyer Llc/);
 for(const html of [t.tgInternalDoc(lot,contract),t.tgPakistanCoveringDoc(lot,contract)]){
   assert.match(html,/assets\/BRM_header\.png/);
   assert.match(html,/FI-TG-01/);
