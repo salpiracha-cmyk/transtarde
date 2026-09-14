@@ -132,9 +132,8 @@ async function createBulkQaShipment(page, { suffix, index, lotRef, contractRef, 
   await page.locator('#mPackTare').fill('80');
   await page.locator('#mPackContainers').fill('1');
   await page.locator('#mPackExtra').fill('1');
-  await page.locator('#savePacking').click();
-  await expect(page.locator('[data-pack-tab]')).toHaveCount(1);
   await page.locator('#nextStep').click();
+  await expect(page.locator('#cIncoterm'), 'completed packing must advance directly to Price').toBeVisible();
 
   await page.locator('#cIncoterm').selectOption('FOB');
   await page.locator('[data-contract-rate="0"]').fill(String(400 + index));
@@ -251,9 +250,8 @@ test('manual Hostinger QA: Export instruction to Mill and container return', asy
   await page.locator('#mPackTare').fill('80');
   await page.locator('#mPackContainers').fill('2');
   await page.locator('#mPackExtra').fill('1');
-  await page.locator('#savePacking').click();
-  await expect(page.locator('[data-pack-tab]')).toHaveCount(1);
   await page.locator('#nextStep').click();
+  await expect(page.locator('#cIncoterm'), 'completed packing must advance directly to Price').toBeVisible();
 
   await page.locator('#cIncoterm').selectOption('CIF');
   await expect(page.locator('#cInsurance'), 'CIF must automatically use Seller insurance').toHaveValue("Seller's Account");
