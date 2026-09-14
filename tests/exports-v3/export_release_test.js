@@ -155,6 +155,16 @@ const purchaseOrder=t.purchaseOrderPrint({poNo:'PO-260001',supplier:'QA BAG SUPP
 assert.equal((purchaseOrder.match(/class="docPage/g)||[]).length,1,'Bag Purchase Order including its marking stays on one page');
 assert.match(purchaseOrder,/TOTAL ORDER/);assert.match(purchaseOrder,/21,816/);assert.match(purchaseOrder,/Master Bag/);assert.match(purchaseOrder,/1,091/);assert.match(purchaseOrder,/BAG MARKING/);
 assert.doesNotMatch(purchaseOrder,/Required \+ Extra|EMPTY BAGS|Unit Rate|Line Amount|Customer|Sales Contract|Authorised Signatory|HANDLE: YES/);
+assert.match(purchaseOrder,/poOnePage/);
+assert.match(purchaseOrder,/TRANSTRADE INTERNATIONAL/);
+assert.match(purchaseOrder,/BRAND AND BAG SPECIFICATION/);
+assert.match(purchaseOrder,/APPROVED BAG MARKING/);
+assert.match(purchaseOrder,/P\.O\. NUMBER IS MENTIONED ON THE DELIVERY ORDER AND ALSO ON THE FINAL BILL/);
+assert.match(purchaseOrder,/PAGE 1 OF 1/);
+const purchaseOrderTwoLines=t.purchaseOrderPrint({poNo:'PO-260002',supplier:'QA BAG SUPPLIER',issuedAt:'2026-09-14',requiredDate:'2026-09-20',deliverTo:'TTI RICE MILLS',lines:[{brand:'STAR',type:'P.P. Bags',size:25,unit:'KG',tare:80,totalBags:1000,artworkData:'data:image/png;base64,AA==',masterBag:{enabled:false}},{brand:'MOON',type:'BOPP laminated Bags',size:50,unit:'KG',tare:110,totalBags:500,masterBag:{enabled:true,bagsPerMaster:2,quantity:250,tare:140,printed:false}}]});
+assert.match(purchaseOrderTwoLines,/<td class="poSerial">1<\/td>[\s\S]*<td class="poSerial">2<\/td>[\s\S]*<td class="poSerial">3<\/td>/,'primary bags are numbered first and master bag follows as serial 3');
+assert.doesNotMatch(purchaseOrderTwoLines,/3\.1|2\.1/);
+assert.match(normalContract,/contractSpecificationSequence/);
 assert.match(purchaseOrder,/P\.O\. NUMBER MUST BE MENTIONED ON THE DELIVERY ORDER AND ALSO ON THE FINAL BILL\./);
 const longContract={...c,terms:Array.from({length:18},(_,i)=>`Long contract term ${i+1}`),documentsPresented:Array.from({length:12},(_,i)=>({sequence:i+1,name:`Document ${i+1}`,original:1,copies:1}))};
 assert.equal((t.salesContractPrint(longContract).match(/salesContractFlowPage/g)||[]).length,1,'long Sales Contract remains one continuous flow without fixed page locking');
