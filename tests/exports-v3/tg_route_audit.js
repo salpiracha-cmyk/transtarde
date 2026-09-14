@@ -34,7 +34,7 @@ assert.match(customerInvoice,/410\.00/);
 
 const pakistanInvoice=t.commercialInvoiceDoc(lot,contract,true);
 assert.match(pakistanInvoice,/assets\/BRM_header\.png/);
-assert.match(pakistanInvoice,/TRANS GRAINS FOODSTUFF TRADING L\.L\.C/);
+assert.match(pakistanInvoice,/Trans Grains Foodstuff Trading L\.l\.c/);
 assert.match(pakistanInvoice,/350\.00/);
 assert.doesNotMatch(pakistanInvoice,/410\.00/);
 assert.match(pakistanInvoice,/FI-TG-01/);
@@ -45,7 +45,7 @@ assert.doesNotMatch(pakistanInvoice,/LC-CUSTOMER-01/);
 
 for(const html of [t.packingListDoc(lot,contract,true),t.phytoInvoiceDoc(lot,contract)]){
   assert.match(html,/assets\/BRM_header\.png/);
-  assert.match(html,/TRANS GRAINS FOODSTUFF TRADING L\.L\.C/);
+  assert.match(html,/Trans Grains Foodstuff Trading L\.l\.c/);
 }
 const bl=t.blDraftDoc(lot,contract);
 assert.match(bl,/plainBlPage/);
