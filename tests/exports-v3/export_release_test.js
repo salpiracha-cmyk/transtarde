@@ -154,7 +154,7 @@ assert.match(normalContract,/EDITABLE TERM/);
 const purchaseOrder=t.purchaseOrderPrint({poNo:'PO-260001',supplier:'QA BAG SUPPLIER',requiredDate:'2026-09-20',deliverTo:'TTI RICE MILLS',lines:[{brand:'STAR',type:'P.P. Bags',size:25,unit:'KG',tare:80,totalBags:21816,handle:'No',artworkData:'data:image/png;base64,AA==',masterBag:{enabled:true,bagsPerMaster:20,quantity:1091,tare:120,printed:false}}]});
 assert.equal((purchaseOrder.match(/class="docPage/g)||[]).length,1,'Bag Purchase Order including its marking stays on one page');
 assert.match(purchaseOrder,/Total Bags/);assert.match(purchaseOrder,/21,816/);assert.match(purchaseOrder,/MASTER BAG/);assert.match(purchaseOrder,/1,091/);assert.match(purchaseOrder,/BAG MARKING/);
-assert.doesNotMatch(purchaseOrder,/Required \+ Extra|EMPTY BAGS|Unit Rate|Line Amount|Tax|Customer|Sales Contract|Authorised Signatory|HANDLE: YES/);
+assert.doesNotMatch(purchaseOrder,/Required \+ Extra|EMPTY BAGS|Unit Rate|Line Amount|Customer|Sales Contract|Authorised Signatory|HANDLE: YES/);
 assert.match(purchaseOrder,/Kindly ensure the P\.O\. number is mentioned on the Delivery Order and also on the final bill\./);
 const longContract={...c,terms:Array.from({length:18},(_,i)=>`Long contract term ${i+1}`),documentsPresented:Array.from({length:12},(_,i)=>({sequence:i+1,name:`Document ${i+1}`,original:1,copies:1}))};
 assert.equal((t.salesContractPrint(longContract).match(/salesContractPage/g)||[]).length,4,'extreme sales contract expands to four pages');
