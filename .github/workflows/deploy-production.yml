@@ -1,0 +1,206 @@
+name: Deploy Production
+
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: ['Milling and Exports QA']
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: transtrade-production-deployment
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: ${{ github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_sha == github.sha) }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DEPLOY_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+      HOSTINGER_HOST: ${{ secrets.HOSTINGER_HOST }}
+      HOSTINGER_PORT: ${{ secrets.HOSTINGER_PORT }}
+      HOSTINGER_USER: ${{ secrets.HOSTINGER_USER }}
+      HOSTINGER_DEPLOY_PATH: ${{ secrets.HOSTINGER_DEPLOY_PATH }}
+      PRODUCTION_URL: ${{ secrets.PRODUCTION_URL }}
+
+    steps:
+      - name: Check out the exact approved commit
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ env.DEPLOY_SHA }}
+
+      - name: Verify deployment secrets and target
+        env:
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+          HOSTINGER_KNOWN_HOSTS: ${{ secrets.HOSTINGER_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          for name in HOSTINGER_HOST HOSTINGER_PORT HOSTINGER_USER HOSTINGER_DEPLOY_PATH PRODUCTION_URL HOSTINGER_SSH_KEY HOSTINGER_KNOWN_HOSTS; do
+            test -n "${!name:-}" || { echo "Missing required secret: $name"; exit 1; }
+          done
+          case "$HOSTINGER_DEPLOY_PATH" in
+            /home/*/domains/app.transtradeinternational.com/public_html) ;;
+            *) echo "Refusing unexpected production path."; exit 1 ;;
+          esac
+          test "$PRODUCTION_URL" = "https://app.transtradeinternational.com" || { echo "Refusing unexpected production URL."; exit 1; }
+
+      - name: Confirm Accounts QA passed for this commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 18); do
+            if gh api "/repos/$GITHUB_REPOSITORY/actions/workflows/accounts-v1-qa.yml/runs?head_sha=$DEPLOY_SHA&status=completed&per_page=20" \
+              --jq '.workflow_runs | any(.conclusion == "success")' | grep -qx true; then
+              echo "Accounts QA passed for $DEPLOY_SHA"
+              exit 0
+            fi
+            echo "Waiting for Accounts QA for $DEPLOY_SHA ($attempt/18)"
+            sleep 10
+          done
+          echo "Accounts QA did not pass for this commit; deployment stopped."
+          exit 1
+
+      - name: Build production release archive
+        run: |
+          set -euo pipefail
+          tar \
+            --exclude='./.git' \
+            --exclude='./.github' \
+            --exclude='./tests' \
+            --exclude='./node_modules' \
+            --exclude='./data/*' \
+            --exclude='./uploads' \
+            --exclude='./storage' \
+            --exclude='./cache' \
+            --exclude='./logs' \
+            -czf "$RUNNER_TEMP/transtrade-release.tgz" .
+          sha256sum exports/app.js | cut -d' ' -f1 > "$RUNNER_TEMP/exports-app.sha256"
+
+      - name: Configure verified SSH connection
+        env:
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+          HOSTINGER_KNOWN_HOSTS: ${{ secrets.HOSTINGER_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -m 700 -d "$RUNNER_TEMP/ssh"
+          printf '%s\n' "$HOSTINGER_SSH_KEY" | tr -d '\r' > "$RUNNER_TEMP/ssh/deploy_key"
+          printf '%s\n' "$HOSTINGER_KNOWN_HOSTS" | tr -d '\r' > "$RUNNER_TEMP/ssh/known_hosts"
+          chmod 600 "$RUNNER_TEMP/ssh/deploy_key" "$RUNNER_TEMP/ssh/known_hosts"
+          ssh-keygen -y -f "$RUNNER_TEMP/ssh/deploy_key" >/dev/null
+
+      - name: Validate Hostinger and upload staged release
+        run: |
+          set -euo pipefail
+          SSH=(ssh -i "$RUNNER_TEMP/ssh/deploy_key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" -o StrictHostKeyChecking=yes -p "$HOSTINGER_PORT")
+          SCP=(scp -i "$RUNNER_TEMP/ssh/deploy_key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" -o StrictHostKeyChecking=yes -P "$HOSTINGER_PORT")
+          REMOTE_BASE="${HOSTINGER_DEPLOY_PATH%/public_html}"
+          REMOTE_ROOT="$REMOTE_BASE/.transtrade-deploy"
+          REMOTE_ARCHIVE="$REMOTE_ROOT/incoming/release-$DEPLOY_SHA.tgz"
+          "${SSH[@]}" "$HOSTINGER_USER@$HOSTINGER_HOST" bash -s -- "$HOSTINGER_DEPLOY_PATH" "$REMOTE_ROOT" <<'REMOTE'
+          set -euo pipefail
+          target=$1
+          root=$2
+          case "$target" in
+            /home/*/domains/app.transtradeinternational.com/public_html) ;;
+            *) echo "Unexpected remote production path."; exit 1 ;;
+          esac
+          test -d "$target"
+          test -f "$target/login.php"
+          test -f "$target/module.php"
+          test -f "$target/exports/app.js"
+          mkdir -p "$root/incoming" "$root/staging" "$root/backups"
+          REMOTE
+          "${SCP[@]}" "$RUNNER_TEMP/transtrade-release.tgz" "$HOSTINGER_USER@$HOSTINGER_HOST:$REMOTE_ARCHIVE"
+
+      - name: Back up, validate and deploy on Hostinger
+        run: |
+          set -euo pipefail
+          EXPECTED_APP_SHA=$(cat "$RUNNER_TEMP/exports-app.sha256")
+          REMOTE_BASE="${HOSTINGER_DEPLOY_PATH%/public_html}"
+          REMOTE_ROOT="$REMOTE_BASE/.transtrade-deploy"
+          REMOTE_ARCHIVE="$REMOTE_ROOT/incoming/release-$DEPLOY_SHA.tgz"
+          ssh -i "$RUNNER_TEMP/ssh/deploy_key" \
+            -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" \
+            -o StrictHostKeyChecking=yes \
+            -p "$HOSTINGER_PORT" "$HOSTINGER_USER@$HOSTINGER_HOST" \
+            bash -s -- "$HOSTINGER_DEPLOY_PATH" "$REMOTE_ROOT" "$REMOTE_ARCHIVE" "$DEPLOY_SHA" "$EXPECTED_APP_SHA" <<'REMOTE'
+          set -euo pipefail
+          target=$1
+          root=$2
+          archive=$3
+          sha=$4
+          expected_app_sha=$5
+          case "$target" in
+            /home/*/domains/app.transtradeinternational.com/public_html) ;;
+            *) echo "Unexpected remote production path."; exit 1 ;;
+          esac
+          case "$sha" in
+            *[!0-9a-f]*|'') echo "Invalid release SHA."; exit 1 ;;
+          esac
+          stage="$root/staging/$sha"
+          backup="$root/backups/before-$sha-$(date -u +%Y%m%dT%H%M%SZ).tgz"
+          test -f "$archive"
+          rm -rf "$stage"
+          mkdir -p "$stage"
+          tar -xzf "$archive" -C "$stage"
+          test -f "$stage/login.php"
+          test -f "$stage/module.php"
+          test -f "$stage/exports/app.js"
+          find "$stage" -type f -name '*.php' -print0 | xargs -0 -n1 php -l >/dev/null
+          tar \
+            --exclude='./data' \
+            --exclude='./uploads' \
+            --exclude='./storage' \
+            --exclude='./cache' \
+            --exclude='./logs' \
+            -czf "$backup" -C "$target" .
+          if command -v rsync >/dev/null 2>&1; then
+            rsync -a --checksum \
+              --exclude='/data/' \
+              --exclude='/uploads/' \
+              --exclude='/storage/' \
+              --exclude='/cache/' \
+              --exclude='/logs/' \
+              "$stage/" "$target/"
+          else
+            cp -a "$stage/." "$target/"
+          fi
+          actual_app_sha=$(sha256sum "$target/exports/app.js" | cut -d' ' -f1)
+          if [ "$actual_app_sha" != "$expected_app_sha" ]; then
+            tar -xzf "$backup" -C "$target"
+            echo "Deployed asset hash mismatch; previous code restored."
+            exit 1
+          fi
+          printf '%s\n' "$sha" > "$target/.transtrade-release"
+          rm -f "$archive"
+          rm -rf "$stage"
+          echo "DEPLOYED_SHA=$sha"
+          echo "BACKUP=$backup"
+          REMOTE
+
+      - name: Verify production health
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 8); do
+            if curl --fail --silent --show-error --max-time 30 "$PRODUCTION_URL/login.php" | grep -q 'TRANSTRADE INTERNATIONAL'; then
+              echo "Production login is healthy at $DEPLOY_SHA"
+              exit 0
+            fi
+            echo "Waiting for production health ($attempt/8)"
+            sleep 15
+          done
+          echo "Production login health check failed."
+          exit 1
+
+      - name: Deployment summary
+        run: |
+          echo "## Production deployment" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Commit: \`$DEPLOY_SHA\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- URL: $PRODUCTION_URL" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Result: deployed and health checked" >> "$GITHUB_STEP_SUMMARY"

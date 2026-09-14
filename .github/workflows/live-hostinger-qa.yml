@@ -8,7 +8,7 @@ on:
         required: true
         type: string
   workflow_run:
-    workflows: ['Milling and Exports QA']
+    workflows: ['Deploy Production']
     types: [completed]
     branches: [main]
 
