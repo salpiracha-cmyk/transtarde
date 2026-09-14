@@ -1,7 +1,7 @@
 const fs=require('fs'),assert=require('assert');
 const app=fs.readFileSync('exports/app.js','utf8'),css=fs.readFileSync('exports/app.css','utf8'),admin=fs.readFileSync('index.html','utf8'),exportsIndex=fs.readFileSync('exports/index.html','utf8');
 const has=x=>assert(app.includes(x),'Missing acceptance marker: '+x);
-has("const TT_PORTS=['Port Qasim, Pakistan','Karachi Port, Pakistan'];");
+has("const TT_PORTS=['Port Qasim, Pakistan','Karachi Port, Pakistan','Port Qasim, Pakistan or Karachi Port, Pakistan'];");
 has('Have you received the signed Sales Contract?');
 has('SAVE & REISSUE SAME LOADING INSTRUCTION');
 has('const reissueDraft=shipment()?.loading?.draft');
