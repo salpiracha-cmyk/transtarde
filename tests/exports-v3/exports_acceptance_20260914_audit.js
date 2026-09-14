@@ -28,10 +28,10 @@ const finalStart=app.lastIndexOf('/* 2026-09-14 Document Output Section handover
 const mountAt=app.lastIndexOf('mount();');
 assert(finalStart>=0&&mountAt>finalStart,'Authoritative final output layer must execute immediately before mount');
 const finalLayer=app.slice(finalStart,mountAt);
-for(const name of ['contractPriceHTML','purchaseOrderPrint','blDraftDoc','phytoInvoiceDoc','packingListDoc'])assert(finalLayer.includes('function '+name+'__locked_v'),'Final handover layer missing canonical '+name);
-assert(app.lastIndexOf('function packingListDoc__locked_v')>finalStart,'Final Customs Packing renderer must be inside the handover layer');
-assert(app.lastIndexOf('function phytoInvoiceDoc__locked_v')>finalStart,'Final Phytosanitary renderer must be inside the handover layer');
-assert(app.lastIndexOf('function liveLotDocument__locked_v')<finalStart,'The handover renderer must execute after the live preview wrapper');
+for(const name of ['contractPriceHTML','purchaseOrderPrint','blDraftDoc','phytoInvoiceDoc','packingListDoc'])assert(finalLayer.includes('function '+name+'('),'Final handover layer missing canonical '+name);
+assert(app.lastIndexOf('function packingListDoc(')>finalStart,'Final Customs Packing renderer must be inside the handover layer');
+assert(app.lastIndexOf('function phytoInvoiceDoc(')>finalStart,'Final Phytosanitary renderer must be inside the handover layer');
+assert(app.lastIndexOf('function liveLotDocument(')<finalStart,'The handover renderer must execute after the live preview wrapper');
 assert(app.includes("d.querySelector('#customsOutputReviews')?.remove()"),'Obsolete duplicate Customs preview is not removed');
 assert(app.includes("return freshCustomsInvoiceDocument(s,c,'PHYTOSANITARY INVOICE')"),'Phytosanitary is not tied to the Customs renderer');
 assert(css.includes('.salesContractFlowPage .docTitle'),'Continuous Sales Contract title rule missing');
