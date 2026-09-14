@@ -925,17 +925,36 @@ directPrint=function(title,html,mode='with'){
  return ttDirectPrintBeforeAcceptance(filename,html,mode)
 };
 
+function ttRecoverEmptyManagedOptions(select,group){
+ const selectable=[...select.options].filter(option=>option.value&&!String(option.value).startsWith('__'));
+ if(selectable.length)return;
+ const {config,settings}=ttOptionSettings(group),fixedTokens=new Set(config.fixed.map(ttOptionToken));
+ settings[config.removedKey]=settings[config.removedKey].filter(value=>!fixedTokens.has(ttOptionToken(value)));
+ const reserved=[...select.options].find(option=>String(option.value).startsWith('__'))||null;
+ for(const value of ttActiveOptions(group)){
+  if([...select.options].some(option=>ttOptionToken(option.value)===ttOptionToken(value)))continue;
+  const option=document.createElement('option');option.value=value;option.textContent=value;select.insertBefore(option,reserved)
+ }
+ const result=save();if(result&&typeof result.catch==='function')result.catch(error=>console.error('Managed option recovery save',error))
+}
+const ttRemoveOptionBeforeLastChoiceGuard=ttRemoveOption;
+ttRemoveOption=function(group,value){
+ const remaining=ttActiveOptions(group).filter(option=>ttOptionToken(option)!==ttOptionToken(value));
+ if(!remaining.length)return alert('At least one '+TT_REMOVABLE_OPTION_GROUPS[group].label+' option must remain available.');
+ return ttRemoveOptionBeforeLastChoiceGuard(group,value)
+};
 ttPrepareRemovableSelect=function(select,group,current){
  if(!select)return;
  const retained=ttOptionToken(current);
- [...select.options].forEach(option=>{const value=option.value;if(value&&value!=='__custom__'&&ttOptionIsRemoved(group,value)&&ttOptionToken(value)!==retained)option.remove()});
+ [...select.options].forEach(option=>{const value=option.value;if(value&&!String(value).startsWith('__')&&ttOptionIsRemoved(group,value)&&ttOptionToken(value)!==retained)option.remove()});
+ ttRecoverEmptyManagedOptions(select,group);
  const field=select.closest('.field');
  field?.querySelector('[data-option-manager="'+group+'"]')?.remove();
  if(!field||field.querySelector('[data-managed-select="'+group+'"]'))return;
  const box=document.createElement('div');box.className='managedSelectBox';box.dataset.managedSelect=group;
  select.parentNode.insertBefore(box,select);box.appendChild(select);
  const remove=document.createElement('button');remove.type='button';remove.className='optionMinus managedSelectDelete';remove.textContent='−';remove.title='Delete selected option';remove.setAttribute('aria-label','Delete selected '+group+' option');box.appendChild(remove);
- remove.onclick=()=>{const value=select.value;if(!value||value==='__custom__')return alert('Select the option to delete first.');ttRemoveOption(group,value)}
+ remove.onclick=()=>{const value=select.value;if(!value||String(value).startsWith('__'))return alert('Select the option to delete first.');ttRemoveOption(group,value)}
 };
 
 const ttRenderProductionBeforeAcceptance=renderProduction;
