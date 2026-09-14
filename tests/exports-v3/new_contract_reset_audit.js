@@ -4,6 +4,7 @@ const app=fs.readFileSync(__dirname+'/../../exports/app.js','utf8');
 const css=fs.readFileSync(__dirname+'/../../exports/app.css','utf8');
 const customerMaster=fs.readFileSync(__dirname+'/../../customer-master.js','utf8');
 const operations=fs.readFileSync(__dirname+'/../../api/operations.mysql.php','utf8');
+const sourceBridge=fs.readFileSync(__dirname+'/../../accounts/source-bridge.js','utf8');
 
 assert.match(app,/id='cCustomerSearch'/,'new Sales Contract uses a type-ahead customer field');
 assert.match(app,/\.startsWith\(q\)/,'customer matches are prefix-filtered as staff type');
@@ -25,5 +26,19 @@ assert.match(app,/if\(contractStep===4&&packingDraft&&!persistPackingDraft\(\)\)
 const activeEditor=app.lastIndexOf('function renderContractEditor(){');
 const packingNext=app.indexOf('if(contractStep===4&&packingDraft&&!persistPackingDraft())return;',activeEditor);
 assert.ok(activeEditor>=0&&packingNext>activeEditor,'packing save belongs to the final active contract editor, not an obsolete override');
+
+
+assert.match(sourceBridge,/function showOutboxAttention\(\)\{document\.getElementById\('ttAccountsOutboxBadge'\)\?\.remove\(\)\}/,'Accounts retry processing stays active without exposing the pending badge');
+assert.doesNotMatch(sourceBridge,/badge\.textContent=.*Accounts handoffs pending/,'Accounts pending retry badge is not recreated');
+assert.match(app,/const TT_PORTS=\['Port Qasim, Pakistan','Karachi Port, Pakistan','Port Qasim, Pakistan or Karachi Port, Pakistan'\]/,'Port of Loading contains the three approved choices');
+assert.match(app,/pol:'Port Qasim, Pakistan or Karachi Port, Pakistan'/,'combined Port of Loading choice is the new-contract default');
+assert.match(app,/addable=key==='packing_types'/,'packing type selector exposes Add New to Export users');
+assert.match(app,/settings\.customPackingTypes\.push\(added\);save\(\)/,'new Export-user packing types persist locally without Super Admin access');
+assert.match(app,/terminalHandling=.*Load Port Terminal Handling Charges[\s\S]*filter\(x=>!automaticInsurance\.test\(x\)&&!automaticInspection\.test\(x\)&&!terminalHandling\.test\(x\)\);\s*if\(c\.incoterm==='FOB'\)stored\.push/,'terminal handling is removed from inherited terms and added only for FOB');
+assert.match(app,/requestAnimationFrame\(\(\)=>form\?\.scrollIntoView\(\{block:'start',behavior:'auto'\}\)\)/,'Next and Back rerenders position the form at its top');
+assert.match(app,/const CONTRACT_DRAFT_STORE='tt-export-contract-draft-v1'/,'Sales Contract explicit-step recovery checkpoint is defined');
+assert.match(app,/contractStep\+\+;packingDraft=null;checkpointContractDraft\(\);renderContractEditor\(\)/,'each successful Next checkpoints the in-progress contract');
+assert.match(app,/mount\(\);restoreContractCheckpoint\(\);/,'same-user contract checkpoint is restored after reload or renewed login');
+assert.match(app,/function ttPartyOutput\(party\)\{return\{name:ttProperNounOutput\(party\?\.name\|\|''\),address:ttProperNounOutput\(party\?\.address\|\|''\)\}\}/,'seller and buyer output capitalization is normalized independently of entry casing');
 
 console.log('PASS Export reset, blank new contract, prefix customer picker, +1 reference and removed Master Data nav icon');
