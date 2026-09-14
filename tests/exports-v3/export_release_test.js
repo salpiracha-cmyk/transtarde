@@ -192,7 +192,7 @@ assert.equal(phytosanitary.replaceAll('PHYTOSANITARY INVOICE','CUSTOM INVOICE'),
 
 const cifContract={...c,incoterm:'CIF',insurance:"Seller's Account",showAllPrices:true,paymentCode:'ADV_CAD',advancePct:30,terms:["Insurance shall be for Buyer’s account."],termsInitialized:true,packings:c.packings.map(p=>({...p,contractRate:425,price:398,freight:25,insurance:2}))};
 const cifOutput=t.salesContractPrint(cifContract);
-assert.match(cifOutput,/USD <\/span><strong>425\.00<\/strong><span> PMT CIF/);
+assert.match(cifOutput,/USD\. <\/span><strong>425\.00<\/strong><span> CIF/);assert.match(cifOutput,/TOTAL CIF VALUE 540 MT × USD 425\.00/);
 assert.match(cifOutput,/FOB VALUE:<\/b> USD 398\.00 PMT/);
 assert.match(cifOutput,/FREIGHT:<\/b> USD 25\.00 PMT/);
 assert.match(cifOutput,/INSURANCE:<\/b> USD 2\.00 PMT/);
