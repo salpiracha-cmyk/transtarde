@@ -274,7 +274,8 @@ test('manual Hostinger QA: Export instruction to Mill and container return', asy
   await expect(contractPreview).toContainText(/25 kgs each/i);
   await expect(contractPreview).toContainText(brand, { ignoreCase: true });
   await expect(contractPreview).toContainText('PRICE');
-  await expect(contractPreview).toContainText('USD 400.00 PMT CIF');
+  await expect(contractPreview).toContainText('USD. 400.00 CIF');
+  await expect(contractPreview).toContainText('TOTAL CIF VALUE 52 MT × USD 400.00 USD. 20,800.00/=');
   await expect(contractPreview).toContainText('FOB VALUE: USD 373.00 PMT');
   await expect(contractPreview).toContainText('FREIGHT: USD 25.00 PMT');
   await expect(contractPreview).toContainText('INSURANCE: USD 2.00 PMT');
@@ -282,7 +283,6 @@ test('manual Hostinger QA: Export instruction to Mill and container return', asy
   await expect(contractPreview).toContainText('Insurance shall be for Seller’s account.');
   await expect(contractPreview).toContainText('PAYMENT');
   await expect(contractPreview).toContainText('ADVANCE');
-  await expect(contractPreview).toContainText('TOTAL CONTRACT VALUE');
   await expect(contractPreview).toContainText('UNITED STATES DOLLARS');
   await expect(contractPreview).toContainText('OTHER TERMS AND CONDITIONS');
   await expect(contractPreview).toContainText('DOCUMENTS TO BE PRESENTED FOR NEGOTIATION');
