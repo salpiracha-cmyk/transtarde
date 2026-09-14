@@ -288,3 +288,77 @@
 .salesContractFlowPage .contractFlowLayout .docTitle{
  margin:0 0 3mm!important;
 }
+
+
+/* 2026-09-15 reconciled export workflow and document presentation. */
+.customsInlineError{margin:12px 0 8px;border-left:5px solid #b3261e;font-weight:800}
+.loadingSourceBar{justify-content:flex-end;margin:8px 0}
+.productionSentStamp{display:block;margin:7px auto 0;padding:4px 8px;border:2px solid #267046;border-radius:5px;color:#267046;font-size:9px;font-weight:1000;letter-spacing:.08em;transform:rotate(-2deg)}
+
+.salesContractFlowPage .contractFlowLayout>thead{display:table-header-group}
+.salesContractFlowPage .contractFlowLayout>tfoot{display:table-footer-group}
+.salesContractFlowPage .contractFlowLayout>tfoot>tr>td{height:25.4mm;padding:0!important;vertical-align:bottom}
+.salesContractFlowPage .contractFlowLayout>thead .docRefGrid{margin:0 0 2mm}
+.salesContractFlowPage .contractFlowLayout>tbody .docTitle{margin:1mm 0 3mm!important;font-size:22px!important}
+.contractPrintFooter{position:relative;display:flex;align-items:flex-end;justify-content:center;height:25.4mm;min-height:25.4mm;padding-top:4mm}
+.contractPrintFooter .docFooterArt{position:static!important;inset:auto!important;width:100%!important;margin:0!important}
+.contractPrintFooter .docFooterArt img{display:block;width:100%;max-height:15mm;object-fit:contain;object-position:center bottom}
+.contractPageNumber{position:absolute;right:0;bottom:0;font-size:8px;font-weight:800}
+.contractPageNumber:after{content:"PAGE " counter(page)}
+
+.poOnePage{padding:10mm 12mm 10mm!important;background:linear-gradient(180deg,#fff 0,#fbfcfa 100%)}
+.poOnePage .poCompany{color:#234d35;font-size:19px}
+.poOnePage .docTitle{font-size:21px!important;text-underline-offset:3px}
+.poOnePage .docMeta{border:1.5px solid #315c43}
+.poOnePage .docMeta .lbl,.poOnePage .poOrderTable th{background:#e6efe8;color:#173c29}
+.poOnePage .poOrderTable{border:1.5px solid #315c43}
+.poOnePage .poOrderTable td{height:25mm;padding:2mm}
+.poOnePage .poOrderTable td:nth-child(6) strong{font-size:14px;color:#173c29}
+.poOnePage .poInlineMarking{max-width:43mm;max-height:27mm}
+.poOnePage.poRowCount1 .poOrderTable td,.poOnePage.poRowCount2 .poOrderTable td{height:34mm}
+.poOnePage.poRowCount1 .poInlineMarking,.poOnePage.poRowCount2 .poInlineMarking{max-width:48mm;max-height:35mm}
+.poNoMarking{display:block;color:#555;font-size:9px;font-weight:800}
+.poTermsCompact{margin:3mm 0;padding:2mm;border-left:3px solid #5e806b;background:#f1f5f2;font-size:8px;line-height:1.35}
+.poCritical{margin:3mm 0;padding:2.2mm;border:1.5px solid #315c43;background:#fff;font-size:10px}
+.poBagTotals{margin-top:3mm;border:1.5px solid #234d35;background:#fff}
+.poBagTotals>b{display:block;padding:1.8mm 2mm;background:#234d35;color:#fff;text-align:center;letter-spacing:.05em}
+.poBagTotals>div{display:grid;grid-template-columns:1fr auto;gap:6mm;padding:1.5mm 3mm;border-top:1px solid #b9c8be;align-items:center}
+.poBagTotals>div strong{font-size:12px}
+.poBagTotals .poGrandTotal{padding:2.4mm 3mm;background:#dfece3;border-top:2px solid #234d35}
+.poBagTotals .poGrandTotal span,.poBagTotals .poGrandTotal strong{font-size:14px;font-weight:1000}
+.poOnePage .docPageNo{bottom:4mm}
+
+.commercialSettlement{margin-top:2mm;border:2px solid #234d35;background:#fff}
+.commercialSettlement>div{display:grid;grid-template-columns:1fr auto;gap:8mm;padding:2mm 3mm;border-bottom:1px solid #9caf9f;font-size:10px}
+.commercialSettlement>div:last-child{border-bottom:0}
+.commercialSettlement strong{font-size:11px}
+.commercialSettlement .commercialReceivable{background:#dcecdf;color:#173c29}
+.commercialSettlement .commercialReceivable span,.commercialSettlement .commercialReceivable strong{font-size:14px;font-weight:1000}
+
+.commercialPackingContainers{table-layout:fixed;font-size:8px}
+.commercialPackingContainers th:nth-child(1),.commercialPackingContainers th:nth-child(2){width:16%}
+.commercialPackingContainers th:nth-child(3){width:14%}
+.commercialPackingContainers th:nth-child(4),.commercialPackingContainers th:nth-child(5),.commercialPackingContainers th:nth-child(6){width:18%}
+.commercialPackingContainers td{text-align:center;vertical-align:middle}
+
+.cooCertificate{border:1.5px solid #304e3c}
+.cooReference{display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid #304e3c}
+.cooReference>div{display:flex;justify-content:space-between;gap:4mm;padding:2.5mm}
+.cooReference>div+div{border-left:1px solid #304e3c}
+.cooParties{display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid #304e3c}
+.cooParties>div{display:flex;flex-direction:column;min-height:28mm;padding:3mm}
+.cooParties>div+div{border-left:1px solid #304e3c}
+.cooParties b,.cooTransport b,.cooDeclaration>b{color:#234d35;font-size:8px;letter-spacing:.05em}
+.cooParties strong{font-size:10px;margin:1mm 0}.cooParties span{white-space:pre-line}
+.cooTransport{display:grid;grid-template-columns:repeat(2,1fr);border-bottom:1px solid #304e3c}
+.cooTransport>div{display:flex;flex-direction:column;min-height:13mm;padding:2mm;border-right:1px solid #304e3c;border-bottom:1px solid #304e3c}
+.approvedCooGoods{margin:0;table-layout:fixed}.approvedCooGoods th:nth-child(1){width:18%}.approvedCooGoods th:nth-child(2){width:22%}.approvedCooGoods th:nth-child(3){width:42%}.approvedCooGoods th:nth-child(4){width:18%}
+.approvedCooGoods td{height:62mm;text-align:center;vertical-align:middle}
+.cooDeclaration{padding:4mm;text-align:center}.cooDeclaration p{margin:2mm 0}.cooDeclaration strong{font-size:13px;color:#173c29}
+
+@media print{
+ .salesContractFlowPage{padding-bottom:0!important}
+ .salesContractFlowPage .contractFlowLayout>thead{display:table-header-group}
+ .salesContractFlowPage .contractFlowLayout>tfoot{display:table-footer-group}
+ .poOnePage{width:210mm!important;height:297mm!important}
+}
