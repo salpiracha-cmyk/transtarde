@@ -21,5 +21,9 @@ assert.match(operations,/settings and shared master definitions preserved/,'rese
 assert.match(operations,/\$root\['audits'\] = \[\[/,'prior user and bulk-test audit entries are cleared');
 assert.match(operations,/operations_reset_export_documents/,'uploaded operational documents are included in reset');
 assert.match(operations,/currentMarker !== '' && \$incomingMarker !== \$currentMarker/,'stale clients cannot restore reset Export data');
+assert.match(app,/if\(contractStep===4&&packingDraft&&!persistPackingDraft\(\)\)return;const err=validateContractStep\(contractStep\)/,'active contract Next handler persists the visible packing before validation');
+const activeEditor=app.lastIndexOf('function renderContractEditor(){');
+const packingNext=app.indexOf('if(contractStep===4&&packingDraft&&!persistPackingDraft())return;',activeEditor);
+assert.ok(activeEditor>=0&&packingNext>activeEditor,'packing save belongs to the final active contract editor, not an obsolete override');
 
 console.log('PASS Export reset, blank new contract, prefix customer picker, +1 reference and removed Master Data nav icon');
