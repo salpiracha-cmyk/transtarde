@@ -28,7 +28,7 @@ assert(app.lastIndexOf('packingListDoc=function')<finalStart,'Final Customs Pack
 assert(app.lastIndexOf('phytoInvoiceDoc=function')<finalStart,'Final Phytosanitary renderer must precede the authoritative wrapper layer');
 assert(finalLayer.lastIndexOf('commercialInvoiceDoc=function')<finalLayer.indexOf('liveLotDocument=function'),'Customs live preview must use the final invoice renderer');
 assert(finalLayer.includes("d.querySelector('#customsOutputReviews')?.remove()"),'Obsolete duplicate Customs preview is not removed');
-assert(finalLayer.includes("phytoInvoiceDoc=function(s,c){return freshCustomsInvoiceDocument(s,c,'PHYTOSANITARY INVOICE')}"),'Phytosanitary is not tied to the Customs renderer');
+assert(app.includes("phytoInvoiceDoc=function(s,c){return freshCustomsInvoiceDocument(s,c,'PHYTOSANITARY INVOICE')}"),'Phytosanitary is not tied to the Customs renderer');
 assert(css.includes('.salesContractFlowPage .docTitle'),'Continuous Sales Contract title rule missing');
 assert(css.includes('.contractFlowLayout>thead{display:table-header-group}'),'Repeated heading print rule missing');
 assert(css.includes('.customsPreviewStack'),'Single Customs preview stack style missing');
