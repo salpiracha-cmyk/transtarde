@@ -23,7 +23,9 @@ const finalStart=app.lastIndexOf('/* 2026-09-14 Exports A-S acceptance correctio
 const mountAt=app.lastIndexOf('mount();');
 assert(finalStart>=0&&mountAt>finalStart,'Authoritative final output layer must execute immediately before mount');
 const finalLayer=app.slice(finalStart,mountAt);
-for(const assignment of ['salesContractPrint=function','purchaseOrderPrint=function','renderProduction=function','renderLoading=function','commercialInvoiceDoc=function','packingListDoc=function','phytoInvoiceDoc=function','renderCustoms=function','liveLotDocument=function'])assert(finalLayer.includes(assignment),'Final layer missing '+assignment);
+for(const assignment of ['salesContractPrint=function','purchaseOrderPrint=function','renderProduction=function','renderLoading=function','commercialInvoiceDoc=function','renderCustoms=function','liveLotDocument=function'])assert(finalLayer.includes(assignment),'Final layer missing '+assignment);
+assert(app.lastIndexOf('packingListDoc=function')<mountAt&&app.lastIndexOf('packingListDoc=function')>finalStart-12000,'Final Customs Packing renderer must be adjacent to the authoritative layer');
+assert(app.lastIndexOf('phytoInvoiceDoc=function')<mountAt&&app.lastIndexOf('phytoInvoiceDoc=function')>finalStart-12000,'Final Phytosanitary renderer must be adjacent to the authoritative layer');
 assert(finalLayer.lastIndexOf('commercialInvoiceDoc=function')<finalLayer.indexOf('liveLotDocument=function'),'Customs live preview must use the final invoice renderer');
 assert(finalLayer.includes("d.querySelector('#customsOutputReviews')?.remove()"),'Obsolete duplicate Customs preview is not removed');
 assert(finalLayer.includes("phytoInvoiceDoc=function(s,c){return freshCustomsInvoiceDocument(s,c,'PHYTOSANITARY INVOICE')}"),'Phytosanitary is not tied to the Customs renderer');
