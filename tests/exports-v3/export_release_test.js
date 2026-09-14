@@ -155,7 +155,7 @@ const purchaseOrder=t.purchaseOrderPrint({poNo:'PO-260001',supplier:'QA BAG SUPP
 assert.equal((purchaseOrder.match(/class="docPage/g)||[]).length,1,'Bag Purchase Order including its marking stays on one page');
 assert.match(purchaseOrder,/Total Bags/);assert.match(purchaseOrder,/21,816/);assert.match(purchaseOrder,/MASTER BAG/);assert.match(purchaseOrder,/1,091/);assert.match(purchaseOrder,/BAG MARKING/);
 assert.doesNotMatch(purchaseOrder,/Required \+ Extra|EMPTY BAGS|Unit Rate|Line Amount|Tax|Customer|Sales Contract|Authorised Signatory|HANDLE: YES/);
-assert.match(purchaseOrder,/P\.O\. NUMBER MUST BE MENTIONED ON THE DELIVERY ORDER AND ALSO ON THE FINAL BILL/);
+assert.match(purchaseOrder,/Kindly ensure the P\.O\. number is mentioned on the Delivery Order and also on the final bill\./);
 const longContract={...c,terms:Array.from({length:18},(_,i)=>`Long contract term ${i+1}`),documentsPresented:Array.from({length:12},(_,i)=>({sequence:i+1,name:`Document ${i+1}`,original:1,copies:1}))};
 assert.equal((t.salesContractPrint(longContract).match(/salesContractPage/g)||[]).length,4,'extreme sales contract expands to four pages');
 assert.match(source,/contractSplitWorkspace/);

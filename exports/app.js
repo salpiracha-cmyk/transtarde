@@ -951,7 +951,7 @@ renderBagOrder=function(d){ttRenderBagOrderBeforeAcceptance(d);ttDedupeSelectOpt
 purchaseOrderPrint=function(po){
  const rows=[];
  for(const [i,l] of po.lines.entries()){
-  rows.push(`<tr><td>${i+1}</td><td>${esc(ttOutputEnglish(l.brand))}</td><td>${esc(ttOutputEnglish(l.type))} of ${num(l.size)} ${esc(String(l.unit||'KG').toUpperCase())}</td><td>${num(l.tare)} g</td><td>${num(l.totalBags).toLocaleString()}</td><td>${l.masterBag?.enabled?`${num(l.masterBag.quantity||l.masterBag.qty).toLocaleString()} master bags of ${num(l.masterBag.bagsPerMaster)*num(l.size)} ${esc(String(l.unit||'KG').toUpperCase())}`:'—'}</td></tr>`)
+  rows.push(`<tr><td>${i+1}</td><td>${esc(ttOutputEnglish(l.brand))}</td><td>${esc(ttOutputEnglish(l.type))} of ${num(l.size)} ${esc(String(l.unit||'KG').toUpperCase())}</td><td>${num(l.tare)} g</td><td>${num(l.totalBags).toLocaleString()}</td><td>${l.masterBag?.enabled?`${num(l.masterBag.quantity||l.masterBag.qty).toLocaleString()} MASTER BAGS of ${num(l.masterBag.bagsPerMaster)*num(l.size)} ${esc(String(l.unit||'KG').toUpperCase())}`:'—'}</td></tr>`)
  }
  const notes=`<div class="poNotes"><b>NOTES</b><ol><li>Kindly ensure the P.O. number is mentioned on the Delivery Order and also on the final bill.</li><li>Please confirm from our office which company name the Sales Tax Invoice will be issued in.</li></ol></div>`;
  const markings=po.lines.map(l=>`<div class="bagPoMark"><b>${esc(ttOutputEnglish(l.brand))} — APPROVED BAG MARKING</b>${l.artworkData?`<img src="${esc(l.artworkData)}" alt="Approved bag marking">`:''}<div class="poMarkingCaption">${esc(ttOutputEnglish(l.type))} · ${num(l.size)} ${esc(String(l.unit||'KG').toUpperCase())} · P.O. ${esc(po.poNo)}</div></div>`).join('');
