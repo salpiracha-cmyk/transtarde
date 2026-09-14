@@ -19,6 +19,8 @@ const window={document,localStorage,TT_MODULE_ACCESS:{user:'Test User',masters:{
 const context={window,document,localStorage,console,structuredClone,alert:m=>{throw new Error('Unexpected alert: '+m)},location:{href:''},setTimeout:fn=>fn(),setInterval:()=>0,clearTimeout(){},FileReader:class{},Date,Intl};
 context.globalThis=context;
 let source=fs.readFileSync(__dirname+'/../../exports/app.js','utf8');
+const mutableExportOverrides=source.split('\n').filter(line=>/^[A-Za-z_$][\w$]*\s*=\s*function\s*\(/.test(line)).map(line=>line.match(/^([A-Za-z_$][\w$]*)/)[1]);
+assert.deepEqual(mutableExportOverrides,[],'Export module must not contain mutable function override assignments');
 source=source.replace('mount();','window.__EXPORT_TEST__={parseContractText,parseLCText,paymentText,lcSpecificTerms,effectiveTerms,packingPrefix,unitRate,makeShipment,salesContractPrint,purchaseOrderPrint,commercialInvoiceDoc,packingListDoc,phytoInvoiceDoc,blDraftDoc,coveringDoc,lcControlDoc,lcDraftDoc,millActualsComplete,applyProductMaster,productLabel,productMasters,qualityDescription,contractSpecRows,currentCropYear,millLocations,brokenEntry,normalizeBrokenEntry,brokenEntryValid,finishChoices,DEFAULT_QUALITY,CONTAINER_RE,state};\nmount();');
 vm.runInNewContext(source,context,{filename:'app.js'});
 const t=window.__EXPORT_TEST__;
@@ -152,10 +154,20 @@ assert.match(normalContract,/TOTAL CFR VALUE 540 M\/TONS × USD 410\.00[\s\S]*US
 assert.match(normalContract,/UNITED STATES DOLLARS TWO HUNDRED TWENTY ONE THOUSAND FOUR HUNDRED ONLY/);
 assert.match(normalContract,/EDITABLE TERM/);
 const purchaseOrder=t.purchaseOrderPrint({poNo:'PO-260001',supplier:'QA BAG SUPPLIER',requiredDate:'2026-09-20',deliverTo:'TTI RICE MILLS',lines:[{brand:'STAR',type:'P.P. Bags',size:25,unit:'KG',tare:80,totalBags:21816,handle:'No',artworkData:'data:image/png;base64,AA==',masterBag:{enabled:true,bagsPerMaster:20,quantity:1091,tare:120,printed:false}}]});
-assert.equal((purchaseOrder.match(/class="docPage/g)||[]).length,1,'Bag Purchase Order including its marking stays on one page');
-assert.match(purchaseOrder,/TOTAL ORDER/);assert.match(purchaseOrder,/21,816/);assert.match(purchaseOrder,/Master Bag/);assert.match(purchaseOrder,/1,091/);assert.match(purchaseOrder,/BAG MARKING/);
+assert.equal((purchaseOrder.match(/class="docPage plainOrderPage poOnePage"/g)||[]).length,1,'Bag Purchase Order including its marking stays on one page');
+assert.match(purchaseOrder,/TOTAL ORDER/);assert.match(purchaseOrder,/21,816/);assert.match(purchaseOrder,/MASTER BAG/);assert.match(purchaseOrder,/1,091/);assert.match(purchaseOrder,/BAG MARKING/);
 assert.doesNotMatch(purchaseOrder,/Required \+ Extra|EMPTY BAGS|Unit Rate|Line Amount|Customer|Sales Contract|Authorised Signatory|HANDLE: YES/);
-assert.match(purchaseOrder,/P\.O\. NUMBER MUST BE MENTIONED ON THE DELIVERY ORDER AND ALSO ON THE FINAL BILL\./);
+assert.match(purchaseOrder,/poOnePage/);
+assert.match(purchaseOrder,/TRANSTRADE INTERNATIONAL/);
+assert.match(purchaseOrder,/BRAND AND BAG SPECIFICATION/);
+assert.match(purchaseOrder,/APPROVED BAG MARKING/);
+assert.match(purchaseOrder,/P\.O\. NUMBER IS MENTIONED ON THE DELIVERY ORDER AND ALSO ON THE FINAL BILL/);
+assert.match(purchaseOrder,/PAGE 1 OF 1/);
+const purchaseOrderTwoLines=t.purchaseOrderPrint({poNo:'PO-260002',supplier:'QA BAG SUPPLIER',issuedAt:'2026-09-14',requiredDate:'2026-09-20',deliverTo:'TTI RICE MILLS',lines:[{brand:'STAR',type:'P.P. Bags',size:25,unit:'KG',tare:80,totalBags:1000,artworkData:'data:image/png;base64,AA==',masterBag:{enabled:false}},{brand:'MOON',type:'BOPP laminated Bags',size:50,unit:'KG',tare:110,totalBags:500,masterBag:{enabled:true,bagsPerMaster:2,quantity:250,tare:140,printed:false}}]});
+assert.match(purchaseOrderTwoLines,/<td>1<\/td>[\s\S]*<td>2<\/td>[\s\S]*<td>3<\/td>/,'primary bags are numbered first and master bag follows as serial 3');
+assert.doesNotMatch(purchaseOrderTwoLines,/3\.1|2\.1/);
+assert.match(source,/contractSpecificationSequence/);
+assert.match(purchaseOrder,/KINDLY ENSURE THE P\.O\. NUMBER IS MENTIONED ON THE DELIVERY ORDER AND ALSO ON THE FINAL BILL\./);
 const longContract={...c,terms:Array.from({length:18},(_,i)=>`Long contract term ${i+1}`),documentsPresented:Array.from({length:12},(_,i)=>({sequence:i+1,name:`Document ${i+1}`,original:1,copies:1}))};
 assert.equal((t.salesContractPrint(longContract).match(/salesContractFlowPage/g)||[]).length,1,'long Sales Contract remains one continuous flow without fixed page locking');
 assert.match(source,/contractSplitWorkspace/);
@@ -209,7 +221,7 @@ const orderedPo=t.purchaseOrderPrint({poNo:'PO-ORDER',supplier:'SUPPLIER',requir
  {brand:'SECOND',type:'Cotton Bags',size:25,unit:'KG',tare:90,totalBags:200,handle:'Yes',masterBag:{enabled:false}}
 ]});
 assert.match(orderedPo,/<td>1<\/td>[\s\S]*First[\s\S]*<td>2<\/td>[\s\S]*Second[\s\S]*masterBagOrderRow[\s\S]*<td>3<\/td>[\s\S]*Master Bag/i);
-assert.match(orderedPo,/Second[\s\S]*<b>YES<\/b>/i);
+assert.match(orderedPo,/Second[\s\S]*<b>With handle<\/b>/i);
 assert.doesNotMatch(orderedPo,/Unit Rate|Line Amount|Sales Contract|Customer/);
 
 console.log('PASS export release unit/integration assertions');
