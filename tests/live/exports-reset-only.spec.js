@@ -62,12 +62,11 @@ test('server-confirmed full Export reset survives a new login', async ({ page })
   ).not.toBe('');
   const csrf = await page.evaluate(() => window.TT_MODULE_ACCESS?.csrf || '');
 
-  // Settle any bridge work created during module startup, then detach the page
-  // before the server reset. Otherwise pagehide can flush the pre-reset Export
-  // snapshot after cleanup and recreate Mill-update alerts during logout.
-  await page.evaluate(async () => {
-    if (window.TT_SHARED_SYNC?.saveNow) await window.TT_SHARED_SYNC.saveNow();
-  });
+  // Detach the module before reading and resetting the server. Waiting after
+  // pagehide lets any startup bridge flush finish first, while ensuring no
+  // application page remains capable of restoring pre-reset state later.
+  await page.goto('about:blank');
+  await page.waitForTimeout(1_000);
 
   const snapshot = await readShared(page.request);
   const root = parse(snapshot.values?.[STORE], {});
@@ -77,8 +76,6 @@ test('server-confirmed full Export reset survives a new login', async ({ page })
     ...contracts.map(row => String(row?.ref || '').trim()),
     ...shipments.map(row => String(row?.contractRef || '').trim()),
   ].filter(Boolean))];
-
-  await page.goto('about:blank');
 
   for (const contractRef of refs) {
     const response = await page.request.post(BASE_URL + '/api/export_documents.php', {
