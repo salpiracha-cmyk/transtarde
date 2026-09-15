@@ -161,7 +161,7 @@ async function createBulkQaShipment(page, { suffix, index, lotRef, contractRef, 
 
   await page.locator('[data-workspace="production"]').click();
   await expect(page.locator('#piInspection')).toHaveValue('No');
-  await expect(page.locator('#piInspection')).toHaveAttribute('readonly', '');
+  await expect(page.locator('#piInspection')).toBeEditable();
   await page.locator('#sendPI').click();
   await expect(page.getByText('PRODUCTION INSTRUCTIONS ALREADY SENT')).toBeVisible();
   await waitForSharedSave(page);
@@ -289,9 +289,9 @@ test('manual Hostinger QA: Export instruction to Mill and container return', asy
   await expect(contractPreview).toContainText('UNITED STATES DOLLARS');
   await expect(contractPreview).toContainText('OTHER TERMS AND CONDITIONS');
   await expect(contractPreview).toContainText('DOCUMENTS TO BE PRESENTED FOR NEGOTIATION');
-  await expect(contractPreview.locator('.salesContractFlowPage')).toHaveCount(1);
-  await expect(contractPreview.locator('.salesContractPage')).toHaveCount(0);
-  await expect(contractPreview.locator('.contractFlowLayout')).toHaveCount(1);
+  await expect(contractPreview.locator('.salesContractFlowPage')).toHaveCount(0);
+  await expect(contractPreview.locator('.salesContractPage')).toHaveCount(2);
+  await expect(contractPreview.locator('.contractFlowLayout')).toHaveCount(0);
   await page.locator('#issueContract').click();
   await expect(page.getByText(contractRef, { exact: true }).first()).toBeVisible({ timeout: 30_000 });
   await waitForSharedSave(page);
