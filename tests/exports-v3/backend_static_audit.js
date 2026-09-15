@@ -22,6 +22,8 @@ assert.match(mysql,/beginTransaction\(\)/);
 assert.match(mysql,/baseVersion/);
 assert.match(mysql,/409/);
 assert.match(mysql,/operations_merge_export/);
+assert.match(mysql,/\$merged\['alerts'\]\s*=\s*array_values\(\(array\)\(\$incoming\['alerts'\]/,'an exact-version Exports save must be able to clear acknowledged or deleted alerts');
+assert.equal((mysql.match(/\$merged\['alerts'\]\s*=\s*operations_union_rows/g)||[]).length,2,'only Accounts and Milling may additively merge alerts');
 assert.match(mysql,/16 \* 1024 \* 1024/);
 assert.match(modulePhp,/tt_user_can_open_module/);
 assert.match(modulePhp,/'masters'=>tt_list_masters\(\)/);
