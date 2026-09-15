@@ -316,7 +316,26 @@ function operations_merge_export(string $currentJson, string $incomingJson, stri
         return json_encode($applyTombstones($merged), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
     }
 
+    // Export clients may have opened before another device or a protected
+    // recovery added records. Merge every identified collection so a later
+    // save cannot replace the server's complete business history with that
+    // client's older partial copy. Incoming rows still replace matching IDs;
+    // explicit shipment tombstones are applied below.
     $merged = $incoming;
+    $merged['customers'] = operations_union_rows((array)($current['customers'] ?? []), (array)($incoming['customers'] ?? []), ['id', 'code', 'name']);
+    $merged['suppliers'] = operations_union_rows((array)($current['suppliers'] ?? []), (array)($incoming['suppliers'] ?? []), ['id', 'code', 'name']);
+    $merged['contracts'] = operations_union_rows((array)($current['contracts'] ?? []), (array)($incoming['contracts'] ?? []), ['id', 'ref']);
+    $merged['fi'] = operations_union_rows((array)($current['fi'] ?? []), (array)($incoming['fi'] ?? []), ['id', 'number']);
+    $merged['accountsReceipts'] = operations_union_rows((array)($current['accountsReceipts'] ?? []), (array)($incoming['accountsReceipts'] ?? []), ['id', 'receiptNo', 'reference']);
+    $merged['shipments'] = operations_union_rows((array)($current['shipments'] ?? []), (array)($incoming['shipments'] ?? []), ['id', 'lotId']);
+    $merged['millSync'] = (array)($incoming['millSync'] ?? []);
+    foreach (['newExportBags', 'productionInstructions', 'exportLoading'] as $key) {
+        $merged['millSync'][$key] = operations_union_rows(
+            (array)($current['millSync'][$key] ?? []),
+            (array)($incoming['millSync'][$key] ?? []),
+            ['id', 'shipmentId', 'lotId', 'contractRef']
+        );
+    }
     $currentShipments = operations_list_by_identity((array)($current['shipments'] ?? []), 'id');
     foreach ((array)($merged['shipments'] ?? []) as &$shipment) {
         if (!is_array($shipment)) continue;

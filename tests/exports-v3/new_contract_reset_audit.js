@@ -20,6 +20,9 @@ assert.match(css,/\.customerMatches/,'customer result list is styled below the s
 assert.doesNotMatch(customerMaster,/nav\.appendChild\(b\)/,'Master Data is not injected beside +FI');
 assert.match(operations,/Historical cleanup is permanently disabled/,'the former broad Export reset is explicitly disabled');
 assert.match(operations,/function operations_reset_export_payload\(string \$json\): array \{\s*\/\/ Historical cleanup[\s\S]*?return \[\$json, false\];/,'opening shared storage cannot purge Export records');
+assert.match(operations,/\$merged\['contracts'\] = operations_union_rows\(\(array\)\(\$current\['contracts'\]/,'an Export save merges contracts with current server history instead of replacing it');
+assert.match(operations,/\$merged\['customers'\] = operations_union_rows\(\(array\)\(\$current\['customers'\]/,'an Export save preserves customers created or recovered by another session');
+assert.match(operations,/\$merged\['shipments'\] = operations_union_rows\(\(array\)\(\$current\['shipments'\]/,'an Export save preserves shipment records absent from an older client copy');
 assert.doesNotMatch(app,/EXPORT_RESET_MARKER/,'the browser no longer carries an operational reset marker');
 assert.match(recovery,/current records always win/,'lost-record recovery explicitly preserves current production records');
 assert.match(recovery,/pre-export-record-recovery/,'lost-record recovery creates a safety snapshot before writing');
