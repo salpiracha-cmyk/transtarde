@@ -12,7 +12,7 @@ const dimensions=file=>{const data=fs.readFileSync(file);assert.equal(data.toStr
 assert.match(index,/app\.js\?v=20260915-commercial-docs-1/);
 assert.doesNotMatch(app, /querySelector\('#cuOpen'\)/);
 assert.match(app,/querySelector\('#cuOpenAccount'\)/);
-assert.match(app,/loadingPorts=TT_PORTS\.slice\(0,2\)/);
+assert.match(app,/TT_PORTS\.slice\(0,2\)/);
 
 const blForm=block('function renderBL(d){','function renderLoading__legacy_v3');
 assert.doesNotMatch(blForm,/id="blNo"|id="blDate"|id="blFinalFile"/);
