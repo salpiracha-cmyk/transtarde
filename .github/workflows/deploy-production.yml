@@ -183,6 +183,12 @@ jobs:
             exit 1
           fi
           echo "EXPORT_RECOVERY=$recovery_result"
+          if ! document_recovery_result=$(php "$target/scripts/recover_export_documents_incident.php" --apply); then
+            tar -xzf "$backup" -C "$target"
+            echo "Export attachment recovery validation failed; previous code restored."
+            exit 1
+          fi
+          echo "EXPORT_DOCUMENT_RECOVERY=$document_recovery_result"
           printf '%s\n' "$sha" > "$target/.transtrade-release"
           rm -f "$archive"
           rm -rf "$stage"
