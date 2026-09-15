@@ -47,21 +47,11 @@ async function serializeBody(body){
 function restoreBody(saved){if(saved.kind==='text')return saved.value;if(saved.kind==='params')return new URLSearchParams(saved.value);if(saved.kind==='form'){const fd=new FormData();for(const [k,v] of saved.value||[])fd.append(k,v);return fd}return undefined}
 function headersWith(initHeaders,entry){const h=new Headers(initHeaders||{});h.set('X-TT-Transaction-ID',entry.id);if(entry.baseResourceVersion!==null)h.set('X-TT-Base-Resource-Version',String(entry.baseResourceVersion));return h}
 async function updateNotice(knownEntries=null){
-  const entries=knownEntries||await list(),count=entries.length,conflicts=entries.filter(x=>x.status==='conflict').length;
-  let notice=document.getElementById('ttOfflineNotice');
-  if(!count){notice?.remove();return}
-  if(!notice){
-    notice=document.createElement('button');
-    notice.id='ttOfflineNotice';
-    notice.type='button';
-    notice.setAttribute('aria-live','polite');
-    notice.style.cssText='position:fixed;right:12px;top:98px;z-index:100000;border:0;border-radius:10px;padding:9px 12px;background:#9a6000;color:#fff;font:700 11px Arial;box-shadow:0 5px 18px #0003;cursor:pointer';
-    notice.addEventListener('click',()=>offerRecovery({restore:true}));
-    document.body?.appendChild(notice);
-  }
-  notice.style.background=conflicts?'#a93a34':navigator.onLine?'#9a6000':'#6c4a00';
-  notice.textContent=count+' offline / unsynced entr'+(count===1?'y':'ies')+(conflicts?' · '+conflicts+' conflict'+(conflicts===1?'':'s'):'');
-  notice.title=navigator.onLine?'Review and upload pending entries':'Entries are safe on this device until connectivity returns';
+  // Recovery remains active, but pending handoffs must never create a floating status badge.
+  document.getElementById('ttOfflineNotice')?.remove();
+  document.getElementById('ttAccountsOutboxBadge')?.remove();
+  document.querySelectorAll('[data-tt-accounts-outbox-badge]').forEach(node=>node.remove());
+  return knownEntries||await list();
 }
 
 async function prepareEntry(input,init,url,saved,action){
