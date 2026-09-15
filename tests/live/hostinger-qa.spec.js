@@ -163,7 +163,7 @@ async function createBulkQaShipment(page, { suffix, index, lotRef, contractRef, 
   await expect(page.locator('#piInspection')).toHaveValue('No');
   await expect(page.locator('#piInspection')).toBeEditable();
   await page.locator('#sendPI').click();
-  await expect(page.getByText('PRODUCTION INSTRUCTIONS ALREADY SENT')).toBeVisible();
+  await expect(page.locator('[data-workspace="production"] .productionSentStamp')).toHaveText('SENT TO MILL');
   await waitForSharedSave(page);
 
   await page.locator('[data-workspace="loading"]').click();
@@ -399,7 +399,7 @@ test('manual Hostinger QA: Export instruction to Mill and container return', asy
 
   // The exact Mill return belongs in the B/L Draft workflow.
   await page.locator('[data-workspace="bl"]').click();
-  await expect(page.getByRole('heading', { name: 'B/L DOCUMENTS' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'B/L DRAFT / SHIPPING INSTRUCTIONS' })).toBeVisible();
   await expect(page.getByText(containerOne, { exact: false }).first()).toBeVisible();
   await expect(page.getByText(containerTwo, { exact: false }).first()).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath('05-bl-draft-container-return.png'), fullPage: true });
@@ -556,7 +556,7 @@ test('live bulk QA: automatic lot references and isolated B/L returns', async ({
     expect(customsText, 'Customs must remain separate from Milling container actuals').not.toContain(shipment.container);
 
     await page.locator('[data-workspace="bl"]').click();
-    await expect(page.getByRole('heading', { name: 'B/L DOCUMENTS' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'B/L DRAFT / SHIPPING INSTRUCTIONS' })).toBeVisible();
     const blText = await page.locator('.workspaceDetail').first().innerText();
     expect(blText, `B/L Draft must receive ${shipment.container}`).toContain(shipment.container);
     for (const other of shipments.filter(x => x.contractRef !== shipment.contractRef)) {
