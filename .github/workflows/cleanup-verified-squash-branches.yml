@@ -1,0 +1,129 @@
+name: Cleanup verified squash-merged branches
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/cleanup-verified-squash-branches.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out current main
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Delete only exact merged pull-request tips
+        env:
+          VERIFIED_TIPS: |
+            accounts-bulk-audit-trigger	6cc33af81f0612b596bb2626b4ac1f6711e414c8
+            accounts-hardening-fixes	69b12865060fc5b8c48f5fc37e7e35afe26f236e
+            accounts-salary-donations	a2e7cd1424bd496188e5e2bee45be147042986d6
+            accounts-smoke-api-login	613861eb65f9d8388bd412d9a655e7eab5e3fe48
+            accounts-smoke-login-fix	7c21743172f4a788f1102d725097ac54698b81ab
+            accounts-smoke-navigation-fix	20e0d680db96a0e32104cf98b81ea36a70e4d1cc
+            accounts-smoke-navigation-retry	0a2e4539c02f658a94abb87c4cd978375373aec7
+            accounts-smoke-stable-selectors	1c2b8bdb05c29a7931b3f7a4724f3f3df525ad1f
+            accounts-v1-ready-20260911	627df2abe9630a8fe2d2d64f43b6671fe192efb9
+            ci/accounts-live-readiness-resilience-20260912	f1b71948d4dd968a5ce31b6f9bb39ea5d409f145
+            codex/exports-cleanup-only-verification	fb20f825ccc5b9a66d4589fea612b721c9bfb047
+            codex/exports-live-qa-reset-finalize	e082f30fdd102a7f5fb015a72cc382d10f9a81d9
+            codex/exports-morning-reconciliation	536c7d14079b31f7e7acff0adaa19c6deb9ee2d9
+            codex/exports-operational-reset-20260914	b4ba5c5f08204b5033bf21370e224e0a7071606d
+            codex/fix-contract-packing-next	e628c98ae6c80bf0d3e5b6ec8d6da922ce0656a0
+            codex/live-qa-managed-packing-20260913	b3a4d32a43bc6eec7642174d9764b54e232ccdc5
+            codex/preserve-dotted-proper-nouns	9529629699d94516522be370ddac9900b0cd67d3
+            codex/sales-contract-completion-brand-20260913	2acc78e0b313339e4efc77dd1a3a451cc740238e
+            exports-clean-v32-release-20260909	e72ab9103ca6b000676ded49e42708eb9cbbb8c3
+            exports-fob-removable-options-clean-20260912	a613c775876ceb25c60af722289ce44092058501
+            exports-operational-inputs-20260912	f63783de2dd27d431d58211b5a72ea9efb42827e
+            feat/accounts-professional-desk-20260912	33349a96047a4fa76f2be2c6bdf713c72d8a39e8
+            fix-live-hostinger-qa-20260912	7caeb1acf3105dc7158baa26c43f5a04f6b50b15
+            fix-live-loading-lock-20260912	298c64856346fed25ebdfa925c3c92ddd04b4dba
+            fix-live-master-button-20260912	5ea5b3e441c035a32cab6acf01db0d72b067edfb
+            fix-live-upload-assertion-20260912	9b2cad2472a883e13103b282e3c68c950804847b
+            fix/accounts-home-navigation-stability-20260912	def5cb53a1ca0d528c1502b72bbf33f3e3a169e6
+            fix/accounts-master-switch-queue	49d5d6f6d94d8befc21be729c7405cc7b4379831
+            fix/accounts-performance-stability-20260912	3912da912fbc0ffc202e0c80015d3d9a61538fd4
+            fix/accounts-visible-active-workspace-20260912	91b4a6b46ced8f12ce79e5a46b04b09c408534aa
+            fix/connect-accounts-console-20260912	5459281958232a4953ec7e52120d9a3b74ae846f
+            fix/export-qa-superseded-run-delay-20260913	0fcad6234c9ee06a7800a3456aa688720ac03e5f
+            fix/hide-accounts-handoff-badge	d458b892419932ae84e555e7ccfa79cdd9dc90ec
+            fix/live-qa-bulk-time-budget-20260914	cdf1d9ce162077341d78c5343ea44b424e05cf62
+            fix/live-qa-container-attempt-20260913	b25d93e29a4c423f2950324a547401c5edd7dd34
+            fix/live-qa-deletion-sequence-20260913	59a4d3dd842882dcbf5317cae0960dbefabddfc5
+            fix/live-qa-sales-contract-selectors-20260913	b78564642a5f3c3fad56bce25324018c9f9cbd1e
+            fix/live-qa-signed-contract-confirmation-20260914	8b2d80418df3474b7be6118d3bbc33a2632608c5
+            fix/refresh-accounts-console-link-20260912	3ce2460c3a6fec55fbb652c7146ab8e822300a41
+            fix/sales-contract-price-specimen-format-20260914	8f650fa7e62c2973cd186ea15cd11679b89fede5
+            fix/serialize-export-live-qa-20260913	83b044ee985a03cc4859df0d12568228a182c8ae
+            fix/sync-super-admin-script-version-20260912	a40b37400cf5f47960ac5a2eeb0751b80dd4ac87
+            fix/tg-asas-04-contract-po-output-20260914	24b41cbe2964b4820c377fe6a06f6326b3dd6bd9
+            full-milling-cleanup-20260910	07e7188d37cc9dd2f3926602c911396ac47da4ec
+            master-data-duplicate-fix	0c6e7317743af16e97a1deb27349c11d26f6398c
+            milling-loading-complete-repair-20260909	7bab369a20fceb6f5b4cd81ade02495ff791506b
+            qa/accounts-live-arrival-editor-20260912	1f90bedb35889ddfca969886cbe1fc395862c1fe
+            qa/accounts-live-current-arrival-title-20260912	8ea264742ffc0c81e136e2db207506856ba8cf60
+            qa/accounts-live-target-workspace-20260912	a242ca4da56ff8fe7286b5b4090a99c073c2ef47
+            qa/accounts-live-workspace-wait-20260912	e17c9340d3dcef4aacd35b77cbf30beb96dabd06
+            qa/accounts-visible-master-button-20260912	1b96cfc6e170e77a2a351f783bd88bd0ae4935c6
+            qa/live-acceptance-followup-v2	4f2f5adfea1f4391a2cf6d65c50b2951e9a7f8a5
+            qa/live-save-gate-final	892d7e85e549350cf68bedc5801823e15ff818cd
+            qa/sales-contract-live-assertions	5cab23fc88028efd5b1370f51341cf1551852d97
+            release/export-override-cleanup-cache-20260914	71aa7197cf21f23aa58d6177367579feef7086a0
+            test/accounts-ledger-live-check-20260912	76f2c3a5b797bc3128fa0f46807433b1fc17f983
+            test/accounts-live-auth-retry-20260912	b2dc81b9af21a6fc251020f114c1f8f81d7de902
+            test/accounts-live-pageerror-stack-20260912	6f15b7b8f8e7824d71826b8ce0be25f5549042c8
+            test/accounts-live-rent-selector-20260912	117f58a524085700f8114dd0b40e0883f84868f0
+            test/accounts-live-reports-tab-20260912	726e8883b9071ca7dcd70719a7f630e00ea510e2
+            test/accounts-live-stable-route-selectors-20260912	64b01806dffb839850664c8859ccf367e9b9ff0d
+            test/accounts-live-talha-case-20260912	84f14f4e139df6cdcc54b98a6144b264546cad1a
+            test/accounts-live-title-selector-20260912	d50cf205160000679cb206405724f81c1d1cf560
+            test/accounts-live-workspace-scoping-20260912	9ff57cd7953a52e81e605150923c69b5bb1d7eae
+            test/accounts-professional-live-smoke-20260912	cb7f88441ae3d130a75270bee85f86d1ecb98640
+        run: |
+          set -euo pipefail
+          git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune
+
+          deleted=0
+          preserved=0
+          while IFS=$'\t' read -r branch expected_sha; do
+            [ -n "$branch" ] || continue
+
+            if [ "$branch" = "main" ]; then
+              echo "::error::Safety check rejected main"
+              exit 1
+            fi
+
+            if ! git show-ref --verify --quiet "refs/remotes/origin/$branch"; then
+              echo "Already absent: $branch"
+              continue
+            fi
+
+            current_sha=$(git rev-parse "refs/remotes/origin/$branch")
+            if [ "$current_sha" = "$expected_sha" ]; then
+              git push origin --delete "$branch"
+              deleted=$((deleted + 1))
+            else
+              echo "::warning::Preserved changed branch: $branch"
+              preserved=$((preserved + 1))
+            fi
+          done <<< "$VERIFIED_TIPS"
+
+          echo "Deleted $deleted exact merged pull-request branches."
+          echo "Preserved $preserved changed or uncertain branches."
+
+      - name: Remove this temporary maintenance workflow
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/cleanup-verified-squash-branches.yml
+          git commit -m "Remove completed squash-branch cleanup workflow [cleanup-only]"
+          git push origin HEAD:main
