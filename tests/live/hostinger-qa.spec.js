@@ -63,6 +63,18 @@ async function selectAvailablePackingType(page) {
   return choice.label;
 }
 
+async function openFreshContract(page) {
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    await page.getByRole('button', { name: /NEW SALES CONTRACT/i }).click();
+    if (await page.locator('.contractFormPane').waitFor({ state: 'visible', timeout: 10_000 }).then(() => true).catch(() => false)) return;
+    if (!attempt) {
+      await gotoLive(page, `${BASE_URL}/module.php?id=exports`, { waitUntil: 'domcontentloaded' });
+      await expect(page.getByRole('button', { name: /NEW SALES CONTRACT/i })).toBeVisible();
+    }
+  }
+  throw new Error('New Sales Contract did not open after one clean page retry.');
+}
+
 async function fillMillContainerNumber(page, value) {
   const raw = String(value).toUpperCase().replace(/[^A-Z0-9]/g, '');
   await page.locator('.tt-container-main').fill(raw.slice(0, 10));
@@ -103,7 +115,7 @@ async function createBulkQaShipment(page, { suffix, index, lotRef, contractRef, 
 
   await gotoLive(page, `${BASE_URL}/module.php?id=exports`, { waitUntil: 'domcontentloaded' });
   await expect(page.getByRole('button', { name: /NEW SALES CONTRACT/i })).toBeVisible();
-  await page.getByRole('button', { name: /NEW SALES CONTRACT/i }).click();
+  await openFreshContract(page);
   await expect(page.locator('#addCustomer'), 'a fresh contract must open at Buyer & Reference').toBeVisible({ timeout: 20_000 });
   await page.locator('#addCustomer').click();
   await page.locator('#mCustName').fill(customerName);
@@ -220,7 +232,7 @@ test('manual Hostinger QA: Export instruction to Mill and container return', asy
   await page.screenshot({ path: testInfo.outputPath('02-exports-mobile.png'), fullPage: true });
   await page.setViewportSize({ width: 1440, height: 1000 });
 
-  await page.getByRole('button', { name: /NEW SALES CONTRACT/i }).click();
+  await openFreshContract(page);
   await expect(page.locator('.contractFormPane'), 'Sales Contract entry pane must render').toBeVisible();
   await expect(page.locator('.contractPreviewPane'), 'Sales Contract live preview pane must render beside entry').toBeVisible();
   await page.locator('#addCustomer').click();
