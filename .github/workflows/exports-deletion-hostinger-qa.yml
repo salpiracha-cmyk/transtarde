@@ -1,10 +1,6 @@
 name: Export Deletion Hostinger QA
 
 on:
-  workflow_run:
-    workflows: ['Manual Hostinger Live QA']
-    types: [completed]
-    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -16,7 +12,9 @@ concurrency:
 
 jobs:
   deletion-login-cycle:
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.head_sha == github.sha }}
+    # This legacy full-reset check is deliberately manual-only. It must never
+    # run after ordinary live QA because production Export records are shared.
+    if: ${{ github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     timeout-minutes: 6
     environment: live-qa
