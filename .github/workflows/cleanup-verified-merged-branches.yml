@@ -1,0 +1,120 @@
+name: Cleanup verified merged branches
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/cleanup-verified-merged-branches.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out current main
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Delete only branches already contained in main
+        env:
+          VERIFIED_CANDIDATES: |
+          backup-before-bag-order-customer-release-20260909
+          backup-before-export-data-cleanup-20260909
+          backup-before-export-quality-identity-2026-09-09
+          backup-before-mill-loading-repair-2026-09-09
+          backup-before-milling-v3-3-5-2026-09-09
+          backup-before-quality-identity-current-2026-09-09
+          backup-before-quality-identity-final-2026-09-09
+          codex/exports-cleanup-detach-fix-20260915
+          codex/exports-cleanup-race-fix-20260915
+          codex/exports-evening-fixes-20260915
+          codex/exports-sol4-handover-20260915
+          codex/exports-sol4-live-qa-final-sync-20260915
+          codex/exports-sol4-live-qa-sync-20260915
+          codex/final-customs-labels-20260914
+          codex/fix-export-alert-clear-20260915
+          codex/live-document-output-qa-20260914
+          codex/live-output-assertion-20260914
+          codex/qa-exact-commit-path-gate-20260915
+          codex/reconcile-document-output-20260914
+          codex/retry-live-contract-open-20260915
+          codex/stabilize-live-qa-fixture-20260915
+          export-cleanup-20260909
+          exports-clean-release-20260908
+          exports-v3-production-promotion-20260909
+          exports-v3-release-canary-20260909
+          fix/accounts-clean-late-launchers-20260912
+          fix/accounts-clean-workspace-reset-20260912
+          fix/accounts-desk-cache-version-20260912
+          fix/accounts-direct-editor-staging-20260912
+          fix/accounts-editor-header-compat-20260912
+          fix/accounts-editor-top-position-20260912
+          fix/accounts-jv-reopen-null-final-20260912
+          fix/accounts-live-treatment-20260912
+          fix/accounts-navigation-handler-order-20260912
+          fix/accounts-popup-cancel-race-20260912
+          fix/accounts-salary-popup-render-20260912
+          fix/accounts-salary-render-state-20260912
+          fix/accounts-soda-initialization-20260912
+          fix/accounts-soda-popup-20260912
+          fix/accounts-top-navigation-20260912
+          fix/document-output-fresh-start-20260914
+          fix/export-delete-server-ack-20260912-1515
+          fix/packing-dropdown-live-recovery-20260914
+          fix/purge-accounts-bulk-test-data-20260912
+          fix/self-clean-accounts-bulk-audit-20260912
+          lot-completion-gate-20260909
+          qa/export-delete-login-persistence-20260912-1840
+          redesign/accounts-clean-workflow-20260912
+          release-mill-loading-repair-2026-09-09
+          release/exports-output-lock-20260913
+          rollback-before-full-milling-cleanup-20260909
+          rollback-before-milling-loading-ownership-20260909
+          test/accounts-arrival-live-assertion-20260912
+          test/accounts-clean-live-qa-20260912
+          test/accounts-new-navigation-live-20260912
+          test/accounts-soda-live-assertion-20260912
+        run: |
+          set -euo pipefail
+          git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune
+
+          deleted=0
+          preserved=0
+          while IFS= read -r branch; do
+            [ -n "$branch" ] || continue
+
+            if [ "$branch" = "main" ]; then
+              echo "::error::Safety check rejected main"
+              exit 1
+            fi
+
+            if ! git show-ref --verify --quiet "refs/remotes/origin/$branch"; then
+              echo "Already absent: $branch"
+              continue
+            fi
+
+            if git merge-base --is-ancestor "origin/$branch" origin/main; then
+              git push origin --delete "$branch"
+              deleted=$((deleted + 1))
+            else
+              echo "::warning::Preserved because it is no longer fully contained in main: $branch"
+              preserved=$((preserved + 1))
+            fi
+          done <<< "$VERIFIED_CANDIDATES"
+
+          echo "Deleted $deleted verified merged branches."
+          echo "Preserved $preserved changed or uncertain branches."
+
+      - name: Remove this temporary maintenance workflow
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/cleanup-verified-merged-branches.yml
+          git commit -m "Remove completed branch cleanup workflow [cleanup-only]"
+          git push origin HEAD:main
