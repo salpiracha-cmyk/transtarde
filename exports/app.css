@@ -90,7 +90,7 @@
 /* Approved Sales Contract print hierarchy. */
 .salesContractPage .docSection{margin:12px 0 1px!important;color:#111!important;font-family:Arial,Helvetica,sans-serif!important;font-size:10.5px!important;font-weight:900!important;letter-spacing:.025em!important;text-decoration:underline!important;text-transform:uppercase!important}
 .salesContractPage .docValue{margin:0 0 5px;font-size:10.8px;line-height:1.38;font-weight:400}
-.salesContractPage .contractSpecificationTable{margin:4px 0 7px}
+.salesContractPage .contractSpecificationTable{width:90%;margin:4px auto 7px}.salesContractPage .contractSpecificationTable col:nth-child(1){width:10%}.salesContractPage .contractSpecificationTable col:nth-child(2){width:40%}.salesContractPage .contractSpecificationTable col:nth-child(3){width:50%}
 .salesContractPage .contractPriceBlock{text-align:center;margin:0 0 7px;padding:2px 8px 6px}
 .salesContractPage .contractPriceLine{font-size:12px;line-height:1.55}.salesContractPage .contractPriceLine strong{font-size:13px}
 .salesContractPage .contractPriceTotal{font-size:12px;font-weight:800}.salesContractPage .contractPriceWords{font-size:10.8px}
@@ -102,9 +102,10 @@
 .salesContractPage .contractSignatureGrid h3{margin:0;text-decoration:underline;font-size:11px}.salesContractPage .contractSignatureSpace{height:62px;display:flex;align-items:flex-end}.salesContractPage .contractSignatureSpace img{display:block;max-width:52mm;max-height:20mm;object-fit:contain;object-position:left bottom}
 
 /* 2026-09-14 accepted output and form layout corrections */
-.docPage.branded{padding-top:64mm!important}
+.docPage.branded{padding-top:74mm!important}
 .docTitle{margin-top:0!important;margin-bottom:7px!important}
 .salesContractPage .docTitle{font-size:27px!important;text-decoration:underline;text-underline-offset:4px}
+.docLetterhead.sellerTG{height:28mm}.docPage.branded:has(.docLetterhead.sellerTG){padding-top:34mm!important}.salesContractPage:has(.docFooterArt) .docPageNo{bottom:14mm}
 .contractBankLines{display:block!important}.contractBankLines>div{display:flex!important;gap:5px;margin:2px 0}.contractBankLines b{display:inline!important;min-width:82px;text-decoration:none!important}.contractBankLines span{display:inline!important}
 .managedSelectBox{display:grid;grid-template-columns:minmax(0,1fr) 36px;border:1px solid #ccd6dc;border-radius:8px;overflow:hidden;background:#fff}.managedSelectBox select{border:0!important;border-radius:0!important}.managedSelectDelete{width:36px;border:0;border-left:1px solid #ccd6dc;border-radius:0}
 .loadingVesselVoyageInputs{display:grid;grid-template-columns:1fr 1fr;gap:8px}
@@ -159,9 +160,10 @@
 
 /* 2026-09-14 Document Output Section handover — locked output layouts. */
 .approvedInvoiceReference{display:grid;grid-template-columns:1fr 1fr;gap:18mm;margin:0 0 3mm;font-size:9px}
-.approvedInvoiceReference>div{display:flex;align-items:end;gap:3mm;border-bottom:1px solid #111;padding:0 1mm 1mm}
+.approvedInvoiceReference>div{display:flex;align-items:end;gap:3mm;padding:0 1mm 1mm}
 .approvedInvoiceReference>div:last-child{justify-content:flex-end;text-align:right}
 .approvedInvoiceReference b{font-size:8px;letter-spacing:.05em}
+.customsDocumentReference{display:flex;gap:4mm;margin:0 0 3mm;padding:2mm 3mm;background:#f3f6f7;font-size:9px}.customsDocumentReference b{font-size:8px;letter-spacing:.05em}.customsDocumentReference span{font-weight:700}
 .approvedCustomsTop{border-radius:0;margin:2mm 0 0}
 .approvedCustomsTop .specimenRoute{display:grid;grid-template-columns:29mm 1fr;gap:1mm 2mm;align-content:start}
 .approvedCustomsTop .specimenRoute b{margin:0}

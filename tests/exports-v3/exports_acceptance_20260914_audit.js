@@ -41,6 +41,6 @@ assert(css.includes('.salesContractFlowPage .docTitle'),'Continuous Sales Contra
 assert(css.includes('.contractFlowLayout>thead{display:table-header-group}'),'Repeated heading print rule missing');
 assert(css.includes('.customsPreviewStack'),'Single Customs preview stack style missing');
 assert(admin.includes('brand-theme.css?v=20260914-control-centre-1'),'Control Centre theme missing');
-assert(/app\.js\?v=20260915-export-reconciled-2/.test(exportsIndex),'Exports cache-bust marker missing');
+assert(/app\.js\?v=20260915-exports-sol4-1/.test(exportsIndex),'Exports cache-bust marker missing');
 assert.equal(app.split('\n').filter(line=>/^[A-Za-z_$][\w$]*\s*=\s*function\s*\(/.test(line)).length,0,'Mutable Export function override remains');
 console.log('Exports September 14 exact acceptance audit passed.');
