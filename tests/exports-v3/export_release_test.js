@@ -130,7 +130,7 @@ for(const [name,html] of Object.entries({invoice:t.commercialInvoiceDoc(s,c,fals
 const plainBL=t.blDraftDoc(s,c);assert.match(plainBL,/oceanBlPage/);assert.match(plainBL,/OCEAN BILL OF LADING/);assert.doesNotMatch(plainBL,/TTI_header\.png|docFooterArt|docAutoSign/);
 assert.match(plainBL,/SAID TO CONTAIN/);assert.match(plainBL,/1 × 20 FEET CONTAINERS/);assert.match(plainBL,/1,080 PP Bags of 25 KG each/);assert.match(plainBL,/HS CODE: 1006\.30/);assert.match(plainBL,/TOTAL NET WEIGHT/);assert.match(plainBL,/TOTAL GROSS WEIGHT/);assert.match(plainBL,/NON-NEGOTIABLE COPIES[\s\S]*<span>5<\/span>/);assert.match(plainBL,/MARKS AND NUMBERS \/ NUMBER AND KIND OF PACKAGES \/ DESCRIPTION OF GOODS/);assert.doesNotMatch(plainBL,/ILLUSTRATIVE|SAMPLE DATA/);
 assert.match(t.commercialInvoiceDoc(s,c,false),/LC-99881/);
-assert.match(t.commercialInvoiceDoc(s,c,false),/DRAWEE/);assert.match(t.commercialInvoiceDoc(s,c,false),/CFR Jebel Ali, United Arab Emirates/);assert.match(t.commercialInvoiceDoc(s,c,false),/HS CODE: 1006\.30/);assert.doesNotMatch(t.commercialInvoiceDoc(s,c,false),/<b>PAYMENT<\/b>|PAYMENT TERMS/);
+assert.match(t.commercialInvoiceDoc(s,c,false),/DRAWEE/);assert.match(t.commercialInvoiceDoc(s,c,false),/CFR Jebel Ali, United Arab Emirates/);assert.match(t.commercialInvoiceDoc(s,c,false),/HS CODE: 1006\.30/);assert.match(t.commercialInvoiceDoc(s,c,false),/PAYMENT TERMS/);
 assert.match(t.commercialInvoiceDoc(s,c,false),/FI-1/);
 assert.match(t.phytoInvoiceDoc(s,c),/CFR Jebel Ali, United Arab Emirates/);assert.match(t.phytoInvoiceDoc(s,c),/HS CODE: 1006\.30/);assert.match(t.phytoInvoiceDoc(s,c),/BRAND &amp; MARKING/);
 assert.match(t.coveringDoc(s,c),/GD-1/);

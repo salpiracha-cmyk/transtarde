@@ -344,6 +344,7 @@
 .commercialPackingContainers td{text-align:center;vertical-align:middle}
 
 .cooCertificate{border:1.5px solid #304e3c}
+.cooOverlay{padding:31mm 13mm 12mm;background:transparent}.cooOverlay .cooCertificate,.cooOverlay .cooReference,.cooOverlay .cooParties,.cooOverlay .cooTransport,.cooOverlay .approvedCooGoods th,.cooOverlay .approvedCooGoods td{border-color:transparent!important;background:transparent!important}.cooOverlay .cooReference b,.cooOverlay .cooParties>div>b,.cooOverlay .cooTransport b,.cooOverlay .approvedCooGoods thead,.cooOverlay .cooDeclaration>b{visibility:hidden}.cooOverlay .cooDeclaration{margin-top:4mm}
 .cooReference{display:grid;grid-template-columns:1fr 1fr;border-bottom:1px solid #304e3c}
 .cooReference>div{display:flex;justify-content:space-between;gap:4mm;padding:2.5mm}
 .cooReference>div+div{border-left:1px solid #304e3c}
@@ -364,3 +365,11 @@
  .salesContractFlowPage .contractFlowLayout>tfoot{display:table-footer-group}
  .poOnePage{width:210mm!important;height:297mm!important}
 }
+.commercialDocumentTabs{display:flex;gap:8px;margin:12px 0 16px}.commercialDocumentTabs .active{box-shadow:0 0 0 2px rgba(9,77,51,.18)}
+.commercialPrintControls{display:flex;align-items:center;justify-content:flex-end;gap:12px;flex-wrap:wrap;margin-top:14px;padding:12px;border:1px solid #d8e1dc;border-radius:10px;background:#f7faf8}.commercialPrintControls label{font-size:12px;font-weight:800;display:flex;gap:8px;align-items:center}.commercialPrintControls select{min-width:250px}
+.commercialBalanceRow th{font-size:15px;background:#e5f3eb!important;color:#073b26!important}.bankInvoiceVersions{margin-top:14px;border-top:1px solid #d8e1dc;padding-top:12px}.bankInvoiceVersions>div{padding:8px 0;border-bottom:1px solid #e6ece8}
+.commercialReferences{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px;margin:8px 0}.commercialReferences>div{border:1px solid #cfd8d3;padding:7px;font-size:9px}.commercialReferences b{display:block;font-size:8px;color:#53635b}
+.commercialInvoiceOnePage{overflow:hidden}.commercialCopyLabel{text-align:center;font-size:13px;font-weight:900;letter-spacing:1.5px;margin:-7px 0 7px;color:#173d2c}.bankInvoicePurpose{margin-top:8px;padding:7px;text-align:center;border:1px solid #173d2c;font-size:9px}
+.packingContainerStatement{text-align:center;padding:9px;margin:8px 0;border:2px solid #173d2c;font-size:12px;letter-spacing:.4px}.packingBrandSummary td,.packingBrandSummary th{font-size:8px;padding:5px}.commercialPackingContainers td,.commercialPackingContainers th{font-size:8px;padding:5px}.cooPakistanOrigin{display:block;margin:9px 0;font-size:16px;line-height:1.1;letter-spacing:.7px;color:#111}
+@media(max-width:900px){.commercialReferences{grid-template-columns:1fr}.commercialPrintControls{justify-content:flex-start}}
+@media print{.commercialInvoiceOnePage{page-break-after:always}.commercialCopyLabel{font-size:14px}.cooPakistanOrigin{font-size:18px}.commercialDocumentTabs,.commercialPrintControls{display:none!important}}

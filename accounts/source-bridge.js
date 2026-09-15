@@ -41,7 +41,8 @@
 
   function exportState(){try{return typeof state!=='undefined'?state:null}catch(e){return null}}
   function exportRefs(s){let fi=[],st=exportState();try{fi=(s.customs?.fiAllocations||[]).map(a=>st?.fi?.find(f=>f.id===a.fiId)?.number).filter(Boolean)}catch(e){}let gd=[...(s.commercial?.gd||[]),...(s.bl?.gd||[])].map(g=>g?.no).filter(Boolean);gd=[...new Set(gd)];return {fi,gd}}
-  function exportNetAmount(s,c){const qty=Number(s.actualShippedQty||((typeof window.shipmentActualQtyFor==='function')?window.shipmentActualQtyFor(s):s.plannedQty)||0),rate=Number(s.commercial?.rate||c?.packings?.[0]?.price||c?.price||0),adj=(s.commercial?.adjustments||[]).reduce((n,a)=>n+(a.sign==='+'?1:-1)*Number(a.amount||0),0);return {qty,rate,amount:Math.round((qty*rate+adj)*100)/100}}
+  function exportNetAmount(s,c){const qty=Number(s.actualShippedQty||((typeof window.shipmentActualQtyFor==='function')?window.shipmentActualQtyFor(s):s.plannedQty)||0),rate=Number(s.commercial?.rate||c?.packings?.[0]?.price||c?.price||0);return {qty,rate,amount:Math.round(qty*rate*100)/100}}
+  function queueExportInvoice(body){const seller=String(body?.sellerEntity||'').toUpperCase(),sourceKey=String(body?.sourceKey||'');if(!['TTI','BRM','TG'].includes(seller)||!sourceKey)return;addItem({key:seller+'|EXPORT_CANDIDATE|'+sourceKey,kind:'exportCandidate',body:{...body,sellerEntity:seller,sourceKey}});signal(String(body.stage||'Draft')==='Draft'?'Commercial draft · Accounts estimate refreshed':'Commercial invoice · Accounts handoff refreshed')}
   function bridgeExportCompletion(){
     if(access.moduleId!=='exports'||typeof window.markComplete!=='function'||window.markComplete._ttAccountsWrapped)return;
     const original=window.markComplete;
@@ -72,6 +73,6 @@
 
   function showOutboxAttention(){document.getElementById('ttAccountsOutboxBadge')?.remove()}
   async function boot(){bridgePohanch();bridgeExportCompletion();await loadMillBanks();bridgeLocalSales();await mergeServerOutbox();await flush();await syncLocalStatuses();showOutboxAttention()}
-  addEventListener('DOMContentLoaded',boot);setTimeout(boot,300);setTimeout(boot,1200);setInterval(()=>{bridgePohanch();bridgeExportCompletion();bridgeLocalSales();mergeServerOutbox().then(flush).then(showOutboxAttention);syncLocalStatuses()},10000);window.TT_ACCOUNTS_SOURCE_BRIDGE={flush,outbox,syncLocalStatuses,mergeServerOutbox};
+  addEventListener('DOMContentLoaded',boot);setTimeout(boot,300);setTimeout(boot,1200);setInterval(()=>{bridgePohanch();bridgeExportCompletion();bridgeLocalSales();mergeServerOutbox().then(flush).then(showOutboxAttention);syncLocalStatuses()},10000);window.TT_ACCOUNTS_SOURCE_BRIDGE={flush,outbox,syncLocalStatuses,mergeServerOutbox,queueExportInvoice};
   if(access.moduleId==='milling'){const s=document.createElement('script');s.src='accounts/local-sales-entity-rule.js?v=20260908-1';document.head.appendChild(s)}
 })();
