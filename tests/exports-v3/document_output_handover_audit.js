@@ -72,9 +72,9 @@ assert.match(css, /\.approvedCustomsGoods/);
 assert.match(css, /\.approvedContractPriceGrid/);
 
 
-assert.match(css,/\.docPage\.branded\.salesContractFlowPage\{\s*padding:8mm 16mm 16mm!important;/,'Sales Contract overrides the generic branded 76mm top gap');
-assert.match(css,/\.salesContractFlowPage \.contractFlowLayout \.docLetterhead\{[\s\S]*height:27mm!important;/,'Sales Contract transparent artwork has a compact top-aligned frame');
-assert.match(css,/\.salesContractFlowPage \.contractFlowLayout \.docLetterhead img\{[\s\S]*object-position:center top;/,'Sales Contract artwork is fitted from the page top without distortion');
+assert.match(css,/\.salesContractPhysicalPage\{[^}]*padding:4mm 16mm 32mm!important;/,'Sales Contract protects the physical bottom zone and starts near the page top');
+assert.match(css,/\.salesContractPhysicalPage>\.docLetterhead[^}]*height:27mm!important;/,'Sales Contract transparent artwork has a compact top-aligned frame');
+assert.match(css,/\.salesContractPhysicalPage>\.docLetterhead img\{[\s\S]*object-position:center top/,'Sales Contract artwork is fitted from the page top without distortion');
 assert.match(app,/function ttProperNounOutput\(value\)/,'proper-noun output normalization is available');
 assert.match(app,/function contractPort\(c\)\{return ttProperNounOutput/,'contract destination output uses proper-noun capitalization');
 

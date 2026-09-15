@@ -375,3 +375,33 @@
 .packingContainerStatement{text-align:center;padding:9px;margin:8px 0;border:2px solid #173d2c;font-size:12px;letter-spacing:.4px}.packingBrandSummary td,.packingBrandSummary th{font-size:8px;padding:5px}.commercialPackingContainers td,.commercialPackingContainers th{font-size:8px;padding:5px}.cooPakistanOrigin{display:block;margin:9px 0;font-size:16px;line-height:1.1;letter-spacing:.7px;color:#111}
 @media(max-width:900px){.commercialReferences{grid-template-columns:1fr}.commercialPrintControls{justify-content:flex-start}}
 @media print{.commercialInvoiceOnePage{page-break-after:always}.commercialCopyLabel{font-size:14px}.cooPakistanOrigin{font-size:18px}.commercialDocumentTabs,.commercialPrintControls{display:none!important}}
+
+/* 2026-09-16 verified physical Sales Contract pages and sent-state controls. */
+.salesContractPhysicalPage{width:210mm;height:297mm;min-height:297mm;padding:4mm 16mm 32mm!important;overflow:hidden;page-break-after:auto!important;background:#fff}
+#printRoot>.printDoc:has(>.salesContractPhysicalPage){break-after:page;page-break-after:always}
+#printRoot>.printDoc:last-child:has(>.salesContractPhysicalPage){break-after:auto;page-break-after:auto}
+.salesContractPhysicalPage>.docLetterhead,.salesContractPhysicalPage>.docLetterheadText{position:relative!important;inset:auto!important;width:100%!important;height:27mm!important;margin:0 0 1mm!important;overflow:hidden}
+.salesContractPhysicalPage>.docLetterhead img{display:block;width:100%!important;height:27mm!important;max-height:27mm!important;object-fit:contain;object-position:center top}
+.salesContractPhysicalPage>.docTitle{margin:0 0 3mm!important;font-size:20px!important;line-height:1.1;text-decoration:underline;text-underline-offset:3px}
+.salesContractPhysicalPage .salesContractRefGrid{grid-template-columns:repeat(2,minmax(0,1fr));margin:0 0 2.5mm}
+.salesContractPhysicalPage .salesContractRefGrid:has(> :nth-child(3)){grid-template-columns:.75fr 1fr 1.25fr}
+.salesContractPhysicalPage .docRefBox{min-height:13mm;padding:2mm 3mm;display:flex;align-items:center;gap:3mm}
+.salesContractPhysicalPage .docRefBox b{margin:0;font-size:8.5px}.salesContractPhysicalPage .docRefBox span{font-size:11px}
+.salesContractPhysicalPage .salesContractDateBox strong{margin-left:auto;font-size:9px;white-space:nowrap}
+.salesContractPhysicalPage .salesContractPageBody{font-size:10.3px;line-height:1.32}
+.salesContractPhysicalPage .docSection{margin:2.4mm 0 .5mm!important;color:#111!important;font-family:Arial,Helvetica,sans-serif!important;font-size:10px!important;font-weight:900!important;letter-spacing:.02em!important;text-decoration:underline!important;text-transform:uppercase!important}
+.salesContractPhysicalPage .docValue{margin:0 0 1.3mm;font-size:10.3px;line-height:1.32}
+.salesContractPhysicalPage .contractSpecificationTable{width:84%;margin:1.5mm auto 2mm;table-layout:fixed}
+.salesContractPhysicalPage .contractSpecificationTable col:nth-child(1){width:11mm}.salesContractPhysicalPage .contractSpecificationTable col:nth-child(2){width:42%}
+.salesContractPhysicalPage .contractSpecificationTable th,.salesContractPhysicalPage .contractSpecificationTable td{padding:1.2mm 1.8mm;text-align:left!important}
+.salesContractPhysicalPage .contractSpecificationTable th:first-child,.salesContractPhysicalPage .contractSpecificationTable td:first-child{width:11mm;text-align:center!important}
+.salesContractPhysicalPage .contractDocumentsTable{table-layout:fixed}.salesContractPhysicalPage .contractDocumentsTable th:first-child,.salesContractPhysicalPage .contractDocumentsTable td:first-child{width:11mm;text-align:center}.salesContractPhysicalPage .contractDocumentsTable th:nth-child(3),.salesContractPhysicalPage .contractDocumentsTable th:nth-child(4){width:18mm}
+.salesContractPhysicalPage .contractPriceBlock{padding:0;margin:0 0 1.5mm}.salesContractPhysicalPage .contractPriceWords{text-align:center;margin-top:1.5mm;font-weight:900}
+.salesContractPhysicalPage .contractPaymentSummary{font-size:10.3px;line-height:1.32}.salesContractPhysicalPage .contractBankLines>div{display:flex;gap:1.5mm;margin:.5mm 0}.salesContractPhysicalPage .contractBankLines b{min-width:32mm}
+.salesContractPhysicalPage ol{margin:1mm 0 0 6mm;padding:0}.salesContractPhysicalPage li{margin:0 0 1.2mm}
+.salesContractPhysicalPage .contractFinalAcceptance{break-inside:avoid;page-break-inside:avoid;margin-top:2mm}.salesContractPhysicalPage .contractSignatureGrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20mm;margin-top:4mm;break-inside:avoid}.salesContractPhysicalPage .contractSignatureGrid>div{display:grid;grid-template-rows:auto 22mm auto}.salesContractPhysicalPage .contractSignatureSpace{height:22mm;display:flex;align-items:flex-end}.salesContractPhysicalPage .contractSignatureSpace img{display:block;max-width:48mm;max-height:19mm;object-fit:contain;object-position:left bottom}
+.salesContractPhysicalPage .salesContractPageStamp{position:absolute;left:31mm;bottom:12.5mm;width:38mm;height:17mm;display:flex;align-items:flex-end;justify-content:center;z-index:2}.salesContractPhysicalPage .salesContractPageStamp img{display:block;max-width:38mm;max-height:17mm;object-fit:contain}
+.salesContractPhysicalPage>.docFooterArt{position:absolute!important;left:0!important;right:0!important;bottom:0!important;height:12mm!important;width:100%!important}
+.productionSentState{min-height:90px;display:flex;align-items:center;justify-content:center}.productionSentState .stamp{margin:0;transform:rotate(-2deg);background:#fff;padding:12px 18px;font-size:14px;text-align:center}
+.customsCurrencyManager{width:100%}.customsCurrencyManager select{min-width:0;width:100%}.approvedCustomsGoods+.amountWords{margin-top:1.5mm}
+@media print{.salesContractPhysicalPage{width:210mm!important;height:297mm!important;min-height:297mm!important;page-break-after:auto!important}#printRoot>.printDoc:has(>.salesContractPhysicalPage){break-after:page!important;page-break-after:always!important}#printRoot>.printDoc:last-child:has(>.salesContractPhysicalPage){break-after:auto!important;page-break-after:auto!important}}

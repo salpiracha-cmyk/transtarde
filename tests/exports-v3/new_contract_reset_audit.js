@@ -4,6 +4,8 @@ const app=fs.readFileSync(__dirname+'/../../exports/app.js','utf8');
 const css=fs.readFileSync(__dirname+'/../../exports/app.css','utf8');
 const customerMaster=fs.readFileSync(__dirname+'/../../customer-master.js','utf8');
 const operations=fs.readFileSync(__dirname+'/../../api/operations.mysql.php','utf8');
+const recovery=fs.readFileSync(__dirname+'/../../scripts/recover_export_records.php','utf8');
+const deploy=fs.readFileSync(__dirname+'/../../.github/workflows/deploy-production.yml','utf8');
 const sourceBridge=fs.readFileSync(__dirname+'/../../accounts/source-bridge.js','utf8');
 
 assert.match(app,/id='cCustomerSearch'/,'new Sales Contract uses a type-ahead customer field');
@@ -16,12 +18,14 @@ assert.match(app,/function reusableContractTemplate\(customerId\)/,'last custome
 assert.match(app,/const reusable=\['seller','product'/,'previous contract commercial fields load after customer selection');
 assert.match(css,/\.customerMatches/,'customer result list is styled below the search box');
 assert.doesNotMatch(customerMaster,/nav\.appendChild\(b\)/,'Master Data is not injected beside +FI');
-assert.match(operations,/2026-09-14-operational-reset-v3/,'Super Admin-requested operational reset is versioned');
-for(const key of ["'customers', 'suppliers', 'fi', 'contracts', 'shipments', 'accountsReceipts', 'alerts', 'deletedShipments'"])assert.ok(operations.includes(key),'full operational reset arrays missing');
-assert.match(operations,/settings and shared master definitions preserved/,'reset explicitly preserves configuration and shared master definitions');
-assert.match(operations,/\$root\['audits'\] = \[\[/,'prior user and bulk-test audit entries are cleared');
-assert.match(operations,/operations_reset_export_documents/,'uploaded operational documents are included in reset');
-assert.match(operations,/currentMarker !== '' && \$incomingMarker !== \$currentMarker/,'stale clients cannot restore reset Export data');
+assert.match(operations,/Historical cleanup is permanently disabled/,'the former broad Export reset is explicitly disabled');
+assert.match(operations,/function operations_reset_export_payload\(string \$json\): array \{\s*\/\/ Historical cleanup[\s\S]*?return \[\$json, false\];/,'opening shared storage cannot purge Export records');
+assert.doesNotMatch(app,/EXPORT_RESET_MARKER/,'the browser no longer carries an operational reset marker');
+assert.match(recovery,/current records always win/,'lost-record recovery explicitly preserves current production records');
+assert.match(recovery,/pre-export-record-recovery/,'lost-record recovery creates a safety snapshot before writing');
+assert.match(recovery,/deletedShipments/,'lost-record recovery respects deliberate deletion tombstones');
+assert.match(recovery,/--apply/,'lost-record recovery is no-op unless explicitly applied');
+assert.match(deploy,/recover_export_records\.php" --apply/,'the approved deploy performs the guarded recovery after code validation');
 assert.match(app,/if\(contractStep===4&&packingDraft&&!persistPackingDraft\(\)\)return;const err=validateContractStep\(contractStep\)/,'active contract Next handler persists the visible packing before validation');
 const activeEditor=app.lastIndexOf('function renderContractEditor(){');
 const packingNext=app.indexOf('if(contractStep===4&&packingDraft&&!persistPackingDraft())return;',activeEditor);
@@ -43,4 +47,4 @@ assert.match(app,/mount\(\);restoreContractCheckpoint\(\);/,'same-user contract 
 assert.match(app,/function ttPartyOutput\(party\)\{return\{name:ttProperNounOutput\(party\?\.name\|\|''\),address:ttProperNounOutput\(party\?\.address\|\|''\)\}\}/,'seller and buyer output capitalization is normalized independently of entry casing');
 assert.ok(app.includes("/^(?:[A-Z]\\.)+[A-Z]?$/.test(upper)"),'dotted proper-noun abbreviations such as L.L.C. and U.A.E. remain uppercase');
 
-console.log('PASS Export reset, blank new contract, prefix customer picker, +1 reference and removed Master Data nav icon');
+console.log('PASS Export data preservation, blank new contract, prefix customer picker, +1 reference and removed Master Data nav icon');

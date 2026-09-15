@@ -177,6 +177,12 @@ jobs:
             echo "Deployed asset hash mismatch; previous code restored."
             exit 1
           fi
+          if ! recovery_result=$(php "$target/scripts/recover_export_records.php" --apply); then
+            tar -xzf "$backup" -C "$target"
+            echo "Export recovery validation failed; previous code restored and operational data was left protected."
+            exit 1
+          fi
+          echo "EXPORT_RECOVERY=$recovery_result"
           printf '%s\n' "$sha" > "$target/.transtrade-release"
           rm -f "$archive"
           rm -rf "$stage"

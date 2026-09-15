@@ -141,10 +141,13 @@ function operations_union_rows(array $current, array $incoming, array $identitie
 }
 
 function operations_export_reset_marker(): string {
-    return '2026-09-14-operational-reset-v3';
+    return '';
 }
 
 function operations_reset_export_payload(string $json): array {
+    // Historical cleanup is permanently disabled. Operational records may only
+    // be removed through an explicit, record-scoped deletion workflow.
+    return [$json, false];
     $root = json_decode($json, true);
     if (!is_array($root)) return [$json, false];
     $settings = (array)($root['settings'] ?? []);
@@ -196,6 +199,7 @@ function operations_reset_export_documents(?PDO $db = null): void {
 }
 
 function operations_apply_export_reset_file(string $path, array $user): void {
+    return;
     if (!is_file($path)) return;
     $preview = json_decode((string)file_get_contents($path), true);
     $old = is_array($preview) ? (string)($preview['values']['transtrade_export_v3_operational'] ?? '') : '';
@@ -230,6 +234,7 @@ function operations_apply_export_reset_file(string $path, array $user): void {
 }
 
 function operations_apply_export_reset_db(PDO $db, array $user): void {
+    return;
     $db->beginTransaction();
     $changed = false;
     try {
@@ -261,12 +266,6 @@ function operations_merge_export(string $currentJson, string $incomingJson, stri
     $incoming = json_decode($incomingJson, true);
     if (!is_array($current)) return $incomingJson;
     if (!is_array($incoming)) return $currentJson;
-    $currentMarker = (string)($current['settings']['exportOperationalReset'] ?? '');
-    $incomingMarker = (string)($incoming['settings']['exportOperationalReset'] ?? '');
-    if (($sourceModule === 'Exports' || $sourceModule === 'Super Admin') && $currentMarker !== '' && $incomingMarker !== $currentMarker) {
-        return $currentJson;
-    }
-
     $applyTombstones = static function (array $merged) use ($current, $incoming, $sourceModule): array {
         $authoritative = strcasecmp($sourceModule, 'Exports') === 0 || strcasecmp($sourceModule, 'Super Admin') === 0;
         $tombstones = $authoritative ? (array)($incoming['deletedShipments'] ?? []) : (array)($current['deletedShipments'] ?? []);
@@ -348,7 +347,6 @@ function operations_merge_export(string $currentJson, string $incomingJson, stri
 function operations_file_fallback(array $user): never {
     $path = rtrim((string)TT_DATA_DIR, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'operations.json';
     tt_ensure_data_dir();
-    operations_apply_export_reset_file($path, $user);
     if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         if (!is_file($path)) operations_respond(['ok'=>true,'revision'=>0,'values'=>[],'meta'=>[],'serverNow'=>gmdate('c')]);
         $handle = fopen($path, 'r');
@@ -400,7 +398,6 @@ try {
     }
     $db = operations_db();
     operations_install($db);
-    operations_apply_export_reset_db($db, $user);
 
     if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         $rows = $db->query('SELECT storage_key, payload, version, updated_at, updated_by, updated_by_user, updated_by_module FROM tt_operation_records')->fetchAll();

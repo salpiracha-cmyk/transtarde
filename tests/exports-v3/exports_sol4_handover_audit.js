@@ -9,7 +9,7 @@ const index=fs.readFileSync(path.join(root,'exports/index.html'),'utf8');
 const block=(start,end)=>app.slice(app.indexOf(start),app.indexOf(end,app.indexOf(start)));
 const dimensions=file=>{const data=fs.readFileSync(file);assert.equal(data.toString('ascii',1,4),'PNG');return[data.readUInt32BE(16),data.readUInt32BE(20)]};
 
-assert.match(index,/app\.js\?v=20260915-commercial-docs-1/);
+assert.match(index,/app\.js\?v=20260916-export-repair-1/);
 assert.doesNotMatch(app, /querySelector\('#cuOpen'\)/);
 assert.match(app,/querySelector\('#cuOpenAccount'\)/);
 assert.match(app,/TT_PORTS\.slice\(0,2\)/);
