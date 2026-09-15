@@ -63,8 +63,14 @@ async function selectAvailablePackingType(page) {
   return choice.label;
 }
 
+async function dismissRecoveryPrompt(page) {
+  const close = page.locator('.ttRecoveryClose');
+  if (await close.isVisible({ timeout: 2_000 }).catch(() => false)) await close.click();
+}
+
 async function openFreshContract(page) {
   for (let attempt = 0; attempt < 2; attempt += 1) {
+    await dismissRecoveryPrompt(page);
     await page.getByRole('button', { name: /NEW SALES CONTRACT/i }).click();
     if (await page.locator('.contractFormPane').waitFor({ state: 'visible', timeout: 10_000 }).then(() => true).catch(() => false)) return;
     if (!attempt) {
@@ -390,25 +396,15 @@ test('manual Hostinger QA: Export instruction to Mill and container return', asy
   await expect(page.getByText(containerOne, { exact: false })).toHaveCount(0);
   await expect(page.getByText(containerTwo, { exact: false })).toHaveCount(0);
   await expect(page.locator('#customsOutputReviews'), 'obsolete duplicate Customs review must be absent').toHaveCount(0);
-  const customsStack = page.locator('.customsPreviewStack');
-  await expect(customsStack.locator(':scope > section')).toHaveCount(3);
-  await expect(customsStack.locator(':scope > section > h4').nth(0)).toHaveText('Customs Invoice Review');
-  await expect(customsStack.locator(':scope > section > h4').nth(1)).toHaveText('Custom Packing Review');
-  await expect(customsStack.locator(':scope > section > h4').nth(2)).toHaveText('Phytosanitary Invoice Review');
-  const customInvoice = customsStack.locator(':scope > section').nth(0);
+  await expect(page.locator('.customsPreviewStack'), 'obsolete three-document live stack must be absent').toHaveCount(0);
+  const customInvoice = page.locator('.lotPreviewPaper > .printDoc');
+  await expect(customInvoice, 'Customs opens one active live invoice preview for responsive editing').toHaveCount(1);
   await expect(customInvoice).toContainText('TOTAL NET WEIGHT');
   await expect(customInvoice).toContainText('TOTAL GROSS WEIGHT');
   await expect(customInvoice).toContainText(selectedPackingType, { ignoreCase: true });
   await expect(customInvoice).toContainText('of 25 KG', { ignoreCase: true });
   await expect(customInvoice).toContainText('PAYMENT TERMS');
-  const customPacking = customsStack.locator(':scope > section').nth(1);
-  await expect(customPacking).toContainText('TOTAL NET WEIGHT');
-  await expect(customPacking).toContainText('TOTAL GROSS WEIGHT');
-  await expect(customPacking).not.toContainText('NAME & ADDRESS');
-  const invoiceHtml = await customsStack.locator(':scope > section .printDoc').nth(0).innerHTML();
-  const phytoHtml = await customsStack.locator(':scope > section .printDoc').nth(2).innerHTML();
-  expect(phytoHtml.replaceAll('PHYTOSANITARY INVOICE', 'CUSTOMS INVOICE'), 'Phytosanitary must replicate the Customs Invoice structure').toBe(invoiceHtml);
-  await page.screenshot({ path: testInfo.outputPath('05-customs-document-stack.png'), fullPage: true });
+  await page.screenshot({ path: testInfo.outputPath('05-customs-active-preview.png'), fullPage: true });
 
   // The exact Mill return belongs in the B/L Draft workflow.
   await page.locator('[data-workspace="bl"]').click();
