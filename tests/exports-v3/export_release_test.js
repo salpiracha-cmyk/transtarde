@@ -179,6 +179,8 @@ const longContractOutput=t.salesContractPrint(longContract);assert.equal((longCo
 assert.match(source,/master\.printed=false/,'a new Bag Order never defaults Printed Master Bag to ticked');
 assert.match(source,/approvedContractPriceItem/,'each packing price block is atomic across printed pages');
 assert.match(source,/contractPaymentBlock/,'the complete payment block moves together when a page fills');
+assert.doesNotMatch(source,/querySelector\('\.stamp'\)\?\.remove\(\)/,'the sent Production Instructions stamp is never removed by a later renderer');
+assert.match(source,/const issuedContract=state\.contracts\.find\(x=>x\.id===contractDraft\.id&&x\.issued\);[\s\S]{0,120}checkpointContractDraft\(\);return true/,'an issued-contract amendment stays attached to its existing contract and shipment');
 assert.match(source,/contractSplitWorkspace/);
 assert.match(source,/cBrokenContract/);
 assert.match(source,/cFinishContract/);
