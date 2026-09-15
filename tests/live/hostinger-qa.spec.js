@@ -71,7 +71,12 @@ async function dismissRecoveryPrompt(page) {
 async function openFreshContract(page) {
   for (let attempt = 0; attempt < 2; attempt += 1) {
     await dismissRecoveryPrompt(page);
-    await page.getByRole('button', { name: /NEW SALES CONTRACT/i }).click();
+    const openButton = page.getByRole('button', { name: /NEW SALES CONTRACT/i });
+    await openButton.click({ timeout: 15_000 }).catch(async error => {
+      if (!await page.locator('.ttRecoveryClose').isVisible().catch(() => false)) throw error;
+      await dismissRecoveryPrompt(page);
+      await openButton.click({ timeout: 15_000 });
+    });
     if (await page.locator('.contractFormPane').waitFor({ state: 'visible', timeout: 10_000 }).then(() => true).catch(() => false)) return;
     if (!attempt) {
       await gotoLive(page, `${BASE_URL}/module.php?id=exports`, { waitUntil: 'domcontentloaded' });
@@ -123,7 +128,12 @@ async function createBulkQaShipment(page, { suffix, index, lotRef, contractRef, 
   await expect(page.getByRole('button', { name: /NEW SALES CONTRACT/i })).toBeVisible();
   await openFreshContract(page);
   await expect(page.locator('#addCustomer'), 'a fresh contract must open at Buyer & Reference').toBeVisible({ timeout: 20_000 });
-  await page.locator('#addCustomer').click();
+  await dismissRecoveryPrompt(page);
+  await page.locator('#addCustomer').click({ timeout: 15_000 }).catch(async error => {
+    if (!await page.locator('.ttRecoveryClose').isVisible().catch(() => false)) throw error;
+    await dismissRecoveryPrompt(page);
+    await page.locator('#addCustomer').click({ timeout: 15_000 });
+  });
   await page.locator('#mCustName').fill(customerName);
   await page.locator('#mCustCode').fill(customerCode);
   await page.locator('#mCustAddress').fill('TEST / DUMMY — automated multi-shipment bulk QA only');
