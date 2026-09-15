@@ -330,7 +330,12 @@ function operations_merge_export(string $currentJson, string $incomingJson, stri
         );
     }
     unset($shipment);
-    $merged['alerts'] = operations_union_rows((array)($current['alerts'] ?? []), (array)($incoming['alerts'] ?? []), ['id', 'at']);
+    // Exports submits the complete operational document against an exact
+    // baseVersion. Its alert list is therefore authoritative: retaining alerts
+    // omitted by that document makes acknowledged/deleted alerts impossible to
+    // clear. Concurrent writers are still protected by the version check above,
+    // while Accounts and Milling keep their additive alert merge branches.
+    $merged['alerts'] = array_values((array)($incoming['alerts'] ?? []));
     $merged['audits'] = operations_union_rows((array)($current['audits'] ?? []), (array)($incoming['audits'] ?? []), ['id', 'at']);
     return json_encode($applyTombstones($merged), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
 }
