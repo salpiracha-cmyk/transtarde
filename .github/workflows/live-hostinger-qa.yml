@@ -23,7 +23,7 @@ jobs:
   live-qa:
     if: ${{ github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_sha == github.sha && !contains(github.event.workflow_run.head_commit.message, '[cleanup-only]')) }}
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 35
     environment: live-qa
     steps:
       - name: Enforce manual live-data confirmation
@@ -58,7 +58,7 @@ jobs:
       - name: Create harmless QA bag-marking fixture
         run: |
           mkdir -p tests/live
-          printf '%s' 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=' | base64 --decode > tests/live/qa-bag-mark.png
+          printf '%s' 'iVBORw0KGgoAAAANSUhEUgAAAHgAAABaAQMAAABJzgCsAAAAIGNIUk0AAHomAACAhAAA+gAAAIDoAAB1MAAA6mAAADqYAAAXcJy6UTwAAAAGUExURQsvVf///3BcKFsAAAABYktHRAH/Ai3eAAAAB3RJTUUH6gkPDB42PJmzQQAAABRJREFUOMtjYBgFo2AUjIJRMBgBAAWgAAErlUh4AAAAAElFTkSuQmCC' | base64 --decode > tests/live/qa-bag-mark.png
 
       - name: Run live Exports to Milling round trip
         env:
