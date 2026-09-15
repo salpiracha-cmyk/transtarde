@@ -229,7 +229,7 @@ function tt_default_master_options(): array {
         'product_origins'=>['Pakistan'],
         'product_profiles'=>['Active Transtrade default','Contract specific','Historical reference'],
         'currencies'=>['USD','EUR','GBP','AED','PKR'],
-        'inspection_companies'=>['No','SGS Pakistan Private Limited','Intertek'],
+        'inspection_companies'=>['No','Any inspection company','SGS Pakistan Private Limited','Intertek'],
         'packing_types'=>['P.P. Bags','BOPP Laminated Bags','Cotton Bags','Non-Woven Bags','Jute Bags'],
     ];
 }
