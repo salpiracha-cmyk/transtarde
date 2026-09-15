@@ -121,3 +121,4 @@ jobs:
           php -l api/export_documents.php
           php -l auth_store.php
           php -l offline_idempotency.php
+          php -l api/offline-status.php

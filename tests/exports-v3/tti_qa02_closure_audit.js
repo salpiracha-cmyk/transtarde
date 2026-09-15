@@ -23,7 +23,7 @@ const context={window,document,localStorage,console,structuredClone,alert:m=>{th
 context.globalThis=context;
 
 let source=fs.readFileSync(__dirname+'/app.js','utf8');
-source=source.replace('mount();',`window.__QA02__={state,makeShipment,makeLotRecord,loadingRemainingByPack,completionMissing,actualTotals,millActualsComplete,customsBalanced,gdRefsFingerprint,lotStatus};mount();`);
+source=source.replace('mount();',`window.__QA02__={state,makeShipment,makeLotRecord,loadingRemainingByPack,completionMissing,actualTotals,millActualsComplete,customsBalanced,gdRefsFingerprint,lotStatus,documentsPresented};mount();`);
 vm.runInNewContext(source,context,{filename:'app.js'});
 const t=window.__QA02__;
 
@@ -77,9 +77,10 @@ lot.commercial.saved=true;
 lot.coo={...lot.coo,saved:true,finalDocument:{id:'DOC-QA02-COO',name:'QA02-COO.pdf'}};
 lot.certs=[
   {type:'e-Phyto Certificate',finalDocument:{id:'DOC-QA02-PHYTO',name:'QA02-EPHYTO.pdf'}},
-  {type:'Fumigation Certificate',finalDocument:{id:'DOC-QA02-FUM',name:'QA02-FUMIGATION.pdf'}}
+  {type:'Fumigation Certificate',finalDocument:{id:'DOC-QA02-FUM',name:'QA02-FUMIGATION.pdf'}},
+  {type:'SGS’s Certificates',finalDocument:{id:'DOC-QA02-INSP',name:'QA02-SGS-CERTIFICATES.pdf'}}
 ];
-lot.covering={...lot.covering,dispatched:true,frozen:true,dispatchDate:'2026-09-13',sentThrough:'DHL',tracking:'QA02-AWB-001',documentCounts:Object.fromEntries(contract.docs.map(name=>[name,{originals:1,copies:0}]))};
+lot.covering={...lot.covering,dispatched:true,frozen:true,dispatchDate:'2026-09-13',sentThrough:'DHL',tracking:'QA02-AWB-001',documentCounts:Object.fromEntries(t.documentsPresented(contract).map(row=>[row.name,{originals:row.original,copies:row.copies}]))};
 assert.deepEqual([...t.completionMissing(lot,contract)],[],'TTI/QA/02 must satisfy every final shipment closure gate');
 assert.equal(t.lotStatus(lot),'Ready to complete');
 

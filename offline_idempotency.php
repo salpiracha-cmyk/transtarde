@@ -7,6 +7,21 @@ function tt_offline_read_store_locked($handle): array {rewind($handle);$raw=stre
 function tt_offline_write_store_locked($handle,array $data): void {rewind($handle);if(!ftruncate($handle,0))throw new RuntimeException('Offline transaction store could not be updated.');$json=json_encode($data,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);if(fwrite($handle,$json)===false)throw new RuntimeException('Offline transaction store could not be written.');fflush($handle);}
 function tt_offline_json_exit(array $payload,int $status): never {http_response_code($status);header('Content-Type: application/json; charset=UTF-8');header('Cache-Control: no-store');echo json_encode($payload,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);exit;}
 
+function tt_offline_transaction_status(array $user,array $transactionIds): array {
+    $file=rtrim((string)TT_DATA_DIR,DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR.'offline_transactions.json';
+    $ids=array_values(array_unique(array_filter(array_map(static fn($id):string=>trim((string)$id),$transactionIds),static fn(string $id):bool=>(bool)preg_match('/^[A-Za-z0-9._:-]{16,128}$/',$id))));
+    if(!$ids||!is_file($file))return[];
+    $handle=fopen($file,'r');if($handle===false||!flock($handle,LOCK_SH))return[];
+    try{$data=tt_offline_read_store_locked($handle);}finally{flock($handle,LOCK_UN);fclose($handle);}
+    $userId=(string)($user['id']??$user['username']??'0');$out=[];
+    foreach($ids as $id){
+        $row=$data['transactions'][$userId.'|'.$id]??null;
+        if(!is_array($row)){$out[$id]=['state'=>'unknown'];continue;}
+        $out[$id]=['state'=>(string)($row['state']??'unknown'),'resource'=>(string)($row['resource']??''),'resourceVersion'=>(int)($row['resourceVersion']??0),'time'=>(int)($row['time']??0)];
+    }
+    return$out;
+}
+
 function tt_offline_request_guard(array $user): void {
     static $started=false;if($started)return;$started=true;
     $path=(string)parse_url((string)($_SERVER['REQUEST_URI']??''),PHP_URL_PATH);if(!str_starts_with($path,'/api/'))return;
