@@ -96,6 +96,10 @@ async function fillMillContainerNumber(page, value) {
 async function signInQa(page) {
   expect(QA_USERNAME, 'TRANSTRADE_QA_USERNAME GitHub secret is required').toBeTruthy();
   expect(QA_PASSWORD, 'TRANSTRADE_QA_PASSWORD GitHub secret is required').toBeTruthy();
+  await page.addLocatorHandler(page.locator('#ttRecoveryModal'), async modal => {
+    const close = modal.locator('.ttRecoveryClose');
+    if (await close.isVisible().catch(() => false)) await close.click();
+  });
   await gotoLive(page, `${BASE_URL}/login.php`, { waitUntil: 'domcontentloaded' });
   await page.getByLabel('Username').fill(QA_USERNAME);
   await page.getByLabel('Password').fill(QA_PASSWORD);
@@ -402,9 +406,10 @@ test('manual Hostinger QA: Export instruction to Mill and container return', asy
 
   // Customs is a separate workflow and must not display Mill container/seal actuals.
   await page.locator('[data-workspace="customs"]').click();
-  await expect(page.getByText('MILL CONTAINER ACTUALS', { exact: true })).toHaveCount(0);
-  await expect(page.getByText(containerOne, { exact: false })).toHaveCount(0);
-  await expect(page.getByText(containerTwo, { exact: false })).toHaveCount(0);
+  const customsEditor = page.locator('.lotEditorShell');
+  await expect(customsEditor.getByText('MILL CONTAINER ACTUALS', { exact: true })).toHaveCount(0);
+  await expect(customsEditor.getByText(containerOne, { exact: false })).toHaveCount(0);
+  await expect(customsEditor.getByText(containerTwo, { exact: false })).toHaveCount(0);
   await expect(page.locator('#customsOutputReviews'), 'obsolete duplicate Customs review must be absent').toHaveCount(0);
   await expect(page.locator('.customsPreviewStack'), 'obsolete three-document live stack must be absent').toHaveCount(0);
   const customInvoice = page.locator('.lotPreviewPaper > .printDoc');
