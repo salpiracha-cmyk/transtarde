@@ -104,6 +104,7 @@ async function createBulkQaShipment(page, { suffix, index, lotRef, contractRef, 
   await gotoLive(page, `${BASE_URL}/module.php?id=exports`, { waitUntil: 'domcontentloaded' });
   await expect(page.getByRole('button', { name: /NEW SALES CONTRACT/i })).toBeVisible();
   await page.getByRole('button', { name: /NEW SALES CONTRACT/i }).click();
+  await expect(page.locator('#addCustomer'), 'a fresh contract must open at Buyer & Reference').toBeVisible({ timeout: 20_000 });
   await page.locator('#addCustomer').click();
   await page.locator('#mCustName').fill(customerName);
   await page.locator('#mCustCode').fill(customerCode);
@@ -449,7 +450,7 @@ test('manual Hostinger QA: Export instruction to Mill and container return', asy
 });
 
 test('live bulk QA: automatic lot references and isolated B/L returns', async ({ page }, testInfo) => {
-  test.setTimeout(900_000);
+  test.setTimeout(1_200_000);
   const errors = [];
   page.on('pageerror', error => errors.push(String(error)));
   page.on('popup', async popup => popup.close().catch(() => {}));
