@@ -11,7 +11,11 @@ assert.match(outbox,/finalWords/,'only explicit final-action controls arm recove
 assert.match(outbox,/TT_SHARED_SYNC\.saveNow/,'Milling and Exports explicit shared commits arm recovery');
 assert.doesNotMatch(outbox,/(?:setInterval|setTimeout)\s*\(/,'offline recovery has no timed or background retry/autosave');
 assert.match(outbox,/addEventListener\('input',\(\)=>\{explicitAction=null\}/,'typing cancels rather than triggers an armed recovery action');
-assert.match(outbox,/offline \/ unsynced entr/,'pending submissions show an offline/unsynced notice with a count');
+assert.match(outbox,/getElementById\('ttAccountsOutboxBadge'\)\?\.remove\(\)/,'legacy Accounts handoff badge is removed');
+assert.match(outbox,/getElementById\('ttOfflineNotice'\)\?\.remove\(\)/,'offline status badge is removed while recovery remains active');
+assert.doesNotMatch(outbox,/createElement\('button'\)[\s\S]{0,400}ttOfflineNotice/,'recovery no longer creates a floating badge');
+assert.match(modulePhp,/#ttAccountsOutboxBadge,#ttOfflineNotice,[^\n]+display:none!important/,'module wrapper suppresses stale cached badges');
+assert.match(modulePhp,/offline-outbox\.js\?v=20260915-silent-2/,'module wrapper cache-busts the silent outbox');
 assert.match(outbox,/confirm\(entries\.length\+' offline \/ unsynced entr/,'upload requires explicit user confirmation');
 assert.match(outbox,/if\(restore\)await restoreUi\(entries\[0\]\?\.ui\)/,'the exact saved workflow position is restored before prompting');
 assert.match(outbox,/if\(entries\.length\)await offerRecovery\(\{restore:true\}\)/,'returning users are offered pending-entry recovery');
