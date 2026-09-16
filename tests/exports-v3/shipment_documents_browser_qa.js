@@ -67,12 +67,14 @@ const css = fs.readFileSync(path.join(root, 'exports', 'app.css'), 'utf8');
         pages: pages.length,
         text: document.getElementById('printRoot').innerText,
         horizontalOverflow: pages.map(node => Math.max(0, node.scrollWidth - node.clientWidth)),
-        verticalOverflow: pages.map(node => Math.max(0, node.scrollHeight - node.clientHeight))
+        verticalOverflow: pages.map(node => Math.max(0, node.scrollHeight - node.clientHeight)),
+        blBackgrounds: [...document.querySelectorAll('.oceanBlHeader, .oceanBlGoodsTitle, .oceanBlContainers thead th, .oceanBlContainers tfoot th')].map(node => getComputedStyle(node).backgroundColor)
       };
     });
     for (const text of required[name]) assert.ok(report[name].text.toUpperCase().includes(text.toUpperCase()), `${name} is missing ${text}`);
     assert.ok(report[name].horizontalOverflow.every(value => value < 2), `${name} has content outside its page width`);
     assert.ok(report[name].verticalOverflow.every(value => value < 2), `${name} has content outside its page height`);
+    if (name === 'blInstructions') assert.ok(report[name].blBackgrounds.every(value => value === 'rgb(255, 255, 255)' || value === 'rgba(0, 0, 0, 0)'), 'B/L Draft must remain plain white without coloured bands');
     await page.screenshot({ path: path.join(outputDir, `${name}.png`), fullPage: true });
     await page.pdf({ path: path.join(outputDir, `${name}.pdf`), format: 'A4', printBackground: true, preferCSSPageSize: true, margin: { top: '0', right: '0', bottom: '0', left: '0' } });
   }
