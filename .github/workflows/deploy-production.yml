@@ -2,6 +2,9 @@ name: Deploy Production
 
 on:
   workflow_dispatch:
+  pull_request:
+    branches: [release/fi-hotfix-base]
+    paths: ['exports/**','tests/exports-v3/**','.github/workflows/deploy-production.yml']
   workflow_run:
     workflows: ['Milling and Exports QA']
     types: [completed]
@@ -17,11 +20,11 @@ concurrency:
 
 jobs:
   deploy:
-    if: ${{ github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_sha == github.sha) }}
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'pull_request' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_sha == github.sha) }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
-      DEPLOY_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+      DEPLOY_SHA: ${{ github.event.pull_request.head.sha || github.event.workflow_run.head_sha || github.sha }}
       HOSTINGER_HOST: ${{ secrets.HOSTINGER_HOST }}
       HOSTINGER_PORT: ${{ secrets.HOSTINGER_PORT }}
       HOSTINGER_USER: ${{ secrets.HOSTINGER_USER }}
@@ -64,6 +67,23 @@ jobs:
             sleep 10
           done
           echo "Accounts QA did not pass for this commit; deployment stopped."
+          exit 1
+
+      - name: Confirm Milling and Exports QA passed for this commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 18); do
+            if gh api "/repos/$GITHUB_REPOSITORY/actions/workflows/milling-exports-qa.yml/runs?head_sha=$DEPLOY_SHA&status=completed&per_page=20" \
+              --jq '.workflow_runs | any(.conclusion == "success")' | grep -qx true; then
+              echo "Milling and Exports QA passed for $DEPLOY_SHA"
+              exit 0
+            fi
+            echo "Waiting for Milling and Exports QA for $DEPLOY_SHA ($attempt/18)"
+            sleep 10
+          done
+          echo "Milling and Exports QA did not pass for this commit; deployment stopped."
           exit 1
 
       - name: Build production release archive
