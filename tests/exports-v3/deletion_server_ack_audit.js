@@ -8,9 +8,10 @@ const flow=app.slice(start,app.indexOf("window.addEventListener('error'",start))
 
 assert.match(flow,/result=deleteShipmentData\(processId\)/);
 assert.match(flow,/await shared\.saveNow\(\)/);
-assert.match(flow,/Retry Server Deletion/);
-assert.match(flow,/do not sign out until confirmation succeeds/);
-assert.match(flow,/Permanently deleted after server confirmation/);
+assert.match(flow,/RETRY DELETE/);
+assert.match(flow,/Retry this same deletion before leaving the screen/);
+assert.match(flow,/action:'Permanently deleted'/);
+assert.doesNotMatch(flow,/shared-server confirmation|confirmed by the shared server/i);
 
 const mutate=flow.indexOf('result=deleteShipmentData(processId)');
 const acknowledge=flow.indexOf('await shared.saveNow()');

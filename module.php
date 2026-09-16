@@ -90,7 +90,7 @@ $sharedBootstrap = <<<'HTML'
   }
   function saveNow(){
     if(!pending.size&&!inFlight.size)return Promise.resolve({ok:true,revision});
-    return new Promise((resolve,reject)=>{const waiter={resolve,reject,timer:0};waiter.timer=setTimeout(()=>{const i=commitWaiters.indexOf(waiter);if(i>=0){commitWaiters.splice(i,1);reject(new Error('Server confirmation timed out. Nothing was advanced; please retry.'))}},20000);commitWaiters.push(waiter);flush()})
+    return new Promise((resolve,reject)=>{const waiter={resolve,reject,timer:0};waiter.timer=setTimeout(()=>{const i=commitWaiters.indexOf(waiter);if(i>=0){commitWaiters.splice(i,1);reject(new Error('Save timed out. Nothing was advanced; please retry.'))}},20000);commitWaiters.push(waiter);flush()})
   }
   function refreshNow(){
     if(pending.size||inFlight.size)return Promise.reject(new Error('Finish the current save before refreshing.'));
@@ -103,8 +103,8 @@ $sharedBootstrap = <<<'HTML'
       pending.delete(key);
       inFlight.add(key);
       fetch(endpoint,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({csrf:access.csrf,key,value,baseVersion:Number(queuedBase.get(key)??keyVersions.get(key)??0),sourceModule:access.module||'Super Admin'})})
-        .then(r=>r.json()).then(r=>{inFlight.delete(key);if(r.ok){revision=Math.max(revision,Number(r.revision||0));keyVersions.set(key,Number(r.keyVersion||r.revision||0));queuedBase.delete(key);if(pending.has(key)){clearTimeout(timer);timer=setTimeout(flush,180);return}if(!pending.size&&!inFlight.size){markSaveState('Saved');settleCommits();if(typeof dispatchEvent==='function'&&typeof CustomEvent==='function')dispatchEvent(new CustomEvent('tt:shared-saved',{detail:{key}}))}return}if(!pending.has(key))pending.set(key,value);const message=r.conflict?'Newer server information exists. Refresh and review it before retrying.':(r.error||'Shared save was not confirmed.');showSyncError(message,!!r.conflict);settleCommits(message)})
-        .catch(()=>{inFlight.delete(key);if(!pending.has(key))pending.set(key,value);const message='Server save was not confirmed. Check the connection and retry; nothing was advanced.';showSyncError(message);settleCommits(message)});
+        .then(r=>r.json()).then(r=>{inFlight.delete(key);if(r.ok){revision=Math.max(revision,Number(r.revision||0));keyVersions.set(key,Number(r.keyVersion||r.revision||0));queuedBase.delete(key);if(pending.has(key)){clearTimeout(timer);timer=setTimeout(flush,180);return}if(!pending.size&&!inFlight.size){markSaveState('Saved');settleCommits();if(typeof dispatchEvent==='function'&&typeof CustomEvent==='function')dispatchEvent(new CustomEvent('tt:shared-saved',{detail:{key}}))}return}if(!pending.has(key))pending.set(key,value);const message=r.conflict?'This record changed elsewhere. Refresh and review it before retrying.':(r.error||'The change was not saved.');showSyncError(message,!!r.conflict);settleCommits(message)})
+        .catch(()=>{inFlight.delete(key);if(!pending.has(key))pending.set(key,value);const message='The change was not saved. Check the connection and retry; nothing was advanced.';showSyncError(message);settleCommits(message)});
     }
   }
   function queue(key,value){if(!allowed(key)||applying)return;if(!pending.has(key))queuedBase.set(key,Number(keyVersions.get(key)||0));pending.set(key,String(value));clearTimeout(timer);timer=setTimeout(flush,180)}

@@ -9,7 +9,7 @@ assert.doesNotMatch(modulePhp,/offline-outbox\.js/,'Milling and Exports do not l
 assert.doesNotMatch(accounts,/offline-outbox\.js/,'Accounts does not load recovery UI');
 assert.match(modulePhp,/indexedDB\.deleteDatabase\(LEGACY_OUTBOX_DB\)/,'old browser outbox is erased silently');
 assert.match(modulePhp,/originalRemove\.call\(localStorage,LEGACY_QUEUE_STORE\)/,'old shared queue is erased silently');
-assert.match(modulePhp,/Server confirmation timed out\. Nothing was advanced/,'a timed-out save rejects instead of advancing');
+assert.match(modulePhp,/Save timed out\. Nothing was advanced/,'a timed-out save rejects instead of advancing');
 assert.doesNotMatch(modulePhp,/queued:true|settleQueued|retryConflict/,'no action succeeds through a background queue or automatic conflict replay');
 assert.match(exportsJs,/document\.getElementById\('nextStep'\)\.onclick=async/,'Sales Contract Next waits for the server');
 assert.match(exportsJs,/confirmation=window\.TT_SHARED_SYNC\?\.saveNow\?\.\(\)/,'Sales Contract Save and Print waits for the server');

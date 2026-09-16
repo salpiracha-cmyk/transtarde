@@ -98,6 +98,7 @@ const contract = {
         contentOverflowPx: Math.max(0, contentBottom - protectedBottom),
         unusedBodyMm: Math.max(0, (protectedBottom - contentBottom) / mm),
         titleCount: node.querySelectorAll(':scope > .docTitle').length,
+        letterheadCount: node.querySelectorAll(':scope > .docLetterhead, :scope > .docLetterheadText').length,
         pageStampCount: node.querySelectorAll(':scope > .salesContractPageStamp').length,
         finalSignatureCount: node.querySelectorAll('.contractSignatureGrid').length,
         validityCount: [...node.querySelectorAll('.docSection')].filter(x => x.textContent.trim() === 'VALIDITY').length,
@@ -115,6 +116,8 @@ const contract = {
 
   assert.ok(report.length >= 2 && report.length <= 3, `representative contract must use 2-3 pages, got ${report.length}`);
   assert.equal(report.reduce((sum, row) => sum + row.titleCount, 0), 1, 'title must appear on page one only');
+  assert.ok(report[0].letterheadCount >= 1, 'page one must retain the seller letterhead');
+  assert.ok(report.slice(1).every(row => row.letterheadCount === 0), 'continuation pages must start with the reference/date box, without repeating the letterhead');
   assert.equal(report.at(-1).pageStampCount, 0, 'final page must not have the separate page stamp');
   assert.equal(report.at(-1).finalSignatureCount, 1, 'final page must have exactly one Seller/Buyer signature block');
   assert.equal(report.at(-1).validityCount, 1, 'validity must remain with final signatures');
@@ -132,4 +135,4 @@ const contract = {
 
   await browser.close();
   console.log('PASS Sales Contract real-browser pagination and PDF QA');
-})().catch(error => { console.error(error); process.exitCode = 1; });
+})().catch(error => { console.error(error); process.exit(1); });
