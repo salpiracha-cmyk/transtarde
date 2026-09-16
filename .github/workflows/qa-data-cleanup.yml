@@ -1,6 +1,9 @@
 name: Scoped QA Data Cleanup
 
 on:
+  pull_request:
+    branches: [cleanup/fi-hotfix-base]
+    paths: ['.github/workflows/qa-data-cleanup.yml']
   workflow_run:
     workflows: ['Manual Hostinger Live QA']
     types: [completed]
@@ -19,7 +22,7 @@ concurrency:
 
 jobs:
   cleanup:
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'push' || github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' || github.event_name == 'push' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 8
     environment: live-qa
