@@ -332,7 +332,7 @@ test('manual Hostinger QA: Export instruction to Mill and container return', asy
   await expect(contractPreview).toContainText('DOCUMENTS TO BE PRESENTED FOR NEGOTIATION');
   await expect(contractPreview.locator('.salesContractPhysicalPage')).toHaveCount(2);
   await expect(contractPreview.locator('.salesContractPhysicalPage .docTitle')).toHaveCount(1);
-  await expect(contractPreview.locator('.salesContractPageStamp')).toHaveCount(3);
+  await expect(contractPreview.locator('.salesContractPageStamp')).toHaveCount(2);
   await page.locator('#issueContract').click();
   await expect(page.getByText(contractRef, { exact: true }).first()).toBeVisible({ timeout: 30_000 });
   await waitForSharedSave(page);
