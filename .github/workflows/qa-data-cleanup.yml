@@ -4,7 +4,7 @@ on:
   workflow_run:
     workflows: ['Manual Hostinger Live QA']
     types: [completed]
-    branches: [main, release/fi-hotfix-gate]
+    branches: [main, release/fi-hotfix-gate, release/fi-hotfix-base]
   workflow_dispatch:
   push:
     branches: [main]
