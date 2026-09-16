@@ -5,7 +5,7 @@ on:
   workflow_run:
     workflows: ['Milling and Exports QA']
     types: [completed]
-    branches: [main, release/fi-hotfix-gate]
+    branches: [main, release/fi-hotfix-gate, release/fi-hotfix-base]
 
 permissions:
   contents: read
