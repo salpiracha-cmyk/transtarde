@@ -44,7 +44,7 @@ assert.match(app,/settings\.customPackingTypes\.push\(added\);save\(\)/,'new Exp
 assert.match(app,/terminalHandling=.*Load Port Terminal Handling Charges[\s\S]*filter\(x=>!automaticInsurance\.test\(x\)&&!automaticInspection\.test\(x\)&&!terminalHandling\.test\(x\)\);\s*if\(c\.incoterm==='FOB'\)stored\.push/,'terminal handling is removed from inherited terms and added only for FOB');
 assert.match(app,/requestAnimationFrame\(\(\)=>form\?\.scrollIntoView\(\{block:'start',behavior:'auto'\}\)\)/,'Next and Back rerenders position the form at its top');
 assert.match(app,/const CONTRACT_DRAFT_STORE='tt-export-contract-draft-v1'/,'Sales Contract explicit-step recovery checkpoint is defined');
-assert.match(app,/document\.getElementById\('nextStep'\)\.onclick=async[\s\S]{0,900}await persistContractStepDraft\(\)[\s\S]{0,300}renderContractEditor\(\)/,'each successful Next waits for server confirmation before advancing');
+assert.match(app,/document\.getElementById\('nextStep'\)\.onclick=async[\s\S]{0,1100}await persistContractStepDraft\(\)[\s\S]{0,500}renderContractEditor\(\)/,'each successful Next waits for the acknowledged save before advancing');
 assert.match(app,/draft.status='Draft';draft.issued=false;draft.draftStep=contractStep/,'Sales Contract drafts are saved into shared contract state with their current step');
 assert.match(app,/mount\(\);restoreContractCheckpoint\(\);/,'same-user contract checkpoint is restored after reload or renewed login');
 assert.match(app,/function ttPartyOutput\(party\)\{return\{name:ttProperNounOutput\(party\?\.name\|\|''\),address:ttProperNounOutput\(party\?\.address\|\|''\)\}\}/,'seller and buyer output capitalization is normalized independently of entry casing');

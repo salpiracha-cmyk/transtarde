@@ -50,7 +50,7 @@ assert.doesNotMatch(modulePhp,/queued:true|settleQueued/,'unconfirmed actions mu
 assert.match(js,/const rerender=\(\)=>\{renderShipmentWorkspace\(\)\}/,'Loading Instruction draft controls must not save before the final Send action');
 assert.match(js,/window\.TT_SHARED_SYNC\?\.saveNow\?\.\(\)/,'final Loading Instruction send must wait for authoritative shared save acknowledgement');
 assert.match(milling,/containerCommitPending=\{s,c,before\};confirmContainerSharedSave\(containerCommitPending\)/,'Save Container must retain one idempotent pending record until shared acknowledgement');
-assert.match(milling,/Exports can now receive /,'Milling success must appear only after authoritative shared acknowledgement');
+assert.match(milling,/Container Saved — /,'Milling success must appear only after the acknowledged save');
 assert.doesNotMatch(modulePhp,/setInterval\(\(\)=>getRemote\(false\),8000\)/,'shared project state must not background-refresh forms');
 assert.match(modulePhp,/function checkInbound\(\)/,'shared state must provide a read-only inbound refresh path');
 assert.match(modulePhp,/addEventListener\('focus',checkInbound\)/,'returning to a module must check for cross-module updates');

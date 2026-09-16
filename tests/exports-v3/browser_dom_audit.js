@@ -91,7 +91,6 @@ assert.equal(d.querySelector('#cuCurrency').tagName,'SELECT','TG Customs currenc
 assert.equal(d.querySelector('#cuCurrency').value,'AED','TG Customs initially retains its own saved/default currency');
 assert.ok([...d.querySelectorAll('#cuFISelect option')].some(option=>option.textContent.includes('FI-AED')),'FI selection initially follows the TG Customs currency');
 assert.ok(![...d.querySelectorAll('#cuFISelect option')].some(option=>option.textContent.includes('FI-USD')),'FI selection excludes other currencies');
-// Regression: create a normal TG FI from Customs and return it to this exact lot.
 set(d.querySelector('#cuFISelect'),'__ADD_FI__','change');
 assert.equal(d.querySelector('#mFICustomer').value,'TRANS GRAINS FOODSTUFF TRADING L.L.C','Customs +FI links the FI to TG');
 assert.equal(d.querySelector('#mFICur').value,'AED','Customs +FI inherits the current Customs currency');

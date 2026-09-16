@@ -79,11 +79,12 @@ jobs:
         run: |
           node tests/exports-v3/export_release_test.js
           node tests/exports-v3/sales_contract_browser_qa.js
-      - name: Preserve Sales Contract visual QA evidence
+          node tests/exports-v3/shipment_documents_browser_qa.js
+      - name: Preserve Export visual QA evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: sales-contract-browser-qa
+          name: export-document-browser-qa
           path: tmp/qa/
           if-no-files-found: error
       - name: Run Export and bridge audits
