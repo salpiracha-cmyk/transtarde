@@ -50,4 +50,12 @@ jobs:
             -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" \
             -o StrictHostKeyChecking=yes \
             -p "$HOSTINGER_PORT" "$HOSTINGER_USER@$HOSTINGER_HOST" \
-            php "$HOSTINGER_DEPLOY_PATH/scripts/cleanup_qa_data.php" --apply
+            bash -s -- "$HOSTINGER_DEPLOY_PATH" <<'REMOTE'
+          set -euo pipefail
+          target=$1
+          cleanup_result=$(php "$target/scripts/cleanup_qa_data.php" --apply)
+          echo "QA_CLEANUP=$cleanup_result"
+          recovery_audit=$(php "$target/scripts/recover_export_records.php")
+          echo "POST_CLEANUP_RECOVERY_AUDIT=$recovery_audit"
+          php -r '$result=json_decode($argv[1],true); if(!is_array($result)||($result["ok"]??false)!==true||(int)($result["contracts"]??0)>0){fwrite(STDERR,"Business-record recovery audit failed after QA cleanup.\n");exit(1);}' "$recovery_audit"
+          REMOTE

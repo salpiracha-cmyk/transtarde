@@ -17,4 +17,5 @@ assert.match(cleanup, /QA\|TEST\|DUMMY\|DEMO\|BULK/, 'cleanup is limited to expl
 assert.match(cleanup, /QA_ACCOUNTS_PREFIX/, 'Accounts cleanup requires its exact QA prefix');
 assert.match(workflow, /workflow_run:[\s\S]*Manual Hostinger Live QA/, 'cleanup follows live QA');
 assert.match(workflow, /workflow_run\.conclusion == 'success'/, 'failed QA cannot trigger cleanup');
+assert.match(workflow, /POST_CLEANUP_RECOVERY_AUDIT/, 'cleanup proves no business contract became missing');
 console.log('PASS Super Admin placeholders removed and scoped QA cleanup protected');
