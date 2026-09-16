@@ -400,14 +400,21 @@ test('manual Hostinger QA: Export instruction to Mill and container return', asy
   await page.screenshot({ path: testInfo.outputPath('04-milling-containers-saved.png'), fullPage: true });
 
   await gotoLive(page, `${BASE_URL}/module.php?id=exports`, { waitUntil: 'domcontentloaded' });
-  await expect.poll(async () => page.evaluate(async ({ contractRef, lotRef, numbers }) => {
-    const response = await fetch('api/operations.mysql.php?r=' + Date.now(), { credentials: 'same-origin' });
-    const shared = await response.json();
-    const root = JSON.parse(shared.values?.transtrade_export_v3_operational || '{}');
-    const lot = (root.shipments || []).find(x => x.contractRef === contractRef && x.lotId === lotRef);
-    const actuals = lot?.millActuals || [];
-    return numbers.every(number => actuals.some(x => x.number === number));
-  }, { contractRef, lotRef, numbers: [containerOne, containerTwo] }), {
+  await expect.poll(async () => {
+    try {
+      return await page.evaluate(async ({ contractRef, lotRef, numbers }) => {
+        const response = await fetch('api/operations.mysql.php?r=' + Date.now(), { credentials: 'same-origin' });
+        const shared = await response.json();
+        const root = JSON.parse(shared.values?.transtrade_export_v3_operational || '{}');
+        const lot = (root.shipments || []).find(x => x.contractRef === contractRef && x.lotId === lotRef);
+        const actuals = lot?.millActuals || [];
+        return numbers.every(number => actuals.some(x => x.number === number));
+      }, { contractRef, lotRef, numbers: [containerOne, containerTwo] });
+    } catch (error) {
+      if (/Execution context was destroyed|navigation/i.test(String(error))) return false;
+      throw error;
+    }
+  }, {
     message: 'Milling container returns must persist on the shared server',
     timeout: 90_000,
     intervals: [1_000, 2_000, 5_000, 10_000],
