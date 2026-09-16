@@ -1010,10 +1010,19 @@ function contractBankDetailsHTML(c){
  if(!row)return paymentNeedsSellerBank(c)?`<div class="contractBankMissing">Seller bank account must be selected before issue.</div>`:'';
  return`<div class="contractBankDetails contractBankLines"><div><b>ACCOUNT TITLE:</b> <span>${esc(row[3]||'')}</span></div><div><b>BANK:</b> <span>${esc(row[4]||'')}</span></div><div><b>BRANCH:</b> <span>${esc(row[5]||'')}</span></div><div><b>IBAN:</b> <span>${esc(row[9]||'')}</span></div><div><b>SWIFT CODE:</b> <span>${esc(row[10]||'')}</span></div><div><b>Country:</b> <span>${esc(ttOutputEnglish(row[6]||''))}</span></div></div>`
 };
-const ttDirectPrintBeforeAcceptance=directPrint__legacy_v0;
+function waitForPrintImages(root,timeoutMs=1800){
+ const imageNodes=[...root.querySelectorAll('img')],pending=imageNodes.filter(node=>!node.complete);
+ if(!pending.length)return Promise.resolve();
+ return Promise.race([
+  Promise.all(pending.map(node=>new Promise(resolve=>{node.addEventListener('load',resolve,{once:true});node.addEventListener('error',resolve,{once:true})}))),
+  new Promise(resolve=>setTimeout(resolve,timeoutMs))
+ ])
+}
 function directPrint(title,html,mode='with'){
- const filename=/^SALES CONTRACT$/i.test(String(title))&&contractDraft?.ref?contractDraft.ref:title;
- return ttDirectPrintBeforeAcceptance(filename,html,mode)
+ const root=document.getElementById('printRoot'),filename=/^SALES CONTRACT$/i.test(String(title))&&contractDraft?.ref?contractDraft.ref:title,old=document.title;
+ root.className=mode==='without'?'printModeWithout':'printModeWith';root.innerHTML=html;root.setAttribute('aria-hidden','false');document.title=`${filename} - Transtrade`;
+ const cleanup=()=>{root.innerHTML='';root.className='';root.setAttribute('aria-hidden','true');document.title=old};
+ return waitForPrintImages(root).then(()=>new Promise(resolve=>setTimeout(resolve,60))).then(()=>{window.print();setTimeout(cleanup,250)}).catch(error=>{cleanup();console.error('Document print preparation failed',error);alert('The document could not be prepared for printing. Please retry.')})
 };
 
 function ttRecoverEmptyManagedOptions(select,group){
@@ -1397,38 +1406,60 @@ function salesContractBodyFits(c,body,page){
  // the body's bounding rectangle (notably payment/bank and table blocks).
  const renderedBottom=bodyRect.top+Math.max(bodyRect.height,bodyNode.scrollHeight),protectedBottom=pageRect.bottom-(pageRect.height*32/297),safety=pageRect.height*3/297,fits=renderedBottom<=protectedBottom-safety;measure.remove();return fits
 }
-function paginateSalesContractBlocks(c,blocks){
- const available=blocks.filter(Boolean),probe=available.length?salesContractBodyFits(c,available[0],1):null;
- if(probe===null){
-  if(available.length>10)return[available.slice(0,2).join(''),available.slice(2,Math.ceil((available.length+2)/2)).join(''),available.slice(Math.ceil((available.length+2)/2)).join('')].filter(Boolean);
-  return[available.slice(0,2).join(''),available.slice(2).join('')].filter(Boolean)
+function renderSalesContractItems(items,helpers){
+ const {field,specTable,termsHtml,docsHtml}=helpers;let html='';
+ for(let index=0;index<items.length;){
+  const item=items[index];
+  if(item.kind==='html'||item.kind==='acceptance'){html+=item.html;index++;continue}
+  let end=index+1;while(end<items.length&&items[end].kind===item.kind)end++;
+  const group=items.slice(index,end);
+  if(item.kind==='spec')html+=(item.index>0?field('SPECIFICATIONS - CONTINUED',''):'')+specTable(group.map(entry=>entry.row),item.index+1);
+  else if(item.kind==='term')html+=termsHtml(group.map(entry=>entry.text),item.index+1,item.index>0);
+  else if(item.kind==='document')html+=docsHtml(group.map(entry=>entry.row),item.index>0);
+  index=end
  }
- const pages=[];
- for(const block of available){
-  if(!block)continue;
-  if(!pages.length){pages.push(block);continue}
-  const candidate=pages.at(-1)+block,measured=salesContractBodyFits(c,candidate,pages.length);
-  if(measured===false)pages.push(block);else pages[pages.length-1]=candidate
+ return html
+}
+function fallbackSalesContractPages(items,helpers,target){
+ const available=items.filter(item=>item&&(item.kind!=='html'||item.html)),pages=[];
+ if(!available.length)return[];
+ const total=available.reduce((sum,item)=>sum+num(item.weight||1),0);let page=[],weight=0,remainingTarget=Math.max(1,target);
+ for(let index=0;index<available.length;index++){
+  const item=available[index],remainingWeight=available.slice(index).reduce((sum,row)=>sum+num(row.weight||1),0),budget=(weight+remainingWeight)/remainingTarget;
+  if(page.length&&pages.length<target-1&&weight>=budget){pages.push(renderSalesContractItems(page,helpers));page=[];weight=0;remainingTarget--}
+  page.push(item);weight+=num(item.weight||1)
  }
+ if(page.length)pages.push(renderSalesContractItems(page,helpers));
  return pages
+}
+function paginateSalesContractItems(c,items,helpers,fallbackTarget){
+ const available=items.filter(item=>item&&(item.kind!=='html'||item.html)),first=available.length?renderSalesContractItems([available[0]],helpers):'',probe=first?salesContractBodyFits(c,first,1):null;
+ if(probe===null)return fallbackSalesContractPages(available,helpers,fallbackTarget);
+ const pages=[];
+ for(const item of available){
+  if(!pages.length){pages.push({items:[item],compact:false});continue}
+  const current=pages.at(-1),candidate=[...current.items,item],rawBody=renderSalesContractItems(candidate,helpers),body=current.compact?`<div class="salesContractAutoCompact">${rawBody}</div>`:rawBody,measured=salesContractBodyFits(c,body,pages.length);
+  if(measured!==false){current.items=candidate;continue}
+  const compactBody=`<div class="salesContractAutoCompact">${rawBody}</div>`,compactFits=!current.compact&&salesContractBodyFits(c,compactBody,pages.length);
+  if(compactFits){current.items=candidate;current.compact=true}else pages.push({items:[item],compact:false})
+ }
+ return pages.map(page=>{const body=renderSalesContractItems(page.items,helpers);return page.compact?`<div class="salesContractAutoCompact">${body}</div>`:body})
 }
 function salesContractPrint(c){
  ensureContractTerms(c);
- const packings=c.packings||[],buyerSpec=buyerSpecificationSelected(c),specs=buyerSpec?contractSpecRows(c):[],terms=effectiveTerms(c),docs=documentsPresented(c),total=packings.length,field=(heading,value,cls='')=>`<h3 class="docSection">${heading}</h3><div class="docValue ${cls}">${value}</div>`,specTable=list=>list.length?`<table class="docTable contractSpecificationTable"><colgroup><col class="contractSpecificationSequence"><col><col></colgroup><thead><tr><th>S.NO</th><th>SPECIFICATION</th><th>VALUE</th></tr></thead><tbody>${list.map((x,i)=>`<tr><td>${i+1}</td><td>${esc(x.name)}</td><td>${esc(x.value)}</td></tr>`).join('')}</tbody></table>`:'';
- const mainStart=`${contractPartyGrid(c)}${field('QUALITY',esc(contractQualityValue(c)))}${field('SPECIFICATIONS',buyerSpec?'As per below specification.':'As per Pakistan origin standards.')}`;
- const mainEnd=`${field('ADDITIONAL QUALITY CONDITIONS',esc(c.additionalQuality||DEFAULT_QUALITY))}${field('QUANTITY',`${num(c.containers)} × 20' FCL — ${num(c.qty).toFixed(3)} M/tons ±${num(c.tolerance)}% Seller’s option`)}${field('PORT OF LOADING',esc(ttProperNounOutput(c.pol)))}${field('PORT OF DISCHARGE',esc(contractPort(c)))}${field('SHIPMENT',`On or before ${esc(fmt(c.shipmentDate)||'to be advised')}`)}${field('PACKING / BRAND-MARKING',packings.map((p,i)=>salesPackingLine(p,c,i,total)).join('<br>'))}`;
- const insuranceAndPrice=`${field('INSURANCE',`Insurance ${c.insurance==="Seller's Account"?'Seller’s':'Buyer’s'} account.`)}<h3 class="docSection">PRICE</h3>${contractPriceHTML(c,packings)}`;
- const payment=`<h3 class="docSection">PAYMENT</h3>${contractPaymentHTML(c)}`;
+ const packings=c.packings||[],buyerSpec=buyerSpecificationSelected(c),specs=buyerSpec?contractSpecRows(c):[],terms=effectiveTerms(c),docs=documentsPresented(c),total=packings.length,field=(heading,value,cls='')=>`<h3 class="docSection">${heading}</h3><div class="docValue ${cls}">${value}</div>`,specTable=(list,start=1)=>list.length?`<table class="docTable contractSpecificationTable"><colgroup><col class="contractSpecificationSequence"><col><col></colgroup><thead><tr><th>S.NO</th><th>SPECIFICATION</th><th>VALUE</th></tr></thead><tbody>${list.map((x,i)=>`<tr><td>${start+i}</td><td>${esc(x.name)}</td><td>${esc(x.value)}</td></tr>`).join('')}</tbody></table>`:'';
  const termsHtml=(list,start=1,continued=false)=>list.length?`<h3 class="docSection">OTHER TERMS AND CONDITIONS${continued?' - CONTINUED':''}</h3><ol start="${start}">${list.map(x=>`<li>${esc(x)}</li>`).join('')}</ol>`:'';
- const docsHtml=list=>list.length?`<h3 class="docSection">DOCUMENTS TO BE PRESENTED FOR NEGOTIATION</h3><table class="docTable contractDocumentsTable"><thead><tr><th>S.NO</th><th>DOCUMENT NAME</th><th>ORIGINAL</th><th>COPIES</th></tr></thead><tbody>${list.map(r=>`<tr><td>${r.sequence}</td><td>${esc(r.name)}</td><td>${r.original}</td><td>${r.copies}</td></tr>`).join('')}</tbody></table>`:'';
+ const docsHtml=(list,continued=false)=>list.length?`<h3 class="docSection">DOCUMENTS TO BE PRESENTED FOR NEGOTIATION${continued?' - CONTINUED':''}</h3><table class="docTable contractDocumentsTable"><thead><tr><th>S.NO</th><th>DOCUMENT NAME</th><th>ORIGINAL</th><th>COPIES</th></tr></thead><tbody>${list.map(r=>`<tr><td>${r.sequence}</td><td>${esc(r.name)}</td><td>${r.original}</td><td>${r.copies}</td></tr>`).join('')}</tbody></table>`:'';
  const acceptance=`<div class="contractFinalAcceptance">${field('VALIDITY',`Signed / stamped copy of Sales Contract to be received latest by ${esc(fmt(c.signedDeadline))}. ${String(c.paymentCode||'').startsWith('LC_')?'L/C':'Payment'} to be received latest by ${esc(fmt(c.paymentDeadline))}. Thereafter subject to Seller’s re-confirmation.`)}${contractSignatureHTML(c)}</div>`;
- const primaryBlocks=specs.length>8?specs.reduce((chunks,row,index)=>{const chunk=Math.floor(index/6);(chunks[chunk]??=[]).push(row);return chunks},[]).map((list,index,all)=>`${index===0?mainStart:field('SPECIFICATIONS - CONTINUED','')}${specTable(list)}${index===all.length-1?mainEnd:''}`):[mainStart+specTable(specs)+mainEnd];
- const termBlocks=terms.length>6?terms.reduce((chunks,row,index)=>{const chunk=Math.floor(index/3);(chunks[chunk]??=[]).push(row);return chunks},[]).map((list,index)=>termsHtml(list,index*3+1,index>0)):[termsHtml(terms)];
- const documentBlocks=docs.length>5?docs.reduce((chunks,row,index)=>{const chunk=Math.floor(index/4);(chunks[chunk]??=[]).push(row);return chunks},[]).map(docsHtml):[docsHtml(docs)];
- const finalBlocks=[...documentBlocks,acceptance];
- const blocks=[...primaryBlocks,insuranceAndPrice,payment,...termBlocks,...finalBlocks];
- let pages=paginateSalesContractBlocks(c,blocks);
- if(pages.length===1&&salesContractBodyFits(c,pages[0],1)===false)pages=blocks;
+ const html=(value,weight=1)=>({kind:'html',html:value,weight}),helpers={field,specTable,termsHtml,docsHtml},items=[
+  html(contractPartyGrid(c),2),html(field('QUALITY',esc(contractQualityValue(c))),1),html(field('SPECIFICATIONS',buyerSpec?'As per below specification.':'As per Pakistan origin standards.'),1),
+  ...specs.map((row,index)=>({kind:'spec',row,index,weight:.55})),
+  html(field('ADDITIONAL QUALITY CONDITIONS',esc(c.additionalQuality||DEFAULT_QUALITY)),1),html(field('QUANTITY',`${num(c.containers)} × 20' FCL — ${num(c.qty).toFixed(3)} M/tons ±${num(c.tolerance)}% Seller’s option`),1),html(field('PORT OF LOADING',esc(ttProperNounOutput(c.pol))),1),html(field('PORT OF DISCHARGE',esc(contractPort(c))),1),html(field('SHIPMENT',`On or before ${esc(fmt(c.shipmentDate)||'to be advised')}`),1),html(field('PACKING / BRAND-MARKING',packings.map((p,i)=>salesPackingLine(p,c,i,total)).join('<br>')),Math.max(1,packings.length*.8)),
+  html(field('INSURANCE',`Insurance ${c.insurance==="Seller's Account"?'Seller’s':'Buyer’s'} account.`),1),html(`<h3 class="docSection">PRICE</h3>${contractPriceHTML(c,packings)}`,2),html(`<h3 class="docSection">PAYMENT</h3>${contractPaymentHTML(c)}`,3),
+  ...terms.map((text,index)=>({kind:'term',text,index,weight:1})),...docs.map((row,index)=>({kind:'document',row,index,weight:.7})),{kind:'acceptance',html:acceptance,weight:3.5}
+ ];
+ const fallbackTarget=specs.length>14||packings.length>4||terms.length+docs.length>18?3:2;
+ let pages=paginateSalesContractItems(c,items,helpers,fallbackTarget);
  return pages.map((body,index)=>salesContractPhysicalPage(c,body,index+1,pages.length)).join('')
 }
 function purchaseOrderPrint(po){

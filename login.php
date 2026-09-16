@@ -9,15 +9,19 @@ $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $username = strtolower(trim($_POST['username'] ?? ''));
     $password = (string)($_POST['password'] ?? '');
+    $rateIdentity=$username!==''?$username:'unknown';
     if (!tt_verify_csrf((string)($_POST['csrf'] ?? ''))) $error = 'Your login session expired. Please refresh and try again.';
+    elseif (($retry=tt_auth_retry_after('login',$rateIdentity,5,900))>0) $error='Too many unsuccessful sign-in attempts. Please wait '.max(1,(int)ceil($retry/60)).' minute(s) and try again.';
     else {
         $user = tt_find_user_by_username($username);
         if ($user && !empty($user['active']) && password_verify($password, $user['password_hash'])) {
+            tt_auth_clear_failures('login',$rateIdentity);
             session_regenerate_id(true); $_SESSION['user_id'] = (int)$user['id'];
             tt_set_last_login((int)$user['id']);
             tt_audit((int)$user['id'], $user['username'], 'Signed in');
             header('Location: ' . (!empty($user['must_change_password']) ? 'change-password.php' : tt_user_landing_url($user))); exit;
         }
+        tt_auth_record_failure('login',$rateIdentity,5,900,900);
         tt_audit($user ? (int)$user['id'] : null, $username ?: 'unknown', 'Failed sign-in');
         usleep(350000); $error = 'Incorrect username or password.';
     }

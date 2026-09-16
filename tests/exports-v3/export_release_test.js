@@ -178,10 +178,20 @@ assert.match(source,/contractSpecificationSequence/);
 assert.match(purchaseOrder,/KINDLY ENSURE THE P\.O\. NUMBER IS MENTIONED ON THE DELIVERY ORDER AND ALSO ON THE FINAL BILL\./);
 const longContract={...c,terms:Array.from({length:18},(_,i)=>`Long contract term ${i+1}`),documentsPresented:Array.from({length:12},(_,i)=>({sequence:i+1,name:`Document ${i+1}`,original:1,copies:1}))};
 const longContractOutput=t.salesContractPrint(longContract);assert.equal((longContractOutput.match(/salesContractPhysicalPage/g)||[]).length,3,'long Sales Contract uses balanced explicit pages');assert.match(longContractOutput,/Long contract term 18/);assert.match(longContractOutput,/Document 12/);assert.match(longContractOutput,/S\.NO/);
+const longContractPages=longContractOutput.split('<div class="printDoc">').slice(1);
+for(const [index,page] of longContractPages.entries()){
+ assert.ok((page.match(/DOCUMENTS TO BE PRESENTED FOR NEGOTIATION/g)||[]).length<=1,`page ${index+1} must contain one continuous documents table`);
+ assert.ok((page.match(/OTHER TERMS AND CONDITIONS/g)||[]).length<=1,`page ${index+1} must contain one continuous terms list`);
+}
+assert.match(longContractPages.at(-1),/VALIDITY[\s\S]*contractSignatureGrid/,'validity and final Seller\/Buyer signatures stay together on the last page');
+assert.doesNotMatch(longContractPages.at(-1),/salesContractPageStamp/,'the last page must not duplicate the Seller stamp');
+assert.equal((longContractOutput.match(/salesContractPageStamp/g)||[]).length,longContractPages.length-1,'only non-final pages receive the separate page stamp');
 assert.match(source,/master\.printed=false/,'a new Bag Order never defaults Printed Master Bag to ticked');
 assert.match(source,/approvedContractPriceItem/,'each packing price block is atomic across printed pages');
 assert.match(source,/contractPaymentBlock/,'the complete payment block moves together when a page fills');
 assert.doesNotMatch(source,/querySelector\('\.stamp'\)\?\.remove\(\)/,'the sent Production Instructions stamp is never removed by a later renderer');
+assert.match(source,/const imageNodes=\[\.\.\.root\.querySelectorAll\('img'\)\],pending=/,'print waits for document artwork using declared local variables');
+assert.doesNotMatch(source,/,images=\[/,'print must never create the undeclared images variable that broke Review and Save\/Print');
 assert.match(source,/const issuedContract=state\.contracts\.find\(x=>x\.id===contractDraft\.id&&x\.issued\);[\s\S]{0,120}checkpointContractDraft\(\);return true/,'an issued-contract amendment stays attached to its existing contract and shipment');
 assert.match(source,/contractSplitWorkspace/);
 assert.match(source,/cBrokenContract/);

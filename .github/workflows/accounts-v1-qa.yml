@@ -36,4 +36,7 @@ jobs:
           node tests/accounts-v1/clean_ui_test.js
           node tests/offline_recovery_audit.js
       - name: PHP syntax
-        run: find . -path './.git' -prune -o -name '*.php' -print0 | xargs -0 -n1 php -l
+        run: |
+          find . -path './.git' -prune -o -name '*.php' -print0 | xargs -0 -n1 php -l
+          php tests/runtime_delivery_test.php
+          node tests/runtime_security_static_audit.js

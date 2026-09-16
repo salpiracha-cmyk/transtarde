@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require __DIR__ . '/../auth_store.php';
+require_once __DIR__ . '/../runtime_html.php';
 $user = tt_require_login();
 if (!tt_user_can_open_module($user, 'Accounts')) {
     http_response_code(403);
@@ -28,6 +29,14 @@ $access = [
     'entities' => $allowedEntities,
 ];
 $bootstrap = '<script>window.TT_ACCOUNT_ACCESS=' . json_encode($access, JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT) . ';</script>';
-$html = preg_replace('/<head(\s[^>]*)?>/i', '$0' . $bootstrap . '<link rel="stylesheet" href="/brand-theme.css?v=20260913-2">', $html, 1) ?? $html;
-$html = preg_replace('/<\/body>/i', '<script src="app-bundle.php?v=20260912-14"></script><script src="/brand-theme.js?v=20260913-2"></script></body>', $html, 1) ?? $html;
+$html = tt_replace_html_once(
+    '/<head(\s[^>]*)?>/i',
+    static fn(array $match): string => $match[0] . $bootstrap . '<link rel="stylesheet" href="/brand-theme.css?v=20260913-2">',
+    $html
+);
+$html = tt_replace_html_once(
+    '/<\/body>/i',
+    static fn(): string => '<script src="app-bundle.php?v=current"></script><script src="/brand-theme.js?v=20260913-2"></script></body>',
+    $html
+);
 echo $html;

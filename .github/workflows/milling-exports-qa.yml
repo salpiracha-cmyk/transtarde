@@ -51,7 +51,7 @@ permissions:
 jobs:
   audit:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 18
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -66,15 +66,26 @@ jobs:
           cp exports/assets/* tests/exports-v3/assets/
           cp module.php tests/main/module.php
           cp api/operations.mysql.php api/export_documents.php tests/main/api/
-      - name: Install DOM test dependency
-        run: npm install --no-save jsdom@27
+      - name: Install browser and DOM test dependencies
+        run: |
+          npm install --no-save jsdom@27 playwright@1.55.0
+          npx playwright install --with-deps chromium
       - name: Verify exact September document-output acceptance
         run: |
           node tests/exports-v3/exports_acceptance_20260914_audit.js
           node tests/exports-v3/exports_sol4_handover_audit.js
           node tests/exports-v3/commercial_documents_20260915_audit.js
       - name: Verify rendered Export document behavior
-        run: node tests/exports-v3/export_release_test.js
+        run: |
+          node tests/exports-v3/export_release_test.js
+          node tests/exports-v3/sales_contract_browser_qa.js
+      - name: Preserve Sales Contract visual QA evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sales-contract-browser-qa
+          path: tmp/qa/
+          if-no-files-found: error
       - name: Run Export and bridge audits
         run: |
           node tests/exports-v3/backend_static_audit.js
@@ -113,9 +124,13 @@ jobs:
           NODE
       - name: PHP syntax audit
         run: |
+          php tests/runtime_delivery_test.php
           php -l module.php
+          php -l runtime_html.php
           php -l module_release.php
           php -l api/operations.mysql.php
           php -l api/export_documents.php
           php -l auth_store.php
           php -l scripts/cleanup_qa_data.php
+      - name: Runtime delivery and authentication audit
+        run: node tests/runtime_security_static_audit.js

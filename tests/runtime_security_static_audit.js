@@ -1,0 +1,30 @@
+const fs=require('node:fs');
+const assert=require('node:assert/strict');
+
+const modulePhp=fs.readFileSync('module.php','utf8');
+const accountsIndex=fs.readFileSync('accounts/index.php','utf8');
+const bundle=fs.readFileSync('accounts/app-bundle.php','utf8');
+const auth=fs.readFileSync('auth_store.php','utf8');
+const login=fs.readFileSync('login.php','utf8');
+const recovery=fs.readFileSync('recover-admin.php','utf8');
+for(const dead of ['accounts/bag-po-export-ui.js','accounts/export-receipts-charge-flex-ui.js','accounts/rent-salary-treatment-ui.js','accounts/rice-soda-control-ui.js'])assert.equal(fs.existsSync(dead),false,`${dead} must not remain as an unreachable patch`);
+assert.equal(fs.existsSync('accounts/bag-control-bridge.js'),true,'bridge/sync code remains outside this cleanup');
+
+assert.doesNotMatch(modulePhp,/preg_replace\([^\n]+app\\\.js/,'Export JavaScript must not use a PHP replacement string');
+assert.match(modulePhp,/tt_replace_html_once/);
+assert.match(accountsIndex,/tt_replace_html_once/);
+assert.doesNotMatch(accountsIndex,/app-bundle\.php\?v=\d/,'Accounts must not depend on a hand-maintained bundle version');
+assert.match(bundle,/private, no-cache, must-revalidate/);
+assert.doesNotMatch(bundle,/immutable/);
+assert.match(auth,/tt_api_json_error\(401,'Your session has expired\. Sign in again\.'\)/);
+assert.match(auth,/\$_GET\['entity'\]\?\?\$_POST\['entity'\]/);
+assert.match(auth,/An authorized legal entity is required\./);
+assert.match(auth,/tt_api_entity_policy/);
+assert.match(auth,/Master type not found\./);
+assert.match(auth,/TT_AUTH_RATE_FILE/);
+assert.match(auth,/password_verify\(\$normalized,TT_ADMIN_RECOVERY_HASH\)/);
+assert.doesNotMatch(auth,/hash_equals\('[a-f0-9]{64}',hash\('sha256',\$normalized\)\)/,'recovery code must not use a fast unsalted hash');
+assert.match(login,/tt_auth_retry_after\('login'/);
+assert.match(login,/tt_auth_record_failure\('login'/);
+assert.match(recovery,/tt_auth_retry_after\('admin-recovery'/);
+console.log('PASS runtime and authentication hardening audit');
