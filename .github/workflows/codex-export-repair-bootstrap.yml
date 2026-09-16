@@ -1,7 +1,7 @@
 name: Apply verified Export repair
 on:
-  push:
-    branches: [codex/export-runtime-repair]
+  pull_request:
+    branches: [main]
 permissions:
   contents: write
 jobs:
