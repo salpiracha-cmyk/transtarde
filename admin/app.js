@@ -2,7 +2,7 @@
   "use strict";
 
   const STORAGE_KEY = "transtrade_super_admin_v1";
-  const STATE_VERSION = 3;
+  const STATE_VERSION = 4;
   const ACTIONS = ["View", "Create", "Edit", "Delete", "Print", "Approve", "Reports"];
   const ICON_ACTIONS = ["View", "Create", "Edit"];
   const MODULE_ICONS = {
@@ -30,9 +30,9 @@
   const IS_SUPER_ADMIN = SESSION.role === "Super Admin";
   // Accounts V1 opens through its protected standalone workspace route.
   const MODULES = [
-    { id: "milling", name: "Mill", code: "M", color: "#16815a", soft: "#e7f7f0", status: "Live trial", state: "green", version: "V3.3.2 Audited", description: "Arrivals, stocks, production, bags, loading and mill operations.", href: "module.php?id=milling" },
-    { id: "exports", name: "Exports", code: "E", color: "#1769d2", soft: "#eaf2ff", status: "Live trial", state: "green", version: "V3 Clean Operational", description: "Contracts, export orders, shipment planning and documentation.", href: "module.php?id=exports" },
-    { id: "accounts", name: "Accounts", code: "A", color: "#8a55c7", soft: "#f3ecfb", status: "Live trial", state: "green", version: "Accounts V1 Live", description: "Purchases, ledgers, banking, receivables, payables and reporting.", href: "accounts/index.php" },
+    { id: "milling", name: "Mill", code: "M", color: "#16815a", soft: "#e7f7f0", status: "Live", state: "green", version: "V3.3.2 Audited", description: "Arrivals, stocks, production, bags, loading and mill operations.", href: "module.php?id=milling" },
+    { id: "exports", name: "Exports", code: "E", color: "#1769d2", soft: "#eaf2ff", status: "Live", state: "green", version: "V3 Clean Operational", description: "Contracts, export orders, shipment planning and documentation.", href: "module.php?id=exports" },
+    { id: "accounts", name: "Accounts", code: "A", color: "#8a55c7", soft: "#f3ecfb", status: "Live", state: "green", version: "Accounts V1 Live", description: "Purchases, ledgers, banking, receivables, payables and reporting.", href: "accounts/index.php" },
     { id: "directors", name: "Directors", code: "D", color: "#d17b0f", soft: "#fff3e2", status: "Awaiting module", state: "amber", version: "Not connected", description: "Consolidated oversight, Cashflow, alerts, approvals and reports." }
   ];
 
@@ -182,11 +182,7 @@
       directors: { locked: false, approvedBy: "—", changed: "Module not yet connected" }
     },
     masters: Object.fromEntries(MASTER_TYPES.map(t => [t.id, t.rows.map((row, index) => ({ id: `${t.id}-${index + 1}`, values: row }))])),
-    audit: [
-      { date: "06-09-2026 17:40", user: "Salman", area: "Module", action: "Reviewed", detail: "Milling module marked integration ready", ref: "MILL-V3.3.2" },
-      { date: "06-09-2026 16:54", user: "System", area: "Module", action: "Stabilized", detail: "Exports module workflow build available", ref: "EXP-V2.6" },
-      { date: "05-09-2026 18:02", user: "Jazib", area: "Exports", action: "Saved", detail: "Export sales contract draft", ref: "TTI-EXP-042" }
-    ],
+    audit: [],
     permissionChanges: 0,
     masterOptions: { party_roles: ["Buyer","Supplier","Broker","Export Buyer","Local Buyer","Customer","Agent","Service Provider","Other"] }
   };
@@ -206,7 +202,9 @@
           const identity = `${user.name || ""} ${user.username || ""}`.toLowerCase();
           return user.id !== "u-irfan" && !identity.includes("irfan");
         });
-        loaded.audit = loaded.audit.filter(item => String(item.user).toLowerCase() !== "irfan");
+        const demoRefs = new Set(["MILL-V3.3.2", "EXP-V2.6", "TTI-EXP-042"]);
+        const qaMarker = /(^|[\s\/_-])(QA|TEST|DUMMY|DEMO|SAMPLE|BULK)([\s\/_-]|$)/i;
+        loaded.audit = loaded.audit.filter(item => String(item.user).toLowerCase() !== "irfan" && !demoRefs.has(String(item.ref || "")) && !qaMarker.test(Object.values(item).join(" ")));
         loaded.audit.unshift({ date: nowStamp(), user: "System", area: "User", action: "Removed", detail: "Accidental Irfan trial user removed", ref: "ADMIN-CLEANUP" });
         loaded.stateVersion = STATE_VERSION;
         localStorage.setItem(STORAGE_KEY, JSON.stringify(loaded));

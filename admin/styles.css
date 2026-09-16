@@ -112,6 +112,10 @@ kbd { padding: 3px 7px; border: 1px solid #d5dee7; border-bottom-width: 2px; bor
 .approval-item { width: 100%; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 15px 20px; border: 0; border-bottom: 1px solid #edf1f5; background: #fff; text-align: left; }
 .approval-item:hover { background: #f9fbfd; }
 .approval-item:last-child { border-bottom: 0; border-radius: 0 0 14px 14px; }
+.admin-empty-state { padding: 28px 20px; color: var(--muted); text-align: center; }
+.admin-empty-state strong, .admin-empty-state span { display: block; }
+.admin-empty-state strong { color: var(--navy); }
+.admin-empty-state span { margin-top: 5px; font-size: .82rem; }
 .approval-item strong, .approval-item small { display: block; }
 .approval-item small { margin-top: 3px; color: var(--muted); }
 .approval-item time { color: var(--muted); font-size: .72rem; }

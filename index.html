@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="Transtrade unified Super Admin control centre">
   <title>Transtrade Super Admin Console</title>
-  <link rel="stylesheet" href="admin/styles.css?v=20260911-1">
+  <link rel="stylesheet" href="admin/styles.css?v=20260916-console-clean-1">
   <link rel="stylesheet" href="brand-theme.css?v=20260914-control-centre-1">
 </head>
 <body>
@@ -53,7 +53,7 @@
         </div>
         <div class="top-actions">
           <div class="save-state" id="saveState"><span></span>All changes saved</div>
-          <button class="icon-button notification-button" id="notificationButton" aria-label="Open notifications" title="Updates and notifications">♢<b>3</b></button>
+          <button class="icon-button notification-button" id="notificationButton" aria-label="Open notifications" title="Updates and notifications">♢<b hidden>0</b></button>
           <div class="profile-chip"><div class="avatar">SP</div><div><strong>Salman</strong><span>Super Admin</span></div></div>
           <a class="logout-power" href="logout.php" aria-label="Log out" title="Log out">⏻</a>
         </div>
@@ -67,9 +67,9 @@
           </div>
 
           <div class="status-strip">
-            <div><span class="status-icon online">✓</span><p><strong>System available</strong><small>Console data is saving automatically</small></p></div>
+            <div><span class="status-icon online">✓</span><p><strong>System available</strong><small>Confirmed actions are stored securely</small></p></div>
             <div><span class="status-icon">4</span><p><strong>Four modules</strong><small>One unified Transtrade application</small></p></div>
-            <div><span class="status-icon amber">3</span><p><strong>Pending approvals</strong><small>Require Super Admin action</small></p></div>
+            <div><span class="status-icon amber">0</span><p><strong>No pending approvals</strong><small>No verified approval feed is waiting</small></p></div>
           </div>
 
           <div class="section-heading"><div><h2>Modules</h2><p>Open a workspace or review its integration status.</p></div><button class="text-button" data-view-target="modules">View all modules →</button></div>
@@ -77,12 +77,8 @@
 
           <div class="dashboard-lower">
             <article class="panel approvals-panel">
-              <div class="panel-heading"><div><h2>Approvals requiring you</h2><p>Only Super Admin decisions appear here.</p></div><span class="count-pill">3 open</span></div>
-              <div class="approval-list">
-                <button class="approval-item"><span class="approval-symbol red">!</span><span><strong>Late Soda delivery</strong><small>Soda 26092 · Shams · Mill</small></span><time>Today</time></button>
-                <button class="approval-item"><span class="approval-symbol amber">↗</span><span><strong>Export price approval</strong><small>TTI-EXP-042 · Exports</small></span><time>Today</time></button>
-                <button class="approval-item"><span class="approval-symbol blue">U</span><span><strong>User permission request</strong><small>Jazib · Print final documents</small></span><time>Yesterday</time></button>
-              </div>
+              <div class="panel-heading"><div><h2>Approvals requiring you</h2><p>Only verified Super Admin decisions appear here.</p></div><span class="count-pill">0 open</span></div>
+              <div class="approval-list"><div class="admin-empty-state"><strong>No pending approvals</strong><span>Requests will appear here only when a connected module submits one.</span></div></div>
             </article>
 
             <article class="panel activity-panel">
@@ -216,11 +212,7 @@
 
   <div class="drawer" id="notificationDrawer" aria-hidden="true">
     <div class="drawer-head"><div><p class="eyebrow">ATTENTION</p><h2>Notifications</h2></div><button class="icon-button" data-action="close-notifications" aria-label="Close notifications">×</button></div>
-    <div class="drawer-list">
-      <div><span class="approval-symbol red">!</span><p><strong>Late Soda delivery</strong><small>Approval requested by Mill</small></p></div>
-      <div><span class="approval-symbol amber">↗</span><p><strong>Export price approval</strong><small>TTI-EXP-042 requires review</small></p></div>
-      <div><span class="approval-symbol blue">U</span><p><strong>Permission request</strong><small>Jazib requested print access</small></p></div>
-    </div>
+    <div class="drawer-list"><div class="admin-empty-state"><strong>No verified notifications</strong><span>Module alerts will appear here when connected to the Super Admin feed.</span></div></div>
   </div>
   <div class="overlay" id="overlay"></div>
 
@@ -254,6 +246,6 @@
   </dialog>
 
   <div class="toast-region" id="toastRegion" aria-live="polite"></div>
-<script src="admin/app.js?v=20260913-product-identity-1"></script>
+<script src="admin/app.js?v=20260916-console-clean-1"></script>
 </body>
 </html>

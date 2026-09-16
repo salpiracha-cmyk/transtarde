@@ -24,6 +24,7 @@ on:
       - '.github/workflows/exports-deletion-hostinger-qa.yml'
       - '.github/workflows/accounts-v1-qa.yml'
       - '.github/workflows/deploy-production.yml'
+      - '.github/workflows/qa-data-cleanup.yml'
   pull_request:
     paths:
       - 'exports/**'
@@ -46,6 +47,7 @@ on:
       - '.github/workflows/exports-deletion-hostinger-qa.yml'
       - '.github/workflows/accounts-v1-qa.yml'
       - '.github/workflows/deploy-production.yml'
+      - '.github/workflows/qa-data-cleanup.yml'
 
 permissions:
   contents: read
@@ -98,6 +100,7 @@ jobs:
           node tests/master_data_topbar_audit.js
           node --check offline-outbox.js
           node tests/offline_recovery_audit.js
+          node tests/super_admin_cleanup_audit.js
       - name: Audit live release route
         run: |
           node <<'NODE'
@@ -122,3 +125,4 @@ jobs:
           php -l auth_store.php
           php -l offline_idempotency.php
           php -l api/offline-status.php
+          php -l scripts/cleanup_qa_data.php

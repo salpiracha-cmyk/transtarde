@@ -270,17 +270,20 @@ function operations_merge_export(string $currentJson, string $incomingJson, stri
         $authoritative = strcasecmp($sourceModule, 'Exports') === 0 || strcasecmp($sourceModule, 'Super Admin') === 0;
         $tombstones = $authoritative ? (array)($incoming['deletedShipments'] ?? []) : (array)($current['deletedShipments'] ?? []);
         $merged['deletedShipments'] = $tombstones;
-        $ids = [];$refs = [];
+        $ids = [];$refs = [];$qaRefs = [];
         foreach ($tombstones as $row) {
             if (!is_array($row) || !empty($row['restoredAt'])) continue;
             $id = (string)($row['processId'] ?? $row['id'] ?? '');
             $ref = (string)($row['contractRef'] ?? '');
             if ($id !== '') $ids[$id] = true;
-            if ($ref !== '') $refs[$ref] = true;
+            if ($ref !== '') { $refs[$ref] = true; if (!empty($row['qaCleanup'])) $qaRefs[$ref] = true; }
         }
         $merged['shipments'] = array_values(array_filter((array)($merged['shipments'] ?? []), static function ($row) use ($ids, $refs): bool {
             if (!is_array($row)) return false;
             return !isset($ids[(string)($row['id'] ?? '')]) && !isset($refs[(string)($row['contractRef'] ?? '')]);
+        }));
+        $merged['contracts'] = array_values(array_filter((array)($merged['contracts'] ?? []), static function ($row) use ($qaRefs): bool {
+            return is_array($row) && !isset($qaRefs[(string)($row['ref'] ?? '')]);
         }));
         return $merged;
     };

@@ -16,12 +16,16 @@ assert.match(outbox,/getElementById\('ttAccountsOutboxBadge'\)\?\.remove\(\)/,'l
 assert.match(outbox,/getElementById\('ttOfflineNotice'\)\?\.remove\(\)/,'offline status badge is removed while recovery remains active');
 assert.doesNotMatch(outbox,/createElement\('button'\)[\s\S]{0,400}ttOfflineNotice/,'recovery no longer creates a floating badge');
 assert.match(modulePhp,/#ttAccountsOutboxBadge,#ttOfflineNotice,[^\n]+display:none!important/,'module wrapper suppresses stale cached badges');
-assert.match(modulePhp,/offline-outbox\.js\?v=20260915-review-1/,'module wrapper cache-busts the reviewed outbox');
+assert.match(modulePhp,/offline-outbox\.js\?v=20260916-bulk-reset-1/,'module wrapper cache-busts the bulk-reset outbox');
 assert.doesNotMatch(outbox,/confirm\(entries\.length\+' offline \/ unsynced entr/,'recovery never blindly offers to replay every entry');
 assert.match(outbox,/Saved entries awaiting server confirmation/,'recovery uses a proper application review dialog');
 assert.match(outbox,/Entries already confirmed by the server have been removed automatically/,'dialog explains server reconciliation');
 assert.match(outbox,/ttRecoveryUpload/,'each pending entry has its own upload control');
 assert.match(outbox,/ttRecoveryDiscard/,'each pending entry has a protected discard control');
+assert.match(outbox,/Discard all conflicts/,'known stale conflicts can be discarded together');
+assert.match(outbox,/Discard all remaining/,'the complete local queue has a protected bulk reset');
+assert.match(outbox,/removeMany\(selected\.map/,'bulk reset removes only reviewed device-local entries');
+assert.match(outbox,/Current server data will not be deleted/,'bulk reset explains that server records remain untouched');
 assert.match(outbox,/No entry is uploaded automatically/,'recovery never silently replays pending writes');
 assert.match(outbox,/offline-status\.php\?ids=/,'pending entries are reconciled against server transaction state');
 assert.match(outbox,/if\(status\.state==='complete'\)\{await remove\(entry\.id\)/,'already-applied entries are removed automatically');
