@@ -1389,9 +1389,10 @@ function salesContractPrint(c){
  const termsHtml=list=>list.length?`<h3 class="docSection">OTHER TERMS AND CONDITIONS</h3><ol>${list.map(x=>`<li>${esc(x)}</li>`).join('')}</ol>`:'';
  const finalHtml=`${docs.length?`<h3 class="docSection">DOCUMENTS TO BE PRESENTED FOR NEGOTIATION</h3><table class="docTable contractDocumentsTable"><thead><tr><th>S.NO</th><th>DOCUMENT NAME</th><th>ORIGINAL</th><th>COPIES</th></tr></thead><tbody>${docs.map(r=>`<tr><td>${r.sequence}</td><td>${esc(r.name)}</td><td>${r.original}</td><td>${r.copies}</td></tr>`).join('')}</tbody></table>`:''}<div class="contractFinalAcceptance">${field('VALIDITY',`Signed / stamped copy of Sales Contract to be received latest by ${esc(fmt(c.signedDeadline))}. ${String(c.paymentCode||'').startsWith('LC_')?'L/C':'Payment'} to be received latest by ${esc(fmt(c.paymentDeadline))}. Thereafter subject to Seller’s re-confirmation.`)}${contractSignatureHTML(c)}</div>`;
  let pages=[];
+ const genuinelyLong=specs.length>=10||packings.length>2||terms.length+docs.length>22;
  if(specs.length>10){const cut=10;pages=[mainStart+specTable(specs.slice(0,cut)),field('SPECIFICATIONS - CONTINUED','')+specTable(specs.slice(cut))+mainEnd+financial,termsHtml(terms),finalHtml]}
- else if(specs.length>=6||packings.length>1||terms.length+docs.length>10||paymentNeedsSellerBank(c)){pages=[mainStart+specTable(specs)+mainEnd,financial+termsHtml(terms),finalHtml]}
- else pages=[mainStart+specTable(specs)+mainEnd,financial+termsHtml(terms)+finalHtml];
+ else if(genuinelyLong)pages=[mainStart+specTable(specs)+mainEnd,financial+termsHtml(terms),finalHtml];
+ else pages=[mainStart+specTable(specs)+mainEnd+financial,termsHtml(terms)+finalHtml];
  return pages.map((body,index)=>salesContractPhysicalPage(c,body,index+1,pages.length)).join('')
 }
 function purchaseOrderPrint(po){
