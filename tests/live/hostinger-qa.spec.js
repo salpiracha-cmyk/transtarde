@@ -333,6 +333,12 @@ test('manual Hostinger QA: Export instruction to Mill and container return', asy
   await expect(contractPreview.locator('.salesContractPhysicalPage')).toHaveCount(2);
   await expect(contractPreview.locator('.salesContractPhysicalPage .docTitle')).toHaveCount(1);
   await expect(contractPreview.locator('.salesContractPageStamp')).toHaveCount(2);
+  const contractPageClearances = await contractPreview.locator('.salesContractPhysicalPage').evaluateAll(pages => pages.map(page => {
+    const body = page.querySelector('.salesContractPageBody');
+    const stamp = page.querySelector('.salesContractPageStamp');
+    return body && stamp ? stamp.getBoundingClientRect().top - body.getBoundingClientRect().bottom : -1;
+  }));
+  expect(contractPageClearances.every(clearance => clearance >= 8), `Sales Contract content must stay above the protected stamp/footer zone; clearances were ${contractPageClearances.join(', ')}`).toBe(true);
   await page.locator('#issueContract').click();
   await expect(page.getByText(contractRef, { exact: true }).first()).toBeVisible({ timeout: 30_000 });
   await waitForSharedSave(page);

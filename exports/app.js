@@ -1380,19 +1380,47 @@ function customsOutputPayment(s,c){
 function salesContractPageStamp(c){const sign=sellerOf(c)?.sign;return sign?`<div class="salesContractPageStamp"><img src="${esc(sign)}" alt="Seller signature and stamp"></div>`:''}
 function salesContractReference(c,page,total){return`<div class="docRefGrid salesContractRefGrid">${page===1&&c.buyerPoNo?`<div class="docRefBox"><b>BUYER P.O. NO.</b><span>${esc(c.buyerPoNo)}</span></div>`:''}<div class="docRefBox"><b>REF</b><span>${esc(c.ref)}</span></div><div class="docRefBox salesContractDateBox"><b>DATE</b><span>${fmt(c.date)}</span><strong>Page ${page} of ${total}</strong></div></div>`}
 function salesContractPhysicalPage(c,body,page,total){return`<div class="printDoc"><section class="docPage salesContractPhysicalPage">${letterhead(c)}${page===1?'<h1 class="docTitle">SALES CONTRACT</h1>':''}${salesContractReference(c,page,total)}<div class="salesContractPageBody">${body}</div>${salesContractPageStamp(c)}${footerArt(c)}</section></div>`}
+function salesContractBodyFits(c,body,page){
+ if(!document?.body?.appendChild||typeof document.createElement!=='function')return null;
+ const measure=document.createElement('div');
+ if(typeof measure.querySelector!=='function')return null;
+ measure.className='salesContractMeasureRoot';measure.setAttribute('aria-hidden','true');measure.innerHTML=salesContractPhysicalPage(c,body,page,9);document.body.appendChild(measure);
+ const pageNode=measure.querySelector('.salesContractPhysicalPage'),bodyNode=measure.querySelector('.salesContractPageBody'),stampNode=measure.querySelector('.salesContractPageStamp');
+ if(!pageNode||!bodyNode||!stampNode){measure.remove();return false}
+ const pageRect=pageNode.getBoundingClientRect(),bodyRect=bodyNode.getBoundingClientRect(),stampRect=stampNode.getBoundingClientRect();
+ if(!pageRect.width||!pageRect.height){measure.remove();return null}
+ const fits=bodyRect.bottom<=stampRect.top-10;measure.remove();return fits
+}
+function paginateSalesContractBlocks(c,blocks){
+ const available=blocks.filter(Boolean),probe=available.length?salesContractBodyFits(c,available[0],1):null;
+ if(probe===null){
+  if(available.length>=6)return[available[0],available[1]+available[2],available.slice(3).join('')];
+  return[available.slice(0,2).join(''),available.slice(2).join('')].filter(Boolean)
+ }
+ const pages=[];
+ for(const block of available){
+  if(!block)continue;
+  if(!pages.length){pages.push(block);continue}
+  const candidate=pages.at(-1)+block,measured=salesContractBodyFits(c,candidate,pages.length);
+  if(measured===false)pages.push(block);else pages[pages.length-1]=candidate
+ }
+ return pages
+}
 function salesContractPrint(c){
  ensureContractTerms(c);
  const packings=c.packings||[],buyerSpec=buyerSpecificationSelected(c),specs=buyerSpec?contractSpecRows(c):[],terms=effectiveTerms(c),docs=documentsPresented(c),total=packings.length,field=(heading,value,cls='')=>`<h3 class="docSection">${heading}</h3><div class="docValue ${cls}">${value}</div>`,specTable=list=>list.length?`<table class="docTable contractSpecificationTable"><colgroup><col class="contractSpecificationSequence"><col><col></colgroup><thead><tr><th>S.NO</th><th>SPECIFICATION</th><th>VALUE</th></tr></thead><tbody>${list.map((x,i)=>`<tr><td>${i+1}</td><td>${esc(x.name)}</td><td>${esc(x.value)}</td></tr>`).join('')}</tbody></table>`:'';
  const mainStart=`${contractPartyGrid(c)}${field('QUALITY',esc(contractQualityValue(c)))}${field('SPECIFICATIONS',buyerSpec?'As per below specification.':'As per Pakistan origin standards.')}`;
  const mainEnd=`${field('ADDITIONAL QUALITY CONDITIONS',esc(c.additionalQuality||DEFAULT_QUALITY))}${field('QUANTITY',`${num(c.containers)} × 20' FCL — ${num(c.qty).toFixed(3)} M/tons ±${num(c.tolerance)}% Seller’s option`)}${field('PORT OF LOADING',esc(ttProperNounOutput(c.pol)))}${field('PORT OF DISCHARGE',esc(contractPort(c)))}${field('SHIPMENT',`On or before ${esc(fmt(c.shipmentDate)||'to be advised')}`)}${field('PACKING / BRAND-MARKING',packings.map((p,i)=>salesPackingLine(p,c,i,total)).join('<br>'))}`;
  const financial=`${field('INSURANCE',`Insurance ${c.insurance==="Seller's Account"?'Seller’s':'Buyer’s'} account.`)}<h3 class="docSection">PRICE</h3>${contractPriceHTML(c,packings)}<h3 class="docSection">PAYMENT</h3>${contractPaymentHTML(c)}`;
- const termsHtml=list=>list.length?`<h3 class="docSection">OTHER TERMS AND CONDITIONS</h3><ol>${list.map(x=>`<li>${esc(x)}</li>`).join('')}</ol>`:'';
- const finalHtml=`${docs.length?`<h3 class="docSection">DOCUMENTS TO BE PRESENTED FOR NEGOTIATION</h3><table class="docTable contractDocumentsTable"><thead><tr><th>S.NO</th><th>DOCUMENT NAME</th><th>ORIGINAL</th><th>COPIES</th></tr></thead><tbody>${docs.map(r=>`<tr><td>${r.sequence}</td><td>${esc(r.name)}</td><td>${r.original}</td><td>${r.copies}</td></tr>`).join('')}</tbody></table>`:''}<div class="contractFinalAcceptance">${field('VALIDITY',`Signed / stamped copy of Sales Contract to be received latest by ${esc(fmt(c.signedDeadline))}. ${String(c.paymentCode||'').startsWith('LC_')?'L/C':'Payment'} to be received latest by ${esc(fmt(c.paymentDeadline))}. Thereafter subject to Seller’s re-confirmation.`)}${contractSignatureHTML(c)}</div>`;
- let pages=[];
- const genuinelyLong=specs.length>=10||packings.length>2||terms.length+docs.length>22;
- if(specs.length>10){const cut=10;pages=[mainStart+specTable(specs.slice(0,cut)),field('SPECIFICATIONS - CONTINUED','')+specTable(specs.slice(cut))+mainEnd+financial,termsHtml(terms),finalHtml]}
- else if(genuinelyLong)pages=[mainStart+specTable(specs)+mainEnd,financial+termsHtml(terms),finalHtml];
- else pages=[mainStart+specTable(specs)+mainEnd+financial,termsHtml(terms)+finalHtml];
+ const termsHtml=(list,start=1,continued=false)=>list.length?`<h3 class="docSection">OTHER TERMS AND CONDITIONS${continued?' - CONTINUED':''}</h3><ol start="${start}">${list.map(x=>`<li>${esc(x)}</li>`).join('')}</ol>`:'';
+ const docsHtml=list=>list.length?`<h3 class="docSection">DOCUMENTS TO BE PRESENTED FOR NEGOTIATION</h3><table class="docTable contractDocumentsTable"><thead><tr><th>S.NO</th><th>DOCUMENT NAME</th><th>ORIGINAL</th><th>COPIES</th></tr></thead><tbody>${list.map(r=>`<tr><td>${r.sequence}</td><td>${esc(r.name)}</td><td>${r.original}</td><td>${r.copies}</td></tr>`).join('')}</tbody></table>`:'';
+ const acceptance=`<div class="contractFinalAcceptance">${field('VALIDITY',`Signed / stamped copy of Sales Contract to be received latest by ${esc(fmt(c.signedDeadline))}. ${String(c.paymentCode||'').startsWith('LC_')?'L/C':'Payment'} to be received latest by ${esc(fmt(c.paymentDeadline))}. Thereafter subject to Seller’s re-confirmation.`)}${contractSignatureHTML(c)}</div>`;
+ const primaryBlocks=specs.length>10?specs.reduce((chunks,row,index)=>{const chunk=Math.floor(index/10);(chunks[chunk]??=[]).push(row);return chunks},[]).map((list,index,all)=>`${index===0?mainStart:field('SPECIFICATIONS - CONTINUED','')}${specTable(list)}${index===all.length-1?mainEnd:''}`):[mainStart+specTable(specs)+mainEnd];
+ const termBlocks=terms.length>12?[termsHtml(terms.slice(0,6),1),termsHtml(terms.slice(6),7,true)]:[termsHtml(terms)];
+ const finalBlocks=docs.length>10?docs.reduce((chunks,row,index)=>{const chunk=Math.floor(index/8);(chunks[chunk]??=[]).push(row);return chunks},[]).map((list,index,all)=>docsHtml(list)+(index===all.length-1?acceptance:'')):[docsHtml(docs)+acceptance];
+ const blocks=[...primaryBlocks,financial,...termBlocks,...finalBlocks];
+ let pages=paginateSalesContractBlocks(c,blocks);
+ if(pages.length===1&&salesContractBodyFits(c,pages[0],1)===false)pages=blocks;
  return pages.map((body,index)=>salesContractPhysicalPage(c,body,index+1,pages.length)).join('')
 }
 function purchaseOrderPrint(po){
