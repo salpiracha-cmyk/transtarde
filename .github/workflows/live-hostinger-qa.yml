@@ -10,7 +10,7 @@ on:
   workflow_run:
     workflows: ['Deploy Production']
     types: [completed]
-    branches: [main, release/fi-hotfix-gate]
+    branches: [main, release/fi-hotfix-gate, release/fi-hotfix-base]
 
 permissions:
   contents: read
