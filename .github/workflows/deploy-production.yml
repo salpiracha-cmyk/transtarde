@@ -200,7 +200,10 @@ jobs:
         run: |
           set -euo pipefail
           for attempt in $(seq 1 8); do
-            if curl --fail --silent --show-error --max-time 30 "$PRODUCTION_URL/login.php" | grep -q 'TRANSTRADE INTERNATIONAL'; then
+            if curl --fail --silent --show-error --max-time 30 \
+              --user-agent 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/140 Safari/537.36' \
+              --header 'Accept: text/html,application/xhtml+xml' \
+              "$PRODUCTION_URL/login.php" | grep -q 'TRANSTRADE INTERNATIONAL'; then
               echo "Production login is healthy at $DEPLOY_SHA"
               exit 0
             fi
