@@ -1,6 +1,9 @@
 name: Manual Hostinger Live QA
 
 on:
+  pull_request:
+    branches: [release/fi-hotfix-base]
+    paths: ['.github/workflows/live-hostinger-qa.yml']
   workflow_dispatch:
     inputs:
       confirmation:
@@ -14,6 +17,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: transtrade-live-qa
@@ -21,11 +25,18 @@ concurrency:
 
 jobs:
   live-qa:
-    if: ${{ github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_sha == github.sha && !contains(github.event.workflow_run.head_commit.message, '[cleanup-only]')) }}
+    if: ${{ github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_sha == github.sha && !contains(github.event.workflow_run.head_commit.message, '[cleanup-only]')) }}
     runs-on: ubuntu-latest
     timeout-minutes: 35
     environment: live-qa
     steps:
+      - name: Confirm FI hotfix production deployment
+        if: ${{ github.event_name == 'pull_request' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "/repos/$GITHUB_REPOSITORY/actions/workflows/deploy-production.yml/runs?head_sha=bc4f7a0d6961764c7943394abcb9deffb05397e5&status=completed&per_page=20" --jq '.workflow_runs | any(.conclusion == "success")' | grep -qx true
+
       - name: Enforce manual live-data confirmation
         if: ${{ github.event_name == 'workflow_dispatch' }}
         env:
