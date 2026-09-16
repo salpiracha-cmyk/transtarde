@@ -93,6 +93,15 @@ async function fillMillContainerNumber(page, value) {
   await expect(page.locator('#contNo')).toHaveValue(`${raw.slice(0, 10)}-${raw.slice(10, 11)}`);
 }
 
+async function uploadBagArtwork(page, inputSelector = '[data-bo-art="0"]') {
+  const preview = page.locator('img.artPreview').first();
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    await page.locator(inputSelector).setInputFiles('tests/live/qa-bag-mark.png');
+    if (await preview.waitFor({ state: 'visible', timeout: 15_000 }).then(() => true).catch(() => false)) return;
+  }
+  throw new Error('Bag artwork preview did not render after two bounded upload attempts.');
+}
+
 async function signInQa(page) {
   expect(QA_USERNAME, 'TRANSTRADE_QA_USERNAME GitHub secret is required').toBeTruthy();
   expect(QA_PASSWORD, 'TRANSTRADE_QA_PASSWORD GitHub secret is required').toBeTruthy();
@@ -187,8 +196,7 @@ async function createBulkQaShipment(page, { suffix, index, lotRef, contractRef, 
   await page.locator('#newSupplierName').fill(supplier);
   await page.locator('#saveSupplier').click();
   await page.locator('#boSupplier').selectOption({ label: supplier });
-  await page.locator('[data-bo-art="0"]').setInputFiles('tests/live/qa-bag-mark.png');
-  await expect(page.locator('img.artPreview').first()).toBeVisible({ timeout: 30_000 });
+  await uploadBagArtwork(page);
   await page.locator('#generatePO').click();
   await waitForSharedSave(page);
 
@@ -339,8 +347,7 @@ test('manual Hostinger QA: Export instruction to Mill and container return', asy
   await page.locator('#newSupplierName').fill(supplier);
   await page.locator('#saveSupplier').click();
   await page.locator('#boSupplier').selectOption({ label: supplier });
-  await page.locator('[data-bo-art="0"]').setInputFiles('tests/live/qa-bag-mark.png');
-  await expect(page.locator('img.artPreview').first()).toBeVisible({ timeout: 30_000 });
+  await uploadBagArtwork(page);
   await page.locator('#generatePO').click();
   await waitForSharedSave(page);
 
