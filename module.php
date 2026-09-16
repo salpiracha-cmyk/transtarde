@@ -49,26 +49,17 @@ $sharedBootstrap = <<<'HTML'
   const EXPORT_STORE='transtrade_export_v3_operational';
   const allowed=k=>k===EXPORT_STORE||/^tt[0-9]{2}[a-z0-9_]{2,60}$/.test(k);
   const originalSet=Storage.prototype.setItem, originalRemove=Storage.prototype.removeItem;
-  const QUEUE_STORE='tt_shared_commit_queue_v1';
+  const LEGACY_QUEUE_STORE='tt_shared_commit_queue_v1', LEGACY_OUTBOX_DB='transtrade-offline-outbox-v2';
   let applying=false, revision=0, remoteKeys=new Set(), pending=new Map(), inFlight=new Set(), keyVersions=new Map(), queuedBase=new Map(), timer=0, inboundRetry=0, lastRemoteBy='', lastInboundCheck=0, commitWaiters=[];
   const directSet=(k,v)=>originalSet.call(localStorage,k,v);
   const markSaveState=()=>{};
-  const persistQueue=()=>{const rows={};for(const [key,value] of pending)rows[key]={value,baseVersion:Number(queuedBase.get(key)||0)};try{directSet(QUEUE_STORE,JSON.stringify(rows))}catch{}};
-  try{const saved=JSON.parse(localStorage.getItem(QUEUE_STORE)||'{}');for(const [key,row] of Object.entries(saved||{}))if(allowed(key)&&row&&typeof row.value==='string'){pending.set(key,row.value);queuedBase.set(key,Number(row.baseVersion||0))}}catch{}
+  // The former device outbox is deliberately retired. A workflow action now
+  // succeeds only after its write is acknowledged by the server.
+  try{originalRemove.call(localStorage,LEGACY_QUEUE_STORE)}catch{}
+  try{indexedDB.deleteDatabase(LEGACY_OUTBOX_DB)}catch{}
   const parse=(k,d)=>{try{const v=JSON.parse(localStorage.getItem(k));return v??d}catch{return d}};
   const stableId=s=>{let h=2166136261;for(const c of String(s)){h^=c.charCodeAt(0);h=Math.imul(h,16777619)}return 600000000+(h>>>0)%300000000};
   const put=(k,v)=>{const s=JSON.stringify(v);if(localStorage.getItem(k)!==s)localStorage.setItem(k,s)};
-  const rowIdentity=(row,index)=>{if(!row||typeof row!=='object')return 'value|'+index+'|'+JSON.stringify(row);for(const k of ['id','key','ref','soda','billNo','productionId','queueId'])if(row[k]!==undefined&&String(row[k])!=='')return k+'|'+String(row[k]);return 'hash|'+stableId(JSON.stringify(row))};
-  const mergeConflictValue=(remoteValue,localValue)=>{try{const remote=JSON.parse(remoteValue),local=JSON.parse(localValue);if(!Array.isArray(remote)||!Array.isArray(local))return localValue;const rows=new Map(remote.map((row,i)=>[rowIdentity(row,i),row]));local.forEach((row,i)=>rows.set(rowIdentity(row,i),row));return JSON.stringify([...rows.values()])}catch{return localValue}};
-  function retryConflict(key,value,keyVersion){
-    fetch(endpoint+'?r='+Date.now(),{credentials:'same-origin'}).then(r=>r.json()).then(data=>{
-      if(!data?.ok)throw new Error('Shared state could not be refreshed.');
-      const merged=key===EXPORT_STORE?value:mergeConflictValue(data.values?.[key]||'[]',value);
-      applying=true;directSet(key,merged);applying=false;keyVersions.set(key,Number(data.meta?.[key]?.version??keyVersion??0));
-      pending.set(key,merged);clearTimeout(timer);timer=setTimeout(flush,180);
-    }).catch(()=>{if(!pending.has(key))pending.set(key,value);clearTimeout(timer);timer=setTimeout(flush,2500);showSyncError('Shared save conflict retry is temporarily unavailable.');});
-  }
-
   function getRemote(sync=true){
     try{
       const x=new XMLHttpRequest();x.open('GET',endpoint+'?r='+Date.now(),!sync);x.withCredentials=true;
@@ -88,10 +79,9 @@ $sharedBootstrap = <<<'HTML'
     if(!error&&(pending.size||inFlight.size))return;
     const waiters=commitWaiters.splice(0);for(const w of waiters){clearTimeout(w.timer);error?w.reject(new Error(error)):w.resolve({ok:true,revision})}
   }
-  function settleQueued(){const waiters=commitWaiters.splice(0);for(const w of waiters){clearTimeout(w.timer);w.resolve({ok:true,queued:true,revision})}}
   function saveNow(){
     if(!pending.size&&!inFlight.size)return Promise.resolve({ok:true,revision});
-    return new Promise((resolve,reject)=>{const waiter={resolve,reject,timer:0};waiter.timer=setTimeout(()=>{const i=commitWaiters.indexOf(waiter);if(i>=0){commitWaiters.splice(i,1);resolve({ok:true,queued:true,revision})}},20000);commitWaiters.push(waiter);flush()})
+    return new Promise((resolve,reject)=>{const waiter={resolve,reject,timer:0};waiter.timer=setTimeout(()=>{const i=commitWaiters.indexOf(waiter);if(i>=0){commitWaiters.splice(i,1);reject(new Error('Server confirmation timed out. Nothing was advanced; please retry.'))}},20000);commitWaiters.push(waiter);flush()})
   }
   function refreshNow(){
     if(pending.size||inFlight.size)return Promise.reject(new Error('Finish the current save before refreshing.'));
@@ -104,15 +94,15 @@ $sharedBootstrap = <<<'HTML'
       pending.delete(key);
       inFlight.add(key);
       fetch(endpoint,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({csrf:access.csrf,key,value,baseVersion:Number(queuedBase.get(key)??keyVersions.get(key)??0),sourceModule:access.module||'Super Admin'})})
-        .then(r=>r.json()).then(r=>{inFlight.delete(key);if(r.ok){revision=Math.max(revision,Number(r.revision||0));keyVersions.set(key,Number(r.keyVersion||r.revision||0));queuedBase.delete(key);persistQueue();if(pending.has(key)){clearTimeout(timer);timer=setTimeout(flush,180);return}if(!pending.size&&!inFlight.size){markSaveState('Saved');settleCommits();if(typeof dispatchEvent==='function'&&typeof CustomEvent==='function')dispatchEvent(new CustomEvent('tt:shared-saved',{detail:{key}}))}return}if(r.conflict){retryConflict(key,pending.get(key)||localStorage.getItem(key)||value,r.keyVersion);return}if(!pending.has(key))pending.set(key,value);clearTimeout(timer);timer=setTimeout(flush,2500);showSyncError(r.error,false);settleCommits(r.error||'Shared save was not confirmed.')})
-        .catch(()=>{inFlight.delete(key);if(!pending.has(key))pending.set(key,value);persistQueue();clearTimeout(timer);timer=setTimeout(flush,2500);showSyncError('Shared save is temporarily unavailable.');settleQueued();});
+        .then(r=>r.json()).then(r=>{inFlight.delete(key);if(r.ok){revision=Math.max(revision,Number(r.revision||0));keyVersions.set(key,Number(r.keyVersion||r.revision||0));queuedBase.delete(key);if(pending.has(key)){clearTimeout(timer);timer=setTimeout(flush,180);return}if(!pending.size&&!inFlight.size){markSaveState('Saved');settleCommits();if(typeof dispatchEvent==='function'&&typeof CustomEvent==='function')dispatchEvent(new CustomEvent('tt:shared-saved',{detail:{key}}))}return}if(!pending.has(key))pending.set(key,value);const message=r.conflict?'Newer server information exists. Refresh and review it before retrying.':(r.error||'Shared save was not confirmed.');showSyncError(message,!!r.conflict);settleCommits(message)})
+        .catch(()=>{inFlight.delete(key);if(!pending.has(key))pending.set(key,value);const message='Server save was not confirmed. Check the connection and retry; nothing was advanced.';showSyncError(message);settleCommits(message)});
     }
   }
-  function queue(key,value){if(!allowed(key)||applying)return;if(!pending.has(key))queuedBase.set(key,Number(keyVersions.get(key)||0));pending.set(key,String(value));persistQueue();clearTimeout(timer);timer=setTimeout(flush,180)}
+  function queue(key,value){if(!allowed(key)||applying)return;if(!pending.has(key))queuedBase.set(key,Number(keyVersions.get(key)||0));pending.set(key,String(value));clearTimeout(timer);timer=setTimeout(flush,180)}
   Storage.prototype.setItem=function(k,v){originalSet.call(this,k,v);if(this===localStorage)queue(String(k),String(v))};
   Storage.prototype.removeItem=function(k){originalRemove.call(this,k);};
 
-  const initial=getRemote(true);if(initial?.ok&&!Object.prototype.hasOwnProperty.call(initial.values||{},EXPORT_STORE)&&!pending.has(EXPORT_STORE)){applying=true;originalRemove.call(localStorage,EXPORT_STORE);applying=false}if(initial)applyRemote(initial,true);if(pending.size){clearTimeout(timer);timer=setTimeout(flush,50)}
+  const initial=getRemote(true);if(initial?.ok&&!Object.prototype.hasOwnProperty.call(initial.values||{},EXPORT_STORE)&&!pending.has(EXPORT_STORE)){applying=true;originalRemove.call(localStorage,EXPORT_STORE);applying=false}if(initial)applyRemote(initial,true);
 
   function exportsToMill(){
     const root=parse(EXPORT_STORE,null);if(!root?.millSync)return;
@@ -147,7 +137,6 @@ $sharedBootstrap = <<<'HTML'
   if(access.moduleId==='exports')bridge();else addEventListener('DOMContentLoaded',()=>{bridge()});
   addEventListener('focus',checkInbound);
   document.addEventListener('visibilitychange',()=>{if(!document.hidden)checkInbound()});
-  addEventListener('pagehide',flush);
 })();
 </script>
 HTML;
@@ -170,7 +159,7 @@ HTML;
 $brandHead = '<link rel="stylesheet" href="/brand-theme.css?v=20260913-3">';
 $headPos = stripos($html, '</head>');
 if ($headPos !== false) $html = substr_replace($html, $brandHead.$bootstrap.$sharedBootstrap, $headPos, 0);
-$accountsSourceBridge = '<script src="accounts/source-bridge.js?v=20260915-commercial-docs-1"></script><script src="accounts/loading-programme-sync.js?v=20260911-2"></script><script src="offline-outbox.js?v=20260916-bulk-reset-1"></script>';
+$accountsSourceBridge = '<script src="accounts/source-bridge.js?v=20260915-commercial-docs-1"></script><script src="accounts/loading-programme-sync.js?v=20260911-2"></script>';
 $brandBody = '<script src="/brand-theme.js?v=20260913-3"></script>';
 $bodyPos = strripos($html, '</body>');
 if ($bodyPos !== false) $html = substr_replace($html, $accountsSourceBridge.$guard.$brandBody, $bodyPos, 0); else $html .= $accountsSourceBridge.$guard.$brandBody;

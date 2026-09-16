@@ -7,8 +7,6 @@ on:
       - 'exports/**'
       - 'milling/**'
       - 'module.php'
-      - 'offline-outbox.js'
-      - 'offline_idempotency.php'
       - 'module_release.php'
       - '.htaccess'
       - 'customer-contract-options.js'
@@ -30,8 +28,6 @@ on:
       - 'exports/**'
       - 'milling/**'
       - 'module.php'
-      - 'offline-outbox.js'
-      - 'offline_idempotency.php'
       - 'module_release.php'
       - '.htaccess'
       - 'customer-contract-options.js'
@@ -98,7 +94,6 @@ jobs:
           node tests/exports_v32_corrections_audit.js
           node tests/milling_container_audit.js
           node tests/master_data_topbar_audit.js
-          node --check offline-outbox.js
           node tests/offline_recovery_audit.js
           node tests/super_admin_cleanup_audit.js
       - name: Audit live release route
@@ -123,6 +118,4 @@ jobs:
           php -l api/operations.mysql.php
           php -l api/export_documents.php
           php -l auth_store.php
-          php -l offline_idempotency.php
-          php -l api/offline-status.php
           php -l scripts/cleanup_qa_data.php

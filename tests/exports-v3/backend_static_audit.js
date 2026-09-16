@@ -45,8 +45,8 @@ assert.match(js,/function deleteShipmentDocuments/,'shipment deletion must remov
 assert.match(js,/function deleteShipmentData/,'shipment deletion must remove linked operational data');
 assert.doesNotMatch(js,/setInterval\(\(\)=>window\.TT_SHARED_SYNC\?\.poll/,'Exports must not poll or rebuild active forms in the background');
 assert.doesNotMatch(js,/Manual save only/,'Exports must not expose technical sync/save-mode wording');
-assert.match(modulePhp,/tt_shared_commit_queue_v1/,'explicit saves must survive an offline tab or browser restart');
-assert.match(modulePhp,/settleQueued/,'an offline committed action must continue locally while retry remains automatic');
+assert.match(modulePhp,/LEGACY_QUEUE_STORE='tt_shared_commit_queue_v1'/,'retired browser queue is cleared on load');
+assert.doesNotMatch(modulePhp,/queued:true|settleQueued/,'unconfirmed actions must never continue through an offline queue');
 assert.match(js,/const rerender=\(\)=>\{renderShipmentWorkspace\(\)\}/,'Loading Instruction draft controls must not save before the final Send action');
 assert.match(js,/window\.TT_SHARED_SYNC\?\.saveNow\?\.\(\)/,'final Loading Instruction send must wait for authoritative shared save acknowledgement');
 assert.match(milling,/containerCommitPending=\{s,c,before\};confirmContainerSharedSave\(containerCommitPending\)/,'Save Container must retain one idempotent pending record until shared acknowledgement');
