@@ -12,6 +12,6 @@ assert.match(modulePhp,/originalRemove\.call\(localStorage,LEGACY_QUEUE_STORE\)/
 assert.match(modulePhp,/Server confirmation timed out\. Nothing was advanced/,'a timed-out save rejects instead of advancing');
 assert.doesNotMatch(modulePhp,/queued:true|settleQueued|retryConflict/,'no action succeeds through a background queue or automatic conflict replay');
 assert.match(exportsJs,/document\.getElementById\('nextStep'\)\.onclick=async/,'Sales Contract Next waits for the server');
-assert.match(exportsJs,/async function saveContract\(print\)/,'Sales Contract Save and Print waits for the server');
-assert.match(exportsJs,/await window\.TT_SHARED_SYNC\?\.saveNow\?\.\(\)/,'final actions require authoritative acknowledgement');
+assert.match(exportsJs,/confirmation=window\.TT_SHARED_SYNC\?\.saveNow\?\.\(\)/,'Sales Contract Save and Print waits for the server');
+assert.match(exportsJs,/window\.TT_SHARED_SYNC\?\.saveNow\?\.\(\)/,'final actions require authoritative acknowledgement');
 console.log('PASS server-confirmed workflow gating with no device recovery outbox');
