@@ -6,6 +6,10 @@ declare(strict_types=1);
 // operational data created by Salman and his staff.
 const TT_DATA_DIR = __DIR__ . '/../transtrade_private';
 const TT_STORE_FILE = TT_DATA_DIR . '/auth.json';
+const TT_AUTH_RATE_FILE = TT_DATA_DIR . '/auth-rate.json';
+// High-entropy offline code. The public repository contains only a salted,
+// deliberately slow password hash; the code itself is held by the owner.
+const TT_ADMIN_RECOVERY_HASH = '$2y$12$wDBNVGUfS0iEbsurYsnff.kDAySgh2iRgBJ0wJWGnE/jR17Qp.Vl6';
 
 function tt_default_masters(): array {
     $masters = [
@@ -348,6 +352,49 @@ function tt_ensure_data_dir(): void {
     if (!is_dir(TT_DATA_DIR) && !mkdir(TT_DATA_DIR, 0700, true) && !is_dir(TT_DATA_DIR)) throw new RuntimeException('The secure data folder could not be created.');
 }
 
+function tt_auth_rate_mutate(callable $callback): mixed {
+    tt_ensure_data_dir();
+    $handle=fopen(TT_AUTH_RATE_FILE,'c+');
+    if($handle===false||!flock($handle,LOCK_EX))throw new RuntimeException('Authentication protection is unavailable.');
+    try{
+        rewind($handle);$raw=stream_get_contents($handle);$data=$raw?json_decode($raw,true):null;
+        if(!is_array($data))$data=[];
+        $result=$callback($data);
+        rewind($handle);if(!ftruncate($handle,0))throw new RuntimeException('Authentication protection could not be updated.');
+        if(fwrite($handle,json_encode($data,JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR))===false)throw new RuntimeException('Authentication protection could not be saved.');
+        fflush($handle);return$result;
+    }finally{flock($handle,LOCK_UN);fclose($handle);}
+}
+
+function tt_auth_rate_key(string $scope,string $identity): string {
+    $ip=(string)($_SERVER['REMOTE_ADDR']??'unknown');
+    return hash('sha256',$scope.'|'.strtolower(trim($identity)).'|'.$ip);
+}
+
+function tt_auth_retry_after(string $scope,string $identity,int $limit=5,int $window=900): int {
+    return tt_auth_rate_mutate(function (&$data) use ($scope,$identity,$limit,$window): int {
+        $now=time();$key=tt_auth_rate_key($scope,$identity);$row=is_array($data[$key]??null)?$data[$key]:[];
+        $attempts=array_values(array_filter((array)($row['attempts']??[]),static fn($at):bool=>(int)$at>$now-$window));
+        $lockedUntil=(int)($row['locked_until']??0);
+        if($lockedUntil<=$now&&count($attempts)<$limit){if($attempts)$data[$key]=['attempts'=>$attempts,'locked_until'=>0];else unset($data[$key]);return 0;}
+        return max(1,$lockedUntil-$now);
+    });
+}
+
+function tt_auth_record_failure(string $scope,string $identity,int $limit=5,int $window=900,int $lockSeconds=900): void {
+    tt_auth_rate_mutate(function (&$data) use ($scope,$identity,$limit,$window,$lockSeconds): void {
+        $now=time();$key=tt_auth_rate_key($scope,$identity);$row=is_array($data[$key]??null)?$data[$key]:[];
+        $attempts=array_values(array_filter((array)($row['attempts']??[]),static fn($at):bool=>(int)$at>$now-$window));
+        $attempts[]=$now;$lockedUntil=(int)($row['locked_until']??0);
+        if(count($attempts)>=$limit)$lockedUntil=max($lockedUntil,$now+$lockSeconds);
+        $data[$key]=['attempts'=>$attempts,'locked_until'=>$lockedUntil];
+    });
+}
+
+function tt_auth_clear_failures(string $scope,string $identity): void {
+    tt_auth_rate_mutate(function (&$data) use ($scope,$identity): void {unset($data[tt_auth_rate_key($scope,$identity)]);});
+}
+
 function tt_read_store(): array {
     tt_ensure_data_dir();
     if (!is_file(TT_STORE_FILE)) return ['users' => [], 'audit' => [], 'masters'=>tt_default_masters(), 'master_options'=>tt_default_master_options(), 'master_options_disabled'=>[]];
@@ -510,7 +557,7 @@ function tt_change_own_password(int $id, string $newPassword): void {
 
 function tt_recovery_code_valid(string $code): bool {
     $normalized=strtoupper((string)preg_replace('/[^A-Z0-9]/i','',$code));
-    return hash_equals('e008e96b8c1bebbe165ebd3132afc540a9c237ca6dc1d2ac0b47c98edf12648c',hash('sha256',$normalized));
+    return strlen($normalized)>=24 && password_verify($normalized,TT_ADMIN_RECOVERY_HASH);
 }
 
 function tt_reset_admin_with_recovery(string $newPassword): int {
@@ -584,6 +631,7 @@ function tt_create_master(string $type, array $values): string {
 
 function tt_update_master(string $type, string $id, array $values): void {
     tt_mutate_store(function (&$data) use ($type,$id,$values): void {
+        if (!isset($data['masters'][$type]) || !is_array($data['masters'][$type])) throw new RuntimeException('Master type not found.');
         foreach ($data['masters'][$type] as &$row) if (($row['id'] ?? '')===$id) { $row['values']=$values; unset($row); return; }
         unset($row); throw new RuntimeException('Master record not found.');
     });
@@ -591,6 +639,7 @@ function tt_update_master(string $type, string $id, array $values): void {
 
 function tt_delete_master(string $type, string $id): void {
     tt_mutate_store(function (&$data) use ($type,$id): void {
+        if (!isset($data['masters'][$type]) || !is_array($data['masters'][$type])) throw new RuntimeException('Master type not found.');
         $before=count($data['masters'][$type]);
         $data['masters'][$type]=array_values(array_filter($data['masters'][$type],static fn(array $row): bool => ($row['id'] ?? '')!==$id));
         if ($before===count($data['masters'][$type])) throw new RuntimeException('Master record not found.');
@@ -603,19 +652,44 @@ function tt_current_user(): ?array {
     return ($user && !empty($user['active'])) ? $user : null;
 }
 
+function tt_api_json_error(int $status,string $message): never {
+    http_response_code($status);header('Content-Type: application/json; charset=UTF-8');header('Cache-Control: no-store');echo json_encode(['ok'=>false,'error'=>$message]);exit;
+}
+
+function tt_api_entity_policy(string $path): array {
+    $endpoint=basename($path);
+    $entityIndependent=['operations.php','operations.mysql.php','export_documents.php','export_customers.php','masters.php','users.php','backup.php','accounts_bulk_test_cleanup.php','location-master.php','commodity_lookup.php','bag_bill_file.php','bridge_outbox.php'];
+    if(in_array($endpoint,$entityIndependent,true))return['required'=>false,'fixed'=>''];
+    if(str_starts_with($endpoint,'tg_'))return['required'=>true,'fixed'=>'TG'];
+    return['required'=>true,'fixed'=>''];
+}
+
 function tt_require_login(): array {
     $user = tt_current_user();
-    if (!$user) { $_SESSION = []; header('Location: /login.php'); exit; }
     $path=(string)parse_url((string)($_SERVER['REQUEST_URI']??''),PHP_URL_PATH);
-    if(str_starts_with($path,'/api/')&&tt_user_can_open_module($user,'Accounts')){
-        $entity=strtoupper(trim((string)($_GET['entity']??'')));
-        if($entity===''&&strtoupper((string)($_SERVER['REQUEST_METHOD']??'GET'))!=='GET'&&str_contains(strtolower((string)($_SERVER['CONTENT_TYPE']??'')),'application/json')){
-            $raw=file_get_contents('php://input')?:'';$body=$raw!==''?json_decode($raw,true):null;if(is_array($body))$entity=strtoupper(trim((string)($body['entity']??'')));
+    if (!$user) {
+        $_SESSION = [];
+        if (str_starts_with($path,'/api/')) {
+            tt_api_json_error(401,'Your session has expired. Sign in again.');
         }
-        if(in_array($entity,['TTI','BRM','TG'],true)){
+        header('Location: /login.php');
+        exit;
+    }
+    if(str_starts_with($path,'/api/')&&tt_user_can_open_module($user,'Accounts')){
+        $policy=tt_api_entity_policy($path);
+        $entity=strtoupper(trim((string)($_GET['entity']??$_POST['entity']??'')));
+        if($entity===''&&strtoupper((string)($_SERVER['REQUEST_METHOD']??'GET'))!=='GET'){
+            $raw=file_get_contents('php://input')?:'';
+            $body=$raw!==''?json_decode($raw,true):null;
+            if(is_array($body))$entity=strtoupper(trim((string)($body['entity']??'')));
+        }
+        if($entity===''&&$policy['fixed']!=='')$entity=$policy['fixed'];
+        if($entity===''&&!empty($policy['required'])&&($user['role']??'')!=='Super Admin')tt_api_json_error(403,'An authorized legal entity is required.');
+        if($entity!==''&&!in_array($entity,['TTI','BRM','TG'],true))tt_api_json_error(403,'Select a valid legal entity.');
+        if($entity!==''){
             $read=strtoupper((string)($_SERVER['REQUEST_METHOD']??'GET'))==='GET';
             $allowed=$read?tt_user_can_access_entity($user,$entity,'View'):(tt_user_can_access_entity($user,$entity,'Create')||tt_user_can_access_entity($user,$entity,'Edit')||tt_user_can_access_entity($user,$entity,'Approve'));
-            if(!$allowed){http_response_code(403);header('Content-Type: application/json; charset=UTF-8');echo json_encode(['ok'=>false,'error'=>'You do not have permission for this legal entity.']);exit;}
+            if(!$allowed)tt_api_json_error(403,'You do not have permission for this legal entity.');
         }
     }
     return $user;

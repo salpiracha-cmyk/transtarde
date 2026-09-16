@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require __DIR__ . '/auth_store.php';
+require_once __DIR__ . '/runtime_html.php';
 $user = tt_require_login();
 $modules = [
     'milling' => __DIR__ . '/milling/Transtrade_Master_Milling_V3_3_2_AUDITED.html',
@@ -30,9 +31,17 @@ if ($id === 'exports') {
             $js = str_replace('assets/' . $asset, 'data:' . $mime . ';base64,' . base64_encode((string)file_get_contents($path)), $js);
         }
     }
-    $html = preg_replace('~<link\b[^>]*href=["\'](?:exports/)?app\.css[^"\']*["\'][^>]*>~i', '<style id="exports-app-css">' . $css . '</style>', $html, 1) ?? $html;
+    $html = tt_replace_html_once(
+        '~<link\b[^>]*href=["\'](?:exports/)?app\.css[^"\']*["\'][^>]*>~i',
+        static fn(): string => '<style id="exports-app-css">' . $css . '</style>',
+        $html
+    );
     $inlineJs = str_replace('</script', '<\/script', $js);
-    $html = preg_replace('~<script\b[^>]*src=["\'](?:exports/)?app\.js[^"\']*["\'][^>]*>\s*</script>~i', '<script id="exports-app-js">' . $inlineJs . '</script>', $html, 1) ?? $html;
+    $html = tt_replace_html_once(
+        '~<script\b[^>]*src=["\'](?:exports/)?app\.js[^"\']*["\'][^>]*>\s*</script>~i',
+        static fn(): string => '<script id="exports-app-js">' . $inlineJs . '</script>',
+        $html
+    );
 }
 $modulePermissions = $user['permissions'][$permissionName] ?? [];
 $access = [

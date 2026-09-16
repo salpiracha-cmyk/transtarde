@@ -91,7 +91,7 @@ foreach ($files as $file) {
 
 $etag = '"' . sha1(implode('|', $versionParts)) . '"';
 header('Content-Type: application/javascript; charset=UTF-8');
-header('Cache-Control: private, max-age=31536000, immutable');
+header('Cache-Control: private, no-cache, must-revalidate');
 header('ETag: ' . $etag);
 header('X-Content-Type-Options: nosniff');
 

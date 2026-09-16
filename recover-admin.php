@@ -8,10 +8,12 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
     $password=(string)($_POST['password'] ?? '');
     $confirm=(string)($_POST['confirm_password'] ?? '');
     if (!tt_verify_csrf((string)($_POST['csrf'] ?? ''))) $error='Your recovery session expired. Refresh and try again.';
-    elseif (!tt_recovery_code_valid($code)) { usleep(500000); $error='The recovery code is incorrect.'; }
+    elseif (($retry=tt_auth_retry_after('admin-recovery','super-admin',4,1800))>0) $error='Too many unsuccessful recovery attempts. Please wait '.max(1,(int)ceil($retry/60)).' minute(s) and try again.';
+    elseif (!tt_recovery_code_valid($code)) { tt_auth_record_failure('admin-recovery','super-admin',4,1800,1800); usleep(500000); $error='The recovery code is incorrect.'; }
     elseif (strlen($password)<10 || !preg_match('/[A-Z]/',$password) || !preg_match('/[a-z]/',$password) || !preg_match('/\d/',$password)) $error='Use at least 10 characters with an uppercase letter, lowercase letter and number.';
     elseif ($password!==$confirm) $error='The two passwords do not match.';
     else {
+        tt_auth_clear_failures('admin-recovery','super-admin');
         $id=tt_reset_admin_with_recovery($password);
         session_regenerate_id(true); $_SESSION['user_id']=$id;
         $admin=tt_find_user_by_id($id); tt_audit($id,(string)($admin['username'] ?? 'salman'),'Super Admin password recovered with offline code');

@@ -39,6 +39,8 @@ requireText(workflowApi, "'INSPECTION'=>['5530'", 'inspection posting');
 
 requireText(bundle, "'accounts-clean-ui.js'", 'bundle');
 if (bundle.indexOf("'accounts-clean-ui.js'") < bundle.indexOf("'reports-ui.js'")) throw new Error('Clean UI must load after feature modules.');
-requireText(index, 'app-bundle.php?v=20260912-14', 'cache version');
+requireText(index, 'app-bundle.php?v=current', 'non-manual bundle URL');
+requireText(bundle, "Cache-Control: private, no-cache, must-revalidate", 'bundle revalidation');
+if (bundle.includes('immutable')) throw new Error('Accounts bundle must not remain cached without revalidation.');
 
 console.log('Accounts clean UI and workflow assertions passed.');
