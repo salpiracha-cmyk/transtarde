@@ -7,6 +7,7 @@ header('Cache-Control: no-store, no-cache, must-revalidate');
 
 const TT_EXPORT_RECEIPTS_FILE = TT_DATA_DIR . '/accounts.json';
 const TT_EXPORT_OPS_FILE = TT_DATA_DIR . '/operations.json';
+const TT_EXPORT_STORE_KEY = 'transtrade_export_v3_operational';
 const TT_EXPORT_ACCOUNT_MASTER = __DIR__ . '/../accounts/accounting_master_v1.json';
 const TT_EXPORT_REALIZATION_POLICY = __DIR__ . '/../accounts/export_realization_policy_v1.json';
 const TT_EXPORT_SETTLEMENT_POLICY = __DIR__ . '/../accounts/settlement_policy_v1.json';
@@ -24,6 +25,10 @@ function er_read_accounts(): array {
     tt_ensure_data_dir();if(!is_file(TT_EXPORT_RECEIPTS_FILE))return er_default_store();$h=fopen(TT_EXPORT_RECEIPTS_FILE,'r');if($h===false||!flock($h,LOCK_SH))throw new RuntimeException('Accounts storage unavailable.');
     try{$raw=stream_get_contents($h);}finally{flock($h,LOCK_UN);fclose($h);}$s=$raw?json_decode($raw,true):null;return is_array($s)?array_replace_recursive(er_default_store(),$s):er_default_store();
 }
+function er_ops_env(string $name): string {$constant='TT_'.$name;if(defined($constant))return(string)constant($constant);$value=getenv($constant);return$value===false?'':(string)$value;}
+function er_ops_db_configured(): bool {return er_ops_env('DB_HOST')!==''&&er_ops_env('DB_NAME')!==''&&er_ops_env('DB_USER')!=='';}
+function er_ops_db(): PDO {return new PDO('mysql:host='.er_ops_env('DB_HOST').';dbname='.er_ops_env('DB_NAME').';charset=utf8mb4',er_ops_env('DB_USER'),er_ops_env('DB_PASS'),[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC,PDO::ATTR_EMULATE_PREPARES=>false]);}
+function er_decode_export_root(mixed $payload): array {$root=is_string($payload)&&$payload!==''?json_decode($payload,true):null;return is_array($root)?$root:[];}
 function er_entity(string $v): string {$v=strtoupper(trim($v));if(!in_array($v,['TTI','BRM'],true))er_respond(['ok'=>false,'error'=>'Pakistan export receipts are available for TTI or BRM books.'],422);return $v;}
 function er_date(string $v): string {if(!preg_match('/^\d{4}-\d{2}-\d{2}$/',$v))er_respond(['ok'=>false,'error'=>'Valid bank credit date is required.'],422);return $v;}
 function er_money(mixed $v,string $label,bool $zero=false): float {$n=round((float)$v,2);if($n<0||(!$zero&&$n<=0))er_respond(['ok'=>false,'error'=>$label.' must be '.($zero?'zero or greater':'greater than zero').'.'],422);return $n;}
@@ -40,7 +45,8 @@ function er_post_journal(array &$store,array $user,string $entity,string $date,s
     $id=er_next_id((array)$store['journals'],'AUTO');$store['journals'][$id]=['id'=>$id,'entity'=>$entity,'date'=>$date,'sourceType'=>$sourceType,'reference'=>$reference,'narration'=>$narration,'lines'=>$lines,'totalDebit'=>$dr,'totalCredit'=>$cr,'status'=>'Posted','meta'=>$meta,'createdAt'=>gmdate('c'),'createdBy'=>(string)($user['full_name']??$user['username']??'Accounts'),'userId'=>(int)($user['id']??0),'reversalOf'=>null];return $store['journals'][$id];
 }
 function er_operations_root(): array {
-    if(!is_file(TT_EXPORT_OPS_FILE))return [];$h=fopen(TT_EXPORT_OPS_FILE,'r');if($h===false||!flock($h,LOCK_SH))return [];try{$raw=stream_get_contents($h);}finally{flock($h,LOCK_UN);fclose($h);} $s=$raw?json_decode($raw,true):null;if(!is_array($s))return [];$rootRaw=$s['values']['transtrade_export_v2_operational']??'';$root=is_string($rootRaw)?json_decode($rootRaw,true):null;return is_array($root)?$root:[];
+    if(er_ops_db_configured()){$db=er_ops_db();$q=$db->prepare('SELECT payload FROM tt_operation_records WHERE storage_key=? LIMIT 1');$q->execute([TT_EXPORT_STORE_KEY]);return er_decode_export_root($q->fetchColumn());}
+    if(!is_file(TT_EXPORT_OPS_FILE))return [];$h=fopen(TT_EXPORT_OPS_FILE,'r');if($h===false||!flock($h,LOCK_SH))throw new RuntimeException('Export operational storage unavailable.');try{$raw=stream_get_contents($h);}finally{flock($h,LOCK_UN);fclose($h);}$s=$raw?json_decode($raw,true):null;if(!is_array($s))return [];return er_decode_export_root($s['values'][TT_EXPORT_STORE_KEY]??'');
 }
 function er_contract_value(array $c): float {if(isset($c['contractValue'])&&(float)$c['contractValue']>0)return round((float)$c['contractValue'],2);$n=0.0;foreach((array)($c['packings']??[]) as $p)if(is_array($p))$n+=(float)($p['containers']??0)*(float)($p['weightPer']??0)*(float)($p['price']??0);if($n<=0)$n=(float)($c['qty']??0)*(float)($c['price']??0);return round($n,2);}
 function er_sources(array $accounts,string $entity): array {
@@ -73,8 +79,36 @@ function er_prepare_fi(array $sources,string $currency,float $foreign,array $raw
 function er_prepare_deductions(string $entity,string $date,array $raw,array $catalog): array {$masters=er_master_rows();$out=[];$deducted=0.0;$separate=0.0;$taxDeducted=[];$taxSeparate=[];foreach($raw as $d){if(!is_array($d))continue;$code=strtoupper(trim((string)($d['masterCode']??'')));$amount=er_money($d['amount']??0,'Deduction amount');$m=$masters[$code]??null;if(!is_array($m))er_respond(['ok'=>false,'error'=>'Selected export tax/charge master row was not found: '.$code],422);if(!er_rule_active($m,$date,$entity)&&!str_contains(strtolower((string)$m['status']),'historical'))er_respond(['ok'=>false,'error'=>$m['name'].' is not active for this receipt date/entity.'],422);$account=(string)($m['account']??'');if(!isset($catalog[$account]))er_respond(['ok'=>false,'error'=>'GL mapping '.$account.' for '.$m['name'].' is not configured in Accounts policy.'],422);$mode=strtoupper(trim((string)($d['mode']??'DEDUCTED')));if(!in_array($mode,['DEDUCTED','SEPARATE_DEBIT'],true))$mode='DEDUCTED';$row=['masterId'=>$m['id'],'masterCode'=>$code,'name'=>$m['name'],'category'=>$m['category'],'regime'=>$m['regime'],'amount'=>$amount,'account'=>$account,'mode'=>$mode,'taxSection'=>trim((string)($d['taxSection']??'')),'certificateRequired'=>str_starts_with(strtoupper((string)$m['certificate']),'YES')];$out[]=$row;if($mode==='DEDUCTED')$deducted+=$amount;else $separate+=$amount;if(er_tax_family($code)!==''){if($mode==='DEDUCTED')$taxDeducted[]=$row;else $taxSeparate[]=$row;}}
     return ['rows'=>$out,'deducted'=>round($deducted,2),'separate'=>round($separate,2),'taxDeducted'=>$taxDeducted,'taxSeparate'=>$taxSeparate];}
 function er_tax_meta(array $rows,array $bank): array {return array_map(static fn($d)=>['taxCode'=>$d['masterCode'],'taxSection'=>$d['taxSection'],'amount'=>$d['amount'],'bankAccountId'=>$bank['id'],'bankName'=>$bank['bankName'],'regime'=>$d['regime']],$rows);}
+function er_export_receipt_rows(array $receipt): array {
+    $rows=[];
+    foreach((array)($receipt['allocations']??[]) as $i=>$allocation){
+        if(!is_array($allocation))continue;$contractRef=trim((string)($allocation['contractRef']??''));if($contractRef==='')continue;
+        $rows[]=['id'=>(string)$receipt['id'].'-'.($i+1),'receiptNo'=>(string)$receipt['id'],'_accountsReceiptId'=>(string)$receipt['id'],'contractRef'=>$contractRef,'invoiceRef'=>(string)($allocation['invoiceRef']??''),'date'=>(string)$receipt['date'],'amount'=>(float)($allocation['foreignAmount']??0),'currency'=>(string)$receipt['transactionCurrency'],'status'=>'Posted','source'=>'Accounts Bank Receipt','bankAdviceRef'=>(string)$receipt['bankAdviceRef']];
+    }
+    return $rows;
+}
+function er_merge_export_receipt(array $root,array $receipt): array {
+    $existing=[];foreach((array)($root['accountsReceipts']??[]) as $row)if(!is_array($row)||(string)($row['_accountsReceiptId']??'')!==(string)$receipt['id'])$existing[]=$row;
+    $root['accountsReceipts']=array_values(array_merge($existing,er_export_receipt_rows($receipt)));return $root;
+}
 function er_write_export_receipts_to_ops(array $receipt): void {
-    if(!is_file(TT_EXPORT_OPS_FILE))return;$h=fopen(TT_EXPORT_OPS_FILE,'c+');if($h===false||!flock($h,LOCK_EX))return;try{rewind($h);$raw=stream_get_contents($h);$ops=$raw?json_decode($raw,true):null;if(!is_array($ops))return;$rootRaw=$ops['values']['transtrade_export_v2_operational']??'';$root=is_string($rootRaw)?json_decode($rootRaw,true):null;if(!is_array($root))return;$existing=[];foreach((array)($root['receipts']??[]) as $r)if(!is_array($r)||(string)($r['_accountsReceiptId']??'')!==(string)$receipt['id'])$existing[]=$r;foreach((array)$receipt['allocations'] as $i=>$a){$ref=(string)($a['contractRef']??'');if($ref==='')continue;$existing[]=['id'=>$receipt['id'].'-'.($i+1),'_accountsReceiptId'=>$receipt['id'],'contractRef'=>$ref,'invoiceRef'=>(string)($a['invoiceRef']??''),'date'=>$receipt['date'],'amount'=>(float)$a['foreignAmount'],'currency'=>$receipt['transactionCurrency'],'source'=>'Accounts Bank Receipt','bankAdviceRef'=>$receipt['bankAdviceRef']];}$root['receipts']=$existing;$ops['values']['transtrade_export_v2_operational']=json_encode($root,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);$ops['revision']=(int)($ops['revision']??0)+1;$ops['meta']['transtrade_export_v2_operational']=['updatedAt'=>gmdate('c'),'updatedBy'=>'Accounts Receipt Engine','userId'=>0];rewind($h);ftruncate($h,0);fwrite($h,json_encode($ops,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR));fflush($h);}catch(Throwable $e){}finally{flock($h,LOCK_UN);fclose($h);}}
+    if(er_ops_db_configured()){
+        $db=er_ops_db();$db->beginTransaction();
+        try{
+            $select=$db->prepare('SELECT payload,version FROM tt_operation_records WHERE storage_key=? FOR UPDATE');$select->execute([TT_EXPORT_STORE_KEY]);$record=$select->fetch();
+            if(!is_array($record))throw new RuntimeException('Current Export V3 operational record was not found.');
+            $root=er_merge_export_receipt(er_decode_export_root($record['payload']??''),$receipt);$payload=json_encode($root,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);$version=(int)($record['version']??0)+1;$now=gmdate('Y-m-d H:i:s.u');
+            $update=$db->prepare('UPDATE tt_operation_records SET payload=?,version=?,updated_at=?,updated_by=?,updated_by_user=?,updated_by_module=? WHERE storage_key=?');$update->execute([$payload,$version,$now,'Accounts Receipt Engine',null,'Accounts',TT_EXPORT_STORE_KEY]);
+            $history=$db->prepare('INSERT INTO tt_operation_history (storage_key,version,payload_sha256,updated_at,updated_by,updated_by_user,updated_by_module) VALUES (?,?,?,?,?,?,?)');$history->execute([TT_EXPORT_STORE_KEY,$version,hash('sha256',$payload),$now,'Accounts Receipt Engine',null,'Accounts']);$db->commit();return;
+        }catch(Throwable $e){if($db->inTransaction())$db->rollBack();throw $e;}
+    }
+    tt_ensure_data_dir();$h=fopen(TT_EXPORT_OPS_FILE,'c+');if($h===false||!flock($h,LOCK_EX))throw new RuntimeException('Export operational storage unavailable.');
+    try{
+        rewind($h);$raw=stream_get_contents($h);$ops=$raw?json_decode($raw,true):null;if(!is_array($ops))$ops=['revision'=>0,'values'=>[],'meta'=>[]];$root=er_decode_export_root($ops['values'][TT_EXPORT_STORE_KEY]??'');if(!$root)throw new RuntimeException('Current Export V3 operational record was not found.');
+        $root=er_merge_export_receipt($root,$receipt);$ops['values'][TT_EXPORT_STORE_KEY]=json_encode($root,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);$ops['revision']=(int)($ops['revision']??0)+1;$keyVersion=(int)($ops['meta'][TT_EXPORT_STORE_KEY]['version']??0)+1;$ops['meta'][TT_EXPORT_STORE_KEY]=['version'=>$keyVersion,'updatedAt'=>gmdate('c'),'updatedBy'=>'Accounts Receipt Engine','userId'=>0,'module'=>'Accounts'];
+        rewind($h);if(!ftruncate($h,0))throw new RuntimeException('Export operational storage could not be updated.');if(fwrite($h,json_encode($ops,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR))===false)throw new RuntimeException('Export operational storage could not be updated.');fflush($h);
+    }finally{flock($h,LOCK_UN);fclose($h);}
+}
 
 try{
     $user=tt_require_login();if(!tt_user_can_open_module($user,'Accounts'))er_respond(['ok'=>false,'error'=>'Accounts permission required.'],403);
@@ -99,4 +133,3 @@ try{
     }finally{flock($h,LOCK_UN);fclose($h);}
     er_write_export_receipts_to_ops($receipt);er_respond(['ok'=>true,'receipt'=>$receipt,'journal'=>$journal,'separateChargeJournal'=>$separateJournal,'revision'=>$store['revision']]);
 }catch(Throwable $e){er_respond(['ok'=>false,'error'=>'The export receipt could not be posted.'],500);}
-
