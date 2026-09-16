@@ -1302,14 +1302,14 @@ function purchaseOrderPrint__morning_base(po){
 const CONTRACT_DRAFT_STORE='tt-export-contract-draft-v1';
 function checkpointContractDraft(){if(!contractDraft)return;try{localStorage.setItem(CONTRACT_DRAFT_STORE,JSON.stringify({user:currentUser(),step:contractStep,draft:structuredClone(contractDraft),at:new Date().toISOString()}))}catch{}}
 function clearContractCheckpoint(){try{localStorage.removeItem(CONTRACT_DRAFT_STORE)}catch{}}
-async function persistContractStepDraft(){
+function persistContractStepDraft(){
  if(!contractDraft||contractStep<2||!contractDraft.customerId||!String(contractDraft.ref||'').trim())return false;
  const duplicate=state.contracts.find(x=>x.id!==contractDraft.id&&String(x.ref||'').toLowerCase()===String(contractDraft.ref||'').toLowerCase());if(duplicate){alert('Contract Reference already exists.');return false}
  const issuedContract=state.contracts.find(x=>x.id===contractDraft.id&&x.issued);
  if(issuedContract){checkpointContractDraft();return true}
  const draft=structuredClone(contractDraft);draft.status='Draft';draft.issued=false;draft.draftStep=contractStep;draft.draftBy=currentUser();draft.lastDraftSavedAt=new Date().toISOString();
  const index=state.contracts.findIndex(x=>x.id===draft.id),created=index<0;if(created)state.contracts.push(draft);else state.contracts[index]=draft;
- contractDraft=structuredClone(draft);checkpointContractDraft();if(created)audit('Sales Contract','Draft created after Buyer & Reference',draft.ref);save();await window.TT_SHARED_SYNC?.saveNow?.();return true
+ contractDraft=structuredClone(draft);checkpointContractDraft();if(created)audit('Sales Contract','Draft created after Buyer & Reference',draft.ref);save();const confirmation=window.TT_SHARED_SYNC?.saveNow?.();return confirmation?confirmation.then(()=>true):Promise.resolve(true)
 }
 function restoreContractCheckpoint(){try{const saved=JSON.parse(localStorage.getItem(CONTRACT_DRAFT_STORE)||'null');if(!saved?.draft||saved.user!==currentUser())return;const age=Date.now()-Date.parse(saved.at||0);if(!Number.isFinite(age)||age>7*24*60*60*1000){clearContractCheckpoint();return}const serverDraft=state.contracts.find(x=>x.id===saved.draft.id&&!x.issued&&x.status==='Draft');if(serverDraft){clearContractCheckpoint();view='contracts';renderContracts();return}contractDraft=saved.draft;contractStep=Math.min(8,Math.max(1,num(saved.step)||1));activePackingIndex=-1;packingDraft=null;view='contracts';renderContractEditor()}catch{clearContractCheckpoint()}}
 
