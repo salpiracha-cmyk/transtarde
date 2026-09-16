@@ -222,13 +222,14 @@ test('bulk Accounts audit: locking, duplicates, entity isolation and three-modul
     }
     expect(endpointFailures, 'Every Accounts and inter-module endpoint must respond successfully').toEqual([]);
   } finally {
+    const cleanupReversalFailures = [];
     for (const journalId of createdJournalIds) {
       const reversed = await jsonCall(request, '/api/accounts.php', {
         method: 'POST',
-        data: { action: 'reverse_journal', csrf, journalId, reason: `TEST / DUMMY bulk audit cleanup — ${prefix}` }
+        data: { action: 'reverse_journal', entity: 'TTI', csrf, journalId, reason: `TEST / DUMMY bulk audit cleanup — ${prefix}` }
       });
       results.cleanup.push({ journalId, status: reversed.status, reversalJournalId: reversed.body.journal?.id || null });
-      expect([200, 409], `Cleanup reversal for ${journalId}`).toContain(reversed.status);
+      if (![200, 409].includes(reversed.status)) cleanupReversalFailures.push({ journalId, status: reversed.status });
     }
     const purged = await jsonCall(request, '/api/accounts_bulk_test_cleanup.php', {
       method: 'POST',
@@ -242,6 +243,7 @@ test('bulk Accounts audit: locking, duplicates, entity isolation and three-modul
     };
     expect(purged.status, purged.text).toBe(200);
     expect(purged.body.remaining).toEqual({ journals: 0, events: 0, postingIdentities: 0 });
+    expect(cleanupReversalFailures, 'Every QA journal cleanup reversal must succeed or already exist').toEqual([]);
     await testInfo.attach('accounts-bulk-audit.json', {
       body: Buffer.from(JSON.stringify(results, null, 2)),
       contentType: 'application/json'
