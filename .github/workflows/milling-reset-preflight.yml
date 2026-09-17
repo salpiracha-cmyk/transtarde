@@ -93,3 +93,5 @@ jobs:
           ksort($millCounts);
           echo json_encode(['ok'=>true,'revision'=>(int)($store['revision']??0),'contracts'=>array_map($summarize,$contracts),'shipments'=>array_map($summarize,$shipments),'millSync'=>$sync,'millCounts'=>$millCounts],JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_PRETTY_PRINT).PHP_EOL;
           PHP
+
+# post-attempt state check
