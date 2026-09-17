@@ -87,7 +87,11 @@ jobs:
           $lotRef='TG/ASAS/02/L01';
           $shipmentId='L-mu5heifu-gyhbk';
           $contract=null;$lot=null;
-          foreach((array)($root['contracts']??[]) as $row) if(is_array($row)&&(string)($row['ref']??'')===$contractRef){$contract=$row;break;}
+          foreach((array)($root['contracts']??[]) as $row){
+            if(!is_array($row)) continue;
+            $rowRef=(string)($row['contractRef']??$row['ref']??$row['contractNo']??$row['number']??'');
+            if($rowRef===$contractRef){$contract=$row;break;}
+          }
           foreach((array)($root['shipments']??[]) as $row) if(is_array($row)&&(string)($row['id']??'')===$shipmentId&&(string)($row['contractRef']??'')===$contractRef&&(string)($row['lotId']??'')===$lotRef){$lot=$row;break;}
           if(!$contract||strcasecmp((string)($contract['status']??''),'Cancelled')===0) throw new RuntimeException('Expected active ASAS contract not found.');
           if(!$lot||strcasecmp((string)($lot['status']??''),'Cancelled')===0) throw new RuntimeException('Expected active ASAS lot not found.');
