@@ -18,12 +18,12 @@ jobs:
     timeout-minutes: 30
     environment: live-qa
     env:
-      HOSTINGER_HOST: \${{ secrets.HOSTINGER_HOST }}
-      HOSTINGER_PORT: \${{ secrets.HOSTINGER_PORT }}
-      HOSTINGER_USER: \${{ secrets.HOSTINGER_USER }}
-      HOSTINGER_DEPLOY_PATH: \${{ secrets.HOSTINGER_DEPLOY_PATH }}
-      TRANSTRADE_QA_USERNAME: \${{ secrets.TRANSTRADE_QA_USERNAME }}
-      TRANSTRADE_QA_PASSWORD: \${{ secrets.TRANSTRADE_QA_PASSWORD }}
+      HOSTINGER_HOST: ${{ secrets.HOSTINGER_HOST }}
+      HOSTINGER_PORT: ${{ secrets.HOSTINGER_PORT }}
+      HOSTINGER_USER: ${{ secrets.HOSTINGER_USER }}
+      HOSTINGER_DEPLOY_PATH: ${{ secrets.HOSTINGER_DEPLOY_PATH }}
+      TRANSTRADE_QA_USERNAME: ${{ secrets.TRANSTRADE_QA_USERNAME }}
+      TRANSTRADE_QA_PASSWORD: ${{ secrets.TRANSTRADE_QA_PASSWORD }}
       TRANSTRADE_BASE_URL: https://app.transtradeinternational.com
     steps:
       - uses: actions/checkout@v4
@@ -36,8 +36,8 @@ jobs:
           npx playwright install --with-deps chromium
       - name: Configure verified SSH connection
         env:
-          HOSTINGER_SSH_KEY: \${{ secrets.HOSTINGER_SSH_KEY }}
-          HOSTINGER_KNOWN_HOSTS: \${{ secrets.HOSTINGER_KNOWN_HOSTS }}
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+          HOSTINGER_KNOWN_HOSTS: ${{ secrets.HOSTINGER_KNOWN_HOSTS }}
         run: |
           set -euo pipefail
           install -m 700 -d "$RUNNER_TEMP/ssh"
@@ -51,7 +51,7 @@ jobs:
             /home/*/domains/app.transtradeinternational.com/public_html) ;;
             *) echo "Unexpected production path"; exit 1 ;;
           esac
-          private_dir="\${HOSTINGER_DEPLOY_PATH%/public_html}/transtrade_private"
+          private_dir="${HOSTINGER_DEPLOY_PATH%/public_html}/transtrade_private"
           ssh -i "$RUNNER_TEMP/ssh/deploy_key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" -o StrictHostKeyChecking=yes -o ServerAliveInterval=15 -o ServerAliveCountMax=12 -p "$HOSTINGER_PORT" "$HOSTINGER_USER@$HOSTINGER_HOST" bash -s -- "$private_dir" <<'SH'
           set -euo pipefail
           private_dir="$1"
