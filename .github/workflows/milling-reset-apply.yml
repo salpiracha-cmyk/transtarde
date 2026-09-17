@@ -30,6 +30,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Install isolated browser runtime
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install --with-deps chromium
       - name: Configure verified SSH connection
         env:
           HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
@@ -75,7 +79,11 @@ jobs:
           if(count($pis)<1||count($loads)<1) throw new RuntimeException('Current ASAS Production or Loading Instructions are missing.');
           $selectedPi=$pis[0];$selectedLoad=$loads[0];
           if((string)($selectedLoad['plan']['loadingProgrammeNo']??$selectedLoad['loadingProgrammeNo']??'')!=='5445JJH') throw new RuntimeException('Unexpected ASAS Loading Instructions revision.');
-          $snapshot=tt_create_server_snapshot('pre-milling-reset-asas');
+          $backupDir=TT_DATA_DIR.'/backups';
+          if(!is_dir($backupDir)&&!mkdir($backupDir,0700,true)&&!is_dir($backupDir)) throw new RuntimeException('Backup directory unavailable.');
+          $snapshot=$backupDir.'/pre-milling-reset-asas-'.gmdate('Ymd-His').'.json';
+          if(file_put_contents($snapshot,$before,LOCK_EX)===false) throw new RuntimeException('Protected operational snapshot failed.');
+          @chmod($snapshot,0600);
           $handle=fopen($path,'c+');
           if($handle===false||!flock($handle,LOCK_EX)) throw new RuntimeException('Operational store lock failed.');
           try{
@@ -112,8 +120,6 @@ jobs:
           PHP
       - name: Open Milling to rebuild exact Export handoff
         run: |
-          npm install --no-save playwright@1.55.0
-          npx playwright install --with-deps chromium
           node <<'NODE'
           const { chromium } = require('playwright');
           (async()=>{
