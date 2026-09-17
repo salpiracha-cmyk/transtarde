@@ -86,7 +86,7 @@ function tt_default_masters(): array {
             ['id'=>'export-term-advance','values'=>['ADVANCE','Partial shipment allowed.','Active']],
             ['id'=>'export-term-cad','values'=>['CAD','Partial shipment allowed.','Active']],
         ],
-        'parties'=>[['id'=>'parties-1','values'=>['Shams','BRK-001','Broker']],['id'=>'parties-2','values'=>['Sample Overseas Buyer','BUY-001','Export buyer']]],
+        'parties'=>[],
         'mills'=>[['id'=>'mills-1','values'=>['TTI Rice Mill','TTI-MILL','Own mill']],['id'=>'mills-2','values'=>['Karachi Office','KHI-OFF','Office']]],
         'banks'=>[
             ['id'=>'banks-tti','values'=>['Company Account','TTI — Transtrade International','','Transtrade International','Meezan Bank Limited','Jodia Bazar Branch, Karachi','Pakistan','PKR','','','','Pakistan operating account','Accounts / Directors; document use to be confirmed','Incomplete — enter account number/IBAN and confirm use']],
