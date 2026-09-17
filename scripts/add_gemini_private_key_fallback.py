@@ -1,5 +1,7 @@
 from pathlib import Path
 
+# One-time branch patch: allow the production reader to use a private key file
+# outside public_html when an environment variable is not available.
 path = Path('api/document_ai.php')
 text = path.read_text(encoding='utf-8')
 old = """function ai_env(string $name): string {\n    foreach (['TT_'.$name,$name] as $key) {\n        $value=getenv($key);\n        if($value!==false && trim((string)$value)!=='') return trim((string)$value);\n    }\n    return '';\n}\n"""
