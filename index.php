@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require __DIR__ . '/auth_store.php';
+require_once __DIR__ . '/owner_master_cleanup.php';
 if (!tt_has_admin()) {
     header('Location: setup.php');
     exit;
@@ -8,6 +9,7 @@ if (!tt_has_admin()) {
 $user = tt_require_login();
 if (!empty($user['must_change_password'])) { header('Location: change-password.php'); exit; }
 if (($user['role'] ?? '') !== 'Super Admin') { header('Location: '.tt_user_landing_url($user)); exit; }
+tt_apply_owner_master_cleanup();
 header('Content-Type: text/html; charset=UTF-8');
 $html = file_get_contents(__DIR__ . '/index.html');
 $session = [
