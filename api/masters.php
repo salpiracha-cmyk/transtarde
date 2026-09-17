@@ -14,10 +14,38 @@ function master_all(): array {
     $masters['salary_staff']=sm_master_rows();
     return $masters;
 }
+function master_options_for_console(): array {
+    $options=tt_master_options();
+    $data=tt_read_store();
+    $approvedFinishes=[
+        'Well milled, silky polished and well sortexed',
+        'Well milled, double polished and well sortexed',
+        'Reasonably well milled',
+        'Colour sortexed',
+    ];
+    $stored=is_array($data['master_options']['product_finishes'] ?? null)
+        ? $data['master_options']['product_finishes'] : [];
+    $disabled=array_map(
+        static fn($v): string => strtolower(trim((string)$v)),
+        (array)($data['master_options_disabled']['product_finishes'] ?? [])
+    );
+    $clean=[];$seen=[];
+    foreach (array_merge($approvedFinishes,$stored) as $finish) {
+        $finish=trim(preg_replace('/\s+/',' ',(string)$finish) ?? '');
+        if ($finish==='') continue;
+        $key=strtolower($finish);
+        if (isset($seen[$key]) || in_array($key,$disabled,true)) continue;
+        $seen[$key]=true;$clean[]=$finish;
+    }
+    // Historical/reference Product records retain their saved Finish wording,
+    // but they must not automatically become reusable choices for new Products.
+    $options['product_finishes']=$clean;
+    return $options;
+}
 try {
     $admin=tt_require_login();
     if (($admin['role'] ?? '')!=='Super Admin') master_respond(['ok'=>false,'error'=>'Super Admin access required.'],403);
-    if ($_SERVER['REQUEST_METHOD']==='GET') master_respond(['ok'=>true,'masters'=>master_all(),'options'=>tt_master_options()]);
+    if ($_SERVER['REQUEST_METHOD']==='GET') master_respond(['ok'=>true,'masters'=>master_all(),'options'=>master_options_for_console()]);
     if ($_SERVER['REQUEST_METHOD']!=='POST') master_respond(['ok'=>false,'error'=>'Method not allowed.'],405);
     $body=json_decode(file_get_contents('php://input') ?: '{}',true);
     if (!is_array($body) || !tt_verify_csrf((string)($body['csrf'] ?? ''))) master_respond(['ok'=>false,'error'=>'Your session expired. Refresh and try again.'],419);
@@ -29,14 +57,14 @@ try {
         $optionKey=(string)($body['optionKey'] ?? '');
         $value=tt_manage_master_option($optionKey,$optionAction,(string)($body['value'] ?? ''),(string)($body['old'] ?? ''));
         tt_audit((int)$admin['id'],$admin['username'],ucfirst($optionAction).' '.$optionKey.' option '.$value);
-        master_respond(['ok'=>true,'masters'=>master_all(),'options'=>tt_master_options(),'value'=>$value]);
+        master_respond(['ok'=>true,'masters'=>master_all(),'options'=>master_options_for_console(),'value'=>$value]);
     }
     if ($type==='salary_staff') {
         if ($action==='delete') {
             if ($id==='') throw new InvalidArgumentException('Select a staff record.');
             sm_deactivate_master($id,$admin);
             tt_audit((int)$admin['id'],$admin['username'],'Removed staff from active Salary Master '.$id);
-            master_respond(['ok'=>true,'masters'=>master_all(),'options'=>tt_master_options()]);
+            master_respond(['ok'=>true,'masters'=>master_all(),'options'=>master_options_for_console()]);
         }
         $values=$body['values']??null;
         if (!is_array($values)) throw new InvalidArgumentException('Enter the Salary Master details.');
@@ -46,7 +74,7 @@ try {
             sm_save_master($values,$admin,$id);
         } else master_respond(['ok'=>false,'error'=>'Unknown Salary Master action.'],400);
         tt_audit((int)$admin['id'],$admin['username'],($action==='create'?'Created ':'Updated ').'Salary Master '.$id);
-        master_respond(['ok'=>true,'masters'=>master_all(),'options'=>tt_master_options()]);
+        master_respond(['ok'=>true,'masters'=>master_all(),'options'=>master_options_for_console()]);
     }
 
     $schemas=[
@@ -57,7 +85,7 @@ try {
     if ($action==='add-party-role') {
         $role=tt_add_party_role_option((string)($body['role'] ?? ''));
         tt_audit((int)$admin['id'],$admin['username'],'Added Party Role '.$role);
-        master_respond(['ok'=>true,'masters'=>master_all(),'options'=>tt_master_options(),'role'=>$role]);
+        master_respond(['ok'=>true,'masters'=>master_all(),'options'=>master_options_for_console(),'role'=>$role]);
     }
 
     // Owner rule: the Super Admin has full lifecycle control over Master
@@ -65,7 +93,7 @@ try {
     if ($action==='delete') {
         if ($id==='') throw new InvalidArgumentException('Select a master record.');
         tt_delete_master($type,$id); tt_audit((int)$admin['id'],$admin['username'],'Deleted '.$type.' master '.$id);
-        master_respond(['ok'=>true,'masters'=>master_all(),'options'=>tt_master_options()]);
+        master_respond(['ok'=>true,'masters'=>master_all(),'options'=>master_options_for_console()]);
     }
 
     $raw=$body['values'] ?? null;
@@ -115,12 +143,12 @@ try {
     $reference=strtoupper(trim((string)($values[1] ?? ''))) ?: strtoupper($type);
     if ($action==='create') {
         $id=tt_create_master($type,$values); tt_audit((int)$admin['id'],$admin['username'],'Created '.$type.' master '.$reference);
-        master_respond(['ok'=>true,'masters'=>master_all(),'options'=>tt_master_options()]);
+        master_respond(['ok'=>true,'masters'=>master_all(),'options'=>master_options_for_console()]);
     }
     if ($action==='update') {
         if ($id==='') throw new InvalidArgumentException('Select a master record.');
         tt_update_master($type,$id,$values); tt_audit((int)$admin['id'],$admin['username'],'Updated '.$type.' master '.$reference);
-        master_respond(['ok'=>true,'masters'=>master_all(),'options'=>tt_master_options()]);
+        master_respond(['ok'=>true,'masters'=>master_all(),'options'=>master_options_for_console()]);
     }
     master_respond(['ok'=>false,'error'=>'Unknown action.'],400);
 } catch (InvalidArgumentException $e) { master_respond(['ok'=>false,'error'=>$e->getMessage()],422); }
