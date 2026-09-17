@@ -65,7 +65,7 @@ const contract = {
 };
 
 (async () => {
-  const browser = await chromium.launch({ headless: true });
+  const browser = await chromium.launch({ headless: true, ...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH } : {}) });
   const page = await browser.newPage({ viewport: { width: 1400, height: 1100 } });
   await page.route('http://tt.local/exports/assets/**', async route => {
     const filename = path.basename(new URL(route.request().url()).pathname);
@@ -117,7 +117,7 @@ const contract = {
   assert.ok(report.length >= 2 && report.length <= 3, `representative contract must use 2-3 pages, got ${report.length}`);
   assert.equal(report.reduce((sum, row) => sum + row.titleCount, 0), 1, 'title must appear on page one only');
   assert.ok(report[0].letterheadCount >= 1, 'page one must retain the seller letterhead');
-  assert.ok(report.slice(1).every(row => row.letterheadCount === 0), 'continuation pages must start with the reference/date box, without repeating the letterhead');
+  assert.ok(report.slice(1).every(row => row.letterheadCount >= 1), 'every continuation page must repeat the seller letterhead while keeping the SALES CONTRACT title on page one only');
   assert.equal(report.at(-1).pageStampCount, 0, 'final page must not have the separate page stamp');
   assert.equal(report.at(-1).finalSignatureCount, 1, 'final page must have exactly one Seller/Buyer signature block');
   assert.equal(report.at(-1).validityCount, 1, 'validity must remain with final signatures');

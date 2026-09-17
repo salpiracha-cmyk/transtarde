@@ -2,7 +2,7 @@
   "use strict";
 
   const STORAGE_KEY = "transtrade_super_admin_v1";
-  const STATE_VERSION = 4;
+  const STATE_VERSION = 5;
   const ACTIONS = ["View", "Create", "Edit", "Delete", "Print", "Approve", "Reports"];
   const ICON_ACTIONS = ["View", "Create", "Edit"];
   const MODULE_ICONS = {
@@ -62,12 +62,15 @@
         { label: "Entity scope", type: "select", options: ["", "Pakistan", "Offshore", "Other"] },
         { label: "Company roles", type: "checks", full: true, options: ["Group Company", "Pakistan Operating Entity", "Offshore Export Contracting", "Exporter", "Mill / Processor", "Seller", "Buyer", "Intercompany", "Accounting Entity"] },
         { label: "TG special handling", type: "select", options: ["No", "Yes"] },
-        { label: "System behaviour / notes", type: "textarea", full: true }
+        { label: "System behaviour / notes", type: "textarea", full: true },
+        { label: "Owners / partners", type: "textarea", full: true },
+        { label: "KCCI membership no." }, { label: "REAP membership no." },
+        { label: "NTN number" }, { label: "Sales tax number" }, { label: "Company number" }
       ],
       rows: [
-        ["Transtrade International", "TTI", "Pakistan", "Pakistan", "Group Company; Pakistan Operating Entity; Exporter; Seller; Buyer; Accounting Entity", "No", "Primary Pakistan operating/export entity."],
-        ["Buksh Rice Mills", "BRM", "Pakistan", "Pakistan", "Group Company; Mill / Processor; Seller; Buyer; Accounting Entity", "No", "Mill/processing entity and authorized document identity."],
-        ["Trans Grains Foodstuff Trading L.L.C", "TG", "United Arab Emirates", "Offshore", "Group Company; Offshore Export Contracting; Intercompany; Accounting Entity", "Yes", "TG-linked group workflow. Keep Pakistan and offshore accounting/legal records separated while allowing authorized group-owner visibility."]
+        ["Transtrade International", "TTI", "Pakistan", "Pakistan", "Group Company; Pakistan Operating Entity; Exporter; Seller; Buyer; Accounting Entity", "No", "Primary Pakistan operating/export entity.", '[{"name":"","share":100}]', "36453", "", "", "", ""],
+        ["Buksh Rice Mills", "BRM", "Pakistan", "Pakistan", "Group Company; Mill / Processor; Seller; Buyer; Accounting Entity", "No", "Mill/processing entity and authorized document identity.", '[{"name":"","share":100}]', "", "", "", "", ""],
+        ["Trans Grains Foodstuff Trading L.L.C", "TG", "United Arab Emirates", "Offshore", "Group Company; Offshore Export Contracting; Intercompany; Accounting Entity", "Yes", "TG-linked group workflow. Keep Pakistan and offshore accounting/legal records separated while allowing authorized group-owner visibility.", '[{"name":"","share":100}]', "", "", "", "", "", ""]
       ]
     },
     {
@@ -443,7 +446,11 @@
       const code = String(values[1] || "").toUpperCase();
       if (code) seenCompanies.add(code);
       if (companyDefaults.has(code) && (values.length <= 3 || (code === "BRM" && values[0] === "BRM"))) return { ...row, values: [...companyDefaults.get(code)] };
-      return row;
+      const defaults=companyDefaults.get(code)||[];
+      while (values.length < 13) values.push(defaults[values.length] || "");
+      if (!values[7]) values[7]='[{"name":"","share":100}]';
+      if (code === "TTI" && !values[8]) values[8]="36453";
+      return { ...row, values };
     });
     companyDefaults.forEach((values, code) => {
       if (!seenCompanies.has(code)) result.companies.push({ id: `companies-${code.toLowerCase()}-default`, values: [...values] });
@@ -478,6 +485,7 @@
   function companyMasterFieldsHtml(values = []) {
     const roles = ["Group Company", "Pakistan Operating Entity", "Offshore Export Contracting", "Exporter", "Mill / Processor", "Seller", "Buyer", "Intercompany", "Accounting Entity"];
     const selected = new Set(String(values[4] || "").split(";").map(v => v.trim()).filter(Boolean));
+    let owners=[];try{owners=JSON.parse(values[7]||"[]")}catch{}if(!Array.isArray(owners)||!owners.length)owners=[{name:"",share:100}];
     return `<section class="master-editor-section"><div class="master-editor-heading"><div><h3>Company identity</h3><p>The list shows only identity. Legal and workflow detail stays inside Edit.</p></div></div><div class="master-identity-grid">
       <label>Legal company name<input id="${masterInputId(0)}" data-master-field-index="0" value="${escapeHtml(values[0] || "")}" required></label>
       <label>Short code<input id="${masterInputId(1)}" data-master-field-index="1" value="${escapeHtml(values[1] || "")}" required></label>
@@ -485,6 +493,8 @@
       <label>Entity scope<select id="${masterInputId(3)}" data-master-field-index="3">${["","Pakistan","Offshore","Other"].map(x => `<option value="${escapeHtml(x)}" ${x===String(values[3]||"")?"selected":""}>${escapeHtml(x||"Select")}</option>`).join("")}</select></label>
     </div></section>
     <section class="master-editor-section"><div class="master-editor-heading"><div><h3>Company roles</h3><p>These roles tell Transtrade where the entity may be used.</p></div></div><div class="master-checks">${roles.map(role => `<label><input type="checkbox" data-master-field-index="4" value="${escapeHtml(role)}" ${selected.has(role)?"checked":""}>${escapeHtml(role)}</label>`).join("")}</div></section>
+    <section class="master-editor-section"><div class="master-editor-heading"><div><h3>Ownership</h3><p>Single-owner companies default to 100%. Partnership shares must total 100%.</p></div><button type="button" class="button secondary" id="addCompanyOwner">+ Add owner</button></div><input type="hidden" id="${masterInputId(7)}" data-master-field-index="7" value="${escapeHtml(values[7]||'')}"><div id="companyOwnerRows">${owners.map((owner,index)=>`<div class="master-identity-grid company-owner-row"><label>Owner / partner name<input data-company-owner-name value="${escapeHtml(owner.name||'')}"></label><label>Share %<input data-company-owner-share type="number" min="0" max="100" step="0.01" value="${Number(owner.share??(owners.length===1?100:0))}"></label><button type="button" class="button danger" data-remove-company-owner="${index}">Remove</button></div>`).join('')}</div></section>
+    <section class="master-editor-section"><div class="master-editor-heading"><div><h3>Registrations & memberships</h3><p>Pakistan registrations and offshore company identity remain with the legal entity.</p></div></div><div class="master-form-grid"><label>KCCI membership no.<input id="${masterInputId(8)}" data-master-field-index="8" value="${escapeHtml(values[8]||'')}"></label><label>REAP membership no.<input id="${masterInputId(9)}" data-master-field-index="9" value="${escapeHtml(values[9]||'')}"></label><label>NTN number<input id="${masterInputId(10)}" data-master-field-index="10" value="${escapeHtml(values[10]||'')}"></label><label>Sales tax number<input id="${masterInputId(11)}" data-master-field-index="11" value="${escapeHtml(values[11]||'')}"></label><label>Company number — non-Pakistan companies<input id="${masterInputId(12)}" data-master-field-index="12" value="${escapeHtml(values[12]||'')}"></label></div></section>
     <section class="master-editor-section"><div class="master-editor-heading"><div><h3>Special workflow & behaviour</h3><p>Keep exceptional entity handling separate from ordinary identity.</p></div></div><div class="master-form-grid"><label>TG special handling<select id="${masterInputId(5)}" data-master-field-index="5">${["No","Yes"].map(x=>`<option ${x===String(values[5]||"No")?"selected":""}>${x}</option>`).join("")}</select></label><label class="full-span">System behaviour / notes<textarea id="${masterInputId(6)}" data-master-field-index="6" rows="4">${escapeHtml(values[6] || "")}</textarea></label></div></section>`;
   }
   function commodityMasterFieldsHtml(values = []) {
@@ -706,6 +716,13 @@
     }).join("");
   }
   function masterValuesFromForm(type) {
+    if (type.id === "companies") {
+      const values=Array(13).fill("");
+      [0,1,2,3,5,6,8,9,10,11,12].forEach(index=>{values[index]=document.getElementById(masterInputId(index))?.value.trim()||""});
+      values[4]=[...document.querySelectorAll('[data-master-field-index="4"]:checked')].map(input=>input.value).join("; ");
+      const owners=[...document.querySelectorAll('.company-owner-row')].map(row=>({name:row.querySelector('[data-company-owner-name]')?.value.trim()||"",share:Number(row.querySelector('[data-company-owner-share]')?.value||0)})).filter(owner=>owner.name||owner.share);
+      values[7]=JSON.stringify(owners.length?owners:[{name:"",share:100}]);return values;
+    }
     if (type.id === "products") {
       const values = Array(22).fill("");
       for (let index = 0; index < 20; index += 1) values[index] = document.querySelector(`[data-master-field-index="${index}"]`)?.value.trim() || "";
@@ -717,7 +734,7 @@
       values[21] = document.querySelector('[data-master-field-index="21"]')?.value.trim() || "";
       return values;
     }
-    if (["companies","commodities","parties","mills","banks"].includes(type.id)) {
+    if (["commodities","parties","mills","banks"].includes(type.id)) {
       return type.fields.map((field, index) => {
         if (field.type === "checks" || (type.id === "companies" && index === 4)) {
           return [...document.querySelectorAll(`[data-master-field-index="${index}"]:checked`)].map(input => input.value).join("; ");
@@ -810,6 +827,12 @@
     document.getElementById("masterDialogTitle").textContent = `${row ? "Edit" : "Add"} ${type.name}`;
     document.getElementById("masterDialogHelp").textContent = type.description + " Complete as much information as available; only the essential identity fields are mandatory.";
     document.getElementById("masterFormFields").innerHTML = masterFieldsHtml(type, row?.values || []);
+    if (type.id === "companies") {
+      const container=document.getElementById("companyOwnerRows");
+      const wireOwners=()=>{container.querySelectorAll('[data-remove-company-owner]').forEach(button=>button.onclick=()=>{button.closest('.company-owner-row')?.remove();if(!container.children.length)addOwner();if(container.children.length===1)container.querySelector('[data-company-owner-share]').value="100";wireOwners()})};
+      const addOwner=()=>{if(container.children.length===1){const share=container.querySelector('[data-company-owner-share]');if(share&&Number(share.value)===100)share.value=""}const row=document.createElement('div');row.className='master-identity-grid company-owner-row';row.innerHTML='<label>Owner / partner name<input data-company-owner-name></label><label>Share %<input data-company-owner-share type="number" min="0" max="100" step="0.01"></label><button type="button" class="button danger" data-remove-company-owner>Remove</button>';container.appendChild(row);wireOwners()};
+      document.getElementById("addCompanyOwner").onclick=addOwner;wireOwners();
+    }
     if (type.id === "products") wireProductOptionFields();
     if (type.id === "salary_staff") {
       const legalBook=document.getElementById(masterInputId(1));
@@ -841,6 +864,7 @@
     if (!form.reportValidity()) return;
     const type = masterType();
     const id = document.getElementById("editMasterId").value;
+    if(type.id==="companies"){const shares=[...document.querySelectorAll('[data-company-owner-share]')].map(input=>Number(input.value||0)),total=shares.reduce((sum,value)=>sum+value,0);if(shares.length===1&&shares[0]===0)document.querySelector('[data-company-owner-share]').value="100";else if(Math.abs(total-100)>.001){toast("Owner / partner shares must total 100%.");return}}
     try { await resolvePartyRoleBeforeSave(type); await resolveProductOptionsBeforeSave(type); } catch (error) { toast(error.message); return; }
     const values = masterValuesFromForm(type);
     const primary = values[0] || type.name;

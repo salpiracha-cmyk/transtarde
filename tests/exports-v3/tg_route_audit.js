@@ -13,7 +13,7 @@ const document={title:'TG Audit',body:new Element('body'),head:new Element('head
 const storage=new Map(),localStorage={getItem:k=>storage.get(k)||null,setItem:(k,v)=>storage.set(k,String(v)),removeItem:k=>storage.delete(k)};
 const window={document,localStorage,TT_MODULE_ACCESS:{user:'Audit',module:'Exports'},addEventListener(){},print(){}};
 const context={window,document,localStorage,console,structuredClone,alert:m=>{throw Error(m)},confirm:()=>true,location:{href:''},setTimeout:fn=>fn(),setInterval:()=>0,clearTimeout(){},FileReader:class{},Date,Intl};context.globalThis=context;
-let source=fs.readFileSync(__dirname+'/app.js','utf8');
+let source=fs.readFileSync(__dirname+'/../../exports/app.js','utf8');
 source=source.replace('mount();',`window.__TG_AUDIT__={state,makeShipment,makeLotRecord,commercialInvoiceDoc,packingListDoc,phytoInvoiceDoc,blDraftDoc,cooDoc,tgInternalDoc,tgPakistanCoveringDoc,SELLERS};mount();`);
 vm.runInNewContext(source,context,{filename:'app.js'});
 const t=window.__TG_AUDIT__;
@@ -51,7 +51,7 @@ const bl=t.blDraftDoc(lot,contract);
 assert.match(bl,/oceanBlPage/);
 assert.match(bl,/FINAL BUYER LLC/i);
 assert.doesNotMatch(bl,/assets\/BRM_header\.png|docFooterArt|docAutoSign|bagMarking/);
-assert.match(t.cooDoc(lot,contract,false),/assets\/BRM_header\.png/);
+assert.match(t.cooDoc(lot,contract,false),/assets\/KCCI_COO_letterpad\.webp/);
 assert.match(t.cooDoc(lot,contract,false),/FINAL BUYER LLC/i);
 for(const html of [t.tgInternalDoc(lot,contract),t.tgPakistanCoveringDoc(lot,contract)]){
   assert.match(html,/assets\/BRM_header\.png/);

@@ -10,7 +10,7 @@ assert.doesNotMatch(html, /TTI-EXP-042|Late Soda delivery|Jazib requested print 
 assert.match(html, /No pending approvals/, 'Super Admin has an honest approval empty state');
 assert.match(html, /No verified notifications/, 'Super Admin has an honest notification empty state');
 assert.doesNotMatch(app, /status: "Live trial"/, 'connected modules are no longer labelled as trials');
-assert.match(app, /const STATE_VERSION = 4/, 'browser console state migrates once');
+assert.match(app, /const STATE_VERSION = 5/, 'browser console state migrates once');
 assert.match(app, /demoRefs/, 'known legacy demo audit rows are removed');
 assert.match(cleanup, /pre-qa-cleanup/, 'server cleanup creates a protected snapshot first');
 assert.match(cleanup, /QA\|TEST\|DUMMY\|DEMO\|BULK/, 'cleanup is limited to explicit test markers');

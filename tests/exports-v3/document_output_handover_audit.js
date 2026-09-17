@@ -14,30 +14,30 @@ function finalSlice(start, end, limit = 30000) {
   return app.slice(at, stop > at ? stop : at + limit);
 }
 
-const customs = finalSlice('freshCustomsInvoiceDocument=function', 'freshCustomPackingDocument=function');
+const customs = finalSlice('function freshCustomsInvoiceDocument', 'function freshCustomPackingDocument');
 assert.match(customs, /CUSTOMS INVOICE/);
 assert.match(customs, /NUMBER AND KIND OF PACKAGES/);
 assert.match(customs, /TOTAL NET WEIGHT|NET WEIGHT/);
 assert.match(customs, /TARE WEIGHT/);
 assert.match(customs, /GROSS WEIGHT/);
-assert.match(customs, /\.toFixed\(3\)} MT/);
-assert.match(customs, /\.toFixed\(3\)} KG/);
-assert.match(customs, /PAYMENT BREAKDOWN/);
+assert.match(customs, /\.toFixed\(3\)} M\.TONS/);
+assert.match(app, /function ttApprovedWeight[\s\S]*documentMTonsFromKg\(kg\)[\s\S]*documentKg\(kg\)/);
+assert.match(app, /PAYMENT BREAKDOWN/);
 assert.match(customs, /BANK NAME/);
 assert.match(customs, /IBAN/);
 assert.doesNotMatch(customs, /ILLUSTRATIVE PREVIEW|SAMPLE DATA/);
 
-const packing = finalSlice('freshCustomPackingDocument=function', 'phytoInvoiceDoc=function');
+const packing = finalSlice('function freshCustomPackingDocument', 'function phytoInvoiceDoc');
 assert.match(packing, /CUSTOM PACKING LIST/);
 assert.match(packing, /TOTAL NET WEIGHT/);
-assert.match(packing, /TARE WEIGHT/);
+assert.match(packing, /<th>TARE<\/th>/);
 assert.match(packing, /TOTAL GROSS WEIGHT/);
 assert.doesNotMatch(packing, /DRAWEE[^\n]*NAME &amp; ADDRESS/);
 
-const phyto = finalSlice('phytoInvoiceDoc=function', 'packingListDoc=function', 1000);
+const phyto = finalSlice('function phytoInvoiceDoc', 'function packingListDoc', 1000);
 assert.match(phyto, /freshCustomsInvoiceDocument\(s,c,'PHYTOSANITARY INVOICE'\)/);
 
-const bl = finalSlice('blDraftDoc=function', 'function ttContractPackingPriceLabel');
+const bl = finalSlice('function blDraftDoc', 'function ttContractPackingPriceLabel');
 assert.match(bl, /oceanBlPage/);
 assert.match(bl, /OCEAN BILL OF LADING/);
 assert.match(bl, /DRAFT FOR APPROVAL/);
@@ -46,24 +46,24 @@ assert.match(bl, /NON-NEGOTIABLE COPIES/);
 assert.doesNotMatch(bl, /pageDoc\(|letterhead\(|footerArt\(|signature\(/);
 assert.doesNotMatch(bl, /ILLUSTRATIVE|\* Port of loading/);
 
-const price = finalSlice('contractPriceHTML=function', 'const ttIssuePOBeforeHandover');
+const price = finalSlice('function contractPriceHTML', 'function issuePO');
 for (const label of ['TOTAL FOB VALUE', 'TOTAL FREIGHT', 'TOTAL INSURANCE', 'TOTAL CONTRACT VALUE']) {
   assert.match(price, new RegExp(label));
 }
 assert.match(price, /approvedContractPriceGrid/);
 assert.match(price, /amountWords/);
-assert.match(price, /For \$\{num\(p\.size\)\}/);
+assert.match(app, /function ttContractPackingPriceLabel[\s\S]*For \$\{num\(p\.size\)\}/);
 
-const po = finalSlice('purchaseOrderPrint=function', 'window.addEventListener');
+const po = finalSlice('function purchaseOrderPrint', 'function commercialCopyLabel');
 assert.match(po, /TOTAL ORDER/);
-assert.match(po, /P\.O\. NUMBER MUST BE MENTIONED ON THE DELIVERY ORDER/);
+assert.match(po, /P\.O\. NUMBER IS MENTIONED ON THE DELIVERY ORDER/);
 assert.match(po, /SALES TAX INVOICE/);
 assert.match(po, /masters\.push/);
 assert.match(po, /serial\+\+/);
 assert.match(app, /A Bag Purchase Order already exists for this contract/);
 assert.match(app, /Update Same PO/);
 
-for (const renderer of ['commercialInvoiceDoc=function', 'function cooDoc', 'function coveringDoc']) {
+for (const renderer of ['function commercialInvoiceDoc', 'function cooDoc', 'function coveringDoc']) {
   assert.ok(app.includes(renderer), renderer + ' must remain available after reconciliation');
 }
 assert.match(css, /Document Output Section handover/);

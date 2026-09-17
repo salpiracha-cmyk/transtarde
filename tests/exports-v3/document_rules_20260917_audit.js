@@ -1,0 +1,23 @@
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const app=fs.readFileSync('exports/app.js','utf8');
+const css=fs.readFileSync('exports/app.css','utf8');
+const admin=fs.readFileSync('admin/app.js','utf8');
+
+assert.match(app,/function documentKg[\s\S]*minimumFractionDigits:2,maximumFractionDigits:2/);
+assert.match(app,/function documentMTonsFromKg[\s\S]*minimumFractionDigits:3,maximumFractionDigits:3/);
+assert.match(app,/TOTAL GROSS WEIGHT[\s\S]*TOTAL TARE WEIGHT[\s\S]*TOTAL NET WEIGHT/);
+assert.match(app,/<th>GROSS WEIGHT<\/th><th>TARE<\/th><th>NET WEIGHT<\/th>/);
+assert.doesNotMatch(app.slice(app.lastIndexOf('function packingListDoc(')),/TOTAL TARE WEIGHT FOR/);
+assert.match(css,/\.commercialInvoiceOnePage\{text-transform:uppercase\}/);
+assert.match(css,/\.printModeWithout[\s\S]*\.docAutoSign[\s\S]*\.docSignatures/);
+assert.match(app,/The letter prints as two identical, unlabelled copies/);
+assert.match(app,/close \/ utilize the applicable F\.I and GD accordingly/);
+assert.match(app,/SEND COPY SET OF DOCUMENTS TO THE BELOW BANK DETAILS/);
+assert.doesNotMatch(app.slice(app.indexOf('function coveringDoc(s,c,'),app.indexOf('const commercialInvoiceDocEntityAware')),/BANK COPY|TTI RECEIVING COPY/);
+for(const label of ['SALES CONTRACT / PROFORMA','COMMERCIAL INVOICE','PACKING LIST','BANK COVERING LETTER','RELATIONSHIP LETTER'])assert.match(app,new RegExp(label.replace('/','\\/')));
+assert.match(app,/approved specimen wording is still awaited/i);
+assert.match(app,/KCCI_COO_letterpad\.webp/);
+for(const label of ['Owners / partners','KCCI membership no.','REAP membership no.','NTN number','Sales tax number','Company number'])assert.match(admin,new RegExp(label.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'i'));
+assert.match(admin,/"36453"/);
+console.log('PASS 2026-09-17 document, TG pack, COO and company-master rules');

@@ -13,7 +13,7 @@ app = app.replace(
   `window.__renderShipmentDocuments=()=>{
     const buyer={id:'BUYER-QA',name:'North Star Foods L.L.C',address:'Warehouse 18, Jebel Ali Free Zone, Dubai, United Arab Emirates',notifies:[{name:'North Star Clearing L.L.C',address:'Office 210, Port Road, Jebel Ali, Dubai, United Arab Emirates'}]};
     state.customers=[buyer];
-    const contract={id:'CONTRACT-QA',ref:'TTI/NS/01',seller:'TTI',customerId:buyer.id,date:'2026-09-16',product:'IRRI-6 White Rice',hsCode:'1006.30',broken:5,finish:'Well milled; silky polished; well sortexed',cropYear:'2026/2027',quality:'Pakistan IRRI-6 long grain White Rice, 5% broken, well milled, silky-polished and well sortexed, new crop 2026/2027. As per contract specifications.',additionalQuality:'Free from live insects, bad odour and rice fit for human consumption.',qty:54,containers:2,tolerance:5,shipmentDate:'2026-09-30',pol:'Port Qasim, Pakistan',podPort:'Jebel Ali',podCountry:'United Arab Emirates',packingUnit:'KG',currency:'USD',incoterm:'CFR',paymentCode:'LC_SIGHT',advancePct:0,docs:['Commercial Invoice','Packing List'],packings:[{size:25,type:'P.P. Bags',brand:'NORTH STAR',tare:80,containers:2,weightPer:27,price:410,freight:20,insurance:0,masterBag:{enabled:false}}]};
+    const contract={id:'CONTRACT-QA',ref:'TTI/NS/01',seller:'TTI',customerId:buyer.id,date:'2026-09-16',product:'IRRI-6 White Rice',hsCode:'1006.30',broken:5,finish:'Well milled; silky polished; well sortexed',cropYear:'2026/2027',quality:'Pakistan IRRI-6 long grain White Rice, 5% broken, well milled, silky-polished and well sortexed, new crop 2026/2027. As per contract specifications.',additionalQuality:'Free from live insects, bad odour and rice fit for human consumption.',qty:54,containers:2,tolerance:5,shipmentDate:'2026-09-30',pol:'Port Qasim, Pakistan',podPort:'Jebel Ali',podCountry:'United Arab Emirates',packingUnit:'KG',currency:'USD',incoterm:'CFR',paymentCode:'LC_SIGHT',advancePct:0,docs:['Commercial Invoice','Packing List'],packings:[{size:25,type:'P.P. Bags',brand:'NORTH STAR',tare:80,containers:2,weightPer:27,price:410,freight:20,insurance:0,masterBag:{enabled:true,bagsPerMaster:2,quantity:1080,qty:1080,tare:120}}]};
     const shipment=makeShipment(contract);
     shipment.millActuals=[
       {number:'MSCU1234567',seal:'SL001',bags:1080,netKg:27000,tareKg:86.4,grossKg:27086.4,brand:'NORTH STAR',packing:'25 KG'},
@@ -26,7 +26,8 @@ app = app.replace(
     return {
       commercialInvoice:commercialInvoiceDoc(shipment,contract,false),
       packingList:packingListDoc(shipment,contract,false),
-      blInstructions:blDraftDoc(shipment,contract)
+      blInstructions:blDraftDoc(shipment,contract),
+      coo:cooDoc(shipment,contract,false)
     };
   };`
 );
@@ -34,7 +35,7 @@ assert.match(app, /window\.__renderShipmentDocuments/, 'shipment document render
 const css = fs.readFileSync(path.join(root, 'exports', 'app.css'), 'utf8');
 
 (async () => {
-  const browser = await chromium.launch({ headless: true });
+  const browser = await chromium.launch({ headless: true, ...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH } : {}) });
   const page = await browser.newPage({ viewport: { width: 1500, height: 1100 } });
   await page.route('http://tt.local/exports/assets/**', async route => {
     const filename = path.basename(new URL(route.request().url()).pathname);
@@ -47,9 +48,10 @@ const css = fs.readFileSync(path.join(root, 'exports', 'app.css'), 'utf8');
   const documents = await page.evaluate(() => window.__renderShipmentDocuments());
 
   const required = {
-    commercialInvoice: ['COMMERCIAL INVOICE','BUYER — NAME AND ADDRESS','North Star Foods L.L.C','Warehouse 18','VESSEL','VOYAGE','B/L NUMBER','B/L DATE','L/C NUMBER','L/C DATE','L/C ISSUING BANK','PORT OF LOADING','PORT OF DISCHARGE','PAYMENT TERMS','FI-QA-01','GD-QA-01'],
-    packingList: ['PACKING LIST','North Star Foods L.L.C','Warehouse 18','North Star Clearing L.L.C','Office 210','BL-QA-001','21-09-2026','MSCU1234567','SL001','TGHU7654321','SL002','COUNTRY OF ORIGIN: PAKISTAN','HS CODE: 1006.30'],
-    blInstructions: ['OCEAN BILL OF LADING','North Star Foods L.L.C','Warehouse 18','North Star Clearing L.L.C','Office 210','MSCU1234567','SL001','TGHU7654321','SL002','PAKISTAN IRRI-6','HS CODE: 1006.30']
+    commercialInvoice: ['COMMERCIAL INVOICE','BUYER — NAME AND ADDRESS','North Star Foods L.L.C','Warehouse 18','VESSEL','VOYAGE','B/L NUMBER','B/L DATE','L/C NUMBER','L/C DATE','L/C ISSUING BANK','PORT OF LOADING','PORT OF DISCHARGE','PAYMENT TERMS','FI-QA-01','GD-QA-01','1,080 MASTER BAGS','2 BAGS × 25 KG IN ONE MASTER BAG'],
+    packingList: ['PACKING LIST','North Star Foods L.L.C','Warehouse 18','North Star Clearing L.L.C','Office 210','BL-QA-001','21-09-2026','MSCU1234567','SL001','TGHU7654321','SL002','COUNTRY OF ORIGIN: PAKISTAN','HS CODE: 1006.30','1,080 MASTER BAGS','GROSS WEIGHT','TARE','NET WEIGHT','M.TONS'],
+    blInstructions: ['OCEAN BILL OF LADING','North Star Foods L.L.C','Warehouse 18','North Star Clearing L.L.C','Office 210','MSCU1234567','SL001','TGHU7654321','SL002','"NORTH STAR" BRAND','PAKISTAN LONG GRAIN IRRI-6 WHITE RICE','HS CODE: 1006.30','1,080 MASTER BAGS','2 BAGS × 25 KG IN ONE MASTER BAG'],
+    coo: ['North Star Foods L.L.C','36453','BY SEA','BL-QA-001','GOODS OF PAKISTAN ORIGIN','54.173 M.TONS','54.000 M.TONS']
   };
 
   const report = {};
@@ -72,11 +74,13 @@ const css = fs.readFileSync(path.join(root, 'exports', 'app.css'), 'utf8');
       };
     });
     for (const text of required[name]) assert.ok(report[name].text.toUpperCase().includes(text.toUpperCase()), `${name} is missing ${text}`);
+    if(name==='commercialInvoice') assert.ok(!/(^|\n)QUANTITY($|\n)/i.test(report[name].text), 'single-line Commercial Invoice must not show a Quantity column');
+    if(name==='blInstructions') assert.equal((report[name].text.match(/"NORTH STAR" BRAND/gi)||[]).length,1,'B/L brand must appear once, in Marks');
     assert.ok(report[name].horizontalOverflow.every(value => value < 2), `${name} has content outside its page width`);
     assert.ok(report[name].verticalOverflow.every(value => value < 2), `${name} has content outside its page height`);
     if (name === 'blInstructions') assert.ok(report[name].blBackgrounds.every(value => value === 'rgb(255, 255, 255)' || value === 'rgba(0, 0, 0, 0)'), 'B/L Draft must remain plain white without coloured bands');
     await page.screenshot({ path: path.join(outputDir, `${name}.png`), fullPage: true });
-    await page.pdf({ path: path.join(outputDir, `${name}.pdf`), format: 'A4', printBackground: true, preferCSSPageSize: true, margin: { top: '0', right: '0', bottom: '0', left: '0' } });
+    if(name!=='coo') await page.pdf({ path: path.join(outputDir, `${name}.pdf`), format: 'A4', printBackground: true, preferCSSPageSize: true, margin: { top: '0', right: '0', bottom: '0', left: '0' } });
   }
   fs.writeFileSync(path.join(outputDir, 'report.json'), JSON.stringify(Object.fromEntries(Object.entries(report).map(([name, value]) => [name, { ...value, text: undefined }])), null, 2));
   await browser.close();
