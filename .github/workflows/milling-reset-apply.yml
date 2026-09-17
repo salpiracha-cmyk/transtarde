@@ -15,55 +15,73 @@ concurrency:
 jobs:
   reset:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
     environment: live-qa
     env:
-      HOSTINGER_HOST: ${{ secrets.HOSTINGER_HOST }}
-      HOSTINGER_PORT: ${{ secrets.HOSTINGER_PORT }}
-      HOSTINGER_USER: ${{ secrets.HOSTINGER_USER }}
-      HOSTINGER_DEPLOY_PATH: ${{ secrets.HOSTINGER_DEPLOY_PATH }}
-      TRANSTRADE_QA_USERNAME: ${{ secrets.TRANSTRADE_QA_USERNAME }}
-      TRANSTRADE_QA_PASSWORD: ${{ secrets.TRANSTRADE_QA_PASSWORD }}
+      HOSTINGER_HOST: \${{ secrets.HOSTINGER_HOST }}
+      HOSTINGER_PORT: \${{ secrets.HOSTINGER_PORT }}
+      HOSTINGER_USER: \${{ secrets.HOSTINGER_USER }}
+      HOSTINGER_DEPLOY_PATH: \${{ secrets.HOSTINGER_DEPLOY_PATH }}
+      TRANSTRADE_QA_USERNAME: \${{ secrets.TRANSTRADE_QA_USERNAME }}
+      TRANSTRADE_QA_PASSWORD: \${{ secrets.TRANSTRADE_QA_PASSWORD }}
       TRANSTRADE_BASE_URL: https://app.transtradeinternational.com
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Install isolated browser runtime
+      - name: Install browser runtime
         run: |
           npm install --no-save playwright@1.55.0
           npx playwright install --with-deps chromium
       - name: Configure verified SSH connection
         env:
-          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
-          HOSTINGER_KNOWN_HOSTS: ${{ secrets.HOSTINGER_KNOWN_HOSTS }}
+          HOSTINGER_SSH_KEY: \${{ secrets.HOSTINGER_SSH_KEY }}
+          HOSTINGER_KNOWN_HOSTS: \${{ secrets.HOSTINGER_KNOWN_HOSTS }}
         run: |
           set -euo pipefail
           install -m 700 -d "$RUNNER_TEMP/ssh"
           printf '%s\n' "$HOSTINGER_SSH_KEY" | tr -d '\r' > "$RUNNER_TEMP/ssh/deploy_key"
           printf '%s\n' "$HOSTINGER_KNOWN_HOSTS" | tr -d '\r' > "$RUNNER_TEMP/ssh/known_hosts"
           chmod 600 "$RUNNER_TEMP/ssh/deploy_key" "$RUNNER_TEMP/ssh/known_hosts"
-      - name: Create protected snapshot and reset Milling operational data
+      - name: Create checksum-verified rollback snapshot
         run: |
           set -euo pipefail
           case "$HOSTINGER_DEPLOY_PATH" in
             /home/*/domains/app.transtradeinternational.com/public_html) ;;
             *) echo "Unexpected production path"; exit 1 ;;
           esac
-          ssh -i "$RUNNER_TEMP/ssh/deploy_key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" -o StrictHostKeyChecking=yes -p "$HOSTINGER_PORT" "$HOSTINGER_USER@$HOSTINGER_HOST" php -- "$HOSTINGER_DEPLOY_PATH" <<'PHP'
+          private_dir="\${HOSTINGER_DEPLOY_PATH%/public_html}/transtrade_private"
+          ssh -i "$RUNNER_TEMP/ssh/deploy_key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" -o StrictHostKeyChecking=yes -o ServerAliveInterval=15 -o ServerAliveCountMax=12 -p "$HOSTINGER_PORT" "$HOSTINGER_USER@$HOSTINGER_HOST" bash -s -- "$private_dir" <<'SH'
+          set -euo pipefail
+          private_dir="$1"
+          source_file="$private_dir/operations.json"
+          test -s "$source_file"
+          install -m 700 -d "$private_dir/backups"
+          snapshot="$private_dir/backups/pre-milling-reset-asas-$(date -u +%Y%m%d-%H%M%S).json"
+          cp -p "$source_file" "$snapshot"
+          chmod 600 "$snapshot"
+          test "$(sha256sum "$source_file" | awk '{print $1}')" = "$(sha256sum "$snapshot" | awk '{print $1}')"
+          printf 'ROLLBACK_SNAPSHOT=%s\n' "$(basename "$snapshot")"
+          printf 'OPERATIONS_BYTES=%s\n' "$(wc -c < "$source_file")"
+          SH
+      - name: Trim Export handoff and clear Milling operations atomically
+        run: |
+          set -euo pipefail
+          ssh -i "$RUNNER_TEMP/ssh/deploy_key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" -o StrictHostKeyChecking=yes -o ServerAliveInterval=15 -o ServerAliveCountMax=12 -p "$HOSTINGER_PORT" "$HOSTINGER_USER@$HOSTINGER_HOST" php -d memory_limit=1536M -d max_execution_time=0 -- "$HOSTINGER_DEPLOY_PATH" <<'PHP'
           <?php
           declare(strict_types=1);
           $target=(string)($argv[1]??'');
           require $target.'/auth_store.php';
-          require $target.'/backup_lib.php';
           $path=TT_DATA_DIR.'/operations.json';
-          $before=is_file($path)?(string)file_get_contents($path):'';
-          $store=$before!==''?json_decode($before,true):null;
-          if(!is_array($store)) throw new RuntimeException('Operational store unavailable.');
+          if(!is_file($path)) throw new RuntimeException('Operational store unavailable.');
+          $beforeHash=hash_file('sha256',$path);
+          $raw=(string)file_get_contents($path);
+          $store=json_decode($raw,true,512,JSON_THROW_ON_ERROR);
+          unset($raw);
+          if(!is_array($store)) throw new RuntimeException('Operational store invalid.');
           $exportKey='transtrade_export_v3_operational';
-          $root=json_decode((string)($store['values'][$exportKey]??''),true);
-          if(!is_array($root)) throw new RuntimeException('Export operational store unavailable.');
+          $root=json_decode((string)($store['values'][$exportKey]??''),true,512,JSON_THROW_ON_ERROR);
           $contractRef='TG/ASAS/02';
           $lotRef='TG/ASAS/02/L01';
           $shipmentId='L-mu5heifu-gyhbk';
@@ -76,95 +94,88 @@ jobs:
           usort($pis,static fn($a,$b)=>strcmp((string)($b['sentAt']??''),(string)($a['sentAt']??'')));
           $loads=array_values(array_filter((array)($root['millSync']['exportLoading']??[]),static fn($r)=>is_array($r)&&(string)($r['contractRef']??'')===$contractRef&&(string)($r['lotId']??'')===$lotRef&&(string)($r['shipmentId']??'')===$shipmentId));
           usort($loads,static fn($a,$b)=>strcmp((string)($b['sentAt']??''),(string)($a['sentAt']??'')));
-          if(count($pis)<1||count($loads)<1) throw new RuntimeException('Current ASAS Production or Loading Instructions are missing.');
-          $selectedPi=$pis[0];$selectedLoad=$loads[0];
-          if((string)($selectedLoad['plan']['loadingProgrammeNo']??$selectedLoad['loadingProgrammeNo']??'')!=='5445JJH') throw new RuntimeException('Unexpected ASAS Loading Instructions revision.');
-          $backupDir=TT_DATA_DIR.'/backups';
-          if(!is_dir($backupDir)&&!mkdir($backupDir,0700,true)&&!is_dir($backupDir)) throw new RuntimeException('Backup directory unavailable.');
-          $snapshot=$backupDir.'/pre-milling-reset-asas-'.gmdate('Ymd-His').'.json';
-          if(file_put_contents($snapshot,$before,LOCK_EX)===false) throw new RuntimeException('Protected operational snapshot failed.');
-          @chmod($snapshot,0600);
-          $handle=fopen($path,'c+');
-          if($handle===false||!flock($handle,LOCK_EX)) throw new RuntimeException('Operational store lock failed.');
-          try{
-            rewind($handle);$latest=(string)stream_get_contents($handle);
-            if(!hash_equals(hash('sha256',$before),hash('sha256',$latest))) throw new RuntimeException('Operational data changed during reset; nothing was written.');
-            $store=json_decode($latest,true);
-            $root=json_decode((string)$store['values'][$exportKey],true);
-            $root['millSync']=(array)($root['millSync']??[]);
-            $root['millSync']['newExportBags']=[];
-            $root['millSync']['productionInstructions']=[$selectedPi];
-            $root['millSync']['exportLoading']=[$selectedLoad];
-            $store['values'][$exportKey]=json_encode($root,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);
-            $now=gmdate('c');
+          if(count($pis)<1||count($loads)<1) throw new RuntimeException('Current ASAS instructions are missing.');
+          $programme=(string)($loads[0]['plan']['loadingProgrammeNo']??$loads[0]['loadingProgrammeNo']??'');
+          if($programme!=='5445JJH') throw new RuntimeException('Unexpected ASAS Loading Instructions revision.');
+          $root['millSync']=(array)($root['millSync']??[]);
+          $root['millSync']['newExportBags']=[];
+          $root['millSync']['productionInstructions']=[$pis[0]];
+          $root['millSync']['exportLoading']=[$loads[0]];
+          $store['values'][$exportKey]=json_encode($root,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);
+          unset($root,$pis,$loads);
+          $resetKeys=[
+            'tt30bags','tt30directoralerts','tt30petty','tt30prod','tt30prodaudit','tt30prodinst','tt30queue','tt30ship','tt30slips',
+            'tt32exportsync','tt32labourfeed','tt32processingrecon','tt32stockadj','tt33bagreceipts','tt33pettyexp','tt34ghati','tt34nilqueue',
+            'tt35exload','tt35exmill','tt35exportersale','tt35localsales','tt36bagissues','tt37arrivalaudit','tt37processingexpenses','tt37usedbags',
+            'tt38accountsfeed','tt38kebills','tt38labourbills','tt38reprocessbills','tt39accountsoutbox','tt39bridgequarantine','tt39rentpayments','tt39salaryadvances'
+          ];
+          $now=gmdate('c');
+          $store['revision']=(int)($store['revision']??0)+1;
+          $store['meta'][$exportKey]=['version'=>(int)($store['meta'][$exportKey]['version']??0)+1,'updatedAt'=>$now,'updatedBy'=>'Protected Milling reset','userId'=>0,'module'=>'Super Admin'];
+          foreach($resetKeys as $key){
+            $store['values'][$key]='[]';
             $store['revision']=(int)($store['revision']??0)+1;
-            $store['meta'][$exportKey]=['version'=>(int)($store['meta'][$exportKey]['version']??0)+1,'updatedAt'=>$now,'updatedBy'=>'Protected Milling reset','userId'=>0,'module'=>'Super Admin'];
-            $resetKeys=[
-              'tt30bags','tt30directoralerts','tt30petty','tt30prod','tt30prodaudit','tt30prodinst','tt30queue','tt30ship','tt30slips',
-              'tt32exportsync','tt32labourfeed','tt32processingrecon','tt32stockadj','tt33bagreceipts','tt33pettyexp','tt34ghati','tt34nilqueue',
-              'tt35exload','tt35exmill','tt35exportersale','tt35localsales','tt36bagissues','tt37arrivalaudit','tt37processingexpenses','tt37usedbags',
-              'tt38accountsfeed','tt38kebills','tt38labourbills','tt38reprocessbills','tt39accountsoutbox','tt39bridgequarantine','tt39rentpayments','tt39salaryadvances'
-            ];
-            foreach($resetKeys as $key){
-              $store['values'][$key]='[]';
-              $store['revision']=(int)($store['revision']??0)+1;
-              $store['meta'][$key]=['version'=>(int)($store['meta'][$key]['version']??0)+1,'updatedAt'=>$now,'updatedBy'=>'Protected Milling reset','userId'=>0,'module'=>'Milling'];
-            }
-            rewind($handle);
-            if(!ftruncate($handle,0)) throw new RuntimeException('Could not reset operational store.');
-            $encoded=json_encode($store,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);
-            if(fwrite($handle,$encoded)===false) throw new RuntimeException('Could not write operational reset.');
-            fflush($handle);
-          } finally { flock($handle,LOCK_UN);fclose($handle); }
-          echo json_encode(['ok'=>true,'snapshot'=>basename($snapshot),'contractRef'=>$contractRef,'lotRef'=>$lotRef,'shipmentId'=>$shipmentId,'programmeNo'=>'5445JJH','resetKeys'=>count($resetKeys)],JSON_UNESCAPED_SLASHES).PHP_EOL;
+            $store['meta'][$key]=['version'=>(int)($store['meta'][$key]['version']??0)+1,'updatedAt'=>$now,'updatedBy'=>'Protected Milling reset','userId'=>0,'module'=>'Milling'];
+          }
+          clearstatcache(true,$path);
+          if(!hash_equals((string)$beforeHash,(string)hash_file('sha256',$path))) throw new RuntimeException('Operational data changed during reset; nothing was written.');
+          $tmp=$path.'.reset-'.bin2hex(random_bytes(6));
+          $encoded=json_encode($store,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);
+          unset($store);
+          if(file_put_contents($tmp,$encoded,LOCK_EX)===false) throw new RuntimeException('Could not stage operational reset.');
+          unset($encoded);
+          @chmod($tmp,0600);
+          if(!rename($tmp,$path)){@unlink($tmp);throw new RuntimeException('Could not activate operational reset.');}
+          echo json_encode(['ok'=>true,'contractRef'=>$contractRef,'lotRef'=>$lotRef,'shipmentId'=>$shipmentId,'programmeNo'=>$programme,'resetKeys'=>count($resetKeys)],JSON_UNESCAPED_SLASHES).PHP_EOL;
           PHP
-      - name: Open Milling to rebuild exact Export handoff
+      - name: Rebuild exact ASAS handoff and verify live state
         run: |
           node <<'NODE'
           const { chromium } = require('playwright');
           (async()=>{
             const base=process.env.TRANSTRADE_BASE_URL;
             const browser=await chromium.launch({headless:true});
-            const page=await browser.newPage({viewport:{width:1440,height:1000}});
+            const context=await browser.newContext({viewport:{width:1440,height:1000}});
+            const page=await context.newPage();
             await page.goto(base+'/login.php',{waitUntil:'domcontentloaded',timeout:45000});
             await page.getByLabel('Username').fill(process.env.TRANSTRADE_QA_USERNAME);
             await page.getByLabel('Password').fill(process.env.TRANSTRADE_QA_PASSWORD);
             await page.getByRole('button',{name:'Sign in'}).click();
             await page.waitForURL(url=>!url.pathname.endsWith('/login.php'),{timeout:30000});
-            await page.goto(base+'/module.php?id=milling',{waitUntil:'domcontentloaded',timeout:45000});
+            await page.goto(base+'/module.php?id=milling',{waitUntil:'domcontentloaded',timeout:60000});
             await page.waitForFunction(()=>window.TT_SHARED_SYNC&&typeof window.TT_SHARED_SYNC.saveNow==='function',{timeout:30000});
             await page.waitForTimeout(1500);
             await page.evaluate(async()=>{await window.TT_SHARED_SYNC.saveNow();});
-            const state=await page.evaluate(()=>({
-              prodinst:JSON.parse(localStorage.getItem('tt30prodinst')||'[]').map(x=>({contractRef:x.contractRef,brand:x.brand})),
-              ship:JSON.parse(localStorage.getItem('tt30ship')||'[]').map(x=>({contractRef:x.contractRef,lotRef:x._ttLotId||x.ref,shipmentId:x._ttShipmentId||x.shipmentId,programme:x.loadingProgrammeNo}))
+            await page.waitForTimeout(500);
+            const local=await page.evaluate(()=>({
+              prodinst:JSON.parse(localStorage.getItem('tt30prodinst')||'[]'),
+              ship:JSON.parse(localStorage.getItem('tt30ship')||'[]')
             }));
-            console.log('MILLING_HANDOFF='+JSON.stringify(state));
-            if(state.prodinst.length!==1||state.prodinst[0].contractRef!=='TG/ASAS/02') throw new Error('Exact ASAS Production Instructions were not rebuilt.');
-            if(state.ship.length!==1||state.ship[0].contractRef!=='TG/ASAS/02'||state.ship[0].lotRef!=='TG/ASAS/02/L01'||state.ship[0].shipmentId!=='L-mu5heifu-gyhbk') throw new Error('Exact ASAS Loading Instructions were not rebuilt.');
+            if(local.prodinst.length!==1||local.prodinst[0].contractRef!=='TG/ASAS/02') throw new Error('Exact ASAS Production Instructions were not rebuilt.');
+            if(local.ship.length!==1||local.ship[0].contractRef!=='TG/ASAS/02'||(local.ship[0]._ttLotId||local.ship[0].ref)!=='TG/ASAS/02/L01'||(local.ship[0]._ttShipmentId||local.ship[0].shipmentId)!=='L-mu5heifu-gyhbk') throw new Error('Exact ASAS Loading Instructions were not rebuilt.');
+            const response=await context.request.get(base+'/api/operations.mysql.php?r='+Date.now());
+            const data=await response.json();
+            if(!data.ok) throw new Error('Live operational verification could not be read.');
+            const parse=k=>JSON.parse(data.values[k]||'[]');
+            const mustEmpty=[
+              'tt30bags','tt30directoralerts','tt30petty','tt30prod','tt30prodaudit','tt30queue','tt30slips',
+              'tt32exportsync','tt32labourfeed','tt32processingrecon','tt32stockadj','tt33bagreceipts','tt33pettyexp','tt34ghati','tt34nilqueue',
+              'tt35exload','tt35exmill','tt35exportersale','tt35localsales','tt36bagissues','tt37arrivalaudit','tt37processingexpenses','tt37usedbags',
+              'tt38accountsfeed','tt38kebills','tt38labourbills','tt38reprocessbills','tt39accountsoutbox','tt39bridgequarantine','tt39rentpayments','tt39salaryadvances'
+            ];
+            const nonempty=Object.fromEntries(mustEmpty.map(k=>[k,parse(k).length]).filter(([,n])=>n!==0));
+            const pi=parse('tt30prodinst'),ship=parse('tt30ship');
+            const root=JSON.parse(data.values.transtrade_export_v3_operational||'{}');
+            const sync=root.millSync||{};
+            const ok=Object.keys(nonempty).length===0&&pi.length===1&&ship.length===1&&
+              pi[0].contractRef==='TG/ASAS/02'&&ship[0].contractRef==='TG/ASAS/02'&&
+              (ship[0]._ttLotId||ship[0].ref)==='TG/ASAS/02/L01'&&
+              (ship[0]._ttShipmentId||ship[0].shipmentId)==='L-mu5heifu-gyhbk'&&
+              (sync.productionInstructions||[]).length===1&&(sync.exportLoading||[]).length===1&&
+              (sync.exportLoading||[])[0].shipmentId==='L-mu5heifu-gyhbk'&&(sync.newExportBags||[]).length===0;
+            const result={ok,productionInstructions:pi.length,loadingInstructions:ship.length,nonemptyResetKeys:nonempty,exportSyncProduction:(sync.productionInstructions||[]).length,exportSyncLoading:(sync.exportLoading||[]).length,contractRef:ship[0]?.contractRef,lotRef:ship[0]?._ttLotId||ship[0]?.ref,shipmentId:ship[0]?._ttShipmentId||ship[0]?.shipmentId,programmeNo:(sync.exportLoading||[])[0]?.plan?.loadingProgrammeNo};
+            console.log('FINAL_MILLING_STATE='+JSON.stringify(result));
+            if(!ok) throw new Error('Final live Milling reset verification failed.');
             await browser.close();
           })().catch(error=>{console.error(error);process.exit(1)});
           NODE
-      - name: Verify live reset and exact ASAS records
-        run: |
-          set -euo pipefail
-          ssh -i "$RUNNER_TEMP/ssh/deploy_key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" -o StrictHostKeyChecking=yes -p "$HOSTINGER_PORT" "$HOSTINGER_USER@$HOSTINGER_HOST" php -- "$HOSTINGER_DEPLOY_PATH" <<'PHP'
-          <?php
-          declare(strict_types=1);
-          $target=(string)($argv[1]??'');require $target.'/auth_store.php';
-          $store=json_decode((string)file_get_contents(TT_DATA_DIR.'/operations.json'),true);
-          $root=json_decode((string)$store['values']['transtrade_export_v3_operational'],true);
-          $pi=json_decode((string)($store['values']['tt30prodinst']??'[]'),true);
-          $ship=json_decode((string)($store['values']['tt30ship']??'[]'),true);
-          $mustEmpty=['tt30bags','tt30directoralerts','tt30petty','tt30prod','tt30prodaudit','tt30queue','tt30slips','tt32exportsync','tt32labourfeed','tt32processingrecon','tt32stockadj','tt33bagreceipts','tt33pettyexp','tt34ghati','tt34nilqueue','tt35exload','tt35exmill','tt35exportersale','tt35localsales','tt36bagissues','tt37arrivalaudit','tt37processingexpenses','tt37usedbags','tt38accountsfeed','tt38kebills','tt38labourbills','tt38reprocessbills','tt39accountsoutbox','tt39bridgequarantine','tt39rentpayments','tt39salaryadvances'];
-          $nonempty=[];
-          foreach($mustEmpty as $key){$rows=json_decode((string)($store['values'][$key]??'[]'),true);if(is_array($rows)&&count($rows))$nonempty[$key]=count($rows);}
-          $validPi=is_array($pi)&&count($pi)===1&&(string)($pi[0]['contractRef']??'')==='TG/ASAS/02';
-          $validShip=is_array($ship)&&count($ship)===1&&(string)($ship[0]['contractRef']??'')==='TG/ASAS/02'&&(string)($ship[0]['_ttLotId']??$ship[0]['ref']??'')==='TG/ASAS/02/L01'&&(string)($ship[0]['_ttShipmentId']??$ship[0]['shipmentId']??'')==='L-mu5heifu-gyhbk';
-          $syncPi=(array)($root['millSync']['productionInstructions']??[]);
-          $syncLoad=(array)($root['millSync']['exportLoading']??[]);
-          $ok=$validPi&&$validShip&&!$nonempty&&count($syncPi)===1&&count($syncLoad)===1&&(string)($syncLoad[0]['shipmentId']??'')==='L-mu5heifu-gyhbk'&&count((array)($root['millSync']['newExportBags']??[]))===0;
-          $result=['ok'=>$ok,'productionInstructions'=>is_array($pi)?count($pi):-1,'loadingInstructions'=>is_array($ship)?count($ship):-1,'nonemptyResetKeys'=>$nonempty,'exportSyncProduction'=>count($syncPi),'exportSyncLoading'=>count($syncLoad),'shipmentId'=>(string)($syncLoad[0]['shipmentId']??''),'contractRef'=>(string)($syncLoad[0]['contractRef']??''),'lotRef'=>(string)($syncLoad[0]['lotId']??'')];
-          echo json_encode($result,JSON_UNESCAPED_SLASHES).PHP_EOL;
-          if(!$ok) exit(1);
-          PHP
