@@ -25,6 +25,8 @@ assert.match(app, /function ttApprovedWeight[\s\S]*documentMTonsFromKg\(kg\)[\s\
 assert.match(app, /PAYMENT BREAKDOWN/);
 assert.match(customs, /BANK NAME/);
 assert.match(customs, /IBAN/);
+assert.match(customs, /PAYMENT TERMS/);
+assert.doesNotMatch(customs, /s\.seller==='TG'\?`<b>PAYMENT TERMS/,'Customs payment terms must not be restricted to TG shipments');
 assert.doesNotMatch(customs, /ILLUSTRATIVE PREVIEW|SAMPLE DATA/);
 
 const packing = finalSlice('function freshCustomPackingDocument', 'function phytoInvoiceDoc');
