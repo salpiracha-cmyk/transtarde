@@ -75,7 +75,14 @@ jobs:
           ];
           $sync=[];
           foreach(['productionInstructions','exportLoading'] as $kind){
-            $sync[$kind]=array_values(array_map($summarize,array_filter((array)($root['millSync'][$kind]??[]),static fn($r)=>is_array($r)&&$isAsas($r))));
+            $sync[$kind]=array_values(array_map(static fn(array $r):array=>[
+              'contractRef'=>(string)($r['contractRef']??''),'lotId'=>(string)($r['lotId']??''),
+              'shipmentId'=>(string)($r['shipmentId']??''),'sentAt'=>(string)($r['sentAt']??''),
+              'createdAt'=>(string)($r['createdAt']??''),'updatedAt'=>(string)($r['updatedAt']??''),
+              'loadingProgrammeNo'=>(string)($r['loadingProgrammeNo']??$r['programmeNo']??''),
+              'product'=>(string)($r['product']??''),'quality'=>$r['quality']??'',
+              'packings'=>$r['packings']??[],'plan'=>$r['plan']??[],'production'=>$r['production']??[]
+            ],array_filter((array)($root['millSync'][$kind]??[]),static fn($r)=>is_array($r)&&$isAsas($r))));
           }
           $millCounts=[];
           foreach((array)($store['values']??[]) as $key=>$raw){
