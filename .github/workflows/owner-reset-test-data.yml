@@ -1,0 +1,119 @@
+name: Owner Full Test Data Reset
+
+on:
+  push:
+    branches: [main]
+    paths: ['ops/reset-command.txt']
+  workflow_dispatch:
+    inputs:
+      reset_id:
+        description: 'Unique owner-authorized reset id'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: owner-full-test-data-reset
+  cancel-in-progress: false
+
+jobs:
+  reset:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: live-qa
+    env:
+      HOSTINGER_HOST: ${{ secrets.HOSTINGER_HOST }}
+      HOSTINGER_PORT: ${{ secrets.HOSTINGER_PORT }}
+      HOSTINGER_USER: ${{ secrets.HOSTINGER_USER }}
+      HOSTINGER_DEPLOY_PATH: ${{ secrets.HOSTINGER_DEPLOY_PATH }}
+      TRANSTRADE_BASE_URL: https://app.transtradeinternational.com
+      TRANSTRADE_QA_USERNAME: ${{ secrets.TRANSTRADE_QA_USERNAME }}
+      TRANSTRADE_QA_PASSWORD: ${{ secrets.TRANSTRADE_QA_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve owner reset id
+        id: reset
+        env:
+          MANUAL_ID: ${{ inputs.reset_id }}
+        run: |
+          set -euo pipefail
+          if [ -n "${MANUAL_ID:-}" ]; then RESET_ID="$MANUAL_ID"; else RESET_ID=$(tr -d '\r\n ' < ops/reset-command.txt); fi
+          case "$RESET_ID" in
+            ''|*[!A-Za-z0-9._:-]*) echo "Invalid reset id"; exit 1 ;;
+          esac
+          test ${#RESET_ID} -ge 8 || { echo "Reset id is too short"; exit 1; }
+          echo "reset_id=$RESET_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Validate reset implementation and required secrets
+        env:
+          RESET_ID: ${{ steps.reset.outputs.reset_id }}
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+          HOSTINGER_KNOWN_HOSTS: ${{ secrets.HOSTINGER_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          php -l scripts/reset_operational_test_data.php
+          node --check tests/live/owner-reset-verify.spec.js
+          for name in HOSTINGER_HOST HOSTINGER_PORT HOSTINGER_USER HOSTINGER_DEPLOY_PATH HOSTINGER_SSH_KEY HOSTINGER_KNOWN_HOSTS TRANSTRADE_QA_USERNAME TRANSTRADE_QA_PASSWORD; do
+            test -n "${!name:-}" || { echo "Missing required secret: $name"; exit 1; }
+          done
+          case "$HOSTINGER_DEPLOY_PATH" in
+            /home/*/domains/app.transtradeinternational.com/public_html) ;;
+            *) echo "Unexpected production path"; exit 1 ;;
+          esac
+          test -n "$RESET_ID"
+
+      - name: Configure verified SSH connection
+        env:
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+          HOSTINGER_KNOWN_HOSTS: ${{ secrets.HOSTINGER_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -m 700 -d "$RUNNER_TEMP/ssh"
+          printf '%s\n' "$HOSTINGER_SSH_KEY" | tr -d '\r' > "$RUNNER_TEMP/ssh/deploy_key"
+          printf '%s\n' "$HOSTINGER_KNOWN_HOSTS" | tr -d '\r' > "$RUNNER_TEMP/ssh/known_hosts"
+          chmod 600 "$RUNNER_TEMP/ssh/deploy_key" "$RUNNER_TEMP/ssh/known_hosts"
+          ssh-keygen -y -f "$RUNNER_TEMP/ssh/deploy_key" >/dev/null
+
+      - name: Execute protected reset on Hostinger
+        env:
+          RESET_ID: ${{ steps.reset.outputs.reset_id }}
+        run: |
+          set -euo pipefail
+          SSH=(ssh -i "$RUNNER_TEMP/ssh/deploy_key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" -o StrictHostKeyChecking=yes -p "$HOSTINGER_PORT")
+          SCP=(scp -i "$RUNNER_TEMP/ssh/deploy_key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" -o StrictHostKeyChecking=yes -P "$HOSTINGER_PORT")
+          REMOTE_BASE="${HOSTINGER_DEPLOY_PATH%/public_html}"
+          REMOTE_DIR="$REMOTE_BASE/.transtrade-owner-reset"
+          REMOTE_SCRIPT="$REMOTE_DIR/reset-${GITHUB_SHA}.php"
+          "${SSH[@]}" "$HOSTINGER_USER@$HOSTINGER_HOST" "mkdir -p '$REMOTE_DIR' && chmod 700 '$REMOTE_DIR'"
+          "${SCP[@]}" scripts/reset_operational_test_data.php "$HOSTINGER_USER@$HOSTINGER_HOST:$REMOTE_SCRIPT"
+          result=$("${SSH[@]}" "$HOSTINGER_USER@$HOSTINGER_HOST" php "$REMOTE_SCRIPT" --target "$HOSTINGER_DEPLOY_PATH" --reset-id "$RESET_ID" --apply)
+          "${SSH[@]}" "$HOSTINGER_USER@$HOSTINGER_HOST" "rm -f '$REMOTE_SCRIPT'"
+          echo "RESET_RESULT=$result"
+          php -r '$r=json_decode($argv[1],true);if(!is_array($r)||($r["ok"]??false)!==true){fwrite(STDERR,"Owner reset failed.\n");exit(1);} if(($r["applied"]??false)!==true && ($r["reason"]??"")!=="already-applied"){fwrite(STDERR,"Owner reset did not apply.\n");exit(1);} echo "Reset server assertions passed.\n";' "$result"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Verify reset survives Exports load and fresh login
+        env:
+          PLAYWRIGHT_HTML_OPEN: never
+        run: |
+          set -euo pipefail
+          npm install --no-save @playwright/test@1.63.0
+          npx playwright install --with-deps chromium
+          npx playwright test tests/live/owner-reset-verify.spec.js --reporter=line
+
+      - name: Reset summary
+        if: always()
+        env:
+          RESET_ID: ${{ steps.reset.outputs.reset_id }}
+        run: |
+          echo "## Owner full TEST data reset" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Reset id: \`$RESET_ID\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Scope: Milling + Exports + Accounts operational/test data" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Parties master: cleared by explicit owner instruction" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Other Master Console records: preserved" >> "$GITHUB_STEP_SUMMARY"
