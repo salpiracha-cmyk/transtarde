@@ -3,6 +3,7 @@ const fs=require('node:fs');
 const app=fs.readFileSync('exports/app.js','utf8');
 const css=fs.readFileSync('exports/app.css','utf8');
 const admin=fs.readFileSync('admin/app.js','utf8');
+const globalValidation=fs.readFileSync('global-validation.js','utf8');
 
 assert.match(app,/function documentKg[\s\S]*minimumFractionDigits:2,maximumFractionDigits:2/);
 assert.match(app,/function documentMTonsFromKg[\s\S]*minimumFractionDigits:3,maximumFractionDigits:3/);
@@ -18,6 +19,20 @@ assert.doesNotMatch(app.slice(app.indexOf('function coveringDoc(s,c,'),app.index
 for(const label of ['SALES CONTRACT / PROFORMA','COMMERCIAL INVOICE','PACKING LIST','BANK COVERING LETTER','RELATIONSHIP LETTER'])assert.match(app,new RegExp(label.replace('/','\\/')));
 assert.match(app,/approved specimen wording is still awaited/i);
 assert.match(app,/KCCI_COO_letterpad\.webp/);
+const activeCoo=app.slice(app.indexOf('function renderCOO(d){'),app.indexOf('const renderCoverBeforeSplitWorkspace'));
+assert.doesNotMatch(activeCoo,/Completed \/ Original COO|cooFinalFile/);
+assert.match(app,/commercialDescriptionText\(s,dc\)/);
+assert.match(app,/<b>BY SEA<\/b><br><b>VESSEL NAME:<\/b>[\s\S]*<b>VOY:<\/b>[\s\S]*<b>B\/L NUMBER:<\/b>/);
+assert.match(app,/customsDescriptionHTML\(s,dc\)/);
+assert.match(app,/Customs master saved successfully\./);
+assert.match(app,/packingShowNotify/);
+assert.match(app,/3 originals \+ 3 copies/);
+assert.match(app,/\['ORIGINAL','ORIGINAL','ORIGINAL','COPY','COPY','COPY'\]/);
+assert.match(app,/CORRECT CONTAINER NUMBER/);
+assert.match(app,/containerCorrections/);
+assert.doesNotMatch(app.slice(app.indexOf('function wireContainerCorrection'),app.indexOf('function renderBL(d)')),/reason/i);
+assert.match(app,/function buyerPoApplies\(c\)[\s\S]*sourceDocument\?\.type==='Customer Contract'/);
+assert.match(globalValidation,/displayDate[\s\S]*\$3-\$2-\$1/);
 for(const label of ['Owners / partners','KCCI membership no.','REAP membership no.','NTN number','Sales tax number','Company number'])assert.match(admin,new RegExp(label.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'i'));
 assert.match(admin,/"36453"/);
 console.log('PASS 2026-09-17 document, TG pack, COO and company-master rules');

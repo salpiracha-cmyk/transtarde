@@ -42,6 +42,11 @@
   document.addEventListener('input',e=>{if(e.target?.matches?.('input,select,textarea')){clearField(e.target);clearContext(e.target)}},true);
   document.addEventListener('change',e=>{if(e.target?.matches?.('input,select,textarea')){clearField(e.target);clearContext(e.target);validateElement(e.target,false)}},true);
   document.addEventListener('submit',e=>{const fields=[...e.target.querySelectorAll('input,select,textarea')].filter(visible),bad=fields.filter(el=>!validateElement(el,false));if(bad.length){e.preventDefault();e.stopImmediatePropagation();fail(bad,'Please correct the highlighted fields before continuing.',e.target.closest('.panel,.card,dialog,.tt-cm-panel')||e.target)}},true);
+  const displayDate=value=>String(value||'').replace(/\b(20\d{2})-(\d{2})-(\d{2})\b/g,'$3-$2-$1');
+  function normalizeVisibleDates(root){const walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT),nodes=[];while(walker.nextNode())nodes.push(walker.currentNode);for(const node of nodes){if(node.parentElement?.closest('script,style,textarea,input,code,pre'))continue;const next=displayDate(node.nodeValue);if(next!==node.nodeValue)node.nodeValue=next}}
+  const normalizeTopDates=()=>{const value=displayDate(new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Karachi',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date()));document.querySelectorAll('.topDate').forEach(node=>{if(node.textContent!==value)node.textContent=value})};
+  const startDateObserver=()=>{normalizeVisibleDates(document.body);normalizeTopDates();new MutationObserver(records=>{for(const record of records){if(record.type==='characterData')normalizeVisibleDates(record.target.parentElement||document.body);else for(const node of record.addedNodes)if(node.nodeType===Node.TEXT_NODE){const next=displayDate(node.nodeValue);if(next!==node.nodeValue)node.nodeValue=next}else if(node.nodeType===Node.ELEMENT_NODE)normalizeVisibleDates(node)}normalizeTopDates()}).observe(document.body,{subtree:true,childList:true,characterData:true})};
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',startDateObserver,{once:true});else startDateObserver();
   window.alert=function(message){const text=String(message??'');if(validationWords.test(text)){fail([],text);return}return nativeAlert(message)};
-  window.TTValidation={fail,mark:markField,clear:clearField,banner,validateElement,nativeAlert};
+  window.TTValidation={fail,mark:markField,clear:clearField,banner,validateElement,nativeAlert,displayDate};
 })();
