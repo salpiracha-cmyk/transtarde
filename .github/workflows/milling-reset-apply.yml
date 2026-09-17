@@ -84,13 +84,14 @@ jobs:
           $exportKey='transtrade_export_v3_operational';
           $root=json_decode((string)($store['values'][$exportKey]??''),true,512,JSON_THROW_ON_ERROR);
           $contractRef='TG/ASAS/02';
+          $contractId='CT-mu5h542h-ghxty';
           $lotRef='TG/ASAS/02/L01';
           $shipmentId='L-mu5heifu-gyhbk';
           $contract=null;$lot=null;
           foreach((array)($root['contracts']??[]) as $row){
             if(!is_array($row)) continue;
             $rowRef=(string)($row['contractRef']??$row['ref']??$row['contractNo']??$row['number']??'');
-            if($rowRef===$contractRef){$contract=$row;break;}
+            if((string)($row['id']??'')===$contractId&&$rowRef===$contractRef){$contract=$row;break;}
           }
           foreach((array)($root['shipments']??[]) as $row) if(is_array($row)&&(string)($row['id']??'')===$shipmentId&&(string)($row['contractRef']??'')===$contractRef&&(string)($row['lotId']??'')===$lotRef){$lot=$row;break;}
           if(!$contract||strcasecmp((string)($contract['status']??''),'Cancelled')===0) throw new RuntimeException('Expected active ASAS contract not found.');
@@ -102,6 +103,19 @@ jobs:
           if(count($pis)<1||count($loads)<1) throw new RuntimeException('Current ASAS instructions are missing.');
           $programme=(string)($loads[0]['plan']['loadingProgrammeNo']??$loads[0]['loadingProgrammeNo']??'');
           if($programme!=='5445JJH') throw new RuntimeException('Unexpected ASAS Loading Instructions revision.');
+          $contractRows=array_values((array)($root['contracts']??[]));
+          $activeIndex=null;
+          foreach($contractRows as $i=>$row) if(is_array($row)&&(string)($row['id']??'')===$contractId){$activeIndex=$i;break;}
+          if($activeIndex===null) throw new RuntimeException('Active ASAS contract index is unavailable.');
+          array_splice($contractRows,$activeIndex,1);
+          $insertAt=count($contractRows);
+          foreach($contractRows as $i=>$row){
+            if(!is_array($row)) continue;
+            $rowRef=(string)($row['contractRef']??$row['ref']??$row['contractNo']??$row['number']??'');
+            if($rowRef===$contractRef){$insertAt=$i;break;}
+          }
+          array_splice($contractRows,$insertAt,0,[$contract]);
+          $root['contracts']=$contractRows;
           $root['millSync']=(array)($root['millSync']??[]);
           $root['millSync']['newExportBags']=[];
           $root['millSync']['productionInstructions']=[$pis[0]];
