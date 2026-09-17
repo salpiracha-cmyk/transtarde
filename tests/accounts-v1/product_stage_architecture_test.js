@@ -57,7 +57,7 @@ assert(milling.includes("primary?(r.displayName||finished.displayName)"),'Finish
 assert(milling.includes("display=s.displayName||millProductIdentity"),'Printed Pohanch still uses an unstaged variety label');
 assert(milling.includes("n:'Arrival — '+x.truck+' — '+display"),'Rice ledger still hides the arrival product stage');
 assert(bridgeRuntime.includes("productStage:'READY'"),'Ex-Mill stock is not classified as READY');
-assert(bridgeRuntime.includes('displayName:readyDisplay(baseVariety)'),'Ex-Mill stock lacks its READY display identity');
+assert(bridgeRuntime.includes('displayName=readyDisplay(baseVariety)')&&bridgeRuntime.includes("productStage:'READY',displayName"),'Ex-Mill stock lacks its READY display identity');
 assert(exportsApp.includes('commercialProductName'),'Exports commercial-name stage stripping missing');
 
 assert(commodityBills.includes("$deductionKg=round($weight*$deductionPer100/100,3)"),'Corn/Sesame KAT is not deducted in kilograms');
