@@ -68,7 +68,8 @@ jobs:
       - name: Trim Export handoff and clear Milling operations atomically
         run: |
           set -euo pipefail
-          ssh -i "$RUNNER_TEMP/ssh/deploy_key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" -o StrictHostKeyChecking=yes -o ServerAliveInterval=15 -o ServerAliveCountMax=12 -p "$HOSTINGER_PORT" "$HOSTINGER_USER@$HOSTINGER_HOST" "php -d memory_limit=1536M -d max_execution_time=0 -r 'eval(substr(stream_get_contents(STDIN),5));' -- '$HOSTINGER_DEPLOY_PATH'" <<'PHP'
+          script="$RUNNER_TEMP/milling-reset.php"
+          cat > "$script" <<'PHP'
           <?php
           declare(strict_types=1);
           $target=(string)($argv[1]??'');
@@ -128,6 +129,10 @@ jobs:
           if(!rename($tmp,$path)){@unlink($tmp);throw new RuntimeException('Could not activate operational reset.');}
           echo json_encode(['ok'=>true,'contractRef'=>$contractRef,'lotRef'=>$lotRef,'shipmentId'=>$shipmentId,'programmeNo'=>$programme,'resetKeys'=>count($resetKeys)],JSON_UNESCAPED_SLASHES).PHP_EOL;
           PHP
+          private_dir="${HOSTINGER_DEPLOY_PATH%/public_html}/transtrade_private"
+          remote_script="$private_dir/.milling-reset-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.php"
+          scp -q -P "$HOSTINGER_PORT" -i "$RUNNER_TEMP/ssh/deploy_key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" -o StrictHostKeyChecking=yes "$script" "$HOSTINGER_USER@$HOSTINGER_HOST:$remote_script"
+          ssh -i "$RUNNER_TEMP/ssh/deploy_key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" -o StrictHostKeyChecking=yes -o ServerAliveInterval=15 -o ServerAliveCountMax=12 -p "$HOSTINGER_PORT" "$HOSTINGER_USER@$HOSTINGER_HOST" "trap 'rm -f \"$remote_script\"' EXIT; php -d display_errors=1 -d log_errors=0 -d memory_limit=1536M -d max_execution_time=0 \"$remote_script\" \"$HOSTINGER_DEPLOY_PATH\""
       - name: Rebuild exact ASAS handoff and verify live state
         run: |
           node <<'NODE'
