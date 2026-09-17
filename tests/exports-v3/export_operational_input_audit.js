@@ -6,7 +6,7 @@ const api=fs.readFileSync(root+'api/export_documents.php','utf8');
 const operations=fs.readFileSync(root+'api/operations.mysql.php','utf8');
 const index=fs.readFileSync(root+'exports/index.html','utf8');
 
-assert.match(index,/app\.js\?v=20260912-v3\.12/);
+assert.match(index,/app\.js\?v=20260916-export-repair-1/);
 assert.match(app,/deletedShipments/);
 assert.match(operations,/applyTombstones/);
 assert.match(operations,/contractRef/);
@@ -31,7 +31,7 @@ assert.match(app,/one white-paper PO/i);
 assert.match(app,/nextLotReference/);
 assert.match(app,/Loading Programme No/);
 assert.match(app,/portOfLoading/);
-assert.match(app,/GD reference and issued GD upload are recorded later under Upload Documents/);
+assert.match(app,/data-bl-gd-number/);
 assert.match(app,/GD Number and Date — one per line/);
 assert.match(app,/Bank \/ Account Number/);
 assert.match(app,/mFIExporter/);

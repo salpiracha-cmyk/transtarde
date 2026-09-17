@@ -22,7 +22,7 @@ const window={document,localStorage,TT_MODULE_ACCESS:{user:'QA',role:'Director',
 const context={window,document,localStorage,console,structuredClone,alert:m=>{throw Error(m)},prompt:()=>'',confirm:()=>true,location:{href:''},setTimeout:fn=>fn(),setInterval:()=>0,clearTimeout(){},FileReader:class{},FormData:class{},fetch:async()=>({ok:true,json:async()=>({ok:true})}),Date,Intl};
 context.globalThis=context;
 
-let source=fs.readFileSync(__dirname+'/app.js','utf8');
+let source=fs.readFileSync(__dirname+'/../../exports/app.js','utf8');
 source=source.replace('mount();',`window.__QA02__={state,makeShipment,makeLotRecord,loadingRemainingByPack,completionMissing,actualTotals,millActualsComplete,customsBalanced,gdRefsFingerprint,lotStatus,documentsPresented};mount();`);
 vm.runInNewContext(source,context,{filename:'app.js'});
 const t=window.__QA02__;

@@ -1,7 +1,7 @@
 const fs=require('fs');
 const vm=require('vm');
 const assert=require('assert');
-const php=fs.readFileSync(__dirname+'/../main/module.php','utf8');
+const php=fs.readFileSync(__dirname+'/../../module.php','utf8');
 assert.match(php,/'masters'=>tt_list_masters\(\)/,'Milling and Exports receive the canonical shared Super Admin masters');
 const match=php.match(/<script id="tt-shared-operations-bootstrap">([\s\S]*?)<\/script>/);
 assert.ok(match,'shared bridge bootstrap found');

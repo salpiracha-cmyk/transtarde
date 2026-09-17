@@ -2,11 +2,11 @@ const fs=require('fs');
 const assert=require('assert');
 const path=require('path');
 
-const root=path.join(__dirname,'..');
-const mysql=fs.readFileSync(path.join(root,'main/api/operations.mysql.php'),'utf8');
-const modulePhp=fs.readFileSync(path.join(root,'main/module.php'),'utf8');
+const root=path.join(__dirname,'../..');
+const mysql=fs.readFileSync(path.join(root,'api/operations.mysql.php'),'utf8');
+const modulePhp=fs.readFileSync(path.join(root,'module.php'),'utf8');
 const login=fs.readFileSync(path.join(__dirname,'../../login.php'),'utf8');
-const upload=fs.readFileSync(path.join(root,'main/api/export_documents.php'),'utf8');
+const upload=fs.readFileSync(path.join(root,'api/export_documents.php'),'utf8');
 const mastersApi=fs.readFileSync(path.join(__dirname,'../../api/masters.php'),'utf8');
 const authStore=fs.readFileSync(path.join(__dirname,'../../auth_store.php'),'utf8');
 const html=fs.readFileSync(path.join(__dirname,'index.html'),'utf8');
@@ -104,7 +104,7 @@ assert.match(js,/WITHOUT \$\{label\}/);
 assert.match(js,/this company has no footer/);
 for(const asset of ['TTI_header.png','TTI_sign.png','BRM_header.png','BRM_sign.png','TG_header.png','TG_footer.png','TG_sign.png']){
   assert.ok(js.includes(`assets/${asset}`),asset+' reference missing');
-  assert.ok(fs.existsSync(__dirname+'/assets/'+asset),asset+' file missing');
+  assert.ok(fs.existsSync(path.join(root,'exports/assets',asset)),asset+' file missing');
 }
 assert.match(js,/As per Pakistan Origin Standards/,'Sales Contract must offer Pakistan Origin Standards');
 assert.match(js,/As per Buyer Specification/,'Sales Contract must offer Buyer Specification');

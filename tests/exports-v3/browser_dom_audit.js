@@ -1,9 +1,9 @@
 const fs=require('fs');
 const assert=require('assert');
 const {JSDOM,VirtualConsole}=require('jsdom');
-let app=fs.readFileSync(__dirname+'/app.js','utf8');
+let app=fs.readFileSync(__dirname+'/../../exports/app.js','utf8');
 app=app.replace('mount();',`window.__DOM_AUDIT__={state,makeShipment,makeLotRecord,render,openShipment,openContract,openFIAllocation,persistContractStepDraft,saveContract,getContractDraft:()=>contractDraft,setContractStep:value=>contractStep=value,showHome:()=>{contractDraft=null;view='home';render()},contractSpecRows,defaultDocsFor,millLocations,registerMillLocation};mount();`);
-const css=fs.readFileSync(__dirname+'/app.css','utf8');
+const css=fs.readFileSync(__dirname+'/../../exports/app.css','utf8');
 const html=`<!doctype html><html><head><style>${css}</style></head><body><div id="app"></div><div id="printRoot"></div></body></html>`;
 const errors=[],vc=new VirtualConsole();vc.on('jsdomError',e=>errors.push(e.message));vc.on('error',e=>errors.push(String(e)));
 const dom=new JSDOM(html,{runScripts:'dangerously',pretendToBeVisual:true,url:'https://exports.audit.local/',virtualConsole:vc,beforeParse(w){w.TT_MODULE_ACCESS={user:'Jazib',module:'Exports'};w.alert=m=>{throw Error(String(m))};w.confirm=()=>true;w.print=()=>{};w.scrollTo=()=>{};w.setInterval=()=>0;w.structuredClone=value=>JSON.parse(JSON.stringify(value));w.FileReader=class{};}});
@@ -22,7 +22,7 @@ assert.equal(d.querySelector('.millPopover').textContent.trim(),'No unread Mill 
 d.querySelector(`[data-open-process="${process.id}"]`).click();
 assert.equal(d.querySelector('#workspaceDetail').innerHTML,'','workspace starts closed');
 d.querySelector('[data-workspace="contract"]').click();assert.match(d.querySelector('#workspaceDetail').textContent,/Sales Contract/);d.querySelector('[data-workspace="contract"]').click();
-d.querySelector('[data-workspace="bags"]').click();assert.match(d.querySelector('#workspaceDetail').textContent,/Uploading a GOOD SIDE bag marking means it is approved/);assert.equal(d.querySelector('[data-bo-master-print]').checked,false,'Printed Master Bag defaults unticked even when master packing is required');assert.equal(d.querySelector('[data-master-art-wrap]').classList.contains('hidden'),true,'master artwork stays hidden until Printed Master Bag is selected');d.querySelector('[data-workspace="bags"]').click();
+d.querySelector('[data-workspace="bags"]').click();assert.match(d.querySelector('#workspaceDetail').textContent,/Unsaved entries are session-only/);assert.equal(d.querySelector('#newPODraft'),null,'Bag Order has no Reset Draft control');assert.equal(d.querySelector('[data-bo-master-print]').checked,false,'Printed Master Bag defaults unticked even when master packing is required');assert.equal(d.querySelector('[data-master-art-wrap]').classList.contains('hidden'),true,'master artwork stays hidden until Printed Master Bag is selected');d.querySelector('[data-workspace="bags"]').click();
 d.querySelector('[data-workspace="production"]').click();
 assert.match(d.querySelector('#workspaceDetail').textContent,/Contract Specifications/);
 assert.match(d.querySelector('#workspaceDetail').textContent,/14% MAX/);
@@ -38,7 +38,7 @@ assert.equal(d.querySelectorAll('[data-li-name]').length,before+1,'green plus ad
 assert.ok(d.querySelector('[data-li-dry]')&&d.querySelector('[data-li-craft]')&&d.querySelector('[data-li-dpp]')&&d.querySelector('[data-li-inspect]'));
 assert.ok(t.defaultDocsFor({incoterm:'CIF'}).includes('Insurance Policy / Certificate'));
 const set=(el,value,event='input')=>{el.value=value;el.dispatchEvent(new w.Event(event,{bubbles:true}))};const names=[...d.querySelectorAll('[data-li-name]')],containers=[...d.querySelectorAll('[data-li-cont]')];assert.equal(d.querySelector('#liLot'),null,'lot reference is generated automatically');assert.equal(d.querySelector('[data-li-type]'),null,'loading type is derived from location');set(d.querySelector('#liProgramme'),'LP-DOM-01');set(d.querySelector('#liDate'),'2026-09-09','change');set(d.querySelector('#liIntendedVessel'),'MV DOM TEST');set(d.querySelector('#liShippingLine'),'DOM SHIPPING LINE');set(names[0],'TTI Rice Mills');set(containers[0],'2');set(names[1],'DOM External Mill');set(containers[1],'2');d.querySelector('#sendLoading').click();
-assert.equal(t.state.shipments.filter(x=>x.kind==='lot').length,1,'Loading action creates one separate lot record');assert.equal(t.state.millSync.exportLoading.length,1,'Loading action hands exact lot to Mill');assert.ok(t.millLocations().some(x=>x.name==='DOM External Mill'));
+assert.equal(t.state.shipments.filter(x=>x.kind==='lot').length,1,'Loading action creates one separate lot record');assert.equal(t.state.millSync.exportLoading.length,1,'Loading action hands exact lot to Mill');assert.ok(!t.millLocations().some(x=>x.name==='DOM External Mill'),'ad-hoc loading locations do not repopulate the Master Data mill list');
 const lot=t.state.shipments.find(x=>x.kind==='lot');
 assert.equal(lot.lotId,'TTI/DOM/01/L01','lot reference follows contract sequence');
 assert.equal(lot.loadingProgrammeNo,'LP-DOM-01','loading programme is entered by the user');
@@ -55,14 +55,10 @@ assert.ok(d.querySelectorAll('.workspaceTile').length>=8,'Lot retains its origin
 assert.ok(d.querySelector('#closeLotEditor'),'split editor has a top-right close control');
 lot.lc={saved:true,lcNo:'LC-DOM',lcDate:'2026-09-08',documents:['Commercial Invoice'],conditions:[]};lot.millActuals=[{number:'MSCU123456-7',seal:'S1',bags:1080,netKg:27000,tareKg:86.4,grossKg:27086.4,brand:'DOM BRAND',packing:'25 KG',location:'TTI Rice Mills'}];d.querySelector('[data-workspace="customs"]').click();d.querySelector('[data-workspace="customs"]').click();
 const balancingOpenAccount=d.querySelector('#cuOpenAccount').value;
-set(d.querySelector('#cuOpenAccount'),'0');
+assert.equal(d.querySelector('#cuOpenAccount').readOnly,true,'Open Account is calculated from invoice less FI allocation');
 d.querySelector('#saveCustoms').click();
-assert.equal(lot.customs.saved,false,'unbalanced Customs payment control is blocked');
-assert.ok(errors.length,'unbalanced Customs payment control reports an error');
-errors.length=0;
-set(d.querySelector('#cuOpenAccount'),balancingOpenAccount);
-d.querySelector('#saveCustoms').click();
-assert.equal(lot.customs.saved,true,'balanced FI plus open-account control saves Customs master');
+assert.equal(lot.customs.saved,true,'calculated FI plus open-account split saves Customs master');
+assert.equal(Number(lot.customs.openAccount),Number(balancingOpenAccount),'saved Open Account matches the displayed calculated balance');
 assert.equal(d.querySelector('.lotEditorShell'),null,'successful save returns to the Lot icon screen');
 d.querySelector('[data-workspace="customs"]').click();
 d.querySelector('[data-workspace="bl"]').click();

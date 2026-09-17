@@ -26,7 +26,7 @@ assert.match(app,/notify\.address/);
 assert.match(app,/FI NO\.:/);
 assert.match(app,/FI AMOUNT:/);
 assert.match(app,/customsCurrencyAmount\(fiAmount,currency\)/);
-assert.match(app,/showBreakdown=fiAmount>\.005&&balance>\.005/);
+assert.match(app,/showBreakdown=fiAmount>\.005/);
 assert.match(app,/uploadBLNo/);
 assert.match(app,/uploadBLDate/);
 assert.match(css,/contractSpecificationTable\{width:90%;margin:4px auto/);

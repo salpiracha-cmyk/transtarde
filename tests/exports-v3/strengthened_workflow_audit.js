@@ -2,11 +2,11 @@ const fs=require('fs');
 const path=require('path');
 const assert=require('assert');
 
-const app=fs.readFileSync(path.join(__dirname,'app.js'),'utf8');
-const css=fs.readFileSync(path.join(__dirname,'app.css'),'utf8');
-const modulePhp=fs.readFileSync(path.join(__dirname,'../main/module.php'),'utf8');
-const api=fs.readFileSync(path.join(__dirname,'../main/api/operations.mysql.php'),'utf8');
-const upload=fs.readFileSync(path.join(__dirname,'../main/api/export_documents.php'),'utf8');
+const app=fs.readFileSync(path.join(__dirname,'../../exports/app.js'),'utf8');
+const css=fs.readFileSync(path.join(__dirname,'../../exports/app.css'),'utf8');
+const modulePhp=fs.readFileSync(path.join(__dirname,'../../module.php'),'utf8');
+const api=fs.readFileSync(path.join(__dirname,'../../api/operations.mysql.php'),'utf8');
+const upload=fs.readFileSync(path.join(__dirname,'../../api/export_documents.php'),'utf8');
 
 const names=[...app.matchAll(/function\s+([A-Za-z_$][\w$]*)\s*\(/g)].map(m=>m[1]);
 const duplicates=names.filter((name,index)=>names.indexOf(name)!==index);
@@ -18,7 +18,8 @@ assert.match(app,/approvedMarkingLabel/);
 assert.match(css,/max-width:160mm/,'approved marking must print at large readable size');
 assert.doesNotMatch(app,/approvalSource\s*:|approvalStage\s*:|artworkApprovedBy\s*:/,'separate artwork approval source/stage data is forbidden');
 
-for(const token of ['requestContractReopen','createAddendum','cancelContract','openFIEdit','openFITransfer','lcRegisterRows','accountsFor','Invoice Adjustment','CREATE BANK INVOICE VERSION','Reallocate / Reissue','completionMissing','documentCounts','Other Courier','REPORT_DEFS'])assert.ok(app.includes(token),token+' missing');
+for(const token of ['createAddendum','cancelContract','openFIEdit','openFITransfer','lcRegisterRows','accountsFor','Invoice Adjustment','CREATE BANK INVOICE VERSION','Reallocate / Reissue','completionMissing','documentCounts','Other Courier','REPORT_DEFS'])assert.ok(app.includes(token),token+' missing');
+assert.doesNotMatch(app,/function requestContractReopen/,'temporary Director reopen approval gate must be absent');
 assert.equal((app.match(/Sales Contract Register/g)||[]).length>=1,true);
 assert.equal((app.match(/\['[^']+','[^']+','[^']+'\]/g)||[]).filter(x=>/Register|Shipment|Documents|Export/.test(x)).length>=15,true,'full report inventory missing');
 

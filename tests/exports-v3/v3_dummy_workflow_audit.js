@@ -13,7 +13,7 @@ const document={title:'V3 Audit',body:new Element('body'),getElementById:id=>ele
 const storage=new Map(),localStorage={getItem:k=>storage.get(k)||null,setItem:(k,v)=>storage.set(k,String(v)),removeItem:k=>storage.delete(k),get length(){return storage.size},key:i=>[...storage.keys()][i]};
 const window={document,localStorage,TT_MODULE_ACCESS:{user:'Director Test',role:'Director',module:'Exports'},addEventListener(){},open(){},print(){},setTimeout:fn=>fn(),setInterval:()=>0};
 const context={window,document,localStorage,console,structuredClone,alert:m=>{throw Error(m)},prompt:()=>'',confirm:()=>true,location:{href:''},setTimeout:fn=>fn(),setInterval:()=>0,clearTimeout(){},FileReader:class{},FormData:class{},fetch:async()=>({ok:true,json:async()=>({ok:true})}),Date,Intl};context.globalThis=context;
-let source=fs.readFileSync(__dirname+'/app.js','utf8');
+let source=fs.readFileSync(__dirname+'/../../exports/app.js','utf8');
 source=source.replace('mount();',`window.__V3__={state,makeShipment,makeLotRecord,loadingRemainingByPack,upgradeState,completionMissing,accountsFor,accountsTotal,purchaseOrderPrint,reportTable,REPORT_DEFS,lcRegisterRows,deleteShipmentData,restartShipmentData,setCurrent:id=>currentShipmentId=id};mount();`);
 vm.runInNewContext(source,context,{filename:'app.js'});
 assert.match(source,/data-delete-shipment/,'every active shipment card exposes the red delete control');
