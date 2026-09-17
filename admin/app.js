@@ -87,7 +87,7 @@
       ]
     },
     {
-      id: "products", name: "Products & Quality", description: "Each Product Identity supplies the complete Sales Contract quality description. Broken percentage and finish belong to the identity; measurable limits remain in Specifications.",
+      id: "products", name: "Export Products", description: "Commercial/export Product Identities and quality specifications. Purchase stages and KAT remain in Purchase Products / KAT.",
       fields: [
         { label: "Commodity", required: true }, { label: "Variety", required: true }, { label: "Rice type", required: true }, { label: "Code", required: true },
         { label: "Origin" }, { label: "Profile / use" }, { label: "Avg. grain length" }, { label: "Broken" }, { label: "Moisture" },
@@ -122,6 +122,20 @@
         ["Rice", "Basmati 515", "White / processed", "BAS515", "Pakistan", "Reference only – inactive", "7.56 mm variety characteristic", "", "", "", "", "", "", "", "", "", "", "To configure by processing", "Free from live insects, bad odour and rice fit for human consumption. Natural Basmati aroma.", "TDAP Basmati GI Book lists Basmati 515 as a registered Pakistan Basmati variety; Punjab Agriculture lists 7.56 mm varietal kernel length. Export defect profile left blank pending an approved Transtrade/buyer standard."],
         ["Rice", "KS-282", "White / processed", "KS282", "Pakistan", "Reference only – inactive", "", "", "", "", "", "", "", "", "", "", "", "To configure by processing", "Free from live insects, bad odour and rice fit for human consumption.", "REAP lists KS-282 as a Pakistan rice type. Grain length and export defect limits intentionally left blank rather than conflating KS-282 with similarly named KSK varieties."]
       ]
+    },
+    {
+      id: "purchase_products", name: "Purchase Products / KAT", description: "Operational purchase profiles linked to the shared base product identity. RAW, READY and FINISHED are stages—not duplicate varieties; the display name is generated automatically.",
+      fields: [
+        { label: "Commodity", required: true, type: "select", options: ["RICE", "CORN", "SESAME"] },
+        { label: "Base variety / product", required: true },
+        { label: "Stage", required: true, type: "select", options: ["RAW", "READY", "FINISHED"] },
+        { label: "Purchase unit", required: true, type: "select", options: ["KG", "MAUND", "MT"] },
+        { label: "KAT profile" }, { label: "KAT treatment", type: "textarea", full: true },
+        { label: "Brokerage rule" }, { label: "Inventory account" },
+        { label: "Status", type: "select", options: ["Active", "Draft – review required", "Inactive"] },
+        { label: "Notes", type: "textarea", full: true }
+      ],
+      rows: []
     },
     {
       id: "purchase_kat", name: "Purchase KAT Rules", description: "Owner-controlled purchase deductions shared with Accounts. Only IRRI-6 rules are currently defined; other rice varieties and corn remain blank until Salman enters their separate KAT systems.",
@@ -696,6 +710,12 @@
     if (type.id === "mills") return millMasterFieldsHtml(values);
     if (type.id === "banks") return bankMasterFieldsHtml(values);
     if (type.id === "products") return productMasterFieldsHtml(values);
+    if (type.id === "purchase_products") return type.fields.map((field, index) => {
+      const value=String(values[index]??""),full=field.full?" full-span":"";
+      if(field.type==="select") return `<label class="${full.trim()}">${escapeHtml(field.label)}<select id="${masterInputId(index)}" data-master-field-index="${index}" ${field.required?"required":""}>${field.options.map(option=>`<option ${option===value?"selected":""}>${escapeHtml(option)}</option>`).join("")}</select></label>`;
+      if(field.type==="textarea") return `<label class="${full.trim()}">${escapeHtml(field.label)}<textarea id="${masterInputId(index)}" data-master-field-index="${index}" rows="3">${escapeHtml(value)}</textarea></label>`;
+      return `<label class="${full.trim()}">${escapeHtml(field.label)}<input id="${masterInputId(index)}" data-master-field-index="${index}" value="${escapeHtml(value)}" ${field.required?"required":""}></label>`;
+    }).join("");
     if (type.id === "purchase_kat") return katMasterFieldsHtml(values);
     return type.fields.map((field, index) => {
       const value = String(values[index] ?? "");
@@ -766,6 +786,7 @@
     if (type.id === "companies") return [1, 0, 3, 2];
     if (type.id === "commodities") return [1, 0, 2, 3];
     if (type.id === "products") return [0, 1, 2, 3, 5];
+    if (type.id === "purchase_products") return [0, 1, 2, 3, 4, 8];
     if (type.id === "purchase_kat") return [0, 1, 2, 3, 6, 7];
     if (type.id === "parties") return [0, 1, 2];
     if (type.id === "mills") return [0, 1, 2];
@@ -779,6 +800,7 @@
       if (/inactive|reference/i.test(profile)) return profile;
       return profile || "Active";
     }
+    if (type.id === "purchase_products") return String(row.values?.[8] || "Draft – review required");
     if (type.id === "purchase_kat") return String(row.values?.[7] || "Draft – review required");
     if (type.id === "banks") { const note=String(row.values?.[13] || ""); return /incomplete/i.test(note) ? "Incomplete" : (/inactive/i.test(note) ? "Inactive" : "Active"); }
     return "Active";
@@ -812,7 +834,7 @@
       document.getElementById("masterDescription").insertAdjacentHTML("afterend", `<section id="productCropYearControl" class="master-editor-section"><div class="master-editor-heading"><div><h3>Current Crop Year</h3><p>Change this once a year. New Sales Contracts use it automatically; saved contracts keep their original crop year.</p></div></div><div class="master-identity-grid"><label>Crop Year<input id="currentProductCropYear" value="${escapeHtml(currentProductCropYear())}" placeholder="2025/2026"></label><div><button class="button primary" id="saveCurrentProductCropYear" type="button">Save Crop Year</button></div></div></section>`);
       document.getElementById("saveCurrentProductCropYear").onclick=saveCurrentProductCropYear;
     }
-    document.getElementById("addMasterRecord").textContent = `+ Add ${type.id === "salary_staff" ? "Staff" : type.id === "purchase_kat" ? "KAT Rule" : type.id === "companies" ? "Company" : type.id === "commodities" ? "Commodity" : type.id === "products" ? "Product" : "Record"}`;
+    document.getElementById("addMasterRecord").textContent = `+ Add ${type.id === "salary_staff" ? "Staff" : type.id === "purchase_kat" ? "KAT Rule" : type.id === "purchase_products" ? "Purchase Product" : type.id === "companies" ? "Company" : type.id === "commodities" ? "Commodity" : type.id === "products" ? "Export Product" : "Record"}`;
     const columns = displayColumns(type);
     document.getElementById("masterTableHead").innerHTML = `<tr>${columns.map(index => `<th>${escapeHtml(type.fields[index].label)}</th>`).join("")}<th>Status</th><th>Actions</th></tr>`;
     const query = document.getElementById("masterSearch")?.value.toLowerCase() || "";

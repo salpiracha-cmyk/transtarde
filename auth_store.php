@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__ . '/product_stage.php';
 
 // Keep live credentials and master records outside public_html. Hostinger Git
 // deployments replace the application directory, but must never replace the
@@ -50,6 +51,16 @@ function tt_default_masters(): array {
             ['id'=>'products-18','values'=>['Rice','IRRI-9','White Rice 5% Broken','IR9-W5','Pakistan','Reference only – inactive','6.8 mm','5% max','13.5–14% max','1.5% max','4% max','7% max','0.5% max','0.5% max','15 pcs/kg max','','2% max','Double / silky polished; colour sortexed','Free from live insects, bad odour and rice fit for human consumption.','REAP lists IRRI-9. Common Pakistan exporter IRRI-9 profile pre-filled.']],
             ['id'=>'products-20','values'=>['Rice','Basmati 515','White / processed','BAS515','Pakistan','Reference only – inactive','7.56 mm variety characteristic','','','','','','','','','','','To configure by processing','Free from live insects, bad odour and rice fit for human consumption. Natural Basmati aroma.','TDAP Basmati GI Book lists Basmati 515 as a registered Pakistan Basmati variety; Punjab Agriculture lists 7.56 mm varietal kernel length. Export defect profile left blank pending an approved Transtrade/buyer standard.']],
             ['id'=>'products-21','values'=>['Rice','KS-282','White / processed','KS282','Pakistan','Reference only – inactive','','','','','','','','','','','','To configure by processing','Free from live insects, bad odour and rice fit for human consumption.','REAP lists KS-282 as a Pakistan rice type. Grain length and export defect limits intentionally left blank rather than conflating KS-282 with similarly named KSK varieties.']],
+        ],
+        // Purchase profiles reference the same base variety used by Export
+        // Products, then add only the operational stage and purchase rules.
+        // Display names are derived centrally and are not separate masters.
+        'purchase_products'=>[
+            ['id'=>'purchase-products-rice-irri6-raw','values'=>['RICE','IRRI-6','RAW','KG','RICE','Variety-specific approved Rice KAT','As per approved Rice KAT','1310','Active','Raw paddy/rice purchase for Soda, arrival and supplier bill.']],
+            ['id'=>'purchase-products-rice-irri6-ready','values'=>['RICE','IRRI-6','READY','KG','RICE_READY','Commercial ready-rice purchase; no raw-arrival KAT unless separately approved','As agreed on Soda','1310','Active','Externally purchased ready rice. It remains READY until accepted into final commercial stock.']],
+            ['id'=>'purchase-products-corn-raw','values'=>['CORN','Corn / Makai','RAW','MAUND','CORN','13% moisture and 2% damage/fungus free; 1 kg/100 kg per excess 1%; other deduction requires reason','Rs 10 per 100 kg','1310','Active','Karachi weighbridge weight is authoritative.']],
+            ['id'=>'purchase-products-sesame-raw','values'=>['SESAME','Sesame','RAW','MAUND','SESAME_RAW','3% admixture free; 1 kg/100 kg per excess 1%; other deduction requires reason','Rs 10 per maund','1310','Active','Raw sesame purchase.']],
+            ['id'=>'purchase-products-sesame-ready','values'=>['SESAME','Sesame','READY','MAUND','SESAME_READY','1% admixture free; 1 kg/100 kg per excess 1%; other deduction requires reason','Rs 15 per maund','1310','Active','Ready sesame purchase.']],
         ],
         'purchase_kat'=>[
             ['id'=>'purchase_kat-1','values'=>['Rice','IRRI-6','Broken','20% free','20–30: 1 paisa/%; 31–35: 3 paisa/%; 36–40: 8 paisa/%; 41–45: 15 paisa/%; 46–50: 20 paisa/%; 51–55: 25 paisa/%; 56–60: 40 paisa/%','paisa per %','Default profile','Active','Known Transtrade purchase KAT rule.']],
@@ -139,6 +150,15 @@ function tt_normalize_masters(array $masters): array {
         if ($code!=='' && count($values)<20 && isset($productDefaults[$code])) $row['values']=$productDefaults[$code]['values'];
     }
     unset($row);
+    foreach ($masters['purchase_products'] as &$row) {
+        $values=array_values((array)($row['values'] ?? []));
+        while (count($values)<10) $values[]='';
+        $values[0]=strtoupper(trim((string)$values[0]));
+        $values[1]=tt_product_base((string)$values[1]);
+        $values[2]=tt_product_stage((string)$values[2]) ?: 'RAW';
+        $row['values']=array_slice($values,0,10);
+    }
+    unset($row);
     foreach ($productDefaults as $code=>$row) if (empty($seenProducts[$code])) $masters['products'][]=$row;
 
     // Upgrade every previously saved product to the structured Product Identity.
@@ -207,7 +227,7 @@ function tt_normalize_masters(array $masters): array {
 }
 
 function tt_visible_masters(array $masters): array {
-    $visible=['companies','commodities','product_settings','products','purchase_kat','export_documents','export_terms','parties','mills','banks'];
+    $visible=['companies','commodities','product_settings','products','purchase_products','purchase_kat','export_documents','export_terms','parties','mills','banks'];
     return array_intersect_key(tt_normalize_masters($masters),array_flip($visible));
 }
 
