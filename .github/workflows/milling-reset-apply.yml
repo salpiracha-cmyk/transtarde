@@ -1,9 +1,7 @@
 name: Apply Protected Milling Reset
 
 on:
-  push:
-    branches: [ops-milling-reset-20260917]
-    paths: ['.github/workflows/milling-reset-apply.yml']
+  workflow_dispatch:
 
 permissions:
   contents: read
