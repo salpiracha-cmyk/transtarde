@@ -55,6 +55,7 @@ try {
         if (!is_array($journal)) continue;
         $meta = is_array($journal['meta'] ?? null) ? $journal['meta'] : [];
         $commodity = cl_commodity($event, $meta);
+        $identity = tt_product_identity($commodity,(string)($meta['displayName'] ?? $meta['baseVariety'] ?? $meta['variety'] ?? ''),(string)($meta['productStage'] ?? ''));
         $billId = (string)($event['billId'] ?? '');
         $bill = $billId !== '' && isset($bills[$billId]) && is_array($bills[$billId]) ? $bills[$billId] : null;
         $rows[] = [
@@ -72,6 +73,10 @@ try {
             'broker'=>(string)($meta['broker'] ?? ''),
             'party'=>(string)($meta['party'] ?? ''),
             'variety'=>(string)($meta['variety'] ?? ''),
+            'baseVariety'=>(string)($meta['baseVariety'] ?? $identity['baseVariety']),
+            'productStage'=>(string)($meta['productStage'] ?? $identity['productStage']),
+            'displayName'=>(string)($meta['displayName'] ?? $identity['displayName']),
+            'stageInferred'=>!isset($meta['productStage']),
             'payableWeightKg'=>(float)($meta['payableWeightKg'] ?? 0),
             'grossRatePerKg'=>(float)($meta['grossRatePerKg'] ?? 0),
             'katPaisaPerKg'=>(float)($meta['katPaisaPerKg'] ?? 0),
@@ -94,4 +99,3 @@ try {
 } catch (Throwable $e) {
     cl_respond(['ok'=>false,'error'=>'Pohanch / bill lookup is temporarily unavailable.'], 500);
 }
-

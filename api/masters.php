@@ -78,7 +78,7 @@ try {
     }
 
     $schemas=[
-        'companies'=>7,'commodities'=>8,'product_settings'=>1,'products'=>22,'purchase_kat'=>10,
+        'companies'=>7,'commodities'=>8,'product_settings'=>1,'products'=>22,'purchase_products'=>10,'purchase_kat'=>10,
         'parties'=>4,'mills'=>4,'banks'=>14,'export_documents'=>5,'export_terms'=>3,
     ];
     if (!isset($schemas[$type])) throw new InvalidArgumentException('Select a valid master section.');
@@ -137,6 +137,24 @@ try {
             if ($candidate!=='' && $identity((array)($row['values']??[]))===$candidate) {
                 throw new InvalidArgumentException('This Product Identity already exists. Edit the existing record instead.');
             }
+        }
+    }
+    if ($type==='purchase_products') {
+        $values[0]=strtoupper($values[0]);
+        $values[1]=tt_product_base($values[1]);
+        $values[2]=tt_product_stage($values[2]);
+        if ($values[1]==='' || $values[2]==='') throw new InvalidArgumentException('Select a base product and RAW, READY or FINISHED stage.');
+        if (!in_array($values[0],['RICE','CORN','SESAME'],true)) throw new InvalidArgumentException('Commodity must be RICE, CORN or SESAME.');
+        if ($values[0]==='RICE') {
+            $known=false;
+            foreach ((array)(master_all()['products']??[]) as $product) if (strcasecmp(tt_product_base((string)($product['values'][1]??'')),$values[1])===0) {$known=true;break;}
+            if (!$known) throw new InvalidArgumentException('Create the Rice base variety in Export Products first so both areas share one identity.');
+        }
+        $candidate=strtolower($values[0].'|'.$values[1].'|'.$values[2]);
+        foreach ((array)(master_all()['purchase_products']??[]) as $row) {
+            if ($id!=='' && (string)($row['id']??'')===$id) continue;
+            $v=(array)($row['values']??[]);
+            if (strtolower((string)($v[0]??'').'|'.tt_product_base((string)($v[1]??'')).'|'.(string)($v[2]??''))===$candidate) throw new InvalidArgumentException('This purchase product and stage already exists. Edit it instead.');
         }
     }
 
