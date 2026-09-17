@@ -68,7 +68,7 @@ jobs:
       - name: Trim Export handoff and clear Milling operations atomically
         run: |
           set -euo pipefail
-          ssh -i "$RUNNER_TEMP/ssh/deploy_key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" -o StrictHostKeyChecking=yes -o ServerAliveInterval=15 -o ServerAliveCountMax=12 -p "$HOSTINGER_PORT" "$HOSTINGER_USER@$HOSTINGER_HOST" php -d memory_limit=1536M -d max_execution_time=0 -f - -- "$HOSTINGER_DEPLOY_PATH" <<'PHP'
+          ssh -i "$RUNNER_TEMP/ssh/deploy_key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" -o StrictHostKeyChecking=yes -o ServerAliveInterval=15 -o ServerAliveCountMax=12 -p "$HOSTINGER_PORT" "$HOSTINGER_USER@$HOSTINGER_HOST" "php -d memory_limit=1536M -d max_execution_time=0 -r 'eval(substr(stream_get_contents(STDIN),5));' -- '$HOSTINGER_DEPLOY_PATH'" <<'PHP'
           <?php
           declare(strict_types=1);
           $target=(string)($argv[1]??'');
