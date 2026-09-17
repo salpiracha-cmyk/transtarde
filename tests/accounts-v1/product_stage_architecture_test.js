@@ -14,10 +14,14 @@ const bags=read('api/bag_purchases.php');
 const bagsUi=read('accounts/bag-purchases-ui.js');
 const milling=read('milling/Transtrade_Master_Milling_V3_3_2_AUDITED.html');
 const exportsApp=read('exports/app.js');
+const bridgeRuntime=read('module.php');
+const commodityBills=read('api/commodity_bills.php');
 
 for(const value of ['RAW','READY','FINISHED']) assert(stage.includes(`'${value}'`),`canonical ${value} stage missing`);
 assert(stage.includes("$stage==='RAW'" )&&stage.includes("$stage==='READY'"),'Rice stage display rules missing');
 assert(stage.includes("/^READY\\s+RICE"),'legacy own-mill Ready Rice compatibility missing');
+assert(stage.includes('PARBOIL(?:ED)?|STEAM|SELLA'),'legacy product labels are not normalized to the canonical base variety');
+assert(stage.includes("strcasecmp($base,'Sesame')===0"),'Sesame display must not duplicate the base name');
 
 assert(masters.includes("'purchase_products'=>["),'Purchase Products master missing');
 assert(masterApi.includes("'purchase_products'=>10"),'Purchase Products API schema missing');
@@ -45,6 +49,18 @@ assert(bagsUi.includes('Every bag type is available'),'bag workflow is not unifi
 assert(milling.includes("inputStage:isReprocessingMill()?'FINISHED':'RAW'"),'reprocessing is not FINISHED to FINISHED');
 assert(milling.includes("outputStage:'FINISHED'"),'own-mill finished stage missing');
 assert(milling.includes("productStage:identity.productStage"),'Pohanch stage metadata missing');
+assert(milling.includes('function millBaseVariety(name)'),'Milling still lacks canonical base-variety normalization');
+assert(milling.includes("replace(/\\s+(?:WHITE|PARBOIL(?:ED)?|STEAM|SELLA)\\s+RICE$/i,''"),'Milling base variety still includes processing/type wording');
+assert(!milling.includes("m={'RAW RICE':0}"),'Milling still collapses every raw variety into one stock bucket');
+assert(milling.includes("rawStockName"),'Milling physical adjustments do not preserve their raw variety');
+assert(milling.includes("primary?(r.displayName||finished.displayName)"),'Finished stock is not derived from the FINISHED product identity');
+assert(milling.includes("display=s.displayName||millProductIdentity"),'Printed Pohanch still uses an unstaged variety label');
+assert(milling.includes("n:'Arrival — '+x.truck+' — '+display"),'Rice ledger still hides the arrival product stage');
+assert(bridgeRuntime.includes("productStage:'READY'"),'Ex-Mill stock is not classified as READY');
+assert(bridgeRuntime.includes('displayName:readyDisplay(baseVariety)'),'Ex-Mill stock lacks its READY display identity');
 assert(exportsApp.includes('commercialProductName'),'Exports commercial-name stage stripping missing');
+
+assert(commodityBills.includes("$deductionKg=round($weight*$deductionPer100/100,3)"),'Corn/Sesame KAT is not deducted in kilograms');
+assert(commodityBills.includes("$value=round($netKg/$maund*$rate,2)"),'Corn/Sesame payable value is not based on net kg divided by maund');
 
 console.log('Product-stage architecture audit passed.');

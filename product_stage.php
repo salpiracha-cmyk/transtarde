@@ -16,6 +16,7 @@ function tt_product_base(string $name): string {
     $name=(string)preg_replace('/\s+(?:RAW|READY|FINISHED)\s+RICE$/i','',$name);
     // “Ready Rice — X” is the historical name for own-mill finished stock.
     $name=(string)preg_replace('/^READY\s+RICE\s*[—-]\s*/i','',$name);
+    $name=(string)preg_replace('/\s+(?:WHITE|PARBOIL(?:ED)?|STEAM|SELLA)\s+RICE$/i','',$name);
     return trim($name);
 }
 
@@ -26,7 +27,11 @@ function tt_product_display(string $commodity,string $base,string $stage): strin
         if($stage==='READY')return trim($base.' READY RICE');
         return $base;
     }
-    if($commodity==='SESAME')return trim($base.' '.($stage==='READY'?'READY':'RAW').' SESAME');
+    if($commodity==='SESAME'){
+        $base=(string)preg_replace('/\s+(?:RAW|READY)\s+SESAME$/i','',$base);
+        if(strcasecmp($base,'Sesame')===0||strcasecmp($base,'Sesame Seed')===0)$base='';
+        return trim(($base!==''?$base.' ':'').($stage==='READY'?'READY':'RAW').' SESAME');
+    }
     return $base;
 }
 
