@@ -14,6 +14,13 @@ function ai_env(string $name): string {
         $value=getenv($key);
         if($value!==false && trim((string)$value)!=='') return trim((string)$value);
     }
+    if($name==='GEMINI_API_KEY' && defined('TT_DATA_DIR')) {
+        $path=rtrim((string)TT_DATA_DIR,DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR.'gemini.key';
+        if(is_file($path) && is_readable($path)) {
+            $value=trim((string)file_get_contents($path));
+            if($value!=='') return $value;
+        }
+    }
     return '';
 }
 function ai_can_write(array $user): bool {
