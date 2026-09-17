@@ -1,0 +1,38 @@
+name: Gemini Reader Branch Patch
+
+on:
+  push:
+    branches: [gemini-document-reader]
+    paths: ['scripts/apply_gemini_reader_patch.py']
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: gemini-document-reader
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Apply Gemini reader patch
+        run: |
+          set -euo pipefail
+          python3 scripts/apply_gemini_reader_patch.py
+          node --check exports/app.js
+          php -l api/document_ai.php
+      - name: Commit patched reader
+        run: |
+          set -euo pipefail
+          git config user.name 'transtrade-gemini-bot'
+          git config user.email 'actions@users.noreply.github.com'
+          git add exports/app.js
+          if git diff --cached --quiet; then
+            echo 'No app.js changes required.'
+            exit 0
+          fi
+          git commit -m 'Use Gemini for contract and LC extraction'
+          git push origin HEAD:gemini-document-reader
