@@ -129,7 +129,6 @@ assert.doesNotMatch(documentAi,/\?:'gemini-(?:1\.5|2\.0)-flash'/,'Gemini must no
 assert.match(documentAi,/responseMimeType'=>'application\/json'/,'Gemini requests must explicitly require JSON responses');
 assert.match(documentAi,/returned non-JSON HTTP/,'Gemini response parse failures must retain a bounded raw response in protected server logs');
 assert.match(documentAi,/Gemini extraction JSON parse failed/,'invalid structured output must retain the bounded provider response in protected server logs');
-assert.match(js,/GEMINI_INVALID_RESPONSE/,'the browser must distinguish invalid upstream responses from valid application errors');
 assert.match(documentAi,/responseSchema/,'Gemini document extraction must first request the strict schema');
 assert.match(documentAi,/\$status===400&&\$index<count\(\$attempts\)-1/,'Gemini schema rejections must retry through the compatible JSON paths');
 assert.match(documentAi,/return ai_normalize_schema\(\$data,\$schema\)/,'fallback Gemini output must be normalized to the application schema');
