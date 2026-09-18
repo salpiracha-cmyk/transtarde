@@ -28,7 +28,7 @@ function gemini_health_out(array $data, int $code = 0): never {
 }
 
 $key = gemini_health_env('GEMINI_API_KEY');
-$model = gemini_health_env('GEMINI_MODEL') ?: 'gemini-3.5-flash-lite';
+$model = gemini_health_env('GEMINI_MODEL') ?: 'gemini-2.5-flash-lite';
 if ($key === '') gemini_health_out(['ok'=>false,'configured'=>false,'model'=>$model,'error'=>'GEMINI_API_KEY is not configured.'],2);
 if (!preg_match('/^[A-Za-z0-9._-]{3,80}$/', $model)) gemini_health_out(['ok'=>false,'configured'=>true,'model'=>'invalid','error'=>'GEMINI_MODEL is invalid.'],2);
 if (!function_exists('curl_init')) gemini_health_out(['ok'=>false,'configured'=>true,'model'=>$model,'error'=>'PHP cURL is unavailable.'],2);
@@ -50,6 +50,11 @@ $error = curl_error($ch);
 curl_close($ch);
 if ($raw === false || $error !== '') gemini_health_out(['ok'=>false,'configured'=>true,'model'=>$model,'httpStatus'=>$status,'error'=>'Gemini connection failed.'],2);
 $response = json_decode((string)$raw, true);
+if (!is_array($response)) {
+    $snippet = preg_replace('/\s+/', ' ', trim((string)$raw)) ?? '';
+    error_log('Gemini health check returned non-JSON HTTP '.$status.' ('.json_last_error_msg().'): '.mb_substr($snippet, 0, 2000));
+    gemini_health_out(['ok'=>false,'configured'=>true,'model'=>$model,'httpStatus'=>$status,'error'=>'Gemini returned an invalid server response.'],2);
+}
 if ($status < 200 || $status >= 300) {
     $provider = preg_replace('/\s+/', ' ', trim((string)($response['error']['message'] ?? 'Request failed.')));
     gemini_health_out(['ok'=>false,'configured'=>true,'model'=>$model,'httpStatus'=>$status,'error'=>mb_substr($provider,0,240)],2);

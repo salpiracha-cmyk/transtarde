@@ -172,7 +172,13 @@ function ai_gemini_request(string $url,string $key,array $payload): array {
     ]);
     $raw=curl_exec($ch);$status=(int)curl_getinfo($ch,CURLINFO_RESPONSE_CODE);$err=curl_error($ch);curl_close($ch);
     if($raw===false||$err!=='') throw new RuntimeException('Gemini request failed: '.$err);
-    return ['status'=>$status,'response'=>json_decode((string)$raw,true)];
+    $response=json_decode((string)$raw,true);
+    if(!is_array($response)) {
+        $snippet=preg_replace('/\s+/',' ',trim((string)$raw))??'';
+        error_log('Gemini document reader returned non-JSON HTTP '.$status.' ('.json_last_error_msg().'): '.mb_substr($snippet,0,2000));
+        return ['status'=>$status,'response'=>[],'invalidJson'=>true];
+    }
+    return ['status'=>$status,'response'=>$response,'invalidJson'=>false];
 }
 function ai_call_gemini(string $key,string $model,array $parts,array $schema): array {
     $url='https://generativelanguage.googleapis.com/v1beta/models/'.rawurlencode($model).':generateContent';
@@ -188,6 +194,9 @@ function ai_call_gemini(string $key,string $model,array $parts,array $schema): a
     foreach($attempts as $index=>$attempt){
         $result=ai_gemini_request($url,$key,['contents'=>[['role'=>'user','parts'=>$attempt['parts']]],'generationConfig'=>$attempt['config']]);
         $status=(int)$result['status'];$response=is_array($result['response'])?$result['response']:[];
+        if(($result['invalidJson']??false)===true) {
+            throw new RuntimeException('Gemini returned an invalid server response. Please retry.',$status);
+        }
         if($status>=200&&$status<300) break;
         $message=(string)($response['error']['message']??'Gemini could not read this document.');
         error_log('Gemini document reader attempt '.($index+1).' HTTP '.$status.': '.$message);
@@ -206,7 +215,11 @@ function ai_call_gemini(string $key,string $model,array $parts,array $schema): a
     foreach((array)($response['candidates'][0]['content']['parts']??[]) as $part){if(isset($part['text']))$text.=(string)$part['text'];}
     $text=preg_replace('/^\s*```(?:json)?\s*|\s*```\s*$/i','',trim($text))??trim($text);
     $data=$text!==''?json_decode($text,true):null;
-    if(!is_array($data)) throw new RuntimeException('Gemini returned an unreadable extraction. Please retry.');
+    if(!is_array($data)) {
+        $providerBody=json_encode($response,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);
+        error_log('Gemini extraction JSON parse failed ('.json_last_error_msg().'): '.mb_substr((string)$providerBody,0,4000));
+        throw new RuntimeException('Gemini returned an unreadable extraction. Please retry.');
+    }
     return ai_normalize_schema($data,$schema);
 }
 
@@ -221,7 +234,7 @@ try{
     if(!in_array($kind,['contract','lc'],true)) ai_respond(['ok'=>false,'error'=>'Select Customer Contract or L/C.'],422);
     $key=ai_env('GEMINI_API_KEY');
     if($key==='') ai_respond(['ok'=>false,'error'=>'Gemini is not configured on the server yet. Add GEMINI_API_KEY as a protected server secret.','code'=>'GEMINI_NOT_CONFIGURED'],503);
-    $model=ai_env('GEMINI_MODEL')?:'gemini-3.5-flash-lite';
+    $model=ai_env('GEMINI_MODEL')?:'gemini-2.5-flash-lite';
     if(!preg_match('/^[A-Za-z0-9._-]{3,80}$/',$model)) throw new RuntimeException('Invalid Gemini model configuration.');
     $parts=[['text'=>ai_prompt($kind)]];
     $text=trim((string)($_POST['text']??''));
@@ -246,6 +259,8 @@ try{
         'Gemini usage limit reached. Try again shortly.',
         'Gemini could not read this document.',
         'Gemini connection could not be initialized.',
+        'Gemini returned an invalid server response. Please retry.',
+        'Gemini returned an unreadable extraction. Please retry.',
     ];
     $message=in_array($e->getMessage(),$safeMessages,true)?$e->getMessage():'AI document reading is temporarily unavailable. Use the local fallback or try again.';
     $status=in_array($e->getCode(),[400,401,403,404,429],true)?$e->getCode():500;

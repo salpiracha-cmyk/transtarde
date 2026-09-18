@@ -121,11 +121,15 @@ assert.match(js,/ADVANCE TO BE REMITTED TO BELOW-MENTIONED ACCOUNT:/,'advance ba
 assert.match(js,/contractSignatureGrid/,'contract must provide aligned Seller and Buyer signature areas');
 assert.doesNotMatch(login,/authBrandLogo|TTI_header\.png/,'login must retain text-only Transtrade branding');
 assert.match(documentAi,/function ai_gemini_request/,'Gemini document calls must use the shared request path');
-assert.match(documentAi,/ai_env\('GEMINI_MODEL'\)\?:'gemini-3\.5-flash-lite'/,'Gemini document extraction must default to the supported low-latency document model');
+assert.match(documentAi,/ai_env\('GEMINI_MODEL'\)\?:'gemini-2\.5-flash-lite'/,'Gemini document extraction must default to the broadly available stable low-latency document model');
 assert.match(documentAi,/CURLOPT_TIMEOUT=>60/,'Gemini document extraction must stay within the Hostinger request budget');
-assert.match(geminiDiagnostic,/gemini_health_env\('GEMINI_MODEL'\) \?: 'gemini-3\.5-flash-lite'/,'Gemini health checks must test the same default model as document extraction');
+assert.match(geminiDiagnostic,/gemini_health_env\('GEMINI_MODEL'\) \?: 'gemini-2\.5-flash-lite'/,'Gemini health checks must test the same default model as document extraction');
 assert.match(geminiDiagnostic,/CURLOPT_TIMEOUT=>60/,'Gemini health checks must allow the full 60-second request budget');
 assert.doesNotMatch(documentAi,/\?:'gemini-(?:1\.5|2\.0)-flash'/,'Gemini must not default to a retired model');
+assert.match(documentAi,/responseMimeType'=>'application\/json'/,'Gemini requests must explicitly require JSON responses');
+assert.match(documentAi,/returned non-JSON HTTP/,'Gemini response parse failures must retain a bounded raw response in protected server logs');
+assert.match(documentAi,/Gemini extraction JSON parse failed/,'invalid structured output must retain the bounded provider response in protected server logs');
+assert.match(js,/GEMINI_INVALID_RESPONSE/,'the browser must distinguish invalid upstream responses from valid application errors');
 assert.match(documentAi,/responseSchema/,'Gemini document extraction must first request the strict schema');
 assert.match(documentAi,/\$status===400&&\$index<count\(\$attempts\)-1/,'Gemini schema rejections must retry through the compatible JSON paths');
 assert.match(documentAi,/return ai_normalize_schema\(\$data,\$schema\)/,'fallback Gemini output must be normalized to the application schema');
