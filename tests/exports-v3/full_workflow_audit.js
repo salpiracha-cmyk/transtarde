@@ -66,5 +66,6 @@ const php=fs.readFileSync(__dirname+'/../../api/operations.mysql.php','utf8');as
 assert.doesNotMatch(php,/in_array\('all', \$permissions/,'one module must never grant write access to another module');
 assert.match(php,/\$baseVersion !== \$version/);assert.match(php,/409/);
 const wrapper=fs.readFileSync(__dirname+'/../../module.php','utf8');assert.match(wrapper,/baseVersion:Number\(queuedBase\.get\(key\)\?\?keyVersions\.get\(key\)\?\?0\)/);assert.match(wrapper,/tt:shared-conflict/);assert.doesNotMatch(wrapper,/Update needs review|ttSyncNotice/);assert.doesNotMatch(wrapper,/queued:true|settleQueued/);
+assert.match(source,/addEventListener\('tt:shared-updated',[\s\S]*?state=load\(\);[\s\S]*?render\(\)/,'Exports must reload and render server state delivered after application startup');
 assert.match(source,/ADD LOADING SOURCE/);assert.match(source,/Loading allocations exceed the remaining containers/);assert.match(source,/Final document set is blocked/);assert.match(source,/masterValues\('mills'\)/);assert.doesNotMatch(source,/localStorage\.getItem\(MILL_STORE\)/);
 console.log('PASS full Export workflow audit: process, lots, Mill actuals, FI, L/C, TG and print outputs');

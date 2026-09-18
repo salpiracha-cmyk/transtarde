@@ -1646,5 +1646,11 @@ function renderShipmentWorkspace(){
 }
 
 window.addEventListener('error',e=>console.error('Transtrade Export Clean V2',e.error||e.message));
+window.addEventListener('tt:shared-updated',()=>{
+ if(contractDraft||modalStack.length)return;
+ state=load();
+ if(currentShipmentId&&!state.shipments.some(row=>row.id===currentShipmentId)){currentShipmentId='';activeWorkspace='';view='home'}
+ render()
+});
 mount();restoreContractCheckpoint();
 })();
