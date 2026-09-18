@@ -145,6 +145,7 @@ function ai_call_gemini(string $key,string $model,array $parts,array $schema): a
     if($ch===false) throw new RuntimeException('Gemini connection could not be initialized.');
     curl_setopt_array($ch,[
         CURLOPT_POST=>true,CURLOPT_RETURNTRANSFER=>true,CURLOPT_CONNECTTIMEOUT=>15,CURLOPT_TIMEOUT=>120,
+        CURLOPT_IPRESOLVE=>CURL_IPRESOLVE_V4,CURLOPT_HTTP_VERSION=>CURL_HTTP_VERSION_1_1,
         CURLOPT_HTTPHEADER=>['Content-Type: application/json','x-goog-api-key: '.$key],
         CURLOPT_POSTFIELDS=>json_encode($payload,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR),
     ]);

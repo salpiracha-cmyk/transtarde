@@ -41,6 +41,7 @@ $payload = json_encode([
 $ch = curl_init($url);
 curl_setopt_array($ch, [
     CURLOPT_POST=>true, CURLOPT_RETURNTRANSFER=>true, CURLOPT_CONNECTTIMEOUT=>15, CURLOPT_TIMEOUT=>45,
+    CURLOPT_IPRESOLVE=>CURL_IPRESOLVE_V4, CURLOPT_HTTP_VERSION=>CURL_HTTP_VERSION_1_1,
     CURLOPT_HTTPHEADER=>['Content-Type: application/json','x-goog-api-key: '.$key], CURLOPT_POSTFIELDS=>$payload,
 ]);
 $raw = curl_exec($ch);
