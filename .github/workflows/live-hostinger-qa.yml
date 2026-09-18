@@ -7,10 +7,6 @@ on:
         description: 'Type CREATE TWO QA CONTAINERS to authorize uniquely labelled live dummy data'
         required: true
         type: string
-  workflow_run:
-    workflows: ['Deploy Production']
-    types: [completed]
-    branches: [main]
 
 permissions:
   contents: read
@@ -21,7 +17,7 @@ concurrency:
 
 jobs:
   live-qa:
-    if: ${{ github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_sha == github.sha && !contains(github.event.workflow_run.head_commit.message, '[cleanup-only]')) }}
+    if: ${{ github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     timeout-minutes: 35
     environment: live-qa

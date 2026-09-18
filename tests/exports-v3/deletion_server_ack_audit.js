@@ -28,4 +28,5 @@ assert.match(app,/function restoreReleasedContractReference\(ref\)/,'reusing an 
 assert.match(app,/restoreReleasedContractReference\(draft\.ref\)/,'the first server-saved draft must release an older marker for the same reference');
 assert.match(operations,/Contract reference legitimately reused after deletion/,'the server must recognize a genuinely recreated contract after its prior deletion');
 assert.match(operations,/\$recreatedAt\[\$ref\] <= \$deletedAt/,'the server must require recreation evidence newer than the deletion');
+assert.match(operations,/permanent server decision: never let that browser reactivate/,'a stale client must not reactivate a restored deletion marker');
 console.log('PASS shipment deletion waits for shared-server acknowledgement');

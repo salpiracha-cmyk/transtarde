@@ -268,7 +268,30 @@ function operations_merge_export(string $currentJson, string $incomingJson, stri
     if (!is_array($incoming)) return $currentJson;
     $applyTombstones = static function (array $merged) use ($current, $incoming, $sourceModule): array {
         $authoritative = strcasecmp($sourceModule, 'Exports') === 0 || strcasecmp($sourceModule, 'Super Admin') === 0;
-        $tombstones = $authoritative ? (array)($incoming['deletedShipments'] ?? []) : (array)($current['deletedShipments'] ?? []);
+        $currentTombstones = (array)($current['deletedShipments'] ?? []);
+        $incomingTombstones = (array)($incoming['deletedShipments'] ?? []);
+        $tombstones = $authoritative
+            ? operations_union_rows($currentTombstones, $incomingTombstones, ['id', 'contractRef'])
+            : $currentTombstones;
+        // A stale browser may still hold the deletion marker from before a
+        // contract reference was legitimately reused. Restoration is a
+        // permanent server decision: never let that browser reactivate the
+        // marker by submitting an older copy without restoredAt.
+        $restoredByRef = [];
+        foreach ($currentTombstones as $row) {
+            if (!is_array($row) || empty($row['restoredAt'])) continue;
+            $ref = trim((string)($row['contractRef'] ?? ''));
+            if ($ref !== '') $restoredByRef[$ref] = $row;
+        }
+        foreach ($tombstones as &$row) {
+            if (!is_array($row) || !empty($row['restoredAt'])) continue;
+            $ref = trim((string)($row['contractRef'] ?? ''));
+            if ($ref === '' || !isset($restoredByRef[$ref])) continue;
+            $row['restoredAt'] = $restoredByRef[$ref]['restoredAt'];
+            $row['restoredBy'] = $restoredByRef[$ref]['restoredBy'] ?? 'Server';
+            $row['restoredReason'] = $restoredByRef[$ref]['restoredReason'] ?? 'Contract reference legitimately reused after deletion';
+        }
+        unset($row);
         // A deletion marker protects a deleted shipment from being resurrected by
         // an old browser. It must not permanently reserve the contract reference.
         // A genuinely recreated Sales Contract has both a live contract row and a
