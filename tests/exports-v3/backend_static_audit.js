@@ -126,6 +126,8 @@ assert.match(documentAi,/function ai_gemini_request/,'Gemini document calls must
 assert.match(documentAi,/tt_gemini_resolve_model/,'Gemini document extraction must resolve a model available to the configured API key');
 assert.match(geminiRuntime,/\/v1beta\/models\?pageSize=100/,'Gemini runtime must discover models from the provider before document extraction');
 assert.match(geminiRuntime,/supportedGenerationMethods/,'Gemini runtime must select only models supporting generateContent');
+assert.match(geminiRuntime,/\['gemini-3\.6-flash','gemini-3\.7-flash'/,'Gemini runtime must prefer the provider-required current Flash generation');
+assert.doesNotMatch(geminiRuntime,/gemini-1\.5-(?:flash|pro)|gemini-2\.0-flash-exp/,'Gemini runtime must not offer retired model fallbacks');
 assert.match(documentAi,/CURLOPT_TIMEOUT=>60/,'Gemini document extraction must stay within the Hostinger request budget');
 assert.match(geminiDiagnostic,/tt_gemini_resolve_model/,'Gemini health checks must use the same model resolver as document extraction');
 assert.match(geminiDiagnostic,/CURLOPT_TIMEOUT=>60/,'Gemini health checks must allow the full 60-second request budget');

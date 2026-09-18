@@ -74,7 +74,7 @@ function tt_gemini_resolve_model(string $key,string $configured): array {
     if($configured!==''&&in_array($configured,$available,true)) {
         return ['model'=>$configured,'configured'=>$configured,'verified'=>true,'available'=>$available];
     }
-    foreach(['gemini-2.5-flash','gemini-2.5-flash-lite','gemini-1.5-flash','gemini-1.5-pro'] as $candidate) {
+    foreach(['gemini-3.6-flash','gemini-3.7-flash','gemini-3.5-flash','gemini-3.5-flash-lite','gemini-2.5-flash','gemini-2.5-flash-lite'] as $candidate) {
         if(in_array($candidate,$available,true)) return ['model'=>$candidate,'configured'=>$configured,'verified'=>true,'available'=>$available];
     }
     foreach($available as $candidate) {
