@@ -25,7 +25,7 @@ $start=strpos($served,$open);$end=$start===false?false:strpos($served,'</script>
 check($start!==false&&$end!==false,'The served Export script was not found.');
 $actual=substr($served,$start+strlen($open),$end-($start+strlen($open)));
 check(hash_equals(hash('sha256',$expected),hash('sha256',$actual)),'PHP changed Export JavaScript while assembling the page.');
-check(str_contains($actual,'$1<div class="commercialCopyLabel">'),'Commercial copy title replacement was corrupted.');
+check(str_contains($actual,'</div>$1'),'Commercial copy title replacement was corrupted.');
 check(str_contains($actual,"\\\\s*"),'JavaScript regular-expression backslashes were corrupted.');
 
 $probe='<html><head data-x="1"></head><body></body></html>';
