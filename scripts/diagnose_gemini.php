@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 /** Read-only production Gemini health check. Never prints the API key. */
 if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }
+require dirname(__DIR__) . '/auth_store.php';
 
 function gemini_health_env(string $name): string {
     foreach (['TT_'.$name,$name] as $envName) {
@@ -15,7 +16,7 @@ function gemini_health_env(string $name): string {
         if (is_array($config) && isset($config[$name])) return trim((string)$config[$name]);
     }
     if ($name === 'GEMINI_API_KEY') {
-        $keyPath = dirname(__DIR__) . '/data/gemini.key';
+        $keyPath = rtrim((string)TT_DATA_DIR, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'gemini.key';
         if (is_file($keyPath) && is_readable($keyPath)) return trim((string)file_get_contents($keyPath));
     }
     return '';
