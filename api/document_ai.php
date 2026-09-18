@@ -14,6 +14,11 @@ function ai_env(string $name): string {
         $value=getenv($key);
         if($value!==false && trim((string)$value)!=='') return trim((string)$value);
     }
+    foreach ([dirname(__DIR__).'/private/env.php',dirname(__DIR__).'/data/private/env.php'] as $path) {
+        if(!is_file($path)) continue;
+        $config=require $path;
+        if(is_array($config)&&isset($config[$name])&&trim((string)$config[$name])!=='') return trim((string)$config[$name]);
+    }
     if($name==='GEMINI_API_KEY' && defined('TT_DATA_DIR')) {
         $path=rtrim((string)TT_DATA_DIR,DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR.'gemini.key';
         if(is_file($path) && is_readable($path)) {
@@ -234,7 +239,7 @@ try{
     if(!in_array($kind,['contract','lc'],true)) ai_respond(['ok'=>false,'error'=>'Select Customer Contract or L/C.'],422);
     $key=ai_env('GEMINI_API_KEY');
     if($key==='') ai_respond(['ok'=>false,'error'=>'Gemini is not configured on the server yet. Add GEMINI_API_KEY as a protected server secret.','code'=>'GEMINI_NOT_CONFIGURED'],503);
-    $model=ai_env('GEMINI_MODEL')?:'gemini-2.5-flash-lite';
+    $model=ai_env('GEMINI_MODEL')?:'gemini-2.5-flash';
     if(!preg_match('/^[A-Za-z0-9._-]{3,80}$/',$model)) throw new RuntimeException('Invalid Gemini model configuration.');
     $parts=[['text'=>ai_prompt($kind)]];
     $text=trim((string)($_POST['text']??''));

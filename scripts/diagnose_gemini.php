@@ -28,15 +28,30 @@ function gemini_health_out(array $data, int $code = 0): never {
 }
 
 $key = gemini_health_env('GEMINI_API_KEY');
-$model = gemini_health_env('GEMINI_MODEL') ?: 'gemini-2.5-flash-lite';
+$model = gemini_health_env('GEMINI_MODEL') ?: 'gemini-2.5-flash';
 if ($key === '') gemini_health_out(['ok'=>false,'configured'=>false,'model'=>$model,'error'=>'GEMINI_API_KEY is not configured.'],2);
 if (!preg_match('/^[A-Za-z0-9._-]{3,80}$/', $model)) gemini_health_out(['ok'=>false,'configured'=>true,'model'=>'invalid','error'=>'GEMINI_MODEL is invalid.'],2);
 if (!function_exists('curl_init')) gemini_health_out(['ok'=>false,'configured'=>true,'model'=>$model,'error'=>'PHP cURL is unavailable.'],2);
 
 $url = 'https://generativelanguage.googleapis.com/v1beta/models/' . rawurlencode($model) . ':generateContent';
 $payload = json_encode([
-    'contents'=>[['role'=>'user','parts'=>[['text'=>'Reply with exactly OK.']]]],
-    'generationConfig'=>['temperature'=>0,'maxOutputTokens'=>8],
+    'contents'=>[['role'=>'user','parts'=>[
+        ['text'=>'Inspect the attached image and return JSON with ok=true.'],
+        ['inline_data'=>[
+            'mime_type'=>'image/png',
+            'data'=>'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl2M0AAAAASUVORK5CYII=',
+        ]],
+    ]]],
+    'generationConfig'=>[
+        'temperature'=>0,
+        'maxOutputTokens'=>32,
+        'responseMimeType'=>'application/json',
+        'responseSchema'=>[
+            'type'=>'object',
+            'properties'=>['ok'=>['type'=>'boolean']],
+            'required'=>['ok'],
+        ],
+    ],
 ], JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
 $ch = curl_init($url);
 curl_setopt_array($ch, [
@@ -59,4 +74,12 @@ if ($status < 200 || $status >= 300) {
     $provider = preg_replace('/\s+/', ' ', trim((string)($response['error']['message'] ?? 'Request failed.')));
     gemini_health_out(['ok'=>false,'configured'=>true,'model'=>$model,'httpStatus'=>$status,'error'=>mb_substr($provider,0,240)],2);
 }
-gemini_health_out(['ok'=>true,'configured'=>true,'model'=>$model,'httpStatus'=>$status]);
+$text = '';
+foreach ((array)($response['candidates'][0]['content']['parts'] ?? []) as $part) {
+    if (isset($part['text'])) $text .= (string)$part['text'];
+}
+$data = $text !== '' ? json_decode($text, true) : null;
+if (!is_array($data) || ($data['ok'] ?? false) !== true) {
+    gemini_health_out(['ok'=>false,'configured'=>true,'model'=>$model,'httpStatus'=>$status,'error'=>'Gemini multimodal JSON validation failed.'],2);
+}
+gemini_health_out(['ok'=>true,'configured'=>true,'model'=>$model,'httpStatus'=>$status,'multimodal'=>true,'structuredJson'=>true]);
