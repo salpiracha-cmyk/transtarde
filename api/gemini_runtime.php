@@ -69,18 +69,16 @@ function tt_gemini_resolve_model(string $key,string $configured): array {
     $available=tt_gemini_available_models($key);
     if(!$available) {
         $fallback=$configured!==''?$configured:'gemini-2.5-flash';
-        return ['model'=>$fallback,'configured'=>$configured,'verified'=>false,'available'=>[]];
+        return ['model'=>$fallback,'candidates'=>[$fallback],'configured'=>$configured,'verified'=>false,'available'=>[]];
     }
-    if($configured!==''&&in_array($configured,$available,true)) {
-        return ['model'=>$configured,'configured'=>$configured,'verified'=>true,'available'=>$available];
-    }
+    $candidates=[];
+    if($configured!==''&&in_array($configured,$available,true)) $candidates[]=$configured;
     foreach(['gemini-3.6-flash','gemini-3.7-flash','gemini-3.5-flash','gemini-3.5-flash-lite','gemini-2.5-flash','gemini-2.5-flash-lite'] as $candidate) {
-        if(in_array($candidate,$available,true)) return ['model'=>$candidate,'configured'=>$configured,'verified'=>true,'available'=>$available];
+        if(in_array($candidate,$available,true)&&!in_array($candidate,$candidates,true)) $candidates[]=$candidate;
     }
     foreach($available as $candidate) {
-        if(str_contains($candidate,'flash')&&!preg_match('/(?:image|live|tts|audio|transcribe)/i',$candidate)) {
-            return ['model'=>$candidate,'configured'=>$configured,'verified'=>true,'available'=>$available];
-        }
+        if(str_contains($candidate,'flash')&&!preg_match('/(?:image|live|tts|audio|transcribe)/i',$candidate)&&!in_array($candidate,$candidates,true)) $candidates[]=$candidate;
     }
+    if($candidates) return ['model'=>$candidates[0],'candidates'=>$candidates,'configured'=>$configured,'verified'=>true,'available'=>$available];
     throw new RuntimeException('No Gemini document-capable model is available for the configured API key.');
 }

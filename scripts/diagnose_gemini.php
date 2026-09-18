@@ -21,9 +21,6 @@ try {
 } catch (Throwable $e) {
     gemini_health_out(['ok'=>false,'configured'=>true,'model'=>$model,'error'=>$e->getMessage()],2);
 }
-$model = (string)$choice['model'];
-
-$url = 'https://generativelanguage.googleapis.com/v1beta/models/' . rawurlencode($model) . ':generateContent';
 $payload = json_encode([
     'contents'=>[['role'=>'user','parts'=>[
         ['text'=>'Read the attached PDF and return JSON with ok=true.'],
@@ -43,33 +40,30 @@ $payload = json_encode([
         ],
     ],
 ], JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
-$ch = curl_init($url);
-curl_setopt_array($ch, [
-    CURLOPT_POST=>true, CURLOPT_RETURNTRANSFER=>true, CURLOPT_CONNECTTIMEOUT=>15, CURLOPT_TIMEOUT=>60,
-    CURLOPT_IPRESOLVE=>CURL_IPRESOLVE_V4, CURLOPT_HTTP_VERSION=>CURL_HTTP_VERSION_1_1,
-    CURLOPT_HTTPHEADER=>['Content-Type: application/json','x-goog-api-key: '.$key], CURLOPT_POSTFIELDS=>$payload,
-]);
-$raw = curl_exec($ch);
-$status = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
-$error = curl_error($ch);
-curl_close($ch);
-if ($raw === false || $error !== '') gemini_health_out(['ok'=>false,'configured'=>true,'model'=>$model,'httpStatus'=>$status,'error'=>'Gemini connection failed.'],2);
-$response = json_decode((string)$raw, true);
-if (!is_array($response)) {
-    $snippet = preg_replace('/\s+/', ' ', trim((string)$raw)) ?? '';
-    error_log('Gemini health check returned non-JSON HTTP '.$status.' ('.json_last_error_msg().'): '.mb_substr($snippet, 0, 2000));
-    gemini_health_out(['ok'=>false,'configured'=>true,'model'=>$model,'httpStatus'=>$status,'error'=>'Gemini returned an invalid server response.'],2);
+$failures=[];
+foreach((array)($choice['candidates']??[$choice['model']]) as $model) {
+    $url='https://generativelanguage.googleapis.com/v1beta/models/'.rawurlencode((string)$model).':generateContent';
+    $ch=curl_init($url);
+    curl_setopt_array($ch,[
+        CURLOPT_POST=>true,CURLOPT_RETURNTRANSFER=>true,CURLOPT_CONNECTTIMEOUT=>15,CURLOPT_TIMEOUT=>60,
+        CURLOPT_IPRESOLVE=>CURL_IPRESOLVE_V4,CURLOPT_HTTP_VERSION=>CURL_HTTP_VERSION_1_1,
+        CURLOPT_HTTPHEADER=>['Content-Type: application/json','x-goog-api-key: '.$key],CURLOPT_POSTFIELDS=>$payload,
+    ]);
+    $raw=curl_exec($ch);$status=(int)curl_getinfo($ch,CURLINFO_RESPONSE_CODE);$error=curl_error($ch);curl_close($ch);
+    if($raw===false||$error!=='') {$failures[]=['model'=>$model,'httpStatus'=>$status,'error'=>'Connection failed'];continue;}
+    $response=json_decode((string)$raw,true);
+    if(!is_array($response)) {$failures[]=['model'=>$model,'httpStatus'=>$status,'error'=>'Invalid server response'];continue;}
+    if($status<200||$status>=300) {
+        $provider=preg_replace('/\s+/',' ',trim((string)($response['error']['message']??'Request failed.')))??'Request failed.';
+        $failures[]=['model'=>$model,'httpStatus'=>$status,'error'=>mb_substr($provider,0,240)];
+        if(in_array($status,[404,429,503],true)) continue;
+        break;
+    }
+    $text='';
+    foreach((array)($response['candidates'][0]['content']['parts']??[]) as $part) if(isset($part['text'])) $text.=(string)$part['text'];
+    $data=$text!==''?json_decode($text,true):null;
+    if(!is_array($data)||($data['ok']??false)!==true) {$failures[]=['model'=>$model,'httpStatus'=>$status,'error'=>'PDF JSON validation failed'];continue;}
+    gemini_health_out(['ok'=>true,'configured'=>true,'configuredModel'=>$configuredModel,'model'=>$model,'modelVerified'=>(bool)$choice['verified'],'httpStatus'=>$status,'pdfInput'=>true,'structuredJson'=>true,'priorFailures'=>$failures]);
 }
-if ($status < 200 || $status >= 300) {
-    $provider = preg_replace('/\s+/', ' ', trim((string)($response['error']['message'] ?? 'Request failed.')));
-    gemini_health_out(['ok'=>false,'configured'=>true,'model'=>$model,'httpStatus'=>$status,'error'=>mb_substr($provider,0,240)],2);
-}
-$text = '';
-foreach ((array)($response['candidates'][0]['content']['parts'] ?? []) as $part) {
-    if (isset($part['text'])) $text .= (string)$part['text'];
-}
-$data = $text !== '' ? json_decode($text, true) : null;
-if (!is_array($data) || ($data['ok'] ?? false) !== true) {
-    gemini_health_out(['ok'=>false,'configured'=>true,'model'=>$model,'httpStatus'=>$status,'error'=>'Gemini multimodal JSON validation failed.'],2);
-}
-gemini_health_out(['ok'=>true,'configured'=>true,'configuredModel'=>$configuredModel,'model'=>$model,'modelVerified'=>(bool)$choice['verified'],'httpStatus'=>$status,'pdfInput'=>true,'structuredJson'=>true]);
+$last=$failures[count($failures)-1]??['model'=>$choice['model'],'httpStatus'=>0,'error'=>'No Gemini model succeeded.'];
+gemini_health_out(['ok'=>false,'configured'=>true,'configuredModel'=>$configuredModel,'model'=>$last['model'],'httpStatus'=>$last['httpStatus'],'error'=>$last['error'],'attempts'=>$failures],2);

@@ -237,7 +237,19 @@ try{
     }else{
         ai_respond(['ok'=>false,'error'=>'Choose a document or paste its text.'],422);
     }
-    $data=ai_call_gemini($key,$model,$parts,$kind==='lc'?ai_lc_schema():ai_contract_schema());
+    $data=null;$lastModelError=null;
+    foreach((array)($modelChoice['candidates']??[$model]) as $candidateModel) {
+        try {
+            $data=ai_call_gemini($key,(string)$candidateModel,$parts,$kind==='lc'?ai_lc_schema():ai_contract_schema());
+            $model=(string)$candidateModel;
+            break;
+        } catch(RuntimeException $e) {
+            $lastModelError=$e;
+            if(!in_array($e->getCode(),[404,429,503],true)) throw $e;
+            error_log('Gemini model '.$candidateModel.' unavailable for document extraction (HTTP '.$e->getCode().'); trying the next verified model.');
+        }
+    }
+    if(!is_array($data)) throw $lastModelError??new RuntimeException('Gemini could not read this document.');
     tt_audit(isset($user['id'])?(int)$user['id']:null,(string)($user['username']??'user'),'Gemini '.$kind.' document extracted for human review');
     ai_respond(['ok'=>true,'provider'=>'Gemini','model'=>$model,'data'=>$data]);
 }catch(InvalidArgumentException $e){ai_respond(['ok'=>false,'error'=>$e->getMessage()],422);
