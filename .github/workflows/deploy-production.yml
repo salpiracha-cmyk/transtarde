@@ -196,9 +196,8 @@ jobs:
 
       - name: Diagnose Gemini document reader
         id: gemini_health
-        continue-on-error: true
         run: |
-          set -uo pipefail
+          set +e
           result=$(ssh -i "$RUNNER_TEMP/ssh/deploy_key" \
             -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" \
             -o StrictHostKeyChecking=yes \
@@ -206,7 +205,11 @@ jobs:
             php "$HOSTINGER_DEPLOY_PATH/scripts/diagnose_gemini.php")
           status=$?
           echo "GEMINI_HEALTH=$result"
-          test "$status" -eq 0 || exit "$status"
+          set -euo pipefail
+          if [ "$status" -ne 0 ]; then
+            echo "Gemini production diagnostic failed."
+            exit "$status"
+          fi
           php -r '$r=json_decode($argv[1],true);if(!is_array($r)||($r["ok"]??false)!==true){fwrite(STDERR,"Gemini health check failed.\n");exit(1);} echo "Gemini health check passed for ".$r["model"].".\n";' "$result"
 
       - name: Verify production health

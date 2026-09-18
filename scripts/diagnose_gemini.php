@@ -4,42 +4,32 @@ declare(strict_types=1);
 /** Read-only production Gemini health check. Never prints the API key. */
 if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }
 require dirname(__DIR__) . '/auth_store.php';
-
-function gemini_health_env(string $name): string {
-    foreach (['TT_'.$name,$name] as $envName) {
-        $value = getenv($envName);
-        if ($value !== false && trim((string)$value) !== '') return trim((string)$value);
-    }
-    foreach ([dirname(__DIR__) . '/private/env.php', dirname(__DIR__) . '/data/private/env.php'] as $path) {
-        if (!is_file($path)) continue;
-        $config = require $path;
-        if (is_array($config) && isset($config[$name])) return trim((string)$config[$name]);
-    }
-    if ($name === 'GEMINI_API_KEY') {
-        $keyPath = rtrim((string)TT_DATA_DIR, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'gemini.key';
-        if (is_file($keyPath) && is_readable($keyPath)) return trim((string)file_get_contents($keyPath));
-    }
-    return '';
-}
+require dirname(__DIR__) . '/api/gemini_runtime.php';
 
 function gemini_health_out(array $data, int $code = 0): never {
     echo json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . PHP_EOL;
     exit($code);
 }
 
-$key = gemini_health_env('GEMINI_API_KEY');
-$model = gemini_health_env('GEMINI_MODEL') ?: 'gemini-2.5-flash';
+$key = tt_gemini_config_value('GEMINI_API_KEY');
+$configuredModel = tt_gemini_config_value('GEMINI_MODEL');
+$model = $configuredModel;
 if ($key === '') gemini_health_out(['ok'=>false,'configured'=>false,'model'=>$model,'error'=>'GEMINI_API_KEY is not configured.'],2);
-if (!preg_match('/^[A-Za-z0-9._-]{3,80}$/', $model)) gemini_health_out(['ok'=>false,'configured'=>true,'model'=>'invalid','error'=>'GEMINI_MODEL is invalid.'],2);
 if (!function_exists('curl_init')) gemini_health_out(['ok'=>false,'configured'=>true,'model'=>$model,'error'=>'PHP cURL is unavailable.'],2);
+try {
+    $choice = tt_gemini_resolve_model($key,$configuredModel);
+} catch (Throwable $e) {
+    gemini_health_out(['ok'=>false,'configured'=>true,'model'=>$model,'error'=>$e->getMessage()],2);
+}
+$model = (string)$choice['model'];
 
 $url = 'https://generativelanguage.googleapis.com/v1beta/models/' . rawurlencode($model) . ':generateContent';
 $payload = json_encode([
     'contents'=>[['role'=>'user','parts'=>[
-        ['text'=>'Inspect the attached image and return JSON with ok=true.'],
+        ['text'=>'Read the attached PDF and return JSON with ok=true.'],
         ['inline_data'=>[
-            'mime_type'=>'image/png',
-            'data'=>'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl2M0AAAAASUVORK5CYII=',
+            'mime_type'=>'application/pdf',
+            'data'=>'JVBERi0xLjMKJZOMi54gUmVwb3J0TGFiIEdlbmVyYXRlZCBQREYgZG9jdW1lbnQgKG9wZW5zb3VyY2UpCjEgMCBvYmoKPDwKL0YxIDIgMCBSCj4+CmVuZG9iagoyIDAgb2JqCjw8Ci9CYXNlRm9udCAvSGVsdmV0aWNhIC9FbmNvZGluZyAvV2luQW5zaUVuY29kaW5nIC9OYW1lIC9GMSAvU3VidHlwZSAvVHlwZTEgL1R5cGUgL0ZvbnQKPj4KZW5kb2JqCjMgMCBvYmoKPDwKL0NvbnRlbnRzIDcgMCBSIC9NZWRpYUJveCBbIDAgMCAyMDAgMjAwIF0gL1BhcmVudCA2IDAgUiAvUmVzb3VyY2VzIDw8Ci9Gb250IDEgMCBSIC9Qcm9jU2V0IFsgL1BERiAvVGV4dCAvSW1hZ2VCIC9JbWFnZUMgL0ltYWdlSSBdCj4+IC9Sb3RhdGUgMCAvVHJhbnMgPDwKCj4+IAogIC9UeXBlIC9QYWdlCj4+CmVuZG9iago0IDAgb2JqCjw8Ci9QYWdlTW9kZSAvVXNlTm9uZSAvUGFnZXMgNiAwIFIgL1R5cGUgL0NhdGFsb2cKPj4KZW5kb2JqCjUgMCBvYmoKPDwKL0F1dGhvciAoYW5vbnltb3VzKSAvQ3JlYXRpb25EYXRlIChEOjIwMjYwOTE4MTExMTMxLTA0JzAwJykgL0NyZWF0b3IgKGFub255bW91cykgL0tleXdvcmRzICgpIC9Nb2REYXRlIChEOjIwMjYwOTE4MTExMTMxLTA0JzAwJykgL1Byb2R1Y2VyIChSZXBvcnRMYWIgUERGIExpYnJhcnkgLSBcKG9wZW5zb3VyY2VcKSkgCiAgL1N1YmplY3QgKHVuc3BlY2lmaWVkKSAvVGl0bGUgKHVudGl0bGVkKSAvVHJhcHBlZCAvRmFsc2UKPj4KZW5kb2JqCjYgMCBvYmoKPDwKL0NvdW50IDEgL0tpZHMgWyAzIDAgUiBdIC9UeXBlIC9QYWdlcwo+PgplbmRvYmoKNyAwIG9iago8PAovRmlsdGVyIFsgL0FTQ0lJODVEZWNvZGUgL0ZsYXRlRGVjb2RlIF0gL0xlbmd0aCAxMTIKPj4Kc3RyZWFtCkdhcEEvMGFgRmInU0dCIzt1RUNPQlY0bnVNSCdlJVlkbz5DK1M+WjY8QCUmQytZZDVeSUBeYExkOCNGPWtlX2AtZDdSNXRIaSdeKWl1Q1tVM3IyIU9ga1dTJkFSQThpV21IYWpwST1aUWdTPlBwfj5lbmRzdHJlYW0KZW5kb2JqCnhyZWYKMCA4CjAwMDAwMDAwMDAgNjU1MzUgZiAKMDAwMDAwMDA2MSAwMDAwMCBuIAowMDAwMDAwMDkyIDAwMDAwIG4gCjAwMDAwMDAxOTkgMDAwMDAgbiAKMDAwMDAwMDM5MiAwMDAwMCBuIAowMDAwMDAwNDYwIDAwMDAwIG4gCjAwMDAwMDA3MjEgMDAwMDAgbiAKMDAwMDAwMDc4MCAwMDAwMCBuIAp0cmFpbGVyCjw8Ci9JRCAKWzw3NDUyNjNkZmMyN2Q3NzQ2NzE5Y2VhMGEyMzZhZDM0Nz48NzQ1MjYzZGZjMjdkNzc0NjcxOWNlYTBhMjM2YWQzNDc+XQolIFJlcG9ydExhYiBnZW5lcmF0ZWQgUERGIGRvY3VtZW50IC0tIGRpZ2VzdCAob3BlbnNvdXJjZSkKCi9JbmZvIDUgMCBSCi9Sb290IDQgMCBSCi9TaXplIDgKPj4Kc3RhcnR4cmVmCjk4MgolJUVPRgo=',
         ]],
     ]]],
     'generationConfig'=>[
@@ -82,4 +72,4 @@ $data = $text !== '' ? json_decode($text, true) : null;
 if (!is_array($data) || ($data['ok'] ?? false) !== true) {
     gemini_health_out(['ok'=>false,'configured'=>true,'model'=>$model,'httpStatus'=>$status,'error'=>'Gemini multimodal JSON validation failed.'],2);
 }
-gemini_health_out(['ok'=>true,'configured'=>true,'model'=>$model,'httpStatus'=>$status,'multimodal'=>true,'structuredJson'=>true]);
+gemini_health_out(['ok'=>true,'configured'=>true,'configuredModel'=>$configuredModel,'model'=>$model,'modelVerified'=>(bool)$choice['verified'],'httpStatus'=>$status,'pdfInput'=>true,'structuredJson'=>true]);

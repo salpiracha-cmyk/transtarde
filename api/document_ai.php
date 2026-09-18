@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require dirname(__DIR__) . '/auth_store.php';
+require __DIR__ . '/gemini_runtime.php';
 
 function ai_respond(array $data,int $status=200): never {
     http_response_code($status);
@@ -10,23 +11,7 @@ function ai_respond(array $data,int $status=200): never {
     exit;
 }
 function ai_env(string $name): string {
-    foreach (['TT_'.$name,$name] as $key) {
-        $value=getenv($key);
-        if($value!==false && trim((string)$value)!=='') return trim((string)$value);
-    }
-    foreach ([dirname(__DIR__).'/private/env.php',dirname(__DIR__).'/data/private/env.php'] as $path) {
-        if(!is_file($path)) continue;
-        $config=require $path;
-        if(is_array($config)&&isset($config[$name])&&trim((string)$config[$name])!=='') return trim((string)$config[$name]);
-    }
-    if($name==='GEMINI_API_KEY' && defined('TT_DATA_DIR')) {
-        $path=rtrim((string)TT_DATA_DIR,DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR.'gemini.key';
-        if(is_file($path) && is_readable($path)) {
-            $value=trim((string)file_get_contents($path));
-            if($value!=='') return $value;
-        }
-    }
-    return '';
+    return tt_gemini_config_value($name);
 }
 function ai_can_write(array $user): bool {
     if(($user['role']??'')==='Super Admin') return true;
@@ -239,8 +224,9 @@ try{
     if(!in_array($kind,['contract','lc'],true)) ai_respond(['ok'=>false,'error'=>'Select Customer Contract or L/C.'],422);
     $key=ai_env('GEMINI_API_KEY');
     if($key==='') ai_respond(['ok'=>false,'error'=>'Gemini is not configured on the server yet. Add GEMINI_API_KEY as a protected server secret.','code'=>'GEMINI_NOT_CONFIGURED'],503);
-    $model=ai_env('GEMINI_MODEL')?:'gemini-2.5-flash';
-    if(!preg_match('/^[A-Za-z0-9._-]{3,80}$/',$model)) throw new RuntimeException('Invalid Gemini model configuration.');
+    $modelChoice=tt_gemini_resolve_model($key,ai_env('GEMINI_MODEL'));
+    $model=(string)$modelChoice['model'];
+    if(($modelChoice['configured']??'')!==''&&$model!==$modelChoice['configured']) error_log('Configured Gemini model is unavailable; selected '.$model.' from the API key model list.');
     $parts=[['text'=>ai_prompt($kind)]];
     $text=trim((string)($_POST['text']??''));
     if($text!==''){
@@ -266,6 +252,7 @@ try{
         'Gemini connection could not be initialized.',
         'Gemini returned an invalid server response. Please retry.',
         'Gemini returned an unreadable extraction. Please retry.',
+        'No Gemini document-capable model is available for the configured API key.',
     ];
     $message=in_array($e->getMessage(),$safeMessages,true)?$e->getMessage():'AI document reading is temporarily unavailable. Use the local fallback or try again.';
     $status=in_array($e->getCode(),[400,401,403,404,429],true)?$e->getCode():500;
