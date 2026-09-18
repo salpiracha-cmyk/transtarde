@@ -245,7 +245,8 @@ try{
             break;
         } catch(RuntimeException $e) {
             $lastModelError=$e;
-            if(!in_array($e->getCode(),[404,429,503],true)) throw $e;
+            $retryable=in_array($e->getCode(),[404,429,503],true)||$e->getMessage()==='Gemini returned an unreadable extraction. Please retry.';
+            if(!$retryable) throw $e;
             error_log('Gemini model '.$candidateModel.' unavailable for document extraction (HTTP '.$e->getCode().'); trying the next verified model.');
         }
     }

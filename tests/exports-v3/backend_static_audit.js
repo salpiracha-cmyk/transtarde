@@ -127,7 +127,7 @@ assert.match(documentAi,/tt_gemini_resolve_model/,'Gemini document extraction mu
 assert.match(geminiRuntime,/\/v1beta\/models\?pageSize=100/,'Gemini runtime must discover models from the provider before document extraction');
 assert.match(geminiRuntime,/supportedGenerationMethods/,'Gemini runtime must select only models supporting generateContent');
 assert.match(geminiRuntime,/'candidates'=>\$candidates/,'Gemini runtime must return an ordered verified fallback list');
-assert.match(geminiRuntime,/\['gemini-3\.6-flash','gemini-3\.7-flash'/,'Gemini runtime must prefer the provider-required current Flash generation');
+assert.match(geminiRuntime,/\['gemini-3\.5-flash-lite','gemini-3\.6-flash'/,'Gemini runtime must prefer the model proven by the production PDF gate');
 assert.doesNotMatch(geminiRuntime,/gemini-1\.5-(?:flash|pro)|gemini-2\.0-flash-exp/,'Gemini runtime must not offer retired model fallbacks');
 assert.match(documentAi,/CURLOPT_TIMEOUT=>60/,'Gemini document extraction must stay within the Hostinger request budget');
 assert.match(geminiDiagnostic,/tt_gemini_resolve_model/,'Gemini health checks must use the same model resolver as document extraction');
@@ -139,6 +139,7 @@ assert.match(geminiDiagnostic,/mime_type'=>'application\/pdf'/,'Gemini health ch
 assert.match(geminiDiagnostic,/responseSchema/,'Gemini health checks must exercise structured JSON output');
 assert.match(geminiDiagnostic,/in_array\(\$status,\[404,429,503\],true\)/,'Gemini PDF health checks must retry another verified model on unavailable, quota or high-demand responses');
 assert.match(documentAi,/in_array\(\$e->getCode\(\),\[404,429,503\],true\)/,'document extraction must retry another verified model on unavailable, quota or high-demand responses');
+assert.match(documentAi,/Gemini returned an unreadable extraction\. Please retry\./,'document extraction must retry another verified model after malformed structured output');
 assert.doesNotMatch(deployWorkflow,/gemini_health[\s\S]{0,80}continue-on-error:\s*true/,'a failed Gemini production diagnostic must fail the deployment workflow');
 assert.match(deployWorkflow,/Gemini production diagnostic failed/,'the deployment workflow must report a failed live Gemini diagnostic');
 assert.match(documentAi,/returned non-JSON HTTP/,'Gemini response parse failures must retain a bounded raw response in protected server logs');

@@ -73,7 +73,7 @@ function tt_gemini_resolve_model(string $key,string $configured): array {
     }
     $candidates=[];
     if($configured!==''&&in_array($configured,$available,true)) $candidates[]=$configured;
-    foreach(['gemini-3.6-flash','gemini-3.7-flash','gemini-3.5-flash','gemini-3.5-flash-lite','gemini-2.5-flash','gemini-2.5-flash-lite'] as $candidate) {
+    foreach(['gemini-3.5-flash-lite','gemini-3.6-flash','gemini-3.7-flash','gemini-3.5-flash','gemini-2.5-flash','gemini-2.5-flash-lite'] as $candidate) {
         if(in_array($candidate,$available,true)&&!in_array($candidate,$candidates,true)) $candidates[]=$candidate;
     }
     foreach($available as $candidate) {
