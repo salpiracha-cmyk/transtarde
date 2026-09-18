@@ -28,7 +28,7 @@ function gemini_health_out(array $data, int $code = 0): never {
 }
 
 $key = gemini_health_env('GEMINI_API_KEY');
-$model = gemini_health_env('GEMINI_MODEL') ?: 'gemini-3.8-flash';
+$model = gemini_health_env('GEMINI_MODEL') ?: 'gemini-3.5-flash-lite';
 if ($key === '') gemini_health_out(['ok'=>false,'configured'=>false,'model'=>$model,'error'=>'GEMINI_API_KEY is not configured.'],2);
 if (!preg_match('/^[A-Za-z0-9._-]{3,80}$/', $model)) gemini_health_out(['ok'=>false,'configured'=>true,'model'=>'invalid','error'=>'GEMINI_MODEL is invalid.'],2);
 if (!function_exists('curl_init')) gemini_health_out(['ok'=>false,'configured'=>true,'model'=>$model,'error'=>'PHP cURL is unavailable.'],2);
@@ -40,7 +40,7 @@ $payload = json_encode([
 ], JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
 $ch = curl_init($url);
 curl_setopt_array($ch, [
-    CURLOPT_POST=>true, CURLOPT_RETURNTRANSFER=>true, CURLOPT_CONNECTTIMEOUT=>15, CURLOPT_TIMEOUT=>45,
+    CURLOPT_POST=>true, CURLOPT_RETURNTRANSFER=>true, CURLOPT_CONNECTTIMEOUT=>15, CURLOPT_TIMEOUT=>60,
     CURLOPT_IPRESOLVE=>CURL_IPRESOLVE_V4, CURLOPT_HTTP_VERSION=>CURL_HTTP_VERSION_1_1,
     CURLOPT_HTTPHEADER=>['Content-Type: application/json','x-goog-api-key: '.$key], CURLOPT_POSTFIELDS=>$payload,
 ]);

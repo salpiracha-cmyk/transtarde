@@ -15,6 +15,7 @@ const js=fs.readFileSync(path.join(__dirname,'../../exports/app.js'),'utf8');
 const milling=fs.readFileSync(path.join(__dirname,'../../milling/Transtrade_Master_Milling_V3_3_2_AUDITED.html'),'utf8');
 const customerMaster=fs.readFileSync(path.join(__dirname,'../../customer-master.js'),'utf8');
 const documentAi=fs.readFileSync(path.join(__dirname,'../../api/document_ai.php'),'utf8');
+const geminiDiagnostic=fs.readFileSync(path.join(__dirname,'../../scripts/diagnose_gemini.php'),'utf8');
 
 assert.match(mysql,/tt_require_login\(\)/);
 assert.match(mysql,/tt_verify_csrf/);
@@ -120,6 +121,11 @@ assert.match(js,/ADVANCE TO BE REMITTED TO BELOW-MENTIONED ACCOUNT:/,'advance ba
 assert.match(js,/contractSignatureGrid/,'contract must provide aligned Seller and Buyer signature areas');
 assert.doesNotMatch(login,/authBrandLogo|TTI_header\.png/,'login must retain text-only Transtrade branding');
 assert.match(documentAi,/function ai_gemini_request/,'Gemini document calls must use the shared request path');
+assert.match(documentAi,/ai_env\('GEMINI_MODEL'\)\?:'gemini-3\.5-flash-lite'/,'Gemini document extraction must default to the supported low-latency document model');
+assert.match(documentAi,/CURLOPT_TIMEOUT=>60/,'Gemini document extraction must stay within the Hostinger request budget');
+assert.match(geminiDiagnostic,/gemini_health_env\('GEMINI_MODEL'\) \?: 'gemini-3\.5-flash-lite'/,'Gemini health checks must test the same default model as document extraction');
+assert.match(geminiDiagnostic,/CURLOPT_TIMEOUT=>60/,'Gemini health checks must allow the full 60-second request budget');
+assert.doesNotMatch(documentAi,/\?:'gemini-(?:1\.5|2\.0)-flash'/,'Gemini must not default to a retired model');
 assert.match(documentAi,/responseSchema/,'Gemini document extraction must first request the strict schema');
 assert.match(documentAi,/\$status===400&&\$index<count\(\$attempts\)-1/,'Gemini schema rejections must retry through the compatible JSON paths');
 assert.match(documentAi,/return ai_normalize_schema\(\$data,\$schema\)/,'fallback Gemini output must be normalized to the application schema');

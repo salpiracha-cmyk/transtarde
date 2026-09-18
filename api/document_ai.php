@@ -165,7 +165,7 @@ function ai_gemini_request(string $url,string $key,array $payload): array {
     $ch=curl_init($url);
     if($ch===false) throw new RuntimeException('Gemini connection could not be initialized.');
     curl_setopt_array($ch,[
-        CURLOPT_POST=>true,CURLOPT_RETURNTRANSFER=>true,CURLOPT_CONNECTTIMEOUT=>15,CURLOPT_TIMEOUT=>120,
+        CURLOPT_POST=>true,CURLOPT_RETURNTRANSFER=>true,CURLOPT_CONNECTTIMEOUT=>15,CURLOPT_TIMEOUT=>60,
         CURLOPT_IPRESOLVE=>CURL_IPRESOLVE_V4,CURLOPT_HTTP_VERSION=>CURL_HTTP_VERSION_1_1,
         CURLOPT_HTTPHEADER=>['Content-Type: application/json','x-goog-api-key: '.$key],
         CURLOPT_POSTFIELDS=>json_encode($payload,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR),
@@ -221,7 +221,7 @@ try{
     if(!in_array($kind,['contract','lc'],true)) ai_respond(['ok'=>false,'error'=>'Select Customer Contract or L/C.'],422);
     $key=ai_env('GEMINI_API_KEY');
     if($key==='') ai_respond(['ok'=>false,'error'=>'Gemini is not configured on the server yet. Add GEMINI_API_KEY as a protected server secret.','code'=>'GEMINI_NOT_CONFIGURED'],503);
-    $model=ai_env('GEMINI_MODEL')?:'gemini-3.8-flash';
+    $model=ai_env('GEMINI_MODEL')?:'gemini-3.5-flash-lite';
     if(!preg_match('/^[A-Za-z0-9._-]{3,80}$/',$model)) throw new RuntimeException('Invalid Gemini model configuration.');
     $parts=[['text'=>ai_prompt($kind)]];
     $text=trim((string)($_POST['text']??''));
