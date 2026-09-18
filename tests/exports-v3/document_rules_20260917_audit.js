@@ -18,7 +18,7 @@ assert.match(app,/SEND COPY SET OF DOCUMENTS TO THE BELOW BANK DETAILS/);
 assert.doesNotMatch(app.slice(app.indexOf('function coveringDoc(s,c,'),app.indexOf('const commercialInvoiceDocEntityAware')),/BANK COPY|TTI RECEIVING COPY/);
 for(const label of ['SALES CONTRACT / PROFORMA','COMMERCIAL INVOICE','PACKING LIST','BANK COVERING LETTER','RELATIONSHIP LETTER'])assert.match(app,new RegExp(label.replace('/','\\/')));
 assert.match(app,/approved specimen wording is still awaited/i);
-assert.match(app,/KCCI_COO_letterpad\.webp/);
+assert.match(app,/KCCI_COO_letterpad\.jpg/);
 const activeCoo=app.slice(app.indexOf('function renderCOO(d){'),app.indexOf('const renderCoverBeforeSplitWorkspace'));
 assert.doesNotMatch(activeCoo,/Completed \/ Original COO|cooFinalFile/);
 assert.match(app,/commercialDescriptionText\(s,dc\)/);

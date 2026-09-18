@@ -114,6 +114,6 @@ jobs:
         run: |
           echo "## Owner full TEST data reset" >> "$GITHUB_STEP_SUMMARY"
           echo "- Reset id: \`$RESET_ID\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Scope: Milling + Exports + Accounts operational/test data" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Parties master: cleared by explicit owner instruction" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Other Master Console records: preserved" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Scope: Milling and Exports transactional/test data" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Customer/buyer parties: cleared by explicit owner instruction" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Accounts and all other Super Admin data: preserved" >> "$GITHUB_STEP_SUMMARY"

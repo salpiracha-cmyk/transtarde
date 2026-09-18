@@ -1,0 +1,55 @@
+<?php
+declare(strict_types=1);
+
+/** Read-only production Gemini health check. Never prints the API key. */
+if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }
+
+function gemini_health_env(string $name): string {
+    foreach (['TT_'.$name,$name] as $envName) {
+        $value = getenv($envName);
+        if ($value !== false && trim((string)$value) !== '') return trim((string)$value);
+    }
+    foreach ([dirname(__DIR__) . '/private/env.php', dirname(__DIR__) . '/data/private/env.php'] as $path) {
+        if (!is_file($path)) continue;
+        $config = require $path;
+        if (is_array($config) && isset($config[$name])) return trim((string)$config[$name]);
+    }
+    if ($name === 'GEMINI_API_KEY') {
+        $keyPath = dirname(__DIR__) . '/data/gemini.key';
+        if (is_file($keyPath) && is_readable($keyPath)) return trim((string)file_get_contents($keyPath));
+    }
+    return '';
+}
+
+function gemini_health_out(array $data, int $code = 0): never {
+    echo json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE) . PHP_EOL;
+    exit($code);
+}
+
+$key = gemini_health_env('GEMINI_API_KEY');
+$model = gemini_health_env('GEMINI_MODEL') ?: 'gemini-3.8-flash';
+if ($key === '') gemini_health_out(['ok'=>false,'configured'=>false,'model'=>$model,'error'=>'GEMINI_API_KEY is not configured.'],2);
+if (!preg_match('/^[A-Za-z0-9._-]{3,80}$/', $model)) gemini_health_out(['ok'=>false,'configured'=>true,'model'=>'invalid','error'=>'GEMINI_MODEL is invalid.'],2);
+if (!function_exists('curl_init')) gemini_health_out(['ok'=>false,'configured'=>true,'model'=>$model,'error'=>'PHP cURL is unavailable.'],2);
+
+$url = 'https://generativelanguage.googleapis.com/v1beta/models/' . rawurlencode($model) . ':generateContent';
+$payload = json_encode([
+    'contents'=>[['role'=>'user','parts'=>[['text'=>'Reply with exactly OK.']]]],
+    'generationConfig'=>['temperature'=>0,'maxOutputTokens'=>8],
+], JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+$ch = curl_init($url);
+curl_setopt_array($ch, [
+    CURLOPT_POST=>true, CURLOPT_RETURNTRANSFER=>true, CURLOPT_CONNECTTIMEOUT=>15, CURLOPT_TIMEOUT=>45,
+    CURLOPT_HTTPHEADER=>['Content-Type: application/json','x-goog-api-key: '.$key], CURLOPT_POSTFIELDS=>$payload,
+]);
+$raw = curl_exec($ch);
+$status = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+$error = curl_error($ch);
+curl_close($ch);
+if ($raw === false || $error !== '') gemini_health_out(['ok'=>false,'configured'=>true,'model'=>$model,'httpStatus'=>$status,'error'=>'Gemini connection failed.'],2);
+$response = json_decode((string)$raw, true);
+if ($status < 200 || $status >= 300) {
+    $provider = preg_replace('/\s+/', ' ', trim((string)($response['error']['message'] ?? 'Request failed.')));
+    gemini_health_out(['ok'=>false,'configured'=>true,'model'=>$model,'httpStatus'=>$status,'error'=>mb_substr($provider,0,240)],2);
+}
+gemini_health_out(['ok'=>true,'configured'=>true,'model'=>$model,'httpStatus'=>$status]);

@@ -51,7 +51,7 @@ const bl=t.blDraftDoc(lot,contract);
 assert.match(bl,/oceanBlPage/);
 assert.match(bl,/FINAL BUYER LLC/i);
 assert.doesNotMatch(bl,/assets\/BRM_header\.png|docFooterArt|docAutoSign|bagMarking/);
-assert.match(t.cooDoc(lot,contract,false),/assets\/KCCI_COO_letterpad\.webp/);
+assert.match(t.cooDoc(lot,contract,false),/assets\/KCCI_COO_letterpad\.jpg/);
 assert.match(t.cooDoc(lot,contract,false),/FINAL BUYER LLC/i);
 for(const html of [t.tgInternalDoc(lot,contract),t.tgPakistanCoveringDoc(lot,contract)]){
   assert.match(html,/assets\/BRM_header\.png/);

@@ -14,7 +14,7 @@
   const parseRoot=()=>{try{return JSON.parse(localStorage.getItem(ROOT)||'null')}catch{return null}};
   const getNotifiesText=c=>(c.notifies||[]).map(n=>[n.name,n.address].filter(Boolean).join(' | ')).join('\n');
   const parseNotifies=text=>String(text||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean).map(line=>{const [name,...rest]=line.split('|');return{name:String(name||'').trim(),address:rest.join('|').trim()}});
-  const canonical=c=>({masterId:c.masterId||'',name:c.name||'',code:c.code||'',roles:c.roles||'Export Buyer',address:c.address||'',country:c.country||'',email:c.email||'',phone:c.phone||'',tax:c.tax||'',packingDefault:c.packingDefault||'KG',notifies:Array.isArray(c.notifies)?c.notifies:[],status:c.status||'Active',notes:c.notes||''});
+  const canonical=c=>({masterId:c.masterId||'',name:c.name||'',code:c.code||'',roles:c.roles||'Export Buyer',address:c.address||'',country:c.country||'',email:c.email||'',phone:c.phone||'',tax:c.tax||'',packingDefault:c.packingDefault||'KG',notifies:Array.isArray(c.notifies)?c.notifies:[],status:c.status||'Active',notes:c.notes||'',showCountry:!!c.showCountry,showEmail:!!c.showEmail,showPhone:!!c.showPhone,showTax:!!c.showTax});
 
 
   const SHARED_MASTER_DEFS={
@@ -59,6 +59,12 @@
   }
 
   async function request(action,payload={}){
+    if(action==='upsert'&&payload.customer){
+      const malformed=(payload.customer.notifies||[]).find(row=>!String(row?.name||'').trim()||!String(row?.address||'').trim());
+      if(malformed)throw new Error('Each notify party must be entered as Name | Full Address.');
+      const flag=id=>!!document.getElementById(id)?.checked;
+      if(document.getElementById('ttCShowCountry'))Object.assign(payload.customer,{showCountry:flag('ttCShowCountry'),showEmail:flag('ttCShowEmail'),showPhone:flag('ttCShowPhone'),showTax:flag('ttCShowTax')});
+    }
     const r=await fetch(API,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({csrf,action,...payload})});
     const j=await r.json().catch(()=>({ok:false,error:'Customer master returned an invalid response.'}));
     if(!r.ok||!j.ok)throw new Error(j.error||'Customer master action failed.');
@@ -85,7 +91,7 @@
         l={id:`M-${m.masterId}`,nextSeq:1};root.customers.push(l);changed=true;
       }
       const before=JSON.stringify(l);
-      Object.assign(l,{masterId:m.masterId,name:m.name,code:m.code,address:m.address,country:m.country,email:m.email,phone:m.phone,tax:m.tax,notifies:m.notifies||[],packingDefault:m.packingDefault||'KG',inactive:String(m.status||'Active').toLowerCase()==='inactive'});
+      Object.assign(l,{masterId:m.masterId,name:m.name,code:m.code,address:m.address,country:m.country,email:m.email,phone:m.phone,tax:m.tax,notifies:m.notifies||[],packingDefault:m.packingDefault||'KG',showCountry:!!m.showCountry,showEmail:!!m.showEmail,showPhone:!!m.showPhone,showTax:!!m.showTax,inactive:String(m.status||'Active').toLowerCase()==='inactive'});
       if(JSON.stringify(l)!==before)changed=true;
     }
     if(removeDeleted){
@@ -106,7 +112,7 @@
       const master=listCache.find(m=>m.masterId===local.masterId)||listCache.find(m=>String(m.name||'').toLowerCase()===String(local.name||'').toLowerCase())||listCache.find(m=>local.code&&String(m.code||'').toUpperCase()===String(local.code).toUpperCase());
       if(master){if(!local.masterId){local.masterId=master.masterId;touched=true}continue}
       try{
-        const j=await request('upsert',{mode:'sync',customer:{masterId:local.masterId||'',name:local.name,code:local.code,address:local.address,country:local.country||'',email:local.email||'',phone:local.phone||'',tax:local.tax||'',packingDefault:local.packingDefault||'KG',notifies:local.notifies||[],roles:'Export Buyer',status:local.inactive?'Inactive':'Active'}});
+        const j=await request('upsert',{mode:'sync',customer:{masterId:local.masterId||'',name:local.name,code:local.code,address:local.address,country:local.country||'',email:local.email||'',phone:local.phone||'',tax:local.tax||'',packingDefault:local.packingDefault||'KG',notifies:local.notifies||[],roles:'Export Buyer',status:local.inactive?'Inactive':'Active',showCountry:!!local.showCountry,showEmail:!!local.showEmail,showPhone:!!local.showPhone,showTax:!!local.showTax}});
         if(j.customer?.masterId){local.masterId=j.customer.masterId;touched=true}
       }catch(e){console.warn('Customer master sync:',e)}
     }
@@ -170,6 +176,9 @@
 
   function openEditor(c){
     const o=overlayBase(c?'Amend Customer':'Add Customer'),body=o.querySelector('#ttCustomerMasterBody'),x=canonical(c||{});body.innerHTML=`<div id="ttCmMessage"></div><div class="tt-cm-grid"><div class="tt-cm-field"><label>Customer Name *</label><input id="ttCName" value="${esc(x.name)}"></div><div class="tt-cm-field"><label>Code / Reference</label><input id="ttCCode" value="${esc(x.code)}"></div><div class="tt-cm-field full"><label>Full Address *</label><textarea id="ttCAddress">${esc(x.address)}</textarea></div><div class="tt-cm-field"><label>Country</label><input id="ttCCountry" value="${esc(x.country)}"></div><div class="tt-cm-field"><label>Role(s)</label><input id="ttCRoles" value="${esc(x.roles||'Export Buyer')}" list="ttCustomerRoles"><datalist id="ttCustomerRoles"><option value="Export Buyer"><option value="Export Buyer; Notify Party"><option value="Buyer"><option value="Supplier"><option value="Broker"></datalist></div><div class="tt-cm-field"><label>Email</label><input id="ttCEmail" type="email" value="${esc(x.email)}"></div><div class="tt-cm-field"><label>Phone</label><input id="ttCPhone" value="${esc(x.phone)}"></div><div class="tt-cm-field"><label>VAT / Tax / Registration</label><input id="ttCTax" value="${esc(x.tax)}"></div><div class="tt-cm-field"><label>Default Packing Unit</label><select id="ttCPack"><option ${x.packingDefault==='KG'?'selected':''}>KG</option><option ${x.packingDefault==='LB'?'selected':''}>LB</option></select></div><div class="tt-cm-field"><label>Status</label><select id="ttCStatus"><option ${x.status!=='Inactive'?'selected':''}>Active</option><option ${x.status==='Inactive'?'selected':''}>Inactive</option></select></div><div class="tt-cm-field full"><label>Notify Parties — one per line as Name | Full Address</label><textarea id="ttCNotify">${esc(getNotifiesText(x))}</textarea></div><div class="tt-cm-field full"><label>Notes</label><textarea id="ttCNotes">${esc(x.notes)}</textarea></div></div><div class="tt-cm-toolbar" style="margin-top:16px"><button class="tt-cm-btn" id="ttCBack">Back</button><div class="tt-cm-spacer"></div><button class="tt-cm-btn green" id="ttCSave">${c?'SAVE CHANGES':'SAVE CUSTOMER'}</button></div>`;
+    for(const [field,label,checked] of [['ttCCountry','Show country on Sales Contract',x.showCountry],['ttCEmail','Show email on Sales Contract',x.showEmail],['ttCPhone','Show telephone on Sales Contract',x.showPhone],['ttCTax','Show tax / registration on Sales Contract',x.showTax]]){
+      const input=body.querySelector('#'+field);if(!input)continue;input.insertAdjacentHTML('afterend',`<label class="tt-cm-note"><input id="${field.replace('ttC','ttCShow')}" type="checkbox" ${checked?'checked':''}> ${label}</label>`)
+    }
     body.querySelector('#ttCBack').onclick=openManager;
     body.querySelector('#ttCSave').onclick=async()=>{const q=id=>body.querySelector('#'+id),saveButton=q('ttCSave'),message=q('ttCmMessage');const customer={masterId:c?.masterId||'',name:q('ttCName').value.trim(),code:q('ttCCode').value.trim(),address:q('ttCAddress').value.trim(),country:q('ttCCountry').value.trim(),roles:q('ttCRoles').value.trim()||'Export Buyer',email:q('ttCEmail').value.trim(),phone:q('ttCPhone').value.trim(),tax:q('ttCTax').value.trim(),packingDefault:q('ttCPack').value,status:q('ttCStatus').value,notifies:parseNotifies(q('ttCNotify').value),notes:q('ttCNotes').value.trim()};if(!customer.name||!customer.address){message.innerHTML='<div class="tt-cm-error">Customer name and full address are required.</div>';return}try{saveButton.disabled=true;const j=await request('upsert',{mode:'edit',customer});mergeMastersIntoLocal(j.customers||[],true);if(isExports){sessionStorage.setItem('tt-cm-reopen','1');location.reload();return}await openManager()}catch(e){message.innerHTML=`<div class="tt-cm-error">${esc(e.message)}</div>`;saveButton.disabled=false}};
   }

@@ -24,7 +24,7 @@ if ($id === 'exports') {
     if (!is_file($cssFile) || !is_file($jsFile)) { http_response_code(503); exit('Export module assets are unavailable.'); }
     $css = (string)file_get_contents($cssFile);
     $js = (string)file_get_contents($jsFile);
-    foreach (['TTI_header.png','TTI_sign.png','BRM_header.png','BRM_sign.png','TG_header.png','TG_footer.png','TG_sign.png'] as $asset) {
+    foreach (['TTI_header.png','TTI_sign.png','BRM_header.png','BRM_sign.png','TG_header.png','TG_footer.png','TG_sign.png','KCCI_COO_letterpad.jpg'] as $asset) {
         $path = __DIR__ . '/exports/assets/' . $asset;
         if (is_file($path)) {
             $mime = str_ends_with(strtolower($asset), '.jpg') || str_ends_with(strtolower($asset), '.jpeg') ? 'image/jpeg' : 'image/png';

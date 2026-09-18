@@ -154,7 +154,14 @@ function ai_call_gemini(string $key,string $model,array $parts,array $schema): a
     if($status<200||$status>=300){
         $message=(string)($response['error']['message']??'Gemini could not read this document.');
         error_log('Gemini document reader HTTP '.$status.': '.$message);
-        throw new RuntimeException($status===429?'Gemini usage limit reached. Try again shortly.':'Gemini could not read this document.');
+        $safeMessage=match($status){
+            400=>'Gemini rejected the document request. Check the file and try again.',
+            401,403=>'Gemini server credentials are not authorized. Ask Super Admin to check the protected API key.',
+            404=>'The configured Gemini model is unavailable. Ask Super Admin to check GEMINI_MODEL.',
+            429=>'Gemini usage limit reached. Try again shortly.',
+            default=>'Gemini could not read this document.',
+        };
+        throw new RuntimeException($safeMessage,$status);
     }
     $text='';
     foreach((array)($response['candidates'][0]['content']['parts']??[]) as $part){if(isset($part['text']))$text.=(string)$part['text'];}
@@ -190,4 +197,17 @@ try{
     tt_audit(isset($user['id'])?(int)$user['id']:null,(string)($user['username']??'user'),'Gemini '.$kind.' document extracted for human review');
     ai_respond(['ok'=>true,'provider'=>'Gemini','model'=>$model,'data'=>$data]);
 }catch(InvalidArgumentException $e){ai_respond(['ok'=>false,'error'=>$e->getMessage()],422);
-}catch(Throwable $e){error_log('Transtrade Gemini document reader: '.$e->getMessage());ai_respond(['ok'=>false,'error'=>'AI document reading is temporarily unavailable. Use the local fallback or try again.'],500);}
+}catch(Throwable $e){
+    error_log('Transtrade Gemini document reader: '.$e->getMessage());
+    $safeMessages=[
+        'Gemini rejected the document request. Check the file and try again.',
+        'Gemini server credentials are not authorized. Ask Super Admin to check the protected API key.',
+        'The configured Gemini model is unavailable. Ask Super Admin to check GEMINI_MODEL.',
+        'Gemini usage limit reached. Try again shortly.',
+        'Gemini could not read this document.',
+        'Gemini connection could not be initialized.',
+    ];
+    $message=in_array($e->getMessage(),$safeMessages,true)?$e->getMessage():'AI document reading is temporarily unavailable. Use the local fallback or try again.';
+    $status=in_array($e->getCode(),[400,401,403,404,429],true)?$e->getCode():500;
+    ai_respond(['ok'=>false,'error'=>$message,'code'=>'GEMINI_REQUEST_FAILED'],$status);
+}

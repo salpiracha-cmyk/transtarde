@@ -4,6 +4,10 @@ const BASE_URL = process.env.TRANSTRADE_BASE_URL || 'https://app.transtradeinter
 const QA_USERNAME = process.env.TRANSTRADE_QA_USERNAME;
 const QA_PASSWORD = process.env.TRANSTRADE_QA_PASSWORD;
 const EXPORT_STORE = 'transtrade_export_v3_operational';
+const MILL_MASTER_KEYS = new Set([
+  'tt30mills','tt30arrivaldefaults','tt35brandmeta','tt37users',
+  'tt38costmaster','tt38labourrates','tt39rentmaster','tt39salarymaster',
+]);
 
 async function signIn(page) {
   await page.goto(BASE_URL + '/login.php', { waitUntil: 'domcontentloaded', timeout: 45_000 });
@@ -31,6 +35,7 @@ async function verifyEmpty(page) {
   }
   for (const [key, value] of Object.entries(operations.values || {})) {
     if (!/^tt[0-9]{2}[a-z0-9_]{2,60}$/.test(key)) continue;
+    if (MILL_MASTER_KEYS.has(key)) continue;
     const parsed = JSON.parse(value || '[]');
     expect(Array.isArray(parsed), key + ' should be an operational array after reset').toBeTruthy();
     expect(parsed.length, key + ' should be empty').toBe(0);

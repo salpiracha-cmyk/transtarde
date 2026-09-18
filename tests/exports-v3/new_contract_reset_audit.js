@@ -28,7 +28,7 @@ assert.match(recovery,/current records always win/,'lost-record recovery explici
 assert.match(recovery,/pre-export-record-recovery/,'lost-record recovery creates a safety snapshot before writing');
 assert.match(recovery,/deletedShipments/,'lost-record recovery respects deliberate deletion tombstones');
 assert.match(recovery,/--apply/,'lost-record recovery is no-op unless explicitly applied');
-assert.match(deploy,/recover_export_records\.php" --apply/,'the approved deploy performs the guarded recovery after code validation');
+assert.doesNotMatch(deploy,/recover_export_records\.php" --apply/,'normal deployments must never recreate operational records from historical snapshots');
 assert.match(app,/if\(contractStep===4&&packingDraft&&!persistPackingDraft\(\)\)return;const err=validateContractStep\(contractStep\)/,'active contract Next handler persists the visible packing before validation');
 const activeEditor=app.lastIndexOf('function renderContractEditor(){');
 const packingNext=app.indexOf('if(contractStep===4&&packingDraft&&!persistPackingDraft())return;',activeEditor);
@@ -47,7 +47,8 @@ assert.match(app,/const CONTRACT_DRAFT_STORE='tt-export-contract-draft-v1'/,'Sal
 assert.match(app,/document\.getElementById\('nextStep'\)\.onclick=async[\s\S]{0,1100}await persistContractStepDraft\(\)[\s\S]{0,500}renderContractEditor\(\)/,'each successful Next waits for the acknowledged save before advancing');
 assert.match(app,/draft.status='Draft';draft.issued=false;draft.draftStep=contractStep/,'Sales Contract drafts are saved into shared contract state with their current step');
 assert.match(app,/mount\(\);restoreContractCheckpoint\(\);/,'same-user contract checkpoint is restored after reload or renewed login');
-assert.match(app,/function ttPartyOutput\(party\)\{return\{name:ttProperNounOutput\(party\?\.name\|\|''\),address:ttProperNounOutput\(party\?\.address\|\|''\)\}\}/,'seller and buyer output capitalization is normalized independently of entry casing');
+assert.match(app,/function ttPartyOutput\(party\)\{const contact=\[party\?\.country,party\?\.email&&`EMAIL:/,'seller and buyer output includes only the selected address/contact fields');
+assert.match(app,/name:ttProperNounOutput\(party\?\.name\|\|''\)/,'seller and buyer output capitalization is normalized independently of entry casing');
 assert.ok(app.includes("/^(?:[A-Z]\\.)+[A-Z]?$/.test(upper)"),'dotted proper-noun abbreviations such as L.L.C. and U.A.E. remain uppercase');
 
 console.log('PASS Export data preservation, blank new contract, prefix customer picker, +1 reference and removed Master Data nav icon');

@@ -177,12 +177,10 @@ jobs:
             echo "Deployed asset hash mismatch; previous code restored."
             exit 1
           fi
-          if ! recovery_result=$(php "$target/scripts/recover_export_records.php" --apply); then
-            tar -xzf "$backup" -C "$target"
-            echo "Export recovery validation failed; previous code restored and operational data was left protected."
-            exit 1
-          fi
-          echo "EXPORT_RECOVERY=$recovery_result"
+          # Historical incident recovery is deliberately not run during normal
+          # deployments. Production operational records are authoritative and
+          # must never be recreated from an old backup simply because code was
+          # deployed.
           if ! document_recovery_result=$(php "$target/scripts/recover_export_documents_incident.php" --apply); then
             tar -xzf "$backup" -C "$target"
             echo "Export attachment recovery validation failed; previous code restored."
@@ -195,6 +193,19 @@ jobs:
           echo "DEPLOYED_SHA=$sha"
           echo "BACKUP=$backup"
           REMOTE
+
+      - name: Diagnose Gemini document reader
+        id: gemini_health
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          result=$(ssh -i "$RUNNER_TEMP/ssh/deploy_key" \
+            -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" \
+            -o StrictHostKeyChecking=yes \
+            -p "$HOSTINGER_PORT" "$HOSTINGER_USER@$HOSTINGER_HOST" \
+            php "$HOSTINGER_DEPLOY_PATH/scripts/diagnose_gemini.php")
+          echo "GEMINI_HEALTH=$result"
+          php -r '$r=json_decode($argv[1],true);if(!is_array($r)||($r["ok"]??false)!==true){fwrite(STDERR,"Gemini health check failed.\n");exit(1);} echo "Gemini health check passed for ".$r["model"].".\n";' "$result"
 
       - name: Verify production health
         run: |
@@ -219,3 +230,4 @@ jobs:
           echo "- Commit: \`$DEPLOY_SHA\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- URL: $PRODUCTION_URL" >> "$GITHUB_STEP_SUMMARY"
           echo "- Result: deployed and health checked" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Gemini document reader: ${{ steps.gemini_health.outcome }}" >> "$GITHUB_STEP_SUMMARY"

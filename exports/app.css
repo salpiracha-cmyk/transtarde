@@ -379,6 +379,19 @@
 @media(max-width:900px){.commercialReferences{grid-template-columns:1fr}.commercialPrintControls{justify-content:flex-start}}
 @media print{.commercialInvoiceOnePage{page-break-after:always}.commercialCopyLabel{font-size:14px}.cooPakistanOrigin{font-size:18px}.commercialDocumentTabs,.commercialPrintControls{display:none!important}}
 
+/* Authoritative export-document typography and placement. */
+.docAutoSign img{height:27mm;max-width:58mm}
+.docPartyBox{font-size:11px}
+.approvedInvoiceReference{font-size:10px}
+.approvedInvoiceReference b{font-size:9px}
+.commercialInvoiceOnePage .specimenParty,.commercialInvoiceOnePage .specimenRoute{font-size:10px;line-height:1.5}
+.commercialInvoiceOnePage .specimenGoods th,.commercialInvoiceOnePage .specimenGoods td{font-size:9.2px;line-height:1.35}
+.packingBrandSummary th,.packingBrandSummary td,.commercialPackingContainers th,.commercialPackingContainers td{font-size:9.2px;line-height:1.35}
+.specimenPackingSummary{font-size:10.5px}
+.commercialInvoiceOnePage .commercialCopyLabel{position:static;left:auto;top:auto;margin:0 0 2mm 1mm;font-size:18px}
+.cooLetterpadPage{aspect-ratio:1521/2048}
+.cooFixedField{font-size:7.8pt}
+
 /* 2026-09-16 verified physical Sales Contract pages and sent-state controls. */
 .salesContractPhysicalPage{width:210mm;height:297mm;min-height:297mm;padding:4mm 16mm 32mm!important;overflow:hidden;page-break-after:auto!important;background:#fff}
 #printRoot>.printDoc:has(>.salesContractPhysicalPage){break-after:page;page-break-after:always}

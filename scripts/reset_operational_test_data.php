@@ -4,9 +4,9 @@ declare(strict_types=1);
 /**
  * Owner-authorized full TEST DATA reset for Transtrade.
  *
- * Clears operational/test data from Milling, Exports and Accounts, plus every
- * Parties master record. Preserves all other Master Console records, users,
- * permissions, document artwork, backup archives and application code.
+ * Clears operational/test data from Milling and Exports, plus customer/buyer
+ * Parties master records. Preserves Accounts and every other Master Console
+ * record, user, permission, document artwork, backup and application file.
  */
 if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }
 
@@ -101,31 +101,13 @@ function reset_collect_snapshot_refs(array &$refs): void {
         }
     }
 }
-function reset_accounts_store(string $path): array {
-    if (!is_file($path)) return ['present'=>false,'cleared'=>[],'preserved'=>[]];
-    $raw = file_get_contents($path);
-    $store = $raw ? json_decode($raw, true) : null;
-    if (!is_array($store)) $store = [];
-    $cleared = []; $preserved = [];
-    $preserveExact = ['masters','bankAccountSettings','utilityMasters','creditCardMasters','commodityKatMaster'];
-    foreach ($store as $key => &$value) {
-        if ($key === 'revision') continue;
-        $isPermanent = in_array((string)$key, $preserveExact, true)
-            || preg_match('/(master|setting|rule|mapping|policy|profile|category|template|preference)/i', (string)$key);
-        if ($isPermanent) { $preserved[] = (string)$key; continue; }
-        if (is_array($value)) {
-            $count = count($value);
-            if ($count > 0) $cleared[(string)$key] = $count;
-            $value = [];
-        } elseif (preg_match('/(next|counter|sequence)/i', (string)$key)) {
-            $value = is_numeric($value) ? 0 : '';
-            $cleared[(string)$key] = 1;
-        }
-    }
-    unset($value);
-    $store['revision'] = (int)($store['revision'] ?? 0) + 1;
-    reset_atomic_json($path, $store);
-    return ['present'=>true,'cleared'=>$cleared,'preserved'=>$preserved];
+function reset_is_mill_transaction_key(string $key): bool {
+    if (!preg_match('/^tt(?:30|32|33|34|35|36|37|38|39)[a-z0-9_]+$/', $key)) return false;
+    // These are Mill configuration/master lists, not transactions.
+    return !in_array($key, [
+        'tt30mills','tt30arrivaldefaults','tt35brandmeta','tt37users',
+        'tt38costmaster','tt38labourrates','tt39rentmaster','tt39salarymaster',
+    ], true);
 }
 function reset_export_documents_dir(): array {
     $base = rtrim((string)TT_DATA_DIR, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'export_documents';
@@ -142,7 +124,8 @@ function reset_export_documents_dir(): array {
 
 $summary = [
     'ok'=>false, 'resetId'=>$resetId, 'snapshot'=>'',
-    'partiesDeleted'=>0, 'operations'=>[], 'mysql'=>[], 'accounts'=>[], 'documents'=>[],
+    'customerPartiesDeleted'=>0, 'operations'=>[], 'mysql'=>[], 'documents'=>[],
+    'accounts'=>['preserved'=>false],
 ];
 
 // Refuse accidental repeat after a successful owner reset marker.
@@ -168,6 +151,8 @@ if ($dbHost !== '' || $dbName !== '' || $dbUser !== '') {
 }
 
 $summary['snapshot'] = basename(tt_create_server_snapshot('pre-owner-full-test-reset'));
+$accountsPath = rtrim((string)TT_DATA_DIR, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'accounts.json';
+$accountsHashBefore = is_file($accountsPath) ? hash_file('sha256', $accountsPath) : null;
 
 // Collect every historical Export reference before clearing. These references
 // are retained only as hidden tombstones so the old recovery job cannot bring
@@ -202,6 +187,7 @@ if ($db instanceof PDO) {
         $now = (new DateTimeImmutable('now', new DateTimeZone('UTC')))->format('Y-m-d H:i:s.u');
         foreach ($rows as $row) {
             $key = (string)$row['storage_key'];
+            if ($key !== TT_RESET_EXPORT_KEY && !reset_is_mill_transaction_key($key)) continue;
             $payload = $key === TT_RESET_EXPORT_KEY ? $cleanRootJson : '[]';
             if ($key === TT_RESET_EXPORT_KEY) $foundExport = true;
             $version = (int)$row['version'] + 1;
@@ -230,10 +216,13 @@ if ($db instanceof PDO) {
     $summary['mysql'] = ['configured'=>false,'mode'=>'file-fallback'];
 }
 
-// Reset file fallback / shared mirror. All values in operations.json are
-// operational; no Master Console data lives here.
+// Reset only the Exports root and Mill transaction keys in the shared mirror.
+// Mill configuration/master keys and unrelated module data remain intact.
 $store = is_array($currentFileStore) ? $currentFileStore : ['revision'=>0,'values'=>[],'meta'=>[]];
-$allKeys = array_unique(array_merge(array_keys((array)($store['values'] ?? [])), [TT_RESET_EXPORT_KEY]));
+$allKeys = array_values(array_filter(
+    array_unique(array_merge(array_keys((array)($store['values'] ?? [])), [TT_RESET_EXPORT_KEY])),
+    fn($key) => $key === TT_RESET_EXPORT_KEY || reset_is_mill_transaction_key((string)$key)
+));
 foreach ($allKeys as $key) {
     $oldVersion = (int)($store['meta'][$key]['version'] ?? 0);
     $store['values'][$key] = $key === TT_RESET_EXPORT_KEY ? $cleanRootJson : '[]';
@@ -249,33 +238,47 @@ $store['revision'] = (int)($store['revision'] ?? 0) + 1;
 reset_atomic_json($operationsPath, $store);
 $summary['operations'] = ['keysReset'=>count($allKeys),'tombstoneRefs'=>count($historicRefs)];
 
-$summary['accounts'] = reset_accounts_store(TT_DATA_DIR . '/accounts.json');
 $summary['documents'] = reset_export_documents_dir();
 
-// Parties are the only Master Console section explicitly included in this reset.
+// Only customer/buyer parties are included. Suppliers, brokers, service
+// providers and every other Super Admin master record remain untouched.
 $partyResult = tt_mutate_store(function (&$data) use ($resetId, $summary): array {
     if (!isset($data['masters']) || !is_array($data['masters'])) $data['masters'] = [];
-    $deleted = count((array)($data['masters']['parties'] ?? []));
-    $data['masters']['parties'] = [];
+    $deleted = 0; $preserved = [];
+    foreach ((array)($data['masters']['parties'] ?? []) as $party) {
+        $values = is_array($party['values'] ?? null) ? array_values($party['values']) : [];
+        $roles = (string)($values[2] ?? '');
+        if (preg_match('/\b(?:export\s*)?(?:buyer|customer)\b/i', $roles)) { $deleted++; continue; }
+        $preserved[] = $party;
+    }
+    $data['masters']['parties'] = $preserved;
     if (!isset($data['owner_operational_resets']) || !is_array($data['owner_operational_resets'])) $data['owner_operational_resets'] = [];
     $data['owner_operational_resets'][$resetId] = [
         'applied_at'=>gmdate('c'),
-        'scope'=>'All operational/test data: Milling + Exports + Accounts; Parties master explicitly cleared',
+        'scope'=>'Exports + Milling transactional data and customer/buyer parties only; Accounts and other masters preserved',
         'safety_snapshot'=>$summary['snapshot'],
     ];
     if (!isset($data['audit']) || !is_array($data['audit'])) $data['audit'] = [];
     array_unshift($data['audit'], [
         'user_id'=>null,'username'=>'Super Admin',
-        'action'=>'Owner RESET: cleared Milling, Exports, Accounts operational test data and all Parties',
+        'action'=>'Owner RESET: cleared Exports, Milling transactions and customer/buyer parties',
         'ip_address'=>'GitHub Actions / Hostinger SSH','created_at'=>gmdate('c'),
     ]);
     return ['deleted'=>$deleted];
 });
-$summary['partiesDeleted'] = (int)($partyResult['deleted'] ?? 0);
+$summary['customerPartiesDeleted'] = (int)($partyResult['deleted'] ?? 0);
 
 // Final server-side assertions.
+$accountsHashAfter = is_file($accountsPath) ? hash_file('sha256', $accountsPath) : null;
+if ($accountsHashBefore !== $accountsHashAfter) throw new RuntimeException('Accounts preservation verification failed.');
+$summary['accounts'] = ['preserved'=>true,'present'=>$accountsHashBefore !== null];
 $verifyAuth = tt_read_store();
-if (count((array)($verifyAuth['masters']['parties'] ?? [])) !== 0) throw new RuntimeException('Parties verification failed.');
+foreach ((array)($verifyAuth['masters']['parties'] ?? []) as $party) {
+    $values = is_array($party['values'] ?? null) ? array_values($party['values']) : [];
+    if (preg_match('/\b(?:export\s*)?(?:buyer|customer)\b/i', (string)($values[2] ?? ''))) {
+        throw new RuntimeException('Customer parties verification failed.');
+    }
+}
 $verifyOps = json_decode((string)file_get_contents($operationsPath), true);
 $verifyRootRaw = is_array($verifyOps) ? (string)($verifyOps['values'][TT_RESET_EXPORT_KEY] ?? '') : '';
 $verifyRoot = $verifyRootRaw !== '' ? json_decode($verifyRootRaw, true) : null;
