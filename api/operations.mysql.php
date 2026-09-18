@@ -269,6 +269,39 @@ function operations_merge_export(string $currentJson, string $incomingJson, stri
     $applyTombstones = static function (array $merged) use ($current, $incoming, $sourceModule): array {
         $authoritative = strcasecmp($sourceModule, 'Exports') === 0 || strcasecmp($sourceModule, 'Super Admin') === 0;
         $tombstones = $authoritative ? (array)($incoming['deletedShipments'] ?? []) : (array)($current['deletedShipments'] ?? []);
+        // A deletion marker protects a deleted shipment from being resurrected by
+        // an old browser. It must not permanently reserve the contract reference.
+        // A genuinely recreated Sales Contract has both a live contract row and a
+        // new creation audit after the deletion time, which an old browser cannot
+        // manufacture. Retire only that stale marker and preserve its history.
+        $liveContractRefs = [];
+        foreach ((array)($merged['contracts'] ?? []) as $contract) {
+            if (!is_array($contract)) continue;
+            $ref = trim((string)($contract['ref'] ?? ''));
+            if ($ref !== '') $liveContractRefs[$ref] = true;
+        }
+        $recreatedAt = [];
+        foreach ((array)($merged['audits'] ?? []) as $audit) {
+            if (!is_array($audit)) continue;
+            $area = (string)($audit['area'] ?? '');
+            $action = (string)($audit['action'] ?? '');
+            if (!preg_match('/^Sales Contract(?: Import)?$/i', $area)) continue;
+            if (!preg_match('/^(?:Created|Draft created after Buyer & Reference|Reviewed contract saved and workflow started)$/i', $action)) continue;
+            $ref = trim((string)($audit['detail'] ?? ''));
+            if ($ref === '' || !isset($liveContractRefs[$ref])) continue;
+            $at = strtotime((string)($audit['at'] ?? '')) ?: 0;
+            if ($at > (int)($recreatedAt[$ref] ?? 0)) $recreatedAt[$ref] = $at;
+        }
+        foreach ($tombstones as &$row) {
+            if (!is_array($row) || !empty($row['restoredAt'])) continue;
+            $ref = trim((string)($row['contractRef'] ?? ''));
+            if ($ref === '' || !isset($recreatedAt[$ref])) continue;
+            $deletedAt = strtotime((string)($row['deletedAt'] ?? '')) ?: PHP_INT_MAX;
+            if ($recreatedAt[$ref] <= $deletedAt) continue;
+            $row['restoredAt'] = gmdate('c', $recreatedAt[$ref]);
+            $row['restoredReason'] = 'Contract reference legitimately reused after deletion';
+        }
+        unset($row);
         $merged['deletedShipments'] = $tombstones;
         $ids = [];$refs = [];$qaRefs = [];
         foreach ($tombstones as $row) {

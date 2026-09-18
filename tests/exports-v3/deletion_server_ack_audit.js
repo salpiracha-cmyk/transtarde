@@ -1,6 +1,7 @@
 const fs=require('fs');
 const assert=require('node:assert/strict');
 const app=fs.readFileSync(__dirname+'/../../exports/app.js','utf8');
+const operations=fs.readFileSync(__dirname+'/../../api/operations.mysql.php','utf8');
 const marker='/* 2026-09-12 server-confirmed permanent shipment deletion. */';
 const start=app.indexOf(marker);
 assert.ok(start>=0,'server-confirmed deletion override exists');
@@ -23,4 +24,8 @@ assert.ok(documents<finish,'the main screen updates only after server acknowledg
 
 const failure=flow.slice(flow.indexOf('}catch(saveError){'));
 assert.doesNotMatch(failure,/renderHome\(\)/,'failed acknowledgement must keep the confirmation screen open');
+assert.match(app,/function restoreReleasedContractReference\(ref\)/,'reusing an available contract reference must retire its old deletion marker');
+assert.match(app,/restoreReleasedContractReference\(draft\.ref\)/,'the first server-saved draft must release an older marker for the same reference');
+assert.match(operations,/Contract reference legitimately reused after deletion/,'the server must recognize a genuinely recreated contract after its prior deletion');
+assert.match(operations,/\$recreatedAt\[\$ref\] <= \$deletedAt/,'the server must require recreation evidence newer than the deletion');
 console.log('PASS shipment deletion waits for shared-server acknowledgement');
