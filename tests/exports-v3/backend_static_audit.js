@@ -14,6 +14,7 @@ const css=fs.readFileSync(path.join(__dirname,'app.css'),'utf8');
 const js=fs.readFileSync(path.join(__dirname,'../../exports/app.js'),'utf8');
 const milling=fs.readFileSync(path.join(__dirname,'../../milling/Transtrade_Master_Milling_V3_3_2_AUDITED.html'),'utf8');
 const customerMaster=fs.readFileSync(path.join(__dirname,'../../customer-master.js'),'utf8');
+const documentAi=fs.readFileSync(path.join(__dirname,'../../api/document_ai.php'),'utf8');
 
 assert.match(mysql,/tt_require_login\(\)/);
 assert.match(mysql,/tt_verify_csrf/);
@@ -118,4 +119,8 @@ assert.match(js,/upon receipt of scan copies of shipment documents by Buyer/,'sc
 assert.match(js,/ADVANCE TO BE REMITTED TO BELOW-MENTIONED ACCOUNT:/,'advance bank details must follow the balance clause');
 assert.match(js,/contractSignatureGrid/,'contract must provide aligned Seller and Buyer signature areas');
 assert.doesNotMatch(login,/authBrandLogo|TTI_header\.png/,'login must retain text-only Transtrade branding');
+assert.match(documentAi,/function ai_gemini_request/,'Gemini document calls must use the shared request path');
+assert.match(documentAi,/responseSchema/,'Gemini document extraction must first request the strict schema');
+assert.match(documentAi,/\$status===400&&\$index<count\(\$attempts\)-1/,'Gemini schema rejections must retry through the compatible JSON paths');
+assert.match(documentAi,/return ai_normalize_schema\(\$data,\$schema\)/,'fallback Gemini output must be normalized to the application schema');
 console.log('PASS backend/static release audit: auth, CSRF, concurrency, self-initializing schema, links and A4 print controls');

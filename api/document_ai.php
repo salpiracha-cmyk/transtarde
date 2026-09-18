@@ -131,16 +131,37 @@ function ai_part_from_upload(array $file): array {
     if(str_starts_with($mime,'text/')) return ['text'=>(string)$raw];
     return ['inline_data'=>['mime_type'=>$mime,'data'=>base64_encode($raw)]];
 }
-function ai_call_gemini(string $key,string $model,array $parts,array $schema): array {
-    $url='https://generativelanguage.googleapis.com/v1beta/models/'.rawurlencode($model).':generateContent';
-    $payload=[
-        'contents'=>[['role'=>'user','parts'=>$parts]],
-        'generationConfig'=>[
-            'temperature'=>0,
-            'responseMimeType'=>'application/json',
-            'responseSchema'=>$schema,
-        ],
-    ];
+function ai_schema_example(array $schema): mixed {
+    $type=(string)($schema['type']??'string');
+    if($type==='object') {
+        $out=[];
+        foreach((array)($schema['properties']??[]) as $name=>$property) $out[(string)$name]=ai_schema_example((array)$property);
+        return $out;
+    }
+    if($type==='array') return [];
+    if($type==='number'||$type==='integer') return 0;
+    if($type==='boolean') return false;
+    return '';
+}
+function ai_normalize_schema(mixed $value,array $schema): mixed {
+    $type=(string)($schema['type']??'string');
+    if($type==='object') {
+        $source=is_array($value)?$value:[];$out=[];
+        foreach((array)($schema['properties']??[]) as $name=>$property) $out[(string)$name]=ai_normalize_schema($source[$name]??null,(array)$property);
+        return $out;
+    }
+    if($type==='array') {
+        if(!is_array($value)) return [];
+        return array_values(array_map(fn($item)=>ai_normalize_schema($item,(array)($schema['items']??[])),$value));
+    }
+    if($type==='number'||$type==='integer') return is_numeric($value)?(float)$value:0;
+    if($type==='boolean') return filter_var($value,FILTER_VALIDATE_BOOLEAN);
+    $text=is_scalar($value)?trim((string)$value):'';
+    $enum=(array)($schema['enum']??[]);
+    if($enum&&!in_array($text,$enum,true)) return in_array('',$enum,true)?'':(string)($enum[0]??'');
+    return $text;
+}
+function ai_gemini_request(string $url,string $key,array $payload): array {
     $ch=curl_init($url);
     if($ch===false) throw new RuntimeException('Gemini connection could not be initialized.');
     curl_setopt_array($ch,[
@@ -151,9 +172,26 @@ function ai_call_gemini(string $key,string $model,array $parts,array $schema): a
     ]);
     $raw=curl_exec($ch);$status=(int)curl_getinfo($ch,CURLINFO_RESPONSE_CODE);$err=curl_error($ch);curl_close($ch);
     if($raw===false||$err!=='') throw new RuntimeException('Gemini request failed: '.$err);
-    $response=json_decode((string)$raw,true);
-    if($status<200||$status>=300){
+    return ['status'=>$status,'response'=>json_decode((string)$raw,true)];
+}
+function ai_call_gemini(string $key,string $model,array $parts,array $schema): array {
+    $url='https://generativelanguage.googleapis.com/v1beta/models/'.rawurlencode($model).':generateContent';
+    $guide="Return JSON only, using exactly these fields and value types. Use empty strings, zero, false or empty arrays where the document is silent:\n".json_encode(ai_schema_example($schema),JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);
+    $guidedParts=$parts;
+    $guidedParts[0]['text']=(string)($guidedParts[0]['text']??'')."\n\n".$guide;
+    $attempts=[
+        ['parts'=>$parts,'config'=>['temperature'=>0,'responseMimeType'=>'application/json','responseSchema'=>$schema]],
+        ['parts'=>$guidedParts,'config'=>['temperature'=>0,'responseMimeType'=>'application/json']],
+        ['parts'=>$guidedParts,'config'=>['temperature'=>0]],
+    ];
+    $response=[];$status=0;
+    foreach($attempts as $index=>$attempt){
+        $result=ai_gemini_request($url,$key,['contents'=>[['role'=>'user','parts'=>$attempt['parts']]],'generationConfig'=>$attempt['config']]);
+        $status=(int)$result['status'];$response=is_array($result['response'])?$result['response']:[];
+        if($status>=200&&$status<300) break;
         $message=(string)($response['error']['message']??'Gemini could not read this document.');
+        error_log('Gemini document reader attempt '.($index+1).' HTTP '.$status.': '.$message);
+        if($status===400&&$index<count($attempts)-1) continue;
         error_log('Gemini document reader HTTP '.$status.': '.$message);
         $safeMessage=match($status){
             400=>'Gemini rejected the document request. Check the file and try again.',
@@ -166,9 +204,10 @@ function ai_call_gemini(string $key,string $model,array $parts,array $schema): a
     }
     $text='';
     foreach((array)($response['candidates'][0]['content']['parts']??[]) as $part){if(isset($part['text']))$text.=(string)$part['text'];}
+    $text=preg_replace('/^\s*```(?:json)?\s*|\s*```\s*$/i','',trim($text))??trim($text);
     $data=$text!==''?json_decode($text,true):null;
     if(!is_array($data)) throw new RuntimeException('Gemini returned an unreadable extraction. Please retry.');
-    return $data;
+    return ai_normalize_schema($data,$schema);
 }
 
 try{
