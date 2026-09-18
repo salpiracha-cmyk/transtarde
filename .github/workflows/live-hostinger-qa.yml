@@ -1,6 +1,9 @@
 name: Manual Hostinger Live QA
 
 on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/live-hostinger-qa.yml']
   workflow_dispatch:
     inputs:
       confirmation:
