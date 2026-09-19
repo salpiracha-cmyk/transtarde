@@ -1,0 +1,41 @@
+const fs=require('fs');
+const assert=require('assert');
+const read=file=>fs.readFileSync(`${__dirname}/../${file}`,'utf8');
+
+const auth=read('auth_store.php');
+const masters=read('api/masters.php');
+const users=read('api/users.php');
+const customers=read('api/export_customers.php');
+const admin=read('admin/app.js');
+const accounts=read('accounts/index.php');
+const autocomplete=read('accounts/master-autocomplete.js');
+const docs=read('api/master_documents.php');
+
+assert.match(auth,/'export_customers'=>\[\]/);
+assert.match(auth,/'business_parties'=>\[\]/);
+assert.match(auth,/tt_company_bank_legacy_rows/);
+assert.match(auth,/\$masters\['banks'\]=tt_company_bank_legacy_rows/);
+assert.match(auth,/tt_user_can_access_masters/);
+assert.match(auth,/tt_user_can_master/);
+assert.match(auth,/return 'accounts\/index\.php'/,'Super Admin lands on the Accounts desk');
+assert.match(masters,/'companies'=>15/);
+assert.match(masters,/'export_customers'=>16/);
+assert.match(masters,/'business_parties'=>12/);
+assert.doesNotMatch(masters,/'banks'=>14/,'top-level Banks is no longer editable');
+assert.match(users,/View Documents/);
+assert.match(users,/Download Documents/);
+assert.match(customers,/\['export_customers'\]/);
+assert.doesNotMatch(customers,/tt_create_master\('parties'/);
+assert.match(admin,/\["Companies",\["companies"\]\]/);
+assert.match(admin,/Raw Rice/);
+assert.match(admin,/Ready Sesame/);
+assert.match(admin,/companyBankRows/);
+assert.match(admin,/companyDocumentRows/);
+assert.match(accounts,/'masters' => tt_list_masters\(\)/);
+assert.match(autocomplete,/MutationObserver/);
+assert.match(autocomplete,/datalist/);
+assert.match(docs,/TT_DATA_DIR\.'\/master-documents'/);
+assert.match(docs,/move_uploaded_file/);
+assert.match(docs,/set-default/);
+
+console.log('PASS canonical master architecture, permissions, company banks/documents, product tabs and Accounts type-ahead audit');

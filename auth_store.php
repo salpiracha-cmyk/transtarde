@@ -97,6 +97,11 @@ function tt_default_masters(): array {
             ['id'=>'export-term-advance','values'=>['ADVANCE','Partial shipment allowed.','Active']],
             ['id'=>'export-term-cad','values'=>['CAD','Partial shipment allowed.','Active']],
         ],
+        // Export customers and operational business parties are deliberately
+        // separate masters. Legacy `parties` rows are migrated in
+        // tt_normalize_masters() without changing their record IDs.
+        'export_customers'=>[],
+        'business_parties'=>[],
         'parties'=>[],
         'mills'=>[['id'=>'mills-1','values'=>['TTI Rice Mill','TTI-MILL','Own mill']],['id'=>'mills-2','values'=>['Karachi Office','KHI-OFF','Office']]],
         'banks'=>[
@@ -115,6 +120,44 @@ function tt_default_masters(): array {
     return $masters;
 }
 
+function tt_master_json_array(mixed $value): array {
+    if (is_array($value)) return array_values($value);
+    if (!is_string($value) || trim($value)==='') return [];
+    $decoded=json_decode($value,true);
+    return is_array($decoded) ? array_values($decoded) : [];
+}
+
+/** Keep the historical 14-column bank contract for existing module APIs. */
+function tt_company_bank_legacy_rows(array $companies): array {
+    $rows=[];
+    foreach ($companies as $company) {
+        $cv=array_values((array)($company['values'] ?? []));
+        $companyName=trim((string)($cv[0] ?? ''));
+        $companyCode=strtoupper(trim((string)($cv[1] ?? '')));
+        foreach (tt_master_json_array($cv[13] ?? '') as $bank) {
+            if (!is_array($bank)) continue;
+            $id=trim((string)($bank['id'] ?? '')) ?: 'bank-'.substr(hash('sha256',$companyCode.'|'.json_encode($bank)),0,14);
+            $rows[]=['id'=>$id,'values'=>[
+                (string)($bank['accountType'] ?? 'Company Account'),
+                trim($companyCode.' — '.$companyName,' —'),
+                (string)($bank['label'] ?? ''),
+                (string)($bank['accountTitle'] ?? $companyName),
+                (string)($bank['bankName'] ?? ''),
+                (string)($bank['branch'] ?? ''),
+                (string)($bank['country'] ?? ($cv[2] ?? '')),
+                (string)($bank['currency'] ?? 'PKR'),
+                (string)($bank['accountNumber'] ?? ''),
+                (string)($bank['iban'] ?? ''),
+                (string)($bank['swift'] ?? ''),
+                (string)($bank['purpose'] ?? ''),
+                (string)($bank['visibility'] ?? ''),
+                (string)($bank['notes'] ?? ''),
+            ]];
+        }
+    }
+    return $rows;
+}
+
 function tt_normalize_masters(array $masters): array {
     $defaults=tt_default_masters();
     foreach ($defaults as $type=>$rows) if (!isset($masters[$type]) || !is_array($masters[$type])) $masters[$type]=$rows;
@@ -130,12 +173,60 @@ function tt_normalize_masters(array $masters): array {
     foreach ($defaults['companies'] as $row) $companyDefaults[strtoupper((string)$row['values'][1])]=$row;
     $seen=[];
     foreach ($masters['companies'] as &$row) {
+        $values=array_values((array)($row['values'] ?? []));
         $code=strtoupper(trim((string)($row['values'][1] ?? ''))); if ($code==='') continue; $seen[$code]=true;
-        if (isset($companyDefaults[$code]) && count((array)($row['values'] ?? []))<=3) $row['values']=$companyDefaults[$code]['values'];
-        if ($code==='BRM' && (($row['values'][0] ?? '')==='BRM')) $row['values']=$companyDefaults['BRM']['values'];
+        if (isset($companyDefaults[$code]) && count($values)<=3) $values=$companyDefaults[$code]['values'];
+        if ($code==='BRM' && (($values[0] ?? '')==='BRM')) $values=$companyDefaults['BRM']['values'];
+        while (count($values)<15) $values[]='';
+        if (($values[7] ?? '')==='') $values[7]='[{"name":"","share":100}]';
+        if (($values[13] ?? '')==='') $values[13]='[]';
+        if (($values[14] ?? '')==='') $values[14]='[]';
+        $row['values']=array_slice($values,0,15);
     }
     unset($row);
     foreach ($companyDefaults as $code=>$row) if (empty($seen[$code])) $masters['companies'][]=$row;
+    foreach ($masters['companies'] as &$row) {
+        $values=array_values((array)($row['values'] ?? []));
+        while (count($values)<15) $values[]='';
+        if (($values[7] ?? '')==='') $values[7]='[{"name":"","share":100}]';
+        if (($values[13] ?? '')==='') $values[13]='[]';
+        if (($values[14] ?? '')==='') $values[14]='[]';
+        $row['values']=array_slice($values,0,15);
+    }
+    unset($row);
+
+    // One-time, lossless migration: legacy top-level bank rows become nested
+    // Company bank records. The derived `banks` reader below keeps all
+    // Accounts/Exports/Milling consumers working during the UI transition.
+    foreach ((array)($masters['banks'] ?? []) as $legacyBank) {
+        $bv=array_values((array)($legacyBank['values'] ?? []));
+        while (count($bv)<14) $bv[]='';
+        $hint=strtoupper((string)(($bv[1] ?? '').' '.($bv[3] ?? '')));
+        $targetCode=str_contains($hint,'BRM')||str_contains($hint,'BUKSH')?'BRM':(str_contains($hint,'TG')||str_contains($hint,'TRANS GRAINS')?'TG':'TTI');
+        foreach ($masters['companies'] as &$company) {
+            if (strtoupper((string)($company['values'][1] ?? ''))!==$targetCode) continue;
+            $banks=tt_master_json_array($company['values'][13] ?? '');
+            $legacyId=(string)($legacyBank['id'] ?? '');
+            $exists=false;
+            foreach ($banks as $bank) if (($legacyId!==''&&(string)($bank['id'] ?? '')===$legacyId)||(($bv[9]??'')!==''&&(string)($bank['iban']??'')===(string)$bv[9])||(($bv[8]??'')!==''&&(string)($bank['accountNumber']??'')===(string)$bv[8])) {$exists=true;break;}
+            if (!$exists) $banks[]=['id'=>$legacyId ?: 'bank-'.substr(hash('sha256',json_encode($bv)),0,14),'accountType'=>$bv[0],'label'=>$bv[2],'accountTitle'=>$bv[3],'bankName'=>$bv[4],'branch'=>$bv[5],'country'=>$bv[6],'currency'=>$bv[7],'accountNumber'=>$bv[8],'iban'=>$bv[9],'swift'=>$bv[10],'purpose'=>$bv[11],'visibility'=>$bv[12],'notes'=>$bv[13],'status'=>'Active'];
+            $company['values'][13]=json_encode($banks,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);
+            break;
+        }
+        unset($company);
+    }
+
+    // Split the old mixed Party master without losing IDs or operational
+    // references. Buyer records become Export Customers; all other roles
+    // become reusable Business Parties.
+    foreach ((array)($masters['parties'] ?? []) as $legacyParty) {
+        $pv=array_values((array)($legacyParty['values'] ?? []));
+        $roles=(string)($pv[2] ?? '');
+        $target=preg_match('/\b(export\s*)?buyer\b/i',$roles)?'export_customers':'business_parties';
+        $already=false;
+        foreach ((array)$masters[$target] as $row) if ((string)($row['id']??'')===(string)($legacyParty['id']??'')) {$already=true;break;}
+        if (!$already) $masters[$target][]=$legacyParty;
+    }
 
     $productDefaults=[];
     foreach ($defaults['products'] as $row) $productDefaults[strtoupper((string)$row['values'][3])]=$row;
@@ -178,7 +269,7 @@ function tt_normalize_masters(array $masters): array {
     }
     unset($row);
 
-    foreach (['parties','mills'] as $simpleType) {
+    foreach (['business_parties','mills'] as $simpleType) {
         foreach ($masters[$simpleType] as &$row) {
             $values=array_values((array)($row['values'] ?? []));
             if (count($values)===3) $values=[$values[0] ?? '',$values[1] ?? '',$values[2] ?? '',''];
@@ -187,9 +278,10 @@ function tt_normalize_masters(array $masters): array {
         }
         unset($row);
     }
-    foreach ($masters['banks'] as &$row) {
-        $values=(array)($row['values'] ?? []);
-        if (count($values)<=3) $row['values']=['Company Account','','',$values[0] ?? '','','','','','', '', '', '',$values[2] ?? '','Incomplete legacy bank record · reference '.($values[1] ?? '')];
+    foreach ($masters['export_customers'] as &$row) {
+        $values=array_values((array)($row['values'] ?? []));
+        while (count($values)<16) $values[]='';
+        $row['values']=$values;
     }
     unset($row);
     foreach ($masters['purchase_kat'] as &$row) {
@@ -223,11 +315,12 @@ function tt_normalize_masters(array $masters): array {
         $row['values']=$values;
     }
     unset($row);
+    $masters['banks']=tt_company_bank_legacy_rows($masters['companies']);
     return $masters;
 }
 
 function tt_visible_masters(array $masters): array {
-    $visible=['companies','commodities','product_settings','products','purchase_products','purchase_kat','export_documents','export_terms','parties','mills','banks'];
+    $visible=['companies','export_customers','business_parties','commodities','product_settings','products','purchase_products','purchase_kat','export_documents','export_terms','mills','banks'];
     return array_intersect_key(tt_normalize_masters($masters),array_flip($visible));
 }
 
@@ -246,7 +339,7 @@ function tt_default_master_options(): array {
         'party_roles'=>['Buyer','Supplier','Broker','Export Buyer','Local Buyer','Customer','Agent','Service Provider','Other'],
         'product_commodities'=>['Rice','Corn','Sesame Seed'],
         'product_varieties'=>['IRRI-6','C-9','PK-386','Super Kernel Basmati','D-98','1121'],
-        'product_rice_types'=>['White Rice','Parboiled Rice','Steam Rice','Brown Rice','100% Broken Rice'],
+        'product_rice_types'=>['White','Parboiled','Steam'],
         'product_broken'=>['5% max','10% max','15-20%','25% max','100%'],
         'product_finishes'=>['Well milled, silky polished and well sortexed','Well milled, double polished and well sortexed','Reasonably well milled'],
         'product_origins'=>['Pakistan'],
@@ -498,6 +591,8 @@ function tt_list_public_users(): array {
             'location' => (string)($user['location'] ?? 'All authorized locations'),
             'active' => !empty($user['active']), 'modules' => array_keys($permissions),
             'permissions' => $permissions,
+            'masterAccess' => !empty($user['master_access']),
+            'masterPermissions' => is_array($user['master_permissions'] ?? null) ? $user['master_permissions'] : [],
             'lastActive' => empty($user['last_login_at']) ? 'Not activated' : (string)$user['last_login_at'],
             'mustChangePassword' => !empty($user['must_change_password']),
         ];
@@ -517,6 +612,7 @@ function tt_create_staff_user(array $input): array {
             'id'=>$id, 'full_name'=>$input['name'], 'username'=>$input['username'],
             'password_hash'=>password_hash($temporaryPassword, PASSWORD_DEFAULT),
             'role'=>$input['role'], 'location'=>$input['location'], 'permissions'=>$input['permissions'],
+            'master_access'=>!empty($input['masterAccess']), 'master_permissions'=>$input['masterPermissions'] ?? [],
             'active'=>$input['active'], 'must_change_password'=>true,
             'created_at'=>gmdate('c'), 'last_login_at'=>null,
         ];
@@ -534,6 +630,8 @@ function tt_update_staff_user(int $id, array $input): void {
             $user['full_name']=$input['name']; $user['username']=$input['username'];
             $user['role']=$input['role']; $user['location']=$input['location'];
             $user['permissions']=$input['permissions']; $user['active']=$input['active'];
+            $user['master_access']=!empty($input['masterAccess']);
+            $user['master_permissions']=$input['masterPermissions'] ?? [];
             unset($user); return;
         }
         unset($user);
@@ -603,6 +701,31 @@ function tt_user_can_open_module(array $user, string $module): bool {
     return false;
 }
 
+function tt_user_can_access_masters(array $user): bool {
+    if (($user['role'] ?? '')==='Super Admin') return true;
+    if (empty($user['master_access'])) return false;
+    foreach ((array)($user['master_permissions'] ?? []) as $actions) {
+        if (is_array($actions) && array_intersect(['View','Create','Edit','Deactivate','View Documents','Download Documents'],$actions)) return true;
+    }
+    return false;
+}
+
+function tt_user_can_master(array $user,string $type,string $action='View'): bool {
+    if (($user['role'] ?? '')==='Super Admin') return true;
+    if (!tt_user_can_access_masters($user)) return false;
+    $actions=(array)($user['master_permissions'][$type] ?? []);
+    if (in_array($action,$actions,true)) return true;
+    return $action==='View' && (bool)array_intersect(['Create','Edit','Deactivate','View Documents','Download Documents'],$actions);
+}
+
+function tt_user_visible_masters(array $user): array {
+    $masters=tt_list_masters();
+    if (($user['role'] ?? '')==='Super Admin') return $masters;
+    $out=[];
+    foreach ($masters as $type=>$rows) if (tt_user_can_master($user,$type,'View')) $out[$type]=$rows;
+    return $out;
+}
+
 /**
  * Entity access is stored inside the Accounts permission matrix as
  * entity-tti/entity-brm/entity-tg rows. Existing owner records using `all`
@@ -629,7 +752,10 @@ function tt_user_accounts_entities(array $user): array {
 }
 
 function tt_user_landing_url(array $user): string {
-    if (($user['role'] ?? '') === 'Super Admin') return 'index.php';
+    // Accounts is the operational landing desk. Super Admin reaches the
+    // central control/master console from the permission-controlled M button.
+    if (($user['role'] ?? '') === 'Super Admin') return 'accounts/index.php';
+    if (tt_user_can_access_masters($user)) return 'index.php?view=masters';
     if (tt_user_can_open_module($user, 'Accounts')) return 'accounts/index.php';
     if (tt_user_can_open_module($user, 'Directors')) return 'directors/index.php';
     foreach (['Mill'=>'milling','Exports'=>'exports'] as $name=>$id) {
@@ -678,7 +804,7 @@ function tt_api_json_error(int $status,string $message): never {
 
 function tt_api_entity_policy(string $path): array {
     $endpoint=basename($path);
-    $entityIndependent=['operations.php','operations.mysql.php','export_documents.php','export_customers.php','masters.php','users.php','backup.php','accounts_bulk_test_cleanup.php','location-master.php','commodity_lookup.php','bag_bill_file.php','bridge_outbox.php'];
+    $entityIndependent=['operations.php','operations.mysql.php','export_documents.php','export_customers.php','masters.php','master_documents.php','users.php','backup.php','accounts_bulk_test_cleanup.php','location-master.php','commodity_lookup.php','bag_bill_file.php','bridge_outbox.php'];
     if(in_array($endpoint,$entityIndependent,true))return['required'=>false,'fixed'=>''];
     if(str_starts_with($endpoint,'tg_'))return['required'=>true,'fixed'=>'TG'];
     return['required'=>true,'fixed'=>''];

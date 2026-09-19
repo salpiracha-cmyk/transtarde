@@ -21,8 +21,19 @@ function clean_input(array $body): array {
             if ($clean) $permissions[$module][(string)$icon]=$clean;
         }
     }
-    if (!$permissions) throw new InvalidArgumentException('Allow View for at least one module icon.');
-    return ['name'=>$name,'username'=>$username,'role'=>$role,'location'=>$location ?: 'All authorized locations','permissions'=>$permissions,'active'=>!empty($body['active'])];
+    $masterAccess=!empty($body['masterAccess']);
+    $allowedMasterActions=['Use','View','Create','Edit','Deactivate','View Documents','Download Documents'];
+    $allowedMasterTypes=['companies','export_customers','business_parties','products','purchase_products','purchase_kat','commodities','product_settings','mills','export_documents','export_terms','salary_staff'];
+    $masterPermissions=[];
+    foreach ((array)($body['masterPermissions'] ?? []) as $type=>$actions) {
+        if (!in_array($type,$allowedMasterTypes,true)) continue;
+        $clean=array_values(array_unique(array_intersect($allowedMasterActions,(array)$actions)));
+        if (array_intersect(['Create','Edit','Deactivate','View Documents','Download Documents'],$clean) && !in_array('View',$clean,true)) array_unshift($clean,'View');
+        if ($clean) $masterPermissions[$type]=$clean;
+    }
+    if (!$permissions && !$masterAccess) throw new InvalidArgumentException('Allow at least one module or Master Records permission.');
+    if ($masterAccess && !$masterPermissions) throw new InvalidArgumentException('Select at least one permitted Master Record.');
+    return ['name'=>$name,'username'=>$username,'role'=>$role,'location'=>$location ?: 'All authorized locations','permissions'=>$permissions,'masterAccess'=>$masterAccess,'masterPermissions'=>$masterPermissions,'active'=>!empty($body['active'])];
 }
 
 try {
