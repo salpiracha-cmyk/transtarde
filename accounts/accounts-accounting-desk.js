@@ -121,15 +121,14 @@
 
   function buildTopbar() {
     const top = q('.topbar');
-    if (!top || q('#ttMasterTop')) return;
+    if (!top || q('#ttChangeCompanyDesk')) return;
     const power = q('.power', top);
-    const master = document.createElement('button');
-    master.id = 'ttMasterTop';
-    master.type = 'button';
-    master.title = 'Masters';
-    master.setAttribute('aria-label', 'Open Masters');
-    master.textContent = 'M';
-    master.onclick = () => launch({native:'masters'});
+    const master = access.masterAccess ? document.createElement('button') : null;
+    if (master) {
+      master.id = 'ttMasterTop'; master.type = 'button'; master.title = 'Master Records';
+      master.setAttribute('aria-label', 'Open Master Records'); master.textContent = 'M';
+      master.onclick = () => { window.location.href='/index.php?view=masters'; };
+    }
     const company = document.createElement('button');
     company.id = 'ttChangeCompanyDesk';
     company.type = 'button';
@@ -154,7 +153,7 @@
     }
     company.onclick = event => { event.stopPropagation(); menu.hidden = !menu.hidden; };
     menu.onclick = event => event.stopPropagation();
-    top.insertBefore(master, power);
+    if (master) top.insertBefore(master, power);
     top.insertBefore(company, power);
     top.insertBefore(menu, power);
     document.addEventListener('click', () => { menu.hidden = true; });

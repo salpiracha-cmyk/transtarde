@@ -28,6 +28,9 @@
   };
   const SESSION = window.TT_SESSION || { name: "Salman", username: "salman", role: "Super Admin", permissions: { Mill: "all", Exports: "all", Accounts: "all", Directors: "all" }, csrf: "" };
   const IS_SUPER_ADMIN = SESSION.role === "Super Admin";
+  const MASTER_PERMISSION_ACTIONS = ["Use","View","Create","Edit","Deactivate","View Documents","Download Documents"];
+  const hasMasterAccess = IS_SUPER_ADMIN || !!SESSION.masterAccess;
+  const canMaster = (type, action="View") => IS_SUPER_ADMIN || (hasMasterAccess && (SESSION.masterPermissions?.[type] || []).includes(action));
   // Accounts V1 opens through its protected standalone workspace route.
   const MODULES = [
     { id: "milling", name: "Mill", code: "M", color: "#16815a", soft: "#e7f7f0", status: "Live", state: "green", version: "V3.3.2 Audited", description: "Arrivals, stocks, production, bags, loading and mill operations.", href: "module.php?id=milling" },
@@ -65,7 +68,8 @@
         { label: "System behaviour / notes", type: "textarea", full: true },
         { label: "Owners / partners", type: "textarea", full: true },
         { label: "KCCI membership no." }, { label: "REAP membership no." },
-        { label: "NTN number" }, { label: "Sales tax number" }, { label: "Company number" }
+        { label: "NTN number" }, { label: "Sales tax number" }, { label: "Company number" },
+        { label: "Bank accounts", type: "hidden" }, { label: "Document identities", type: "hidden" }
       ],
       rows: [
         ["Transtrade International", "TTI", "Pakistan", "Pakistan", "Group Company; Pakistan Operating Entity; Exporter; Seller; Buyer; Accounting Entity", "No", "Primary Pakistan operating/export entity.", '[{"name":"","share":100}]', "36453", "", "", "", ""],
@@ -165,19 +169,18 @@
     },
     { id: "export_documents", name: "Export Documents Presented", description: "Authoritative Sales Contract document rows shared by Super Admin and Exports.", fields: [{label:"Document Name",required:true},{label:"Original",required:true},{label:"Copies",required:true},{label:"Applies To",type:"select",options:["ALL","FOB","CFR","CIF","LC_SIGHT","LC_USANCE"]},{label:"Status",type:"select",options:["Active","Inactive"]}], rows: [["Commercial Invoice","3","0","ALL","Active"],["Commercial Packing List","3","0","ALL","Active"],["Full set clean on-board Bill of Lading","3","3","ALL","Active"],["Certificate of Origin","1","3","ALL","Active"],["e-Phyto issued by Department of Plant Protection, Government of Pakistan","1","0","ALL","Active"],["Fumigation Certificate","1","1","ALL","Active"],["Insurance Policy / Certificate","1","0","CIF","Active"]] },
     { id: "export_terms", name: "Export Other Terms", description: "Authoritative reusable Sales Contract terms. Locked L/C clauses remain protected in the Export workflow.", fields: [{label:"Payment Group",required:true,type:"select",options:["BASE","ADVANCE","CAD","LC_SIGHT","LC_USANCE","CUSTOM"]},{label:"Term Text",required:true,type:"textarea",full:true},{label:"Status",type:"select",options:["Active","Inactive"]}], rows: [["BASE","All present and/or future customs taxes and/or duties/levies on the cargo in the country of origin shall be for Seller’s account. All present and/or future customs taxes and/or duties/levies on the cargo in the country of destination shall be for Buyer’s account.","Active"],["BASE","Risk of weight and quality is transferred to Buyer once cargo is loaded on board the vessel from Pakistan.","Active"],["BASE","Ownership of cargo is transferred to Buyer upon receipt of full payment of the invoice.","Active"],["BASE","All other terms and conditions as per applicable GAFTA London rules, of which both parties admit full notice and knowledge. English law to apply.","Active"],["BASE","Should any dispute arise which cannot be amicably settled between Buyer and Seller, the dispute shall be settled by arbitration in London as per applicable GAFTA rules.","Active"],["ADVANCE","Partial shipment allowed.","Active"],["CAD","Partial shipment allowed.","Active"]] },
-    { id: "parties", name: "Parties", description: "Buyers, suppliers, brokers and other parties stored once and reused across authorized modules.", fields: [{label:"Party name",required:true},{label:"Code / reference"},{label:"Party role"},{label:"Notes",type:"textarea",full:true}], rows: [["Shams", "BRK-001", "Broker", ""], ["Sample Overseas Buyer", "BUY-001", "Export Buyer", ""]] },
-    { id: "mills", name: "Mills & Locations", description: "Own mill, external mills, offices and stock locations used by authorized modules.", fields: [{label:"Mill / location",required:true},{label:"Code / reference"},{label:"Location type"},{label:"Notes",type:"textarea",full:true}], rows: [["TTI Rice Mill", "TTI-MILL", "Own Mill", ""], ["Karachi Office", "KHI-OFF", "Office", ""]] },
-    { id: "banks", name: "Banks & Accounts", description: "Company and personal bank accounts with ownership, document use and controlled module visibility.", fields: [
-      {label:"Account type",required:true,type:"select",options:["Company Account","Personal Account"]},
-      {label:"Linked company",type:"select",options:["","TTI — Transtrade International","BRM — Buksh Rice Mills","TG — Trans Grains Foodstuff Trading L.L.C","Other"]},
-      {label:"Personal account owner"},{label:"Exact account title",required:true},{label:"Bank name",required:true},{label:"Branch"},
-      {label:"Country"},{label:"Currency"},{label:"Account number"},{label:"IBAN"},{label:"SWIFT / BIC"},
-      {label:"Purpose / classification"},{label:"Module visibility and document use",type:"textarea",full:true},{label:"Status / notes",type:"textarea",full:true}
-    ], rows: [
-      ["Company Account","TTI — Transtrade International","","Transtrade International","Meezan Bank Limited","Jodia Bazar Branch, Karachi","Pakistan","PKR","","","","Pakistan operating account","Accounts / Directors; document use to be confirmed","Incomplete — enter account number/IBAN and confirm use"],
-      ["Company Account","BRM — Buksh Rice Mills","","Buksh Rice Mills","Meezan Bank Limited","Karachi","Pakistan","PKR","","","","Mill / operating account","Accounts / Directors; document use to be confirmed","Incomplete — enter branch/account number/IBAN"],
-      ["Company Account","TG — Trans Grains Foodstuff Trading L.L.C","","Trans Grains Foodstuff Trading L.L.C","Habib Bank AG Zurich","Baniyas Square, Dubai","United Arab Emirates","USD","","","","TG offshore trading account","Authorized TG / Exports / Accounts / Directors only","Incomplete — enter account number/IBAN/SWIFT and confirm use"]
-    ] }
+    { id: "export_customers", name: "Export Customers", description: "Buyer identity, document addresses, contacts, consignee and notify parties. Saved shipments retain their historical snapshot.", fields: [{label:"Customer name",required:true},{label:"Code"},{label:"Roles"},{label:"Primary document address",required:true,type:"textarea",full:true},{label:"Country"},{label:"Email"},{label:"Phone"},{label:"Tax / registration"},{label:"Packing default"},{label:"Notify parties JSON",type:"textarea",full:true},{label:"Status",type:"select",options:["Active","Inactive"]},{label:"Notes",type:"textarea",full:true},{label:"Show country"},{label:"Show email"},{label:"Show phone"},{label:"Show tax"},{label:"Contacts JSON",type:"textarea",full:true},{label:"Consignees JSON",type:"textarea",full:true},{label:"Additional notify parties JSON",type:"textarea",full:true},{label:"Additional document addresses JSON",type:"textarea",full:true},{label:"Default currency",type:"select",options:["","USD","EUR","GBP","AED","PKR"]},{label:"Default payment / customer instructions",type:"textarea",full:true}], rows: [] },
+    { id: "business_parties", name: "Business Parties", description: "Suppliers, brokers, service providers, local buyers and other third parties stored once and reused in operational forms.", fields: [{label:"Party name",required:true},{label:"Code / reference"},{label:"Categories",required:true,type:"checks",full:true,options:["Supplier","Broker","Clearing Agent","Freight Forwarder","Shipping Line / Carrier","Transporter","Inspection","Fumigation","Service Provider","Local Buyer","Agent","Other"]},{label:"Address",type:"textarea",full:true},{label:"Country"},{label:"Contact person"},{label:"Phone"},{label:"Email"},{label:"NTN / tax number"},{label:"Payment terms"},{label:"Status",type:"select",options:["Active","Inactive"]},{label:"Notes",type:"textarea",full:true}], rows: [] },
+    { id: "reference_lists", name: "Reference Lists", description: "Small controlled dropdown choices used throughout Transtrade. Add a choice once; forms reuse it with type-ahead search.", fields: [{label:"List",required:true,type:"select",options:["currencies","packing_types","inspection_companies","payment_options","party_roles","product_rice_types","product_finishes"]},{label:"Option",required:true}], rows: [] },
+    { id: "mills", name: "Mills & Locations", description: "Own mill, external mills, offices and stock locations used by authorized modules.", fields: [{label:"Mill / location",required:true},{label:"Code / reference"},{label:"Location type"},{label:"Notes",type:"textarea",full:true}], rows: [["TTI Rice Mill", "TTI-MILL", "Own Mill", ""], ["Karachi Office", "KHI-OFF", "Office", ""]] }
+  ];
+  const MASTER_GROUPS = [
+    ["Companies",["companies"]],
+    ["Export Customers",["export_customers"]],
+    ["Business Parties",["business_parties"]],
+    ["Products & Procurement",["products","purchase_products","purchase_kat","commodities"]],
+    ["Mills & Locations",["mills"]],
+    ["Reference Lists & Setup",["reference_lists","product_settings","export_documents","export_terms","salary_staff"]],
   ];
 
   const DEFAULT_PERMISSIONS = {
@@ -206,6 +209,7 @@
 
   let state = loadState();
   let currentMaster = "companies";
+  let currentPurchaseTab = "RICE_RAW";
 
   function cloneDefault() { return JSON.parse(JSON.stringify(defaultState)); }
   function loadState() {
@@ -213,7 +217,7 @@
       const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
       if (!saved || !saved.users || !saved.audit) return cloneDefault();
       const loaded = { ...cloneDefault(), ...saved };
-      loaded.masters = ensureMasterSections(loaded.masters);
+      loaded.masters = ensureMasterSections(loaded.masters,loaded.masterOptions);
       if ((loaded.stateVersion || 1) < STATE_VERSION) {
         loaded.users = loaded.users.filter(user => {
           const identity = `${user.name || ""} ${user.username || ""}`.toLowerCase();
@@ -259,7 +263,7 @@
   function canOpenModule(name) {
     if (IS_SUPER_ADMIN) return true;
     const permission = SESSION.permissions?.[name];
-    return permission === "all" || (Array.isArray(permission) && permission.length > 0);
+    return permission === "all" || (Array.isArray(permission) && permission.length > 0) || (permission&&typeof permission==="object"&&Object.values(permission).some(actions=>Array.isArray(actions)&&actions.includes("View")));
   }
 
   function showCredentials(username, password) {
@@ -276,9 +280,9 @@
   }
 
   async function loadServerMasters() {
-    if (!IS_SUPER_ADMIN) return;
+    if (!hasMasterAccess) return;
     const data = await apiRequest(null, "masters");
-    state.masters = ensureMasterSections(data.masters);
+    state.masters = ensureMasterSections(data.masters,data.options||state.masterOptions);
     if (data.options) state.masterOptions = data.options;
     renderMasters();
   }
@@ -292,7 +296,9 @@
       node.hidden = module ? !canOpenModule(module.name) : false;
     });
     if (!IS_SUPER_ADMIN) {
-      document.querySelectorAll('[data-view="users"], [data-view="masters"], [data-view="locks"], [data-view="audit"], [data-view="backup"], [data-action="create-user"], [data-view-target="audit"], #addMasterRecord, #exportAudit, .dashboard-lower, #notificationButton').forEach(node => { node.hidden = true; });
+      document.querySelectorAll('[data-view="users"], [data-view="locks"], [data-view="audit"], [data-view="backup"], [data-action="create-user"], [data-view-target="audit"], #exportAudit, .dashboard-lower, #notificationButton').forEach(node => { node.hidden = true; });
+      document.querySelectorAll('[data-view="masters"]').forEach(node=>{node.hidden=!hasMasterAccess});
+      if (hasMasterAccess) showView("masters");
     }
   }
   function toast(message) {
@@ -364,6 +370,10 @@
       ${icons.map(([id,label])=>`<div class="permission-row"><strong>${label}</strong>${(module==="Accounts"?["View","Create","Edit","Approve","Reports"]:ICON_ACTIONS).map(action=>`<label title="${module} · ${label} · ${action}"><input type="checkbox" data-permission-module="${module}" data-permission-icon="${id}" value="${action}" ${permissionChecked(permissions,module,id,action)?"checked":""}></label>`).join("")}</div>`).join("")}
     </section>`).join("");
   }
+  function masterPermissionMatrix(user = {}) {
+    const saved=user.masterPermissions||{};
+    return `<div class="permission-row header master-permission-row"><strong>Master</strong>${MASTER_PERMISSION_ACTIONS.map(action=>`<span>${action.replace(' Documents',' Docs')}</span>`).join("")}</div>`+MASTER_TYPES.map(type=>`<div class="permission-row master-permission-row"><strong>${escapeHtml(type.name)}</strong>${MASTER_PERMISSION_ACTIONS.map(action=>`<label title="${escapeHtml(type.name)} · ${action}"><input type="checkbox" data-master-permission="${type.id}" value="${action}" ${Array.isArray(saved[type.id])&&saved[type.id].includes(action)?"checked":""}></label>`).join("")}</div>`).join("");
+  }
   function openUserDialog(userId) {
     const dialog = document.getElementById("userDialog");
     const form = document.getElementById("userForm");
@@ -377,6 +387,8 @@
     document.getElementById("userLocation").value = user?.location === "All locations" ? "All authorized locations" : user?.location || "All authorized locations";
     document.getElementById("userActive").checked = user?.active ?? true;
     document.getElementById("permissionMatrix").innerHTML = permissionMatrix(user?.permissions || {});
+    document.getElementById("userMasterAccess").checked=!!user?.masterAccess;
+    document.getElementById("masterPermissionMatrix").innerHTML=masterPermissionMatrix(user||{});
     if (user?.role === "Super Admin") {
       document.querySelectorAll("#userForm input, #userForm select").forEach(input => { if (input.id !== "editUserId") input.disabled = true; });
       document.getElementById("saveUserButton").disabled = true;
@@ -423,8 +435,11 @@
       const icon = input.dataset.permissionIcon;
       ((permissions[module] ||= {})[icon] ||= []).push(input.value);
     });
+    const masterPermissions={};
+    document.querySelectorAll('#masterPermissionMatrix input[data-master-permission]:checked').forEach(input=>((masterPermissions[input.dataset.masterPermission]||=[]).push(input.value)));
+    const masterAccess=document.getElementById('userMasterAccess').checked;
     const modules = Object.keys(permissions).filter(module => Object.values(permissions[module]).some(actions=>actions.includes("View")));
-    if (!modules.length) { toast("Select at least one module permission."); return; }
+    if (!modules.length && !masterAccess) { toast("Select at least one module or Master Records permission."); return; }
     const user = {
       id,
       name: document.getElementById("userName").value.trim(),
@@ -433,6 +448,7 @@
       location: document.getElementById("userLocation").value,
       active: document.getElementById("userActive").checked,
       modules, permissions,
+      masterAccess, masterPermissions,
       lastActive: id ? (state.users.find(item => item.id === id)?.lastActive || "Not activated") : "Not activated"
     };
     try {
@@ -444,13 +460,14 @@
     } catch (error) { toast(error.message); }
   }
 
-  function ensureMasterSections(masters = {}) {
+  function ensureMasterSections(masters = {},masterOptions = {}) {
     const result = { ...(masters || {}) };
     MASTER_TYPES.forEach(type => {
       if (!Array.isArray(result[type.id])) {
         result[type.id] = type.rows.map((row, index) => ({ id: `${type.id}-${index + 1}`, values: [...row] }));
       }
     });
+    result.reference_lists=Object.entries(masterOptions||{}).flatMap(([key,items])=>(["currencies","packing_types","inspection_companies","payment_options","party_roles","product_rice_types","product_finishes"].includes(key)?(items||[]).map(value=>({id:`${key}::${value}`,values:[key,value]})):[]));
 
     const companyType = MASTER_TYPES.find(type => type.id === "companies");
     const companyDefaults = new Map((companyType?.rows || []).map(row => [String(row[1]).toUpperCase(), row]));
@@ -500,6 +517,8 @@
     const roles = ["Group Company", "Pakistan Operating Entity", "Offshore Export Contracting", "Exporter", "Mill / Processor", "Seller", "Buyer", "Intercompany", "Accounting Entity"];
     const selected = new Set(String(values[4] || "").split(";").map(v => v.trim()).filter(Boolean));
     let owners=[];try{owners=JSON.parse(values[7]||"[]")}catch{}if(!Array.isArray(owners)||!owners.length)owners=[{name:"",share:100}];
+    let banks=[];try{banks=JSON.parse(values[13]||"[]")}catch{}if(!Array.isArray(banks))banks=[];
+    let documents=[];try{documents=JSON.parse(values[14]||"[]")}catch{}if(!Array.isArray(documents))documents=[];
     return `<section class="master-editor-section"><div class="master-editor-heading"><div><h3>Company identity</h3><p>The list shows only identity. Legal and workflow detail stays inside Edit.</p></div></div><div class="master-identity-grid">
       <label>Legal company name<input id="${masterInputId(0)}" data-master-field-index="0" value="${escapeHtml(values[0] || "")}" required></label>
       <label>Short code<input id="${masterInputId(1)}" data-master-field-index="1" value="${escapeHtml(values[1] || "")}" required></label>
@@ -509,8 +528,12 @@
     <section class="master-editor-section"><div class="master-editor-heading"><div><h3>Company roles</h3><p>These roles tell Transtrade where the entity may be used.</p></div></div><div class="master-checks">${roles.map(role => `<label><input type="checkbox" data-master-field-index="4" value="${escapeHtml(role)}" ${selected.has(role)?"checked":""}>${escapeHtml(role)}</label>`).join("")}</div></section>
     <section class="master-editor-section"><div class="master-editor-heading"><div><h3>Ownership</h3><p>Single-owner companies default to 100%. Partnership shares must total 100%.</p></div><button type="button" class="button secondary" id="addCompanyOwner">+ Add owner</button></div><input type="hidden" id="${masterInputId(7)}" data-master-field-index="7" value="${escapeHtml(values[7]||'')}"><div id="companyOwnerRows">${owners.map((owner,index)=>`<div class="master-identity-grid company-owner-row"><label>Owner / partner name<input data-company-owner-name value="${escapeHtml(owner.name||'')}"></label><label>Share %<input data-company-owner-share type="number" min="0" max="100" step="0.01" value="${Number(owner.share??(owners.length===1?100:0))}"></label><button type="button" class="button danger" data-remove-company-owner="${index}">Remove</button></div>`).join('')}</div></section>
     <section class="master-editor-section"><div class="master-editor-heading"><div><h3>Registrations & memberships</h3><p>Pakistan registrations and offshore company identity remain with the legal entity.</p></div></div><div class="master-form-grid"><label>KCCI membership no.<input id="${masterInputId(8)}" data-master-field-index="8" value="${escapeHtml(values[8]||'')}"></label><label>REAP membership no.<input id="${masterInputId(9)}" data-master-field-index="9" value="${escapeHtml(values[9]||'')}"></label><label>NTN number<input id="${masterInputId(10)}" data-master-field-index="10" value="${escapeHtml(values[10]||'')}"></label><label>Sales tax number<input id="${masterInputId(11)}" data-master-field-index="11" value="${escapeHtml(values[11]||'')}"></label><label>Company number — non-Pakistan companies<input id="${masterInputId(12)}" data-master-field-index="12" value="${escapeHtml(values[12]||'')}"></label></div></section>
+    <section class="master-editor-section"><div class="master-editor-heading"><div><h3>Bank accounts</h3><p>Accounts belong to this company. Existing module bank lists are derived automatically.</p></div><button type="button" class="button secondary" id="addCompanyBank">+ Add bank account</button></div><input type="hidden" id="${masterInputId(13)}" data-master-field-index="13"><div id="companyBankRows">${banks.map(bank=>companyBankRow(bank)).join("")}</div></section>
+    <section class="master-editor-section"><div class="master-editor-heading"><div><h3>Document identity</h3><p>Headers, footers, signatures and stamps remain versioned under the legal company.</p></div><button type="button" class="button secondary" id="addCompanyDocument">+ Add document identity</button></div><input type="hidden" id="${masterInputId(14)}" data-master-field-index="14"><div id="companyDocumentRows">${documents.map(doc=>companyDocumentRow(doc)).join("")}</div></section>
     <section class="master-editor-section"><div class="master-editor-heading"><div><h3>Special workflow & behaviour</h3><p>Keep exceptional entity handling separate from ordinary identity.</p></div></div><div class="master-form-grid"><label>TG special handling<select id="${masterInputId(5)}" data-master-field-index="5">${["No","Yes"].map(x=>`<option ${x===String(values[5]||"No")?"selected":""}>${x}</option>`).join("")}</select></label><label class="full-span">System behaviour / notes<textarea id="${masterInputId(6)}" data-master-field-index="6" rows="4">${escapeHtml(values[6] || "")}</textarea></label></div></section>`;
   }
+  function companyBankRow(bank={}) { return `<div class="master-form-grid company-bank-row"><input type="hidden" data-bank-json value="${escapeHtml(JSON.stringify(bank))}"><input type="hidden" data-bank-id value="${escapeHtml(bank.id||"")}"><label>Bank name<input data-bank-name value="${escapeHtml(bank.bankName||"")}" required></label><label>Account title<input data-bank-title value="${escapeHtml(bank.accountTitle||"")}" required></label><label>Currency<input data-bank-currency value="${escapeHtml(bank.currency||"PKR")}"></label><label>Account number<input data-bank-number value="${escapeHtml(bank.accountNumber||"")}"></label><label>IBAN<input data-bank-iban value="${escapeHtml(bank.iban||"")}"></label><label>SWIFT / BIC<input data-bank-swift value="${escapeHtml(bank.swift||"")}"></label><label>Branch<input data-bank-branch value="${escapeHtml(bank.branch||"")}"></label><label>Purpose<input data-bank-purpose value="${escapeHtml(bank.purpose||"")}"></label><button type="button" class="button danger" data-remove-company-bank>Remove</button></div>`; }
+  function companyDocumentRow(doc={}) { const controls=doc.id?`<div class="row-actions">${canMaster('companies','View Documents')?'<button type="button" class="row-action" data-preview-company-document>Preview</button>':''}${canMaster('companies','Download Documents')?'<button type="button" class="row-action" data-download-company-document>Download</button>':''}<span class="tag">Version ${escapeHtml(doc.version||1)}</span></div>`:`<label>PNG, JPG, WebP or PDF<input type="file" data-document-file accept="image/png,image/jpeg,image/webp,application/pdf" required></label>`;return `<div class="master-form-grid company-document-row"><input type="hidden" data-document-json value="${escapeHtml(JSON.stringify(doc))}"><input type="hidden" data-document-id value="${escapeHtml(doc.id||"")}"><label>Document type<select data-document-type>${["Header","Footer","Signature","Stamp","Letterhead","Other"].map(x=>`<option ${x===String(doc.type||"")?"selected":""}>${x}</option>`).join("")}</select></label><label>Label<input data-document-label value="${escapeHtml(doc.label||"")}" required></label><label>Version<input data-document-version value="${escapeHtml(doc.version||"1")}" readonly></label><label>Status<select data-document-status><option ${String(doc.status||"Active")==="Active"?"selected":""}>Active</option><option ${String(doc.status||"")==="Inactive"?"selected":""}>Inactive</option></select></label><label><input type="checkbox" data-document-default ${doc.isDefault?"checked":""}> Default for this type</label>${controls}<button type="button" class="button danger" data-remove-company-document>Deactivate</button></div>`; }
   function commodityMasterFieldsHtml(values = []) {
     return `<section class="master-editor-section"><div class="master-editor-heading"><div><h3>Commodity identity</h3><p>Basic identity stays separate from rules and accounting setup.</p></div></div><div class="master-identity-grid">
       <label>Commodity<input id="${masterInputId(0)}" data-master-field-index="0" value="${escapeHtml(values[0] || "")}" required></label>
@@ -706,7 +729,6 @@
     }
     if (type.id === "companies") return companyMasterFieldsHtml(values);
     if (type.id === "commodities") return commodityMasterFieldsHtml(values);
-    if (type.id === "parties") return partyMasterFieldsHtml(values);
     if (type.id === "mills") return millMasterFieldsHtml(values);
     if (type.id === "banks") return bankMasterFieldsHtml(values);
     if (type.id === "products") return productMasterFieldsHtml(values);
@@ -737,11 +759,19 @@
   }
   function masterValuesFromForm(type) {
     if (type.id === "companies") {
-      const values=Array(13).fill("");
+      const values=Array(15).fill("");
       [0,1,2,3,5,6,8,9,10,11,12].forEach(index=>{values[index]=document.getElementById(masterInputId(index))?.value.trim()||""});
       values[4]=[...document.querySelectorAll('[data-master-field-index="4"]:checked')].map(input=>input.value).join("; ");
       const owners=[...document.querySelectorAll('.company-owner-row')].map(row=>({name:row.querySelector('[data-company-owner-name]')?.value.trim()||"",share:Number(row.querySelector('[data-company-owner-share]')?.value||0)})).filter(owner=>owner.name||owner.share);
-      values[7]=JSON.stringify(owners.length?owners:[{name:"",share:100}]);return values;
+      values[7]=JSON.stringify(owners.length?owners:[{name:"",share:100}]);
+      values[13]=JSON.stringify([...document.querySelectorAll('.company-bank-row')].map((row,index)=>({
+        ...JSON.parse(row.querySelector('[data-bank-json]')?.value||'{}'),id:row.querySelector('[data-bank-id]')?.value||`bank-${Date.now()}-${index}`,
+        accountType:'Company Account',bankName:row.querySelector('[data-bank-name]')?.value.trim()||'',accountTitle:row.querySelector('[data-bank-title]')?.value.trim()||'',currency:row.querySelector('[data-bank-currency]')?.value.trim()||'PKR',accountNumber:row.querySelector('[data-bank-number]')?.value.trim()||'',iban:row.querySelector('[data-bank-iban]')?.value.trim()||'',swift:row.querySelector('[data-bank-swift]')?.value.trim()||'',branch:row.querySelector('[data-bank-branch]')?.value.trim()||'',purpose:row.querySelector('[data-bank-purpose]')?.value.trim()||'',status:'Active'
+      })).filter(bank=>bank.bankName||bank.accountTitle||bank.accountNumber||bank.iban));
+      values[14]=JSON.stringify([...document.querySelectorAll('.company-document-row')].map(row=>({
+        ...JSON.parse(row.querySelector('[data-document-json]')?.value||'{}'),id:row.querySelector('[data-document-id]')?.value||'',type:row.querySelector('[data-document-type]')?.value||'Other',label:row.querySelector('[data-document-label]')?.value.trim()||'',version:row.querySelector('[data-document-version]')?.value.trim()||'1',status:row.querySelector('[data-document-status]')?.value||'Active',isDefault:!!row.querySelector('[data-document-default]')?.checked
+      })).filter(doc=>doc.id&&doc.label));
+      return values;
     }
     if (type.id === "products") {
       const values = Array(22).fill("");
@@ -754,7 +784,7 @@
       values[21] = document.querySelector('[data-master-field-index="21"]')?.value.trim() || "";
       return values;
     }
-    if (["commodities","parties","mills","banks"].includes(type.id)) {
+    if (["commodities","business_parties","mills"].includes(type.id)) {
       return type.fields.map((field, index) => {
         if (field.type === "checks" || (type.id === "companies" && index === 4)) {
           return [...document.querySelectorAll(`[data-master-field-index="${index}"]:checked`)].map(input => input.value).join("; ");
@@ -788,7 +818,8 @@
     if (type.id === "products") return [0, 1, 2, 3, 5];
     if (type.id === "purchase_products") return [0, 1, 2, 3, 4, 8];
     if (type.id === "purchase_kat") return [0, 1, 2, 3, 6, 7];
-    if (type.id === "parties") return [0, 1, 2];
+    if (type.id === "export_customers") return [0, 1, 4, 10];
+    if (type.id === "business_parties") return [0, 1, 2, 4, 10];
     if (type.id === "mills") return [0, 1, 2];
     if (type.id === "banks") return [3, 4, 0, 7, 11];
     return type.fields.map((_, index) => index).slice(0, 5);
@@ -802,7 +833,7 @@
     }
     if (type.id === "purchase_products") return String(row.values?.[8] || "Draft – review required");
     if (type.id === "purchase_kat") return String(row.values?.[7] || "Draft – review required");
-    if (type.id === "banks") { const note=String(row.values?.[13] || ""); return /incomplete/i.test(note) ? "Incomplete" : (/inactive/i.test(note) ? "Inactive" : "Active"); }
+    if (["export_customers","business_parties"].includes(type.id)) return String(row.values?.[type.id==="export_customers"?10:10] || "Active");
     return "Active";
   }
   function currentProductCropYear() {
@@ -816,7 +847,7 @@
     const existing=state.masters?.product_settings?.[0];
     try {
       const data=await apiRequest({action:existing?"update":"create",type:"product_settings",id:existing?.id||"",values:[value]},"masters");
-      state.masters=ensureMasterSections(data.masters);
+      state.masters=ensureMasterSections(data.masters,data.options||state.masterOptions);
       saveState();
       renderMasters();
       toast("Current Crop Year updated for new Sales Contracts.");
@@ -824,22 +855,40 @@
   }
 
   function renderMasters() {
-    state.masters = ensureMasterSections(state.masters);
-    document.getElementById("masterMenu").innerHTML = MASTER_TYPES.map(type => `<button class="${type.id === currentMaster ? "active" : ""}" data-master="${type.id}">${type.name}<span>${state.masters[type.id]?.length || 0}</span></button>`).join("");
+    state.masters = ensureMasterSections(state.masters,state.masterOptions);
+    const allowedTypes=MASTER_TYPES.filter(type=>canMaster(type.id,"View"));
+    if (!allowedTypes.some(type=>type.id===currentMaster)) currentMaster=allowedTypes[0]?.id||"companies";
+    document.getElementById("masterMenu").innerHTML = MASTER_GROUPS.map(([group,ids])=>{const types=ids.map(id=>allowedTypes.find(type=>type.id===id)).filter(Boolean);return types.length?`<div class="master-menu-group"><small>${group}</small>${types.map(type=>`<button class="${type.id === currentMaster ? "active" : ""}" data-master="${type.id}">${type.name}<span>${state.masters[type.id]?.length || 0}</span></button>`).join("")}</div>`:""}).join("");
     const type = masterType();
     document.getElementById("masterTitle").textContent = type.name;
     document.getElementById("masterDescription").textContent = type.description;
     document.getElementById("productCropYearControl")?.remove();
+    document.getElementById("purchaseProductTabs")?.remove();
     if (type.id === "products") {
       document.getElementById("masterDescription").insertAdjacentHTML("afterend", `<section id="productCropYearControl" class="master-editor-section"><div class="master-editor-heading"><div><h3>Current Crop Year</h3><p>Change this once a year. New Sales Contracts use it automatically; saved contracts keep their original crop year.</p></div></div><div class="master-identity-grid"><label>Crop Year<input id="currentProductCropYear" value="${escapeHtml(currentProductCropYear())}" placeholder="2025/2026"></label><div><button class="button primary" id="saveCurrentProductCropYear" type="button">Save Crop Year</button></div></div></section>`);
       document.getElementById("saveCurrentProductCropYear").onclick=saveCurrentProductCropYear;
     }
+    if (type.id === "purchase_products") {
+      const tabs=[["RICE_RAW","Raw Rice"],["RICE_READY","Ready Rice"],["CORN","Corn / Makai"],["SESAME_RAW","Raw Sesame"],["SESAME_READY","Ready Sesame"]];
+      document.getElementById("masterDescription").insertAdjacentHTML("afterend",`<div id="purchaseProductTabs" class="tt-modebar">${tabs.map(([id,label])=>`<button type="button" data-purchase-master-tab="${id}" class="${id===currentPurchaseTab?'active':''}">${label}</button>`).join('')}</div>`);
+      document.querySelectorAll('[data-purchase-master-tab]').forEach(button=>button.onclick=()=>{currentPurchaseTab=button.dataset.purchaseMasterTab;renderMasters()});
+    }
+    document.getElementById("addMasterRecord").hidden=!canMaster(type.id,"Create");
     document.getElementById("addMasterRecord").textContent = `+ Add ${type.id === "salary_staff" ? "Staff" : type.id === "purchase_kat" ? "KAT Rule" : type.id === "purchase_products" ? "Purchase Product" : type.id === "companies" ? "Company" : type.id === "commodities" ? "Commodity" : type.id === "products" ? "Export Product" : "Record"}`;
     const columns = displayColumns(type);
     document.getElementById("masterTableHead").innerHTML = `<tr>${columns.map(index => `<th>${escapeHtml(type.fields[index].label)}</th>`).join("")}<th>Status</th><th>Actions</th></tr>`;
     const query = document.getElementById("masterSearch")?.value.toLowerCase() || "";
-    const rows = (state.masters[currentMaster] || []).filter(row => row.values.join(" ").toLowerCase().includes(query));
-    document.getElementById("masterTableBody").innerHTML = rows.length ? rows.map(row => `<tr>${columns.map(index => `<td>${escapeHtml(row.values[index] || "—")}</td>`).join("")}<td><span class="tag">${escapeHtml(masterRowStatus(type, row))}</span></td><td><div class="row-actions"><button class="row-action" data-edit-master="${escapeHtml(row.id)}">Edit</button><button class="row-action delete" data-delete-master="${escapeHtml(row.id)}">Delete</button></div></td></tr>`).join("") : `<tr><td colspan="${columns.length + 2}">No matching records.</td></tr>`;
+    const rows = (state.masters[currentMaster] || []).filter(row => {
+      if(!row.values.join(" ").toLowerCase().includes(query))return false;
+      if(type.id!=="purchase_products")return true;
+      const commodity=String(row.values?.[0]||'').toUpperCase(),stage=String(row.values?.[2]||'').toUpperCase();
+      if(currentPurchaseTab==='CORN')return commodity==='CORN';
+      if(currentPurchaseTab==='RICE_RAW')return commodity==='RICE'&&stage==='RAW';
+      if(currentPurchaseTab==='RICE_READY')return commodity==='RICE'&&stage!=='RAW';
+      if(currentPurchaseTab==='SESAME_RAW')return commodity==='SESAME'&&stage==='RAW';
+      return commodity==='SESAME'&&stage!=='RAW';
+    });
+    document.getElementById("masterTableBody").innerHTML = rows.length ? rows.map(row => `<tr>${columns.map(index => `<td>${escapeHtml(row.values[index] || "—")}</td>`).join("")}<td><span class="tag">${escapeHtml(masterRowStatus(type, row))}</span></td><td><div class="row-actions">${canMaster(type.id,"Edit")?`<button class="row-action" data-edit-master="${escapeHtml(row.id)}">Edit</button>`:""}${canMaster(type.id,"Deactivate")?`<button class="row-action delete" data-delete-master="${escapeHtml(row.id)}">Deactivate</button>`:""}</div></td></tr>`).join("") : `<tr><td colspan="${columns.length + 2}">No matching records.</td></tr>`;
   }
   function openMasterDialog(id = "") {
     const type = masterType();
@@ -854,6 +903,16 @@
       const wireOwners=()=>{container.querySelectorAll('[data-remove-company-owner]').forEach(button=>button.onclick=()=>{button.closest('.company-owner-row')?.remove();if(!container.children.length)addOwner();if(container.children.length===1)container.querySelector('[data-company-owner-share]').value="100";wireOwners()})};
       const addOwner=()=>{if(container.children.length===1){const share=container.querySelector('[data-company-owner-share]');if(share&&Number(share.value)===100)share.value=""}const row=document.createElement('div');row.className='master-identity-grid company-owner-row';row.innerHTML='<label>Owner / partner name<input data-company-owner-name></label><label>Share %<input data-company-owner-share type="number" min="0" max="100" step="0.01"></label><button type="button" class="button danger" data-remove-company-owner>Remove</button>';container.appendChild(row);wireOwners()};
       document.getElementById("addCompanyOwner").onclick=addOwner;wireOwners();
+      const bankRows=document.getElementById('companyBankRows');
+      const documentRows=document.getElementById('companyDocumentRows');
+      const wireNested=()=>{
+        bankRows?.querySelectorAll('[data-remove-company-bank]').forEach(button=>button.onclick=()=>button.closest('.company-bank-row')?.remove());
+        documentRows?.querySelectorAll('[data-remove-company-document]').forEach(button=>button.onclick=()=>{const row=button.closest('.company-document-row');if(row){row.querySelector('[data-document-status]').value='Inactive';row.hidden=true}});
+        documentRows?.querySelectorAll('[data-preview-company-document],[data-download-company-document]').forEach(button=>button.onclick=()=>{const documentId=button.closest('.company-document-row')?.querySelector('[data-document-id]')?.value;if(!documentId||!row?.id)return;const download=button.hasAttribute('data-download-company-document')?'&download=1':'';window.open(`api/master_documents.php?companyId=${encodeURIComponent(row.id)}&documentId=${encodeURIComponent(documentId)}${download}`,'_blank','noopener')});
+      };
+      document.getElementById('addCompanyBank').onclick=()=>{bankRows.insertAdjacentHTML('beforeend',companyBankRow({accountTitle:document.getElementById(masterInputId(0))?.value||'',currency:'PKR'}));wireNested()};
+      document.getElementById('addCompanyDocument').onclick=()=>{documentRows.insertAdjacentHTML('beforeend',companyDocumentRow({version:'1',status:'Active'}));wireNested()};
+      wireNested();
     }
     if (type.id === "products") wireProductOptionFields();
     if (type.id === "salary_staff") {
@@ -876,7 +935,7 @@
       syncSalaryEntity();
     }
     document.getElementById("deleteMasterButton").hidden = !row || (type.id === "salary_staff" && String(row.values?.[10] || "Active") === "Inactive");
-    document.getElementById("deleteMasterButton").textContent = type.id === "salary_staff" ? "Remove Staff" : "Delete Record";
+    document.getElementById("deleteMasterButton").textContent = type.id === "salary_staff" ? "Remove Staff" : "Deactivate Record";
     document.getElementById("saveMasterButton").textContent = row ? "Save Changes" : "Save Record";
     document.getElementById("masterDialog").showModal();
   }
@@ -892,8 +951,20 @@
     const primary = values[0] || type.name;
     const ref = values[1] || currentMaster.toUpperCase();
     try {
+      if(type.id==="reference_lists"){
+        const existing=id?(state.masters.reference_lists||[]).find(row=>row.id===id):null;
+        const data=await apiRequest({action:"manage-option",type:"reference_lists",optionAction:existing?"rename":"add",optionKey:values[0],old:existing?.values?.[1]||"",value:values[1]},"masters");
+        if(data.options)state.masterOptions=data.options;state.masters=ensureMasterSections(data.masters,state.masterOptions);saveState();renderMasters();document.getElementById("masterDialog").close();form.reset();toast(existing?"Reference option updated.":"Reference option added.");return;
+      }
+      const pendingDocuments=type.id==="companies"?[...document.querySelectorAll('.company-document-row')].filter(row=>!row.querySelector('[data-document-id]')?.value&&row.querySelector('[data-document-file]')?.files?.[0]):[];
       const data = await apiRequest({ action: id ? "update" : "create", type: currentMaster, id, values }, "masters");
-      state.masters = ensureMasterSections(data.masters); if (data.options) state.masterOptions=data.options; addAudit("Master", id ? "Updated" : "Created", `${type.name}: ${primary}`, ref);
+      const companyId=data.id||id;
+      for (const row of pendingDocuments) {
+        const payload=new FormData();payload.append('csrf',SESSION.csrf);payload.append('action','upload');payload.append('companyId',companyId);payload.append('type',row.querySelector('[data-document-type]').value);payload.append('label',row.querySelector('[data-document-label]').value.trim());payload.append('isDefault',row.querySelector('[data-document-default]').checked?'1':'');payload.append('file',row.querySelector('[data-document-file]').files[0]);
+        const response=await fetch('api/master_documents.php',{method:'POST',body:payload});const uploaded=await response.json().catch(()=>({ok:false,error:'Document upload returned an unreadable response.'}));if(!response.ok||!uploaded.ok)throw new Error(uploaded.error||'Company document upload failed.');
+      }
+      if (pendingDocuments.length) { const refreshed=await apiRequest(null,"masters");data.masters=refreshed.masters; }
+      if (data.options) state.masterOptions=data.options; state.masters = ensureMasterSections(data.masters,state.masterOptions); addAudit("Master", id ? "Updated" : "Created", `${type.name}: ${primary}`, ref);
       saveState(); renderMasters(); renderAudit(); renderRecentActivity(); document.getElementById("masterDialog").close(); form.reset(); toast(id ? "Master record updated." : "Master record saved.");
     } catch (error) { toast(error.message); }
   }
@@ -901,8 +972,8 @@
     const id = String(selectedId || document.getElementById("editMasterId").value);
     const row = (state.masters[currentMaster] || []).find(item => item.id === id); if (!row) return;
     const removingStaff=currentMaster==="salary_staff";
-    if (!window.confirm(`${removingStaff ? "Remove" : "Delete"} ${row.values[0]} ${removingStaff ? "from future Salary Sheets" : `from ${masterType().name}`}?`)) return;
-    try { const data = await apiRequest({ action: "delete", type: currentMaster, id }, "masters"); state.masters = ensureMasterSections(data.masters); saveState(); renderMasters(); document.getElementById("masterDialog").close(); toast(removingStaff ? "Staff removed from future Salary Sheets." : "Master record deleted."); }
+    if (!window.confirm(`${removingStaff ? "Remove" : "Deactivate"} ${row.values[0]} ${removingStaff ? "from future Salary Sheets" : `in ${masterType().name}`}? Historical transactions will remain unchanged.`)) return;
+    try { if(currentMaster==="reference_lists"){const data=await apiRequest({action:"manage-option",type:"reference_lists",optionAction:"delete",optionKey:row.values[0],old:row.values[1],value:""},"masters");if(data.options)state.masterOptions=data.options;state.masters=ensureMasterSections(data.masters,state.masterOptions);saveState();renderMasters();document.getElementById("masterDialog").close();toast("Reference option deactivated.");return;} const data = await apiRequest({ action: "delete", type: currentMaster, id }, "masters"); state.masters = ensureMasterSections(data.masters,state.masterOptions); saveState(); renderMasters(); document.getElementById("masterDialog").close(); toast(removingStaff ? "Staff removed from future Salary Sheets." : "Master record deactivated."); }
     catch (error) { toast(error.message); }
   }
 
@@ -1052,7 +1123,7 @@
   }
 
   function showView(id) {
-    if (!IS_SUPER_ADMIN && !["dashboard", "modules"].includes(id)) { toast("Super Admin access required."); return; }
+    if (!IS_SUPER_ADMIN && !["dashboard", "modules"].includes(id) && !(id==="masters"&&hasMasterAccess)) { toast("Super Admin access required."); return; }
     document.querySelectorAll(".view").forEach(view => view.classList.toggle("active", view.id === `view-${id}`));
     document.querySelectorAll(".nav-item[data-view]").forEach(item => item.classList.toggle("active", item.dataset.view === id));
     document.getElementById("sidebar").classList.remove("open");
@@ -1069,7 +1140,7 @@
     if (!query) return;
     const user = IS_SUPER_ADMIN ? state.users.find(item => `${item.name} ${item.username} ${item.role}`.toLowerCase().includes(query)) : null;
     const module = MODULES.find(item => `${item.name} ${item.description}`.toLowerCase().includes(query));
-    const master = IS_SUPER_ADMIN ? MASTER_TYPES.find(item => `${item.name} ${item.description}`.toLowerCase().includes(query)) : null;
+    const master = hasMasterAccess ? MASTER_TYPES.filter(item=>canMaster(item.id,"View")).find(item => `${item.name} ${item.description}`.toLowerCase().includes(query)) : null;
     if (user) { showView("users"); document.getElementById("userSearch").value = value; renderUsers(); }
     else if (module) { showView("modules"); toast(`${module.name} module found.`); }
     else if (master) { currentMaster = master.id; showView("masters"); renderMasters(); }
@@ -1116,6 +1187,12 @@
     if(input.value!=="View"&&input.checked&&view)view.checked=true;
     if(input.value==="View"&&!input.checked)row?.querySelectorAll('input[value="Create"],input[value="Edit"]').forEach(x=>x.checked=false);
   });
+  document.getElementById("masterPermissionMatrix").addEventListener("change", event=>{
+    const input=event.target.closest('input[data-master-permission]');if(!input)return;
+    const row=input.closest('.permission-row'),view=row?.querySelector('input[value="View"]');
+    if(!["Use","View"].includes(input.value)&&input.checked&&view)view.checked=true;
+    if(input.value==="View"&&!input.checked)row?.querySelectorAll('input:not([value="Use"]):not([value="View"])').forEach(box=>box.checked=false);
+  });
   document.getElementById("userForm").addEventListener("submit", saveUser);
   document.getElementById("deleteUserButton").addEventListener("click", () => deleteUser());
   document.getElementById("resetPasswordButton").addEventListener("click", () => resetPassword());
@@ -1152,8 +1229,11 @@
 
   async function initialize() {
     applySessionAccess(); renderModules(); renderUsers(); renderMasters(); renderLocks(); renderAudit(); renderRecentActivity(); loadBackupStatus();
+    if (new URLSearchParams(location.search).get('view')==='masters' && hasMasterAccess) showView('masters');
     if (IS_SUPER_ADMIN) {
       try { await Promise.all([loadServerUsers(),loadServerMasters()]); } catch (error) { toast(error.message); }
+    } else if (hasMasterAccess) {
+      try { await loadServerMasters(); } catch (error) { toast(error.message); }
     }
     saveState("All changes saved");
   }

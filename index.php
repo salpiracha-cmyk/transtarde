@@ -8,14 +8,16 @@ if (!tt_has_admin()) {
 }
 $user = tt_require_login();
 if (!empty($user['must_change_password'])) { header('Location: change-password.php'); exit; }
-if (($user['role'] ?? '') !== 'Super Admin') { header('Location: '.tt_user_landing_url($user)); exit; }
-tt_apply_owner_master_cleanup();
+if (($user['role'] ?? '') !== 'Super Admin' && !tt_user_can_access_masters($user)) { header('Location: '.tt_user_landing_url($user)); exit; }
+if (($user['role'] ?? '') === 'Super Admin') tt_apply_owner_master_cleanup();
 header('Content-Type: text/html; charset=UTF-8');
 $html = file_get_contents(__DIR__ . '/index.html');
 $session = [
     'id'=>(string)$user['id'], 'name'=>(string)$user['full_name'],
     'username'=>(string)$user['username'], 'role'=>(string)$user['role'],
     'permissions'=>$user['permissions'] ?? [], 'csrf'=>tt_csrf(),
+    'masterAccess'=>tt_user_can_access_masters($user),
+    'masterPermissions'=>$user['master_permissions'] ?? [],
 ];
 $bootstrap = '<script>window.TT_SESSION=' . json_encode($session, JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT) . ';</script>';
 $adminApp = '<script src="admin/app.js?v=20260916-console-clean-1"></script>';

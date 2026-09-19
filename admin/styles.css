@@ -224,10 +224,15 @@ label input, label select, label textarea { width: 100%; min-height: 42px; paddi
 fieldset { margin: 20px 0; padding: 0; border: 0; }
 legend { margin-bottom: 10px; color: #445469; font-size: .79rem; font-weight: 750; }
 .permission-matrix { border: 1px solid var(--line); border-radius: 10px; overflow-x: auto; }
+.master-menu-group small { display:block; padding:14px 12px 6px; color:var(--muted); font-size:.62rem; font-weight:900; letter-spacing:.08em; text-transform:uppercase; }
+.tt-modebar { display:flex; flex-wrap:wrap; gap:7px; margin:12px 0; }
+.tt-modebar button { border:1px solid var(--line); background:#fff; color:var(--navy); border-radius:8px; padding:8px 12px; font-weight:800; cursor:pointer; }
+.tt-modebar button.active { background:var(--navy); color:#fff; border-color:var(--navy); }
 .permission-module { min-width: 520px; border: 1px solid var(--line); border-radius: 12px; margin: 12px 0; overflow: hidden; }
 .permission-module-head { display:flex; align-items:center; justify-content:space-between; padding:12px; background:#eef4ff; }
 .permission-module-head label { font-size:.75rem; font-weight:800; display:flex; gap:7px; align-items:center; }
 .permission-row { min-width: 500px; display: grid; grid-template-columns: minmax(190px,1fr) repeat(3, 80px); align-items: center; border-bottom: 1px solid var(--line); }
+.master-permission-row { min-width: 820px; grid-template-columns: minmax(190px,1fr) repeat(7, 88px); }
 .permission-row:last-child { border-bottom: 0; }
 .permission-row.header { color: var(--muted); background: #f8fafc; font-size: .66rem; font-weight: 800; text-transform: uppercase; }
 .permission-row > * { padding: 9px 6px; text-align: center; }

@@ -27,6 +27,9 @@ $access = [
     'super' => (($user['role'] ?? '') === 'Super Admin'),
     'csrf' => tt_csrf(),
     'entities' => $allowedEntities,
+    'masterAccess' => tt_user_can_access_masters($user),
+    'masterPermissions' => $user['master_permissions'] ?? [],
+    'masters' => tt_list_masters(),
 ];
 $bootstrap = '<script>window.TT_ACCOUNT_ACCESS=' . json_encode($access, JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT) . ';</script>';
 $html = tt_replace_html_once(

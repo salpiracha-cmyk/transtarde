@@ -9,9 +9,9 @@ function master_find_row(string $type,string $id): ?array {
     foreach ((array)($masters[$type] ?? []) as $row) if ((string)($row['id'] ?? '')===$id) return $row;
     return null;
 }
-function master_all(): array {
-    $masters=tt_list_masters();
-    $masters['salary_staff']=sm_master_rows();
+function master_all(?array $user=null): array {
+    $masters=$user ? tt_user_visible_masters($user) : tt_list_masters();
+    if (!$user || tt_user_can_master($user,'salary_staff','View')) $masters['salary_staff']=sm_master_rows();
     return $masters;
 }
 function master_options_for_console(): array {
@@ -44,27 +44,31 @@ function master_options_for_console(): array {
 }
 try {
     $admin=tt_require_login();
-    if (($admin['role'] ?? '')!=='Super Admin') master_respond(['ok'=>false,'error'=>'Super Admin access required.'],403);
-    if ($_SERVER['REQUEST_METHOD']==='GET') master_respond(['ok'=>true,'masters'=>master_all(),'options'=>master_options_for_console()]);
+    if (!tt_user_can_access_masters($admin)) master_respond(['ok'=>false,'error'=>'Master Records access required.'],403);
+    if ($_SERVER['REQUEST_METHOD']==='GET') master_respond(['ok'=>true,'masters'=>master_all($admin),'options'=>master_options_for_console()]);
     if ($_SERVER['REQUEST_METHOD']!=='POST') master_respond(['ok'=>false,'error'=>'Method not allowed.'],405);
     $body=json_decode(file_get_contents('php://input') ?: '{}',true);
     if (!is_array($body) || !tt_verify_csrf((string)($body['csrf'] ?? ''))) master_respond(['ok'=>false,'error'=>'Your session expired. Refresh and try again.'],419);
 
     $type=(string)($body['type'] ?? '');
     $action=(string)($body['action'] ?? ''); $id=trim((string)($body['id'] ?? ''));
+    $requiredAction=$action==='create'?'Create':($action==='update'?'Edit':($action==='delete'?'Deactivate':'Edit'));
+    if ($type!=='' && !tt_user_can_master($admin,$type,$requiredAction)) master_respond(['ok'=>false,'error'=>'You do not have '.$requiredAction.' permission for this master.'],403);
     if ($action==='manage-option') {
         $optionAction=(string)($body['optionAction'] ?? '');
         $optionKey=(string)($body['optionKey'] ?? '');
+        $optionMaster=$type==='reference_lists'?'reference_lists':($optionKey==='party_roles'?'business_parties':'products');
+        if (!tt_user_can_master($admin,$optionMaster,'Edit')) master_respond(['ok'=>false,'error'=>'Edit permission is required for this master option.'],403);
         $value=tt_manage_master_option($optionKey,$optionAction,(string)($body['value'] ?? ''),(string)($body['old'] ?? ''));
         tt_audit((int)$admin['id'],$admin['username'],ucfirst($optionAction).' '.$optionKey.' option '.$value);
-        master_respond(['ok'=>true,'masters'=>master_all(),'options'=>master_options_for_console(),'value'=>$value]);
+        master_respond(['ok'=>true,'masters'=>master_all($admin),'options'=>master_options_for_console(),'value'=>$value]);
     }
     if ($type==='salary_staff') {
         if ($action==='delete') {
             if ($id==='') throw new InvalidArgumentException('Select a staff record.');
             sm_deactivate_master($id,$admin);
             tt_audit((int)$admin['id'],$admin['username'],'Removed staff from active Salary Master '.$id);
-            master_respond(['ok'=>true,'masters'=>master_all(),'options'=>master_options_for_console()]);
+            master_respond(['ok'=>true,'masters'=>master_all($admin),'options'=>master_options_for_console()]);
         }
         $values=$body['values']??null;
         if (!is_array($values)) throw new InvalidArgumentException('Enter the Salary Master details.');
@@ -74,47 +78,79 @@ try {
             sm_save_master($values,$admin,$id);
         } else master_respond(['ok'=>false,'error'=>'Unknown Salary Master action.'],400);
         tt_audit((int)$admin['id'],$admin['username'],($action==='create'?'Created ':'Updated ').'Salary Master '.$id);
-        master_respond(['ok'=>true,'masters'=>master_all(),'options'=>master_options_for_console()]);
+        master_respond(['ok'=>true,'id'=>$id,'masters'=>master_all($admin),'options'=>master_options_for_console()]);
     }
 
     $schemas=[
-        'companies'=>7,'commodities'=>8,'product_settings'=>1,'products'=>22,'purchase_products'=>10,'purchase_kat'=>10,
-        'parties'=>4,'mills'=>4,'banks'=>14,'export_documents'=>5,'export_terms'=>3,
+        'companies'=>15,'export_customers'=>22,'business_parties'=>12,'commodities'=>8,'product_settings'=>1,'products'=>22,'purchase_products'=>10,'purchase_kat'=>10,
+        'mills'=>4,'export_documents'=>5,'export_terms'=>3,
     ];
     if (!isset($schemas[$type])) throw new InvalidArgumentException('Select a valid master section.');
     if ($action==='add-party-role') {
         $role=tt_add_party_role_option((string)($body['role'] ?? ''));
         tt_audit((int)$admin['id'],$admin['username'],'Added Party Role '.$role);
-        master_respond(['ok'=>true,'masters'=>master_all(),'options'=>master_options_for_console(),'role'=>$role]);
+        master_respond(['ok'=>true,'masters'=>master_all($admin),'options'=>master_options_for_console(),'role'=>$role]);
     }
 
     // Owner rule: the Super Admin has full lifecycle control over Master
     // Console records. Module lock status never blocks master add/edit/delete.
     if ($action==='delete') {
         if ($id==='') throw new InvalidArgumentException('Select a master record.');
-        tt_delete_master($type,$id); tt_audit((int)$admin['id'],$admin['username'],'Deleted '.$type.' master '.$id);
-        master_respond(['ok'=>true,'masters'=>master_all(),'options'=>master_options_for_console()]);
+        $statusFields=['export_customers'=>10,'business_parties'=>10,'purchase_products'=>8,'purchase_kat'=>7,'export_documents'=>4,'export_terms'=>2];
+        if (isset($statusFields[$type])) {
+            $row=master_find_row($type,$id);if(!$row)throw new InvalidArgumentException('Master record not found.');
+            $values=array_values((array)($row['values']??[]));while(count($values)<=$statusFields[$type])$values[]='';$values[$statusFields[$type]]='Inactive';tt_update_master($type,$id,$values);
+            tt_audit((int)$admin['id'],$admin['username'],'Deactivated '.$type.' master '.$id);
+        } elseif ($type==='products') {
+            $row=master_find_row($type,$id);if(!$row)throw new InvalidArgumentException('Master record not found.');$values=array_values((array)($row['values']??[]));while(count($values)<22)$values[]='';$values[5]=trim(preg_replace('/\s*–?\s*inactive$/i','',(string)$values[5]).' – inactive');tt_update_master($type,$id,$values);tt_audit((int)$admin['id'],$admin['username'],'Deactivated product master '.$id);
+        } else {
+            throw new InvalidArgumentException('This core identity cannot be erased because operational history may reference it. Update the record or mark its usage inactive instead.');
+        }
+        master_respond(['ok'=>true,'id'=>$id,'masters'=>master_all($admin),'options'=>master_options_for_console()]);
     }
 
     $raw=$body['values'] ?? null;
     if (!is_array($raw)) throw new InvalidArgumentException('Enter the master record details.');
     $values=[];
-    foreach (array_slice($raw,0,$schemas[$type]) as $value) {
+    foreach (array_slice($raw,0,$schemas[$type]) as $fieldIndex=>$value) {
         if (is_array($value) || is_object($value)) throw new InvalidArgumentException('Master fields must contain text values.');
         $value=trim((string)$value);
-        if (strlen($value)>1200) throw new InvalidArgumentException('One of the master fields is too long.');
+        $nested=($type==='companies'&&in_array((int)$fieldIndex,[13,14],true))||($type==='export_customers'&&in_array((int)$fieldIndex,[9,16,17,18,19],true));
+        $limit=$nested?50000:1200;
+        if (strlen($value)>$limit) throw new InvalidArgumentException('One of the master fields is too long.');
         $values[]=$value;
     }
     while (count($values)<$schemas[$type]) $values[]='';
     if (($values[0] ?? '')==='') throw new InvalidArgumentException('Enter the main record name / commodity / product.');
     if (in_array($type,['companies','commodities'],true) && ($values[1] ?? '')==='') throw new InvalidArgumentException('Enter the short code.');
+    if ($type==='companies') {
+        foreach ([13=>'bank accounts',14=>'document identities'] as $field=>$label) {
+            $decoded=json_decode((string)($values[$field]??'[]'),true);
+            if (!is_array($decoded)) throw new InvalidArgumentException('The '.$label.' could not be read. Reopen the company and try again.');
+            if ($field===14) {
+                $defaults=[];
+                foreach ($decoded as $document) if (is_array($document)&&!empty($document['isDefault'])&&strcasecmp((string)($document['status']??'Active'),'Inactive')!==0) {
+                    $documentType=(string)($document['type']??'Other');if(isset($defaults[$documentType]))throw new InvalidArgumentException('Only one active default is allowed for each company document type.');$defaults[$documentType]=true;
+                }
+            }
+        }
+    }
+    if (in_array($type,['companies','export_customers','business_parties','mills'],true)) {
+        $normalise=static fn(string $value): string=>strtolower((string)preg_replace('/[^a-z0-9]+/i','',trim($value)));
+        $candidate=$normalise((string)$values[0]);
+        foreach ((array)(master_all($admin)[$type]??[]) as $existingRow) {
+            if ($id!==''&&(string)($existingRow['id']??'')===$id) continue;
+            $existingName=(string)(($existingRow['values']??[])[0]??'');
+            if ($candidate!==''&&$normalise($existingName)===$candidate) throw new InvalidArgumentException('A similar record already exists as “'.$existingName.'”. Open that record instead of creating a duplicate.');
+        }
+    }
     if ($type==='product_settings' && !preg_match('/^\d{4}\/\d{4}$/',(string)$values[0])) {
         throw new InvalidArgumentException('Enter Crop Year as YYYY/YYYY, for example 2025/2026.');
     }
     if ($type==='product_settings') {
         [$cropStart,$cropEnd]=array_map('intval',explode('/',(string)$values[0]));
         if ($cropEnd!==$cropStart+1) throw new InvalidArgumentException('Crop Year must contain consecutive years, for example 2025/2026.');
-        $existingSettings=(array)(master_all()['product_settings']??[]);
+        $existingSettings=(array)(master_all($admin)['product_settings']??[]);
         if ($action==='create' && count($existingSettings)>0) throw new InvalidArgumentException('Current Crop Year already exists. Update the existing value.');
     }
     if ($type==='products') {
@@ -132,7 +168,7 @@ try {
             return strtolower((string)preg_replace('/[^a-z0-9]+/i','',implode('|',$parts)));
         };
         $candidate=$identity($values);
-        foreach ((array)(master_all()['products']??[]) as $row) {
+            foreach ((array)(master_all($admin)['products']??[]) as $row) {
             if ($id!=='' && (string)($row['id']??'')===$id) continue;
             if ($candidate!=='' && $identity((array)($row['values']??[]))===$candidate) {
                 throw new InvalidArgumentException('This Product Identity already exists. Edit the existing record instead.');
@@ -147,11 +183,11 @@ try {
         if (!in_array($values[0],['RICE','CORN','SESAME'],true)) throw new InvalidArgumentException('Commodity must be RICE, CORN or SESAME.');
         if ($values[0]==='RICE') {
             $known=false;
-            foreach ((array)(master_all()['products']??[]) as $product) if (strcasecmp(tt_product_base((string)($product['values'][1]??'')),$values[1])===0) {$known=true;break;}
+            foreach ((array)(master_all($admin)['products']??[]) as $product) if (strcasecmp(tt_product_base((string)($product['values'][1]??'')),$values[1])===0) {$known=true;break;}
             if (!$known) throw new InvalidArgumentException('Create the Rice base variety in Export Products first so both areas share one identity.');
         }
         $candidate=strtolower($values[0].'|'.$values[1].'|'.$values[2]);
-        foreach ((array)(master_all()['purchase_products']??[]) as $row) {
+        foreach ((array)(master_all($admin)['purchase_products']??[]) as $row) {
             if ($id!=='' && (string)($row['id']??'')===$id) continue;
             $v=(array)($row['values']??[]);
             if (strtolower((string)($v[0]??'').'|'.tt_product_base((string)($v[1]??'')).'|'.(string)($v[2]??''))===$candidate) throw new InvalidArgumentException('This purchase product and stage already exists. Edit it instead.');
@@ -161,12 +197,12 @@ try {
     $reference=strtoupper(trim((string)($values[1] ?? ''))) ?: strtoupper($type);
     if ($action==='create') {
         $id=tt_create_master($type,$values); tt_audit((int)$admin['id'],$admin['username'],'Created '.$type.' master '.$reference);
-        master_respond(['ok'=>true,'masters'=>master_all(),'options'=>master_options_for_console()]);
+        master_respond(['ok'=>true,'id'=>$id,'masters'=>master_all($admin),'options'=>master_options_for_console()]);
     }
     if ($action==='update') {
         if ($id==='') throw new InvalidArgumentException('Select a master record.');
         tt_update_master($type,$id,$values); tt_audit((int)$admin['id'],$admin['username'],'Updated '.$type.' master '.$reference);
-        master_respond(['ok'=>true,'masters'=>master_all(),'options'=>master_options_for_console()]);
+        master_respond(['ok'=>true,'id'=>$id,'masters'=>master_all($admin),'options'=>master_options_for_console()]);
     }
     master_respond(['ok'=>false,'error'=>'Unknown action.'],400);
 } catch (InvalidArgumentException $e) { master_respond(['ok'=>false,'error'=>$e->getMessage()],422); }

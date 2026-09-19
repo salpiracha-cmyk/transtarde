@@ -76,6 +76,7 @@ $files = [
     'reports-ui.js',
     'profitability-ui.js',
     'accounts-clean-ui.js',
+    'master-autocomplete.js',
     'accounts-accounting-desk.js',
 ];
 

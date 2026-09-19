@@ -227,6 +227,10 @@
         <label>Assigned location<select id="userLocation"><option>All authorized locations</option><option>TTI Rice Mill</option><option>Karachi Office</option><option>External mills only</option></select></label>
       </div>
       <fieldset><legend>Module access and actions</legend><div class="permission-matrix" id="permissionMatrix"></div></fieldset>
+      <fieldset><legend>Master Records access</legend>
+        <label class="switch-row"><span><strong>Can access Master Records</strong><small>Shows the top M control and only the master sections selected below.</small></span><input type="checkbox" id="userMasterAccess"><i></i></label>
+        <div class="permission-matrix" id="masterPermissionMatrix"><div class="permission-row header"><strong>Master</strong><span>Use</span><span>View</span><span>Create</span><span>Edit</span><span>Deactivate</span><span>View Docs</span><span>Download</span></div></div>
+      </fieldset>
       <label class="switch-row"><span><strong>User active</strong><small>Inactive users cannot sign in.</small></span><input type="checkbox" id="userActive" checked><i></i></label>
       <div class="modal-actions"><button class="button danger" id="deleteUserButton" type="button" hidden>Delete User</button><button class="button secondary" id="resetPasswordButton" type="button" hidden>Reset Password</button><button class="button secondary" type="button" data-close-dialog="userDialog">Cancel</button><button class="button primary" id="saveUserButton" type="submit">Save User</button></div>
     </form>
