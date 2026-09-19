@@ -17,7 +17,7 @@ assert.match(auth,/tt_company_bank_legacy_rows/);
 assert.match(auth,/\$masters\['banks'\]=tt_company_bank_legacy_rows/);
 assert.match(auth,/tt_user_can_access_masters/);
 assert.match(auth,/tt_user_can_master/);
-assert.match(auth,/return 'accounts\/index\.php'/,'Super Admin lands on the Accounts desk');
+assert.match(auth,/Super Admin'\) return 'index\.php'/,'Super Admin lands in the Control Centre');
 assert.match(masters,/'companies'=>15/);
 assert.match(masters,/'export_customers'=>22/);
 assert.match(masters,/'business_parties'=>12/);

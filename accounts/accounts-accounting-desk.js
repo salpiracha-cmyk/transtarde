@@ -67,7 +67,7 @@
     style.textContent = `
       body{background:#edf1f4!important;color:#172433}
       .topbar{height:62px!important;padding:0 22px!important}.brand{min-width:210px!important}.crumb{opacity:.72}
-      #ttMasterTop,#ttChangeCompanyDesk{border:1px solid #ffffff32;background:#ffffff12;color:#fff;border-radius:9px;height:38px;padding:0 13px;font-weight:800;cursor:pointer}
+      #ttConsoleTop,#ttMasterTop,#ttChangeCompanyDesk{border:1px solid #ffffff32;background:#ffffff12;color:#fff;border-radius:9px;height:38px;padding:0 13px;font-weight:800;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center}
       #ttMasterTop{width:40px;padding:0;font-size:17px;background:#fff;color:#102a46}
       #ttCompanyMenu{position:fixed;right:66px;top:57px;z-index:510;width:min(580px,calc(100vw - 24px));display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:10px;background:#fff;border:1px solid #dbe2ea;border-radius:12px;box-shadow:0 18px 48px #0b203840}
       #ttCompanyMenu[hidden]{display:none}.tt-company-choice{border:1px solid #dbe2ea;background:#fff;border-radius:10px;padding:11px;text-align:left;cursor:pointer}.tt-company-choice.active{border-color:#173c63;box-shadow:inset 3px 0 #173c63}.tt-company-choice b,.tt-company-choice small{display:block}.tt-company-choice small{margin-top:3px;color:#6b7887}
@@ -123,6 +123,11 @@
     const top = q('.topbar');
     if (!top || q('#ttChangeCompanyDesk')) return;
     const power = q('.power', top);
+    const consoleLink = access.super ? document.createElement('a') : null;
+    if (consoleLink) {
+      consoleLink.id = 'ttConsoleTop'; consoleLink.href = '/index.php';
+      consoleLink.title = 'Return to Control Centre'; consoleLink.textContent = 'Console';
+    }
     const master = access.masterAccess ? document.createElement('button') : null;
     if (master) {
       master.id = 'ttMasterTop'; master.type = 'button'; master.title = 'Master Records';
@@ -153,6 +158,7 @@
     }
     company.onclick = event => { event.stopPropagation(); menu.hidden = !menu.hidden; };
     menu.onclick = event => event.stopPropagation();
+    if (consoleLink) top.insertBefore(consoleLink, power);
     if (master) top.insertBefore(master, power);
     top.insertBefore(company, power);
     top.insertBefore(menu, power);

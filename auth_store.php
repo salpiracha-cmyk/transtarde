@@ -753,9 +753,9 @@ function tt_user_accounts_entities(array $user): array {
 }
 
 function tt_user_landing_url(array $user): string {
-    // Accounts is the operational landing desk. Super Admin reaches the
-    // central control/master console from the permission-controlled M button.
-    if (($user['role'] ?? '') === 'Super Admin') return 'accounts/index.php';
+    // The owner-level Super Admin always starts in the Control Centre.
+    // Operational users continue directly to their assigned workspace.
+    if (($user['role'] ?? '') === 'Super Admin') return 'index.php';
     if (tt_user_can_access_masters($user)) return 'index.php?view=masters';
     if (tt_user_can_open_module($user, 'Accounts')) return 'accounts/index.php';
     if (tt_user_can_open_module($user, 'Directors')) return 'directors/index.php';
