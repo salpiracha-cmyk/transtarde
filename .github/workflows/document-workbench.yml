@@ -10,20 +10,17 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-      - name: Map existing document functions and test files
+      - name: Trace source dependencies
         run: |
           python3 - <<'PY'
           from pathlib import Path
           import re
-          p=Path('exports/app.js')
-          lines=p.read_text().splitlines()
-          print('SOURCE LINES:',len(lines))
+          lines=Path('exports/app.js').read_text().splitlines()
+          names=r'bagMarkingCell|bagMark|businessBanks|fiReference|ttCustomsBankRow|ttDirectCustomsPaymentCode|paymentText|contractBank|specimenPartyBox|salesOther|salesTerm|blankDocuments'
           for i,line in enumerate(lines,1):
-            m=re.search(r'^(?:async )?function\s+(\w+)',line)
-            if m and re.search(r'bank|cover|invoice|packing|tg|letter|print|asset|sign|document|weight|gd|fiRef|contractDoc',m[1],re.I):
-              print(f'{i}: {m[1]}')
-          for p in Path('tests/exports-v3').rglob('*'):
-            if p.is_file() and 'node_modules' not in str(p): print('TEST:',p)
-          for p in [Path('.github/workflows/milling-exports-qa.yml'),Path('tests/exports-v3/package.json')]:
-            if p.exists(): print('\nFILE:',p,'\n',p.read_text())
+            if re.search(r'^(?:(?:async )?function|const)\s+(?:'+names+r')\b',line) and '__legacy' not in line[:100]:
+              print(f'JS {i}: {line}')
+          for i,line in enumerate(Path('exports/app.css').read_text().splitlines(),1):
+            if re.search(r'commercialInvoice|commercialRemittance|bankCovering|coverDispatch|printModeWithout|conditionalOutputSignature|docAutoSign|specimenGoods|specimenParty|specimenRoute|\.docPage[ {.]',line):print(f'CSS {i}: {line}')
+          for p in Path('exports/assets').glob('*'):print('ASSET',p,p.stat().st_size)
           PY
