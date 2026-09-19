@@ -10,17 +10,13 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-      - name: Trace source dependencies
+      - name: Locate document dependency definitions
         run: |
           python3 - <<'PY'
           from pathlib import Path
           import re
-          lines=Path('exports/app.js').read_text().splitlines()
-          names=r'bagMarkingCell|bagMark|businessBanks|fiReference|ttCustomsBankRow|ttDirectCustomsPaymentCode|paymentText|contractBank|specimenPartyBox|salesOther|salesTerm|blankDocuments'
-          for i,line in enumerate(lines,1):
-            if re.search(r'^(?:(?:async )?function|const)\s+(?:'+names+r')\b',line) and '__legacy' not in line[:100]:
-              print(f'JS {i}: {line}')
+          for i,line in enumerate(Path('exports/app.js').read_text().splitlines(),1):
+            if re.search(r'bagArtwork|markingImage|brandImage|commercialMark|renderCommercial|businessBanks|effectiveTerms|contractPayment|processFor|contractTotal|contractBank|ttCustomsBankRow|ttDirectCustomsPaymentCode|customsOutputPayment',line) and '__legacy' not in line[:100]:print(f'{i}: {line[:1300]}')
           for i,line in enumerate(Path('exports/app.css').read_text().splitlines(),1):
-            if re.search(r'commercialInvoice|commercialRemittance|bankCovering|coverDispatch|printModeWithout|conditionalOutputSignature|docAutoSign|specimenGoods|specimenParty|specimenRoute|\.docPage[ {.]',line):print(f'CSS {i}: {line}')
-          for p in Path('exports/assets').glob('*'):print('ASSET',p,p.stat().st_size)
+            if re.search(r'commercialSettlement|commercialReceivable|docBrand|amountWords|approvedInvoiceReference|commercialRouteGrid',line):print(f'CSS {i}: {line}')
           PY
