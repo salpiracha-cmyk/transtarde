@@ -63,7 +63,7 @@ const reports=[];
   const markup=await html('cover'),r=await render(markup,seller+'-'+code+'-'+enabled,seller==='TTI'&&(!enabled||code==='LC_SIGHT'));
   assert.equal(r.pages,1);assert.equal(r.images.length,0);assert.ok(!/docLetterhead|docFooterArt|docAutoSign|commercialRemittance|Authorised Signatory/.test(markup));
   assert.ok(r.text.includes('TO,\nMANAGER,\nQA BANK PAKISTAN'));assert.ok(r.text.includes('KARACHI, PAKISTAN'));
-  assert.ok(r.text.includes('SETTLE/UTILIZE THE APPLICABLE F.I AND GD ACCORDINGLY.'));
+  assert.ok(r.text.includes('SETTLE/UTILIZE THE APPLICABLE F.I AND GD UPON RECEIPT OF PAYMENT.'));
   const gd=await page.locator('.coverGDRow').allTextContents();assert.equal(gd.length,2);assert.ok(gd.every(t=>t.endsWith('0001')));
   const originals=code.startsWith('LC_')||(['CAD100','ADV_CAD','CUSTOM'].includes(code)&&enabled);
   assert.equal(r.text.toUpperCase().includes('QA ORIGINAL BANK'),originals);assert.equal(r.text.toUpperCase().includes('QA CONFIRMING BANK'),code.startsWith('LC_')&&enabled);
@@ -74,14 +74,15 @@ const reports=[];
  // FI only / GD only / neither: do not invent a reference in the closing sentence.
  for(const type of ['fi','gd','neither']){
   await fixture('TTI','ADV100');await page.evaluate(type=>{if(type!=='fi')window.__fixture.s.customs.fiAllocations=[];if(type!=='gd')window.__fixture.s.customs.gdRefs=[]},type);
-  const r=await render(await html('cover'),'refs-'+type);const closing=r.text.match(/KINDLY RECORD[^.]+(?:F\.I[^.]+)?[\s\S]*?ACCORDINGLY\./)?.[0]||r.text;
-  if(type==='fi'){assert.ok(r.text.includes('APPLICABLE F.I ACCORDINGLY'));assert.ok(!r.text.includes('APPLICABLE F.I AND GD'))}
-  if(type==='gd')assert.ok(r.text.includes('APPLICABLE GD ACCORDINGLY'));
-  if(type==='neither')assert.ok(r.text.includes('KINDLY RECORD THE ENCLOSED DOCUMENTS ACCORDINGLY.'));
+  const r=await render(await html('cover'),'refs-'+type);const closing=r.text.match(/KINDLY RECORD[^.]+(?:F\.I[^.]+)?[\s\S]*?UPON RECEIPT OF PAYMENT\./)?.[0]||r.text;
+  if(type==='fi'){assert.ok(r.text.includes('APPLICABLE F.I UPON RECEIPT OF PAYMENT'));assert.ok(!r.text.includes('APPLICABLE F.I AND GD'))}
+  if(type==='gd')assert.ok(r.text.includes('APPLICABLE GD UPON RECEIPT OF PAYMENT'));
+  if(type==='neither')assert.ok(r.text.includes('KINDLY RECORD THE ENCLOSED DOCUMENTS UPON RECEIPT OF PAYMENT.'));
  }
  for(const code of ['ADV100','CAD100','ADV_CAD']){
   await fixture('TG','ADV_SCAN',code);await mutate(({s})=>{s.tgdocs.covering.dispatchOriginals=true});
   const r=await render(await html('cover',true),'TG-cover-'+code,true);assert.equal(r.images.length,0);assert.equal(r.pages,1);assert.ok(r.text.includes('QA-CUSTOMS-601'));assert.equal(r.text.toUpperCase().includes('QA ORIGINAL BANK'),code!=='ADV100');
+  assert.ok(r.text.includes('KINDLY RECORD THE ENCLOSED DOCUMENTS AND SETTLE/UTILIZE THE APPLICABLE F.I AND GD UPON RECEIPT OF PAYMENT.'));
   if(code==='ADV_CAD')assert.ok(r.text.includes('USD 15,120.00'));
  }
  // UI checkbox visibility, mandatory GD locking, validation and print cancellation.
@@ -111,7 +112,7 @@ const reports=[];
  // Actual-buyer option, rather than Notify, carries the same full address.
  await fixture('TG','ADV_CAD');await page.evaluate(()=>window.__docsQA.tg());await page.locator('[data-tg-tab="invoice"]').click();await page.locator('#tgShowImporter').check();r=await render(await html('tgPacking'),'TG-packing-actual-buyer');assert.ok(r.text.toUpperCase().includes('BUYER BUILDING 100'));
  // An empty placeholder must never be rendered as an existing FI/GD reference.
- await fixture('TTI','ADV100');await mutate(({s})=>{s.customs.fiAllocations=[{}];s.customs.gdRefs=[{}]});r=await render(await html('cover'),'empty-reference-placeholders');assert.ok(!r.text.includes('[object Object]'));assert.ok(r.text.includes('KINDLY RECORD THE ENCLOSED DOCUMENTS ACCORDINGLY.'));
+ await fixture('TTI','ADV100');await mutate(({s})=>{s.customs.fiAllocations=[{}];s.customs.gdRefs=[{}]});r=await render(await html('cover'),'empty-reference-placeholders');assert.ok(!r.text.includes('[object Object]'));assert.ok(r.text.includes('KINDLY RECORD THE ENCLOSED DOCUMENTS UPON RECEIPT OF PAYMENT.'));
  // Normal and L/C invoices, both payment bank rules and the compact weight typography.
  for(const code of ['CAD100','ADV_CAD','ADV100','LC_SIGHT']){
   await fixture('TTI',code);r=await render(await html('invoice'),'Direct-invoice-'+code,true);assert.ok(r.text.includes('IN KGS')&&r.text.includes('IN M.TONS'));assert.ok(r.text.includes('54,172.80')&&r.text.includes('54.173'));assert.ok(r.netBold.every(weight=>Number(weight)>=700));assert.ok(r.grossNormal.every(weight=>Number(weight)===400));assert.equal(r.text.includes('PLEASE REMIT THE PROCEEDS'),['CAD100','ADV_CAD'].includes(code));assert.ok(r.end<1055,'Commercial invoice signature must fit');
