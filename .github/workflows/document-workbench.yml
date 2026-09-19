@@ -3,20 +3,73 @@ on:
   push:
     branches: ['workbench/exports-documents-20260919']
 permissions:
-  contents: read
+  contents: write
 jobs:
-  inspect:
+  prepare-review:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 6
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: 53ef4cab9984ad9d9560294af0d202cab3219f8b
-      - name: Archive the exact baseline source, without runtime data
-        run: |
-          git archive --format=tar HEAD > "$RUNNER_TEMP/document-source.tar"
-      - uses: actions/upload-artifact@v4
+          ref: main
+          fetch-depth: 2
+      - uses: actions/setup-node@v4
         with:
-          name: document-source-baseline
-          path: ${{ runner.temp }}/document-source.tar
-          retention-days: 3
+          node-version: '22'
+      - name: Restore exact locally tested source edits
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import base64, hashlib, json, lzma, os, pathlib, subprocess, urllib.request
+          repo=os.environ['GITHUB_REPOSITORY']
+          assert repo=='salpiracha-cmyk/transtarde'
+          shas=['4513efe64cc536bcb2d0c1c7b3fc87b3a9339fe3','0451e37e1a8676e55fbc900ba004b030472d30dd','63683cfdfdfd19c6847ae6b725bd226ae5a9afab','80f59ff0478896f33661fa73741538c9dab8a132']
+          chunks=[]
+          for sha in shas:
+            request=urllib.request.Request(f'https://api.github.com/repos/{repo}/git/blobs/{sha}',headers={'Authorization':'Bearer '+os.environ['GH_TOKEN'],'Accept':'application/vnd.github+json'})
+            with urllib.request.urlopen(request,timeout=30) as response: blob=json.load(response)
+            data=base64.b64decode(blob['content'])
+            assert hashlib.sha1(b'blob '+str(len(data)).encode()+b'\0'+data).hexdigest()==sha
+            chunks.append(data)
+          raw=lzma.decompress(base64.b64decode(b''.join(chunks),validate=True))
+          assert hashlib.sha256(raw).hexdigest()=='53bb168eee4967b48069acbf4010b46b7dc690c6ff96c0bfa9037e2d5d01e365'
+          manifest=json.loads(raw)
+          assert subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()==manifest['base'], 'main advanced; reconcile before publishing'
+          allowed={'exports/app.js','exports/app.css','tests/exports-v3/commercial_documents_20260915_audit.js','tests/exports-v3/document_rules_20260917_audit.js','tests/exports-v3/export_release_test.js','tests/exports-v3/shipment_documents_browser_qa.js','tests/exports-v3/document_revision_20260919_browser_qa.js'}
+          assert {f['path'] for f in manifest['files']}==allowed
+          for item in manifest['files']:
+            path=pathlib.Path(item['path'])
+            if item['original_sha256'] is None:
+              assert not path.exists(), f'New file already exists: {path}'
+              old=b''
+            else:
+              old=path.read_bytes()
+              assert hashlib.sha256(old).hexdigest()==item['original_sha256'], f'Baseline changed: {path}'
+            result=old
+            for edit in reversed(item['edits']):
+              assert 0<=edit['start']<=edit['end']<=len(old)
+              result=result[:edit['start']]+edit['text'].encode('utf-8')+result[edit['end']:]
+            assert hashlib.sha256(result).hexdigest()==item['result_sha256'], f'Output mismatch: {path}'
+            path.write_bytes(result)
+            print('VERIFIED',path,item['result_sha256'])
+          PY
+      - name: Verify source syntax and focused acceptance
+        run: |
+          node --check exports/app.js
+          node --check tests/exports-v3/document_revision_20260919_browser_qa.js
+          git diff --check
+          node tests/exports-v3/export_release_test.js
+          node tests/exports-v3/commercial_documents_20260915_audit.js
+          node tests/exports-v3/document_rules_20260917_audit.js
+      - name: Commit only the reviewed application and test files
+        run: |
+          set -euo pipefail
+          git checkout -b release/exports-documents-20260919
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add exports/app.js exports/app.css tests/exports-v3/commercial_documents_20260915_audit.js tests/exports-v3/document_rules_20260917_audit.js tests/exports-v3/export_release_test.js tests/exports-v3/shipment_documents_browser_qa.js tests/exports-v3/document_revision_20260919_browser_qa.js
+          git commit -m 'Reconcile bank coverings and Direct/TG document outputs in canonical source'
+          git push origin HEAD:refs/heads/release/exports-documents-20260919
+          echo "REVIEW_COMMIT=$(git rev-parse HEAD)"
+          git diff HEAD^ HEAD --stat
