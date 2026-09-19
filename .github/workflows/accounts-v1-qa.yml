@@ -3,9 +3,9 @@ name: Accounts V1 QA
 on:
   push:
     branches: [main, accounts-v1-foundation]
-    paths: ['accounts/**','api/**','scripts/**','auth_store.php','product_stage.php','module.php','exports/**','admin/**','milling/**','tests/accounts-v1/**','tests/offline_recovery_audit.js','tests/super_admin_cleanup_audit.js','tests/live/accounts-hostinger-qa.spec.js','tests/live/accounts-bulk-hostinger-qa.spec.js','tests/live/hostinger-qa.spec.js','tests/live/exports-reset-only.spec.js','tests/exports-v3/**','.github/workflows/accounts-v1-qa.yml','.github/workflows/deploy-production.yml','.github/workflows/qa-data-cleanup.yml']
+    paths: ['index.html','accounts/**','api/**','scripts/**','auth_store.php','product_stage.php','module.php','exports/**','admin/**','milling/**','tests/accounts-v1/**','tests/offline_recovery_audit.js','tests/super_admin_cleanup_audit.js','tests/live/accounts-hostinger-qa.spec.js','tests/live/accounts-bulk-hostinger-qa.spec.js','tests/live/hostinger-qa.spec.js','tests/live/exports-reset-only.spec.js','tests/exports-v3/**','.github/workflows/accounts-v1-qa.yml','.github/workflows/deploy-production.yml','.github/workflows/qa-data-cleanup.yml']
   pull_request:
-    paths: ['accounts/**','api/**','scripts/**','auth_store.php','product_stage.php','module.php','exports/**','admin/**','milling/**','tests/accounts-v1/**','tests/offline_recovery_audit.js','tests/super_admin_cleanup_audit.js','tests/live/accounts-hostinger-qa.spec.js','tests/live/accounts-bulk-hostinger-qa.spec.js','tests/live/hostinger-qa.spec.js','tests/live/exports-reset-only.spec.js','tests/exports-v3/**','.github/workflows/accounts-v1-qa.yml','.github/workflows/deploy-production.yml','.github/workflows/qa-data-cleanup.yml']
+    paths: ['index.html','accounts/**','api/**','scripts/**','auth_store.php','product_stage.php','module.php','exports/**','admin/**','milling/**','tests/accounts-v1/**','tests/offline_recovery_audit.js','tests/super_admin_cleanup_audit.js','tests/live/accounts-hostinger-qa.spec.js','tests/live/accounts-bulk-hostinger-qa.spec.js','tests/live/hostinger-qa.spec.js','tests/live/exports-reset-only.spec.js','tests/exports-v3/**','.github/workflows/accounts-v1-qa.yml','.github/workflows/deploy-production.yml','.github/workflows/qa-data-cleanup.yml']
 
 permissions:
   contents: read
