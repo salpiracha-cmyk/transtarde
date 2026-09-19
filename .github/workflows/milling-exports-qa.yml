@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
     paths:
+      - 'index.html'
       - 'exports/**'
       - 'milling/**'
       - 'module.php'
@@ -25,6 +26,7 @@ on:
       - '.github/workflows/qa-data-cleanup.yml'
   pull_request:
     paths:
+      - 'index.html'
       - 'exports/**'
       - 'milling/**'
       - 'module.php'
