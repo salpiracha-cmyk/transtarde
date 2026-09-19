@@ -10,13 +10,13 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-      - name: Locate document dependency definitions
+        with:
+          ref: 53ef4cab9984ad9d9560294af0d202cab3219f8b
+      - name: Archive the exact baseline source, without runtime data
         run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          import re
-          for i,line in enumerate(Path('exports/app.js').read_text().splitlines(),1):
-            if re.search(r'bagArtwork|markingImage|brandImage|commercialMark|renderCommercial|businessBanks|effectiveTerms|contractPayment|processFor|contractTotal|contractBank|ttCustomsBankRow|ttDirectCustomsPaymentCode|customsOutputPayment',line) and '__legacy' not in line[:100]:print(f'{i}: {line[:1300]}')
-          for i,line in enumerate(Path('exports/app.css').read_text().splitlines(),1):
-            if re.search(r'commercialSettlement|commercialReceivable|docBrand|amountWords|approvedInvoiceReference|commercialRouteGrid',line):print(f'CSS {i}: {line}')
-          PY
+          git archive --format=tar HEAD > "$RUNNER_TEMP/document-source.tar"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: document-source-baseline
+          path: ${{ runner.temp }}/document-source.tar
+          retention-days: 3
