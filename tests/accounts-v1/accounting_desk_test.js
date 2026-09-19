@@ -26,6 +26,7 @@ assert(sodaApi.includes("'reason'=>$reason") && sodaApi.includes("'changes'=>$ch
 assert(sodaApi.includes("['RICE','CORN','SESAME']"), 'Soda must support approved commodity choices');
 assert(searchApi.includes("'voucherNo','journalId','billNo','invoiceNo','sodaNo','pohanch','chequeNo','reference'"), 'universal search must cover accounting and operational references');
 assert(searchApi.includes("as_text($row)"), 'universal search must include linked shipment fields such as container, B/L, vessel, line and port');
-assert(auth.includes("return 'accounts/index.php'"), 'Accounts remains the direct landing page after sign-in');
+assert(auth.includes("if (($user['role'] ?? '') === 'Super Admin') return 'index.php'"), 'Super Admin must land in the Control Centre');
+assert(auth.includes("if (tt_user_can_open_module($user, 'Accounts')) return 'accounts/index.php'"), 'Accounts staff must still land directly in Accounts');
 
 console.log('Accounts professional desk: passed');
