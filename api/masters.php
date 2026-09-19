@@ -179,12 +179,12 @@ try {
         $values[0]=strtoupper($values[0]);
         $values[1]=tt_product_base($values[1]);
         $values[2]=tt_product_stage($values[2]);
-        if ($values[1]==='' || $values[2]==='') throw new InvalidArgumentException('Select a base product and RAW, READY or FINISHED stage.');
+        if ($values[1]==='' || !in_array($values[2],['RAW','READY'],true)) throw new InvalidArgumentException('Select a base product and choose RAW or READY. FINISHED is created internally by Milling and belongs in Export Quality & Specs for commercial use.');
         if (!in_array($values[0],['RICE','CORN','SESAME'],true)) throw new InvalidArgumentException('Commodity must be RICE, CORN or SESAME.');
         if ($values[0]==='RICE') {
             $known=false;
             foreach ((array)(master_all($admin)['products']??[]) as $product) if (strcasecmp(tt_product_base((string)($product['values'][1]??'')),$values[1])===0) {$known=true;break;}
-            if (!$known) throw new InvalidArgumentException('Create the Rice base variety in Export Products first so both areas share one identity.');
+            if (!$known) throw new InvalidArgumentException('Create the Rice base variety in Export Quality & Specs first so both areas share one identity.');
         }
         $candidate=strtolower($values[0].'|'.$values[1].'|'.$values[2]);
         foreach ((array)(master_all($admin)['purchase_products']??[]) as $row) {

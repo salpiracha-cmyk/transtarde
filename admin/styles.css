@@ -338,7 +338,7 @@ legend { margin-bottom: 10px; color: #445469; font-size: .79rem; font-weight: 75
 }
 
 
-/* Products & Quality / Purchase KAT master usability redesign */
+/* Export Quality & Specs / Purchase Commodities & KAT master usability */
 .master-content .table-wrap { position: relative; }
 .master-content table th:last-child,
 .master-content table td:last-child { position: sticky; right: 0; z-index: 2; background: #fff; box-shadow: -8px 0 14px rgba(18,43,70,.04); }
@@ -349,6 +349,16 @@ legend { margin-bottom: 10px; color: #445469; font-size: .79rem; font-weight: 75
 .master-editor-heading p { margin:4px 0 0; color:var(--muted); font-size:.8rem; line-height:1.45; }
 .master-identity-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }
 .master-identity-grid label, .master-editor-section > label { display:grid; gap:6px; color:var(--ink); font-size:.78rem; font-weight:700; }
+.master-option-control { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:7px; align-items:stretch; }
+.master-option-control > input { min-width:0; }
+.master-option-actions { display:flex; gap:5px; }
+.master-option-button { width:36px; min-height:39px; border:1px solid var(--line); border-radius:8px; background:#fff; color:var(--navy); font-size:1.15rem; font-weight:850; cursor:pointer; }
+.master-option-button.add { border-color:#a9c8ee; color:var(--blue); background:#f2f7ff; }
+.master-option-button.remove { border-color:#edc0bc; color:var(--red); background:#fff8f7; }
+.master-option-button:disabled { opacity:.55; cursor:wait; }
+.purchase-workspace-tabs { margin-top:16px; padding:5px; border:1px solid var(--line); border-radius:12px; background:#eef3f7; }
+.purchase-workspace-tabs button { font-weight:800; }
+.purchase-product-tabs { margin-top:9px; }
 .spec-editor-wrap { width:100%; overflow-x:auto; border:1px solid var(--line); border-radius:10px; background:#fff; }
 .spec-editor-table { width:100%; min-width:0; border-collapse:collapse; }
 .spec-editor-table th { padding:9px 10px; color:var(--muted); background:#f5f8fb; font-size:.72rem; text-align:left; }

@@ -91,7 +91,7 @@
       ]
     },
     {
-      id: "products", name: "Export Products", description: "Commercial/export Product Identities and quality specifications. Purchase stages and KAT remain in Purchase Products / KAT.",
+      id: "products", name: "Export Quality & Specs", description: "Commercial export products, approved quality wording and specifications. Purchase stages and KAT remain in Purchase Commodities & KAT.",
       fields: [
         { label: "Commodity", required: true }, { label: "Variety", required: true }, { label: "Rice type", required: true }, { label: "Code", required: true },
         { label: "Origin" }, { label: "Profile / use" }, { label: "Avg. grain length" }, { label: "Broken" }, { label: "Moisture" },
@@ -128,11 +128,11 @@
       ]
     },
     {
-      id: "purchase_products", name: "Purchase Products / KAT", description: "Operational purchase profiles linked to the shared base product identity. RAW, READY and FINISHED are stages—not duplicate varieties; the display name is generated automatically.",
+      id: "purchase_products", name: "Purchase Commodities & KAT", description: "One purchasing workspace for commodity setup, RAW or READY purchase profiles, and KAT rules. It shares the same base varieties used by Export Quality & Specs.",
       fields: [
         { label: "Commodity", required: true, type: "select", options: ["RICE", "CORN", "SESAME"] },
         { label: "Base variety / product", required: true },
-        { label: "Stage", required: true, type: "select", options: ["RAW", "READY", "FINISHED"] },
+        { label: "Purchased as", required: true, type: "select", options: ["RAW", "READY"] },
         { label: "Purchase unit", required: true, type: "select", options: ["KG", "MAUND", "MT"] },
         { label: "KAT profile" }, { label: "KAT treatment", type: "textarea", full: true },
         { label: "Brokerage rule" }, { label: "Inventory account" },
@@ -178,7 +178,7 @@
     ["Companies",["companies"]],
     ["Export Customers",["export_customers"]],
     ["Business Parties",["business_parties"]],
-    ["Products & Procurement",["products","purchase_products","purchase_kat","commodities"]],
+    ["Products & Procurement",["products","purchase_products"]],
     ["Mills & Locations",["mills"]],
     ["Reference Lists & Setup",["reference_lists","product_settings","export_documents","export_terms","salary_staff"]],
   ];
@@ -210,6 +210,7 @@
   let state = loadState();
   let currentMaster = "companies";
   let currentPurchaseTab = "RICE_RAW";
+  let currentPurchaseSection = "PRODUCTS";
 
   function cloneDefault() { return JSON.parse(JSON.stringify(defaultState)); }
   function loadState() {
@@ -511,6 +512,11 @@
     return result;
   }
   function masterType() { return MASTER_TYPES.find(item => item.id === currentMaster); }
+  function activeMasterType() {
+    if (currentMaster !== "purchase_products") return masterType();
+    const sectionType = currentPurchaseSection === "KAT" ? "purchase_kat" : currentPurchaseSection === "COMMODITIES" ? "commodities" : "purchase_products";
+    return MASTER_TYPES.find(item => item.id === sectionType);
+  }
   function masterInputId(index) { return `masterField${index}`; }
 
   function companyMasterFieldsHtml(values = []) {
@@ -632,25 +638,42 @@
   };
   function productOptionSelect(index,label,key,value,required=false) {
     const options=[...new Set([...(state.masterOptions?.[key]||[]),...(value?[value]:[])])].filter(Boolean).sort((a,b)=>a.localeCompare(b));
-    return `<label>${label}<select id="${masterInputId(index)}" data-master-field-index="${index}" data-product-option="${key}" ${required?"required":""}><option value="">Select ${escapeHtml(label)}</option>${options.map(x=>`<option value="${escapeHtml(x)}" ${x===String(value||"")?"selected":""}>${escapeHtml(x)}</option>`).join("")}<option value="__CUSTOM__">+ Custom…</option></select><input data-product-custom="${index}" hidden maxlength="120" placeholder="Enter new ${escapeHtml(label.toLowerCase())}"></label>`;
+    const listId=`productOptionList${index}`;
+    return `<label>${escapeHtml(label)}<span class="master-option-control"><input id="${masterInputId(index)}" data-master-field-index="${index}" data-product-option="${key}" data-product-option-label="${escapeHtml(label)}" data-product-existing-value="${escapeHtml(value||"")}" list="${listId}" value="${escapeHtml(value||"")}" placeholder="Type to search" autocomplete="off" ${required?"required":""}><span class="master-option-actions"><button type="button" class="master-option-button add" data-add-product-option aria-label="Add ${escapeHtml(label)}" title="Add a new ${escapeHtml(label.toLowerCase())}">+</button><button type="button" class="master-option-button remove" data-delete-product-option aria-label="Delete ${escapeHtml(label)}" title="Deactivate the selected option">−</button></span></span><datalist id="${listId}">${options.map(x=>`<option value="${escapeHtml(x)}"></option>`).join("")}</datalist></label>`;
   }
   function wireProductOptionFields() {
-    document.querySelectorAll("[data-product-option]").forEach(select=>{
-      const custom=document.querySelector(`[data-product-custom="${select.dataset.masterFieldIndex}"]`);
-      select.addEventListener("change",()=>{if(custom){custom.hidden=select.value!=="__CUSTOM__";if(!custom.hidden)custom.focus()}});
+    const refresh = input => {
+      const options=[...new Set(state.masterOptions?.[input.dataset.productOption]||[])].filter(Boolean).sort((a,b)=>a.localeCompare(b));
+      const list=document.getElementById(input.getAttribute("list"));
+      if(list)list.innerHTML=options.map(value=>`<option value="${escapeHtml(value)}"></option>`).join("");
+    };
+    document.querySelectorAll("[data-product-option]").forEach(input=>{
+      const add=input.parentElement?.querySelector("[data-add-product-option]");
+      const remove=input.parentElement?.querySelector("[data-delete-product-option]");
+      if(add)add.onclick=async()=>{
+        const label=input.dataset.productOptionLabel||"option";
+        const value=window.prompt(`Add ${label}`,input.value.trim());
+        if(value===null||!value.trim())return;
+        add.disabled=true;
+        try{const data=await apiRequest({action:"manage-option",type:"products",optionAction:"add",optionKey:input.dataset.productOption,value:value.trim()},"masters");if(data.options)state.masterOptions=data.options;refresh(input);input.value=data.value||value.trim();toast(`${label} option added.`)}catch(error){toast(error.message)}finally{add.disabled=false}
+      };
+      if(remove)remove.onclick=async()=>{
+        const label=input.dataset.productOptionLabel||"option",old=input.value.trim();
+        if(!old)return toast(`Select the ${label} option to deactivate.`);
+        if(!window.confirm(`Deactivate “${old}” from the ${label} dropdown? Saved historical records will keep their original value.`))return;
+        remove.disabled=true;
+        try{const data=await apiRequest({action:"manage-option",type:"products",optionAction:"delete",optionKey:input.dataset.productOption,old,value:""},"masters");if(data.options)state.masterOptions=data.options;input.value="";refresh(input);toast(`${label} option deactivated. Historical records were not changed.`)}catch(error){toast(error.message)}finally{remove.disabled=false}
+      };
     });
   }
   async function resolveProductOptionsBeforeSave(type) {
     if (type.id!=="products") return;
-    for (const select of document.querySelectorAll("[data-product-option]")) {
-      if (select.value!=="__CUSTOM__") continue;
-      const custom=document.querySelector(`[data-product-custom="${select.dataset.masterFieldIndex}"]`);
-      const value=custom?.value.trim()||"";
-      if (!value) throw new Error("Enter the custom option before saving.");
-      const data=await apiRequest({action:"manage-option",optionAction:"add",optionKey:select.dataset.productOption,value},"masters");
-      if(data.options)state.masterOptions=data.options;
-      select.insertAdjacentHTML("afterbegin",`<option value="${escapeHtml(value)}">${escapeHtml(value)}</option>`);
-      select.value=value;
+    for (const input of document.querySelectorAll("[data-product-option]")) {
+      const value=input.value.trim();
+      if(!value)continue;
+      const active=(state.masterOptions?.[input.dataset.productOption]||[]).some(option=>String(option).toLowerCase()===value.toLowerCase());
+      const historical=String(input.dataset.productExistingValue||"").toLowerCase()===value.toLowerCase();
+      if(!active&&!historical)throw new Error(`Use + to add “${value}” to ${input.dataset.productOptionLabel||"the dropdown"} before saving.`);
     }
   }
   function productMasterFieldsHtml(values = []) {
@@ -661,7 +684,7 @@
       `<label>Code<input id="${masterInputId(3)}" data-master-field-index="3" value="${escapeHtml(values[3]||"")}" required autocomplete="off"></label><label>HS Code<input id="${masterInputId(21)}" data-master-field-index="21" value="${escapeHtml(values[21]||"")}" autocomplete="off"></label>`;
     const core = PRODUCT_CORE_SPECS.map(([index,name]) => productSpecRow(name, values[index] || "", false, index)).join("");
     const custom = productCustomSpecs(values).map(row => productSpecRow(row.name, row.limit, true)).join("");
-    return `<section class="master-editor-section"><div class="master-editor-heading"><div><h3>Product identity</h3><p>Choose approved wording from each list. Use + Custom only when a genuinely new value is required. Crop Year remains separate.</p></div></div><div class="master-identity-grid">${identity}<label>Current Crop Year<input value="${escapeHtml(cropYear)}" readonly title="Change this once from the Products & Quality screen"></label></div></section>
+    return `<section class="master-editor-section"><div class="master-editor-heading"><div><h3>Export product identity</h3><p>Type to search each approved list. Use + to add a genuine new option or − to deactivate an incorrect option; historical records remain unchanged.</p></div></div><div class="master-identity-grid">${identity}<label>Current Crop Year<input value="${escapeHtml(cropYear)}" readonly title="Change this once from Export Quality & Specs"></label></div></section>
       <section class="master-editor-section"><div class="master-editor-heading"><div><h3>Specifications & limits</h3><p>One specification per line. Leave a limit blank when it is not confirmed.</p></div></div><div class="spec-editor-wrap"><table class="spec-editor-table"><thead><tr><th>Specification</th><th>Limit / Requirement</th><th></th></tr></thead><tbody id="productSpecRows">${core}${custom}</tbody></table></div><button class="button secondary add-spec-button" id="addProductSpecification" type="button">+ Add Specification</button></section>
       <section class="master-editor-section"><div class="master-editor-heading"><div><h3>Wording & source</h3><p>Quality wording and reference source stay separate from the numeric specification table.</p></div></div><div class="master-form-grid"><label class="full-span">Additional quality wording<textarea id="${masterInputId(18)}" data-master-field-index="18" rows="3">${escapeHtml(values[18] || "")}</textarea></label><label class="full-span">Source / basis<textarea id="${masterInputId(19)}" data-master-field-index="19" rows="3">${escapeHtml(values[19] || "")}</textarea></label></div></section>`;
   }
@@ -701,15 +724,34 @@
   }
   function katMasterFieldsHtml(values = []) {
     const statusOptions = ["Active", "Draft – review required", "Inactive"];
+    const baseVarieties=[...new Set((state.masters?.products||[]).map(row=>String(row.values?.[1]||"")).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
     return `<section class="master-editor-section"><div class="master-editor-heading"><div><h3>KAT identity</h3><p>Define which quality measurement this rule belongs to.</p></div></div><div class="master-identity-grid">
-      <label>Commodity<input id="${masterInputId(0)}" data-master-field-index="0" value="${escapeHtml(values[0] || "")}" required></label>
-      <label>Variety / product<input id="${masterInputId(1)}" data-master-field-index="1" value="${escapeHtml(values[1] || "")}" required></label>
+      <label>Commodity<select id="${masterInputId(0)}" data-master-field-index="0" required>${["Rice","Corn","Sesame"].map(option=>`<option ${option.toLowerCase()===String(values[0]||"Rice").toLowerCase()?"selected":""}>${option}</option>`).join("")}</select></label>
+      <label>Base variety / product<input id="${masterInputId(1)}" data-master-field-index="1" list="katBaseVarieties" value="${escapeHtml(values[1] || "")}" placeholder="Type to search" autocomplete="off" required><datalist id="katBaseVarieties">${baseVarieties.map(option=>`<option value="${escapeHtml(option)}"></option>`).join("")}</datalist></label>
       <label>Quality parameter<input id="${masterInputId(2)}" data-master-field-index="2" value="${escapeHtml(values[2] || "")}" required></label>
       <label>Effective / seasonal profile<input id="${masterInputId(6)}" data-master-field-index="6" value="${escapeHtml(values[6] || "")}"></label>
       <label>Rule status<select id="${masterInputId(7)}" data-master-field-index="7">${statusOptions.map(option => `<option ${option === String(values[7] || "") ? "selected" : ""}>${option}</option>`).join("")}</select></label>
     </div></section>
     <section class="master-editor-section kat-calc-section"><div class="master-editor-heading"><div><h3>KAT calculation</h3><p>Enter the percentage bands as rows. “Above” is exclusive and “Up to” is inclusive. Leave “Up to” blank for an open-ended final slab.</p></div></div><div class="master-form-grid"><label>Free / default allowance<input id="${masterInputId(3)}" data-master-field-index="3" value="${escapeHtml(values[3] || "")}"></label><label>Default deduction unit<input id="${masterInputId(5)}" data-master-field-index="5" value="${escapeHtml(values[5] || "paisa per %")}"></label></div><div class="kat-range-wrap"><table class="kat-range-table"><thead><tr><th>Above %</th><th>Up to %</th><th>Deduction</th><th>Unit</th><th></th></tr></thead><tbody id="katRangeRows">${katRangeDefaults(values).map(katRangeRow).join("")}</tbody></table></div><button class="button secondary add-spec-button" id="addKatRange" type="button">+ Add Range</button><input type="hidden" id="${masterInputId(4)}" data-master-field-index="4" value="${escapeHtml(values[4] || "")}"></section>
     <section class="master-editor-section kat-message-section"><div class="master-editor-heading"><div><h3>Staff instruction / message</h3><p>Plain-language instruction shown to operational staff when this KAT rule is relevant.</p></div></div><label class="full-span">Message<textarea id="${masterInputId(8)}" data-master-field-index="8" rows="4" placeholder="Example: Automatic KAT disabled until this profile is approved.">${escapeHtml(values[8] || "")}</textarea></label></section>`;
+  }
+
+  function purchaseProductMasterFieldsHtml(values = []) {
+    const defaults={RICE_RAW:["RICE","","RAW"],RICE_READY:["RICE","","READY"],CORN:["CORN","Corn / Makai","RAW"],SESAME_RAW:["SESAME","Sesame","RAW"],SESAME_READY:["SESAME","Sesame","READY"]};
+    const v=[...values];
+    const selected=defaults[currentPurchaseTab]||defaults.RICE_RAW;
+    if(!v.length){v[0]=selected[0];v[1]=selected[1];v[2]=selected[2];v[3]=selected[0]==="RICE"?"KG":"MAUND";v[8]="Active"}
+    const baseVarieties=[...new Set([...(state.masters?.products||[]).map(row=>String(row.values?.[1]||"")),String(v[1]||"")])].filter(Boolean).sort((a,b)=>a.localeCompare(b));
+    const options=(items,value)=>items.map(option=>`<option value="${escapeHtml(option)}" ${option===String(value||"")?"selected":""}>${escapeHtml(option)}</option>`).join("");
+    return `<section class="master-editor-section"><div class="master-editor-heading"><div><h3>Purchase identity</h3><p>Select the shared base variety and whether it is bought as RAW or READY. FINISHED is created internally by Milling and is not a purchase choice.</p></div></div><div class="master-identity-grid">
+      <label>Commodity<select id="${masterInputId(0)}" data-master-field-index="0" required>${options(["RICE","CORN","SESAME"],v[0])}</select></label>
+      <label>Shared base variety / product<input id="${masterInputId(1)}" data-master-field-index="1" list="purchaseBaseVarieties" value="${escapeHtml(v[1]||"")}" placeholder="Type to search" autocomplete="off" required><datalist id="purchaseBaseVarieties">${baseVarieties.map(option=>`<option value="${escapeHtml(option)}"></option>`).join("")}</datalist></label>
+      <label>Purchased as<select id="${masterInputId(2)}" data-master-field-index="2" required>${options(["RAW","READY"],v[2])}</select></label>
+      <label>Purchase unit<select id="${masterInputId(3)}" data-master-field-index="3" required>${options(["KG","MAUND","MT"],v[3])}</select></label>
+      <label>KAT profile<input id="${masterInputId(4)}" data-master-field-index="4" value="${escapeHtml(v[4]||"")}"></label>
+      <label>Status<select id="${masterInputId(8)}" data-master-field-index="8">${options(["Active","Draft – review required","Inactive"],v[8]||"Active")}</select></label>
+    </div></section>
+    <section class="master-editor-section"><div class="master-editor-heading"><div><h3>Purchase rules</h3><p>These defaults flow into Soda, Arrival and billing; staff should not re-enter them on every transaction.</p></div></div><div class="master-form-grid"><label class="full-span">KAT treatment<textarea id="${masterInputId(5)}" data-master-field-index="5" rows="3">${escapeHtml(v[5]||"")}</textarea></label><label>Brokerage rule<input id="${masterInputId(6)}" data-master-field-index="6" value="${escapeHtml(v[6]||"")}"></label><label>Inventory account<input id="${masterInputId(7)}" data-master-field-index="7" value="${escapeHtml(v[7]||"")}"></label><label class="full-span">Notes<textarea id="${masterInputId(9)}" data-master-field-index="9" rows="3">${escapeHtml(v[9]||"")}</textarea></label></div></section>`;
   }
 
   function masterFieldsHtml(type, values = []) {
@@ -732,12 +774,7 @@
     if (type.id === "mills") return millMasterFieldsHtml(values);
     if (type.id === "banks") return bankMasterFieldsHtml(values);
     if (type.id === "products") return productMasterFieldsHtml(values);
-    if (type.id === "purchase_products") return type.fields.map((field, index) => {
-      const value=String(values[index]??""),full=field.full?" full-span":"";
-      if(field.type==="select") return `<label class="${full.trim()}">${escapeHtml(field.label)}<select id="${masterInputId(index)}" data-master-field-index="${index}" ${field.required?"required":""}>${field.options.map(option=>`<option ${option===value?"selected":""}>${escapeHtml(option)}</option>`).join("")}</select></label>`;
-      if(field.type==="textarea") return `<label class="${full.trim()}">${escapeHtml(field.label)}<textarea id="${masterInputId(index)}" data-master-field-index="${index}" rows="3">${escapeHtml(value)}</textarea></label>`;
-      return `<label class="${full.trim()}">${escapeHtml(field.label)}<input id="${masterInputId(index)}" data-master-field-index="${index}" value="${escapeHtml(value)}" ${field.required?"required":""}></label>`;
-    }).join("");
+    if (type.id === "purchase_products") return purchaseProductMasterFieldsHtml(values);
     if (type.id === "purchase_kat") return katMasterFieldsHtml(values);
     return type.fields.map((field, index) => {
       const value = String(values[index] ?? "");
@@ -858,19 +895,27 @@
     state.masters = ensureMasterSections(state.masters,state.masterOptions);
     const allowedTypes=MASTER_TYPES.filter(type=>canMaster(type.id,"View"));
     if (!allowedTypes.some(type=>type.id===currentMaster)) currentMaster=allowedTypes[0]?.id||"companies";
-    document.getElementById("masterMenu").innerHTML = MASTER_GROUPS.map(([group,ids])=>{const types=ids.map(id=>allowedTypes.find(type=>type.id===id)).filter(Boolean);return types.length?`<div class="master-menu-group"><small>${group}</small>${types.map(type=>`<button class="${type.id === currentMaster ? "active" : ""}" data-master="${type.id}">${type.name}<span>${state.masters[type.id]?.length || 0}</span></button>`).join("")}</div>`:""}).join("");
-    const type = masterType();
-    document.getElementById("masterTitle").textContent = type.name;
-    document.getElementById("masterDescription").textContent = type.description;
+    if(currentMaster==="purchase_products"&&!canMaster(activeMasterType()?.id||"purchase_products","View"))currentPurchaseSection="PRODUCTS";
+    document.getElementById("masterMenu").innerHTML = MASTER_GROUPS.map(([group,ids])=>{const types=ids.map(id=>allowedTypes.find(type=>type.id===id)).filter(Boolean);return types.length?`<div class="master-menu-group"><small>${group}</small>${types.map(type=>{const count=type.id==="purchase_products"?["purchase_products","purchase_kat","commodities"].reduce((sum,id)=>sum+(state.masters[id]?.length||0),0):(state.masters[type.id]?.length||0);return `<button class="${type.id === currentMaster ? "active" : ""}" data-master="${type.id}">${type.name}<span>${count}</span></button>`}).join("")}</div>`:""}).join("");
+    const menuType = masterType();
+    const type = activeMasterType();
+    document.getElementById("masterTitle").textContent = menuType.name;
+    document.getElementById("masterDescription").textContent = menuType.description;
     document.getElementById("productCropYearControl")?.remove();
+    document.getElementById("purchaseWorkspaceTabs")?.remove();
     document.getElementById("purchaseProductTabs")?.remove();
     if (type.id === "products") {
       document.getElementById("masterDescription").insertAdjacentHTML("afterend", `<section id="productCropYearControl" class="master-editor-section"><div class="master-editor-heading"><div><h3>Current Crop Year</h3><p>Change this once a year. New Sales Contracts use it automatically; saved contracts keep their original crop year.</p></div></div><div class="master-identity-grid"><label>Crop Year<input id="currentProductCropYear" value="${escapeHtml(currentProductCropYear())}" placeholder="2025/2026"></label><div><button class="button primary" id="saveCurrentProductCropYear" type="button">Save Crop Year</button></div></div></section>`);
       document.getElementById("saveCurrentProductCropYear").onclick=saveCurrentProductCropYear;
     }
+    if (currentMaster === "purchase_products") {
+      const sections=[["PRODUCTS","Purchase Products","purchase_products"],["KAT","KAT Rules","purchase_kat"],["COMMODITIES","Commodity Setup","commodities"]].filter(([, , id])=>canMaster(id,"View"));
+      document.getElementById("masterDescription").insertAdjacentHTML("afterend",`<div id="purchaseWorkspaceTabs" class="tt-modebar purchase-workspace-tabs">${sections.map(([id,label])=>`<button type="button" data-purchase-section="${id}" class="${id===currentPurchaseSection?'active':''}">${label}</button>`).join('')}</div>`);
+      document.querySelectorAll('[data-purchase-section]').forEach(button=>button.onclick=()=>{currentPurchaseSection=button.dataset.purchaseSection;renderMasters()});
+    }
     if (type.id === "purchase_products") {
       const tabs=[["RICE_RAW","Raw Rice"],["RICE_READY","Ready Rice"],["CORN","Corn / Makai"],["SESAME_RAW","Raw Sesame"],["SESAME_READY","Ready Sesame"]];
-      document.getElementById("masterDescription").insertAdjacentHTML("afterend",`<div id="purchaseProductTabs" class="tt-modebar">${tabs.map(([id,label])=>`<button type="button" data-purchase-master-tab="${id}" class="${id===currentPurchaseTab?'active':''}">${label}</button>`).join('')}</div>`);
+      document.getElementById("purchaseWorkspaceTabs").insertAdjacentHTML("afterend",`<div id="purchaseProductTabs" class="tt-modebar purchase-product-tabs">${tabs.map(([id,label])=>`<button type="button" data-purchase-master-tab="${id}" class="${id===currentPurchaseTab?'active':''}">${label}</button>`).join('')}</div>`);
       document.querySelectorAll('[data-purchase-master-tab]').forEach(button=>button.onclick=()=>{currentPurchaseTab=button.dataset.purchaseMasterTab;renderMasters()});
     }
     document.getElementById("addMasterRecord").hidden=!canMaster(type.id,"Create");
@@ -878,21 +923,21 @@
     const columns = displayColumns(type);
     document.getElementById("masterTableHead").innerHTML = `<tr>${columns.map(index => `<th>${escapeHtml(type.fields[index].label)}</th>`).join("")}<th>Status</th><th>Actions</th></tr>`;
     const query = document.getElementById("masterSearch")?.value.toLowerCase() || "";
-    const rows = (state.masters[currentMaster] || []).filter(row => {
+    const rows = (state.masters[type.id] || []).filter(row => {
       if(!row.values.join(" ").toLowerCase().includes(query))return false;
       if(type.id!=="purchase_products")return true;
       const commodity=String(row.values?.[0]||'').toUpperCase(),stage=String(row.values?.[2]||'').toUpperCase();
       if(currentPurchaseTab==='CORN')return commodity==='CORN';
       if(currentPurchaseTab==='RICE_RAW')return commodity==='RICE'&&stage==='RAW';
-      if(currentPurchaseTab==='RICE_READY')return commodity==='RICE'&&stage!=='RAW';
+      if(currentPurchaseTab==='RICE_READY')return commodity==='RICE'&&stage==='READY';
       if(currentPurchaseTab==='SESAME_RAW')return commodity==='SESAME'&&stage==='RAW';
-      return commodity==='SESAME'&&stage!=='RAW';
+      return commodity==='SESAME'&&stage==='READY';
     });
-    document.getElementById("masterTableBody").innerHTML = rows.length ? rows.map(row => `<tr>${columns.map(index => `<td>${escapeHtml(row.values[index] || "—")}</td>`).join("")}<td><span class="tag">${escapeHtml(masterRowStatus(type, row))}</span></td><td><div class="row-actions">${canMaster(type.id,"Edit")?`<button class="row-action" data-edit-master="${escapeHtml(row.id)}">Edit</button>`:""}${canMaster(type.id,"Deactivate")?`<button class="row-action delete" data-delete-master="${escapeHtml(row.id)}">Deactivate</button>`:""}</div></td></tr>`).join("") : `<tr><td colspan="${columns.length + 2}">No matching records.</td></tr>`;
+    document.getElementById("masterTableBody").innerHTML = rows.length ? rows.map(row => `<tr>${columns.map(index => `<td>${escapeHtml(row.values[index] || "—")}</td>`).join("")}<td><span class="tag">${escapeHtml(masterRowStatus(type, row))}</span></td><td><div class="row-actions">${canMaster(type.id,"Edit")?`<button class="row-action" data-edit-master="${escapeHtml(row.id)}">Edit</button>`:""}${type.id!=="commodities"&&canMaster(type.id,"Deactivate")?`<button class="row-action delete" data-delete-master="${escapeHtml(row.id)}">Deactivate</button>`:""}</div></td></tr>`).join("") : `<tr><td colspan="${columns.length + 2}">No matching records.</td></tr>`;
   }
   function openMasterDialog(id = "") {
-    const type = masterType();
-    const row = (state.masters[currentMaster] || []).find(item => item.id === id);
+    const type = activeMasterType();
+    const row = (state.masters[type.id] || []).find(item => item.id === id);
     document.getElementById("masterForm").reset();
     document.getElementById("editMasterId").value = row?.id || "";
     document.getElementById("masterDialogTitle").textContent = `${row ? "Edit" : "Add"} ${type.name}`;
@@ -934,7 +979,7 @@
       });
       syncSalaryEntity();
     }
-    document.getElementById("deleteMasterButton").hidden = !row || (type.id === "salary_staff" && String(row.values?.[10] || "Active") === "Inactive");
+    document.getElementById("deleteMasterButton").hidden = !row || type.id === "commodities" || (type.id === "salary_staff" && String(row.values?.[10] || "Active") === "Inactive");
     document.getElementById("deleteMasterButton").textContent = type.id === "salary_staff" ? "Remove Staff" : "Deactivate Record";
     document.getElementById("saveMasterButton").textContent = row ? "Save Changes" : "Save Record";
     document.getElementById("masterDialog").showModal();
@@ -943,13 +988,13 @@
     event.preventDefault();
     const form = document.getElementById("masterForm");
     if (!form.reportValidity()) return;
-    const type = masterType();
+    const type = activeMasterType();
     const id = document.getElementById("editMasterId").value;
     if(type.id==="companies"){const shares=[...document.querySelectorAll('[data-company-owner-share]')].map(input=>Number(input.value||0)),total=shares.reduce((sum,value)=>sum+value,0);if(shares.length===1&&shares[0]===0)document.querySelector('[data-company-owner-share]').value="100";else if(Math.abs(total-100)>.001){toast("Owner / partner shares must total 100%.");return}}
     try { await resolvePartyRoleBeforeSave(type); await resolveProductOptionsBeforeSave(type); } catch (error) { toast(error.message); return; }
     const values = masterValuesFromForm(type);
     const primary = values[0] || type.name;
-    const ref = values[1] || currentMaster.toUpperCase();
+    const ref = values[1] || type.id.toUpperCase();
     try {
       if(type.id==="reference_lists"){
         const existing=id?(state.masters.reference_lists||[]).find(row=>row.id===id):null;
@@ -957,7 +1002,7 @@
         if(data.options)state.masterOptions=data.options;state.masters=ensureMasterSections(data.masters,state.masterOptions);saveState();renderMasters();document.getElementById("masterDialog").close();form.reset();toast(existing?"Reference option updated.":"Reference option added.");return;
       }
       const pendingDocuments=type.id==="companies"?[...document.querySelectorAll('.company-document-row')].filter(row=>!row.querySelector('[data-document-id]')?.value&&row.querySelector('[data-document-file]')?.files?.[0]):[];
-      const data = await apiRequest({ action: id ? "update" : "create", type: currentMaster, id, values }, "masters");
+      const data = await apiRequest({ action: id ? "update" : "create", type: type.id, id, values }, "masters");
       const companyId=data.id||id;
       for (const row of pendingDocuments) {
         const payload=new FormData();payload.append('csrf',SESSION.csrf);payload.append('action','upload');payload.append('companyId',companyId);payload.append('type',row.querySelector('[data-document-type]').value);payload.append('label',row.querySelector('[data-document-label]').value.trim());payload.append('isDefault',row.querySelector('[data-document-default]').checked?'1':'');payload.append('file',row.querySelector('[data-document-file]').files[0]);
@@ -969,11 +1014,12 @@
     } catch (error) { toast(error.message); }
   }
   async function deleteMasterRecord(selectedId) {
+    const type=activeMasterType();
     const id = String(selectedId || document.getElementById("editMasterId").value);
-    const row = (state.masters[currentMaster] || []).find(item => item.id === id); if (!row) return;
-    const removingStaff=currentMaster==="salary_staff";
-    if (!window.confirm(`${removingStaff ? "Remove" : "Deactivate"} ${row.values[0]} ${removingStaff ? "from future Salary Sheets" : `in ${masterType().name}`}? Historical transactions will remain unchanged.`)) return;
-    try { if(currentMaster==="reference_lists"){const data=await apiRequest({action:"manage-option",type:"reference_lists",optionAction:"delete",optionKey:row.values[0],old:row.values[1],value:""},"masters");if(data.options)state.masterOptions=data.options;state.masters=ensureMasterSections(data.masters,state.masterOptions);saveState();renderMasters();document.getElementById("masterDialog").close();toast("Reference option deactivated.");return;} const data = await apiRequest({ action: "delete", type: currentMaster, id }, "masters"); state.masters = ensureMasterSections(data.masters,state.masterOptions); saveState(); renderMasters(); document.getElementById("masterDialog").close(); toast(removingStaff ? "Staff removed from future Salary Sheets." : "Master record deactivated."); }
+    const row = (state.masters[type.id] || []).find(item => item.id === id); if (!row) return;
+    const removingStaff=type.id==="salary_staff";
+    if (!window.confirm(`${removingStaff ? "Remove" : "Deactivate"} ${row.values[0]} ${removingStaff ? "from future Salary Sheets" : `in ${type.name}`}? Historical transactions will remain unchanged.`)) return;
+    try { if(type.id==="reference_lists"){const data=await apiRequest({action:"manage-option",type:"reference_lists",optionAction:"delete",optionKey:row.values[0],old:row.values[1],value:""},"masters");if(data.options)state.masterOptions=data.options;state.masters=ensureMasterSections(data.masters,state.masterOptions);saveState();renderMasters();document.getElementById("masterDialog").close();toast("Reference option deactivated.");return;} const data = await apiRequest({ action: "delete", type: type.id, id }, "masters"); state.masters = ensureMasterSections(data.masters,state.masterOptions); saveState(); renderMasters(); document.getElementById("masterDialog").close(); toast(removingStaff ? "Staff removed from future Salary Sheets." : "Master record deactivated."); }
     catch (error) { toast(error.message); }
   }
 
@@ -1140,7 +1186,8 @@
     if (!query) return;
     const user = IS_SUPER_ADMIN ? state.users.find(item => `${item.name} ${item.username} ${item.role}`.toLowerCase().includes(query)) : null;
     const module = MODULES.find(item => `${item.name} ${item.description}`.toLowerCase().includes(query));
-    const master = hasMasterAccess ? MASTER_TYPES.filter(item=>canMaster(item.id,"View")).find(item => `${item.name} ${item.description}`.toLowerCase().includes(query)) : null;
+    const visibleMasterIds=new Set(MASTER_GROUPS.flatMap(([,ids])=>ids));
+    const master = hasMasterAccess ? MASTER_TYPES.filter(item=>visibleMasterIds.has(item.id)&&canMaster(item.id,"View")).find(item => `${item.name} ${item.description}`.toLowerCase().includes(query)) : null;
     if (user) { showView("users"); document.getElementById("userSearch").value = value; renderUsers(); }
     else if (module) { showView("modules"); toast(`${module.name} module found.`); }
     else if (master) { currentMaster = master.id; showView("masters"); renderMasters(); }
@@ -1168,7 +1215,7 @@
     if (editUser) openUserDialog(editUser.dataset.editUser);
     if (resetUser) resetPassword(resetUser.dataset.resetUser);
     if (deleteUserButton) deleteUser(deleteUserButton.dataset.deleteUser);
-    if (masterButton) { currentMaster = masterButton.dataset.master; renderMasters(); }
+    if (masterButton) { currentMaster = masterButton.dataset.master; if(currentMaster==="purchase_products")currentPurchaseSection="PRODUCTS"; renderMasters(); }
     if (editMaster) openMasterDialog(editMaster.dataset.editMaster);
     if (deleteMaster) deleteMasterRecord(deleteMaster.dataset.deleteMaster);
     if (lockButton) toggleLock(lockButton.dataset.toggleLock);
