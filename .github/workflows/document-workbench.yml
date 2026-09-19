@@ -1,0 +1,29 @@
+name: Document source workbench
+on:
+  push:
+    branches: ['workbench/exports-documents-20260919']
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Map existing document functions and test files
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p=Path('exports/app.js')
+          lines=p.read_text().splitlines()
+          print('SOURCE LINES:',len(lines))
+          for i,line in enumerate(lines,1):
+            m=re.search(r'^(?:async )?function\s+(\w+)',line)
+            if m and re.search(r'bank|cover|invoice|packing|tg|letter|print|asset|sign|document|weight|gd|fiRef|contractDoc',m[1],re.I):
+              print(f'{i}: {m[1]}')
+          for p in Path('tests/exports-v3').rglob('*'):
+            if p.is_file() and 'node_modules' not in str(p): print('TEST:',p)
+          for p in [Path('.github/workflows/milling-exports-qa.yml'),Path('tests/exports-v3/package.json')]:
+            if p.exists(): print('\nFILE:',p,'\n',p.read_text())
+          PY
