@@ -84,5 +84,6 @@ const css = fs.readFileSync(path.join(root, 'exports', 'app.css'), 'utf8');
   }
   fs.writeFileSync(path.join(outputDir, 'report.json'), JSON.stringify(Object.fromEntries(Object.entries(report).map(([name, value]) => [name, { ...value, text: undefined }])), null, 2));
   await browser.close();
+  require('node:child_process').execFileSync(process.execPath, [path.join(__dirname, 'document_revision_20260919_browser_qa.js')], { stdio: 'inherit', env: process.env });
   console.log('PASS real-browser Commercial Invoice, Packing List and B/L output QA');
 })().catch(error => { console.error(error); process.exit(1); });
