@@ -126,7 +126,7 @@ const c={id:'C1',ref:'TTI/NS/01',seller:'TTI',customerId:'C-DAYA',date:'2026-09-
 t.state.customers.push({id:'C-DAYA',name:'North Star Foods LLC',address:'Jebel Ali Free Zone, Dubai, United Arab Emirates',notifies:[{name:'North Star Clearing LLC',address:'Port Road, Dubai, United Arab Emirates'}]});
 const s=t.makeShipment(c);s.lc={saved:true,lcNo:'LC-99881',lcDate:'2026-09-08',issuingBank:'FIRST BANK',advisingBank:'MEEZAN BANK',documents:['Commercial Invoice','Packing List']};s.millActuals=[{number:'MSCU123456-7',seal:'SL001',bags:1080,netKg:27000,tareKg:86.4,grossKg:27086.4,brand:'STAR',packing:'25 KG'}];s.bl={...s.bl,blNo:'BL001',onBoardDate:'2026-09-20',vessel:'MV TEST',voyage:'V01'};s.customs={...s.customs,fiAllocations:['FI-1'],gdRefs:['GD-1'],bank:'Meezan Bank',iban:'PK00TEST'};
 for(const [name,html] of Object.entries({invoice:t.commercialInvoiceDoc(s,c,false),packing:t.packingListDoc(s,c,false),phyto:t.phytoInvoiceDoc(s,c),cover:t.coveringDoc(s,c),draft:t.lcDraftDoc(s,c)})){
-  assert.match(html,/docPage/);assert.match(html,/TTI_header\.png/);assert.ok(!/undefined|null/.test(html),name+' leaked invalid text');
+  assert.match(html,/docPage/);if(name==='cover'){assert.doesNotMatch(html,/TTI_header\.png|TTI_sign\.png|docFooterArt/)}else assert.match(html,/TTI_header\.png/);assert.ok(!/undefined|null/.test(html),name+' leaked invalid text');
 }
 const plainBL=t.blDraftDoc(s,c);assert.match(plainBL,/oceanBlPage/);assert.match(plainBL,/OCEAN BILL OF LADING/);assert.doesNotMatch(plainBL,/TTI_header\.png|docFooterArt|docAutoSign/);
 assert.match(plainBL,/SAID TO CONTAIN/);assert.match(plainBL,/1 × 20 FEET CONTAINERS/);assert.match(plainBL,/1,080 PP BAGS OF 25 KG EACH/i);assert.match(plainBL,/HS CODE: 1006\.30/);assert.match(plainBL,/TOTAL NET WEIGHT/);assert.match(plainBL,/TOTAL GROSS WEIGHT/);assert.match(plainBL,/NON-NEGOTIABLE COPIES[\s\S]*<span>5<\/span>/);assert.match(plainBL,/MARKS AND NUMBERS \/ NUMBER AND KIND OF PACKAGES \/ DESCRIPTION OF GOODS/);assert.doesNotMatch(plainBL,/ILLUSTRATIVE|SAMPLE DATA/);
@@ -135,7 +135,7 @@ assert.match(t.commercialInvoiceDoc(s,c,false),/BUYER — NAME AND ADDRESS/);ass
 assert.match(t.commercialInvoiceDoc(s,c,false),/FI-1/);
 assert.match(t.packingListDoc(s,c,false),/>PACKING LIST</);assert.doesNotMatch(t.packingListDoc(s,c,false),/>COMMERCIAL PACKING LIST</);assert.match(t.packingListDoc(s,c,false),/B\/L NUMBER \/ DATE/);assert.match(t.packingListDoc(s,c,false),/COUNTRY OF ORIGIN: PAKISTAN/);
 const tgContract={...c,seller:'TG',ref:'TG/NS/01'};const tgShipment=t.makeShipment(tgContract);tgShipment.seller='TG';tgShipment.bl={...tgShipment.bl,blNo:'TGBL001',onBoardDate:'2026-09-20',vessel:'MV TEST',voyage:'V01'};tgShipment.millActuals=structuredClone(s.millActuals);tgShipment.customs={...tgShipment.customs,currency:'USD',rate:350,paymentTerms:'Advance + Cash Against Documents',customsPaymentCode:'ADV_CAD',fiAllocations:[{number:'TG-FI-1',date:'2026-09-10',amount:5000}],gdRefs:[{number:'TG-GD-1',date:'2026-09-20'}]};
-const internal=t.tgInternalCommercialInvoiceDoc(tgShipment,tgContract);assert.match(internal,/BY ORDER AND FOR ACCOUNT OF/);assert.match(internal,/Advance \+ Cash Against Documents/i);assert.match(internal,/TG-FI-1/);assert.match(internal,/TG-GD-1/);
+const internal=t.tgInternalCommercialInvoiceDoc(tgShipment,tgContract);assert.match(internal,/BUYER \/ REMITTER/);assert.match(internal,/Advance \+ Cash Against Documents/i);assert.match(internal,/TG-FI-1/);assert.match(internal,/TG-GD-1/);
 assert.match(t.phytoInvoiceDoc(s,c),/CFR Jebel Ali, United Arab Emirates/);assert.match(t.phytoInvoiceDoc(s,c),/HS CODE: 1006\.30/);assert.match(t.phytoInvoiceDoc(s,c),/BRAND &amp; MARKING/);
 assert.match(t.coveringDoc(s,c),/GD-1/);
 const validLot={containers:2,millActuals:[{number:'MSCU123456-7',seal:'S1'},{number:'TGHU765432-1',seal:'S2'}]};
@@ -202,7 +202,7 @@ assert.match(source,/cBrokenContract/);
 assert.match(source,/cFinishContract/);
 assert.match(source,/managedOptionSelectHTML\('mPackType','packing_types'/);
 assert.match(fs.readFileSync(__dirname+'/../../auth_store.php','utf8'),/'packing_types'=>/);
-assert.equal((t.coveringDoc(s,c).match(/class="docPage branded bankCoveringPage"/g)||[]).length,2,'covering letter produces the two agreed identical unlabelled copies');
+assert.equal((t.coveringDoc(s,c).match(/class="docPage bankCoveringPage"/g)||[]).length,1,'covering letter produces one plain physical-letterhead copy');
 const brandCss=fs.readFileSync(__dirname+'/../../brand-theme.css','utf8');
 const brandJs=fs.readFileSync(__dirname+'/../../brand-theme.js','utf8');
 const modulePhp=fs.readFileSync(__dirname+'/../../module.php','utf8');
