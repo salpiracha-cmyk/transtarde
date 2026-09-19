@@ -18,7 +18,7 @@
 
 
   const SHARED_MASTER_DEFS={
-    products:{label:'Products & Quality',icon:'◈',description:'Products, varieties and complete export quality specifications.',fields:[
+    products:{label:'Export Quality & Specs',icon:'◈',description:'Commercial export products, shared varieties and approved quality specifications.',fields:[
       ['Commodity',1],['Variety / product',1],['Processing / grade'],['Code',1],['Origin'],['Profile / use'],['Avg. grain length'],['Broken'],['Moisture'],['Damaged / Shriveled / Yellow'],['Chalky / Immature'],['Contrasting / Other varieties'],['Foreign grains'],['Foreign matter'],['Paddy'],['Red kernels / Red rice'],['Under-milled / Red-striped'],['Milling / polishing'],['Additional quality wording',0,'textarea'],['Source / basis',0,'textarea'],['Custom specifications',0,'textarea']
     ]},
     export_documents:{label:'Documents Presented',icon:'▤',description:'Required document names, originals, copies and applicability.',fields:[['Document Name',1],['Original',1],['Copies',1],['Applies To'],['Status']]},
