@@ -76,10 +76,17 @@ test('authenticated Accounts live smoke: professional desk and popup workflows',
   await activate(page.locator('#ttCompanyMenu [data-entity="TTI"]'));
   await expect(page.locator('#ttCompanyMenu')).toBeHidden();
 
-  await activate(page.locator('#ttMasterTop'));
-  await expect(page.locator('#ws-masters')).toHaveClass(/active.*tt-clean-modal|tt-clean-modal.*active/, { timeout: 30_000 });
-  await expect(page.locator('#ws-masters .masterTabs')).toBeVisible();
-  await closeWorkspace(page);
+  const masterAccess = await page.evaluate(() => Boolean(window.TT_ACCOUNT_ACCESS?.masterAccess));
+  if (masterAccess) {
+    await activate(page.locator('#ttMasterTop'));
+    await expect(page).toHaveURL(/\/index\.php\?view=masters$/, { timeout: 30_000 });
+    await expect(page.locator('#view-masters')).toBeVisible({ timeout: 30_000 });
+    await expect(page.locator('#masterTitle')).toBeVisible();
+    await page.goto(`${BASE_URL}/accounts/index.php`, { waitUntil: 'domcontentloaded', timeout: 90_000 });
+    await expect.poll(() => page.evaluate(() => window.TT_ACCOUNTING_DESK?.installed || false), { timeout: 30_000 }).toBe(true);
+  } else {
+    await expect(page.locator('#ttMasterTop')).toHaveCount(0);
+  }
 
   await deskAction(page, 'purchases', 'Soda Centre');
   await expect(page.locator('#ttSodaLayer')).toBeVisible();
