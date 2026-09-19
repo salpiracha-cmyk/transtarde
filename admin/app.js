@@ -132,47 +132,32 @@
       fields: [
         { label: "Commodity", required: true, type: "select", options: ["RICE", "CORN", "SESAME"] },
         { label: "Base variety / product", required: true },
-        { label: "Purchased as", required: true, type: "select", options: ["RAW", "READY"] },
+        { label: "Rice type" },
+        { label: "Purchase classification", required: true, type: "select", options: ["RAW", "READY"] },
         { label: "Purchase unit", required: true, type: "select", options: ["KG", "MAUND", "MT"] },
-        { label: "KAT profile" }, { label: "KAT treatment", type: "textarea", full: true },
-        { label: "Brokerage rule" }, { label: "Inventory account" },
+        { label: "KAT profile" }, { label: "Brokerage rule" }, { label: "Inventory account" },
         { label: "Status", type: "select", options: ["Active", "Draft – review required", "Inactive"] },
         { label: "Notes", type: "textarea", full: true }
       ],
       rows: []
     },
     {
-      id: "purchase_kat", name: "Purchase KAT Rules", description: "Owner-controlled purchase deductions shared with Accounts. Only IRRI-6 rules are currently defined; other rice varieties and corn remain blank until Salman enters their separate KAT systems.",
+      id: "purchase_kat", name: "Purchase KAT Profiles", description: "One complete KAT page per exact variety, rice type and RAW/READY purchase classification. Parameters and ranges stay together.",
       fields: [
-        { label: "Commodity", required: true }, { label: "Variety / product", required: true }, { label: "Quality parameter", required: true },
-        { label: "Free / default allowance" }, { label: "KAT calculation / slab", type: "textarea", full: true },
-        { label: "Unit" }, { label: "Effective / seasonal profile" }, { label: "Rule status", type: "select", options: ["Active", "Draft – review required", "Inactive"] },
-        { label: "Notes", type: "textarea", full: true }, { label: "Structured KAT ranges", type: "hidden", full: true }
+        { label: "Commodity", required: true }, { label: "Base variety", required: true }, { label: "Rice type" },
+        { label: "Purchase classification", required: true }, { label: "Profile name", required: true },
+        { label: "Effective from", type: "date" }, { label: "Effective to", type: "date" },
+        { label: "Status", type: "select", options: ["Active", "Draft – review required", "Inactive"] },
+        { label: "Notes", type: "textarea", full: true }, { label: "Quality parameters", type: "hidden", full: true }
       ],
-      rows: [
-        ["Rice", "IRRI-6", "Broken", "20% free", "20–30: 1 paisa/%; 31–35: 3 paisa/%; 36–40: 8 paisa/%; 41–45: 15 paisa/%; 46–50: 20 paisa/%; 51–55: 25 paisa/%; 56–60: 40 paisa/%", "paisa per %", "Default profile", "Active", "Known Transtrade purchase KAT rule."],
-        ["Rice", "IRRI-6", "Chalky", "5% free / operational default", "Above free allowance: 10 paisa per excess percentage point.", "paisa per %", "Default profile", "Draft – review required", "5% is the current Arrival default. Earlier discussion included 4%; keep editable until Salman confirms final active free allowance."],
-        ["Rice", "IRRI-6", "Damage / Yellow", "2% free", "Above 2% up to 5%: 10 paisa per excess percentage point; above 5%: 25 paisa per excess percentage point.", "paisa per %", "Default profile", "Active", "Known Transtrade purchase KAT rule."],
-        ["Rice", "IRRI-6", "Moisture", "14% free", "14.1–14.5: 0.5% weight deduction; 14.6–15.0: 1% weight deduction; above 15.0 up to 16.0: 2% weight deduction.", "weight %", "Standard 14% profile", "Draft – review required", "Known discussed slab. Keep >16 handling manual/reject until explicitly approved."],
-        ["Rice", "IRRI-6", "Moisture", "15% free / seasonal alternative", "Seasonal alternate discussed: 15% free, with optional half-kg treatment up to 15.4 depending on season. Exact slab above this point must be selected/confirmed before activation.", "weight / seasonal profile", "Seasonal 15% profile", "Draft – review required", "Do not infer or auto-switch seasonal moisture profile."],
-        ["Rice", "IRRI-6", "Paddy", "80 grains operational default", "No final automatic KAT slab confirmed. Above-default handling remains manual until a rule is approved.", "No. of Grains", "Default profile", "Draft – review required", "Paddy is a plain grain count, not a percentage."],
-        ["Rice", "C-9", "Broken / Chalky / Damage / Moisture / Paddy", "Not confirmed", "No automatic deduction. Complete variety-specific rule before activation.", "Profile", "Variety profile", "Draft – review required", "Placeholder intentionally prevents IRRI-6 KAT from being silently reused."],
-        ["Rice", "PK-386", "Broken / Chalky / Damage / Moisture / Paddy", "Not confirmed", "No automatic deduction. Complete variety-specific rule before activation.", "Profile", "Variety profile", "Draft – review required", "Internal purchase KAT is not derived from export standard."],
-        ["Rice", "Super Kernel Basmati", "Broken / Chalky / Damage / Moisture / Paddy", "Not confirmed", "No automatic deduction. Complete variety-specific rule before activation.", "Profile", "Variety profile", "Draft – review required", "Internal purchase KAT is not derived from export standard."],
-        ["Rice", "D-98 / PK-198", "Broken / Chalky / Damage / Moisture / Paddy", "Not confirmed", "No automatic deduction. Complete variety-specific rule before activation.", "Profile", "Variety profile", "Draft – review required", "Internal purchase KAT is not derived from export standard."],
-        ["Rice", "1121 Basmati", "Broken / Chalky / Damage / Moisture / Paddy", "Not confirmed", "No automatic deduction. Complete variety-specific rule before activation.", "Profile", "Variety profile", "Draft – review required", "Internal purchase KAT is not derived from export standard."],
-        ["Rice", "Basmati 385 / PK-385", "Broken / Chalky / Damage / Moisture / Paddy", "Not confirmed", "No automatic deduction. Complete variety-specific rule before activation.", "Profile", "Reference variety", "Draft – review required", "Reference-only until Transtrade activates the variety."],
-        ["Rice", "IRRI-9", "Broken / Chalky / Damage / Moisture / Paddy", "Not confirmed", "No automatic deduction. Complete variety-specific rule before activation.", "Profile", "Reference variety", "Draft – review required", "Reference-only until Transtrade activates the variety."],
-        ["Rice", "Basmati 515", "Broken / Chalky / Damage / Moisture / Paddy", "Not confirmed", "No automatic deduction. Complete variety-specific rule before activation.", "Profile", "Reference variety", "Draft – review required", "Reference-only until Transtrade activates the variety."],
-        ["Rice", "KS-282", "Broken / Chalky / Damage / Moisture / Paddy", "Not confirmed", "No automatic deduction. Complete variety-specific rule before activation.", "Profile", "Reference variety", "Draft – review required", "Reference-only until Transtrade activates the variety."]
-      ].filter(row => row[1] === "IRRI-6")
+      rows: []
     },
     { id: "export_documents", name: "Export Documents Presented", description: "Authoritative Sales Contract document rows shared by Super Admin and Exports.", fields: [{label:"Document Name",required:true},{label:"Original",required:true},{label:"Copies",required:true},{label:"Applies To",type:"select",options:["ALL","FOB","CFR","CIF","LC_SIGHT","LC_USANCE"]},{label:"Status",type:"select",options:["Active","Inactive"]}], rows: [["Commercial Invoice","3","0","ALL","Active"],["Commercial Packing List","3","0","ALL","Active"],["Full set clean on-board Bill of Lading","3","3","ALL","Active"],["Certificate of Origin","1","3","ALL","Active"],["e-Phyto issued by Department of Plant Protection, Government of Pakistan","1","0","ALL","Active"],["Fumigation Certificate","1","1","ALL","Active"],["Insurance Policy / Certificate","1","0","CIF","Active"]] },
     { id: "export_terms", name: "Export Other Terms", description: "Authoritative reusable Sales Contract terms. Locked L/C clauses remain protected in the Export workflow.", fields: [{label:"Payment Group",required:true,type:"select",options:["BASE","ADVANCE","CAD","LC_SIGHT","LC_USANCE","CUSTOM"]},{label:"Term Text",required:true,type:"textarea",full:true},{label:"Status",type:"select",options:["Active","Inactive"]}], rows: [["BASE","All present and/or future customs taxes and/or duties/levies on the cargo in the country of origin shall be for Seller’s account. All present and/or future customs taxes and/or duties/levies on the cargo in the country of destination shall be for Buyer’s account.","Active"],["BASE","Risk of weight and quality is transferred to Buyer once cargo is loaded on board the vessel from Pakistan.","Active"],["BASE","Ownership of cargo is transferred to Buyer upon receipt of full payment of the invoice.","Active"],["BASE","All other terms and conditions as per applicable GAFTA London rules, of which both parties admit full notice and knowledge. English law to apply.","Active"],["BASE","Should any dispute arise which cannot be amicably settled between Buyer and Seller, the dispute shall be settled by arbitration in London as per applicable GAFTA rules.","Active"],["ADVANCE","Partial shipment allowed.","Active"],["CAD","Partial shipment allowed.","Active"]] },
     { id: "export_customers", name: "Export Customers", description: "Buyer identity, document addresses, contacts, consignee and notify parties. Saved shipments retain their historical snapshot.", fields: [{label:"Customer name",required:true},{label:"Code"},{label:"Roles"},{label:"Primary document address",required:true,type:"textarea",full:true},{label:"Country"},{label:"Email"},{label:"Phone"},{label:"Tax / registration"},{label:"Packing default"},{label:"Notify parties JSON",type:"textarea",full:true},{label:"Status",type:"select",options:["Active","Inactive"]},{label:"Notes",type:"textarea",full:true},{label:"Show country"},{label:"Show email"},{label:"Show phone"},{label:"Show tax"},{label:"Contacts JSON",type:"textarea",full:true},{label:"Consignees JSON",type:"textarea",full:true},{label:"Additional notify parties JSON",type:"textarea",full:true},{label:"Additional document addresses JSON",type:"textarea",full:true},{label:"Default currency",type:"select",options:["","USD","EUR","GBP","AED","PKR"]},{label:"Default payment / customer instructions",type:"textarea",full:true}], rows: [] },
     { id: "business_parties", name: "Business Parties", description: "Suppliers, brokers, service providers, local buyers and other third parties stored once and reused in operational forms.", fields: [{label:"Party name",required:true},{label:"Code / reference"},{label:"Categories",required:true,type:"checks",full:true,options:["Supplier","Broker","Clearing Agent","Freight Forwarder","Shipping Line / Carrier","Transporter","Inspection","Fumigation","Service Provider","Local Buyer","Agent","Other"]},{label:"Address",type:"textarea",full:true},{label:"Country"},{label:"Contact person"},{label:"Phone"},{label:"Email"},{label:"NTN / tax number"},{label:"Payment terms"},{label:"Status",type:"select",options:["Active","Inactive"]},{label:"Notes",type:"textarea",full:true}], rows: [] },
     { id: "reference_lists", name: "Reference Lists", description: "Small controlled dropdown choices used throughout Transtrade. Add a choice once; forms reuse it with type-ahead search.", fields: [{label:"List",required:true,type:"select",options:["currencies","packing_types","inspection_companies","payment_options","party_roles","product_rice_types","product_finishes"]},{label:"Option",required:true}], rows: [] },
-    { id: "mills", name: "Mills & Locations", description: "Own mill, external mills, offices and stock locations used by authorized modules.", fields: [{label:"Mill / location",required:true},{label:"Code / reference"},{label:"Location type"},{label:"Notes",type:"textarea",full:true}], rows: [["TTI Rice Mill", "TTI-MILL", "Own Mill", ""], ["Karachi Office", "KHI-OFF", "Office", ""]] }
+    { id: "mills", name: "Mills & Locations", description: "One central list reused by Soda, Milling, Exports and stock reports.", fields: [{label:"Mill / location",required:true},{label:"Code / reference"},{label:"Location type",type:"select",options:["Own Mill","External Mill","Reprocessing Mill","Warehouse","Office","Stock Location","Other"]},{label:"Full address",type:"textarea",full:true},{label:"Contact details"},{label:"Status",type:"select",options:["Active","Inactive"]},{label:"Notes",type:"textarea",full:true}], rows: [["TTI Rice Mill", "TTI-MILL", "Own Mill", "", "", "Active", ""], ["Karachi Office", "KHI-OFF", "Office", "", "", "Active", ""]] }
   ];
   const MASTER_GROUPS = [
     ["Companies",["companies"]],
@@ -585,8 +570,9 @@
     return role;
   }
   function millMasterFieldsHtml(values = []) {
-    const types = ["","Own Mill","External Mill","Office","Warehouse","Stock Location","Other"];
-    return `<section class="master-editor-section"><div class="master-editor-heading"><div><h3>Location identity</h3><p>Keep operational location identity short and clear.</p></div></div><div class="master-identity-grid"><label>Mill / location<input id="${masterInputId(0)}" data-master-field-index="0" value="${escapeHtml(values[0] || "")}" required></label><label>Code / reference<input id="${masterInputId(1)}" data-master-field-index="1" value="${escapeHtml(values[1] || "")}"></label><label>Location type<select id="${masterInputId(2)}" data-master-field-index="2">${types.map(x=>`<option value="${escapeHtml(x)}" ${x===String(values[2]||"")?"selected":""}>${escapeHtml(x||"Select")}</option>`).join("")}</select></label></div></section><section class="master-editor-section"><label class="full-span">Notes<textarea id="${masterInputId(3)}" data-master-field-index="3" rows="4">${escapeHtml(values[3] || "")}</textarea></label></section>`;
+    const types = ["","Own Mill","Reprocessing Mill","External Mill","Office","Warehouse","Stock Location","Other"];
+    const statuses=["Active","Inactive"];
+    return `<section class="master-editor-section"><div class="master-editor-heading"><div><h3>Location identity</h3><p>This is the central location list used by Soda, Milling and stock movement. Use one record per real place.</p></div></div><div class="master-identity-grid"><label>Mill / location<input id="${masterInputId(0)}" data-master-field-index="0" value="${escapeHtml(values[0] || "")}" required></label><label>Code / reference<input id="${masterInputId(1)}" data-master-field-index="1" value="${escapeHtml(values[1] || "")}"></label><label>Location type<select id="${masterInputId(2)}" data-master-field-index="2">${types.map(x=>`<option value="${escapeHtml(x)}" ${x===String(values[2]||"")?"selected":""}>${escapeHtml(x||"Select")}</option>`).join("")}</select></label><label>Status<select id="${masterInputId(5)}" data-master-field-index="5">${statuses.map(x=>`<option ${x===String(values[5]||"Active")?"selected":""}>${x}</option>`).join("")}</select></label></div></section><section class="master-editor-section"><div class="master-form-grid"><label class="full-span">Address<textarea id="${masterInputId(3)}" data-master-field-index="3" rows="3">${escapeHtml(values[3] || "")}</textarea></label><label>Contact / phone<input id="${masterInputId(4)}" data-master-field-index="4" value="${escapeHtml(values[4] || "")}"></label><label class="full-span">Notes<textarea id="${masterInputId(6)}" data-master-field-index="6" rows="3">${escapeHtml(values[6] || "")}</textarea></label></div></section>`;
   }
   function linkedCompanyOptions(current = "") {
     const companies=(state.masters?.companies||[]).map(row=>{
@@ -667,7 +653,7 @@
     });
   }
   async function resolveProductOptionsBeforeSave(type) {
-    if (type.id!=="products") return;
+    if (!["products","purchase_products","purchase_kat"].includes(type.id)) return;
     for (const input of document.querySelectorAll("[data-product-option]")) {
       const value=input.value.trim();
       if(!value)continue;
@@ -688,70 +674,56 @@
       <section class="master-editor-section"><div class="master-editor-heading"><div><h3>Specifications & limits</h3><p>One specification per line. Leave a limit blank when it is not confirmed.</p></div></div><div class="spec-editor-wrap"><table class="spec-editor-table"><thead><tr><th>Specification</th><th>Limit / Requirement</th><th></th></tr></thead><tbody id="productSpecRows">${core}${custom}</tbody></table></div><button class="button secondary add-spec-button" id="addProductSpecification" type="button">+ Add Specification</button></section>
       <section class="master-editor-section"><div class="master-editor-heading"><div><h3>Wording & source</h3><p>Quality wording and reference source stay separate from the numeric specification table.</p></div></div><div class="master-form-grid"><label class="full-span">Additional quality wording<textarea id="${masterInputId(18)}" data-master-field-index="18" rows="3">${escapeHtml(values[18] || "")}</textarea></label><label class="full-span">Source / basis<textarea id="${masterInputId(19)}" data-master-field-index="19" rows="3">${escapeHtml(values[19] || "")}</textarea></label></div></section>`;
   }
-  function katRangeDefaults(values = []) {
-    const saved = String(values[9] || "");
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed.map(row => ({
-          from: String(row.from ?? ""), to: String(row.to ?? ""), value: String(row.value ?? ""), unit: String(row.unit ?? values[5] ?? "paisa per %")
-        }));
-      } catch (_) {}
-    }
-    const parameter = String(values[2] || "").toLowerCase();
-    const variety = String(values[1] || "").toLowerCase();
-    if (variety.includes("irri-6") && parameter === "broken") return [
-      {from:"20",to:"30",value:"1",unit:"paisa per %"}, {from:"30",to:"35",value:"3",unit:"paisa per %"},
-      {from:"35",to:"40",value:"8",unit:"paisa per %"}, {from:"40",to:"45",value:"15",unit:"paisa per %"},
-      {from:"45",to:"50",value:"20",unit:"paisa per %"}, {from:"50",to:"55",value:"25",unit:"paisa per %"},
-      {from:"55",to:"60",value:"40",unit:"paisa per %"}
-    ];
-    if (variety.includes("irri-6") && parameter.includes("damage")) return [
-      {from:"2",to:"5",value:"10",unit:"paisa per %"}, {from:"5",to:"",value:"25",unit:"paisa per %"}
-    ];
-    if (variety.includes("irri-6") && parameter === "chalky") return [
-      {from:"5",to:"",value:"10",unit:"paisa per %"}
-    ];
-    if (variety.includes("irri-6") && parameter === "moisture" && String(values[6] || "").includes("14%")) return [
-      {from:"14",to:"14.5",value:"0.5",unit:"weight %"}, {from:"14.5",to:"15",value:"1",unit:"weight %"}, {from:"15",to:"16",value:"2",unit:"weight %"}
-    ];
-    return [];
+  function katParameters(values = []) {
+    try {
+      const parsed=JSON.parse(String(values[9]||"[]"));
+      return Array.isArray(parsed)?parsed.filter(row=>row&&typeof row==="object"):[];
+    } catch (_) { return []; }
   }
   function katRangeRow(row = {}) {
     const units = ["paisa per %","rupees per %","weight %","kg per MT","manual / note only"];
     const unit = String(row.unit || "paisa per %");
     return `<tr class="kat-range-row"><td><input data-kat-from inputmode="decimal" value="${escapeHtml(row.from || "")}" placeholder="e.g. 20"></td><td><input data-kat-to inputmode="decimal" value="${escapeHtml(row.to || "")}" placeholder="blank = and above"></td><td><input data-kat-value inputmode="decimal" value="${escapeHtml(row.value || "")}" placeholder="e.g. 1"></td><td><select data-kat-unit>${units.map(x => `<option ${x===unit?"selected":""}>${x}</option>`).join("")}</select></td><td><button class="row-action delete" type="button" data-remove-kat-range>Remove</button></td></tr>`;
   }
+  function katParameterCard(parameter = {}, index = 0) {
+    const ranges=Array.isArray(parameter.ranges)?parameter.ranges:[];
+    return `<article class="kat-parameter-card" data-kat-parameter><div class="kat-parameter-head"><label>Quality parameter<input data-kat-parameter-name value="${escapeHtml(parameter.name||"")}" placeholder="e.g. Broken" required></label><button class="row-action delete" type="button" data-remove-kat-parameter>− Remove Parameter</button></div><div class="master-form-grid"><label>Free / default allowance<input data-kat-free value="${escapeHtml(parameter.freeAllowance||"")}" placeholder="e.g. 20% free"></label><label>Default deduction unit<select data-kat-default-unit>${["paisa per %","rupees per %","weight %","kg per MT","manual / note only"].map(x=>`<option ${x===String(parameter.unit||"paisa per %")?"selected":""}>${x}</option>`).join("")}</select></label><label class="full-span">Staff instruction<input data-kat-instruction value="${escapeHtml(parameter.instruction||"")}" placeholder="Plain-language instruction shown during purchase checking"></label></div><div class="kat-range-wrap"><table class="kat-range-table"><thead><tr><th>Above</th><th>Up to</th><th>Deduction</th><th>Unit</th><th></th></tr></thead><tbody data-kat-range-list>${ranges.map(katRangeRow).join("")}</tbody></table></div><button class="button secondary add-spec-button" type="button" data-add-kat-range>+ Add Range</button></article>`;
+  }
   function katMasterFieldsHtml(values = []) {
     const statusOptions = ["Active", "Draft – review required", "Inactive"];
-    const baseVarieties=[...new Set((state.masters?.products||[]).map(row=>String(row.values?.[1]||"")).filter(Boolean))].sort((a,b)=>a.localeCompare(b));
-    return `<section class="master-editor-section"><div class="master-editor-heading"><div><h3>KAT identity</h3><p>Define which quality measurement this rule belongs to.</p></div></div><div class="master-identity-grid">
+    const parameters=katParameters(values);
+    return `<section class="master-editor-section"><div class="master-editor-heading"><div><h3>KAT profile identity</h3><p>One complete profile for one exact commodity, variety, rice type and purchase classification.</p></div></div><div class="master-identity-grid">
       <label>Commodity<select id="${masterInputId(0)}" data-master-field-index="0" required>${["Rice","Corn","Sesame"].map(option=>`<option ${option.toLowerCase()===String(values[0]||"Rice").toLowerCase()?"selected":""}>${option}</option>`).join("")}</select></label>
-      <label>Base variety / product<input id="${masterInputId(1)}" data-master-field-index="1" list="katBaseVarieties" value="${escapeHtml(values[1] || "")}" placeholder="Type to search" autocomplete="off" required><datalist id="katBaseVarieties">${baseVarieties.map(option=>`<option value="${escapeHtml(option)}"></option>`).join("")}</datalist></label>
-      <label>Quality parameter<input id="${masterInputId(2)}" data-master-field-index="2" value="${escapeHtml(values[2] || "")}" required></label>
-      <label>Effective / seasonal profile<input id="${masterInputId(6)}" data-master-field-index="6" value="${escapeHtml(values[6] || "")}"></label>
+      ${productOptionSelect(1,"Base variety / product","product_varieties",values[1]||"",true)}
+      ${productOptionSelect(2,"Rice type","product_rice_types",values[2]||"",String(values[0]||"Rice").toLowerCase()==="rice")}
+      <label>Purchase classification<select id="${masterInputId(3)}" data-master-field-index="3" required>${["RAW","READY"].map(option=>`<option ${option===String(values[3]||"RAW").toUpperCase()?"selected":""}>${option}</option>`).join("")}</select></label>
+      <label>Profile name<input id="${masterInputId(4)}" data-master-field-index="4" value="${escapeHtml(values[4]||"")}" placeholder="IRRI-6 White Raw KAT" required></label>
+      <label>Effective from<input type="date" id="${masterInputId(5)}" data-master-field-index="5" value="${escapeHtml(values[5]||"")}"></label>
+      <label>Effective to<input type="date" id="${masterInputId(6)}" data-master-field-index="6" value="${escapeHtml(values[6]||"")}"></label>
       <label>Rule status<select id="${masterInputId(7)}" data-master-field-index="7">${statusOptions.map(option => `<option ${option === String(values[7] || "") ? "selected" : ""}>${option}</option>`).join("")}</select></label>
     </div></section>
-    <section class="master-editor-section kat-calc-section"><div class="master-editor-heading"><div><h3>KAT calculation</h3><p>Enter the percentage bands as rows. “Above” is exclusive and “Up to” is inclusive. Leave “Up to” blank for an open-ended final slab.</p></div></div><div class="master-form-grid"><label>Free / default allowance<input id="${masterInputId(3)}" data-master-field-index="3" value="${escapeHtml(values[3] || "")}"></label><label>Default deduction unit<input id="${masterInputId(5)}" data-master-field-index="5" value="${escapeHtml(values[5] || "paisa per %")}"></label></div><div class="kat-range-wrap"><table class="kat-range-table"><thead><tr><th>Above %</th><th>Up to %</th><th>Deduction</th><th>Unit</th><th></th></tr></thead><tbody id="katRangeRows">${katRangeDefaults(values).map(katRangeRow).join("")}</tbody></table></div><button class="button secondary add-spec-button" id="addKatRange" type="button">+ Add Range</button><input type="hidden" id="${masterInputId(4)}" data-master-field-index="4" value="${escapeHtml(values[4] || "")}"></section>
-    <section class="master-editor-section kat-message-section"><div class="master-editor-heading"><div><h3>Staff instruction / message</h3><p>Plain-language instruction shown to operational staff when this KAT rule is relevant.</p></div></div><label class="full-span">Message<textarea id="${masterInputId(8)}" data-master-field-index="8" rows="4" placeholder="Example: Automatic KAT disabled until this profile is approved.">${escapeHtml(values[8] || "")}</textarea></label></section>`;
+    <section class="master-editor-section kat-calc-section"><div class="master-editor-heading"><div><h3>Quality parameters and ranges</h3><p>Add or remove parameters here. Each parameter keeps its own allowance, instruction and non-overlapping deduction ranges.</p></div><button class="button secondary" id="addKatParameter" type="button">+ Add Quality Parameter</button></div><div id="katParameterCards">${parameters.map(katParameterCard).join("")}</div></section>
+    <section class="master-editor-section kat-message-section"><label class="full-span">Profile notes<textarea id="${masterInputId(8)}" data-master-field-index="8" rows="4">${escapeHtml(values[8] || "")}</textarea></label></section>`;
   }
 
   function purchaseProductMasterFieldsHtml(values = []) {
-    const defaults={RICE_RAW:["RICE","","RAW"],RICE_READY:["RICE","","READY"],CORN:["CORN","Corn / Makai","RAW"],SESAME_RAW:["SESAME","Sesame","RAW"],SESAME_READY:["SESAME","Sesame","READY"]};
+    const defaults={RICE_RAW:["RICE","","White","RAW"],RICE_READY:["RICE","","White","READY"],CORN:["CORN","Corn / Makai","","RAW"],SESAME_RAW:["SESAME","Sesame","","RAW"],SESAME_READY:["SESAME","Sesame","","READY"]};
     const v=[...values];
     const selected=defaults[currentPurchaseTab]||defaults.RICE_RAW;
-    if(!v.length){v[0]=selected[0];v[1]=selected[1];v[2]=selected[2];v[3]=selected[0]==="RICE"?"KG":"MAUND";v[8]="Active"}
-    const baseVarieties=[...new Set([...(state.masters?.products||[]).map(row=>String(row.values?.[1]||"")),String(v[1]||"")])].filter(Boolean).sort((a,b)=>a.localeCompare(b));
+    if(!v.length){v[0]=selected[0];v[1]=selected[1];v[2]=selected[2];v[3]=selected[3];v[4]=selected[0]==="RICE"?"KG":"MAUND";v[8]="Active"}
     const options=(items,value)=>items.map(option=>`<option value="${escapeHtml(option)}" ${option===String(value||"")?"selected":""}>${escapeHtml(option)}</option>`).join("");
-    return `<section class="master-editor-section"><div class="master-editor-heading"><div><h3>Purchase identity</h3><p>Select the shared base variety and whether it is bought as RAW or READY. FINISHED is created internally by Milling and is not a purchase choice.</p></div></div><div class="master-identity-grid">
+    const katProfiles=(state.masters?.purchase_kat||[]).filter(row=>String(row.values?.[7]||"")!=="Inactive");
+    const katOptions=[`<option value="">No KAT profile</option>`,...katProfiles.map(row=>`<option value="${escapeHtml(row.id)}" ${row.id===String(v[5]||"")?"selected":""}>${escapeHtml(row.values?.[4]||row.id)}</option>`)].join("");
+    return `<section class="master-editor-section"><div class="master-editor-heading"><div><h3>Purchase identity</h3><p>RAW is bought for further processing. READY is finished/exportable rice bought from an ex-mill. FINAL is generated only by own-mill or reprocessing production.</p></div></div><div class="master-identity-grid">
       <label>Commodity<select id="${masterInputId(0)}" data-master-field-index="0" required>${options(["RICE","CORN","SESAME"],v[0])}</select></label>
-      <label>Shared base variety / product<input id="${masterInputId(1)}" data-master-field-index="1" list="purchaseBaseVarieties" value="${escapeHtml(v[1]||"")}" placeholder="Type to search" autocomplete="off" required><datalist id="purchaseBaseVarieties">${baseVarieties.map(option=>`<option value="${escapeHtml(option)}"></option>`).join("")}</datalist></label>
-      <label>Purchased as<select id="${masterInputId(2)}" data-master-field-index="2" required>${options(["RAW","READY"],v[2])}</select></label>
-      <label>Purchase unit<select id="${masterInputId(3)}" data-master-field-index="3" required>${options(["KG","MAUND","MT"],v[3])}</select></label>
-      <label>KAT profile<input id="${masterInputId(4)}" data-master-field-index="4" value="${escapeHtml(v[4]||"")}"></label>
+      ${productOptionSelect(1,"Shared base variety / product","product_varieties",v[1]||"",true)}
+      ${productOptionSelect(2,"Rice type","product_rice_types",v[2]||"",String(v[0]||"").toUpperCase()==="RICE")}
+      <label>Purchased as<select id="${masterInputId(3)}" data-master-field-index="3" required>${options(["RAW","READY"],v[3])}</select></label>
+      <label>Purchase unit<select id="${masterInputId(4)}" data-master-field-index="4" required>${options(["KG","MAUND","MT"],v[4])}</select></label>
+      <label>KAT profile<select id="${masterInputId(5)}" data-master-field-index="5">${katOptions}</select></label>
       <label>Status<select id="${masterInputId(8)}" data-master-field-index="8">${options(["Active","Draft – review required","Inactive"],v[8]||"Active")}</select></label>
     </div></section>
-    <section class="master-editor-section"><div class="master-editor-heading"><div><h3>Purchase rules</h3><p>These defaults flow into Soda, Arrival and billing; staff should not re-enter them on every transaction.</p></div></div><div class="master-form-grid"><label class="full-span">KAT treatment<textarea id="${masterInputId(5)}" data-master-field-index="5" rows="3">${escapeHtml(v[5]||"")}</textarea></label><label>Brokerage rule<input id="${masterInputId(6)}" data-master-field-index="6" value="${escapeHtml(v[6]||"")}"></label><label>Inventory account<input id="${masterInputId(7)}" data-master-field-index="7" value="${escapeHtml(v[7]||"")}"></label><label class="full-span">Notes<textarea id="${masterInputId(9)}" data-master-field-index="9" rows="3">${escapeHtml(v[9]||"")}</textarea></label></div></section>`;
+    <section class="master-editor-section"><div class="master-editor-heading"><div><h3>Purchase rules</h3><p>These defaults flow into Soda, Arrival and billing. Supplier, broker, source and movement location come from each Soda—not this master.</p></div></div><div class="master-form-grid"><label>Brokerage rule<input id="${masterInputId(6)}" data-master-field-index="6" value="${escapeHtml(v[6]||"")}"></label><label>Inventory account<input id="${masterInputId(7)}" data-master-field-index="7" value="${escapeHtml(v[7]||"")}"></label><label class="full-span">Notes<textarea id="${masterInputId(9)}" data-master-field-index="9" rows="3">${escapeHtml(v[9]||"")}</textarea></label></div></section>`;
   }
 
   function masterFieldsHtml(type, values = []) {
@@ -831,15 +803,22 @@
     }
     if (type.id === "purchase_kat") {
       const values = Array(10).fill("");
-      [0,1,2,3,5,6,7,8].forEach(index => { values[index] = document.getElementById(masterInputId(index))?.value.trim() || ""; });
-      const ranges = [...document.querySelectorAll("#katRangeRows .kat-range-row")].map(row => ({
-        from: row.querySelector("[data-kat-from]")?.value.trim() || "",
-        to: row.querySelector("[data-kat-to]")?.value.trim() || "",
-        value: row.querySelector("[data-kat-value]")?.value.trim() || "",
-        unit: row.querySelector("[data-kat-unit]")?.value.trim() || values[5] || "paisa per %"
-      })).filter(row => row.from || row.to || row.value);
-      values[9] = JSON.stringify(ranges);
-      values[4] = ranges.map(row => `Above ${row.from || "start"}%${row.to ? ` up to ${row.to}%` : " and above"}: ${row.value || "—"} ${row.unit}`).join("; ");
+      [0,1,2,3,4,5,6,7,8].forEach(index => { values[index] = document.getElementById(masterInputId(index))?.value.trim() || ""; });
+      values[9] = JSON.stringify([...document.querySelectorAll("[data-kat-parameter]")].map(card=>{
+        const defaultUnit=card.querySelector("[data-kat-default-unit]")?.value.trim()||"paisa per %";
+        return {
+          name:card.querySelector("[data-kat-parameter-name]")?.value.trim()||"",
+          freeAllowance:card.querySelector("[data-kat-free]")?.value.trim()||"",
+          unit:defaultUnit,
+          instruction:card.querySelector("[data-kat-instruction]")?.value.trim()||"",
+          ranges:[...card.querySelectorAll(".kat-range-row")].map(row=>({
+            from:row.querySelector("[data-kat-from]")?.value.trim()||"",
+            to:row.querySelector("[data-kat-to]")?.value.trim()||"",
+            value:row.querySelector("[data-kat-value]")?.value.trim()||"",
+            unit:row.querySelector("[data-kat-unit]")?.value.trim()||defaultUnit
+          })).filter(row=>row.from||row.to||row.value)
+        };
+      }).filter(parameter=>parameter.name||parameter.ranges.length));
       return values;
     }
     return type.fields.map((field, index) => {
@@ -853,8 +832,8 @@
     if (type.id === "companies") return [1, 0, 3, 2];
     if (type.id === "commodities") return [1, 0, 2, 3];
     if (type.id === "products") return [0, 1, 2, 3, 5];
-    if (type.id === "purchase_products") return [0, 1, 2, 3, 4, 8];
-    if (type.id === "purchase_kat") return [0, 1, 2, 3, 6, 7];
+    if (type.id === "purchase_products") return [0, 1, 2, 3, 4, 5, 8];
+    if (type.id === "purchase_kat") return [0, 1, 2, 3, 4, 7];
     if (type.id === "export_customers") return [0, 1, 4, 10];
     if (type.id === "business_parties") return [0, 1, 2, 4, 10];
     if (type.id === "mills") return [0, 1, 2];
@@ -919,14 +898,14 @@
       document.querySelectorAll('[data-purchase-master-tab]').forEach(button=>button.onclick=()=>{currentPurchaseTab=button.dataset.purchaseMasterTab;renderMasters()});
     }
     document.getElementById("addMasterRecord").hidden=!canMaster(type.id,"Create");
-    document.getElementById("addMasterRecord").textContent = `+ Add ${type.id === "salary_staff" ? "Staff" : type.id === "purchase_kat" ? "KAT Rule" : type.id === "purchase_products" ? "Purchase Product" : type.id === "companies" ? "Company" : type.id === "commodities" ? "Commodity" : type.id === "products" ? "Export Product" : "Record"}`;
+    document.getElementById("addMasterRecord").textContent = `+ Add ${type.id === "salary_staff" ? "Staff" : type.id === "purchase_kat" ? "KAT Profile" : type.id === "purchase_products" ? "Purchase Product" : type.id === "companies" ? "Company" : type.id === "commodities" ? "Commodity" : type.id === "products" ? "Export Product" : "Record"}`;
     const columns = displayColumns(type);
     document.getElementById("masterTableHead").innerHTML = `<tr>${columns.map(index => `<th>${escapeHtml(type.fields[index].label)}</th>`).join("")}<th>Status</th><th>Actions</th></tr>`;
     const query = document.getElementById("masterSearch")?.value.toLowerCase() || "";
     const rows = (state.masters[type.id] || []).filter(row => {
       if(!row.values.join(" ").toLowerCase().includes(query))return false;
       if(type.id!=="purchase_products")return true;
-      const commodity=String(row.values?.[0]||'').toUpperCase(),stage=String(row.values?.[2]||'').toUpperCase();
+      const commodity=String(row.values?.[0]||'').toUpperCase(),stage=String(row.values?.[3]||'').toUpperCase();
       if(currentPurchaseTab==='CORN')return commodity==='CORN';
       if(currentPurchaseTab==='RICE_RAW')return commodity==='RICE'&&stage==='RAW';
       if(currentPurchaseTab==='RICE_READY')return commodity==='RICE'&&stage==='READY';
@@ -959,7 +938,7 @@
       document.getElementById('addCompanyDocument').onclick=()=>{documentRows.insertAdjacentHTML('beforeend',companyDocumentRow({version:'1',status:'Active'}));wireNested()};
       wireNested();
     }
-    if (type.id === "products") wireProductOptionFields();
+    if (["products","purchase_products","purchase_kat"].includes(type.id)) wireProductOptionFields();
     if (type.id === "salary_staff") {
       const legalBook=document.getElementById(masterInputId(1));
       const salaryGroup=document.getElementById(masterInputId(2));
@@ -1206,6 +1185,8 @@
     const deleteMaster = event.target.closest("[data-delete-master]");
     const lockButton = event.target.closest("[data-toggle-lock]");
     const removeProductSpec = event.target.closest("[data-remove-product-spec]");
+    const removeKatParameter = event.target.closest("[data-remove-kat-parameter]");
+    const addKatRange = event.target.closest("[data-add-kat-range]");
     const removeKatRange = event.target.closest("[data-remove-kat-range]");
     const closeDialog = event.target.closest("[data-close-dialog]");
     if (viewButton) showView(viewButton.dataset.view);
@@ -1221,7 +1202,9 @@
     if (lockButton) toggleLock(lockButton.dataset.toggleLock);
     if (event.target.closest("#addProductSpecification")) document.getElementById("productSpecRows")?.insertAdjacentHTML("beforeend", productSpecRow("", "", true));
     if (removeProductSpec) removeProductSpec.closest("tr")?.remove();
-    if (event.target.closest("#addKatRange")) document.getElementById("katRangeRows")?.insertAdjacentHTML("beforeend", katRangeRow({unit: document.getElementById(masterInputId(5))?.value || "paisa per %"}));
+    if (event.target.closest("#addKatParameter")) document.getElementById("katParameterCards")?.insertAdjacentHTML("beforeend",katParameterCard({},document.querySelectorAll("[data-kat-parameter]").length));
+    if (removeKatParameter) removeKatParameter.closest("[data-kat-parameter]")?.remove();
+    if (addKatRange) { const card=addKatRange.closest("[data-kat-parameter]"); card?.querySelector("[data-kat-range-list]")?.insertAdjacentHTML("beforeend",katRangeRow({unit:card.querySelector("[data-kat-default-unit]")?.value||"paisa per %"})); }
     if (removeKatRange) removeKatRange.closest("tr")?.remove();
     if (closeDialog) document.getElementById(closeDialog.dataset.closeDialog)?.close();
     if (event.target.closest('[data-action="close-notifications"]')) openNotifications(false);

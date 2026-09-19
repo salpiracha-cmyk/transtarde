@@ -52,32 +52,18 @@ function tt_default_masters(): array {
             ['id'=>'products-20','values'=>['Rice','Basmati 515','White / processed','BAS515','Pakistan','Reference only – inactive','7.56 mm variety characteristic','','','','','','','','','','','To configure by processing','Free from live insects, bad odour and rice fit for human consumption. Natural Basmati aroma.','TDAP Basmati GI Book lists Basmati 515 as a registered Pakistan Basmati variety; Punjab Agriculture lists 7.56 mm varietal kernel length. Export defect profile left blank pending an approved Transtrade/buyer standard.']],
             ['id'=>'products-21','values'=>['Rice','KS-282','White / processed','KS282','Pakistan','Reference only – inactive','','','','','','','','','','','','To configure by processing','Free from live insects, bad odour and rice fit for human consumption.','REAP lists KS-282 as a Pakistan rice type. Grain length and export defect limits intentionally left blank rather than conflating KS-282 with similarly named KSK varieties.']],
         ],
-        // Purchase profiles reference the same base variety used by Export
-        // Products, then add only the operational stage and purchase rules.
-        // Display names are derived centrally and are not separate masters.
+        // Purchase identity keeps variety, rice type and commercial condition
+        // separate. RAW is bought for processing; READY is finished rice bought
+        // from an ex-mill. FINAL is created only by own/reprocessing production.
         'purchase_products'=>[
-            ['id'=>'purchase-products-rice-irri6-raw','values'=>['RICE','IRRI-6','RAW','KG','RICE','Variety-specific approved Rice KAT','As per approved Rice KAT','1310','Active','Raw paddy/rice purchase for Soda, arrival and supplier bill.']],
-            ['id'=>'purchase-products-rice-irri6-ready','values'=>['RICE','IRRI-6','READY','KG','RICE_READY','Commercial ready-rice purchase; no raw-arrival KAT unless separately approved','As agreed on Soda','1310','Active','Externally purchased ready rice. It remains READY until accepted into final commercial stock.']],
-            ['id'=>'purchase-products-corn-raw','values'=>['CORN','Corn / Makai','RAW','MAUND','CORN','13% moisture and 2% damage/fungus free; 1 kg/100 kg per excess 1%; other deduction requires reason','Rs 10 per 100 kg','1310','Active','Karachi weighbridge weight is authoritative.']],
-            ['id'=>'purchase-products-sesame-raw','values'=>['SESAME','Sesame','RAW','MAUND','SESAME_RAW','3% admixture free; 1 kg/100 kg per excess 1%; other deduction requires reason','Rs 10 per maund','1310','Active','Raw sesame purchase.']],
-            ['id'=>'purchase-products-sesame-ready','values'=>['SESAME','Sesame','READY','MAUND','SESAME_READY','1% admixture free; 1 kg/100 kg per excess 1%; other deduction requires reason','Rs 15 per maund','1310','Active','Ready sesame purchase.']],
+            ['id'=>'purchase-products-rice-irri6-white-raw','values'=>['RICE','IRRI-6','White','RAW','KG','purchase-kat-rice-irri6-white-raw','As per approved Rice KAT','1310','Active','Externally purchased IRRI-6 White Raw Rice for processing at TTI or a selected reprocessing mill.']],
+            ['id'=>'purchase-products-rice-irri6-white-ready','values'=>['RICE','IRRI-6','White','READY','KG','','As agreed on Soda','1310','Active','Finished IRRI-6 White Ready Rice purchased from an ex-mill; exportable without TTI/reprocessing conversion.']],
+            ['id'=>'purchase-products-corn-raw','values'=>['CORN','Corn / Makai','','RAW','MAUND','CORN','Rs 10 per 100 kg','1310','Active','Karachi weighbridge weight is authoritative.']],
+            ['id'=>'purchase-products-sesame-raw','values'=>['SESAME','Sesame','','RAW','MAUND','SESAME_RAW','Rs 10 per maund','1310','Active','Raw sesame purchase.']],
+            ['id'=>'purchase-products-sesame-ready','values'=>['SESAME','Sesame','','READY','MAUND','SESAME_READY','Rs 15 per maund','1310','Active','Ready sesame purchase.']],
         ],
         'purchase_kat'=>[
-            ['id'=>'purchase_kat-1','values'=>['Rice','IRRI-6','Broken','20% free','20–30: 1 paisa/%; 31–35: 3 paisa/%; 36–40: 8 paisa/%; 41–45: 15 paisa/%; 46–50: 20 paisa/%; 51–55: 25 paisa/%; 56–60: 40 paisa/%','paisa per %','Default profile','Active','Known Transtrade purchase KAT rule.']],
-            ['id'=>'purchase_kat-2','values'=>['Rice','IRRI-6','Chalky','5% free / operational default','Above free allowance: 10 paisa per excess percentage point.','paisa per %','Default profile','Draft – review required','5% is the current Arrival default. Earlier discussion included 4%; keep editable until Salman confirms final active free allowance.']],
-            ['id'=>'purchase_kat-3','values'=>['Rice','IRRI-6','Damage / Yellow','2% free','Above 2% up to 5%: 10 paisa per excess percentage point; above 5%: 25 paisa per excess percentage point.','paisa per %','Default profile','Active','Known Transtrade purchase KAT rule.']],
-            ['id'=>'purchase_kat-4','values'=>['Rice','IRRI-6','Moisture','14% free','14.1–14.5: 0.5% weight deduction; 14.6–15.0: 1% weight deduction; above 15.0 up to 16.0: 2% weight deduction.','weight %','Standard 14% profile','Draft – review required','Known discussed slab. Keep >16 handling manual/reject until explicitly approved.']],
-            ['id'=>'purchase_kat-5','values'=>['Rice','IRRI-6','Moisture','15% free / seasonal alternative','Seasonal alternate discussed: 15% free, with optional half-kg treatment up to 15.4 depending on season. Exact slab above this point must be selected/confirmed before activation.','weight / seasonal profile','Seasonal 15% profile','Draft – review required','Do not infer or auto-switch seasonal moisture profile.']],
-            ['id'=>'purchase_kat-6','values'=>['Rice','IRRI-6','Paddy','80 grains operational default','No final automatic KAT slab confirmed. Above-default handling remains manual until a rule is approved.','No. of Grains','Default profile','Draft – review required','Paddy is a plain grain count, not a percentage.']],
-            ['id'=>'purchase_kat-7','values'=>['Rice','C-9','Broken / Chalky / Damage / Moisture / Paddy','Not confirmed','No automatic deduction. Complete variety-specific rule before activation.','Profile','Variety profile','Draft – review required','Placeholder intentionally prevents IRRI-6 KAT from being silently reused.']],
-            ['id'=>'purchase_kat-8','values'=>['Rice','PK-386','Broken / Chalky / Damage / Moisture / Paddy','Not confirmed','No automatic deduction. Complete variety-specific rule before activation.','Profile','Variety profile','Draft – review required','Internal purchase KAT is not derived from export standard.']],
-            ['id'=>'purchase_kat-9','values'=>['Rice','Super Kernel Basmati','Broken / Chalky / Damage / Moisture / Paddy','Not confirmed','No automatic deduction. Complete variety-specific rule before activation.','Profile','Variety profile','Draft – review required','Internal purchase KAT is not derived from export standard.']],
-            ['id'=>'purchase_kat-10','values'=>['Rice','D-98 / PK-198','Broken / Chalky / Damage / Moisture / Paddy','Not confirmed','No automatic deduction. Complete variety-specific rule before activation.','Profile','Variety profile','Draft – review required','Internal purchase KAT is not derived from export standard.']],
-            ['id'=>'purchase_kat-11','values'=>['Rice','1121 Basmati','Broken / Chalky / Damage / Moisture / Paddy','Not confirmed','No automatic deduction. Complete variety-specific rule before activation.','Profile','Variety profile','Draft – review required','Internal purchase KAT is not derived from export standard.']],
-            ['id'=>'purchase_kat-12','values'=>['Rice','Basmati 385 / PK-385','Broken / Chalky / Damage / Moisture / Paddy','Not confirmed','No automatic deduction. Complete variety-specific rule before activation.','Profile','Reference variety','Draft – review required','Reference-only until Transtrade activates the variety.']],
-            ['id'=>'purchase_kat-13','values'=>['Rice','IRRI-9','Broken / Chalky / Damage / Moisture / Paddy','Not confirmed','No automatic deduction. Complete variety-specific rule before activation.','Profile','Reference variety','Draft – review required','Reference-only until Transtrade activates the variety.']],
-            ['id'=>'purchase_kat-15','values'=>['Rice','Basmati 515','Broken / Chalky / Damage / Moisture / Paddy','Not confirmed','No automatic deduction. Complete variety-specific rule before activation.','Profile','Reference variety','Draft – review required','Reference-only until Transtrade activates the variety.']],
-            ['id'=>'purchase_kat-16','values'=>['Rice','KS-282','Broken / Chalky / Damage / Moisture / Paddy','Not confirmed','No automatic deduction. Complete variety-specific rule before activation.','Profile','Reference variety','Draft – review required','Reference-only until Transtrade activates the variety.']],
+            ['id'=>'purchase-kat-rice-irri6-white-raw','values'=>['RICE','IRRI-6','White','RAW','IRRI-6 White Raw KAT','','','Draft – review required','Only confirmed parameter/range rows may be activated. “Paddy grains in rice” is a quality count, not a paddy purchase.','[{"name":"Broken","freeAllowance":"20%","unit":"paisa per %","instruction":"","ranges":[{"from":"20","to":"30","value":"1","unit":"paisa per %"},{"from":"30","to":"35","value":"3","unit":"paisa per %"},{"from":"35","to":"40","value":"8","unit":"paisa per %"},{"from":"40","to":"45","value":"15","unit":"paisa per %"},{"from":"45","to":"50","value":"20","unit":"paisa per %"},{"from":"50","to":"55","value":"25","unit":"paisa per %"},{"from":"55","to":"60","value":"40","unit":"paisa per %"}]},{"name":"Chalky","freeAllowance":"5% operational default","unit":"paisa per %","instruction":"Earlier discussion included 4%; confirm before activation.","ranges":[{"from":"5","to":"","value":"10","unit":"paisa per %"}]},{"name":"Damage / Yellow","freeAllowance":"2%","unit":"paisa per %","instruction":"","ranges":[{"from":"2","to":"5","value":"10","unit":"paisa per %"},{"from":"5","to":"","value":"25","unit":"paisa per %"}]},{"name":"Moisture","freeAllowance":"14%","unit":"weight %","instruction":"Above 16% remains manual/reject until confirmed.","ranges":[{"from":"14","to":"14.5","value":"0.5","unit":"weight %"},{"from":"14.5","to":"15","value":"1","unit":"weight %"},{"from":"15","to":"16","value":"2","unit":"weight %"}]},{"name":"Paddy grains in rice","freeAllowance":"80 grains operational default","unit":"No. of Grains","instruction":"No final automatic KAT slab confirmed.","ranges":[]}]']],
         ],
         'export_documents'=>[
             ['id'=>'export-doc-1','values'=>['Commercial Invoice','3','0','ALL','Active']],
@@ -103,20 +89,13 @@ function tt_default_masters(): array {
         'export_customers'=>[],
         'business_parties'=>[],
         'parties'=>[],
-        'mills'=>[['id'=>'mills-1','values'=>['TTI Rice Mill','TTI-MILL','Own mill']],['id'=>'mills-2','values'=>['Karachi Office','KHI-OFF','Office']]],
+        'mills'=>[['id'=>'mills-1','values'=>['TTI Rice Mill','TTI-MILL','Own Mill','','','Active','']],['id'=>'mills-2','values'=>['Karachi Office','KHI-OFF','Office','','','Active','']]],
         'banks'=>[
             ['id'=>'banks-tti','values'=>['Company Account','TTI — Transtrade International','','Transtrade International','Meezan Bank Limited','Jodia Bazar Branch, Karachi','Pakistan','PKR','','','','Pakistan operating account','Accounts / Directors; document use to be confirmed','Incomplete — enter account number/IBAN and confirm use']],
             ['id'=>'banks-brm','values'=>['Company Account','BRM — Buksh Rice Mills','','Buksh Rice Mills','Meezan Bank Limited','Karachi','Pakistan','PKR','','','','Mill / operating account','Accounts / Directors; document use to be confirmed','Incomplete — enter branch/account number/IBAN']],
             ['id'=>'banks-tg','values'=>['Company Account','TG — Trans Grains Foodstuff Trading L.L.C','','Trans Grains Foodstuff Trading L.L.C','Habib Bank AG Zurich','Baniyas Square, Dubai','United Arab Emirates','USD','','','','TG offshore trading account','Authorized TG / Exports / Accounts / Directors only','Incomplete — enter account number/IBAN/SWIFT and confirm use']],
         ],
     ];
-    // Only the approved IRRI-6 purchase KAT is seeded. Other rice varieties
-    // and corn require their own owner-approved rule sets and must never
-    // inherit IRRI-6 deductions implicitly.
-    $masters['purchase_kat']=array_values(array_filter(
-        $masters['purchase_kat'],
-        static fn(array $row): bool => strcasecmp((string)($row['values'][1] ?? ''),'IRRI-6')===0
-    ));
     return $masters;
 }
 
@@ -242,12 +221,7 @@ function tt_normalize_masters(array $masters): array {
     }
     unset($row);
     foreach ($masters['purchase_products'] as &$row) {
-        $values=array_values((array)($row['values'] ?? []));
-        while (count($values)<10) $values[]='';
-        $values[0]=strtoupper(trim((string)$values[0]));
-        $values[1]=tt_product_base((string)$values[1]);
-        $values[2]=tt_product_stage((string)$values[2]) ?: 'RAW';
-        $row['values']=array_slice($values,0,10);
+        $row['values']=tt_purchase_product_values((array)($row['values'] ?? []));
     }
     unset($row);
     foreach ($productDefaults as $code=>$row) if (empty($seenProducts[$code])) $masters['products'][]=$row;
@@ -269,7 +243,7 @@ function tt_normalize_masters(array $masters): array {
     }
     unset($row);
 
-    foreach (['business_parties','mills'] as $simpleType) {
+    foreach (['business_parties'] as $simpleType) {
         foreach ($masters[$simpleType] as &$row) {
             $values=array_values((array)($row['values'] ?? []));
             if (count($values)===3) $values=[$values[0] ?? '',$values[1] ?? '',$values[2] ?? '',''];
@@ -278,37 +252,53 @@ function tt_normalize_masters(array $masters): array {
         }
         unset($row);
     }
+    foreach ($masters['mills'] as &$row) {
+        $values=array_values((array)($row['values'] ?? []));
+        // Legacy layout: name, code, type, notes.
+        if (count($values)<=4) $values=[$values[0]??'',$values[1]??'',$values[2]??'','','','Active',$values[3]??''];
+        while (count($values)<7) $values[]='';
+        $values[2]=tt_normalize_location_type((string)$values[2]);
+        if (trim((string)$values[5])==='') $values[5]='Active';
+        $row['values']=array_slice($values,0,7);
+    }
+    unset($row);
     foreach ($masters['export_customers'] as &$row) {
         $values=array_values((array)($row['values'] ?? []));
         while (count($values)<22) $values[]='';
         $row['values']=$values;
     }
     unset($row);
-    foreach ($masters['purchase_kat'] as &$row) {
-        $values=array_values((array)($row['values'] ?? []));
-        while (count($values)<10) $values[]='';
-        if (($values[9] ?? '')==='') {
-            $parameter=strtolower((string)($values[2] ?? ''));
-            $variety=strtolower((string)($values[1] ?? ''));
-            $ranges=[];
-            if (str_contains($variety,'irri-6') && $parameter==='broken') $ranges=[
-                ['from'=>'20','to'=>'30','value'=>'1','unit'=>'paisa per %'],['from'=>'30','to'=>'35','value'=>'3','unit'=>'paisa per %'],
-                ['from'=>'35','to'=>'40','value'=>'8','unit'=>'paisa per %'],['from'=>'40','to'=>'45','value'=>'15','unit'=>'paisa per %'],
-                ['from'=>'45','to'=>'50','value'=>'20','unit'=>'paisa per %'],['from'=>'50','to'=>'55','value'=>'25','unit'=>'paisa per %'],
-                ['from'=>'55','to'=>'60','value'=>'40','unit'=>'paisa per %']
-            ];
-            elseif (str_contains($variety,'irri-6') && str_contains($parameter,'damage')) $ranges=[
-                ['from'=>'2','to'=>'5','value'=>'10','unit'=>'paisa per %'],['from'=>'5','to'=>'','value'=>'25','unit'=>'paisa per %']
-            ];
-            elseif (str_contains($variety,'irri-6') && $parameter==='chalky') $ranges=[['from'=>'5','to'=>'','value'=>'10','unit'=>'paisa per %']];
-            elseif (str_contains($variety,'irri-6') && $parameter==='moisture' && str_contains((string)($values[6] ?? ''),'14%')) $ranges=[
-                ['from'=>'14','to'=>'14.5','value'=>'0.5','unit'=>'weight %'],['from'=>'14.5','to'=>'15','value'=>'1','unit'=>'weight %'],['from'=>'15','to'=>'16','value'=>'2','unit'=>'weight %']
-            ];
-            if ($ranges) $values[9]=json_encode($ranges,JSON_UNESCAPED_SLASHES);
+    // One KAT master row now represents one exact purchase product. Migrate
+    // the earlier scattered parameter rows without discarding their wording.
+    $katRows=[];$legacyKat=[];
+    foreach ((array)$masters['purchase_kat'] as $row) {
+        $values=array_values((array)($row['values'] ?? []));while(count($values)<10)$values[]='';
+        $isGrouped=in_array(tt_product_stage((string)$values[3]),['RAW','READY'],true)&&is_array(json_decode((string)$values[9],true));
+        if ($isGrouped) {
+            $values[0]=strtoupper((string)$values[0]);$values[1]=tt_product_base((string)$values[1]);$values[2]=tt_product_type((string)$values[2]);$values[3]=tt_product_stage((string)$values[3]);
+            $katRows[]=['id'=>(string)($row['id']??''),'values'=>array_slice($values,0,10)];continue;
         }
-        $row['values']=$values;
+        $commodity=strtoupper((string)($values[0]?:'RICE'));$base=tt_product_base((string)$values[1]);$key=strtolower($commodity.'|'.$base.'|white|raw');
+        if (!isset($legacyKat[$key])) $legacyKat[$key]=['commodity'=>$commodity,'base'=>$base,'parameters'=>[],'draft'=>false,'notes'=>[]];
+        $name=trim((string)$values[2]);if(strcasecmp($name,'Paddy')===0)$name='Paddy grains in rice';
+        if (str_contains(strtolower((string)$values[6]),'seasonal')) $name.=' — '.trim((string)$values[6]);
+        $ranges=json_decode((string)$values[9],true);if(!is_array($ranges))$ranges=[];
+        if (!$ranges) {
+            $parameter=strtolower((string)$values[2]);$variety=strtolower($base);
+            if (str_contains($variety,'irri-6')&&$parameter==='broken')$ranges=[['from'=>'20','to'=>'30','value'=>'1','unit'=>'paisa per %'],['from'=>'30','to'=>'35','value'=>'3','unit'=>'paisa per %'],['from'=>'35','to'=>'40','value'=>'8','unit'=>'paisa per %'],['from'=>'40','to'=>'45','value'=>'15','unit'=>'paisa per %'],['from'=>'45','to'=>'50','value'=>'20','unit'=>'paisa per %'],['from'=>'50','to'=>'55','value'=>'25','unit'=>'paisa per %'],['from'=>'55','to'=>'60','value'=>'40','unit'=>'paisa per %']];
+            elseif(str_contains($variety,'irri-6')&&str_contains($parameter,'damage'))$ranges=[['from'=>'2','to'=>'5','value'=>'10','unit'=>'paisa per %'],['from'=>'5','to'=>'','value'=>'25','unit'=>'paisa per %']];
+            elseif(str_contains($variety,'irri-6')&&$parameter==='chalky')$ranges=[['from'=>'5','to'=>'','value'=>'10','unit'=>'paisa per %']];
+            elseif(str_contains($variety,'irri-6')&&$parameter==='moisture'&&str_contains((string)$values[6],'14%'))$ranges=[['from'=>'14','to'=>'14.5','value'=>'0.5','unit'=>'weight %'],['from'=>'14.5','to'=>'15','value'=>'1','unit'=>'weight %'],['from'=>'15','to'=>'16','value'=>'2','unit'=>'weight %']];
+        }
+        $legacyKat[$key]['parameters'][]=['name'=>$name,'freeAllowance'=>(string)$values[3],'unit'=>(string)$values[5],'instruction'=>(string)$values[8],'legacyCalculation'=>(string)$values[4],'ranges'=>array_values($ranges)];
+        if (stripos((string)$values[7],'Draft')!==false)$legacyKat[$key]['draft']=true;
+        if(trim((string)$values[8])!=='')$legacyKat[$key]['notes'][]=trim((string)$values[8]);
     }
-    unset($row);
+    foreach($legacyKat as $group){$id='purchase-kat-'.substr(hash('sha256',strtolower($group['commodity'].'|'.$group['base'].'|white|raw')),0,16);if($group['commodity']==='RICE'&&strcasecmp($group['base'],'IRRI-6')===0)$id='purchase-kat-rice-irri6-white-raw';$katRows[]=['id'=>$id,'values'=>[$group['commodity'],$group['base'],'White','RAW',$group['base'].' White Raw KAT','','',$group['draft']?'Draft – review required':'Active',implode(' ',array_unique($group['notes'])),json_encode($group['parameters'],JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE)]];}
+    $masters['purchase_kat']=$katRows;
+    $katByIdentity=[];$katIds=[];
+    foreach($katRows as$katRow){$kv=(array)($katRow['values']??[]);$katId=(string)($katRow['id']??'');$katIds[$katId]=true;$katByIdentity[strtolower((string)($kv[0]??'').'|'.(string)($kv[1]??'').'|'.(string)($kv[2]??'').'|'.(string)($kv[3]??''))]=$katId;}
+    foreach($masters['purchase_products']as&$productRow){$pv=tt_purchase_product_values((array)($productRow['values']??[]));$identity=strtolower($pv[0].'|'.$pv[1].'|'.$pv[2].'|'.$pv[3]);if($pv[0]==='RICE'&&!isset($katIds[(string)$pv[5]])&&isset($katByIdentity[$identity]))$pv[5]=$katByIdentity[$identity];$productRow['values']=$pv;}unset($productRow);
     foreach ($masters['products'] as &$row) {
         $values=array_values((array)($row['values'] ?? []));
         while (count($values)<22) $values[]='';
@@ -439,15 +429,18 @@ function tt_upsert_location_master(string $name,string $type,string $source='Sys
     $source=trim($source) ?: 'System';
     return tt_mutate_store(function (&$data) use ($name,$type,$source,$notes): array {
         if (!isset($data['masters']['mills']) || !is_array($data['masters']['mills'])) $data['masters']['mills']=[];
+        $identity=static fn(string $value): string=>strtolower((string)preg_replace('/[^a-z0-9]+/i','',trim($value)));
         foreach ($data['masters']['mills'] as &$row) {
             $values=array_values((array)($row['values'] ?? []));
-            while (count($values)<4) $values[]='';
-            if (strcasecmp(trim((string)$values[0]),$name)!==0) continue;
+            if(count($values)<=4)$values=[$values[0]??'',$values[1]??'',$values[2]??'','','','Active',$values[3]??''];
+            while (count($values)<7) $values[]='';
+            if ($identity((string)$values[0])!==$identity($name)) continue;
             if (($values[2] ?? '')==='' || strcasecmp((string)$values[2],'Other')===0) $values[2]=$type;
+            $values[5]='Active';
             $autoNote='Linked automatically from '.$source.'.';
-            $existing=trim((string)($values[3] ?? ''));
+            $existing=trim((string)($values[6] ?? ''));
             if ($notes!=='') $autoNote.=' '.trim($notes);
-            if ($existing==='' || !str_contains($existing,$autoNote)) $values[3]=trim($existing.' '.$autoNote);
+            if ($existing==='' || !str_contains($existing,$autoNote)) $values[6]=trim($existing.' '.$autoNote);
             $row['values']=$values;
             $out=$row;
             unset($row);
@@ -456,10 +449,27 @@ function tt_upsert_location_master(string $name,string $type,string $source='Sys
         unset($row);
         $id='mills-auto-'.substr(hash('sha256',strtolower($name)),0,12);
         $note='Linked automatically from '.$source.'.'.($notes!==''?' '.trim($notes):'');
-        $row=['id'=>$id,'values'=>[$name,'',$type,$note]];
+        $row=['id'=>$id,'values'=>[$name,'',$type,'','','Active',$note]];
         $data['masters']['mills'][]=$row;
         return $row;
     });
+}
+
+function tt_deactivate_location_master(string $id): array {
+    return tt_mutate_store(function (&$data) use ($id): array {
+        if(!isset($data['masters']['mills'])||!is_array($data['masters']['mills']))$data['masters']['mills']=[];
+        foreach ($data['masters']['mills'] as &$row) {
+            if ((string)($row['id']??'')!==$id) continue;
+            $values=array_values((array)($row['values']??[]));
+            if(count($values)<=4)$values=[$values[0]??'',$values[1]??'',$values[2]??'','','','Active',$values[3]??''];
+            while(count($values)<7)$values[]='';$values[5]='Inactive';$row['values']=$values;$out=$row;unset($row);return $out;
+        }
+        unset($row);throw new InvalidArgumentException('Location not found.');
+    });
+}
+
+function tt_active_location_masters(): array {
+    return array_values(array_filter((array)(tt_list_masters()['mills']??[]),static fn($row):bool=>strcasecmp((string)(($row['values']??[])[5]??'Active'),'Inactive')!==0));
 }
 
 function tt_ensure_data_dir(): void {

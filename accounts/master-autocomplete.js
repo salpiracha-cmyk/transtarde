@@ -9,7 +9,7 @@
     suppliers:unique((masters.business_parties||[]).filter(row=>/supplier|broker|service provider|transporter|freight|clearing|fumigation|inspection/i.test(clean(row?.values?.[2]))).map(row=>row?.values?.[0])),
     customers:values('export_customers'),
     locations:values('mills'),
-    products:unique((masters.purchase_products||[]).map(row=>row?.values?.[3]||row?.values?.[1])),
+    products:unique((masters.purchase_products||[]).map(row=>{const v=row?.values||[],legacy=/^(RAW|READY|FINISHED)$/i.test(clean(v[2])),commodity=clean(v[0]).toUpperCase(),base=clean(v[1]),riceType=legacy?'':clean(v[2]),stage=legacy?clean(v[2]):clean(v[3]);return commodity==='RICE'?[base,riceType,stage==='RAW'?'Raw Rice':stage==='READY'?'Ready Rice':''].filter(Boolean).join(' '):[base,stage].filter(Boolean).join(' ')})),
     commodities:values('commodities'),
   };
   function ensureList(name,items){
