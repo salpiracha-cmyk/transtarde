@@ -169,8 +169,9 @@
     },
     { id: "export_documents", name: "Export Documents Presented", description: "Authoritative Sales Contract document rows shared by Super Admin and Exports.", fields: [{label:"Document Name",required:true},{label:"Original",required:true},{label:"Copies",required:true},{label:"Applies To",type:"select",options:["ALL","FOB","CFR","CIF","LC_SIGHT","LC_USANCE"]},{label:"Status",type:"select",options:["Active","Inactive"]}], rows: [["Commercial Invoice","3","0","ALL","Active"],["Commercial Packing List","3","0","ALL","Active"],["Full set clean on-board Bill of Lading","3","3","ALL","Active"],["Certificate of Origin","1","3","ALL","Active"],["e-Phyto issued by Department of Plant Protection, Government of Pakistan","1","0","ALL","Active"],["Fumigation Certificate","1","1","ALL","Active"],["Insurance Policy / Certificate","1","0","CIF","Active"]] },
     { id: "export_terms", name: "Export Other Terms", description: "Authoritative reusable Sales Contract terms. Locked L/C clauses remain protected in the Export workflow.", fields: [{label:"Payment Group",required:true,type:"select",options:["BASE","ADVANCE","CAD","LC_SIGHT","LC_USANCE","CUSTOM"]},{label:"Term Text",required:true,type:"textarea",full:true},{label:"Status",type:"select",options:["Active","Inactive"]}], rows: [["BASE","All present and/or future customs taxes and/or duties/levies on the cargo in the country of origin shall be for Seller’s account. All present and/or future customs taxes and/or duties/levies on the cargo in the country of destination shall be for Buyer’s account.","Active"],["BASE","Risk of weight and quality is transferred to Buyer once cargo is loaded on board the vessel from Pakistan.","Active"],["BASE","Ownership of cargo is transferred to Buyer upon receipt of full payment of the invoice.","Active"],["BASE","All other terms and conditions as per applicable GAFTA London rules, of which both parties admit full notice and knowledge. English law to apply.","Active"],["BASE","Should any dispute arise which cannot be amicably settled between Buyer and Seller, the dispute shall be settled by arbitration in London as per applicable GAFTA rules.","Active"],["ADVANCE","Partial shipment allowed.","Active"],["CAD","Partial shipment allowed.","Active"]] },
-    { id: "export_customers", name: "Export Customers", description: "Buyer identity, document addresses, notify parties and export defaults. Saved shipments retain their historical snapshot.", fields: [{label:"Customer name",required:true},{label:"Code"},{label:"Roles"},{label:"Document address",required:true,type:"textarea",full:true},{label:"Country"},{label:"Email"},{label:"Phone"},{label:"Tax / registration"},{label:"Packing default"},{label:"Notify parties JSON",type:"textarea",full:true},{label:"Status",type:"select",options:["Active","Inactive"]},{label:"Notes",type:"textarea",full:true},{label:"Show country"},{label:"Show email"},{label:"Show phone"},{label:"Show tax"}], rows: [] },
+    { id: "export_customers", name: "Export Customers", description: "Buyer identity, document addresses, contacts, consignee and notify parties. Saved shipments retain their historical snapshot.", fields: [{label:"Customer name",required:true},{label:"Code"},{label:"Roles"},{label:"Primary document address",required:true,type:"textarea",full:true},{label:"Country"},{label:"Email"},{label:"Phone"},{label:"Tax / registration"},{label:"Packing default"},{label:"Notify parties JSON",type:"textarea",full:true},{label:"Status",type:"select",options:["Active","Inactive"]},{label:"Notes",type:"textarea",full:true},{label:"Show country"},{label:"Show email"},{label:"Show phone"},{label:"Show tax"},{label:"Contacts JSON",type:"textarea",full:true},{label:"Consignees JSON",type:"textarea",full:true},{label:"Additional notify parties JSON",type:"textarea",full:true},{label:"Additional document addresses JSON",type:"textarea",full:true},{label:"Default currency",type:"select",options:["","USD","EUR","GBP","AED","PKR"]},{label:"Default payment / customer instructions",type:"textarea",full:true}], rows: [] },
     { id: "business_parties", name: "Business Parties", description: "Suppliers, brokers, service providers, local buyers and other third parties stored once and reused in operational forms.", fields: [{label:"Party name",required:true},{label:"Code / reference"},{label:"Categories",required:true,type:"checks",full:true,options:["Supplier","Broker","Clearing Agent","Freight Forwarder","Shipping Line / Carrier","Transporter","Inspection","Fumigation","Service Provider","Local Buyer","Agent","Other"]},{label:"Address",type:"textarea",full:true},{label:"Country"},{label:"Contact person"},{label:"Phone"},{label:"Email"},{label:"NTN / tax number"},{label:"Payment terms"},{label:"Status",type:"select",options:["Active","Inactive"]},{label:"Notes",type:"textarea",full:true}], rows: [] },
+    { id: "reference_lists", name: "Reference Lists", description: "Small controlled dropdown choices used throughout Transtrade. Add a choice once; forms reuse it with type-ahead search.", fields: [{label:"List",required:true,type:"select",options:["currencies","packing_types","inspection_companies","payment_options","party_roles","product_rice_types","product_finishes"]},{label:"Option",required:true}], rows: [] },
     { id: "mills", name: "Mills & Locations", description: "Own mill, external mills, offices and stock locations used by authorized modules.", fields: [{label:"Mill / location",required:true},{label:"Code / reference"},{label:"Location type"},{label:"Notes",type:"textarea",full:true}], rows: [["TTI Rice Mill", "TTI-MILL", "Own Mill", ""], ["Karachi Office", "KHI-OFF", "Office", ""]] }
   ];
   const MASTER_GROUPS = [
@@ -179,7 +180,7 @@
     ["Business Parties",["business_parties"]],
     ["Products & Procurement",["products","purchase_products","purchase_kat","commodities"]],
     ["Mills & Locations",["mills"]],
-    ["Reference Lists & Setup",["product_settings","export_documents","export_terms","salary_staff"]],
+    ["Reference Lists & Setup",["reference_lists","product_settings","export_documents","export_terms","salary_staff"]],
   ];
 
   const DEFAULT_PERMISSIONS = {
@@ -216,7 +217,7 @@
       const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
       if (!saved || !saved.users || !saved.audit) return cloneDefault();
       const loaded = { ...cloneDefault(), ...saved };
-      loaded.masters = ensureMasterSections(loaded.masters);
+      loaded.masters = ensureMasterSections(loaded.masters,loaded.masterOptions);
       if ((loaded.stateVersion || 1) < STATE_VERSION) {
         loaded.users = loaded.users.filter(user => {
           const identity = `${user.name || ""} ${user.username || ""}`.toLowerCase();
@@ -281,7 +282,7 @@
   async function loadServerMasters() {
     if (!hasMasterAccess) return;
     const data = await apiRequest(null, "masters");
-    state.masters = ensureMasterSections(data.masters);
+    state.masters = ensureMasterSections(data.masters,data.options||state.masterOptions);
     if (data.options) state.masterOptions = data.options;
     renderMasters();
   }
@@ -459,13 +460,14 @@
     } catch (error) { toast(error.message); }
   }
 
-  function ensureMasterSections(masters = {}) {
+  function ensureMasterSections(masters = {},masterOptions = {}) {
     const result = { ...(masters || {}) };
     MASTER_TYPES.forEach(type => {
       if (!Array.isArray(result[type.id])) {
         result[type.id] = type.rows.map((row, index) => ({ id: `${type.id}-${index + 1}`, values: [...row] }));
       }
     });
+    result.reference_lists=Object.entries(masterOptions||{}).flatMap(([key,items])=>(["currencies","packing_types","inspection_companies","payment_options","party_roles","product_rice_types","product_finishes"].includes(key)?(items||[]).map(value=>({id:`${key}::${value}`,values:[key,value]})):[]));
 
     const companyType = MASTER_TYPES.find(type => type.id === "companies");
     const companyDefaults = new Map((companyType?.rows || []).map(row => [String(row[1]).toUpperCase(), row]));
@@ -531,7 +533,7 @@
     <section class="master-editor-section"><div class="master-editor-heading"><div><h3>Special workflow & behaviour</h3><p>Keep exceptional entity handling separate from ordinary identity.</p></div></div><div class="master-form-grid"><label>TG special handling<select id="${masterInputId(5)}" data-master-field-index="5">${["No","Yes"].map(x=>`<option ${x===String(values[5]||"No")?"selected":""}>${x}</option>`).join("")}</select></label><label class="full-span">System behaviour / notes<textarea id="${masterInputId(6)}" data-master-field-index="6" rows="4">${escapeHtml(values[6] || "")}</textarea></label></div></section>`;
   }
   function companyBankRow(bank={}) { return `<div class="master-form-grid company-bank-row"><input type="hidden" data-bank-json value="${escapeHtml(JSON.stringify(bank))}"><input type="hidden" data-bank-id value="${escapeHtml(bank.id||"")}"><label>Bank name<input data-bank-name value="${escapeHtml(bank.bankName||"")}" required></label><label>Account title<input data-bank-title value="${escapeHtml(bank.accountTitle||"")}" required></label><label>Currency<input data-bank-currency value="${escapeHtml(bank.currency||"PKR")}"></label><label>Account number<input data-bank-number value="${escapeHtml(bank.accountNumber||"")}"></label><label>IBAN<input data-bank-iban value="${escapeHtml(bank.iban||"")}"></label><label>SWIFT / BIC<input data-bank-swift value="${escapeHtml(bank.swift||"")}"></label><label>Branch<input data-bank-branch value="${escapeHtml(bank.branch||"")}"></label><label>Purpose<input data-bank-purpose value="${escapeHtml(bank.purpose||"")}"></label><button type="button" class="button danger" data-remove-company-bank>Remove</button></div>`; }
-  function companyDocumentRow(doc={}) { return `<div class="master-form-grid company-document-row"><input type="hidden" data-document-json value="${escapeHtml(JSON.stringify(doc))}"><input type="hidden" data-document-id value="${escapeHtml(doc.id||"")}"><label>Document type<select data-document-type>${["Header","Footer","Signature","Stamp","Letterhead","Other"].map(x=>`<option ${x===String(doc.type||"")?"selected":""}>${x}</option>`).join("")}</select></label><label>Label<input data-document-label value="${escapeHtml(doc.label||"")}" required></label><label>Version<input data-document-version value="${escapeHtml(doc.version||"1")}" readonly></label><label>Status<select data-document-status><option ${String(doc.status||"Active")==="Active"?"selected":""}>Active</option><option ${String(doc.status||"")==="Inactive"?"selected":""}>Inactive</option></select></label><label><input type="checkbox" data-document-default ${doc.isDefault?"checked":""}> Default for this type</label>${doc.id?`<span class="tag">Saved version ${escapeHtml(doc.version||1)}</span>`:`<label>PNG, JPG, WebP or PDF<input type="file" data-document-file accept="image/png,image/jpeg,image/webp,application/pdf" required></label>`}<button type="button" class="button danger" data-remove-company-document>Deactivate</button></div>`; }
+  function companyDocumentRow(doc={}) { const controls=doc.id?`<div class="row-actions">${canMaster('companies','View Documents')?'<button type="button" class="row-action" data-preview-company-document>Preview</button>':''}${canMaster('companies','Download Documents')?'<button type="button" class="row-action" data-download-company-document>Download</button>':''}<span class="tag">Version ${escapeHtml(doc.version||1)}</span></div>`:`<label>PNG, JPG, WebP or PDF<input type="file" data-document-file accept="image/png,image/jpeg,image/webp,application/pdf" required></label>`;return `<div class="master-form-grid company-document-row"><input type="hidden" data-document-json value="${escapeHtml(JSON.stringify(doc))}"><input type="hidden" data-document-id value="${escapeHtml(doc.id||"")}"><label>Document type<select data-document-type>${["Header","Footer","Signature","Stamp","Letterhead","Other"].map(x=>`<option ${x===String(doc.type||"")?"selected":""}>${x}</option>`).join("")}</select></label><label>Label<input data-document-label value="${escapeHtml(doc.label||"")}" required></label><label>Version<input data-document-version value="${escapeHtml(doc.version||"1")}" readonly></label><label>Status<select data-document-status><option ${String(doc.status||"Active")==="Active"?"selected":""}>Active</option><option ${String(doc.status||"")==="Inactive"?"selected":""}>Inactive</option></select></label><label><input type="checkbox" data-document-default ${doc.isDefault?"checked":""}> Default for this type</label>${controls}<button type="button" class="button danger" data-remove-company-document>Deactivate</button></div>`; }
   function commodityMasterFieldsHtml(values = []) {
     return `<section class="master-editor-section"><div class="master-editor-heading"><div><h3>Commodity identity</h3><p>Basic identity stays separate from rules and accounting setup.</p></div></div><div class="master-identity-grid">
       <label>Commodity<input id="${masterInputId(0)}" data-master-field-index="0" value="${escapeHtml(values[0] || "")}" required></label>
@@ -845,7 +847,7 @@
     const existing=state.masters?.product_settings?.[0];
     try {
       const data=await apiRequest({action:existing?"update":"create",type:"product_settings",id:existing?.id||"",values:[value]},"masters");
-      state.masters=ensureMasterSections(data.masters);
+      state.masters=ensureMasterSections(data.masters,data.options||state.masterOptions);
       saveState();
       renderMasters();
       toast("Current Crop Year updated for new Sales Contracts.");
@@ -853,7 +855,7 @@
   }
 
   function renderMasters() {
-    state.masters = ensureMasterSections(state.masters);
+    state.masters = ensureMasterSections(state.masters,state.masterOptions);
     const allowedTypes=MASTER_TYPES.filter(type=>canMaster(type.id,"View"));
     if (!allowedTypes.some(type=>type.id===currentMaster)) currentMaster=allowedTypes[0]?.id||"companies";
     document.getElementById("masterMenu").innerHTML = MASTER_GROUPS.map(([group,ids])=>{const types=ids.map(id=>allowedTypes.find(type=>type.id===id)).filter(Boolean);return types.length?`<div class="master-menu-group"><small>${group}</small>${types.map(type=>`<button class="${type.id === currentMaster ? "active" : ""}" data-master="${type.id}">${type.name}<span>${state.masters[type.id]?.length || 0}</span></button>`).join("")}</div>`:""}).join("");
@@ -906,6 +908,7 @@
       const wireNested=()=>{
         bankRows?.querySelectorAll('[data-remove-company-bank]').forEach(button=>button.onclick=()=>button.closest('.company-bank-row')?.remove());
         documentRows?.querySelectorAll('[data-remove-company-document]').forEach(button=>button.onclick=()=>{const row=button.closest('.company-document-row');if(row){row.querySelector('[data-document-status]').value='Inactive';row.hidden=true}});
+        documentRows?.querySelectorAll('[data-preview-company-document],[data-download-company-document]').forEach(button=>button.onclick=()=>{const documentId=button.closest('.company-document-row')?.querySelector('[data-document-id]')?.value;if(!documentId||!row?.id)return;const download=button.hasAttribute('data-download-company-document')?'&download=1':'';window.open(`api/master_documents.php?companyId=${encodeURIComponent(row.id)}&documentId=${encodeURIComponent(documentId)}${download}`,'_blank','noopener')});
       };
       document.getElementById('addCompanyBank').onclick=()=>{bankRows.insertAdjacentHTML('beforeend',companyBankRow({accountTitle:document.getElementById(masterInputId(0))?.value||'',currency:'PKR'}));wireNested()};
       document.getElementById('addCompanyDocument').onclick=()=>{documentRows.insertAdjacentHTML('beforeend',companyDocumentRow({version:'1',status:'Active'}));wireNested()};
@@ -932,7 +935,7 @@
       syncSalaryEntity();
     }
     document.getElementById("deleteMasterButton").hidden = !row || (type.id === "salary_staff" && String(row.values?.[10] || "Active") === "Inactive");
-    document.getElementById("deleteMasterButton").textContent = type.id === "salary_staff" ? "Remove Staff" : "Delete Record";
+    document.getElementById("deleteMasterButton").textContent = type.id === "salary_staff" ? "Remove Staff" : "Deactivate Record";
     document.getElementById("saveMasterButton").textContent = row ? "Save Changes" : "Save Record";
     document.getElementById("masterDialog").showModal();
   }
@@ -948,6 +951,11 @@
     const primary = values[0] || type.name;
     const ref = values[1] || currentMaster.toUpperCase();
     try {
+      if(type.id==="reference_lists"){
+        const existing=id?(state.masters.reference_lists||[]).find(row=>row.id===id):null;
+        const data=await apiRequest({action:"manage-option",type:"reference_lists",optionAction:existing?"rename":"add",optionKey:values[0],old:existing?.values?.[1]||"",value:values[1]},"masters");
+        if(data.options)state.masterOptions=data.options;state.masters=ensureMasterSections(data.masters,state.masterOptions);saveState();renderMasters();document.getElementById("masterDialog").close();form.reset();toast(existing?"Reference option updated.":"Reference option added.");return;
+      }
       const pendingDocuments=type.id==="companies"?[...document.querySelectorAll('.company-document-row')].filter(row=>!row.querySelector('[data-document-id]')?.value&&row.querySelector('[data-document-file]')?.files?.[0]):[];
       const data = await apiRequest({ action: id ? "update" : "create", type: currentMaster, id, values }, "masters");
       const companyId=data.id||id;
@@ -956,7 +964,7 @@
         const response=await fetch('api/master_documents.php',{method:'POST',body:payload});const uploaded=await response.json().catch(()=>({ok:false,error:'Document upload returned an unreadable response.'}));if(!response.ok||!uploaded.ok)throw new Error(uploaded.error||'Company document upload failed.');
       }
       if (pendingDocuments.length) { const refreshed=await apiRequest(null,"masters");data.masters=refreshed.masters; }
-      state.masters = ensureMasterSections(data.masters); if (data.options) state.masterOptions=data.options; addAudit("Master", id ? "Updated" : "Created", `${type.name}: ${primary}`, ref);
+      if (data.options) state.masterOptions=data.options; state.masters = ensureMasterSections(data.masters,state.masterOptions); addAudit("Master", id ? "Updated" : "Created", `${type.name}: ${primary}`, ref);
       saveState(); renderMasters(); renderAudit(); renderRecentActivity(); document.getElementById("masterDialog").close(); form.reset(); toast(id ? "Master record updated." : "Master record saved.");
     } catch (error) { toast(error.message); }
   }
@@ -964,8 +972,8 @@
     const id = String(selectedId || document.getElementById("editMasterId").value);
     const row = (state.masters[currentMaster] || []).find(item => item.id === id); if (!row) return;
     const removingStaff=currentMaster==="salary_staff";
-    if (!window.confirm(`${removingStaff ? "Remove" : "Delete"} ${row.values[0]} ${removingStaff ? "from future Salary Sheets" : `from ${masterType().name}`}?`)) return;
-    try { const data = await apiRequest({ action: "delete", type: currentMaster, id }, "masters"); state.masters = ensureMasterSections(data.masters); saveState(); renderMasters(); document.getElementById("masterDialog").close(); toast(removingStaff ? "Staff removed from future Salary Sheets." : "Master record deleted."); }
+    if (!window.confirm(`${removingStaff ? "Remove" : "Deactivate"} ${row.values[0]} ${removingStaff ? "from future Salary Sheets" : `in ${masterType().name}`}? Historical transactions will remain unchanged.`)) return;
+    try { if(currentMaster==="reference_lists"){const data=await apiRequest({action:"manage-option",type:"reference_lists",optionAction:"delete",optionKey:row.values[0],old:row.values[1],value:""},"masters");if(data.options)state.masterOptions=data.options;state.masters=ensureMasterSections(data.masters,state.masterOptions);saveState();renderMasters();document.getElementById("masterDialog").close();toast("Reference option deactivated.");return;} const data = await apiRequest({ action: "delete", type: currentMaster, id }, "masters"); state.masters = ensureMasterSections(data.masters,state.masterOptions); saveState(); renderMasters(); document.getElementById("masterDialog").close(); toast(removingStaff ? "Staff removed from future Salary Sheets." : "Master record deactivated."); }
     catch (error) { toast(error.message); }
   }
 

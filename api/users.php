@@ -23,7 +23,7 @@ function clean_input(array $body): array {
     }
     $masterAccess=!empty($body['masterAccess']);
     $allowedMasterActions=['Use','View','Create','Edit','Deactivate','View Documents','Download Documents'];
-    $allowedMasterTypes=['companies','export_customers','business_parties','products','purchase_products','purchase_kat','commodities','product_settings','mills','export_documents','export_terms','salary_staff'];
+    $allowedMasterTypes=['companies','export_customers','business_parties','products','purchase_products','purchase_kat','commodities','product_settings','mills','export_documents','export_terms','reference_lists','salary_staff'];
     $masterPermissions=[];
     foreach ((array)($body['masterPermissions'] ?? []) as $type=>$actions) {
         if (!in_array($type,$allowedMasterTypes,true)) continue;

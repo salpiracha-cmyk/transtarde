@@ -280,7 +280,7 @@ function tt_normalize_masters(array $masters): array {
     }
     foreach ($masters['export_customers'] as &$row) {
         $values=array_values((array)($row['values'] ?? []));
-        while (count($values)<16) $values[]='';
+        while (count($values)<22) $values[]='';
         $row['values']=$values;
     }
     unset($row);
@@ -347,6 +347,7 @@ function tt_default_master_options(): array {
         'currencies'=>['USD','EUR','GBP','AED','PKR'],
         'inspection_companies'=>['No','Any inspection company','SGS Pakistan Private Limited','Intertek'],
         'packing_types'=>['P.P. Bags','BOPP Laminated Bags','Cotton Bags','Non-Woven Bags','Jute Bags'],
+        'payment_options'=>['100% Advance','100% CAD','Advance + CAD','L/C at Sight','Usance L/C','Open Account'],
     ];
 }
 

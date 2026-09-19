@@ -57,7 +57,7 @@ try {
     if ($action==='manage-option') {
         $optionAction=(string)($body['optionAction'] ?? '');
         $optionKey=(string)($body['optionKey'] ?? '');
-        $optionMaster=$optionKey==='party_roles'?'business_parties':'products';
+        $optionMaster=$type==='reference_lists'?'reference_lists':($optionKey==='party_roles'?'business_parties':'products');
         if (!tt_user_can_master($admin,$optionMaster,'Edit')) master_respond(['ok'=>false,'error'=>'Edit permission is required for this master option.'],403);
         $value=tt_manage_master_option($optionKey,$optionAction,(string)($body['value'] ?? ''),(string)($body['old'] ?? ''));
         tt_audit((int)$admin['id'],$admin['username'],ucfirst($optionAction).' '.$optionKey.' option '.$value);
@@ -82,7 +82,7 @@ try {
     }
 
     $schemas=[
-        'companies'=>15,'export_customers'=>16,'business_parties'=>12,'commodities'=>8,'product_settings'=>1,'products'=>22,'purchase_products'=>10,'purchase_kat'=>10,
+        'companies'=>15,'export_customers'=>22,'business_parties'=>12,'commodities'=>8,'product_settings'=>1,'products'=>22,'purchase_products'=>10,'purchase_kat'=>10,
         'mills'=>4,'export_documents'=>5,'export_terms'=>3,
     ];
     if (!isset($schemas[$type])) throw new InvalidArgumentException('Select a valid master section.');
@@ -115,7 +115,8 @@ try {
     foreach (array_slice($raw,0,$schemas[$type]) as $fieldIndex=>$value) {
         if (is_array($value) || is_object($value)) throw new InvalidArgumentException('Master fields must contain text values.');
         $value=trim((string)$value);
-        $limit=$type==='companies'&&in_array((int)$fieldIndex,[13,14],true)?50000:1200;
+        $nested=($type==='companies'&&in_array((int)$fieldIndex,[13,14],true))||($type==='export_customers'&&in_array((int)$fieldIndex,[9,16,17,18,19],true));
+        $limit=$nested?50000:1200;
         if (strlen($value)>$limit) throw new InvalidArgumentException('One of the master fields is too long.');
         $values[]=$value;
     }
@@ -132,6 +133,15 @@ try {
                     $documentType=(string)($document['type']??'Other');if(isset($defaults[$documentType]))throw new InvalidArgumentException('Only one active default is allowed for each company document type.');$defaults[$documentType]=true;
                 }
             }
+        }
+    }
+    if (in_array($type,['companies','export_customers','business_parties','mills'],true)) {
+        $normalise=static fn(string $value): string=>strtolower((string)preg_replace('/[^a-z0-9]+/i','',trim($value)));
+        $candidate=$normalise((string)$values[0]);
+        foreach ((array)(master_all($admin)[$type]??[]) as $existingRow) {
+            if ($id!==''&&(string)($existingRow['id']??'')===$id) continue;
+            $existingName=(string)(($existingRow['values']??[])[0]??'');
+            if ($candidate!==''&&$normalise($existingName)===$candidate) throw new InvalidArgumentException('A similar record already exists as “'.$existingName.'”. Open that record instead of creating a duplicate.');
         }
     }
     if ($type==='product_settings' && !preg_match('/^\d{4}\/\d{4}$/',(string)$values[0])) {
