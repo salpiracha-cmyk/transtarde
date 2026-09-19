@@ -74,11 +74,11 @@ function cb_receipts(array $store,?string $entity=null): array {
         $j=$store['journals'][$event['journalId']??'']??null;
         if(!is_array($j)) continue;
         $meta=is_array($j['meta']??null)?$j['meta']:[];
-        $commodity=cb_commodity($event,$meta);$identity=tt_product_identity($commodity,(string)($meta['displayName']??$meta['baseVariety']??$meta['variety']??''),(string)($meta['productStage']??''));$rows[]=[
+        $commodity=cb_commodity($event,$meta);$identity=tt_product_identity($commodity,(string)($meta['displayName']??$meta['baseVariety']??$meta['variety']??''),(string)($meta['productStage']??''),(string)($meta['riceType']??''));$rows[]=[
             'eventId'=>(string)($event['id']??''),'sourceKey'=>(string)($event['sourceKey']??''),'entity'=>(string)($event['entity']??''),
             'journalId'=>(string)($event['journalId']??''),'date'=>(string)($j['date']??''),'reference'=>(string)($j['reference']??''),
             'provisionalAmount'=>(float)($j['totalDebit']??0),'commodity'=>$commodity,'soda'=>(string)($meta['soda']??''),'pohanch'=>(string)($meta['pohanch']??$j['reference']??''),
-            'truck'=>(string)($meta['truck']??''),'broker'=>(string)($meta['broker']??''),'party'=>(string)($meta['party']??''),'variety'=>(string)($meta['variety']??''),'baseVariety'=>(string)($meta['baseVariety']??$identity['baseVariety']),'productStage'=>(string)($meta['productStage']??$identity['productStage']),'displayName'=>(string)($meta['displayName']??$identity['displayName']),
+            'truck'=>(string)($meta['truck']??''),'broker'=>(string)($meta['broker']??''),'party'=>(string)($meta['party']??''),'variety'=>(string)($meta['variety']??''),'baseVariety'=>(string)($meta['baseVariety']??$identity['baseVariety']),'riceType'=>(string)($meta['riceType']??$identity['riceType']),'productStage'=>(string)($meta['productStage']??$identity['productStage']),'displayName'=>(string)($meta['displayName']??$identity['displayName']),
             'payableWeightKg'=>(float)($meta['payableWeightKg']??0),'grossRatePerKg'=>(float)($meta['grossRatePerKg']??0),
             'katPaisaPerKg'=>(float)($meta['katPaisaPerKg']??0),'provisionalNetRatePerKg'=>(float)($meta['provisionalNetRatePerKg']??0)
         ];
@@ -183,10 +183,10 @@ try{
             if(!is_array($j)) cb_respond(['ok'=>false,'error'=>'Receipt journal is missing for '.$key.'.'],422);
             $meta=is_array($j['meta']??null)?$j['meta']:[];
             $commodity=cb_commodity($ev,$meta);
-            $identity=tt_product_identity($commodity,(string)($meta['displayName']??$meta['baseVariety']??$meta['variety']??''),(string)($meta['productStage']??''));$row=[
+            $identity=tt_product_identity($commodity,(string)($meta['displayName']??$meta['baseVariety']??$meta['variety']??''),(string)($meta['productStage']??''),(string)($meta['riceType']??''));$row=[
                 'eventId'=>$eventId,'sourceKey'=>$key,'date'=>(string)($j['date']??''),'provisionalAmount'=>round((float)($j['totalDebit']??0),2),
                 'commodity'=>$commodity,'soda'=>(string)($meta['soda']??''),'pohanch'=>(string)($meta['pohanch']??$j['reference']??''),
-                'truck'=>(string)($meta['truck']??''),'broker'=>(string)($meta['broker']??''),'variety'=>(string)($meta['variety']??''),'baseVariety'=>(string)($meta['baseVariety']??$identity['baseVariety']),'productStage'=>(string)($meta['productStage']??$identity['productStage']),'displayName'=>(string)($meta['displayName']??$identity['displayName'])
+                'truck'=>(string)($meta['truck']??''),'broker'=>(string)($meta['broker']??''),'variety'=>(string)($meta['variety']??''),'baseVariety'=>(string)($meta['baseVariety']??$identity['baseVariety']),'riceType'=>(string)($meta['riceType']??$identity['riceType']),'productStage'=>(string)($meta['productStage']??$identity['productStage']),'displayName'=>(string)($meta['displayName']??$identity['displayName'])
             ];
             $provisional+=$row['provisionalAmount'];$sodas[]=$row['soda'];$brokers[]=$row['broker'];$commodities[]=$commodity;
             $receiptRows[]=$row;$events[$eventId]=&$store['events'][$eventId];

@@ -382,6 +382,10 @@ legend { margin-bottom: 10px; color: #445469; font-size: .79rem; font-weight: 75
 .kat-range-table th:nth-child(1),.kat-range-table td:nth-child(1),.kat-range-table th:nth-child(2),.kat-range-table td:nth-child(2),.kat-range-table th:nth-child(3),.kat-range-table td:nth-child(3){width:18%;}
 .kat-range-table th:nth-child(4),.kat-range-table td:nth-child(4){width:28%;}
 .kat-range-table th:last-child,.kat-range-table td:last-child{width:88px;position:static!important;box-shadow:none!important;}
+.kat-parameter-card{margin-top:14px;padding:16px;border:1px solid var(--line);border-radius:12px;background:#fff;box-shadow:0 4px 14px rgba(18,43,70,.05)}
+.kat-parameter-head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px}
+.kat-parameter-head label{flex:1;margin:0}
+#katParameterCards:empty::before{content:"No quality parameter added yet. Use + Add Quality Parameter.";display:block;padding:18px;border:1px dashed var(--line);border-radius:10px;color:var(--muted);background:#fff}
 
 
 /* All-master usability review */

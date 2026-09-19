@@ -21,7 +21,8 @@ const commodityBills=read('api/commodity_bills.php');
 for(const value of ['RAW','READY','FINISHED']) assert(stage.includes(`'${value}'`),`canonical ${value} stage missing`);
 assert(stage.includes("$stage==='RAW'" )&&stage.includes("$stage==='READY'"),'Rice stage display rules missing');
 assert(stage.includes("/^READY\\s+RICE"),'legacy own-mill Ready Rice compatibility missing');
-assert(stage.includes('PARBOIL(?:ED)?|STEAM|SELLA'),'legacy product labels are not normalized to the canonical base variety');
+assert(stage.includes('PARBOIL(?:ED)?')&&stage.includes('STEAM')&&stage.includes('SELLA'),'legacy product labels are not normalized to the canonical base variety');
+assert(stage.includes("'riceType'"),'canonical Rice Type is not retained separately');
 assert(stage.includes("strcasecmp($base,'Sesame')===0"),'Sesame display must not duplicate the base name');
 
 assert(masters.includes("'purchase_products'=>["),'Purchase Products master missing');
@@ -31,7 +32,7 @@ assert(admin.includes('name: "Export Quality & Specs"'),'Export Quality & Specs 
 assert(admin.includes('name: "Purchase Commodities & KAT"'),'combined Purchase Commodities & KAT workspace missing');
 assert(admin.includes('["products","purchase_products"]'),'separate Commodity and KAT menu entries were not merged');
 assert(admin.includes('options: ["RAW", "READY"]'),'new purchase setup still offers FINISHED');
-assert(masterApi.includes("!in_array($values[2],['RAW','READY'],true)"),'purchase API does not enforce RAW/READY');
+assert(masterApi.includes("!in_array($values[3],['RAW','READY'],true)"),'purchase API does not enforce RAW/READY');
 assert(admin.includes('data-add-product-option')&&admin.includes('data-delete-product-option'),'product option + / − controls missing');
 assert(admin.includes('optionAction:"delete"'),'product dropdown deactivation is not wired');
 
@@ -42,9 +43,11 @@ assert(sodaUi.includes('Search Previous Soda'),'Soda search is missing');
 assert(sodaUi.includes('Amendment Reason'),'Soda amendment reason is missing');
 assert(sodaUi.includes('Select from Purchase Commodities & KAT'),'Soda still lacks the combined master selection');
 assert(sodaUi.includes("x.productStage==='RAW'||x.productStage==='READY'"),'Soda purchase selector still exposes new FINISHED purchases');
-assert(workflows.includes("New purchases must be RAW or READY"),'Soda API does not block new FINISHED purchases');
+assert(workflows.includes('FINAL is created only through own-mill or reprocessing production'),'Soda API does not block new FINAL purchases');
+assert(workflows.includes("'locations'=>aw_locations()")&&workflows.includes("'movementRole'"),'Soda API does not link the central Location Master');
+assert(sodaUi.includes('ttvLocationAdd')&&sodaUi.includes('ttvLocationRemove'),'Soda location + / − controls are missing');
 
-for(const key of ['baseVariety','productStage','displayName']){
+for(const key of ['baseVariety','riceType','productStage','displayName']){
   assert(bridge.includes(key),`Pohanch bridge missing ${key}`);
   assert(lookup.includes(`'${key}'`),`Accounts lookup missing ${key}`);
 }
@@ -56,11 +59,12 @@ assert(!bags.includes('Non-Woven bags are excluded'),'Non-Woven is still exclude
 assert(bagsUi.includes('Sales Tax Invoice received'),'bag invoice checkbox missing');
 assert(bagsUi.includes('Every bag type is available'),'bag workflow is not unified');
 
-assert(milling.includes("inputStage:isReprocessingMill()?'FINISHED':'RAW'"),'reprocessing is not FINISHED to FINISHED');
+assert(milling.includes("inputStage:'RAW'"),'reprocessing input must remain RAW rice');
 assert(milling.includes("outputStage:'FINISHED'"),'own-mill finished stage missing');
 assert(milling.includes("productStage:identity.productStage"),'Pohanch stage metadata missing');
 assert(milling.includes('function millBaseVariety(name)'),'Milling still lacks canonical base-variety normalization');
-assert(milling.includes("replace(/\\s+(?:WHITE|PARBOIL(?:ED)?|STEAM|SELLA)\\s+RICE$/i,''"),'Milling base variety still includes processing/type wording');
+assert(milling.includes('function millRiceType(name)'),'Milling does not retain Rice Type separately');
+assert(milling.includes('let parameters=[]')&&milling.includes("x?.name||'').toLowerCase()==='broken'"),'Milling still expects one scattered row per KAT parameter');
 assert(!milling.includes("m={'RAW RICE':0}"),'Milling still collapses every raw variety into one stock bucket');
 assert(milling.includes("rawStockName"),'Milling physical adjustments do not preserve their raw variety');
 assert(milling.includes("primary?(r.displayName||finished.displayName)"),'Finished stock is not derived from the FINISHED product identity');
