@@ -6,21 +6,99 @@ on:
 permissions:
   contents: read
 jobs:
-  test-dependencies:
+  verified-candidate:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 30
+    permissions:
+      contents: write
     steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Prepare offline DOM test dependencies
+      - name: Reconstruct exact main source edits
         run: |
-          cd "$RUNNER_TEMP"
-          mkdir dom-tests && cd dom-tests
-          npm install --ignore-scripts --no-audit --no-fund jsdom@27.0.0
-          tar -czf "$RUNNER_TEMP/dom-test-dependencies.tgz" node_modules package-lock.json
-      - uses: actions/upload-artifact@v4
+          set -euo pipefail
+          cp .workbench/source-*.b64 .workbench/prepare_source.py "$RUNNER_TEMP/"
+          git fetch --depth=1 origin 92c03efbfd1dcdc80920dd671bfe013e02c4ca4f
+          git checkout --detach 92c03efbfd1dcdc80920dd671bfe013e02c4ca4f
+          python3 "$RUNNER_TEMP/prepare_source.py"
+          git diff --check
+          mkdir -p "$RUNNER_TEMP/qa-results"
+      - name: Install isolated QA dependencies
+        run: |
+          set -euo pipefail
+          npm install --ignore-scripts --no-save --no-audit --no-fund jsdom@27.0.0 playwright@1.55.0
+          npx playwright install --with-deps chromium
+          python3 -m pip install requests PyYAML
+      - name: Run existing Accounts and Exports Milling regressions
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os, pathlib, subprocess, yaml
+          results=pathlib.Path(os.environ['RUNNER_TEMP'])/'qa-results'
+          reports=[]
+          for filename in ['accounts-v1-qa.yml','milling-exports-qa.yml']:
+              workflow=yaml.safe_load(pathlib.Path('.github/workflows',filename).read_text())
+              for job in workflow['jobs'].values():
+                  for index,step in enumerate(job['steps']):
+                      if 'run' not in step or step.get('name') == 'Install browser and DOM test dependencies': continue
+                      name=step.get('name',str(index));print('\nRUN',filename,name,flush=True)
+                      completed=subprocess.run(['bash','-c','set -euo pipefail\n'+step['run']],stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True)
+                      log=f'{filename}-{index}.log';(results/log).write_text(completed.stdout)
+                      print(completed.stdout,flush=True)
+                      reports.append({'workflow':filename,'step':name,'passed':completed.returncode==0,'log':log})
+                      (results/'regression-results.json').write_text(__import__('json').dumps(reports,indent=2))
+                      if completed.returncode: raise SystemExit(completed.returncode)
+          PY
+      - name: Test actual linked Soda APIs screens and Chromium rendering
+        env:
+          TT_QA_BROWSER: '1'
+        run: |
+          set -euo pipefail
+          export NODE_PATH="$GITHUB_WORKSPACE/node_modules"
+          export TT_QA_RESULTS="$RUNNER_TEMP/qa-results/linked-soda"
+          bash tests/accounts-v1/linked_soda_qa.sh
+      - name: Build clean candidate containing only verified source files
+        id: candidate
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os,json,hashlib,pathlib,subprocess
+          work=pathlib.Path(os.environ['RUNNER_TEMP']); manifest=json.loads((work/'source-manifest.json').read_text())
+          for f in manifest: assert hashlib.sha256(pathlib.Path(f['path']).read_bytes()).hexdigest()==f['after'],f['path']
+          subprocess.run(['git','add','--']+[f['path'] for f in manifest],check=True)
+          staged=subprocess.check_output(['git','diff','--cached','--name-only'],text=True).splitlines()
+          assert sorted(staged)==sorted(f['path'] for f in manifest)
+          PY
+          git diff --cached --check
+          git config user.name 'Transtrade QA'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'Repair linked Raw and Ready Rice Sodas, Milling arrivals and Accounts startup' -m 'Amend existing source logic. Canonical purchase products, explicit Ready Rice routing, conditional payment terms, stock-only locations, real Soda linkage, stage-safe Pohanch and Ex-Mill receipts, serialized handoff, and isolated API/DOM/browser regression coverage.'
+          test "$(git rev-parse HEAD^)" = '92c03efbfd1dcdc80920dd671bfe013e02c4ca4f'
+          git show --stat --oneline HEAD > "$RUNNER_TEMP/qa-results/candidate-summary.txt"
+          git rev-parse HEAD > "$RUNNER_TEMP/qa-results/candidate-sha.txt"
+          cp "$RUNNER_TEMP/source-manifest.json" "$RUNNER_TEMP/qa-results/"
+      - name: Publish verified candidate only (no main or production change)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          ref="qa/accounts-milling-candidate-$GITHUB_RUN_ID"
+          auth=$(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)
+          git -c "http.https://github.com/.extraheader=AUTHORIZATION: basic $auth" push origin "HEAD:refs/heads/$ref"
+          printf '%s\n' "$ref" > "$RUNNER_TEMP/qa-results/candidate-branch.txt"
+          echo "Verified candidate: $(git rev-parse HEAD)" >> "$GITHUB_STEP_SUMMARY"
+          echo "Candidate branch: $ref. Main and production unchanged." >> "$GITHUB_STEP_SUMMARY"
+      - name: Preserve test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
         with:
-          name: dom-test-dependencies
-          path: ${{ runner.temp }}/dom-test-dependencies.tgz
-          retention-days: 1
+          name: accounts-milling-repair-qa
+          path: |
+            ${{ runner.temp }}/qa-results/
+            tmp/qa/
+          if-no-files-found: warn
+          retention-days: 7
