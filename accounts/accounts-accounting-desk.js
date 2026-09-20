@@ -242,54 +242,72 @@
 
   function sodaForm(record = null) {
     const value = (key, fallback = '') => esc(record?.[key] ?? fallback);
-    const commodity = String(record?.commodity || 'RICE').toUpperCase();
     const credit = String(record?.paymentTermType || (Number(record?.creditDays || 0) ? 'CREDIT' : 'CASH')).toUpperCase();
+    const products = sodaData.purchaseProducts || [];
+    const inferredProduct = products.find(item => item.id === record?.purchaseProductId) || products.find(item => String(item.commodity) === String(record?.commodity || '') && String(item.baseVariety).toLowerCase() === String(record?.baseVariety || record?.variety || '').toLowerCase() && String(item.productStage) === String(record?.productStage || ''));
+    const productId = inferredProduct?.id || (!record ? sodaData.defaults?.rawPurchaseProductId : '');
+    const stage = inferredProduct?.productStage || String(record?.productStage || 'RAW').toUpperCase();
+    const route = stage === 'READY' ? String(record?.readyRoute || '') : 'DELIVER_TO_STOCK';
+    const locations = sodaData.locations || [];
+    const legacyLocation = locations.find(item => String(item.name).toLowerCase() === String(record?.locationName || record?.location || '').toLowerCase());
+    const locationId = record?.locationId || legacyLocation?.id || (!record && stage !== 'READY' ? sodaData.defaults?.rawLocationId : '');
+    const option = (item, selected, label) => `<option value="${esc(item.id)}"${item.id===selected?' selected':''}>${esc(label)}</option>`;
+    const productOptions = products.map(item => option(item, productId, item.displayName)).join('');
+    const brokerOptions = (sodaData.brokers || []).map(item => `<option value="${esc(item.name)}"${String(item.name).toLowerCase()===String(record?.broker||'').toLowerCase()?' selected':''}>${esc(item.name)}</option>`).join('');
+    const supplierOptions = (sodaData.suppliers || []).map(item => option(item, record?.supplierId || '', item.name)).join('');
+    const receiving = locations.filter(item => ['Own Mill','Reprocessing Mill','Warehouse','Stock Location'].includes(item.type));
+    const external = locations.filter(item => item.type === 'External Mill');
     return `<form class="tt-form" id="ttSodaForm">
       <div class="tt-form-grid">
         <label>Soda No.<input value="${value('sodaNo', sodaData.nextSodaNo || 'Generated automatically')}" readonly tabindex="-1"></label>
         <label>Soda Date<input id="ttSdDate" type="date" value="${value('sodaDate', today())}" required></label>
-        <label>Commodity<select id="ttSdCommodity"><option value="RICE"${commodity==='RICE'?' selected':''}>Rice</option><option value="CORN"${commodity==='CORN'?' selected':''}>Corn / Makai</option><option value="SESAME"${commodity==='SESAME'?' selected':''}>Sesame</option></select></label>
-        <label>Variety / Type<input id="ttSdVariety" value="${value('variety')}" placeholder="Type 1 or 2 letters" required></label>
-        <label>Broker<input id="ttSdBroker" value="${value('broker')}" placeholder="Type 1 or 2 letters" required></label>
-        <label>Supplier / Party<input id="ttSdParty" value="${value('party')}" placeholder="If different from broker"></label>
-        <label>Mill / Location<input id="ttSdLocation" value="${value('location')}" placeholder="From Mills & Locations Master"></label>
+        <label class="wide">Purchase Product<select id="ttSdProduct" required><option value="">Type to search an approved product</option>${productOptions}</select></label>
+        <label>Broker<select id="ttSdBroker" required><option value="">Type to search</option>${brokerOptions}</select></label>
+        <label>Supplier<select id="ttSdSupplier"><option value=""${record?.party&&!record?.supplierId?' selected':''}>${record?.party?esc(record.party):'Select supplier if applicable'}</option>${supplierOptions}</select></label>
+        <label id="ttSdRouteWrap" class="wide"${stage==='READY'?'':' hidden'}>Ready Rice Route<select id="ttSdRoute"><option value="">Choose route — no default</option><option value="EX_MILL"${route==='EX_MILL'?' selected':''}>EX-MILL — remains at outside mill</option><option value="DELIVER_TO_STOCK"${route==='DELIVER_TO_STOCK'?' selected':''}>DELIVER TO OUR MILL / STOCK LOCATION</option></select></label>
+        <label id="ttSdStockWrap" class="wide"${route==='EX_MILL'?' hidden':''}>Mill / Stock Location<select id="ttSdStock"><option value="">Select receiving stock location</option>${receiving.map(item=>option(item,locationId,`${item.name} · ${item.type}`)).join('')}</select></label>
+        <div id="ttSdExMillWrap" class="wide"${route==='EX_MILL'?'':' hidden'}><label>Ex-Mill Name<select id="ttSdExMill"><option value="">Type to search External Mills</option>${external.map(item=>option(item,locationId,item.name)).join('')}</select></label><div class="tt-form-actions" style="justify-content:flex-start"><button type="button" class="btn" id="ttSdAddMill"${sodaData.permissions?.canAddLocation?'':' hidden'}>+ Add External Mill</button><button type="button" class="btn" id="ttSdLinkMill"${sodaData.permissions?.canLinkSupplierMill?'':' hidden'}>Link supplier to selected Ex-Mill</button></div></div>
         <label>Expected Trucks<input id="ttSdTrucks" inputmode="numeric" value="${value('expectedTrucks')}"></label>
         <label>Minimum Quantity (MT)<input id="ttSdMin" inputmode="decimal" value="${record ? value('qtyFromMT', Number(record.qtyFromKg || 0) / 1000 || '') : ''}"></label>
         <label>Maximum Quantity (MT)<input id="ttSdMax" inputmode="decimal" value="${record ? value('qtyToMT', Number(record.qtyToKg || 0) / 1000 || '') : ''}"></label>
         <label>Rate<input id="ttSdRate" inputmode="decimal" value="${value('rate', record?.ratePerKg || '')}" required></label>
         <label>Rate Unit<select id="ttSdUnit"><option value="KG"${(record?.rateUnit||'KG')==='KG'?' selected':''}>Per kg</option><option value="MAUND"${record?.rateUnit==='MAUND'?' selected':''}>Per maund (40 kg)</option></select></label>
-        <label>Terms<select id="ttSdTerms"><option value="CASH"${credit==='CASH'?' selected':''}>Cash</option><option value="CREDIT"${credit==='CREDIT'?' selected':''}>Credit</option></select></label>
-        <label>Credit Days<input id="ttSdCredit" inputmode="numeric" value="${value('creditDays', credit==='CREDIT'?'':'')}" ${credit==='CASH'?'disabled':''}></label>
-        <label>Arrival Due Date<input id="ttSdDue" type="date" value="${value('arrivalDueDate', record?.deliveryDeadline || '')}" required></label>
+        <label>PAYMENT TERM<select id="ttSdTerms"><option value="CASH"${credit==='CASH'?' selected':''}>Cash</option><option value="CREDIT"${credit==='CREDIT'?' selected':''}>Credit</option></select></label>
+        <label id="ttSdCreditWrap"${credit==='CASH'?' hidden':''}>Credit Days<input id="ttSdCredit" inputmode="numeric" min="1" max="365" value="${value('creditDays', credit==='CREDIT'?'':'')}" ${credit==='CASH'?'disabled':''}></label>
+        <label>Expected Arrival / Delivery Date<input id="ttSdDue" type="date" value="${value('arrivalDueDate', record?.deliveryDeadline || '')}" required></label>
         <label class="wide">Terms / Conditions<input id="ttSdConditions" value="${value('terms')}"></label>
         <label class="wide">Remarks<textarea id="ttSdRemarks">${value('remarks')}</textarea></label>
         ${record ? '<label class="wide">Reason for Amendment<textarea id="ttSdReason" placeholder="Required. This is stored with the old and new values in the audit log." required></textarea></label>' : ''}
       </div>
-      <div class="tt-treatment"><strong>Accounting treatment before posting</strong><div class="tt-note">Saving a Soda creates an open purchase commitment only. It does not create a General Ledger entry.</div><div class="tt-treatment-row"><span>Later</span><span>Approved arrival bill: Inventory / Purchase</span><b>Debit</b></div><div class="tt-treatment-row"><span>Later</span><span>Broker / Supplier Payable</span><b>Credit</b></div></div>
+      <div class="tt-treatment"><strong>Accounting treatment before posting</strong><div class="tt-note">Saving a Soda creates an open purchase commitment only. It does not create a General Ledger entry.</div><div class="tt-note" id="ttSdPaymentHelp"></div><div class="tt-treatment-row"><span>Later</span><span>Approved arrival bill: Inventory / Purchase</span><b>Debit</b></div><div class="tt-treatment-row"><span>Later</span><span>Broker / Supplier Payable</span><b>Credit</b></div></div>
       <div class="tt-form-actions"><button type="button" class="btn" id="ttSdReset">Cancel</button><button type="submit" class="btn green">${record ? 'Save Amendment' : 'Save Soda'}</button></div>
     </form>`;
   }
 
-  function suggestedDue(commodity, date) {
-    const days = commodity === 'RICE' ? 8 : commodity === 'CORN' ? 10 : 0;
-    if (!date || !days) return '';
-    const d = new Date(date + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + days);
-    return d.toISOString().slice(0, 10);
-  }
-
   function bindSodaForm(host, record = null) {
     const form = q('#ttSodaForm', host);
-    const terms = q('#ttSdTerms', form), days = q('#ttSdCredit', form);
-    terms.onchange = () => { days.disabled = terms.value === 'CASH'; if (terms.value === 'CASH') days.value = ''; };
-    const setDue = () => { if (!record || !q('#ttSdDue', form).value) q('#ttSdDue', form).value = suggestedDue(q('#ttSdCommodity', form).value, q('#ttSdDate', form).value); };
-    q('#ttSdCommodity', form).onchange = setDue; q('#ttSdDate', form).onchange = setDue; setDue();
+    const terms=q('#ttSdTerms',form),days=q('#ttSdCredit',form),daysWrap=q('#ttSdCreditWrap',form),productSelect=q('#ttSdProduct',form),route=q('#ttSdRoute',form),routeWrap=q('#ttSdRouteWrap',form),stock=q('#ttSdStock',form),stockWrap=q('#ttSdStockWrap',form),exMill=q('#ttSdExMill',form),exMillWrap=q('#ttSdExMillWrap',form),supplier=q('#ttSdSupplier',form);
+    let locationTouched=!!record?.locationId;
+    const setSelect=(control,value)=>{control.value=value;const input=control.closest('.tt-search-select')?.querySelector(':scope>input');if(input)input.value=control.selectedOptions[0]?.textContent.trim()||'';};
+    const selectedProduct=()=> (sodaData.purchaseProducts||[]).find(item=>item.id===productSelect.value)||null;
+    const paymentState=()=>{const isCredit=terms.value==='CREDIT';daysWrap.hidden=!isCredit;days.disabled=!isCredit;days.required=isCredit;if(!isCredit)days.value='';q('#ttSdPaymentHelp',form).textContent=isCredit?`Payment becomes due on Arrival / Pohanch date + ${days.value||'agreed'} day(s).`:'Cash payment becomes due on Arrival / Pohanch date + 2 days.';};
+    terms.onchange=paymentState;days.oninput=paymentState;paymentState();
+    const syncRoute=(initial=false)=>{const ready=selectedProduct()?.productStage==='READY';routeWrap.hidden=!ready;if(!ready){setSelect(route,'DELIVER_TO_STOCK');setSelect(exMill,'');stockWrap.hidden=false;exMillWrap.hidden=true;if(!record&&!stock.value)setSelect(stock,sodaData.defaults?.rawLocationId||'');}else{if(!initial){setSelect(route,'');setSelect(stock,'');setSelect(exMill,'');locationTouched=false;}stockWrap.hidden=route.value!=='DELIVER_TO_STOCK';exMillWrap.hidden=route.value!=='EX_MILL';} };
+    productSelect.onchange=()=>syncRoute(false);
+    route.onchange=()=>{setSelect(stock,'');setSelect(exMill,'');locationTouched=false;syncRoute(true);if(route.value==='EX_MILL')suggestSupplierMill();};
+    stock.onchange=()=>{locationTouched=true;};exMill.onchange=()=>{locationTouched=true;};
+    const suggestSupplierMill=()=>{if(route.value!=='EX_MILL'||locationTouched)return;const row=(sodaData.suppliers||[]).find(item=>item.id===supplier.value);if(row?.linkedExternalMillId&&[...exMill.options].some(option=>option.value===row.linkedExternalMillId)){setSelect(exMill,row.linkedExternalMillId);locationTouched=false;}};
+    supplier.onchange=suggestSupplierMill;
+    q('#ttSdAddMill',form)?.addEventListener('click',async()=>{const name=prompt('External Mill name');if(!name?.trim())return;try{const result=await json(api,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'add_location',csrf:access.csrf,name:name.trim(),type:'External Mill'})});Object.assign(sodaData,result);const row=(sodaData.locations||[]).find(item=>item.id===result.locationId);if(row){exMill.add(new Option(row.name,row.id));exMill.value=row.id;exMill.dispatchEvent(new Event('change',{bubbles:true}));locationTouched=true;}}catch(error){alert(error.message);}});
+    q('#ttSdLinkMill',form)?.addEventListener('click',async()=>{if(!supplier.value||!exMill.value)return alert('Select a supplier and Ex-Mill first.');try{const result=await json(api,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'link_supplier_mill',csrf:access.csrf,supplierId:supplier.value,millId:exMill.value})});Object.assign(sodaData,result);alert('Supplier linked to the selected External Mill.');}catch(error){alert(error.message);}});
+    syncRoute(true);suggestSupplierMill();
     q('#ttSdReset', form).onclick = () => record ? renderSodaSearch(host) : q('.tt-window-close', host).click();
     form.onsubmit = async event => {
       event.preventDefault();
       const payload = {
         action: record ? 'amend' : 'create', id:record?.id || '', csrf:access.csrf, entity:entity(),
-        sodaDate:q('#ttSdDate', form).value, commodity:q('#ttSdCommodity', form).value,
-        variety:q('#ttSdVariety', form).value.trim(), broker:q('#ttSdBroker', form).value.trim(), party:q('#ttSdParty', form).value.trim(), location:q('#ttSdLocation', form).value.trim(),
+        sodaDate:q('#ttSdDate', form).value,purchaseProductId:productSelect.value,
+        broker:q('#ttSdBroker', form).value,supplierId:supplier.value,party:supplier.selectedOptions?.[0]?.textContent||'',readyRoute:route.value,locationId:route.value==='EX_MILL'?exMill.value:stock.value,
         expectedTrucks:q('#ttSdTrucks', form).value.trim(), qtyFromMT:q('#ttSdMin', form).value.trim(), qtyToMT:q('#ttSdMax', form).value.trim(),
         rate:q('#ttSdRate', form).value.trim(), rateUnit:q('#ttSdUnit', form).value, paymentTermType:terms.value, creditDays:days.value.trim(), arrivalDueDate:q('#ttSdDue', form).value,
         terms:q('#ttSdConditions', form).value.trim(), remarks:q('#ttSdRemarks', form).value.trim(), reason:q('#ttSdReason', form)?.value.trim() || ''
@@ -426,6 +444,8 @@
     installPreviousSearch();
     ensureLiveTreatments();
     document.addEventListener('click', event => { if (event.target.closest('.entityBtn')) setTimeout(refreshEntityLabels, 0); }, true);
+    document.documentElement.classList.remove('tt-accounts-boot');
+    q('#tt-accounts-boot-style')?.remove();
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, {once:true}); else init();

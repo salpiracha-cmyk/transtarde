@@ -127,7 +127,7 @@ function cb_allocate_payable(array $receiptRows,float $total,int $creditDays): a
     }
     return $alloc;
 }
-function cb_soda(array $store,string $entity,string $number): array {foreach((array)($store['purchaseSodasV2']??[]) as $s)if(is_array($s)&&($s['entity']??'')===$entity&&(string)($s['sodaNo']??'')===$number)return $s;cb_respond(['ok'=>false,'error'=>'The selected Soda is not in the approved Soda Master.'],422);}
+function cb_soda(array $store,string $entity,string $number): array {foreach(['purchaseSodas','purchaseSodasV2']as$collection)foreach((array)($store[$collection]??[]) as $s)if(is_array($s)&&($s['entity']??'')===$entity&&(string)($s['sodaNo']??'')===$number)return $s;cb_respond(['ok'=>false,'error'=>'The selected Soda is not in the approved Soda Master.'],422);}
 function cb_rule_number(array $rules,string $key,float $fallback):float{$v=$rules[$key]??$fallback;if(!is_numeric($v))cb_respond(['ok'=>false,'error'=>'KAT Master rule '.$key.' is invalid.'],422);return (float)$v;}
 function cb_brokery_rate(array $soda):?array{$broker=trim((string)($soda['broker']??''));if($broker==='')return null;foreach(tt_broker_profiles((string)($soda['sodaDate']??''),'buying')as$profile)if(strcasecmp((string)($profile['name']??''),$broker)===0&&is_array($profile['rate']??null))return $profile['rate'];return null;}
 function cb_brokery_amount(?array $rate,float $weightKg,float $bags=0):float{if(!$rate)return 0.0;$figure=(float)($rate['amount']??0);$basis=(string)($rate['basis']??'');$units=match($basis){'PER_100_KG'=>$weightKg/100,'PER_50_KG_BAG'=>$weightKg/50,'PER_BAG'=>$bags,'PER_MAUND'=>$weightKg/40,'PER_TON'=>$weightKg/1000,default=>0};return round(max(0,$units*$figure),2);}
@@ -154,7 +154,9 @@ try{
     if(!in_array($entity,['TTI','BRM'],true)) cb_respond(['ok'=>false,'error'=>'Commodity purchase bill must be posted to an authorized Pakistan entity.'],422);
     if(!tt_user_can_access_entity($user,$entity,'Create'))cb_respond(['ok'=>false,'error'=>'You do not have permission for this legal entity.'],403);
     $date=cb_date((string)($body['billDate']??''));
-    $creditDays=cb_credit_days($body['creditDays']??null);
+    // Payment timing belongs to the approved Soda and is resolved after the
+    // receipt's Soda is validated; Accounts must not enter it again on a bill.
+    $creditDays=0;
     $sourceKeys=array_values(array_unique(array_filter(array_map('strval',(array)($body['sourceKeys']??[])))));
     if(!$sourceKeys||count($sourceKeys)>100) cb_respond(['ok'=>false,'error'=>'Select at least one unbilled Pohanch receipt.'],422);
     $finalValue=cb_money($body['finalCommodityValue']??0,'Final commodity value');

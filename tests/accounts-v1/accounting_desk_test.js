@@ -23,7 +23,7 @@ assert(desk.includes("box.id = 'ttUtilityTreatment'") && desk.includes('Accounti
 assert(desk.includes('Generated automatically'), 'Soda/internal number must be system-generated');
 assert(sodaApi.includes("$action === 'amend'"), 'Soda API must support amendments');
 assert(sodaApi.includes("'reason'=>$reason") && sodaApi.includes("'changes'=>$changes"), 'Soda audit must retain reason and old/new changes');
-assert(sodaApi.includes("['RICE','CORN','SESAME']"), 'Soda must support approved commodity choices');
+assert(sodaApi.includes('tt_purchase_product_profiles()'), 'Soda must use the approved Purchase Product master instead of free-text commodity choices');
 assert(searchApi.includes("'voucherNo','journalId','billNo','invoiceNo','sodaNo','pohanch','chequeNo','reference'"), 'universal search must cover accounting and operational references');
 assert(searchApi.includes("as_text($row)"), 'universal search must include linked shipment fields such as container, B/L, vessel, line and port');
 assert(auth.includes("if (($user['role'] ?? '') === 'Super Admin') return 'index.php'"), 'Super Admin must land in the Control Centre');

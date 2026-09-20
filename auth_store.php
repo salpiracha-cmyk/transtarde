@@ -89,7 +89,7 @@ function tt_default_masters(): array {
         'export_customers'=>[],
         'business_parties'=>[],
         'parties'=>[],
-        'mills'=>[['id'=>'mills-1','values'=>['TTI Rice Mill','TTI-MILL','Own Mill','','','Active','']],['id'=>'mills-2','values'=>['Karachi Office','KHI-OFF','Office','','','Active','']]],
+        'mills'=>[['id'=>'mills-1','values'=>['TTI Rice Mills','TTI-MILL','Own Mill','','','Active','']],['id'=>'mills-2','values'=>['Karachi Office','KHI-OFF','Office','','','Active','']]],
         'banks'=>[
             ['id'=>'banks-tti','values'=>['Company Account','TTI — Transtrade International','','Transtrade International','Meezan Bank Limited','Jodia Bazar Branch, Karachi','Pakistan','PKR','','','','Pakistan operating account','Accounts / Directors; document use to be confirmed','Incomplete — enter account number/IBAN and confirm use']],
             ['id'=>'banks-brm','values'=>['Company Account','BRM — Buksh Rice Mills','','Buksh Rice Mills','Meezan Bank Limited','Karachi','Pakistan','PKR','','','','Mill / operating account','Accounts / Directors; document use to be confirmed','Incomplete — enter branch/account number/IBAN']],
@@ -264,6 +264,7 @@ function tt_normalize_masters(array $masters): array {
         if (count($values)<=4) $values=[$values[0]??'',$values[1]??'',$values[2]??'','','','Active',$values[3]??''];
         while (count($values)<7) $values[]='';
         $values[2]=tt_normalize_location_type((string)$values[2]);
+        if ((string)($row['id'] ?? '') === 'mills-1' && strcasecmp(trim((string)$values[0]), 'TTI Rice Mill') === 0) $values[0]='TTI Rice Mills';
         if (trim((string)$values[5])==='') $values[5]='Active';
         $row['values']=array_slice($values,0,7);
     }
@@ -457,6 +458,21 @@ function tt_normalize_location_type(string $type): string {
     return trim($type) ?: 'Other';
 }
 
+function tt_location_identity(string $value): string {
+    return strtolower((string)preg_replace('/[^a-z0-9]+/i','',trim($value)));
+}
+
+/** Return the existing location when a proposed name is the same or confusingly close. */
+function tt_find_location_duplicate(string $name,?array $rows=null): ?array {
+    $needle=tt_location_identity($name);if($needle==='')return null;
+    $rows=$rows??tt_active_location_masters();
+    foreach($rows as$row){if(!is_array($row))continue;$values=array_values((array)($row['values']??[]));$existing=tt_location_identity((string)($values[0]??''));if($existing==='')continue;
+        $distance=levenshtein($needle,$existing);$contains=(str_contains($needle,$existing)||str_contains($existing,$needle))&&abs(strlen($needle)-strlen($existing))<=4;
+        if($existing===$needle||($distance<=2&&min(strlen($needle),strlen($existing))>=5)||$contains)return$row;
+    }
+    return null;
+}
+
 function tt_upsert_location_master(string $name,string $type,string $source='System',string $notes=''): array {
     $name=trim(preg_replace('/\\s+/',' ',$name) ?? '');
     if ($name==='' || strlen($name)>160) throw new InvalidArgumentException('Enter a valid mill / location name.');
@@ -464,7 +480,9 @@ function tt_upsert_location_master(string $name,string $type,string $source='Sys
     $source=trim($source) ?: 'System';
     return tt_mutate_store(function (&$data) use ($name,$type,$source,$notes): array {
         if (!isset($data['masters']['mills']) || !is_array($data['masters']['mills'])) $data['masters']['mills']=[];
-        $identity=static fn(string $value): string=>strtolower((string)preg_replace('/[^a-z0-9]+/i','',trim($value)));
+        $identity=static fn(string $value): string=>tt_location_identity($value);
+        $near=tt_find_location_duplicate($name,(array)$data['masters']['mills']);
+        if(is_array($near)&&$identity((string)(($near['values']??[])[0]??''))!==$identity($name))throw new InvalidArgumentException('A similar location already exists: '.(string)(($near['values']??[])[0]??'').'. Select the existing location or amend its master record.');
         foreach ($data['masters']['mills'] as &$row) {
             $values=array_values((array)($row['values'] ?? []));
             if(count($values)<=4)$values=[$values[0]??'',$values[1]??'',$values[2]??'','','','Active',$values[3]??''];
