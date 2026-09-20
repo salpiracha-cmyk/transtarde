@@ -1,0 +1,24 @@
+name: Accounts Milling Workbench
+on:
+  push:
+    branches: ['qa/accounts-milling-20260920']
+    paths: ['.github/workflows/accounts-milling-workbench.yml']
+permissions:
+  contents: read
+jobs:
+  source-snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 92c03efbfd1dcdc80920dd671bfe013e02c4ca4f
+          persist-credentials: false
+      - name: Package tracked application source only
+        run: |
+          git archive --format=tar HEAD > "$RUNNER_TEMP/main-source.tar"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: main-source-92c03ef
+          path: ${{ runner.temp }}/main-source.tar
+          retention-days: 1
