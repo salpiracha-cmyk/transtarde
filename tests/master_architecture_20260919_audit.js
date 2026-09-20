@@ -10,6 +10,8 @@ const admin=read('admin/app.js');
 const accounts=read('accounts/index.php');
 const autocomplete=read('accounts/master-autocomplete.js');
 const docs=read('api/master_documents.php');
+const consoleHtml=read('index.html');
+const consolePhp=read('index.php');
 
 assert.match(auth,/'export_customers'=>\[\]/);
 assert.match(auth,/'business_parties'=>\[\]/);
@@ -45,5 +47,10 @@ assert.match(autocomplete,/datalist/);
 assert.match(docs,/TT_DATA_DIR\.'\/master-documents'/);
 assert.match(docs,/move_uploaded_file/);
 assert.match(docs,/set-default/);
+assert.match(consoleHtml,/admin\/app\.js\?v=20260920-purchase-hierarchy-1/,'Super Admin JavaScript cache key is current');
+assert.match(consoleHtml,/admin\/styles\.css\?v=20260920-purchase-hierarchy-1/,'Super Admin stylesheet cache key is current');
+assert.match(consolePhp,/Cache-Control: private, no-store, no-cache, must-revalidate/,'Super Admin HTML must not be cached');
+assert.match(consolePhp,/str_replace\('\<\/head\>', \$bootstrap/,'session bootstrap is independent of the asset version');
+assert.doesNotMatch(consolePhp,/20260916-console-clean-1/,'obsolete exact script replacement must not return');
 
 console.log('PASS canonical master architecture, permissions, company banks/documents, product tabs and Accounts type-ahead audit');
