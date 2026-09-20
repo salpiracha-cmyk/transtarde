@@ -328,6 +328,20 @@ function tt_broker_profiles(?string $onDate=null,string $kind='buying'): array {
     usort($out,static fn($a,$b)=>strcasecmp((string)$a['name'],(string)$b['name']));return$out;
 }
 
+/** Resolve a broker exactly as stored in Business Parties; free-text near matches never post. */
+function tt_broker_profile(string $name,?string $onDate=null,string $kind='buying'): ?array {
+    $needle=trim($name);if($needle==='')return null;
+    foreach(tt_broker_profiles($onDate,$kind)as$profile)if(strcasecmp(trim((string)($profile['name']??'')),$needle)===0)return$profile;
+    return null;
+}
+
+/** Calculate Buying/Selling Brokery from the effective Broker-profile rate. */
+function tt_brokery_amount(?array $rate,float $weightKg,float $bags=0): float {
+    if(!$rate)return 0.0;$figure=(float)($rate['amount']??0);$basis=(string)($rate['basis']??'');
+    $units=match($basis){'PER_100_KG'=>$weightKg/100,'PER_50_KG_BAG'=>$weightKg/50,'PER_BAG'=>$bags,'PER_MAUND'=>$weightKg/40,'PER_TON'=>$weightKg/1000,default=>0};
+    return round(max(0,$units*$figure),2);
+}
+
 ini_set('session.use_strict_mode', '1');
 ini_set('session.use_only_cookies', '1');
 session_name('TRANSTRADE_SESSION');

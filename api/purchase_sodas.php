@@ -132,6 +132,9 @@ function ps_validate(array $body, ?array $existing = null): array {
     $date = ps_date((string)($body['sodaDate'] ?? ''), 'Soda date');
     $broker = trim((string)($body['broker'] ?? '')); $party = trim((string)($body['party'] ?? '')); $variety = trim((string)($body['variety'] ?? ''));
     if ($broker === '' || $variety === '') ps_out(['ok'=>false, 'error'=>'Broker and variety / type are required.'], 422);
+    $brokerProfile = tt_broker_profile($broker, $date, 'buying');
+    if (!$brokerProfile) ps_out(['ok'=>false, 'error'=>'Select an active Broker profile from Business Parties.'], 422);
+    $broker = (string)$brokerProfile['name'];
     $fromRaw = trim((string)($body['qtyFromMT'] ?? '')); $toRaw = trim((string)($body['qtyToMT'] ?? '')); $trucksRaw = trim((string)($body['expectedTrucks'] ?? ''));
     if ($fromRaw === '' && $toRaw === '' && $trucksRaw === '') ps_out(['ok'=>false, 'error'=>'Enter minimum/maximum quantity, expected trucks, or both.'], 422);
     if ($toRaw !== '' && $fromRaw === '') ps_out(['ok'=>false, 'error'=>'Enter minimum quantity when using a maximum quantity.'], 422);
