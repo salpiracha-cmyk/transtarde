@@ -335,6 +335,13 @@ function tt_broker_profile(string $name,?string $onDate=null,string $kind='buyin
     return null;
 }
 
+/** Resolve an active export Indentor exactly as stored in Business Parties. Commission remains deal-specific. */
+function tt_indentor_profile(string $name): ?array {
+    $needle=trim($name);if($needle==='')return null;
+    foreach((array)(tt_list_masters()['business_parties']??[])as$row){if(!is_array($row))continue;$v=array_values((array)($row['values']??[]));while(count($v)<13)$v[]='';$categories=array_map('trim',explode(';',(string)$v[2]));if(!in_array('Indentor',$categories,true)||strcasecmp((string)$v[10],'Inactive')===0)continue;if(strcasecmp(trim((string)$v[0]),$needle)===0)return['id'=>(string)($row['id']??''),'name'=>(string)$v[0],'code'=>(string)$v[1],'status'=>(string)$v[10]];}
+    return null;
+}
+
 /** Calculate Buying/Selling Brokery from the effective Broker-profile rate. */
 function tt_brokery_amount(?array $rate,float $weightKg,float $bags=0): float {
     if(!$rate)return 0.0;$figure=(float)($rate['amount']??0);$basis=(string)($rate['basis']??'');
@@ -354,7 +361,7 @@ if (session_status() !== PHP_SESSION_ACTIVE) session_start();
 
 function tt_default_master_options(): array {
     return [
-        'party_roles'=>['Buyer','Supplier','Broker','Export Buyer','Local Buyer','Customer','Agent','Service Provider','Other'],
+        'party_roles'=>['Buyer','Supplier','Broker','Indentor','Export Buyer','Local Buyer','Customer','Agent','Service Provider','Other'],
         'product_commodities'=>['Rice','Corn','Sesame Seed'],
         'product_varieties'=>['IRRI-6','C-9','PK-386','Super Kernel Basmati','D-98','1121'],
         'product_rice_types'=>['White','Parboiled','Steam'],
