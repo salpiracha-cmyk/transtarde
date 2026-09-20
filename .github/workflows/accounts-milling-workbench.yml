@@ -6,19 +6,21 @@ on:
 permissions:
   contents: read
 jobs:
-  source-snapshot:
+  test-dependencies:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
-          ref: 92c03efbfd1dcdc80920dd671bfe013e02c4ca4f
-          persist-credentials: false
-      - name: Package tracked application source only
+          node-version: '22'
+      - name: Prepare offline DOM test dependencies
         run: |
-          git archive --format=tar HEAD > "$RUNNER_TEMP/main-source.tar"
+          cd "$RUNNER_TEMP"
+          mkdir dom-tests && cd dom-tests
+          npm install --ignore-scripts --no-audit --no-fund jsdom@27.0.0
+          tar -czf "$RUNNER_TEMP/dom-test-dependencies.tgz" node_modules package-lock.json
       - uses: actions/upload-artifact@v4
         with:
-          name: main-source-92c03ef
-          path: ${{ runner.temp }}/main-source.tar
+          name: dom-test-dependencies
+          path: ${{ runner.temp }}/dom-test-dependencies.tgz
           retention-days: 1
