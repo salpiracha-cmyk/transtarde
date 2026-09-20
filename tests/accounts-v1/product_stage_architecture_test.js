@@ -73,7 +73,7 @@ assert(milling.includes("outputStage:'FINISHED'"),'own-mill finished stage missi
 assert(milling.includes("productStage:identity.productStage"),'Pohanch stage metadata missing');
 assert(milling.includes('function millBaseVariety(name)'),'Milling still lacks canonical base-variety normalization');
 assert(milling.includes('function millRiceType(name)'),'Milling does not retain Rice Type separately');
-assert(milling.includes('let parameters=[]')&&milling.includes("x?.name||'').toLowerCase()==='broken'"),'Milling still expects one scattered row per KAT parameter');
+assert(milling.includes('function katParameterKey(value)')&&['broken','moisture','damage','chalky','paddy'].every(name=>milling.includes(`katFromMaster('${name}'`)),'Milling does not consume the complete product-specific KAT profile');
 assert(!milling.includes("m={'RAW RICE':0}"),'Milling still collapses every raw variety into one stock bucket');
 assert(milling.includes("rawStockName"),'Milling physical adjustments do not preserve their raw variety');
 assert(milling.includes("primary?(r.displayName||finished.displayName)"),'Finished stock is not derived from the FINISHED product identity');
