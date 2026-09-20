@@ -277,6 +277,15 @@
       "subledger": true
     },
     {
+      "code": "2170",
+      "name": "Export Indentor Commission Payables",
+      "class": "Liability",
+      "level": "general",
+      "normal": "Credit",
+      "subledger": true,
+      "note": "Accrue only when the related commercial invoice payment is fully received. Retain the native contract-currency amount and the applied credit-advice realization rate in journal metadata."
+    },
+    {
       "code": "2200",
       "name": "Accruals & Unbilled Liabilities",
       "class": "Liability",
@@ -520,6 +529,15 @@
       "level": "general",
       "normal": "Debit",
       "subledger": true
+    },
+    {
+      "code": "5610",
+      "name": "Export Indentor Commission",
+      "class": "Expense",
+      "level": "general",
+      "normal": "Debit",
+      "subledger": true,
+      "note": "Deal-specific Indentor commission per metric ton. Estimate from Mill loading actuals; recognize the firm payable only after full commercial-invoice payment."
     },
     {
       "code": "6000",
