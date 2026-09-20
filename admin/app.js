@@ -746,7 +746,7 @@
     const options=(items,value)=>items.map(option=>`<option value="${escapeHtml(option)}" ${option===String(value||"")?"selected":""}>${escapeHtml(option)}</option>`).join("");
     const katProfiles=(state.masters?.purchase_kat||[]).filter(row=>String(row.values?.[7]||"")!=="Inactive");
     const katOptions=[`<option value="">No KAT profile</option>`,...katProfiles.map(row=>`<option value="${escapeHtml(row.id)}" ${row.id===String(v[5]||"")?"selected":""}>${escapeHtml(row.values?.[4]||row.id)}</option>`)].join("");
-    return `<section class="master-editor-section"><div class="master-editor-heading"><div><h3>Purchase product identity</h3><p>RAW is bought for processing. READY is fully finished product bought from outside. FINAL is created only when TTI-owned RAW is processed at the own or reprocessing mill; paddy is not part of this workflow.</p></div></div><div class="master-identity-grid">
+    return `<section class="master-editor-section purchase-product-identity-section"><div class="master-editor-heading"><div><h3>Purchase product identity</h3><p>RAW is bought for processing. READY is fully finished product bought from outside. FINAL is created only when TTI-owned RAW is processed at the own or reprocessing mill; paddy is not part of this workflow.</p></div></div><div class="master-identity-grid">
       <label>Commodity<select id="${masterInputId(0)}" data-master-field-index="0" required>${options(["RICE","CORN","SESAME"],v[0])}</select></label>
       ${productOptionSelect(1,"Shared base variety / product","product_varieties",v[1]||"",true)}
       ${productOptionSelect(2,"Rice type","product_rice_types",v[2]||"",String(v[0]||"").toUpperCase()==="RICE")}
@@ -755,7 +755,7 @@
       <label>KAT profile<select id="${masterInputId(5)}" data-master-field-index="5">${katOptions}</select></label>
       <label>Status<select id="${masterInputId(8)}" data-master-field-index="8">${options(["Active","Draft – review required","Inactive"],v[8]||"Active")}</select></label>
     </div></section>
-    <section class="master-editor-section"><div class="master-editor-heading"><div><h3>How this is used</h3><p>Every variety, type and stage keeps its own stock identity and KAT. Supplier, broker, Brokery and movement location come from the Soda and broker profile. Accounts mapping is automatic and is not entered here.</p></div></div><div class="master-form-grid"><label class="full-span">Notes<textarea id="${masterInputId(9)}" data-master-field-index="9" rows="3">${escapeHtml(v[9]||"")}</textarea></label></div></section>`;
+    <section class="master-editor-section purchase-product-use-section"><div class="master-editor-heading"><div><h3>How this is used</h3><p>Every variety, type and stage keeps its own stock identity and KAT. Supplier, broker, Brokery and movement location come from the Soda and broker profile. Accounts mapping is automatic and is not entered here.</p></div></div><div class="master-form-grid"><label class="full-span">Notes<textarea id="${masterInputId(9)}" data-master-field-index="9" rows="3">${escapeHtml(v[9]||"")}</textarea></label></div></section>`;
   }
 
   function masterFieldsHtml(type, values = []) {
