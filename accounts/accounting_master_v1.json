@@ -514,6 +514,14 @@
       "subledger": true
     },
     {
+      "code": "5600",
+      "name": "Sales Brokery / Commission",
+      "class": "Expense",
+      "level": "general",
+      "normal": "Debit",
+      "subledger": true
+    },
+    {
       "code": "6000",
       "name": "OPERATING EXPENSES",
       "class": "Expense",
