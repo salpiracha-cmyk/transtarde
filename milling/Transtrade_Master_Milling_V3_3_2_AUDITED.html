@@ -87,13 +87,13 @@ table{width:100%;border-collapse:collapse;font-size:12px}th,td{padding:9px;borde
 <div class="r5" style="margin-top:11px">
 <div><label>Broker</label><input id="qBroker" list="brokerMaster"></div>
 <div><label>Station</label><input id="qStation" list="stationMaster"></div>
-<div><label>Broken %</label><input id="qBroken" inputmode="decimal" oninput="refreshBrokenKat();toggleArrivalKats()"><div id="brokenKatWrap"><label>Broken Kat (paisa)</label><input id="qBrokenKat" class="katAuto" readonly></div></div>
-<div><label>Moisture %</label><input id="qMoisture" value="15" inputmode="decimal" oninput="toggleArrivalKats()"><div id="moistKatWrap" class="hidden"><label>Moisture Kat (paisa)</label><input id="qMoistureKat" inputmode="decimal"></div></div>
-<div><label>Damage %</label><input id="qDamage" value="2" inputmode="decimal" oninput="toggleArrivalKats()"><div id="damageKatWrap" class="hidden"><label>Damage Kat (paisa)</label><input id="qDamageKat" inputmode="decimal"></div></div>
+<div><label>Broken %</label><input id="qBroken" inputmode="decimal" oninput="refreshArrivalKats()"><div id="brokenKatWrap"><label>Broken Kat (paisa)</label><input id="qBrokenKat" class="katAuto" readonly></div></div>
+<div><label>Moisture %</label><input id="qMoisture" value="15" inputmode="decimal" oninput="refreshArrivalKats()"><div id="moistKatWrap" class="hidden"><label>Moisture Kat (paisa)</label><input id="qMoistureKat" class="katAuto" readonly></div></div>
+<div><label>Damage %</label><input id="qDamage" value="2" inputmode="decimal" oninput="refreshArrivalKats()"><div id="damageKatWrap" class="hidden"><label>Damage Kat (paisa)</label><input id="qDamageKat" class="katAuto" readonly></div></div>
 </div>
 <div class="r5" style="margin-top:11px">
-<div><label>Chalky %</label><input id="qChalky" value="5" inputmode="decimal" oninput="toggleArrivalKats()"><div id="chalkyKatWrap" class="hidden"><label>Chalky Kat (paisa)</label><input id="qChalkyKat" inputmode="decimal"></div></div>
-<div><label>Paddy (grains)</label><input id="qPaddy" value="80" inputmode="numeric" oninput="toggleArrivalKats()"><div id="paddyKatWrap" class="hidden"><label>Paddy Kat (paisa)</label><input id="qPaddyKat" inputmode="decimal"></div></div>
+<div><label>Chalky %</label><input id="qChalky" value="5" inputmode="decimal" oninput="refreshArrivalKats()"><div id="chalkyKatWrap" class="hidden"><label>Chalky Kat (paisa)</label><input id="qChalkyKat" class="katAuto" readonly></div></div>
+<div><label>Paddy (grains)</label><input id="qPaddy" value="80" inputmode="numeric" oninput="refreshArrivalKats()"><div id="paddyKatWrap" class="hidden"><label>Paddy Kat (paisa)</label><input id="qPaddyKat" class="katAuto" readonly></div></div>
 <div><label>Remarks / Issues</label><input id="qOtherIssues" value="No Issues" list="issuesMaster"></div>
 <div><label style="display:flex;align-items:center;gap:8px;margin-top:22px"><input id="qRejected" type="checkbox" style="width:auto"> Truck Rejected</label></div>
 <div></div>
@@ -248,8 +248,9 @@ th{background:#f1f6f4}
     &lt;div&gt;&lt;label&gt;Soda No.&lt;/label&gt;&lt;input id=&quot;sodaNo&quot; value=&quot;LS-0004&quot; readonly&gt;&lt;/div&gt;
     &lt;div&gt;&lt;label&gt;Date&lt;/label&gt;&lt;input id=&quot;sodaDate&quot; type=&quot;date&quot;&gt;&lt;/div&gt;
     &lt;div&gt;&lt;label&gt;Buyer / Party&lt;/label&gt;&lt;input id=&quot;party&quot;&gt;&lt;/div&gt;
-    &lt;div&gt;&lt;label&gt;Broker (Optional)&lt;/label&gt;&lt;input id=&quot;broker&quot;&gt;&lt;/div&gt;
+    &lt;div&gt;&lt;label&gt;Broker (Optional)&lt;/label&gt;&lt;input id=&quot;broker&quot; list=&quot;localSellingBrokers&quot; autocomplete=&quot;off&quot;&gt;&lt;datalist id=&quot;localSellingBrokers&quot;&gt;&lt;/datalist&gt;&lt;/div&gt;
     &lt;div&gt;&lt;label&gt;Product&lt;/label&gt;&lt;select id=&quot;product&quot;&gt;&lt;option&gt;B3&lt;/option&gt;&lt;option&gt;B2 / Broken&lt;/option&gt;&lt;option&gt;CSR&lt;/option&gt;&lt;option&gt;B2 CSR&lt;/option&gt;&lt;option&gt;Powder&lt;/option&gt;&lt;option&gt;Paddy&lt;/option&gt;&lt;option&gt;Stone / Sutli / Dust&lt;/option&gt;&lt;option&gt;Ready Rice&lt;/option&gt;&lt;/select&gt;&lt;/div&gt;
+    &lt;div&gt;&lt;label&gt;Variety / Type&lt;/label&gt;&lt;input id=&quot;productIdentity&quot; list=&quot;localProductIdentities&quot; autocomplete=&quot;off&quot; placeholder=&quot;IRRI-6 White&quot;&gt;&lt;datalist id=&quot;localProductIdentities&quot;&gt;&lt;/datalist&gt;&lt;/div&gt;
     &lt;div&gt;&lt;label&gt;Total Quantity (Tons)&lt;/label&gt;&lt;input id=&quot;qtyTons&quot; inputmode=&quot;decimal&quot;&gt;&lt;/div&gt;
     &lt;div&gt;&lt;label&gt;Rate (Rs/kg)&lt;/label&gt;&lt;input id=&quot;rate&quot; inputmode=&quot;decimal&quot;&gt;&lt;/div&gt;
     &lt;div&gt;&lt;label&gt;Soda Done By&lt;/label&gt;&lt;input id=&quot;doneBy&quot;&gt;&lt;/div&gt;
@@ -286,6 +287,8 @@ th{background:#f1f6f4}
       &lt;div&gt;&lt;label&gt;Date&lt;/label&gt;&lt;input id=&quot;eDate&quot; type=&quot;date&quot;&gt;&lt;/div&gt;
       &lt;div&gt;&lt;label&gt;Buyer / Party&lt;/label&gt;&lt;input id=&quot;eParty&quot;&gt;&lt;/div&gt;
       &lt;div&gt;&lt;label&gt;Product&lt;/label&gt;&lt;input id=&quot;eProduct&quot;&gt;&lt;/div&gt;
+      &lt;div&gt;&lt;label&gt;Broker (Optional)&lt;/label&gt;&lt;input id=&quot;eBroker&quot; list=&quot;localSellingBrokers&quot; autocomplete=&quot;off&quot;&gt;&lt;/div&gt;
+      &lt;div&gt;&lt;label&gt;Variety / Type&lt;/label&gt;&lt;input id=&quot;eProductIdentity&quot; list=&quot;localProductIdentities&quot; autocomplete=&quot;off&quot;&gt;&lt;/div&gt;
       &lt;div&gt;&lt;label&gt;Total Quantity (Tons)&lt;/label&gt;&lt;input id=&quot;eTons&quot;&gt;&lt;/div&gt;
       &lt;div&gt;&lt;label&gt;Rate (Rs/kg)&lt;/label&gt;&lt;input id=&quot;eRate&quot;&gt;&lt;/div&gt;
       &lt;div&gt;&lt;label&gt;Soda Done By&lt;/label&gt;&lt;input id=&quot;eDoneBy&quot;&gt;&lt;/div&gt;
@@ -349,6 +352,7 @@ th{background:#f1f6f4}
           &lt;div&gt;&lt;label&gt;Truck Number&lt;/label&gt;&lt;input id=&quot;truck&quot; inputmode=&quot;text&quot; autocapitalize=&quot;characters&quot; autocomplete=&quot;off&quot; onblur=&quot;this.value=fmtTruck(this.value)&quot;&gt;&lt;/div&gt;
           &lt;div&gt;&lt;label&gt;Loading Date&lt;/label&gt;&lt;input id=&quot;loadDate&quot; type=&quot;date&quot;&gt;&lt;/div&gt;
           &lt;div&gt;&lt;label&gt;Loaded Quantity (kg)&lt;/label&gt;&lt;input id=&quot;loadKg&quot; inputmode=&quot;decimal&quot;&gt;&lt;/div&gt;
+          &lt;div&gt;&lt;label&gt;Bags (if applicable)&lt;/label&gt;&lt;input id=&quot;loadBags&quot; inputmode=&quot;numeric&quot;&gt;&lt;/div&gt;
           &lt;div&gt;&lt;label&gt;Remarks (Optional)&lt;/label&gt;&lt;input id=&quot;remarks&quot;&gt;&lt;/div&gt;
         &lt;/div&gt;
         &lt;div class=&quot;actions&quot;&gt;&lt;button id=&quot;saveLoadBtn&quot; onclick=&quot;saveLoad()&quot;&gt;Save Loading&lt;/button&gt;&lt;button id=&quot;cancelLoadEditBtn&quot; class=&quot;sec hidden&quot; onclick=&quot;cancelLoadEdit()&quot;&gt;Cancel Edit&lt;/button&gt;&lt;/div&gt;
@@ -370,12 +374,11 @@ th{background:#f1f6f4}
 const today=()=&gt;(parent&amp;&amp;parent.transtradeToday?parent.transtradeToday():new Intl.DateTimeFormat(&#x27;en-CA&#x27;,{timeZone:&#x27;Asia/Karachi&#x27;,year:&#x27;numeric&#x27;,month:&#x27;2-digit&#x27;,day:&#x27;2-digit&#x27;}).format(new Date()));
 sodaDate.value=today(); payDate.value=today(); loadDate.value=today();
 let sel=null,editPayIndex=null,editLoadIndex=null;
-const defaultSales=[
- {soda:&#x27;LS-0001&#x27;,date:today(),party:&#x27;Bhandi&#x27;,product:&#x27;B3&#x27;,tons:25,rate:52,doneBy:&#x27;Irfan&#x27;,pay:[{date:today(),amount:1400000,type:&#x27;Transtrade Bank&#x27;,where:&#x27;Meezan Bank&#x27;,accounts:&#x27;Pending&#x27;}],loads:[{truck:&#x27;TUE-138&#x27;,date:today(),kg:25000,remarks:&#x27;&#x27;,printed:false}],closed:false,approved:false},
- {soda:&#x27;LS-0002&#x27;,date:today(),party:&#x27;Sunny&#x27;,product:&#x27;CSR&#x27;,tons:12,rate:41,doneBy:&#x27;Irfan&#x27;,pay:[],loads:[],closed:false,approved:false}
-];
+const defaultSales=[];
 let sales=(parent&amp;&amp;parent.loadLocalPartySales)?parent.loadLocalPartySales(defaultSales):defaultSales;
-let nxt=Math.max(3,...sales.map(s=&gt;+(String(s.soda).replace(/\D/g,&#x27;&#x27;))||0))+1;
+const brokerRows=(parent?.TT_MODULE_ACCESS?.masters?.business_parties||[]).map(row=&gt;Array.isArray(row?.values)?row.values:[]),brokerNames=brokerRows.filter(v=&gt;String(v[2]||&#x27;&#x27;).split(&#x27;;&#x27;).map(x=&gt;x.trim()).includes(&#x27;Broker&#x27;)&amp;&amp;!/inactive/i.test(String(v[10]||&#x27;&#x27;))).map(v=&gt;String(v[0]||&#x27;&#x27;).trim()).filter(Boolean).sort((a,b)=&gt;a.localeCompare(b));localSellingBrokers.innerHTML=brokerNames.map(name=&gt;`&lt;option value=&quot;${name.replace(/&quot;/g,&#x27;&amp;quot;&#x27;)}&quot;&gt;&lt;/option&gt;`).join(&#x27;&#x27;);
+const productRows=(parent?.TT_MODULE_ACCESS?.masters?.purchase_products||[]).map(row=&gt;Array.isArray(row?.values)?row.values:[]),productIdentities=[...new Map(productRows.filter(v=&gt;String(v[0]||&#x27;&#x27;).toUpperCase()===&#x27;RICE&#x27;&amp;&amp;!/inactive/i.test(String(v[8]||&#x27;&#x27;))).map(v=&gt;{const base=String(v[1]||&#x27;&#x27;).trim(),type=String(v[2]||&#x27;&#x27;).trim(),label=[base,type].filter(Boolean).join(&#x27; &#x27;);return[label.toLowerCase(),{label,baseVariety:base,riceType:type}]})).values()];localProductIdentities.innerHTML=productIdentities.map(x=&gt;`&lt;option value=&quot;${x.label.replace(/&quot;/g,&#x27;&amp;quot;&#x27;)}&quot;&gt;&lt;/option&gt;`).join(&#x27;&#x27;);
+let nxt=Math.max(0,...sales.map(s=&gt;+(String(s.soda).replace(/\D/g,&#x27;&#x27;))||0))+1;
 const persistSales=()=&gt;{if(parent&amp;&amp;parent.syncLocalPartySales)parent.syncLocalPartySales(sales)};
 
 const money=n=&gt;&#x27;Rs. &#x27;+Math.round(n).toLocaleString();
@@ -418,10 +421,12 @@ function renderExcess(){
 }
 
 function saveSoda(){
- let t=+qtyTons.value||0,r=+rate.value||0,p=party.value.trim(),d=doneBy.value.trim();
+ let t=+qtyTons.value||0,r=+rate.value||0,p=party.value.trim(),b=broker.value.trim(),d=doneBy.value.trim(),identity=productIdentities.find(x=&gt;x.label.toLowerCase()===productIdentity.value.trim().toLowerCase());
+ if(b&amp;&amp;!brokerNames.some(name=&gt;name.toLowerCase()===b.toLowerCase()))return alert(&#x27;Select an active Broker profile from the list.&#x27;);
+ if(!identity)return alert(&#x27;Select the Variety / Type so this stock remains separate.&#x27;);
  if(!t||!r||!p||!d)return alert(&#x27;Party, Total Quantity in Tons, Rate and Soda Done By are required.&#x27;);
  let no=&#x27;LS-&#x27;+String(nxt++).padStart(4,&#x27;0&#x27;);
- sales.unshift({soda:no,date:sodaDate.value,party:p,product:product.value,tons:t,rate:r,doneBy:d,pay:[],loads:[],closed:false,approved:false});
+ sales.unshift({soda:no,date:sodaDate.value,party:p,broker:b,baseVariety:identity.baseVariety,riceType:identity.riceType,productStage:&#x27;FINISHED&#x27;,displayName:[identity.label,product.value].join(&#x27; · &#x27;),product:product.value,tons:t,rate:r,doneBy:d,pay:[],loads:[],closed:false,approved:false});
  sodaNo.value=&#x27;LS-&#x27;+String(nxt).padStart(4,&#x27;0&#x27;);
  newSodaForm.classList.add(&#x27;hidden&#x27;); render();openSale(no);
 }
@@ -471,7 +476,7 @@ function refresh(){
  if(window.paySummaryDetails)paySummaryDetails.innerHTML=sel.pay.length?sel.pay.slice().sort((a,b)=&gt;String(b.date).localeCompare(String(a.date))).map(p=&gt;`&lt;div class=&quot;mini&quot;&gt;&lt;b&gt;${p.date}&lt;/b&gt; — ${money(p.amount)} — ${p.where||p.type||&#x27;—&#x27;}&lt;/div&gt;`).join(&#x27;&#x27;):&#x27;&lt;div class=&quot;mini&quot;&gt;No payment received yet.&lt;/div&gt;&#x27;;
  if(window.loadSummaryDetails)loadSummaryDetails.innerHTML=sel.loads.length?sel.loads.slice().sort((a,b)=&gt;String(b.date).localeCompare(String(a.date))).map(x=&gt;`&lt;div class=&quot;mini&quot;&gt;&lt;b&gt;${x.date}&lt;/b&gt; — ${x.truck} — ${(x.kg/1000).toFixed(3)} Tons&lt;/div&gt;`).join(&#x27;&#x27;):&#x27;&lt;div class=&quot;mini&quot;&gt;No quantity loaded yet.&lt;/div&gt;&#x27;;
  let locked=sel.closed;
- [payDate,payAmount,payType,payWhere,adjustSource,truck,loadDate,loadKg,remarks,saveLoadBtn].forEach(el=&gt;el.disabled=locked);
+ [payDate,payAmount,payType,payWhere,adjustSource,truck,loadDate,loadKg,loadBags,remarks,saveLoadBtn].forEach(el=&gt;el.disabled=locked);
  editSodaBtn.disabled=locked;
  closeBtn.disabled=locked || !(sel.loads.length &amp;&amp; p&gt;=closingValue(sel));
  lockMsg.classList.toggle(&#x27;hidden&#x27;,!locked);
@@ -482,12 +487,14 @@ function refresh(){
 
 function toggleSodaEdit(){
  if(sel.closed)return;
- eDate.value=sel.date;eParty.value=sel.party;eProduct.value=sel.product;eTons.value=sel.tons;eRate.value=sel.rate;eDoneBy.value=sel.doneBy||&#x27;&#x27;;
+ eDate.value=sel.date;eParty.value=sel.party;eBroker.value=sel.broker||&#x27;&#x27;;eProductIdentity.value=[sel.baseVariety,sel.riceType].filter(Boolean).join(&#x27; &#x27;);eProduct.value=sel.product;eTons.value=sel.tons;eRate.value=sel.rate;eDoneBy.value=sel.doneBy||&#x27;&#x27;;
  sodaEdit.classList.toggle(&#x27;hidden&#x27;);
 }
 function saveSodaEdit(){
  if(sel.closed)return;
- sel.date=eDate.value;sel.party=eParty.value.trim();sel.product=eProduct.value.trim();sel.tons=+eTons.value||sel.tons;sel.rate=+eRate.value||sel.rate;sel.doneBy=eDoneBy.value.trim();
+ if(eBroker.value.trim()&amp;&amp;!brokerNames.some(name=&gt;name.toLowerCase()===eBroker.value.trim().toLowerCase()))return alert(&#x27;Select an active Broker profile from the list.&#x27;);
+ let editIdentity=productIdentities.find(x=&gt;x.label.toLowerCase()===eProductIdentity.value.trim().toLowerCase());if(!editIdentity)return alert(&#x27;Select the Variety / Type so this stock remains separate.&#x27;);
+ sel.date=eDate.value;sel.party=eParty.value.trim();sel.broker=eBroker.value.trim();sel.product=eProduct.value.trim();sel.baseVariety=editIdentity.baseVariety;sel.riceType=editIdentity.riceType;sel.productStage=&#x27;FINISHED&#x27;;sel.displayName=[editIdentity.label,sel.product].join(&#x27; · &#x27;);sel.tons=+eTons.value||sel.tons;sel.rate=+eRate.value||sel.rate;sel.doneBy=eDoneBy.value.trim();
  sodaEdit.classList.add(&#x27;hidden&#x27;);workTitle.textContent=sel.soda+&#x27; — &#x27;+sel.party+&#x27; — &#x27;+sel.product;workSub.textContent=sel.tons+&#x27; Tons @ Rs. &#x27;+sel.rate+&#x27;/kg • Soda Done By: &#x27;+(sel.doneBy||&#x27;—&#x27;);refresh();toastMsg(&#x27;Soda details updated&#x27;);
 }
 
@@ -573,7 +580,7 @@ function saveLoad(){
    return;
  }
 
- let rec={truck:t,date:loadDate.value,kg:q,remarks:remarks.value.trim(),printed:false};
+ let rec={truck:t,date:loadDate.value,kg:q,bags:+loadBags.value||0,remarks:remarks.value.trim(),printed:false};
  if(editLoadIndex===null){
    sel.loads.push(rec);
  }else{
@@ -581,7 +588,7 @@ function saveLoad(){
    sel.loads[editLoadIndex]=rec;
    editLoadIndex=null;
  }
- truck.value=&#x27;&#x27;;loadDate.value=today();loadKg.value=&#x27;&#x27;;remarks.value=&#x27;&#x27;;
+ truck.value=&#x27;&#x27;;loadDate.value=today();loadKg.value=&#x27;&#x27;;loadBags.value=&#x27;&#x27;;remarks.value=&#x27;&#x27;;
  loadEntryTitle.textContent=&#x27;Add Loading&#x27;;
  cancelLoadEditBtn.classList.add(&#x27;hidden&#x27;);
  refresh();
@@ -594,9 +601,9 @@ function saveLoad(){
 
 function editLoad(i){
  if(sel.closed)return;
- let x=sel.loads[i];editLoadIndex=i;truck.value=x.truck;loadDate.value=x.date;loadKg.value=x.kg;remarks.value=x.remarks||&#x27;&#x27;;loadEntryTitle.textContent=&#x27;Edit Loading&#x27;;cancelLoadEditBtn.classList.remove(&#x27;hidden&#x27;);
+ let x=sel.loads[i];editLoadIndex=i;truck.value=x.truck;loadDate.value=x.date;loadKg.value=x.kg;loadBags.value=x.bags||&#x27;&#x27;;remarks.value=x.remarks||&#x27;&#x27;;loadEntryTitle.textContent=&#x27;Edit Loading&#x27;;cancelLoadEditBtn.classList.remove(&#x27;hidden&#x27;);
 }
-function cancelLoadEdit(){editLoadIndex=null;truck.value=&#x27;&#x27;;loadDate.value=today();loadKg.value=&#x27;&#x27;;remarks.value=&#x27;&#x27;;loadEntryTitle.textContent=&#x27;Add Loading&#x27;;cancelLoadEditBtn.classList.add(&#x27;hidden&#x27;)}
+function cancelLoadEdit(){editLoadIndex=null;truck.value=&#x27;&#x27;;loadDate.value=today();loadKg.value=&#x27;&#x27;;loadBags.value=&#x27;&#x27;;remarks.value=&#x27;&#x27;;loadEntryTitle.textContent=&#x27;Add Loading&#x27;;cancelLoadEditBtn.classList.add(&#x27;hidden&#x27;)}
 
 function renderLoads(){
  savedLoads.innerHTML=sel.loads.length?`&lt;div class=&quot;card&quot; style=&quot;margin-top:12px&quot;&gt;&lt;h3&gt;Saved Loading Details&lt;/h3&gt;&lt;table&gt;&lt;thead&gt;&lt;tr&gt;&lt;th&gt;#&lt;/th&gt;&lt;th&gt;Date&lt;/th&gt;&lt;th&gt;Truck&lt;/th&gt;&lt;th&gt;Loaded Kg&lt;/th&gt;&lt;th&gt;Remarks&lt;/th&gt;&lt;th&gt;Gate Pass&lt;/th&gt;&lt;th&gt;Edit&lt;/th&gt;&lt;/tr&gt;&lt;/thead&gt;&lt;tbody&gt;${sel.loads.map((x,i)=&gt;`&lt;tr&gt;&lt;td&gt;${i+1}&lt;/td&gt;&lt;td&gt;${x.date}&lt;/td&gt;&lt;td&gt;${x.truck}&lt;/td&gt;&lt;td&gt;${x.kg.toLocaleString()}&lt;/td&gt;&lt;td&gt;${x.remarks||&#x27;—&#x27;}&lt;/td&gt;&lt;td&gt;&lt;button class=&quot;${x.printed?&#x27;sec&#x27;:&#x27;&#x27;}&quot; onclick=&quot;gate(${i})&quot;&gt;${x.printed?&#x27;Reprint Gate Pass&#x27;:&#x27;Print Gate Pass&#x27;}&lt;/button&gt;${x.printed?&#x27; &lt;span class=&quot;badge&quot;&gt;Printed&lt;/span&gt;&#x27;:&#x27;&#x27;}&lt;/td&gt;&lt;td&gt;${sel.closed?&#x27;Locked&#x27;:`&lt;button class=&quot;sec&quot; onclick=&quot;editLoad(${i})&quot;&gt;Edit&lt;/button&gt;`}&lt;/td&gt;&lt;/tr&gt;`).join(&#x27;&#x27;)}&lt;/tbody&gt;&lt;/table&gt;&lt;/div&gt;`:&#x27;&#x27;;
@@ -619,7 +626,7 @@ function closeMill(){
 
 function toastMsg(x){toast.textContent=x;toast.style.display=&#x27;block&#x27;;setTimeout(()=&gt;toast.style.display=&#x27;none&#x27;,1400)}
 
-qtyTons.oninput=rate.oninput=()=&gt;{let t=+qtyTons.value||0,r=+rate.value||0;estimate.value=t&amp;&amp;r?money(t*1000*r):&#x27;&#x27;};
+ qtyTons.oninput=rate.oninput=()=&gt;{let t=+qtyTons.value||0,r=+rate.value||0;estimate.value=t&amp;&amp;r?money(t*1000*r):&#x27;&#x27;};
 paymentTypeChanged();render();
 &lt;/script&gt;
 &lt;/body&gt;
@@ -776,7 +783,8 @@ function formatContainer(v){v=(v||'').toUpperCase().replace(/[^A-Z0-9]/g,'');let
 function saveArrivalDefaults(){set(ARRIVAL_DEFAULTS,{moisture:+masterMoisture.value||15,damage:+masterDamage.value||2,chalky:+masterChalky.value||5,paddy:+masterPaddy.value||80});alert('Arrival quality defaults saved.')}
 function arrivalUsesApprovedKat(){return /\bIRRI[\s-]?6\b/i.test(String(qVariety?.value||''))}
 function toggleArrivalKats(){const approved=arrivalUsesApprovedKat(),d=arrivalDefaults();document.getElementById('brokenKatWrap')?.classList.toggle('hidden',!approved);if(!approved&&window.qBrokenKat)qBrokenKat.value='';[['moistKatWrap','qMoisture','moisture','qMoistureKat'],['damageKatWrap','qDamage','damage','qDamageKat'],['chalkyKatWrap','qChalky','chalky','qChalkyKat'],['paddyKatWrap','qPaddy','paddy','qPaddyKat']].forEach(([w,i,k,kat])=>{document.getElementById(w)?.classList.toggle('hidden',!approved||+(document.getElementById(i)?.value||0)<=d[k]);if(!approved){const input=document.getElementById(kat);if(input)input.value=''}});}
-function fillMasters(){let q=get(STORE_QUEUE,[]);for(let [id,key] of [['partyMaster','party'],['brokerMaster','broker'],['stationMaster','station'],['issuesMaster','other']]){let e=document.getElementById(id);if(e)e.innerHTML=[...new Set(q.map(x=>x[key]).filter(Boolean))].map(x=>`<option value="${escHtml(x)}">`).join('')}let purchase=ttMasterValues('purchase_products').map(v=>{let legacy=/^(RAW|READY|FINISHED)$/i.test(String(v[2]||'')),commodity=String(v[0]||'').toUpperCase(),base=String(v[1]||''),type=legacy?'':String(v[2]||''),stage=String(legacy?v[2]:v[3]||'').toUpperCase(),status=String(v[8]||'Active');return{commodity,base,type,stage,status,display:[base,type,stage==='RAW'?'Raw Rice':stage==='READY'?'Ready Rice':''].filter(Boolean).join(' ')}}).filter(x=>x.commodity==='RICE'&&x.stage==='RAW'&&!/inactive/i.test(x.status));if(purchase.length&&window.qVariety){let current=qVariety.value;qVariety.innerHTML=purchase.map(x=>`<option value="${escHtml(x.display)}">${escHtml(x.display)}</option>`).join('');if([...qVariety.options].some(x=>x.value===current))qVariety.value=current}renderDirectorAlerts()}
+function masterBrokerNames(){return ttMasterValues('business_parties').filter(v=>String(v[2]||'').split(';').map(x=>x.trim()).includes('Broker')&&!/inactive/i.test(String(v[10]||''))).map(v=>String(v[0]||'').trim()).filter(Boolean)}
+function fillMasters(){let q=get(STORE_QUEUE,[]);for(let [id,key] of [['partyMaster','party'],['brokerMaster','broker'],['stationMaster','station'],['issuesMaster','other']]){let e=document.getElementById(id),master=id==='brokerMaster'?masterBrokerNames():[];if(e)e.innerHTML=[...new Set([...master,...q.map(x=>x[key])].filter(Boolean))].sort((a,b)=>a.localeCompare(b)).map(x=>`<option value="${escHtml(x)}">`).join('')}let purchase=ttMasterValues('purchase_products').map(v=>{let legacy=/^(RAW|READY|FINISHED)$/i.test(String(v[2]||'')),commodity=String(v[0]||'').toUpperCase(),base=String(v[1]||''),type=legacy?'':String(v[2]||''),stage=String(legacy?v[2]:v[3]||'').toUpperCase(),status=String(v[8]||'Active');return{commodity,base,type,stage,status,display:[base,type,stage==='RAW'?'Raw Rice':stage==='READY'?'Ready Rice':''].filter(Boolean).join(' ')}}).filter(x=>x.commodity==='RICE'&&x.stage==='RAW'&&!/inactive/i.test(x.status));if(purchase.length&&window.qVariety){let current=qVariety.value;qVariety.innerHTML=purchase.map(x=>`<option value="${escHtml(x.display)}">${escHtml(x.display)}</option>`).join('');if([...qVariety.options].some(x=>x.value===current))qVariety.value=current}renderDirectorAlerts()}
 function renderDirectorAlerts(){let body=document.getElementById('directorAlertRows');if(!body)return;let a=get(DIRECTOR_ALERTS,[]);body.innerHTML=a.length?a.slice().reverse().map(x=>`<tr><td>${escHtml(x.date)}</td><td><b>${escHtml(x.truck)}</b></td><td>${escHtml(x.reason)}</td><td><span class="badge">${escHtml(x.status)}</span></td><td>${x.status==='Pending Director Approval'?`<button class="ok" onclick="approveDuplicateAlert(${Number(x.id)||0})">Approve One Second Trip</button>`:'—'}</td></tr>`).join(''):'<tr><td colspan="5">No duplicate-truck alerts.</td></tr>'}
 function approveDuplicateAlert(id){let a=get(DIRECTOR_ALERTS,[]),x=a.find(z=>z.id===id);if(!x)return;x.status='Approved Once';x.approvedAt=nowText();x.approvedBy='Director / Master Admin';set(DIRECTOR_ALERTS,a);renderDirectorAlerts();showNonBlockingMessage('Second-trip approval granted for '+x.truck+' on '+x.date)}
 function exportTestData(){let data={};for(let i=0;i<localStorage.length;i++){let k=localStorage.key(i);if(k.startsWith('tt'))data[k]=localStorage.getItem(k)}let b=new Blob([JSON.stringify(data,null,2)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='Transtrade_Milling_Test_Data_V3_0.json';a.click()}
@@ -829,9 +837,12 @@ function validTruckNo(v){return /^[A-Z]+-[0-9]+$/.test(v)}
 function millRiceType(name){let s=String(name||'');return /PARBOIL|SELLA/i.test(s)?'Parboiled / Sella':/STEAM/i.test(s)?'Steam':/WHITE/i.test(s)?'White':''}
 function millBaseVariety(name){return String(name||'').trim().replace(/\s+(RAW|READY|FINAL|FINISHED)\s+RICE$/i,'').replace(/^READY\s+RICE\s*[—-]\s*/i,'').replace(/\s+(?:WHITE|PARBOIL(?:ED)?(?:\s*\/\s*SELLA)?|STEAM(?:ED)?|SELLA)(?:\s+RICE)?$/i,'').trim()}
 function millProductIdentity(name,stage='RAW',type=''){let base=millBaseVariety(name),riceType=type||millRiceType(name),s=String(stage||'RAW').toUpperCase();if(!['RAW','READY','FINISHED'].includes(s))s='RAW';let identity=[base,riceType].filter(Boolean).join(' ');return {baseVariety:base,riceType,productStage:s,displayName:s==='RAW'?identity+' Raw Rice':s==='READY'?identity+' Ready Rice':identity+' Rice'}}
-function brokenKatFromMaster(p){p=+p||0;if(!arrivalUsesApprovedKat())return 0;let identity=millProductIdentity(qVariety.value,'RAW'),rule=ttMasterValues('purchase_kat').find(v=>String(v[0]).toLowerCase()==='rice'&&millBaseVariety(v[1]).toLowerCase()===identity.baseVariety.toLowerCase()&&String(v[2]||'').toLowerCase()===identity.riceType.toLowerCase()&&String(v[3]||'').toUpperCase()==='RAW'&&String(v[7]).toLowerCase()==='active');if(!rule)return 0;let parameters=[];try{parameters=JSON.parse(rule[9]||'[]')}catch{}let parameter=Array.isArray(parameters)?parameters.find(x=>String(x?.name||'').toLowerCase()==='broken'):null,ranges=Array.isArray(parameter?.ranges)?parameter.ranges:[];if(!ranges.length)return 0;let kat=0;for(const band of ranges){const lo=Number(band.from||0),hi=band.to===''?p:Number(band.to),rate=Number(band.value||0);if(Number.isFinite(lo)&&Number.isFinite(hi)&&Number.isFinite(rate))kat+=Math.max(0,Math.min(p,hi)-lo)*rate}return +kat.toFixed(2)}
-let editingQueueId=null;
-function refreshBrokenKat(){qBrokenKat.value=brokenKatFromMaster(qBroken.value)}
+function katRuleFromMaster(){if(!arrivalUsesApprovedKat())return null;const identity=millProductIdentity(qVariety.value,'RAW');return ttMasterValues('purchase_kat').find(v=>String(v[0]).toLowerCase()==='rice'&&millBaseVariety(v[1]).toLowerCase()===identity.baseVariety.toLowerCase()&&String(v[2]||'').toLowerCase()===identity.riceType.toLowerCase()&&String(v[3]||'').toUpperCase()==='RAW'&&String(v[7]).toLowerCase()==='active')||null}
+function katParameterKey(value){const s=String(value||'').toLowerCase();if(s.includes('broken'))return'broken';if(/moist/.test(s))return'moisture';if(/damage|yellow|shrivel/.test(s))return'damage';if(/chalk|immature/.test(s))return'chalky';if(/paddy/.test(s))return'paddy';return''}
+function katFromMaster(parameterName,measurement){const p=Number(measurement)||0,rule=katRuleFromMaster();if(!rule)return 0;let parameters=[];try{parameters=JSON.parse(rule[9]||'[]')}catch{}const parameter=(Array.isArray(parameters)?parameters:[]).find(x=>katParameterKey(x?.name)===parameterName),ranges=Array.isArray(parameter?.ranges)?parameter.ranges:[];if(!ranges.length)return 0;let kat=0;for(const band of ranges){const lo=Number(band.from||0),rawHi=band.to,hi=rawHi===''||rawHi===null||rawHi===undefined?p:Number(rawHi),rate=Number(band.value||0);if(Number.isFinite(lo)&&Number.isFinite(hi)&&Number.isFinite(rate))kat+=Math.max(0,Math.min(p,hi)-lo)*rate}return+kat.toFixed(2)}
+function brokenKatFromMaster(p){return katFromMaster('broken',p)}
+function refreshArrivalKats(){if(window.qBrokenKat)qBrokenKat.value=katFromMaster('broken',qBroken.value);if(window.qMoistureKat)qMoistureKat.value=katFromMaster('moisture',qMoisture.value);if(window.qDamageKat)qDamageKat.value=katFromMaster('damage',qDamage.value);if(window.qChalkyKat)qChalkyKat.value=katFromMaster('chalky',qChalky.value);if(window.qPaddyKat)qPaddyKat.value=katFromMaster('paddy',qPaddy.value);toggleArrivalKats()}
+function refreshBrokenKat(){refreshArrivalKats()}
 function clearQueueForm(){
  editingQueueId=null;let d=arrivalDefaults();
  ['qVehicle','qBags','qWeight','qParty','qBroker','qStation','qBroken','qBrokenKat','qMoistureKat','qDamageKat','qChalkyKat','qPaddyKat'].forEach(id=>{let e=document.getElementById(id);if(e)e.value=''});
@@ -840,6 +851,7 @@ function clearQueueForm(){
 function addQueue(){
  let vehicle=formatTruckTyping(qVehicle.value.trim()), broker=qBroker.value.trim(), day=queueViewDate.value||today();qVehicle.value=vehicle;
  if(!vehicle||!qBags.value||!qWeight.value)return alert('Truck Number, Bags and Loading Weight are required.');
+ if(!broker||!masterBrokerNames().some(name=>name.toLowerCase()===broker.toLowerCase()))return alert('Select an active Broker profile from the searchable list.');
  if(!validTruckNo(vehicle))return alert('Truck Number must contain letters followed by numbers with the fixed hyphen, for example TUE-138.');
  if((+qBags.value||0)<=0||(+qWeight.value||0)<=0)return alert('Bags and Loading Weight must be greater than zero.');
  let all=get(STORE_QUEUE,[]);
