@@ -53,6 +53,7 @@ assert.match(auth,/function tt_indentor_profile/);
 assert.match(exportsApp,/>Indentor<\/option>/);
 assert.match(exportsApp,/Indentor Commission \/ MT/);
 assert.match(exportsApp,/indentorCommissionPerMT/);
+assert.match(exportsApp,/Enter the Indentor Commission \/ MT for this deal/);
 assert.doesNotMatch(exportsApp,/Selling Broker/);
 assert.doesNotMatch(exportAccounting,/tt_broker_profile\(\$broker,\$onBoard,'selling'\)/);
 assert.doesNotMatch(exportAccounting,/sellingBrokeryAmount/);
