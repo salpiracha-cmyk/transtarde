@@ -82,7 +82,7 @@ try {
     }
 
     $schemas=[
-        'companies'=>15,'export_customers'=>22,'business_parties'=>12,'commodities'=>8,'product_settings'=>1,'products'=>22,'purchase_products'=>10,'purchase_kat'=>10,
+        'companies'=>15,'export_customers'=>22,'business_parties'=>13,'commodities'=>8,'product_settings'=>1,'products'=>22,'purchase_products'=>10,'purchase_kat'=>10,
         'mills'=>7,'export_documents'=>5,'export_terms'=>3,
     ];
     if (!isset($schemas[$type])) throw new InvalidArgumentException('Select a valid master section.');
@@ -115,7 +115,7 @@ try {
     foreach (array_slice($raw,0,$schemas[$type]) as $fieldIndex=>$value) {
         if (is_array($value) || is_object($value)) throw new InvalidArgumentException('Master fields must contain text values.');
         $value=trim((string)$value);
-        $nested=($type==='companies'&&in_array((int)$fieldIndex,[13,14],true))||($type==='export_customers'&&in_array((int)$fieldIndex,[9,16,17,18,19],true))||($type==='purchase_kat'&&(int)$fieldIndex===9);
+        $nested=($type==='companies'&&in_array((int)$fieldIndex,[13,14],true))||($type==='export_customers'&&in_array((int)$fieldIndex,[9,16,17,18,19],true))||($type==='business_parties'&&(int)$fieldIndex===12)||($type==='purchase_kat'&&(int)$fieldIndex===9);
         $limit=$nested?50000:1200;
         if (strlen($value)>$limit) throw new InvalidArgumentException('One of the master fields is too long.');
         $values[]=$value;
@@ -180,6 +180,8 @@ try {
         $values[1]=tt_product_base($values[1]);
         $values[2]=$values[0]==='RICE'?tt_product_type($values[2]):trim($values[2]);
         $values[3]=tt_product_stage($values[3]);
+        $values[6]='';
+        $values[7]='';
         if ($values[1]==='' || !in_array($values[3],['RAW','READY'],true)) throw new InvalidArgumentException('Select a base product and choose RAW or READY. FINAL is created only by TTI/reprocessing production.');
         if (!in_array($values[0],['RICE','CORN','SESAME'],true)) throw new InvalidArgumentException('Commodity must be RICE, CORN or SESAME.');
         if ($values[0]==='RICE') {
@@ -195,6 +197,14 @@ try {
             $v=tt_purchase_product_values((array)($row['values']??[]));
             if (strtolower((string)$v[0].'|'.(string)$v[1].'|'.(string)$v[2].'|'.(string)$v[3])===$candidate) throw new InvalidArgumentException('This variety, rice type and purchase classification already exists. Edit it instead.');
         }
+    }
+    if($type==='business_parties'){
+        $categories=array_values(array_filter(array_map('trim',explode(';',(string)($values[2]??'')))));
+        if(!$categories)throw new InvalidArgumentException('Select at least one Business Party category.');
+        $profile=json_decode((string)($values[12]??'{}'),true);if(!is_array($profile))throw new InvalidArgumentException('The Brokery profile could not be read. Reopen the broker and try again.');
+        $allowedBasis=['PER_100_KG','PER_50_KG_BAG','PER_BAG','PER_MAUND','PER_TON'];
+        foreach(['buying'=>'Buying Brokery','selling'=>'Selling Brokery']as$kind=>$label){$rows=$profile[$kind]??[];if(!is_array($rows))throw new InvalidArgumentException($label.' must be a valid list.');$seen=[];foreach($rows as$row){if(!is_array($row))throw new InvalidArgumentException($label.' contains an invalid row.');$amount=(float)($row['amount']??0);$basis=(string)($row['basis']??'');$from=(string)($row['effectiveFrom']??'');if($amount<=0)throw new InvalidArgumentException($label.' figure must be greater than zero.');if(!in_array($basis,$allowedBasis,true))throw new InvalidArgumentException('Select a valid '.$label.' calculation basis.');if(!preg_match('/^\d{4}-\d{2}-\d{2}$/',$from))throw new InvalidArgumentException($label.' Effective From date is required.');if(isset($seen[$from]))throw new InvalidArgumentException($label.' already has a rate starting on '.$from.'.');$seen[$from]=true;}}
+        if(!in_array('Broker',$categories,true)&&(!empty($profile['buying'])||!empty($profile['selling'])))throw new InvalidArgumentException('Select the Broker category before saving Brokery.');
     }
     if($type==='purchase_kat'){
         $values[0]=strtoupper($values[0]);$values[1]=tt_product_base($values[1]);$values[2]=tt_product_type($values[2]);$values[3]=tt_product_stage($values[3]);
