@@ -63,7 +63,5 @@
   document.addEventListener('click', event => {
     if (!event.target.closest?.('[data-back]')) return;
     settleAccountsHome();
-    window.setTimeout(settleAccountsHome, 200);
-    window.setTimeout(settleAccountsHome, 800);
   }, true);
 })();

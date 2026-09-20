@@ -103,5 +103,7 @@
     if(e.target.closest('[data-purchase="commodity"]'))setTimeout(openCommodityBill,0);
   });
   new MutationObserver(()=>ensureMasterTabs()).observe(document.documentElement,{childList:true,subtree:true});
-  (async()=>{await load();buildEntityLanding();ensureMasterTabs()})();
+  // The accounting desk is the direct landing screen. Load its supporting
+  // data without constructing the retired company-selection screen first.
+  void load();ensureMasterTabs();
 })();

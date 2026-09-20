@@ -31,6 +31,35 @@ function ps_can_write(array $user): bool {
     return false;
 }
 
+function ps_stock_types(): array { return ['Own Mill','Reprocessing Mill','External Mill','Warehouse','Stock Location']; }
+function ps_receiving_types(): array { return ['Own Mill','Reprocessing Mill','Warehouse','Stock Location']; }
+
+function ps_locations(): array {
+    $out=[];
+    foreach(tt_active_location_masters() as$row){$v=array_values((array)($row['values']??[]));while(count($v)<7)$v[]='';$type=tt_normalize_location_type((string)$v[2]);if(!in_array($type,ps_stock_types(),true))continue;$out[]=['id'=>(string)($row['id']??''),'name'=>(string)$v[0],'code'=>(string)$v[1],'type'=>$type,'address'=>(string)$v[3],'status'=>(string)$v[5]];}
+    usort($out,static fn($a,$b)=>strcasecmp((string)$a['name'],(string)$b['name']));return$out;
+}
+
+function ps_suppliers(): array {
+    $out=[];
+    foreach((array)(tt_list_masters()['business_parties']??[])as$row){if(!is_array($row))continue;$v=array_values((array)($row['values']??[]));while(count($v)<13)$v[]='';$roles=array_map('trim',explode(';',(string)$v[2]));if(!in_array('Supplier',$roles,true)||strcasecmp((string)$v[10],'Inactive')===0)continue;$profile=json_decode((string)$v[12],true);if(!is_array($profile))$profile=[];$out[]=['id'=>(string)($row['id']??''),'name'=>(string)$v[0],'code'=>(string)$v[1],'linkedExternalMillId'=>(string)($profile['linkedExternalMillId']??'')];}
+    usort($out,static fn($a,$b)=>strcasecmp((string)$a['name'],(string)$b['name']));return$out;
+}
+
+function ps_metadata(array $user): array {
+    $products=array_values(array_filter(tt_purchase_product_profiles(),static fn($p)=>in_array((string)($p['productStage']??''),['RAW','READY'],true)));
+    $defaultProduct='';foreach($products as$p)if(($p['id']??'')==='purchase-products-rice-irri6-white-raw'){$defaultProduct=(string)$p['id'];break;}
+    $locations=ps_locations();$defaultLocation='';foreach($locations as$l)if(($l['type']??'')==='Own Mill'&&tt_location_identity((string)$l['name'])===tt_location_identity('TTI Rice Mills')){$defaultLocation=(string)$l['id'];break;}
+    return ['purchaseProducts'=>$products,'locations'=>$locations,'suppliers'=>ps_suppliers(),'brokers'=>tt_broker_profiles(null,'buying'),'defaults'=>['rawPurchaseProductId'=>$defaultProduct,'rawLocationId'=>$defaultLocation],'permissions'=>['canAddLocation'=>tt_user_can_master($user,'mills','Create'),'canLinkSupplierMill'=>tt_user_can_master($user,'business_parties','Edit')]];
+}
+
+function ps_find_location(string $id,array $locations): ?array {foreach($locations as$l)if((string)($l['id']??'')===$id)return$l;return null;}
+function ps_find_supplier(string $id,array $suppliers): ?array {foreach($suppliers as$s)if((string)($s['id']??'')===$id)return$s;return null;}
+
+function ps_link_supplier_mill(string $supplierId,string $millId): void {
+    tt_mutate_store(function (&$data) use($supplierId,$millId): void {foreach((array)($data['masters']['business_parties']??[])as&$row){if((string)($row['id']??'')!==$supplierId)continue;$v=array_values((array)($row['values']??[]));while(count($v)<13)$v[]='';$profile=json_decode((string)$v[12],true);if(!is_array($profile))$profile=[];$profile['buying']=array_values(is_array($profile['buying']??null)?$profile['buying']:[]);$profile['selling']=array_values(is_array($profile['selling']??null)?$profile['selling']:[]);$profile['linkedExternalMillId']=$millId;$v[12]=json_encode($profile,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);$row['values']=$v;unset($row);return;}unset($row);throw new InvalidArgumentException('Supplier was not found.');});
+}
+
 function ps_user_name(array $user): string {
     return (string)($user['full_name'] ?? $user['username'] ?? 'Accounts');
 }
@@ -127,11 +156,12 @@ function ps_rows(array $store, string $entity): array {
 }
 
 function ps_validate(array $body, ?array $existing = null): array {
-    $commodity = strtoupper(trim((string)($body['commodity'] ?? $existing['commodity'] ?? 'RICE')));
-    if (!in_array($commodity, ['RICE','CORN','SESAME'], true)) ps_out(['ok'=>false, 'error'=>'Select Rice, Corn / Makai or Sesame.'], 422);
+    $profiles=tt_purchase_product_profiles();$purchaseProductId=trim((string)($body['purchaseProductId']??$existing['purchaseProductId']??''));$product=tt_find_purchase_product($purchaseProductId,$profiles);
+    if(!$product||!in_array((string)($product['productStage']??''),['RAW','READY'],true))ps_out(['ok'=>false,'error'=>'Select an active Raw or Ready purchase product from Purchase Commodities & KAT.'],422);
+    $commodity=(string)$product['commodity'];$stage=(string)$product['productStage'];
     $date = ps_date((string)($body['sodaDate'] ?? ''), 'Soda date');
-    $broker = trim((string)($body['broker'] ?? '')); $party = trim((string)($body['party'] ?? '')); $variety = trim((string)($body['variety'] ?? ''));
-    if ($broker === '' || $variety === '') ps_out(['ok'=>false, 'error'=>'Broker and variety / type are required.'], 422);
+    $broker = trim((string)($body['broker'] ?? ''));$supplierId=trim((string)($body['supplierId']??''));$supplier=ps_find_supplier($supplierId,ps_suppliers());if($supplierId!==''&&!$supplier)ps_out(['ok'=>false,'error'=>'Select an active Supplier profile from Business Parties.'],422);$party=$supplier?(string)$supplier['name']:trim((string)($body['party']??''));
+    if ($broker === '') ps_out(['ok'=>false, 'error'=>'Broker is required.'], 422);
     $brokerProfile = tt_broker_profile($broker, $date, 'buying');
     if (!$brokerProfile) ps_out(['ok'=>false, 'error'=>'Select an active Broker profile from Business Parties.'], 422);
     $broker = (string)$brokerProfile['name'];
@@ -148,10 +178,15 @@ function ps_validate(array $body, ?array $existing = null): array {
     if (!in_array($unit, ['KG','MAUND'], true)) ps_out(['ok'=>false, 'error'=>'Invalid rate unit.'], 422);
     $payment = strtoupper((string)($body['paymentTermType'] ?? 'CASH'));
     if (!in_array($payment, ['CASH','CREDIT'], true)) ps_out(['ok'=>false, 'error'=>'Invalid payment terms.'], 422);
-    $creditDays = $payment === 'CREDIT' ? (int)($body['creditDays'] ?? -1) : 0;
-    if ($creditDays < 0 || $creditDays > 365) ps_out(['ok'=>false, 'error'=>'Credit days must be between 0 and 365.'], 422);
+    $creditDays = $payment === 'CREDIT' ? (int)($body['creditDays'] ?? 0) : 0;
+    if ($payment==='CREDIT'&&($creditDays < 1 || $creditDays > 365)) ps_out(['ok'=>false, 'error'=>'Credit Days are required for Credit and must be between 1 and 365.'], 422);
     $due = ps_date((string)($body['arrivalDueDate'] ?? $body['deliveryDeadline'] ?? ''), 'Arrival due date');
-    return ['commodity'=>$commodity, 'sodaDate'=>$date, 'broker'=>$broker, 'party'=>$party, 'variety'=>$variety, 'location'=>trim((string)($body['location'] ?? '')), 'qtyFromKg'=>$minimum, 'qtyToKg'=>$maximum, 'expectedTrucks'=>$trucks, 'completionBasis'=>$minimum > 0 && $trucks > 0 ? 'BOTH' : ($minimum > 0 ? 'WEIGHT' : 'TRUCKS'), 'rate'=>$rate, 'ratePerKg'=>$unit === 'MAUND' ? round($rate/40, 6) : $rate, 'rateUnit'=>$unit, 'paymentTermType'=>$payment, 'creditDays'=>$creditDays, 'arrivalDueDate'=>$due, 'deliveryDeadline'=>$due, 'terms'=>trim((string)($body['terms'] ?? '')), 'remarks'=>trim((string)($body['remarks'] ?? '')), 'maxOverToleranceKg'=>PS_MAX_OVER_KG, 'doubleTruckAboveKg'=>PS_TRUCK_DOUBLE_KG];
+    if($due<$date)ps_out(['ok'=>false,'error'=>'Expected Arrival / Delivery Date cannot be before the Soda date.'],422);
+    $route=$stage==='READY'?strtoupper(trim((string)($body['readyRoute']??''))):'DELIVER_TO_STOCK';if($stage==='READY'&&!in_array($route,['EX_MILL','DELIVER_TO_STOCK'],true))ps_out(['ok'=>false,'error'=>'Choose whether Ready Rice remains at the Ex-Mill or is delivered to our mill / stock location.'],422);
+    $locationId=trim((string)($body['locationId']??''));$location=ps_find_location($locationId,ps_locations());if(!$location)ps_out(['ok'=>false,'error'=>'Select an active stock-holding mill / location. Office locations are not allowed.'],422);
+    if($route==='EX_MILL'&&($location['type']??'')!=='External Mill')ps_out(['ok'=>false,'error'=>'Select an External Mill for the Ex-Mill route.'],422);
+    if($route==='DELIVER_TO_STOCK'&&!in_array((string)($location['type']??''),ps_receiving_types(),true))ps_out(['ok'=>false,'error'=>'Select an own mill, reprocessing mill, warehouse or stock location for delivery.'],422);
+    return ['commodity'=>$commodity,'purchaseProductId'=>$purchaseProductId,'baseVariety'=>(string)$product['baseVariety'],'riceType'=>(string)$product['riceType'],'productStage'=>$stage,'displayName'=>(string)$product['displayName'],'katProfile'=>(string)$product['katProfile'],'sodaDate'=>$date,'broker'=>$broker,'supplierId'=>$supplierId,'party'=>$party,'variety'=>(string)$product['baseVariety'],'readyRoute'=>$route,'movementRole'=>$route==='EX_MILL'?'LIFT_FROM':'DELIVER_TO','locationId'=>(string)$location['id'],'location'=>(string)$location['name'],'locationName'=>(string)$location['name'],'locationType'=>(string)$location['type'],'locationAddress'=>(string)$location['address'],'exMillId'=>$route==='EX_MILL'?(string)$location['id']:'','qtyFromKg'=>$minimum,'qtyToKg'=>$maximum,'expectedTrucks'=>$trucks,'completionBasis'=>$minimum > 0 && $trucks > 0 ? 'BOTH' : ($minimum > 0 ? 'WEIGHT' : 'TRUCKS'),'rate'=>$rate,'ratePerKg'=>$unit === 'MAUND' ? round($rate/40, 6) : $rate,'rateUnit'=>$unit,'paymentTermType'=>$payment,'creditDays'=>$creditDays,'arrivalDueDate'=>$due,'deliveryDeadline'=>$due,'terms'=>trim((string)($body['terms']??'')),'remarks'=>trim((string)($body['remarks']??'')),'maxOverToleranceKg'=>PS_MAX_OVER_KG,'doubleTruckAboveKg'=>PS_TRUCK_DOUBLE_KG];
 }
 
 try {
@@ -161,7 +196,7 @@ try {
         $entity = strtoupper(trim((string)($_GET['entity'] ?? 'TTI')));
         if (!in_array($entity, ['TTI','BRM'], true)) ps_out(['ok'=>false, 'error'=>'Sodas are available only in the selected Pakistan legal books.'], 422);
         $store = ps_read();
-        ps_out(['ok'=>true, 'sodas'=>ps_rows($store,$entity), 'nextSodaNo'=>ps_next_no((array)$store['purchaseSodas']), 'rules'=>['doubleTruckAboveKg'=>PS_TRUCK_DOUBLE_KG, 'maxOverKg'=>PS_MAX_OVER_KG]]);
+        ps_out(['ok'=>true, 'sodas'=>ps_rows($store,$entity), 'nextSodaNo'=>ps_next_no((array)$store['purchaseSodas']), 'rules'=>['doubleTruckAboveKg'=>PS_TRUCK_DOUBLE_KG, 'maxOverKg'=>PS_MAX_OVER_KG]]+ps_metadata($user));
     }
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') ps_out(['ok'=>false, 'error'=>'Method not allowed.'], 405);
     $body = json_decode(file_get_contents('php://input') ?: '', true);
@@ -169,6 +204,12 @@ try {
     $action = (string)($body['action'] ?? '');
     // The approved Accounts rule allows every Accounts user to amend a Soda.
     // Create and status controls continue to respect the user's write permission.
+    if($action==='add_location'){
+        if(!tt_user_can_master($user,'mills','Create'))ps_out(['ok'=>false,'error'=>'Mill / Location Master Create permission required.'],403);$name=trim((string)($body['name']??''));$type=tt_normalize_location_type((string)($body['type']??''));if(!in_array($type,ps_stock_types(),true))ps_out(['ok'=>false,'error'=>'Only a stock-holding location can be added here.'],422);$duplicate=tt_find_location_duplicate($name);if(is_array($duplicate))ps_out(['ok'=>false,'error'=>'A matching or similar location already exists: '.(string)(($duplicate['values']??[])[0]??'').'. Select it instead.'],409);$row=tt_upsert_location_master($name,$type,'Accounts Soda Centre','Added from the route selector.');ps_out(['ok'=>true,'locationId'=>(string)($row['id']??'')]+ps_metadata($user));
+    }
+    if($action==='link_supplier_mill'){
+        if(!tt_user_can_master($user,'business_parties','Edit'))ps_out(['ok'=>false,'error'=>'Business Parties Edit permission required.'],403);$supplierId=trim((string)($body['supplierId']??''));$millId=trim((string)($body['millId']??''));$supplier=ps_find_supplier($supplierId,ps_suppliers());$mill=ps_find_location($millId,ps_locations());if(!$supplier||!$mill||($mill['type']??'')!=='External Mill')ps_out(['ok'=>false,'error'=>'Select a valid supplier and External Mill.'],422);ps_link_supplier_mill($supplierId,$millId);ps_out(['ok'=>true]+ps_metadata($user));
+    }
     if ($action !== 'amend' && !ps_can_write($user)) ps_out(['ok'=>false, 'error'=>'Accounts Create or Edit permission required.'], 403);
     $entity = strtoupper(trim((string)($body['entity'] ?? 'TTI')));
     if (!in_array($entity, ['TTI','BRM'], true)) ps_out(['ok'=>false, 'error'=>'Invalid legal entity.'], 422);
@@ -210,7 +251,7 @@ try {
         $store['revision'] = (int)($store['revision'] ?? 0) + 1;
         rewind($handle); ftruncate($handle, 0); fwrite($handle, json_encode($store, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR)); fflush($handle);
     } finally { flock($handle, LOCK_UN); fclose($handle); }
-    ps_out(['ok'=>true, 'sodas'=>ps_rows($store,$entity), 'nextSodaNo'=>ps_next_no((array)$store['purchaseSodas']), 'created'=>$created]);
+    ps_out(['ok'=>true, 'sodas'=>ps_rows($store,$entity), 'nextSodaNo'=>ps_next_no((array)$store['purchaseSodas']), 'created'=>$created]+ps_metadata($user));
 } catch (Throwable $error) {
     error_log('purchase_sodas: ' . $error->getMessage());
     ps_out(['ok'=>false, 'error'=>'Soda control is temporarily unavailable.'], 500);
