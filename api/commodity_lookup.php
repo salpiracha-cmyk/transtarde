@@ -78,6 +78,7 @@ try {
             'productStage'=>(string)($meta['productStage'] ?? $identity['productStage']),
             'displayName'=>(string)($meta['displayName'] ?? $identity['displayName']),
             'stageInferred'=>!isset($meta['productStage']),
+            'bags'=>(float)($meta['bags'] ?? 0),
             'payableWeightKg'=>(float)($meta['payableWeightKg'] ?? 0),
             'grossRatePerKg'=>(float)($meta['grossRatePerKg'] ?? 0),
             'katPaisaPerKg'=>(float)($meta['katPaisaPerKg'] ?? 0),

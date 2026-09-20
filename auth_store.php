@@ -56,11 +56,11 @@ function tt_default_masters(): array {
         // separate. RAW is bought for processing; READY is finished rice bought
         // from an ex-mill. FINAL is created only by own/reprocessing production.
         'purchase_products'=>[
-            ['id'=>'purchase-products-rice-irri6-white-raw','values'=>['RICE','IRRI-6','White','RAW','KG','purchase-kat-rice-irri6-white-raw','As per approved Rice KAT','1310','Active','Externally purchased IRRI-6 White Raw Rice for processing at TTI or a selected reprocessing mill.']],
-            ['id'=>'purchase-products-rice-irri6-white-ready','values'=>['RICE','IRRI-6','White','READY','KG','','As agreed on Soda','1310','Active','Finished IRRI-6 White Ready Rice purchased from an ex-mill; exportable without TTI/reprocessing conversion.']],
-            ['id'=>'purchase-products-corn-raw','values'=>['CORN','Corn / Makai','','RAW','MAUND','CORN','Rs 10 per 100 kg','1310','Active','Karachi weighbridge weight is authoritative.']],
-            ['id'=>'purchase-products-sesame-raw','values'=>['SESAME','Sesame','','RAW','MAUND','SESAME_RAW','Rs 10 per maund','1310','Active','Raw sesame purchase.']],
-            ['id'=>'purchase-products-sesame-ready','values'=>['SESAME','Sesame','','READY','MAUND','SESAME_READY','Rs 15 per maund','1310','Active','Ready sesame purchase.']],
+            ['id'=>'purchase-products-rice-irri6-white-raw','values'=>['RICE','IRRI-6','White','RAW','KG','purchase-kat-rice-irri6-white-raw','','','Active','Externally purchased IRRI-6 White Raw Rice for processing at TTI or a selected reprocessing mill.']],
+            ['id'=>'purchase-products-rice-irri6-white-ready','values'=>['RICE','IRRI-6','White','READY','KG','','','','Active','Finished IRRI-6 White Ready Rice purchased from an ex-mill; exportable without TTI/reprocessing conversion.']],
+            ['id'=>'purchase-products-corn-raw','values'=>['CORN','Corn / Makai','','RAW','MAUND','CORN','','','Active','Karachi weighbridge weight is authoritative.']],
+            ['id'=>'purchase-products-sesame-raw','values'=>['SESAME','Sesame','','RAW','MAUND','SESAME_RAW','','','Active','Raw sesame purchase.']],
+            ['id'=>'purchase-products-sesame-ready','values'=>['SESAME','Sesame','','READY','MAUND','SESAME_READY','','','Active','Ready sesame purchase.']],
         ],
         'purchase_kat'=>[
             ['id'=>'purchase-kat-rice-irri6-white-raw','values'=>['RICE','IRRI-6','White','RAW','IRRI-6 White Raw KAT','','','Draft – review required','Only confirmed parameter/range rows may be activated. “Paddy grains in rice” is a quality count, not a paddy purchase.','[{"name":"Broken","freeAllowance":"20%","unit":"paisa per %","instruction":"","ranges":[{"from":"20","to":"30","value":"1","unit":"paisa per %"},{"from":"30","to":"35","value":"3","unit":"paisa per %"},{"from":"35","to":"40","value":"8","unit":"paisa per %"},{"from":"40","to":"45","value":"15","unit":"paisa per %"},{"from":"45","to":"50","value":"20","unit":"paisa per %"},{"from":"50","to":"55","value":"25","unit":"paisa per %"},{"from":"55","to":"60","value":"40","unit":"paisa per %"}]},{"name":"Chalky","freeAllowance":"5% operational default","unit":"paisa per %","instruction":"Earlier discussion included 4%; confirm before activation.","ranges":[{"from":"5","to":"","value":"10","unit":"paisa per %"}]},{"name":"Damage / Yellow","freeAllowance":"2%","unit":"paisa per %","instruction":"","ranges":[{"from":"2","to":"5","value":"10","unit":"paisa per %"},{"from":"5","to":"","value":"25","unit":"paisa per %"}]},{"name":"Moisture","freeAllowance":"14%","unit":"weight %","instruction":"Above 16% remains manual/reject until confirmed.","ranges":[{"from":"14","to":"14.5","value":"0.5","unit":"weight %"},{"from":"14.5","to":"15","value":"1","unit":"weight %"},{"from":"15","to":"16","value":"2","unit":"weight %"}]},{"name":"Paddy grains in rice","freeAllowance":"80 grains operational default","unit":"No. of Grains","instruction":"No final automatic KAT slab confirmed.","ranges":[]}]']],
@@ -222,6 +222,10 @@ function tt_normalize_masters(array $masters): array {
     unset($row);
     foreach ($masters['purchase_products'] as &$row) {
         $row['values']=tt_purchase_product_values((array)($row['values'] ?? []));
+        // Brokery belongs to the Broker profile and stock accounts are system mapped.
+        // Clear the retired product-level fields while preserving row shape and history.
+        $row['values'][6]='';
+        $row['values'][7]='';
     }
     unset($row);
     foreach ($productDefaults as $code=>$row) if (empty($seenProducts[$code])) $masters['products'][]=$row;
@@ -246,9 +250,11 @@ function tt_normalize_masters(array $masters): array {
     foreach (['business_parties'] as $simpleType) {
         foreach ($masters[$simpleType] as &$row) {
             $values=array_values((array)($row['values'] ?? []));
-            if (count($values)===3) $values=[$values[0] ?? '',$values[1] ?? '',$values[2] ?? '',''];
-            while (count($values)<4) $values[]='';
-            $row['values']=$values;
+            if(count($values)<=4){$values=[$values[0]??'',$values[1]??'',$values[2]??'','','','','','','','','Active',$values[3]??'','{"buying":[],"selling":[]}'];}
+            while (count($values)<13) $values[]='';
+            if(trim((string)$values[10])==='')$values[10]='Active';
+            $profile=json_decode((string)$values[12],true);if(!is_array($profile))$profile=[];$profile['buying']=array_values(is_array($profile['buying']??null)?$profile['buying']:[]);$profile['selling']=array_values(is_array($profile['selling']??null)?$profile['selling']:[]);$values[12]=json_encode($profile,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);
+            $row['values']=array_slice($values,0,13);
         }
         unset($row);
     }
@@ -312,6 +318,14 @@ function tt_normalize_masters(array $masters): array {
 function tt_visible_masters(array $masters): array {
     $visible=['companies','export_customers','business_parties','commodities','product_settings','products','purchase_products','purchase_kat','export_documents','export_terms','mills','banks'];
     return array_intersect_key(tt_normalize_masters($masters),array_flip($visible));
+}
+
+/** Active broker profiles used by Soda and accounting. Brokery is owned here, never by a product or KAT rule. */
+function tt_broker_profiles(?string $onDate=null,string $kind='buying'): array {
+    $date=$onDate!==null&&preg_match('/^\d{4}-\d{2}-\d{2}$/',$onDate)?$onDate:(new DateTimeImmutable('now',new DateTimeZone('Asia/Karachi')))->format('Y-m-d');
+    $kind=$kind==='selling'?'selling':'buying';$out=[];
+    foreach((array)(tt_list_masters()['business_parties']??[])as$row){if(!is_array($row))continue;$v=array_values((array)($row['values']??[]));while(count($v)<13)$v[]='';$categories=array_map('trim',explode(';',(string)$v[2]));if(!in_array('Broker',$categories,true)||strcasecmp((string)$v[10],'Inactive')===0)continue;$profile=json_decode((string)$v[12],true);$rates=is_array($profile)&&is_array($profile[$kind]??null)?$profile[$kind]:[];$active=[];foreach($rates as$rate){if(!is_array($rate)||strcasecmp((string)($rate['status']??'Active'),'Inactive')===0)continue;$from=(string)($rate['effectiveFrom']??'');if($from!==''&&$from<=$date)$active[]=$rate;}usort($active,static fn($a,$b)=>strcmp((string)($b['effectiveFrom']??''),(string)($a['effectiveFrom']??'')));$rate=$active[0]??null;$out[]=['id'=>(string)($row['id']??''),'name'=>(string)$v[0],'code'=>(string)$v[1],'kind'=>$kind,'rate'=>$rate,'status'=>(string)$v[10]];}
+    usort($out,static fn($a,$b)=>strcasecmp((string)$a['name'],(string)$b['name']));return$out;
 }
 
 ini_set('session.use_strict_mode', '1');
@@ -724,6 +738,7 @@ function tt_user_can_access_masters(array $user): bool {
 function tt_user_can_master(array $user,string $type,string $action='View'): bool {
     if (($user['role'] ?? '')==='Super Admin') return true;
     if (!tt_user_can_access_masters($user)) return false;
+    if (in_array($type,['purchase_kat','commodities'],true)) $type='purchase_products';
     $actions=(array)($user['master_permissions'][$type] ?? []);
     if (in_array($action,$actions,true)) return true;
     return $action==='View' && (bool)array_intersect(['Create','Edit','Deactivate','View Documents','Download Documents'],$actions);

@@ -45,5 +45,5 @@
   async function mount(){const editor=q('#purchaseEditor');if(!editor)return;try{await loadData();render()}catch(e){editor.dataset.ttSmartBills='v2';editor.innerHTML=`<div class="formCard"><h3>Rice & Corn Purchase Bills</h3><div class="note">${esc(e.message||'Could not load Pohanch history.')}</div></div>`}}
   document.addEventListener('click',e=>{if(e.target.closest('.appCard[data-key="purchases"]'))setTimeout(mount,130);if(e.target.closest('[data-tt-entity]')){state.loadedEntity='';state.selected.clear()}},false);
   const mo=new MutationObserver(()=>{const ed=q('#purchaseEditor');if(ed&&ed.dataset.ttSmartBills!=='v2'&&/Commodity Purchase Bill|Receipt Linked/i.test(ed.textContent||''))setTimeout(mount,20)});mo.observe(document.documentElement,{childList:true,subtree:true});
-  window.TT_SMART_COMMODITY_BILLS_V2={mount,reload:()=>loadData(true).then(render)};
+  window.TT_SMART_COMMODITY_BILLS_V2={mount,reload:()=>loadData(true).then(render),selectionRows:()=>selectionRows().map(row=>({...row}))};
 })();

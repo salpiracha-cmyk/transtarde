@@ -33,8 +33,17 @@ assert(admin.includes('name: "Purchase Commodities & KAT"'),'combined Purchase C
 assert(admin.includes('["products","purchase_products"]'),'separate Commodity and KAT menu entries were not merged');
 assert(admin.includes('options: ["RAW", "READY"]'),'new purchase setup still offers FINISHED');
 assert(masterApi.includes("!in_array($values[3],['RAW','READY'],true)"),'purchase API does not enforce RAW/READY');
-assert(admin.includes('data-add-product-option')&&admin.includes('data-delete-product-option'),'product option + / − controls missing');
+assert(admin.includes('data-manage-product-option')&&admin.includes('data-add-product-option')&&admin.includes('data-delete-product-option'),'managed product dropdown controls missing');
 assert(admin.includes('optionAction:"delete"'),'product dropdown deactivation is not wired');
+assert(admin.includes('data-purchase-commodity')&&admin.includes('data-purchase-stage'),'purchase hierarchy is not product then RAW/READY');
+assert(admin.includes('data-edit-product-kat'),'KAT rules are not opened from the exact purchase product');
+assert(!admin.includes('<label>Brokerage rule<input'),'product master still asks the user for a brokerage rule');
+assert(!admin.includes('<label>Inventory account<input'),'product master still asks the user for an inventory account');
+assert(admin.includes('Buying Brokery')&&admin.includes('Selling Brokery'),'broker profile does not contain both Brokery tabs');
+for(const basis of ['PER_100_KG','PER_50_KG_BAG','PER_BAG','PER_MAUND','PER_TON'])assert(admin.includes(basis),`missing Brokery basis ${basis}`);
+assert(masters.includes('function tt_broker_profiles'),'broker profile resolver is missing');
+assert(commodityBills.includes('cb_brokery_rate'),'commodity billing does not resolve Buying Brokery from the broker profile');
+assert(!workflows.includes('brokerageRsPer100Kg')&&!workflows.includes('brokerageRsPerMaund'),'KAT rules still own Brokery rates');
 
 assert(workflows.includes("'purchaseProducts'=>tt_purchase_product_profiles()"),'Soda API does not expose Purchase Products');
 assert(workflows.includes("'purchaseProductId'=>$purchaseProduct['id']"),'Soda does not persist the selected Purchase Product');

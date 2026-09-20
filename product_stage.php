@@ -92,7 +92,7 @@ function tt_purchase_product_profiles(?array $masters=null): array {
     foreach($rows as $row){
         if(!is_array($row))continue;$v=tt_purchase_product_values((array)($row['values']??[]));
         $stage=tt_product_stage((string)$v[3]);if($stage===''||strcasecmp((string)$v[8],'Inactive')===0)continue;
-        $out[]=['id'=>(string)($row['id']??''),'commodity'=>(string)$v[0],'baseVariety'=>(string)$v[1],'riceType'=>(string)$v[2],'productStage'=>$stage,'purchaseClassification'=>$stage,'displayName'=>tt_product_display((string)$v[0],(string)$v[1],$stage,(string)$v[2]),'purchaseUnit'=>(string)$v[4],'katProfile'=>(string)$v[5],'brokerageRule'=>(string)$v[6],'inventoryAccount'=>(string)$v[7],'status'=>(string)$v[8],'notes'=>(string)$v[9]];
+        $out[]=['id'=>(string)($row['id']??''),'commodity'=>(string)$v[0],'baseVariety'=>(string)$v[1],'riceType'=>(string)$v[2],'productStage'=>$stage,'purchaseClassification'=>$stage,'displayName'=>tt_product_display((string)$v[0],(string)$v[1],$stage,(string)$v[2]),'purchaseUnit'=>(string)$v[4],'katProfile'=>(string)$v[5],'status'=>(string)$v[8],'notes'=>(string)$v[9]];
     }
     return $out;
 }
