@@ -243,8 +243,12 @@
     select.parentNode.insertBefore(wrap, select);
     wrap.append(input, select, menu);
     const selectedText = () => select.selectedOptions[0]?.textContent.trim() || '';
+    const closeMenus = () => qa('.tt-select-menu').forEach(candidate => {
+      if (candidate !== menu) candidate.hidden = true;
+    });
     input.value = selectedText();
     const render = () => {
+      closeMenus();
       const term = input.value.trim().toLowerCase();
       let options = qa('option', select).filter(option => !option.disabled && option.value !== '');
       const starts = options.filter(option => option.textContent.trim().toLowerCase().startsWith(term));

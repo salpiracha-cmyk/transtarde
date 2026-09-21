@@ -48,7 +48,7 @@ function ps_suppliers(): array {
 
 function ps_metadata(array $user): array {
     $products=array_values(array_filter(tt_purchase_product_profiles(),static fn($p)=>in_array((string)($p['productStage']??''),['RAW','READY'],true)));
-    $defaultProduct='';foreach($products as$p)if(($p['id']??'')==='purchase-products-rice-irri6-white-raw'){$defaultProduct=(string)$p['id'];break;}
+    $defaultProduct='';foreach($products as$p)if(($p['id']??'')==='purchase-products-rice-irri6-white-raw'||((string)($p['commodity']??'')==='RICE'&&strcasecmp((string)($p['baseVariety']??''),'IRRI-6')===0&&strcasecmp((string)($p['riceType']??''),'White')===0&&(string)($p['productStage']??'')==='RAW')){$defaultProduct=(string)$p['id'];break;}
     $locations=ps_locations();$defaultLocation='';foreach($locations as$l)if(($l['type']??'')==='Own Mill'&&tt_location_identity((string)$l['name'])===tt_location_identity('TTI Rice Mills')){$defaultLocation=(string)$l['id'];break;}
     return ['purchaseProducts'=>$products,'locations'=>$locations,'suppliers'=>ps_suppliers(),'brokers'=>tt_broker_profiles(null,'buying'),'defaults'=>['rawPurchaseProductId'=>$defaultProduct,'rawLocationId'=>$defaultLocation],'permissions'=>[
         'canAddLocation'=>tt_user_can_master($user,'mills','Create'),'canRemoveLocation'=>tt_user_can_master($user,'mills','Deactivate'),
