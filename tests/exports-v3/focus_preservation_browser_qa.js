@@ -103,11 +103,14 @@ async function check(name,fn){await fn();results.push(name);console.log('PASS '+
    assert.equal(await page.evaluate(()=>modal===document.querySelector('[data-modal]')),true);
    await page.locator('[data-modal-close]').first().click();
   });
+  // Isolate inbound polling from the prior editor tests and their throttle/retry timers.
+  const overview=await pageFor();
   await check('Incoming Exports change refreshes lot overview without returning home',async()=>{
-   await page.evaluate(STORE=>{__focusQA.open('L-FOCUS');remoteChange(STORE,v=>{v.shipments.find(s=>s.id==='L-FOCUS').buyer='UPDATED BUYER';return v});focusReturn()},STORE);
-   await page.waitForFunction(()=>__focusQA.snapshot().state.shipments.find(s=>s.id==='L-FOCUS').buyer==='UPDATED BUYER');
-   assert.equal(await page.evaluate(()=>__focusQA.snapshot().view),'shipments');assert.equal(await page.evaluate(()=>__focusQA.snapshot().currentShipmentId),'L-FOCUS');
+   await overview.evaluate(STORE=>{__focusQA.open('L-FOCUS');remoteChange(STORE,v=>{v.shipments.find(s=>s.id==='L-FOCUS').buyer='UPDATED BUYER';return v});focusReturn()},STORE);
+   await overview.waitForFunction(()=>__focusQA.snapshot().state.shipments.find(s=>s.id==='L-FOCUS').buyer==='UPDATED BUYER');
+   assert.equal(await overview.evaluate(()=>__focusQA.snapshot().view),'shipments');assert.equal(await overview.evaluate(()=>__focusQA.snapshot().currentShipmentId),'L-FOCUS');
   });
+  await overview.close();
   await check('Home search query, filter and cursor survive refreshed data',async()=>{
    await page.evaluate(()=>__focusQA.home());await page.locator('#homeSearch').fill('NO-MATCH');
    await page.evaluate(()=>{homeSearch.focus();homeSearch.setSelectionRange(2,4);dispatchEvent(new CustomEvent('tt:shared-updated'))});
