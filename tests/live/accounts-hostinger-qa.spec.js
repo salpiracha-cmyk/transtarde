@@ -92,6 +92,14 @@ test('authenticated Accounts live smoke: professional desk and popup workflows',
   await expect(page.locator('#ttSodaLayer')).toBeVisible();
   await expect(page.locator('#ttSodaForm')).toBeVisible({ timeout: 30_000 });
   await expect(page.locator('#ttSodaForm').getByText(/does not create a General Ledger entry/i)).toBeVisible();
+  await expect(page.locator('#ttSdProduct')).not.toHaveValue('');
+  await expect(page.locator('#ttSdProduct option:checked')).toContainText(/IRRI-6.*White.*Raw/i);
+  await expect(page.locator('#ttSdStock')).not.toHaveValue('');
+  await expect(page.locator('#ttSdStock option:checked')).toContainText(/TTI Rice Mills/i);
+  await page.locator('#ttSdProduct').locator('xpath=..').locator(':scope > input').focus();
+  await expect(page.locator('#ttSdProduct').locator('xpath=..').locator('.tt-select-menu')).toBeVisible();
+  await page.locator('#ttSdStock').locator('xpath=..').locator(':scope > input').focus();
+  await expect(page.locator('#ttSdProduct').locator('xpath=..').locator('.tt-select-menu')).toBeHidden();
   await activate(page.locator('#ttSodaLayer [data-soda-mode="search"]'));
   await expect(page.locator('#ttSodaSearch')).toBeVisible();
   await activate(page.locator('#ttSodaLayer .tt-window-close'));

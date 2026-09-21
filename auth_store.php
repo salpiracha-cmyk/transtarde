@@ -146,7 +146,31 @@ function tt_normalize_masters(array $masters): array {
     // unusable.  Restore only the system-owned starter identities; user
     // entered rows and inactive history remain untouched.
     foreach (['purchase_products','mills'] as $requiredType) {
-        if (count((array)$masters[$requiredType])===0) $masters[$requiredType]=$defaults[$requiredType];
+        if (count((array)$masters[$requiredType])===0) {
+            $masters[$requiredType]=$defaults[$requiredType];
+            continue;
+        }
+        // A legacy store can be non-empty but still pre-date the system-owned
+        // identities used by Soda defaults. Add only missing starter IDs; do
+        // not replace, reactivate or otherwise alter an existing master row.
+        $existingIds=[];$existingIdentities=[];
+        foreach ((array)$masters[$requiredType] as $row) {
+            if (!is_array($row)) continue;
+            $existingIds[(string)($row['id'] ?? '')]=true;
+            $values=array_values((array)($row['values'] ?? []));
+            $identity=$requiredType==='purchase_products'
+                ? strtolower(implode('|',array_slice(tt_purchase_product_values($values),0,4)))
+                : tt_location_identity((string)($values[0] ?? ''));
+            if ($identity!=='') $existingIdentities[$identity]=true;
+        }
+        foreach ((array)$defaults[$requiredType] as $defaultRow) {
+            $defaultId=(string)($defaultRow['id'] ?? '');
+            $defaultValues=array_values((array)($defaultRow['values'] ?? []));
+            $defaultIdentity=$requiredType==='purchase_products'
+                ? strtolower(implode('|',array_slice(tt_purchase_product_values($defaultValues),0,4)))
+                : tt_location_identity((string)($defaultValues[0] ?? ''));
+            if ($defaultId!=='' && !isset($existingIds[$defaultId]) && !isset($existingIdentities[$defaultIdentity])) $masters[$requiredType][]=$defaultRow;
+        }
     }
 
     // Remove only the old generated placeholders. Future owner-entered rules
