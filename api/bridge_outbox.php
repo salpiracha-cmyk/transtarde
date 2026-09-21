@@ -37,7 +37,7 @@ function bo_can_write(array $user, string $module): bool {
 }
 
 function bo_kind(string $kind): string {
-    if (!in_array($kind, ['accountEvent', 'exportCandidate', 'localSaleCandidate', 'localPaymentCandidate', 'loadingProgramme'], true)) {
+    if (!in_array($kind, ['accountEvent', 'exportCandidate', 'localSaleCandidate', 'localPaymentCandidate', 'loadingProgramme', 'exMillLifting'], true)) {
         bo_out(['ok' => false, 'error' => 'Unsupported bridge handoff type.'], 422);
     }
     return $kind;
