@@ -140,6 +140,14 @@ function tt_company_bank_legacy_rows(array $companies): array {
 function tt_normalize_masters(array $masters): array {
     $defaults=tt_default_masters();
     foreach ($defaults as $type=>$rows) if (!isset($masters[$type]) || !is_array($masters[$type])) $masters[$type]=$rows;
+    // Some early Super Admin saves persisted empty sections before their
+    // default rows had been copied into the durable store.  An empty Product
+    // or Location section must not leave every operational Soda selector
+    // unusable.  Restore only the system-owned starter identities; user
+    // entered rows and inactive history remain untouched.
+    foreach (['purchase_products','mills'] as $requiredType) {
+        if (count((array)$masters[$requiredType])===0) $masters[$requiredType]=$defaults[$requiredType];
+    }
 
     // Remove only the old generated placeholders. Future owner-entered rules
     // for other varieties/corn are preserved when Salman defines them.
@@ -321,11 +329,24 @@ function tt_visible_masters(array $masters): array {
     return array_intersect_key(tt_normalize_masters($masters),array_flip($visible));
 }
 
+/** Read historical multi-category Business Party values consistently. */
+function tt_business_party_categories(mixed $value): array {
+    $parts=preg_split('/\s*(?:;|,|\/|\|)\s*/u',trim((string)$value),-1,PREG_SPLIT_NO_EMPTY) ?: [];
+    $canonical=[];
+    foreach($parts as$part){$part=trim(preg_replace('/\s+/u',' ',(string)$part)??'');if($part==='')continue;$key=strtolower($part);if(!isset($canonical[$key]))$canonical[$key]=$part;}
+    return array_values($canonical);
+}
+
+function tt_business_party_has_category(mixed $value,string $category): bool {
+    foreach(tt_business_party_categories($value)as$item)if(strcasecmp($item,$category)===0)return true;
+    return false;
+}
+
 /** Active broker profiles used by Soda and accounting. Brokery is owned here, never by a product or KAT rule. */
 function tt_broker_profiles(?string $onDate=null,string $kind='buying'): array {
     $date=$onDate!==null&&preg_match('/^\d{4}-\d{2}-\d{2}$/',$onDate)?$onDate:(new DateTimeImmutable('now',new DateTimeZone('Asia/Karachi')))->format('Y-m-d');
     $kind=$kind==='selling'?'selling':'buying';$out=[];
-    foreach((array)(tt_list_masters()['business_parties']??[])as$row){if(!is_array($row))continue;$v=array_values((array)($row['values']??[]));while(count($v)<13)$v[]='';$categories=array_map('trim',explode(';',(string)$v[2]));if(!in_array('Broker',$categories,true)||strcasecmp((string)$v[10],'Inactive')===0)continue;$profile=json_decode((string)$v[12],true);$rates=is_array($profile)&&is_array($profile[$kind]??null)?$profile[$kind]:[];$active=[];foreach($rates as$rate){if(!is_array($rate)||strcasecmp((string)($rate['status']??'Active'),'Inactive')===0)continue;$from=(string)($rate['effectiveFrom']??'');if($from!==''&&$from<=$date)$active[]=$rate;}usort($active,static fn($a,$b)=>strcmp((string)($b['effectiveFrom']??''),(string)($a['effectiveFrom']??'')));$rate=$active[0]??null;$out[]=['id'=>(string)($row['id']??''),'name'=>(string)$v[0],'code'=>(string)$v[1],'kind'=>$kind,'rate'=>$rate,'status'=>(string)$v[10]];}
+    foreach((array)(tt_list_masters()['business_parties']??[])as$row){if(!is_array($row))continue;$v=array_values((array)($row['values']??[]));while(count($v)<13)$v[]='';if(!tt_business_party_has_category($v[2],'Broker')||strcasecmp((string)$v[10],'Inactive')===0)continue;$profile=json_decode((string)$v[12],true);$rates=is_array($profile)&&is_array($profile[$kind]??null)?$profile[$kind]:[];$active=[];foreach($rates as$rate){if(!is_array($rate)||strcasecmp((string)($rate['status']??'Active'),'Inactive')===0)continue;$from=(string)($rate['effectiveFrom']??'');if($from!==''&&$from<=$date)$active[]=$rate;}usort($active,static fn($a,$b)=>strcmp((string)($b['effectiveFrom']??''),(string)($a['effectiveFrom']??'')));$rate=$active[0]??null;$out[]=['id'=>(string)($row['id']??''),'name'=>(string)$v[0],'code'=>(string)$v[1],'kind'=>$kind,'rate'=>$rate,'status'=>(string)$v[10]];}
     usort($out,static fn($a,$b)=>strcasecmp((string)$a['name'],(string)$b['name']));return$out;
 }
 
@@ -339,7 +360,7 @@ function tt_broker_profile(string $name,?string $onDate=null,string $kind='buyin
 /** Resolve an active export Indentor exactly as stored in Business Parties. Commission remains deal-specific. */
 function tt_indentor_profile(string $name): ?array {
     $needle=trim($name);if($needle==='')return null;
-    foreach((array)(tt_list_masters()['business_parties']??[])as$row){if(!is_array($row))continue;$v=array_values((array)($row['values']??[]));while(count($v)<13)$v[]='';$categories=array_map('trim',explode(';',(string)$v[2]));if(!in_array('Indentor',$categories,true)||strcasecmp((string)$v[10],'Inactive')===0)continue;if(strcasecmp(trim((string)$v[0]),$needle)===0)return['id'=>(string)($row['id']??''),'name'=>(string)$v[0],'code'=>(string)$v[1],'status'=>(string)$v[10]];}
+    foreach((array)(tt_list_masters()['business_parties']??[])as$row){if(!is_array($row))continue;$v=array_values((array)($row['values']??[]));while(count($v)<13)$v[]='';if(!tt_business_party_has_category($v[2],'Indentor')||strcasecmp((string)$v[10],'Inactive')===0)continue;if(strcasecmp(trim((string)$v[0]),$needle)===0)return['id'=>(string)($row['id']??''),'name'=>(string)$v[0],'code'=>(string)$v[1],'status'=>(string)$v[10]];}
     return null;
 }
 

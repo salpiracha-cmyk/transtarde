@@ -199,12 +199,12 @@ try {
         }
     }
     if($type==='business_parties'){
-        $categories=array_values(array_filter(array_map('trim',explode(';',(string)($values[2]??'')))));
+        $categories=tt_business_party_categories($values[2]??'');
         if(!$categories)throw new InvalidArgumentException('Select at least one Business Party category.');
         $profile=json_decode((string)($values[12]??'{}'),true);if(!is_array($profile))throw new InvalidArgumentException('The Brokery profile could not be read. Reopen the broker and try again.');
         $allowedBasis=['PER_100_KG','PER_50_KG_BAG','PER_BAG','PER_MAUND','PER_TON'];
         foreach(['buying'=>'Buying Brokery','selling'=>'Selling Brokery']as$kind=>$label){$rows=$profile[$kind]??[];if(!is_array($rows))throw new InvalidArgumentException($label.' must be a valid list.');$seen=[];foreach($rows as$row){if(!is_array($row))throw new InvalidArgumentException($label.' contains an invalid row.');$amount=(float)($row['amount']??0);$basis=(string)($row['basis']??'');$from=(string)($row['effectiveFrom']??'');if($amount<=0)throw new InvalidArgumentException($label.' figure must be greater than zero.');if(!in_array($basis,$allowedBasis,true))throw new InvalidArgumentException('Select a valid '.$label.' calculation basis.');if(!preg_match('/^\d{4}-\d{2}-\d{2}$/',$from))throw new InvalidArgumentException($label.' Effective From date is required.');if(isset($seen[$from]))throw new InvalidArgumentException($label.' already has a rate starting on '.$from.'.');$seen[$from]=true;}}
-        if(!in_array('Broker',$categories,true)&&(!empty($profile['buying'])||!empty($profile['selling'])))throw new InvalidArgumentException('Select the Broker category before saving Brokery.');
+        if(!array_filter($categories,static fn($category)=>strcasecmp($category,'Broker')===0)&&(!empty($profile['buying'])||!empty($profile['selling'])))throw new InvalidArgumentException('Select the Broker category before saving Brokery.');
     }
     if($type==='purchase_kat'){
         $values[0]=strtoupper($values[0]);$values[1]=tt_product_base($values[1]);$values[2]=tt_product_type($values[2]);$values[3]=tt_product_stage($values[3]);
