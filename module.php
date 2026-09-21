@@ -77,8 +77,13 @@ $sharedBootstrap = <<<'HTML'
       x.onload=()=>{if(x.status===200)applyRemote(JSON.parse(x.responseText),false)};x.send();
     }catch(e){return null}
   }
+  function exportWorkspaceBusy(){return access.moduleId==='exports'&&window.TT_EXPORT_WORKSPACE_BUSY?.()===true}
+  function deferInbound(){clearTimeout(inboundRetry);inboundRetry=setTimeout(checkInbound,1000)}
   function applyRemote(data,initial){
     if(!data?.ok)return;
+    // An in-flight response can arrive after an editor opens. Do not replace its
+    // data or advance its version: a later save must still detect real conflicts.
+    if(!initial&&exportWorkspaceBusy()){deferInbound();return}
     const incoming=Number(data.revision||0), changed=[];applying=true;
     Object.entries(data.values||{}).forEach(([k,v])=>{remoteKeys.add(k);if(allowed(k)&&typeof v==='string'&&!pending.has(k)&&!inFlight.has(k)&&localStorage.getItem(k)!==v){directSet(k,v);changed.push(k);lastRemoteBy=data.meta?.[k]?.updatedBy||lastRemoteBy}});
     Object.entries(data.meta||{}).forEach(([k,m])=>{if(!pending.has(k)&&!inFlight.has(k))keyVersions.set(k,Number(m?.version||0))});
@@ -139,7 +144,7 @@ $sharedBootstrap = <<<'HTML'
   function bridge(){try{exportsToMill();millToExports()}catch(e){console.error('Transtrade inter-module bridge',e)}}
   function notifyRemote(){dispatchEvent(new CustomEvent('tt:shared-updated',{detail:{by:lastRemoteBy}}))}
   function showSyncError(msg,conflict){console.error(msg);if(conflict)dispatchEvent(new CustomEvent('tt:shared-conflict',{detail:{message:msg}}))}
-  function checkInbound(){const now=Date.now();if(pending.size||inFlight.size){clearTimeout(inboundRetry);inboundRetry=setTimeout(checkInbound,300);return}if(now-lastInboundCheck<800)return;lastInboundCheck=now;getRemote(false)}
+  function checkInbound(){if(exportWorkspaceBusy()){deferInbound();return}const now=Date.now();if(pending.size||inFlight.size){clearTimeout(inboundRetry);inboundRetry=setTimeout(checkInbound,300);return}if(now-lastInboundCheck<800)return;lastInboundCheck=now;getRemote(false)}
   window.TT_SHARED_SYNC={flush,saveNow,refresh:refreshNow,bridge,poll:checkInbound};
   // Permanent rule: only explicit application actions save. Inbound checks are read-only and run when staff return to a tab.
   // Remote changes are staged locally and announced through an internal event without persistent interface notices.
