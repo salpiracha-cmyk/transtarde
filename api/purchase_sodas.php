@@ -16,7 +16,7 @@ function ps_out(array $payload, int $status = 200): never {
 }
 
 function ps_default(): array {
-    return ['revision'=>0, 'events'=>[], 'journals'=>[], 'commodityBills'=>[], 'supplierSettlements'=>[], 'purchaseSodas'=>[]];
+    return ['revision'=>0, 'events'=>[], 'journals'=>[], 'commodityBills'=>[], 'supplierSettlements'=>[], 'purchaseSodas'=>[], 'purchaseSodaLiftings'=>[]];
 }
 
 function ps_can_write(array $user): bool {
@@ -61,7 +61,7 @@ function ps_find_location(string $id,array $locations): ?array {foreach($locatio
 function ps_find_supplier(string $id,array $suppliers): ?array {foreach($suppliers as$s)if((string)($s['id']??'')===$id)return$s;return null;}
 
 function ps_link_supplier_mill(string $supplierId,string $millId): void {
-    tt_mutate_store(function (&$data) use($supplierId,$millId): void {foreach((array)($data['masters']['business_parties']??[])as&$row){if((string)($row['id']??'')!==$supplierId)continue;$v=array_values((array)($row['values']??[]));while(count($v)<13)$v[]='';$profile=json_decode((string)$v[12],true);if(!is_array($profile))$profile=[];$profile['buying']=array_values(is_array($profile['buying']??null)?$profile['buying']:[]);$profile['selling']=array_values(is_array($profile['selling']??null)?$profile['selling']:[]);$profile['linkedExternalMillId']=$millId;$v[12]=json_encode($profile,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);$row['values']=$v;unset($row);return;}unset($row);throw new InvalidArgumentException('Supplier was not found.');});
+    tt_mutate_store(function (&$data) use($supplierId,$millId): void {$rows=&$data['masters']['business_parties'];if(!is_array($rows))$rows=[];foreach($rows as&$row){if((string)($row['id']??'')!==$supplierId)continue;$v=array_values((array)($row['values']??[]));while(count($v)<13)$v[]='';$profile=json_decode((string)$v[12],true);if(!is_array($profile))$profile=[];$profile['buying']=array_values(is_array($profile['buying']??null)?$profile['buying']:[]);$profile['selling']=array_values(is_array($profile['selling']??null)?$profile['selling']:[]);$profile['linkedExternalMillId']=$millId;$v[12]=json_encode($profile,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);$row['values']=$v;unset($row);return;}unset($row);throw new InvalidArgumentException('Supplier was not found.');});
 }
 
 function ps_upsert_party_category(string $name,string $category): array {
@@ -77,7 +77,7 @@ function ps_upsert_party_category(string $name,string $category): array {
 
 function ps_remove_party_category(string $id,string $category): array {
     return tt_mutate_store(function(&$data)use($id,$category):array{
-        foreach((array)($data['masters']['business_parties']??[])as&$row){if((string)($row['id']??'')!==$id)continue;$v=array_values((array)($row['values']??[]));while(count($v)<13)$v[]='';$categories=array_values(array_filter(tt_business_party_categories($v[2]),static fn($item)=>strcasecmp($item,$category)!==0));$v[2]=implode('; ',$categories);if(!$categories)$v[10]='Inactive';$row['values']=$v;$out=$row;unset($row);return$out;}unset($row);throw new InvalidArgumentException($category.' was not found.');
+        $rows=&$data['masters']['business_parties'];if(!is_array($rows))$rows=[];foreach($rows as&$row){if((string)($row['id']??'')!==$id)continue;$v=array_values((array)($row['values']??[]));while(count($v)<13)$v[]='';$categories=array_values(array_filter(tt_business_party_categories($v[2]),static fn($item)=>strcasecmp($item,$category)!==0));$v[2]=implode('; ',$categories);if(!$categories)$v[10]='Inactive';$row['values']=$v;$out=$row;unset($row);return$out;}unset($row);throw new InvalidArgumentException($category.' was not found.');
     });
 }
 
@@ -137,12 +137,13 @@ function ps_rows(array $store, string $entity): array {
         $number = (string)($soda['sodaNo'] ?? '');
         $received = 0.0; $truckUnits = 0; $physicalTrucks = 0; $unbilled = 0; $billed = 0.0; $paid = 0.0;
         $receipts = [];
+        if((string)($soda['readyRoute']??'')==='EX_MILL')foreach((array)($store['purchaseSodaLiftings']??[])as$lifting){if(!is_array($lifting)||!empty($lifting['reversed'])||strtoupper((string)($lifting['entity']??''))!==$entity||((string)($lifting['sourceSodaId']??'')!==(string)$id&&(string)($lifting['soda']??'')!==$number))continue;$kg=(float)($lifting['kg']??0);if($kg<=0)continue;$received+=$kg;$physicalTrucks++;$truckUnits++;$receipts[]=['type'=>'Ex-Mill Lifting','date'=>(string)($lifting['date']??''),'truck'=>(string)($lifting['truck']??''),'pohanch'=>(string)($lifting['container']??$lifting['liftingId']??''),'kg'=>$kg,'truckUnits'=>1,'billed'=>false,'billId'=>''];}
         foreach ((array)($store['events'] ?? []) as $event) {
             if (!is_array($event) || ($event['eventType'] ?? '') !== 'COMMODITY_RECEIPT_ACCEPTED' || strtoupper((string)($event['entity'] ?? '')) !== $entity) continue;
             $journal = $store['journals'][$event['journalId'] ?? ''] ?? null;
             if (!is_array($journal)) continue;
             $meta = is_array($journal['meta'] ?? null) ? $journal['meta'] : [];
-            if ((string)($meta['soda'] ?? '') !== $number) continue;
+            if ((string)($meta['soda'] ?? '') !== $number || (string)($soda['readyRoute']??'')==='EX_MILL') continue;
             $eventCommodity = strtoupper((string)($meta['commodity'] ?? $commodity));
             if ($eventCommodity !== $commodity) continue;
             $kg = (float)($meta['payableWeightKg'] ?? 0);
@@ -162,6 +163,7 @@ function ps_rows(array $store, string $entity): array {
         $hasWeight = $minimum > 0; $hasTrucks = $expected > 0;
         $weightMet = !$hasWeight || $received >= $minimum; $truckMet = !$hasTrucks || $truckUnits >= $expected;
         $maxAllowed = $maximum > 0 ? $maximum + PS_MAX_OVER_KG : 0; $overMaximum = $maxAllowed > 0 && $received > $maxAllowed + .001;
+        if((string)($soda['readyRoute']??'')==='EX_MILL')$unbilled=$received>0&&$billed<=0?1:0;
         $status = (string)($soda['status'] ?? 'Open');
         if (!in_array($status, ['Completed','Short Closed','Cancelled'], true)) {
             if ($received <= 0) $status = 'Open';
@@ -170,7 +172,7 @@ function ps_rows(array $store, string $entity): array {
             elseif ($unbilled > 0) $status = 'Received / Bill Pending';
             else $status = 'Ready to Complete';
         }
-        $rows[] = $soda + ['id'=>(string)$id, 'basis'=>$hasWeight && $hasTrucks ? 'BOTH' : ($hasWeight ? 'WEIGHT' : 'TRUCKS'), 'receivedKg'=>round($received,3), 'trucksReceived'=>$physicalTrucks, 'truckUnitsReceived'=>$truckUnits, 'unbilledArrivals'=>$unbilled, 'billedAmount'=>round($billed,2), 'paidAmount'=>round($paid,2), 'payableOutstanding'=>round(max(0,$billed-$paid),2), 'calculatedStatus'=>$status, 'maxAllowedKg'=>round($maxAllowed,3), 'overMaximum'=>$overMaximum, 'receipts'=>$receipts];
+        $rows[] = $soda + ['id'=>(string)$id, 'basis'=>$hasWeight && $hasTrucks ? 'BOTH' : ($hasWeight ? 'WEIGHT' : 'TRUCKS'), 'receivedKg'=>round($received,3), 'liftedKg'=>(string)($soda['readyRoute']??'')==='EX_MILL'?round($received,3):0, 'trucksReceived'=>$physicalTrucks, 'truckUnitsReceived'=>$truckUnits, 'unbilledArrivals'=>$unbilled, 'billedAmount'=>round($billed,2), 'paidAmount'=>round($paid,2), 'payableOutstanding'=>round(max(0,$billed-$paid),2), 'calculatedStatus'=>$status, 'maxAllowedKg'=>round($maxAllowed,3), 'overMaximum'=>$overMaximum, 'receipts'=>$receipts];
     }
     usort($rows, static fn(array $a, array $b): int => strcmp((string)($b['sodaDate'] ?? ''), (string)($a['sodaDate'] ?? '')) ?: strcmp((string)($b['sodaNo'] ?? ''), (string)($a['sodaNo'] ?? '')));
     return $rows;
