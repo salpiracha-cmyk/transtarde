@@ -19,7 +19,10 @@
   }
   Object.entries(lists).forEach(([name,items])=>ensureList(name,items));
   function category(input){
-    if(!input||input.matches('[readonly],[disabled],[type="date"],[type="number"],[type="file"]')||input.list)return'';
+    // accounts-clean-ui owns the text input paired with a native select.
+    // Attaching a datalist there opens the browser suggestions underneath the
+    // custom menu and renders the same master choices twice.
+    if(!input||input.closest('.tt-search-select')||input.matches('[readonly],[disabled],[type="date"],[type="number"],[type="file"]')||input.list)return'';
     const text=clean(input.closest('label')?.textContent+' '+input.placeholder+' '+input.id).toLowerCase();
     if(/customer|buyer|consignee/.test(text))return'customers';
     if(/supplier|broker|vendor|payee|service provider|transporter|shipping line|clearing|fumigation|inspection/.test(text))return'suppliers';

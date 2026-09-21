@@ -234,6 +234,7 @@
     const input = document.createElement('input');
     input.type = 'text';
     input.autocomplete = 'off';
+    input.removeAttribute('list');
     input.setAttribute('role', 'combobox');
     input.setAttribute('aria-autocomplete', 'list');
     input.placeholder = 'Type 1 or 2 letters to search';
