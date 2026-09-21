@@ -1,0 +1,47 @@
+name: Isolated Linkage Audit Snapshot
+on:
+  push:
+    branches: ['qa/linkage-audit-20260921-5ab2ee5']
+    paths: ['.github/workflows/isolated-linkage-audit-snapshot.yml']
+permissions:
+  contents: read
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 5ab2ee55250603d51a3e1de3dd079cdf1212bb0c
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Archive tracked application source only
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = 5ab2ee55250603d51a3e1de3dd079cdf1212bb0c
+          mkdir -p "$RUNNER_TEMP/linkage-audit"
+          git archive --format=tar.gz -o "$RUNNER_TEMP/linkage-audit/source.tgz" HEAD . ':!data' ':!uploads' ':!storage' ':!cache' ':!logs' ':!node_modules' ':!.env*' ':!config.local.php' ':!db_config.php'
+          git ls-tree -r HEAD > "$RUNNER_TEMP/linkage-audit/source-manifest.txt"
+          printf '%s\n' 5ab2ee55250603d51a3e1de3dd079cdf1212bb0c > "$RUNNER_TEMP/linkage-audit/BASE_COMMIT.txt"
+      - name: Prepare disposable offline test dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/linkage-dependencies"
+          cd "$RUNNER_TEMP/linkage-dependencies"
+          npm install --no-audit --no-fund --ignore-scripts jsdom@27 playwright@1.55.0
+          tar -czf "$RUNNER_TEMP/linkage-audit/node-dependencies.tgz" node_modules package.json package-lock.json
+      - name: Preserve isolated audit input
+        uses: actions/upload-artifact@v4
+        with:
+          name: isolated-linkage-audit-input-5ab2ee5
+          path: ${{ runner.temp }}/linkage-audit/
+          retention-days: 1
+          if-no-files-found: error
+      - name: Remove temporary inputs
+        if: always()
+        shell: bash
+        run: rm -rf -- "$RUNNER_TEMP/linkage-audit" "$RUNNER_TEMP/linkage-dependencies"
