@@ -26,7 +26,10 @@ assert.match(desk,/rawPurchaseProductId/);
 assert.match(desk,/rawLocationId/);
 
 const cleanUi=read('accounts/accounts-clean-ui.js');
+const masterAutocomplete=read('accounts/master-autocomplete.js');
 assert.match(cleanUi,/const closeMenus = \(\) => qa\('\.tt-select-menu'\)/);
 assert.match(cleanUi,/if \(candidate !== menu\) candidate\.hidden = true/);
+assert.match(cleanUi,/input\.removeAttribute\('list'\)/);
+assert.match(masterAutocomplete,/input\.closest\('\.tt-search-select'\)/);
 
 console.log('Accounts Soda master fallback and legacy category compatibility audit passed.');
