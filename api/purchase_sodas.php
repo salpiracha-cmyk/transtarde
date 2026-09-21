@@ -42,7 +42,7 @@ function ps_locations(): array {
 
 function ps_suppliers(): array {
     $out=[];
-    foreach((array)(tt_list_masters()['business_parties']??[])as$row){if(!is_array($row))continue;$v=array_values((array)($row['values']??[]));while(count($v)<13)$v[]='';$roles=array_map('trim',explode(';',(string)$v[2]));if(!in_array('Supplier',$roles,true)||strcasecmp((string)$v[10],'Inactive')===0)continue;$profile=json_decode((string)$v[12],true);if(!is_array($profile))$profile=[];$out[]=['id'=>(string)($row['id']??''),'name'=>(string)$v[0],'code'=>(string)$v[1],'linkedExternalMillId'=>(string)($profile['linkedExternalMillId']??'')];}
+    foreach((array)(tt_list_masters()['business_parties']??[])as$row){if(!is_array($row))continue;$v=array_values((array)($row['values']??[]));while(count($v)<13)$v[]='';if(!tt_business_party_has_category($v[2],'Supplier')||strcasecmp((string)$v[10],'Inactive')===0)continue;$profile=json_decode((string)$v[12],true);if(!is_array($profile))$profile=[];$out[]=['id'=>(string)($row['id']??''),'name'=>(string)$v[0],'code'=>(string)$v[1],'linkedExternalMillId'=>(string)($profile['linkedExternalMillId']??'')];}
     usort($out,static fn($a,$b)=>strcasecmp((string)$a['name'],(string)$b['name']));return$out;
 }
 
@@ -50,7 +50,11 @@ function ps_metadata(array $user): array {
     $products=array_values(array_filter(tt_purchase_product_profiles(),static fn($p)=>in_array((string)($p['productStage']??''),['RAW','READY'],true)));
     $defaultProduct='';foreach($products as$p)if(($p['id']??'')==='purchase-products-rice-irri6-white-raw'){$defaultProduct=(string)$p['id'];break;}
     $locations=ps_locations();$defaultLocation='';foreach($locations as$l)if(($l['type']??'')==='Own Mill'&&tt_location_identity((string)$l['name'])===tt_location_identity('TTI Rice Mills')){$defaultLocation=(string)$l['id'];break;}
-    return ['purchaseProducts'=>$products,'locations'=>$locations,'suppliers'=>ps_suppliers(),'brokers'=>tt_broker_profiles(null,'buying'),'defaults'=>['rawPurchaseProductId'=>$defaultProduct,'rawLocationId'=>$defaultLocation],'permissions'=>['canAddLocation'=>tt_user_can_master($user,'mills','Create'),'canLinkSupplierMill'=>tt_user_can_master($user,'business_parties','Edit')]];
+    return ['purchaseProducts'=>$products,'locations'=>$locations,'suppliers'=>ps_suppliers(),'brokers'=>tt_broker_profiles(null,'buying'),'defaults'=>['rawPurchaseProductId'=>$defaultProduct,'rawLocationId'=>$defaultLocation],'permissions'=>[
+        'canAddLocation'=>tt_user_can_master($user,'mills','Create'),'canRemoveLocation'=>tt_user_can_master($user,'mills','Deactivate'),
+        'canAddProduct'=>tt_user_can_master($user,'purchase_products','Create'),'canRemoveProduct'=>tt_user_can_master($user,'purchase_products','Deactivate'),
+        'canAddParty'=>tt_user_can_master($user,'business_parties','Create'),'canRemoveParty'=>tt_user_can_master($user,'business_parties','Deactivate'),
+        'canLinkSupplierMill'=>tt_user_can_master($user,'business_parties','Edit')]];
 }
 
 function ps_find_location(string $id,array $locations): ?array {foreach($locations as$l)if((string)($l['id']??'')===$id)return$l;return null;}
@@ -58,6 +62,23 @@ function ps_find_supplier(string $id,array $suppliers): ?array {foreach($supplie
 
 function ps_link_supplier_mill(string $supplierId,string $millId): void {
     tt_mutate_store(function (&$data) use($supplierId,$millId): void {foreach((array)($data['masters']['business_parties']??[])as&$row){if((string)($row['id']??'')!==$supplierId)continue;$v=array_values((array)($row['values']??[]));while(count($v)<13)$v[]='';$profile=json_decode((string)$v[12],true);if(!is_array($profile))$profile=[];$profile['buying']=array_values(is_array($profile['buying']??null)?$profile['buying']:[]);$profile['selling']=array_values(is_array($profile['selling']??null)?$profile['selling']:[]);$profile['linkedExternalMillId']=$millId;$v[12]=json_encode($profile,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);$row['values']=$v;unset($row);return;}unset($row);throw new InvalidArgumentException('Supplier was not found.');});
+}
+
+function ps_upsert_party_category(string $name,string $category): array {
+    $name=trim(preg_replace('/\s+/u',' ',$name)??'');
+    if($name===''||strlen($name)>180)throw new InvalidArgumentException('Enter a valid '.$category.' name.');
+    $identity=static fn(string $value):string=>strtolower((string)preg_replace('/[^a-z0-9]+/i','',trim($value)));
+    return tt_mutate_store(function(&$data)use($name,$category,$identity):array{
+        if(!isset($data['masters']['business_parties'])||!is_array($data['masters']['business_parties']))$data['masters']['business_parties']=[];
+        foreach($data['masters']['business_parties']as&$row){$v=array_values((array)($row['values']??[]));while(count($v)<13)$v[]='';if($identity((string)$v[0])!==$identity($name))continue;$categories=tt_business_party_categories($v[2]);if(!array_filter($categories,static fn($item)=>strcasecmp($item,$category)===0))$categories[]=$category;$v[2]=implode('; ',$categories);$v[10]='Active';$profile=json_decode((string)$v[12],true);if(!is_array($profile))$profile=[];$profile['buying']=array_values(is_array($profile['buying']??null)?$profile['buying']:[]);$profile['selling']=array_values(is_array($profile['selling']??null)?$profile['selling']:[]);$v[12]=json_encode($profile,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);$row['values']=$v;$out=$row;unset($row);return$out;}unset($row);
+        $id='business-parties-auto-'.substr(hash('sha256',strtolower($name)),0,14);$row=['id'=>$id,'values'=>[$name,'',$category,'','','','','','','','Active','Added from Accounts Soda Centre.','{"buying":[],"selling":[]}']];$data['masters']['business_parties'][]=$row;return$row;
+    });
+}
+
+function ps_remove_party_category(string $id,string $category): array {
+    return tt_mutate_store(function(&$data)use($id,$category):array{
+        foreach((array)($data['masters']['business_parties']??[])as&$row){if((string)($row['id']??'')!==$id)continue;$v=array_values((array)($row['values']??[]));while(count($v)<13)$v[]='';$categories=array_values(array_filter(tt_business_party_categories($v[2]),static fn($item)=>strcasecmp($item,$category)!==0));$v[2]=implode('; ',$categories);if(!$categories)$v[10]='Inactive';$row['values']=$v;$out=$row;unset($row);return$out;}unset($row);throw new InvalidArgumentException($category.' was not found.');
+    });
 }
 
 function ps_user_name(array $user): string {
@@ -210,6 +231,14 @@ try {
     if($action==='link_supplier_mill'){
         if(!tt_user_can_master($user,'business_parties','Edit'))ps_out(['ok'=>false,'error'=>'Business Parties Edit permission required.'],403);$supplierId=trim((string)($body['supplierId']??''));$millId=trim((string)($body['millId']??''));$supplier=ps_find_supplier($supplierId,ps_suppliers());$mill=ps_find_location($millId,ps_locations());if(!$supplier||!$mill||($mill['type']??'')!=='External Mill')ps_out(['ok'=>false,'error'=>'Select a valid supplier and External Mill.'],422);ps_link_supplier_mill($supplierId,$millId);ps_out(['ok'=>true]+ps_metadata($user));
     }
+    if(in_array($action,['add_party_category','remove_party_category'],true)){
+        $category=strcasecmp(trim((string)($body['category']??'')),'Broker')===0?'Broker':(strcasecmp(trim((string)($body['category']??'')),'Supplier')===0?'Supplier':'');
+        if($category==='')ps_out(['ok'=>false,'error'=>'Select Broker or Supplier.'],422);
+        $needed=$action==='add_party_category'?'Create':'Deactivate';if(!tt_user_can_master($user,'business_parties',$needed))ps_out(['ok'=>false,'error'=>'Business Parties '.$needed.' permission required.'],403);
+        $row=$action==='add_party_category'?ps_upsert_party_category((string)($body['name']??''),$category):ps_remove_party_category(trim((string)($body['id']??'')),$category);
+        tt_audit((int)($user['id']??0),(string)($user['username']??''),($action==='add_party_category'?'Added ':'Removed ').$category.' option '.(string)(($row['values']??[])[0]??''));
+        ps_out(['ok'=>true,'partyId'=>(string)($row['id']??'')]+ps_metadata($user));
+    }
     if ($action !== 'amend' && !ps_can_write($user)) ps_out(['ok'=>false, 'error'=>'Accounts Create or Edit permission required.'], 403);
     $entity = strtoupper(trim((string)($body['entity'] ?? 'TTI')));
     if (!in_array($entity, ['TTI','BRM'], true)) ps_out(['ok'=>false, 'error'=>'Invalid legal entity.'], 422);
@@ -252,6 +281,8 @@ try {
         rewind($handle); ftruncate($handle, 0); fwrite($handle, json_encode($store, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR)); fflush($handle);
     } finally { flock($handle, LOCK_UN); fclose($handle); }
     ps_out(['ok'=>true, 'sodas'=>ps_rows($store,$entity), 'nextSodaNo'=>ps_next_no((array)$store['purchaseSodas']), 'created'=>$created]+ps_metadata($user));
+} catch (InvalidArgumentException $error) {
+    ps_out(['ok'=>false,'error'=>$error->getMessage()],422);
 } catch (Throwable $error) {
     error_log('purchase_sodas: ' . $error->getMessage());
     ps_out(['ok'=>false, 'error'=>'Soda control is temporarily unavailable.'], 500);

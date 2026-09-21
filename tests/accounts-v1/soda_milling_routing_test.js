@@ -14,6 +14,7 @@ const enhancements=read('accounts/accounts-enhancements.js');
 
 assert.match(desk,/PAYMENT TERM/);
 assert.match(desk,/ttSdCreditWrap/);
+assert.match(desk,/\.tt-layer \[hidden\]\{display:none!important\}/);
 assert.match(desk,/Cash payment becomes due on Arrival \/ Pohanch date \+ 2 days/);
 assert.match(desk,/Credit Days are required|days\.required=isCredit/);
 assert.match(soda,/\$payment==='CREDIT'&&\(\$creditDays < 1/);
@@ -33,6 +34,15 @@ assert.match(desk,/DELIVER TO OUR MILL \/ STOCK LOCATION/);
 assert.match(soda,/\$route==='EX_MILL'/);
 assert.match(soda,/\$location\['type'\].*External Mill/);
 assert.doesNotMatch(desk,/Lifting Location/i);
+
+for (const id of ['ttSdAddProduct','ttSdRemoveProduct','ttSdAddBroker','ttSdRemoveBroker','ttSdAddSupplier','ttSdRemoveSupplier','ttSdAddStock','ttSdRemoveStock','ttSdAddMill','ttSdRemoveMill']) {
+  assert.match(desk,new RegExp(`id="${id}"`),`${id} add/remove control missing`);
+}
+assert.match(desk,/add_party_category/);
+assert.match(desk,/remove_party_category/);
+assert.match(soda,/tt_business_party_has_category\(\$v\[2\],'Supplier'\)/);
+assert.match(soda,/canAddProduct/);
+assert.match(soda,/canRemoveLocation/);
 
 assert.match(soda,/linkedExternalMillId/);
 assert.match(desk,/suggestSupplierMill/);
