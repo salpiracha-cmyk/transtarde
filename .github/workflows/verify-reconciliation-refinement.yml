@@ -1,0 +1,87 @@
+name: Verify reconciliation refinement
+on:
+  push:
+    branches: ['repair/whole-app-linkages-20260921']
+    paths: ['.github/workflows/verify-reconciliation-refinement.yml']
+permissions:
+  contents: write
+jobs:
+  verify-and-stage:
+    if: github.ref == 'refs/heads/repair/whole-app-linkages-20260921'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 6507c2d2876400b0babf4f1c30f0ecc41a596e59
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: mbstring, fileinfo
+          coverage: none
+      - name: Reconstruct five reviewed source files in isolated workspace
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = 6507c2d2876400b0babf4f1c30f0ecc41a596e59
+          python3 - <<'PY'
+          import base64,hashlib,json,lzma,os,subprocess
+          from pathlib import Path
+          root=Path.cwd().resolve()
+          obj=json.loads(subprocess.check_output(['gh','api',f"repos/{os.environ['GITHUB_REPOSITORY']}/git/blobs/a7ecf7ad0d90cd8933a73283a8422517ceb8b3f3"]))
+          raw=base64.b64decode(obj['content'])
+          assert hashlib.sha256(raw).hexdigest()=='b9b6e7d04a757433c707361f665467b72f40b9648623b3b4d2108c6d5c603079'
+          payload=json.loads(lzma.decompress(raw));assert payload['base']=='6507c2d2876400b0babf4f1c30f0ecc41a596e59'
+          expected={'inventory_reconciliation.php','stock-reconciliation.php','tests/accounts-v1/inventory_reconciliation_http_test.py','tests/accounts-v1/inventory_reconciliation_test.php','tests/exports-v3/backend_static_audit.js'}
+          assert set(payload['files'])==expected
+          digest=lambda value:hashlib.sha256(value.encode()).hexdigest()
+          for name,entry in payload['files'].items():
+              path=root/name;assert root in path.resolve().parents and not path.is_symlink()
+              text=path.read_text();assert digest(text)==entry['before'],name
+              for start,count,insert in reversed(entry['edits']):text=text[:start]+insert+text[start+count:]
+              assert digest(text)==entry['after'],name
+              path.write_text(text)
+          out=Path(os.environ['RUNNER_TEMP'])/'refinement-evidence';out.mkdir()
+          (out/'expected-files.json').write_text(json.dumps(payload['files']))
+          PY
+          git diff --check
+      - name: Actual isolated assertions and existing regression checks
+        env:
+          TT_QA_OUTPUT: ${{ runner.temp }}/refinement-evidence
+        run: |
+          set -euo pipefail
+          php tests/accounts-v1/inventory_reconciliation_test.php
+          python3 tests/accounts-v1/inventory_reconciliation_http_test.py
+          for file in tests/accounts-v1/*.js; do node "$file"; done
+          cp exports/app.js exports/app.css exports/index.html tests/exports-v3/
+          node tests/exports-v3/backend_static_audit.js
+          find . -path './.git' -prune -o -name '*.php' -print0 | xargs -0 -n1 php -l
+      - name: Stage immutable verified blobs, never commit or change refs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import hashlib,json,os,subprocess,tarfile
+          from pathlib import Path
+          out=Path(os.environ['RUNNER_TEMP'])/'refinement-evidence';files=json.loads((out/'expected-files.json').read_text());elements=[]
+          for name,entry in files.items():
+              data=Path(name).read_bytes();assert hashlib.sha256(data).hexdigest()==entry['after']
+              body=json.dumps({'content':data.decode(),'encoding':'utf-8'}).encode()
+              result=json.loads(subprocess.check_output(['gh','api','--method','POST',f"repos/{os.environ['GITHUB_REPOSITORY']}/git/blobs",'--input','-'],input=body))
+              sha=hashlib.sha1(b'blob '+str(len(data)).encode()+b'\0'+data).hexdigest();assert result['sha']==sha
+              elements.append({'path':name,'mode':'100644','type':'blob','sha':sha})
+          (out/'tree-elements.json').write_text(json.dumps(elements,indent=2));print(json.dumps(elements,indent=2))
+          with tarfile.open(out/'verified-source.tar.gz','w:gz')as archive:
+              for name in files:archive.add(name,arcname=name)
+          print('Immutable blobs staged only. No branch, commit, deployment or production transaction updated by this job.')
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: reconciliation-refinement-${{ github.run_id }}
+          path: ${{ runner.temp }}/refinement-evidence/
+          retention-days: 14
