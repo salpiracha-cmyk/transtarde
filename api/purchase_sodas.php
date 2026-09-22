@@ -16,7 +16,7 @@ function ps_out(array $payload, int $status = 200): never {
 }
 
 function ps_default(): array {
-    return ['revision'=>0, 'events'=>[], 'journals'=>[], 'commodityBills'=>[], 'supplierSettlements'=>[], 'purchaseSodas'=>[], 'purchaseSodaLiftings'=>[]];
+    return ['revision'=>0, 'events'=>[], 'journals'=>[], 'commodityBills'=>[], 'supplierSettlements'=>[], 'purchaseSodas'=>[], 'purchaseSodaLiftings'=>[], 'postingKeys'=>[]];
 }
 
 function ps_can_write(array $user): bool {
@@ -97,16 +97,25 @@ function ps_read(): array {
 }
 
 function ps_date(string $value, string $label): string {
-    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $value)) ps_out(['ok'=>false, 'error'=>$label . ' is required.'], 422);
+    $date=DateTimeImmutable::createFromFormat('!Y-m-d',$value);$errors=DateTimeImmutable::getLastErrors();
+    if (!$date||($errors!==false&&(($errors['warning_count']??0)>0||($errors['error_count']??0)>0))||$date->format('Y-m-d')!==$value) ps_out(['ok'=>false, 'error'=>$label . ' is invalid.'], 422);
     return $value;
 }
 
 function ps_decimal(mixed $value, string $label, bool $allowZero = false): float {
     if (!is_numeric($value)) ps_out(['ok'=>false, 'error'=>$label . ' is invalid.'], 422);
     $number = round((float)$value, 3);
+    if(!is_finite($number)) ps_out(['ok'=>false, 'error'=>$label . ' is invalid.'], 422);
     if ($number < 0 || (!$allowZero && $number <= 0)) ps_out(['ok'=>false, 'error'=>$label . ' is invalid.'], 422);
     return $number;
 }
+
+function ps_request_key(mixed $value): string {
+    $key=trim((string)$value);
+    if($key===''||strlen($key)>160||!preg_match('/^[A-Za-z0-9._:-]+$/',$key))ps_out(['ok'=>false,'error'=>'A stable request key is required. Refresh the form and try again.'],422);
+    return $key;
+}
+function ps_fingerprint(array $body): string {unset($body['csrf'],$body['requestKey']);ksort($body);return hash('sha256',json_encode($body,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR));}
 
 function ps_next_no(array $sodas): string {
     $year = gmdate('y');
@@ -218,6 +227,7 @@ try {
     if ($_SERVER['REQUEST_METHOD'] === 'GET') {
         $entity = strtoupper(trim((string)($_GET['entity'] ?? 'TTI')));
         if (!in_array($entity, ['TTI','BRM'], true)) ps_out(['ok'=>false, 'error'=>'Sodas are available only in the selected Pakistan legal books.'], 422);
+        if(!tt_user_can_access_entity($user,$entity,'View'))ps_out(['ok'=>false,'error'=>'You do not have permission for this legal entity.'],403);
         $store = ps_read();
         ps_out(['ok'=>true, 'sodas'=>ps_rows($store,$entity), 'nextSodaNo'=>ps_next_no((array)$store['purchaseSodas']), 'rules'=>['doubleTruckAboveKg'=>PS_TRUCK_DOUBLE_KG, 'maxOverKg'=>PS_MAX_OVER_KG]]+ps_metadata($user));
     }
@@ -244,6 +254,7 @@ try {
     if ($action !== 'amend' && !ps_can_write($user)) ps_out(['ok'=>false, 'error'=>'Accounts Create or Edit permission required.'], 403);
     $entity = strtoupper(trim((string)($body['entity'] ?? 'TTI')));
     if (!in_array($entity, ['TTI','BRM'], true)) ps_out(['ok'=>false, 'error'=>'Invalid legal entity.'], 422);
+    $entityAction=$action==='create'?'Create':'Edit';if(!tt_user_can_access_entity($user,$entity,$entityAction))ps_out(['ok'=>false,'error'=>'You do not have permission for this legal entity.'],403);
     tt_ensure_data_dir();
     $handle = fopen(PS_FILE, 'c+');
     if ($handle === false || !flock($handle, LOCK_EX)) throw new RuntimeException('store');
@@ -252,9 +263,12 @@ try {
         if (!is_array($store)) $store = ps_default();
         $store = array_replace_recursive(ps_default(), $store); $created = null;
         if ($action === 'create') {
+            $requestKey=ps_request_key($body['requestKey']??'');$postingKey=$entity.'|PURCHASE_SODA|'.$requestKey;$fingerprint=ps_fingerprint($body);$prior=$store['postingKeys'][$postingKey]??null;
+            if(is_array($prior)){if(!hash_equals((string)($prior['fingerprint']??''),$fingerprint))ps_out(['ok'=>false,'error'=>'This request key was already used for a different Soda.'],409);$created=$store['purchaseSodas'][(string)($prior['sodaId']??'')]??null;ps_out(['ok'=>true,'sodas'=>ps_rows($store,$entity),'nextSodaNo'=>ps_next_no((array)$store['purchaseSodas']),'created'=>$created,'duplicate'=>true]+ps_metadata($user));}
             $values = ps_validate($body); $number = ps_next_no((array)$store['purchaseSodas']); $id = 'PS-' . $values['commodity'] . '-' . $number;
-            $created = ['id'=>$id, 'entity'=>$entity, 'sodaNo'=>$number, 'status'=>'Open', 'createdAt'=>gmdate('c'), 'createdBy'=>ps_user_name($user), 'audit'=>[]] + $values;
+            $created = ['id'=>$id, 'entity'=>$entity, 'sodaNo'=>$number, 'status'=>'Open','requestKey'=>$requestKey, 'createdAt'=>gmdate('c'), 'createdBy'=>ps_user_name($user), 'audit'=>[]] + $values;
             $store['purchaseSodas'][$id] = $created;
+            $store['postingKeys'][$postingKey]=['fingerprint'=>$fingerprint,'sodaId'=>$id,'createdAt'=>gmdate('c')];
         } elseif ($action === 'amend') {
             $id = trim((string)($body['id'] ?? '')); $reason = trim((string)($body['reason'] ?? ''));
             if ($reason === '') ps_out(['ok'=>false, 'error'=>'Reason for amendment is required.'], 422);
