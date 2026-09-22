@@ -1,6 +1,7 @@
 'use strict';
 const assert=require('node:assert/strict');
 const fs=require('node:fs');
+const vm=require('node:vm');
 const read=file=>fs.readFileSync(file,'utf8');
 
 const desk=read('accounts/accounts-accounting-desk.js');
@@ -54,9 +55,34 @@ assert.match(soda,/tt_find_location_duplicate/);
 assert.match(feed,/purchaseSodas/);
 assert.match(feed,/purchaseSodasV2/);
 assert.match(mill,/api\/milling_purchase_sodas\.php/);
-assert.match(mill,/id="qSoda"/);
+assert.doesNotMatch(mill,/id="qSoda"/,'Arrival List must not ask for a Soda Number');
+assert.match(mill,/1\. Truck Number/);
+assert.match(mill,/2\. Soda Number/);
+assert.match(mill,/Station \/ Coming From/);
 assert.match(mill,/\['RAW','READY'\]\.includes\(x\.stage\)/);
-assert.match(mill,/stage=linked\?\.productStage\|\|selected\?\.productStage\|\|'RAW'/);
+assert.match(mill,/stage=selected\?\.productStage\|\|'RAW'/);
+assert.match(mill,/Select an active Soda Number at Pohanch/);
+assert.match(mill,/!\/inactive\/i\.test\(String\(v\[7\]\|\|''\)\)/);
+
+function extractFunction(source,name){
+  const start=source.indexOf(`function ${name}(`),body=source.indexOf('{',start);
+  assert(start>=0&&body>start,`Missing ${name}`);
+  let depth=0,quote='',escaped=false;
+  for(let i=body;i<source.length;i++){
+    const c=source[i];
+    if(quote){if(escaped)escaped=false;else if(c==='\\')escaped=true;else if(c===quote)quote='';continue}
+    if(c==='"'||c==="'"||c==='`'){quote=c;continue}
+    if(c==='{')depth++;else if(c==='}'&&--depth===0)return source.slice(start,i+1);
+  }
+  throw new Error(`Unterminated ${name}`);
+}
+const katProfile=['RICE','IRRI-6','White','RAW','IRRI-6 White Raw KAT','','','Draft – review required','',JSON.stringify([{name:'Broken',ranges:[{from:'20',to:'30',value:'1'},{from:'30',to:'35',value:'3'}]}])];
+const product=['RICE','IRRI-6','White','RAW','KG','','','','Active',''];
+const katContext={qVariety:{value:'IRRI-6 White Raw Rice'},window:{},ttMasterValues:type=>type==='purchase_products'?[product]:type==='purchase_kat'?[katProfile]:[]};
+katContext.window.qVariety=katContext.qVariety;
+vm.createContext(katContext);
+vm.runInContext(['selectedPurchaseProduct','arrivalUsesApprovedKat','millRiceType','millBaseVariety','millProductIdentity','katRuleFromMaster','katParameterKey','katFromMaster'].map(name=>extractFunction(mill,name)).join('\n'),katContext);
+assert.equal(katContext.katFromMaster('broken',30),10,'Broken KAT must update from the configured IRRI-6 master bands');
 assert.match(mill,/ready=identity\.productStage==='READY'/);
 assert.match(mill,/brokenKat:ready\?'':/);
 assert.match(mill,/completedHistoryPreserved:true/);
