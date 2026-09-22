@@ -1,0 +1,95 @@
+name: Save reviewed repair checkpoint
+on:
+  push:
+    branches: ['repair/whole-app-linkages-20260921']
+    paths: ['.github/workflows/apply-reviewed-source.yml']
+permissions:
+  contents: write
+jobs:
+  checkpoint:
+    if: github.ref == 'refs/heads/repair/whole-app-linkages-20260921'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: mbstring, fileinfo
+          coverage: none
+      - name: Apply exact reviewed edits to original source files
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = refs/heads/repair/whole-app-linkages-20260921
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          git fetch --no-tags origin dce868fd82e136167e97d2717938940b2d4fcc48
+          git merge-base --is-ancestor dce868fd82e136167e97d2717938940b2d4fcc48 HEAD
+          python3 - <<'PY'
+          import base64,hashlib,json,lzma,os,subprocess
+          from pathlib import Path
+          root=Path.cwd().resolve()
+          pieces=[]
+          for sha in ['f7d0af9a912cd91a0e0fff23079f2609d0ee4515','17144724a0a40b939a3dea8350c24586ba7ac0af']:
+              obj=json.loads(subprocess.check_output(['gh','api',f"repos/{os.environ['GITHUB_REPOSITORY']}/git/blobs/{sha}"]))
+              pieces.append(base64.b64decode(obj['content']))
+          raw=b''.join(pieces)
+          assert hashlib.sha256(raw).hexdigest()=='f83991494286567d88e539e2907a764faa58aaa4e433e3df0ce914b6670909f5'
+          payload=json.loads(lzma.decompress(raw))
+          assert payload['base']=='dce868fd82e136167e97d2717938940b2d4fcc48'
+          expected={'.github/workflows/accounts-v1-qa.yml','.htaccess','accounts/accounts-accounting-desk.js','accounts/index.php','api/operations.mysql.php','api/operations.php','directors/index.php','inventory_reconciliation.php','milling/Transtrade_Master_Milling_V3_3_2_AUDITED.html','module.php','stock-reconciliation.php','tests/accounts-v1/inventory_reconciliation_http_test.py','tests/accounts-v1/inventory_reconciliation_test.php','tests/accounts-v1/inventory_reconciliation_ui_test.js','tests/accounts-v1/linkage_regressions_test.js','tests/accounts-v1/product_stage_architecture_test.js'}
+          assert set(payload['files'])==expected
+          digest=lambda s:hashlib.sha256(s.encode('utf-8')).hexdigest()
+          prepared={}
+          for name,entry in payload['files'].items():
+              path=root/name
+              assert root in path.resolve().parents and not path.is_symlink()
+              old=path.read_text() if path.exists() else ''
+              assert (entry['before'] is None and not path.exists()) or digest(old)==entry['before'],name+' baseline mismatch'
+              for start,count,insert in reversed(entry['edits']):
+                  assert isinstance(start,int) and isinstance(count,int) and 0<=start<=len(old) and 0<=count<=len(old)-start
+                  old=old[:start]+insert+old[start+count:]
+              assert digest(old)==entry['after'],name+' final mismatch'
+              prepared[name]=old
+          for name,text in prepared.items():
+              p=root/name;p.parent.mkdir(parents=True,exist_ok=True);p.write_text(text)
+          Path('.github/workflows/apply-reviewed-source.yml').unlink()
+          out=Path(os.environ['RUNNER_TEMP'])/'checkpoint-evidence';out.mkdir()
+          (out/'source-integrity.json').write_text(json.dumps({'baseline':payload['base'],'files':{k:v['after'] for k,v in payload['files'].items()},'runtime_patch_scripts':False,'production_access':False},indent=2))
+          PY
+          git diff --check
+      - name: Verify original functions before saving checkpoint
+        env:
+          TT_QA_OUTPUT: ${{ runner.temp }}/checkpoint-evidence
+        run: |
+          set -euo pipefail
+          php tests/accounts-v1/inventory_reconciliation_test.php
+          node tests/accounts-v1/inventory_reconciliation_ui_test.js
+          python3 tests/accounts-v1/inventory_reconciliation_http_test.py
+          find . -path './.git' -prune -o -name '*.php' -print0 | xargs -0 -n1 php -l
+          for file in tests/accounts-v1/*.js; do node "$file"; done
+          git diff --check
+      - name: Commit normal source files to repair branch only
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = refs/heads/repair/whole-app-linkages-20260921
+          test "$(git ls-remote origin refs/heads/repair/whole-app-linkages-20260921 | cut -f1)" = "$GITHUB_SHA"
+          git config user.name 'Transtrade Repair'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .github/workflows/accounts-v1-qa.yml .htaccess accounts/accounts-accounting-desk.js accounts/index.php api/operations.mysql.php api/operations.php directors/index.php inventory_reconciliation.php milling/Transtrade_Master_Milling_V3_3_2_AUDITED.html module.php stock-reconciliation.php tests/accounts-v1/inventory_reconciliation_http_test.py tests/accounts-v1/inventory_reconciliation_test.php tests/accounts-v1/inventory_reconciliation_ui_test.js tests/accounts-v1/linkage_regressions_test.js tests/accounts-v1/product_stage_architecture_test.js
+          git add -u .github/workflows/apply-reviewed-source.yml
+          git diff --cached --check
+          git commit -m 'Keep Ghati private and reconcile loading after the complete current shift'
+          git push origin HEAD:refs/heads/repair/whole-app-linkages-20260921
+          git rev-parse HEAD > "$RUNNER_TEMP/checkpoint-evidence/commit.txt"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: private-stock-repair-checkpoint-${{ github.run_id }}
+          path: ${{ runner.temp }}/checkpoint-evidence/
+          retention-days: 14
