@@ -1,0 +1,50 @@
+name: Stage tested source objects
+on:
+  push:
+    branches: ['repair/whole-app-linkages-20260921']
+    paths: ['.github/workflows/stage-reviewed-objects.yml']
+permissions:
+  contents: write
+  actions: read
+jobs:
+  stage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: github.ref == 'refs/heads/repair/whole-app-linkages-20260921'
+    steps:
+      - name: Stage immutable blobs only from the successful checked source artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/reviewed-source"
+          gh run download 35700968984 --repo "$GITHUB_REPOSITORY" --name private-stock-repair-checkpoint-35700968984 --dir "$RUNNER_TEMP/reviewed-source"
+          python3 - <<'PY'
+          import os,json,hashlib,tarfile,subprocess
+          from pathlib import Path
+          root=Path(os.environ['RUNNER_TEMP'])/'reviewed-source'
+          manifest=json.loads((root/'source-integrity.json').read_text())
+          assert manifest['baseline']=='dce868fd82e136167e97d2717938940b2d4fcc48'
+          expected={'.github/workflows/accounts-v1-qa.yml','.htaccess','accounts/accounts-accounting-desk.js','accounts/index.php','api/operations.mysql.php','api/operations.php','directors/index.php','inventory_reconciliation.php','milling/Transtrade_Master_Milling_V3_3_2_AUDITED.html','module.php','stock-reconciliation.php','tests/accounts-v1/inventory_reconciliation_http_test.py','tests/accounts-v1/inventory_reconciliation_test.php','tests/accounts-v1/inventory_reconciliation_ui_test.js','tests/accounts-v1/linkage_regressions_test.js','tests/accounts-v1/product_stage_architecture_test.js'}
+          assert set(manifest['files'])==expected
+          blobs=[]
+          with tarfile.open(root/'reviewed-source-files.tar.gz')as archive:
+              assert {m.name for m in archive.getmembers()}==expected
+              for member in archive.getmembers():
+                  assert member.isfile() and member.size<1000000
+                  data=archive.extractfile(member).read()
+                  assert hashlib.sha256(data).hexdigest()==manifest['files'][member.name],member.name
+                  request=json.dumps({'content':data.decode('utf-8'),'encoding':'utf-8'}).encode()
+                  response=json.loads(subprocess.check_output(['gh','api','--method','POST',f"repos/{os.environ['GITHUB_REPOSITORY']}/git/blobs",'--input','-'],input=request))
+                  expected_sha=hashlib.sha1(b'blob '+str(len(data)).encode()+b'\0'+data).hexdigest()
+                  assert response['sha']==expected_sha
+                  blobs.append({'path':member.name,'mode':'100644','type':'blob','sha':expected_sha})
+          (root/'reviewed-tree-elements.json').write_text(json.dumps(blobs,indent=2))
+          print(json.dumps(blobs,indent=2))
+          print('No commit, branch, tag, pull request, deployment or production data was changed by this job.')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: reviewed-source-object-manifest-${{ github.run_id }}
+          path: ${{ runner.temp }}/reviewed-source/reviewed-tree-elements.json
+          retention-days: 14
