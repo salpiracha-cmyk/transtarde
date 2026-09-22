@@ -63,7 +63,7 @@ exContext.purchaseSodaFeed=[];
 exContext.syncExMillPurchaseSodas();
 assert.equal(stores.ex.find(x=>x.id===111).sourceRouteStatus,'ROUTE_CHANGED','A route change with loaded history must be retained for review');
 
-const stockFns=['millBaseVariety','millRiceType','millProductIdentity','stockScopeMatches','resolveStockKey','shipmentLoadedWeight','computedStockRows'].map(n=>extractFunction(milling,n)).join('\n');
+const stockFns=['millBaseVariety','millRiceType','millProductIdentity','stockEntityForView','isOperationalProductionRow','stockScopeMatches','resolveStockKey','shipmentLoadedWeight','computedStockRows'].map(n=>extractFunction(milling,n)).join('\n');
 const stockStores={};
 const stockContext={
   STORE_PROD:'prod',STORE_SLIPS:'slips',STORE_LOCALSALES:'local',STORE_EXPORTERSALE:'exporter',STORE_SHIP:'ship',STORE_STOCKADJ:'adj',

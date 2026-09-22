@@ -60,6 +60,8 @@
     ]}
   ];
 
+  if(access.canInventoryReconciliation) areas.find(area=>area.key==='reports').actions.push({title:'Ghati & Stock Reconciliation',note:'Management-only production and physical-stock reconciliation',special:'stock-reconciliation'});
+
   function installStyle() {
     if (q('#ttAccountingDeskStyle')) return;
     const style = document.createElement('style');
@@ -99,6 +101,7 @@
   }
 
   async function launch(action) {
+    if (action.special === 'stock-reconciliation' && access.canInventoryReconciliation) { location.href='/stock-reconciliation.php?origin=accounts&entity='+encodeURIComponent(entity()); return; }
     if (action.special === 'soda') return openSoda();
     if (action.special === 'search') return openSearch();
     if (action.special === 'shipment') return openShipmentChooser();
@@ -287,6 +290,7 @@
 
   function bindSodaForm(host, record = null) {
     const form = q('#ttSodaForm', host);
+    const createRequestKey = record ? '' : (crypto.randomUUID?.() || `soda-${Date.now()}-${Math.random().toString(16).slice(2)}`);
     const terms=q('#ttSdTerms',form),days=q('#ttSdCredit',form),daysWrap=q('#ttSdCreditWrap',form),productSelect=q('#ttSdProduct',form),route=q('#ttSdRoute',form),routeWrap=q('#ttSdRouteWrap',form),stock=q('#ttSdStock',form),stockWrap=q('#ttSdStockWrap',form),exMill=q('#ttSdExMill',form),exMillWrap=q('#ttSdExMillWrap',form),supplier=q('#ttSdSupplier',form);
     let locationTouched=!!record?.locationId;
     const setSelect=(control,value)=>{control.value=value;const input=control.closest('.tt-search-select')?.querySelector(':scope>input');if(input)input.value=control.selectedOptions[0]?.textContent.trim()||'';};
@@ -320,7 +324,7 @@
     form.onsubmit = async event => {
       event.preventDefault();
       const payload = {
-        action: record ? 'amend' : 'create', id:record?.id || '', csrf:access.csrf, entity:entity(),
+        action: record ? 'amend' : 'create', id:record?.id || '', requestKey:createRequestKey, csrf:access.csrf, entity:entity(),
         sodaDate:q('#ttSdDate', form).value,purchaseProductId:productSelect.value,
         broker:q('#ttSdBroker', form).value,supplierId:supplier.value,party:supplier.selectedOptions?.[0]?.textContent||'',readyRoute:route.value,locationId:route.value==='EX_MILL'?exMill.value:stock.value,
         expectedTrucks:q('#ttSdTrucks', form).value.trim(), qtyFromMT:q('#ttSdMin', form).value.trim(), qtyToMT:q('#ttSdMax', form).value.trim(),

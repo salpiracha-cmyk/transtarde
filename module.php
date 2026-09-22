@@ -57,7 +57,8 @@ $sharedBootstrap = <<<'HTML'
 (()=>{
   const access=window.TT_MODULE_ACCESS||{}, endpoint='api/operations.mysql.php';
   const EXPORT_STORE='transtrade_export_v3_operational';
-  const allowed=k=>k===EXPORT_STORE||/^tt[0-9]{2}[a-z0-9_]{2,60}$/.test(k);
+  const PRIVATE_STORES=new Set(['tt34ghati','tt34nilqueue','tt32processingrecon']);
+  const allowed=k=>!PRIVATE_STORES.has(k)&&(k===EXPORT_STORE||/^tt[0-9]{2}[a-z0-9_]{2,60}$/.test(k));
   const originalSet=Storage.prototype.setItem, originalRemove=Storage.prototype.removeItem;
   const LEGACY_QUEUE_STORE='tt_shared_commit_queue_v1', LEGACY_OUTBOX_DB='transtrade-offline-outbox-v2';
   let applying=false, revision=0, remoteKeys=new Set(), pending=new Map(), inFlight=new Set(), keyVersions=new Map(), queuedBase=new Map(), timer=0, inboundRetry=0, lastRemoteBy='', lastInboundCheck=0, commitWaiters=[];
@@ -81,6 +82,7 @@ $sharedBootstrap = <<<'HTML'
   function deferInbound(){clearTimeout(inboundRetry);inboundRetry=setTimeout(checkInbound,1000)}
   function applyRemote(data,initial){
     if(!data?.ok)return;
+    for(const key of data.restrictedKeys||[]){originalRemove.call(localStorage,key);pending.delete(key);remoteKeys.delete(key);keyVersions.delete(key);}
     // An in-flight response can arrive after an editor opens. Do not replace its
     // data or advance its version: a later save must still detect real conflicts.
     if(!initial&&exportWorkspaceBusy()){deferInbound();return}
@@ -162,7 +164,7 @@ $guard = <<<'HTML'
 <div id="ttUserBar"><span id="ttUserName"></span><a class="ttPower" href="logout.php" title="Log out" aria-label="Log out">⏻</a></div>
 <style>#ttConsoleTop{height:34px;padding:0 11px;border:1px solid rgba(255,255,255,.5);border-radius:8px;background:rgba(255,255,255,.12);color:#fff;display:inline-flex;align-items:center;text-decoration:none;font:800 12px/1 Arial}#ttConsoleTop:hover,#ttConsoleTop:focus{background:#fff;color:#102a46;outline:none}</style>
 <script>
-(()=>{const addConsole=()=>{const c=window.TT_MODULE_ACCESS||{};if(!c.super||document.getElementById('ttConsoleTop'))return;const top=c.moduleId==='exports'?document.querySelector('.topbar'):c.moduleId==='milling'?document.querySelector('header'):null;if(!top)return;const link=document.createElement('a');link.id='ttConsoleTop';link.href='/index.php';link.textContent='Console';link.title='Return to Control Centre';top.insertBefore(link,document.getElementById('ttUserBar')||null)};if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',addConsole);else addConsole()})();
+(()=>{const addConsole=()=>{const c=window.TT_MODULE_ACCESS||{};if(!c.super||document.getElementById('ttConsoleTop'))return;const top=c.moduleId==='exports'?document.querySelector('.topbar'):c.moduleId==='milling'?document.querySelector('header'):null;if(!top)return;const link=document.createElement('a');link.id='ttConsoleTop';link.href='/index.php';link.textContent='Console';link.title='Return to Control Centre';const anchor=document.getElementById('ttUserBar');top.insertBefore(link,anchor?.parentNode===top?anchor:null)};if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',addConsole);else addConsole()})();
 </script>
 <script>
 (()=>{const c=window.TT_MODULE_ACCESS||{},p=c.permissions||{},superUser=!!c.super,bar=document.getElementById('ttUserBar');document.getElementById('ttUserName').textContent=c.user+' · '+c.role;const placeHeaderUser=()=>{if(!bar)return;const top=c.moduleId==='exports'?document.querySelector('.topbar'):c.moduleId==='milling'?document.querySelector('header'):null;if(!top)return;top.classList.add('ttHasHeaderControls');document.getElementById('logoutTop')?.remove();if(c.moduleId==='milling')top.querySelectorAll(':scope > div:not(.brand):not(#ttUserBar)').forEach(x=>x.remove());bar.classList.add('ttHeaderUser');top.appendChild(bar);let date=top.querySelector('.topDate');if(!date){date=document.createElement('span');date.className='topDate ttHeaderDate';date.textContent=new Date().toLocaleDateString(undefined,{weekday:'short',day:'2-digit',month:'short',year:'numeric'});top.insertBefore(date,bar)}if(c.masterAccess){let master=document.getElementById('ttMasterTop')||document.getElementById('masterTop');if(!master){master=document.createElement('button')}master.id='ttMasterTop';master.type='button';master.textContent='M';master.title='Master Records';master.setAttribute('aria-label','Master Records');master.onclick=()=>window.location.href='/index.php?view=masters';top.insertBefore(master,date)}else{document.getElementById('ttMasterTop')?.remove();document.getElementById('masterTop')?.remove()}};if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',placeHeaderUser);else placeHeaderUser();if(superUser)return;
