@@ -49,7 +49,7 @@ $access = [
     'role'=>(string)$user['role'], 'permissions'=>$modulePermissions,
     'super'=>(($user['role'] ?? '')==='Super Admin'), 'csrf'=>tt_csrf(),
     'masterAccess'=>tt_user_can_access_masters($user), 'masterPermissions'=>$user['master_permissions'] ?? [],
-    'masters'=>tt_user_visible_masters($user), 'masterOptions'=>tt_master_options(),
+    'masters'=>tt_list_masters(), 'masterOptions'=>tt_master_options(),
 ];
 $bootstrap = '<script>window.TT_MODULE_ACCESS='.json_encode($access, JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT).';</script>';
 $sharedBootstrap = <<<'HTML'
