@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require dirname(__DIR__) . '/auth_store.php';
 require dirname(__DIR__) . '/backup_lib.php';
+require_once dirname(__DIR__) . '/inventory_reconciliation.php';
 
 header('Content-Type: application/json; charset=UTF-8');
 header('Cache-Control: no-store, no-cache, must-revalidate');
@@ -24,8 +25,10 @@ function operations_can_write(array $user, string $module): bool {
     $permissionName = strcasecmp($module, 'Milling') === 0 ? 'Mill' : $module;
     $granted = $permissions[$permissionName] ?? [];
     if ($granted === 'all') return true;
-    $actions = (array)$granted;
-    return in_array('Create', $actions, true) || in_array('Edit', $actions, true);
+    if (!is_array($granted)) return false;
+    foreach (['Create','Edit'] as $action) if (in_array($action,$granted,true)) return true;
+    foreach ($granted as $actions) if (is_array($actions) && (in_array('Create',$actions,true)||in_array('Edit',$actions,true))) return true;
+    return false;
 }
 
 function operations_env(string $name): string {
@@ -426,14 +429,14 @@ function operations_file_fallback(array $user): never {
     $path = rtrim((string)TT_DATA_DIR, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'operations.json';
     tt_ensure_data_dir();
     if ($_SERVER['REQUEST_METHOD'] === 'GET') {
-        if (!is_file($path)) operations_respond(['ok'=>true,'revision'=>0,'values'=>[],'meta'=>[],'serverNow'=>gmdate('c')]);
+        if (!is_file($path)) operations_respond(['ok'=>true,'revision'=>0,'serverNow'=>gmdate('c')]+tt_inv_public_values([]));
         $handle = fopen($path, 'r');
         if ($handle === false || !flock($handle, LOCK_SH)) throw new RuntimeException('Shared operational storage is unavailable.');
         try { $raw = stream_get_contents($handle); }
         finally { flock($handle, LOCK_UN); fclose($handle); }
         $store = $raw ? json_decode($raw, true) : null;
         if (!is_array($store)) $store = ['revision'=>0,'values'=>[],'meta'=>[]];
-        operations_respond(['ok'=>true,'revision'=>(int)($store['revision']??0),'values'=>(array)($store['values']??[]),'meta'=>(array)($store['meta']??[]),'serverNow'=>gmdate('c')]);
+        operations_respond(['ok'=>true,'revision'=>(int)($store['revision']??0),'serverNow'=>gmdate('c')]+tt_inv_public_values((array)($store['values']??[]),(array)($store['meta']??[])));
     }
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') operations_respond(['ok'=>false,'error'=>'Method not allowed.'],405);
     $raw = file_get_contents('php://input') ?: '';
@@ -445,6 +448,8 @@ function operations_file_fallback(array $user): never {
     json_decode($value,true); if (json_last_error()!==JSON_ERROR_NONE) operations_respond(['ok'=>false,'error'=>'Operational data must be valid JSON.'],422);
     if (!in_array($sourceModule,['Exports','Mill','Milling','Accounts','Super Admin'],true)) operations_respond(['ok'=>false,'error'=>'Invalid source module.'],422);
     if (!operations_can_write($user,$sourceModule)) operations_respond(['ok'=>false,'error'=>'Create or Edit permission is required for this module.'],403);
+    if(in_array($key,TT_INV_PRIVATE_KEYS,true))operations_respond(['ok'=>false,'error'=>'Reconciliation is maintained by the server; open the Accounts or Directors report.'],403);
+    if($key===TT_INV_CONFIRMATIONS && !tt_inv_has_action($user,'Mill',['stock','export'],'Create') && !tt_inv_has_action($user,'Mill',['stock','export'],'Edit'))operations_respond(['ok'=>false,'error'=>'Stock confirmation permission required.'],403);
     tt_maybe_auto_backup();
     $handle=fopen($path,'c+'); if ($handle===false || !flock($handle,LOCK_EX)) throw new RuntimeException('Shared operational storage is unavailable.');
     $conflict=false;
@@ -455,12 +460,20 @@ function operations_file_fallback(array $user): never {
         if ($baseVersion!==$keyVersion) $conflict=true;
         else {
             if ($key==='transtrade_export_v3_operational' && $old!=='') $value=operations_merge_export($old,$value,$sourceModule);
-            if (!hash_equals(hash('sha256',$old),hash('sha256',$value))) {
-                $store['values'][$key]=$value; $store['revision']=(int)($store['revision']??0)+1; $keyVersion++;
-                $store['meta'][$key]=['version'=>$keyVersion,'updatedAt'=>gmdate('c'),'updatedBy'=>(string)($user['full_name']??$user['username']??'Staff'),'userId'=>(int)($user['id']??0),'module'=>$sourceModule];
-                rewind($handle); if (!ftruncate($handle,0)) throw new RuntimeException('Shared operational storage could not be updated.');
+            $now=gmdate('c');$beforeValues=(array)($store['values']??[]);
+            $value=tt_inv_prepare_write($beforeValues,$key,$value,$user,$now);
+            $nextValues=$beforeValues;$nextValues[$key]=$value;
+            if(in_array($key,TT_INV_SOURCE_KEYS,true))$nextValues=tt_inv_reconcile($nextValues,$now);
+            foreach($nextValues as$changedKey=>$changedValue){
+                if(($beforeValues[$changedKey]??'')===$changedValue)continue;
+                $store['values'][$changedKey]=$changedValue;$store['revision']=(int)($store['revision']??0)+1;
+                $ver=(int)($store['meta'][$changedKey]['version']??0)+1;
+                $store['meta'][$changedKey]=['version'=>$ver,'updatedAt'=>$now,'updatedBy'=>(string)($user['full_name']??$user['username']??'Staff'),'userId'=>(int)($user['id']??0),'module'=>$changedKey===$key?$sourceModule:'System'];
+            }
+            $keyVersion=(int)($store['meta'][$key]['version']??0);
+            if($nextValues!==$beforeValues){
                 $encoded=json_encode($store,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);
-                if (fwrite($handle,$encoded)===false) throw new RuntimeException('Shared operational storage could not be written.'); fflush($handle);
+                rewind($handle);if(!ftruncate($handle,0)||fwrite($handle,$encoded)!==strlen($encoded))throw new RuntimeException('Shared operational storage could not be written.');fflush($handle);
             }
         }
         $revision=(int)($store['revision']??0);
@@ -494,7 +507,7 @@ try {
                 'module' => (string)$row['updated_by_module'],
             ];
         }
-        operations_respond(['ok' => true, 'revision' => $revision, 'values' => $values, 'meta' => $meta, 'serverNow' => gmdate('c')]);
+        operations_respond(['ok'=>true,'revision'=>$revision,'serverNow'=>gmdate('c')]+tt_inv_public_values($values,$meta));
     }
 
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') operations_respond(['ok' => false, 'error' => 'Method not allowed.'], 405);
@@ -517,7 +530,14 @@ try {
         operations_respond(['ok' => false, 'error' => 'Create or Edit permission is required for this module.'], 403);
     }
 
+    if(in_array($key,TT_INV_PRIVATE_KEYS,true))operations_respond(['ok'=>false,'error'=>'Reconciliation is maintained by the server; open the Accounts or Directors report.'],403);
+    if($key===TT_INV_CONFIRMATIONS && !tt_inv_has_action($user,'Mill',['stock','export'],'Create') && !tt_inv_has_action($user,'Mill',['stock','export'],'Edit'))operations_respond(['ok'=>false,'error'=>'Stock confirmation permission required.'],403);
     tt_maybe_auto_backup();
+    $inventoryLock=false;
+    if(in_array($key,TT_INV_SOURCE_KEYS,true)){
+        $lock=$db->prepare('SELECT GET_LOCK(?,10)');$lock->execute(['tt_inventory_'.substr(hash('sha256',operations_env('DB_NAME')),0,24)]);
+        if((int)$lock->fetchColumn()!==1)throw new RuntimeException('Inventory is being saved; retry.');$inventoryLock=true;
+    }
     $db->beginTransaction();
     $select = $db->prepare('SELECT payload, version FROM tt_operation_records WHERE storage_key = ? FOR UPDATE');
     $select->execute([$key]);
@@ -536,19 +556,29 @@ try {
     if ($key === 'transtrade_export_v3_operational' && $oldPayload !== '') {
         $value = operations_merge_export($oldPayload, $value, $sourceModule);
     }
-    $changed = $oldPayload === '' || !hash_equals(hash('sha256', $oldPayload), hash('sha256', $value));
-    if ($changed) {
-        $version++;
-        $now = (new DateTimeImmutable('now', new DateTimeZone('UTC')))->format('Y-m-d H:i:s.u');
-        $name = (string)($user['full_name'] ?? $user['username'] ?? 'Staff');
-        $userId = isset($user['id']) ? (int)$user['id'] : null;
-        $upsert = $db->prepare('INSERT INTO tt_operation_records (storage_key,payload,version,updated_at,updated_by,updated_by_user,updated_by_module) VALUES (?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE payload=VALUES(payload),version=VALUES(version),updated_at=VALUES(updated_at),updated_by=VALUES(updated_by),updated_by_user=VALUES(updated_by_user),updated_by_module=VALUES(updated_by_module)');
-        $upsert->execute([$key, $value, $version, $now, $name, $userId, $sourceModule]);
-        $history = $db->prepare('INSERT INTO tt_operation_history (storage_key,version,payload_sha256,updated_at,updated_by,updated_by_user,updated_by_module) VALUES (?,?,?,?,?,?,?)');
-        $history->execute([$key, $version, hash('sha256', $value), $now, $name, $userId, $sourceModule]);
+    $nowIso=gmdate('c');$beforeValues=[];
+    if(in_array($key,TT_INV_SOURCE_KEYS,true))foreach($db->query('SELECT storage_key,payload FROM tt_operation_records')->fetchAll()as$row)$beforeValues[(string)$row['storage_key']]=(string)$row['payload'];
+    else $beforeValues[$key]=$oldPayload;
+    $value=tt_inv_prepare_write($beforeValues,$key,$value,$user,$nowIso);$nextValues=$beforeValues;$nextValues[$key]=$value;
+    if(in_array($key,TT_INV_SOURCE_KEYS,true))$nextValues=tt_inv_reconcile($nextValues,$nowIso);
+    $now=(new DateTimeImmutable('now',new DateTimeZone('UTC')))->format('Y-m-d H:i:s.u');
+    $name=(string)($user['full_name']??$user['username']??'Staff');$userId=isset($user['id'])?(int)$user['id']:null;
+    foreach($nextValues as$changedKey=>$changedValue){
+        if(($beforeValues[$changedKey]??'')===$changedValue)continue;
+        $select->execute([$changedKey]);$record=$select->fetch();$newVersion=(int)($record['version']??0)+1;
+        if($changedKey===$key)$version=$newVersion;
+        $writer=$changedKey===$key?$sourceModule:'System';
+        $upsert=$db->prepare('INSERT INTO tt_operation_records (storage_key,payload,version,updated_at,updated_by,updated_by_user,updated_by_module) VALUES (?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE payload=VALUES(payload),version=VALUES(version),updated_at=VALUES(updated_at),updated_by=VALUES(updated_by),updated_by_user=VALUES(updated_by_user),updated_by_module=VALUES(updated_by_module)');
+        $upsert->execute([$changedKey,$changedValue,$newVersion,$now,$name,$userId,$writer]);
+        $history=$db->prepare('INSERT INTO tt_operation_history (storage_key,version,payload_sha256,updated_at,updated_by,updated_by_user,updated_by_module) VALUES (?,?,?,?,?,?,?)');
+        $history->execute([$changedKey,$newVersion,hash('sha256',$changedValue),$now,$name,$userId,$writer]);
     }
     $db->commit();
+    if($inventoryLock){$release=$db->prepare('SELECT RELEASE_LOCK(?)');$release->execute(['tt_inventory_'.substr(hash('sha256',operations_env('DB_NAME')),0,24)]);$inventoryLock=false;}
     operations_respond(['ok' => true, 'revision' => $version, 'keyVersion' => $version, 'updatedAt' => gmdate('c')]);
+} catch (DomainException|InvalidArgumentException $e) {
+    if(isset($db)&&$db instanceof PDO&&$db->inTransaction())$db->rollBack();
+    operations_respond(['ok'=>false,'error'=>$e->getMessage()],$e instanceof DomainException?403:422);
 } catch (Throwable $e) {
     if (isset($db) && $db instanceof PDO && $db->inTransaction()) $db->rollBack();
     error_log('Transtrade operations API: ' . $e->getMessage());

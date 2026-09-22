@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require dirname(__DIR__) . '/auth_store.php';
 require dirname(__DIR__) . '/backup_lib.php';
+require_once dirname(__DIR__) . '/inventory_reconciliation.php';
 header('Content-Type: application/json; charset=UTF-8');
 header('Cache-Control: no-store, no-cache, must-revalidate');
 
@@ -52,8 +53,7 @@ try {
         operations_respond([
             'ok' => true,
             'revision' => (int)$store['revision'],
-            'values' => (array)$store['values'],
-            'meta' => (array)$store['meta'],
+            ...tt_inv_public_values((array)$store['values'],(array)$store['meta']),
             'serverNow' => gmdate('c'),
         ]);
     }
@@ -69,6 +69,7 @@ try {
     $key = (string)($body['key'] ?? '');
     $value = $body['value'] ?? null;
     if (!operations_key_allowed($key) || !is_string($value)) operations_respond(['ok' => false, 'error' => 'Invalid operational update.'], 422);
+    if(in_array($key,TT_INV_PRIVATE_KEYS,true)||in_array($key,TT_INV_SOURCE_KEYS,true))operations_respond(['ok'=>false,'error'=>'Use the current operational save endpoint for this record.'],409);
     json_decode($value, true);
     if (json_last_error() !== JSON_ERROR_NONE) operations_respond(['ok' => false, 'error' => 'Operational data must be valid JSON.'], 422);
 

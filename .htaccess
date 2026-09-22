@@ -9,7 +9,7 @@ Options -Indexes
   RewriteRule ^module\.php$ module_release.php [L]
 </IfModule>
 
-<FilesMatch "^(index\.html|auth\.php|auth_store\.php|backup_lib\.php)$">
+<FilesMatch "^(index\.html|auth\.php|auth_store\.php|backup_lib\.php|inventory_reconciliation\.php)$">
   Require all denied
 </FilesMatch>
 

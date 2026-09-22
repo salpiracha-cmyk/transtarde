@@ -3,9 +3,9 @@ name: Accounts V1 QA
 on:
   push:
     branches: [main, accounts-v1-foundation]
-    paths: ['index.html','accounts/**','api/**','scripts/**','auth_store.php','product_stage.php','module.php','exports/**','admin/**','milling/**','tests/accounts-v1/**','tests/offline_recovery_audit.js','tests/super_admin_cleanup_audit.js','tests/live/accounts-hostinger-qa.spec.js','tests/live/accounts-bulk-hostinger-qa.spec.js','tests/live/hostinger-qa.spec.js','tests/live/exports-reset-only.spec.js','tests/exports-v3/**','.github/workflows/accounts-v1-qa.yml','.github/workflows/deploy-production.yml','.github/workflows/qa-data-cleanup.yml']
+    paths: ['index.html','accounts/**','api/**','scripts/**','auth_store.php','product_stage.php','inventory_reconciliation.php','stock-reconciliation.php','directors/**','module.php','exports/**','admin/**','milling/**','tests/accounts-v1/**','tests/offline_recovery_audit.js','tests/super_admin_cleanup_audit.js','tests/live/accounts-hostinger-qa.spec.js','tests/live/accounts-bulk-hostinger-qa.spec.js','tests/live/hostinger-qa.spec.js','tests/live/exports-reset-only.spec.js','tests/exports-v3/**','.github/workflows/accounts-v1-qa.yml','.github/workflows/deploy-production.yml','.github/workflows/qa-data-cleanup.yml']
   pull_request:
-    paths: ['index.html','accounts/**','api/**','scripts/**','auth_store.php','product_stage.php','module.php','exports/**','admin/**','milling/**','tests/accounts-v1/**','tests/offline_recovery_audit.js','tests/super_admin_cleanup_audit.js','tests/live/accounts-hostinger-qa.spec.js','tests/live/accounts-bulk-hostinger-qa.spec.js','tests/live/hostinger-qa.spec.js','tests/live/exports-reset-only.spec.js','tests/exports-v3/**','.github/workflows/accounts-v1-qa.yml','.github/workflows/deploy-production.yml','.github/workflows/qa-data-cleanup.yml']
+    paths: ['index.html','accounts/**','api/**','scripts/**','auth_store.php','product_stage.php','inventory_reconciliation.php','stock-reconciliation.php','directors/**','module.php','exports/**','admin/**','milling/**','tests/accounts-v1/**','tests/offline_recovery_audit.js','tests/super_admin_cleanup_audit.js','tests/live/accounts-hostinger-qa.spec.js','tests/live/accounts-bulk-hostinger-qa.spec.js','tests/live/hostinger-qa.spec.js','tests/live/exports-reset-only.spec.js','tests/exports-v3/**','.github/workflows/accounts-v1-qa.yml','.github/workflows/deploy-production.yml','.github/workflows/qa-data-cleanup.yml']
 
 permissions:
   contents: read
@@ -41,8 +41,59 @@ jobs:
           node tests/accounts-v1/soda_master_compatibility_test.js
           node tests/accounts-v1/linkage_regressions_test.js
           node tests/offline_recovery_audit.js
+      - name: Private stock reconciliation rules
+        run: |
+          php tests/accounts-v1/inventory_reconciliation_test.php
+          node tests/accounts-v1/inventory_reconciliation_ui_test.js
+          python3 tests/accounts-v1/inventory_reconciliation_http_test.py
       - name: PHP syntax
         run: |
           find . -path './.git' -prune -o -name '*.php' -print0 | xargs -0 -n1 php -l
           php tests/runtime_delivery_test.php
           node tests/runtime_security_static_audit.js
+
+  inventory-runtime:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: disposable-root-only
+          MYSQL_DATABASE: transtrade_qa_inventory
+          MYSQL_USER: qa_inventory
+          MYSQL_PASSWORD: disposable-local-only
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping -h localhost -pdisposable-root-only"
+          --health-interval=5s --health-timeout=5s --health-retries=15
+    env:
+      TT_DB_HOST: 127.0.0.1
+      TT_DB_NAME: transtrade_qa_inventory
+      TT_DB_USER: qa_inventory
+      TT_DB_PASS: disposable-local-only
+      TT_QA_MYSQL: '1'
+      TT_QA_BROWSER: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: pdo_mysql, mbstring, fileinfo
+          coverage: none
+      - name: Install isolated browser runtime
+        run: |
+          python3 -m venv "$RUNNER_TEMP/inventory-venv"
+          "$RUNNER_TEMP/inventory-venv/bin/pip" -q install playwright==1.55.0
+          "$RUNNER_TEMP/inventory-venv/bin/playwright" install --with-deps chromium
+      - name: Actual MySQL and restricted-user browser reconciliation
+        env:
+          TT_QA_OUTPUT: ${{ runner.temp }}/inventory-evidence
+        run: '"$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/inventory_reconciliation_http_test.py'
+      - name: Retain sanitized test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: inventory-reconciliation-${{ github.run_id }}
+          path: ${{ runner.temp }}/inventory-evidence/
+          retention-days: 14

@@ -68,7 +68,8 @@ assert(!bags.includes('Non-Woven bags are excluded'),'Non-Woven is still exclude
 assert(bagsUi.includes('Sales Tax Invoice received'),'bag invoice checkbox missing');
 assert(bagsUi.includes('Every bag type is available'),'bag workflow is not unified');
 
-assert(milling.includes("inputStage:'RAW'"),'reprocessing input must remain RAW rice');
+assert(milling.includes("inputStockName:inputStock||millProductIdentity(prodVariety.value,'RAW').displayName"),'normal raw processing must retain the typed Raw Rice source');
+assert(milling.includes("inputStage:inputStock?(/READY RICE$/i.test(inputStock)?'READY':'FINISHED'):'RAW'"),'reprocessing must preserve the actual Ready/Finished input rather than relabel it RAW');
 assert(milling.includes("outputStage:'FINISHED'"),'own-mill finished stage missing');
 assert(milling.includes("productStage:identity.productStage"),'Pohanch stage metadata missing');
 assert(milling.includes('function millBaseVariety(name)'),'Milling still lacks canonical base-variety normalization');

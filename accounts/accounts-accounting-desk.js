@@ -60,6 +60,8 @@
     ]}
   ];
 
+  if(access.canInventoryReconciliation) areas.find(area=>area.key==='reports').actions.push({title:'Ghati & Stock Reconciliation',note:'Management-only production and physical-stock reconciliation',special:'stock-reconciliation'});
+
   function installStyle() {
     if (q('#ttAccountingDeskStyle')) return;
     const style = document.createElement('style');
@@ -99,6 +101,7 @@
   }
 
   async function launch(action) {
+    if (action.special === 'stock-reconciliation' && access.canInventoryReconciliation) { location.href='/stock-reconciliation.php?origin=accounts&entity='+encodeURIComponent(entity()); return; }
     if (action.special === 'soda') return openSoda();
     if (action.special === 'search') return openSearch();
     if (action.special === 'shipment') return openShipmentChooser();
