@@ -12,16 +12,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: 473dd05045882de54218e4a147a32f04de7d39f0
+          ref: dce868fd82e136167e97d2717938940b2d4fcc48
           persist-credentials: false
       - run: |
           set -euo pipefail
-          test "$(git rev-parse HEAD)" = 473dd05045882de54218e4a147a32f04de7d39f0
+          test "$(git rev-parse HEAD)" = dce868fd82e136167e97d2717938940b2d4fcc48
           mkdir -p "$RUNNER_TEMP/source"
-          git archive HEAD | gzip > "$RUNNER_TEMP/source/source-473dd05.tar.gz"
+          git archive HEAD | gzip > "$RUNNER_TEMP/source/source-dce868f.tar.gz"
           git ls-tree -r HEAD > "$RUNNER_TEMP/source/manifest.txt"
       - uses: actions/upload-artifact@v4
         with:
-          name: repair-source-473dd05
+          name: repair-source-dce868f
           path: ${{ runner.temp }}/source/
           retention-days: 1
