@@ -84,7 +84,7 @@ def run() -> None:
         c,d=request('qamill','/api/operations.php',{'key':'tt34nilqueue','value':'[]'});check(c==409,'Legacy write cannot bypass server-owned ledger')
         scope={'entity':'TTI','millId':2,'millName':'QA Second Mill'};stock='IRRI-6 White Rice — ASAS'
         post('tt30slips',[{**scope,'id':1,'baseVariety':'IRRI-6','riceType':'White','productStage':'RAW','payableWeight':100000}])
-        ship={**scope,'id':2,'baseVariety':'IRRI-6','riceType':'White','brand':'ASAS','containers':[{'id':3,'container':'TEST1234567','weight':25000,'bags':500}]}
+        ship={**scope,'id':2,'contractRef':'QA-CONTRACT','_ttLotId':'QA-LOT','_ttShipmentId':'QA-SHIPMENT','baseVariety':'IRRI-6','riceType':'White','brand':'ASAS','containers':[{'id':3,'container':'TEST1234567','weight':25000,'bags':500}]}
         post('tt30ship',[ship]);saved=json.loads(get()['values']['tt30ship'])[0]['containers'][0]
         shift=saved['productionShift'];date=saved['productionShiftDate']
         # The 18:00-20:00 gap has no current processing shift; do not invent completion for it.
@@ -104,6 +104,7 @@ def run() -> None:
         # Final current-shift entry contains no further ASAS: only 15,000kg remains unexplained.
         rows=json.loads(get()['values']['tt30prod']);rows.append({**pr,'id':11,'shiftEntriesComplete':True,'rows':[{'product':'Ready Rice — OTHER','bags':20,'bagWeight':50}]})
         post('tt30prod',rows);pv=private();events=json.loads(pv['tt34ghati']);check(len(events)==1 and events[0]['kg']==15000 and events[0]['kind']=='gain','Server applies only unexplained remainder once',events)
+        check(events[0]['sourceShipments'][0]['contractRef']=='QA-CONTRACT' and events[0]['sourceShipments'][0]['lotRef']=='QA-LOT','Private event retains exact source Contract and Lot')
         adjs=json.loads(pv['tt32stockadj']);check(len(adjs)==1 and adjs[0]['millName']=='QA Second Mill','Correction remains at physical source mill')
         for endpoint in ['/api/operations.mysql.php','/api/operations.php']:
             c,d=request('qamill',endpoint);check('tt34ghati' not in d['values'] and 'tt34nilqueue' not in d['values'],'No management stores through '+endpoint)
@@ -112,6 +113,8 @@ def run() -> None:
         post('tt39physicalconfirmations',crows,version=0,expected=409);check(len(json.loads(private()['tt34ghati']))==before,'Stale retry does not duplicate gain')
         rows=json.loads(get()['values']['tt30prod']);rows.append({**pr,'id':12,'shiftEntriesComplete':False,'rows':[]})
         post('tt30prod',rows);pv=private();fixed=json.loads(pv['tt34nilqueue']);check(fixed[0].get('productionId')==12 and fixed[0]['noStockPost'],'First subsequent report receives private no-stock row')
+        check(not json.loads(pv['tt39physicalconfirmations'])[0].get('reviewRequired'),'Empty later lot creates no false quantity-change alert')
+        c,d=request('qaaccounts','/stock-reconciliation.php?entity=TTI');check('QA-CONTRACT · QA-LOT' in d,'Private management report displays original Contract and Lot')
         view=get();check(not any(r.get('systemFixed') for p in json.loads(view['values']['tt30prod']) for r in p['rows']),'Mill production contains no fixed management row')
         counts=(len(json.loads(pv['tt34ghati'])),len(json.loads(pv['tt32stockadj'])))
         post('tt30prod',json.loads(view['values']['tt30prod']));pv=private();check(counts==(len(json.loads(pv['tt34ghati'])),len(json.loads(pv['tt32stockadj']))),'Report replay does not adjust stock again')
@@ -188,6 +191,7 @@ def browser_checks(base,clients,request,get,post,private,scope,output):
             account_context=browser.new_context(viewport={'width':1440,'height':1100});jar=next(h.cookiejar for h in clients['qaaccounts'].handlers if isinstance(h,urllib.request.HTTPCookieProcessor));account_context.add_cookies([{'name':c.name,'value':c.value,'url':base}for c in jar]);account_page=account_context.new_page()
             account_page.goto(base+'/stock-reconciliation.php?entity=TTI',wait_until='domcontentloaded')
             check('15,000.000' in account_page.locator('body').inner_text(),'Accounts browser sees the reconciled private result')
+            check('Production quantities changed after reconciliation' not in account_page.locator('body').inner_text(),'Browser report does not falsely flag zero or unrelated subsequent production')
             if output:account_page.screenshot(path=str(Path(output)/'accounts-private-reconciliation.png'),full_page=True)
             check(not errors,'No unhandled Mill browser errors in repaired workflow',errors)
         finally:browser.close()

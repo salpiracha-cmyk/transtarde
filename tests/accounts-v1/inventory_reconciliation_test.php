@@ -24,7 +24,7 @@ $stock='IRRI-6 White Rice — ASAS';$rawStock='IRRI-6 White Raw Rice';
 function values(array $rows):array{return array_map('tt_inv_json',$rows);}
 function loadFixture(array $scope,string $stock):array{return values([
  'tt30slips'=>[$scope+['id'=>1,'baseVariety'=>'IRRI-6','riceType'=>'White','productStage'=>'RAW','payableWeight'=>100000,'purchaseRate'=>100,'unloadingDate'=>'2026-09-21']],
- 'tt30ship'=>[$scope+['id'=>2,'baseVariety'=>'IRRI-6','riceType'=>'White','brand'=>'ASAS','containers'=>[['id'=>3,'container'=>'TEST1234567','weight'=>25000,'loadingAt'=>'2026-09-21T07:00:00Z','productionShiftDate'=>'2026-09-21','productionShift'=>'Day']]]]
+ 'tt30ship'=>[$scope+['id'=>2,'contractRef'=>'QA-CONTRACT','_ttLotId'=>'QA-LOT','_ttShipmentId'=>'QA-SHIPMENT','baseVariety'=>'IRRI-6','riceType'=>'White','brand'=>'ASAS','containers'=>[['id'=>3,'container'=>'TEST1234567','weight'=>25000,'loadingAt'=>'2026-09-21T07:00:00Z','productionShiftDate'=>'2026-09-21','productionShift'=>'Day']]]]
 ]);}
 function production(array $scope,int $id,float $kg,bool $complete,string $brand='ASAS',string $date='2026-09-21',string $type='White'):array{
  return $scope+['id'=>$id,'date'=>$date,'shift'=>'Day','baseVariety'=>'IRRI-6','riceType'=>$type,'inputStage'=>'RAW','shiftEntriesComplete'=>$complete,
@@ -141,4 +141,23 @@ $rework=values(['tt30slips'=>[$scope+['id'=>1,'baseVariety'=>'IRRI-6','riceType'
 equal(tt_inv_stock($rework,$scope)['IRRI-6 White Ready Rice'],5000.0,'Reprocessing consumes existing Ready Rice');check(!array_key_exists($rawStock,tt_inv_stock($rework,$scope)),'Reprocessing does not invent RAW consumption');
 $duplicate=tt_inv_rows($pending,TT_INV_CONFIRMATIONS);$duplicate[]=$scope+['id'=>'pc-another','stockName'=>$stock,'physicalKg'=>0];
 rejects(static fn()=>tt_inv_prepare_write($pending,TT_INV_CONFIRMATIONS,tt_inv_json($duplicate),$mill,'2026-09-21T09:00:00Z'),'Same pending physical confirmation cannot be duplicated under another ID');
+
+// A later zero-output or other-brand lot must not falsely reopen a reconciled product.
+$r=tt_inv_rows($absent,'tt30prod');$r[]=production($scope,110,0,false);
+$zero=writeSource($absent,'tt30prod',$r,'2026-09-21T12:01:00Z');
+check(empty(tt_inv_rows($zero,TT_INV_CONFIRMATIONS)[0]['reviewRequired']),'Zero-output next report creates no false management warning');
+$r=tt_inv_rows($zero,'tt30prod');$r[]=production($scope,111,500,false,'UNRELATED');
+$unrelated=writeSource($zero,'tt30prod',$r,'2026-09-21T12:02:00Z');
+check(empty(tt_inv_rows($unrelated,TT_INV_CONFIRMATIONS)[0]['reviewRequired']),'Other-brand production does not reopen this product reconciliation');
+equal(count(tt_inv_rows($unrelated,'tt34ghati')),1,'Unrelated later reports cannot duplicate the gain');
+equal(tt_inv_rows($unrelated,'tt34nilqueue')[0]['productionId'],110,'Fixed row remains attached to the first subsequent report');
+$refs=tt_inv_rows($absent,TT_INV_CONFIRMATIONS)[0]['sourceShipments'];
+equal($refs[0]['contractRef'],'QA-CONTRACT','Source Contract copied from the actual saved shipment');
+equal($refs[0]['lotRef'],'QA-LOT','Source Lot copied from the actual saved shipment');
+equal($refs[0]['shipmentId'],'QA-SHIPMENT','Source operational shipment identity retained');
+equal(tt_inv_rows($absent,'tt34ghati')[0]['sourceShipments'],$refs,'Private event retains source references');
+equal(tt_inv_rows($absent,'tt34nilqueue')[0]['sourceShipments'],$refs,'Private fixed row retains source references');
+$bad=$scope+['id'=>'bad-ref','stockName'=>$stock,'physicalKg'=>0,'sourceShipmentId'=>'WRONG','contractRef'=>'SPOOF'];
+rejects(static fn()=>tt_inv_prepare_write(loadFixture($scope,$stock),TT_INV_CONFIRMATIONS,tt_inv_json([$bad]),$mill,'2026-09-21T09:00:00Z'),'Unrelated source shipment cannot be used for stock confirmation');
+
 echo "PASS inventory reconciliation: $count assertions; in-memory fixtures only; temporary sessions removed.\n";

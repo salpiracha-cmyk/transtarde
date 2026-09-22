@@ -7,6 +7,18 @@ $entities=array_values(array_filter(['TTI','BRM'],static fn($e)=>tt_inv_can_repo
 $entity=strtoupper((string)($_GET['entity']??($entities[0]??'')));
 if(!in_array($entity,$entities,true)){http_response_code(403);exit('Accounts or Directors report permission for this company is required.');}
 header('Cache-Control: no-store, no-cache, must-revalidate');header('X-LiteSpeed-Cache-Control: no-cache');header('Vary: Cookie');
+$sourceLabel=static function(array $row):string{
+    $labels=[];
+    foreach((array)($row['sourceShipments']??[])as$source){
+        if(!is_array($source))continue;
+        $label=implode(' · ',array_filter([(string)($source['contractRef']??''),(string)($source['lotRef']??'')],static fn($s)=>$s!==''));
+        if($label==='')$label=(string)($source['shipmentId']??$source['sourceShipmentId']??'');
+        if($label!=='')$labels[]=$label;
+    }
+    // Legacy free-text references are shown as saved, not matched by a guessed brand.
+    if(!$labels&&isset($row['shipment']))$labels[]=(string)$row['shipment'];
+    return implode(' / ',array_values(array_unique($labels)));
+};
 $origin=($_GET['origin']??'')==='directors'?'directors':'accounts';$today=(new DateTimeImmutable('now',new DateTimeZone('Asia/Karachi')))->format('Y-m-d');
 $escape=static fn($v)=>htmlspecialchars((string)$v,ENT_QUOTES|ENT_SUBSTITUTE,'UTF-8');$number=static fn($v)=>number_format((float)$v,3,'.',',');
 $date=static function($v):string{$s=(string)$v;return preg_match('/^(\d{4})-(\d{2})-(\d{2})/',$s,$m)?$m[3].'-'.$m[2].'-'.$m[1]:$s;};
@@ -22,11 +34,11 @@ catch(Throwable $error){error_log('Stock reconciliation: '.$error->getMessage())
 <div class="summary"><div class="card">Net Ghati / weight loss<strong><?=$number($report['ghatiKg'])?> kg</strong></div><div class="card">Carry-forward gain<strong><?=$number($report['carryForwardGainKg'])?> kg</strong></div><div class="card">10-day weighted Raw Rice rate<strong><?=$rate===null?'Not available':'PKR '.number_format($rate,2).' / kg'?></strong></div></div>
 <?php if($rate!==null):?><p class="note">Indicative weight-loss exposure: PKR <?=number_format($report['ghatiKg']*$rate,2)?>. This is a management valuation, not another booked expense.</p><?php endif;?>
 <h2>Pending production and physical confirmations</h2><div class="table"><table><thead><tr><th>Date / shift</th><th>Mill</th><th>Product / brand</th><th>Physical kg</th><th>Status</th></tr></thead><tbody>
-<?php foreach($report['confirmations']as$r):?><tr><td><?=$escape($date($r['shiftDate']??$r['date']??''))?> · <?=$escape($r['shift']??'Shift needs review')?></td><td><?=$escape($r['millName']??'')?></td><td><?=$escape($r['stockName']??'')?></td><td><?=$number($r['physicalKg']??0)?></td><td class="<?=empty($r['reviewRequired'])?'':'warning'?>"><?=$escape($r['reviewRequired']??$r['status']??'')?></td></tr><?php endforeach;?>
+<?php foreach($report['confirmations']as$r):?><tr><td><?=$escape($date($r['shiftDate']??$r['date']??''))?> · <?=$escape($r['shift']??'Shift needs review')?></td><td><?=$escape($r['millName']??'')?></td><td><?=$escape($r['stockName']??'')?><br><small><?=$escape($sourceLabel($r))?></small></td><td><?=$number($r['physicalKg']??0)?></td><td class="<?=empty($r['reviewRequired'])?'':'warning'?>"><?=$escape($r['reviewRequired']??$r['status']??'')?></td></tr><?php endforeach;?>
 <?php if(!$report['confirmations']):?><tr><td colspan="5">No physical confirmations recorded.</td></tr><?php endif;?></tbody></table></div>
 <h2>Reconciled events</h2><div class="table"><table><thead><tr><th>Date</th><th>Mill / product</th><th>Reference / description</th><th>Shortage kg</th><th>Gain kg</th><th>Ghati after</th><th>Gain carried</th></tr></thead><tbody>
-<?php foreach($report['events']as$r):?><tr><td><?=$escape($date($r['date']??''))?></td><td><?=$escape($r['millName']??'')?> · <?=$escape($r['product']??'')?></td><td><?=$escape($r['ref']??'')?><br><?=$escape($r['narration']??'')?></td><td><?=($r['kind']??'')==='shortage'?$number($r['kg']):'—'?></td><td><?=($r['kind']??'')==='gain'?$number($r['kg']):'—'?></td><td><?=$number($r['ghatiAfter'])?></td><td><?=$number($r['gainAfter'])?></td></tr><?php endforeach;?>
+<?php foreach($report['events']as$r):?><tr><td><?=$escape($date($r['date']??''))?></td><td><?=$escape($r['millName']??'')?> · <?=$escape($r['product']??'')?></td><td><?=$escape($r['ref']??'')?><br><small><?=$escape($sourceLabel($r))?></small><br><?=$escape($r['narration']??'')?></td><td><?=($r['kind']??'')==='shortage'?$number($r['kg']):'—'?></td><td><?=($r['kind']??'')==='gain'?$number($r['kg']):'—'?></td><td><?=$number($r['ghatiAfter'])?></td><td><?=$number($r['gainAfter'])?></td></tr><?php endforeach;?>
 <?php if(!$report['events']):?><tr><td colspan="7">No reconciled gain or shortage.</td></tr><?php endif;?></tbody></table></div>
 <h2>Fixed production reconciliation rows</h2><p class="note">These rows belong to the management view of the linked production report. They are not shown in Mill entry screens and are excluded from stock, Raw Rice consumption and all purchase postings.</p><div class="table"><table><thead><tr><th>Production date / shift</th><th>Production ID</th><th>Product</th><th>kg</th><th>Control</th></tr></thead><tbody>
-<?php foreach($report['fixedProductionRows']as$r):?><tr><td><?=$escape($date($r['appliedDate']??''))?> <?=$escape($r['appliedShift']??'')?></td><td><?=$escape($r['productionId']??'First subsequent report pending')?></td><td><?=$escape($r['product']??'')?></td><td><?=$number($r['kg']??0)?></td><td class="fixed">Last loading excess — fixed / no stock posting</td></tr><?php endforeach;?>
+<?php foreach($report['fixedProductionRows']as$r):?><tr><td><?=$escape($date($r['appliedDate']??''))?> <?=$escape($r['appliedShift']??'')?></td><td><?=$escape($r['productionId']??'First subsequent report pending')?></td><td><?=$escape($r['product']??'')?><br><small><?=$escape($sourceLabel($r))?></small></td><td><?=$number($r['kg']??0)?></td><td class="fixed">Last loading excess — fixed / no stock posting</td></tr><?php endforeach;?>
 <?php if(!$report['fixedProductionRows']):?><tr><td colspan="5">No fixed reconciliation rows.</td></tr><?php endif;?></tbody></table></div></main></body></html>

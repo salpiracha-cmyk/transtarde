@@ -173,19 +173,22 @@ function tt_inv_prepare_write(array $values,string $key,string $json,array $user
             $name=trim((string)($r['stockName']??''));$stocks=tt_inv_stock($values,$scope);
             if($name===''||!array_key_exists($name,$stocks))throw new InvalidArgumentException('Select the exact saved stock product. Refresh the stock position.');
             $shift=tt_inv_shift_at($now);
-            $lastLoading=null;
+            $lastLoading=null;$sources=[];
             foreach(tt_inv_rows($values,'tt30ship')as$shipment){
                 if(!tt_inv_same_scope($scope,$shipment)||tt_inv_resolve_stock($stocks,$shipment)!==$name)continue;
                 if(!empty($r['sourceShipmentId'])&&(string)($shipment['id']??'')!==(string)$r['sourceShipmentId'])continue;
+                $sources[]=['sourceShipmentId'=>(string)($shipment['id']??''),'shipmentId'=>(string)($shipment['_ttShipmentId']??$shipment['shipmentId']??''),
+                    'contractRef'=>(string)($shipment['contractRef']??''),'lotRef'=>(string)($shipment['_ttLotId']??$shipment['lotRef']??$shipment['ref']??'')];
                 foreach((array)($shipment['containers']??[])as$container)if((float)($container['weight']??0)>0&&!empty($container['loadingAt'])&&($lastLoading===null||$container['loadingAt']>$lastLoading['loadingAt']))$lastLoading=$container;
             }
+            if(!empty($r['sourceShipmentId'])&&!$sources)throw new InvalidArgumentException('The selected shipment does not match this company, mill and stock product.');
             if($lastLoading&&!empty($lastLoading['productionShift']))$shift=['date'=>$lastLoading['productionShiftDate'],'shift'=>$lastLoading['productionShift']];
             $desired=tt_inv_kg($r['physicalKg']??0);$raw=(bool)preg_match('/\bRAW RICE$/i',$name);
             if($raw&&abs($stocks[$name])>=50000)throw new InvalidArgumentException('Raw Rice can be confirmed physically NIL only below 50 MT.');
             foreach($old as$other)if(tt_inv_same_scope($other,$scope)&&($other['stockName']??'')===$name&&($other['status']??'')==='Awaiting current-shift production')throw new InvalidArgumentException('This physical confirmation is already waiting for production.');
             $r=$scope+['id'=>$id,'stockName'=>$name,'physicalKg'=>$desired,'date'=>(new DateTimeImmutable($now))->setTimezone(new DateTimeZone('Asia/Karachi'))->format('Y-m-d'),'shiftDate'=>$shift['date'],'shift'=>$shift['shift'],
                 'snapshotKg'=>$stocks[$name],'isRaw'=>$raw,'createdAt'=>$now,'createdBy'=>(string)($user['username']??''),'status'=>$raw?'Pending':'Awaiting current-shift production',
-                'sourceShipmentId'=>(string)($r['sourceShipmentId']??'')];
+                'sourceShipmentId'=>(string)($r['sourceShipmentId']??''),'sourceShipments'=>$sources];
             $r['baseline']=tt_inv_quantities(tt_inv_shift_reports($values,$r),$name);
         }elseif($key==='tt30ship'){
             $containers=[];foreach((array)($before['containers']??[])as$container)$containers[(string)($container['id']??'')]=$container;
@@ -239,7 +242,12 @@ function tt_inv_reconcile(array $values,string $now): array {
         $reports=tt_inv_shift_reports($values,$c);$quantities=tt_inv_quantities($reports,(string)$c['stockName']);
         $completed=(bool)array_filter($reports,static fn($p)=>!empty($p['shiftEntriesComplete']));
         if(($c['status']??'')==='Resolved'){
-            if(empty($c['isRaw'])&&tt_inv_json($c['resolvedQuantities']??[])!==tt_inv_json($quantities))$c['reviewRequired']='Production quantities changed after reconciliation; Accounts/Directors review required.';
+            // Zero-output or unrelated later lots cannot change this product's reconciliation.
+            // Compare contributing reports numerically; a real quantity amendment still needs review.
+            $nonzero=static fn($kg)=>abs((float)$kg)>=.0005;
+            $resolved=array_filter((array)($c['resolvedQuantities']??[]),$nonzero);
+            $current=array_filter($quantities,$nonzero);
+            if(empty($c['isRaw'])&&$resolved!=$current)$c['reviewRequired']='Production quantities changed after reconciliation; Accounts/Directors review required.';
             continue;
         }
         if(empty($c['isRaw'])&&!$completed)continue;
@@ -247,7 +255,7 @@ function tt_inv_reconcile(array $values,string $now): array {
         $balance=round((float)$c['snapshotKg']+$delta,3);$adjust=round((float)$c['physicalKg']-$balance,3);
         $c['resolvedAt']=$now;$c['resolvedQuantities']=$quantities;$c['adjustmentKg']=$adjust;$c['status']='Resolved';
         if(abs($adjust)<.0005)continue; // Current shift explains it: no gain, no loss, no adjustment.
-        $ref='STOCK-CONFIRMATION|'.$c['id'];$scope=tt_inv_scope($c);$rawName=tt_product_identity('RICE',explode(' — ',(string)$c['stockName'])[0],'RAW')['displayName'];
+        $ref='STOCK-CONFIRMATION|'.$c['id'];$scope=tt_inv_scope($c)+['sourceShipmentId'=>(string)($c['sourceShipmentId']??''),'sourceShipments'=>(array)($c['sourceShipments']??[])];$rawName=tt_product_identity('RICE',explode(' — ',(string)$c['stockName'])[0],'RAW')['displayName'];
         $adjustments[]=$scope+['id'=>'RECON-'.$c['id'],'ref'=>$ref,'date'=>$c['date'],'time'=>$now,'stockName'=>$c['stockName'],'brand'=>$c['stockName'],
             'rawStockName'=>!empty($c['isRaw'])?$c['stockName']:$rawName,'rawRiceKg'=>!empty($c['isRaw'])?$adjust:max(0,-$adjust),
             'readyRiceKg'=>!empty($c['isRaw'])?0:$adjust,'type'=>'Physical stock confirmation','managedReconciliation'=>true];

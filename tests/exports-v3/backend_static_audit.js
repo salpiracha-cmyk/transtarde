@@ -86,9 +86,14 @@ assert.match(js,/uploadDocument\(f,'goods-declaration',s\)/,'GD uploads must use
 assert.match(js,/gdRefsFingerprint/,'GD upload must stay bound to its saved GD number and date references');
 assert.match(js,/Goods Declaration \(GD\) file matching the saved GD number\(s\) and date\(s\)/,'final lot closure must require a matching GD file');
 assert.match(js,/\['goodsDeclaration','Goods Declaration \(GD\)',s\.customs\?\.gdDocument\]/,'final uploaded-document set must include the GD');
-assert.match(milling,/shipment:\(s\.contractRef\?s\.contractRef\+' · ':''\)\+\(s\._ttLotId\|\|s\.ref\|\|''\)/,'new reconciliation rows must persist Contract · Lot identity');
-assert.match(milling,/shipLabel=match\.contractRef\+' · '\+\(match\._ttLotId\|\|match\.ref\|\|shipLabel\)/,'legacy reconciliation rows must render with full Contract · Lot identity');
-assert.match(milling,/matches\.find\(s=>s\.status==='Completed'\)\|\|matches\[0\]/,'ambiguous legacy brand/lot rows must prefer the completed shipment');
+const reconciliation=fs.readFileSync(path.join(root,'inventory_reconciliation.php'),'utf8');
+const reconciliationReport=fs.readFileSync(path.join(root,'stock-reconciliation.php'),'utf8');
+assert.match(reconciliation,/'contractRef'=>\(string\)\(\$shipment\['contractRef'\]/,'server-owned reconciliation must retain the exact source Contract');
+assert.match(reconciliation,/'lotRef'=>\(string\)\(\$shipment\['_ttLotId'\]/,'server-owned reconciliation must retain the exact source Lot');
+assert.match(reconciliation,/'sourceShipments'=>\$sources/,'physical confirmation must persist structured shipment references');
+assert.match(reconciliationReport,/\$sourceLabel\(\$r\)/,'private reports must display source Contract and Lot references');
+assert.match(reconciliationReport,/\$row\['shipment'\]/,'legacy saved reference remains readable without guessing a different shipment');
+assert.doesNotMatch(milling,/function renderProcessingReconciliation|id="ghatiStatementBody"/,'private reconciliation cannot return to Mill screens');
 for(const id of ['bagReportMode','bagReportFrom','bagReportTo','bagReportBrand','bagReportMovement','exportReportSource','exportReportFrom','exportReportTo','exportReportBrand','exportReportStatus','exportReportMill']) assert.match(milling,new RegExp('id=["\\\']'+id+'["\\\']'),id+' report control must be wired');
 assert.match(milling,/brands=\[\.\.\.new Set\(rows\.map\(x=>x\.brand\)/,'report brands must come from live rows');
 assert.match(milling,/No export loading records match the filters/,'export loading filters must render an empty state');
