@@ -1,7 +1,7 @@
 (()=>{
 'use strict';
 const access=window.TT_ACCOUNT_ACCESS||{},api='../api/expenses_v1.php',q=s=>document.querySelector(s),qa=s=>[...document.querySelectorAll(s)],today=()=>new Date().toISOString().slice(0,10),thisMonth=()=>today().slice(0,7),entity=()=>localStorage.getItem('tt_accounts_entity')||'TTI',esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])),fmt=v=>Number(v||0).toLocaleString('en-PK',{maximumFractionDigits:2});
-const utilityTypes={ELECTRICITY:'Electricity',GAS:'Gas',WATER:'Water',INTERNET:'Internet',TELEPHONE_MOBILE:'Telephone / Mobile',OTHER_UTILITY:'Other Utility'};
+const utilityTypes={ELECTRICITY:'Electricity',GAS:'Gas',WATER:'Water',INTERNET:'Internet',TELEPHONE_MOBILE:'Telephone / Mobile',CLUB:'Club Bill',OTHER_UTILITY:'Other Utility'};
 const people={'FAM-SALMAN':'Salman','FAM-TALHA':'Talha','FAM-ABU':'Abu','FAM-TAYYAB':'Tayyab'};
 const reimbursementPeople={'REIMB-SALMAN':'Salman','REIMB-TALHA':'Talha','REIMB-ABU':'Abu','REIMB-TAYYAB':'Tayyab'};
 const expenseAccounts={'6110':'Electricity','6120':'Gas','6130':'Water','6140':'Internet','6150':'Telephone & Mobile','6190':'Other Utilities','6400':'Repairs & Maintenance','6500':'Travel & Conveyance','6600':'Company Cars / Fuel','6700':'Professional Fees','6800':'Bank & Finance Charges','6900':'Office & General Administration'};

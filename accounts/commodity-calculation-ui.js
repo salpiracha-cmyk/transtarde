@@ -90,7 +90,7 @@
     const recordedBags=context.rows.reduce((sum,row)=>sum+Number(row.bags||0),0);
     const brokery=brokeryValue(context,weight,recordedBags||number('ttBrokeryBags'));
     const input=q('#ttsbBrokerage');
-    if(input){
+    if(input&&!q('#ttsbRate')){
       input.value=brokery.amount.toFixed(2);
       input.readOnly=true;
       input.title='Calculated from the selected Soda broker’s active Buying Brokery profile.';
@@ -153,15 +153,16 @@
     const rate=activeBuyingBrokery(context);
     const recordedBags=context.rows.reduce((sum,row)=>sum+Number(row.bags||0),0);
     const perBag=rate?.basis==='PER_BAG'&&recordedBags<=0;
-    const box=document.createElement('details');
+    const box=document.createElement('div');
     box.id=context.commodity==='RICE'?'ttBuyingBrokeryCalc':'ttCommodityKatCalc';
     box.className='ttsb-disclose';
     box.open=true;
+    if(q('#ttsbRate')&&rate&&Number(q('#ttsbRate').value||0)===0&&['PER_100_KG','PER_50_KG_BAG','PER_MAUND'].includes(rate.basis)){q('#ttsbRate').value=String(rate.amount||0);q('#ttsbBasis').value=rate.basis;q('#ttsbRate').dispatchEvent(new Event('input',{bubbles:true}));}
     if(context.commodity==='RICE'){
-      box.innerHTML=`<summary>Buying Brokery ▾</summary><div>${perBag?'<div class="ttsb-adjust"><label>Actual Bags<input id="ttBrokeryBags" type="number" min="0" step="1" value="0"></label></div>':''}<div id="ttBrokeryPreview" class="notice" style="margin-top:12px"></div></div>`;
+      box.innerHTML=`<h3>Buying Brokery Reference</h3><div>${perBag?'<div class="ttsb-adjust"><label>Actual Bags<input id="ttBrokeryBags" type="number" min="0" step="1" value="0"></label></div>':''}<div id="ttBrokeryPreview" class="notice" style="margin-top:12px"></div></div>`;
     }else{
       const corn=context.commodity==='CORN';
-      box.innerHTML=`<summary>${corn?'Corn / Makai':'Sesame'} KAT & Buying Brokery ▾</summary><div><div class="ttsb-adjust"><label>Karachi Weighbridge Weight (kg)<input id="ttKatKarachiKg" type="number" min="0" step=".001" value="${weight}"></label>${corn?'<label>Moisture %<input id="ttKatMoisture" type="number" min="0" step=".01" value="13"></label><label>Damage / Fungus %<input id="ttKatDamage" type="number" min="0" step=".01" value="2"></label>':'<label>Admixture %<input id="ttKatAdmixture" type="number" min="0" step=".01" value="'+Number(data?.katMaster?.[context.profile]?.rules?.admixtureFreePct||(context.profile==='SESAME_RAW'?3:1))+'"></label>'}${perBag?'<label>Actual Bags<input id="ttBrokeryBags" type="number" min="0" step="1" value="0"></label>':''}<label>Other Deduction kg / 100 kg<input id="ttKatOther" type="number" min="0" step=".001" value="0"></label><label>Other Deduction Reason<input id="ttKatOtherReason"></label></div><div id="ttKatResult" class="notice" style="margin-top:12px"></div><div id="ttBrokeryPreview" class="notice" style="margin-top:8px"></div><div class="helper">The server recalculates from the approved KAT Master, Soda rate and Broker Brokery profile; typed totals are never trusted.</div></div>`;
+      box.innerHTML=`<h3>${corn?'Corn / Makai':'Sesame'} KAT & Buying Brokery</h3><div><div class="ttsb-adjust"><label>Karachi Weighbridge Weight (kg)<input id="ttKatKarachiKg" type="number" min="0" step=".001" value="${weight}"></label>${corn?'<label>Moisture %<input id="ttKatMoisture" type="number" min="0" step=".01" value="13"></label><label>Damage / Fungus %<input id="ttKatDamage" type="number" min="0" step=".01" value="2"></label>':'<label>Admixture %<input id="ttKatAdmixture" type="number" min="0" step=".01" value="'+Number(data?.katMaster?.[context.profile]?.rules?.admixtureFreePct||(context.profile==='SESAME_RAW'?3:1))+'"></label>'}${perBag?'<label>Actual Bags<input id="ttBrokeryBags" type="number" min="0" step="1" value="0"></label>':''}<label>Other Deduction kg / 100 kg<input id="ttKatOther" type="number" min="0" step=".001" value="0"></label><label>Other Deduction Reason<input id="ttKatOtherReason"></label></div><div id="ttKatResult" class="notice" style="margin-top:12px"></div><div id="ttBrokeryPreview" class="notice" style="margin-top:8px"></div><div class="helper">The server recalculates from the approved KAT Master, Soda rate and Broker Brokery profile; typed totals are never trusted.</div></div>`;
     }
     const firstDisclosure=bill.querySelector('.ttsb-disclose');
     firstDisclosure?.insertAdjacentElement('beforebegin',box);

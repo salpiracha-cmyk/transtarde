@@ -68,8 +68,11 @@ function ba_master_accounts(): array {
     return $out;
 }
 function ba_default_setting(array $a): array {
+    $complete=trim((string)($a['accountNumber']??''))!==''||trim((string)($a['iban']??''))!=='';
+    $company=($a['accountType']??'')==='Company Account'&&($a['entity']??'')!=='TG';
+    $receiptReady=$company&&$complete&&strcasecmp((string)($a['masterStatus']??'Active'),'Active')===0;
     return [
-        'active'=>false,'allowPayments'=>false,'allowReceipts'=>false,'includeInPaymentPlanning'=>false,
+        'active'=>$receiptReady,'allowPayments'=>false,'allowReceipts'=>$receiptReady,'includeInPaymentPlanning'=>false,
         'visibleToMill'=>false,'reconciliationEnabled'=>true,'retentionAccount'=>false,'defaultReceiptAccount'=>false,'displayName'=>'','notes'=>'','updatedAt'=>null,'updatedBy'=>null
     ];
 }
