@@ -30,6 +30,19 @@ const masterAutocomplete=read('accounts/master-autocomplete.js');
 assert.match(cleanUi,/const closeMenus = \(\) => qa\('\.tt-select-menu'\)/);
 assert.match(cleanUi,/if \(candidate !== menu\) candidate\.hidden = true/);
 assert.match(cleanUi,/input\.removeAttribute\('list'\)/);
+assert.match(cleanUi,/select\.value === '' \? '' : selectedText\(\)/);
+assert.match(cleanUi,/render\(true\)/);
+assert.match(cleanUi,/event\.key === 'Enter'/);
+assert.match(cleanUi,/event\.preventDefault\(\)/);
+assert.match(cleanUi,/slice\(0, 100\)/);
 assert.match(masterAutocomplete,/input\.closest\('\.tt-search-select'\)/);
+
+const masterApi=read('api/masters.php');
+const admin=read('admin/app.js');
+assert.match(masterApi,/\$action==='purge'/);
+assert.match(masterApi,/Deactivate this mill \/ location before deleting it permanently/);
+assert.match(masterApi,/already linked to operational history/);
+assert.match(admin,/data-purge-master/);
+assert.match(admin,/row-action deactivated/);
 
 console.log('Accounts Soda master fallback and legacy category compatibility audit passed.');

@@ -960,7 +960,7 @@
       if(!row.values.join(" ").toLowerCase().includes(query))return false;
       return true;
     });
-    document.getElementById("masterTableBody").innerHTML = rows.length ? rows.map(row => `<tr>${columns.map(index => `<td>${escapeHtml(row.values[index] || "—")}</td>`).join("")}<td><span class="tag">${escapeHtml(masterRowStatus(type, row))}</span></td><td><div class="row-actions">${canMaster(type.id,"Edit")?`<button class="row-action" data-edit-master="${escapeHtml(row.id)}">Edit</button>`:""}${type.id!=="commodities"&&canMaster(type.id,"Deactivate")?`<button class="row-action delete" data-delete-master="${escapeHtml(row.id)}">Deactivate</button>`:""}</div></td></tr>`).join("") : `<tr><td colspan="${columns.length + 2}">No matching records.</td></tr>`;
+    document.getElementById("masterTableBody").innerHTML = rows.length ? rows.map(row => {const inactive=masterRowStatus(type,row)==="Inactive";return `<tr>${columns.map(index => `<td>${escapeHtml(row.values[index] || "—")}</td>`).join("")}<td><span class="tag">${escapeHtml(masterRowStatus(type, row))}</span></td><td><div class="row-actions">${canMaster(type.id,"Edit")?`<button class="row-action" data-edit-master="${escapeHtml(row.id)}">Edit</button>`:""}${type.id!=="commodities"&&canMaster(type.id,"Deactivate")?(inactive?`<button class="row-action deactivated" type="button" disabled>Deactivated</button>`:`<button class="row-action delete" data-delete-master="${escapeHtml(row.id)}">Deactivate</button>`):""}${type.id==="mills"&&inactive&&IS_SUPER_ADMIN?`<button class="row-action purge" data-purge-master="${escapeHtml(row.id)}">Delete Permanently</button>`:""}</div></td></tr>`}).join("") : `<tr><td colspan="${columns.length + 2}">No matching records.</td></tr>`;
   }
   function openKatForPurchaseProduct(productId) {
     const product=(state.masters?.purchase_products||[]).find(row=>row.id===productId);
@@ -1065,6 +1065,14 @@
     if (!window.confirm(`${removingStaff ? "Remove" : "Deactivate"} ${row.values[0]} ${removingStaff ? "from future Salary Sheets" : `in ${type.name}`}? Historical transactions will remain unchanged.`)) return;
     try { if(type.id==="reference_lists"){const data=await apiRequest({action:"manage-option",type:"reference_lists",optionAction:"delete",optionKey:row.values[0],old:row.values[1],value:""},"masters");if(data.options)state.masterOptions=data.options;state.masters=ensureMasterSections(data.masters,state.masterOptions);saveState();renderMasters();document.getElementById("masterDialog").close();toast("Reference option deactivated.");return;} const data = await apiRequest({ action: "delete", type: type.id, id }, "masters"); state.masters = ensureMasterSections(data.masters,state.masterOptions); saveState(); renderMasters(); document.getElementById("masterDialog").close(); toast(removingStaff ? "Staff removed from future Salary Sheets." : "Master record deactivated."); }
     catch (error) { toast(error.message); }
+  }
+  async function purgeMasterRecord(selectedId) {
+    const type=activeMasterType();
+    const id=String(selectedId||"");
+    const row=(state.masters[type.id]||[]).find(item=>item.id===id);if(!row)return;
+    if(!window.confirm(`Permanently delete ${row.values[0]}? This is allowed only when it is inactive and unused. It cannot be recovered.`))return;
+    try{const data=await apiRequest({action:"purge",type:type.id,id},"masters");state.masters=ensureMasterSections(data.masters,state.masterOptions);saveState();renderMasters();toast("Unused mill / location permanently deleted.");}
+    catch(error){toast(error.message);}
   }
 
   function renderLocks() {
@@ -1249,6 +1257,7 @@
     const editMaster = event.target.closest("[data-edit-master]");
     const editProductKat = event.target.closest("[data-edit-product-kat]");
     const deleteMaster = event.target.closest("[data-delete-master]");
+    const purgeMaster = event.target.closest("[data-purge-master]");
     const lockButton = event.target.closest("[data-toggle-lock]");
     const removeProductSpec = event.target.closest("[data-remove-product-spec]");
     const removeKatParameter = event.target.closest("[data-remove-kat-parameter]");
@@ -1266,6 +1275,7 @@
     if (editMaster) openMasterDialog(editMaster.dataset.editMaster);
     if (editProductKat) openKatForPurchaseProduct(editProductKat.dataset.editProductKat);
     if (deleteMaster) deleteMasterRecord(deleteMaster.dataset.deleteMaster);
+    if (purgeMaster) purgeMasterRecord(purgeMaster.dataset.purgeMaster);
     if (lockButton) toggleLock(lockButton.dataset.toggleLock);
     if (event.target.closest("#addProductSpecification")) document.getElementById("productSpecRows")?.insertAdjacentHTML("beforeend", productSpecRow("", "", true));
     if (removeProductSpec) removeProductSpec.closest("tr")?.remove();
