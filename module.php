@@ -181,7 +181,7 @@ HTML;
 $brandHead = '<link rel="stylesheet" href="/brand-theme.css?v=20260913-3">';
 $headPos = stripos($html, '</head>');
 if ($headPos !== false) $html = substr_replace($html, $brandHead.$bootstrap.$sharedBootstrap, $headPos, 0);
-$accountsSourceBridge = '<script src="accounts/source-bridge.js?v=20260915-commercial-docs-1"></script><script src="accounts/loading-programme-sync.js?v=20260911-2"></script>';
+$accountsSourceBridge = '<script src="accounts/source-bridge.js?v=20260923-pohanch-identity-1"></script><script src="accounts/loading-programme-sync.js?v=20260911-2"></script>';
 $brandBody = '<script src="/brand-theme.js?v=20260913-3"></script>';
 $bodyPos = strripos($html, '</body>');
 if ($bodyPos !== false) $html = substr_replace($html, $accountsSourceBridge.$guard.$brandBody, $bodyPos, 0); else $html .= $accountsSourceBridge.$guard.$brandBody;

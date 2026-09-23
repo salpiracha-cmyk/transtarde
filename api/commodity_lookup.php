@@ -18,6 +18,14 @@ function cl_commodity(array $event, array $meta): string {
     if (str_contains($v, 'SESAME')) return 'SESAME';
     return 'RICE';
 }
+function cl_remove_abandoned_qa_receipts(string $file): int {
+    if(!is_file($file))return 0;$h=fopen($file,'c+');if($h===false||!flock($h,LOCK_EX))return 0;
+    try{rewind($h);$raw=stream_get_contents($h);$store=$raw?json_decode($raw,true):null;if(!is_array($store))return 0;
+        if(!empty($store['cleanupMigrations']['remove_abandoned_qa_receipts_20260923']))return 0;$removed=0;
+        foreach((array)($store['events']??[])as$id=>$event){if(!is_array($event)||($event['eventType']??'')!=='COMMODITY_RECEIPT_ACCEPTED'||!empty($event['billId']))continue;$journalId=(string)($event['journalId']??'');$journal=$store['journals'][$journalId]??null;$meta=is_array($journal['meta']??null)?$journal['meta']:[];$broker=strtoupper(trim((string)($meta['broker']??'')));$truck=strtoupper(trim((string)($meta['truck']??'')));if(!str_starts_with($broker,'QA BULK ')&&!str_starts_with($truck,'QA-'))continue;unset($store['events'][$id],$store['journals'][$journalId]);$identity=(string)($event['postingIdentity']??'');if($identity!=='')unset($store['postingIdentities'][$identity]);$removed++;}
+        $store['cleanupMigrations']['remove_abandoned_qa_receipts_20260923']=['at'=>gmdate('c'),'removed'=>$removed];if($removed)$store['revision']=(int)($store['revision']??0)+1;rewind($h);ftruncate($h,0);fwrite($h,json_encode($store,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR));fflush($h);return$removed;
+    }finally{flock($h,LOCK_UN);fclose($h);}
+}
 
 try {
     $user = tt_require_login();
@@ -35,6 +43,7 @@ try {
 
     tt_ensure_data_dir();
     $file = TT_DATA_DIR . '/accounts.json';
+    $qaRemoved=cl_remove_abandoned_qa_receipts($file);
     $store = ['journals'=>[],'events'=>[],'commodityBills'=>[]];
     if (is_file($file)) {
         $h = fopen($file, 'r');
@@ -97,6 +106,7 @@ try {
         'receipts'=>$rows,
         'bills'=>array_values($bills),
         'serverNow'=>gmdate('c'),
+        'qaCleanupRemoved'=>$qaRemoved,
     ]);
 } catch (Throwable $e) {
     cl_respond(['ok'=>false,'error'=>'Pohanch / bill lookup is temporarily unavailable.'], 500);

@@ -6,6 +6,9 @@ const assert = require('assert');
 const desk = fs.readFileSync('accounts/accounts-accounting-desk.js', 'utf8');
 const bundle = fs.readFileSync('accounts/app-bundle.php', 'utf8');
 const sodaApi = fs.readFileSync('api/purchase_sodas.php', 'utf8');
+const billUi = fs.readFileSync('accounts/bill-smart-ui-v2.js', 'utf8');
+const bridge = fs.readFileSync('accounts/source-bridge.js', 'utf8');
+const milling = fs.readFileSync('milling/Transtrade_Master_Milling_V3_3_2_AUDITED.html', 'utf8');
 const searchApi = fs.readFileSync('api/accounts_search.php', 'utf8');
 const auth = fs.readFileSync('auth_store.php', 'utf8');
 
@@ -14,6 +17,12 @@ assert(desk.includes("master.id = 'ttMasterTop'"), 'Masters must be available th
 assert(desk.includes('New Soda') && desk.includes('Search / Amend Soda'), 'Soda Centre must have New and Search/Amend choices');
 assert(desk.includes('Saving a Soda creates an open purchase commitment only'), 'Soda form must explain that no GL entry is made');
 assert(desk.includes('Reason for Amendment'), 'Soda amendment reason must be visible and compulsory');
+assert(desk.includes("title:'ARRIVAL BILLS'") && !desk.includes("title:'Arrival / Rice Bill'"), 'purchase entry must use the commodity-neutral Arrival Bills label');
+assert(!desk.includes('class="btn tt-prev-direct"'), 'duplicate Search Previous button must not appear in the Purchases workspace');
+assert(desk.includes('data-soda-delete') && sodaApi.includes("$action === 'delete'"), 'Super Admin must be able to delete an unused Soda from Search/Amend');
+assert(billUi.includes('data-open-receipt') && !billUi.includes('type="checkbox" class="ttsb-select"'), 'Arrival Bills must open from a receipt row without tick boxes');
+assert(bridge.includes("'POHANCH|' + String(saved.millId") || bridge.includes("'POHANCH|'+String(saved.millId"), 'Pohanch handoff identity must not rely on the reusable printed number');
+assert(milling.includes('function editSlip') && milling.includes('Save Amendment'), 'saved unprinted Pohanch must provide an edit workflow');
 assert(desk.includes('Search Previous Accounts Entry'), 'every workspace must expose previous-entry search');
 assert(desk.includes('Print Voucher'), 'third-party accounting search results must expose voucher print');
 assert(desk.includes('Export Payment Received') && desk.includes('Local Sale Payment') && desk.includes('Other Payment Received'), 'receipt work must use the three approved categories');
