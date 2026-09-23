@@ -10,6 +10,9 @@ const bagUi=read('accounts/bag-ops-sync-ui.js');
 const sodaPhp=read('api/purchase_sodas.php');
 const sodaFeedPhp=read('api/milling_purchase_sodas.php');
 const sourceBridge=read('accounts/source-bridge.js');
+const desk=read('accounts/accounts-accounting-desk.js');
+const bagPurchases=read('accounts/bag-purchases-ui.js');
+const arrivalBills=read('accounts/bill-smart-ui-v2.js');
 
 function extractFunction(source,name){
   const start=source.indexOf('function '+name+'(');
@@ -33,6 +36,9 @@ assert.doesNotMatch(bagUi,/lastIndexOf\('\|'\)/,'Receipt sync must not infer the
 assert.match(bagUi,/tt:bag-workspace-open/,'Bag synchronization must run only when the Bags workspace is opened');
 assert.doesNotMatch(bagUi,/setInterval\(sync/,'Bag synchronization must not poll globally in unrelated Accounts screens');
 assert.match(bagUi,/editor\.querySelector\('\.ttbag'\)/,'Rejected receipt sync must be surfaced inside the Bags workspace');
+assert.match(desk,/ttPurchaseMode = 'bags'/,'Bags navigation must claim the shared purchase editor before asynchronous rendering');
+assert.match(bagPurchases,/ttPurchaseMode='bags'/,'the Bags renderer must retain ownership of the shared purchase editor');
+assert.match(arrivalBills,/ttPurchaseMode==='bags'/,'a late Arrival Bills response must not overwrite the Bags form');
 
 assert.match(sodaPhp,/\$rows=&\$data\['masters'\]\['business_parties'\]/,'Master mutations must target the canonical stored array by reference');
 assert.doesNotMatch(sodaPhp,/foreach\(\(array\)\(\$data\['masters'\]\['business_parties'\]/,'Master mutations must not iterate a cast temporary by reference');

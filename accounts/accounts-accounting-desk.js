@@ -132,6 +132,9 @@
     if (action.special === 'shipment') return openShipmentChooser();
     if (action.special === 'shipment-kind') return openShipmentKind(action.shipmentKind);
     const arrivalOpening = action.special === 'arrival-bills';
+    const purchaseEditor = q('#purchaseEditor');
+    if (purchaseEditor && arrivalOpening) purchaseEditor.dataset.ttPurchaseMode = 'arrival';
+    if (purchaseEditor && action.bagSync) purchaseEditor.dataset.ttPurchaseMode = 'bags';
     if (arrivalOpening) document.body.classList.add('tt-arrival-opening');
     const card = nativeCard(action.native);
     if (!card) { document.body.classList.remove('tt-arrival-opening'); return alert('This Accounts area is temporarily unavailable.'); }
