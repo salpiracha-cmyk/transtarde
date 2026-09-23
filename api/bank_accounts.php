@@ -62,7 +62,7 @@ function ba_master_accounts(): array {
             'country'=>(string)$v[6],'currency'=>strtoupper(trim((string)$v[7])),'accountNumber'=>(string)$v[8],
             'accountNumberMasked'=>ba_mask((string)$v[8]),'accountLast5'=>substr(preg_replace('/\W+/','',(string)$v[8])??'',-5),
             'iban'=>(string)$v[9],'ibanMasked'=>ba_mask((string)$v[9]),'swift'=>(string)$v[10],'purpose'=>(string)$v[11],
-            'visibility'=>(string)$v[12],'masterStatus'=>(string)$v[13]
+            'visibility'=>(string)$v[12],'masterStatus'=>(string)$v[13],'masterRetentionAccount'=>$row['retentionAccount']??null
         ];
     }
     return $out;
@@ -113,6 +113,7 @@ function ba_payload(array $store,string $entity): array {
     foreach($masters as $id=>$a){
         if(($a['entity']??'')!==$entity||($a['accountType']??'')!=='Company Account')continue;
         $setting=array_replace(ba_default_setting($a),is_array($store['bankAccountSettings'][$id]??null)?$store['bankAccountSettings'][$id]:[]);
+        if($a['masterRetentionAccount']!==null)$setting['retentionAccount']=(bool)$a['masterRetentionAccount'];
         $currency=strtoupper(trim((string)($a['currency']??'')))?:$planningCurrency;$book=ba_balance($store,$entity,$id,$currency);
         $balances[$currency]=round(($balances[$currency]??0)+$book,2);
         if($currency===$planningCurrency&&!empty($setting['active'])&&!empty($setting['includeInPaymentPlanning']))$planning+=max(0,$book);
@@ -154,7 +155,7 @@ try{
         if(($a['accountType']??'')!=='Company Account')ba_respond(['ok'=>false,'error'=>'Personal / family bank accounts cannot be activated as company Cash & Bank accounts.'],422);
         $sourceCurrency=strtoupper(trim((string)(($a['currency']??'')?:$planningCurrency)));
     }else $sourceCurrency=$entity==='TG'?'AED':'PKR';
-    $retentionRequested=(bool)($body['retentionAccount']??false);
+    $retentionRequested=$id!==$cashKey&&($a['masterRetentionAccount']??null)!==null?(bool)$a['masterRetentionAccount']:(bool)(ba_read()['bankAccountSettings'][$id]['retentionAccount']??false);
     if($retentionRequested&&($entity==='TG'||$sourceCurrency==='PKR'||$id===$cashKey))ba_respond(['ok'=>false,'error'=>'Foreign Retention Account can only be enabled for a non-PKR TTI/BRM company bank.'],422);
     $defaultReceiptRequested=(bool)($body['defaultReceiptAccount']??false);
     if($defaultReceiptRequested&&$id===$cashKey)ba_respond(['ok'=>false,'error'=>'The default receipt account must be a company bank account, not cash.'],422);

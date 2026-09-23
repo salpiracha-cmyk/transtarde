@@ -116,7 +116,7 @@ function tt_company_bank_legacy_rows(array $companies): array {
         foreach (tt_master_json_array($cv[13] ?? '') as $bank) {
             if (!is_array($bank)) continue;
             $id=trim((string)($bank['id'] ?? '')) ?: 'bank-'.substr(hash('sha256',$companyCode.'|'.json_encode($bank)),0,14);
-            $rows[]=['id'=>$id,'values'=>[
+            $rows[]=['id'=>$id,'retentionAccount'=>array_key_exists('retentionAccount',$bank) ? (bool)$bank['retentionAccount'] : null,'values'=>[
                 (string)($bank['accountType'] ?? 'Company Account'),
                 trim($companyCode.' — '.$companyName,' —'),
                 (string)($bank['label'] ?? ''),
@@ -135,6 +135,23 @@ function tt_company_bank_legacy_rows(array $companies): array {
         }
     }
     return $rows;
+}
+
+/** A Company Master choice overrides historical Accounts settings; older banks retain their saved setting. */
+function tt_bank_is_retention(string $id,array $store): bool {
+    foreach ((array)(tt_list_masters()['banks'] ?? []) as $bank) {
+        if ((string)($bank['id'] ?? '') !== $id) continue;
+        if (($bank['retentionAccount'] ?? null) !== null) {
+            $values=(array)($bank['values'] ?? []);
+            $linked=strtoupper((string)($values[1] ?? ''));
+            return (bool)$bank['retentionAccount']
+                && (str_contains($linked,'TTI') || str_contains($linked,'TRANSTRADE INTERNATIONAL') || str_contains($linked,'BRM') || str_contains($linked,'BUKSH RICE'))
+                && strtoupper((string)($values[7] ?? 'PKR'))!=='PKR'
+                && (string)($values[0] ?? '')==='Company Account';
+        }
+        break;
+    }
+    return !empty($store['bankAccountSettings'][$id]['retentionAccount']);
 }
 
 function tt_normalize_masters(array $masters): array {
