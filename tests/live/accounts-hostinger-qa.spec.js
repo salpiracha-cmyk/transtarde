@@ -106,7 +106,7 @@ test('authenticated Accounts live smoke: professional desk and popup workflows',
   await expect(page.locator('#ttSodaSearch')).toBeVisible();
   await activate(page.locator('#ttSodaLayer .tt-window-close'));
 
-  await deskAction(page, 'commodity', 'ARRIVAL BILLS');
+  await deskAction(page, 'commodity', 'Bill Posting');
   await expect(page.locator('#ws-purchases')).toHaveClass(/tt-clean-modal/);
   await expect(page.locator('#purchaseEditor')).toHaveClass(/tt-editor-stage/);
   await expect(page.locator('#purchaseEditor')).toBeVisible({ timeout: 30_000 });
@@ -119,15 +119,15 @@ test('authenticated Accounts live smoke: professional desk and popup workflows',
   await closeWorkspace(page);
 
   await deskAction(page, 'exports', 'Inspection Bill');
-  await expect(page.locator('#ws-services')).toHaveClass(/tt-clean-modal/, { timeout: 30_000 });
-  await expect(page.locator('#svKind')).toHaveValue('INSPECTION');
-  await closeWorkspace(page);
+  await expect(page.locator('#ttBillShipmentSearch')).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('#ttBillShipmentQuery')).toBeVisible();
+  await activate(page.locator('#ttBillShipmentSearch .tt-window-close'));
 
   await deskAction(page, 'exports', 'Bags Bill');
   await expect(page.locator('#purchaseEditor .ttbag')).toBeVisible({ timeout: 30_000 });
   await closeWorkspace(page);
 
-  await deskAction(page, 'commodity', 'Local Sale Receipts');
+  await deskAction(page, 'commodity', 'Local Sales & Receipts');
   await expect(page.locator('#ws-receivables')).toHaveClass(/tt-clean-modal/, { timeout: 30_000 });
   await expect(page.locator('#ws-receivables .tt-prev-search')).toBeVisible();
   await closeWorkspace(page);
