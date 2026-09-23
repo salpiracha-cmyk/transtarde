@@ -53,6 +53,14 @@ assert(!bundle.includes("'retention-receipt-filter.js'") && !bundle.includes("'e
 assert(receiptUi.includes('Amount') || receiptUi.includes('itemLabel'), 'outstanding receipt items must use the linked amount/narration/reference sequence');
 assert(receiptUi.includes('outstandingAdvance') && receiptApi.includes('receivedAdvance') && receiptApi.includes('Combined receipt allocations exceed the outstanding advance'), 'customer advances must show and enforce only their remaining contract amount');
 assert(receiptUi.includes('retentionBankOptions') && receiptUi.includes('retentionAccount'), 'foreign retention must offer only approved retention accounts');
+const tgPaymentUi=fs.readFileSync('accounts/tg-bank-transactions-ui.js','utf8');
+const tgPaymentApi=fs.readFileSync('api/tg_bank_transactions.php','utf8');
+const tgUnallocatedApi=fs.readFileSync('api/export_tg_unallocated.php','utf8');
+const exportsUi=fs.readFileSync('exports/app.js','utf8');
+assert(tgPaymentUi.includes('value="UNALLOCATED"') && tgPaymentUi.includes('value="FI"') && tgPaymentUi.includes('value="GD"') && tgPaymentUi.includes('value="OTHER"'), 'TG outgoing payment must offer FI, GD, Other and Unallocated references');
+assert(tgPaymentApi.includes("$row['referenceType']=$referenceType") && tgPaymentApi.includes("$row['pakistanCandidateId']") && tgPaymentApi.includes('An unallocated payment cannot have an FI'), 'TG payment must save its reference status and reject inconsistent allocations');
+assert(tgUnallocatedApi.includes("($tx['referenceType'] ?? '') !== 'UNALLOCATED'") && exportsUi.includes('showTgUnallocatedPayments()'), 'Exports FI register must show TG payments awaiting reference allocation');
+assert(receiptUi.includes('pendingTg') && receiptApi.includes('function er_pending_tg(') && receiptApi.includes('tgPaymentId'), 'TG outgoing payments must prefill a single linked Pakistan receipt');
 assert(receiptApi.includes("['PARTIAL','CORRESPONDENT','OTHER']") && receiptApi.includes('Explain the other shortfall reason'), 'shortfall classification must be validated by the server');
 assert(billUi.includes('relationshipType') && billUi.includes('postingNumber') && billUi.includes('POST BILL'), 'Bill Posting must follow Broker/Supplier to Soda to Pohanch and return a posting number');
 assert(billUi.includes('ttsb-bill') && billUi.includes('refreshTotals') && fs.readFileSync('api/commodity_bills.php','utf8').includes('$billBaseValue'), 'the redesigned bill must remain linked to the existing Corn/Sesame KAT and brokery engine');
