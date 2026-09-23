@@ -39,6 +39,8 @@ assert(dashboardApi.includes("$a==='1220'") && dashboardApi.includes("$a==='1210
 assert(salesTaxApi.includes('tt_export_documents') && salesTaxApi.includes("$accounts['exportReceipts']"), 'Sales Tax search must link Export documents with Accounts receipts');
 assert(exportDocumentsApi.includes("tt_user_can_open_module($user,'Accounts')"), 'Accounts users must be able to read linked Export documents without gaining Export write access');
 assert(receiptUi.includes('id="erAdviceFile"') && receiptUi.includes('uploadAdvice'), 'export receipts must accept a bank credit advice upload');
+assert(desk.includes("special:'export-receipt'") && receiptUi.includes('window.TT_EXPORT_RECEIPTS_UI={openForm}'), 'the Accounts icon must open the complete export receipt form directly');
+assert(!receiptUi.includes('<details class="tter-section"') && receiptUi.includes('id="erAccountingRows"'), 'all credit-advice information and its Debit/Credit preview must remain visible in one full form');
 assert(receiptUi.includes('accounts_receipt_file.php') && receiptFileApi.includes('move_uploaded_file'), 'credit advice uploads must use the protected Accounts document endpoint');
 assert(receiptUi.includes('bankAdvicePaperRef') && fs.readFileSync('api/export_receipts.php', 'utf8').includes('bankAdvicePaperRef'), 'optional paper advice references must be retained separately from uploaded files');
 assert(desk.includes('Freight') && desk.includes('Clearing') && desk.includes('Fumigation') && desk.includes('Inspection') && desk.includes('Transport'), 'shipment bill categories must remain available');
