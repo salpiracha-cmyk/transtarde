@@ -52,7 +52,7 @@ try {
 
     $type=(string)($body['type'] ?? '');
     $action=(string)($body['action'] ?? ''); $id=trim((string)($body['id'] ?? ''));
-    $requiredAction=$action==='create'?'Create':($action==='update'?'Edit':($action==='delete'?'Deactivate':'Edit'));
+    $requiredAction=$action==='create'?'Create':($action==='update'?'Edit':(in_array($action,['delete','purge'],true)?'Deactivate':'Edit'));
     if ($type!=='' && !tt_user_can_master($admin,$type,$requiredAction)) master_respond(['ok'=>false,'error'=>'You do not have '.$requiredAction.' permission for this master.'],403);
     if ($action==='manage-option') {
         $optionAction=(string)($body['optionAction'] ?? '');
@@ -94,6 +94,23 @@ try {
 
     // Owner rule: the Super Admin has full lifecycle control over Master
     // Console records. Module lock status never blocks master add/edit/delete.
+    if ($action==='purge') {
+        if (($admin['role']??'')!=='Super Admin') master_respond(['ok'=>false,'error'=>'Only Super Admin can permanently delete a master record.'],403);
+        if ($type!=='mills') throw new InvalidArgumentException('Permanent deletion is currently available only for Mills & Locations.');
+        if ($id==='') throw new InvalidArgumentException('Select a mill / location record.');
+        $row=master_find_row($type,$id);if(!$row)throw new InvalidArgumentException('Master record not found.');
+        $values=array_values((array)($row['values']??[]));while(count($values)<7)$values[]='';
+        if(strcasecmp((string)$values[5],'Inactive')!==0)throw new InvalidArgumentException('Deactivate this mill / location before deleting it permanently.');
+        $referenced=false;
+        foreach(glob(TT_DATA_DIR.'/*.json')?:[] as $file){
+            if(realpath($file)===realpath(TT_STORE_FILE))continue;
+            $raw=@file_get_contents($file);if($raw!==false&&str_contains($raw,'"'.addcslashes($id,"\\\"").'"')){$referenced=true;break;}
+        }
+        if($referenced)throw new InvalidArgumentException('This location is already linked to operational history. It must remain deactivated so old records stay traceable.');
+        tt_delete_master('mills',$id);
+        tt_audit((int)$admin['id'],$admin['username'],'Permanently deleted unused Location Master '.$values[0].' '.$id);
+        master_respond(['ok'=>true,'id'=>$id,'masters'=>master_all($admin),'options'=>master_options_for_console()]);
+    }
     if ($action==='delete') {
         if ($id==='') throw new InvalidArgumentException('Select a master record.');
             $statusFields=['export_customers'=>10,'business_parties'=>10,'purchase_products'=>8,'purchase_kat'=>7,'mills'=>5,'export_documents'=>4,'export_terms'=>2];

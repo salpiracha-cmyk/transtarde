@@ -247,14 +247,22 @@
     const closeMenus = () => qa('.tt-select-menu').forEach(candidate => {
       if (candidate !== menu) candidate.hidden = true;
     });
-    input.value = selectedText();
-    const render = () => {
+    const syncInput = () => { input.value = select.value === '' ? '' : selectedText(); };
+    syncInput();
+    let visibleOptions = [];
+    const render = (showAll = false) => {
       closeMenus();
-      const term = input.value.trim().toLowerCase();
+      const selected = selectedText().toLowerCase();
+      const typed = input.value.trim().toLowerCase();
+      // Opening a selector must show every available choice.  Previously the
+      // selected label (for example Cash) was used as the search term, which
+      // made Credit and the other products appear to be missing.
+      const term = showAll || (select.value !== '' && typed === selected) ? '' : typed;
       let options = qa('option', select).filter(option => !option.disabled && option.value !== '');
       const starts = options.filter(option => option.textContent.trim().toLowerCase().startsWith(term));
       const contains = options.filter(option => option.textContent.trim().toLowerCase().includes(term));
-      options = (starts.length ? starts : contains).slice(0, 15);
+      options = (starts.length ? starts : contains).slice(0, 100);
+      visibleOptions = options;
       menu.replaceChildren();
       if (!options.length) { const empty = document.createElement('div'); empty.className = 'tt-select-empty'; empty.textContent = 'No matching option'; menu.appendChild(empty); }
       options.forEach(option => {
@@ -266,10 +274,26 @@
       });
       menu.hidden = false;
     };
-    input.onfocus = render;
-    input.oninput = render;
-    input.onkeydown = event => { if (event.key === 'Escape') { menu.hidden = true; input.value = selectedText(); } };
-    select.addEventListener('change', () => { input.value = selectedText(); });
+    input.onfocus = () => {
+      if (select.value === '') input.value = '';
+      else input.select();
+      render(true);
+    };
+    input.oninput = () => render(false);
+    input.onkeydown = event => {
+      if (event.key === 'Escape') { menu.hidden = true; syncInput(); return; }
+      if (event.key === 'Enter') {
+        // A searchable control lives inside operational forms.  Never let
+        // Enter accidentally submit/close the whole form or return home.
+        event.preventDefault();
+        event.stopPropagation();
+        const exact=visibleOptions.find(option=>option.textContent.trim().toLowerCase()===input.value.trim().toLowerCase());
+        const option=exact||visibleOptions[0];
+        if(option){select.value=option.value;syncInput();menu.hidden=true;select.dispatchEvent(new Event('input',{bubbles:true}));select.dispatchEvent(new Event('change',{bubbles:true}));}
+      }
+    };
+    input.onblur = () => setTimeout(() => { if (menu.hidden || !menu.contains(document.activeElement)) syncInput(); }, 120);
+    select.addEventListener('change', syncInput);
   }
 
   function simplifyCommodity(root) {
