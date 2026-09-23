@@ -101,7 +101,6 @@ try {
         if ($id==='') throw new InvalidArgumentException('Select a master record.');
         $row=master_find_row($type,$id);if(!$row)throw new InvalidArgumentException('Master record not found.');
         $statusIndex=$purgeStatusFields[$type];$values=array_values((array)($row['values']??[]));while(count($values)<=$statusIndex)$values[]='';
-        if(strcasecmp((string)$values[$statusIndex],'Inactive')!==0)throw new InvalidArgumentException('Deactivate this record before deleting it permanently.');
         $referenced=false;
         foreach(glob(TT_DATA_DIR.'/*.json')?:[] as $file){
             if(realpath($file)===realpath(TT_STORE_FILE))continue;

@@ -46,13 +46,14 @@ assert.match(masterAutocomplete,/input\.closest\('\.tt-search-select'\)/);
 const masterApi=read('api/masters.php');
 const admin=read('admin/app.js');
 assert.match(masterApi,/\$action==='purge'/);
-assert.match(masterApi,/Deactivate this record before deleting it permanently/);
+assert.doesNotMatch(masterApi,/Deactivate this record before deleting it permanently/);
 assert.match(masterApi,/business_parties'=>10/);
 assert.match(admin,/permanentlyDeletable=new Set\(\["export_customers","business_parties"/);
+assert.match(admin,/mills:5,export_documents:4,export_terms:2/);
 assert.match(admin,/row-action deactivated/);
 assert.match(masterApi,/already linked to operational history/);
 assert.match(admin,/data-purge-master/);
-assert.match(admin,/row-action deactivated/);
+assert.match(admin,/permanentlyDeletable\.has\(type\.id\)&&IS_SUPER_ADMIN/);
 assert.match(admin,/\[\["TTI Rice Mills", "TTI-MILL"/);
 
 console.log('Accounts Soda master fallback and legacy category compatibility audit passed.');
