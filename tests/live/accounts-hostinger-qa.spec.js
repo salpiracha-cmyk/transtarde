@@ -37,6 +37,8 @@ async function responsive(page, label) {
 }
 
 async function deskAction(page, area, action) {
+  const back = page.locator('#ttDeskWork .tt-back-areas');
+  if (await back.count()) await activate(back);
   await activate(page.locator(`[data-tt-area="${area}"]`));
   await activate(page.locator('#ttDeskWork .tt-action').filter({ hasText: action }));
 }
@@ -67,7 +69,7 @@ test('authenticated Accounts live smoke: professional desk and popup workflows',
   await expect(page.locator('#ttAccountingDesk')).toBeVisible();
   await expect(page.locator('#ttAccountingDesk [data-tt-entity-name]').first()).toContainText(/Transtrade|Buksh|Trans Grains/);
 
-  const areas = ['purchases','payments','receipts','expenses','ledgers','reports','control'];
+  const areas = ['exports','commodity','routine','ledgers','reports'];
   for (const key of areas) await expect(page.locator(`[data-tt-area="${key}"]`), `${key} work area must be visible`).toBeVisible();
   await expect(page.locator('#ttNativeLaunchers')).toBeHidden();
 
@@ -88,7 +90,7 @@ test('authenticated Accounts live smoke: professional desk and popup workflows',
     await expect(page.locator('#ttMasterTop')).toHaveCount(0);
   }
 
-  await deskAction(page, 'purchases', 'Soda Centre');
+  await deskAction(page, 'commodity', 'Soda Centre');
   await expect(page.locator('#ttSodaLayer')).toBeVisible();
   await expect(page.locator('#ttSodaForm')).toBeVisible({ timeout: 30_000 });
   await expect(page.locator('#ttSodaForm').getByText(/does not create a General Ledger entry/i)).toBeVisible();
@@ -104,35 +106,33 @@ test('authenticated Accounts live smoke: professional desk and popup workflows',
   await expect(page.locator('#ttSodaSearch')).toBeVisible();
   await activate(page.locator('#ttSodaLayer .tt-window-close'));
 
-  await deskAction(page, 'purchases', 'ARRIVAL BILLS');
+  await deskAction(page, 'commodity', 'ARRIVAL BILLS');
   await expect(page.locator('#ws-purchases')).toHaveClass(/tt-clean-modal/);
   await expect(page.locator('#purchaseEditor')).toHaveClass(/tt-editor-stage/);
   await expect(page.locator('#purchaseEditor')).toBeVisible({ timeout: 30_000 });
   await closeWorkspace(page);
 
-  await deskAction(page, 'expenses', 'Prepare Salaries');
+  await deskAction(page, 'routine', 'Salaries & Staff');
   await expect(page.locator('#ws-expenses')).toHaveClass(/tt-entry-only/);
   await expect(page.locator('#rsPrepare')).toBeVisible({ timeout: 30_000 });
   await expect(page.locator('#rsSaveSal')).toBeHidden();
   await closeWorkspace(page);
 
-  await deskAction(page, 'payments', 'Export Shipment Bills');
-  await expect(page.locator('#ttShipmentLayer')).toBeVisible();
-  await activate(page.locator('#ttShipmentLayer .tt-action').filter({ hasText: 'Inspection' }));
+  await deskAction(page, 'exports', 'Inspection Bill');
   await expect(page.locator('#ws-services')).toHaveClass(/tt-clean-modal/, { timeout: 30_000 });
   await expect(page.locator('#svKind')).toHaveValue('INSPECTION');
   await closeWorkspace(page);
 
-  await deskAction(page, 'purchases', 'Bags');
+  await deskAction(page, 'exports', 'Bags Bill');
   await expect(page.locator('#purchaseEditor .ttbag')).toBeVisible({ timeout: 30_000 });
   await closeWorkspace(page);
 
-  await deskAction(page, 'receipts', 'Local Sale Payment');
+  await deskAction(page, 'commodity', 'Local Sale Receipts');
   await expect(page.locator('#ws-receivables')).toHaveClass(/tt-clean-modal/, { timeout: 30_000 });
   await expect(page.locator('#ws-receivables .tt-prev-search')).toBeVisible();
   await closeWorkspace(page);
 
-  await deskAction(page, 'ledgers', 'Supplier Ledger');
+  await deskAction(page, 'ledgers', 'Supplier / Broker Ledgers');
   await expect(page.locator('#ws-payables')).toHaveClass(/tt-clean-modal/, { timeout: 30_000 });
   await closeWorkspace(page);
 
@@ -140,12 +140,12 @@ test('authenticated Accounts live smoke: professional desk and popup workflows',
   await expect(page.locator('#ttReportsPanel [data-rpt="gl"]')).toBeVisible({ timeout: 30_000 });
   await closeWorkspace(page);
 
-  await deskAction(page, 'control', 'Search Previous');
+  await deskAction(page, 'ledgers', 'Search All Entries');
   await expect(page.locator('#ttSearchLayer')).toBeVisible();
   await expect(page.locator('#ttUniversalSearch')).toBeVisible();
   await activate(page.locator('#ttSearchLayer .tt-window-close'));
 
-  await deskAction(page, 'expenses', 'Utilities & Bills');
+  await deskAction(page, 'routine', 'Utilities');
   await expect(page.locator('#expenseEditor .tt-search-select input').first()).toBeVisible({ timeout: 30_000 });
   await expect(page.locator('#ttUtilityTreatment')).toBeVisible();
   await expect(page.locator('#ttUtilityTreatment')).toContainText(/Debit.*Credit.*Balanced|Complete form/s);

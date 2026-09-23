@@ -30,7 +30,9 @@ assert.match(modulePhp,/poLineKey:lineKey/,'Export bag bridge must carry the exp
 assert.match(modulePhp,/poLineKey:masterKey/,'Master bags must carry their own stable PO line key');
 assert.match(bagUi,/let lineKey=String\(x\.poLineKey\|\|''\)/,'Accounts must consume the explicit PO line key');
 assert.doesNotMatch(bagUi,/lastIndexOf\('\|'\)/,'Receipt sync must not infer the PO line from the final compound-key token');
-assert.match(bagUi,/showSyncError\('Bag receipt synchronization failed:/,'Rejected receipt sync must remain visibly surfaced');
+assert.match(bagUi,/tt:bag-workspace-open/,'Bag synchronization must run only when the Bags workspace is opened');
+assert.doesNotMatch(bagUi,/setInterval\(sync/,'Bag synchronization must not poll globally in unrelated Accounts screens');
+assert.match(bagUi,/editor\.querySelector\('\.ttbag'\)/,'Rejected receipt sync must be surfaced inside the Bags workspace');
 
 assert.match(sodaPhp,/\$rows=&\$data\['masters'\]\['business_parties'\]/,'Master mutations must target the canonical stored array by reference');
 assert.doesNotMatch(sodaPhp,/foreach\(\(array\)\(\$data\['masters'\]\['business_parties'\]/,'Master mutations must not iterate a cast temporary by reference');
