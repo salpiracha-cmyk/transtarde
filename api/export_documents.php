@@ -30,7 +30,7 @@ function export_docs_upload_error(int $code): string {return match($code){UPLOAD
 
 try{
     // Do not use tt_require_login here: its HTML redirect breaks JSON upload clients.
-    $user=tt_current_user();if(!$user){$_SESSION=[];export_docs_respond(['ok'=>false,'error'=>'Your login session expired. Please sign in again.'],401);}if(!tt_user_can_open_module($user,'Exports'))export_docs_respond(['ok'=>false,'error'=>'Exports access is required.'],403);
+    $user=tt_current_user();if(!$user){$_SESSION=[];export_docs_respond(['ok'=>false,'error'=>'Your login session expired. Please sign in again.'],401);}if(!tt_user_can_open_module($user,'Exports')&&!($_SERVER['REQUEST_METHOD']==='GET'&&tt_user_can_open_module($user,'Accounts')))export_docs_respond(['ok'=>false,'error'=>'Exports access is required.'],403);
     if($_SERVER['REQUEST_METHOD']==='GET'){
         $id=strtolower(trim((string)($_GET['id']??'')));if(!preg_match('/^[a-f0-9]{32}$/',$id))export_docs_respond(['ok'=>false,'error'=>'Invalid document reference.'],422);$row=export_docs_find($id);if(!$row)export_docs_respond(['ok'=>false,'error'=>'Document not found.'],404);$path=export_docs_base().DIRECTORY_SEPARATOR.basename((string)$row['stored_name']);if(!is_file($path))export_docs_respond(['ok'=>false,'error'=>'Stored document is unavailable.'],404);header('Content-Type: '.(string)$row['mime_type']);header('Content-Length: '.filesize($path));header("Content-Disposition: inline; filename*=UTF-8''".rawurlencode((string)$row['original_name']));header('X-Content-Type-Options: nosniff');header('Cache-Control: private, no-store');readfile($path);exit;
     }

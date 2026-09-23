@@ -15,52 +15,75 @@
   let sodaData = {sodas:[], nextSodaNo:'Generated automatically'};
   let activeSoda = null;
 
-  const areas = [
-    {key:'purchases', title:'Purchases', note:'Sodas, arrivals and bills', actions:[
-      {title:'Soda Centre', note:'New Soda or search and amend an earlier Soda', special:'soda'},
-      {title:'ARRIVAL BILLS', note:'Open a Pohanch row; Soda, truck, weight, rate and party fill automatically', special:'arrival-bills', native:'purchases', then:'[data-purchase="commodity"]'},
-      {title:'Bags', note:'Bag bill with linked details and automatic sales-tax working', native:'purchases', then:'[data-purchase="bags"]'},
-      {title:'Other Purchase', note:'Assets, consumables and services', native:'purchases', then:'[data-purchase="other"]'}
+  const pakistanAreas = [
+    {key:'exports', glyph:'⇄', title:'Export Receipts & Payments', note:'Every export receipt, document and shipment expense', actions:[
+      {title:'Bank Receipt / Credit Advice', note:'Record the net bank credit, bank charges, WHT and Advance WHT', native:'receivables', find:'Export'},
+      {title:'Customer Receivables', note:'Invoice-wise export customer balances and receipt allocations', native:'receivables'},
+      {title:'Freight Forwarder / Shipping', note:'Shipment-linked freight invoice and accepted liability', special:'shipment-kind', shipmentKind:'freight'},
+      {title:'Clearing Agent', note:'GD, job and shipment-linked clearing bill', special:'shipment-kind', shipmentKind:'clearing'},
+      {title:'Bags Bill', note:'Export bag purchases, receipts, stock and sales-tax working', native:'purchases', then:'[data-purchase="bags"]', bagSync:true},
+      {title:'Transport Bill', note:'Loading Programme and route-linked transport bill', special:'shipment-kind', shipmentKind:'transport'},
+      {title:'Fumigation Bill', note:'Shipment-linked fumigation and treatment bill', special:'shipment-kind', shipmentKind:'fumigation'},
+      {title:'Inspection Bill', note:'Shipment and certificate-linked inspection bill', special:'shipment-kind', shipmentKind:'inspection'},
+      {title:'Other Export Expense', note:'Other shipment cost with its Debit / Credit treatment', native:'expenses', then:'[data-expense="general"]'}
     ]},
-    {key:'payments', title:'Bills & Payments', note:'Payables and third-party vouchers', actions:[
-      {title:'Supplier / Broker Bills', note:'Bills due, held, disputed and bill-wise settlement', native:'payables'},
-      {title:'Export Shipment Bills', note:'Freight, clearing, fumigation, inspection and transport', special:'shipment'},
-      {title:'Make Payment', note:'Cash or bank payment with bill allocation and printed voucher', native:'bank'},
-      {title:'Payment Planning', note:'Due-day and cumulative supplier position', native:'payables'}
+    {key:'commodity', glyph:'▣', title:'Commodity Purchases & Local Sales', note:'Soda through final bill, payment, sale and receipt', actions:[
+      {title:'Soda Centre', note:'Create, search, amend or delete an unlinked Soda', special:'soda'},
+      {title:'ARRIVAL BILLS', note:'Open a Pohanch row and complete the final supplier / broker bill', special:'arrival-bills', native:'purchases', then:'[data-purchase="commodity"]'},
+      {title:'Supplier / Broker Bills', note:'Outstanding, held and disputed commodity bills', native:'payables'},
+      {title:'Commodity Payments', note:'Allocate a cash or bank payment bill by bill', native:'payables'},
+      {title:'Local Commodity Sales', note:'Local Soda sale, dispatch and customer receivable', native:'receivables', find:'Local'},
+      {title:'Local Sale Receipts', note:'Approve mill receipt or record office receipt against a Local Soda', native:'receivables', find:'Receipt'},
+      {title:'Other Purchase', note:'Assets, consumables and services outside commodity arrivals', native:'purchases', then:'[data-purchase="other"]'},
+      {title:'Commodity History', note:'Search Soda, Pohanch, truck, bill, payment or local sale', special:'search'}
     ]},
-    {key:'receipts', title:'Bank & Receipts', note:'Money received and bank activity', actions:[
-      {title:'Export Payment Received', note:'Credit-advice matching, exchange rate, taxes and charges', native:'receivables', find:'Export'},
-      {title:'Local Sale Payment', note:'Approve mill receipt or record office receipt against Local Soda', native:'receivables', find:'Receipt'},
-      {title:'Other Payment Received', note:'From whom, purpose, cash/bank and live accounting treatment', native:'bank', find:'Receive'},
-      {title:'Bank Reconciliation', note:'Match statement and ledger activity', native:'reconciliation'}
+    {key:'routine', glyph:'◇', title:'Routine Expenses', note:'Simple forms for regular business spending', actions:[
+      {title:'Credit Cards', note:'Statement payment with company and personal allocation', native:'expenses', then:'[data-expense="card"]'},
+      {title:'Utilities', note:'Electricity, internet, telephone, gas and water', native:'expenses', then:'[data-expense="utility"]'},
+      {title:'Repairs & Maintenance', note:'Office, vehicle, equipment and mill repairs', native:'expenses', then:'[data-expense="general"]'},
+      {title:'Office / Mill Use', note:'Fuel, stationery, travel and small operating expense', native:'expenses', then:'[data-expense="general"]'},
+      {title:'Rent & Recurring', note:'Saved recurring commitments and reminders', native:'expenses', then:'[data-expense="rent"]'},
+      {title:'Salaries & Staff', note:'Prepare and post from Salary Master', native:'expenses', then:'[data-expense="salary"]'},
+      {title:'Reimburse Someone', note:'Business cost paid personally and reimbursed once', native:'expenses', then:'[data-expense="reimburse"]'},
+      {title:'Donations', note:'Zakat, Sadqa and Fi Sabilillah remain separate', native:'expenses', then:'[data-expense="donations"]'}
     ]},
-    {key:'expenses', title:'Expenses & Overheads', note:'Prepare, approve and pay', actions:[
-      {title:'Due & Recurring', note:'Pay a saved recurring item or add one once', native:'expenses', then:'[data-expense="rent"]'},
-      {title:'Prepare Salaries', note:'Prepared from Salary Master; choose cash/bank and post once', native:'expenses', then:'[data-expense="salary"]'},
-      {title:'Utilities & Bills', note:'Electricity, internet, gas, water and telephone', native:'expenses', then:'[data-expense="utility"]'},
-      {title:'Other Expenses', note:'Cards, reimbursement, donations, office and mill expense', native:'expenses'}
+    {key:'ledgers', glyph:'L', title:'Ledgers & Accounting', note:'Party, bank and general ledgers with controlled JV', actions:[
+      {title:'Customer Ledgers', native:'receivables'}, {title:'Supplier / Broker Ledgers', native:'payables'},
+      {title:'Bank / Cash Ledgers', native:'bank'}, {title:'General Ledger', native:'reports', find:'General Ledger'},
+      {title:'Journal Voucher', note:'The only manual Debit / Credit entry screen', native:'jv'},
+      {title:'Bank Reconciliation', native:'reconciliation'}, {title:'Search All Entries', special:'search'},
+      {title:'Recent Audit Activity', special:'search'}
     ]},
-    {key:'ledgers', title:'Ledgers', note:'Balances, history and outstanding', actions:[
-      {title:'Supplier Ledger', note:'Type one or two letters to select a supplier', native:'payables'},
-      {title:'Customer Ledger', note:'Type one or two letters to select a customer', native:'receivables'},
-      {title:'General Ledger', note:'Account-wise transactions and drill-down', native:'reports', find:'General Ledger'},
-      {title:'Bank / Cash Ledger', note:'Account balance and transaction history', native:'bank'}
-    ]},
-    {key:'reports', title:'Reports', note:'Financial statements and analysis', actions:[
-      {title:'Trial Balance', native:'reports', find:'Trial Balance'},
-      {title:'Profit & Loss', native:'reports', find:'Profit'},
-      {title:'Balance Sheet', native:'reports', find:'Balance Sheet'},
-      {title:'Receivables / Payables', native:'reports', find:'Receivables'}
-    ]},
-    {key:'control', title:'Accounting Control', note:'JV, reconciliation and audit', actions:[
-      {title:'Journal Voucher', note:'Balanced, permissioned and audited', native:'jv'},
-      {title:'Reconciliation', note:'Bank, cash and party controls', native:'reconciliation'},
-      {title:'Search Previous', note:'Find any voucher, bill, Soda, truck, shipment or reference', special:'search'},
-      {title:'Recent Activity', note:'Review posting and amendment audit history', special:'search'}
+    {key:'reports', glyph:'▤', title:'Reports', note:'Financial, tax, party, commodity and shipment reports', actions:[
+      {title:'Sales Tax', note:'Search export documents and bank/tax advices by period and reference', special:'sales-tax'},
+      {title:'Trial Balance', native:'reports', find:'Trial Balance'}, {title:'Profit & Loss', native:'reports', find:'Profit'},
+      {title:'Balance Sheet', native:'reports', find:'Balance Sheet'}, {title:'Receivables / Payables', native:'reports', find:'Receivables'},
+      {title:'Shipment Profitability', native:'reports', find:'Shipment'}, {title:'Bank & Cash Report', native:'bank'},
+      {title:'Commodity & Local Sales', native:'reports', find:'Commodity'}
     ]}
   ];
-
-  if(access.canInventoryReconciliation) areas.find(area=>area.key==='reports').actions.push({title:'Ghati & Stock Reconciliation',note:'Management-only production and physical-stock reconciliation',special:'stock-reconciliation'});
+  const tgAreas = [
+    {key:'tg-receipts', glyph:'↓', title:'Customer Receipts', note:'Receive money and allocate it to the correct TG customer', actions:[
+      {title:'Customer Receipt', native:'bank', find:'Receive'}, {title:'Customer Receivables', native:'receivables'}, {title:'Customer Ledger', native:'receivables'}
+    ]},
+    {key:'tg-payments', glyph:'↑', title:'Supplier Payments', note:'Supplier liabilities and payments only', actions:[
+      {title:'Supplier Bills', native:'payables'}, {title:'Make Supplier Payment', native:'bank'}, {title:'Supplier Ledger', native:'payables'}
+    ]},
+    {key:'tg-bank', glyph:'▦', title:'Bank & Local Expenses', note:'Bank activity and minor local operating expense', actions:[
+      {title:'Bank Receipt / Payment', native:'bank'}, {title:'Local Expense', native:'expenses', then:'[data-expense="general"]'},
+      {title:'Utilities', native:'expenses', then:'[data-expense="utility"]'}, {title:'Bank Reconciliation', native:'reconciliation'}
+    ]},
+    {key:'tg-ledgers', glyph:'L', title:'Ledgers & JV', note:'TG customer, supplier, bank and general ledgers', actions:[
+      {title:'Customer Ledger', native:'receivables'}, {title:'Supplier Ledger', native:'payables'}, {title:'Bank / Cash Ledger', native:'bank'},
+      {title:'General Ledger', native:'reports', find:'General Ledger'}, {title:'Journal Voucher', native:'jv'}, {title:'Search All Entries', special:'search'}
+    ]},
+    {key:'tg-reports', glyph:'▤', title:'Reports', note:'TG balances and financial reports', actions:[
+      {title:'Trial Balance', native:'reports', find:'Trial Balance'}, {title:'Profit & Loss', native:'reports', find:'Profit'},
+      {title:'Balance Sheet', native:'reports', find:'Balance Sheet'}, {title:'Receivables / Payables', native:'reports', find:'Receivables'}
+    ]}
+  ];
+  if(access.canInventoryReconciliation) pakistanAreas.find(area=>area.key==='reports').actions.push({title:'Ghati & Stock Reconciliation',note:'Accounts / Directors only; never adds stock or another purchase',special:'stock-reconciliation'});
+  const currentAreas = () => entity() === 'TG' ? tgAreas : pakistanAreas;
 
   function installStyle() {
     if (q('#ttAccountingDeskStyle')) return;
@@ -75,12 +98,11 @@
       #ttCompanyMenu{position:fixed;right:66px;top:57px;z-index:510;width:min(580px,calc(100vw - 24px));display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:10px;background:#fff;border:1px solid #dbe2ea;border-radius:12px;box-shadow:0 18px 48px #0b203840}
       #ttCompanyMenu[hidden],.tt-layer [hidden]{display:none!important}.tt-company-choice{border:1px solid #dbe2ea;background:#fff;border-radius:10px;padding:11px;text-align:left;cursor:pointer}.tt-company-choice.active{border-color:#173c63;box-shadow:inset 3px 0 #173c63}.tt-company-choice b,.tt-company-choice small{display:block}.tt-company-choice small{margin-top:3px;color:#6b7887}
       .shell{max-width:1500px!important;padding:18px 22px!important}#entityHome>.entityHero,#entityHome>.notice,#entityHome>#homeGrid,#entityHome>.panel{display:none!important}
-      #ttAccountingDesk{display:grid;grid-template-columns:230px minmax(0,1fr);gap:16px;min-height:calc(100vh - 98px)}
-      .tt-desk-nav,.tt-desk-main>section{background:#fff;border:1px solid #dfe5ea;border-radius:12px;box-shadow:0 3px 14px rgba(18,40,62,.05)}
-      .tt-desk-nav{padding:10px;align-self:start;position:sticky;top:80px}.tt-desk-identity{padding:12px 11px 14px;border-bottom:1px solid #e5e9ed;margin-bottom:7px}.tt-desk-identity small{display:block;color:#6b7887;text-transform:uppercase;letter-spacing:1px;font-size:9px}.tt-desk-identity b{display:block;margin-top:4px;font-size:15px}
-      .tt-area-button{display:block;width:100%;border:0;background:transparent;border-radius:8px;padding:10px 11px;text-align:left;cursor:pointer;color:#3f4d5c;font-weight:750}.tt-area-button:hover,.tt-area-button.active{background:#eaf0f5;color:#102a46}.tt-area-button span{display:block;font-size:10px;color:#7a8691;font-weight:500;margin-top:2px}
+      #ttAccountingDesk{min-height:calc(100vh - 98px)}
+      .tt-desk-main>section{background:#fff;border:1px solid #dfe5ea;border-radius:12px;box-shadow:0 3px 14px rgba(18,40,62,.05)}
       .tt-desk-main{min-width:0}.tt-desk-main>section{margin-bottom:14px}.tt-desk-heading{padding:18px 20px;display:flex;gap:14px;align-items:center}.tt-desk-heading>div{flex:1}.tt-desk-heading h1{font-size:22px;margin:0}.tt-desk-heading p{margin:4px 0 0;color:#697686;font-size:12px}.tt-search-main{width:min(360px,42vw);border:1px solid #cbd5df;border-radius:9px;padding:10px 12px;background:#f8fafb}
-      .tt-position{display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid #e7ebef}.tt-position button{border:0;border-right:1px solid #e7ebef;background:#fff;padding:14px 18px;text-align:left;cursor:pointer}.tt-position button:last-child{border-right:0}.tt-position small,.tt-position b{display:block}.tt-position small{color:#75818e;font-size:10px;text-transform:uppercase;letter-spacing:.6px}.tt-position b{font-size:17px;margin-top:4px}.tt-position em{display:block;color:#87919b;font-size:10px;font-style:normal;margin-top:2px}
+      .tt-position{display:grid;grid-template-columns:repeat(5,1fr);border-top:1px solid #e7ebef}.tt-summary{position:relative;border:0;border-right:1px solid #e7ebef;background:#fff;padding:14px 18px;text-align:left;cursor:pointer;min-width:0}.tt-summary:last-child{border-right:0}.tt-summary small,.tt-summary b,.tt-summary em{display:block}.tt-summary small{color:#75818e;font-size:9px;text-transform:uppercase;letter-spacing:.5px}.tt-summary b{font-size:15px;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.tt-summary em{color:#87919b;font-size:10px;font-style:normal;margin-top:2px}.tt-summary-pop{display:none;position:absolute;z-index:25;top:calc(100% - 3px);left:10px;width:300px;max-height:260px;overflow:auto;background:#fff;border:1px solid #ccd7e0;border-radius:10px;padding:10px;box-shadow:0 16px 38px #14283e35;font-size:11px;white-space:normal}.tt-summary:hover .tt-summary-pop,.tt-summary:focus .tt-summary-pop{display:block}.tt-summary-pop div{padding:6px 3px;border-bottom:1px solid #edf0f2}.tt-summary-pop div:last-child{border:0}
+      .tt-area-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;padding:18px}.tt-area-card{min-height:154px;border:1px solid #d9e2e9;border-radius:13px;background:#fff;padding:18px;text-align:left;cursor:pointer;box-shadow:0 5px 18px #11283d0a}.tt-area-card:hover{border-color:#749c89;background:#fbfefc;transform:translateY(-1px)}.tt-area-glyph{width:45px;height:45px;border-radius:12px;background:#e9f1ec;color:#28523d;display:grid;place-items:center;font-size:22px;font-weight:900;margin-bottom:16px}.tt-area-card b{display:block;font-size:17px}.tt-area-card small{display:block;color:#6f7c88;line-height:1.45;margin-top:6px}.tt-home-head{padding:17px 19px;border-bottom:1px solid #e6eaee}.tt-home-head h2{margin:0;font-size:17px}.tt-home-head p{margin:4px 0 0;color:#74808d;font-size:11px}.tt-back-areas{border:1px solid #ccd6df;background:#fff;border-radius:8px;padding:8px 11px;font-weight:800;cursor:pointer;margin-right:12px}
       .tt-work-head{display:flex;align-items:center;padding:15px 18px;border-bottom:1px solid #e6eaee}.tt-work-head h2{margin:0;font-size:16px}.tt-work-head p{margin:3px 0 0;color:#74808d;font-size:11px}.tt-work-head button{margin-left:auto}
       .tt-action-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));padding:8px}.tt-action{border:0;background:#fff;padding:13px;border-radius:8px;text-align:left;cursor:pointer;display:flex;gap:12px;align-items:flex-start}.tt-action:hover{background:#f2f6f8}.tt-action-mark{width:30px;height:30px;flex:0 0 30px;border-radius:7px;background:#e8eef3;display:grid;place-items:center;color:#173c63;font-weight:900}.tt-action b,.tt-action small{display:block}.tt-action b{font-size:13px}.tt-action small{color:#75818d;margin-top:3px;line-height:1.35}
       .tt-queue{padding:8px 17px 16px}.tt-queue-row{display:grid;grid-template-columns:110px 1fr auto;gap:14px;padding:10px 0;border-bottom:1px solid #edf0f2;align-items:center}.tt-queue-row:last-child{border:0}.tt-queue-row span{font-size:11px;color:#6e7b87}.tt-queue-row b{font-size:12px}.tt-queue-row button{border:0;background:#edf3f7;color:#173c63;border-radius:7px;padding:7px 10px;font-weight:750;cursor:pointer}
@@ -90,9 +112,9 @@
       .tt-master-control{display:grid;grid-template-columns:minmax(0,1fr) 34px 34px;gap:6px;align-items:end}.tt-master-control>.btn{height:38px;padding:0;font-size:16px}.tt-master-control .tt-search-select{min-width:0}
       .tt-modebar{display:flex;gap:7px;margin-bottom:14px}.tt-modebar button{border:1px solid #ccd6df;background:#fff;border-radius:8px;padding:9px 13px;font-weight:800;cursor:pointer}.tt-modebar button.active{background:#102a46;color:#fff;border-color:#102a46}
       .tt-form{background:#fff;border:1px solid #dfe5ea;border-radius:11px;padding:15px}.tt-form-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.tt-form-grid .wide{grid-column:span 2}.tt-form label{font-size:10px}.tt-form-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:13px}.tt-treatment{margin-top:13px;border:1px solid #b9cedb;background:#eef6fa;border-radius:9px;padding:12px}.tt-treatment>strong{display:block;margin-bottom:7px}.tt-treatment-row{display:grid;grid-template-columns:50px 1fr auto;gap:8px;font-size:12px;padding:4px 0}.tt-treatment-total{border-top:1px solid #cbdbe4;margin-top:5px;padding-top:7px;font-weight:800}.tt-note{font-size:11px;color:#687686;margin-top:7px}
-      .tt-records{margin-top:12px;background:#fff;border:1px solid #dfe5ea;border-radius:11px;overflow:hidden}.tt-records table{width:100%}.tt-records button{padding:6px 8px}.tt-searchbar{display:grid;grid-template-columns:1fr auto;gap:8px}.tt-searchbar input{margin:0;padding:11px 12px}.tt-searchbar button{border:0;border-radius:8px;background:#102a46;color:#fff;padding:0 16px;font-weight:800}.tt-record-card{background:#fff;border:1px solid #dfe5ea;border-radius:10px;padding:13px;margin-top:10px}.tt-record-card pre{white-space:pre-wrap;word-break:break-word;background:#f4f6f8;border-radius:8px;padding:10px;max-height:280px;overflow:auto;font-size:11px}.tt-record-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:9px}
-      @media(max-width:900px){#ttAccountingDesk{grid-template-columns:1fr}.tt-desk-nav{position:static;display:flex;overflow:auto}.tt-desk-identity{display:none}.tt-area-button{min-width:145px}.tt-position{grid-template-columns:repeat(2,1fr)}.tt-action-list{grid-template-columns:1fr}.workspace.tt-clean-modal .split{grid-template-columns:1fr!important}.tt-form-grid{grid-template-columns:repeat(2,1fr)}#ttCompanyMenu{grid-template-columns:1fr;right:10px}}
-      @media(max-width:560px){.tt-desk-heading{display:block}.tt-search-main{width:100%;margin-top:12px}.tt-position,.tt-form-grid{grid-template-columns:1fr}.tt-form-grid .wide{grid-column:auto}.tt-queue-row{grid-template-columns:1fr auto}.tt-queue-row span{display:none}.topbar{padding:0 10px!important}.brand{min-width:0!important}.brand>div:last-child{display:none}#ttChangeCompanyDesk{max-width:130px;overflow:hidden;text-overflow:ellipsis}.tt-window-body{padding:10px}}
+      .tt-records{margin-top:12px;background:#fff;border:1px solid #dfe5ea;border-radius:11px;overflow:hidden}.tt-records table{width:100%}.tt-records button{padding:6px 8px}.tt-searchbar{display:grid;grid-template-columns:1fr auto;gap:8px}.tt-searchbar input{margin:0;padding:11px 12px}.tt-searchbar button{border:0;border-radius:8px;background:#102a46;color:#fff;padding:0 16px;font-weight:800}.tt-record-card{background:#fff;border:1px solid #dfe5ea;border-radius:10px;padding:13px;margin-top:10px}.tt-record-card pre{white-space:pre-wrap;word-break:break-word;background:#f4f6f8;border-radius:8px;padding:10px;max-height:280px;overflow:auto;font-size:11px}.tt-record-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:9px}.tt-tax-filters{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.tt-tax-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:12px}.tt-tax-docs{display:flex;flex-wrap:wrap;gap:6px}.tt-tax-doc{display:inline-flex;align-items:center;gap:5px;border:1px solid #cdd8e1;border-radius:7px;padding:6px 8px;background:#fff;text-decoration:none;color:#173c63;font-size:11px;font-weight:700}.tt-tax-doc.missing{color:#7d8790;background:#f5f7f8}.tt-tax-row td{vertical-align:top}
+      @media(max-width:900px){.tt-position{grid-template-columns:repeat(2,1fr)}.tt-area-grid{grid-template-columns:repeat(2,1fr)}.tt-action-list{grid-template-columns:1fr}.workspace.tt-clean-modal .split{grid-template-columns:1fr!important}.tt-form-grid,.tt-tax-filters{grid-template-columns:repeat(2,1fr)}#ttCompanyMenu{grid-template-columns:1fr;right:10px}}
+      @media(max-width:560px){.tt-desk-heading{display:block}.tt-search-main{width:100%;margin-top:12px}.tt-position,.tt-form-grid,.tt-tax-filters,.tt-area-grid{grid-template-columns:1fr}.tt-form-grid .wide{grid-column:auto}.tt-queue-row{grid-template-columns:1fr auto}.tt-queue-row span{display:none}.topbar{padding:0 10px!important}.brand{min-width:0!important}.brand>div:last-child{display:none}#ttChangeCompanyDesk{max-width:130px;overflow:hidden;text-overflow:ellipsis}.tt-window-body{padding:10px}}
     `;
     document.head.appendChild(style);
   }
@@ -105,7 +127,9 @@
     if (action.special === 'stock-reconciliation' && access.canInventoryReconciliation) { location.href='/stock-reconciliation.php?origin=accounts&entity='+encodeURIComponent(entity()); return; }
     if (action.special === 'soda') return openSoda();
     if (action.special === 'search') return openSearch();
+    if (action.special === 'sales-tax') return openSalesTax();
     if (action.special === 'shipment') return openShipmentChooser();
+    if (action.special === 'shipment-kind') return openShipmentKind(action.shipmentKind);
     const arrivalOpening = action.special === 'arrival-bills';
     if (arrivalOpening) document.body.classList.add('tt-arrival-opening');
     const card = nativeCard(action.native);
@@ -118,6 +142,7 @@
         if (!button) await new Promise(resolve => setTimeout(resolve, 40));
       }
       button?.click();
+      if (action.bagSync) document.dispatchEvent(new CustomEvent('tt:bag-workspace-open'));
     }
     if (arrivalOpening) {
       try { await window.TT_SMART_COMMODITY_BILLS_V2?.mount?.(); }
@@ -179,26 +204,30 @@
 
   function deskMarkup() {
     return `<div id="ttAccountingDesk">
-      <nav class="tt-desk-nav" aria-label="Accounts work areas">
-        <div class="tt-desk-identity"><small>Current books</small><b data-tt-entity-name></b></div>
-        ${areas.map((area, i) => `<button type="button" class="tt-area-button${i === 0 ? ' active' : ''}" data-tt-area="${area.key}">${esc(area.title)}<span>${esc(area.note)}</span></button>`).join('')}
-      </nav>
       <div class="tt-desk-main">
-        <section><div class="tt-desk-heading"><div><h1>Accounts · <span data-tt-entity-name></span></h1><p>Balances, pending work and accounting actions in one place.</p></div><input class="tt-search-main" aria-label="Search previous records" placeholder="Search voucher, bill, Soda, truck or shipment"></div>
-          <div class="tt-position"><button data-tt-open="bank"><small>Bank & Cash</small><b>Open ledger</b><em>Current balances and activity</em></button><button data-tt-open="receivables"><small>Receivables</small><b>Review</b><em>Export, local and other</em></button><button data-tt-open="payables"><small>Payables</small><b>Review</b><em>Due, overdue and held</em></button><button data-tt-search><small>Previous Entries</small><b>Search</b><em>Full audit and voucher view</em></button></div>
+        <section><div class="tt-desk-heading"><div><h1>Accounts · <span data-tt-entity-name></span></h1><p>Choose the job you need. Every entry remains linked to its original operational record.</p></div><input class="tt-search-main" aria-label="Search previous records" placeholder="Search voucher, bill, Soda, truck or shipment"></div>
+          <div class="tt-position" id="ttSummaryCards"><button class="tt-summary"><small>Bank Balance</small><b>Loading…</b><em>Hover for accounts</em></button><button class="tt-summary"><small>Commodity Bills Due</small><b>Loading…</b><em>Due-date detail</em></button><button class="tt-summary"><small>Local Receivables</small><b>Loading…</b><em>Customer detail</em></button><button class="tt-summary"><small>Export Receivables</small><b>Loading…</b><em>Currency detail</em></button><button class="tt-summary"><small>Expenses Due</small><b>Loading…</b><em>Vendor detail</em></button></div>
         </section>
         <section id="ttDeskWork"></section>
-        <section><div class="tt-work-head"><div><h2>Needs Attention</h2><p>Work requiring Accounts review; held items remain visible but are not selected for payment.</p></div></div><div class="tt-queue"><div class="tt-queue-row"><span>Purchases</span><b>Arrivals and bills awaiting Accounts review</b><button data-tt-queue="purchases">Review</button></div><div class="tt-queue-row"><span>Payments</span><b>Supplier bills due and recurring payments</b><button data-tt-queue="payments">Review</button></div><div class="tt-queue-row"><span>Receipts</span><b>Credit advices and local sale receipts awaiting confirmation</b><button data-tt-queue="receipts">Review</button></div></div></section>
+        <section><div class="tt-work-head"><div><h2>Needs Attention</h2><p>Held and incomplete work stays visible but is never selected silently.</p></div></div><div class="tt-queue" id="ttAttentionQueue"><div class="tt-queue-row"><span>Status</span><b>Loading current work…</b></div></div></section>
       </div>
     </div>`;
   }
 
+  function showAreasHome() {
+    const work = q('#ttDeskWork'); if (!work) return;
+    const items = currentAreas();
+    work.innerHTML = `<div class="tt-home-head"><h2>${entity()==='TG'?'Trans Grains Accounts':'What do you want to do?'}</h2><p>${entity()==='TG'?'Only customer receipts, supplier payments, bank/local expenses, ledgers and reports are shown.':'Choose a broad area, then choose the exact entry or report.'}</p></div><div class="tt-area-grid">${items.map(area=>`<button type="button" class="tt-area-card" data-tt-area="${area.key}"><span class="tt-area-glyph">${esc(area.glyph)}</span><b>${esc(area.title)}</b><small>${esc(area.note)}</small></button>`).join('')}</div>`;
+    qa('[data-tt-area]', work).forEach(button=>button.onclick=()=>showArea(button.dataset.ttArea));
+  }
+
   function showArea(key) {
-    const area = areas.find(item => item.key === key) || areas[0];
-    qa('.tt-area-button').forEach(button => button.classList.toggle('active', button.dataset.ttArea === area.key));
+    const list=currentAreas();
+    const area = list.find(item => item.key === key) || list[0];
     const work = q('#ttDeskWork');
     if (!work) return;
-    work.innerHTML = `<div class="tt-work-head"><div><h2>${esc(area.title)}</h2><p>${esc(area.note)}</p></div></div><div class="tt-action-list">${area.actions.map((action, index) => `<button type="button" class="tt-action" data-tt-action="${index}"><span class="tt-action-mark">${String(index + 1).padStart(2, '0')}</span><span><b>${esc(action.title)}</b><small>${esc(action.note || 'Open report')}</small></span></button>`).join('')}</div>`;
+    work.innerHTML = `<div class="tt-work-head"><button class="tt-back-areas" type="button">← Main Accounts</button><div><h2>${esc(area.title)}</h2><p>${esc(area.note)}</p></div></div><div class="tt-action-list">${area.actions.map((action, index) => `<button type="button" class="tt-action" data-tt-action="${index}"><span class="tt-action-mark">${String(index + 1).padStart(2, '0')}</span><span><b>${esc(action.title)}</b><small>${esc(action.note || 'Open report')}</small></span></button>`).join('')}</div>`;
+    q('.tt-back-areas',work).onclick=showAreasHome;
     qa('[data-tt-action]', work).forEach(button => button.onclick = () => launch(area.actions[Number(button.dataset.ttAction)]));
   }
 
@@ -206,18 +235,35 @@
     const home = q('#entityHome');
     if (!home || q('#ttAccountingDesk')) return;
     home.insertAdjacentHTML('afterbegin', deskMarkup());
-    qa('.tt-area-button').forEach(button => button.onclick = () => showArea(button.dataset.ttArea));
-    qa('[data-tt-open]').forEach(button => button.onclick = () => launch({native:button.dataset.ttOpen}));
-    qa('[data-tt-search]').forEach(button => button.onclick = openSearch);
-    qa('[data-tt-queue]').forEach(button => button.onclick = () => showArea(button.dataset.ttQueue));
     q('.tt-search-main').addEventListener('keydown', event => { if (event.key === 'Enter') openSearch(event.currentTarget.value); });
-    showArea('purchases');
+    showAreasHome();
     refreshEntityLabels();
   }
 
   function refreshEntityLabels() {
     const name = q('.entityBtn.active strong')?.textContent || entity();
     qa('[data-tt-entity-name]').forEach(node => { node.textContent = name; });
+    showAreasHome();
+    loadDashboardSummary();
+  }
+
+  async function loadDashboardSummary() {
+    const host=q('#ttSummaryCards'), queue=q('#ttAttentionQueue'); if(!host)return;
+    try{
+      const data=await json(`../api/accounts_dashboard.php?entity=${encodeURIComponent(entity())}`);
+      const definitions=entity()==='TG'
+        ? [{key:'bank',label:'Bank Balance',note:'Hover for accounts'},{key:'local',label:'Customer Receivables',note:'Customer detail'},{key:'commodity',label:'Supplier Bills Due',note:'Due-date detail'},{key:'expenses',label:'Local Expenses Due',note:'Vendor detail'}]
+        : [{key:'bank',label:'Bank Balance',note:'Hover for accounts'},{key:'commodity',label:'Commodity Bills Due',note:'Due-date detail'},{key:'local',label:'Local Receivables',note:'Customer detail'},{key:'export',label:'Export Receivables',note:'Customer / currency detail'},{key:'expenses',label:'Expenses Due',note:'Vendor detail'}];
+      host.style.gridTemplateColumns=`repeat(${definitions.length},1fr)`;
+      host.innerHTML=definitions.map(def=>{
+        const rows=data.summaries?.[def.key]||[], totals={};rows.forEach(row=>{const cur=row.currency||'PKR';totals[cur]=(totals[cur]||0)+Number(row.amount||0)});
+        const headline=Object.keys(totals).length?Object.entries(totals).map(([cur,value])=>`${esc(cur)} ${money(value)}`).join(' · '):'PKR 0.00';
+        const detail=rows.length?rows.slice(0,20).map(row=>`<div><b>${esc(row.label||row.reference||'Account')}</b><br>${esc(row.reference||'')}${row.dateDisplay?' · '+esc(row.dateDisplay):''} · ${esc(row.currency||'PKR')} ${money(row.amount)}</div>`).join(''):'<div>No open balance.</div>';
+        return `<button type="button" class="tt-summary" data-summary="${def.key}"><small>${esc(def.label)}</small><b>${headline}</b><em>${esc(def.note)}</em><span class="tt-summary-pop">${detail}</span></button>`;
+      }).join('');
+      qa('[data-summary]',host).forEach(button=>button.onclick=()=>{const key=button.dataset.summary;if(key==='bank')launch({native:'bank'});else if(key==='commodity'||key==='expenses')launch({native:'payables'});else launch({native:'receivables'});});
+      if(queue){const rows=data.attention||[];queue.innerHTML=rows.length?rows.slice(0,12).map(row=>`<div class="tt-queue-row"><span>${esc(row.type)}</span><b>${esc(row.message)}${row.reference?' · '+esc(row.reference):''}</b><button type="button" data-attention-search="${esc(row.reference||'')}">Review</button></div>`).join(''):'<div class="tt-queue-row"><span>Current</span><b>No held or incomplete entries need attention.</b></div>';qa('[data-attention-search]',queue).forEach(button=>button.onclick=()=>openSearch(button.dataset.attentionSearch));}
+    }catch(error){qa('.tt-summary b',host).forEach(node=>node.textContent='Unavailable');if(queue)queue.innerHTML='<div class="tt-queue-row"><span>Status</span><b>Refresh to load current Accounts attention items.</b></div>';console.warn('Accounts dashboard summary',error);}
   }
 
   function layer(id, title) {
@@ -411,6 +457,28 @@
     if (!w) return alert('Allow popups to print the voucher.');
     w.document.write(`<!doctype html><title>${esc(number)}</title><style>body{font:12px Arial;padding:32px;color:#111}h1,h2{text-align:center;margin:3px}.meta{display:flex;justify-content:space-between;margin:24px 0 10px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #222;padding:7px;text-align:left}pre{white-space:pre-wrap}.sign{display:grid;grid-template-columns:repeat(4,1fr);gap:35px;margin-top:70px}.sign div{border-top:1px solid #222;text-align:center;padding-top:5px}@media print{button{display:none}}</style><h1>${esc(q('.entityBtn.active strong')?.textContent || entity())}</h1><h2>${esc(record.type || 'ACCOUNTING VOUCHER')}</h2><div class="meta"><b>Voucher No: ${esc(number)}</b><b>Date: ${esc(record.date || data.date || '')}</b></div><table><tr><th>Account / Party</th><th>Reference</th><th>Debit</th><th>Credit</th></tr><tr><td>${esc(record.party || data.party || data.broker || '')}</td><td>${esc(data.billNo || data.reference || data.sodaNo || '')}</td><td>${esc(data.totalDebit || data.amount || '')}</td><td>${esc(data.totalCredit || data.amount || '')}</td></tr></table><h3>Narration</h3><p>${esc(data.narration || data.remarks || record.title)}</p><h3>Linked details</h3><pre>${esc(JSON.stringify(data, null, 2))}</pre><div class="sign"><div>Prepared By</div><div>Checked By</div><div>Approved By</div><div>Received By</div></div><button onclick="print()">Print</button>`);
     w.document.close();
+  }
+
+  function printSalesTaxRows(rows) {
+    const w=window.open('','_blank','noopener,noreferrer');if(!w)return alert('Allow popups to print the Sales Tax document index.');
+    w.document.write(`<!doctype html><title>Sales Tax Documents</title><style>body{font:12px Arial;color:#172433;padding:28px}h1{text-align:center}table{width:100%;border-collapse:collapse}th,td{border:1px solid #9ca9b4;padding:7px;vertical-align:top}small{color:#5e6b76}@media print{button{display:none}}</style><h1>Sales Tax — ${esc(q('.entityBtn.active strong')?.textContent||entity())}</h1><table><thead><tr><th>Date</th><th>Customer / Contract</th><th>Invoice / GD / B/L</th><th>Documents and Bank Advices</th></tr></thead><tbody>${rows.map(row=>`<tr><td>${esc(row.dateDisplay||row.date||'')}</td><td><b>${esc(row.customer)}</b><br>${esc(row.contractRef)} · ${esc(row.lotRef)}</td><td>${esc(row.commercialInvoice||row.customsInvoice||'')}<br>GD ${esc((row.gdRefs||[]).join(', ')||'—')}<br>B/L ${esc(row.blNo||'—')}</td><td>${(row.documents||[]).map(doc=>esc(doc.name)).join('<br>')||'No uploaded export file'}${(row.advices||[]).map(a=>`<br><b>${esc(a.receiptNo)}</b> · ${esc(a.bankAdviceRef)} · ${esc(a.currency)} ${money(a.foreignAmount)}${a.paperRef?' · '+esc(a.paperRef):''}${a.downloadUrl?' · Credit advice uploaded':''}`).join('')}</td></tr>`).join('')}</tbody></table><button onclick="print()">Print</button>`);w.document.close();
+  }
+
+  async function openSalesTax() {
+    if(entity()==='TG')return alert('Pakistan Sales Tax documents belong to TTI or BRM, not TG books.');
+    const host=layer('ttSalesTaxLayer','Sales Tax');const body=q('.tt-window-body',host);let rows=[];
+    body.innerHTML=`<div class="tt-form"><div class="tt-note" style="margin:0 0 12px">Search the documents already stored in Exports and their linked Accounts bank / tax advices. Nothing is copied into another store.</div><div class="tt-tax-filters"><label>From Date<input id="ttTaxFrom" type="date"></label><label>To Date<input id="ttTaxTo" type="date"></label><label class="wide">Customer, contract, invoice, GD, B/L or shipment<input id="ttTaxQuery" placeholder="Type any known reference"></label></div><div class="tt-tax-actions"><button class="btn" type="button" id="ttTaxPrint" disabled>Print selected / results</button><button class="btn" type="button" id="ttTaxDownload" disabled>Download selected files</button><button class="btn primary" type="button" id="ttTaxSearch">Search</button></div></div><div id="ttTaxResults"><div class="tt-record-card">Choose a date range or reference, then search.</div></div>`;
+    const results=q('#ttTaxResults',body),print=q('#ttTaxPrint',body),download=q('#ttTaxDownload',body);
+    const selectedRows=()=>{const chosen=new Set(qa('[data-tax-row]:checked',results).map(x=>Number(x.dataset.taxRow)));return chosen.size?rows.filter((_,i)=>chosen.has(i)):rows;};
+    const run=async()=>{results.innerHTML='<div class="tt-record-card">Searching export and Accounts records…</div>';try{const params=new URLSearchParams({entity:entity(),from:q('#ttTaxFrom',body).value,to:q('#ttTaxTo',body).value,q:q('#ttTaxQuery',body).value.trim()});const data=await json('../api/accounts_sales_tax.php?'+params);rows=data.rows||[];rows.forEach(row=>{row.dateDisplay=/^(\d{4})-(\d{2})-(\d{2})$/.test(row.date||'')?row.date.replace(/^(\d{4})-(\d{2})-(\d{2})$/,'$3-$2-$1'):row.date||'';});print.disabled=!rows.length;download.disabled=!rows.some(row=>(row.documents||[]).length||(row.advices||[]).some(a=>a.downloadUrl));results.innerHTML=rows.length?`<div class="tt-records"><div class="tableWrap"><table><thead><tr><th>Use</th><th>Date</th><th>Customer / Contract</th><th>Invoice / GD / B/L</th><th>Available documents and advices</th></tr></thead><tbody>${rows.map((row,i)=>`<tr class="tt-tax-row"><td><input type="checkbox" data-tax-row="${i}" checked aria-label="Use ${esc(row.commercialInvoice||row.contractRef)}"></td><td>${esc(row.dateDisplay)}</td><td><b>${esc(row.customer||'—')}</b><br><small>${esc(row.contractRef)} · ${esc(row.lotRef)}</small></td><td><b>${esc(row.commercialInvoice||row.customsInvoice||'—')}</b><br><small>GD ${esc((row.gdRefs||[]).join(', ')||'—')} · B/L ${esc(row.blNo||'—')}</small></td><td><div class="tt-tax-docs">${(row.documents||[]).map(doc=>`<a class="tt-tax-doc" href="${esc(doc.downloadUrl)}" target="_blank" rel="noopener" download>${esc(doc.name)}</a>`).join('')}${!(row.documents||[]).length?'<span class="tt-tax-doc missing">No uploaded export file</span>':''}${(row.advices||[]).map(a=>a.downloadUrl?`<a class="tt-tax-doc" href="${esc(a.downloadUrl)}" target="_blank" rel="noopener" download>Credit Advice ${esc(a.bankAdviceRef||a.receiptNo)}</a>`:`<span class="tt-tax-doc">Advice ${esc(a.bankAdviceRef||a.receiptNo)} · ${esc(a.currency)} ${money(a.foreignAmount)}${a.paperRef?' · '+esc(a.paperRef):''}</span>`).join('')}</div></td></tr>`).join('')}</tbody></table></div></div>`:'<div class="tt-record-card">No matching export shipment or invoice.</div>';}catch(error){rows=[];print.disabled=true;download.disabled=true;results.innerHTML=`<div class="tt-record-card">${esc(error.message)}</div>`;}};
+    q('#ttTaxSearch',body).onclick=run;q('#ttTaxQuery',body).onkeydown=event=>{if(event.key==='Enter')run();};print.onclick=()=>printSalesTaxRows(selectedRows());download.onclick=()=>{const docs=selectedRows().flatMap(row=>[...(row.documents||[]),...(row.advices||[]).filter(a=>a.downloadUrl)]);if(!docs.length)return alert('The selected rows do not have uploaded files.');docs.forEach((doc,i)=>setTimeout(()=>window.open(doc.downloadUrl,'_blank','noopener,noreferrer'),i*180));};
+  }
+
+  async function openShipmentKind(kind) {
+    const choices={freight:{native:'freight'},transport:{native:'transport'},clearing:{native:'services',service:'CLEARING'},fumigation:{native:'services',service:'FUMIGATION'},inspection:{native:'services',service:'INSPECTION'}};
+    const choice=choices[String(kind||'').toLowerCase()];if(!choice)return openShipmentChooser();
+    await launch(choice);
+    if(choice.service){let select=null;for(let i=0;i<30&&!select;i+=1){select=q('#svKind');if(!select)await new Promise(resolve=>setTimeout(resolve,40));}if(select){select.value=choice.service;select.dispatchEvent(new Event('change',{bubbles:true}));}}
   }
 
   function openShipmentChooser() {

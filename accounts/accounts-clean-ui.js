@@ -70,7 +70,7 @@
       .workspace.tt-clean-modal .subCard{padding:13px;min-height:104px;background:#fff}
       .workspace.tt-clean-modal .subCard p{font-size:11px}
       .workspace.tt-clean-modal .split{display:block!important;padding:14px!important}
-      .workspace.tt-clean-modal .infoCard,.workspace.tt-clean-modal .accountPreview{display:none!important}
+      .workspace.tt-clean-modal .infoCard,.workspace.tt-clean-modal .accountPreview{display:block!important}
       .workspace.tt-clean-modal .formCard,.workspace.tt-clean-modal .ttv-form,.workspace.tt-clean-modal .ttrs-box{box-shadow:none!important;border-color:#e2e8ee!important}
       .workspace.tt-clean-modal .grid2,.workspace.tt-clean-modal .grid3,.workspace.tt-clean-modal .ttv-grid,.workspace.tt-clean-modal .ttrs-grid{grid-template-columns:repeat(3,minmax(150px,1fr))!important;gap:10px!important}
       .workspace.tt-clean-modal textarea{min-height:48px}
