@@ -17,7 +17,7 @@
 
   const pakistanAreas = [
     {key:'exports', glyph:'⇄', title:'Export Receipts & Payments', note:'Every export receipt, document and shipment expense', actions:[
-      {title:'Bank Receipt / Credit Advice', note:'Record the net bank credit, bank charges, WHT and Advance WHT', native:'receivables', find:'Export'},
+      {title:'Bank Receipt / Credit Advice', note:'One complete form for the advice, invoice/FI allocation, bank charges, WHT and Advance WHT', special:'export-receipt'},
       {title:'Customer Receivables', note:'Invoice-wise export customer balances and receipt allocations', native:'receivables'},
       {title:'Freight Forwarder / Shipping', note:'Shipment-linked freight invoice and accepted liability', special:'shipment-kind', shipmentKind:'freight'},
       {title:'Clearing Agent', note:'GD, job and shipment-linked clearing bill', special:'shipment-kind', shipmentKind:'clearing'},
@@ -128,6 +128,7 @@
     if (action.special === 'soda') return openSoda();
     if (action.special === 'search') return openSearch();
     if (action.special === 'sales-tax') return openSalesTax();
+    if (action.special === 'export-receipt') return window.TT_EXPORT_RECEIPTS_UI?.openForm?.();
     if (action.special === 'shipment') return openShipmentChooser();
     if (action.special === 'shipment-kind') return openShipmentKind(action.shipmentKind);
     const arrivalOpening = action.special === 'arrival-bills';
