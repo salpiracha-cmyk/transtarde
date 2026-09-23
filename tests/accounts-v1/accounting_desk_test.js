@@ -33,7 +33,7 @@ assert(bridge.includes("'POHANCH|' + String(saved.millId") || bridge.includes("'
 assert(milling.includes('function editSlip') && milling.includes('Save Amendment'), 'saved unprinted Pohanch must provide an edit workflow');
 assert(desk.includes('Search Previous Accounts Entry'), 'every workspace must expose previous-entry search');
 assert(desk.includes('Print Voucher'), 'third-party accounting search results must expose voucher print');
-assert(desk.includes('Export Receipts & Payments') && desk.includes('Bank Receipt / Credit Advice') && desk.includes('Local Sale Receipts'), 'receipt work must be grouped under the approved broad areas');
+assert(desk.includes('Export Receipts & Payments') && desk.includes('Bank Receipt / Credit Advice') && desk.includes('Local Sales & Receipts'), 'receipt work must be grouped under the approved broad areas');
 assert(desk.includes("title:'Sales Tax'") && !desk.includes("title:'Sales Tax Export File'"), 'report must use the exact Sales Tax name');
 assert(desk.includes('const tgAreas') && !desk.includes("key:'tg-purchases'"), 'TG must have the simplified receipt, payment, bank, ledger and report menu without Pakistan purchase workflows');
 assert(desk.includes('accounts_dashboard.php') && desk.includes('accounts_sales_tax.php'), 'dashboard summaries and Sales Tax search must use linked read-only endpoints');

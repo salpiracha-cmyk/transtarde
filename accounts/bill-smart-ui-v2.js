@@ -10,7 +10,7 @@
   const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
   const fmt = value => Number(value || 0).toLocaleString('en-PK', {maximumFractionDigits:2});
   const today = () => new Intl.DateTimeFormat('en-CA', {timeZone:'Asia/Karachi',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
-  const state = {receipts:[], bills:[], loadedEntity:'', relationshipType:'', relationshipName:'', soda:'', sourceKey:'', adjustmentLines:[]};
+  const state = {receipts:[], bills:[], loadedEntity:'', relationshipType:'', relationshipName:'', soda:'', sourceKey:'', adjustmentLines:[], brokerageRate:'', brokerageBasis:'PER_100_KG', kanta:'', filling:''};
   let loading = false;
 
   function toast(message, ok = true) {
@@ -50,8 +50,8 @@
   const truckRows = () => relatedRows().filter(row => String(row.soda) === state.soda);
   const selected = () => truckRows().find(row => row.sourceKey === state.sourceKey) || null;
   function option(value, selectedValue, label = value) { return `<option value="${esc(value)}" ${String(value) === String(selectedValue) ? 'selected' : ''}>${esc(label)}</option>`; }
-  function resetAfterRelationship() { state.soda = ''; state.sourceKey = ''; state.adjustmentLines = []; }
-  function resetAfterSoda() { state.sourceKey = ''; state.adjustmentLines = []; }
+  function resetAfterRelationship() { state.soda = ''; state.sourceKey = ''; state.adjustmentLines = []; state.brokerageRate=''; state.kanta=''; state.filling=''; }
+  function resetAfterSoda() { state.sourceKey = ''; state.adjustmentLines = []; state.brokerageRate=''; state.kanta=''; state.filling=''; }
   function relationSteps() {
     const brokerDisabled = state.relationshipType === 'SUPPLIER';
     const supplierDisabled = state.relationshipType === 'BROKER';
@@ -64,21 +64,21 @@
   function totals() {
     const row = selected(), calculated = Number(q('#ttsbFinal')?.value || 0), base = row && row.commodity !== 'RICE' && calculated > 0 ? calculated : Number(row?.provisionalAmount || 0);
     let add = 0, deduct = 0;
-    state.adjustmentLines.forEach(line => { const amount = Math.max(0,Number(line.amount || 0)); if (line.kind === 'DEDUCTION') deduct += amount; else add += amount; });
+    state.adjustmentLines.forEach(line => { const amount = Math.max(0,Number(line.amount || 0)); if (line.kind === 'DEDUCTION') deduct += amount; else add += amount; }); add += Math.max(0,Number(state.kanta||0)); deduct += Math.max(0,Number(state.filling||0));
     return {base, add, deduct, final:base + add - deduct};
   }
   function accounting(row) {
     const value = totals().final;
-    return `<div class="ttsb-accounting"><strong>Accounting treatment before posting</strong><div class="ttsb-postline"><b>Debit</b><span>Commodity inventory / purchase adjustment</span><strong id="ttsbPreviewValueDr">PKR ${fmt(value)}</strong></div><div class="ttsb-postline"><b>Credit</b><span>${esc(state.relationshipName)} payable</span><strong id="ttsbPreviewValueCr">PKR ${fmt(value)}</strong></div><div class="ttsb-postline" id="ttsbPreviewBrokery" hidden><b>Debit</b><span>Buying brokery expense</span><strong></strong></div><div class="ttsb-postline" id="ttsbPreviewBrokerPayable" hidden><b>Credit</b><span>${esc(row.broker || 'Broker')} payable</span><strong></strong></div><div class="ttsb-postline" id="ttsbPreviewWithholding" hidden><b>Credit</b><span>Brokery withholding payable</span><strong></strong></div><div class="helper">System-calculated brokery and withholding post to their separate approved ledgers.</div></div>`;
+    return `<div class="ttsb-accounting"><strong>Accounting treatment before posting</strong><div class="ttsb-postline"><b>Debit</b><span>Commodity inventory / purchase adjustment</span><strong id="ttsbPreviewValueDr">PKR ${fmt(value)}</strong></div><div class="ttsb-postline"><b>Credit</b><span>${esc(state.relationshipName)} payable</span><strong id="ttsbPreviewValueCr">PKR ${fmt(value)}</strong></div><div class="ttsb-postline" id="ttsbPreviewBrokery" hidden><b>Debit</b><span>Buying brokery expense</span><strong></strong></div><div class="ttsb-postline" id="ttsbPreviewBrokerPayable" hidden><b>Credit</b><span>${esc(row.broker || 'Broker')} payable</span><strong></strong></div><div class="ttsb-postline" id="ttsbPreviewWithholding" hidden><b>Credit</b><span>Brokery withholding payable</span><strong></strong></div><div class="helper">Buying brokery posts as a payable. Withholding is deducted when the broker is paid.</div></div>`;
   }
   function billForm(row) {
     if (!row) return '';
     const value = totals();
     return `<div class="ttsb-card ttsb-bill"><div class="ttsb-title"><div><h3>Complete Bill</h3><p>The selected Soda and Pohanch supply the operational details. Enter only the final bill information.</p></div></div><div class="ttsb-form" style="margin-top:14px"><label>Bill Date<input id="ttsbBillDate" type="date" value="${today()}"></label><label>Supplier / Broker Bill No.<input id="ttsbBillNo" placeholder="Optional if none printed"></label><label>Soda<input readonly value="${esc(row.soda)}"></label><label>Truck / Pohanch<input readonly value="${esc(row.truck)} — ${esc(row.pohanch)}"></label><label>Product<input readonly value="${esc(row.displayName || row.variety || row.commodity)}"></label><label>Accepted Weight<input readonly value="${fmt(row.payableWeightKg)} kg"></label><label>Soda Rate<input readonly value="${fmt(row.grossRatePerKg)} / kg"></label><label>KAT<input readonly value="${fmt(row.katPaisaPerKg)} paisa / kg"></label><label>Calculated Commodity Value<input id="ttsbFinal" readonly value="${value.base.toFixed(2)}"></label></div>
       <div class="ttsb-summary"><div class="ttsb-kpi"><span>Pohanch Estimate</span><b>PKR ${fmt(value.base)}</b></div><div class="ttsb-kpi"><span>Additions</span><b id="ttsbAddTotal">PKR ${fmt(value.add)}</b></div><div class="ttsb-kpi"><span>Deductions</span><b id="ttsbDeductTotal">PKR ${fmt(value.deduct)}</b></div><div class="ttsb-kpi"><span>Final Commodity Value</span><b id="ttsbFinalTotal">PKR ${fmt(value.final)}</b></div></div>
-      <details class="ttsb-disclose" open><summary>Bill Additions / Deductions</summary><div><div class="ttsb-lines" id="ttsbAdjustmentLines">${state.adjustmentLines.length ? state.adjustmentLines.map(lineHtml).join('') : '<div class="ttsb-empty">No additions or deductions. Add a line only when it appears on the bill.</div>'}</div><div class="ttsb-actions" style="justify-content:flex-start"><button class="btn" type="button" id="ttsbAddAddition">+ Addition</button><button class="btn" type="button" id="ttsbAddDeduction">+ Deduction</button></div></div></details>
-      <details class="ttsb-disclose"><summary>Brokery / Tax</summary><div class="ttsb-form"><label>Buying Brokery<input id="ttsbBrokerage" readonly value="0"></label><label>Withholding %<input id="ttsbWithPct" type="number" min="0" step=".01" value="0"></label><label>Withholding Amount<input id="ttsbWithAmt" readonly value="0"></label></div></details>
-      <div class="ttsb-form" style="margin-top:12px"><label class="ttsb-full">Remarks / Bill Explanation<textarea id="ttsbRemarks"></textarea></label></div>${accounting(row)}
+      <div class="ttsb-disclose"><h3>Additions / Deductions</h3><div><div class="ttsb-lines" id="ttsbAdjustmentLines">${state.adjustmentLines.length ? state.adjustmentLines.map(lineHtml).join('') : '<div class="ttsb-empty">No additions or deductions. Add a line only when it appears on the bill.</div>'}</div><div class="ttsb-actions" style="justify-content:flex-start"><button class="btn" type="button" id="ttsbAddAddition">+ Addition</button><button class="btn" type="button" id="ttsbAddDeduction">+ Deduction</button></div></div></div>
+      <div class="ttsb-disclose"><h3>Buying Brokery</h3><div class="ttsb-form"><label>Rate<input id="ttsbRate" type="number" min="0" step=".01" value="${esc(state.brokerageRate)}"></label><label>Per<select id="ttsbBasis"><option value="PER_100_KG" ${state.brokerageBasis==='PER_100_KG'?'selected':''}>100 kg bag</option><option value="PER_50_KG_BAG" ${state.brokerageBasis==='PER_50_KG_BAG'?'selected':''}>50 kg bag</option><option value="PER_MAUND" ${state.brokerageBasis==='PER_MAUND'?'selected':''}>Maund (40 kg)</option></select></label><label>Total Brokery<input id="ttsbBrokerage" readonly value="0"></label><label>Brokery WHT % (payment only)<input id="ttsbWithPct" type="number" min="0" step=".01" value="15"></label><label>WHT information<input id="ttsbWithAmt" readonly value="0"></label></div><div class="ttsb-form"><label>Kanta / Weight Charges (+)<input id="ttsbKanta" type="number" min="0" step=".01" value="${esc(state.kanta)}"></label><label>Filling Charges (−)<input id="ttsbFilling" type="number" min="0" step=".01" value="${esc(state.filling)}"></label></div></div>
+      <div class="ttsb-kpi" style="margin-top:12px;text-align:right"><span>FINAL BILL PAYABLE</span><b id="ttsbGrandTotal" style="font-size:24px;text-decoration:underline">PKR ${fmt(value.final)}</b></div><div class="ttsb-form" style="margin-top:12px"><label class="ttsb-full">Remarks / Bill Explanation<textarea id="ttsbRemarks"></textarea></label></div>${accounting(row)}
       <div class="ttsb-actions"><button class="btn" type="button" id="ttsbClearTruck">Choose Another Truck</button><button class="btn green" type="button" id="ttsbVerify">POST BILL</button></div></div>`;
   }
   function recent() {
@@ -93,7 +93,18 @@
   }
   function syncLines() {
     state.adjustmentLines = qa('[data-adjustment-line]').map(line => ({kind:line.querySelector('[data-line-kind]').value, description:line.querySelector('[data-line-description]').value.trim(), amount:line.querySelector('[data-line-amount]').value}));
-    const value = totals(), brokerage = Math.max(0,Number(q('#ttsbBrokerage')?.value || 0)), withholding = Math.min(brokerage,brokerage * Math.max(0,Number(q('#ttsbWithPct')?.value || 0)) / 100); if (q('#ttsbWithAmt')) q('#ttsbWithAmt').value = withholding.toFixed(2); if (q('#ttsbAddTotal')) q('#ttsbAddTotal').textContent = `PKR ${fmt(value.add)}`; if (q('#ttsbDeductTotal')) q('#ttsbDeductTotal').textContent = `PKR ${fmt(value.deduct)}`; if (q('#ttsbFinalTotal')) q('#ttsbFinalTotal').textContent = `PKR ${fmt(value.final)}`; if(q('#ttsbPreviewValueDr'))q('#ttsbPreviewValueDr').textContent=`PKR ${fmt(value.final)}`;if(q('#ttsbPreviewValueCr'))q('#ttsbPreviewValueCr').textContent=`PKR ${fmt(value.final)}`;const brokeryRow=q('#ttsbPreviewBrokery'),payableRow=q('#ttsbPreviewBrokerPayable'),withholdingRow=q('#ttsbPreviewWithholding');if(brokeryRow){brokeryRow.hidden=brokerage<=0;brokeryRow.querySelector('strong').textContent=`PKR ${fmt(brokerage)}`;}if(payableRow){payableRow.hidden=brokerage-withholding<=0;payableRow.querySelector('strong').textContent=`PKR ${fmt(brokerage-withholding)}`;}if(withholdingRow){withholdingRow.hidden=withholding<=0;withholdingRow.querySelector('strong').textContent=`PKR ${fmt(withholding)}`;}
+    state.brokerageRate=q('#ttsbRate')?.value||'';state.brokerageBasis=q('#ttsbBasis')?.value||'PER_100_KG';state.kanta=q('#ttsbKanta')?.value||'';state.filling=q('#ttsbFilling')?.value||'';
+    const row=selected(),weight=Number(row?.payableWeightKg||0),basis=state.brokerageBasis;
+    const units=basis==='PER_MAUND'?weight/40:basis==='PER_50_KG_BAG'?weight/50:weight/100;
+    const brokerage=Math.round(Math.max(0,Number(state.brokerageRate||0))*units*100)/100;
+    if(q('#ttsbBrokerage'))q('#ttsbBrokerage').value=brokerage.toFixed(2);
+    const withholding=Math.round(brokerage*Math.max(0,Number(q('#ttsbWithPct')?.value||0))*100)/100;
+    if(q('#ttsbWithAmt'))q('#ttsbWithAmt').value=withholding.toFixed(2);
+    const value=totals();
+    for(const [id,amount] of [['ttsbAddTotal',value.add],['ttsbDeductTotal',value.deduct],['ttsbFinalTotal',value.final],['ttsbPreviewValueDr',value.final],['ttsbPreviewValueCr',value.final]])if(q('#'+id))q('#'+id).textContent=`PKR ${fmt(amount)}`;
+    if(q('#ttsbGrandTotal'))q('#ttsbGrandTotal').textContent=`PKR ${fmt(value.final+brokerage)}`;
+    for(const [id,amount] of [['ttsbPreviewBrokery',brokerage],['ttsbPreviewBrokerPayable',brokerage]]){const line=q('#'+id);if(line){line.hidden=amount<=0;line.querySelector('strong').textContent=`PKR ${fmt(amount)}`;}}
+    if(q('#ttsbPreviewWithholding'))q('#ttsbPreviewWithholding').hidden=true;
   }
   function bind() {
     const broker = q('#ttsbBroker'); if (broker) broker.onchange = () => { state.relationshipType = broker.value ? 'BROKER' : ''; state.relationshipName = broker.value; resetAfterRelationship(); render(); };
@@ -103,7 +114,7 @@
     q('#ttsbAddAddition')?.addEventListener('click', () => { syncLines(); state.adjustmentLines.push({kind:'ADDITION',description:'',amount:''}); render(); });
     q('#ttsbAddDeduction')?.addEventListener('click', () => { syncLines(); state.adjustmentLines.push({kind:'DEDUCTION',description:'',amount:''}); render(); });
     qa('[data-line-kind],[data-line-description],[data-line-amount]').forEach(input => { input.oninput = syncLines; input.onchange = syncLines; });
-    q('#ttsbWithPct')?.addEventListener('input',syncLines);
+    qa('#ttsbRate,#ttsbBasis,#ttsbKanta,#ttsbFilling,#ttsbWithPct').forEach(input=>{input.addEventListener('input',syncLines);input.addEventListener('change',syncLines);});syncLines();
     qa('[data-line-remove]').forEach(button => { button.onclick = () => { syncLines(); state.adjustmentLines.splice(Number(button.closest('[data-adjustment-line]').dataset.adjustmentLine),1); render(); }; });
     q('#ttsbClearTruck')?.addEventListener('click', () => { resetAfterSoda(); render(); });
     q('#ttsbVerify')?.addEventListener('click', postBill);
@@ -113,7 +124,7 @@
     if (!row) return toast('Choose a saved or printed Pohanch.', false);
     if (state.adjustmentLines.some(line => !line.description || !(Number(line.amount) > 0))) return toast('Complete or delete every addition/deduction line.', false);
     if (value.final <= 0) return toast('Final bill value must be greater than zero.', false);
-    const payload = {action:'verify_bill',csrf:access.csrf,entity:entity(),relationshipType:state.relationshipType,relationshipName:state.relationshipName,billDate:q('#ttsbBillDate')?.value || today(),billNo:q('#ttsbBillNo')?.value.trim() || '',broker:row.broker || '',sourceKeys:[row.sourceKey],finalCommodityValue:value.final,brokerageGross:Number(q('#ttsbBrokerage')?.value || 0),brokerageWithholding:Number(q('#ttsbWithAmt')?.value || 0),adjustmentLines:state.adjustmentLines,adjustments:{},remarks:q('#ttsbRemarks')?.value.trim() || ''};
+    const payload = {action:'verify_bill',csrf:access.csrf,entity:entity(),relationshipType:state.relationshipType,relationshipName:state.relationshipName,billDate:q('#ttsbBillDate')?.value || today(),billNo:q('#ttsbBillNo')?.value.trim() || '',broker:row.broker || '',sourceKeys:[row.sourceKey],finalCommodityValue:value.final,brokerageGross:Number(q('#ttsbBrokerage')?.value || 0),brokerageWithholding:0,brokerageRate:Number(state.brokerageRate||0),brokerageBasis:state.brokerageBasis,brokerageWhtPercent:Number(q('#ttsbWithPct')?.value||0),adjustmentLines:[...state.adjustmentLines,...(Number(state.kanta)>0?[{kind:'ADDITION',description:'Kanta / Weight Charges',amount:Number(state.kanta)}]:[]),...(Number(state.filling)>0?[{kind:'DEDUCTION',description:'Filling Charges',amount:Number(state.filling)}]:[])],adjustments:{},remarks:q('#ttsbRemarks')?.value.trim() || ''};
     const button = q('#ttsbVerify'); if (button) { button.disabled = true; button.textContent = 'POSTING…'; }
     try {
       const response = await fetch(billApi,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify(payload)}); let body = {}; try { body = await response.json(); } catch (_) {}

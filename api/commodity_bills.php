@@ -225,6 +225,15 @@ try{
         $brokeryRate=cb_brokery_rate($soda);
         if($brokeryBags<=0&&is_array($body['inspection']??null))$brokeryBags=max(0,(float)($body['inspection']['bags']??0));
         if($brokeryRate&&($brokeryRate['basis']??'')==='PER_BAG'&&$brokeryBags<=0)cb_respond(['ok'=>false,'error'=>'This broker uses Per bag Buying Brokery, but the selected Pohanch records do not contain a bag quantity. Correct the arrival before posting the bill.'],422);
+        $enteredBasis=trim((string)($body['brokerageBasis']??''));
+        $enteredRate=cb_money($body['brokerageRate']??0,'Buying brokery rate',true);
+        $whtPercent=cb_money($body['brokerageWhtPercent']??15,'Buying brokery WHT percentage',true);
+        if($whtPercent>100)cb_respond(['ok'=>false,'error'=>'Brokery WHT percentage must be at most 100.'],422);
+        if($enteredBasis!==''){
+            if(!in_array($enteredBasis,['PER_100_KG','PER_50_KG_BAG','PER_MAUND'],true))cb_respond(['ok'=>false,'error'=>'Choose an approved brokery unit.'],422);
+            $brokeryRate=['amount'=>$enteredRate,'basis'=>$enteredBasis];
+            if($brokerageWithholding>0)cb_respond(['ok'=>false,'error'=>'Brokery WHT is deducted at payment, not when the bill is posted.'],422);
+        }
         $brokerageGross=cb_brokery_amount($brokeryRate,$brokeryWeightKg,$brokeryBags);
         if(in_array($commodity,['CORN','SESAME'],true)){
             $calculation=cb_nonrice_calculation($store,$soda,$commodity,$body);
@@ -269,7 +278,7 @@ try{
         $meta=[
             'billId'=>$billId,'postingNumber'=>$postingNumber,'commodity'=>$commodity,'sourceKeys'=>$sourceKeys,'sodas'=>$uniqueSodas,'broker'=>$broker,'relationshipType'=>$relationshipType,'relationshipName'=>$relationshipName,'adjustments'=>$adjustments,'adjustmentLines'=>$adjustmentLines,
             'provisionalValue'=>$provisional,'finalCommodityValue'=>$finalValue,'brokerageGross'=>$brokerageGross,
-            'brokerageWithholding'=>$brokerageWithholding,'supplierPayableTotal'=>$supplierPayableTotal,
+            'brokerageWithholding'=>$brokerageWithholding,'brokerageRate'=>$enteredBasis!==''?$enteredRate:null,'brokerageBasis'=>$enteredBasis,'brokerageWhtPercent'=>$enteredBasis!==''?$whtPercent:0,'supplierPayableTotal'=>$supplierPayableTotal,
             'creditDays'=>$creditDays,'paymentTermType'=>$term,'dueBasis'=>'Unloading Date','receiptAllocations'=>$receiptAllocations,'calculation'=>$calculation
         ];
         $store['journals'][$journalId]=[
@@ -281,7 +290,7 @@ try{
         $store['commodityBills'][$billId]=[
             'id'=>$billId,'postingNumber'=>$postingNumber,'entity'=>$entity,'commodity'=>$commodity,'billDate'=>$date,'billNo'=>$billNo,'broker'=>$broker,'relationshipType'=>$relationshipType,'relationshipName'=>$relationshipName,'sourceKeys'=>$sourceKeys,
             'sodas'=>$uniqueSodas,'provisionalValue'=>$provisional,'finalCommodityValue'=>$finalValue,'brokerageGross'=>$brokerageGross,
-            'brokerageWithholding'=>$brokerageWithholding,'supplierPayableTotal'=>$supplierPayableTotal,'journalId'=>$journalId,
+            'brokerageWithholding'=>$brokerageWithholding,'brokerageRate'=>$enteredBasis!==''?$enteredRate:null,'brokerageBasis'=>$enteredBasis,'brokerageWhtPercent'=>$enteredBasis!==''?$whtPercent:0,'supplierPayableTotal'=>$supplierPayableTotal,'journalId'=>$journalId,
             'adjustments'=>$adjustments,'adjustmentLines'=>$adjustmentLines,'calculation'=>$calculation,'remarks'=>$remarks,'creditDays'=>$creditDays,'paymentTermType'=>$term,'dueBasis'=>'Unloading Date',
             'dueDateFrom'=>$dueDates[0]??$date,'dueDateTo'=>$dueDates[count($dueDates)-1]??$date,
             'receiptAllocations'=>$receiptAllocations,'paymentStatus'=>'Outstanding','status'=>'Verified / Posted',

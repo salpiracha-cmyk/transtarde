@@ -69,6 +69,7 @@ $files = [
     'commodity-calculation-ui.js',
     'transport-controls-ui.js',
     'reports-ui.js',
+    'all-ledgers-ui.js',
     'profitability-ui.js',
     'accounts-clean-ui.js',
     'master-autocomplete.js',

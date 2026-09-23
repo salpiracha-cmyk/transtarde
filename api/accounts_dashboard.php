@@ -18,6 +18,27 @@ try{
  foreach((array)($s['commodityBills']??[])as$b){if(!is_array($b)||($b['entity']??'')!==$e)continue;$out=round(max(0,(float)($b['supplierPayableTotal']??$b['total']??0)-ad_paid($s,(string)($b['id']??''))),2);if($out>.005)$commodity[]=['label'=>(string)($b['broker']??$b['party']??'Commodity supplier'),'reference'=>(string)($b['billNo']??$b['id']??''),'date'=>(string)($b['dueDateFrom']??$b['billDate']??''),'currency'=>'PKR','amount'=>$out];}
  foreach((array)($s['supplierBills']??[])as$b){if(!is_array($b)||($b['entity']??'')!==$e)continue;$out=round(max(0,(float)($b['supplierPayableTotal']??0)-ad_paid($s,(string)($b['id']??''))),2);if($out>.005)$expenses[]=['label'=>(string)($b['vendor']??$b['broker']??'Supplier'),'reference'=>(string)($b['billNo']??$b['id']??''),'date'=>(string)($b['dueDate']??$b['billDate']??''),'currency'=>'PKR','amount'=>$out];}
  $attention=[];foreach((array)($s['payableHolds']??[])as$h)if(is_array($h)&&($h['entity']??'')===$e&&!empty($h['active']))$attention[]=['type'=>'Held payment','message'=>(string)($h['reason']??'Payment is on hold'),'reference'=>(string)($h['pohanch']??$h['sourceKey']??'')];foreach((array)($s['localSalesCandidates']??[])as$x)if(is_array($x)&&($x['entity']??'')===$e&&($x['status']??'')==='Pending Accounts Approval')$attention[]=['type'=>'Local sale','message'=>'Waiting for Accounts approval','reference'=>(string)($x['gatePass']??$x['soda']??'')];
- $sets=['bank'=>ad_rows($bank),'commodity'=>ad_rows($commodity),'local'=>ad_rows($local),'export'=>ad_rows($export),'expenses'=>ad_rows($expenses)];foreach($sets as&$rows)if(is_array($rows))foreach($rows as&$row)$row['dateDisplay']=preg_match('/^(\d{4})-(\d{2})-(\d{2})$/',(string)($row['date']??''),$m)?$m[3].'-'.$m[2].'-'.$m[1]:'';unset($row);unset($rows);
+ $due=$expenses;
+ foreach((array)($s['creditCardStatements']??[]) as $statement){
+   if(!is_array($statement)||($statement['entity']??'')!==$e||($statement['status']??'Pending')==='Paid')continue;
+   $due[]=['label'=>(string)($statement['cardName']??'Credit card').' credit card','reference'=>(string)($statement['id']??''),'date'=>(string)($statement['dueDate']??''),'currency'=>$e==='TG'?'AED':'PKR','amount'=>(float)($statement['total']??0)];
+ }
+ foreach((array)($s['rentMasters']??[]) as $rent){
+   if(!is_array($rent)||($rent['entity']??'')!==$e||($rent['status']??'Active')!=='Active')continue;
+   $month=(new DateTimeImmutable('now',new DateTimeZone('Asia/Karachi')))->format('Y-m');
+   if((string)($rent['effectiveFrom']??'9999-12-31')>$month.'-31'||((string)($rent['effectiveTo']??'')!==''&&(string)$rent['effectiveTo']<$month.'-01'))continue;
+   $first=(string)($rent['firstPaymentMonth']??substr((string)($rent['effectiveFrom']??''),0,7));
+   $interval=match((string)($rent['paymentPattern']??'Monthly')){'Quarterly'=>3,'Twice-Yearly','Half-Yearly'=>6,default=>1};
+   if(!preg_match('/^\d{4}-\d{2}$/',$first))continue;
+   $months=12*((int)substr($month,0,4)-(int)substr($first,0,4))+(int)substr($month,5,2)-(int)substr($first,5,2);
+   if($months<0||$months%$interval!==0)continue;
+   $day=max(1,min((int)($rent['dueDay']??1),(int)date('t',strtotime($month.'-01'))));
+   $dueDate=$month.'-'.str_pad((string)$day,2,'0',STR_PAD_LEFT);
+   $period=$s['rentPeriods'][$e.'|'.$month.'|'.(string)($rent['id']??'')]??null;
+   $amount=is_array($period)?(float)($period['outstanding']??0):(float)($rent['monthlyAmount']??0)*$interval;
+   if($amount>.005)$due[]=['label'=>(string)($rent['mill']??'').' rent · '.(string)($rent['payee']??''),'reference'=>(string)($rent['id']??''),'date'=>$dueDate,'currency'=>$e==='TG'?'AED':'PKR','amount'=>$amount];
+ }
+ $sets=['bank'=>ad_rows($bank),'commodity'=>ad_rows($commodity),'local'=>ad_rows($local),'export'=>ad_rows($export),'expenses'=>ad_rows($expenses),'due'=>ad_rows($due)];foreach($sets as&$rows)if(is_array($rows))foreach($rows as&$row)$row['dateDisplay']=preg_match('/^(\d{4})-(\d{2})-(\d{2})$/',(string)($row['date']??''),$m)?$m[3].'-'.$m[2].'-'.$m[1]:'';unset($row);unset($rows);
+ usort($sets['due'],static fn($a,$b)=>strcmp((string)($a['date']??''),(string)($b['date']??'')));
  ad_out(['ok'=>true,'entity'=>$e,'summaries'=>$sets,'attention'=>$attention,'serverNow'=>gmdate('c')]);
 }catch(Throwable $x){error_log('Accounts dashboard: '.$x->getMessage());ad_out(['ok'=>false,'error'=>'Accounts summary is temporarily unavailable.'],500);}

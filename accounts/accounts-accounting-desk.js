@@ -18,7 +18,6 @@
   const pakistanAreas = [
     {key:'exports', glyph:'⇄', title:'Export Receipts & Payments', note:'Every export receipt, document and shipment expense', actions:[
       {title:'Bank Receipt / Credit Advice', note:'One linked form for the advice, outstanding item, bank charges, WHT and Advance WHT; FI remains in Exports', special:'export-receipt'},
-      {title:'Customer Receivables', note:'Invoice-wise export customer balances and receipt allocations', native:'receivables'},
       {title:'Freight Forwarder / Shipping', note:'Shipment-linked freight invoice and accepted liability', special:'shipment-kind', shipmentKind:'freight'},
       {title:'Clearing Agent', note:'GD, job and shipment-linked clearing bill', special:'shipment-kind', shipmentKind:'clearing'},
       {title:'Bags Bill', note:'Export bag purchases, receipts, stock and sales-tax working', native:'purchases', then:'[data-purchase="bags"]', bagSync:true},
@@ -30,12 +29,8 @@
     {key:'commodity', glyph:'▣', title:'Commodity Purchases & Local Sales', note:'Soda through final bill, payment, sale and receipt', actions:[
       {title:'Soda Centre', note:'Create, search, amend or delete an unlinked Soda', special:'soda'},
       {title:'Bill Posting', note:'Broker or Supplier → Soda → saved/printed Pohanch → final bill', special:'arrival-bills', native:'purchases', then:'[data-purchase="commodity"]'},
-      {title:'Supplier / Broker Bills', note:'Outstanding, held and disputed commodity bills', native:'payables'},
-      {title:'Commodity Payments', note:'Allocate a cash or bank payment bill by bill', native:'payables'},
-      {title:'Local Commodity Sales', note:'Local Soda sale, dispatch and customer receivable', native:'receivables', find:'Local'},
-      {title:'Local Sale Receipts', note:'Approve mill receipt or record office receipt against a Local Soda', native:'receivables', find:'Receipt'},
-      {title:'Other Purchase', note:'Assets, consumables and services outside commodity arrivals', native:'purchases', then:'[data-purchase="other"]'},
-      {title:'Commodity History', note:'Search Soda, Pohanch, truck, bill, payment or local sale', special:'search'}
+      {title:'Due Payment Working', note:'Amounts due by selected date, bank balances and bill allocation', special:'due-payments'},
+      {title:'Local Sales & Receipts', note:'Mill sale approvals and linked receipts awaiting Accounts action', native:'receivables', find:'Local'}
     ]},
     {key:'routine', glyph:'◇', title:'Routine Expenses', note:'Simple forms for regular business spending', actions:[
       {title:'Credit Cards', note:'Statement payment with company and personal allocation', native:'expenses', then:'[data-expense="card"]'},
@@ -48,6 +43,7 @@
       {title:'Donations', note:'Zakat, Sadqa and Fi Sabilillah remain separate', native:'expenses', then:'[data-expense="donations"]'}
     ]},
     {key:'ledgers', glyph:'L', title:'Ledgers & Accounting', note:'Party, bank and general ledgers with controlled JV', actions:[
+      {title:'All Ledgers', note:'Search any posting account; select a date range, print or export', special:'all-ledgers'},
       {title:'Customer Ledgers', native:'receivables'}, {title:'Supplier / Broker Ledgers', native:'payables'},
       {title:'Bank / Cash Ledgers', native:'bank'}, {title:'General Ledger', native:'reports', find:'General Ledger'},
       {title:'Journal Voucher', note:'The only manual Debit / Credit entry screen', native:'jv'},
@@ -62,6 +58,8 @@
       {title:'Commodity & Local Sales', native:'reports', find:'Commodity'}
     ]}
   ];
+  pakistanAreas.find(area=>area.key==='routine').actions.push({title:'Routine Expense Masters',note:'Save card, utility, rent and salary details in one place',special:'little-master'});
+  pakistanAreas.find(area=>area.key==='routine').actions.push({title:'Other Purchases',note:'Assets and consumables outside commodity Sodas',native:'purchases',then:'[data-purchase="other"]'});
   const tgAreas = [
     {key:'tg-receipts', glyph:'↓', title:'Customer Receipts', note:'Receive money and allocate it to the correct TG customer', actions:[
       {title:'Customer Receipt', native:'bank', find:'Receive'}, {title:'Customer Receivables', native:'receivables'}, {title:'Customer Ledger', native:'receivables'}
@@ -116,6 +114,7 @@
       @media(max-width:900px){.tt-position{grid-template-columns:repeat(2,1fr)}.tt-area-grid{grid-template-columns:repeat(2,1fr)}.tt-action-list{grid-template-columns:1fr}.workspace.tt-clean-modal .split{grid-template-columns:1fr!important}.tt-form-grid,.tt-tax-filters{grid-template-columns:repeat(2,1fr)}#ttCompanyMenu{grid-template-columns:1fr;right:10px}}
       @media(max-width:560px){.tt-desk-heading{display:block}.tt-search-main{width:100%;margin-top:12px}.tt-position,.tt-form-grid,.tt-tax-filters,.tt-area-grid{grid-template-columns:1fr}.tt-form-grid .wide{grid-column:auto}.tt-queue-row{grid-template-columns:1fr auto}.tt-queue-row span{display:none}.topbar{padding:0 10px!important}.brand{min-width:0!important}.brand>div:last-child{display:none}#ttChangeCompanyDesk{max-width:130px;overflow:hidden;text-overflow:ellipsis}.tt-window-body{padding:10px}}
     `;
+    style.textContent+='@keyframes ttDuePulse{50%{box-shadow:0 0 0 3px #e5a63788}}.tt-due-alert{animation:ttDuePulse 1.8s ease-in-out infinite}.tt-summary[data-summary="due"] b{font-size:13px;line-height:1.4}';
     document.head.appendChild(style);
   }
 
@@ -124,6 +123,9 @@
   }
 
   async function launch(action) {
+    if(action.special==='all-ledgers')return window.TT_ALL_LEDGERS?.open?.();
+    if(action.special==='due-payments')return openDuePayments();
+    if(action.special==='little-master')return openLittleMaster();
     if (action.special === 'stock-reconciliation' && access.canInventoryReconciliation) { location.href='/stock-reconciliation.php?origin=accounts&entity='+encodeURIComponent(entity()); return; }
     if (action.special === 'soda') return openSoda();
     if (action.special === 'search') return openSearch();
@@ -210,7 +212,7 @@
     return `<div id="ttAccountingDesk">
       <div class="tt-desk-main">
         <section><div class="tt-desk-heading"><div><h1>Accounts · <span data-tt-entity-name></span></h1><p>Choose the job you need. Every entry remains linked to its original operational record.</p></div><input class="tt-search-main" aria-label="Search previous records" placeholder="Search voucher, bill, Soda, truck or shipment"></div>
-          <div class="tt-position" id="ttSummaryCards"><button class="tt-summary"><small>Bank Balance</small><b>Loading…</b><em>Hover for accounts</em></button><button class="tt-summary"><small>Commodity Bills Due</small><b>Loading…</b><em>Due-date detail</em></button><button class="tt-summary"><small>Local Receivables</small><b>Loading…</b><em>Customer detail</em></button><button class="tt-summary"><small>Export Receivables</small><b>Loading…</b><em>Currency detail</em></button><button class="tt-summary"><small>Expenses Due</small><b>Loading…</b><em>Vendor detail</em></button></div>
+          <div class="tt-position" id="ttSummaryCards"><button class="tt-summary"><small>Bank Balance</small><b>Loading…</b><em>Hover for accounts</em></button><button class="tt-summary"><small>Commodity Bills Due</small><b>Loading…</b><em>Due-date detail</em></button><button class="tt-summary"><small>Local Receivables</small><b>Loading…</b><em>Customer detail</em></button><button class="tt-summary"><small>Export Receivables</small><b>Loading…</b><em>Currency detail</em></button><button class="tt-summary"><small>Next Payment Due</small><b>Loading…</b><em>Bill, amount and date</em></button></div>
         </section>
         <section id="ttDeskWork"></section>
         <section><div class="tt-work-head"><div><h2>Needs Attention</h2><p>Held and incomplete work stays visible but is never selected silently.</p></div></div><div class="tt-queue" id="ttAttentionQueue"><div class="tt-queue-row"><span>Status</span><b>Loading current work…</b></div></div></section>
@@ -221,7 +223,8 @@
   function showAreasHome() {
     const work = q('#ttDeskWork'); if (!work) return;
     const items = currentAreas();
-    work.innerHTML = `<div class="tt-home-head"><h2>${entity()==='TG'?'Trans Grains Accounts':'What do you want to do?'}</h2><p>${entity()==='TG'?'Only customer receipts, supplier payments, bank/local expenses, ledgers and reports are shown.':'Choose a broad area, then choose the exact entry or report.'}</p></div><div class="tt-area-grid">${items.map(area=>`<button type="button" class="tt-area-card" data-tt-area="${area.key}"><span class="tt-area-glyph">${esc(area.glyph)}</span><b>${esc(area.title)}</b><small>${esc(area.note)}</small></button>`).join('')}</div>`;
+    work.innerHTML = `<div class="tt-home-head"><h2>${entity()==='TG'?'Trans Grains Accounts':'What do you want to do?'}</h2><p>${entity()==='TG'?'Only customer receipts, supplier payments, bank/local expenses, ledgers and reports are shown.':'Choose a broad area, then choose the exact entry or report.'}</p></div><div class="tt-area-grid"><button type="button" class="tt-area-card" id="ttMainJV"><span class="tt-area-glyph">≋</span><b>Journal Voucher</b><small>Prepare, approve and print a JV</small></button>${items.map(area=>`<button type="button" class="tt-area-card" data-tt-area="${area.key}"><span class="tt-area-glyph">${esc(area.glyph)}</span><b>${esc(area.title)}</b><small>${esc(area.note)}</small></button>`).join('')}</div>`;
+    q('#ttMainJV',work).onclick=()=>launch({native:'jv'});
     qa('[data-tt-area]', work).forEach(button=>button.onclick=()=>showArea(button.dataset.ttArea));
   }
 
@@ -248,6 +251,18 @@
     qa('[data-tt-action]', work).forEach(button => button.onclick = () => launch(area.actions[Number(button.dataset.ttAction)]));
   }
 
+  function openLittleMaster(){
+    const host=layer('ttLittleMaster','Routine Expense Masters'),body=q('.tt-window-body',host);
+    const masters=[{name:'Credit Cards',native:'expenses',then:'[data-expense="card"]'},{name:'Utility & Club Bills',native:'expenses',then:'[data-expense="utility"]'},{name:'Rent & Recurring',native:'expenses',then:'[data-expense="rent"]'},{name:'Salary & Staff',native:'expenses',then:'[data-expense="salary"]'}];
+    body.innerHTML=`<div class="tt-action-list">${masters.map((item,i)=>`<button class="tt-action" data-little="${i}"><span class="tt-action-mark">✎</span><span><b>${esc(item.name)}</b><small>Open saved details and recurring setup</small></span></button>`).join('')}</div>`;
+    qa('[data-little]',body).forEach(button=>button.onclick=()=>{q('.tt-window-close',host).click();launch(masters[Number(button.dataset.little)])});
+  }
+
+  async function openDuePayments(){
+    await launch({native:'payables'});
+    window.TT_SUPPLIER_PAYMENT_PLANNING_UI?.mount?.();
+  }
+
   function buildDesk() {
     const home = q('#entityHome');
     if (!home || q('#ttAccountingDesk')) return;
@@ -269,16 +284,17 @@
     try{
       const data=await json(`../api/accounts_dashboard.php?entity=${encodeURIComponent(entity())}`);
       const definitions=entity()==='TG'
-        ? [{key:'bank',label:'Bank Balance',note:'Hover for accounts'},{key:'local',label:'Customer Receivables',note:'Customer detail'},{key:'commodity',label:'Supplier Bills Due',note:'Due-date detail'},{key:'expenses',label:'Local Expenses Due',note:'Vendor detail'}]
-        : [{key:'bank',label:'Bank Balance',note:'Hover for accounts'},{key:'commodity',label:'Commodity Bills Due',note:'Due-date detail'},{key:'local',label:'Local Receivables',note:'Customer detail'},{key:'export',label:'Export Receivables',note:'Customer / currency detail'},{key:'expenses',label:'Expenses Due',note:'Vendor detail'}];
+        ? [{key:'bank',label:'Bank Balance',note:'Hover for accounts'},{key:'local',label:'Customer Receivables',note:'Customer detail'},{key:'commodity',label:'Supplier Bills Due',note:'Due-date detail'},{key:'due',label:'Next Payment Due',note:'Bill, amount and date'}]
+        : [{key:'bank',label:'Bank Balance',note:'Hover for accounts'},{key:'commodity',label:'Commodity Bills Due',note:'Due-date detail'},{key:'local',label:'Local Receivables',note:'Customer detail'},{key:'export',label:'Export Receivables',note:'Customer / currency detail'},{key:'due',label:'Next Payment Due',note:'Bill, amount and date'}];
       host.style.gridTemplateColumns=`repeat(${definitions.length},1fr)`;
       host.innerHTML=definitions.map(def=>{
         const rows=data.summaries?.[def.key]||[], totals={};rows.forEach(row=>{const cur=row.currency||'PKR';totals[cur]=(totals[cur]||0)+Number(row.amount||0)});
-        const headline=Object.keys(totals).length?Object.entries(totals).map(([cur,value])=>`${esc(cur)} ${money(value)}`).join(' · '):'PKR 0.00';
+        const first=rows[0];
+        const headline=def.key==='due'?(first?`${esc(first.label)} · ${esc(first.currency||'PKR')} ${money(first.amount)} · ${esc(first.dateDisplay||first.date||'')}`:'No due payments'):Object.keys(totals).length?Object.entries(totals).map(([cur,value])=>`${esc(cur)} ${money(value)}`).join(' · '):'PKR 0.00';
         const detail=rows.length?rows.slice(0,20).map(row=>`<div><b>${esc(row.label||row.reference||'Account')}</b><br>${esc(row.reference||'')}${row.dateDisplay?' · '+esc(row.dateDisplay):''} · ${esc(row.currency||'PKR')} ${money(row.amount)}</div>`).join(''):'<div>No open balance.</div>';
-        return `<button type="button" class="tt-summary" data-summary="${def.key}"><small>${esc(def.label)}</small><b>${headline}</b><em>${esc(def.note)}</em><span class="tt-summary-pop">${detail}</span></button>`;
+        return `<button type="button" class="tt-summary ${def.key==='due'&&first&&first.date<=today()?'tt-due-alert':''}" data-summary="${def.key}"><small>${esc(def.label)}</small><b>${headline}</b><em>${esc(def.note)}</em><span class="tt-summary-pop">${detail}</span></button>`;
       }).join('');
-      qa('[data-summary]',host).forEach(button=>button.onclick=()=>{const key=button.dataset.summary;if(key==='bank')launch({native:'bank'});else if(key==='commodity'||key==='expenses')launch({native:'payables'});else launch({native:'receivables'});});
+       qa('[data-summary]',host).forEach(button=>button.onclick=()=>{const key=button.dataset.summary;if(key==='bank')launch({native:'bank'});else if(key==='due')showArea('routine');else if(key==='commodity')openDuePayments();else launch({native:'receivables'});});
       if(queue){const rows=data.attention||[];queue.innerHTML=rows.length?rows.slice(0,12).map(row=>`<div class="tt-queue-row"><span>${esc(row.type)}</span><b>${esc(row.message)}${row.reference?' · '+esc(row.reference):''}</b><button type="button" data-attention-search="${esc(row.reference||'')}">Review</button></div>`).join(''):'<div class="tt-queue-row"><span>Current</span><b>No held or incomplete entries need attention.</b></div>';qa('[data-attention-search]',queue).forEach(button=>button.onclick=()=>openSearch(button.dataset.attentionSearch));}
     }catch(error){qa('.tt-summary b',host).forEach(node=>node.textContent='Unavailable');if(queue)queue.innerHTML='<div class="tt-queue-row"><span>Status</span><b>Refresh to load current Accounts attention items.</b></div>';console.warn('Accounts dashboard summary',error);}
   }
@@ -470,9 +486,15 @@
   function printVoucher(record) {
     const data = record?.data || {};
     const number = data.voucherNo || data.journalId || data.id || record.title;
-    const w = window.open('', '_blank', 'noopener,noreferrer');
+    const outgoing=/payment|expense|remittance|supplier settlement|reimbursement/i.test(String(record.type||data.sourceType||''));
+    const amount=data.amount||data.paidAmount||data.total||data.totalDebit||record.amount||'';
+    const paymentAccount=data.bankName||data.bankAccountTitle||data.paymentAccountName||data.cashAccount||'';
+    const reference=data.billNo||data.invoiceNo||data.reference||data.sodaNo||'';
+    const cheque=data.chequeNo||data.bankReference||data.transactionReference||'';
+    const lines=Array.isArray(data.lines)&&data.lines.length?data.lines.map(line=>`<tr><td>${esc(line.account||'')} · ${esc(line.accountName||'')}</td><td>${esc(line.subledger||line.party||'')}</td><td class="amount">${esc(line.debit||'')}</td><td class="amount">${esc(line.credit||'')}</td></tr>`).join(''):`<tr><td>${esc(record.party||data.party||data.broker||'')}</td><td>${esc(reference)}</td><td class="amount">${esc(amount)}</td><td class="amount"></td></tr>`;
+    const w = window.open('', '_blank');
     if (!w) return alert('Allow popups to print the voucher.');
-    w.document.write(`<!doctype html><title>${esc(number)}</title><style>body{font:12px Arial;padding:32px;color:#111}h1,h2{text-align:center;margin:3px}.meta{display:flex;justify-content:space-between;margin:24px 0 10px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #222;padding:7px;text-align:left}pre{white-space:pre-wrap}.sign{display:grid;grid-template-columns:repeat(4,1fr);gap:35px;margin-top:70px}.sign div{border-top:1px solid #222;text-align:center;padding-top:5px}@media print{button{display:none}}</style><h1>${esc(q('.entityBtn.active strong')?.textContent || entity())}</h1><h2>${esc(record.type || 'ACCOUNTING VOUCHER')}</h2><div class="meta"><b>Voucher No: ${esc(number)}</b><b>Date: ${esc(record.date || data.date || '')}</b></div><table><tr><th>Account / Party</th><th>Reference</th><th>Debit</th><th>Credit</th></tr><tr><td>${esc(record.party || data.party || data.broker || '')}</td><td>${esc(data.billNo || data.reference || data.sodaNo || '')}</td><td>${esc(data.totalDebit || data.amount || '')}</td><td>${esc(data.totalCredit || data.amount || '')}</td></tr></table><h3>Narration</h3><p>${esc(data.narration || data.remarks || record.title)}</p><h3>Linked details</h3><pre>${esc(JSON.stringify(data, null, 2))}</pre><div class="sign"><div>Prepared By</div><div>Checked By</div><div>Approved By</div><div>Received By</div></div><button onclick="print()">Print</button>`);
+    w.document.write(`<!doctype html><meta charset="utf-8"><title>${esc(number)}</title><style>body{font:12px Arial;max-width:940px;margin:22px auto;padding:18px;color:#1a2836}header{text-align:center;border-bottom:3px solid #1d5748;padding-bottom:12px}h1{margin:0;font-size:20px}h2{margin:5px 0;font-size:16px;text-transform:uppercase;color:#1d5748}.meta{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin:18px 0}.meta div{padding:10px;border:1px solid #d4dde3;border-radius:5px}.meta b{display:block;color:#586979;font-size:10px;text-transform:uppercase;margin-bottom:4px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #c7d4db;padding:8px;text-align:left}th{background:#eaf2ef}.amount{text-align:right}.narration{border:1px solid #c7d4db;margin-top:15px;padding:12px}.sign{display:grid;grid-template-columns:repeat(4,1fr);gap:24px;margin-top:64px}.sign div{border-top:1px solid #333;text-align:center;padding-top:7px}.ack{margin-top:24px;padding:14px;border:1px solid #859e91}.ack p{margin:8px 0 25px}@media print{button{display:none}body{margin:0}}</style><button onclick="print()">Print Voucher</button><header><h1>${esc(q('.entityBtn.active strong')?.textContent||entity())}</h1><h2>${outgoing?'Payment Voucher':record.type||'Accounting Voucher'}</h2></header><div class="meta"><div><b>Posting / Voucher Number</b>${esc(number)}</div><div><b>Date</b>${esc(record.date||data.date||'')}</div><div><b>Paid to / Account</b>${esc(record.party||data.payee||data.vendor||data.party||'—')}</div><div><b>Related invoice / bill</b>${esc(reference||'—')}</div><div><b>Paid from</b>${esc(paymentAccount||'—')}</div><div><b>Cheque / Bank reference</b>${esc(cheque||'—')}</div></div><table><thead><tr><th>Account</th><th>Party / Detail</th><th>Debit</th><th>Credit</th></tr></thead><tbody>${lines}</tbody></table><div class="narration"><b>Amount: ${esc(data.currency||'PKR')} ${esc(amount)}</b><p>${esc(data.narration||data.remarks||record.title)}</p></div>${outgoing?'<div class="ack"><b>Recipient acknowledgement</b><p>Received the stated payment against the invoice / bill referenced above.</p>Name: _________________________ &nbsp; ID / Stamp: _________________________ &nbsp; Date: ________________</div>':''}<div class="sign"><div>Prepared By</div><div>Checked By</div><div>Approved By</div><div>${outgoing?'Received By':'Posted By'}</div></div>`);
     w.document.close();
   }
 
@@ -494,8 +516,10 @@
   async function openShipmentKind(kind) {
     const choices={freight:{native:'freight'},transport:{native:'transport'},clearing:{native:'services',service:'CLEARING'},fumigation:{native:'services',service:'FUMIGATION'},inspection:{native:'services',service:'INSPECTION'}};
     const choice=choices[String(kind||'').toLowerCase()];if(!choice)return openShipmentChooser();
-    await launch(choice);
-    if(choice.service){let select=null;for(let i=0;i<30&&!select;i+=1){select=q('#svKind');if(!select)await new Promise(resolve=>setTimeout(resolve,40));}if(select){select.value=choice.service;select.dispatchEvent(new Event('change',{bubbles:true}));}}
+    const host=layer('ttBillShipmentSearch',`Find Shipment · ${kind}`),body=q('.tt-window-body',host);
+    body.innerHTML='<div class="tt-form"><p>Search by customer, contract, invoice, Customs invoice, container, B/L, loading programme, shipping line, vessel, port, brand, GD, FI or Bag PO.</p><div class="tt-searchbar"><input id="ttBillShipmentQuery" autofocus placeholder="Enter any shipment reference"><button id="ttBillShipmentGo">Search</button></div><div id="ttBillShipmentHits" style="margin-top:12px"></div></div>';
+    const search=async()=>{const term=q('#ttBillShipmentQuery',host).value.trim(),hits=q('#ttBillShipmentHits',host);if(term.length<2){hits.textContent='Enter at least two characters.';return}hits.textContent='Searching Exports…';try{const result=await json('../api/accounts_shipment_lookup.php?entity='+encodeURIComponent(entity())+'&q='+encodeURIComponent(term));hits.innerHTML=result.rows.length?result.rows.map((row,index)=>`<article class="tt-record-card"><b>${esc(row.customer)} · ${esc(row.contract)} · ${esc(row.lot)}</b><div class="tt-note">Commercial invoice ${esc(row.commercialInvoice||'—')} · Customs ${esc(row.customsInvoice||'—')} · B/L ${esc(row.bl||'—')} · ${esc(row.vessel||'')} ${esc(row.voyage||'')}</div><div class="tt-note">${esc(row.loadingProgramme||'')} · ${esc(row.shippingLine||'')} · ${esc(row.portOfLoading||'')} → ${esc(row.portOfDischarge||'')} · Containers ${esc(row.containers.join(', ')||'—')} · PO ${esc(row.po||'—')}</div><button class="btn" data-tt-pick-shipment="${index}">Confirm this shipment</button></article>`).join(''):'No linked shipment matches. Check the selected company and reference.';qa('[data-tt-pick-shipment]',hits).forEach(button=>button.onclick=async()=>{const row=result.rows[Number(button.dataset.ttPickShipment)];q('.tt-window-close',host).click();await launch(choice);if(choice.service){let select=null;for(let i=0;i<30&&!select;i++){select=q('#svKind');if(!select)await new Promise(resolve=>setTimeout(resolve,40))}if(select){select.value=choice.service;select.dispatchEvent(new Event('change',{bubbles:true}))}}const fields=choice.native==='freight'?{'#frBl':row.bl,'#frLp':row.loadingProgramme,'#frLine':row.shippingLine,'#frFrom':row.portOfLoading,'#frTo':row.portOfDischarge}:choice.native==='services'?{'#svShip':row.lot||row.id,'#svGd':row.gd,'#svPort':row.portOfDischarge,'#svCust':row.customer,'#svCount':row.containers.length}:{};for(const [selector,value]of Object.entries(fields)){const input=q(selector);if(input&&!input.value)input.value=value}if(choice.native==='transport'){if(!q('#trLines .ttv-row'))q('#trAdd')?.click();const rows=qa('#trLines .ttv-row'),last=rows[0];if(last){const input=q('.tlp',last);if(input)input.value=row.loadingProgramme;const qty=q('.tqty',last);if(qty)qty.value=row.containers.length;const start=q('.tfrom',last),end=q('.tto',last);if(start)start.value=row.portOfLoading;if(end)end.value=row.portOfDischarge}}});}catch(error){hits.textContent=error.message}};
+    q('#ttBillShipmentGo',host).onclick=search;q('#ttBillShipmentQuery',host).onkeydown=event=>{if(event.key==='Enter')search()};
   }
 
   function openShipmentChooser() {
