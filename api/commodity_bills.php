@@ -57,6 +57,11 @@ function cb_next_id(array $items,string $prefix): string {
     do{$id=$prefix.'-'.gmdate('Y').'-'.str_pad((string)$n,6,'0',STR_PAD_LEFT);$n++;}while(isset($items[$id]));
     return $id;
 }
+function cb_next_posting_number(array $bills,string $entity): int {
+    $max=0;
+    foreach($bills as $bill)if(is_array($bill)&&($bill['entity']??'')===$entity)$max=max($max,(int)($bill['postingNumber']??0));
+    return $max+1;
+}
 function cb_commodity(array $event,array $meta): string {
     $saved=strtoupper(trim((string)($event['commodity']??$meta['commodity']??'')));
     if(in_array($saved,['RICE','CORN','SESAME'],true)) return $saved;
@@ -167,6 +172,10 @@ try{
     $brokerInput=trim((string)($body['broker']??''));
     $remarks=trim((string)($body['remarks']??''));
     $adjustments=is_array($body['adjustments']??null)?$body['adjustments']:[];
+    $adjustmentLines=is_array($body['adjustmentLines']??null)?array_values($body['adjustmentLines']):[];
+    $relationshipType=strtoupper(trim((string)($body['relationshipType']??'')));
+    $relationshipName=trim((string)($body['relationshipName']??''));
+    if(!in_array($relationshipType,['BROKER','SUPPLIER'],true)||$relationshipName==='')cb_respond(['ok'=>false,'error'=>'Choose either the Broker or Supplier before selecting the Soda.'],422);
     $names=cb_account_names();
 
     tt_ensure_data_dir();
@@ -190,7 +199,7 @@ try{
             $identity=tt_product_identity($commodity,(string)($meta['displayName']??$meta['baseVariety']??$meta['variety']??''),(string)($meta['productStage']??''),(string)($meta['riceType']??''));$row=[
                 'eventId'=>$eventId,'sourceKey'=>$key,'date'=>(string)($j['date']??''),'provisionalAmount'=>round((float)($j['totalDebit']??0),2),
                 'commodity'=>$commodity,'soda'=>(string)($meta['soda']??''),'pohanch'=>(string)($meta['pohanch']??$j['reference']??''),
-                'truck'=>(string)($meta['truck']??''),'broker'=>(string)($meta['broker']??''),'variety'=>(string)($meta['variety']??''),'baseVariety'=>(string)($meta['baseVariety']??$identity['baseVariety']),'riceType'=>(string)($meta['riceType']??$identity['riceType']),'productStage'=>(string)($meta['productStage']??$identity['productStage']),'displayName'=>(string)($meta['displayName']??$identity['displayName']),
+                'truck'=>(string)($meta['truck']??''),'broker'=>(string)($meta['broker']??''),'party'=>(string)($meta['party']??''),'variety'=>(string)($meta['variety']??''),'baseVariety'=>(string)($meta['baseVariety']??$identity['baseVariety']),'riceType'=>(string)($meta['riceType']??$identity['riceType']),'productStage'=>(string)($meta['productStage']??$identity['productStage']),'displayName'=>(string)($meta['displayName']??$identity['displayName']),
                 'bags'=>(float)($meta['bags']??0),'payableWeightKg'=>(float)($meta['payableWeightKg']??0)
             ];
             $provisional+=$row['provisionalAmount'];$brokeryWeightKg+=$row['payableWeightKg'];$brokeryBags+=$row['bags'];$sodas[]=$row['soda'];$brokers[]=$row['broker'];$commodities[]=$commodity;
@@ -207,6 +216,8 @@ try{
         if($brokerInput!==''&&$uniqueBrokers&&strcasecmp($brokerInput,$uniqueBrokers[0])!==0) cb_respond(['ok'=>false,'error'=>'Selected broker does not match the Pohanch receipts.'],422);
 
         $soda=cb_soda($store,$entity,$uniqueSodas[0]);
+        $expectedRelationship=$relationshipType==='BROKER'?trim((string)($soda['broker']??$broker)):trim((string)($soda['party']??''));
+        if($expectedRelationship===''||strcasecmp($expectedRelationship,$relationshipName)!==0)cb_respond(['ok'=>false,'error'=>'The selected '.$relationshipType.' does not match the approved Soda.'],422);
         if(strtoupper((string)($soda['commodity']??''))!==$commodity)cb_respond(['ok'=>false,'error'=>'Receipt commodity does not match the selected Soda.'],422);
         $term=strtoupper((string)($soda['paymentTermType']??''));
         $creditDays=$term==='CASH'?2:cb_credit_days($soda['creditDays']??null);
@@ -222,7 +233,19 @@ try{
             $calculation['buyingBrokery']=$brokeryRate;
         }
         if($brokerageWithholding>$brokerageGross)cb_respond(['ok'=>false,'error'=>'Brokery withholding cannot exceed system-calculated Buying Brokery.'],422);
-        $provisional=round($provisional,2);
+        $provisional=round($provisional,2);$billBaseValue=$calculation!==null?round((float)$calculation['finalCommodityValue'],2):$provisional;
+        if($adjustmentLines){
+            $addition=0.0;$deduction=0.0;$cleanLines=[];
+            foreach($adjustmentLines as $line){
+                if(!is_array($line))continue;$kind=strtoupper(trim((string)($line['kind']??'')));$description=trim((string)($line['description']??''));$amount=cb_money($line['amount']??0,'Adjustment amount');
+                if(!in_array($kind,['ADDITION','DEDUCTION'],true)||$description==='')cb_respond(['ok'=>false,'error'=>'Each bill adjustment needs Addition/Deduction, a description and an amount.'],422);
+                if($kind==='ADDITION')$addition+=$amount;else$deduction+=$amount;$cleanLines[]=['kind'=>$kind,'description'=>$description,'amount'=>$amount];
+            }
+            $serverFinal=round($billBaseValue+$addition-$deduction,2);
+            if($serverFinal<=0)cb_respond(['ok'=>false,'error'=>'Bill deductions cannot reduce the commodity value to zero or below.'],422);
+            if(abs($serverFinal-$finalValue)>.01)cb_respond(['ok'=>false,'error'=>'Bill total changed. Review the additions and deductions before posting.'],409);
+            $adjustmentLines=$cleanLines;
+        }
         $delta=round($finalValue-$provisional,2);
         $lines=[cb_line('2210',$provisional,0,$names)];
         if($delta>0)$lines[]=cb_line('1310',$delta,0,$names);elseif($delta<0)$lines[]=cb_line('1310',0,abs($delta),$names);
@@ -239,11 +262,12 @@ try{
         $supplierPayableTotal=round($finalValue+$netBrokerage,2);
         $receiptAllocations=cb_allocate_payable($receiptRows,$supplierPayableTotal,$creditDays);
         $billId=cb_next_id((array)$store['commodityBills'],'CB');
+        $postingNumber=cb_next_posting_number((array)$store['commodityBills'],$entity);
         $journalId=cb_next_id((array)$store['journals'],'AUTO');
         $dueDates=array_column($receiptAllocations,'dueDate');sort($dueDates);
         $label=$commodity==='CORN'?'Corn / Maize':($commodity==='RICE'?'Rice':ucfirst(strtolower($commodity)));
         $meta=[
-            'billId'=>$billId,'commodity'=>$commodity,'sourceKeys'=>$sourceKeys,'sodas'=>$uniqueSodas,'broker'=>$broker,'adjustments'=>$adjustments,
+            'billId'=>$billId,'postingNumber'=>$postingNumber,'commodity'=>$commodity,'sourceKeys'=>$sourceKeys,'sodas'=>$uniqueSodas,'broker'=>$broker,'relationshipType'=>$relationshipType,'relationshipName'=>$relationshipName,'adjustments'=>$adjustments,'adjustmentLines'=>$adjustmentLines,
             'provisionalValue'=>$provisional,'finalCommodityValue'=>$finalValue,'brokerageGross'=>$brokerageGross,
             'brokerageWithholding'=>$brokerageWithholding,'supplierPayableTotal'=>$supplierPayableTotal,
             'creditDays'=>$creditDays,'paymentTermType'=>$term,'dueBasis'=>'Unloading Date','receiptAllocations'=>$receiptAllocations,'calculation'=>$calculation
@@ -255,10 +279,10 @@ try{
             'createdBy'=>(string)($user['full_name']??$user['username']??'Staff'),'userId'=>(int)($user['id']??0),'reversalOf'=>null
         ];
         $store['commodityBills'][$billId]=[
-            'id'=>$billId,'entity'=>$entity,'commodity'=>$commodity,'billDate'=>$date,'billNo'=>$billNo,'broker'=>$broker,'sourceKeys'=>$sourceKeys,
+            'id'=>$billId,'postingNumber'=>$postingNumber,'entity'=>$entity,'commodity'=>$commodity,'billDate'=>$date,'billNo'=>$billNo,'broker'=>$broker,'relationshipType'=>$relationshipType,'relationshipName'=>$relationshipName,'sourceKeys'=>$sourceKeys,
             'sodas'=>$uniqueSodas,'provisionalValue'=>$provisional,'finalCommodityValue'=>$finalValue,'brokerageGross'=>$brokerageGross,
             'brokerageWithholding'=>$brokerageWithholding,'supplierPayableTotal'=>$supplierPayableTotal,'journalId'=>$journalId,
-            'adjustments'=>$adjustments,'calculation'=>$calculation,'remarks'=>$remarks,'creditDays'=>$creditDays,'paymentTermType'=>$term,'dueBasis'=>'Unloading Date',
+            'adjustments'=>$adjustments,'adjustmentLines'=>$adjustmentLines,'calculation'=>$calculation,'remarks'=>$remarks,'creditDays'=>$creditDays,'paymentTermType'=>$term,'dueBasis'=>'Unloading Date',
             'dueDateFrom'=>$dueDates[0]??$date,'dueDateTo'=>$dueDates[count($dueDates)-1]??$date,
             'receiptAllocations'=>$receiptAllocations,'paymentStatus'=>'Outstanding','status'=>'Verified / Posted',
             'createdAt'=>gmdate('c'),'createdBy'=>(string)($user['full_name']??$user['username']??'Staff')

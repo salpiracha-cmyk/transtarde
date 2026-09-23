@@ -3,7 +3,7 @@
   "scope": "Pakistan export/customer/intercompany receipts credited or retained through Pakistan banks",
   "principles": [
     "The exact foreign amount, transaction currency, bank realization/conversion rate, PKR equivalent, actual PKR bank credit, retention amount and every bank deduction remain separately traceable.",
-    "FI, Commercial Invoice, Sales Contract advance terms and TG intercompany references flow from Exports; Accounts confirms allocation rather than retyping known source data.",
+    "Commercial Invoice, Sales Contract advance terms and TG intercompany references flow from Exports. FI/GD management remains entirely in Exports; Accounts may display its reference but never allocates or amends it.",
     "Actual amounts on the bank credit/debit advice are authoritative for posting. Effective-dated master rates are controls for expected calculation and exception review, not a reason to overwrite bank evidence.",
     "Pakistan ordinary foreign-currency export proceeds are recorded as PKR bank realization unless an approved amount is specifically credited to an authorized foreign-currency retention account.",
     "A retention account is a normal usable foreign-currency bank account. The exact foreign amount directed to retention is credited to that retention bank account; it is not netted by Pakistan withholding tax or treated as a tax deduction.",
@@ -32,8 +32,8 @@
   },
   "receiptAllocation": {
     "supportsManyToMany": true,
-    "sources": ["FI", "Commercial Invoice", "Sales Contract Advance", "TG Intercompany Receivable", "Unapplied Advance"],
-    "rule": "One receipt may settle multiple invoices/FIs and one invoice/FI may be realized through multiple receipts. FI customs utilization and bank realization are related but distinct statuses."
+    "sources": ["Commercial Invoice", "Sales Contract Advance", "TG Intercompany Receivable", "Unapplied Advance"],
+    "rule": "One receipt may settle multiple invoices or advances and one invoice may be realized by multiple receipts. FI customs utilization stays in Exports and is not an Accounts allocation."
   },
   "retentionAccount": {
     "type": "Usable foreign-currency bank account",
@@ -64,4 +64,3 @@
     "rule": "If the foreign amount finally received is slightly below the invoice or TG transfer amount and Accounts confirms the difference is a foreign/correspondent banking charge, debit Foreign Banking Charges and settle the linked receivable/intercompany balance through an explicit traceable adjustment. Otherwise leave the difference outstanding for review."
   }
 }
-

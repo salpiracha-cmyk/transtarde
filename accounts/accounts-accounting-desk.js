@@ -17,7 +17,7 @@
 
   const pakistanAreas = [
     {key:'exports', glyph:'⇄', title:'Export Receipts & Payments', note:'Every export receipt, document and shipment expense', actions:[
-      {title:'Bank Receipt / Credit Advice', note:'One complete form for the advice, invoice/FI allocation, bank charges, WHT and Advance WHT', special:'export-receipt'},
+      {title:'Bank Receipt / Credit Advice', note:'One linked form for the advice, outstanding item, bank charges, WHT and Advance WHT; FI remains in Exports', special:'export-receipt'},
       {title:'Customer Receivables', note:'Invoice-wise export customer balances and receipt allocations', native:'receivables'},
       {title:'Freight Forwarder / Shipping', note:'Shipment-linked freight invoice and accepted liability', special:'shipment-kind', shipmentKind:'freight'},
       {title:'Clearing Agent', note:'GD, job and shipment-linked clearing bill', special:'shipment-kind', shipmentKind:'clearing'},
@@ -29,7 +29,7 @@
     ]},
     {key:'commodity', glyph:'▣', title:'Commodity Purchases & Local Sales', note:'Soda through final bill, payment, sale and receipt', actions:[
       {title:'Soda Centre', note:'Create, search, amend or delete an unlinked Soda', special:'soda'},
-      {title:'ARRIVAL BILLS', note:'Open a Pohanch row and complete the final supplier / broker bill', special:'arrival-bills', native:'purchases', then:'[data-purchase="commodity"]'},
+      {title:'Bill Posting', note:'Broker or Supplier → Soda → saved/printed Pohanch → final bill', special:'arrival-bills', native:'purchases', then:'[data-purchase="commodity"]'},
       {title:'Supplier / Broker Bills', note:'Outstanding, held and disputed commodity bills', native:'payables'},
       {title:'Commodity Payments', note:'Allocate a cash or bank payment bill by bill', native:'payables'},
       {title:'Local Commodity Sales', note:'Local Soda sale, dispatch and customer receivable', native:'receivables', find:'Local'},
@@ -91,7 +91,7 @@
     style.id = 'ttAccountingDeskStyle';
     style.textContent = `
       body{background:#edf1f4!important;color:#172433}
-      body.tt-arrival-opening .workspace.active{visibility:hidden!important}body.tt-arrival-opening:after{content:'Loading Arrival Bills…';position:fixed;inset:62px 0 0;display:grid;place-items:center;background:#edf1f4;color:#173c63;font-weight:800;z-index:450}
+      body.tt-arrival-opening .workspace.active{visibility:hidden!important}body.tt-arrival-opening:after{content:'Loading Bill Posting…';position:fixed;inset:62px 0 0;display:grid;place-items:center;background:#edf1f4;color:#173c63;font-weight:800;z-index:450}
       .topbar{height:62px!important;padding:0 22px!important}.brand{min-width:210px!important}.crumb{opacity:.72}
       #ttConsoleTop,#ttMasterTop,#ttChangeCompanyDesk{border:1px solid #ffffff32;background:#ffffff12;color:#fff;border-radius:9px;height:38px;padding:0 13px;font-weight:800;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center}
       #ttMasterTop{width:40px;padding:0;font-size:17px;background:#fff;color:#102a46}
@@ -230,7 +230,20 @@
     const area = list.find(item => item.key === key) || list[0];
     const work = q('#ttDeskWork');
     if (!work) return;
-    work.innerHTML = `<div class="tt-work-head"><button class="tt-back-areas" type="button">← Main Accounts</button><div><h2>${esc(area.title)}</h2><p>${esc(area.note)}</p></div></div><div class="tt-action-list">${area.actions.map((action, index) => `<button type="button" class="tt-action" data-tt-action="${index}"><span class="tt-action-mark">${String(index + 1).padStart(2, '0')}</span><span><b>${esc(action.title)}</b><small>${esc(action.note || 'Open report')}</small></span></button>`).join('')}</div>`;
+    const actionGlyph = action => {
+      const text = action.title.toLowerCase();
+      if (text.includes('receipt') || text.includes('advice')) return '↓';
+      if (text.includes('payment')) return '↑';
+      if (text.includes('bill')) return '▤';
+      if (text.includes('soda') || text.includes('purchase')) return '◉';
+      if (text.includes('ledger')) return 'L';
+      if (text.includes('tax')) return '%';
+      if (text.includes('search') || text.includes('history')) return '⌕';
+      if (text.includes('bank')) return '▰';
+      if (text.includes('report') || text.includes('balance') || text.includes('profit')) return '▦';
+      return '◇';
+    };
+    work.innerHTML = `<div class="tt-work-head"><button class="tt-back-areas" type="button">← Main Accounts</button><div><h2>${esc(area.title)}</h2><p>${esc(area.note)}</p></div></div><div class="tt-action-list">${area.actions.map((action, index) => `<button type="button" class="tt-action" data-tt-action="${index}"><span class="tt-action-mark">${actionGlyph(action)}</span><span><b>${esc(action.title)}</b><small>${esc(action.note || 'Open report')}</small></span></button>`).join('')}</div>`;
     q('.tt-back-areas',work).onclick=showAreasHome;
     qa('[data-tt-action]', work).forEach(button => button.onclick = () => launch(area.actions[Number(button.dataset.ttAction)]));
   }
@@ -382,7 +395,7 @@
       const payload = {
         action: record ? 'amend' : 'create', id:record?.id || '', requestKey:createRequestKey, csrf:access.csrf, entity:entity(),
         sodaDate:q('#ttSdDate', form).value,purchaseProductId:productSelect.value,
-        broker:q('#ttSdBroker', form).value,supplierId:supplier.value,party:supplier.selectedOptions?.[0]?.textContent||'',readyRoute:route.value,locationId:route.value==='EX_MILL'?exMill.value:stock.value,
+        broker:q('#ttSdBroker', form).value,supplierId:supplier.value,party:supplier.value?(supplier.selectedOptions?.[0]?.textContent||''):'',readyRoute:route.value,locationId:route.value==='EX_MILL'?exMill.value:stock.value,
         expectedTrucks:q('#ttSdTrucks', form).value.trim(), qtyFromMT:q('#ttSdMin', form).value.trim(), qtyToMT:q('#ttSdMax', form).value.trim(),
         rate:q('#ttSdRate', form).value.trim(), rateUnit:q('#ttSdUnit', form).value, paymentTermType:terms.value, creditDays:days.value.trim(), arrivalDueDate:q('#ttSdDue', form).value,
         terms:q('#ttSdConditions', form).value.trim(), remarks:q('#ttSdRemarks', form).value.trim(), reason:q('#ttSdReason', form)?.value.trim() || ''
@@ -491,7 +504,8 @@
     const choices = [
       {title:'Freight', native:'freight'}, {title:'Transport', native:'transport'}, {title:'Clearing', native:'services', service:'CLEARING'}, {title:'Fumigation', native:'services', service:'FUMIGATION'}, {title:'Inspection', native:'services', service:'INSPECTION'}
     ];
-    body.innerHTML = `<div class="tt-form"><div class="tt-note">Each bill starts by searching our invoice, container, B/L, vessel, line, Loading Programme, port of discharge, lot or shipment. The selected shipment supplies the known details for confirmation.</div><div class="tt-action-list">${choices.map((x,i)=>`<button class="tt-action" data-shipment-kind="${i}"><span class="tt-action-mark">${i+1}</span><span><b>${x.title}</b><small>Search shipment, confirm linked details, review Debit/Credit treatment, then post vendor bill.</small></span></button>`).join('')}</div></div>`;
+    const glyphs = ['⚓','▣','◇','✦','✓'];
+    body.innerHTML = `<div class="tt-form"><div class="tt-note">Each bill starts by searching our invoice, container, B/L, vessel, line, Loading Programme, port of discharge, lot or shipment. The selected shipment supplies the known details for confirmation.</div><div class="tt-action-list">${choices.map((x,i)=>`<button class="tt-action" data-shipment-kind="${i}"><span class="tt-action-mark">${glyphs[i]}</span><span><b>${x.title}</b><small>Search shipment, confirm linked details, review Debit/Credit treatment, then post vendor bill.</small></span></button>`).join('')}</div></div>`;
     qa('[data-shipment-kind]', body).forEach(button => button.onclick = async () => {
       q('.tt-window-close', host).click();
       const choice = choices[Number(button.dataset.shipmentKind)];

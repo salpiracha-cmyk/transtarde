@@ -126,6 +126,7 @@
     const net=Math.max(0,values.karachiWeightKg-deduction);
     const value=net/maund*rate;
     if(q('#ttsbFinal'))q('#ttsbFinal').value=value.toFixed(2);
+    window.TT_SMART_COMMODITY_BILLS_V2?.refreshTotals?.();
     const brokery=applyBrokeryPreview();
     q('#ttKatResult').innerHTML=`<b>System calculation:</b> ${values.karachiWeightKg.toLocaleString()} kg − ${deduction.toFixed(3)} kg = ${net.toFixed(3)} kg ÷ ${maund} × Rs ${rate.toLocaleString()} = <b>Rs ${value.toLocaleString(undefined,{maximumFractionDigits:2})}</b><br>${detail}. Buying Brokery (${brokery.label}): <b>Rs ${brokery.amount.toLocaleString(undefined,{maximumFractionDigits:2})}</b>.`;
   }

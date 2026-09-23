@@ -70,7 +70,7 @@ function ba_master_accounts(): array {
 function ba_default_setting(array $a): array {
     return [
         'active'=>false,'allowPayments'=>false,'allowReceipts'=>false,'includeInPaymentPlanning'=>false,
-        'visibleToMill'=>false,'reconciliationEnabled'=>true,'retentionAccount'=>false,'displayName'=>'','notes'=>'','updatedAt'=>null,'updatedBy'=>null
+        'visibleToMill'=>false,'reconciliationEnabled'=>true,'retentionAccount'=>false,'defaultReceiptAccount'=>false,'displayName'=>'','notes'=>'','updatedAt'=>null,'updatedBy'=>null
     ];
 }
 function ba_balance(array $store,string $entity,string $bankId,string $currency): float {
@@ -156,22 +156,34 @@ try{
     }else $sourceCurrency=$entity==='TG'?'AED':'PKR';
     $retentionRequested=(bool)($body['retentionAccount']??false);
     if($retentionRequested&&($entity==='TG'||$sourceCurrency==='PKR'||$id===$cashKey))ba_respond(['ok'=>false,'error'=>'Foreign Retention Account can only be enabled for a non-PKR TTI/BRM company bank.'],422);
+    $defaultReceiptRequested=(bool)($body['defaultReceiptAccount']??false);
+    if($defaultReceiptRequested&&$id===$cashKey)ba_respond(['ok'=>false,'error'=>'The default receipt account must be a company bank account, not cash.'],422);
     $setting=[
         'active'=>(bool)($body['active']??false),'allowPayments'=>(bool)($body['allowPayments']??false),'allowReceipts'=>(bool)($body['allowReceipts']??false),
         'includeInPaymentPlanning'=>(bool)($body['includeInPaymentPlanning']??false),'visibleToMill'=>(bool)($body['visibleToMill']??false),
         'reconciliationEnabled'=>(bool)($body['reconciliationEnabled']??true),'retentionAccount'=>$retentionRequested,
+        'defaultReceiptAccount'=>$defaultReceiptRequested,
         'displayName'=>trim((string)($body['displayName']??'')),'notes'=>trim((string)($body['notes']??'')),'updatedAt'=>gmdate('c'),'updatedBy'=>(string)($user['full_name']??$user['username']??'Accounts')
     ];
     if($sourceCurrency!==$planningCurrency)$setting['includeInPaymentPlanning']=false;
+    if(!$setting['active']||!$setting['allowReceipts'])$setting['defaultReceiptAccount']=false;
     if($id!==$cashKey&&($setting['allowPayments']||$setting['allowReceipts'])){
         if(trim((string)$a['accountNumber'])===''&&trim((string)$a['iban'])==='')ba_respond(['ok'=>false,'error'=>'Complete the account number or IBAN in the shared Banks & Accounts master before enabling payments or receipts.'],422);
     }
     tt_ensure_data_dir();$h=fopen(TT_BANK_ACCOUNTS_FILE,'c+');if($h===false||!flock($h,LOCK_EX))throw new RuntimeException('Accounts storage unavailable.');
     try{
         rewind($h);$raw=stream_get_contents($h);$store=$raw?json_decode($raw,true):null;if(!is_array($store))$store=ba_default_store();$store=array_replace_recursive(ba_default_store(),$store);
+        if($setting['defaultReceiptAccount']){
+            foreach((array)($store['bankAccountSettings']??[]) as $otherId=>$otherSetting){
+                if($otherId===$id||!is_array($otherSetting))continue;
+                $otherMaster=$masters[$otherId]??null;
+                if(is_array($otherMaster)&&($otherMaster['entity']??'')===$entity&&strtoupper((string)($otherMaster['currency']??''))===$sourceCurrency){
+                    $store['bankAccountSettings'][$otherId]['defaultReceiptAccount']=false;
+                }
+            }
+        }
         $store['bankAccountSettings'][$id]=$setting;$store['revision']=(int)($store['revision']??0)+1;
         rewind($h);ftruncate($h,0);fwrite($h,json_encode($store,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR));fflush($h);
     }finally{flock($h,LOCK_UN);fclose($h);}
     ba_respond(['ok'=>true,'saved'=>$setting]+ba_payload($store,$entity)+['revision'=>$store['revision']]);
 }catch(Throwable $e){ba_respond(['ok'=>false,'error'=>'The bank-account action could not be completed.'],500);}
-

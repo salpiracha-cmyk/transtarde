@@ -192,7 +192,7 @@ function ps_validate(array $body, ?array $existing = null): array {
     if(!$product||!in_array((string)($product['productStage']??''),['RAW','READY'],true))ps_out(['ok'=>false,'error'=>'Select an active Raw or Ready purchase product from Purchase Commodities & KAT.'],422);
     $commodity=(string)$product['commodity'];$stage=(string)$product['productStage'];
     $date = ps_date((string)($body['sodaDate'] ?? ''), 'Soda date');
-    $broker = trim((string)($body['broker'] ?? ''));$supplierId=trim((string)($body['supplierId']??''));$supplier=ps_find_supplier($supplierId,ps_suppliers());if($supplierId!==''&&!$supplier)ps_out(['ok'=>false,'error'=>'Select an active Supplier profile from Business Parties.'],422);$party=$supplier?(string)$supplier['name']:trim((string)($body['party']??''));
+    $broker = trim((string)($body['broker'] ?? ''));$supplierId=trim((string)($body['supplierId']??''));$supplier=ps_find_supplier($supplierId,ps_suppliers());if($supplierId!==''&&!$supplier)ps_out(['ok'=>false,'error'=>'Select an active Supplier profile from Business Parties.'],422);$party=$supplier?(string)$supplier['name']:'';
     if ($broker === '') ps_out(['ok'=>false, 'error'=>'Broker is required.'], 422);
     $brokerProfile = tt_broker_profile($broker, $date, 'buying');
     if (!$brokerProfile) ps_out(['ok'=>false, 'error'=>'Select an active Broker profile from Business Parties.'], 422);

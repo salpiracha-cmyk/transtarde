@@ -5,7 +5,7 @@
 - Commercial Invoice details flow from Exports and are not retyped in Accounts.
 - Contract payment terms and advance percentage/value flow from the Sales Contract in Exports.
 - TG-linked Pakistan intercompany references and explicit Pakistan→TG values remain shipment-wise traceable.
-- FI allocation to Customs and bank realization are two different statuses. A FI may be allocated operationally before or after a bank receipt; neither status silently substitutes for the other.
+- FI allocation and maintenance stay in Exports. Accounts may show the linked FI number as read-only narration but never allocates or amends FI.
 
 ## 2. Pakistan foreign-currency receipt principle
 - A customer/TG may remit USD or another approved foreign currency.
@@ -25,7 +25,7 @@ Each realization retains, at minimum:
 - actual PKR bank credit;
 - foreign-currency retention amount, if any;
 - each tax/deduction/charge separately;
-- FI allocations;
+- read-only FI references supplied by Exports;
 - invoice allocations;
 - Sales Contract advance / unapplied receipt allocation;
 - TG intercompany allocation where relevant;
@@ -125,12 +125,11 @@ Fixed and advance withholding cannot be combined during matching. One certificat
 Year-end tax-certificate status cannot be considered complete while material receipt tax remains unmatched or certificate differences remain unexplained.
 
 ## 10. Allocation rules
-- One bank receipt may settle multiple FI records and/or invoices.
-- One FI/invoice may be realized by multiple bank receipts.
+- One bank receipt may settle multiple invoices or advances.
+- One invoice may be realized by multiple bank receipts; FI remains an Exports-only record.
 - Receipt before invoice is Customer Advance / Unapplied Export Receipt until allocated.
 - TG→TTI/BRM payment for an intercompany amount clears Intercompany Receivable, not Export Customer Receivable.
 - Realization-rate differences from the receivable's carrying amount post to FX gain/loss; they do not rewrite the Commercial Invoice.
 
 ## 11. Approval
 Export/operations source data does not itself post the bank receipt. Accounts reviews the credit advice, allocations, taxes/deductions, bank charges and bank account. Accounts approval triggers the accounting posting and preserves the source/audit trail.
-
