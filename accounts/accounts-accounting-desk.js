@@ -18,7 +18,7 @@
   const areas = [
     {key:'purchases', title:'Purchases', note:'Sodas, arrivals and bills', actions:[
       {title:'Soda Centre', note:'New Soda or search and amend an earlier Soda', special:'soda'},
-      {title:'Arrival / Rice Bill', note:'Select arrival; Soda, truck, weight, rate and party fill automatically', native:'purchases', then:'[data-purchase="commodity"]'},
+      {title:'ARRIVAL BILLS', note:'Open a Pohanch row; Soda, truck, weight, rate and party fill automatically', special:'arrival-bills', native:'purchases', then:'[data-purchase="commodity"]'},
       {title:'Bags', note:'Bag bill with linked details and automatic sales-tax working', native:'purchases', then:'[data-purchase="bags"]'},
       {title:'Other Purchase', note:'Assets, consumables and services', native:'purchases', then:'[data-purchase="other"]'}
     ]},
@@ -68,6 +68,7 @@
     style.id = 'ttAccountingDeskStyle';
     style.textContent = `
       body{background:#edf1f4!important;color:#172433}
+      body.tt-arrival-opening .workspace.active{visibility:hidden!important}body.tt-arrival-opening:after{content:'Loading Arrival Bills…';position:fixed;inset:62px 0 0;display:grid;place-items:center;background:#edf1f4;color:#173c63;font-weight:800;z-index:450}
       .topbar{height:62px!important;padding:0 22px!important}.brand{min-width:210px!important}.crumb{opacity:.72}
       #ttConsoleTop,#ttMasterTop,#ttChangeCompanyDesk{border:1px solid #ffffff32;background:#ffffff12;color:#fff;border-radius:9px;height:38px;padding:0 13px;font-weight:800;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center}
       #ttMasterTop{width:40px;padding:0;font-size:17px;background:#fff;color:#102a46}
@@ -105,8 +106,10 @@
     if (action.special === 'soda') return openSoda();
     if (action.special === 'search') return openSearch();
     if (action.special === 'shipment') return openShipmentChooser();
+    const arrivalOpening = action.special === 'arrival-bills';
+    if (arrivalOpening) document.body.classList.add('tt-arrival-opening');
     const card = nativeCard(action.native);
-    if (!card) return alert('This Accounts area is temporarily unavailable.');
+    if (!card) { document.body.classList.remove('tt-arrival-opening'); return alert('This Accounts area is temporarily unavailable.'); }
     card.click();
     if (action.then) {
       let button = null;
@@ -115,6 +118,10 @@
         if (!button) await new Promise(resolve => setTimeout(resolve, 40));
       }
       button?.click();
+    }
+    if (arrivalOpening) {
+      try { await window.TT_SMART_COMMODITY_BILLS_V2?.mount?.(); }
+      finally { document.body.classList.remove('tt-arrival-opening'); }
     }
     if (action.find) {
       await new Promise(resolve => setTimeout(resolve, 90));
@@ -191,9 +198,8 @@
     qa('.tt-area-button').forEach(button => button.classList.toggle('active', button.dataset.ttArea === area.key));
     const work = q('#ttDeskWork');
     if (!work) return;
-    work.innerHTML = `<div class="tt-work-head"><div><h2>${esc(area.title)}</h2><p>${esc(area.note)}</p></div><button type="button" class="btn tt-prev-direct">Search Previous</button></div><div class="tt-action-list">${area.actions.map((action, index) => `<button type="button" class="tt-action" data-tt-action="${index}"><span class="tt-action-mark">${String(index + 1).padStart(2, '0')}</span><span><b>${esc(action.title)}</b><small>${esc(action.note || 'Open report')}</small></span></button>`).join('')}</div>`;
+    work.innerHTML = `<div class="tt-work-head"><div><h2>${esc(area.title)}</h2><p>${esc(area.note)}</p></div></div><div class="tt-action-list">${area.actions.map((action, index) => `<button type="button" class="tt-action" data-tt-action="${index}"><span class="tt-action-mark">${String(index + 1).padStart(2, '0')}</span><span><b>${esc(action.title)}</b><small>${esc(action.note || 'Open report')}</small></span></button>`).join('')}</div>`;
     qa('[data-tt-action]', work).forEach(button => button.onclick = () => launch(area.actions[Number(button.dataset.ttAction)]));
-    q('.tt-prev-direct', work).onclick = openSearch;
   }
 
   function buildDesk() {
@@ -345,7 +351,7 @@
     const body = q('.tt-window-body', host);
     const needle = term.trim().toLowerCase();
     const rows = (sodaData.sodas || []).filter(row => !needle || [row.sodaNo,row.broker,row.party,row.commodity,row.variety,row.location,row.status,row.sodaDate].some(value => String(value || '').toLowerCase().includes(needle)));
-    body.innerHTML = `<div class="tt-modebar"><button data-soda-mode="new">New Soda</button><button class="active" data-soda-mode="search">Search / Amend Soda</button></div><div class="tt-searchbar"><input id="ttSodaSearch" value="${esc(term)}" placeholder="Soda no, broker, supplier, commodity, variety, mill or date"><button type="button">Search</button></div><div class="tt-records"><div class="tableWrap"><table><thead><tr><th>Soda</th><th>Date</th><th>Commodity</th><th>Broker / Supplier</th><th>Quantity</th><th>Rate</th><th>Status</th><th></th></tr></thead><tbody>${rows.length ? rows.map(row => `<tr><td><b>${esc(row.sodaNo)}</b></td><td>${esc(row.sodaDate)}</td><td>${esc(row.commodity)}<br><small>${esc(row.variety)}</small></td><td>${esc(row.broker)}<br><small>${esc(row.party || '')}</small></td><td>${Number(row.qtyFromKg||0)?money(Number(row.qtyFromKg)/1000)+'–'+money(Number(row.qtyToKg||row.qtyFromKg)/1000)+' MT':''}${row.expectedTrucks?'<br>'+esc(row.expectedTrucks)+' trucks':''}</td><td>${money(row.rate ?? row.ratePerKg)} / ${esc(row.rateUnit || 'KG')}</td><td>${esc(row.calculatedStatus || row.status)}</td><td><button type="button" class="btn" data-soda-edit="${esc(row.id)}">View / Amend</button></td></tr>`).join('') : '<tr><td colspan="8">No matching Soda.</td></tr>'}</tbody></table></div></div>`;
+    body.innerHTML = `<div class="tt-modebar"><button data-soda-mode="new">New Soda</button><button class="active" data-soda-mode="search">Search / Amend Soda</button></div><div class="tt-searchbar"><input id="ttSodaSearch" value="${esc(term)}" placeholder="Soda no, broker, supplier, commodity, variety, mill or date"><button type="button">Search</button></div><div class="tt-records"><div class="tableWrap"><table><thead><tr><th>Soda</th><th>Date</th><th>Commodity</th><th>Broker / Supplier</th><th>Quantity</th><th>Rate</th><th>Status</th><th></th></tr></thead><tbody>${rows.length ? rows.map(row => `<tr><td><b>${esc(row.sodaNo)}</b></td><td>${esc(row.sodaDate)}</td><td>${esc(row.commodity)}<br><small>${esc(row.variety)}</small></td><td>${esc(row.broker)}<br><small>${esc(row.party || '')}</small></td><td>${Number(row.qtyFromKg||0)?money(Number(row.qtyFromKg)/1000)+'–'+money(Number(row.qtyToKg||row.qtyFromKg)/1000)+' MT':''}${row.expectedTrucks?'<br>'+esc(row.expectedTrucks)+' trucks':''}</td><td>${money(row.rate ?? row.ratePerKg)} / ${esc(row.rateUnit || 'KG')}</td><td>${esc(row.calculatedStatus || row.status)}</td><td><button type="button" class="btn" data-soda-edit="${esc(row.id)}">View / Amend</button>${access.super?` <button type="button" class="btn danger" data-soda-delete="${esc(row.id)}">Delete</button>`:''}</td></tr>`).join('') : '<tr><td colspan="8">No matching Soda.</td></tr>'}</tbody></table></div></div>`;
     q('[data-soda-mode="new"]', body).onclick = () => renderSodaNew(host);
     const search = () => renderSodaSearch(host, q('#ttSodaSearch', body).value);
     q('.tt-searchbar button', body).onclick = search;
@@ -355,6 +361,12 @@
       body.innerHTML = `<div class="tt-modebar"><button data-back-soda>← Search Sodas</button></div>${sodaForm(activeSoda)}${activeSoda.audit?.length ? `<div class="tt-record-card"><b>Amendment history</b><pre>${esc(JSON.stringify(activeSoda.audit, null, 2))}</pre></div>` : ''}`;
       q('[data-back-soda]', body).onclick = () => renderSodaSearch(host);
       bindSodaForm(host, activeSoda);
+    });
+    qa('[data-soda-delete]', body).forEach(button => button.onclick = async () => {
+      const record=(sodaData.sodas||[]).find(row=>row.id===button.dataset.sodaDelete);if(!record)return;
+      if(!confirm(`Permanently delete Soda ${record.sodaNo}? This is allowed only before any Pohanch, bill or settlement is linked.`))return;
+      const reason=prompt('Reason for permanent deletion:','Entered in error');if(!reason?.trim())return;
+      try{sodaData=await json(api,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'delete',csrf:access.csrf,entity:entity(),id:record.id,reason:reason.trim()})});renderSodaSearch(host,term)}catch(error){alert(error.message)}
     });
   }
 

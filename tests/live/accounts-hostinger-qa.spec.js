@@ -104,7 +104,7 @@ test('authenticated Accounts live smoke: professional desk and popup workflows',
   await expect(page.locator('#ttSodaSearch')).toBeVisible();
   await activate(page.locator('#ttSodaLayer .tt-window-close'));
 
-  await deskAction(page, 'purchases', 'Arrival / Rice Bill');
+  await deskAction(page, 'purchases', 'ARRIVAL BILLS');
   await expect(page.locator('#ws-purchases')).toHaveClass(/tt-clean-modal/);
   await expect(page.locator('#purchaseEditor')).toHaveClass(/tt-editor-stage/);
   await expect(page.locator('#purchaseEditor')).toBeVisible({ timeout: 30_000 });

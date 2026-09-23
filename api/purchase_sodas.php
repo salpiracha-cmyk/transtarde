@@ -251,6 +251,7 @@ try {
         tt_audit((int)($user['id']??0),(string)($user['username']??''),($action==='add_party_category'?'Added ':'Removed ').$category.' option '.(string)(($row['values']??[])[0]??''));
         ps_out(['ok'=>true,'partyId'=>(string)($row['id']??'')]+ps_metadata($user));
     }
+    if($action==='delete'&&($user['role']??'')!=='Super Admin')ps_out(['ok'=>false,'error'=>'Only Super Admin can permanently delete an unused Soda.'],403);
     if ($action !== 'amend' && !ps_can_write($user)) ps_out(['ok'=>false, 'error'=>'Accounts Create or Edit permission required.'], 403);
     $entity = strtoupper(trim((string)($body['entity'] ?? 'TTI')));
     if (!in_array($entity, ['TTI','BRM'], true)) ps_out(['ok'=>false, 'error'=>'Invalid legal entity.'], 422);
@@ -283,6 +284,17 @@ try {
             $audit = is_array($old['audit'] ?? null) ? $old['audit'] : [];
             $audit[] = ['at'=>gmdate('c'), 'by'=>ps_user_name($user), 'reason'=>$reason, 'changes'=>$changes];
             $store['purchaseSodas'][$id] = array_replace($old, $values, ['audit'=>$audit, 'amendedAt'=>gmdate('c'), 'amendedBy'=>ps_user_name($user)]);
+        } elseif ($action === 'delete') {
+            $id=trim((string)($body['id']??''));$reason=trim((string)($body['reason']??''));$old=$store['purchaseSodas'][$id]??null;
+            if($reason==='')ps_out(['ok'=>false,'error'=>'Reason for deletion is required.'],422);
+            if(!is_array($old)||strtoupper((string)($old['entity']??''))!==$entity)ps_out(['ok'=>false,'error'=>'Soda not found.'],404);
+            $number=(string)($old['sodaNo']??'');$linked=false;
+            foreach((array)($store['events']??[])as$event){if(!is_array($event))continue;$journal=$store['journals'][$event['journalId']??'']??null;$meta=is_array($journal['meta']??null)?$journal['meta']:[];if((string)($meta['soda']??'')===$number){$linked=true;break;}}
+            if(!$linked)foreach((array)($store['commodityBills']??[])as$bill){if(is_array($bill)&&in_array($number,(array)($bill['sodas']??[]),true)){$linked=true;break;}}
+            if(!$linked)foreach((array)($store['purchaseSodaLiftings']??[])as$lifting){if(is_array($lifting)&&((string)($lifting['sourceSodaId']??'')===$id||(string)($lifting['soda']??'')===$number)){$linked=true;break;}}
+            if($linked)ps_out(['ok'=>false,'error'=>'This Soda has a linked Pohanch, lifting or bill and cannot be deleted. Amend or cancel it so the audit trail remains intact.'],409);
+            unset($store['purchaseSodas'][$id]);foreach((array)($store['postingKeys']??[])as$key=>$posting){if(is_array($posting)&&(string)($posting['sodaId']??'')===$id)unset($store['postingKeys'][$key]);}
+            tt_audit((int)($user['id']??0),(string)($user['username']??''),'Permanently deleted unused Soda '.$number.' — '.$reason);
         } elseif ($action === 'set_status') {
             $id = trim((string)($body['id'] ?? '')); $status = (string)($body['status'] ?? ''); $reason = trim((string)($body['reason'] ?? ''));
             if (!in_array($status, ['Open','Completed','Short Closed','Cancelled'], true)) ps_out(['ok'=>false, 'error'=>'Invalid Soda status.'], 422);
