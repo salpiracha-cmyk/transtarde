@@ -153,12 +153,13 @@ try {
         }
     }
     if (in_array($type,['companies','export_customers','business_parties','mills'],true)) {
-        $normalise=static fn(string $value): string=>strtolower((string)preg_replace('/[^a-z0-9]+/i','',trim($value)));
-        $candidate=$normalise((string)$values[0]);
-        foreach ((array)(master_all($admin)[$type]??[]) as $existingRow) {
+        $currentRow=$id!==''?master_find_row($type,$id):null;
+        $currentName=(string)(($currentRow['values']??[])[0]??'');
+        $nameChanged=$id===''||tt_master_name_identity((string)$values[0],$type)!==tt_master_name_identity($currentName,$type);
+        foreach ($nameChanged?(array)(master_all($admin)[$type]??[]):[] as $existingRow) {
             if ($id!==''&&(string)($existingRow['id']??'')===$id) continue;
             $existingName=(string)(($existingRow['values']??[])[0]??'');
-            if ($candidate!==''&&$normalise($existingName)===$candidate) throw new InvalidArgumentException('A similar record already exists as “'.$existingName.'”. Open that record instead of creating a duplicate.');
+            if (tt_master_names_conflict((string)$values[0],$existingName,$type)) throw new InvalidArgumentException('A matching or confusingly similar record already exists as “'.$existingName.'”. Open that record instead of creating a duplicate.');
         }
     }
     if ($type==='product_settings' && !preg_match('/^\d{4}\/\d{4}$/',(string)$values[0])) {

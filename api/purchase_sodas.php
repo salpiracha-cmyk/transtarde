@@ -42,7 +42,8 @@ function ps_locations(): array {
 
 function ps_suppliers(): array {
     $out=[];
-    foreach((array)(tt_list_masters()['business_parties']??[])as$row){if(!is_array($row))continue;$v=array_values((array)($row['values']??[]));while(count($v)<13)$v[]='';if(!tt_business_party_has_category($v[2],'Supplier')||strcasecmp((string)$v[10],'Inactive')===0)continue;$profile=json_decode((string)$v[12],true);if(!is_array($profile))$profile=[];$out[]=['id'=>(string)($row['id']??''),'name'=>(string)$v[0],'code'=>(string)$v[1],'linkedExternalMillId'=>(string)($profile['linkedExternalMillId']??'')];}
+    foreach((array)(tt_list_masters()['business_parties']??[])as$row){if(!is_array($row))continue;$v=array_values((array)($row['values']??[]));while(count($v)<13)$v[]='';if(!tt_business_party_has_category($v[2],'Supplier')||strcasecmp((string)$v[10],'Inactive')===0)continue;$profile=json_decode((string)$v[12],true);if(!is_array($profile))$profile=[];$candidate=['id'=>(string)($row['id']??''),'name'=>(string)$v[0],'code'=>(string)$v[1],'linkedExternalMillId'=>(string)($profile['linkedExternalMillId']??'')];$key=tt_master_name_identity($candidate['name'],'business_parties');if(!isset($out[$key])||strlen($candidate['name'])<strlen((string)$out[$key]['name']))$out[$key]=$candidate;}
+    $out=array_values($out);
     usort($out,static fn($a,$b)=>strcasecmp((string)$a['name'],(string)$b['name']));return$out;
 }
 
@@ -67,10 +68,9 @@ function ps_link_supplier_mill(string $supplierId,string $millId): void {
 function ps_upsert_party_category(string $name,string $category): array {
     $name=trim(preg_replace('/\s+/u',' ',$name)??'');
     if($name===''||strlen($name)>180)throw new InvalidArgumentException('Enter a valid '.$category.' name.');
-    $identity=static fn(string $value):string=>strtolower((string)preg_replace('/[^a-z0-9]+/i','',trim($value)));
-    return tt_mutate_store(function(&$data)use($name,$category,$identity):array{
+    return tt_mutate_store(function(&$data)use($name,$category):array{
         if(!isset($data['masters']['business_parties'])||!is_array($data['masters']['business_parties']))$data['masters']['business_parties']=[];
-        foreach($data['masters']['business_parties']as&$row){$v=array_values((array)($row['values']??[]));while(count($v)<13)$v[]='';if($identity((string)$v[0])!==$identity($name))continue;$categories=tt_business_party_categories($v[2]);if(!array_filter($categories,static fn($item)=>strcasecmp($item,$category)===0))$categories[]=$category;$v[2]=implode('; ',$categories);$v[10]='Active';$profile=json_decode((string)$v[12],true);if(!is_array($profile))$profile=[];$profile['buying']=array_values(is_array($profile['buying']??null)?$profile['buying']:[]);$profile['selling']=array_values(is_array($profile['selling']??null)?$profile['selling']:[]);$v[12]=json_encode($profile,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);$row['values']=$v;$out=$row;unset($row);return$out;}unset($row);
+        foreach($data['masters']['business_parties']as&$row){$v=array_values((array)($row['values']??[]));while(count($v)<13)$v[]='';if(!tt_master_names_conflict($name,(string)$v[0],'business_parties'))continue;$categories=tt_business_party_categories($v[2]);if(!array_filter($categories,static fn($item)=>strcasecmp($item,$category)===0))$categories[]=$category;$v[2]=implode('; ',$categories);$v[10]='Active';$profile=json_decode((string)$v[12],true);if(!is_array($profile))$profile=[];$profile['buying']=array_values(is_array($profile['buying']??null)?$profile['buying']:[]);$profile['selling']=array_values(is_array($profile['selling']??null)?$profile['selling']:[]);$v[12]=json_encode($profile,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);$row['values']=$v;$out=$row;unset($row);return$out;}unset($row);
         $id='business-parties-auto-'.substr(hash('sha256',strtolower($name)),0,14);$row=['id'=>$id,'values'=>[$name,'',$category,'','','','','','','','Active','Added from Accounts Soda Centre.','{"buying":[],"selling":[]}']];$data['masters']['business_parties'][]=$row;return$row;
     });
 }

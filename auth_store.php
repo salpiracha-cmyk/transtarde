@@ -160,7 +160,7 @@ function tt_normalize_masters(array $masters): array {
             $values=array_values((array)($row['values'] ?? []));
             $identity=$requiredType==='purchase_products'
                 ? strtolower(implode('|',array_slice(tt_purchase_product_values($values),0,4)))
-                : tt_location_identity((string)($values[0] ?? ''));
+                : tt_master_name_identity((string)($values[0] ?? ''),'mills');
             if ($identity!=='') $existingIdentities[$identity]=true;
         }
         foreach ((array)$defaults[$requiredType] as $defaultRow) {
@@ -168,7 +168,7 @@ function tt_normalize_masters(array $masters): array {
             $defaultValues=array_values((array)($defaultRow['values'] ?? []));
             $defaultIdentity=$requiredType==='purchase_products'
                 ? strtolower(implode('|',array_slice(tt_purchase_product_values($defaultValues),0,4)))
-                : tt_location_identity((string)($defaultValues[0] ?? ''));
+                : tt_master_name_identity((string)($defaultValues[0] ?? ''),'mills');
             if ($defaultId!=='' && !isset($existingIds[$defaultId]) && !isset($existingIdentities[$defaultIdentity])) $masters[$requiredType][]=$defaultRow;
         }
     }
@@ -366,11 +366,36 @@ function tt_business_party_has_category(mixed $value,string $category): bool {
     return false;
 }
 
+/**
+ * Business identity used for duplicate prevention.  Descriptive role words do
+ * not create a second party, and the established TTI/Transtrade mill wording
+ * is one location whether entered with a singular or plural "Mill".
+ */
+function tt_master_name_identity(string $value,string $type=''): string {
+    $text=strtolower(trim((string)preg_replace('/\s+/u',' ',$value)));
+    if($type==='business_parties')$text=(string)preg_replace('/\b(?:brokers?|suppliers?|vendors?)\b/u',' ',$text);
+    if($type==='mills'){
+        $text=(string)preg_replace('/\btranstrade(?:\s+international)?\b/u',' tti ',$text);
+        $text=(string)preg_replace('/\bmills\b/u',' mill ',$text);
+    }
+    return strtolower((string)preg_replace('/[^a-z0-9]+/i','',$text));
+}
+
+function tt_master_names_conflict(string $candidate,string $existing,string $type=''): bool {
+    $a=tt_master_name_identity($candidate,$type);$b=tt_master_name_identity($existing,$type);
+    if($a===''||$b==='')return false;
+    if($a===$b)return true;
+    $distance=levenshtein($a,$b);
+    $contains=(str_contains($a,$b)||str_contains($b,$a))&&abs(strlen($a)-strlen($b))<=3;
+    return ($distance<=2&&min(strlen($a),strlen($b))>=5)||$contains;
+}
+
 /** Active broker profiles used by Soda and accounting. Brokery is owned here, never by a product or KAT rule. */
 function tt_broker_profiles(?string $onDate=null,string $kind='buying'): array {
     $date=$onDate!==null&&preg_match('/^\d{4}-\d{2}-\d{2}$/',$onDate)?$onDate:(new DateTimeImmutable('now',new DateTimeZone('Asia/Karachi')))->format('Y-m-d');
     $kind=$kind==='selling'?'selling':'buying';$out=[];
-    foreach((array)(tt_list_masters()['business_parties']??[])as$row){if(!is_array($row))continue;$v=array_values((array)($row['values']??[]));while(count($v)<13)$v[]='';if(!tt_business_party_has_category($v[2],'Broker')||strcasecmp((string)$v[10],'Inactive')===0)continue;$profile=json_decode((string)$v[12],true);$rates=is_array($profile)&&is_array($profile[$kind]??null)?$profile[$kind]:[];$active=[];foreach($rates as$rate){if(!is_array($rate)||strcasecmp((string)($rate['status']??'Active'),'Inactive')===0)continue;$from=(string)($rate['effectiveFrom']??'');if($from!==''&&$from<=$date)$active[]=$rate;}usort($active,static fn($a,$b)=>strcmp((string)($b['effectiveFrom']??''),(string)($a['effectiveFrom']??'')));$rate=$active[0]??null;$out[]=['id'=>(string)($row['id']??''),'name'=>(string)$v[0],'code'=>(string)$v[1],'kind'=>$kind,'rate'=>$rate,'status'=>(string)$v[10]];}
+    foreach((array)(tt_list_masters()['business_parties']??[])as$row){if(!is_array($row))continue;$v=array_values((array)($row['values']??[]));while(count($v)<13)$v[]='';if(!tt_business_party_has_category($v[2],'Broker')||strcasecmp((string)$v[10],'Inactive')===0)continue;$profile=json_decode((string)$v[12],true);$rates=is_array($profile)&&is_array($profile[$kind]??null)?$profile[$kind]:[];$active=[];foreach($rates as$rate){if(!is_array($rate)||strcasecmp((string)($rate['status']??'Active'),'Inactive')===0)continue;$from=(string)($rate['effectiveFrom']??'');if($from!==''&&$from<=$date)$active[]=$rate;}usort($active,static fn($a,$b)=>strcmp((string)($b['effectiveFrom']??''),(string)($a['effectiveFrom']??'')));$rate=$active[0]??null;$candidate=['id'=>(string)($row['id']??''),'name'=>(string)$v[0],'code'=>(string)$v[1],'kind'=>$kind,'rate'=>$rate,'status'=>(string)$v[10]];$key=tt_master_name_identity($candidate['name'],'business_parties');if(!isset($out[$key])||strlen($candidate['name'])<strlen((string)$out[$key]['name']))$out[$key]=$candidate;}
+    $out=array_values($out);
     usort($out,static fn($a,$b)=>strcasecmp((string)$a['name'],(string)$b['name']));return$out;
 }
 
@@ -504,7 +529,7 @@ function tt_normalize_location_type(string $type): string {
 }
 
 function tt_location_identity(string $value): string {
-    return strtolower((string)preg_replace('/[^a-z0-9]+/i','',trim($value)));
+    return tt_master_name_identity($value,'mills');
 }
 
 /** Return the existing location when a proposed name is the same or confusingly close. */
@@ -512,8 +537,7 @@ function tt_find_location_duplicate(string $name,?array $rows=null): ?array {
     $needle=tt_location_identity($name);if($needle==='')return null;
     $rows=$rows??tt_active_location_masters();
     foreach($rows as$row){if(!is_array($row))continue;$values=array_values((array)($row['values']??[]));$existing=tt_location_identity((string)($values[0]??''));if($existing==='')continue;
-        $distance=levenshtein($needle,$existing);$contains=(str_contains($needle,$existing)||str_contains($existing,$needle))&&abs(strlen($needle)-strlen($existing))<=4;
-        if($existing===$needle||($distance<=2&&min(strlen($needle),strlen($existing))>=5)||$contains)return$row;
+        if(tt_master_names_conflict($name,(string)($values[0]??''),'mills'))return$row;
     }
     return null;
 }
