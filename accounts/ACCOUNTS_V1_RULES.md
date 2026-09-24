@@ -234,5 +234,5 @@ Finish Accounts build, test with dummy data, correct workflows/calculations/perm
 ## 25. Third-party settlements
 A payment made directly by a third party to a Transtrade supplier/service provider must not be represented as money moving through a Transtrade bank/cash account. Record payer, beneficiary, linked transaction, amount/date, settlement reason and the correct third-party receivable/payable or intercompany account.
 
-## 26. Current implementation branch
-Accounts development remains isolated on `accounts-v1-foundation`. Do not merge/deploy to `main` until the Accounts build and dummy-data QA are approved. The branch contains authenticated Accounts UI/API foundations plus V1 Soda due-date, late-hold, Transport, Freight, Clearing/Fumigation and Directors Freight-agreement implementation work.
+## 26. Current implementation
+Accounts development and its QA workflow are maintained on `main`. The old `accounts-v1-foundation` branch is historical and is not a deployment or QA trigger. Changes must pass the Accounts QA checks before a production deployment. Confirm live behaviour and TTI/BRM/TG separation with test data before production go-live.
