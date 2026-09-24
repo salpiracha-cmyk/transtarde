@@ -45,13 +45,46 @@ function master_options_for_console(): array {
 try {
     $admin=tt_require_login();
     if (!tt_user_can_access_masters($admin)) master_respond(['ok'=>false,'error'=>'Master Records access required.'],403);
-    if ($_SERVER['REQUEST_METHOD']==='GET') master_respond(['ok'=>true,'masters'=>master_all($admin),'options'=>master_options_for_console()]);
+    if ($_SERVER['REQUEST_METHOD']==='GET') master_respond(['ok'=>true,'masters'=>master_all($admin),'options'=>master_options_for_console(),'deletionRequests'=>($admin['role']??'')==='Super Admin'?(array)(tt_read_store()['master_deletion_requests']??[]):[]]);
     if ($_SERVER['REQUEST_METHOD']!=='POST') master_respond(['ok'=>false,'error'=>'Method not allowed.'],405);
     $body=json_decode(file_get_contents('php://input') ?: '{}',true);
     if (!is_array($body) || !tt_verify_csrf((string)($body['csrf'] ?? ''))) master_respond(['ok'=>false,'error'=>'Your session expired. Refresh and try again.'],419);
 
     $type=(string)($body['type'] ?? '');
     $action=(string)($body['action'] ?? ''); $id=trim((string)($body['id'] ?? ''));
+    if ($action==='request-deletion') {
+        if(!in_array($type,['business_parties','export_customers'],true)||!tt_user_can_master($admin,$type,'View'))master_respond(['ok'=>false,'error'=>'Select an accessible customer or business party.'],403);
+        $row=master_find_row($type,$id);if(!$row)master_respond(['ok'=>false,'error'=>'Master record not found.'],404);
+        $reason=trim((string)($body['reason']??''));if(strlen($reason)<5||strlen($reason)>500)master_respond(['ok'=>false,'error'=>'Explain why this name should be removed.'],422);
+        $request=tt_mutate_store(static function (&$data) use($type,$id,$row,$reason,$admin):array {
+            if(!isset($data['master_deletion_requests'])||!is_array($data['master_deletion_requests']))$data['master_deletion_requests']=[];
+            foreach($data['master_deletion_requests'] as $old)if(($old['type']??'')===$type&&($old['masterId']??'')===$id&&($old['status']??'')==='Pending')throw new InvalidArgumentException('A deletion request for this record is already awaiting Super Admin.');
+            $item=['id'=>bin2hex(random_bytes(12)),'type'=>$type,'masterId'=>$id,'name'=>(string)($row['values'][0]??''),'reason'=>$reason,'status'=>'Pending','requestedAt'=>gmdate('c'),'requestedBy'=>(string)($admin['full_name']??$admin['username']??'Accounts')];
+            $data['master_deletion_requests'][]=$item;return $item;
+        });
+        tt_audit((int)$admin['id'],$admin['username'],'Requested Super Admin deletion of '.$type.' '.$id);
+        master_respond(['ok'=>true,'request'=>$request]);
+    }
+    if ($action==='review-deletion') {
+        if(($admin['role']??'')!=='Super Admin')master_respond(['ok'=>false,'error'=>'Only Super Admin can review deletion requests.'],403);
+        $requestId=trim((string)($body['requestId']??''));$decision=(string)($body['decision']??'');
+        if(!in_array($decision,['Approve','Reject'],true))master_respond(['ok'=>false,'error'=>'Select Approve or Reject.'],422);
+        $review=tt_mutate_store(static function (&$data) use($requestId,$decision,$admin):array {
+            if(!isset($data['master_deletion_requests'])||!is_array($data['master_deletion_requests']))throw new InvalidArgumentException('Pending request not found.');
+            foreach($data['master_deletion_requests'] as &$request){
+                if(($request['id']??'')!==$requestId||($request['status']??'')!=='Pending')continue;
+                if($decision==='Approve'){
+                    $type=(string)$request['type'];$rowId=(string)$request['masterId'];$found=false;
+                    foreach($data['masters'][$type] as &$row){if(($row['id']??'')!==$rowId)continue;$values=array_values((array)($row['values']??[]));while(count($values)<=10)$values[]='';$values[10]='Inactive';$row['values']=$values;$found=true;break;}unset($row);
+                    if(!$found)throw new InvalidArgumentException('Master record no longer exists. Reject the request instead.');
+                }
+                $request['status']=$decision==='Approve'?'Approved — deactivated':'Rejected';$request['reviewedAt']=gmdate('c');$request['reviewedBy']=(string)($admin['full_name']??$admin['username']??'Super Admin');return $request;
+            }unset($request);
+            throw new InvalidArgumentException('Pending request not found.');
+        });
+        tt_audit((int)$admin['id'],$admin['username'],$decision.' master deletion request '.$requestId);
+        master_respond(['ok'=>true,'review'=>$review,'masters'=>master_all($admin),'deletionRequests'=>(array)(tt_read_store()['master_deletion_requests']??[])]);
+    }
     $requiredAction=$action==='create'?'Create':($action==='update'?'Edit':(in_array($action,['delete','purge'],true)?'Deactivate':'Edit'));
     if ($type!=='' && !tt_user_can_master($admin,$type,$requiredAction)) master_respond(['ok'=>false,'error'=>'You do not have '.$requiredAction.' permission for this master.'],403);
     if ($action==='manage-option') {

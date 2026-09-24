@@ -382,15 +382,29 @@ function tt_visible_masters(array $masters): array {
 
 /** Read historical multi-category Business Party values consistently. */
 function tt_business_party_categories(mixed $value): array {
-    $parts=preg_split('/\s*(?:;|,|\/|\|)\s*/u',trim((string)$value),-1,PREG_SPLIT_NO_EMPTY) ?: [];
+    $value=str_ireplace('Shipping Line / Carrier','Shipping Line and Carrier',(string)$value);
+    $parts=preg_split('/\s*(?:;|,|\/|\|)\s*/u',trim($value),-1,PREG_SPLIT_NO_EMPTY) ?: [];
     $canonical=[];
-    foreach($parts as$part){$part=trim(preg_replace('/\s+/u',' ',(string)$part)??'');if($part==='')continue;$key=strtolower($part);if(!isset($canonical[$key]))$canonical[$key]=$part;}
+    foreach($parts as$part){$part=trim(preg_replace('/\s+/u',' ',(string)$part)??'');if($part==='')continue;if(strcasecmp($part,'Shipping Line and Carrier')===0)$part='Shipping Line / Carrier';$key=strtolower($part);if(!isset($canonical[$key]))$canonical[$key]=$part;}
     return array_values($canonical);
 }
 
 function tt_business_party_has_category(mixed $value,string $category): bool {
     foreach(tt_business_party_categories($value)as$item)if(strcasecmp($item,$category)===0)return true;
     return false;
+}
+
+/** Posting must use the role stored in Super Admin Business Parties. */
+function tt_active_business_party_for_role(string $name,string $role): ?array {
+    $needle=strtolower(trim((string)preg_replace('/\s+/u',' ',$name)));
+    if($needle==='')return null;
+    foreach((array)(tt_list_masters()['business_parties']??[]) as $row){
+        $values=(array)($row['values']??[]);
+        if(strtolower(trim((string)preg_replace('/\s+/u',' ',(string)($values[0]??''))))!==$needle)continue;
+        if(strcasecmp((string)($values[10]??'Active'),'Inactive')===0)continue;
+        if(tt_business_party_has_category($values[2]??'',$role))return $row;
+    }
+    return null;
 }
 
 /**

@@ -28,6 +28,7 @@
   };
   const SESSION = window.TT_SESSION || { name: "Salman", username: "salman", role: "Super Admin", permissions: { Mill: "all", Exports: "all", Accounts: "all", Directors: "all" }, csrf: "" };
   const IS_SUPER_ADMIN = SESSION.role === "Super Admin";
+  let pendingDeletionRequests = [];
   const MASTER_PERMISSION_ACTIONS = ["Use","View","Create","Edit","Deactivate","View Documents","Download Documents"];
   const hasMasterAccess = IS_SUPER_ADMIN || !!SESSION.masterAccess;
   const canMaster = (type, action="View") => {const permissionType=["purchase_kat","commodities"].includes(type)?"purchase_products":type;return IS_SUPER_ADMIN || (hasMasterAccess && (SESSION.masterPermissions?.[permissionType] || []).includes(action));};
@@ -270,6 +271,7 @@
     if (!hasMasterAccess) return;
     const data = await apiRequest(null, "masters");
     state.masters = ensureMasterSections(data.masters,data.options||state.masterOptions);
+    pendingDeletionRequests = (data.deletionRequests || []).filter(item => item.status === 'Pending');
     if (data.options) state.masterOptions = data.options;
     renderMasters();
   }
@@ -930,6 +932,10 @@
     const type = activeMasterType();
     document.getElementById("masterTitle").textContent = menuType.name;
     document.getElementById("masterDescription").textContent = menuType.description;
+    document.getElementById('masterDeletionRequests')?.remove();
+    if(IS_SUPER_ADMIN && pendingDeletionRequests.length){
+      document.getElementById('masterDescription').insertAdjacentHTML('afterend',`<section id="masterDeletionRequests" class="master-editor-section"><h3>Accounts requests to remove names</h3><p>Approval deactivates the name for future selections. Historical transactions keep the record.</p>${pendingDeletionRequests.map(request=>`<div class="row-actions" style="justify-content:space-between;align-items:center;padding:9px;border-top:1px solid #ddd"><span><b>${escapeHtml(request.name)}</b> · ${escapeHtml(request.type)} · ${escapeHtml(request.requestedBy)}<br>${escapeHtml(request.reason)}</span><span><button type="button" class="row-action" data-review-master-deletion="${escapeHtml(request.id)}" data-decision="Approve">Approve</button><button type="button" class="row-action" data-review-master-deletion="${escapeHtml(request.id)}" data-decision="Reject">Reject</button></span></div>`).join('')}</section>`);
+    }
     document.getElementById("productCropYearControl")?.remove();
     document.getElementById("purchaseWorkspaceTabs")?.remove();
     document.getElementById("purchaseProductTabs")?.remove();
@@ -1262,6 +1268,7 @@
     const editMaster = event.target.closest("[data-edit-master]");
     const editProductKat = event.target.closest("[data-edit-product-kat]");
     const deleteMaster = event.target.closest("[data-delete-master]");
+    const reviewDeletion = event.target.closest('[data-review-master-deletion]');
     const purgeMaster = event.target.closest("[data-purge-master]");
     const lockButton = event.target.closest("[data-toggle-lock]");
     const removeProductSpec = event.target.closest("[data-remove-product-spec]");
@@ -1280,6 +1287,13 @@
     if (editMaster) openMasterDialog(editMaster.dataset.editMaster);
     if (editProductKat) openKatForPurchaseProduct(editProductKat.dataset.editProductKat);
     if (deleteMaster) deleteMasterRecord(deleteMaster.dataset.deleteMaster);
+    if(reviewDeletion){
+      const requestId=reviewDeletion.dataset.reviewMasterDeletion,decision=reviewDeletion.dataset.decision;
+      apiRequest({action:'review-deletion',requestId,decision},'masters').then(data=>{
+        pendingDeletionRequests=(data.deletionRequests||[]).filter(item=>item.status==='Pending');
+        state.masters=ensureMasterSections(data.masters,state.masterOptions);saveState();renderMasters();toast(decision==='Approve'?'Name deactivated after Super Admin approval.':'Deletion request rejected.');
+      }).catch(error=>toast(error.message));
+    }
     if (purgeMaster) purgeMasterRecord(purgeMaster.dataset.purgeMaster);
     if (lockButton) toggleLock(lockButton.dataset.toggleLock);
     if (event.target.closest("#addProductSpecification")) document.getElementById("productSpecRows")?.insertAdjacentHTML("beforeend", productSpecRow("", "", true));

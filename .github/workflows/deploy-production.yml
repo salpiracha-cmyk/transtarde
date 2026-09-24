@@ -33,6 +33,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ env.DEPLOY_SHA }}
+          fetch-depth: 2
 
       - name: Verify deployment secrets and target
         env:
@@ -194,8 +195,18 @@ jobs:
           echo "BACKUP=$backup"
           REMOTE
 
+      - name: Check whether Exports document reader changed
+        id: gemini_scope
+        run: |
+          if git diff --name-only HEAD^ HEAD -- exports/ scripts/diagnose_gemini.php | grep -q .; then
+            echo 'changed=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'changed=false' >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Diagnose optional Exports Gemini document reader
         id: gemini_health
+        if: steps.gemini_scope.outputs.changed == 'true'
         continue-on-error: true
         run: |
           set +e

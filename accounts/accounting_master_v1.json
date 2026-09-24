@@ -523,6 +523,14 @@
       "subledger": true
     },
     {
+      "code": "5550",
+      "name": "Other Export Supplies & Costs",
+      "class": "Expense",
+      "level": "general",
+      "normal": "Debit",
+      "subledger": true
+    },
+    {
       "code": "5600",
       "name": "Sales Brokery / Commission",
       "class": "Expense",

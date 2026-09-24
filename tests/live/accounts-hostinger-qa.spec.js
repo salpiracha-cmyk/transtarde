@@ -149,6 +149,12 @@ test('authenticated Accounts live smoke: professional desk and popup workflows',
   await expect(page.locator('#ttBillShipmentSearch')).toBeVisible({ timeout: 30_000 });
   await expect(page.locator('#ttBillShipmentQuery')).toBeVisible();
   await activate(page.locator('#ttBillShipmentSearch .tt-window-close'));
+  await deskAction(page, 'exports', 'Other Export Expense');
+  await expect(page.locator('#ttOtherExportExpense')).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('#ttExportExpenseForm [name="description"]')).toBeVisible();
+  await expect(page.locator('#ttExportExpenseForm [name="paymentAccountId"]')).toBeVisible();
+  await expect(page.locator('#ttExportExpenseForm')).not.toContainText(/gas|utility location/i);
+  await activate(page.locator('#ttOtherExportExpense .tt-window-close'));
 
   await deskAction(page, 'exports', 'Bags Bill');
   await expect(page.locator('#purchaseEditor .ttbag')).toBeVisible({ timeout: 30_000 });

@@ -69,7 +69,8 @@
   function sourceRows() {
     const rows = [];
     for (const invoice of data?.sources?.invoices || []) {
-      if (Number(invoice.outstandingForeign || 0) <= 0) continue;
+      // An unposted CAD/L/C invoice is not an advance or a posted receivable.
+      if (!invoice.recognized || Number(invoice.outstandingForeign || 0) <= 0) continue;
       rows.push({key:`INV|${invoice.id}`,targetId:invoice.id,targetType:invoice.recognized ? (invoice.candidateType === 'TG_PAKISTAN_INTERCOMPANY' ? 'INTERCOMPANY_RECEIVABLE' : 'EXPORT_RECEIVABLE') : 'UNAPPLIED_ADVANCE',customer:invoice.customer || '',currency:String(invoice.currency || 'USD').toUpperCase(),amount:Number(invoice.outstandingForeign || 0),reference:invoice.contractRef || invoice.reference || '',invoiceRef:invoice.reference || '',contractRef:invoice.contractRef || '',narration:invoice.recognized ? 'Balance' : 'Advance',isTg:invoice.candidateType === 'TG_PAKISTAN_INTERCOMPANY',recognized:!!invoice.recognized,mirrorCandidateId:invoice.mirrorCandidateId || '',fiRefs:Array.isArray(invoice.fiRefs) ? invoice.fiRefs : []});
     }
     for (const contract of data?.sources?.contracts || []) {
@@ -78,7 +79,12 @@
     }
     return rows;
   }
-  function payers() { return [...new Set(sourceRows().filter(row => payerType === 'TG' ? row.isTg : !row.isTg).map(row => payerType === 'TG' ? 'TG' : row.customer).filter(Boolean))].sort(); }
+  function payers() {
+    if (payerType === 'TG') return [...new Set(sourceRows().filter(row => row.isTg).map(() => 'TG'))];
+    const contracts = (data?.sources?.contracts || []).filter(row => String(row.seller || '').toUpperCase() === entity() && !/cancell?ed|deleted/i.test(String(row.status || ''))).map(row => row.customer);
+    const outstanding = sourceRows().filter(row => !row.isTg).map(row => row.customer);
+    return [...new Set([...contracts,...outstanding].map(value => String(value || '').trim()).filter(Boolean))].sort((a,b) => a.localeCompare(b));
+  }
   function availableItems() { return sourceRows().filter(row => row.currency === currency && (payerType === 'TG' ? row.isTg : !row.isTg && row.customer === payer)); }
   function itemLabel(item) {
     if (item.isTg) return `${item.currency} ${fmt(item.amount)} — ${item.fiRefs.length ? `FI ${item.fiRefs.join(', ')}` : 'FI pending'} — ${item.invoiceRef || item.reference}`;

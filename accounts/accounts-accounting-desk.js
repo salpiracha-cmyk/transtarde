@@ -24,7 +24,7 @@
       {title:'Transport Bill', note:'Loading Programme and route-linked transport bill', special:'shipment-kind', shipmentKind:'transport'},
       {title:'Fumigation Bill', note:'Shipment-linked fumigation and treatment bill', special:'shipment-kind', shipmentKind:'fumigation'},
       {title:'Inspection Bill', note:'Shipment and certificate-linked inspection bill', special:'shipment-kind', shipmentKind:'inspection'},
-      {title:'Other Export Expense', note:'Other shipment cost with its Debit / Credit treatment', native:'expenses', then:'[data-expense="general"]'}
+      {title:'Other Export Expense', note:'Export supplies and costs not charged to one shipment', special:'other-export-expense'}
     ]},
     {key:'commodity', glyph:'▣', title:'Commodity Purchases & Local Sales', note:'Soda through final bill, payment, sale and receipt', actions:[
       {title:'Soda Centre', note:'Create, search, amend or delete an unlinked Soda', special:'soda'},
@@ -127,6 +127,7 @@
     if(action.special==='all-ledgers')return window.TT_ALL_LEDGERS?.open?.();
     if(action.special==='due-payments')return openDuePayments();
     if(action.special==='little-master')return openLittleMaster();
+    if(action.special==='other-export-expense')return openOtherExportExpense();
     if (action.special === 'stock-reconciliation' && access.canInventoryReconciliation) { location.href='/stock-reconciliation.php?origin=accounts&entity='+encodeURIComponent(entity()); return; }
     if (action.special === 'soda') return openSoda();
     if (action.special === 'search') return openSearch();
@@ -532,32 +533,68 @@
     q('#ttTaxSearch',body).onclick=run;q('#ttTaxQuery',body).onkeydown=event=>{if(event.key==='Enter')run();};print.onclick=()=>printSalesTaxRows(selectedRows());download.onclick=()=>{const docs=selectedRows().flatMap(row=>[...(row.documents||[]),...(row.advices||[]).filter(a=>a.downloadUrl)]);if(!docs.length)return alert('The selected rows do not have uploaded files.');docs.forEach((doc,i)=>setTimeout(()=>window.open(doc.downloadUrl,'_blank','noopener,noreferrer'),i*180));};
   }
 
+  async function openOtherExportExpense() {
+    const host=layer('ttOtherExportExpense','Other Export Expense'),body=q('.tt-window-body',host);
+    body.innerHTML='<div class="tt-form">Loading company payment accounts…</div>';
+    try {
+      const data=await json('../api/expenses_v1.php?entity='+encodeURIComponent(entity()));
+      const accounts=data.paymentAccounts||[];
+      body.innerHTML=`<form class="tt-form" id="ttExportExpenseForm"><p>Enter export supplies or shared export costs such as craft paper, silica gel or seals. Shipment-specific supplier bills belong under their shipment icons.</p><div class="tt-form-grid"><label>Date<input type="date" name="paymentDate" value="${esc(today())}" required></label><label>Paid from bank or cash<select name="paymentAccountId" required><option value="">Choose company account</option>${accounts.map(account=>`<option value="${esc(account.id)}">${esc(account.label)} · ${esc(account.currency)}</option>`).join('')}</select></label><label>Payee<input name="payee" required></label><label>Amount (PKR)<input type="number" min="0.01" step="0.01" name="amount" required></label><label>Cheque / payment reference<input name="reference" placeholder="Cheque number or transaction reference"></label><label class="wide">Export expense description<input name="description" placeholder="e.g. silica gel for export packing" required></label></div><div role="alert" id="ttExportExpenseError" class="tt-note"></div><div class="tt-form-actions"><button type="submit" class="btn primary">Post export expense</button></div></form>${(data.generalExpenses||[]).filter(row=>row.expenseType==='EXPORT').slice(-12).reverse().map(row=>`<div class="tt-record-card">${esc(row.paymentDate)} · ${esc(row.payee)} · PKR ${money(row.amount)} · ${esc(row.description)} <b>${esc(row.journalId)}</b></div>`).join('')}`;
+      const form=q('#ttExportExpenseForm',body);
+      const requestKey=crypto.randomUUID();
+      form.onsubmit=async event=>{
+        event.preventDefault();const submit=q('[type="submit"]',form);submit.disabled=true;
+        const payload=Object.fromEntries(new FormData(form));
+        try {const result=await json('../api/expenses_v1.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...payload,action:'pay_export_expense',entity:entity(),requestKey,csrf:access.csrf})});body.innerHTML=`<div class="tt-record-card"><h3>Export expense posted</h3><p>Journal voucher <b>${esc(result.result?.journalId||'')}</b></p><button type="button" class="btn" id="ttAnotherExportExpense">Enter another</button></div>`;q('#ttAnotherExportExpense',body).onclick=openOtherExportExpense;}
+        catch(error){q('#ttExportExpenseError',form).textContent=error.message||String(error);submit.disabled=false;}
+      };
+    }catch(error){body.textContent=error.message||String(error);}
+  }
+
+  function openShipmentBillForm(kind,shipment) {
+    const titles={freight:'Freight Forwarder / Shipping',clearing:'Clearing Agent',transport:'Transporter',fumigation:'Fumigation',inspection:'Inspection'};
+    const host=layer('ttShipmentBillForm',titles[kind]+' Bill'),body=q('.tt-window-body',host);
+    const label=titles[kind];
+    const header=`<div class="tt-record-card"><b>${esc(shipment.customer)} · ${esc(shipment.contract)} · ${esc(shipment.lot)}</b><p>Invoice ${esc(shipment.commercialInvoice||shipment.customsInvoice||'—')} · B/L ${esc(shipment.bl||'—')} · Loading programme ${esc(shipment.loadingProgramme||'—')}</p><p>${esc(shipment.shippingLine||'—')} · ${esc(shipment.portOfLoading||'—')} → ${esc(shipment.portOfDischarge||'—')} · ${esc(shipment.containers.join(', ')||'No containers saved')}</p></div>`;
+    const transport=kind==='transport',service=!transport&&kind!=='freight';
+    body.innerHTML=header+`<form id="ttShipmentBillEntry" class="tt-form"><div class="tt-form-grid"><label>${label}<input id="ttShipmentBillVendor" required placeholder="Choose ${label} from Business Parties"></label><label>Supplier bill number<input name="invoiceNo" required></label><label>Supplier bill date<input name="billDate" type="date" value="${esc(today())}" required></label>${transport?`<label>Loading programme<input name="loadingProgrammeNo" value="${esc(shipment.loadingProgramme)}" required></label><label>Loaded containers<input name="containers" type="number" min="1" value="${shipment.containers.length||''}" required></label><label>Rate per container (PKR)<input name="rate" type="number" min="0.01" step="0.01" required></label>`:''}${kind==='freight'?`<label>Actual B/L number<input name="blNo" value="${esc(shipment.bl)}" required></label>`:''}</div><div class="tt-record-card"><b>${transport?'Other charges and deductions':'Bill charges and deductions'}</b><div id="ttShipmentBillLines"></div><button type="button" class="btn" id="ttShipmentBillAdd">+ Line</button><p><b>FINAL BILL PAYABLE: PKR <span id="ttShipmentBillTotal">0.00</span></b></p></div><label style="display:block">Remarks<input name="remarks" placeholder="Optional bill details"></label><div id="ttShipmentBillError" class="tt-note" role="alert"></div><div class="tt-form-actions"><button type="submit" class="btn primary">Post supplier bill</button></div></form>`;
+    const form=q('#ttShipmentBillEntry',body),lines=q('#ttShipmentBillLines',form);
+    const addLine=(description='',type='ADD')=>{const line=document.createElement('div');line.className='tt-form-grid tt-shipment-charge';line.innerHTML=`<label>Description<input data-description required></label><label>Type<select data-type><option value="ADD">Addition</option><option value="DEDUCT">Deduction</option></select></label><label>Amount (PKR)<input data-amount type="number" min="0.01" step="0.01" required></label><button type="button" class="btn" data-remove style="align-self:end">Remove</button>`;line.querySelector('[data-description]').value=description;line.querySelector('[data-type]').value=type;line.querySelector('[data-remove]').onclick=()=>{line.remove();calculate()};lines.appendChild(line);};
+    const charges=()=>qa('.tt-shipment-charge',lines).map(line=>({description:q('[data-description]',line).value.trim(),type:q('[data-type]',line).value,amount:Number(q('[data-amount]',line).value)}));
+    const calculate=()=>{const base=transport?Number(form.elements.containers.value)*Number(form.elements.rate.value):0;const total=charges().reduce((sum,line)=>sum+(line.type==='ADD'?1:-1)*(line.amount||0),base);q('#ttShipmentBillTotal',form).textContent=money(total);return total;};
+    if(!transport)addLine(kind==='freight'?'Freight':label);
+    q('#ttShipmentBillAdd',form).onclick=()=>addLine();form.addEventListener('input',calculate);form.addEventListener('change',calculate);
+    form.onsubmit=async event=>{
+      event.preventDefault();const amount=calculate(),items=charges(),vendor=q('#ttShipmentBillVendor',form).value.trim();
+      if(amount<=0||items.some(item=>!item.description||!(item.amount>0)))return q('#ttShipmentBillError',form).textContent='Complete each line and enter a positive final bill amount.';
+      const common={entity:entity(),shipmentId:shipment.id,vendor,invoiceNo:form.elements.invoiceNo.value.trim(),billDate:form.elements.billDate.value,remarks:[shipment.id,shipment.contract,shipment.commercialInvoice,form.elements.remarks.value.trim()].filter(Boolean).join(' · ')};
+      let payload;
+      if(transport){payload={...common,action:'save_transport_bill',lines:[{loadingProgrammeNo:form.elements.loadingProgrammeNo.value.trim(),containers:Number(form.elements.containers.value),from:shipment.portOfLoading,to:shipment.portOfDischarge,rate:Number(form.elements.rate.value),extras:0}],adjustments:items};}
+      else if(service){payload={...common,action:'save_service_bill',kind:kind.toUpperCase(),shipmentRef:shipment.lot||shipment.id,gdNo:shipment.gd,jobNo:shipment.loadingProgramme,portOfDischarge:shipment.portOfDischarge,containerCount:shipment.containers.length,customerRef:shipment.customer,amount,billLines:items};}
+      else {payload={...common,action:'save_freight_bill',actualBlNo:form.elements.blNo.value.trim(),loadingProgrammeNo:shipment.loadingProgramme,shippingLine:shipment.shippingLine,fromPort:shipment.portOfLoading,destinationPort:shipment.portOfDischarge,containerCount:shipment.containers.length,containerSize:'20',exchangeRate:0,charges:items.map(item=>({charge:item.description,basis:'FIXED',qty:1,currency:'PKR',billedRate:(item.type==='ADD'?1:-1)*item.amount,acceptedRate:(item.type==='ADD'?1:-1)*item.amount}))};}
+      const button=q('[type="submit"]',form);button.disabled=true;
+      try{const saved=await json('../api/accounts_workflows_v1.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...payload,csrf:access.csrf})});body.innerHTML=`<div class="tt-record-card"><h3>Supplier bill posted</h3><p>Write posting number <b>${esc(saved.bill?.id||'')}</b> on the supplier bill. Journal ${esc((saved.bill?.postingJournalIds||[]).slice(-1)[0]||'')}</p><button class="btn" id="ttShipmentBillDone">Close</button></div>`;q('#ttShipmentBillDone',body).onclick=()=>q('.tt-window-close',host).click();}
+      catch(error){q('#ttShipmentBillError',form).textContent=error.message||String(error);button.disabled=false;}
+    };
+  }
+
   async function openShipmentKind(kind) {
-    const choices={freight:{native:'freight'},transport:{native:'transport'},clearing:{native:'services',service:'CLEARING'},fumigation:{native:'services',service:'FUMIGATION'},inspection:{native:'services',service:'INSPECTION'}};
-    const choice=choices[String(kind||'').toLowerCase()];if(!choice)return openShipmentChooser();
+    if(!['freight','transport','clearing','fumigation','inspection'].includes(String(kind||'').toLowerCase()))return openShipmentChooser();
     const host=layer('ttBillShipmentSearch',`Find Shipment · ${kind}`),body=q('.tt-window-body',host);
     body.innerHTML='<div class="tt-form"><p>Search by customer, contract, invoice, Customs invoice, container, B/L, loading programme, shipping line, vessel, port, brand, GD, FI or Bag PO.</p><div class="tt-searchbar"><input id="ttBillShipmentQuery" autofocus placeholder="Enter any shipment reference"><button id="ttBillShipmentGo">Search</button></div><div id="ttBillShipmentHits" style="margin-top:12px"></div></div>';
-    const search=async()=>{const term=q('#ttBillShipmentQuery',host).value.trim(),hits=q('#ttBillShipmentHits',host);if(term.length<2){hits.textContent='Enter at least two characters.';return}hits.textContent='Searching Exports…';try{const result=await json('../api/accounts_shipment_lookup.php?entity='+encodeURIComponent(entity())+'&q='+encodeURIComponent(term));hits.innerHTML=result.rows.length?result.rows.map((row,index)=>`<article class="tt-record-card"><b>${esc(row.customer)} · ${esc(row.contract)} · ${esc(row.lot)}</b><div class="tt-note">Commercial invoice ${esc(row.commercialInvoice||'—')} · Customs ${esc(row.customsInvoice||'—')} · B/L ${esc(row.bl||'—')} · ${esc(row.vessel||'')} ${esc(row.voyage||'')}</div><div class="tt-note">${esc(row.loadingProgramme||'')} · ${esc(row.shippingLine||'')} · ${esc(row.portOfLoading||'')} → ${esc(row.portOfDischarge||'')} · Containers ${esc(row.containers.join(', ')||'—')} · PO ${esc(row.po||'—')}</div><button class="btn" data-tt-pick-shipment="${index}">Confirm this shipment</button></article>`).join(''):'No linked shipment matches. Check the selected company and reference.';qa('[data-tt-pick-shipment]',hits).forEach(button=>button.onclick=async()=>{const row=result.rows[Number(button.dataset.ttPickShipment)];q('.tt-window-close',host).click();await launch(choice);if(choice.service){let select=null;for(let i=0;i<30&&!select;i++){select=q('#svKind');if(!select)await new Promise(resolve=>setTimeout(resolve,40))}if(select){select.value=choice.service;select.dispatchEvent(new Event('change',{bubbles:true}))}}const fields=choice.native==='freight'?{'#frBl':row.bl,'#frLp':row.loadingProgramme,'#frLine':row.shippingLine,'#frFrom':row.portOfLoading,'#frTo':row.portOfDischarge}:choice.native==='services'?{'#svShip':row.lot||row.id,'#svGd':row.gd,'#svPort':row.portOfDischarge,'#svCust':row.customer,'#svCount':row.containers.length}:{};for(const [selector,value]of Object.entries(fields)){const input=q(selector);if(input&&!input.value)input.value=value}if(choice.native==='transport'){if(!q('#trLines .ttv-row'))q('#trAdd')?.click();const rows=qa('#trLines .ttv-row'),last=rows[0];if(last){const input=q('.tlp',last);if(input)input.value=row.loadingProgramme;const qty=q('.tqty',last);if(qty)qty.value=row.containers.length;const start=q('.tfrom',last),end=q('.tto',last);if(start)start.value=row.portOfLoading;if(end)end.value=row.portOfDischarge}}});}catch(error){hits.textContent=error.message}};
+    const search=async()=>{const term=q('#ttBillShipmentQuery',host).value.trim(),hits=q('#ttBillShipmentHits',host);if(term.length<2){hits.textContent='Enter at least two characters.';return}hits.textContent='Searching Exports…';try{const result=await json('../api/accounts_shipment_lookup.php?entity='+encodeURIComponent(entity())+'&q='+encodeURIComponent(term));hits.innerHTML=result.rows.length?result.rows.map((row,index)=>`<article class="tt-record-card"><b>${esc(row.customer)} · ${esc(row.contract)} · ${esc(row.lot)}</b><div class="tt-note">Commercial invoice ${esc(row.commercialInvoice||'—')} · Customs ${esc(row.customsInvoice||'—')} · B/L ${esc(row.bl||'—')} · ${esc(row.vessel||'')} ${esc(row.voyage||'')}</div><div class="tt-note">${esc(row.loadingProgramme||'')} · ${esc(row.shippingLine||'')} · ${esc(row.portOfLoading||'')} → ${esc(row.portOfDischarge||'')} · Containers ${esc(row.containers.join(', ')||'—')} · PO ${esc(row.po||'—')}</div><button class="btn" data-tt-pick-shipment="${index}">Confirm this shipment</button></article>`).join(''):'No linked shipment matches. Check the selected company and reference.';qa('[data-tt-pick-shipment]',hits).forEach(button=>button.onclick=async()=>{const row=result.rows[Number(button.dataset.ttPickShipment)];q('.tt-window-close',host).click();openShipmentBillForm(kind,row);});}catch(error){hits.textContent=error.message}};
     q('#ttBillShipmentGo',host).onclick=search;q('#ttBillShipmentQuery',host).onkeydown=event=>{if(event.key==='Enter')search()};
   }
 
   function openShipmentChooser() {
     const host = layer('ttShipmentLayer', 'Export Shipment Bills');
     const body = q('.tt-window-body', host);
-    const choices = [
-      {title:'Freight', native:'freight'}, {title:'Transport', native:'transport'}, {title:'Clearing', native:'services', service:'CLEARING'}, {title:'Fumigation', native:'services', service:'FUMIGATION'}, {title:'Inspection', native:'services', service:'INSPECTION'}
-    ];
+    const choices = ['freight','transport','clearing','fumigation','inspection'];
     const glyphs = ['⚓','▣','◇','✦','✓'];
-    body.innerHTML = `<div class="tt-form"><div class="tt-note">Each bill starts by searching our invoice, container, B/L, vessel, line, Loading Programme, port of discharge, lot or shipment. The selected shipment supplies the known details for confirmation.</div><div class="tt-action-list">${choices.map((x,i)=>`<button class="tt-action" data-shipment-kind="${i}"><span class="tt-action-mark">${glyphs[i]}</span><span><b>${x.title}</b><small>Search shipment, confirm linked details, review Debit/Credit treatment, then post vendor bill.</small></span></button>`).join('')}</div></div>`;
+    body.innerHTML = `<div class="tt-form"><div class="tt-note">Search the export shipment first, then confirm its supplier bill.</div><div class="tt-action-list">${choices.map((kind,i)=>`<button class="tt-action" data-shipment-kind="${i}"><span class="tt-action-mark">${glyphs[i]}</span><span><b>${esc(kind)}</b><small>Find and confirm a linked shipment.</small></span></button>`).join('')}</div></div>`;
     qa('[data-shipment-kind]', body).forEach(button => button.onclick = async () => {
       q('.tt-window-close', host).click();
-      const choice = choices[Number(button.dataset.shipmentKind)];
-      await launch(choice);
-      if (choice.service) {
-        let select = null;
-        for (let i=0;i<30&&!select;i+=1) { select=q('#svKind'); if(!select) await new Promise(r=>setTimeout(r,40)); }
-        if (select) { select.value=choice.service; select.dispatchEvent(new Event('change',{bubbles:true})); }
-      }
+      await openShipmentKind(choices[Number(button.dataset.shipmentKind)]);
     });
   }
 
