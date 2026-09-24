@@ -194,8 +194,9 @@ jobs:
           echo "BACKUP=$backup"
           REMOTE
 
-      - name: Diagnose Gemini document reader
+      - name: Diagnose optional Exports Gemini document reader
         id: gemini_health
+        continue-on-error: true
         run: |
           set +e
           result=$(ssh -i "$RUNNER_TEMP/ssh/deploy_key" \
@@ -207,7 +208,7 @@ jobs:
           echo "GEMINI_HEALTH=$result"
           set -euo pipefail
           if [ "$status" -ne 0 ]; then
-            echo "Gemini production diagnostic failed."
+            echo "Gemini diagnostic is unavailable. Accounts and core production health checks will continue."
             exit "$status"
           fi
           php -r '$r=json_decode($argv[1],true);if(!is_array($r)||($r["ok"]??false)!==true){fwrite(STDERR,"Gemini health check failed.\n");exit(1);} echo "Gemini health check passed for ".$r["model"].".\n";' "$result"

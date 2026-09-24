@@ -171,12 +171,10 @@
       consoleLink.id = 'ttConsoleTop'; consoleLink.href = '/index.php';
       consoleLink.title = 'Return to Control Centre'; consoleLink.textContent = 'Console';
     }
-    const master = access.masterAccess ? document.createElement('button') : null;
-    if (master) {
-      master.id = 'ttMasterTop'; master.type = 'button'; master.title = 'Master Records';
-      master.setAttribute('aria-label', 'Open Master Records'); master.textContent = 'M';
-      master.onclick = () => { window.location.href='/index.php?view=masters'; };
-    }
+    const master = document.createElement('button');
+    master.id = 'ttMasterTop'; master.type = 'button'; master.title = 'Master Records';
+    master.setAttribute('aria-label', 'Open Master Records'); master.textContent = 'M';
+    master.onclick = () => { window.location.href='/index.php?view=masters'; };
     const company = document.createElement('button');
     company.id = 'ttChangeCompanyDesk';
     company.type = 'button';
@@ -202,7 +200,7 @@
     company.onclick = event => { event.stopPropagation(); menu.hidden = !menu.hidden; };
     menu.onclick = event => event.stopPropagation();
     if (consoleLink) top.insertBefore(consoleLink, power);
-    if (master) top.insertBefore(master, power);
+    top.insertBefore(master, power);
     top.insertBefore(company, power);
     top.insertBefore(menu, power);
     document.addEventListener('click', () => { menu.hidden = true; });

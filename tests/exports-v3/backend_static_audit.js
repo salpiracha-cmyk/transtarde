@@ -49,8 +49,9 @@ assert.match(js,/function deleteShipmentDocuments/,'shipment deletion must remov
 assert.match(js,/function deleteShipmentData/,'shipment deletion must remove linked operational data');
 assert.doesNotMatch(js,/setInterval\(\(\)=>window\.TT_SHARED_SYNC\?\.poll/,'Exports must not poll or rebuild active forms in the background');
 assert.doesNotMatch(js,/Manual save only/,'Exports must not expose technical sync/save-mode wording');
-assert.match(modulePhp,/LEGACY_QUEUE_STORE='tt_shared_commit_queue_v1'/,'retired browser queue is cleared on load');
-assert.doesNotMatch(modulePhp,/queued:true|settleQueued/,'unconfirmed actions must never continue through an offline queue');
+assert.match(modulePhp,/offline-outbox\.js\?v=/,'explicit final actions must load durable browser recovery');
+assert.doesNotMatch(modulePhp,/deleteDatabase\(|LEGACY_QUEUE_STORE|LEGACY_OUTBOX_DB/,'durable recovery must not be deleted on load');
+assert.doesNotMatch(modulePhp,/queued:true|settleQueued/,'shared data must not advance before server acknowledgement');
 assert.match(js,/const rerender=\(\)=>\{renderShipmentWorkspace\(\)\}/,'Loading Instruction draft controls must not save before the final Send action');
 assert.match(js,/window\.TT_SHARED_SYNC\?\.saveNow\?\.\(\)/,'final Loading Instruction send must wait for authoritative shared save acknowledgement');
 assert.match(milling,/containerCommitPending=\{s,c,before\};confirmContainerSharedSave\(containerCommitPending\)/,'Save Container must retain one idempotent pending record until shared acknowledgement');
@@ -145,8 +146,9 @@ assert.match(geminiDiagnostic,/responseSchema/,'Gemini health checks must exerci
 assert.match(geminiDiagnostic,/in_array\(\$status,\[404,429,503\],true\)/,'Gemini PDF health checks must retry another verified model on unavailable, quota or high-demand responses');
 assert.match(documentAi,/in_array\(\$e->getCode\(\),\[404,429,503\],true\)/,'document extraction must retry another verified model on unavailable, quota or high-demand responses');
 assert.match(documentAi,/Gemini returned an unreadable extraction\. Please retry\./,'document extraction must retry another verified model after malformed structured output');
-assert.doesNotMatch(deployWorkflow,/gemini_health[\s\S]{0,80}continue-on-error:\s*true/,'a failed Gemini production diagnostic must fail the deployment workflow');
-assert.match(deployWorkflow,/Gemini production diagnostic failed/,'the deployment workflow must report a failed live Gemini diagnostic');
+assert.match(deployWorkflow,/Diagnose optional Exports Gemini document reader[\s\S]{0,120}continue-on-error:\s*true/,'Gemini quota must not block deployment of Accounts or core workflows');
+assert.match(deployWorkflow,/Accounts and core production health checks will continue/,'the deployment workflow must report optional Gemini degradation');
+assert.match(deployWorkflow,/Verify production health/,'core production health must still run after the optional diagnostic');
 assert.match(documentAi,/returned non-JSON HTTP/,'Gemini response parse failures must retain a bounded raw response in protected server logs');
 assert.match(documentAi,/Gemini extraction JSON parse failed/,'invalid structured output must retain the bounded provider response in protected server logs');
 assert.match(documentAi,/responseSchema/,'Gemini document extraction must first request the strict schema');
