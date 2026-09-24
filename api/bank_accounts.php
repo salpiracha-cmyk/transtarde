@@ -116,6 +116,7 @@ function ba_payload(array $store,string $entity): array {
     foreach($masters as $id=>$a){
         if(($a['entity']??'')!==$entity||($a['accountType']??'')!=='Company Account')continue;
         $setting=array_replace(ba_default_setting($a),is_array($store['bankAccountSettings'][$id]??null)?$store['bankAccountSettings'][$id]:[]);
+        if(strcasecmp((string)($a['masterStatus']??'Active'),'Active')!==0){$setting['active']=false;$setting['allowPayments']=false;$setting['allowReceipts']=false;$setting['defaultReceiptAccount']=false;}
         if($a['masterRetentionAccount']!==null)$setting['retentionAccount']=(bool)$a['masterRetentionAccount'];
         $currency=strtoupper(trim((string)($a['currency']??'')))?:$planningCurrency;$book=ba_balance($store,$entity,$id,$currency);
         $balances[$currency]=round(($balances[$currency]??0)+$book,2);
@@ -172,6 +173,7 @@ try{
     if($sourceCurrency!==$planningCurrency)$setting['includeInPaymentPlanning']=false;
     if(!$setting['active']||!$setting['allowReceipts'])$setting['defaultReceiptAccount']=false;
     if($id!==$cashKey&&($setting['allowPayments']||$setting['allowReceipts'])){
+        if(strcasecmp((string)($a['masterStatus']??'Active'),'Active')!==0)ba_respond(['ok'=>false,'error'=>'Activate this bank inside Super Admin Company Master before enabling payments or receipts.'],422);
         if(trim((string)$a['accountNumber'])===''&&trim((string)$a['iban'])==='')ba_respond(['ok'=>false,'error'=>'Complete the account number or IBAN in the shared Banks & Accounts master before enabling payments or receipts.'],422);
     }
     tt_ensure_data_dir();$h=fopen(TT_BANK_ACCOUNTS_FILE,'c+');if($h===false||!flock($h,LOCK_EX))throw new RuntimeException('Accounts storage unavailable.');
