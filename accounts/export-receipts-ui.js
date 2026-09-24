@@ -47,14 +47,20 @@
     overlay.hidden=false;return overlay.querySelector('[data-er-panel]');
   }
   function closeForm(){const overlay=q('#ttExportReceiptDialog');if(overlay)overlay.hidden=true;bankId='';payerType='';payer='';selectedTgPayment=null;chosen.clear();deductions=[];}
-  function receiptBanks(currencyCode) { return (banks?.accounts || []).filter(account => account.settings?.active && account.settings?.allowReceipts && !account.needsCompletion && String(account.currency || '').toUpperCase() === currencyCode); }
+  function receiptBanks(currencyCode) { return (banks?.accounts || []).filter(account => account.settings?.active && account.settings?.allowReceipts && !account.needsCompletion && String(account.masterStatus || 'Active').toLowerCase() === 'active' && String(account.currency || '').toUpperCase() === currencyCode); }
+  function bankUnavailableReason(account) {
+    if (account.needsCompletion) return 'Add its account number or IBAN in Company Master';
+    if (String(account.masterStatus || 'Active').toLowerCase() !== 'active') return 'Set the bank to Active in Company Master';
+    if (!account.settings?.active) return 'Turn on Active in Accounts → Banks & Cash settings';
+    if (!account.settings?.allowReceipts) return 'Turn on Allow Receipts in Accounts → Banks & Cash settings';
+    return 'Check its currency in Company Master';
+  }
   function selectedBankCurrency() { return String((banks?.accounts || []).find(account => account.id === bankId)?.currency || 'PKR').toUpperCase(); }
   function bankLabel(account) { return String(account.settings?.displayName || '').trim() || `${account.bankName || account.accountTitle || 'Bank'}${account.accountLast5 ? ` · •••${account.accountLast5}` : ''}`; }
   function bankOptions(currencyCode, selected = '') {
     const rows = [...receiptBanks('PKR'),...receiptBanks(currency)], preferred = rows.find(row => row.settings?.defaultReceiptAccount)?.id || '';
     const choice = selected || preferred;
-    const unavailable=(banks?.accounts||[]).filter(row=>!rows.some(ready=>ready.id===row.id));
-    return `<option value="">Choose company account</option>${rows.map(row => `<option value="${esc(row.id)}" ${row.id === choice ? 'selected' : ''}>${esc(bankLabel(row))} · ${esc(row.currency)}</option>`).join('')}${unavailable.length?`<optgroup label="Linked in Company Master — needs attention">${unavailable.map(row=>`<option disabled>${esc(bankLabel(row))} · ${esc(row.currency||'currency missing')} · ${esc(row.needsCompletion?'complete account number / IBAN':row.settings?.active?'enable receipts':'inactive')}</option>`).join('')}</optgroup>`:''}`;
+    return `<option value="">Choose company account</option>${rows.map(row => `<option value="${esc(row.id)}" ${row.id === choice ? 'selected' : ''}>${esc(bankLabel(row))} · ${esc(row.currency)}</option>`).join('')}`;
   }
   function retentionBankOptions(currencyCode, selected = '') {
     const rows = receiptBanks(currencyCode).filter(row => row.settings?.retentionAccount);
@@ -114,7 +120,7 @@
     }
     const eligibleBanks = [...receiptBanks('PKR'),...receiptBanks(currency)];
     panel.innerHTML = `<div class="tter-head"><div><b>Export Payment Receipt / Credit Advice</b><div class="tter-note">FI is maintained only in Exports. Accounts selects the linked outstanding item and posts the bank entry.</div></div><div class="sp"></div><button class="btn" data-er-close>Close</button></div><div class="tter-body">
-      <section class="tter-step active"><h3>▰ Received into company account</h3><div class="tter-grid"><label>Received Into Account<select id="erPkrBank">${bankOptions('PKR',bankId)}</select></label></div>${!eligibleBanks.length ? `<div class="tter-alert">No ${esc(entity())} company receipt account is ready. ${esc((banks?.accounts||[]).length?'Check that its Company Master account number/IBAN and currency are complete, and enable Receipts in Accounts Masters if it was previously disabled.':'Add a company bank account with account number or IBAN in Company Master.')}</div>` : ''}</section>
+      <section class="tter-step active"><h3>▰ Received into company account</h3><div class="tter-grid"><label>Received Into Account<select id="erPkrBank">${bankOptions('PKR',bankId)}</select></label></div>${(banks?.accounts||[]).filter(row=>!eligibleBanks.some(ready=>ready.id===row.id)).map(row=>`<div class="tter-alert"><b>${esc(bankLabel(row))} · ${esc(row.currency||'currency missing')}</b><br>${esc(bankUnavailableReason(row))}.</div>`).join('')}${!(banks?.accounts||[]).length ? `<div class="tter-alert">No ${esc(entity())} bank account is linked in Company Master. Add the company bank and its account number or IBAN there.</div>` : ''}</section>
       ${bankId ? `<section class="tter-step active" id="erPayerStep"><h3>⇠ Received from</h3><div class="tter-parties"><button type="button" class="tter-party ${payerType === 'TG' ? 'active' : ''}" data-payer-type="TG"><b>Trans Grains (TG)</b><div class="tter-note">Choose linked FI/internal invoice references supplied by Exports.</div></button><button type="button" class="tter-party ${payerType === 'CUSTOMER' ? 'active' : ''}" data-payer-type="CUSTOMER"><b>Export Customer</b><div class="tter-note">Choose the customer, then its advance or balance items.</div></button></div>${payerType ? `<div class="tter-grid" style="margin-top:10px"><label>${payerType === 'TG' ? 'Group Company' : 'Customer'}<select id="erPayer"><option value="">Choose ${payerType === 'TG' ? 'TG' : 'customer'}</option>${payers().map(name => `<option ${name === payer ? 'selected' : ''}>${esc(name)}</option>`).join('')}</select></label>${payerType === 'TG' ? (selectedTgPayment ? `<label>TG Outgoing Bank<input readonly value="${esc(selectedTgPayment.sourceBank || selectedTgPayment.sourceBankId)}"></label>` : `<label>Received From TG Account<select id="erTgBank">${tgBankOptions()}</select></label>`) : ''}</div>` : ''}</section>` : ''}
       ${payer ? `<section class="tter-step active"><h3>▤ Outstanding item(s)</h3><div class="tter-grid" style="margin-bottom:10px"><label>Receipt Currency<select id="erCurrency">${['USD','EUR','GBP','AED'].map(code => `<option ${code === currency ? 'selected' : ''}>${code}</option>`).join('')}</select></label></div><div class="tter-note">Multiple items may be selected. Display order is amount → narration/reference → bare contract or internal document number.</div><div id="erItems">${itemsHtml()}</div></section>` : ''}
       ${fullFormHtml()}${historyHtml()}</div>`;

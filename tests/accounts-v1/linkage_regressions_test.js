@@ -96,4 +96,25 @@ assert.match(sourceBridge,/kind:'exMillLifting'/,'Ex-Mill loading must create an
 assert.match(sodaFeedPhp,/purchaseSodaLiftings/,'Ex-Mill lifting handoffs must persist idempotently');
 assert.match(sodaPhp,/\$store\['purchaseSodaLiftings'\]/,'Accounts Soda quantities must include Ex-Mill liftings');
 
+const bankBridge=read('auth_store.php');
+const bankApi=read('api/bank_accounts.php');
+const receiptApi=read('api/export_receipts.php');
+const receiptUi=read('accounts/export-receipts-ui.js');
+assert.match(bankBridge,/\(string\)\(\$bank\['status'\] \?\? 'Active'\)/,'Derived company bank rows must expose master status, not notes');
+assert.match(bankBridge,/'notes'=>\(string\)\(\$bank\['notes'\]/,'Company bank notes remain available separately');
+assert.match(bankApi,/strcasecmp\(\(string\)\(\$a\['masterStatus'\]/,'Default receipt readiness must use the derived master status');
+assert.match(receiptApi,/Complete the account number or IBAN in Company Master before receiving money/,'Receipts must reject incomplete accounts on the server');
+const receiptBankContext={banks:{accounts:[
+  {id:'tti-ready',currency:'PKR',masterStatus:'Active',settings:{active:true,allowReceipts:true},needsCompletion:false},
+  {id:'tti-disabled',currency:'PKR',masterStatus:'Active',settings:{active:false,allowReceipts:true},needsCompletion:false},
+  {id:'tti-incomplete',currency:'PKR',masterStatus:'Active',settings:{active:true,allowReceipts:true},needsCompletion:true},
+  {id:'tti-master-inactive',currency:'PKR',masterStatus:'Inactive',settings:{active:true,allowReceipts:true},needsCompletion:false}
+]}};
+vm.createContext(receiptBankContext);
+vm.runInContext(extractFunction(receiptUi,'receiptBanks')+'\n'+extractFunction(receiptUi,'bankUnavailableReason'),receiptBankContext);
+assert.deepEqual([...receiptBankContext.receiptBanks('PKR')].map(row=>row.id),['tti-ready']);
+assert.match(receiptBankContext.bankUnavailableReason(receiptBankContext.banks.accounts[1]),/Turn on Active/);
+assert.match(receiptBankContext.bankUnavailableReason(receiptBankContext.banks.accounts[2]),/account number or IBAN/);
+assert.match(receiptBankContext.bankUnavailableReason(receiptBankContext.banks.accounts[3]),/Active in Company Master/);
+
 console.log('PASS Accounts cross-module linkage regressions');

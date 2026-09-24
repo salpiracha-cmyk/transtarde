@@ -116,7 +116,7 @@ function tt_company_bank_legacy_rows(array $companies): array {
         foreach (tt_master_json_array($cv[13] ?? '') as $bank) {
             if (!is_array($bank)) continue;
             $id=trim((string)($bank['id'] ?? '')) ?: 'bank-'.substr(hash('sha256',$companyCode.'|'.json_encode($bank)),0,14);
-            $rows[]=['id'=>$id,'retentionAccount'=>array_key_exists('retentionAccount',$bank) ? (bool)$bank['retentionAccount'] : null,'values'=>[
+            $rows[]=['id'=>$id,'retentionAccount'=>array_key_exists('retentionAccount',$bank) ? (bool)$bank['retentionAccount'] : null,'notes'=>(string)($bank['notes'] ?? ''),'values'=>[
                 (string)($bank['accountType'] ?? 'Company Account'),
                 trim($companyCode.' — '.$companyName,' —'),
                 (string)($bank['label'] ?? ''),
@@ -130,7 +130,7 @@ function tt_company_bank_legacy_rows(array $companies): array {
                 (string)($bank['swift'] ?? ''),
                 (string)($bank['purpose'] ?? ''),
                 (string)($bank['visibility'] ?? ''),
-                (string)($bank['notes'] ?? ''),
+                (string)($bank['status'] ?? 'Active'),
             ]];
         }
     }
