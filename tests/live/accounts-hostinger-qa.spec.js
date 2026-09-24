@@ -56,9 +56,17 @@ test('authenticated Accounts live smoke: professional desk and popup workflows',
   test.setTimeout(480_000);
   const pageErrors = [];
   const failedRequests = [];
+  const failedResponses = [];
   page.on('pageerror', error => pageErrors.push(error.stack || String(error)));
   page.on('requestfailed', request => {
-    if (request.url().includes('/accounts/') || request.url().includes('/api/accounts_') || request.url().includes('/api/purchase_sodas')) failedRequests.push(`${request.method()} ${request.url()}: ${request.failure()?.errorText || 'failed'}`);
+    const errorText = request.failure()?.errorText || 'failed';
+    if (errorText === 'net::ERR_ABORTED') return;
+    if (request.url().includes('/accounts/') || request.url().includes('/api/accounts_') || request.url().includes('/api/purchase_sodas')) failedRequests.push(`${request.method()} ${request.url()}: ${errorText}`);
+  });
+  page.on('response', response => {
+    if (response.status() < 400) return;
+    const url = response.url();
+    if (url.includes('/accounts/') || url.includes('/api/accounts_') || url.includes('/api/purchase_sodas')) failedResponses.push(`${response.status()} ${response.request().method()} ${url}`);
   });
   await signIn(page);
 
@@ -79,17 +87,13 @@ test('authenticated Accounts live smoke: professional desk and popup workflows',
   await activate(page.locator('#ttCompanyMenu [data-entity="TTI"]'));
   await expect(page.locator('#ttCompanyMenu')).toBeHidden();
 
-  const masterAccess = await page.evaluate(() => Boolean(window.TT_ACCOUNT_ACCESS?.masterAccess));
-  if (masterAccess) {
-    await activate(page.locator('#ttMasterTop'));
-    await expect(page).toHaveURL(/\/index\.php\?view=masters$/, { timeout: 30_000 });
-    await expect(page.locator('#view-masters')).toBeVisible({ timeout: 30_000 });
-    await expect(page.locator('#masterTitle')).toBeVisible();
-    await page.goto(`${BASE_URL}/accounts/index.php`, { waitUntil: 'domcontentloaded', timeout: 90_000 });
-    await expect.poll(() => page.evaluate(() => window.TT_ACCOUNTING_DESK?.installed || false), { timeout: 30_000 }).toBe(true);
-  } else {
-    await expect(page.locator('#ttMasterTop')).toHaveCount(0);
-  }
+  await expect(page.locator('#ttMasterTop'), 'M must be visible to every ordinary module user').toBeVisible();
+  await activate(page.locator('#ttMasterTop'));
+  await expect(page).toHaveURL(/\/index\.php\?view=masters$/, { timeout: 30_000 });
+  await expect(page.locator('#view-masters')).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('#masterTitle')).toBeVisible();
+  await page.goto(`${BASE_URL}/accounts/index.php`, { waitUntil: 'domcontentloaded', timeout: 90_000 });
+  await expect.poll(() => page.evaluate(() => window.TT_ACCOUNTING_DESK?.installed || false), { timeout: 30_000 }).toBe(true);
 
   await deskAction(page, 'exports', 'Bank Receipt / Credit Advice');
   await expect(page.locator('#ttExportReceiptDialog')).toBeVisible({ timeout: 30_000 });
@@ -175,5 +179,6 @@ test('authenticated Accounts live smoke: professional desk and popup workflows',
   await responsive(page, 'professional Accounts modal');
 
   expect(failedRequests, 'Accounts resources must not fail').toEqual([]);
+  expect(failedResponses, 'Accounts resources must not return HTTP errors').toEqual([]);
   expect(pageErrors, 'Accounts must not raise uncaught browser errors').toEqual([]);
 });
