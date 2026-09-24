@@ -102,6 +102,10 @@ test('authenticated Accounts live smoke: professional desk and popup workflows',
   await activate(page.locator('#ttMainJV'));
   await expect(page.locator('#jvwLines .jvw-line')).toHaveCount(2, { timeout: 30_000 });
   await expect(page.locator('#jvwNarration')).toBeVisible();
+  await expect(page.locator('#jvwLines .jvw-bill')).toHaveCount(2);
+  await expect(page.locator('#jvwLines .jvw-line-ref')).toHaveCount(2);
+  await expect(page.locator('#jvwDebitTotal')).toHaveText('0');
+  await expect(page.locator('#jvwCreditTotal')).toHaveText('0');
   await expect(page.locator('#jvwSubmit')).toBeDisabled();
   await closeWorkspace(page);
 
