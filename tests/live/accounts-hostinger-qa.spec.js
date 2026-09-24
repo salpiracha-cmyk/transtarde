@@ -96,6 +96,9 @@ test('authenticated Accounts live smoke: professional desk and popup workflows',
   await expect(page.locator('#ws-bank')).not.toHaveClass(/active/);
   await expect(page.locator('#ttDeskWork .tt-action-mark svg').first()).toBeVisible();
   await expect(page.locator('#erPkrBank')).toBeVisible({ timeout: 30_000 });
+  if (await page.locator('#erPkrBank option:not([value=""])').count() === 0) {
+    await expect(page.locator('#ttExportReceiptDialog .tter-alert').first()).toContainText(/account number or IBAN|Active in Accounts|Allow Receipts|Active in Company Master|currency in Company Master|No TTI bank account/);
+  }
   await activate(page.locator('#ttExportReceiptDialog [data-er-close]'));
   await expect(page.locator('#ttExportReceiptDialog')).toBeHidden();
   await activate(page.locator('#ttDeskWork .tt-back-areas'));
