@@ -326,7 +326,7 @@
     const editor = (root.matches?.('#expenseEditor') ? root : root.closest?.('#expenseEditor')) || q('#expenseEditor', root);
     if (!editor || !q('.ttrs', editor)) return;
     const workspace = editor.closest('.workspace');
-    if (!workspace) return;
+    if (!workspace?.classList.contains('active')) return;
     workspace.classList.add('active', 'tt-clean-modal');
     document.body.classList.add('tt-modal-open');
     workspace.classList.toggle('tt-master-only', !!masterMode);

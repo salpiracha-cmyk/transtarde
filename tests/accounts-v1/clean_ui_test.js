@@ -23,6 +23,7 @@ for (const marker of ['popupWorkspaces: true','searchableSelects: true','Type 1 
 }
 requireText(ui, 'settleSalaryView', 'render-aware salary and rent mode');
 requireText(ui, "root.closest?.('#expenseEditor')", 'salary mutation ancestor detection');
+requireText(ui, "if (!workspace?.classList.contains('active')) return;", 'background expense updates cannot reopen closed modals');
 requireText(ui, "button.removeAttribute('data-back')", 'independent popup close control');
 requireText(ui, "stageEditor(editor, item.title)", 'direct grouped editor staging');
 requireText(ui, "button.setAttribute('data-editor-back', '')", 'legacy editor compatibility');
