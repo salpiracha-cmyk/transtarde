@@ -1,13 +1,18 @@
 (()=>{
 'use strict';
-const access=window.TT_ACCOUNT_ACCESS||{},ops='../api/operations.mysql.php',bag='../api/bag_purchases.php';
-const parse=s=>{try{return JSON.parse(s)}catch{return null}};
-async function post(body){const r=await fetch(bag,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({...body,csrf:access.csrf})});let d={};try{d=await r.json()}catch{}if(!r.ok||!d.ok)throw new Error(d.error||'Bag synchronization failed.');return d}
-function showSyncError(message){const editor=document.getElementById('purchaseEditor');if(!editor||!editor.querySelector('.ttbag'))return;let e=document.getElementById('ttBagSyncError');if(!e){e=document.createElement('div');e.id='ttBagSyncError';e.className='ttbag-warn';e.setAttribute('role','status');editor.querySelector('.ttbag')?.prepend(e)}e.textContent=message+' Existing saved entries are unchanged; use Refresh when the connection returns.';e.hidden=false}
-function exporterEntity(s){const e=String(s?.seller||'TTI').toUpperCase();if(e==='TG')return String(s?.customs?.exporter||'TTI').toUpperCase()==='BRM'?'BRM':'TTI';return e==='BRM'?'BRM':'TTI'}
-function poLines(po){const out=[];if(Array.isArray(po?.lines)&&po.lines.length){po.lines.forEach((l,i)=>{out.push({lineKey:'L'+(i+1),bagType:l.type||'',packingSize:`${l.size||''} ${l.unit||''}`.trim(),brand:l.brand||'',orderedQty:Number(l.totalBags||l.requiredBags||0),ratePerBag:Number(l.rate||0)});if(l.masterBag?.enabled&&Number(l.masterBag.qty||0)>0)out.push({lineKey:'L'+(i+1)+'-MASTER',bagType:'PP Master Bag',packingSize:String(l.masterBag.size||'Master Bag'),brand:l.brand||'',orderedQty:Number(l.masterBag.qty||0),ratePerBag:Number(l.masterBag.rate||0)})})}else if(po){out.push({lineKey:'L1',bagType:po.type||'',packingSize:`${po.packSize||''} ${po.unit||''}`.trim(),brand:po.brand||'',orderedQty:Number(po.totalBags||po.requiredBags||0),ratePerBag:Number(po.rate||0)});if(po.masterBag?.enabled&&Number(po.masterBag.qty||0)>0)out.push({lineKey:'L1-MASTER',bagType:'PP Master Bag',packingSize:String(po.masterBag.size||'Master Bag'),brand:po.brand||'',orderedQty:Number(po.masterBag.qty||0),ratePerBag:Number(po.masterBag.rate||0)})}return out}
-async function sync(){try{const r=await fetch(ops,{credentials:'same-origin',headers:{Accept:'application/json'}}),d=await r.json();if(!r.ok||!d.ok)return;const exp=parse(d.values?.transtrade_export_v3_operational||'');if(exp?.shipments){for(const s of exp.shipments){for(const po of s.bagOrders||[]){if(!po?.poNo)continue;await post({action:'sync_po',entity:exporterEntity(s),poNo:po.poNo,supplier:po.supplier||'',shipmentRef:String(s.id||s.lotNo||s.contractRef||''),contractRef:String(s.contractRef||''),issuedAt:po.issuedAt||'',lines:poLines(po)})}if(s.commercial?.saved&&s.commercial?.date){let bags=(s.millActuals||[]).reduce((n,x)=>n+Number(x.bags||0),0);if(!bags)bags=(s.loading?.containers||[]).reduce((n,x)=>n+Number(x.targetBags||0),0);const gd=[...(s.customs?.gdRefs||[]),...(s.commercial?.gd||[])].map(x=>x?.no).filter(Boolean);await post({action:'sync_export_usage',entity:exporterEntity(s),usageKey:'EXP-BAGS|'+String(s.id||s.contractRef),invoiceDate:s.commercial.date,shipmentRef:String(s.id||s.lotNo||s.contractRef||''),contractRef:String(s.contractRef||''),commercialInvoice:String(s.commercial.invoiceNo||s.customs?.invoiceNo||s.contractRef||''),bags,gdRefs:[...new Set(gd)],blNo:String(s.bl?.blNo||''),blFile:String(s.bl?.finalFile||'')})}}}
- const mill=parse(d.values?.tt30bags||'');if(Array.isArray(mill)){for(const x of mill){if(!x?.poNo||x._ttBridge!=='exports')continue;let lineKey=String(x.poLineKey||''),parts=String(x._ttBridgeId||'').split('|');if(!/^L\d+(?:-MASTER)?$/.test(lineKey)){const n=Number(parts[1]);lineKey='L'+(Number.isFinite(n)&&n>0?n:1)+(x.isMasterBag?'-MASTER':'')}await post({action:'sync_receipt_snapshot',poNo:String(x.poNo),lineKey,receivedQty:Number(x.received||0)})}}
- document.getElementById('ttBagSyncError')?.remove();window.TT_BAG_PURCHASES_UI?.reload?.();}catch(e){console.error('Bag operations sync',e);showSyncError('Bag receipt synchronization failed: '+String(e.message||e))}}
-document.addEventListener('click',e=>{if(e.target.closest?.('[data-purchase="bags"]'))setTimeout(sync,50)});document.addEventListener('tt:bag-workspace-open',()=>setTimeout(sync,50));
+
+// Opening the Accounts Bags workspace is read-only. Export and Milling bag
+// handoffs are written only after the originating final workflow action is
+// acknowledged by accounts/bag-control-bridge.js.
+async function refresh(){
+  try{
+    await window.TT_BAG_PURCHASES_UI?.reload?.();
+    document.getElementById('ttBagSyncError')?.remove();
+  }catch(error){
+    console.error('Bag operations refresh',error);
+  }
+}
+
+document.addEventListener('click',event=>{if(event.target.closest?.('[data-purchase="bags"]'))refresh()});
+document.addEventListener('tt:bag-workspace-open',refresh);
 })();

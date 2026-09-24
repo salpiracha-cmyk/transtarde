@@ -60,14 +60,9 @@ $sharedBootstrap = <<<'HTML'
   const PRIVATE_STORES=new Set(['tt34ghati','tt34nilqueue','tt32processingrecon']);
   const allowed=k=>!PRIVATE_STORES.has(k)&&(k===EXPORT_STORE||/^tt[0-9]{2}[a-z0-9_]{2,60}$/.test(k));
   const originalSet=Storage.prototype.setItem, originalRemove=Storage.prototype.removeItem;
-  const LEGACY_QUEUE_STORE='tt_shared_commit_queue_v1', LEGACY_OUTBOX_DB='transtrade-offline-outbox-v2';
-  let applying=false, revision=0, remoteKeys=new Set(), pending=new Map(), inFlight=new Set(), keyVersions=new Map(), queuedBase=new Map(), timer=0, inboundRetry=0, lastRemoteBy='', lastInboundCheck=0, commitWaiters=[];
+  let applying=false, revision=0, remoteKeys=new Set(), pending=new Map(), inFlight=new Set(), keyVersions=new Map(), queuedBase=new Map(), inboundRetry=0, lastRemoteBy='', lastInboundCheck=0, commitWaiters=[];
   const directSet=(k,v)=>originalSet.call(localStorage,k,v);
   const markSaveState=()=>{};
-  // The former device outbox is deliberately retired. A workflow action now
-  // succeeds only after its write is acknowledged by the server.
-  try{originalRemove.call(localStorage,LEGACY_QUEUE_STORE)}catch{}
-  try{indexedDB.deleteDatabase(LEGACY_OUTBOX_DB)}catch{}
   const parse=(k,d)=>{try{const v=JSON.parse(localStorage.getItem(k));return v??d}catch{return d}};
   const stableId=s=>{let h=2166136261;for(const c of String(s)){h^=c.charCodeAt(0);h=Math.imul(h,16777619)}return 600000000+(h>>>0)%300000000};
   const put=(k,v)=>{const s=JSON.stringify(v);if(localStorage.getItem(k)!==s)localStorage.setItem(k,s)};
@@ -93,7 +88,7 @@ $sharedBootstrap = <<<'HTML'
     if(changed.length&&!initial){bridge();notifyRemote()}
   }
   function settleCommits(error=''){
-    if(!error&&(pending.size||inFlight.size))return;
+    if(!error&&inFlight.size)return;
     const waiters=commitWaiters.splice(0);for(const w of waiters){clearTimeout(w.timer);error?w.reject(new Error(error)):w.resolve({ok:true,revision})}
   }
   function saveNow(){
@@ -105,17 +100,18 @@ $sharedBootstrap = <<<'HTML'
     return fetch(endpoint+'?r='+Date.now(),{credentials:'same-origin'}).then(r=>r.json()).then(data=>{if(!data?.ok)throw new Error(data?.error||'Shared data could not be refreshed.');applyRemote(data,false);return data})
   }
   function flush(){
-    clearTimeout(timer);timer=0;
     for(const [key,value] of [...pending]){
       if(inFlight.has(key))continue;
       pending.delete(key);
       inFlight.add(key);
       fetch(endpoint,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({csrf:access.csrf,key,value,baseVersion:Number(queuedBase.get(key)??keyVersions.get(key)??0),sourceModule:access.module||'Super Admin'})})
-        .then(r=>r.json()).then(r=>{inFlight.delete(key);if(r.ok){revision=Math.max(revision,Number(r.revision||0));keyVersions.set(key,Number(r.keyVersion||r.revision||0));queuedBase.delete(key);if(pending.has(key)){clearTimeout(timer);timer=setTimeout(flush,180);return}if(!pending.size&&!inFlight.size){markSaveState('Saved');settleCommits();if(typeof dispatchEvent==='function'&&typeof CustomEvent==='function')dispatchEvent(new CustomEvent('tt:shared-saved',{detail:{key}}))}return}if(!pending.has(key))pending.set(key,value);const message=r.conflict?'This record changed elsewhere. Refresh and review it before retrying.':(r.error||'The change was not saved.');showSyncError(message,!!r.conflict);settleCommits(message)})
+        .then(r=>r.json()).then(r=>{inFlight.delete(key);if(r.ok){revision=Math.max(revision,Number(r.revision||0));keyVersions.set(key,Number(r.keyVersion||r.revision||0));queuedBase.delete(key);markSaveState('Saved');settleCommits();if(typeof dispatchEvent==='function'&&typeof CustomEvent==='function')dispatchEvent(new CustomEvent('tt:shared-saved',{detail:{key}}));return}if(!pending.has(key))pending.set(key,value);const message=r.conflict?'This record changed elsewhere. Refresh and review it before retrying.':(r.error||'The change was not saved.');showSyncError(message,!!r.conflict);settleCommits(message)})
         .catch(()=>{inFlight.delete(key);if(!pending.has(key))pending.set(key,value);const message='The change was not saved. Check the connection and retry; nothing was advanced.';showSyncError(message);settleCommits(message)});
     }
   }
-  function queue(key,value){if(!allowed(key)||applying)return;if(!pending.has(key))queuedBase.set(key,Number(keyVersions.get(key)||0));pending.set(key,String(value));clearTimeout(timer);timer=setTimeout(flush,180)}
+  // Local form changes stay local. Only an explicit final workflow action
+  // calls saveNow(), which creates the durable recovery entry before upload.
+  function queue(key,value){if(!allowed(key)||applying)return;if(!pending.has(key))queuedBase.set(key,Number(keyVersions.get(key)||0));pending.set(key,String(value))}
   Storage.prototype.setItem=function(k,v){originalSet.call(this,k,v);if(this===localStorage)queue(String(k),String(v))};
   Storage.prototype.removeItem=function(k){originalRemove.call(this,k);};
 
@@ -160,14 +156,14 @@ $sharedBootstrap = <<<'HTML'
 HTML;
 
 $guard = <<<'HTML'
-<style>#ttAccountsOutboxBadge,#ttOfflineNotice,[data-tt-accounts-outbox-badge]{display:none!important}#ttUserBar{position:fixed;right:12px;top:12px;z-index:99999;display:flex;align-items:center;gap:9px;background:#102a46;color:#fff;padding:6px 7px 6px 11px;border-radius:10px;box-shadow:0 5px 18px #0004;font:12px Arial}#ttUserBar.ttHeaderUser{position:static;z-index:auto;flex:0 0 auto;background:rgba(255,255,255,.09);padding:5px 6px 5px 11px;border:1px solid rgba(255,255,255,.16);border-radius:12px;box-shadow:none;font:700 12px Arial;white-space:nowrap}.topbar.ttHasHeaderControls{padding-right:18px}#ttUserBar .ttPower{width:31px;height:31px;display:grid;place-items:center;border-radius:8px;background:#fff;color:#b42318;text-decoration:none;font-size:18px;font-weight:900;line-height:1}#ttUserBar .ttPower:hover{background:#fff0ee}#ttMasterTop{position:static;flex:0 0 auto;width:34px;height:34px;padding:0;border:1px solid rgba(255,255,255,.5);border-radius:8px;background:rgba(255,255,255,.12);color:#fff;display:grid;place-items:center;font:900 18px/1 Arial;cursor:pointer}#ttMasterTop:hover,#ttMasterTop:focus{background:#fff;color:#102a46;outline:none}.ttHeaderDate{color:#fff;font:700 12px Arial;white-space:nowrap}.tt-no-access{display:none!important}@media(max-width:1000px){#ttUserBar.ttHeaderUser{font-size:11px}}@media(max-width:900px){.topbar.ttHasHeaderControls{flex-wrap:wrap}.topbar.ttHasHeaderControls .spacer{display:none}}</style>
+<style>#ttUserBar{position:fixed;right:12px;top:12px;z-index:99999;display:flex;align-items:center;gap:9px;background:#102a46;color:#fff;padding:6px 7px 6px 11px;border-radius:10px;box-shadow:0 5px 18px #0004;font:12px Arial}#ttUserBar.ttHeaderUser{position:static;z-index:auto;flex:0 0 auto;background:rgba(255,255,255,.09);padding:5px 6px 5px 11px;border:1px solid rgba(255,255,255,.16);border-radius:12px;box-shadow:none;font:700 12px Arial;white-space:nowrap}.topbar.ttHasHeaderControls{padding-right:18px}#ttUserBar .ttPower{width:31px;height:31px;display:grid;place-items:center;border-radius:8px;background:#fff;color:#b42318;text-decoration:none;font-size:18px;font-weight:900;line-height:1}#ttUserBar .ttPower:hover{background:#fff0ee}#ttMasterTop{position:static;flex:0 0 auto;width:34px;height:34px;padding:0;border:1px solid rgba(255,255,255,.5);border-radius:8px;background:rgba(255,255,255,.12);color:#fff;display:grid;place-items:center;font:900 18px/1 Arial;cursor:pointer}#ttMasterTop:hover,#ttMasterTop:focus{background:#fff;color:#102a46;outline:none}.ttHeaderDate{color:#fff;font:700 12px Arial;white-space:nowrap}.tt-no-access{display:none!important}@media(max-width:1000px){#ttUserBar.ttHeaderUser{font-size:11px}}@media(max-width:900px){.topbar.ttHasHeaderControls{flex-wrap:wrap}.topbar.ttHasHeaderControls .spacer{display:none}}</style>
 <div id="ttUserBar"><span id="ttUserName"></span><a class="ttPower" href="logout.php" title="Log out" aria-label="Log out">⏻</a></div>
 <style>#ttConsoleTop{height:34px;padding:0 11px;border:1px solid rgba(255,255,255,.5);border-radius:8px;background:rgba(255,255,255,.12);color:#fff;display:inline-flex;align-items:center;text-decoration:none;font:800 12px/1 Arial}#ttConsoleTop:hover,#ttConsoleTop:focus{background:#fff;color:#102a46;outline:none}</style>
 <script>
 (()=>{const addConsole=()=>{const c=window.TT_MODULE_ACCESS||{};if(!c.super||document.getElementById('ttConsoleTop'))return;const top=c.moduleId==='exports'?document.querySelector('.topbar'):c.moduleId==='milling'?document.querySelector('header'):null;if(!top)return;const link=document.createElement('a');link.id='ttConsoleTop';link.href='/index.php';link.textContent='Console';link.title='Return to Control Centre';const anchor=document.getElementById('ttUserBar');top.insertBefore(link,anchor?.parentNode===top?anchor:null)};if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',addConsole);else addConsole()})();
 </script>
 <script>
-(()=>{const c=window.TT_MODULE_ACCESS||{},p=c.permissions||{},superUser=!!c.super,bar=document.getElementById('ttUserBar');document.getElementById('ttUserName').textContent=c.user+' · '+c.role;const placeHeaderUser=()=>{if(!bar)return;const top=c.moduleId==='exports'?document.querySelector('.topbar'):c.moduleId==='milling'?document.querySelector('header'):null;if(!top)return;top.classList.add('ttHasHeaderControls');document.getElementById('logoutTop')?.remove();if(c.moduleId==='milling')top.querySelectorAll(':scope > div:not(.brand):not(#ttUserBar)').forEach(x=>x.remove());bar.classList.add('ttHeaderUser');top.appendChild(bar);let date=top.querySelector('.topDate');if(!date){date=document.createElement('span');date.className='topDate ttHeaderDate';date.textContent=new Date().toLocaleDateString(undefined,{weekday:'short',day:'2-digit',month:'short',year:'numeric'});top.insertBefore(date,bar)}if(c.masterAccess){let master=document.getElementById('ttMasterTop')||document.getElementById('masterTop');if(!master){master=document.createElement('button')}master.id='ttMasterTop';master.type='button';master.textContent='M';master.title='Master Records';master.setAttribute('aria-label','Master Records');master.onclick=()=>window.location.href='/index.php?view=masters';top.insertBefore(master,date)}else{document.getElementById('ttMasterTop')?.remove();document.getElementById('masterTop')?.remove()}};if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',placeHeaderUser);else placeHeaderUser();if(superUser)return;
+(()=>{const c=window.TT_MODULE_ACCESS||{},p=c.permissions||{},superUser=!!c.super,bar=document.getElementById('ttUserBar');document.getElementById('ttUserName').textContent=c.user+' · '+c.role;const placeHeaderUser=()=>{if(!bar)return;const top=c.moduleId==='exports'?document.querySelector('.topbar'):c.moduleId==='milling'?document.querySelector('header'):null;if(!top)return;top.classList.add('ttHasHeaderControls');document.getElementById('logoutTop')?.remove();if(c.moduleId==='milling')top.querySelectorAll(':scope > div:not(.brand):not(#ttUserBar)').forEach(x=>x.remove());bar.classList.add('ttHeaderUser');top.appendChild(bar);let date=top.querySelector('.topDate');if(!date){date=document.createElement('span');date.className='topDate ttHeaderDate';date.textContent=new Date().toLocaleDateString(undefined,{weekday:'short',day:'2-digit',month:'short',year:'numeric'});top.insertBefore(date,bar)}let master=document.getElementById('ttMasterTop')||document.getElementById('masterTop');if(!master){master=document.createElement('button')}master.id='ttMasterTop';master.type='button';master.textContent='M';master.title='Master Records';master.setAttribute('aria-label','Master Records');master.onclick=()=>window.location.href='/index.php?view=masters';top.insertBefore(master,date)};if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',placeHeaderUser);else placeHeaderUser();if(superUser)return;
 const norm=s=>String(s||'').toLowerCase().replace(/&/g,'and').replace(/[^a-z0-9]+/g,' ').trim();
 const names={'m':'masters','master data':'masters','settings masters':'masters','stock':'stock','arrival list':'queue','arrival pohanch':'arrival','new export bags':'newbags','exports specifications':'instructions','production':'production','export loading':'export','local sales':'local','petty cash':'petty','processing expense':'labour','reprocessing bill':'reprocessbill','used bags in and out':'oldbags','reports':'reports','active shipments':'active','sales contracts':'contracts','completed shipments':'completed','cancelled':'cancelled','fi register':'fi','reports and registers':'reports','sales contract':'contract','bag order':'bags','bag artwork and bag order':'bags','production instructions':'production','loading instructions':'loading','customs documents':'customs','b l documents':'bl','commercial documents':'commercial','certificate of origin':'coo','certificates':'certs','bank covering and dispatch':'cover','tg documents':'tg','l c exchange draft':'lcdraft','document output':'print','history and versions':'history'};
 let current='';const actions=i=>p==='all'?['View','Create','Edit']:(Array.isArray(p)?p:(p[i]||[]));const can=(i,a)=>p==='all'||actions(i).includes(a);
@@ -180,8 +176,8 @@ HTML;
 
 $brandHead = '<link rel="stylesheet" href="/brand-theme.css?v=20260913-3">';
 $headPos = stripos($html, '</head>');
-if ($headPos !== false) $html = substr_replace($html, $brandHead.$bootstrap.$sharedBootstrap, $headPos, 0);
-$accountsSourceBridge = '<script src="accounts/source-bridge.js?v=20260923-pohanch-identity-1"></script><script src="accounts/loading-programme-sync.js?v=20260911-2"></script>';
+if ($headPos !== false) $html = substr_replace($html, $brandHead.$bootstrap.$sharedBootstrap.'<script src="/offline-outbox.js?v=20260924-explicit-actions-1"></script>', $headPos, 0);
+$accountsSourceBridge = '<script src="accounts/source-bridge.js?v=20260924-explicit-actions-1"></script><script src="accounts/loading-programme-sync.js?v=20260924-explicit-actions-1"></script><script src="accounts/bag-control-bridge.js?v=20260924-explicit-actions-1"></script>';
 $brandBody = '<script src="/brand-theme.js?v=20260913-3"></script>';
 $bodyPos = strripos($html, '</body>');
 if ($bodyPos !== false) $html = substr_replace($html, $accountsSourceBridge.$guard.$brandBody, $bodyPos, 0); else $html .= $accountsSourceBridge.$guard.$brandBody;

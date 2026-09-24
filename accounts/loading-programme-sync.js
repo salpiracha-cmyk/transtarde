@@ -20,8 +20,7 @@
       }
     }catch(error){console.error('Accounts Loading Programme sync',error)}finally{busy=false}
   }
-  addEventListener('DOMContentLoaded',()=>setTimeout(sync,800));
-  addEventListener('focus',sync);
-  document.addEventListener('click',event=>{if(event.target.closest('#sendLoading,[data-reissue-loading]'))setTimeout(sync,1800)},true);
-  setInterval(()=>{if(!document.hidden)sync()},15000);
+  let awaitingExplicitSave=false;
+  document.addEventListener('click',event=>{if(event.target.closest('#sendLoading,[data-reissue-loading]'))awaitingExplicitSave=true},true);
+  addEventListener('tt:shared-saved',()=>{if(!awaitingExplicitSave)return;awaitingExplicitSave=false;sync()});
 })();

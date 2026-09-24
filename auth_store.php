@@ -7,6 +7,7 @@ require_once __DIR__ . '/product_stage.php';
 // operational data created by Salman and his staff.
 const TT_DATA_DIR = __DIR__ . '/../transtrade_private';
 const TT_STORE_FILE = TT_DATA_DIR . '/auth.json';
+require_once __DIR__ . '/offline_idempotency.php';
 const TT_AUTH_RATE_FILE = TT_DATA_DIR . '/auth-rate.json';
 // High-entropy offline code. The public repository contains only a salted,
 // deliberately slow password hash; the code itself is held by the owner.
@@ -58,12 +59,15 @@ function tt_default_masters(): array {
         'purchase_products'=>[
             ['id'=>'purchase-products-rice-irri6-white-raw','values'=>['RICE','IRRI-6','White','RAW','KG','purchase-kat-rice-irri6-white-raw','','','Active','Externally purchased IRRI-6 White Raw Rice for processing at TTI or a selected reprocessing mill.']],
             ['id'=>'purchase-products-rice-irri6-white-ready','values'=>['RICE','IRRI-6','White','READY','KG','','','','Active','Finished IRRI-6 White Ready Rice purchased from an ex-mill; exportable without TTI/reprocessing conversion.']],
+            ['id'=>'purchase-products-rice-irri6-parboiled-raw','values'=>['RICE','IRRI-6','Parboiled / Sella','RAW','KG','purchase-kat-rice-irri6-parboiled-raw','','','Active','IRRI-6 Parboiled / Sella paddy or raw rice purchased for its own processing and KAT profile.']],
+            ['id'=>'purchase-products-rice-irri6-parboiled-ready','values'=>['RICE','IRRI-6','Parboiled / Sella','READY','KG','','','','Active','Finished IRRI-6 Parboiled / Sella Ready Rice purchased from an ex-mill or outside source.']],
             ['id'=>'purchase-products-corn-raw','values'=>['CORN','Corn / Makai','','RAW','MAUND','CORN','','','Active','Karachi weighbridge weight is authoritative.']],
             ['id'=>'purchase-products-sesame-raw','values'=>['SESAME','Sesame','','RAW','MAUND','SESAME_RAW','','','Active','Raw sesame purchase.']],
             ['id'=>'purchase-products-sesame-ready','values'=>['SESAME','Sesame','','READY','MAUND','SESAME_READY','','','Active','Ready sesame purchase.']],
         ],
         'purchase_kat'=>[
             ['id'=>'purchase-kat-rice-irri6-white-raw','values'=>['RICE','IRRI-6','White','RAW','IRRI-6 White Raw KAT','','','Draft – review required','Only confirmed parameter/range rows may be activated. “Paddy grains in rice” is a quality count, not a paddy purchase.','[{"name":"Broken","freeAllowance":"20%","unit":"paisa per %","instruction":"","ranges":[{"from":"20","to":"30","value":"1","unit":"paisa per %"},{"from":"30","to":"35","value":"3","unit":"paisa per %"},{"from":"35","to":"40","value":"8","unit":"paisa per %"},{"from":"40","to":"45","value":"15","unit":"paisa per %"},{"from":"45","to":"50","value":"20","unit":"paisa per %"},{"from":"50","to":"55","value":"25","unit":"paisa per %"},{"from":"55","to":"60","value":"40","unit":"paisa per %"}]},{"name":"Chalky","freeAllowance":"5% operational default","unit":"paisa per %","instruction":"Earlier discussion included 4%; confirm before activation.","ranges":[{"from":"5","to":"","value":"10","unit":"paisa per %"}]},{"name":"Damage / Yellow","freeAllowance":"2%","unit":"paisa per %","instruction":"","ranges":[{"from":"2","to":"5","value":"10","unit":"paisa per %"},{"from":"5","to":"","value":"25","unit":"paisa per %"}]},{"name":"Moisture","freeAllowance":"14%","unit":"weight %","instruction":"Above 16% remains manual/reject until confirmed.","ranges":[{"from":"14","to":"14.5","value":"0.5","unit":"weight %"},{"from":"14.5","to":"15","value":"1","unit":"weight %"},{"from":"15","to":"16","value":"2","unit":"weight %"}]},{"name":"Paddy grains in rice","freeAllowance":"80 grains operational default","unit":"No. of Grains","instruction":"No final automatic KAT slab confirmed.","ranges":[]}]']],
+            ['id'=>'purchase-kat-rice-irri6-parboiled-raw','values'=>['RICE','IRRI-6','Parboiled / Sella','RAW','IRRI-6 Parboiled Raw KAT','','','Draft – owner figures required','This is a separate Parboiled / Sella purchase profile. It must not inherit White Rice deductions. Enter and approve the confirmed slabs before activation.','[{"name":"Broken","freeAllowance":"","unit":"paisa per %","instruction":"Enter the confirmed IRRI-6 Parboiled purchase allowance and slabs before activation.","ranges":[]}]']],
         ],
         'export_documents'=>[
             ['id'=>'export-doc-1','values'=>['Commercial Invoice','3','0','ALL','Active']],
@@ -351,6 +355,12 @@ function tt_normalize_masters(array $masters): array {
         if(trim((string)$values[8])!=='')$legacyKat[$key]['notes'][]=trim((string)$values[8]);
     }
     foreach($legacyKat as $group){$id='purchase-kat-'.substr(hash('sha256',strtolower($group['commodity'].'|'.$group['base'].'|white|raw')),0,16);if($group['commodity']==='RICE'&&strcasecmp($group['base'],'IRRI-6')===0)$id='purchase-kat-rice-irri6-white-raw';$katRows[]=['id'=>$id,'values'=>[$group['commodity'],$group['base'],'White','RAW',$group['base'].' White Raw KAT','','',$group['draft']?'Draft – review required':'Active',implode(' ',array_unique($group['notes'])),json_encode($group['parameters'],JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE)]];}
+    // Preserve the dedicated IRRI-6 Parboiled purchase KAT identity without
+    // silently applying White Rice deductions to it.
+    foreach ((array)$defaults['purchase_kat'] as $defaultKat) {
+        $defaultId=(string)($defaultKat['id']??'');
+        if ($defaultId!=='' && !array_filter($katRows,static fn(array $row): bool => (string)($row['id']??'')===$defaultId)) $katRows[]=$defaultKat;
+    }
     $masters['purchase_kat']=$katRows;
     $katByIdentity=[];$katIds=[];
     foreach($katRows as$katRow){$kv=(array)($katRow['values']??[]);$katId=(string)($katRow['id']??'');$katIds[$katId]=true;$katByIdentity[strtolower((string)($kv[0]??'').'|'.(string)($kv[1]??'').'|'.(string)($kv[2]??'').'|'.(string)($kv[3]??''))]=$katId;}
@@ -853,20 +863,19 @@ function tt_user_can_open_module(array $user, string $module): bool {
 
 function tt_user_can_access_masters(array $user): bool {
     if (($user['role'] ?? '')==='Super Admin') return true;
-    if (empty($user['master_access'])) return false;
-    foreach ((array)($user['master_permissions'] ?? []) as $actions) {
-        if (is_array($actions) && array_intersect(['View','Create','Edit','Deactivate','View Documents','Download Documents'],$actions)) return true;
-    }
+    foreach (['Mill','Exports','Accounts','Directors'] as $module) if (tt_user_can_open_module($user,$module)) return true;
     return false;
 }
 
 function tt_user_can_master(array $user,string $type,string $action='View'): bool {
     if (($user['role'] ?? '')==='Super Admin') return true;
     if (!tt_user_can_access_masters($user)) return false;
+    if ($action==='View') return true;
+    if (empty($user['master_access'])) return false;
     if (in_array($type,['purchase_kat','commodities'],true)) $type='purchase_products';
     $actions=(array)($user['master_permissions'][$type] ?? []);
     if (in_array($action,$actions,true)) return true;
-    return $action==='View' && (bool)array_intersect(['Create','Edit','Deactivate','View Documents','Download Documents'],$actions);
+    return false;
 }
 
 function tt_user_visible_masters(array $user): array {
@@ -972,6 +981,7 @@ function tt_require_login(): array {
         header('Location: /login.php');
         exit;
     }
+    tt_offline_request_guard($user);
     if(str_starts_with($path,'/api/')&&tt_user_can_open_module($user,'Accounts')){
         $policy=tt_api_entity_policy($path);
         $entity=strtoupper(trim((string)($_GET['entity']??$_POST['entity']??'')));

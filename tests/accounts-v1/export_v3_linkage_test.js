@@ -17,12 +17,13 @@ assert.match(receiptApi,/\['version'=>\$keyVersion/,'file fallback must advance 
 assert.doesNotMatch(receiptApi,/transtrade_export_v2_operational/,'receipt API must never fall back to the retired V2 Export state');
 assert.doesNotMatch(receiptApi,/\$root\['receipts'\]/,'receipt API must not write the retired receipt collection');
 
-assert.match(bagSync,/operations\.mysql\.php/,'Accounts bag sync must use the current shared endpoint');
-assert.match(bagSync,/transtrade_export_v3_operational/,'Accounts bag sync must read current Export data');
+assert.doesNotMatch(bagSync,/method:\s*['"]POST['"]/,'opening the Accounts Bags workspace must never write or synchronize in the background');
+assert.match(bagSync,/TT_BAG_PURCHASES_UI\?\.reload/,'opening the Accounts Bags workspace may refresh its server-owned view');
 assert.doesNotMatch(bagSync,/operations\.php/,'Accounts bag sync must not call the retired endpoint');
 assert.doesNotMatch(bagSync,/transtrade_export_v2_operational/,'Accounts bag sync must not read retired Export data');
 
 assert.match(moduleBridge,/transtrade_export_v3_operational/,'module bag bridge must use current Export data');
+assert.match(moduleBridge,/tt:shared-saved/,'module bag handoffs must follow an acknowledged explicit workflow save');
 assert.doesNotMatch(moduleBridge,/transtrade_export_v2_operational/,'no module bag bridge may retain the retired Export key');
 
 console.log('PASS Accounts ↔ Exports V3 receipt and bag linkage audit');

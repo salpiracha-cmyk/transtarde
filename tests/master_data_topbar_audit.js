@@ -1,23 +1,25 @@
-const fs=require('fs');
-const assert=require('assert');
-
+const fs=require('fs'),assert=require('assert');
 const modulePhp=fs.readFileSync(__dirname+'/../module.php','utf8');
+const accounts=fs.readFileSync(__dirname+'/../accounts/accounts-accounting-desk.js','utf8');
+const auth=fs.readFileSync(__dirname+'/../auth_store.php','utf8');
 const customerMaster=fs.readFileSync(__dirname+'/../customer-master.js','utf8');
 const exportIndex=fs.readFileSync(__dirname+'/../exports/index.html','utf8');
 const milling=fs.readFileSync(__dirname+'/../milling/Transtrade_Master_Milling_V3_3_2_AUDITED.html','utf8');
 
-assert.match(modulePhp,/getElementById\('ttMasterTop'\)\|\|document\.getElementById\('masterTop'\)/,'shared header reuses the existing Exports Master Data button');
-assert.match(modulePhp,/master\.id='ttMasterTop'/,'operational header normalizes one Master Data button');
-assert.match(modulePhp,/master\.textContent='M'/,'Master Data button is the requested bold M');
-assert.match(modulePhp,/if\(c\.masterAccess\)/,'M is created only for users with Master Records viewing authority');
-assert.match(modulePhp,/top\.insertBefore\(master,date\)/,'M is fixed immediately before the header date');
-assert.match(modulePhp,/window\.location\.href='\/index\.php\?view=masters'/,'M opens the canonical cross-module Master Records workspace');
-assert.match(modulePhp,/#ttMasterTop[^}]*font:900 18px\/1 Arial/,'M is styled in bold');
-assert.doesNotMatch(modulePhp,/\.stock-prominent,#ttMasterTop/,'permission filtering does not hide M from ordinary users');
-assert.match(modulePhp,/document\.getElementById\('ttMasterTop'\)\?\.remove/,'users without Master Records viewing authority do not see M');
-assert.match(customerMaster,/window\.TTOpenMasterData=openManager/,'Export Master Data workspace exposes a safe top-bar entry point');
-assert.match(exportIndex,/customer-master\.js\?v=20260911-header-m-2/,'Exports invalidates the cached Master Data controller');
-assert.doesNotMatch(milling,/data-home-role="admin-only" onclick="openPanel\('masters'\)"/,'Milling no longer shows Master Data as a home tile');
-assert.match(milling,/<section id="masters" class="panel">/,'Milling retains the underlying Master Data workspace opened by M');
-
-console.log('PASS operational Master Records uses permission-aware top-bar M before date and opens the canonical workspace');
+assert.match(modulePhp,/getElementById\('ttMasterTop'\)\|\|document\.getElementById\('masterTop'\)/,'shared header reuses the existing Exports M');
+assert.match(modulePhp,/master\.id='ttMasterTop'/);
+assert.match(modulePhp,/master\.textContent='M'/);
+assert.doesNotMatch(modulePhp,/if\(c\.masterAccess\)/,'ordinary module users always receive M');
+assert.doesNotMatch(modulePhp,/getElementById\('ttMasterTop'\)\?\.remove/,'M is not removed from read-only users');
+assert.match(modulePhp,/top\.insertBefore\(master,date\)/,'M remains immediately before the date');
+assert.match(modulePhp,/window\.location\.href='\/index\.php\?view=masters'/);
+assert.match(modulePhp,/#ttMasterTop[^}]*font:900 18px\/1 Arial/,'M remains bold');
+assert.match(accounts,/const master = document\.createElement\('button'\)/,'Accounts always creates M');
+assert.doesNotMatch(accounts,/access\.masterAccess \? document\.createElement\('button'\)/,'Accounts does not permission-gate visibility');
+assert.match(auth,/if \(\$action==='View'\) return true/,'ordinary users receive read-only master access');
+assert.match(auth,/if \(empty\(\$user\['master_access'\]\)\) return false/,'mutations still require explicit master access');
+assert.match(customerMaster,/window\.TTOpenMasterData=openManager/);
+assert.match(exportIndex,/customer-master\.js\?v=20260911-header-m-2/);
+assert.doesNotMatch(milling,/data-home-role="admin-only" onclick="openPanel\('masters'\)"/,'Milling has no separate Master Data tile');
+assert.match(milling,/<section id="masters" class="panel">/,'the existing workspace remains available behind M');
+console.log('PASS universal read-only top-bar M with permission-controlled master mutations');
