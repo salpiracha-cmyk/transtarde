@@ -71,6 +71,7 @@ test('authenticated Accounts live smoke: professional desk and popup workflows',
 
   const areas = ['exports','commodity','routine','ledgers','reports'];
   for (const key of areas) await expect(page.locator(`[data-tt-area="${key}"]`), `${key} work area must be visible`).toBeVisible();
+  await expect(page.locator('#ttMainJV .tt-area-glyph svg')).toBeVisible();
   await expect(page.locator('#ttNativeLaunchers')).toBeHidden();
 
   await activate(page.locator('#ttChangeCompanyDesk'));
@@ -89,6 +90,20 @@ test('authenticated Accounts live smoke: professional desk and popup workflows',
   } else {
     await expect(page.locator('#ttMasterTop')).toHaveCount(0);
   }
+
+  await deskAction(page, 'exports', 'Bank Receipt / Credit Advice');
+  await expect(page.locator('#ttExportReceiptDialog')).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('#ws-bank')).not.toHaveClass(/active/);
+  await expect(page.locator('#ttDeskWork .tt-action-mark svg').first()).toBeVisible();
+  await expect(page.locator('#erPkrBank')).toBeVisible({ timeout: 30_000 });
+  await activate(page.locator('#ttExportReceiptDialog [data-er-close]'));
+  await expect(page.locator('#ttExportReceiptDialog')).toBeHidden();
+  await activate(page.locator('#ttDeskWork .tt-back-areas'));
+  await activate(page.locator('#ttMainJV'));
+  await expect(page.locator('#jvwLines .jvw-line')).toHaveCount(2, { timeout: 30_000 });
+  await expect(page.locator('#jvwNarration')).toBeVisible();
+  await expect(page.locator('#jvwSubmit')).toBeDisabled();
+  await closeWorkspace(page);
 
   await deskAction(page, 'commodity', 'Soda Centre');
   await expect(page.locator('#ttSodaLayer')).toBeVisible();
