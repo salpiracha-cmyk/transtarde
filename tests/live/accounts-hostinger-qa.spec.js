@@ -111,6 +111,7 @@ test('authenticated Accounts live smoke: professional desk and popup workflows',
   await expect(page.locator('#jvwCreditTotal')).toHaveText('0');
   await expect(page.locator('#jvwSubmit')).toBeDisabled();
   await closeWorkspace(page);
+  await expect(page.locator('#ws-jv')).not.toHaveClass(/active/);
 
   await deskAction(page, 'commodity', 'Soda Centre');
   await expect(page.locator('#ttSodaLayer')).toBeVisible();
