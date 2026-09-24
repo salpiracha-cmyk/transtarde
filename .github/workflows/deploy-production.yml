@@ -196,7 +196,6 @@ jobs:
 
       - name: Diagnose Gemini document reader
         id: gemini_health
-        continue-on-error: true
         run: |
           set +e
           result=$(ssh -i "$RUNNER_TEMP/ssh/deploy_key" \
@@ -234,9 +233,6 @@ jobs:
         run: |
           echo "## Production deployment" >> "$GITHUB_STEP_SUMMARY"
           echo "- Commit: \`$DEPLOY_SHA\`" >> "$GITHUB_STEP_SUMMARY"
-          if [ "${{ steps.gemini_health.outcome }}" != "success" ]; then
-            echo "- Gemini document reader diagnostic: warning (inspect diagnostic logs; production health checked independently)." >> "$GITHUB_STEP_SUMMARY"
-          fi
           echo "- URL: $PRODUCTION_URL" >> "$GITHUB_STEP_SUMMARY"
           echo "- Result: deployed and health checked" >> "$GITHUB_STEP_SUMMARY"
           echo "- Gemini document reader: ${{ steps.gemini_health.outcome }}" >> "$GITHUB_STEP_SUMMARY"
