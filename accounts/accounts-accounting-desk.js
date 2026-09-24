@@ -114,6 +114,7 @@
       @media(max-width:900px){.tt-position{grid-template-columns:repeat(2,1fr)}.tt-area-grid{grid-template-columns:repeat(2,1fr)}.tt-action-list{grid-template-columns:1fr}.workspace.tt-clean-modal .split{grid-template-columns:1fr!important}.tt-form-grid,.tt-tax-filters{grid-template-columns:repeat(2,1fr)}#ttCompanyMenu{grid-template-columns:1fr;right:10px}}
       @media(max-width:560px){.tt-desk-heading{display:block}.tt-search-main{width:100%;margin-top:12px}.tt-position,.tt-form-grid,.tt-tax-filters,.tt-area-grid{grid-template-columns:1fr}.tt-form-grid .wide{grid-column:auto}.tt-queue-row{grid-template-columns:1fr auto}.tt-queue-row span{display:none}.topbar{padding:0 10px!important}.brand{min-width:0!important}.brand>div:last-child{display:none}#ttChangeCompanyDesk{max-width:130px;overflow:hidden;text-overflow:ellipsis}.tt-window-body{padding:10px}}
     `;
+    style.textContent += `.tt-area-card,.tt-action{transition:transform .18s ease,box-shadow .18s ease,background .18s ease}.tt-area-card{border-color:var(--tile-border,#d9e2e9);background:linear-gradient(145deg,var(--tile-tint,#fff),#fff 76%)}.tt-area-card .tt-area-glyph{background:var(--tile-icon,#e9f1ec);color:var(--tile-color,#28523d)}.tt-area-card:nth-child(6n+1){--tile-tint:#fff5ef;--tile-icon:#ffe3d0;--tile-color:#ad5d37;--tile-border:#f1d9c8}.tt-area-card:nth-child(6n+2){--tile-tint:#f0f9f5;--tile-icon:#d9f1e3;--tile-color:#287455;--tile-border:#d3e8d9}.tt-area-card:nth-child(6n+3){--tile-tint:#f1f6ff;--tile-icon:#deeaff;--tile-color:#375fa6;--tile-border:#d6e1f4}.tt-area-card:nth-child(6n+4){--tile-tint:#fff9e9;--tile-icon:#ffedbc;--tile-color:#9b7126;--tile-border:#f0e4bf}.tt-area-card:nth-child(6n+5){--tile-tint:#f7f2ff;--tile-icon:#eadffc;--tile-color:#6a50a0;--tile-border:#e5daf3}.tt-area-card:nth-child(6n){--tile-tint:#ecfafb;--tile-icon:#d3f1f4;--tile-color:#237b8c;--tile-border:#cfe9ec}.tt-action-list[data-area-palette] .tt-action{margin:5px;border:1px solid #dfe8eb;background:linear-gradient(100deg,var(--action-tint,#f8fcfd),#fff 62%);border-radius:12px;min-height:88px;align-items:center}.tt-action-list[data-area-palette] .tt-action:hover{box-shadow:0 7px 20px #162f4317;transform:translateY(-1px)}.tt-action-list[data-area-palette] .tt-action-mark{width:44px;height:44px;flex-basis:44px;background:var(--action-icon,#dff2ed);color:var(--action-color,#286e5f);border-radius:12px}.tt-action:nth-child(5n+1){--action-tint:#f0f9f5;--action-icon:#d9f1e3;--action-color:#287455}.tt-action:nth-child(5n+2){--action-tint:#f1f6ff;--action-icon:#deeaff;--action-color:#375fa6}.tt-action:nth-child(5n+3){--action-tint:#fff9ed;--action-icon:#ffedc8;--action-color:#97702a}.tt-action:nth-child(5n+4){--action-tint:#f8f3ff;--action-icon:#eadffc;--action-color:#6a50a0}.tt-action:nth-child(5n){--action-tint:#eefafb;--action-icon:#d3f1f4;--action-color:#237b8c}.tt-action-mark svg{width:24px;height:24px}`;
     style.textContent+='@keyframes ttDuePulse{50%{box-shadow:0 0 0 3px #e5a63788}}.tt-due-alert{animation:ttDuePulse 1.8s ease-in-out infinite}.tt-summary[data-summary="due"] b{font-size:13px;line-height:1.4}';
     document.head.appendChild(style);
   }
@@ -220,10 +221,30 @@
     </div>`;
   }
 
+  function iconPicture(kind) {
+    const paths={
+      jv:'<rect x="4" y="2" width="16" height="20" rx="2"/><path d="M8 7h8M8 11h8M8 15h3m4 0h1"/>',
+      exports:'<path d="M3 19h18M5 19V9l5-4 5 4v10M15 10h6v9M9 12v3m9-1h1"/><path d="M14 3l3 2-3 2"/>',
+      commodity:'<path d="M3 9l9-5 9 5v11H3zM3 9l9 5 9-5M12 14v6M6 12v5m12-5v5"/>',
+      routine:'<path d="M4 7h16v13H4zM4 10h16M7 4h10v3M8 15h4m3 0h2"/>',
+      ledgers:'<path d="M5 3h12a2 2 0 012 2v16H7a2 2 0 01-2-2zM5 18a2 2 0 012-2h12M9 8h6m-6 4h6"/>',
+      reports:'<path d="M4 20V4h16v16zM8 16v-4m4 4V8m4 8v-6"/>',
+      receipt:'<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M12 7v9m-3-3l3 3 3-3M7 7h2m6 0h2"/>',
+      payment:'<rect x="4" y="5" width="16" height="14" rx="2"/><path d="M8 14l4-4 4 4M12 10v7"/>',
+      shipment:'<path d="M3 17h18l-3 4H6zM6 17V6h12v11M9 6V3h6v3M9 11h6"/>',
+      bill:'<path d="M6 2h12v20l-3-2-3 2-3-2-3 2zM9 7h6M9 11h6M9 15h4"/>',
+      bank:'<path d="M2 9l10-6 10 6M3 10h18M5 10v9m5-9v9m4-9v9m5-9v9M2 20h20"/>',
+      search:'<circle cx="10" cy="10" r="6"/><path d="M14.5 14.5L21 21"/>',
+      soda:'<path d="M4 8h16v13H4zM8 8V3h8v5M8 13h8m-8 4h5"/>',
+      master:'<circle cx="12" cy="12" r="8"/><path d="M12 8v8m-4-4h8"/>'
+    };
+    return `<svg viewBox="0 0 24 24" width="27" height="27" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[kind]||paths.bill}</svg>`;
+  }
+
   function showAreasHome() {
     const work = q('#ttDeskWork'); if (!work) return;
     const items = currentAreas();
-    work.innerHTML = `<div class="tt-home-head"><h2>${entity()==='TG'?'Trans Grains Accounts':'What do you want to do?'}</h2><p>${entity()==='TG'?'Only customer receipts, supplier payments, bank/local expenses, ledgers and reports are shown.':'Choose a broad area, then choose the exact entry or report.'}</p></div><div class="tt-area-grid"><button type="button" class="tt-area-card" id="ttMainJV"><span class="tt-area-glyph">≋</span><b>Journal Voucher</b><small>Prepare, approve and print a JV</small></button>${items.map(area=>`<button type="button" class="tt-area-card" data-tt-area="${area.key}"><span class="tt-area-glyph">${esc(area.glyph)}</span><b>${esc(area.title)}</b><small>${esc(area.note)}</small></button>`).join('')}</div>`;
+    work.innerHTML = `<div class="tt-home-head"><h2>${entity()==='TG'?'Trans Grains Accounts':'What do you want to do?'}</h2><p>${entity()==='TG'?'Only customer receipts, supplier payments, bank/local expenses, ledgers and reports are shown.':'Choose a broad area, then choose the exact entry or report.'}</p></div><div class="tt-area-grid"><button type="button" class="tt-area-card" id="ttMainJV"><span class="tt-area-glyph">${iconPicture('jv')}</span><b>Journal Voucher</b><small>Prepare, approve and print a JV</small></button>${items.map(area=>`<button type="button" class="tt-area-card" data-tt-area="${area.key}"><span class="tt-area-glyph">${iconPicture(area.key.startsWith('tg-')?area.key.slice(3):area.key)}</span><b>${esc(area.title)}</b><small>${esc(area.note)}</small></button>`).join('')}</div>`;
     q('#ttMainJV',work).onclick=()=>launch({native:'jv'});
     qa('[data-tt-area]', work).forEach(button=>button.onclick=()=>showArea(button.dataset.ttArea));
   }
@@ -234,19 +255,19 @@
     const work = q('#ttDeskWork');
     if (!work) return;
     const actionGlyph = action => {
-      const text = action.title.toLowerCase();
-      if (text.includes('receipt') || text.includes('advice')) return '↓';
-      if (text.includes('payment')) return '↑';
-      if (text.includes('bill')) return '▤';
-      if (text.includes('soda') || text.includes('purchase')) return '◉';
-      if (text.includes('ledger')) return 'L';
-      if (text.includes('tax')) return '%';
-      if (text.includes('search') || text.includes('history')) return '⌕';
-      if (text.includes('bank')) return '▰';
-      if (text.includes('report') || text.includes('balance') || text.includes('profit')) return '▦';
-      return '◇';
+      const label=action.title.toLowerCase();
+      if(action.special==='export-receipt'||label.includes('receipt')||label.includes('advice'))return iconPicture('receipt');
+      if(label.includes('payment'))return iconPicture('payment');
+      if(label.includes('freight')||label.includes('transport')||label.includes('shipment')||label.includes('fumigation')||label.includes('inspection'))return iconPicture('shipment');
+      if(label.includes('ledger')||label.includes('journal'))return iconPicture('ledgers');
+      if(label.includes('search')||label.includes('history'))return iconPicture('search');
+      if(label.includes('bank'))return iconPicture('bank');
+      if(label.includes('soda'))return iconPicture('soda');
+      if(label.includes('master'))return iconPicture('master');
+      if(label.includes('report')||label.includes('balance')||label.includes('profit'))return iconPicture('reports');
+      return iconPicture('bill');
     };
-    work.innerHTML = `<div class="tt-work-head"><button class="tt-back-areas" type="button">← Main Accounts</button><div><h2>${esc(area.title)}</h2><p>${esc(area.note)}</p></div></div><div class="tt-action-list">${area.actions.map((action, index) => `<button type="button" class="tt-action" data-tt-action="${index}"><span class="tt-action-mark">${actionGlyph(action)}</span><span><b>${esc(action.title)}</b><small>${esc(action.note || 'Open report')}</small></span></button>`).join('')}</div>`;
+    work.innerHTML = `<div class="tt-work-head"><button class="tt-back-areas" type="button">← Main Accounts</button><div><h2>${esc(area.title)}</h2><p>${esc(area.note)}</p></div></div><div class="tt-action-list" data-area-palette="${esc(area.key)}">${area.actions.map((action, index) => `<button type="button" class="tt-action" data-tt-action="${index}"><span class="tt-action-mark">${actionGlyph(action)}</span><span><b>${esc(action.title)}</b><small>${esc(action.note || 'Open report')}</small></span></button>`).join('')}</div>`;
     q('.tt-back-areas',work).onclick=showAreasHome;
     qa('[data-tt-action]', work).forEach(button => button.onclick = () => launch(area.actions[Number(button.dataset.ttAction)]));
   }

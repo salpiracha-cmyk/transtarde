@@ -43,7 +43,7 @@ assert(salesTaxApi.includes('tt_export_documents') && salesTaxApi.includes("$acc
 assert(exportDocumentsApi.includes("tt_user_can_open_module($user,'Accounts')"), 'Accounts users must be able to read linked Export documents without gaining Export write access');
 assert(receiptUi.includes('id="erAdviceFile"') && receiptUi.includes('uploadAdvice'), 'export receipts must accept a bank credit advice upload');
 assert(desk.includes("special:'export-receipt'") && receiptUi.includes('window.TT_EXPORT_RECEIPTS_UI={openForm}'), 'the Accounts icon must open the complete export receipt form directly');
-assert(receiptUi.includes('.appCard[data-key="bank"]') && receiptUi.includes("?.click()"), 'the export receipt icon must open its Bank workspace before rendering the form');
+assert(receiptUi.includes('ttExportReceiptDialog') && !receiptUi.includes("?.click()"), 'the credit advice must open its own form without flashing the old Bank workspace');
 assert(!receiptUi.includes('<details class="tter-section"') && receiptUi.includes('id="erAccountingRows"'), 'all credit-advice information and its Debit/Credit preview must remain visible in one full form');
 assert(receiptUi.includes('accounts_receipt_file.php') && receiptFileApi.includes('move_uploaded_file'), 'credit advice uploads must use the protected Accounts document endpoint');
 assert(receiptUi.includes('bankAdvicePaperRef') && fs.readFileSync('api/export_receipts.php', 'utf8').includes('bankAdvicePaperRef'), 'optional paper advice references must be retained separately from uploaded files');
@@ -65,7 +65,7 @@ const bankUi=fs.readFileSync('accounts/bank-accounts-ui.js','utf8');
 const companyUi=fs.readFileSync('admin/app.js','utf8');
 const bankApi=fs.readFileSync('api/bank_accounts.php','utf8');
 const retentionApi=fs.readFileSync('api/retention_remittances.php','utf8');
-assert(bankUi.includes("workspace.dataset.simpleReceipt='1'") && receiptUi.includes("openForm('',true)"), 'Pakistan bank workspace must open the receipt form without the generic bank dashboard');
+assert(receiptUi.includes('tter-overlay') && receiptUi.includes('function closeForm()'), 'Pakistan credit advice must be a direct, closable receipt dialog');
 assert(receiptUi.includes('erUseRetention') && receiptUi.includes('erRetentionDetails') && receiptUi.includes('erRetentionBank'), 'receipt must offer a designated retention account with visible bank details');
 assert(companyUi.includes('data-bank-retention') && auth.includes('function tt_bank_is_retention('), 'Company Master must own the retention designation');
 assert(bankApi.includes('masterRetentionAccount') && receiptApi.includes('tt_bank_is_retention($id,$store)') && retentionApi.includes('tt_bank_is_retention($bankId,$store)'), 'the Company Master designation must govern receipt and remittance posting');

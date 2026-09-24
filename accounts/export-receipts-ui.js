@@ -13,7 +13,7 @@
   const num = value => Math.max(0, Number(String(value ?? '').replace(/,/g,'')) || 0);
   const today = () => new Intl.DateTimeFormat('en-CA', {timeZone:'Asia/Karachi',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
   let data = null, banks = null, tgData = null, bankId = '', tgBankId = '', payerType = '', payer = '', currency = 'USD', chosen = new Map(), deductions = [], shortfallClass = '', shortfallNote = '', selectedTgPayment = null;
-  let pendingReceipt = null, navigatingToReceipt = false;
+  let pendingReceipt = null;
   const pendingKey = () => `tt_export_tg_settlement_${entity()}`;
   function savePending(value) { pendingReceipt = value; if (value) sessionStorage.setItem(pendingKey(),JSON.stringify(value)); else sessionStorage.removeItem(pendingKey()); }
   function restorePending() {
@@ -38,21 +38,23 @@
     if (q('#ttExportReceiptStyleV2')) return;
     const sheet = document.createElement('style'); sheet.id = 'ttExportReceiptStyleV2';
     sheet.textContent = `.tter-panel{margin:12px 18px 20px;border:1px solid #dfe6ec;border-radius:13px;background:#fff;overflow:hidden}.tter-head{display:flex;gap:10px;align-items:flex-start;padding:14px 15px;border-bottom:1px solid #edf0f3}.tter-head .sp{flex:1}.tter-body{padding:15px}.tter-step{border:1px solid #dfe6ec;border-radius:11px;padding:13px;margin-top:11px;background:#fbfcfd}.tter-step.active{border-color:#77a08a;background:#f7fcf9}.tter-step h3{margin:0 0 10px;font-size:13px}.tter-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.tter-grid label,.tter-item label{font-size:11px;font-weight:800;color:#526173}.tter-grid input,.tter-grid select,.tter-item input,.tter-item select,.tter-step textarea{width:100%;margin-top:5px;padding:9px;border:1px solid #cfd8e1;border-radius:8px;background:#fff}.tter-parties{display:grid;grid-template-columns:1fr 1fr;gap:10px}.tter-party{border:1px solid #dce4eb;background:#fff;border-radius:10px;padding:12px;text-align:left;cursor:pointer}.tter-party.active{border-color:#2f7956;box-shadow:inset 3px 0 #2f7956}.tter-items{border:1px solid #e1e7ed;border-radius:10px;overflow:hidden}.tter-item{display:grid;grid-template-columns:34px minmax(0,1fr) 150px;gap:9px;align-items:center;padding:10px;border-bottom:1px solid #edf0f3}.tter-item:last-child{border-bottom:0}.tter-item input[type=checkbox]{width:auto;margin:0}.tter-item b,.tter-item small{display:block}.tter-item small{color:#6d7885;margin-top:3px}.tter-ded{display:grid;grid-template-columns:1.3fr .7fr .8fr 1fr 36px;gap:8px;align-items:end;margin-top:8px}.tter-ded button{height:36px;border:0;border-radius:8px;background:#fff0f0;color:#963838;font-weight:900}.tter-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin-top:12px}.tter-kpi{border:1px solid #e0e6ec;border-radius:9px;padding:10px;background:#fafcfd}.tter-kpi span{display:block;font-size:9px;text-transform:uppercase;color:#6d7885}.tter-kpi b{display:block;margin-top:3px;font-size:15px}.tter-accounting{margin-top:12px;border:1px solid #b9cedb;background:#eef6fa;border-radius:10px;padding:12px}.tter-accounting-row{display:grid;grid-template-columns:55px minmax(0,1fr) auto;gap:8px;padding:4px 0;font-size:12px}.tter-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:13px}.tter-note{font-size:11px;color:#6f7a89;margin-top:6px}.tter-alert{padding:10px;border-radius:9px;background:#fff6df;border:1px solid #ead6a2;color:#705718;margin-top:9px}.tter-ok{color:#147a5b}.tter-bad{color:#a93a34}.tter-history{margin-top:12px;overflow:auto}.tter-history table{width:100%;border-collapse:collapse}.tter-history td,.tter-history th{padding:8px;border-bottom:1px solid #edf0f3;text-align:left;font-size:11px}@media(max-width:850px){.tter-grid,.tter-kpis{grid-template-columns:1fr 1fr}.tter-ded{grid-template-columns:1fr 1fr}.tter-item{grid-template-columns:30px 1fr}}@media(max-width:560px){.tter-grid,.tter-kpis,.tter-parties,.tter-ded{grid-template-columns:1fr}}`;
+    sheet.textContent += `.tter-overlay{position:fixed;inset:0;z-index:100070;display:grid;place-items:center;padding:18px;background:#102536aa}.tter-overlay[hidden]{display:none}.tter-dialog{width:min(1100px,98vw);max-height:94vh;overflow:auto;border-radius:16px;background:#f8fbfd;box-shadow:0 26px 75px #10253655}.tter-dialog .tter-panel{margin:0;border:0;border-radius:0}.tter-dialog .tter-head{position:sticky;top:0;z-index:2;background:#fff}@media(max-width:600px){.tter-overlay{padding:5px}.tter-dialog{max-height:99vh}}`;
     document.head.appendChild(sheet);
   }
   function ensurePanel() {
-    style(); const workspace = q('#ws-bank'); if (!workspace) return null;
-    let panel = workspace.querySelector('[data-er-panel]');
-    if (!panel) { panel = document.createElement('div'); panel.dataset.erPanel = '1'; panel.className = 'tter-panel'; workspace.querySelector('.subGrid')?.insertAdjacentElement('afterend',panel); }
-    panel.classList.remove('hidden'); return panel;
+    style(); let overlay=q('#ttExportReceiptDialog');
+    if(!overlay){overlay=document.createElement('div');overlay.id='ttExportReceiptDialog';overlay.className='tter-overlay';overlay.hidden=true;overlay.innerHTML='<div class="tter-dialog" role="dialog" aria-modal="true" aria-label="Bank Receipt and Credit Advice"><div class="tter-panel" data-er-panel></div></div>';document.body.appendChild(overlay);overlay.addEventListener('click',event=>{if(event.target===overlay)closeForm()});}
+    overlay.hidden=false;return overlay.querySelector('[data-er-panel]');
   }
+  function closeForm(){const overlay=q('#ttExportReceiptDialog');if(overlay)overlay.hidden=true;bankId='';payerType='';payer='';selectedTgPayment=null;chosen.clear();deductions=[];}
   function receiptBanks(currencyCode) { return (banks?.accounts || []).filter(account => account.settings?.active && account.settings?.allowReceipts && !account.needsCompletion && String(account.currency || '').toUpperCase() === currencyCode); }
   function selectedBankCurrency() { return String((banks?.accounts || []).find(account => account.id === bankId)?.currency || 'PKR').toUpperCase(); }
   function bankLabel(account) { return String(account.settings?.displayName || '').trim() || `${account.bankName || account.accountTitle || 'Bank'}${account.accountLast5 ? ` · •••${account.accountLast5}` : ''}`; }
   function bankOptions(currencyCode, selected = '') {
     const rows = [...receiptBanks('PKR'),...receiptBanks(currency)], preferred = rows.find(row => row.settings?.defaultReceiptAccount)?.id || '';
     const choice = selected || preferred;
-    return `<option value="">Choose company account</option>${rows.map(row => `<option value="${esc(row.id)}" ${row.id === choice ? 'selected' : ''}>${esc(bankLabel(row))} · ${esc(row.currency)}</option>`).join('')}`;
+    const unavailable=(banks?.accounts||[]).filter(row=>!rows.some(ready=>ready.id===row.id));
+    return `<option value="">Choose company account</option>${rows.map(row => `<option value="${esc(row.id)}" ${row.id === choice ? 'selected' : ''}>${esc(bankLabel(row))} · ${esc(row.currency)}</option>`).join('')}${unavailable.length?`<optgroup label="Linked in Company Master — needs attention">${unavailable.map(row=>`<option disabled>${esc(bankLabel(row))} · ${esc(row.currency||'currency missing')} · ${esc(row.needsCompletion?'complete account number / IBAN':row.settings?.active?'enable receipts':'inactive')}</option>`).join('')}</optgroup>`:''}`;
   }
   function retentionBankOptions(currencyCode, selected = '') {
     const rows = receiptBanks(currencyCode).filter(row => row.settings?.retentionAccount);
@@ -105,7 +107,8 @@
   function render() {
     const panel = ensurePanel(); if (!panel) return;
     if (pendingReceipt) {
-      panel.innerHTML = `<div class="tter-head"><b>Export Payment Receipt / Credit Advice</b></div><div class="tter-body"><div class="tter-alert">Pakistan receipt ${esc(pendingReceipt.receipt.id)} is posted. Complete its TG payable settlement before entering another receipt.</div><button class="btn green" id="erRetryTg">Retry TG settlement</button></div>`;
+      panel.innerHTML = `<div class="tter-head"><b>Export Payment Receipt / Credit Advice</b><div class="sp"></div><button class="btn" data-er-close>Close</button></div><div class="tter-body"><div class="tter-alert">Pakistan receipt ${esc(pendingReceipt.receipt.id)} is posted. Complete its TG payable settlement before entering another receipt.</div><button class="btn green" id="erRetryTg">Retry TG settlement</button></div>`;
+      q('[data-er-close]').onclick=closeForm;
       q('#erRetryTg').onclick = retryTgSettlement;
       return;
     }
@@ -142,7 +145,7 @@
   function bind() {
     q('#erUseRetention')?.addEventListener('change',updateRetentionDetails);
     q('#erRetentionBank')?.addEventListener('change',updateRetentionDetails);
-    q('[data-er-close]')?.addEventListener('click', () => { ensurePanel().classList.add('hidden'); bankId = ''; payerType = ''; payer = ''; selectedTgPayment = null; chosen.clear(); deductions = []; });
+    q('[data-er-close]')?.addEventListener('click', closeForm);
     q('#erPkrBank')?.addEventListener('change', event => { bankId = event.target.value; if (!selectedTgPayment) { payerType = ''; payer = ''; chosen.clear(); } render(); });
     qa('[data-payer-type]').forEach(button => { button.onclick = async () => { if(selectedTgPayment)return; payerType = button.dataset.payerType; payer = payerType === 'TG' ? 'TG' : ''; chosen.clear(); tgBankId = ''; if (payerType === 'TG' && !tgData) { try { await loadTg(); } catch (error) { payerType = ''; payer = ''; return toast(String(error.message || error),false); } } render(); }; });
     q('#erPayer')?.addEventListener('change', event => { if(selectedTgPayment)return; payer = event.target.value; chosen.clear(); render(); });
@@ -253,19 +256,19 @@
       toast(`Receipt ${result.receipt.id} posted.`); payerType = ''; payer = ''; selectedTgPayment=null; chosen.clear(); deductions = []; await load(); pendingBanner(); render(); window.TT_BANK_ACCOUNTS_UI?.reload?.();
     } catch (error) { toast(pendingReceipt ? `Receipt ${pendingReceipt.receipt.id} posted. TG settlement needs review: ${String(error.message || error)}` : String(error.message || error),false); if (pendingReceipt) render(); else { button.disabled = false; button.textContent = 'POST RECEIPT'; } }
   }
-  async function openForm(paymentId = '', skipNavigation = false) {
+  async function openForm(paymentId = '') {
     if (!['TTI','BRM'].includes(entity())) return toast('Pakistan export receipts are available in TTI / BRM books.',false);
     try {
-      if(!skipNavigation){navigatingToReceipt=true;try{q('#ttNativeLaunchers .appCard[data-key="bank"], #homeGrid .appCard[data-key="bank"]')?.click()}finally{navigatingToReceipt=false}}
-       const waiting=ensurePanel();if(waiting)waiting.innerHTML='<div class="tter-body">Loading company accounts and linked export receipts…</div>';
+       const waiting=ensurePanel();waiting.innerHTML='<div class="tter-head"><b>Bank Receipt / Credit Advice</b><div class="sp"></div><button class="btn" data-er-close>Close</button></div><div class="tter-body">Loading company accounts and linked export receipts…</div>';waiting.querySelector('[data-er-close]').onclick=closeForm;
        await load(); pendingBanner(); restorePending(); selectedTgPayment=(data?.pendingTg||[]).find(row=>row.id===paymentId)||null;
       if(selectedTgPayment){currency=selectedTgPayment.currency;payerType='TG';payer='TG';const item=sourceRows().find(row=>row.targetId===selectedTgPayment.candidateId&&row.isTg);if(!item)throw new Error('The linked Pakistan receivable is not recognized or has no remaining balance.');chosen=new Map([[item.key,{...item,applied:selectedTgPayment.amount}]]);shortfallClass=selectedTgPayment.amount<item.amount-.005?'PARTIAL':'';bankId=receiptBanks(currency).find(row=>row.settings?.defaultReceiptAccount)?.id || receiptBanks(currency)[0]?.id || receiptBanks('PKR')[0]?.id || '';}
        else bankId = receiptBanks('PKR').find(row => row.settings?.defaultReceiptAccount)?.id || receiptBanks('PKR')[0]?.id || ''; if (pendingReceipt) await loadTg(); ensurePanel(); render(); ensurePanel().scrollIntoView({behavior:'smooth',block:'start'});
-    } catch (error) { toast(String(error.message || error),false); }
+    } catch (error) { const panel=q('#ttExportReceiptDialog [data-er-panel]');if(panel)panel.innerHTML='<div class="tter-head"><b>Bank Receipt / Credit Advice</b><div class="sp"></div><button class="btn" data-er-close>Close</button></div><div class="tter-alert">'+esc(error.message||error)+'</div>';panel?.querySelector('[data-er-close]')?.addEventListener('click',closeForm);toast(String(error.message || error),false); }
   }
   window.TT_EXPORT_RECEIPTS_UI={openForm};
+  document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!q('#ttExportReceiptDialog')?.hidden)closeForm();});
   const refreshPending=()=>{if(['TTI','BRM'].includes(entity()))load().then(pendingBanner).catch(()=>{});else pendingBanner();};
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',refreshPending,{once:true});else refreshPending();
-  document.addEventListener('click',event=>{if(event.target.closest('[data-tt-entity], .entityBtn'))setTimeout(refreshPending,100);if(!navigatingToReceipt&&['TTI','BRM'].includes(entity())&&event.target.closest('.appCard[data-key="bank"]'))openForm('',true);});
+  document.addEventListener('click',event=>{if(event.target.closest('[data-tt-entity], .entityBtn')){closeForm();setTimeout(refreshPending,100);}});
   setInterval(()=>{if(document.visibilityState==='visible'&&['TTI','BRM'].includes(entity()))refreshPending();},30000);
 })();
