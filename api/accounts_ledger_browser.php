@@ -23,7 +23,7 @@ function alb_cell(mixed $value): string {
 $user=tt_require_login();
 if(!tt_user_can_open_module($user,'Accounts'))alb_fail('Accounts permission required.',403);
 $entity=strtoupper(trim((string)($_GET['entity']??'')));
-if(!in_array($entity,['TTI','BRM','TG'],true)||!tt_user_can_access_entity($user,$entity,'View'))alb_fail('Company access denied.',403);
+if(!in_array($entity,['TTI','BRM','TG','ALL'],true)||($entity==='ALL'&&!isset($_GET['account']))||($entity==='ALL'&&($_GET['account']??'')!=='POSTS')||($entity!=='ALL'&&!tt_user_can_access_entity($user,$entity,'View')))alb_fail('Company access denied.',403);
 $from=alb_date((string)($_GET['from']??date('Y').'-01-01'));
 $to=alb_date((string)($_GET['to']??date('Y-m-d')));
 if($from>$to)alb_fail('From date cannot be later than To date.');
@@ -54,17 +54,17 @@ foreach((array)(tt_list_masters()['banks']??[]) as $bank){
     $id=(string)($bank['id']??'');if($id==='')continue;
     $banks[$id]=['code'=>'BANK|'.$id,'name'=>trim((string)($v[4]??'Bank')).' · '.trim((string)($v[3]??'')).' · '.strtoupper((string)($v[7]??'')),'currency'=>strtoupper((string)($v[7]??''))];
 }
-$catalog['POSTS']='Post Entry Ledger';
+$catalog['POSTS']='Post ID Register';
 foreach($banks as $bank)$catalog[$bank['code']]=$bank['name'];
 $requestedPost=trim((string)($_GET['postId']??''));
 if($requestedPost!==''){
     $posting=$store['journals'][$requestedPost]??null;
-    if(!is_array($posting)||($posting['status']??'')!=='Posted'||!tt_user_can_access_entity($user,(string)($posting['entity']??''),'View'))$posting=null;
+    if(!is_array($posting)||($posting['status']??'')!=='Posted'||($entity!=='ALL'&&($posting['entity']??'')!==$entity)||!tt_user_can_access_entity($user,(string)($posting['entity']??''),'View'))$posting=null;
     if(!$posting)alb_fail('Post ID was not found in these company books.',404);
     header('Content-Type: application/json; charset=UTF-8');
     echo json_encode(['ok'=>true,'entity'=>$posting['entity'],'post'=>$posting],JSON_UNESCAPED_UNICODE);exit;
 }
-$journals=array_values(array_filter((array)($store['journals']??[]),static fn($j)=>is_array($j)&&($j['entity']??'')===$entity&&($j['status']??'')==='Posted'&&($j['date']??'')<=$to));
+$journals=array_values(array_filter((array)($store['journals']??[]),static fn($j)=>is_array($j)&&($entity==='ALL'?tt_user_can_access_entity($user,(string)($j['entity']??''),'View'):($j['entity']??'')===$entity)&&($j['status']??'')==='Posted'&&($j['date']??'')<=$to));
 foreach($journals as $journal)foreach((array)($journal['lines']??[]) as $line)if(is_array($line)&&isset($line['account'])){
     $code=(string)$line['account'];if(!isset($catalog[$code]))$catalog[$code]=(string)($line['accountName']??$code);
 }
@@ -75,7 +75,7 @@ $opening=0.0;$rows=[];
 foreach($journals as $journal){
     if($postEntries){
         $date=(string)$journal['date'];if($date<$from)continue;
-        $rows[]=['date'=>$date,'voucher'=>(string)($journal['id']??''),'account'=>'POSTS','accountName'=>'Post Entry Ledger','reference'=>(string)($journal['reference']??''),'narration'=>(string)($journal['narration']??'').(str_starts_with((string)($journal['meta']['notes']??''),'Mirrored settlement for Pakistan receipt ')?' · '.(string)$journal['meta']['notes']:''),'party'=>(string)($journal['sourceType']??''),'debit'=>round((float)($journal['totalDebit']??0),2),'credit'=>round((float)($journal['totalCredit']??0),2),'balance'=>null];
+        $rows[]=['date'=>$date,'voucher'=>(string)($journal['id']??''),'account'=>'POSTS','accountName'=>(string)$journal['entity'],'reference'=>(string)($journal['reference']??''),'narration'=>(string)($journal['narration']??'').(str_starts_with((string)($journal['meta']['notes']??''),'Mirrored settlement for Pakistan receipt ')?' · '.(string)$journal['meta']['notes']:''),'party'=>(string)($journal['sourceType']??''),'debit'=>round((float)($journal['totalDebit']??0),2),'credit'=>round((float)($journal['totalCredit']??0),2),'balance'=>null];
         continue;
     }
     foreach((array)($journal['lines']??[]) as $line){
@@ -104,7 +104,7 @@ if(($_GET['format']??'')==='csv'){
     $out=fopen('php://output','w');fwrite($out,"\xEF\xBB\xBF");
     fputcsv($out,['Company',$entity,'Account',$account!==''?$account.' '.$catalog[$account]:'All Ledgers','From',$from,'To',$to]);
     fputcsv($out,['Opening Balance','','','','','','','','',$account!==''?round($opening,2):'']);
-    fputcsv($out,['Date','Voucher','Account','Account Name','Reference','Narration','Party','Debit','Credit','Balance']);
+    fputcsv($out,['Date','Post ID','Account','Account Name','Reference','Narration','Party','Debit','Credit','Balance']);
     foreach($rows as $row)fputcsv($out,array_map('alb_cell',[$row['date'],$row['voucher'],$row['account'],$row['accountName'],$row['reference'],$row['narration'],$row['party'],$row['debit'],$row['credit'],$row['balance']??'']));
     fclose($out);exit;
 }

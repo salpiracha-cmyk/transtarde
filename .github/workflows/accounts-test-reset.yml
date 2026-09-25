@@ -1,0 +1,63 @@
+name: Owner Accounts Test Data Reset
+
+on:
+  push:
+    branches: [main]
+    paths: ['ops/accounts-reset-command.txt']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: owner-accounts-test-reset
+  cancel-in-progress: false
+
+jobs:
+  reset:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: live-qa
+    env:
+      HOSTINGER_HOST: ${{ secrets.HOSTINGER_HOST }}
+      HOSTINGER_PORT: ${{ secrets.HOSTINGER_PORT }}
+      HOSTINGER_USER: ${{ secrets.HOSTINGER_USER }}
+      HOSTINGER_DEPLOY_PATH: ${{ secrets.HOSTINGER_DEPLOY_PATH }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate reset scope and credentials
+        env:
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+          HOSTINGER_KNOWN_HOSTS: ${{ secrets.HOSTINGER_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          php -l scripts/accounts_reset_core.php
+          php -l scripts/reset_accounts_test_data.php
+          for name in HOSTINGER_HOST HOSTINGER_PORT HOSTINGER_USER HOSTINGER_DEPLOY_PATH HOSTINGER_SSH_KEY HOSTINGER_KNOWN_HOSTS; do
+            test -n "${!name:-}" || { echo "Missing required deployment secret: $name"; exit 1; }
+          done
+          case "$HOSTINGER_DEPLOY_PATH" in
+            /home/*/domains/app.transtradeinternational.com/public_html) ;;
+            *) echo "Unexpected production target"; exit 1 ;;
+          esac
+          reset_id=$(tr -d '\r\n ' < ops/accounts-reset-command.txt)
+          [[ "$reset_id" =~ ^[A-Za-z0-9._:-]{8,120}$ ]] || { echo "Invalid owner reset ID"; exit 1; }
+          echo "RESET_ID=$reset_id" >> "$GITHUB_ENV"
+          install -m 700 -d "$RUNNER_TEMP/ssh"
+          printf '%s\n' "$HOSTINGER_SSH_KEY" | tr -d '\r' > "$RUNNER_TEMP/ssh/deploy_key"
+          printf '%s\n' "$HOSTINGER_KNOWN_HOSTS" | tr -d '\r' > "$RUNNER_TEMP/ssh/known_hosts"
+          chmod 600 "$RUNNER_TEMP/ssh/deploy_key" "$RUNNER_TEMP/ssh/known_hosts"
+          ssh-keygen -y -f "$RUNNER_TEMP/ssh/deploy_key" >/dev/null
+      - name: Inspect, snapshot, reset and verify Accounts only
+        run: |
+          set -euo pipefail
+          SSH=(ssh -i "$RUNNER_TEMP/ssh/deploy_key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" -o StrictHostKeyChecking=yes -p "$HOSTINGER_PORT")
+          SCP=(scp -i "$RUNNER_TEMP/ssh/deploy_key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" -o StrictHostKeyChecking=yes -P "$HOSTINGER_PORT")
+          remote_dir="${HOSTINGER_DEPLOY_PATH%/public_html}/.transtrade-owner-reset"
+          "${SSH[@]}" "$HOSTINGER_USER@$HOSTINGER_HOST" "mkdir -p '$remote_dir' && chmod 700 '$remote_dir'"
+          "${SCP[@]}" scripts/accounts_reset_core.php scripts/reset_accounts_test_data.php "$HOSTINGER_USER@$HOSTINGER_HOST:$remote_dir/"
+          script="$remote_dir/reset_accounts_test_data.php"
+          "${SSH[@]}" "$HOSTINGER_USER@$HOSTINGER_HOST" php "$script" --target "$HOSTINGER_DEPLOY_PATH" --reset-id "$RESET_ID"
+          result=$("${SSH[@]}" "$HOSTINGER_USER@$HOSTINGER_HOST" php "$script" --target "$HOSTINGER_DEPLOY_PATH" --reset-id "$RESET_ID" --apply)
+          echo "ACCOUNTS_RESET_RESULT=$result"
+          php -r '$r=json_decode($argv[1],true);if(!is_array($r)||($r["ok"]??false)!==true||($r["applied"]??false)!==true){fwrite(STDERR,"Accounts reset verification failed.\n");exit(1);} echo "Accounts reset server assertions passed.\n";' "$result"
+          "${SSH[@]}" "$HOSTINGER_USER@$HOSTINGER_HOST" "rm -f '$script' '$remote_dir/accounts_reset_core.php'"

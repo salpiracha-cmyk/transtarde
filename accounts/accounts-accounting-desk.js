@@ -44,7 +44,7 @@
     ]},
     {key:'ledgers', glyph:'L', title:'Ledgers & Accounting', note:'Party, bank and general ledgers with controlled JV', actions:[
       {title:'All Ledgers', note:'Search any posting account; select a date range, print or export', special:'all-ledgers'},
-      {title:'Post Entry Ledger', note:'Every Post ID in date and number order with its debit and credit lines', special:'post-ledger'},
+      {title:'Post ID Register', note:'Every Post ID in date and number order with its debit and credit lines', special:'post-ledger'},
       {title:'Customer Ledgers', native:'receivables'}, {title:'Supplier / Broker Ledgers', native:'payables'},
       {title:'Bank / Cash Ledgers', special:'all-ledgers'}, {title:'General Ledger', native:'reports', find:'General Ledger'},
       {title:'Journal Voucher', note:'The only manual Debit / Credit entry screen', native:'jv'},
@@ -73,7 +73,7 @@
       {title:'Utilities', native:'expenses', then:'[data-expense="utility"]'}, {title:'Bank Reconciliation', native:'reconciliation'}
     ]},
     {key:'tg-ledgers', glyph:'L', title:'Ledgers & JV', note:'TG customer, supplier, bank and general ledgers', actions:[
-      {title:'Post Entry Ledger', special:'post-ledger'}, {title:'All Ledgers', special:'all-ledgers'}, {title:'Customer Ledger', native:'receivables'}, {title:'Supplier Ledger', native:'payables'}, {title:'Bank / Cash Ledger', special:'all-ledgers'},
+      {title:'Post ID Register', special:'post-ledger'}, {title:'All Ledgers', special:'all-ledgers'}, {title:'Customer Ledger', native:'receivables'}, {title:'Supplier Ledger', native:'payables'}, {title:'Bank / Cash Ledger', special:'all-ledgers'},
       {title:'General Ledger', native:'reports', find:'General Ledger'}, {title:'Journal Voucher', native:'jv'}, {title:'Search All Entries', special:'search'}
     ]},
     {key:'tg-reports', glyph:'▤', title:'Reports', note:'TG balances and financial reports', actions:[
