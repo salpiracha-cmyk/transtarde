@@ -55,6 +55,10 @@ jobs:
           remote_dir="${HOSTINGER_DEPLOY_PATH%/public_html}/.transtrade-owner-reset"
           "${SSH[@]}" "$HOSTINGER_USER@$HOSTINGER_HOST" "mkdir -p '$remote_dir' && chmod 700 '$remote_dir'"
           "${SCP[@]}" scripts/accounts_reset_core.php scripts/reset_accounts_test_data.php "$HOSTINGER_USER@$HOSTINGER_HOST:$remote_dir/"
+          expected_sha=$(git rev-parse HEAD^)
+          live_sha=$("${SSH[@]}" "$HOSTINGER_USER@$HOSTINGER_HOST" "cat '$HOSTINGER_DEPLOY_PATH/.transtrade-release'")
+          test "$live_sha" = "$expected_sha" || { echo "Installed production release differs from QA-approved code; reset refused."; exit 1; }
+          "${SSH[@]}" "$HOSTINGER_USER@$HOSTINGER_HOST" "php -l '$HOSTINGER_DEPLOY_PATH/api/export_accounting.php' >/dev/null && php -l '$HOSTINGER_DEPLOY_PATH/api/accounts_ledger_browser.php' >/dev/null"
           script="$remote_dir/reset_accounts_test_data.php"
           "${SSH[@]}" "$HOSTINGER_USER@$HOSTINGER_HOST" php "$script" --target "$HOSTINGER_DEPLOY_PATH" --reset-id "$RESET_ID"
           result=$("${SSH[@]}" "$HOSTINGER_USER@$HOSTINGER_HOST" php "$script" --target "$HOSTINGER_DEPLOY_PATH" --reset-id "$RESET_ID" --apply)
