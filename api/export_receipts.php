@@ -43,7 +43,7 @@ function er_catalog(): array {
 }
 function er_line(string $account,float $dr,float $cr,array $catalog,array $extra=[]): array {if(!isset($catalog[$account]))er_respond(['ok'=>false,'error'=>'Accounting mapping '.$account.' is not configured.'],422);return array_merge(['account'=>$account,'accountName'=>(string)($catalog[$account]['name']??$account),'debit'=>round($dr,2),'credit'=>round($cr,2)],$extra);}
 function er_post_journal(array &$store,array $user,string $entity,string $date,string $sourceType,string $reference,string $narration,array $lines,array $meta): array {
-    $dr=round(array_sum(array_column($lines,'debit')),2);$cr=round(array_sum(array_column($lines,'credit')),2);if($dr<=0||abs($dr-$cr)>.01)throw new RuntimeException('Export receipt journal did not balance.');
+    $dr=round(array_sum(array_column($lines,'debit')),2);$cr=round(array_sum(array_column($lines,'credit')),2);if($dr<=0||($entity==='TG'&&(int)round($dr*100)!==(int)round($cr*100))||($entity!=='TG'&&abs($dr-$cr)>.01))throw new RuntimeException('Export receipt journal did not balance.');
     $id=er_next_id((array)$store['journals'],'AUTO');$store['journals'][$id]=['id'=>$id,'entity'=>$entity,'date'=>$date,'sourceType'=>$sourceType,'reference'=>$reference,'narration'=>$narration,'lines'=>$lines,'totalDebit'=>$dr,'totalCredit'=>$cr,'status'=>'Posted','meta'=>$meta,'createdAt'=>gmdate('c'),'createdBy'=>(string)($user['full_name']??$user['username']??'Accounts'),'userId'=>(int)($user['id']??0),'reversalOf'=>null];return $store['journals'][$id];
 }
 function er_operations_root(): array {

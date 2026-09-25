@@ -62,9 +62,18 @@ if($requestedPost!==''){
     if(!is_array($posting)||($posting['status']??'')!=='Posted'||($entity!=='ALL'&&($posting['entity']??'')!==$entity)||!tt_user_can_access_entity($user,(string)($posting['entity']??''),'View'))$posting=null;
     if(!$posting)alb_fail('Post ID was not found in these company books.',404);
     $receipt=(array)($store['exportReceipts'][(string)($posting['meta']['receiptId']??'')]??[]);
-    if($receipt){$posting['receiptAmendment']=['status'=>$receipt['status']??'','replacementReceiptId'=>$receipt['replacementReceiptId']??'','amendmentOf'=>$receipt['amendmentOf']??'','reversalPostIds'=>$receipt['reversalPostIds']??[]];}
+    if($receipt){$posting['receiptAmendment']=['status'=>$receipt['status']??'','entity'=>$receipt['entity']??'','replacementReceiptId'=>$receipt['replacementReceiptId']??'','amendmentOf'=>$receipt['amendmentOf']??'','reversalPostIds'=>$receipt['reversalPostIds']??[]];}
     header('Content-Type: application/json; charset=UTF-8');
-    echo json_encode(['ok'=>true,'entity'=>$posting['entity'],'post'=>$posting],JSON_UNESCAPED_UNICODE);exit;
+    $postBanks=[];
+    foreach((array)(tt_list_masters()['banks']??[]) as $bank){
+        if(!is_array($bank)||($bank['values'][0]??'')!=='Company Account')continue;
+        $v=(array)($bank['values']??[]);$linked=strtoupper((string)($v[1]??''));$owner=(string)$posting['entity'];
+        $belongs=$owner==='TG'?(str_contains($linked,'TRANS GRAINS')||preg_match('/(^|\W)TG($|\W)/',$linked)):
+            ($owner==='BRM'?(str_contains($linked,'BUKSH RICE')||preg_match('/(^|\W)BRM($|\W)/',$linked)):
+            (str_contains($linked,'TRANSTRADE INTERNATIONAL')||preg_match('/(^|\W)TTI($|\W)/',$linked)));
+        if($belongs)$postBanks[]=['id'=>(string)($bank['id']??''),'label'=>trim((string)($v[4]??'').' · '.(string)($v[3]??'').' · '.(string)($v[7]??''))];
+    }
+    echo json_encode(['ok'=>true,'entity'=>$posting['entity'],'post'=>$posting,'bankAccounts'=>$postBanks],JSON_UNESCAPED_UNICODE);exit;
 }
 $journals=array_values(array_filter((array)($store['journals']??[]),static fn($j)=>is_array($j)&&($entity==='ALL'?tt_user_can_access_entity($user,(string)($j['entity']??''),'View'):($j['entity']??'')===$entity)&&($j['status']??'')==='Posted'&&($j['date']??'')<=$to));
 foreach($journals as $journal)foreach((array)($journal['lines']??[]) as $line)if(is_array($line)&&isset($line['account'])){

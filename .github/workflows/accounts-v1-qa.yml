@@ -43,6 +43,7 @@ jobs:
           php tests/accounts-v1/tg_receipt_mirror_test.php
           php tests/accounts-v1/accounts_reset_scope_test.php
           php tests/accounts-v1/credit_advice_amendment_test.php
+          php tests/accounts-v1/post_amendment_test.php
           node tests/accounts-v1/master_role_mapping_test.js
           node tests/offline_recovery_audit.js
       - name: Private stock reconciliation rules
