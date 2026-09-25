@@ -15,7 +15,8 @@ assert.doesNotMatch(exMillMarkup,/SODA Conditions|Soda Quantity|Soda balance/i,'
 assert.match(exMillMarkup,/Loading Instructions/,'the selected outside mill must expose Loading Instructions');
 assert.match(mill,/event\.target\.closest\('input,select,button,textarea'\)/,'form controls must not collapse the parent loading row');
 assert.match(mill,/data-ex-instruction-id/,'Ex-Mill rows must use instruction identity rather than SODA identity');
-assert.match(mill,/instructionId:id,sodaId:soda\.id/,'loads must keep exact instruction identity and the hidden Accounts authorization link');
+assert.match(mill,/function chooseMill\(id\)[\s\S]*?exMillInstructions\(\)\.find[\s\S]*?openExMillWorkspace\(\);selectExMill\(exMillName\)/,'selecting an instructed outside mill must open its loading form directly');
+assert.match(mill,/instructionId:x\.id,sodaId:soda\.id/,'loads must keep exact instruction identity and the hidden Accounts authorization link');
 assert.match(mill,/STORE_INSTRUCTION_SEEN='tt40instructionseen'/,'unseen Export instruction state must persist per Mill user');
 assert.match(mill,/class="update-count"/,'green numbered update badges must be present on Mill home');
 assert.match(mill,/border-radius:50%;background:#18a34a/,'new instruction count must use the approved green circular badge');
