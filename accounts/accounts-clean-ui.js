@@ -9,6 +9,7 @@
   const nativeCards = new Map();
   let groupDialog = null;
   let masterMode = '';
+  let activeSearchMenu = null;
 
   const groups = [
     {key:'purchases', icon:'◉', title:'Purchases', items:[
@@ -86,7 +87,7 @@
       .tt-quick-item{border:1px solid #dfe6ec;background:#fff;border-radius:14px;padding:15px;text-align:left;cursor:pointer;min-height:115px}
       .tt-quick-item:hover{border-color:#173c63;box-shadow:0 6px 18px rgba(19,40,65,.09)}
       .tt-quick-item b{display:block;font-size:14px;margin:9px 0 4px}.tt-quick-item small{color:#6f7a89;line-height:1.35}.tt-quick-icon{font-size:23px}
-      .tt-search-select{position:relative;margin-top:5px}.tt-search-select>input{margin:0!important;padding-right:30px!important}.tt-search-select:after{content:"⌄";position:absolute;right:10px;top:8px;color:#687686;pointer-events:none}.tt-native-select{position:absolute!important;opacity:0!important;pointer-events:none!important;width:1px!important;height:1px!important;margin:0!important}.tt-select-menu{position:absolute;z-index:500;left:0;right:0;top:calc(100% + 4px);max-height:220px;overflow:auto;background:#fff;border:1px solid #cdd7e0;border-radius:9px;box-shadow:0 12px 28px rgba(17,37,59,.18)}.tt-select-menu[hidden]{display:none!important}
+      .tt-search-select{position:relative;margin-top:5px}.tt-search-select>input{margin:0!important;padding-right:30px!important}.tt-search-select:after{content:"⌄";position:absolute;right:10px;top:8px;color:#687686;pointer-events:none}.tt-native-select{position:absolute!important;opacity:0!important;pointer-events:none!important;width:1px!important;height:1px!important;margin:0!important}.tt-select-menu{position:fixed;z-index:100080;max-height:220px;overflow:auto;background:#fff;border:1px solid #cdd7e0;border-radius:9px;box-shadow:0 12px 28px rgba(17,37,59,.18)}.tt-select-menu[hidden]{display:none!important}
       .tt-select-menu button{display:block;width:100%;border:0;background:#fff;padding:9px 10px;text-align:left;cursor:pointer}.tt-select-menu button:hover,.tt-select-menu button:focus{background:#edf3f8}.tt-select-empty{padding:9px;color:#6f7a89;font-size:11px}
       .tt-optional-details{grid-column:1/-1;border:1px solid #e2e8ee;border-radius:10px;padding:9px 11px;background:#fafbfd}.tt-optional-details summary{cursor:pointer;font-weight:800;color:#42566a}.tt-optional-grid{display:grid;grid-template-columns:repeat(3,minmax(150px,1fr));gap:10px;margin-top:10px}
       .tt-master-only .ttrs-head,.tt-master-only .ttrs-pay,.tt-master-only .ttrs-box:has(table tbody [data-rs-salpay]),.tt-master-only .ttrs-box:has(table tbody [data-rs-rentdue]){display:none!important}
@@ -242,7 +243,28 @@
     menu.className = 'tt-select-menu';
     menu.hidden = true;
     select.parentNode.insertBefore(wrap, select);
-    wrap.append(input, select, menu);
+    wrap.append(input, select);
+    // Keep options outside scrollable dialogs so they are never clipped by the
+    // faded backdrop. Position them within the visible dialog when possible.
+    menu._ttOwner = wrap;
+    document.body.appendChild(menu);
+    const positionMenu = () => {
+      if (menu.hidden) return;
+      if (!wrap.isConnected) { menu.remove(); if (activeSearchMenu === menu) activeSearchMenu = null; return; }
+      const rect = input.getBoundingClientRect();
+      const dialog = input.closest('.tter-dialog,.tt-clean-modal');
+      const bounds = dialog?.getBoundingClientRect();
+      const topLimit = Math.max(8, (bounds?.top ?? 0) + 8);
+      const bottomLimit = Math.min(window.innerHeight - 8, (bounds?.bottom ?? window.innerHeight) - 8);
+      const below = bottomLimit - rect.bottom - 4, above = rect.top - topLimit - 4;
+      const openAbove = below < 140 && above > below;
+      const height = Math.max(48, Math.min(220, openAbove ? above : below));
+      menu.style.left = `${rect.left}px`;
+      menu.style.width = `${rect.width}px`;
+      menu.style.maxHeight = `${height}px`;
+      menu.style.top = `${openAbove ? rect.top - height - 4 : rect.bottom + 4}px`;
+    };
+    menu._ttPosition = positionMenu;
     const selectedText = () => select.selectedOptions[0]?.textContent.trim() || '';
     const closeMenus = () => qa('.tt-select-menu').forEach(candidate => {
       if (candidate !== menu) candidate.hidden = true;
@@ -273,6 +295,8 @@
         menu.appendChild(button);
       });
       menu.hidden = false;
+      activeSearchMenu = menu;
+      positionMenu();
     };
     input.onfocus = () => {
       if (select.value === '') input.value = '';
@@ -450,8 +474,11 @@
     document.addEventListener('click', event => {
       if (!event.target.closest('.tt-search-select')) qa('.tt-select-menu').forEach(menu => { menu.hidden = true; });
     });
+    document.addEventListener('scroll', () => activeSearchMenu?._ttPosition?.(), true);
+    window.addEventListener('resize', () => activeSearchMenu?._ttPosition?.());
     const observer = new MutationObserver(records => {
       records.forEach(record => record.addedNodes.forEach(node => { if (node.nodeType === 1) scan(node); }));
+      qa('.tt-select-menu').forEach(menu => { if (menu._ttOwner && !menu._ttOwner.isConnected) menu.remove(); });
     });
     observer.observe(document.body, {childList:true, subtree:true});
     scan();

@@ -28,7 +28,7 @@
     const row = (masters[type] || []).find(item => clean(item?.values?.[0]).toLowerCase() === name.toLowerCase());
     const canCreate = access.super || (access.masterPermissions?.[type] || []).includes('Create');
     const canEdit = access.super || (access.masterPermissions?.[type] || []).includes('Edit');
-    if (!row && !canCreate) return;
+    if (!row && !canCreate) return false;
     let dialog = document.getElementById('ttPartyInlineEditor');
     if (!dialog) {
       dialog = document.createElement('dialog'); dialog.id = 'ttPartyInlineEditor';
@@ -70,6 +70,7 @@
       finally { save.disabled = false; }
     };
     dialog.appendChild(form); dialog.showModal();
+    return true;
   }
   function category(input) {
     if (!input || input.closest('.tt-search-select') || input.matches('[readonly],[disabled],[type="date"],[type="number"],[type="file"]')) return '';
@@ -116,6 +117,10 @@
   const observer = new MutationObserver(() => { if (queued) return; queued = true; requestAnimationFrame(() => { queued = false; refresh(); }); });
   const start = () => { refresh(); observer.observe(document.body,{childList:true,subtree:true}); };
   document.addEventListener('change',event => { if (event.target?.id === 'svKind') refresh(); });
-  window.TT_ACCOUNTS_MASTER_CHOICES = { refresh: newMasters => { if (newMasters) { masters = newMasters; access.masters = newMasters; } refresh(); }, partyNames };
+  window.TT_ACCOUNTS_MASTER_CHOICES = {
+    refresh: newMasters => { if (newMasters) { masters = newMasters; access.masters = newMasters; } refresh(); },
+    partyNames, customerNames,
+    manageCustomer: (name,onSaved) => openEditor({value:clean(name),dispatchEvent(){onSaved?.(this.value)}},'buyer')
+  };
   document.readyState === 'loading' ? document.addEventListener('DOMContentLoaded',start,{once:true}) : start();
 })();
