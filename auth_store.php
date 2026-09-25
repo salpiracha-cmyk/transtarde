@@ -158,6 +158,18 @@ function tt_bank_is_retention(string $id,array $store): bool {
     return !empty($store['bankAccountSettings'][$id]['retentionAccount']);
 }
 
+/** Active company bank identities can receive and make payments without separate Accounts toggles. */
+function tt_bank_can_transact(string $id): bool {
+    foreach ((array)(tt_list_masters()['banks'] ?? []) as $bank) {
+        if ((string)($bank['id'] ?? '') !== $id) continue;
+        $v=(array)($bank['values'] ?? []);
+        return (string)($v[0] ?? '')==='Company Account'
+            && strcasecmp((string)($v[13] ?? 'Active'),'Active')===0
+            && (trim((string)($v[8] ?? ''))!=='' || trim((string)($v[9] ?? ''))!=='');
+    }
+    return false;
+}
+
 function tt_normalize_masters(array $masters): array {
     $defaults=tt_default_masters();
     foreach ($defaults as $type=>$rows) if (!isset($masters[$type]) || !is_array($masters[$type])) $masters[$type]=$rows;

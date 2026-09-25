@@ -110,10 +110,7 @@ function ss_bank_source(array $store,string $entity,string $bankId,string $permi
     $a=ss_bank_master($bankId,$entity);
     if(($a['accountType']??'')!=='Company Account')ss_respond(['ok'=>false,'error'=>'Only an approved company bank account can be used as a company payment source.'],422);
     if(trim((string)$a['accountNumber'])===''&&trim((string)$a['iban'])==='')ss_respond(['ok'=>false,'error'=>'Complete the account number or IBAN in the shared Bank Master before using this bank.'],422);
-    $s=is_array($store['bankAccountSettings'][$bankId]??null)?$store['bankAccountSettings'][$bankId]:[];
-    if(empty($s['active']))ss_respond(['ok'=>false,'error'=>'Selected bank account is not active in Accounts.'],422);
-    if($permission==='payment'&&empty($s['allowPayments']))ss_respond(['ok'=>false,'error'=>'Payments are not enabled for the selected bank account.'],422);
-    if($permission==='receipt'&&empty($s['allowReceipts']))ss_respond(['ok'=>false,'error'=>'Receipts are not enabled for the selected bank account.'],422);
+    if(!tt_bank_can_transact($bankId))ss_respond(['ok'=>false,'error'=>'Complete and activate this company bank in Company Master.'],422);
     return $a;
 }
 function ss_require_pkr_bank(array $bank): array {
@@ -122,10 +119,7 @@ function ss_require_pkr_bank(array $bank): array {
     return $bank;
 }
 function ss_cash_source(array $store,string $entity,string $permission): array {
-    $id='CASH|'.$entity;$s=is_array($store['bankAccountSettings'][$id]??null)?$store['bankAccountSettings'][$id]:['active'=>true,'allowPayments'=>true,'allowReceipts'=>true];
-    if(empty($s['active']))ss_respond(['ok'=>false,'error'=>'Cash / Petty Cash is not active in Accounts.'],422);
-    if($permission==='payment'&&array_key_exists('allowPayments',$s)&&empty($s['allowPayments']))ss_respond(['ok'=>false,'error'=>'Payments are not enabled for Cash / Petty Cash.'],422);
-    if($permission==='receipt'&&array_key_exists('allowReceipts',$s)&&empty($s['allowReceipts']))ss_respond(['ok'=>false,'error'=>'Receipts are not enabled for Cash / Petty Cash.'],422);
+    $id='CASH|'.$entity;
     return ['id'=>$id,'accountTitle'=>'Cash / Petty Cash','currency'=>'PKR'];
 }
 function ss_find_bill(array $store,string $entity,string $billId): array {

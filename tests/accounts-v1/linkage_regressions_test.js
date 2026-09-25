@@ -110,9 +110,22 @@ const receiptBankContext={banks:{accounts:[
 ]}};
 vm.createContext(receiptBankContext);
 vm.runInContext(extractFunction(receiptUi,'receiptBanks')+'\n'+extractFunction(receiptUi,'bankUnavailableReason'),receiptBankContext);
-assert.deepEqual([...receiptBankContext.receiptBanks('PKR')].map(row=>row.id),['tti-ready']);
-assert.match(receiptBankContext.bankUnavailableReason(receiptBankContext.banks.accounts[1]),/Turn on Active/);
+assert.deepEqual([...receiptBankContext.receiptBanks('PKR')].map(row=>row.id),['tti-ready','tti-disabled'],'Old Accounts toggles must not disable an active company bank');
 assert.match(receiptBankContext.bankUnavailableReason(receiptBankContext.banks.accounts[2]),/account number or IBAN/);
 assert.match(receiptBankContext.bankUnavailableReason(receiptBankContext.banks.accounts[3]),/Active in Company Master/);
+const tgReceiptContext={payerType:'TG',selectedTgPayment:null,currency:'USD',chosen:new Map(),num:Number,
+  reference:'FI-TG-123',amount:500,
+  q(selector){return selector==='#erForeign'?{value:String(this.amount)}:{value:this.reference}},
+  sourceRows(){return [{isTg:true,currency:'USD',invoiceRef:'FI-TG-123',targetId:'posted-tg-1',contractRef:'TG-123',amount:700}];}
+};
+// Keep DOM inputs in the fixture separate from the source data so the exact
+// reference and the unmatched receipt exercise the same form function.
+tgReceiptContext.q=selector=>selector==='#erForeign'?{value:String(tgReceiptContext.amount)}:{value:tgReceiptContext.reference};
+vm.createContext(tgReceiptContext);
+vm.runInContext(extractFunction(receiptUi,'allocations'),tgReceiptContext);
+assert.equal(tgReceiptContext.allocations()[0].targetId,'posted-tg-1','Exact TG invoice references should clear the linked receivable');
+tgReceiptContext.reference='UNKNOWN-TG';
+assert.equal(tgReceiptContext.allocations()[0].targetType,'UNAPPLIED_TG','A TG receipt without a posted invoice must remain identifiable and unapplied');
+assert.match(receiptApi,/er_line\('2510'.*'Unapplied TG'/,'Unapplied TG money must credit the proper liability');
 
 console.log('PASS Accounts cross-module linkage regressions');

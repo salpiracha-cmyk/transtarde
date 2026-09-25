@@ -69,10 +69,10 @@ function ba_master_accounts(): array {
 }
 function ba_default_setting(array $a): array {
     $complete=trim((string)($a['accountNumber']??''))!==''||trim((string)($a['iban']??''))!=='';
-    $company=($a['accountType']??'')==='Company Account'&&($a['entity']??'')!=='TG';
+    $company=($a['accountType']??'')==='Company Account';
     $receiptReady=$company&&$complete&&strcasecmp((string)($a['masterStatus']??'Active'),'Active')===0;
     return [
-        'active'=>$receiptReady,'allowPayments'=>false,'allowReceipts'=>$receiptReady,'includeInPaymentPlanning'=>false,
+        'active'=>$receiptReady,'allowPayments'=>$receiptReady,'allowReceipts'=>$receiptReady,'includeInPaymentPlanning'=>false,
         'visibleToMill'=>false,'reconciliationEnabled'=>true,'retentionAccount'=>false,'defaultReceiptAccount'=>false,'displayName'=>'','notes'=>'','updatedAt'=>null,'updatedBy'=>null
     ];
 }
@@ -116,6 +116,10 @@ function ba_payload(array $store,string $entity): array {
     foreach($masters as $id=>$a){
         if(($a['entity']??'')!==$entity||($a['accountType']??'')!=='Company Account')continue;
         $setting=array_replace(ba_default_setting($a),is_array($store['bankAccountSettings'][$id]??null)?$store['bankAccountSettings'][$id]:[]);
+        // Bank identity and status are controlled in Company Master. Old Accounts flags
+        // must not silently disable a valid company account.
+        $available=!empty(ba_default_setting($a)['active']);
+        $setting['active']=$available;$setting['allowPayments']=$available;$setting['allowReceipts']=$available;
         if(strcasecmp((string)($a['masterStatus']??'Active'),'Active')!==0){$setting['active']=false;$setting['allowPayments']=false;$setting['allowReceipts']=false;$setting['defaultReceiptAccount']=false;}
         if($a['masterRetentionAccount']!==null)$setting['retentionAccount']=(bool)$a['masterRetentionAccount'];
         $currency=strtoupper(trim((string)($a['currency']??'')))?:$planningCurrency;$book=ba_balance($store,$entity,$id,$currency);
@@ -128,6 +132,7 @@ function ba_payload(array $store,string $entity): array {
         'active'=>true,'allowPayments'=>true,'allowReceipts'=>true,'includeInPaymentPlanning'=>false,'visibleToMill'=>false,
         'reconciliationEnabled'=>true,'retentionAccount'=>false,'displayName'=>'Cash / Petty Cash','notes'=>'','updatedAt'=>null,'updatedBy'=>null
     ],is_array($store['bankAccountSettings'][$cashKey]??null)?$store['bankAccountSettings'][$cashKey]:[]);
+    $cashSetting['active']=true;$cashSetting['allowPayments']=true;$cashSetting['allowReceipts']=true;
     $cash=ba_cash_balance($store,$entity);$balances[$cashCurrency]=round(($balances[$cashCurrency]??0)+$cash,2);
     if($cashCurrency===$planningCurrency&&!empty($cashSetting['active'])&&!empty($cashSetting['includeInPaymentPlanning']))$planning+=max(0,$cash);
     ksort($balances);
@@ -164,7 +169,7 @@ try{
     $defaultReceiptRequested=(bool)($body['defaultReceiptAccount']??false);
     if($defaultReceiptRequested&&$id===$cashKey)ba_respond(['ok'=>false,'error'=>'The default receipt account must be a company bank account, not cash.'],422);
     $setting=[
-        'active'=>(bool)($body['active']??false),'allowPayments'=>(bool)($body['allowPayments']??false),'allowReceipts'=>(bool)($body['allowReceipts']??false),
+        'active'=>$id===$cashKey||(!empty($a)&&!empty(ba_default_setting($a)['active'])),'allowPayments'=>true,'allowReceipts'=>true,
         'includeInPaymentPlanning'=>(bool)($body['includeInPaymentPlanning']??false),'visibleToMill'=>(bool)($body['visibleToMill']??false),
         'reconciliationEnabled'=>(bool)($body['reconciliationEnabled']??true),'retentionAccount'=>$retentionRequested,
         'defaultReceiptAccount'=>$defaultReceiptRequested,
@@ -172,7 +177,7 @@ try{
     ];
     if($sourceCurrency!==$planningCurrency)$setting['includeInPaymentPlanning']=false;
     if(!$setting['active']||!$setting['allowReceipts'])$setting['defaultReceiptAccount']=false;
-    if($id!==$cashKey&&($setting['allowPayments']||$setting['allowReceipts'])){
+    if($id!==$cashKey&&$setting['defaultReceiptAccount']){
         if(strcasecmp((string)($a['masterStatus']??'Active'),'Active')!==0)ba_respond(['ok'=>false,'error'=>'Activate this bank inside Super Admin Company Master before enabling payments or receipts.'],422);
         if(trim((string)$a['accountNumber'])===''&&trim((string)$a['iban'])==='')ba_respond(['ok'=>false,'error'=>'Complete the account number or IBAN in the shared Banks & Accounts master before enabling payments or receipts.'],422);
     }
