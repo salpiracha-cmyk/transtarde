@@ -9,6 +9,7 @@ const errors=[],vc=new VirtualConsole();vc.on('jsdomError',e=>errors.push(e.mess
 const dom=new JSDOM(html,{runScripts:'dangerously',pretendToBeVisual:true,url:'https://exports.audit.local/',virtualConsole:vc,beforeParse(w){w.TT_MODULE_ACCESS={user:'Jazib',module:'Exports'};w.alert=m=>{throw Error(String(m))};w.confirm=()=>true;w.print=()=>{};w.scrollTo=()=>{};w.setInterval=()=>0;w.structuredClone=value=>JSON.parse(JSON.stringify(value));w.FileReader=class{};}});
 dom.window.eval(app);
 const w=dom.window,d=w.document,t=w.__DOM_AUDIT__;
+(async()=>{
 assert.ok(t,'test API is available: '+errors.join(' | '));
 assert.equal(t.state.contracts.length,0,'release must start without dummy contracts');
 const customer={id:'DOM-C',name:'DOM Buyer',code:'DOM',address:'Dubai',packingDefault:'KG',nextSeq:1};
@@ -56,7 +57,7 @@ assert.ok(d.querySelector('#closeLotEditor'),'split editor has a top-right close
 lot.lc={saved:true,lcNo:'LC-DOM',lcDate:'2026-09-08',documents:['Commercial Invoice'],conditions:[]};lot.millActuals=[{number:'MSCU123456-7',seal:'S1',bags:1080,netKg:27000,tareKg:86.4,grossKg:27086.4,brand:'DOM BRAND',packing:'25 KG',location:'TTI Rice Mills'}];d.querySelector('[data-workspace="customs"]').click();d.querySelector('[data-workspace="customs"]').click();
 const balancingOpenAccount=d.querySelector('#cuOpenAccount').value;
 assert.equal(d.querySelector('#cuOpenAccount').readOnly,true,'Open Account is calculated from invoice less FI allocation');
-d.querySelector('#saveCustoms').click();
+w.TT_SHARED_SYNC={saveNow:()=>Promise.resolve({ok:true}),flush(){}};await d.querySelector('#saveCustoms').onclick();
 assert.equal(lot.customs.saved,true,'calculated FI plus open-account split saves Customs master');
 assert.equal(Number(lot.customs.openAccount),Number(balancingOpenAccount),'saved Open Account matches the displayed calculated balance');
 assert.equal(d.querySelector('.lotEditorShell'),null,'successful save returns to the Lot icon screen');
@@ -108,10 +109,12 @@ assert.equal(d.querySelector('#cuRate').value,'300','changing the Pakistan expor
 assert.match(d.querySelector('.lotPreviewPaper').innerHTML,/BRM_header\.png/,'changing the Pakistan exporter refreshes the live Customs letterhead');
 set(d.querySelector('#cuImporterChoice'),'BUYER','change');
 assert.match(d.querySelector('.lotPreviewPaper').textContent,/Dom Buyer/i,'changing the importer refreshes the live Customs drawee details');
-d.querySelector('#saveCustoms').click();
+await d.querySelector('#saveCustoms').onclick();
 assert.equal(tgLot.customs.currency,'USD','TG Customs saves the separate currency');
 assert.equal(tgContract.currency,'AED','TG Customs currency never rewrites the customer Sales Contract currency');
 t.openFIAllocation('DOM-FI-USD');assert.equal(d.querySelector('#faLot').value,tgLot.id,'FI Register allocation follows the TG Customs currency, not the customer Sales Contract currency');d.querySelector('[data-modal-close]').click();
 d.querySelector('[data-workspace="tg"]').click();const tgRateField=[...d.querySelectorAll('.field')].find(field=>field.querySelector('label')?.textContent.includes('Customs Invoice Price'));assert.match(tgRateField.querySelector('input').value,/USD/,'TG internal-document screen displays the separate Customs currency, not the customer contract currency');
 assert.equal(errors.length,0,errors.join('\n'));
 console.log('PASS browser DOM audit: clean home, hover summary, accordion, every process/lot tile, Production and multi-source Loading');
+
+})().catch(error=>{console.error(error);process.exitCode=1});
