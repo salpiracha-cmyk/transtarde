@@ -70,6 +70,15 @@ test('authenticated Accounts live smoke: professional desk and popup workflows',
   });
   await signIn(page);
 
+  const qaIdentity = await page.evaluate(() => ({
+    user: window.TT_ACCOUNT_ACCESS?.user || '',
+    role: window.TT_ACCOUNT_ACCESS?.role || ''
+  }));
+  expect(qaIdentity, 'Live smoke must run as the dedicated operational QA account, never as Super Admin').toEqual({
+    user: 'Transtrade QA',
+    role: 'QA Tester'
+  });
+
   await expect(page.locator('#ttEntityLanding')).toHaveCount(0);
   await expect.poll(() => page.evaluate(() => window.TT_ACCOUNTING_DESK?.installed || false), { timeout: 30_000 }).toBe(true);
   await expect.poll(() => page.evaluate(() => window.TT_ACCOUNTS_CLEAN_UI?.installed || false), { timeout: 30_000 }).toBe(true);
