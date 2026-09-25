@@ -132,14 +132,14 @@
       ]
     },
     {
-      id: "purchase_products", name: "Purchase Commodities & KAT", description: "Choose the commodity, RAW or READY stage, variety and type. Every exact purchase product keeps its own stock identity, Soda history and KAT rules.",
+      id: "purchase_products", name: "Purchase Commodities & KAT", description: "Choose the commodity, RAW or READY stage, variety and type. KAT applies when goods arrive at our mill or warehouse; Ex-Mill containers use agreed specification and rate without KAT.",
       fields: [
         { label: "Commodity", required: true, type: "select", options: ["RICE", "CORN", "SESAME"] },
         { label: "Base variety / product", required: true },
         { label: "Rice type" },
         { label: "Purchase classification", required: true, type: "select", options: ["RAW", "READY"] },
         { label: "Purchase unit", required: true, type: "select", options: ["KG", "MAUND", "MT"] },
-        { label: "KAT profile" }, { label: "Legacy brokery rule", type: "hidden" }, { label: "Legacy inventory account", type: "hidden" },
+        { label: "Arrival KAT profile (our location only)" }, { label: "Legacy brokery rule", type: "hidden" }, { label: "Legacy inventory account", type: "hidden" },
         { label: "Status", type: "select", options: ["Active", "Draft – review required", "Inactive"] },
         { label: "Notes", type: "textarea", full: true },
         { label: "Broken grade (optional)" }
@@ -761,10 +761,10 @@
       <label>Broken grade (optional)<input id="${masterInputId(10)}" data-master-field-index="10" value="${escapeHtml(v[10]||"")}" placeholder="100% Broken" autocomplete="off"></label>
       <label>Purchased as<select id="${masterInputId(3)}" data-master-field-index="3" required>${options(["RAW","READY"],v[3])}</select></label>
       <label>Purchase unit<select id="${masterInputId(4)}" data-master-field-index="4" required>${options(["KG","MAUND","MT"],v[4])}</select></label>
-      <label>KAT profile<select id="${masterInputId(5)}" data-master-field-index="5">${katOptions}</select></label>
+      <label>Arrival KAT profile (our mill / warehouse only)<select id="${masterInputId(5)}" data-master-field-index="5">${katOptions}</select><small>Ex-Mill containers are loaded to specification without KAT.</small></label>
       <label>Status<select id="${masterInputId(8)}" data-master-field-index="8">${options(["Active","Draft – review required","Inactive"],v[8]||"Active")}</select></label>
     </div></section>
-    <section class="master-editor-section purchase-product-use-section"><div class="master-editor-heading"><div><h3>How this is used</h3><p>Every variety, type and stage keeps its own stock identity and KAT. Supplier, broker, Brokery and movement location come from the Soda and broker profile. Accounts mapping is automatic and is not entered here.</p></div></div><div class="master-form-grid"><label class="full-span">Notes<textarea id="${masterInputId(9)}" data-master-field-index="9" rows="3">${escapeHtml(v[9]||"")}</textarea></label></div></section>`;
+    <section class="master-editor-section purchase-product-use-section"><div class="master-editor-heading"><div><h3>How this is used</h3><p>Variety, rice type and broken grade identify the product. The Soda route decides quality deductions: Ex-Mill loaded to specification has no KAT or Pohanch; delivery to our mill or warehouse uses its approved arrival KAT profile and Pohanch. A saved Ex-Mill container posts the purchase liability in Accounts. Supplier, broker and location come from the Soda.</p></div></div><div class="master-form-grid"><label class="full-span">Notes<textarea id="${masterInputId(9)}" data-master-field-index="9" rows="3">${escapeHtml(v[9]||"")}</textarea></label></div></section>`;
   }
 
   function masterFieldsHtml(type, values = []) {
