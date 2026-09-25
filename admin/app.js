@@ -32,9 +32,22 @@
   const SESSION = window.TT_SESSION;
   const IS_SUPER_ADMIN = SESSION.role === "Super Admin";
   let pendingDeletionRequests = [];
+  let pendingBankDeletionRequests = [];
   const MASTER_PERMISSION_ACTIONS = ["Use","View","Create","Edit","Deactivate","View Documents","Download Documents"];
   const hasMasterAccess = IS_SUPER_ADMIN || !!SESSION.masterAccess;
-  const canMaster = (type, action="View") => {const permissionType=["purchase_kat","commodities"].includes(type)?"purchase_products":type;return IS_SUPER_ADMIN || (hasMasterAccess && (SESSION.masterPermissions?.[permissionType] || []).includes(action));};
+  const MASTER_DEFAULT_SCOPES = {
+    Accounts: ["companies","banks","export_realization_charges","export_customers","business_parties","products","purchase_products","mills","product_settings","export_documents","export_terms","salary_staff","reference_lists"],
+    Exports: ["export_customers","business_parties","products","product_settings","export_documents","export_terms","reference_lists"],
+    Mill: ["business_parties","purchase_products","mills","reference_lists"],
+    Directors: ["companies","banks"]
+  };
+  const canMaster = (type, action="View") => {
+    if (IS_SUPER_ADMIN) return true;
+    if (!hasMasterAccess) return false;
+    const permissionType=["purchase_kat","commodities"].includes(type)?"purchase_products":type;
+    if (SESSION.masterControlled) return (SESSION.masterPermissions?.[permissionType]||[]).includes(action);
+    return Object.entries(MASTER_DEFAULT_SCOPES).some(([module,types])=>canOpenModule(module)&&types.includes(permissionType)&&(module!=="Directors"||action==="View")&&MASTER_PERMISSION_ACTIONS.includes(action));
+  };
   // Accounts V1 opens through its protected standalone workspace route.
   const MODULES = [
     { id: "milling", name: "Mill", code: "M", color: "#16815a", soft: "#e7f7f0", status: "Live", state: "green", version: "V3.3.2 Audited", description: "Arrivals, stocks, production, bags, loading and mill operations.", href: "module.php?id=milling" },
@@ -276,6 +289,7 @@
     const data = await apiRequest(null, "masters");
     state.masters = ensureMasterSections(data.masters,data.options||state.masterOptions);
     pendingDeletionRequests = (data.deletionRequests || []).filter(item => item.status === 'Pending');
+    pendingBankDeletionRequests = (data.bankDeletionRequests || []).filter(item => item.status === 'Pending');
     if (data.options) state.masterOptions = data.options;
     renderMasters();
   }
@@ -289,7 +303,13 @@
       node.hidden = module ? !canOpenModule(module.name) : false;
     });
     if (!IS_SUPER_ADMIN) {
-      document.title = 'Transtrade Master Records';
+      document.body.classList.add('tt-master-only');
+      const moduleName=Object.keys(MASTER_DEFAULT_SCOPES).find(name=>canOpenModule(name))||'Your';
+      document.title = `Transtrade ${moduleName} Master Records`;
+      const heading=document.querySelector('#view-masters .page-heading');
+      if(heading){const eyebrow=heading.querySelector('.eyebrow');if(eyebrow)eyebrow.textContent=moduleName.toUpperCase();}
+      const globalSearch=document.getElementById('globalSearch');
+      if(globalSearch)globalSearch.placeholder='Search master records';
       document.querySelectorAll('[data-view="dashboard"], [data-view="modules"]').forEach(node => { node.hidden = true; });
       document.querySelectorAll('[data-view="users"], [data-view="locks"], [data-view="audit"], [data-view="backup"], [data-action="create-user"], [data-view-target="audit"], #exportAudit, .dashboard-lower, #notificationButton').forEach(node => { node.hidden = true; });
       document.querySelectorAll('[data-view="masters"]').forEach(node=>{node.hidden=!hasMasterAccess});
@@ -533,7 +553,7 @@
     <section class="master-editor-section"><div class="master-editor-heading"><div><h3>Document identity</h3><p>Headers, footers, signatures and stamps remain versioned under the legal company.</p></div><button type="button" class="button secondary" id="addCompanyDocument">+ Add document identity</button></div><input type="hidden" id="${masterInputId(14)}" data-master-field-index="14"><div id="companyDocumentRows">${documents.map(doc=>companyDocumentRow(doc)).join("")}</div></section>
     <section class="master-editor-section"><div class="master-editor-heading"><div><h3>Special workflow & behaviour</h3><p>Keep exceptional entity handling separate from ordinary identity.</p></div></div><div class="master-form-grid"><label>TG special handling<select id="${masterInputId(5)}" data-master-field-index="5">${["No","Yes"].map(x=>`<option ${x===String(values[5]||"No")?"selected":""}>${x}</option>`).join("")}</select></label><label class="full-span">System behaviour / notes<textarea id="${masterInputId(6)}" data-master-field-index="6" rows="4">${escapeHtml(values[6] || "")}</textarea></label></div></section>`;
   }
-  function companyBankRow(bank={}) { return `<div class="master-form-grid company-bank-row"><input type="hidden" data-bank-json value="${escapeHtml(JSON.stringify(bank))}"><input type="hidden" data-bank-id value="${escapeHtml(bank.id||"")}"><label>Bank name<input data-bank-name value="${escapeHtml(bank.bankName||"")}" required></label><label>Account title<input data-bank-title value="${escapeHtml(bank.accountTitle||"")}" required></label><label>Currency<select data-bank-currency>${["PKR","USD","AED","EUR","GBP",...(!["PKR","USD","AED","EUR","GBP"].includes(bank.currency)&&bank.currency?[bank.currency]:[])].map(code=>`<option value="${escapeHtml(code)}" ${code===(bank.currency||"PKR")?"selected":""}>${escapeHtml(code)}</option>`).join("")}</select></label><label>Account number<input data-bank-number value="${escapeHtml(bank.accountNumber||"")}"></label><label>IBAN<input data-bank-iban value="${escapeHtml(bank.iban||"")}"></label><label>SWIFT / BIC<input data-bank-swift value="${escapeHtml(bank.swift||"")}"></label><label>Branch<input data-bank-branch value="${escapeHtml(bank.branch||"")}"></label><label>Purpose<input data-bank-purpose value="${escapeHtml(bank.purpose||"")}"></label><label><input type="checkbox" data-bank-retention ${bank.retentionAccount?"checked":""}> Foreign retention account (TTI/BRM, USD or other foreign currency)</label><button type="button" class="button danger" data-remove-company-bank>Remove</button></div>`; }
+  function companyBankRow(bank={}) { return `<div class="master-form-grid company-bank-row"><input type="hidden" data-bank-json value="${escapeHtml(JSON.stringify(bank))}"><input type="hidden" data-bank-id value="${escapeHtml(bank.id||"")}"><label>Bank name<input data-bank-name value="${escapeHtml(bank.bankName||"")}" required></label><label>Account title<input data-bank-title value="${escapeHtml(bank.accountTitle||"")}" required></label><label>Currency<select data-bank-currency>${["PKR","USD","AED","EUR","GBP",...(!["PKR","USD","AED","EUR","GBP"].includes(bank.currency)&&bank.currency?[bank.currency]:[])].map(code=>`<option value="${escapeHtml(code)}" ${code===(bank.currency||"PKR")?"selected":""}>${escapeHtml(code)}</option>`).join("")}</select></label><label>Account number<input data-bank-number value="${escapeHtml(bank.accountNumber||"")}"></label><label>IBAN<input data-bank-iban value="${escapeHtml(bank.iban||"")}"></label><label>SWIFT / BIC<input data-bank-swift value="${escapeHtml(bank.swift||"")}"></label><label>Branch<input data-bank-branch value="${escapeHtml(bank.branch||"")}"></label><label>Purpose<input data-bank-purpose value="${escapeHtml(bank.purpose||"")}"></label><label><input type="checkbox" data-bank-retention ${bank.retentionAccount?"checked":""}> Foreign retention account (TTI/BRM, USD or other foreign currency)</label>${bank.id?`<button type="button" class="button danger" data-request-company-bank>Request Director approval</button><span class="tag">${escapeHtml(bank.status||"Active")}</span>`:`<button type="button" class="button danger" data-remove-company-bank>Remove</button>`}</div>`; }
   function companyDocumentRow(doc={}) { const controls=doc.id?`<div class="row-actions">${canMaster('companies','View Documents')?'<button type="button" class="row-action" data-preview-company-document>Preview</button>':''}${canMaster('companies','Download Documents')?'<button type="button" class="row-action" data-download-company-document>Download</button>':''}<span class="tag">Version ${escapeHtml(doc.version||1)}</span></div>`:`<label>PNG, JPG, WebP or PDF<input type="file" data-document-file accept="image/png,image/jpeg,image/webp,application/pdf" required></label>`;return `<div class="master-form-grid company-document-row"><input type="hidden" data-document-json value="${escapeHtml(JSON.stringify(doc))}"><input type="hidden" data-document-id value="${escapeHtml(doc.id||"")}"><label>Document type<select data-document-type>${["Header","Footer","Signature","Stamp","Letterhead","Other"].map(x=>`<option ${x===String(doc.type||"")?"selected":""}>${x}</option>`).join("")}</select></label><label>Label<input data-document-label value="${escapeHtml(doc.label||"")}" required></label><label>Version<input data-document-version value="${escapeHtml(doc.version||"1")}" readonly></label><label>Status<select data-document-status><option ${String(doc.status||"Active")==="Active"?"selected":""}>Active</option><option ${String(doc.status||"")==="Inactive"?"selected":""}>Inactive</option></select></label><label><input type="checkbox" data-document-default ${doc.isDefault?"checked":""}> Default for this type</label>${controls}<button type="button" class="button danger" data-remove-company-document>Deactivate</button></div>`; }
   function commodityMasterFieldsHtml(values = []) {
     return `<section class="master-editor-section"><div class="master-editor-heading"><div><h3>Commodity identity</h3><p>Basic identity stays separate from rules and accounting setup.</p></div></div><div class="master-identity-grid">
@@ -817,7 +837,7 @@
       values[7]=JSON.stringify(owners.length?owners:[{name:"",share:100}]);
       values[13]=JSON.stringify([...document.querySelectorAll('.company-bank-row')].map((row,index)=>({
         ...JSON.parse(row.querySelector('[data-bank-json]')?.value||'{}'),id:row.querySelector('[data-bank-id]')?.value||`bank-${Date.now()}-${index}`,
-        accountType:'Company Account',bankName:row.querySelector('[data-bank-name]')?.value.trim()||'',accountTitle:row.querySelector('[data-bank-title]')?.value.trim()||'',currency:row.querySelector('[data-bank-currency]')?.value.trim()||'PKR',accountNumber:row.querySelector('[data-bank-number]')?.value.trim()||'',iban:row.querySelector('[data-bank-iban]')?.value.trim()||'',swift:row.querySelector('[data-bank-swift]')?.value.trim()||'',branch:row.querySelector('[data-bank-branch]')?.value.trim()||'',purpose:row.querySelector('[data-bank-purpose]')?.value.trim()||'',retentionAccount:(Object.prototype.hasOwnProperty.call(JSON.parse(row.querySelector('[data-bank-json]')?.value||'{}'),'retentionAccount')||!row.querySelector('[data-bank-id]')?.value||row.querySelector('[data-bank-retention]')?.checked)?!!row.querySelector('[data-bank-retention]')?.checked:undefined,status:'Active'
+        accountType:'Company Account',bankName:row.querySelector('[data-bank-name]')?.value.trim()||'',accountTitle:row.querySelector('[data-bank-title]')?.value.trim()||'',currency:row.querySelector('[data-bank-currency]')?.value.trim()||'PKR',accountNumber:row.querySelector('[data-bank-number]')?.value.trim()||'',iban:row.querySelector('[data-bank-iban]')?.value.trim()||'',swift:row.querySelector('[data-bank-swift]')?.value.trim()||'',branch:row.querySelector('[data-bank-branch]')?.value.trim()||'',purpose:row.querySelector('[data-bank-purpose]')?.value.trim()||'',retentionAccount:(Object.prototype.hasOwnProperty.call(JSON.parse(row.querySelector('[data-bank-json]')?.value||'{}'),'retentionAccount')||!row.querySelector('[data-bank-id]')?.value||row.querySelector('[data-bank-retention]')?.checked)?!!row.querySelector('[data-bank-retention]')?.checked:undefined,status:JSON.parse(row.querySelector('[data-bank-json]')?.value||'{}').status||'Active'
       })).filter(bank=>bank.bankName||bank.accountTitle||bank.accountNumber||bank.iban));
       values[14]=JSON.stringify([...document.querySelectorAll('.company-document-row')].map(row=>({
         ...JSON.parse(row.querySelector('[data-document-json]')?.value||'{}'),id:row.querySelector('[data-document-id]')?.value||'',type:row.querySelector('[data-document-type]')?.value||'Other',label:row.querySelector('[data-document-label]')?.value.trim()||'',version:row.querySelector('[data-document-version]')?.value.trim()||'1',status:row.querySelector('[data-document-status]')?.value||'Active',isDefault:!!row.querySelector('[data-document-default]')?.checked
@@ -943,6 +963,10 @@
     if(IS_SUPER_ADMIN && pendingDeletionRequests.length){
       document.getElementById('masterDescription').insertAdjacentHTML('afterend',`<section id="masterDeletionRequests" class="master-editor-section"><h3>Accounts requests to remove names</h3><p>Approval deactivates the name for future selections. Historical transactions keep the record.</p>${pendingDeletionRequests.map(request=>`<div class="row-actions" style="justify-content:space-between;align-items:center;padding:9px;border-top:1px solid #ddd"><span><b>${escapeHtml(request.name)}</b> · ${escapeHtml(request.type)} · ${escapeHtml(request.requestedBy)}<br>${escapeHtml(request.reason)}</span><span><button type="button" class="row-action" data-review-master-deletion="${escapeHtml(request.id)}" data-decision="Approve">Approve</button><button type="button" class="row-action" data-review-master-deletion="${escapeHtml(request.id)}" data-decision="Reject">Reject</button></span></div>`).join('')}</section>`);
     }
+    document.getElementById('masterBankDeletionRequests')?.remove();
+    if(SESSION.role==='Director' && pendingBankDeletionRequests.length){
+      document.getElementById('masterDescription').insertAdjacentHTML('afterend',`<section id="masterBankDeletionRequests" class="master-editor-section"><h3>Bank accounts awaiting Director approval</h3><p>Approval deactivates the account for future use and preserves its history.</p>${pendingBankDeletionRequests.map(request=>`<div class="row-actions" style="justify-content:space-between;align-items:center;padding:9px;border-top:1px solid #ddd"><span><b>${escapeHtml(request.company)}</b> · ${escapeHtml(request.bank)} · ${escapeHtml(request.requestedBy)}<br>${escapeHtml(request.reason)}</span><span><button type="button" class="row-action" data-review-bank-deletion="${escapeHtml(request.id)}" data-decision="Approve">Approve</button><button type="button" class="row-action" data-review-bank-deletion="${escapeHtml(request.id)}" data-decision="Reject">Reject</button></span></div>`).join('')}</section>`);
+    }
     document.getElementById("productCropYearControl")?.remove();
     document.getElementById("purchaseWorkspaceTabs")?.remove();
     document.getElementById("purchaseProductTabs")?.remove();
@@ -973,7 +997,7 @@
       return true;
     });
     const permanentlyDeletable=new Set(["export_customers","business_parties","purchase_products","purchase_kat","mills","export_documents","export_terms"]);
-    document.getElementById("masterTableBody").innerHTML = rows.length ? rows.map(row => {const inactive=masterRowStatus(type,row)==="Inactive";return `<tr>${columns.map(index => `<td>${escapeHtml(row.values[index] || "—")}</td>`).join("")}<td><span class="tag ${inactive?'inactive':''}">${escapeHtml(inactive?'Deactivated':masterRowStatus(type, row))}</span></td><td><div class="row-actions">${canMaster(type.id,"Edit")?`<button class="row-action" data-edit-master="${escapeHtml(row.id)}">Edit</button>`:""}${type.id!=="commodities"&&canMaster(type.id,"Deactivate")?(inactive?`<button class="row-action deactivated" type="button" disabled>Deactivated</button>`:`<button class="row-action delete" data-delete-master="${escapeHtml(row.id)}">Deactivate</button>`):""}${permanentlyDeletable.has(type.id)&&IS_SUPER_ADMIN?`<button class="row-action purge" data-purge-master="${escapeHtml(row.id)}">Delete Permanently</button>`:""}</div></td></tr>`}).join("") : `<tr><td colspan="${columns.length + 2}">No matching records.</td></tr>`;
+    document.getElementById("masterTableBody").innerHTML = rows.length ? rows.map(row => {const inactive=masterRowStatus(type,row)==="Inactive";return `<tr>${columns.map(index => `<td>${escapeHtml(row.values[index] || "—")}</td>`).join("")}<td><span class="tag ${inactive?'inactive':''}">${escapeHtml(inactive?'Deactivated':masterRowStatus(type, row))}</span></td><td><div class="row-actions">${canMaster(type.id,"Edit")?`<button class="row-action" data-edit-master="${escapeHtml(row.id)}">Edit</button>`:""}${!["commodities","companies"].includes(type.id)&&canMaster(type.id,"Deactivate")?(inactive?`<button class="row-action deactivated" type="button" disabled>Deactivated</button>`:`<button class="row-action delete" data-delete-master="${escapeHtml(row.id)}">Deactivate</button>`):""}${permanentlyDeletable.has(type.id)&&IS_SUPER_ADMIN?`<button class="row-action purge" data-purge-master="${escapeHtml(row.id)}">Delete Permanently</button>`:""}</div></td></tr>`}).join("") : `<tr><td colspan="${columns.length + 2}">No matching records.</td></tr>`;
   }
   function openKatForPurchaseProduct(productId) {
     const product=(state.masters?.purchase_products||[]).find(row=>row.id===productId);
@@ -1000,6 +1024,7 @@
       const documentRows=document.getElementById('companyDocumentRows');
       const wireNested=()=>{
         bankRows?.querySelectorAll('[data-remove-company-bank]').forEach(button=>button.onclick=()=>button.closest('.company-bank-row')?.remove());
+        bankRows?.querySelectorAll('[data-request-company-bank]').forEach(button=>button.onclick=async()=>{const bankId=button.closest('.company-bank-row')?.querySelector('[data-bank-id]')?.value;if(!row?.id||!bankId)return;const reason=window.prompt('Reason for deactivating this bank account (Director approval required):');if(reason===null)return;try{await apiRequest({action:'request-bank-deletion',type:'companies',id:row.id,bankId,reason},'masters');toast('Request sent to Director. The account remains active until approval.')}catch(error){toast(error.message)}});
         documentRows?.querySelectorAll('[data-remove-company-document]').forEach(button=>button.onclick=()=>{const row=button.closest('.company-document-row');if(row){row.querySelector('[data-document-status]').value='Inactive';row.hidden=true}});
         documentRows?.querySelectorAll('[data-preview-company-document],[data-download-company-document]').forEach(button=>button.onclick=()=>{const documentId=button.closest('.company-document-row')?.querySelector('[data-document-id]')?.value;if(!documentId||!row?.id)return;const download=button.hasAttribute('data-download-company-document')?'&download=1':'';window.open(`api/master_documents.php?companyId=${encodeURIComponent(row.id)}&documentId=${encodeURIComponent(documentId)}${download}`,'_blank','noopener')});
       };
@@ -1035,7 +1060,7 @@
       });
       syncSalaryEntity();
     }
-    document.getElementById("deleteMasterButton").hidden = !row || type.id === "commodities" || (type.id === "salary_staff" && String(row.values?.[10] || "Active") === "Inactive");
+    document.getElementById("deleteMasterButton").hidden = !row || !canMaster(type.id,"Deactivate") || ["companies","commodities"].includes(type.id) || (type.id === "salary_staff" && String(row.values?.[10] || "Active") === "Inactive");
     document.getElementById("deleteMasterButton").textContent = type.id === "salary_staff" ? "Remove Staff" : "Deactivate Record";
     document.getElementById("saveMasterButton").textContent = row ? "Save Changes" : "Save Record";
     document.getElementById("masterDialog").showModal();
@@ -1239,7 +1264,7 @@
   }
 
   function showView(id) {
-    if (!IS_SUPER_ADMIN && !["dashboard", "modules"].includes(id) && !(id==="masters"&&hasMasterAccess)) { toast("Super Admin access required."); return; }
+    if (!IS_SUPER_ADMIN && !(id==="masters"&&hasMasterAccess)) { toast("Master Records access required."); return; }
     document.querySelectorAll(".view").forEach(view => view.classList.toggle("active", view.id === `view-${id}`));
     document.querySelectorAll(".nav-item[data-view]").forEach(item => item.classList.toggle("active", item.dataset.view === id));
     document.getElementById("sidebar").classList.remove("open");
@@ -1255,13 +1280,13 @@
     const query = value.trim().toLowerCase();
     if (!query) return;
     const user = IS_SUPER_ADMIN ? state.users.find(item => `${item.name} ${item.username} ${item.role}`.toLowerCase().includes(query)) : null;
-    const module = MODULES.find(item => `${item.name} ${item.description}`.toLowerCase().includes(query));
+    const module = IS_SUPER_ADMIN ? MODULES.find(item => `${item.name} ${item.description}`.toLowerCase().includes(query)) : null;
     const visibleMasterIds=new Set(MASTER_GROUPS.flatMap(([,ids])=>ids));
     const master = hasMasterAccess ? MASTER_TYPES.filter(item=>visibleMasterIds.has(item.id)&&canMaster(item.id,"View")).find(item => `${item.name} ${item.description}`.toLowerCase().includes(query)) : null;
     if (user) { showView("users"); document.getElementById("userSearch").value = value; renderUsers(); }
     else if (module) { showView("modules"); toast(`${module.name} module found.`); }
     else if (master) { currentMaster = master.id; showView("masters"); renderMasters(); }
-    else toast("No matching module, user or master record.");
+    else toast(IS_SUPER_ADMIN?"No matching module, user or master record.":"No matching master record.");
   }
 
   document.addEventListener("click", event => {
@@ -1276,6 +1301,7 @@
     const editProductKat = event.target.closest("[data-edit-product-kat]");
     const deleteMaster = event.target.closest("[data-delete-master]");
     const reviewDeletion = event.target.closest('[data-review-master-deletion]');
+    const reviewBankDeletion = event.target.closest('[data-review-bank-deletion]');
     const purgeMaster = event.target.closest("[data-purge-master]");
     const lockButton = event.target.closest("[data-toggle-lock]");
     const removeProductSpec = event.target.closest("[data-remove-product-spec]");
@@ -1299,6 +1325,13 @@
       apiRequest({action:'review-deletion',requestId,decision},'masters').then(data=>{
         pendingDeletionRequests=(data.deletionRequests||[]).filter(item=>item.status==='Pending');
         state.masters=ensureMasterSections(data.masters,state.masterOptions);saveState();renderMasters();toast(decision==='Approve'?'Name deactivated after Super Admin approval.':'Deletion request rejected.');
+      }).catch(error=>toast(error.message));
+    }
+    if(reviewBankDeletion){
+      const requestId=reviewBankDeletion.dataset.reviewBankDeletion,decision=reviewBankDeletion.dataset.decision;
+      apiRequest({action:'review-bank-deletion',requestId,decision},'masters').then(data=>{
+        pendingBankDeletionRequests=(data.bankDeletionRequests||[]).filter(item=>item.status==='Pending');
+        state.masters=ensureMasterSections(data.masters,state.masterOptions);saveState();renderMasters();toast(decision==='Approve'?'Bank account deactivated with Director approval.':'Request rejected.');
       }).catch(error=>toast(error.message));
     }
     if (purgeMaster) purgeMasterRecord(purgeMaster.dataset.purgeMaster);

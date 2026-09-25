@@ -22,6 +22,10 @@ html { font-size: 16px; }
 body { margin: 0; font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: var(--ink); background: var(--canvas); }
 button, input, select, textarea { font: inherit; }
 button { cursor: pointer; }
+[hidden] { display: none !important; }
+.tt-master-only .app-shell { grid-template-columns: minmax(0, 1fr); }
+.tt-master-only #sidebar, .tt-master-only #menuButton { display: none !important; }
+.tt-master-only .search-box { width: min(520px, 55vw); }
 
 .app-shell { min-height: 100vh; display: grid; grid-template-columns: 260px minmax(0, 1fr); }
 .sidebar { position: sticky; top: 0; height: 100vh; display: flex; flex-direction: column; color: #dbe7f3; background: linear-gradient(180deg, #0c2947 0%, #081d33 100%); box-shadow: 8px 0 30px rgba(5, 25, 43, .12); z-index: 20; }

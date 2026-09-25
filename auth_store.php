@@ -896,11 +896,21 @@ function tt_user_can_access_masters(array $user): bool {
 function tt_user_can_master(array $user,string $type,string $action='View'): bool {
     if (($user['role'] ?? '')==='Super Admin') return true;
     if (!tt_user_can_access_masters($user)) return false;
-    if ($action==='View') return true;
-    if (empty($user['master_access'])) return false;
     if (in_array($type,['purchase_kat','commodities'],true)) $type='purchase_products';
-    $actions=(array)($user['master_permissions'][$type] ?? []);
-    if (in_array($action,$actions,true)) return true;
+    // An explicit Super Admin matrix overrides the module defaults, including View.
+    if (!empty($user['master_access'])) return in_array($action,(array)($user['master_permissions'][$type] ?? []),true);
+    $scopes=[
+        'Accounts'=>['companies','banks','export_realization_charges','export_customers','business_parties','products','purchase_products','mills','product_settings','export_documents','export_terms','salary_staff','reference_lists'],
+        'Exports'=>['export_customers','business_parties','products','product_settings','export_documents','export_terms','reference_lists'],
+        'Mill'=>['business_parties','purchase_products','mills','reference_lists'],
+        'Directors'=>['companies','banks'],
+    ];
+    foreach ($scopes as $module=>$types) {
+        if (tt_user_can_open_module($user,$module) && in_array($type,$types,true)) {
+            if ($module==='Directors' && $action!=='View') continue;
+            return in_array($action,['Use','View','Create','Edit','Deactivate','View Documents','Download Documents'],true);
+        }
+    }
     return false;
 }
 
@@ -990,7 +1000,7 @@ function tt_api_json_error(int $status,string $message): never {
 
 function tt_api_entity_policy(string $path): array {
     $endpoint=basename($path);
-    $entityIndependent=['operations.php','operations.mysql.php','export_documents.php','export_customers.php','masters.php','master_documents.php','users.php','backup.php','accounts_bulk_test_cleanup.php','location-master.php','commodity_lookup.php','bag_bill_file.php','bridge_outbox.php'];
+    $entityIndependent=['operations.php','operations.mysql.php','export_documents.php','export_customers.php','export_realization_master.php','masters.php','master_documents.php','users.php','backup.php','accounts_bulk_test_cleanup.php','location-master.php','commodity_lookup.php','bag_bill_file.php','bridge_outbox.php'];
     if(in_array($endpoint,$entityIndependent,true))return['required'=>false,'fixed'=>''];
     if(str_starts_with($endpoint,'tg_'))return['required'=>true,'fixed'=>'TG'];
     return['required'=>true,'fixed'=>''];

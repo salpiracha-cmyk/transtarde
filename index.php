@@ -21,6 +21,7 @@ $session = [
     'username'=>(string)$user['username'], 'role'=>(string)$user['role'],
     'permissions'=>$user['permissions'] ?? [], 'csrf'=>tt_csrf(),
     'masterAccess'=>tt_user_can_access_masters($user),
+    'masterControlled'=>!empty($user['master_access']),
     'masterPermissions'=>$user['master_permissions'] ?? [],
 ];
 $bootstrap = '<script>window.TT_SESSION=' . json_encode($session, JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT) . ';</script>';

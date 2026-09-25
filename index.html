@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="Transtrade unified Super Admin control centre">
   <title>Transtrade Super Admin Console</title>
-  <link rel="stylesheet" href="admin/styles.css?v=20260923-master-delete-2">
+  <link rel="stylesheet" href="admin/styles.css?v=20260925-master-scope-1">
   <link rel="stylesheet" href="brand-theme.css?v=20260914-control-centre-1">
 </head>
 <body>
@@ -228,7 +228,7 @@
       </div>
       <fieldset><legend>Module access and actions</legend><div class="permission-matrix" id="permissionMatrix"></div></fieldset>
       <fieldset><legend>Master Records access</legend>
-        <label class="switch-row"><span><strong>Can access Master Records</strong><small>Shows the top M control and only the master sections selected below.</small></span><input type="checkbox" id="userMasterAccess"><i></i></label>
+        <label class="switch-row"><span><strong>Customize Master Records permissions</strong><small>Module users can manage their own masters by default. Switch this on to limit this user's master sections and actions below.</small></span><input type="checkbox" id="userMasterAccess"><i></i></label>
         <div class="permission-matrix" id="masterPermissionMatrix"><div class="permission-row header"><strong>Master</strong><span>Use</span><span>View</span><span>Create</span><span>Edit</span><span>Deactivate</span><span>View Docs</span><span>Download</span></div></div>
       </fieldset>
       <label class="switch-row"><span><strong>User active</strong><small>Inactive users cannot sign in.</small></span><input type="checkbox" id="userActive" checked><i></i></label>
@@ -250,6 +250,6 @@
   </dialog>
 
   <div class="toast-region" id="toastRegion" aria-live="polite"></div>
-<script src="admin/app.js?v=20260923-master-delete-2"></script>
+<script src="admin/app.js?v=20260925-master-scope-1"></script>
 </body>
 </html>

@@ -45,13 +45,58 @@ function master_options_for_console(): array {
 try {
     $admin=tt_require_login();
     if (!tt_user_can_access_masters($admin)) master_respond(['ok'=>false,'error'=>'Master Records access required.'],403);
-    if ($_SERVER['REQUEST_METHOD']==='GET') master_respond(['ok'=>true,'masters'=>master_all($admin),'options'=>master_options_for_console(),'deletionRequests'=>($admin['role']??'')==='Super Admin'?(array)(tt_read_store()['master_deletion_requests']??[]):[]]);
+    if ($_SERVER['REQUEST_METHOD']==='GET') master_respond(['ok'=>true,'masters'=>master_all($admin),'options'=>master_options_for_console(),'deletionRequests'=>($admin['role']??'')==='Super Admin'?(array)(tt_read_store()['master_deletion_requests']??[]):[],'bankDeletionRequests'=>($admin['role']??'')==='Director'?(array)(tt_read_store()['bank_deletion_requests']??[]):[]]);
     if ($_SERVER['REQUEST_METHOD']!=='POST') master_respond(['ok'=>false,'error'=>'Method not allowed.'],405);
     $body=json_decode(file_get_contents('php://input') ?: '{}',true);
     if (!is_array($body) || !tt_verify_csrf((string)($body['csrf'] ?? ''))) master_respond(['ok'=>false,'error'=>'Your session expired. Refresh and try again.'],419);
 
     $type=(string)($body['type'] ?? '');
     $action=(string)($body['action'] ?? ''); $id=trim((string)($body['id'] ?? ''));
+    if ($action==='request-bank-deletion') {
+        if (!tt_user_can_master($admin,'companies','Edit')) master_respond(['ok'=>false,'error'=>'Company master edit access required.'],403);
+        $bankId=trim((string)($body['bankId']??''));$reason=trim((string)($body['reason']??''));
+        if ($id===''||$bankId===''||strlen($reason)<5||strlen($reason)>500) throw new InvalidArgumentException('Select a bank account and explain why it should be deactivated.');
+        $request=tt_mutate_store(static function (&$data) use($id,$bankId,$reason,$admin):array {
+            $company=null;foreach((array)($data['masters']['companies']??[]) as $row)if((string)($row['id']??'')===$id){$company=$row;break;}
+            if (!$company) throw new InvalidArgumentException('Company no longer exists.');
+            $banks=json_decode((string)($company['values'][13]??'[]'),true);
+            $bank=null;foreach((array)$banks as $item)if((string)($item['id']??'')===$bankId){$bank=$item;break;}
+            if (!$bank||strcasecmp((string)($bank['status']??'Active'),'Inactive')===0)throw new InvalidArgumentException('Select an active bank account.');
+            $data['bank_deletion_requests']??=[];
+            foreach($data['bank_deletion_requests'] as $old)if(($old['companyId']??'')===$id&&($old['bankId']??'')===$bankId&&($old['status']??'')==='Pending')throw new InvalidArgumentException('This account already has a pending Director request.');
+            $item=['id'=>bin2hex(random_bytes(12)),'companyId'=>$id,'bankId'=>$bankId,'company'=>(string)($company['values'][0]??''),'bank'=>(string)($bank['bankName']??'').' · '.(string)($bank['accountTitle']??''),'reason'=>$reason,'status'=>'Pending','requestedBy'=>(string)($admin['full_name']??$admin['username']??''),'requestedAt'=>gmdate('c')];
+            $data['bank_deletion_requests'][]=$item;return $item;
+        });
+        tt_audit((int)$admin['id'],$admin['username'],'Requested Director approval to deactivate bank '.$bankId);
+        master_respond(['ok'=>true,'request'=>$request]);
+    }
+    if ($action==='review-bank-deletion') {
+        if (($admin['role']??'')!=='Director'||!tt_user_can_open_module($admin,'Directors')) master_respond(['ok'=>false,'error'=>'Director approval required.'],403);
+        $requestId=trim((string)($body['requestId']??''));$decision=(string)($body['decision']??'');
+        if (!in_array($decision,['Approve','Reject'],true))throw new InvalidArgumentException('Choose Approve or Reject.');
+        $review=tt_mutate_store(static function (&$data) use($requestId,$decision,$admin):array {
+            if(!isset($data['bank_deletion_requests'])||!is_array($data['bank_deletion_requests']))throw new InvalidArgumentException('Pending Director request not found.');
+            foreach($data['bank_deletion_requests'] as &$request){
+                if(($request['id']??'')!==$requestId||($request['status']??'')!=='Pending')continue;
+                if($decision==='Approve'){
+                    $found=false;
+                    foreach($data['masters']['companies'] as &$company){
+                        if((string)($company['id']??'')!==(string)$request['companyId'])continue;
+                        $banks=json_decode((string)($company['values'][13]??'[]'),true);
+                        foreach($banks as &$bank)if((string)($bank['id']??'')===(string)$request['bankId']){$bank['status']='Inactive';$found=true;break;}
+                        unset($bank);
+                        if($found)$company['values'][13]=json_encode($banks,JSON_UNESCAPED_SLASHES);
+                        break;
+                    }unset($company);
+                    if(!$found)throw new InvalidArgumentException('Bank account no longer exists.');
+                }
+                $request['status']=$decision==='Approve'?'Approved':'Rejected';$request['reviewedBy']=(string)($admin['full_name']??$admin['username']??'');$request['reviewedAt']=gmdate('c');return $request;
+            }unset($request);
+            throw new InvalidArgumentException('Pending Director request not found.');
+        });
+        tt_audit((int)$admin['id'],$admin['username'],$decision.' bank account deactivation '.$requestId);
+        master_respond(['ok'=>true,'review'=>$review,'masters'=>master_all($admin),'bankDeletionRequests'=>(array)(tt_read_store()['bank_deletion_requests']??[])]);
+    }
     if ($action==='request-deletion') {
         if(!in_array($type,['business_parties','export_customers'],true)||!tt_user_can_master($admin,$type,'View'))master_respond(['ok'=>false,'error'=>'Select an accessible customer or business party.'],403);
         $row=master_find_row($type,$id);if(!$row)master_respond(['ok'=>false,'error'=>'Master record not found.'],404);
@@ -182,6 +227,20 @@ try {
                 foreach ($decoded as $document) if (is_array($document)&&!empty($document['isDefault'])&&strcasecmp((string)($document['status']??'Active'),'Inactive')!==0) {
                     $documentType=(string)($document['type']??'Other');if(isset($defaults[$documentType]))throw new InvalidArgumentException('Only one active default is allowed for each company document type.');$defaults[$documentType]=true;
                 }
+            }
+        }
+        if ($action==='update') {
+            $existing=master_find_row('companies',$id);
+            if (!$existing)throw new InvalidArgumentException('Company no longer exists.');
+            $previous=json_decode((string)($existing['values'][13]??'[]'),true)?:[];
+            $incoming=json_decode((string)$values[13],true)?:[];
+            foreach($previous as $bank){
+                $bankId=(string)($bank['id']??'');if($bankId==='')continue;
+                $match=null;foreach($incoming as $candidate)if((string)($candidate['id']??'')===$bankId){$match=$candidate;break;}
+                if(!$match||strcasecmp((string)($bank['status']??'Active'),'Inactive')!==0&&strcasecmp((string)($match['status']??'Active'),'Inactive')===0)
+                    throw new InvalidArgumentException('Existing bank accounts require a Director deactivation request; reopen this company and request approval.');
+                if(strcasecmp((string)($bank['status']??'Active'),'Inactive')===0 && strcasecmp((string)($match['status']??'Active'),'Inactive')!==0)
+                    throw new InvalidArgumentException('A deactivated bank account cannot be reactivated from the company editor.');
             }
         }
     }
