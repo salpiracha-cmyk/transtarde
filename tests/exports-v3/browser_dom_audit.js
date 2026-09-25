@@ -95,6 +95,7 @@ assert.equal(d.querySelector('#mFIType').value,'CAD','Customs +FI defaults its t
 set(d.querySelector('#mFINo'),'FI-TG-CUSTOMS-ADD');set(d.querySelector('#mFIValue'),'25000');
 d.querySelector('#mFIBank').add(new w.Option('TTI AED BANK','TTI AED BANK'));set(d.querySelector('#mFIBank'),'TTI AED BANK','change');
 d.querySelector('#saveFI').click();
+await new Promise(resolve=>setTimeout(resolve,0));
 const createdCustomsFI=t.state.fi.find(row=>row.number==='FI-TG-CUSTOMS-ADD');
 assert.ok(createdCustomsFI,'Customs +FI saves the new FI');
 assert.equal(d.querySelector('#cuFISelect').value,createdCustomsFI.id,'new Customs FI returns to the same lot and is selected immediately');
