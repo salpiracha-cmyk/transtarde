@@ -35,7 +35,7 @@ $access = [
 $bootstrap = '<style id="tt-accounts-boot-style">html.tt-accounts-boot .topbar,html.tt-accounts-boot .shell{visibility:hidden}html.tt-accounts-boot body:before{content:"Loading Accounts…";position:fixed;inset:0;display:grid;place-items:center;background:#eef2f6;color:#102a46;font:700 15px Arial;z-index:99999}</style><script>document.documentElement.classList.add("tt-accounts-boot");window.TT_ACCOUNT_ACCESS=' . json_encode($access, JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT) . ';</script>';
 $html = tt_replace_html_once(
     '/<head(\s[^>]*)?>/i',
-    static fn(array $match): string => $match[0] . $bootstrap . '<script src="/offline-outbox.js?v=20260924-explicit-actions-1"></script><link rel="stylesheet" href="/brand-theme.css?v=20260913-2">',
+    static fn(array $match): string => $match[0] . $bootstrap . '<link rel="stylesheet" href="/brand-theme.css?v=20260913-2">',
     $html
 );
 $html = tt_replace_html_once(

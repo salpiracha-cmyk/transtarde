@@ -8,7 +8,6 @@ on:
       - 'exports/**'
       - 'milling/**'
       - 'module.php'
-      - 'offline-outbox.js'
       - 'offline_idempotency.php'
       - 'module_release.php'
       - '.htaccess'
@@ -32,7 +31,6 @@ on:
       - 'exports/**'
       - 'milling/**'
       - 'module.php'
-      - 'offline-outbox.js'
       - 'offline_idempotency.php'
       - 'module_release.php'
       - '.htaccess'
@@ -96,7 +94,6 @@ jobs:
           if-no-files-found: error
       - name: Run Export and bridge audits
         run: |
-          node --check offline-outbox.js
           node tests/exports-v3/backend_static_audit.js
           node tests/exports-v3/bridge_integration_test.js
           node tests/exports-v3/browser_dom_audit.js

@@ -49,8 +49,7 @@ assert.match(js,/function deleteShipmentDocuments/,'shipment deletion must remov
 assert.match(js,/function deleteShipmentData/,'shipment deletion must remove linked operational data');
 assert.doesNotMatch(js,/setInterval\(\(\)=>window\.TT_SHARED_SYNC\?\.poll/,'Exports must not poll or rebuild active forms in the background');
 assert.doesNotMatch(js,/Manual save only/,'Exports must not expose technical sync/save-mode wording');
-assert.match(modulePhp,/offline-outbox\.js\?v=/,'explicit final actions must load durable browser recovery');
-assert.doesNotMatch(modulePhp,/deleteDatabase\(|LEGACY_QUEUE_STORE|LEGACY_OUTBOX_DB/,'durable recovery must not be deleted on load');
+assert.doesNotMatch(modulePhp,/offline-outbox\.js|deleteDatabase\(/,'modules must not load an offline queue or erase any old browser entries');
 assert.doesNotMatch(modulePhp,/queued:true|settleQueued/,'shared data must not advance before server acknowledgement');
 assert.match(js,/const rerender=\(\)=>\{renderShipmentWorkspace\(\)\}/,'Loading Instruction draft controls must not save before the final Send action');
 assert.match(js,/window\.TT_SHARED_SYNC\?\.saveNow\?\.\(\)/,'final Loading Instruction send must wait for authoritative shared save acknowledgement');

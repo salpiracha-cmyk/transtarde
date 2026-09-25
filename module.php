@@ -53,6 +53,7 @@ $access = [
 ];
 $bootstrap = '<script>window.TT_MODULE_ACCESS='.json_encode($access, JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT).';</script>';
 $sharedBootstrap = <<<'HTML'
+<style>html.tt-save-waiting body::after{content:'Saving…';position:fixed;inset:0;display:grid;place-items:center;z-index:2147482999;background:rgba(12,32,22,.45);color:#fff;font:700 20px Arial}</style>
 <script id="tt-shared-operations-bootstrap">
 (()=>{
   const access=window.TT_MODULE_ACCESS||{}, endpoint='api/operations.mysql.php';
@@ -90,10 +91,12 @@ $sharedBootstrap = <<<'HTML'
   function settleCommits(error=''){
     if(!error&&inFlight.size)return;
     const waiters=commitWaiters.splice(0);for(const w of waiters){clearTimeout(w.timer);error?w.reject(new Error(error)):w.resolve({ok:true,revision})}
+    document.documentElement.classList.remove('tt-save-waiting');
   }
   function saveNow(){
     if(!pending.size&&!inFlight.size)return Promise.resolve({ok:true,revision});
-    return new Promise((resolve,reject)=>{const waiter={resolve,reject,timer:0};waiter.timer=setTimeout(()=>{const i=commitWaiters.indexOf(waiter);if(i>=0){commitWaiters.splice(i,1);reject(new Error('Save timed out. Nothing was advanced; please retry.'))}},20000);commitWaiters.push(waiter);flush()})
+    document.documentElement.classList.add('tt-save-waiting');
+    return new Promise((resolve,reject)=>{const waiter={resolve,reject,timer:0};waiter.timer=setTimeout(()=>{const i=commitWaiters.indexOf(waiter);if(i>=0){commitWaiters.splice(i,1);if(!commitWaiters.length)document.documentElement.classList.remove('tt-save-waiting');reject(new Error('Save timed out. Nothing was advanced; please retry.'))}},20000);commitWaiters.push(waiter);flush()})
   }
   function refreshNow(){
     if(pending.size||inFlight.size)return Promise.reject(new Error('Finish the current save before refreshing.'));
@@ -114,6 +117,12 @@ $sharedBootstrap = <<<'HTML'
   function queue(key,value){if(!allowed(key)||applying)return;if(!pending.has(key))queuedBase.set(key,Number(keyVersions.get(key)||0));pending.set(key,String(value))}
   Storage.prototype.setItem=function(k,v){originalSet.call(this,k,v);if(this===localStorage)queue(String(k),String(v))};
   Storage.prototype.removeItem=function(k){originalRemove.call(this,k);};
+  // Final actions lock the workspace until the server answers. Form data stays
+  // available after an error so the same action can be retried.
+  const blockWhileSaving=event=>{if(!document.documentElement.classList.contains('tt-save-waiting'))return;event.preventDefault();event.stopImmediatePropagation()};
+  document.addEventListener('click',blockWhileSaving,true);
+  document.addEventListener('submit',blockWhileSaving,true);
+  document.addEventListener('keydown',event=>{if(event.key==='Enter'&&document.documentElement.classList.contains('tt-save-waiting'))blockWhileSaving(event)},true);
 
   const initial=getRemote(true);if(initial?.ok&&!Object.prototype.hasOwnProperty.call(initial.values||{},EXPORT_STORE)&&!pending.has(EXPORT_STORE)){applying=true;originalRemove.call(localStorage,EXPORT_STORE);applying=false}if(initial)applyRemote(initial,true);
 
@@ -176,7 +185,7 @@ HTML;
 
 $brandHead = '<link rel="stylesheet" href="/brand-theme.css?v=20260913-3">';
 $headPos = stripos($html, '</head>');
-if ($headPos !== false) $html = substr_replace($html, $brandHead.$bootstrap.$sharedBootstrap.'<script src="/offline-outbox.js?v=20260924-explicit-actions-1"></script>', $headPos, 0);
+if ($headPos !== false) $html = substr_replace($html, $brandHead.$bootstrap.$sharedBootstrap, $headPos, 0);
 $accountsSourceBridge = '<script src="accounts/source-bridge.js?v=20260924-explicit-actions-1"></script><script src="accounts/loading-programme-sync.js?v=20260924-explicit-actions-1"></script><script src="accounts/bag-control-bridge.js?v=20260924-explicit-actions-1"></script>';
 $brandBody = '<script src="/brand-theme.js?v=20260913-3"></script>';
 $bodyPos = strripos($html, '</body>');
