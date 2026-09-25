@@ -376,7 +376,7 @@ function tt_normalize_masters(array $masters): array {
     $masters['purchase_kat']=$katRows;
     $katByIdentity=[];$katIds=[];
     foreach($katRows as$katRow){$kv=(array)($katRow['values']??[]);$katId=(string)($katRow['id']??'');$katIds[$katId]=true;$katByIdentity[strtolower((string)($kv[0]??'').'|'.(string)($kv[1]??'').'|'.(string)($kv[2]??'').'|'.(string)($kv[3]??''))]=$katId;}
-    foreach($masters['purchase_products']as&$productRow){$pv=tt_purchase_product_values((array)($productRow['values']??[]));$identity=strtolower($pv[0].'|'.$pv[1].'|'.$pv[2].'|'.$pv[3]);if($pv[0]==='RICE'&&!isset($katIds[(string)$pv[5]])&&isset($katByIdentity[$identity]))$pv[5]=$katByIdentity[$identity];$productRow['values']=$pv;}unset($productRow);
+    foreach($masters['purchase_products']as&$productRow){$pv=tt_purchase_product_values((array)($productRow['values']??[]));$identity=strtolower($pv[0].'|'.$pv[1].'|'.$pv[2].'|'.$pv[3]);if($pv[0]==='RICE'&&$pv[10]===''&&!isset($katIds[(string)$pv[5]])&&isset($katByIdentity[$identity]))$pv[5]=$katByIdentity[$identity];$productRow['values']=$pv;}unset($productRow);
     foreach ($masters['products'] as &$row) {
         $values=array_values((array)($row['values'] ?? []));
         while (count($values)<22) $values[]='';

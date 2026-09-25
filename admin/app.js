@@ -141,7 +141,8 @@
         { label: "Purchase unit", required: true, type: "select", options: ["KG", "MAUND", "MT"] },
         { label: "KAT profile" }, { label: "Legacy brokery rule", type: "hidden" }, { label: "Legacy inventory account", type: "hidden" },
         { label: "Status", type: "select", options: ["Active", "Draft – review required", "Inactive"] },
-        { label: "Notes", type: "textarea", full: true }
+        { label: "Notes", type: "textarea", full: true },
+        { label: "Broken grade (optional)" }
       ],
       rows: []
     },
@@ -757,6 +758,7 @@
       <label>Commodity<select id="${masterInputId(0)}" data-master-field-index="0" required>${options(["RICE","CORN","SESAME"],v[0])}</select></label>
       ${productOptionSelect(1,"Shared base variety / product","product_varieties",v[1]||"",true)}
       ${productOptionSelect(2,"Rice type","product_rice_types",v[2]||"",String(v[0]||"").toUpperCase()==="RICE")}
+      <label>Broken grade (optional)<input id="${masterInputId(10)}" data-master-field-index="10" value="${escapeHtml(v[10]||"")}" placeholder="100% Broken" autocomplete="off"></label>
       <label>Purchased as<select id="${masterInputId(3)}" data-master-field-index="3" required>${options(["RAW","READY"],v[3])}</select></label>
       <label>Purchase unit<select id="${masterInputId(4)}" data-master-field-index="4" required>${options(["KG","MAUND","MT"],v[4])}</select></label>
       <label>KAT profile<select id="${masterInputId(5)}" data-master-field-index="5">${katOptions}</select></label>
@@ -874,8 +876,8 @@
       return values;
     }
     if (type.id === "purchase_products") {
-      const values=Array(10).fill("");
-      [0,1,2,3,4,5,8,9].forEach(index=>{values[index]=document.getElementById(masterInputId(index))?.value.trim()||""});
+      const values=Array(11).fill("");
+      [0,1,2,3,4,5,8,9,10].forEach(index=>{values[index]=document.getElementById(masterInputId(index))?.value.trim()||""});
       return values;
     }
     return type.fields.map((field, index) => {
@@ -889,7 +891,7 @@
     if (type.id === "companies") return [1, 0, 3, 2];
     if (type.id === "commodities") return [1, 0, 2, 3];
     if (type.id === "products") return [0, 1, 2, 3, 5];
-    if (type.id === "purchase_products") return [0, 1, 2, 3, 4, 5, 8];
+    if (type.id === "purchase_products") return [0, 1, 2, 10, 3, 4, 8];
     if (type.id === "purchase_kat") return [0, 1, 2, 3, 4, 7];
     if (type.id === "export_customers") return [0, 1, 4, 10];
     if (type.id === "business_parties") return [0, 1, 2, 4, 10];

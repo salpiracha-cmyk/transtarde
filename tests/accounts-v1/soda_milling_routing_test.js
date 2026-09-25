@@ -44,6 +44,17 @@ assert.match(desk,/remove_party_category/);
 assert.match(soda,/tt_business_party_has_category\(\$v\[2\],'Supplier'\)/);
 assert.match(soda,/canAddProduct/);
 assert.match(soda,/canRemoveLocation/);
+assert.match(desk,/Broker \(optional\)/);
+assert.match(desk,/No broker — direct purchase/);
+assert.match(soda,/if\(\$broker!==''\)\{\$brokerProfile=/);
+assert.match(soda,/if\(\$route==='EX_MILL'&&!\$supplier\)/);
+assert.match(desk,/Contracted Quantity \(MT\)/);
+assert.match(desk,/Truck \/ Containers/);
+assert.match(soda,/\$exMill\?\$minimum\*\.95/);
+assert.match(soda,/\$exMill\?\$maximum\*1\.05/);
+assert.match(feed,/\$maximum\*1\.05/);
+assert.match(mill,/projected>x\.qtyKg\*1\.05/);
+assert.match(mill,/brokenGrade:soda\.brokenGrade/);
 
 assert.match(soda,/linkedExternalMillId/);
 assert.match(desk,/suggestSupplierMill/);

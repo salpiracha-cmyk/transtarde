@@ -170,8 +170,9 @@ function ps_rows(array $store, string $entity): array {
         }
         $minimum = (float)($soda['qtyFromKg'] ?? 0); $maximum = (float)($soda['qtyToKg'] ?? 0); $expected = (int)($soda['expectedTrucks'] ?? 0);
         $hasWeight = $minimum > 0; $hasTrucks = $expected > 0;
-        $weightMet = !$hasWeight || $received >= $minimum; $truckMet = !$hasTrucks || $truckUnits >= $expected;
-        $maxAllowed = $maximum > 0 ? $maximum + PS_MAX_OVER_KG : 0; $overMaximum = $maxAllowed > 0 && $received > $maxAllowed + .001;
+        $exMill=(string)($soda['readyRoute']??'')==='EX_MILL';
+        $weightMet = !$hasWeight || $received >= ($exMill?$minimum*.95:$minimum); $truckMet = !$hasTrucks || $truckUnits >= $expected;
+        $maxAllowed = $maximum > 0 ? ($exMill?$maximum*1.05:$maximum + PS_MAX_OVER_KG) : 0; $overMaximum = $maxAllowed > 0 && $received > $maxAllowed + .001;
         if((string)($soda['readyRoute']??'')==='EX_MILL')$unbilled=$received>0&&$billed<=0?1:0;
         $status = (string)($soda['status'] ?? 'Open');
         if (!in_array($status, ['Completed','Short Closed','Cancelled'], true)) {
@@ -193,10 +194,7 @@ function ps_validate(array $body, ?array $existing = null): array {
     $commodity=(string)$product['commodity'];$stage=(string)$product['productStage'];
     $date = ps_date((string)($body['sodaDate'] ?? ''), 'Soda date');
     $broker = trim((string)($body['broker'] ?? ''));$supplierId=trim((string)($body['supplierId']??''));$supplier=ps_find_supplier($supplierId,ps_suppliers());if($supplierId!==''&&!$supplier)ps_out(['ok'=>false,'error'=>'Select an active Supplier profile from Business Parties.'],422);$party=$supplier?(string)$supplier['name']:'';
-    if ($broker === '') ps_out(['ok'=>false, 'error'=>'Broker is required.'], 422);
-    $brokerProfile = tt_broker_profile($broker, $date, 'buying');
-    if (!$brokerProfile) ps_out(['ok'=>false, 'error'=>'Select an active Broker profile from Business Parties.'], 422);
-    $broker = (string)$brokerProfile['name'];
+    if($broker!==''){$brokerProfile=tt_broker_profile($broker,$date,'buying');if(!$brokerProfile)ps_out(['ok'=>false,'error'=>'Select an active Broker profile, or leave Broker blank for a direct purchase.'],422);$broker=(string)$brokerProfile['name'];}
     $fromRaw = trim((string)($body['qtyFromMT'] ?? '')); $toRaw = trim((string)($body['qtyToMT'] ?? '')); $trucksRaw = trim((string)($body['expectedTrucks'] ?? ''));
     if ($fromRaw === '' && $toRaw === '' && $trucksRaw === '') ps_out(['ok'=>false, 'error'=>'Enter minimum/maximum quantity, expected trucks, or both.'], 422);
     if ($toRaw !== '' && $fromRaw === '') ps_out(['ok'=>false, 'error'=>'Enter minimum quantity when using a maximum quantity.'], 422);
@@ -217,8 +215,10 @@ function ps_validate(array $body, ?array $existing = null): array {
     $route=$stage==='READY'?strtoupper(trim((string)($body['readyRoute']??''))):'DELIVER_TO_STOCK';if($stage==='READY'&&!in_array($route,['EX_MILL','DELIVER_TO_STOCK'],true))ps_out(['ok'=>false,'error'=>'Choose whether Ready Rice remains at the Ex-Mill or is delivered to our mill / stock location.'],422);
     $locationId=trim((string)($body['locationId']??''));$location=ps_find_location($locationId,ps_locations());if(!$location)ps_out(['ok'=>false,'error'=>'Select an active stock-holding mill / location. Office locations are not allowed.'],422);
     if($route==='EX_MILL'&&($location['type']??'')!=='External Mill')ps_out(['ok'=>false,'error'=>'Select an External Mill for the Ex-Mill route.'],422);
+    if($route==='EX_MILL'&&!$supplier)ps_out(['ok'=>false,'error'=>'Choose the supplier for this Ex-Mill purchase. Broker may be left blank.'],422);
+    if($route==='EX_MILL'&&($minimum<=0||abs($maximum-$minimum)>.001))ps_out(['ok'=>false,'error'=>'Ex-Mill Sodas need one contracted quantity; actual loaded weight may vary by up to 5%.'],422);
     if($route==='DELIVER_TO_STOCK'&&!in_array((string)($location['type']??''),ps_receiving_types(),true))ps_out(['ok'=>false,'error'=>'Select an own mill, reprocessing mill, warehouse or stock location for delivery.'],422);
-    return ['commodity'=>$commodity,'purchaseProductId'=>$purchaseProductId,'baseVariety'=>(string)$product['baseVariety'],'riceType'=>(string)$product['riceType'],'productStage'=>$stage,'displayName'=>(string)$product['displayName'],'katProfile'=>(string)$product['katProfile'],'sodaDate'=>$date,'broker'=>$broker,'supplierId'=>$supplierId,'party'=>$party,'variety'=>(string)$product['baseVariety'],'readyRoute'=>$route,'movementRole'=>$route==='EX_MILL'?'LIFT_FROM':'DELIVER_TO','locationId'=>(string)$location['id'],'location'=>(string)$location['name'],'locationName'=>(string)$location['name'],'locationType'=>(string)$location['type'],'locationAddress'=>(string)$location['address'],'exMillId'=>$route==='EX_MILL'?(string)$location['id']:'','qtyFromKg'=>$minimum,'qtyToKg'=>$maximum,'expectedTrucks'=>$trucks,'completionBasis'=>$minimum > 0 && $trucks > 0 ? 'BOTH' : ($minimum > 0 ? 'WEIGHT' : 'TRUCKS'),'rate'=>$rate,'ratePerKg'=>$unit === 'MAUND' ? round($rate/40, 6) : $rate,'rateUnit'=>$unit,'paymentTermType'=>$payment,'creditDays'=>$creditDays,'arrivalDueDate'=>$due,'deliveryDeadline'=>$due,'terms'=>trim((string)($body['terms']??'')),'remarks'=>trim((string)($body['remarks']??'')),'maxOverToleranceKg'=>PS_MAX_OVER_KG,'doubleTruckAboveKg'=>PS_TRUCK_DOUBLE_KG];
+    return ['commodity'=>$commodity,'purchaseProductId'=>$purchaseProductId,'baseVariety'=>(string)$product['baseVariety'],'riceType'=>(string)$product['riceType'],'brokenGrade'=>(string)($product['brokenGrade']??''),'productStage'=>$stage,'displayName'=>(string)$product['displayName'],'katProfile'=>(string)$product['katProfile'],'sodaDate'=>$date,'broker'=>$broker,'supplierId'=>$supplierId,'party'=>$party,'variety'=>(string)$product['baseVariety'],'readyRoute'=>$route,'movementRole'=>$route==='EX_MILL'?'LIFT_FROM':'DELIVER_TO','locationId'=>(string)$location['id'],'location'=>(string)$location['name'],'locationName'=>(string)$location['name'],'locationType'=>(string)$location['type'],'locationAddress'=>(string)$location['address'],'exMillId'=>$route==='EX_MILL'?(string)$location['id']:'','qtyFromKg'=>$minimum,'qtyToKg'=>$maximum,'expectedTrucks'=>$trucks,'completionBasis'=>$minimum > 0 && $trucks > 0 ? 'BOTH' : ($minimum > 0 ? 'WEIGHT' : 'TRUCKS'),'rate'=>$rate,'ratePerKg'=>$unit === 'MAUND' ? round($rate/40, 6) : $rate,'rateUnit'=>$unit,'paymentTermType'=>$payment,'creditDays'=>$creditDays,'arrivalDueDate'=>$due,'deliveryDeadline'=>$due,'terms'=>trim((string)($body['terms']??'')),'remarks'=>trim((string)($body['remarks']??'')),'maxOverToleranceKg'=>$route==='EX_MILL'?round($maximum*.05,3):PS_MAX_OVER_KG,'doubleTruckAboveKg'=>PS_TRUCK_DOUBLE_KG];
 }
 
 try {

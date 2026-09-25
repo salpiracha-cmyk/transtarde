@@ -68,9 +68,9 @@ function tt_product_identity(string $commodity,string $name,string $stageHint=''
     return ['commodity'=>$commodity,'baseVariety'=>$base,'riceType'=>$type,'productStage'=>$stage,'displayName'=>tt_product_display($commodity,$base,$stage,$type),'stageInferred'=>$inferred];
 }
 
-/** Convert old 10-column purchase rows to the canonical 10-column layout. */
+/** Convert old purchase rows to the canonical layout, with an optional broken grade. */
 function tt_purchase_product_values(array $values): array {
-    $v=array_values($values);while(count($v)<10)$v[]='';
+    $v=array_values($values);while(count($v)<11)$v[]='';
     if (in_array(tt_product_stage((string)$v[2]),['RAW','READY','FINISHED'],true)) {
         $legacy=$v;
         $v=[
@@ -80,10 +80,11 @@ function tt_purchase_product_values(array $values): array {
             (string)$legacy[6],(string)$legacy[7],(string)$legacy[8],(string)$legacy[9],
         ];
     }
+    while(count($v)<11)$v[]='';
     $v[0]=strtoupper(trim((string)$v[0]));$v[1]=tt_product_base((string)$v[1]);
     $v[2]=$v[0]==='RICE'?tt_product_type((string)$v[2]):trim((string)$v[2]);
     $v[3]=tt_product_stage((string)$v[3])?:'RAW';
-    return array_slice($v,0,10);
+    return array_slice($v,0,11);
 }
 
 function tt_purchase_product_profiles(?array $masters=null): array {
@@ -92,7 +93,9 @@ function tt_purchase_product_profiles(?array $masters=null): array {
     foreach($rows as $row){
         if(!is_array($row))continue;$v=tt_purchase_product_values((array)($row['values']??[]));
         $stage=tt_product_stage((string)$v[3]);if($stage===''||strcasecmp((string)$v[8],'Inactive')===0)continue;
-        $out[]=['id'=>(string)($row['id']??''),'commodity'=>(string)$v[0],'baseVariety'=>(string)$v[1],'riceType'=>(string)$v[2],'productStage'=>$stage,'purchaseClassification'=>$stage,'displayName'=>tt_product_display((string)$v[0],(string)$v[1],$stage,(string)$v[2]),'purchaseUnit'=>(string)$v[4],'katProfile'=>(string)$v[5],'status'=>(string)$v[8],'notes'=>(string)$v[9]];
+        $grade=trim((string)$v[10]);$label=tt_product_display((string)$v[0],(string)$v[1],$stage,(string)$v[2]);
+        if($grade!==''&&$v[0]==='RICE')$label=trim((string)preg_replace('/\s+(Raw|Ready) Rice$/i','',$label)).' '.$grade.' '.ucfirst(strtolower($stage)).' Rice';
+        $out[]=['id'=>(string)($row['id']??''),'commodity'=>(string)$v[0],'baseVariety'=>(string)$v[1],'riceType'=>(string)$v[2],'brokenGrade'=>$grade,'productStage'=>$stage,'purchaseClassification'=>$stage,'displayName'=>$label,'purchaseUnit'=>(string)$v[4],'katProfile'=>(string)$v[5],'status'=>(string)$v[8],'notes'=>(string)$v[9]];
     }
     return $out;
 }

@@ -26,8 +26,9 @@ assert(stage.includes("'riceType'"),'canonical Rice Type is not retained separat
 assert(stage.includes("strcasecmp($base,'Sesame')===0"),'Sesame display must not duplicate the base name');
 
 assert(masters.includes("'purchase_products'=>["),'Purchase Products master missing');
-assert(masterApi.includes("'purchase_products'=>10"),'Purchase Products API schema missing');
-assert(masterApi.includes('Create the Rice base variety in Export Quality & Specs first'),'shared base-product identity guard missing');
+assert(masterApi.includes("'purchase_products'=>11"),'Purchase Products API schema must retain the broken grade');
+assert(!masterApi.includes('Create the Rice base variety in Export Quality & Specs first'),'new purchase products must be addable from the Soda form');
+assert(stage.includes("'brokenGrade'=>$grade"),'broken grade must be shown separately from the base variety');
 assert(admin.includes('name: "Export Quality & Specs"'),'Export Quality & Specs master name missing');
 assert(admin.includes('name: "Purchase Commodities & KAT"'),'combined Purchase Commodities & KAT workspace missing');
 assert(admin.includes('["products","purchase_products"]'),'separate Commodity and KAT menu entries were not merged');

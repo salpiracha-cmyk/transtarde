@@ -115,7 +115,7 @@ try {
     }
 
     $schemas=[
-        'companies'=>15,'export_customers'=>22,'business_parties'=>13,'commodities'=>8,'product_settings'=>1,'products'=>22,'purchase_products'=>10,'purchase_kat'=>10,
+        'companies'=>15,'export_customers'=>22,'business_parties'=>13,'commodities'=>8,'product_settings'=>1,'products'=>22,'purchase_products'=>11,'purchase_kat'=>10,
         'mills'=>7,'export_documents'=>5,'export_terms'=>3,
     ];
     if (!isset($schemas[$type])) throw new InvalidArgumentException('Select a valid master section.');
@@ -229,24 +229,27 @@ try {
     if ($type==='purchase_products') {
         $values[0]=strtoupper($values[0]);
         $values[1]=tt_product_base($values[1]);
+        if(preg_match('/\b\d+(?:\.\d+)?\s*%\s*(?:Max\s*)?Broken\b/i',$values[1]))throw new InvalidArgumentException('Enter only the variety (for example PK-386) in Base Variety, then enter 100% Broken in Broken Grade.');
         $values[2]=$values[0]==='RICE'?tt_product_type($values[2]):trim($values[2]);
         $values[3]=tt_product_stage($values[3]);
         $values[6]='';
         $values[7]='';
+        $values[10]=trim($values[10]);
+        if($values[10]!==''&&!preg_match('/^(?:100(?:\.0+)?|\d{1,2}(?:\.\d+)?)\s*%\s*Broken$/i',$values[10]))throw new InvalidArgumentException('Enter the broken grade as a percentage, for example 100% Broken.');
+        if($values[10]!==''&&$values[0]!=='RICE')throw new InvalidArgumentException('Broken grade applies to rice only.');
         if ($values[1]==='' || !in_array($values[3],['RAW','READY'],true)) throw new InvalidArgumentException('Select a base product and choose RAW or READY. FINAL is created only by TTI/reprocessing production.');
         if (!in_array($values[0],['RICE','CORN','SESAME'],true)) throw new InvalidArgumentException('Commodity must be RICE, CORN or SESAME.');
         if ($values[0]==='RICE') {
             if($values[2]==='')throw new InvalidArgumentException('Select the Rice Type, for example White, Parboiled / Sella or Steam.');
-            $known=false;
-            foreach ((array)(master_all($admin)['products']??[]) as $product) if (strcasecmp(tt_product_base((string)($product['values'][1]??'')),$values[1])===0) {$known=true;break;}
-            if (!$known) throw new InvalidArgumentException('Create the Rice base variety in Export Quality & Specs first so both areas share one identity.');
+            // An Accounts purchase can introduce a variety before its Export quality specifications exist.
+            // The base name stays separate from broken grade, so no incomplete Export product is created.
             if(trim((string)$values[5])!==''){$kat=master_find_row('purchase_kat',(string)$values[5]);if(!$kat)throw new InvalidArgumentException('Select a saved KAT Profile from the list.');$kv=(array)($kat['values']??[]);if(strcasecmp((string)($kv[0]??''),$values[0])!==0||strcasecmp(tt_product_base((string)($kv[1]??'')),$values[1])!==0||strcasecmp(tt_product_type((string)($kv[2]??'')),$values[2])!==0||strcasecmp(tt_product_stage((string)($kv[3]??'')),$values[3])!==0)throw new InvalidArgumentException('The selected KAT Profile belongs to a different variety, rice type or purchase classification.');}
         }
-        $candidate=strtolower($values[0].'|'.$values[1].'|'.$values[2].'|'.$values[3]);
+        $candidate=strtolower($values[0].'|'.$values[1].'|'.$values[2].'|'.$values[3].'|'.$values[10]);
         foreach ((array)(master_all($admin)['purchase_products']??[]) as $row) {
             if ($id!=='' && (string)($row['id']??'')===$id) continue;
             $v=tt_purchase_product_values((array)($row['values']??[]));
-            if (strtolower((string)$v[0].'|'.(string)$v[1].'|'.(string)$v[2].'|'.(string)$v[3])===$candidate) throw new InvalidArgumentException('This variety, rice type and purchase classification already exists. Edit it instead.');
+            if (strtolower((string)$v[0].'|'.(string)$v[1].'|'.(string)$v[2].'|'.(string)$v[3].'|'.(string)$v[10])===$candidate) throw new InvalidArgumentException('This variety, rice type, broken grade and purchase classification already exists. Edit it instead.');
         }
     }
     if($type==='business_parties'){
