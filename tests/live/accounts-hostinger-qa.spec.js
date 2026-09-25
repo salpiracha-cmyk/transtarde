@@ -103,12 +103,15 @@ test('authenticated Accounts live smoke: professional desk and popup workflows',
   await expect(page.locator('#ttMasterTop'), 'M must be visible to every ordinary module user').toBeVisible();
   await activate(page.locator('#ttMasterTop'));
   await expect(page).toHaveURL(/\/index\.php\?view=masters&from=accounts$/, { timeout: 30_000 });
-  const masterIdentity = await page.evaluate(() => ({
+  await page.waitForLoadState('domcontentloaded');
+  await expect.poll(() => page.evaluate(() => ({
     user: window.TT_SESSION?.name || '',
     role: window.TT_SESSION?.role || '',
     returnUrl: window.TT_SESSION?.masterReturn?.url || ''
-  }));
-  expect(masterIdentity, 'Master Records must retain the ordinary Accounts session').toEqual({
+  })), {
+    message: 'Master Records must retain the ordinary Accounts session',
+    timeout: 30_000
+  }).toEqual({
     user: 'Transtrade QA', role: 'QA Tester', returnUrl: '/accounts/index.php'
   });
   await page.waitForTimeout(1_000);
