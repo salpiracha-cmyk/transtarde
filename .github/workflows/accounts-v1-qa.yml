@@ -3,7 +3,7 @@ name: Accounts V1 QA
 on:
   push:
     branches: [main]
-    paths: ['index.html','accounts/**','api/**','scripts/**','auth_store.php','offline_idempotency.php','product_stage.php','inventory_reconciliation.php','stock-reconciliation.php','directors/**','module.php','exports/**','admin/**','milling/**','tests/accounts-v1/**','tests/offline_recovery_audit.js','tests/super_admin_cleanup_audit.js','tests/live/accounts-hostinger-qa.spec.js','tests/live/accounts-bulk-hostinger-qa.spec.js','tests/live/hostinger-qa.spec.js','tests/live/exports-reset-only.spec.js','tests/exports-v3/**','.github/workflows/accounts-v1-qa.yml','.github/workflows/milling-exports-qa.yml','.github/workflows/deploy-production.yml','.github/workflows/qa-data-cleanup.yml']
+    paths: ['index.html','accounts/**','api/**','scripts/**','auth_store.php','qa_account.php','offline_idempotency.php','product_stage.php','inventory_reconciliation.php','stock-reconciliation.php','directors/**','module.php','exports/**','admin/**','milling/**','tests/accounts-v1/**','tests/offline_recovery_audit.js','tests/super_admin_cleanup_audit.js','tests/live/accounts-hostinger-qa.spec.js','tests/live/accounts-bulk-hostinger-qa.spec.js','tests/live/hostinger-qa.spec.js','tests/live/exports-reset-only.spec.js','tests/exports-v3/**','.github/workflows/accounts-v1-qa.yml','.github/workflows/milling-exports-qa.yml','.github/workflows/deploy-production.yml','.github/workflows/qa-data-cleanup.yml']
   pull_request:
     paths: ['index.html','accounts/**','api/**','scripts/**','auth_store.php','offline_idempotency.php','product_stage.php','inventory_reconciliation.php','stock-reconciliation.php','directors/**','module.php','exports/**','admin/**','milling/**','tests/accounts-v1/**','tests/offline_recovery_audit.js','tests/super_admin_cleanup_audit.js','tests/live/accounts-hostinger-qa.spec.js','tests/live/accounts-bulk-hostinger-qa.spec.js','tests/live/hostinger-qa.spec.js','tests/live/exports-reset-only.spec.js','tests/exports-v3/**','.github/workflows/accounts-v1-qa.yml','.github/workflows/milling-exports-qa.yml','.github/workflows/deploy-production.yml','.github/workflows/qa-data-cleanup.yml']
 
@@ -42,6 +42,7 @@ jobs:
           node tests/accounts-v1/linkage_regressions_test.js
           php tests/accounts-v1/tg_receipt_mirror_test.php
           php tests/accounts-v1/accounts_reset_scope_test.php
+          php tests/accounts-v1/qa_account_profile_test.php
           php tests/accounts-v1/credit_advice_amendment_test.php
           php tests/accounts-v1/post_amendment_test.php
           node tests/accounts-v1/master_role_mapping_test.js
