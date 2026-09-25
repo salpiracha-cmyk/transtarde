@@ -713,7 +713,18 @@ function tt_auth_clear_failures(string $scope,string $identity): void {
 function tt_read_store(): array {
     tt_ensure_data_dir();
     if (!is_file(TT_STORE_FILE)) return ['users' => [], 'audit' => [], 'masters'=>tt_default_masters(), 'master_options'=>tt_default_master_options(), 'master_options_disabled'=>[]];
-    $raw = file_get_contents(TT_STORE_FILE);
+    $handle = fopen(TT_STORE_FILE, 'r');
+    if ($handle === false || !flock($handle, LOCK_SH)) {
+        if (is_resource($handle)) fclose($handle);
+        throw new RuntimeException('Secure storage is unavailable.');
+    }
+    try {
+        rewind($handle);
+        $raw = stream_get_contents($handle);
+    } finally {
+        flock($handle, LOCK_UN);
+        fclose($handle);
+    }
     $data = $raw === false || $raw === '' ? null : json_decode($raw, true);
     if (!is_array($data)) return ['users' => [], 'audit' => [], 'masters'=>tt_default_masters(), 'master_options'=>tt_default_master_options(), 'master_options_disabled'=>[]];
     $data=array_merge(['users' => [], 'audit' => [], 'masters'=>tt_default_masters(), 'master_options'=>tt_default_master_options(), 'master_options_disabled'=>[]], $data);
