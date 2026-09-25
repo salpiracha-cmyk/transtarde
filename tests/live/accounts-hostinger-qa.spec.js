@@ -78,8 +78,10 @@ test('authenticated Accounts live smoke: professional desk and popup workflows',
     user: window.TT_ACCOUNT_ACCESS?.user || '',
     role: window.TT_ACCOUNT_ACCESS?.role || ''
   }));
-  expect(qaIdentity.user, 'Live smoke must run as the dedicated Transtrade QA account').toBe('Transtrade QA');
-  expect(qaIdentity.role, 'Live smoke must never run with Super Admin authority').not.toBe('Super Admin');
+  expect(qaIdentity, 'Live smoke must run as the stable dedicated QA identity').toEqual({
+    user: 'Transtrade QA',
+    role: 'QA Tester'
+  });
 
   await expect(page.locator('#ttEntityLanding')).toHaveCount(0);
   await expect.poll(() => page.evaluate(() => window.TT_ACCOUNTING_DESK?.installed || false), { timeout: 30_000 }).toBe(true);
