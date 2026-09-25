@@ -57,15 +57,19 @@ test('authenticated Accounts live smoke: professional desk and popup workflows',
   const pageErrors = [];
   const failedRequests = [];
   const failedResponses = [];
+  const consoleErrors = [];
+  const adminRuntimeResponses = [];
   page.on('pageerror', error => pageErrors.push(error.stack || String(error)));
+  page.on('console', message => { if (message.type() === 'error') consoleErrors.push(message.text()); });
   page.on('requestfailed', request => {
     const errorText = request.failure()?.errorText || 'failed';
     if (errorText === 'net::ERR_ABORTED') return;
     if (request.url().includes('/accounts/') || request.url().includes('/api/accounts_') || request.url().includes('/api/purchase_sodas')) failedRequests.push(`${request.method()} ${request.url()}: ${errorText}`);
   });
   page.on('response', response => {
-    if (response.status() < 400) return;
     const url = response.url();
+    if (url.includes('/admin/app.js')) adminRuntimeResponses.push(`${response.status()} ${url}`);
+    if (response.status() < 400) return;
     if (url.includes('/accounts/') || url.includes('/api/accounts_') || url.includes('/api/purchase_sodas')) failedResponses.push(`${response.status()} ${response.request().method()} ${url}`);
   });
   await signIn(page);
@@ -97,6 +101,18 @@ test('authenticated Accounts live smoke: professional desk and popup workflows',
   await expect(page.locator('#ttMasterTop'), 'M must be visible to every ordinary module user').toBeVisible();
   await activate(page.locator('#ttMasterTop'));
   await expect(page).toHaveURL(/\/index\.php\?view=masters&from=accounts$/, { timeout: 30_000 });
+  await page.waitForTimeout(1_000);
+  if (!(await page.locator('#view-masters').isVisible())) {
+    const masterDiagnostics = await page.evaluate(() => ({
+      title: document.title,
+      bodyClass: document.body.className,
+      masterClass: document.querySelector('#view-masters')?.className || '',
+      session: window.TT_SESSION || null,
+      scriptSrc: document.querySelector('script[src*="admin/app.js"]')?.getAttribute('src') || '',
+      readyState: document.readyState
+    }));
+    throw new Error(`Master Records runtime did not activate. diagnostics=${JSON.stringify(masterDiagnostics)} pageErrors=${JSON.stringify(pageErrors)} consoleErrors=${JSON.stringify(consoleErrors)} adminRuntimeResponses=${JSON.stringify(adminRuntimeResponses)}`);
+  }
   await expect(page.locator('#view-masters')).toBeVisible({ timeout: 30_000 });
   await expect(page.locator('#masterTitle')).toBeVisible();
   await expect(page.locator('#masterBackTop')).toHaveAccessibleName('Back to Accounts home');
