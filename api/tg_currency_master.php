@@ -60,7 +60,7 @@ function tg_banks(): array {
 function tg_bank_values(mixed $raw): array {
     if(!is_array($raw))tgfx_out(['ok'=>false,'error'=>'Enter the TG bank account details.'],422);
     $title=trim((string)($raw['accountTitle']??''));$bank=trim((string)($raw['bankName']??''));$currency=strtoupper(trim((string)($raw['currency']??'')));
-    if($title===''||$bank===''||!preg_match('/^[A-Z]{3}$/',$currency))tgfx_out(['ok'=>false,'error'=>'Account title, bank name and valid currency are required.'],422);
+    if($title===''||$bank===''||!in_array($currency,['USD','AED'],true))tgfx_out(['ok'=>false,'error'=>'Account title, bank name and valid currency are required.'],422);
     return ['Company Account','Trans Grains Foodstuff Trading L.L.C (TG)','',$title,$bank,trim((string)($raw['branch']??'')),trim((string)($raw['country']??'United Arab Emirates')),$currency,trim((string)($raw['accountNumber']??'')),trim((string)($raw['iban']??'')),trim((string)($raw['swift']??'')),trim((string)($raw['purpose']??'')),trim((string)($raw['visibility']??'Accounts; Directors')),trim((string)($raw['status']??'Active'))];
 }
 function tg_docs(): array {
