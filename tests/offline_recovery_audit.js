@@ -19,8 +19,8 @@ assert.match(modulePhp,/only explicit application actions save/i,'shared stores 
 assert.match(outbox,/indexedDB\.open\(DB_NAME,1\)/,'submitted entries persist in IndexedDB');
 assert.match(outbox,/X-TT-Transaction-ID/,'recovered requests carry stable transaction IDs');
 assert.match(outbox,/X-TT-Base-Resource-Version/,'retries carry a conflict base version');
-assert.match(outbox,/Unsynced entries:/,'the user sees the unsynced count');
-assert.match(outbox,/Upload pending entries\?/,'returning users are asked whether to upload');
+assert.doesNotMatch(outbox,/Unsynced entries:/,'normal screens do not show a sync counter');
+assert.match(outbox,/A save needs your attention/,'a failed save opens a focused recovery prompt');
 assert.match(outbox,/Restore form/,'the captured workflow can be restored');
 assert.match(outbox,/workflowSnapshot/,'workflow position and form values are captured');
 assert.match(outbox,/await put\(entry\);await updateNotice\(\);return entry/,'the local copy is written before submission');

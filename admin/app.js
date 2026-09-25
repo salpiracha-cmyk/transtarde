@@ -1,5 +1,8 @@
 (() => {
   "use strict";
+  // The static HTML file is publicly readable; only index.php injects an
+  // authenticated session. Never render a local imitation of the owner console.
+  if (!window.TT_SESSION?.id) { window.location.replace('/login.php'); return; }
 
   const STORAGE_KEY = "transtrade_super_admin_v1";
   const STATE_VERSION = 5;
@@ -26,7 +29,7 @@
       ["jv","Journal Voucher"],["reconciliation","Reconciliation"],["tg","TG / Intercompany"],["reports","Reports"],["masters","Accounts Masters"]
     ]
   };
-  const SESSION = window.TT_SESSION || { name: "Salman", username: "salman", role: "Super Admin", permissions: { Mill: "all", Exports: "all", Accounts: "all", Directors: "all" }, csrf: "" };
+  const SESSION = window.TT_SESSION;
   const IS_SUPER_ADMIN = SESSION.role === "Super Admin";
   let pendingDeletionRequests = [];
   const MASTER_PERMISSION_ACTIONS = ["Use","View","Create","Edit","Deactivate","View Documents","Download Documents"];
@@ -285,6 +288,8 @@
       node.hidden = module ? !canOpenModule(module.name) : false;
     });
     if (!IS_SUPER_ADMIN) {
+      document.title = 'Transtrade Master Records';
+      document.querySelectorAll('[data-view="dashboard"], [data-view="modules"]').forEach(node => { node.hidden = true; });
       document.querySelectorAll('[data-view="users"], [data-view="locks"], [data-view="audit"], [data-view="backup"], [data-action="create-user"], [data-view-target="audit"], #exportAudit, .dashboard-lower, #notificationButton').forEach(node => { node.hidden = true; });
       document.querySelectorAll('[data-view="masters"]').forEach(node=>{node.hidden=!hasMasterAccess});
       if (hasMasterAccess) showView("masters");

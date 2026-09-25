@@ -9,6 +9,7 @@ if (!tt_has_admin()) {
 $user = tt_require_login();
 if (!empty($user['must_change_password'])) { header('Location: change-password.php'); exit; }
 if (($user['role'] ?? '') !== 'Super Admin' && !tt_user_can_access_masters($user)) { header('Location: '.tt_user_landing_url($user)); exit; }
+if (($user['role'] ?? '') !== 'Super Admin' && ($_GET['view'] ?? '') !== 'masters') { header('Location: '.tt_user_landing_url($user)); exit; }
 if (($user['role'] ?? '') === 'Super Admin') tt_apply_owner_master_cleanup();
 header('Content-Type: text/html; charset=UTF-8');
 header('Cache-Control: private, no-store, no-cache, must-revalidate, max-age=0');

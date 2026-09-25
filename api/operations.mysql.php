@@ -284,12 +284,12 @@ function operations_merge_export(string $currentJson, string $incomingJson, stri
         foreach ($currentTombstones as $row) {
             if (!is_array($row) || empty($row['restoredAt'])) continue;
             $ref = trim((string)($row['contractRef'] ?? ''));
-            if ($ref !== '') $restoredByRef[$ref] = $row;
+            if ($ref !== '' && empty($row['processId'])) $restoredByRef[$ref] = $row;
         }
         foreach ($tombstones as &$row) {
             if (!is_array($row) || !empty($row['restoredAt'])) continue;
             $ref = trim((string)($row['contractRef'] ?? ''));
-            if ($ref === '' || !isset($restoredByRef[$ref])) continue;
+            if ($ref === '' || !empty($row['processId']) || !isset($restoredByRef[$ref])) continue;
             $row['restoredAt'] = $restoredByRef[$ref]['restoredAt'];
             $row['restoredBy'] = $restoredByRef[$ref]['restoredBy'] ?? 'Server';
             $row['restoredReason'] = $restoredByRef[$ref]['restoredReason'] ?? 'Contract reference legitimately reused after deletion';
@@ -321,7 +321,7 @@ function operations_merge_export(string $currentJson, string $incomingJson, stri
         foreach ($tombstones as &$row) {
             if (!is_array($row) || !empty($row['restoredAt'])) continue;
             $ref = trim((string)($row['contractRef'] ?? ''));
-            if ($ref === '' || !isset($recreatedAt[$ref])) continue;
+            if ($ref === '' || !empty($row['processId']) || !isset($recreatedAt[$ref])) continue;
             $deletedAt = strtotime((string)($row['deletedAt'] ?? '')) ?: PHP_INT_MAX;
             if ($recreatedAt[$ref] <= $deletedAt) continue;
             $row['restoredAt'] = gmdate('c', $recreatedAt[$ref]);
@@ -335,11 +335,12 @@ function operations_merge_export(string $currentJson, string $incomingJson, stri
             $id = (string)($row['processId'] ?? $row['id'] ?? '');
             $ref = (string)($row['contractRef'] ?? '');
             if ($id !== '') $ids[$id] = true;
-            if ($ref !== '') { $refs[$ref] = true; if (!empty($row['qaCleanup'])) $qaRefs[$ref] = true; }
+            if ($ref !== '' && (empty($row['processId']) || !empty($row['qaCleanup']))) $refs[$ref] = true;
+            if ($ref !== '' && !empty($row['qaCleanup'])) $qaRefs[$ref] = true;
         }
         $merged['shipments'] = array_values(array_filter((array)($merged['shipments'] ?? []), static function ($row) use ($ids, $refs): bool {
             if (!is_array($row)) return false;
-            return !isset($ids[(string)($row['id'] ?? '')]) && !isset($refs[(string)($row['contractRef'] ?? '')]);
+            return !isset($ids[(string)($row['id'] ?? '')]) && !isset($ids[(string)($row['parentProcessId'] ?? '')]) && !isset($refs[(string)($row['contractRef'] ?? '')]);
         }));
         $merged['contracts'] = array_values(array_filter((array)($merged['contracts'] ?? []), static function ($row) use ($qaRefs): bool {
             return is_array($row) && !isset($qaRefs[(string)($row['ref'] ?? '')]);
@@ -378,6 +379,22 @@ function operations_merge_export(string $currentJson, string $incomingJson, stri
         return json_encode($applyTombstones($merged), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
     }
 
+    // A second browser must not start another process for the same contract.
+    // Existing duplicate records remain untouched for explicit review.
+    $currentProcesses = [];
+    foreach ((array)($current['shipments'] ?? []) as $row) {
+        if (!is_array($row) || ($row['kind'] ?? '') === 'lot' || !empty($row['cancelled'])) continue;
+        $ref = (string)($row['contractRef'] ?? '');$id = (string)($row['id'] ?? '');
+        if ($ref !== '' && $id !== '') $currentProcesses[$ref][$id] = true;
+    }
+    $deletedProcesses = [];
+    foreach ((array)($incoming['deletedShipments'] ?? []) as $row) if (is_array($row) && empty($row['restoredAt'])) $deletedProcesses[(string)($row['processId'] ?? '')] = true;
+    foreach ((array)($incoming['shipments'] ?? []) as $row) {
+        if (!is_array($row) || ($row['kind'] ?? '') === 'lot' || !empty($row['cancelled'])) continue;
+        $ref = (string)($row['contractRef'] ?? '');$id = (string)($row['id'] ?? '');
+        if ($ref === '' || $id === '' || empty($currentProcesses[$ref]) || isset($currentProcesses[$ref][$id])) continue;
+        foreach ($currentProcesses[$ref] as $existingId => $_) if (!isset($deletedProcesses[$existingId])) throw new InvalidArgumentException('A shipment already exists for '.$ref.'. Refresh before starting another one.');
+    }
     // Export clients may have opened before another device or a protected
     // recovery added records. Merge every identified collection so a later
     // save cannot replace the server's complete business history with that
