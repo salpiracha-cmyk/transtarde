@@ -50,7 +50,7 @@ const exContext={
   stableSodaId:value=>700000000+String(value).length,nowText:()=> 'QA',refreshInstructionBadges:()=>{}
 };
 vm.createContext(exContext);
-vm.runInContext(extractFunction(milling,'syncExMillPurchaseSodas'),exContext);
+vm.runInContext(['millBaseVariety','exMillVarietyKey','exMillRiceTypeKey','exMillBrokenKey','syncExMillPurchaseSodas'].map(name=>extractFunction(milling,name)).join('\n'),exContext);
 
 stores.ex=[];stores.loads=[];stores.instructions=[{id:222,_ttBridge:'exports',_ttBridgeId:'EXP-A',entity:'TTI',mill:'Outside Mill',baseVariety:'IRRI-6',riceType:'White',instructionQtyKg:100000}];
 exContext.purchaseSodaFeed=[{id:'S-BRM',entity:'BRM',sodaNo:'1',productStage:'READY',readyRoute:'EX_MILL',locationName:'Outside Mill',baseVariety:'IRRI-6',riceType:'White',displayName:'IRRI-6 White Ready Rice',qtyToKg:100000}];
@@ -71,6 +71,11 @@ assert.equal(stores.loads[0].instructionId,333,'Dependent loads must retain the 
 exContext.purchaseSodaFeed=[];
 exContext.syncExMillPurchaseSodas();
 assert.ok(stores.ex.some(x=>x.id===111),'A route change with loaded history must retain the internal accounting link for review');
+
+stores.ex=[];stores.loads=[];stores.instructions=[{id:444,_ttBridge:'exports',_ttBridgeId:'EXP-2',entity:'TTI',mill:'AL-Harmain rice mills',baseVariety:'IRRI-6 White Rice',riceType:'',brokenGrade:'100% Broken',instructionQtyKg:270000}];
+exContext.purchaseSodaFeed=[{id:'S-2',entity:'TTI',sodaNo:'2',productStage:'READY',readyRoute:'EX_MILL',locationName:'Al Harmain Rice Mills',baseVariety:'IRRI-6',riceType:'White',brokenGrade:'100%',displayName:'IRRI-6 White 100% Broken Ready Rice',qtyToKg:270000}];
+exContext.syncExMillPurchaseSodas();
+assert.equal(stores.instructions[0].sourceSodaId,'S-2','Equivalent Export and Accounts rice descriptions must link without a false authorization block');
 
 const stockFns=['millBaseVariety','millRiceType','millProductIdentity','stockEntityForView','isOperationalProductionRow','stockScopeMatches','resolveStockKey','shipmentLoadedWeight','computedStockRows'].map(n=>extractFunction(milling,n)).join('\n');
 const stockStores={};

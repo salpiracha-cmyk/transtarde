@@ -18,6 +18,10 @@ assert.match(mill,/data-ex-instruction-id/,'Ex-Mill rows must use instruction id
 assert.match(mill,/instructionId:id,sodaId:soda\.id/,'loads must keep exact instruction identity and the hidden Accounts authorization link');
 assert.match(mill,/STORE_INSTRUCTION_SEEN='tt40instructionseen'/,'unseen Export instruction state must persist per Mill user');
 assert.match(mill,/class="update-count"/,'green numbered update badges must be present on Mill home');
+assert.match(mill,/border-radius:50%;background:#18a34a/,'new instruction count must use the approved green circular badge');
+assert.doesNotMatch(mill,/OPEN LOADING INSTRUCTION\$\{open===1/,'mill cards must not show an open-instruction sentence inside the box');
+assert.doesNotMatch(mill,/Waiting for valid Accounts authorization/,'normal loading workflow must not be described as an authorization request');
+assert.match(mill,/exMillVarietyKey\(instruction\.baseVariety/,'Accounts SODA matching must normalize the Export product description');
 assert.match(mill,/sodaLoaded\+kg>Number\(soda\.qtyKg\|\|0\)\*1\.05/,'container posting must enforce the approved Accounts tolerance');
 
 assert.match(exportsApp,/await validateExMillSodaCapacity\(normalized,c\)/,'Exports must validate Accounts authorization before issuing an Ex-Mill instruction');
