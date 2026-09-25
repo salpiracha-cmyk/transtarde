@@ -19,7 +19,7 @@ const root={contracts:[{ref:'TTI/NS/01',product:'IRRI-6 White Rice',packingUnit:
 localStorage.setItem('transtrade_export_v3_operational',JSON.stringify(root));
 localStorage.setItem('tt32exportsync','[]');
 const listeners={};
-const document={activeElement:null,body:{appendChild(){}},getElementById(){return null},createElement(){return{style:{},appendChild(){}}},addEventListener(){}};
+const document={activeElement:null,documentElement:{classList:{add(){},remove(){},contains(){return false}}},body:{appendChild(){}},getElementById(){return null},createElement(){return{style:{},appendChild(){}}},addEventListener(){}};
 let serverValues={transtrade_export_v3_operational:JSON.stringify(root)};
 class XMLHttpRequest{open(method,url,async){this.async=async}send(){this.status=200;this.responseText=JSON.stringify({ok:true,revision:1,values:serverValues,meta:{}});if(this.onload)this.onload()}}
 const resolved=v=>({then(fn){try{const next=fn(v);return next&&typeof next.then==='function'?next:resolved(next)}catch(error){return rejected(error)}},catch(){return this}}),rejected=error=>({then(){return this},catch(fn){return resolved(fn(error))}});
