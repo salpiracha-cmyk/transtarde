@@ -26,6 +26,10 @@ button { cursor: pointer; }
 .tt-master-only .app-shell { grid-template-columns: minmax(0, 1fr); }
 .tt-master-only #sidebar, .tt-master-only #menuButton { display: none !important; }
 .tt-master-only .search-box { width: min(520px, 55vw); }
+.master-back-top { min-height: 40px; display: inline-flex; align-items: center; gap: 8px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 10px; color: var(--navy); background: #fff; text-decoration: none; white-space: nowrap; box-shadow: 0 3px 10px rgba(18,43,70,.06); }
+.master-back-top:hover, .master-back-top:focus-visible { border-color: #9eb2c5; background: #f4f8fc; outline: none; }
+.master-back-top span { font-size: 1.15rem; line-height: 1; }
+.master-back-top b { font-size: .82rem; }
 
 .app-shell { min-height: 100vh; display: grid; grid-template-columns: 260px minmax(0, 1fr); }
 .sidebar { position: sticky; top: 0; height: 100vh; display: flex; flex-direction: column; color: #dbe7f3; background: linear-gradient(180deg, #0c2947 0%, #081d33 100%); box-shadow: 8px 0 30px rgba(5, 25, 43, .12); z-index: 20; }
