@@ -40,6 +40,7 @@ jobs:
           node tests/accounts-v1/soda_milling_routing_test.js
           node tests/accounts-v1/soda_master_compatibility_test.js
           node tests/accounts-v1/linkage_regressions_test.js
+          php tests/accounts-v1/tg_receipt_mirror_test.php
           node tests/accounts-v1/master_role_mapping_test.js
           node tests/offline_recovery_audit.js
       - name: Private stock reconciliation rules

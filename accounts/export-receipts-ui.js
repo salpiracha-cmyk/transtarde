@@ -137,7 +137,8 @@
     panel.innerHTML = `<div class="tter-head"><div><b>Export Payment Receipt / Credit Advice</b><div class="tter-note">FI is maintained only in Exports. Accounts selects the linked outstanding item and posts the bank entry.</div></div><div class="sp"></div><button class="btn" data-er-close>Close</button></div><div class="tter-body">
       <section class="tter-step active"><h3>▰ Received into company account</h3><div class="tter-grid"><label>Received Into Account<select id="erPkrBank">${bankOptions('PKR',bankId)}</select></label></div>${(banks?.accounts||[]).filter(row=>!eligibleBanks.some(ready=>ready.id===row.id)).map(row=>`<div class="tter-alert"><b>${esc(bankLabel(row))} · ${esc(row.currency||'currency missing')}</b><br>${esc(bankUnavailableReason(row))}.</div>`).join('')}${!(banks?.accounts||[]).length ? `<div class="tter-alert">No ${esc(entity())} bank account is linked in Company Master. Add the company bank and its account number or IBAN there.</div>` : ''}</section>
       ${bankId ? `<section class="tter-step active" id="erPayerStep"><h3>⇠ Received from</h3><div class="tter-parties"><button type="button" class="tter-party ${payerType === 'TG' ? 'active' : ''}" data-payer-type="TG"><b>Trans Grains (TG)</b><div class="tter-note">Enter the credit advice details; invoice references are linked when available.</div></button><button type="button" class="tter-party ${payerType === 'CUSTOMER' ? 'active' : ''}" data-payer-type="CUSTOMER"><b>Export Customer</b><div class="tter-note">Choose the customer, then its advance or balance items.</div></button></div>${payerType === 'CUSTOMER' ? `<div class="tter-grid" style="margin-top:10px"><label>Customer<select id="erPayer"><option value="">Choose customer</option>${payers().map(name => `<option ${name === payer ? 'selected' : ''}>${esc(name)}</option>`).join('')}</select></label><button type="button" class="btn tter-manage-customer" id="erManageCustomer">+ Add / Amend Customer</button></div>` : ''}</section>` : ''}
-      ${payer ? `<section class="tter-step active"><h3>${payerType==='TG'?'TG payment for':'▤ Outstanding item(s)'}</h3><div class="tter-grid" style="margin-bottom:10px"><label>Receipt Currency<select id="erCurrency">${['USD','EUR','GBP','AED'].map(code => `<option ${code === currency ? 'selected' : ''}>${code}</option>`).join('')}</select></label>${payerType==='TG'?`<label>Invoice / Advance<select id="erTgItem" data-tt-native="1" ${selectedTgPayment?'disabled':''}>${tgOptionsHtml()}</select></label>`:''}</div>${payerType==='TG'?'<div class="tter-note">Advance remains unallocated in Exports until its FI is entered and used.</div>':`<div class="tter-note">Multiple items may be selected. Display order is amount → narration/reference → bare contract or internal document number.</div><div id="erItems">${itemsHtml()}</div>`}</section>` : ''}
+      ${payer ? `<section class="tter-step active"><h3>${payerType==='TG'?'TG payment for':'▤ Outstanding item(s)'}</h3><div class="tter-grid" style="margin-bottom:10px"><label>Receipt Currency<select id="erCurrency">${(window.TT_CURRENCY_MASTER?.codes?.()||['USD','EUR','GBP','AED','PKR']).filter(code=>payerType!=='TG'||(tgData?.banks||[]).some(bank=>bank.currency===code)).map(code => `<option ${code === currency ? 'selected' : ''}>${esc(code)}</option>`).join('')}</select></label>${payerType==='TG'?`<label>Invoice / Advance<select id="erTgItem" data-tt-native="1" ${selectedTgPayment?'disabled':''}>${tgOptionsHtml()}</select></label>${selectedTgPayment?'':`<label>Pay From TG ${esc(currency)} Bank<select id="erTgBank"><option value="">Select TG bank</option>${(tgData?.banks||[]).filter(bank=>bank.currency===currency).map(bank=>`<option value="${esc(bank.id)}" ${bank.id===tgBankId?'selected':''}>${esc(bank.bank||bank.title)} · ${esc(bank.title)} · ${esc(bank.currency)} ${fmt(bank.balance?.native||0)}</option>`).join('')}</select></label>`}`:''}</div>${payerType==='TG'?'<div class="tter-note">Advance remains unallocated in Exports until its FI is entered and used.</div>':`<div class="tter-note">Multiple items may be selected. Display order is amount → narration/reference → bare contract or internal document number.</div><div id="erItems">${itemsHtml()}</div>`}</section>` : ''}
+      ${(data?.pendingTg||[]).length?`<section class="tter-step active"><h3>New from TG</h3>${(data.pendingTg||[]).map(row=>`<div class="tter-note">${esc(row.date||'')} · ${esc(row.currency)} ${fmt(row.amount)} · ${esc(row.invoiceRef||'Advance')} <button type="button" class="btn" data-er-open-tg="${esc(row.id)}">Open receipt</button></div>`).join('')}</section>`:''}
       ${fullFormHtml()}${historyHtml()}</div>`;
     bind();
     if (selectedTgPayment && q('#erForeign')) {
@@ -148,11 +149,13 @@
     updateRetentionDetails();
   }
   function pendingBanner() {
-    let host=q('#ttPendingTgPayments');const top=q('.topbar');
-    if(!top||!['TTI','BRM'].includes(entity())){host?.remove();return}
-    if(!host){host=document.createElement('div');host.id='ttPendingTgPayments';host.style.cssText='display:flex;align-items:center;gap:6px;flex-wrap:wrap';top.appendChild(host)}
-    host.innerHTML=(data?.pendingTg||[]).map(row=>`<button type="button" class="btn" data-tg-pending="${esc(row.id)}">TG sent ${esc(row.currency)} ${fmt(row.amount)} · ${esc(row.invoiceRef)}${row.gdRef?' · GD '+esc(row.gdRef):''}${row.fiRef?' · FI '+esc(row.fiRef):''} — Complete receipt</button>`).join('');
-    host.querySelectorAll('[data-tg-pending]').forEach(button=>button.onclick=()=>openForm(button.dataset.tgPending));
+    q('#ttPendingTgPayments')?.remove();
+    const icon=q('[data-tt-area="exports"] .tt-area-glyph');if(!icon||!['TTI','BRM'].includes(entity()))return;
+    icon.style.position='relative';icon.querySelector('[data-tt-update-badge]')?.remove();
+    const key=`tt-updates-${access.user||'Accounts'}-${entity()}-tg`,seen=new Set(JSON.parse(localStorage.getItem(key)||'[]'));
+    const unread=(data?.pendingTg||[]).filter(row=>!seen.has(row.id));
+    if(unread.length){const badge=document.createElement('span');badge.dataset.ttUpdateBadge='1';badge.textContent=String(unread.length);badge.style.cssText='position:absolute;top:-9px;right:-10px;min-width:21px;height:21px;padding:0 4px;border-radius:12px;background:#168248;color:#fff;display:grid;place-items:center;font:bold 12px Arial;box-sizing:border-box';icon.appendChild(badge)}
+    const area=icon.closest('[data-tt-area]');if(area&&!area.dataset.tgBadgeWired){area.dataset.tgBadgeWired='1';area.addEventListener('click',()=>{localStorage.setItem(key,JSON.stringify((data?.pendingTg||[]).map(row=>row.id)));icon.querySelector('[data-tt-update-badge]')?.remove()})}
   }
   function captureDeductions() { deductions = qa('[data-er-ded]').map(row => ({code:row.querySelector('[data-ded-code]').value,amount:row.querySelector('[data-ded-amount]').value,percent:row.querySelector('[data-ded-percent]').value,manual:row.querySelector('[data-ded-amount]').dataset.manual==='1',mode:'DEDUCTED',taxSection:''})); }
   function calculateChargeRows(gross) {
@@ -170,11 +173,13 @@
     calc();
   }
   function bind() {
+    qa('[data-er-open-tg]').forEach(button=>button.onclick=()=>openForm(button.dataset.erOpenTg));
     q('#erUseRetention')?.addEventListener('change',updateRetentionDetails);
     q('#erRetentionBank')?.addEventListener('change',updateRetentionDetails);
     q('[data-er-close]')?.addEventListener('click', closeForm);
     q('#erPkrBank')?.addEventListener('change', event => { bankId = event.target.value; if (!selectedTgPayment) { payerType = ''; payer = ''; chosen.clear(); } render(); });
-    qa('[data-payer-type]').forEach(button => { button.onclick = async () => { if(selectedTgPayment)return; payerType = button.dataset.payerType; payer = payerType === 'TG' ? 'TG' : ''; chosen.clear(); render(); }; });
+    qa('[data-payer-type]').forEach(button => { button.onclick = async () => { if(selectedTgPayment)return; payerType = button.dataset.payerType; payer = payerType === 'TG' ? 'TG' : ''; chosen.clear(); if(payerType==='TG'){try{await loadTg();tgBankId=(tgData.banks||[]).find(bank=>bank.currency===currency&&bank.settings?.defaultReceiptAccount)?.id||(tgData.banks||[]).find(bank=>bank.currency===currency)?.id||'';}catch(error){return toast(error.message,false)}} render(); }; });
+    q('#erTgBank')?.addEventListener('change',event=>{tgBankId=event.target.value});
     q('#erPayer')?.addEventListener('change', event => { if(selectedTgPayment)return; payer = event.target.value; chosen.clear(); render(); });
     q('#erManageCustomer')?.addEventListener('click', () => {
       const search = q('#erPayer')?.closest('.tt-search-select')?.querySelector('input')?.value.trim() || '';
@@ -188,7 +193,7 @@
     q('#erTgItem')?.addEventListener('change',event=>{if(selectedTgPayment)return;const item=availableItems().find(row=>row.key===event.target.value);chosen.clear();if(item)chosen.set(item.key,{...item,applied:item.amount||0});render();if(item?.amount&&q('#erForeign')){q('#erForeign').value=String(item.amount);redistribute();calc();}});
     qa('[data-er-item]').forEach(box => { box.onchange = () => { if(selectedTgPayment){box.checked=true;return}const item = availableItems().find(row => row.key === box.dataset.erItem); if (box.checked && item) chosen.set(item.key,{...item,applied:item.amount||0}); else chosen.delete(box.dataset.erItem); render(); }; });
     qa('[data-er-applied]').forEach(input => { input.oninput = () => { const item = chosen.get(input.dataset.erApplied); if (item) { item.applied = num(input.value); chosen.set(input.dataset.erApplied,item); } calc(); }; });
-    q('#erCurrency')?.addEventListener('change', event => { if(selectedTgPayment)return; currency = event.target.value; tgBankId = ''; chosen.clear(); render(); });
+    q('#erCurrency')?.addEventListener('change', event => { if(selectedTgPayment)return; currency = event.target.value; tgBankId = (tgData?.banks||[]).find(bank=>bank.currency===currency&&bank.settings?.defaultReceiptAccount)?.id||(tgData?.banks||[]).find(bank=>bank.currency===currency)?.id||''; chosen.clear(); render(); });
     q('#erAddDeduction')?.addEventListener('click', () => { const host=q('#erDeductions');if(!host)return;host.insertAdjacentHTML('beforeend',deductionRowHtml({code:'',amount:'',percent:'',mode:'DEDUCTED',taxSection:''},qa('[data-er-ded]').length));bindDeductionRows();calc(); });
     bindDeductionRows();
     ['erForeign','erRate','erBankCredit','erRetention'].forEach(id => q(`#${id}`)?.addEventListener('input', () => { if (id === 'erForeign') { redistribute(); qa('[data-er-applied]').forEach(input => { input.value = chosen.get(input.dataset.erApplied)?.applied || ''; }); } if(id==='erBankCredit')q('#erBankCredit').dataset.edited='1'; calc(); }));
@@ -203,8 +208,8 @@
     const directForeign=selectedBankCurrency()!=='PKR',deducted = deductions.reduce((sum,row) => sum + (row.mode === 'DEDUCTED' && row.code ? num(row.amount) : 0),0), bankExpected = directForeign ? received : Math.max(0,gross - retentionPkr - deducted), bankField=q('#erBankCredit');
     if(bankField&&directForeign&&!bankField.dataset.edited)bankField.value=bankExpected?bankExpected.toFixed(2):'';
     const bankCredit = num(bankField?.value), shortfall = Math.max(0,expected - received);
-    const allocation = [...chosen.values()].reduce((sum,item) => sum + num(item.applied),0), retentionAmount=num(q('#erRetention')?.value), retentionValid=retentionAmount<=received&&(!retentionAmount||!!q('#erRetentionBank')?.value), balanced = Math.abs(allocation - received) <= .01 && Math.abs(bankCredit - bankExpected) <= .01 && retentionValid, incomplete=deductions.some(row => !row.code && num(row.amount)>0),duplicate=new Set(deductions.filter(row=>row.code&&num(row.amount)>0).map(row=>row.code)).size!==deductions.filter(row=>row.code&&num(row.amount)>0).length;
-    const preview = q('#erAccountingRows'); if (preview) preview.innerHTML = `${bankCredit ? `<div class="tter-accounting-row"><b>Debit</b><span>Selected ${directForeign ? currency : 'PKR'} company bank</span><strong>${directForeign ? currency+' '+fmt(bankCredit)+' (PKR '+fmt(gross)+')' : 'PKR '+fmt(bankCredit)}</strong></div>` : ''}${retentionPkr ? `<div class="tter-accounting-row"><b>Debit</b><span>Foreign retention bank</span><strong>PKR ${fmt(retentionPkr)}</strong></div>` : ''}${deductions.filter(row=>row.code&&num(row.amount)>0).map(row=>`<div class="tter-accounting-row"><b>Debit</b><span>${esc(chargeRule(row.code)?.name||row.code)} · ${esc(chargeRule(row.code)?.account||'GL')}</span><strong>PKR ${fmt(num(row.amount))}</strong></div>`).join('')}${gross ? [...chosen.values()].filter(item=>num(item.applied)>0).map(item=>`<div class="tter-accounting-row"><b>Credit</b><span>${esc(item.targetType==='INTERCOMPANY_RECEIVABLE'?'TG intercompany receivable':item.targetType==='UNAPPLIED_TG'?'Unapplied TG advance / payment':item.targetType==='EXPORT_RECEIVABLE'?'Export receivable':'Customer advance')}</span><strong>PKR ${fmt(received?gross*num(item.applied)/received:0)}</strong></div>`).join('') : '<div class="tter-note">Enter the advice amounts to see the posting.</div>'}<div class="tter-note ${balanced&&!incomplete&&!duplicate ? 'tter-ok' : 'tter-bad'}">${directForeign ? currency : 'PKR'} balance: ${fmt(gross-retentionPkr-deducted-bankCredit)}${shortfall>.005?' · Remaining foreign amount stays outstanding':''}${incomplete?' · Choose a type for each additional charge':''}${duplicate?' · Each charge may be entered once':''}</div>`;
+    const allocation = [...chosen.values()].reduce((sum,item) => sum + num(item.applied),0), retentionAmount=num(q('#erRetention')?.value), retentionValid=retentionAmount<=received&&(!retentionAmount||!!q('#erRetentionBank')?.value), balanced = Math.abs(allocation - received) <= .01 && (directForeign ? Math.abs(bankCredit-bankExpected) <= .01 : Math.abs(bankCredit-bankExpected) < 1) && retentionValid, incomplete=deductions.some(row => !row.code && num(row.amount)>0),duplicate=new Set(deductions.filter(row=>row.code&&num(row.amount)>0).map(row=>row.code)).size!==deductions.filter(row=>row.code&&num(row.amount)>0).length;
+    const preview = q('#erAccountingRows'); const rounding=directForeign?0:Math.round((bankExpected-bankCredit)*100)/100; if (preview) preview.innerHTML = `${Math.abs(rounding)>0.00001&&Math.abs(rounding)<1?`<div class="tter-accounting-row"><b>${rounding>0?'Debit':'Credit'}</b><span>Minor rounding difference</span><strong>PKR ${fmt(Math.abs(rounding))}</strong></div>`:''}${bankCredit ? `<div class="tter-accounting-row"><b>Debit</b><span>Selected ${directForeign ? currency : 'PKR'} company bank</span><strong>${directForeign ? currency+' '+fmt(bankCredit)+' (PKR '+fmt(gross)+')' : 'PKR '+fmt(bankCredit)}</strong></div>` : ''}${retentionPkr ? `<div class="tter-accounting-row"><b>Debit</b><span>Foreign retention bank</span><strong>PKR ${fmt(retentionPkr)}</strong></div>` : ''}${deductions.filter(row=>row.code&&num(row.amount)>0).map(row=>`<div class="tter-accounting-row"><b>Debit</b><span>${esc(chargeRule(row.code)?.name||row.code)} · ${esc(chargeRule(row.code)?.account||'GL')}</span><strong>PKR ${fmt(num(row.amount))}</strong></div>`).join('')}${gross ? [...chosen.values()].filter(item=>num(item.applied)>0).map(item=>`<div class="tter-accounting-row"><b>Credit</b><span>${esc(item.targetType==='INTERCOMPANY_RECEIVABLE'?'TG intercompany receivable':item.targetType==='UNAPPLIED_TG'?'Unapplied TG advance / payment':item.targetType==='EXPORT_RECEIVABLE'?'Export receivable':'Customer advance')}</span><strong>PKR ${fmt(received?gross*num(item.applied)/received:0)}</strong></div>`).join('') : '<div class="tter-note">Enter the advice amounts to see the posting.</div>'}<div class="tter-note ${balanced&&!incomplete&&!duplicate ? 'tter-ok' : 'tter-bad'}">${directForeign ? currency : 'PKR'} balance: ${fmt(gross-retentionPkr-deducted-bankCredit)}${shortfall>.005?' · Remaining foreign amount stays outstanding':''}${incomplete?' · Choose a type for each additional charge':''}${duplicate?' · Each charge may be entered once':''}</div>`;
     const post = q('#erPost'); if (post) post.disabled = !(received > 0 && rate > 0 && bankField?.value!=='' && chosen.size && balanced && !incomplete && !duplicate);
   }
   function allocations() {
@@ -228,22 +233,23 @@
     }
   }
   function validateTgSettlement(classification) {
-    if (payerType !== 'TG') return;
-    if (!tgData?.rates) throw new Error('Set an effective TG USD → AED accounting rate in Directors / Super Admin → TG Master → Currency & Closing before posting this TG payment. The bank advice PKR realization rate is entered separately on this form.');
+    if (payerType !== 'TG'||selectedTgPayment) return;
     if (!tgBankId) throw new Error('Choose the TG account from which this payment was made.');
     const bank = (tgData?.banks || []).find(row => row.id === tgBankId);
-    if (!bank || !bank.settings?.allowPayments || String(bank.currency || '').toUpperCase() !== currency) throw new Error(`Choose an enabled TG ${currency} payment account.`);
+    if (!bank || String(bank.currency || '').toUpperCase() !== currency) throw new Error(`Choose a TG ${currency} payment account.`);
     let total = 0;
     for (const item of chosen.values()) {
-      if (!item.recognized || !item.mirrorCandidateId) throw new Error('TG receipts must use a recognized internal invoice linked by Exports.');
-      if (!(tgData?.openLiabilities || []).some(liability => liability.id === item.mirrorCandidateId)) throw new Error(`TG payable ${item.invoiceRef || item.reference} is not posted or has no open balance.`);
+      if(item.key!=='TGADV'){
+        if (!item.recognized || !item.mirrorCandidateId) throw new Error('This TG invoice must be recognized in Accounts before settlement; use Advance when it has not been invoiced.');
+        if (!(tgData?.openLiabilities || []).some(liability => liability.id === item.mirrorCandidateId)) throw new Error(`TG payable ${item.invoiceRef || item.reference} is not posted or has no open balance.`);
+      }
       total += classification === 'CORRESPONDENT' ? Number(item.amount || 0) : num(item.applied);
     }
     if (total > Number(bank.balance?.native || 0) + .0001) throw new Error(`TG ${currency} bank balance is insufficient for ${currency} ${fmt(total)}.`);
   }
   async function postTgSettlements(receipt, classification) {
-    if (payerType !== 'TG') return;
-    const rate = currency === 'AED' ? 1 : Number(tgData?.rates?.sellUsdToAed || 0);
+    if (payerType !== 'TG'||selectedTgPayment) return;
+    const bank=(tgData?.banks||[]).find(row=>row.id===tgBankId),rate=currency==='AED'?1:Number(bank?.balance?.carryingRate||0);
     let sequence = 0;
     for (const item of chosen.values()) {
       const amount = classification === 'CORRESPONDENT' ? Number(item.amount || 0) : num(item.applied);
@@ -251,7 +257,7 @@
       sequence += 1;
       const bankReference = `${receipt.bankAdviceRef}-TG-${sequence}`;
       if ((tgData?.history || []).some(row => row.bankAccountId === tgBankId && row.bankReference === bankReference && row.sourceLiabilityId === item.mirrorCandidateId && Math.abs(Number(row.amountNative)-amount)<.01)) continue;
-      const payload = {action:'post_payment',csrf:access.csrf,date:receipt.date || today(),paymentType:'LIABILITY',sourceLiabilityId:item.mirrorCandidateId,bankAccountId:tgBankId,counterparty:entity(),amountNative:amount,bankChargeNative:0,rate,bankReference,rateOverrideNote:'',notes:`Mirrored settlement for Pakistan receipt ${receipt.id}`};
+      const payload = {action:'post_payment',csrf:access.csrf,date:receipt.date || today(),paymentType:item.key==='TGADV'?'SUPPLIER_ADVANCE':'LIABILITY',sourceLiabilityId:item.key==='TGADV'?'':item.mirrorCandidateId,bankAccountId:tgBankId,counterparty:entity(),amountNative:amount,bankChargeNative:0,rate,bankReference,rateOverrideNote:'',notes:`Mirrored settlement for Pakistan receipt ${receipt.id}`};
       const response = await fetch(tgBankApi,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify(payload)}); let body = {}; try { body = await response.json(); } catch (_) {}
       if (!response.ok || !body.ok) throw new Error(body.error || `Pakistan receipt ${receipt.id} posted, but its TG payable settlement needs review.`);
       tgData.history = [{bankAccountId:tgBankId,bankReference,sourceLiabilityId:item.mirrorCandidateId,amountNative:amount},...(tgData.history || [])];
@@ -275,10 +281,11 @@
     const expected = selectedExpected(), received = num(q('#erForeign')?.value), shortfall = Math.max(0,expected-received), classification = shortfall > .005 ? 'PARTIAL' : '', currentShortfallNote = '';
 
     const directForeign=selectedBankCurrency()!=='PKR';
-    const body = {action:'post_receipt',csrf:access.csrf,entity:entity(),date:q('#erDate')?.value || today(),bankAdviceRef:q('#erBankRef')?.value.trim() || '',bankAdviceFileRef:'',bankAdvicePaperRef:'',remitter:payer,transactionCurrency:currency,foreignAmount:received,realizationRate:num(q('#erRate')?.value),grossPkrEquivalent:num(q('#erGross')?.value),bankAccountId:bankId,pkrBankCredit:directForeign?0:num(q('#erBankCredit')?.value),nativeBankCredit:directForeign?num(q('#erBankCredit')?.value):0,retentionForeignAmount:num(q('#erRetention')?.value),retentionBankAccountId:q('#erRetentionBank')?.value || '',tgPaymentId:selectedTgPayment?.id || '',allocations:allocations(),deductions:directForeign?[]:deductionPayload(),shortfallClassification:classification,shortfallNote:currentShortfallNote};
+    const body = {action:'post_receipt',csrf:access.csrf,entity:entity(),date:q('#erDate')?.value || today(),bankAdviceRef:q('#erBankRef')?.value.trim() || '',bankAdviceFileRef:'',bankAdvicePaperRef:'',remitter:payer,transactionCurrency:currency,foreignAmount:received,realizationRate:num(q('#erRate')?.value),grossPkrEquivalent:num(q('#erGross')?.value),bankAccountId:bankId,pkrBankCredit:directForeign?0:num(q('#erBankCredit')?.value),nativeBankCredit:directForeign?num(q('#erBankCredit')?.value):0,retentionForeignAmount:num(q('#erRetention')?.value),retentionBankAccountId:q('#erRetentionBank')?.value || '',tgPaymentId:selectedTgPayment?.id || '',tgBankAccountId:payerType==='TG'&&!selectedTgPayment?tgBankId:'',allocations:allocations(),deductions:directForeign?[]:deductionPayload(),shortfallClassification:classification,shortfallNote:currentShortfallNote};
     if (!body.bankAccountId) return toast('Choose the company bank account first.',false); if (!body.bankAdviceRef) return toast('Enter the bank advice / transaction reference.',false);
     const button = q('#erPost'); button.disabled = true; button.textContent = 'POSTING…';
     try {
+      if(payerType==='TG'&&!selectedTgPayment)validateTgSettlement(classification);
       body.bankAdviceFileRef = await uploadAdvice();
       const response = await fetch(receiptApi,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify(body)}); let result = {}; try { result = await response.json(); } catch (_) {}
       if (!response.ok || !result.ok) throw new Error(result.error || 'Export receipt could not be posted.');
@@ -293,10 +300,11 @@
        const waiting=ensurePanel();waiting.innerHTML='<div class="tter-head"><b>Bank Receipt / Credit Advice</b><div class="sp"></div><button class="btn" data-er-close>Close</button></div><div class="tter-body">Loading company accounts and linked export receipts…</div>';waiting.querySelector('[data-er-close]').onclick=closeForm;
        await load(); pendingBanner(); restorePending(); selectedTgPayment=(data?.pendingTg||[]).find(row=>row.id===paymentId)||null;
       if(selectedTgPayment){currency=selectedTgPayment.currency;payerType='TG';payer='TG';const item=sourceRows().find(row=>row.targetId===selectedTgPayment.candidateId&&row.isTg);if(!item)throw new Error('The linked Pakistan receivable is not recognized or has no remaining balance.');chosen=new Map([[item.key,{...item,applied:selectedTgPayment.amount}]]);shortfallClass=selectedTgPayment.amount<item.amount-.005?'PARTIAL':'';bankId=defaultReceiptBankId();}
-       else bankId = defaultReceiptBankId(); if (pendingReceipt) await loadTg(); ensurePanel(); render(); ensurePanel().scrollIntoView({behavior:'smooth',block:'start'});
+       else bankId = defaultReceiptBankId(); if (pendingReceipt||payerType==='TG') await loadTg(); ensurePanel(); render(); ensurePanel().scrollIntoView({behavior:'smooth',block:'start'});
     } catch (error) { const panel=q('#ttExportReceiptDialog [data-er-panel]');if(panel)panel.innerHTML='<div class="tter-head"><b>Bank Receipt / Credit Advice</b><div class="sp"></div><button class="btn" data-er-close>Close</button></div><div class="tter-alert">'+esc(error.message||error)+'</div>';panel?.querySelector('[data-er-close]')?.addEventListener('click',closeForm);toast(String(error.message || error),false); }
   }
   window.TT_EXPORT_RECEIPTS_UI={openForm};
+  window.TT_ACCOUNT_BADGE_REFRESH=pendingBanner;
   document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!q('#ttExportReceiptDialog')?.hidden)closeForm();});
   const refreshPending=()=>{if(['TTI','BRM'].includes(entity()))load().then(pendingBanner).catch(()=>{});else pendingBanner();};
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',refreshPending,{once:true});else refreshPending();

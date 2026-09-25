@@ -712,6 +712,14 @@
       "subledger": true
     },
     {
+      "code": "7195",
+      "name": "Minor Rounding Differences",
+      "class": "Other",
+      "level": "general",
+      "normal": "Debit",
+      "subledger": true
+    },
+    {
       "code": "7200",
       "name": "Donations",
       "class": "Expense",

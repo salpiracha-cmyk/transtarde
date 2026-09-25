@@ -60,7 +60,7 @@ function tg_banks(): array {
 function tg_bank_values(mixed $raw): array {
     if(!is_array($raw))tgfx_out(['ok'=>false,'error'=>'Enter the TG bank account details.'],422);
     $title=trim((string)($raw['accountTitle']??''));$bank=trim((string)($raw['bankName']??''));$currency=strtoupper(trim((string)($raw['currency']??'')));
-    if($title===''||$bank===''||!in_array($currency,['USD','AED'],true))tgfx_out(['ok'=>false,'error'=>'Account title, bank name and valid currency are required.'],422);
+    if($title===''||$bank===''||!in_array($currency,(array)(tt_master_options()['currencies']??[]),true))tgfx_out(['ok'=>false,'error'=>'Account title, bank name and a currency from Currency Master are required.'],422);
     return ['Company Account','Trans Grains Foodstuff Trading L.L.C (TG)','',$title,$bank,trim((string)($raw['branch']??'')),trim((string)($raw['country']??'United Arab Emirates')),$currency,trim((string)($raw['accountNumber']??'')),trim((string)($raw['iban']??'')),trim((string)($raw['swift']??'')),trim((string)($raw['purpose']??'')),trim((string)($raw['visibility']??'Accounts; Directors')),trim((string)($raw['status']??'Active'))];
 }
 function tg_docs(): array {
@@ -98,7 +98,7 @@ function tg_doc_download(array $u,string $id): never {
 }
 function tgfx_payload(array $u): array {
     $rows=tgfx_seed($u);usort($rows,static function($a,$b){$av=(array)($a['values']??[]);$bv=(array)($b['values']??[]);return strcmp((string)($bv[6]??''),(string)($av[6]??''));});$docs=tg_docs();
-    return ['ok'=>true,'editable'=>tgfx_can_edit($u),'masterName'=>'TG Master','type'=>TT_TG_FX_MASTER_TYPE,'company'=>tg_company(),'banks'=>tg_banks(),'documents'=>$docs,'alerts'=>tg_alerts($docs),'fields'=>['Rate set name','Code','Currency pair','Sell USD → Receive AED','Buy USD ← Pay AED','Final Accounts / Tax Rate','Effective from','Effective to','TG year-end (MM-DD)','Closing / reporting currency','Status','Notes'],'rows'=>$rows,'rule'=>'Daily TG USD and AED bank balances remain in their native currencies. Final Accounts / Tax Rate is used for AED closing/reporting translation. Compliance documents remain versioned and produce Directors/Super Admin renewal alerts.'];
+    return ['ok'=>true,'currencies'=>(array)(tt_master_options()['currencies']??[]),'currencyNames'=>tt_currency_full_names(),'editable'=>tgfx_can_edit($u),'masterName'=>'TG Master','type'=>TT_TG_FX_MASTER_TYPE,'company'=>tg_company(),'banks'=>tg_banks(),'documents'=>$docs,'alerts'=>tg_alerts($docs),'fields'=>['Rate set name','Code','Currency pair','Sell USD → Receive AED','Buy USD ← Pay AED','Final Accounts / Tax Rate','Effective from','Effective to','TG year-end (MM-DD)','Closing / reporting currency','Status','Notes'],'rows'=>$rows,'rule'=>'Daily TG USD and AED bank balances remain in their native currencies. Final Accounts / Tax Rate is used for AED closing/reporting translation. Compliance documents remain versioned and produce Directors/Super Admin renewal alerts.'];
 }
 
 try{
@@ -115,4 +115,3 @@ try{
     if(in_array($action,['create','update'],true)){$v=tgfx_clean($b['values']??null);$ref=strtoupper($v[1]);if($action==='create'){$id=tt_create_master(TT_TG_FX_MASTER_TYPE,$v);tt_audit((int)$u['id'],(string)$u['username'],'Created TG currency rate '.$ref);}else{if($id==='')tgfx_out(['ok'=>false,'error'=>'Select a rate set.'],422);tt_update_master(TT_TG_FX_MASTER_TYPE,$id,$v);tt_audit((int)$u['id'],(string)$u['username'],'Updated TG currency rate '.$ref);}tgfx_out(tgfx_payload($u)+['savedId'=>$id]);}
     tgfx_out(['ok'=>false,'error'=>'Unknown TG master action.'],422);
 }catch(Throwable $e){tgfx_out(['ok'=>false,'error'=>'The TG master action could not be completed.'],500);}
-

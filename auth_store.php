@@ -502,6 +502,12 @@ function tt_default_master_options(): array {
 
 function tt_default_party_roles(): array { return tt_default_master_options()['party_roles']; }
 
+function tt_currency_full_names(): array {
+    $names=['USD'=>'United States Dollars','EUR'=>'Euros','GBP'=>'Pounds Sterling','AED'=>'United Arab Emirates Dirhams','PKR'=>'Pakistani Rupees'];
+    foreach((array)(tt_read_store()['currency_names']??[]) as $code=>$name)if(preg_match('/^[A-Z]{3}$/',(string)$code)&&trim((string)$name)!=='')$names[$code]=trim((string)$name);
+    return $names;
+}
+
 function tt_master_options(): array {
     $data=tt_read_store();
     $defaults=tt_default_master_options();
@@ -528,10 +534,11 @@ function tt_master_options(): array {
         $out[$key]=array_values($unique);
         sort($out[$key],SORT_NATURAL|SORT_FLAG_CASE);
     }
+    $out['currency_names']=tt_currency_full_names();
     return $out;
 }
 
-function tt_manage_master_option(string $key,string $action,string $value,string $old=''): string {
+function tt_manage_master_option(string $key,string $action,string $value,string $old='',string $fullName=''): string {
     $defaults=tt_default_master_options();
     if (!array_key_exists($key,$defaults)) throw new InvalidArgumentException('Select a valid option list.');
     $clean=static fn(string $v): string=>trim(preg_replace('/\s+/',' ',$v) ?? '');
@@ -539,7 +546,11 @@ function tt_manage_master_option(string $key,string $action,string $value,string
     if (!in_array($action,['add','rename','delete'],true)) throw new InvalidArgumentException('Select add, rename or delete.');
     if ($action!=='delete' && ($value==='' || strlen($value)>120)) throw new InvalidArgumentException('Enter a valid option.');
     if ($action!=='add' && $old==='') throw new InvalidArgumentException('Select the option to change.');
-    tt_mutate_store(function (&$data) use ($key,$action,$value,$old,$clean): void {
+    if($key==='currencies'&&$action!=='delete'){
+        $value=strtoupper($value);$fullName=$clean($fullName);
+        if(!preg_match('/^[A-Z]{3}$/',$value)||$fullName===''||strlen($fullName)>100)throw new InvalidArgumentException('Enter a three-letter currency code and its full name.');
+    }
+    tt_mutate_store(function (&$data) use ($key,$action,$value,$old,$clean,$fullName): void {
         if (!isset($data['master_options']) || !is_array($data['master_options'])) $data['master_options']=[];
         if (!isset($data['master_options_disabled']) || !is_array($data['master_options_disabled'])) $data['master_options_disabled']=[];
         $active=array_values(array_filter(array_map(static fn($v)=>trim((string)$v),(array)($data['master_options'][$key] ?? []))));
@@ -549,7 +560,7 @@ function tt_manage_master_option(string $key,string $action,string $value,string
         };
         if ($action==='add') {
             $disabled=$removeCaseInsensitive($disabled,$value);
-            foreach ($active as $existing) if (strcasecmp((string)$existing,$value)===0) { $data['master_options_disabled'][$key]=$disabled; return; }
+            foreach ($active as $existing) if (strcasecmp((string)$existing,$value)===0) { $data['master_options_disabled'][$key]=$disabled; if($key==='currencies'){if(!is_array($data['currency_names']??null))$data['currency_names']=[];$data['currency_names'][$value]=$fullName;} return; }
             $active[]=$value;
         } else {
             $active=$removeCaseInsensitive($active,$old);
@@ -562,6 +573,11 @@ function tt_manage_master_option(string $key,string $action,string $value,string
         sort($active,SORT_NATURAL|SORT_FLAG_CASE); sort($disabled,SORT_NATURAL|SORT_FLAG_CASE);
         $data['master_options'][$key]=$active;
         $data['master_options_disabled'][$key]=$disabled;
+        if($key==='currencies'){
+            if(!is_array($data['currency_names']??null))$data['currency_names']=[];
+            if($action!=='add')unset($data['currency_names'][strtoupper($old)]);
+            if($action!=='delete')$data['currency_names'][$value]=$fullName;
+        }
     });
     return $action==='delete' ? $old : $value;
 }

@@ -4,7 +4,7 @@ const access=window.TT_ACCOUNT_ACCESS||{},api='../api/tg_bank_transactions.php';
 const q=s=>document.querySelector(s),qa=s=>[...document.querySelectorAll(s)];
 const entity=()=>localStorage.getItem('tt_accounts_entity')||'TTI';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const fmt=n=>Number(n||0).toLocaleString('en-US',{maximumFractionDigits:4});
+const fmt=n=>Number(n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
 const num=v=>Math.max(0,Number(String(v??'').replace(/,/g,''))||0);
 const today=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Dubai',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
 let data=null,mode='receipt';
@@ -12,7 +12,7 @@ function toast(m,ok=true){let e=q('#ttTgTxToast');if(!e){e=document.createElemen
 async function load(date=today()){const r=await fetch(api+'?date='+encodeURIComponent(date),{credentials:'same-origin',headers:{Accept:'application/json'}});let d={};try{d=await r.json()}catch{}if(!r.ok||!d.ok)throw new Error(d.error||'Could not load TG receipts/payments.');data=d;return d}
 function ensureButton(){if(entity()!=='TG')return;const ws=q('#ws-bank'),grid=ws?.querySelector('.subGrid');if(!grid||q('[data-tg-bank-transactions]'))return;const b=document.createElement('button');b.className='subCard';b.dataset.tgBankTransactions='1';b.innerHTML='<div class="miniIcon">⇅</div><h3>TG Receipts & Payments</h3><p>Direct USD/AED receipts, exact-liability payments, advances and expenses.</p>';grid.appendChild(b)}
 function panel(){const ws=q('#ws-bank');if(!ws)return null;let p=ws.querySelector('[data-tg-bank-transactions-panel]');if(!p){p=document.createElement('div');p.dataset.tgBankTransactionsPanel='1';p.className='panel';p.style.margin='12px 18px 20px';ws.querySelector('.subGrid')?.insertAdjacentElement('afterend',p)}return p}
-function banks(side,currency=''){return (data?.banks||[]).filter(b=>(!currency||b.currency===currency))}
+function banks(side,currency=''){return (data?.banks||[]).filter(b=>(!currency||b.currency===currency)).sort((a,b)=>Number(!!b.settings?.defaultReceiptAccount)-Number(!!a.settings?.defaultReceiptAccount))}
 function bankOptions(side,currency=''){const rows=banks(side,currency);return rows.length?rows.map(b=>`<option value="${esc(b.id)}">${esc(b.bank||b.title)} · ${esc(b.title||'')} · ${esc(b.currency)} ${fmt(b.balance?.native||0)}</option>`).join(''):'<option value="">No enabled TG bank account</option>'}
 function recvOptions(){const rows=data?.openExportReceivables||[];return rows.length?'<option value="">Select open TG invoice / shipment</option>'+rows.map(x=>`<option value="${esc(x.id)}">${esc(x.reference)} · ${esc(x.customer||'Customer')} · ${esc(x.currency)} ${fmt(x.outstandingNative)}</option>`).join(''):'<option value="">No open TG export receivables</option>'}
 function liabilityOptions(){const rows=data?.openLiabilities||[];return rows.length?'<option value="">Select open TG liability</option>'+rows.map(x=>`<option value="${esc(x.id)}">${esc(x.counterparty)} · ${esc(x.reference)} · ${esc(x.currency)} ${fmt(x.outstandingNative)}</option>`).join(''):'<option value="">No open TG liabilities</option>'}

@@ -137,7 +137,7 @@ try {
         $optionKey=(string)($body['optionKey'] ?? '');
         $optionMaster=$type==='reference_lists'?'reference_lists':($optionKey==='party_roles'?'business_parties':'products');
         if (!tt_user_can_master($admin,$optionMaster,'Edit')) master_respond(['ok'=>false,'error'=>'Edit permission is required for this master option.'],403);
-        $value=tt_manage_master_option($optionKey,$optionAction,(string)($body['value'] ?? ''),(string)($body['old'] ?? ''));
+        $value=tt_manage_master_option($optionKey,$optionAction,(string)($body['value'] ?? ''),(string)($body['old'] ?? ''),(string)($body['fullName']??''));
         tt_audit((int)$admin['id'],$admin['username'],ucfirst($optionAction).' '.$optionKey.' option '.$value);
         master_respond(['ok'=>true,'masters'=>master_all($admin),'options'=>master_options_for_console(),'value'=>$value]);
     }

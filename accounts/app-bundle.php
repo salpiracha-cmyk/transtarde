@@ -10,6 +10,8 @@ if (!tt_user_can_open_module($user, 'Accounts')) {
 }
 
 $files = [
+    'post-confirmation-ui.js',
+    'currency-master-ui.js',
     'accounts-runtime.js',
     'accounts-live.js',
     'accounts-enhancements.js',

@@ -44,8 +44,9 @@
     ]},
     {key:'ledgers', glyph:'L', title:'Ledgers & Accounting', note:'Party, bank and general ledgers with controlled JV', actions:[
       {title:'All Ledgers', note:'Search any posting account; select a date range, print or export', special:'all-ledgers'},
+      {title:'Post Entry Ledger', note:'Every Post ID in date and number order with its debit and credit lines', special:'post-ledger'},
       {title:'Customer Ledgers', native:'receivables'}, {title:'Supplier / Broker Ledgers', native:'payables'},
-      {title:'Bank / Cash Ledgers', native:'bank'}, {title:'General Ledger', native:'reports', find:'General Ledger'},
+      {title:'Bank / Cash Ledgers', special:'all-ledgers'}, {title:'General Ledger', native:'reports', find:'General Ledger'},
       {title:'Journal Voucher', note:'The only manual Debit / Credit entry screen', native:'jv'},
       {title:'Bank Reconciliation', native:'reconciliation'}, {title:'Search All Entries', special:'search'},
       {title:'Recent Audit Activity', special:'search'}
@@ -62,17 +63,17 @@
   pakistanAreas.find(area=>area.key==='routine').actions.push({title:'Other Purchases',note:'Assets and consumables outside commodity Sodas',native:'purchases',then:'[data-purchase="other"]'});
   const tgAreas = [
     {key:'tg-receipts', glyph:'↓', title:'Customer Receipts', note:'Receive money and allocate it to the correct TG customer', actions:[
-      {title:'Customer Receipt', native:'bank', find:'Receive'}, {title:'Customer Receivables', native:'receivables'}, {title:'Customer Ledger', native:'receivables'}
+      {title:'Customer Receipt', native:'bank', find:'Receive'}, {title:'Customer Receivables', native:'receivables'}
     ]},
     {key:'tg-payments', glyph:'↑', title:'Supplier Payments', note:'Supplier liabilities and payments only', actions:[
-      {title:'Supplier Bills', native:'payables'}, {title:'Make Supplier Payment', native:'bank'}, {title:'Supplier Ledger', native:'payables'}
+      {title:'Supplier Bills', native:'payables'}, {title:'Make Supplier Payment', native:'bank'}
     ]},
     {key:'tg-bank', glyph:'▦', title:'Bank & Local Expenses', note:'Bank activity and minor local operating expense', actions:[
       {title:'Bank Receipt / Payment', native:'bank'}, {title:'Local Expense', native:'expenses', then:'[data-expense="general"]'},
       {title:'Utilities', native:'expenses', then:'[data-expense="utility"]'}, {title:'Bank Reconciliation', native:'reconciliation'}
     ]},
     {key:'tg-ledgers', glyph:'L', title:'Ledgers & JV', note:'TG customer, supplier, bank and general ledgers', actions:[
-      {title:'Customer Ledger', native:'receivables'}, {title:'Supplier Ledger', native:'payables'}, {title:'Bank / Cash Ledger', native:'bank'},
+      {title:'Post Entry Ledger', special:'post-ledger'}, {title:'All Ledgers', special:'all-ledgers'}, {title:'Customer Ledger', native:'receivables'}, {title:'Supplier Ledger', native:'payables'}, {title:'Bank / Cash Ledger', special:'all-ledgers'},
       {title:'General Ledger', native:'reports', find:'General Ledger'}, {title:'Journal Voucher', native:'jv'}, {title:'Search All Entries', special:'search'}
     ]},
     {key:'tg-reports', glyph:'▤', title:'Reports', note:'TG balances and financial reports', actions:[
@@ -101,7 +102,7 @@
       .tt-desk-main{min-width:0}.tt-desk-main>section{margin-bottom:14px}.tt-desk-heading{padding:18px 20px;display:flex;gap:14px;align-items:center}.tt-desk-heading>div{flex:1}.tt-desk-heading h1{font-size:22px;margin:0}.tt-desk-heading p{margin:4px 0 0;color:#697686;font-size:12px}.tt-search-main{width:min(360px,42vw);border:1px solid #cbd5df;border-radius:9px;padding:10px 12px;background:#f8fafb}
       .tt-position{display:grid;grid-template-columns:repeat(5,1fr);border-top:1px solid #e7ebef}.tt-summary{position:relative;border:0;border-right:1px solid #e7ebef;background:#fff;padding:14px 18px;text-align:left;cursor:pointer;min-width:0}.tt-summary:last-child{border-right:0}.tt-summary small,.tt-summary b,.tt-summary em{display:block}.tt-summary small{color:#75818e;font-size:9px;text-transform:uppercase;letter-spacing:.5px}.tt-summary b{font-size:15px;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.tt-summary em{color:#87919b;font-size:10px;font-style:normal;margin-top:2px}.tt-summary-pop{display:none;position:absolute;z-index:25;top:calc(100% - 3px);left:10px;width:300px;max-height:260px;overflow:auto;background:#fff;border:1px solid #ccd7e0;border-radius:10px;padding:10px;box-shadow:0 16px 38px #14283e35;font-size:11px;white-space:normal}.tt-summary:hover .tt-summary-pop,.tt-summary:focus .tt-summary-pop{display:block}.tt-summary-pop div{padding:6px 3px;border-bottom:1px solid #edf0f2}.tt-summary-pop div:last-child{border:0}
       .tt-area-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;padding:18px}.tt-area-card{min-height:154px;border:1px solid #d9e2e9;border-radius:13px;background:#fff;padding:18px;text-align:left;cursor:pointer;box-shadow:0 5px 18px #11283d0a}.tt-area-card:hover{border-color:#749c89;background:#fbfefc;transform:translateY(-1px)}.tt-area-glyph{width:45px;height:45px;border-radius:12px;background:#e9f1ec;color:#28523d;display:grid;place-items:center;font-size:22px;font-weight:900;margin-bottom:16px}.tt-area-card b{display:block;font-size:17px}.tt-area-card small{display:block;color:#6f7c88;line-height:1.45;margin-top:6px}.tt-home-head{padding:17px 19px;border-bottom:1px solid #e6eaee}.tt-home-head h2{margin:0;font-size:17px}.tt-home-head p{margin:4px 0 0;color:#74808d;font-size:11px}.tt-back-areas{border:1px solid var(--tt-brand-main,#4f7650);background:var(--tt-brand-main,#4f7650);color:#fff;border-radius:8px;min-height:34px;padding:6px 12px;font-size:12px;line-height:1;font-weight:900;letter-spacing:.04em;cursor:pointer;margin-right:12px;white-space:nowrap}.tt-back-areas:hover,.tt-back-areas:focus-visible{background:var(--tt-brand-deep,#2e4527);border-color:var(--tt-brand-deep,#2e4527);color:#fff}
-      .tt-work-head{display:flex;align-items:center;padding:15px 18px;border-bottom:1px solid #e6eaee}.tt-work-head h2{margin:0;font-size:16px}.tt-work-head p{margin:3px 0 0;color:#74808d;font-size:11px}.tt-work-head button{margin-left:auto}
+      .tt-work-head{display:flex;align-items:center;padding:15px 18px;border-bottom:1px solid #e6eaee}.tt-work-head h2{margin:0;font-size:16px}.tt-work-head p{margin:3px 0 0;color:#74808d;font-size:11px}.tt-work-head .tt-back-areas{margin-left:0;margin-right:14px}
       .tt-action-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));padding:8px}.tt-action{border:0;background:#fff;padding:13px;border-radius:8px;text-align:left;cursor:pointer;display:flex;gap:12px;align-items:flex-start}.tt-action:hover{background:#f2f6f8}.tt-action-mark{width:30px;height:30px;flex:0 0 30px;border-radius:7px;background:#e8eef3;display:grid;place-items:center;color:#173c63;font-weight:900}.tt-action b,.tt-action small{display:block}.tt-action b{font-size:13px}.tt-action small{color:#75818d;margin-top:3px;line-height:1.35}
       .tt-queue{padding:8px 17px 16px}.tt-queue-row{display:grid;grid-template-columns:110px 1fr auto;gap:14px;padding:10px 0;border-bottom:1px solid #edf0f2;align-items:center}.tt-queue-row:last-child{border:0}.tt-queue-row span{font-size:11px;color:#6e7b87}.tt-queue-row b{font-size:12px}.tt-queue-row button{border:0;background:#edf3f7;color:#173c63;border-radius:7px;padding:7px 10px;font-weight:750;cursor:pointer}
       .workspace.active.tt-clean-modal{top:3vh!important;max-height:94vh!important;border-radius:13px!important;background:#f5f7f9!important}.workspace.tt-clean-modal>.panelHead{border-radius:13px 13px 0 0!important}.workspace.tt-clean-modal .accountPreview{display:block!important;background:#eef5f8!important;border:1px solid #bfd0dc!important}.workspace.tt-clean-modal .infoCard{display:block!important}.workspace.tt-clean-modal .split{display:grid!important;grid-template-columns:minmax(0,1fr) 330px!important}.workspace.tt-clean-modal .formCard{background:#fff}
@@ -125,6 +126,7 @@
 
   async function launch(action) {
     if(action.special==='all-ledgers')return window.TT_ALL_LEDGERS?.open?.();
+    if(action.special==='post-ledger')return window.TT_ALL_LEDGERS?.open?.('POSTS');
     if(action.special==='due-payments')return openDuePayments();
     if(action.special==='little-master')return openLittleMaster();
     if(action.special==='other-export-expense')return openOtherExportExpense();
@@ -246,6 +248,7 @@
     work.innerHTML = `<div class="tt-home-head"><h2>${entity()==='TG'?'Trans Grains Accounts':'What do you want to do?'}</h2><p>${entity()==='TG'?'Only customer receipts, supplier payments, bank/local expenses, ledgers and reports are shown.':'Choose a broad area, then choose the exact entry or report.'}</p></div><div class="tt-area-grid"><button type="button" class="tt-area-card" id="ttMainJV"><span class="tt-area-glyph">${iconPicture('jv')}</span><b>Journal Voucher</b><small>Prepare, approve and print a JV</small></button>${items.map(area=>`<button type="button" class="tt-area-card" data-tt-area="${area.key}"><span class="tt-area-glyph">${iconPicture(area.key.startsWith('tg-')?area.key.slice(3):area.key)}</span><b>${esc(area.title)}</b><small>${esc(area.note)}</small></button>`).join('')}</div>`;
     q('#ttMainJV',work).onclick=()=>launch({native:'jv'});
     qa('[data-tt-area]', work).forEach(button=>button.onclick=()=>showArea(button.dataset.ttArea));
+    window.TT_ACCOUNT_BADGE_REFRESH?.();
   }
 
   function showArea(key) {
