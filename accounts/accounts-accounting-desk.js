@@ -177,7 +177,7 @@
     const master = document.createElement('button');
     master.id = 'ttMasterTop'; master.type = 'button'; master.title = 'Master Records';
     master.setAttribute('aria-label', 'Open Master Records'); master.textContent = 'M';
-    master.onclick = () => { window.location.href='/index.php?view=masters'; };
+    master.onclick = () => { window.location.href='/index.php?view=masters&from=accounts'; };
     const company = document.createElement('button');
     company.id = 'ttChangeCompanyDesk';
     company.type = 'button';

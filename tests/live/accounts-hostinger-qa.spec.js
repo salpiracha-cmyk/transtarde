@@ -98,10 +98,12 @@ test('authenticated Accounts live smoke: professional desk and popup workflows',
 
   await expect(page.locator('#ttMasterTop'), 'M must be visible to every ordinary module user').toBeVisible();
   await activate(page.locator('#ttMasterTop'));
-  await expect(page).toHaveURL(/\/index\.php\?view=masters$/, { timeout: 30_000 });
+  await expect(page).toHaveURL(/\/index\.php\?view=masters&from=accounts$/, { timeout: 30_000 });
   await expect(page.locator('#view-masters')).toBeVisible({ timeout: 30_000 });
   await expect(page.locator('#masterTitle')).toBeVisible();
-  await page.goto(`${BASE_URL}/accounts/index.php`, { waitUntil: 'domcontentloaded', timeout: 90_000 });
+  await expect(page.locator('#masterBackTop')).toHaveAccessibleName('Back to Accounts home');
+  await activate(page.locator('#masterBackTop'));
+  await expect(page).toHaveURL(/\/accounts\/index\.php$/, { timeout: 30_000 });
   await expect.poll(() => page.evaluate(() => window.TT_ACCOUNTING_DESK?.installed || false), { timeout: 30_000 }).toBe(true);
 
   await deskAction(page, 'exports', 'Bank Receipt / Credit Advice');

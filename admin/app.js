@@ -305,6 +305,16 @@
     if (!IS_SUPER_ADMIN) {
       document.body.classList.add('tt-master-only');
       const moduleName=Object.keys(MASTER_DEFAULT_SCOPES).find(name=>canOpenModule(name))||'Your';
+      const masterReturn=SESSION.masterReturn;
+      if(masterReturn?.url){
+        const back=document.createElement('a');
+        back.id='masterBackTop';
+        back.className='master-back-top';
+        back.href=masterReturn.url;
+        back.setAttribute('aria-label',`Back to ${masterReturn.label} home`);
+        back.innerHTML=`<span aria-hidden="true">←</span><b>Back to ${escapeHtml(masterReturn.label)}</b>`;
+        document.querySelector('.topbar')?.prepend(back);
+      }
       document.title = `Transtrade ${moduleName} Master Records`;
       const heading=document.querySelector('#view-masters .page-heading');
       if(heading){const eyebrow=heading.querySelector('.eyebrow');if(eyebrow)eyebrow.textContent=moduleName.toUpperCase();}
