@@ -780,7 +780,7 @@ function renderTG(d){
   q('#tgPrintCurrent').onclick=()=>{readTab();if(key==='relationship'&&!s.tgdocs.relationship.wording)return alert('Enter the approved wording before printing this letter.');const doc=docs(key);printShipmentDoc(doc[0],doc[1](),seller)}
  };
  d.querySelectorAll('[data-tg-tab]').forEach(button=>button.onclick=()=>{readTab();s.tgdocs.activeTab=button.dataset.tgTab;d.querySelectorAll('[data-tg-tab]').forEach(tab=>tab.classList.toggle('active',tab===button));renderTab()});
- q('#saveTGPack').onclick=()=>{readTab();if(num(s.customs.rate)<=0)return alert('Save the Customs Invoice price first.');if(s.tgdocs.importer.enabled&&!tgImporterParty(s,c)?.name)return alert('Select the Importer / Receiver of Goods.');Object.assign(s.tgdocs,{saved:true,at:new Date().toISOString(),exporter:seller,rate:num(s.customs.rate),currency,customsInvoiceNo:s.customs.invoiceNo});audit('TG Documents','TG pack saved',`${s.contractRef} · ${s.lotId}`);save();renderShipmentWorkspace()};
+ q('#saveTGPack').onclick=()=>{readTab();if(num(s.customs.rate)<=0)return alert('Save the Customs Invoice price first.');if(s.tgdocs.importer.enabled&&!tgImporterParty(s,c)?.name)return alert('Select the Importer / Receiver of Goods.');Object.assign(s.tgdocs,{saved:true,at:new Date().toISOString(),exporter:seller,rate:num(s.customs.rate),currency,customsInvoiceNo:s.customs.invoiceNo,invoiceValue:num(s.customs.invoiceValue)});audit('TG Documents','TG pack saved',`${s.contractRef} · ${s.lotId}`);save();renderShipmentWorkspace()};
  q('#printTGPack').onclick=()=>{readTab();const error=coveringValidation(s,c,s.tgdocs.covering,true);if(error)return alert(error);printShipmentDoc('TTI / BRM TO TG DOCUMENT PACK',tgInternalDoc(s,c),seller)};
  renderTab()
 }

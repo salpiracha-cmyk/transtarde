@@ -73,24 +73,15 @@
     for (const invoice of data?.sources?.invoices || []) {
       // An unposted CAD/L/C invoice is not an advance or a posted receivable.
       if (!invoice.recognized || Number(invoice.outstandingForeign || 0) <= 0) continue;
-      rows.push({key:`INV|${invoice.id}`,targetId:invoice.id,targetType:invoice.recognized ? (invoice.candidateType === 'TG_PAKISTAN_INTERCOMPANY' ? 'INTERCOMPANY_RECEIVABLE' : 'EXPORT_RECEIVABLE') : 'UNAPPLIED_ADVANCE',customer:invoice.customer || '',currency:String(invoice.currency || 'USD').toUpperCase(),amount:Number(invoice.outstandingForeign || 0),reference:invoice.contractRef || invoice.reference || '',invoiceRef:invoice.reference || '',contractRef:invoice.contractRef || '',narration:invoice.recognized ? 'Balance' : 'Advance',isTg:invoice.candidateType === 'TG_PAKISTAN_INTERCOMPANY',recognized:!!invoice.recognized,mirrorCandidateId:invoice.mirrorCandidateId || '',fiRefs:Array.isArray(invoice.fiRefs) ? invoice.fiRefs : []});
+      if (invoice.candidateType === 'TG_PAKISTAN_INTERCOMPANY') continue;
+      rows.push({key:`INV|${invoice.id}`,targetId:invoice.id,targetType:'EXPORT_RECEIVABLE',customer:invoice.customer || '',currency:String(invoice.currency || 'USD').toUpperCase(),amount:Number(invoice.outstandingForeign || 0),reference:invoice.contractRef || invoice.reference || '',invoiceRef:invoice.reference || '',contractRef:invoice.contractRef || '',narration:'Balance',isTg:false,recognized:true,mirrorCandidateId:invoice.mirrorCandidateId || '',fiRefs:Array.isArray(invoice.fiRefs) ? invoice.fiRefs : []});
     }
-    for (const invoice of data?.sources?.invoices || []) {
-      if (invoice.recognized || invoice.candidateType !== 'UNRECOGNIZED_OPERATIONAL_INVOICE') continue;
-      const contract=(data?.sources?.contracts||[]).find(row=>row.ref===invoice.contractRef&&row.seller==='TG');
-      if(!contract)continue;
-      rows.push({key:`TGOPS|${invoice.id}`,targetId:'',targetType:'UNAPPLIED_TG',customer:'TG',currency:String(invoice.currency||'USD').toUpperCase(),amount:0,reference:invoice.contractRef||'',invoiceRef:invoice.reference||'',contractRef:invoice.contractRef||'',narration:'TG Pack invoice · awaiting Accounts recognition',isTg:true,recognized:false,fiRefs:[]});
+    for (const invoice of data?.sources?.tgPackInvoices || []) {
+      rows.push({key:`TGPACK|${invoice.id}`,targetId:invoice.candidateId||`PACK|${invoice.id}`,targetType:invoice.recognized?'INTERCOMPANY_RECEIVABLE':'UNAPPLIED_TG',customer:'TG',currency:String(invoice.currency||'USD').toUpperCase(),amount:Number(invoice.outstandingForeign||0),invoiceValue:Number(invoice.value||0),reference:invoice.invoiceRef||'',invoiceRef:invoice.invoiceRef||'',contractRef:invoice.contractRef||'',narration:'TG Pack invoice',isTg:true,recognized:!!invoice.recognized,fiRefs:[]});
     }
     for (const contract of data?.sources?.contracts || []) {
       const amount = Number(contract.outstandingAdvance ?? contract.expectedAdvance ?? 0); if (amount <= 0) continue;
       if (String(contract.seller || '').toUpperCase() === entity()) rows.push({key:`CON|${contract.id}`,targetId:'',targetType:'UNAPPLIED_ADVANCE',customer:contract.customer || '',currency:String(contract.currency || 'USD').toUpperCase(),amount,reference:contract.ref || '',invoiceRef:'',contractRef:contract.ref || '',narration:'Advance',isTg:false,recognized:false,mirrorCandidateId:'',fiRefs:[]});
-    }
-    for (const contract of data?.sources?.contracts || []) {
-      if (String(contract.seller || '').toUpperCase() !== 'TG') continue;
-      const ref=String(contract.ref||'').trim();if(!ref)continue;
-      const cur=String(contract.currency||'USD').toUpperCase();
-      if(rows.some(row=>row.isTg&&row.contractRef===ref&&row.currency===cur&&row.targetType==='INTERCOMPANY_RECEIVABLE'))continue;
-      rows.push({key:`TGCON|${contract.id}`,targetId:'',targetType:'UNAPPLIED_TG',customer:'TG',currency:cur,amount:0,reference:ref,invoiceRef:'',contractRef:ref,narration:'TG Pack contract · invoice pending',isTg:true,recognized:false,fiRefs:[]});
     }
     rows.push({key:'TGADV',targetId:'',targetType:'UNAPPLIED_TG',customer:'TG',currency,amount:0,reference:'',invoiceRef:'',contractRef:'',narration:'TG advance · FI unallocated',isTg:true,recognized:false,fiRefs:[]});
     return rows;
@@ -104,14 +95,15 @@
   }
   function availableItems() { return sourceRows().filter(row => row.currency === currency && (payerType === 'TG' ? row.isTg : !row.isTg && row.customer === payer)); }
   function itemLabel(item) {
-    if (item.isTg) return `${item.amount ? `${item.currency} ${fmt(item.amount)} — ` : ''}${item.narration} — ${item.invoiceRef || item.reference || 'Advance without contract / invoice'}`;
+    if (item.isTg) return item.key==='TGADV'?'Advance':`${item.currency} ${fmt(item.invoiceValue)} — ${item.invoiceRef}`;
     return `${item.currency} ${fmt(item.amount)} — ${item.narration} — ${item.reference}`;
   }
   function selectedExpected() { return [...chosen.values()].reduce((sum,item) => sum + Number(item.amount || 0),0); }
   function redistribute() {
     let remaining = num(q('#erForeign')?.value);
-    for (const [key,item] of chosen) { item.applied = item.targetType==='UNAPPLIED_TG' ? remaining : Math.min(item.amount,remaining); remaining = Math.max(0,remaining - item.applied); chosen.set(key,item); }
+    for (const [key,item] of chosen) { item.applied = item.key==='TGADV' ? remaining : Math.min(item.amount,remaining); remaining = Math.max(0,remaining - item.applied); chosen.set(key,item); }
   }
+  function tgOptionsHtml() {return `<option value="">Select saved TG Pack invoice or Advance</option>${availableItems().map(item=>`<option value="${esc(item.key)}" ${chosen.has(item.key)?'selected':''}>${esc(itemLabel(item))}</option>`).join('')}`;}
   function itemsHtml() {
     const rows = availableItems();
     if (!rows.length) return '<div class="tter-alert">No outstanding Export item matches this payer and currency.</div>';
@@ -145,7 +137,7 @@
     panel.innerHTML = `<div class="tter-head"><div><b>Export Payment Receipt / Credit Advice</b><div class="tter-note">FI is maintained only in Exports. Accounts selects the linked outstanding item and posts the bank entry.</div></div><div class="sp"></div><button class="btn" data-er-close>Close</button></div><div class="tter-body">
       <section class="tter-step active"><h3>▰ Received into company account</h3><div class="tter-grid"><label>Received Into Account<select id="erPkrBank">${bankOptions('PKR',bankId)}</select></label></div>${(banks?.accounts||[]).filter(row=>!eligibleBanks.some(ready=>ready.id===row.id)).map(row=>`<div class="tter-alert"><b>${esc(bankLabel(row))} · ${esc(row.currency||'currency missing')}</b><br>${esc(bankUnavailableReason(row))}.</div>`).join('')}${!(banks?.accounts||[]).length ? `<div class="tter-alert">No ${esc(entity())} bank account is linked in Company Master. Add the company bank and its account number or IBAN there.</div>` : ''}</section>
       ${bankId ? `<section class="tter-step active" id="erPayerStep"><h3>⇠ Received from</h3><div class="tter-parties"><button type="button" class="tter-party ${payerType === 'TG' ? 'active' : ''}" data-payer-type="TG"><b>Trans Grains (TG)</b><div class="tter-note">Enter the credit advice details; invoice references are linked when available.</div></button><button type="button" class="tter-party ${payerType === 'CUSTOMER' ? 'active' : ''}" data-payer-type="CUSTOMER"><b>Export Customer</b><div class="tter-note">Choose the customer, then its advance or balance items.</div></button></div>${payerType === 'CUSTOMER' ? `<div class="tter-grid" style="margin-top:10px"><label>Customer<select id="erPayer"><option value="">Choose customer</option>${payers().map(name => `<option ${name === payer ? 'selected' : ''}>${esc(name)}</option>`).join('')}</select></label><button type="button" class="btn tter-manage-customer" id="erManageCustomer">+ Add / Amend Customer</button></div>` : ''}</section>` : ''}
-      ${payer ? `<section class="tter-step active"><h3>${payerType==='TG'?'Choose TG Pack invoice, contract or advance':'▤ Outstanding item(s)'}</h3><div class="tter-grid" style="margin-bottom:10px"><label>Receipt Currency<select id="erCurrency">${['USD','EUR','GBP','AED'].map(code => `<option ${code === currency ? 'selected' : ''}>${code}</option>`).join('')}</select></label></div><div class="tter-note">${payerType==='TG'?'Select the posted invoice to clear its receivable. A contract pending invoice or a TG advance stays unapplied for Exports FI allocation.':'Multiple items may be selected. Display order is amount → narration/reference → bare contract or internal document number.'}</div><div id="erItems">${itemsHtml()}</div></section>` : ''}
+      ${payer ? `<section class="tter-step active"><h3>${payerType==='TG'?'TG payment for':'▤ Outstanding item(s)'}</h3><div class="tter-grid" style="margin-bottom:10px"><label>Receipt Currency<select id="erCurrency">${['USD','EUR','GBP','AED'].map(code => `<option ${code === currency ? 'selected' : ''}>${code}</option>`).join('')}</select></label>${payerType==='TG'?`<label>Invoice / Advance<select id="erTgItem" ${selectedTgPayment?'disabled':''}>${tgOptionsHtml()}</select></label>`:''}</div>${payerType==='TG'?'<div class="tter-note">Advance remains unallocated in Exports until its FI is entered and used.</div>':`<div class="tter-note">Multiple items may be selected. Display order is amount → narration/reference → bare contract or internal document number.</div><div id="erItems">${itemsHtml()}</div>`}</section>` : ''}
       ${fullFormHtml()}${historyHtml()}</div>`;
     bind();
     if (selectedTgPayment && q('#erForeign')) {
@@ -193,6 +185,7 @@
       });
       if (!opened) toast('Adding or amending customers requires Master Create or Edit permission.',false);
     });
+    q('#erTgItem')?.addEventListener('change',event=>{if(selectedTgPayment)return;const item=availableItems().find(row=>row.key===event.target.value);chosen.clear();if(item)chosen.set(item.key,{...item,applied:item.amount||0});render();if(item?.amount&&q('#erForeign')){q('#erForeign').value=String(item.amount);redistribute();calc();}});
     qa('[data-er-item]').forEach(box => { box.onchange = () => { if(selectedTgPayment){box.checked=true;return}const item = availableItems().find(row => row.key === box.dataset.erItem); if (box.checked && item) chosen.set(item.key,{...item,applied:item.amount||0}); else chosen.delete(box.dataset.erItem); render(); }; });
     qa('[data-er-applied]').forEach(input => { input.oninput = () => { const item = chosen.get(input.dataset.erApplied); if (item) { item.applied = num(input.value); chosen.set(input.dataset.erApplied,item); } calc(); }; });
     q('#erCurrency')?.addEventListener('change', event => { if(selectedTgPayment)return; currency = event.target.value; tgBankId = ''; chosen.clear(); render(); });

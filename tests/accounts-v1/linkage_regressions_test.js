@@ -121,6 +121,14 @@ vm.runInContext(extractFunction(receiptUi,'receiptBanks')+'\n'+extractFunction(r
 assert.deepEqual([...receiptBankContext.receiptBanks('PKR')].map(row=>row.id),['tti-ready','tti-disabled'],'Old Accounts toggles must not disable an active company bank');
 assert.match(receiptBankContext.bankUnavailableReason(receiptBankContext.banks.accounts[2]),/account number or IBAN/);
 assert.match(receiptBankContext.bankUnavailableReason(receiptBankContext.banks.accounts[3]),/Active in Company Master/);
+const packContext={currency:'USD',payerType:'TG',payer:'TG',entity:()=> 'TTI',data:{sources:{invoices:[{id:'loose',candidateType:'TG_PAKISTAN_INTERCOMPANY',recognized:true,outstandingForeign:999}],contracts:[{id:'contract',seller:'TG',ref:'CT-1',currency:'USD'}],tgPackInvoices:[{id:'lot-1',invoiceRef:'INV-1',contractRef:'CT-1',currency:'USD',value:108000,outstandingForeign:108000,candidateId:'tg-candidate',recognized:true}]}},fmt:value=>String(value),esc:String,chosen:new Map()};
+vm.createContext(packContext);
+vm.runInContext(['sourceRows','availableItems','itemLabel','tgOptionsHtml'].map(name=>extractFunction(receiptUi,name)).join('\n'),packContext);
+assert.deepEqual([...packContext.availableItems()].map(row=>row.key),['TGPACK|lot-1','TGADV'],'TG dropdown includes only saved TG Pack invoices and Advance');
+assert.match(packContext.tgOptionsHtml(),/USD 108000 — INV-1/,'TG dropdown identifies the invoice by value and number');
+assert.doesNotMatch(packContext.tgOptionsHtml(),/CT-1|loose/,'TG dropdown does not expose bare contracts or invoices without a saved pack');
+assert.match(receiptUi,/id="erTgItem"/,'TG payment selection is one compact dropdown');
+assert.match(receiptApi,/empty\(\$s\['tgdocs'\]\['saved'\]\)/,'An invoice appears only after its TG Pack has been saved');
 const tgReceiptContext={chosen:new Map([['posted',{targetType:'INTERCOMPANY_RECEIVABLE',targetId:'posted-tg-1',contractRef:'TG-123',invoiceRef:'INV-TG-123',customer:'TG',applied:500}]]),num:Number};
 vm.createContext(tgReceiptContext);
 vm.runInContext(extractFunction(receiptUi,'allocations'),tgReceiptContext);
