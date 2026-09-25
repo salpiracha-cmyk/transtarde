@@ -7,20 +7,19 @@ const QA_PASSWORD = process.env.TRANSTRADE_QA_PASSWORD;
 async function signIn(page) {
   expect(QA_USERNAME, 'TRANSTRADE_QA_USERNAME is required').toBeTruthy();
   expect(QA_PASSWORD, 'TRANSTRADE_QA_PASSWORD is required').toBeTruthy();
-  let lastUrl = '';
-  for (let attempt = 1; attempt <= 3; attempt += 1) {
-    const login = await page.request.get(`${BASE_URL}/login.php`, { timeout: 45_000 });
-    expect(login.status()).toBe(200);
-    const token = (await login.text()).match(/name="csrf" value="([^"]+)"/)?.[1];
-    expect(token, 'Login CSRF token must be present').toBeTruthy();
-    const signed = await page.request.post(`${BASE_URL}/login.php`, { form: { csrf: token, username: QA_USERNAME, password: QA_PASSWORD }, timeout: 45_000 });
-    expect(signed.status()).toBe(200);
-    await page.goto(`${BASE_URL}/accounts/index.php`, { waitUntil: 'domcontentloaded', timeout: 90_000 });
-    lastUrl = page.url();
-    if (lastUrl.includes('/accounts/index.php') && /Transtrade Accounts/i.test(await page.title())) return;
-    if (attempt < 3) await page.waitForTimeout(1_500 * attempt);
-  }
-  throw new Error(`QA authentication did not reach Accounts; final URL: ${lastUrl}`);
+
+  await page.goto(`${BASE_URL}/login.php`, { waitUntil: 'domcontentloaded', timeout: 90_000 });
+  await expect(page.locator('form')).toBeVisible({ timeout: 30_000 });
+  await page.locator('input[name="username"]').fill(QA_USERNAME);
+  await page.locator('input[name="password"]').fill(QA_PASSWORD);
+  await page.locator('button[type="submit"]').click();
+  await page.waitForLoadState('domcontentloaded');
+
+  const lastUrl = page.url();
+  if (lastUrl.includes('/accounts/index.php') && /Transtrade Accounts/i.test(await page.title())) return;
+
+  const loginError = (await page.locator('.error').textContent().catch(() => ''))?.trim() || '';
+  throw new Error(`QA browser authentication did not reach Accounts; final URL: ${lastUrl}${loginError ? `; login error: ${loginError}` : ''}`);
 }
 
 async function activate(locator) {
