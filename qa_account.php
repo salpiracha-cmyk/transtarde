@@ -70,7 +70,8 @@ function tt_ensure_qa_account(): void {
 
         tt_mutate_store(function (&$data): void {
             $changed=false;
-            foreach ((array)($data['users'] ?? []) as &$user) {
+            if (!isset($data['users']) || !is_array($data['users'])) $data['users']=[];
+            foreach ($data['users'] as &$user) {
                 if (!tt_is_managed_qa_account((array)$user)) continue;
                 $changed=tt_apply_qa_account_profile($user);
                 unset($user);
