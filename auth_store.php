@@ -388,7 +388,7 @@ function tt_normalize_masters(array $masters): array {
 }
 
 function tt_visible_masters(array $masters): array {
-    $visible=['companies','export_customers','business_parties','commodities','product_settings','products','purchase_products','purchase_kat','export_documents','export_terms','mills','banks'];
+    $visible=['companies','export_customers','business_parties','commodities','product_settings','products','purchase_products','purchase_kat','export_documents','export_terms','export_realization_charges','mills','banks'];
     return array_intersect_key(tt_normalize_masters($masters),array_flip($visible));
 }
 
