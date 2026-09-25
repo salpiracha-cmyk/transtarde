@@ -241,6 +241,7 @@
     input.placeholder = 'Type 1 or 2 letters to search';
     const menu = document.createElement('div');
     menu.className = 'tt-select-menu';
+    if (select.id) menu.dataset.ttSelectFor = select.id;
     menu.hidden = true;
     select.parentNode.insertBefore(wrap, select);
     wrap.append(input, select);
