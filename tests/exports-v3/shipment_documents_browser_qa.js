@@ -20,7 +20,7 @@ app = app.replace(
       {number:'TGHU7654321',seal:'SL002',bags:1080,netKg:27000,tareKg:86.4,grossKg:27086.4,brand:'NORTH STAR',packing:'25 KG'}
     ];
     shipment.loadingPlan={bookingNumber:'BOOK-QA-01',shippingLine:'MAERSK',portOfLoading:'Port Qasim, Pakistan'};
-    shipment.bl={...shipment.bl,blNo:'BL-QA-001',onBoardDate:'2026-09-21',vessel:'MV OCEAN STAR',voyage:'V-108',consignee:buyer.name+' — '+buyer.address,notify:buyer.notifies[0].name+' — '+buyer.notifies[0].address,originals:3,copies:5};
+    shipment.bl={...shipment.bl,blNo:'BL-QA-001',onBoardDate:'2026-09-21',vessel:'MV OCEAN STAR',voyage:'V-108',consignee:buyer.name+' — '+buyer.address,notify:buyer.notifies[0].name+' — '+buyer.notifies[0].address,originals:3,copies:5,showSealNumbers:true};
     shipment.lc={saved:true,lcNo:'LC-QA-9001',lcDate:'2026-09-10',issuingBank:'FIRST INTERNATIONAL BANK, DUBAI',documents:['Commercial Invoice','Packing List'],conditions:[]};
     shipment.customs={...shipment.customs,description:'PAKISTAN LONG GRAIN IRRI-6 WHITE RICE',fiAllocations:[{number:'FI-QA-01',date:'2026-09-12',amount:12000,currency:'USD'}],gdRefs:[{number:'GD-QA-01',date:'2026-09-20'}],bank:'MEEZAN BANK LIMITED',iban:'PK66MEZN0001020103869880'};
     return {

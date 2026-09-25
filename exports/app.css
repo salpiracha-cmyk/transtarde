@@ -168,6 +168,7 @@
 .approvedCustomsTop{border-radius:0;margin:2mm 0 0}
 .approvedCustomsTop .specimenRoute{display:grid;grid-template-columns:29mm 1fr;gap:1mm 2mm;align-content:start}
 .approvedCustomsTop .specimenRoute b{margin:0}
+.approvedCustomsTop .specimenRoute .phytoControlNumber{font-size:11px;font-weight:900;line-height:1.2}
 .approvedCustomsGoods{table-layout:fixed;margin-top:0;font-size:8.3px}
 .approvedCustomsGoods th:nth-child(1){width:14%}.approvedCustomsGoods th:nth-child(2){width:17%}.approvedCustomsGoods th:nth-child(3){width:25%}.approvedCustomsGoods th:nth-child(4){width:11%}.approvedCustomsGoods th:nth-child(5){width:16%}.approvedCustomsGoods th:nth-child(6){width:17%}
 .approvedCustomsGoods td{height:55mm;text-align:center;vertical-align:middle;overflow-wrap:anywhere}
