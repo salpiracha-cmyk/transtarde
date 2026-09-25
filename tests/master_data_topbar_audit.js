@@ -7,6 +7,7 @@ const exportIndex=fs.readFileSync(__dirname+'/../exports/index.html','utf8');
 const milling=fs.readFileSync(__dirname+'/../milling/Transtrade_Master_Milling_V3_3_2_AUDITED.html','utf8');
 const indexPhp=fs.readFileSync(__dirname+'/../index.php','utf8');
 const adminApp=fs.readFileSync(__dirname+'/../admin/app.js','utf8');
+const stateDeclaration=adminApp.indexOf('let state = loadState()');
 
 assert.match(modulePhp,/getElementById\('ttMasterTop'\)\|\|document\.getElementById\('masterTop'\)/,'shared header reuses the existing Exports M');
 assert.match(modulePhp,/master\.id='ttMasterTop'/);
@@ -28,4 +29,6 @@ assert.match(milling,/<section id="masters" class="panel">/,'the existing worksp
 assert.match(indexPhp,/tt_user_can_open_module\(\$user, \$moduleHomes\[\$requestedModule\]\['permission'\]\)/,'return destinations are permission validated server-side');
 assert.match(adminApp,/back\.id='masterBackTop'/,'ordinary Master Records renders a top-left Back control');
 assert.match(adminApp,/if \(!IS_SUPER_ADMIN\) \{/,'Super Admin Console is not changed by staff-only navigation');
+assert(stateDeclaration>0,'Master Records state is initialized');
+assert(!adminApp.slice(0,stateDeclaration).includes('state.masterOptions'),'static master definitions must not access state before initialization');
 console.log('PASS module master scope and explicit permission controls');
