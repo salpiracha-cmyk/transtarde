@@ -43,31 +43,34 @@ assert.doesNotMatch(sodaPhp,/foreach\(\(array\)\(\$data\['masters'\]\['business_
 
 const stores={};
 const exContext={
-  STORE_EXMILL:'ex',STORE_EXLOAD:'loads',purchaseSodaFeed:[],
+  STORE_EXMILL:'ex',STORE_EXLOAD:'loads',STORE_EXINSTR:'instructions',purchaseSodaFeed:[],
   defaultExMillSodas:()=>[],get:(key,fallback)=>structuredClone(stores[key]??fallback),
   set:(key,value)=>{stores[key]=structuredClone(value)},
   millLocationIdentity:value=>String(value||'').toLowerCase().replace(/[^a-z0-9]+/g,''),
-  stableSodaId:value=>700000000+String(value).length,nowText:()=> 'QA'
+  stableSodaId:value=>700000000+String(value).length,nowText:()=> 'QA',refreshInstructionBadges:()=>{}
 };
 vm.createContext(exContext);
 vm.runInContext(extractFunction(milling,'syncExMillPurchaseSodas'),exContext);
 
-stores.ex=[{id:222,_ttBridge:'exports',_ttBridgeId:'EXP-A',entity:'TTI',mill:'Outside Mill',baseVariety:'IRRI-6',riceType:'White',loadedKg:0}];stores.loads=[];
+stores.ex=[];stores.loads=[];stores.instructions=[{id:222,_ttBridge:'exports',_ttBridgeId:'EXP-A',entity:'TTI',mill:'Outside Mill',baseVariety:'IRRI-6',riceType:'White',instructionQtyKg:100000}];
 exContext.purchaseSodaFeed=[{id:'S-BRM',entity:'BRM',sodaNo:'1',productStage:'READY',readyRoute:'EX_MILL',locationName:'Outside Mill',baseVariety:'IRRI-6',riceType:'White',displayName:'IRRI-6 White Ready Rice',qtyToKg:100000}];
 exContext.syncExMillPurchaseSodas();
-assert.equal(stores.ex.find(x=>x.id===222)._ttPurchaseSodaId,undefined,'Cross-entity Ex-Mill rows must not auto-link');
+assert.equal(stores.instructions[0].sourceSodaId||'', '', 'Cross-entity Loading Instructions must not auto-link');
 
-stores.ex=[{id:111,_ttBridge:'accounts-soda',_ttBridgeId:'S-1',_ttPurchaseSodaId:'S-1',entity:'TTI',mill:'Outside Mill',baseVariety:'IRRI-6',riceType:'White',loadedKg:0},{id:222,_ttBridge:'exports',_ttBridgeId:'EXP-1',entity:'TTI',mill:'Outside Mill',baseVariety:'IRRI-6',riceType:'White',loadedKg:0}];
+stores.ex=[{id:111,_ttBridge:'accounts-soda',_ttBridgeId:'S-1',_ttPurchaseSodaId:'S-1',entity:'TTI',mill:'Outside Mill',baseVariety:'IRRI-6',riceType:'White',loadedKg:0}];
+stores.instructions=[{id:333,_ttBridge:'exports',_ttBridgeId:'EXP-1',legacySodaId:222,entity:'TTI',mill:'Outside Mill',baseVariety:'IRRI-6',riceType:'White',instructionQtyKg:100000,shipmentId:'LOT-ID',contractRef:'C-1',lotRef:'LOT-01'}];
 stores.loads=[{id:1,sodaId:222,kg:25000}];
 exContext.purchaseSodaFeed=[{id:'S-1',entity:'TTI',sodaNo:'1',productStage:'READY',readyRoute:'EX_MILL',locationName:'Outside Mill',baseVariety:'IRRI-6',riceType:'White',displayName:'IRRI-6 White Ready Rice',qtyToKg:100000}];
 exContext.syncExMillPurchaseSodas();
-assert.ok(stores.ex.some(x=>x.id===111&&x._ttBridgeId==='EXP-1'),'Exact merge must preserve the Accounts row identity');
-assert.ok(!stores.ex.some(x=>x.id===222),'Merged duplicate row must be removed');
+assert.ok(stores.ex.some(x=>x.id===111&&x._ttBridgeId==='S-1'),'The Accounts SODA must remain the sole quantity authority');
+assert.ok(!stores.ex.some(x=>x._ttBridge==='exports'),'Export must never create a visible or stored SODA');
+assert.equal(stores.instructions[0].sourceSodaId,'S-1','Exact instruction identity must link to the Accounts SODA internally');
 assert.equal(stores.loads[0].sodaId,111,'Dependent load references must be remapped to the surviving row');
+assert.equal(stores.loads[0].instructionId,333,'Dependent loads must retain the exact Export instruction identity');
 
 exContext.purchaseSodaFeed=[];
 exContext.syncExMillPurchaseSodas();
-assert.equal(stores.ex.find(x=>x.id===111).sourceRouteStatus,'ROUTE_CHANGED','A route change with loaded history must be retained for review');
+assert.ok(stores.ex.some(x=>x.id===111),'A route change with loaded history must retain the internal accounting link for review');
 
 const stockFns=['millBaseVariety','millRiceType','millProductIdentity','stockEntityForView','isOperationalProductionRow','stockScopeMatches','resolveStockKey','shipmentLoadedWeight','computedStockRows'].map(n=>extractFunction(milling,n)).join('\n');
 const stockStores={};

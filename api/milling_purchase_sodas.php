@@ -17,7 +17,9 @@ function mps_can_handoff(array $user,string $entity):bool{return tt_user_can_acc
 
 try {
     $user=tt_require_login();
-    if(!tt_user_can_open_module($user,'Mill')&&!tt_user_can_open_module($user,'Accounts'))mps_out(['ok'=>false,'error'=>'Mill or Accounts permission required.'],403);
+    $canMill=tt_user_can_open_module($user,'Mill');$canAccounts=tt_user_can_open_module($user,'Accounts');$canExports=tt_user_can_open_module($user,'Exports');
+    if($_SERVER['REQUEST_METHOD']==='POST'&&!$canMill&&!$canAccounts)mps_out(['ok'=>false,'error'=>'Mill or Accounts permission required.'],403);
+    if($_SERVER['REQUEST_METHOD']==='GET'&&!$canMill&&!$canAccounts&&!$canExports)mps_out(['ok'=>false,'error'=>'Mill, Accounts or Exports permission required.'],403);
     $file=TT_DATA_DIR.'/accounts.json';$store=mps_store();
     if($_SERVER['REQUEST_METHOD']==='POST'){
         $body=json_decode(file_get_contents('php://input')?:'',true);if(!is_array($body)||!tt_verify_csrf((string)($body['csrf']??'')))mps_out(['ok'=>false,'error'=>'Session expired. Refresh and try again.'],419);
