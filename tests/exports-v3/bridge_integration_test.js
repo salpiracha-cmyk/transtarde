@@ -24,6 +24,7 @@ let serverValues={transtrade_export_v3_operational:JSON.stringify(root)};
 class XMLHttpRequest{open(method,url,async){this.async=async}send(){this.status=200;this.responseText=JSON.stringify({ok:true,revision:1,values:serverValues,meta:{}});if(this.onload)this.onload()}}
 const resolved=v=>({then(fn){try{const next=fn(v);return next&&typeof next.then==='function'?next:resolved(next)}catch(error){return rejected(error)}},catch(){return this}}),rejected=error=>({then(){return this},catch(fn){return resolved(fn(error))}});
 const posts=[];const context={window:{TT_MODULE_ACCESS:{csrf:'test',module:'Exports',moduleId:'exports'},TRANSTRADE_SERVER_NOW_ISO:''},Storage,localStorage,document,XMLHttpRequest,console,fetch:(url,options)=>{posts.push(JSON.parse(options.body));return resolved({json:()=>resolved({ok:true,revision:1,keyVersion:1})})},setTimeout:()=>0,clearTimeout(){},setInterval:()=>0,addEventListener:(n,fn)=>listeners[n]=fn,location:{reload(){}}};
+context.clock=0;context.Date=class extends Date {static now(){return Date.now()+context.clock}};
 context.window.localStorage=localStorage;context.window.document=document;context.window.Storage=Storage;context.globalThis=context;
 vm.runInNewContext(match[1],context,{filename:'shared-bridge.js'});
 assert.equal(listeners.DOMContentLoaded,undefined,'initial bridge must run before module application state loads');
@@ -53,5 +54,15 @@ const root2=structuredClone(root);root2.shipments.push({id:'L-2',kind:'lot',pare
 assert.equal(typeof listeners.focus,'function','bridge must register a safe inbound check when staff return to a module tab');listeners.focus();
 assert.equal(JSON.parse(localStorage.getItem('tt30ship')).filter(x=>x._ttBridge==='exports').length,2,'focus refresh must deliver a newly sent exact Loading Instruction without timed polling');
 assert.ok(JSON.parse(localStorage.getItem('tt30ship')).some(x=>x._ttShipmentId==='L-2'&&x.contractRef==='TTI/NS/01'&&x._ttLotId==='LOT-02'),'inbound refresh preserves Shipment ID + Contract + Lot identity');
+const amended=structuredClone(root2);
+amended.contracts[0].product='PK-386 Steam Rice';amended.contracts[0].quality='Revised export quality';
+amended.millSync.exportLoading[0].sentAt='2026-09-25T14:00:00Z';
+amended.millSync.productionInstructions=[{contractRef:'TTI/NS/01',product:'PK-386 Steam Rice',quality:'Revised export quality',packings:amended.contracts[0].packings,sentAt:'2026-09-25T14:00:00Z'}];
+context.window.TT_SHARED_SYNC.flush();serverValues={transtrade_export_v3_operational:JSON.stringify(amended)};context.clock+=1000;listeners.focus();
+const revised=JSON.parse(localStorage.getItem('tt30ship')).find(x=>x._ttShipmentId==='L-1');
+assert.equal(revised.displayName,'PK-386 Steam Rice','existing shipment instruction follows the amended product');
+assert.equal(revised.sentAt,'2026-09-25T14:00:00Z','existing shipment receives a new unread revision timestamp');
+assert.equal(revised.containers.length,2,'amendment retains the same saved Mill containers');
+assert.equal(JSON.parse(localStorage.getItem('tt30prodinst'))[0].quality,'Revised export quality','production instruction follows the amended contract quality');
 assert.ok(posts.length>0);assert.ok(posts.every(x=>Number.isInteger(x.baseVersion)));assert.ok(posts.every(x=>x.sourceModule==='Exports'));
 console.log('PASS Export ⇄ Milling lot-reference bridge');

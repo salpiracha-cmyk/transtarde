@@ -19,6 +19,23 @@ function operations_key_allowed(string $key): bool {
         || (bool)preg_match('/^tt[0-9]{2}[a-z0-9_]{2,60}$/', $key);
 }
 
+function operations_validate_exmill_completion(string $instructionsJson, string $loadsJson): void {
+    $instructions=json_decode($instructionsJson,true);$loads=json_decode($loadsJson,true);
+    if(!is_array($instructions))throw new InvalidArgumentException('Invalid Ex-Mill instructions.');
+    if(!is_array($loads))$loads=[];
+    foreach($instructions as $instruction){
+        if(!is_array($instruction)||empty($instruction['loadingComplete']))continue;
+        $expected=(int)($instruction['totalContainers']??0);$matched=[];$numbers=[];
+        foreach($loads as $load){
+            if(!is_array($load)||(string)($load['instructionId']??'')!==(string)($instruction['id']??''))continue;
+            if((string)($load['shipmentId']??'')!==(string)($instruction['shipmentId']??'')||(string)($load['contractRef']??'')!==(string)($instruction['contractRef']??'')||(string)($load['lotRef']??'')!==(string)($instruction['lotRef']??''))throw new InvalidArgumentException('Ex-Mill container identity does not match its Contract, Lot and Shipment.');
+            if(empty($load['serverPosted'])||!preg_match('/^[A-Z]{4}[0-9]{6}-?[0-9]$/',(string)($load['container']??''))||trim((string)($load['truck']??''))===''||trim((string)($load['seal']??''))===''||(float)($load['kg']??0)<=0||(float)($load['bags']??0)<=0||(string)($load['issue']??'')!=='OK')throw new InvalidArgumentException('Save complete details for every Ex-Mill container before Loading Complete.');
+            $number=str_replace('-','',(string)$load['container']);if(isset($numbers[$number]))throw new InvalidArgumentException('Duplicate Ex-Mill container in this instruction.');$numbers[$number]=true;$matched[]=$load;
+        }
+        if($expected<1||count($matched)!==$expected||(string)($instruction['allocationStatus']??'')!=='LINKED'||empty($instruction['sourceSodaId'])||empty($instruction['localSodaId']))throw new InvalidArgumentException('Loading Complete requires every instructed container and the existing SODA link.');
+    }
+}
+
 function operations_can_write(array $user, string $module): bool {
     if (($user['role'] ?? '') === 'Super Admin') return true;
     $permissions = (array)($user['permissions'] ?? []);
@@ -477,6 +494,8 @@ function operations_file_fallback(array $user): never {
         if ($baseVersion!==$keyVersion) $conflict=true;
         else {
             if ($key==='transtrade_export_v3_operational' && $old!=='') $value=operations_merge_export($old,$value,$sourceModule);
+            if ($key==='tt40exinstructions') operations_validate_exmill_completion($value,(string)($store['values']['tt35exload']??'[]'));
+            if ($key==='tt35exload') operations_validate_exmill_completion((string)($store['values']['tt40exinstructions']??'[]'),$value);
             $now=gmdate('c');$beforeValues=(array)($store['values']??[]);
             $value=tt_inv_prepare_write($beforeValues,$key,$value,$user,$now);
             $nextValues=$beforeValues;$nextValues[$key]=$value;
@@ -572,6 +591,16 @@ try {
     }
     if ($key === 'transtrade_export_v3_operational' && $oldPayload !== '') {
         $value = operations_merge_export($oldPayload, $value, $sourceModule);
+    }
+    if ($key === 'tt40exinstructions') {
+        $readLoads=$db->prepare('SELECT payload FROM tt_operation_records WHERE storage_key = ?');
+        $readLoads->execute(['tt35exload']);
+        operations_validate_exmill_completion($value,(string)($readLoads->fetchColumn()?:'[]'));
+    }
+    if ($key === 'tt35exload') {
+        $readInstructions=$db->prepare('SELECT payload FROM tt_operation_records WHERE storage_key = ?');
+        $readInstructions->execute(['tt40exinstructions']);
+        operations_validate_exmill_completion((string)($readInstructions->fetchColumn()?:'[]'),$value);
     }
     $nowIso=gmdate('c');$beforeValues=[];
     if(in_array($key,TT_INV_SOURCE_KEYS,true))foreach($db->query('SELECT storage_key,payload FROM tt_operation_records')->fetchAll()as$row)$beforeValues[(string)$row['storage_key']]=(string)$row['payload'];

@@ -146,6 +146,25 @@ function restoreReleasedContractReference(ref){
  }
  return restored
 }
+function refreshContractMillHandoffs(previous,contract){
+ const productChanged=['product','productIdentityCode','variety','riceType','brokenText','brokenGrade','finish','quality','specMode','standardBasis','specRows'].some(key=>JSON.stringify(previous?.[key]??null)!==JSON.stringify(contract?.[key]??null));
+ if(!productChanged)return;
+ const changedAt=new Date().toISOString(),specifications=Array.isArray(contract.specRows)?structuredClone(contract.specRows):[];
+ for(const row of state.millSync.productionInstructions||[]){
+  if(row.contractRef!==contract.ref&&row.contractRef!==previous.ref)continue;
+  Object.assign(row,{contractRef:contract.ref,product:contract.product,productIdentityCode:contract.productIdentityCode||'',baseVariety:contract.variety||'',riceType:contract.riceType||'',displayName:contract.product||'',quality:contract.quality||DEFAULT_QUALITY,specifications,sentAt:changedAt});
+ }
+ for(const row of state.millSync.exportLoading||[]){
+  if(row.contractRef!==contract.ref&&row.contractRef!==previous.ref)continue;
+  row.contractRef=contract.ref;row.sentAt=changedAt;
+  if(row.production)Object.assign(row.production,{qualityNotes:contract.quality||row.production.qualityNotes||''});
+ }
+ for(const row of state.shipments.filter(s=>s.kind==='lot'&&(s.contractRef===contract.ref||s.contractRef===previous.ref))){
+  row.contractRef=contract.ref;
+  if(row.product!==undefined)row.product=contract.product;
+  if(row.quality!==undefined)row.quality=contract.quality;
+ }
+}
 function saveContract(print){
  const old=state.contracts.find(row=>row.id===contractDraft?.id);
  for(let step=1;step<=7;step++){const error=validateContractStep(step);if(error){contractStep=step;renderContractEditor();return alert(error)}}
@@ -154,7 +173,7 @@ function saveContract(print){
  const c=structuredClone(contractDraft);let docRows=documentsPresented(c).filter(row=>!/^Insurance Policy \/ Certificate$/i.test(row.name));if(c.incoterm==='CIF')docRows.push({sequence:docRows.length+1,name:'Insurance Policy / Certificate',original:1,copies:0});syncDocumentSources(c,docRows);c.paymentText=paymentText(c);
  const index=state.contracts.findIndex(row=>row.id===c.id),issuingDraft=index>=0&&!state.contracts[index].issued&&state.contracts[index].status==='Draft';
  if(index<0||issuingDraft)restoreReleasedContractReference(c.ref);
- if(index>=0){const previous=state.contracts[index],oldRef=previous.ref,newBuyer=customer(c.customerId)?.name||'';c.versions=[...(previous.versions||[]),{at:new Date().toISOString(),snapshot:structuredClone(previous)}];c.issued=true;c.status=issuingDraft?'Awaiting Customer Confirmation':c.status;state.contracts[index]=c;for(const linked of state.shipments.filter(row=>row.contractRef===oldRef)){linked.contractRef=c.ref;linked.buyer=newBuyer||linked.buyer;linked.seller=c.seller;if(linked.kind==='process'){linked.plannedQty=c.qty;linked.containers=c.containers}if(linked.bl?.notify===previous.customer||linked.bl?.notify===customer(previous.customerId)?.name)linked.bl.notify=newBuyer}for(const key of ['newExportBags','productionInstructions','exportLoading'])for(const row of state.millSync[key]||[])if(row.contractRef===oldRef)row.contractRef=c.ref;for(const fi of state.fi)for(const allocation of fi.allocations||[])if(allocation.contractRef===oldRef)allocation.contractRef=c.ref;if(issuingDraft&&!state.shipments.some(row=>row.kind!=='lot'&&row.contractRef===c.ref)){const buyer=customer(c.customerId);if(buyer)buyer.nextSeq=num(buyer.nextSeq)+1;state.shipments.push(makeShipment(c));audit('Sales Contract','Created',c.ref)}else audit('Sales Contract','Amended',c.ref)}else{c.issued=true;c.status='Awaiting Customer Confirmation';state.contracts.push(c);const buyer=customer(c.customerId);if(buyer)buyer.nextSeq=num(buyer.nextSeq)+1;state.shipments.push(makeShipment(c));audit('Sales Contract','Created',c.ref)}
+ if(index>=0){const previous=state.contracts[index],oldRef=previous.ref,newBuyer=customer(c.customerId)?.name||'';c.versions=[...(previous.versions||[]),{at:new Date().toISOString(),snapshot:structuredClone(previous)}];c.issued=true;c.status=issuingDraft?'Awaiting Customer Confirmation':c.status;state.contracts[index]=c;for(const linked of state.shipments.filter(row=>row.contractRef===oldRef)){linked.contractRef=c.ref;linked.buyer=newBuyer||linked.buyer;linked.seller=c.seller;if(linked.kind==='process'){linked.plannedQty=c.qty;linked.containers=c.containers}if(linked.bl?.notify===previous.customer||linked.bl?.notify===customer(previous.customerId)?.name)linked.bl.notify=newBuyer}for(const key of ['newExportBags','productionInstructions','exportLoading'])for(const row of state.millSync[key]||[])if(row.contractRef===oldRef)row.contractRef=c.ref;refreshContractMillHandoffs(previous,c);for(const fi of state.fi)for(const allocation of fi.allocations||[])if(allocation.contractRef===oldRef)allocation.contractRef=c.ref;if(issuingDraft&&!state.shipments.some(row=>row.kind!=='lot'&&row.contractRef===c.ref)){const buyer=customer(c.customerId);if(buyer)buyer.nextSeq=num(buyer.nextSeq)+1;state.shipments.push(makeShipment(c));audit('Sales Contract','Created',c.ref)}else audit('Sales Contract','Amended',c.ref)}else{c.issued=true;c.status='Awaiting Customer Confirmation';state.contracts.push(c);const buyer=customer(c.customerId);if(buyer)buyer.nextSeq=num(buyer.nextSeq)+1;state.shipments.push(makeShipment(c));audit('Sales Contract','Created',c.ref)}
  contractDraft=structuredClone(c);save();
  const finish=()=>{clearContractCheckpoint();if(print){printHTML('SALES CONTRACT',salesContractPrint(c));contractDraft=null;view='home';activeWorkspace='';render()}else renderContractEditor();return true},confirmation=window.TT_SHARED_SYNC?.saveNow?.();
  if(!confirmation)return finish();
