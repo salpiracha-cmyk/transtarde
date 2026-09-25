@@ -101,6 +101,12 @@ function er_prepare_allocations(array $store,string $entity,string $currency,flo
             $c=$candidates[$targetId]??null;if(!is_array($c)||($c['entity']??'')!==$entity||empty($c['journalId']))er_respond(['ok'=>false,'error'=>'A selected receivable has not been recognized/posted yet. Use Contract / Unapplied Advance until recognition.'],422);$ccur=strtoupper((string)($c['transactionCurrency']??''));if($ccur!==$currency)er_respond(['ok'=>false,'error'=>'Receipt currency does not match one of the selected receivables.'],422);$total=(float)($c['transactionAmount']??0);$prior=er_prior_allocated($store,$targetId);$requestAllocated[$targetId]=round((float)($requestAllocated[$targetId]??0)+$fa,2);if($requestAllocated[$targetId]>$total-$prior+.01)er_respond(['ok'=>false,'error'=>'Combined receipt allocations exceed the outstanding foreign amount on '.$targetId.'.'],422);$carrying=round((float)($c['functionalAmount']??0)*($fa/max(.000001,$total)),2);$meta=is_array($c['meta']??null)?$c['meta']:[];$expectedType=(string)($c['candidateType']??'')==='TG_PAKISTAN_INTERCOMPANY'?'INTERCOMPANY_RECEIVABLE':'EXPORT_RECEIVABLE';if($targetType!==$expectedType)er_respond(['ok'=>false,'error'=>'Selected receivable type does not match the accounting source.'],422);$out[]=['targetType'=>$targetType,'targetId'=>$targetId,'foreignAmount'=>$fa,'realizedPkr'=>$realized,'carryingPkr'=>$carrying,'contractRef'=>(string)($meta['contractRef']??$contractRef),'invoiceRef'=>(string)($c['reference']??$invoiceRef),'customer'=>(string)($meta['customer']??$customer),'fiRefs'=>(array)($meta['fiRefs']??[])];
         }elseif($targetType==='UNAPPLIED_TG'){
             if($customer!=='TG')er_respond(['ok'=>false,'error'=>'Unapplied TG receipts must identify Trans Grains.'],422);
+            if($contractRef===''){if($invoiceRef!=='')er_respond(['ok'=>false,'error'=>'Choose a TG Pack item or TG Advance; a typed invoice reference cannot be booked as an advance.'],422);}
+            else{
+                $contract=$contracts[$contractRef]??null;
+                if(!is_array($contract)||strtoupper((string)($contract['seller']??''))!=='TG'||strtoupper((string)($contract['currency']??''))!==$currency)er_respond(['ok'=>false,'error'=>'Select a TG Pack contract in the receipt currency.'],422);
+                if($invoiceRef!==''){$found=false;foreach((array)($sourceData['invoices']??[]) as $sourceInvoice)if(is_array($sourceInvoice)&&($sourceInvoice['candidateType']??'')==='UNRECOGNIZED_OPERATIONAL_INVOICE'&&(string)($sourceInvoice['contractRef']??'')===$contractRef&&(string)($sourceInvoice['reference']??'')===$invoiceRef){$found=true;break;}if(!$found)er_respond(['ok'=>false,'error'=>'Selected TG Pack invoice is not available for this contract.'],422);}
+            }
             $out[]=['targetType'=>$targetType,'targetId'=>'','foreignAmount'=>$fa,'realizedPkr'=>$realized,'carryingPkr'=>$realized,'contractRef'=>$contractRef,'invoiceRef'=>$invoiceRef,'customer'=>'TG'];
         }elseif($targetType==='UNAPPLIED_ADVANCE'){
             $contract=$contracts[$contractRef]??null;if(!is_array($contract)||strtoupper((string)($contract['seller']??''))!==$entity)er_respond(['ok'=>false,'error'=>'Select a valid direct export contract for this customer advance.'],422);
@@ -128,7 +134,7 @@ function er_save_charge_percentages(array $deductions,array $user): void {
 function er_export_receipt_rows(array $receipt): array {
     $rows=[];
     foreach((array)($receipt['allocations']??[]) as $i=>$allocation){
-        if(!is_array($allocation))continue;$contractRef=trim((string)($allocation['contractRef']??''));if($contractRef==='')continue;
+        if(!is_array($allocation)||($allocation['targetType']??'')==='UNAPPLIED_TG')continue;$contractRef=trim((string)($allocation['contractRef']??''));if($contractRef==='')continue;
         $rows[]=['id'=>(string)$receipt['id'].'-'.($i+1),'receiptNo'=>(string)$receipt['id'],'_accountsReceiptId'=>(string)$receipt['id'],'contractRef'=>$contractRef,'invoiceRef'=>(string)($allocation['invoiceRef']??''),'date'=>(string)$receipt['date'],'amount'=>(float)($allocation['foreignAmount']??0),'currency'=>(string)$receipt['transactionCurrency'],'status'=>'Posted','source'=>'Accounts Bank Receipt','bankAdviceRef'=>(string)$receipt['bankAdviceRef']];
     }
     return $rows;

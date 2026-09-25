@@ -121,19 +121,14 @@ vm.runInContext(extractFunction(receiptUi,'receiptBanks')+'\n'+extractFunction(r
 assert.deepEqual([...receiptBankContext.receiptBanks('PKR')].map(row=>row.id),['tti-ready','tti-disabled'],'Old Accounts toggles must not disable an active company bank');
 assert.match(receiptBankContext.bankUnavailableReason(receiptBankContext.banks.accounts[2]),/account number or IBAN/);
 assert.match(receiptBankContext.bankUnavailableReason(receiptBankContext.banks.accounts[3]),/Active in Company Master/);
-const tgReceiptContext={payerType:'TG',selectedTgPayment:null,currency:'USD',chosen:new Map(),num:Number,
-  reference:'FI-TG-123',amount:500,
-  q(selector){return selector==='#erForeign'?{value:String(this.amount)}:{value:this.reference}},
-  sourceRows(){return [{isTg:true,currency:'USD',invoiceRef:'FI-TG-123',targetId:'posted-tg-1',contractRef:'TG-123',amount:700}];}
-};
-// Keep DOM inputs in the fixture separate from the source data so the exact
-// reference and the unmatched receipt exercise the same form function.
-tgReceiptContext.q=selector=>selector==='#erForeign'?{value:String(tgReceiptContext.amount)}:{value:tgReceiptContext.reference};
+const tgReceiptContext={chosen:new Map([['posted',{targetType:'INTERCOMPANY_RECEIVABLE',targetId:'posted-tg-1',contractRef:'TG-123',invoiceRef:'INV-TG-123',customer:'TG',applied:500}]]),num:Number};
 vm.createContext(tgReceiptContext);
 vm.runInContext(extractFunction(receiptUi,'allocations'),tgReceiptContext);
-assert.equal(tgReceiptContext.allocations()[0].targetId,'posted-tg-1','Exact TG invoice references should clear the linked receivable');
-tgReceiptContext.reference='UNKNOWN-TG';
-assert.equal(tgReceiptContext.allocations()[0].targetType,'UNAPPLIED_TG','A TG receipt without a posted invoice must remain identifiable and unapplied');
+assert.equal(tgReceiptContext.allocations()[0].targetId,'posted-tg-1','The selected posted TG Pack invoice clears its linked receivable');
+tgReceiptContext.chosen=new Map([['advance',{targetType:'UNAPPLIED_TG',targetId:'',contractRef:'',invoiceRef:'',customer:'TG',applied:500}]]);
+assert.equal(tgReceiptContext.allocations()[0].targetType,'UNAPPLIED_TG','An explicit TG advance remains unapplied for Exports FI allocation');
+assert.equal(tgReceiptContext.allocations()[0].invoiceRef,'','An advance cannot inherit a guessed invoice reference');
+assert.doesNotMatch(receiptUi,/erTgReference/,'TG receipts must not infer invoice allocations from typed free text');
 assert.match(receiptApi,/er_line\('2510'.*'Unapplied TG'/,'Unapplied TG money must credit the proper liability');
 
 console.log('PASS Accounts cross-module linkage regressions');

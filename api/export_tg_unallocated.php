@@ -23,9 +23,19 @@ try {
         try { $raw = stream_get_contents($handle); }
         finally { flock($handle, LOCK_UN); fclose($handle); }
         $store = $raw ? json_decode($raw, true) : [];
+        $completedTg = [];
+        foreach ((array)($store['exportReceipts'] ?? []) as $receipt) if (is_array($receipt) && (string)($receipt['tgPaymentId'] ?? '') !== '') $completedTg[(string)$receipt['tgPaymentId']] = true;
         foreach ((array)($store['tgBankTransactions'] ?? []) as $tx) {
             if (!is_array($tx) || ($tx['kind'] ?? '') !== 'Payment' || ($tx['paymentType'] ?? '') !== 'LIABILITY' || ($tx['referenceType'] ?? '') !== 'UNALLOCATED' || empty($tx['pakistanCandidateId'])) continue;
-            $rows[] = ['id' => (string)($tx['id'] ?? ''), 'date' => (string)($tx['date'] ?? ''), 'currency' => (string)($tx['currency'] ?? ''), 'amount' => (float)($tx['amountNative'] ?? 0), 'invoiceRef' => (string)($tx['invoiceRef'] ?? ''), 'bankReference' => (string)($tx['bankReference'] ?? ''), 'pakistanExporter' => (string)(($store['exportCandidates'][$tx['pakistanCandidateId']]['entity'] ?? ''))];
+            if (isset($completedTg[(string)($tx['id'] ?? '')])) continue;
+            $rows[] = ['id' => (string)($tx['id'] ?? ''), 'date' => (string)($tx['date'] ?? ''), 'currency' => (string)($tx['currency'] ?? ''), 'amount' => (float)($tx['amountNative'] ?? 0), 'invoiceRef' => (string)($tx['invoiceRef'] ?? ''), 'contractRef'=>'', 'bankReference' => (string)($tx['bankReference'] ?? ''), 'pakistanExporter' => (string)(($store['exportCandidates'][$tx['pakistanCandidateId']]['entity'] ?? '')), 'source'=>'TG outgoing payment'];
+        }
+        foreach ((array)($store['exportReceipts'] ?? []) as $receipt) {
+            if (!is_array($receipt) || !in_array((string)($receipt['entity'] ?? ''), ['TTI','BRM'], true)) continue;
+            foreach ((array)($receipt['allocations'] ?? []) as $i => $allocation) {
+                if (!is_array($allocation) || ($allocation['targetType'] ?? '') !== 'UNAPPLIED_TG') continue;
+                $rows[] = ['id'=>(string)($receipt['id']??'').'-'.($i+1),'date'=>(string)($receipt['date']??''),'currency'=>(string)($receipt['transactionCurrency']??''),'amount'=>(float)($allocation['foreignAmount']??0),'invoiceRef'=>(string)($allocation['invoiceRef']??''),'contractRef'=>(string)($allocation['contractRef']??''),'bankReference'=>(string)($receipt['bankAdviceRef']??''),'pakistanExporter'=>(string)$receipt['entity'],'source'=>'Pakistan bank receipt'];
+            }
         }
     }
     usort($rows, static fn($a, $b) => strcmp($b['date'], $a['date']) ?: strcmp($b['id'], $a['id']));
