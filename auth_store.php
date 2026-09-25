@@ -829,6 +829,9 @@ function tt_update_staff_user(int $id, array $input): void {
         foreach ($data['users'] as &$user) {
             if ((int)($user['id'] ?? 0) !== $id) continue;
             if (($user['role'] ?? '') === 'Super Admin') throw new RuntimeException('The Super Admin account cannot be changed here.');
+            if (!empty($user['system_qa']) || (strcasecmp((string)($user['username'] ?? ''),'qa.assistant')===0 && !empty($user['test_data_only']))) {
+                throw new RuntimeException('The operational QA account profile is managed by the system. Change only its password when required.');
+            }
             $user['full_name']=$input['name']; $user['username']=$input['username'];
             $user['role']=$input['role']; $user['location']=$input['location'];
             $user['permissions']=$input['permissions']; $user['active']=$input['active'];
