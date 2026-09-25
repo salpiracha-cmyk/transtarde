@@ -31,7 +31,7 @@ function er_mirror_tg_receipt(array &$store,array $user,array $body,array $alloc
             $candidate=$store['exportCandidates'][(string)($allocation['targetId']??'')]??null;
             $liabilityId=(string)($candidate['mirrorCandidateId']??'');$liability=$store['exportCandidates'][$liabilityId]??null;
             if(!is_array($liability)||($liability['entity']??'')!=='TG'||($liability['candidateType']??'')!=='TG_INTERCOMPANY_PAYABLE'||empty($liability['journalId'])||($liability['counterparty']??'')!==$entity)er_respond(['ok'=>false,'error'=>'The TG invoice payable must be posted and linked before this payment.'],422);
-            $paid=0.0;foreach((array)($store['tgBankTransactions']??[]) as $prior)if(is_array($prior)&&($prior['kind']??'')==='Payment'&&(string)($prior['sourceLiabilityId']??'')===$liabilityId)$paid+=(float)($prior['amountNative']??0);
+            $paid=0.0;foreach((array)($store['tgBankTransactions']??[]) as $prior)if(is_array($prior)&&($prior['status']??'')!=='Reversed for Amendment'&&($prior['kind']??'')==='Payment'&&(string)($prior['sourceLiabilityId']??'')===$liabilityId)$paid+=(float)($prior['amountNative']??0);
             if($amount>(float)$liability['transactionAmount']-$paid+.0001)er_respond(['ok'=>false,'error'=>'TG payment exceeds the outstanding payable for '.(string)($allocation['invoiceRef']??'the invoice').'.'],422);
             $payableRate=(float)($liability['currentCarryingRate']??$liability['functionalRate']??0);
             if($payableRate<=0)er_respond(['ok'=>false,'error'=>'The TG invoice payable has no recorded AED carrying rate.'],422);

@@ -15,7 +15,7 @@
   const today = () => new Intl.DateTimeFormat('en-CA', {timeZone:'Asia/Karachi',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
   let data = null, banks = null, tgData = null, bankId = '', tgBankId = '', payerType = '', payer = '', currency = 'USD', chosen = new Map(), deductions = [], shortfallClass = '', shortfallNote = '', selectedTgPayment = null;
   const regularCodes = ['EXP-AWT-NTR','EXP-BANK-COMM','EXP-FED-BANK'];
-  let pendingReceipt = null;
+  let pendingReceipt = null, amendmentOf = '', amendmentReason = '';
   const pendingKey = () => `tt_export_tg_settlement_${entity()}`;
   function savePending(value) { pendingReceipt = value; if (value) sessionStorage.setItem(pendingKey(),JSON.stringify(value)); else sessionStorage.removeItem(pendingKey()); }
   function restorePending() {
@@ -50,7 +50,7 @@
     if(!overlay){overlay=document.createElement('div');overlay.id='ttExportReceiptDialog';overlay.className='tter-overlay';overlay.hidden=true;overlay.innerHTML='<div class="tter-dialog" role="dialog" aria-modal="true" aria-label="Bank Receipt and Credit Advice"><div class="tter-panel" data-er-panel></div></div>';document.body.appendChild(overlay);overlay.addEventListener('click',event=>{if(event.target===overlay)closeForm()});}
     overlay.hidden=false;return overlay.querySelector('[data-er-panel]');
   }
-  function closeForm(){const overlay=q('#ttExportReceiptDialog');if(overlay)overlay.hidden=true;bankId='';payerType='';payer='';selectedTgPayment=null;chosen.clear();deductions=[];}
+  function closeForm(){const overlay=q('#ttExportReceiptDialog');if(overlay)overlay.hidden=true;bankId='';payerType='';payer='';selectedTgPayment=null;chosen.clear();deductions=[];amendmentOf='';amendmentReason='';}
   function receiptBanks(currencyCode) { return (banks?.accounts || []).filter(account => !account.needsCompletion && String(account.masterStatus || 'Active').toLowerCase() === 'active' && String(account.currency || '').toUpperCase() === currencyCode); }
   function bankUnavailableReason(account) {
     if (account.needsCompletion) return 'Add its account number or IBAN in Company Master';
@@ -83,6 +83,7 @@
       const amount = Number(contract.outstandingAdvance ?? contract.expectedAdvance ?? 0); if (amount <= 0) continue;
       if (String(contract.seller || '').toUpperCase() === entity()) rows.push({key:`CON|${contract.id}`,targetId:'',targetType:'UNAPPLIED_ADVANCE',customer:contract.customer || '',currency:String(contract.currency || 'USD').toUpperCase(),amount,reference:contract.ref || '',invoiceRef:'',contractRef:contract.ref || '',narration:'Advance',isTg:false,recognized:false,mirrorCandidateId:'',fiRefs:[]});
     }
+    if(amendmentOf){const original=(data?.receipts||[]).find(row=>row.id===amendmentOf);(original?.allocations||[]).forEach((allocation,index)=>{rows.push({key:`AMEND|${index}`,targetId:allocation.targetId||'',targetType:allocation.targetType,customer:allocation.customer||original.remitter||'',currency:original.transactionCurrency,amount:Number(allocation.foreignAmount||0),invoiceValue:Number(allocation.foreignAmount||0),reference:allocation.invoiceRef||allocation.contractRef||'',invoiceRef:allocation.invoiceRef||'',contractRef:allocation.contractRef||'',narration:'Original allocation',isTg:original.remitter==='TG',recognized:!!allocation.targetId&&allocation.targetType!=='UNAPPLIED_TG',fiRefs:[]});});}
     rows.push({key:'TGADV',targetId:'',targetType:'UNAPPLIED_TG',customer:'TG',currency,amount:0,reference:'',invoiceRef:'',contractRef:'',narration:'TG advance · FI unallocated',isTg:true,recognized:false,fiRefs:[]});
     return rows;
   }
@@ -115,14 +116,14 @@
   function deductionOptions(value = '') { return `<option value="">Choose charge</option>${(data?.deductionMaster || []).filter(row => activeCharge(row) && !regularCodes.includes(row.code)).map(row => `<option value="${esc(row.code)}" ${row.code === value ? 'selected' : ''}>${esc(row.name)}</option>`).join('')}`; }
   function deductionRowHtml(row,index) { const fixed=regularCodes.includes(row.code) && index<3, rule=chargeRule(row.code), base=rule?.base === 'PKR_PAYMENT' ? 'On PKR payment' : rule?.base?.startsWith('CHARGE:') ? `On ${chargeRule(rule.base.slice(7))?.name || 'selected charge'}` : 'Actual bank amount';return `<div class="tter-ded ${fixed?'tter-ded-fixed':'tter-ded-extra'}" data-er-ded="${index}"><label>${fixed?`<b>${esc(rule?.name || row.code)}</b><input data-ded-code type="hidden" value="${esc(row.code)}">`:`<span class="tter-ded-head">Additional charge</span><select data-ded-code>${deductionOptions(row.code)}</select>`}<span class="tter-ded-base" data-ded-base>${esc(base)}</span></label><label><span class="tter-ded-head">%</span><input data-ded-percent type="number" min="0" max="100" step="any" value="${esc(row.percent ?? rule?.rate ?? '')}" ${rule?.base && (rule.base==='PKR_PAYMENT'||rule.base.startsWith('CHARGE:'))?'':'disabled'}></label><label><span class="tter-ded-head">PKR amount</span><input data-ded-amount inputmode="decimal" value="${esc(row.amount || '')}" ${row.manual?'data-manual="1"':''}></label><div class="tter-ded-action">${fixed?'':`<button type="button" data-ded-remove aria-label="Remove charge">×</button>`}</div></div>`; }
   function deductionsHtml() { return deductions.map(deductionRowHtml).join(''); }
-  function historyHtml() { const rows = (data?.receipts || []).filter(row => row.recordType !== 'FOREIGN_BANK_SHORTFALL_ADJUSTMENT').slice(0,12); return rows.length ? `<details class="tter-step"><summary style="font-weight:800;cursor:pointer">Recent Posted Receipts</summary><div class="tter-history"><table><thead><tr><th>Date</th><th>Advice</th><th>From</th><th>Foreign</th><th>Bank Credit</th></tr></thead><tbody>${rows.map(row => `<tr><td>${esc(row.date)}</td><td>${esc(row.bankAdviceRef)}</td><td>${esc(row.remitter || '')}</td><td>${esc(row.transactionCurrency)} ${fmt(row.foreignAmount)}</td><td>${row.nativeBankCredit ? esc(row.transactionCurrency)+' '+fmt(row.nativeBankCredit) : 'PKR '+fmt(row.pkrBankCredit)}</td></tr>`).join('')}</tbody></table></div></details>` : ''; }
+  function historyHtml() { const rows = (data?.receipts || []).filter(row => row.recordType !== 'FOREIGN_BANK_SHORTFALL_ADJUSTMENT').slice(0,12); return rows.length ? `<details class="tter-step"><summary style="font-weight:800;cursor:pointer">Recent Posted Receipts</summary><div class="tter-history"><table><thead><tr><th>Date</th><th>Advice</th><th>From</th><th>Foreign</th><th>Bank Credit</th><th>Status</th></tr></thead><tbody>${rows.map(row => `<tr><td>${esc(row.date)}</td><td>${esc(row.bankAdviceRef)}</td><td>${esc(row.remitter || '')}</td><td>${esc(row.transactionCurrency)} ${fmt(row.foreignAmount)}</td><td>${row.nativeBankCredit ? esc(row.transactionCurrency)+' '+fmt(row.nativeBankCredit) : 'PKR '+fmt(row.pkrBankCredit)}</td><td>${esc(row.status||'Posted')}${row.replacementReceiptId?' → '+esc(row.replacementReceiptId):''}</td></tr>`).join('')}</tbody></table></div></details>` : ''; }
   function fullFormHtml() {
     if (!chosen.size) return '';
     const directForeign = selectedBankCurrency() !== 'PKR';
     if (!directForeign && deductions.length < 3) deductions = [...regularRows(),...deductions];
     return `<section class="tter-step active"><h3>Receipt and Credit Advice</h3><div class="tter-grid"><label>Credit Date<input id="erDate" type="date" value="${today()}"></label><label>Bank Advice / Transaction Ref<input id="erBankRef"></label><label>Currency<input value="${esc(currency)}" readonly></label><label>Foreign Amount Received<input id="erForeign" inputmode="decimal"></label><label>Bank Advice Realization Rate (PKR per ${esc(currency)})<input id="erRate" inputmode="decimal"></label><label>PKR Equivalent<input id="erGross" inputmode="decimal" readonly></label><label>Actual ${directForeign ? esc(currency) : "PKR"} Credited<input id="erBankCredit" inputmode="decimal"></label>${directForeign ? "" : `<label style="grid-column:1/-1"><input id="erUseRetention" type="checkbox" style="width:auto"> Retain part of this ${esc(currency)} receipt in the company retention account</label><div id="erRetentionFields" class="tter-grid" style="grid-column:1/-1;display:none"><label>Amount to retain (${esc(currency)})<input id="erRetention" value="0" inputmode="decimal"></label><label>Company retention account<select id="erRetentionBank">${retentionBankOptions(currency)}</select></label><div id="erRetentionDetails" class="tter-note" style="grid-column:1/-1"></div></div>`}</div>
       ${directForeign?'':`<div class="tter-step active" id="erBankDeductions"><h3>Bank deductions</h3><div class="tter-note">Enter percentages or adjust PKR amounts to match the bank advice.</div><div id="erDeductions">${deductionsHtml()}</div><button type="button" class="btn" id="erAddDeduction">+ Add charge or tax</button></div>`}
-      <div class="tter-grid" style="margin-top:12px"><label style="grid-column:1/-1">Upload Credit Advice<input id="erAdviceFile" type="file" accept="application/pdf,image/jpeg,image/png,image/webp"></label></div></section>
+      ${amendmentOf?`<div class="tter-alert"><b>Correcting Post ${esc(amendmentOf)}</b><br>The original and every linked TG/tax posting will be reversed and the corrected entry posted together. Original Post IDs remain in the register.<label>Amendment reason<input id="erAmendReason" value="${esc(amendmentReason)}" placeholder="Explain the correction"></label></div>`:''}<div class="tter-grid" style="margin-top:12px"><label style="grid-column:1/-1">Upload Credit Advice<input id="erAdviceFile" type="file" accept="application/pdf,image/jpeg,image/png,image/webp"></label></div></section>
       <div class="tter-accounting"><strong>Accounting entries before posting</strong><div id="erAccountingRows"><div class="tter-note">Enter receipt amounts to see the Debit / Credit entries.</div></div></div><div class="tter-actions"><button class="btn green" id="erPost">POST RECEIPT</button></div>`;
   }
   function render() {
@@ -198,7 +199,7 @@
     bindDeductionRows();
     ['erForeign','erRate','erBankCredit','erRetention'].forEach(id => q(`#${id}`)?.addEventListener('input', () => { if (id === 'erForeign') { redistribute(); qa('[data-er-applied]').forEach(input => { input.value = chosen.get(input.dataset.erApplied)?.applied || ''; }); } if(id==='erBankCredit')q('#erBankCredit').dataset.edited='1'; calc(); }));
     q('#erDate')?.addEventListener('change',calc);
-    q('#erPost')?.addEventListener('click',postReceipt);
+    q('#erPost')?.addEventListener('click',postReceipt);q('#erAmendReason')?.addEventListener('input',event=>{amendmentReason=event.target.value});
   }
   function calc() {
     if (!q('#erForeign')) return;
@@ -281,8 +282,8 @@
     const expected = selectedExpected(), received = num(q('#erForeign')?.value), shortfall = Math.max(0,expected-received), classification = shortfall > .005 ? 'PARTIAL' : '', currentShortfallNote = '';
 
     const directForeign=selectedBankCurrency()!=='PKR';
-    const body = {action:'post_receipt',csrf:access.csrf,entity:entity(),date:q('#erDate')?.value || today(),bankAdviceRef:q('#erBankRef')?.value.trim() || '',bankAdviceFileRef:'',bankAdvicePaperRef:'',remitter:payer,transactionCurrency:currency,foreignAmount:received,realizationRate:num(q('#erRate')?.value),grossPkrEquivalent:num(q('#erGross')?.value),bankAccountId:bankId,pkrBankCredit:directForeign?0:num(q('#erBankCredit')?.value),nativeBankCredit:directForeign?num(q('#erBankCredit')?.value):0,retentionForeignAmount:num(q('#erRetention')?.value),retentionBankAccountId:q('#erRetentionBank')?.value || '',tgPaymentId:selectedTgPayment?.id || '',tgBankAccountId:payerType==='TG'&&!selectedTgPayment?tgBankId:'',allocations:allocations(),deductions:directForeign?[]:deductionPayload(),shortfallClassification:classification,shortfallNote:currentShortfallNote};
-    if (!body.bankAccountId) return toast('Choose the company bank account first.',false); if (!body.bankAdviceRef) return toast('Enter the bank advice / transaction reference.',false);
+    const body = {action:'post_receipt',csrf:access.csrf,entity:entity(),date:q('#erDate')?.value || today(),bankAdviceRef:q('#erBankRef')?.value.trim() || '',bankAdviceFileRef:'',bankAdvicePaperRef:'',remitter:payer,transactionCurrency:currency,foreignAmount:received,realizationRate:num(q('#erRate')?.value),grossPkrEquivalent:num(q('#erGross')?.value),bankAccountId:bankId,pkrBankCredit:directForeign?0:num(q('#erBankCredit')?.value),nativeBankCredit:directForeign?num(q('#erBankCredit')?.value):0,retentionForeignAmount:num(q('#erRetention')?.value),retentionBankAccountId:q('#erRetentionBank')?.value || '',tgPaymentId:selectedTgPayment?.id || '',tgBankAccountId:payerType==='TG'&&!selectedTgPayment?tgBankId:'',amendmentOf,amendmentReason:q('#erAmendReason')?.value.trim()||'',allocations:allocations(),deductions:directForeign?[]:deductionPayload(),shortfallClassification:classification,shortfallNote:currentShortfallNote};
+    if(amendmentOf&&!body.amendmentReason)return toast('Enter an amendment reason.',false); if (!body.bankAccountId) return toast('Choose the company bank account first.',false); if (!body.bankAdviceRef) return toast('Enter the bank advice / transaction reference.',false);
     const button = q('#erPost'); button.disabled = true; button.textContent = 'POSTING…';
     try {
       if(payerType==='TG'&&!selectedTgPayment)validateTgSettlement(classification);
@@ -290,20 +291,32 @@
       const response = await fetch(receiptApi,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify(body)}); let result = {}; try { result = await response.json(); } catch (_) {}
       if (!response.ok || !result.ok) throw new Error(result.error || 'Export receipt could not be posted.');
       await postShortfalls(result.receipt,classification,currentShortfallNote,body.bankAdviceFileRef || body.bankAdvicePaperRef);
-      savePending(null);
+      savePending(null);amendmentOf='';amendmentReason='';
       toast(`Receipt ${result.receipt.id} posted.${result.ratesSaved===false?' Charge percentages could not be saved to the master; review them there.':''}`,result.ratesSaved!==false); payerType = ''; payer = ''; selectedTgPayment=null; chosen.clear(); deductions = []; await load(); pendingBanner(); render(); window.TT_BANK_ACCOUNTS_UI?.reload?.();
     } catch (error) { toast(pendingReceipt ? `Receipt ${pendingReceipt.receipt.id} posted. TG settlement needs review: ${String(error.message || error)}` : String(error.message || error),false); if (pendingReceipt) render(); else { button.disabled = false; button.textContent = 'POST RECEIPT'; } }
   }
-  async function openForm(paymentId = '') {
+  async function openForm(paymentId = '', amendId = '') {
     if (!['TTI','BRM'].includes(entity())) return toast('Pakistan export receipts are available in TTI / BRM books.',false);
     try {
        const waiting=ensurePanel();waiting.innerHTML='<div class="tter-head"><b>Bank Receipt / Credit Advice</b><div class="sp"></div><button class="btn" data-er-close>Close</button></div><div class="tter-body">Loading company accounts and linked export receipts…</div>';waiting.querySelector('[data-er-close]').onclick=closeForm;
        await load(); pendingBanner(); restorePending(); selectedTgPayment=(data?.pendingTg||[]).find(row=>row.id===paymentId)||null;
+       let previous=null;
+       if(amendId){previous=(data?.receipts||[]).find(row=>row.id===amendId);if(!previous||previous.status!=='Accounts Approved / Posted'||previous.replacementReceiptId)throw new Error('This posted credit advice is not available for amendment.');
+         amendmentOf=amendId;amendmentReason='';bankId=previous.bankAccountId;currency=previous.transactionCurrency;payer=previous.remitter||'';payerType=payer==='TG'?'TG':'CUSTOMER';chosen.clear();
+         if(payerType==='TG')await loadTg();
+         for(const allocation of previous.allocations||[]){const item=sourceRows().find(row=>row.key===`AMEND|${(previous.allocations||[]).indexOf(allocation)}`);if(item)chosen.set(item.key,{...item,applied:Number(allocation.foreignAmount||0)});}
+         if(chosen.size!==(previous.allocations||[]).length)throw new Error('An original invoice or advance is no longer available. Review its linked Exports source before amending.');
+         if(previous.tgPaymentId)selectedTgPayment={id:previous.tgPaymentId,amount:previous.foreignAmount,currency:previous.transactionCurrency,bankReference:previous.bankAdviceRef,candidateId:previous.allocations?.[0]?.targetId};
+         tgBankId=previous.tgBankAccountId||(tgData?.banks||[]).find(bank=>bank.currency===currency&&bank.settings?.defaultReceiptAccount)?.id||'';
+         const oldDeductions=(previous.deductions||[]).map(row=>({code:row.masterCode,amount:String(row.amount),percent:String(row.percentage||''),manual:true,mode:row.mode||'DEDUCTED',taxSection:row.taxSection||''}));deductions=[...regularCodes.map(code=>oldDeductions.find(row=>row.code===code)||{code,amount:'',percent:'',mode:'DEDUCTED',taxSection:''}),...oldDeductions.filter(row=>!regularCodes.includes(row.code))];
+       }
       if(selectedTgPayment){currency=selectedTgPayment.currency;payerType='TG';payer='TG';const item=sourceRows().find(row=>row.targetId===selectedTgPayment.candidateId&&row.isTg);if(!item)throw new Error('The linked Pakistan receivable is not recognized or has no remaining balance.');chosen=new Map([[item.key,{...item,applied:selectedTgPayment.amount}]]);shortfallClass=selectedTgPayment.amount<item.amount-.005?'PARTIAL':'';bankId=defaultReceiptBankId();}
-       else bankId = defaultReceiptBankId(); if (pendingReceipt||payerType==='TG') await loadTg(); ensurePanel(); render(); ensurePanel().scrollIntoView({behavior:'smooth',block:'start'});
+       else if(!previous) bankId = defaultReceiptBankId(); if ((pendingReceipt||payerType==='TG')&&!tgData) await loadTg(); ensurePanel(); render();
+       if(previous){for(const [id,value] of Object.entries({erDate:previous.date,erBankRef:previous.bankAdviceRef,erForeign:previous.foreignAmount,erRate:previous.realizationRate,erBankCredit:previous.nativeBankCredit||previous.pkrBankCredit,erRetention:previous.retentionForeignAmount||0})){const input=q('#'+id);if(input)input.value=String(value??'');}if(previous.retentionForeignAmount&&q('#erUseRetention')){q('#erUseRetention').checked=true;q('#erRetentionBank').value=previous.retentionBankAccountId||'';updateRetentionDetails();}q('#erBankCredit')?.setAttribute('data-edited','1');calc();}
+       ensurePanel().scrollIntoView({behavior:'smooth',block:'start'});
     } catch (error) { const panel=q('#ttExportReceiptDialog [data-er-panel]');if(panel)panel.innerHTML='<div class="tter-head"><b>Bank Receipt / Credit Advice</b><div class="sp"></div><button class="btn" data-er-close>Close</button></div><div class="tter-alert">'+esc(error.message||error)+'</div>';panel?.querySelector('[data-er-close]')?.addEventListener('click',closeForm);toast(String(error.message || error),false); }
   }
-  window.TT_EXPORT_RECEIPTS_UI={openForm};
+  window.TT_EXPORT_RECEIPTS_UI={openForm,amend:receiptId=>openForm('',receiptId)};
   window.TT_ACCOUNT_BADGE_REFRESH=pendingBanner;
   document.addEventListener('keydown',event=>{if(event.key==='Escape'&&!q('#ttExportReceiptDialog')?.hidden)closeForm();});
   const refreshPending=()=>{if(['TTI','BRM'].includes(entity()))load().then(pendingBanner).catch(()=>{});else pendingBanner();};

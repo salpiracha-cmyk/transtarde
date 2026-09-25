@@ -61,6 +61,8 @@ if($requestedPost!==''){
     $posting=$store['journals'][$requestedPost]??null;
     if(!is_array($posting)||($posting['status']??'')!=='Posted'||($entity!=='ALL'&&($posting['entity']??'')!==$entity)||!tt_user_can_access_entity($user,(string)($posting['entity']??''),'View'))$posting=null;
     if(!$posting)alb_fail('Post ID was not found in these company books.',404);
+    $receipt=(array)($store['exportReceipts'][(string)($posting['meta']['receiptId']??'')]??[]);
+    if($receipt){$posting['receiptAmendment']=['status'=>$receipt['status']??'','replacementReceiptId'=>$receipt['replacementReceiptId']??'','amendmentOf'=>$receipt['amendmentOf']??'','reversalPostIds'=>$receipt['reversalPostIds']??[]];}
     header('Content-Type: application/json; charset=UTF-8');
     echo json_encode(['ok'=>true,'entity'=>$posting['entity'],'post'=>$posting],JSON_UNESCAPED_UNICODE);exit;
 }
@@ -75,7 +77,7 @@ $opening=0.0;$rows=[];
 foreach($journals as $journal){
     if($postEntries){
         $date=(string)$journal['date'];if($date<$from)continue;
-        $rows[]=['date'=>$date,'voucher'=>(string)($journal['id']??''),'account'=>'POSTS','accountName'=>(string)$journal['entity'],'reference'=>(string)($journal['reference']??''),'narration'=>(string)($journal['narration']??'').(str_starts_with((string)($journal['meta']['notes']??''),'Mirrored settlement for Pakistan receipt ')?' · '.(string)$journal['meta']['notes']:''),'party'=>(string)($journal['sourceType']??''),'debit'=>round((float)($journal['totalDebit']??0),2),'credit'=>round((float)($journal['totalCredit']??0),2),'balance'=>null];
+        $rows[]=['date'=>$date,'voucher'=>(string)($journal['id']??''),'account'=>'POSTS','accountName'=>(string)$journal['entity'],'reference'=>(string)($journal['reference']??''),'narration'=>(string)($journal['narration']??'').(str_starts_with((string)($journal['meta']['notes']??''),'Mirrored settlement for Pakistan receipt ')?' · '.(string)$journal['meta']['notes']:''),'party'=>(string)($journal['sourceType']??'').(!empty($store['exportReceipts'][(string)($journal['meta']['receiptId']??'')]['replacementReceiptId'])?' · Corrected by '.$store['exportReceipts'][(string)$journal['meta']['receiptId']]['replacementReceiptId']:''),'debit'=>round((float)($journal['totalDebit']??0),2),'credit'=>round((float)($journal['totalCredit']??0),2),'balance'=>null];
         continue;
     }
     foreach((array)($journal['lines']??[]) as $line){
