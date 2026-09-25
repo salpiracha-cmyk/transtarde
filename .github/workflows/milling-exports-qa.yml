@@ -6,6 +6,7 @@ on:
     paths:
       - 'index.html'
       - 'exports/**'
+      - 'accounts/**'
       - 'milling/**'
       - 'module.php'
       - 'offline_idempotency.php'
@@ -29,6 +30,7 @@ on:
     paths:
       - 'index.html'
       - 'exports/**'
+      - 'accounts/**'
       - 'milling/**'
       - 'module.php'
       - 'offline_idempotency.php'
