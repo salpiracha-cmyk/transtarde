@@ -106,10 +106,16 @@ const bankBridge=read('auth_store.php');
 const bankApi=read('api/bank_accounts.php');
 const receiptApi=read('api/export_receipts.php');
 const receiptUi=read('accounts/export-receipts-ui.js');
+const receiptUpload=read('api/accounts_receipt_file.php');
+const cleanUi=read('accounts/accounts-clean-ui.js');
 assert.match(bankBridge,/\(string\)\(\$bank\['status'\] \?\? 'Active'\)/,'Derived company bank rows must expose master status, not notes');
 assert.match(bankBridge,/'notes'=>\(string\)\(\$bank\['notes'\]/,'Company bank notes remain available separately');
 assert.match(bankApi,/strcasecmp\(\(string\)\(\$a\['masterStatus'\]/,'Default receipt readiness must use the derived master status');
 assert.match(receiptApi,/Complete the account number or IBAN in Company Master before receiving money/,'Receipts must reject incomplete accounts on the server');
+assert.match(receiptUi,/form\.append\('entity',entity\(\)\)/,'Credit advice uploads must identify the current Pakistan company');
+assert.match(receiptUpload,/receipt-'\.\$entity/,'Uploaded advice must retain its company identity');
+assert.match(cleanUi,/select\.dataset\.ttNative/,'The TG invoice selector must remain a native dropdown below its field');
+assert.match(receiptUi,/id="erTgItem" data-tt-native="1"/,'TG advance must open from the invoice dropdown');
 const receiptBankContext={banks:{accounts:[
   {id:'tti-ready',currency:'PKR',masterStatus:'Active',settings:{active:true,allowReceipts:true},needsCompletion:false},
   {id:'tti-disabled',currency:'PKR',masterStatus:'Active',settings:{active:false,allowReceipts:true},needsCompletion:false},
@@ -121,6 +127,12 @@ vm.runInContext(extractFunction(receiptUi,'receiptBanks')+'\n'+extractFunction(r
 assert.deepEqual([...receiptBankContext.receiptBanks('PKR')].map(row=>row.id),['tti-ready','tti-disabled'],'Old Accounts toggles must not disable an active company bank');
 assert.match(receiptBankContext.bankUnavailableReason(receiptBankContext.banks.accounts[2]),/account number or IBAN/);
 assert.match(receiptBankContext.bankUnavailableReason(receiptBankContext.banks.accounts[3]),/Active in Company Master/);
+receiptBankContext.currency='USD';receiptBankContext.esc=String;receiptBankContext.bankLabel=row=>row.id;
+vm.runInContext(extractFunction(receiptUi,'defaultReceiptBankId')+'\n'+extractFunction(receiptUi,'bankOptions'),receiptBankContext);
+assert.equal(receiptBankContext.defaultReceiptBankId(),'','No company default means the receipt bank starts blank');
+assert.match(receiptBankContext.bankOptions('PKR'),/<option value="">Choose company account<\/option>/,'The blank bank choice remains visible');
+receiptBankContext.banks.accounts[0].settings.defaultReceiptAccount=true;
+assert.equal(receiptBankContext.defaultReceiptBankId(),'tti-ready','The selected company default is used when present');
 const packContext={currency:'USD',payerType:'TG',payer:'TG',entity:()=> 'TTI',data:{sources:{invoices:[{id:'loose',candidateType:'TG_PAKISTAN_INTERCOMPANY',recognized:true,outstandingForeign:999}],contracts:[{id:'contract',seller:'TG',ref:'CT-1',currency:'USD'}],tgPackInvoices:[{id:'lot-1',invoiceRef:'INV-1',contractRef:'CT-1',currency:'USD',value:108000,outstandingForeign:108000,candidateId:'tg-candidate',recognized:true}]}},fmt:value=>String(value),esc:String,chosen:new Map()};
 vm.createContext(packContext);
 vm.runInContext(['sourceRows','availableItems','itemLabel','tgOptionsHtml'].map(name=>extractFunction(receiptUi,name)).join('\n'),packContext);

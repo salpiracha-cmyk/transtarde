@@ -227,7 +227,7 @@
   }
 
   function searchable(select) {
-    if (select.dataset.ttSearchable || select.multiple || select.options.length < 2 || select.closest('.entitySwitcher')) return;
+    if (select.dataset.ttSearchable || select.dataset.ttNative || select.multiple || select.options.length < 2 || select.closest('.entitySwitcher')) return;
     select.dataset.ttSearchable = '1';
     select.classList.add('tt-native-select');
     const wrap = document.createElement('div');

@@ -924,11 +924,9 @@ function tt_user_visible_masters(array $user): array {
 
 /**
  * Entity access is stored inside the Accounts permission matrix as
- * entity-tti/entity-brm/entity-tg rows. Existing owner records using `all`
- * retain full access; restricted staff must be granted each legal book
- * explicitly. This keeps entity scope in the same audited user record as the
- * per-screen permissions and prevents a client-supplied entity from widening
- * access at an API endpoint.
+ * entity-tti/entity-brm/entity-tg rows when Super Admin has explicitly
+ * configured company scope. An Accounts user without entity rows can work in
+ * all three group books; a configured matrix restricts the selected books.
  */
 function tt_user_can_access_entity(array $user, string $entity, string $action = 'View'): bool {
     if (($user['role'] ?? '') === 'Super Admin') return true;
@@ -937,6 +935,9 @@ function tt_user_can_access_entity(array $user, string $entity, string $action =
     $permissions = $user['permissions']['Accounts'] ?? null;
     if ($permissions === 'all') return true;
     if (!is_array($permissions)) return false;
+    $scoped=false;
+    foreach(['entity-tti','entity-brm','entity-tg'] as $key)if(array_key_exists($key,$permissions)){$scoped=true;break;}
+    if(!$scoped)return tt_user_can_open_module($user,'Accounts');
     $row = $permissions['entity-' . strtolower($entity)] ?? [];
     if (!is_array($row)) return false;
     return in_array($action, $row, true)

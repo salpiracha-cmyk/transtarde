@@ -17,6 +17,8 @@ check(!tt_inv_can_report(['role'=>'Exports','permissions'=>['Exports'=>'all']]),
 check(!tt_inv_can_report(['role'=>'Mill','master_access'=>true,'master_permissions'=>['companies'=>['View']],'permissions'=>['Mill'=>'all']]),'Master visibility is not financial report permission');
 check(tt_inv_can_report($accounts,'TTI'),'Permitted Accounts report');
 check(!tt_inv_can_report($accounts,'BRM'),'Accounts report is company-scoped');
+check(tt_user_can_access_entity(['role'=>'Accounts Operator','permissions'=>['Accounts'=>['reports'=>['View']]]],'BRM','View'),'Accounts operator without explicit entity limits can open each group company');
+check(!tt_user_can_access_entity($accounts,'BRM','View'),'Explicit Super Admin company scope still limits other books');
 check(tt_inv_can_report($director,'BRM'),'Directors report access');
 check(tt_inv_can_report($owner,'TTI'),'Owner report access');
 $scope=['entity'=>'TTI','millId'=>2,'millName'=>'Other Mill'];
