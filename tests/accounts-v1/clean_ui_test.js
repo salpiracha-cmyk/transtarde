@@ -38,6 +38,12 @@ requireText(workflowUi, 'value="INSPECTION"', 'inspection UI');
 requireText(workflowApi, "['CLEARING','FUMIGATION','INSPECTION']", 'inspection validation');
 requireText(workflowApi, "'INSPECTION'=>['5530'", 'inspection posting');
 
+const settlementUi=read('accounts/supplier-settlement-ui.js');
+const receiptVoucherUi=read('accounts/export-receipts-ui.js');
+const settlementApi=read('api/supplier_settlements.php');
+requireText(settlementUi, 'Print Payment Voucher', 'posted supplier payment voucher');
+requireText(receiptVoucherUi, 'Print Receipt Voucher', 'posted receipt voucher');
+requireText(settlementApi, 'Cheque number or bank transaction reference is required', 'bank payment reference control');
 requireText(bundle, "'accounts-clean-ui.js'", 'bundle');
 if (bundle.indexOf("'accounts-clean-ui.js'") < bundle.indexOf("'reports-ui.js'")) throw new Error('Clean UI must load after feature modules.');
 requireText(index, 'app-bundle.php?v=current', 'non-manual bundle URL');

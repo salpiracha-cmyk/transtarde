@@ -274,9 +274,15 @@
       const posted = pendingReceipt.receipt;
       savePending(null);
       payerType = ''; payer = ''; chosen.clear(); deductions = [];
-      await load(); render(); window.TT_BANK_ACCOUNTS_UI?.reload?.();
+      await load(); render(); offerReceiptPrint(posted); window.TT_BANK_ACCOUNTS_UI?.reload?.();
       toast(`Receipt ${posted.id} and TG payable settlement posted.`);
     } catch (error) { toast(`Receipt ${pendingReceipt.receipt.id} is already posted. TG settlement still needs review: ${String(error.message || error)}`,false); }
+  }
+  function offerReceiptPrint(receipt) {
+    const header=q('#ttExportReceiptDialog [data-er-panel] .tter-head');if(!header||!receipt)return;
+    const button=document.createElement('button');button.type='button';button.className='btn';button.textContent='Print Receipt Voucher';
+    button.onclick=()=>window.TT_ACCOUNTING_DESK?.printVoucher?.({title:receipt.id,type:'Receipt',date:receipt.date,party:receipt.remitter,amount:receipt.foreignAmount,data:{...receipt,amount:receipt.foreignAmount,currency:receipt.transactionCurrency,reference:receipt.bankAdviceRef}});
+    header.insertBefore(button,header.querySelector('[data-er-close]'));
   }
   async function postReceipt() {
     const expected = selectedExpected(), received = num(q('#erForeign')?.value), shortfall = Math.max(0,expected-received), classification = shortfall > .005 ? 'PARTIAL' : '', currentShortfallNote = '';
@@ -292,7 +298,7 @@
       if (!response.ok || !result.ok) throw new Error(result.error || 'Export receipt could not be posted.');
       await postShortfalls(result.receipt,classification,currentShortfallNote,body.bankAdviceFileRef || body.bankAdvicePaperRef);
       savePending(null);amendmentOf='';amendmentReason='';
-      toast(`Receipt ${result.receipt.id} posted.${result.ratesSaved===false?' Charge percentages could not be saved to the master; review them there.':''}`,result.ratesSaved!==false); payerType = ''; payer = ''; selectedTgPayment=null; chosen.clear(); deductions = []; await load(); pendingBanner(); render(); window.TT_BANK_ACCOUNTS_UI?.reload?.();
+      toast(`Receipt ${result.receipt.id} posted.${result.ratesSaved===false?' Charge percentages could not be saved to the master; review them there.':''}`,result.ratesSaved!==false); payerType = ''; payer = ''; selectedTgPayment=null; chosen.clear(); deductions = []; await load(); pendingBanner(); render(); offerReceiptPrint(result.receipt); window.TT_BANK_ACCOUNTS_UI?.reload?.();
     } catch (error) { toast(pendingReceipt ? `Receipt ${pendingReceipt.receipt.id} posted. TG settlement needs review: ${String(error.message || error)}` : String(error.message || error),false); if (pendingReceipt) render(); else { button.disabled = false; button.textContent = 'POST RECEIPT'; } }
   }
   async function openForm(paymentId = '', amendId = '') {
