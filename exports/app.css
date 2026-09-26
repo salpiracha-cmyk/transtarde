@@ -193,6 +193,7 @@
 .oceanBlGrid b,.oceanBlVoyage b,.oceanBlBottom b{color:#111;font-size:8px}.oceanBlGrid strong{font-size:10px}.oceanBlGrid span{white-space:pre-line}
 .oceanBlGrid>div:nth-child(2) div{display:grid;grid-template-columns:29mm 1fr;gap:2mm;min-height:auto;padding:0;border:0}
 .oceanBlGrid>div:nth-child(2) div b{color:#111}.oceanBlGrid>div:nth-child(2) div span{font-weight:700}
+.blProminentField label{font-weight:900;color:#162d1c}.blProminentInput{font-size:18px!important;font-weight:900!important;color:#142c1a!important}.oceanBlGrid>div:nth-child(2) .oceanBlProminentDetail span{font-size:11px;font-weight:900;line-height:1.25}.oceanBlGrid>div:nth-child(2) .oceanBlProminentDetail b{font-size:8.5px;font-weight:900}
 .oceanBlVoyage{display:grid;grid-template-columns:repeat(4,1fr);border-left:1px solid #222}
 .oceanBlVoyage>div{display:flex;flex-direction:column;justify-content:center;align-items:center;min-height:13mm;padding:1.5mm;border-right:1px solid #222;border-bottom:1px solid #222;text-align:center}
 .oceanBlVoyage>div:nth-child(n+5){min-height:12mm}.oceanBlVoyage span{font-weight:800}
