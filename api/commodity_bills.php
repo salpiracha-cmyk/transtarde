@@ -136,7 +136,7 @@ function cb_soda(array $store,string $entity,string $number): array {foreach(['p
 function cb_rule_number(array $rules,string $key,float $fallback):float{$v=$rules[$key]??$fallback;if(!is_numeric($v))cb_respond(['ok'=>false,'error'=>'KAT Master rule '.$key.' is invalid.'],422);return (float)$v;}
 function cb_brokery_rate(array $soda):?array{$broker=trim((string)($soda['broker']??''));if($broker==='')return null;foreach(tt_broker_profiles((string)($soda['sodaDate']??''),'buying')as$profile)if(strcasecmp((string)($profile['name']??''),$broker)===0&&is_array($profile['rate']??null))return $profile['rate'];return null;}
 function cb_brokery_amount(?array $rate,float $weightKg,float $bags=0):float{if(!$rate)return 0.0;$figure=(float)($rate['amount']??0);$basis=(string)($rate['basis']??'');$units=match($basis){'PER_100_KG'=>$weightKg/100,'PER_50_KG_BAG'=>$weightKg/50,'PER_BAG'=>$bags,'PER_MAUND'=>$weightKg/40,'PER_TON'=>$weightKg/1000,default=>0};return round(max(0,$units*$figure),2);}
-function cb_nonrice_calculation(array $store,array $soda,string $commodity,array $body):array{$inspection=is_array($body['inspection']??null)?$body['inspection']:[];$weight=cb_money($inspection['karachiWeightKg']??0,'Karachi weighbridge weight');$other=cb_money($inspection['otherDeductionKgPer100']??0,'Other deduction kg per 100 kg',true);$reason=trim((string)($inspection['otherDeductionReason']??''));if($other>0&&$reason==='')cb_respond(['ok'=>false,'error'=>'Reason is required for an other kg-per-100 deduction.'],422);$profile=(string)($soda['katProfile']??($commodity==='CORN'?'CORN':'SESAME_READY'));$master=(array)($store['commodityKatMaster'][$profile]['rules']??[]);$maund=cb_rule_number($master,'maundKg',40);$rate=cb_money($soda['rate']??0,'Approved Soda rate');$components=[];$deductionPer100=$other;if($commodity==='CORN'){$moisture=cb_money($inspection['moisturePct']??0,'Moisture percentage',true);$damage=cb_money($inspection['damageFungusPct']??0,'Damage / fungus percentage',true);$moistureDed=max(0,$moisture-cb_rule_number($master,'moistureFreePct',13))*cb_rule_number($master,'moistureKgPer100PerPct',1);$damageDed=max(0,$damage-cb_rule_number($master,'damageFungusFreePct',2))*cb_rule_number($master,'damageFungusKgPer100PerPct',1);$deductionPer100+=$moistureDed+$damageDed;$components=['moisturePct'=>$moisture,'moistureDeductionKgPer100'=>$moistureDed,'damageFungusPct'=>$damage,'damageFungusDeductionKgPer100'=>$damageDed];}else{$admixture=cb_money($inspection['admixturePct']??0,'Admixture percentage',true);$free=cb_rule_number($master,'admixtureFreePct',$profile==='SESAME_RAW'?3:1);$admixDed=max(0,$admixture-$free)*cb_rule_number($master,'admixtureKgPer100PerPct',1);$deductionPer100+=$admixDed;$components=['admixturePct'=>$admixture,'admixtureFreePct'=>$free,'admixtureDeductionKgPer100'=>$admixDed];}$deductionKg=round($weight*$deductionPer100/100,3);if($deductionKg>$weight)cb_respond(['ok'=>false,'error'=>'KAT deductions cannot exceed Karachi weighbridge weight.'],422);$netKg=round($weight-$deductionKg,3);$value=round($netKg/$maund*$rate,2);$brokeryRate=cb_brokery_rate($soda);$brokery=cb_brokery_amount($brokeryRate,$weight,(float)($inspection['bags']??0));return ['profile'=>$profile,'karachiWeightKg'=>$weight,'deductionKg'=>$deductionKg,'netPayableKg'=>$netKg,'otherDeductionKgPer100'=>$other,'otherDeductionReason'=>$reason,'ratePerMaund'=>$rate,'maundKg'=>$maund,'finalCommodityValue'=>$value,'brokerageGross'=>$brokery,'buyingBrokery'=>$brokeryRate,'components'=>$components];}
+function cb_nonrice_calculation(array $store,array $soda,string $commodity,array $body):array{$inspection=is_array($body['inspection']??null)?$body['inspection']:[];$weight=cb_money($inspection['karachiWeightKg']??0,'Karachi weighbridge weight');$other=cb_money($inspection['otherDeductionKgPer100']??0,'Other deduction kg per 100 kg',true);$reason=trim((string)($inspection['otherDeductionReason']??''));if($other>0&&$reason==='')cb_respond(['ok'=>false,'error'=>'Reason is required for an other kg-per-100 deduction.'],422);$profile=(string)($soda['katProfile']??($commodity==='CORN'?'CORN':'SESAME_READY'));$master=(array)($store['commodityKatMaster'][$profile]['rules']??[]);$maund=cb_rule_number($master,'maundKg',40);$rate=cb_money($soda['rate']??0,'Approved Soda rate');$components=[];$deductionPer100=$other;if($commodity==='CORN'){$moisture=cb_money($inspection['moisturePct']??0,'Moisture percentage',true);$damage=cb_money($inspection['damageFungusPct']??0,'Damage / fungus percentage',true);$freePct=empty($store['commodityKatMaster'][$profile]['updatedAt'])&&(float)($master['moistureFreePct']??13)===13.0?14.0:cb_rule_number($master,'moistureFreePct',14);$moistureDed=max(0,$moisture-$freePct)*cb_rule_number($master,'moistureKgPer100PerPct',1);$damageDed=max(0,$damage-cb_rule_number($master,'damageFungusFreePct',2))*cb_rule_number($master,'damageFungusKgPer100PerPct',1);$deductionPer100+=$moistureDed+$damageDed;$components=['moisturePct'=>$moisture,'moistureDeductionKgPer100'=>$moistureDed,'damageFungusPct'=>$damage,'damageFungusDeductionKgPer100'=>$damageDed];}else{$admixture=cb_money($inspection['admixturePct']??0,'Admixture percentage',true);$free=cb_rule_number($master,'admixtureFreePct',$profile==='SESAME_RAW'?3:1);$admixDed=max(0,$admixture-$free)*cb_rule_number($master,'admixtureKgPer100PerPct',1);$deductionPer100+=$admixDed;$components=['admixturePct'=>$admixture,'admixtureFreePct'=>$free,'admixtureDeductionKgPer100'=>$admixDed];}$deductionKg=round($weight*$deductionPer100/100,3);if($deductionKg>$weight)cb_respond(['ok'=>false,'error'=>'KAT deductions cannot exceed Karachi weighbridge weight.'],422);$netKg=round($weight-$deductionKg,3);$value=round($netKg/$maund*$rate,2);$brokeryRate=cb_brokery_rate($soda);$brokery=cb_brokery_amount($brokeryRate,$weight,(float)($inspection['bags']??0));return ['profile'=>$profile,'karachiWeightKg'=>$weight,'deductionKg'=>$deductionKg,'netPayableKg'=>$netKg,'otherDeductionKgPer100'=>$other,'otherDeductionReason'=>$reason,'ratePerMaund'=>$rate,'maundKg'=>$maund,'finalCommodityValue'=>$value,'brokerageGross'=>$brokery,'buyingBrokery'=>$brokeryRate,'components'=>$components];}
 
 try{
     $user=tt_require_login();
@@ -216,13 +216,22 @@ try{
         if($brokerInput!==''&&$uniqueBrokers&&strcasecmp($brokerInput,$uniqueBrokers[0])!==0) cb_respond(['ok'=>false,'error'=>'Selected broker does not match the Pohanch receipts.'],422);
 
         $soda=cb_soda($store,$entity,$uniqueSodas[0]);
+        $stage=strtoupper((string)($soda['productStage']??''));
+        $exMill=str_starts_with((string)$sourceKeys[0],'EXMILL|');
+        if(count($sourceKeys)>1&&($stage!=='READY'&&!($commodity==='CORN'&&$exMill)))cb_respond(['ok'=>false,'error'=>'Raw rice and ordinary Corn bills use one Pohanch per bill. Multiple containers are available for Ready or Ex-Mill purchases in one Soda.'],422);
+        if(count($sourceKeys)>1&&$commodity==='CORN')foreach($sourceKeys as $key)if(!str_starts_with($key,'EXMILL|'))cb_respond(['ok'=>false,'error'=>'Only Ex-Mill Corn can combine multiple containers.'],422);
+        $sodaBroker=trim((string)($soda['broker']??''));$sodaSupplier=trim((string)($soda['party']??''));
+        $commodityPayee=$sodaSupplier!==''?$sodaSupplier:$sodaBroker;
+        $commodityRelationship=$sodaSupplier!==''?'SUPPLIER':'BROKER';
+        if($commodityPayee==='')cb_respond(['ok'=>false,'error'=>'Approved Soda must have a supplier or broker payee.'],422);
+        if($relationshipType!==$commodityRelationship||strcasecmp($relationshipName,$commodityPayee)!==0)cb_respond(['ok'=>false,'error'=>'Commodity bill payee must be '.$commodityPayee.' from the approved Soda.'],422);
         $expectedRelationship=$relationshipType==='BROKER'?trim((string)($soda['broker']??$broker)):trim((string)($soda['party']??''));
         if($expectedRelationship===''||strcasecmp($expectedRelationship,$relationshipName)!==0)cb_respond(['ok'=>false,'error'=>'The selected '.$relationshipType.' does not match the approved Soda.'],422);
         if(strtoupper((string)($soda['commodity']??''))!==$commodity)cb_respond(['ok'=>false,'error'=>'Receipt commodity does not match the selected Soda.'],422);
         $term=strtoupper((string)($soda['paymentTermType']??''));
         $creditDays=$term==='CASH'?2:cb_credit_days($soda['creditDays']??null);
         $calculation=null;
-        $brokeryRate=cb_brokery_rate($soda);
+        $brokeryRate=cb_brokery_rate($soda);if($commodity==='RICE'&&$brokeryRate&&($brokeryRate['basis']??'')==='PER_50_KG_BAG'){$brokeryRate['amount']=round((float)$brokeryRate['amount']*2,2);$brokeryRate['basis']='PER_100_KG';}
         if($brokeryBags<=0&&is_array($body['inspection']??null))$brokeryBags=max(0,(float)($body['inspection']['bags']??0));
         if($brokeryRate&&($brokeryRate['basis']??'')==='PER_BAG'&&$brokeryBags<=0)cb_respond(['ok'=>false,'error'=>'This broker uses Per bag Buying Brokery, but the selected Pohanch records do not contain a bag quantity. Correct the arrival before posting the bill.'],422);
         $enteredBasis=trim((string)($body['brokerageBasis']??''));
@@ -232,9 +241,12 @@ try{
         if($enteredBasis!==''){
             if(!in_array($enteredBasis,['PER_100_KG','PER_50_KG_BAG','PER_MAUND'],true))cb_respond(['ok'=>false,'error'=>'Choose an approved brokery unit.'],422);
             $brokeryRate=['amount'=>$enteredRate,'basis'=>$enteredBasis];
-            if($brokerageWithholding>0)cb_respond(['ok'=>false,'error'=>'Brokery WHT is deducted at payment, not when the bill is posted.'],422);
+            if($commodity==='RICE'&&$enteredBasis!=='PER_100_KG')cb_respond(['ok'=>false,'error'=>'Rice buying brokery is per 100 kg.'],422);
         }
         $brokerageGross=cb_brokery_amount($brokeryRate,$brokeryWeightKg,$brokeryBags);
+        if($commodity==='RICE'&&$brokerageGross>0&&($brokeryRate['basis']??'')!=='PER_100_KG')cb_respond(['ok'=>false,'error'=>'Rice buying brokery is per 100 kg. Update the broker buying profile.'],422);
+        if($sodaBroker===''&&$brokerageGross>0)cb_respond(['ok'=>false,'error'=>'Buying brokery requires a broker on the Soda.'],422);
+        $brokerageWithholding=round($brokerageGross*$whtPercent/100,2);
         if(in_array($commodity,['CORN','SESAME'],true)){
             $calculation=cb_nonrice_calculation($store,$soda,$commodity,$body);
             $finalValue=$calculation['finalCommodityValue'];
@@ -269,7 +281,14 @@ try{
         if(abs($dr-$cr)>.005) throw new RuntimeException('Commodity bill journal did not balance.');
 
         $supplierPayableTotal=round($finalValue+$netBrokerage,2);
-        $receiptAllocations=cb_allocate_payable($receiptRows,$supplierPayableTotal,$creditDays);
+        $receiptAllocations=cb_allocate_payable($receiptRows,$finalValue,$creditDays);
+        foreach($receiptAllocations as &$allocation){$allocation['component']='COMMODITY';$allocation['payee']=$commodityPayee;}
+        unset($allocation);
+        if($netBrokerage>0){
+            $brokerAllocations=cb_allocate_payable($receiptRows,$netBrokerage,$creditDays);
+            foreach($brokerAllocations as &$allocation){$allocation['sourceKey'].='|BROKERAGE';$allocation['component']='BROKERAGE';$allocation['payee']=$sodaBroker;}
+            unset($allocation);$receiptAllocations=array_merge($receiptAllocations,$brokerAllocations);
+        }
         $billId=cb_next_id((array)$store['commodityBills'],'CB');
         $postingNumber=cb_next_posting_number((array)$store['commodityBills'],$entity);
         $journalId=cb_next_id((array)$store['journals'],'AUTO');
@@ -278,7 +297,7 @@ try{
         $meta=[
             'billId'=>$billId,'postingNumber'=>$postingNumber,'commodity'=>$commodity,'sourceKeys'=>$sourceKeys,'sodas'=>$uniqueSodas,'broker'=>$broker,'relationshipType'=>$relationshipType,'relationshipName'=>$relationshipName,'adjustments'=>$adjustments,'adjustmentLines'=>$adjustmentLines,
             'provisionalValue'=>$provisional,'finalCommodityValue'=>$finalValue,'brokerageGross'=>$brokerageGross,
-            'brokerageWithholding'=>$brokerageWithholding,'brokerageRate'=>$enteredBasis!==''?$enteredRate:null,'brokerageBasis'=>$enteredBasis,'brokerageWhtPercent'=>$enteredBasis!==''?$whtPercent:0,'supplierPayableTotal'=>$supplierPayableTotal,
+            'brokerageWithholding'=>$brokerageWithholding,'brokerageRate'=>$enteredBasis!==''?$enteredRate:null,'brokerageBasis'=>$enteredBasis,'brokerageWhtPercent'=>$whtPercent,'supplierPayableTotal'=>$supplierPayableTotal,
             'creditDays'=>$creditDays,'paymentTermType'=>$term,'dueBasis'=>'Unloading Date','receiptAllocations'=>$receiptAllocations,'calculation'=>$calculation
         ];
         $store['journals'][$journalId]=[
@@ -290,13 +309,14 @@ try{
         $store['commodityBills'][$billId]=[
             'id'=>$billId,'postingNumber'=>$postingNumber,'entity'=>$entity,'commodity'=>$commodity,'billDate'=>$date,'billNo'=>$billNo,'broker'=>$broker,'relationshipType'=>$relationshipType,'relationshipName'=>$relationshipName,'sourceKeys'=>$sourceKeys,
             'sodas'=>$uniqueSodas,'provisionalValue'=>$provisional,'finalCommodityValue'=>$finalValue,'brokerageGross'=>$brokerageGross,
-            'brokerageWithholding'=>$brokerageWithholding,'brokerageRate'=>$enteredBasis!==''?$enteredRate:null,'brokerageBasis'=>$enteredBasis,'brokerageWhtPercent'=>$enteredBasis!==''?$whtPercent:0,'supplierPayableTotal'=>$supplierPayableTotal,'journalId'=>$journalId,
+            'brokerageWithholding'=>$brokerageWithholding,'brokerageRate'=>$enteredBasis!==''?$enteredRate:null,'brokerageBasis'=>$enteredBasis,'brokerageWhtPercent'=>$whtPercent,'supplierPayableTotal'=>$supplierPayableTotal,'journalId'=>$journalId,
             'adjustments'=>$adjustments,'adjustmentLines'=>$adjustmentLines,'calculation'=>$calculation,'remarks'=>$remarks,'creditDays'=>$creditDays,'paymentTermType'=>$term,'dueBasis'=>'Unloading Date',
             'dueDateFrom'=>$dueDates[0]??$date,'dueDateTo'=>$dueDates[count($dueDates)-1]??$date,
             'receiptAllocations'=>$receiptAllocations,'paymentStatus'=>'Outstanding','status'=>'Verified / Posted',
             'createdAt'=>gmdate('c'),'createdBy'=>(string)($user['full_name']??$user['username']??'Staff')
         ];
         foreach($receiptAllocations as $a){
+            if(($a['component']??'')==='BROKERAGE')continue;
             $eventId=(string)$a['eventId'];
             $store['events'][$eventId]['billId']=$billId;
             $store['events'][$eventId]['commodity']=$commodity;

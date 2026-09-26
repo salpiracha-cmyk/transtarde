@@ -15,14 +15,15 @@ assert.equal(card.debits.filter(x=>x.account.startsWith('FAM-')).reduce((s,x)=>s
 assert.match(api,/sourceType'=>\$source/);
 assert.match(api,/'UTILITY_PAYMENT'/);
 assert.match(api,/'CREDIT_CARD_PAYMENT'/);
-assert.match(api,/journalCreated'=>false/);
+assert.match(api,/journalCreated'=>true/);
+assert.match(api,/ev1_line\('2400',\$total,0/);
 assert.match(api,/Credit-card allocations must equal the full statement total/);
 assert.match(api,/Paid statements cannot be edited/);
 assert.match(api,/A statement already exists for this card and month/);
 assert.match(api,/tt_user_can_access_entity/);
 assert.match(api,/\['TTI','BRM','TG'\]/);
 assert.match(ui,/\.\.\/api\/expenses_v1\.php/);
-assert.match(ui,/No ledger entry is made until the statement is actually paid/);
+assert.match(ui,/Posting a statement books its allocations and the credit-card payable/);
 assert.match(ui,/FAM-SALMAN/);assert.match(ui,/FAM-TALHA/);assert.match(ui,/FAM-ABU/);assert.match(ui,/FAM-TAYYAB/);
 assert.match(index,/app-bundle\.php/);
 assert.match(bundle,/'expenses-v1-ui\.js'/);

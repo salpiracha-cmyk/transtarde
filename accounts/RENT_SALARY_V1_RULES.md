@@ -26,7 +26,7 @@ When an amount changes, Accounts enters the same person/category with the new am
 The app title Director is an internal role/title. It does not by itself decide the legal or accounting treatment.
 
 ## Salary payments
-Salary advances are not used in this version. Accounts prepares the month first, then records payments against that month's exact outstanding salary balance. Payment can only use an enabled PKR company bank account or company cash.
+Salary advances post to employee advances when paid. Month preparation proposes an adjustment against each person’s open advance; the operator can reduce it, and the remainder carries to the next month. Salary expense is accrued at the full amount, while the salary payable is reduced by the applied advance. Payment can only use an enabled PKR company bank account or company cash.
 
 Net salary/remuneration, Zakat and other allowances remain separate in the Salary Sheet and journal detail. Zakat posts to the separate Zakat ledger.
 

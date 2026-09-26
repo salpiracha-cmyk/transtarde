@@ -105,9 +105,10 @@ function pp_rows(array $store,string $entity,string $commodity=''): array {
             $out=max(0,round($gross-$paid,2));
             if($out<=0.005)continue;
             $due=(string)($a['dueDate']??'');if($due==='')$due=(string)($bill['dueDateTo']??$bill['billDate']??'');
-            $hold=pp_hold($store,$entity,$sourceKey!==''?$sourceKey:'BILL|'.$billId);
+            $holdKey=str_ends_with($sourceKey,'|BROKERAGE')?substr($sourceKey,0,-10):$sourceKey;
+            $hold=pp_hold($store,$entity,$holdKey!==''?$holdKey:'BILL|'.$billId);
             $rows[]=[
-                'entity'=>$entity,'commodity'=>$billCommodity,'billId'=>$billId,'billNo'=>$billNo,'broker'=>$broker,'soda'=>$soda,
+                'entity'=>$entity,'commodity'=>$billCommodity,'billId'=>$billId,'billNo'=>$billNo,'broker'=>(string)($a['payee']??$broker),'soda'=>$soda,
                 'sourceKey'=>$sourceKey,'pohanch'=>(string)($a['pohanch']??''),'truck'=>(string)($a['truck']??''),
                 'receiptDate'=>(string)($a['receiptDate']??$bill['billDate']??''),'creditDays'=>(int)($a['creditDays']??$bill['creditDays']??0),
                 'dueDate'=>$due,'grossPayable'=>$gross,'settled'=>$paid,'outstanding'=>$out,

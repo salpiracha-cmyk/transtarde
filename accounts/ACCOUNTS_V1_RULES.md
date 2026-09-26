@@ -111,7 +111,7 @@ Purchase value:
 `Net payable kg / 40 × Soda rate per maund`.
 
 Corn KAT Master is shared/editable by authorized owner/director and Accounts:
-- Moisture: up to 13% free; each 1 percentage point above 13% deducts 1 kg per 100 kg of Karachi weighbridge weight.
+- Moisture: up to 14% free by default (editable in KAT Master); each 1 percentage point above the configured free threshold deducts 1 kg per 100 kg of Karachi weighbridge weight.
 - Damage/Fungus: up to 2% free; each 1 percentage point above 2% deducts 1 kg per 100 kg of Karachi weighbridge weight.
 - Other deduction: entered as kg per 100 kg with mandatory reason.
 - All Corn KAT/deductions use Karachi weighbridge weight as basis.

@@ -23,8 +23,8 @@ function bl_rows(array $s,string $entity):array{
     }
 
     $paid=[];
-    // Automatic brokerage is settled together with the commodity supplier bill.
-    // Supplier settlements already store the brokerage component for each selected bill/truck allocation.
+    // Automatic brokerage follows its own broker allocation on new bills;
+    // historical combined bill allocations retain their original component split.
     foreach((array)($s['supplierSettlements']??[]) as $p){
         if(!is_array($p)||($p['entity']??'')!==$entity||!in_array((string)($p['status']??''),['Posted','Approved / Posted','Approved'],true))continue;
         foreach((array)($p['allocations']??[]) as $a){
@@ -44,4 +44,3 @@ function bl_rows(array $s,string $entity):array{
 }
 function bl_summary(array $rows,array $s,string $entity):array{$by=[];foreach($rows as $r){$b=trim((string)$r['broker'])?:'Unspecified';if(!isset($by[$b]))$by[$b]=['broker'=>$b,'gross'=>0.0,'wht'=>0.0,'net'=>0.0,'paid'=>0.0,'outstanding'=>0.0,'whtDeposited'=>0.0,'whtOutstanding'=>0.0];foreach(['gross','wht','net','paid','outstanding'] as $k)$by[$b][$k]=round($by[$b][$k]+bl_money($r[$k]??0),2);}foreach((array)($s['brokerageWhtDeposits']??[]) as $d){if(!is_array($d)||($d['entity']??'')!==$entity||!in_array((string)($d['status']??'Posted'),['Posted','Approved / Posted','Approved'],true))continue;$b=trim((string)($d['broker']??''))?:'Unspecified';if(!isset($by[$b]))$by[$b]=['broker'=>$b,'gross'=>0.0,'wht'=>0.0,'net'=>0.0,'paid'=>0.0,'outstanding'=>0.0,'whtDeposited'=>0.0,'whtOutstanding'=>0.0];$by[$b]['whtDeposited']=round($by[$b]['whtDeposited']+bl_money($d['amount']??0),2);}foreach($by as &$x)$x['whtOutstanding']=max(0,round($x['wht']-$x['whtDeposited'],2));unset($x);ksort($by);return array_values($by);}
 try{$u=tt_require_login();if(!tt_user_can_open_module($u,'Accounts'))bl_out(['ok'=>false,'error'=>'Accounts permission required.'],403);if($_SERVER['REQUEST_METHOD']!=='GET')bl_out(['ok'=>false,'error'=>'Method not allowed.'],405);$entity=strtoupper(trim((string)($_GET['entity']??'TTI')));if(!in_array($entity,['TTI','BRM'],true))bl_out(['ok'=>false,'error'=>'Brokerage ledger is available for TTI or BRM.'],422);$s=bl_read();$rows=bl_rows($s,$entity);bl_out(['ok'=>true,'entity'=>$entity,'rows'=>$rows,'brokers'=>bl_summary($rows,$s,$entity),'revision'=>(int)($s['revision']??0)]);}catch(Throwable $e){bl_out(['ok'=>false,'error'=>'Brokerage ledger is temporarily unavailable.'],500);}
-

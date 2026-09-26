@@ -940,7 +940,7 @@
       "event": "SALARY_MONTHLY_ACCRUAL",
       "debit": "6210 net salary/remuneration or approved family allocation; 7210 Zakat; 6220 other staff allowances",
       "credit": "2140 salary payable",
-      "rule": "The recurring master contains only net salary/remuneration, Zakat and other recurring allowances. Salary advances are not used in this workflow."
+      "rule": "The recurring master contains net salary/remuneration, Zakat and other recurring allowances. Salary advances are separate posted receivables, offered for adjustment at month preparation with a carried balance."
     },
     {
       "event": "DONATION_PAYMENT",

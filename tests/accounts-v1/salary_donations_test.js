@@ -56,7 +56,9 @@ assert.match(salaryApi,/salaryMasters'=>sm_seed_masters\(\)/);
 assert.match(salaryApi,/'DIRECTOR_REMUNERATION'=>'STAFF_COST'/);
 assert.match(salaryApi,/tt_user_can_access_entity\(\$u,\$entity,'View'\)/);
 assert.match(salaryApi,/tt_user_can_access_entity\(\$u,\$entity,'Create'\)/);
-assert.doesNotMatch(salaryApi,/salary_advance/);
+assert.match(salaryApi,/record_salary_advance/);
+assert.match(salaryApi,/advanceAdjustments/);
+assert.match(salaryApi,/rsv2_line\('1230',0,\$applied/);
 assert.match(donationsApi,/tt_user_can_access_entity\(\$u,\$entity,'View'\)/);
 assert.match(donationsApi,/tt_user_can_access_entity\(\$u,\$entity,'Create'\)/);
 for(const [type,account] of Object.entries(donationAccounts)){
