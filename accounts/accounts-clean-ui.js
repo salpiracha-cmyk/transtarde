@@ -87,7 +87,7 @@
       .tt-quick-item{border:1px solid #dfe6ec;background:#fff;border-radius:14px;padding:15px;text-align:left;cursor:pointer;min-height:115px}
       .tt-quick-item:hover{border-color:#173c63;box-shadow:0 6px 18px rgba(19,40,65,.09)}
       .tt-quick-item b{display:block;font-size:14px;margin:9px 0 4px}.tt-quick-item small{color:#6f7a89;line-height:1.35}.tt-quick-icon{font-size:23px}
-      .tt-search-select{position:relative;margin-top:5px}.tt-search-select>input{margin:0!important;padding-right:30px!important}.tt-search-select:after{content:"⌄";position:absolute;right:10px;top:8px;color:#687686;pointer-events:none}.tt-native-select{position:absolute!important;opacity:0!important;pointer-events:none!important;width:1px!important;height:1px!important;margin:0!important}.tt-select-menu{position:fixed;z-index:100080;max-height:220px;overflow:auto;background:#fff;border:1px solid #cdd7e0;border-radius:9px;box-shadow:0 12px 28px rgba(17,37,59,.18)}.tt-select-menu[hidden]{display:none!important}
+      .tt-search-select{position:relative;margin-top:5px;width:100%;min-width:0}.tt-search-select>input{display:block;width:100%!important;min-width:0;margin:0!important;padding-right:30px!important}.tt-search-select:after{content:"⌄";position:absolute;right:10px;top:8px;color:#687686;pointer-events:none}.tt-native-select{position:absolute!important;opacity:0!important;pointer-events:none!important;width:1px!important;height:1px!important;margin:0!important}.tt-select-menu{position:fixed;z-index:100080;max-height:220px;overflow:auto;background:#fff;border:1px solid #cdd7e0;border-radius:9px;box-shadow:0 12px 28px rgba(17,37,59,.18)}.tt-select-menu[hidden]{display:none!important}
       .tt-select-menu button{display:block;width:100%;border:0;background:#fff;padding:9px 10px;text-align:left;cursor:pointer}.tt-select-menu button:hover,.tt-select-menu button:focus{background:#edf3f8}.tt-select-empty{padding:9px;color:#6f7a89;font-size:11px}
       .tt-optional-details{grid-column:1/-1;border:1px solid #e2e8ee;border-radius:10px;padding:9px 11px;background:#fafbfd}.tt-optional-details summary{cursor:pointer;font-weight:800;color:#42566a}.tt-optional-grid{display:grid;grid-template-columns:repeat(3,minmax(150px,1fr));gap:10px;margin-top:10px}
       .tt-master-only .ttrs-head,.tt-master-only .ttrs-pay,.tt-master-only .ttrs-box:has(table tbody [data-rs-salpay]),.tt-master-only .ttrs-box:has(table tbody [data-rs-rentdue]){display:none!important}
@@ -253,17 +253,24 @@
       if (menu.hidden) return;
       if (!wrap.isConnected) { menu.remove(); if (activeSearchMenu === menu) activeSearchMenu = null; return; }
       const rect = input.getBoundingClientRect();
-      const dialog = input.closest('.tter-dialog,.tt-clean-modal');
-      const bounds = dialog?.getBoundingClientRect();
-      const topLimit = Math.max(8, (bounds?.top ?? 0) + 8);
-      const bottomLimit = Math.min(window.innerHeight - 8, (bounds?.bottom ?? window.innerHeight) - 8);
-      const below = bottomLimit - rect.bottom - 4, above = rect.top - topLimit - 4;
-      const openAbove = below < 140 && above > below;
-      const height = Math.max(48, Math.min(220, openAbove ? above : below));
-      menu.style.left = `${rect.left}px`;
-      menu.style.width = `${rect.width}px`;
+      // The list is portalled to body. Use viewport coordinates, not the
+      // scrollable dialog's coordinates, and never impose a minimum height
+      // larger than the space actually available at the field.
+      const gap = 4, edge = 8;
+      const below = Math.max(0, window.innerHeight - edge - rect.bottom - gap);
+      const above = Math.max(0, rect.top - edge - gap);
+      const desired = Math.min(220, menu.scrollHeight);
+      const openAbove = below < Math.min(desired, 120) && above > below;
+      const height = Math.min(220, openAbove ? above : below);
+      if (height < 32 || rect.bottom < edge || rect.top > window.innerHeight - edge) {
+        menu.hidden = true;
+        return;
+      }
+      const width = Math.min(rect.width, window.innerWidth - edge * 2);
+      menu.style.left = `${Math.max(edge, Math.min(rect.left, window.innerWidth - edge - width))}px`;
+      menu.style.width = `${width}px`;
       menu.style.maxHeight = `${height}px`;
-      menu.style.top = `${openAbove ? rect.top - height - 4 : rect.bottom + 4}px`;
+      menu.style.top = `${openAbove ? rect.top - gap - height : rect.bottom + gap}px`;
     };
     menu._ttPosition = positionMenu;
     const selectedText = () => select.selectedOptions[0]?.textContent.trim() || '';

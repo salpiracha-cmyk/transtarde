@@ -54,6 +54,7 @@
 
 /* Prefix-search customer picker for New Sales Contract */
 .customerTypeahead{position:relative;min-width:260px}
+.modal:has(.customerTypeahead){overflow:visible}
 .customerMatches{position:absolute;z-index:30;left:0;right:0;top:calc(100% + 4px);display:grid;max-height:260px;overflow:auto;background:#fff;border:1px solid #c9d5e3;border-radius:10px;box-shadow:0 12px 28px rgba(16,39,68,.18)}
 .customerMatches:empty{display:none}
 .customerMatches button{display:flex;flex-direction:column;gap:3px;width:100%;padding:10px 12px;text-align:left;background:#fff;border:0;border-bottom:1px solid #e7edf4;color:#123152;cursor:pointer}

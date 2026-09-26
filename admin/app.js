@@ -698,7 +698,7 @@
     document.querySelectorAll("[data-product-option]").forEach(input=>{
       const field=input.closest(".managed-option-field"),menu=field?.querySelector("[data-product-option-menu]"),manage=field?.querySelector("[data-manage-product-option]");
       refresh(input);
-      if(manage)manage.onclick=()=>{menu.hidden=!menu.hidden;if(!menu.hidden)menu.querySelector("button")?.focus()};
+      if(manage)manage.onclick=()=>{menu.hidden=!menu.hidden;if(!menu.hidden){menu.scrollIntoView({block:"nearest",inline:"nearest"});menu.querySelector("button")?.focus({preventScroll:true})}};
       if(menu)menu.onclick=async event=>{
         const choose=event.target.closest("[data-choose-product-option]");
         if(choose){input.value=choose.dataset.chooseProductOption||"";menu.hidden=true;return}
