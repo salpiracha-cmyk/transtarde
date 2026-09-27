@@ -141,6 +141,9 @@ assert.match(packContext.tgOptionsHtml(),/USD 108000 — INV-1/,'TG dropdown ide
 assert.doesNotMatch(packContext.tgOptionsHtml(),/CT-1|loose/,'TG dropdown does not expose bare contracts or invoices without a saved pack');
 assert.match(receiptUi,/id="erTgItem"/,'TG payment selection is one compact dropdown');
 assert.match(receiptApi,/empty\(\$s\['tgdocs'\]\['saved'\]\)/,'An invoice appears only after its TG Pack has been saved');
+assert.match(receiptApi,/\$exporters=\['TTI','BRM'\]/,'TG contract references remain visible in both Pakistan company views');
+assert.match(receiptApi,/'mirrorCandidateId'=>\$candidate&&\$candidate\['recognized'\]/,'A saved TG Pack invoice carries its linked TG liability for settlement');
+assert.doesNotMatch(receiptUi,/filter\(code=>payerType!=='TG'\|\|\(tgData\?\.banks/,'Currency selection must show the whole currency master even when TG has no bank in one currency');
 const tgReceiptContext={chosen:new Map([['posted',{targetType:'INTERCOMPANY_RECEIVABLE',targetId:'posted-tg-1',contractRef:'TG-123',invoiceRef:'INV-TG-123',customer:'TG',applied:500}]]),num:Number};
 vm.createContext(tgReceiptContext);
 vm.runInContext(extractFunction(receiptUi,'allocations'),tgReceiptContext);
