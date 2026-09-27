@@ -127,7 +127,7 @@ test('authenticated Accounts live smoke: professional desk and popup workflows',
   }
   await expect(page.locator('#view-masters')).toBeVisible({ timeout: 30_000 });
   await expect(page.locator('#masterTitle')).toBeVisible();
-  await expect(page.locator('#masterBackTop')).toHaveAccessibleName('Back to Accounts home');
+  await expect(page.locator('#masterBackTop')).toHaveAccessibleName('Close Master Records and return to Accounts');
   await activate(page.locator('#masterBackTop'));
   await expect(page).toHaveURL(/\/accounts\/index\.php$/, { timeout: 30_000 });
   await expect.poll(() => page.evaluate(() => window.TT_ACCOUNTING_DESK?.installed || false), { timeout: 30_000 }).toBe(true);

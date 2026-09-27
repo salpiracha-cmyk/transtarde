@@ -309,11 +309,12 @@
       if(masterReturn?.url){
         const back=document.createElement('a');
         back.id='masterBackTop';
-        back.className='master-back-top';
+        back.className='master-back-top master-close-top';
         back.href=masterReturn.url;
-        back.setAttribute('aria-label',`Back to ${masterReturn.label} home`);
-        back.innerHTML=`<span aria-hidden="true">←</span><b>Back to ${escapeHtml(masterReturn.label)}</b>`;
-        document.querySelector('.topbar')?.prepend(back);
+        back.setAttribute('aria-label',`Close Master Records and return to ${masterReturn.label}`);
+        back.innerHTML=`<span aria-hidden="true">×</span><b>Close</b>`;
+        const topActions=document.querySelector('.top-actions');
+        if(topActions)topActions.prepend(back);else document.querySelector('.topbar')?.append(back);
       }
       document.title = `Transtrade ${moduleName} Master Records`;
       const heading=document.querySelector('#view-masters .page-heading');

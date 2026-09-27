@@ -18,7 +18,7 @@ for (const label of ['Purchases','Ledgers','Bags','Local Sales','Export Bills','
   requireText(ui, `title:'${label}'`, 'clean Accounts hub');
 }
 
-for (const marker of ['popupWorkspaces: true','searchableSelects: true','Type 1 or 2 letters to search','× Cancel','Generated automatically when saved','Bill adjustments (only when required)']) {
+for (const marker of ['popupWorkspaces: true','searchableSelects: true','Type 1 or 2 letters to search','× Close','← Go Back to Main','prepareSecondTier','activeGroup?.items','Generated automatically when saved','Bill adjustments (only when required)']) {
   requireText(ui, marker, 'clean UI rule');
 }
 requireText(ui, 'settleSalaryView', 'render-aware salary and rent mode');

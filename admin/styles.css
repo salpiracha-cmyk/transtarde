@@ -30,6 +30,8 @@ button { cursor: pointer; }
 .master-back-top:hover, .master-back-top:focus-visible { border-color: #9eb2c5; background: #f4f8fc; outline: none; }
 .master-back-top span { font-size: 1.15rem; line-height: 1; }
 .master-back-top b { font-size: .82rem; }
+.master-close-top { color: #8f2d28; border-color: #e3c8c6; }
+.master-close-top:hover, .master-close-top:focus-visible { color: #79231f; border-color: #c9918d; background: #fff7f7; }
 
 .app-shell { min-height: 100vh; display: grid; grid-template-columns: 260px minmax(0, 1fr); }
 .sidebar { position: sticky; top: 0; height: 100vh; display: flex; flex-direction: column; color: #dbe7f3; background: linear-gradient(180deg, #0c2947 0%, #081d33 100%); box-shadow: 8px 0 30px rgba(5, 25, 43, .12); z-index: 20; }

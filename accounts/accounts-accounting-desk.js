@@ -330,7 +330,7 @@
       host.id = id;
       host.className = 'tt-layer';
       host.hidden = true;
-      host.innerHTML = `<div class="tt-window" role="dialog" aria-modal="true"><div class="tt-window-head"><h2></h2><span></span><button class="tt-window-close" type="button">× Cancel</button></div><div class="tt-window-body"></div></div>`;
+      host.innerHTML = `<div class="tt-window" role="dialog" aria-modal="true"><div class="tt-window-head"><h2></h2><span></span><button class="tt-window-close" type="button">× Close</button></div><div class="tt-window-body"></div></div>`;
       q('.tt-window-close', host).onclick = () => { host.hidden = true; document.body.classList.remove('tt-desk-layer-open'); };
       host.onclick = event => { if (event.target === host) q('.tt-window-close', host).click(); };
       document.body.appendChild(host);

@@ -10,6 +10,8 @@
   let groupDialog = null;
   let masterMode = '';
   let activeSearchMenu = null;
+  let activeGroup = null;
+  let navigationMode = '';
 
   const groups = [
     {key:'purchases', icon:'◉', title:'Purchases', items:[
@@ -82,7 +84,7 @@
       #ttQuickDialog[hidden]{display:none}
       .tt-quick-window{width:min(760px,94vw);max-height:88vh;overflow:auto;background:#f7f9fb;border-radius:18px;box-shadow:0 28px 80px rgba(0,0,0,.3)}
       .tt-quick-head{display:flex;align-items:center;gap:12px;padding:16px 18px;background:#fff;border-bottom:1px solid #e4e9ee;position:sticky;top:0;z-index:2}
-      .tt-quick-head h2{margin:0;font-size:20px}.tt-quick-head span{flex:1}.tt-cancel{border:1px solid #e3c8c6;background:#fff;color:#8f2d28;border-radius:9px;padding:8px 11px;font-weight:800;cursor:pointer}
+      .tt-quick-head h2{margin:0;font-size:20px}.tt-quick-head span{flex:1}.tt-cancel{border:1px solid #d8e0e7;background:#fff;color:#173c63;border-radius:9px;padding:8px 11px;font-weight:800;cursor:pointer}
       .tt-quick-items{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:11px;padding:16px}
       .tt-quick-item{border:1px solid #dfe6ec;background:#fff;border-radius:14px;padding:15px;text-align:left;cursor:pointer;min-height:115px}
       .tt-quick-item:hover{border-color:#173c63;box-shadow:0 6px 18px rgba(19,40,65,.09)}
@@ -104,16 +106,28 @@
     groupDialog = document.createElement('div');
     groupDialog.id = 'ttQuickDialog';
     groupDialog.hidden = true;
-    groupDialog.innerHTML = '<div class="tt-quick-window" role="dialog" aria-modal="true"><div class="tt-quick-head"><h2></h2><span></span><button class="tt-cancel" type="button">× Cancel</button></div><div class="tt-quick-items"></div></div>';
-    q('.tt-cancel', groupDialog).onclick = closeGroup;
-    groupDialog.addEventListener('click', event => { if (event.target === groupDialog) closeGroup(); });
+    groupDialog.innerHTML = '<div class="tt-quick-window" role="dialog" aria-modal="true"><div class="tt-quick-head"><h2></h2><span></span><button class="tt-cancel" type="button">← Go Back to Main</button></div><div class="tt-quick-items"></div></div>';
+    q('.tt-cancel', groupDialog).onclick = returnToMain;
     document.body.appendChild(groupDialog);
   }
 
   function closeGroup() { if (groupDialog) groupDialog.hidden = true; }
 
+  function returnToMain() {
+    closeGroup();
+    navigationMode = '';
+    activeGroup = null;
+    masterMode = '';
+    qa('.workspace').forEach(workspace => workspace.classList.remove('active', 'tt-clean-modal', 'tt-editor-open', 'tt-master-only', 'tt-entry-only'));
+    qa('.tt-editor-stage').forEach(editor => editor.classList.remove('tt-editor-stage'));
+    document.body.classList.remove('tt-modal-open');
+    q('#entityHome').style.display = 'block';
+  }
+
   function openGroup(group) {
-    if (group.native) return launch({native:group.native});
+    activeGroup = group;
+    navigationMode = 'second-tier';
+    if (group.native) return launch({native:group.native}, false);
     q('h2', groupDialog).textContent = group.title;
     const items = q('.tt-quick-items', groupDialog);
     items.replaceChildren(...group.items.map(item => {
@@ -121,7 +135,7 @@
       button.className = 'tt-quick-item';
       button.type = 'button';
       button.innerHTML = `<span class="tt-quick-icon">${item.icon}</span><b>${item.title}</b><small>${item.hint}</small>`;
-      button.onclick = () => launch(item);
+      button.onclick = () => launch(item, true);
       return button;
     }));
     groupDialog.hidden = false;
@@ -131,8 +145,9 @@
     return qa('button', root).find(button => button.textContent.trim().toLowerCase().includes(text.toLowerCase()));
   }
 
-  async function launch(item) {
+  async function launch(item, isForm = true) {
     closeGroup();
+    navigationMode = isForm ? 'form' : 'second-tier';
     masterMode = item.master || '';
     qa('.workspace').forEach(workspace => workspace.classList.remove('active', 'tt-clean-modal', 'tt-editor-open', 'tt-master-only', 'tt-entry-only'));
     qa('.tt-editor-stage').forEach(editor => editor.classList.remove('tt-editor-stage'));
@@ -173,7 +188,7 @@
       q(`[data-bg-mode="${item.bagMode}"]`)?.click();
     }
     await sleep(20);
-    prepareModal();
+    if (isForm) prepareModal(); else prepareSecondTier();
     scan(q('.workspace.active') || document);
   }
 
@@ -184,7 +199,7 @@
     if (!bar) {
       bar = document.createElement('div');
       bar.className = 'tt-editor-bar';
-      bar.innerHTML = '<button class="backBtn tt-clean-close" type="button">× Cancel</button><h2></h2>';
+      bar.innerHTML = '<button class="backBtn tt-clean-close" type="button">× Close</button><h2></h2>';
       workspace.insertBefore(bar, editor);
     }
     makeCloseButton(q('button', bar), workspace);
@@ -199,6 +214,8 @@
     document.body.classList.remove('tt-modal-open');
     q('#entityHome').style.display = 'block';
     masterMode = '';
+    navigationMode = 'second-tier';
+    if (activeGroup?.items) openGroup(activeGroup);
   }
 
   function makeCloseButton(button, workspace) {
@@ -207,7 +224,8 @@
     if (button.closest('.tt-editor-bar')) button.setAttribute('data-editor-back', '');
     else button.removeAttribute('data-editor-back');
     button.classList.add('tt-clean-close');
-    button.textContent = '× Cancel';
+    button.textContent = '× Close';
+    button.setAttribute('aria-label', 'Close form and return to previous screen');
     button.onclick = event => { event.preventDefault(); event.stopPropagation(); closeModal(workspace); };
   }
 
@@ -224,6 +242,36 @@
     qa('[data-editor-back], .tt-editor-bar .tt-clean-close', workspace).forEach(button => makeCloseButton(button, workspace));
     document.body.classList.add('tt-modal-open');
     q('#entityHome').style.display = 'block';
+  }
+
+  function prepareSecondTier() {
+    const activeWorkspaces = qa('.workspace.active');
+    const workspace = activeWorkspaces.find(candidate => candidate.offsetParent !== null)
+      || activeWorkspaces[activeWorkspaces.length - 1]
+      || null;
+    if (!workspace) return;
+    workspace.classList.remove('tt-clean-modal', 'tt-editor-open', 'tt-master-only', 'tt-entry-only');
+    qa('.tt-editor-stage', workspace).forEach(editor => editor.classList.remove('tt-editor-stage'));
+    document.body.classList.remove('tt-modal-open');
+    const back = q(':scope > .panelHead [data-back], :scope > .panelHead .tt-clean-close', workspace);
+    if (back) {
+      back.classList.remove('tt-clean-close');
+      back.removeAttribute('data-editor-back');
+      back.setAttribute('data-back', '');
+      back.textContent = '← Go Back to Main';
+      back.setAttribute('aria-label', 'Go Back to Accounts Main');
+      back.onclick = event => { event.preventDefault(); event.stopPropagation(); returnToMain(); };
+    }
+  }
+
+  function normalizeHeaderCloseButtons(root = document) {
+    const selector = '.panelHead,.tter-head,.tal-head,.ttbr-head,.ttlcl-head,.ttlcr-head,.ttst-head,.ttsl-head,.ttsph-head,.tgm-modal-head,.tt-window-head,.modalHead,.ttmc-card>div:first-child';
+    const headers = [...(root.matches?.(selector) ? [root] : []), ...qa(selector, root)];
+    headers.forEach(header => qa('button', header).forEach(button => {
+      if (!/^([×✕]\s*)?close$/i.test(button.textContent.trim())) return;
+      button.textContent = '× Close';
+      if (!button.getAttribute('aria-label')) button.setAttribute('aria-label', 'Close form and return to previous screen');
+    }));
   }
 
   function searchable(select) {
@@ -359,6 +407,7 @@
     if (!editor || !q('.ttrs', editor)) return;
     const workspace = editor.closest('.workspace');
     if (!workspace?.classList.contains('active')) return;
+    if (navigationMode !== 'form') return;
     workspace.classList.add('active', 'tt-clean-modal');
     document.body.classList.add('tt-modal-open');
     workspace.classList.toggle('tt-master-only', !!masterMode);
@@ -427,8 +476,12 @@
     qa('select', root).forEach(searchable);
     simplifyCommodity(root);
     markGenerated(root);
+    normalizeHeaderCloseButtons(root);
     salaryView(root);
-    if (q('.workspace.active')) prepareModal();
+    if (q('.workspace.active')) {
+      if (navigationMode === 'form') prepareModal();
+      else if (navigationMode === 'second-tier') prepareSecondTier();
+    }
   }
 
   async function settleSalaryView(expectedMasterMode) {
@@ -476,7 +529,7 @@
     if (!rebuildHome()) return;
     document.addEventListener('click', event => {
       if (event.target.closest('.entityBtn')) window.setTimeout(() => { q('#entityHome').style.display = 'block'; }, 0);
-      if (event.target.closest('[data-back]')) window.setTimeout(() => { document.body.classList.remove('tt-modal-open'); masterMode = ''; }, 0);
+      if (event.target.closest('[data-back]')) window.setTimeout(() => { document.body.classList.remove('tt-modal-open'); masterMode = ''; navigationMode = ''; activeGroup = null; }, 0);
       if (event.target.closest('[data-expense="salary"],[data-expense="rent"]')) void settleSalaryView(masterMode);
     }, true);
     document.addEventListener('click', event => {
