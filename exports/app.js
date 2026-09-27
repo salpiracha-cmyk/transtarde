@@ -1489,15 +1489,16 @@ function ttProportionalEmptyBags(process,contract,draft){
  }
 }
 async function showAgreedFreightOnLoading(d,process,contract,draft){
- const entity=String(contract.seller||'').toUpperCase();if(!['TTI','BRM'].includes(entity))return;
+ const seller=String(contract.seller||'').toUpperCase(),entities=seller==='TG'?['TTI','BRM']:[seller];if(!entities.some(entity=>['TTI','BRM'].includes(entity)))return;
  try{
-  const query=new URLSearchParams({entity,section:'freight_for_exports',contractRef:process.contractRef});
-  const response=await fetch('../api/accounts_workflows_v1.php?'+query,{credentials:'same-origin',headers:{Accept:'application/json'}});
-  const result=await response.json();if(!response.ok||!result.ok||!result.agreement||!d.isConnected||process.loading.draft!==draft)return;
-  const agreement=result.agreement,program=d.querySelector('#liProgramme'),line=d.querySelector('#liShippingLine');
+  const found=await Promise.allSettled(entities.map(async entity=>{const query=new URLSearchParams({entity,section:'freight_for_exports',contractRef:process.contractRef});const response=await fetch('../api/accounts_workflows_v1.php?'+query,{credentials:'same-origin',headers:{Accept:'application/json'}});if(!response.ok)return null;const result=await response.json();return result.ok&&result.agreement?{entity,agreement:result.agreement}:null}));
+  if(!d.isConnected||process.loading.draft!==draft)return;
+  const matches=found.filter(row=>row.status==='fulfilled'&&row.value).map(row=>row.value),selected=matches.length===1?matches[0]:matches.find(row=>process.customs?.exporter===row.entity);
+  if(!selected){if(matches.length>1){const note=document.createElement('div');note.className='notice';note.textContent='Freight Agreed exists under both TTI and BRM. Select the Pakistan exporter before using either agreement.';d.querySelector('#liShippingLine')?.closest('.field')?.insertAdjacentElement('afterend',note)}return;}
+  const agreement=selected.agreement,program=d.querySelector('#liProgramme'),line=d.querySelector('#liShippingLine');
   if(program&&!program.value.trim()&&agreement.loadingProgrammeNo){program.value=agreement.loadingProgrammeNo;draft.loadingProgrammeNo=program.value;}
   if(line&&!line.value.trim()&&agreement.shippingLine){line.value=agreement.shippingLine;draft.shippingLine=line.value;}
-  const note=document.createElement('div');note.className='notice green';note.textContent=`Accounts Freight Agreed: ${agreement.currency||'USD'} ${Number(agreement.ratePerContainer||0).toLocaleString('en-PK')} per container · ${agreement.containerCount||'—'} containers · ${agreement.destinationPort||'—'}. ${agreement.id||''}`;
+  const note=document.createElement('div');note.className='notice green';note.textContent=`${selected.entity} Freight Agreed: ${agreement.currency||'USD'} ${Number(agreement.ratePerContainer||0).toLocaleString('en-PK')} per container · ${agreement.containerCount||'—'} containers · ${agreement.destinationPort||'—'}. ${agreement.id||''}`;
   line?.closest('.field')?.insertAdjacentElement('afterend',note);
  }catch(error){console.warn('Freight agreement lookup unavailable',error)}
 }

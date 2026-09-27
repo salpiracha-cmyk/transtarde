@@ -211,7 +211,7 @@ For supplier post-dated cheques, issue posts the selected payable to Issued Cheq
 
 For local customer post-dated cheques, issue moves the selected Local Soda receivable to Customer Cheques in Hand (1130), without increasing the bank book. Clearance debits the chosen company bank and credits 1130. Cancellation or bounce restores the receivable, with a separate bank reversal if the cheque had cleared. This path requires an existing open Local Soda receivable and cannot create a customer advance.
 
-Freight Agreed is planning data tied to the selected Export shipment and contract. Exports loading instructions may fill empty shipping-line and loading-programme fields from it; a user-entered value remains authoritative. The agreed USD rate is shown as a reference and never posts to the ledger. Freight invoice posting uses the carrier's actual exchange rate.
+Freight Agreed is planning data tied to the selected Export shipment and contract. Exports loading instructions may fill empty shipping-line and loading-programme fields from it; a user-entered value remains authoritative. TG contracts search both TTI and BRM Pakistan-exporter books. If both have a matching agreement, the exporter must be identified before applying either one. The agreed USD rate is shown as a reference and never posts to the ledger. Freight invoice posting uses the carrier's actual exchange rate.
 
 ## 20. Journal Voucher
 JV is mandatory and supports multi-line debit/credit entries. Total debit must equal total credit. JV must not become a shortcut around normal operational workflows. Corrections use reversal/amendment history rather than silent deletion.
