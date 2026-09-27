@@ -7,7 +7,7 @@ $bank=['id'=>'bank-tti','bankName'=>'Test Bank','accountTitle'=>'TTI QA','curren
 $issue=['lines'=>[
     ss_line('2120',100,0,$catalog),
     ss_line('2300',0,15,$catalog),
-    ss_line('2140',0,85,$catalog),
+    ss_line('2180',0,85,$catalog),
 ]];
 $clear=ss_cheque_bank_lines(85,$bank,$catalog);
 $returned=ss_cheque_bank_lines(85,$bank,$catalog,true);
@@ -19,10 +19,10 @@ function cheque_balances(array $groups):array{
     return $balances;
 }
 $pending=cheque_balances([$issue['lines']]);
-cheque_assert(!isset($pending['1110'])&&($pending['2140']??0)===-85.0,'Issued cheque must not reduce the bank.');
+cheque_assert(!isset($pending['1110'])&&($pending['2180']??0)===-85.0,'Issued cheque must not reduce the bank.');
 cheque_assert(($clear[1]['bankAccountId']??'')==='bank-tti'&&($clear[1]['credit']??0)===85.0,'Clearance must credit the selected bank.');
 $cleared=cheque_balances([$issue['lines'],$clear]);
-cheque_assert(($cleared['2140']??0)===0.0&&($cleared['1110']??0)===-85.0,'Clearance must settle the issued cheque liability.');
+cheque_assert(($cleared['2180']??0)===0.0&&($cleared['1110']??0)===-85.0,'Clearance must settle the issued cheque liability.');
 $cancelled=cheque_balances([$issue['lines'],$reopened]);
 foreach($cancelled as $amount)cheque_assert(abs($amount)<.005,'Cancellation must restore every original payable and tax line.');
 $bounced=cheque_balances([$issue['lines'],$clear,$returned,$reopened]);

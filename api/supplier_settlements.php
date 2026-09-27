@@ -90,7 +90,7 @@ function ss_post_journal(array &$store,array $user,string $entity,string $date,s
 }
 function ss_cheque_bank_lines(float $amount,array $bank,array $catalog,bool $returned=false):array{
     $bankLine=ss_line('1110',$returned?$amount:0,$returned?0:$amount,$catalog,['bankAccountId'=>$bank['id'],'bankName'=>$bank['bankName'],'bankAccountTitle'=>$bank['accountTitle'],'currency'=>$bank['currency']]);
-    $pendingLine=ss_line('2140',$returned?0:$amount,$returned?$amount:0,$catalog);
+    $pendingLine=ss_line('2180',$returned?0:$amount,$returned?$amount:0,$catalog);
     return $returned?[$bankLine,$pendingLine]:[$pendingLine,$bankLine];
 }
 function ss_cheque_reversal_lines(array $issue):array{
@@ -254,7 +254,7 @@ try{
             $issuing=$action==='issue_supplier_cheque';if($issuing&&$mode!=='BANK')ss_respond(['ok'=>false,'error'=>'A post-dated cheque needs an approved bank account.'],422);
             if($issuing){$chequeDate=ss_date((string)($body['chequeDate']??''));if($chequeDate<$date)ss_respond(['ok'=>false,'error'=>'Cheque date cannot be before issue date.'],422);foreach((array)$store['supplierSettlements'] as $prior)if(is_array($prior)&&($prior['entity']??'')===$entity&&($prior['bankAccountId']??'')===$bankId&&strcasecmp((string)($prior['chequeNo']??''),$bankReference)===0&&$bankReference!==''&&isset($prior['chequeIssueJournalId']))ss_respond(['ok'=>false,'error'=>'This cheque number has already been issued on this bank.'],409);}
             $sourceMeta=[];$sourceLabel='';
-            if($mode==='BANK'){$bank=ss_require_pkr_bank(ss_bank_source($store,$entity,$bankId,'payment'));$creditLine=$issuing?ss_line('2140',0,$prepared['netPayment'],$catalog):ss_line('1110',0,$prepared['netPayment'],$catalog,['bankAccountId'=>$bankId,'bankName'=>$bank['bankName'],'bankAccountTitle'=>$bank['accountTitle'],'currency'=>$bank['currency']]);$sourceMeta=['paymentMode'=>'BANK','bankAccountId'=>$bankId,'bankName'=>$bank['bankName'],'bankAccountTitle'=>$bank['accountTitle'],'currency'=>$bank['currency']];$sourceLabel=$bank['bankName'].' — '.$bank['accountTitle'];}
+            if($mode==='BANK'){$bank=ss_require_pkr_bank(ss_bank_source($store,$entity,$bankId,'payment'));$creditLine=$issuing?ss_line('2180',0,$prepared['netPayment'],$catalog):ss_line('1110',0,$prepared['netPayment'],$catalog,['bankAccountId'=>$bankId,'bankName'=>$bank['bankName'],'bankAccountTitle'=>$bank['accountTitle'],'currency'=>$bank['currency']]);$sourceMeta=['paymentMode'=>'BANK','bankAccountId'=>$bankId,'bankName'=>$bank['bankName'],'bankAccountTitle'=>$bank['accountTitle'],'currency'=>$bank['currency']];$sourceLabel=$bank['bankName'].' — '.$bank['accountTitle'];}
             elseif($mode==='CASH'){$cash=ss_cash_source($store,$entity,'payment');$creditLine=ss_line('1120',0,$prepared['netPayment'],$catalog,['cashAccountId'=>$cash['id']]);$sourceMeta=['paymentMode'=>'CASH','cashAccountId'=>$cash['id']];$sourceLabel='Cash / Petty Cash';}
             else ss_respond(['ok'=>false,'error'=>'Select an actual Bank Account or Cash payment source.'],422);
             $lines=[];foreach($prepared['debits'] as $account=>$value)if($value>0)$lines[]=ss_line((string)$account,(float)$value,0,$catalog);if($prepared['withholding']>0)$lines[]=ss_line('2300',0,$prepared['withholding'],$catalog);$lines[]=$creditLine;

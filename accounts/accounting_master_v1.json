@@ -253,7 +253,7 @@
       ]
     },
     {
-      "code": "2140",
+      "code": "2180",
       "name": "Issued Cheques Awaiting Bank Clearance",
       "class": "Liability",
       "level": "general",
