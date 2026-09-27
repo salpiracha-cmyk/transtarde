@@ -479,6 +479,10 @@
     normalizeHeaderCloseButtons(root);
     salaryView(root);
     if (q('.workspace.active')) {
+      // The accounting desk can open a native form without passing through
+      // this icon-group launcher. Treat that active workspace as a form;
+      // explicit second-tier launches set their mode before the click.
+      if (!navigationMode) navigationMode = 'form';
       if (navigationMode === 'form') prepareModal();
       else if (navigationMode === 'second-tier') prepareSecondTier();
     }
