@@ -164,6 +164,7 @@
       const root = q('.workspace.active') || document;
       qa('button', root).find(button => button.textContent.toLowerCase().includes(action.find.toLowerCase()))?.click();
     }
+    document.dispatchEvent(new CustomEvent('tt:accounts-desk-form-opened'));
   }
 
   function buildTopbar() {
