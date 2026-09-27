@@ -105,7 +105,8 @@
     }
 
     const workspaceTitle = workspace.querySelector(':scope > .panelHead h2')?.textContent?.trim() || 'Accounts';
-    bar.querySelector('[data-editor-back]').textContent = '← ' + workspaceTitle;
+    const back = bar.querySelector('[data-editor-back], .tt-clean-close');
+    if (back && !back.classList.contains('tt-clean-close')) back.textContent = '← ' + workspaceTitle;
     bar.querySelector('h2').textContent = editorTitle(card);
     editor.classList.add('tt-editor-stage');
     workspace.classList.add('tt-editor-open');
