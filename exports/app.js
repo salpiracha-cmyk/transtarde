@@ -1491,10 +1491,14 @@ function ttProportionalEmptyBags(process,contract,draft){
 async function showAgreedFreightOnLoading(d,process,contract,draft){
  const seller=String(contract.seller||'').toUpperCase(),entities=seller==='TG'?['TTI','BRM']:[seller];if(!entities.some(entity=>['TTI','BRM'].includes(entity)))return;
  try{
-  const found=await Promise.allSettled(entities.map(async entity=>{const query=new URLSearchParams({entity,section:'freight_for_exports',contractRef:process.contractRef});const response=await fetch('../api/accounts_workflows_v1.php?'+query,{credentials:'same-origin',headers:{Accept:'application/json'}});if(!response.ok)return null;const result=await response.json();return result.ok&&result.agreement?{entity,agreement:result.agreement}:null}));
+  const found=await Promise.allSettled(entities.map(async entity=>{const query=new URLSearchParams({entity,section:'freight_for_exports',contractRef:process.contractRef});const response=await fetch('../api/accounts_workflows_v1.php?'+query,{credentials:'same-origin',headers:{Accept:'application/json'}});if(!response.ok)return [];const result=await response.json();return result.ok&&Array.isArray(result.agreements)?result.agreements.map(agreement=>({entity,agreement})):[]}));
   if(!d.isConnected||process.loading.draft!==draft)return;
-  const matches=found.filter(row=>row.status==='fulfilled'&&row.value).map(row=>row.value),selected=matches.length===1?matches[0]:matches.find(row=>process.customs?.exporter===row.entity);
-  if(!selected){if(matches.length>1){const note=document.createElement('div');note.className='notice';note.textContent='Freight Agreed exists under both TTI and BRM. Select the Pakistan exporter before using either agreement.';d.querySelector('#liShippingLine')?.closest('.field')?.insertAdjacentElement('afterend',note)}return;}
+  const matches=found.filter(row=>row.status==='fulfilled').flatMap(row=>row.value),exporter=process.customs?.exporter;
+  const scoped=exporter?matches.filter(row=>row.entity===exporter):matches;
+  const programme=String(draft.loadingProgrammeNo||'').trim();
+  const exact=programme?scoped.filter(row=>String(row.agreement.loadingProgrammeNo||'').trim().toUpperCase()===programme.toUpperCase()):[];
+  const selected=exact.length===1?exact[0]:!programme&&scoped.length===1?scoped[0]:null;
+  if(!selected){if(matches.length){const note=document.createElement('div');note.className='notice';note.textContent=!exporter&&entities.length>1&&new Set(matches.map(row=>row.entity)).size>1?'Freight Agreed exists under both TTI and BRM. Select the Pakistan exporter before using an agreement.':'Multiple Freight Agreed records match this contract, or the Loading Programme No. differs. Enter the correct programme and shipping line; Accounts can confirm the shipment agreement.';d.querySelector('#liShippingLine')?.closest('.field')?.insertAdjacentElement('afterend',note)}return;}
   const agreement=selected.agreement,program=d.querySelector('#liProgramme'),line=d.querySelector('#liShippingLine');
   if(program&&!program.value.trim()&&agreement.loadingProgrammeNo){program.value=agreement.loadingProgrammeNo;draft.loadingProgrammeNo=program.value;}
   if(line&&!line.value.trim()&&agreement.shippingLine){line.value=agreement.shippingLine;draft.shippingLine=line.value;}
