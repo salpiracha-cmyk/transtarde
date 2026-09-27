@@ -68,6 +68,14 @@
       ]
     },
     {
+      "code": "1130",
+      "name": "Customer Cheques in Hand",
+      "class": "Asset",
+      "level": "general",
+      "normal": "Debit",
+      "subledger": true
+    },
+    {
       "code": "1200",
       "name": "Trade & Other Receivables",
       "class": "Asset",
