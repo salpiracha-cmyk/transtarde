@@ -208,15 +208,48 @@ try{
     tt_ensure_data_dir();$h=fopen(TT_SETTLEMENT_FILE,'c+');if($h===false||!flock($h,LOCK_EX))throw new RuntimeException('Accounts storage unavailable.');
     try{
         rewind($h);$raw=stream_get_contents($h);$store=$raw?json_decode($raw,true):null;if(!is_array($store))$store=ss_default_store();$store=array_replace_recursive(ss_default_store(),$store);
-        if($action==='post_supplier_payment'){
+        if($action==='clear_supplier_cheque'||$action==='cancel_supplier_cheque'||$action==='bounce_supplier_cheque'){
+            $id=trim((string)($body['settlementId']??''));$item=$store['supplierSettlements'][$id]??null;
+            if(!is_array($item)||($item['entity']??'')!==$entity||empty($item['chequeIssueJournalId']))ss_respond(['ok'=>false,'error'=>'Issued supplier cheque was not found in these books.'],404);
+            $status=(string)($item['chequeStatus']??'');$amount=round((float)($item['netPayment']??0),2);
+            if($action==='clear_supplier_cheque'){
+                if($status!=='Issued')ss_respond(['ok'=>false,'error'=>'Only an issued cheque can be cleared once.'],409);
+                if($date<(string)($item['chequeDate']??$item['date']??''))ss_respond(['ok'=>false,'error'=>'Bank clearance cannot predate the cheque date.'],422);
+                $bank=ss_require_pkr_bank(ss_bank_source($store,$entity,(string)($item['bankAccountId']??''),'payment'));
+                $bankRef=trim((string)($body['bankReference']??''));if($bankRef==='')ss_respond(['ok'=>false,'error'=>'Enter the bank statement transaction reference.'],422);
+                $lines=[ss_line('2140',$amount,0,$catalog),ss_line('1110',0,$amount,$catalog,['bankAccountId'=>$bank['id'],'bankName'=>$bank['bankName'],'bankAccountTitle'=>$bank['accountTitle'],'currency'=>$bank['currency']])];
+                $journal=ss_post_journal($store,$user,$entity,$date,'SUPPLIER_CHEQUE_CLEARED',$bankRef,'Bank cleared cheque '.$item['chequeNo'].' — '.$item['broker'],$lines,['settlementId'=>$id,'chequeNo'=>$item['chequeNo'],'bankAccountId'=>$bank['id']]);
+                $item['chequeStatus']='Cleared';$item['clearanceJournalId']=$journal['id'];$item['clearedAt']=$date;$item['bankReference']=$bankRef;
+            }else{
+                $reason=trim((string)($body['reason']??''));if($reason==='')ss_respond(['ok'=>false,'error'=>'Record why this cheque was cancelled, stopped or bounced.'],422);
+                if(!in_array($status,['Issued','Cleared'],true))ss_respond(['ok'=>false,'error'=>'This cheque was already resolved.'],409);
+                if($date<(string)($item['date']??''))ss_respond(['ok'=>false,'error'=>'Resolution cannot predate cheque issue.'],422);
+                if($action==='cancel_supplier_cheque'&&$status==='Cleared')ss_respond(['ok'=>false,'error'=>'A cleared cheque must use the bounced-cheque workflow.'],409);
+                $journals=[];
+                if($status==='Cleared'){
+                    if($date<(string)($item['clearedAt']??''))ss_respond(['ok'=>false,'error'=>'Bounce cannot predate bank clearance.'],422);
+                    $bank=ss_require_pkr_bank(ss_bank_source($store,$entity,(string)($item['bankAccountId']??''),'payment'));
+                    $lines=[ss_line('1110',$amount,0,$catalog,['bankAccountId'=>$bank['id'],'bankName'=>$bank['bankName'],'bankAccountTitle'=>$bank['accountTitle'],'currency'=>$bank['currency']]),ss_line('2140',0,$amount,$catalog)];
+                    $journals[]=ss_post_journal($store,$user,$entity,$date,'SUPPLIER_CHEQUE_BANK_REVERSAL',(string)$item['chequeNo'],'Bank returned supplier cheque — '.$reason,$lines,['settlementId'=>$id,'reversalOf'=>$item['clearanceJournalId']??'','bankAccountId'=>$bank['id']]);
+                }
+                $issue=$store['journals'][$item['chequeIssueJournalId']]??null;if(!is_array($issue))throw new RuntimeException('Issued cheque journal missing.');
+                $lines=[];foreach((array)$issue['lines'] as $line){if(!is_array($line))continue;$reverse=$line;$reverse['debit']=(float)($line['credit']??0);$reverse['credit']=(float)($line['debit']??0);$lines[]=$reverse;}
+                $journals[]=ss_post_journal($store,$user,$entity,$date,'SUPPLIER_CHEQUE_PAYABLE_REOPENED',(string)$item['chequeNo'],'Supplier payable restored — '.$reason,$lines,['settlementId'=>$id,'reversalOf'=>$item['chequeIssueJournalId']]);
+                $item['chequeStatus']=$action==='bounce_supplier_cheque'?'Bounced':'Cancelled / Stopped';$item['status']=$item['chequeStatus'];$item['resolutionReason']=$reason;$item['resolvedAt']=$date;$item['resolutionJournalIds']=array_column($journals,'id');
+            }
+            $store['supplierSettlements'][$id]=$item;$result=$item;
+        }
+        elseif($action==='post_supplier_payment'||$action==='issue_supplier_cheque'){
             $prepared=ss_prepare_allocations($store,$entity,(array)($body['allocations']??[]));$mode=strtoupper(trim((string)($body['paymentMode']??'')));$bankId=trim((string)($body['bankAccountId']??''));$bankReference=trim((string)($body['reference']??''));if($mode==='BANK'&&$bankReference==='')ss_respond(['ok'=>false,'error'=>'Cheque number or bank transaction reference is required for a bank payment.'],422);
+            $issuing=$action==='issue_supplier_cheque';if($issuing&&$mode!=='BANK')ss_respond(['ok'=>false,'error'=>'A post-dated cheque needs an approved bank account.'],422);
+            if($issuing){$chequeDate=ss_date((string)($body['chequeDate']??''));if($chequeDate<$date)ss_respond(['ok'=>false,'error'=>'Cheque date cannot be before issue date.'],422);foreach((array)$store['supplierSettlements'] as $prior)if(is_array($prior)&&($prior['entity']??'')===$entity&&($prior['bankAccountId']??'')===$bankId&&strcasecmp((string)($prior['chequeNo']??''),$bankReference)===0&&$bankReference!==''&&isset($prior['chequeIssueJournalId']))ss_respond(['ok'=>false,'error'=>'This cheque number has already been issued on this bank.'],409);}
             $sourceMeta=[];$sourceLabel='';
-            if($mode==='BANK'){$bank=ss_require_pkr_bank(ss_bank_source($store,$entity,$bankId,'payment'));$creditLine=ss_line('1110',0,$prepared['netPayment'],$catalog,['bankAccountId'=>$bankId,'bankName'=>$bank['bankName'],'bankAccountTitle'=>$bank['accountTitle'],'currency'=>$bank['currency']]);$sourceMeta=['paymentMode'=>'BANK','bankAccountId'=>$bankId,'bankName'=>$bank['bankName'],'bankAccountTitle'=>$bank['accountTitle'],'currency'=>$bank['currency']];$sourceLabel=$bank['bankName'].' — '.$bank['accountTitle'];}
+            if($mode==='BANK'){$bank=ss_require_pkr_bank(ss_bank_source($store,$entity,$bankId,'payment'));$creditLine=$issuing?ss_line('2140',0,$prepared['netPayment'],$catalog):ss_line('1110',0,$prepared['netPayment'],$catalog,['bankAccountId'=>$bankId,'bankName'=>$bank['bankName'],'bankAccountTitle'=>$bank['accountTitle'],'currency'=>$bank['currency']]);$sourceMeta=['paymentMode'=>'BANK','bankAccountId'=>$bankId,'bankName'=>$bank['bankName'],'bankAccountTitle'=>$bank['accountTitle'],'currency'=>$bank['currency']];$sourceLabel=$bank['bankName'].' — '.$bank['accountTitle'];}
             elseif($mode==='CASH'){$cash=ss_cash_source($store,$entity,'payment');$creditLine=ss_line('1120',0,$prepared['netPayment'],$catalog,['cashAccountId'=>$cash['id']]);$sourceMeta=['paymentMode'=>'CASH','cashAccountId'=>$cash['id']];$sourceLabel='Cash / Petty Cash';}
             else ss_respond(['ok'=>false,'error'=>'Select an actual Bank Account or Cash payment source.'],422);
             $lines=[];foreach($prepared['debits'] as $account=>$value)if($value>0)$lines[]=ss_line((string)$account,(float)$value,0,$catalog);if($prepared['withholding']>0)$lines[]=ss_line('2300',0,$prepared['withholding'],$catalog);$lines[]=$creditLine;
-            $id=ss_next_id((array)$store['supplierSettlements'],'SP');$reference=trim((string)($body['reference']??''))?:$id;$journal=ss_post_journal($store,$user,$entity,$date,'SUPPLIER_PAYMENT',$reference,'Supplier payment — '.$prepared['broker'].' — '.$sourceLabel,$lines,array_merge(['settlementId'=>$id,'broker'=>$prepared['broker'],'allocations'=>$prepared['rows']],$sourceMeta));
-            $store['supplierSettlements'][$id]=array_merge(['id'=>$id,'entity'=>$entity,'date'=>$date,'type'=>'Bank / Cash Supplier Payment','broker'=>$prepared['broker'],'amount'=>$prepared['total'],'withholding'=>$prepared['withholding'],'netPayment'=>$prepared['netPayment'],'allocations'=>$prepared['rows'],'reference'=>$reference,'chequeNo'=>$mode==='BANK'?$bankReference:'','journalId'=>$journal['id'],'status'=>'Posted','createdAt'=>gmdate('c'),'createdBy'=>(string)($user['full_name']??$user['username']??'Accounts')],$sourceMeta);$result=$store['supplierSettlements'][$id];
+            $id=ss_next_id((array)$store['supplierSettlements'],'SP');$reference=trim((string)($body['reference']??''))?:$id;$journal=ss_post_journal($store,$user,$entity,$date,$issuing?'SUPPLIER_CHEQUE_ISSUED':'SUPPLIER_PAYMENT',$reference,($issuing?'Post-dated supplier cheque issued':'Supplier payment').' — '.$prepared['broker'].' — '.$sourceLabel,$lines,array_merge(['settlementId'=>$id,'broker'=>$prepared['broker'],'allocations'=>$prepared['rows']],$sourceMeta));
+            $store['supplierSettlements'][$id]=array_merge(['id'=>$id,'entity'=>$entity,'date'=>$date,'type'=>$issuing?'Post-Dated Supplier Cheque':'Bank / Cash Supplier Payment','broker'=>$prepared['broker'],'amount'=>$prepared['total'],'withholding'=>$prepared['withholding'],'netPayment'=>$prepared['netPayment'],'allocations'=>$prepared['rows'],'reference'=>$reference,'chequeNo'=>$mode==='BANK'?$bankReference:'','journalId'=>$journal['id'],'status'=>'Posted','createdAt'=>gmdate('c'),'createdBy'=>(string)($user['full_name']??$user['username']??'Accounts')],$sourceMeta,$issuing?['chequeDate'=>$chequeDate,'chequeStatus'=>'Issued','chequeIssueJournalId'=>$journal['id']]:[]);$result=$store['supplierSettlements'][$id];
         }
         elseif($action==='record_supplier_advance'){
             $amount=ss_money($body['amount']??0,'Advance amount');$supplier=trim((string)($body['supplier']??''));if($supplier==='')ss_respond(['ok'=>false,'error'=>'Supplier / broker is required.'],422);

@@ -253,6 +253,14 @@
       ]
     },
     {
+      "code": "2140",
+      "name": "Issued Cheques Awaiting Bank Clearance",
+      "class": "Liability",
+      "level": "general",
+      "normal": "Credit",
+      "subledger": true
+    },
+    {
       "code": "2130",
       "name": "Freight & Logistics Payables",
       "class": "Liability",
