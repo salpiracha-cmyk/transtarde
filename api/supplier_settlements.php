@@ -84,7 +84,7 @@ function ss_post_journal(array &$store,array $user,string $entity,string $date,s
         'id'=>$id,'entity'=>$entity,'date'=>$date,'sourceType'=>$sourceType,'reference'=>$reference,
         'narration'=>$narration,'lines'=>$lines,'totalDebit'=>$dr,'totalCredit'=>$cr,'status'=>'Posted','meta'=>$meta,
         'createdAt'=>gmdate('c'),'createdBy'=>(string)($user['full_name']??$user['username']??'Accounts'),
-        'userId'=>(int)($user['id']??0),'reversalOf'=>null
+        'userId'=>(int)($user['id']??0),'reversalOf'=>isset($meta['reversalOf'])?(string)$meta['reversalOf']:null
     ];
     return $store['journals'][$id];
 }

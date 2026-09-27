@@ -32,7 +32,7 @@
   }
   function download(){
     if(!data)return;const [heads,records]=reportRows();
-    const quote=v=>'"'+String(v??'').replaceAll('"','""')+'"';
+    const quote=v=>{const value=String(v??'');return '"'+(typeof v==='string'&&/^[=+@\-\t\r]/.test(value)?"'":'')+value.replaceAll('"','""')+'"'};
     const csv=[heads.map(quote).join(','),...records.map(record=>record.map(quote).join(','))].join('\r\n');
     const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'})),link=document.createElement('a');
     link.href=url;link.download=`${entity()}-${view}-${data.from}-to-${data.asOf}.csv`;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);

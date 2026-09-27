@@ -13,6 +13,9 @@ $clear=ss_cheque_bank_lines(85,$bank,$catalog);
 $returned=ss_cheque_bank_lines(85,$bank,$catalog,true);
 $reopened=ss_cheque_reversal_lines($issue);
 function cheque_assert(bool $condition,string $message):void{if(!$condition)throw new RuntimeException($message);}
+$master=json_decode((string)file_get_contents(TT_SETTLEMENT_MASTER),true);
+$codes=array_map(static fn($account)=>(string)$account['code'],(array)($master['chart']??[]));
+cheque_assert(count($codes)===count(array_unique($codes)),'Chart account codes must be unique.');
 function cheque_balances(array $groups):array{
     $balances=[];
     foreach($groups as $group)foreach($group as $line){$account=(string)$line['account'];$balances[$account]=round(($balances[$account]??0)+(float)$line['debit']-(float)$line['credit'],2);}
