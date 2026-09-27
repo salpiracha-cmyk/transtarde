@@ -79,7 +79,7 @@
       .workspace.tt-clean-modal textarea{min-height:48px}
       .workspace.tt-clean-modal input,.workspace.tt-clean-modal select,.workspace.tt-clean-modal textarea{padding:8px 9px}
       .workspace.tt-clean-modal .tt-editor-bar{position:sticky;top:0;z-index:14;background:#fff;padding:14px 72px 12px 18px!important;border-radius:18px 18px 0 0}
-      .workspace.tt-clean-modal .tt-editor-bar [data-editor-back]{position:absolute;right:15px;top:12px;color:#8f2d28}
+      .workspace.tt-clean-modal .tt-editor-bar .tt-clean-close{position:absolute;right:15px;top:12px;color:#8f2d28}
       #ttQuickDialog{position:fixed;inset:0;z-index:220;display:grid;place-items:center;padding:18px;background:rgba(10,25,43,.46)}
       #ttQuickDialog[hidden]{display:none}
       .tt-quick-window{width:min(760px,94vw);max-height:88vh;overflow:auto;background:#f7f9fb;border-radius:18px;box-shadow:0 28px 80px rgba(0,0,0,.3)}
@@ -221,8 +221,10 @@
   function makeCloseButton(button, workspace) {
     if (!button) return;
     button.removeAttribute('data-back');
-    if (button.closest('.tt-editor-bar')) button.setAttribute('data-editor-back', '');
-    else button.removeAttribute('data-editor-back');
+    // Once a form is in the shared close shell it must not retain either
+    // legacy navigation marker; older capture handlers treat those markers as
+    // drill-up navigation and can leave the modal backdrop behind.
+    button.removeAttribute('data-editor-back');
     button.classList.add('tt-clean-close');
     button.textContent = '× Close';
     button.setAttribute('aria-label', 'Close form and return to previous screen');

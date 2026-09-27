@@ -26,7 +26,8 @@ requireText(ui, "root.closest?.('#expenseEditor')", 'salary mutation ancestor de
 requireText(ui, "if (!workspace?.classList.contains('active')) return;", 'background expense updates cannot reopen closed modals');
 requireText(ui, "button.removeAttribute('data-back')", 'independent popup close control');
 requireText(ui, "stageEditor(editor, item.title)", 'direct grouped editor staging');
-requireText(ui, "button.setAttribute('data-editor-back', '')", 'legacy editor compatibility');
+requireText(ui, "button.removeAttribute('data-editor-back')", 'legacy editor handler isolation');
+requireText(ui, "tt:accounts-desk-form-opened", 'Accounts desk form close-shell integration');
 
 requireText(ui, "action:'salary_batch_payment'", 'salary client');
 requireText(salaryApi, "$action==='salary_batch_payment'", 'salary API');
