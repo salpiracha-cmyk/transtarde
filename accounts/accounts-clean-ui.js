@@ -536,6 +536,15 @@
       if (event.target.closest('[data-back]')) window.setTimeout(() => { document.body.classList.remove('tt-modal-open'); masterMode = ''; navigationMode = ''; activeGroup = null; }, 0);
       if (event.target.closest('[data-expense="salary"],[data-expense="rent"]')) void settleSalaryView(masterMode);
     }, true);
+    document.addEventListener('click', event => {
+      const close = event.target.closest?.('.workspace .tt-clean-close');
+      if (!close) return;
+      const workspace = close.closest('.workspace');
+      if (!workspace) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      closeModal(workspace);
+    }, true);
     document.addEventListener('tt:accounts-desk-form-opened', () => {
       navigationMode = 'form';
       activeGroup = null;
