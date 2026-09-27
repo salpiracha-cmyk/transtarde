@@ -153,4 +153,6 @@ assert.match(documentAi,/Gemini extraction JSON parse failed/,'invalid structure
 assert.match(documentAi,/responseSchema/,'Gemini document extraction must first request the strict schema');
 assert.match(documentAi,/\$status===400&&\$index<count\(\$attempts\)-1/,'Gemini schema rejections must retry through the compatible JSON paths');
 assert.match(documentAi,/return ai_normalize_schema\(\$data,\$schema\)/,'fallback Gemini output must be normalized to the application schema');
+assert.match(documentAi,/in_array\(\$kind,\['contract','pc'\],true\)/,'Gemini endpoint must accept only Sales Contract and P/C extraction jobs');
+assert.doesNotMatch(documentAi,/in_array\(\$kind,\['contract','lc'\]/,'L/C extraction must never be routed to Gemini');
 console.log('PASS backend/static release audit: auth, CSRF, concurrency, self-initializing schema, links and A4 print controls');

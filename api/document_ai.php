@@ -54,44 +54,9 @@ function ai_contract_schema(): array {
         'required'=>['buyer','buyerAddress','ref','buyerPoNo','date','product','qty','containers','size','unit','type','brand','tare','price','currency','incoterm','pol','podPort','destPort','shipmentDate','paymentCode','advancePct','usanceDays','customPayment','quality','packings','notes']
     ];
 }
-function ai_lc_schema(): array {
-    return [
-        'type'=>'object',
-        'properties'=>[
-            'lcNo'=>ai_nullable_string(),'lcDate'=>ai_nullable_string(),'applicant'=>ai_nullable_string(),'beneficiary'=>ai_nullable_string(),
-            'issuingBank'=>ai_nullable_string(),'advisingBank'=>ai_nullable_string(),'currency'=>ai_nullable_string(),'amount'=>ai_nullable_number(),
-            'tolerance'=>ai_nullable_string(),'expiryDate'=>ai_nullable_string(),'expiryPlace'=>ai_nullable_string(),'latestShipmentDate'=>ai_nullable_string(),
-            'pol'=>ai_nullable_string(),'pod'=>ai_nullable_string(),'presentationPeriod'=>ai_nullable_number(),
-            'partialShipment'=>['type'=>'string','enum'=>['Allowed','Not Allowed','Review']],
-            'transshipment'=>['type'=>'string','enum'=>['Allowed','Not Allowed','Review']],
-            'paymentCode'=>['type'=>'string','enum'=>['LC_SIGHT','LC_USANCE','']],
-            'usanceDays'=>ai_nullable_number(),'paymentText'=>ai_nullable_string(),
-            'documents'=>['type'=>'array','items'=>['type'=>'string']],
-            'conditions'=>['type'=>'array','items'=>['type'=>'string']],
-            'bankCharges'=>ai_nullable_string(),'insuranceRequirement'=>ai_nullable_string(),'blInstructions'=>ai_nullable_string(),
-            'notes'=>['type'=>'array','items'=>['type'=>'string']]
-        ],
-        'required'=>['lcNo','lcDate','applicant','beneficiary','issuingBank','advisingBank','currency','amount','tolerance','expiryDate','expiryPlace','latestShipmentDate','pol','pod','presentationPeriod','partialShipment','transshipment','paymentCode','usanceDays','paymentText','documents','conditions','bankCharges','insuranceRequirement','blInstructions','notes']
-    ];
-}
 function ai_prompt(string $kind): string {
-    if($kind==='lc') return <<<'PROMPT'
-You are extracting a documentary letter of credit for an export-document workflow.
-Read the entire document visually and textually, including SWIFT tags, tables, stamps and continuation pages.
-Return only the requested structured JSON fields.
-Rules:
-- Never guess. If a value is not stated, return an empty string, 0, or an empty array as appropriate.
-- Dates must be YYYY-MM-DD when an exact date is stated; otherwise return an empty string.
-- Preserve exact bank names, applicant, beneficiary, ports and documentary-condition wording.
-- Convert payment to LC_SIGHT or LC_USANCE only when supported by the L/C wording. For usance, extract the number of days.
-- For partial shipment/transshipment use Allowed, Not Allowed, or Review when ambiguous.
-- documents must contain each documentary requirement as a separate complete item.
-- conditions must preserve each additional/special condition as a separate item without summarising away obligations.
-- Capture L/C amount tolerance, expiry place, bank charges, insurance wording, and B/L instructions when present.
-This extraction is only a proposal for human review and must not silently override the sales contract.
-PROMPT;
     return <<<'PROMPT'
-You are extracting a buyer/customer sales contract for an export-document workflow.
+You are extracting an uploaded Sales Contract or P/C for an export-document workflow.
 Read the entire document visually and textually, including tables, scans, stamps and continuation pages.
 Return only the requested structured JSON fields.
 Rules:
@@ -221,7 +186,7 @@ try{
     if(!ai_can_write($user)) ai_respond(['ok'=>false,'error'=>'Create or Edit permission is required.'],403);
     if(!tt_verify_csrf((string)($_POST['csrf']??''))) ai_respond(['ok'=>false,'error'=>'Your session expired. Refresh and try again.'],419);
     $kind=strtolower(trim((string)($_POST['kind']??'')));
-    if(!in_array($kind,['contract','lc'],true)) ai_respond(['ok'=>false,'error'=>'Select Customer Contract or L/C.'],422);
+    if(!in_array($kind,['contract','pc'],true)) ai_respond(['ok'=>false,'error'=>'Gemini is restricted to Sales Contract and P/C uploads.'],422);
     $key=ai_env('GEMINI_API_KEY');
     if($key==='') ai_respond(['ok'=>false,'error'=>'Gemini is not configured on the server yet. Add GEMINI_API_KEY as a protected server secret.','code'=>'GEMINI_NOT_CONFIGURED'],503);
     $modelChoice=tt_gemini_resolve_model($key,ai_env('GEMINI_MODEL'));
@@ -240,7 +205,7 @@ try{
     $data=null;$lastModelError=null;
     foreach((array)($modelChoice['candidates']??[$model]) as $candidateModel) {
         try {
-            $data=ai_call_gemini($key,(string)$candidateModel,$parts,$kind==='lc'?ai_lc_schema():ai_contract_schema());
+            $data=ai_call_gemini($key,(string)$candidateModel,$parts,ai_contract_schema());
             $model=(string)$candidateModel;
             break;
         } catch(RuntimeException $e) {
