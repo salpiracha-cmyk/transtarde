@@ -547,11 +547,17 @@
       event.stopImmediatePropagation();
       closeModal(workspace);
     }, true);
-    document.addEventListener('tt:accounts-desk-form-opened', () => {
+    document.addEventListener('tt:accounts-desk-form-opened', event => {
       navigationMode = 'form';
       activeGroup = null;
+      const workspace = q('.workspace.active');
+      const editor = workspace && q('#purchaseEditor,#expenseEditor', workspace);
+      if (editor?.children.length) {
+        const heading = event.detail?.title || q(':scope > .panelHead h2', workspace)?.textContent?.trim() || 'Accounts Entry';
+        stageEditor(editor, heading);
+      }
       prepareModal();
-      scan(q('.workspace.active') || document);
+      scan(workspace || document);
     });
     document.addEventListener('click', event => {
       if (!event.target.closest('.tt-search-select')) qa('.tt-select-menu').forEach(menu => { menu.hidden = true; });
