@@ -88,6 +88,15 @@ function ss_post_journal(array &$store,array $user,string $entity,string $date,s
     ];
     return $store['journals'][$id];
 }
+function ss_cheque_bank_lines(float $amount,array $bank,array $catalog,bool $returned=false):array{
+    $bankLine=ss_line('1110',$returned?$amount:0,$returned?0:$amount,$catalog,['bankAccountId'=>$bank['id'],'bankName'=>$bank['bankName'],'bankAccountTitle'=>$bank['accountTitle'],'currency'=>$bank['currency']]);
+    $pendingLine=ss_line('2140',$returned?0:$amount,$returned?$amount:0,$catalog);
+    return $returned?[$bankLine,$pendingLine]:[$pendingLine,$bankLine];
+}
+function ss_cheque_reversal_lines(array $issue):array{
+    $lines=[];foreach((array)($issue['lines']??[]) as $line){if(!is_array($line))continue;$reverse=$line;$reverse['debit']=(float)($line['credit']??0);$reverse['credit']=(float)($line['debit']??0);$lines[]=$reverse;}
+    return $lines;
+}
 function ss_entity_from_linked(string $linked): string {
     $u=strtoupper($linked);
     if(str_contains($u,'BRM')||str_contains($u,'BUKSH RICE'))return 'BRM';
@@ -194,6 +203,7 @@ function ss_advance_credit_account(string $relationship,string $person): string 
     return match($relationship){'OWN_BANK'=>'1110','OWN_CASH'=>'1120','CUSTOMER_RECEIVABLE'=>'1220','CUSTOMER_ADVANCE'=>'2160','OTHER_THIRD_PARTY'=>'2170','FAMILY_STAFF'=>ss_person_account($person),'GROUP_ENTITY'=>ss_respond(['ok'=>false,'error'=>'Group-entity payments must use the Intercompany workflow, not Third Party Settlement.'],422),default=>ss_respond(['ok'=>false,'error'=>'Select the payer relationship for this supplier advance.'],422)};
 }
 
+if(defined('TT_SETTLEMENTS_FUNCTIONS_ONLY'))return;
 try{
     $user=tt_require_login();if(!tt_user_can_open_module($user,'Accounts'))ss_respond(['ok'=>false,'error'=>'Accounts permission required.'],403);
     if($_SERVER['REQUEST_METHOD']==='GET'){
@@ -217,7 +227,7 @@ try{
                 if($date<(string)($item['chequeDate']??$item['date']??''))ss_respond(['ok'=>false,'error'=>'Bank clearance cannot predate the cheque date.'],422);
                 $bank=ss_require_pkr_bank(ss_bank_source($store,$entity,(string)($item['bankAccountId']??''),'payment'));
                 $bankRef=trim((string)($body['bankReference']??''));if($bankRef==='')ss_respond(['ok'=>false,'error'=>'Enter the bank statement transaction reference.'],422);
-                $lines=[ss_line('2140',$amount,0,$catalog),ss_line('1110',0,$amount,$catalog,['bankAccountId'=>$bank['id'],'bankName'=>$bank['bankName'],'bankAccountTitle'=>$bank['accountTitle'],'currency'=>$bank['currency']])];
+                $lines=ss_cheque_bank_lines($amount,$bank,$catalog);
                 $journal=ss_post_journal($store,$user,$entity,$date,'SUPPLIER_CHEQUE_CLEARED',$bankRef,'Bank cleared cheque '.$item['chequeNo'].' — '.$item['broker'],$lines,['settlementId'=>$id,'chequeNo'=>$item['chequeNo'],'bankAccountId'=>$bank['id']]);
                 $item['chequeStatus']='Cleared';$item['clearanceJournalId']=$journal['id'];$item['clearedAt']=$date;$item['bankReference']=$bankRef;
             }else{
@@ -229,11 +239,11 @@ try{
                 if($status==='Cleared'){
                     if($date<(string)($item['clearedAt']??''))ss_respond(['ok'=>false,'error'=>'Bounce cannot predate bank clearance.'],422);
                     $bank=ss_require_pkr_bank(ss_bank_source($store,$entity,(string)($item['bankAccountId']??''),'payment'));
-                    $lines=[ss_line('1110',$amount,0,$catalog,['bankAccountId'=>$bank['id'],'bankName'=>$bank['bankName'],'bankAccountTitle'=>$bank['accountTitle'],'currency'=>$bank['currency']]),ss_line('2140',0,$amount,$catalog)];
+                    $lines=ss_cheque_bank_lines($amount,$bank,$catalog,true);
                     $journals[]=ss_post_journal($store,$user,$entity,$date,'SUPPLIER_CHEQUE_BANK_REVERSAL',(string)$item['chequeNo'],'Bank returned supplier cheque — '.$reason,$lines,['settlementId'=>$id,'reversalOf'=>$item['clearanceJournalId']??'','bankAccountId'=>$bank['id']]);
                 }
                 $issue=$store['journals'][$item['chequeIssueJournalId']]??null;if(!is_array($issue))throw new RuntimeException('Issued cheque journal missing.');
-                $lines=[];foreach((array)$issue['lines'] as $line){if(!is_array($line))continue;$reverse=$line;$reverse['debit']=(float)($line['credit']??0);$reverse['credit']=(float)($line['debit']??0);$lines[]=$reverse;}
+                $lines=ss_cheque_reversal_lines($issue);
                 $journals[]=ss_post_journal($store,$user,$entity,$date,'SUPPLIER_CHEQUE_PAYABLE_REOPENED',(string)$item['chequeNo'],'Supplier payable restored — '.$reason,$lines,['settlementId'=>$id,'reversalOf'=>$item['chequeIssueJournalId']]);
                 $item['chequeStatus']=$action==='bounce_supplier_cheque'?'Bounced':'Cancelled / Stopped';$item['status']=$item['chequeStatus'];$item['resolutionReason']=$reason;$item['resolvedAt']=$date;$item['resolutionJournalIds']=array_column($journals,'id');
             }
