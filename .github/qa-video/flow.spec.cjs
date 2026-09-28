@@ -46,7 +46,8 @@ async function closeLayer(page) {
 }
 
 test('Exports, Milling and Accounts: linked local QA walkthrough', async ({ page }) => {
-  test.setTimeout(300000);
+  test.setTimeout(180000);
+  page.setDefaultTimeout(12000);
   await login(page);
   await caption(page, 'Three-module QA walkthrough', 'Disposable localhost copy. The shipment facts are based on the supplied TTI/LGT/07 invoice; QA references and supplier charges are illustrative.');
 
@@ -75,6 +76,7 @@ test('Exports, Milling and Accounts: linked local QA walkthrough', async ({ page
   await page.locator('#ttFreightAgreementForm button[type="submit"]').click();
   await page.waitForTimeout(700);
   await closeLayer(page);
+  await closeLayer(page); // Close the parent Freight chooser as well.
 
   await openBill(page, 'Freight Forwarder / Shipping');
   await page.locator('#ttShipmentBillVendor').fill('Paklink QA Forwarder');
