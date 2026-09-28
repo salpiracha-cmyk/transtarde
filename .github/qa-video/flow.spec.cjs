@@ -64,7 +64,7 @@ test('Exports, Milling and Accounts: linked local QA walkthrough', async ({ page
   await caption(page, 'Accounts', 'Open Export Receipts & Payments to record the agreed freight and supplier invoices.');
 
   await chooseAction(page, 'Freight Forwarder / Shipping');
-  await page.locator('#ttFreightAgreement').click();
+  await page.locator('#ttFreightAgreementOpen').click();
   await page.locator('#ttFreightShipmentQuery').fill(ref);
   await expect(page.locator('[data-freight-shipment]').first()).toBeVisible();
   await page.locator('[data-freight-shipment]').last().click();
