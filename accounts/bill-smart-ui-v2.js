@@ -100,7 +100,7 @@
     const units=basis==='PER_MAUND'?weight/40:basis==='PER_50_KG_BAG'?weight/50:weight/100;
     const brokerage=Math.round(Math.max(0,Number(state.brokerageRate||0))*units*100)/100;
     if(q('#ttsbBrokerage'))q('#ttsbBrokerage').value=brokerage.toFixed(2);
-    const withholding=Math.round(brokerage*Math.max(0,Number(q('#ttsbWithPct')?.value||0))*100)/100;
+    const withholding=Math.round(brokerage*Math.max(0,Number(q('#ttsbWithPct')?.value||0)))/100;
     if(q('#ttsbWithAmt'))q('#ttsbWithAmt').value=withholding.toFixed(2);
     const value=totals();
     for(const [id,amount] of [['ttsbAddTotal',value.add],['ttsbDeductTotal',value.deduct],['ttsbFinalTotal',value.final],['ttsbPreviewValueDr',value.final],['ttsbPreviewValueCr',value.final]])if(q('#'+id))q('#'+id).textContent=`PKR ${fmt(amount)}`;
