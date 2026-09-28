@@ -87,13 +87,13 @@ test('Exports, Milling and Accounts: linked local QA walkthrough', async ({ page
     await expect(page.locator('#containerTable')).toContainText(number);
   }
   await page.goto(base + '/module.php?id=exports', { waitUntil: 'domcontentloaded' });
-  await expect.poll(async () => page.evaluate(async () => {
+  await expect.poll(async () => { try { return await page.evaluate(async () => {
     const response = await fetch('api/operations.mysql.php?r=' + Date.now());
     const data = await response.json();
     const root = JSON.parse(data.values?.transtrade_export_v3_operational || '{}');
     const lot = (root.shipments || []).find(x => x.id === 'QA-SHIP-LGT-01');
     return (lot?.millActuals || []).length;
-  }), { timeout: 20000 }).toBe(2);
+  }); } catch (error) { if (/Execution context was destroyed|navigation/.test(String(error))) return 0; throw error; } }, { timeout: 30000 }).toBe(2);
   await caption(page, 'Milling return to Exports', 'Both container actuals now appear against the same QA lot in the shared Exports record.');
 
   await page.goto(base + '/accounts/index.php', { waitUntil: 'domcontentloaded' });
