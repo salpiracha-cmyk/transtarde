@@ -1,5 +1,5 @@
 name: Three Module Local Video QA
-# Disposable localhost fixture; no Hostinger access. Current Milling container input retest.
+# Disposable localhost fixture; no Hostinger access. Exports return after container save.
 
 on:
   push:
