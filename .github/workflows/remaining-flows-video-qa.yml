@@ -1,0 +1,60 @@
+name: Remaining Accounts Video QA
+# Disposable localhost fixture; no hosting access.
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/remaining-flows-video-qa.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  receipt-and-remaining:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate and install
+        run: |
+          php -l .github/qa-video/seed.php
+          node --check .github/qa-video/remaining.spec.cjs
+          npm install --no-save @playwright/test@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Seed disposable copy and record
+        run: |
+          set -euo pipefail
+          export QA_VIDEO_LOCAL=1
+          export QA_VIDEO_PASSWORD="$(openssl rand -hex 20)"
+          unset TT_DB_HOST TT_DB_NAME TT_DB_USER TT_DB_PASS
+          php .github/qa-video/seed.php
+          php -S 127.0.0.1:8765 -t . > "$RUNNER_TEMP/qa-video-server.log" 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          for attempt in 1 2 3 4 5 6 7 8 9 10; do
+            if curl -fsS http://127.0.0.1:8765/login.php -o /dev/null; then break; fi
+            sleep 1
+          done
+          cat > video-remaining.config.cjs <<'CONFIG'
+          const { defineConfig } = require('@playwright/test');
+          module.exports = defineConfig({
+            testDir: '.github/qa-video',
+            testMatch: 'remaining.spec.cjs',
+            timeout: 150000,
+            workers: 1,
+            use: { headless: true, viewport: { width: 1440, height: 900 }, video: 'on', trace: 'retain-on-failure' },
+            reporter: 'line'
+          });
+          CONFIG
+          npx playwright test --config video-remaining.config.cjs
+      - name: Upload video and failure trace
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: remaining-flows-video-${{ github.run_id }}
+          path: |
+            test-results/**/*.webm
+            test-results/**/*.zip
+          if-no-files-found: warn
+          retention-days: 1
