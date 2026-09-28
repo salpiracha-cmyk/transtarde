@@ -136,3 +136,22 @@ test('Remaining Accounts: raw Pohanch bill and ready multi-container bill',async
  await expect(page.locator('.ttsb-posting')).toBeVisible();
  await caption(page,'Ready bill posted','One supplier bill includes both selected containers in the same Soda.');
 });
+
+test('Remaining Accounts: Mill local sale approval and ledger reports',async({page})=>{
+ test.setTimeout(150000);page.setDefaultTimeout(12000);
+ await login(page);
+ await page.locator('[data-tt-area="commodity"]').click();
+ await page.locator('#ttDeskWork .tt-action').filter({hasText:'Local Sales & Receipts'}).click();
+ await expect(page.locator('[data-ttls-approve]')).toBeVisible();
+ await caption(page,'Mill → Accounts local sale','The QA Gate Pass candidate is queued by the disposable Mill fixture. Accounts sees the party, quantity and sale value.');
+ const dialog=page.waitForEvent('dialog');await page.locator('[data-ttls-approve]').click();const confirmation=await dialog;await confirmation.accept();
+ await expect(page.locator('#ttLocalSalesToast')).toContainText('Local Sale approved');
+ await caption(page,'Local sale posted','The approved sale becomes an Accounts journal and is removed from the waiting queue.');
+ await page.locator('.workspace.active .panelHead [data-back]').click();
+ await page.locator('.tt-back-areas').click();
+ await page.locator('[data-tt-area="ledgers"]').click();
+ await page.locator('#ttDeskWork .tt-action').filter({hasText:'All Ledgers'}).click();
+ await expect(page.locator('#tal-print')).toBeVisible();
+ await expect(page.locator('#tal-export')).toBeVisible();
+ await caption(page,'All Ledgers','Review the posted entries by company, account and date, with print and export controls.');
+});
