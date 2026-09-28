@@ -70,6 +70,33 @@ test('Exports, Milling and Accounts: linked local QA walkthrough', async ({ page
   await expect(page.locator('#shipmentBody')).toContainText('1350');
   await caption(page, 'Milling export loading', 'The Exports loading instruction for the QA lot appears at TTI Rice Mills: two representative containers at 27 MT.');
 
+  await page.locator('#shipmentBody tr[data-shipment-id]').first().click();
+  await expect(page.locator('#instructionBanner')).toContainText(ref);
+  for (const [number, truck, seal] of [
+    ['QAVU000001-6', 'QA-KHI-1001', 'QA-SEAL-01'],
+    ['QAVU000002-1', 'QA-KHI-1002', 'QA-SEAL-02']
+  ]) {
+    await page.locator('.tt-container-main').fill(number.slice(0, 10));
+    await page.locator('.tt-container-check').fill(number.slice(11));
+    await page.locator('#contTruck').fill(truck);
+    await page.locator('#contWeight').fill('27000');
+    await page.locator('#contBags').fill('1350');
+    await page.locator('#contSeal').fill(seal);
+    await page.locator('#contDriver').fill('QA DRIVER');
+    await caption(page, 'Milling container actual', number + ': 1,350 bags and 27,000 kg. This is an illustrative test container.');
+    await page.locator('#saveContainerBtn').click();
+    await expect(page.locator('#containerTable')).toContainText(number);
+  }
+  await page.goto(base + '/module.php?id=exports', { waitUntil: 'domcontentloaded' });
+  await expect.poll(async () => page.evaluate(async () => {
+    const response = await fetch('api/operations.mysql.php?r=' + Date.now());
+    const data = await response.json();
+    const root = JSON.parse(data.values?.transtrade_export_v3_operational || '{}');
+    const lot = (root.shipments || []).find(x => x.id === 'QA-SHIP-LGT-01');
+    return (lot?.millActuals || []).length;
+  }), { timeout: 20000 }).toBe(2);
+  await caption(page, 'Milling return to Exports', 'Both container actuals now appear against the same QA lot in the shared Exports record.');
+
   await page.goto(base + '/accounts/index.php', { waitUntil: 'domcontentloaded' });
   await expect(page.locator('[data-tt-area="exports"]')).toBeVisible();
   await caption(page, 'Accounts', 'Open Export Receipts & Payments to record the agreed freight and supplier invoices.');
