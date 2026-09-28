@@ -23,6 +23,11 @@ async function login(page) {
 }
 
 async function chooseAction(page, name) {
+  for (let i = 0; i < 5; i++) {
+    const open = page.locator('.tt-layer:not([hidden]) .tt-window-close');
+    if (!await open.count()) break;
+    await open.last().click();
+  }
   const back = page.locator('#ttDeskWork .tt-back-areas');
   if (await back.isVisible().catch(() => false)) await back.click();
   await page.locator('[data-tt-area="exports"]').click();
