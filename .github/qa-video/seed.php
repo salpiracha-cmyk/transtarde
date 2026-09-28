@@ -33,7 +33,7 @@ $root=[
  'shipments'=>[[ 'id'=>'QA-PROC-LGT','kind'=>'process','contractRef'=>$ref,'buyer'=>'Ladoo General Trading LLC','seller'=>'TTI','plannedQty'=>270,'bagOrders'=>[['id'=>'QA-BAG-ORDER']],'production'=>['sentToMill'=>true],'loading'=>['lots'=>[['lotId'=>$lot,'lotRecordId'=>'QA-SHIP-LGT-01','totalMT'=>54]],'draft'=>null] ],[
    'id'=>'QA-SHIP-LGT-01','kind'=>'lot','parentProcessId'=>'QA-PROC-LGT','plannedQty'=>54,'containers'=>2,'seller'=>'TTI','contractRef'=>$ref,'lotId'=>$lot,'buyer'=>'Ladoo General Trading LLC','loadingProgrammeNo'=>'QA-LP-LGT-07',
    'loadingPlan'=>['loadingProgrammeNo'=>'QA-LP-LGT-07','shippingLine'=>'QA Shipping Line','intendedVessel'=>'ruby','voyage'=>'123','portOfLoading'=>'Karachi Port, Pakistan'],
-   'millActuals'=>[['number'=>'QA-VIDEO-CONT-01','bags'=>1350,'netKg'=>27000],['number'=>'QA-VIDEO-CONT-02','bags'=>1350,'netKg'=>27000]],
+   'millActuals'=>[],
    'customs'=>['invoiceNo'=>'QA-CUSTOMS-LGT-07','gdRefs'=>[['number'=>'QA-GD-LGT-07']]],
    'bl'=>['blNo'=>'QA-BL-LGT-07','vessel'=>'ruby','voyage'=>'123'],
    'commercial'=>['invoiceNo'=>$ref,'saved'=>true,'date'=>'2026-09-17','total'=>108000,'currency'=>'USD']
