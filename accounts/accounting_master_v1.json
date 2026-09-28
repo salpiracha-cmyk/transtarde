@@ -76,6 +76,14 @@
       "subledger": true
     },
     {
+      "code": "1140",
+      "name": "TG Input VAT on Bank Charges",
+      "class": "Asset",
+      "level": "general",
+      "normal": "Debit",
+      "subledger": true
+    },
+    {
       "code": "1200",
       "name": "Trade & Other Receivables",
       "class": "Asset",

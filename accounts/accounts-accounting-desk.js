@@ -32,6 +32,11 @@
       {title:'Due Payment Working', note:'Amounts due by selected date, bank balances and bill allocation', special:'due-payments'},
       {title:'Local Sales & Receipts', note:'Mill sale approvals and linked receipts awaiting Accounts action', native:'receivables', find:'Local'}
     ]},
+    {key:'bank', glyph:'▦', title:'Bank & Cash', note:'Internal transfers, foreign retention and bank reconciliation', actions:[
+      {title:'Inter Account Transfer', note:'Move PKR between company accounts or to a personal account with a reason', special:'internal-bank-transfer'},
+      {title:'Foreign Retention Account', note:'Settle foreign commissions and other linked outward remittances', special:'retention-remittance'},
+      {title:'Bank Accounts & Balances', native:'bank'}, {title:'Bank Reconciliation', native:'reconciliation'}
+    ]},
     {key:'routine', glyph:'◇', title:'Routine Expenses', note:'Simple forms for regular business spending', actions:[
       {title:'Credit Cards', note:'Statement payment with company and personal allocation', native:'expenses', then:'[data-expense="card"]'},
       {title:'Utilities', note:'Electricity, internet, telephone, gas and water', native:'expenses', then:'[data-expense="utility"]'},
@@ -63,12 +68,13 @@
   pakistanAreas.find(area=>area.key==='routine').actions.push({title:'Other Purchases',note:'Assets and consumables outside commodity Sodas',native:'purchases',then:'[data-purchase="other"]'});
   const tgAreas = [
     {key:'tg-receipts', glyph:'↓', title:'Customer Receipts', note:'Receive money and allocate it to the correct TG customer', actions:[
-      {title:'Customer Receipt', native:'bank', find:'Receive'}, {title:'Customer Receivables', native:'receivables'}
+      {title:'Customer Receipt / Credit Advice', special:'tg-customer-receipt'}, {title:'Customer Receivables', native:'receivables'}
     ]},
     {key:'tg-payments', glyph:'↑', title:'Supplier Payments', note:'Supplier liabilities and payments only', actions:[
       {title:'Supplier Bills', native:'payables'}, {title:'Make Supplier Payment', native:'bank'}
     ]},
-    {key:'tg-bank', glyph:'▦', title:'Bank & Local Expenses', note:'Bank activity and minor local operating expense', actions:[
+    {key:'tg-bank', glyph:'▦', title:'Bank & Local Expenses', note:'Bank transfers, payments and local operating expense', actions:[
+      {title:'Inter Account Transfer', special:'internal-bank-transfer'}, {title:'USD ↔ AED Transfer', note:'Use the direction-specific TG Master rate; enter the purpose', special:'tg-currency-transfer'},
       {title:'Bank Receipt / Payment', native:'bank'}, {title:'Local Expense', native:'expenses', then:'[data-expense="general"]'},
       {title:'Utilities', native:'expenses', then:'[data-expense="utility"]'}, {title:'Bank Reconciliation', native:'reconciliation'}
     ]},
@@ -135,6 +141,10 @@
     if (action.special === 'search') return openSearch();
     if (action.special === 'sales-tax') return openSalesTax();
     if (action.special === 'export-receipt') return window.TT_EXPORT_RECEIPTS_UI?.openForm?.();
+    if (action.special === 'tg-customer-receipt') return window.TT_TG_CUSTOMER_RECEIPTS?.open?.();
+    if (action.special === 'internal-bank-transfer') return window.TT_INTERNAL_BANK_TRANSFERS_UI?.open?.();
+    if (action.special === 'tg-currency-transfer') { await launch({native:'bank'}); return window.TT_TG_BANK_TRANSFER_UI?.open?.(); }
+    if (action.special === 'retention-remittance') { await launch({native:'bank'}); return window.TT_RETENTION_REMITTANCE_UI?.open?.(); }
     if (action.special === 'shipment') return openShipmentChooser();
     if (action.special === 'freight-desk') return openFreightDesk();
     if (action.special === 'shipment-kind') return openShipmentKind(action.shipmentKind);

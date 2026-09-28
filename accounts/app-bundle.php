@@ -29,6 +29,8 @@ $files = [
     'bank-direct-entry-ui.js',
     'tg-bank-transfer-ui.js',
     'tg-bank-transactions-ui.js',
+    'tg-customer-receipts-ui.js',
+    'internal-bank-transfers-ui.js',
     'tg-liabilities-ui.js',
     'tg-year-end-revaluation-ui.js',
     'export-receipts-ui.js',
