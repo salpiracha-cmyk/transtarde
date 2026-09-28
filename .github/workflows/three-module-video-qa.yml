@@ -1,4 +1,5 @@
 name: Three Module Local Video QA
+# Disposable localhost fixture; no Hostinger access.
 
 on:
   push:
