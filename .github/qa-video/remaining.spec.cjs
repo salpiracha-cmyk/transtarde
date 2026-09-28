@@ -142,6 +142,8 @@ test('Remaining Accounts: raw Pohanch bill and ready multi-container bill',async
  await caption(page,'Due payment working','The posted purchase bills appear in the due-date ladder with the company bank balance.');
  await page.locator('#ttstOpen').click();
  await page.locator('#ttstBroker').selectOption({label:'QA Rice Supplier'});
+ await expect(page.locator('details.ttbs-bill').first()).toBeVisible();
+ await page.locator('details.ttbs-bill').first().locator('summary').click();
  await page.locator('[data-st-key]').first().check();
  await page.locator('[data-st-amt]').first().fill('10000');
  await page.locator('[data-st-amt]').first().dispatchEvent('change');
