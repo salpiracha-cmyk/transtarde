@@ -14,7 +14,7 @@ const storage=new Map(),localStorage={getItem:k=>storage.get(k)||null,setItem:(k
 const window={document,localStorage,TT_MODULE_ACCESS:{user:'Jazib',module:'Exports'},addEventListener(){},print(){},setTimeout:fn=>fn(),setInterval:()=>0};
 const context={window,document,localStorage,console,structuredClone,alert:m=>{throw Error(m)},confirm:()=>true,location:{href:''},setTimeout:fn=>fn(),setInterval:()=>0,clearTimeout(){},FileReader:class{},Date,Intl};context.globalThis=context;
 let source=fs.readFileSync(__dirname+'/../../exports/app.js','utf8');
-source=source.replace('mount();',`window.__AUDIT__={state,makeShipment,makeLotRecord,blankDocuments,processStatus,lotStatus,fiUsed,actualTotals,plannedTotals,customsPlannedRows,plannedPhysicalRows,millActualsComplete,invoiceLines,commercialInvoiceDoc,packingListDoc,phytoInvoiceDoc,blDraftDoc,cooDoc,coveringDoc,lcDraftDoc,lcControlDoc,tgInternalDoc,salesContractPrint,inspectionContractContext,defaultDocsFor,effectiveTerms,lcSpecificTerms,contractSpecRows,DEFAULT_QUALITY};mount();`);
+source=source.replace('mount();',`window.__AUDIT__={state,makeShipment,makeLotRecord,blankDocuments,processStatus,lotStatus,fiUsed,actualTotals,plannedTotals,customsPlannedRows,plannedPhysicalRows,millActualsComplete,invoiceLines,commercialInvoiceDoc,packingListDoc,phytoInvoiceDoc,blDraftDoc,cooDoc,coveringDoc,lcDraftDoc,lcControlDoc,tgInternalDoc,salesContractPrint,paymentText,contractPaymentHTML,commercialPaymentLabel,inspectionContractContext,defaultDocsFor,effectiveTerms,lcSpecificTerms,contractSpecRows,DEFAULT_QUALITY};mount();`);
 vm.runInNewContext(source,context,{filename:'app.js'});
 const t=window.__AUDIT__;
 
@@ -46,6 +46,16 @@ assert.ok(t.defaultDocsFor({incoterm:'CIF'}).includes('Insurance Policy / Certif
 assert.ok(t.defaultDocsFor({incoterm:'FOB'}).some(x=>x.includes('e-Phyto issued by Department of Plant Protection')));
 assert.ok(t.defaultDocsFor({incoterm:'FOB'}).some(x=>x.includes('Fumigation Certificate — 1 original + 1 copy')));
 const single={...contract,packings:[contract.packings[0]],containers:10,qty:270};assert.doesNotMatch(t.salesContractPrint(single),/A\. PACKED IN NEW SINGLE/);
+
+const amendedPayment={...contract,paymentCode:'ADV_SCAN',advancePct:25,balanceAdditionalEnabled:true,paymentWordingOverride:'25% advance within seven days; 75% against scan copies within 50 days.'};
+assert.equal(t.paymentText(amendedPayment),amendedPayment.paymentWordingOverride);
+assert.match(t.contractPaymentHTML(amendedPayment),/25% advance within seven days; 75% against scan copies within 50 days/);
+assert.doesNotMatch(t.contractPaymentHTML(amendedPayment),/<h3 class="docSection">(?:ADVANCE|BALANCE)<\/h3>/,'edited contract text must not be contradicted by generated paragraphs');
+assert.equal(t.commercialPaymentLabel(amendedPayment),amendedPayment.paymentWordingOverride);
+assert.match(t.salesContractPrint(amendedPayment),/25% advance within seven days; 75% against scan copies within 50 days/);
+assert.notEqual(t.paymentText({...amendedPayment,balanceAdditionalEnabled:false}),amendedPayment.paymentWordingOverride);
+assert.match(source,/id="cAdditionalBalanceEnabled"[^>]*> Edit payment wording/);
+assert.match(source,/id="cPaymentWording"/);
 
 const directInspection=t.salesContractPrint(t.inspectionContractContext(contract),{inspection:true});
 assert.match(directInspection,/TRANSTRADE INTERNATIONAL/i);
