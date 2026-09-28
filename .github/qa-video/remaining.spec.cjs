@@ -69,12 +69,9 @@ test('Remaining Accounts: salary advance, adjustment and payment',async({page})=
  await login(page);
  await page.locator('[data-tt-area="routine"]').click();
  await page.locator('#ttDeskWork .tt-action').filter({hasText:'Salaries & Staff'}).click();
- await expect(page.locator('#rsSalName')).toBeVisible();
- await caption(page,'Staff master','Add one illustrative mill staff member. The master itself creates no salary voucher.');
- await page.locator('#rsSalName').fill('QA Mill Operator');
- await page.locator('#rsSalNet').fill('50000');
- await page.locator('#rsSaveSal').click();
- await expect(page.locator('#rsAdvancePerson option')).toHaveCount(1);
+ await expect(page.locator('#rsAdvancePerson')).toBeVisible();
+ await caption(page,'Staff master','The approved staff list already supplies salary amounts. Select the existing Irfan master for this QA entry.');
+ await page.locator('#rsAdvancePerson').selectOption({label:'IRFAN'});
  await caption(page,'Salary advance','An advance is recorded when paid. The month of salary will prompt for adjustment.');
  await page.locator('#rsAdvanceAmount').fill('10000');
  await expect(page.locator('#rsAdvanceAccount option').first()).toBeAttached();
@@ -90,7 +87,10 @@ test('Remaining Accounts: salary advance, adjustment and payment',async({page})=
  await page.locator('#rsAdvanceConfirm').click();
  await expect(page.locator('.ttrs').getByText('Monthly Salary Sheet')).toBeVisible();
  await expect(page.locator('#rsPaySalBtn')).toBeVisible();
- await page.locator('#rsPaySalAmt').fill('44000');
+ const balance=await page.locator('#rsPaySalMaster option').evaluateAll(xs=>xs.find(x=>x.textContent.includes('IRFAN'))?.value||'');
+ expect(balance).toBeTruthy();
+ await page.locator('#rsPaySalMaster').selectOption(balance);
+ await page.locator('#rsPaySalAmt').fill('89000');
  await caption(page,'Salary payment','The prepared salary balance is paid from the selected company account.');
  await page.locator('#rsPaySalBtn').click();
  await expect(page.locator('#ttRsToast')).toContainText('Salary payment saved');
