@@ -260,4 +260,18 @@ test('TG customer receipt reads the live Exports and bank links without posting'
   await page.goto(`${BASE_URL}/module.php?id=exports`, { waitUntil: 'domcontentloaded', timeout: 90_000 });
   await expect(page.locator('#exports-tg-accounts-receipts')).toHaveCount(1);
   await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('tt40exportreceipts') || 'null')), { timeout: 15_000 }).toEqual(exportsReceipts.body.receipts);
+  const amt = await page.evaluate(apiContracts => {
+    const root = JSON.parse(localStorage.getItem('transtrade_export_v3_operational') || '{}');
+    const customers = root.customers || [], contracts = root.contracts || [];
+    const customerIds = new Set(customers.filter(c => /AMT/i.test(c.name || '')).map(c => String(c.id)));
+    const matches = contracts.filter(c => /AMT/i.test(c.ref || '') || customerIds.has(String(c.customerId)));
+    return { customerCount: customerIds.size, contractCount: matches.length,
+      contracts: matches.map(c => ({ seller: c.seller || '', status: c.status || '', cancelled: !!c.cancelled,
+        customerIdPresent: !!c.customerId, customerResolved: customerIds.has(String(c.customerId)),
+        inlineCustomerPresent: !!c.customer, advancePctPositive: Number(c.advancePct || 0) > 0 })),
+      tgAccountsContracts: apiContracts.filter(c => /AMT/i.test(c.ref || '') || /AMT/i.test(c.customer || '')).map(c => ({
+        customerPresent: !!c.customer, advanceAvailable: Number(c.outstandingAdvance || 0) > 0, refMatches: /AMT/i.test(c.ref || '')
+      })) };
+  }, contracts);
+  console.log('AMT_LINK_DIAGNOSTIC ' + JSON.stringify(amt));
 });
