@@ -11,6 +11,7 @@ on:
       - 'accounts/accounts-runtime.js'
       - 'api/accounts_reports.php'
       - 'tests/live/accounts-bulk-hostinger-qa.spec.js'
+      - 'tests/accounts-v1/**'
       - '.github/workflows/accounts-bulk-audit.yml'
 
 permissions:
