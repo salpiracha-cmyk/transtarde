@@ -1,5 +1,5 @@
 name: Three Module Local Video QA
-# Disposable localhost fixture; no Hostinger access. Milling handoff and transport retest.
+# Disposable localhost fixture; no Hostinger access. Exports lot and Milling instruction verification.
 
 on:
   push:
