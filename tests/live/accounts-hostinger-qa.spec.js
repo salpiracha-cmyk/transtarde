@@ -225,3 +225,32 @@ test('authenticated Accounts live smoke: professional desk and popup workflows',
   expect(failedResponses, 'Accounts resources must not return HTTP errors').toEqual([]);
   expect(pageErrors, 'Accounts must not raise uncaught browser errors').toEqual([]);
 });
+
+test('TG customer receipt reads the live Exports and bank links without posting', async ({ page }) => {
+  test.setTimeout(120_000);
+  await signIn(page);
+  const source = await page.evaluate(async () => {
+    const response = await fetch('../api/tg_bank_transactions.php', { credentials: 'same-origin', headers: { Accept: 'application/json' } });
+    return { status: response.status, body: await response.json() };
+  });
+  expect(source.status).toBe(200);
+  expect(source.body.ok).toBe(true);
+  const contracts = source.body.contracts || [];
+  expect(contracts.length, 'A saved TG Exports contract must reach TG Accounts').toBeGreaterThan(0);
+  await page.evaluate(() => { localStorage.setItem('tt_accounts_entity', 'TG'); window.TT_TG_CUSTOMER_RECEIPTS.open(); });
+  await expect(page.locator('#tgRcCustomer')).toBeAttached();
+  await expect(page.locator('#tgRcTarget')).toBeAttached();
+  await expect(page.locator('#tgRcContract')).toHaveCount(0);
+  const customer = contracts.find(row => row.customer && Number(row.outstandingAdvance) > 0)?.customer || contracts.find(row => row.customer)?.customer;
+  expect(customer, 'TG contract must resolve its Exports customer').toBeTruthy();
+  await page.locator('#tgRcCustomer').evaluate((select, value) => { select.value = value; select.dispatchEvent(new Event('change', { bubbles: true })); }, customer);
+  const options = await page.locator('#tgRcTarget option').allTextContents();
+  expect(options.some(label => /Advance|Invoice/.test(label) && /\b(?:USD|AED|EUR|GBP)\b/.test(label)), 'Customer must reveal labeled contract advances or invoices and their amounts').toBe(true);
+  const target = await page.locator('#tgRcTarget option').evaluateAll(rows => rows.find(row => row.value)?.value || '');
+  await page.locator('#tgRcTarget').evaluate((select, value) => { select.value = value; select.dispatchEvent(new Event('change', { bubbles: true })); }, target);
+  const selected = contracts.find(row => target.endsWith(row.ref));
+  if (selected && (source.body.banks || []).some(bank => bank.currency === selected.currency)) {
+    expect(await page.locator('#tgRcBank option').count(), 'Matching TG bank must be selectable').toBeGreaterThan(1);
+  }
+  await expect(page.locator('#tgReceiptDialog h2')).toHaveText('TG Customer Receipt');
+});

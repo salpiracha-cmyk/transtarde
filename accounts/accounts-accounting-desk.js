@@ -68,7 +68,7 @@
   pakistanAreas.find(area=>area.key==='routine').actions.push({title:'Other Purchases',note:'Assets and consumables outside commodity Sodas',native:'purchases',then:'[data-purchase="other"]'});
   const tgAreas = [
     {key:'tg-receipts', glyph:'↓', title:'Customer Receipts', note:'Receive money and allocate it to the correct TG customer', actions:[
-      {title:'Customer Receipt / Credit Advice', special:'tg-customer-receipt'}, {title:'Customer Receivables', native:'receivables'}
+      {title:'Customer Receipt', special:'tg-customer-receipt'}, {title:'Customer Receivables', native:'receivables'}
     ]},
     {key:'tg-payments', glyph:'↑', title:'Supplier Payments', note:'Supplier liabilities and payments only', actions:[
       {title:'Supplier Bills', native:'payables'}, {title:'Make Supplier Payment', native:'bank'}
