@@ -1,5 +1,5 @@
 name: Three Module Local Video QA
-# Disposable localhost fixture; no Hostinger access.
+# Disposable localhost fixture; no Hostinger access. Freight dialog retest.
 
 on:
   push:
