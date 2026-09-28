@@ -24,7 +24,8 @@ $banks=tt_master_json_array($masters['companies'][0]['values'][13]??'');
 $banks[]=['id'=>'QA-VIDEO-BANK','accountType'=>'Company Account','label'=>'QA Video PKR','accountTitle'=>'Transtrade International','bankName'=>'QA Demonstration Bank','branch'=>'Karachi','country'=>'Pakistan','currency'=>'PKR','accountNumber'=>'QA-VIDEO-0001','iban'=>'PK00QAVIDEO00000000000001','swift'=>'','purpose'=>'Operating','visibility'=>'Accounts','notes'=>'Disposable local fixture','status'=>'Active','allowReceipts'=>true,'allowPayments'=>true];
 $masters['companies'][0]['values'][13]=json_encode($banks,JSON_UNESCAPED_SLASHES);
 $user=['id'=>92001,'full_name'=>'QA Video Operator','username'=>'qa.video','role'=>'QA Tester','location'=>'All authorized locations','permissions'=>['Accounts'=>'all','Exports'=>'all','Mill'=>'all'],'master_access'=>false,'master_permissions'=>[],'active'=>true,'must_change_password'=>false,'password_hash'=>password_hash($password,PASSWORD_DEFAULT)];
-file_put_contents(TT_STORE_FILE,json_encode(['users'=>[$user],'masters'=>$masters,'settings'=>['qa_account_seeded'=>true],'master_options'=>tt_default_master_options(),'audit'=>[]],JSON_THROW_ON_ERROR));
+$admin=['id'=>92002,'full_name'=>'Local QA Admin','username'=>'qa.local.admin','role'=>'Super Admin','location'=>'Local QA','permissions'=>['Accounts'=>'all','Exports'=>'all','Mill'=>'all'],'active'=>true,'must_change_password'=>false,'password_hash'=>password_hash($password,PASSWORD_DEFAULT)];
+file_put_contents(TT_STORE_FILE,json_encode(['users'=>[$user,$admin],'masters'=>$masters,'settings'=>['qa_account_seeded'=>true],'master_options'=>tt_default_master_options(),'audit'=>[]],JSON_THROW_ON_ERROR));
 $ref='QA/TTI/LGT/07';$lot=$ref.'/L01';
 $root=[
  'customers'=>[['id'=>'QA-LGT','name'=>'Ladoo General Trading LLC','code'=>'LGT','address'=>'Dubai, United Arab Emirates']],
