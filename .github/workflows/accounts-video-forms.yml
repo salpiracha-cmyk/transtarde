@@ -1,0 +1,114 @@
+name: Accounts Video Forms
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/accounts-video-forms.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  forms:
+    runs-on: ubuntu-latest
+    environment: live-qa
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: |
+          npm install --no-save @playwright/test@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Record form walkthroughs using QA login
+        env:
+          TRANSTRADE_BASE_URL: https://app.transtradeinternational.com
+          TRANSTRADE_QA_USERNAME: ${{ secrets.TRANSTRADE_QA_USERNAME }}
+          TRANSTRADE_QA_PASSWORD: ${{ secrets.TRANSTRADE_QA_PASSWORD }}
+        run: |
+          mkdir -p video-qa
+          cat > video-qa/forms.spec.cjs <<'SCRIPT'
+          const { test, expect } = require('@playwright/test');
+          const base = process.env.TRANSTRADE_BASE_URL;
+          async function label(page, title, detail) {
+            await page.evaluate(({ title, detail }) => {
+              document.querySelector('#videoGuide')?.remove();
+              const el = document.createElement('div');
+              el.id = 'videoGuide';
+              el.style.cssText = 'position:fixed;left:20px;bottom:20px;z-index:999999;background:#102f49;color:white;padding:14px 20px;border-radius:10px;max-width:660px;font:18px Arial;box-shadow:0 5px 24px #0006';
+              el.innerHTML = '<b>'+title+'</b><br><small>'+detail+'</small>';
+              document.body.appendChild(el);
+            }, { title, detail });
+            await page.waitForTimeout(2200);
+          }
+          async function login(page) {
+            await page.goto(base + '/login.php');
+            await page.locator('input[name=username]').fill(process.env.TRANSTRADE_QA_USERNAME);
+            await page.locator('input[name=password]').fill(process.env.TRANSTRADE_QA_PASSWORD);
+            await page.locator('button[type=submit]').click();
+            await page.waitForURL(/accounts\/index\.php/, {timeout:30000});
+            await page.locator('[data-tt-area=exports]').waitFor();
+          }
+          async function openAction(page, action) {
+            await page.locator('[data-tt-area=exports]').click();
+            await page.locator('#ttDeskWork .tt-action').filter({hasText:action}).first().click();
+            await page.waitForTimeout(1100);
+          }
+          for (const kind of ['Freight Forwarder / Shipping','Clearing Agent','Transport Bill','Fumigation Bill','Inspection Bill']) {
+            test(kind, async ({page}) => {
+              test.setTimeout(100000);
+              await login(page);
+              await label(page,kind,'Accounts > Export Receipts & Payments. We search existing Exports records.');
+              await openAction(page,kind);
+              if (kind.startsWith('Freight')) {
+                await label(page,'Freight choices','Agreed freight is planning data; posting a supplier invoice is separate.');
+                await page.locator('#ttFreightInvoice').click();
+              }
+              await page.locator('#ttBillShipmentQuery').fill('ASAS');
+              await page.locator('#ttBillShipmentGo').click();
+              await page.waitForTimeout(1800);
+              await label(page,'Shipment lookup','Customer, contract, invoice, B/L, loading programme and containers come from Exports.');
+              const pick = page.locator('[data-tt-pick-shipment]').first();
+              if (!(await pick.count())) {
+                await label(page,'Gap / unavailable','No selectable ASAS shipment in this company. No bill was posted.');
+                return;
+              }
+              await pick.click();
+              await page.locator('#ttShipmentBillEntry').waitFor();
+              await label(page,'Bill entry','Shipment details are already filled. Vendor and supplier invoice come from the actual bill.');
+              await page.locator('#ttShipmentBillAdd').click();
+              const line = page.locator('.tt-shipment-charge').last();
+              await line.locator('[data-description]').fill('Additional charge — demonstration only');
+              await line.locator('[data-amount]').fill('100');
+              await label(page,'Additional line','Add a charge or deduction. This amount is illustrative and is not posted.');
+              await page.locator('#ttShipmentBillAdd').click();
+              const less = page.locator('.tt-shipment-charge').last();
+              await less.locator('[data-description]').fill('Deduction — demonstration only');
+              await less.locator('[data-type]').selectOption('DEDUCT');
+              await less.locator('[data-amount]').fill('25');
+              await label(page,'Deduction and total','The final payable recalculates. Actual invoices require verified rates and approval.');
+            });
+          }
+          test('Credit Advice', async ({page}) => {
+            test.setTimeout(80000);
+            await login(page);
+            await label(page,'Credit Advice','Exports receipt: bank, payer, outstanding invoice, WHT and charges.');
+            await openAction(page,'Bank Receipt / Credit Advice');
+            await page.locator('#ttExportReceiptDialog').waitFor();
+            await label(page,'Receipt fields','A real credit advice provides date, amount, exchange rate and bank deductions. No receipt is posted here.');
+          });
+          
+          SCRIPT
+          cat > video-qa.config.cjs <<'CONFIG'
+          const { defineConfig } = require('@playwright/test');
+          module.exports = defineConfig({testDir:'./video-qa',testMatch:'forms.spec.cjs',workers:1,use:{headless:true,viewport:{width:1440,height:900},video:'on'},reporter:'line'});
+          CONFIG
+          npx playwright test --config video-qa.config.cjs
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: accounts-forms-videos-${{ github.run_id }}
+          path: test-results/**/*.webm
+          retention-days: 1
