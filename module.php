@@ -36,6 +36,13 @@ if ($id === 'exports') {
         static fn(): string => '<style id="exports-app-css">' . $css . '</style>',
         $html
     );
+    $receiptBridgeFile = __DIR__ . '/exports/tg-accounts-receipts.js';
+    $receiptBridge = is_file($receiptBridgeFile) ? (string)file_get_contents($receiptBridgeFile) : '';
+    $html = tt_replace_html_once(
+        '~<script\b[^>]*src=["\'](?:exports/)?tg-accounts-receipts\.js[^"\']*["\'][^>]*>\s*</script>~i',
+        static fn(): string => $receiptBridge === '' ? '' : '<script id="exports-tg-accounts-receipts">' . str_replace('</script', '<\/script', $receiptBridge) . '</script>',
+        $html
+    );
     $inlineJs = str_replace('</script', '<\/script', $js);
     $html = tt_replace_html_once(
         '~<script\b[^>]*src=["\'](?:exports/)?app\.js[^"\']*["\'][^>]*>\s*</script>~i',

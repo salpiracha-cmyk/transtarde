@@ -239,8 +239,6 @@ test('TG customer receipt reads the live Exports and bank links without posting'
   expect(exportsReceipts.status, 'Exports must be able to read posted TG Accounts receipts').toBe(200);
   expect(exportsReceipts.body.ok).toBe(true);
   expect(Array.isArray(exportsReceipts.body.receipts)).toBe(true);
-  await page.addScriptTag({ url: `${BASE_URL}/exports/tg-accounts-receipts.js` });
-  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('tt40exportreceipts') || 'null')), { timeout: 15_000 }).toEqual(exportsReceipts.body.receipts);
   const contracts = source.body.contracts || [];
   expect(contracts.length, 'A saved TG Exports contract must reach TG Accounts').toBeGreaterThan(0);
   await page.evaluate(() => { localStorage.setItem('tt_accounts_entity', 'TG'); window.TT_TG_CUSTOMER_RECEIPTS.open(); });
@@ -259,4 +257,7 @@ test('TG customer receipt reads the live Exports and bank links without posting'
     expect(await page.locator('#tgRcBank option').count(), 'Matching TG bank must be selectable').toBeGreaterThan(1);
   }
   await expect(page.locator('#tgReceiptDialog h2')).toHaveText('TG Customer Receipt');
+  await page.goto(`${BASE_URL}/module.php?id=exports`, { waitUntil: 'domcontentloaded', timeout: 90_000 });
+  await expect(page.locator('#exports-tg-accounts-receipts')).toHaveCount(1);
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('tt40exportreceipts') || 'null')), { timeout: 15_000 }).toEqual(exportsReceipts.body.receipts);
 });
