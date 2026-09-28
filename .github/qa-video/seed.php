@@ -9,12 +9,16 @@ $password=(string)getenv('QA_VIDEO_PASSWORD');
 if (strlen($password)<12) throw new RuntimeException('Generate a local video password.');
 tt_ensure_data_dir();
 $masters=tt_default_masters();
+$masters['mills'][]=['id'=>'QA-VIDEO-EXTERNAL-MILL','values'=>['QA Outside Mill','QA-EXT','External Mill','Karachi','','Active','']];
 foreach ([
     ['Paklink QA Forwarder','Freight Forwarder'],
     ['QA Clearing Agent','Clearing Agent'],
     ['QA Transporter','Transporter'],
     ['QA Fumigator','Fumigation'],
     ['QA Inspector','Inspection'],
+    ['QA Rice Supplier','Supplier'],
+    ['QA Corn Supplier','Supplier'],
+    ['QA Purchase Broker','Broker'],
 ] as $i=>$party) {
     $values=array_fill(0,13,'');
     $values[0]=$party[0];$values[1]='QAV'.($i+1);$values[2]=$party[1];$values[10]='Active';
