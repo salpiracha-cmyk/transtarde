@@ -19,14 +19,34 @@ try {
         $decoded=$raw?json_decode($raw,true):null;
         if(is_array($decoded))$store=$decoded;
     }
+    $key='transtrade_export_v3_operational';
+    $env=static fn(string $name)=>(string)(defined('TT_'.$name)?constant('TT_'.$name):(getenv('TT_'.$name)?:''));
+    if($env('DB_HOST')!==''&&$env('DB_NAME')!==''&&$env('DB_USER')!=='') {
+        $db=new PDO('mysql:host='.$env('DB_HOST').';dbname='.$env('DB_NAME').';charset=utf8mb4',$env('DB_USER'),$env('DB_PASS'),[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);
+        $query=$db->prepare('SELECT payload FROM tt_operation_records WHERE storage_key=? LIMIT 1');
+        $query->execute([$key]);$exportPayload=$query->fetchColumn();
+    } else {
+        $operationsFile=TT_DATA_DIR.'/operations.json';
+        $operations=is_file($operationsFile)?json_decode((string)file_get_contents($operationsFile),true):[];
+        $exportPayload=$operations['values'][$key]??'';
+    }
+    $exportRoot=is_string($exportPayload)?json_decode($exportPayload,true):null;
+    $invoiceLots=[];
+    foreach((array)($exportRoot['shipments']??[]) as $shipment) {
+        if(!is_array($shipment)||!empty($shipment['cancelled']))continue;
+        $ref=(string)($shipment['contractRef']??'');$invoice=(string)($shipment['commercial']['invoiceNo']??'');
+        if($ref!==''&&$invoice!=='')$invoiceLots[$ref.'|'.$invoice]=(string)($shipment['id']??'');
+    }
     $receipts=[];
     foreach((array)($store['tgBankTransactions']??[]) as $row) {
         if(!is_array($row)||($row['kind']??'')!=='Receipt'||!in_array(($row['receiptType']??''),['CUSTOMER_ADVANCE','EXPORT_RECEIVABLE'],true)||($row['status']??'')==='Reversed for Amendment')continue;
         $contract=trim((string)($row['contractRef']??''));
         if($contract==='')continue;
+        $invoiceRef=(string)($row['invoiceRef']??'');
         $receipts[]=[
             'id'=>(string)($row['id']??''),'receiptNo'=>(string)($row['bankReference']??''),
-            'contractRef'=>$contract,'invoiceRef'=>(string)($row['invoiceRef']??''),
+            'contractRef'=>$contract,'invoiceRef'=>$invoiceRef,
+            'lotId'=>$invoiceRef!==''?($invoiceLots[$contract.'|'.$invoiceRef]??'UNMATCHED_INVOICE'):'',
             'amount'=>round((float)($row['settlementAmountNative']??0),2),
             'currency'=>(string)($row['currency']??''),'date'=>(string)($row['date']??''),
             'status'=>'Posted','customer'=>(string)($row['counterparty']??'')
