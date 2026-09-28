@@ -38,7 +38,7 @@ $root=[
    'bl'=>['blNo'=>'QA-BL-LGT-07','vessel'=>'ruby','voyage'=>'123'],
    'commercial'=>['invoiceNo'=>$ref,'saved'=>true,'date'=>'2026-09-17','total'=>108000,'currency'=>'USD']
  ]],
- 'fi'=>[],'accountsReceipts'=>[],'millSync'=>['newExportBags'=>[],'productionInstructions'=>[],'exportLoading'=>[]]
+ 'fi'=>[],'accountsReceipts'=>[],'millSync'=>['newExportBags'=>[],'productionInstructions'=>[],'exportLoading'=>[ ['contractRef'=>$ref,'shipmentId'=>'QA-SHIP-LGT-01','processId'=>'QA-PROC-LGT','lotId'=>$lot,'loadingProgrammeNo'=>'QA-LP-LGT-07','plan'=>['allocations'=>[['packIndex'=>0,'name'=>'TTI Rice Mills','type'=>'TTI','containers'=>2,'weightPer'=>27]],'loadingProgrammeNo'=>'QA-LP-LGT-07'],'production'=>['qualityNotes'=>'QA reconstructed export allocation'],'sentAt'=>'2026-09-17T00:00:00Z'] ]]
 ];
 $key='transtrade_export_v3_operational';
 file_put_contents(TT_DATA_DIR.'/operations.json',json_encode(['revision'=>1,'values'=>[$key=>json_encode($root,JSON_THROW_ON_ERROR)],'meta'=>[$key=>['version'=>1,'updatedAt'=>gmdate('c'),'updatedBy'=>'QA Video','module'=>'Exports']]],JSON_THROW_ON_ERROR));
