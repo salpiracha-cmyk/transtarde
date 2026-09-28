@@ -4,7 +4,7 @@ const fs=require('node:fs');
 const vm=require('node:vm');
 
 const source=fs.readFileSync('accounts/export-receipts-ui.js','utf8');
-const ui=source.replace('window.TT_EXPORT_RECEIPTS_UI={openForm};','window.__creditQA={setData:value=>{data=value},calculateChargeRows};window.TT_EXPORT_RECEIPTS_UI={openForm};');
+const ui=source.replace('window.TT_EXPORT_RECEIPTS_UI={openForm,amend:', 'window.__creditQA={setData:value=>{data=value},calculateChargeRows};window.TT_EXPORT_RECEIPTS_UI={openForm,amend:');
 assert.notEqual(ui,source,'the live form must expose its calculation to this test');
 const fields=(code,percent,amount='')=>({
   '[data-ded-code]':{value:code},
