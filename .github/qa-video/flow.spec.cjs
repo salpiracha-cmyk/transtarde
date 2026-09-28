@@ -66,7 +66,8 @@ test('Exports, Milling and Accounts: linked local QA walkthrough', async ({ page
   await page.goto(base + '/module.php?id=milling', { waitUntil: 'domcontentloaded' });
   await page.locator('.mill-card').first().click();
   await page.locator('.tile').filter({ hasText: 'Export Loading' }).first().click();
-  await expect(page.locator('#shipmentBody')).toContainText(ref);
+  await expect(page.locator('#shipmentBody')).toContainText('marvarid');
+  await expect(page.locator('#shipmentBody')).toContainText('1350');
   await caption(page, 'Milling export loading', 'The Exports loading instruction for the QA lot appears at TTI Rice Mills: two representative containers at 27 MT.');
 
   await page.goto(base + '/accounts/index.php', { waitUntil: 'domcontentloaded' });
