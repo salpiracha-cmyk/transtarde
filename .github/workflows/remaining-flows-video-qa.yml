@@ -1,5 +1,5 @@
 name: Remaining Accounts Video QA
-# Disposable localhost fixture; no hosting access.
+# Disposable localhost fixture; no hosting access. Bank fixture retest.
 on:
   push:
     branches: [main]
