@@ -255,7 +255,7 @@ test('TG customer receipt reads the live Exports and bank links without posting'
   await customerMenu.getByRole('button', { name: /AMT/i }).click();
   await expect(page.locator('#tgRcCustomer')).toHaveValue(amtContract.customer);
   const options = await page.locator('#tgRcTarget option').allTextContents();
-  expect(options.some(label => /Advance|Invoice/.test(label) && /\b(?:USD|AED|EUR|GBP)\b/.test(label)), 'Customer must reveal labeled contract advances or invoices and their amounts').toBe(true);
+  expect(options.some(label => /advance|invoice/i.test(label) && /\b(?:USD|AED|EUR|GBP)\b/.test(label)), 'Customer must reveal labeled contract advances or invoices and their amounts').toBe(true);
   if (amtContract.outstandingAdvance > 0) {
     const advanceLabel = await page.locator('#tgRcTarget option').filter({ hasText: `Sales contract advance · ${amtContract.ref}` }).textContent();
     const amount = value => Number(value).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
