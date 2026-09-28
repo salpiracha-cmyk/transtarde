@@ -235,6 +235,10 @@ test('TG customer receipt reads the live Exports and bank links without posting'
   });
   expect(source.status).toBe(200);
   expect(source.body.ok).toBe(true);
+  const exportsReceipts = await page.evaluate(async () => { const response = await fetch('../api/export_accounts_receipts.php', { credentials: 'same-origin' }); return { status: response.status, body: await response.json() }; });
+  expect(exportsReceipts.status, 'Exports must be able to read posted TG Accounts receipts').toBe(200);
+  expect(exportsReceipts.body.ok).toBe(true);
+  expect(Array.isArray(exportsReceipts.body.receipts)).toBe(true);
   const contracts = source.body.contracts || [];
   expect(contracts.length, 'A saved TG Exports contract must reach TG Accounts').toBeGreaterThan(0);
   await page.evaluate(() => { localStorage.setItem('tt_accounts_entity', 'TG'); window.TT_TG_CUSTOMER_RECEIPTS.open(); });
