@@ -124,7 +124,7 @@ test('Exports, Milling and Accounts: linked local QA walkthrough', async ({ page
     await closeLayer(page);
   }
 
-  await openBill(page, 'Transporter');
+  await openBill(page, 'Transport Bill');
   await page.locator('#ttShipmentBillVendor').fill('QA Transporter');
   await page.locator('[name="invoiceNo"]').fill('QA-TRANSPORT-001');
   await page.locator('[name="rate"]').fill('25000');
