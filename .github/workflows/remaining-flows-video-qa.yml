@@ -1,5 +1,5 @@
 name: Remaining Accounts Video QA
-# Disposable localhost fixture; purchasing and receipt recording rerun.
+# Disposable localhost fixture; salary adjustment walkthrough.
 on:
   push:
     branches: [main]
