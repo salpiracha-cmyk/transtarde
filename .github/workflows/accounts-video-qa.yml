@@ -1,0 +1,57 @@
+name: Accounts Video QA
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/accounts-video-qa.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  accounts-video:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: live-qa
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install isolated browser runtime
+        run: |
+          npm install --no-save @playwright/test@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Record read-only Accounts walkthrough
+        env:
+          TRANSTRADE_BASE_URL: https://app.transtradeinternational.com
+          TRANSTRADE_QA_USERNAME: ${{ secrets.TRANSTRADE_QA_USERNAME }}
+          TRANSTRADE_QA_PASSWORD: ${{ secrets.TRANSTRADE_QA_PASSWORD }}
+          PLAYWRIGHT_HTML_OPEN: never
+        run: |
+          cat > video-qa.config.cjs <<'CONFIG'
+          const { defineConfig } = require('@playwright/test');
+          module.exports = defineConfig({
+            testDir: './tests/live',
+            testMatch: 'accounts-hostinger-qa.spec.js',
+            timeout: 480000,
+            use: {
+              headless: true,
+              viewport: { width: 1440, height: 900 },
+              video: 'on',
+              trace: 'off'
+            },
+            reporter: 'line'
+          });
+          CONFIG
+          npx playwright test --config video-qa.config.cjs
+      - name: Upload video evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: accounts-read-only-video-${{ github.run_id }}
+          path: test-results/**/*.webm
+          if-no-files-found: warn
+          retention-days: 1
