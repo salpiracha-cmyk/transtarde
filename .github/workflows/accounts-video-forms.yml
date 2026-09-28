@@ -44,7 +44,7 @@ jobs:
             await page.waitForTimeout(2200);
           }
           async function login(page) {
-            await page.goto(base + '/login.php');
+            await page.goto(base + '/login.php', {waitUntil:'domcontentloaded',timeout:30000});
             await page.locator('input[name=username]').fill(process.env.TRANSTRADE_QA_USERNAME);
             await page.locator('input[name=password]').fill(process.env.TRANSTRADE_QA_PASSWORD);
             await page.locator('button[type=submit]').click();
