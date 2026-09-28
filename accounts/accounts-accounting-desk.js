@@ -563,8 +563,8 @@
 
   function openFreightDesk() {
     const host=layer('ttFreightDesk','Freight'),body=q('.tt-window-body',host);
-    body.innerHTML=`<div class="tt-form"><p>Record the agreed USD rate per container for planning, then post the shipping line’s invoice with its own exchange rate.</p><div class="tt-form-actions"><button class="btn primary" id="ttFreightAgreement">Freight Agreed</button><button class="btn" id="ttFreightInvoice">Post Freight Invoice</button></div></div>`;
-    q('#ttFreightAgreement',body).onclick=openFreightAgreement;
+    body.innerHTML=`<div class="tt-form"><p>Record the agreed USD rate per container for planning, then post the shipping line’s invoice with its own exchange rate.</p><div class="tt-form-actions"><button class="btn primary" id="ttFreightAgreementOpen">Freight Agreed</button><button class="btn" id="ttFreightInvoice">Post Freight Invoice</button></div></div>`;
+    q('#ttFreightAgreementOpen',body).onclick=openFreightAgreement;
     q('#ttFreightInvoice',body).onclick=()=>openShipmentKind('freight');
   }
 
