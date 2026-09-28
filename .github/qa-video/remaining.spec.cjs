@@ -136,7 +136,7 @@ test('Remaining Accounts: raw Pohanch bill and ready multi-container bill',async
  await expect(page.locator('.ttsb-posting')).toBeVisible();
  await caption(page,'Ready bill posted','One supplier bill includes both selected containers in the same Soda.');
  await page.locator('.ttsb-posting button').click();
- await page.locator('.workspace.active .panelHead .tt-clean-close').click();
+ await page.locator('.workspace.active .tt-editor-bar .tt-clean-close').click();
  await page.locator('#ttDeskWork .tt-action').filter({hasText:'Due Payment Working'}).click();
  await expect(page.locator('#ttppAsOf')).toBeVisible();
  await caption(page,'Due payment working','The posted purchase bills appear in the due-date ladder with the company bank balance.');
@@ -161,7 +161,7 @@ test('Remaining Accounts: Mill local sale approval and ledger reports',async({pa
  await page.evaluate(()=>window.TT_LOCAL_SALES_CONTROL_UI?.mount?.());
  await expect(page.locator('[data-ttls-approve]')).toBeVisible();
  await caption(page,'Mill → Accounts local sale','The QA Gate Pass candidate is queued by the disposable Mill fixture. Accounts sees the party, quantity and sale value.');
- const dialog=page.waitForEvent('dialog');await page.locator('[data-ttls-approve]').click();const confirmation=await dialog;await confirmation.accept();
+ page.once('dialog',d=>d.accept());await page.locator('[data-ttls-approve]').click();
  await expect(page.locator('#ttLocalSalesToast')).toContainText('Local Sale approved');
  await caption(page,'Local sale posted','The approved sale becomes an Accounts journal and is removed from the waiting queue.');
  await page.locator('.workspace.active .panelHead .tt-clean-close').click();
