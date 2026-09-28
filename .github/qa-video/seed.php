@@ -29,9 +29,9 @@ file_put_contents(TT_STORE_FILE,json_encode(['users'=>[$user,$admin],'masters'=>
 $ref='QA/TTI/LGT/07';$lot=$ref.'/L01';
 $root=[
  'customers'=>[['id'=>'QA-LGT','name'=>'Ladoo General Trading LLC','code'=>'LGT','address'=>'Dubai, United Arab Emirates']],
- 'contracts'=>[['id'=>'QA-CONTRACT-LGT','ref'=>$ref,'seller'=>'TTI','customerId'=>'QA-LGT','customer'=>'Ladoo General Trading LLC','pol'=>'Karachi Port, Pakistan','podPort'=>'Jebel Ali, United Arab Emirates','packings'=>[['containers'=>10,'size'=>20,'brand'=>'marvarid','weightPer'=>27]],'currency'=>'USD','paymentCode'=>'ADV_CAD']],
- 'shipments'=>[[
-   'id'=>'QA-SHIP-LGT-01','kind'=>'lot','seller'=>'TTI','contractRef'=>$ref,'lotId'=>$lot,'buyer'=>'Ladoo General Trading LLC','loadingProgrammeNo'=>'QA-LP-LGT-07',
+ 'contracts'=>[['id'=>'QA-CONTRACT-LGT','ref'=>$ref,'seller'=>'TTI','customerId'=>'QA-LGT','customer'=>'Ladoo General Trading LLC','pol'=>'Karachi Port, Pakistan','podPort'=>'Jebel Ali, United Arab Emirates','packings'=>[['containers'=>10,'size'=>20,'brand'=>'marvarid','weightPer'=>27]],'currency'=>'USD','paymentCode'=>'ADV_CAD','product'=>'Basmati Rice','qty'=>270,'received'=>true,'status'=>'Issued']],
+ 'shipments'=>[[ 'id'=>'QA-PROC-LGT','kind'=>'process','contractRef'=>$ref,'buyer'=>'Ladoo General Trading LLC','seller'=>'TTI','plannedQty'=>270,'bagOrders'=>[['id'=>'QA-BAG-ORDER']],'production'=>['sentToMill'=>true],'loading'=>['lots'=>[['lotId'=>$lot,'lotRecordId'=>'QA-SHIP-LGT-01','totalMT'=>54]],'draft'=>null] ],[
+   'id'=>'QA-SHIP-LGT-01','kind'=>'lot','parentProcessId'=>'QA-PROC-LGT','plannedQty'=>54,'containers'=>2,'seller'=>'TTI','contractRef'=>$ref,'lotId'=>$lot,'buyer'=>'Ladoo General Trading LLC','loadingProgrammeNo'=>'QA-LP-LGT-07',
    'loadingPlan'=>['loadingProgrammeNo'=>'QA-LP-LGT-07','shippingLine'=>'QA Shipping Line','intendedVessel'=>'ruby','voyage'=>'123','portOfLoading'=>'Karachi Port, Pakistan'],
    'millActuals'=>[['number'=>'QA-VIDEO-CONT-01','bags'=>1350,'netKg'=>27000],['number'=>'QA-VIDEO-CONT-02','bags'=>1350,'netKg'=>27000]],
    'customs'=>['invoiceNo'=>'QA-CUSTOMS-LGT-07','gdRefs'=>[['number'=>'QA-GD-LGT-07']]],
