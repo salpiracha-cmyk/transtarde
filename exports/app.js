@@ -2014,5 +2014,5 @@ window.addEventListener('tt:shared-updated',()=>{
  if(restored){restored.value=query;restored.dispatchEvent(new Event('input',{bubbles:true}));if(focused){restored.focus({preventScroll:true});restored.setSelectionRange(...selection)}}
  window.scrollTo(scrollX,scrollY)
 });
-mount();restoreContractCheckpoint();refreshAccountsReceipts();
+mount();restoreContractCheckpoint();
 })();
