@@ -245,9 +245,15 @@ test('TG customer receipt reads the live Exports and bank links without posting'
   await expect(page.locator('#tgRcCustomer')).toBeAttached();
   await expect(page.locator('#tgRcTarget')).toBeAttached();
   await expect(page.locator('#tgRcContract')).toHaveCount(0);
-  const customer = contracts.find(row => row.customer && Number(row.outstandingAdvance) > 0)?.customer || contracts.find(row => row.customer)?.customer;
-  expect(customer, 'TG contract must resolve its Exports customer').toBeTruthy();
-  await page.locator('#tgRcCustomer').evaluate((select, value) => { select.value = value; select.dispatchEvent(new Event('change', { bubbles: true })); }, customer);
+  const amtContract = contracts.find(row => /AMT/i.test(row.ref || '') && /AMT/i.test(row.customer || ''));
+  expect(amtContract, 'AMT must reach TG Accounts from its Exports contract').toBeTruthy();
+  const customerSearch = page.locator('.tt-search-select:has(#tgRcCustomer) > input');
+  await expect(customerSearch).toBeVisible();
+  await customerSearch.fill('AMT');
+  const customerMenu = page.locator('.tt-select-menu[data-tt-select-for="tgRcCustomer"]');
+  await expect(customerMenu).toBeVisible();
+  await customerMenu.getByRole('button', { name: /AMT/i }).click();
+  await expect(page.locator('#tgRcCustomer')).toHaveValue(amtContract.customer);
   const options = await page.locator('#tgRcTarget option').allTextContents();
   expect(options.some(label => /Advance|Invoice/.test(label) && /\b(?:USD|AED|EUR|GBP)\b/.test(label)), 'Customer must reveal labeled contract advances or invoices and their amounts').toBe(true);
   const target = await page.locator('#tgRcTarget option').evaluateAll(rows => rows.find(row => row.value)?.value || '');
@@ -260,18 +266,4 @@ test('TG customer receipt reads the live Exports and bank links without posting'
   await page.goto(`${BASE_URL}/module.php?id=exports`, { waitUntil: 'domcontentloaded', timeout: 90_000 });
   await expect(page.locator('#exports-tg-accounts-receipts')).toHaveCount(1);
   await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('tt40exportreceipts') || 'null')), { timeout: 15_000 }).toEqual(exportsReceipts.body.receipts);
-  const amt = await page.evaluate(apiContracts => {
-    const root = JSON.parse(localStorage.getItem('transtrade_export_v3_operational') || '{}');
-    const customers = root.customers || [], contracts = root.contracts || [];
-    const customerIds = new Set(customers.filter(c => /AMT/i.test(c.name || '')).map(c => String(c.id)));
-    const matches = contracts.filter(c => /AMT/i.test(c.ref || '') || customerIds.has(String(c.customerId)));
-    return { customerCount: customerIds.size, contractCount: matches.length,
-      contracts: matches.map(c => ({ seller: c.seller || '', status: c.status || '', cancelled: !!c.cancelled,
-        customerIdPresent: !!c.customerId, customerResolved: customerIds.has(String(c.customerId)),
-        inlineCustomerPresent: !!c.customer, advancePctPositive: Number(c.advancePct || 0) > 0 })),
-      tgAccountsContracts: apiContracts.filter(c => /AMT/i.test(c.ref || '') || /AMT/i.test(c.customer || '')).map(c => ({
-        customerPresent: !!c.customer, advanceAvailable: Number(c.outstandingAdvance || 0) > 0, refMatches: /AMT/i.test(c.ref || '')
-      })) };
-  }, contracts);
-  console.log('AMT_LINK_DIAGNOSTIC ' + JSON.stringify(amt));
 });
