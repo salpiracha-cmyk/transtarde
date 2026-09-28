@@ -42,5 +42,5 @@ $root=[
 ];
 $key='transtrade_export_v3_operational';
 file_put_contents(TT_DATA_DIR.'/operations.json',json_encode(['revision'=>1,'values'=>[$key=>json_encode($root,JSON_THROW_ON_ERROR)],'meta'=>[$key=>['version'=>1,'updatedAt'=>gmdate('c'),'updatedBy'=>'QA Video','module'=>'Exports']]],JSON_THROW_ON_ERROR));
-file_put_contents(TT_DATA_DIR.'/accounts.json',json_encode(['revision'=>0,'journals'=>[],'supplierBills'=>[],'freightAgreements'=>[],'freightBillsV1'=>[],'exportServiceBillsV1'=>[],'transportBillsV1'=>[],'loadingProgrammes'=>['TTI|QA-LP-LGT-07'=>['id'=>'TTI|QA-LP-LGT-07','entity'=>'TTI','loadingProgrammeNo'=>'QA-LP-LGT-07','contractRef'=>$ref,'lotRef'=>$lot,'loadedContainers'=>2,'containerNumbers'=>['QA-VIDEO-CONT-01','QA-VIDEO-CONT-02']]]],JSON_THROW_ON_ERROR));
+file_put_contents(TT_DATA_DIR.'/accounts.json',json_encode(['revision'=>0,'journals'=>[],'supplierBills'=>[],'freightAgreements'=>[],'freightBillsV1'=>[],'exportServiceBillsV1'=>[],'transportBillsV1'=>[],'loadingProgrammes'=>['TTI|QA-LP-LGT-07'=>['id'=>'TTI|QA-LP-LGT-07','entity'=>'TTI','loadingProgrammeNo'=>'QA-LP-LGT-07','contractRef'=>$ref,'lotRef'=>$lot,'loadedContainers'=>2,'containerNumbers'=>['QAVU000001-6','QAVU000002-1']]]],JSON_THROW_ON_ERROR));
 echo "Local QA video fixture ready.\n";
