@@ -63,3 +63,36 @@ test('Remaining Accounts: raw, ready and corn purchase commitments',async({page}
  const data=await page.evaluate(async()=>{const r=await fetch('../api/purchase_sodas.php?entity=TTI');return r.json()});
  expect(data.sodas.length).toBeGreaterThanOrEqual(3);
 });
+
+test('Remaining Accounts: salary advance, adjustment and payment',async({page})=>{
+ test.setTimeout(180000);page.setDefaultTimeout(12000);
+ await login(page);
+ await page.locator('[data-tt-area="routine"]').click();
+ await page.locator('#ttDeskWork .tt-action').filter({hasText:'Salaries & Staff'}).click();
+ await expect(page.locator('#rsSalName')).toBeVisible();
+ await caption(page,'Staff master','Add one illustrative mill staff member. The master itself creates no salary voucher.');
+ await page.locator('#rsSalName').fill('QA Mill Operator');
+ await page.locator('#rsSalNet').fill('50000');
+ await page.locator('#rsSaveSal').click();
+ await expect(page.locator('#rsAdvancePerson option')).toHaveCount(1);
+ await caption(page,'Salary advance','An advance is recorded when paid. The month of salary will prompt for adjustment.');
+ await page.locator('#rsAdvanceAmount').fill('10000');
+ await expect(page.locator('#rsAdvanceAccount option').first()).toBeAttached();
+ await page.locator('#rsAdvanceSave').click();
+ await expect(page.locator('#ttRsToast')).toContainText('advance posted');
+ await caption(page,'Prepare the month','The adjustment box defaults to the suggested advance amount; Accounts can reduce it.');
+ await page.locator('#rsPrepare').click();
+ await expect(page.locator('#rsAdvanceConfirm')).toBeVisible();
+ const suggested=await page.locator('[data-advance-master]').inputValue();
+ expect(Number(suggested)).toBeGreaterThan(0);
+ await page.locator('[data-advance-master]').fill('6000');
+ await caption(page,'Carry forward Rs 4,000','The user adjusts Rs 6,000 now; the unadjusted advance remains for a later salary.');
+ await page.locator('#rsAdvanceConfirm').click();
+ await expect(page.locator('.ttrs').getByText('Monthly Salary Sheet')).toBeVisible();
+ await expect(page.locator('#rsPaySalBtn')).toBeVisible();
+ await page.locator('#rsPaySalAmt').fill('44000');
+ await caption(page,'Salary payment','The prepared salary balance is paid from the selected company account.');
+ await page.locator('#rsPaySalBtn').click();
+ await expect(page.locator('#ttRsToast')).toContainText('Salary payment saved');
+ await caption(page,'Salary closed','Master, advance, editable adjustment and payment have been posted in the disposable QA book.');
+});
