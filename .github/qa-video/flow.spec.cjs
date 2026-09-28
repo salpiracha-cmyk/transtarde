@@ -124,6 +124,20 @@ test('Exports, Milling and Accounts: linked local QA walkthrough', async ({ page
     await closeLayer(page);
   }
 
+  await openBill(page, 'Transporter');
+  await page.locator('#ttShipmentBillVendor').fill('QA Transporter');
+  await page.locator('[name="invoiceNo"]').fill('QA-TRANSPORT-001');
+  await page.locator('[name="rate"]').fill('25000');
+  await page.locator('#ttShipmentBillAdd').click();
+  let transportExtra = page.locator('.tt-shipment-charge').last();
+  await transportExtra.locator('[data-description]').fill('Toll and handling');
+  await transportExtra.locator('[data-amount]').fill('1500');
+  await caption(page, 'Transport', 'The two loaded containers under QA-LP-LGT-07 are billed at an illustrative PKR 25,000 per container plus one charge.');
+  await page.locator('#ttShipmentBillEntry button[type="submit"]').click();
+  await expect(page.getByText('Supplier bill posted')).toBeVisible();
+  await caption(page, 'Transport voucher', 'The loading programme controls available containers and the journal credits the transporter.');
+  await closeLayer(page);
+
   const snapshot = await page.evaluate(async () => {
     const r=await fetch('../api/accounts_workflows_v1.php?entity=TTI&section=services');
     return await r.json();
