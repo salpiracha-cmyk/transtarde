@@ -235,7 +235,7 @@ test('TG customer receipt reads the live Exports and bank links without posting'
   });
   expect(source.status).toBe(200);
   expect(source.body.ok).toBe(true);
-  const exportsReceipts = await page.evaluate(async () => { const response = await fetch('../api/export_accounts_receipts.php', { credentials: 'same-origin' }); return { status: response.status, body: await response.json() }; });
+  const exportsReceipts = await page.evaluate(async () => { const response = await fetch('../api/tg_export_accounts_receipts.php', { credentials: 'same-origin' }); return { status: response.status, body: await response.json() }; });
   expect(exportsReceipts.status, 'Exports must be able to read posted TG Accounts receipts').toBe(200);
   expect(exportsReceipts.body.ok).toBe(true);
   expect(Array.isArray(exportsReceipts.body.receipts)).toBe(true);

@@ -9,7 +9,7 @@
     if (loading) return;
     loading = true;
     try {
-      const response = await fetch('../api/export_accounts_receipts.php', {
+      const response = await fetch('../api/tg_export_accounts_receipts.php', {
         credentials: 'same-origin', headers: { Accept: 'application/json' }
       });
       if (!response.ok) return;
