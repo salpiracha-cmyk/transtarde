@@ -1,5 +1,5 @@
 name: Remaining Accounts Video QA
-# Disposable localhost fixture; payment voucher and local sale walkthrough rerun.
+# Disposable localhost fixture; expanded bill payment and voucher walkthrough.
 on:
   push:
     branches: [main]
