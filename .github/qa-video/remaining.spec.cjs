@@ -33,3 +33,33 @@ test('Remaining Accounts: recognized export receipt and print voucher',async({pa
  const data=await page.evaluate(async()=>{const r=await fetch('../api/export_receipts.php?entity=TTI');return r.json()});
  expect(data.receipts.some(x=>x.bankAdviceRef==='QA-CREDIT-ADVICE-001')).toBeTruthy();
 });
+
+test('Remaining Accounts: raw, ready and corn purchase commitments',async({page})=>{
+ test.setTimeout(180000);page.setDefaultTimeout(12000);
+ await login(page);
+ await page.locator('[data-tt-area="commodity"]').click();
+ const launch=async()=>{await page.locator('#ttDeskWork .tt-action').filter({hasText:'Soda Centre'}).click();await expect(page.locator('#ttSodaForm')).toBeVisible()};
+ const selectText=async(id,needle)=>{const value=await page.locator(id+' option').evaluateAll((options,text)=>options.find(x=>x.textContent.includes(text))?.value||'',needle);expect(value,needle+' option').toBeTruthy();await page.locator(id).selectOption(value)};
+ const enter=async({product,supplier,broker,route,unit,rate,qty,captionTitle})=>{
+  await launch();await caption(page,captionTitle,'A Soda reserves the purchase terms. Saving it must create no ledger posting.');
+  await selectText('#ttSdProduct',product);
+  if(supplier)await selectText('#ttSdSupplier',supplier);
+  if(broker)await selectText('#ttSdBroker',broker);
+  if(route){await page.locator('#ttSdRoute').selectOption(route);if(route==='EX_MILL')await selectText('#ttSdExMill','QA Outside Mill')}
+  await page.locator('#ttSdTrucks').fill('2');
+  if(route==='EX_MILL')await page.locator('#ttSdTarget').fill(qty);
+  else {await page.locator('#ttSdMin').fill(qty);await page.locator('#ttSdMax').fill(qty)}
+  await page.locator('#ttSdRate').fill(rate);await page.locator('#ttSdUnit').selectOption(unit);
+  await page.locator('#ttSdDue').fill('2026-10-10');
+  const alert=page.waitForEvent('dialog');await page.locator('#ttSodaForm button[type="submit"]').click();const dialog=await alert;expect(dialog.message()).toContain('No ledger entry was posted');await dialog.accept();
+  await expect(page.locator('#ttSodaLayer')).toBeHidden();
+ };
+ await enter({product:'IRRI-6',supplier:'QA Rice Supplier',broker:'QA Purchase Broker',unit:'KG',rate:'125',qty:'50',captionTitle:'Raw rice · supplier and broker'});
+ await caption(page,'Raw rice saved','The supplier receives the commodity liability when the Pohanch bill is approved; brokerage belongs to the broker.');
+ await enter({product:'READY',supplier:'QA Rice Supplier',route:'EX_MILL',unit:'KG',rate:'155',qty:'54',captionTitle:'Ready rice · external mill'});
+ await caption(page,'Ready EX-MILL saved','Container weight is the purchase quantity for this route. The later bill can select multiple containers.');
+ await enter({product:'CORN',supplier:'QA Corn Supplier',unit:'MAUND',rate:'2600',qty:'30',captionTitle:'Corn · rate per maund'});
+ await caption(page,'Corn saved','The rate is entered per 40 kg maund; the arrival bill later follows one Pohanch per bill.');
+ const data=await page.evaluate(async()=>{const r=await fetch('../api/purchase_sodas.php?entity=TTI');return r.json()});
+ expect(data.sodas.length).toBeGreaterThanOrEqual(3);
+});
