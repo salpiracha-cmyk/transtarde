@@ -58,7 +58,7 @@ test('Remaining Accounts: raw, ready and corn purchase commitments',async({page}
  await caption(page,'Raw rice saved','The supplier receives the commodity liability when the Pohanch bill is approved; brokerage belongs to the broker.');
  await enter({product:'READY',supplier:'QA Rice Supplier',route:'EX_MILL',unit:'KG',rate:'155',qty:'54',captionTitle:'Ready rice · external mill'});
  await caption(page,'Ready EX-MILL saved','Container weight is the purchase quantity for this route. The later bill can select multiple containers.');
- await enter({product:'CORN',supplier:'QA Corn Supplier',unit:'MAUND',rate:'2600',qty:'30',captionTitle:'Corn · rate per maund'});
+ await enter({product:'Corn / Makai',supplier:'QA Corn Supplier',unit:'MAUND',rate:'2600',qty:'30',captionTitle:'Corn · rate per maund'});
  await caption(page,'Corn saved','The rate is entered per 40 kg maund; the arrival bill later follows one Pohanch per bill.');
  const data=await page.evaluate(async()=>{const r=await fetch('../api/purchase_sodas.php?entity=TTI');return r.json()});
  expect(data.sodas.length).toBeGreaterThanOrEqual(3);
