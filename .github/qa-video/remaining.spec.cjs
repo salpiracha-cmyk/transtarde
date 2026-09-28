@@ -135,6 +135,22 @@ test('Remaining Accounts: raw Pohanch bill and ready multi-container bill',async
  await page.locator('#ttsbVerify').click();
  await expect(page.locator('.ttsb-posting')).toBeVisible();
  await caption(page,'Ready bill posted','One supplier bill includes both selected containers in the same Soda.');
+ await page.locator('.ttsb-posting button').click();
+ await page.locator('.workspace.active .panelHead .tt-clean-close').click();
+ await page.locator('#ttDeskWork .tt-action').filter({hasText:'Due Payment Working'}).click();
+ await expect(page.locator('#ttppAsOf')).toBeVisible();
+ await caption(page,'Due payment working','The posted purchase bills appear in the due-date ladder with the company bank balance.');
+ await page.locator('#ttstOpen').click();
+ await page.locator('#ttstBroker').selectOption({label:'QA Rice Supplier'});
+ await page.locator('[data-st-key]').first().check();
+ await page.locator('[data-st-amt]').first().fill('10000');
+ await page.locator('[data-st-amt]').first().dispatchEvent('change');
+ await page.locator('#ttstPaymentReference').fill('QA-SUPPLIER-PAYMENT-01');
+ await caption(page,'Supplier payment','Allocate Rs 10,000 to one exact bill and Pohanch, then select the QA company bank.');
+ page.once('dialog',d=>d.accept());
+ await page.locator('#ttstPostPay').click();
+ await expect(page.locator('#ttstPrintLast')).toBeVisible();
+ await caption(page,'Payment voucher','The supplier payment is posted and Print Payment Voucher is offered. The remaining bill balance stays outstanding.');
 });
 
 test('Remaining Accounts: Mill local sale approval and ledger reports',async({page})=>{
@@ -148,7 +164,7 @@ test('Remaining Accounts: Mill local sale approval and ledger reports',async({pa
  const dialog=page.waitForEvent('dialog');await page.locator('[data-ttls-approve]').click();const confirmation=await dialog;await confirmation.accept();
  await expect(page.locator('#ttLocalSalesToast')).toContainText('Local Sale approved');
  await caption(page,'Local sale posted','The approved sale becomes an Accounts journal and is removed from the waiting queue.');
- await page.locator('.workspace.active .panelHead [data-back]').click();
+ await page.locator('.workspace.active .panelHead .tt-clean-close').click();
  await page.locator('.tt-back-areas').click();
  await page.locator('[data-tt-area="ledgers"]').click();
  await page.locator('#ttDeskWork .tt-action').filter({hasText:'All Ledgers'}).click();
