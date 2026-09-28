@@ -14,7 +14,7 @@ const storage=new Map(),localStorage={getItem:k=>storage.get(k)||null,setItem:(k
 const window={document,localStorage,TT_MODULE_ACCESS:{user:'Jazib',module:'Exports'},addEventListener(){},print(){},setTimeout:fn=>fn(),setInterval:()=>0};
 const context={window,document,localStorage,console,structuredClone,alert:m=>{throw Error(m)},confirm:()=>true,location:{href:''},setTimeout:fn=>fn(),setInterval:()=>0,clearTimeout(){},FileReader:class{},Date,Intl};context.globalThis=context;
 let source=fs.readFileSync(__dirname+'/../../exports/app.js','utf8');
-source=source.replace('mount();',`window.__AUDIT__={state,makeShipment,makeLotRecord,blankDocuments,processStatus,lotStatus,fiUsed,actualTotals,plannedTotals,customsPlannedRows,plannedPhysicalRows,millActualsComplete,invoiceLines,commercialInvoiceDoc,packingListDoc,phytoInvoiceDoc,blDraftDoc,cooDoc,coveringDoc,lcDraftDoc,lcControlDoc,tgInternalDoc,salesContractPrint,defaultDocsFor,effectiveTerms,lcSpecificTerms,contractSpecRows,DEFAULT_QUALITY};mount();`);
+source=source.replace('mount();',`window.__AUDIT__={state,makeShipment,makeLotRecord,blankDocuments,processStatus,lotStatus,fiUsed,actualTotals,plannedTotals,customsPlannedRows,plannedPhysicalRows,millActualsComplete,invoiceLines,commercialInvoiceDoc,packingListDoc,phytoInvoiceDoc,blDraftDoc,cooDoc,coveringDoc,lcDraftDoc,lcControlDoc,tgInternalDoc,salesContractPrint,inspectionContractContext,defaultDocsFor,effectiveTerms,lcSpecificTerms,contractSpecRows,DEFAULT_QUALITY};mount();`);
 vm.runInNewContext(source,context,{filename:'app.js'});
 const t=window.__AUDIT__;
 
@@ -47,6 +47,17 @@ assert.ok(t.defaultDocsFor({incoterm:'FOB'}).some(x=>x.includes('e-Phyto issued 
 assert.ok(t.defaultDocsFor({incoterm:'FOB'}).some(x=>x.includes('Fumigation Certificate — 1 original + 1 copy')));
 const single={...contract,packings:[contract.packings[0]],containers:10,qty:270};assert.doesNotMatch(t.salesContractPrint(single),/A\. PACKED IN NEW SINGLE/);
 
+const directInspection=t.salesContractPrint(t.inspectionContractContext(contract),{inspection:true});
+assert.match(directInspection,/TRANSTRADE INTERNATIONAL/i);
+assert.match(directInspection,/North Star Foods LLC/);
+assert.doesNotMatch(directInspection,/<h3 class="docSection">(?:PRICE|PAYMENT)<\/h3>|contractPaymentBlock|contractBankDetails|TOTAL CONTRACT VALUE|FIRST-CLASS BANK ACCEPTABLE/);
+assert.doesNotMatch(directInspection,/Payment to be received latest|L\/C to be received latest/);
+assert.match(docs.sales,/<h3 class="docSection">PRICE<\/h3>/,'ordinary Sales Contract retains its price');
+const tgInspection=t.salesContractPrint(t.inspectionContractContext({...contract,seller:'TG'},'BRM'),{inspection:true});
+assert.match(tgInspection,/BUKSH RICE MILLS/i);
+assert.match(tgInspection,/TRANS GRAINS/i);
+assert.doesNotMatch(tgInspection,/North Star Foods LLC|TOTAL CONTRACT VALUE|contractPaymentBlock|<h3 class="docSection">PRICE<\/h3>/);
+assert.match(source,/data-print-contract=.*data-print-inspection=.*data-cancel-contract=/,'Sales Contract actions offer both print choices before Cancel');
 const tgContract={...contract,id:'CT-TG',ref:'TG/NS/02',seller:'TG',packings:[contract.packings[0]]};t.state.contracts.push(tgContract);const tgProcess=t.makeShipment(tgContract);tgProcess.lc={saved:false,documents:[],conditions:[]};const tgLot=t.makeLotRecord(tgProcess,{lotId:'TG-LOT-1',allocations:[{packIndex:0,name:'TTI Rice Mills',type:'TTI',containers:1,weightPer:27}]});tgLot.customs.rate=300;assert.match(t.tgInternalDoc(tgLot,tgContract),/SALES CONTRACT \/ PROFORMA INVOICE/);assert.match(t.tgInternalDoc(tgLot,tgContract),/>COMMERCIAL INVOICE</);assert.match(t.tgInternalDoc(tgLot,tgContract),/>PACKING LIST</);assert.doesNotMatch(t.tgInternalDoc(tgLot,tgContract),/INTERNAL COMMERCIAL INVOICE|INTERNAL PACKING LIST|EXPORT SETTLEMENT STATEMENT|NaN|undefined|null/i);
 tgLot.customs.rate=0;assert.equal(t.invoiceLines(tgLot,tgContract,true)[0].rate,0,'TG Customs must never inherit the final-customer rate');
 
