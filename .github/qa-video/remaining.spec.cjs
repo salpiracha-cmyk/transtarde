@@ -142,6 +142,7 @@ test('Remaining Accounts: Mill local sale approval and ledger reports',async({pa
  await login(page);
  await page.locator('[data-tt-area="commodity"]').click();
  await page.locator('#ttDeskWork .tt-action').filter({hasText:'Local Sales & Receipts'}).click();
+ await page.evaluate(()=>window.TT_LOCAL_SALES_CONTROL_UI?.mount?.());
  await expect(page.locator('[data-ttls-approve]')).toBeVisible();
  await caption(page,'Mill → Accounts local sale','The QA Gate Pass candidate is queued by the disposable Mill fixture. Accounts sees the party, quantity and sale value.');
  const dialog=page.waitForEvent('dialog');await page.locator('[data-ttls-approve]').click();const confirmation=await dialog;await confirmation.accept();
