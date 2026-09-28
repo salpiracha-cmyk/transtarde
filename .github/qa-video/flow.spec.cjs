@@ -73,11 +73,10 @@ test('Exports, Milling and Accounts: linked local QA walkthrough', async ({ page
   await page.locator('#shipmentBody tr[data-shipment-id]').first().click();
   await expect(page.locator('#instructionBanner')).toContainText(ref);
   for (const [number, truck, seal] of [
-    ['QAVU000001-6', 'QA-KHI-1001', 'QA-SEAL-01'],
-    ['QAVU000002-1', 'QA-KHI-1002', 'QA-SEAL-02']
+    ['QAVU000001-6', 'KHI-1001', 'QA-SEAL-01'],
+    ['QAVU000002-1', 'KHI-1002', 'QA-SEAL-02']
   ]) {
-    await page.locator('.tt-container-main').fill(number.slice(0, 10));
-    await page.locator('.tt-container-check').fill(number.slice(11));
+    await page.locator('#contNo').fill(number);
     await page.locator('#contTruck').fill(truck);
     await page.locator('#contWeight').fill('27000');
     await page.locator('#contBags').fill('1350');
