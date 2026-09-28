@@ -1,5 +1,5 @@
 name: Three Module Local Video QA
-# Disposable localhost fixture; no Hostinger access. Exports return after container save.
+# Disposable localhost fixture; no Hostinger access. Durable Exports return after container save.
 
 on:
   push:
