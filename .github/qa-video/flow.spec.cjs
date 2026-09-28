@@ -60,10 +60,14 @@ test('Exports, Milling and Accounts: linked local QA walkthrough', async ({ page
   await caption(page, 'Exports', 'The QA/TTI/LGT/07 contract and lot are the source for Accounts shipment lookup.');
   await page.locator('#homeSearch').fill(ref);
   await page.waitForTimeout(1000);
+  await expect(page.locator('[data-open-lot="QA-SHIP-LGT-01"]')).toBeVisible();
   await caption(page, 'Shipment reference', 'Commercial invoice USD 108,000 and customer Ladoo General Trading LLC mirror the supplied invoice. QA prefixes prevent confusion with business records.');
 
   await page.goto(base + '/module.php?id=milling', { waitUntil: 'domcontentloaded' });
-  await caption(page, 'Milling', 'Container actuals and loading references should flow back to Exports. This fixture includes two example container actuals.');
+  await page.locator('.mill-card').first().click();
+  await page.locator('.tile').filter({ hasText: 'Export Loading' }).first().click();
+  await expect(page.locator('#shipmentBody')).toContainText(ref);
+  await caption(page, 'Milling export loading', 'The Exports loading instruction for the QA lot appears at TTI Rice Mills: two representative containers at 27 MT.');
 
   await page.goto(base + '/accounts/index.php', { waitUntil: 'domcontentloaded' });
   await expect(page.locator('[data-tt-area="exports"]')).toBeVisible();
