@@ -14,7 +14,7 @@ const storage=new Map(),localStorage={getItem:k=>storage.get(k)||null,setItem:(k
 const window={document,localStorage,TT_MODULE_ACCESS:{user:'Jazib',module:'Exports'},addEventListener(){},print(){},setTimeout:fn=>fn(),setInterval:()=>0};
 const context={window,document,localStorage,console,structuredClone,alert:m=>{throw Error(m)},confirm:()=>true,location:{href:''},setTimeout:fn=>fn(),setInterval:()=>0,clearTimeout(){},FileReader:class{},Date,Intl};context.globalThis=context;
 let source=fs.readFileSync(__dirname+'/../../exports/app.js','utf8');
-source=source.replace('mount();',`window.__AUDIT__={state,makeShipment,makeLotRecord,blankDocuments,processStatus,lotStatus,fiUsed,actualTotals,plannedTotals,customsPlannedRows,plannedPhysicalRows,millActualsComplete,invoiceLines,commercialInvoiceDoc,packingListDoc,phytoInvoiceDoc,blDraftDoc,cooDoc,coveringDoc,lcDraftDoc,lcControlDoc,tgInternalDoc,salesContractPrint,paymentText,contractPaymentHTML,commercialPaymentLabel,inspectionContractContext,defaultDocsFor,effectiveTerms,lcSpecificTerms,contractSpecRows,DEFAULT_QUALITY};mount();`);
+source=source.replace('mount();',`window.__AUDIT__={state,makeShipment,makeLotRecord,blankDocuments,processStatus,lotStatus,fiUsed,actualTotals,plannedTotals,customsPlannedRows,plannedPhysicalRows,millActualsComplete,invoiceLines,commercialInvoiceDoc,packingListDoc,phytoInvoiceDoc,blDraftDoc,cooDoc,coveringDoc,lcDraftDoc,lcControlDoc,tgInternalDoc,salesContractPrint,paymentText,contractPaymentSectionText,contractPaymentHTML,commercialPaymentLabel,inspectionContractContext,defaultDocsFor,effectiveTerms,lcSpecificTerms,contractSpecRows,DEFAULT_QUALITY};mount();`);
 vm.runInNewContext(source,context,{filename:'app.js'});
 const t=window.__AUDIT__;
 
@@ -54,6 +54,23 @@ assert.doesNotMatch(t.contractPaymentHTML(amendedPayment),/<h3 class="docSection
 assert.equal(t.commercialPaymentLabel(amendedPayment),amendedPayment.paymentWordingOverride);
 assert.match(t.salesContractPrint(amendedPayment),/25% advance within seven days; 75% against scan copies within 50 days/);
 assert.notEqual(t.paymentText({...amendedPayment,balanceAdditionalEnabled:false}),amendedPayment.paymentWordingOverride);
+const completePayment={...contract,paymentCode:'ADV_SCAN',advancePct:25,paymentDeadline:'2026-09-14',balanceAdditionalEnabled:true,paymentWordingOverride:'',paymentSectionOverride:''};
+const generatedSection=t.contractPaymentSectionText(completePayment);
+assert.match(generatedSection,/25% advance and 75% balance on scan copies/);
+assert.match(generatedSection,/ADVANCE\n25% advance amounting to USD [\d,.]+ shall be received latest by 14-09-2026/);
+assert.match(generatedSection,/BALANCE\n75% balance amounting to USD [\d,.]+ shall be paid upon receipt of scan copies/);
+const savedSection=generatedSection.replace('14-09-2026','20-09-2026').replace('upon receipt of scan copies','within 50 days against scan copies');
+completePayment.paymentSectionOverride=savedSection;
+const printedSection=t.contractPaymentHTML(completePayment);
+assert.match(printedSection,/20-09-2026/);
+assert.match(printedSection,/within 50 days against scan copies/);
+assert.match(printedSection,/<h3 class="docSection">ADVANCE<\/h3>/);
+assert.match(printedSection,/<h3 class="docSection">BALANCE<\/h3>/);
+assert.equal((printedSection.match(/<h3 class="docSection">ADVANCE<\/h3>/g)||[]).length,1);
+assert.match(printedSection,/ADVANCE TO BE REMITTED TO BELOW-MENTIONED ACCOUNT/);
+assert.equal(t.commercialPaymentLabel(completePayment),generatedSection.split('\n\n')[0]);
+assert.match(t.salesContractPrint(completePayment),/within 50 days against scan copies/);
+
 assert.match(source,/id="cAdditionalBalanceEnabled"[^>]*> Edit payment wording/);
 assert.match(source,/id="cPaymentWording"/);
 
