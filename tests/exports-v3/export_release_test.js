@@ -206,7 +206,8 @@ assert.doesNotMatch(source,/,images=\[/,'print must never create the undeclared 
 assert.match(source,/const issuedContract=state\.contracts\.find\(x=>x\.id===contractDraft\.id&&x\.issued\);[\s\S]{0,120}checkpointContractDraft\(\);return true/,'an issued-contract amendment stays attached to its existing contract and shipment');
 assert.match(source,/contractSplitWorkspace/);
 assert.match(source,/key!==['"]bl['"]\)closeLotEditor/,'saving a B/L keeps the B/L editor open');
-assert.match(source,/id="liBooking"/,'Loading Instructions capture the carrier booking number before the lot is saved');
+assert.doesNotMatch(source,/id="liBooking"/,'Loading Instructions do not ask for a carrier booking number');
+assert.match(source,/<label>Shipping Line<\/label><input id="liShippingLine"[^>]*><\/div><div class="field"><label>Loading Programme No\.<\/label><input id="liProgramme"/,'Loading Programme No. is beside Shipping Line');
 assert.match(source,/id="blBookingNumber"/,'an existing B/L can also receive or correct its booking number');
 assert.match(source,/id="coBLNo"/,'Commercial Documents must provide an editable final B/L number beside the B/L upload');
 assert.match(source,/id="coBLDate"/,'Commercial Documents must provide an editable shipped-on-board date beside the B/L upload');
