@@ -49,10 +49,41 @@ final class TT_SimpleZipWriter {
         $this->central[] = compact('name','flags','method','mtime','mdate','crc','csize','usize','offset');
     }
 
-    public function addFile(string $name, string $path, bool $compress = true): void {
-        $data = file_get_contents($path);
-        if ($data === false) throw new RuntimeException('A backup source file could not be read.');
-        $this->addString($name, $data, $compress);
+    public function addFile(string $name, string $path, bool $compress = true): array {
+        if ($this->closed) throw new RuntimeException('Backup ZIP is already closed.');
+        $name = str_replace('\\', '/', ltrim($name, '/'));
+        if ($name === '' || str_contains($name, '../')) throw new InvalidArgumentException('Unsafe backup entry name.');
+        $source = fopen($path, 'rb');
+        if ($source === false) throw new RuntimeException('A backup source file could not be read.');
+        [$mtime, $mdate] = self::dosTime(filemtime($path) ?: null);
+        $flags = 0x0808; // UTF-8 name plus a data descriptor after streamed contents.
+        $method = 0; // Documents are commonly pre-compressed; store them without buffering in PHP memory.
+        $offset = $this->offset;
+        $local = pack('VvvvvvVVVvv', 0x04034b50, 20, $flags, $method, $mtime, $mdate, 0, 0, 0, strlen($name), 0);
+        $this->write($local . $name);
+        $crcContext = hash_init('crc32b');
+        $shaContext = hash_init('sha256');
+        $size = 0;
+        try {
+            while (!feof($source)) {
+                $chunk = fread($source, 1024 * 1024);
+                if ($chunk === false) throw new RuntimeException('A backup source file could not be read.');
+                if ($chunk === '') continue;
+                $size += strlen($chunk);
+                if ($size > 0xffffffff) throw new RuntimeException('A backup source file is too large for this ZIP format.');
+                hash_update($crcContext, $chunk);
+                hash_update($shaContext, $chunk);
+                $this->write($chunk);
+            }
+        } finally {
+            fclose($source);
+        }
+        $crcHex = hash_final($crcContext);
+        $sha256 = hash_final($shaContext);
+        $crc = (int)hexdec($crcHex);
+        $this->write(pack('VVVV', 0x08074b50, $crc, $size, $size));
+        $this->central[] = ['name'=>$name,'flags'=>$flags,'method'=>$method,'mtime'=>$mtime,'mdate'=>$mdate,'crc'=>$crc,'csize'=>$size,'usize'=>$size,'offset'=>$offset];
+        return ['size'=>$size, 'sha256'=>$sha256];
     }
 
     public function close(): void {
@@ -143,6 +174,8 @@ final class TT_SimpleZipReader {
 
 function tt_backup_dir(): string { return TT_DATA_DIR . '/backups'; }
 function tt_backup_state_file(): string { return TT_DATA_DIR . '/backup_state.json'; }
+function tt_backup_state_lock_file(): string { return TT_DATA_DIR . '/backup-state.lock'; }
+function tt_backup_job_lock_file(): string { return TT_DATA_DIR . '/backup-job.lock'; }
 function tt_operations_file(): string { return TT_DATA_DIR . '/operations.json'; }
 
 function tt_backup_ensure_dirs(): void {
@@ -151,7 +184,7 @@ function tt_backup_ensure_dirs(): void {
     if (!is_dir($dir) && !mkdir($dir, 0700, true) && !is_dir($dir)) throw new RuntimeException('The private backup folder could not be created.');
 }
 
-function tt_backup_read_state(): array {
+function tt_backup_read_state_unlocked(): array {
     $path = tt_backup_state_file();
     if (!is_file($path)) return [];
     $raw = file_get_contents($path);
@@ -159,13 +192,38 @@ function tt_backup_read_state(): array {
     return is_array($data) ? $data : [];
 }
 
+function tt_backup_read_state(): array {
+    tt_ensure_data_dir();
+    $lock = fopen(tt_backup_state_lock_file(), 'c+');
+    if ($lock === false || !flock($lock, LOCK_SH)) throw new RuntimeException('Backup status is unavailable.');
+    try { return tt_backup_read_state_unlocked(); }
+    finally { flock($lock, LOCK_UN); fclose($lock); }
+}
+
 function tt_backup_write_state(array $patch): void {
     tt_ensure_data_dir();
-    $state = array_merge(tt_backup_read_state(), $patch);
-    $tmp = tt_backup_state_file() . '.tmp-' . bin2hex(random_bytes(4));
-    if (file_put_contents($tmp, json_encode($state, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR), LOCK_EX) === false) throw new RuntimeException('Backup status could not be saved.');
-    @chmod($tmp, 0600);
-    if (!rename($tmp, tt_backup_state_file())) { @unlink($tmp); throw new RuntimeException('Backup status could not be saved.'); }
+    $lock = fopen(tt_backup_state_lock_file(), 'c+');
+    if ($lock === false || !flock($lock, LOCK_EX)) throw new RuntimeException('Backup status is unavailable.');
+    $tmp = '';
+    try {
+        $state = array_merge(tt_backup_read_state_unlocked(), $patch);
+        foreach ($state as $key => $value) if ($value === null) unset($state[$key]);
+        $tmp = tt_backup_state_file() . '.tmp-' . bin2hex(random_bytes(4));
+        $encoded = json_encode($state, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+        $handle = fopen($tmp, 'x+b');
+        if ($handle === false) throw new RuntimeException('Backup status could not be prepared.');
+        try {
+            @chmod($tmp, 0600);
+            if (fwrite($handle, $encoded) !== strlen($encoded) || !fflush($handle)) throw new RuntimeException('Backup status could not be saved.');
+            if (function_exists('fsync') && !fsync($handle)) throw new RuntimeException('Backup status could not be synchronized.');
+        } finally { fclose($handle); }
+        if (!rename($tmp, tt_backup_state_file())) throw new RuntimeException('Backup status could not be saved.');
+        $tmp = '';
+    } finally {
+        if ($tmp !== '' && is_file($tmp)) @unlink($tmp);
+        flock($lock, LOCK_UN);
+        fclose($lock);
+    }
 }
 
 function tt_backup_private_files(): array {
@@ -178,7 +236,7 @@ function tt_backup_private_files(): array {
         if (!$file->isFile() || $file->isLink()) continue;
         $path = $file->getPathname();
         $rel = str_replace('\\', '/', substr($path, strlen($root) + 1));
-        if ($rel === '' || str_starts_with($rel, 'backups/') || $rel === 'backup_state.json' || str_contains($rel, '.tmp-') || str_contains($rel, '.restore-')) continue;
+        if ($rel === '' || str_starts_with($rel, 'backups/') || $rel === 'backup_state.json' || str_ends_with($rel, '.lock') || str_contains($rel, '.tmp-') || str_contains($rel, '.restore-')) continue;
         $files[$rel] = $path;
     }
     ksort($files);
@@ -337,10 +395,155 @@ function tt_build_download_backup(bool $full,string $password=''):array{
     $zip->addString('README.txt',"TRANSTRADE COMPLETE RECOVERY BACKUP\n\nSensitive contents are encrypted with the password chosen by the owner. Restore through Transtrade Super Admin > Backup & Data Export.\nThe password is not stored in this ZIP.\n");$zip->addString('backup-manifest.json',json_encode($manifest,JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR));$zip->close();return ['path'=>$tmp,'manifest'=>$manifest];
 }
 
-function tt_create_server_snapshot(string $kind='auto'):string{tt_backup_ensure_dirs();$stamp=gmdate('Ymd-His');$name=tt_backup_safe_name($kind).'-'.$stamp.'.zip';$path=tt_backup_dir().'/'.$name;$zip=new TT_SimpleZipWriter($path);$private=tt_backup_private_files();foreach($private as $rel=>$file)$zip->addFile('System_Recovery/private/'.$rel,$file);$manifest=tt_backup_manifest('server_snapshot',$private,['snapshotKind'=>$kind]);$zip->addString('backup-manifest.json',json_encode($manifest,JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR));$zip->close();@chmod($path,0600);$statePatch=['last_snapshot'=>$name];if($kind==='auto')$statePatch['last_auto_at']=gmdate('c');elseif($kind==='manual')$statePatch['last_manual_at']=gmdate('c');elseif($kind==='pre-restore')$statePatch['last_pre_restore_at']=gmdate('c');tt_backup_write_state($statePatch);tt_backup_rotate();return $name;}
-function tt_backup_rotate():void{$files=glob(tt_backup_dir().'/auto-*.zip')?:[];rsort($files);$now=time();$keep=[];$days=[];$months=[];foreach($files as $path){$mtime=filemtime($path)?:$now;$age=$now-$mtime;if($age<=48*3600){$keep[$path]=true;continue;}if($age<=30*86400){$key=gmdate('Y-m-d',$mtime);if(!isset($days[$key])){$days[$key]=true;$keep[$path]=true;}continue;}if($age<=366*86400){$key=gmdate('Y-m',$mtime);if(!isset($months[$key])){$months[$key]=true;$keep[$path]=true;}continue;}}foreach($files as $path)if(!isset($keep[$path]))@unlink($path);}
-function tt_maybe_auto_backup():void{try{tt_backup_ensure_dirs();$state=tt_backup_read_state();$last=strtotime((string)($state['last_auto_at']??''))?:0;if(time()-$last>=3600)tt_create_server_snapshot('auto');}catch(Throwable){/* Backup failure must never block data entry. */}}
-function tt_backup_status():array{tt_maybe_auto_backup();tt_backup_ensure_dirs();$files=glob(tt_backup_dir().'/*.zip')?:[];$bytes=0;foreach($files as $f)$bytes+=filesize($f)?:0;$state=tt_backup_read_state();return['automaticAvailable'=>function_exists('gzdeflate')&&function_exists('openssl_encrypt'),'lastAutoBackup'=>$state['last_auto_at']??null,'lastOwnerDownload'=>$state['last_owner_download_at']??null,'snapshotCount'=>count($files),'snapshotBytes'=>$bytes,'lastSnapshot'=>$state['last_snapshot']??null];}
+function tt_backup_verify_snapshot(string $path, array $expectedInventory): void {
+    $reader = new TT_SimpleZipReader($path);
+    try {
+        $manifestRaw = $reader->get('backup-manifest.json');
+        $manifest = $manifestRaw === false ? null : json_decode($manifestRaw, true);
+        if (!is_array($manifest) || ($manifest['type'] ?? '') !== 'server_snapshot') throw new RuntimeException('The server snapshot manifest is invalid.');
+        $actual = [];
+        foreach ((array)($manifest['recoveryFiles'] ?? []) as $entry) {
+            $logical = (string)($entry['path'] ?? '');
+            if ($logical === '') throw new RuntimeException('The server snapshot inventory is invalid.');
+            $contents = $reader->get('System_Recovery/private/' . $logical);
+            if ($contents === false) throw new RuntimeException('The server snapshot is incomplete.');
+            if ((int)($entry['size'] ?? -1) !== strlen($contents) || !hash_equals((string)($entry['sha256'] ?? ''), hash('sha256', $contents))) throw new RuntimeException('A server snapshot entry failed integrity verification.');
+            $actual[$logical] = ['size'=>strlen($contents), 'sha256'=>hash('sha256', $contents)];
+        }
+        if ($actual !== $expectedInventory) throw new RuntimeException('The server snapshot inventory changed while it was being created.');
+    } finally { $reader->close(); }
+}
+
+function tt_create_server_snapshot(string $kind='auto'): string {
+    tt_backup_ensure_dirs();
+    $jobLock = fopen(tt_backup_job_lock_file(), 'c+');
+    if ($jobLock === false || !flock($jobLock, LOCK_EX)) throw new RuntimeException('The backup service is busy.');
+    $temp = '';
+    $authLock = null;
+    $operationsLock = null;
+    try {
+        if ($kind === 'auto') {
+            $state = tt_backup_read_state();
+            $last = strtotime((string)($state['last_auto_at'] ?? '')) ?: 0;
+            if (time() - $last < 3600 && !empty($state['last_snapshot'])) return (string)$state['last_snapshot'];
+        }
+        $authLock = tt_open_store_lock(LOCK_SH);
+        if (is_file(TT_STORE_FILE)) {
+            $raw = file_get_contents(TT_STORE_FILE);
+            if ($raw === false) throw new RuntimeException('Secure storage could not be read for backup.');
+            tt_decode_store($raw);
+        }
+        $operationsPath = tt_operations_file();
+        if (is_file($operationsPath)) {
+            $operationsLock = fopen($operationsPath, 'rb');
+            if ($operationsLock === false || !flock($operationsLock, LOCK_SH)) throw new RuntimeException('Shared operational storage could not be locked for backup.');
+            $raw = stream_get_contents($operationsLock);
+            if ($raw === false || ($raw !== '' && !is_array(json_decode($raw, true)))) throw new RuntimeException('Shared operational storage is invalid and was not backed up.');
+        }
+        $stamp = gmdate('Ymd-His');
+        $name = tt_backup_safe_name($kind) . '-' . $stamp . '-' . substr(bin2hex(random_bytes(4)), 0, 8) . '.zip';
+        $path = tt_backup_dir() . '/' . $name;
+        $temp = tt_backup_dir() . '/.snapshot-' . bin2hex(random_bytes(8)) . '.tmp';
+        $zip = new TT_SimpleZipWriter($temp);
+        $inventory = [];
+        foreach (tt_backup_private_files() as $rel => $file) {
+            $meta = $zip->addFile('System_Recovery/private/' . $rel, $file, false);
+            $inventory[$rel] = $meta;
+        }
+        ksort($inventory);
+        $manifest = [
+            'schema'=>TT_BACKUP_SCHEMA,
+            'application'=>'Transtrade',
+            'appVersion'=>TT_BACKUP_APP_VERSION,
+            'type'=>'server_snapshot',
+            'createdAt'=>gmdate('c'),
+            'recoveryFileCount'=>count($inventory),
+            'recoveryFiles'=>array_map(static fn(string $rel, array $meta): array => ['path'=>$rel] + $meta, array_keys($inventory), array_values($inventory)),
+            'snapshotKind'=>$kind,
+        ];
+        $zip->addString('backup-manifest.json', json_encode($manifest, JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR));
+        $zip->close();
+        @chmod($temp, 0600);
+        tt_backup_verify_snapshot($temp, $inventory);
+        if (!rename($temp, $path)) throw new RuntimeException('The verified server snapshot could not be committed.');
+        $temp = '';
+        @chmod($path, 0600);
+        $now = gmdate('c');
+        $statePatch = ['last_snapshot'=>$name, 'last_success_at'=>$now, 'last_error_at'=>null, 'last_error'=>null, 'consecutive_failures'=>0];
+        if ($kind === 'auto') $statePatch['last_auto_at'] = $now;
+        elseif ($kind === 'manual') $statePatch['last_manual_at'] = $now;
+        elseif ($kind === 'pre-restore') $statePatch['last_pre_restore_at'] = $now;
+        tt_backup_write_state($statePatch);
+        tt_backup_rotate();
+        return $name;
+    } catch (Throwable $error) {
+        if ($temp !== '' && is_file($temp)) @unlink($temp);
+        try {
+            $state = tt_backup_read_state();
+            tt_backup_write_state([
+                'last_error_at'=>gmdate('c'),
+                'last_error'=>'A server snapshot could not be completed or verified.',
+                'consecutive_failures'=>(int)($state['consecutive_failures'] ?? 0) + 1,
+            ]);
+        } catch (Throwable) {}
+        throw $error;
+    } finally {
+        if (is_resource($operationsLock)) { flock($operationsLock, LOCK_UN); fclose($operationsLock); }
+        if (is_resource($authLock)) { flock($authLock, LOCK_UN); fclose($authLock); }
+        flock($jobLock, LOCK_UN);
+        fclose($jobLock);
+    }
+}
+
+function tt_backup_rotate(): void {
+    $now = time();
+    $auto = glob(tt_backup_dir() . '/auto-*.zip') ?: [];
+    rsort($auto, SORT_STRING);
+    $keep = []; $days = []; $months = [];
+    foreach ($auto as $path) {
+        $mtime = filemtime($path) ?: $now; $age = $now - $mtime;
+        if ($age <= 48 * 3600) { $keep[$path] = true; continue; }
+        if ($age <= 30 * 86400) { $key=gmdate('Y-m-d',$mtime); if (!isset($days[$key])) { $days[$key]=true; $keep[$path]=true; } continue; }
+        if ($age <= 366 * 86400) { $key=gmdate('Y-m',$mtime); if (!isset($months[$key])) { $months[$key]=true; $keep[$path]=true; } }
+    }
+    foreach ($auto as $path) if (!isset($keep[$path]) && !@unlink($path)) error_log('Transtrade could not prune expired automatic snapshot ' . basename($path));
+    foreach (['manual'=>12, 'pre-restore'=>12] as $prefix => $limit) {
+        $files = glob(tt_backup_dir() . '/' . $prefix . '-*.zip') ?: [];
+        rsort($files, SORT_STRING);
+        foreach (array_slice($files, $limit) as $path) if (!@unlink($path)) error_log('Transtrade could not prune expired ' . $prefix . ' snapshot ' . basename($path));
+    }
+}
+
+function tt_maybe_auto_backup(): void {
+    try {
+        tt_backup_ensure_dirs();
+        $state = tt_backup_read_state();
+        $last = strtotime((string)($state['last_auto_at'] ?? '')) ?: 0;
+        if (time() - $last >= 3600) tt_create_server_snapshot('auto');
+    } catch (Throwable $error) {
+        error_log('Transtrade automatic backup failed: ' . $error->getMessage());
+    }
+}
+
+function tt_backup_status(): array {
+    tt_maybe_auto_backup();
+    tt_backup_ensure_dirs();
+    $files = glob(tt_backup_dir() . '/*.zip') ?: [];
+    $bytes = 0; foreach ($files as $file) $bytes += filesize($file) ?: 0;
+    $state = tt_backup_read_state();
+    return [
+        'automaticAvailable'=>function_exists('gzdeflate') && function_exists('openssl_encrypt'),
+        'lastAutoBackup'=>$state['last_auto_at'] ?? null,
+        'lastOwnerDownload'=>$state['last_owner_download_at'] ?? null,
+        'snapshotCount'=>count($files),
+        'snapshotBytes'=>$bytes,
+        'lastSnapshot'=>$state['last_snapshot'] ?? null,
+        'lastBackupSuccess'=>$state['last_success_at'] ?? null,
+        'lastBackupErrorAt'=>$state['last_error_at'] ?? null,
+        'backupHealthy'=>empty($state['last_error_at']) || (!empty($state['last_success_at']) && strtotime((string)$state['last_success_at']) >= strtotime((string)$state['last_error_at'])),
+        'consecutiveFailures'=>(int)($state['consecutive_failures'] ?? 0),
+    ];
+}
 
 function tt_backup_open_verified(string $path,string $password=''):array{$zip=new TT_SimpleZipReader($path);$manifestRaw=$zip->get('backup-manifest.json');$manifest=$manifestRaw?json_decode($manifestRaw,true):null;if(!is_array($manifest)||($manifest['application']??'')!=='Transtrade'||($manifest['type']??'')!=='full_recovery'){$zip->close();throw new InvalidArgumentException('This is not a Complete Transtrade Recovery Backup.');}if((int)($manifest['schema']??0)>TT_BACKUP_SCHEMA){$zip->close();throw new InvalidArgumentException('This backup was created by a newer Transtrade backup format.');}$enc=(array)($manifest['encryption']??[]);$salt=base64_decode((string)($enc['salt']??''),true);if($salt===false||($enc['algorithm']??'')!=='AES-256-GCM'){$zip->close();throw new InvalidArgumentException('The recovery backup encryption information is invalid.');}$key=tt_backup_derive_key($password,$salt,(int)($enc['iterations']??200000));$map=(array)($manifest['encryptedEntries']??[]);$authMeta=(array)($map['System_Recovery/private/auth.json']??[]);if(!$authMeta||empty($authMeta['stored'])){$zip->close();throw new InvalidArgumentException('The recovery backup does not contain auth.json.');}$cipher=$zip->get((string)$authMeta['stored']);if($cipher===false){$zip->close();throw new InvalidArgumentException('The recovery backup is incomplete.');}$auth=tt_backup_decrypt($cipher,$authMeta,$key);$authJson=json_decode($auth,true);if(!is_array($authJson)){$zip->close();throw new InvalidArgumentException('The backup contains invalid recovery data.');}return[$zip,$manifest,$key];}
 function tt_backup_atomic_write(string $path,string $data):void{$dir=dirname($path);if(!is_dir($dir)&&!mkdir($dir,0700,true)&&!is_dir($dir))throw new RuntimeException('A recovery folder could not be created.');$tmp=$path.'.restore-'.bin2hex(random_bytes(4));if(file_put_contents($tmp,$data,LOCK_EX)===false)throw new RuntimeException('A recovery file could not be written.');@chmod($tmp,0600);if(!rename($tmp,$path)){@unlink($tmp);throw new RuntimeException('A recovery file could not be replaced.');}}
