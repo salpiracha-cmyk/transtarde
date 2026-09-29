@@ -180,6 +180,7 @@ function ai_call_gemini(string $key,string $model,array $parts,array $schema): a
 
 try{
     $user=tt_current_user();
+    if($user&&tt_managed_qa_write_blocked($user)) ai_respond(['ok'=>false,'error'=>'The production QA account is read-only.'],403);
     if(!$user){$_SESSION=[];ai_respond(['ok'=>false,'error'=>'Your login session expired. Please sign in again.'],401);}
     if(!tt_user_can_open_module($user,'Exports')) ai_respond(['ok'=>false,'error'=>'Exports access is required.'],403);
     if($_SERVER['REQUEST_METHOD']!=='POST') ai_respond(['ok'=>false,'error'=>'Method not allowed.'],405);

@@ -895,7 +895,10 @@ function tt_update_staff_user(int $id, array $input): void {
             if ((int)($user['id'] ?? 0) !== $id) continue;
             if (($user['role'] ?? '') === 'Super Admin') throw new RuntimeException('The Super Admin account cannot be changed here.');
             if (!empty($user['system_qa']) || (strcasecmp((string)($user['username'] ?? ''),'qa.assistant')===0 && !empty($user['test_data_only']))) {
-                throw new RuntimeException('The operational QA account profile is managed by the system. Change only its password when required.');
+                // Super Admin may disable/reactivate the read-only test login.
+                // Its reserved identity and permissions remain system-enforced.
+                $user['active']=$input['active'];
+                unset($user);return;
             }
             $user['full_name']=$input['name']; $user['username']=$input['username'];
             $user['role']=$input['role']; $user['location']=$input['location'];
@@ -1083,6 +1086,11 @@ function tt_api_json_error(int $status,string $message): never {
     http_response_code($status);header('Content-Type: application/json; charset=UTF-8');header('Cache-Control: no-store');echo json_encode(['ok'=>false,'error'=>$message]);exit;
 }
 
+function tt_managed_qa_write_blocked(array $user): bool {
+    if(empty($user['system_qa'])&&empty($user['test_data_only']))return false;
+    return !in_array(strtoupper((string)($_SERVER['REQUEST_METHOD']??'GET')),['GET','HEAD','OPTIONS'],true);
+}
+
 function tt_api_entity_policy(string $path): array {
     $endpoint=basename($path);
     $entityIndependent=['operations.php','operations.mysql.php','export_documents.php','export_customers.php','export_realization_master.php','masters.php','master_documents.php','users.php','backup.php','accounts_bulk_test_cleanup.php','location-master.php','commodity_lookup.php','bag_bill_file.php','bridge_outbox.php'];
@@ -1101,6 +1109,9 @@ function tt_require_login(): array {
         }
         header('Location: /login.php');
         exit;
+    }
+    if(str_starts_with($path,'/api/')&&tt_managed_qa_write_blocked($user)){
+        tt_api_json_error(403,'The production QA account is read-only. Use disposable test storage for write testing.');
     }
     tt_offline_request_guard($user);
     if(str_starts_with($path,'/api/')&&tt_user_can_open_module($user,'Accounts')){

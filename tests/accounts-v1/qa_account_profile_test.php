@@ -45,13 +45,14 @@ $user=$GLOBALS['qa_profile_store']['users'][0];
 
 qa_assert($user['role']==='QA Tester','QA role is restored to QA Tester');
 qa_assert($user['password_hash']==='LIVE-PASSWORD-HASH-MUST-STAY','live QA password hash is preserved');
-qa_assert($user['permissions']===['Mill'=>'all','Exports'=>'all','Accounts'=>'all'],'QA receives only the three operational module permissions');
+qa_assert($user['permissions']===['Mill'=>['View'],'Exports'=>['View'],'Accounts'=>['View']],'QA receives read-only access to the three operational modules');
 qa_assert($user['master_access']===false,'QA does not inherit explicit owner-level Master control');
 qa_assert($user['master_permissions']===[],'QA explicit Master matrix is cleared');
-qa_assert($user['active']===true,'QA account remains active');
-qa_assert($user['must_change_password']===false,'automated QA is not forced into password change');
+qa_assert($user['active']===false,'profile repair never silently reactivates a disabled QA account');
+qa_assert($user['must_change_password']===true,'profile repair preserves a required password change');
 qa_assert($user['system_qa']===true && $user['test_data_only']===true,'QA identity flags remain protected');
-qa_assert(($GLOBALS['qa_profile_store']['settings']['qa_account_profile_version'] ?? null)===2,'QA profile version is recorded');
+qa_assert(($GLOBALS['qa_profile_store']['settings']['qa_account_profile_version'] ?? null)===3,'existing QA profile migration remains recorded');
+qa_assert(!isset($GLOBALS['qa_profile_store']['settings']['qa_account_provisioning_required']),'existing QA account clears any stale provisioning marker');
 qa_assert(str_contains((string)($GLOBALS['qa_profile_store']['audit'][0]['action'] ?? ''),'Restored operational QA account profile'),'profile repair is audited');
 
 // A later ordinary profile drift must self-heal without changing the password.
@@ -61,7 +62,7 @@ $GLOBALS['qa_profile_store']['users'][0]['password_hash']='NEW-LIVE-PASSWORD-HAS
 tt_ensure_qa_account();
 $user=$GLOBALS['qa_profile_store']['users'][0];
 qa_assert($user['role']==='QA Tester','QA role is continuously protected');
-qa_assert($user['permissions']===['Mill'=>'all','Exports'=>'all','Accounts'=>'all'],'QA permissions are continuously protected');
+qa_assert($user['permissions']===['Mill'=>['View'],'Exports'=>['View'],'Accounts'=>['View']],'QA read-only permissions are continuously protected');
 qa_assert($user['password_hash']==='NEW-LIVE-PASSWORD-HASH','profile self-heal never replaces a changed live password');
 
 // A manually-created unrelated account using the reserved name is not adopted.
@@ -83,5 +84,12 @@ $user=$GLOBALS['qa_profile_store']['users'][0];
 qa_assert($user['role']==='Staff','unmanaged account is not silently elevated');
 qa_assert($user['password_hash']==='OTHER','unmanaged account password is untouched');
 qa_assert(!empty($GLOBALS['qa_profile_store']['settings']['qa_account_seeded']),'reserved-name collision still prevents silent reseeding');
+
+// A missing account is never recreated from a password hash committed to GitHub.
+$GLOBALS['qa_profile_store']=['settings'=>[],'users'=>[],'audit'=>[]];
+tt_ensure_qa_account();
+qa_assert($GLOBALS['qa_profile_store']['users']===[],'missing QA account is not automatically recreated');
+qa_assert(!empty($GLOBALS['qa_profile_store']['settings']['qa_account_provisioning_required']),'missing QA account records an explicit provisioning requirement');
+qa_assert(($GLOBALS['qa_profile_store']['settings']['qa_account_profile_version']??null)===3,'non-seeded QA profile version is recorded');
 
 echo "PASS stable operational QA account profile\n";
