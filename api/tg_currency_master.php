@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require dirname(__DIR__) . '/auth_store.php';
+require dirname(__DIR__) . '/upload_validation.php';
 header('Cache-Control: no-store, no-cache, must-revalidate');
 
 const TT_TG_FX_MASTER_TYPE = 'tg_currency_rates';
@@ -90,11 +91,11 @@ function tg_alerts(array $docs): array {
 }
 function tg_save_uploaded_file(array $file): array {
     if(($file['error']??UPLOAD_ERR_NO_FILE)===UPLOAD_ERR_NO_FILE)return ['stored'=>'','original'=>'','mime'=>''];if(($file['error']??UPLOAD_ERR_OK)!==UPLOAD_ERR_OK)tgfx_out(['ok'=>false,'error'=>'Document upload failed.'],422);if((int)($file['size']??0)>10*1024*1024)tgfx_out(['ok'=>false,'error'=>'Document copy must be 10 MB or smaller.'],422);
-    $tmp=(string)($file['tmp_name']??'');$orig=basename((string)($file['name']??'document'));$finfo=new finfo(FILEINFO_MIME_TYPE);$mime=(string)$finfo->file($tmp);$allowed=['application/pdf'=>'pdf','image/jpeg'=>'jpg','image/png'=>'png'];if(!isset($allowed[$mime]))tgfx_out(['ok'=>false,'error'=>'Upload PDF, JPG or PNG only.'],422);
-    tt_ensure_data_dir();if(!is_dir(TT_TG_DOC_DIR)&&!mkdir(TT_TG_DOC_DIR,0700,true)&&!is_dir(TT_TG_DOC_DIR))throw new RuntimeException('TG document storage unavailable.');$stored=bin2hex(random_bytes(16)).'.'.$allowed[$mime];$dest=TT_TG_DOC_DIR.'/'.$stored;if(!move_uploaded_file($tmp,$dest))throw new RuntimeException('TG document could not be stored.');@chmod($dest,0600);return ['stored'=>$stored,'original'=>$orig,'mime'=>$mime];
+    $validated=tt_validate_document_upload($file,10*1024*1024,['application/pdf'=>'pdf','image/jpeg'=>'jpg','image/png'=>'png']);$tmp=$validated['path'];$orig=tt_upload_original_name((string)($file['name']??''));$mime=$validated['mime'];
+    tt_ensure_data_dir();if(!is_dir(TT_TG_DOC_DIR)&&!mkdir(TT_TG_DOC_DIR,0700,true)&&!is_dir(TT_TG_DOC_DIR))throw new RuntimeException('TG document storage unavailable.');$stored=bin2hex(random_bytes(16)).'.'.$validated['extension'];$dest=TT_TG_DOC_DIR.'/'.$stored;if(!move_uploaded_file($tmp,$dest))throw new RuntimeException('TG document could not be stored.');@chmod($dest,0600);return ['stored'=>$stored,'original'=>$orig,'mime'=>$mime];
 }
 function tg_doc_download(array $u,string $id): never {
-    $docs=tg_docs();$d=null;foreach($docs as $x)if((string)$x['id']===$id){$d=$x;break;}if(!$d||empty($d['storedFile'])){http_response_code(404);exit('Document copy not found.');}$path=TT_TG_DOC_DIR.'/'.basename((string)$d['storedFile']);if(!is_file($path)){http_response_code(404);exit('Document file is unavailable.');}$mime=(string)($d['mime']??'application/octet-stream');$name=preg_replace('/[^A-Za-z0-9._ -]+/','_',basename((string)($d['originalFile']??'TG-document')))?:'TG-document';header('Content-Type: '.$mime);header('Content-Length: '.filesize($path));header('Content-Disposition: inline; filename="'.$name.'"');readfile($path);exit;
+    $docs=tg_docs();$d=null;foreach($docs as $x)if((string)$x['id']===$id){$d=$x;break;}if(!$d||empty($d['storedFile'])){http_response_code(404);exit('Document copy not found.');}$path=TT_TG_DOC_DIR.'/'.basename((string)$d['storedFile']);if(!is_file($path)){http_response_code(404);exit('Document file is unavailable.');}$mime=(string)($d['mime']??'application/octet-stream');$name=tt_upload_original_name((string)($d['originalFile']??'TG-document'));header('Content-Type: '.$mime);header('Content-Length: '.filesize($path));header('Content-Disposition: inline; filename="'.$name.'"');tt_uploaded_document_headers();readfile($path);exit;
 }
 function tgfx_payload(array $u): array {
     $rows=tgfx_seed($u);usort($rows,static function($a,$b){$av=(array)($a['values']??[]);$bv=(array)($b['values']??[]);return strcmp((string)($bv[6]??''),(string)($av[6]??''));});$docs=tg_docs();
@@ -114,4 +115,4 @@ try{
     if($action==='delete'){if($id==='')tgfx_out(['ok'=>false,'error'=>'Select a rate set.'],422);tt_delete_master(TT_TG_FX_MASTER_TYPE,$id);tt_audit((int)$u['id'],(string)$u['username'],'Deleted TG currency rate '.$id);tgfx_out(tgfx_payload($u));}
     if(in_array($action,['create','update'],true)){$v=tgfx_clean($b['values']??null);$ref=strtoupper($v[1]);if($action==='create'){$id=tt_create_master(TT_TG_FX_MASTER_TYPE,$v);tt_audit((int)$u['id'],(string)$u['username'],'Created TG currency rate '.$ref);}else{if($id==='')tgfx_out(['ok'=>false,'error'=>'Select a rate set.'],422);tt_update_master(TT_TG_FX_MASTER_TYPE,$id,$v);tt_audit((int)$u['id'],(string)$u['username'],'Updated TG currency rate '.$ref);}tgfx_out(tgfx_payload($u)+['savedId'=>$id]);}
     tgfx_out(['ok'=>false,'error'=>'Unknown TG master action.'],422);
-}catch(Throwable $e){tgfx_out(['ok'=>false,'error'=>'The TG master action could not be completed.'],500);}
+}catch(InvalidArgumentException $e){tgfx_out(['ok'=>false,'error'=>$e->getMessage()],422);}catch(Throwable $e){tgfx_out(['ok'=>false,'error'=>'The TG master action could not be completed.'],500);}
