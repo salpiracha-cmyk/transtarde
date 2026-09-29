@@ -1199,6 +1199,7 @@
       const code=String(document.getElementById(masterInputId(1))?.value||'').trim().toUpperCase();
       if(!['TTI','BRM'].includes(code)){toast('Foreign retention accounts must belong to TTI or BRM.');return}
       if([...document.querySelectorAll('.company-bank-row')].some(row=>row.querySelector('[data-bank-retention]')?.checked&&String(row.querySelector('[data-bank-currency]')?.value||'PKR').trim().toUpperCase()==='PKR')){toast('A retention account must use a foreign currency, such as USD.');return}
+      if([...document.querySelectorAll('.company-bank-row')].some(row=>row.querySelector('[data-bank-retention]')?.checked&&row.querySelector('[data-bank-type]')?.value==='Personal Account')){toast('A personal-only account cannot be a company retention ledger. Choose Company Account or Proprietor / Owner Account.');return}
     }
     try { await resolvePartyRoleBeforeSave(type); await resolveProductOptionsBeforeSave(type); } catch (error) { toast(error.message); return; }
     const values = masterValuesFromForm(type);
@@ -1208,7 +1209,7 @@
       if(type.id==="reference_lists"){
         const existing=id?(state.masters.reference_lists||[]).find(row=>row.id===id):null;
         const data=await apiRequest({action:"manage-option",type:"reference_lists",optionAction:existing?"rename":"add",optionKey:values[0],old:existing?.values?.[1]||"",value:values[1],fullName:values[0]==='currencies'?values[2]:''},"masters");
-        if(data.options)state.masterOptions=data.options;state.masters=ensureMasterSections(data.masters,state.masterOptions);saveState();renderMasters();document.getElementById("masterDialog").close();form.reset();toast(existing?"Reference option updated.":"Reference option added.");return;
+        if(data.options)state.masterOptions=data.options;state.masters=ensureMasterSections(data.masters,state.masterOptions);saveState();renderMasters();document.getElementById("masterDialog").close();form.reset();savedNotice(existing?"Reference option updated.":"Reference option added.");return;
       }
       const pendingDocuments=type.id==="companies"?[...document.querySelectorAll('.company-document-row')].filter(row=>!row.querySelector('[data-document-id]')?.value&&row.querySelector('[data-document-file]')?.files?.[0]):[];
       const data = await apiRequest({ action: id ? "update" : "create", type: type.id, id, values }, "masters");
@@ -1220,7 +1221,7 @@
       if (pendingDocuments.length) { const refreshed=await apiRequest(null,"masters");data.masters=refreshed.masters; }
       if (data.options) state.masterOptions=data.options; state.masters = ensureMasterSections(data.masters,state.masterOptions); addAudit("Master", id ? "Updated" : "Created", `${type.name}: ${primary}`, ref);
       if(type.id==="purchase_kat"){currentPurchaseSection="PRODUCTS";pendingKatProductId=""}
-      saveState(); renderMasters(); renderAudit(); renderRecentActivity(); document.getElementById("masterDialog").close(); form.reset(); toast(id ? "Master record updated." : "Master record saved.");
+      saveState(); renderMasters(); renderAudit(); renderRecentActivity(); document.getElementById("masterDialog").close(); form.reset(); savedNotice(id ? type.name+" updated." : type.name+" saved.");
     } catch (error) { toast(error.message); }
   }
   async function deleteMasterRecord(selectedId) {
