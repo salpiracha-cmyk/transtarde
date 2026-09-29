@@ -57,7 +57,7 @@ function ba_master_accounts(): array {
         if(!is_array($row))continue;$v=array_values((array)($row['values']??[]));while(count($v)<14)$v[]='';
         $entity=ba_entity_from_linked((string)$v[1]);
         $out[(string)($row['id']??'')]=[
-            'id'=>(string)($row['id']??''),'accountType'=>(string)$v[0],'linkedCompany'=>(string)$v[1],'entity'=>$entity,
+            'id'=>(string)($row['id']??''),'companyId'=>(string)($row['companyId']??''),'accountType'=>(string)$v[0],'linkedCompany'=>(string)$v[1],'entity'=>$entity,
             'personalOwner'=>(string)$v[2],'accountTitle'=>(string)$v[3],'bankName'=>(string)$v[4],'branch'=>(string)$v[5],
             'country'=>(string)$v[6],'currency'=>strtoupper(trim((string)$v[7])),'accountNumber'=>(string)$v[8],
             'accountNumberMasked'=>ba_mask((string)$v[8]),'accountLast5'=>substr(preg_replace('/\W+/','',(string)$v[8])??'',-5),
@@ -67,9 +67,12 @@ function ba_master_accounts(): array {
     }
     return $out;
 }
+function ba_operational_account_type(string $type): bool {
+    return in_array($type,['Company Account','Proprietor / Owner Account'],true);
+}
 function ba_default_setting(array $a): array {
     $complete=trim((string)($a['accountNumber']??''))!==''||trim((string)($a['iban']??''))!=='';
-    $company=($a['accountType']??'')==='Company Account';
+    $company=ba_operational_account_type((string)($a['accountType']??''));
     $receiptReady=$company&&$complete&&strcasecmp((string)($a['masterStatus']??'Active'),'Active')===0;
     return [
         'active'=>$receiptReady,'allowPayments'=>$receiptReady,'allowReceipts'=>$receiptReady,'includeInPaymentPlanning'=>false,
@@ -113,8 +116,9 @@ function ba_unassigned_bank_balance(array $store,string $entity): float {
 }
 function ba_payload(array $store,string $entity): array {
     $masters=ba_master_accounts();$rows=[];$planning=0.0;$planningCurrency=$entity==='TG'?'USD':'PKR';$balances=[];
+    $pending=[];foreach((array)(tt_read_store()['bank_deletion_requests']??[]) as $request)if(($request['status']??'')==='Pending')$pending[(string)($request['bankId']??'')]=$request;
     foreach($masters as $id=>$a){
-        if(($a['entity']??'')!==$entity||($a['accountType']??'')!=='Company Account')continue;
+        if(($a['entity']??'')!==$entity||!ba_operational_account_type((string)($a['accountType']??'')))continue;
         $setting=array_replace(ba_default_setting($a),is_array($store['bankAccountSettings'][$id]??null)?$store['bankAccountSettings'][$id]:[]);
         // Bank identity and status are controlled in Company Master. Old Accounts flags
         // must not silently disable a valid company account.
@@ -125,7 +129,7 @@ function ba_payload(array $store,string $entity): array {
         $currency=strtoupper(trim((string)($a['currency']??'')))?:$planningCurrency;$book=ba_balance($store,$entity,$id,$currency);
         $balances[$currency]=round(($balances[$currency]??0)+$book,2);
         if($currency===$planningCurrency&&!empty($setting['active'])&&!empty($setting['includeInPaymentPlanning']))$planning+=max(0,$book);
-        $rows[]=array_merge($a,['settings'=>$setting,'bookBalance'=>$book,'needsCompletion'=>(trim((string)$a['accountNumber'])===''&&trim((string)$a['iban'])==='')]);
+        $rows[]=array_merge($a,['settings'=>$setting,'bookBalance'=>$book,'needsCompletion'=>(trim((string)$a['accountNumber'])===''&&trim((string)$a['iban'])===''),'deletionPending'=>isset($pending[$id]),'deletionRequest'=>$pending[$id]??null]);
     }
     usort($rows,static fn($a,$b)=>strcmp((string)$a['bankName'],(string)$b['bankName'])?:strcmp((string)$a['accountTitle'],(string)$b['accountTitle']));
     $cashKey='CASH|'.$entity;$cashCurrency=$entity==='TG'?'AED':'PKR';$cashSetting=array_replace([
@@ -155,13 +159,30 @@ try{
     if(!ba_can_write($user))ba_respond(['ok'=>false,'error'=>'Accounts Create / Edit / Approve permission required.'],403);
     $body=json_decode(file_get_contents('php://input')?:'',true);
     if(!is_array($body)||!tt_verify_csrf((string)($body['csrf']??'')))ba_respond(['ok'=>false,'error'=>'Your session expired. Refresh and try again.'],419);
-    if((string)($body['action']??'')!=='save_settings')ba_respond(['ok'=>false,'error'=>'Unknown bank-account action.'],422);
+    $action=(string)($body['action']??'');
     $entity=ba_entity((string)($body['entity']??''));$id=trim((string)($body['accountId']??''));if($id==='')ba_respond(['ok'=>false,'error'=>'Select a bank or cash account.'],422);
     $masters=ba_master_accounts();$cashKey='CASH|'.$entity;$planningCurrency=$entity==='TG'?'USD':'PKR';
+    if($action==='request_delete'){
+        if($id===$cashKey)ba_respond(['ok'=>false,'error'=>'Cash cannot be deleted through bank approval.'],422);
+        $a=$masters[$id]??null;
+        if(!is_array($a)||($a['entity']??'')!==$entity||!ba_operational_account_type((string)($a['accountType']??'')))ba_respond(['ok'=>false,'error'=>'Select a valid company bank account.'],422);
+        if(strcasecmp((string)($a['masterStatus']??'Active'),'Active')!==0)ba_respond(['ok'=>false,'error'=>'This bank is already inactive in Company Master.'],422);
+        $reason=trim((string)($body['reason']??''));if(strlen($reason)<5||strlen($reason)>500)ba_respond(['ok'=>false,'error'=>'Explain why this bank account should be deleted.'],422);
+        $companyId=(string)($a['companyId']??'');if($companyId==='')ba_respond(['ok'=>false,'error'=>'The linked Company Master could not be identified.'],422);
+        $request=tt_mutate_store(static function (&$auth) use($companyId,$id,$a,$reason,$user):array {
+            $auth['bank_deletion_requests']??=[];
+            foreach($auth['bank_deletion_requests'] as $old)if(($old['companyId']??'')===$companyId&&($old['bankId']??'')===$id&&($old['status']??'')==='Pending')throw new InvalidArgumentException('This bank already has a deletion request awaiting approval.');
+            $item=['id'=>bin2hex(random_bytes(12)),'companyId'=>$companyId,'bankId'=>$id,'company'=>(string)($a['linkedCompany']??''),'bank'=>(string)($a['bankName']??'').' · '.(string)($a['accountTitle']??''),'reason'=>$reason,'status'=>'Pending','requestedBy'=>(string)($user['full_name']??$user['username']??'Accounts'),'requestedAt'=>gmdate('c')];
+            $auth['bank_deletion_requests'][]=$item;return $item;
+        });
+        tt_audit((int)$user['id'],(string)($user['username']??'Accounts'),'Requested bank deletion approval '.$id);
+        $store=ba_read();ba_respond(['ok'=>true,'entity'=>$entity,'request'=>$request]+ba_payload($store,$entity));
+    }
+    if($action!=='save_settings')ba_respond(['ok'=>false,'error'=>'Unknown bank-account action.'],422);
     if($id!==$cashKey){
         $a=$masters[$id]??null;
         if(!is_array($a)||($a['entity']??'')!==$entity)ba_respond(['ok'=>false,'error'=>'Bank account does not belong to these company books.'],422);
-        if(($a['accountType']??'')!=='Company Account')ba_respond(['ok'=>false,'error'=>'Personal / family bank accounts cannot be activated as company Cash & Bank accounts.'],422);
+        if(!ba_operational_account_type((string)($a['accountType']??'')))ba_respond(['ok'=>false,'error'=>'Personal-only bank accounts cannot be activated as company Cash & Bank accounts.'],422);
         $sourceCurrency=strtoupper(trim((string)(($a['currency']??'')?:$planningCurrency)));
     }else $sourceCurrency=$entity==='TG'?'AED':'PKR';
     $retentionRequested=$id!==$cashKey&&($a['masterRetentionAccount']??null)!==null?(bool)$a['masterRetentionAccount']:(bool)(ba_read()['bankAccountSettings'][$id]['retentionAccount']??false);
@@ -179,7 +200,7 @@ try{
     if(!$setting['active']||!$setting['allowReceipts'])$setting['defaultReceiptAccount']=false;
     if($id!==$cashKey&&$setting['defaultReceiptAccount']){
         if(strcasecmp((string)($a['masterStatus']??'Active'),'Active')!==0)ba_respond(['ok'=>false,'error'=>'Activate this bank inside Super Admin Company Master before enabling payments or receipts.'],422);
-        if(trim((string)$a['accountNumber'])===''&&trim((string)$a['iban'])==='')ba_respond(['ok'=>false,'error'=>'Complete the account number or IBAN in the shared Banks & Accounts master before enabling payments or receipts.'],422);
+        if(trim((string)$a['accountNumber'])===''&&trim((string)$a['iban'])==='')ba_respond(['ok'=>false,'error'=>'Complete the account number or IBAN in the Company Master before enabling payments or receipts.'],422);
     }
     tt_ensure_data_dir();$h=fopen(TT_BANK_ACCOUNTS_FILE,'c+');if($h===false||!flock($h,LOCK_EX))throw new RuntimeException('Accounts storage unavailable.');
     try{
@@ -197,4 +218,5 @@ try{
         rewind($h);ftruncate($h,0);fwrite($h,json_encode($store,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR));fflush($h);
     }finally{flock($h,LOCK_UN);fclose($h);}
     ba_respond(['ok'=>true,'saved'=>$setting]+ba_payload($store,$entity)+['revision'=>$store['revision']]);
-}catch(Throwable $e){ba_respond(['ok'=>false,'error'=>'The bank-account action could not be completed.'],500);}
+}catch(InvalidArgumentException $e){ba_respond(['ok'=>false,'error'=>$e->getMessage()],422);}
+catch(Throwable $e){ba_respond(['ok'=>false,'error'=>'The bank-account action could not be completed.'],500);}

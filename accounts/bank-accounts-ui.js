@@ -39,13 +39,13 @@
   function card(account, cash = false) {
     const setting = account.settings || {}, planning = String(data.paymentPlanningCurrency || 'PKR').toUpperCase(), currency = String(account.currency || planning).toUpperCase();
     const canPlan = currency === planning;
-    return `<article class="ttbk-card"><div class="ttbk-head"><div class="ttbk-icon">${cash ? '¤' : '▰'}</div><div><b>${cash ? esc(account.accountTitle) : label(account)}</b><div>${setting.active ? '<span class="ttbk-pill on">Active</span>' : '<span class="ttbk-pill">Inactive</span>'} ${badge(setting,'defaultReceiptAccount','Default Receipt')} ${badge(setting,'retentionAccount','Foreign Retention')}</div></div><div class="sp"></div><b>${esc(currency)} ${fmt(account.bookBalance)}</b></div>
+    return `<article class="ttbk-card"><div class="ttbk-head"><div class="ttbk-icon">${cash ? '¤' : '▰'}</div><div><b>${cash ? esc(account.accountTitle) : label(account)}</b><div>${setting.active ? '<span class="ttbk-pill on">Active</span>' : '<span class="ttbk-pill">Inactive</span>'} ${!cash&&account.accountType?'<span class="ttbk-pill">'+esc(account.accountType)+'</span>':''} ${badge(setting,'defaultReceiptAccount','Default Receipt')} ${badge(setting,'retentionAccount','Foreign Retention · Separate Ledger')}</div></div><div class="sp"></div><b>${esc(currency)} ${fmt(account.bookBalance)}</b></div>
       <details class="ttbk-detail"><summary style="cursor:pointer;padding-top:11px;font-weight:800">Settings & Details ▾</summary>
         ${cash ? '' : `<div class="ttbk-grid"><label>Account Title<input readonly value="${esc(account.accountTitle || '')}"></label><label>Bank / Branch<input readonly value="${esc((account.bankName || '') + (account.branch ? ` · ${account.branch}` : ''))}"></label><label>Account / IBAN<input readonly value="${esc(account.accountNumber || account.iban || '')}"></label></div>`}
         <div class="ttbk-grid"><label>Display Name<input data-bank-field="displayName" data-id="${esc(account.id)}" value="${esc(setting.displayName || '')}"></label><label>Accounts Notes<input data-bank-field="notes" data-id="${esc(account.id)}" value="${esc(setting.notes || '')}"></label></div>
         <div class="ttbk-checks">${cash ? '' : check(setting,account,'defaultReceiptAccount','Default Receipt Account',account.needsCompletion)}${check(setting,account,'includeInPaymentPlanning',`Include in ${planning} Payment Planning`,!canPlan)}${check(setting,account,'visibleToMill','Visible to Mill')}${check(setting,account,'reconciliationEnabled','Bank/Cash Reconciliation')}${setting.retentionAccount ? '<span class="ttbk-pill on">Retention account · Company Master</span>' : ''}</div>
         ${account.needsCompletion ? '<div class="ttbk-alert">Complete the account number or IBAN in Company Master before enabling it.</div>' : ''}${!cash && String(account.masterStatus||'Active').toLowerCase() !== 'active' ? '<div class="ttbk-alert">This bank is inactive in Company Master. Set it to Active there before using it for receipts.</div>' : ''}
-        <div class="ttbk-actions"><button class="btn primary" data-bank-save="${esc(account.id)}">Save Account Settings</button></div>
+        <div class="ttbk-actions">${!cash&&String(account.masterStatus||'Active').toLowerCase()==='active'?(account.deletionPending?'<span class="ttbk-pill">Deletion approval pending</span>':`<button class="btn" data-bank-delete-request="${esc(account.id)}">Delete (By Approval)</button>`):''}<button class="btn primary" data-bank-save="${esc(account.id)}">Save Account Settings</button></div>
       </details></article>`;
   }
   function body() {
@@ -53,9 +53,23 @@
     const balances = Object.entries(data.balancesByCurrency || {}).map(([currency,value]) => `${esc(currency)} ${fmt(value)}`).join(' · ') || '—';
     return `<div class="ttbk"><div class="formCard"><h3>Banks & Cash</h3><div class="helper">Select one active receipt account as the default for each currency. Other enabled company accounts remain selectable.</div><div class="ttbk-kpis"><div class="ttbk-kpi"><span>Balances</span><b>${balances}</b></div><div class="ttbk-kpi"><span>Planning Funds</span><b>${esc(data.paymentPlanningCurrency || 'PKR')} ${fmt(data.paymentPlanningFunds)}</b></div><div class="ttbk-kpi"><span>Unassigned Old Entries</span><b>${fmt(data.unassignedBankBalance)}</b></div><div class="ttbk-kpi"><span>Master Accounts</span><b>${(data.accounts || []).length}</b></div></div></div>${(data.accounts || []).map(account => card(account)).join('')}${data.cash ? card({...data.cash, needsCompletion:false}, true) : ''}</div>`;
   }
-  function bind() { qa('[data-bank-save]').forEach(button => { button.onclick = () => save(button.dataset.bankSave); }); }
+  function bind() {
+    qa('[data-bank-save]').forEach(button => { button.onclick = () => save(button.dataset.bankSave); });
+    qa('[data-bank-delete-request]').forEach(button => { button.onclick = () => requestDelete(button.dataset.bankDeleteRequest); });
+  }
   function renderMasters() { const root = q('#masterBody'); if (root) { root.innerHTML = body(); bind(); } }
   function renderBank() { const workspace = q('#ws-bank'); if (!workspace) return; const title=workspace.querySelector('.panelHead h2'),description=workspace.querySelector('.panelHead p'); if (['TTI','BRM'].includes(entity())) { workspace.dataset.simpleReceipt='1'; if(title)title.textContent='Bank Receipt / Credit Advice'; if(description)description.textContent='Record a linked receipt and any amount retained in the company foreign currency account.'; workspace.querySelector('[data-tt-bank-root]')?.remove(); return; } delete workspace.dataset.simpleReceipt; if(title)title.textContent='Cash & Bank'; if(description)description.textContent='Receipts, payments, transfers and cheque activity.'; let root = workspace.querySelector('[data-tt-bank-root]'); if (!root) { root = document.createElement('div'); root.dataset.ttBankRoot = '1'; workspace.querySelector('.panelHead')?.insertAdjacentElement('afterend', root); } root.innerHTML = body(); bind(); }
+  async function requestDelete(id) {
+    const account=(data?.accounts||[]).find(item=>String(item.id)===String(id));if(!account)return;
+    const reason=window.prompt(`Reason for deleting ${account.bankName||account.accountTitle||'this bank account'}? Approval will be sent to Directors and Super Admin.`);
+    if(reason===null)return;
+    if(reason.trim().length<5)return toast('Enter a clear reason for the deletion request.',false);
+    try{
+      const response=await fetch(api,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({action:'request_delete',csrf:access.csrf,entity:entity(),accountId:id,reason:reason.trim()})});let result={};try{result=await response.json()}catch(_){}
+      if(!response.ok||!result.ok)throw new Error(result.error||'Bank deletion request could not be sent.');
+      data={...result,entity:entity()};toast('Deletion request sent to Directors and Super Admin.');renderMasters();renderBank();
+    }catch(error){toast(String(error.message||error),false)}
+  }
   async function save(id) {
     const pick = (key, field = false) => { const el = q(`[data-bank-${field ? 'field' : 'check'}="${key}"][data-id="${CSS.escape(id)}"]`); return field ? String(el?.value || '').trim() : !!el?.checked; };
     const payload = {action:'save_settings',csrf:access.csrf,entity:entity(),accountId:id,defaultReceiptAccount:pick('defaultReceiptAccount'),includeInPaymentPlanning:pick('includeInPaymentPlanning'),visibleToMill:pick('visibleToMill'),reconciliationEnabled:pick('reconciliationEnabled'),displayName:pick('displayName',true),notes:pick('notes',true)};

@@ -86,7 +86,8 @@
         { label: "Owners / partners", type: "textarea", full: true },
         { label: "KCCI membership no." }, { label: "REAP membership no." },
         { label: "NTN number" }, { label: "Sales tax number" }, { label: "Company number" },
-        { label: "Bank accounts", type: "hidden" }, { label: "Document identities", type: "hidden" }
+        { label: "Bank accounts", type: "hidden" }, { label: "Document identities", type: "hidden" },
+        { label: "Exchange rates", type: "hidden" }, { label: "Registration details", type: "hidden" }
       ],
       rows: [
         ["Transtrade International", "TTI", "Pakistan", "Pakistan", "Group Company; Pakistan Operating Entity; Exporter; Seller; Buyer; Accounting Entity", "No", "Primary Pakistan operating/export entity.", '[{"name":"","share":100}]', "36453", "", "", "", ""],
@@ -292,6 +293,7 @@
     pendingBankDeletionRequests = (data.bankDeletionRequests || []).filter(item => item.status === 'Pending');
     if (data.options) state.masterOptions = data.options;
     renderMasters();
+    renderApprovals();
   }
 
   function applySessionAccess() {
@@ -334,6 +336,22 @@
     node.textContent = message;
     region.appendChild(node);
     window.setTimeout(() => node.remove(), 3200);
+  }
+  function savedNotice(detail = "Your changes have been saved.") {
+    let node = document.getElementById("saveConfirmation");
+    if (!node) {
+      node = document.createElement("div");
+      node.id = "saveConfirmation";
+      node.className = "save-confirm-overlay";
+      node.innerHTML = '<div class="save-confirm-card"><span class="save-confirm-check">✓</span><strong>Saved Successfully</strong><small></small></div>';
+      document.body.appendChild(node);
+    }
+    node.querySelector("small").textContent = detail;
+    node.classList.remove("show");
+    void node.offsetWidth;
+    node.classList.add("show");
+    clearTimeout(node._hideTimer);
+    node._hideTimer = window.setTimeout(() => node.classList.remove("show"), 1800);
   }
 
   function moduleCard(module) {
@@ -483,7 +501,7 @@
       state.users = data.users; state.permissionChanges += 1; renderUsers();
       document.getElementById("userDialog").close();
       if (data.temporaryPassword) showCredentials(data.username, data.temporaryPassword);
-      else toast("User and permissions updated.");
+      else savedNotice("User and permissions have been updated.");
     } catch (error) { toast(error.message); }
   }
 
@@ -505,9 +523,13 @@
       if (code) seenCompanies.add(code);
       if (companyDefaults.has(code) && (values.length <= 3 || (code === "BRM" && values[0] === "BRM"))) return { ...row, values: [...companyDefaults.get(code)] };
       const defaults=companyDefaults.get(code)||[];
-      while (values.length < 13) values.push(defaults[values.length] || "");
+      while (values.length < 17) values.push(defaults[values.length] || "");
       if (!values[7]) values[7]='[{"name":"","share":100}]';
       if (code === "TTI" && !values[8]) values[8]="36453";
+      if (!values[13]) values[13]="[]";
+      if (!values[14]) values[14]="[]";
+      if (!values[15]) values[15]="[]";
+      if (!values[16]) values[16]="[]";
       return { ...row, values };
     });
     companyDefaults.forEach((values, code) => {
@@ -552,6 +574,15 @@
     let banks=[];try{banks=JSON.parse(values[13]||"[]")}catch{}if(!Array.isArray(banks))banks=[];
     let documents=[];try{documents=JSON.parse(values[14]||"[]")}catch{}if(!Array.isArray(documents))documents=[];
     let fxPairs=[];try{fxPairs=JSON.parse(values[15]||"[]")}catch{}if(!Array.isArray(fxPairs))fxPairs=[];
+    let registrations=[];try{registrations=JSON.parse(values[16]||"[]")}catch{}if(!Array.isArray(registrations))registrations=[];
+    const companyCountry=String(values[2]||"").trim();
+    const isPakistanCompany=companyCountry.toLowerCase()==="pakistan";
+    const isUaeCompany=/^(united arab emirates|uae)$/i.test(companyCountry);
+    if(isUaeCompany){
+      const registrationTypes=new Set(registrations.map(item=>String(item?.type||"").toLowerCase()));
+      if(!registrationTypes.has("vat registration / vat trn"))registrations.push({type:"VAT Registration / VAT TRN",number:"",jurisdiction:"United Arab Emirates",expiryDate:"",notes:""});
+      if(!registrationTypes.has("corporate tax trn"))registrations.push({type:"Corporate Tax TRN",number:"",jurisdiction:"United Arab Emirates",expiryDate:"",notes:""});
+    }
     if(!values[15]&&values[3]!=='Pakistan'&&String(values[2]||'').trim().toLowerCase()!=='pakistan'){
       const currencies=[...new Set([...banks.filter(bank=>bank.status!=='Inactive').map(bank=>bank.currency),...(String(values[1]||'').toUpperCase()==='TG'?['AED']:[])].filter(Boolean))].sort();
       currencies.forEach((a,i)=>currencies.slice(i+1).forEach(b=>fxPairs.push({currencyA:a,currencyB:b})));
@@ -564,7 +595,12 @@
     </div></section>
     <section class="master-editor-section"><div class="master-editor-heading"><div><h3>Company roles</h3><p>These roles tell Transtrade where the entity may be used.</p></div></div><div class="master-checks">${roles.map(role => `<label><input type="checkbox" data-master-field-index="4" value="${escapeHtml(role)}" ${selected.has(role)?"checked":""}>${escapeHtml(role)}</label>`).join("")}</div></section>
     <section class="master-editor-section"><div class="master-editor-heading"><div><h3>Ownership</h3><p>Single-owner companies default to 100%. Partnership shares must total 100%.</p></div><button type="button" class="button secondary" id="addCompanyOwner">+ Add owner</button></div><input type="hidden" id="${masterInputId(7)}" data-master-field-index="7" value="${escapeHtml(values[7]||'')}"><div id="companyOwnerRows">${owners.map((owner,index)=>`<div class="master-identity-grid company-owner-row"><label>Owner / partner name<input data-company-owner-name value="${escapeHtml(owner.name||'')}"></label><label>Share %<input data-company-owner-share type="number" min="0" max="100" step="0.01" value="${Number(owner.share??(owners.length===1?100:0))}"></label><button type="button" class="button danger" data-remove-company-owner="${index}">Remove</button></div>`).join('')}</div></section>
-    <section class="master-editor-section"><div class="master-editor-heading"><div><h3>Registrations & memberships</h3><p>Pakistan registrations and offshore company identity remain with the legal entity.</p></div></div><div class="master-form-grid"><label>KCCI membership no.<input id="${masterInputId(8)}" data-master-field-index="8" value="${escapeHtml(values[8]||'')}"></label><label>REAP membership no.<input id="${masterInputId(9)}" data-master-field-index="9" value="${escapeHtml(values[9]||'')}"></label><label>NTN number<input id="${masterInputId(10)}" data-master-field-index="10" value="${escapeHtml(values[10]||'')}"></label><label>Sales tax number<input id="${masterInputId(11)}" data-master-field-index="11" value="${escapeHtml(values[11]||'')}"></label><label>Company number — non-Pakistan companies<input id="${masterInputId(12)}" data-master-field-index="12" value="${escapeHtml(values[12]||'')}"></label></div></section>
+    <section class="master-editor-section"><div class="master-editor-heading"><div><h3>Registrations & memberships</h3><p>Fields follow the company's country. Pakistan-only memberships are hidden for foreign companies; other registrations can be added without changing the software.</p></div></div>
+      <div id="companyPakistanRegistrations" class="master-form-grid" ${isPakistanCompany?"":"hidden"}><label>KCCI membership no.<input id="${masterInputId(8)}" data-master-field-index="8" value="${escapeHtml(values[8]||'')}"></label><label>REAP membership no.<input id="${masterInputId(9)}" data-master-field-index="9" value="${escapeHtml(values[9]||'')}"></label><label>NTN number<input id="${masterInputId(10)}" data-master-field-index="10" value="${escapeHtml(values[10]||'')}"></label><label>Sales tax number<input id="${masterInputId(11)}" data-master-field-index="11" value="${escapeHtml(values[11]||'')}"></label></div>
+      <div class="master-form-grid"><label><span id="companyRegistrationNumberLabel">${isUaeCompany?"Trade Licence / Registration no.":isPakistanCompany?"Company / registration no. (optional)":"Company / registration no."}</span><input id="${masterInputId(12)}" data-master-field-index="12" value="${escapeHtml(values[12]||'')}"></label></div>
+      <div class="master-editor-heading" style="margin-top:14px"><div><h3 style="font-size:.9rem">Additional tax / registration numbers</h3><p>For example UAE VAT TRN, Corporate Tax TRN, or a future jurisdiction's registration.</p></div><button type="button" class="button secondary" id="addCompanyRegistration">+ Add registration</button></div>
+      <input type="hidden" id="${masterInputId(16)}" data-master-field-index="16"><div id="companyRegistrationRows">${registrations.map(companyRegistrationRow).join("")}</div>
+    </section>
     <section class="master-editor-section"><div class="master-editor-heading"><div><h3>Bank accounts</h3><p>Accounts belong to this company. Existing module bank lists are derived automatically.</p></div><button type="button" class="button secondary" id="addCompanyBank">+ Add bank account</button></div><input type="hidden" id="${masterInputId(13)}" data-master-field-index="13"><div id="companyBankRows">${banks.map(bank=>companyBankRow(bank)).join("")}</div></section>
     <section class="master-editor-section" id="companyFxSection" ${values[3]==='Pakistan'||values[2]==='Pakistan'?'hidden':''}><div class="master-editor-heading"><div><h3>Exchange rates</h3><p>For company bank currencies. Enter each direction independently; 1 unit of the first currency equals the entered units of the second.</p></div><button type="button" class="button secondary" id="addCompanyFx">+ Add rate pair</button></div><input type="hidden" id="${masterInputId(15)}" data-master-field-index="15"><div id="companyFxRows">${fxPairs.map(companyFxRow).join("")}</div><p id="companyFxHint">Add bank accounts in two currencies to set exchange rates.</p></section>
     <section class="master-editor-section"><div class="master-editor-heading"><div><h3>Document identity</h3><p>Headers, footers, signatures and stamps remain versioned under the legal company.</p></div><button type="button" class="button secondary" id="addCompanyDocument">+ Add document identity</button></div><input type="hidden" id="${masterInputId(14)}" data-master-field-index="14"><div id="companyDocumentRows">${documents.map(doc=>companyDocumentRow(doc)).join("")}</div></section>
@@ -574,7 +610,15 @@
     const a=String(pair.currencyA||''),b=String(pair.currencyB||'');
     return `<div class="master-form-grid company-fx-row" data-currency-a="${escapeHtml(a)}" data-currency-b="${escapeHtml(b)}"><label>${escapeHtml(a)} → ${escapeHtml(b)}<input data-fx-forward type="number" min="0.00000001" step="any" inputmode="decimal" value="${escapeHtml(pair.rateAToB||'')}" placeholder="1 ${escapeHtml(a)} = ? ${escapeHtml(b)}"></label><label>${escapeHtml(b)} → ${escapeHtml(a)}<input data-fx-reverse type="number" min="0.00000001" step="any" inputmode="decimal" value="${escapeHtml(pair.rateBToA||'')}" placeholder="1 ${escapeHtml(b)} = ? ${escapeHtml(a)}"></label><button type="button" class="button danger" data-remove-company-fx>Delete row</button></div>`;
   }
-  function companyBankRow(bank={}) { return `<div class="master-form-grid company-bank-row"><input type="hidden" data-bank-json value="${escapeHtml(JSON.stringify(bank))}"><input type="hidden" data-bank-id value="${escapeHtml(bank.id||"")}"><label>Bank name<input data-bank-name value="${escapeHtml(bank.bankName||"")}" required></label><label>Account title<input data-bank-title value="${escapeHtml(bank.accountTitle||"")}" required></label><label>Currency<select data-bank-currency>${[...new Set([...(state.masterOptions?.currencies||["PKR","USD","AED","EUR","GBP"]),bank.currency].filter(Boolean))].map(code=>`<option value="${escapeHtml(code)}" ${code===(bank.currency||"PKR")?"selected":""}>${escapeHtml(code)} · ${escapeHtml(state.masterOptions?.currency_names?.[code]||code)}</option>`).join("")}</select></label><label>Account number<input data-bank-number value="${escapeHtml(bank.accountNumber||"")}"></label><label>IBAN<input data-bank-iban value="${escapeHtml(bank.iban||"")}"></label><label>SWIFT / BIC<input data-bank-swift value="${escapeHtml(bank.swift||"")}"></label><label>Branch<input data-bank-branch value="${escapeHtml(bank.branch||"")}"></label><label>Purpose<input data-bank-purpose value="${escapeHtml(bank.purpose||"")}"></label><label><input type="checkbox" data-bank-retention ${bank.retentionAccount?"checked":""}> Foreign retention account (TTI/BRM, USD or other foreign currency)</label>${bank.id?`<button type="button" class="button danger" data-request-company-bank>Request Director approval</button><span class="tag">${escapeHtml(bank.status||"Active")}</span>`:`<button type="button" class="button danger" data-remove-company-bank>Remove</button>`}</div>`; }
+  function companyRegistrationRow(item={}) {
+    return `<div class="master-form-grid company-registration-row"><label>Registration type<input data-registration-type value="${escapeHtml(item.type||"")}" placeholder="e.g. VAT Registration / VAT TRN"></label><label>Number<input data-registration-number value="${escapeHtml(item.number||"")}"></label><label>Jurisdiction<input data-registration-jurisdiction value="${escapeHtml(item.jurisdiction||"")}"></label><label>Expiry date<input type="date" data-registration-expiry value="${escapeHtml(item.expiryDate||"")}"></label><label class="full-span">Notes<input data-registration-notes value="${escapeHtml(item.notes||"")}"></label><button type="button" class="button danger" data-remove-company-registration>Delete row</button></div>`;
+  }
+  function companyBankRow(bank={}) {
+    const accountType=bank.accountType||"Company Account";
+    const inactive=String(bank.status||"Active").toLowerCase()==="inactive";
+    const action=bank.id?(inactive?"":(IS_SUPER_ADMIN?'<button type="button" class="button danger" data-delete-company-bank>Delete</button>':"")):'<button type="button" class="button danger" data-remove-company-bank>Remove</button>';
+    return `<div class="master-form-grid company-bank-row" ${inactive?"hidden":""}><input type="hidden" data-bank-json value="${escapeHtml(JSON.stringify(bank))}"><input type="hidden" data-bank-id value="${escapeHtml(bank.id||"")}"><label>Account ownership<select data-bank-type>${["Company Account","Proprietor / Owner Account","Personal Account"].map(type=>`<option value="${escapeHtml(type)}" ${type===accountType?"selected":""}>${escapeHtml(type)}</option>`).join("")}</select></label><label data-bank-owner-wrap ${accountType==="Company Account"?"hidden":""}>Account owner<input data-bank-owner value="${escapeHtml(bank.personalOwner||bank.accountOwner||"")}"></label><label>Bank name<input data-bank-name value="${escapeHtml(bank.bankName||"")}" required></label><label>Account title<input data-bank-title value="${escapeHtml(bank.accountTitle||"")}" required></label><label>Currency<select data-bank-currency>${[...new Set([...(state.masterOptions?.currencies||["PKR","USD","AED","EUR","GBP"]),bank.currency].filter(Boolean))].map(code=>`<option value="${escapeHtml(code)}" ${code===(bank.currency||"PKR")?"selected":""}>${escapeHtml(code)} · ${escapeHtml(state.masterOptions?.currency_names?.[code]||code)}</option>`).join("")}</select></label><label>Account number<input data-bank-number value="${escapeHtml(bank.accountNumber||"")}"></label><label>IBAN<input data-bank-iban value="${escapeHtml(bank.iban||"")}"></label><label>SWIFT / BIC<input data-bank-swift value="${escapeHtml(bank.swift||"")}"></label><label>Branch<input data-bank-branch value="${escapeHtml(bank.branch||"")}"></label><label>Purpose<input data-bank-purpose value="${escapeHtml(bank.purpose||"")}"></label><label><input type="checkbox" data-bank-retention ${bank.retentionAccount?"checked":""} ${accountType==="Personal Account"?"disabled":""}> Foreign retention account — separate bank sub-ledger</label>${action}<span class="tag">${escapeHtml(inactive?"Deleted / inactive":bank.status||"Active")}</span></div>`;
+  }
   function companyDocumentRow(doc={}) { const controls=doc.id?`<div class="row-actions">${canMaster('companies','View Documents')?'<button type="button" class="row-action" data-preview-company-document>Preview</button>':''}${canMaster('companies','Download Documents')?'<button type="button" class="row-action" data-download-company-document>Download</button>':''}<span class="tag">Version ${escapeHtml(doc.version||1)}</span></div>`:`<label>PNG, JPG, WebP or PDF<input type="file" data-document-file accept="image/png,image/jpeg,image/webp,application/pdf" required></label>`;return `<div class="master-form-grid company-document-row"><input type="hidden" data-document-json value="${escapeHtml(JSON.stringify(doc))}"><input type="hidden" data-document-id value="${escapeHtml(doc.id||"")}"><label>Document type<select data-document-type>${["Header","Footer","Signature","Stamp","Letterhead","Other"].map(x=>`<option ${x===String(doc.type||"")?"selected":""}>${x}</option>`).join("")}</select></label><label>Label<input data-document-label value="${escapeHtml(doc.label||"")}" required></label><label>Version<input data-document-version value="${escapeHtml(doc.version||"1")}" readonly></label><label>Status<select data-document-status><option ${String(doc.status||"Active")==="Active"?"selected":""}>Active</option><option ${String(doc.status||"")==="Inactive"?"selected":""}>Inactive</option></select></label><label><input type="checkbox" data-document-default ${doc.isDefault?"checked":""}> Default for this type</label>${controls}<button type="button" class="button danger" data-remove-company-document>Deactivate</button></div>`; }
   function commodityMasterFieldsHtml(values = []) {
     return `<section class="master-editor-section"><div class="master-editor-heading"><div><h3>Commodity identity</h3><p>Basic identity stays separate from rules and accounting setup.</p></div></div><div class="master-identity-grid">
@@ -851,19 +895,20 @@
   }
   function masterValuesFromForm(type) {
     if (type.id === "companies") {
-      const values=Array(16).fill("");
+      const values=Array(17).fill("");
       [0,1,2,3,5,6,8,9,10,11,12].forEach(index=>{values[index]=document.getElementById(masterInputId(index))?.value.trim()||""});
       values[4]=[...document.querySelectorAll('[data-master-field-index="4"]:checked')].map(input=>input.value).join("; ");
       const owners=[...document.querySelectorAll('.company-owner-row')].map(row=>({name:row.querySelector('[data-company-owner-name]')?.value.trim()||"",share:Number(row.querySelector('[data-company-owner-share]')?.value||0)})).filter(owner=>owner.name||owner.share);
       values[7]=JSON.stringify(owners.length?owners:[{name:"",share:100}]);
       values[13]=JSON.stringify([...document.querySelectorAll('.company-bank-row')].map((row,index)=>({
         ...JSON.parse(row.querySelector('[data-bank-json]')?.value||'{}'),id:row.querySelector('[data-bank-id]')?.value||`bank-${Date.now()}-${index}`,
-        accountType:'Company Account',bankName:row.querySelector('[data-bank-name]')?.value.trim()||'',accountTitle:row.querySelector('[data-bank-title]')?.value.trim()||'',currency:row.querySelector('[data-bank-currency]')?.value.trim()||'PKR',accountNumber:row.querySelector('[data-bank-number]')?.value.trim()||'',iban:row.querySelector('[data-bank-iban]')?.value.trim()||'',swift:row.querySelector('[data-bank-swift]')?.value.trim()||'',branch:row.querySelector('[data-bank-branch]')?.value.trim()||'',purpose:row.querySelector('[data-bank-purpose]')?.value.trim()||'',retentionAccount:(Object.prototype.hasOwnProperty.call(JSON.parse(row.querySelector('[data-bank-json]')?.value||'{}'),'retentionAccount')||!row.querySelector('[data-bank-id]')?.value||row.querySelector('[data-bank-retention]')?.checked)?!!row.querySelector('[data-bank-retention]')?.checked:undefined,status:JSON.parse(row.querySelector('[data-bank-json]')?.value||'{}').status||'Active'
+        accountType:row.querySelector('[data-bank-type]')?.value||'Company Account',personalOwner:row.querySelector('[data-bank-owner]')?.value.trim()||'',bankName:row.querySelector('[data-bank-name]')?.value.trim()||'',accountTitle:row.querySelector('[data-bank-title]')?.value.trim()||'',currency:row.querySelector('[data-bank-currency]')?.value.trim()||'PKR',accountNumber:row.querySelector('[data-bank-number]')?.value.trim()||'',iban:row.querySelector('[data-bank-iban]')?.value.trim()||'',swift:row.querySelector('[data-bank-swift]')?.value.trim()||'',branch:row.querySelector('[data-bank-branch]')?.value.trim()||'',purpose:row.querySelector('[data-bank-purpose]')?.value.trim()||'',retentionAccount:(Object.prototype.hasOwnProperty.call(JSON.parse(row.querySelector('[data-bank-json]')?.value||'{}'),'retentionAccount')||!row.querySelector('[data-bank-id]')?.value||row.querySelector('[data-bank-retention]')?.checked)?!!row.querySelector('[data-bank-retention]')?.checked:undefined,status:JSON.parse(row.querySelector('[data-bank-json]')?.value||'{}').status||'Active'
       })).filter(bank=>bank.bankName||bank.accountTitle||bank.accountNumber||bank.iban));
       values[14]=JSON.stringify([...document.querySelectorAll('.company-document-row')].map(row=>({
         ...JSON.parse(row.querySelector('[data-document-json]')?.value||'{}'),id:row.querySelector('[data-document-id]')?.value||'',type:row.querySelector('[data-document-type]')?.value||'Other',label:row.querySelector('[data-document-label]')?.value.trim()||'',version:row.querySelector('[data-document-version]')?.value.trim()||'1',status:row.querySelector('[data-document-status]')?.value||'Active',isDefault:!!row.querySelector('[data-document-default]')?.checked
       })).filter(doc=>doc.id&&doc.label));
       values[15]=JSON.stringify([...document.querySelectorAll('.company-fx-row')].filter(row=>!row.hidden).map(row=>({currencyA:row.dataset.currencyA,currencyB:row.dataset.currencyB,rateAToB:row.querySelector('[data-fx-forward]')?.value.trim()||'',rateBToA:row.querySelector('[data-fx-reverse]')?.value.trim()||''})).filter(pair=>pair.rateAToB||pair.rateBToA));
+      values[16]=JSON.stringify([...document.querySelectorAll('.company-registration-row')].map(row=>({type:row.querySelector('[data-registration-type]')?.value.trim()||'',number:row.querySelector('[data-registration-number]')?.value.trim()||'',jurisdiction:row.querySelector('[data-registration-jurisdiction]')?.value.trim()||'',expiryDate:row.querySelector('[data-registration-expiry]')?.value||'',notes:row.querySelector('[data-registration-notes]')?.value.trim()||''})).filter(item=>item.number));
       return values;
     }
     if (type.id === "products") {
@@ -966,7 +1011,7 @@
       state.masters=ensureMasterSections(data.masters,data.options||state.masterOptions);
       saveState();
       renderMasters();
-      toast("Current Crop Year updated for new Sales Contracts.");
+      savedNotice("Current Crop Year updated for new Sales Contracts.");
     } catch (error) { toast(error.message); }
   }
 
@@ -986,8 +1031,8 @@
       document.getElementById('masterDescription').insertAdjacentHTML('afterend',`<section id="masterDeletionRequests" class="master-editor-section"><h3>Accounts requests to remove names</h3><p>Approval deactivates the name for future selections. Historical transactions keep the record.</p>${pendingDeletionRequests.map(request=>`<div class="row-actions" style="justify-content:space-between;align-items:center;padding:9px;border-top:1px solid #ddd"><span><b>${escapeHtml(request.name)}</b> · ${escapeHtml(request.type)} · ${escapeHtml(request.requestedBy)}<br>${escapeHtml(request.reason)}</span><span><button type="button" class="row-action" data-review-master-deletion="${escapeHtml(request.id)}" data-decision="Approve">Approve</button><button type="button" class="row-action" data-review-master-deletion="${escapeHtml(request.id)}" data-decision="Reject">Reject</button></span></div>`).join('')}</section>`);
     }
     document.getElementById('masterBankDeletionRequests')?.remove();
-    if(SESSION.role==='Director' && pendingBankDeletionRequests.length){
-      document.getElementById('masterDescription').insertAdjacentHTML('afterend',`<section id="masterBankDeletionRequests" class="master-editor-section"><h3>Bank accounts awaiting Director approval</h3><p>Approval deactivates the account for future use and preserves its history.</p>${pendingBankDeletionRequests.map(request=>`<div class="row-actions" style="justify-content:space-between;align-items:center;padding:9px;border-top:1px solid #ddd"><span><b>${escapeHtml(request.company)}</b> · ${escapeHtml(request.bank)} · ${escapeHtml(request.requestedBy)}<br>${escapeHtml(request.reason)}</span><span><button type="button" class="row-action" data-review-bank-deletion="${escapeHtml(request.id)}" data-decision="Approve">Approve</button><button type="button" class="row-action" data-review-bank-deletion="${escapeHtml(request.id)}" data-decision="Reject">Reject</button></span></div>`).join('')}</section>`);
+    if((IS_SUPER_ADMIN || SESSION.role==='Director') && pendingBankDeletionRequests.length){
+      document.getElementById('masterDescription').insertAdjacentHTML('afterend',`<section id="masterBankDeletionRequests" class="master-editor-section"><h3>Bank deletion approvals</h3><p>Accounts requested removal from future use. Approval preserves historical ledger entries and deactivates only the current bank master.</p>${pendingBankDeletionRequests.map(request=>`<div class="row-actions" style="justify-content:space-between;align-items:center;padding:9px;border-top:1px solid #ddd"><span><b>${escapeHtml(request.company)}</b> · ${escapeHtml(request.bank)} · ${escapeHtml(request.requestedBy)}<br>${escapeHtml(request.reason)}</span><span><button type="button" class="row-action" data-review-bank-deletion="${escapeHtml(request.id)}" data-decision="Approve">Approve</button><button type="button" class="row-action" data-review-bank-deletion="${escapeHtml(request.id)}" data-decision="Reject">Reject</button></span></div>`).join('')}</section>`);
     }
     document.getElementById("productCropYearControl")?.remove();
     document.getElementById("purchaseWorkspaceTabs")?.remove();
@@ -1044,9 +1089,41 @@
       document.getElementById("addCompanyOwner").onclick=addOwner;wireOwners();
       const bankRows=document.getElementById('companyBankRows');
       const documentRows=document.getElementById('companyDocumentRows');
+      const registrationRows=document.getElementById('companyRegistrationRows');
+      const wireBankOwnership=()=>{
+        bankRows?.querySelectorAll('[data-bank-type]').forEach(select=>{
+          const bankRow=select.closest('.company-bank-row'),ownerWrap=bankRow?.querySelector('[data-bank-owner-wrap]'),retention=bankRow?.querySelector('[data-bank-retention]');
+          const sync=()=>{const personal=select.value==='Personal Account';if(ownerWrap)ownerWrap.hidden=select.value==='Company Account';if(retention){retention.disabled=personal;if(personal)retention.checked=false;}};
+          select.onchange=sync;sync();
+        });
+      };
+      const wireRegistrations=()=>registrationRows?.querySelectorAll('[data-remove-company-registration]').forEach(button=>button.onclick=()=>button.closest('.company-registration-row')?.remove());
+      const syncRegistrationCountry=()=>{
+        const country=String(document.getElementById(masterInputId(2))?.value||'').trim();
+        const pakistan=country.toLowerCase()==='pakistan',uae=/^(united arab emirates|uae)$/i.test(country);
+        const section=document.getElementById('companyPakistanRegistrations'),label=document.getElementById('companyRegistrationNumberLabel');
+        if(section)section.hidden=!pakistan;
+        if(label)label.textContent=uae?'Trade Licence / Registration no.':pakistan?'Company / registration no. (optional)':'Company / registration no.';
+      };
       const wireNested=()=>{
         bankRows?.querySelectorAll('[data-remove-company-bank]').forEach(button=>button.onclick=()=>{button.closest('.company-bank-row')?.remove();syncFx()});
-        bankRows?.querySelectorAll('[data-request-company-bank]').forEach(button=>button.onclick=async()=>{const bankId=button.closest('.company-bank-row')?.querySelector('[data-bank-id]')?.value;if(!row?.id||!bankId)return;const reason=window.prompt('Reason for deactivating this bank account (Director approval required):');if(reason===null)return;try{await apiRequest({action:'request-bank-deletion',type:'companies',id:row.id,bankId,reason},'masters');toast('Request sent to Director. The account remains active until approval.')}catch(error){toast(error.message)}});
+        bankRows?.querySelectorAll('[data-delete-company-bank]').forEach(button=>button.onclick=async()=>{
+          const bankRow=button.closest('.company-bank-row'),bankId=bankRow?.querySelector('[data-bank-id]')?.value;
+          if(!row?.id||!bankId)return;
+          const bankName=bankRow.querySelector('[data-bank-name]')?.value||'this bank account';
+          if(!window.confirm(`Delete ${bankName} from future use? Historical bank ledger entries will remain preserved.`))return;
+          button.disabled=true;
+          try{
+            const data=await apiRequest({action:'delete-company-bank',type:'companies',id:row.id,bankId},'masters');
+            state.masters=ensureMasterSections(data.masters,data.options||state.masterOptions);
+            pendingBankDeletionRequests=(data.bankDeletionRequests||[]).filter(item=>item.status==='Pending');
+            const original=JSON.parse(bankRow.querySelector('[data-bank-json]')?.value||'{}');original.status='Inactive';bankRow.querySelector('[data-bank-json]').value=JSON.stringify(original);bankRow.hidden=true;
+            renderApprovals();
+            savedNotice('Bank account deleted from future use. Its historical ledger remains preserved.');
+          }catch(error){toast(error.message);button.disabled=false}
+        });
+        wireBankOwnership();
+        wireRegistrations();
         documentRows?.querySelectorAll('[data-remove-company-document]').forEach(button=>button.onclick=()=>{const row=button.closest('.company-document-row');if(row){row.querySelector('[data-document-status]').value='Inactive';row.hidden=true}});
         documentRows?.querySelectorAll('[data-preview-company-document],[data-download-company-document]').forEach(button=>button.onclick=()=>{const documentId=button.closest('.company-document-row')?.querySelector('[data-document-id]')?.value;if(!documentId||!row?.id)return;const download=button.hasAttribute('data-download-company-document')?'&download=1':'';window.open(`api/master_documents.php?companyId=${encodeURIComponent(row.id)}&documentId=${encodeURIComponent(documentId)}${download}`,'_blank','noopener')});
       };
@@ -1071,8 +1148,11 @@
       document.getElementById(masterInputId(3))?.addEventListener('change',syncFx);
       document.getElementById(masterInputId(1))?.addEventListener('input',syncFx);
       syncFx();
-      document.getElementById('addCompanyBank').onclick=()=>{bankRows.insertAdjacentHTML('beforeend',companyBankRow({accountTitle:document.getElementById(masterInputId(0))?.value||'',currency:'PKR'}));wireNested();syncFx()};
+      document.getElementById('addCompanyBank').onclick=()=>{bankRows.insertAdjacentHTML('beforeend',companyBankRow({accountType:'Company Account',accountTitle:document.getElementById(masterInputId(0))?.value||'',currency:'PKR'}));wireNested();syncFx()};
+      document.getElementById('addCompanyRegistration').onclick=()=>{registrationRows.insertAdjacentHTML('beforeend',companyRegistrationRow({jurisdiction:document.getElementById(masterInputId(2))?.value||''}));wireRegistrations()};
+      document.getElementById(masterInputId(2))?.addEventListener('input',syncRegistrationCountry);
       document.getElementById('addCompanyDocument').onclick=()=>{documentRows.insertAdjacentHTML('beforeend',companyDocumentRow({version:'1',status:'Active'}));wireNested()};
+      syncRegistrationCountry();
       wireNested();
     }
     if (["products","purchase_products","purchase_kat"].includes(type.id)) wireProductOptionFields();
@@ -1119,6 +1199,7 @@
       const code=String(document.getElementById(masterInputId(1))?.value||'').trim().toUpperCase();
       if(!['TTI','BRM'].includes(code)){toast('Foreign retention accounts must belong to TTI or BRM.');return}
       if([...document.querySelectorAll('.company-bank-row')].some(row=>row.querySelector('[data-bank-retention]')?.checked&&String(row.querySelector('[data-bank-currency]')?.value||'PKR').trim().toUpperCase()==='PKR')){toast('A retention account must use a foreign currency, such as USD.');return}
+      if([...document.querySelectorAll('.company-bank-row')].some(row=>row.querySelector('[data-bank-retention]')?.checked&&row.querySelector('[data-bank-type]')?.value==='Personal Account')){toast('A personal-only account cannot be a company retention ledger. Choose Company Account or Proprietor / Owner Account.');return}
     }
     try { await resolvePartyRoleBeforeSave(type); await resolveProductOptionsBeforeSave(type); } catch (error) { toast(error.message); return; }
     const values = masterValuesFromForm(type);
@@ -1128,7 +1209,7 @@
       if(type.id==="reference_lists"){
         const existing=id?(state.masters.reference_lists||[]).find(row=>row.id===id):null;
         const data=await apiRequest({action:"manage-option",type:"reference_lists",optionAction:existing?"rename":"add",optionKey:values[0],old:existing?.values?.[1]||"",value:values[1],fullName:values[0]==='currencies'?values[2]:''},"masters");
-        if(data.options)state.masterOptions=data.options;state.masters=ensureMasterSections(data.masters,state.masterOptions);saveState();renderMasters();document.getElementById("masterDialog").close();form.reset();toast(existing?"Reference option updated.":"Reference option added.");return;
+        if(data.options)state.masterOptions=data.options;state.masters=ensureMasterSections(data.masters,state.masterOptions);saveState();renderMasters();document.getElementById("masterDialog").close();form.reset();savedNotice(existing?"Reference option updated.":"Reference option added.");return;
       }
       const pendingDocuments=type.id==="companies"?[...document.querySelectorAll('.company-document-row')].filter(row=>!row.querySelector('[data-document-id]')?.value&&row.querySelector('[data-document-file]')?.files?.[0]):[];
       const data = await apiRequest({ action: id ? "update" : "create", type: type.id, id, values }, "masters");
@@ -1140,7 +1221,7 @@
       if (pendingDocuments.length) { const refreshed=await apiRequest(null,"masters");data.masters=refreshed.masters; }
       if (data.options) state.masterOptions=data.options; state.masters = ensureMasterSections(data.masters,state.masterOptions); addAudit("Master", id ? "Updated" : "Created", `${type.name}: ${primary}`, ref);
       if(type.id==="purchase_kat"){currentPurchaseSection="PRODUCTS";pendingKatProductId=""}
-      saveState(); renderMasters(); renderAudit(); renderRecentActivity(); document.getElementById("masterDialog").close(); form.reset(); toast(id ? "Master record updated." : "Master record saved.");
+      saveState(); renderMasters(); renderAudit(); renderRecentActivity(); document.getElementById("masterDialog").close(); form.reset(); savedNotice(id ? type.name+" updated." : type.name+" saved.");
     } catch (error) { toast(error.message); }
   }
   async function deleteMasterRecord(selectedId) {
@@ -1199,6 +1280,17 @@
   }
   function renderRecentActivity() {
     document.getElementById("recentActivity").innerHTML = state.audit.slice(0, 4).map(item => `<div class="timeline-item"><span class="timeline-dot"></span><div><strong>${escapeHtml(item.detail)}</strong><small>${escapeHtml(item.user)} · ${escapeHtml(item.date)} · ${escapeHtml(item.ref)}</small></div></div>`).join("");
+  }
+  function renderApprovals() {
+    if (!IS_SUPER_ADMIN) return;
+    const panel=document.querySelector(".approvals-panel"),list=panel?.querySelector(".approval-list"),count=panel?.querySelector(".count-pill");
+    if(!panel||!list||!count)return;
+    const rows=[
+      ...pendingDeletionRequests.map(request=>({kind:"master",id:request.id,title:request.name,detail:`${request.type} · ${request.requestedBy} · ${request.reason}`})),
+      ...pendingBankDeletionRequests.map(request=>({kind:"bank",id:request.id,title:`${request.company} · ${request.bank}`,detail:`${request.requestedBy} · ${request.reason}`}))
+    ];
+    count.textContent=`${rows.length} open`;
+    list.innerHTML=rows.length?rows.map(item=>`<div class="approval-item"><div><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.detail)}</small></div><div class="row-actions"><button class="row-action" ${item.kind==="bank"?`data-review-bank-deletion="${escapeHtml(item.id)}"`:`data-review-master-deletion="${escapeHtml(item.id)}"`} data-decision="Approve">Approve</button><button class="row-action" ${item.kind==="bank"?`data-review-bank-deletion="${escapeHtml(item.id)}"`:`data-review-master-deletion="${escapeHtml(item.id)}"`} data-decision="Reject">Reject</button></div></div>`).join(""):'<div class="admin-empty-state"><strong>No pending approvals</strong><span>Requests will appear here when Accounts submits one.</span></div>';
   }
   function exportAudit() {
     const header = ["Date & Time", "User", "Area", "Action", "Details", "Reference"];
@@ -1417,14 +1509,14 @@
       const requestId=reviewDeletion.dataset.reviewMasterDeletion,decision=reviewDeletion.dataset.decision;
       apiRequest({action:'review-deletion',requestId,decision},'masters').then(data=>{
         pendingDeletionRequests=(data.deletionRequests||[]).filter(item=>item.status==='Pending');
-        state.masters=ensureMasterSections(data.masters,state.masterOptions);saveState();renderMasters();toast(decision==='Approve'?'Name deactivated after Super Admin approval.':'Deletion request rejected.');
+        state.masters=ensureMasterSections(data.masters,state.masterOptions);saveState();renderMasters();renderApprovals();toast(decision==='Approve'?'Name deactivated after Super Admin approval.':'Deletion request rejected.');
       }).catch(error=>toast(error.message));
     }
     if(reviewBankDeletion){
       const requestId=reviewBankDeletion.dataset.reviewBankDeletion,decision=reviewBankDeletion.dataset.decision;
       apiRequest({action:'review-bank-deletion',requestId,decision},'masters').then(data=>{
         pendingBankDeletionRequests=(data.bankDeletionRequests||[]).filter(item=>item.status==='Pending');
-        state.masters=ensureMasterSections(data.masters,state.masterOptions);saveState();renderMasters();toast(decision==='Approve'?'Bank account deactivated with Director approval.':'Request rejected.');
+        state.masters=ensureMasterSections(data.masters,state.masterOptions);saveState();renderMasters();renderApprovals();toast(decision==='Approve'?'Bank account deleted from future use after approval.':'Request rejected.');
       }).catch(error=>toast(error.message));
     }
     if (purgeMaster) purgeMasterRecord(purgeMaster.dataset.purgeMaster);
@@ -1493,7 +1585,7 @@
   });
 
   async function initialize() {
-    applySessionAccess(); renderModules(); renderUsers(); renderMasters(); renderLocks(); renderAudit(); renderRecentActivity(); loadBackupStatus();
+    applySessionAccess(); renderModules(); renderUsers(); renderMasters(); renderLocks(); renderAudit(); renderRecentActivity(); renderApprovals(); loadBackupStatus();
     if (new URLSearchParams(location.search).get('view')==='masters' && hasMasterAccess) showView('masters');
     if (IS_SUPER_ADMIN) {
       try { await Promise.all([loadServerUsers(),loadServerMasters()]); } catch (error) { toast(error.message); }

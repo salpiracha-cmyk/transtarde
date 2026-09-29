@@ -1,7 +1,7 @@
 # Transtrade Accounts V1 — Banking & Cash Rules
 
 ## 1. Shared bank identity master
-Bank identity is maintained once in the shared Super Admin `Banks & Accounts` master. Accounts must not create a duplicate bank identity master.
+Bank identity is maintained once inside the relevant Super Admin **Company Master → Bank Accounts**. Accounts must not create a duplicate bank identity master.
 
 The shared master owns details such as legal/account type, linked company, account title, bank, branch, country, currency, account number, IBAN, SWIFT/BIC, purpose, document/module visibility and master status.
 
@@ -18,9 +18,9 @@ Accounts adds only operational controls to an approved company bank account:
 Completing the shared bank master does **not** automatically activate the account in Accounts. Accounts must explicitly enable operational use.
 
 ## 3. Company vs personal accounts
-Only `Company Account` master records may appear as company Bank & Cash resources. Personal/family bank accounts must never be treated as company cash, company bank balance or supplier-payment capacity.
+`Company Account` and an explicitly classified `Proprietor / Owner Account` linked to that legal business may appear as company Bank & Cash resources. A `Personal Account` remains personal-only and must never be treated as company cash, company bank balance or supplier-payment capacity.
 
-A family/staff member paying on behalf of the business is handled through the approved reimbursement / third-party settlement workflow, not by turning that person's bank into a company bank account.
+The exact legal account title and owner must be preserved. A family/staff member paying on behalf of the business is handled through the approved reimbursement / third-party settlement workflow unless Super Admin has deliberately classified that bank record as a proprietor/owner business account.
 
 ## 4. Exact bank-account tagging
 Every real company-bank receipt, payment or transfer must retain the exact shared Bank Master ID on the posted accounting journal. `Bank Accounts (1110)` remains the control account; the Bank Master ID is the bank subledger/dimension.
@@ -63,3 +63,17 @@ Legacy/opening bank balances must later be migrated through a controlled opening
 ## 10. Reconciliation
 Each operational bank/cash account may be reconciliation-enabled. Bank reconciliation must compare the exact Bank Master subledger to the applicable bank statement and keep unreconciled movements visible until resolved.
 
+
+## 11. Retention account ledger identity
+A foreign retention account is its **own bank master/sub-ledger**, even when it belongs to the same bank relationship as an ordinary operating account.
+
+Example under the same `Bank Accounts (1110)` control:
+- Meezan PKR Operating Account → Bank Sub-ledger A
+- Meezan USD Retention Account → Bank Sub-ledger B
+
+Each keeps its own Bank Master ID, native-currency balance, transactions, reconciliation and FX carrying value. The retention checkbox identifies which exact bank sub-ledger is the retention account; it does not create a journal entry and it must never merge the retention balance into another bank ledger.
+
+## 12. Bank deletion approval
+Super Admin may delete a Company Master bank directly from future use without Director approval. Historical ledger references remain preserved.
+
+Inside the Accounts module, the control is **Delete (By Approval)**. Accounts submits a reason; the request appears for both Directors and Super Admin. Approval deactivates the bank for future use while preserving its historical sub-ledger and posted transactions. Rejection leaves the bank active.
