@@ -144,13 +144,8 @@ test('authenticated Accounts live smoke: professional desk and popup workflows',
   await expect(page.locator('#ttExportReceiptDialog')).toBeHidden();
   await activate(page.locator('#ttDeskWork .tt-back-areas'));
   await activate(page.locator('#ttMainJV'));
-  await expect(page.locator('#jvwLines .jvw-line')).toHaveCount(2, { timeout: 30_000 });
-  await expect(page.locator('#jvwNarration')).toBeVisible();
-  await expect(page.locator('#jvwLines .jvw-bill')).toHaveCount(2);
-  await expect(page.locator('#jvwLines .jvw-line-ref')).toHaveCount(2);
-  await expect(page.locator('#jvwDebitTotal')).toHaveText('0');
-  await expect(page.locator('#jvwCreditTotal')).toHaveText('0');
-  await expect(page.locator('#jvwSubmit')).toBeDisabled();
+  await expect(page.locator('#ws-jv')).toContainText(/view access only/i, { timeout: 30_000 });
+  await expect(page.locator('#jvwSubmit')).toHaveCount(0);
   await closeWorkspace(page);
   await expect(page.locator('#ws-jv')).not.toHaveClass(/active/);
 

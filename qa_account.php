@@ -4,9 +4,9 @@ declare(strict_types=1);
 /**
  * Transtrade's dedicated operational QA account.
  *
- * The plaintext password is deliberately NOT stored in GitHub. Only the
- * original seed hash is committed. Once the account exists, this file never
- * changes its password hash; the live-qa secret must match the live password.
+ * No password or password hash is stored in GitHub. The live account must be
+ * provisioned or reset by Super Admin and the GitHub live-qa secret must match
+ * that independently managed password.
  *
  * The QA profile itself is system-managed so an ordinary User & Permissions
  * edit cannot silently turn the automated test identity into Director,
@@ -18,11 +18,12 @@ function tt_qa_account_profile(): array {
         'username'=>'qa.assistant',
         'role'=>'QA Tester',
         'location'=>'All authorized locations',
-        'permissions'=>['Mill'=>'all','Exports'=>'all','Accounts'=>'all'],
+        // The production QA identity is intentionally read-only. It may open
+        // every operational module for smoke testing but cannot create, edit,
+        // approve, post, issue, complete, deactivate or delete records.
+        'permissions'=>['Mill'=>['View'],'Exports'=>['View'],'Accounts'=>['View']],
         'master_access'=>false,
         'master_permissions'=>[],
-        'active'=>true,
-        'must_change_password'=>false,
         'system_qa'=>true,
         'test_data_only'=>true,
     ];
@@ -45,10 +46,10 @@ function tt_apply_qa_account_profile(array &$user): bool {
 }
 
 /**
- * Seed the QA account once and continuously protect its operational profile.
+ * Protect an existing QA account's identity and read-only profile.
  *
- * Deleting the account remains an explicit Super Admin action: the historical
- * qa_account_seeded marker still prevents silent recreation after deletion.
+ * Deleting or disabling the account remains an explicit Super Admin action.
+ * Missing accounts are never recreated from repository material.
  */
 function tt_ensure_qa_account(): void {
     $store=tt_read_store();
@@ -82,7 +83,8 @@ function tt_ensure_qa_account(): void {
             if (!isset($data['settings']) || !is_array($data['settings'])) $data['settings']=[];
             $data['settings']['qa_account_seeded']=true;
             $data['settings']['qa_account_seeded_at']=$data['settings']['qa_account_seeded_at'] ?? gmdate('c');
-            $data['settings']['qa_account_profile_version']=2;
+            $data['settings']['qa_account_profile_version']=3;
+            unset($data['settings']['qa_account_provisioning_required']);
 
             if ($changed) {
                 if (!isset($data['audit']) || !is_array($data['audit'])) $data['audit']=[];
@@ -98,31 +100,11 @@ function tt_ensure_qa_account(): void {
         return;
     }
 
-    if (!empty($settings['qa_account_seeded'])) return;
-
+    if (!empty($settings['qa_account_seeded']) && !empty($settings['qa_account_provisioning_required'])) return;
     tt_mutate_store(function (&$data): void {
-        foreach ((array)($data['users'] ?? []) as $user) {
-            if (strcasecmp((string)($user['username'] ?? ''),'qa.assistant')===0) return;
-        }
-        $id=random_int(100000,999999999);
-        $profile=tt_qa_account_profile();
-        $profile['id']=$id;
-        $profile['password_hash']='$2y$12$Ws2okSRgQhqwASFVJv3gK.GcenpIYp94ssXiY4KKrInPG8q/VU/k.';
-        $profile['created_at']=gmdate('c');
-        $profile['last_login_at']=null;
-        $data['users'][]=$profile;
-
         if (!isset($data['settings']) || !is_array($data['settings'])) $data['settings']=[];
         $data['settings']['qa_account_seeded']=true;
-        $data['settings']['qa_account_seeded_at']=gmdate('c');
-        $data['settings']['qa_account_profile_version']=2;
-        if (!isset($data['audit']) || !is_array($data['audit'])) $data['audit']=[];
-        array_unshift($data['audit'],[
-            'user_id'=>null,
-            'username'=>'System',
-            'action'=>'Created operational QA test account qa.assistant',
-            'ip_address'=>$_SERVER['REMOTE_ADDR'] ?? '',
-            'created_at'=>gmdate('c'),
-        ]);
+        $data['settings']['qa_account_provisioning_required']=true;
+        $data['settings']['qa_account_profile_version']=3;
     });
 }
