@@ -539,3 +539,15 @@ legend { margin-bottom: 10px; color: #445469; font-size: .79rem; font-weight: 75
   .purchase-product-identity-section .master-identity-grid > label:nth-child(6) { grid-column:auto; }
 }
 .master-percent-input{display:flex;align-items:center;gap:8px}.master-percent-input input{min-width:0;flex:1}.master-percent-input>span{font-weight:700;color:#526273}
+
+
+/* Clear centred confirmation for Super Admin save actions */
+.save-confirm-overlay{position:fixed;inset:0;z-index:220;display:grid;place-items:center;pointer-events:none;background:rgba(10,31,47,0);opacity:0;transition:opacity .16s ease,background .16s ease}
+.save-confirm-overlay.show{opacity:1;background:rgba(10,31,47,.16)}
+.save-confirm-card{min-width:min(420px,calc(100vw - 36px));max-width:520px;padding:24px 28px;border:1px solid #b9dfc9;border-radius:16px;background:#fff;box-shadow:0 24px 70px rgba(10,31,47,.24);text-align:center}
+.save-confirm-check{width:42px;height:42px;margin:0 auto 10px;display:grid;place-items:center;border-radius:50%;background:var(--green);color:#fff;font-size:23px;font-weight:900}
+.save-confirm-card strong{display:block;color:var(--navy);font-size:1.18rem}
+.save-confirm-card small{display:block;margin-top:7px;color:var(--muted);font-size:.82rem;line-height:1.45}
+.approval-item{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:14px 0;border-bottom:1px solid var(--line)}
+.approval-item:last-child{border-bottom:0}.approval-item strong,.approval-item small{display:block}.approval-item small{margin-top:4px;color:var(--muted);line-height:1.4}
+@media(max-width:650px){.approval-item{align-items:flex-start;flex-direction:column}}
