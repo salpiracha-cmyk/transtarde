@@ -45,7 +45,7 @@ function master_options_for_console(): array {
 try {
     $admin=tt_require_login();
     if (!tt_user_can_access_masters($admin)) master_respond(['ok'=>false,'error'=>'Master Records access required.'],403);
-    if ($_SERVER['REQUEST_METHOD']==='GET') master_respond(['ok'=>true,'masters'=>master_all($admin),'options'=>master_options_for_console(),'deletionRequests'=>($admin['role']??'')==='Super Admin'?(array)(tt_read_store()['master_deletion_requests']??[]):[],'bankDeletionRequests'=>($admin['role']??'')==='Director'?(array)(tt_read_store()['bank_deletion_requests']??[]):[]]);
+    if ($_SERVER['REQUEST_METHOD']==='GET') master_respond(['ok'=>true,'masters'=>master_all($admin),'options'=>master_options_for_console(),'deletionRequests'=>($admin['role']??'')==='Super Admin'?(array)(tt_read_store()['master_deletion_requests']??[]):[],'bankDeletionRequests'=>in_array(($admin['role']??''),['Super Admin','Director'],true)?(array)(tt_read_store()['bank_deletion_requests']??[]):[]]);
     if ($_SERVER['REQUEST_METHOD']!=='POST') master_respond(['ok'=>false,'error'=>'Method not allowed.'],405);
     $body=json_decode(file_get_contents('php://input') ?: '{}',true);
     if (!is_array($body) || !tt_verify_csrf((string)($body['csrf'] ?? ''))) master_respond(['ok'=>false,'error'=>'Your session expired. Refresh and try again.'],419);
@@ -70,8 +70,27 @@ try {
         tt_audit((int)$admin['id'],$admin['username'],'Requested Director approval to deactivate bank '.$bankId);
         master_respond(['ok'=>true,'request'=>$request]);
     }
+    if ($action==='delete-company-bank') {
+        if (($admin['role']??'')!=='Super Admin') master_respond(['ok'=>false,'error'=>'Only Super Admin can delete a company bank directly.'],403);
+        $bankId=trim((string)($body['bankId']??''));
+        if($id===''||$bankId==='')throw new InvalidArgumentException('Select a company bank account.');
+        tt_mutate_store(static function (&$data) use($id,$bankId,$admin):void {
+            $found=false;
+            foreach((array)($data['masters']['companies']??[]) as &$company){
+                if((string)($company['id']??'')!==$id)continue;
+                $banks=json_decode((string)($company['values'][13]??'[]'),true);if(!is_array($banks))$banks=[];
+                foreach($banks as &$bank){if((string)($bank['id']??'')!==$bankId)continue;$bank['status']='Inactive';$bank['deletedAt']=gmdate('c');$bank['deletedBy']=(string)($admin['full_name']??$admin['username']??'Super Admin');$found=true;break;}unset($bank);
+                if($found)$company['values'][13]=json_encode($banks,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);break;
+            }unset($company);
+            if(!$found)throw new InvalidArgumentException('Bank account no longer exists.');
+            foreach((array)($data['bank_deletion_requests']??[]) as &$request){if(($request['companyId']??'')===$id&&($request['bankId']??'')===$bankId&&($request['status']??'')==='Pending'){$request['status']='Superseded by Super Admin';$request['reviewedAt']=gmdate('c');$request['reviewedBy']=(string)($admin['full_name']??$admin['username']??'Super Admin');}}unset($request);
+        });
+        tt_audit((int)$admin['id'],$admin['username'],'Super Admin deleted company bank from future use '.$bankId);
+        master_respond(['ok'=>true,'masters'=>master_all($admin),'bankDeletionRequests'=>(array)(tt_read_store()['bank_deletion_requests']??[])]);
+    }
     if ($action==='review-bank-deletion') {
-        if (($admin['role']??'')!=='Director'||!tt_user_can_open_module($admin,'Directors')) master_respond(['ok'=>false,'error'=>'Director approval required.'],403);
+        $owner=($admin['role']??'')==='Super Admin';$director=($admin['role']??'')==='Director'&&tt_user_can_open_module($admin,'Directors');
+        if (!$owner&&!$director) master_respond(['ok'=>false,'error'=>'Director or Super Admin approval required.'],403);
         $requestId=trim((string)($body['requestId']??''));$decision=(string)($body['decision']??'');
         if (!in_array($decision,['Approve','Reject'],true))throw new InvalidArgumentException('Choose Approve or Reject.');
         $review=tt_mutate_store(static function (&$data) use($requestId,$decision,$admin):array {
@@ -160,7 +179,7 @@ try {
     }
 
     $schemas=[
-        'companies'=>16,'export_customers'=>22,'business_parties'=>13,'commodities'=>8,'product_settings'=>1,'products'=>22,'purchase_products'=>11,'purchase_kat'=>10,
+        'companies'=>17,'export_customers'=>22,'business_parties'=>13,'commodities'=>8,'product_settings'=>1,'products'=>22,'purchase_products'=>11,'purchase_kat'=>10,
         'mills'=>7,'export_documents'=>5,'export_terms'=>3,
     ];
     if (!isset($schemas[$type])) throw new InvalidArgumentException('Select a valid master section.');
@@ -210,18 +229,23 @@ try {
     foreach (array_slice($raw,0,$schemas[$type]) as $fieldIndex=>$value) {
         if (is_array($value) || is_object($value)) throw new InvalidArgumentException('Master fields must contain text values.');
         $value=trim((string)$value);
-        $nested=($type==='companies'&&in_array((int)$fieldIndex,[13,14,15],true))||($type==='export_customers'&&in_array((int)$fieldIndex,[9,16,17,18,19],true))||($type==='business_parties'&&(int)$fieldIndex===12)||($type==='purchase_kat'&&(int)$fieldIndex===9);
+        $nested=($type==='companies'&&in_array((int)$fieldIndex,[13,14,15,16],true))||($type==='export_customers'&&in_array((int)$fieldIndex,[9,16,17,18,19],true))||($type==='business_parties'&&(int)$fieldIndex===12)||($type==='purchase_kat'&&(int)$fieldIndex===9);
         $limit=$nested?50000:1200;
         if (strlen($value)>$limit) throw new InvalidArgumentException('One of the master fields is too long.');
         $values[]=$value;
     }
     while (count($values)<$schemas[$type]) $values[]='';
-    if($type==='companies'&&count($raw)<16&&$action==='update')$values[15]=(string)((master_find_row('companies',$id)['values'][15]??'[]'));
+    if($type==='companies'&&count($raw)<17&&$action==='update'){
+        $existingCompany=master_find_row('companies',$id);
+        if(count($raw)<16)$values[15]=(string)(($existingCompany['values'][15]??'[]'));
+        $values[16]=(string)(($existingCompany['values'][16]??'[]'));
+    }
     if($type==='companies'&&$values[15]==='')$values[15]='[]';
+    if($type==='companies'&&$values[16]==='')$values[16]='[]';
     if (($values[0] ?? '')==='') throw new InvalidArgumentException('Enter the main record name / commodity / product.');
     if (in_array($type,['companies','commodities'],true) && ($values[1] ?? '')==='') throw new InvalidArgumentException('Enter the short code.');
     if ($type==='companies') {
-        foreach ([13=>'bank accounts',14=>'document identities',15=>'exchange rates'] as $field=>$label) {
+        foreach ([13=>'bank accounts',14=>'document identities',15=>'exchange rates',16=>'registration details'] as $field=>$label) {
             $decoded=json_decode((string)($values[$field]??'[]'),true);
             if (!is_array($decoded)) throw new InvalidArgumentException('The '.$label.' could not be read. Reopen the company and try again.');
             if ($field===14) {
