@@ -26,6 +26,7 @@ assert.match(accounts,/window\.location\.href='\/index\.php\?view=masters&from=a
 assert.doesNotMatch(accounts,/access\.masterAccess \? document\.createElement\('button'\)/,'Accounts does not permission-gate visibility');
 assert.match(auth,/if \(!empty\(\$user\['master_access'\]\)\) return in_array\(\$action,\(array\)\(\$user\['master_permissions'\]\[\$type\] \?\? \[\]\),true\)/,'an explicit Super Admin matrix limits master access');
 assert.match(auth,/'Accounts'=>\['companies','banks','export_realization_charges'/,'Accounts has its financial master scope by default');
+assert.match(auth,/return in_array\(\$action,\['Use','View'\],true\)/,'accounts without an explicit matrix receive scoped read-only master access');
 assert.match(customerMaster,/window\.TTOpenMasterData=openManager/);
 assert.match(exportIndex,/customer-master\.js\?v=20260911-header-m-2/);
 assert.doesNotMatch(milling,/data-home-role="admin-only" onclick="openPanel\('masters'\)"/,'Milling has no separate Master Data tile');
