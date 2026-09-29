@@ -39,7 +39,7 @@ try{
     backup_expect(tt_backup_master_headers('export_customers',22)[21]==='Default payment / customer instructions','All known master fields need readable headings.');
     $csv=tt_backup_csv(['headers'=>['Name'],'rows'=>[['  =1+1'],['@SUM(A1)'],['Regular company']]]);
     backup_expect(str_contains($csv,"'  =1+1")&&str_contains($csv,"'@SUM(A1)"),'CSV must neutralize spreadsheet formulas.');
-    $xlsx=tt_backup_make_xlsx(['Test'=>['headers'=>['Name'],'rows'=>[['=1+1']]]);
+    $xlsx=tt_backup_make_xlsx(['Test'=>['headers'=>['Name'],'rows'=>[['=1+1']]]]);
     $xlsxZip=new TT_SimpleZipReader($xlsx);
     backup_expect(str_contains((string)$xlsxZip->get('xl/worksheets/sheet1.xml'),"'=1+1"),'Excel cells must neutralize formulas.');
     $xlsxZip->close();@unlink($xlsx);
