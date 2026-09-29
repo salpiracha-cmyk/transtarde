@@ -260,7 +260,10 @@ test('TG customer receipt reads the live Exports and bank links without posting'
   if (amtContract.paymentCode === 'CUSTOM' && amtContract.expectedAdvance === 0) expect(options.some(label => label.includes('amount not specified in sales contract'))).toBe(true);
   if (amtContract.paymentCode === 'CUSTOM') expect(amtContract.expectedAdvance, 'Custom wording must not reuse an old advance percentage').toBe(0);
   await expect(page.locator('#tgRcGross')).toHaveAttribute('readonly', '');
-  await expect(page.locator('#tgRcChargeBank option').first()).toContainText('AED bank');
+  await expect(page.locator('#tgRcChargeBank')).toHaveCount(0);
+  await expect(page.locator('#tgRcRef')).toBeVisible();
+  await expect(page.locator('#tgRcRef').locator('xpath=..')).toContainText('optional');
+  await expect(page.locator('#tgRcCharge').locator('xpath=..')).toContainText('selected bank currency');
   if (amtContract.outstandingAdvance > 0) {
     const advanceLabel = await page.locator('#tgRcTarget option').filter({ hasText: `Sales contract advance · ${amtContract.ref}` }).textContent();
     const amount = value => Number(value).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });

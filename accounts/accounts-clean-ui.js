@@ -209,7 +209,7 @@
   }
 
   function closeModal(workspace) {
-    workspace.classList.remove('active', 'tt-clean-modal', 'tt-editor-open', 'tt-master-only', 'tt-entry-only');
+    qa('.workspace.active').forEach(active => active.classList.remove('active', 'tt-clean-modal', 'tt-editor-open', 'tt-master-only', 'tt-entry-only'));
     qa('.tt-editor-stage', workspace).forEach(editor => editor.classList.remove('tt-editor-stage'));
     document.body.classList.remove('tt-modal-open');
     q('#entityHome').style.display = 'block';
