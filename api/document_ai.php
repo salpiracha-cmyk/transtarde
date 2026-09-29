@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require dirname(__DIR__) . '/auth_store.php';
+require dirname(__DIR__) . '/upload_validation.php';
 require __DIR__ . '/gemini_runtime.php';
 
 function ai_respond(array $data,int $status=200): never {
@@ -78,9 +79,11 @@ function ai_part_from_upload(array $file): array {
     $size=(int)($file['size']??0);
     if($size<1||$size>12*1024*1024) throw new InvalidArgumentException('Document must be 12 MB or smaller.');
     $tmp=(string)($file['tmp_name']??'');
+    if(!is_uploaded_file($tmp)||filesize($tmp)!==$size)throw new InvalidArgumentException('The uploaded document could not be verified.');
     $mime=(new finfo(FILEINFO_MIME_TYPE))->file($tmp)?:'';
     $allowed=['application/pdf','image/png','image/jpeg','image/webp','text/plain','text/csv','text/rtf','text/html'];
     if(!in_array($mime,$allowed,true)) throw new InvalidArgumentException('Gemini reader accepts PDF, PNG, JPG, WebP or text documents. DOCX can still be read through the local fallback.');
+    if(!str_starts_with($mime,'text/')&&!tt_upload_signature_valid($tmp,$mime))throw new InvalidArgumentException('Upload a valid PDF, PNG, JPG or WebP document.');
     $raw=file_get_contents($tmp);
     if($raw===false) throw new RuntimeException('The uploaded document could not be read.');
     if(str_starts_with($mime,'text/')) return ['text'=>(string)$raw];
