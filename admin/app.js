@@ -86,7 +86,8 @@
         { label: "Owners / partners", type: "textarea", full: true },
         { label: "KCCI membership no." }, { label: "REAP membership no." },
         { label: "NTN number" }, { label: "Sales tax number" }, { label: "Company number" },
-        { label: "Bank accounts", type: "hidden" }, { label: "Document identities", type: "hidden" }
+        { label: "Bank accounts", type: "hidden" }, { label: "Document identities", type: "hidden" },
+        { label: "Exchange rates", type: "hidden" }, { label: "Registration details", type: "hidden" }
       ],
       rows: [
         ["Transtrade International", "TTI", "Pakistan", "Pakistan", "Group Company; Pakistan Operating Entity; Exporter; Seller; Buyer; Accounting Entity", "No", "Primary Pakistan operating/export entity.", '[{"name":"","share":100}]', "36453", "", "", "", ""],
@@ -335,6 +336,22 @@
     region.appendChild(node);
     window.setTimeout(() => node.remove(), 3200);
   }
+  function savedNotice(detail = "Your changes have been saved.") {
+    let node = document.getElementById("saveConfirmation");
+    if (!node) {
+      node = document.createElement("div");
+      node.id = "saveConfirmation";
+      node.className = "save-confirm-overlay";
+      node.innerHTML = '<div class="save-confirm-card"><span class="save-confirm-check">✓</span><strong>Saved Successfully</strong><small></small></div>';
+      document.body.appendChild(node);
+    }
+    node.querySelector("small").textContent = detail;
+    node.classList.remove("show");
+    void node.offsetWidth;
+    node.classList.add("show");
+    clearTimeout(node._hideTimer);
+    node._hideTimer = window.setTimeout(() => node.classList.remove("show"), 1800);
+  }
 
   function moduleCard(module) {
     const palette = module.state === "green" ? ["#18864b", "#e9f8f0"] : module.state === "amber" ? ["#a66100", "#fff5df"] : ["#1769d2", "#eaf2ff"];
@@ -505,9 +522,13 @@
       if (code) seenCompanies.add(code);
       if (companyDefaults.has(code) && (values.length <= 3 || (code === "BRM" && values[0] === "BRM"))) return { ...row, values: [...companyDefaults.get(code)] };
       const defaults=companyDefaults.get(code)||[];
-      while (values.length < 13) values.push(defaults[values.length] || "");
+      while (values.length < 17) values.push(defaults[values.length] || "");
       if (!values[7]) values[7]='[{"name":"","share":100}]';
       if (code === "TTI" && !values[8]) values[8]="36453";
+      if (!values[13]) values[13]="[]";
+      if (!values[14]) values[14]="[]";
+      if (!values[15]) values[15]="[]";
+      if (!values[16]) values[16]="[]";
       return { ...row, values };
     });
     companyDefaults.forEach((values, code) => {
