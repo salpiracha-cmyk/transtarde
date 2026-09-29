@@ -26,8 +26,10 @@
 - Normal customer receipt is allocated to a recognized TG Export Receivable flowing from Exports / Export Recognition.
 - Accounts does not retype customer, contract or recognized invoice value when the source candidate exists.
 - Receipt-bank currency must match the receivable transaction currency. Cross-currency movement is handled separately through TG bank conversion.
-- Incoming bank charges may reduce the native amount credited to the bank while the gross receivable settlement remains traceable.
-- Any difference between the receivable AED carrying amount and the AED value of bank credit + bank charges posts to FX gain/loss.
+- Customer receipt equals the amount credited by the bank. Incoming charges and VAT are separate debits from the same selected bank account, each in that account's native USD or AED currency.
+- USD charges and VAT are translated at the receipt's accounting rate into AED for the Bank & Finance Charges and input VAT ledgers. They do not reduce the customer advance or receivable settlement.
+- Any difference between the receivable AED carrying amount and the AED value of the customer receipt posts to FX gain/loss.
+- If the contract advance arrives short, record the actual amount and leave the difference outstanding. The final commercial invoice deducts the actual customer advance, increasing its balance payable by the shortfall while preserving the invoice's goods value.
 - A genuine customer receipt before invoice/revenue recognition posts to 2510 Customer Advances / Unapplied Receipts and is allocated later after recognition.
 
 ## TG liabilities
@@ -55,13 +57,13 @@ Accounts selects the business substance; Transtrade creates the journal:
 
 ## Bank charges
 - Charges remain separate from the underlying receipt/payment.
-- The bank native movement includes the actual charge where deducted from the TG account.
+- On a receipt, the native bank ledger shows the full customer credit and a separate charge-plus-VAT debit from the same account; both movements remain visible.
 - Charges post to Bank & Finance Charges with native amount, currency and transaction reference retained.
 
 ## Controls
 - Exact TG Bank Master account is mandatory.
 - Bank account must be active in Accounts and enabled for the requested receipt/payment direction.
-- Duplicate bank reference on the same TG bank is rejected.
+- Bank reference is optional. If supplied, duplicates on the same TG bank are rejected. If blank, the system uses its generated TG bank transaction ID as the reference.
 - Payment amount plus charges cannot exceed the bank's native book balance.
 - Posted transactions are journal-backed and retain user, date, bank reference, counterparty, rates and source linkage.
 

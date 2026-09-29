@@ -45,7 +45,7 @@ try {
         $invoiceRef=(string)($row['invoiceRef']??'');
         $receipts[]=[
             'id'=>(string)($row['id']??''),'receiptNo'=>(string)($row['bankReference']??''),
-            'contractRef'=>$contract,'invoiceRef'=>$invoiceRef,
+            'contractRef'=>$contract,'invoiceRef'=>$invoiceRef,'receiptType'=>(string)$row['receiptType'],
             'lotId'=>$invoiceRef!==''?($invoiceLots[$contract.'|'.$invoiceRef]??'UNMATCHED_INVOICE'):'',
             'amount'=>round((float)($row['settlementAmountNative']??0),2),
             'currency'=>(string)($row['currency']??''),'date'=>(string)($row['date']??''),
