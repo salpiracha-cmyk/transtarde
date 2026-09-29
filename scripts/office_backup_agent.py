@@ -112,11 +112,16 @@ def pull(config, destination):
         os.replace(temp, weekly); temp = None
         monthly = destination / ('monthly-' + stamp[:6] + '-' + expected[:12] + '.zip')
         if not list(destination.glob('monthly-' + stamp[:6] + '-*.zip')):
-            shutil.copy2(weekly, monthly)
-            with open(monthly, 'rb') as copied:
-                copied_digest = hashlib.file_digest(copied, 'sha256').hexdigest()
-            if copied_digest != expected:
-                monthly.unlink(missing_ok=True); raise ValueError('Monthly copy checksum mismatch.')
+            fd, monthly_temp = tempfile.mkstemp(prefix='.monthly-', dir=destination)
+            try:
+                with open(weekly, 'rb') as source, os.fdopen(fd, 'wb') as copied:
+                    shutil.copyfileobj(source, copied, 1024 * 1024)
+                    copied.flush(); os.fsync(copied.fileno())
+                with open(monthly_temp, 'rb') as copied:
+                    if hashlib.file_digest(copied, 'sha256').hexdigest() != expected: raise ValueError('Monthly copy checksum mismatch.')
+                os.replace(monthly_temp, monthly)
+            finally:
+                if os.path.exists(monthly_temp): os.unlink(monthly_temp)
         for pattern, count in [('weekly-*.zip', 4), ('monthly-*.zip', 3)]:
             files = sorted(destination.glob(pattern), reverse=True)
             for old in files[count:]: old.unlink()
