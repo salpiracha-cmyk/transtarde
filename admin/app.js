@@ -293,6 +293,7 @@
     pendingBankDeletionRequests = (data.bankDeletionRequests || []).filter(item => item.status === 'Pending');
     if (data.options) state.masterOptions = data.options;
     renderMasters();
+    renderApprovals();
   }
 
   function applySessionAccess() {
@@ -500,7 +501,7 @@
       state.users = data.users; state.permissionChanges += 1; renderUsers();
       document.getElementById("userDialog").close();
       if (data.temporaryPassword) showCredentials(data.username, data.temporaryPassword);
-      else toast("User and permissions updated.");
+      else savedNotice("User and permissions have been updated.");
     } catch (error) { toast(error.message); }
   }
 
@@ -1010,7 +1011,7 @@
       state.masters=ensureMasterSections(data.masters,data.options||state.masterOptions);
       saveState();
       renderMasters();
-      toast("Current Crop Year updated for new Sales Contracts.");
+      savedNotice("Current Crop Year updated for new Sales Contracts.");
     } catch (error) { toast(error.message); }
   }
 
@@ -1030,8 +1031,8 @@
       document.getElementById('masterDescription').insertAdjacentHTML('afterend',`<section id="masterDeletionRequests" class="master-editor-section"><h3>Accounts requests to remove names</h3><p>Approval deactivates the name for future selections. Historical transactions keep the record.</p>${pendingDeletionRequests.map(request=>`<div class="row-actions" style="justify-content:space-between;align-items:center;padding:9px;border-top:1px solid #ddd"><span><b>${escapeHtml(request.name)}</b> · ${escapeHtml(request.type)} · ${escapeHtml(request.requestedBy)}<br>${escapeHtml(request.reason)}</span><span><button type="button" class="row-action" data-review-master-deletion="${escapeHtml(request.id)}" data-decision="Approve">Approve</button><button type="button" class="row-action" data-review-master-deletion="${escapeHtml(request.id)}" data-decision="Reject">Reject</button></span></div>`).join('')}</section>`);
     }
     document.getElementById('masterBankDeletionRequests')?.remove();
-    if(SESSION.role==='Director' && pendingBankDeletionRequests.length){
-      document.getElementById('masterDescription').insertAdjacentHTML('afterend',`<section id="masterBankDeletionRequests" class="master-editor-section"><h3>Bank accounts awaiting Director approval</h3><p>Approval deactivates the account for future use and preserves its history.</p>${pendingBankDeletionRequests.map(request=>`<div class="row-actions" style="justify-content:space-between;align-items:center;padding:9px;border-top:1px solid #ddd"><span><b>${escapeHtml(request.company)}</b> · ${escapeHtml(request.bank)} · ${escapeHtml(request.requestedBy)}<br>${escapeHtml(request.reason)}</span><span><button type="button" class="row-action" data-review-bank-deletion="${escapeHtml(request.id)}" data-decision="Approve">Approve</button><button type="button" class="row-action" data-review-bank-deletion="${escapeHtml(request.id)}" data-decision="Reject">Reject</button></span></div>`).join('')}</section>`);
+    if((IS_SUPER_ADMIN || SESSION.role==='Director') && pendingBankDeletionRequests.length){
+      document.getElementById('masterDescription').insertAdjacentHTML('afterend',`<section id="masterBankDeletionRequests" class="master-editor-section"><h3>Bank deletion approvals</h3><p>Accounts requested removal from future use. Approval preserves historical ledger entries and deactivates only the current bank master.</p>${pendingBankDeletionRequests.map(request=>`<div class="row-actions" style="justify-content:space-between;align-items:center;padding:9px;border-top:1px solid #ddd"><span><b>${escapeHtml(request.company)}</b> · ${escapeHtml(request.bank)} · ${escapeHtml(request.requestedBy)}<br>${escapeHtml(request.reason)}</span><span><button type="button" class="row-action" data-review-bank-deletion="${escapeHtml(request.id)}" data-decision="Approve">Approve</button><button type="button" class="row-action" data-review-bank-deletion="${escapeHtml(request.id)}" data-decision="Reject">Reject</button></span></div>`).join('')}</section>`);
     }
     document.getElementById("productCropYearControl")?.remove();
     document.getElementById("purchaseWorkspaceTabs")?.remove();
