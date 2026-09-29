@@ -6,6 +6,7 @@ SEED=r'''<?php
 require __DIR__.'/repo/auth_store.php';
 $pw=bin2hex(random_bytes(20));$rw=['View','Create','Edit'];
 $users=[['id'=>501,'username'=>'billqa','full_name'=>'Bill QA','role'=>'Accounts Operator','permissions'=>['Accounts'=>['purchases'=>$rw,'entity-tti'=>$rw]],'active'=>true,'must_change_password'=>false,'master_access'=>false,'password_hash'=>password_hash($pw,PASSWORD_DEFAULT)],['id'=>502,'username'=>'billview','full_name'=>'Bill Viewer','role'=>'Accounts Viewer','permissions'=>['Accounts'=>['purchases'=>['View'],'entity-tti'=>['View']]],'active'=>true,'must_change_password'=>false,'master_access'=>false,'password_hash'=>password_hash($pw,PASSWORD_DEFAULT)]];
+$users[]=['id'=>503,'username'=>'fixtureowner','full_name'=>'Fixture Owner','role'=>'Super Admin','permissions'=>['Accounts'=>'all'],'active'=>true,'must_change_password'=>false,'master_access'=>true,'password_hash'=>password_hash($pw,PASSWORD_DEFAULT)];
 $masters=tt_default_masters();$masters['business_parties'][]=['id'=>'broker-jj-fixture','values'=>['JJ','JJ','Broker','','','','','','','','Active','','{"buying":[{"amount":5,"basis":"PER_100_KG","effectiveFrom":"2026-01-01","status":"Active"}],"selling":[{"amount":9,"basis":"PER_TON","effectiveFrom":"2026-01-01","status":"Active"}]}']];
 tt_ensure_data_dir();file_put_contents(TT_STORE_FILE,json_encode(['users'=>$users,'masters'=>$masters,'settings'=>['qa_account_seeded'=>true],'audit'=>[]]));
 $s=['revision'=>0,'journals'=>[],'events'=>[],'commodityBills'=>[],'purchaseSodas'=>[]];
