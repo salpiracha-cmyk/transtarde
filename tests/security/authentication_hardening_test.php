@@ -18,4 +18,11 @@ ah_check(str_contains($source,'TT_LOGIN_DUMMY_HASH'),'Unknown usernames must run
 ah_check(str_contains($source,"'login-address'"),'Per-address limiter is required.');
 ah_check(str_contains($source,"'login-emergency'"),'Emergency global limiter is required.');
 
+$deploy=file_get_contents(dirname(__DIR__,2).'/.github/workflows/deploy-production.yml');
+ah_check(str_contains($deploy,'scripts/migrate_recovery_hash.php'),'Deployment must use the isolated recovery migration bridge.');
+ah_check(!str_contains($deploy,"require \$argv[1]"),'Deployment must not load the live application to extract recovery configuration.');
+$migration=file_get_contents(dirname(__DIR__,2).'/scripts/migrate_recovery_hash.php');
+ah_check(str_contains($migration,'token_get_all'),'Recovery migration must parse source without executing it.');
+ah_check(str_contains($migration,'password_get_info'),'Recovery migration must accept only hashes supported by PHP.');
+
 echo "PASS layered authentication and external recovery protections\n";
