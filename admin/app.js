@@ -46,7 +46,7 @@
     if (!hasMasterAccess) return false;
     const permissionType=["purchase_kat","commodities"].includes(type)?"purchase_products":type;
     if (SESSION.masterControlled) return (SESSION.masterPermissions?.[permissionType]||[]).includes(action);
-    return Object.entries(MASTER_DEFAULT_SCOPES).some(([module,types])=>canOpenModule(module)&&types.includes(permissionType)&&(module!=="Directors"||action==="View")&&MASTER_PERMISSION_ACTIONS.includes(action));
+    return Object.entries(MASTER_DEFAULT_SCOPES).some(([module,types])=>canOpenModule(module)&&types.includes(permissionType)&&["Use","View"].includes(action));
   };
   // Accounts V1 opens through its protected standalone workspace route.
   const MODULES = [
