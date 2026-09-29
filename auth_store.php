@@ -9,11 +9,12 @@ const TT_DATA_DIR = __DIR__ . '/../transtrade_private';
 const TT_STORE_FILE = TT_DATA_DIR . '/auth.json';
 const TT_STORE_LOCK_FILE = TT_DATA_DIR . '/auth.lock';
 const TT_SETUP_LOCK_FILE = TT_DATA_DIR . '/setup.lock';
+const TT_ADMIN_RECOVERY_HASH_FILE = TT_DATA_DIR . '/admin-recovery.hash';
 require_once __DIR__ . '/offline_idempotency.php';
 const TT_AUTH_RATE_FILE = TT_DATA_DIR . '/auth-rate.json';
-// High-entropy offline code. The public repository contains only a salted,
-// deliberately slow password hash; the code itself is held by the owner.
-const TT_ADMIN_RECOVERY_HASH = '$2y$12$wDBNVGUfS0iEbsurYsnff.kDAySgh2iRgBJ0wJWGnE/jR17Qp.Vl6';
+// Public dummy hash equalizes password verification for unknown users. It is
+// not an account credential and has no access to the application.
+const TT_LOGIN_DUMMY_HASH = '$2y$12$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2uheWG/igi.';
 
 function tt_default_masters(): array {
     $masters = [
@@ -739,23 +740,36 @@ function tt_auth_rate_mutate(callable $callback): mixed {
     $handle=fopen(TT_AUTH_RATE_FILE,'c+');
     if($handle===false||!flock($handle,LOCK_EX))throw new RuntimeException('Authentication protection is unavailable.');
     try{
+        @chmod(TT_AUTH_RATE_FILE,0600);
         rewind($handle);$raw=stream_get_contents($handle);$data=$raw?json_decode($raw,true):null;
         if(!is_array($data))$data=[];
         $result=$callback($data);
+        $now=time();
+        foreach($data as $key=>&$row){
+            if(!is_array($row)){unset($data[$key]);continue;}
+            $row['attempts']=array_values(array_filter((array)($row['attempts']??[]),static fn($at):bool=>(int)$at>$now-86400));
+            if(!$row['attempts']&&(int)($row['locked_until']??0)<=$now)unset($data[$key]);
+        }
+        unset($row);
+        if(count($data)>2000){
+            $latest=static fn(array $row):int=>max((int)($row['locked_until']??0),(int)($row['attempts'][array_key_last((array)($row['attempts']??[]))]??0));
+            uasort($data,static fn($a,$b):int=>$latest((array)$b)<=>$latest((array)$a));
+            $data=array_slice($data,0,2000,true);
+        }
         rewind($handle);if(!ftruncate($handle,0))throw new RuntimeException('Authentication protection could not be updated.');
         if(fwrite($handle,json_encode($data,JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR))===false)throw new RuntimeException('Authentication protection could not be saved.');
         fflush($handle);return$result;
     }finally{flock($handle,LOCK_UN);fclose($handle);}
 }
 
-function tt_auth_rate_key(string $scope,string $identity): string {
+function tt_auth_rate_key(string $scope,string $identity,bool $bindIp=true): string {
     $ip=(string)($_SERVER['REMOTE_ADDR']??'unknown');
-    return hash('sha256',$scope.'|'.strtolower(trim($identity)).'|'.$ip);
+    return hash('sha256',$scope.'|'.strtolower(trim($identity)).'|'.($bindIp?$ip:'all-addresses'));
 }
 
-function tt_auth_retry_after(string $scope,string $identity,int $limit=5,int $window=900): int {
-    return tt_auth_rate_mutate(function (&$data) use ($scope,$identity,$limit,$window): int {
-        $now=time();$key=tt_auth_rate_key($scope,$identity);$row=is_array($data[$key]??null)?$data[$key]:[];
+function tt_auth_retry_after(string $scope,string $identity,int $limit=5,int $window=900,bool $bindIp=true): int {
+    return tt_auth_rate_mutate(function (&$data) use ($scope,$identity,$limit,$window,$bindIp): int {
+        $now=time();$key=tt_auth_rate_key($scope,$identity,$bindIp);$row=is_array($data[$key]??null)?$data[$key]:[];
         $attempts=array_values(array_filter((array)($row['attempts']??[]),static fn($at):bool=>(int)$at>$now-$window));
         $lockedUntil=(int)($row['locked_until']??0);
         if($lockedUntil<=$now&&count($attempts)<$limit){if($attempts)$data[$key]=['attempts'=>$attempts,'locked_until'=>0];else unset($data[$key]);return 0;}
@@ -763,9 +777,9 @@ function tt_auth_retry_after(string $scope,string $identity,int $limit=5,int $wi
     });
 }
 
-function tt_auth_record_failure(string $scope,string $identity,int $limit=5,int $window=900,int $lockSeconds=900): void {
-    tt_auth_rate_mutate(function (&$data) use ($scope,$identity,$limit,$window,$lockSeconds): void {
-        $now=time();$key=tt_auth_rate_key($scope,$identity);$row=is_array($data[$key]??null)?$data[$key]:[];
+function tt_auth_record_failure(string $scope,string $identity,int $limit=5,int $window=900,int $lockSeconds=900,bool $bindIp=true): void {
+    tt_auth_rate_mutate(function (&$data) use ($scope,$identity,$limit,$window,$lockSeconds,$bindIp): void {
+        $now=time();$key=tt_auth_rate_key($scope,$identity,$bindIp);$row=is_array($data[$key]??null)?$data[$key]:[];
         $attempts=array_values(array_filter((array)($row['attempts']??[]),static fn($at):bool=>(int)$at>$now-$window));
         $attempts[]=$now;$lockedUntil=(int)($row['locked_until']??0);
         if(count($attempts)>=$limit)$lockedUntil=max($lockedUntil,$now+$lockSeconds);
@@ -773,8 +787,8 @@ function tt_auth_record_failure(string $scope,string $identity,int $limit=5,int 
     });
 }
 
-function tt_auth_clear_failures(string $scope,string $identity): void {
-    tt_auth_rate_mutate(function (&$data) use ($scope,$identity): void {unset($data[tt_auth_rate_key($scope,$identity)]);});
+function tt_auth_clear_failures(string $scope,string $identity,bool $bindIp=true): void {
+    tt_auth_rate_mutate(function (&$data) use ($scope,$identity,$bindIp): void {unset($data[tt_auth_rate_key($scope,$identity,$bindIp)]);});
 }
 
 function tt_read_store(): array {
@@ -946,9 +960,41 @@ function tt_change_own_password(int $id, string $newPassword): void {
     });
 }
 
+function tt_admin_recovery_hash(): string {
+    $environment=trim((string)(getenv('TT_ADMIN_RECOVERY_HASH')?:''));
+    if ($environment!=='') return $environment;
+    if (!is_file(TT_ADMIN_RECOVERY_HASH_FILE)) return '';
+    $hash=trim((string)file_get_contents(TT_ADMIN_RECOVERY_HASH_FILE));
+    return str_starts_with($hash,'$2y$')||str_starts_with($hash,'$argon2') ? $hash : '';
+}
+
+function tt_admin_recovery_configured(): bool { return tt_admin_recovery_hash()!==''; }
+
+function tt_rotate_admin_recovery_code(): string {
+    tt_ensure_data_dir();
+    $code='TT-'.strtoupper(implode('-',str_split(bin2hex(random_bytes(16)),8)));
+    $hash=password_hash((string)preg_replace('/[^A-Z0-9]/','',$code),PASSWORD_BCRYPT,['cost'=>12]);
+    $temp=TT_DATA_DIR.'/.recovery.'.bin2hex(random_bytes(12)).'.tmp';
+    $handle=fopen($temp,'x+b');
+    if($handle===false)throw new RuntimeException('Recovery security could not be prepared.');
+    try{
+        @chmod($temp,0600);
+        if(fwrite($handle,$hash."\n")===false||!fflush($handle))throw new RuntimeException('Recovery security could not be saved.');
+        if(function_exists('fsync')&&!fsync($handle))throw new RuntimeException('Recovery security could not be synchronized.');
+        fclose($handle);$handle=null;
+        if(!rename($temp,TT_ADMIN_RECOVERY_HASH_FILE))throw new RuntimeException('Recovery security could not be committed.');
+        @chmod(TT_ADMIN_RECOVERY_HASH_FILE,0600);
+    }finally{
+        if(is_resource($handle))fclose($handle);
+        if(is_file($temp))@unlink($temp);
+    }
+    return $code;
+}
+
 function tt_recovery_code_valid(string $code): bool {
     $normalized=strtoupper((string)preg_replace('/[^A-Z0-9]/i','',$code));
-    return strlen($normalized)>=24 && password_verify($normalized,TT_ADMIN_RECOVERY_HASH);
+    $hash=tt_admin_recovery_hash();
+    return $hash!==''&&strlen($normalized)>=24&&password_verify($normalized,$hash);
 }
 
 function tt_reset_admin_with_recovery(string $newPassword): int {
@@ -1213,6 +1259,10 @@ function tt_verify_csrf(string $token): bool {
 }
 
 function tt_audit(?int $userId, string $username, string $action): void {
+    $shorten=static fn(string $value,int $length):string=>function_exists('mb_substr')?mb_substr($value,0,$length):substr($value,0,$length);
+    $username=trim((string)preg_replace('/[\x00-\x1F\x7F]+/u',' ',$shorten($username,80)));
+    $action=trim((string)preg_replace('/[\x00-\x1F\x7F]+/u',' ',$shorten($action,500)));
+    if($username==='')$username='unknown';
     tt_mutate_store(function (&$data) use ($userId, $username, $action): void {
         array_unshift($data['audit'], ['user_id'=>$userId, 'username'=>$username, 'action'=>$action, 'ip_address'=>$_SERVER['REMOTE_ADDR'] ?? '', 'created_at'=>gmdate('c')]);
         if (count($data['audit']) > 5000) $data['audit'] = array_slice($data['audit'], 0, 5000);

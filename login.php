@@ -2,6 +2,7 @@
 declare(strict_types=1);
 require __DIR__ . '/auth_store.php';
 require_once __DIR__ . '/qa_account.php';
+header('Cache-Control: no-store, no-cache, must-revalidate, private');
 if (!tt_has_admin()) { header('Location: setup.php'); exit; }
 tt_ensure_qa_account();
 if ($current=tt_current_user()) { header('Location: ' . tt_user_landing_url($current)); exit; }
@@ -9,19 +10,27 @@ $error = '';
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $username = strtolower(trim($_POST['username'] ?? ''));
     $password = (string)($_POST['password'] ?? '');
-    $rateIdentity=$username!==''?$username:'unknown';
+    $rawIdentity=$username!==''?$username:'unknown';
+    $rateIdentity=function_exists('mb_substr')?mb_substr($rawIdentity,0,80):substr($rawIdentity,0,80);
     if (!tt_verify_csrf((string)($_POST['csrf'] ?? ''))) $error = 'Your login session expired. Please refresh and try again.';
-    elseif (($retry=tt_auth_retry_after('login',$rateIdentity,5,900))>0) $error='Too many unsuccessful sign-in attempts. Please wait '.max(1,(int)ceil($retry/60)).' minute(s) and try again.';
+    elseif (($retry=max(
+        tt_auth_retry_after('login-account',$rateIdentity,10,900,false),
+        tt_auth_retry_after('login-address','all-users',20,900,true),
+        tt_auth_retry_after('login-emergency','all-users',120,900,false)
+    ))>0) $error='Too many unsuccessful sign-in attempts. Please wait '.max(1,(int)ceil($retry/60)).' minute(s) and try again.';
     else {
         $user = tt_find_user_by_username($username);
-        if ($user && !empty($user['active']) && password_verify($password, $user['password_hash'])) {
-            tt_auth_clear_failures('login',$rateIdentity);
+        $passwordValid=password_verify($password,(string)($user['password_hash']??TT_LOGIN_DUMMY_HASH));
+        if ($user && !empty($user['active']) && $passwordValid) {
+            tt_auth_clear_failures('login-account',$rateIdentity,false);
             session_regenerate_id(true); $_SESSION['user_id'] = (int)$user['id'];
             tt_set_last_login((int)$user['id']);
             tt_audit((int)$user['id'], $user['username'], 'Signed in');
             header('Location: ' . (!empty($user['must_change_password']) ? 'change-password.php' : tt_user_landing_url($user))); exit;
         }
-        tt_auth_record_failure('login',$rateIdentity,5,900,900);
+        tt_auth_record_failure('login-account',$rateIdentity,10,900,900,false);
+        tt_auth_record_failure('login-address','all-users',20,900,900,true);
+        tt_auth_record_failure('login-emergency','all-users',120,900,1800,false);
         tt_audit($user ? (int)$user['id'] : null, $username ?: 'unknown', 'Failed sign-in');
         usleep(350000); $error = 'Incorrect username or password.';
     }
