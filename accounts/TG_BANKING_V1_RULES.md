@@ -1,8 +1,8 @@
 # Transtrade V1 — TG Banking Rules
 
 ## Ownership of master data
-- TG Master is maintained only from Directors / Super Admin.
-- Accounts consumes approved TG bank identities, USD/AED operating rates and the closing/tax rate; Accounts does not maintain TG Master.
+- Company bank identities and each directional exchange rate are maintained in Super Admin → Companies → the company concerned. The Exchange rates section appears for companies outside Pakistan and offers the currencies of their active bank accounts.
+- Enter A → B as units of B for one unit of A, and B → A separately as units of A for one unit of B. They need not be mathematical reciprocals. Accounts reads the approved company rates; TG Master retains closing/tax and historical rate sets.
 
 ## Native bank currencies
 - TG USD bank accounts remain native USD ledgers.
@@ -10,8 +10,8 @@
 - The AED reporting/closing layer sits underneath the native bank movement so both native balance and AED carrying value remain traceable.
 
 ## Approved TG Master rates
-- Sell USD / receive AED: 3.6700 AED per USD unless an effective-dated TG Master row changes it.
-- Buy USD / pay AED: 3.6750 AED per USD unless changed in TG Master.
+- Operational USD → AED and AED → USD rates are entered as a directional pair under the TG company. USD → AED is AED per USD; AED → USD is USD per AED. The transfer form displays its AED per USD equivalent in the reverse direction for its existing journal calculation.
+- Historical TG Master rates remain a fallback only where no company pair has been saved.
 - Final Accounts / Tax closing translation: 3.6700 AED per USD for now, effective-dated and editable in TG Master.
 - TG year-end: 31 December.
 - An actual transaction may use a different rate only when Accounts records an override explanation; both master and actual rate are retained.

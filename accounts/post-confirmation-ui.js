@@ -30,7 +30,7 @@
     if (result.ok && /(?:^|\/)api\//.test(url) && String(init?.method || input?.method || 'GET').toUpperCase() === 'POST') {
       try {
         const body = await result.clone().json();
-        if (body?.ok) {
+        if (body?.ok && !(url.includes('tg_bank_transactions.php') && JSON.parse(String(init?.body||'{}')).guidedReceipt)) {
           const ids = [body.journal?.id, body.advanceJournal?.id, body.postId, body.journalId, body.event?.journalId, body.receipt?.journalId, body.transaction?.journalId, body.transfer?.journalId, body.bill?.journalId, body.payment?.journalId, ...(Array.isArray(body.journals)?body.journals:[]).map(row => row?.id), ...(Array.isArray(body.journalIds)?body.journalIds:[]), ...(Array.isArray(body.bill?.postingJournalIds)?body.bill.postingJournalIds:[]), ...(Array.isArray(body.tgMirror)?body.tgMirror:[]).map(row => row?.journal?.id), ...(Array.isArray(body.indentorPayableJournals)?body.indentorPayableJournals:[]).map(row => row?.id), body.separateChargeJournal?.id].filter(Boolean);
           if (ids.length) show([...new Set(ids)]);
         }

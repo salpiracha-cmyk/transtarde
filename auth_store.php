@@ -223,21 +223,21 @@ function tt_normalize_masters(array $masters): array {
         $code=strtoupper(trim((string)($row['values'][1] ?? ''))); if ($code==='') continue; $seen[$code]=true;
         if (isset($companyDefaults[$code]) && count($values)<=3) $values=$companyDefaults[$code]['values'];
         if ($code==='BRM' && (($values[0] ?? '')==='BRM')) $values=$companyDefaults['BRM']['values'];
-        while (count($values)<15) $values[]='';
+        while (count($values)<16) $values[]='';
         if (($values[7] ?? '')==='') $values[7]='[{"name":"","share":100}]';
         if (($values[13] ?? '')==='') $values[13]='[]';
         if (($values[14] ?? '')==='') $values[14]='[]';
-        $row['values']=array_slice($values,0,15);
+        $row['values']=array_slice($values,0,16);
     }
     unset($row);
     foreach ($companyDefaults as $code=>$row) if (empty($seen[$code])) $masters['companies'][]=$row;
     foreach ($masters['companies'] as &$row) {
         $values=array_values((array)($row['values'] ?? []));
-        while (count($values)<15) $values[]='';
+        while (count($values)<16) $values[]='';
         if (($values[7] ?? '')==='') $values[7]='[{"name":"","share":100}]';
         if (($values[13] ?? '')==='') $values[13]='[]';
         if (($values[14] ?? '')==='') $values[14]='[]';
-        $row['values']=array_slice($values,0,15);
+        $row['values']=array_slice($values,0,16);
     }
     unset($row);
 
@@ -1050,6 +1050,24 @@ function tt_user_landing_url(array $user): string {
 
 function tt_list_masters(): array { return tt_visible_masters(tt_read_store()['masters']); }
 
+function tt_company_fx_rate(string $companyCode, string $from, string $to): ?float {
+    $companyCode=strtoupper(trim($companyCode));$from=strtoupper(trim($from));$to=strtoupper(trim($to));
+    if($from===$to)return 1.0;
+    foreach((array)(tt_read_store()['masters']['companies']??[]) as $company) {
+        $values=(array)($company['values']??[]);
+        if(strtoupper(trim((string)($values[1]??'')))!==$companyCode)continue;
+        $pairs=json_decode((string)($values[15]??'[]'),true);
+        foreach(is_array($pairs)?$pairs:[] as $pair) {
+            if(!is_array($pair))continue;
+            $a=strtoupper((string)($pair['currencyA']??''));$b=strtoupper((string)($pair['currencyB']??''));
+            if($a===$from&&$b===$to){$rate=(float)($pair['rateAToB']??0);return $rate>0?$rate:null;}
+            if($a===$to&&$b===$from){$rate=(float)($pair['rateBToA']??0);return $rate>0?$rate:null;}
+        }
+        return null;
+    }
+    return null;
+}
+
 function tt_create_master(string $type, array $values): string {
     return tt_mutate_store(function (&$data) use ($type,$values): string {
         if (!isset($data['masters'][$type]) || !is_array($data['masters'][$type])) $data['masters'][$type]=[];
@@ -1093,7 +1111,7 @@ function tt_managed_qa_write_blocked(array $user): bool {
 
 function tt_api_entity_policy(string $path): array {
     $endpoint=basename($path);
-    $entityIndependent=['operations.php','operations.mysql.php','export_documents.php','export_customers.php','export_realization_master.php','masters.php','master_documents.php','users.php','backup.php','location-master.php','commodity_lookup.php','bag_bill_file.php','bridge_outbox.php'];
+    $entityIndependent=['operations.php','operations.mysql.php','export_documents.php','export_customers.php','export_realization_master.php','masters.php','master_documents.php','users.php','backup.php','accounts_bulk_test_cleanup.php','location-master.php','commodity_lookup.php','bag_bill_file.php','bridge_outbox.php'];
     if(in_array($endpoint,$entityIndependent,true))return['required'=>false,'fixed'=>''];
     if(str_starts_with($endpoint,'tg_'))return['required'=>true,'fixed'=>'TG'];
     return['required'=>true,'fixed'=>''];

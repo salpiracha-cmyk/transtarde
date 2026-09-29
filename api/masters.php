@@ -160,7 +160,7 @@ try {
     }
 
     $schemas=[
-        'companies'=>15,'export_customers'=>22,'business_parties'=>13,'commodities'=>8,'product_settings'=>1,'products'=>22,'purchase_products'=>11,'purchase_kat'=>10,
+        'companies'=>16,'export_customers'=>22,'business_parties'=>13,'commodities'=>8,'product_settings'=>1,'products'=>22,'purchase_products'=>11,'purchase_kat'=>10,
         'mills'=>7,'export_documents'=>5,'export_terms'=>3,
     ];
     if (!isset($schemas[$type])) throw new InvalidArgumentException('Select a valid master section.');
@@ -210,16 +210,18 @@ try {
     foreach (array_slice($raw,0,$schemas[$type]) as $fieldIndex=>$value) {
         if (is_array($value) || is_object($value)) throw new InvalidArgumentException('Master fields must contain text values.');
         $value=trim((string)$value);
-        $nested=($type==='companies'&&in_array((int)$fieldIndex,[13,14],true))||($type==='export_customers'&&in_array((int)$fieldIndex,[9,16,17,18,19],true))||($type==='business_parties'&&(int)$fieldIndex===12)||($type==='purchase_kat'&&(int)$fieldIndex===9);
+        $nested=($type==='companies'&&in_array((int)$fieldIndex,[13,14,15],true))||($type==='export_customers'&&in_array((int)$fieldIndex,[9,16,17,18,19],true))||($type==='business_parties'&&(int)$fieldIndex===12)||($type==='purchase_kat'&&(int)$fieldIndex===9);
         $limit=$nested?50000:1200;
         if (strlen($value)>$limit) throw new InvalidArgumentException('One of the master fields is too long.');
         $values[]=$value;
     }
     while (count($values)<$schemas[$type]) $values[]='';
+    if($type==='companies'&&count($raw)<16&&$action==='update')$values[15]=(string)((master_find_row('companies',$id)['values'][15]??'[]'));
+    if($type==='companies'&&$values[15]==='')$values[15]='[]';
     if (($values[0] ?? '')==='') throw new InvalidArgumentException('Enter the main record name / commodity / product.');
     if (in_array($type,['companies','commodities'],true) && ($values[1] ?? '')==='') throw new InvalidArgumentException('Enter the short code.');
     if ($type==='companies') {
-        foreach ([13=>'bank accounts',14=>'document identities'] as $field=>$label) {
+        foreach ([13=>'bank accounts',14=>'document identities',15=>'exchange rates'] as $field=>$label) {
             $decoded=json_decode((string)($values[$field]??'[]'),true);
             if (!is_array($decoded)) throw new InvalidArgumentException('The '.$label.' could not be read. Reopen the company and try again.');
             if ($field===14) {
@@ -229,6 +231,20 @@ try {
                 }
             }
         }
+        $banks=json_decode((string)$values[13],true)?:[];$currencies=[];
+        foreach($banks as $bank)if(is_array($bank)&&strcasecmp((string)($bank['status']??'Active'),'Inactive')!==0){$code=strtoupper((string)($bank['currency']??''));if(preg_match('/^[A-Z]{3}$/',$code))$currencies[$code]=true;}
+        $pairs=json_decode((string)$values[15],true)?:[];$seenPairs=[];
+        if(count($pairs)>60)throw new InvalidArgumentException('Too many company exchange-rate pairs.');
+        foreach($pairs as $pair){
+            if(!is_array($pair))throw new InvalidArgumentException('Exchange-rate pair is invalid.');
+            $a=strtoupper((string)($pair['currencyA']??''));$b=strtoupper((string)($pair['currencyB']??''));
+            if($a===$b||!isset($currencies[$a],$currencies[$b]))throw new InvalidArgumentException('Exchange-rate currencies must have active bank accounts in this company.');
+            $key=implode('|',[$a<$b?$a:$b,$a<$b?$b:$a]);
+            if(isset($seenPairs[$key]))throw new InvalidArgumentException('Each currency pair may appear only once.');
+            $seenPairs[$key]=true;
+            foreach(['rateAToB','rateBToA'] as $field){$rate=$pair[$field]??null;if(!is_numeric($rate)||(float)$rate<=0||(float)$rate>100000)throw new InvalidArgumentException('Enter both positive directional exchange rates.');}
+        }
+        if(strcasecmp((string)($values[3]??''),'Pakistan')===0&&$pairs)throw new InvalidArgumentException('Company exchange rates are for companies outside Pakistan.');
         if ($action==='update') {
             $existing=master_find_row('companies',$id);
             if (!$existing)throw new InvalidArgumentException('Company no longer exists.');
