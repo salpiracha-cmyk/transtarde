@@ -1088,9 +1088,41 @@
       document.getElementById("addCompanyOwner").onclick=addOwner;wireOwners();
       const bankRows=document.getElementById('companyBankRows');
       const documentRows=document.getElementById('companyDocumentRows');
+      const registrationRows=document.getElementById('companyRegistrationRows');
+      const wireBankOwnership=()=>{
+        bankRows?.querySelectorAll('[data-bank-type]').forEach(select=>{
+          const bankRow=select.closest('.company-bank-row'),ownerWrap=bankRow?.querySelector('[data-bank-owner-wrap]'),retention=bankRow?.querySelector('[data-bank-retention]');
+          const sync=()=>{const personal=select.value==='Personal Account';if(ownerWrap)ownerWrap.hidden=select.value==='Company Account';if(retention){retention.disabled=personal;if(personal)retention.checked=false;}};
+          select.onchange=sync;sync();
+        });
+      };
+      const wireRegistrations=()=>registrationRows?.querySelectorAll('[data-remove-company-registration]').forEach(button=>button.onclick=()=>button.closest('.company-registration-row')?.remove());
+      const syncRegistrationCountry=()=>{
+        const country=String(document.getElementById(masterInputId(2))?.value||'').trim();
+        const pakistan=country.toLowerCase()==='pakistan',uae=/^(united arab emirates|uae)$/i.test(country);
+        const section=document.getElementById('companyPakistanRegistrations'),label=document.getElementById('companyRegistrationNumberLabel');
+        if(section)section.hidden=!pakistan;
+        if(label)label.textContent=uae?'Trade Licence / Registration no.':pakistan?'Company / registration no. (optional)':'Company / registration no.';
+      };
       const wireNested=()=>{
         bankRows?.querySelectorAll('[data-remove-company-bank]').forEach(button=>button.onclick=()=>{button.closest('.company-bank-row')?.remove();syncFx()});
-        bankRows?.querySelectorAll('[data-request-company-bank]').forEach(button=>button.onclick=async()=>{const bankId=button.closest('.company-bank-row')?.querySelector('[data-bank-id]')?.value;if(!row?.id||!bankId)return;const reason=window.prompt('Reason for deactivating this bank account (Director approval required):');if(reason===null)return;try{await apiRequest({action:'request-bank-deletion',type:'companies',id:row.id,bankId,reason},'masters');toast('Request sent to Director. The account remains active until approval.')}catch(error){toast(error.message)}});
+        bankRows?.querySelectorAll('[data-delete-company-bank]').forEach(button=>button.onclick=async()=>{
+          const bankRow=button.closest('.company-bank-row'),bankId=bankRow?.querySelector('[data-bank-id]')?.value;
+          if(!row?.id||!bankId)return;
+          const bankName=bankRow.querySelector('[data-bank-name]')?.value||'this bank account';
+          if(!window.confirm(`Delete ${bankName} from future use? Historical bank ledger entries will remain preserved.`))return;
+          button.disabled=true;
+          try{
+            const data=await apiRequest({action:'delete-company-bank',type:'companies',id:row.id,bankId},'masters');
+            state.masters=ensureMasterSections(data.masters,data.options||state.masterOptions);
+            pendingBankDeletionRequests=(data.bankDeletionRequests||[]).filter(item=>item.status==='Pending');
+            const original=JSON.parse(bankRow.querySelector('[data-bank-json]')?.value||'{}');original.status='Inactive';bankRow.querySelector('[data-bank-json]').value=JSON.stringify(original);bankRow.hidden=true;
+            renderApprovals();
+            savedNotice('Bank account deleted from future use. Its historical ledger remains preserved.');
+          }catch(error){toast(error.message);button.disabled=false}
+        });
+        wireBankOwnership();
+        wireRegistrations();
         documentRows?.querySelectorAll('[data-remove-company-document]').forEach(button=>button.onclick=()=>{const row=button.closest('.company-document-row');if(row){row.querySelector('[data-document-status]').value='Inactive';row.hidden=true}});
         documentRows?.querySelectorAll('[data-preview-company-document],[data-download-company-document]').forEach(button=>button.onclick=()=>{const documentId=button.closest('.company-document-row')?.querySelector('[data-document-id]')?.value;if(!documentId||!row?.id)return;const download=button.hasAttribute('data-download-company-document')?'&download=1':'';window.open(`api/master_documents.php?companyId=${encodeURIComponent(row.id)}&documentId=${encodeURIComponent(documentId)}${download}`,'_blank','noopener')});
       };
@@ -1115,8 +1147,11 @@
       document.getElementById(masterInputId(3))?.addEventListener('change',syncFx);
       document.getElementById(masterInputId(1))?.addEventListener('input',syncFx);
       syncFx();
-      document.getElementById('addCompanyBank').onclick=()=>{bankRows.insertAdjacentHTML('beforeend',companyBankRow({accountTitle:document.getElementById(masterInputId(0))?.value||'',currency:'PKR'}));wireNested();syncFx()};
+      document.getElementById('addCompanyBank').onclick=()=>{bankRows.insertAdjacentHTML('beforeend',companyBankRow({accountType:'Company Account',accountTitle:document.getElementById(masterInputId(0))?.value||'',currency:'PKR'}));wireNested();syncFx()};
+      document.getElementById('addCompanyRegistration').onclick=()=>{registrationRows.insertAdjacentHTML('beforeend',companyRegistrationRow({jurisdiction:document.getElementById(masterInputId(2))?.value||''}));wireRegistrations()};
+      document.getElementById(masterInputId(2))?.addEventListener('input',syncRegistrationCountry);
       document.getElementById('addCompanyDocument').onclick=()=>{documentRows.insertAdjacentHTML('beforeend',companyDocumentRow({version:'1',status:'Active'}));wireNested()};
+      syncRegistrationCountry();
       wireNested();
     }
     if (["products","purchase_products","purchase_kat"].includes(type.id)) wireProductOptionFields();
