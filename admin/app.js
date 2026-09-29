@@ -1237,7 +1237,11 @@
     try {
       const data = await backupFetchJson("api/backup.php?action=status");
       document.getElementById("backupLastAuto").textContent = backupFriendlyDate(data.lastAutoBackup);
-      document.getElementById("backupAutoDetail").textContent = data.automaticAvailable ? "Automatic secure snapshots are active" : "Automatic snapshot support is unavailable on this server";
+      document.getElementById("backupAutoDetail").textContent = !data.automaticAvailable
+        ? "Automatic snapshot support is unavailable on this server"
+        : data.backupHealthy
+          ? "Verified automatic snapshots are active"
+          : `Backup needs attention${data.lastBackupErrorAt ? ` · last failure ${backupFriendlyDate(data.lastBackupErrorAt)}` : ""}`;
       document.getElementById("backupSnapshotCount").textContent = String(data.snapshotCount ?? 0);
       document.getElementById("backupSnapshotSize").textContent = `${backupBytes(data.snapshotBytes)} stored privately on server`;
       document.getElementById("backupLastOwner").textContent = data.lastOwnerDownload ? backupFriendlyDate(data.lastOwnerDownload) : "Not downloaded yet";
