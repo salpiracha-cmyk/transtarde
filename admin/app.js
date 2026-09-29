@@ -1245,6 +1245,11 @@
       document.getElementById("backupSnapshotCount").textContent = String(data.snapshotCount ?? 0);
       document.getElementById("backupSnapshotSize").textContent = `${backupBytes(data.snapshotBytes)} stored privately on server`;
       document.getElementById("backupLastOwner").textContent = data.lastOwnerDownload ? backupFriendlyDate(data.lastOwnerDownload) : "Not downloaded yet";
+      const choice = document.getElementById("serverSnapshotChoice");
+      const selected = choice.value;
+      choice.replaceChildren(new Option("Select a snapshot", ""));
+      (data.snapshots || []).forEach(item => choice.add(new Option(`${item.name} · ${backupFriendlyDate(item.createdAt)} · ${backupBytes(item.bytes)}`, item.name)));
+      if ([...choice.options].some(option => option.value === selected)) choice.value = selected;
     } catch (error) { toast(error.message); }
   }
   async function downloadBackup(kind) {
@@ -1277,6 +1282,33 @@
     finally { button.disabled = false; button.textContent = old; }
   }
   let verifiedRestoreSignature = "";
+  let verifiedServerSnapshot = "";
+  async function verifyServerSnapshot() {
+    const name = document.getElementById("serverSnapshotChoice").value;
+    const box = document.getElementById("serverSnapshotVerification");
+    verifiedServerSnapshot = ""; document.getElementById("serverSnapshotConfirmArea").hidden = true;
+    box.hidden = false; box.classList.remove("error"); box.textContent = "Verifying snapshot…";
+    if (!name) { box.classList.add("error"); box.textContent = "Select a server snapshot first."; return; }
+    try {
+      const data = await backupFetchJson("api/backup.php", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "verify-server-snapshot", snapshot: name, csrf: SESSION.csrf }) });
+      verifiedServerSnapshot = name;
+      box.textContent = `Verified snapshot created ${backupFriendlyDate(data.createdAt)} with ${data.recoveryFileCount} recovery files.`;
+      document.getElementById("serverSnapshotConfirmArea").hidden = false;
+      document.getElementById("serverSnapshotConfirmation").value = "";
+      document.getElementById("restoreServerSnapshot").disabled = true;
+    } catch (error) { box.classList.add("error"); box.textContent = error.message; }
+  }
+  async function restoreServerSnapshot() {
+    const name = document.getElementById("serverSnapshotChoice").value;
+    if (!name || name !== verifiedServerSnapshot || document.getElementById("serverSnapshotConfirmation").value.trim().toUpperCase() !== "RESTORE") return;
+    if (!window.confirm(`Restore ${name}? Transtrade will first create a safety snapshot of current data.`)) return;
+    const button = document.getElementById("restoreServerSnapshot"); button.disabled = true; button.textContent = "Restoring…";
+    try {
+      const data = await backupFetchJson("api/backup.php", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "restore-server-snapshot", snapshot: name, confirmation: "RESTORE", csrf: SESSION.csrf }) });
+      alert(`Server snapshot restored. ${data.restoredFiles} files recovered. Safety snapshot: ${data.safetySnapshot}. The page will now reload.`);
+      window.location.reload();
+    } catch (error) { toast(error.message); button.textContent = "Restore Server Snapshot"; button.disabled = false; }
+  }
   async function verifyBackupForRestore() {
     const file = document.getElementById("restoreBackupFile").files?.[0];
     const password = document.getElementById("restoreBackupPassword").value;
@@ -1428,6 +1460,10 @@
   document.getElementById("downloadFullBackup").addEventListener("click", () => downloadBackup("full-download"));
   document.getElementById("createServerSnapshot").addEventListener("click", createServerSnapshot);
   document.getElementById("verifyBackupFile").addEventListener("click", verifyBackupForRestore);
+  document.getElementById("verifyServerSnapshot").addEventListener("click", verifyServerSnapshot);
+  document.getElementById("serverSnapshotChoice").addEventListener("change", () => { verifiedServerSnapshot = ""; document.getElementById("serverSnapshotConfirmArea").hidden = true; document.getElementById("serverSnapshotVerification").hidden = true; });
+  document.getElementById("serverSnapshotConfirmation").addEventListener("input", () => { document.getElementById("restoreServerSnapshot").disabled = !(verifiedServerSnapshot && verifiedServerSnapshot === document.getElementById("serverSnapshotChoice").value && document.getElementById("serverSnapshotConfirmation").value.trim().toUpperCase() === "RESTORE"); });
+  document.getElementById("restoreServerSnapshot").addEventListener("click", restoreServerSnapshot);
   document.getElementById("restoreConfirmation").addEventListener("input", updateRestoreEnablement);
   document.getElementById("restoreBackupFile").addEventListener("change", () => { verifiedRestoreSignature = ""; document.getElementById("restoreConfirmArea").hidden = true; document.getElementById("restoreVerification").hidden = true; updateRestoreEnablement(); });
   document.getElementById("restoreBackupNow").addEventListener("click", restoreBackupNow);

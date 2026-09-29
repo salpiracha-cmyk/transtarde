@@ -35,6 +35,24 @@ try{
     backup_expect($restored===$payload,'Large files must stream into the snapshot without data loss.');
     backup_expect(is_array($manifest)&&($manifest['recoveryFileCount']??0)>=3,'Snapshot manifest must inventory recovery files.');
     backup_expect(!array_filter((array)$manifest['recoveryFiles'],static fn(array $row):bool=>str_ends_with((string)($row['path']??''),'.lock')),'Runtime lock files must not enter recovery snapshots.');
+    backup_expect(tt_backup_master_headers('banks',14)[4]==='Bank name'&&tt_backup_master_headers('banks',14)[7]==='Currency','Bank export headings must match saved column positions.');
+    backup_expect(tt_backup_master_headers('export_customers',22)[21]==='Default payment / customer instructions','All known master fields need readable headings.');
+    $csv=tt_backup_csv(['headers'=>['Name'],'rows'=>[['  =1+1'],['@SUM(A1)'],['Regular company']]]);
+    backup_expect(str_contains($csv,"'  =1+1")&&str_contains($csv,"'@SUM(A1)"),'CSV must neutralize spreadsheet formulas.');
+    $xlsx=tt_backup_make_xlsx(['Test'=>['headers'=>['Name'],'rows'=>[['=1+1']]]]);
+    $xlsxZip=new TT_SimpleZipReader($xlsx);
+    backup_expect(str_contains((string)$xlsxZip->get('xl/worksheets/sheet1.xml'),"&apos;=1+1"),'Excel cells must neutralize formulas.');
+    $xlsxZip->close();@unlink($xlsx);
+    $serverManifest=tt_backup_verified_server_snapshot($snapshot);
+    backup_expect((int)$serverManifest['recoveryFileCount']>=3,'Super Admin server snapshot verification must check every entry.');
+    file_put_contents(TT_DATA_DIR.'/documents/large-fixture.txt','changed after snapshot');
+    $restoredResult=tt_restore_server_snapshot($snapshot);
+    backup_expect(file_get_contents(TT_DATA_DIR.'/documents/large-fixture.txt')===$payload&&$restoredResult['restoredFiles']>=3,'Verified server snapshot must restore stored documents.');
+    backup_expect(is_file(tt_backup_dir().'/'.$restoredResult['safetySnapshot']),'Restore must preserve a safety snapshot.');
+    $full=tt_build_download_backup(true,'test-backup-password-2026');
+    $fullResult=tt_restore_complete_backup($full['path'],'test-backup-password-2026');
+    backup_expect($fullResult['restoredFiles']>=3&&file_get_contents(TT_DATA_DIR.'/documents/large-fixture.txt')===$payload,'Chunk-encrypted complete backup must restore documents.');
+    @unlink($full['path']);
 
     file_put_contents(TT_DATA_DIR.'/operations.json','{"revision":');
     $failed=false;
