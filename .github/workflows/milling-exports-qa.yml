@@ -130,9 +130,12 @@ jobs:
           const htaccess = fs.readFileSync('.htaccess', 'utf8');
           const release = fs.readFileSync('module_release.php', 'utf8');
           const options = fs.readFileSync('customer-contract-options.js', 'utf8');
-          assert.match(htaccess, /RewriteRule \^module\\\.php\$ module_release\.php \[L\]/);
+          assert.doesNotMatch(htaccess, /RewriteRule \^module\\\.php\$ module_release\.php \[L\]/);
           assert.match(release, /require __DIR__ \. '\/module\.php';/);
-          assert.match(release, /customer-contract-options\.js\?v=20260911-reports-1/);
+          assert.doesNotMatch(release, /str_replace|preg_replace|ob_start/);
+          const module = fs.readFileSync('module.php', 'utf8');
+          assert.match(module, /customer-contract-options\.js\?v=20260911-reports-1/);
+          assert.match(module, /global-validation\.js\?v=20260909-1/);
           assert.doesNotMatch(options, /enforceApprovedReports/);
           assert.match(options, /function releaseDomTweaks\(\)\{hydrateEditor\(\)\}/);
           console.log('Live release route and report compatibility audit passed.');
