@@ -30,6 +30,9 @@ def run():
   base=f'http://127.0.0.1:{port}';log=open(root/'server.log','w+')
   env={k:v for k,v in os.environ.items() if not k.startswith('TT_DB_')}
   server=subprocess.Popen(['php','-d',f'session.save_path={sessions}','-S',f'127.0.0.1:{port}','-t',str(app)],stdout=log,stderr=log,env=env);time.sleep(.3)
+  # Exact identity and gram/kg bag-order matching, including a mismatched shipment.
+  calc=r'''require $argv[1];$m=['container'=>'ABCD1234560','shipmentId'=>'L1','sourceSodaId'=>'PS1'];$v=['tt35exload'=>json_encode([['container'=>'ABCD1234560','shipmentId'=>'L1','instructionId'=>1]]),'tt40exinstructions'=>json_encode([['id'=>1,'sourceSodaId'=>'PS1','bagTare'=>'0.12 kg']])];if(tt_bill_bag_defaults($m,$v)['emptyBagWeightGrams']!==120.0)throw new Exception('Bag kg conversion');$m['shipmentId']='L2';if(tt_bill_bag_defaults($m,$v)['emptyBagWeightGrams']!==0)throw new Exception('Wrong-shipment bag tare');'''
+  subprocess.run(['php','-r',calc,str(app/'api/commodity_bill_calculation.php')],check=True,capture_output=True)
   password=json.loads((root/'credentials.json').read_text())['password'];clients={};tokens={}
   for username in ['billqa','billview']:
    client=urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()));clients[username]=client
@@ -84,7 +87,8 @@ def run():
     harness='<html><body><div id="purchaseEditor" data-tt-purchase-mode="arrival"></div><script>window.TT_ACCOUNT_ACCESS={csrf:'+json.dumps(page.locator('body').evaluate('()=>window.TT_ACCOUNT_ACCESS.csrf'))+'};localStorage.setItem("tt_accounts_entity","TTI");</script><script src="accounts/bill-smart-ui-v2.js"></script><script>TT_SMART_COMMODITY_BILLS_V2.mount();</script></body></html>'
     # Relative api URLs require an Accounts directory harness.
     harness=harness.replace('src="accounts/','src="');(app/'accounts/__bill_fixture.html').write_text(harness)
-    page.goto(base+'/accounts/__bill_fixture.html');page.locator('#ttsbBroker').fill('JJ');page.locator('#ttsbBroker').press('Tab');page.wait_for_selector('#ttsbSupplierChoices option');assert page.locator('#ttsbSupplier').input_value()==''
+    page.goto(base+'/accounts/__bill_fixture.html');page.locator('#ttsbBroker').fill('JJ');page.locator('#ttsbBroker').press('Tab');page.wait_for_selector('#ttsbSupplierChoices option',state='attached');assert page.locator('#ttsbSupplier').input_value()==''
+    page.locator('#ttsbBroker').fill('');page.locator('#ttsbBroker').press('Tab')
     page.locator('#ttsbSupplier').fill('Indus Rice');page.locator('#ttsbSupplier').press('Tab');page.wait_for_function("document.querySelector('#ttsbBroker').value==='JJ'")
     assert page.locator('#ttsbSupplierChoices option').count()==1
     page.locator('#ttsbSoda').select_option('26001');page.locator('#ttsbTruck').select_option('EXMILL|26001|1');assert not page.locator('#ttsbMultiple').is_checked()
