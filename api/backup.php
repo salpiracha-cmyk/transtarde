@@ -39,5 +39,5 @@ try {
         backup_json(['ok'=>true,'restoredFiles'=>$result['restoredFiles'],'safetySnapshot'=>$result['safetySnapshot']]);
     }
     backup_json(['ok'=>false,'error'=>'Unknown backup action.'],400);
-} catch(InvalidArgumentException $e){backup_json(['ok'=>false,'error'=>$e->getMessage()],422);}catch(Throwable $e){backup_json(['ok'=>false,'error'=>'The backup action could not be completed safely. Check the server backup support or try again.'],500);}
+} catch(InvalidArgumentException $e){backup_json(['ok'=>false,'error'=>$e->getMessage()],422);}catch(Throwable $e){error_log('Transtrade backup action failed: '.$e->getMessage());backup_json(['ok'=>false,'error'=>'The backup action could not be completed safely. Check the server backup status or try again.'],500);}
 ?>
