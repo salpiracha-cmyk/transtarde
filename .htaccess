@@ -6,14 +6,15 @@ Options -Indexes
   <IfModule LiteSpeed>
     RewriteRule ^(?:module|module_release)\.php$ - [E=Cache-Control:no-cache]
   </IfModule>
+  RewriteRule ^(?:data|docs|scripts|tests|\.github)(?:/|$) - [F,L,NC]
   RewriteRule ^module\.php$ module_release.php [L]
 </IfModule>
 
-<FilesMatch "^(index\.html|auth\.php|auth_store\.php|backup_lib\.php|inventory_reconciliation\.php)$">
+<FilesMatch "^(index\.html|auth\.php|auth_store\.php|backup_lib\.php|inventory_reconciliation\.php|offline_idempotency\.php|owner_master_cleanup\.php|product_stage\.php|qa_account\.php|runtime_html\.php)$">
   Require all denied
 </FilesMatch>
 
-<FilesMatch "\.(sqlite|sqlite3|db|log|zip)$">
+<FilesMatch "\.(bak|db|env|lock|log|md|sql|sqlite|sqlite3|ya?ml|zip)$">
   Require all denied
 </FilesMatch>
 
@@ -21,4 +22,8 @@ Options -Indexes
   Header always set X-Content-Type-Options "nosniff"
   Header always set X-Frame-Options "SAMEORIGIN"
   Header always set Referrer-Policy "same-origin"
+  Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
+  Header always set Permissions-Policy "camera=(), microphone=(), geolocation=()"
+  Header always set Cross-Origin-Resource-Policy "same-origin"
+  Header always set Content-Security-Policy-Report-Only "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; object-src 'self' blob:; base-uri 'self'; frame-ancestors 'self'; form-action 'self'"
 </IfModule>

@@ -51,6 +51,7 @@ jobs:
           php tests/security/setup_storage_hardening_test.php
           php tests/security/master_permission_migration_test.php
           php tests/security/authentication_hardening_test.php
+          php tests/security/session_web_hardening_test.php
           node tests/accounts-v1/master_role_mapping_test.js
           node tests/offline_recovery_audit.js
       - name: Private stock reconciliation rules
@@ -61,6 +62,7 @@ jobs:
       - name: PHP syntax
         run: |
           find . -path './.git' -prune -o -name '*.php' -print0 | xargs -0 -n1 php -l
+          node --check session-activity.js
           php tests/runtime_delivery_test.php
           node tests/runtime_security_static_audit.js
 
