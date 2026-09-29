@@ -11,6 +11,7 @@ const qa=fs.readFileSync('qa_account.php','utf8');
 const exportDocuments=fs.readFileSync('api/export_documents.php','utf8');
 const documentAi=fs.readFileSync('api/document_ai.php','utf8');
 for(const dead of ['accounts/bag-po-export-ui.js','accounts/export-receipts-charge-flex-ui.js','accounts/rent-salary-treatment-ui.js','accounts/rice-soda-control-ui.js'])assert.equal(fs.existsSync(dead),false,`${dead} must not remain as an unreachable patch`);
+for(const productionQaWritePath of ['api/accounts_bulk_test_cleanup.php','tests/live/accounts-bulk-hostinger-qa.spec.js','tests/live/accounts-bulk-cleanup.spec.js','.github/workflows/accounts-bulk-audit.yml','.github/workflows/accounts-bulk-cleanup.yml'])assert.equal(fs.existsSync(productionQaWritePath),false,`${productionQaWritePath} must not write QA dummy data to production`);
 assert.equal(fs.existsSync('accounts/bag-control-bridge.js'),true,'bridge/sync code remains outside this cleanup');
 
 assert.doesNotMatch(modulePhp,/preg_replace\([^\n]+app\\\.js/,'Export JavaScript must not use a PHP replacement string');
