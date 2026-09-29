@@ -311,7 +311,10 @@ try {
         $values[6]='';
         $values[7]='';
         $values[10]=trim($values[10]);
-        if($values[10]!==''&&!preg_match('/^(?:100(?:\.0+)?|\d{1,2}(?:\.\d+)?)\s*%\s*Broken$/i',$values[10]))throw new InvalidArgumentException('Enter the broken grade as a percentage, for example 100% Broken.');
+        if($values[10]!==''){
+            if(!preg_match('/^(\d+(?:\.\d+)?)\s*%?\s*(?:Broken)?$/i',$values[10],$grade)||!is_finite((float)($grade[1]??0))||(float)$grade[1]<0||(float)$grade[1]>100)throw new InvalidArgumentException('Enter only the broken percentage as a number from 0 to 100.');
+            $values[10]=rtrim(rtrim(number_format((float)$grade[1],2,'.',''),'0'),'.').'% Broken';
+        }
         if($values[10]!==''&&$values[0]!=='RICE')throw new InvalidArgumentException('Broken grade applies to rice only.');
         if ($values[1]==='' || !in_array($values[3],['RAW','READY'],true)) throw new InvalidArgumentException('Select a base product and choose RAW or READY. FINAL is created only by TTI/reprocessing production.');
         if (!in_array($values[0],['RICE','CORN','SESAME'],true)) throw new InvalidArgumentException('Commodity must be RICE, CORN or SESAME.');

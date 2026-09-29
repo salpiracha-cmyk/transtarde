@@ -538,3 +538,4 @@ legend { margin-bottom: 10px; color: #445469; font-size: .79rem; font-weight: 75
   .purchase-product-identity-section .master-identity-grid { grid-template-columns:1fr; }
   .purchase-product-identity-section .master-identity-grid > label:nth-child(6) { grid-column:auto; }
 }
+.master-percent-input{display:flex;align-items:center;gap:8px}.master-percent-input input{min-width:0;flex:1}.master-percent-input>span{font-weight:700;color:#526273}

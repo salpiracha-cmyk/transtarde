@@ -799,7 +799,7 @@
       <label>Commodity<select id="${masterInputId(0)}" data-master-field-index="0" required>${options(["RICE","CORN","SESAME"],v[0])}</select></label>
       ${productOptionSelect(1,"Shared base variety / product","product_varieties",v[1]||"",true)}
       ${productOptionSelect(2,"Rice type","product_rice_types",v[2]||"",String(v[0]||"").toUpperCase()==="RICE")}
-      <label>Broken grade (optional)<input id="${masterInputId(10)}" data-master-field-index="10" value="${escapeHtml(v[10]||"")}" placeholder="100% Broken" autocomplete="off"></label>
+      <label>Broken percentage (optional)<span class="master-percent-input"><input id="${masterInputId(10)}" data-master-field-index="10" type="number" min="0" max="100" step="0.01" value="${escapeHtml(String(v[10]||"").match(/^\d+(?:\.\d+)?/)?.[0]||"")}" placeholder="e.g. 5 or 100" autocomplete="off"><span>%</span></span></label>
       <label>Purchased as<select id="${masterInputId(3)}" data-master-field-index="3" required>${options(["RAW","READY"],v[3])}</select></label>
       <label>Purchase unit<select id="${masterInputId(4)}" data-master-field-index="4" required>${options(["KG","MAUND","MT"],v[4])}</select></label>
       <label>Arrival KAT profile (our mill / warehouse only)<select id="${masterInputId(5)}" data-master-field-index="5">${katOptions}</select><small>Ex-Mill containers are loaded to specification without KAT.</small></label>

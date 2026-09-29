@@ -24,7 +24,9 @@ assert.match(bills,/\$term==='CASH'\?2:cb_credit_days/);
 assert.match(desk,/rawPurchaseProductId/);
 assert.match(soda,/purchase-products-rice-irri6-white-raw/);
 assert.match(soda,/Select an active Raw or Ready purchase product/);
-assert.doesNotMatch(desk,/id="ttSdVariety"/);
+assert.match(desk,/id="ttSdStage"/);
+assert.match(desk,/id="ttSdVariety"/);
+assert.match(desk,/const refreshProducts=\(preferred=''/);
 
 assert.match(soda,/ps_stock_types/);
 assert.match(soda,/Office locations are not allowed/);
