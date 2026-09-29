@@ -167,15 +167,8 @@ jobs:
           private_dir="${target%/public_html}/transtrade_private"
           recovery_hash_file="$private_dir/admin-recovery.hash"
           if [ ! -s "$recovery_hash_file" ]; then
-            legacy_recovery_hash=$(php -r 'require $argv[1]; echo defined("TT_ADMIN_RECOVERY_HASH") ? constant("TT_ADMIN_RECOVERY_HASH") : "";' "$target/auth_store.php")
-            case "$legacy_recovery_hash" in
-              '$2y$'*|'$argon2'*) ;;
-              *) echo "Existing recovery hash could not be migrated safely."; exit 1 ;;
-            esac
-            install -m 700 -d "$private_dir"
-            umask 077
-            printf '%s\n' "$legacy_recovery_hash" > "$recovery_hash_file"
-            chmod 600 "$recovery_hash_file"
+            php "$stage/scripts/migrate_recovery_hash.php" \
+              "$target/auth_store.php" "$recovery_hash_file"
           fi
           if command -v rsync >/dev/null 2>&1; then
             rsync -a --checksum \
