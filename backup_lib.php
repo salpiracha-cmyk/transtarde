@@ -151,6 +151,30 @@ final class TT_SimpleZipReader {
     public function names(): array { return array_keys($this->entries); }
     public function has(string $name): bool { return isset($this->entries[$name]); }
 
+    /** Verify a stored entry with bounded memory, including the ZIP CRC. */
+    public function storedDigest(string $name, mixed $destination = null): array|false {
+        $e = $this->entries[$name] ?? null;
+        if (!$e) return false;
+        if ((int)$e['method'] !== 0) throw new InvalidArgumentException('A server snapshot entry is not stored in the supported format.');
+        fseek($this->fh, (int)$e['offset']);
+        $local = $this->readExact(30);
+        if (substr($local, 0, 4) !== "PK\x03\x04") throw new InvalidArgumentException('The backup ZIP entry is invalid.');
+        $u = unpack('vneed/vflags/vmethod/vtime/vdate/Vcrc/Vcsize/Vusize/vnlen/velen', substr($local, 4));
+        $localName = $this->readExact((int)$u['nlen']);
+        if ($localName !== $name || (int)$u['method'] !== 0) throw new InvalidArgumentException('The backup ZIP entry name or format is invalid.');
+        if ((int)$u['elen'] > 0) $this->readExact((int)$u['elen']);
+        $sha = hash_init('sha256'); $crc = hash_init('crc32b');
+        $remaining = (int)$e['csize'];
+        while ($remaining > 0) {
+            $chunk = $this->readExact(min($remaining, 1024 * 1024));
+            hash_update($sha, $chunk); hash_update($crc, $chunk);
+            if ($destination !== null && fwrite($destination, $chunk) !== strlen($chunk)) throw new RuntimeException('A recovery file could not be staged.');
+            $remaining -= strlen($chunk);
+        }
+        if ((int)$e['csize'] !== (int)$e['usize'] || sprintf('%u', hexdec(hash_final($crc))) !== sprintf('%u', (int)$e['crc'])) throw new InvalidArgumentException('A backup entry failed its ZIP integrity check.');
+        return ['size'=>(int)$e['usize'], 'sha256'=>hash_final($sha)];
+    }
+
     public function get(string $name): string|false {
         $e = $this->entries[$name] ?? null;
         if (!$e) return false;
@@ -182,6 +206,13 @@ function tt_backup_ensure_dirs(): void {
     tt_ensure_data_dir();
     $dir = tt_backup_dir();
     if (!is_dir($dir) && !mkdir($dir, 0700, true) && !is_dir($dir)) throw new RuntimeException('The private backup folder could not be created.');
+}
+
+function tt_backup_require_space(string $directory, int $estimatedBytes): void {
+    $free = disk_free_space($directory);
+    if ($free === false || $free < max(64 * 1024 * 1024, $estimatedBytes + 32 * 1024 * 1024)) {
+        throw new RuntimeException('Insufficient available disk space for a verified backup.');
+    }
 }
 
 function tt_backup_read_state_unlocked(): array {
@@ -297,7 +328,15 @@ function tt_backup_master_headers(string $type, int $width): array {
         'purchase_kat'=>['Commodity','Variety / product','Quality parameter','Free / default allowance','Deduction / KAT rule or slab','Unit','Effective / seasonal profile','Status / approval','Notes'],
         'parties'=>['Party','Code / reference','Type / notes'],
         'mills'=>['Mill / location','Code / reference','Type / notes'],
-        'banks'=>['Account type','Company','Bank name','Account title','Currency','Account no.','IBAN','SWIFT','Branch','Country','Visible to Mill','Active','Legacy reference','Notes'],
+        'banks'=>['Account type','Company','Label','Account title','Bank name','Branch','Country','Currency','Account number','IBAN','SWIFT','Purpose','Visibility','Status'],
+        'salary_staff'=>['Staff / person name','Legal book','Salary group','Net salary / remuneration (Rs)','Zakat (Rs)','Other recurring allowances (Rs)','Effective from','Effective to','Accounts treatment','Include in Mill production cost','Status','Notes'],
+        'purchase_products'=>['Commodity','Base variety / product','Rice type','Purchase classification','Purchase unit','Arrival KAT profile (our location only)','Legacy brokery rule','Legacy inventory account','Status','Notes','Broken grade (optional)'],
+        'purchase_kat'=>['Commodity','Base variety','Rice type','Purchase classification','Profile name','Effective from','Effective to','Status','Notes','Quality parameters'],
+        'export_documents'=>['Document Name','Original','Copies','Applies To','Status'],
+        'export_terms'=>['Payment Group','Term Text','Status'],
+        'export_customers'=>['Customer name','Code','Roles','Primary document address','Country','Email','Phone','Tax / registration','Packing default','Notify parties JSON','Status','Notes','Show country','Show email','Show phone','Show tax','Contacts JSON','Consignees JSON','Additional notify parties JSON','Additional document addresses JSON','Default currency','Default payment / customer instructions'],
+        'business_parties'=>['Party name','Code / reference','Categories','Address','Country','Contact person','Phone','Email','NTN / tax number','Payment terms','Status','Notes','Brokery profile'],
+        'reference_lists'=>['List','Option / currency code','Currency full name'],
     ];
     $headers = $known[$type] ?? [];
     while (count($headers) < $width) $headers[] = 'Field ' . (count($headers) + 1);
@@ -338,6 +377,10 @@ function tt_backup_datasets(): array {
 }
 
 function tt_backup_xml(string $value): string { return htmlspecialchars($value, ENT_XML1 | ENT_QUOTES, 'UTF-8'); }
+function tt_backup_safe_cell(string $value): string {
+    // A leading quote is displayed by Excel as text; guard whitespace-prefixed formulas too.
+    return preg_match('/^[\x00-\x20]*[=+\-@]/', $value) ? "'" . $value : $value;
+}
 function tt_backup_sheet_name(string $name, array &$used): string {
     $name=preg_replace('~[\\/?:*\[\]]~u',' ',$name) ?: 'Sheet'; $name=trim(preg_replace('/\s+/u',' ',$name) ?: 'Sheet');
     $substr=function(string $s,int $start,int $len):string{return function_exists('mb_substr')?mb_substr($s,$start,$len):substr($s,$start,$len);};
@@ -352,7 +395,7 @@ function tt_backup_make_xlsx(array $datasets): string {
     $zip=new TT_SimpleZipWriter($tmp);$used=[];$sheets=[];$rels=[];$content=[];$index=1;
     foreach($datasets as $title=>$table){$name=tt_backup_sheet_name((string)$title,$used);$rows=[(array)($table['headers']??[])];foreach((array)($table['rows']??[]) as $r)$rows[]=(array)$r;
         $xml='<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0"/></sheetViews><sheetFormatPr defaultRowHeight="15"/><sheetData>';
-        foreach($rows as $ri=>$row){$rnum=$ri+1;$xml.='<row r="'.$rnum.'">';foreach(array_values($row) as $ci=>$value){$cell=tt_backup_col($ci+1).$rnum;$style=$ri===0?' s="1"':'';$xml.='<c r="'.$cell.'" t="inlineStr"'.$style.'><is><t xml:space="preserve">'.tt_backup_xml((string)$value).'</t></is></c>';}$xml.='</row>';}
+        foreach($rows as $ri=>$row){$rnum=$ri+1;$xml.='<row r="'.$rnum.'">';foreach(array_values($row) as $ci=>$value){$cell=tt_backup_col($ci+1).$rnum;$style=$ri===0?' s="1"':'';$xml.='<c r="'.$cell.'" t="inlineStr"'.$style.'><is><t xml:space="preserve">'.tt_backup_xml(tt_backup_safe_cell((string)$value)).'</t></is></c>';}$xml.='</row>';}
         $xml.='</sheetData><autoFilter ref="A1:'.tt_backup_col(max(1,count($rows[0]??[]))).'1"/></worksheet>';
         $zip->addString('xl/worksheets/sheet'.$index.'.xml',$xml);$sheets[]='<sheet name="'.tt_backup_xml($name).'" sheetId="'.$index.'" r:id="rId'.$index.'"/>';$rels[]='<Relationship Id="rId'.$index.'" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet'.$index.'.xml"/>';$content[]='<Override PartName="/xl/worksheets/sheet'.$index.'.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>';$index++;}
     $zip->addString('[Content_Types].xml','<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/><Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/><Override PartName="/docProps/app.xml" ContentType="application/vnd.openxmlformats-officedocument.extended-properties+xml"/>'.implode('',$content).'</Types>');
@@ -363,7 +406,7 @@ function tt_backup_make_xlsx(array $datasets): string {
     $now=gmdate('Y-m-d\TH:i:s\Z');$zip->addString('docProps/core.xml','<?xml version="1.0" encoding="UTF-8"?><cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><dc:title>Transtrade Business Data</dc:title><dc:creator>Transtrade</dc:creator><dcterms:created xsi:type="dcterms:W3CDTF">'.$now.'</dcterms:created></cp:coreProperties>');$zip->addString('docProps/app.xml','<?xml version="1.0" encoding="UTF-8"?><Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties"><Application>Transtrade</Application></Properties>');$zip->close();return $tmp;
 }
 
-function tt_backup_csv(array $table): string {$h=fopen('php://temp','w+');if($h===false)return '';fputcsv($h,(array)($table['headers']??[]));foreach((array)($table['rows']??[]) as $row)fputcsv($h,(array)$row);rewind($h);$data=stream_get_contents($h)?:'';fclose($h);return "\xEF\xBB\xBF".$data;}
+function tt_backup_csv(array $table): string {$h=fopen('php://temp','w+');if($h===false)return '';fputcsv($h,(array)($table['headers']??[]));foreach((array)($table['rows']??[]) as $row)fputcsv($h,array_map(static fn($v):string=>tt_backup_safe_cell((string)$v),(array)$row));rewind($h);$data=stream_get_contents($h)?:'';fclose($h);return "\xEF\xBB\xBF".$data;}
 function tt_backup_make_docx(array $summaryLines): string {$tmp=tempnam(sys_get_temp_dir(),'tt-docx-');if($tmp===false)throw new RuntimeException('Temporary Word file could not be created.');$zip=new TT_SimpleZipWriter($tmp);$paras=[];foreach($summaryLines as $i=>$line){$bold=$i===0?'<w:rPr><w:b/><w:sz w:val="32"/></w:rPr>':'';$paras[]='<w:p><w:r>'.$bold.'<w:t xml:space="preserve">'.tt_backup_xml((string)$line).'</w:t></w:r></w:p>';}$zip->addString('[Content_Types].xml','<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>');$zip->addString('_rels/.rels','<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>');$zip->addString('word/document.xml','<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>'.implode('',$paras).'<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1134"/></w:sectPr></w:body></w:document>');$zip->close();return $tmp;}
 function tt_backup_pdf_escape(string $s): string {return str_replace(['\\','(',')',"\r","\n"],['\\\\','\\(','\\)',' ',' '],$s);}
 function tt_backup_make_pdf(array $lines): string {$content="BT\n/F1 16 Tf\n50 790 Td\n";$first=true;foreach($lines as $line){foreach(preg_split('/\n/',wordwrap((string)$line,88,"\n",true)) as $part){if(!$first)$content.="0 -18 Td\n";$content.='('.tt_backup_pdf_escape($part).") Tj\n";$first=false;}}$content.="ET";$objects=['<< /Type /Catalog /Pages 2 0 R >>','<< /Type /Pages /Kids [3 0 R] /Count 1 >>','<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>','<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>','<< /Length '.strlen($content).' >>'."\nstream\n".$content."\nendstream"];$pdf="%PDF-1.4\n";$offsets=[0];foreach($objects as $i=>$obj){$offsets[]=strlen($pdf);$pdf.=($i+1)." 0 obj\n".$obj."\nendobj\n";}$xref=strlen($pdf);$pdf.="xref\n0 ".(count($objects)+1)."\n0000000000 65535 f \n";for($i=1;$i<=count($objects);$i++)$pdf.=sprintf("%010d 00000 n \n",$offsets[$i]);$pdf.="trailer\n<< /Size ".(count($objects)+1)." /Root 1 0 R >>\nstartxref\n".$xref."\n%%EOF";$tmp=tempnam(sys_get_temp_dir(),'tt-pdf-');if($tmp===false)throw new RuntimeException('Temporary PDF could not be created.');file_put_contents($tmp,$pdf);return $tmp;}
@@ -375,7 +418,6 @@ function tt_backup_business_payloads(): array {
     foreach($datasets as $name=>$table)$payloads['Business_Data/CSV/'.tt_backup_safe_name((string)$name).'.csv']=tt_backup_csv($table);
     $lines=tt_backup_summary_lines($datasets);$docx=tt_backup_make_docx($lines);$temps[]=$docx;$payloads['Business_Data/Transtrade_Backup_Summary.docx']=file_get_contents($docx)?:'';$pdf=tt_backup_make_pdf($lines);$temps[]=$pdf;$payloads['Business_Data/Transtrade_Backup_Summary.pdf']=file_get_contents($pdf)?:'';
     foreach($temps as $t)@unlink($t);
-    foreach(tt_backup_private_files() as $rel=>$path)if(preg_match('#^(documents|uploads)/(.*)$#i',$rel,$m))$payloads['Documents/'.$m[2]]=file_get_contents($path)?:'';
     return [$payloads,$datasets];
 }
 
@@ -383,13 +425,45 @@ function tt_backup_manifest(string $type,array $files,array $extra=[]):array{$in
 function tt_backup_derive_key(string $password,string $salt,int $iterations):string{if(strlen($password)<12)throw new InvalidArgumentException('Recovery ZIP password must contain at least 12 characters.');return hash_pbkdf2('sha256',$password,$salt,$iterations,32,true);}
 function tt_backup_encrypt(string $plain,string $key):array{if(!function_exists('openssl_encrypt'))throw new RuntimeException('OpenSSL encryption is not available on this server.');$nonce=random_bytes(12);$tag='';$cipher=openssl_encrypt($plain,'aes-256-gcm',$key,OPENSSL_RAW_DATA,$nonce,$tag,'TRANSTRADE-BACKUP');if($cipher===false)throw new RuntimeException('Recovery data could not be encrypted.');return ['cipher'=>$cipher,'nonce'=>base64_encode($nonce),'tag'=>base64_encode($tag),'sha256'=>hash('sha256',$plain),'size'=>strlen($plain)];}
 function tt_backup_decrypt(string $cipher,array $meta,string $key):string{if(!function_exists('openssl_decrypt'))throw new RuntimeException('OpenSSL decryption is not available on this server.');$plain=openssl_decrypt($cipher,'aes-256-gcm',$key,OPENSSL_RAW_DATA,base64_decode((string)$meta['nonce'],true)?:'',base64_decode((string)$meta['tag'],true)?:'','TRANSTRADE-BACKUP');if($plain===false||!hash_equals((string)($meta['sha256']??''),hash('sha256',$plain)))throw new InvalidArgumentException('The backup password is incorrect or an encrypted file failed integrity verification.');return $plain;}
+function tt_backup_decrypt_entry(TT_SimpleZipReader $zip,array $meta,string $key,mixed $destination):void{
+    $digest=hash_init('sha256');$size=0;
+    foreach(isset($meta['chunks']) ? (array)$meta['chunks'] : [$meta] as $chunk){
+        $cipher=$zip->get((string)($chunk['stored']??''));if($cipher===false)throw new InvalidArgumentException('An encrypted recovery entry is missing.');
+        $plain=tt_backup_decrypt($cipher,(array)$chunk,$key);$size+=strlen($plain);hash_update($digest,$plain);
+        if(fwrite($destination,$plain)!==strlen($plain))throw new RuntimeException('A recovery file could not be staged.');
+    }
+    if(isset($meta['chunks'])&&($size!==(int)($meta['size']??-1)||!hash_equals((string)($meta['sha256']??''),hash_final($digest))))throw new InvalidArgumentException('An encrypted recovery file failed its integrity check.');
+}
 
 function tt_build_download_backup(bool $full,string $password=''):array{
-    $tmp=tempnam(sys_get_temp_dir(),'tt-backup-');if($tmp===false)throw new RuntimeException('Temporary backup file could not be created.');$zip=new TT_SimpleZipWriter($tmp);[$business,$datasets]=tt_backup_business_payloads();$private=tt_backup_private_files();$appFiles=$full?tt_backup_app_files():[];
-    if(!$full){foreach($business as $entry=>$data)$zip->addString($entry,$data);$manifest=tt_backup_manifest('business_data',[],['businessSheets'=>count($datasets),'containsTechnicalSecrets'=>false]);$zip->addString('backup-manifest.json',json_encode($manifest,JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR));$zip->close();return ['path'=>$tmp,'manifest'=>$manifest];}
+    [$business,$datasets]=tt_backup_business_payloads();$private=tt_backup_private_files();$appFiles=$full?tt_backup_app_files():[];$documents=[];
+    foreach($private as $rel=>$path)if(preg_match('#^(documents|uploads)/(.*)$#i',$rel,$m))$documents['Documents/'.$m[2]]=$path;
+    $estimate=0;foreach($private as $path)$estimate+=filesize($path)?:0;foreach($appFiles as $path)$estimate+=filesize($path)?:0;
+    $tmp=tempnam(sys_get_temp_dir(),'tt-backup-');if($tmp===false)throw new RuntimeException('Temporary backup file could not be created.');
+    try { tt_backup_require_space(dirname($tmp),$full ? $estimate*2 : array_sum(array_map('filesize',$documents))); }
+    catch(Throwable $error) { @unlink($tmp); throw $error; }
+    $zip=new TT_SimpleZipWriter($tmp);
+    if(!$full){foreach($business as $entry=>$data)$zip->addString($entry,$data);foreach($documents as $entry=>$path)$zip->addFile($entry,$path);$manifest=tt_backup_manifest('business_data',[],['businessSheets'=>count($datasets),'containsTechnicalSecrets'=>false]);$zip->addString('backup-manifest.json',json_encode($manifest,JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR));$zip->close();return ['path'=>$tmp,'manifest'=>$manifest];}
     $salt=random_bytes(16);$iterations=200000;$key=tt_backup_derive_key($password,$salt,$iterations);$map=[];$counter=1;
     $addEncrypted=function(string $logical,string $data)use($zip,$key,&$map,&$counter):void{$enc=tt_backup_encrypt($data,$key);$stored='Encrypted/'.str_pad((string)$counter++,6,'0',STR_PAD_LEFT).'.bin';$zip->addString($stored,$enc['cipher']);unset($enc['cipher']);$enc['stored']=$stored;$map[$logical]=$enc;};
-    foreach($business as $entry=>$data)$addEncrypted($entry,$data);foreach($private as $rel=>$path)$addEncrypted('System_Recovery/private/'.$rel,file_get_contents($path)?:'');foreach($appFiles as $rel=>$path)$addEncrypted('Application_Code/'.$rel,file_get_contents($path)?:'');
+    $addEncryptedFile=function(string $logical,string $path)use($zip,$key,&$map,&$counter):void{
+        $source=fopen($path,'rb');if($source===false)throw new RuntimeException('A recovery source file could not be read.');
+        $chunks=[];$digest=hash_init('sha256');$size=0;
+        try {
+            do {
+                $plain=fread($source,1024*1024);
+                if($plain===false)throw new RuntimeException('A recovery source file could not be read.');
+                $size+=strlen($plain);hash_update($digest,$plain);
+                $enc=tt_backup_encrypt($plain,$key);$stored='Encrypted/'.str_pad((string)$counter++,6,'0',STR_PAD_LEFT).'.bin';
+                $zip->addString($stored,$enc['cipher'],false);unset($enc['cipher']);$enc['stored']=$stored;$chunks[]=$enc;
+            } while(!feof($source));
+        } finally { fclose($source); }
+        $map[$logical]=['size'=>$size,'sha256'=>hash_final($digest),'chunks'=>$chunks];
+    };
+    foreach($business as $entry=>$data)$addEncrypted($entry,$data);
+    foreach($documents as $entry=>$path)$addEncryptedFile($entry,$path);
+    foreach($private as $rel=>$path)$addEncryptedFile('System_Recovery/private/'.$rel,$path);
+    foreach($appFiles as $rel=>$path)$addEncryptedFile('Application_Code/'.$rel,$path);
     $appInventory=[];foreach($appFiles as $rel=>$path)$appInventory[]=['path'=>$rel,'size'=>filesize($path)?:0,'sha256'=>hash_file('sha256',$path)?:''];
     $manifest=tt_backup_manifest('full_recovery',$private,['businessSheets'=>count($datasets),'containsTechnicalSecrets'=>true,'appFileCount'=>count($appFiles),'applicationFiles'=>$appInventory,'encryption'=>['algorithm'=>'AES-256-GCM','kdf'=>'PBKDF2-HMAC-SHA256','iterations'=>$iterations,'salt'=>base64_encode($salt)],'encryptedEntries'=>$map]);
     $zip->addString('README.txt',"TRANSTRADE COMPLETE RECOVERY BACKUP\n\nSensitive contents are encrypted with the password chosen by the owner. Restore through Transtrade Super Admin > Backup & Data Export.\nThe password is not stored in this ZIP.\n");$zip->addString('backup-manifest.json',json_encode($manifest,JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR));$zip->close();return ['path'=>$tmp,'manifest'=>$manifest];
@@ -405,10 +479,10 @@ function tt_backup_verify_snapshot(string $path, array $expectedInventory): void
         foreach ((array)($manifest['recoveryFiles'] ?? []) as $entry) {
             $logical = (string)($entry['path'] ?? '');
             if ($logical === '') throw new RuntimeException('The server snapshot inventory is invalid.');
-            $contents = $reader->get('System_Recovery/private/' . $logical);
-            if ($contents === false) throw new RuntimeException('The server snapshot is incomplete.');
-            if ((int)($entry['size'] ?? -1) !== strlen($contents) || !hash_equals((string)($entry['sha256'] ?? ''), hash('sha256', $contents))) throw new RuntimeException('A server snapshot entry failed integrity verification.');
-            $actual[$logical] = ['size'=>strlen($contents), 'sha256'=>hash('sha256', $contents)];
+            $digest = $reader->storedDigest('System_Recovery/private/' . $logical);
+            if ($digest === false) throw new RuntimeException('The server snapshot is incomplete.');
+            if ((int)($entry['size'] ?? -1) !== $digest['size'] || !hash_equals((string)($entry['sha256'] ?? ''), $digest['sha256'])) throw new RuntimeException('A server snapshot entry failed integrity verification.');
+            $actual[$logical] = $digest;
         }
         if ($actual !== $expectedInventory) throw new RuntimeException('The server snapshot inventory changed while it was being created.');
     } finally { $reader->close(); }
@@ -444,9 +518,13 @@ function tt_create_server_snapshot(string $kind='auto'): string {
         $name = tt_backup_safe_name($kind) . '-' . $stamp . '-' . substr(bin2hex(random_bytes(4)), 0, 8) . '.zip';
         $path = tt_backup_dir() . '/' . $name;
         $temp = tt_backup_dir() . '/.snapshot-' . bin2hex(random_bytes(8)) . '.tmp';
+        $sources = tt_backup_private_files();
+        $estimate = 0;
+        foreach ($sources as $file) $estimate += filesize($file) ?: 0;
+        tt_backup_require_space(tt_backup_dir(), $estimate);
         $zip = new TT_SimpleZipWriter($temp);
         $inventory = [];
-        foreach (tt_backup_private_files() as $rel => $file) {
+        foreach ($sources as $rel => $file) {
             $meta = $zip->addFile('System_Recovery/private/' . $rel, $file, false);
             $inventory[$rel] = $meta;
         }
@@ -542,10 +620,72 @@ function tt_backup_status(): array {
         'lastBackupErrorAt'=>$state['last_error_at'] ?? null,
         'backupHealthy'=>empty($state['last_error_at']) || (!empty($state['last_success_at']) && strtotime((string)$state['last_success_at']) >= strtotime((string)$state['last_error_at'])),
         'consecutiveFailures'=>(int)($state['consecutive_failures'] ?? 0),
+        'snapshots'=>tt_backup_snapshot_list(),
     ];
 }
 
-function tt_backup_open_verified(string $path,string $password=''):array{$zip=new TT_SimpleZipReader($path);$manifestRaw=$zip->get('backup-manifest.json');$manifest=$manifestRaw?json_decode($manifestRaw,true):null;if(!is_array($manifest)||($manifest['application']??'')!=='Transtrade'||($manifest['type']??'')!=='full_recovery'){$zip->close();throw new InvalidArgumentException('This is not a Complete Transtrade Recovery Backup.');}if((int)($manifest['schema']??0)>TT_BACKUP_SCHEMA){$zip->close();throw new InvalidArgumentException('This backup was created by a newer Transtrade backup format.');}$enc=(array)($manifest['encryption']??[]);$salt=base64_decode((string)($enc['salt']??''),true);if($salt===false||($enc['algorithm']??'')!=='AES-256-GCM'){$zip->close();throw new InvalidArgumentException('The recovery backup encryption information is invalid.');}$key=tt_backup_derive_key($password,$salt,(int)($enc['iterations']??200000));$map=(array)($manifest['encryptedEntries']??[]);$authMeta=(array)($map['System_Recovery/private/auth.json']??[]);if(!$authMeta||empty($authMeta['stored'])){$zip->close();throw new InvalidArgumentException('The recovery backup does not contain auth.json.');}$cipher=$zip->get((string)$authMeta['stored']);if($cipher===false){$zip->close();throw new InvalidArgumentException('The recovery backup is incomplete.');}$auth=tt_backup_decrypt($cipher,$authMeta,$key);$authJson=json_decode($auth,true);if(!is_array($authJson)){$zip->close();throw new InvalidArgumentException('The backup contains invalid recovery data.');}return[$zip,$manifest,$key];}
+function tt_backup_open_verified(string $path,string $password=''):array{$zip=new TT_SimpleZipReader($path);$manifestRaw=$zip->get('backup-manifest.json');$manifest=$manifestRaw?json_decode($manifestRaw,true):null;if(!is_array($manifest)||($manifest['application']??'')!=='Transtrade'||($manifest['type']??'')!=='full_recovery'){$zip->close();throw new InvalidArgumentException('This is not a Complete Transtrade Recovery Backup.');}if((int)($manifest['schema']??0)>TT_BACKUP_SCHEMA){$zip->close();throw new InvalidArgumentException('This backup was created by a newer Transtrade backup format.');}$enc=(array)($manifest['encryption']??[]);$salt=base64_decode((string)($enc['salt']??''),true);if($salt===false||($enc['algorithm']??'')!=='AES-256-GCM'){$zip->close();throw new InvalidArgumentException('The recovery backup encryption information is invalid.');}$key=tt_backup_derive_key($password,$salt,(int)($enc['iterations']??200000));$map=(array)($manifest['encryptedEntries']??[]);$authMeta=(array)($map['System_Recovery/private/auth.json']??[]);if(!$authMeta||empty($authMeta['stored'])&&empty($authMeta['chunks'])){$zip->close();throw new InvalidArgumentException('The recovery backup does not contain auth.json.');}$stream=fopen('php://temp','w+');try{tt_backup_decrypt_entry($zip,$authMeta,$key,$stream);rewind($stream);$auth=stream_get_contents($stream);}finally{fclose($stream);}if(!is_array(json_decode($auth,true))){$zip->close();throw new InvalidArgumentException('The backup contains invalid recovery data.');}return[$zip,$manifest,$key];}
+function tt_backup_verify_full(string $path,string $password):array{
+    [$zip,$manifest,$key]=tt_backup_open_verified($path,$password);
+    try{
+        foreach((array)($manifest['encryptedEntries']??[]) as $meta){
+            $sink=fopen('php://temp/maxmemory:1048576','w+');if($sink===false)throw new RuntimeException('Backup verification storage is unavailable.');
+            try{tt_backup_decrypt_entry($zip,(array)$meta,$key,$sink);}finally{fclose($sink);}
+        }
+        return $manifest;
+    }finally{$zip->close();}
+}
 function tt_backup_atomic_write(string $path,string $data):void{$dir=dirname($path);if(!is_dir($dir)&&!mkdir($dir,0700,true)&&!is_dir($dir))throw new RuntimeException('A recovery folder could not be created.');$tmp=$path.'.restore-'.bin2hex(random_bytes(4));if(file_put_contents($tmp,$data,LOCK_EX)===false)throw new RuntimeException('A recovery file could not be written.');@chmod($tmp,0600);if(!rename($tmp,$path)){@unlink($tmp);throw new RuntimeException('A recovery file could not be replaced.');}}
-function tt_restore_complete_backup(string $path,string $password):array{[$zip,$manifest,$key]=tt_backup_open_verified($path,$password);$safety=tt_create_server_snapshot('pre-restore');$restored=0;$map=(array)($manifest['encryptedEntries']??[]);try{foreach($map as $logical=>$meta){if(!str_starts_with((string)$logical,'System_Recovery/private/'))continue;$rel=substr((string)$logical,strlen('System_Recovery/private/'));if($rel===''||str_contains($rel,'../')||str_starts_with($rel,'backups/')||$rel==='backup_state.json')continue;if(!preg_match('/\.(json|pdf|doc|docx|xls|xlsx|csv|txt|jpg|jpeg|png|webp)$/i',$rel))continue;$cipher=$zip->get((string)($meta['stored']??''));if($cipher===false)throw new InvalidArgumentException('An encrypted recovery entry is missing.');$data=tt_backup_decrypt($cipher,(array)$meta,$key);if(str_ends_with(strtolower($rel),'.json')){$decoded=json_decode($data,true);if(!is_array($decoded)&&json_last_error()!==JSON_ERROR_NONE)throw new InvalidArgumentException('A JSON recovery file failed validation.');}tt_backup_atomic_write(TT_DATA_DIR.'/'.$rel,$data);$restored++;}}finally{$zip->close();}if(!is_file(TT_STORE_FILE))throw new RuntimeException('Restore validation failed because auth.json was not recovered.');return['restoredFiles'=>$restored,'safetySnapshot'=>$safety,'manifest'=>$manifest];}
+function tt_backup_restore_allowed(string $rel):bool{return $rel!==''&&!str_contains($rel,'..')&&!str_starts_with($rel,'/')&&!str_starts_with($rel,'backups/')&&!in_array($rel,['backup_state.json','auth.lock','backup-job.lock','backup-state.lock'],true)&&preg_match('/\.(json|pdf|doc|docx|xls|xlsx|csv|txt|jpg|jpeg|png|webp)$/i',$rel)===1;}
+function tt_backup_commit_staged(array $staged):int{
+    $authLock=tt_open_store_lock(LOCK_EX);$operationsLock=null;$count=0;
+    try{
+        if(is_file(tt_operations_file())){$operationsLock=fopen(tt_operations_file(),'rb');if($operationsLock===false||!flock($operationsLock,LOCK_EX))throw new RuntimeException('Shared operational storage could not be locked for restore.');}
+        foreach($staged as $rel=>$tmp){$dest=TT_DATA_DIR.'/'.$rel;$dir=dirname($dest);if(!is_dir($dir)&&!mkdir($dir,0700,true)&&!is_dir($dir))throw new RuntimeException('A recovery folder could not be created.');if(!rename($tmp,$dest))throw new RuntimeException('A recovery file could not be replaced.');@chmod($dest,0600);$count++;}
+    }finally{if(is_resource($operationsLock)){flock($operationsLock,LOCK_UN);fclose($operationsLock);}flock($authLock,LOCK_UN);fclose($authLock);}
+    return $count;
+}
+function tt_backup_stage_file(string $rel,callable $write):string{
+    $dir=dirname(TT_DATA_DIR.'/'.$rel);if(!is_dir($dir)&&!mkdir($dir,0700,true)&&!is_dir($dir))throw new RuntimeException('A recovery folder could not be created.');
+    $tmp=$dir.'/.restore-'.bin2hex(random_bytes(8));$out=fopen($tmp,'x+b');if($out===false)throw new RuntimeException('A recovery file could not be staged.');
+    try{$write($out);if(!fflush($out))throw new RuntimeException('A recovery file could not be flushed.');}catch(Throwable $error){fclose($out);@unlink($tmp);throw $error;}fclose($out);@chmod($tmp,0600);
+    if(str_ends_with(strtolower($rel),'.json')){$raw=file_get_contents($tmp);if($raw===false){@unlink($tmp);throw new InvalidArgumentException('A JSON recovery file failed validation.');}json_decode($raw,true);if(json_last_error()!==JSON_ERROR_NONE){@unlink($tmp);throw new InvalidArgumentException('A JSON recovery file failed validation.');}}
+    return $tmp;
+}
+function tt_restore_complete_backup(string $path,string $password):array{
+    [$zip,$manifest,$key]=tt_backup_open_verified($path,$password);$staged=[];
+    try{
+        foreach((array)($manifest['encryptedEntries']??[]) as $logical=>$meta){
+            if(!str_starts_with((string)$logical,'System_Recovery/private/'))continue;
+            $rel=substr((string)$logical,strlen('System_Recovery/private/'));if(!tt_backup_restore_allowed($rel))continue;
+            $staged[$rel]=tt_backup_stage_file($rel,static fn($out)=>tt_backup_decrypt_entry($zip,(array)$meta,$key,$out));
+        }
+        if(!isset($staged['auth.json']))throw new InvalidArgumentException('The recovery backup does not contain auth.json.');
+        $safety=tt_create_server_snapshot('pre-restore');
+        $restored=tt_backup_commit_staged($staged);
+        return ['restoredFiles'=>$restored,'safetySnapshot'=>$safety,'manifest'=>$manifest];
+    }finally{$zip->close();foreach($staged as $tmp)if(is_file($tmp))@unlink($tmp);}
+}
+
+function tt_backup_snapshot_list():array{
+    tt_backup_ensure_dirs();$files=glob(tt_backup_dir().'/{auto,manual,pre-restore}-*.zip',GLOB_BRACE)?:[];usort($files,static fn($a,$b):int=>(filemtime($b)?:0)<=>(filemtime($a)?:0));
+    return array_map(static fn($file):array=>['name'=>basename($file),'bytes'=>filesize($file)?:0,'createdAt'=>gmdate('c',filemtime($file)?:time())],array_slice($files,0,100));
+}
+function tt_backup_verified_server_snapshot(string $name):array{
+    if(!preg_match('/^(auto|manual|pre-restore)-[0-9]{8}-[0-9]{6}(?:-[a-f0-9]{8})?\.zip$/D',$name))throw new InvalidArgumentException('Select a listed server snapshot.');
+    $path=tt_backup_dir().'/'.$name;if(!is_file($path))throw new InvalidArgumentException('The selected snapshot is no longer available.');
+    $zip=new TT_SimpleZipReader($path);
+    try{$raw=$zip->get('backup-manifest.json');$manifest=$raw===false?null:json_decode($raw,true);
+        if(!is_array($manifest)||($manifest['application']??'')!=='Transtrade'||($manifest['type']??'')!=='server_snapshot')throw new InvalidArgumentException('This server snapshot is invalid.');
+        $inventory=[];foreach((array)($manifest['recoveryFiles']??[]) as $item){$rel=(string)($item['path']??'');if(!tt_backup_restore_allowed($rel)||isset($inventory[$rel]))throw new InvalidArgumentException('The snapshot inventory is invalid.');$inventory[$rel]=['size'=>(int)($item['size']??-1),'sha256'=>(string)($item['sha256']??'')];}
+        if(!isset($inventory['auth.json']))throw new InvalidArgumentException('The snapshot has no authentication data.');
+        tt_backup_verify_snapshot($path,$inventory);return $manifest;
+    }finally{$zip->close();}
+}
+function tt_restore_server_snapshot(string $name):array{
+    $manifest=tt_backup_verified_server_snapshot($name);$zip=new TT_SimpleZipReader(tt_backup_dir().'/'.$name);$staged=[];
+    try{foreach($manifest['recoveryFiles'] as $item){$rel=(string)$item['path'];$staged[$rel]=tt_backup_stage_file($rel,static function($out)use($zip,$rel,$item):void{$digest=$zip->storedDigest('System_Recovery/private/'.$rel,$out);if($digest===false||$digest['size']!==(int)$item['size']||!hash_equals((string)$item['sha256'],$digest['sha256']))throw new InvalidArgumentException('A snapshot entry failed verification.');});}
+        $safety=tt_create_server_snapshot('pre-restore');$restored=tt_backup_commit_staged($staged);return ['restoredFiles'=>$restored,'safetySnapshot'=>$safety];
+    }finally{$zip->close();foreach($staged as $tmp)if(is_file($tmp))@unlink($tmp);}
+}
 ?>

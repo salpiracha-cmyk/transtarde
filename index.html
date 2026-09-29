@@ -178,6 +178,19 @@
           </article>
 
           <article class="panel restore-panel">
+            <div class="panel-heading"><div><h2>Restore a Server Snapshot</h2><p>Choose a verified automatic, manual, or pre-restore snapshot kept on this server.</p></div></div>
+            <div class="restore-grid">
+              <label>Available snapshot<select id="serverSnapshotChoice"><option value="">Select a snapshot</option></select></label>
+              <button class="button secondary" id="verifyServerSnapshot" type="button">Verify Snapshot</button>
+            </div>
+            <div class="restore-verification" id="serverSnapshotVerification" hidden></div>
+            <div class="restore-confirm" id="serverSnapshotConfirmArea" hidden>
+              <label>Type <strong>RESTORE</strong> to enable recovery<input id="serverSnapshotConfirmation" autocomplete="off" placeholder="RESTORE"></label>
+              <button class="button danger" id="restoreServerSnapshot" type="button" disabled>Restore Server Snapshot</button>
+            </div>
+          </article>
+
+          <article class="panel restore-panel">
             <div class="panel-heading"><div><h2>Restore a Complete Backup</h2><p>Owner-only disaster recovery. Transtrade creates a safety snapshot of the current data before any restore.</p></div><span class="danger-pill">Protected action</span></div>
             <div class="restore-grid">
               <label>Complete backup ZIP<input id="restoreBackupFile" type="file" accept=".zip,application/zip"></label>

@@ -29,10 +29,18 @@ try {
     if($action==='snapshot'){
         $name=tt_create_server_snapshot('manual');tt_audit((int)$admin['id'],$admin['username'],'Created manual server recovery snapshot '.$name);backup_json(['ok'=>true,'snapshot'=>$name]+tt_backup_status());
     }
+    if(in_array($action,['verify-server-snapshot','restore-server-snapshot'],true)){
+        $name=(string)($body['snapshot']??'');
+        $manifest=tt_backup_verified_server_snapshot($name);
+        if($action==='verify-server-snapshot')backup_json(['ok'=>true,'createdAt'=>$manifest['createdAt']??null,'recoveryFileCount'=>(int)($manifest['recoveryFileCount']??0)]);
+        if(strtoupper(trim((string)($body['confirmation']??'')))!=='RESTORE')throw new InvalidArgumentException('Type RESTORE to confirm recovery.');
+        $result=tt_restore_server_snapshot($name);tt_audit((int)$admin['id'],$admin['username'],'Restored verified server snapshot '.$name);
+        backup_json(['ok'=>true]+$result);
+    }
     if(in_array($action,['verify','restore'],true)){
         if(!$multipart||empty($_FILES['backup']['tmp_name'])||!is_uploaded_file($_FILES['backup']['tmp_name']))throw new InvalidArgumentException('Select a Complete Transtrade Backup ZIP.');
         if((int)($_FILES['backup']['size']??0)>512*1024*1024)throw new InvalidArgumentException('The selected backup exceeds the 512 MB restore limit.');
-        $tmp=(string)$_FILES['backup']['tmp_name'];[$zip,$manifest]=tt_backup_open_verified($tmp,$password);$zip->close();
+        $tmp=(string)$_FILES['backup']['tmp_name'];$manifest=tt_backup_verify_full($tmp,$password);
         if($action==='verify')backup_json(['ok'=>true,'createdAt'=>$manifest['createdAt']??null,'appVersion'=>$manifest['appVersion']??null,'recoveryFileCount'=>(int)($manifest['recoveryFileCount']??0)]);
         if(strtoupper(trim((string)($_POST['confirmation']??'')))!=='RESTORE')throw new InvalidArgumentException('Type RESTORE to confirm recovery.');
         $result=tt_restore_complete_backup($tmp,$password);tt_audit((int)$admin['id'],$admin['username'],'Restored complete Transtrade backup created '.($manifest['createdAt']??'unknown'));
