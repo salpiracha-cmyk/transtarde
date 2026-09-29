@@ -110,10 +110,10 @@ function tt_company_bank_legacy_rows(array $companies): array {
         foreach (tt_master_json_array($cv[13] ?? '') as $bank) {
             if (!is_array($bank)) continue;
             $id=trim((string)($bank['id'] ?? '')) ?: 'bank-'.substr(hash('sha256',$companyCode.'|'.json_encode($bank)),0,14);
-            $rows[]=['id'=>$id,'retentionAccount'=>array_key_exists('retentionAccount',$bank) ? (bool)$bank['retentionAccount'] : null,'notes'=>(string)($bank['notes'] ?? ''),'values'=>[
+            $rows[]=['id'=>$id,'companyId'=>(string)($company['id']??''),'retentionAccount'=>array_key_exists('retentionAccount',$bank) ? (bool)$bank['retentionAccount'] : null,'notes'=>(string)($bank['notes'] ?? ''),'values'=>[
                 (string)($bank['accountType'] ?? 'Company Account'),
                 trim($companyCode.' — '.$companyName,' —'),
-                (string)($bank['label'] ?? ''),
+                (string)($bank['personalOwner'] ?? $bank['label'] ?? ''),
                 (string)($bank['accountTitle'] ?? $companyName),
                 (string)($bank['bankName'] ?? ''),
                 (string)($bank['branch'] ?? ''),
@@ -131,6 +131,10 @@ function tt_company_bank_legacy_rows(array $companies): array {
     return $rows;
 }
 
+function tt_bank_is_operational_account_type(string $type): bool {
+    return in_array($type,['Company Account','Proprietor / Owner Account'],true);
+}
+
 /** A Company Master choice overrides historical Accounts settings; older banks retain their saved setting. */
 function tt_bank_is_retention(string $id,array $store): bool {
     foreach ((array)(tt_list_masters()['banks'] ?? []) as $bank) {
@@ -141,7 +145,7 @@ function tt_bank_is_retention(string $id,array $store): bool {
             return (bool)$bank['retentionAccount']
                 && (str_contains($linked,'TTI') || str_contains($linked,'TRANSTRADE INTERNATIONAL') || str_contains($linked,'BRM') || str_contains($linked,'BUKSH RICE'))
                 && strtoupper((string)($values[7] ?? 'PKR'))!=='PKR'
-                && (string)($values[0] ?? '')==='Company Account';
+                && tt_bank_is_operational_account_type((string)($values[0] ?? ''));
         }
         break;
     }
@@ -153,7 +157,7 @@ function tt_bank_can_transact(string $id): bool {
     foreach ((array)(tt_list_masters()['banks'] ?? []) as $bank) {
         if ((string)($bank['id'] ?? '') !== $id) continue;
         $v=(array)($bank['values'] ?? []);
-        return (string)($v[0] ?? '')==='Company Account'
+        return tt_bank_is_operational_account_type((string)($v[0] ?? ''))
             && strcasecmp((string)($v[13] ?? 'Active'),'Active')===0
             && (trim((string)($v[8] ?? ''))!=='' || trim((string)($v[9] ?? ''))!=='');
     }
@@ -211,21 +215,25 @@ function tt_normalize_masters(array $masters): array {
         $code=strtoupper(trim((string)($row['values'][1] ?? ''))); if ($code==='') continue; $seen[$code]=true;
         if (isset($companyDefaults[$code]) && count($values)<=3) $values=$companyDefaults[$code]['values'];
         if ($code==='BRM' && (($values[0] ?? '')==='BRM')) $values=$companyDefaults['BRM']['values'];
-        while (count($values)<16) $values[]='';
+        while (count($values)<17) $values[]='';
         if (($values[7] ?? '')==='') $values[7]='[{"name":"","share":100}]';
         if (($values[13] ?? '')==='') $values[13]='[]';
         if (($values[14] ?? '')==='') $values[14]='[]';
-        $row['values']=array_slice($values,0,16);
+        if (($values[15] ?? '')==='') $values[15]='[]';
+        if (($values[16] ?? '')==='') $values[16]='[]';
+        $row['values']=array_slice($values,0,17);
     }
     unset($row);
     foreach ($companyDefaults as $code=>$row) if (empty($seen[$code])) $masters['companies'][]=$row;
     foreach ($masters['companies'] as &$row) {
         $values=array_values((array)($row['values'] ?? []));
-        while (count($values)<16) $values[]='';
+        while (count($values)<17) $values[]='';
         if (($values[7] ?? '')==='') $values[7]='[{"name":"","share":100}]';
         if (($values[13] ?? '')==='') $values[13]='[]';
         if (($values[14] ?? '')==='') $values[14]='[]';
-        $row['values']=array_slice($values,0,16);
+        if (($values[15] ?? '')==='') $values[15]='[]';
+        if (($values[16] ?? '')==='') $values[16]='[]';
+        $row['values']=array_slice($values,0,17);
     }
     unset($row);
 
@@ -243,7 +251,7 @@ function tt_normalize_masters(array $masters): array {
             $legacyId=(string)($legacyBank['id'] ?? '');
             $exists=false;
             foreach ($banks as $bank) if (($legacyId!==''&&(string)($bank['id'] ?? '')===$legacyId)||(($bv[9]??'')!==''&&(string)($bank['iban']??'')===(string)$bv[9])||(($bv[8]??'')!==''&&(string)($bank['accountNumber']??'')===(string)$bv[8])) {$exists=true;break;}
-            if (!$exists) $banks[]=['id'=>$legacyId ?: 'bank-'.substr(hash('sha256',json_encode($bv)),0,14),'accountType'=>$bv[0],'label'=>$bv[2],'accountTitle'=>$bv[3],'bankName'=>$bv[4],'branch'=>$bv[5],'country'=>$bv[6],'currency'=>$bv[7],'accountNumber'=>$bv[8],'iban'=>$bv[9],'swift'=>$bv[10],'purpose'=>$bv[11],'visibility'=>$bv[12],'notes'=>$bv[13],'status'=>'Active'];
+            if (!$exists) $banks[]=['id'=>$legacyId ?: 'bank-'.substr(hash('sha256',json_encode($bv)),0,14),'accountType'=>$bv[0],'personalOwner'=>$bv[2],'label'=>$bv[2],'accountTitle'=>$bv[3],'bankName'=>$bv[4],'branch'=>$bv[5],'country'=>$bv[6],'currency'=>$bv[7],'accountNumber'=>$bv[8],'iban'=>$bv[9],'swift'=>$bv[10],'purpose'=>$bv[11],'visibility'=>$bv[12],'notes'=>$bv[13],'status'=>'Active'];
             $company['values'][13]=json_encode($banks,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);
             break;
         }
