@@ -41,7 +41,7 @@ try{
     backup_expect(str_contains($csv,"'  =1+1")&&str_contains($csv,"'@SUM(A1)"),'CSV must neutralize spreadsheet formulas.');
     $xlsx=tt_backup_make_xlsx(['Test'=>['headers'=>['Name'],'rows'=>[['=1+1']]]]);
     $xlsxZip=new TT_SimpleZipReader($xlsx);
-    backup_expect(str_contains((string)$xlsxZip->get('xl/worksheets/sheet1.xml'),"&#039;=1+1"),'Excel cells must neutralize formulas.');
+    backup_expect(str_contains((string)$xlsxZip->get('xl/worksheets/sheet1.xml'),"&apos;=1+1"),'Excel cells must neutralize formulas.');
     $xlsxZip->close();@unlink($xlsx);
     $serverManifest=tt_backup_verified_server_snapshot($snapshot);
     backup_expect((int)$serverManifest['recoveryFileCount']>=3,'Super Admin server snapshot verification must check every entry.');
