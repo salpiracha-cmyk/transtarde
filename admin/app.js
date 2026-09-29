@@ -1281,6 +1281,17 @@
   function renderRecentActivity() {
     document.getElementById("recentActivity").innerHTML = state.audit.slice(0, 4).map(item => `<div class="timeline-item"><span class="timeline-dot"></span><div><strong>${escapeHtml(item.detail)}</strong><small>${escapeHtml(item.user)} · ${escapeHtml(item.date)} · ${escapeHtml(item.ref)}</small></div></div>`).join("");
   }
+  function renderApprovals() {
+    if (!IS_SUPER_ADMIN) return;
+    const panel=document.querySelector(".approvals-panel"),list=panel?.querySelector(".approval-list"),count=panel?.querySelector(".count-pill");
+    if(!panel||!list||!count)return;
+    const rows=[
+      ...pendingDeletionRequests.map(request=>({kind:"master",id:request.id,title:request.name,detail:`${request.type} · ${request.requestedBy} · ${request.reason}`})),
+      ...pendingBankDeletionRequests.map(request=>({kind:"bank",id:request.id,title:`${request.company} · ${request.bank}`,detail:`${request.requestedBy} · ${request.reason}`}))
+    ];
+    count.textContent=`${rows.length} open`;
+    list.innerHTML=rows.length?rows.map(item=>`<div class="approval-item"><div><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.detail)}</small></div><div class="row-actions"><button class="row-action" ${item.kind==="bank"?`data-review-bank-deletion="${escapeHtml(item.id)}"`:`data-review-master-deletion="${escapeHtml(item.id)}"`} data-decision="Approve">Approve</button><button class="row-action" ${item.kind==="bank"?`data-review-bank-deletion="${escapeHtml(item.id)}"`:`data-review-master-deletion="${escapeHtml(item.id)}"`} data-decision="Reject">Reject</button></div></div>`).join(""):'<div class="admin-empty-state"><strong>No pending approvals</strong><span>Requests will appear here when Accounts submits one.</span></div>';
+  }
   function exportAudit() {
     const header = ["Date & Time", "User", "Area", "Action", "Details", "Reference"];
     const data = [header, ...state.audit.map(item => [item.date, item.user, item.area, item.action, item.detail, item.ref])];
@@ -1498,14 +1509,14 @@
       const requestId=reviewDeletion.dataset.reviewMasterDeletion,decision=reviewDeletion.dataset.decision;
       apiRequest({action:'review-deletion',requestId,decision},'masters').then(data=>{
         pendingDeletionRequests=(data.deletionRequests||[]).filter(item=>item.status==='Pending');
-        state.masters=ensureMasterSections(data.masters,state.masterOptions);saveState();renderMasters();toast(decision==='Approve'?'Name deactivated after Super Admin approval.':'Deletion request rejected.');
+        state.masters=ensureMasterSections(data.masters,state.masterOptions);saveState();renderMasters();renderApprovals();toast(decision==='Approve'?'Name deactivated after Super Admin approval.':'Deletion request rejected.');
       }).catch(error=>toast(error.message));
     }
     if(reviewBankDeletion){
       const requestId=reviewBankDeletion.dataset.reviewBankDeletion,decision=reviewBankDeletion.dataset.decision;
       apiRequest({action:'review-bank-deletion',requestId,decision},'masters').then(data=>{
         pendingBankDeletionRequests=(data.bankDeletionRequests||[]).filter(item=>item.status==='Pending');
-        state.masters=ensureMasterSections(data.masters,state.masterOptions);saveState();renderMasters();toast(decision==='Approve'?'Bank account deactivated with Director approval.':'Request rejected.');
+        state.masters=ensureMasterSections(data.masters,state.masterOptions);saveState();renderMasters();renderApprovals();toast(decision==='Approve'?'Bank account deleted from future use after approval.':'Request rejected.');
       }).catch(error=>toast(error.message));
     }
     if (purgeMaster) purgeMasterRecord(purgeMaster.dataset.purgeMaster);
@@ -1574,7 +1585,7 @@
   });
 
   async function initialize() {
-    applySessionAccess(); renderModules(); renderUsers(); renderMasters(); renderLocks(); renderAudit(); renderRecentActivity(); loadBackupStatus();
+    applySessionAccess(); renderModules(); renderUsers(); renderMasters(); renderLocks(); renderAudit(); renderRecentActivity(); renderApprovals(); loadBackupStatus();
     if (new URLSearchParams(location.search).get('view')==='masters' && hasMasterAccess) showView('masters');
     if (IS_SUPER_ADMIN) {
       try { await Promise.all([loadServerUsers(),loadServerMasters()]); } catch (error) { toast(error.message); }
