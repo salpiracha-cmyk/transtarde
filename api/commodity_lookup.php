@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require dirname(__DIR__) . '/auth_store.php';
+require_once __DIR__ . '/commodity_bill_calculation.php';
 header('Content-Type: application/json; charset=UTF-8');
 header('Cache-Control: no-store, no-cache, must-revalidate');
 
@@ -41,6 +42,7 @@ try {
         cl_respond(['ok'=>false,'error'=>'Invalid entity.'], 422);
     }
 
+    if($entity===''||!tt_user_can_access_entity($user,$entity,'View'))cl_respond(['ok'=>false,'error'=>'Choose an authorized company before opening Bill Posting.'],403);
     tt_ensure_data_dir();
     $file = TT_DATA_DIR . '/accounts.json';
     $qaRemoved=cl_remove_abandoned_qa_receipts($file);
@@ -54,15 +56,19 @@ try {
         if (is_array($decoded)) $store = array_replace_recursive($store, $decoded);
     }
 
+    $operationalValues=tt_bill_operational_values();
+    $sodaRows=[];foreach(['purchaseSodas','purchaseSodasV2'] as $collection)foreach((array)($store[$collection]??[]) as $soda){if(!is_array($soda)||($soda['entity']??'')!==$entity)continue;$soda['buyingBrokery']=tt_broker_profile((string)($soda['broker']??''),(string)($soda['sodaDate']??''),'buying')['rate']??null;$sodaRows[(string)$soda['sodaNo']]=$soda;}
     $bills = (array)($store['commodityBills'] ?? []);
     $rows = [];
     foreach ((array)($store['events'] ?? []) as $event) {
-        if (!is_array($event) || ($event['eventType'] ?? '') !== 'COMMODITY_RECEIPT_ACCEPTED') continue;
+        if (!is_array($event) || ($event['eventType'] ?? '') !== 'COMMODITY_RECEIPT_ACCEPTED'||($event['status']??'')==='Reversed') continue;
         $eventEntity = (string)($event['entity'] ?? '');
         if ($entity !== '' && $eventEntity !== $entity) continue;
         $journal = $store['journals'][$event['journalId'] ?? ''] ?? null;
         if (!is_array($journal)) continue;
         $meta = is_array($journal['meta'] ?? null) ? $journal['meta'] : [];
+        $soda=$sodaRows[(string)($meta['soda']??'')]??[];
+        $bagDefaults=tt_bill_bag_defaults($meta,$operationalValues);
         $commodity = cl_commodity($event, $meta);
         $identity = tt_product_identity($commodity,(string)($meta['displayName'] ?? $meta['baseVariety'] ?? $meta['variety'] ?? ''),(string)($meta['productStage'] ?? ''),(string)($meta['riceType'] ?? ''));
         $billId = (string)($event['billId'] ?? '');
@@ -79,8 +85,11 @@ try {
             'soda'=>(string)($meta['soda'] ?? ''),
             'pohanch'=>(string)($meta['pohanch'] ?? $journal['reference'] ?? ''),
             'truck'=>(string)($meta['truck'] ?? ''),
-            'broker'=>(string)($meta['broker'] ?? ''),
-            'party'=>(string)($meta['party'] ?? ''),
+            'container'=>(string)($meta['container']??''),
+            'weighbridgeWeightKg'=>(float)($meta['weighbridgeWeightKg']??$meta['payableWeightKg']??0),
+            'emptyBagWeightGrams'=>$bagDefaults['emptyBagWeightGrams'],
+            'broker'=>(string)($soda['broker'] ?? $meta['broker'] ?? ''),
+            'party'=>(string)($soda['party'] ?? $meta['party'] ?? ''),
             'variety'=>(string)($meta['variety'] ?? ''),
             'baseVariety'=>(string)($meta['baseVariety'] ?? $identity['baseVariety']),
             'riceType'=>(string)($meta['riceType'] ?? $identity['riceType']),
@@ -89,7 +98,7 @@ try {
             'stageInferred'=>!isset($meta['productStage']),
             'bags'=>(float)($meta['bags'] ?? 0),
             'payableWeightKg'=>(float)($meta['payableWeightKg'] ?? 0),
-            'grossRatePerKg'=>(float)($meta['grossRatePerKg'] ?? 0),
+            'grossRatePerKg'=>(float)($soda['ratePerKg']??$soda['rate']??$meta['grossRatePerKg']??0),
             'katPaisaPerKg'=>(float)($meta['katPaisaPerKg'] ?? 0),
             'provisionalNetRatePerKg'=>(float)($meta['provisionalNetRatePerKg'] ?? 0),
             'billed'=>$billId !== '',
@@ -104,10 +113,13 @@ try {
     cl_respond([
         'ok'=>true,
         'receipts'=>$rows,
-        'bills'=>array_values($bills),
+        'bills'=>array_values(array_filter($bills,fn($bill)=>is_array($bill)&&($bill['entity']??'')===$entity)),
+        'sodas'=>array_values($sodaRows),
+        'brokers'=>tt_broker_profiles(),
         'serverNow'=>gmdate('c'),
         'qaCleanupRemoved'=>$qaRemoved,
     ]);
 } catch (Throwable $e) {
     cl_respond(['ok'=>false,'error'=>'Pohanch / bill lookup is temporarily unavailable.'], 500);
 }
+

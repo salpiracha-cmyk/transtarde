@@ -1,0 +1,105 @@
+"""Real bill endpoints and optional browser flow, always in disposable private storage."""
+import http.cookiejar, json, os, re, shutil, socket, subprocess, tempfile, time, urllib.request, urllib.parse
+from pathlib import Path
+SOURCE=Path(__file__).resolve().parents[2]
+SEED=r'''<?php
+require __DIR__.'/repo/auth_store.php';
+$pw=bin2hex(random_bytes(20));$rw=['View','Create','Edit'];
+$users=[['id'=>501,'username'=>'billqa','full_name'=>'Bill QA','role'=>'Accounts Operator','permissions'=>['Accounts'=>['purchases'=>$rw,'entity-tti'=>$rw]],'active'=>true,'must_change_password'=>false,'master_access'=>false,'password_hash'=>password_hash($pw,PASSWORD_DEFAULT)],['id'=>502,'username'=>'billview','full_name'=>'Bill Viewer','role'=>'Accounts Viewer','permissions'=>['Accounts'=>['purchases'=>['View'],'entity-tti'=>['View']]],'active'=>true,'must_change_password'=>false,'master_access'=>false,'password_hash'=>password_hash($pw,PASSWORD_DEFAULT)]];
+$masters=tt_default_masters();$masters['business_parties'][]=['id'=>'broker-jj-fixture','values'=>['JJ','JJ','Broker','','','','','','','','Active','','{"buying":[{"amount":5,"basis":"PER_100_KG","effectiveFrom":"2026-01-01","status":"Active"}],"selling":[{"amount":9,"basis":"PER_TON","effectiveFrom":"2026-01-01","status":"Active"}]}']];
+tt_ensure_data_dir();file_put_contents(TT_STORE_FILE,json_encode(['users'=>$users,'masters'=>$masters,'settings'=>['qa_account_seeded'=>true],'audit'=>[]]));
+$s=['revision'=>0,'journals'=>[],'events'=>[],'commodityBills'=>[],'purchaseSodas'=>[]];
+foreach([['26001','READY','Indus Rice','JJ','CREDIT',30],['26002','RAW','Indus Rice','JJ','CASH',0],['26003','READY','','JJ','CASH',0],['26004','READY','Indus Rice','','CREDIT',60]] as [$no,$stage,$party,$broker,$term,$days]){
+ $s['purchaseSodas'][$no]=['id'=>'PS-'.$no,'entity'=>'TTI','commodity'=>'RICE','sodaNo'=>$no,'sodaDate'=>'2026-09-01','party'=>$party,'broker'=>$broker,'productStage'=>$stage,'rate'=>100,'paymentTermType'=>$term,'creditDays'=>$days];
+ foreach([1,2] as $n){$key=($stage==='READY'?'EXMILL|':'POHANCH|').$no.'|'.$n;$jid='J-'.$no.'-'.$n;$eid='TTI|COMMODITY_RECEIPT_ACCEPTED|'.$key;$date='2026-09-'.(10+$n);
+ $meta=['soda'=>$no,'sourceSodaId'=>'PS-'.$no,'broker'=>$broker,'party'=>$party,'commodity'=>'RICE','productStage'=>$stage,'baseVariety'=>'IRRI-6','variety'=>'IRRI-6','displayName'=>$stage.' IRRI-6','bags'=>480,'payableWeightKg'=>24000,'weighbridgeWeightKg'=>24000,'grossRatePerKg'=>100,'katPaisaPerKg'=>0,'truck'=>'TRUCK-'.$n,'pohanch'=>'P-'.$no.'-'.$n,'container'=>'ABCD12345'.$n.'0','emptyBagWeightGrams'=>50];
+ $s['journals'][$jid]=['id'=>$jid,'entity'=>'TTI','date'=>$date,'reference'=>$meta['pohanch'],'totalDebit'=>2400000,'totalCredit'=>2400000,'meta'=>$meta,'lines'=>[]];
+ $s['events'][$eid]=['id'=>$eid,'eventType'=>'COMMODITY_RECEIPT_ACCEPTED','entity'=>'TTI','sourceKey'=>$key,'journalId'=>$jid,'status'=>'Accepted'];
+ }
+}
+file_put_contents(TT_DATA_DIR.'/accounts.json',json_encode($s));file_put_contents(TT_DATA_DIR.'/operations.json',json_encode(['values'=>[]]));file_put_contents(__DIR__.'/credentials.json',json_encode(['password'=>$pw]));
+'''
+def run():
+ root=Path(tempfile.mkdtemp(prefix='tti-ready-bill-'));server=None;log=None
+ try:
+  app=root/'repo';shutil.copytree(SOURCE,app,ignore=shutil.ignore_patterns('.git','node_modules','test-results','playwright-report'))
+  sessions=root/'sessions';sessions.mkdir();(root/'seed.php').write_text(SEED)
+  subprocess.run(['php','-d',f'session.save_path={sessions}',str(root/'seed.php')],check=True,capture_output=True)
+  with socket.socket() as sock:sock.bind(('127.0.0.1',0));port=sock.getsockname()[1]
+  base=f'http://127.0.0.1:{port}';log=open(root/'server.log','w+')
+  env={k:v for k,v in os.environ.items() if not k.startswith('TT_DB_')}
+  server=subprocess.Popen(['php','-d',f'session.save_path={sessions}','-S',f'127.0.0.1:{port}','-t',str(app)],stdout=log,stderr=log,env=env);time.sleep(.3)
+  password=json.loads((root/'credentials.json').read_text())['password'];clients={};tokens={}
+  for username in ['billqa','billview']:
+   client=urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()));clients[username]=client
+   html=client.open(base+'/login.php').read().decode();tokens[username]=re.search(r'name="csrf" value="([^"]+)"',html).group(1)
+   client.open(urllib.request.Request(base+'/login.php',data=urllib.parse.urlencode({'csrf':tokens[username],'username':username,'password':password}).encode())).read()
+  def request(path,body=None,user='billqa'):
+   if body is not None:body={**body,'csrf':tokens[user]}
+   req=urllib.request.Request(base+path,data=json.dumps(body).encode() if body is not None else None,headers={'Content-Type':'application/json'} if body is not None else {})
+   try:r=clients[user].open(req);return r.status,json.loads(r.read())
+   except urllib.error.HTTPError as e:return e.code,json.loads(e.read())
+  status,lookup=request('/api/commodity_lookup.php?entity=TTI');assert status==200 and len(lookup['receipts'])==8
+  assert lookup['receipts'][0]['emptyBagWeightGrams']==50 and len(lookup['sodas'])==4
+  assert request('/api/commodity_lookup.php?entity=BRM')[0]==403
+  assert request('/api/commodity_lookup.php')[0]==403
+  original=(root/'transtrade_private/operations.json').read_bytes()
+  def payload(no,keys=None,final=2398200):
+   return {'action':'verify_bill','entity':'TTI','relationshipType':'SUPPLIER','relationshipName':'Indus Rice','billDate':'2026-09-29','sourceKeys':keys or [f'EXMILL|{no}|1'],'broker':'JJ','billNo':'FIXTURE-'+no,'finalCommodityValue':final,'brokerageRate':5,'brokerageBasis':'PER_100_KG','brokerageWhtPercent':15,'readyRiceCalculation':{'bags':480,'emptyBagWeightGrams':50,'kantaRate':600},'adjustmentLines':[]}
+  p=payload('26001');p['finalCommodityValue']=1
+  assert request('/api/commodity_bills.php',p)[0]==409,'Tampered total must not post'
+  p=payload('26001');p['readyRiceCalculation']['emptyBagWeightGrams']=50000
+  assert request('/api/commodity_bills.php',p)[0]==422
+  assert request('/api/commodity_bills.php',payload('26001'),user='billview')[0]==403
+  p=payload('26001',['EXMILL|26001|1','EXMILL|26001|2'],4796400);p['readyRiceCalculation']['bags']=960
+  status,result=request('/api/commodity_bills.php',p);assert status==200,(status,result)
+  bill=result['bill'];assert bill['finalCommodityValue']==4796400 and bill['brokerageGross']==2397.6 and bill['brokerageWithholding']==359.64
+  assert bill['supplierPayableTotal']==4798437.96 and not result['warning']
+  assert result['journal']['totalDebit']==result['journal']['totalCredit']
+  commodity=[a for a in bill['receiptAllocations'] if a['component']=='COMMODITY'];broker=[a for a in bill['receiptAllocations'] if a['component']=='BROKERAGE']
+  assert len(commodity)==2 and all(a['payee']=='Indus Rice' for a in commodity) and all(a['payee']=='JJ' for a in broker)
+  assert [a['dueDate'] for a in commodity]==['2026-10-11','2026-10-12']
+  assert request('/api/commodity_bills.php',p)[0]==409,'Duplicate posting must be blocked'
+  profile=json.loads((root/'transtrade_private/auth.json').read_text())['masters']['business_parties'][-1]['values'][12];profile=json.loads(profile)
+  assert profile['buying'][-1]['effectiveFrom']=='2026-09-29' and profile['selling'][0]['amount']==9
+  p=payload('26003');p['relationshipType']='BROKER';p['relationshipName']='JJ'
+  assert request('/api/commodity_bills.php',p)[0]==200,'Broker-only commodity payee'
+  p=payload('26004');p['broker']='';p['brokerageRate']=0
+  status,result=request('/api/commodity_bills.php',p);assert status==200 and result['bill']['brokerageGross']==0
+  p=payload('26002',['POHANCH|26002|1','POHANCH|26002|2'],4800000);p.pop('readyRiceCalculation')
+  assert request('/api/commodity_bills.php',p)[0]==422,'Raw cannot combine Pohanch'
+  p['sourceKeys']=['POHANCH|26002|1'];p['finalCommodityValue']=2400000
+  status,result=request('/api/commodity_bills.php',p);assert status==200 and result['bill']['brokerageGross']==1200 and result['bill']['dueDateFrom']=='2026-09-13'
+  assert (root/'transtrade_private/operations.json').read_bytes()==original,'Milling must remain unchanged'
+  if os.environ.get('TT_QA_BROWSER')=='1':
+   # Reset only this disposable fixture for browser entry, never production.
+   subprocess.run(['php','-d',f'session.save_path={sessions}',str(root/'seed.php')],check=True,capture_output=True)
+   password=json.loads((root/'credentials.json').read_text())['password']
+   from playwright.sync_api import sync_playwright
+   with sync_playwright() as pw:
+    browser=pw.chromium.launch();page=browser.new_page(viewport={'width':1280,'height':1000})
+    page.goto(base+'/login.php');page.locator('[name=username]').fill('billqa');page.locator('[name=password]').fill(password);page.get_by_role('button',name='Sign in',exact=True).click();page.wait_for_url('**/accounts/index.php')
+    # Exercise the actual form against the actual endpoints in a minimal harness.
+    harness='<html><body><div id="purchaseEditor" data-tt-purchase-mode="arrival"></div><script>window.TT_ACCOUNT_ACCESS={csrf:'+json.dumps(page.locator('body').evaluate('()=>window.TT_ACCOUNT_ACCESS.csrf'))+'};localStorage.setItem("tt_accounts_entity","TTI");</script><script src="accounts/bill-smart-ui-v2.js"></script><script>TT_SMART_COMMODITY_BILLS_V2.mount();</script></body></html>'
+    # Relative api URLs require an Accounts directory harness.
+    harness=harness.replace('src="accounts/','src="');(app/'accounts/__bill_fixture.html').write_text(harness)
+    page.goto(base+'/accounts/__bill_fixture.html');page.locator('#ttsbBroker').fill('JJ');page.locator('#ttsbBroker').press('Tab');page.wait_for_selector('#ttsbSupplierChoices option');assert page.locator('#ttsbSupplier').input_value()==''
+    page.locator('#ttsbSupplier').fill('Indus Rice');page.locator('#ttsbSupplier').press('Tab');page.wait_for_function("document.querySelector('#ttsbBroker').value==='JJ'")
+    assert page.locator('#ttsbSupplierChoices option').count()==1
+    page.locator('#ttsbSoda').select_option('26001');page.locator('#ttsbTruck').select_option('EXMILL|26001|1');assert not page.locator('#ttsbMultiple').is_checked()
+    assert page.locator('#ttsbFilling').count()==0 and page.locator('#ttsbBags').input_value()=='480'
+    assert page.locator('#ttsbBrokerage').input_value()=='1198.80'
+    assert 'Credit' in page.locator('.ttsb-summary').inner_text() and '11-10-2026' in page.locator('.ttsb-summary').inner_text()
+    page.locator('#ttsbKanta').fill('600');page.locator('#ttsbBillNo').fill('BROWSER-FIXTURE');page.locator('#ttsbMultiple').check()
+    assert page.locator('[data-bill-source]:checked').count()==2 and page.locator('#ttsbBillNo').input_value()=='BROWSER-FIXTURE'
+    assert page.locator('#ttsbBags').input_value()=='960' and page.locator('#ttsbBrokerage').input_value()=='2397.60'
+    assert '4,798,437.96' in page.locator('#ttsbGrandTotal').inner_text()
+    rows=page.locator('.ttsb-truck').all();assert all(row.bounding_box()['height']<65 for row in rows)
+    page.locator('#ttsbVerify').click();page.get_by_role('heading',name='Bill Posted',exact=True).wait_for();assert not page.locator('#ttSmartBillToast').is_visible()
+    browser.close()
+  print('Ready rice bill HTTP, payee, WHT, due-date, master and duplicate-posting checks passed'+('; browser flow passed' if os.environ.get('TT_QA_BROWSER')=='1' else ''))
+ finally:
+  if server:server.terminate();server.wait(timeout=5)
+  if log:log.close()
+  shutil.rmtree(root)
+if __name__=='__main__':run()

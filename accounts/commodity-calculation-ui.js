@@ -144,7 +144,7 @@
 
   async function install(){
     const bill=q('.ttsb-bill');
-    if(!bill||q('#ttBrokeryPreview'))return;
+    if(!bill||q('#ttBrokeryPreview')||window.TT_SMART_COMMODITY_BILLS_V2?.selectionRows?.()[0]?.commodity==='RICE')return;
     await load();
     const context=current();
     if(!context.soda)return;
@@ -175,7 +175,7 @@
     if(/commodity_bills\.php(?:\?|$)/.test(url)&&String(init?.method||'GET').toUpperCase()==='POST'&&typeof init?.body==='string'){
       try{
         const body=JSON.parse(init.body);
-        if(body.action==='verify_bill'){
+        if(body.action==='verify_bill'&&window.TT_SMART_COMMODITY_BILLS_V2?.selectionRows?.()[0]?.commodity!=='RICE'){
           body.inspection=inspection();
           init={...init,body:JSON.stringify(body)};
         }
@@ -202,3 +202,4 @@
   updateHeading();
   setTimeout(install,600);
 })();
+
