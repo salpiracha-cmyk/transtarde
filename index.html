@@ -141,7 +141,7 @@
           </div>
 
           <div class="summary-cards backup-summary">
-            <div><span>Last automatic server backup</span><strong id="backupLastAuto">Checking…</strong><small id="backupAutoDetail">Secure server-side recovery copy</small></div>
+            <div><span>Last automatic server backup</span><strong id="backupLastAuto">Checking…</strong><small id="backupAutoDetail">Verified server-side recovery copy</small></div>
             <div><span>Server recovery snapshots</span><strong id="backupSnapshotCount">—</strong><small id="backupSnapshotSize">Rolling backup history</small></div>
             <div><span>Last owner download</span><strong id="backupLastOwner">Not downloaded yet</strong><small>Independent copy saved by an owner</small></div>
           </div>
@@ -168,12 +168,12 @@
           </div>
 
           <article class="panel backup-policy-panel">
-            <div class="panel-heading"><div><h2>Automatic server protection</h2><p>Transtrade keeps private recovery snapshots outside the deployable website folder.</p></div><button class="button secondary" id="createServerSnapshot">Create Snapshot Now</button></div>
+            <div class="panel-heading"><div><h2>Automatic server protection</h2><p>Transtrade commits each snapshot only after its manifest, file hashes and ZIP contents pass verification.</p></div><button class="button secondary" id="createServerSnapshot">Create Snapshot Now</button></div>
             <div class="backup-policy-grid">
-              <div><strong>Hourly</strong><span>Keep every available snapshot for 48 hours</span></div>
+              <div><strong>Hourly</strong><span>Keep every verified automatic snapshot for 48 hours</span></div>
               <div><strong>Daily</strong><span>Then retain one per day for 30 days</span></div>
               <div><strong>Monthly</strong><span>Then retain one per month for 12 months</span></div>
-              <div><strong>GitHub</strong><span>Separate version history for the application code</span></div>
+              <div><strong>Manual</strong><span>Keep the latest 12 owner and pre-restore safety snapshots</span></div>
             </div>
           </article>
 
