@@ -17,8 +17,8 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
     else {
         tt_auth_clear_failures('admin-recovery-address','super-admin',true);
         $id=tt_reset_admin_with_recovery($password);
-        session_regenerate_id(true); $_SESSION['user_id']=$id;
-        $admin=tt_find_user_by_id($id); tt_audit($id,(string)($admin['username'] ?? 'salman'),'Super Admin password recovered with offline code');
+        $admin=tt_find_user_by_id($id); if(!$admin)throw new RuntimeException('Super Admin account not found.');
+        tt_bind_user_session($admin); tt_audit($id,(string)($admin['username'] ?? 'salman'),'Super Admin password recovered with offline code');
         header('Location: index.php'); exit;
     }
 }

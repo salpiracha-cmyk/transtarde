@@ -19,8 +19,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             $id = tt_create_admin($username, $password);
             tt_lock_setup();
-            session_regenerate_id(true);
-            $_SESSION['user_id'] = $id;
+            $admin=tt_find_user_by_id($id); if(!$admin)throw new RuntimeException('Super Admin account not found.');
+            tt_bind_user_session($admin);
             tt_audit($id, $username, 'Super Admin account created');
             header('Location: index.php'); exit;
         } catch (Throwable $e) { $error = 'Setup could not be completed. Please contact the developer before trying again.'; }

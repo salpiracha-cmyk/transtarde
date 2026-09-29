@@ -12,6 +12,7 @@ const TT_SETUP_LOCK_FILE = TT_DATA_DIR . '/setup.lock';
 const TT_ADMIN_RECOVERY_HASH_FILE = TT_DATA_DIR . '/admin-recovery.hash';
 require_once __DIR__ . '/offline_idempotency.php';
 const TT_AUTH_RATE_FILE = TT_DATA_DIR . '/auth-rate.json';
+const TT_SESSION_IDLE_TIMEOUT = 3600;
 // Public dummy hash equalizes password verification for unknown users. It is
 // not an account credential and has no access to the application.
 const TT_LOGIN_DUMMY_HASH = '$2y$12$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2uheWG/igi.';
@@ -476,12 +477,22 @@ function tt_brokery_amount(?array $rate,float $weightKg,float $bags=0): float {
     return round(max(0,$units*$figure),2);
 }
 
+function tt_request_is_https(): bool {
+    if (!empty($_SERVER['HTTPS']) && strtolower((string)$_SERVER['HTTPS']) !== 'off') return true;
+    $forwarded=(string)($_SERVER['HTTP_X_FORWARDED_PROTO']??'');
+    if (strtolower(trim(explode(',',$forwarded)[0]??''))==='https') return true;
+    $visitor=json_decode((string)($_SERVER['HTTP_CF_VISITOR']??''),true);
+    if (is_array($visitor)&&strtolower((string)($visitor['scheme']??''))==='https') return true;
+    if ((int)($_SERVER['SERVER_PORT']??0)===443) return true;
+    return strtolower(preg_replace('/:\d+$/','',(string)($_SERVER['HTTP_HOST']??'')))==='app.transtradeinternational.com';
+}
+
 ini_set('session.use_strict_mode', '1');
 ini_set('session.use_only_cookies', '1');
 session_name('TRANSTRADE_SESSION');
 session_set_cookie_params([
     'lifetime' => 0, 'path' => '/',
-    'secure' => (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off'),
+    'secure' => tt_request_is_https(),
     'httponly' => true, 'samesite' => 'Strict',
 ]);
 if (session_status() !== PHP_SESSION_ACTIVE) session_start();
@@ -942,19 +953,23 @@ function tt_reset_staff_password(int $id): string {
             if ((int)($user['id'] ?? 0) !== $id) continue;
             if (($user['role'] ?? '') === 'Super Admin') throw new RuntimeException('Use the private password-change screen for Super Admin.');
             $user['password_hash']=password_hash($temporaryPassword, PASSWORD_DEFAULT);
-            $user['must_change_password']=true; unset($user); return;
+            $user['must_change_password']=true;
+            $user['session_version']=max(1,(int)($user['session_version']??1))+1;
+            unset($user); return;
         }
         unset($user); throw new RuntimeException('User not found.');
     });
     return $temporaryPassword;
 }
 
-function tt_change_own_password(int $id, string $newPassword): void {
-    tt_mutate_store(function (&$data) use ($id, $newPassword): void {
+function tt_change_own_password(int $id, string $newPassword): int {
+    return tt_mutate_store(function (&$data) use ($id, $newPassword): int {
         foreach ($data['users'] as &$user) {
             if ((int)($user['id'] ?? 0) !== $id) continue;
             $user['password_hash']=password_hash($newPassword, PASSWORD_DEFAULT);
-            $user['must_change_password']=false; unset($user); return;
+            $user['must_change_password']=false;
+            $user['session_version']=max(1,(int)($user['session_version']??1))+1;
+            $version=(int)$user['session_version']; unset($user); return $version;
         }
         unset($user); throw new RuntimeException('User not found.');
     });
@@ -1004,6 +1019,7 @@ function tt_reset_admin_with_recovery(string $newPassword): int {
             $user['password_hash']=password_hash($newPassword,PASSWORD_DEFAULT);
             $user['must_change_password']=false;
             $user['recovered_at']=gmdate('c');
+            $user['session_version']=max(1,(int)($user['session_version']??1))+1;
             $id=(int)$user['id']; unset($user); return $id;
         }
         unset($user); throw new RuntimeException('Super Admin account not found.');
@@ -1191,10 +1207,65 @@ function tt_delete_master(string $type, string $id): void {
     });
 }
 
+function tt_user_session_version(array $user): int { return max(1,(int)($user['session_version']??1)); }
+
+function tt_destroy_session_state(): void {
+    $_SESSION=[];
+    if (ini_get('session.use_cookies')) {
+        $p=session_get_cookie_params();
+        setcookie(session_name(),'',time()-42000,[
+            'path'=>$p['path']?:'/', 'domain'=>$p['domain']??'',
+            'secure'=>(bool)($p['secure']??false), 'httponly'=>(bool)($p['httponly']??true),
+            'samesite'=>$p['samesite']??'Strict',
+        ]);
+    }
+    if (session_status()===PHP_SESSION_ACTIVE) session_destroy();
+}
+
+function tt_bind_user_session(array $user): void {
+    $csrf=(string)($_SESSION['csrf']??'');
+    session_regenerate_id(true);
+    $_SESSION=[
+        'user_id'=>(int)$user['id'],
+        'auth_version'=>tt_user_session_version($user),
+        'authenticated_at'=>time(),
+        'last_activity_at'=>time(),
+    ];
+    if ($csrf!=='') $_SESSION['csrf']=$csrf;
+}
+
+function tt_request_has_user_activity(): bool {
+    $path=(string)parse_url((string)($_SERVER['REQUEST_URI']??''),PHP_URL_PATH);
+    if (!str_starts_with($path,'/api/')) return true;
+    return hash_equals('1',(string)($_SERVER['HTTP_X_TT_USER_ACTIVITY']??''));
+}
+
+function tt_touch_session_activity(): void { $_SESSION['last_activity_at']=time(); }
+
 function tt_current_user(): ?array {
     if (empty($_SESSION['user_id'])) return null;
-    $user = tt_find_user_by_id((int)$_SESSION['user_id']);
-    return ($user && !empty($user['active'])) ? $user : null;
+    $now=time();
+    $last=(int)($_SESSION['last_activity_at']??0);
+    if ($last>0&&$now-$last>=TT_SESSION_IDLE_TIMEOUT) {
+        $GLOBALS['TT_SESSION_END_REASON']='inactive';
+        tt_destroy_session_state();
+        return null;
+    }
+    if ($last<=0) $_SESSION['last_activity_at']=$now; // Gracefully adopt sessions created before this release.
+    $user=tt_find_user_by_id((int)$_SESSION['user_id']);
+    if (!$user||empty($user['active'])) {
+        $GLOBALS['TT_SESSION_END_REASON']='credentials';
+        tt_destroy_session_state();
+        return null;
+    }
+    $boundVersion=max(1,(int)($_SESSION['auth_version']??1));
+    if ($boundVersion!==tt_user_session_version($user)) {
+        $GLOBALS['TT_SESSION_END_REASON']='credentials';
+        tt_destroy_session_state();
+        return null;
+    }
+    if (tt_request_has_user_activity()) tt_touch_session_activity();
+    return $user;
 }
 
 function tt_api_json_error(int $status,string $message): never {
@@ -1218,12 +1289,16 @@ function tt_require_login(): array {
     $user = tt_current_user();
     $path=(string)parse_url((string)($_SERVER['REQUEST_URI']??''),PHP_URL_PATH);
     if (!$user) {
-        $_SESSION = [];
+        $reason=(string)($GLOBALS['TT_SESSION_END_REASON']??'');
         if (str_starts_with($path,'/api/')) {
-            tt_api_json_error(401,'Your session has expired. Sign in again.');
+            tt_api_json_error(401,$reason==='inactive'?'You were signed out after one hour without activity. Sign in again.':'Your session has expired. Sign in again.');
         }
-        header('Location: /login.php');
+        header('Location: /login.php'.($reason!==''?'?expired='.rawurlencode($reason):''));
         exit;
+    }
+    if (!str_starts_with($path,'/api/')) {
+        header('Cache-Control: private, no-store, no-cache, must-revalidate, max-age=0');
+        header('Pragma: no-cache');
     }
     if(str_starts_with($path,'/api/')&&tt_managed_qa_write_blocked($user)){
         tt_api_json_error(403,'The production QA account is read-only. Use disposable test storage for write testing.');

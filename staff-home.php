@@ -20,5 +20,6 @@ if (!empty($user['must_change_password'])) { header('Location: change-password.p
 <body>
 <header class="tt-staff-header"><strong>TRANSTRADE</strong><div class="spacer"></div><span class="tt-staff-user"><?=htmlspecialchars((string)$user['full_name'],ENT_QUOTES,'UTF-8')?> · <?=htmlspecialchars((string)$user['role'],ENT_QUOTES,'UTF-8')?></span><a class="tt-staff-power" href="logout.php" title="Log out" aria-label="Log out">⏻</a></header>
 <main class="auth-card"><div class="brand">TT</div><p class="eyebrow">TRANSTRADE INTERNATIONAL</p><h1>Module access</h1><p class="intro">Your assigned module is not live yet. Please contact Salman.</p></main>
+<script>window.TT_SESSION={csrf:<?=json_encode(tt_csrf(),JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT)?>};</script><script src="/session-activity.js?v=20260929-1"></script>
 </body>
 </html>

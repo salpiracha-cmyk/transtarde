@@ -17,6 +17,8 @@ $source=file_get_contents(dirname(__DIR__,2).'/login.php');
 ah_check(str_contains($source,'TT_LOGIN_DUMMY_HASH'),'Unknown usernames must run a password verification.');
 ah_check(str_contains($source,"'login-address'"),'Per-address limiter is required.');
 ah_check(str_contains($source,"'login-emergency'"),'Emergency global limiter is required.');
+ah_check(str_contains($source,'tt_bind_user_session($user)'),'Successful login must bind the credential version and activity clock.');
+ah_check(str_contains($source,'tt_admin_recovery_configured()'),'Recovery must only be advertised when configured.');
 
 $deploy=file_get_contents(dirname(__DIR__,2).'/.github/workflows/deploy-production.yml');
 ah_check(str_contains($deploy,'scripts/migrate_recovery_hash.php'),'Deployment must use the isolated recovery migration bridge.');
