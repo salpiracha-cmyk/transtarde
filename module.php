@@ -191,10 +191,14 @@ new MutationObserver(apply).observe(document.body,{childList:true,subtree:true})
 HTML;
 
 $brandHead = '<link rel="stylesheet" href="/brand-theme.css?v=20260913-3">';
+if ($id === 'exports') $brandHead .= '<link rel="stylesheet" href="/exports/release-theme.css?v=20260909-1">';
 $headPos = stripos($html, '</head>');
 if ($headPos !== false) $html = substr_replace($html, $brandHead.$bootstrap.$sharedBootstrap, $headPos, 0);
 $accountsSourceBridge = '<script src="accounts/source-bridge.js?v=20260924-explicit-actions-1"></script><script src="accounts/loading-programme-sync.js?v=20260924-explicit-actions-1"></script><script src="accounts/bag-control-bridge.js?v=20260924-explicit-actions-1"></script>';
 $brandBody = '<script src="/session-activity.js?v=20260929-1"></script><script src="/brand-theme.js?v=20260913-3"></script>';
+$brandBody .= '<script src="/global-validation.js?v=20260909-1"></script>';
+if ($id === 'exports') $brandBody .= '<script src="/customer-contract-options.js?v=20260911-reports-1"></script>';
+if ($id === 'milling') $brandBody .= '<script src="/milling-quality-identity.js?v=20260910-1"></script>';
 $bodyPos = strripos($html, '</body>');
 if ($bodyPos !== false) $html = substr_replace($html, $accountsSourceBridge.$guard.$brandBody, $bodyPos, 0); else $html .= $accountsSourceBridge.$guard.$brandBody;
 echo $html;
