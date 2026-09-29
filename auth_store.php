@@ -1223,6 +1223,7 @@ function tt_destroy_session_state(): void {
 }
 
 function tt_bind_user_session(array $user): void {
+    $csrf=(string)($_SESSION['csrf']??'');
     session_regenerate_id(true);
     $_SESSION=[
         'user_id'=>(int)$user['id'],
@@ -1230,6 +1231,7 @@ function tt_bind_user_session(array $user): void {
         'authenticated_at'=>time(),
         'last_activity_at'=>time(),
     ];
+    if ($csrf!=='') $_SESSION['csrf']=$csrf;
 }
 
 function tt_request_has_user_activity(): bool {
