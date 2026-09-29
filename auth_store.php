@@ -7,6 +7,8 @@ require_once __DIR__ . '/product_stage.php';
 // operational data created by Salman and his staff.
 const TT_DATA_DIR = __DIR__ . '/../transtrade_private';
 const TT_STORE_FILE = TT_DATA_DIR . '/auth.json';
+const TT_STORE_LOCK_FILE = TT_DATA_DIR . '/auth.lock';
+const TT_SETUP_LOCK_FILE = TT_DATA_DIR . '/setup.lock';
 require_once __DIR__ . '/offline_idempotency.php';
 const TT_AUTH_RATE_FILE = TT_DATA_DIR . '/auth-rate.json';
 // High-entropy offline code. The public repository contains only a salted,
@@ -667,6 +669,71 @@ function tt_ensure_data_dir(): void {
     if (!is_dir(TT_DATA_DIR) && !mkdir(TT_DATA_DIR, 0700, true) && !is_dir(TT_DATA_DIR)) throw new RuntimeException('The secure data folder could not be created.');
 }
 
+function tt_empty_store(): array {
+    return ['users'=>[], 'audit'=>[], 'masters'=>tt_default_masters(), 'master_options'=>tt_default_master_options(), 'master_options_disabled'=>[]];
+}
+
+function tt_decode_store(string $raw): array {
+    if (trim($raw)==='') throw new RuntimeException('Secure storage is empty. Restore the last valid backup before continuing.');
+    try { $data=json_decode($raw,true,512,JSON_THROW_ON_ERROR); }
+    catch (JsonException $e) { throw new RuntimeException('Secure storage is damaged. Restore the last valid backup before continuing.',0,$e); }
+    if(!is_array($data)) throw new RuntimeException('Secure storage has an invalid format. Restore the last valid backup before continuing.');
+    $data=array_merge(tt_empty_store(),$data);
+    $data['masters']=tt_normalize_masters(is_array($data['masters']??null)?$data['masters']:[]);
+    return $data;
+}
+
+function tt_open_store_lock(int $mode) {
+    tt_ensure_data_dir();
+    $handle=fopen(TT_STORE_LOCK_FILE,'c+');
+    if($handle===false||!flock($handle,$mode)){
+        if(is_resource($handle))fclose($handle);
+        throw new RuntimeException('Secure storage is unavailable.');
+    }
+    return $handle;
+}
+
+function tt_write_store_atomic(array $data): void {
+    $encoded=json_encode($data,JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR);
+    $temp=TT_DATA_DIR.'/.auth.'.bin2hex(random_bytes(12)).'.tmp';
+    $handle=fopen($temp,'x+b');
+    if($handle===false)throw new RuntimeException('Secure storage could not be prepared.');
+    try{
+        @chmod($temp,0600);
+        $length=strlen($encoded);$written=0;
+        while($written<$length){$bytes=fwrite($handle,substr($encoded,$written));if($bytes===false||$bytes===0)throw new RuntimeException('Secure storage could not be written.');$written+=$bytes;}
+        if(!fflush($handle))throw new RuntimeException('Secure storage could not be flushed.');
+        if(function_exists('fsync')&&!fsync($handle))throw new RuntimeException('Secure storage could not be synchronized.');
+        fclose($handle);$handle=null;
+        if(!rename($temp,TT_STORE_FILE))throw new RuntimeException('Secure storage could not be committed.');
+        @chmod(TT_STORE_FILE,0600);
+    }finally{
+        if(is_resource($handle))fclose($handle);
+        if(is_file($temp))@unlink($temp);
+    }
+}
+
+function tt_setup_token_configured(): bool {
+    $token=(string)(getenv('TT_SETUP_TOKEN')?:'');
+    return strlen($token)>=24;
+}
+
+function tt_setup_token_valid(string $provided): bool {
+    $token=(string)(getenv('TT_SETUP_TOKEN')?:'');
+    return strlen($token)>=24&&$provided!==''&&hash_equals($token,$provided);
+}
+
+function tt_setup_locked(): bool {
+    return is_file(TT_SETUP_LOCK_FILE)||tt_has_admin();
+}
+
+function tt_lock_setup(): void {
+    tt_ensure_data_dir();
+    $handle=@fopen(TT_SETUP_LOCK_FILE,'x+b');
+    if($handle===false){if(is_file(TT_SETUP_LOCK_FILE))return;throw new RuntimeException('The setup lock could not be created.');}
+    try{if(fwrite($handle,"Setup completed ".gmdate('c')."\n")===false||!fflush($handle))throw new RuntimeException('The setup lock could not be saved.');@chmod(TT_SETUP_LOCK_FILE,0600);}finally{fclose($handle);}
+}
+
 function tt_auth_rate_mutate(callable $callback): mixed {
     tt_ensure_data_dir();
     $handle=fopen(TT_AUTH_RATE_FILE,'c+');
@@ -712,49 +779,36 @@ function tt_auth_clear_failures(string $scope,string $identity): void {
 
 function tt_read_store(): array {
     tt_ensure_data_dir();
-    if (!is_file(TT_STORE_FILE)) return ['users' => [], 'audit' => [], 'masters'=>tt_default_masters(), 'master_options'=>tt_default_master_options(), 'master_options_disabled'=>[]];
-    $handle = fopen(TT_STORE_FILE, 'r');
-    if ($handle === false || !flock($handle, LOCK_SH)) {
-        if (is_resource($handle)) fclose($handle);
-        throw new RuntimeException('Secure storage is unavailable.');
-    }
+    $lock=tt_open_store_lock(LOCK_SH);
     try {
-        rewind($handle);
-        $raw = stream_get_contents($handle);
+        if(!is_file(TT_STORE_FILE))return tt_empty_store();
+        $handle=fopen(TT_STORE_FILE,'rb');
+        if($handle===false)throw new RuntimeException('Secure storage is unavailable.');
+        try{$raw=stream_get_contents($handle);}finally{fclose($handle);}
+        if($raw===false)throw new RuntimeException('Secure storage could not be read.');
     } finally {
-        flock($handle, LOCK_UN);
-        fclose($handle);
+        flock($lock,LOCK_UN);fclose($lock);
     }
-    $data = $raw === false || $raw === '' ? null : json_decode($raw, true);
-    if (!is_array($data)) return ['users' => [], 'audit' => [], 'masters'=>tt_default_masters(), 'master_options'=>tt_default_master_options(), 'master_options_disabled'=>[]];
-    $data=array_merge(['users' => [], 'audit' => [], 'masters'=>tt_default_masters(), 'master_options'=>tt_default_master_options(), 'master_options_disabled'=>[]], $data);
-    $data['masters']=tt_normalize_masters(is_array($data['masters'] ?? null) ? $data['masters'] : []);
-    return $data;
+    return tt_decode_store($raw);
 }
 
 function tt_mutate_store(callable $callback): mixed {
     $backupLib=__DIR__ . '/backup_lib.php';
     if (is_file($backupLib)) { require_once $backupLib; if (function_exists('tt_maybe_auto_backup')) tt_maybe_auto_backup(); }
     tt_ensure_data_dir();
-    $handle = fopen(TT_STORE_FILE, 'c+');
-    if ($handle === false || !flock($handle, LOCK_EX)) throw new RuntimeException('Secure storage is unavailable.');
+    $lock=tt_open_store_lock(LOCK_EX);
     try {
-        rewind($handle);
-        $raw = stream_get_contents($handle);
-        $data = $raw ? json_decode($raw, true) : null;
-        if (!is_array($data)) $data = ['users' => [], 'audit' => [], 'masters'=>tt_default_masters()];
-        $data = array_merge(['users' => [], 'audit' => [], 'masters'=>tt_default_masters(), 'master_options'=>tt_default_master_options(), 'master_options_disabled'=>[]], $data);
-        $data['masters']=tt_normalize_masters(is_array($data['masters'] ?? null) ? $data['masters'] : []);
+        if(is_file(TT_STORE_FILE)){
+            $handle=fopen(TT_STORE_FILE,'rb');if($handle===false)throw new RuntimeException('Secure storage is unavailable.');
+            try{$raw=stream_get_contents($handle);}finally{fclose($handle);}
+            if($raw===false)throw new RuntimeException('Secure storage could not be read.');
+            $data=tt_decode_store($raw);
+        }else{$data=tt_empty_store();}
         $result = $callback($data);
-        rewind($handle);
-        if (!ftruncate($handle, 0)) throw new RuntimeException('Secure storage could not be updated.');
-        $encoded = json_encode($data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
-        if (fwrite($handle, $encoded) === false) throw new RuntimeException('Secure storage could not be written.');
-        fflush($handle);
+        tt_write_store_atomic($data);
         return $result;
     } finally {
-        flock($handle, LOCK_UN);
-        fclose($handle);
+        flock($lock,LOCK_UN);fclose($lock);
     }
 }
 
