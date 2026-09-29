@@ -37,6 +37,10 @@ try{
     backup_expect(!array_filter((array)$manifest['recoveryFiles'],static fn(array $row):bool=>str_ends_with((string)($row['path']??''),'.lock')),'Runtime lock files must not enter recovery snapshots.');
     backup_expect(tt_backup_master_headers('banks',14)[4]==='Bank name'&&tt_backup_master_headers('banks',14)[7]==='Currency','Bank export headings must match saved column positions.');
     backup_expect(tt_backup_master_headers('export_customers',22)[21]==='Default payment / customer instructions','All known master fields need readable headings.');
+    foreach(['companies'=>15,'commodities'=>8,'product_settings'=>1,'products'=>22,'purchase_products'=>11,'purchase_kat'=>10,'export_documents'=>5,'export_terms'=>3,'export_realization_charges'=>15,'export_customers'=>22,'business_parties'=>13,'mills'=>7,'banks'=>14,'salary_staff'=>12,'reference_lists'=>3,'tg_currency_rates'=>12,'tg_compliance_documents'=>13] as $type=>$width){
+        $headings=tt_backup_master_headers($type,$width);
+        backup_expect(count($headings)===$width&&!array_filter($headings,static fn(string $h):bool=>str_starts_with($h,'Field ')),'Incomplete Master export headings: '.$type);
+    }
     $csv=tt_backup_csv(['headers'=>['Name'],'rows'=>[['  =1+1'],['@SUM(A1)'],['Regular company']]]);
     backup_expect(str_contains($csv,"'  =1+1")&&str_contains($csv,"'@SUM(A1)"),'CSV must neutralize spreadsheet formulas.');
     $xlsx=tt_backup_make_xlsx(['Test'=>['headers'=>['Name'],'rows'=>[['=1+1']]]]);

@@ -322,23 +322,27 @@ function tt_backup_table_from_rows(array $rows): array {
 
 function tt_backup_master_headers(string $type, int $width): array {
     $known = [
-        'companies'=>['Legal company name','Short code','Country','Entity scope','Company roles','TG special handling','System behaviour / notes'],
-        'commodities'=>['Commodity','Code','Base unit','Soda / contract enabled','Quality / specification profile','KAT / deduction profile','Default accounting mapping','Notes'],
-        'products'=>['Commodity','Variety / product','Processing / grade','Code','Origin','Profile / use','Avg. grain length','Broken','Moisture','Damaged / Shriveled / Yellow','Chalky / Immature','Contrasting / Other varieties','Foreign grains','Foreign matter','Paddy','Red kernels / Red rice','Under-milled / Red-striped','Milling / polishing','Additional quality wording','Source / basis'],
-        'purchase_kat'=>['Commodity','Variety / product','Quality parameter','Free / default allowance','Deduction / KAT rule or slab','Unit','Effective / seasonal profile','Status / approval','Notes'],
+        'companies'=>['Legal company name','Short code','Country','Entity scope','Company roles','TG special handling','System behaviour / notes','Owners / partners','KCCI membership no.','REAP membership no.','NTN number','Sales tax number','Company number','Bank accounts','Document identities'],
+        'commodities'=>['Commodity','Code','Base unit','Soda / contract enabled','Quality / specification profile','KAT / deduction profile','Default accounting mapping','Staff instruction / message'],
+        'product_settings'=>['Current crop year'],
+        'products'=>['Commodity','Variety','Rice type','Code','Origin','Profile / use','Avg. grain length','Broken','Moisture','Damaged / Shriveled / Yellow','Chalky / Immature','Contrasting / Other varieties','Foreign grains','Foreign matter','Paddy','Red kernels / Red rice','Under-milled / Red-striped','Finish','Additional quality wording','Source / basis','Custom specifications','HS Code'],
         'parties'=>['Party','Code / reference','Type / notes'],
-        'mills'=>['Mill / location','Code / reference','Type / notes'],
+        'mills'=>['Mill / location','Code / reference','Location type','Full address','Contact details','Status','Notes'],
         'banks'=>['Account type','Company','Label','Account title','Bank name','Branch','Country','Currency','Account number','IBAN','SWIFT','Purpose','Visibility','Status'],
         'salary_staff'=>['Staff / person name','Legal book','Salary group','Net salary / remuneration (Rs)','Zakat (Rs)','Other recurring allowances (Rs)','Effective from','Effective to','Accounts treatment','Include in Mill production cost','Status','Notes'],
         'purchase_products'=>['Commodity','Base variety / product','Rice type','Purchase classification','Purchase unit','Arrival KAT profile (our location only)','Legacy brokery rule','Legacy inventory account','Status','Notes','Broken grade (optional)'],
         'purchase_kat'=>['Commodity','Base variety','Rice type','Purchase classification','Profile name','Effective from','Effective to','Status','Notes','Quality parameters'],
         'export_documents'=>['Document Name','Original','Copies','Applies To','Status'],
         'export_terms'=>['Payment Group','Term Text','Status'],
+        'export_realization_charges'=>['Charge / tax name','Code','Category','Tax regime / context','Calculation base','Rate % / formula','Effective from','Effective to','Accounting treatment','GL account code','Bank certificate required','Applies to entities','Status','Notes','Deduction nature / tax character'],
         'export_customers'=>['Customer name','Code','Roles','Primary document address','Country','Email','Phone','Tax / registration','Packing default','Notify parties JSON','Status','Notes','Show country','Show email','Show phone','Show tax','Contacts JSON','Consignees JSON','Additional notify parties JSON','Additional document addresses JSON','Default currency','Default payment / customer instructions'],
         'business_parties'=>['Party name','Code / reference','Categories','Address','Country','Contact person','Phone','Email','NTN / tax number','Payment terms','Status','Notes','Brokery profile'],
         'reference_lists'=>['List','Option / currency code','Currency full name'],
+        'tg_currency_rates'=>['Rate set name','Code','Currency pair','Sell USD → Receive AED','Buy USD ← Pay AED','Final Accounts / Tax Rate','Effective from','Effective to','TG year-end (MM-DD)','Closing / reporting currency','Status','Notes'],
+        'tg_compliance_documents'=>['Document type','Holder','Document number','Issue date','Expiry date','Status','Stored file','Original file','MIME type','Notes','Created at','Created by','Renewal of'],
     ];
     $headers = $known[$type] ?? [];
+    if ($width === 0) return $headers ?: ['Value'];
     while (count($headers) < $width) $headers[] = 'Field ' . (count($headers) + 1);
     return array_slice($headers, 0, $width);
 }
