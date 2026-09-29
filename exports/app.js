@@ -525,12 +525,36 @@ function setLoadingFeedback(id,message){const box=document.getElementById(id);if
 function loadingSourceSummary(rows){return normalizeLoadingAllocations(rows).map(a=>esc(a.name)+' — '+esc(a.type||'')+' ('+num(a.containers).toFixed(Number.isInteger(num(a.containers))?0:3)+' container'+(num(a.containers)===1?'':'s')+')').join(' + ')}
 function exMillAllocation(a){return /external|ex-mill/i.test(String(a?.type||''))&&!/transtrade|tti rice/i.test(String(a?.name||''))}
 function sodaIdentityText(v){return String(v||'').toUpperCase().replace(/\b(?:RAW|READY|FINISHED)\s+RICE\b/g,'').replace(/\b(?:WHITE|STEAM(?:ED)?|PARBOIL(?:ED)?|SELLA)\s+RICE\b/g,'').replace(/[^A-Z0-9]+/g,' ').trim()}
+function exMillRiceTypeKey(value){const text=String(value||'').toUpperCase();if(/PARBOIL|SELLA/.test(text))return'parboiled';if(/STEAM/.test(text))return'steam';if(/WHITE/.test(text))return'white';return text.replace(/\bRICE\b/g,'').replace(/[^A-Z0-9]+/g,'').toLowerCase()}
+function exMillBrokenKey(value){const text=String(value||'').toUpperCase(),range=text.match(/(\d+(?:\.\d+)?)\s*(?:%|PERCENT)?\s*(?:-|TO)\s*(\d+(?:\.\d+)?)/);if(range)return Number(range[1])+'-'+Number(range[2]);const one=text.match(/\d+(?:\.\d+)?/);return one?String(Number(one[0])):text.replace(/\bBROKEN\b/g,'').replace(/[^A-Z0-9]+/g,'').toLowerCase()}
+function exMillLocationKey(value){return String(value||'').trim().replace(/\s+/g,' ').toLowerCase()}
 async function validateExMillSodaCapacity(rows,c,excludeShipmentId=''){
  const external=normalizeLoadingAllocations(rows).filter(exMillAllocation);if(!external.length)return'';
  let response;try{response=await fetch('api/milling_purchase_sodas.php?r='+Date.now(),{credentials:'same-origin',headers:{Accept:'application/json'}})}catch{return'Accounts purchase authorization could not be checked. Retry before sending Loading Instructions.'}
  let data={};try{data=await response.json()}catch{}if(!response.ok||!data.ok)return data.error||'Accounts purchase authorization could not be checked.';
- const entity=String(c.seller||'TTI').toUpperCase()==='BRM'?'BRM':'TTI',base=sodaIdentityText(c.variety||c.product),rice=String(c.riceType||'').toUpperCase(),grade=sodaIdentityText(c.brokenText||c.brokenGrade||''),sodas=(data.sodas||[]).filter(s=>String(s.entity||'TTI').toUpperCase()===entity&&String(s.readyRoute||'').toUpperCase()==='EX_MILL'&&sodaIdentityText(s.baseVariety||s.displayName)===base&&String(s.riceType||'').toUpperCase()===rice&&(!grade||!s.brokenGrade||sodaIdentityText(s.brokenGrade)===grade));
- for(const name of [...new Set(external.map(a=>String(a.name||'').trim()))]){const here=external.filter(a=>String(a.name||'').trim().toLowerCase()===name.toLowerCase()).reduce((n,a)=>n+num(a.containers)*num(a.weightPer)*1000,0),capacity=sodas.filter(s=>String(s.locationName||'').trim().toLowerCase()===name.toLowerCase()).reduce((n,s)=>n+num(s.qtyToKg||s.qtyFromKg),0);let reserved=0;for(const handoff of state.millSync?.exportLoading||[]){if(String(handoff.shipmentId||'')===String(excludeShipmentId||''))continue;const hc=contractByRef(handoff.contractRef),handoffGrade=sodaIdentityText(hc?.brokenText||hc?.brokenGrade||'');if(!hc||String(hc.seller||'TTI').toUpperCase()!==String(c.seller||'TTI').toUpperCase()||sodaIdentityText(hc.variety||hc.product)!==base||String(hc.riceType||'').toUpperCase()!==rice||(grade&&handoffGrade&&handoffGrade!==grade))continue;reserved+=(handoff.plan?.allocations||[]).filter(a=>exMillAllocation(a)&&String(a.name||'').trim().toLowerCase()===name.toLowerCase()).reduce((n,a)=>n+num(a.containers)*num(a.weightPer)*1000,0)}if(capacity<=0)return `No matching Accounts purchase authorization exists for ${name}. Export cannot create or increase it.`;if(reserved+here>capacity+.001)return `Loading Instructions for ${name} exceed the Accounts-authorized purchase quantity by ${((reserved+here-capacity)/1000).toFixed(3)} MT.`}
+ const entity=String(c.seller||'TTI').toUpperCase()==='BRM'?'BRM':'TTI',base=sodaIdentityText(c.variety||c.product),rice=exMillRiceTypeKey(c.riceType||c.product),grade=exMillBrokenKey(c.brokenText||c.brokenGrade||'');
+ const authorized=(data.sodas||[]).filter(s=>String(s.entity||'TTI').toUpperCase()===entity&&String(s.readyRoute||'').toUpperCase()==='EX_MILL');
+ for(const name of [...new Set(external.map(a=>String(a.name||'').trim()))]){
+  const location=exMillLocationKey(name),atMill=authorized.filter(s=>exMillLocationKey(s.locationName)===location);
+  if(!atMill.length)return `No active ${entity} Ex-Mill purchase Soda exists for ${name}. Check the saved Soda route and Ex-Mill location in Accounts.`;
+  const sameVariety=atMill.filter(s=>sodaIdentityText(s.baseVariety||s.displayName)===base);
+  if(!sameVariety.length)return `The active ${entity} Ex-Mill Soda for ${name} has a different rice variety from Sales Contract ${c.ref||''}. Amend the correct Soda in Accounts.`;
+  const sameRice=sameVariety.filter(s=>!rice||!exMillRiceTypeKey(s.riceType)||exMillRiceTypeKey(s.riceType)===rice);
+  if(!sameRice.length)return `The active ${entity} Ex-Mill Soda for ${name} has a different rice type from Sales Contract ${c.ref||''}.`;
+  const sodas=sameRice.filter(s=>!grade||!s.brokenGrade||exMillBrokenKey(s.brokenGrade)===grade);
+  if(!sodas.length)return `The active ${entity} Ex-Mill Soda for ${name} has a different broken grade from Sales Contract ${c.ref||''}.`;
+  const here=external.filter(a=>exMillLocationKey(a.name)===location).reduce((n,a)=>n+num(a.containers)*num(a.weightPer)*1000,0);
+  const capacity=sodas.reduce((n,s)=>n+num(s.qtyToKg||s.qtyFromKg),0);
+  let reserved=0;
+  for(const handoff of state.millSync?.exportLoading||[]){
+   if(String(handoff.shipmentId||'')===String(excludeShipmentId||''))continue;
+   const hc=contractByRef(handoff.contractRef),handoffRice=exMillRiceTypeKey(hc?.riceType||hc?.product),handoffGrade=exMillBrokenKey(hc?.brokenText||hc?.brokenGrade||'');
+   if(!hc||String(hc.seller||'TTI').toUpperCase()!==entity||sodaIdentityText(hc.variety||hc.product)!==base||(rice&&handoffRice&&handoffRice!==rice)||(grade&&handoffGrade&&handoffGrade!==grade))continue;
+   reserved+=(handoff.plan?.allocations||[]).filter(a=>exMillAllocation(a)&&exMillLocationKey(a.name)===location).reduce((n,a)=>n+num(a.containers)*num(a.weightPer)*1000,0);
+  }
+  if(capacity<=0)return `The matching Accounts purchase Soda for ${name} has no authorized quantity. Amend the Soda in Accounts.`;
+  if(reserved+here>capacity+.001)return `Loading Instructions for ${name} exceed the Accounts-authorized purchase quantity by ${((reserved+here-capacity)/1000).toFixed(3)} MT.`;
+ }
  return''
 }
 function renderLoading__legacy_v0(d){
