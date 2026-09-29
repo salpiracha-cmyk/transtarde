@@ -980,22 +980,73 @@ function tt_user_can_access_masters(array $user): bool {
     return false;
 }
 
+/**
+ * Module-scoped Master Records retained for compatibility with staff accounts
+ * created before the explicit per-master matrix was introduced.
+ */
+function tt_default_master_scopes(): array {
+    return [
+        'Accounts'=>['companies','banks','export_realization_charges','export_customers','business_parties','products','purchase_products','mills','product_settings','export_documents','export_terms','salary_staff','reference_lists'],
+        'Exports'=>['export_customers','business_parties','products','product_settings','export_documents','export_terms','reference_lists'],
+        'Mill'=>['business_parties','purchase_products','mills','reference_lists'],
+        'Directors'=>['companies','banks'],
+    ];
+}
+
+/** Return the exact permissions supplied by the historical module fallback. */
+function tt_legacy_master_permissions(array $user): array {
+    $all=['Use','View','Create','Edit','Deactivate','View Documents','Download Documents'];
+    $matrix=[];
+    foreach (tt_default_master_scopes() as $module=>$types) {
+        if (!tt_user_can_open_module($user,$module)) continue;
+        $actions=$module==='Directors' ? ['View'] : $all;
+        foreach ($types as $type) {
+            $matrix[$type]=array_values(array_unique(array_merge((array)($matrix[$type] ?? []),$actions)));
+        }
+    }
+    return $matrix;
+}
+
+/**
+ * Make every pre-matrix staff account explicit before the fallback is
+ * hardened. This is intentionally lossless: current effective access becomes
+ * the saved matrix, so deployment does not add or remove any staff right.
+ */
+function tt_migrate_legacy_master_permissions(array &$data): array {
+    $changed=[];
+    if (!isset($data['users']) || !is_array($data['users'])) $data['users']=[];
+    foreach ($data['users'] as &$user) {
+        if (($user['role'] ?? '')==='Super Admin' || !empty($user['master_access'])) continue;
+        // The managed QA identity is deliberately read-only and its stable
+        // profile is restored independently by qa_account.php.
+        if (!empty($user['system_qa']) || !empty($user['test_data_only'])) continue;
+        $matrix=tt_legacy_master_permissions((array)$user);
+        if (!$matrix) continue;
+        $user['master_access']=true;
+        $user['master_permissions']=$matrix;
+        $user['master_permissions_migrated_at']=gmdate('c');
+        $user['master_permissions_migration']='legacy-effective-access-v1';
+        $changed[]=(string)($user['id'] ?? '');
+    }
+    unset($user);
+    if (!isset($data['settings']) || !is_array($data['settings'])) $data['settings']=[];
+    $data['settings']['master_permission_schema']=2;
+    $data['settings']['master_permission_schema_at']=$data['settings']['master_permission_schema_at'] ?? gmdate('c');
+    return $changed;
+}
+
 function tt_user_can_master(array $user,string $type,string $action='View'): bool {
     if (($user['role'] ?? '')==='Super Admin') return true;
     if (!tt_user_can_access_masters($user)) return false;
     if (in_array($type,['purchase_kat','commodities'],true)) $type='purchase_products';
     // An explicit Super Admin matrix overrides the module defaults, including View.
     if (!empty($user['master_access'])) return in_array($action,(array)($user['master_permissions'][$type] ?? []),true);
-    $scopes=[
-        'Accounts'=>['companies','banks','export_realization_charges','export_customers','business_parties','products','purchase_products','mills','product_settings','export_documents','export_terms','salary_staff','reference_lists'],
-        'Exports'=>['export_customers','business_parties','products','product_settings','export_documents','export_terms','reference_lists'],
-        'Mill'=>['business_parties','purchase_products','mills','reference_lists'],
-        'Directors'=>['companies','banks'],
-    ];
-    foreach ($scopes as $module=>$types) {
+    // New or incomplete accounts may see and use only their module-related
+    // masters. Create/Edit/Deactivate and document access require an explicit
+    // Super Admin matrix.
+    foreach (tt_default_master_scopes() as $module=>$types) {
         if (tt_user_can_open_module($user,$module) && in_array($type,$types,true)) {
-            if ($module==='Directors' && $action!=='View') continue;
-            return in_array($action,['Use','View','Create','Edit','Deactivate','View Documents','Download Documents'],true);
+            return in_array($action,['Use','View'],true);
         }
     }
     return false;
