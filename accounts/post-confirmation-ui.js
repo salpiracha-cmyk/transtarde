@@ -31,8 +31,9 @@
       try {
         const body = await result.clone().json();
         if (body?.ok && !(url.includes('tg_bank_transactions.php') && JSON.parse(String(init?.body||'{}')).guidedReceipt)) {
-          const ids = [body.journal?.id, body.advanceJournal?.id, body.postId, body.journalId, body.event?.journalId, body.receipt?.journalId, body.transaction?.journalId, body.transfer?.journalId, body.bill?.journalId, body.payment?.journalId, ...(Array.isArray(body.journals)?body.journals:[]).map(row => row?.id), ...(Array.isArray(body.journalIds)?body.journalIds:[]), ...(Array.isArray(body.bill?.postingJournalIds)?body.bill.postingJournalIds:[]), ...(Array.isArray(body.tgMirror)?body.tgMirror:[]).map(row => row?.journal?.id), ...(Array.isArray(body.indentorPayableJournals)?body.indentorPayableJournals:[]).map(row => row?.id), body.separateChargeJournal?.id].filter(Boolean);
-          if (ids.length) show([...new Set(ids)]);
+          const isMoneyMovement = journal => Array.isArray(journal?.lines) && journal.lines.some(line => ['1110','1120'].includes(String(line?.account||'')) || line?.bankAccountId || line?.cashAccountId);
+          const journals = [body.journal, body.advanceJournal, body.separateChargeJournal, ...(Array.isArray(body.journals)?body.journals:[]), ...(Array.isArray(body.tgMirror)?body.tgMirror:[]).map(row=>row?.journal)].filter(isMoneyMovement);
+          if (journals.length) show([...new Set(journals.map(row=>row.id).filter(Boolean))]);
         }
       } catch (_) { /* Preserve the original response and the posting result. */ }
     }

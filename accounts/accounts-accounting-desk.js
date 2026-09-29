@@ -470,7 +470,7 @@
         const result = await json(api, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)});
         sodaData = result;
         alert(record ? `Soda ${record.sodaNo} amended. The change and reason were added to its audit history.` : `Soda ${result.created?.sodaNo || 'number'} saved. No ledger entry was posted.`);
-        if (record) renderSodaSearch(host); else q('.tt-window-close', host).click();
+        if (record) renderSodaSearch(host); else renderSodaNew(host);
       } catch (error) { alert(error.message); button.disabled = false; }
     };
   }
@@ -479,17 +479,12 @@
     const body = q('.tt-window-body', host);
     const needle = term.trim().toLowerCase();
     const rows = (sodaData.sodas || []).filter(row => !needle || [row.sodaNo,row.broker,row.party,row.commodity,row.variety,row.location,row.status,row.sodaDate].some(value => String(value || '').toLowerCase().includes(needle)));
-    body.innerHTML = `<div class="tt-modebar"><button data-soda-mode="new">New Soda</button><button class="active" data-soda-mode="search">Search / Amend Soda</button></div><div class="tt-searchbar"><input id="ttSodaSearch" value="${esc(term)}" placeholder="Soda no, broker, supplier, commodity, variety, mill or date"><button type="button">Search</button></div><div class="tt-records"><div class="tableWrap"><table><thead><tr><th>Soda</th><th>Date</th><th>Commodity</th><th>Broker / Supplier</th><th>Quantity</th><th>Rate</th><th>Status</th><th></th></tr></thead><tbody>${rows.length ? rows.map(row => `<tr><td><b>${esc(row.sodaNo)}</b></td><td>${esc(row.sodaDate)}</td><td>${esc(row.commodity)}<br><small>${esc(row.variety)}</small></td><td>${esc(row.broker)}<br><small>${esc(row.party || '')}</small></td><td>${Number(row.qtyFromKg||0)?money(Number(row.qtyFromKg)/1000)+'–'+money(Number(row.qtyToKg||row.qtyFromKg)/1000)+' MT':''}${row.expectedTrucks?'<br>'+esc(row.expectedTrucks)+' trucks':''}</td><td>${money(row.rate ?? row.ratePerKg)} / ${esc(row.rateUnit || 'KG')}</td><td>${esc(row.calculatedStatus || row.status)}</td><td><button type="button" class="btn" data-soda-edit="${esc(row.id)}">View / Amend</button>${access.super?` <button type="button" class="btn danger" data-soda-delete="${esc(row.id)}">Delete</button>`:''}</td></tr>`).join('') : '<tr><td colspan="8">No matching Soda.</td></tr>'}</tbody></table></div></div>`;
+    body.innerHTML = `<div class="tt-modebar"><button data-soda-mode="new">New Soda</button><button class="active" data-soda-mode="search">Search / Amend Soda</button></div><div class="tt-searchbar"><input id="ttSodaSearch" value="${esc(term)}" placeholder="Soda no, broker, supplier, commodity, variety, mill or date"><button type="button">Search</button></div><div class="tt-records"><div class="tableWrap"><table><thead><tr><th>Soda</th><th>Date</th><th>Commodity</th><th>Broker / Supplier</th><th>Quantity</th><th>Rate</th><th>Status</th><th></th></tr></thead><tbody>${rows.length ? rows.map(row => `<tr><td><b>${esc(row.sodaNo)}</b></td><td>${esc(row.sodaDate)}</td><td>${esc(row.commodity)}<br><small>${esc(row.variety)}</small></td><td>${esc(row.broker)}<br><small>${esc(row.party || '')}</small></td><td>${Number(row.qtyFromKg||0)?money(Number(row.qtyFromKg)/1000)+'–'+money(Number(row.qtyToKg||row.qtyFromKg)/1000)+' MT':''}${row.expectedTrucks?'<br>'+esc(row.expectedTrucks)+' trucks':''}</td><td>${money(row.rate ?? row.ratePerKg)} / ${esc(row.rateUnit || 'KG')}</td><td>${esc(row.calculatedStatus || row.status)}</td><td><button type="button" class="btn" data-soda-edit="${esc(row.id)}">View / Amend</button> <button type="button" class="btn" data-soda-print="${esc(row.id)}">Print</button>${access.super?` <button type="button" class="btn danger" data-soda-delete="${esc(row.id)}">Delete</button>`:''}</td></tr>`).join('') : '<tr><td colspan="8">No matching Soda.</td></tr>'}</tbody></table></div></div>`;
     q('[data-soda-mode="new"]', body).onclick = () => renderSodaNew(host);
     const search = () => renderSodaSearch(host, q('#ttSodaSearch', body).value);
     q('.tt-searchbar button', body).onclick = search;
     q('#ttSodaSearch', body).onkeydown = event => { if (event.key === 'Enter') search(); };
-    qa('[data-soda-edit]', body).forEach(button => button.onclick = () => {
-      activeSoda = (sodaData.sodas || []).find(row => row.id === button.dataset.sodaEdit);
-      body.innerHTML = `<div class="tt-modebar"><button data-back-soda>← Search Sodas</button></div>${sodaForm(activeSoda)}${activeSoda.audit?.length ? `<div class="tt-record-card"><b>Amendment history</b><pre>${esc(JSON.stringify(activeSoda.audit, null, 2))}</pre></div>` : ''}`;
-      q('[data-back-soda]', body).onclick = () => renderSodaSearch(host);
-      bindSodaForm(host, activeSoda);
-    });
+    bindSodaRows(host, () => renderSodaSearch(host, term));
     qa('[data-soda-delete]', body).forEach(button => button.onclick = async () => {
       const record=(sodaData.sodas||[]).find(row=>row.id===button.dataset.sodaDelete);if(!record)return;
       if(!confirm(`Permanently delete Soda ${record.sodaNo}? This is allowed only before any Pohanch, bill or settlement is linked.`))return;
@@ -498,10 +493,32 @@
     });
   }
 
+  function printSoda(row) {
+    const popup=window.open('','_blank');if(!popup)return alert('Allow popups to print the Soda.');
+    const fields=[['Soda number',row.sodaNo],['Date',row.sodaDate],['Company',row.entity],['Commodity / product',[row.commodity,row.productStage,row.displayName||row.variety,row.riceType,row.brokenGrade].filter(Boolean).join(' · ')],['Broker',row.broker||'—'],['Supplier',row.party||'—'],['Purchase route',row.readyRoute||row.movementRole||'—'],['Mill / stock location',row.locationName||row.location||'—'],['Quantity',`${money(Number(row.qtyFromKg||0)/1000)} to ${money(Number(row.qtyToKg||0)/1000)} MT`],['Expected trucks / containers',row.expectedTrucks||'—'],['Rate',`${money(row.rate??row.ratePerKg)} per ${row.rateUnit||'KG'}`],['Payment term',`${row.paymentTermType||'CASH'}${row.paymentTermType==='CREDIT'?' · '+(row.creditDays||'')+' days':''}`],['Expected arrival / delivery',row.arrivalDueDate||row.deliveryDeadline||'—'],['Terms / conditions',row.terms||'—'],['Remarks',row.remarks||'—'],['Status',row.calculatedStatus||row.status||'—']];
+    popup.document.write(`<!doctype html><meta charset="utf-8"><title>Soda ${esc(row.sodaNo)}</title><style>@page{size:A4;margin:16mm}body{font:12px Arial;color:#1b2a34}h1{text-align:center;color:#165848;font-size:19px}h2{text-align:center;font-size:15px}table{width:100%;border-collapse:collapse;margin-top:24px}th,td{border:1px solid #cddbd7;padding:9px;text-align:left;vertical-align:top}th{width:32%;background:#edf5f1}button{float:right}@media print{button{display:none}}</style><button onclick="print()">Print Soda</button><h1>${esc(row.entity||entity())}</h1><h2>PURCHASE SODA · ${esc(row.sodaNo)}</h2><table>${fields.map(([label,value])=>`<tr><th>${esc(label)}</th><td>${esc(value)}</td></tr>`).join('')}</table>`);popup.document.close();
+  }
+
+  function bindSodaRows(host, back) {
+    const body=q('.tt-window-body',host);
+    qa('[data-soda-print]',body).forEach(button=>button.onclick=()=>{const row=(sodaData.sodas||[]).find(item=>item.id===button.dataset.sodaPrint);if(row)printSoda(row)});
+    qa('[data-soda-edit]',body).forEach(button=>button.onclick=()=>{
+      activeSoda=(sodaData.sodas||[]).find(row=>row.id===button.dataset.sodaEdit);if(!activeSoda)return;
+      body.innerHTML=`<div class="tt-modebar"><button data-back-soda>← Sodas</button><button type="button" class="btn" data-soda-print="${esc(activeSoda.id)}">Print Soda</button></div>${sodaForm(activeSoda)}${activeSoda.audit?.length?`<div class="tt-record-card"><b>Amendment history</b><pre>${esc(JSON.stringify(activeSoda.audit,null,2))}</pre></div>`:''}`;
+      q('[data-back-soda]',body).onclick=back;
+      q('[data-soda-print]',body).onclick=()=>printSoda(activeSoda);
+      bindSodaForm(host,activeSoda);
+    });
+  }
+
   function renderSodaNew(host) {
     const body = q('.tt-window-body', host);
-    body.innerHTML = `<div class="tt-modebar"><button class="active" data-soda-mode="new">New Soda</button><button data-soda-mode="search">Search / Amend Soda</button></div>${sodaForm()}`;
+    const cutoff=new Date(`${today()}T12:00:00`);cutoff.setMonth(cutoff.getMonth()-2);
+    const dateFloor=cutoff.getFullYear()+'-'+String(cutoff.getMonth()+1).padStart(2,'0')+'-'+String(cutoff.getDate()).padStart(2,'0');
+    const recent=(sodaData.sodas||[]).filter(row=>String(row.sodaDate||'')>=dateFloor).sort((a,b)=>String(b.sodaDate||'').localeCompare(String(a.sodaDate||''))||String(b.sodaNo||'').localeCompare(String(a.sodaNo||'')));
+    body.innerHTML = `<div class="tt-modebar"><button class="active" data-soda-mode="new">New Soda</button><button data-soda-mode="search">Search / Amend Soda</button></div>${sodaForm()}<div class="tt-records"><h3>Recent Sodas · last two months</h3><div class="tableWrap"><table><thead><tr><th>Date</th><th>Soda</th><th>Supplier / Broker</th><th>Product</th><th>Quantity</th><th>Status</th><th>Action</th></tr></thead><tbody>${recent.length?recent.map(row=>`<tr><td>${esc(row.sodaDate)}</td><td><b>${esc(row.sodaNo)}</b></td><td>${esc(row.party||'—')}<br><small>${esc(row.broker||'')}</small></td><td>${esc(row.displayName||row.variety||row.commodity)}</td><td>${money(Number(row.qtyToKg||row.qtyFromKg||0)/1000)} MT</td><td>${esc(row.calculatedStatus||row.status)}</td><td><button type="button" class="btn" data-soda-edit="${esc(row.id)}">View / Amend</button> <button type="button" class="btn" data-soda-print="${esc(row.id)}">Print</button></td></tr>`).join(''):'<tr><td colspan="7">No Sodas dated within the last two months. Search previous Sodas for older records.</td></tr>'}</tbody></table></div></div>`;
     q('[data-soda-mode="search"]', body).onclick = () => renderSodaSearch(host);
+    bindSodaRows(host,()=>renderSodaNew(host));
     bindSodaForm(host);
   }
 
@@ -532,21 +549,37 @@
     if (typeof initial === 'string' && initial.trim()) go(); else runSearch(host, '');
   }
 
-  function printVoucher(record) {
-    const data = record?.data || {};
-    const number = data.voucherNo || data.journalId || data.id || record.title;
-    const outgoing=/payment|expense|remittance|supplier settlement|reimbursement/i.test(String((record.type||'')+' '+(data.sourceType||'')));
-    const incoming=/receipt|credit advice|customer advance/i.test(String((record.type||'')+' '+(data.sourceType||'')));
-    const amount=data.netPayment||data.paidAmount||data.amount||data.total||data.totalDebit||record.amount||'';
-    const paymentAccount=data.bankName||data.bankAccountTitle||data.paymentAccountName||data.cashAccount||'';
-    const reference=data.billNo||data.invoiceNo||data.reference||data.sodaNo||'';
-    const cheque=data.chequeNo||data.bankReference||data.transactionReference||'';
-    const lines=Array.isArray(data.lines)&&data.lines.length?data.lines.map(line=>`<tr><td>${esc(line.account||'')} · ${esc(line.accountName||'')}</td><td>${esc(line.subledger||line.party||'')}</td><td class="amount">${esc(line.debit||'')}</td><td class="amount">${esc(line.credit||'')}</td></tr>`).join(''):`<tr><td>${esc(record.party||data.party||data.broker||'')}</td><td>${esc(reference)}</td><td class="amount">${esc(amount)}</td><td class="amount"></td></tr>`;
-    const allocations=Array.isArray(data.allocations)&&data.allocations.length?`<h3>Bill / truck allocation</h3><table><thead><tr><th>Bill</th><th>Truck / Pohanch</th><th>Commodity</th><th>Brokerage</th><th>Allocated</th></tr></thead><tbody>${data.allocations.map(a=>`<tr><td>${esc(a.billNo||a.billId||'')}</td><td>${esc([a.truck,a.pohanch].filter(Boolean).join(' · ')||a.reference||'')}</td><td class="amount">${esc(a.commodityAmount||'')}</td><td class="amount">${esc(a.brokerageAmount||'')}</td><td class="amount">${esc(a.amount||'')}</td></tr>`).join('')}</tbody></table>`:'';
-    const w = window.open('', '_blank');
-    if (!w) return alert('Allow popups to print the voucher.');
-    w.document.write(`<!doctype html><meta charset="utf-8"><title>${esc(number)}</title><style>body{font:12px Arial;max-width:940px;margin:22px auto;padding:18px;color:#1a2836}header{text-align:center;border-bottom:3px solid #1d5748;padding-bottom:12px}h1{margin:0;font-size:20px}h2{margin:5px 0;font-size:16px;text-transform:uppercase;color:#1d5748}.meta{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin:18px 0}.meta div{padding:10px;border:1px solid #d4dde3;border-radius:5px}.meta b{display:block;color:#586979;font-size:10px;text-transform:uppercase;margin-bottom:4px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #c7d4db;padding:8px;text-align:left}th{background:#eaf2ef}.amount{text-align:right}.narration{border:1px solid #c7d4db;margin-top:15px;padding:12px}.sign{display:grid;grid-template-columns:repeat(4,1fr);gap:24px;margin-top:64px}.sign div{border-top:1px solid #333;text-align:center;padding-top:7px}.ack{margin-top:24px;padding:14px;border:1px solid #859e91}.ack p{margin:8px 0 25px}@media print{button{display:none}body{margin:0}}</style><button onclick="print()">Print Voucher</button><header><h1>${esc(q('.entityBtn.active strong')?.textContent||entity())}</h1><h2>${outgoing?'Payment Voucher':incoming?'Receipt Voucher':record.type||'Accounting Voucher'}</h2></header><div class="meta"><div><b>Posting / Voucher Number</b>${esc(number)}</div><div><b>Date</b>${esc(record.date||data.date||'')}</div><div><b>${incoming?'Received from':'Paid to / Account'}</b>${esc(record.party||data.payee||data.vendor||data.party||'—')}</div><div><b>Related invoice / bill</b>${esc(reference||'—')}</div><div><b>${incoming?'Received into':'Paid from'}</b>${esc(paymentAccount||'—')}</div><div><b>Cheque / Bank reference</b>${esc(cheque||'—')}</div></div><table><thead><tr><th>Account</th><th>Party / Detail</th><th>Debit</th><th>Credit</th></tr></thead><tbody>${lines}</tbody></table>${allocations}<div class="narration"><b>Amount: ${esc(data.currency||'PKR')} ${esc(amount)}</b><p>${esc(data.narration||data.remarks||record.title)}</p></div>${outgoing?'<div class="ack"><b>Recipient acknowledgement</b><p>Received the stated payment against the invoice / bill referenced above.</p>Name: _________________________ &nbsp; ID / Stamp: _________________________ &nbsp; Date: ________________</div>':''}<div class="sign"><div>Prepared By</div><div>Checked By</div><div>Approved By</div><div>${outgoing?'Received By':'Posted By'}</div></div>`);
-    w.document.close();
+  async function printVoucher(record) {
+    const details=record?.data||{};
+    const id=String(details.journalId||details.chequeIssueJournalId||details.journal?.id||(Array.isArray(details.lines)?details.id:'')||'').trim();
+    if(!id)return alert('A saved journal is required to print this voucher. Open the linked Post ID in the ledger.');
+    const popup=window.open('','_blank');if(!popup)return alert('Allow popups to print the voucher.');
+    popup.document.write('<!doctype html><meta charset="utf-8"><title>Loading voucher...</title><body style="font:14px Arial;padding:24px">Loading saved voucher...</body>');
+    try{
+      const response=await fetch('../api/accounts_ledger_browser.php?'+new URLSearchParams({entity:details.entity||entity(),account:'POSTS',postId:id,to:today()}),{credentials:'same-origin'});
+      const result=await response.json();if(!response.ok||!result.ok)throw Error(result.error||'Saved posting unavailable.');
+      const journal=result.post,lines=Array.isArray(journal.lines)?journal.lines:[];
+      if(!lines.length)throw Error('This posting has no accounting lines to print.');
+      const allocations=Array.isArray(details.allocations)?details.allocations:(Array.isArray(journal.meta?.allocations)?journal.meta.allocations:[]);
+      const supplier=/supplier.payment|supplier.cheque/i.test(String(journal.sourceType||''))||/supplier payment/i.test(String(record?.type||''));
+      const receipt=/receipt|customer.advance/i.test(String(journal.sourceType||'')+' '+String(record?.type||''));
+      const transfer=/transfer/i.test(String(journal.sourceType||'')+' '+String(record?.type||''));
+      const heading=supplier?'SUPPLIER PAYMENT VOUCHER':transfer?'TRANSFER VOUCHER':receipt?'RECEIPT VOUCHER':'PAYMENT VOUCHER';
+      const pageSize=supplier&&(allocations.length>5||lines.length>7)?'A4':'A5';
+      const companyName={TTI:'TRANSTRADE INTERNATIONAL',BRM:'BUKSH RICE MILLS',TG:'TRANS GRAINS FOODSTUFF TRADING L.L.C.'}[journal.entity]||journal.entity;
+      const date=String(journal.date||'').split('-').reverse().join('-');
+      const accountRows=lines.map(line=>`<tr><td>${esc(line.accountName||line.account)}${line.subledger||line.counterparty||line.party?`<small>${esc(line.subledger||line.counterparty||line.party)}</small>`:''}</td><td class="amount">${Number(line.debit||0)?money(line.debit):'—'}</td><td class="amount">${Number(line.credit||0)?money(line.credit):'—'}</td></tr>`).join('');
+      const allocationRows=allocations.map(row=>`<tr><td>${esc(row.billNo||row.billId||'—')}<small>${esc([row.soda,row.truck,row.pohanch].filter(Boolean).join(' · '))}</small></td><td class="amount">${money(row.amount)}</td></tr>`).join('');
+      const bankLines=lines.filter(line=>['1110','1120'].includes(String(line.account||''))||line.bankAccountId||line.cashAccountId);
+      const bankAmount=bankLines.reduce((sum,line)=>sum+Number(receipt?line.debit:line.credit||0),0);
+      const paid=Number(details.netPayment||details.foreignAmount||details.amount||journal.meta?.netPayment||bankAmount||journal.totalDebit||0);
+      const currency=String(details.currency||journal.meta?.currency||bankLines.find(line=>line.currency)?.currency||'PKR');
+      const party=details.broker||details.party||record?.party||journal.meta?.broker||journal.meta?.customer||journal.meta?.payee||'—';
+      const bank=details.bankName||journal.meta?.bankName||lines.find(line=>line.bankName)?.bankName||'—';
+      const ref=details.reference||details.bankReference||journal.reference||'—';
+      const html=`<!doctype html><html><head><meta charset="utf-8"><title>${esc(heading)} ${esc(journal.id)}</title><style>@page{size:${pageSize};margin:12mm}body{font:10px Arial,sans-serif;color:#1b2a34;margin:0}header{border-top:5px solid #165848;padding-top:13px;display:flex;justify-content:space-between;align-items:center;gap:8px}header b{color:#165848;font-size:14px}header strong{font-size:11px;text-align:right}.meta{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;background:#edf5f1;margin:15px 0;padding:9px}.meta small,.pair small{display:block;color:#61727b;font-size:8px;text-transform:uppercase;margin-bottom:4px}.pairs{display:grid;grid-template-columns:1fr 1fr;gap:7px 15px;margin:12px 0}.pair{border-bottom:1px solid #cddbd7;padding-bottom:6px;overflow-wrap:anywhere}h3{color:#165848;font-size:10px;margin:16px 0 7px}table{width:100%;border-collapse:collapse;font-size:9px}th{background:#edf5f1;color:#165848;text-align:left}th,td{padding:6px;border-bottom:1px solid #cddbd7}td small{display:block;color:#61727b;margin-top:3px}.amount{text-align:right;white-space:nowrap}tfoot td{background:#edf5f1;font-weight:bold}.narration{margin-top:13px;border-top:1px solid #cddbd7;padding-top:8px;min-height:26px}.narration b{display:block;font-size:8px;color:#61727b;margin-bottom:5px}.sign{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:48px}.sign span{border-top:1px solid #1b2a34;padding-top:6px;font-size:8px}button{margin:0 0 8px auto;display:block}@media print{button{display:none}}${pageSize==='A5'?'body{font-size:9px}header b{font-size:12px}header strong{font-size:9px}.meta{margin:10px 0}.sign{margin-top:35px}th,td{padding:5px}':''}</style></head><body><button onclick="print()">Print voucher</button><header><b>${esc(companyName)}</b><strong>${esc(heading)}</strong></header><div class="meta"><div><small>Post ID</small><b>${esc(journal.id)}</b></div><div><small>Date</small>${esc(date)}</div><div><small>Currency</small>${esc(currency)}</div></div><div class="pairs"><div class="pair"><small>${receipt?'Received from':'Paid to / party'}</small>${esc(party)}</div><div class="pair"><small>Bank / cash account</small>${esc(bank)}</div><div class="pair"><small>Reference</small>${esc(ref)}</div><div class="pair"><small>Amount ${receipt?'received':'paid'}</small><b>${esc(currency)} ${money(paid)}</b></div></div>${supplier&&allocationRows?`<h3>BILLS SETTLED BY THIS PAYMENT</h3><table><thead><tr><th>Bill / SODA / Truck / Pohanch</th><th class="amount">Paid now</th></tr></thead><tbody>${allocationRows}</tbody></table>`:''}<h3>ACCOUNTING ENTRY</h3><table><thead><tr><th>Account / details</th><th class="amount">Debit</th><th class="amount">Credit</th></tr></thead><tbody>${accountRows}</tbody><tfoot><tr><td>TOTAL</td><td class="amount">${money(journal.totalDebit)}</td><td class="amount">${money(journal.totalCredit)}</td></tr></tfoot></table><div class="narration"><b>NARRATION</b>${esc(journal.narration||'—')}</div><div class="sign"><span>Prepared By</span><span>Checked By</span><span>Receiver's Signature</span></div></body></html>`;
+      popup.document.open();popup.document.write(html);popup.document.close();
+    }catch(error){popup.document.body.textContent='Voucher could not be printed: '+error.message}
   }
 
   function printSalesTaxRows(rows) {

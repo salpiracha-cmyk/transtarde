@@ -85,6 +85,14 @@ usort($journals,static fn($a,$b)=>strcmp((string)$a['date'],(string)$b['date'])?
 $opening=0.0;$rows=[];
 foreach($journals as $journal){
     if($postEntries){
+        // Keep every journal in the books, while the user-facing Post ID Register
+        // lists only postings that move money through bank or cash.
+        $moneyMovement=false;
+        foreach((array)($journal['lines']??[]) as $line){
+            if(!is_array($line))continue;
+            if(in_array((string)($line['account']??''),['1110','1120'],true)||!empty($line['bankAccountId'])||!empty($line['cashAccountId'])){$moneyMovement=true;break;}
+        }
+        if(!$moneyMovement)continue;
         $date=(string)$journal['date'];if($date<$from)continue;
         $rows[]=['date'=>$date,'voucher'=>(string)($journal['id']??''),'account'=>'POSTS','accountName'=>(string)$journal['entity'],'reference'=>(string)($journal['reference']??''),'narration'=>(string)($journal['narration']??'').(str_starts_with((string)($journal['meta']['notes']??''),'Mirrored settlement for Pakistan receipt ')?' · '.(string)$journal['meta']['notes']:''),'party'=>(string)($journal['sourceType']??'').(!empty($store['exportReceipts'][(string)($journal['meta']['receiptId']??'')]['replacementReceiptId'])?' · Corrected by '.$store['exportReceipts'][(string)$journal['meta']['receiptId']]['replacementReceiptId']:''),'debit'=>round((float)($journal['totalDebit']??0),2),'credit'=>round((float)($journal['totalCredit']??0),2),'balance'=>null];
         continue;
