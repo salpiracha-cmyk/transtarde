@@ -24,5 +24,7 @@ ah_check(!str_contains($deploy,"require \$argv[1]"),'Deployment must not load th
 $migration=file_get_contents(dirname(__DIR__,2).'/scripts/migrate_recovery_hash.php');
 ah_check(str_contains($migration,'token_get_all'),'Recovery migration must parse source without executing it.');
 ah_check(str_contains($migration,'password_get_info'),'Recovery migration must accept only hashes supported by PHP.');
+ah_check(str_contains($migration,'exit(3)'),'An absent legacy credential must be distinguished from malformed recovery data.');
+ah_check(str_contains($deploy,'migration_status'),'Deployment must handle an absent legacy credential without bypassing malformed-hash failures.');
 
 echo "PASS layered authentication and external recovery protections\n";
