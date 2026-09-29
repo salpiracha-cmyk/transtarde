@@ -108,7 +108,7 @@ final class TT_SimpleZipReader {
     private $fh;
     private array $entries = [];
 
-    public function __construct(private string $path) {
+    public function __construct(private string $path, private int $maxBytes = TT_BACKUP_MAX_RESTORE_BYTES) {
         $this->fh = fopen($path, 'rb');
         if ($this->fh === false) throw new InvalidArgumentException('The selected file is not readable.');
         $this->parse();
@@ -127,7 +127,7 @@ final class TT_SimpleZipReader {
 
     private function parse(): void {
         $size = filesize($this->path);
-        if ($size === false || $size < 22 || $size > TT_BACKUP_MAX_RESTORE_BYTES) throw new InvalidArgumentException('The selected backup has an invalid size.');
+        if ($size === false || $size < 22 || $size > $this->maxBytes) throw new InvalidArgumentException('The selected backup has an invalid size.');
         $tailSize = min($size, 66000);
         fseek($this->fh, $size - $tailSize);
         $tail = $this->readExact($tailSize);
@@ -470,7 +470,7 @@ function tt_build_download_backup(bool $full,string $password=''):array{
 }
 
 function tt_backup_verify_snapshot(string $path, array $expectedInventory): void {
-    $reader = new TT_SimpleZipReader($path);
+    $reader = new TT_SimpleZipReader($path, 0xffffffff);
     try {
         $manifestRaw = $reader->get('backup-manifest.json');
         $manifest = $manifestRaw === false ? null : json_decode($manifestRaw, true);
@@ -674,7 +674,7 @@ function tt_backup_snapshot_list():array{
 function tt_backup_verified_server_snapshot(string $name):array{
     if(!preg_match('/^(auto|manual|pre-restore)-[0-9]{8}-[0-9]{6}(?:-[a-f0-9]{8})?\.zip$/D',$name))throw new InvalidArgumentException('Select a listed server snapshot.');
     $path=tt_backup_dir().'/'.$name;if(!is_file($path))throw new InvalidArgumentException('The selected snapshot is no longer available.');
-    $zip=new TT_SimpleZipReader($path);
+    $zip=new TT_SimpleZipReader($path,0xffffffff);
     try{$raw=$zip->get('backup-manifest.json');$manifest=$raw===false?null:json_decode($raw,true);
         if(!is_array($manifest)||($manifest['application']??'')!=='Transtrade'||($manifest['type']??'')!=='server_snapshot')throw new InvalidArgumentException('This server snapshot is invalid.');
         $inventory=[];foreach((array)($manifest['recoveryFiles']??[]) as $item){$rel=(string)($item['path']??'');if(!tt_backup_restore_allowed($rel)||isset($inventory[$rel]))throw new InvalidArgumentException('The snapshot inventory is invalid.');$inventory[$rel]=['size'=>(int)($item['size']??-1),'sha256'=>(string)($item['sha256']??'')];}
@@ -683,7 +683,7 @@ function tt_backup_verified_server_snapshot(string $name):array{
     }finally{$zip->close();}
 }
 function tt_restore_server_snapshot(string $name):array{
-    $manifest=tt_backup_verified_server_snapshot($name);$zip=new TT_SimpleZipReader(tt_backup_dir().'/'.$name);$staged=[];
+    $manifest=tt_backup_verified_server_snapshot($name);$zip=new TT_SimpleZipReader(tt_backup_dir().'/'.$name,0xffffffff);$staged=[];
     try{foreach($manifest['recoveryFiles'] as $item){$rel=(string)$item['path'];$staged[$rel]=tt_backup_stage_file($rel,static function($out)use($zip,$rel,$item):void{$digest=$zip->storedDigest('System_Recovery/private/'.$rel,$out);if($digest===false||$digest['size']!==(int)$item['size']||!hash_equals((string)$item['sha256'],$digest['sha256']))throw new InvalidArgumentException('A snapshot entry failed verification.');});}
         $safety=tt_create_server_snapshot('pre-restore');$restored=tt_backup_commit_staged($staged);return ['restoredFiles'=>$restored,'safetySnapshot'=>$safety];
     }finally{$zip->close();foreach($staged as $tmp)if(is_file($tmp))@unlink($tmp);}
