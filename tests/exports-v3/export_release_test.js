@@ -128,8 +128,11 @@ const s=t.makeShipment(c);s.lc={saved:true,lcNo:'LC-99881',lcDate:'2026-09-08',i
 for(const [name,html] of Object.entries({invoice:t.commercialInvoiceDoc(s,c,false),packing:t.packingListDoc(s,c,false),phyto:t.phytoInvoiceDoc(s,c),cover:t.coveringDoc(s,c),draft:t.lcDraftDoc(s,c)})){
   assert.match(html,/docPage/);if(name==='cover'){assert.doesNotMatch(html,/TTI_header\.png|TTI_sign\.png|docFooterArt/)}else assert.match(html,/TTI_header\.png/);assert.ok(!/undefined|null/.test(html),name+' leaked invalid text');
 }
-Object.assign(s.bl,{bookingNumber:'BK-778899'});s.loadingPlan={shippingLine:'MAERSK LINE'};
-const plainBL=t.blDraftDoc(s,c);assert.match(plainBL,/oceanBlPage/);assert.match(plainBL,/OCEAN BILL OF LADING/);assert.doesNotMatch(plainBL,/TTI_header\.png|docFooterArt|docAutoSign/);assert.match(plainBL,/oceanBlProminentDetail[\s\S]*MAERSK LINE[\s\S]*oceanBlProminentDetail[\s\S]*BK-778899/i);
+Object.assign(s.bl,{bookingNumber:'BK-778899'});s.loadingProgrammeNo='LP-778899';s.loadingPlan={shippingLine:'MAERSK LINE',bookingNumber:'OLD-BOOKING'};
+const plainBL=t.blDraftDoc(s,c);assert.match(plainBL,/oceanBlPage/);assert.match(plainBL,/OCEAN BILL OF LADING/);assert.doesNotMatch(plainBL,/TTI_header\.png|docFooterArt|docAutoSign/);assert.match(plainBL,/oceanBlProminentDetail[\s\S]*MAERSK LINE[\s\S]*oceanBlProminentDetail[\s\S]*LP-778899/i);
+assert.doesNotMatch(plainBL,/BK-778899|OLD-BOOKING|BOOKING NO\./i,'the Loading Programme takes precedence over older booking aliases');
+const oldBookingOnly={...s,loadingProgrammeNo:'',loadingPlan:{...s.loadingPlan,bookingNumber:''},bl:{...s.bl,bookingNumber:'LEGACY-778899'}};
+assert.match(t.blDraftDoc(oldBookingOnly,c),/LOADING PROGRAMME NO\.[\s\S]*LEGACY-778899/i,'older booking-only records keep their number under the Loading Programme label');
 assert.doesNotMatch(plainBL,/SHIPPER SEAL|SL001/,'seal numbers are hidden by default');
 s.bl.showSealNumbers=true;const blWithSeals=t.blDraftDoc(s,c);assert.match(blWithSeals,/SHIPPER SEAL/);assert.match(blWithSeals,/SL001/);s.bl.showSealNumbers=false;
 assert.match(plainBL,/SAID TO CONTAIN/);assert.match(plainBL,/1 × 20 FEET CONTAINERS/);assert.match(plainBL,/1,080 PP BAGS OF 25 KG EACH/i);assert.match(plainBL,/HS CODE: 1006\.30/);assert.match(plainBL,/TOTAL NET WEIGHT/);assert.match(plainBL,/TOTAL GROSS WEIGHT/);assert.match(plainBL,/NON-NEGOTIABLE COPIES[\s\S]*<span>5<\/span>/);assert.match(plainBL,/MARKS AND NUMBERS \/ NUMBER AND KIND OF PACKAGES \/ DESCRIPTION OF GOODS/);assert.doesNotMatch(plainBL,/ILLUSTRATIVE|SAMPLE DATA/);
@@ -208,7 +211,8 @@ assert.match(source,/contractSplitWorkspace/);
 assert.match(source,/key!==['"]bl['"]\)closeLotEditor/,'saving a B/L keeps the B/L editor open');
 assert.doesNotMatch(source,/id="liBooking"/,'Loading Instructions do not ask for a carrier booking number');
 assert.match(source,/<label>Shipping Line<\/label><input id="liShippingLine"[^>]*><\/div><div class="field"><label>Loading Programme No\.<\/label><input id="liProgramme"/,'Loading Programme No. is beside Shipping Line');
-assert.match(source,/id="blBookingNumber"/,'an existing B/L can also receive or correct its booking number');
+assert.doesNotMatch(source,/id="blBookingNumber"/,'the B/L Draft does not ask for a second number');
+assert.match(source,/\['LOADING PROGRAMME NO\.',loadingProgrammeFor\(s\),true\]/,'the B/L print uses the authoritative Loading Programme No.');
 assert.match(source,/id="coBLNo"/,'Commercial Documents must provide an editable final B/L number beside the B/L upload');
 assert.match(source,/id="coBLDate"/,'Commercial Documents must provide an editable shipped-on-board date beside the B/L upload');
 assert.match(source,/\['contract','pc'\]\.includes\(kind\)/,'browser-side Gemini access is restricted to Sales Contract and P/C uploads');
