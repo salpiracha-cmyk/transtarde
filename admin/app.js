@@ -1245,6 +1245,7 @@
       document.getElementById("backupSnapshotCount").textContent = String(data.snapshotCount ?? 0);
       document.getElementById("backupSnapshotSize").textContent = `${backupBytes(data.snapshotBytes)} stored privately on server`;
       document.getElementById("backupLastOwner").textContent = data.lastOwnerDownload ? backupFriendlyDate(data.lastOwnerDownload) : "Not downloaded yet";
+      document.getElementById("officeBackupStatus").textContent = data.officeBackupEnabled ? "Backup-only credential active" : "No office backup credential issued";
       const choice = document.getElementById("serverSnapshotChoice");
       const selected = choice.value;
       choice.replaceChildren(new Option("Select a snapshot", ""));
@@ -1280,6 +1281,19 @@
       toast("Private server recovery snapshot created."); await loadBackupStatus();
     } catch (error) { toast(error.message); }
     finally { button.disabled = false; button.textContent = old; }
+  }
+  async function manageOfficeBackupToken(action) {
+    const button = document.getElementById(action === "issue-office-token" ? "issueOfficeBackupToken" : "revokeOfficeBackupToken");
+    button.disabled = true;
+    try {
+      const data = await backupFetchJson("api/backup.php", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, csrf: SESSION.csrf }) });
+      const area = document.getElementById("officeBackupTokenArea"), input = document.getElementById("officeBackupToken");
+      input.value = data.token || ""; area.hidden = !data.token;
+      if (data.token) input.select();
+      toast(data.token ? "Copy the new backup credential now. The old one has stopped working." : "Office backup credential revoked.");
+      await loadBackupStatus();
+    } catch (error) { toast(error.message); }
+    finally { button.disabled = false; }
   }
   let verifiedRestoreSignature = "";
   let verifiedServerSnapshot = "";
@@ -1459,6 +1473,8 @@
   document.getElementById("downloadBusinessBackup").addEventListener("click", () => downloadBackup("business-download"));
   document.getElementById("downloadFullBackup").addEventListener("click", () => downloadBackup("full-download"));
   document.getElementById("createServerSnapshot").addEventListener("click", createServerSnapshot);
+  document.getElementById("issueOfficeBackupToken").addEventListener("click", () => manageOfficeBackupToken("issue-office-token"));
+  document.getElementById("revokeOfficeBackupToken").addEventListener("click", () => manageOfficeBackupToken("revoke-office-token"));
   document.getElementById("verifyBackupFile").addEventListener("click", verifyBackupForRestore);
   document.getElementById("verifyServerSnapshot").addEventListener("click", verifyServerSnapshot);
   document.getElementById("serverSnapshotChoice").addEventListener("change", () => { verifiedServerSnapshot = ""; document.getElementById("serverSnapshotConfirmArea").hidden = true; document.getElementById("serverSnapshotVerification").hidden = true; });

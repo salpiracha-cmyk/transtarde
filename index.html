@@ -168,6 +168,14 @@
           </div>
 
           <article class="panel backup-policy-panel">
+            <div class="panel-heading"><div><h2>Office computer backup</h2><p>Use a separate backup-only credential for the office agent. It cannot open the app or restore data.</p></div></div>
+            <p id="officeBackupStatus">Checking credential…</p>
+            <div class="backup-actions"><button class="button secondary" id="issueOfficeBackupToken">Generate / Rotate Credential</button><button class="button secondary" id="revokeOfficeBackupToken">Revoke Credential</button></div>
+            <label class="backup-password" id="officeBackupTokenArea" hidden>Copy this credential now; it is shown only once<input id="officeBackupToken" type="text" readonly autocomplete="off" spellcheck="false"></label>
+            <small class="backup-note">The agent uses this credential and a separate ZIP password. Keep both in the office computer's protected configuration.</small>
+          </article>
+
+          <article class="panel backup-policy-panel">
             <div class="panel-heading"><div><h2>Automatic server protection</h2><p>Transtrade commits each snapshot only after its manifest, file hashes and ZIP contents pass verification.</p></div><button class="button secondary" id="createServerSnapshot">Create Snapshot Now</button></div>
             <div class="backup-policy-grid">
               <div><strong>Hourly</strong><span>Keep every verified automatic snapshot for 48 hours</span></div>
