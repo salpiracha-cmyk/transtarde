@@ -552,6 +552,10 @@
     let banks=[];try{banks=JSON.parse(values[13]||"[]")}catch{}if(!Array.isArray(banks))banks=[];
     let documents=[];try{documents=JSON.parse(values[14]||"[]")}catch{}if(!Array.isArray(documents))documents=[];
     let fxPairs=[];try{fxPairs=JSON.parse(values[15]||"[]")}catch{}if(!Array.isArray(fxPairs))fxPairs=[];
+    if(!values[15]&&values[3]!=='Pakistan'&&String(values[2]||'').trim().toLowerCase()!=='pakistan'){
+      const currencies=[...new Set([...banks.filter(bank=>bank.status!=='Inactive').map(bank=>bank.currency),...(String(values[1]||'').toUpperCase()==='TG'?['AED']:[])].filter(Boolean))].sort();
+      currencies.forEach((a,i)=>currencies.slice(i+1).forEach(b=>fxPairs.push({currencyA:a,currencyB:b})));
+    }
     return `<section class="master-editor-section"><div class="master-editor-heading"><div><h3>Company identity</h3><p>The list shows only identity. Legal and workflow detail stays inside Edit.</p></div></div><div class="master-identity-grid">
       <label>Legal company name<input id="${masterInputId(0)}" data-master-field-index="0" value="${escapeHtml(values[0] || "")}" required></label>
       <label>Short code<input id="${masterInputId(1)}" data-master-field-index="1" value="${escapeHtml(values[1] || "")}" required></label>
@@ -1047,12 +1051,12 @@
         documentRows?.querySelectorAll('[data-preview-company-document],[data-download-company-document]').forEach(button=>button.onclick=()=>{const documentId=button.closest('.company-document-row')?.querySelector('[data-document-id]')?.value;if(!documentId||!row?.id)return;const download=button.hasAttribute('data-download-company-document')?'&download=1':'';window.open(`api/master_documents.php?companyId=${encodeURIComponent(row.id)}&documentId=${encodeURIComponent(documentId)}${download}`,'_blank','noopener')});
       };
       const fxRows=document.getElementById('companyFxRows'),fxSection=document.getElementById('companyFxSection');
-      const currencies=()=>[...new Set([...bankRows.querySelectorAll('.company-bank-row')].filter(row=>JSON.parse(row.querySelector('[data-bank-json]')?.value||'{}').status!=='Inactive').map(row=>row.querySelector('[data-bank-currency]')?.value).filter(Boolean))].sort();
+      const currencies=()=>[...new Set([...bankRows.querySelectorAll('.company-bank-row')].filter(row=>JSON.parse(row.querySelector('[data-bank-json]')?.value||'{}').status!=='Inactive').map(row=>row.querySelector('[data-bank-currency]')?.value).concat(document.getElementById(masterInputId(1))?.value.trim().toUpperCase()==='TG'?['AED']:[]).filter(Boolean))].sort();
       const syncFx=()=>{
         const abroad=document.getElementById(masterInputId(3))?.value!=='Pakistan'&&document.getElementById(masterInputId(2))?.value.trim().toLowerCase()!=='pakistan';
         fxSection.hidden=!abroad;
         const codes=currencies(),hint=document.getElementById('companyFxHint');
-        hint.textContent=codes.length>1?'Available account currencies: '+codes.join(', ')+'. Add each pair and enter both rates.':'Add bank accounts in two currencies to set exchange rates.';
+        hint.textContent=codes.length>1?'Available currencies: '+codes.join(', ')+'. Enter both directions; TG includes its AED ledger currency.':'Add bank accounts in two currencies to set exchange rates.';
         [...fxRows.querySelectorAll('.company-fx-row')].forEach(row=>{row.hidden=!codes.includes(row.dataset.currencyA)||!codes.includes(row.dataset.currencyB)});
         fxRows.querySelectorAll('[data-remove-company-fx]').forEach(button=>button.onclick=()=>button.closest('.company-fx-row')?.remove());
       };
@@ -1065,6 +1069,7 @@
       bankRows.addEventListener('change',event=>{if(event.target.matches('[data-bank-currency]'))syncFx()});
       document.getElementById(masterInputId(2))?.addEventListener('input',syncFx);
       document.getElementById(masterInputId(3))?.addEventListener('change',syncFx);
+      document.getElementById(masterInputId(1))?.addEventListener('input',syncFx);
       syncFx();
       document.getElementById('addCompanyBank').onclick=()=>{bankRows.insertAdjacentHTML('beforeend',companyBankRow({accountTitle:document.getElementById(masterInputId(0))?.value||'',currency:'PKR'}));wireNested();syncFx()};
       document.getElementById('addCompanyDocument').onclick=()=>{documentRows.insertAdjacentHTML('beforeend',companyDocumentRow({version:'1',status:'Active'}));wireNested()};

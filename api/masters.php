@@ -233,6 +233,7 @@ try {
         }
         $banks=json_decode((string)$values[13],true)?:[];$currencies=[];
         foreach($banks as $bank)if(is_array($bank)&&strcasecmp((string)($bank['status']??'Active'),'Inactive')!==0){$code=strtoupper((string)($bank['currency']??''));if(preg_match('/^[A-Z]{3}$/',$code))$currencies[$code]=true;}
+        if(strtoupper(trim((string)($values[1]??'')))==='TG')$currencies['AED']=true;
         $pairs=json_decode((string)$values[15],true)?:[];$seenPairs=[];
         if(count($pairs)>60)throw new InvalidArgumentException('Too many company exchange-rate pairs.');
         foreach($pairs as $pair){
