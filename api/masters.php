@@ -255,8 +255,25 @@ try {
                 }
             }
         }
-        $banks=json_decode((string)$values[13],true)?:[];$currencies=[];
-        foreach($banks as $bank)if(is_array($bank)&&strcasecmp((string)($bank['status']??'Active'),'Inactive')!==0){$code=strtoupper((string)($bank['currency']??''));if(preg_match('/^[A-Z]{3}$/',$code))$currencies[$code]=true;}
+        $registrations=json_decode((string)$values[16],true)?:[];
+        if(count($registrations)>40)throw new InvalidArgumentException('Too many company registration rows.');
+        foreach($registrations as $registration){
+            if(!is_array($registration))throw new InvalidArgumentException('A company registration row is invalid.');
+            $regType=trim((string)($registration['type']??''));$regNumber=trim((string)($registration['number']??''));
+            if(($regType==='' xor $regNumber===''))throw new InvalidArgumentException('Each company registration requires both a type and number.');
+            $expiry=(string)($registration['expiryDate']??'');if($expiry!==''&&!preg_match('/^\d{4}-\d{2}-\d{2}$/',$expiry))throw new InvalidArgumentException('Registration expiry dates must be valid dates.');
+        }
+        $banks=json_decode((string)$values[13],true)?:[];$currencies=[];$seenBankIds=[];
+        foreach($banks as $bank)if(is_array($bank)){
+            $bankId=trim((string)($bank['id']??''));if($bankId==='')throw new InvalidArgumentException('Every saved bank account requires a stable account ID. Reopen the company and try again.');
+            if(isset($seenBankIds[$bankId]))throw new InvalidArgumentException('The same bank account appears more than once.');$seenBankIds[$bankId]=true;
+            $accountType=(string)($bank['accountType']??'Company Account');
+            if(!in_array($accountType,['Company Account','Proprietor / Owner Account','Personal Account'],true))throw new InvalidArgumentException('Select a valid bank account ownership type.');
+            if($accountType!=='Company Account'&&trim((string)($bank['personalOwner']??''))==='')throw new InvalidArgumentException('Enter the account owner for proprietor / personal bank accounts.');
+            if(!empty($bank['retentionAccount'])&&$accountType==='Personal Account')throw new InvalidArgumentException('A personal-only account cannot be a company retention ledger.');
+            if(!empty($bank['retentionAccount'])&&(!in_array(strtoupper((string)($values[1]??'')),['TTI','BRM'],true)||strtoupper((string)($bank['currency']??'PKR'))==='PKR'))throw new InvalidArgumentException('A retention account must be a foreign-currency TTI or BRM bank account.');
+            if(strcasecmp((string)($bank['status']??'Active'),'Inactive')!==0){$code=strtoupper((string)($bank['currency']??''));if(preg_match('/^[A-Z]{3}$/',$code))$currencies[$code]=true;}
+        }
         if(strtoupper(trim((string)($values[1]??'')))==='TG')$currencies['AED']=true;
         $pairs=json_decode((string)$values[15],true)?:[];$seenPairs=[];
         if(count($pairs)>60)throw new InvalidArgumentException('Too many company exchange-rate pairs.');
@@ -278,10 +295,12 @@ try {
             foreach($previous as $bank){
                 $bankId=(string)($bank['id']??'');if($bankId==='')continue;
                 $match=null;foreach($incoming as $candidate)if((string)($candidate['id']??'')===$bankId){$match=$candidate;break;}
-                if(!$match||strcasecmp((string)($bank['status']??'Active'),'Inactive')!==0&&strcasecmp((string)($match['status']??'Active'),'Inactive')===0)
-                    throw new InvalidArgumentException('Existing bank accounts require a Director deactivation request; reopen this company and request approval.');
-                if(strcasecmp((string)($bank['status']??'Active'),'Inactive')===0 && strcasecmp((string)($match['status']??'Active'),'Inactive')!==0)
-                    throw new InvalidArgumentException('A deactivated bank account cannot be reactivated from the company editor.');
+                if(($admin['role']??'')!=='Super Admin'){
+                    if(!$match||strcasecmp((string)($bank['status']??'Active'),'Inactive')!==0&&strcasecmp((string)($match['status']??'Active'),'Inactive')===0)
+                        throw new InvalidArgumentException('Bank deletion must be requested from the Accounts module and approved by a Director or Super Admin.');
+                    if(strcasecmp((string)($bank['status']??'Active'),'Inactive')===0 && strcasecmp((string)($match['status']??'Active'),'Inactive')!==0)
+                        throw new InvalidArgumentException('A deleted bank account cannot be reactivated from this editor.');
+                }
             }
         }
     }
