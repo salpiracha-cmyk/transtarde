@@ -5,7 +5,7 @@ const appPath = fs.existsSync(__dirname + '/../exports/app.js')
   ? __dirname + '/../exports/app.js'
   : __dirname + '/../../exports-clean-audit/release/app.js';
 const app = fs.readFileSync(appPath, 'utf8');
-const auth = fs.readFileSync(__dirname + '/../auth_store.php', 'utf8');
+const auth = fs.readFileSync(__dirname + '/../master_store.php', 'utf8');
 const admin = fs.readFileSync(__dirname + '/../admin/app.js', 'utf8');
 const customers = fs.readFileSync(__dirname + '/../customer-master.js', 'utf8');
 

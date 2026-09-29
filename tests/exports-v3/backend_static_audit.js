@@ -9,6 +9,7 @@ const login=fs.readFileSync(path.join(__dirname,'../../login.php'),'utf8');
 const upload=fs.readFileSync(path.join(root,'api/export_documents.php'),'utf8');
 const mastersApi=fs.readFileSync(path.join(__dirname,'../../api/masters.php'),'utf8');
 const authStore=fs.readFileSync(path.join(__dirname,'../../auth_store.php'),'utf8');
+const masterStore=fs.readFileSync(path.join(__dirname,'../../master_store.php'),'utf8');
 const html=fs.readFileSync(path.join(__dirname,'index.html'),'utf8');
 const css=fs.readFileSync(path.join(__dirname,'app.css'),'utf8');
 const js=fs.readFileSync(path.join(__dirname,'../../exports/app.js'),'utf8');
@@ -98,7 +99,7 @@ for(const id of ['bagReportMode','bagReportFrom','bagReportTo','bagReportBrand',
 assert.match(milling,/brands=\[\.\.\.new Set\(rows\.map\(x=>x\.brand\)/,'report brands must come from live rows');
 assert.match(milling,/No export loading records match the filters/,'export loading filters must render an empty state');
 assert.match(mastersApi,/action==='manage-option'/,'shared dropdown options must support controlled management');
-assert.match(authStore,/product_finishes/,'Product Master must own the approved finishing wording');
+assert.match(masterStore,/product_finishes/,'Product Master must own the approved finishing wording');
 assert.match(authStore,/master_options_disabled/,'deleted options must be retired without rewriting historical records');
 assert.match(js,/Manage \/ Rename \/ Delete/,'Currency and Inspection lists must be manageable from their dropdowns');
 assert.doesNotMatch(mysql,/\b(?:DROP\s+TABLE|TRUNCATE\s+TABLE)\b/i);

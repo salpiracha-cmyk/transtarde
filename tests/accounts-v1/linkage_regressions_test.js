@@ -102,7 +102,7 @@ assert.match(sourceBridge,/kind:'exMillLifting'/,'Ex-Mill loading must create an
 assert.match(sodaFeedPhp,/purchaseSodaLiftings/,'Ex-Mill lifting handoffs must persist idempotently');
 assert.match(sodaPhp,/\$store\['purchaseSodaLiftings'\]/,'Accounts Soda quantities must include Ex-Mill liftings');
 
-const bankBridge=read('auth_store.php');
+const bankBridge=read('master_store.php');
 const bankApi=read('api/bank_accounts.php');
 const receiptApi=read('api/export_receipts.php');
 const receiptUi=read('accounts/export-receipts-ui.js');

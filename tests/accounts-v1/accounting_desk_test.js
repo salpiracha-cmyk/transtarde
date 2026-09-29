@@ -67,7 +67,7 @@ const bankApi=fs.readFileSync('api/bank_accounts.php','utf8');
 const retentionApi=fs.readFileSync('api/retention_remittances.php','utf8');
 assert(receiptUi.includes('tter-overlay') && receiptUi.includes('function closeForm()'), 'Pakistan credit advice must be a direct, closable receipt dialog');
 assert(receiptUi.includes('erUseRetention') && receiptUi.includes('erRetentionDetails') && receiptUi.includes('erRetentionBank'), 'receipt must offer a designated retention account with visible bank details');
-assert(companyUi.includes('data-bank-retention') && auth.includes('function tt_bank_is_retention('), 'Company Master must own the retention designation');
+assert(companyUi.includes('data-bank-retention') && fs.readFileSync('master_store.php', 'utf8').includes('function tt_bank_is_retention('), 'Company Master must own the retention designation');
 assert(bankApi.includes('masterRetentionAccount') && receiptApi.includes('tt_bank_is_retention($id,$store)') && retentionApi.includes('tt_bank_is_retention($bankId,$store)'), 'the Company Master designation must govern receipt and remittance posting');
 assert(receiptApi.includes("['PARTIAL','CORRESPONDENT','OTHER']") && receiptApi.includes('Explain the other shortfall reason'), 'shortfall classification must be validated by the server');
 assert(billUi.includes('relationshipType') && billUi.includes('postingNumber') && billUi.includes('POST BILL'), 'Bill Posting must follow Broker/Supplier to Soda to Pohanch and return a posting number');

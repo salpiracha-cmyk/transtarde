@@ -4,7 +4,7 @@ const fs=require('fs');
 const read=file=>fs.readFileSync(file,'utf8');
 
 const stage=read('product_stage.php');
-const masters=read('auth_store.php');
+const masters=read('master_store.php');
 const masterApi=read('api/masters.php');
 const admin=read('admin/app.js');
 const workflows=read('api/accounts_workflows_v1.php');

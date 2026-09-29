@@ -3,7 +3,7 @@ const assert=require('node:assert/strict');
 const fs=require('node:fs');
 const read=file=>fs.readFileSync(file,'utf8');
 
-const auth=read('auth_store.php');
+const auth=read('master_store.php');
 const soda=read('api/purchase_sodas.php');
 const desk=read('accounts/accounts-accounting-desk.js');
 

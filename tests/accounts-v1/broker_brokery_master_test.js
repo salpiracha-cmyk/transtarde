@@ -4,7 +4,7 @@ const fs=require('node:fs');
 const read=file=>fs.readFileSync(file,'utf8');
 
 const admin=read('admin/app.js');
-const auth=read('auth_store.php');
+const auth=read('master_store.php');
 const masters=read('api/masters.php');
 const workflows=read('api/accounts_workflows_v1.php');
 const bills=read('api/commodity_bills.php');

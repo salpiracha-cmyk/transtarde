@@ -32,5 +32,5 @@ window.__creditQA.calculateChargeRows(29943000);
 assert.equal(raw.reduce((sum,row)=>sum+Number(row['[data-ded-amount]'].value),0),384616,'actual bank advice amounts must override rounded percentage amounts');
 assert.match(source,/host\.insertAdjacentHTML\('beforeend',deductionRowHtml/,'adding a charge must append without rebuilding the entered receipt');
 assert.doesNotMatch(source,/id="erFileRef"|id="erExpectedForeign"|id="erShortfall"|id="erExpectedPkr"/,'removed boxes must not return');
-assert.match(fs.readFileSync('auth_store.php','utf8'),/\$visible=\[[^\n]*'export_realization_charges'/,'the shared charge master must be visible to both UIs');
+assert.match(fs.readFileSync('master_store.php','utf8'),/\$visible=\[[^\n]*'export_realization_charges'/,'the shared charge master must be visible to both UIs');
 console.log('PASS credit advice charge calculation, manual bank amounts and stable form');

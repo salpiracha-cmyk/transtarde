@@ -5,6 +5,13 @@ require dirname(__DIR__,2).'/auth_store.php';
 
 function mp_check(bool $condition,string $message): void { if (!$condition) throw new RuntimeException($message); }
 
+$defaults=tt_default_masters();
+$defaults['companies'][0]['values'][0]='Test mutation';
+mp_check(tt_default_masters()['companies'][0]['values'][0]==='Transtrade International','Cached Master defaults must be isolated from caller mutations.');
+$options=tt_default_master_options();
+$options['currencies'][0]='Test mutation';
+mp_check(tt_default_master_options()['currencies'][0]==='USD','Cached Master options must be isolated from caller mutations.');
+
 $legacy=[
     'id'=>11,'username'=>'legacy.exports','role'=>'Exports','permissions'=>['Exports'=>['contracts'=>['View']]],
     'master_access'=>false,'master_permissions'=>[],

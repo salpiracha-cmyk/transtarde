@@ -9,7 +9,7 @@ Options -Indexes
   RewriteRule ^(?:data|docs|scripts|tests|\.github)(?:/|$) - [F,L,NC]
 </IfModule>
 
-<FilesMatch "^(index\.html|auth\.php|auth_store\.php|backup_lib\.php|upload_validation\.php|inventory_reconciliation\.php|offline_idempotency\.php|owner_master_cleanup\.php|product_stage\.php|qa_account\.php|runtime_html\.php)$">
+<FilesMatch "^(index\.html|auth\.php|auth_store\.php|master_store\.php|backup_lib\.php|upload_validation\.php|inventory_reconciliation\.php|offline_idempotency\.php|owner_master_cleanup\.php|product_stage\.php|qa_account\.php|runtime_html\.php)$">
   Require all denied
 </FilesMatch>
 

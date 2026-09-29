@@ -215,7 +215,7 @@ assert.match(source,/READ L\/C LOCALLY/,'L/C uploads must use the local reader i
 assert.match(source,/cBrokenContract/);
 assert.match(source,/cFinishContract/);
 assert.match(source,/managedOptionSelectHTML\('mPackType','packing_types'/);
-assert.match(fs.readFileSync(__dirname+'/../../auth_store.php','utf8'),/'packing_types'=>/);
+assert.match(fs.readFileSync(__dirname+'/../../master_store.php','utf8'),/'packing_types'=>/);
 assert.equal((t.coveringDoc(s,c).match(/class="docPage bankCoveringPage"/g)||[]).length,1,'covering letter produces one plain physical-letterhead copy');
 const brandCss=fs.readFileSync(__dirname+'/../../brand-theme.css','utf8');
 const brandJs=fs.readFileSync(__dirname+'/../../brand-theme.js','utf8');

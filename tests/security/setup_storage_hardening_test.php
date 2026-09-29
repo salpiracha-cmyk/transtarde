@@ -4,7 +4,7 @@ declare(strict_types=1);
 $root=sys_get_temp_dir().'/tti-security-'.bin2hex(random_bytes(8));
 $app=$root.'/app';
 if(!mkdir($app,0700,true))throw new RuntimeException('Could not create the disposable test directory.');
-foreach(['auth_store.php','product_stage.php','offline_idempotency.php'] as $file){
+foreach(['auth_store.php','master_store.php','product_stage.php','offline_idempotency.php'] as $file){
     if(!copy(__DIR__.'/../../'.$file,$app.'/'.$file))throw new RuntimeException('Could not prepare '.$file);
 }
 
