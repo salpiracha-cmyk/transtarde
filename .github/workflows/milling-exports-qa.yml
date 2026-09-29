@@ -17,6 +17,7 @@ on:
       - 'milling-quality-identity.js'
       - 'api/**'
       - 'auth_store.php'
+      - 'logout.php','logout.php'
       - 'master_store.php'
       - 'backup_lib.php'
       - 'office_backup_auth.php'
@@ -46,6 +47,7 @@ on:
       - 'milling-quality-identity.js'
       - 'api/**'
       - 'auth_store.php'
+      - 'logout.php','logout.php'
       - 'master_store.php'
       - 'backup_lib.php'
       - 'office_backup_auth.php'
@@ -161,6 +163,7 @@ jobs:
           php tests/security/upload_validation_test.php
           php tests/security/office_backup_auth_test.php
           python3 tests/security/office_backup_agent_test.py
+          python3 tests/security/logout_http_test.py
           php -l scripts/cleanup_qa_data.php
       - name: Runtime delivery and authentication audit
         run: node tests/runtime_security_static_audit.js
