@@ -167,8 +167,17 @@ jobs:
           private_dir="${target%/public_html}/transtrade_private"
           recovery_hash_file="$private_dir/admin-recovery.hash"
           if [ ! -s "$recovery_hash_file" ]; then
-            php "$stage/scripts/migrate_recovery_hash.php" \
-              "$target/auth_store.php" "$recovery_hash_file"
+            if php "$stage/scripts/migrate_recovery_hash.php" \
+              "$target/auth_store.php" "$recovery_hash_file"; then
+              :
+            else
+              migration_status=$?
+              if [ "$migration_status" -eq 3 ]; then
+                echo "::warning::No legacy recovery credential was present. Recovery stays disabled until a Super Admin generates a new code."
+              else
+                exit "$migration_status"
+              fi
+            fi
           fi
           if command -v rsync >/dev/null 2>&1; then
             rsync -a --checksum \

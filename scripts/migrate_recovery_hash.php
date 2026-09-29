@@ -45,6 +45,12 @@ foreach ($tokens as $token) {
     }
 }
 
+$sourceHasRecoveryConstant = $foundName;
+if (!$sourceHasRecoveryConstant) {
+    fwrite(STDERR, "No legacy recovery constant is present; recovery remains disabled until owner rotation.\n");
+    exit(3);
+}
+
 $info = $legacyHash !== '' ? password_get_info($legacyHash) : ['algoName' => 'unknown'];
 if (($info['algoName'] ?? 'unknown') === 'unknown') {
     fwrite(STDERR, "Existing recovery hash could not be migrated safely.\n");
