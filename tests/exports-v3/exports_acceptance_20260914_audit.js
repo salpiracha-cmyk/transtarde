@@ -46,7 +46,7 @@ const fiAllocationEnd=app.indexOf('\nfunction removeFIAllocation',fiAllocationSt
 assert(fiAllocationStart>0&&fiAllocationEnd>fiAllocationStart,'FI allocation action is missing');
 assert(app.slice(fiAllocationStart,fiAllocationEnd).includes('customsCurrencyFor(lot,c)'),'FI Register allocation does not follow the TG Customs currency');
 const lotRecordStart=app.lastIndexOf('function makeLotRecord(process,plan)');
-const lotRecordEnd=app.indexOf('\nconst renderLoadingBeforeBooking',lotRecordStart);
+const lotRecordEnd=app.indexOf('\nfunction docHsCode',lotRecordStart);
 assert(lotRecordStart>0&&lotRecordEnd>lotRecordStart,'Authoritative lot creation is missing');
 assert(!app.slice(lotRecordStart,lotRecordEnd).includes('makeLotRecord__legacy'),'Lot creation still delegates to a superseded implementation');
 const saveContractStart=app.indexOf('function saveContract(print)');
