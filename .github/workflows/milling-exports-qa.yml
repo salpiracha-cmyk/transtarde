@@ -88,6 +88,7 @@ jobs:
         run: |
           npm install --no-save jsdom@27 playwright@1.55.0
           npx playwright install --with-deps chromium
+          sudo apt-get install -y poppler-utils
       - name: Verify exact September document-output acceptance
         run: |
           node tests/exports-v3/exports_acceptance_20260914_audit.js
