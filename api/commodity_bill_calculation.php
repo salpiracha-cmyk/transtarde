@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 /** Bill-only calculation. Milling weighbridge records are never changed here. */
 function tt_ready_rice_bill_calculation(float $grossKg, float $ratePerKg, array $input, int $truckCount): array {
-    foreach (['bags','emptyBagWeightGrams','kantaRate'] as $key) {
+    foreach (['bags','emptyBagWeightGrams','kantaRate','loadingRatePerBag'] as $key) {
         $value=$input[$key]??0;
         if (!is_numeric($value)||!is_finite((float)$value)||(float)$value<0) throw new InvalidArgumentException('Enter a valid '.$key.'.');
     }
@@ -13,6 +13,7 @@ function tt_ready_rice_bill_calculation(float $grossKg, float $ratePerKg, array 
     if ($grossKg<=0||$emptyKg>=$grossKg) throw new InvalidArgumentException('Empty-bag weight must be less than the weighbridge weight.');
     return ['weighbridgeWeightKg'=>$grossKg,'bags'=>(int)$bags,'emptyBagWeightGrams'=>$grams,'emptyBagWeightKg'=>$emptyKg,
         'netRiceWeightKg'=>round($grossKg-$emptyKg,6),'ratePerKg'=>$ratePerKg,
+        'loadingRatePerBag'=>(float)($input['loadingRatePerBag']??0),'loadingBags'=>(int)($input['loadingBags']??0),'loadingAmount'=>round((float)($input['loadingBags']??0)*(float)($input['loadingRatePerBag']??0),2),
         'emptyBagDeduction'=>round($emptyKg*$ratePerKg,2),'kantaRate'=>$kanta,'truckCount'=>$truckCount,'kantaAmount'=>round($kanta*$truckCount,2)];
 }
 

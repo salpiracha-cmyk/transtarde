@@ -55,10 +55,10 @@ def run():
   p=payload('26001');p['readyRiceCalculation']['emptyBagWeightGrams']=50000
   assert request('/api/commodity_bills.php',p)[0]==422
   assert request('/api/commodity_bills.php',payload('26001'),user='billview')[0]==403
-  p=payload('26001',['EXMILL|26001|1','EXMILL|26001|2'],4796400);p['readyRiceCalculation']['bags']=960
+  p=payload('26001',['EXMILL|26001|1','EXMILL|26001|2'],4796400);p['readyRiceCalculation']['bags']=960;p['readyRiceCalculation']['loadingRatePerBag']=8;p['readyRiceCalculation']['loadingBags']=1;p['finalCommodityValue']=4804080
   status,result=request('/api/commodity_bills.php',p);assert status==200,(status,result)
-  bill=result['bill'];assert bill['finalCommodityValue']==4796400 and bill['brokerageGross']==2397.6 and bill['brokerageWithholding']==359.64
-  assert bill['supplierPayableTotal']==4798437.96 and not result['warning']
+  bill=result['bill'];assert bill['calculation']['loadingAmount']==7680 and bill['calculation']['loadingBags']==960 and bill['finalCommodityValue']==4804080 and bill['brokerageGross']==2397.6 and bill['brokerageWithholding']==359.64
+  assert bill['supplierPayableTotal']==4806117.96 and not result['warning']
   assert result['journal']['totalDebit']==result['journal']['totalCredit']
   commodity=[a for a in bill['receiptAllocations'] if a['component']=='COMMODITY'];broker=[a for a in bill['receiptAllocations'] if a['component']=='BROKERAGE']
   assert len(commodity)==2 and all(a['payee']=='Indus Rice' for a in commodity) and all(a['payee']=='JJ' for a in broker)
@@ -83,6 +83,28 @@ def run():
    with sync_playwright() as pw:
     browser=pw.chromium.launch();page=browser.new_page(viewport={'width':1280,'height':1000})
     page.goto(base+'/login.php');page.locator('[name=username]').fill('billqa');page.locator('[name=password]').fill(password);page.get_by_role('button',name='Sign in',exact=True).click();page.wait_for_url('**/accounts/index.php')
+    entity_errors=[]
+    def check_response(response):
+     if '/api/' in response.url and response.status>=400:
+      try:
+       data=response.json()
+       if data.get('error')=='An authorized legal entity is required.':entity_errors.append(response.url)
+      except Exception:pass
+    page.on('response',check_response)
+    page.locator('.entityBtn[data-entity="TTI"]').click(force=True);page.wait_for_timeout(250)
+    page.locator('[data-tt-area="commodity"]').click()
+    page.get_by_role('button',name=re.compile('Bill Posting')).click()
+    page.locator('#ttsbSupplier').wait_for()
+    page.locator('#ttsbSupplier').fill('Indus Rice');page.locator('#ttsbSupplier').press('Tab')
+    page.locator('#ttsbSoda').select_option('26001',force=True);page.locator('#ttsbTruck').select_option('EXMILL|26001|1',force=True)
+    page.locator('#ttsbBillNo').fill('FULL-SCREEN-PRESERVED')
+    page.locator('#ttsbLoadingRate').fill('8')
+    page.wait_for_timeout(2000)
+    assert page.locator('#ttsbBillNo').input_value()=='FULL-SCREEN-PRESERVED','Background mount reset bill entry'
+    assert page.locator('#ttsbLoadingTotal').input_value()=='3840.00'
+    assert page.locator('#ws-purchases').evaluate("el=>el.classList.contains('active')"),'Form navigated away during entry'
+    assert not entity_errors,entity_errors
+    page.remove_listener('response',check_response)
     # Exercise the actual form against the actual endpoints in a minimal harness.
     harness='<html><body><div id="purchaseEditor" data-tt-purchase-mode="arrival"></div><script>window.TT_ACCOUNT_ACCESS={csrf:'+json.dumps(page.locator('body').evaluate('()=>window.TT_ACCOUNT_ACCESS.csrf'))+'};localStorage.setItem("tt_accounts_entity","TTI");</script><script src="accounts/bill-smart-ui-v2.js"></script><script>TT_SMART_COMMODITY_BILLS_V2.mount();</script></body></html>'
     # Relative api URLs require an Accounts directory harness.
@@ -91,14 +113,15 @@ def run():
     page.locator('#ttsbBroker').fill('');page.locator('#ttsbBroker').press('Tab')
     page.locator('#ttsbSupplier').fill('Indus Rice');page.locator('#ttsbSupplier').press('Tab');page.wait_for_function("document.querySelector('#ttsbBroker').value==='JJ'")
     assert page.locator('#ttsbSupplierChoices option').count()==1
-    page.locator('#ttsbSoda').select_option('26001');page.locator('#ttsbTruck').select_option('EXMILL|26001|1');assert not page.locator('#ttsbMultiple').is_checked()
+    page.locator('#ttsbSoda').select_option('26001',force=True);page.locator('#ttsbTruck').select_option('EXMILL|26001|1',force=True);assert not page.locator('#ttsbMultiple').is_checked()
     assert page.locator('#ttsbFilling').count()==0 and page.locator('#ttsbBags').input_value()=='480'
     assert page.locator('#ttsbBrokerage').input_value()=='1198.80'
     assert 'Credit' in page.locator('.ttsb-summary').inner_text() and '11-10-2026' in page.locator('.ttsb-summary').inner_text()
     page.locator('#ttsbKanta').fill('600');page.locator('#ttsbBillNo').fill('BROWSER-FIXTURE');page.locator('#ttsbMultiple').check()
     assert page.locator('[data-bill-source]:checked').count()==2 and page.locator('#ttsbBillNo').input_value()=='BROWSER-FIXTURE'
     assert page.locator('#ttsbBags').input_value()=='960' and page.locator('#ttsbBrokerage').input_value()=='2397.60'
-    assert '4,798,437.96' in page.locator('#ttsbGrandTotal').inner_text()
+    page.locator('#ttsbLoadingRate').fill('8');assert page.locator('#ttsbLoadingBags').input_value()=='960';assert page.locator('#ttsbLoadingTotal').input_value()=='7680.00'
+    assert '4,806,117.96' in page.locator('#ttsbGrandTotal').inner_text()
     rows=page.locator('.ttsb-truck').all();assert all(row.bounding_box()['height']<65 for row in rows)
     page.locator('#ttsbVerify').click();page.get_by_role('heading',name='Bill Posted',exact=True).wait_for();assert not page.locator('#ttSmartBillToast').is_visible()
     browser.close()

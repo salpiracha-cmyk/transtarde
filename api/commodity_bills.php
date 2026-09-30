@@ -239,7 +239,7 @@ try{
         if($readyRice){
             if(!is_array($body['readyRiceCalculation']??null))cb_respond(['ok'=>false,'error'=>'Refresh Bill Posting to enter the ready-rice bag calculation.'],422);
             $grossKg=0;foreach($receiptRows as $receipt){$journal=$store['journals'][$store['events'][$receipt['eventId']]['journalId']]??[];$grossKg+=(float)($journal['meta']['weighbridgeWeightKg']??$receipt['payableWeightKg']);}
-            $calculation=tt_ready_rice_bill_calculation($grossKg,(float)($soda['ratePerKg']??$soda['rate']??0),$body['readyRiceCalculation'],count($receiptRows));
+            $calculation=tt_ready_rice_bill_calculation($grossKg,(float)($soda['ratePerKg']??$soda['rate']??0),array_merge($body['readyRiceCalculation'],['loadingBags'=>$brokeryBags]),count($receiptRows));
             $brokeryWeightKg=$calculation['netRiceWeightKg'];
         }
         $brokeryRate=cb_brokery_rate($soda);if($commodity==='RICE'&&$brokeryRate&&($brokeryRate['basis']??'')==='PER_50_KG_BAG'){$brokeryRate['amount']=round((float)$brokeryRate['amount']*2,2);$brokeryRate['basis']='PER_100_KG';}
@@ -266,7 +266,7 @@ try{
         }
         if($brokerageWithholding>$brokerageGross)cb_respond(['ok'=>false,'error'=>'Brokery withholding cannot exceed system-calculated Buying Brokery.'],422);
         $provisional=round($provisional,2);$billBaseValue=$calculation!==null&&!$readyRice?round((float)$calculation['finalCommodityValue'],2):$provisional;
-        if($readyRice)$billBaseValue=round($calculation['netRiceWeightKg']*$calculation['ratePerKg']+$calculation['kantaAmount'],2);
+        if($readyRice)$billBaseValue=round($calculation['netRiceWeightKg']*$calculation['ratePerKg']+$calculation['kantaAmount']+$calculation['loadingAmount'],2);
         if($adjustmentLines||$readyRice){
             $addition=0.0;$deduction=0.0;$cleanLines=[];
             foreach($adjustmentLines as $line){
@@ -280,6 +280,7 @@ try{
             $adjustmentLines=$cleanLines;
             if($readyRice){
                 if($calculation['emptyBagDeduction']>0)$adjustmentLines[]=['kind'=>'DEDUCTION','description'=>'Empty bag weight','amount'=>$calculation['emptyBagDeduction'],'systemComponent'=>'EMPTY_BAGS'];
+                if($calculation['loadingAmount']>0)$adjustmentLines[]=['kind'=>'ADDITION','description'=>'Loading Charges ('.$calculation['loadingBags'].' bags × '.$calculation['loadingRatePerBag'].')','amount'=>$calculation['loadingAmount'],'systemComponent'=>'LOADING'];
                 if($calculation['kantaAmount']>0)$adjustmentLines[]=['kind'=>'ADDITION','description'=>'Kanta / Weight Charges','amount'=>$calculation['kantaAmount'],'systemComponent'=>'KANTA'];
                 $calculation['finalCommodityValue']=$serverFinal;$calculation['brokerageGross']=$brokerageGross;$calculation['brokerageWithholding']=$brokerageWithholding;
             }
