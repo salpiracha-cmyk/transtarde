@@ -44,6 +44,12 @@ if ($id === 'exports') {
         $html
     );
     $inlineJs = str_replace('</script', '<\/script', $js);
+    $shipmentFiles = (string)file_get_contents(__DIR__ . '/exports/shipment-files.js');
+    $html = tt_replace_html_once(
+        '~<script\b[^>]*src=["\'](?:/exports/)?shipment-files\.js[^"\']*["\'][^>]*>\s*</script>~i',
+        static fn(): string => '<script id="exports-shipment-files">' . str_replace('</script', '<\/script', $shipmentFiles) . '</script>',
+        $html
+    );
     $html = tt_replace_html_once(
         '~<script\b[^>]*src=["\'](?:exports/)?app\.js[^"\']*["\'][^>]*>\s*</script>~i',
         static fn(): string => '<script id="exports-app-js">' . $inlineJs . '</script>',

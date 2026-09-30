@@ -38,6 +38,8 @@ lot.coo={...lot.coo,date:'2026-09-25',membershipNo:'36453'};
 
 t.state.shipments=[processShipment,lot];lot.commercial.saved=true;lot.commercial.status='Final';lot.seller='TTI';contract.seller='TTI';
 
+assert.match(fs.readFileSync(__dirname+'/../../module.php','utf8'),/exports-shipment-files/,'protected module runtime must inline folder-saving code');
+const delivery=fs.readFileSync(__dirname+'/../../api/export_pdf_assets.php','utf8');assert.match(delivery,/tt_current_user/);assert.match(delivery,/tt_user_can_open_module/);assert.match(delivery,/\$assets\[/);
 const phytoName='One printout of e-Phyto issued by Department of Plant Protection, Government of Pakistan, (QR verifiable)';
 assert.ok(t.uploadDocumentCategory('lot-document-'+phytoName).length<=64);
 assert.match(t.uploadDocumentCategory('lot-document-'+phytoName),/^[a-z0-9-]{3,64}$/);
@@ -54,6 +56,7 @@ const {chromium}=require('playwright'),path=require('path'),out=path.resolve(__d
  const browser=await chromium.launch({headless:true,...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH?{executablePath:process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH}:{})}),page=await browser.newPage({viewport:{width:1400,height:1300}});
  const root=path.resolve(__dirname,'../..');
  await page.route('http://tt.local/exports/**',route=>{const url=new URL(route.request().url()),file=url.pathname.replace('/exports/','');if(file==='qa.html')return route.fulfill({body:'<html><head></head><body><div id="app"></div><div id="qa-editor"></div><div id="printRoot"></div></body></html>',contentType:'text/html'});return route.fulfill({path:path.join(root,'exports',file)})});
+ await page.route('http://tt.local/api/export_pdf_assets.php?**',route=>{const asset=new URL(route.request().url()).searchParams.get('asset');return route.fulfill({path:path.join(root,'exports/vendor',asset==='html2canvas'?'html2canvas-1.4.1.min.js':'jspdf-4.2.1.umd.min.js'),contentType:'application/javascript'})});
  await page.goto('http://tt.local/exports/qa.html');await page.addStyleTag({content:fs.readFileSync(path.join(root,'exports/app.css'),'utf8')});
  let app=fs.readFileSync(path.join(root,'exports/app.js'),'utf8').replace('mount();restoreContractCheckpoint();',`window.__qa={fixture(root){state=root;currentShipmentId=root.shipments.find(row=>row.kind==='lot').id;localStorage.setItem(STORE,JSON.stringify(root));renderShipmentWorkspace=()=>{}},uploads(){renderUploadDocuments(document.getElementById('qa-editor'))},final(){renderDocumentOutput(document.getElementById('qa-editor'))},rows(){return finalShipmentDocuments(shipment(),contractByRef(shipment().contractRef))},state(){return state},upload(file,name){return uploadDocument(file,name,shipment())},packing(){return commercialCopyLabel(packingListDoc(shipment(),contractByRef(shipment().contractRef)),'ORIGINAL')},save(optional=false){return saveShipmentFolder(shipment(),contractByRef(shipment().contractRef),optional)}};`);
  await page.evaluate(()=>{window.TT_MODULE_ACCESS={user:'QA'};window.TT_SHARED_SYNC={saveNow:()=>Promise.resolve({ok:true}),flush(){}};window.alert=message=>{throw Error(message)}});
