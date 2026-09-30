@@ -19,7 +19,7 @@ try{tt_accounts_freight_metadata($root,array_replace($a,['loadingProgrammeNo'=>'
 try{tt_accounts_freight_metadata($root,array_replace($a,['entity'=>'BRM']),$user);throw new RuntimeException('Accepted foreign company');}catch(InvalidArgumentException $expected){}
 check(tt_accounts_shipment_rows($root,'TTI')[0]['shippingLine']==='Draft line','BL draft line precedence');
 $key='transtrade_export_v3_operational';
-if(getenv('TT_DB_HOST')!==''){
+if((string)getenv('TT_DB_HOST')!==''){
  check(getenv('TT_QA_MYSQL')==='1','MySQL test requires explicit disposable QA mode');
  check(getenv('TT_DB_HOST')==='127.0.0.1'&&preg_match('/^transtrade_qa_[a-z0-9_]+$/',(string)getenv('TT_DB_NAME'))===1,'Only a local disposable QA database is allowed');
  $db=tt_accounts_exports_db();
