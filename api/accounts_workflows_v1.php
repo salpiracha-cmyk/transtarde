@@ -139,7 +139,10 @@ try{
   else aw_out(['ok'=>false,'error'=>'Unknown Accounts workflow action.'],422);
   if(in_array($action,['save_freight_bill','save_service_bill'],true)){
     if(!$shipmentSections&&!empty($before['shipmentSections']))aw_out(['ok'=>false,'error'=>'This invoice contains multiple shipments. Reopen its full shipment invoice before amending it.'],409);
-    if($shipmentSections){$row['shipmentSections']=$shipmentSections;$row['shipmentIds']=array_column($shipmentSections,'shipmentId');$s[$action==='save_freight_bill'?'freightBillsV1':'exportServiceBillsV1'][$id]=$row;}
+    if($shipmentSections){
+      if($action==='save_freight_bill'){$agreed=0.0;$agreementIds=[];$allAgreed=true;foreach($shipmentSections as $section){$match=null;foreach((array)$s['freightAgreements'] as $candidate)if(($candidate['entity']??'')===$entity&&($candidate['shipmentId']??'')===$section['shipmentId']&&(!$match||($candidate['updatedAt']??'')>($match['updatedAt']??'')))$match=$candidate;if(!$match){$allAgreed=false;continue;}$agreementIds[]=$match['id'];$agreed+=(float)$match['ratePerContainer']*$section['containerCount'];}$row['freightAgreementIds']=$agreementIds;$row['agreedFreightUsd']=$allAgreed?round($agreed,2):null;$row['agreementVarianceUsd']=$allAgreed?round($row['acceptedUsd']-$agreed,2):null;}
+      $row['gdNo']=implode(', ',array_values(array_unique(array_filter(array_column($shipmentSections,'gdNo')))));$row['loadingProgrammeNo']=implode(', ',array_values(array_unique(array_filter(array_column($shipmentSections,'loadingProgrammeNo')))));
+      $row['shipmentSections']=$shipmentSections;$row['shipmentIds']=array_column($shipmentSections,'shipmentId');$s[$action==='save_freight_bill'?'freightBillsV1':'exportServiceBillsV1'][$id]=$row;}
   }
   if($preservedTransportBills)$s['transportBillsV1']=array_merge($s['transportBillsV1'],$preservedTransportBills);if($preservedFreightBills)$s['freightBillsV1']=array_merge($s['freightBillsV1'],$preservedFreightBills);
   if($action==='save_soda'&&in_array($commodity,['CORN','SESAME'],true)){$row['rateUnit']='MAUND';$s['purchaseSodas'][$id]=$row;}
