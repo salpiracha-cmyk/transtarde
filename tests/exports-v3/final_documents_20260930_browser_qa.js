@@ -21,7 +21,7 @@ context.globalThis=context;
 let source=fs.readFileSync(__dirname+'/../../exports/app.js','utf8');
 const mutableExportOverrides=source.split('\n').filter(line=>/^[A-Za-z_$][\w$]*\s*=\s*function\s*\(/.test(line)).map(line=>line.match(/^([A-Za-z_$][\w$]*)/)[1]);
 assert.deepEqual(mutableExportOverrides,[],'Export module must not contain mutable function override assignments');
-source=source.replace('mount();','window.__EXPORT_TEST__={parseContractText,parseLCText,paymentText,lcSpecificTerms,effectiveTerms,documentsPresented,inspectionDocumentName,packingPrefix,unitRate,makeShipment,salesContractPrint,purchaseOrderPrint,commercialInvoiceDoc,tgInternalCommercialInvoiceDoc,packingListDoc,phytoInvoiceDoc,blDraftDoc,coveringDoc,lcControlDoc,lcDraftDoc,actualRows,millActualsComplete,fiGdRows,applyProductMaster,productLabel,productMasters,qualityDescription,contractSpecRows,currentCropYear,millLocations,brokenEntry,normalizeBrokenEntry,brokenEntryValid,finishChoices,DEFAULT_QUALITY,CONTAINER_RE,state,cooDoc,buyerOf,captureShipmentPartyDetails,shipmentDocumentContext,applyExportCustomerMasters,uploadDocumentCategory,shipmentUploadName,recordUploadedDocument,finalShipmentDocuments,shipmentFolderDocuments,customsInvoiceValue,shipmentGDReferences,validGDReferenceDate,renderDocumentOutput,renderUploadDocuments};\nmount();');
+source=source.replace('mount();','window.__EXPORT_TEST__={parseContractText,parseLCText,paymentText,lcSpecificTerms,effectiveTerms,documentsPresented,inspectionDocumentName,packingPrefix,unitRate,makeShipment,salesContractPrint,purchaseOrderPrint,commercialInvoiceDoc,tgInternalCommercialInvoiceDoc,packingListDoc,phytoInvoiceDoc,blDraftDoc,coveringDoc,lcControlDoc,lcDraftDoc,actualRows,millActualsComplete,fiGdRows,applyProductMaster,productLabel,productMasters,qualityDescription,contractSpecRows,currentCropYear,millLocations,brokenEntry,normalizeBrokenEntry,brokenEntryValid,finishChoices,DEFAULT_QUALITY,CONTAINER_RE,state,cooDoc,buyerOf,captureShipmentPartyDetails,shipmentDocumentContext,applyExportCustomerMasters,uploadDocumentCategory,shipmentUploadName,recordUploadedDocument,finalShipmentDocuments,shipmentFolderDocuments,customsInvoiceValue,shipmentGDReferences,validGDReferenceDate,outputBrand,formatOutputBrandReferences,commercialDescriptionText,blAutoDescription,renderDocumentOutput,renderUploadDocuments};\nmount();');
 vm.runInNewContext(source,context,{filename:'app.js'});
 const t=window.__EXPORT_TEST__;
 
@@ -63,6 +63,25 @@ for(const route of ['TTI','BRM','TG']){
 }
 assert.deepEqual(JSON.parse(JSON.stringify(t.shipmentGDReferences({customs:{gdRefs:[]},bl:{gdRefs:[{number:'KPEX-SB-37338',date:'12-09-2026'}]}}))),[{number:'KPEX-SB-37338',date:'2026-09-12'}]);
 assert.equal(t.validGDReferenceDate('2026-02-30'),false);assert.equal(t.validGDReferenceDate('2026-09-12'),true);
+assert.equal(t.outputBrand('Ghazal'),'"GHAZAL" Brand');assert.equal(t.outputBrand('"GHAZAL" Brand'),'"GHAZAL" Brand');
+assert.equal(t.formatOutputBrandReferences('Ghazal brand / "GHAZAL" BRAND',contract),'"GHAZAL" Brand / "GHAZAL" Brand');
+assert.equal(t.formatOutputBrandReferences('A+B brand',{packings:[{brand:'A+B'}]}),'"A+B" Brand');
+assert.equal(t.formatOutputBrandReferences('Ghazal Classic / Ghazal',{packings:[{brand:'Ghazal'},{brand:'Ghazal Classic'}]}),'"GHAZAL CLASSIC" Brand / "GHAZAL" Brand');
+for(const markup of [t.salesContractPrint(contract),t.purchaseOrderPrint({poNo:'QA-PO',lines:[{brand:'Ghazal',type:'P.P. Bags',size:50,totalBags:5400}]}),t.blDraftDoc(lot,contract),t.commercialInvoiceDoc(lot,contract,true),t.packingListDoc(lot,contract,true),t.phytoInvoiceDoc(lot,contract),t.commercialInvoiceDoc(lot,contract),t.packingListDoc(lot,contract),t.cooDoc(lot,contract),t.tgInternalCommercialInvoiceDoc(lot,contract)]){
+ assert.match(markup,/&quot;GHAZAL&quot; Brand/,'all document brand labels must use one canonical format');assert.doesNotMatch(markup,/Brand brand|&quot;&quot;GHAZAL/);
+}
+const descriptionFixture=structuredClone(lot),originalCustoms=JSON.stringify(descriptionFixture.customs);descriptionFixture.bl={...descriptionFixture.bl,draftSaved:true,descriptionAuto:false,description:'B/L AMENDED WHITE RICE — BUYER APPROVED.\nBROKEN: 5% MAX\nHS CODE: 1006.30'};
+for(const route of ['TTI','BRM','TG'])for(const paymentCode of ['CAD100','LC_SIGHT']){
+ const shipment=structuredClone(descriptionFixture),agreement={...contract,seller:route,paymentCode};shipment.seller=route;shipment.lc={...shipment.lc,goodsDescription:'OLD LC DESCRIPTION',lcNo:'QA-LC',lcDate:'2026-09-12'};
+ for(const markup of [t.commercialInvoiceDoc(shipment,agreement),t.packingListDoc(shipment,agreement),t.cooDoc(shipment,agreement),t.tgInternalCommercialInvoiceDoc(shipment,agreement)]){
+  assert.match(markup,/B\/L AMENDED WHITE RICE/);assert.doesNotMatch(markup,/NEW CROP 2026\/2027|OLD LC DESCRIPTION/);assert.equal((markup.match(/HS CODE: 1006.30/g)||[]).length,1,'saved B/L HS code must not be duplicated');
+ }
+ assert.match(t.commercialInvoiceDoc(shipment,agreement,true),/NEW CROP 2026\/2027/,'Customs description remains controlled by Customs');
+}
+assert.equal(JSON.stringify(descriptionFixture.customs),originalCustoms);
+const autoText=t.blAutoDescription(lot,contract),autoShipment={...descriptionFixture,bl:{...descriptionFixture.bl,description:autoText.replace('PAKISTAN LONG GRAIN WHITE RICE','AMENDED B/L GOODS')}};
+assert.match(t.commercialDescriptionText(autoShipment,contract),/AMENDED B\/L GOODS/);assert.doesNotMatch(t.commercialDescriptionText(autoShipment,contract),/SAID TO CONTAIN|TOTAL NET WEIGHT|FEET CONTAINERS/);
+assert.ok(t.blAutoDescription(autoShipment,contract).startsWith('SAID TO CONTAIN:'),'B/L generation must not recursively include an old B/L envelope');
 const {chromium}=require('playwright'),path=require('path'),out=path.resolve(__dirname,'../../tmp/qa/final-files-20260930');fs.mkdirSync(out,{recursive:true});
 (async()=>{
  const browser=await chromium.launch({headless:true,...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH?{executablePath:process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH}:{})}),page=await browser.newPage({viewport:{width:1400,height:1300}});
@@ -81,7 +100,7 @@ const {chromium}=require('playwright'),path=require('path'),out=path.resolve(__d
  await page.locator('#lotDocumentFile').setInputFiles({name:'phyto.png',mimeType:'image/png',buffer:Buffer.from(png.split(',')[1],'base64')});await page.locator('#saveLotDocument').click();await page.waitForFunction(()=>window.__qa.state().certs===undefined&&window.__qa.state().shipments.find(row=>row.kind==='lot').certs.some(row=>row.reference==='PC-2026-999'));
  const uploadBaseline=await page.evaluate(()=>JSON.parse(localStorage.getItem('transtrade_export_v3_operational')));
  const blFixture=structuredClone(uploadBaseline);const blLot=blFixture.shipments.find(row=>row.kind==='lot');blLot.customs.gdRefs=[];blLot.bl.gdRefs=[];
- await page.evaluate(data=>window.__qa.fixture(data),blFixture);await page.evaluate(()=>window.__qa.bl());await page.locator('[data-bl-gd-number="0"]').fill('KPEX-SB-37338');await page.locator('[data-bl-gd-date="0"]').fill('2026-09-12');await page.locator('#saveBL').click();
+ await page.evaluate(data=>window.__qa.fixture(data),blFixture);await page.evaluate(()=>window.__qa.bl());await page.locator('[data-bl-gd-number="0"]').fill('KPEX-SB-37338');await page.locator('[data-bl-gd-date="0"]').fill('2026-09-12');await page.locator('#blDesc').fill('AMENDED WHITE RICE FROM SAVED B/L DRAFT');await page.locator('#saveBL').click();assert.ok(await page.evaluate(()=>window.__qa.rows().filter(row=>['commercial','packing'].includes(row.key)).every(row=>row.render().includes('AMENDED WHITE RICE FROM SAVED B/L DRAFT'))),'saved B/L description must reach final generated documents');
  await page.evaluate(()=>window.__qa.uploads());await page.locator('#uploadDocumentType').selectOption('Goods Declaration (GD)');assert.equal(await page.locator('[data-upload-gd-number="0"]').inputValue(),'KPEX-SB-37338');assert.equal(await page.locator('[data-upload-gd-date="0"]').inputValue(),'2026-09-12','GD selected and saved in B/L Draft must flow to uploads');
  for(const source of ['customs','bl','missing']){
   const fixture=structuredClone(uploadBaseline),shipment=fixture.shipments.find(row=>row.kind==='lot');shipment.customs.gdRefs=[];shipment.bl.gdRefs=[];
@@ -128,5 +147,5 @@ const {chromium}=require('playwright'),path=require('path'),out=path.resolve(__d
  }
  await page.evaluate(()=>{const root={name:'fixture',async queryPermission(){return'granted'},async getDirectoryHandle(){return this},async getFileHandle(){throw Error('Office share offline')}};window.showDirectoryPicker=async()=>root});await page.evaluate(()=>window.TT_SHIPMENT_FILES.choose().catch(()=>{}));
  const failure=await page.evaluate(async png=>{try{await window.TT_SHIPMENT_FILES.save({customer:'QA',contract:'TTI/QA/01',lot:'TTI/QA/01/L01',rows:[],uploads:[{id:'fixture',name:'fixture.png',dataUrl:png}]});return''}catch(error){return error.message}},png);assert.match(failure,/0 of 1 files saved/,'failed share write must never report success');
- await browser.close();console.log('PASS GD prefill/fallback, editable number/date columns, validated multi-GD uploads, Phyto upload/reference, single final table/COO, packing label, branded PDF, and reusable customer/shipment/lot and Customs/TG subfolder saves across TTI, BRM and TG');
+ await browser.close();console.log('PASS saved B/L description propagation across TTI/BRM/TG and L/C, canonical quoted brands on all outputs, GD prefill/fallback, editable number/date columns, validated multi-GD uploads, Phyto upload/reference, single final table/COO, packing label, branded PDF, and reusable customer/shipment/lot and Customs/TG subfolder saves across TTI, BRM and TG');
 })().catch(error=>{console.error(error);process.exit(1)});
