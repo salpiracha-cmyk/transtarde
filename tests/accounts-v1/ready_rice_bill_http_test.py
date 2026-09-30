@@ -91,7 +91,7 @@ def run():
        if data.get('error')=='An authorized legal entity is required.':entity_errors.append(response.url)
       except Exception:pass
     page.on('response',check_response)
-    page.locator('.entityBtn[data-entity="TTI"]').click(force=True);page.wait_for_timeout(250)
+    page.locator('#ttChangeCompanyDesk').click();page.locator('.tt-company-choice[data-entity="TTI"]').click();page.wait_for_timeout(250)
     page.locator('[data-tt-area="commodity"]').click()
     page.get_by_role('button',name=re.compile('Bill Posting')).click()
     page.locator('#ttsbSupplier').wait_for()
@@ -123,6 +123,10 @@ def run():
     page.locator('#ttsbLoadingRate').fill('8');assert page.locator('#ttsbLoadingBags').input_value()=='960';assert page.locator('#ttsbLoadingTotal').input_value()=='7680.00'
     assert '4,806,117.96' in page.locator('#ttsbGrandTotal').inner_text()
     rows=page.locator('.ttsb-truck').all();assert all(row.bounding_box()['height']<65 for row in rows)
+    page.locator('#ttsbAddAddition').click();page.locator('[data-line-description]').fill('Fixture packing');page.locator('[data-line-amount]').fill('100')
+    ends=[page.locator(sel).bounding_box()['x']+page.locator(sel).bounding_box()['width'] for sel in ['#ttsbBrokerage','#ttsbLoadingTotal','[data-line-amount]','#ttsbWithAmt']]
+    assert max(ends)-min(ends)<2,ends
+    page.locator('[data-line-remove]').click()
     page.locator('#ttsbVerify').click();page.get_by_role('heading',name='Bill Posted',exact=True).wait_for();assert not page.locator('#ttSmartBillToast').is_visible()
     browser.close()
   print('Ready rice bill HTTP, payee, WHT, due-date, master and duplicate-posting checks passed'+('; browser flow passed' if os.environ.get('TT_QA_BROWSER')=='1' else ''))
