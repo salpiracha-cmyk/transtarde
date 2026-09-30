@@ -378,6 +378,10 @@ function tt_normalize_masters(array $masters): array {
     foreach ($masters['products'] as &$row) {
         $values=array_values((array)($row['values'] ?? []));
         while (count($values)<22) $values[]='';
+        if (strcasecmp(trim((string)($values[0]??'')),'Rice')===0) {
+            $values[17]=tt_export_finish_normalize((string)($values[17]??''));
+            $values[21]=tt_export_hs_code((string)$values[0],(string)($values[7]??''),(string)($values[21]??''));
+        }
         $row['values']=$values;
     }
     unset($row);
@@ -471,6 +475,28 @@ function tt_brokery_amount(?array $rate,float $weightKg,float $bags=0): float {
     return round(max(0,$units*$figure),2);
 }
 
+function tt_export_finish_options(): array {
+    return [
+        'Reasonably well milled',
+        'Well milled, double polished and well sortexed',
+        'Well milled, silky polished and well sortexed',
+    ];
+}
+
+function tt_export_finish_normalize(string $finish): string {
+    $finish=trim(preg_replace('/\s+/u',' ',$finish) ?? '');
+    foreach (tt_export_finish_options() as $approved) if (strcasecmp($finish,$approved)===0) return $approved;
+    $lower=strtolower($finish);
+    if (str_contains($lower,'reasonably')) return 'Reasonably well milled';
+    if (str_contains($lower,'double')) return 'Well milled, double polished and well sortexed';
+    return 'Well milled, silky polished and well sortexed';
+}
+
+function tt_export_hs_code(string $commodity,string $broken,string $existing=''): string {
+    if (strcasecmp(trim($commodity),'Rice')!==0 && strcasecmp(trim($commodity),'RICE')!==0) return trim($existing);
+    return preg_match('/(^|[^0-9])100(?:\.0+)?\s*%/i',$broken) ? '1006.4000' : '1006.3090';
+}
+
 function tt_default_master_options(): array {
     static $cached = null;
     if ($cached !== null) return $cached;
@@ -480,7 +506,7 @@ function tt_default_master_options(): array {
         'product_varieties'=>['IRRI-6','C-9','PK-386','Super Kernel Basmati','D-98','1121'],
         'product_rice_types'=>['White','Parboiled','Steam'],
         'product_broken'=>['5% max','10% max','15-20%','25% max','100%'],
-        'product_finishes'=>['Well milled, silky polished and well sortexed','Well milled, double polished and well sortexed','Reasonably well milled'],
+        'product_finishes'=>tt_export_finish_options(),
         'product_origins'=>['Pakistan'],
         'product_profiles'=>['Active Transtrade default','Contract specific','Historical reference'],
         'currencies'=>['USD','EUR','GBP','AED','PKR'],
@@ -506,6 +532,7 @@ function tt_master_options(): array {
     $productFields=['product_commodities'=>0,'product_varieties'=>1,'product_rice_types'=>2,'product_broken'=>7,'product_finishes'=>17,'product_origins'=>4,'product_profiles'=>5];
     $out=[];
     foreach ($defaults as $key=>$base) {
+        if ($key==='product_finishes') { $out[$key]=tt_export_finish_options(); continue; }
         $values=array_merge($base,(array)($stored[$key] ?? []));
         if (isset($productFields[$key])) {
             foreach ((array)($data['masters']['products'] ?? []) as $row) {
@@ -531,6 +558,7 @@ function tt_master_options(): array {
 function tt_manage_master_option(string $key,string $action,string $value,string $old='',string $fullName=''): string {
     $defaults=tt_default_master_options();
     if (!array_key_exists($key,$defaults)) throw new InvalidArgumentException('Select a valid option list.');
+    if ($key==='product_finishes') throw new InvalidArgumentException('Finish is fixed to the three approved Export Quality & Specs options.');
     $clean=static fn(string $v): string=>trim(preg_replace('/\s+/',' ',$v) ?? '');
     $value=$clean($value); $old=$clean($old);
     if (!in_array($action,['add','rename','delete'],true)) throw new InvalidArgumentException('Select add, rename or delete.');
