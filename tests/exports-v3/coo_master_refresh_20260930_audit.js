@@ -65,27 +65,28 @@ const {chromium}=require('playwright'),path=require('path'),out=path.resolve(__d
  const css=fs.readFileSync(path.resolve(__dirname,'../../exports/app.css'),'utf8'),art=fs.readFileSync(path.resolve(__dirname,'../../exports/assets/KCCI_COO_letterpad.jpg')).toString('base64');
  const render=async(markup,name)=>{
   await page.setContent('<html><head><style>'+css+'</style></head><body><div id="printRoot" aria-hidden="false" style="display:block">'+markup.replace('assets/KCCI_COO_letterpad.jpg','data:image/jpeg;base64,'+art)+'</div></body></html>');
-  await page.locator('.cooLetterpadBackground').evaluate(im=>im.decode());
+  if(await page.locator('.cooLetterpadBackground').count())await page.locator('.cooLetterpadBackground').evaluate(im=>im.decode());
   const fitting=source.slice(source.indexOf('function fitCOOPages('),source.indexOf('function fitTGProformaPages('));await page.addScriptTag({content:fitting});
   assert.equal(await page.evaluate(()=>fitCOOPages(document.getElementById('printRoot'))),true,name+' must fit without clipping: '+JSON.stringify(await page.locator('.cooFixedField').evaluateAll(nodes=>nodes.filter(n=>n.scrollHeight>n.clientHeight+1||n.scrollWidth>n.clientWidth+1).map(n=>({field:n.className,font:getComputedStyle(n).fontSize,scroll:n.scrollHeight,height:n.clientHeight,text:n.innerText})))));
   const measure=()=>{const p=document.querySelector('.cooLetterpadPage'),b=p.getBoundingClientRect();return{width:b.width,height:b.height,fields:[...p.querySelectorAll('.cooFixedField')].map(node=>{const r=node.getBoundingClientRect(),range=document.createRange();range.selectNodeContents(node);return{class:node.className,left:(r.left-b.left)/b.width,top:(r.top-b.top)/b.height,right:(r.right-b.left)/b.width,bottom:(r.bottom-b.top)/b.height,overflowX:node.scrollWidth-node.clientWidth,overflowY:node.scrollHeight-node.clientHeight,textRects:[...range.getClientRects()].map(x=>({left:x.left-r.left,right:x.right-r.right,top:x.top-r.top,bottom:x.bottom-r.bottom}))}})}};
   const screen=await page.evaluate(measure);await page.emulateMedia({media:'print'});const printed=await page.evaluate(measure);
-  assert.ok(Math.abs(screen.height-297*96/25.4)<1&&Math.abs(screen.width-210*96/25.4)<1);
+  assert.ok(Math.abs(screen.height-281.94*96/25.4)<1&&Math.abs(screen.width-213.36*96/25.4)<1);
   assert.deepEqual(printed,screen,'preview and print must use identical page and field positions');
   for(const field of printed.fields){assert.ok(field.overflowX<=1&&field.overflowY<=1,name+' overflow '+field.class);assert.ok(field.textRects.every(x=>x.left>=-1&&x.right<=1&&x.top>=-1&&x.bottom<=1),name+' text crosses field '+field.class)}
-  const membership=printed.fields.find(x=>x.class.includes('cooFixedMembership'));assert.ok(membership.top>.24&&membership.bottom<.263,'membership stays inside the membership box');
-  const packs=printed.fields.find(x=>x.class.includes('cooFixedPackages'));assert.ok(packs.left>.157&&packs.right<.262);
+  const membership=printed.fields.find(x=>x.class.includes('cooFixedMembership'));assert.ok(membership.left>=.269&&membership.top>.23&&membership.bottom<.25,'membership stays beside the printed membership label');
+  const packs=printed.fields.find(x=>x.class.includes('cooFixedPackages'));assert.ok(packs.left>=.167&&packs.right<.247);
   const weights=printed.fields.find(x=>x.class.includes('cooFixedWeight'));assert.ok(weights.left>.73&&weights.right<.855);
   for(const [className,line] of [['cooFixedName',.899],['cooFixedDesignation',.9245],['cooFixedCompany',.950]])assert.ok(printed.fields.find(x=>x.class.includes(className)).bottom<=line+.002,className+' sits above its line');
   await page.locator('.cooLetterpadPage').screenshot({path:path.join(out,name+'.png')});
-  await page.pdf({path:path.join(out,name+'.pdf'),format:'A4',printBackground:true,preferCSSPageSize:true});
+  await page.pdf({path:path.join(out,name+'.pdf'),width:'213.36mm',height:'281.94mm',printBackground:true,preferCSSPageSize:true});
   await page.emulateMedia({media:'screen'});return printed;
  };
  const measurements=await render(openCoo,'amt-coo');
+ const overlay=await render(t.cooDoc(lot,contract,true),'physical-coo');assert.deepEqual(overlay,measurements,'physical overlay and background PDF must have identical sheet size and field positions');
  const stress=structuredClone(closed);stress.completed=false;stress.status='Lot Created';delete stress.documentParties;
- const longContract={...contract,buyerDetails:{address:'Long Address Road '.repeat(12)},customerId:'LONG-QA'};
+ const longContract={...contract,packings:contract.packings.map(row=>({...row,masterBag:{enabled:true,bagsPerMaster:8,weight:400}})),buyerDetails:{address:'Long Address Road '.repeat(12)},customerId:'LONG-QA'};
  t.state.customers.push({id:'LONG-QA',name:'Long International Trading Company',address:longContract.buyerDetails.address});
- await render(t.cooDoc(stress,longContract),'long-address-coo');
+ const longCoo=t.cooDoc(stress,longContract);assert.match(longCoo,/MASTER BAGS/);await render(longCoo,'long-address-coo');
  fs.writeFileSync(path.join(out,'report.json'),JSON.stringify(measurements,null,2));
  await browser.close();console.log('PASS active master amendment, closed-lot snapshots, unchanged financials, and AMT COO screen/print alignment');
 })().catch(e=>{console.error(e);process.exit(1)});
