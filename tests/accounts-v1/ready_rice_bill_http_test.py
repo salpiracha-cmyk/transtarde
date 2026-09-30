@@ -138,6 +138,9 @@ def run():
   assert any(l['account']=='2520' and l['credit']==25 for l in tg['journal']['lines']) and not any(l['account'] in ['1110','1120'] for l in tg['journal']['lines'])
   status,ledger=request('/api/accounts_ledger_browser.php?entity=TTI&category=supplier&party=Fixture%20Vendor&from=2026-09-01&to=2026-09-30');assert status==200 and ledger['opening']==-300 and ledger['closing']==-150,(status,ledger)
   assert ledger['rows'][0]['party']=='Fixture Vendor'
+  status,extra=request('/api/supplier_settlements.php',{**pay,'requestKey':'payment-fixture-advance','amount':200,'allowAdvance':True});assert status==200,(status,extra)
+  assert extra['result']['advanceAmount']==50 and extra['result']['netPayment']==200
+  state=json.loads(storefile.read_text());assert state['supplierAdvances'][extra['result']['advanceId']]['availableAmount']==50
   print('Non-commodity payment FIFO, partial, registers, retry, TG cash/third-party and entity isolation passed')
   for name,role in [('Fixture Fumigation','Fumigation'),('Fixture Forwarder','Freight Forwarder')]:
    status,created=request('/api/masters.php',{'action':'create','type':'business_parties','values':[name,'',role,'','','','','','','','Active','','']});assert status==200,(status,created)
@@ -217,7 +220,7 @@ def run():
     page.locator('#ttShipmentBillPay').click();page.locator('#ttSimpleBills [data-amount]').fill('50000');page.locator('#ttSimpleBills [data-source]').select_option('CASH');page.locator('#ttSimpleBills [type=submit]').click();page.locator('#ttSimpleBills').get_by_role('heading',name='Payment posted',exact=True).wait_for()
     assert 'POST ID' in page.locator('#ttSimpleBills').inner_text()
     page.locator('#ttSimpleBills [data-close]').click()
-    page.evaluate("TT_ALL_LEDGERS.open('2130','supplier')");page.locator('#tal-party').fill('Cedar Horizon Haulage');page.locator('#tal-go').click();page.wait_for_function("document.querySelector('.tal-total').textContent.includes('103,200.00')")
+    page.evaluate("TT_ALL_LEDGERS.open('2130','supplier')");page.locator('#tal-party').fill('Cedar Horizon Haulage');page.locator('#tal-go').click();page.wait_for_function("document.querySelector('.tal-total')?.textContent.includes('103,200.00')")
     assert '50000' not in page.locator('.tal-total').inner_text() and '50,000.00' in page.locator('.tal-total').inner_text()
     with page.expect_download() as dl:page.locator('#tal-export').click()
     assert dl.value.suggested_filename.endswith('.xlsx');page.locator('#tal-close').click()
