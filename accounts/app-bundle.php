@@ -11,6 +11,7 @@ if (!tt_user_can_open_module($user, 'Accounts')) {
 
 $files = [
     'post-confirmation-ui.js',
+    'bill-layout.js',
     'currency-master-ui.js',
     'accounts-runtime.js',
     'accounts-live.js',
@@ -105,3 +106,4 @@ foreach ($files as $file) {
     echo "\n;/* " . str_replace('*/', '', $file) . " */\n";
     readfile(__DIR__ . '/' . $file);
 }
+

@@ -276,3 +276,16 @@ test('TG customer receipt reads the live Exports and bank links without posting'
   await expect(page.locator('#exports-tg-accounts-receipts')).toHaveCount(1);
   await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('tt40exportreceipts') || 'null')), { timeout: 15_000 }).toEqual(exportsReceipts.body.receipts);
 });
+
+
+test('read-only transporter bill register reconciliation', async ({ page }) => {
+  test.setTimeout(120_000);
+  await signIn(page);
+  const response = await page.request.get(`${BASE_URL}/api/accounts_workflows_v1.php?entity=TTI&section=transport`);
+  expect(response.ok()).toBeTruthy();
+  const result = await response.json();
+  expect(result.ok).toBeTruthy();
+  const matches = (result.bills || []).filter(b => String(b.invoiceNo || '').trim() === '204');
+  // Report only the status of the user-reported invoice, never real amounts, party details or ledger content.
+  console.log(`TRANSPORT_INVOICE_204_STATUS=${matches.length ? 'RECORDED' : 'NOT_FOUND'}`);
+});

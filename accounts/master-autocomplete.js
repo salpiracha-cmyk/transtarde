@@ -28,7 +28,7 @@
     const row = (masters[type] || []).find(item => clean(item?.values?.[0]).toLowerCase() === name.toLowerCase());
     const canCreate = access.super || (access.masterPermissions?.[type] || []).includes('Create');
     const canEdit = access.super || (access.masterPermissions?.[type] || []).includes('Edit');
-    if (!row && !canCreate) return false;
+    if (!row && !canCreate) { alert('Adding '+(roleFor(kind)||'Customer')+' requires Business Parties Create permission. Ask Super Admin to add this party.'); return false; }
     let dialog = document.getElementById('ttPartyInlineEditor');
     if (!dialog) {
       dialog = document.createElement('dialog'); dialog.id = 'ttPartyInlineEditor';
@@ -74,7 +74,10 @@
   }
   function category(input) {
     if (!input || input.closest('.tt-search-select') || input.matches('[readonly],[disabled],[type="date"],[type="number"],[type="file"]')) return '';
+    if (input.dataset.masterRole) return input.dataset.masterRole;
     const text = clean(input.closest('label')?.textContent + ' ' + input.placeholder + ' ' + input.id).toLowerCase();
+    // Document identifiers and charge descriptions are not party selectors.
+    if (/invoice|bill number|bill no|reference|description|remarks|notes/.test(text)) return '';
     if (input.id === 'svVendor') return ({CLEARING:'clearing',FUMIGATION:'fumigation',INSPECTION:'inspection'})[document.getElementById('svKind')?.value] || 'service';
     if (/customer|buyer|consignee/.test(text)) return 'buyer';
     if (/bag supplier|supplier/.test(text)) return 'supplier';
@@ -108,7 +111,7 @@
       if ((name === 'buyer' || roleFor(name)) && !input.dataset.ttMasterManage && !input.closest('#ttPartyInlineEditor')) {
         const button = document.createElement('button'); button.type = 'button'; button.className = 'btn tt-master-inline'; button.textContent = 'Add / Edit';
         button.title = `Manage ${name} in Super Admin masters`; button.style.cssText = 'margin:4px 0 0;padding:5px 8px;font-size:11px';
-        button.onclick = event => { event.preventDefault(); openEditor(input,category(input)); };
+        button.onclick = event => { event.preventDefault(); openEditor(input,name); };
         input.insertAdjacentElement('afterend',button); input.dataset.ttMasterManage = '1';
       }
     });
@@ -124,3 +127,4 @@
   };
   document.readyState === 'loading' ? document.addEventListener('DOMContentLoaded',start,{once:true}) : start();
 })();
+
