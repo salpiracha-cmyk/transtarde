@@ -253,3 +253,14 @@ Accounts development and its QA workflow are maintained on `main`. The old `acco
 
 - Transport entry has aligned Loading Programme, Containers and Rate fields. There is no shipment remarks / rate override reason field, and changing the suggested Route Master rate does not require a separate reason. Bill narration remains optional; additions and deductions retain their descriptions. Historical remarks and rates are preserved.
 - Shared master, JV and expense suggestion lists must not be reassigned when unchanged. Unrelated totals or screen updates must preserve the focused field and its open choices. Searchable selections must reopen on a click even when the field is already focused.
+
+
+### Accounts new-entry completion and amendments — Salman, 30 September 2026
+- Freight Agreed selects a customer and sales contract only. Track contract containers, agreed containers and remaining containers. Hide fully agreed contracts, and hide a customer only when no eligible contracts remain. Existing lot agreements count toward the same contract total. TG planning remains shared between Pakistan companies.
+- Save retries reuse the same agreement request; they must not add the container allocation twice. Reject counts above the contract's remaining containers.
+- Populate a new freight invoice's Freight USD rate from its saved lot agreement or contract agreement. Never overwrite a rate the user has already entered or the rate on an amendment.
+- Hide posted source shipments only from NEW ENTRY in the corresponding bill category and company. Registers, universal search, ledgers and original records retain them. A freight bill must not hide a shipment from clearing, fumigation or inspection.
+- Only TRANSPORT has ADD ANOTHER SHIPMENT. New freight, clearing, fumigation and inspection bills have one shipment. Preserve and reopen all sections on historical multi-shipment bills for amendments.
+- Non-commodity bill posting controls read POST BILL. Successful bill confirmation reads BILL POSTED, with a large uppercase centered heading, POST NUMBER and centered details. Held bills say BILL SAVED — ON HOLD and are not falsely described as posted. Receipts, payments, JVs and commodity workflows retain their own meanings.
+- POST ANOTHER BILL closes the completed bill before opening a fresh shipment search; dialogs must not obscure the active form.
+- Main search accepts bill number or its linked posting journal reference. AMEND BILL reopens the full original linked expense bill; require amendment reason and Edit access, preserve bill identity and existing settlement links, reject stale edits, and post only the accounting difference. Accepted liability cannot fall below settled payments. Preserve all source sections, USD/PKR charge currencies, accepted rates and deductions. Historical unlinked bills use their original register editor.

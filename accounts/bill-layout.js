@@ -13,7 +13,7 @@
     .tt-bill-total{display:flex;justify-content:space-between;align-items:baseline;gap:18px;padding:12px 9px;border-bottom:1px solid #dbe2ea;font-weight:800}
     .tt-bill-total b{margin-left:auto;text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
     .tt-bill-grand{margin-top:12px;border-top:2px solid #243d52;border-bottom:3px double #243d52;font-size:16px}.tt-bill-grand b{font-size:24px}
-    .tt-bill-confirmation{text-align:center;border:2px solid #258454!important;background:#e8f6ed!important;padding:24px!important}.tt-bill-confirmation h3{color:#153e2b}
+    .tt-bill-confirmation{text-align:center;border:2px solid #258454!important;background:#e8f6ed!important;padding:24px!important}.tt-bill-confirmation h2,.tt-bill-confirmation h3{color:#153e2b;font-size:28px;font-weight:900;text-transform:uppercase}.tt-bill-confirmation p{text-align:center;font-size:17px}.tt-bill-confirmation .tt-form-actions{justify-content:center}
     #ttShipmentBillError:not(:empty){border:2px solid #bb3434;color:#932222;background:#fff0ef;padding:14px;margin:12px 0;font-weight:700}
     #nwTotal{font-size:24px;font-weight:800;text-align:right}#nwTotalLabel{grid-column:1/-1;text-align:right}
     @media(max-width:650px){.ttv-chargegrid,.ttv-rowgrid{grid-template-columns:36px repeat(2,minmax(0,1fr))!important}.tt-bill-adjustment,.tt-bill-adjustment.tt-bill-freight{grid-template-columns:36px minmax(0,1fr) minmax(0,1fr)!important}.tt-bill-adjustment label:last-child{grid-column:2/-1}.tt-bill-grand b{font-size:20px}}

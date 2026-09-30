@@ -71,7 +71,18 @@ try {
             $haystack = strtolower((string)$key . ' ' . as_text($row));
             if (!str_contains($haystack, $needle)) continue;
             $amount = as_first($row, ['amount','total','netAmount','finalCommodityValue','supplierPayableTotal','grossPkr','totalDebit']);
+            $billId=(string)($row['meta']['supplierBillId']??$row['id']??$key);$amend=null;
+            foreach(['freightBillsV1'=>'FREIGHT','transportBillsV1'=>'TRANSPORT','exportServiceBillsV1'=>''] as $billCollection=>$billKind){
+                $bill=$store[$billCollection][$billId]??null;
+                if(is_array($bill)&&($bill['entity']??'')===$entity&&(!empty($bill['shipmentId'])||!empty($bill['shipmentIds']))){
+                    $amend=$bill;$amend['billKind']=$billKind?:($bill['kind']??'');
+                    $amend['postingJournalIds']=$store['supplierBills'][$billId]['postingJournalIds']??[];break;
+                }
+            }
+            if($amend&&$collection!=='journals'&&!in_array($collection,['supplierBills','freightBillsV1','transportBillsV1','exportServiceBillsV1'],true))$amend=null;
+            if($amend&&$collection!=='journals')$row['postingJournalIds']=$amend['postingJournalIds'];
             $results[] = [
+                'amendRecord'=>$amend,
                 'title'=>as_title((string)$collection, (string)$key, $row),
                 'type'=>as_type((string)$collection, $row),
                 'date'=>as_first($row, ['date','voucherDate','billDate','receiptDate','sodaDate','createdAt']),

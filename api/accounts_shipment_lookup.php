@@ -9,11 +9,18 @@ if(!tt_user_can_open_module($user,'Accounts'))asl_out(['ok'=>false,'error'=>'Acc
 $entity=strtoupper(trim((string)($_GET['entity']??'')));
 if(!in_array($entity,['TTI','BRM'],true)||!tt_user_can_access_entity($user,$entity,'View'))asl_out(['ok'=>false,'error'=>'Select accessible Pakistan company books.'],403);
 $term=trim((string)($_GET['q']??''));
-if(strlen($term)<2)asl_out(['ok'=>true,'rows'=>[]]);
+if(strlen($term)<2&&(string)($_GET['scope']??'')!=='freight_agreed')asl_out(['ok'=>true,'rows'=>[]]);
 $freightScope=(string)($_GET['scope']??'')==='freight';
 require_once __DIR__.'/accounts_shipment_source.php';
+require_once __DIR__.'/accounts_entry_eligibility.php';
 try{
-    $root=tt_accounts_exports_root();$contracts=[];$customers=[];
+    $root=tt_accounts_exports_root();$store=tt_accounts_entry_store();$contracts=[];$customers=[];
+    if((string)($_GET['scope']??'')==='freight_agreed'){
+        $eligible=array_values(array_filter(tt_accounts_contract_freight($root,$store,$entity),static fn($r)=>$r['remainingContainers']>0));
+        $names=array_values(array_unique(array_filter(array_column($eligible,'customer'))));sort($names,SORT_NATURAL|SORT_FLAG_CASE);
+        $name=trim((string)($_GET['customer']??''));$rows=array_values(array_filter($eligible,static fn($r)=>($name===''||strcasecmp($r['customer'],$name)===0)&&($term===''||str_contains(strtolower($r['contract'].' '.$r['customer']),strtolower($term)))));
+        asl_out(['ok'=>true,'rows'=>$rows,'customers'=>$names]);
+    }
     foreach((array)($root['customers']??[]) as $customer)if(is_array($customer))$customers[(string)($customer['id']??'')]=(string)($customer['name']??'');
     foreach((array)($root['contracts']??[]) as $contract)if(is_array($contract))$contracts[(string)($contract['ref']??'')]=$contract;
     $rows=[];
@@ -28,6 +35,7 @@ try{
         $rows[]=['id'=>'','kind'=>'contract','seller'=>$seller,'lot'=>'Contract planning','contract'=>$ref,'customer'=>$customer,'containers'=>[],'plannedContainers'=>$count,'portOfLoading'=>(string)($contract['pol']??''),'portOfDischarge'=>$port,'loadingProgramme'=>'','shippingLine'=>''];
     }
     foreach(tt_accounts_shipment_rows($root,$entity) as $row){
+        $kind=strtoupper(trim((string)($_GET['billKind']??'')));if(in_array($kind,['FREIGHT','TRANSPORT','CLEARING','FUMIGATION','INSPECTION'],true)&&tt_accounts_source_billed($store,$entity,$kind,$row['id']))continue;
         $haystack=strtolower(implode(' ',array_map(static fn($item)=>is_array($item)?implode(' ',$item):(string)$item,$row)));
         if(str_contains($haystack,strtolower($term)))$rows[]=$row;
         if(count($rows)>=50)break;
