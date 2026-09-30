@@ -178,6 +178,8 @@ test('authenticated Accounts live smoke: professional desk and popup workflows',
   await closeWorkspace(page);
 
   await deskAction(page, 'exports', 'Inspection Bill');
+  await expect(page.locator('#ttBillDesk [data-post]')).toBeVisible();
+  await activate(page.locator('#ttBillDesk [data-post]'));
   await expect(page.locator('#ttBillShipmentSearch')).toBeVisible({ timeout: 30_000 });
   await expect(page.locator('#ttBillShipmentQuery')).toBeVisible();
   await activate(page.locator('#ttBillShipmentSearch .tt-window-close'));
@@ -189,6 +191,7 @@ test('authenticated Accounts live smoke: professional desk and popup workflows',
   await activate(page.locator('#ttOtherExportExpense .tt-window-close'));
 
   await deskAction(page, 'exports', 'Bags Bill');
+  await activate(page.locator('#ttBillDesk [data-post]'));
   await expect(page.locator('#purchaseEditor .ttbag')).toBeVisible({ timeout: 30_000 });
   await closeWorkspace(page);
 
@@ -197,15 +200,18 @@ test('authenticated Accounts live smoke: professional desk and popup workflows',
   await expect(page.locator('#ws-receivables .tt-prev-search')).toBeVisible();
   await closeWorkspace(page);
 
-  await deskAction(page, 'ledgers', 'Supplier / Broker Ledgers');
-  await expect(page.locator('#ws-payables')).toHaveClass(/tt-clean-modal/, { timeout: 30_000 });
-  await closeWorkspace(page);
+  await deskAction(page, 'ledgers', 'Supplier / Broker');
+  await expect(page.locator('#tal-party')).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('#tal-print')).toBeVisible();
+  await expect(page.locator('#tal-export')).toContainText('Excel');
+  await expect(page.locator('#tal-period')).toHaveValue('till');
+  await activate(page.locator('#tal-close'));
 
-  await deskAction(page, 'ledgers', 'General Ledger');
-  await expect(page.locator('#ttReportsPanel [data-rpt="gl"]')).toBeVisible({ timeout: 30_000 });
-  await closeWorkspace(page);
+  await deskAction(page, 'ledgers', 'Other Account');
+  await expect(page.locator('#tal-account')).toBeVisible({ timeout: 30_000 });
+  await activate(page.locator('#tal-close'));
 
-  await deskAction(page, 'ledgers', 'Search All Entries');
+  await deskAction(page, 'registers', 'Bill & Invoice Registers');
   await expect(page.locator('#ttSearchLayer')).toBeVisible();
   await expect(page.locator('#ttUniversalSearch')).toBeVisible();
   await activate(page.locator('#ttSearchLayer .tt-window-close'));
