@@ -164,7 +164,7 @@ assert.equal((normalContract.match(/<h1 class="docTitle">SALES CONTRACT<\/h1>/g)
 assert.match(normalContract,/Page 1 of 2[\s\S]*Page 2 of 2/,'page numbering is printed in each DATE row');
 assert.equal((normalContract.match(/salesContractPageStamp/g)||[]).length,1,'non-final pages carry the page stamp while the final seller signature avoids duplication');
 for(const heading of ['PORT OF LOADING','PORT OF DISCHARGE','INSURANCE','PACKING / BRAND-MARKING','OTHER TERMS AND CONDITIONS','DOCUMENTS TO BE PRESENTED FOR NEGOTIATION'])assert.match(normalContract,new RegExp(heading));
-assert.match(normalContract,/Packed in new single PP Bags of 25 kgs each with buyer’s marking \/ STAR brand\./);
+assert.match(normalContract,/Packed in new single PP Bags of 25 kgs each with buyer’s marking \/ &quot;STAR&quot; Brand\./);
 assert.match(normalContract,/approvedSimplePrice\">USD\. 410\.00 CFR Jebel Ali, United Arab Emirates\.<\/div>/);
 assert.match(normalContract,/TOTAL CFR VALUE 540 M\.TONS × USD 410\.00[\s\S]*USD\. 221,400\.00\/=/);
 assert.match(normalContract,/UNITED STATES DOLLARS TWO HUNDRED TWENTY ONE THOUSAND FOUR HUNDRED ONLY/);
