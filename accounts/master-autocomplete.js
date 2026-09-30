@@ -111,7 +111,7 @@
       if ((name === 'buyer' || roleFor(name)) && !input.dataset.ttMasterManage && !input.closest('#ttPartyInlineEditor')) {
         const button = document.createElement('button'); button.type = 'button'; button.className = 'btn tt-master-inline'; button.textContent = 'Add / Edit';
         button.title = `Manage ${name} in Super Admin masters`; button.style.cssText = 'margin:4px 0 0;padding:5px 8px;font-size:11px';
-        button.onclick = event => { event.preventDefault(); openEditor(input,name); };
+        button.onclick = event => { event.preventDefault(); openEditor(input,category(input)); };
         input.insertAdjacentElement('afterend',button); input.dataset.ttMasterManage = '1';
       }
     });
