@@ -18,7 +18,7 @@ foreach([['26001','READY','Indus Rice','JJ','CREDIT',30],['26002','RAW','Indus R
  $s['events'][$eid]=['id'=>$eid,'eventType'=>'COMMODITY_RECEIPT_ACCEPTED','entity'=>'TTI','sourceKey'=>$key,'journalId'=>$jid,'status'=>'Accepted'];
  }
 }
-file_put_contents(TT_DATA_DIR.'/accounts.json',json_encode($s));file_put_contents(TT_DATA_DIR.'/operations.json',json_encode(['values'=>[]]));file_put_contents(__DIR__.'/credentials.json',json_encode(['password'=>$pw]));
+$s['localSalesPaymentCandidates']['foreign-payment']=['id'=>'foreign-payment','entity'=>'BRM','soda'=>'FOREIGN','party'=>'Foreign party','amount'=>100,'paymentDate'=>'2026-09-29','status'=>'Pending Accounts Approval'];$s['localSalesCandidates']['foreign-sale']=['entity'=>'BRM','journalId'=>'foreign-journal','loadedKg'=>100,'saleDate'=>'2026-09-29','product'=>'Ready Rice'];$s['inventoryCostRates']['foreign-rate']=['entity'=>'BRM','product'=>'Ready Rice','effectiveFrom'=>'2026-01-01','status'=>'Active','costPerKg'=>100,'inventoryAccount'=>'1320'];file_put_contents(TT_DATA_DIR.'/accounts.json',json_encode($s));file_put_contents(TT_DATA_DIR.'/operations.json',json_encode(['values'=>[]]));file_put_contents(__DIR__.'/credentials.json',json_encode(['password'=>$pw]));
 '''
 def run():
  root=Path(tempfile.mkdtemp(prefix='tti-ready-bill-'));server=None;log=None
@@ -47,6 +47,10 @@ def run():
   assert lookup['receipts'][0]['emptyBagWeightGrams']==50 and len(lookup['sodas'])==4
   assert request('/api/commodity_lookup.php?entity=BRM')[0]==403
   assert request('/api/commodity_lookup.php')[0]==403
+  status,local=request('/api/local_sales_payments.php?entity=TTI');assert status==200 and local['pending']==[]
+  assert request('/api/local_sales_payments.php',{'entity':'TTI','action':'reject_payment','paymentId':'foreign-payment','note':'fixture'})[0]==403
+  status,cost=request('/api/local_sales_costing.php',{'entity':'TTI','action':'post_waiting'});assert status==200,(status,cost)
+  assert not json.loads((root/'transtrade_private/accounts.json').read_text())['localSalesCandidates']['foreign-sale'].get('costJournalId'),'Cross-company cost posting'
   original=(root/'transtrade_private/operations.json').read_bytes()
   def payload(no,keys=None,final=2398200):
    return {'action':'verify_bill','entity':'TTI','relationshipType':'SUPPLIER','relationshipName':'Indus Rice','billDate':'2026-09-29','sourceKeys':keys or [f'EXMILL|{no}|1'],'broker':'JJ','billNo':'FIXTURE-'+no,'finalCommodityValue':final,'brokerageRate':5,'brokerageBasis':'PER_100_KG','brokerageWhtPercent':15,'readyRiceCalculation':{'bags':480,'emptyBagWeightGrams':50,'kantaRate':600},'adjustmentLines':[]}
