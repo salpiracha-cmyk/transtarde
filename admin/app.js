@@ -737,19 +737,22 @@
     }
     return `<tr class="spec-editor-row custom-spec-row"><td><input data-custom-spec-name value="${escapeHtml(name)}" placeholder="Specification"></td><td><input data-custom-spec-limit value="${escapeHtml(limit)}" placeholder="Limit / requirement"></td><td><button class="row-action delete" type="button" data-remove-product-spec aria-label="Remove specification">Remove</button></td></tr>`;
   }
-  const APPROVED_PRODUCT_FINISHES = [
-    "Reasonably well milled",
-    "Well milled, double polished and well sortexed",
-    "Well milled, silky polished and well sortexed"
-  ];
+  function approvedProductFinishes() {
+    return [
+      "Reasonably well milled",
+      "Well milled, double polished and well sortexed",
+      "Well milled, silky polished and well sortexed"
+    ];
+  }
   function normalizeProductFinish(value="") {
+    const options=approvedProductFinishes();
     const clean=String(value||"").trim().replace(/\s+/g," ");
-    const exact=APPROVED_PRODUCT_FINISHES.find(option=>option.toLowerCase()===clean.toLowerCase());
+    const exact=options.find(option=>option.toLowerCase()===clean.toLowerCase());
     if(exact)return exact;
     const lower=clean.toLowerCase();
-    if(lower.includes("reasonably"))return APPROVED_PRODUCT_FINISHES[0];
-    if(lower.includes("double"))return APPROVED_PRODUCT_FINISHES[1];
-    return APPROVED_PRODUCT_FINISHES[2];
+    if(lower.includes("reasonably"))return options[0];
+    if(lower.includes("double"))return options[1];
+    return options[2];
   }
   function productHsCodeForMaster(commodity,broken,current="") {
     if(String(commodity||"").trim().toLowerCase()!=="rice")return String(current||"").trim();
@@ -762,7 +765,7 @@
   function productOptionSelect(index,label,key,value,required=false) {
     if(key==="product_finishes"){
       const selected=normalizeProductFinish(value);
-      return `<label class="managed-option-field">${escapeHtml(label)}<select id="${masterInputId(index)}" data-master-field-index="${index}" data-product-option="${key}" data-product-option-label="${escapeHtml(label)}" data-product-existing-value="${escapeHtml(selected)}" ${required?"required":""}>${APPROVED_PRODUCT_FINISHES.map(option=>`<option value="${escapeHtml(option)}" ${option===selected?"selected":""}>${escapeHtml(option)}</option>`).join("")}</select></label>`;
+      return `<label class="managed-option-field">${escapeHtml(label)}<select id="${masterInputId(index)}" data-master-field-index="${index}" data-product-option="${key}" data-product-option-label="${escapeHtml(label)}" data-product-existing-value="${escapeHtml(selected)}" ${required?"required":""}>${approvedProductFinishes().map(option=>`<option value="${escapeHtml(option)}" ${option===selected?"selected":""}>${escapeHtml(option)}</option>`).join("")}</select></label>`;
     }
     const options=[...new Set([...(state.masterOptions?.[key]||[]),...(value?[value]:[])])].filter(Boolean).sort((a,b)=>a.localeCompare(b));
     const listId=`productOptionList${index}`;
