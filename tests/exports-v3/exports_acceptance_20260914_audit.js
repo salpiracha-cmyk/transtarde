@@ -98,6 +98,6 @@ assert(css.includes('.salesContractPhysicalPage .salesContractPageStamp'),'Per-p
 assert(app.includes('Page ${page} of ${total}'),'Sales Contract page count is not inside the DATE row');
 assert(app.includes("return freshCustomsInvoiceDocument(copy,c,'CUSTOM INVOICE')"),'Customs preview must render only the active invoice');
 assert(admin.includes('brand-theme.css?v=20260914-control-centre-1'),'Control Centre theme missing');
-assert(/app\.js\?v=20260916-export-repair-1/.test(exportsIndex),'Exports cache-bust marker missing');
+assert(/app\.js\?v=20260930-coo-master-1/.test(exportsIndex),'Exports cache-bust marker missing');
 assert.equal(app.split('\n').filter(line=>/^[A-Za-z_$][\w$]*\s*=\s*function\s*\(/.test(line)).length,0,'Mutable Export function override remains');
 console.log('Exports September 14 exact acceptance audit passed.');

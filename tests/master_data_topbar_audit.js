@@ -28,7 +28,7 @@ assert.match(auth,/if \(!empty\(\$user\['master_access'\]\)\) return in_array\(\
 assert.match(auth,/'Accounts'=>\['companies','banks','export_realization_charges'/,'Accounts has its financial master scope by default');
 assert.match(auth,/return in_array\(\$action,\['Use','View'\],true\)/,'accounts without an explicit matrix receive scoped read-only master access');
 assert.match(customerMaster,/window\.TTOpenMasterData=openManager/);
-assert.match(exportIndex,/customer-master\.js\?v=20260911-header-m-2/);
+assert.match(exportIndex,/customer-master\.js\?v=20260930-active-parties-1/);
 assert.doesNotMatch(milling,/data-home-role="admin-only" onclick="openPanel\('masters'\)"/,'Milling has no separate Master Data tile');
 assert.match(milling,/<section id="masters" class="panel">/,'the existing workspace remains available behind M');
 assert.match(indexPhp,/tt_user_can_open_module\(\$user, \$moduleHomes\[\$requestedModule\]\['permission'\]\)/,'return destinations are permission validated server-side');

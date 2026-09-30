@@ -82,6 +82,7 @@
   }
 
   function mergeMastersIntoLocal(masters,removeDeleted=false){
+    if(isExports&&typeof window.TT_APPLY_EXPORT_CUSTOMER_MASTERS==='function')return window.TT_APPLY_EXPORT_CUSTOMER_MASTERS(masters);
     const root=parseRoot();if(!root||!Array.isArray(root.customers))return false;
     let changed=false;
     for(const m of masters){
@@ -204,7 +205,8 @@
 
   async function init(){
     injectStyle();hookStorage();
-    try{await loadList();if(isExports){const changed=mergeMastersIntoLocal(listCache,true);await syncLocalCustomers();if(changed&&!sessionStorage.getItem('tt-cm-initial-sync')){sessionStorage.setItem('tt-cm-initial-sync','1');location.reload();return}}else{const migrated=await migrateSharedCustomers();if(migrated&&!sessionStorage.getItem('tt-cm-admin-migrated')){sessionStorage.setItem('tt-cm-admin-migrated','1');location.reload();return}}}catch(e){console.warn('Customer master init:',e)}
+    try{await loadList();if(isExports){const changed=mergeMastersIntoLocal(listCache,true);await syncLocalCustomers();if(changed&&!window.TT_APPLY_EXPORT_CUSTOMER_MASTERS&&!sessionStorage.getItem('tt-cm-initial-sync')){sessionStorage.setItem('tt-cm-initial-sync','1');location.reload();return}}else{const migrated=await migrateSharedCustomers();if(migrated&&!sessionStorage.getItem('tt-cm-admin-migrated')){sessionStorage.setItem('tt-cm-admin-migrated','1');location.reload();return}}}catch(e){console.warn('Customer master init:',e)}
+    if(isExports){let refreshing=false;const refresh=async()=>{if(refreshing||document.visibilityState==='hidden')return;refreshing=true;try{await loadList();mergeMastersIntoLocal(listCache,true)}catch(e){console.warn('Customer master refresh:',e)}finally{refreshing=false}};window.addEventListener('focus',refresh);document.addEventListener('visibilitychange',refresh);setInterval(refresh,30000)}
     const observer=new MutationObserver(()=>{addExportButtons();addAdminButton()});observer.observe(document.documentElement,{childList:true,subtree:true});addExportButtons();addAdminButton();
     if(isExports&&sessionStorage.getItem('tt-cm-reopen')){sessionStorage.removeItem('tt-cm-reopen');activeMaster='customers';setTimeout(openManager,80)}const reopenMaster=sessionStorage.getItem('tt-cm-reopen-master');if(isExports&&reopenMaster){sessionStorage.removeItem('tt-cm-reopen-master');activeMaster=reopenMaster;setTimeout(openManager,80)}
   }

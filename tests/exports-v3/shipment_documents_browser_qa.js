@@ -51,7 +51,7 @@ const css = fs.readFileSync(path.join(root, 'exports', 'app.css'), 'utf8');
     commercialInvoice: ['COMMERCIAL INVOICE','BUYER — NAME AND ADDRESS','North Star Foods L.L.C','Warehouse 18','VESSEL','VOYAGE','B/L NUMBER','B/L DATE','L/C NUMBER','L/C DATE','L/C ISSUING BANK','PORT OF LOADING','PORT OF DISCHARGE','PAYMENT TERMS','FI-QA-01','GD-QA-01','1,080 MASTER BAGS','2 BAGS × 25 KG IN ONE MASTER BAG'],
     packingList: ['PACKING LIST','North Star Foods L.L.C','Warehouse 18','North Star Clearing L.L.C','Office 210','BL-QA-001','21-09-2026','MSCU1234567','SL001','TGHU7654321','SL002','COUNTRY OF ORIGIN: PAKISTAN','HS CODE: 1006.30','1,080 MASTER BAGS','GROSS WEIGHT','TARE','NET WEIGHT','M.TONS'],
     blInstructions: ['OCEAN BILL OF LADING','North Star Foods L.L.C','Warehouse 18','North Star Clearing L.L.C','Office 210','MSCU1234567','SL001','TGHU7654321','SL002','"NORTH STAR" BRAND','PAKISTAN LONG GRAIN IRRI-6 WHITE RICE','HS CODE: 1006.30','1,080 MASTER BAGS','2 BAGS × 25 KG IN ONE MASTER BAG'],
-    coo: ['North Star Foods L.L.C','36453','BY SEA','BL-QA-001','GOODS OF PAKISTAN ORIGIN','54.173 M.TONS','54.000 M.TONS']
+    coo: ['North Star Foods L.L.C','36453','BY SEA','BL-QA-001','HS CODE: 1006.30','54.173 M.TONS','54.000 M.TONS']
   };
 
   const report = {};

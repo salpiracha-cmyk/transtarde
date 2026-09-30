@@ -26,7 +26,7 @@ assert.doesNotMatch(finalPacking,/TOTAL TARE WEIGHT FOR/);
 assert.match(finalPacking,/<th>CONTAINER NO\.<\/th><th>SEAL NO\.<\/th><th>PACKAGES<\/th><th>NET WEIGHT<\/th><th>GROSS WEIGHT<\/th>/);
 assert.doesNotMatch(finalPacking,/<th>CONTAINER NO\.<\/th>[\s\S]{0,180}<th>TARE/);
 assert.match(finalPacking,/PAGE \$\{index\+1\} OF \$\{totalPages\}/);
-assert.match(finalCoo,/GOODS OF PAKISTAN ORIGIN/);
+assert.doesNotMatch(finalCoo,/GOODS OF PAKISTAN ORIGIN/);
 assert.match(finalCoo,/cooFixedMembership/);
 assert.doesNotMatch(finalCoo,/CERTIFICATE NO\./);
 assert.match(css,/\.cooPakistanOrigin/);

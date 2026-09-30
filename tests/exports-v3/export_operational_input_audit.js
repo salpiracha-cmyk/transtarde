@@ -6,7 +6,7 @@ const api=fs.readFileSync(root+'api/export_documents.php','utf8');
 const operations=fs.readFileSync(root+'api/operations.mysql.php','utf8');
 const index=fs.readFileSync(root+'exports/index.html','utf8');
 
-assert.match(index,/app\.js\?v=20260916-export-repair-1/);
+assert.match(index,/app\.js\?v=20260930-coo-master-1/);
 assert.match(app,/deletedShipments/);
 assert.match(operations,/applyTombstones/);
 assert.match(operations,/contractRef/);
