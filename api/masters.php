@@ -16,30 +16,7 @@ function master_all(?array $user=null): array {
 }
 function master_options_for_console(): array {
     $options=tt_master_options();
-    $data=tt_read_store();
-    $approvedFinishes=[
-        'Well milled, silky polished and well sortexed',
-        'Well milled, double polished and well sortexed',
-        'Reasonably well milled',
-        'Colour sortexed',
-    ];
-    $stored=is_array($data['master_options']['product_finishes'] ?? null)
-        ? $data['master_options']['product_finishes'] : [];
-    $disabled=array_map(
-        static fn($v): string => strtolower(trim((string)$v)),
-        (array)($data['master_options_disabled']['product_finishes'] ?? [])
-    );
-    $clean=[];$seen=[];
-    foreach (array_merge($approvedFinishes,$stored) as $finish) {
-        $finish=trim(preg_replace('/\s+/',' ',(string)$finish) ?? '');
-        if ($finish==='') continue;
-        $key=strtolower($finish);
-        if (isset($seen[$key]) || in_array($key,$disabled,true)) continue;
-        $seen[$key]=true;$clean[]=$finish;
-    }
-    // Historical/reference Product records retain their saved Finish wording,
-    // but they must not automatically become reusable choices for new Products.
-    $options['product_finishes']=$clean;
+    $options['product_finishes']=tt_export_finish_options();
     return $options;
 }
 try {
@@ -327,6 +304,9 @@ try {
         foreach ([1=>'Variety',2=>'Rice type',7=>'Broken',17=>'Finish'] as $field=>$label) {
             if (($values[$field]??'')==='') throw new InvalidArgumentException('Enter '.$label.' for the complete Product Identity.');
         }
+        $values[17]=tt_export_finish_normalize((string)$values[17]);
+        if (!in_array($values[17],tt_export_finish_options(),true)) throw new InvalidArgumentException('Select one of the three approved Finish options.');
+        $values[21]=tt_export_hs_code((string)($values[0]??''),(string)($values[7]??''),(string)($values[21]??''));
         if (preg_match('/\d+(?:\.\d+)?\s*%\s*(?:MAX\s*)?BROKEN/i',(string)$values[2])) {
             throw new InvalidArgumentException('Keep Rice type separate from Broken. For example, use Rice type “White Rice” and Broken “10%”.');
         }
