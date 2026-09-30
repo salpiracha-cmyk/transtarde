@@ -76,6 +76,10 @@ def run():
   assert request('/api/commodity_bills.php',p)[0]==409,'Duplicate posting must be blocked'
   profile=json.loads((root/'transtrade_private/auth.json').read_text())['masters']['business_parties'][-1]['values'][12];profile=json.loads(profile)
   assert profile['buying'][-1]['effectiveFrom']=='2026-09-29' and profile['selling'][0]['amount']==9
+  values=['HTTP Fixture Transport','','Transporter','','','','','','','','Active','','']
+  status,party=request('/api/masters.php',{'action':'create','type':'business_parties','values':values});assert status==200,(status,party)
+  created=[m for m in party['masters']['business_parties'] if m['id']==party['id']][0];assert created['values'][2]=='Transporter' and json.loads(created['values'][12])=={}
+  values[0]='Malformed Profile Fixture';values[12]='invalid-json';assert request('/api/masters.php',{'action':'create','type':'business_parties','values':values})[0]==422,'Do not weaken malformed brokerage validation'
   p=payload('26003');p['relationshipType']='BROKER';p['relationshipName']='JJ'
   assert request('/api/commodity_bills.php',p)[0]==200,'Broker-only commodity payee'
   p=payload('26004');p['broker']='';p['brokerageRate']=0

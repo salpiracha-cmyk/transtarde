@@ -377,7 +377,9 @@ try {
     if($type==='business_parties'){
         $categories=tt_business_party_categories($values[2]??'');
         if(!$categories)throw new InvalidArgumentException('Select at least one Business Party category.');
-        $profile=json_decode((string)($values[12]??'{}'),true);if(!is_array($profile))throw new InvalidArgumentException('The Brokery profile could not be read. Reopen the broker and try again.');
+        // Non-broker parties have no Brokery profile. Schema padding leaves this field blank.
+        $profileText=trim((string)($values[12]??''));if($profileText===''){$profileText='{}';$values[12]=$profileText;}
+        $profile=json_decode($profileText,true);if(!is_array($profile))throw new InvalidArgumentException('The Brokery profile could not be read. Reopen the broker and try again.');
         $allowedBasis=['PER_100_KG','PER_50_KG_BAG','PER_BAG','PER_MAUND','PER_TON'];
         foreach(['buying'=>'Buying Brokery','selling'=>'Selling Brokery']as$kind=>$label){$rows=$profile[$kind]??[];if(!is_array($rows))throw new InvalidArgumentException($label.' must be a valid list.');$seen=[];foreach($rows as$row){if(!is_array($row))throw new InvalidArgumentException($label.' contains an invalid row.');$amount=(float)($row['amount']??0);$basis=(string)($row['basis']??'');$from=(string)($row['effectiveFrom']??'');if($amount<=0)throw new InvalidArgumentException($label.' figure must be greater than zero.');if(!in_array($basis,$allowedBasis,true))throw new InvalidArgumentException('Select a valid '.$label.' calculation basis.');if(!preg_match('/^\d{4}-\d{2}-\d{2}$/',$from))throw new InvalidArgumentException($label.' Effective From date is required.');if(isset($seen[$from]))throw new InvalidArgumentException($label.' already has a rate starting on '.$from.'.');$seen[$from]=true;}}
         if(!array_filter($categories,static fn($category)=>strcasecmp($category,'Broker')===0)&&(!empty($profile['buying'])||!empty($profile['selling'])))throw new InvalidArgumentException('Select the Broker category before saving Brokery.');
@@ -406,3 +408,4 @@ try {
     master_respond(['ok'=>false,'error'=>'Unknown action.'],400);
 } catch (InvalidArgumentException $e) { master_respond(['ok'=>false,'error'=>$e->getMessage()],422); }
 catch (Throwable $e) { master_respond(['ok'=>false,'error'=>'The master-record action could not be completed.'],500); }
+
