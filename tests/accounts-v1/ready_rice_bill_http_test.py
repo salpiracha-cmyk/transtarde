@@ -182,6 +182,11 @@ def run():
   status,other_kind=request('/api/accounts_shipment_lookup.php?entity=TTI&billKind=INSPECTION&q=FIXTURE-SHIP');assert status==200 and any(r['id']=='FIXTURE-SHIP' for r in other_kind['rows'])
   before_stale=storefile.read_bytes();assert request('/api/accounts_workflows_v1.php',{**detailed,'invoiceNo':'STALE-NEW-FREIGHT','newEntry':True})[0]==409;assert storefile.read_bytes()==before_stale
   status,search=request('/api/accounts_search.php?entity=TTI&q='+recorded['bill']['postingJournalIds'][0]);assert status==200 and any(r.get('amendRecord',{}).get('id')==recorded['bill']['id'] for r in search['results'] if r.get('amendRecord'))
+  edit=next(r['amendRecord'] for r in search['results'] if r.get('amendRecord') and r['amendRecord'].get('id')==recorded['bill']['id'])
+  amended_payload={**detailed,'id':edit['id'],'amendment':True,'updatedAt':edit['updatedAt'],'editVersion':edit['editVersion'],'reason':'Fixture controlled amendment','remarks':'A correction with the same original shipment link'}
+  assert request('/api/accounts_workflows_v1.php',amended_payload)[0]==200
+  # Hash protects even two edits within the same timestamp second.
+  assert request('/api/accounts_workflows_v1.php',amended_payload)[0]==409
   status,eligible=request('/api/accounts_shipment_lookup.php?entity=TTI&scope=freight_agreed&customer=Fixture%20Customer');assert status==200 and all(r['kind']=='contract' for r in eligible['rows'])
   contract=next(r for r in eligible['rows'] if r['contract']=='FIXTURE-CONTRACT');assert contract['plannedContainers']==10 and contract['remainingContainers']==7
   tranche={**agreement,'shipmentId':'','loadingProgrammeNo':'','containerCount':2,'contractSelection':True,'requestKey':'fixture-partial-unique'}

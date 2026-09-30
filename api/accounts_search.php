@@ -75,7 +75,7 @@ try {
             foreach(['freightBillsV1'=>'FREIGHT','transportBillsV1'=>'TRANSPORT','exportServiceBillsV1'=>''] as $billCollection=>$billKind){
                 $bill=$store[$billCollection][$billId]??null;
                 if(is_array($bill)&&($bill['entity']??'')===$entity&&(!empty($bill['shipmentId'])||!empty($bill['shipmentIds']))){
-                    $amend=$bill;$amend['billKind']=$billKind?:($bill['kind']??'');
+                    $amend=$bill;$amend['editVersion']=hash('sha256',json_encode($bill,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE));$amend['billKind']=$billKind?:($bill['kind']??'');
                     $amend['postingJournalIds']=$store['supplierBills'][$billId]['postingJournalIds']??[];break;
                 }
             }
