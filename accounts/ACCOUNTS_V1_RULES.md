@@ -148,7 +148,7 @@ Shared Transport Master: From Where, To Where, Rate. Normal and ex-mill routes c
 ## 14. Freight
 Freight is usually through a freight forwarder and sometimes directly through a shipping line.
 
-Directors Control has a `Freight` icon for the verbally agreed rate:
+Accounts Freight has Freight Agreed, Post Freight Invoice and Payment tabs. Directors may also access agreed freight. The planning agreement records:
 - forwarder / shipping line;
 - from Karachi Port or Port Qasim;
 - destination port;
@@ -233,6 +233,17 @@ Finish Accounts build, test with dummy data, correct workflows/calculations/perm
 ## 25. Third-party settlements
 A payment made directly by a third party to a Transtrade supplier/service provider must not be represented as money moving through a Transtrade bank/cash account. Record payer, beneficiary, linked transaction, amount/date, settlement reason and the correct third-party receivable/payable or intercompany account.
 
-## 26. Current implementation
+## 26. Accounts navigation, supplier payments and ledger statements
+These rules apply to TTI, BRM and TG within each company’s legal books and approved currencies.
+
+Non-commodity bill areas expose Post Bill and Payment. Freight exposes Freight Agreed, Post Freight Invoice and Payment. One supplier, invoice number and bill date may cover several selected shipments. Each shipment retains its additions, deductions, GD, programme, contract/lot and amount. Previous shipment panels are blue; remove buttons are red; selected shipments are excluded. Accounts posts one invoice liability. Shipment profitability uses each subtotal; unallocated later dispute adjustments remain visible.
+
+Choose supplier first to show unpaid/part-paid invoices with bill date, total, paid and outstanding. Tick a subset or use all bills. Enter a payment amount or use full selected outstanding. Allocate oldest invoice date first, partially paying the last invoice. Revalidate balances under the exclusive storage lock. Payments post once with retry-safe request IDs. Bank, Cash and Third Party expose relevant source fields. Third-party settlement creates no company bank/cash movement. Bags and Other Purchases registers refer to the same journal and original invoice IDs. Commodity truck/Pohanch payments remain unchanged. Excess amounts require an explicit supplier advance; never silently overpay an invoice.
+
+TG settlements retain original currency and AED carrying values, each liability’s carrying rate and existing realised exchange difference rules. Select one payee and currency; intercompany FI/GD settlement retains its dedicated source workflow. TG cash is AED; foreign-currency bills use a matching bank or explicit third-party settlement. TG transaction reference remains optional.
+
+Ledgers has Supplier/Broker, Customer, Bank/Cash and Other Account. Registers & Corrections contains Post ID, JV and bill/invoice registers. Financial reports remain Reports; global search remains without duplicate ledger search/audit icons. Till Date shows all history through the selected date. Date Range includes opening balance before start, period debit/credit and closing balance. Statements show date, Post ID/JV, bill/invoice reference, account, narration/party, debit, credit and running balance. Print and real XLSX download use the displayed statement, excluding unsubmitted filter edits. Journal/voucher details open from each entry.
+
+## 27. Current implementation
 Accounts development and its QA workflow are maintained on `main`. The old `accounts-v1-foundation` branch is historical and is not a deployment or QA trigger. Changes must pass the Accounts QA checks before a production deployment. Confirm live behaviour and TTI/BRM/TG separation with test data before production go-live.
 

@@ -40,7 +40,7 @@ def run():
   calc=r'''require $argv[1];$m=['container'=>'ABCD1234560','shipmentId'=>'L1','sourceSodaId'=>'PS1'];$v=['tt35exload'=>json_encode([['container'=>'ABCD1234560','shipmentId'=>'L1','instructionId'=>1]]),'tt40exinstructions'=>json_encode([['id'=>1,'sourceSodaId'=>'PS1','bagTare'=>'0.12 kg']])];if(tt_bill_bag_defaults($m,$v)['emptyBagWeightGrams']!==120.0)throw new Exception('Bag kg conversion');$m['shipmentId']='L2';if(tt_bill_bag_defaults($m,$v)['emptyBagWeightGrams']!==0)throw new Exception('Wrong-shipment bag tare');'''
   subprocess.run(['php','-r',calc,str(app/'api/commodity_bill_calculation.php')],check=True,capture_output=True)
   password=json.loads((root/'credentials.json').read_text())['password'];clients={};tokens={}
-  for username in ['billqa','billview']:
+  for username in ['billqa','billview','fixtureowner']:
    client=urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()));clients[username]=client
    html=client.open(base+'/login.php').read().decode();tokens[username]=re.search(r'name="csrf" value="([^"]+)"',html).group(1)
    client.open(urllib.request.Request(base+'/login.php',data=urllib.parse.urlencode({'csrf':tokens[username],'username':username,'password':password}).encode())).read()
@@ -110,6 +110,35 @@ def run():
   p['sourceKeys']=['POHANCH|26002|1'];p['finalCommodityValue']=2400000
   status,result=request('/api/commodity_bills.php',p);assert status==200 and result['bill']['brokerageGross']==1200 and result['bill']['dueDateFrom']=='2026-09-13'
   assert (root/'transtrade_private/operations.json').read_bytes()==original,'Milling must remain unchanged'
+  # Shared non-commodity payments preserve native registers and allocate oldest bill first.
+  storefile=root/'transtrade_private/accounts.json';fixture=json.loads(storefile.read_text())
+  fixture['bagSupplierBills']={'BATCH-BAG':{'id':'BATCH-BAG','entity':'TTI','status':'Posted','supplier':'Fixture Vendor','sellerInvoice':'BAG-1','sellerInvoiceDate':'2026-07-01','totalAmount':100,'poNo':'PO-1'}}
+  fixture['otherPurchases']={'BATCH-OTHER':{'id':'BATCH-OTHER','entity':'TTI','settlement':'CREDIT','supplier':'Fixture Vendor','invoiceNo':'OTHER-1','invoiceDate':'2026-07-02','amount':200}}
+  fixture['journals']['BATCH-PAYABLE']={'id':'BATCH-PAYABLE','entity':'TTI','date':'2026-07-01','status':'Posted','reference':'BATCH-BILLS','narration':'Fixture vendor bills','meta':{},'lines':[{'account':'2140','debit':0,'credit':300,'supplier':'Fixture Vendor'}]}
+  fixture['journals']['OPEN-CASH']={'id':'OPEN-CASH','entity':'TG','date':'2026-07-01','status':'Posted','lines':[{'account':'1120','debit':1000,'credit':0},{'account':'3010','debit':0,'credit':1000}],'reference':'Opening','narration':'QA opening cash','totalDebit':1000,'totalCredit':1000}
+  fixture['tgLiabilities']={k:{'id':k,'counterparty':'TG Fixture Vendor','currency':'AED','nativeAmount':amount,'date':date,'recognitionRate':1,'payableAccount':'2140','reference':k} for k,amount,date in [('TG-BILL-1',100,'2026-07-01'),('TG-BILL-2',200,'2026-07-02')]}
+  storefile.write_text(json.dumps(fixture))
+  pay={'action':'post_bill_payment','entity':'TTI','date':'2026-09-30','supplier':'Fixture Vendor','amount':150,'paymentMode':'CASH','requestKey':'payment-fixture-0001','selectedBills':[]}
+  status,result=request('/api/supplier_settlements.php',pay);assert status==200,(status,result)
+  assert [a['amount'] for a in result['result']['allocations']]==[100,50]
+  jid=result['result']['journalId'];snapshot=json.loads(storefile.read_text());assert snapshot['bagSupplierPayments'] and snapshot['otherSupplierPayments']
+  assert request('/api/supplier_settlements.php',pay)[1]['result']['journalId']==jid,'Retry must not duplicate payment'
+  assert len(json.loads(storefile.read_text())['journals'])==len(snapshot['journals'])
+  assert request('/api/supplier_settlements.php',{**pay,'amount':151})[0]==409,'Changed posted draft must be rejected'
+  assert request('/api/supplier_settlements.php',{**pay,'requestKey':'payment-fixture-0002','amount':151})[0]==422,'Excess must not silently over-settle'
+  status,out=request('/api/supplier_settlements.php?entity=TTI');assert status==200;remaining=[r for r in out['payables'] if r['supplier']=='Fixture Vendor'];assert len(remaining)==1 and remaining[0]['outstanding']==150
+  assert request('/api/supplier_settlements.php',{**pay,'requestKey':'payment-fixture-view','amount':1},user='billview')[0]==403
+  tgpay={'action':'post_payment','guidedPayment':True,'paymentType':'LIABILITY','counterparty':'TG Fixture Vendor','currency':'AED','amountNative':150,'paymentMode':'CASH','date':'2026-09-30','requestKey':'tg-payment-fixture-001','selectedBills':[]}
+  assert request('/api/tg_bank_transactions.php')[0]==403,'TTI operator must not read TG books'
+  status,tg=request('/api/tg_bank_transactions.php',tgpay,user='fixtureowner');assert status==200,(status,tg)
+  assert [r['amountNative'] for r in tg['transaction']['liabilityAllocations']]==[100,50]
+  assert any(l['account']=='1120' and l['credit']==150 for l in tg['journal']['lines'])
+  assert request('/api/tg_bank_transactions.php',tgpay,user='fixtureowner')[1]['transaction']['id']==tg['transaction']['id']
+  status,tg=request('/api/tg_bank_transactions.php',{**tgpay,'requestKey':'tg-payment-fixture-002','amountNative':25,'paymentMode':'THIRD_PARTY','payer':'External payer'},user='fixtureowner');assert status==200,(status,tg)
+  assert any(l['account']=='2520' and l['credit']==25 for l in tg['journal']['lines']) and not any(l['account'] in ['1110','1120'] for l in tg['journal']['lines'])
+  status,ledger=request('/api/accounts_ledger_browser.php?entity=TTI&category=supplier&party=Fixture%20Vendor&from=2026-09-01&to=2026-09-30');assert status==200 and ledger['opening']==-300 and ledger['closing']==-150,(status,ledger)
+  assert ledger['rows'][0]['party']=='Fixture Vendor'
+  print('Non-commodity payment FIFO, partial, registers, retry, TG cash/third-party and entity isolation passed')
   if os.environ.get('TT_QA_BROWSER')=='1':
    # Reset only this disposable fixture for browser entry, never production.
    subprocess.run(['php','-d',f'session.save_path={sessions}',str(root/'seed.php')],check=True,capture_output=True)
@@ -145,7 +174,7 @@ def run():
     page.goto(base+'/accounts/index.php')
     page.locator('#ttChangeCompanyDesk').click();page.locator('.tt-company-choice[data-entity="TTI"]').click()
     page.locator('[data-tt-area="exports"]').click()
-    page.get_by_role('button',name=re.compile('Transport Bill')).click()
+    page.get_by_role('button',name=re.compile('Transport Bill')).click();page.locator('#ttBillDesk [data-post]').click()
     page.locator('#ttBillShipmentQuery').fill('FIXTURE');page.locator('#ttBillShipmentGo').click();page.locator('[data-tt-pick-shipment]').first.click()
     page.locator('#ttShipmentBillVendor').wait_for();page.wait_for_function("document.querySelector('#ttShipmentBillVendor').getAttribute('list')==='tt-master-transporter'")
     assert page.locator('[name=invoiceNo]').get_attribute('list') is None,'Bill number was treated as supplier'

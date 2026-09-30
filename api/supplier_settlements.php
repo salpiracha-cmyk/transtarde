@@ -131,9 +131,38 @@ function ss_cash_source(array $store,string $entity,string $permission): array {
     $id='CASH|'.$entity;
     return ['id'=>$id,'accountTitle'=>'Cash / Petty Cash','currency'=>'PKR'];
 }
+// Adapt existing bill records; their original IDs and payment history remain authoritative.
+function ss_external_bill(array $s,string $entity,string $id):?array {
+    $b=$s['bagSupplierBills'][$id]??null;$kind='BAGS';$collection='bagSupplierPayments';
+    if(!is_array($b)||($b['status']??'')!=='Posted'){$b=$s['otherPurchases'][$id]??null;$kind='OTHER';$collection='otherSupplierPayments';if(!is_array($b)||($b['settlement']??'')!=='CREDIT')return null;}
+    if(($b['entity']??'')!==$entity)return null;
+    $total=round((float)($kind==='BAGS'?($b['totalAmount']??0):($b['amount']??0)),2);$legacyPaid=0.0;
+    foreach((array)($s[$collection]??[]) as $pay){if(!is_array($pay)||($pay['status']??'')==='Cancelled'||!empty($pay['settlementId']))continue;if(($pay[$kind==='BAGS'?'billId':'purchaseId']??'')===$id)$legacyPaid+=(float)($pay['amount']??0);}
+    return ['id'=>$id,'entity'=>$entity,'category'=>$kind,'vendor'=>(string)($b['supplier']??''),'broker'=>(string)($b['supplier']??''),'billNo'=>(string)($kind==='BAGS'?($b['sellerInvoice']??''):($b['invoiceNo']??'')),'billDate'=>(string)($kind==='BAGS'?($b['sellerInvoiceDate']??''):($b['invoiceDate']??$b['date']??'')),'payableAccount'=>'2140','supplierPayableTotal'=>$total,'receiptAllocations'=>[['sourceKey'=>$kind.'|'.$id,'supplierPayableShare'=>max(0,round($total-$legacyPaid,2))]],'legacyPaid'=>$legacyPaid];
+}
+function ss_simple_payables(array $s,string $entity):array {
+    $rows=[];
+    foreach(['supplierBills','bagSupplierBills','otherPurchases'] as $collection)foreach((array)($s[$collection]??[]) as $id=>$raw){
+        if(!is_array($raw)||($raw['entity']??'')!==$entity)continue;
+        $bill=$collection==='supplierBills'?$raw:ss_external_bill($s,$entity,(string)$id);
+        if(!$bill||empty($bill['payableAccount']))continue;
+        foreach((array)($bill['receiptAllocations']??[]) as $a){$cap=ss_component_capacity($s,$entity,$bill,$a);if($cap['total']<=.005)continue;$total=(float)$bill['supplierPayableTotal'];$rows[]=['billId'=>(string)$id,'sourceKey'=>(string)$a['sourceKey'],'supplier'=>(string)($bill['vendor']??$bill['broker']??''),'category'=>(string)($bill['category']??'SERVICE'),'billNo'=>(string)($bill['billNo']??''),'billDate'=>(string)($bill['billDate']??''),'total'=>$total,'paid'=>round($total-$cap['total'],2),'outstanding'=>$cap['total']];}
+    }
+    usort($rows,static fn($a,$b)=>strcmp($a['billDate'],$b['billDate'])?:strcmp($a['billId'],$b['billId'])?:strcmp($a['sourceKey'],$b['sourceKey']));return $rows;
+}
+function ss_oldest_bill_allocations(array $s,string $entity,array $body):array {
+    $supplier=trim((string)($body['supplier']??''));$scope=strtoupper(trim((string)($body['category']??'')));$keys=(array)($body['selectedBills']??[]);
+    if($supplier===''||count($keys)>200)ss_respond(['ok'=>false,'error'=>'Select a supplier and no more than 200 bills.'],422);
+    $eligible=array_values(array_filter(ss_simple_payables($s,$entity),static fn($r)=>$r['supplier']===$supplier&&($scope===''||$r['category']===$scope)&&(!$keys||in_array($r['billId'].'|'.$r['sourceKey'],$keys,true))));
+    if($keys&&count(array_unique($keys))!==count($eligible))ss_respond(['ok'=>false,'error'=>'A selected bill changed or is no longer outstanding. Refresh the payment screen.'],409);
+    $amount=ss_money($body['amount']??0,'Payment amount');$capacity=round(array_sum(array_column($eligible,'outstanding')),2);
+    if($amount>$capacity+.005)ss_respond(['ok'=>false,'error'=>'Payment exceeds the selected outstanding bills. Record an explicit supplier advance separately.'],422);
+    $alloc=[];foreach($eligible as $row){if($amount<=.005)break;$part=min($amount,$row['outstanding']);$alloc[]=['billId'=>$row['billId'],'sourceKey'=>$row['sourceKey'],'amount'=>$part];$amount=round($amount-$part,2);}return $alloc;
+}
 function ss_find_bill(array $store,string $entity,string $billId): array {
     $b=$store['commodityBills'][$billId]??null;
     if(!is_array($b))$b=$store['supplierBills'][$billId]??null;
+    if(!is_array($b))$b=ss_external_bill($store,$entity,$billId);
     if(!is_array($b)||($b['entity']??'')!==$entity)ss_respond(['ok'=>false,'error'=>'Supplier bill was not found in the selected entity.'],404);
     return $b;
 }
@@ -210,7 +239,7 @@ try{
         $entity=ss_entity((string)($_GET['entity']??'TTI'));if(!tt_user_can_access_entity($user,$entity,'View'))ss_respond(['ok'=>false,'error'=>'You do not have permission for this legal entity.'],403);$store=ss_read();$adv=[];
         foreach((array)($store['supplierAdvances']??[]) as $a)if(is_array($a)&&($a['entity']??'')===$entity){$x=$a;$x['availableAmount']=max(0,round((float)($a['amount']??0)-(float)($a['allocatedAmount']??0),2));$adv[]=$x;}
         usort($adv,static fn($a,$b)=>strcmp((string)($b['date']??''),(string)($a['date']??'')));$hist=[];foreach((array)($store['supplierSettlements']??[]) as $s)if(is_array($s)&&($s['entity']??'')===$entity)$hist[]=$s;usort($hist,static fn($a,$b)=>strcmp((string)($b['date']??''),(string)($a['date']??'')));
-        ss_respond(['ok'=>true,'advances'=>$adv,'settlements'=>$hist,'policy'=>ss_json(TT_SETTLEMENT_POLICY),'serverNow'=>gmdate('c')]);
+        ss_respond(['ok'=>true,'payables'=>ss_simple_payables($store,$entity),'advances'=>$adv,'settlements'=>$hist,'policy'=>ss_json(TT_SETTLEMENT_POLICY),'serverNow'=>gmdate('c')]);
     }
     if($_SERVER['REQUEST_METHOD']!=='POST')ss_respond(['ok'=>false,'error'=>'Method not allowed.'],405);if(!ss_can_write($user))ss_respond(['ok'=>false,'error'=>'Accounts Create / Edit / Approve permission required.'],403);
     $body=json_decode(file_get_contents('php://input')?:'',true);if(!is_array($body)||!tt_verify_csrf((string)($body['csrf']??'')))ss_respond(['ok'=>false,'error'=>'Your session expired. Refresh and try again.'],419);
@@ -218,6 +247,11 @@ try{
     tt_ensure_data_dir();$h=fopen(TT_SETTLEMENT_FILE,'c+');if($h===false||!flock($h,LOCK_EX))throw new RuntimeException('Accounts storage unavailable.');
     try{
         rewind($h);$raw=stream_get_contents($h);$store=$raw?json_decode($raw,true):null;if(!is_array($store))$store=ss_default_store();$store=array_replace_recursive(ss_default_store(),$store);
+        if($action==='post_bill_payment'){
+            $requestKey=trim((string)($body['requestKey']??''));if(!preg_match('/^[a-zA-Z0-9-]{16,80}$/',$requestKey))ss_respond(['ok'=>false,'error'=>'Payment request ID is required. Reopen the payment screen.'],422);
+            $fingerprint=hash('sha256',json_encode([$entity,$date,$body['supplier']??'',$body['category']??'',$body['selectedBills']??[],$body['amount']??0,$body['paymentMode']??'',$body['bankAccountId']??'',$body['payer']??'',$body['payerRelationship']??'',$body['reference']??'']));
+            foreach((array)$store['supplierSettlements'] as $existing)if(($existing['requestKey']??'')===$requestKey&&($existing['entity']??'')===$entity){if(($existing['requestFingerprint']??'')!==$fingerprint)ss_respond(['ok'=>false,'error'=>'This draft was already posted with different details. Open another payment.'],409);ss_respond(['ok'=>true,'result'=>$existing,'revision'=>(int)$store['revision']]);}
+            $body['allocations']=ss_oldest_bill_allocations($store,$entity,$body);$body['simpleBillPayment']=true;$action='post_supplier_payment';}
         if($action==='clear_supplier_cheque'||$action==='cancel_supplier_cheque'||$action==='bounce_supplier_cheque'){
             $id=trim((string)($body['settlementId']??''));$item=$store['supplierSettlements'][$id]??null;
             if(!is_array($item)||($item['entity']??'')!==$entity||empty($item['chequeIssueJournalId']))ss_respond(['ok'=>false,'error'=>'Issued supplier cheque was not found in these books.'],404);
@@ -256,10 +290,14 @@ try{
             $sourceMeta=[];$sourceLabel='';
             if($mode==='BANK'){$bank=ss_require_pkr_bank(ss_bank_source($store,$entity,$bankId,'payment'));$creditLine=$issuing?ss_line('2180',0,$prepared['netPayment'],$catalog):ss_line('1110',0,$prepared['netPayment'],$catalog,['bankAccountId'=>$bankId,'bankName'=>$bank['bankName'],'bankAccountTitle'=>$bank['accountTitle'],'currency'=>$bank['currency']]);$sourceMeta=['paymentMode'=>'BANK','bankAccountId'=>$bankId,'bankName'=>$bank['bankName'],'bankAccountTitle'=>$bank['accountTitle'],'currency'=>$bank['currency']];$sourceLabel=$bank['bankName'].' — '.$bank['accountTitle'];}
             elseif($mode==='CASH'){$cash=ss_cash_source($store,$entity,'payment');$creditLine=ss_line('1120',0,$prepared['netPayment'],$catalog,['cashAccountId'=>$cash['id']]);$sourceMeta=['paymentMode'=>'CASH','cashAccountId'=>$cash['id']];$sourceLabel='Cash / Petty Cash';}
+            elseif($mode==='THIRD_PARTY'&&!empty($body['simpleBillPayment'])){$relationship=strtoupper(trim((string)($body['payerRelationship']??'')));$payer=trim((string)($body['payer']??''));if($payer==='')ss_respond(['ok'=>false,'error'=>'Select who paid on behalf of the company.'],422);if(!in_array($relationship,['CUSTOMER_RECEIVABLE','CUSTOMER_ADVANCE','OTHER_THIRD_PARTY','FAMILY_STAFF'],true))ss_respond(['ok'=>false,'error'=>'Select the third-party relationship.'],422);$credit=ss_advance_credit_account($relationship,$payer);$creditLine=ss_line($credit,0,$prepared['netPayment'],$catalog,['counterparty'=>$payer,'subledger'=>$payer]);$sourceMeta=['paymentMode'=>'THIRD_PARTY','payer'=>$payer,'payerRelationship'=>$relationship];$sourceLabel=$payer;}
             else ss_respond(['ok'=>false,'error'=>'Select an actual Bank Account or Cash payment source.'],422);
-            $lines=[];foreach($prepared['debits'] as $account=>$value)if($value>0)$lines[]=ss_line((string)$account,(float)$value,0,$catalog);if($prepared['withholding']>0)$lines[]=ss_line('2300',0,$prepared['withholding'],$catalog);$lines[]=$creditLine;
+            $lines=[];foreach($prepared['debits'] as $account=>$value)if($value>0)$lines[]=ss_line((string)$account,(float)$value,0,$catalog,['counterparty'=>$prepared['broker']]);if($prepared['withholding']>0)$lines[]=ss_line('2300',0,$prepared['withholding'],$catalog);$lines[]=$creditLine;
             $id=ss_next_id((array)$store['supplierSettlements'],'SP');$reference=trim((string)($body['reference']??''))?:$id;$journal=ss_post_journal($store,$user,$entity,$date,$issuing?'SUPPLIER_CHEQUE_ISSUED':'SUPPLIER_PAYMENT',$reference,($issuing?'Post-dated supplier cheque issued':'Supplier payment').' — '.$prepared['broker'].' — '.$sourceLabel,$lines,array_merge(['settlementId'=>$id,'broker'=>$prepared['broker'],'allocations'=>$prepared['rows']],$sourceMeta));
-            $store['supplierSettlements'][$id]=array_merge(['id'=>$id,'entity'=>$entity,'date'=>$date,'type'=>$issuing?'Post-Dated Supplier Cheque':'Bank / Cash Supplier Payment','broker'=>$prepared['broker'],'amount'=>$prepared['total'],'withholding'=>$prepared['withholding'],'netPayment'=>$prepared['netPayment'],'allocations'=>$prepared['rows'],'reference'=>$reference,'chequeNo'=>$mode==='BANK'?$bankReference:'','journalId'=>$journal['id'],'status'=>'Posted','createdAt'=>gmdate('c'),'createdBy'=>(string)($user['full_name']??$user['username']??'Accounts')],$sourceMeta,$issuing?['chequeDate'=>$chequeDate,'chequeStatus'=>'Issued','chequeIssueJournalId'=>$journal['id']]:[]);$result=$store['supplierSettlements'][$id];
+            $store['supplierSettlements'][$id]=array_merge(['id'=>$id,'entity'=>$entity,'date'=>$date,'type'=>$issuing?'Post-Dated Supplier Cheque':'Bank / Cash Supplier Payment','broker'=>$prepared['broker'],'amount'=>$prepared['total'],'withholding'=>$prepared['withholding'],'netPayment'=>$prepared['netPayment'],'allocations'=>$prepared['rows'],'reference'=>$reference,'chequeNo'=>$mode==='BANK'?$bankReference:'','journalId'=>$journal['id'],'status'=>'Posted','createdAt'=>gmdate('c'),'createdBy'=>(string)($user['full_name']??$user['username']??'Accounts')],$sourceMeta,$issuing?['chequeDate'=>$chequeDate,'chequeStatus'=>'Issued','chequeIssueJournalId'=>$journal['id']]:[]);if(!empty($body['simpleBillPayment'])){$store['supplierSettlements'][$id]['requestKey']=$requestKey;$store['supplierSettlements'][$id]['requestFingerprint']=$fingerprint;}$result=$store['supplierSettlements'][$id];
+            // Maintain native payment registers using the same journal, never another financial posting.
+            if(!empty($body['simpleBillPayment']))foreach($prepared['rows'] as $a){$bill=ss_find_bill($store,$entity,$a['billId']);$kind=$bill['category']??'';if(!in_array($kind,['BAGS','OTHER'],true))continue;$collection=$kind==='BAGS'?'bagSupplierPayments':'otherSupplierPayments';$pid=ss_next_id((array)($store[$collection]??[]),$kind==='BAGS'?'BAGPAY':'OSPAY');$store[$collection][$pid]=['id'=>$pid,'entity'=>$entity,$kind==='BAGS'?'billId':'purchaseId'=>$a['billId'],'supplier'=>$prepared['broker'],'invoiceNo'=>$bill['billNo'],'sellerInvoice'=>$bill['billNo'],'date'=>$date,'amount'=>$a['amount'],'method'=>$mode,'bankId'=>$bankId,'reference'=>$reference,'journalId'=>$journal['id'],'settlementId'=>$id,'status'=>'Posted']+$sourceMeta;}
+
         }
         elseif($action==='record_supplier_advance'){
             $amount=ss_money($body['amount']??0,'Advance amount');$supplier=trim((string)($body['supplier']??''));if($supplier==='')ss_respond(['ok'=>false,'error'=>'Supplier / broker is required.'],422);
