@@ -82,7 +82,8 @@ def run():
   # A suggested route rate may be changed without the removed reason field.
   changed_rate={**multi,'invoiceNo':'RATE-WITHOUT-REASON','lines':[{**multi['lines'][0],'rate':39000,'remarks':'','adjustments':[]}],'remarks':''}
   status,changed=request('/api/accounts_workflows_v1.php',changed_rate);assert status==200,(status,changed)
-  assert changed['bill']['total']==39000 and (root/'transtrade_private/operations.json').read_bytes()==original
+  status,rates=request('/api/accounts_workflows_v1.php?entity=TTI&section=transport');assert status==200
+  assert next(row for row in rates['bills'] if row['id']==changed['bill']['id'])['total']==39000 and (root/'transtrade_private/operations.json').read_bytes()==original
   def payload(no,keys=None,final=2398200):
    return {'action':'verify_bill','entity':'TTI','relationshipType':'SUPPLIER','relationshipName':'Indus Rice','billDate':'2026-09-29','sourceKeys':keys or [f'EXMILL|{no}|1'],'broker':'JJ','billNo':'FIXTURE-'+no,'finalCommodityValue':final,'brokerageRate':5,'brokerageBasis':'PER_100_KG','brokerageWhtPercent':15,'readyRiceCalculation':{'bags':480,'emptyBagWeightGrams':50,'kantaRate':600},'adjustmentLines':[]}
   p=payload('26001');p['finalCommodityValue']=1
