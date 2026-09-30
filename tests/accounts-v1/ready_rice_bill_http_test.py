@@ -139,6 +139,21 @@ def run():
   status,ledger=request('/api/accounts_ledger_browser.php?entity=TTI&category=supplier&party=Fixture%20Vendor&from=2026-09-01&to=2026-09-30');assert status==200 and ledger['opening']==-300 and ledger['closing']==-150,(status,ledger)
   assert ledger['rows'][0]['party']=='Fixture Vendor'
   print('Non-commodity payment FIFO, partial, registers, retry, TG cash/third-party and entity isolation passed')
+  for name,role in [('Fixture Fumigation','Fumigation'),('Fixture Forwarder','Freight Forwarder')]:
+   status,created=request('/api/masters.php',{'action':'create','type':'business_parties','values':[name,'',role,'','','','','','','','Active','','']});assert status==200,(status,created)
+  sections=[{'shipmentId':sid,'billLines':[{'description':'Service','type':'ADD','amount':amount},{'description':'Discount','type':'DEDUCT','amount':10}]} for sid,amount in [('FIXTURE-SHIP',100),('FIXTURE-SHIP-2',200)]]
+  service={'action':'save_service_bill','entity':'TTI','kind':'FUMIGATION','vendor':'Fixture Fumigation','invoiceNo':'MULTI-SERVICE','billDate':'2026-09-30','shipmentSections':sections}
+  status,recorded=request('/api/accounts_workflows_v1.php',service);assert status==200,(status,recorded)
+  state=json.loads(storefile.read_text());source=state['supplierBills'][recorded['bill']['id']]['sourceRecord'];assert len(source['shipmentSections'])==2 and source['amount']==280
+  freight={'action':'save_freight_bill','entity':'TTI','vendor':'Fixture Forwarder','invoiceNo':'MULTI-FREIGHT','billDate':'2026-09-30','exchangeRate':280,'shipmentSections':[{'shipmentId':sid,'containerCount':1,'charges':[{'charge':'Freight','currency':'USD','basis':'PER_CONTAINER','billedRate':100,'acceptedRate':90}]} for sid in ['FIXTURE-SHIP','FIXTURE-SHIP-2']]}
+  status,recorded=request('/api/accounts_workflows_v1.php',freight);assert status==200,(status,recorded)
+  state=json.loads(storefile.read_text());source=state['supplierBills'][recorded['bill']['id']]['sourceRecord'];assert len(source['shipmentSections'])==2 and source['acceptedLiability']==50400 and source['disputedTotal']==5600
+  assert request('/api/accounts_workflows_v1.php',{**freight,'invoiceNo':'BAD-DUP-SHIP','shipmentSections':[freight['shipmentSections'][0]]*2})[0]==422
+  assert request('/api/accounts_workflows_v1.php',{**service,'invoiceNo':'BAD-FOREIGN-SHIP','shipmentSections':[{'shipmentId':'FOREIGN-SHIP','billLines':sections[0]['billLines']}]})[0]==422
+  status,profit=request('/api/shipment_profitability.php?entity=TTI');assert status==200
+  rows={r['key']:r for r in profit['rows']};assert rows['FIXTURE-CONTRACT|FIXTURE-SHIP-LOT']['fumigation']==90 and rows['FIXTURE-CONTRACT-2|FIXTURE-SHIP-2-LOT']['fumigation']==190
+  assert rows['FIXTURE-CONTRACT|FIXTURE-SHIP-LOT']['freight']==25200 and rows['FIXTURE-CONTRACT-2|FIXTURE-SHIP-2-LOT']['freight']==25200
+  print('Multi-shipment service/freight invoice, dispute, company and per-shipment profitability tests passed')
   if os.environ.get('TT_QA_BROWSER')=='1':
    # Reset only this disposable fixture for browser entry, never production.
    subprocess.run(['php','-d',f'session.save_path={sessions}',str(root/'seed.php')],check=True,capture_output=True)
@@ -199,6 +214,13 @@ def run():
     page.screenshot(path=str(evidence/'transporter-bill-confirmation.png'))
     status,registered=request('/api/accounts_workflows_v1.php?entity=TTI&section=transport');assert status==200 and next(x for x in registered['bills'] if x['invoiceNo']=='BROWSER-TRANSPORT')['total']==153200 and len(next(x for x in registered['bills'] if x['invoiceNo']=='BROWSER-TRANSPORT')['lines'])==2
     assert (root/'transtrade_private/operations.json').read_bytes()==original,'Transport posting changed Mill records'
+    page.locator('#ttShipmentBillPay').click();page.locator('#ttSimpleBills [data-amount]').fill('50000');page.locator('#ttSimpleBills [data-source]').select_option('CASH');page.locator('#ttSimpleBills [type=submit]').click();page.locator('#ttSimpleBills').get_by_role('heading',name='Payment posted',exact=True).wait_for()
+    assert 'POST ID' in page.locator('#ttSimpleBills').inner_text()
+    page.locator('#ttSimpleBills [data-close]').click()
+    page.evaluate("TT_ALL_LEDGERS.open('2130','supplier')");page.locator('#tal-party').fill('Cedar Horizon Haulage');page.locator('#tal-go').click();page.wait_for_function("document.querySelector('.tal-total').textContent.includes('103,200.00')")
+    assert '50000' not in page.locator('.tal-total').inner_text() and '50,000.00' in page.locator('.tal-total').inner_text()
+    with page.expect_download() as dl:page.locator('#tal-export').click()
+    assert dl.value.suggested_filename.endswith('.xlsx');page.locator('#tal-close').click()
     page.remove_listener('response',check_response)
     # Exercise the actual form against the actual endpoints in a minimal harness.
     harness='<html><body><div id="purchaseEditor" data-tt-purchase-mode="arrival"></div><script>window.TT_ACCOUNT_ACCESS={csrf:'+json.dumps(page.locator('body').evaluate('()=>window.TT_ACCOUNT_ACCESS.csrf'))+'};localStorage.setItem("tt_accounts_entity","TTI");</script><script src="accounts/bill-smart-ui-v2.js"></script><script>TT_SMART_COMMODITY_BILLS_V2.mount();</script></body></html>'
