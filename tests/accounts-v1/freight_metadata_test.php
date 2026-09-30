@@ -18,7 +18,14 @@ check(tt_accounts_freight_metadata($next,$a,$user)===$next,'Retry should be idem
 try{tt_accounts_freight_metadata($root,array_replace($a,['loadingProgrammeNo'=>'WRONG-PORT']),$user);throw new RuntimeException('Accepted conflicting ports');}catch(InvalidArgumentException $expected){}
 try{tt_accounts_freight_metadata($root,array_replace($a,['entity'=>'BRM']),$user);throw new RuntimeException('Accepted foreign company');}catch(InvalidArgumentException $expected){}
 check(tt_accounts_shipment_rows($root,'TTI')[0]['shippingLine']==='Draft line','BL draft line precedence');
-$key='transtrade_export_v3_operational';$db=tt_accounts_exports_db();$old=null;$oldHistory=0;
+$key='transtrade_export_v3_operational';
+if(getenv('TT_QA_MYSQL')==='1'){
+ check(getenv('TT_DB_HOST')==='127.0.0.1'&&preg_match('/^transtrade_qa_[a-z0-9_]+$/',(string)getenv('TT_DB_NAME'))===1,'Only a local disposable QA database is allowed');
+ $db=tt_accounts_exports_db();
+ $db->exec('CREATE TABLE IF NOT EXISTS tt_operation_records (storage_key VARCHAR(96) PRIMARY KEY,payload LONGTEXT NOT NULL,version BIGINT UNSIGNED NOT NULL,updated_at DATETIME(6) NOT NULL,updated_by VARCHAR(160) NOT NULL,updated_by_user BIGINT NULL,updated_by_module VARCHAR(32) NOT NULL) ENGINE=InnoDB');
+ $db->exec('CREATE TABLE IF NOT EXISTS tt_operation_history (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,storage_key VARCHAR(96) NOT NULL,version BIGINT UNSIGNED NOT NULL,payload_sha256 CHAR(64) NOT NULL,updated_at DATETIME(6) NOT NULL,updated_by VARCHAR(160) NOT NULL,updated_by_user BIGINT NULL,updated_by_module VARCHAR(32) NOT NULL) ENGINE=InnoDB');
+}else $db=tt_accounts_exports_db();
+$old=null;$oldHistory=0;
 try{
  if($db){
   $stmt=$db->prepare('SELECT * FROM tt_operation_records WHERE storage_key=?');$stmt->execute([$key]);$old=$stmt->fetch();$oldHistory=(int)$db->query('SELECT COALESCE(MAX(id),0) FROM tt_operation_history')->fetchColumn();

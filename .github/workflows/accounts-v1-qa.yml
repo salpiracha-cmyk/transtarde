@@ -111,11 +111,11 @@ jobs:
       - name: Actual MySQL and restricted-user browser reconciliation
         env:
           TT_QA_OUTPUT: ${{ runner.temp }}/inventory-evidence
-        run: '"$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/inventory_reconciliation_http_test.py'
-      - name: Ready rice bill browser and HTTP flow
         run: |
           php tests/accounts-v1/freight_metadata_test.php
-          "$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/ready_rice_bill_http_test.py
+          "$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/inventory_reconciliation_http_test.py
+      - name: Ready rice bill browser and HTTP flow
+        run: '"$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/ready_rice_bill_http_test.py'
       - name: Retain sanitized test evidence
         if: always()
         uses: actions/upload-artifact@v4
