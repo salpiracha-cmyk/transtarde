@@ -117,7 +117,7 @@ def run():
     evidence=Path(os.environ.get('RUNNER_TEMP',str(root)))/'inventory-evidence';evidence.mkdir(exist_ok=True)
     page.locator('#ttsbLoadingRate').scroll_into_view_if_needed();page.screenshot(path=str(evidence/'ready-rice-loading-charges.png'))
     # Exercise shipment bills through the actual Accounts desk in disposable storage.
-    page.locator('#ws-purchases .tt-clean-close').click()
+    page.locator('#ws-purchases > .panelHead .tt-clean-close').click()
     page.locator('#ttDeskWork .tt-back-areas').click()
     page.locator('[data-tt-area="exports"]').click()
     fixture={'id':'FIXTURE-SHIP','customer':'Fixture Customer','contract':'FIXTURE-CONTRACT','lot':'FIXTURE-LOT','commercialInvoice':'FIXTURE-CI','customsInvoice':'','bl':'FIXTURE-BL','loadingProgramme':'FIXTURE-LP','shippingLine':'Fixture Line','portOfLoading':'Karachi','portOfDischarge':'Jeddah','containers':['FIXTURE1','FIXTURE2','FIXTURE3'],'seller':'TTI','pakistanExporter':'TTI'}
