@@ -31,11 +31,11 @@ async function save({customer,contract,lot,rows,uploads,fit,optional=false}){
  if(busy)throw new Error('Shipment files are already being saved.');const root=await access(optional);if(!root)return{skipped:true};busy=true;
  try{
   const parts=folderParts(customer,contract,lot),files=[],seen=new Set();
-  for(const row of rows.filter(row=>row.render&&row.ready))files.push({name:component(row.name)+'.pdf',blob:await pdf(row.render(),fit)});
-  for(const doc of uploads){const key=doc.id||doc.downloadUrl||doc.dataUrl;if(!key||seen.has(key))continue;seen.add(key);let name='Uploaded - '+component(doc.name||'Document');if(files.some(file=>file.name===name)){const at=name.lastIndexOf('.'),suffix=' - '+component(doc.id||String(files.length));name=at>0?name.slice(0,at)+suffix+name.slice(at):name+suffix}files.push({name,blob:await uploadBlob(doc)})}
+  for(const row of rows.filter(row=>row.render&&row.ready))files.push({folder:row.folder?component(row.folder):'',name:component(row.name)+'.pdf',blob:await pdf(row.render(),fit)});
+  for(const doc of uploads){const key=doc.id||doc.downloadUrl||doc.dataUrl;if(!key||seen.has(key))continue;seen.add(key);const folder=doc.folder?component(doc.folder):'';let name='Uploaded - '+component(doc.name||'Document');if(files.some(file=>file.folder===folder&&file.name===name)){const at=name.lastIndexOf('.'),suffix=' - '+component(doc.id||String(files.length));name=at>0?name.slice(0,at)+suffix+name.slice(at):name+suffix}files.push({folder,name,blob:await uploadBlob(doc)})}
   if(!files.length)throw new Error('No saved documents are available for this lot.');
   let folder=root;for(const part of parts)folder=await folder.getDirectoryHandle(part,{create:true});
-  let count=0;try{for(const file of files){await write(folder,file.name,file.blob);count++}}catch(error){throw new Error(count+' of '+files.length+' files saved. Retry Save to finish. '+error.message)}
+  const subfolders=new Map();let count=0;try{for(const file of files){let target=folder;if(file.folder){if(!subfolders.has(file.folder))subfolders.set(file.folder,await folder.getDirectoryHandle(file.folder,{create:true}));target=subfolders.get(file.folder)}await write(target,file.name,file.blob);count++}}catch(error){throw new Error(count+' of '+files.length+' files saved. Retry Save to finish. '+error.message)}
   return{count,path:[root.name,...parts].join(' / ')};
  }finally{busy=false}
 }

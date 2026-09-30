@@ -882,7 +882,8 @@ function finalShipmentDocuments(s,c){
   generated('tgInvoice','Pakistan → TG — Commercial Invoice',()=>tgInternalCommercialInvoiceDoc(s,c),!!s.tgdocs?.saved);
   generated('tgPacking','Pakistan → TG — Packing List',()=>packingListDoc(s,c,true,true),!!s.tgdocs?.saved);
   generated('tgCover','Pakistan → TG — Bank Covering Letter',()=>coveringDoc(s,c,s.tgdocs?.covering||s.covering,true),!!s.tgdocs?.saved);
-  generated('tgRelation','Pakistan → TG — Relationship Letter',()=>tgRelationshipLetterDoc(s,c),!!s.tgdocs?.saved);
+  if(String(s.tgdocs?.relationship?.wording||'').trim())generated('tgRelation','Pakistan → TG — Relationship Letter',()=>tgRelationshipLetterDoc(s,c),!!s.tgdocs?.saved);
+  for(const row of rows)if(row.key.startsWith('tg'))row.folder='TG docs';
  }
  return rows;
 }
@@ -1028,11 +1029,16 @@ function shipmentUploadName(name){
  if(/goods declaration|^gd\b/i.test(name))return'Goods Declaration (GD)';
  return String(name||'').trim();
 }
-function shipmentUploadedFiles(s){return[s.customs?.gdDocument,s.bl?.finalDocument,s.coo?.finalDocument,...(s.certs||[]).map(row=>row.finalDocument),...(s.uploadedDocuments||[]).map(row=>row.finalDocument)].filter(Boolean)}
+function shipmentFolderDocuments(s,c){
+ const rows=finalShipmentDocuments(s,c),ready=customsBalanced(s,c);
+ for(const [key,name,render] of [['customInvoice','Customs Invoice',()=>commercialInvoiceDoc(s,c,true)],['customPacking','Customs Packing List',()=>packingListDoc(s,c,true)],['phytoInvoice','Phytosanitary Invoice',()=>phytoInvoiceDoc(s,c)]])rows.push({key,name,render,ready,folder:'Custom documents'});
+ return rows;
+}
+function shipmentUploadedFiles(s){return[s.customs?.gdDocument?{...s.customs.gdDocument,folder:'Custom documents'}:null,s.bl?.finalDocument,s.coo?.finalDocument,...(s.certs||[]).map(row=>row.finalDocument),...(s.uploadedDocuments||[]).map(row=>row.finalDocument)].filter(Boolean)}
 async function saveShipmentFolder(s,c,optional=false){
  const saved=load(),lot=saved.shipments.find(row=>row.id===s.id),contract=saved.contracts.find(row=>row.ref===s.contractRef);
  if(!lot||!contract)throw new Error('Save this lot in Transtrade before copying its files.');
- const live=state;let rows,name;try{state=saved;rows=finalShipmentDocuments(lot,contract);name=buyerOf(shipmentDocumentContext(lot,contract)).name||lot.buyer}finally{state=live}
+ const live=state;let rows,name;try{state=saved;rows=shipmentFolderDocuments(lot,contract);name=buyerOf(shipmentDocumentContext(lot,contract)).name||lot.buyer}finally{state=live}
  for(const row of rows)if(row.render){const render=row.render;row.render=()=>{const live=state;try{state=saved;return render()}finally{state=live}}}
  return window.TT_SHIPMENT_FILES.save({customer:name,contract:lot.contractRef,lot:lot.lotId,rows,uploads:shipmentUploadedFiles(lot),fit:fitTGProformaPages,optional});
 }

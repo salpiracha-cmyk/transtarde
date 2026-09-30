@@ -21,7 +21,7 @@ context.globalThis=context;
 let source=fs.readFileSync(__dirname+'/../../exports/app.js','utf8');
 const mutableExportOverrides=source.split('\n').filter(line=>/^[A-Za-z_$][\w$]*\s*=\s*function\s*\(/.test(line)).map(line=>line.match(/^([A-Za-z_$][\w$]*)/)[1]);
 assert.deepEqual(mutableExportOverrides,[],'Export module must not contain mutable function override assignments');
-source=source.replace('mount();','window.__EXPORT_TEST__={parseContractText,parseLCText,paymentText,lcSpecificTerms,effectiveTerms,documentsPresented,inspectionDocumentName,packingPrefix,unitRate,makeShipment,salesContractPrint,purchaseOrderPrint,commercialInvoiceDoc,tgInternalCommercialInvoiceDoc,packingListDoc,phytoInvoiceDoc,blDraftDoc,coveringDoc,lcControlDoc,lcDraftDoc,actualRows,millActualsComplete,fiGdRows,applyProductMaster,productLabel,productMasters,qualityDescription,contractSpecRows,currentCropYear,millLocations,brokenEntry,normalizeBrokenEntry,brokenEntryValid,finishChoices,DEFAULT_QUALITY,CONTAINER_RE,state,cooDoc,buyerOf,captureShipmentPartyDetails,shipmentDocumentContext,applyExportCustomerMasters,uploadDocumentCategory,shipmentUploadName,recordUploadedDocument,finalShipmentDocuments,renderDocumentOutput,renderUploadDocuments};\nmount();');
+source=source.replace('mount();','window.__EXPORT_TEST__={parseContractText,parseLCText,paymentText,lcSpecificTerms,effectiveTerms,documentsPresented,inspectionDocumentName,packingPrefix,unitRate,makeShipment,salesContractPrint,purchaseOrderPrint,commercialInvoiceDoc,tgInternalCommercialInvoiceDoc,packingListDoc,phytoInvoiceDoc,blDraftDoc,coveringDoc,lcControlDoc,lcDraftDoc,actualRows,millActualsComplete,fiGdRows,applyProductMaster,productLabel,productMasters,qualityDescription,contractSpecRows,currentCropYear,millLocations,brokenEntry,normalizeBrokenEntry,brokenEntryValid,finishChoices,DEFAULT_QUALITY,CONTAINER_RE,state,cooDoc,buyerOf,captureShipmentPartyDetails,shipmentDocumentContext,applyExportCustomerMasters,uploadDocumentCategory,shipmentUploadName,recordUploadedDocument,finalShipmentDocuments,shipmentFolderDocuments,customsInvoiceValue,renderDocumentOutput,renderUploadDocuments};\nmount();');
 vm.runInNewContext(source,context,{filename:'app.js'});
 const t=window.__EXPORT_TEST__;
 
@@ -51,6 +51,16 @@ assert.equal(lot.certs.find(row=>row.type==='Phytosanitary Certificate').referen
 assert.ok(t.finalShipmentDocuments(lot,contract).some(row=>row.name==='Phytosanitary Certificate'&&row.ready));
 assert.equal(t.finalShipmentDocuments(lot,contract).filter(row=>row.name==='Certificate of Origin').length,1);
 assert.ok(!t.finalShipmentDocuments(lot,contract).some(row=>/Origin Draft|Phytosanitary Invoice|Custom Packing/i.test(row.name)));
+// Folder routing uses the buyer customer for every exporter, independent of the TG remitter.
+for(const route of ['TTI','BRM','TG']){
+ const fixture=structuredClone(lot),agreement=structuredClone(contract);fixture.seller=agreement.seller=route;
+ fixture.customs={...fixture.customs,saved:true,customsPaymentCode:'CAD100',fiAllocations:[]};
+ fixture.customs.invoiceValue=fixture.customs.openAccount=t.customsInvoiceValue(fixture,agreement);fixture.tgdocs={saved:true};
+ const rows=t.shipmentFolderDocuments(fixture,agreement);
+ assert.equal(rows.filter(row=>row.folder==='Custom documents'&&row.ready).length,3,route+' must include all reviewed Customs PDFs');
+ assert.equal(rows.filter(row=>row.folder==='TG docs').length,route==='TG'?4:0,'optional empty relationship must not create an empty PDF');
+ assert.ok(rows.filter(row=>['commercial','packing'].includes(row.key)).every(row=>!row.folder));
+}
 const {chromium}=require('playwright'),path=require('path'),out=path.resolve(__dirname,'../../tmp/qa/final-files-20260930');fs.mkdirSync(out,{recursive:true});
 (async()=>{
  const browser=await chromium.launch({headless:true,...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH?{executablePath:process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH}:{})}),page=await browser.newPage({viewport:{width:1400,height:1300}});
@@ -81,7 +91,18 @@ const {chromium}=require('playwright'),path=require('path'),out=path.resolve(__d
  assert.equal(await page.evaluate(()=>window.TT_SHIPMENT_FILES.folderParts('AMT Enterprise','TTI/AMT/14','TTI/AMT/14/L02').join('/')),'AMT Enterprise/SHIPMENT #14/LOT #02');
  const second=await page.evaluate(()=>window.__qa.save());assert.equal(second.path,first.path,'repeat Save reuses the same folder');assert.equal(second.count,first.count,'repeat Save does not duplicate attachments');
  await page.evaluate(()=>{window.__qa.state().shipments.find(row=>row.kind==='lot').bl.vessel='UNSAVED CHANGE'});await page.evaluate(()=>window.__qa.save());assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('transtrade_export_v3_operational')).shipments.find(row=>row.kind==='lot').bl.vessel),'SLS TOPAZ','folder Save must not commit unfinished entry');
+ // Save balanced Customs PDFs under the lot, and repeat across all routes using committed fixtures.
+ const committed=await page.evaluate(()=>JSON.parse(localStorage.getItem('transtrade_export_v3_operational')));
+ for(const route of ['TTI','BRM','TG']){
+  const fixture=structuredClone(committed),shipment=fixture.shipments.find(row=>row.kind==='lot'),agreement=fixture.contracts.find(row=>row.ref===shipment.contractRef);
+  shipment.seller=agreement.seller=route;shipment.customs={...shipment.customs,saved:true,customsPaymentCode:'CAD100',fiAllocations:[],invoiceValue:108000,openAccount:108000};shipment.tgdocs={saved:true};shipment.customs.gdDocument={id:'GD-QA',name:'GD.png',dataUrl:png};
+  await page.evaluate(data=>window.__qa.fixture(data),fixture);
+  const result=await page.evaluate(()=>window.__qa.save());assert.equal(result.path,first.path,route+' must reuse the same buyer / shipment / lot');
+  const paths=await page.evaluate(()=>Object.keys(window.__savedFiles));
+  for(const name of ['Customs Invoice.pdf','Customs Packing List.pdf','Phytosanitary Invoice.pdf','Uploaded - GD.png'])assert.ok(paths.includes('AMT Enterprise/SHIPMENT #13/LOT #AMT-1/Custom documents/'+name),route+' missing nested '+name);
+  if(route==='TG')for(const name of ['Sales Contract / Proforma','Commercial Invoice','Packing List','Bank Covering Letter'])assert.ok(paths.some(path=>path.includes('/TG docs/')&&path.includes(name.replaceAll('/','-'))),name+' must be in TG docs');
+ }
  await page.evaluate(()=>{const root={name:'fixture',async queryPermission(){return'granted'},async getDirectoryHandle(){return this},async getFileHandle(){throw Error('Office share offline')}};window.showDirectoryPicker=async()=>root});await page.evaluate(()=>window.TT_SHIPMENT_FILES.choose().catch(()=>{}));
  const failure=await page.evaluate(async png=>{try{await window.TT_SHIPMENT_FILES.save({customer:'QA',contract:'TTI/QA/01',lot:'TTI/QA/01/L01',rows:[],uploads:[{id:'fixture',name:'fixture.png',dataUrl:png}]});return''}catch(error){return error.message}},png);assert.match(failure,/0 of 1 files saved/,'failed share write must never report success');
- await browser.close();console.log('PASS Phyto upload/reference, single final table/COO, packing label, branded PDF, and reusable customer/shipment/lot folder saves');
+ await browser.close();console.log('PASS Phyto upload/reference, single final table/COO, packing label, branded PDF, and reusable customer/shipment/lot and Customs/TG subfolder saves across TTI, BRM and TG');
 })().catch(error=>{console.error(error);process.exit(1)});
