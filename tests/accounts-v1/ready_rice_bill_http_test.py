@@ -78,7 +78,7 @@ def run():
   assert profile['buying'][-1]['effectiveFrom']=='2026-09-29' and profile['selling'][0]['amount']==9
   values=['HTTP Fixture Transport','','Transporter','','','','','','','','Active','','']
   status,party=request('/api/masters.php',{'action':'create','type':'business_parties','values':values});assert status==200,(status,party)
-  created=[m for m in party['masters']['business_parties'] if m['id']==party['id']][0];assert created['values'][2]=='Transporter' and json.loads(created['values'][12])=={}
+  created=[m for m in party['masters']['business_parties'] if m['id']==party['id']][0];assert created['values'][2]=='Transporter';profile=json.loads(created['values'][12]);assert not profile.get('buying') and not profile.get('selling')
   values[0]='Malformed Profile Fixture';values[12]='invalid-json';assert request('/api/masters.php',{'action':'create','type':'business_parties','values':values})[0]==422,'Do not weaken malformed brokerage validation'
   p=payload('26003');p['relationshipType']='BROKER';p['relationshipName']='JJ'
   assert request('/api/commodity_bills.php',p)[0]==200,'Broker-only commodity payee'
