@@ -555,6 +555,10 @@
     result.products = (result.products || []).map(row => {
       const values = [...(row.values || [])];
       while (values.length < 22) values.push("");
+      if(String(values[0]||"").trim().toLowerCase()==="rice"){
+        values[17]=normalizeProductFinish(values[17]);
+        values[21]=productHsCodeForMaster(values[0],values[7],values[21]);
+      }
       return { ...row, values };
     });
     return result;
@@ -733,11 +737,33 @@
     }
     return `<tr class="spec-editor-row custom-spec-row"><td><input data-custom-spec-name value="${escapeHtml(name)}" placeholder="Specification"></td><td><input data-custom-spec-limit value="${escapeHtml(limit)}" placeholder="Limit / requirement"></td><td><button class="row-action delete" type="button" data-remove-product-spec aria-label="Remove specification">Remove</button></td></tr>`;
   }
+  const APPROVED_PRODUCT_FINISHES = [
+    "Reasonably well milled",
+    "Well milled, double polished and well sortexed",
+    "Well milled, silky polished and well sortexed"
+  ];
+  function normalizeProductFinish(value="") {
+    const clean=String(value||"").trim().replace(/\s+/g," ");
+    const exact=APPROVED_PRODUCT_FINISHES.find(option=>option.toLowerCase()===clean.toLowerCase());
+    if(exact)return exact;
+    const lower=clean.toLowerCase();
+    if(lower.includes("reasonably"))return APPROVED_PRODUCT_FINISHES[0];
+    if(lower.includes("double"))return APPROVED_PRODUCT_FINISHES[1];
+    return APPROVED_PRODUCT_FINISHES[2];
+  }
+  function productHsCodeForMaster(commodity,broken,current="") {
+    if(String(commodity||"").trim().toLowerCase()!=="rice")return String(current||"").trim();
+    return /(^|[^0-9])100(?:\.0+)?\s*%/i.test(String(broken||"")) ? "1006.4000" : "1006.3090";
+  }
   const PRODUCT_OPTION_FIELDS = {
     0:["Commodity","product_commodities"],1:["Variety","product_varieties"],2:["Rice type","product_rice_types"],
     7:["Broken","product_broken"],17:["Finish","product_finishes"],4:["Origin","product_origins"],5:["Profile / use","product_profiles"]
   };
   function productOptionSelect(index,label,key,value,required=false) {
+    if(key==="product_finishes"){
+      const selected=normalizeProductFinish(value);
+      return `<label class="managed-option-field">${escapeHtml(label)}<select id="${masterInputId(index)}" data-master-field-index="${index}" data-product-option="${key}" data-product-option-label="${escapeHtml(label)}" data-product-existing-value="${escapeHtml(selected)}" ${required?"required":""}>${APPROVED_PRODUCT_FINISHES.map(option=>`<option value="${escapeHtml(option)}" ${option===selected?"selected":""}>${escapeHtml(option)}</option>`).join("")}</select></label>`;
+    }
     const options=[...new Set([...(state.masterOptions?.[key]||[]),...(value?[value]:[])])].filter(Boolean).sort((a,b)=>a.localeCompare(b));
     const listId=`productOptionList${index}`;
     return `<label class="managed-option-field">${escapeHtml(label)}<span class="master-option-control"><input id="${masterInputId(index)}" data-master-field-index="${index}" data-product-option="${key}" data-product-option-label="${escapeHtml(label)}" data-product-existing-value="${escapeHtml(value||"")}" list="${listId}" value="${escapeHtml(value||"")}" placeholder="Type to search" autocomplete="off" ${required?"required":""}><button type="button" class="master-option-manage" data-manage-product-option aria-label="Manage ${escapeHtml(label)} options">Options</button></span><datalist id="${listId}">${options.map(x=>`<option value="${escapeHtml(x)}"></option>`).join("")}</datalist><span class="master-option-menu" data-product-option-menu hidden></span></label>`;
@@ -752,7 +778,7 @@
     };
     document.querySelectorAll("[data-product-option]").forEach(input=>{
       const field=input.closest(".managed-option-field"),menu=field?.querySelector("[data-product-option-menu]"),manage=field?.querySelector("[data-manage-product-option]");
-      refresh(input);
+      if(input.dataset.productOption!=="product_finishes")refresh(input);
       if(manage)manage.onclick=()=>{menu.hidden=!menu.hidden;if(!menu.hidden){menu.scrollIntoView({block:"nearest",inline:"nearest"});menu.querySelector("button")?.focus({preventScroll:true})}};
       if(menu)menu.onclick=async event=>{
         const choose=event.target.closest("[data-choose-product-option]");
@@ -775,6 +801,13 @@
         }
       };
     });
+    if(activeMasterType()?.id==="products"){
+      const commodity=document.getElementById(masterInputId(0)),broken=document.getElementById(masterInputId(7)),hs=document.getElementById(masterInputId(21));
+      const syncHs=()=>{if(hs)hs.value=productHsCodeForMaster(commodity?.value||"",broken?.value||"",hs.value)};
+      commodity?.addEventListener("input",syncHs);commodity?.addEventListener("change",syncHs);
+      broken?.addEventListener("input",syncHs);broken?.addEventListener("change",syncHs);
+      syncHs();
+    }
   }
   async function resolveProductOptionsBeforeSave(type) {
     if (!["products","purchase_products","purchase_kat"].includes(type.id)) return;
@@ -791,7 +824,7 @@
     const cropYear=String(state.masters?.product_settings?.[0]?.values?.[0]||"2025/2026");
     const selected={...values,2:legacyType};
     const identity = [0,1,2,7,17,4,5].map(index=>productOptionSelect(index,PRODUCT_OPTION_FIELDS[index][0],PRODUCT_OPTION_FIELDS[index][1],selected[index],[0,1,2,7,17].includes(index))).join("")+
-      `<label>Code<input id="${masterInputId(3)}" data-master-field-index="3" value="${escapeHtml(values[3]||"")}" required autocomplete="off"></label><label>HS Code<input id="${masterInputId(21)}" data-master-field-index="21" value="${escapeHtml(values[21]||"")}" autocomplete="off"></label>`;
+      `<label>Code<input id="${masterInputId(3)}" data-master-field-index="3" value="${escapeHtml(values[3]||"")}" required autocomplete="off"></label><label>HS Code — automatic<input id="${masterInputId(21)}" data-master-field-index="21" value="${escapeHtml(productHsCodeForMaster(values[0],values[7],values[21]))}" readonly title="100% Broken rice = 1006.4000; all other rice = 1006.3090"></label>`;
     const core = PRODUCT_CORE_SPECS.map(([index,name]) => productSpecRow(name, values[index] || "", false, index)).join("");
     const custom = productCustomSpecs(values).map(row => productSpecRow(row.name, row.limit, true)).join("");
     return `<section class="master-editor-section"><div class="master-editor-heading"><div><h3>Export product identity</h3><p>Type to search each approved list. Open Options inside a field to add a genuine choice or deactivate an incorrect one; historical records remain unchanged.</p></div></div><div class="master-identity-grid">${identity}<label>Current Crop Year<input value="${escapeHtml(cropYear)}" readonly title="Change this once from Export Quality & Specs"></label></div></section>
@@ -919,7 +952,8 @@
         limit: row.querySelector("[data-custom-spec-limit]")?.value.trim() || ""
       })).filter(row => row.name || row.limit);
       values[20] = JSON.stringify(custom);
-      values[21] = document.querySelector('[data-master-field-index="21"]')?.value.trim() || "";
+      values[17] = normalizeProductFinish(values[17]);
+      values[21] = productHsCodeForMaster(values[0],values[7],document.querySelector('[data-master-field-index="21"]')?.value.trim() || "");
       return values;
     }
     if (type.id === "business_parties") {
