@@ -5,7 +5,8 @@
   style.id = 'ttAccountsBillLayout';
   style.textContent = `
     .tt-bill-adjustment{display:grid!important;grid-template-columns:36px .7fr 1.8fr .8fr!important;gap:10px;align-items:end;margin:10px 0}
-    .tt-bill-adjustment.tt-bill-freight{grid-template-columns:36px .7fr 1.4fr .7fr .5fr .8fr!important}
+    .tt-bill-adjustment.tt-bill-freight{grid-template-columns:36px minmax(0,1.8fr) minmax(0,1fr) minmax(0,1fr) minmax(0,1fr)!important}
+    .tt-freight-dispute{grid-column:2/-1;font-size:13px}.tt-freight-dispute label{max-width:240px}.tt-bill-freight [data-pkr]{font-weight:800;text-align:right;font-variant-numeric:tabular-nums}
     .ttv-chargegrid{grid-template-columns:36px .65fr 1.4fr .7fr .4fr .5fr .7fr .7fr!important}.ttv-rowgrid{grid-template-columns:36px repeat(6,minmax(0,1fr))!important}
     .tt-bill-adjustment label{min-width:0}.tt-bill-adjustment input,.tt-bill-adjustment select{width:100%;box-sizing:border-box}
     .tt-bill-adjustment [data-amount],.tt-bill-amount,#ttShipmentBillEntry [name=rate],#opAmount,#tglAmount,#nwRate,#bgRate,#svAmt,.fcBill,.fcAcc,.trate,.textra{font-weight:800!important;text-align:right!important;font-variant-numeric:tabular-nums}

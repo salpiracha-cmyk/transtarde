@@ -14,14 +14,14 @@
   }));
   const lists = () => ({
     buyer:customerNames(), supplier:partyNames('Supplier'), broker:partyNames('Broker'),
-    freight:partyNames('Freight Forwarder','Shipping Line / Carrier'), clearing:partyNames('Clearing Agent'),
+    forwarder:partyNames('Freight Forwarder'), freight:partyNames('Freight Forwarder','Shipping Line / Carrier'), clearing:partyNames('Clearing Agent'),
     transporter:partyNames('Transporter'), fumigation:partyNames('Fumigation'), inspection:partyNames('Inspection'),
     service:partyNames('Service Provider'), shipping:partyNames('Shipping Line / Carrier'),
     parties:unique([...(masters.business_parties || []).filter(active).map(row => row.values[0]),...customerNames()]),
     locations:unique((masters.mills || []).filter(row => clean(row?.values?.[5] || 'Active').toLowerCase() === 'active').map(row => row.values[0])),
     products:productNames(), commodities:unique((masters.commodities || []).map(row => row?.values?.[0]))
   });
-  const roleFor = name => ({supplier:'Supplier',broker:'Broker',freight:'Freight Forwarder',clearing:'Clearing Agent',transporter:'Transporter',fumigation:'Fumigation',inspection:'Inspection',service:'Service Provider',shipping:'Shipping Line / Carrier'})[name] || '';
+  const roleFor = name => ({supplier:'Supplier',broker:'Broker',forwarder:'Freight Forwarder',freight:'Freight Forwarder',clearing:'Clearing Agent',transporter:'Transporter',fumigation:'Fumigation',inspection:'Inspection',service:'Service Provider',shipping:'Shipping Line / Carrier'})[name] || '';
   function openEditor(input,kind) {
     const type = kind === 'buyer' ? 'export_customers' : 'business_parties';
     const name = clean(input.value);
@@ -113,9 +113,9 @@
       const type = name === 'buyer' ? 'export_customers' : 'business_parties';
       if ((name === 'buyer' || roleFor(name)) && !input.dataset.ttMasterManage && !input.closest('#ttPartyInlineEditor')) {
         const button = document.createElement('button'); button.type = 'button'; button.className = 'btn tt-master-inline'; button.textContent = 'Add / Edit';
-        button.title = `Manage ${name} in Super Admin masters`; button.style.cssText = 'margin:4px 0 0;padding:5px 8px;font-size:11px';
+        button.title = `Manage ${name} in Super Admin masters`; button.style.cssText = 'margin:0;padding:5px 8px;font-size:13px;white-space:nowrap';
         button.onclick = event => { event.preventDefault(); openEditor(input,category(input)); };
-        input.insertAdjacentElement('afterend',button); input.dataset.ttMasterManage = '1';
+        const entry=document.createElement('span');entry.className='tt-master-entry';input.before(entry);entry.append(input,button);input.dataset.ttMasterManage = '1';
       }
     });
   }

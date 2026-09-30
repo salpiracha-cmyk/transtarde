@@ -196,7 +196,7 @@ new MutationObserver(apply).observe(document.body,{childList:true,subtree:true})
 </script>
 HTML;
 
-$brandHead = '<link rel="stylesheet" href="/brand-theme.css?v=20260913-3">';
+$brandHead = '<link rel="stylesheet" href="/brand-theme.css?v=20260930-freight">';
 if ($id === 'exports') $brandHead .= '<link rel="stylesheet" href="/exports/release-theme.css?v=20260909-1">';
 $headPos = stripos($html, '</head>');
 if ($headPos !== false) $html = substr_replace($html, $brandHead.$bootstrap.$sharedBootstrap, $headPos, 0);

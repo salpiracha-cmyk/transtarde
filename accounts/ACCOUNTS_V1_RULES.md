@@ -149,7 +149,8 @@ Shared Transport Master: From Where, To Where, Rate. Normal and ex-mill routes c
 Freight is usually through a freight forwarder and sometimes directly through a shipping line.
 
 Accounts Freight has Freight Agreed, Post Freight Invoice and Payment tabs. Directors may also access agreed freight. The planning agreement records:
-- forwarder / shipping line;
+- customer first, then contract and lot only in the shipment selector;
+- separate optional forwarder and required shipping line (direct shipping-line agreements leave forwarder blank);
 - from Karachi Port or Port Qasim;
 - destination port;
 - container size — default 20', optional 40';
@@ -160,7 +161,7 @@ Accounts Freight has Freight Agreed, Post Freight Invoice and Payment tabs. Dire
 
 Forwarders should be asked to print the actual export B/L number. Accounts search/matching supports actual B/L, invoice no., job/reference, Loading Programme and any existing container number. Container numbers are search keys sourced from existing Exports/Milling data; Accounts does not re-enter them.
 
-Freight invoices support flexible charge lines. A line may be per container, per B/L or fixed and may use USD/PKR/other approved currency with the invoice exchange rate.
+The current freight invoice form uses USD rates and the shipping line invoice exchange rate (PKR per USD). Freight is per container. A permanent optional B/L charges row is immediately below Freight and is charged once per B/L. Other additions/deductions show charge name, USD rate, Per container / Per B/L basis and a bold right-aligned PKR result. Per container = rate × invoice containers × exchange rate; Per B/L = rate × exchange rate. TOTAL INVOICE VALUE shows the billed amount to tally the physical invoice. Accepted-rate fields are optional under Disputed amount; accepted payable and disputed amounts are displayed separately when different. Legacy posted currency/basis records remain readable and retain their original values.
 
 Each charge line separates:
 - Billed rate/amount;
@@ -204,7 +205,7 @@ For supplier post-dated cheques, issue posts the selected payable to Issued Cheq
 
 For local customer post-dated cheques, issue moves the selected Local Soda receivable to Customer Cheques in Hand (1130), without increasing the bank book. Clearance debits the chosen company bank and credits 1130. Cancellation or bounce restores the receivable, with a separate bank reversal if the cheque had cleared. This path requires an existing open Local Soda receivable and cannot create a customer advance.
 
-Freight Agreed is planning data tied to the selected Export shipment and contract. Exports loading instructions may fill empty shipping-line and loading-programme fields from it; a user-entered value remains authoritative. TG contracts search both TTI and BRM Pakistan-exporter books. If both have a matching agreement, the exporter must be identified before applying either one. The agreed USD rate is shown as a reference and never posts to the ledger. Freight invoice posting uses the carrier's actual exchange rate.
+Freight Agreed is planning data tied to the selected Export shipment and contract. Shipping line initially comes from the selected lot’s BL Draft, falling back to its loading plan. The discharge port comes from the selected contract/lot. Loading port is Karachi Port, Pakistan or Port Qasim, Pakistan. Saving Accounts programme, shipping line and loading-port metadata updates that same existing Exports lot, its loading summary and its existing Milling handoff under a source lock/version and audit. It never changes allocations, quantities, container actuals or invoice values. A programme may cover multiple shipments only to the same discharge port. Contract-only agreements fill an existing draft; Exports can use the saved agreement for a later new draft. Linkage failure reports that the agreement was saved and asks to retry the same agreement, which updates the existing record rather than adding a duplicate. TG contracts search both TTI and BRM Pakistan-exporter books. If both have a matching agreement, the exporter must be identified before applying either one. The agreed USD rate is shown as a reference and never posts to the ledger. Freight invoice posting uses the carrier's actual exchange rate.
 
 ## 20. Journal Voucher
 JV is mandatory and supports multi-line debit/credit entries. Total debit must equal total credit. JV must not become a shortcut around normal operational workflows. Corrections use reversal/amendment history rather than silent deletion.

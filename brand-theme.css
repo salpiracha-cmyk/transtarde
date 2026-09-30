@@ -51,3 +51,15 @@ button:not(.danger):not(.red):not(.xBtn):not(.optionMinus).active{
 /* Super Admin Control Centre — approved Transtrade green palette */
 :root{--navy:#2e4527;--navy-2:#3b5d3d;--blue:#4f7650;--blue-soft:#e8f0e5;--canvas:#f4f0e6;--line:#cbd8c7;--ink:#2b2217;--muted:#6c7167;--green:#4f7650;--green-soft:#e8f0e5}
 .sidebar{background:linear-gradient(180deg,#2e4527 0%,#23371f 100%)!important}.nav-item.active{background:linear-gradient(90deg,#4f7650,#608960)!important;box-shadow:0 8px 20px rgba(46,69,39,.30)!important}.avatar,.button.primary{background:#4f7650!important}.button.primary:hover{background:#3b5d3d!important}.module-card::before{background:#4f7650!important}.topbar{border-color:#cbd8c7!important}
+
+
+/* Shared screen-only field alignment; printed business documents keep their layout. */
+@media screen {
+ :is(.tt-form-grid,.ttv-grid,.ttrs-grid,.tter-grid,.form-grid,.master-form-grid,.grid2,.grid3,.grid4,.grid:has(>label)){align-items:end}
+ .grid>label:not(:has(input[type=checkbox],input[type=radio])){min-width:0;display:flex;flex-direction:column;gap:6px}
+ :is(.tt-form-grid,.ttv-grid,.ttrs-grid,.tter-grid,.form-grid,.master-form-grid)>label:not(:has(input[type=checkbox],input[type=radio])),:is(.grid2,.grid3,.grid4,.grid:has(>label))>.field{min-width:0;display:flex;flex-direction:column;gap:6px}
+ :is(.tt-form-grid,.ttv-grid,.ttrs-grid,.tter-grid,.form-grid,.master-form-grid,.grid2,.grid3,.grid4,.grid:has(>label)) :is(input:not([type=checkbox]):not([type=radio]):not([type=hidden]),select){box-sizing:border-box;width:100%;min-width:0;min-height:42px;margin-top:0}
+ .tt-master-entry{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px;align-items:stretch;min-width:0}
+ .tt-master-entry>.tt-master-inline{align-self:stretch;min-height:42px}
+ .tt-modebar{align-items:stretch}.tt-modebar>button{min-height:46px}
+}

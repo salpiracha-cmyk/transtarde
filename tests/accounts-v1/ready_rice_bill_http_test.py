@@ -161,6 +161,21 @@ def run():
   status,profit=request('/api/shipment_profitability.php?entity=TTI');assert status==200
   rows={r['key']:r for r in profit['rows']};assert rows['FIXTURE-CONTRACT|FIXTURE-SHIP-LOT']['fumigation']==90 and rows['FIXTURE-CONTRACT-2|FIXTURE-SHIP-2-LOT']['fumigation']==190
   assert rows['FIXTURE-CONTRACT|FIXTURE-SHIP-LOT']['freight']==25200 and rows['FIXTURE-CONTRACT-2|FIXTURE-SHIP-2-LOT']['freight']==25200
+  # Freight invoice arithmetic: B/L once, container additions by count, signed deductions.
+  detailed={**freight,'invoiceNo':'FREIGHT-USD-BASIS','shipmentSections':[{'shipmentId':'FIXTURE-SHIP','containerCount':3,'charges':[{'charge':name,'currency':'USD','basis':basis,'billedRate':rate,'acceptedRate':rate} for name,basis,rate in [('Freight','PER_CONTAINER',1000),('B/L charges','PER_BL',50),('Handling','PER_CONTAINER',25),('Documentation','PER_BL',10),('Discount','PER_BL',-5)]]}]}
+  status,recorded=request('/api/accounts_workflows_v1.php',detailed);assert status==200,(status,recorded)
+  state=json.loads(storefile.read_text());source=state['supplierBills'][recorded['bill']['id']]['sourceRecord'];assert source['billedTotal']==876400 and source['acceptedLiability']==876400 and source['freightAcceptedUsd']==3000
+  invalid={**detailed,'invoiceNo':'BAD-BASIS','shipmentSections':[{'shipmentId':'FIXTURE-SHIP','containerCount':3,'charges':[{'charge':'Wrong','currency':'USD','basis':'UNKNOWN','billedRate':1,'acceptedRate':1}]}]};assert request('/api/accounts_workflows_v1.php',invalid)[0]==422
+  assert request('/api/accounts_workflows_v1.php',{**detailed,'invoiceNo':'NO-FX','exchangeRate':0})[0]==422
+  status,filtered=request('/api/accounts_shipment_lookup.php?scope=freight&entity=TTI&q=FIXTURE&customer=Fixture%20Customer');assert status==200 and all(row['customer']=='Fixture Customer' for row in filtered['rows'])
+  assert request('/api/accounts_shipment_lookup.php?scope=freight&entity=TTI&q=FIXTURE&customer=Someone%20Else')[1]['rows']==[]
+  agreement={'action':'save_freight_agreement','entity':'TTI','shipmentId':'FIXTURE-SHIP','contractRef':'FIXTURE-CONTRACT','customerName':'Fixture Customer','shippingLine':'Fixture Line','forwarder':'','destinationPort':'Jeddah','fromPort':'Karachi Port, Pakistan','loadingProgrammeNo':'NEW-PROGRAMME','containerCount':3,'ratePerContainer':1000,'dateAgreed':'2026-09-30'}
+  status,agreed=request('/api/accounts_workflows_v1.php',agreement);assert status==200 and agreed['exportsSync']=='Complete',(status,agreed)
+  operations=json.loads((root/'transtrade_private/operations.json').read_text());export=json.loads(operations['values']['transtrade_export_v3_operational']);lot=next(x for x in export['shipments'] if x['id']=='FIXTURE-SHIP');assert lot['loadingProgrammeNo']=='NEW-PROGRAMME' and len(lot['millActuals'])==10 and lot['bl']['blNo']=='FIXTURE-BL'
+  retry=request('/api/accounts_workflows_v1.php',agreement);assert retry[0]==200 and retry[1]['agreement']['id']==agreed['agreement']['id']
+  assert request('/api/accounts_workflows_v1.php',{**agreement,'loadingProgrammeNo':'PORT-CONFLICT'})[0]==422
+  assert request('/api/accounts_workflows_v1.php',{**agreement,'fromPort':'Other port'})[0]==422
+  assert request('/api/accounts_workflows_v1.php',{**agreement,'shippingLine':''})[0]==422
   print('Multi-shipment service/freight invoice, dispute, company and per-shipment profitability tests passed')
   if os.environ.get('TT_QA_BROWSER')=='1':
    # Reset only this disposable fixture for browser entry, never production.
@@ -246,6 +261,29 @@ def run():
     assert '50000' not in page.locator('.tal-total').inner_text() and '50,000.00' in page.locator('.tal-total').inner_text()
     with page.expect_download() as dl:page.locator('#tal-export').click()
     assert dl.value.suggested_filename.endswith('.xlsx');page.locator('#tal-close').click()
+    # Actual freight UI: separate parties, customer-first lots, aligned USD/PKR rows.
+    status,created=request('/api/masters.php',{'action':'create','type':'business_parties','values':['Fixture Forwarder','','Freight Forwarder','','','','','','','','Active','','']});assert status==200,(status,created)
+    page.goto(base+'/accounts/index.php');page.locator('#ttChangeCompanyDesk').click();page.locator('.tt-company-choice[data-entity="TTI"]').click();page.locator('[data-tt-area="exports"]').click()
+    page.get_by_role('button',name=re.compile('Freight Forwarder / Shipping')).click();page.locator('#ttFreightAgreementOpen').click()
+    page.locator('#ttFreightCustomer').fill('Fixture Customer');page.locator('#ttFreightCustomer').press('Tab');page.wait_for_selector('#ttFreightShipment option[value="1"]',state='attached')
+    assert all('Fixture Customer' not in text for text in page.locator('#ttFreightShipment option').all_text_contents())
+    page.locator('#ttFreightShipment').select_option('2',force=True);assert page.locator('[name=shippingLine]').input_value()=='Fixture Line' and page.locator('[name=forwarder]').input_value()==''
+    assert page.locator('[name=fromPort] option').all_text_contents()==['Choose loading port','Karachi Port, Pakistan','Port Qasim, Pakistan']
+    page.locator('#ttFreightAgreement .tt-window-close').click();page.get_by_role('button',name=re.compile('Freight Forwarder / Shipping')).click();page.locator('#ttFreightInvoice').click()
+    page.locator('#ttBillShipmentQuery').fill('FIXTURE-SHIP');page.locator('#ttBillShipmentGo').click();page.locator('[data-tt-pick-shipment="0"]').click()
+    page.locator('#ttShipmentBillVendor').fill('Fixture Forwarder');page.locator('[name=invoiceNo]').fill('BROWSER-FREIGHT-USD');page.locator('[name=exchangeRate]').fill('280');page.locator('[data-containers]').fill('3')
+    charges=page.locator('.tt-bill-freight');charges.nth(0).locator('[data-amount]').fill('1000');charges.nth(1).locator('[data-amount]').fill('50')
+    page.locator('[data-add]').click();charges.nth(2).locator('[data-description]').fill('Handling');charges.nth(2).locator('[data-amount]').fill('25');charges.nth(2).locator('[data-basis]').select_option('PER_CONTAINER',force=True)
+    page.locator('[data-add]').click();charges.nth(3).locator('[data-description]').fill('Documentation');charges.nth(3).locator('[data-amount]').fill('10');charges.nth(3).locator('[data-basis]').select_option('PER_BL',force=True)
+    page.locator('[data-deduct]').click();charges.nth(4).locator('[data-description]').fill('Discount');charges.nth(4).locator('[data-amount]').fill('5');charges.nth(4).locator('[data-basis]').select_option('PER_BL',force=True)
+    assert page.locator('#ttShipmentBillTotal').inner_text()=='876,400.00'
+    assert page.locator('[data-pkr]').evaluate_all('els=>els.map(el=>el.value)')==['840,000.00','14,000.00','21,000.00','2,800.00','-1,400.00']
+    ends=[row.locator('[data-pkr]').bounding_box()['x']+row.locator('[data-pkr]').bounding_box()['width'] for row in charges.all()];assert max(ends)-min(ends)<2,ends
+    for row in charges.all():
+     bottoms=[row.locator(selector).bounding_box()['y']+row.locator(selector).bounding_box()['height'] for selector in ['[data-description]','[data-amount]','[data-basis]','[data-pkr]']];assert max(bottoms)-min(bottoms)<2,bottoms
+    page.screenshot(path=str(evidence/'freight-usd-charge-bases.png'))
+    page.locator('#ttShipmentBillEntry [type=submit]').click();page.get_by_role('heading',name='Supplier bill posted',exact=True).wait_for()
+    stored=json.loads((root/'transtrade_private/accounts.json').read_text());bill=next(x for x in stored['freightBillsV1'].values() if x['invoiceNo']=='BROWSER-FREIGHT-USD');assert bill['billedTotal']==876400 and stored['supplierBills'][bill['id']]['supplierPayableTotal']==876400
     page.remove_listener('response',check_response)
     # Exercise the actual form against the actual endpoints in a minimal harness.
     harness='<html><body><div id="purchaseEditor" data-tt-purchase-mode="arrival"></div><script>window.TT_ACCOUNT_ACCESS={csrf:'+json.dumps(page.locator('body').evaluate('()=>window.TT_ACCOUNT_ACCESS.csrf'))+'};localStorage.setItem("tt_accounts_entity","TTI");</script><script src="accounts/bill-smart-ui-v2.js"></script><script>TT_SMART_COMMODITY_BILLS_V2.mount();</script></body></html>'

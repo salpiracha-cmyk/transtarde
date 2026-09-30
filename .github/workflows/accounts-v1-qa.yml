@@ -47,6 +47,7 @@ jobs:
           php tests/security/qa_account_read_only_test.php
           php tests/accounts-v1/credit_advice_amendment_test.php
           php tests/accounts-v1/post_amendment_test.php
+          php tests/accounts-v1/freight_metadata_test.php
           python3 tests/accounts-v1/ready_rice_bill_http_test.py
           php tests/accounts-v1/supplier_cheque_lifecycle_test.php
           php tests/accounts-v1/local_customer_cheque_test.php
@@ -112,7 +113,9 @@ jobs:
           TT_QA_OUTPUT: ${{ runner.temp }}/inventory-evidence
         run: '"$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/inventory_reconciliation_http_test.py'
       - name: Ready rice bill browser and HTTP flow
-        run: '"$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/ready_rice_bill_http_test.py'
+        run: |
+          php tests/accounts-v1/freight_metadata_test.php
+          "$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/ready_rice_bill_http_test.py
       - name: Retain sanitized test evidence
         if: always()
         uses: actions/upload-artifact@v4

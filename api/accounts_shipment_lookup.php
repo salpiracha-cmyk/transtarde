@@ -32,6 +32,7 @@ try{
         if(str_contains($haystack,strtolower($term)))$rows[]=$row;
         if(count($rows)>=50)break;
     }
+    $customerFilter=trim((string)($_GET['customer']??''));if($customerFilter!=='')$rows=array_values(array_filter($rows,static fn($row)=>strcasecmp(trim((string)$row['customer']),$customerFilter)===0));
     asl_out(['ok'=>true,'rows'=>$rows]);
 }catch(Throwable $error){error_log('Accounts shipment search: '.$error->getMessage());asl_out(['ok'=>false,'error'=>'Shipment search is temporarily unavailable.'],503);}
 
