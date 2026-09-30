@@ -117,8 +117,8 @@ def run():
     evidence=Path(os.environ.get('RUNNER_TEMP',str(root)))/'inventory-evidence';evidence.mkdir(exist_ok=True)
     page.locator('#ttsbLoadingRate').scroll_into_view_if_needed();page.screenshot(path=str(evidence/'ready-rice-loading-charges.png'))
     # Exercise shipment bills through the actual Accounts desk in disposable storage.
-    page.locator('#ws-purchases > .panelHead .tt-clean-close').click()
-    page.locator('#ttDeskWork .tt-back-areas').click()
+    page.goto(base+'/accounts/index.php')
+    page.locator('#ttChangeCompanyDesk').click();page.locator('.tt-company-choice[data-entity="TTI"]').click()
     page.locator('[data-tt-area="exports"]').click()
     fixture={'id':'FIXTURE-SHIP','customer':'Fixture Customer','contract':'FIXTURE-CONTRACT','lot':'FIXTURE-LOT','commercialInvoice':'FIXTURE-CI','customsInvoice':'','bl':'FIXTURE-BL','loadingProgramme':'FIXTURE-LP','shippingLine':'Fixture Line','portOfLoading':'Karachi','portOfDischarge':'Jeddah','containers':['FIXTURE1','FIXTURE2','FIXTURE3'],'seller':'TTI','pakistanExporter':'TTI'}
     page.route('**/api/accounts_shipment_lookup.php?*',lambda route:route.fulfill(json={'ok':True,'rows':[fixture]}))
@@ -136,7 +136,8 @@ def run():
     assert page.locator('.tt-shipment-charge').first.evaluate('el=>el.firstElementChild.hasAttribute("data-remove")')
     ends=[page.locator(sel).first.bounding_box()['x']+page.locator(sel).first.bounding_box()['width'] for sel in ['[data-amount]','#ttShipmentBillBase','#ttShipmentBillTotal']]
     assert max(ends)-min(ends)<16,ends
-    page.locator('#ttShipmentBillEntry [type=submit]').click();page.get_by_role('heading',name='Supplier bill posted successfully').wait_for()
+    page.locator('#ttShipmentBillVendor').fill('JJ');page.locator('#ttShipmentBillEntry [type=submit]').click();page.wait_for_function("document.querySelector('#ttShipmentBillError').textContent.includes('Bill not posted')");assert 'Transporter' in page.locator('#ttShipmentBillError').inner_text()
+    page.locator('#ttShipmentBillVendor').fill('New Fixture Transport');page.locator('#ttShipmentBillEntry [type=submit]').click();page.get_by_role('heading',name='Supplier bill posted successfully').wait_for()
     assert 'TRB' in page.locator('.tt-bill-confirmation').inner_text()
     page.screenshot(path=str(evidence/'transporter-bill-confirmation.png'))
     status,registered=request('/api/accounts_workflows_v1.php?entity=TTI&section=transport');assert status==200 and registered['bills'][0]['total']==115200
