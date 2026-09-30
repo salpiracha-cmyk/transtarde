@@ -146,7 +146,7 @@ try{
   }
   if($preservedTransportBills)$s['transportBillsV1']=array_merge($s['transportBillsV1'],$preservedTransportBills);if($preservedFreightBills)$s['freightBillsV1']=array_merge($s['freightBillsV1'],$preservedFreightBills);
   if($action==='save_soda'&&in_array($commodity,['CORN','SESAME'],true)){$row['rateUnit']='MAUND';$s['purchaseSodas'][$id]=$row;}
-  if($action==='save_transport_bill'){foreach($row['lines'] as$line){$reason=trim((string)($line['remarks']??''));if((float)($line['extras']??0)>0&&$reason==='')aw_out(['ok'=>false,'error'=>'Explain every transport extra charge.'],422);$route=null;foreach((array)$s['transportMaster'] as$candidate)if(is_array($candidate)&&strcasecmp(trim((string)($candidate['from']??'')),trim((string)($line['from']??'')))===0&&strcasecmp(trim((string)($candidate['to']??'')),trim((string)($line['to']??'')))===0){$route=$candidate;break;}if($route&&abs((float)$route['rate']-(float)$line['rate'])>.005&&$reason==='')aw_out(['ok'=>false,'error'=>'Explain a transport rate override from the Route Master.'],422);}}
+  if($action==='save_transport_bill'){foreach($row['lines'] as$line){$reason=trim((string)($line['remarks']??''));if((float)($line['extras']??0)>0&&$reason==='')aw_out(['ok'=>false,'error'=>'Explain every transport extra charge.'],422);}}
   if($action==='save_kat_master'){aw_validate_kat_rules($key,$rules);if(trim((string)($b['reason']??''))==='')aw_out(['ok'=>false,'error'=>'Reason is required for a KAT Master change.'],422);}
   if($action==='save_transport_bill')aw_post_logistics_bill($s,$u,$row,'TRANSPORT');
   elseif($action==='save_freight_bill')aw_post_logistics_bill($s,$u,$row,'FREIGHT');

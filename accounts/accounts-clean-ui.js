@@ -361,6 +361,9 @@
       else input.select();
       render(true);
     };
+    // A second click does not fire focus. Reopen after Escape, a selection,
+    // or an outside click without requiring the user to leave the field.
+    input.onclick = () => { if (menu.hidden) render(true); };
     input.oninput = () => render(false);
     input.onkeydown = event => {
       if (event.key === 'Escape') { menu.hidden = true; syncInput(); return; }
@@ -560,7 +563,7 @@
       scan(workspace || document);
     });
     document.addEventListener('click', event => {
-      if (!event.target.closest('.tt-search-select')) qa('.tt-select-menu').forEach(menu => { menu.hidden = true; });
+      if (!event.target.closest('.tt-search-select,.tt-select-menu')) qa('.tt-select-menu').forEach(menu => { menu.hidden = true; });
     });
     document.addEventListener('scroll', () => activeSearchMenu?._ttPosition?.(), true);
     window.addEventListener('resize', () => activeSearchMenu?._ttPosition?.());

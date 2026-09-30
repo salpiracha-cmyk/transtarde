@@ -105,8 +105,11 @@
     document.querySelectorAll('input').forEach(input => {
       const name = category(input);
       if (!name || (input.list && !input.list.id.startsWith('tt-master-') && !input.dataset.masterRole)) return;
-      input.setAttribute('list','tt-master-' + name);
-      input.setAttribute('autocomplete','off');
+      // Reassigning even the same list dismisses Chromium's open suggestions.
+      // Background totals and other DOM updates must leave the field alone.
+      const listId = 'tt-master-' + name;
+      if (input.getAttribute('list') !== listId) input.setAttribute('list',listId);
+      if (input.getAttribute('autocomplete') !== 'off') input.setAttribute('autocomplete','off');
       const type = name === 'buyer' ? 'export_customers' : 'business_parties';
       if ((name === 'buyer' || roleFor(name)) && !input.dataset.ttMasterManage && !input.closest('#ttPartyInlineEditor')) {
         const button = document.createElement('button'); button.type = 'button'; button.className = 'btn tt-master-inline'; button.textContent = 'Add / Edit';
@@ -127,4 +130,3 @@
   };
   document.readyState === 'loading' ? document.addEventListener('DOMContentLoaded',start,{once:true}) : start();
 })();
-

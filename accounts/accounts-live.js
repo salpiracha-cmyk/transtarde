@@ -39,13 +39,13 @@
     const dl=document.createElement('datalist');dl.id='ttAccountList';
     [...(accountingMaster.chart||[]),...(accountingMaster.peopleSubledgers||[])].filter(a=>a.level!=='heading').forEach(a=>{const o=document.createElement('option');o.value=a.code;o.label=a.code+' · '+a.name;dl.appendChild(o)});
     document.body.appendChild(dl);
-    qa('.jvAccount').forEach(x=>x.setAttribute('list','ttAccountList'));
+    qa('.jvAccount').forEach(x=>{if(x.getAttribute('list')!=='ttAccountList')x.setAttribute('list','ttAccountList')});
   }
   function installCardExpenseDatalist(){
     if(!accountingMaster)return;
     let dl=q('#ttExpenseList');
     if(!dl){dl=document.createElement('datalist');dl.id='ttExpenseList';(accountingMaster.chart||[]).filter(a=>['6100','6200','6300','6400','6500','6600','6700','6800','6900'].includes(a.code)).forEach(a=>{const o=document.createElement('option');o.value=a.name;o.label=a.code;dl.appendChild(o)});document.body.appendChild(dl)}
-    qa('.ccDetail').forEach(x=>x.setAttribute('list','ttExpenseList'));
+    qa('.ccDetail').forEach(x=>{if(x.getAttribute('list')!=='ttExpenseList')x.setAttribute('list','ttExpenseList')});
   }
   function installUtilityReminderButton(){
     const save=q('#saveUtility');if(!save||q('#saveUtilityReminder'))return;
@@ -74,7 +74,7 @@
     }catch(err){toast(err.message,false)}finally{reminder.disabled=false}
   },true);
 
-  const observer=new MutationObserver(()=>{qa('.jvAccount').forEach(x=>x.setAttribute('list','ttAccountList'));installCardExpenseDatalist();installUtilityReminderButton()});
+  const observer=new MutationObserver(()=>{qa('.jvAccount').forEach(x=>{if(x.getAttribute('list')!=='ttAccountList')x.setAttribute('list','ttAccountList')});installCardExpenseDatalist();installUtilityReminderButton()});
   observer.observe(document.documentElement,{childList:true,subtree:true});
   document.addEventListener('click',e=>{if(e.target.closest('.entityBtn'))setTimeout(refresh,0)});
   refresh();

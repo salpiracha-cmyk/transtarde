@@ -247,3 +247,8 @@ Ledgers has Supplier/Broker, Customer, Bank/Cash and Other Account. Registers & 
 ## 27. Current implementation
 Accounts development and its QA workflow are maintained on `main`. The old `accounts-v1-foundation` branch is historical and is not a deployment or QA trigger. Changes must pass the Accounts QA checks before a production deployment. Confirm live behaviour and TTI/BRM/TG separation with test data before production go-live.
 
+
+### Transport entry and shared selectors — 30 September 2026
+
+- Transport entry has aligned Loading Programme, Containers and Rate fields. There is no shipment remarks / rate override reason field, and changing the suggested Route Master rate does not require a separate reason. Bill narration remains optional; additions and deductions retain their descriptions. Historical remarks and rates are preserved.
+- Shared master, JV and expense suggestion lists must not be reassigned when unchanged. Unrelated totals or screen updates must preserve the focused field and its open choices. Searchable selections must reopen on a click even when the field is already focused.

@@ -79,6 +79,10 @@ def run():
   status,profit=request('/api/shipment_profitability.php?entity=TTI');assert status==200 and sum(x['transport'] for x in profit['rows'])==191700,(status,profit)
   stored=json.loads((root/'transtrade_private/accounts.json').read_text());assert stored['supplierBills'][multi_saved['bill']['id']]['supplierPayableTotal']==76500;assert len(stored['supplierBills'][multi_saved['bill']['id']]['postingJournalIds'])==1,'Unchanged amendment must not duplicate journal'
   original=(root/'transtrade_private/operations.json').read_bytes()
+  # A suggested route rate may be changed without the removed reason field.
+  changed_rate={**multi,'invoiceNo':'RATE-WITHOUT-REASON','lines':[{**multi['lines'][0],'rate':39000,'remarks':'','adjustments':[]}],'remarks':''}
+  status,changed=request('/api/accounts_workflows_v1.php',changed_rate);assert status==200,(status,changed)
+  assert changed['bill']['total']==39000 and (root/'transtrade_private/operations.json').read_bytes()==original
   def payload(no,keys=None,final=2398200):
    return {'action':'verify_bill','entity':'TTI','relationshipType':'SUPPLIER','relationshipName':'Indus Rice','billDate':'2026-09-29','sourceKeys':keys or [f'EXMILL|{no}|1'],'broker':'JJ','billNo':'FIXTURE-'+no,'finalCommodityValue':final,'brokerageRate':5,'brokerageBasis':'PER_100_KG','brokerageWhtPercent':15,'readyRiceCalculation':{'bags':480,'emptyBagWeightGrams':50,'kantaRate':600},'adjustmentLines':[]}
   p=payload('26001');p['finalCommodityValue']=1
@@ -195,12 +199,29 @@ def run():
     page.get_by_role('button',name=re.compile('Transport Bill')).click();page.locator('#ttBillDesk [data-post]').click()
     page.locator('#ttBillShipmentQuery').fill('FIXTURE');page.locator('#ttBillShipmentGo').click();page.locator('[data-tt-pick-shipment]').first.click()
     page.locator('#ttShipmentBillVendor').wait_for();page.wait_for_function("document.querySelector('#ttShipmentBillVendor').getAttribute('list')==='tt-master-transporter'")
+    # Browser suggestions must survive unrelated totals/master refreshes.
+    page.locator('#ttShipmentBillVendor').click()
+    page.evaluate("""() => { window.selectorMutations=[]; const input=document.querySelector('#ttShipmentBillVendor'); new MutationObserver(records=>window.selectorMutations.push(...records.map(r=>r.attributeName))).observe(input,{attributes:true,attributeFilter:['list','autocomplete']}); window.TT_ACCOUNTS_MASTER_CHOICES.refresh(); const marker=document.createElement('span'); marker.id='dropdownBackgroundUpdate'; document.body.append(marker); marker.textContent='Unrelated background total'; }""")
+    page.wait_for_timeout(500)
+    assert page.evaluate('window.selectorMutations')==[], 'Background refresh reassigned an open suggestion list'
+    assert page.locator('#ttShipmentBillVendor').evaluate('el=>document.activeElement===el'), 'Background refresh moved input focus'
+    assert page.locator('[data-remarks]').count()==0 and 'rate override reason' not in page.locator('#ttShipmentBillEntry').inner_text()
+    positions=[page.locator('.tt-transport-grid [name='+name+']').bounding_box()['y'] for name in ['loadingProgrammeNo','containers','rate']]
+    assert max(positions)-min(positions)<2,positions
     assert page.locator('[name=invoiceNo]').get_attribute('list') is None,'Bill number was treated as supplier'
     page.locator('#ttShipmentBillVendor').fill('Cedar Horizon Haulage')
     page.locator('#ttShipmentBillVendor + .tt-master-inline').click();assert page.locator('#ttPartyInlineEditor h3').inner_text()=='Add Transporter'
     page.locator('#ttPartyInlineEditor [name=partyName]').fill('Cedar Horizon Haulage');page.locator('#ttPartyInlineEditor [type=submit]').click();page.wait_for_function("!document.querySelector('#ttPartyInlineEditor').open || document.querySelector('.tt-party-editor-error').textContent.length>0");assert not page.locator('#ttPartyInlineEditor').is_visible(),page.locator('.tt-party-editor-error').inner_text()
     page.locator('[name=containers]').fill('3');page.locator('[name=invoiceNo]').fill('BROWSER-TRANSPORT');page.locator('[name=rate]').fill('38000');page.locator('[name=remarks]').fill('Fixture transport narration')
     page.locator('#ttShipmentBillAdd').click();page.locator('[data-description]').fill('Fixture commission');page.locator('[data-amount]').fill('1500')
+    # Use the visible selector, not force-selecting the hidden native control.
+    choice=page.locator('[data-type]').first.locator('..').locator('input')
+    choice.click();menu=page.locator('.tt-select-menu:not([hidden])');menu.wait_for(state='visible')
+    page.wait_for_timeout(300);assert menu.is_visible(), 'Dropdown closed before choosing'
+    menu.get_by_role('button',name='Deduction',exact=True).click();assert page.locator('[data-type]').first.input_value()=='DEDUCT'
+    choice.click();menu.wait_for(state='visible');choice.press('Escape');assert not menu.is_visible()
+    choice.click();menu.wait_for(state='visible');menu.get_by_role('button',name='Addition',exact=True).click()
+    assert page.locator('[data-type]').first.input_value()=='ADD', 'Focused selector did not reopen'
     page.locator('#ttShipmentBillDeduct').click();page.locator('[data-description]').nth(1).fill('Fixture deduction');page.locator('[data-amount]').nth(1).fill('300')
     assert page.locator('[data-type]').nth(1).input_value()=='DEDUCT' and page.locator('#ttShipmentBillTotal').inner_text()=='115,200.00'
     assert page.locator('.tt-shipment-charge').first.evaluate('el=>el.firstElementChild.hasAttribute("data-remove")')
@@ -255,4 +276,3 @@ def run():
   if log:log.close()
   shutil.rmtree(root)
 if __name__=='__main__':run()
-
