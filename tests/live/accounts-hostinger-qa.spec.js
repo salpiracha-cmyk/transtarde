@@ -288,4 +288,11 @@ test('read-only transporter bill register reconciliation', async ({ page }) => {
   const matches = (result.bills || []).filter(b => String(b.invoiceNo || '').trim() === '204');
   // Report only the status of the user-reported invoice, never real amounts, party details or ledger content.
   console.log(`TRANSPORT_INVOICE_204_STATUS=${matches.length ? 'RECORDED' : 'NOT_FOUND'}`);
+  const lookup = await page.request.get(`${BASE_URL}/api/accounts_shipment_lookup.php?entity=TTI&q=SEJ-73%2F27`);
+  expect(lookup.ok()).toBeTruthy();
+  const shipments = await lookup.json();expect(shipments.ok).toBeTruthy();
+  console.log(`TRANSPORT_PROGRAMME_SEJ_LINK=${(shipments.rows || []).some(row => row.loadingProgramme === 'SEJ-73/27' && row.pakistanExporter === 'TTI') ? 'READY' : 'NO_CURRENT_MATCH'}`);
+  const source = await page.request.get(`${BASE_URL}/accounts/accounts-accounting-desk.js`);
+  expect(source.ok()).toBeTruthy();expect(await source.text()).toContain('Add another shipment');
+
 });

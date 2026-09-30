@@ -73,6 +73,8 @@ def run():
   assert request('/api/accounts_workflows_v1.php',multi)[0]==409
   status,amended=request('/api/accounts_workflows_v1.php',{**multi,'id':multi_saved['bill']['id'],'reason':'Fixture unchanged amendment'});assert status==200,(status,amended)
   assert request('/api/accounts_workflows_v1.php',multi,user='billview')[0]==403
+  status,profit=request('/api/shipment_profitability.php?entity=TTI');assert status==200 and sum(x['transport'] for x in profit['rows'])==191700,(status,profit)
+  stored=json.loads((root/'transtrade_private/accounts.json').read_text());assert stored['supplierBills'][multi_saved['bill']['id']]['supplierPayableTotal']==76500;assert len(stored['supplierBills'][multi_saved['bill']['id']]['postingJournalIds'])==1,'Unchanged amendment must not duplicate journal'
   original=(root/'transtrade_private/operations.json').read_bytes()
   def payload(no,keys=None,final=2398200):
    return {'action':'verify_bill','entity':'TTI','relationshipType':'SUPPLIER','relationshipName':'Indus Rice','billDate':'2026-09-29','sourceKeys':keys or [f'EXMILL|{no}|1'],'broker':'JJ','billNo':'FIXTURE-'+no,'finalCommodityValue':final,'brokerageRate':5,'brokerageBasis':'PER_100_KG','brokerageWhtPercent':15,'readyRiceCalculation':{'bags':480,'emptyBagWeightGrams':50,'kantaRate':600},'adjustmentLines':[]}
