@@ -264,12 +264,12 @@ def run():
     # Actual freight UI: separate parties, customer-first lots, aligned USD/PKR rows.
     status,created=request('/api/masters.php',{'action':'create','type':'business_parties','values':['Fixture Forwarder','','Freight Forwarder','','','','','','','','Active','','']});assert status==200,(status,created)
     page.goto(base+'/accounts/index.php');page.locator('#ttChangeCompanyDesk').click();page.locator('.tt-company-choice[data-entity="TTI"]').click();page.locator('[data-tt-area="exports"]').click()
-    page.get_by_role('button',name=re.compile('Freight Forwarder / Shipping')).click();page.locator('#ttFreightAgreementOpen').click()
+    page.get_by_role('button',name=re.compile('Freight Forwarder')).click();page.locator('#ttFreightAgreementOpen').click()
     page.locator('#ttFreightCustomer').fill('Fixture Customer');page.locator('#ttFreightCustomer').press('Tab');page.wait_for_selector('#ttFreightShipment option[value="1"]',state='attached')
     assert all('Fixture Customer' not in text for text in page.locator('#ttFreightShipment option').all_text_contents())
     page.locator('#ttFreightShipment').select_option('2',force=True);assert page.locator('[name=shippingLine]').input_value()=='Fixture Line' and page.locator('[name=forwarder]').input_value()==''
     assert page.locator('[name=fromPort] option').all_text_contents()==['Choose loading port','Karachi Port, Pakistan','Port Qasim, Pakistan']
-    page.locator('#ttFreightAgreement .tt-window-close').click();page.get_by_role('button',name=re.compile('Freight Forwarder / Shipping')).click();page.locator('#ttFreightInvoice').click()
+    page.locator('#ttFreightAgreement .tt-window-close').click();page.get_by_role('button',name=re.compile('Freight Forwarder')).click();page.locator('#ttFreightInvoice').click()
     page.locator('#ttBillShipmentQuery').fill('FIXTURE-SHIP');page.locator('#ttBillShipmentGo').click();page.locator('[data-tt-pick-shipment="0"]').click()
     page.locator('#ttShipmentBillVendor').fill('Fixture Forwarder');page.locator('[name=invoiceNo]').fill('BROWSER-FREIGHT-USD');page.locator('[name=exchangeRate]').fill('280');page.locator('[data-containers]').fill('3')
     charges=page.locator('.tt-bill-freight');charges.nth(0).locator('[data-amount]').fill('1000');charges.nth(1).locator('[data-amount]').fill('50')
