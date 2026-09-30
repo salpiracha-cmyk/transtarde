@@ -178,7 +178,7 @@ def run():
   assert request('/api/accounts_workflows_v1.php',{**agreement,'shippingLine':''})[0]==422
   # New-entry rules consume only their own expense category, never erase history.
   status,available=request('/api/accounts_shipment_lookup.php?entity=TTI&billKind=FREIGHT&q=FIXTURE-SHIP');assert status==200 and available['rows']==[]
-  status,original=request('/api/accounts_shipment_lookup.php?entity=TTI&q=FIXTURE-SHIP');assert status==200 and any(r['id']=='FIXTURE-SHIP' for r in original['rows'])
+  status,original_lookup=request('/api/accounts_shipment_lookup.php?entity=TTI&q=FIXTURE-SHIP');assert status==200 and any(r['id']=='FIXTURE-SHIP' for r in original_lookup['rows'])
   status,other_kind=request('/api/accounts_shipment_lookup.php?entity=TTI&billKind=INSPECTION&q=FIXTURE-SHIP');assert status==200 and any(r['id']=='FIXTURE-SHIP' for r in other_kind['rows'])
   before_stale=storefile.read_bytes();assert request('/api/accounts_workflows_v1.php',{**detailed,'invoiceNo':'STALE-NEW-FREIGHT','newEntry':True})[0]==409;assert storefile.read_bytes()==before_stale
   status,search=request('/api/accounts_search.php?entity=TTI&q='+recorded['bill']['postingJournalIds'][0]);assert status==200 and any(r.get('amendRecord',{}).get('id')==recorded['bill']['id'] for r in search['results'] if r.get('amendRecord'))
