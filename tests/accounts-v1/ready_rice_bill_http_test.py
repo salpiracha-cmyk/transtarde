@@ -124,7 +124,7 @@ def run():
     page.route('**/api/accounts_shipment_lookup.php?*',lambda route:route.fulfill(json={'ok':True,'rows':[fixture]}))
     page.get_by_role('button',name=re.compile('Transport Bill')).click()
     page.locator('#ttBillShipmentQuery').fill('FIXTURE');page.locator('#ttBillShipmentGo').click();page.locator('[data-tt-pick-shipment]').click()
-    page.locator('#ttShipmentBillVendor').wait_for();assert page.locator('#ttShipmentBillVendor').get_attribute('list')=='tt-master-transporter'
+    page.locator('#ttShipmentBillVendor').wait_for();page.wait_for_function("document.querySelector('#ttShipmentBillVendor').getAttribute('list')==='tt-master-transporter'")
     assert page.locator('[name=invoiceNo]').get_attribute('list') is None,'Bill number was treated as supplier'
     page.locator('#ttShipmentBillVendor').fill('New Fixture Transport')
     page.locator('#ttShipmentBillVendor + .tt-master-inline').click();assert page.locator('#ttPartyInlineEditor h3').inner_text()=='Add Transporter'

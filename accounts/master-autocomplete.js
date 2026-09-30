@@ -104,7 +104,7 @@
     }
     document.querySelectorAll('input').forEach(input => {
       const name = category(input);
-      if (!name || (input.list && !input.list.id.startsWith('tt-master-'))) return;
+      if (!name || (input.list && !input.list.id.startsWith('tt-master-') && !input.dataset.masterRole)) return;
       input.setAttribute('list','tt-master-' + name);
       input.setAttribute('autocomplete','off');
       const type = name === 'buyer' ? 'export_customers' : 'business_parties';
