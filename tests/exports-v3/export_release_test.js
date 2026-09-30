@@ -158,6 +158,7 @@ s.lc.conditions=Array.from({length:20},(_,i)=>`Condition ${i+1}`);
 assert.equal((t.lcControlDoc(s,c).match(/class="docPage branded"/g)||[]).length,5,'long L/C control paginates');
 Object.assign(c,{containers:20,podPort:'Jebel Ali',podCountry:'United Arab Emirates',insurance:"Buyer's Account",terms:['EDITABLE TERM'],termsInitialized:true});
 const normalContract=t.salesContractPrint(c);
+assert.equal(c.packings[0].brand,'STAR','quoted output formatting must preserve the raw brand used for packing and artwork matching');
 assert.equal((normalContract.match(/salesContractPhysicalPage/g)||[]).length,2,'the representative Sales Contract fills two explicit physical pages without fixed-bucket gaps');
 assert.doesNotMatch(normalContract,/salesContractFlowPage/,'browser-controlled flowing pages are not used');
 assert.equal((normalContract.match(/<h1 class="docTitle">SALES CONTRACT<\/h1>/g)||[]).length,1,'Sales Contract title appears on page one only');
