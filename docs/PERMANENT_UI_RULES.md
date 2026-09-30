@@ -42,3 +42,13 @@ This rule applies across Super Admin, Milling, Exports, Accounts, Directors, sta
 - Keep exporter, consignee, membership, transport, marks, packages, description and weights within their printed boxes and columns. Wrap and fit text without hiding or truncating it.
 - Position the owner's name, Proprietor designation and company separately above their respective bottom lines. Leave the bottom date blank; retain the commercial invoice number and its date under Other Information.
 - Carry the Commercial Invoice description and HS code; do not add a separate GOODS OF PAKISTAN ORIGIN statement in the description column.
+
+## Final shipment documents and office-folder copies
+
+- Keep one merged final-document table, without generated-set ticks or a printing lock tied to lot closure. Completion gates apply only to Mark Lot Complete.
+- Commercial Invoice and Packing List come from the system's issued final versions, including letterhead, footer and signature. Do not require re-uploading them.
+- Show one Certificate of Origin entry for the uploaded issued original. The draft remains available in its own COO workspace but is excluded from Final Output and folder copies.
+- Phytosanitary and other certificate uploads must populate the corresponding completion records. Allow an optional editable issued document/certificate reference. API category slugs must fit the 64-character storage limit regardless of document title length.
+- Place ORIGINAL / COPY labels in normal flow above the invoice-reference box for both invoice and packing pages.
+- The office share must be mounted on the operator's computer. On that computer select the shipment root once and grant browser folder access. Save copies to Customer / SHIPMENT #<contract sequence> / LOT #<lot sequence>, reusing existing folders.
+- Copy only committed data into generated PDFs; folder saving must not persist unfinished form changes. Include all attached uploads, deduplicated by file identity. Report failures and partial copies accurately; an unavailable office share must not discard the protected online documents.

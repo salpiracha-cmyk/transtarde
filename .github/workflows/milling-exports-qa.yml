@@ -100,6 +100,7 @@ jobs:
           node tests/exports-v3/sales_contract_browser_qa.js
           node tests/exports-v3/shipment_documents_browser_qa.js
           node tests/exports-v3/coo_master_refresh_20260930_audit.js
+          node tests/exports-v3/final_documents_20260930_browser_qa.js
       - name: Preserve Export visual QA evidence
         if: always()
         uses: actions/upload-artifact@v4

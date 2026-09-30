@@ -391,7 +391,7 @@
 .commercialInvoiceOnePage .specimenGoods th,.commercialInvoiceOnePage .specimenGoods td{font-size:9.2px;line-height:1.35}
 .packingBrandSummary th,.packingBrandSummary td,.commercialPackingContainers th,.commercialPackingContainers td{font-size:9.2px;line-height:1.35}
 .specimenPackingSummary{font-size:10.5px}
-.commercialInvoiceOnePage .commercialCopyLabel{position:static;left:auto;top:auto;margin:0 0 2mm 1mm;font-size:18px}
+.docPage .commercialCopyLabel{position:static;left:auto;top:auto;margin:0 0 2mm 1mm;font-size:18px}
 
 /* 2026-09-16 verified physical Sales Contract pages and sent-state controls. */
 .salesContractPhysicalPage{width:210mm;height:297mm;min-height:297mm;padding:4mm 16mm 32mm!important;overflow:hidden;page-break-after:auto!important;background:#fff}
