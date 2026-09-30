@@ -132,8 +132,8 @@ def run():
     assert page.locator('[name=invoiceNo]').get_attribute('list') is None,'Bill number was treated as supplier'
     page.locator('#ttShipmentBillVendor').fill('New Fixture Transport')
     page.locator('#ttShipmentBillVendor + .tt-master-inline').click();assert page.locator('#ttPartyInlineEditor h3').inner_text()=='Add Transporter'
-    page.locator('#ttPartyInlineEditor [name=partyName]').fill('New Fixture Transport');page.locator('#ttPartyInlineEditor [type=submit]').click();page.locator('#ttPartyInlineEditor').wait_for(state='hidden')
-    page.locator('[name=invoiceNo]').fill('BROWSER-TRANSPORT');page.locator('[name=rate]').fill('38000')
+    page.locator('#ttPartyInlineEditor [name=partyName]').fill('New Fixture Transport');page.locator('#ttPartyInlineEditor [type=submit]').click();page.wait_for_function("!document.querySelector('#ttPartyInlineEditor').open || document.querySelector('.tt-party-editor-error').textContent.length>0");assert not page.locator('#ttPartyInlineEditor').is_visible(),page.locator('.tt-party-editor-error').inner_text()
+    page.locator('[name=invoiceNo]').fill('BROWSER-TRANSPORT');page.locator('[name=rate]').fill('38000');page.locator('[name=remarks]').fill('Fixture transport narration')
     page.locator('#ttShipmentBillAdd').click();page.locator('[data-description]').fill('Fixture commission');page.locator('[data-amount]').fill('1500')
     page.locator('#ttShipmentBillDeduct').click();page.locator('[data-description]').nth(1).fill('Fixture deduction');page.locator('[data-amount]').nth(1).fill('300')
     assert page.locator('[data-type]').nth(1).input_value()=='DEDUCT' and page.locator('#ttShipmentBillTotal').inner_text()=='115,200.00'
@@ -144,7 +144,7 @@ def run():
     page.locator('#ttShipmentBillVendor').fill('New Fixture Transport');page.locator('#ttShipmentBillEntry [type=submit]').click();page.get_by_role('heading',name='Supplier bill posted successfully').wait_for()
     assert 'TRB' in page.locator('.tt-bill-confirmation').inner_text()
     page.screenshot(path=str(evidence/'transporter-bill-confirmation.png'))
-    status,registered=request('/api/accounts_workflows_v1.php?entity=TTI&section=transport');assert status==200 and registered['bills'][0]['total']==115200
+    status,registered=request('/api/accounts_workflows_v1.php?entity=TTI&section=transport');assert status==200 and registered['bills'][0]['total']==115200 and registered['bills'][0]['lines'][0]['remarks']=='Fixture transport narration'
     assert (root/'transtrade_private/operations.json').read_bytes()==original,'Transport posting changed Mill records'
     page.remove_listener('response',check_response)
     # Exercise the actual form against the actual endpoints in a minimal harness.
