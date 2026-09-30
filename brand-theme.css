@@ -58,8 +58,10 @@ button:not(.danger):not(.red):not(.xBtn):not(.optionMinus).active{
  :is(.tt-form-grid,.ttv-grid,.ttrs-grid,.tter-grid,.form-grid,.master-form-grid,.grid2,.grid3,.grid4,.grid:has(>label)){align-items:end}
  .grid>label:not(:has(input[type=checkbox],input[type=radio])){min-width:0;display:flex;flex-direction:column;gap:6px}
  :is(.tt-form-grid,.ttv-grid,.ttrs-grid,.tter-grid,.form-grid,.master-form-grid)>label:not(:has(input[type=checkbox],input[type=radio])),:is(.grid2,.grid3,.grid4,.grid:has(>label))>.field{min-width:0;display:flex;flex-direction:column;gap:6px}
- :is(.tt-form-grid,.ttv-grid,.ttrs-grid,.tter-grid,.form-grid,.master-form-grid,.grid2,.grid3,.grid4,.grid:has(>label)) :is(input:not([type=checkbox]):not([type=radio]):not([type=hidden]),select){box-sizing:border-box;width:100%;min-width:0;min-height:42px;margin-top:0}
+ :is(.tt-form-grid,.ttv-grid,.ttrs-grid,.tter-grid,.form-grid,.master-form-grid,.grid2,.grid3,.grid4,.grid:has(>label)) :is(input:not([type=checkbox]):not([type=radio]):not([type=hidden]),select:not(.tt-native-select)){box-sizing:border-box;width:100%;min-width:0;min-height:42px;margin-top:0}
  .tt-master-entry{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px;align-items:stretch;min-width:0}
  .tt-master-entry>.tt-master-inline{align-self:stretch;min-height:42px}
- .tt-modebar{align-items:stretch}.tt-modebar>button{min-height:46px}
+ .tt-form-grid .tt-search-select,.tt-bill-adjustment .tt-search-select{margin-top:0!important}
+ :is(.tt-modebar,.tabs,.nav,.purchase-product-tabs,.purchase-workspace-tabs,.brokery-tabs){align-items:stretch}
+ :is(.tt-modebar,.tabs,.nav,.purchase-product-tabs,.purchase-workspace-tabs,.brokery-tabs)>button{min-height:46px;font-size:16px}
 }
