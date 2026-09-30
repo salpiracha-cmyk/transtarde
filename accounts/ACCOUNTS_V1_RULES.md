@@ -135,22 +135,15 @@ Raw Sesame:
 Other deductions are kg per 100 kg with reason. One maund = 40 kg.
 
 ## 13. Transport
-Transport is controlled by `Loading Programme Number`, not by individual container numbers. The Loading Programme No. must be added to Export Loading Instructions and shown prominently for the transporter to quote on its bill when the Accounts integration is finalized.
+Transport bills use the authoritative Exports/Milling shipment source. Search and posting share the same programme resolver, including older booking-number fields (booking number and loading programme number mean the same thing). A linked shipment does not require manual registration in Accounts. Only saved, distinct actual container numbers count as loaded containers; planned quantities are not billable. TG references remain visible in both Pakistan companies, but the Pakistan exporter must be identified before posting to its books.
 
-Accounts uses number of containers:
-- one Loading Programme may appear on several transporter bills;
-- one transporter bill may contain several Loading Programmes;
-- partial container billing is allowed;
-- cumulative transport-billed containers cannot exceed the loaded container count for that Loading Programme.
+One transporter invoice can cover one or several shipments. Enter the transporter, supplier bill number and bill date once. Each shipment section automatically shows its customer, contract, lot, loading programme, route and existing container numbers. Enter the billed container count and rate; add or deduct shipment charges in the common bill-row format. Show SHIPMENT BILL PAYABLE below each section. “Add another shipment” opens shipment search below the current section without clearing any entered information. Show one bold TOTAL BILL PAYABLE at the bottom and post one supplier liability and balanced journal for the whole invoice.
 
-Create a shared editable Transport Master for authorized owner and Accounts with exactly the commercial route fields:
-- From Where
-- To Where
-- Rate
+The route master suggests the route rate, never a previous invoice rate. A changed master rate requires a reason. Partial container billing is allowed; the sum across all invoice lines and previously posted bills cannot exceed the authoritative loaded count for that programme. A transporter plus supplier invoice number is a hard duplicate within the company. Source shipment/company/programme mismatches, unidentified TG exporter and missing actual containers block posting. Keep older manually registered programme bills amendable; an explicit linked shipment always requires current source verification.
 
-New rows can be added for normal and ex-mill routes. The selected route's rate is suggested from the master and may be manually changed on the bill. Do NOT default from the previous bill's rate.
+Save the shipment IDs, contract/lot references, shipment charges and each payable subtotal in the same bill source record. Supplier ledgers retain one aggregate liability, while shipment profitability uses each line’s payable amount. Corrections preserve original history and payment allocations; a corrected liability cannot fall below already settled payments. No cash POST ID is generated for a non-cash supplier bill.
 
-Transport bills support route, container count, freight rate and flexible extras such as Kanta, commission, detention and other legitimate items. Previously posted and even paid transport bills may be corrected by authorized Accounts, but the original values/history must remain auditable.
+Shared Transport Master: From Where, To Where, Rate. Normal and ex-mill routes can be added by authorized Accounts/owner users. Bills allow Kanta, commission, detention and other described additions/deductions. Errors must be visible, successful posting must show the bill number, and uncertain network responses must be checked against the invoice register before permitting a retry.
 
 ## 14. Freight
 Freight is usually through a freight forwarder and sometimes directly through a shipping line.
@@ -242,3 +235,4 @@ A payment made directly by a third party to a Transtrade supplier/service provid
 
 ## 26. Current implementation
 Accounts development and its QA workflow are maintained on `main`. The old `accounts-v1-foundation` branch is historical and is not a deployment or QA trigger. Changes must pass the Accounts QA checks before a production deployment. Confirm live behaviour and TTI/BRM/TG separation with test data before production go-live.
+

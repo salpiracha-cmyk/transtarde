@@ -9,7 +9,7 @@ $users=[['id'=>501,'username'=>'billqa','full_name'=>'Bill QA','role'=>'Accounts
 $users[]=['id'=>503,'username'=>'fixtureowner','full_name'=>'Fixture Owner','role'=>'Super Admin','permissions'=>['Accounts'=>'all'],'active'=>true,'must_change_password'=>false,'master_access'=>true,'password_hash'=>password_hash($pw,PASSWORD_DEFAULT)];
 $masters=tt_default_masters();$masters['business_parties'][]=['id'=>'transport-fixture','values'=>['Fixture Transport','FT','Transporter','','','','','','','','Active']];$masters['business_parties'][]=['id'=>'broker-jj-fixture','values'=>['JJ','JJ','Broker','','','','','','','','Active','','{"buying":[{"amount":5,"basis":"PER_100_KG","effectiveFrom":"2026-01-01","status":"Active"}],"selling":[{"amount":9,"basis":"PER_TON","effectiveFrom":"2026-01-01","status":"Active"}]}']];
 tt_ensure_data_dir();file_put_contents(TT_STORE_FILE,json_encode(['users'=>$users,'masters'=>$masters,'settings'=>['qa_account_seeded'=>true],'audit'=>[]]));
-$s=['revision'=>0,'journals'=>[],'events'=>[],'commodityBills'=>[],'purchaseSodas'=>[],'loadingProgrammes'=>['TTI|FIXTURE-LP'=>['entity'=>'TTI','loadingProgrammeNo'=>'FIXTURE-LP','loadedContainers'=>10]],'transportMaster'=>[['from'=>'Karachi','to'=>'Jeddah','rate'=>38000]]];
+$s=['revision'=>0,'journals'=>[],'events'=>[],'commodityBills'=>[],'purchaseSodas'=>[],'loadingProgrammes'=>[],'transportMaster'=>[['from'=>'Karachi','to'=>'Jeddah','rate'=>38000]]];
 foreach([['26001','READY','Indus Rice','JJ','CREDIT',30],['26002','RAW','Indus Rice','JJ','CASH',0],['26003','READY','','JJ','CASH',0],['26004','READY','Indus Rice','','CREDIT',60]] as [$no,$stage,$party,$broker,$term,$days]){
  $s['purchaseSodas'][$no]=['id'=>'PS-'.$no,'entity'=>'TTI','commodity'=>'RICE','sodaNo'=>$no,'sodaDate'=>'2026-09-01','party'=>$party,'broker'=>$broker,'productStage'=>$stage,'rate'=>100,'paymentTermType'=>$term,'creditDays'=>$days];
  foreach([1,2] as $n){$key=($stage==='READY'?'EXMILL|':'POHANCH|').$no.'|'.$n;$jid='J-'.$no.'-'.$n;$eid='TTI|COMMODITY_RECEIPT_ACCEPTED|'.$key;$date='2026-09-'.(10+$n);
@@ -18,7 +18,11 @@ foreach([['26001','READY','Indus Rice','JJ','CREDIT',30],['26002','RAW','Indus R
  $s['events'][$eid]=['id'=>$eid,'eventType'=>'COMMODITY_RECEIPT_ACCEPTED','entity'=>'TTI','sourceKey'=>$key,'journalId'=>$jid,'status'=>'Accepted'];
  }
 }
-$s['localSalesPaymentCandidates']['foreign-payment']=['id'=>'foreign-payment','entity'=>'BRM','soda'=>'FOREIGN','party'=>'Foreign party','amount'=>100,'paymentDate'=>'2026-09-29','status'=>'Pending Accounts Approval'];$s['localSalesCandidates']['foreign-sale']=['entity'=>'BRM','journalId'=>'foreign-journal','loadedKg'=>100,'saleDate'=>'2026-09-29','product'=>'Ready Rice'];$s['inventoryCostRates']['foreign-rate']=['entity'=>'BRM','product'=>'Ready Rice','effectiveFrom'=>'2026-01-01','status'=>'Active','costPerKg'=>100,'inventoryAccount'=>'1320'];file_put_contents(TT_DATA_DIR.'/accounts.json',json_encode($s));file_put_contents(TT_DATA_DIR.'/operations.json',json_encode(['values'=>[]]));file_put_contents(__DIR__.'/credentials.json',json_encode(['password'=>$pw]));
+$s['localSalesPaymentCandidates']['foreign-payment']=['id'=>'foreign-payment','entity'=>'BRM','soda'=>'FOREIGN','party'=>'Foreign party','amount'=>100,'paymentDate'=>'2026-09-29','status'=>'Pending Accounts Approval'];$s['localSalesCandidates']['foreign-sale']=['entity'=>'BRM','journalId'=>'foreign-journal','loadedKg'=>100,'saleDate'=>'2026-09-29','product'=>'Ready Rice'];$s['inventoryCostRates']['foreign-rate']=['entity'=>'BRM','product'=>'Ready Rice','effectiveFrom'=>'2026-01-01','status'=>'Active','costPerKg'=>100,'inventoryAccount'=>'1320'];file_put_contents(TT_DATA_DIR.'/accounts.json',json_encode($s));$export=['customers'=>[['id'=>'fixture-customer','name'=>'Fixture Customer']],'contracts'=>[['ref'=>'FIXTURE-CONTRACT','seller'=>'TTI','customerId'=>'fixture-customer','pol'=>'Karachi','podPort'=>'Jeddah']],'shipments'=>[]];
+foreach([['FIXTURE-SHIP','FIXTURE-LP',10],['FIXTURE-SHIP-2','FIXTURE-LP-2',5],['FIXTURE-EMPTY','EMPTY-LP',0]] as [$sid,$lp,$count]){$actual=[];for($i=1;$i<=$count;$i++)$actual[]=['number'=>$sid.'-CONTAINER-'.$i];$export['shipments'][]=['id'=>$sid,'kind'=>'lot','seller'=>'TTI','contractRef'=>'FIXTURE-CONTRACT','lotId'=>$sid.'-LOT','bl'=>['bookingNumber'=>$lp,'blNo'=>'FIXTURE-BL'],'commercial'=>['invoiceNo'=>'FIXTURE-CI'],'loadingPlan'=>['portOfLoading'=>'Karachi','shippingLine'=>'Fixture Line'],'millActuals'=>$actual];}
+$export['contracts'][]=['ref'=>'FOREIGN-CONTRACT','seller'=>'BRM'];$export['shipments'][]=['id'=>'FOREIGN-SHIP','kind'=>'lot','seller'=>'BRM','contractRef'=>'FOREIGN-CONTRACT','loadingProgrammeNo'=>'FOREIGN-LP','millActuals'=>[['number'=>'FOREIGN1']]];
+$export['contracts'][]=['ref'=>'TG-CONTRACT','seller'=>'TG'];$export['shipments'][]=['id'=>'TG-SHIP','kind'=>'lot','seller'=>'TG','contractRef'=>'TG-CONTRACT','loadingProgrammeNo'=>'TG-LP','millActuals'=>[['number'=>'TG1']]];
+file_put_contents(TT_DATA_DIR.'/operations.json',json_encode(['values'=>['transtrade_export_v3_operational'=>json_encode($export)]]));file_put_contents(__DIR__.'/credentials.json',json_encode(['password'=>$pw]));
 '''
 def run():
  root=Path(tempfile.mkdtemp(prefix='tti-ready-bill-'));server=None;log=None
@@ -57,6 +61,18 @@ def run():
   status,register=request('/api/accounts_workflows_v1.php?entity=TTI&section=transport');assert status==200 and register['bills'][0]['total']==115200
   assert saved['bill']['id']==register['bills'][0]['id'] and saved['bill']['postingJournalIds']
   assert request('/api/accounts_workflows_v1.php',transport)[0]==409,'Transport hard duplicate protection'
+  status,shipments=request('/api/accounts_shipment_lookup.php?entity=TTI&q=FIXTURE');assert status==200 and any(x['id']=='FIXTURE-SHIP' and x['loadingProgramme']=='FIXTURE-LP' for x in shipments['rows'])
+  # Source-backed posting succeeds without Accounts programme registration, including legacy booking alias.
+  assert register['loadingProgrammes'][0]['source']=='EXPORTS_MILLING'
+  for sid,lp,count in [('FOREIGN-SHIP','FOREIGN-LP',1),('TG-SHIP','TG-LP',1),('FIXTURE-EMPTY','EMPTY-LP',1),('FIXTURE-SHIP','WRONG-LP',1),('FIXTURE-SHIP','FIXTURE-LP',8),('FIXTURE-SHIP','FIXTURE-LP',1.5)]:
+   bad={**transport,'invoiceNo':'REJECT-'+sid+lp+str(count),'shipmentId':sid,'lines':[{**transport['lines'][0],'shipmentId':sid,'loadingProgrammeNo':lp,'containers':count}]}
+   assert request('/api/accounts_workflows_v1.php',bad)[0]==422,(sid,lp,count)
+  multi={**transport,'invoiceNo':'MULTI-FIXTURE','shipmentId':'FIXTURE-SHIP','adjustments':[],'lines':[{'shipmentId':'FIXTURE-SHIP','loadingProgrammeNo':'FIXTURE-LP','containers':1,'from':'Karachi','to':'Jeddah','rate':38000,'adjustments':[{'type':'ADD','description':'Kanta','amount':1000}]},{'shipmentId':'FIXTURE-SHIP-2','loadingProgrammeNo':'FIXTURE-LP-2','containers':1,'from':'Karachi','to':'Jeddah','rate':38000,'adjustments':[{'type':'DEDUCT','description':'Discount','amount':500}]}]}
+  status,multi_saved=request('/api/accounts_workflows_v1.php',multi);assert status==200,(status,multi_saved)
+  status,multi_register=request('/api/accounts_workflows_v1.php?entity=TTI&section=transport');multi_row=next(x for x in multi_register['bills'] if x['invoiceNo']=='MULTI-FIXTURE');assert multi_row['total']==76500 and [x['amount'] for x in multi_row['lines']]==[39000,37500] and len(multi_row['shipmentIds'])==2
+  assert request('/api/accounts_workflows_v1.php',multi)[0]==409
+  status,amended=request('/api/accounts_workflows_v1.php',{**multi,'id':multi_saved['bill']['id'],'reason':'Fixture unchanged amendment'});assert status==200,(status,amended)
+  assert request('/api/accounts_workflows_v1.php',multi,user='billview')[0]==403
   original=(root/'transtrade_private/operations.json').read_bytes()
   def payload(no,keys=None,final=2398200):
    return {'action':'verify_bill','entity':'TTI','relationshipType':'SUPPLIER','relationshipName':'Indus Rice','billDate':'2026-09-29','sourceKeys':keys or [f'EXMILL|{no}|1'],'broker':'JJ','billNo':'FIXTURE-'+no,'finalCommodityValue':final,'brokerageRate':5,'brokerageBasis':'PER_100_KG','brokerageWhtPercent':15,'readyRiceCalculation':{'bags':480,'emptyBagWeightGrams':50,'kantaRate':600},'adjustmentLines':[]}
@@ -124,27 +140,27 @@ def run():
     page.goto(base+'/accounts/index.php')
     page.locator('#ttChangeCompanyDesk').click();page.locator('.tt-company-choice[data-entity="TTI"]').click()
     page.locator('[data-tt-area="exports"]').click()
-    fixture={'id':'FIXTURE-SHIP','customer':'Fixture Customer','contract':'FIXTURE-CONTRACT','lot':'FIXTURE-LOT','commercialInvoice':'FIXTURE-CI','customsInvoice':'','bl':'FIXTURE-BL','loadingProgramme':'FIXTURE-LP','shippingLine':'Fixture Line','portOfLoading':'Karachi','portOfDischarge':'Jeddah','containers':['FIXTURE1','FIXTURE2','FIXTURE3'],'seller':'TTI','pakistanExporter':'TTI'}
-    page.route('**/api/accounts_shipment_lookup.php?*',lambda route:route.fulfill(json={'ok':True,'rows':[fixture]}))
     page.get_by_role('button',name=re.compile('Transport Bill')).click()
-    page.locator('#ttBillShipmentQuery').fill('FIXTURE');page.locator('#ttBillShipmentGo').click();page.locator('[data-tt-pick-shipment]').click()
+    page.locator('#ttBillShipmentQuery').fill('FIXTURE');page.locator('#ttBillShipmentGo').click();page.locator('[data-tt-pick-shipment]').first.click()
     page.locator('#ttShipmentBillVendor').wait_for();page.wait_for_function("document.querySelector('#ttShipmentBillVendor').getAttribute('list')==='tt-master-transporter'")
     assert page.locator('[name=invoiceNo]').get_attribute('list') is None,'Bill number was treated as supplier'
     page.locator('#ttShipmentBillVendor').fill('Cedar Horizon Haulage')
     page.locator('#ttShipmentBillVendor + .tt-master-inline').click();assert page.locator('#ttPartyInlineEditor h3').inner_text()=='Add Transporter'
     page.locator('#ttPartyInlineEditor [name=partyName]').fill('Cedar Horizon Haulage');page.locator('#ttPartyInlineEditor [type=submit]').click();page.wait_for_function("!document.querySelector('#ttPartyInlineEditor').open || document.querySelector('.tt-party-editor-error').textContent.length>0");assert not page.locator('#ttPartyInlineEditor').is_visible(),page.locator('.tt-party-editor-error').inner_text()
-    page.locator('[name=invoiceNo]').fill('BROWSER-TRANSPORT');page.locator('[name=rate]').fill('38000');page.locator('[name=remarks]').fill('Fixture transport narration')
+    page.locator('[name=containers]').fill('3');page.locator('[name=invoiceNo]').fill('BROWSER-TRANSPORT');page.locator('[name=rate]').fill('38000');page.locator('[name=remarks]').fill('Fixture transport narration')
     page.locator('#ttShipmentBillAdd').click();page.locator('[data-description]').fill('Fixture commission');page.locator('[data-amount]').fill('1500')
     page.locator('#ttShipmentBillDeduct').click();page.locator('[data-description]').nth(1).fill('Fixture deduction');page.locator('[data-amount]').nth(1).fill('300')
     assert page.locator('[data-type]').nth(1).input_value()=='DEDUCT' and page.locator('#ttShipmentBillTotal').inner_text()=='115,200.00'
     assert page.locator('.tt-shipment-charge').first.evaluate('el=>el.firstElementChild.hasAttribute("data-remove")')
     ends=[page.locator(sel).first.bounding_box()['x']+page.locator(sel).first.bounding_box()['width'] for sel in ['[data-amount]','#ttShipmentBillBase','#ttShipmentBillTotal']]
     assert max(ends)-min(ends)<16,ends
+    page.locator('#ttTransportAddShipment').click();page.locator('#ttTransportQuery').fill('FIXTURE-SHIP-2');page.locator('#ttTransportFind').click();page.locator('#ttTransportHits [data-pick]').click()
+    second=page.locator('.tt-transport-shipment').nth(1);second.locator('[name=containers]').fill('1');second.locator('[name=rate]').fill('38000');assert page.locator('#ttShipmentBillTotal').inner_text()=='153,200.00'
     page.locator('#ttShipmentBillVendor').fill('JJ');page.locator('#ttShipmentBillEntry [type=submit]').click();page.wait_for_function("document.querySelector('#ttShipmentBillError').textContent.includes('Bill not posted')");assert 'Transporter' in page.locator('#ttShipmentBillError').inner_text()
     page.locator('#ttShipmentBillVendor').fill('Cedar Horizon Haulage');page.locator('#ttShipmentBillEntry [type=submit]').click();page.get_by_role('heading',name='Supplier bill posted successfully').wait_for()
     assert 'TRB' in page.locator('.tt-bill-confirmation').inner_text()
     page.screenshot(path=str(evidence/'transporter-bill-confirmation.png'))
-    status,registered=request('/api/accounts_workflows_v1.php?entity=TTI&section=transport');assert status==200 and registered['bills'][0]['total']==115200 and registered['bills'][0]['lines'][0]['remarks']=='Fixture transport narration'
+    status,registered=request('/api/accounts_workflows_v1.php?entity=TTI&section=transport');assert status==200 and next(x for x in registered['bills'] if x['invoiceNo']=='BROWSER-TRANSPORT')['total']==153200 and len(next(x for x in registered['bills'] if x['invoiceNo']=='BROWSER-TRANSPORT')['lines'])==2
     assert (root/'transtrade_private/operations.json').read_bytes()==original,'Transport posting changed Mill records'
     page.remove_listener('response',check_response)
     # Exercise the actual form against the actual endpoints in a minimal harness.
