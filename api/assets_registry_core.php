@@ -86,10 +86,11 @@ function far_payment(array &$s,array &$a,array $b,array $u):array {
     if(!$historical){
         $mode=(string)($b['mode']??'POST');
         if($mode==='EXISTING_POST'){
+            if($a['currency']!==($a['entity']==='TG'?'AED':'PKR'))throw new DomainException('The asset currency must match the company book currency when linking a payment Post ID.');
             $jid=trim((string)($b['existingPostId']??''));$j=$s['journals'][$jid]??null;
             if(!is_array($j)||($j['status']??'')!=='Posted'||$j['entity']!==$a['entity']||$j['date']!==$date)throw new DomainException('Select the original posted payment in these company books on the same date.');
             $movement=0;foreach((array)$j['lines'] as $l)if(in_array((string)$l['account'],['1110','1120'],true))$movement+=round(((float)$l['credit']-(float)$l['debit'])*100);
-            if($movement!==$amount)throw new DomainException('The original Post ID cash/bank payment must match this instalment amount.');
+            if((int)round($movement)!==$amount)throw new DomainException('The original Post ID cash/bank payment must match this instalment amount.');
             foreach((array)($s['managedAssets']??[]) as $other)foreach($other['payments'] as $p)if(($p['journalId']??'')===$jid)throw new DomainException('This Post ID is already linked to an asset payment.');
             foreach($a['payments'] as $p)if(($p['journalId']??'')===$jid)throw new DomainException('This Post ID is already linked to an asset payment.');
         }elseif($mode==='POST'){

@@ -78,7 +78,7 @@ function tt_bank_can_transact($id){return $id==='B1';}
         assert call(asset=mid)[0]==404 and len(saved()['journals'])==2
         # Exact existing payment linking creates no second ledger movement.
         store=saved();store['journals']['OLD-PAY']={'id':'OLD-PAY','entity':'TTI','date':'2026-07-02','status':'Posted','lines':[{'account':'3200','debit':100,'credit':0},{'account':'1120','debit':0,'credit':100}]};(root/'data/accounts.json').write_text(json.dumps(store))
-        linked=register('LINKED',cost=100,payments=[{'instalmentNo':'1','date':'2026-07-02','amount':100,'mode':'EXISTING_POST','existingPostId':'OLD-PAY'}]);before=len(saved()['journals']);assert call(linked)[0]==200;assert len(saved()['journals'])==before
+        linked=register('LINKED',cost=100,payments=[{'instalmentNo':'1','date':'2026-07-02','amount':100,'mode':'EXISTING_POST','existingPostId':'OLD-PAY'}]);before=len(saved()['journals']);status,d=call(linked);assert status==200,d;assert len(saved()['journals'])==before
         assert call(register('DUP-LINK',cost=100,payments=linked['payments']))[0]==422
         # Countries/cities add and removal retain the property snapshot.
         for body in [{'kind':'countries','operation':'add','name':'Oman'},{'kind':'cities','operation':'delete','id':'DXB'}]:
