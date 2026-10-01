@@ -646,6 +646,11 @@ function tt_api_entity_policy(string $path): array {
     return['required'=>true,'fixed'=>''];
 }
 
+/** Only the read-only Post ID register aggregates authorized company books. */
+function tt_accounts_post_register_read(string $path,string $method,string $entity,string $account): bool {
+    return $path==='/api/accounts_ledger_browser.php'&&strtoupper($method)==='GET'&&$entity==='ALL'&&$account==='POSTS';
+}
+
 function tt_require_login(): array {
     $user = tt_current_user();
     $path=(string)parse_url((string)($_SERVER['REQUEST_URI']??''),PHP_URL_PATH);
@@ -674,6 +679,11 @@ function tt_require_login(): array {
             if(is_array($body))$entity=strtoupper(trim((string)($body['entity']??'')));
         }
         if($entity===''&&$policy['fixed']!=='')$entity=$policy['fixed'];
+        if(tt_accounts_post_register_read($path,(string)($_SERVER['REQUEST_METHOD']??'GET'),$entity,(string)($_GET['account']??''))){
+            if(!tt_user_accounts_entities($user))tt_api_json_error(403,'You do not have permission for any company books.');
+            // accounts_ledger_browser.php filters every journal/post by entity View rights.
+            return $user;
+        }
         if($entity===''&&!empty($policy['required'])&&($user['role']??'')!=='Super Admin')tt_api_json_error(403,'An authorized legal entity is required.');
         if($entity!==''&&!in_array($entity,['TTI','BRM','TG'],true))tt_api_json_error(403,'Select a valid legal entity.');
         if($entity!==''){

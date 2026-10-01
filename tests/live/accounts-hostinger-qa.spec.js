@@ -314,7 +314,9 @@ test('Accounts repair: clear held-entry label and ledger survives focus changes'
   await expect(page.locator('#ttDeskWork .tt-action').filter({ hasText: 'Due Payment Working' })).toHaveCount(0);
   await page.evaluate(() => window.TT_ALL_LEDGERS.open('POSTS'));
   await expect(page.locator('#tt-all-ledgers .tal-controls')).toBeVisible({ timeout: 30_000 });
+  await page.locator('#tal-filter').fill('ledger focus draft');
   await page.evaluate(() => {
+    window.__qaFilterNode = document.querySelector('#tal-filter');
     window.__qaLedgerNode = document.querySelector('#tt-all-ledgers');
     window.dispatchEvent(new Event('blur'));
     document.dispatchEvent(new Event('visibilitychange'));
@@ -322,5 +324,6 @@ test('Accounts repair: clear held-entry label and ledger survives focus changes'
   });
   await responsive(page, 'Ledger after browser focus change');
   await expect(page.locator('#tt-all-ledgers .tal-controls')).toBeVisible();
-  expect(await page.evaluate(() => window.__qaLedgerNode === document.querySelector('#tt-all-ledgers'))).toBe(true);
+  expect(await page.evaluate(() => window.__qaLedgerNode === document.querySelector('#tt-all-ledgers') && window.__qaFilterNode === document.querySelector('#tal-filter'))).toBe(true);
+  await expect(page.locator('#tal-filter')).toHaveValue('ledger focus draft');
 });
