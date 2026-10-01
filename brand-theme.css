@@ -105,7 +105,7 @@ button:not(.danger):not(.red):not(.xBtn):not(.optionMinus).active{
  label.ttRowField>.tt-search-select{margin-top:0!important;min-width:0;width:100%}
 }
 @media screen{
- label.ttRowField>:is(input,select,textarea){margin-top:0!important}
+ :is(label.ttRowField,.field,.ttv-field,.ttrs-field)>:is(input,select,textarea){margin-top:0!important}
  .tt-bill-adjustment>button,.tt-bill-adjustment>div:has(>[data-remove]){align-self:end}
  .tt-bill-adjustment [data-remove]{min-height:40px}
 }
