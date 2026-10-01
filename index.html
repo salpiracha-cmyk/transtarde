@@ -284,7 +284,7 @@
         <label>IBAN<input id="bankIban"></label><label>SWIFT / BIC<input id="bankSwift"></label>
         <fieldset class="bank-ownership"><legend>Ownership</legend><label><input type="radio" name="bankOwnership" value="Company Account" checked> Company Account</label><label><input type="radio" name="bankOwnership" value="Proprietor / Owner Account"> Proprietor / Owner Account</label><label><input type="radio" name="bankOwnership" value="Personal Account"> Personal Account</label></fieldset>
         <label id="bankOwnerWrap" hidden>Account owner<input id="bankOwner"></label>
-        <label class="bank-check"><input id="bankDefault" type="checkbox"> Default account for this currency</label>
+        <label class="bank-check"><input id="bankDefault" type="checkbox"> Default for receipts and payments in this currency</label>
         <label class="bank-check"><input id="bankRetention" type="checkbox"> Retention account</label>
         <div id="bankDeleteConfirm" class="bank-delete-confirm" hidden><strong>Delete this bank account?</strong><p>Existing postings and their historical account identity will remain.</p><label id="bankReplacementWrap" hidden>Replacement default for this currency<select id="bankReplacement"></select></label><button class="button danger" id="bankConfirmDelete" type="button">Confirm delete</button></div>
       </div>
