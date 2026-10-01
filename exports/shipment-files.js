@@ -5,7 +5,7 @@ let legacyRoot=null;
 function component(value){const name=String(value||'').normalize('NFC').replace(/[<>:"/\\|?*\x00-\x1f]/g,'-').replace(/[. ]+$/g,'').trim().slice(0,120);if(!name||/^\.+$/.test(name))throw new Error('Customer, shipment and lot names are required for saving files.');return /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(name)?'_'+name:name}
 function folderParts(customer,contract,lot){return[component(customer),'SHIPMENT #'+component(String(contract).split('/').pop()),'LOT #'+component(String(lot).split('/').pop().replace(/^L(?=\d)/i,''))]}
 function officeLocation(platform=navigator.userAgentData?.platform||navigator.platform||navigator.userAgent){const windows=/win/i.test(platform);return{platform:windows?'Windows':'Mac',path:windows?String.raw`\\tti-server\TTI DOCS\Transtrade software shipment documents`:'smb://tti-server/TTI DOCS/Transtrade software shipment documents',connect:'Configure this destination once in Transtrade Office Agent on the permanent office/server PC. Review the configured folder in File Explorer on Windows or Finder on Mac.'}}
-function legacyQa(){return !!window.__qa}
+function legacyQa(){return !!(window.__qa||window.__files)}
 async function choose(){
  if(legacyQa()&&window.showDirectoryPicker){
   const root=await window.showDirectoryPicker({mode:'readwrite'});
