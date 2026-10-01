@@ -9,7 +9,7 @@ try{
     $user=tt_require_login();
     if(!tt_user_can_open_module($user,'Accounts'))apa_out(['ok'=>false,'error'=>'Accounts permission required.'],403);
     if($_SERVER['REQUEST_METHOD']!=='POST')apa_out(['ok'=>false,'error'=>'Method not allowed.'],405);
-    $body=json_decode(file_get_contents('php://input')?:'{}',true);
+    $body=json_decode((function_exists('tt_accounts_input')?tt_accounts_input():file_get_contents('php://input'))?:'{}',true);
     if(!is_array($body)||!tt_verify_csrf((string)($body['csrf']??'')))apa_out(['ok'=>false,'error'=>'Your session expired. Refresh and try again.'],419);
     $postId=trim((string)($body['postId']??''));
     if($postId==='')apa_out(['ok'=>false,'error'=>'Select a Post ID.'],422);

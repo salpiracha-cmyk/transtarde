@@ -30,7 +30,7 @@ try {
         $s=exa_read();$entity=strtoupper(trim((string)($_GET['entity']??'')));exa_require_entity($user,$entity,false);$rows=array_values(array_filter((array)$s['exportCandidates'],static fn($x)=>(string)($x['entity']??'')===$entity));usort($rows,static fn($a,$b)=>strcmp((string)($b['createdAt']??''),(string)($a['createdAt']??'')));exa_respond(['ok'=>true,'candidates'=>$rows,'policy'=>$policy,'accounts'=>exa_account_names(),'serverNow'=>gmdate('c')]);
     }
     if($_SERVER['REQUEST_METHOD']!=='POST')exa_respond(['ok'=>false,'error'=>'Method not allowed.'],405);
-    $body=json_decode(file_get_contents('php://input')?:'',true);if(!is_array($body)||!tt_verify_csrf((string)($body['csrf']??'')))exa_respond(['ok'=>false,'error'=>'Your session expired. Refresh and try again.'],419);$action=(string)($body['action']??'');
+    $body=json_decode((function_exists('tt_accounts_input')?tt_accounts_input():file_get_contents('php://input'))?:'',true);if(!is_array($body)||!tt_verify_csrf((string)($body['csrf']??'')))exa_respond(['ok'=>false,'error'=>'Your session expired. Refresh and try again.'],419);$action=(string)($body['action']??'');
 
     if($action==='queue_candidate'){
         if(!exa_module_write($user,'Exports'))exa_respond(['ok'=>false,'error'=>'Exports Create or Edit permission required.'],403);

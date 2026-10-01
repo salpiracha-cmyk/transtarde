@@ -52,7 +52,9 @@ with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
         assert draft('Alice',1051)[0]==422,'Cannot exceed entitlement'
         assert draft('Alice',1050)[0]==200,'Can defer all advance adjustment'
         assert draft('Bob',600,'bank-b','CHEQUE')[0]==422,'Cheque number is mandatory'
-        assert draft('Bob',600,'bank-b','ONLINE_BANKING')[0]==200,'Online reference optional; overdraft allowed'
+        assert draft('Bob',600,'bank-b','ONLINE_BANKING',cashAmount=300,bankAmount=301)[0]==422,'Split must equal total'
+        assert draft('Bob',600,'bank-b','CHEQUE',cashAmount=300,bankAmount=300)[0]==422,'Split bank cheque still requires number'
+        assert draft('Bob',600,'bank-b','ONLINE_BANKING',cashAmount=300,bankAmount=300)[0]==200,'Online reference optional; overdraft allowed'
         assert draft('Cara',0)[0]==200,'Zero-payment deferral'
         assert not saved().get('journals'),'Individual POST is a draft only'
         assert draft('Bob',500,version=0)[0]==422,'Stale draft overwrite rejected'
@@ -65,6 +67,9 @@ with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
         assert store['salaryPeriods']['TTI|2026-10|Bob']['outstanding']==450
         assert store['salaryPeriods']['TTI|2026-10|Cara']['outstanding']==1050
         assert any(l.get('party')=='Bob' and l['account']=='2140' for l in journal['lines'])
+        bob=[l for l in journal['lines'] if l.get('party')=='Bob']
+        assert any(l['account']=='1120' and l['credit']==300 for l in bob),bob
+        assert any(l['account']=='1110' and l['credit']==300 for l in bob),bob
         assert any(l.get('bankPaymentMethod')=='ONLINE_BANKING' and not l['bankReference'] for l in journal['lines'])
         assert request({'action':'complete_salary_month','version':sheet['version'],'date':'2026-10-01'})[1]['result']['journalId']==journalId
         assert len(saved()['journals'])==1,'Completion retry cannot double-post'
@@ -98,8 +103,12 @@ with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
                 page.locator('#rsSalaryBack').click();page.locator('#rsPrepare').click();page.locator('#rsMonth').fill('2027-01');page.locator('#rsMonth').dispatch_event('change')
                 page.locator('[data-rs-draft-pay="Bob"]').click();assert page.locator('#rsPaySalAmt').input_value()=='1050'
                 page.locator('[name="rsPaymentMode"][value="BANK"]').check();assert page.locator('#rsPaySalBank').input_value()=='bank-b'
-                page.locator('#rsPaySalBankDetails [data-method]').select_option('ONLINE_BANKING');page.locator('#rsPaySalAmt').fill('500');page.locator('#rsPaySalBtn').click()
+                page.locator('#rsPaySalBankDetails [data-method]').select_option('ONLINE_BANKING');page.locator('#rsPaySalAmt').fill('500');page.locator('#rsSplitCash').fill('250');page.locator('#rsSplitBank').fill('250');page.locator('#rsPaySalBtn').click()
                 page.get_by_role('button',name='Amend',exact=True).wait_for();page.locator('[data-rs-draft-pay="Bob"]').click();assert page.locator('#rsPaySalAmt').input_value()=='500'
+                assert page.locator('[name=rsPaymentMode][value=CASH]').is_checked()
+                assert page.locator('[name=rsPaymentMode][value=BANK]').is_checked()
+                assert page.locator('#rsSplitCash').input_value()=='250'
+                assert page.locator('#rsSplitBank').input_value()=='250'
                 assert not errors,errors;browser.close()
                 print('Actual salary browser: two icons, advance unchanged, payment default, two methods, saved draft and Amend passed')
     finally:server.terminate();server.wait(timeout=5)

@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require dirname(__DIR__).'/auth_store.php';
+require_once __DIR__.'/accounts_reviews_core.php';
 header('Content-Type: application/json; charset=UTF-8');
 header('Cache-Control: no-store, no-cache, must-revalidate');
 
@@ -17,7 +18,7 @@ try{
  $commodity=[];$expenses=[];
  foreach((array)($s['commodityBills']??[])as$b){if(!is_array($b)||($b['entity']??'')!==$e)continue;$out=round(max(0,(float)($b['supplierPayableTotal']??$b['total']??0)-ad_paid($s,(string)($b['id']??''))),2);if($out>.005)$commodity[]=['label'=>(string)($b['broker']??$b['party']??'Commodity supplier'),'reference'=>(string)($b['billNo']??$b['id']??''),'date'=>(string)($b['dueDateFrom']??$b['billDate']??''),'currency'=>'PKR','amount'=>$out];}
  foreach((array)($s['supplierBills']??[])as$b){if(!is_array($b)||($b['entity']??'')!==$e)continue;$out=round(max(0,(float)($b['supplierPayableTotal']??0)-ad_paid($s,(string)($b['id']??''))),2);if($out>.005)$expenses[]=['label'=>(string)($b['vendor']??$b['broker']??'Supplier'),'reference'=>(string)($b['billNo']??$b['id']??''),'date'=>(string)($b['dueDate']??$b['billDate']??''),'currency'=>'PKR','amount'=>$out];}
- $attention=[];foreach((array)($s['payableHolds']??[])as$h)if(is_array($h)&&($h['entity']??'')===$e&&!empty($h['active']))$attention[]=['type'=>'Held payment','message'=>(string)($h['reason']??'Payment is on hold'),'reference'=>(string)($h['pohanch']??$h['sourceKey']??'')];foreach((array)($s['localSalesCandidates']??[])as$x)if(is_array($x)&&($x['entity']??'')===$e&&($x['status']??'')==='Pending Accounts Approval')$attention[]=['type'=>'Local sale','message'=>'Waiting for Accounts approval','reference'=>(string)($x['gatePass']??$x['soda']??'')];
+ $attention=ar_items($s,$e);
  $due=$expenses;
  foreach((array)($s['creditCardStatements']??[]) as $statement){
    if(!is_array($statement)||($statement['entity']??'')!==$e||($statement['status']??'Pending')==='Paid')continue;

@@ -18,7 +18,7 @@ try {
     if ($_SERVER['REQUEST_METHOD']==='GET') location_respond(['ok'=>true,'locations'=>tt_active_location_masters()]);
     if ($_SERVER['REQUEST_METHOD']!=='POST') location_respond(['ok'=>false,'error'=>'Method not allowed.'],405);
     if (!location_can_write($user)) location_respond(['ok'=>false,'error'=>'Create or Edit permission is required.'],403);
-    $body=json_decode(file_get_contents('php://input') ?: '{}',true);
+    $body=json_decode((function_exists('tt_accounts_input')?tt_accounts_input():file_get_contents('php://input')) ?: '{}',true);
     if (!is_array($body) || !tt_verify_csrf((string)($body['csrf'] ?? ''))) location_respond(['ok'=>false,'error'=>'Your session expired. Refresh and try again.'],419);
     $action=strtolower(trim((string)($body['action']??'add')));
     if($action==='deactivate'){

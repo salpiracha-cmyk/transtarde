@@ -325,7 +325,7 @@ try {
     }
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') accounts_respond(['ok'=>false,'error'=>'Method not allowed.'], 405);
 
-    $raw = file_get_contents('php://input') ?: '';
+    $raw = (function_exists('tt_accounts_input')?tt_accounts_input():file_get_contents('php://input')) ?: '';
     if (strlen($raw) > 1024 * 1024) accounts_respond(['ok'=>false,'error'=>'Accounts update is too large.'], 413);
     $body = json_decode($raw, true);
     if (!is_array($body) || !tt_verify_csrf((string)($body['csrf'] ?? ''))) accounts_respond(['ok'=>false,'error'=>'Your session expired. Refresh and try again.'], 419);

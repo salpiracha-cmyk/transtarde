@@ -29,7 +29,7 @@ $e=op_ent((string)($_GET['entity']??'TTI'));op_require_entity($u,$e,false);
 if($_SERVER['REQUEST_METHOD']==='GET')op_out(op_payload(op_read(),$e));
 if($_SERVER['REQUEST_METHOD']!=='POST')op_out(['ok'=>false,'error'=>'Method not allowed.'],405);
 if(!op_can($u))op_out(['ok'=>false,'error'=>'Accounts Create / Edit / Approve permission required.'],403);
-$b=json_decode(file_get_contents('php://input')?:'{}',true);if(!is_array($b)||!tt_verify_csrf((string)($b['csrf']??'')))op_out(['ok'=>false,'error'=>'Your session expired. Refresh and try again.'],419);
+$b=json_decode((function_exists('tt_accounts_input')?tt_accounts_input():file_get_contents('php://input'))?:'{}',true);if(!is_array($b)||!tt_verify_csrf((string)($b['csrf']??'')))op_out(['ok'=>false,'error'=>'Your session expired. Refresh and try again.'],419);
 if(($b['action']??'')!=='post_purchase')op_out(['ok'=>false,'error'=>'Unknown other-purchase action.'],422);
 $e=op_ent((string)($b['entity']??''));op_require_entity($u,$e,true);
 $date=op_date((string)($b['date']??''),'purchase date');$type=strtoupper(trim((string)($b['type']??'')));if(!in_array($type,['FIXED_ASSET','OPERATING'],true))op_out(['ok'=>false,'error'=>'Select Fixed Asset or Operating Purchase.'],422);

@@ -157,7 +157,7 @@ try{
     }
     if($_SERVER['REQUEST_METHOD']!=='POST')ba_respond(['ok'=>false,'error'=>'Method not allowed.'],405);
     if(!ba_can_write($user))ba_respond(['ok'=>false,'error'=>'Accounts Create / Edit / Approve permission required.'],403);
-    $body=json_decode(file_get_contents('php://input')?:'',true);
+    $body=json_decode((function_exists('tt_accounts_input')?tt_accounts_input():file_get_contents('php://input'))?:'',true);
     if(!is_array($body)||!tt_verify_csrf((string)($body['csrf']??'')))ba_respond(['ok'=>false,'error'=>'Your session expired. Refresh and try again.'],419);
     $action=(string)($body['action']??'');
     $entity=ba_entity((string)($body['entity']??''));$id=trim((string)($body['accountId']??''));if($id==='')ba_respond(['ok'=>false,'error'=>'Select a bank or cash account.'],422);

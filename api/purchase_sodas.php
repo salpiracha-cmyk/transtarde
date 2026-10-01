@@ -170,9 +170,9 @@ function ps_rows(array $store, string $entity): array {
         }
         $minimum = (float)($soda['qtyFromKg'] ?? 0); $maximum = (float)($soda['qtyToKg'] ?? 0); $expected = (int)($soda['expectedTrucks'] ?? 0);
         $hasWeight = $minimum > 0; $hasTrucks = $expected > 0;
-        $exMill=(string)($soda['readyRoute']??'')==='EX_MILL';
-        $weightMet = !$hasWeight || $received >= ($exMill?$minimum*.95:$minimum); $truckMet = !$hasTrucks || $truckUnits >= $expected;
-        $maxAllowed = $maximum > 0 ? ($exMill?$maximum*1.05:$maximum + PS_MAX_OVER_KG) : 0; $overMaximum = $maxAllowed > 0 && $received > $maxAllowed + .001;
+        $exMill=(string)($soda['readyRoute']??'')==='EX_MILL';$readyRice=strtoupper((string)($soda['commodity']??''))==='RICE'&&strtoupper((string)($soda['productStage']??''))==='READY';
+        $weightMet = !$hasWeight || $received >= ($readyRice?$maximum*.95:$minimum); $truckMet = !$hasTrucks || $truckUnits >= $expected;
+        $maxAllowed = $maximum > 0 ? ($readyRice?$maximum*1.05:$maximum + PS_MAX_OVER_KG) : 0; $overMaximum = $maxAllowed > 0 && $received > $maxAllowed + .001;
         if((string)($soda['readyRoute']??'')==='EX_MILL')$unbilled=$received>0&&$billed<=0?1:0;
         $status = (string)($soda['status'] ?? 'Open');
         if (!in_array($status, ['Completed','Short Closed','Cancelled'], true)) {
@@ -182,7 +182,7 @@ function ps_rows(array $store, string $entity): array {
             elseif ($unbilled > 0) $status = 'Received / Bill Pending';
             else $status = 'Ready to Complete';
         }
-        $rows[] = $soda + ['id'=>(string)$id, 'basis'=>$hasWeight && $hasTrucks ? 'BOTH' : ($hasWeight ? 'WEIGHT' : 'TRUCKS'), 'receivedKg'=>round($received,3), 'liftedKg'=>(string)($soda['readyRoute']??'')==='EX_MILL'?round($received,3):0, 'trucksReceived'=>$physicalTrucks, 'truckUnitsReceived'=>$truckUnits, 'unbilledArrivals'=>$unbilled, 'billedAmount'=>round($billed,2), 'paidAmount'=>round($paid,2), 'payableOutstanding'=>round(max(0,$billed-$paid),2), 'calculatedStatus'=>$status, 'maxAllowedKg'=>round($maxAllowed,3), 'overMaximum'=>$overMaximum, 'receipts'=>$receipts];
+        $rows[] = $soda + ['id'=>(string)$id, 'basis'=>$hasWeight && $hasTrucks ? 'BOTH' : ($hasWeight ? 'WEIGHT' : 'TRUCKS'), 'receivedKg'=>round($received,3), 'liftedKg'=>(string)($soda['readyRoute']??'')==='EX_MILL'?round($received,3):0, 'trucksReceived'=>$physicalTrucks, 'truckUnitsReceived'=>$truckUnits, 'unbilledArrivals'=>$unbilled, 'billedAmount'=>round($billed,2), 'paidAmount'=>round($paid,2), 'payableOutstanding'=>round(max(0,$billed-$paid),2), 'calculatedStatus'=>$status, 'minAllowedKg'=>round($readyRice?$maximum*.95:$minimum,3), 'tolerancePercent'=>$readyRice?5:0, 'maxAllowedKg'=>round($maxAllowed,3), 'overMaximum'=>$overMaximum, 'receipts'=>$receipts];
     }
     usort($rows, static fn(array $a, array $b): int => strcmp((string)($b['sodaDate'] ?? ''), (string)($a['sodaDate'] ?? '')) ?: strcmp((string)($b['sodaNo'] ?? ''), (string)($a['sodaNo'] ?? '')));
     return $rows;
@@ -232,7 +232,7 @@ try {
         ps_out(['ok'=>true, 'sodas'=>ps_rows($store,$entity), 'nextSodaNo'=>ps_next_no((array)$store['purchaseSodas']), 'rules'=>['doubleTruckAboveKg'=>PS_TRUCK_DOUBLE_KG, 'maxOverKg'=>PS_MAX_OVER_KG]]+ps_metadata($user));
     }
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') ps_out(['ok'=>false, 'error'=>'Method not allowed.'], 405);
-    $body = json_decode(file_get_contents('php://input') ?: '', true);
+    $body = json_decode((function_exists('tt_accounts_input')?tt_accounts_input():file_get_contents('php://input')) ?: '', true);
     if (!is_array($body) || !tt_verify_csrf((string)($body['csrf'] ?? ''))) ps_out(['ok'=>false, 'error'=>'Session expired. Refresh and try again.'], 419);
     $action = (string)($body['action'] ?? '');
     // The approved Accounts rule allows every Accounts user to amend a Soda.

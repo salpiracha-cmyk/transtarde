@@ -327,7 +327,7 @@
   async function loadDashboardSummary() {
     const host=q('#ttSummaryCards'), queue=q('#ttAttentionQueue'); if(!host)return;
     try{
-      const [data,workflow]=await Promise.all([json(`../api/accounts_dashboard.php?entity=${encodeURIComponent(entity())}`),json(`../api/accounts_workflows_v1.php?entity=${encodeURIComponent(entity())}&section=bootstrap`)]);data.attention=[...(data.attention||[]),...(workflow.attention||[])].filter((row,i,all)=>all.findIndex(x=>x.type===row.type&&x.reference===row.reference&&x.message===row.message)===i);
+      const data=await json(`../api/accounts_dashboard.php?entity=${encodeURIComponent(entity())}`);
       const definitions=entity()==='TG'
         ? [{key:'bank',label:'Bank Balance',note:'Hover for accounts'},{key:'local',label:'Customer Receivables',note:'Customer detail'},{key:'commodity',label:'Supplier Bills Due',note:'Due-date detail'}]
         : [{key:'bank',label:'Bank Balance',note:'Hover for accounts'},{key:'commodity',label:'Commodity Bills Due',note:'Due-date detail'},{key:'local',label:'Local Receivables',note:'Customer detail'},{key:'export',label:'Export Receivables',note:'Customer / currency detail'}];
@@ -340,8 +340,30 @@
         return `<button type="button" class="tt-summary ${def.key==='due'&&first&&first.date<=today()?'tt-due-alert':''}" data-summary="${def.key}"><small>${esc(def.label)}</small><b>${headline}</b><em>${esc(def.note)}</em><span class="tt-summary-pop">${detail}</span></button>`;
       }).join('');
        qa('[data-summary]',host).forEach(button=>button.onclick=()=>{const key=button.dataset.summary;if(key==='bank')launch({native:'bank'});else if(key==='due')showArea('routine');else if(key==='commodity')launch({native:'payables'});else launch({native:'receivables'});});
-      if(queue){const rows=data.attention||[];queue.innerHTML=rows.length?rows.slice(0,12).map(row=>`<div class="tt-queue-row"><span>${esc(row.type)}</span><b>${esc(row.message)}${row.reference?' · '+esc(row.reference):''}</b><button type="button" data-attention-search="${esc(row.reference||'')}">Review</button></div>`).join(''):'<div class="tt-queue-row"><span>Current</span><b>No held or incomplete entries need attention.</b></div>';qa('[data-attention-search]',queue).forEach(button=>button.onclick=()=>openSearch(button.dataset.attentionSearch));}
+      if(queue){const rows=data.attention||[];queue.innerHTML=rows.length?rows.slice(0,12).map((row,i)=>`<div class="tt-queue-row"><span>${esc(row.type)}</span><b>${esc(row.message)}${row.reference?' · '+esc(row.reference):''}</b><button type="button" data-attention-review="${i}">Review</button></div>`).join(''):'<div class="tt-queue-row"><span>Current</span><b>No held or incomplete entries need attention.</b></div>';qa('[data-attention-review]',queue).forEach(button=>button.onclick=()=>reviewAttention(rows[Number(button.dataset.attentionReview)]));}
     }catch(error){qa('.tt-summary b',host).forEach(node=>node.textContent='Unavailable');if(queue)queue.innerHTML='<div class="tt-queue-row"><span>Status</span><b>Refresh to load current Accounts attention items.</b></div>';console.warn('Accounts dashboard summary',error);}
+  }
+
+  function reviewAttention(row) {
+    const company=entity(),host=layer('ttReviewLayer','Review · '+row.type),body=q('.tt-window-body',host);
+    body.innerHTML=`<div class="tt-form"><h3>${esc(row.reference||row.type)}</h3><p>${esc(row.message)}</p><p>Discard removes this review from the list. Approve opens the approval or correction form.</p><p id="ttReviewError"></p><button class="btn" id="ttReviewDiscard">Discard</button> <button class="btn green" id="ttReviewApprove">Approve</button></div>`;
+    const action=async task=>{const buttons=qa('button',body);buttons.forEach(b=>b.disabled=true);try{if(company!==entity())throw Error('Company changed. Reopen the review.');await task();q('.tt-window-close',host).click();await loadDashboardSummary()}catch(e){q('#ttReviewError',body).textContent=e.message}finally{buttons.forEach(b=>b.disabled=false)}};
+    q('#ttReviewDiscard',body).onclick=()=>action(()=>json('../api/accounts_reviews.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'discard',entity:company,csrf:access.csrf,id:row.id,fingerprint:row.fingerprint})}));
+    q('#ttReviewApprove',body).onclick=()=>action(async()=>{
+      if(row.kind==='SALE')return window.TT_LOCAL_SALES_CONTROL_UI.review(row.target.candidateId);
+      if(row.kind==='PAYMENT')return window.TT_LOCAL_SALES_PAYMENT_UI.review(row.target.paymentId);
+      if(row.kind==='HOLD')return openHeldReview(row);
+      if(row.kind==='FREIGHT'){const state=await json('../api/accounts_workflows_v1.php?entity='+encodeURIComponent(company)+'&section=freight'),bill=(state.bills||[]).find(x=>x.id===row.target.billId);if(!bill)throw Error('Bill no longer available. Refresh the list.');return bill.shipmentId||bill.shipmentIds?.length?openSavedBill(bill):window.TT_ACCOUNTS_V1_WORKFLOW.reviewFreight(bill.id);}
+      if(row.target.sodaNo){const sodaHost=layer('ttSodaLayer','Amend Soda');await loadSodas();const soda=(sodaData.sodas||[]).find(x=>x.sodaNo===row.target.sodaNo);if(!soda)throw Error('Soda no longer available. Refresh the list.');activeSoda=soda;q('.tt-window-body',sodaHost).innerHTML=sodaForm(soda);bindSodaForm(sodaHost,soda);return;}
+      window.TT_ACCOUNTS_V1_WORKFLOW.open('due');
+    });
+  }
+
+  function openHeldReview(row) {
+    const company=entity(),host=layer('ttHeldReviewLayer','Held Payment · '+row.reference),body=q('.tt-window-body',host);
+    body.innerHTML=`<form class="tt-form"><p>${esc(row.message)}</p><label>Hold reason<input name="reason" value="${esc(row.target.reason||'')}"></label><label><input name="active" type="checkbox" checked> Keep payment on hold</label><p id="ttHoldError"></p><button type="submit" class="btn green">Save Changes</button>${row.target.sodaNo?'<button type="button" class="btn" id="ttHoldSoda">Amend Soda</button>':''}</form>`;
+    q('form',body).onsubmit=async e=>{e.preventDefault();const form=e.currentTarget,button=q('[type=submit]',form);button.disabled=true;try{if(company!==entity())throw Error('Company changed. Reopen the entry.');if(!form.elements.reason.value.trim())throw Error('Enter a reason for the change.');await json('../api/payables_planning.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'set_hold',entity:company,csrf:access.csrf,sourceKey:row.target.sourceKey,active:form.elements.active.checked,reason:form.elements.reason.value.trim()})});q('.tt-window-close',host).click();loadDashboardSummary()}catch(error){q('#ttHoldError',body).textContent=error.message}finally{button.disabled=false}};
+    if(row.target.sodaNo)q('#ttHoldSoda',body).onclick=async()=>{try{if(company!==entity())throw Error('Company changed.');await loadSodas();activeSoda=(sodaData.sodas||[]).find(x=>x.sodaNo===row.target.sodaNo);if(!activeSoda)throw Error('Soda no longer available.');const sodaHost=layer('ttSodaLayer','Amend Soda');q('.tt-window-body',sodaHost).innerHTML=sodaForm(activeSoda);bindSodaForm(sodaHost,activeSoda)}catch(e){q('#ttHoldError',body).textContent=e.message}};
   }
 
   function layer(id, title) {

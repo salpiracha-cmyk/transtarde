@@ -40,10 +40,17 @@ function smw_action(array &$s,string $entity,string $month,array $b,array $u,arr
         if($amount<0||$amount>$maximum+.005)throw new DomainException('Payment cannot exceed the unpaid total salary entitlement.');
         $date=rsv2_date((string)($b['date']??''));$source=(string)($b['paymentAccountId']??'');
         $tracking=[];
-        if($amount>.005){rsv2_pay_line($s,$entity,$source,$amount,$names);if(!str_starts_with($source,'CASH|'))$tracking=tt_accounts_bank_payment_details($b);}
+        $parts=[];
+        if(array_key_exists('cashAmount',$b)||array_key_exists('bankAmount',$b)){
+            foreach(['cashAmount','bankAmount'] as $field)if(!isset($b[$field])||!is_numeric($b[$field])||!is_finite((float)$b[$field])||(float)$b[$field]<0)throw new DomainException('Enter valid cash and bank amounts.');
+            $cash=round((float)$b['cashAmount'],2);$bank=round((float)$b['bankAmount'],2);
+            if((int)round(($cash+$bank)*100)!==(int)round($amount*100))throw new DomainException('Cash and bank amounts must equal the total salary payment.');
+            if($cash>.005){rsv2_pay_line($s,$entity,'CASH|'.$entity,$cash,$names);$parts[]=['amount'=>$cash,'paymentAccountId'=>'CASH|'.$entity];}
+            if($bank>.005){if(str_starts_with($source,'CASH|'))throw new DomainException('Choose a bank account for the bank portion.');rsv2_pay_line($s,$entity,$source,$bank,$names);$tracking=tt_accounts_bank_payment_details($b);$parts[]=['amount'=>$bank,'paymentAccountId'=>$source]+$tracking;}
+        }elseif($amount>.005){rsv2_pay_line($s,$entity,$source,$amount,$names);if(!str_starts_with($source,'CASH|'))$tracking=tt_accounts_bank_payment_details($b);$parts[]=['amount'=>$amount,'paymentAccountId'=>$source]+$tracking;}
         $row['advanceApplied']=round(min($row['prepared']?$row['originalAdvanceApplied']:min($row['totalDue'],$row['advanceSuggested']),max(0,$maximum-$amount)),2);
         $row['outstanding']=round(max(0,$maximum-$row['advanceApplied']-$amount),2);
-        $row['reviewed']=true;$row['payment']=['amount'=>$amount,'date'=>$date,'paymentAccountId'=>$source]+$tracking;
+        $row['reviewed']=true;$row['payment']=['amount'=>$amount,'date'=>$date,'paymentAccountId'=>$source,'parts'=>$parts]+$tracking;
         $sheet['rows'][$mid]=$row;$sheet['version']++;$sheet['updatedAt']=gmdate('c');
         $s['salarySheets'][$key]=$sheet;return ['saved'=>true,'masterId'=>$mid];
     }
@@ -67,9 +74,10 @@ function smw_action(array &$s,string $entity,string $month,array $b,array $u,arr
         }
         $payment=$row['payment'];
         if($payment['amount']>.005){
-            $tracking=str_starts_with($payment['paymentAccountId'],'CASH|')?[]:tt_accounts_bank_payment_details($payment);
             $lines[]=rsv2_line('2140',$payment['amount'],0,$names,$meta);
-            $lines[]=array_merge(rsv2_pay_line($s,$entity,$payment['paymentAccountId'],$payment['amount'],$names),$meta,$tracking,['paymentDate'=>$payment['date']]);
+            $parts=$payment['parts']??[['amount'=>$payment['amount'],'paymentAccountId'=>$payment['paymentAccountId']]+$payment];
+            $sum=0;foreach($parts as $part){$partAmount=round((float)$part['amount'],2);if($partAmount<=0)throw new DomainException('Invalid saved salary split.');$sum+=(int)round($partAmount*100);$tracking=str_starts_with($part['paymentAccountId'],'CASH|')?[]:tt_accounts_bank_payment_details($part);$lines[]=array_merge(rsv2_pay_line($s,$entity,$part['paymentAccountId'],$partAmount,$names),$meta,$tracking,['paymentDate'=>$payment['date']]);}
+            if($sum!==(int)round($payment['amount']*100))throw new DomainException('Saved salary portions do not equal the payment.');
         }
     }
     if(!$lines)throw new DomainException('This month has no new accounting entries to post.');

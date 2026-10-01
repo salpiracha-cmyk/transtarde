@@ -10,6 +10,7 @@ if (!tt_user_can_open_module($user, 'Accounts')) {
 }
 
 $files = [
+    'accounts-uppercase.js',
     'post-confirmation-ui.js',
     'bill-layout.js',
     'currency-master-ui.js',

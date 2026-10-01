@@ -22,7 +22,7 @@ try {
     if($_SERVER['REQUEST_METHOD']==='GET'&&!$canMill&&!$canAccounts&&!$canExports)mps_out(['ok'=>false,'error'=>'Mill, Accounts or Exports permission required.'],403);
     $file=TT_DATA_DIR.'/accounts.json';$store=mps_store();
     if($_SERVER['REQUEST_METHOD']==='POST'){
-        $body=json_decode(file_get_contents('php://input')?:'',true);if(!is_array($body)||!tt_verify_csrf((string)($body['csrf']??'')))mps_out(['ok'=>false,'error'=>'Session expired. Refresh and try again.'],419);
+        $body=json_decode((function_exists('tt_accounts_input')?tt_accounts_input():file_get_contents('php://input'))?:'',true);if(!is_array($body)||!tt_verify_csrf((string)($body['csrf']??'')))mps_out(['ok'=>false,'error'=>'Session expired. Refresh and try again.'],419);
         if((string)($body['action']??'')!=='sync_lifting')mps_out(['ok'=>false,'error'=>'Unknown action.'],422);
         $sourceSodaId=trim((string)($body['sourceSodaId']??''));$liftingId=trim((string)($body['liftingId']??''));if($sourceSodaId===''||$liftingId===''||strlen($liftingId)>180)mps_out(['ok'=>false,'error'=>'Stable Soda and lifting identities are required.'],422);
         tt_ensure_data_dir();$handle=fopen($file,'c+');if($handle===false||!flock($handle,LOCK_EX))throw new RuntimeException('store');

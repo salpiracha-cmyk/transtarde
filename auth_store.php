@@ -714,3 +714,15 @@ function tt_audit(?int $userId, string $username, string $action): void {
         if (count($data['audit']) > 5000) $data['audit'] = array_slice($data['audit'], 0, 5000);
     });
 }
+
+/** Uppercase user accounting text without modifying identity keys or workflow enums. */
+function tt_accounts_uppercase_text(mixed $value):mixed {
+    if(!is_array($value))return $value;
+    $keys=['reference','referenceNo','bankReference','bankAdviceRef','onlineReference','transactionRef','chequeNo','narration','paymentNarration','description','remarks','reason','note','notes','exceptionNote','reviewNote','terms','invoiceNo','billNo','actualBlNo','forwarderRef','jobNo','customerRef','gdNo','phytoNo'];
+    foreach($value as$key=>$item){if(is_string($item)&&in_array((string)$key,$keys,true))$value[$key]=function_exists('mb_strtoupper')?mb_strtoupper($item,'UTF-8'):strtoupper($item);elseif(is_array($item))$value[$key]=tt_accounts_uppercase_text($item);}
+    return$value;
+}
+function tt_accounts_input():string {
+    $raw=file_get_contents('php://input')?:'';$body=json_decode($raw,true);
+    return is_array($body)?json_encode(tt_accounts_uppercase_text($body),JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR):$raw;
+}
