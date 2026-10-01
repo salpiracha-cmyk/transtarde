@@ -1,8 +1,9 @@
 (() => {
  'use strict';
  const style=document.createElement('style');style.textContent='body{text-transform:uppercase}input,textarea,select,button{text-transform:uppercase}input[type=email],input[type=url],input[type=password],[data-preserve-case]{text-transform:none}';document.head.appendChild(style);
+ // Master selections retain their canonical value; CSS displays their labels in capitals.
  const editable=el=>el instanceof HTMLTextAreaElement||el instanceof HTMLInputElement&&['text','search','tel'].includes(el.type);
- function capitalise(el){if(!editable(el)||el.hasAttribute('data-preserve-case')||el.readOnly||el.disabled)return;const value=el.value.toUpperCase();if(value===el.value)return;const a=el.selectionStart,b=el.selectionEnd;el.value=value;try{el.setSelectionRange(a,b)}catch{}}
+ function capitalise(el){if(!editable(el)||el.hasAttribute('data-preserve-case')||el.hasAttribute('list')||el.readOnly||el.disabled)return;const value=el.value.toUpperCase();if(value===el.value)return;const a=el.selectionStart,b=el.selectionEnd;el.value=value;try{el.setSelectionRange(a,b)}catch{}}
  for(const type of ['input','change','blur'])document.addEventListener(type,e=>{if(!e.isComposing)capitalise(e.target)},true);
  document.addEventListener('compositionend',e=>capitalise(e.target),true);
  document.addEventListener('submit',e=>e.target.querySelectorAll('input,textarea').forEach(capitalise),true);
