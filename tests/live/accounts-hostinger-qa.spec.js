@@ -302,3 +302,25 @@ test('read-only transporter bill register reconciliation', async ({ page }) => {
   expect(source.ok()).toBeTruthy();expect(await source.text()).toContain('Add another shipment');
 
 });
+
+
+test('Accounts repair: clear held-entry label and ledger survives focus changes', async ({ page }) => {
+  test.setTimeout(180_000);
+  await signIn(page);
+  await expect(page.locator('#ttAccountingDesk')).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole('heading', { name: 'Held / Incomplete Entries', exact: true })).toBeVisible();
+  await expect(page.getByText('Only entries that need review before posting appear here.', { exact: true })).toBeVisible();
+  await activate(page.locator('[data-tt-area="commodity"]'));
+  await expect(page.locator('#ttDeskWork .tt-action').filter({ hasText: 'Due Payment Working' })).toHaveCount(0);
+  await page.evaluate(() => window.TT_ALL_LEDGERS.open('POSTS'));
+  await expect(page.locator('#tt-all-ledgers .tal-controls')).toBeVisible({ timeout: 30_000 });
+  await page.evaluate(() => {
+    window.__qaLedgerNode = document.querySelector('#tt-all-ledgers');
+    window.dispatchEvent(new Event('blur'));
+    document.dispatchEvent(new Event('visibilitychange'));
+    window.dispatchEvent(new Event('focus'));
+  });
+  await responsive(page, 'Ledger after browser focus change');
+  await expect(page.locator('#tt-all-ledgers .tal-controls')).toBeVisible();
+  expect(await page.evaluate(() => window.__qaLedgerNode === document.querySelector('#tt-all-ledgers'))).toBe(true);
+});
