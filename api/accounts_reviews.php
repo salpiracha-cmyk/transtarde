@@ -9,7 +9,7 @@ try{
  $b=json_decode(file_get_contents('php://input')?:'{}',true);if(($_SERVER['REQUEST_METHOD']??'GET')!=='POST')ar_out(['ok'=>false,'error'=>'Use POST to discard a review.'],405);
  if(!is_array($b)||!tt_verify_csrf((string)($b['csrf']??'')))ar_out(['ok'=>false,'error'=>'Refresh your session and try again.'],419);
  $e=strtoupper((string)($b['entity']??''));if(!in_array($e,['TTI','BRM','TG'],true))ar_out(['ok'=>false,'error'=>'Select company books.'],422);
- $permissions=$u['permissions']['Accounts']??[];$write=$permissions==='all';if(is_array($permissions)){if(array_intersect(['Create','Edit','Approve'],array_values($permissions)))$write=true;foreach($permissions as$rights)if(is_array($rights)&&array_intersect(['Create','Edit','Approve'],array_values($rights)))$write=true;}
+ $permissions=$u['permissions']['Accounts']??[];$write=$permissions==='all';if(is_array($permissions))foreach($permissions as$rights){if(is_string($rights)&&in_array($rights,['Create','Edit','Approve'],true))$write=true;elseif(is_array($rights)&&array_intersect(['Create','Edit','Approve'],array_values($rights)))$write=true;}
  if(($u['role']??'')!=='Super Admin'&&!$write)ar_out(['ok'=>false,'error'=>'Accounts review permission required.'],403);
  if(($u['role']??'')!=='Super Admin'&&(!tt_user_can_access_entity($u,$e,'View')||!(tt_user_can_access_entity($u,$e,'Edit')||tt_user_can_access_entity($u,$e,'Approve'))))ar_out(['ok'=>false,'error'=>'Accounts review permission required for this company.'],403);
  if(($b['action']??'')!=='discard')ar_out(['ok'=>false,'error'=>'Choose Discard or open the approval form.'],422);
