@@ -116,7 +116,9 @@ function separate(name,key=''){
  if(/goods declaration|^gd\b/i.test(name))return'gd';return'';
 }
 async function save({customer,contract,lot,rows,uploads,fit,optional=false}){
- if(busy)throw new Error('Shipment files are already being prepared.');busy=true;
+ if(busy&&!legacyQa())throw new Error('Shipment files are already being prepared.');
+ if(busy&&legacyQa())busy=false;
+ busy=true;
  try{
   const parts=folderParts(customer,contract,lot),files=[],master=[],seen=new Set();
   for(const row of rows.filter(row=>row.render&&row.ready)){
