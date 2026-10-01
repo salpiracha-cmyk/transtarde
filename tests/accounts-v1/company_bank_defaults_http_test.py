@@ -32,6 +32,7 @@ with tempfile.TemporaryDirectory(prefix="company-bank-qa-") as temp:
     banks = [bank("old", default=True), bank("new"), bank("spare"), bank("usd", "USD")]
     values = [""] * 18
     values[0] = "Fixture Company"
+    values[1] = "TTI"
     values[13] = json.dumps(banks)
     postings = [{"id": "posted-1", "bankAccountId": "old", "amount": 100}]
     initial = {
