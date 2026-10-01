@@ -96,6 +96,9 @@
   if(access.canInventoryReconciliation) pakistanAreas.find(area=>area.key==='reports').actions.push({title:'Ghati & Stock Reconciliation',note:'Accounts / Directors only; never adds stock or another purchase',special:'stock-reconciliation'});
   const currentAreas = () => entity() === 'TG' ? tgAreas : pakistanAreas;
 
+  const assetPermission=access.super||access.permissions==='all'||(Array.isArray(access.permissions)?access.permissions.includes('View'):(access.permissions?.assets||[]).includes('View'));
+  if(assetPermission)for(const areas of [pakistanAreas,tgAreas])areas.splice(3,0,{key:'assets',title:'Assets / Properties',note:'Register properties, vehicles and instalment payments',actions:[]});
+
   function installStyle() {
     if (q('#ttAccountingDeskStyle')) return;
     const style = document.createElement('style');
@@ -269,7 +272,7 @@
     const items = currentAreas();
     work.innerHTML = `<div class="tt-home-head"><h2>${entity()==='TG'?'Trans Grains Accounts':'What do you want to do?'}</h2><p>${entity()==='TG'?'Only customer receipts, supplier payments, bank/local expenses, ledgers and reports are shown.':'Choose a broad area, then choose the exact entry or report.'}</p></div><div class="tt-area-grid"><button type="button" class="tt-area-card" id="ttMainJV"><span class="tt-area-glyph">${iconPicture('jv')}</span><b>Journal Voucher</b><small>Prepare, approve and print a JV</small></button>${items.map(area=>`<button type="button" class="tt-area-card" data-tt-area="${area.key}"><span class="tt-area-glyph">${iconPicture(area.key.startsWith('tg-')?area.key.slice(3):area.key)}</span><b>${esc(area.title)}</b><small>${esc(area.note)}</small></button>`).join('')}</div>`;
     q('#ttMainJV',work).onclick=()=>launch({native:'jv'});
-    qa('[data-tt-area]', work).forEach(button=>button.onclick=()=>showArea(button.dataset.ttArea));
+    qa('[data-tt-area]', work).forEach(button=>button.onclick=()=>button.dataset.ttArea==='assets'?window.TT_ASSETS_UI?.open?.():showArea(button.dataset.ttArea));
     window.TT_ACCOUNT_BADGE_REFRESH?.();
   }
 
@@ -808,4 +811,3 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, {once:true}); else init();
   window.TT_ACCOUNTING_DESK = {installed:true, openSoda, openSearch, showArea, printVoucher, openSavedBill, refreshAttention:loadDashboardSummary};
 })();
-

@@ -81,6 +81,7 @@ $files = [
     'accounts-clean-ui.js',
     'master-autocomplete.js',
     'accounts-accounting-desk.js',
+    'assets-registry-ui.js',
 ];
 
 $versionParts = [];
@@ -108,4 +109,3 @@ foreach ($files as $file) {
     echo "\n;/* " . str_replace('*/', '', $file) . " */\n";
     readfile(__DIR__ . '/' . $file);
 }
-
