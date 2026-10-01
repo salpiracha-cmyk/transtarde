@@ -29,7 +29,6 @@
     {key:'commodity', glyph:'▣', title:'Commodity Purchases & Local Sales', note:'Soda through final bill, payment, sale and receipt', actions:[
       {title:'Soda Centre', note:'Create, search, amend or delete an unlinked Soda', special:'soda'},
       {title:'Bill Posting', note:'Broker or Supplier → Soda → saved/printed Pohanch → final bill', special:'arrival-bills', native:'purchases', then:'[data-purchase="commodity"]'},
-      {title:'Due Payment Working', note:'Amounts due by selected date, bank balances and bill allocation', special:'due-payments'},
       {title:'Local Sales & Receipts', note:'Mill sale approvals and linked receipts awaiting Accounts action', native:'receivables', find:'Local'}
     ]},
     {key:'bank', glyph:'▦', title:'Bank & Cash', note:'Internal transfers, foreign retention and bank reconciliation', actions:[
@@ -143,7 +142,6 @@
     if(action.special==='supplier-bills')return openBillDesk(action.billKind,action);
     if(action.special==='bill-payment')return window.TT_SUPPLIER_SETTLEMENT_UI?.openBills?.(action.category||'');
     if(action.special==='post-ledger')return window.TT_ALL_LEDGERS?.open?.('POSTS');
-    if(action.special==='due-payments')return openDuePayments();
     if(action.special==='little-master')return openLittleMaster();
     if(action.special==='other-export-expense')return openOtherExportExpense();
     if (action.special === 'stock-reconciliation' && access.canInventoryReconciliation) { location.href='/stock-reconciliation.php?origin=accounts&entity='+encodeURIComponent(entity()); return; }
@@ -241,7 +239,7 @@
           <div class="tt-position" id="ttSummaryCards"><button class="tt-summary"><small>Bank Balance</small><b>Loading…</b><em>Hover for accounts</em></button><button class="tt-summary"><small>Commodity Bills Due</small><b>Loading…</b><em>Due-date detail</em></button><button class="tt-summary"><small>Local Receivables</small><b>Loading…</b><em>Customer detail</em></button><button class="tt-summary"><small>Export Receivables</small><b>Loading…</b><em>Currency detail</em></button></div>
         </section>
         <section id="ttDeskWork"></section>
-        <section><div class="tt-work-head"><div><h2>Needs Attention</h2><p>Held and incomplete work stays visible but is never selected silently.</p></div></div><div class="tt-queue" id="ttAttentionQueue"><div class="tt-queue-row"><span>Status</span><b>Loading current work…</b></div></div></section>
+        <section><div class="tt-work-head"><div><h2>Held / Incomplete Entries</h2><p>Only entries that need review before posting appear here.</p></div></div><div class="tt-queue" id="ttAttentionQueue"><div class="tt-queue-row"><span>Status</span><b>Loading current work…</b></div></div></section>
       </div>
     </div>`;
   }
@@ -341,7 +339,7 @@
         const detail=rows.length?rows.slice(0,20).map(row=>`<div><b>${esc(row.label||row.reference||'Account')}</b><br>${esc(row.reference||'')}${row.dateDisplay?' · '+esc(row.dateDisplay):''} · ${esc(row.currency||'PKR')} ${money(row.amount)}</div>`).join(''):'<div>No open balance.</div>';
         return `<button type="button" class="tt-summary ${def.key==='due'&&first&&first.date<=today()?'tt-due-alert':''}" data-summary="${def.key}"><small>${esc(def.label)}</small><b>${headline}</b><em>${esc(def.note)}</em><span class="tt-summary-pop">${detail}</span></button>`;
       }).join('');
-       qa('[data-summary]',host).forEach(button=>button.onclick=()=>{const key=button.dataset.summary;if(key==='bank')launch({native:'bank'});else if(key==='due')showArea('routine');else if(key==='commodity')openDuePayments();else launch({native:'receivables'});});
+       qa('[data-summary]',host).forEach(button=>button.onclick=()=>{const key=button.dataset.summary;if(key==='bank')launch({native:'bank'});else if(key==='due')showArea('routine');else if(key==='commodity')launch({native:'payables'});else launch({native:'receivables'});});
       if(queue){const rows=data.attention||[];queue.innerHTML=rows.length?rows.slice(0,12).map(row=>`<div class="tt-queue-row"><span>${esc(row.type)}</span><b>${esc(row.message)}${row.reference?' · '+esc(row.reference):''}</b><button type="button" data-attention-search="${esc(row.reference||'')}">Review</button></div>`).join(''):'<div class="tt-queue-row"><span>Current</span><b>No held or incomplete entries need attention.</b></div>';qa('[data-attention-search]',queue).forEach(button=>button.onclick=()=>openSearch(button.dataset.attentionSearch));}
     }catch(error){qa('.tt-summary b',host).forEach(node=>node.textContent='Unavailable');if(queue)queue.innerHTML='<div class="tt-queue-row"><span>Status</span><b>Refresh to load current Accounts attention items.</b></div>';console.warn('Accounts dashboard summary',error);}
   }
