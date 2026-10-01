@@ -14,6 +14,7 @@ with tempfile.TemporaryDirectory(prefix='fi-advice-qa-') as temp:
     function tt_require_login(){return ['role'=>'Super Admin','id'=>1,'username'=>'Fixture'];}
     function tt_user_can_open_module($u,$m){return ($_GET['denied']??'')!=='1'&&!($m==='Accounts'&&($_GET['exports_only']??'')==='1');}
     function tt_user_can_access_entity($u,$e,$a){return $e==='TTI';}
+    function tt_user_accounts_entities($u){return ['TTI'];}
     function tt_list_masters(){return [];}
     function tt_ensure_data_dir(){}
     function tt_verify_csrf($v){return $v==='fixture';}
