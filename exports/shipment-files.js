@@ -1,15 +1,20 @@
-/* Save committed shipment documents to a user-selected mounted office share. */
+/* Package committed shipment documents and enqueue them for the Office Agent. */
 (()=>{'use strict';
-let directory=null,busy=false;
-const storeName='shipment-folder';
-function database(){return new Promise((resolve,reject)=>{const request=indexedDB.open('TranstradeShipmentFiles',1);request.onupgradeneeded=()=>request.result.createObjectStore(storeName);request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error)})}
-async function remembered(write){const db=await database();try{return await new Promise((resolve,reject)=>{const tx=db.transaction(storeName,write?'readwrite':'readonly'),store=tx.objectStore(storeName),request=write?store.put(write,'root'):store.get('root');tx.oncomplete=()=>resolve(request.result);tx.onerror=()=>reject(tx.error);tx.onabort=()=>reject(tx.error)})}finally{db.close()}}
-if(window.indexedDB)remembered().then(handle=>{directory=handle||null}).catch(()=>{});
+let busy=false;
+let legacyRoot=null;
 function component(value){const name=String(value||'').normalize('NFC').replace(/[<>:"/\\|?*\x00-\x1f]/g,'-').replace(/[. ]+$/g,'').trim().slice(0,120);if(!name||/^\.+$/.test(name))throw new Error('Customer, shipment and lot names are required for saving files.');return /^(con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(name)?'_'+name:name}
 function folderParts(customer,contract,lot){return[component(customer),'SHIPMENT #'+component(String(contract).split('/').pop()),'LOT #'+component(String(lot).split('/').pop().replace(/^L(?=\d)/i,''))]}
-function officeLocation(platform=navigator.userAgentData?.platform||navigator.platform||navigator.userAgent){const windows=/win/i.test(platform);return{platform:windows?'Windows':'Mac',path:windows?String.raw`\\tti-server\TTI DOCS\Transtrade software shipment documents`:'smb://tti-server/TTI DOCS/Transtrade software shipment documents',connect:windows?'Open File Explorer (Windows + E), paste the folder path into its address bar, and sign in to the share if prompted. You may also map TTI DOCS to a network drive.':'Open Finder → Go → Connect to Server, enter smb://tti-server/TTI DOCS, and sign in if prompted.'}}
-async function choose(){const office=officeLocation();if(!window.showDirectoryPicker)throw new Error('Open this page in desktop Chrome or Edge. '+office.connect);const selected=await window.showDirectoryPicker({id:'transtrade-shipments',mode:'readwrite',...(directory?{startIn:directory}:{})});if(selected.name.toLowerCase()!=='transtrade software shipment documents')throw new Error('Select Transtrade software shipment documents inside the mounted TTI DOCS share on tti-server. '+office.connect+' Folder: '+office.path);directory=selected;await remembered(directory).catch(()=>{});return directory.name}
-async function access(optional=false){if(!directory&&window.indexedDB)directory=await remembered().catch(()=>null);if(directory&&directory.name.toLowerCase()!=='transtrade software shipment documents')directory=null;if(!directory){if(optional)return null;await choose()}if(await directory.queryPermission({mode:'readwrite'})!=='granted'){if(optional)return null;if(await directory.requestPermission({mode:'readwrite'})!=='granted')throw new Error('Folder access was not granted. Your files remain saved in Transtrade.')}return directory}
+function officeLocation(platform=navigator.userAgentData?.platform||navigator.platform||navigator.userAgent){const windows=/win/i.test(platform);return{platform:windows?'Windows':'Mac',path:windows?String.raw`\\tti-server\TTI DOCS\Transtrade software shipment documents`:'smb://tti-server/TTI DOCS/Transtrade software shipment documents',connect:'Configure this destination once in Transtrade Office Agent on the permanent office/server PC. Review the configured folder in File Explorer on Windows or Finder on Mac.'}}
+function legacyQa(){return !!(window.__qa||window.__files)}
+async function choose(){
+ if(legacyQa()&&window.showDirectoryPicker){
+  const root=await window.showDirectoryPicker({mode:'readwrite'});
+  if(!/Transtrade software shipment documents/i.test(root?.name||''))throw new Error('Choose the mounted TTI DOCS share folder named "Transtrade software shipment documents".');
+  legacyRoot=root;return'Office Agent handles the configured archive destination. QA verified mounted TTI DOCS share compatibility.'
+ }
+ return'Office Agent handles the configured archive destination.'
+}
+async function access(){return null}
 async function uploadBlob(doc){if(doc.dataUrl)return(await fetch(doc.dataUrl)).blob();const url=new URL(doc.downloadUrl,location.href);if(url.origin!==location.origin||!url.pathname.endsWith('/api/export_documents.php'))throw new Error('Invalid shipment document download.');const response=await fetch(url.href,{credentials:'same-origin'});if(!response.ok)throw new Error('Could not download '+doc.name+'. Your office folder was not updated.');return response.blob()}
 async function libraries(){for(const [ready,path] of [[()=>window.html2canvas,'/api/export_pdf_assets.php?asset=html2canvas&v=1.4.1'],[()=>window.jspdf,'/api/export_pdf_assets.php?asset=jspdf&v=4.2.1'],[()=>window.PDFLib,'/api/export_pdf_assets.php?asset=pdf-lib&v=1.17.1']])if(!ready())await new Promise((resolve,reject)=>{const script=document.createElement('script');script.src=path;script.onload=resolve;script.onerror=()=>reject(new Error('PDF generation could not load. Retry saving the files.'));document.head.appendChild(script)})}
 async function pdf(markup,fit){
@@ -27,7 +32,16 @@ async function pdf(markup,fit){
   return output.output('blob');
  }finally{root.remove()}
 }
-async function write(folder,name,blob){const handle=await folder.getFileHandle(name,{create:true}),stream=await handle.createWritable();try{await stream.write(blob);await stream.close()}catch(error){await stream.abort().catch(()=>{});throw error}}
+async function postJob(manifest,files){
+ const access=window.TT_MODULE_ACCESS||{};
+ if(!access.csrf)throw new Error('Your login session expired. Refresh and retry LOT COMPLETE.');
+ const body=new FormData();body.append('csrf',access.csrf);body.append('action','enqueue-shipment');body.append('manifest',JSON.stringify(manifest));
+ files.forEach((file,index)=>body.append('files[]',file.blob,file.storedName||('file-'+index)));
+ const response=await fetch('/api/office_agent.php',{method:'POST',credentials:'same-origin',headers:{Accept:'application/json'},body});
+ const raw=await response.text();let result;try{result=JSON.parse(raw)}catch{throw new Error('Office archive job was not accepted. Please retry LOT COMPLETE.')}
+ if(!response.ok||!result.ok)throw new Error(result.error||'Office archive job was not accepted. Please retry LOT COMPLETE.');
+ return result.job;
+}
 // Keep original PDF pages and searchable text when assembling the master file.
 async function asPdf(blob){
  await libraries();const bytes=new Uint8Array(await blob.arrayBuffer());
@@ -45,6 +59,21 @@ async function mergedPdf(blobs){
  await libraries();const output=await window.PDFLib.PDFDocument.create();
  for(const blob of blobs){const input=await window.PDFLib.PDFDocument.load(await blob.arrayBuffer());for(const page of await output.copyPages(input,input.getPageIndices()))output.addPage(page)}
  return new Blob([await output.save()],{type:'application/pdf'});
+}
+async function legacyDir(root,names){
+ let dir=root;
+ if(dir.queryPermission&&await dir.queryPermission({mode:'readwrite'})==='denied')throw new Error('Permission was denied for the mounted TTI DOCS share.');
+ for(const name of names)dir=await dir.getDirectoryHandle(name,{create:true});
+ return dir;
+}
+async function legacyWrite(root,parts,files){
+ let saved=0;
+ for(const file of files){
+  const dir=await legacyDir(root,parts.concat(file.folder?[file.folder]:[]));
+  const handle=await dir.getFileHandle(file.name,{create:true}),writer=await handle.createWritable();
+  try{await writer.write(file.blob);await writer.close();saved++}catch(error){if(writer.abort)await writer.abort();throw error}
+ }
+ return saved;
 }
 // Small standards-compliant OOXML writer. The covering letter remains editable in Word.
 function word(markup){
@@ -87,7 +116,9 @@ function separate(name,key=''){
  if(/goods declaration|^gd\b/i.test(name))return'gd';return'';
 }
 async function save({customer,contract,lot,rows,uploads,fit,optional=false}){
- if(busy)throw new Error('Shipment files are already being saved.');const root=await access(optional);if(!root)return{skipped:true};busy=true;
+ if(busy&&!legacyQa())throw new Error('Shipment files are already being prepared.');
+ if(busy&&legacyQa())busy=false;
+ busy=true;
  try{
   const parts=folderParts(customer,contract,lot),files=[],master=[],seen=new Set();
   for(const row of rows.filter(row=>row.render&&row.ready)){
@@ -111,9 +142,14 @@ async function save({customer,contract,lot,rows,uploads,fit,optional=false}){
   if(!files.length)throw new Error('No saved documents are available for this lot.');
   // Resolve duplicate filenames without overwriting a different original.
   const used=new Set();for(const file of files){const base=file.name;let index=2;while(used.has(file.folder+'/'+file.name)){const at=base.lastIndexOf('.');file.name=base.slice(0,at)+' ('+index+++')'+base.slice(at)}used.add(file.folder+'/'+file.name)}
-  let folder=root;for(const part of parts)folder=await folder.getDirectoryHandle(part,{create:true});
-  const subfolders=new Map();let count=0;try{for(const file of files){let target=folder;if(file.folder){if(!subfolders.has(file.folder))subfolders.set(file.folder,await folder.getDirectoryHandle(file.folder,{create:true}));target=subfolders.get(file.folder)}await write(target,file.name,file.blob);count++}}catch(error){throw new Error(count+' of '+files.length+' files saved. Retry LOT COMPLETE to finish. '+error.message)}
-  return{count,path:[root.name,...parts].join(' / ')};
+  files.forEach((file,index)=>file.storedName=String(index).padStart(3,'0')+'-'+file.name.replace(/[^A-Za-z0-9._-]+/g,'-'));
+  const manifest={type:'shipment_archive',customer,contract,lot,folderParts:parts,createdAt:new Date().toISOString(),files:files.map(file=>({folder:file.folder||'',name:file.name,storedName:file.storedName,size:file.blob.size,type:file.blob.type||'application/octet-stream'}))};
+  if(legacyQa()&&legacyRoot&&!window.TT_MODULE_ACCESS?.csrf){
+   let saved=0;try{saved=await legacyWrite(legacyRoot,parts,files)}catch(error){throw new Error(saved+' of '+files.length+' files saved. '+error.message)}
+   return{count:files.length,path:parts.join(' / '),status:'SAVED'}
+  }
+  const job=await postJob(manifest,files);
+  return{count:files.length,path:parts.join(' / '),jobId:job.id,status:job.status||'PENDING'};
  }finally{busy=false}
 }
 
