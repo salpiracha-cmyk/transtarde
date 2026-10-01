@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__.'/accounts_bank_payment.php';
 
 /** Journal-level correction shared by every Accounts posting source. Caller holds the accounts.json lock. */
 function apa_correct(array &$store, array $user, string $postId, array $input): array {
@@ -20,7 +21,7 @@ function apa_correct(array &$store, array $user, string $postId, array $input): 
     $narration=trim((string)($input['narration']??$original['narration']??''));
     if($reference===''||mb_strlen($reference)>180||$narration===''||mb_strlen($narration)>500)throw new DomainException('Reference and narration are required.');
     $submitted=$input['lines']??null;
-    if(!is_array($submitted)||count($submitted)<2||count($submitted)>100)throw new DomainException('Enter between two and 100 journal lines.');
+    if(!is_array($submitted)||count($submitted)<2||count($submitted)>((($original['sourceType']??'')==='SALARY_MONTH_COMPLETED'||($original['meta']['originalSourceType']??'')==='SALARY_MONTH_COMPLETED')?500:100))throw new DomainException('Enter at least two journal lines within the posting limit.');
     $master=json_decode((string)file_get_contents(__DIR__.'/../accounts/accounting_master_v1.json'),true);
     $names=[];
     foreach(array_merge((array)($master['chart']??[]),(array)($master['peopleSubledgers']??[])) as $account)
@@ -45,7 +46,7 @@ function apa_correct(array &$store, array $user, string $postId, array $input): 
             if(isset($entry[$field]))$line[$field]=mb_substr(trim((string)$entry[$field]),0,180);
         $bankId=trim((string)($entry['bankAccountId']??''));
         if($account==='1110'&&$bankId==='')throw new DomainException('Choose the actual bank account on each bank line.');
-        if($bankId==='')foreach(['bankAccountId','bankName','bankAccountTitle','currency','bankDebit','bankCredit','revaluationOnly'] as $key)unset($line[$key]);
+        if($bankId==='')foreach(['bankAccountId','bankName','bankAccountTitle','currency','bankDebit','bankCredit','revaluationOnly','bankPaymentMethod','bankReference','chequeNo','chequeDate','paymentNarration'] as $key)unset($line[$key]);
         if($bankId!==''){
             if($account!=='1110'||!isset($banks[$bankId]))throw new DomainException('Bank line '.($i+1).' has an invalid bank account.');
             $bank=$banks[$bankId];$values=(array)($bank['values']??[]);$owner=strtoupper((string)($values[1]??''));
@@ -60,6 +61,7 @@ function apa_correct(array &$store, array $user, string $postId, array $input): 
             if($entity!=='TG'&&$currency==='PKR'&&abs($native-($dr+$cr))>.005)throw new DomainException('PKR bank amount must equal the book amount.');
             $line['bankAccountId']=$bankId;$line['bankName']=(string)($values[4]??'');$line['bankAccountTitle']=(string)($values[3]??'');$line['currency']=$currency;
             $line['bankDebit']=$dr>0?$native:0;$line['bankCredit']=$cr>0?$native:0;
+            if($cr>0&&!empty($entry['bankPaymentMethod'])){$method=(string)$entry['bankPaymentMethod'];$tracking=tt_accounts_bank_payment_details(['paymentAccountId'=>$bankId,'date'=>$date,'bankPaymentMethod'=>$method,'bankReference'=>$entry['bankReference']??'','chequeNo'=>$method==='CHEQUE'?($entry['bankReference']??''):'','chequeDate'=>$date,'paymentNarration'=>$entry['paymentNarration']??'']);$line=array_merge($line,$tracking);}
         }
         $lines[]=$line;$debit+=(int)round($dr*100);$credit+=(int)round($cr*100);
     }
@@ -84,7 +86,7 @@ function apa_correct(array &$store, array $user, string $postId, array $input): 
     $replacement['id']=$replacementId;$replacement['date']=$date;$replacement['reference']=$reference;$replacement['narration']=$narration;$replacement['lines']=$lines;
     // A distinct source type prevents source-workflow scanners from treating a correction as a second bill or payment.
     $replacement['sourceType']='POST_AMENDMENT_CORRECTION';
-    $replacement['totalDebit']=$debit/100;$replacement['totalCredit']=$credit/100;$replacement['meta']=['originalSourceType'=>(string)($original['sourceType']??''),'amendmentOfPostId'=>$postId,'amendmentReason'=>$reason,'reversalPostId'=>$reverseId];
+    $replacement['totalDebit']=$debit/100;$replacement['totalCredit']=$credit/100;$replacement['meta']=['originalSourceType'=>(string)($original['meta']['originalSourceType']??$original['sourceType']??''),'amendmentOfPostId'=>$postId,'amendmentReason'=>$reason,'reversalPostId'=>$reverseId];
     $replacement['createdAt']=$now;$replacement['createdBy']=$actor;$replacement['userId']=(int)($user['id']??0);$replacement['reversalOf']=null;
     $store['journals'][$replacementId]=$replacement;
     $store['journals'][$postId]['amendedByPostId']=$replacementId;

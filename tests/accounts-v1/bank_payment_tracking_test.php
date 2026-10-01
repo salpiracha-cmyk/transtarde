@@ -21,3 +21,7 @@ echo "Bank tracking, separate invoice reference, narration and unchanged account
 
 foreach(['9','000009','2026-9','202600009','20269'] as $query)check(tt_accounts_reference_matches($query,'AUTO-2026-000009'),'Short or joined reference search failed.');
 check(!tt_accounts_reference_matches('10','AUTO-2026-000009'),'Wrong reference suffix matched.');
+
+$optional=tt_accounts_bank_payment_details(['paymentAccountId'=>'bank-a','date'=>'2026-10-01','bankPaymentMethod'=>'ONLINE_BANKING']);check($optional['bankReference']==='','Online reference must be optional.');
+$legacy=tt_accounts_bank_payment_details(['paymentAccountId'=>'bank-a','date'=>'2026-10-01','bankPaymentMethod'=>'BANK_TRANSFER']);check($legacy['bankPaymentMethod']==='ONLINE_BANKING','Legacy method must normalize to online banking.');
+try{tt_accounts_bank_payment_details(['paymentAccountId'=>'bank-a','date'=>'2026-10-01']);throw new RuntimeException('Default cheque accepted without number.');}catch(DomainException){}

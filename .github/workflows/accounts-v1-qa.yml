@@ -36,6 +36,8 @@ jobs:
           node tests/accounts-v1/clean_ui_test.js
           node tests/accounts-v1/payment_defaults_ui_test.js
           python3 tests/accounts-v1/payment_defaults_http_test.py
+          python3 tests/accounts-v1/salary_month_http_test.py
+          python3 tests/accounts-v1/bank_overdraft_http_test.py
           node tests/accounts-v1/ledger_posting_rows_test.js
           node tests/accounts-v1/ledger_workbook_test.js
           node tests/accounts-v1/export_v3_linkage_test.js
@@ -120,6 +122,8 @@ jobs:
           "$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/inventory_reconciliation_http_test.py
       - name: Ready rice bill browser and HTTP flow
         run: '"$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/ready_rice_bill_http_test.py'
+      - name: Salary month HTTP and browser flow
+        run: '"$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/salary_month_http_test.py'
       - name: Retain sanitized test evidence
         if: always()
         uses: actions/upload-artifact@v4
