@@ -178,8 +178,9 @@
     { id: "reference_lists", name: "Currency & Reference Master", description: "Shared dropdown choices. For currencies enter the three-letter code and its full printed name.", fields: [{label:"List",required:true,type:"select",options:["currencies","packing_types","inspection_companies","payment_options","party_roles","product_rice_types","product_finishes"]},{label:"Option / currency code",required:true},{label:"Currency full name"}], rows: [] },
     { id: "mills", name: "Mills & Locations", description: "One central list reused by Soda, Milling, Exports and stock reports.", fields: [{label:"Mill / location",required:true},{label:"Code / reference"},{label:"Location type",type:"select",options:["Own Mill","External Mill","Reprocessing Mill","Warehouse","Office","Stock Location","Other"]},{label:"Full address",type:"textarea",full:true},{label:"Contact details"},{label:"Status",type:"select",options:["Active","Inactive"]},{label:"Notes",type:"textarea",full:true}], rows: [["TTI Rice Mills", "TTI-MILL", "Own Mill", "", "", "Active", ""], ["Karachi Office", "KHI-OFF", "Office", "", "", "Active", ""]] }
   ];
+  const PRODUCT_MASTER_TABS = ["products","purchase_products"];
   const MASTER_GROUPS = [
-    ["Business",["companies","export_customers","business_parties","products","purchase_products","mills","reference_lists"]],
+    ["Business",["companies","export_customers","business_parties",...PRODUCT_MASTER_TABS,"mills","reference_lists"]],
     ["Setup",["product_settings","export_documents","export_terms","salary_staff"]],
   ];
 
