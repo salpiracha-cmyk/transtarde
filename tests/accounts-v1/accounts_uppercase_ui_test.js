@@ -6,6 +6,7 @@ const events={},requests=[],sandbox={HTMLInputElement:Input,HTMLTextAreaElement:
 vm.createContext(sandbox);vm.runInContext(fs.readFileSync('accounts/accounts-uppercase.js','utf8'),sandbox);
 const ref=new Input('text','ft/26265');events.input({target:ref});assert.equal(ref.value,'FT/26265');assert.equal(ref.selectionStart,2);
 const supplier=new Input('text','Indus Rice');supplier.hasAttribute=name=>name==='list';events.input({target:supplier});assert.equal(supplier.value,'Indus Rice','Master selections retain canonical identity while displaying capitals');
+const selector=new Input('text','Cedar Horizon Haulage');selector.closest=name=>name==='.tt-search-select'?{}:null;events.submit({target:{querySelectorAll:()=>[selector]}});assert.equal(selector.value,'Cedar Horizon Haulage','Searchable selectors preserve canonical identity on submit');
 const newName=new Input('text','New Transporter');newName.hasAttribute=name=>name==='list';newName.closest=()=>({});events.input({target:newName});assert.equal(newName.value,'NEW TRANSPORTER','New names are entered in capitals');
 const email=new Input('email','user@example.com');events.input({target:email});assert.equal(email.value,'user@example.com');
 sandbox.window.fetch('../api/export_receipts.php',{method:'POST',body:JSON.stringify({bankAdviceRef:'ft/26265',csrf:'AbCd',bankAccountId:'bank-AbC',action:'post_receipt',allocations:[{targetId:'source-AbC',reference:'ref1'}]})});
