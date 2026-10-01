@@ -252,7 +252,7 @@
   }
   async function postTgSettlements(receipt, classification) {
     if (payerType !== 'TG'||selectedTgPayment) return;
-    const bank=(tgData?.banks||[]).find(row=>row.id===tgBankId),rate=currency==='AED'?1:Number(bank?.balance?.carryingRate||tgData?.rates?.sellUsdToAed||tgData?.rates?.buyUsdWithAed||0);
+    const bank=(tgData?.banks||[]).find(row=>row.id===tgBankId),rate=currency==='AED'?1:Number(tgData?.ratesByCurrency?.[currency]||bank?.balance?.carryingRate||tgData?.rates?.sellUsdToAed||tgData?.rates?.buyUsdWithAed||0);
     let sequence = 0;
     for (const item of chosen.values()) {
       const amount = classification === 'CORRESPONDENT' ? Number(item.amount || 0) : num(item.applied);
@@ -260,7 +260,7 @@
       sequence += 1;
       const bankReference = `${receipt.bankAdviceRef}-TG-${sequence}`;
       if ((tgData?.history || []).some(row => row.bankAccountId === tgBankId && row.bankReference === bankReference && row.sourceLiabilityId === item.mirrorCandidateId && Math.abs(Number(row.amountNative)-amount)<.01)) continue;
-      const payload = {action:'post_payment',bankPaymentMethod:'ONLINE_BANKING',csrf:access.csrf,date:receipt.date || today(),paymentType:item.key==='TGADV'?'SUPPLIER_ADVANCE':'LIABILITY',sourceLiabilityId:item.key==='TGADV'?'':item.mirrorCandidateId,bankAccountId:tgBankId,counterparty:entity(),amountNative:amount,bankChargeNative:0,rate,bankReference,rateOverrideNote:'',notes:`Mirrored settlement for Pakistan receipt ${receipt.id}`};
+      const payload = {action:'post_payment',bankPaymentMethod:'ONLINE_BANKING',csrf:access.csrf,date:receipt.date || today(),paymentType:item.key==='TGADV'?'SUPPLIER_ADVANCE':'LIABILITY',sourceLiabilityId:item.key==='TGADV'?'':item.mirrorCandidateId,bankAccountId:tgBankId,counterparty:entity(),amountNative:amount,bankChargeNative:0,...(rate>0?{rate}:{}),bankReference,rateOverrideNote:'',notes:`Mirrored settlement for Pakistan receipt ${receipt.id}`};
       const response = await fetch(tgBankApi,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify(payload)}); let body = {}; try { body = await response.json(); } catch (_) {}
       if (!response.ok || !body.ok) throw new Error(body.error || `Pakistan receipt ${receipt.id} posted, but its TG payable settlement needs review.`);
       tgData.history = [{bankAccountId:tgBankId,bankReference,sourceLiabilityId:item.mirrorCandidateId,amountNative:amount},...(tgData.history || [])];
