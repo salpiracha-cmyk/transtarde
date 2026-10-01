@@ -37,7 +37,7 @@ foreach([[10,36.7,3.67],[0,0,3.65],[-10,-36.7,3.67],[10,0,3.65]] as [$native,$ca
     check($line['bankCredit']===100.0&&$line['credit']===round(100*$expectedRate,2),'Insufficient, empty and negative bank balances post with correct AED valuation');
     check($journal['totalDebit']===$journal['totalCredit'],'Overdraft mirror stays balanced');
     $again=er_mirror_tg_receipt($fixture,[],['remitter'=>'TG','tgBankAccountId'=>'tg-usd'],[['targetType'=>'UNAPPLIED_TG','foreignAmount'=>20]],$catalog,'ER-TEST-2','PK','TTI','2026-10-01','USD','OVERDRAFT-2');
-    check($again[0]['journal']['lines'][1]['credit']===round(20*$expectedRate,2),'Next payment preserves the negative balance carrying rate');
+    check($again[0]['journal']['lines'][1]['credit']===round(20*(($carrying-round(100*$expectedRate,2))/($native-100)),2),'Next payment preserves the negative balance carrying rate');
 }
 $GLOBALS['testFxRate']=null;
 $empty=['journals'=>['PK'=>['entity'=>'TTI','status'=>'Posted','meta'=>[]]],'tgBankTransactions'=>[],'exportCandidates'=>[]];
