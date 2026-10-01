@@ -487,12 +487,6 @@ function tt_export_finish_normalize(string $finish): string {
     $finish=trim(preg_replace('/\s+/u',' ',$finish) ?? '');
     if ($finish==='') return tt_export_finish_options()[2];
     foreach (tt_export_finish_options() as $approved) if (strcasecmp($finish,$approved)===0) return $approved;
-    $lower=strtolower($finish);
-    if (str_contains($lower,'well milled')) {
-        if (str_contains($lower,'reasonably')) return 'Reasonably well milled';
-        if (str_contains($lower,'double')) return 'Well milled, double polished and well sortexed';
-        if (str_contains($lower,'silky')) return 'Well milled, silky polished and well sortexed';
-    }
     return $finish;
 }
 
