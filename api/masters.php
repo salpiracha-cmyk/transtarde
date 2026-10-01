@@ -50,17 +50,34 @@ try {
     if ($action==='delete-company-bank') {
         if (($admin['role']??'')!=='Super Admin') master_respond(['ok'=>false,'error'=>'Only Super Admin can delete a company bank directly.'],403);
         $bankId=trim((string)($body['bankId']??''));
+        $replacementBankId=trim((string)($body['replacementBankId']??''));
         if($id===''||$bankId==='')throw new InvalidArgumentException('Select a company bank account.');
-        tt_mutate_store(static function (&$data) use($id,$bankId,$admin):void {
+        tt_mutate_store(static function (&$data) use($id,$bankId,$replacementBankId,$admin):void {
             $found=false;
-            foreach((array)($data['masters']['companies']??[]) as &$company){
+            if(!isset($data['masters']['companies'])||!is_array($data['masters']['companies']))throw new InvalidArgumentException('Company no longer exists.');
+            foreach($data['masters']['companies'] as &$company){
                 if((string)($company['id']??'')!==$id)continue;
                 $banks=json_decode((string)($company['values'][13]??'[]'),true);if(!is_array($banks))$banks=[];
-                foreach($banks as &$bank){if((string)($bank['id']??'')!==$bankId)continue;$bank['status']='Inactive';$bank['deletedAt']=gmdate('c');$bank['deletedBy']=(string)($admin['full_name']??$admin['username']??'Super Admin');$found=true;break;}unset($bank);
+                foreach($banks as &$bank){
+                    if((string)($bank['id']??'')!==$bankId)continue;
+                    if(strcasecmp((string)($bank['status']??'Active'),'Inactive')===0)throw new InvalidArgumentException('Bank account is already inactive.');
+                    if(!empty($bank['isDefault'])){
+                        $replaced=false;
+                        foreach($banks as $candidateIndex=>$candidate){
+                            if((string)($candidate['id']??'')!==$replacementBankId)continue;
+                            if($replacementBankId===$bankId||strcasecmp((string)($candidate['currency']??''),(string)($bank['currency']??''))!==0||strcasecmp((string)($candidate['status']??'Active'),'Inactive')===0)break;
+                            $banks[$candidateIndex]['isDefault']=true;$replaced=true;break;
+                        }
+                        if(!$replaced)throw new InvalidArgumentException('Choose an active replacement default in the same currency before deleting this account.');
+                    }
+                    $bank['isDefault']=false;$bank['status']='Inactive';$bank['deletedAt']=gmdate('c');$bank['deletedBy']=(string)($admin['full_name']??$admin['username']??'Super Admin');$found=true;break;
+                }unset($bank);
                 if($found)$company['values'][13]=json_encode($banks,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);break;
             }unset($company);
             if(!$found)throw new InvalidArgumentException('Bank account no longer exists.');
-            foreach((array)($data['bank_deletion_requests']??[]) as &$request){if(($request['companyId']??'')===$id&&($request['bankId']??'')===$bankId&&($request['status']??'')==='Pending'){$request['status']='Superseded by Super Admin';$request['reviewedAt']=gmdate('c');$request['reviewedBy']=(string)($admin['full_name']??$admin['username']??'Super Admin');}}unset($request);
+            if(isset($data['bank_deletion_requests'])&&is_array($data['bank_deletion_requests'])){
+                foreach($data['bank_deletion_requests'] as &$request){if(($request['companyId']??'')===$id&&($request['bankId']??'')===$bankId&&($request['status']??'')==='Pending'){$request['status']='Superseded by Super Admin';$request['reviewedAt']=gmdate('c');$request['reviewedBy']=(string)($admin['full_name']??$admin['username']??'Super Admin');}}unset($request);
+            }
         });
         tt_audit((int)$admin['id'],$admin['username'],'Super Admin deleted company bank from future use '.$bankId);
         master_respond(['ok'=>true,'masters'=>master_all($admin),'bankDeletionRequests'=>(array)(tt_read_store()['bank_deletion_requests']??[])]);
@@ -68,9 +85,9 @@ try {
     if ($action==='review-bank-deletion') {
         $owner=($admin['role']??'')==='Super Admin';$director=($admin['role']??'')==='Director'&&tt_user_can_open_module($admin,'Directors');
         if (!$owner&&!$director) master_respond(['ok'=>false,'error'=>'Director or Super Admin approval required.'],403);
-        $requestId=trim((string)($body['requestId']??''));$decision=(string)($body['decision']??'');
+        $requestId=trim((string)($body['requestId']??''));$decision=(string)($body['decision']??'');$replacementBankId=trim((string)($body['replacementBankId']??''));
         if (!in_array($decision,['Approve','Reject'],true))throw new InvalidArgumentException('Choose Approve or Reject.');
-        $review=tt_mutate_store(static function (&$data) use($requestId,$decision,$admin):array {
+        $review=tt_mutate_store(static function (&$data) use($requestId,$decision,$replacementBankId,$admin):array {
             if(!isset($data['bank_deletion_requests'])||!is_array($data['bank_deletion_requests']))throw new InvalidArgumentException('Pending Director request not found.');
             foreach($data['bank_deletion_requests'] as &$request){
                 if(($request['id']??'')!==$requestId||($request['status']??'')!=='Pending')continue;
@@ -79,7 +96,18 @@ try {
                     foreach($data['masters']['companies'] as &$company){
                         if((string)($company['id']??'')!==(string)$request['companyId'])continue;
                         $banks=json_decode((string)($company['values'][13]??'[]'),true);
-                        foreach($banks as &$bank)if((string)($bank['id']??'')===(string)$request['bankId']){$bank['status']='Inactive';$found=true;break;}
+                        foreach($banks as &$bank)if((string)($bank['id']??'')===(string)$request['bankId']){
+                            if(!empty($bank['isDefault'])){
+                                $replaced=false;
+                                foreach($banks as $candidateIndex=>$candidate){
+                                    if((string)($candidate['id']??'')!==$replacementBankId)continue;
+                                    if($replacementBankId===(string)$request['bankId']||strcasecmp((string)($candidate['currency']??''),(string)($bank['currency']??''))!==0||strcasecmp((string)($candidate['status']??'Active'),'Inactive')===0)break;
+                                    $banks[$candidateIndex]['isDefault']=true;$replaced=true;break;
+                                }
+                                if(!$replaced)throw new InvalidArgumentException('Choose an active replacement default in the same currency before approving this deletion.');
+                            }
+                            $bank['isDefault']=false;$bank['status']='Inactive';$found=true;break;
+                        }
                         unset($bank);
                         if($found)$company['values'][13]=json_encode($banks,JSON_UNESCAPED_SLASHES);
                         break;
@@ -248,7 +276,7 @@ try {
             if(($regType==='' xor $regNumber===''))throw new InvalidArgumentException('Each company registration requires both a type and number.');
             $expiry=(string)($registration['expiryDate']??'');if($expiry!==''&&!preg_match('/^\d{4}-\d{2}-\d{2}$/',$expiry))throw new InvalidArgumentException('Registration expiry dates must be valid dates.');
         }
-        $banks=json_decode((string)$values[13],true)?:[];$currencies=[];$seenBankIds=[];
+        $banks=json_decode((string)$values[13],true)?:[];$currencies=[];$seenBankIds=[];$bankDefaults=[];
         foreach($banks as $bank)if(is_array($bank)){
             $bankId=trim((string)($bank['id']??''));if($bankId==='')throw new InvalidArgumentException('Every saved bank account requires a stable account ID. Reopen the company and try again.');
             if(isset($seenBankIds[$bankId]))throw new InvalidArgumentException('The same bank account appears more than once.');$seenBankIds[$bankId]=true;
@@ -257,6 +285,12 @@ try {
             if($accountType!=='Company Account'&&trim((string)($bank['personalOwner']??''))==='')throw new InvalidArgumentException('Enter the account owner for proprietor / personal bank accounts.');
             if(!empty($bank['retentionAccount'])&&$accountType==='Personal Account')throw new InvalidArgumentException('A personal-only account cannot be a company retention ledger.');
             if(!empty($bank['retentionAccount'])&&(!in_array(strtoupper((string)($values[1]??'')),['TTI','BRM'],true)||strtoupper((string)($bank['currency']??'PKR'))==='PKR'))throw new InvalidArgumentException('A retention account must be a foreign-currency TTI or BRM bank account.');
+            if(!empty($bank['isDefault'])){
+                if(strcasecmp((string)($bank['status']??'Active'),'Inactive')===0)throw new InvalidArgumentException('An inactive bank account cannot be the default.');
+                $defaultCurrency=strtoupper(trim((string)($bank['currency']??'')));
+                if(isset($bankDefaults[$defaultCurrency]))throw new InvalidArgumentException('Only one default bank account is allowed per company and currency.');
+                $bankDefaults[$defaultCurrency]=true;
+            }
             if(strcasecmp((string)($bank['status']??'Active'),'Inactive')!==0){$code=strtoupper((string)($bank['currency']??''));if(preg_match('/^[A-Z]{3}$/',$code))$currencies[$code]=true;}
         }
         if(strtoupper(trim((string)($values[1]??'')))==='TG')$currencies['AED']=true;
@@ -277,6 +311,13 @@ try {
             if (!$existing)throw new InvalidArgumentException('Company no longer exists.');
             $previous=json_decode((string)($existing['values'][13]??'[]'),true)?:[];
             $incoming=json_decode((string)$values[13],true)?:[];
+            foreach($previous as $oldBank){
+                if(empty($oldBank['isDefault'])||strcasecmp((string)($oldBank['status']??'Active'),'Inactive')===0)continue;
+                $oldCurrency=strtoupper(trim((string)($oldBank['currency']??'')));
+                $oldStillDefault=false;
+                foreach($incoming as $newBank)if((string)($newBank['id']??'')===(string)($oldBank['id']??'')&&!empty($newBank['isDefault'])&&strcasecmp((string)($newBank['status']??'Active'),'Inactive')!==0&&strtoupper(trim((string)($newBank['currency']??'')))===$oldCurrency){$oldStillDefault=true;break;}
+                if(!$oldStillDefault&&!isset($bankDefaults[$oldCurrency]))throw new InvalidArgumentException('Choose a replacement default for '.$oldCurrency.' before changing this bank account.');
+            }
             foreach($previous as $bank){
                 $bankId=(string)($bank['id']??'');if($bankId==='')continue;
                 $match=null;foreach($incoming as $candidate)if((string)($candidate['id']??'')===$bankId){$match=$candidate;break;}
@@ -396,4 +437,3 @@ try {
     master_respond(['ok'=>false,'error'=>'Unknown action.'],400);
 } catch (InvalidArgumentException $e) { master_respond(['ok'=>false,'error'=>$e->getMessage()],422); }
 catch (Throwable $e) { master_respond(['ok'=>false,'error'=>'The master-record action could not be completed.'],500); }
-
