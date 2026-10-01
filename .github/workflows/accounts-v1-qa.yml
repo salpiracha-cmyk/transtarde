@@ -53,6 +53,9 @@ jobs:
           php tests/accounts-v1/accounts_reset_scope_test.php
           php tests/accounts-v1/qa_account_profile_test.php
           php tests/security/qa_account_read_only_test.php
+          node tests/accounts-v1/director_approvals_ui_test.js
+          php tests/accounts-v1/director_approvals_test.php
+          python3 tests/accounts-v1/director_approvals_http_test.py
           php tests/accounts-v1/accounts_reviews_test.php
           python3 tests/accounts-v1/accounts_reviews_http_test.py
           node tests/accounts-v1/credit_advice_amendment_ui_test.js
@@ -138,3 +141,4 @@ jobs:
           name: inventory-reconciliation-${{ github.run_id }}
           path: ${{ runner.temp }}/inventory-evidence/
           retention-days: 14
+

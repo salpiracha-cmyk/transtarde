@@ -33,6 +33,9 @@
   const IS_SUPER_ADMIN = SESSION.role === "Super Admin";
   let pendingDeletionRequests = [];
   let pendingBankDeletionRequests = [];
+  let pendingDirectorApprovals = [];
+  let approvalsError = "";
+  let approvalsLoaded = false;
   const MASTER_PERMISSION_ACTIONS = ["Use","View","Create","Edit","Deactivate","View Documents","Download Documents"];
   const hasMasterAccess = IS_SUPER_ADMIN || !!SESSION.masterAccess;
   const MASTER_DEFAULT_SCOPES = {
@@ -1470,16 +1473,45 @@
   function renderRecentActivity() {
     document.getElementById("recentActivity").innerHTML = state.audit.slice(0, 4).map(item => `<div class="timeline-item"><span class="timeline-dot"></span><div><strong>${escapeHtml(item.detail)}</strong><small>${escapeHtml(item.user)} · ${escapeHtml(item.date)} · ${escapeHtml(item.ref)}</small></div></div>`).join("");
   }
+  async function refreshApprovals() {
+    if (!IS_SUPER_ADMIN) return;
+    const button=document.getElementById("refreshApprovals");
+    if(button)button.disabled=true;
+    approvalsError="";
+    const results=await Promise.allSettled([loadServerMasters(),apiRequest(null,"director_approvals")]);
+    if(results[1].status==="fulfilled")pendingDirectorApprovals=results[1].value.approvals||[];
+    approvalsError=results.filter(result=>result.status==="rejected").map(result=>result.reason.message).join(" ");
+    approvalsLoaded=true;
+    renderApprovals();
+    if(button)button.disabled=false;
+  }
+  function bankApprovalReplacement(request) {
+    const company=(state.masters.companies||[]).find(row=>row.id===request.companyId);
+    const banks=companyBanks(company),bank=banks.find(item=>item.id===request.bankId);
+    const choices=banks.filter(item=>item.id!==request.bankId&&item.currency===bank?.currency&&eligibleDefaultBank(item));
+    return {required:!!bank?.isDefault,choices};
+  }
   function renderApprovals() {
     if (!IS_SUPER_ADMIN) return;
     const panel=document.querySelector(".approvals-panel"),list=panel?.querySelector(".approval-list"),count=panel?.querySelector(".count-pill");
     if(!panel||!list||!count)return;
     const rows=[
       ...pendingDeletionRequests.map(request=>({kind:"master",id:request.id,title:request.name,detail:`${request.type} · ${request.requestedBy} · ${request.reason}`})),
-      ...pendingBankDeletionRequests.map(request=>({kind:"bank",id:request.id,title:`${request.company} · ${request.bank}`,detail:`${request.requestedBy} · ${request.reason}`}))
+      ...pendingBankDeletionRequests.map(request=>({kind:"bank",id:request.id,title:`${request.company} · ${request.bank}`,detail:`${request.requestedBy} · ${request.reason}`,replacement:bankApprovalReplacement(request)})),
+      ...pendingDirectorApprovals
     ];
-    count.textContent=`${rows.length} open`;
-    list.innerHTML=rows.length?rows.map(item=>`<div class="approval-item"><div><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.detail)}</small></div><div class="row-actions"><button class="row-action" ${item.kind==="bank"?`data-review-bank-deletion="${escapeHtml(item.id)}"`:`data-review-master-deletion="${escapeHtml(item.id)}"`} data-decision="Approve">Approve</button><button class="row-action" ${item.kind==="bank"?`data-review-bank-deletion="${escapeHtml(item.id)}"`:`data-review-master-deletion="${escapeHtml(item.id)}"`} data-decision="Reject">Reject</button></div></div>`).join(""):'<div class="admin-empty-state"><strong>No pending approvals</strong><span>Requests will appear here when Accounts submits one.</span></div>';
+    const uncertain=!!approvalsError||!approvalsLoaded;
+    count.textContent=uncertain?"Awaiting verification":`${rows.length} open`;
+    document.getElementById("approvalStatusCount").textContent=uncertain?"?":String(rows.length);
+    document.getElementById("approvalStatusTitle").textContent=uncertain?"Approvals need verification":rows.length?"Pending approvals":"No pending approvals";
+    document.getElementById("approvalStatusDetail").textContent=uncertain?"Refresh to verify the complete queue":"Director and Super Admin requests";
+    list.innerHTML=(approvalsError?`<div class="admin-empty-state" role="alert"><strong>Approval feed unavailable</strong><span>${escapeHtml(approvalsError)} Existing entries may be out of date.</span></div>`:"")+ (rows.length?rows.map(item=>{
+      const rate=item.kind==="bag"||item.kind==="nonwoven";
+      const replacement=item.replacement;
+      const input=rate?`<label>Approval reason<input data-rate-approval-reason maxlength="500" placeholder="Reason for accepting the rate"></label>`:replacement?.required?`<label>Replacement default<select data-bank-approval-replacement="${escapeHtml(item.id)}"><option value="">Choose replacement</option>${replacement.choices.map(bank=>`<option value="${escapeHtml(bank.id)}">${escapeHtml(bank.bankName)} · ${escapeHtml(bank.accountTitle)} · ${escapeHtml(bank.iban)}</option>`).join("")}</select></label>`:"";
+      const attribute=rate?`data-review-rate-exception="${escapeHtml(item.billId)}" data-rate-kind="${escapeHtml(item.kind)}" data-rate-entity="${escapeHtml(item.entity)}"`:item.kind==="bank"?`data-review-bank-deletion="${escapeHtml(item.id)}"`:`data-review-master-deletion="${escapeHtml(item.id)}"`;
+      return `<div class="approval-item"><div><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.detail)}</small>${input}</div><div class="row-actions"><button class="row-action" ${attribute} data-decision="Approve" ${replacement?.required&&!replacement.choices.length?'disabled title="Add an eligible replacement default bank first"':''}>Approve</button>${rate?"":`<button class="row-action" ${attribute} data-decision="Reject">Reject</button>`}</div></div>`;
+    }).join(""): `<div class="admin-empty-state"><strong>${uncertain?"Checking approvals":"No pending approvals"}</strong><span>Director approval requests also appear here.</span></div>`);
   }
   function exportAudit() {
     const header = ["Date & Time", "User", "Area", "Action", "Details", "Reference"];
@@ -1711,10 +1743,23 @@
         state.masters=ensureMasterSections(data.masters,state.masterOptions);saveState();renderMasters();renderApprovals();toast(decision==='Approve'?'Name deactivated after Super Admin approval.':'Deletion request rejected.');
       }).catch(error=>toast(error.message));
     }
+    if(event.target.closest("#refreshApprovals"))refreshApprovals();
+    const rateApproval=event.target.closest('[data-review-rate-exception]');
+    if(rateApproval){
+      const reason=rateApproval.closest('.approval-item')?.querySelector('[data-rate-approval-reason]')?.value.trim();
+      if(!reason){toast('Enter the reason for approving this rate.');return;}
+      const endpoint={bag:'bag_purchases',nonwoven:'nonwoven_bag_bills'}[rateApproval.dataset.rateKind];
+      if(!endpoint)return;
+      rateApproval.disabled=true;
+      apiRequest({action:'approve_rate_exception',billId:rateApproval.dataset.reviewRateException,entity:rateApproval.dataset.rateEntity,reason},endpoint)
+        .then(async()=>{await refreshApprovals();toast('Rate approved. The module applies its normal posting checks.');})
+        .catch(error=>{toast(error.message);rateApproval.disabled=false;});
+    }
     if(reviewBankDeletion){
       const requestId=reviewBankDeletion.dataset.reviewBankDeletion,decision=reviewBankDeletion.dataset.decision;
-      const replacementBankId=document.querySelector(`[data-bank-approval-replacement="${CSS.escape(requestId)}"]`)?.value||"";
-      if(decision==='Approve'&&document.querySelector(`[data-bank-approval-replacement="${CSS.escape(requestId)}"]`)&&!replacementBankId){toast('Choose the replacement default first.');return;}
+      const replacementSelect=reviewBankDeletion.closest(".approval-item,.master-approval-row")?.querySelector("[data-bank-approval-replacement]");
+      const replacementBankId=replacementSelect?.value||"";
+      if(decision==='Approve'&&replacementSelect&&!replacementBankId){toast('Choose the replacement default first.');return;}
       apiRequest({action:'review-bank-deletion',requestId,decision,replacementBankId},'masters').then(data=>{
         pendingBankDeletionRequests=(data.bankDeletionRequests||[]).filter(item=>item.status==='Pending');
         state.masters=ensureMasterSections(data.masters,state.masterOptions);saveState();renderMasters();renderApprovals();toast(decision==='Approve'?'Bank account deleted from future use after approval.':'Request rejected.');
@@ -1802,7 +1847,7 @@
     applySessionAccess(); renderModules(); renderUsers(); renderMasters(); renderLocks(); renderAudit(); renderRecentActivity(); renderApprovals(); loadBackupStatus();
     if (new URLSearchParams(location.search).get('view')==='masters' && hasMasterAccess) showView('masters');
     if (IS_SUPER_ADMIN) {
-      try { await Promise.all([loadServerUsers(),loadServerMasters()]); } catch (error) { toast(error.message); }
+      try { await Promise.all([loadServerUsers(),refreshApprovals()]); } catch (error) { toast(error.message); }
     } else if (hasMasterAccess) {
       try { await loadServerMasters(); } catch (error) { toast(error.message); }
     }
