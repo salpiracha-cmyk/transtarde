@@ -19,6 +19,45 @@ function master_options_for_console(): array {
     $options['product_finishes']=tt_export_finish_options();
     return $options;
 }
+function master_bank_can_be_default(array $bank): bool {
+    return strcasecmp((string)($bank['status']??'Active'),'Inactive')!==0
+        &&tt_bank_is_operational_account_type((string)($bank['accountType']??'Company Account'))
+        &&(trim((string)($bank['accountNumber']??''))!==''||trim((string)($bank['iban']??''))!=='');
+}
+function master_sync_accounts_bank_defaults(string $companyId,array $admin): void {
+    $company=master_find_row('companies',$companyId);
+    if(!$company)return;
+    $code=strtoupper(trim((string)($company['values'][1]??'')));
+    if(!in_array($code,['TTI','BRM','TG'],true))return;
+    $banks=tt_company_bank_legacy_rows([$company]);$defaults=[];
+    foreach(tt_master_json_array($company['values'][13]??'') as $item){
+        if(!is_array($item)||empty($item['isDefault'])||!master_bank_can_be_default($item))continue;
+        $currency=strtoupper(trim((string)($item['currency']??'')));
+        if($currency!=='')$defaults[$currency]=(string)($item['id']??'');
+    }
+    if(!$defaults)return;
+    tt_ensure_data_dir();$path=TT_DATA_DIR.'/accounts.json';
+    $handle=fopen($path,'c+');if($handle===false||!flock($handle,LOCK_EX))throw new RuntimeException('Accounts storage unavailable.');
+    try{
+        rewind($handle);$raw=stream_get_contents($handle);$store=$raw?json_decode($raw,true):null;
+        if($raw!==''&&!is_array($store))throw new RuntimeException('Accounts storage is invalid.');
+        if(!is_array($store))$store=['revision'=>0,'journals'=>[],'bankAccountSettings'=>[]];
+        if(!isset($store['bankAccountSettings'])||!is_array($store['bankAccountSettings']))$store['bankAccountSettings']=[];
+        foreach($banks as $row){
+            $id=(string)($row['id']??'');$currency=strtoupper(trim((string)($row['values'][7]??'')));
+            if($id===''||!isset($defaults[$currency]))continue;
+            $setting=is_array($store['bankAccountSettings'][$id]??null)?$store['bankAccountSettings'][$id]:[];
+            $selected=$defaults[$currency]===$id;
+            $setting['defaultReceiptAccount']=$selected;$setting['defaultPaymentAccount']=$selected;
+            $setting['updatedAt']=gmdate('c');$setting['updatedBy']=(string)($admin['full_name']??$admin['username']??'Super Admin');
+            $store['bankAccountSettings'][$id]=$setting;
+        }
+        $store['revision']=(int)($store['revision']??0)+1;
+        $encoded=json_encode($store,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);
+        rewind($handle);ftruncate($handle,0);
+        if(fwrite($handle,$encoded)!==strlen($encoded)||!fflush($handle))throw new RuntimeException('Accounts storage could not be saved.');
+    }finally{flock($handle,LOCK_UN);fclose($handle);}
+}
 try {
     $admin=tt_require_login();
     if (!tt_user_can_access_masters($admin)) master_respond(['ok'=>false,'error'=>'Master Records access required.'],403);
@@ -65,7 +104,7 @@ try {
                         $replaced=false;
                         foreach($banks as $candidateIndex=>$candidate){
                             if((string)($candidate['id']??'')!==$replacementBankId)continue;
-                            if($replacementBankId===$bankId||strcasecmp((string)($candidate['currency']??''),(string)($bank['currency']??''))!==0||strcasecmp((string)($candidate['status']??'Active'),'Inactive')===0)break;
+                            if($replacementBankId===$bankId||strcasecmp((string)($candidate['currency']??''),(string)($bank['currency']??''))!==0||!master_bank_can_be_default($candidate))break;
                             $banks[$candidateIndex]['isDefault']=true;$replaced=true;break;
                         }
                         if(!$replaced)throw new InvalidArgumentException('Choose an active replacement default in the same currency before deleting this account.');
@@ -79,6 +118,7 @@ try {
                 foreach($data['bank_deletion_requests'] as &$request){if(($request['companyId']??'')===$id&&($request['bankId']??'')===$bankId&&($request['status']??'')==='Pending'){$request['status']='Superseded by Super Admin';$request['reviewedAt']=gmdate('c');$request['reviewedBy']=(string)($admin['full_name']??$admin['username']??'Super Admin');}}unset($request);
             }
         });
+        master_sync_accounts_bank_defaults($id,$admin);
         tt_audit((int)$admin['id'],$admin['username'],'Super Admin deleted company bank from future use '.$bankId);
         master_respond(['ok'=>true,'masters'=>master_all($admin),'bankDeletionRequests'=>(array)(tt_read_store()['bank_deletion_requests']??[])]);
     }
@@ -101,7 +141,7 @@ try {
                                 $replaced=false;
                                 foreach($banks as $candidateIndex=>$candidate){
                                     if((string)($candidate['id']??'')!==$replacementBankId)continue;
-                                    if($replacementBankId===(string)$request['bankId']||strcasecmp((string)($candidate['currency']??''),(string)($bank['currency']??''))!==0||strcasecmp((string)($candidate['status']??'Active'),'Inactive')===0)break;
+                                    if($replacementBankId===(string)$request['bankId']||strcasecmp((string)($candidate['currency']??''),(string)($bank['currency']??''))!==0||!master_bank_can_be_default($candidate))break;
                                     $banks[$candidateIndex]['isDefault']=true;$replaced=true;break;
                                 }
                                 if(!$replaced)throw new InvalidArgumentException('Choose an active replacement default in the same currency before approving this deletion.');
@@ -118,6 +158,7 @@ try {
             }unset($request);
             throw new InvalidArgumentException('Pending Director request not found.');
         });
+        if($decision==='Approve')master_sync_accounts_bank_defaults((string)$review['companyId'],$admin);
         tt_audit((int)$admin['id'],$admin['username'],$decision.' bank account deactivation '.$requestId);
         master_respond(['ok'=>true,'review'=>$review,'masters'=>master_all($admin),'bankDeletionRequests'=>(array)(tt_read_store()['bank_deletion_requests']??[])]);
     }
@@ -287,6 +328,7 @@ try {
             if(!empty($bank['retentionAccount'])&&(!in_array(strtoupper((string)($values[1]??'')),['TTI','BRM'],true)||strtoupper((string)($bank['currency']??'PKR'))==='PKR'))throw new InvalidArgumentException('A retention account must be a foreign-currency TTI or BRM bank account.');
             if(!empty($bank['isDefault'])){
                 if(strcasecmp((string)($bank['status']??'Active'),'Inactive')===0)throw new InvalidArgumentException('An inactive bank account cannot be the default.');
+                if(!master_bank_can_be_default($bank))throw new InvalidArgumentException('A default bank must be an operational company account with an account number or IBAN.');
                 $defaultCurrency=strtoupper(trim((string)($bank['currency']??'')));
                 if(isset($bankDefaults[$defaultCurrency]))throw new InvalidArgumentException('Only one default bank account is allowed per company and currency.');
                 $bankDefaults[$defaultCurrency]=true;
@@ -427,11 +469,13 @@ try {
     $reference=strtoupper(trim((string)($values[1] ?? ''))) ?: strtoupper($type);
     if ($action==='create') {
         $id=tt_create_master($type,$values); tt_audit((int)$admin['id'],$admin['username'],'Created '.$type.' master '.$reference);
+        if($type==='companies')master_sync_accounts_bank_defaults($id,$admin);
         master_respond(['ok'=>true,'id'=>$id,'masters'=>master_all($admin),'options'=>master_options_for_console()]);
     }
     if ($action==='update') {
         if ($id==='') throw new InvalidArgumentException('Select a master record.');
         tt_update_master($type,$id,$values); tt_audit((int)$admin['id'],$admin['username'],'Updated '.$type.' master '.$reference);
+        if($type==='companies')master_sync_accounts_bank_defaults($id,$admin);
         master_respond(['ok'=>true,'id'=>$id,'masters'=>master_all($admin),'options'=>master_options_for_console()]);
     }
     master_respond(['ok'=>false,'error'=>'Unknown action.'],400);
