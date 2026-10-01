@@ -170,6 +170,8 @@ def run():
   expense={'action':'pay_general_expense','entity':'TTI','paymentDate':'2026-09-30','paymentAccountId':'qa-bank-default','expenseAccount':'6900','location':'OFFICE','payee':'Expense QA','amount':25,'description':'Fixture expense','reference':'ORIGINAL-INVOICE-99','requestKey':'expense-bank-tracking-fixture','bankPaymentMethod':'CHEQUE','chequeNo':'EXP-CQ-777','chequeDate':'2026-09-30','paymentNarration':'User cheque narration'}
   status,posted=request('/api/expenses_v1.php',expense);assert status==200,(status,posted)
   state=json.loads(storefile.read_text());journal=state['journals'][posted['result']['journalId']];assert journal['meta']['chequeNo']=='EXP-CQ-777' and journal['reference']=='ORIGINAL-INVOICE-99' and 'User cheque narration' in journal['narration']
+  status,tracked=request('/api/accounts_search.php?entity=TTI&q=777');assert status==200 and any(r['data'].get('id')==posted['result']['journalId'] for r in tracked['results'])
+  status,tracked=request('/api/accounts_ledger_browser.php?entity=TTI&from=2026-09-01&to=2026-09-30&q=777');assert status==200 and any(r['voucher']==posted['result']['journalId'] for r in tracked['rows'])
   assert request('/api/expenses_v1.php',expense)[1]['result']['journalId']==posted['result']['journalId']
   assert request('/api/expenses_v1.php',{**expense,'chequeNo':'EXP-CQ-778'})[0]==409
   print('Cheque lifecycle, bank method metadata, idempotent retries and short reference search passed')

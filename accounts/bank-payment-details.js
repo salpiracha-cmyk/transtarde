@@ -3,7 +3,7 @@
   const find=id=>document.getElementById(id);
   function mount(id,accounts=[]) {
     const source=find(id);if(!source||find(id+'Details'))return;
-    const preferred=accounts.find(a=>a.isDefault&&!String(a.id).startsWith('CASH|'));
+    const preferred=accounts.find(a=>a.isDefault&&!String(a.id).startsWith('CASH|')&&[...source.options].some(o=>o.value===a.id));
     if(preferred&&[...source.options].some(o=>o.value===preferred.id))source.value=preferred.id;
     const box=document.createElement('div');box.id=id+'Details';box.style.cssText='grid-column:1/-1;display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin:8px 0';
     box.innerHTML='<label>Bank payment method<select data-method><option value="BANK_TRANSFER">Bank Transfer</option><option value="ONLINE_BANKING">Online Banking</option><option value="CHEQUE">Cheque</option></select></label><label><span data-reference-label>Bank transaction reference</span><input data-reference maxlength="180"></label><label>Narration<input data-narration maxlength="300" placeholder="Your payment details"></label>';

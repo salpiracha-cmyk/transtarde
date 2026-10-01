@@ -5,6 +5,7 @@ declare(strict_types=1);
 function tt_accounts_reference_matches(string $query, mixed $reference): bool {
     $reference=(string)$reference;
     if(!preg_match('/^(?:[A-Z]+-)?(\d{4})-(\d+)$/i',$reference,$ref))return false;
+    if(ctype_digit($query)&&str_starts_with($query,$ref[1])&&strlen($query)>4&&ltrim(substr($query,4),'0')===ltrim($ref[2],'0'))return true;
     if(preg_match('/^(?:(\d{4})-)?(\d+)$/',$query,$input))
         return ($input[1]===''||$input[1]===$ref[1])&&ltrim($input[2],'0')===ltrim($ref[2],'0');
     return false;

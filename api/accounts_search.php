@@ -70,7 +70,7 @@ try {
             $rowEntity = strtoupper((string)($row['entity'] ?? $row['legalEntity'] ?? ''));
             if ($rowEntity !== '' && $rowEntity !== $entity) continue;
             $haystack = strtolower((string)$key . ' ' . as_text($row));
-            $references=[$key];foreach(['id','journalId','billNo','invoiceNo','reference','voucherNo','chequeNo'] as $field)$references[]=$row[$field]??'';$numeric=preg_match('/^(?:\d{4}-)?\d+$/',$query);$match=!$numeric&&str_contains($haystack,$needle);foreach($references as $reference)if(tt_accounts_reference_matches($query,$reference)||($numeric&&!preg_match('/^(?:[A-Z]+-)?\d{4}-\d+$/i',(string)$reference)&&str_contains(strtolower((string)$reference),$needle))){$match=true;break;}if(!$match)continue;
+            $references=[$key,$row['meta']['chequeNo']??'',$row['meta']['bankReference']??''];foreach(['id','journalId','billNo','invoiceNo','reference','voucherNo','chequeNo'] as $field)$references[]=$row[$field]??'';$numeric=preg_match('/^(?:\d{4}-)?\d+$/',$query);$match=!$numeric&&str_contains($haystack,$needle);foreach($references as $reference)if(tt_accounts_reference_matches($query,$reference)||($numeric&&!preg_match('/^(?:[A-Z]+-)?\d{4}-\d+$/i',(string)$reference)&&str_contains(strtolower((string)$reference),$needle))){$match=true;break;}if(!$match)continue;
             $amount = as_first($row, ['amount','total','netAmount','finalCommodityValue','supplierPayableTotal','grossPkr','totalDebit']);
             $billId=(string)($row['meta']['supplierBillId']??$row['id']??$key);$amend=null;
             foreach(['freightBillsV1'=>'FREIGHT','transportBillsV1'=>'TRANSPORT','exportServiceBillsV1'=>''] as $billCollection=>$billKind){
