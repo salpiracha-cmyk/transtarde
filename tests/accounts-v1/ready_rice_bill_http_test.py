@@ -167,6 +167,11 @@ def run():
   state=json.loads(storefile.read_text());assert 'Online Banking' in state['journals'][paid['result']['journalId']]['narration']
   assert request('/api/supplier_settlements.php',online)[1]['result']['journalId']==paid['result']['journalId']
   status,cleared=request('/api/supplier_settlements.php',{'action':'clear_supplier_cheque','entity':'TTI','date':'2026-10-05','settlementId':cq['result']['id'],'bankReference':'CLEARED-123'});assert status==200,(status,cleared)
+  expense={'action':'pay_general_expense','entity':'TTI','paymentDate':'2026-09-30','paymentAccountId':'qa-bank-default','expenseAccount':'6900','location':'OFFICE','payee':'Expense QA','amount':25,'description':'Fixture expense','reference':'ORIGINAL-INVOICE-99','requestKey':'expense-bank-tracking-fixture','bankPaymentMethod':'CHEQUE','chequeNo':'EXP-CQ-777','chequeDate':'2026-09-30','paymentNarration':'User cheque narration'}
+  status,posted=request('/api/expenses_v1.php',expense);assert status==200,(status,posted)
+  state=json.loads(storefile.read_text());journal=state['journals'][posted['result']['journalId']];assert journal['meta']['chequeNo']=='EXP-CQ-777' and journal['reference']=='ORIGINAL-INVOICE-99' and 'User cheque narration' in journal['narration']
+  assert request('/api/expenses_v1.php',expense)[1]['result']['journalId']==posted['result']['journalId']
+  assert request('/api/expenses_v1.php',{**expense,'chequeNo':'EXP-CQ-778'})[0]==409
   print('Cheque lifecycle, bank method metadata, idempotent retries and short reference search passed')
   print('Non-commodity payment FIFO, partial, registers, retry, TG cash/third-party and entity isolation passed')
   for name,role in [('Fixture Fumigation','Fumigation'),('Fixture Forwarder','Freight Forwarder')]:
@@ -294,7 +299,7 @@ def run():
     second=page.locator('.tt-transport-shipment').nth(1);assert second.locator('[data-remove-shipment]').evaluate("el=>getComputedStyle(el).backgroundColor")=='rgb(180, 35, 24)';second.locator('[name=containers]').fill('1');second.locator('[name=rate]').fill('38000');assert page.locator('#ttShipmentBillTotal').inner_text()=='153,200.00'
     page.locator('#ttShipmentBillVendor').fill('JJ');page.locator('#ttShipmentBillEntry [type=submit]').click();page.wait_for_function("document.querySelector('#ttShipmentBillError').textContent.includes('Bill not posted')");assert 'Transporter' in page.locator('#ttShipmentBillError').inner_text()
     page.locator('#ttShipmentBillVendor').fill('Cedar Horizon Haulage');page.locator('#ttShipmentBillEntry [type=submit]').click();page.get_by_role('heading',name='BILL POSTED').wait_for()
-    assert 'TRB' in page.locator('.tt-bill-confirmation').inner_text()
+    assert re.search(r'2026-\d+',page.locator('.tt-bill-confirmation').inner_text())
     page.screenshot(path=str(evidence/'transporter-bill-confirmation.png'))
     status,registered=request('/api/accounts_workflows_v1.php?entity=TTI&section=transport');assert status==200 and next(x for x in registered['bills'] if x['invoiceNo']=='BROWSER-TRANSPORT')['total']==153200 and len(next(x for x in registered['bills'] if x['invoiceNo']=='BROWSER-TRANSPORT')['lines'])==2
     assert (root/'transtrade_private/operations.json').read_bytes()==original,'Transport posting changed Mill records'
@@ -306,6 +311,10 @@ def run():
     assert page.locator('.tal-posting-row').count()>=2;page.locator('.tal-posting-row').last.click();page.locator('#tal-back').wait_for();assert page.locator('.tal-table tbody tr').count()>=2;page.locator('#tal-back').click();page.locator('#tt-all-ledgers').dispatch_event('click');page.evaluate("window.dispatchEvent(new Event('blur'));document.dispatchEvent(new Event('visibilitychange'))");assert page.locator('#tal-party').input_value()=='Cedar Horizon Haulage';assert page.locator('#tt-all-ledgers').is_visible();
     with page.expect_download() as dl:page.locator('#tal-export').click()
     assert dl.value.suggested_filename.endswith('.xlsx');page.locator('#tal-close').click()
+    harness=app/'accounts/__bank_tracking_fixture.html';harness.write_text('<html><body><div><label>Pay from<select id="bankSource"><option value="qa-bank-a">Bank A</option><option value="qa-bank-default">Default bank</option><option value="CASH|TTI">Cash</option></select></label></div><script src="bank-payment-details.js"></script><script>TT_BANK_PAYMENT_DETAILS.mount("bankSource",[{id:"qa-bank-default",isDefault:true}]);</script></body></html>')
+    page.goto(base+'/accounts/__bank_tracking_fixture.html');assert page.locator('#bankSource').input_value()=='qa-bank-default';page.locator('[data-method]').select_option('CHEQUE');assert page.locator('[data-reference-label]').inner_text()=='Cheque number';page.locator('[data-reference]').fill('777');page.locator('[data-narration]').fill('User narration');details=page.evaluate('TT_BANK_PAYMENT_DETAILS.read("bankSource","2026-09-30")');assert details['chequeNo']=='777' and details['paymentNarration']=='User narration';page.locator('#bankSource').select_option('CASH|TTI');assert not page.locator('#bankSourceDetails').is_visible();page.locator('#bankSource').select_option('qa-bank-default');page.locator('[data-method]').select_option('ONLINE_BANKING');assert page.evaluate('TT_BANK_PAYMENT_DETAILS.read("bankSource","2026-09-30")')['chequeNo']==''
+    page.goto(base+'/accounts/index.php')
+
     # Actual freight UI: separate parties, customer-first lots, aligned USD/PKR rows.
     status,created=request('/api/masters.php',{'action':'create','type':'business_parties','values':['Fixture Forwarder','','Freight Forwarder','','','','','','','','Active','','']});assert status==200,(status,created)
     page.goto(base+'/accounts/index.php');page.locator('#ttChangeCompanyDesk').click();page.locator('.tt-company-choice[data-entity="TTI"]').click();page.locator('[data-tt-area="exports"]').click()

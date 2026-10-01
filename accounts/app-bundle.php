@@ -50,6 +50,7 @@ $files = [
     'other-supplier-payments-ui.js',
     'supplier-payment-planning-ui.js',
     'payment-planning-bank-funds.js',
+    'bank-payment-details.js',
     'supplier-settlement-ui.js',
     'payables-bill-summary-ui.js',
     'rice-payment-overpayment-guard.js',
