@@ -175,6 +175,19 @@ test('authenticated Accounts live smoke: professional desk and popup workflows',
   await expect(page.locator('#ws-expenses')).toHaveClass(/tt-entry-only/);
   await expect(page.locator('#rsPrepare')).toBeVisible({ timeout: 30_000 });
   await expect(page.locator('#rsSaveSal')).toBeHidden();
+  await expect(page.locator('#rsAdvanceIcon')).toBeVisible();
+  await activate(page.locator('#rsAdvanceIcon'));
+  await expect(page.locator('#rsAdvanceAmount')).toBeVisible();
+  await activate(page.locator('#rsSalaryBack'));
+  await activate(page.locator('#rsPrepare'));
+  await expect(page.locator('#expenseEditor h1')).toContainText('TOTAL SALARY PKR');
+  await expect(page.locator('#rsMonth')).toBeVisible();
+  const salaryPay = page.locator('[data-rs-draft-pay]').first();
+  if (await salaryPay.count()) {
+    await activate(salaryPay);
+    await expect(page.locator('#rsPaySalAmt')).toBeVisible();
+    await expect(page.locator('#rsPaySalBtn')).toHaveText('POST');
+  }
   await closeWorkspace(page);
 
   await deskAction(page, 'exports', 'Inspection Bill');
