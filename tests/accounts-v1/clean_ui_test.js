@@ -29,7 +29,7 @@ requireText(ui, "stageEditor(editor, item.title)", 'direct grouped editor stagin
 requireText(ui, "button.removeAttribute('data-editor-back')", 'legacy editor handler isolation');
 requireText(ui, "tt:accounts-desk-form-opened", 'Accounts desk form close-shell integration');
 
-requireText(ui, "action:'salary_batch_payment'", 'salary client');
+requireText(read('accounts/rent-salary-ui.js'), "action:'complete_salary_month'", 'single final salary posting');
 requireText(salaryApi, "$action==='salary_batch_payment'", 'salary API');
 requireText(salaryApi, "SALARY_BATCH_PAYMENT", 'single salary voucher');
 requireText(salaryApi, "Cheque number is required for a bank salary payment.", 'salary cheque control');
@@ -44,7 +44,7 @@ const receiptVoucherUi=read('accounts/export-receipts-ui.js');
 const settlementApi=read('api/supplier_settlements.php');
 requireText(settlementUi, 'Print Payment Voucher', 'posted supplier payment voucher');
 requireText(receiptVoucherUi, 'Print Receipt Voucher', 'posted receipt voucher');
-requireText(settlementApi, 'Cheque number or bank transaction reference is required', 'bank payment reference control');
+requireText(settlementApi, 'Cheque number and bank are required', 'bank payment reference control');
 requireText(bundle, "'accounts-clean-ui.js'", 'bundle');
 if (bundle.indexOf("'accounts-clean-ui.js'") < bundle.indexOf("'reports-ui.js'")) throw new Error('Clean UI must load after feature modules.');
 requireText(index, 'app-bundle.php?v=current', 'non-manual bundle URL');

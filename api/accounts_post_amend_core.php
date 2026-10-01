@@ -20,7 +20,7 @@ function apa_correct(array &$store, array $user, string $postId, array $input): 
     $narration=trim((string)($input['narration']??$original['narration']??''));
     if($reference===''||mb_strlen($reference)>180||$narration===''||mb_strlen($narration)>500)throw new DomainException('Reference and narration are required.');
     $submitted=$input['lines']??null;
-    if(!is_array($submitted)||count($submitted)<2||count($submitted)>100)throw new DomainException('Enter between two and 100 journal lines.');
+    if(!is_array($submitted)||count($submitted)<2||count($submitted)>((($original['sourceType']??'')==='SALARY_MONTH_COMPLETED'||($original['meta']['originalSourceType']??'')==='SALARY_MONTH_COMPLETED')?500:100))throw new DomainException('Enter at least two journal lines within the posting limit.');
     $master=json_decode((string)file_get_contents(__DIR__.'/../accounts/accounting_master_v1.json'),true);
     $names=[];
     foreach(array_merge((array)($master['chart']??[]),(array)($master['peopleSubledgers']??[])) as $account)

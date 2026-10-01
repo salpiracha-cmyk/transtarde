@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 function tt_accounts_bank_payment_details(array $input): array {
     $method=trim((string)($input['bankPaymentMethod']??''));
+    if($method==='BANK_TRANSFER')$method='ONLINE_BANKING';
+    if($method==='')$method=!empty($input['paymentAccountId'])&&!str_starts_with((string)$input['paymentAccountId'],'CASH|')?'CHEQUE':'';
     if($method==='')return [];
     if(!in_array($method,['CHEQUE','ONLINE_BANKING','BANK_TRANSFER'],true))throw new DomainException('Select a valid bank payment method.');
     $source=trim((string)($input['paymentAccountId']??''));

@@ -418,6 +418,7 @@
     workspace.classList.toggle('tt-master-only', !!masterMode);
     workspace.classList.toggle('tt-entry-only', !masterMode);
     const masterBoxes = qa('.ttrs-box', editor).filter(box => q('#rsSaveSal,#rsSaveRent,[data-rs-edit],[data-rs-remove],[data-rs-rentedit],[data-rs-rentremove]', box));
+    q('.ttrs-entry-flow', editor)?.classList.toggle('tt-clean-hidden', !!masterMode);
     const allBoxes = qa('.ttrs-box', editor);
     allBoxes.forEach(box => box.classList.toggle('tt-clean-hidden', masterMode ? !masterBoxes.includes(box) : masterBoxes.includes(box)));
     if (masterMode) {
@@ -435,45 +436,9 @@
       }
     } else {
       delete workspace.dataset.ttMasterAdd;
-      installSalaryBatch(editor);
+
     }
     qa('[data-editor-back], .tt-editor-bar .tt-clean-close', workspace).forEach(button => makeCloseButton(button, workspace));
-  }
-
-  function numberFrom(text) { return Number(String(text || '').replace(/[^0-9.-]/g, '')) || 0; }
-
-  function installSalaryBatch(editor) {
-    const rows = qa('[data-rs-salpay]', editor);
-    const oldPay = q('.ttrs-pay', editor);
-    if (!rows.length || !oldPay || q('.tt-salary-batch', editor)) return;
-    oldPay.classList.add('tt-clean-hidden');
-    const source = q('#rsPaySalBank', oldPay);
-    const total = rows.reduce((sum, button) => sum + numberFrom(button.closest('tr')?.children[7]?.textContent), 0);
-    const box = document.createElement('div');
-    box.className = 'tt-salary-batch';
-    box.innerHTML = `<h3>Pay Prepared Salaries</h3><div class="helper">One selection and one click. Transtrade posts the complete prepared salary payment and generates its voucher number.</div><div class="tt-batch-grid"><label>Date<input id="ttBatchSalaryDate" type="date" value="${new Date().toISOString().slice(0,10)}"></label><label>Pay From<select id="ttBatchSalaryAccount">${source?.innerHTML || ''}</select></label><label>Cheque No. <input id="ttBatchSalaryCheque" placeholder="Required for bank payment"></label><button class="btn green" id="ttBatchSalaryPay" type="button">Pay All · Rs ${total.toLocaleString('en-PK')}</button></div></div>`;
-    oldPay.insertAdjacentElement('beforebegin', box);
-    const account = q('#ttBatchSalaryAccount', box);
-    const cheque = q('#ttBatchSalaryCheque', box);
-    const toggleCheque = () => { const cash = String(account.value).startsWith('CASH|'); cheque.closest('label').hidden = cash; if (cash) cheque.value = ''; };
-    account.addEventListener('change', toggleCheque);
-    toggleCheque();
-    q('#ttBatchSalaryPay', box).onclick = async event => {
-      const button = event.currentTarget;
-      if (!account.value) return alert('Select Cash or the bank account.');
-      if (!String(account.value).startsWith('CASH|') && !cheque.value.trim()) return alert('Enter the cheque number for this bank payment.');
-      if (!confirm(`Pay all prepared salary balances totaling Rs ${total.toLocaleString('en-PK')}?`)) return;
-      button.disabled = true;
-      try {
-        const key = 'SALBATCH-'+Date.now().toString(36)+'-'+crypto.getRandomValues(new Uint32Array(1))[0].toString(36);
-        const response = await fetch('../api/rent_salary.php', {method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/json','Accept':'application/json'}, body:JSON.stringify({action:'salary_batch_payment', csrf:window.TT_ACCOUNT_ACCESS?.csrf, entity:localStorage.getItem('tt_accounts_entity')||'TTI', month:q('#rsMonth', editor)?.value||'', date:q('#ttBatchSalaryDate', box).value, paymentAccountId:account.value, chequeNo:cheque.value.trim(), requestKey:key})});
-        const data = await response.json();
-        if (!response.ok || !data.ok) throw new Error(data.error || 'Salary payment could not be posted.');
-        alert(`Salary payment posted. Voucher ${data.result?.journalId || 'generated'}.`);
-        q('[data-expense="salary"]')?.click();
-      } catch (error) { alert(error.message || error); button.disabled = false; }
-    };
-    searchable(account);
   }
 
   function scan(root = document) {
