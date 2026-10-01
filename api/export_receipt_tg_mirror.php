@@ -17,9 +17,13 @@ function er_mirror_tg_receipt(array &$store,array $user,array $body,array $alloc
             $carrying+=(float)($line['debit']??0)-(float)($line['credit']??0);
         }
     }
-    $rate=$currency==='AED'?1:($native>0?$carrying/$native:0);
+    // A book overdraft is allowed. Preserve its valuation; use the Company FX master
+    // when this bank has no usable carrying rate (including an empty book balance).
+    $rate=$currency==='AED'?1:(abs($native)>.0001?$carrying/$native:0);
+    if($rate<=0)$rate=(float)(tt_company_fx_rate('TG',$currency,'AED')??0);
+    if($rate<=0)er_respond(['ok'=>false,'error'=>'Set the TG '.$currency.'/AED exchange rate in Super Admin → Companies → Trans Grains → Exchange rates.'],422);
     $total=round(array_sum(array_map(static fn($a)=>(float)($a['foreignAmount']??0),$alloc)),2);
-    if($total<=0||$native+0.0001<$total||$rate<=0)er_respond(['ok'=>false,'error'=>'The TG '.$currency.' bank needs sufficient posted book balance and an AED carrying value before this linked payment can be posted.'],422);
+    if($total<=0)er_respond(['ok'=>false,'error'=>'Enter a positive TG payment amount.'],422);
     $out=[];$sequence=0;
     foreach($alloc as $allocation){
         $amount=round((float)($allocation['foreignAmount']??0),2);if($amount<=0)continue;
