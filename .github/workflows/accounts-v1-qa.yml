@@ -50,6 +50,10 @@ jobs:
           php tests/accounts-v1/accounts_reset_scope_test.php
           php tests/accounts-v1/qa_account_profile_test.php
           php tests/security/qa_account_read_only_test.php
+          php tests/accounts-v1/accounts_reviews_test.php
+          python3 tests/accounts-v1/accounts_reviews_http_test.py
+          node tests/accounts-v1/credit_advice_amendment_ui_test.js
+          node tests/accounts-v1/accounts_uppercase_ui_test.js
           php tests/accounts-v1/credit_advice_amendment_test.php
           php tests/accounts-v1/post_amendment_test.php
           php tests/accounts-v1/bank_payment_tracking_test.php

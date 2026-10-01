@@ -24,7 +24,7 @@ try {
     if (!tt_user_can_access_masters($admin)) master_respond(['ok'=>false,'error'=>'Master Records access required.'],403);
     if ($_SERVER['REQUEST_METHOD']==='GET') master_respond(['ok'=>true,'masters'=>master_all($admin),'options'=>master_options_for_console(),'deletionRequests'=>($admin['role']??'')==='Super Admin'?(array)(tt_read_store()['master_deletion_requests']??[]):[],'bankDeletionRequests'=>in_array(($admin['role']??''),['Super Admin','Director'],true)?(array)(tt_read_store()['bank_deletion_requests']??[]):[]]);
     if ($_SERVER['REQUEST_METHOD']!=='POST') master_respond(['ok'=>false,'error'=>'Method not allowed.'],405);
-    $body=json_decode(file_get_contents('php://input') ?: '{}',true);
+    $body=json_decode((function_exists('tt_accounts_input')?tt_accounts_input():file_get_contents('php://input')) ?: '{}',true);
     if (!is_array($body) || !tt_verify_csrf((string)($body['csrf'] ?? ''))) master_respond(['ok'=>false,'error'=>'Your session expired. Refresh and try again.'],419);
 
     $type=(string)($body['type'] ?? '');

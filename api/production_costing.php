@@ -475,7 +475,7 @@ try {
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') pc_out(['ok' => false, 'error' => 'Method not allowed.'], 405);
     if (!pc_can_write($user)) pc_out(['ok' => false, 'error' => 'Accounts approval permission required.'], 403);
 
-    $body = json_decode(file_get_contents('php://input') ?: '{}', true);
+    $body = json_decode((function_exists('tt_accounts_input')?tt_accounts_input():file_get_contents('php://input')) ?: '{}', true);
     if (!is_array($body) || !tt_verify_csrf((string)($body['csrf'] ?? ''))) pc_out(['ok' => false, 'error' => 'Your session expired. Refresh and try again.'], 419);
     $action = (string)($body['action'] ?? '');
 

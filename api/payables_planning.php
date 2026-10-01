@@ -167,7 +167,7 @@ try{
     }
     if($_SERVER['REQUEST_METHOD']!=='POST')pp_respond(['ok'=>false,'error'=>'Method not allowed.'],405);
     if(!pp_can_accounts_write($user))pp_respond(['ok'=>false,'error'=>'Accounts approval / edit permission required.'],403);
-    $body=json_decode(file_get_contents('php://input')?:'',true);
+    $body=json_decode((function_exists('tt_accounts_input')?tt_accounts_input():file_get_contents('php://input'))?:'',true);
     if(!is_array($body)||!tt_verify_csrf((string)($body['csrf']??'')))pp_respond(['ok'=>false,'error'=>'Your session expired. Refresh and try again.'],419);
     $action=(string)($body['action']??'');
     if($action!=='set_hold')pp_respond(['ok'=>false,'error'=>'Unknown Payables action.'],422);

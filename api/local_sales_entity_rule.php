@@ -15,7 +15,7 @@ function lser_target_id(string $target,string $kind,array $r):string{return $tar
 try{
  $u=tt_require_login();
  if($_SERVER['REQUEST_METHOD']!=='POST')lser_out(['ok'=>false,'error'=>'Method not allowed.'],405);
- $b=json_decode(file_get_contents('php://input')?:'{}',true);
+ $b=json_decode((function_exists('tt_accounts_input')?tt_accounts_input():file_get_contents('php://input'))?:'{}',true);
  if(!is_array($b)||!tt_verify_csrf((string)($b['csrf']??'')))lser_out(['ok'=>false,'error'=>'Your session expired. Refresh and try again.'],419);
  if(!lser_can_write($u,'Mill')&&!lser_can_write($u,'Accounts'))lser_out(['ok'=>false,'error'=>'Mill or Accounts permission required.'],403);
  $target=strtoupper(trim((string)($b['targetEntity']??'')));$soda=trim((string)($b['soda']??''));

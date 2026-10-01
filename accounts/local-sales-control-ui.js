@@ -21,5 +21,5 @@
   async function act(action,id,note,exceptionNote){try{const r=await fetch(api,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({action,entity:currentEntity(),csrf:access.csrf,candidateId:id,note,exceptionNote})});let d={};try{d=await r.json()}catch{}if(!r.ok||!d.ok)throw new Error(d.error||'Local Sale update failed.');toast(action==='approve_candidate'?'Local Sale approved.':'Local Sale returned to Mill.');await load();render();window.TT_LOCAL_SALES_PAYMENT_UI?.reload?.()}catch(e){toast(String(e.message||e),false)}}
   async function mount(){try{await load();render()}catch(e){toast(String(e.message||e),false)}}
   document.addEventListener('click',e=>{if(e.target.closest('.appCard[data-key="receivables"]'))setTimeout(mount,80);if(e.target.closest('.entityBtn')){data={summary:null,pending:[],policy:{}};setTimeout(mount,100)}},false);
-  window.TT_LOCAL_SALES_CONTROL_UI={mount};
+  window.TT_LOCAL_SALES_CONTROL_UI={mount,review:async id=>{await load();await approve(id)}};
 })();

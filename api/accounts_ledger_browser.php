@@ -117,7 +117,7 @@ foreach($journals as $journal){
         if($category==='customer'&&!$customerAccount)continue;
         if($category==='bank'&&!in_array($code,['1110','1120'],true))continue;
         if($lineParty!==''&&in_array($category,['supplier','customer'],true))$parties[$lineParty]=true;
-        if($party!==''&&$lineParty!==$party)continue;
+        if($party!==''&&strcasecmp($lineParty,$party)!==0)continue;
         $date=(string)$journal['date'];
         $native=$bankId!==''&&($banks[$bankId]['currency']??'')!==($entity==='TG'?'AED':'PKR');
         $debit=round((float)($native?($line['bankDebit']??0):($line['debit']??0)),2);$credit=round((float)($native?($line['bankCredit']??0):($line['credit']??0)),2);
@@ -133,6 +133,11 @@ $balance=round($opening,2);
 foreach($rows as &$row){if(($account!==''||$party!=='')&&!$postEntries){$balance=round($balance+$row['debit']-$row['credit'],2);$row['balance']=$balance;}}unset($row);
 $closing=$balance;
 if($query!=='')$rows=array_values(array_filter($rows,static fn($row)=>(!preg_match('/^(?:\d{4}-)?\d+$/',$query)&&str_contains(strtolower(implode(' ',array_map('strval',$row))),$query))||tt_accounts_reference_matches($query,$row['voucher'])||tt_accounts_reference_matches($query,$row['reference'])||($row['chequeNo']!==''&&str_contains(strtolower($row['chequeNo']),$query))||($row['bankReference']!==''&&str_contains(strtolower($row['bankReference']),$query))||(preg_match('/^(?:\d{4}-)?\d+$/',$query)&&!preg_match('/^(?:[A-Z]+-)?\d{4}-\d+$/i',$row['reference'])&&str_contains(strtolower($row['reference']),$query))));
+// Keep the chronological running balances above, then display newest Post IDs first.
+usort($rows,static function(array $a,array $b):int{
+ $parts=static function(string $id):array{return preg_match('/^[A-Z]+-(\d{4})-(\d+)$/i',$id,$m)?[(int)$m[1],(int)$m[2]]:[0,0];};
+ $ak=$parts((string)$a['voucher']);$bk=$parts((string)$b['voucher']);return($bk[0]<=>$ak[0])?:($bk[1]<=>$ak[1])?:strcmp((string)$b['date'],(string)$a['date'])?:strcmp((string)$b['voucher'],(string)$a['voucher']);
+});
 if(($_GET['format']??'')==='csv'){
     header('Content-Type: text/csv; charset=UTF-8');
     header('Content-Disposition: attachment; filename="'.preg_replace('/[^A-Z0-9_-]/i','',$entity.'-ledger-'.$from.'-'.$to).'.csv"');

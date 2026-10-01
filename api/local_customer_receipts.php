@@ -33,7 +33,7 @@ try{
  $u=tt_require_login();if(!tt_user_can_open_module($u,'Accounts'))lcr_out(['ok'=>false,'error'=>'Accounts permission required.'],403);$s=lcr_read();
  if($_SERVER['REQUEST_METHOD']==='GET'){$entity=strtoupper(trim((string)($_GET['entity']??'')));lcr_out(['ok'=>true,'rows'=>array_values(array_filter(lcr_open_rows($s),fn($row)=>($row['entity']??'')===$entity)),'banks'=>array_values(array_filter(lcr_banks($s),fn($bank)=>($bank['entity']??'')===$entity)),'cheques'=>array_values(array_filter((array)($s['localCustomerCheques']??[]),fn($item)=>is_array($item)&&($item['entity']??'')===$entity))]);}
  if($_SERVER['REQUEST_METHOD']!=='POST')lcr_out(['ok'=>false,'error'=>'Method not allowed.'],405);if(!lcr_can_write($u))lcr_out(['ok'=>false,'error'=>'Accounts Create / Edit / Approve permission required.'],403);
- $b=json_decode(file_get_contents('php://input')?:'{}',true);if(!is_array($b)||!tt_verify_csrf((string)($b['csrf']??'')))lcr_out(['ok'=>false,'error'=>'Your session expired. Refresh and try again.'],419);
+ $b=json_decode((function_exists('tt_accounts_input')?tt_accounts_input():file_get_contents('php://input'))?:'{}',true);if(!is_array($b)||!tt_verify_csrf((string)($b['csrf']??'')))lcr_out(['ok'=>false,'error'=>'Your session expired. Refresh and try again.'],419);
  $chequeAction=(string)($b['action']??'');
  if(in_array($chequeAction,['clear_customer_cheque','bounce_customer_cheque','cancel_customer_cheque'],true)){
   $entity=strtoupper(trim((string)($b['entity']??'')));if(!in_array($entity,['TTI','BRM'],true)||!tt_user_can_access_entity($u,$entity,'Edit'))lcr_out(['ok'=>false,'error'=>'Company permission required.'],403);

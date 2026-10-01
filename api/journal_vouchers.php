@@ -24,7 +24,7 @@ function jvw_post(array &$s,array &$r,array $u):string{[$lines,$dr,$cr]=jvw_line
 
 try{
 $u=tt_require_login();if(!tt_user_can_open_module($u,'Accounts'))jvw_out(['ok'=>false,'error'=>'Accounts permission required.'],403);$e=jvw_entity((string)($_GET['entity']??'TTI'));jvw_access($u,$e,'View');if($_SERVER['REQUEST_METHOD']==='GET')jvw_out(jvw_payload(jvw_read(),$e,$u));if($_SERVER['REQUEST_METHOD']!=='POST')jvw_out(['ok'=>false,'error'=>'Method not allowed.'],405);
-$b=json_decode(file_get_contents('php://input')?:'{}',true);if(!is_array($b)||!tt_verify_csrf((string)($b['csrf']??'')))jvw_out(['ok'=>false,'error'=>'Your session expired. Refresh and try again.'],419);$action=(string)($b['action']??'');$e=jvw_entity((string)($b['entity']??$e));jvw_access($u,$e,'View');
+$b=json_decode((function_exists('tt_accounts_input')?tt_accounts_input():file_get_contents('php://input'))?:'{}',true);if(!is_array($b)||!tt_verify_csrf((string)($b['csrf']??'')))jvw_out(['ok'=>false,'error'=>'Your session expired. Refresh and try again.'],419);$action=(string)($b['action']??'');$e=jvw_entity((string)($b['entity']??$e));jvw_access($u,$e,'View');
 if(in_array($action,['save_draft','submit_jv','cancel_jv'],true)&&!(jvw_perm($u,'Create')||jvw_perm($u,'Edit')))jvw_out(['ok'=>false,'error'=>'Accounts Create or Edit permission is required.'],403);
 if(in_array($action,['approve_jv','reject_jv','reverse_jv'],true)&&!jvw_perm($u,'Approve'))jvw_out(['ok'=>false,'error'=>'Accounts Approve permission is required.'],403);
 tt_ensure_data_dir();$h=fopen(JVW_FILE,'c+');if($h===false||!flock($h,LOCK_EX))throw new RuntimeException('Accounts storage unavailable.');

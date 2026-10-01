@@ -152,7 +152,7 @@ try{
 
     if($_SERVER['REQUEST_METHOD']!=='POST') cb_respond(['ok'=>false,'error'=>'Method not allowed.'],405);
     if(!cb_can_write($user)) cb_respond(['ok'=>false,'error'=>'Accounts Create or Edit permission is required.'],403);
-    $body=json_decode(file_get_contents('php://input')?:'',true);
+    $body=json_decode((function_exists('tt_accounts_input')?tt_accounts_input():file_get_contents('php://input'))?:'',true);
     if(!is_array($body)||!tt_verify_csrf((string)($body['csrf']??''))) cb_respond(['ok'=>false,'error'=>'Your session expired. Refresh and try again.'],419);
     if(($body['action']??'')!=='verify_bill') cb_respond(['ok'=>false,'error'=>'Unknown commodity bill action.'],422);
 
