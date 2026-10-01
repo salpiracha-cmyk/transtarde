@@ -91,3 +91,11 @@ button:not(.danger):not(.red):not(.xBtn):not(.optionMinus).active{
  :is(.row,.r2,.r3,.r5,.grid)>:has(>label)>label:first-child{min-height:26px;line-height:1.3}
  :is(.row,.r2,.r3,.r5,.grid)>:has(>label)>:is(input:not([type=checkbox]):not([type=radio]),select,textarea){box-sizing:border-box;width:100%;min-width:0;max-width:100%}
 }
+
+@media screen{
+ :is(.ttv-grid,.ttrs-grid,.tt-batch-grid,.ttsb-grid,.tter-grid,.ttlsc-grid,.ttsl-filters,.tt-bill-adjustment){align-items:start!important}
+ :is(.ttv-grid,.ttrs-grid,.tt-batch-grid,.ttsb-grid,.tter-grid,.ttlsc-grid,.ttsl-filters,.tt-bill-adjustment)>*{min-width:0}
+ label.ttRowField{display:flex!important;flex-direction:column;gap:5px;min-width:0}
+ label.ttRowField>.ttRowLabel{display:block;min-height:26px;line-height:1.3}
+ label.ttRowField>:is(input,select,textarea){box-sizing:border-box;width:100%;min-width:0;max-width:100%}
+}

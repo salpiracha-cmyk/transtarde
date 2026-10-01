@@ -26,6 +26,13 @@ const root=path.resolve(__dirname,'../..'),out=path.join(root,'tmp/qa/package-20
  for(const name of ['Master Shipment Documents.pdf','Sales Contract.pdf','Bank Covering Letter.docx','GD - GD-1.pdf','Signed Sales Contract - Signed.pdf','Custom documents/Customs Invoice.pdf','TG docs/TG Packing List.pdf'])assert.ok(files[prefix+name],name+' must be saved');
  const master=await page.evaluate(async prefix=>{const doc=await PDFLib.PDFDocument.load(new Uint8Array(window.__files[prefix+'Master Shipment Documents.pdf']));return doc.getPageCount()},prefix);assert.equal(master,6,'master includes four generated document pages and two original COO pages, excluding contract, GD and covering letter');
  for(const name of ['Master Shipment Documents.pdf','Bank Covering Letter.docx','GD - GD-1.pdf'])fs.writeFileSync(path.join(out,name.replaceAll(' ','_')),Buffer.from(files[prefix+name]));
+ const {execFileSync}=require('node:child_process');
+ const masterText=execFileSync('pdftotext',[path.join(out,'Master_Shipment_Documents.pdf'),'-'],{encoding:'utf8'});assert.match(masterText,/INCLUDED ORIGINAL COO/);assert.doesNotMatch(masterText,/EXCLUDED GD|EXCLUDED SIGNED CONTRACT/);
+ execFileSync('python3',['-c',`import zipfile,xml.etree.ElementTree as E,sys
+z=zipfile.ZipFile(sys.argv[1]);assert z.testzip() is None
+root=E.fromstring(z.read('word/document.xml'));ns={'w':'http://schemas.openxmlformats.org/wordprocessingml/2006/main'}
+text=' '.join(n.text or '' for n in root.findall('.//w:t',ns));assert 'BANK COVERING LETTER' in text and 'Commercial Invoice' in text
+assert root.findall('.//w:tbl',ns);assert not root.findall('.//w:altChunk',ns)`,path.join(out,'Bank_Covering_Letter.docx')]);
  const repeated=await page.evaluate(()=>TT_SHIPMENT_FILES.save(window.__args));assert.equal(repeated.count,result.count);assert.equal(Object.keys(await page.evaluate(()=>window.__files)).length,result.count);
  await page.evaluate(()=>window.__fail=true);const failure=await page.evaluate(async()=>{try{await TT_SHIPMENT_FILES.save(window.__args);return''}catch(error){return error.message}});assert.match(failure,/0 of \d+ files saved/);
  // All module form families: control tops align, names fit their cells, and print styles are untouched.
@@ -35,5 +42,8 @@ const root=path.resolve(__dirname,'../..'),out=path.join(root,'tmp/qa/package-20
   await page.setContent('<style>'+styles+shared+'</style><div style="width:760px"><div class="'+family+'"><div class="field"><label>Presented To — Bank Name</label><input value="QA Bank"></div><div class="field"><label>Presented To — Complete Branch / Address</label><textarea>QA Branch</textarea></div><div class="field"><label>Date</label><input type="date"></div></div></div>');
   const controls=await page.locator('.field > input,.field > textarea').evaluateAll(nodes=>nodes.map(n=>({top:n.getBoundingClientRect().top,width:n.getBoundingClientRect().width,parent:n.parentElement.getBoundingClientRect().width})));assert.ok(Math.max(...controls.map(x=>x.top))-Math.min(...controls.map(x=>x.top))<=1,module+' controls must align');assert.ok(controls.every(x=>x.width<=x.parent+1),module+' controls must fit');
  }
+ const accountStyle=(fs.readFileSync(path.join(root,'accounts/accounts-v1-workflow-ui.js'),'utf8').match(/s.textContent=`([\s\S]*?)`/)||[])[1]||'';
+ await page.setContent('<style>'+accountStyle+shared+'</style><div class="ttv-grid" style="width:760px"><label>Bank<input></label><label>Complete Branch / Address<textarea></textarea></label><label>Date<input type="date"></label></div>');await page.addScriptTag({content:fs.readFileSync(path.join(root,'brand-theme.js'),'utf8')});
+ const direct=await page.locator('.ttv-grid input,.ttv-grid textarea').evaluateAll(nodes=>nodes.map(node=>node.getBoundingClientRect().top));assert.ok(Math.max(...direct)-Math.min(...direct)<=1,'Accounts direct-label fields align');
  await browser.close();console.log('PASS master PDF page preservation/exclusions, separate GD PDFs, editable Word covering, separate contracts, nested Customs/TG files, retry safety and three-module rows');
 })().catch(error=>{console.error(error);process.exit(1)});

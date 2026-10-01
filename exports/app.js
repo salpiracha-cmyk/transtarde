@@ -292,11 +292,11 @@ document.addEventListener('visibilitychange',()=>{if(document.visibilityState!==
 setInterval(refreshExportCompanyMasters,30000);
 function shipmentPartyDetailsClosed(s){return !!(s&&(s.completed||s.cancelled||/^(completed|closed|archived|cancelled)$/i.test(String(s.status||''))))}
 function captureShipmentPartyDetails(s,c,legacy=false,root=state){
- if(s.documentParties){if(!s.documentParties.cooExporter){const code=s.seller==='TG'?pakistanExporterKey(s):c.seller;s.documentParties.cooExporter=structuredClone(legacy?(SELLER_DETAILS[code]||sellerOf({seller:code})):sellerOf({seller:code}))}if(!s.documentParties.chamber)s.documentParties.chamber=legacy?legacyShipmentChamber(s,c):companyChamberDetails(s.seller==='TG'?pakistanExporterKey(s):c.seller);return s.documentParties;}
+ if(s.documentParties){if(!s.documentParties.exporterKey)s.documentParties.exporterKey=s.seller==='TG'?pakistanExporterKey(s):c.seller;if(!s.documentParties.cooExporter){const code=s.seller==='TG'?pakistanExporterKey(s):c.seller;s.documentParties.cooExporter=structuredClone(legacy?(SELLER_DETAILS[code]||sellerOf({seller:code})):sellerOf({seller:code}))}if(!s.documentParties.chamber)s.documentParties.chamber=legacy?legacyShipmentChamber(s,c):companyChamberDetails(s.seller==='TG'?pakistanExporterKey(s):c.seller);return s.documentParties;}
  const cu=root.customers.find(row=>row.id===c.customerId)||{},d=c.buyerDetails||{},saved=legacy?{...cu,...d,name:s.buyer||cu.name}:cu;
  const buyer=legacy?{name:saved.name||'',address:saved.address||'',country:d.showCountry?saved.country||'':'',email:d.showEmail?saved.email||'':'',phone:d.showPhone?saved.phone||'':'',tax:d.showTax?saved.tax||'':''}:buyerOf(c);
  const exporter=s.seller==='TG'?pakistanExporterKey(s):c.seller;
- s.documentParties={cooExporter:structuredClone(legacy?(SELLER_DETAILS[exporter]||sellerOf({seller:exporter})):sellerOf({seller:exporter})),buyer:structuredClone(buyer),customer:structuredClone(saved),notifies:structuredClone(cu.notifies||[]),chamber:structuredClone(legacy?legacyShipmentChamber(s,c):companyChamberDetails(s.seller==='TG'?pakistanExporterKey(s):c.seller))};
+ s.documentParties={exporterKey:exporter,cooExporter:structuredClone(legacy?(SELLER_DETAILS[exporter]||sellerOf({seller:exporter})):sellerOf({seller:exporter})),buyer:structuredClone(buyer),customer:structuredClone(saved),notifies:structuredClone(cu.notifies||[]),chamber:structuredClone(legacy?legacyShipmentChamber(s,c):companyChamberDetails(s.seller==='TG'?pakistanExporterKey(s):c.seller))};
  return s.documentParties;
 }
 function shipmentDocumentContext(s,c){
@@ -341,7 +341,7 @@ function applyExportCustomerMasters(masters){
 }
 window.TT_APPLY_EXPORT_CUSTOMER_MASTERS=applyExportCustomerMasters;
 function documentContext(c,seller,buyer=null){return{...c,seller,_documentBuyer:buyer||buyerOf(c)}}
-function pakistanExporterKey(s){const key=String(s?.customs?.exporter||'TTI').toUpperCase();return /^(TTI|BRM)$/.test(key)||masterValues('companies').some(row=>String(row[1]||'').toUpperCase()===key&&String(row[2]||'').toLowerCase()==='pakistan')?key:'TTI'}
+function pakistanExporterKey(s){if(shipmentPartyDetailsClosed(s)&&s?.documentParties?.exporterKey)return s.documentParties.exporterKey;const key=String(s?.customs?.exporter||'TTI').toUpperCase();return /^(TTI|BRM)$/.test(key)||masterValues('companies').some(row=>String(row[1]||'').toUpperCase()===key&&String(row[2]||'').toLowerCase()==='pakistan')?key:'TTI'}
 function pakistanCustomsContext(s,c){c=shipmentDocumentContext(s,c);const tg=SELLER_DETAILS.TG,context=documentContext(c,pakistanExporterKey(s),{name:tg.name,address:tg.address,country:'United Arab Emirates'});context.currency=s.seller==='TG'?(s.customs?.currency||c.currency):c.currency;return context}
 function customsPartyOptions(s,c){c=shipmentDocumentContext(s,c);const cu=documentCustomerFor(s,c),rows=[];if(s.seller==='TG')rows.push({value:'TG',label:'TG',party:{name:SELLER_DETAILS.TG.name,address:SELLER_DETAILS.TG.address,country:'United Arab Emirates'}});rows.push({value:'BUYER',label:'Actual Buyer',party:buyerOf(c)});(cu.notifies||[]).filter(n=>String(n?.name||'').trim()&&String(n?.address||'').trim()).forEach((n,i)=>rows.push({value:`NOTIFY:${i}`,label:`Notify Party — ${n.name}`,party:{name:n.name,address:n.address,country:n.country||''}}));return rows}
 function customsDocumentContext(s,c){const options=customsPartyOptions(s,c),choice=s.customs?.importerChoice||(s.seller==='TG'?'TG':'BUYER'),selected=options.find(x=>x.value===choice)||options[0]||{party:buyerOf(c)},seller=s.seller==='TG'?pakistanExporterKey(s):c.seller,context=documentContext(c,seller,selected.party);return{...context,currency:s.seller==='TG'?(s.customs?.currency||c.currency):c.currency,paymentCode:s.seller==='TG'?'INTERCOMPANY':c.paymentCode,_customsPartyHeading:true}}
@@ -931,7 +931,7 @@ function finalShipmentDocuments(s,c){
  for(const type of requiredFinalCertificateTypes(s,c))if(type==='phyto')original('Phytosanitary Certificate');else if(type==='fumigation')original('Fumigation Certificate');
  for(const [name,row] of byName)if(!/commercial invoice|packing list/i.test(name))original(name,row.finalDocument,row.reference);
  for(const row of s.certs||[])if((row.kind==='generated'||!row.kind)&&!row.finalDocument&&!/certificate of origin|\bcoo\b/i.test(row.type))generated('cert-'+row.id,row.type,()=>generatedCertificateDoc(s,c,row));
- generated('cover','Bank Covering Letter',()=>coveringDoc(s,c),!!s.covering?.saved);
+ generated('cover','Bank Covering Letter',()=>coveringDoc(s,c),!!s.covering?.saved);rows.at(-1).status=s.covering?.saved?'Saved':'Optional';
  if(s.seller==='TG'){
   generated('tgProforma','Pakistan → TG — Sales Contract / Proforma',()=>tgProformaDoc(s,c),!!s.tgdocs?.saved);
   generated('tgInvoice','Pakistan → TG — Commercial Invoice',()=>tgInternalCommercialInvoiceDoc(s,c),!!s.tgdocs?.saved);
