@@ -109,3 +109,6 @@ button:not(.danger):not(.red):not(.xBtn):not(.optionMinus).active{
  .tt-bill-adjustment>button,.tt-bill-adjustment>div:has(>[data-remove]){align-self:end}
  .tt-bill-adjustment [data-remove]{min-height:40px}
 }
+@media screen{
+ :is(.field,.ttv-field,.ttrs-field)>:is(input,select,textarea){margin-top:0!important}
+}
