@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__.'/accounts_bank_payment.php';
 
 /** Journal-level correction shared by every Accounts posting source. Caller holds the accounts.json lock. */
 function apa_correct(array &$store, array $user, string $postId, array $input): array {
@@ -60,6 +61,7 @@ function apa_correct(array &$store, array $user, string $postId, array $input): 
             if($entity!=='TG'&&$currency==='PKR'&&abs($native-($dr+$cr))>.005)throw new DomainException('PKR bank amount must equal the book amount.');
             $line['bankAccountId']=$bankId;$line['bankName']=(string)($values[4]??'');$line['bankAccountTitle']=(string)($values[3]??'');$line['currency']=$currency;
             $line['bankDebit']=$dr>0?$native:0;$line['bankCredit']=$cr>0?$native:0;
+            if($cr>0&&!empty($entry['bankPaymentMethod'])){$method=(string)$entry['bankPaymentMethod'];$tracking=tt_accounts_bank_payment_details(['paymentAccountId'=>$bankId,'date'=>$date,'bankPaymentMethod'=>$method,'bankReference'=>$entry['bankReference']??'','chequeNo'=>$method==='CHEQUE'?($entry['bankReference']??''):'','chequeDate'=>$date,'paymentNarration'=>$entry['paymentNarration']??'']);$line=array_merge($line,$tracking);}
         }
         $lines[]=$line;$debit+=(int)round($dr*100);$credit+=(int)round($cr*100);
     }
@@ -84,7 +86,7 @@ function apa_correct(array &$store, array $user, string $postId, array $input): 
     $replacement['id']=$replacementId;$replacement['date']=$date;$replacement['reference']=$reference;$replacement['narration']=$narration;$replacement['lines']=$lines;
     // A distinct source type prevents source-workflow scanners from treating a correction as a second bill or payment.
     $replacement['sourceType']='POST_AMENDMENT_CORRECTION';
-    $replacement['totalDebit']=$debit/100;$replacement['totalCredit']=$credit/100;$replacement['meta']=['originalSourceType'=>(string)($original['sourceType']??''),'amendmentOfPostId'=>$postId,'amendmentReason'=>$reason,'reversalPostId'=>$reverseId];
+    $replacement['totalDebit']=$debit/100;$replacement['totalCredit']=$credit/100;$replacement['meta']=['originalSourceType'=>(string)($original['meta']['originalSourceType']??$original['sourceType']??''),'amendmentOfPostId'=>$postId,'amendmentReason'=>$reason,'reversalPostId'=>$reverseId];
     $replacement['createdAt']=$now;$replacement['createdBy']=$actor;$replacement['userId']=(int)($user['id']??0);$replacement['reversalOf']=null;
     $store['journals'][$replacementId]=$replacement;
     $store['journals'][$postId]['amendedByPostId']=$replacementId;

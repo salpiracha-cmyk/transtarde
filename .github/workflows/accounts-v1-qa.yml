@@ -37,6 +37,7 @@ jobs:
           node tests/accounts-v1/payment_defaults_ui_test.js
           python3 tests/accounts-v1/payment_defaults_http_test.py
           python3 tests/accounts-v1/salary_month_http_test.py
+          python3 tests/accounts-v1/bank_overdraft_http_test.py
           node tests/accounts-v1/ledger_posting_rows_test.js
           node tests/accounts-v1/ledger_workbook_test.js
           node tests/accounts-v1/export_v3_linkage_test.js

@@ -24,3 +24,17 @@ try{apa_correct($tg,$user,'AUTO-TG',$tgInput);throw new RuntimeException('TG 0.0
 $tgInput['lines'][1]['credit']=100.01;$done=apa_correct($tg,$user,'AUTO-TG',$tgInput);
 check($tg['journals'][$done['replacementPostId']]['totalDebit']===100.01,'Balanced TG correction must post.');
 echo "Universal post amendment and currency tolerance checks passed.\n";
+
+$pay=source('TTI','SALARY');$pay['sourceType']='SALARY_MONTH_COMPLETED';
+$pay['lines']=[['account'=>'6210','accountName'=>'Salary','debit'=>100,'credit'=>0],['account'=>'1110','accountName'=>'Bank','bankAccountId'=>'TTI-1','bankCredit'=>100,'debit'=>0,'credit'=>100]];
+$salary=['journals'=>['SALARY'=>$pay]];
+$input=['reason'=>'Salary payment correction','date'=>'2026-10-01','lines'=>[['account'=>'6210','debit'=>100,'credit'=>0],['account'=>'1110','bankAccountId'=>'TTI-1','nativeAmount'=>100,'debit'=>0,'credit'=>100,'bankPaymentMethod'=>'CHEQUE','bankReference'=>'']]];
+try{apa_correct($salary,$user,'SALARY',$input);throw new RuntimeException('Cheque correction without number accepted.');}catch(DomainException){}
+$input['lines'][1]['bankPaymentMethod']='ONLINE_BANKING';$done=apa_correct($salary,$user,'SALARY',$input);
+check($salary['journals'][$done['replacementPostId']]['lines'][1]['bankPaymentMethod']==='ONLINE_BANKING','Online amendment tracking missing.');
+$large=[];for($i=0;$i<61;$i++){ $large[]=['account'=>'6210','debit'=>1,'credit'=>0];$large[]=['account'=>'2140','debit'=>0,'credit'=>1]; }
+$input['lines']=$large;$done=apa_correct($salary,$user,$done['replacementPostId'],$input);
+check(count($salary['journals'][$done['replacementPostId']]['lines'])===122,'Whole salary month amendment must support all people.');
+$done=apa_correct($salary,$user,$done['replacementPostId'],$input);
+check($salary['journals'][$done['replacementPostId']]['meta']['originalSourceType']==='SALARY_MONTH_COMPLETED','Salary origin must survive repeated amendments.');
+echo "Salary month amendment size, required cheque number and optional online reference passed.\n";
