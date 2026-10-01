@@ -27,6 +27,7 @@ def bank(bank_id, currency="PKR", default=False):
 with tempfile.TemporaryDirectory(prefix="company-bank-qa-") as temp:
     root = pathlib.Path(temp)
     (root / "api").mkdir()
+    (root / "data").mkdir()
     shutil.copy(ROOT / "api/masters.php", root / "api/masters.php")
     banks = [bank("old", default=True), bank("new"), bank("spare"), bank("usd", "USD")]
     values = [""] * 18
@@ -39,7 +40,15 @@ with tempfile.TemporaryDirectory(prefix="company-bank-qa-") as temp:
         "postings": postings,
     }
     (root / "store.json").write_text(json.dumps(initial))
+    journals = [{"id": "posted-1", "status": "Posted", "lines": [{"bankAccountId": "old"}]}]
+    (root / "data/accounts.json").write_text(json.dumps({
+        "revision": 1,
+        "journals": journals,
+        "bankAccountSettings": {"old": {"defaultReceiptAccount": True, "defaultPaymentAccount": True, "notes": "Keep"}},
+    }))
     (root / "auth_store.php").write_text("""<?php
+define('TT_DATA_DIR',__DIR__.'/data');
+function tt_ensure_data_dir(){}
 function tt_require_login(){return ['role'=>'Super Admin','id'=>1,'username'=>'Fixture'];}
 function tt_user_can_access_masters($user){return true;}
 function tt_user_can_master($user,$type,$action){return true;}
@@ -52,6 +61,9 @@ function tt_user_visible_masters($user){return tt_list_masters();}
 function tt_master_options(){return [];}
 function tt_export_finish_options(){return [];}
 function tt_audit($id,$username,$message){}
+function tt_bank_is_operational_account_type($type){return in_array($type,['Company Account','Proprietor / Owner Account'],true);}
+function tt_company_bank_legacy_rows($companies){$out=[];foreach($companies as $company){foreach(json_decode($company['values'][13],true) as $bank){$out[]=['id'=>$bank['id'],'values'=>['Company Account','','','',$bank['bankName'],'','',$bank['currency']]];}}return $out;}
+function tt_master_json_array($value){return json_decode($value,true);}
 """)
     (root / "api/salary_master_store.php").write_text("<?php function sm_master_rows(){return [];}\n")
 
@@ -84,6 +96,9 @@ function tt_audit($id,$username,$message){}
         company = stored()["masters"]["companies"][0]
         return {item["id"]: item for item in json.loads(company["values"][13])}
 
+    def accounts():
+        return json.loads((root / "data/accounts.json").read_text())
+
     try:
         for attempt in range(50):
             try:
@@ -104,6 +119,10 @@ function tt_audit($id,$username,$message){}
         assert after["new"]["isDefault"] and after["usd"]["status"] == "Active"
         assert after["old"]["accountNumber"] == "001old", "Keep the historical bank identity"
         assert stored()["postings"] == postings, "Posted transactions must remain untouched"
+        flags = accounts()["bankAccountSettings"]
+        assert not flags["old"]["defaultReceiptAccount"] and not flags["old"]["defaultPaymentAccount"]
+        assert flags["new"]["defaultReceiptAccount"] and flags["new"]["defaultPaymentAccount"]
+        assert flags["old"]["notes"] == "Keep" and accounts()["journals"] == journals
 
         status, response = request("request-bank-deletion", bankId="new", reason="No longer used")
         assert status == 200, response
@@ -121,6 +140,10 @@ function tt_audit($id,$username,$message){}
         after = stored_banks()
         assert after["new"]["status"] == "Inactive" and after["spare"]["isDefault"]
         assert stored()["postings"] == postings
+        flags = accounts()["bankAccountSettings"]
+        assert not flags["new"]["defaultReceiptAccount"] and not flags["new"]["defaultPaymentAccount"]
+        assert flags["spare"]["defaultReceiptAccount"] and flags["spare"]["defaultPaymentAccount"]
+        assert accounts()["journals"] == journals
         print("Company bank default replacement, historical identity and unchanged postings passed")
     finally:
         server.terminate()
