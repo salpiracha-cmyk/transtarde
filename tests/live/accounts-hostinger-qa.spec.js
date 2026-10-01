@@ -338,5 +338,5 @@ test('Accounts repair: clear held-entry label and ledger survives focus changes'
   await responsive(page, 'Ledger after browser focus change');
   await expect(page.locator('#tt-all-ledgers .tal-controls')).toBeVisible();
   expect(await page.evaluate(() => window.__qaLedgerNode === document.querySelector('#tt-all-ledgers') && window.__qaFilterNode === document.querySelector('#tal-filter'))).toBe(true);
-  await expect(page.locator('#tal-filter')).toHaveValue('ledger focus draft');
+  await expect(page.locator('#tal-filter')).toHaveValue('LEDGER FOCUS DRAFT');
 });
