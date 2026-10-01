@@ -27,7 +27,7 @@ with tempfile.TemporaryDirectory(prefix='bank-overdraft-qa-') as temp:
     env={k:v for k,v in os.environ.items() if not k.startswith('TT_DB_')}
     server=subprocess.Popen(['php','-S',f'127.0.0.1:{port}','-t',str(root)],env=env,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
     def post(endpoint,**body):
-        request=urllib.request.Request(f'http://127.0.0.1:{port}/api/{endpoint}.php',data=json.dumps({'csrf':'fixture','date':'2026-10-01','bankPaymentMethod':'ONLINE_BANKING',**body}).encode(),headers={'Content-Type':'application/json'})
+        request=urllib.request.Request(f'http://127.0.0.1:{port}/api/{endpoint}.php?entity={body.get('entity','TG')}',data=json.dumps({'csrf':'fixture','date':'2026-10-01','bankPaymentMethod':'ONLINE_BANKING',**body}).encode(),headers={'Content-Type':'application/json'})
         try:
             with urllib.request.urlopen(request,timeout=5) as res:return res.status,json.load(res)
         except urllib.error.HTTPError as e:return e.code,json.load(e)

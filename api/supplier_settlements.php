@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__.'/accounts_bank_payment.php';
 
 require dirname(__DIR__) . '/auth_store.php';
 header('Content-Type: application/json; charset=UTF-8');
@@ -307,11 +308,11 @@ try{
         elseif($action==='record_supplier_advance'){
             $amount=ss_money($body['amount']??0,'Advance amount');$supplier=trim((string)($body['supplier']??''));if($supplier==='')ss_respond(['ok'=>false,'error'=>'Supplier / broker is required.'],422);
             $relationship=strtoupper(trim((string)($body['payerRelationship']??'')));$payer=trim((string)($body['payer']??''));$person=trim((string)($body['person']??''));$credit=ss_advance_credit_account($relationship,$person);$creditExtra=[];$sourceMeta=[];
-            if($relationship==='OWN_BANK'){$bankId=trim((string)($body['bankAccountId']??''));$bank=ss_require_pkr_bank(ss_bank_source($store,$entity,$bankId,'payment'));$creditExtra=['bankAccountId'=>$bankId,'bankName'=>$bank['bankName'],'bankAccountTitle'=>$bank['accountTitle'],'currency'=>$bank['currency']];$sourceMeta=$creditExtra;}
+            if($relationship==='OWN_BANK'){$bankId=trim((string)($body['bankAccountId']??''));$bank=ss_require_pkr_bank(ss_bank_source($store,$entity,$bankId,'payment'));$creditExtra=['bankAccountId'=>$bankId,'bankName'=>$bank['bankName'],'bankAccountTitle'=>$bank['accountTitle'],'currency'=>$bank['currency']];$sourceMeta=$creditExtra;try{$tracking=tt_accounts_bank_payment_details($body+['paymentAccountId'=>$bankId]);}catch(DomainException $e){ss_respond(['ok'=>false,'error'=>$e->getMessage()],422);}$creditExtra=array_merge($creditExtra,$tracking);$sourceMeta=array_merge($sourceMeta,$tracking);}
             elseif($relationship==='OWN_CASH'){$cash=ss_cash_source($store,$entity,'payment');$creditExtra=['cashAccountId'=>$cash['id']];$sourceMeta=$creditExtra;}
             if(in_array($relationship,['CUSTOMER_RECEIVABLE','CUSTOMER_ADVANCE','OTHER_THIRD_PARTY'],true)&&$payer==='')ss_respond(['ok'=>false,'error'=>'Who paid is required for a third-party supplier advance.'],422);
             $soda=trim((string)($body['soda']??''));$sourceKey=trim((string)($body['sourceKey']??''));$reference=trim((string)($body['reference']??''));$id=ss_next_id((array)$store['supplierAdvances'],'SA');$lines=[ss_line('1250',$amount,0,$catalog),ss_line($credit,0,$amount,$catalog,$creditExtra)];
-            $journal=ss_post_journal($store,$user,$entity,$date,'SUPPLIER_ADVANCE',$reference?:$id,'Supplier / broker advance — '.$supplier.($payer?' — through '.$payer:''),$lines,array_merge(['advanceId'=>$id,'supplier'=>$supplier,'soda'=>$soda,'sourceKey'=>$sourceKey,'payer'=>$payer,'payerRelationship'=>$relationship],$sourceMeta));
+            $journal=ss_post_journal($store,$user,$entity,$date,'SUPPLIER_ADVANCE',$reference?:$id,'Supplier / broker advance — '.$supplier.($payer?' — through '.$payer:'').(!empty($sourceMeta['paymentNarration'])?' — '.$sourceMeta['paymentNarration']:''),$lines,array_merge(['advanceId'=>$id,'supplier'=>$supplier,'soda'=>$soda,'sourceKey'=>$sourceKey,'payer'=>$payer,'payerRelationship'=>$relationship],$sourceMeta));
             $store['supplierAdvances'][$id]=array_merge(['id'=>$id,'entity'=>$entity,'date'=>$date,'supplier'=>$supplier,'soda'=>$soda,'sourceKey'=>$sourceKey,'payer'=>$payer,'payerRelationship'=>$relationship,'amount'=>$amount,'allocatedAmount'=>0.0,'availableAmount'=>$amount,'reference'=>$reference,'journalId'=>$journal['id'],'status'=>'Available / Unallocated','createdAt'=>gmdate('c'),'createdBy'=>(string)($user['full_name']??$user['username']??'Accounts')],$sourceMeta);$result=$store['supplierAdvances'][$id];
         }
         elseif($action==='apply_supplier_advance'){

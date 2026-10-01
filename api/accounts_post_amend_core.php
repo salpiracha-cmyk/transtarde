@@ -46,7 +46,7 @@ function apa_correct(array &$store, array $user, string $postId, array $input): 
             if(isset($entry[$field]))$line[$field]=mb_substr(trim((string)$entry[$field]),0,180);
         $bankId=trim((string)($entry['bankAccountId']??''));
         if($account==='1110'&&$bankId==='')throw new DomainException('Choose the actual bank account on each bank line.');
-        if($bankId==='')foreach(['bankAccountId','bankName','bankAccountTitle','currency','bankDebit','bankCredit','revaluationOnly'] as $key)unset($line[$key]);
+        if($bankId==='')foreach(['bankAccountId','bankName','bankAccountTitle','currency','bankDebit','bankCredit','revaluationOnly','bankPaymentMethod','bankReference','chequeNo','chequeDate','paymentNarration'] as $key)unset($line[$key]);
         if($bankId!==''){
             if($account!=='1110'||!isset($banks[$bankId]))throw new DomainException('Bank line '.($i+1).' has an invalid bank account.');
             $bank=$banks[$bankId];$values=(array)($bank['values']??[]);$owner=strtoupper((string)($values[1]??''));
