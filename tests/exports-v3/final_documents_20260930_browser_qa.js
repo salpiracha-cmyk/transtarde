@@ -44,7 +44,7 @@ const phytoName='One printout of e-Phyto issued by Department of Plant Protectio
 assert.ok(t.uploadDocumentCategory('lot-document-'+phytoName).length<=64);
 assert.match(t.uploadDocumentCategory('lot-document-'+phytoName),/^[a-z0-9-]{3,64}$/);
 assert.equal(t.shipmentUploadName(phytoName),'Phytosanitary Certificate');
-const png='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jBqkAAAAASUVORK5CYII=';
+const png='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAB4AAAAoCAIAAABmcd1FAAAAKklEQVR4nO3MQQEAAAQEMPTvfFLw2gKsk9SNOXrVarVarVar1Wq1Wv1YL8DqA03dgFloAAAAAElFTkSuQmCC';
 const coo={id:'COO-QA',name:'CO.png',dataUrl:png};lot.coo.finalDocument=coo;lot.uploadedDocuments=[{name:'Certificate of Origin',finalDocument:coo},{name:'Commercial Invoice',finalDocument:{id:'old-ci',name:'old-invoice.png',dataUrl:png}}];
 t.recordUploadedDocument(lot,phytoName,{id:'PHYTO-QA',name:'phyto.png',dataUrl:png},'PC-2026-014');
 assert.equal(lot.certs.find(row=>row.type==='Phytosanitary Certificate').reference,'PC-2026-014');
