@@ -46,6 +46,8 @@ jobs:
           node tests/accounts-v1/soda_milling_routing_test.js
           node tests/accounts-v1/soda_master_compatibility_test.js
           node tests/accounts-v1/linkage_regressions_test.js
+          php tests/accounts-v1/fi_credit_advice_link_test.php
+          python3 tests/accounts-v1/fi_credit_advice_http_test.py
           php tests/accounts-v1/tg_receipt_mirror_test.php
           php tests/accounts-v1/accounts_reset_scope_test.php
           php tests/accounts-v1/qa_account_profile_test.php
@@ -135,4 +137,3 @@ jobs:
           name: inventory-reconciliation-${{ github.run_id }}
           path: ${{ runner.temp }}/inventory-evidence/
           retention-days: 14
-

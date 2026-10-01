@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require dirname(__DIR__) . '/auth_store.php';
 require_once __DIR__.'/accounts_reference.php';
+require_once __DIR__.'/fi_credit_advice_link.php';
 header('Content-Type: application/json; charset=UTF-8');
 header('Cache-Control: no-store, no-cache, must-revalidate');
 
@@ -62,6 +63,7 @@ try {
     finally { flock($handle, LOCK_UN); fclose($handle); }
     $store = $raw ? json_decode($raw, true) : null;
     if (!is_array($store)) as_out(['ok'=>true, 'results'=>[]]);
+    $store=tt_fi_advice_project($store,tt_fi_advice_root());
     $results = []; $needle = strtolower($query);
     foreach ($store as $collection => $records) {
         if (!is_array($records) || in_array($collection, ['revision','settings','masters'], true)) continue;

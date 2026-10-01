@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require dirname(__DIR__).'/auth_store.php';
 require_once __DIR__.'/accounts_reference.php';
+require_once __DIR__.'/fi_credit_advice_link.php';
 header('Cache-Control: no-store');
 
 function alb_fail(string $message, int $status=422): never {
@@ -45,7 +46,7 @@ foreach(['settlement_policy_v1.json','export_realization_policy_v1.json'] as $po
     foreach((array)($policy['accounts']??[]) as $row)if(is_array($row)&&isset($row['code']))$catalog[(string)$row['code']]=(string)($row['name']??$row['code']);
 }
 $file=TT_DATA_DIR.'/accounts.json';
-$store=is_file($file)?json_decode((string)file_get_contents($file),true):[];
+$store=tt_fi_advice_project(tt_fi_advice_read_json($file),tt_fi_advice_root());
 $banks=[];
 foreach((array)(tt_list_masters()['banks']??[]) as $bank){
     if(!is_array($bank))continue;
@@ -64,6 +65,7 @@ if($requestedPost!==''){
     $posting=$store['journals'][$requestedPost]??null;
     if(!is_array($posting)||($posting['status']??'')!=='Posted'||($entity!=='ALL'&&($posting['entity']??'')!==$entity)||!tt_user_can_access_entity($user,(string)($posting['entity']??''),'View'))$posting=null;
     if(!$posting)alb_fail('Post ID was not found in these company books.',404);
+    $posting['fiTagText']=tt_fi_advice_label((array)($posting['fiTag']??[]));
     $receipt=(array)($store['exportReceipts'][(string)($posting['meta']['receiptId']??'')]??[]);
     if($receipt){$posting['receiptAmendment']=['status'=>$receipt['status']??'','entity'=>$receipt['entity']??'','replacementReceiptId'=>$receipt['replacementReceiptId']??'','amendmentOf'=>$receipt['amendmentOf']??'','reversalPostIds'=>$receipt['reversalPostIds']??[]];}
     header('Content-Type: application/json; charset=UTF-8');
@@ -128,7 +130,7 @@ foreach($journals as $journal){
         $rows[]=$row;
     }
 }
-foreach($rows as &$trackingRow){$meta=(array)($store['journals'][$trackingRow['voucher']]['meta']??[]);$trackingRow['chequeNo']=(string)($meta['chequeNo']??'');$trackingRow['bankReference']=(string)($meta['bankReference']??'');}unset($trackingRow);
+foreach($rows as &$trackingRow){$fiTag=$store['journals'][$trackingRow['voucher']]['fiTag']??[];if($fiTag){$trackingRow['fiTag']=$fiTag;$trackingRow['narration'].=' · '.tt_fi_advice_label($fiTag);}$meta=(array)($store['journals'][$trackingRow['voucher']]['meta']??[]);$trackingRow['chequeNo']=(string)($meta['chequeNo']??'');$trackingRow['bankReference']=(string)($meta['bankReference']??'');}unset($trackingRow);
 $balance=round($opening,2);
 foreach($rows as &$row){if(($account!==''||$party!=='')&&!$postEntries){$balance=round($balance+$row['debit']-$row['credit'],2);$row['balance']=$balance;}}unset($row);
 $closing=$balance;
