@@ -16,5 +16,5 @@ try{
         if(tt_user_can_open_module($user,'Accounts')&&!tt_user_can_access_entity($user,(string)$fi['exporter'],'View'))continue;
         if(isset($links[(string)($fi['id']??'')]))$allowed[(string)$fi['id']]=$links[(string)$fi['id']];
     }
-    echo json_encode(['ok'=>true,'links'=>$allowed],JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
+    echo json_encode(['ok'=>true,'links'=>(object)$allowed],JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
 }catch(Throwable $e){error_log('FI tagging: '.$e->getMessage());http_response_code(503);echo json_encode(['ok'=>false,'error'=>'Automatic credit advice tagging is temporarily unavailable.']);}
