@@ -78,3 +78,8 @@ This rule applies across Super Admin, Milling, Exports, Accounts, Directors, sta
 - One Master Shipment Documents.pdf contains all available final/supporting documents except sales contracts, Goods Declarations and bank covering letters. GD uploads are also saved separately as PDF; saved bank covering letters are native editable .docx; Sales Contract and uploaded Signed Sales Contract remain separate. Retain uploaded originals and Custom documents / TG docs subfolders.
 - Company Master has a Pakistan-only Chamber / COO details section with chamber name, membership number, authorised signatory and designation. These settings control the COO, rather than ownership position or an assumed designation. Open lots use current settings; closed lots retain the settings captured at closure. Existing TTI/BRM approved identities remain during migration; new companies have no guessed person or designation.
 - Screen form/table controls must fit their cells and align at row tops across Exports, Milling and Accounts. Shared screen CSS must not alter document print positioning.
+
+
+## Director approvals in Super Admin
+
+Every request requiring Director approval must also appear in the Super Admin Console approval panel and allow Super Admin to make the same decision there. Retain the Directors route. Both routes use the same underlying request and server approval rules, with the actual decision maker recorded and completed requests removed from both queues. This is a standing rule for existing and future approval workflows; it does not automatically approve requests or change staff roles, module access, entity access or Master permissions.

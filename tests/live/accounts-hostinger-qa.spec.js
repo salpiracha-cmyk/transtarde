@@ -340,3 +340,14 @@ test('Accounts repair: clear held-entry label and ledger survives focus changes'
   expect(await page.evaluate(() => window.__qaLedgerNode === document.querySelector('#tt-all-ledgers') && window.__qaFilterNode === document.querySelector('#tal-filter'))).toBe(true);
   await expect(page.locator('#tal-filter')).toHaveValue('LEDGER FOCUS DRAFT');
 });
+
+
+test('authenticated QA cannot read the Super Admin Director approval feed', async ({ page }) => {
+  await signIn(page);
+  const response=await page.request.get(`${BASE_URL}/api/director_approvals.php`);
+  expect(response.status()).toBe(403);
+  const result=await response.json();
+  expect(result.ok).toBe(false);
+  expect(result).not.toHaveProperty('approvals');
+});
+
