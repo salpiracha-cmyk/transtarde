@@ -16,6 +16,7 @@ $custom='Satin polished';
 tt_manage_master_option('product_finishes','add',$custom);
 finish_check(in_array($custom,tt_master_options()['product_finishes'],true),'New Finish must appear in active choices.');
 finish_check(tt_export_finish_normalize($custom)===$custom,'Custom Finish must survive normalization.');
+finish_check(tt_export_finish_normalize('Well milled, double steamed')==='Well milled, double steamed','Custom well-milled Finish must not be rewritten as a preset.');
 
 $values=array_fill(0,22,'');$values[17]=$custom;
 $GLOBALS['finish_test_store']['masters']['products'][]=['id'=>'historical-product','values'=>$values];
