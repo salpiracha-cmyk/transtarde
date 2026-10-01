@@ -1,5 +1,5 @@
 """Exercise durable salary drafts and one atomic final journal against the actual endpoint."""
-import json, os, pathlib, shutil, socket, subprocess, tempfile, time, urllib.request, urllib.error
+import json, os, pathlib, re, shutil, socket, subprocess, tempfile, time, urllib.request, urllib.error
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
     root=pathlib.Path(temp)
@@ -24,7 +24,8 @@ with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
     function tt_verify_csrf($csrf){return $csrf==='fixture';}
     function tt_bank_can_transact($id){return in_array($id,['bank-a','bank-b']);}
     ''')
-    (root/'accounts/index.html').write_text('''<!doctype html><div id="expenseEditor"></div><button data-expense="salary">Salaries</button><script>window.TT_ACCOUNT_ACCESS={csrf:'fixture'};localStorage.setItem('tt_accounts_entity','TTI');</script><script src="bank-payment-details.js"></script><script src="rent-salary-ui.js"></script>''')
+    popup_css=re.search(r'style.textContent = `([\s\S]*?)`;', (ROOT/'accounts/accounts-clean-ui.js').read_text()).group(1)
+    (root/'accounts/index.html').write_text('<!doctype html><style>'+popup_css+'</style>'+'''<section class="workspace active tt-clean-modal tt-entry-only"><button data-expense="salary">Salaries</button><div id="expenseEditor"></div></section><script>window.TT_ACCOUNT_ACCESS={csrf:'fixture'};localStorage.setItem('tt_accounts_entity','TTI');</script><script src="bank-payment-details.js"></script><script src="rent-salary-ui.js"></script>''')
     with socket.socket() as sock:sock.bind(('127.0.0.1',0));port=sock.getsockname()[1]
     def start():return subprocess.Popen(['php','-S',f'127.0.0.1:{port}','-t',str(root)],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
     server=start()
