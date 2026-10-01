@@ -5,7 +5,7 @@ with tempfile.TemporaryDirectory(prefix='bank-overdraft-qa-') as temp:
     root=pathlib.Path(temp)
     for folder in ['api','accounts','data']:(root/folder).mkdir()
     for name in ['tg_bank_transactions.php','tg_bank_transfer.php','internal_bank_transfers.php','retention_remittances.php','accounts_bank_payment.php']:shutil.copy(ROOT/'api'/name,root/'api'/name)
-    shutil.copy(ROOT/'accounts/accounting_master_v1.json',root/'accounts/accounting_master_v1.json')
+    for name in ['accounting_master_v1.json','settlement_policy_v1.json','export_realization_policy_v1.json']:shutil.copy(ROOT/'accounts'/name,root/'accounts'/name)
     def bank(id,entity,currency):return {'id':id,'values':['Company Account',entity,'',entity,'Fixture Bank','','',currency,'12345','','','Retention','','Active']}
     masters={'banks':[bank('usd','TG','USD'),bank('usd2','TG','USD'),bank('aed','TG','AED'),bank('ret','TTI','USD')]}
     (root/'masters.json').write_text(json.dumps(masters));(root/'data/accounts.json').write_text(json.dumps({'journals':{}}))
