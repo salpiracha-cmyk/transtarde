@@ -16,7 +16,6 @@ function master_all(?array $user=null): array {
 }
 function master_options_for_console(): array {
     $options=tt_master_options();
-    $options['product_finishes']=tt_export_finish_options();
     return $options;
 }
 function master_bank_can_be_default(array $bank): bool {
@@ -396,7 +395,9 @@ try {
             if (($values[$field]??'')==='') throw new InvalidArgumentException('Enter '.$label.' for the complete Product Identity.');
         }
         $values[17]=tt_export_finish_normalize((string)$values[17]);
-        if (!in_array($values[17],tt_export_finish_options(),true)) throw new InvalidArgumentException('Select one of the three approved Finish options.');
+        $activeFinishes=(array)(tt_master_options()['product_finishes']??[]);
+        $previousFinish=$action==='update'?(string)((master_find_row('products',$id)['values'][17]??'')):'';
+        if (!in_array($values[17],$activeFinishes,true)&&($previousFinish===''||strcasecmp($values[17],$previousFinish)!==0)) throw new InvalidArgumentException('Select an active Finish option.');
         $values[21]=tt_export_hs_code((string)($values[0]??''),(string)($values[7]??''),(string)($values[21]??''));
         if (preg_match('/\d+(?:\.\d+)?\s*%\s*(?:MAX\s*)?BROKEN/i',(string)$values[2])) {
             throw new InvalidArgumentException('Keep Rice type separate from Broken. For example, use Rice type “White Rice” and Broken “10%”.');
