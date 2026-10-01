@@ -110,7 +110,9 @@ function far_payment(array &$s,array &$a,array $b,array $u):array {
         }else throw new DomainException('Choose Post payment or Link existing Post ID.');
     }
     $id=far_next($a['payments'],'AP');$p=['id'=>$id,'instalmentNo'=>$number,'date'=>$date,'amountCents'=>$amount,'currency'=>$a['currency'],'source'=>$source,'reference'=>$ref,'journalId'=>$jid,'historicalOnly'=>$historical,'createdAt'=>gmdate('c'),'createdBy'=>(string)($u['full_name']??$u['username']??'Accounts')];
-    if(!$historical){$p['bankPaymentMethod']=(string)($b['bankPaymentMethod']??'');$p['chequeNo']=far_text($b['chequeNo']??'',180);$p['bankReference']=far_text($b['bankReference']??'',180);$p['cashCents']=far_cents($b['cashAmount']??0,true);$p['bankCents']=far_cents($b['bankAmount']??0,true);}
+    if(!$historical){$p['bankPaymentMethod']=(string)($b['bankPaymentMethod']??'');$p['chequeNo']=far_text($b['chequeNo']??'',180);$p['bankReference']=far_text($b['bankReference']??'',180);$p['cashCents']=far_cents($b['cashAmount']??0,true);$p['bankCents']=far_cents($b['bankAmount']??0,true);
+        if($p['source']==='')$p['source']=($b['mode']??'POST')==='EXISTING_POST'?'LINKED PAYMENT '.$jid:trim(($p['cashCents']>0?'CASH / PETTY CASH ':'').($p['bankCents']>0?'BANK '.(string)($found['label']??''):''));
+    }
     $a['payments'][$id]=$p;$a['version']++;$a['reopened']=false;return $p;
 }
 function far_register(array &$s,string $e,array $b,array $u):array {
