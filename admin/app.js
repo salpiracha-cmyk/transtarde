@@ -1075,7 +1075,7 @@
     }
     document.getElementById('masterBankDeletionRequests')?.remove();
     if((IS_SUPER_ADMIN || SESSION.role==='Director') && pendingBankDeletionRequests.length){
-      document.getElementById('masterDescription').insertAdjacentHTML('afterend',`<section id="masterBankDeletionRequests" class="master-editor-section"><h3>Bank deletion approvals</h3>${pendingBankDeletionRequests.map(request=>{const company=(state.masters.companies||[]).find(row=>row.id===request.companyId),banks=companyBanks(company),bank=banks.find(item=>item.id===request.bankId),choices=banks.filter(item=>item.id!==request.bankId&&item.status!=="Inactive"&&item.currency===bank?.currency);return `<div class="master-approval-row"><div><strong>${escapeHtml(request.company)}</strong> · ${escapeHtml(request.bank)}<small>${escapeHtml(request.requestedBy)} · ${escapeHtml(request.reason)}</small></div>${bank?.isDefault?`<label>Replacement default<select data-bank-approval-replacement="${escapeHtml(request.id)}"><option value="">Choose account</option>${choices.map(item=>`<option value="${escapeHtml(item.id)}">${escapeHtml(item.bankName)} · ${escapeHtml(item.accountTitle)}</option>`).join("")}</select></label>`:""}<div class="row-actions"><button type="button" class="row-action" data-review-bank-deletion="${escapeHtml(request.id)}" data-decision="Approve" ${bank?.isDefault&&!choices.length?"disabled":""}>Approve</button><button type="button" class="row-action" data-review-bank-deletion="${escapeHtml(request.id)}" data-decision="Reject">Reject</button></div></div>`}).join('')}</section>`);
+      document.getElementById('masterDescription').insertAdjacentHTML('afterend',`<section id="masterBankDeletionRequests" class="master-editor-section"><h3>Bank deletion approvals</h3>${pendingBankDeletionRequests.map(request=>{const company=(state.masters.companies||[]).find(row=>row.id===request.companyId),banks=companyBanks(company),bank=banks.find(item=>item.id===request.bankId),choices=banks.filter(item=>item.id!==request.bankId&&item.currency===bank?.currency&&eligibleDefaultBank(item));return `<div class="master-approval-row"><div><strong>${escapeHtml(request.company)}</strong> · ${escapeHtml(request.bank)}<small>${escapeHtml(request.requestedBy)} · ${escapeHtml(request.reason)}</small></div>${bank?.isDefault?`<label>Replacement default<select data-bank-approval-replacement="${escapeHtml(request.id)}"><option value="">Choose account</option>${choices.map(item=>`<option value="${escapeHtml(item.id)}">${escapeHtml(item.bankName)} · ${escapeHtml(item.accountTitle)}</option>`).join("")}</select></label>`:""}<div class="row-actions"><button type="button" class="row-action" data-review-bank-deletion="${escapeHtml(request.id)}" data-decision="Approve" ${bank?.isDefault&&!choices.length?"disabled":""}>Approve</button><button type="button" class="row-action" data-review-bank-deletion="${escapeHtml(request.id)}" data-decision="Reject">Reject</button></div></div>`}).join('')}</section>`);
     }
     document.getElementById("productCropYearControl")?.remove();
     document.getElementById("purchaseWorkspaceTabs")?.remove();
@@ -1171,7 +1171,7 @@
     document.getElementById("bankCurrency").innerHTML=currencies.map(code=>`<option value="${escapeHtml(code)}">${escapeHtml(code)}</option>`).join("");
     set("bankCurrency",bank.currency||"PKR");
     document.querySelector(`input[name="bankOwnership"][value="${bank.accountType||"Company Account"}"]`).checked=true;
-    document.getElementById("bankDefault").checked=!!bank.isDefault||(!bankId&&!companyBanks(company).some(item=>item.status!=="Inactive"&&item.currency===(bank.currency||"PKR")));
+    document.getElementById("bankDefault").checked=!!bank.isDefault;
     document.getElementById("bankRetention").checked=!!bank.retentionAccount;
     document.getElementById("bankDelete").hidden=!bankId||!IS_SUPER_ADMIN||bank.status==="Inactive";
     document.getElementById("bankDeleteConfirm").hidden=true;
@@ -1185,6 +1185,9 @@
     const retention=document.getElementById("bankRetention");
     retention.disabled=ownership==="Personal Account";
     if(retention.disabled)retention.checked=false;
+  }
+  function eligibleDefaultBank(bank) {
+    return bank.status!=="Inactive"&&bank.accountType!=="Personal Account"&&!!(bank.accountNumber||bank.iban);
   }
   async function saveBankDialog(event) {
     event.preventDefault();
@@ -1204,6 +1207,7 @@
       const currency=document.getElementById("bankCurrency").value;
       const isDefault=document.getElementById("bankDefault").checked;
       const bank={...(index>=0?banks[index]:{}),id:bankId||`bank-${crypto.randomUUID()}`,bankName:document.getElementById("bankName").value.trim(),branch:document.getElementById("bankBranch").value.trim(),country:document.getElementById("bankCountry").value.trim(),currency,accountTitle:document.getElementById("bankTitle").value.trim(),accountNumber:document.getElementById("bankNumber").value.trim(),iban:document.getElementById("bankIban").value.trim(),swift:document.getElementById("bankSwift").value.trim(),accountType:ownership,personalOwner:ownership==="Company Account"?"":owner,retentionAccount:document.getElementById("bankRetention").checked,isDefault,status:"Active"};
+      if(isDefault&&!eligibleDefaultBank(bank))throw new Error("A default must be an operational bank account with an account number or IBAN.");
       if(isDefault)banks.forEach(item=>{if(item.currency===currency)item.isDefault=false});
       if(index>=0)banks[index]=bank;else banks.push(bank);
       const values=[...company.values];values[13]=JSON.stringify(banks);
@@ -1219,7 +1223,7 @@
     const area=document.getElementById("bankDeleteConfirm"),wrap=document.getElementById("bankReplacementWrap"),select=document.getElementById("bankReplacement");
     area.hidden=false;wrap.hidden=!bank.isDefault;
     if(bank.isDefault){
-      const choices=companyBanks(company).filter(item=>item.id!==bank.id&&item.status!=="Inactive"&&item.currency===bank.currency);
+      const choices=companyBanks(company).filter(item=>item.id!==bank.id&&item.currency===bank.currency&&eligibleDefaultBank(item));
       select.innerHTML='<option value="">Choose replacement</option>'+choices.map(item=>`<option value="${escapeHtml(item.id)}">${escapeHtml(item.bankName||"")} · ${escapeHtml(item.accountTitle||"")}</option>`).join("");
       document.getElementById("bankConfirmDelete").disabled=!choices.length;
       if(!choices.length)toast("Add another active account in this currency before deleting the default.");
