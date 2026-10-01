@@ -641,6 +641,9 @@ function tt_managed_qa_write_blocked(array $user): bool {
 function tt_api_entity_policy(string $path): array {
     $endpoint=basename($path);
     $entityIndependent=['operations.php','operations.mysql.php','export_documents.php','export_customers.php','export_realization_master.php','masters.php','master_documents.php','users.php','backup.php','accounts_bulk_test_cleanup.php','location-master.php','commodity_lookup.php','bag_bill_file.php','bridge_outbox.php'];
+    // Assets serves both Accounts and the separately authorised Directors view.
+    // Its endpoint enforces module/icon rights and company scope on every request.
+    if($endpoint==='assets_registry.php')return['required'=>false,'fixed'=>''];
     if(in_array($endpoint,$entityIndependent,true))return['required'=>false,'fixed'=>''];
     if(str_starts_with($endpoint,'tg_'))return['required'=>true,'fixed'=>'TG'];
     return['required'=>true,'fixed'=>''];
@@ -670,7 +673,7 @@ function tt_require_login(): array {
         tt_api_json_error(403,'The production QA account is read-only. Use disposable test storage for write testing.');
     }
     tt_offline_request_guard($user);
-    if(str_starts_with($path,'/api/')&&tt_user_can_open_module($user,'Accounts')){
+    if(str_starts_with($path,'/api/')&&$path!=='/api/assets_registry.php'&&tt_user_can_open_module($user,'Accounts')){
         $policy=tt_api_entity_policy($path);
         $entity=strtoupper(trim((string)($_GET['entity']??$_POST['entity']??'')));
         if($entity===''&&strtoupper((string)($_SERVER['REQUEST_METHOD']??'GET'))!=='GET'){

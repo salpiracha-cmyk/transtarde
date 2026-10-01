@@ -1,6 +1,6 @@
 (()=>{
 'use strict';
-const icons=[['dashboard','Directors Dashboard'],['tgmaster','TG Master'],['alerts','Alerts & Renewals'],['approvals','Approvals'],['reports','Management Reports']];
+const icons=[['dashboard','Directors Dashboard'],['assets','Private Assets / Properties'],['tgmaster','TG Master'],['alerts','Alerts & Renewals'],['approvals','Approvals'],['reports','Management Reports']];
 const actions=['View','Create','Edit'];
 let users=null,loading=false;
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));

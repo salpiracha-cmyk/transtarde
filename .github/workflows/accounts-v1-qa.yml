@@ -29,6 +29,8 @@ jobs:
           node tests/accounts-v1/expenses_v1_test.js
           node tests/accounts-v1/reimbursements_general_expenses_test.js
           node tests/accounts-v1/other_purchases_fixed_assets_test.js
+          php tests/accounts-v1/assets_registry_test.php
+          python3 tests/accounts-v1/assets_registry_http_test.py
           node tests/accounts-v1/rent_recurring_test.js
           node tests/accounts-v1/journal_vouchers_test.js
           node tests/accounts-v1/end_to_end_audit.js
@@ -134,6 +136,8 @@ jobs:
         run: '"$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/ready_rice_bill_http_test.py'
       - name: Salary month HTTP and browser flow
         run: '"$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/salary_month_http_test.py'
+      - name: Property registration and instalment browser flow
+        run: '"$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/assets_registry_http_test.py'
       - name: Retain sanitized test evidence
         if: always()
         uses: actions/upload-artifact@v4

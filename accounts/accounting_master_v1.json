@@ -225,6 +225,14 @@
       "subledger": true
     },
     {
+      "code": "1550",
+      "name": "Properties / Land & Buildings",
+      "class": "Asset",
+      "level": "general",
+      "normal": "Debit",
+      "subledger": true
+    },
+    {
       "code": "1590",
       "name": "Accumulated Depreciation",
       "class": "Asset",

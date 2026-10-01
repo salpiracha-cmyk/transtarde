@@ -22,6 +22,7 @@
       ["tg","TG Documents"],["lcdraft","L/C Exchange Draft"],["print","Document Output"],["history","History & Versions"]
     ],
     Accounts: [
+      ["assets","Assets / Properties & Instalments"],
       ["entity-tti","Legal Book · TTI"],["entity-brm","Legal Book · BRM"],["entity-tg","Legal Book · TG"],
       ["dashboard","Needs Attention / Dashboard"],["purchases","Purchases / Sodas"],["due","Due Date Report"],
       ["supplier","Supplier Ledgers & Payments"],["customer","Customer Ledgers & Receipts"],["expenses","Expenses & Overheads"],
