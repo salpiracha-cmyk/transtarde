@@ -4,7 +4,7 @@ ROOT=pathlib.Path(__file__).resolve().parents[2]
 with tempfile.TemporaryDirectory(prefix='assets-registry-qa-') as temp:
     root=pathlib.Path(temp)
     for folder in ['api','accounts','data']:(root/folder).mkdir()
-    for name in ['assets_registry.php','assets_registry_core.php','accounts_bank_payment.php']:shutil.copy(ROOT/'api'/name,root/'api'/name)
+    for name in ['assets_registry.php','assets_registry_core.php','accounts_bank_payment.php','accounts_search.php','accounts_reference.php','fi_credit_advice_link.php']:shutil.copy(ROOT/'api'/name,root/'api'/name)
     for name in ['accounting_master_v1.json','assets-registry-ui.js']:shutil.copy(ROOT/'accounts'/name,root/'accounts'/name)
     (root/'auth_store.php').write_text('''<?php
 define('TT_DATA_DIR',__DIR__.'/data');function tt_ensure_data_dir(){}
@@ -18,6 +18,8 @@ function tt_require_login(){
 }
 function tt_user_can_access_entity($u,$e,$a){return $e==='TTI'&&($a==='View'||($_GET['role']??'')!=='readonly');}
 function tt_verify_csrf($csrf){return $csrf==='fixture';}
+function tt_user_can_open_module($u,$m){return true;}
+function tt_user_accounts_entities($u){return ['TTI'];}
 function tt_list_masters(){return ['banks'=>[['id'=>'B1','values'=>['Company Account','TTI','','TTI','Fixture Bank','','','PKR','12345']]]];}
 function tt_bank_can_transact($id){return $id==='B1';}
 ''')
@@ -52,6 +54,9 @@ function tt_bank_can_transact($id){return $id==='B1';}
         assert call(role='unrelated',scope='directors')[0]==403,'Other director permissions cannot read assets'
         status,d=call(role='director',asset=id,scope='directors');assert status==200 and d['asset']['privateNotes']=='CONFIDENTIAL NOTE'
         public=json.dumps(call()[1]);assert all(x not in public for x in ['SECRET VILLA','PRIVATE DEED','OWNER NAME','Secret Plot'])
+        for term in ['PRIVATE','SECRET','OWNER','AR-2026']:
+            with urllib.request.urlopen(f'http://127.0.0.1:{port}/api/accounts_search.php?entity=TTI&q={term}') as response: search=json.load(response)
+            assert search['ok'] and all('CONFIDENTIAL' not in json.dumps(x) and 'SECRET VILLA' not in json.dumps(x) and x['data'].get('assetTag')!='P-001' for x in search['results']),search
         bad=register('BAD',countryId='PK',cityId='DXB');assert call(bad)[0]==422
         monthly=register('P-002',paymentPattern='MONTHLY',payments=[{'instalmentNo':'1','date':'2026-06-30','amount':400}],firstDueDate='2026-07-31',monthlyAmount=250,instalmentCount=3)
         status,d=call(monthly);assert status==200,d;mid=d['result']['postId'];a=next(x for x in d['assets']if x['id']==mid)

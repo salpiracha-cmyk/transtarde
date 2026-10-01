@@ -66,6 +66,8 @@ try {
     $store=tt_fi_advice_project($store,tt_fi_advice_root());
     $results = []; $needle = strtolower($query);
     foreach ($store as $collection => $records) {
+        // Private asset details are served only by the permission-filtered registry.
+        if(in_array($collection,['managedAssets','assetRequestKeys','assetLocations'],true))continue;
         if (!is_array($records) || in_array($collection, ['revision','settings','masters'], true)) continue;
         foreach ($records as $key => $row) {
             if (!is_array($row)) continue;
