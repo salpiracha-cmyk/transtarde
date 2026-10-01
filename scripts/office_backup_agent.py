@@ -158,6 +158,8 @@ def pull(config, destination):
         rotate(daily_dir, 'TRANSTRADE_FULL_*.zip', int(retention.get('daily', 7)))
         rotate(weekly_dir, 'TRANSTRADE_FULL_*.zip', int(retention.get('weekly', 4)))
         rotate(monthly_dir, 'TRANSTRADE_FULL_*.zip', int(retention.get('monthly', 12)))
+        rotate(destination, 'weekly-*.zip', int(retention.get('weekly', 4)))
+        rotate(destination, 'monthly-*.zip', int(retention.get('monthly', 3)))
         return daily, expected
     finally:
         if temp and os.path.exists(temp): os.unlink(temp)
