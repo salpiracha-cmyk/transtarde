@@ -8,8 +8,9 @@ $pw=bin2hex(random_bytes(20));$rw=['View','Create','Edit'];
 $users=[['id'=>501,'username'=>'billqa','full_name'=>'Bill QA','role'=>'Accounts Operator','permissions'=>['Accounts'=>['purchases'=>$rw,'entity-tti'=>$rw]],'active'=>true,'must_change_password'=>false,'master_access'=>true,'master_permissions'=>['business_parties'=>$rw],'password_hash'=>password_hash($pw,PASSWORD_DEFAULT)],['id'=>502,'username'=>'billview','full_name'=>'Bill Viewer','role'=>'Accounts Viewer','permissions'=>['Accounts'=>['purchases'=>['View'],'entity-tti'=>['View']]],'active'=>true,'must_change_password'=>false,'master_access'=>false,'password_hash'=>password_hash($pw,PASSWORD_DEFAULT)]];
 $users[]=['id'=>503,'username'=>'fixtureowner','full_name'=>'Fixture Owner','role'=>'Super Admin','permissions'=>['Accounts'=>'all'],'active'=>true,'must_change_password'=>false,'master_access'=>true,'password_hash'=>password_hash($pw,PASSWORD_DEFAULT)];
 $masters=tt_default_masters();$masters['business_parties'][]=['id'=>'transport-fixture','values'=>['Fixture Transport','FT','Transporter','','','','','','','','Active']];$masters['business_parties'][]=['id'=>'broker-jj-fixture','values'=>['JJ','JJ','Broker','','','','','','','','Active','','{"buying":[{"amount":5,"basis":"PER_100_KG","effectiveFrom":"2026-01-01","status":"Active"}],"selling":[{"amount":9,"basis":"PER_TON","effectiveFrom":"2026-01-01","status":"Active"}]}']];
+$masters['banks'][]=['id'=>'qa-bank-a','values'=>['Company Account','TTI','','Fixture A','Fixture Bank A','','Pakistan','PKR','12345','','','','','Active']];$masters['banks'][]=['id'=>'qa-bank-default','values'=>['Company Account','TTI','','Fixture B','Fixture Bank B','','Pakistan','PKR','67890','','','','','Active']];
 tt_ensure_data_dir();file_put_contents(TT_STORE_FILE,json_encode(['users'=>$users,'masters'=>$masters,'settings'=>['qa_account_seeded'=>true],'audit'=>[]]));
-$s=['revision'=>0,'journals'=>[],'events'=>[],'commodityBills'=>[],'purchaseSodas'=>[],'loadingProgrammes'=>[],'transportMaster'=>[['from'=>'Karachi','to'=>'Jeddah','rate'=>38000]]];
+$s=['bankAccountSettings'=>['qa-bank-default'=>['active'=>true,'allowPayments'=>true,'allowReceipts'=>true,'defaultReceiptAccount'=>true]],'revision'=>0,'journals'=>[],'events'=>[],'commodityBills'=>[],'purchaseSodas'=>[],'loadingProgrammes'=>[],'transportMaster'=>[['from'=>'Karachi','to'=>'Jeddah','rate'=>38000]]];
 foreach([['26001','READY','Indus Rice','JJ','CREDIT',30],['26002','RAW','Indus Rice','JJ','CASH',0],['26003','READY','','JJ','CASH',0],['26004','READY','Indus Rice','','CREDIT',60]] as [$no,$stage,$party,$broker,$term,$days]){
  $s['purchaseSodas'][$no]=['id'=>'PS-'.$no,'entity'=>'TTI','commodity'=>'RICE','sodaNo'=>$no,'sodaDate'=>'2026-09-01','party'=>$party,'broker'=>$broker,'productStage'=>$stage,'rate'=>100,'paymentTermType'=>$term,'creditDays'=>$days];
  foreach([1,2] as $n){$key=($stage==='READY'?'EXMILL|':'POHANCH|').$no.'|'.$n;$jid='J-'.$no.'-'.$n;$eid='TTI|COMMODITY_RECEIPT_ACCEPTED|'.$key;$date='2026-09-'.(10+$n);
@@ -146,6 +147,27 @@ def run():
   status,extra=request('/api/supplier_settlements.php',{**pay,'requestKey':'payment-fixture-advance','amount':200,'allowAdvance':True});assert status==200,(status,extra)
   assert extra['result']['advanceAmount']==50 and extra['result']['netPayment']==200
   state=json.loads(storefile.read_text());assert state['supplierAdvances'][extra['result']['advanceId']]['availableAmount']==50
+  # Cheque number/date use the existing issue/clear lifecycle and remain searchable.
+  fixture=json.loads(storefile.read_text());fixture['otherPurchases']['BANK-CHEQUE-BILL']={'id':'BANK-CHEQUE-BILL','entity':'TTI','settlement':'CREDIT','supplier':'Cheque Fixture','invoiceNo':'CHEQUE-BILL','invoiceDate':'2026-07-03','amount':300};storefile.write_text(json.dumps(fixture))
+  cheque={'action':'post_bill_payment','entity':'TTI','date':'2026-09-30','supplier':'Cheque Fixture','amount':100,'paymentMode':'BANK','bankAccountId':'qa-bank-default','bankPaymentMethod':'CHEQUE','chequeNo':'CQ-123','reference':'CQ-123','chequeDate':'2026-10-05','requestKey':'payment-cheque-fixture-0001','selectedBills':[],'narration':'Cheque · Test services'}
+  status,cq=request('/api/supplier_settlements.php',cheque);assert status==200,(status,cq)
+  assert cq['result']['chequeStatus']=='Issued' and cq['result']['chequeNo']=='CQ-123'
+  cqid=cq['result']['journalId'];state=json.loads(storefile.read_text());journal=state['journals'][cqid]
+  assert journal['meta']['chequeNo']=='CQ-123' and journal['meta']['chequeDate']=='2026-10-05'
+  assert any(l['account']=='2180' and l['credit']==100 for l in journal['lines']) and not any(l['account']=='1110' for l in journal['lines'])
+  assert request('/api/supplier_settlements.php',cheque)[1]['result']['journalId']==cqid
+  assert request('/api/supplier_settlements.php',{**cheque,'chequeNo':'CQ-124'})[0]==409
+  assert request('/api/supplier_settlements.php',{**cheque,'requestKey':'payment-cheque-fixture-invalid','chequeNo':''})[0]==422
+  status,cqsearch=request('/api/accounts_search.php?entity=TTI&q=CQ-123');assert status==200 and any(r['data'].get('id')==cqid for r in cqsearch['results'])
+  number=cqid.rsplit('-',1)[-1].lstrip('0');status,short=request('/api/accounts_search.php?entity=TTI&q='+number);assert status==200 and any(r['data'].get('id')==cqid for r in short['results'])
+  status,shortledger=request('/api/accounts_ledger_browser.php?entity=TTI&from=2026-07-01&to=2026-10-05&q='+number);assert status==200 and any(r['voucher']==cqid for r in shortledger['rows'])
+  online={**cheque,'amount':50,'requestKey':'payment-online-fixture-0001','bankPaymentMethod':'ONLINE_BANKING','chequeNo':'','chequeDate':'','reference':'ONLINE-123','narration':'Online Banking · Services settlement'}
+  status,paid=request('/api/supplier_settlements.php',online);assert status==200,(status,paid)
+  assert paid['result']['chequeNo']=='' and paid['result']['bankPaymentMethod']=='ONLINE_BANKING'
+  state=json.loads(storefile.read_text());assert 'Online Banking' in state['journals'][paid['result']['journalId']]['narration']
+  assert request('/api/supplier_settlements.php',online)[1]['result']['journalId']==paid['result']['journalId']
+  status,cleared=request('/api/supplier_settlements.php',{'action':'clear_supplier_cheque','entity':'TTI','date':'2026-10-05','settlementId':cq['result']['id'],'bankReference':'CLEARED-123'});assert status==200,(status,cleared)
+  print('Cheque lifecycle, bank method metadata, idempotent retries and short reference search passed')
   print('Non-commodity payment FIFO, partial, registers, retry, TG cash/third-party and entity isolation passed')
   for name,role in [('Fixture Fumigation','Fumigation'),('Fixture Forwarder','Freight Forwarder')]:
    status,created=request('/api/masters.php',{'action':'create','type':'business_parties','values':[name,'',role,'','','','','','','','Active','','']});assert status==200,(status,created)
@@ -276,11 +298,12 @@ def run():
     page.screenshot(path=str(evidence/'transporter-bill-confirmation.png'))
     status,registered=request('/api/accounts_workflows_v1.php?entity=TTI&section=transport');assert status==200 and next(x for x in registered['bills'] if x['invoiceNo']=='BROWSER-TRANSPORT')['total']==153200 and len(next(x for x in registered['bills'] if x['invoiceNo']=='BROWSER-TRANSPORT')['lines'])==2
     assert (root/'transtrade_private/operations.json').read_bytes()==original,'Transport posting changed Mill records'
-    page.locator('#ttShipmentBillPay').click();page.locator('#ttSimpleBills [data-amount]').fill('50000');page.locator('#ttSimpleBills [data-source]').select_option('CASH');page.locator('#ttSimpleBills [type=submit]').click();page.locator('#ttSimpleBills').get_by_role('heading',name='Payment posted',exact=True).wait_for()
+    page.locator('#ttShipmentBillPay').click();assert page.locator('#ttSimpleBills [data-bank]').input_value()=='qa-bank-default';page.locator('#ttSimpleBills [data-bank-method]').select_option('CHEQUE');assert page.locator('#ttSimpleBills [data-reference]').locator('..').inner_text()=='Cheque number';assert page.locator('#ttSimpleBills [data-cheque-date]').count()==1;page.locator('#ttSimpleBills [data-bank-method]').select_option('ONLINE_BANKING');page.locator('#ttSimpleBills [data-narration]').fill('Fixture user narration');page.locator('#ttSimpleBills [data-amount]').fill('50000');page.locator('#ttSimpleBills [data-source]').select_option('CASH');page.locator('#ttSimpleBills [type=submit]').click();page.locator('#ttSimpleBills').get_by_role('heading',name='PAYMENT POSTED',exact=True).wait_for()
     assert 'POST ID' in page.locator('#ttSimpleBills').inner_text()
     page.locator('#ttSimpleBills [data-close]').click()
     page.evaluate("TT_ALL_LEDGERS.open('2130','supplier')");page.locator('#tal-party').fill('Cedar Horizon Haulage');page.locator('#tal-go').click();page.wait_for_function("document.querySelector('.tal-total')?.textContent.includes('103,200.00')")
     assert '50000' not in page.locator('.tal-total').inner_text() and '50,000.00' in page.locator('.tal-total').inner_text()
+    assert page.locator('.tal-posting-row').count()>=2;page.locator('.tal-posting-row').last.click();page.locator('#tal-back').wait_for();assert page.locator('.tal-table tbody tr').count()>=2;page.locator('#tal-back').click();page.locator('#tt-all-ledgers').dispatch_event('click');page.evaluate("window.dispatchEvent(new Event('blur'));document.dispatchEvent(new Event('visibilitychange'))");assert page.locator('#tal-party').input_value()=='Cedar Horizon Haulage';assert page.locator('#tt-all-ledgers').is_visible();
     with page.expect_download() as dl:page.locator('#tal-export').click()
     assert dl.value.suggested_filename.endswith('.xlsx');page.locator('#tal-close').click()
     # Actual freight UI: separate parties, customer-first lots, aligned USD/PKR rows.

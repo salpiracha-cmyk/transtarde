@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require dirname(__DIR__) . '/auth_store.php';
+require_once __DIR__.'/accounts_reference.php';
 header('Content-Type: application/json; charset=UTF-8');
 header('Cache-Control: no-store, no-cache, must-revalidate');
 
@@ -69,7 +70,7 @@ try {
             $rowEntity = strtoupper((string)($row['entity'] ?? $row['legalEntity'] ?? ''));
             if ($rowEntity !== '' && $rowEntity !== $entity) continue;
             $haystack = strtolower((string)$key . ' ' . as_text($row));
-            if (!str_contains($haystack, $needle)) continue;
+            $references=[$key];foreach(['id','journalId','billNo','invoiceNo','reference','voucherNo','chequeNo'] as $field)$references[]=$row[$field]??'';$numeric=preg_match('/^(?:\d{4}-)?\d+$/',$query);$match=!$numeric&&str_contains($haystack,$needle);foreach($references as $reference)if(tt_accounts_reference_matches($query,$reference)||($numeric&&!preg_match('/^(?:[A-Z]+-)?\d{4}-\d+$/i',(string)$reference)&&str_contains(strtolower((string)$reference),$needle))){$match=true;break;}if(!$match)continue;
             $amount = as_first($row, ['amount','total','netAmount','finalCommodityValue','supplierPayableTotal','grossPkr','totalDebit']);
             $billId=(string)($row['meta']['supplierBillId']??$row['id']??$key);$amend=null;
             foreach(['freightBillsV1'=>'FREIGHT','transportBillsV1'=>'TRANSPORT','exportServiceBillsV1'=>''] as $billCollection=>$billKind){

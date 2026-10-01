@@ -264,3 +264,14 @@ Accounts development and its QA workflow are maintained on `main`. The old `acco
 - Non-commodity bill posting controls read POST BILL. Successful bill confirmation reads BILL POSTED, with a large uppercase centered heading, POST NUMBER and centered details. Held bills say BILL SAVED — ON HOLD and are not falsely described as posted. Receipts, payments, JVs and commodity workflows retain their own meanings.
 - POST ANOTHER BILL closes the completed bill before opening a fresh shipment search; dialogs must not obscure the active form.
 - Main search accepts bill number or its linked posting journal reference. AMEND BILL reopens the full original linked expense bill; require amendment reason and Edit access, preserve bill identity and existing settlement links, reject stale edits, and post only the accounting difference. Accepted liability cannot fall below settled payments. Preserve all source sections, USD/PKR charge currencies, accepted rates and deductions. Historical unlinked bills use their original register editor.
+
+
+## Ledger rows and bank-payment tracking (1 October 2026)
+
+The ledger displays one row per original journal ID. Clicking the row opens every debit/credit line, and Edit opens the source-backed bill amendment where one exists; otherwise it uses the existing posting correction workflow. Selected-account balances, bank currency values and complete Excel/print detail remain authoritative. Only the Close button dismisses the ledger; changing browser focus does not navigate away.
+
+Internal reference display uses YYYY-NNNNN, with stored IDs retained for source links, lookup, amendment and audit history. Supplier invoice numbers are external references and remain as entered. Numeric reference search accepts the suffix without leading zeros and YYYY-number, without merging different original IDs.
+
+Shared non-commodity payments select an eligible company/currency bank marked as the default in Banks & Cash; a sole eligible bank is selected automatically. An explicit eligible bank chosen by the user stays selected. Bank method is Cheque, Online Banking or Bank Transfer, alongside the user's narration. Cheque number and date are retained in payment/journal metadata, search and the voucher. Pakistan post-dated cheques use the existing issue/clear/cancel/bounce lifecycle; their bank balance changes on clearance. TG uses its existing direct bank-payment workflow and supports cheques dated on the payment date. TG non-cheque transaction reference remains optional.
+
+The Accounts home has one combined attention panel for holds, approvals, overdue Sodas, late arrivals and freight disputes. The redundant legacy count strip and Next Payment Due summary tile are removed. Due dates and payable reporting continue to use the settled rules.

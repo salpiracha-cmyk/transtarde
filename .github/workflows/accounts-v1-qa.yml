@@ -34,6 +34,7 @@ jobs:
           node tests/accounts-v1/end_to_end_audit.js
           node tests/accounts-v1/static_audit.js
           node tests/accounts-v1/clean_ui_test.js
+          node tests/accounts-v1/ledger_posting_rows_test.js
           node tests/accounts-v1/ledger_workbook_test.js
           node tests/accounts-v1/export_v3_linkage_test.js
           node tests/accounts-v1/product_stage_architecture_test.js

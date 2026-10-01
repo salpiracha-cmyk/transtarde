@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require dirname(__DIR__).'/auth_store.php';
+require_once __DIR__.'/accounts_reference.php';
 header('Cache-Control: no-store');
 
 function alb_fail(string $message, int $status=422): never {
@@ -121,8 +122,8 @@ foreach($journals as $journal){
         $native=$bankId!==''&&($banks[$bankId]['currency']??'')!==($entity==='TG'?'AED':'PKR');
         $debit=round((float)($native?($line['bankDebit']??0):($line['debit']??0)),2);$credit=round((float)($native?($line['bankCredit']??0):($line['credit']??0)),2);
         if($date<$from){if($account!==''||$party!=='')$opening+=$debit-$credit;continue;}
-        $linkedNote=(string)($journal['meta']['notes']??'');
-        $row=['date'=>$date,'voucher'=>(string)($journal['id']??''),'account'=>$bankId!==''?$account:$code,'accountName'=>$bankId!==''?$catalog[$account]:(string)($line['accountName']??$catalog[$code]??$code),'reference'=>(string)($journal['reference']??''),'narration'=>(string)($journal['narration']??'').(str_starts_with($linkedNote,'Mirrored settlement for Pakistan receipt ')?' · '.$linkedNote:''),'party'=>$lineParty!==''?$lineParty:(string)($line['subledger']??$line['bankName']??''),'debit'=>$debit,'credit'=>$credit];
+        $linkedNote=(string)($journal['meta']['notes']??'');$tracking=trim(implode(' · ',array_filter([(string)($journal['meta']['bankPaymentMethod']??''),!empty($journal['meta']['chequeNo'])?'Cheque '.$journal['meta']['chequeNo']:''])));
+        $row=['date'=>$date,'voucher'=>(string)($journal['id']??''),'account'=>$bankId!==''?$account:$code,'accountName'=>$bankId!==''?$catalog[$account]:(string)($line['accountName']??$catalog[$code]??$code),'reference'=>(string)($journal['reference']??''),'narration'=>(string)($journal['narration']??'').(str_starts_with($linkedNote,'Mirrored settlement for Pakistan receipt ')?' · '.$linkedNote:'').($tracking!==''?' · '.$tracking:''),'party'=>$lineParty!==''?$lineParty:(string)($line['subledger']??$line['bankName']??''),'debit'=>$debit,'credit'=>$credit];
         if($native){$row['bookCurrency']=$entity==='TG'?'AED':'PKR';$row['bookDebit']=round((float)($line['debit']??0),2);$row['bookCredit']=round((float)($line['credit']??0),2);$row['nativeMissing']=!isset($line['bankDebit'])&&!isset($line['bankCredit']);}
         $rows[]=$row;
     }
@@ -130,7 +131,7 @@ foreach($journals as $journal){
 $balance=round($opening,2);
 foreach($rows as &$row){if(($account!==''||$party!=='')&&!$postEntries){$balance=round($balance+$row['debit']-$row['credit'],2);$row['balance']=$balance;}}unset($row);
 $closing=$balance;
-if($query!=='')$rows=array_values(array_filter($rows,static fn($row)=>str_contains(strtolower(implode(' ',array_map('strval',$row))),$query)));
+if($query!=='')$rows=array_values(array_filter($rows,static fn($row)=>(!preg_match('/^(?:\d{4}-)?\d+$/',$query)&&str_contains(strtolower(implode(' ',array_map('strval',$row))),$query))||tt_accounts_reference_matches($query,$row['voucher'])||tt_accounts_reference_matches($query,$row['reference'])||(preg_match('/^(?:\d{4}-)?\d+$/',$query)&&!preg_match('/^(?:[A-Z]+-)?\d{4}-\d+$/i',$row['reference'])&&str_contains(strtolower($row['reference']),$query))));
 if(($_GET['format']??'')==='csv'){
     header('Content-Type: text/csv; charset=UTF-8');
     header('Content-Disposition: attachment; filename="'.preg_replace('/[^A-Z0-9_-]/i','',$entity.'-ledger-'.$from.'-'.$to).'.csv"');
