@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="Transtrade unified Super Admin control centre">
   <title>Transtrade Super Admin Console</title>
-  <link rel="stylesheet" href="admin/styles.css?v=20260930-bank-controls-1">
+  <link rel="stylesheet" href="admin/styles.css?v=20261001-master-console-ui-1">
   <link rel="stylesheet" href="brand-theme.css?v=20260914-control-centre-1">
 </head>
 <body>
@@ -125,11 +125,14 @@
           </div>
           <div class="master-layout">
             <div class="master-menu" id="masterMenu"></div>
-            <article class="panel master-content">
-              <div class="panel-heading"><div><h2 id="masterTitle">Companies</h2><p id="masterDescription"></p></div><div class="filter-input compact"><span>⌕</span><input id="masterSearch" type="search" placeholder="Search records"></div></div>
-              <div class="table-wrap"><table><thead id="masterTableHead"></thead><tbody id="masterTableBody"></tbody></table></div>
-              <div class="master-scope-note">Bags / brands stay inside their operational workflows. Port / loading references stay in system reference settings rather than cluttering Master Records.</div>
-            </article>
+            <div class="master-workspace">
+              <article class="panel master-content" id="masterList">
+                <div class="panel-heading"><div><h2 id="masterTitle">Companies</h2><p id="masterDescription"></p></div></div>
+                <div class="master-toolbar"><div class="filter-input compact"><span aria-hidden="true">⌕</span><input id="masterSearch" type="search" placeholder="Search records" aria-label="Search master records"></div><label class="master-inactive-toggle"><input id="masterIncludeInactive" type="checkbox"> Include inactive</label></div>
+                <div class="table-wrap"><table><thead id="masterTableHead"></thead><tbody id="masterTableBody"></tbody></table></div>
+              </article>
+              <section id="masterDetail" class="master-detail" hidden aria-label="Master record detail"></section>
+            </div>
           </div>
         </section>
 
@@ -270,7 +273,26 @@
     </form>
   </dialog>
 
+  <dialog id="bankDialog" class="modal master-modal bank-dialog" aria-labelledby="bankDialogTitle">
+    <form id="bankForm">
+      <div class="modal-head"><div><p class="eyebrow">BANK ACCOUNT</p><h2 id="bankDialogTitle">Add bank account</h2></div><button class="icon-button" type="button" data-close-dialog="bankDialog" aria-label="Close">×</button></div>
+      <input type="hidden" id="bankEditId">
+      <div class="bank-form-fields">
+        <label>Bank name<input id="bankName" required></label><label>Branch<input id="bankBranch"></label>
+        <label>Country<input id="bankCountry"></label><label>Currency<select id="bankCurrency" required></select></label>
+        <label>Account title<input id="bankTitle" required></label><label>Account number<input id="bankNumber"></label>
+        <label>IBAN<input id="bankIban"></label><label>SWIFT / BIC<input id="bankSwift"></label>
+        <fieldset class="bank-ownership"><legend>Ownership</legend><label><input type="radio" name="bankOwnership" value="Company Account" checked> Company Account</label><label><input type="radio" name="bankOwnership" value="Proprietor / Owner Account"> Proprietor / Owner Account</label><label><input type="radio" name="bankOwnership" value="Personal Account"> Personal Account</label></fieldset>
+        <label id="bankOwnerWrap" hidden>Account owner<input id="bankOwner"></label>
+        <label class="bank-check"><input id="bankDefault" type="checkbox"> Default for receipts and payments in this currency</label>
+        <label class="bank-check"><input id="bankRetention" type="checkbox"> Retention account</label>
+        <div id="bankDeleteConfirm" class="bank-delete-confirm" hidden><strong>Delete this bank account?</strong><p>Existing postings and their historical account identity will remain.</p><label id="bankReplacementWrap" hidden>Replacement default for this currency<select id="bankReplacement"></select></label><button class="button danger" id="bankConfirmDelete" type="button">Confirm delete</button></div>
+      </div>
+      <div class="modal-actions"><button class="button danger" id="bankDelete" type="button" hidden>Delete</button><button class="button secondary" type="button" data-close-dialog="bankDialog">Cancel</button><button class="button primary" id="bankSave" type="submit">Save</button></div>
+    </form>
+  </dialog>
+
   <div class="toast-region" id="toastRegion" aria-live="polite"></div>
-<script src="admin/app.js?v=20260930-export-hs-finish-2"></script>
+<script src="admin/app.js?v=20261001-master-console-ui-1"></script>
 </body>
 </html>
