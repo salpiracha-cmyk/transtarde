@@ -54,7 +54,7 @@ assert.match(soda,/if\(\$route==='EX_MILL'&&!\$supplier\)/);
 assert.match(desk,/Contracted Quantity \(MT\)/);
 assert.match(desk,/Truck \/ Containers/);
 assert.match(soda,/\$readyRice\?\$maximum\*\.95/);
-assert.match(soda,/\$readyRice\?\$maximum\*1\.05/);
+assert.match(soda,/\$exMill\|\|\$readyRice\?\$maximum\*1\.05/);
 assert.match(feed,/\$maximum\*1\.05/);
 assert.match(feed,/'payableWeightKg'=>\$kg,'weighbridgeWeightKg'=>\$kg/);
 assert.match(feed,/'grossRatePerKg'=>\$rate,'katPaisaPerKg'=>0/);
