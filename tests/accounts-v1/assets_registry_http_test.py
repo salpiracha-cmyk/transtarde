@@ -93,7 +93,7 @@ function tt_bank_can_transact($id){return $id==='B1';}
             from playwright.sync_api import sync_playwright
             with sync_playwright() as p:
                 browser=p.chromium.launch();page=browser.new_page(viewport={'width':1440,'height':1000});errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
-                page.goto(f'http://127.0.0.1:{port}/accounts/index.html');page.click('#openAssets');page.wait_for_selector('#faNew');page.click('#faNew')
+                page.goto(f'http://127.0.0.1:{port}/accounts/index.html');page.click('#openAssets');page.wait_for_selector('#faNew');page.click('#faNew');assert page.locator('#faPay').count()==0, 'Entry form replaces the list inside the window'
                 page.fill('[name=name]','Karachi Property');page.fill('[name=assetTag]','BROWSER-001');page.fill('[name=ownerName]','Director One');page.select_option('[name=countryId]','PK');page.select_option('[name=cityId]','KHI');page.fill('[name=unitNo]','Plot 17');page.fill('[name=address]','Karachi project');page.fill('[name=purchaseDate]','2025-01-01');page.fill('[name=cost]','1000');page.select_option('[name=paymentPattern]','MONTHLY');page.fill('[name=firstDueDate]','2026-10-31');page.fill('[name=monthlyAmount]','300');page.fill('[name=instalmentCount]','2')
                 page.click('#faAddHistory');page.fill('[data-number]','1');page.fill('[data-date]','2026-06-30');page.fill('[data-amount]','400');page.fill('[data-source]','Previous bank payment')
                 evidence=pathlib.Path(os.environ.get('RUNNER_TEMP',temp))/'inventory-evidence';evidence.mkdir(exist_ok=True)
