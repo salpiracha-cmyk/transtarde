@@ -1,6 +1,6 @@
 <?php
 declare(strict_types=1);
-// The Exports directory is private. Serve only the two pinned PDF libraries.
+// The Exports directory is private. Serve only the pinned PDF libraries.
 require dirname(__DIR__) . '/auth_store.php';
 header('Cache-Control: private, no-store');
 header('X-Content-Type-Options: nosniff');
@@ -16,6 +16,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'GET') {
 $assets = [
     'html2canvas' => 'html2canvas-1.4.1.min.js',
     'jspdf' => 'jspdf-4.2.1.umd.min.js',
+    'pdf-lib' => 'pdf-lib-1.17.1.min.js',
 ];
 $asset = $assets[(string)($_GET['asset'] ?? '')] ?? null;
 if ($asset === null) { http_response_code(404); exit('Unknown PDF library.'); }

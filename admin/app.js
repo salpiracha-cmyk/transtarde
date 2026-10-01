@@ -87,7 +87,7 @@
         { label: "KCCI membership no." }, { label: "REAP membership no." },
         { label: "NTN number" }, { label: "Sales tax number" }, { label: "Company number" },
         { label: "Bank accounts", type: "hidden" }, { label: "Document identities", type: "hidden" },
-        { label: "Exchange rates", type: "hidden" }, { label: "Registration details", type: "hidden" }
+        { label: "Exchange rates", type: "hidden" }, { label: "Registration details", type: "hidden" }, { label: "Chamber / COO details", type: "hidden" }
       ],
       rows: [
         ["Transtrade International", "TTI", "Pakistan", "Pakistan", "Group Company; Pakistan Operating Entity; Exporter; Seller; Buyer; Accounting Entity", "No", "Primary Pakistan operating/export entity.", '[{"name":"","share":100}]', "36453", "", "", "", ""],
@@ -523,7 +523,7 @@
       if (code) seenCompanies.add(code);
       if (companyDefaults.has(code) && (values.length <= 3 || (code === "BRM" && values[0] === "BRM"))) return { ...row, values: [...companyDefaults.get(code)] };
       const defaults=companyDefaults.get(code)||[];
-      while (values.length < 17) values.push(defaults[values.length] || "");
+      while (values.length < 18) values.push(defaults[values.length] || "");
       if (!values[7]) values[7]='[{"name":"","share":100}]';
       if (code === "TTI" && !values[8]) values[8]="36453";
       if (!values[13]) values[13]="[]";
@@ -591,6 +591,7 @@
       const currencies=[...new Set([...banks.filter(bank=>bank.status!=='Inactive').map(bank=>bank.currency),...(String(values[1]||'').toUpperCase()==='TG'?['AED']:[])].filter(Boolean))].sort();
       currencies.forEach((a,i)=>currencies.slice(i+1).forEach(b=>fxPairs.push({currencyA:a,currencyB:b})));
     }
+    let chamber={};try{chamber=JSON.parse(values[17]||'null')||{chamberName:'Karachi Chamber of Commerce & Industry',membershipNo:values[8]||'',signatory:values[1]==='TTI'?'ABDUL RAZZAK PARACHA':values[1]==='BRM'?'TAYYAB RAZZAK PARACHA':'',designation:/^(TTI|BRM)$/.test(values[1])?'PROPRIETOR':''}}catch{}
     return `<section class="master-editor-section"><div class="master-editor-heading"><div><h3>Company identity</h3><p>The list shows only identity. Legal and workflow detail stays inside Edit.</p></div></div><div class="master-identity-grid">
       <label>Legal company name<input id="${masterInputId(0)}" data-master-field-index="0" value="${escapeHtml(values[0] || "")}" required></label>
       <label>Short code<input id="${masterInputId(1)}" data-master-field-index="1" value="${escapeHtml(values[1] || "")}" required></label>
@@ -605,6 +606,7 @@
       <div class="master-editor-heading" style="margin-top:14px"><div><h3 style="font-size:.9rem">Additional tax / registration numbers</h3><p>For example UAE VAT TRN, Corporate Tax TRN, or a future jurisdiction's registration.</p></div><button type="button" class="button secondary" id="addCompanyRegistration">+ Add registration</button></div>
       <input type="hidden" id="${masterInputId(16)}" data-master-field-index="16"><div id="companyRegistrationRows">${registrations.map(companyRegistrationRow).join("")}</div>
     </section>
+    <section class="master-editor-section" id="companyChamberSection" ${isPakistanCompany?'':'hidden'}><div class="master-editor-heading"><h3>Chamber / COO details</h3></div><div class="master-form-grid"><label>Chamber name<input data-company-chamber="chamberName" value="${escapeHtml(chamber.chamberName||'')}"></label><label>Membership number<input data-company-chamber="membershipNo" value="${escapeHtml(chamber.membershipNo||values[8]||'')}"></label><label>Authorised signatory name<input data-company-chamber="signatory" value="${escapeHtml(chamber.signatory||'')}"></label><label>Designation<input data-company-chamber="designation" value="${escapeHtml(chamber.designation||'')}"></label></div></section>
     <section class="master-editor-section"><div class="master-editor-heading"><div><h3>Bank accounts</h3><p>Accounts belong to this company. Existing module bank lists are derived automatically.</p></div><button type="button" class="button secondary" id="addCompanyBank">+ Add bank account</button></div><input type="hidden" id="${masterInputId(13)}" data-master-field-index="13"><div id="companyBankRows">${banks.map(bank=>companyBankRow(bank)).join("")}</div></section>
     <section class="master-editor-section" id="companyFxSection" ${values[3]==='Pakistan'||values[2]==='Pakistan'?'hidden':''}><div class="master-editor-heading"><div><h3>Exchange rates</h3><p>For company bank currencies. Enter each direction independently; 1 unit of the first currency equals the entered units of the second.</p></div><button type="button" class="button secondary" id="addCompanyFx">+ Add rate pair</button></div><input type="hidden" id="${masterInputId(15)}" data-master-field-index="15"><div id="companyFxRows">${fxPairs.map(companyFxRow).join("")}</div><p id="companyFxHint">Add bank accounts in two currencies to set exchange rates.</p></section>
     <section class="master-editor-section"><div class="master-editor-heading"><div><h3>Document identity</h3><p>Headers, footers, signatures and stamps remain versioned under the legal company.</p></div><button type="button" class="button secondary" id="addCompanyDocument">+ Add document identity</button></div><input type="hidden" id="${masterInputId(14)}" data-master-field-index="14"><div id="companyDocumentRows">${documents.map(doc=>companyDocumentRow(doc)).join("")}</div></section>
@@ -931,8 +933,10 @@
   }
   function masterValuesFromForm(type) {
     if (type.id === "companies") {
-      const values=Array(17).fill("");
+      const values=Array(18).fill("");
       [0,1,2,3,5,6,8,9,10,11,12].forEach(index=>{values[index]=document.getElementById(masterInputId(index))?.value.trim()||""});
+      values[17]=JSON.stringify(Object.fromEntries([...document.querySelectorAll('[data-company-chamber]')].map(input=>[input.dataset.companyChamber,input.value.trim()])));
+      if(String(values[2]).toLowerCase()==='pakistan')values[8]=JSON.parse(values[17]).membershipNo||'';
       values[4]=[...document.querySelectorAll('[data-master-field-index="4"]:checked')].map(input=>input.value).join("; ");
       const owners=[...document.querySelectorAll('.company-owner-row')].map(row=>({name:row.querySelector('[data-company-owner-name]')?.value.trim()||"",share:Number(row.querySelector('[data-company-owner-share]')?.value||0)})).filter(owner=>owner.name||owner.share);
       values[7]=JSON.stringify(owners.length?owners:[{name:"",share:100}]);
@@ -1140,8 +1144,11 @@
         const pakistan=country.toLowerCase()==='pakistan',uae=/^(united arab emirates|uae)$/i.test(country);
         const section=document.getElementById('companyPakistanRegistrations'),label=document.getElementById('companyRegistrationNumberLabel');
         if(section)section.hidden=!pakistan;
+        const chamberSection=document.getElementById('companyChamberSection');if(chamberSection)chamberSection.hidden=!pakistan;
         if(label)label.textContent=uae?'Trade Licence / Registration no.':pakistan?'Company / registration no. (optional)':'Company / registration no.';
       };
+      const membership=document.querySelector('[data-company-chamber="membershipNo"]'),legacyMembership=document.getElementById(masterInputId(8));
+      if(membership&&legacyMembership){membership.oninput=()=>{legacyMembership.value=membership.value};legacyMembership.oninput=()=>{membership.value=legacyMembership.value}}
       const wireNested=()=>{
         bankRows?.querySelectorAll('[data-remove-company-bank]').forEach(button=>button.onclick=()=>{button.closest('.company-bank-row')?.remove();syncFx()});
         bankRows?.querySelectorAll('[data-delete-company-bank]').forEach(button=>button.onclick=async()=>{

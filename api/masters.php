@@ -156,7 +156,7 @@ try {
     }
 
     $schemas=[
-        'companies'=>17,'export_customers'=>22,'business_parties'=>13,'commodities'=>8,'product_settings'=>1,'products'=>22,'purchase_products'=>11,'purchase_kat'=>10,
+        'companies'=>18,'export_customers'=>22,'business_parties'=>13,'commodities'=>8,'product_settings'=>1,'products'=>22,'purchase_products'=>11,'purchase_kat'=>10,
         'mills'=>7,'export_documents'=>5,'export_terms'=>3,
     ];
     if (!isset($schemas[$type])) throw new InvalidArgumentException('Select a valid master section.');
@@ -217,6 +217,7 @@ try {
         if(count($raw)<16)$values[15]=(string)(($existingCompany['values'][15]??'[]'));
         $values[16]=(string)(($existingCompany['values'][16]??'[]'));
     }
+    if($type==='companies'&&count($raw)<18&&$action==='update'){$existingCompany=master_find_row('companies',$id);$values[17]=(string)($existingCompany['values'][17]??'');}
     if($type==='companies'&&$values[15]==='')$values[15]='[]';
     if($type==='companies'&&$values[16]==='')$values[16]='[]';
     if (($values[0] ?? '')==='') throw new InvalidArgumentException('Enter the main record name / commodity / product.');
@@ -231,6 +232,13 @@ try {
                     $documentType=(string)($document['type']??'Other');if(isset($defaults[$documentType]))throw new InvalidArgumentException('Only one active default is allowed for each company document type.');$defaults[$documentType]=true;
                 }
             }
+        }
+        if($values[17]!==''){
+            $chamber=json_decode($values[17],true);
+            if(!is_array($chamber))throw new InvalidArgumentException('The Chamber / COO details could not be read.');
+            $clean=[];foreach(['chamberName','membershipNo','signatory','designation'] as $key){if(isset($chamber[$key])&&!is_string($chamber[$key]))throw new InvalidArgumentException('Chamber / COO fields must be text.');$clean[$key]=trim((string)($chamber[$key]??''));}
+            $values[17]=json_encode($clean,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
+            if(strcasecmp($values[2],'Pakistan')===0)$values[8]=$clean['membershipNo'];
         }
         $registrations=json_decode((string)$values[16],true)?:[];
         if(count($registrations)>40)throw new InvalidArgumentException('Too many company registration rows.');

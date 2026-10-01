@@ -59,6 +59,18 @@ localStorage.setItem('transtrade_export_v3_operational',JSON.stringify(t.state))
 t.applyExportCustomerMasters([{...master,name:'AMT Renamed',address:'Another Address',notifies:[]}]);
 assert.equal(t.cooDoc(lot,contract),newlyClosed,'a newly completed lot keeps the party details from completion');
 assert.ok(JSON.parse(localStorage.getItem('transtrade_export_v3_operational')).shipments.find(s=>s.id===lot.id).documentParties);
+
+// COO identities belong to each Pakistani company, not the first ownership row.
+const chamberLot=structuredClone(lot);chamberLot.completed=false;chamberLot.status='Open';delete chamberLot.documentParties;
+const companyValues=Array(18).fill('');companyValues[0]='Transtrade International';companyValues[1]='TTI';companyValues[2]='Pakistan';companyValues[7]=JSON.stringify([{name:'WRONG OWNER'}]);companyValues[17]=JSON.stringify({chamberName:'KCCI',membershipNo:'NEW-123',signatory:'QA AUTHORIZED PERSON',designation:'DIRECTOR'});
+window.TT_MODULE_ACCESS.masters.companies=[{values:companyValues}];
+const configured=t.cooDoc(chamberLot,contract);assert.match(configured,/QA AUTHORIZED PERSON/i);assert.match(configured,/DIRECTOR/i);assert.match(configured,/NEW-123/);assert.doesNotMatch(configured,/WRONG OWNER|PROPRIETOR/i);
+t.captureShipmentPartyDetails(chamberLot,contract);chamberLot.completed=true;chamberLot.status='Completed';
+companyValues[17]=JSON.stringify({membershipNo:'NEXT',signatory:'NEXT PERSON',designation:'CEO'});
+assert.equal(t.cooDoc(chamberLot,contract),configured,'closed COO keeps its company identity');
+const next=structuredClone(chamberLot);next.completed=false;next.status='Open';delete next.documentParties;assert.match(t.cooDoc(next,contract),/NEXT PERSON/i);
+const future=Array(18).fill('');future[0]='Another Pakistan Company';future[1]='NEWPK';future[2]='Pakistan';future[17]=JSON.stringify({membershipNo:'987',signatory:'NEW COMPANY SIGNATORY',designation:'MANAGING DIRECTOR'});window.TT_MODULE_ACCESS.masters.companies.push({values:future});next.customs.exporter='NEWPK';const futurePrint=t.cooDoc(next,contract);assert.match(futurePrint,/NEW COMPANY SIGNATORY/i);assert.match(futurePrint,/Another Pakistan Company/i);assert.doesNotMatch(futurePrint,/ABDUL RAZZAK|TAYYAB RAZZAK/i);
+window.TT_MODULE_ACCESS.masters.companies=[];
 const {chromium}=require('playwright'),path=require('path'),out=path.resolve(__dirname,'../../tmp/qa/coo-20260930');fs.mkdirSync(out,{recursive:true});
 (async()=>{
  const browser=await chromium.launch({headless:true,...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH?{executablePath:process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH}:{})}),page=await browser.newPage({viewport:{width:1000,height:1200}});

@@ -215,25 +215,25 @@ function tt_normalize_masters(array $masters): array {
         $code=strtoupper(trim((string)($row['values'][1] ?? ''))); if ($code==='') continue; $seen[$code]=true;
         if (isset($companyDefaults[$code]) && count($values)<=3) $values=$companyDefaults[$code]['values'];
         if ($code==='BRM' && (($values[0] ?? '')==='BRM')) $values=$companyDefaults['BRM']['values'];
-        while (count($values)<17) $values[]='';
+        while (count($values)<18) $values[]='';
         if (($values[7] ?? '')==='') $values[7]='[{"name":"","share":100}]';
         if (($values[13] ?? '')==='') $values[13]='[]';
         if (($values[14] ?? '')==='') $values[14]='[]';
         if (($values[15] ?? '')==='') $values[15]='[]';
         if (($values[16] ?? '')==='') $values[16]='[]';
-        $row['values']=array_slice($values,0,17);
+        $row['values']=array_slice($values,0,18);
     }
     unset($row);
     foreach ($companyDefaults as $code=>$row) if (empty($seen[$code])) $masters['companies'][]=$row;
     foreach ($masters['companies'] as &$row) {
         $values=array_values((array)($row['values'] ?? []));
-        while (count($values)<17) $values[]='';
+        while (count($values)<18) $values[]='';
         if (($values[7] ?? '')==='') $values[7]='[{"name":"","share":100}]';
         if (($values[13] ?? '')==='') $values[13]='[]';
         if (($values[14] ?? '')==='') $values[14]='[]';
         if (($values[15] ?? '')==='') $values[15]='[]';
         if (($values[16] ?? '')==='') $values[16]='[]';
-        $row['values']=array_slice($values,0,17);
+        $row['values']=array_slice($values,0,18);
     }
     unset($row);
 

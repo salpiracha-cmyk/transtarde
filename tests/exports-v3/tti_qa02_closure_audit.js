@@ -73,7 +73,7 @@ lot.customs.gdDocument={id:'DOC-QA02-GD',name:'QA_GD_TTI_QA_02.pdf',gdRefsFinger
 assert.equal(t.customsBalanced(lot,contract),true,'CAD/Open Account must balance the exact Customs invoice value');
 
 lot.bl={...lot.bl,blNo:'QA02-BL-001',onBoardDate:'2026-09-12',finalized:true,finalDocument:{id:'DOC-QA02-BL',name:'QA02-BL-001.pdf'}};
-lot.commercial.saved=true;
+lot.commercial.saved=true;lot.commercial.status='Final';
 lot.coo={...lot.coo,saved:true,finalDocument:{id:'DOC-QA02-COO',name:'QA02-COO.pdf'}};
 lot.certs=[
   {type:'e-Phyto Certificate',finalDocument:{id:'DOC-QA02-PHYTO',name:'QA02-EPHYTO.pdf'}},
