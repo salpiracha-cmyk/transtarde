@@ -167,12 +167,12 @@ const {chromium}=require('playwright'),path=require('path'),out=path.resolve(__d
   await page.evaluate(data=>window.__qa.fixture(data),fixture);
   const result=await page.evaluate(()=>window.__qa.save());assert.equal(result.path,first.path,route+' must reuse the same buyer / shipment / lot');
   const paths=await page.evaluate(()=>Object.keys(window.__savedFiles));
-  const customsZipPath='AMT Enterprise/SHIPMENT #13/LOT #AMT-1/Custom documents.zip';
-  assert.ok(paths.includes(customsZipPath),route+' Customs documents ZIP must be saved under the lot');
-  const zipBytes=await page.evaluate(name=>window.__savedFiles[name],customsZipPath),zipPath=path.join(out,route+'-customs-documents.zip');
-  fs.writeFileSync(zipPath,Buffer.from(zipBytes));
-  const zipNames=JSON.parse(require('node:child_process').execFileSync('python3',['-c','import zipfile,json,sys; z=zipfile.ZipFile(sys.argv[1]); assert z.testzip() is None; print(json.dumps(z.namelist()))',zipPath],{encoding:'utf8'}));
-  for(const name of ['Customs Invoice.pdf','Customs Packing List.pdf','Phytosanitary Invoice.pdf'])assert.ok(zipNames.includes(name),route+' ZIP missing '+name);
+ const customsZipPath='AMT Enterprise/SHIPMENT #13/LOT #AMT-1/Custom documents.zip';
+ assert.ok(paths.includes(customsZipPath),route+' Customs documents ZIP must be saved under the lot');
+ const zipBytes=await page.evaluate(name=>window.__savedFiles[name],customsZipPath),zipPath=path.join(out,route+'-customs-documents.zip');
+ fs.writeFileSync(zipPath,Buffer.from(zipBytes));
+ const zipNames=JSON.parse(require('node:child_process').execFileSync('python3',['-c','import zipfile,json,sys; z=zipfile.ZipFile(sys.argv[1]); assert z.testzip() is None; print(json.dumps(z.namelist()))',zipPath],{encoding:'utf8'}));
+ for(const name of ['Customs Invoice.pdf','Customs Packing List.pdf','Phytosanitary Invoice.pdf'])assert.ok(zipNames.includes(name),route+' ZIP missing '+name);
   assert.ok(paths.some(path=>path.endsWith('/GD - GD.pdf')),route+' GD must be a separate PDF');
   if(route==='TG')for(const name of ['Sales Contract / Proforma','Commercial Invoice','Packing List'])assert.ok(paths.some(path=>path.includes('/TG docs/')&&path.includes(name.replaceAll('/','-'))),name+' must be in TG docs');
  }
