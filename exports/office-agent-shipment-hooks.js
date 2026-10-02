@@ -2,7 +2,6 @@
 const STORE='transtrade_export_v3_operational';
 const MARKERS='transtrade_office_archive_markers_v1';
 const COMPLETED='transtrade_office_completed_lots_v1';
-const REQUESTED='transtrade_office_requested_lots_v1';
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const num=v=>Number(v||0);
 const fmt=d=>{const m=String(d||'').match(/^(\d{4})-(\d{2})-(\d{2})/);return m?`${m[3]}-${m[2]}-${m[1]}`:String(d||'')};
@@ -14,8 +13,8 @@ const customer=(data,id)=>data.customers?.find(row=>row.id===id)||{};
 const contract=(data,ref)=>data.contracts?.find(row=>row.ref===ref)||{};
 const buyerName=(data,c,s)=>customer(data,c.customerId).name||s.buyer||'';
 const shipmentKey=s=>String(s?.id||`${s?.contractRef||''}|${s?.lotId||''}`||'');
-const lotKey=s=>`${String(s?.contractRef||'').trim()}|${folderLot(s)}`;
 const folderLot=s=>String(s?.lotId||'PRE-SHIPMENT').trim()||'PRE-SHIPMENT';
+const lotKey=s=>`${String(s?.contractRef||'').trim()}|${folderLot(s)}`;
 const activeProcesses=data=>(data.shipments||[]).filter(s=>s&&!s.cancelled&&s.kind!=='lot');
 const lots=data=>(data.shipments||[]).filter(s=>s&&!s.cancelled&&s.kind==='lot');
 const parentProcess=(data,s)=>s?.kind==='lot'?(data.shipments||[]).find(row=>row.id===s.parentProcessId)||s:s;
@@ -86,12 +85,6 @@ function changedShipments(before,after){
  for(const s of activeProcesses(after)){const key=shipmentKey(s),a=now[key],b=old[key]||{};if((a.received&&!b.received)||(a.bags&&a.bags!==b.bags))out.push(s)}
  return out
 }
-function saveRequestedLots(){
- if(!window.TT_SHIPMENT_FILES?.save)return;
- const data=state(),requested=readJSON(REQUESTED,{}),targets=lots(data).filter(s=>folderLot(s)==='ASAS/62'&&!requested[lotKey(s)]);
- for(const s of targets){requested[lotKey(s)]=new Date().toISOString();officeSaveShipment(s,'requested-ASAS-62')}
- if(targets.length)writeJSON(REQUESTED,requested)
-}
 function installSaveWrapper(){
  const files=window.TT_SHIPMENT_FILES;if(!files?.save||files.__officeHooked)return false;
  const original=files.save.bind(files);files.save=options=>original(augmentOptions(options));files.__officeHooked=true;
@@ -99,9 +92,9 @@ function installSaveWrapper(){
 }
 function installSyncWrapper(){
  const sync=window.TT_SHARED_SYNC;if(!sync?.saveNow||sync.__officeHooked)return false;
- const original=sync.saveNow.bind(sync);sync.saveNow=async(...args)=>{const before=state(),result=await original(...args),after=state();repairCompletedLots(after);const last=readJSON(MARKERS,null);if(!last)writeJSON(MARKERS,marker(state()));else for(const s of changedShipments(before,state()))officeSaveShipment(s,'confirmed-change');writeJSON(MARKERS,marker(state()));saveRequestedLots();return result};sync.__officeHooked=true;
+ const original=sync.saveNow.bind(sync);sync.saveNow=async(...args)=>{const before=state(),result=await original(...args),after=state();repairCompletedLots(after);const last=readJSON(MARKERS,null);if(!last)writeJSON(MARKERS,marker(state()));else for(const s of changedShipments(before,state()))officeSaveShipment(s,'confirmed-change');writeJSON(MARKERS,marker(state()));return result};sync.__officeHooked=true;
  return true
 }
-function boot(){installSaveWrapper();installSyncWrapper();repairCompletedLots();if(!localStorage.getItem(MARKERS))writeJSON(MARKERS,marker(state()));saveRequestedLots()}
+function boot(){installSaveWrapper();installSyncWrapper();repairCompletedLots();if(!localStorage.getItem(MARKERS))writeJSON(MARKERS,marker(state()))}
 boot();let tries=0;const timer=setInterval(()=>{boot();if(++tries>40||(window.TT_SHIPMENT_FILES?.__officeHooked&&window.TT_SHARED_SYNC?.__officeHooked))clearInterval(timer)},250);
 })();
