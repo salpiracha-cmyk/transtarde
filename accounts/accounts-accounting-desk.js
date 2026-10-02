@@ -384,6 +384,7 @@
     q('.tt-window-head h2', host).textContent = title;
     qa('.tt-layer').forEach(other=>{if(other!==host)other.hidden=true;});
     document.body.appendChild(host);host.hidden = false;
+    window.TT_FORM_VIEWPORT?.open(host);
     return host;
   }
 

@@ -101,6 +101,8 @@ jobs:
           node tests/exports-v3/document_rules_20260917_audit.js
       - name: Verify rendered Export document behavior
         run: |
+          node tests/accounts-v1/dependent_fields_test.js
+          node tests/accounts-v1/form_viewport_browser_test.js
           node tests/accounts-v1/today_ui_browser_qa.js
           node tests/exports-v3/export_release_test.js
           node tests/exports-v3/sales_contract_browser_qa.js

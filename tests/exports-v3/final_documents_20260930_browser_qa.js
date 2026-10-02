@@ -154,7 +154,7 @@ const {chromium}=require('playwright'),path=require('path'),out=path.resolve(__d
  await page.evaluate(()=>window.TT_SHIPMENT_FILES.choose().catch(()=>{}));
  const first=await page.evaluate(()=>window.__qa.save());assert.ok(first.path.includes('AMT Enterprise / SHIPMENT #13 / LOT #AMT-1'));assert.ok(first.count>=5);
  const files=await page.evaluate(()=>window.__savedFiles);for(const [name,bytes]of Object.entries(files))if(/Master Shipment Documents\.pdf$/.test(name)){assert.equal(Buffer.from(bytes).subarray(0,4).toString(),'%PDF');fs.writeFileSync(path.join(out,path.basename(name)),Buffer.from(bytes))}
- assert.ok(Object.keys(files).some(name=>name.endsWith('Uploaded - phyto.png')),'issued phyto is copied into the lot folder');
+ assert.ok(Object.keys(files).some(name=>name.endsWith('/phyto.png')),'issued phyto is copied into the lot folder');
  assert.equal(await page.evaluate(()=>window.TT_SHIPMENT_FILES.folderParts('AMT Enterprise','TTI/AMT/14','TTI/AMT/14/L02').join('/')),'AMT Enterprise/SHIPMENT #14/LOT #02');
  const draftCopy=await page.evaluate(async()=>{const saved=JSON.parse(localStorage.getItem('transtrade_export_v3_operational'));const copy=structuredClone(saved);copy.shipments.find(row=>row.kind==='lot').commercial.status='Draft';window.__qa.fixture(copy);await window.__qa.save();const found=Object.keys(window.__savedFiles).some(path=>path.endsWith('Commercial Invoice - Draft.pdf'));window.__qa.fixture(saved);return found});assert.equal(draftCopy,true,'Save Draft includes an explicitly labelled draft PDF in the office folder');
  const second=await page.evaluate(()=>window.__qa.save());assert.equal(second.path,first.path,'repeat Save reuses the same folder');assert.equal(second.count,first.count,'repeat Save does not duplicate attachments');
@@ -167,7 +167,12 @@ const {chromium}=require('playwright'),path=require('path'),out=path.resolve(__d
   await page.evaluate(data=>window.__qa.fixture(data),fixture);
   const result=await page.evaluate(()=>window.__qa.save());assert.equal(result.path,first.path,route+' must reuse the same buyer / shipment / lot');
   const paths=await page.evaluate(()=>Object.keys(window.__savedFiles));
-  for(const name of ['Customs Invoice.pdf','Customs Packing List.pdf','Phytosanitary Invoice.pdf'])assert.ok(paths.includes('AMT Enterprise/SHIPMENT #13/LOT #AMT-1/Custom documents/'+name),route+' missing nested '+name);
+  const customsZipPath='AMT Enterprise/SHIPMENT #13/LOT #AMT-1/Custom documents.zip';
+  assert.ok(paths.includes(customsZipPath),route+' Customs documents ZIP must be saved under the lot');
+  const zipBytes=await page.evaluate(name=>window.__savedFiles[name],customsZipPath),zipPath=path.join(out,route+'-customs-documents.zip');
+  fs.writeFileSync(zipPath,Buffer.from(zipBytes));
+  const zipNames=JSON.parse(require('node:child_process').execFileSync('python3',['-c','import zipfile,json,sys; z=zipfile.ZipFile(sys.argv[1]); assert z.testzip() is None; print(json.dumps(z.namelist()))',zipPath],{encoding:'utf8'}));
+  for(const name of ['Customs Invoice.pdf','Customs Packing List.pdf','Phytosanitary Invoice.pdf'])assert.ok(zipNames.includes(name),route+' ZIP missing '+name);
   assert.ok(paths.some(path=>path.endsWith('/GD - GD.pdf')),route+' GD must be a separate PDF');
   if(route==='TG')for(const name of ['Sales Contract / Proforma','Commercial Invoice','Packing List'])assert.ok(paths.some(path=>path.includes('/TG docs/')&&path.includes(name.replaceAll('/','-'))),name+' must be in TG docs');
  }

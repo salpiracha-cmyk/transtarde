@@ -195,6 +195,9 @@ test('authenticated Accounts live smoke: professional desk and popup workflows',
   await activate(page.locator('#ttBillDesk [data-post]'));
   await expect(page.locator('#ttBillShipmentSearch')).toBeVisible({ timeout: 30_000 });
   await expect(page.locator('#ttBillShipmentQuery')).toBeVisible();
+  await expect.poll(() => page.locator('#ttBillShipmentQuery').evaluate(el => {
+    const rect=el.getBoundingClientRect();return rect.top>=0&&rect.bottom<=innerHeight;
+  }), { message: 'New popup must show the first input without scrolling' }).toBe(true);
   await activate(page.locator('#ttBillShipmentSearch .tt-window-close'));
   await deskAction(page, 'exports', 'Other Export Expense');
   await expect(page.locator('#ttOtherExportExpense')).toBeVisible({ timeout: 30_000 });
@@ -206,6 +209,10 @@ test('authenticated Accounts live smoke: professional desk and popup workflows',
   await deskAction(page, 'exports', 'Bags Bill');
   await activate(page.locator('#ttBillDesk [data-post]'));
   await expect(page.locator('#purchaseEditor .ttbag')).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('#bgLine')).toBeVisible();
+  await expect(page.locator('#bgSupplier')).toBeHidden();
+  await expect(page.locator('#bgGst')).toBeHidden();
+  await expect(page.locator('#bgSave')).toBeHidden();
   await closeWorkspace(page);
 
   await deskAction(page, 'commodity', 'Local Sales & Receipts');
@@ -350,4 +357,3 @@ test('authenticated QA cannot read the Super Admin Director approval feed', asyn
   expect(result.ok).toBe(false);
   expect(result).not.toHaveProperty('approvals');
 });
-
