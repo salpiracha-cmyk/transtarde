@@ -485,11 +485,9 @@ function tt_export_finish_options(): array {
 
 function tt_export_finish_normalize(string $finish): string {
     $finish=trim(preg_replace('/\s+/u',' ',$finish) ?? '');
+    if ($finish==='') return tt_export_finish_options()[2];
     foreach (tt_export_finish_options() as $approved) if (strcasecmp($finish,$approved)===0) return $approved;
-    $lower=strtolower($finish);
-    if (str_contains($lower,'reasonably')) return 'Reasonably well milled';
-    if (str_contains($lower,'double')) return 'Well milled, double polished and well sortexed';
-    return 'Well milled, silky polished and well sortexed';
+    return $finish;
 }
 
 function tt_export_hs_code(string $commodity,string $broken,string $existing=''): string {
@@ -532,7 +530,6 @@ function tt_master_options(): array {
     $productFields=['product_commodities'=>0,'product_varieties'=>1,'product_rice_types'=>2,'product_broken'=>7,'product_finishes'=>17,'product_origins'=>4,'product_profiles'=>5];
     $out=[];
     foreach ($defaults as $key=>$base) {
-        if ($key==='product_finishes') { $out[$key]=tt_export_finish_options(); continue; }
         $values=array_merge($base,(array)($stored[$key] ?? []));
         if (isset($productFields[$key])) {
             foreach ((array)($data['masters']['products'] ?? []) as $row) {
@@ -558,7 +555,6 @@ function tt_master_options(): array {
 function tt_manage_master_option(string $key,string $action,string $value,string $old='',string $fullName=''): string {
     $defaults=tt_default_master_options();
     if (!array_key_exists($key,$defaults)) throw new InvalidArgumentException('Select a valid option list.');
-    if ($key==='product_finishes') throw new InvalidArgumentException('Finish is fixed to the three approved Export Quality & Specs options.');
     $clean=static fn(string $v): string=>trim(preg_replace('/\s+/',' ',$v) ?? '');
     $value=$clean($value); $old=$clean($old);
     if (!in_array($action,['add','rename','delete'],true)) throw new InvalidArgumentException('Select add, rename or delete.');
