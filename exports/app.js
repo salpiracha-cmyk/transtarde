@@ -1300,7 +1300,7 @@ function confirmShipmentDelete(processId){
 function contractProductMasters(){const seen=new Set();return productMasters().filter(v=>{const key=[String(v?.[1]||'').trim(),cleanRiceType(v)].join('|').toLowerCase();if(!key.replace('|','')||seen.has(key))return false;seen.add(key);return true})}
 function commercialProductName(value){return String(value||'').replace(/\s+(?:RAW|READY|FINISHED)\s+RICE$/i,'').replace(/^READY\s+RICE\s*[—-]\s*/i,'').trim()}
 function contractProductLabel(v){return[commercialProductName(v?.[1]),cleanRiceType(v)].filter(Boolean).join(' ')}
-function finishChoices(current=''){return uniqueValues(['Well milled, silky polished and well sortexed','Well milled, double polished and well sortexed','Reasonably well milled'],productMasters().map(v=>String(v?.[17]||'').trim()).filter(Boolean).concat(current?[current]:[]))}
+function finishChoices(current=''){return optionValues('product_finishes',current)}
 function brokenEntry(value){return String(value||'').replace(/%/g,'').replace(/\s+/g,'').trim()}
 function normalizeBrokenEntry(value){return String(value||'').replace(/%/g,'').replace(/[^\d.\-\s]/g,'').replace(/\s*-\s*/g,'-').trim()}
 function brokenEntryValid(value){const clean=brokenEntry(value),match=clean.match(/^(\d+(?:\.\d+)?)(?:-(\d+(?:\.\d+)?))?$/);if(!match)return false;const low=Number(match[1]),high=match[2]===undefined?low:Number(match[2]);return low>=0&&high<=100&&low<=high}
