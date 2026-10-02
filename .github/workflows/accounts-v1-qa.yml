@@ -139,6 +139,7 @@ jobs:
       - name: Property registration and instalment browser flow
         run: '"$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/assets_registry_http_test.py'
       - name: Retain sanitized test evidence
+        continue-on-error: true # Evidence uploads are best effort; every functional check remains required.
         if: always()
         uses: actions/upload-artifact@v4
         with:

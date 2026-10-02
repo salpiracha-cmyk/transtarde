@@ -109,6 +109,7 @@ jobs:
           node tests/exports-v3/final_documents_20260930_browser_qa.js
           node tests/exports-v3/shipment_package_20261001_browser_qa.js
       - name: Preserve Export visual QA evidence
+        continue-on-error: true # Screenshot storage quota must not override functional test results.
         if: always()
         uses: actions/upload-artifact@v4
         with:

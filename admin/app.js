@@ -1857,7 +1857,7 @@
   document.getElementById("overlay").addEventListener("click", () => { openNotifications(false); setNavigationOpen(false,true); });
   document.getElementById("menuButton").addEventListener("click", () => setNavigationOpen(true));
   document.getElementById("closeNavigation").addEventListener("click", () => setNavigationOpen(false,true));
-  window.addEventListener("resize",()=>setNavigationOpen(false));
+  window.matchMedia('(max-width: 1100px)').addEventListener('change',()=>setNavigationOpen(false));
   setNavigationOpen(false);
   document.getElementById("globalSearch").addEventListener("keydown", event => { if (event.key === "Enter") globalSearch(event.target.value); });
   document.addEventListener("keydown", event => {
