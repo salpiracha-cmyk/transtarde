@@ -41,7 +41,7 @@ let posted;
   assert.equal(await page.locator('#menuButton').getAttribute('aria-expanded'),'false');
   assert.equal(await page.evaluate(()=>document.activeElement.id),'menuButton');
   // Both master routes use the same company form. Its Banks tab shows existing editable accounts.
-  await page.locator('[data-edit-master="UI-COMPANY"]').click();
+  await page.locator('[data-edit-master="UI-COMPANY"]:visible').click();
   await page.locator('[data-company-editor-tab="banks"]').click();
   await page.locator('[data-bank-name]').waitFor({state:'visible'});
   assert.equal(await page.locator('[data-bank-number]').inputValue(),'123456');
@@ -54,7 +54,7 @@ let posted;
   // Opening Edit from the company detail Banks tab opens the same Banks editor.
   await page.locator('[data-open-master="UI-COMPANY"]').click();
   await page.locator('[data-company-tab="banks"]').click();
-  await page.locator('[data-edit-master="UI-COMPANY"]').click();
+  await page.locator('[data-edit-master="UI-COMPANY"]:visible').click();
   await page.locator('[data-bank-name]').waitFor({state:'visible'});
   await page.screenshot({path:path.join(output,'company-banks-edit.png'),fullPage:true});
   await page.locator('[data-close-dialog="masterDialog"]').first().click();
