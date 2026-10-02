@@ -2,7 +2,6 @@
 const STORE='transtrade_export_v3_operational';
 const readState=()=>{try{return JSON.parse(localStorage.getItem(STORE)||'null')||{contracts:[],shipments:[]}}catch{return{contracts:[],shipments:[]}}};
 const writeState=data=>localStorage.setItem(STORE,JSON.stringify(data));
-const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function reopenLot(id){
  const data=readState(),lot=(data.shipments||[]).find(row=>row.id===id&&row.kind==='lot');
  if(!lot)return alert('This lot could not be found. Refresh the page and try again.');
@@ -31,7 +30,8 @@ function installButtons(){
  const heading=[...document.querySelectorAll('h2')].find(node=>/Completed Shipments/i.test(node.textContent||''));
  if(!heading)return;
  document.querySelectorAll('[data-open-lot]').forEach(open=>{
-  const id=open.dataset.openLot;if(!id||open.parentElement?.querySelector(`[data-reopen-lot="${CSS.escape(id)}"]`))return;
+  const id=open.dataset.openLot,exists=[...(open.parentElement?.querySelectorAll('[data-reopen-lot]')||[])].some(button=>button.dataset.reopenLot===id);
+  if(!id||exists)return;
   const button=document.createElement('button');button.type='button';button.className='btn amber';button.dataset.reopenLot=id;button.textContent='REOPEN';button.onclick=event=>{event.preventDefault();event.stopPropagation();reopenLot(id)};
   open.insertAdjacentElement('afterend',button);
  })
