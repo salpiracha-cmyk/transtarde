@@ -28,12 +28,7 @@ async function pdf(markup,fit){
    const page=pages[i];page.style.height='297mm';page.style.minHeight='297mm';page.style.margin='0';page.style.boxShadow='none';
    const overflowY=Math.max(0,page.scrollHeight-page.clientHeight),overflowX=Math.max(0,page.scrollWidth-page.clientWidth);
    if(overflowY>2||overflowX>2){
-    // Shipment archiving must preserve the complete committed document rather
-    // than fail LOT COMPLETE because an existing print layout is slightly
-    // taller than its CSS A4 shell. Scale the rendered page down to fit A4;
-    // never clip content.
     const canvas=await window.html2canvas(page,{scale:2,backgroundColor:'#fff',logging:false,imageTimeout:30000});
-    const fitScale=Math.min(210/canvas.width*canvas.width,297/canvas.height*canvas.height);
     if(i)output.addPage();
     const ratio=Math.min(210/(canvas.width/2),297/(canvas.height/2));
     const width=(canvas.width/2)*ratio,height=(canvas.height/2)*ratio;
@@ -55,7 +50,6 @@ async function postJob(manifest,files){
  if(!response.ok||!result.ok)throw new Error(result.error||'Office archive job was not accepted. Please retry LOT COMPLETE.');
  return result.job;
 }
-// Keep original PDF pages and searchable text when assembling the master file.
 async function asPdf(blob){
  await libraries();const bytes=new Uint8Array(await blob.arrayBuffer());
  if(String.fromCharCode(...bytes.slice(0,4))==='%PDF'){
@@ -88,7 +82,6 @@ async function legacyWrite(root,parts,files){
  }
  return saved;
 }
-// Small standards-compliant OOXML writer. The covering letter remains editable in Word.
 function word(markup){
  const xml=text=>String(text||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c])).replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g,'');
  const root=document.createElement('div');root.innerHTML=markup;
@@ -112,22 +105,32 @@ function word(markup){
  };
  return zip(entries,'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
 }
-function zip(entries,type){
+function zipBytes(entries,type){
  const encoder=new TextEncoder(),chunks=[],central=[];let offset=0;
  const header=(size)=>{const bytes=new Uint8Array(size);return{bytes,view:new DataView(bytes.buffer)}};
- for(const [name,value]of Object.entries(entries)){
-  const filename=encoder.encode(name),data=encoder.encode(value);let crc=0xffffffff;
+ for(const entry of entries){
+  const filename=encoder.encode(entry.name),data=entry.bytes;let crc=0xffffffff;
   for(const byte of data){crc^=byte;for(let i=0;i<8;i++)crc=(crc>>>1)^((crc&1)?0xedb88320:0)}crc=(crc^0xffffffff)>>>0;
   const local=header(30);local.view.setUint32(0,0x04034b50,true);local.view.setUint16(4,20,true);local.view.setUint16(10,0,true);local.view.setUint16(12,33,true);local.view.setUint32(14,crc,true);local.view.setUint32(18,data.length,true);local.view.setUint32(22,data.length,true);local.view.setUint16(26,filename.length,true);chunks.push(local.bytes,filename,data);
   const item=header(46);item.view.setUint32(0,0x02014b50,true);item.view.setUint16(4,20,true);item.view.setUint16(6,20,true);item.view.setUint16(14,33,true);item.view.setUint32(16,crc,true);item.view.setUint32(20,data.length,true);item.view.setUint32(24,data.length,true);item.view.setUint16(28,filename.length,true);item.view.setUint32(42,offset,true);central.push(item.bytes,filename);offset+=30+filename.length+data.length;
  }
- const length=central.reduce((sum,bytes)=>sum+bytes.length,0),end=header(22);end.view.setUint32(0,0x06054b50,true);end.view.setUint16(8,central.length/2,true);end.view.setUint16(10,central.length/2,true);end.view.setUint32(12,length,true);end.view.setUint32(16,offset,true);return new Blob([...chunks,...central,end.bytes],{type});
+ const length=central.reduce((sum,bytes)=>sum+bytes.length,0),end=header(22);end.view.setUint32(0,0x06054b50,true);end.view.setUint16(8,entries.length,true);end.view.setUint16(10,entries.length,true);end.view.setUint32(12,length,true);end.view.setUint32(16,offset,true);return new Blob([...chunks,...central,end.bytes],{type});
 }
+function zip(entries,type){const encoder=new TextEncoder();return zipBytes(Object.entries(entries).map(([name,value])=>({name,bytes:encoder.encode(value)})),type)}
+async function zipFiles(files){return zipBytes(await Promise.all(files.map(async file=>({name:file.name,bytes:new Uint8Array(await file.blob.arrayBuffer())}))), 'application/zip')}
 function separate(name,key=''){
  if(/^(cover|tgCover)$/.test(key)||/bank covering letter/i.test(name))return'cover';
  if(/sales contract|customer contract|signed.*contract|contract.*signed|proforma/i.test(name))return'contract';
  if(/goods declaration|^gd\b/i.test(name))return'gd';return'';
 }
+function finalZipFolderName(folder){const clean=String(folder||'').trim().toLowerCase();if(clean==='bags')return'BAGS';if(clean==='custom documents')return'Custom documents';return''}
+async function finalizeFolderZips(files){
+ const out=[],groups=new Map();
+ for(const file of files){const group=finalZipFolderName(file.folder);if(group){if(!groups.has(group))groups.set(group,[]);groups.get(group).push({...file,folder:''})}else out.push(file)}
+ for(const [folder,items] of groups){out.push({folder:'',name:folder==='BAGS'?'BAGS.zip':'Custom documents.zip',blob:await zipFiles(items)})}
+ return{files:out,cleanupFolders:[...groups.keys()]}
+}
+function cleanUploadName(name){return component(String(name||'Document').replace(/^uploaded\s*[-_ ]*/i,''))}
 async function save({customer,contract,lot,rows,uploads,fit,optional=false}){
  if(busy&&!legacyQa())throw new Error('Shipment files are already being prepared.');
  if(busy&&legacyQa())busy=false;
@@ -135,42 +138,38 @@ async function save({customer,contract,lot,rows,uploads,fit,optional=false}){
  try{
   const parts=folderParts(customer,contract,lot),files=[],master=[],seen=new Set();
   for(const row of rows.filter(row=>row.render&&row.ready)){
-   const kind=separate(row.name,row.key),markup=row.render(),folder=row.folder?component(row.folder):'';
+   const kind=separate(row.name,row.key),markup=row.render(),folder=row.folder?component(row.folder):'',isCustomFolder=finalZipFolderName(folder)==='Custom documents',isPhyto=/phyto/i.test(row.name)||/phyto/i.test(row.key||'');
    const blob=kind==='cover'?word(markup):await pdf(markup,fit);
-   if(!kind)master.push(blob);
-   // Keep Customs/TG documents in their respective folders as well as in the master file.
+   if(!kind&&!isCustomFolder&&!isPhyto)master.push(blob);
    if(kind||folder||row.key==='commercialDraft')files.push({folder,name:component(row.name)+(kind==='cover'?'.docx':'.pdf'),blob});
   }
   for(const doc of uploads){
    const key=doc.id||doc.downloadUrl||doc.dataUrl;if(!key||seen.has(key))continue;seen.add(key);
-   const kind=separate(doc.type||doc.name),folder=doc.folder?component(doc.folder):'',original=await uploadBlob(doc);
-   if(kind==='contract')files.push({folder,name:'Signed Sales Contract - '+component(doc.name||'Document'),blob:original});
-   else if(kind==='cover')files.push({folder,name:'Uploaded - '+component(doc.name),blob:original});
+   const kind=separate(doc.type||doc.name),folder=doc.folder?component(doc.folder):'',original=await uploadBlob(doc),uploadName=cleanUploadName(doc.name);
+   if(kind==='contract')files.push({folder,name:'Signed Sales Contract - '+uploadName,blob:original});
+   else if(kind==='cover')files.push({folder,name:uploadName,blob:original});
    else{let converted=null;try{converted=await asPdf(original)}catch(error){
-     // Some government/issued PDFs are encrypted or permission-protected.
-     // Preserve the original in the shipment folder even when the browser PDF
-     // library cannot legally/technically merge it into the master PDF.
      const isPdf=/pdf/i.test(original.type||'')||/\.pdf$/i.test(doc.name||'');
      if(!isPdf)throw new Error('Cannot add '+(doc.name||doc.type||'this upload')+' to the PDF package. Upload a readable PDF or image. '+error.message);
     }
     if(kind==='gd'&&converted)files.push({folder,name:'GD - '+component(String(doc.name||'Document').replace(/\.[^.]+$/,''))+'.pdf',blob:converted});
-    else if(converted)master.push(converted);
-    // Preserve every uploaded original alongside the assembled PDF.
-    files.push({folder,name:'Uploaded - '+component(doc.name||'Document'),blob:original});
+    else if(converted&&!finalZipFolderName(folder)&&!/phyto/i.test(doc.type||doc.name||''))master.push(converted);
+    files.push({folder,name:uploadName,blob:original});
    }
   }
   if(master.length)files.unshift({folder:'',name:'Master Shipment Documents.pdf',blob:await mergedPdf(master)});
   if(!files.length)throw new Error('No saved documents are available for this lot.');
-  // Resolve duplicate filenames without overwriting a different original.
-  const used=new Set();for(const file of files){const base=file.name;let index=2;while(used.has(file.folder+'/'+file.name)){const at=base.lastIndexOf('.');file.name=base.slice(0,at)+' ('+index+++')'+base.slice(at)}used.add(file.folder+'/'+file.name)}
-  files.forEach((file,index)=>file.storedName=String(index).padStart(3,'0')+'-'+file.name.replace(/[^A-Za-z0-9._-]+/g,'-'));
-  const manifest={type:'shipment_archive',customer,contract,lot,folderParts:parts,createdAt:new Date().toISOString(),files:files.map(file=>({folder:file.folder||'',name:file.name,storedName:file.storedName,size:file.blob.size,type:file.blob.type||'application/octet-stream'}))};
+  let archiveFiles=files,cleanupFolders=[];
+  if(!optional)({files:archiveFiles,cleanupFolders}=await finalizeFolderZips(files));
+  const used=new Set();for(const file of archiveFiles){const base=file.name;let index=2;while(used.has(file.folder+'/'+file.name)){const at=base.lastIndexOf('.');file.name=base.slice(0,at)+' ('+index+++')'+base.slice(at)}used.add(file.folder+'/'+file.name)}
+  archiveFiles.forEach((file,index)=>file.storedName=String(index).padStart(3,'0')+'-'+file.name.replace(/[^A-Za-z0-9._-]+/g,'-'));
+  const manifest={type:'shipment_archive',customer,contract,lot,folderParts:parts,createdAt:new Date().toISOString(),finalize:!optional,cleanupFolders,files:archiveFiles.map(file=>({folder:file.folder||'',name:file.name,storedName:file.storedName,size:file.blob.size,type:file.blob.type||'application/octet-stream'}))};
   if(legacyQa()&&legacyRoot&&!window.TT_MODULE_ACCESS?.csrf){
-   let saved=0;try{saved=await legacyWrite(legacyRoot,parts,files)}catch(error){throw new Error(saved+' of '+files.length+' files saved. '+error.message)}
-   return{count:files.length,path:parts.join(' / '),status:'SAVED'}
+   let saved=0;try{saved=await legacyWrite(legacyRoot,parts,archiveFiles)}catch(error){throw new Error(saved+' of '+archiveFiles.length+' files saved. '+error.message)}
+   return{count:archiveFiles.length,path:parts.join(' / '),status:'SAVED'}
   }
-  const job=await postJob(manifest,files);
-  return{count:files.length,path:parts.join(' / '),jobId:job.id,status:job.status||'PENDING'};
+  const job=await postJob(manifest,archiveFiles);
+  return{count:archiveFiles.length,path:parts.join(' / '),jobId:job.id,status:job.status||'PENDING'};
  }finally{busy=false}
 }
 
