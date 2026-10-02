@@ -744,7 +744,7 @@
     return `<tr class="spec-editor-row custom-spec-row"><td><input data-custom-spec-name value="${escapeHtml(name)}" placeholder="Specification"></td><td><input data-custom-spec-limit value="${escapeHtml(limit)}" placeholder="Limit / requirement"></td><td><button class="row-action delete" type="button" data-remove-product-spec aria-label="Remove specification">Remove</button></td></tr>`;
   }
   function approvedProductFinishes() {
-    return [
+    return state.masterOptions?.product_finishes || [
       "Reasonably well milled",
       "Well milled, double polished and well sortexed",
       "Well milled, silky polished and well sortexed"
@@ -754,11 +754,7 @@
     const options=approvedProductFinishes();
     const clean=String(value||"").trim().replace(/\s+/g," ");
     const exact=options.find(option=>option.toLowerCase()===clean.toLowerCase());
-    if(exact)return exact;
-    const lower=clean.toLowerCase();
-    if(lower.includes("reasonably"))return options[0];
-    if(lower.includes("double"))return options[1];
-    return options[2];
+    return exact||clean;
   }
   function productHsCodeForMaster(commodity,broken,current="") {
     if(String(commodity||"").trim().toLowerCase()!=="rice")return String(current||"").trim();
@@ -771,7 +767,9 @@
   function productOptionSelect(index,label,key,value,required=false) {
     if(key==="product_finishes"){
       const selected=normalizeProductFinish(value);
-      return `<label class="managed-option-field">${escapeHtml(label)}<select id="${masterInputId(index)}" data-master-field-index="${index}" data-product-option="${key}" data-product-option-label="${escapeHtml(label)}" data-product-existing-value="${escapeHtml(selected)}" ${required?"required":""}>${approvedProductFinishes().map(option=>`<option value="${escapeHtml(option)}" ${option===selected?"selected":""}>${escapeHtml(option)}</option>`).join("")}</select></label>`;
+      const options=[...approvedProductFinishes()];
+      if(selected&&!options.includes(selected))options.push(selected);
+      return `<label class="managed-option-field">${escapeHtml(label)}<span class="master-option-control"><select id="${masterInputId(index)}" data-master-field-index="${index}" data-product-option="${key}" data-product-option-label="${escapeHtml(label)}" data-product-existing-value="${escapeHtml(selected)}" ${required?"required":""}><option value="">Select Finish</option>${options.map(option=>`<option value="${escapeHtml(option)}" ${option===selected?"selected":""}>${escapeHtml(option)}${option===selected&&!approvedProductFinishes().includes(option)?" (historical)":""}</option>`).join("")}</select><button type="button" class="master-option-manage" data-manage-product-option aria-label="Manage Finish options">Options</button></span><span class="master-option-menu" data-product-option-menu hidden></span></label>`;
     }
     const options=[...new Set([...(state.masterOptions?.[key]||[]),...(value?[value]:[])])].filter(Boolean).sort((a,b)=>a.localeCompare(b));
     const listId=`productOptionList${index}`;
@@ -780,19 +778,28 @@
   function wireProductOptionFields() {
     const refresh = input => {
       const options=[...new Set(state.masterOptions?.[input.dataset.productOption]||[])].filter(Boolean).sort((a,b)=>a.localeCompare(b));
+      if(input.tagName==="SELECT"){
+        const selected=input.value;
+        const historical=input.dataset.productExistingValue||"";
+        const choices=[...options];
+        if(historical&&!choices.includes(historical))choices.push(historical);
+        input.innerHTML='<option value="">Select Finish</option>'+choices.map(value=>`<option value="${escapeHtml(value)}">${escapeHtml(value)}${value===historical&&!options.includes(value)?" (historical)":""}</option>`).join("");
+        input.value=choices.includes(selected)?selected:"";
+      }
       const list=document.getElementById(input.getAttribute("list"));
       if(list)list.innerHTML=options.map(value=>`<option value="${escapeHtml(value)}"></option>`).join("");
       const menu=input.closest(".managed-option-field")?.querySelector("[data-product-option-menu]");
-      if(menu)menu.innerHTML=`<button type="button" class="managed-option-add" data-add-product-option>+ Add new option</button>${options.map(value=>`<span class="managed-option-row"><button type="button" data-choose-product-option="${escapeHtml(value)}">${escapeHtml(value)}</button><button type="button" class="managed-option-delete" data-delete-product-option="${escapeHtml(value)}" aria-label="Deactivate ${escapeHtml(value)}">Delete</button></span>`).join("")}`;
+      if(menu)menu.innerHTML=`<button type="button" class="managed-option-add" data-add-product-option>+ Add new option</button>${options.map(value=>`<span class="managed-option-row ${input.dataset.productOption==="product_finishes"?"finish-option-row":""}"><button type="button" data-choose-product-option="${escapeHtml(value)}">${escapeHtml(value)}</button>${input.dataset.productOption==="product_finishes"?`<button type="button" class="managed-option-edit" data-rename-product-option="${escapeHtml(value)}" aria-label="Edit ${escapeHtml(value)}">Edit</button>`:""}<button type="button" class="managed-option-delete" data-delete-product-option="${escapeHtml(value)}" aria-label="Deactivate ${escapeHtml(value)}">Delete</button></span>`).join("")}`;
     };
     document.querySelectorAll("[data-product-option]").forEach(input=>{
       const field=input.closest(".managed-option-field"),menu=field?.querySelector("[data-product-option-menu]"),manage=field?.querySelector("[data-manage-product-option]");
-      if(input.dataset.productOption!=="product_finishes")refresh(input);
+      refresh(input);
       if(manage)manage.onclick=()=>{menu.hidden=!menu.hidden;if(!menu.hidden){menu.scrollIntoView({block:"nearest",inline:"nearest"});menu.querySelector("button")?.focus({preventScroll:true})}};
       if(menu)menu.onclick=async event=>{
         const choose=event.target.closest("[data-choose-product-option]");
         if(choose){input.value=choose.dataset.chooseProductOption||"";menu.hidden=true;return}
         const add=event.target.closest("[data-add-product-option]");
+        const rename=event.target.closest("[data-rename-product-option]");
         const remove=event.target.closest("[data-delete-product-option]");
         if(add){
         const label=input.dataset.productOptionLabel||"option";
@@ -801,6 +808,14 @@
         add.disabled=true;
         try{const data=await apiRequest({action:"manage-option",type:"products",optionAction:"add",optionKey:input.dataset.productOption,value:value.trim()},"masters");if(data.options)state.masterOptions=data.options;refresh(input);input.value=data.value||value.trim();menu.hidden=true;toast(`${label} option added.`)}catch(error){toast(error.message)}finally{add.disabled=false}
         return;
+        }
+        if(rename){
+          const old=rename.dataset.renameProductOption||"";
+          const value=window.prompt("Edit Finish option",old);
+          if(value===null||!value.trim()||value.trim()===old)return;
+          rename.disabled=true;
+          try{const data=await apiRequest({action:"manage-option",type:"products",optionAction:"rename",optionKey:"product_finishes",old,value:value.trim()},"masters");if(data.options)state.masterOptions=data.options;const selected=input.value;refresh(input);if(selected===old)input.value=data.value||value.trim();toast("Finish option updated. Historical products retain their saved Finish.")}catch(error){toast(error.message)}finally{rename.disabled=false}
+          return;
         }
         if(remove){
         const label=input.dataset.productOptionLabel||"option",old=remove.dataset.deleteProductOption||"";
