@@ -1,7 +1,6 @@
 (()=>{'use strict';
 const STORE='transtrade_export_v3_operational';
 const MARKERS='transtrade_office_archive_markers_v1';
-const COMPLETED='transtrade_office_completed_lots_v1';
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const num=v=>Number(v||0);
 const fmt=d=>{const m=String(d||'').match(/^(\d{4})-(\d{2})-(\d{2})/);return m?`${m[3]}-${m[2]}-${m[1]}`:String(d||'')};
@@ -28,15 +27,10 @@ function marker(data){
  }
  return out
 }
-function completedMarker(data){
- const out=readJSON(COMPLETED,{});
- for(const s of lots(data))if(s.completed||s.status==='Completed'||s.completedAt||s.documentFolder)out[lotKey(s)]={contractRef:s.contractRef,lot:folderLot(s),completedAt:s.completedAt||new Date().toISOString()};
- return out
-}
 function repairCompletedLots(data=state()){
- const done=completedMarker(data);let changed=false;
- for(const s of lots(data))if(done[lotKey(s)]&&!s.completed){s.completed=true;s.status='Completed';s.completedAt=s.completedAt||done[lotKey(s)].completedAt||new Date().toISOString();changed=true}
- if(changed){writeJSON(COMPLETED,done);writeState(data);window.dispatchEvent(new Event('tt:shared-updated'))}else writeJSON(COMPLETED,done);
+ let changed=false;
+ for(const s of lots(data))if(String(s.status||'')==='Completed'&&!s.completed){s.completed=true;s.completedAt=s.completedAt||new Date().toISOString();changed=true}
+ if(changed){writeState(data);window.dispatchEvent(new Event('tt:shared-updated'))}
  return changed
 }
 function page(title,body){return`<div class="printDoc"><section class="docPage branded"><h1 class="docTitle">${esc(title)}</h1>${body}<div class="docPageNo">Generated ${fmt(new Date().toISOString())}</div></section></div>`}
