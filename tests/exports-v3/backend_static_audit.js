@@ -78,6 +78,8 @@ assert.doesNotMatch(modulePhp,/setInterval\(/,'shared bridge must never use time
 assert.match(modulePhp,/x\.poNo\|\|x\.contractRef\|\|'NO-PO'/,'bag bridge identity must not collapse orders when PO number is absent');
 assert.match(modulePhp,/x\.line\?\?x\.lineId\?\?index/,'bag bridge identity must remain unique when PO line is absent');
 assert.match(js,/class="btn small red shipmentDeleteButton" data-delete-shipment=/,'every active shipment card must expose the top-right red delete control');
+assert.match(js,/standaloneLots=lots\.filter/,'active lots with no visible parent process must still render on Export home');
+assert.match(js,/function lotSearchText/,'standalone active lot cards must participate in Export home search');
 assert.match(js,/Are you sure you want to delete this shipment\?/,'shipment deletion must require an explicit in-page confirmation');
 assert.match(js,/Yes — Delete Shipment/,'confirmation must require the user to press Yes before deletion');
 assert.match(js,/id="cuGDFile"/,'Customs must expose a Goods Declaration upload');
