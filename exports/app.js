@@ -50,7 +50,19 @@ function load(){try{return normalize(JSON.parse(localStorage.getItem(STORE)||'nu
 let state=load(), view='home', currentShipmentId='', activeWorkspace='', contractDraft=null, contractStep=1, activePackingIndex=-1, packingDraft=null, modalStack=[];
 const bagOrderDrafts=new Map();
 const pendingFinalOrders=new Map();
-function save(){localStorage.setItem(STORE,JSON.stringify(state))}
+function save(){
+ const payload=JSON.stringify(state);
+ try{localStorage.setItem(STORE,payload)}
+ catch(error){
+  if(error?.name!=='QuotaExceededError'&&error?.name!=='NS_ERROR_DOM_QUOTA_REACHED')throw error;
+  // The shared-save bootstrap already holds the authoritative pending Exports
+  // value in memory before the native localStorage write. A full browser cache
+  // is therefore not allowed to block a committed server save or Office Agent
+  // shipment archive. Keep the in-memory state and let TT_SHARED_SYNC.saveNow()
+  // persist it to the server.
+  try{window.dispatchEvent(new CustomEvent('tt:exports-local-cache-full',{detail:{bytes:payload.length}}))}catch{}
+ }
+}
 function showExportSaveError(message,button){
  let box=document.getElementById('exportSaveError');
  if(!box){box=document.createElement('div');box.id='exportSaveError';box.className='notice bad';box.setAttribute('role','alert');(button?.closest('.section,.panel')||document.getElementById('main')||document.body).prepend(box)}
