@@ -42,7 +42,7 @@ assert.match(app,/pol:'Port Qasim, Pakistan or Karachi Port, Pakistan'/,'combine
 assert.match(app,/addable=key==='packing_types'/,'packing type selector exposes Add New to Export users');
 assert.match(app,/settings\.customPackingTypes\.push\(added\);save\(\)/,'new Export-user packing types persist locally without Super Admin access');
 assert.match(app,/terminalHandling=.*Load Port Terminal Handling Charges[\s\S]*filter\(x=>!automaticInsurance\.test\(x\)&&!automaticInspection\.test\(x\)&&!terminalHandling\.test\(x\)\);\s*if\(c\.incoterm==='FOB'\)stored\.push/,'terminal handling is removed from inherited terms and added only for FOB');
-assert.match(app,/requestAnimationFrame\(\(\)=>form\?\.scrollIntoView\(\{block:'start',behavior:'auto'\}\)\)/,'Next and Back rerenders position the form at its top');
+assert.match(app,/requestAnimationFrame\(\(\)=>\{const top=form\?\.closest\('\.panel'\);if\(window\.TT_FORM_VIEWPORT\)window\.TT_FORM_VIEWPORT\.open\(top\);else top\?\.scrollIntoView\(\{block:'start',behavior:'instant'\}\)\}\)/,'Next and Back rerenders position the full form heading at the top');
 assert.match(app,/const CONTRACT_DRAFT_STORE='tt-export-contract-draft-v1'/,'Sales Contract explicit-step recovery checkpoint is defined');
 assert.match(app,/document\.getElementById\('nextStep'\)\.onclick=async[\s\S]{0,1100}await persistContractStepDraft\(\)[\s\S]{0,500}renderContractEditor\(\)/,'each successful Next waits for the acknowledged save before advancing');
 assert.match(app,/draft.status='Draft';draft.issued=false;draft.draftStep=contractStep/,'Sales Contract drafts are saved into shared contract state with their current step');
