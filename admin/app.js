@@ -1203,6 +1203,7 @@
     document.getElementById("bankOwnerWrap").hidden=ownership==="Company Account";
     const retention=document.getElementById("bankRetention");
     retention.disabled=ownership==="Personal Account";
+    retention.closest("label").hidden=retention.disabled;
     if(retention.disabled)retention.checked=false;
   }
   function eligibleDefaultBank(bank) {

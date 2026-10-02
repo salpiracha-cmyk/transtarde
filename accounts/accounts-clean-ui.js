@@ -189,6 +189,7 @@
     await sleep(20);
     if (isForm) prepareModal(); else prepareSecondTier();
     scan(q('.workspace.active') || document);
+    window.TT_FORM_VIEWPORT?.open(q('.workspace.active'));
   }
 
   function stageEditor(editor, title) {

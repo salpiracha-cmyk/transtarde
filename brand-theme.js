@@ -25,35 +25,58 @@
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start);else start();
 })();
 
-/* Reset only a newly opened form or workspace; edits and background refreshes keep their position. */
+/* Position newly opened forms once; background updates and typing keep their position. */
 (()=>{'use strict';
- const dialogs='dialog,[role="dialog"],.modalBackdrop,.tt-layer';
+ const dialogs='dialog,[role="dialog"],.modalBackdrop,.tt-layer,.tter-overlay';
  const excluded='.printDoc,#printRoot,.contractPreviewPane,.contractPreviewPaper';
+ const scrollBoxes='.tt-window,.tter-dialog,.modal,.dialog-body,.tt-window-body,.modalBody,.modal-body';
+ const pending=new Map();
  const visible=node=>node instanceof Element&&node.isConnected&&!node.closest('[hidden]')&&getComputedStyle(node).display!=='none'&&node.getClientRects().length>0;
+ const firstInput=root=>[...root.querySelectorAll('input:not([type="hidden"]),select,textarea')].find(input=>visible(input)&&!input.disabled&&!input.readOnly&&!input.closest(excluded));
  function place(root){
-  if(!visible(root)||root.closest(excluded))return;
-  for(const node of [root,...root.querySelectorAll('.dialog-body,.tt-window-body,.modalBody,.modal-body')])node.scrollTop=0;
+  if(!visible(root)||root.closest(excluded))return false;
+  for(const node of [root,...root.querySelectorAll(scrollBoxes)])node.scrollTop=0;
   let container=root.parentElement;
   while(container&&container!==document.body&&container!==document.documentElement){
    const style=getComputedStyle(container);
    if(/auto|scroll/.test(style.overflowY)&&container.scrollHeight>container.clientHeight)container.scrollTop=0;
    container=container.parentElement;
   }
-  if(root.matches(dialogs)||root.closest(dialogs))return;
-  let inset=12;
-  for(const header of document.querySelectorAll('.topbar,header')){
-   const style=getComputedStyle(header),rect=header.getBoundingClientRect();
-   if(['sticky','fixed'].includes(style.position)&&rect.top<=1&&rect.bottom>0)inset=Math.max(inset,rect.bottom+12);
+  if(!root.matches(dialogs)&&!root.closest(dialogs)){
+   let inset=12;
+   for(const header of document.querySelectorAll('.topbar,header')){
+    const style=getComputedStyle(header),rect=header.getBoundingClientRect();
+    if(['sticky','fixed'].includes(style.position)&&rect.top<=1&&rect.bottom>0)inset=Math.max(inset,rect.bottom+12);
+   }
+   window.scrollTo({left:window.scrollX,top:Math.max(0,window.scrollY+root.getBoundingClientRect().top-inset),behavior:'instant'});
   }
-  window.scrollTo({left:window.scrollX,top:Math.max(0,window.scrollY+root.getBoundingClientRect().top-inset),behavior:'instant'});
+  const input=firstInput(root);
+  if(!input)return false;
+  // Reveal the label with the control. Do not summon the phone keyboard or steal focus.
+  const field=input.closest('label,.field')||input;
+  field.scrollIntoView({block:'nearest',inline:'nearest',behavior:'instant'});
+  return true;
  }
+ function cancel(root){const task=pending.get(root);if(!task)return;task.observer.disconnect();clearTimeout(task.timer);cancelAnimationFrame(task.frame);pending.delete(root)}
  function open(root){
-  if(!root)return;
-  // Layout and native focus scrolling settle before positioning the form title.
-  requestAnimationFrame(()=>requestAnimationFrame(()=>place(root)));
+  if(!(root instanceof Element)||root.closest(excluded))return;
+  cancel(root);
+  const task={observer:null,timer:0,frame:0};
+  const position=()=>{task.frame=0;if(place(root))cancel(root)};
+  const schedule=()=>{if(!task.frame)task.frame=requestAnimationFrame(()=>{task.frame=requestAnimationFrame(position)})};
+  task.observer=new MutationObserver(schedule);
+  pending.set(root,task);
+  task.observer.observe(root,{subtree:true,childList:true,attributes:true,attributeFilter:['hidden','class','style','disabled']});
+  task.timer=setTimeout(()=>cancel(root),10000);
+  schedule();
  }
  window.TT_FORM_VIEWPORT={open};
  const start=()=>{
+  // A slow form load must not later move the page after the user starts working.
+  const stop=()=>{for(const root of [...pending.keys()])cancel(root)};
+  document.addEventListener('input',stop,true);document.addEventListener('wheel',stop,{capture:true,passive:true});
+  document.addEventListener('touchmove',stop,{capture:true,passive:true});document.addEventListener('keydown',stop,true);
+  document.addEventListener('tt:accounts-desk-form-opened',()=>{const root=[...document.querySelectorAll('.tt-layer,.workspace.active')].filter(visible).pop();if(root)open(root)});
   new MutationObserver(records=>{
    const opened=new Set();
    for(const record of records){

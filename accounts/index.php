@@ -35,12 +35,12 @@ $access = [
 $bootstrap = '<style id="tt-accounts-boot-style">html.tt-accounts-boot .topbar,html.tt-accounts-boot .shell{visibility:hidden}html.tt-accounts-boot body:before{content:"Loading Accounts…";position:fixed;inset:0;display:grid;place-items:center;background:#eef2f6;color:#102a46;font:700 15px Arial;z-index:99999}</style><script>document.documentElement.classList.add("tt-accounts-boot");window.TT_ACCOUNT_ACCESS=' . json_encode($access, JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT) . ';</script>';
 $html = tt_replace_html_once(
     '/<head(\s[^>]*)?>/i',
-    static fn(array $match): string => $match[0] . $bootstrap . '<link rel="stylesheet" href="/brand-theme.css?v=20260930-freight">',
+    static fn(array $match): string => $match[0] . $bootstrap . '<link rel="stylesheet" href="/brand-theme.css?v=20261002-dependent-fields-1">',
     $html
 );
 $html = tt_replace_html_once(
     '/<\/body>/i',
-    static fn(): string => '<script src="/session-activity.js?v=20260929-1"></script><script src="app-bundle.php?v=current"></script><script src="/brand-theme.js?v=20261002-form-position-1"></script></body>',
+    static fn(): string => '<script src="/session-activity.js?v=20260929-1"></script><script src="app-bundle.php?v=current"></script><script src="/brand-theme.js?v=20261002-dependent-fields-1"></script></body>',
     $html
 );
 echo $html;

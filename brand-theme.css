@@ -112,3 +112,9 @@ button:not(.danger):not(.red):not(.xBtn):not(.optionMinus).active{
 @media screen{
  :is(.field,.ttv-field,.ttrs-field)>:is(input,select,textarea){margin-top:0!important}
 }
+
+
+/* Dependent screen fields must stay hidden even when a grid/label rule sets display. */
+@media screen {
+ [hidden]{display:none!important}
+}
