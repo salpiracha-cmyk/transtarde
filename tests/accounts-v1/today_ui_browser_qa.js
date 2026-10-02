@@ -12,7 +12,7 @@ let posted;
 (async()=>{
  const browser=await chromium.launch({headless:true});
  try{
-  const page=await browser.newPage({viewport:{width:900,height:740}});
+  let page=await browser.newPage({viewport:{width:900,height:740}});
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.route('https://ui.test/**',async route=>{
    const url=new URL(route.request().url());
@@ -61,7 +61,7 @@ let posted;
   await page.setViewportSize({width:600,height:740});await page.locator('#menuButton').click();await page.waitForTimeout(250);
   await page.screenshot({path:path.join(output,'control-centre-narrow-menu.png'),fullPage:true});
   await page.locator('#closeNavigation').click();
-  await page.setViewportSize({width:1400,height:900});assert.equal(await page.evaluate(()=>document.getElementById('sidebar').inert),false);
+  await page.setViewportSize({width:1400,height:900});await page.waitForFunction(()=>!document.getElementById('sidebar').inert);assert.equal(await page.evaluate(()=>document.getElementById('sidebar').inert),false);
   // Reused Accounts windows reset their internal scroll; normal input changes preserve position.
   await page.evaluate(()=>{document.body.insertAdjacentHTML('beforeend','<div class="tt-layer" hidden><div role="dialog"><div class="tt-window-body" style="height:100px;overflow:auto"><input><div style="height:1000px"></div></div></div></div>');});
   await page.evaluate(()=>{document.querySelector('.tt-layer').hidden=false;});
@@ -71,7 +71,10 @@ let posted;
   await page.locator('.tt-window-body').evaluate(el=>el.scrollTop=200);await page.locator('.tt-window-body input').evaluate(el=>{el.value='edited';el.dispatchEvent(new Event('input',{bubbles:true}));});
   await page.waitForTimeout(120);assert.equal(await page.locator('.tt-window-body').evaluate(el=>el.scrollTop),200);
   // Actual Export editor starts at its title and step navigation retains a visible title.
-  await page.setContent(`<style>${read('exports/app.css')}</style><div id="app"></div><div id="printRoot"></div>`);
+  assert.deepEqual(errors,[]);await page.close();
+  page=await browser.newPage({viewport:{width:1400,height:900}});page.on('pageerror',e=>errors.push(e.message));
+  await page.route('https://exports.test/**',r=>r.fulfill({body:'<!doctype html><html><body><div id="app"></div><div id="printRoot"></div></body></html>',contentType:'text/html'}));
+  await page.goto('https://exports.test/');await page.addStyleTag({content:read('exports/app.css')});
   await page.addScriptTag({content:read('brand-theme.js')});
   await page.addScriptTag({content:read('exports/app.js').replace('mount();restoreContractCheckpoint();','window.__UI_TEST__={startContract};mount();')});
   await page.evaluate(()=>{document.getElementById('main').style.minHeight='1800px';window.scrollTo(0,600);window.__UI_TEST__.startContract();});
