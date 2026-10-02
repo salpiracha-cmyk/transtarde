@@ -5,12 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="Transtrade unified Super Admin control centre">
   <title>Transtrade Super Admin Console</title>
-  <link rel="stylesheet" href="admin/styles.css?v=20261001-master-console-ui-1">
+  <link rel="stylesheet" href="admin/styles.css?v=20261002-banks-menu-1">
   <link rel="stylesheet" href="brand-theme.css?v=20260914-control-centre-1">
 </head>
 <body>
   <div class="app-shell">
     <aside class="sidebar" id="sidebar" aria-label="Main navigation">
+      <button type="button" class="navigation-close" id="closeNavigation" aria-label="Close navigation">× Close</button>
       <div class="brand">
         <div class="brand-mark" aria-hidden="true">TT</div>
         <div>
@@ -45,7 +46,7 @@
 
     <main class="main-area">
       <header class="topbar">
-        <button class="menu-button" id="menuButton" aria-label="Open navigation">☰</button>
+        <button type="button" class="menu-button" id="menuButton" aria-label="Open navigation" aria-controls="sidebar" aria-expanded="false">☰ Menu</button>
         <div class="search-box">
           <span aria-hidden="true">⌕</span>
           <input id="globalSearch" type="search" placeholder="Search modules, users or master records" aria-label="Search">
@@ -293,6 +294,7 @@
   </dialog>
 
   <div class="toast-region" id="toastRegion" aria-live="polite"></div>
-<script src="admin/app.js?v=20261001-director-approvals-1"></script>
+<script src="admin/app.js?v=20261002-banks-menu-1"></script>
+<script src="brand-theme.js?v=20261002-form-position-1"></script>
 </body>
 </html>

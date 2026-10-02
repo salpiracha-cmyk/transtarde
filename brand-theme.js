@@ -24,3 +24,52 @@
  const start=()=>{clean(document);window.addEventListener('resize',schedule);document.addEventListener('click',schedule,true);document.fonts?.ready.then(schedule);new MutationObserver(records=>{for(const record of records)for(const node of record.addedNodes)if(node.nodeType===1){if(node.matches('.notice'))clean(node.parentElement||document);else clean(node.parentElement||node)}}).observe(document.body,{childList:true,subtree:true})};
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start);else start();
 })();
+
+/* Reset only a newly opened form or workspace; edits and background refreshes keep their position. */
+(()=>{'use strict';
+ const dialogs='dialog,[role="dialog"],.modalBackdrop,.tt-layer';
+ const excluded='.printDoc,#printRoot,.contractPreviewPane,.contractPreviewPaper';
+ const visible=node=>node instanceof Element&&node.isConnected&&!node.closest('[hidden]')&&getComputedStyle(node).display!=='none'&&node.getClientRects().length>0;
+ function place(root){
+  if(!visible(root)||root.closest(excluded))return;
+  for(const node of [root,...root.querySelectorAll('.dialog-body,.tt-window-body,.modalBody,.modal-body')])node.scrollTop=0;
+  let container=root.parentElement;
+  while(container&&container!==document.body&&container!==document.documentElement){
+   const style=getComputedStyle(container);
+   if(/auto|scroll/.test(style.overflowY)&&container.scrollHeight>container.clientHeight)container.scrollTop=0;
+   container=container.parentElement;
+  }
+  if(root.matches(dialogs)||root.closest(dialogs))return;
+  let inset=12;
+  for(const header of document.querySelectorAll('.topbar,header')){
+   const style=getComputedStyle(header),rect=header.getBoundingClientRect();
+   if(['sticky','fixed'].includes(style.position)&&rect.top<=1&&rect.bottom>0)inset=Math.max(inset,rect.bottom+12);
+  }
+  window.scrollTo({left:window.scrollX,top:Math.max(0,window.scrollY+root.getBoundingClientRect().top-inset),behavior:'instant'});
+ }
+ function open(root){
+  if(!root)return;
+  // Layout and native focus scrolling settle before positioning the form title.
+  requestAnimationFrame(()=>requestAnimationFrame(()=>place(root)));
+ }
+ window.TT_FORM_VIEWPORT={open};
+ const start=()=>{
+  new MutationObserver(records=>{
+   const opened=new Set();
+   for(const record of records){
+    if(record.type==='childList')for(const node of record.addedNodes){
+     if(node.nodeType!==1)continue;
+     if(node.matches(dialogs))opened.add(node);
+     node.querySelectorAll(dialogs).forEach(dialog=>opened.add(dialog));
+    }
+    if(record.type==='attributes'){
+     const node=record.target;
+     if(node.matches(dialogs)&&(record.attributeName==='open'&&node.hasAttribute('open')||record.attributeName==='hidden'&&!node.hidden&&record.oldValue!==null))opened.add(node);
+     if(node.matches('.panel.active,.workspace.active')&&record.attributeName==='class'&&!String(record.oldValue||'').split(/\s+/).includes('active'))opened.add(node);
+    }
+   }
+   for(const root of opened)open(root);
+  }).observe(document.body,{subtree:true,childList:true,attributes:true,attributeOldValue:true,attributeFilter:['class','open','hidden']});
+ };
+ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start);else start();
+})();

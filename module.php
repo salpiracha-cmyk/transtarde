@@ -137,7 +137,26 @@ $sharedBootstrap = <<<'HTML'
   document.addEventListener('submit',blockWhileSaving,true);
   document.addEventListener('keydown',event=>{if(event.key==='Enter'&&document.documentElement.classList.contains('tt-save-waiting'))blockWhileSaving(event)},true);
 
-  const initial=getRemote(true);if(initial?.ok&&!Object.prototype.hasOwnProperty.call(initial.values||{},EXPORT_STORE)&&!pending.has(EXPORT_STORE)){applying=true;originalRemove.call(localStorage,EXPORT_STORE);applying=false}if(initial)applyRemote(initial,true);
+  const initial=getRemote(true);
+  if(access.moduleId==='exports'&&!initial?.ok){
+    // A failed read must never look like an empty shipment book or create a fresh one.
+    Storage.prototype.setItem=originalSet;Storage.prototype.removeItem=originalRemove;
+    window.TT_EXPORTS_LOAD_ERROR=true;
+    window.TT_SHARED_SYNC={saveNow:()=>Promise.reject(new Error('Exports data has not loaded. Reload before saving.'))};
+    const showLoadError=()=>{
+      const app=document.getElementById('app');if(app)app.hidden=true;
+      const panel=document.createElement('section');panel.id='ttExportsLoadError';panel.setAttribute('role','alert');
+      panel.style.cssText='max-width:760px;margin:40px auto;padding:24px;background:white;border:1px solid #b42318;border-radius:12px;font:16px Arial;color:#222';
+      const title=document.createElement('h2');title.textContent='Exports data could not be loaded';
+      const message=document.createElement('p');message.textContent='The server did not return your shipment records. Reload to try again.';
+      const retry=document.createElement('button');retry.type='button';retry.textContent='Reload Exports';retry.onclick=()=>location.reload();
+      const back=document.createElement('a');back.href='/index.php';back.textContent='Return to Control Centre';back.style.marginLeft='16px';
+      panel.append(title,message,retry,back);document.body.appendChild(panel);
+    };
+    if(document.readyState==='loading')addEventListener('DOMContentLoaded',showLoadError);else showLoadError();
+    return;
+  }
+  if(initial?.ok&&!Object.prototype.hasOwnProperty.call(initial.values||{},EXPORT_STORE)&&!pending.has(EXPORT_STORE)){applying=true;originalRemove.call(localStorage,EXPORT_STORE);applying=false}if(initial)applyRemote(initial,true);
 
   function exportsToMill(){
     const root=parse(EXPORT_STORE,null);if(!root?.millSync)return;
@@ -201,7 +220,7 @@ if ($id === 'exports') $brandHead .= '<link rel="stylesheet" href="/exports/rele
 $headPos = stripos($html, '</head>');
 if ($headPos !== false) $html = substr_replace($html, $brandHead.$bootstrap.$sharedBootstrap, $headPos, 0);
 $accountsSourceBridge = '<script src="accounts/source-bridge.js?v=20260924-explicit-actions-1"></script><script src="accounts/loading-programme-sync.js?v=20260924-explicit-actions-1"></script><script src="accounts/bag-control-bridge.js?v=20260924-explicit-actions-1"></script>';
-$brandBody = '<script src="/session-activity.js?v=20260929-1"></script><script src="/brand-theme.js?v=20261001-commentary"></script>';
+$brandBody = '<script src="/session-activity.js?v=20260929-1"></script><script src="/brand-theme.js?v=20261002-form-position-1"></script>';
 $brandBody .= '<script src="/global-validation.js?v=20260909-1"></script>';
 if ($id === 'exports') $brandBody .= '<script src="/customer-contract-options.js?v=20260911-reports-1"></script>';
 if ($id === 'milling') $brandBody .= '<script src="/milling-quality-identity.js?v=20260910-1"></script>';

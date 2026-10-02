@@ -1135,7 +1135,7 @@
     document.getElementById("addMasterRecord").hidden=!!row||!canMaster(type.id,"Create");
     if(!row){selectedMasterId="";return;}
     const name=String(row.values?.[type.id==="companies"?0:0]||type.name);
-    const head=`<div class="master-detail-head"><button class="master-back" type="button" data-back-master>← ${escapeHtml(type.name)}</button><div><p class="eyebrow">${escapeHtml(type.name)}</p><h2>${escapeHtml(name)}</h2></div>${canMaster(type.id,"Edit")?`<button class="button secondary" type="button" data-edit-master="${escapeHtml(row.id)}" data-editor-tab="${type.id==="companies"&&companyDetailTab!=="banks"?companyDetailTab:"overview"}">Edit</button>`:""}</div>`;
+    const head=`<div class="master-detail-head"><button class="master-back" type="button" data-back-master>← ${escapeHtml(type.name)}</button><div><p class="eyebrow">${escapeHtml(type.name)}</p><h2>${escapeHtml(name)}</h2></div>${canMaster(type.id,"Edit")?`<button class="button secondary" type="button" data-edit-master="${escapeHtml(row.id)}" data-editor-tab="${type.id==="companies"&&companyDetailTab?companyDetailTab:"overview"}">Edit</button>`:""}</div>`;
     if(type.id!=="companies"){
       const fields=type.fields.map((field,index)=>field.type==="hidden"?"":detailField(field.label,row.values?.[index])).join("");
       detail.innerHTML=head+`<dl class="master-detail-grid">${fields}</dl>`;
@@ -1256,10 +1256,11 @@
     openMasterDialog(existing?.id||"");
   }
   function selectCompanyEditorTab(tab="overview") {
-    const groups={overview:[0,1,2,8],registrations:[3,4],documents:[7],fx:[6]};
+    const groups={overview:[0,1,2,8],banks:[5],registrations:[3,4],documents:[7],fx:[6]};
     const sections=[...document.querySelectorAll('#masterFormFields > .master-editor-section')];
     sections.forEach((section,index)=>section.classList.toggle('company-editor-inactive',!(groups[tab]||groups.overview).includes(index)));
     document.querySelectorAll('[data-company-editor-tab]').forEach(button=>{button.classList.toggle('active',button.dataset.companyEditorTab===tab);button.setAttribute('aria-selected',String(button.dataset.companyEditorTab===tab));});
+    const dialog=document.getElementById('masterDialog');if(dialog?.open)window.TT_FORM_VIEWPORT?.open(dialog);
   }
   function openMasterDialog(id = "",editorTab="overview") {
     const type = activeMasterType();
@@ -1270,7 +1271,7 @@
     document.getElementById("masterDialogHelp").textContent = type.description + " Complete as much information as available; only the essential identity fields are mandatory.";
     document.getElementById("masterFormFields").innerHTML = masterFieldsHtml(type, row?.values || []);
     if (type.id === "companies") {
-      document.getElementById('masterFormFields').insertAdjacentHTML('afterbegin','<div class="company-editor-tabs" role="tablist"><button type="button" data-company-editor-tab="overview">Overview</button><button type="button" data-company-editor-tab="registrations">Registrations</button><button type="button" data-company-editor-tab="documents">Document Identity</button><button type="button" data-company-editor-tab="fx">Exchange Rates</button></div>');
+      document.getElementById('masterFormFields').insertAdjacentHTML('afterbegin','<div class="company-editor-tabs" role="tablist"><button type="button" data-company-editor-tab="overview">Overview</button><button type="button" data-company-editor-tab="banks">Bank Accounts</button><button type="button" data-company-editor-tab="registrations">Registrations</button><button type="button" data-company-editor-tab="documents">Document Identity</button><button type="button" data-company-editor-tab="fx">Exchange Rates</button></div>');
       selectCompanyEditorTab(editorTab);
       const container=document.getElementById("companyOwnerRows");
       const wireOwners=()=>{container.querySelectorAll('[data-remove-company-owner]').forEach(button=>button.onclick=()=>{button.closest('.company-owner-row')?.remove();if(!container.children.length)addOwner();if(container.children.length===1)container.querySelector('[data-company-owner-share]').value="100";wireOwners()})};
@@ -1674,9 +1675,8 @@
     if (!IS_SUPER_ADMIN && !(id==="masters"&&hasMasterAccess)) { toast("Master Records access required."); return; }
     document.querySelectorAll(".view").forEach(view => view.classList.toggle("active", view.id === `view-${id}`));
     document.querySelectorAll(".nav-item[data-view]").forEach(item => item.classList.toggle("active", item.dataset.view === id));
-    document.getElementById("sidebar").classList.remove("open");
-    document.getElementById("overlay").classList.remove("open");
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    setNavigationOpen(false);
+    window.scrollTo({ top: 0, behavior: "instant" });
   }
   function openNotifications(open = true) {
     const drawer = document.getElementById("notificationDrawer");
@@ -1802,6 +1802,13 @@
   });
   document.getElementById("masterForm").addEventListener("submit", saveMasterRecord);
   document.getElementById("bankForm").addEventListener("submit",saveBankDialog);
+  document.getElementById("masterForm").addEventListener("invalid",event=>{
+    const section=event.target.closest('.master-editor-section');
+    if(!section?.classList.contains('company-editor-inactive'))return;
+    const index=[...document.querySelectorAll('#masterFormFields > .master-editor-section')].indexOf(section);
+    const tab=({0:'overview',1:'overview',2:'overview',3:'registrations',4:'registrations',5:'banks',6:'fx',7:'documents',8:'overview'})[index];
+    if(tab)selectCompanyEditorTab(tab);
+  },true);
   ["masterDialog","bankDialog"].forEach(id=>{
     const dialog=document.getElementById(id);
     dialog.addEventListener("input",()=>dirtyDialogs.add(id));
@@ -1836,12 +1843,26 @@
   document.getElementById("restoreBackupFile").addEventListener("change", () => { verifiedRestoreSignature = ""; document.getElementById("restoreConfirmArea").hidden = true; document.getElementById("restoreVerification").hidden = true; updateRestoreEnablement(); });
   document.getElementById("restoreBackupNow").addEventListener("click", restoreBackupNow);
   document.getElementById("notificationButton").addEventListener("click", () => openNotifications(true));
-  document.getElementById("overlay").addEventListener("click", () => { openNotifications(false); document.getElementById("sidebar").classList.remove("open"); });
-  document.getElementById("menuButton").addEventListener("click", () => { document.getElementById("sidebar").classList.add("open"); document.getElementById("overlay").classList.add("open"); });
+  function setNavigationOpen(open,returnFocus=false) {
+    const sidebar=document.getElementById("sidebar"),button=document.getElementById("menuButton");
+    const narrow=window.matchMedia('(max-width: 1100px)').matches;
+    const shown=!!open&&narrow;
+    sidebar.classList.toggle("open",shown);sidebar.inert=narrow&&!shown;
+    sidebar.setAttribute("aria-hidden",String(narrow&&!shown));
+    button.setAttribute("aria-expanded",String(shown));
+    document.getElementById("overlay").classList.toggle("open",shown||document.getElementById("notificationDrawer").classList.contains("open"));
+    if(shown)document.getElementById("closeNavigation").focus({preventScroll:true});
+    else if(returnFocus&&narrow)button.focus({preventScroll:true});
+  }
+  document.getElementById("overlay").addEventListener("click", () => { openNotifications(false); setNavigationOpen(false,true); });
+  document.getElementById("menuButton").addEventListener("click", () => setNavigationOpen(true));
+  document.getElementById("closeNavigation").addEventListener("click", () => setNavigationOpen(false,true));
+  window.addEventListener("resize",()=>setNavigationOpen(false));
+  setNavigationOpen(false);
   document.getElementById("globalSearch").addEventListener("keydown", event => { if (event.key === "Enter") globalSearch(event.target.value); });
   document.addEventListener("keydown", event => {
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") { event.preventDefault(); document.getElementById("globalSearch").focus(); }
-    if (event.key === "Escape") openNotifications(false);
+    if (event.key === "Escape") { const wasOpen=document.getElementById("sidebar").classList.contains("open");openNotifications(false);setNavigationOpen(false,wasOpen); }
   });
 
   async function initialize() {

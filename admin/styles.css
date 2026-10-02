@@ -633,3 +633,17 @@ legend { margin-bottom: 10px; color: #445469; font-size: .79rem; font-weight: 75
 @media(max-width:620px){.master-approval-row{align-items:stretch;flex-direction:column}}
 @media(max-width:900px){#view-masters .master-layout{grid-template-columns:1fr}#view-masters .master-menu{position:static;display:flex;gap:4px;overflow-x:auto;scrollbar-width:thin}#view-masters .master-menu-group{display:flex;align-items:center;flex:0 0 auto}#view-masters .master-menu-group small,#view-masters .master-menu button span{display:none}#view-masters .master-menu button{width:auto;white-space:nowrap}.master-detail-grid{grid-template-columns:1fr}}
 @media(max-width:620px){.master-toolbar{align-items:stretch;flex-direction:column}.master-detail-head{flex-wrap:wrap}.master-detail-head > div{order:2;flex-basis:100%}.master-subhead,.master-subactions{align-items:stretch;flex-direction:column}.bank-form-fields{grid-template-columns:1fr}}
+
+/* Half-window navigation keeps every Control Centre tab reachable. */
+.navigation-close { display:none; }
+@media (max-width:1100px) {
+  .app-shell { display:block; }
+  .sidebar { position:fixed; inset:0 auto 0 0; width:min(280px,85vw); height:100dvh; z-index:70; overflow-y:auto; transform:translateX(-100%); transition:transform .2s ease; left:0; visibility:hidden; }
+  .sidebar.open { transform:translateX(0); visibility:visible; left:0; }
+  .menu-button { display:inline-flex; flex-shrink:0; align-items:center; gap:6px; min-height:44px; padding:8px 10px; border:1px solid rgba(255,255,255,.6); border-radius:8px; color:#fff; font-size:1rem; font-weight:700; }
+  .navigation-close { display:block; align-self:flex-end; min-height:44px; padding:8px 12px; border:1px solid rgba(255,255,255,.45); border-radius:8px; color:#fff; background:transparent; }
+  .topbar { gap:10px; }
+  .search-box { min-width:0; width:auto; flex:1; }
+  .search-box input { min-width:0; }
+}
+@media (prefers-reduced-motion:reduce) { .sidebar { transition:none; } }
