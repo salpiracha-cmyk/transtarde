@@ -64,7 +64,15 @@ def sha256_file(path):
 def initialize(path):
     if path.exists(): raise RuntimeError('Configuration already exists. Rotate the server credential and remove the old configuration before initializing again.')
     print('Generate an Office Agent credential in Super Admin > Backup & Data Export first.')
-    token = getpass.getpass('Office Agent credential: ').strip()
+    if os.name == 'nt':
+        import subprocess
+        print('Copy the Office Agent credential from Super Admin, then press Enter here.')
+        input('Credential copied to Windows clipboard? Press Enter: ')
+        clip = subprocess.run(['powershell.exe', '-NoProfile', '-Command', 'Get-Clipboard -Raw'], capture_output=True, text=True)
+        token = clip.stdout.strip()
+        subprocess.run(['powershell.exe', '-NoProfile', '-Command', 'Set-Clipboard -Value $null'], capture_output=True)
+    else:
+        token = getpass.getpass('Office Agent credential: ').strip()
     password = getpass.getpass('Recovery ZIP password (12+ characters): ')
     confirm = getpass.getpass('Repeat recovery ZIP password: ')
     if len(token) != 64 or any(c not in '0123456789abcdef' for c in token): raise ValueError('Invalid backup-only credential.')
