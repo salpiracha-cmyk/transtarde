@@ -146,7 +146,15 @@ async function save({customer,contract,lot,rows,uploads,fit,optional=false}){
    const kind=separate(doc.type||doc.name),folder=doc.folder?component(doc.folder):'',original=await uploadBlob(doc);
    if(kind==='contract')files.push({folder,name:'Signed Sales Contract - '+component(doc.name||'Document'),blob:original});
    else if(kind==='cover')files.push({folder,name:'Uploaded - '+component(doc.name),blob:original});
-   else{let converted;try{converted=await asPdf(original)}catch(error){throw new Error('Cannot add '+(doc.name||doc.type||'this upload')+' to the PDF package. Upload a readable PDF or image. '+error.message)}if(kind==='gd')files.push({folder,name:'GD - '+component(String(doc.name||'Document').replace(/\.[^.]+$/,''))+'.pdf',blob:converted});else master.push(converted);
+   else{let converted=null;try{converted=await asPdf(original)}catch(error){
+     // Some government/issued PDFs are encrypted or permission-protected.
+     // Preserve the original in the shipment folder even when the browser PDF
+     // library cannot legally/technically merge it into the master PDF.
+     const isPdf=/pdf/i.test(original.type||'')||/\.pdf$/i.test(doc.name||'');
+     if(!isPdf)throw new Error('Cannot add '+(doc.name||doc.type||'this upload')+' to the PDF package. Upload a readable PDF or image. '+error.message);
+    }
+    if(kind==='gd'&&converted)files.push({folder,name:'GD - '+component(String(doc.name||'Document').replace(/\.[^.]+$/,''))+'.pdf',blob:converted});
+    else if(converted)master.push(converted);
     // Preserve every uploaded original alongside the assembled PDF.
     files.push({folder,name:'Uploaded - '+component(doc.name||'Document'),blob:original});
    }
