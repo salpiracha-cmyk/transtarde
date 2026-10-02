@@ -59,7 +59,7 @@ async function postJob(manifest,files){
 async function asPdf(blob){
  await libraries();const bytes=new Uint8Array(await blob.arrayBuffer());
  if(String.fromCharCode(...bytes.slice(0,4))==='%PDF'){
-  await window.PDFLib.PDFDocument.load(bytes);return blob;
+  await window.PDFLib.PDFDocument.load(bytes,{ignoreEncryption:true});return blob;
  }
  const image=await createImageBitmap(blob);try{
   const canvas=document.createElement('canvas');canvas.width=image.width;canvas.height=image.height;canvas.getContext('2d').drawImage(image,0,0);
@@ -70,7 +70,7 @@ async function asPdf(blob){
 }
 async function mergedPdf(blobs){
  await libraries();const output=await window.PDFLib.PDFDocument.create();
- for(const blob of blobs){const input=await window.PDFLib.PDFDocument.load(await blob.arrayBuffer());for(const page of await output.copyPages(input,input.getPageIndices()))output.addPage(page)}
+ for(const blob of blobs){const input=await window.PDFLib.PDFDocument.load(await blob.arrayBuffer(),{ignoreEncryption:true});for(const page of await output.copyPages(input,input.getPageIndices()))output.addPage(page)}
  return new Blob([await output.save()],{type:'application/pdf'});
 }
 async function legacyDir(root,names){
