@@ -234,6 +234,14 @@ def download_job_file(config, job_id, row, temp_dir):
     return target, actual
 
 
+def cleanup_verified_folders(final_dir, folders):
+    for folder in folders or []:
+        name = safe_component(folder)
+        if name not in {'BAGS', 'Custom documents'}: continue
+        target = final_dir / name
+        if target.is_dir(): shutil.rmtree(target)
+
+
 def process_shipment_job(config, job):
     root = Path(config['shipmentArchiveDestination']).expanduser().resolve()
     root.mkdir(parents=True, exist_ok=True)
@@ -260,6 +268,7 @@ def process_shipment_job(config, job):
             os.replace(tmp, target)
             if sha256_file(target) != actual: raise ValueError('Saved shipment archive checksum mismatch.')
             verified.append({'name': row['name'], 'folder': folder, 'sha256': actual, 'size': target.stat().st_size})
+        cleanup_verified_folders(final_dir, job.get('cleanupFolders') if job.get('finalize') else [])
         office_agent_request(config, 'ack', {'id': job['id'], 'status': 'COMPLETE', 'host': host_name(), 'files': verified})
         return final_dir, len(verified)
     except Exception as exc:
