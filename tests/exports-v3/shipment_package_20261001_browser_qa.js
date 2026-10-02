@@ -23,16 +23,18 @@ const root=path.resolve(__dirname,'../..'),out=path.join(root,'tmp/qa/package-20
  });
  assert.match(result.path,/QA Customer \/ SHIPMENT #01 \/ LOT #01/);
  const files=await page.evaluate(()=>window.__files),prefix='QA Customer/SHIPMENT #01/LOT #01/';
- for(const name of ['Master Shipment Documents.pdf','Sales Contract.pdf','Bank Covering Letter.docx','GD - GD-1.pdf','Signed Sales Contract - Signed.pdf','Custom documents/Customs Invoice.pdf','TG docs/TG Packing List.pdf'])assert.ok(files[prefix+name],name+' must be saved');
- const master=await page.evaluate(async prefix=>{const doc=await PDFLib.PDFDocument.load(new Uint8Array(window.__files[prefix+'Master Shipment Documents.pdf']));return doc.getPageCount()},prefix);assert.equal(master,6,'master includes four generated document pages and two original COO pages, excluding contract, GD and covering letter');
- for(const name of ['Master Shipment Documents.pdf','Bank Covering Letter.docx','GD - GD-1.pdf'])fs.writeFileSync(path.join(out,name.replaceAll(' ','_')),Buffer.from(files[prefix+name]));
+ for(const name of ['Master Shipment Documents.pdf','Sales Contract.pdf','Bank Covering Letter.docx','GD - GD-1.pdf','Signed Sales Contract - Signed.pdf','Custom documents.zip','TG docs/TG Packing List.pdf'])assert.ok(files[prefix+name],name+' must be saved');
+ const master=await page.evaluate(async prefix=>{const doc=await PDFLib.PDFDocument.load(new Uint8Array(window.__files[prefix+'Master Shipment Documents.pdf']));return doc.getPageCount()},prefix);assert.equal(master,5,'master includes three generated document pages and two original COO pages, excluding Customs ZIP, contract, GD and covering letter');
+ for(const name of ['Master Shipment Documents.pdf','Bank Covering Letter.docx','GD - GD-1.pdf','Custom documents.zip'])fs.writeFileSync(path.join(out,name.replaceAll(' ','_')),Buffer.from(files[prefix+name]));
  const {execFileSync}=require('node:child_process');
- const masterText=execFileSync('pdftotext',[path.join(out,'Master_Shipment_Documents.pdf'),'-'],{encoding:'utf8'});assert.match(masterText,/INCLUDED ORIGINAL COO/);assert.doesNotMatch(masterText,/EXCLUDED GD|EXCLUDED SIGNED CONTRACT/);
+ const masterText=execFileSync('pdftotext',[path.join(out,'Master_Shipment_Documents.pdf'),'-'],{encoding:'utf8'});assert.match(masterText,/INCLUDED ORIGINAL COO/);assert.doesNotMatch(masterText,/EXCLUDED GD|EXCLUDED SIGNED CONTRACT|CUSTOMS INVOICE/);
  execFileSync('python3',['-c',`import zipfile,xml.etree.ElementTree as E,sys
 z=zipfile.ZipFile(sys.argv[1]);assert z.testzip() is None
 root=E.fromstring(z.read('word/document.xml'));ns={'w':'http://schemas.openxmlformats.org/wordprocessingml/2006/main'}
 text=' '.join(n.text or '' for n in root.findall('.//w:t',ns));assert 'BANK COVERING LETTER' in text and 'Commercial Invoice' in text
 assert root.findall('.//w:tbl',ns);assert not root.findall('.//w:altChunk',ns)`,path.join(out,'Bank_Covering_Letter.docx')]);
+ execFileSync('python3',['-c',`import zipfile,sys
+z=zipfile.ZipFile(sys.argv[1]);assert z.testzip() is None;assert 'Customs Invoice.pdf' in z.namelist();assert z.read('Customs Invoice.pdf').startswith(b'%PDF')`,path.join(out,'Custom_documents.zip')]);
  const repeated=await page.evaluate(()=>TT_SHIPMENT_FILES.save(window.__args));assert.equal(repeated.count,result.count);assert.equal(Object.keys(await page.evaluate(()=>window.__files)).length,result.count);
  await page.evaluate(()=>window.__fail=true);const failure=await page.evaluate(async()=>{try{await TT_SHIPMENT_FILES.save(window.__args);return''}catch(error){return error.message}});assert.match(failure,/0 of \d+ files saved/);
  // All module form families: control tops align, names fit their cells, and print styles are untouched.
