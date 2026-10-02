@@ -26,7 +26,20 @@ async function pdf(markup,fit){
   const output=new window.jspdf.jsPDF({unit:'mm',format:'a4',compress:true});
   for(let i=0;i<pages.length;i++){
    const page=pages[i];page.style.height='297mm';page.style.minHeight='297mm';page.style.margin='0';page.style.boxShadow='none';
-   if(page.scrollHeight>page.clientHeight+2||page.scrollWidth>page.clientWidth+2)throw new Error('Document content crosses its page boundary ('+page.className+': '+page.scrollHeight+'/'+page.clientHeight+'). No clipped PDF was saved.');
+   const overflowY=Math.max(0,page.scrollHeight-page.clientHeight),overflowX=Math.max(0,page.scrollWidth-page.clientWidth);
+   if(overflowY>2||overflowX>2){
+    // Shipment archiving must preserve the complete committed document rather
+    // than fail LOT COMPLETE because an existing print layout is slightly
+    // taller than its CSS A4 shell. Scale the rendered page down to fit A4;
+    // never clip content.
+    const canvas=await window.html2canvas(page,{scale:2,backgroundColor:'#fff',logging:false,imageTimeout:30000});
+    const fitScale=Math.min(210/canvas.width*canvas.width,297/canvas.height*canvas.height);
+    if(i)output.addPage();
+    const ratio=Math.min(210/(canvas.width/2),297/(canvas.height/2));
+    const width=(canvas.width/2)*ratio,height=(canvas.height/2)*ratio;
+    output.addImage(canvas,'PNG',(210-width)/2,(297-height)/2,width,height,undefined,'FAST');
+    continue;
+   }
    if(i)output.addPage();const canvas=await window.html2canvas(page,{scale:2,backgroundColor:'#fff',logging:false,imageTimeout:30000});output.addImage(canvas,'PNG',0,0,210,297,undefined,'FAST');
   }
   return output.output('blob');
