@@ -75,14 +75,13 @@ function apa_correct(array &$store, array $user, string $postId, array $input): 
         $debit+=max(0,-$difference);$credit+=max(0,$difference);
     }
     if($debit<=0||$debit!==$credit)throw new DomainException('The corrected posting must balance.');
-    $next=static function(array $journals,string $prefix):string{$n=count($journals)+1;do{$id=$prefix.'-'.gmdate('Y').'-'.str_pad((string)$n++,6,'0',STR_PAD_LEFT);}while(isset($journals[$id]));return $id;};
-    $reverseId=$next((array)$store['journals'],'RV');
+    $reverseId=tt_next_post_id((array)$store['journals'],'Accounts','Journal',$date);
     $reverseLines=[];
     foreach((array)$original['lines'] as $line){$swap=$line;$swap['debit']=round((float)($line['credit']??0),2);$swap['credit']=round((float)($line['debit']??0),2);
         if(isset($line['bankDebit'])||isset($line['bankCredit'])){$swap['bankDebit']=round((float)($line['bankCredit']??0),2);$swap['bankCredit']=round((float)($line['bankDebit']??0),2);}$reverseLines[]=$swap;}
     $now=gmdate('c');$actor=(string)($user['full_name']??$user['username']??'Accounts');
     $store['journals'][$reverseId]=['id'=>$reverseId,'entity'=>$entity,'date'=>$date,'sourceType'=>'POST_AMENDMENT_REVERSAL','reference'=>$postId,'narration'=>'Correction reversal of '.$postId.' — '.$reason,'lines'=>$reverseLines,'totalDebit'=>round((float)$original['totalCredit'],2),'totalCredit'=>round((float)$original['totalDebit'],2),'status'=>'Posted','meta'=>['reason'=>$reason,'originalPostId'=>$postId],'createdAt'=>$now,'createdBy'=>$actor,'userId'=>(int)($user['id']??0),'reversalOf'=>$postId];
-    $replacementId=$next((array)$store['journals'],'AUTO');
+    $replacementId=tt_next_post_id((array)$store['journals'],'Accounts','Journal',$date);
     $replacement=$original;
     $replacement['id']=$replacementId;$replacement['date']=$date;$replacement['reference']=$reference;$replacement['narration']=$narration;$replacement['lines']=$lines;
     // A distinct source type prevents source-workflow scanners from treating a correction as a second bill or payment.

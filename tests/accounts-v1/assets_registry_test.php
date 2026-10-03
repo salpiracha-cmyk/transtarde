@@ -1,5 +1,11 @@
 <?php
 declare(strict_types=1);
+function tt_next_post_id(array $existing, string $module = 'Accounts', string $area = 'Journal', ?string $date = null): string {
+    $year=substr($date ?: date('Y-m-d'),0,4);
+    $n=count($existing)+1;
+    do {$id='POST-'.$year.'-'.str_pad((string)$n,5,'0',STR_PAD_LEFT);$n++;} while (isset($existing[$id]));
+    return $id;
+}
 require __DIR__.'/../../api/assets_registry_core.php';
 require __DIR__.'/../../api/accounts_bank_payment.php';
 function tt_list_masters():array{return ['banks'=>[['id'=>'B1','values'=>['Company Account','TTI','','TEST COMPANY','BANK','','','PKR','123']]]];}

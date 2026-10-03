@@ -23,6 +23,11 @@ with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
     function tt_user_can_access_entity($user,$entity,$action){return $entity==='TTI';}
     function tt_verify_csrf($csrf){return $csrf==='fixture';}
     function tt_bank_can_transact($id){return in_array($id,['bank-a','bank-b']);}
+    function tt_next_post_id(array $existing, string $module='Accounts', string $area='Journal', ?string $date=null): string {
+        $year=substr($date ?: date('Y-m-d'),0,4);$n=count($existing)+1;
+        do {$id='POST-'.$year.'-'.str_pad((string)$n,5,'0',STR_PAD_LEFT);$n++;} while (isset($existing[$id]));
+        return $id;
+    }
     ''')
     popup_css=re.search(r'style.textContent = `([\s\S]*?)`;', (ROOT/'accounts/accounts-clean-ui.js').read_text()).group(1)
     (root/'accounts/index.html').write_text('<!doctype html><style>'+popup_css+'</style>'+'''<section class="workspace active tt-clean-modal tt-entry-only"><button data-expense="salary">Salaries</button><div id="expenseEditor"></div></section><script>window.TT_ACCOUNT_ACCESS={csrf:'fixture'};localStorage.setItem('tt_accounts_entity','TTI');</script><script src="bank-payment-details.js"></script><script src="rent-salary-ui.js"></script>''')

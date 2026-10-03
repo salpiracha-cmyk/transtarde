@@ -22,6 +22,11 @@ with tempfile.TemporaryDirectory(prefix='bank-overdraft-qa-') as temp:
     function tt_bank_is_retention($id,$store){return $id==='ret';}
     function tt_master_options(){return ['currencies'=>['USD','AED','PKR']];}
     function tt_company_fx_rate($entity,$from,$to){return $from===$to?1:($from==='AED'?1/3.67:3.67);}
+    function tt_next_post_id(array $existing, string $module='Accounts', string $area='Journal', ?string $date=null): string {
+        $year=substr($date ?: date('Y-m-d'),0,4);$n=count($existing)+1;
+        do {$id='POST-'.$year.'-'.str_pad((string)$n,5,'0',STR_PAD_LEFT);$n++;} while (isset($existing[$id]));
+        return $id;
+    }
     ''')
     with socket.socket() as sock:sock.bind(('127.0.0.1',0));port=sock.getsockname()[1]
     env={k:v for k,v in os.environ.items() if not k.startswith('TT_DB_')}

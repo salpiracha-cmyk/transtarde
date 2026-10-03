@@ -17,6 +17,11 @@ with tempfile.TemporaryDirectory(prefix='tg-remittance-') as tmp:
  function tt_master_options(){return ['currencies'=>['USD','AED','PKR']];}function tt_user_accounts_entities($u){return ['TTI','TG'];}
  function tt_company_fx_rate($e,$f,$t){return $f==='USD'?3.67:1;}
  function tt_list_masters(){return ['banks'=>[['id'=>'PKR','values'=>['Company Account','TTI','','TTI PKR','BANK','','','PKR','789','','','','','Active']],['id'=>'USD','values'=>['Company Account','TG','','TG USD','BANK','','','USD','123','','','','','Active']],['id'=>'AED','values'=>['Company Account','TG','','TG AED','BANK','','','AED','456','','','','','Active']]]];}
+ function tt_next_post_id(array $existing, string $module='Accounts', string $area='Journal', ?string $date=null): string {
+  $year=substr($date ?: date('Y-m-d'),0,4);$n=count($existing)+1;
+  do {$id='POST-'.$year.'-'.str_pad((string)$n,5,'0',STR_PAD_LEFT);$n++;} while (isset($existing[$id]));
+  return $id;
+ }
  ''')
  s={'journals':{},'exportReceipts':{},'tgRemittanceDrafts':{}}
  for i,amount in enumerate([108000,32000]):

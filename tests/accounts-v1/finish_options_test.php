@@ -33,4 +33,14 @@ finish_check($GLOBALS['finish_test_store']['masters']['products'][0]['values'][1
 tt_manage_master_option('product_finishes','add','Mirror polished');
 finish_check(in_array('Mirror polished',tt_master_options()['product_finishes'],true),'Deactivated Finish must be restorable.');
 
+$firstPost=tt_reserve_post_id('Accounts','Journal',['year'=>2026]);
+$secondPost=tt_reserve_post_id('Mill','Arrival',['year'=>2026]);
+$nextYearPost=tt_reserve_post_id('Exports','Contract',['year'=>2027]);
+finish_check($firstPost==='POST-2026-00001','First yearly Post ID.');
+finish_check($secondPost==='POST-2026-00002','Post IDs are shared across modules.');
+finish_check($nextYearPost==='POST-2027-00001','Post IDs restart in a new year.');
+finish_check(tt_reserve_post_id('Accounts','Journal',['year'=>2026])==='POST-2026-00003','Older years continue independently.');
+finish_check(tt_post_id_matches_search($secondPost,'2'),'Short Post ID search.');
+finish_check(!tt_post_id_matches_search($secondPost,'100'),'Unrelated Post ID search.');
+
 echo "Finish add, edit, deactivate, restore and historical product retention passed\n";

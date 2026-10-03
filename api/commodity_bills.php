@@ -309,7 +309,7 @@ try{
         }
         $billId=cb_next_id((array)$store['commodityBills'],'CB');
         $postingNumber=cb_next_posting_number((array)$store['commodityBills'],$entity);
-        $journalId=cb_next_id((array)$store['journals'],'AUTO');
+        $journalId=tt_next_post_id((array)$store['journals'],'Accounts','Journal');
         $dueDates=array_column($receiptAllocations,'dueDate');sort($dueDates);
         $label=$commodity==='CORN'?'Corn / Maize':($commodity==='RICE'?'Rice':ucfirst(strtolower($commodity)));
         $meta=[
