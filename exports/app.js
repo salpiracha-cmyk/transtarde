@@ -588,13 +588,17 @@ function requiredFinalCertificateTypes(s,c){const text=[...(c.docs||[]),...(s.lc
 function hasFinalCertificate(s,needle){return[...(s.certs||[]),...(s.uploadedDocuments||[])].some(x=>String(x.type||x.name||'').toLowerCase().includes(needle)&&x.finalDocument)}
 function completionMissing(s,c){const missing=[];if(!millActualsComplete(s))missing.push('complete and valid Mill container/seal actuals');if(!customsBalanced(s,c))missing.push('balanced Customs master (re-save after any weight, rate or payment change)');const gds=s.customs?.gdRefs||[];if(!gds.length||gds.some(g=>!String(g.number||'').trim()||!/\d{4}-\d{2}-\d{2}/.test(String(g.date||''))))missing.push('GD number and date');else if(!s.customs?.gdDocument||s.customs.gdDocument.gdRefsFingerprint!==gdRefsFingerprint(gds))missing.push('Goods Declaration (GD) file matching the saved GD number(s) and date(s)');if(!s.bl?.finalized||!s.bl?.finalDocument||!s.bl?.blNo||!s.bl?.onBoardDate)missing.push('Final / Original B/L file, number and date');if(!s.commercial?.saved||s.commercial.status!=='Final')missing.push('Final Commercial Invoice');if(s.seller==='TG'&&!s.tgdocs?.saved)missing.push('reviewed TG / Pakistan settlement pack');if(/certificate of origin|\bcoo\b/i.test([...(c.docs||[]),...(s.lc?.documents||[])].join(' '))&&!s.coo?.finalDocument)missing.push('completed Certificate of Origin');for(const type of requiredFinalCertificateTypes(s,c))if(!hasFinalCertificate(s,type))missing.push(`completed ${type} certificate`);return missing}
 document.addEventListener('click',async e=>{if(e.target?.id==='cancelLot'){e.preventDefault();e.stopImmediatePropagation();const s=shipment(),reason=s&&requiredReason(`Mandatory reason for cancelling ${s.contractRef} · ${s.lotId}:`);if(!s||!reason)return;captureShipmentPartyDetails(s,contractByRef(s.contractRef));s.cancelled=true;s.cancelReason=reason;s.cancelledAt=new Date().toISOString();s.cancelledBy=currentUser();s.status='Cancelled';audit('Lot','Cancelled',`${s.contractRef} · ${s.lotId} · ${reason}`);view='home';render();return}if(e.target?.id==='completeLot'){
- e.preventDefault();e.stopImmediatePropagation();const s=shipment(),c=s&&contractByRef(s.contractRef);if(!s||!c||s.completed)return;
+ e.preventDefault();e.stopImmediatePropagation();let s=shipment(),c=s&&contractByRef(s.contractRef);if(!s||!c||s.completed)return;
  const missing=completionMissing(s,c);if(missing.length)return alert('Cannot complete lot. Missing: '+missing.join(', '));
  const button=e.target,feedback=document.getElementById('shipmentFolderMessage');button.disabled=true;button.textContent='SAVING…';
  const before=JSON.stringify(state);let attempted=before;
  exportCommitBusy=true;const release=window.TT_SHARED_SYNC?.hold?.();
  try{
   await window.TT_SHIPMENT_FILES.access();attempted=save();await acknowledgeExport(attempted);
+  const acknowledged=window.TT_SHARED_SYNC.readCommitted(STORE);if(!acknowledged)throw new Error('Server shipment snapshot is unavailable. Reload and review.');
+  state=normalize(JSON.parse(acknowledged));s=state.shipments.find(row=>row.id===s.id);c=s&&contractByRef(s.contractRef);
+  if(!s||!c||s.completed)throw new Error('Server shipment state changed. Reload and review.');
+  const acknowledgedMissing=completionMissing(s,c);if(acknowledgedMissing.length)throw new Error('The saved server shipment is incomplete: '+acknowledgedMissing.join(', '));
   const result=await saveShipmentFolder(s,c);
   if(state.shipments.find(row=>row.id===s.id)!==s)throw new Error('Shipment changed while preparing the files. Reload and review before completing.');
   const latest=completionMissing(s,c);if(latest.length)throw new Error('Shipment changed while saving. Complete: '+latest.join(', '));

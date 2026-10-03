@@ -84,7 +84,9 @@ async function ready(page,quota=false){
    if(options?.method==='POST'){const body=JSON.parse(options.body),root=body.key===STORE?JSON.parse(body.value):null;
     if(root?.shipments?.find(s=>s.id==='L-FOCUS')?.reopenedAt&&!root?.shipments?.find(s=>s.id==='L-FOCUS')?.completed&&window.rejectReopening)return{ok:false,json:async()=>({ok:false,error:'Reopening denied'})};
     if(root?.shipments?.find(s=>s.id==='L-FOCUS')?.completed&&window.rejectCompletion)return{ok:false,json:async()=>({ok:false,error:'Completion denied'})};
-    const response=await testFetch(url,options);if(root?.shipments?.find(s=>s.id==='L-FOCUS')?.completed&&window.holdCompletion)await new Promise(resolve=>window.releaseCompletion=resolve);return response;
+    const response=await testFetch(url,options);
+    if(window.incompleteCanonical&&root?.shipments){const canonical=structuredClone(root);canonical.shipments.find(s=>s.id==='L-FOCUS').millActuals=[];server.values[STORE]=JSON.stringify(canonical);return{ok:true,json:async()=>({...await response.json(),value:server.values[STORE]})}}
+    if(root?.shipments?.find(s=>s.id==='L-FOCUS')?.completed&&window.holdCompletion)await new Promise(resolve=>window.releaseCompletion=resolve);return response;
    }return testFetch(url,options);
   };
   window.prompt=()=>window.reason??'QA correction';
@@ -108,6 +110,9 @@ async function ready(page,quota=false){
   await p.evaluate(async()=>{reason='QA correction';rejectReopening=true;await __focusQA.reopenCompletedLot('L-FOCUS')});assert.equal(await p.evaluate(STORE=>JSON.parse(server.values[STORE]).shipments.find(s=>s.id==='L-FOCUS').completed,STORE),true);assert.equal(await p.evaluate(()=>__focusQA.getState().shipments.find(s=>s.id==='L-FOCUS').completed),true);
   await p.evaluate(async()=>{rejectReopening=false;reason='QA correction';await __focusQA.reopenCompletedLot('L-FOCUS')});assert.equal(await p.evaluate(STORE=>JSON.parse(server.values[STORE]).shipments.find(s=>s.id==='L-FOCUS').completed,STORE),false);
   assert.equal(await p.evaluate(STORE=>JSON.parse(server.values[STORE]).shipments.find(s=>s.id==='L-FOCUS').reopenHistory.at(-1).reason,STORE),'QA correction');await p.close();
+ });
+ await check('Incomplete canonical server actuals block closure despite complete browser cache',async()=>{
+  const p=await pageFor();await ready(p);await p.evaluate(()=>{incompleteCanonical=true;__focusQA.open('L-FOCUS','output')});await p.locator('#completeLot').click();await p.waitForFunction(()=>document.querySelector('#shipmentFolderMessage .notice.warn')?.textContent.includes('server shipment is incomplete'));assert.equal(await p.evaluate(()=>archives.length),0);assert.equal(await p.evaluate(STORE=>!!JSON.parse(server.values[STORE]).shipments.find(s=>s.id==='L-FOCUS').completed,STORE),false);await p.close();
  });
  for(const fault of ['rejectCompletion','archiveFail'])await check(fault+' preserves open server lot without posting automatic rollback',async()=>{
   const p=await pageFor();await ready(p);await p.evaluate(fault=>{window[fault]=true;__focusQA.open('L-FOCUS','output')},fault);await p.locator('#completeLot').click();await p.waitForFunction(()=>alerts.some(s=>s.includes('not confirmed'))||document.querySelector('#shipmentFolderMessage .notice.warn'));
