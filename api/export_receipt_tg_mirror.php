@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__.'/tg_remittance_core.php';
 
 /** The Pakistan receipt and TG bank payment are written under the same Accounts lock. */
 function er_mirror_tg_receipt(array &$store,array $user,array $body,array $alloc,array $catalog,string $receiptId,string $pakJournalId,string $entity,string $date,string $currency,string $bankRef): array {
@@ -24,7 +25,7 @@ function er_mirror_tg_receipt(array &$store,array $user,array $body,array $alloc
     if($rate<=0)er_respond(['ok'=>false,'error'=>'Set the TG '.$currency.'/AED exchange rate in Super Admin → Companies → Trans Grains → Exchange rates.'],422);
     $total=round(array_sum(array_map(static fn($a)=>(float)($a['foreignAmount']??0),$alloc)),2);
     if($total<=0)er_respond(['ok'=>false,'error'=>'Enter a positive TG payment amount.'],422);
-    $out=[];$sequence=0;
+    $parts=[];$invoices=[];
     foreach($alloc as $allocation){
         $amount=round((float)($allocation['foreignAmount']??0),2);if($amount<=0)continue;
         $type=(string)($allocation['targetType']??'');
@@ -35,24 +36,20 @@ function er_mirror_tg_receipt(array &$store,array $user,array $body,array $alloc
             $candidate=$store['exportCandidates'][(string)($allocation['targetId']??'')]??null;
             $liabilityId=(string)($candidate['mirrorCandidateId']??'');$liability=$store['exportCandidates'][$liabilityId]??null;
             if(!is_array($liability)||($liability['entity']??'')!=='TG'||($liability['candidateType']??'')!=='TG_INTERCOMPANY_PAYABLE'||empty($liability['journalId'])||($liability['counterparty']??'')!==$entity)er_respond(['ok'=>false,'error'=>'The TG invoice payable must be posted and linked before this payment.'],422);
-            $paid=0.0;foreach((array)($store['tgBankTransactions']??[]) as $prior)if(is_array($prior)&&($prior['status']??'')!=='Reversed for Amendment'&&($prior['kind']??'')==='Payment'&&(string)($prior['sourceLiabilityId']??'')===$liabilityId)$paid+=(float)($prior['amountNative']??0);
+            $paid=0.0;foreach((array)($store['tgBankTransactions']??[]) as $prior)if(is_array($prior)&&($prior['status']??'')!=='Reversed for Amendment'&&($prior['kind']??'')==='Payment'&&(string)($prior['sourceLiabilityId']??'')===$liabilityId)$paid+=(float)($prior['amountNative']??0);foreach((array)($store['tgBankTransactions']??[]) as $prior)if(($prior['status']??'')!=='Reversed for Amendment')foreach((array)($prior['liabilityAllocations']??[]) as $la)if(($la['id']??'')===$liabilityId)$paid+=(float)$la['amountNative'];
             if($amount>(float)$liability['transactionAmount']-$paid+.0001)er_respond(['ok'=>false,'error'=>'TG payment exceeds the outstanding payable for '.(string)($allocation['invoiceRef']??'the invoice').'.'],422);
+            foreach(tgr_items($store) as $draft)if(empty($draft['legacy']))foreach($draft['allocations'] as $part)if(($part['sourceLiabilityId']??'')===$liabilityId)$paid+=(float)($part['foreignAmount']??0);
+            if($amount>(float)$liability['transactionAmount']-$paid+.0001)er_respond(['ok'=>false,'error'=>'TG payable is already reserved by another credit advice.'],422);
             $payableRate=(float)($liability['currentCarryingRate']??$liability['functionalRate']??0);
             if($payableRate<=0)er_respond(['ok'=>false,'error'=>'The TG invoice payable has no recorded AED carrying rate.'],422);
             $target='2500';
         }
-        ++$sequence;$bankAed=round($amount*$rate,2);$targetAed=round($amount*$payableRate,2);$reference=$bankRef.'-TG-'.$sequence;
-        foreach((array)($store['tgBankTransactions']??[]) as $prior)if(is_array($prior)&&(string)($prior['bankAccountId']??'')===$tgBankId&&strcasecmp((string)($prior['bankReference']??''),$reference)===0)er_respond(['ok'=>false,'error'=>'This TG bank payment reference is already posted.'],409);
-        $lines=[er_line($target,$targetAed,0,$catalog,['counterparty'=>$entity,'sourceLiabilityId'=>$liabilityId,'receiptId'=>$receiptId]),er_line('1110',0,$bankAed,$catalog,['bankAccountId'=>$tgBankId,'bankName'=>$bank['bankName'],'bankAccountTitle'=>$bank['accountTitle'],'currency'=>$currency,'bankDebit'=>0,'bankCredit'=>$amount,'receiptId'=>$receiptId])];
-        $difference=round($bankAed-$targetAed,2);
-        if($difference>0)$lines[]=er_line('7100',$difference,0,$catalog,['fxDirection'=>'Loss','receiptId'=>$receiptId]);
-        elseif($difference<0)$lines[]=er_line('7100',0,abs($difference),$catalog,['fxDirection'=>'Gain','receiptId'=>$receiptId]);
-        $txId=er_next_id((array)($store['tgBankTransactions']??[]),'TGBK');
-        $meta=['tgBankTransactionId'=>$txId,'receiptId'=>$receiptId,'linkedReceiptJournalId'=>$pakJournalId,'kind'=>'Payment','bankAccountId'=>$tgBankId,'bankReference'=>$reference,'counterparty'=>$entity,'currency'=>$currency,'amountNative'=>$amount,'sourceLiabilityId'=>$liabilityId,'notes'=>'Mirrored settlement for Pakistan receipt '.$receiptId];
-        $journal=er_post_journal($store,$user,'TG',$date,'TG_BANK_PAYMENT',$reference,'TG payment to '.$entity.' · Pakistan receipt '.$receiptId,$lines,$meta);
-        $store['tgBankTransactions'][$txId]=['id'=>$txId,'kind'=>'Payment','paymentType'=>$liabilityId!==''?'LIABILITY':'SUPPLIER_ADVANCE','date'=>$date,'bankAccountId'=>$tgBankId,'bank'=>$bank['bankName'],'currency'=>$currency,'bankReference'=>$reference,'counterparty'=>$entity,'amountNative'=>$amount,'bankDebitNative'=>$amount,'sourceLiabilityId'=>$liabilityId,'invoiceRef'=>(string)($allocation['invoiceRef']??''),'pakistanCandidateId'=>(string)($allocation['targetId']??''),'referenceType'=>'UNALLOCATED','notes'=>$meta['notes'],'journalId'=>$journal['id'],'createdAt'=>gmdate('c')];
-        $out[]=['transaction'=>$store['tgBankTransactions'][$txId],'journal'=>$journal];
+        $parts[]=$allocation+['targetAccount'=>$target,'sourceLiabilityId'=>$liabilityId,'payableRate'=>$payableRate];
+        if(!empty($allocation['invoiceRef']))$invoices[]=$allocation['invoiceRef'];
     }
-    $store['journals'][$pakJournalId]['meta']['tgPostIds']=array_column(array_column($out,'journal'),'id');
-    return $out;
+    $id=tgr_id((array)($store['tgRemittanceDrafts']??[]),'TGRD');
+    $draft=['id'=>$id,'status'=>'Pending','legacy'=>false,'receiptIds'=>[$receiptId],'pakJournalIds'=>[$pakJournalId],'counterparty'=>$entity,'date'=>$date,'currency'=>$currency,'bankAccountId'=>$tgBankId,'bank'=>$bank['bankName'],'amountNative'=>$total,'bankAdviceRefs'=>[$bankRef],'allocations'=>$parts,'invoiceRefs'=>array_values(array_unique($invoices)),'version'=>1,'createdAt'=>gmdate('c'),'createdBy'=>(string)($user['full_name']??$user['username']??'Accounts')];
+    $store['tgRemittanceDrafts'][$id]=$draft;
+    $store['journals'][$pakJournalId]['meta']['tgRemittanceDraftId']=$id;
+    return [['draft'=>$draft]];
 }

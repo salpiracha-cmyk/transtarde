@@ -13,6 +13,8 @@ function er_reverse_receipt_store(array &$store, string $receiptId, string $enti
         foreach((array)($store[$collection]??[]) as $linked)
             if(is_array($linked)&&in_array($receiptId,[(string)($linked['receiptId']??''),(string)($linked['linkedReceiptId']??'')],true))
                 throw new DomainException('A tax or retention settlement is linked to this advice. Correct that linked record first.');
+    if(!empty($receipt['tgRemittanceId']))throw new DomainException('This advice belongs to a confirmed TG remittance. Review and correct the linked remittance before changing the receipt amount.');
+    $draftId=(string)($receipt['tgRemittanceDraftId']??'');if($draftId!==''&&isset($store['tgRemittanceDrafts'][$draftId]))$store['tgRemittanceDrafts'][$draftId]['status']='Cancelled for Amendment';
     $ids=array_values(array_filter(array_merge([(string)($receipt['journalId']??''),(string)($receipt['separateChargeJournalId']??'')],(array)($receipt['indentorPayableJournalIds']??[]),(array)($receipt['tgMirrorPostIds']??[]))));
     if(!$ids||count($ids)!==count(array_unique($ids)))throw new DomainException('Receipt journal links are incomplete; accounting review is required.');
     foreach((array)($store['journals']??[]) as $linked)

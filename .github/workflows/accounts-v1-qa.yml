@@ -53,6 +53,7 @@ jobs:
           php tests/accounts-v1/fi_credit_advice_link_test.php
           python3 tests/accounts-v1/fi_credit_advice_http_test.py
           php tests/accounts-v1/tg_receipt_mirror_test.php
+          python3 tests/accounts-v1/tg_remittance_http_test.py
           php tests/accounts-v1/accounts_reset_scope_test.php
           php tests/accounts-v1/qa_account_profile_test.php
           php tests/security/qa_account_read_only_test.php
@@ -139,6 +140,10 @@ jobs:
         run: '"$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/salary_month_http_test.py'
       - name: Property registration and instalment browser flow
         run: '"$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/assets_registry_http_test.py'
+      - name: TG remittance review browser flow
+        env:
+          TT_QA_OUTPUT: ${{ runner.temp }}/inventory-evidence
+        run: '"$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/tg_remittance_http_test.py'
       - name: Retain sanitized test evidence
         continue-on-error: true # Evidence uploads are best effort; every functional check remains required.
         if: always()

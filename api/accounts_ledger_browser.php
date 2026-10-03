@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require dirname(__DIR__).'/auth_store.php';
 require_once __DIR__.'/accounts_reference.php';
+require_once __DIR__.'/tg_remittance_core.php';
 require_once __DIR__.'/fi_credit_advice_link.php';
 header('Cache-Control: no-store');
 
@@ -31,6 +32,7 @@ $to=alb_date((string)($_GET['to']??date('Y-m-d')));
 if($from>$to)alb_fail('From date cannot be later than To date.');
 $account=trim((string)($_GET['account']??''));
 $category=trim((string)($_GET['category']??'other'));if(!in_array($category,['supplier','customer','bank','other'],true))alb_fail('Select a valid ledger category.');
+$nativeCurrency=$entity==='TG'?strtoupper(trim((string)($_GET['currency']??'AED'))):'';if($nativeCurrency!==''&&!in_array($nativeCurrency,['AED','USD'],true))alb_fail('Select AED books or USD transactions.');
 $party=trim((string)($_GET['party']??''));$parties=[];
 $query=strtolower(trim((string)($_GET['q']??'')));
 $postEntries=$account==='POSTS';
@@ -121,11 +123,14 @@ foreach($journals as $journal){
         if($lineParty!==''&&in_array($category,['supplier','customer'],true))$parties[$lineParty]=true;
         if($party!==''&&strcasecmp($lineParty,$party)!==0)continue;
         $date=(string)$journal['date'];
+        $usdView=$entity==='TG'&&$bankId===''&&$nativeCurrency==='USD';if($usdView&&$code==='7100')continue;if($usdView&&strtoupper((string)($line['currency']??$journal['meta']['currency']??$journal['meta']['transactionCurrency']??''))!=='USD')continue;
         $native=$bankId!==''&&($banks[$bankId]['currency']??'')!==($entity==='TG'?'AED':'PKR');
         $debit=round((float)($native?($line['bankDebit']??0):($line['debit']??0)),2);$credit=round((float)($native?($line['bankCredit']??0):($line['credit']??0)),2);
+        $nativeMissing=false;if($usdView){$nd=$line['nativeDebit']??null;$nc=$line['nativeCredit']??null;if($code==='1110'){$nd=$line['bankDebit']??null;$nc=$line['bankCredit']??null;}elseif($nd===null&&isset($line['chargeNative'])){$nd=(float)$line['chargeNative'];$nc=0;}elseif($nd===null&&isset($line['vatNative'])){$nd=(float)$line['vatNative'];$nc=0;}elseif($nd===null&&($journal['meta']['targetAccount']??'')===$code&&isset($journal['meta']['settlementAmountNative'])){$nd=(float)($line['debit']??0)>0?$journal['meta']['settlementAmountNative']:0;$nc=(float)($line['credit']??0)>0?$journal['meta']['settlementAmountNative']:0;}elseif($nd===null&&in_array($code,['1250','2500'],true)&&isset($journal['meta']['amountNative'])){$nd=(float)($line['debit']??0)>0?$journal['meta']['amountNative']:0;$nc=(float)($line['credit']??0)>0?$journal['meta']['amountNative']:0;}if($nd===null&&in_array($code,['1210','1250','2500','2510'],true)&&isset($journal['meta']['transactionAmount'])){$nd=(float)($line['debit']??0)>0?$journal['meta']['transactionAmount']:0;$nc=(float)($line['credit']??0)>0?$journal['meta']['transactionAmount']:0;}$nativeMissing=$nd===null||$nc===null;$debit=round((float)($nd??0),2);$credit=round((float)($nc??0),2);}
         if($date<$from){if($account!==''||$party!=='')$opening+=$debit-$credit;continue;}
         $linkedNote=(string)($journal['meta']['notes']??'');$tracking=trim(implode(' · ',array_filter([(string)($journal['meta']['bankPaymentMethod']??''),!empty($journal['meta']['chequeNo'])?'Cheque '.$journal['meta']['chequeNo']:''])));
         $row=['date'=>$date,'voucher'=>(string)($journal['id']??''),'account'=>$bankId!==''?$account:$code,'accountName'=>$bankId!==''?$catalog[$account]:(string)($line['accountName']??$catalog[$code]??$code),'reference'=>(string)($journal['reference']??''),'narration'=>(string)($journal['narration']??'').(str_starts_with($linkedNote,'Mirrored settlement for Pakistan receipt ')?' · '.$linkedNote:'').($tracking!==''?' · '.$tracking:''),'party'=>$lineParty!==''?$lineParty:(string)($line['subledger']??$line['bankName']??''),'debit'=>$debit,'credit'=>$credit];
+        if($usdView){$row['nativeMissing']=$nativeMissing;$row['bookCurrency']='AED';$row['bookDebit']=(float)($line['debit']??0);$row['bookCredit']=(float)($line['credit']??0);}
         if($native){$row['bookCurrency']=$entity==='TG'?'AED':'PKR';$row['bookDebit']=round((float)($line['debit']??0),2);$row['bookCredit']=round((float)($line['credit']??0),2);$row['nativeMissing']=!isset($line['bankDebit'])&&!isset($line['bankCredit']);}
         $rows[]=$row;
     }
@@ -151,4 +156,4 @@ if(($_GET['format']??'')==='csv'){
     fclose($out);exit;
 }
 header('Content-Type: application/json; charset=UTF-8');
-echo json_encode(['ok'=>true,'entity'=>$entity,'accounts'=>array_map(static fn($code,$name)=>['code'=>(string)$code,'name'=>$name],array_keys($catalog),array_values($catalog)),'from'=>$from,'to'=>$to,'account'=>$account,'currency'=>$bankId!==''?($banks[$bankId]['currency']??''):($entity==='TG'?'AED':'PKR'),'opening'=>round($opening,2),'closing'=>($account!==''||$party!=='')&&!$postEntries?$closing:null,'parties'=>array_keys($parties),'category'=>$category,'party'=>$party,'rows'=>$rows],JSON_UNESCAPED_UNICODE);
+echo json_encode(['ok'=>true,'entity'=>$entity,'accounts'=>array_map(static fn($code,$name)=>['code'=>(string)$code,'name'=>$name],array_keys($catalog),array_values($catalog)),'from'=>$from,'to'=>$to,'account'=>$account,'currency'=>$bankId!==''?($banks[$bankId]['currency']??''):($entity==='TG'?$nativeCurrency:'PKR'),'pendingRemittances'=>$entity==='TG'&&$bankId!==''?tgr_reserved($store,$bankId):0,'availableBalance'=>$entity==='TG'&&$bankId!==''?tgr_bank_balance($store,$bankId,$banks[$bankId]['currency'])['available']:null,'opening'=>round($opening,2),'closing'=>($account!==''||$party!=='')&&!$postEntries?$closing:null,'parties'=>array_keys($parties),'category'=>$category,'party'=>$party,'rows'=>$rows],JSON_UNESCAPED_UNICODE);

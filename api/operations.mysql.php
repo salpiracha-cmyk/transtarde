@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__.'/fi_credit_advice_link.php';
 
 require dirname(__DIR__) . '/auth_store.php';
 require dirname(__DIR__) . '/backup_lib.php';
@@ -274,6 +275,7 @@ function operations_apply_export_reset_db(PDO $db, array $user): void {
             }
         }
         $db->commit();
+    if($key==='transtrade_export_v3_operational')try{tt_receipt_invoice_sync();}catch(Throwable $linkError){error_log('Invoice narration link: '.$linkError->getMessage());}
     } catch (Throwable $e) {
         if ($db->inTransaction()) $db->rollBack();
         throw $e;
@@ -515,6 +517,7 @@ function operations_file_fallback(array $user): never {
         $revision=(int)($store['revision']??0);
     } finally { flock($handle,LOCK_UN); fclose($handle); }
     if ($conflict) operations_respond(['ok'=>false,'conflict'=>true,'error'=>'A newer shared update is available. Refresh before saving again.','keyVersion'=>$keyVersion],409);
+    if($key==='transtrade_export_v3_operational')try{tt_receipt_invoice_sync();}catch(Throwable $linkError){error_log('Invoice narration link: '.$linkError->getMessage());}
     operations_respond(['ok'=>true,'revision'=>$revision,'keyVersion'=>$keyVersion,'updatedAt'=>gmdate('c')]);
 }
 
@@ -620,6 +623,7 @@ try {
         $history->execute([$changedKey,$newVersion,hash('sha256',$changedValue),$now,$name,$userId,$writer]);
     }
     $db->commit();
+    if($key==='transtrade_export_v3_operational')try{tt_receipt_invoice_sync();}catch(Throwable $linkError){error_log('Invoice narration link: '.$linkError->getMessage());}
     if($inventoryLock){$release=$db->prepare('SELECT RELEASE_LOCK(?)');$release->execute(['tt_inventory_'.substr(hash('sha256',operations_env('DB_NAME')),0,24)]);$inventoryLock=false;}
     operations_respond(['ok' => true, 'revision' => $version, 'keyVersion' => $version, 'updatedAt' => gmdate('c')]);
 } catch (DomainException|InvalidArgumentException $e) {

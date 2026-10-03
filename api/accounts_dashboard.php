@@ -18,6 +18,7 @@ try{
  $commodity=[];$expenses=[];
  foreach((array)($s['commodityBills']??[])as$b){if(!is_array($b)||($b['entity']??'')!==$e)continue;$out=round(max(0,(float)($b['supplierPayableTotal']??$b['total']??0)-ad_paid($s,(string)($b['id']??''))),2);if($out>.005)$commodity[]=['label'=>(string)($b['broker']??$b['party']??'Commodity supplier'),'reference'=>(string)($b['billNo']??$b['id']??''),'date'=>(string)($b['dueDateFrom']??$b['billDate']??''),'currency'=>'PKR','amount'=>$out];}
  foreach((array)($s['supplierBills']??[])as$b){if(!is_array($b)||($b['entity']??'')!==$e)continue;$out=round(max(0,(float)($b['supplierPayableTotal']??0)-ad_paid($s,(string)($b['id']??''))),2);if($out>.005)$expenses[]=['label'=>(string)($b['vendor']??$b['broker']??'Supplier'),'reference'=>(string)($b['billNo']??$b['id']??''),'date'=>(string)($b['dueDate']??$b['billDate']??''),'currency'=>'PKR','amount'=>$out];}
+ if($e==='TG'){foreach(tgr_items($s) as $draft){if(!empty($draft['legacy']))continue;$key=$draft['currency'].'|'.$draft['bankAccountId'];if(!isset($bank[$key]))$bank[$key]=['label'=>$draft['bank'],'currency'=>$draft['currency'],'amount'=>0.0];$bank[$key]['pending']=round((float)($bank[$key]['pending']??0)+(float)$draft['amountNative'],2);}foreach($bank as &$row){$row['postedAmount']=$row['amount'];$row['amount']=round($row['amount']-(float)($row['pending']??0),2);$row['label'].=' · AVAILABLE';}unset($row);}
  $attention=ar_items($s,$e);
  $due=$expenses;
  foreach((array)($s['creditCardStatements']??[]) as $statement){
@@ -39,7 +40,7 @@ try{
    $amount=is_array($period)?(float)($period['outstanding']??0):(float)($rent['monthlyAmount']??0)*$interval;
    if($amount>.005)$due[]=['label'=>(string)($rent['mill']??'').' rent · '.(string)($rent['payee']??''),'reference'=>(string)($rent['id']??''),'date'=>$dueDate,'currency'=>$e==='TG'?'AED':'PKR','amount'=>$amount];
  }
- $sets=['bank'=>ad_rows($bank),'commodity'=>ad_rows($commodity),'local'=>ad_rows($local),'export'=>ad_rows($export),'expenses'=>ad_rows($expenses),'due'=>ad_rows($due)];foreach($sets as&$rows)if(is_array($rows))foreach($rows as&$row)$row['dateDisplay']=preg_match('/^(\d{4})-(\d{2})-(\d{2})$/',(string)($row['date']??''),$m)?$m[3].'-'.$m[2].'-'.$m[1]:'';unset($row);unset($rows);
+ $sets=['bank'=>array_values($bank),'commodity'=>ad_rows($commodity),'local'=>ad_rows($local),'export'=>ad_rows($export),'expenses'=>ad_rows($expenses),'due'=>ad_rows($due)];foreach($sets as&$rows)if(is_array($rows))foreach($rows as&$row)$row['dateDisplay']=preg_match('/^(\d{4})-(\d{2})-(\d{2})$/',(string)($row['date']??''),$m)?$m[3].'-'.$m[2].'-'.$m[1]:'';unset($row);unset($rows);
  usort($sets['due'],static fn($a,$b)=>strcmp((string)($a['date']??''),(string)($b['date']??'')));
  ad_out(['ok'=>true,'entity'=>$e,'summaries'=>$sets,'attention'=>$attention,'serverNow'=>gmdate('c')]);
 }catch(Throwable $x){error_log('Accounts dashboard: '.$x->getMessage());ad_out(['ok'=>false,'error'=>'Accounts summary is temporarily unavailable.'],500);}

@@ -16,6 +16,7 @@ try{
  tt_ensure_data_dir();$h=fopen(TT_DATA_DIR.'/accounts.json','c+');if(!$h||!flock($h,LOCK_EX))throw new RuntimeException('Accounts storage unavailable.');
  try{rewind($h);$raw=stream_get_contents($h);$s=$raw?json_decode($raw,true):[];if(!is_array($s))throw new RuntimeException('Accounts storage invalid.');$match=null;foreach(ar_items($s,$e)as$item)if($item['id']===($b['id']??'')&&$item['fingerprint']===($b['fingerprint']??'')){$match=$item;break;}
  if(!$match)ar_out(['ok'=>false,'error'=>'This review changed or has already been removed. Refresh the list.'],409);
+ if($match['kind']==='REMITTANCE')ar_out(['ok'=>false,'error'=>'This payment must be reviewed and posted; it cannot be discarded.'],422);
  $s['accountsReviewDismissals'][$match['id']]=['entity'=>$e,'fingerprint'=>$match['fingerprint'],'discardedAt'=>gmdate('c'),'discardedBy'=>(string)($u['full_name']??$u['username']??'User')];$s['revision']=(int)($s['revision']??0)+1;
  $s['workflowAudit'][]=['at'=>gmdate('c'),'type'=>'ACCOUNTS_REVIEW','id'=>$match['id'],'action'=>'DISCARD','user'=>(string)($u['username']??'User'),'before'=>$match,'after'=>[]];
  $encoded=json_encode($s,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR);rewind($h);if(!ftruncate($h,0)||fwrite($h,$encoded)!==strlen($encoded)||!fflush($h))throw new RuntimeException('Could not save review.');
