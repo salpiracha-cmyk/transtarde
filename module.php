@@ -121,13 +121,14 @@ $sharedBootstrap = <<<'HTML'
     if(pending.size||inFlight.size)return Promise.reject(new Error('Finish the current save before refreshing.'));
     return fetch(endpoint+'?r='+Date.now(),{credentials:'same-origin'}).then(r=>r.json()).then(data=>{if(!data?.ok)throw new Error(data?.error||'Shared data could not be refreshed.');applyRemote(data,false);return data})
   }
-  function flush(){
+  function flush(retry=true){
+    if(retry)failedKeys.clear();
     for(const [key,value] of [...pending]){
       if(inFlight.has(key)||failedKeys.has(key))continue;
       pending.delete(key);
       inFlight.add(key);
       fetch(endpoint,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({csrf:access.csrf,key,value,baseVersion:Number(queuedBase.get(key)??keyVersions.get(key)??0),sourceModule:access.module||'Super Admin'})})
-        .then(async response=>{const result=await response.json();if(response.ok===false&&result.ok)throw new Error('Invalid save response');return result}).then(r=>{inFlight.delete(key);if(r.ok){revision=Math.max(revision,Number(r.revision||0));keyVersions.set(key,Number(r.keyVersion||r.revision||0));receipts.set(key,value);committedValues.set(key,typeof r.value==='string'?r.value:value);if(pending.has(key))queuedBase.set(key,Number(keyVersions.get(key)||0));else queuedBase.delete(key);markSaveState('Saved');if(typeof dispatchEvent==='function'&&typeof CustomEvent==='function')dispatchEvent(new CustomEvent('tt:shared-saved',{detail:{key}}));if(pending.size)flush();settleCommits();return}if(!pending.has(key))pending.set(key,value);failedKeys.add(key);const message=r.conflict?'This record changed elsewhere. Reload and review it before retrying.':(r.error||'The change was not saved.');showSyncError(message,!!r.conflict);settleCommits(message)})
+        .then(async response=>{const result=await response.json();if(response.ok===false&&result.ok)throw new Error('Invalid save response');return result}).then(r=>{inFlight.delete(key);if(r.ok){revision=Math.max(revision,Number(r.revision||0));keyVersions.set(key,Number(r.keyVersion||r.revision||0));receipts.set(key,value);committedValues.set(key,typeof r.value==='string'?r.value:value);if(pending.has(key))queuedBase.set(key,Number(keyVersions.get(key)||0));else queuedBase.delete(key);markSaveState('Saved');if(typeof dispatchEvent==='function'&&typeof CustomEvent==='function')dispatchEvent(new CustomEvent('tt:shared-saved',{detail:{key}}));if(pending.size)flush(false);settleCommits();return}if(!pending.has(key))pending.set(key,value);failedKeys.add(key);const message=r.conflict?'This record changed elsewhere. Reload and review it before retrying.':(r.error||'The change was not saved.');showSyncError(message,!!r.conflict);settleCommits(message)})
         .catch(()=>{inFlight.delete(key);if(!pending.has(key))pending.set(key,value);failedKeys.add(key);const message='The save was not confirmed. Check the connection, then reload and review before retrying.';showSyncError(message);settleCommits(message)});
     }
   }
