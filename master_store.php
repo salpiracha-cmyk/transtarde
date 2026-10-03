@@ -10,7 +10,8 @@ function tt_post_id_year(?int $year = null): int {
 
 function tt_post_id_digits(int|string $value): string {
     $digits = preg_replace('/\D+/', '', (string)$value) ?: '0';
-    return str_pad(substr($digits, -TT_POST_ID_WIDTH), TT_POST_ID_WIDTH, '0', STR_PAD_LEFT);
+    if (strlen($digits) > TT_POST_ID_WIDTH) throw new RuntimeException('Yearly Post ID limit reached.');
+    return str_pad($digits, TT_POST_ID_WIDTH, '0', STR_PAD_LEFT);
 }
 
 function tt_format_post_id(int|string $value, ?int $year = null): string {
@@ -27,7 +28,8 @@ function tt_post_id_matches_search(string $postId, string $query): bool {
     $queryDigits = preg_replace('/\D+/', '', $query) ?: '';
     if ($queryDigits === '') return false;
     return str_ends_with($digits, $queryDigits)
-        || str_ends_with(tt_post_id_digits($digits), tt_post_id_digits($queryDigits));
+        || (strlen($queryDigits) <= TT_POST_ID_WIDTH
+            && substr($digits, -TT_POST_ID_WIDTH) === str_pad($queryDigits, TT_POST_ID_WIDTH, '0', STR_PAD_LEFT));
 }
 
 function tt_reserve_post_id(string $module, string $area, array $context = []): string {
@@ -37,7 +39,7 @@ function tt_reserve_post_id(string $module, string $area, array $context = []): 
     tt_mutate_store(function (&$data) use ($year, $module, $area, $context, $minimum, &$next) {
         $data['post_sequence'] = $data['post_sequence'] ?? [];
         $yearKey = (string)$year;
-        $last = max($minimum, (int)($data['post_sequence']['last'] ?? 0), (int)($data['post_sequence']['years'][$yearKey]['last'] ?? 0));
+        $last = max($minimum, (int)($data['post_sequence']['years'][$yearKey]['last'] ?? 0));
         $next = $last + 1;
         $data['post_sequence']['last'] = max((int)($data['post_sequence']['last'] ?? 0), $next);
         $data['post_sequence']['years'][$yearKey]['last'] = $next;

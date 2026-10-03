@@ -182,7 +182,7 @@ function accounts_assert_account_class(string $code, array $allowedCodes = [], ?
 
 function accounts_post_journal_to_store(array &$store, array $user, string $entity, string $date, string $sourceType, string $reference, string $narration, array $rawLines, array $meta = [], ?string $forcedPrefix = null): array {
     [$lines,$dr,$cr] = accounts_normalize_lines($rawLines);
-    $id = accounts_next_id((array)$store['journals'], $forcedPrefix ?: 'JV');
+    $id = tt_next_post_id((array)$store['journals'], 'Accounts', 'Journal', $date);
     $store['journals'][$id] = [
         'id'=>$id,'entity'=>$entity,'date'=>$date,'sourceType'=>$sourceType,'reference'=>$reference,
         'narration'=>$narration,'lines'=>$lines,'totalDebit'=>$dr,'totalCredit'=>$cr,'status'=>'Posted',
@@ -380,7 +380,7 @@ try {
             if (!is_array($original) || ($original['status'] ?? '') !== 'Posted') accounts_respond(['ok'=>false,'error'=>'Posted journal not found.'], 404);
             accounts_require_entity_access($user, accounts_validate_entity((string)($original['entity'] ?? '')), 'Edit');
             foreach ((array)$store['journals'] as $j) if (($j['reversalOf'] ?? null) === $target) accounts_respond(['ok'=>false,'error'=>'This journal has already been reversed.'], 409);
-            $id = accounts_next_id((array)$store['journals'], 'RV');
+            $id = tt_next_post_id((array)$store['journals'], 'Accounts', 'Journal', gmdate('Y-m-d'));
             $lines = array_map(fn($l)=>['account'=>$l['account'],'accountName'=>$l['accountName'] ?? '', 'debit'=>(float)$l['credit'],'credit'=>(float)$l['debit']], (array)$original['lines']);
             $store['journals'][$id] = [
                 'id'=>$id,'entity'=>$original['entity'],'date'=>gmdate('Y-m-d'),'sourceType'=>'REVERSAL','reference'=>$target,
