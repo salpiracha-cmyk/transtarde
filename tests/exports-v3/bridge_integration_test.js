@@ -11,6 +11,7 @@ class Storage{
   getItem(k){return this.data.has(k)?this.data.get(k):null}
   setItem(k,v){this.data.set(String(k),String(v))}
   removeItem(k){this.data.delete(String(k))}
+  clear(){this.data.clear()}
   key(i){return [...this.data.keys()][i]||null}
   get length(){return this.data.size}
 }
@@ -19,20 +20,21 @@ const root={contracts:[{ref:'TTI/NS/01',product:'IRRI-6 White Rice',packingUnit:
 localStorage.setItem('transtrade_export_v3_operational',JSON.stringify(root));
 localStorage.setItem('tt32exportsync','[]');
 const listeners={};
-const document={activeElement:null,documentElement:{classList:{add(){},remove(){},contains(){return false}}},body:{appendChild(){}},getElementById(){return null},createElement(){return{style:{},appendChild(){}}},addEventListener(){}};
+const document={activeElement:null,documentElement:{classList:{add(){},remove(){},toggle(){},contains(){return false}}},body:{appendChild(){}},getElementById(){return null},createElement(){return{style:{},appendChild(){}}},addEventListener(){}};
 let serverValues={transtrade_export_v3_operational:JSON.stringify(root)};
 class XMLHttpRequest{open(method,url,async){this.async=async}send(){this.status=200;this.responseText=JSON.stringify({ok:true,revision:1,values:serverValues,meta:{}});if(this.onload)this.onload()}}
 const resolved=v=>({then(fn){try{const next=fn(v);return next&&typeof next.then==='function'?next:resolved(next)}catch(error){return rejected(error)}},catch(){return this}}),rejected=error=>({then(){return this},catch(fn){return resolved(fn(error))}});
-const posts=[];const context={window:{TT_MODULE_ACCESS:{csrf:'test',module:'Exports',moduleId:'exports'},TRANSTRADE_SERVER_NOW_ISO:''},Storage,localStorage,document,XMLHttpRequest,console,fetch:(url,options)=>{posts.push(JSON.parse(options.body));return resolved({json:()=>resolved({ok:true,revision:1,keyVersion:1})})},setTimeout:()=>0,clearTimeout(){},setInterval:()=>0,addEventListener:(n,fn)=>listeners[n]=fn,location:{reload(){}}};
+const posts=[];const context={window:{TT_MODULE_ACCESS:{csrf:'test',module:'Exports',moduleId:'exports'},TRANSTRADE_SERVER_NOW_ISO:''},Storage,localStorage,document,XMLHttpRequest,console,fetch:(url,options)=>{posts.push(JSON.parse(options.body));return Promise.resolve({ok:true,json:async()=>({ok:true,revision:1,keyVersion:1})})},setTimeout:()=>0,clearTimeout(){},setInterval:()=>0,addEventListener:(n,fn)=>listeners[n]=fn,location:{reload(){}}};
 context.clock=0;context.Date=class extends Date {static now(){return Date.now()+context.clock}};
 context.window.localStorage=localStorage;context.window.document=document;context.window.Storage=Storage;context.globalThis=context;
+(async()=>{
 vm.runInNewContext(match[1],context,{filename:'shared-bridge.js'});
 assert.equal(listeners.DOMContentLoaded,undefined,'initial bridge must run before module application state loads');
 const directInstruction=JSON.parse(localStorage.getItem('tt30ship'))[0];
 directInstruction.containers=[{id:'C-1',container:'MSCU1234567',seal:'SL001',bags:1080,weight:27000,gate:'GP-9',truck:'TRK-1',date:'2026-09-08'},{id:'C-2',container:'MSCU7654321',seal:'SL002',bags:1080,weight:27000,gate:'GP-10',truck:'TRK-2',date:'2026-09-08'}];
 localStorage.setItem('tt30ship',JSON.stringify([directInstruction]));
 context.window.TT_SHARED_SYNC.bridge();context.window.TT_SHARED_SYNC.bridge();
-context.window.TT_SHARED_SYNC.flush(); // explicit committed action; page load alone must never autosave
+await context.window.TT_SHARED_SYNC.saveNow(); // explicit committed action; page load alone must never autosave
 const millInstruction=JSON.parse(localStorage.getItem('tt30ship'))[0];
 assert.equal(millInstruction.dryon,'Yes');
 assert.equal(millInstruction.craft,'Yes');
@@ -58,7 +60,7 @@ const amended=structuredClone(root2);
 amended.contracts[0].product='PK-386 Steam Rice';amended.contracts[0].quality='Revised export quality';
 amended.millSync.exportLoading[0].sentAt='2026-09-25T14:00:00Z';
 amended.millSync.productionInstructions=[{contractRef:'TTI/NS/01',product:'PK-386 Steam Rice',quality:'Revised export quality',packings:amended.contracts[0].packings,sentAt:'2026-09-25T14:00:00Z'}];
-context.window.TT_SHARED_SYNC.flush();serverValues={transtrade_export_v3_operational:JSON.stringify(amended)};context.clock+=1000;listeners.focus();
+await context.window.TT_SHARED_SYNC.saveNow();serverValues={transtrade_export_v3_operational:JSON.stringify(amended)};context.clock+=1000;listeners.focus();
 const revised=JSON.parse(localStorage.getItem('tt30ship')).find(x=>x._ttShipmentId==='L-1');
 assert.equal(revised.displayName,'PK-386 Steam Rice','existing shipment instruction follows the amended product');
 assert.equal(revised.sentAt,'2026-09-25T14:00:00Z','existing shipment receives a new unread revision timestamp');
@@ -66,3 +68,5 @@ assert.equal(revised.containers.length,2,'amendment retains the same saved Mill 
 assert.equal(JSON.parse(localStorage.getItem('tt30prodinst'))[0].quality,'Revised export quality','production instruction follows the amended contract quality');
 assert.ok(posts.length>0);assert.ok(posts.every(x=>Number.isInteger(x.baseVersion)));assert.ok(posts.every(x=>x.sourceModule==='Exports'));
 console.log('PASS Export ⇄ Milling lot-reference bridge');
+
+})().catch(error=>{console.error(error);process.exitCode=1});
