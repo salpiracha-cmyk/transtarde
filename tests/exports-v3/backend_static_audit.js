@@ -13,6 +13,7 @@ const masterStore=fs.readFileSync(path.join(__dirname,'../../master_store.php'),
 const html=fs.readFileSync(path.join(__dirname,'index.html'),'utf8');
 const css=fs.readFileSync(path.join(__dirname,'app.css'),'utf8');
 const js=fs.readFileSync(path.join(__dirname,'../../exports/app.js'),'utf8');
+const adminUi=fs.readFileSync(path.join(root,'admin/app.js'),'utf8');
 const milling=fs.readFileSync(path.join(__dirname,'../../milling/Transtrade_Master_Milling_V3_3_2_AUDITED.html'),'utf8');
 const customerMaster=fs.readFileSync(path.join(__dirname,'../../customer-master.js'),'utf8');
 const documentAi=fs.readFileSync(path.join(__dirname,'../../api/document_ai.php'),'utf8');
@@ -129,6 +130,15 @@ assert.match(js,/shall be received latest by/,'advance clause must use the singl
 assert.match(js,/upon receipt of scan copies of shipment documents by Buyer/,'scan balance clause must use approved wording');
 assert.match(js,/ADVANCE TO BE REMITTED TO BELOW-MENTIONED ACCOUNT:/,'advance bank details must follow the balance clause');
 assert.match(js,/contractSignatureGrid/,'contract must provide aligned Seller and Buyer signature areas');
+assert.match(js,/shipmentMode:'FCL'/,'new contracts must default to the existing container workflow');
+assert.match(js,/option value="BREAK_BULK"/,'sales contracts must explicitly select break bulk mode');
+assert.match(js,/contractQuantityLine\(c\)/,'sales contract quantity output must be mode-aware');
+assert.match(js,/function renderBreakBulkLoading/,'break bulk loading instructions must use a separate non-container path');
+assert.match(js,/Truck numbers are not required for break bulk export documents/,'break bulk loading must not request truck numbers for export documents');
+assert.match(js,/isBreakBulk\(dc\)\?'BREAK BULK CARGO'/,'document outputs must replace container transport wording for break bulk');
+assert.match(js,/PACKAGE DETAILS/,'break bulk packing list must use package details instead of container and seal details');
+assert.match(adminUi,/BREAK_BULK/,'Admin Export Other Terms must expose a break bulk term group');
+assert.match(adminUi,/CNF_FO/,'Admin export masters must expose CNF FO grouping');
 assert.doesNotMatch(login,/authBrandLogo|TTI_header\.png/,'login must retain text-only Transtrade branding');
 assert.match(documentAi,/function ai_gemini_request/,'Gemini document calls must use the shared request path');
 assert.match(documentAi,/tt_gemini_resolve_model/,'Gemini document extraction must resolve a model available to the configured API key');
