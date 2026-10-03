@@ -7,7 +7,7 @@ require dirname(__DIR__,2).'/api/export_receipt_tg_mirror.php';
 require dirname(__DIR__,2).'/api/fi_credit_advice_link.php';
 function check(bool $v,string $m):void{if(!$v)throw new RuntimeException($m);}
 $s=['journals'=>[],'exportReceipts'=>[],'exportCandidates'=>[]];$names=array_fill_keys(['1110','1250','2500','7100','6800','1140'],'ACCOUNT');$banks=['USD'=>['id'=>'USD','bank'=>'TG BANK','title'=>'USD BANK','currency'=>'USD'],'AED'=>['id'=>'AED','bank'=>'TG BANK','title'=>'AED BANK','currency'=>'AED']];
-foreach([108000,32000] as $i=>$amount){$rid='ER-'.$i;$pj='PK-'.$i;$s['journals'][$pj]=['id'=>$pj,'entity'=>'TTI','status'=>'Posted','meta'=>[]];$alloc=[['targetType'=>'UNAPPLIED_TG','foreignAmount'=>$amount]];
+foreach([108000,32000] as $i=>$amount){$rid='ER-'.$i;$pj='PK-'.$i;$s['journals'][$pj]=['id'=>$pj,'entity'=>'TTI','status'=>'Posted','meta'=>['receiptId'=>$rid],'narration'=>'CREDIT ADVICE'];$alloc=[['targetType'=>'UNAPPLIED_TG','foreignAmount'=>$amount]];
  $draft=er_mirror_tg_receipt($s,[],['remitter'=>'TG','tgBankAccountId'=>'USD'],$alloc,$names,$rid,$pj,'TTI','2026-10-01','USD','ADVICE-'.$i)[0]['draft'];
  $s['exportReceipts'][$rid]=['id'=>$rid,'entity'=>'TTI','remitter'=>'TG','date'=>'2026-10-01','foreignAmount'=>$amount,'transactionCurrency'=>'USD','journalId'=>$pj,'bankAdviceRef'=>'ADVICE-'.$i,'allocations'=>$alloc,'status'=>'Accounts Approved / Posted','tgRemittanceDraftId'=>$draft['id']];
 }
