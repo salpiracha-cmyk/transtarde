@@ -77,9 +77,11 @@ function tgr_confirm(array &$s,array $b,array $u,array $banks,array $names,array
    foreach($old['lines'] as $l){$q=$l;$q['debit']=(float)$l['credit'];$q['credit']=(float)$l['debit'];if(isset($l['bankDebit'])||isset($l['bankCredit'])){$q['bankDebit']=(float)($l['bankCredit']??0);$q['bankCredit']=(float)($l['bankDebit']??0);}$rev[]=$q;
     if(!in_array($l['account'],['1110','7100'],true)){$l['currency']=$cur;$l['nativeDebit']=(float)($l['debit']??0)>0?(float)($old['meta']['amountNative']??0):0;$l['nativeCredit']=(float)($l['credit']??0)>0?(float)($old['meta']['amountNative']??0):0;$lines[]=$l;if(!empty($l['sourceLiabilityId']))$liabilityAllocations[]=['id'=>$l['sourceLiabilityId'],'amountNative'=>(float)($old['meta']['amountNative']??0)];}
    }
-   $reversal=tgr_journal($s,$u,$date,'TG_REMITTANCE_CONSOLIDATION_REVERSAL',$old['id'],'CONSOLIDATE '.$old['id'].' · '.$reason,$rev,['tgRemittanceId'=>$rid,'reason'=>$reason]);$s['journals'][$reversal['id']]['reversalOf']=$old['id'];$legacy[$old['id']]=$reversal['id'];
+   $reversal=tgr_journal($s,$u,$date,'TG_REMITTANCE_CONSOLIDATION_REVERSAL',$old['id'],'CONSOLIDATE '.$old['id'].' · '.$reason,$rev,['tgRemittanceId'=>$rid,'reason'=>$reason,'currency'=>$cur,'amountNative'=>(float)($old['meta']['amountNative']??0)]);$s['journals'][$reversal['id']]['reversalOf']=$old['id'];$legacy[$old['id']]=$reversal['id'];
   }else{
-   $amountPart=(float)$a['foreignAmount'];$target=(string)$a['targetAccount'];$targetRate=(float)$a['payableRate'];
+   $amountPart=(float)$a['foreignAmount'];$target=(string)$a['targetAccount'];$targetRate=$target==='1250'?$rate:(float)$a['payableRate'];
+   if($a['sourceLiabilityId']!==''){$liability=$s['exportCandidates'][$a['sourceLiabilityId']]??null;if(!$liability||($liability['entity']??'')!=='TG'||($liability['counterparty']??'')!==$first['counterparty']||($liability['transactionCurrency']??'')!==$cur||empty($liability['journalId']))throw new DomainException('A linked invoice payable changed. Review the source invoice first.');$targetRate=(float)($liability['currentCarryingRate']??$liability['functionalRate']??0);if($targetRate<=0)throw new DomainException('The linked invoice carrying rate is missing.');}
+
    $lines[]=tgr_line($target,$amountPart*$targetRate,0,$names,['counterparty'=>$first['counterparty'],'sourceLiabilityId'=>$a['sourceLiabilityId'],'receiptId'=>$x['receiptIds'][0],'currency'=>$cur,'nativeDebit'=>$amountPart,'nativeCredit'=>0]);
    if($a['sourceLiabilityId']!=='')$liabilityAllocations[]=['id'=>$a['sourceLiabilityId'],'amountNative'=>$amountPart];
   }
