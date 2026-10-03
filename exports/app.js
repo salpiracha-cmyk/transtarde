@@ -56,6 +56,24 @@ async function acknowledgeExport(payload=save()){
  if(!window.TT_SHARED_SYNC?.saveNow)throw new Error('Server saving is unavailable. Reload before continuing.');
  await window.TT_SHARED_SYNC.saveNow({key:STORE,value:payload});
 }
+function committedExportSnapshot(){
+ try{return JSON.parse(window.TT_SHARED_SYNC?.readCommitted?.(STORE)||'null')}catch{return null}
+}
+function committedLotCompleted(lotId){
+ return !!committedExportSnapshot()?.shipments?.find(row=>row.id===lotId)?.completed;
+}
+async function confirmLotCompletionSave(payload,lotId){
+ try{await acknowledgeExport(payload);return committedExportSnapshot()}catch(error){
+  if(!/not confirmed|timed out|connection/i.test(String(error?.message||'')))throw error;
+  const started=Date.now();let last=error;
+  while(Date.now()-started<120000){
+   if(committedLotCompleted(lotId))return committedExportSnapshot();
+   await new Promise(resolve=>setTimeout(resolve,3000));
+   try{await window.TT_SHARED_SYNC?.refresh?.();if(committedLotCompleted(lotId))return committedExportSnapshot()}catch(refreshError){last=refreshError}
+  }
+  throw last||error;
+ }
+}
 function restoreExportAttempt(before,attempted){
  if(window.TT_SHARED_SYNC?.restoreStaged?.(STORE,before,attempted))state=normalize(JSON.parse(before));
 }
@@ -597,7 +615,8 @@ document.addEventListener('click',async e=>{if(e.target?.id==='cancelLot'){e.pre
   await window.TT_SHIPMENT_FILES.access();attempted=save();await acknowledgeExport(attempted);
   const acknowledged=window.TT_SHARED_SYNC.readCommitted(STORE);if(!acknowledged)throw new Error('Server shipment snapshot is unavailable. Reload and review.');
   state=normalize(JSON.parse(acknowledged));s=state.shipments.find(row=>row.id===s.id);c=s&&contractByRef(s.contractRef);
-  if(!s||!c||s.completed)throw new Error('Server shipment state changed. Reload and review.');
+  if(!s||!c)throw new Error('Server shipment state changed. Reload and review.');
+  if(s.completed){view='home';render();return}
   const acknowledgedMissing=completionMissing(s,c);if(acknowledgedMissing.length)throw new Error('The saved server shipment is incomplete: '+acknowledgedMissing.join(', '));
   const result=await saveShipmentFolder(s,c);
   if(state.shipments.find(row=>row.id===s.id)!==s)throw new Error('Shipment changed while preparing the files. Reload and review before completing.');
@@ -606,8 +625,8 @@ document.addEventListener('click',async e=>{if(e.target?.id==='cancelLot'){e.pre
   const p=processFor(s),valid=lotsFor(p).filter(l=>!l.cancelled),allocated=valid.reduce((a,l)=>a+num(l.plannedQty),0);
   if(valid.length&&valid.every(l=>l.completed)&&allocated+.001>=num(p.plannedQty)*(1-num(c.tolerance)/100)){captureShipmentPartyDetails(p,c);c.documentParties=structuredClone(p.documentParties);p.completed=true;p.status='Completed';c.status='Completed'}
   audit('Lot','Completed; document package queued',`${s.contractRef} · ${s.lotId} · ${result.path}`);attempted=save();
-  await acknowledgeExport(attempted);
-  const confirmed=JSON.parse(window.TT_SHARED_SYNC.readCommitted(STORE)||'null');
+  if(feedback)feedback.innerHTML='<div class="notice">Completion saved. Waiting for server confirmation...</div>';
+  const confirmed=await confirmLotCompletionSave(attempted,s.id);
   if(!confirmed?.shipments?.find(row=>row.id===s.id)?.completed)throw new Error('Server completion was not confirmed. Reload and review this lot.');
   state=normalize(confirmed);view='home';render()
  }catch(error){

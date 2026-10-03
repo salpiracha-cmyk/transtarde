@@ -115,7 +115,7 @@ $sharedBootstrap = <<<'HTML'
     if(intent){if(!allowed(intent.key)||typeof intent.value!=='string'||localStorage.getItem(intent.key)!==intent.value)return Promise.reject(new Error('The staged change no longer matches this action. Review before saving.'));if(receipts.get(intent.key)!==intent.value&&!pending.has(intent.key)&&!inFlight.has(intent.key))queue(intent.key,intent.value)}
     if(!pending.size&&!inFlight.size)return Promise.resolve({ok:true,revision});
     failedKeys.clear();
-    return new Promise((resolve,reject)=>{const waiter={resolve,reject,intent,timer:0};waiter.timer=setTimeout(()=>{const i=commitWaiters.indexOf(waiter);if(i>=0){commitWaiters.splice(i,1);if(!commitWaiters.length)waiting();reject(new Error('Save was not confirmed before the connection timed out. Reload and review the server state before retrying.'))}},20000);commitWaiters.push(waiter);waiting();flush()})
+    return new Promise((resolve,reject)=>{const waiter={resolve,reject,intent,timer:0};waiter.timer=setTimeout(()=>{const i=commitWaiters.indexOf(waiter);if(i>=0){commitWaiters.splice(i,1);if(!commitWaiters.length)waiting();reject(new Error('Save was not confirmed before the connection timed out. Reload and review the server state before retrying.'))}},120000);commitWaiters.push(waiter);waiting();flush()})
   }
   function refreshNow(){
     if(pending.size||inFlight.size)return Promise.reject(new Error('Finish the current save before refreshing.'));
