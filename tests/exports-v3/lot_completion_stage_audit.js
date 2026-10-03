@@ -1,6 +1,7 @@
 const fs=require('fs');
 const assert=require('assert');
-const app=fs.readFileSync(__dirname+'/app.js','utf8');
+const path=require('path');
+const app=fs.readFileSync(path.join(__dirname,'../../exports/app.js'),'utf8');
 
 assert.ok(!app.includes('class="panel lotFooter"'),'Mark Lot Complete must not render in the global lot workspace footer');
 assert.match(app,/workspaceHead[\s\S]*id="cancelLot"/,'Cancel Lot remains available in the lot header');
@@ -15,6 +16,8 @@ assert.match(app,/if\(e\.target\?\.id==='completeLot'\)[\s\S]*completionMissing\
 assert.match(app,/function confirmLotCompletionSave\(payload,lotId\)[\s\S]*120000/,'lot completion waits for a slow hosted save before failing');
 assert.match(app,/const confirmed=await confirmLotCompletionSave\(attempted,s\.id\)/,'lot completion uses the durable confirmation helper for the final save');
 assert.match(app,/function requeueCompletedShipmentFolder\(button,s,c\)[\s\S]*saveShipmentFolder\(s,c,false\)/,'completed lots can requeue the final Office Agent folder without reopening');
+const requeue=app.slice(app.indexOf('function requeueCompletedShipmentFolder'),app.indexOf('\nfunction recordUploadedDocument'));
+assert.doesNotMatch(requeue,/saveNow/,'completed lot office-folder requeue must not wait on a new shared save');
 assert.match(app,/QUEUE OFFICE FOLDER/,'completed lot view exposes an explicit Office Agent requeue action');
 
 console.log('PASS lot completion stage audit: final-output-only placement, upload gates, original dispatch gates, completed-lot hiding, click-time revalidation');

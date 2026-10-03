@@ -1196,8 +1196,6 @@ async function requeueCompletedShipmentFolder(button,s,c){
  const host=document.getElementById('completedOfficeArchiveMessage')||document.getElementById('workspaceDetail');
  button.disabled=true;button.textContent='QUEUING...';
  try{
-  if(!window.TT_SHARED_SYNC?.saveNow)throw new Error('Server saving is unavailable.');
-  await window.TT_SHARED_SYNC.saveNow();
   const result=await saveShipmentFolder(s,c,false);
   if(host)host.innerHTML=`<div class="notice">${esc(result.count)} shipment files queued for the Office Agent at ${esc(result.path)}. This does not reopen or amend the completed lot.</div>`;
  }catch(error){
