@@ -80,7 +80,7 @@ function ss_next_id(array $items,string $prefix): string {
 function ss_post_journal(array &$store,array $user,string $entity,string $date,string $sourceType,string $reference,string $narration,array $lines,array $meta=[]): array {
     $dr=round(array_sum(array_column($lines,'debit')),2);$cr=round(array_sum(array_column($lines,'credit')),2);
     if($dr<=0||abs($dr-$cr)>.005)throw new RuntimeException('Settlement journal did not balance.');
-    $id=ss_next_id((array)$store['journals'],'AUTO');
+    $id=tt_next_post_id((array)$store['journals'],'Accounts','Journal');
     $store['journals'][$id]=[
         'id'=>$id,'entity'=>$entity,'date'=>$date,'sourceType'=>$sourceType,'reference'=>$reference,
         'narration'=>$narration,'lines'=>$lines,'totalDebit'=>$dr,'totalCredit'=>$cr,'status'=>'Posted','meta'=>$meta,

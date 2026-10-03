@@ -1,6 +1,85 @@
 <?php
 declare(strict_types=1);
 
+const TT_POST_ID_PREFIX = 'POST';
+const TT_POST_ID_WIDTH = 5;
+
+function tt_post_id_year(?int $year = null): int {
+    return $year ?: (int)date('Y');
+}
+
+function tt_post_id_digits(int|string $value): string {
+    $digits = preg_replace('/\D+/', '', (string)$value) ?: '0';
+    return str_pad(substr($digits, -TT_POST_ID_WIDTH), TT_POST_ID_WIDTH, '0', STR_PAD_LEFT);
+}
+
+function tt_format_post_id(int|string $value, ?int $year = null): string {
+    return TT_POST_ID_PREFIX . '-' . tt_post_id_year($year) . '-' . tt_post_id_digits($value);
+}
+
+function tt_post_id_matches_search(string $postId, string $query): bool {
+    $query = trim($query);
+    if ($query === '') return true;
+    $needle = strtolower($query);
+    $haystack = strtolower($postId);
+    if (str_contains($haystack, $needle)) return true;
+    $digits = preg_replace('/\D+/', '', $postId) ?: '';
+    $queryDigits = preg_replace('/\D+/', '', $query) ?: '';
+    if ($queryDigits === '') return false;
+    return str_ends_with($digits, $queryDigits)
+        || str_ends_with(tt_post_id_digits($digits), tt_post_id_digits($queryDigits));
+}
+
+function tt_reserve_post_id(string $module, string $area, array $context = []): string {
+    $year = tt_post_id_year(isset($context['year']) ? (int)$context['year'] : null);
+    $minimum = max(0, (int)($context['minimum'] ?? 0));
+    $next = 1;
+    tt_mutate_store(function (&$data) use ($year, $module, $area, $context, $minimum, &$next) {
+        $data['post_sequence'] = $data['post_sequence'] ?? [];
+        $yearKey = (string)$year;
+        $last = max($minimum, (int)($data['post_sequence']['last'] ?? 0), (int)($data['post_sequence']['years'][$yearKey]['last'] ?? 0));
+        $next = $last + 1;
+        $data['post_sequence']['last'] = max((int)($data['post_sequence']['last'] ?? 0), $next);
+        $data['post_sequence']['years'][$yearKey]['last'] = $next;
+        $data['post_sequence']['history'][] = [
+            'post_id' => tt_format_post_id($next, $year),
+            'year' => $year,
+            'number' => $next,
+            'module' => $module,
+            'area' => $area,
+            'context' => $context,
+            'created_at' => date(DATE_ATOM)
+        ];
+    });
+    return tt_format_post_id($next, $year);
+}
+
+function tt_next_post_id(array $existing = [], string $module = 'Accounts', string $area = 'Journal', ?string $date = null): string {
+    $year = preg_match('/^(\d{4})-/', (string)$date, $match) ? (int)$match[1] : tt_post_id_year();
+    $minimum = 0;
+    foreach ($existing as $key => $record) {
+        $candidate = is_array($record) ? (string)($record['id'] ?? $key) : (string)$key;
+        if (preg_match('/^POST-' . $year . '-(\d{5})$/', $candidate, $idMatch)) {
+            $minimum = max($minimum, (int)$idMatch[1]);
+        }
+    }
+    do {
+        $id = tt_reserve_post_id($module, $area, ['year' => $year, 'minimum' => $minimum]);
+        $minimum = max($minimum, (int)substr($id, -TT_POST_ID_WIDTH));
+    } while (isset($existing[$id]));
+    return $id;
+}
+
+function tt_attach_post_id(array $record, string $module, string $area, array $context = []): array {
+    $existing = (string)($record['post_id'] ?? $record['postId'] ?? '');
+    if (preg_match('/^POST-\d{4}-\d{5}$/', $existing)) {
+        $record['post_id'] = $existing;
+        return $record;
+    }
+    $record['post_id'] = tt_reserve_post_id($module, $area, $context);
+    return $record;
+}
+
 function tt_default_masters(): array {
     static $cached = null;
     if ($cached !== null) return $cached;
@@ -676,4 +755,3 @@ function tt_deactivate_location_master(string $id): array {
 function tt_active_location_masters(): array {
     return array_values(array_filter((array)(tt_list_masters()['mills']??[]),static fn($row):bool=>strcasecmp((string)(($row['values']??[])[5]??'Active'),'Inactive')!==0));
 }
-

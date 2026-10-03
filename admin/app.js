@@ -258,6 +258,31 @@
   function nowStamp() {
     return new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date()).replace(",", "");
   }
+  function postIdDigits(value) {
+    const digits = String(value || "").replace(/\D+/g, "") || "0";
+    return digits.slice(-5).padStart(5, "0");
+  }
+  function formatPostId(value, year = new Date().getFullYear()) {
+    return `POST-${year}-${postIdDigits(value)}`;
+  }
+  function postIdMatchesSearch(postId, query) {
+    const needle = String(query || "").trim().toLowerCase();
+    if (!needle) return true;
+    const haystack = String(postId || "").toLowerCase();
+    if (haystack.includes(needle)) return true;
+    const digits = String(postId || "").replace(/\D+/g, "");
+    const queryDigits = needle.replace(/\D+/g, "");
+    if (!queryDigits) return false;
+    return digits.endsWith(queryDigits) || postIdDigits(digits).endsWith(postIdDigits(queryDigits));
+  }
+  function textMatchesPostIdSearch(text, query) {
+    const needle = String(query || "").trim().toLowerCase();
+    if (!needle) return true;
+    const haystack = String(text || "").toLowerCase();
+    if (haystack.includes(needle)) return true;
+    const postIds = haystack.match(/post-\d{4}-\d{5}/g) || [];
+    return postIds.some(postId => postIdMatchesSearch(postId, needle));
+  }
   function addAudit(area, action, detail, ref = "ADMIN") {
     state.audit.unshift({ date: nowStamp(), user: SESSION.name, area, action, detail, ref });
   }
@@ -1480,10 +1505,10 @@
   }
 
   function renderAudit() {
-    const query = document.getElementById("auditSearch")?.value.toLowerCase() || "";
+    const query = document.getElementById("auditSearch")?.value || "";
     const filter = document.getElementById("auditFilter")?.value || "all";
     const rows = state.audit.filter(item => {
-      const match = Object.values(item).join(" ").toLowerCase().includes(query);
+      const match = textMatchesPostIdSearch(Object.values(item).join(" "), query);
       return match && (filter === "all" || item.area === filter);
     });
     document.getElementById("auditRows").innerHTML = rows.map(item => `<tr><td>${escapeHtml(item.date)}</td><td>${escapeHtml(item.user)}</td><td><span class="tag">${escapeHtml(item.area)}</span></td><td>${escapeHtml(item.action)}</td><td>${escapeHtml(item.detail)}</td><td>${escapeHtml(item.ref)}</td></tr>`).join("");
@@ -1704,10 +1729,12 @@
     if (!query) return;
     const user = IS_SUPER_ADMIN ? state.users.find(item => `${item.name} ${item.username} ${item.role}`.toLowerCase().includes(query)) : null;
     const module = IS_SUPER_ADMIN ? MODULES.find(item => `${item.name} ${item.description}`.toLowerCase().includes(query)) : null;
+    const audit = IS_SUPER_ADMIN ? state.audit.find(item => textMatchesPostIdSearch(Object.values(item).join(" "), value)) : null;
     const visibleMasterIds=new Set(MASTER_GROUPS.flatMap(([,ids])=>ids));
     const master = hasMasterAccess ? MASTER_TYPES.filter(item=>visibleMasterIds.has(item.id)&&canMaster(item.id,"View")).find(item => `${item.name} ${item.description}`.toLowerCase().includes(query)) : null;
     if (user) { showView("users"); document.getElementById("userSearch").value = value; renderUsers(); }
     else if (module) { showView("modules"); toast(`${module.name} module found.`); }
+    else if (audit) { showView("audit"); document.getElementById("auditSearch").value = value; renderAudit(); }
     else if (master) { currentMaster = master.id; showView("masters"); renderMasters(); }
     else toast(IS_SUPER_ADMIN?"No matching module, user or master record.":"No matching master record.");
   }

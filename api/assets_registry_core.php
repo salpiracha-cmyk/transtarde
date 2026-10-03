@@ -65,7 +65,7 @@ function far_line(string $account,int $dr,int $cr,array $extra=[]):array {
     return ['account'=>$account,'accountName'=>$names[$account],'debit'=>$dr/100,'credit'=>$cr/100]+$extra;
 }
 function far_journal(array &$s,string $e,string $date,string $source,array $lines,array $u,array $tracking=[]):string {
-    $id=far_next((array)($s['journals']??[]),'AUTO');$dr=round(array_sum(array_column($lines,'debit')),2);$cr=round(array_sum(array_column($lines,'credit')),2);
+    $id=tt_next_post_id((array)($s['journals']??[]),'Accounts','Journal');$dr=round(array_sum(array_column($lines,'debit')),2);$cr=round(array_sum(array_column($lines,'credit')),2);
     if(abs($dr-$cr)>.005)throw new RuntimeException('Asset journal did not balance.');
     // Details stay in the restricted registry, never in searchable journal narration or metadata.
     $s['journals'][$id]=['id'=>$id,'entity'=>$e,'date'=>$date,'sourceType'=>$source,'reference'=>$id,'narration'=>$source==='ASSET_PURCHASE'?'ASSET PURCHASE POSTED':'ASSET PAYMENT POSTED','lines'=>$lines,'totalDebit'=>$dr,'totalCredit'=>$cr,'status'=>'Posted','meta'=>$tracking,'createdAt'=>gmdate('c'),'createdBy'=>(string)($u['full_name']??$u['username']??'Accounts'),'userId'=>(int)($u['id']??0)];return $id;

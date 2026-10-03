@@ -20,7 +20,7 @@ function tgr_line(string $code,float $dr,float $cr,array $names,array $extra=[])
 function tgr_journal(array &$s,array $u,string $date,string $type,string $ref,string $text,array $lines,array $meta):array {
  $dr=round(array_sum(array_column($lines,'debit')),2);$cr=round(array_sum(array_column($lines,'credit')),2);
  if((int)round($dr*100)!==(int)round($cr*100))throw new RuntimeException('Remittance journal is unbalanced.');
- $id=tgr_id((array)($s['journals']??[]),'AUTO');return $s['journals'][$id]=['id'=>$id,'entity'=>'TG','date'=>$date,'sourceType'=>$type,'reference'=>strtoupper($ref),'narration'=>strtoupper($text),'lines'=>$lines,'totalDebit'=>$dr,'totalCredit'=>$cr,'status'=>'Posted','meta'=>$meta,'createdAt'=>gmdate('c'),'createdBy'=>(string)($u['full_name']??$u['username']??'Accounts'),'userId'=>(int)($u['id']??0),'reversalOf'=>null];
+ $id=tt_next_post_id((array)($s['journals']??[]),'Accounts','Journal');return $s['journals'][$id]=['id'=>$id,'entity'=>'TG','date'=>$date,'sourceType'=>$type,'reference'=>strtoupper($ref),'narration'=>strtoupper($text),'lines'=>$lines,'totalDebit'=>$dr,'totalCredit'=>$cr,'status'=>'Posted','meta'=>$meta,'createdAt'=>gmdate('c'),'createdBy'=>(string)($u['full_name']??$u['username']??'Accounts'),'userId'=>(int)($u['id']??0),'reversalOf'=>null];
 }
 function tgr_items(array $s):array {
  $out=[];
