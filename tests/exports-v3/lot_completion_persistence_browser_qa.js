@@ -10,6 +10,7 @@ const bootstrap = wrapper.match(/<script id="tt-shared-operations-bootstrap">([\
 assert.ok(bootstrap, 'test must use the production shared-data bootstrap');
 const STORE = 'transtrade_export_v3_operational';
 const hook = `window.__focusQA={
+ getState:()=>state,setState:data=>{state=data},contractByRef,unitRate,customsInvoiceValue,gdRefsFingerprint,load,openShipment,reopenCompletedLot,
  snapshot:()=>({view,currentShipmentId,activeWorkspace,state:structuredClone(state)}),
  open:(id,key='')=>{currentShipmentId=id;view='shipments';activeWorkspace=key;renderShipmentWorkspace()},
  home:()=>{contractDraft=null;activeWorkspace='';view='home';render()},
@@ -68,14 +69,14 @@ async function check(name,fn){await fn();results.push(name);console.log('PASS '+
 async function ready(page,quota=false){
  await page.evaluate(async({STORE,quota})=>{
   TT_MODULE_ACCESS.super=true;TT_MODULE_ACCESS.role='Super Admin';
-  const s=state.shipments.find(s=>s.id==='L-FOCUS'),c=contractByRef(s.contractRef);
-  c.docs=[];s.createdAt='2025-01-01T00:00:00Z';s.customs.saved=true;s.customs.invoiceNo='CUSTOMS-OLD';s.customs.rate=unitRate(c.packings[0],c);s.customs.invoiceValue=customsInvoiceValue(s,c);s.customs.openAccount=s.customs.invoiceValue;
-  s.customs.gdRefs=[{number:'GD-QA',date:'2026-09-21'}];s.customs.gdDocument={name:'GD.pdf',gdRefsFingerprint:gdRefsFingerprint(s.customs.gdRefs)};
+  const s=__focusQA.getState().shipments.find(s=>s.id==='L-FOCUS'),c=__focusQA.contractByRef(s.contractRef);
+  c.docs=[];s.createdAt='2025-01-01T00:00:00Z';s.customs.saved=true;s.customs.invoiceNo='CUSTOMS-OLD';s.customs.rate=__focusQA.unitRate(c.packings[0],c);s.customs.invoiceValue=__focusQA.customsInvoiceValue(s,c);s.customs.openAccount=s.customs.invoiceValue;
+  s.customs.gdRefs=[{number:'GD-QA',date:'2026-09-21'}];s.customs.gdDocument={name:'GD.pdf',gdRefsFingerprint:__focusQA.gdRefsFingerprint(s.customs.gdRefs)};
   s.bl.finalized=true;s.bl.finalDocument={name:'BL.pdf'};s.bl.blNo='BL-QA';s.bl.onBoardDate='2026-09-21';s.bl.description='BL AUTHORITATIVE DESCRIPTION';s.customs.description='CUSTOMS ONLY DESCRIPTION';
   s.commercial.saved=true;s.commercial.status='Final';s.commercial.invoiceNo='TTI/FOCUS/01';s.commercial.date='2026-09-21';
   window.archives=[];window.TT_SHIPMENT_FILES={access:async()=>true,save:async options=>{if(window.archiveFail)throw new Error('Queue unavailable');archives.push({optional:options.optional,createdAt:options.committedSnapshot.shipments.find(s=>s.id==='L-FOCUS').createdAt,gdRefs:options.committedSnapshot.shipments.find(s=>s.id==='L-FOCUS').customs.gdRefs,description:options.committedSnapshot.shipments.find(s=>s.id==='L-FOCUS').bl.description,rows:options.rows.map(r=>({name:r.name,ready:r.ready,folder:r.folder}))});if(window.archiveHold)await new Promise(resolve=>window.releaseArchive=resolve);return{count:options.rows.length,path:'QA Buyer/SHIPMENT #01/LOT #01',status:'PENDING'}}};
   if(quota){const native=Storage.prototype.setItem;window.nativeWriter=native;Storage.prototype.setItem=function(k,v){return native.call(this,k,v)};}
-  save();await TT_SHARED_SYNC.saveNow();network.posts=[];
+  __focusQA.save();await TT_SHARED_SYNC.saveNow();network.posts=[];
   if(quota){ // The production bridge catches the native quota exception, not this wrapper.
    localStorage.quota=true;
   }
@@ -100,12 +101,12 @@ async function ready(page,quota=false){
   await p.evaluate(()=>{holdCompletion=false;releaseCompletion()});await p.waitForFunction(()=>__focusQA.snapshot().view==='home');
   const result=await p.evaluate(STORE=>({live:__focusQA.snapshot().state,server:JSON.parse(server.values[STORE]),archives}),STORE);
   assert.equal(result.server.shipments.find(s=>s.id==='L-FOCUS').completed,true);assert.equal(result.live.shipments.find(s=>s.id==='L-FOCUS').completed,true);assert.equal(result.live.shipments.find(s=>s.id==='P-FOCUS').completed,false);assert.equal(result.archives[0].description,'BL AUTHORITATIVE DESCRIPTION');
-  const persisted=await p.evaluate(()=>structuredClone(server));const fresh=await pageFor('exports',true,persisted);assert.equal(await fresh.evaluate(()=>state.shipments.find(s=>s.id==='L-FOCUS').completed),true);await fresh.close();
-  await p.evaluate(()=>{state=load();view='home';render()});assert.equal(await p.evaluate(()=>state.shipments.find(s=>s.id==='L-FOCUS').completed),true);
-  const before=await p.evaluate(()=>network.posts.length);await p.evaluate(()=>openShipment('L-FOCUS'));assert.equal(await p.locator('input,textarea,select,#cancelLot,[data-final-upload]').count(),0);assert.equal(await p.evaluate(()=>network.posts.length),before);
-  await p.evaluate(async()=>{reason='';await reopenCompletedLot('L-FOCUS')});assert.equal(await p.evaluate(()=>network.posts.length),before);
-  await p.evaluate(async()=>{reason='QA correction';rejectReopening=true;await reopenCompletedLot('L-FOCUS')});assert.equal(await p.evaluate(STORE=>JSON.parse(server.values[STORE]).shipments.find(s=>s.id==='L-FOCUS').completed,STORE),true);assert.equal(await p.evaluate(()=>state.shipments.find(s=>s.id==='L-FOCUS').completed),true);
-  await p.evaluate(async()=>{rejectReopening=false;reason='QA correction';await reopenCompletedLot('L-FOCUS')});assert.equal(await p.evaluate(STORE=>JSON.parse(server.values[STORE]).shipments.find(s=>s.id==='L-FOCUS').completed,STORE),false);
+  const persisted=await p.evaluate(()=>structuredClone(server));const fresh=await pageFor('exports',true,persisted);assert.equal(await fresh.evaluate(()=>__focusQA.getState().shipments.find(s=>s.id==='L-FOCUS').completed),true);await fresh.close();
+  await p.evaluate(()=>{__focusQA.setState(__focusQA.load());__focusQA.home()});assert.equal(await p.evaluate(()=>__focusQA.getState().shipments.find(s=>s.id==='L-FOCUS').completed),true);
+  const before=await p.evaluate(()=>network.posts.length);await p.evaluate(()=>__focusQA.openShipment('L-FOCUS'));assert.equal(await p.locator('input,textarea,select,#cancelLot,[data-final-upload]').count(),0);assert.equal(await p.evaluate(()=>network.posts.length),before);
+  await p.evaluate(async()=>{reason='';await __focusQA.reopenCompletedLot('L-FOCUS')});assert.equal(await p.evaluate(()=>network.posts.length),before);
+  await p.evaluate(async()=>{reason='QA correction';rejectReopening=true;await __focusQA.reopenCompletedLot('L-FOCUS')});assert.equal(await p.evaluate(STORE=>JSON.parse(server.values[STORE]).shipments.find(s=>s.id==='L-FOCUS').completed,STORE),true);assert.equal(await p.evaluate(()=>__focusQA.getState().shipments.find(s=>s.id==='L-FOCUS').completed),true);
+  await p.evaluate(async()=>{rejectReopening=false;reason='QA correction';await __focusQA.reopenCompletedLot('L-FOCUS')});assert.equal(await p.evaluate(STORE=>JSON.parse(server.values[STORE]).shipments.find(s=>s.id==='L-FOCUS').completed,STORE),false);
   assert.equal(await p.evaluate(STORE=>JSON.parse(server.values[STORE]).shipments.find(s=>s.id==='L-FOCUS').reopenHistory.at(-1).reason,STORE),'QA correction');await p.close();
  });
  for(const fault of ['rejectCompletion','archiveFail'])await check(fault+' preserves open server lot without posting automatic rollback',async()=>{
@@ -115,12 +116,12 @@ async function ready(page,quota=false){
   await p.evaluate(fault=>window[fault]=false,fault);await p.locator('#completeLot').click();await p.waitForFunction(()=>__focusQA.snapshot().view==='home');assert.equal(await p.evaluate(STORE=>JSON.parse(server.values[STORE]).shipments.find(s=>s.id==='L-FOCUS').completed,STORE),true);await p.close();
  });
  await check('Existing old lot Customs and active BL saves queue partial committed packages; GD survives Customs save',async()=>{
-  const p=await pageFor();await ready(p);await p.evaluate(()=>{state.shipments.find(s=>s.id==='L-FOCUS').commercial.status='Draft';__focusQA.open('L-FOCUS','customs')});await p.locator('#saveCustoms').click();await p.waitForFunction(()=>archives.length>0);
+  const p=await pageFor();await ready(p);await p.evaluate(()=>{__focusQA.getState().shipments.find(s=>s.id==='L-FOCUS').commercial.status='Draft';__focusQA.open('L-FOCUS','customs')});await p.locator('#saveCustoms').click();await p.waitForFunction(()=>archives.length>0);
   assert.equal(await p.evaluate(()=>archives[0].optional),true);assert.equal(await p.evaluate(()=>archives[0].createdAt),'2025-01-01T00:00:00Z');assert.equal(await p.evaluate(()=>archives[0].gdRefs[0].number),'GD-QA');
   await p.evaluate(()=>__focusQA.open('L-FOCUS','bl'));await p.locator('#blDesc').fill('UPDATED BL DESCRIPTION');await p.locator('#saveBL').click();await p.waitForFunction(()=>archives.length>1);assert.equal(await p.evaluate(()=>archives.at(-1).description),'UPDATED BL DESCRIPTION');await p.close();
  });
  await check('Staff completed VIEW never exposes REOPEN; competing status writer and reopening scripts are absent',async()=>{
-  const p=await pageFor();await ready(p);await p.evaluate(()=>{TT_MODULE_ACCESS.super=false;const lot=state.shipments.find(s=>s.id==='L-FOCUS');lot.completed=true;lot.status='Completed';__focusQA.setView('completed')});assert.equal(await p.locator('[data-reopen-lot]').count(),0);const before=await p.evaluate(()=>network.posts.length);await p.evaluate(()=>reopenCompletedLot('L-FOCUS'));assert.equal(await p.evaluate(()=>network.posts.length),before);await p.close();
+  const p=await pageFor();await ready(p);await p.evaluate(()=>{TT_MODULE_ACCESS.super=false;const lot=__focusQA.getState().shipments.find(s=>s.id==='L-FOCUS');lot.completed=true;lot.status='Completed';__focusQA.setView('completed')});assert.equal(await p.locator('[data-reopen-lot]').count(),0);const before=await p.evaluate(()=>network.posts.length);await p.evaluate(()=>__focusQA.reopenCompletedLot('L-FOCUS'));assert.equal(await p.evaluate(()=>network.posts.length),before);await p.close();
   assert.doesNotMatch(fs.readFileSync(path.join(root,'exports/index.html'),'utf8'),/reopen-completed-lots\.js/);assert.doesNotMatch(fs.readFileSync(path.join(root,'exports/office-agent-shipment-hooks.js'),'utf8'),/repairCompletedLots/);
  });
  console.log('PASS '+results.length+' completion and progressive archive browser scenarios');
