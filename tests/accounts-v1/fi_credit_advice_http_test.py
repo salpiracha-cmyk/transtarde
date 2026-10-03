@@ -18,6 +18,11 @@ with tempfile.TemporaryDirectory(prefix='fi-advice-qa-') as temp:
     function tt_list_masters(){return [];}
     function tt_ensure_data_dir(){}
     function tt_verify_csrf($v){return $v==='fixture';}
+    function tt_next_post_id(array $existing, string $module='Accounts', string $area='Journal', ?string $date=null): string {
+        $year=substr($date ?: date('Y-m-d'),0,4);$n=count($existing)+1;
+        do {$id='POST-'.$year.'-'.str_pad((string)$n,5,'0',STR_PAD_LEFT);$n++;} while (isset($existing[$id]));
+        return $id;
+    }
     ''')
     fi = {'id':'F1','number':'FI-QA-1','exporter':'TTI','customer':'TRANS GRAINS FOODSTUFF TRADING L.L.C','date':'2026-10-01','currency':'USD','value':100000,'allocations':[{'amount':40000}]}
     receipt = {'id':'ER1','entity':'TTI','remitter':'TG','date':'2026-10-03','transactionCurrency':'USD','foreignAmount':99990,'bankAdviceRef':'QA-ADVICE','journalId':'J1','status':'Accounts Approved / Posted','allocations':[]}

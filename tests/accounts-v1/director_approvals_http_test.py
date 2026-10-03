@@ -16,6 +16,11 @@ function tt_require_login(){return ['username'=>'Fixture','full_name'=>'Fixture 
 function tt_user_can_open_module($u,$m){return true;}
 function tt_verify_csrf($t){return $t==='fixture';}
 function tt_active_business_party_for_role($n,$r){return ['id'=>'supplier','values'=>[$n]];}
+function tt_next_post_id(array $existing, string $module='Accounts', string $area='Journal', ?string $date=null): string {
+ $year=substr($date ?: date('Y-m-d'),0,4);$n=count($existing)+1;
+ do {$id='POST-'.$year.'-'.str_pad((string)$n,5,'0',STR_PAD_LEFT);$n++;} while (isset($existing[$id]));
+ return $id;
+}
 ''')
     bill = {'id':'B1','entity':'TTI','poNo':'PO1','lineKey':'L1','ratePerBag':12,'poRatePerBag':10,
             'status':'Hold - Rate Approval Required','bags':5,'supplier':'Fixture Supplier','sellerInvoice':'INV1',
