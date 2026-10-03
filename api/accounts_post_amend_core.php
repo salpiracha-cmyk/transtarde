@@ -6,6 +6,7 @@ require_once __DIR__.'/accounts_bank_payment.php';
 function apa_correct(array &$store, array $user, string $postId, array $input): array {
     $original=$store['journals'][$postId]??null;
     if(!is_array($original)||($original['status']??'')!=='Posted')throw new DomainException('Posted entry was not found.');
+    if(!empty($original['meta']['tgRemittanceId']))throw new DomainException('Use the TG remittance review to reopen and correct this linked payment with a reason.');
     if(isset($store['exportReceipts'][(string)($original['meta']['receiptId']??'')]))throw new DomainException('Amend the linked credit advice to correct all its Pakistan and TG postings together.');
     if(!empty($original['reversalOf']))throw new DomainException('Select the original or replacement Post ID to amend.');
     foreach((array)($store['journals']??[]) as $journal)

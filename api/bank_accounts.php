@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__.'/tg_remittance_core.php';
 
 require dirname(__DIR__) . '/auth_store.php';
 header('Content-Type: application/json; charset=UTF-8');
@@ -126,10 +127,10 @@ function ba_payload(array $store,string $entity): array {
         $setting['active']=$available;$setting['allowPayments']=$available;$setting['allowReceipts']=$available;
         if(!$available){$setting['active']=false;$setting['allowPayments']=false;$setting['allowReceipts']=false;$setting['defaultReceiptAccount']=false;$setting['defaultPaymentAccount']=false;}
         if($a['masterRetentionAccount']!==null)$setting['retentionAccount']=(bool)$a['masterRetentionAccount'];
-        $currency=strtoupper(trim((string)($a['currency']??'')))?:$planningCurrency;$book=ba_balance($store,$entity,$id,$currency);
+        $currency=strtoupper(trim((string)($a['currency']??'')))?:$planningCurrency;$postedBook=ba_balance($store,$entity,$id,$currency);$reserve=$entity==='TG'?tgr_reserved($store,$id):0.0;$book=round($postedBook-$reserve,2);
         $balances[$currency]=round(($balances[$currency]??0)+$book,2);
         if($currency===$planningCurrency&&!empty($setting['active'])&&!empty($setting['includeInPaymentPlanning']))$planning+=max(0,$book);
-        $rows[]=array_merge($a,['settings'=>$setting,'bookBalance'=>$book,'needsCompletion'=>(trim((string)$a['accountNumber'])===''&&trim((string)$a['iban'])===''),'deletionPending'=>isset($pending[$id]),'deletionRequest'=>$pending[$id]??null]);
+        $rows[]=array_merge($a,['settings'=>$setting,'bookBalance'=>$postedBook,'pendingRemittances'=>$reserve,'availableBalance'=>$book,'needsCompletion'=>(trim((string)$a['accountNumber'])===''&&trim((string)$a['iban'])===''),'deletionPending'=>isset($pending[$id]),'deletionRequest'=>$pending[$id]??null]);
     }
     usort($rows,static fn($a,$b)=>strcmp((string)$a['bankName'],(string)$b['bankName'])?:strcmp((string)$a['accountTitle'],(string)$b['accountTitle']));
     $cashKey='CASH|'.$entity;$cashCurrency=$entity==='TG'?'AED':'PKR';$cashSetting=array_replace([

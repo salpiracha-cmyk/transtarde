@@ -32,7 +32,7 @@
       {title:'Local Sales & Receipts', note:'Mill sale approvals and linked receipts awaiting Accounts action', native:'receivables', find:'Local'}
     ]},
     {key:'bank', glyph:'▦', title:'Bank & Cash', note:'Internal transfers, foreign retention and bank reconciliation', actions:[
-      {title:'Inter Account Transfer', note:'Move PKR between company accounts or to a personal account with a reason', special:'internal-bank-transfer'},
+      {title:'Review TG Remittances', special:'tg-remittances'}, {title:'Inter Account Transfer', note:'Move PKR between company accounts or to a personal account with a reason', special:'internal-bank-transfer'},
       {title:'Foreign Retention Account', note:'Settle foreign commissions and other linked outward remittances', special:'retention-remittance'},
       {title:'Bank Accounts & Balances', native:'bank'}, {title:'Bank Reconciliation', native:'reconciliation'}
     ]},
@@ -140,6 +140,7 @@
   }
 
   async function launch(action) {
+    if(action.special==='tg-remittances')return window.TT_TG_REMITTANCES.open();
     if(action.special==='all-ledgers')return window.TT_ALL_LEDGERS?.open?.('',action.ledgerCategory||'other');
     if(action.special==='bill-registers')return openSearch();
     if(action.special==='supplier-bills')return openBillDesk(action.billKind,action);
@@ -348,6 +349,7 @@
   }
 
   function reviewAttention(row) {
+    if(row.kind==='REMITTANCE')return window.TT_TG_REMITTANCES.open(row.target.remittanceId);
     const company=entity(),host=layer('ttReviewLayer','Review · '+row.type),body=q('.tt-window-body',host);
     body.innerHTML=`<div class="tt-form"><h3>${esc(row.reference||row.type)}</h3><p>${esc(row.message)}</p><p>Discard removes this review from the list. Approve opens the approval or correction form.</p><p id="ttReviewError"></p><button class="btn" id="ttReviewDiscard">Discard</button> <button class="btn green" id="ttReviewApprove">Approve</button></div>`;
     const action=async task=>{const buttons=qa('button',body);buttons.forEach(b=>b.disabled=true);try{if(company!==entity())throw Error('Company changed. Reopen the review.');await task();q('.tt-window-close',host).click();await loadDashboardSummary()}catch(e){q('#ttReviewError',body).textContent=e.message}finally{buttons.forEach(b=>b.disabled=false)}};

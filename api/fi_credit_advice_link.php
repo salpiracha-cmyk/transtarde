@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__.'/receipt_invoice_links.php';
 
 // Read-only metadata projection from committed records. No journals or balances change.
 function tt_fi_advice_name(string $name): string {
@@ -76,5 +77,5 @@ function tt_fi_advice_project(array $store,array $root): array {
     foreach((array)($store['journals']??[]) as $key=>$journal)if(is_array($journal)){
         unset($journal['fiTag']);$rid=(string)($journal['meta']['receiptId']??'');if(($journal['status']??'')==='Posted'&&isset($byReceipt[$rid]))$journal['fiTag']=$byReceipt[$rid];$store['journals'][$key]=$journal;
     }
-    return $store;
+    return tt_receipt_invoice_project($store,$root,$links);
 }

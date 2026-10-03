@@ -4,7 +4,7 @@ ROOT=pathlib.Path(__file__).resolve().parents[2]
 with tempfile.TemporaryDirectory(prefix='bank-overdraft-qa-') as temp:
     root=pathlib.Path(temp)
     for folder in ['api','accounts','data']:(root/folder).mkdir()
-    for name in ['tg_bank_transactions.php','tg_bank_transfer.php','internal_bank_transfers.php','retention_remittances.php','accounts_bank_payment.php']:shutil.copy(ROOT/'api'/name,root/'api'/name)
+    for name in ['tg_remittance_core.php', 'receipt_invoice_links.php', 'fi_credit_advice_link.php', 'tg_bank_transactions.php','tg_bank_transfer.php','internal_bank_transfers.php','retention_remittances.php','accounts_bank_payment.php']:shutil.copy(ROOT/'api'/name,root/'api'/name)
     for name in ['accounting_master_v1.json','settlement_policy_v1.json','export_realization_policy_v1.json']:shutil.copy(ROOT/'accounts'/name,root/'accounts'/name)
     def bank(id,entity,currency):return {'id':id,'values':['Company Account',entity,'',entity,'Fixture Bank','','',currency,'12345','','','Retention','','Active']}
     masters={'banks':[bank('usd','TG','USD'),bank('usd2','TG','USD'),bank('aed','TG','AED'),bank('ret','TTI','USD')]}

@@ -3,7 +3,7 @@ import json,pathlib,shutil,socket,subprocess,tempfile,time,urllib.request,urllib
 ROOT=pathlib.Path(__file__).resolve().parents[2]
 with tempfile.TemporaryDirectory(prefix='accounts-reviews-') as temp:
  root=pathlib.Path(temp);(root/'api').mkdir();(root/'data').mkdir()
- for name in ['accounts_reviews.php','accounts_reviews_core.php']:shutil.copy(ROOT/'api'/name,root/'api'/name)
+ for name in ['tg_remittance_core.php', 'receipt_invoice_links.php', 'fi_credit_advice_link.php', 'accounts_reviews.php','accounts_reviews_core.php']:shutil.copy(ROOT/'api'/name,root/'api'/name)
  (root/'auth_store.php').write_text('''<?php
 define('TT_DATA_DIR',__DIR__.'/data');function tt_ensure_data_dir(){}
 function tt_require_login(){return ['username'=>'Fixture','role'=>'Staff','permissions'=>['Accounts'=>($_GET['role']??'')==='readonly'?['View']:['View','Edit']]];}

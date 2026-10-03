@@ -82,6 +82,7 @@ $files = [
     'master-autocomplete.js',
     'accounts-accounting-desk.js',
     'assets-registry-ui.js',
+    'tg-remittances-ui.js',
 ];
 
 $versionParts = [];
