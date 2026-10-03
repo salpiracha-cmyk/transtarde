@@ -6,6 +6,8 @@ function component(value){const name=String(value||'').normalize('NFC').replace(
 function folderParts(customer,contract,lot){return[component(customer),'SHIPMENT #'+component(String(contract).split('/').pop()),'LOT #'+component(String(lot).split('/').pop().replace(/^L(?=\d)/i,''))]}
 function officeLocation(platform=navigator.userAgentData?.platform||navigator.platform||navigator.userAgent){const windows=/win/i.test(platform);return{platform:windows?'Windows':'Mac',path:windows?String.raw`\\tti-server\TTI DOCS\Transtrade software shipment documents`:'smb://tti-server/TTI DOCS/Transtrade software shipment documents',connect:'Configure this destination once in Transtrade Office Agent on the permanent office/server PC. Review the configured folder in File Explorer on Windows or Finder on Mac.'}}
 function legacyQa(){return !!(window.__qa||window.__files)}
+function timeout(message,ms){return new Promise((_,reject)=>setTimeout(()=>reject(new Error(message)),ms))}
+function withTimeout(promise,ms,message){return Promise.race([promise,timeout(message,ms)])}
 async function choose(){
  if(legacyQa()&&window.showDirectoryPicker){
   const root=await window.showDirectoryPicker({mode:'readwrite'});
@@ -15,12 +17,13 @@ async function choose(){
  return'Office Agent handles the configured archive destination.'
 }
 async function access(){return null}
-async function uploadBlob(doc){if(doc.dataUrl)return(await fetch(doc.dataUrl)).blob();const url=new URL(doc.downloadUrl,location.href);if(url.origin!==location.origin||!url.pathname.endsWith('/api/export_documents.php'))throw new Error('Invalid shipment document download.');const response=await fetch(url.href,{credentials:'same-origin'});if(!response.ok)throw new Error('Could not download '+doc.name+'. Your office folder was not updated.');return response.blob()}
-async function libraries(){for(const [ready,path] of [[()=>window.html2canvas,'/api/export_pdf_assets.php?asset=html2canvas&v=1.4.1'],[()=>window.jspdf,'/api/export_pdf_assets.php?asset=jspdf&v=4.2.1'],[()=>window.PDFLib,'/api/export_pdf_assets.php?asset=pdf-lib&v=1.17.1']])if(!ready())await new Promise((resolve,reject)=>{const script=document.createElement('script');script.src=path;script.onload=resolve;script.onerror=()=>reject(new Error('PDF generation could not load. Retry saving the files.'));document.head.appendChild(script)})}
+async function uploadBlob(doc){if(doc.dataUrl)return(await fetch(doc.dataUrl)).blob();const url=new URL(doc.downloadUrl,location.href);if(url.origin!==location.origin||!url.pathname.endsWith('/api/export_documents.php'))throw new Error('Invalid shipment document download.');const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),45000);try{const response=await fetch(url.href,{credentials:'same-origin',signal:controller.signal});if(!response.ok)throw new Error('Could not download '+doc.name+'. Your office folder was not updated.');return response.blob()}catch(error){if(error.name==='AbortError')throw new Error('Timed out downloading '+(doc.name||'a shipment upload')+'. Retry Queue Office Folder.');throw error}finally{clearTimeout(timer)}}
+async function libraries(){for(const [ready,path] of [[()=>window.html2canvas,'/api/export_pdf_assets.php?asset=html2canvas&v=1.4.1'],[()=>window.jspdf,'/api/export_pdf_assets.php?asset=jspdf&v=4.2.1'],[()=>window.PDFLib,'/api/export_pdf_assets.php?asset=pdf-lib&v=1.17.1']])if(!ready())await withTimeout(new Promise((resolve,reject)=>{const script=document.createElement('script');script.src=path;script.onload=resolve;script.onerror=()=>reject(new Error('PDF generation could not load. Retry saving the files.'));document.head.appendChild(script)}),45000,'PDF generation tools did not load. Retry Queue Office Folder.')}
 async function pdf(markup,fit){
  await libraries();const root=document.createElement('div');root.className='shipmentPdfRoot printModeWith';root.style.cssText='position:absolute;left:-10000px;top:0;width:210mm;background:white';root.innerHTML=markup;document.body.appendChild(root);
  try{
-  await document.fonts.ready;await Promise.all([...root.querySelectorAll('img')].map(image=>image.decode()));
+  await withTimeout(document.fonts.ready,30000,'Document fonts did not finish loading. Retry Queue Office Folder.');
+  await Promise.all([...root.querySelectorAll('img')].map(image=>withTimeout(image.decode(),30000,'A document image did not finish loading. Retry Queue Office Folder.')));
   if(fit&&!fit(root))throw new Error('This document does not fit on its pages. Review the content before saving.');
   const pages=[...root.querySelectorAll('.docPage')];if(!pages.length)throw new Error('No document pages were generated.');
   const output=new window.jspdf.jsPDF({unit:'mm',format:'a4',compress:true});
@@ -168,7 +171,7 @@ async function save({customer,contract,lot,rows,uploads,fit,optional=false}){
    let saved=0;try{saved=await legacyWrite(legacyRoot,parts,archiveFiles)}catch(error){throw new Error(saved+' of '+archiveFiles.length+' files saved. '+error.message)}
    return{count:archiveFiles.length,path:parts.join(' / '),status:'SAVED'}
   }
-  const job=await postJob(manifest,archiveFiles);
+  const job=await withTimeout(postJob(manifest,archiveFiles),120000,'Office archive job upload timed out. Retry Queue Office Folder.');
   return{count:archiveFiles.length,path:parts.join(' / '),jobId:job.id,status:job.status||'PENDING'};
  }finally{busy=false}
 }
