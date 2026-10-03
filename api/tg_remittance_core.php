@@ -61,11 +61,12 @@ function tgr_confirm(array &$s,array $b,array $u,array $banks,array $names,array
  if(empty($b['sameRemittanceConfirmed']))throw new DomainException('Confirm the selected advices belong to one actual remittance.');
  $date=tgr_date((string)($b['date']??''));$ref=strtoupper(trim((string)($b['bankReference']??'')));$bank=$banks[$first['bankAccountId']]??null;
  if(!$bank||$bank['currency']!==$first['currency'])throw new DomainException('Complete and activate the selected TG bank in Company Master.');
+ foreach($chosen as $source)if(!empty($source['reopenedFrom'])&&$date<$source['date'])throw new DomainException('Reposting date cannot precede the correction reversal.');
  $cur=$first['currency'];$balance=tgr_bank_balance($s,$first['bankAccountId'],$cur);$rate=$cur==='AED'?1:(float)$balance['carryingRate'];if($rate<=0)$rate=(float)($rates[$cur]??0);if($rate<=0)throw new DomainException('Set the TG '.$cur.'/AED exchange rate in Company Master.');
  $charge=tgr_money($b['chargeAmount']??0,'bank charge');$vat=tgr_money($b['vatAmount']??0,'VAT');$chargeBankId=(string)($b['chargeBankAccountId']??$first['bankAccountId']);$chargeBank=$banks[$chargeBankId]??null;
  if(($charge+$vat)>0&&!$chargeBank)throw new DomainException('Choose the TG bank actually debited for charges and VAT.');
  $reason=strtoupper(trim((string)($b['reason']??'')));$hasLegacy=(bool)array_filter($chosen,static fn($x)=>!empty($x['legacy']));if($hasLegacy&&strlen($reason)<5)throw new DomainException('Enter a reason to consolidate the previously posted TG mirrors.');
- foreach((array)($s['tgRemittances']??[]) as $r)if($ref!==''&&$r['bankAccountId']===$first['bankAccountId']&&strcasecmp($r['bankReference'],$ref)===0)throw new DomainException('This remittance bank reference is already posted.');
+ foreach((array)($s['tgRemittances']??[]) as $r)if(($r['status']??'')==='Posted'&&$ref!==''&&$r['bankAccountId']===$first['bankAccountId']&&strcasecmp($r['bankReference'],$ref)===0)throw new DomainException('This remittance bank reference is already posted.');
  foreach((array)($s['tgBankTransactions']??[]) as $tx)if($ref!==''&&($tx['status']??'')!=='Reversed for Amendment'&&($tx['bankAccountId']??'')===$first['bankAccountId']&&strcasecmp((string)($tx['bankReference']??''),$ref)===0)throw new DomainException('That bank reference is already posted. Link its existing payment rather than posting again.');
  if(count($receiptIds)!==count(array_unique($receiptIds)))throw new DomainException('A credit advice cannot appear twice in the same remittance.');
  foreach($receiptIds as $receiptId)if(($s['exportReceipts'][$receiptId]['status']??'')!=='Accounts Approved / Posted'||!empty($s['exportReceipts'][$receiptId]['tgRemittanceId']))throw new DomainException('A selected credit advice changed or is already confirmed.');
@@ -109,12 +110,13 @@ function tgr_reopen(array &$s,array $b,array $u):array {
  $id=(string)($b['remittanceId']??'');$r=$s['tgRemittances'][$id]??null;$reason=strtoupper(trim((string)($b['reason']??'')));$date=tgr_date((string)($b['date']??''));
  if(!$r||($r['status']??'')!=='Posted')throw new DomainException('This remittance has already changed. Reopen its current review.');
  if(strlen($reason)<5)throw new DomainException('Enter a valid reason for reopening this remittance.');
+ if($date<$r['date'])throw new DomainException('Correction date cannot precede the original TG remittance.');
  $old=$s['journals'][$r['journalId']]??null;if(!$old||!empty($old['amendedByPostId']))throw new DomainException('This remittance has another ledger correction; review that Post ID first.');
  foreach((array)$s['journals'] as $j)if(($j['reversalOf']??'')===$r['journalId'])throw new DomainException('This remittance is already reversed.');
  $drafts=[];
  foreach((array)($r['reviewSources']??[]) as $source){$parts=[];
   foreach($source['allocations'] as $a){if(!isset($a['legacyJournalId'])){$parts[]=$a;continue;}$original=$s['journals'][$a['legacyJournalId']];$native=(float)$original['meta']['amountNative'];foreach($original['lines'] as $l)if(!in_array($l['account'],['1110','7100'],true))$parts[]=['targetAccount'=>$l['account'],'sourceLiabilityId'=>(string)($l['sourceLiabilityId']??''),'foreignAmount'=>$native,'payableRate'=>(float)$l['debit']/max(.01,$native)];}
-  $did=tgr_id((array)($s['tgRemittanceDrafts']??[]),'TGRD');$source['id']=$did;$source['legacy']=false;$source['status']='Pending';$source['allocations']=$parts;$source['version']=1;$source['reopenedFrom']=$id;$source['reopenReason']=$reason;unset($source['fingerprint']);$s['tgRemittanceDrafts'][$did]=$source;$drafts[]=$did;
+  $did=tgr_id((array)($s['tgRemittanceDrafts']??[]),'TGRD');$source['id']=$did;$source['legacy']=false;$source['status']='Pending';$source['allocations']=$parts;$source['version']=1;$source['date']=$date;$source['originalRemittanceDate']=$r['date'];$source['reopenedFrom']=$id;$source['reopenReason']=$reason;unset($source['fingerprint']);$s['tgRemittanceDrafts'][$did]=$source;$drafts[]=$did;
  }
  if(!$drafts)throw new DomainException('The original remittance sources are unavailable.');
  $lines=[];foreach($old['lines'] as $l){$q=$l;$q['debit']=$l['credit'];$q['credit']=$l['debit'];foreach([['bankDebit','bankCredit'],['nativeDebit','nativeCredit']] as [$dr,$cr])if(isset($l[$dr])||isset($l[$cr])){$q[$dr]=$l[$cr]??0;$q[$cr]=$l[$dr]??0;}$lines[]=$q;}
