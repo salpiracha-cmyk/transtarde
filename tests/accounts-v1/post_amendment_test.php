@@ -1,5 +1,11 @@
 <?php
 declare(strict_types=1);
+function tt_next_post_id(array $existing, string $module = 'Accounts', string $area = 'Journal', ?string $date = null): string {
+    $year=substr($date ?: date('Y-m-d'),0,4);
+    $n=count($existing)+1;
+    do {$id='POST-'.$year.'-'.str_pad((string)$n,5,'0',STR_PAD_LEFT);$n++;} while (isset($existing[$id]));
+    return $id;
+}
 function tt_list_masters():array{return ['banks'=>[['id'=>'TTI-1','values'=>['Company Account','TTI','','Meezan TTI','Meezan','','','PKR']],['id'=>'TG-1','values'=>['Company Account','TG','','TG USD','Bank','','','USD']]]];}
 require dirname(__DIR__,2).'/api/accounts_post_amend_core.php';
 function check(bool $valid,string $message):void{if(!$valid)throw new RuntimeException($message);}
