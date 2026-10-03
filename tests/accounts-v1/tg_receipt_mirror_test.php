@@ -1,5 +1,11 @@
 <?php
 declare(strict_types=1);
+function tt_next_post_id(array $existing, string $module = 'Accounts', string $area = 'Journal', ?string $date = null): string {
+    $year=substr($date ?: date('Y-m-d'),0,4);
+    $n=count($existing)+1;
+    do {$id='POST-'.$year.'-'.str_pad((string)$n,5,'0',STR_PAD_LEFT);$n++;} while (isset($existing[$id]));
+    return $id;
+}
 function er_respond(array $v,int $status=200):never{throw new DomainException($v['error']??'unexpected');}
 function er_bank_master(string $id,string $entity):array{return ['id'=>$id,'accountType'=>'Company Account','accountTitle'=>'TG USD','bankName'=>'TG BANK','currency'=>'USD','masterStatus'=>'Active','accountNumber'=>'123','iban'=>''];}
 function tt_company_fx_rate(string $entity,string $from,string $to):?float{return 3.67;}
