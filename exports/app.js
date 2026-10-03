@@ -1908,7 +1908,7 @@ function effectiveTerms(c){
  const automaticInspection=/^Inspection by .+ at Seller[’']s cost\.$/i;
  const shared=exportMasterTerms(c);
  const terminalHandling=/Load Port Terminal Handling Charges|\bTHC\b.*Buyer[’']s account/i;const stored=[...(shared.length?shared:DEFAULT_TERMS),...(c.terms||[])].map(x=>String(x||'').trim()).filter(Boolean).filter(x=>!automaticInsurance.test(x)&&!automaticInspection.test(x)&&!terminalHandling.test(x));
- if(incotermBase(c)==='FOB')stored.push('Load Port Terminal Handling Charges (THC), if applicable, shall be for Buyer’s account.');
+ if(c.incoterm==='FOB')stored.push('Load Port Terminal Handling Charges (THC), if applicable, shall be for Buyer’s account.');
  stored.push(`Insurance shall be for ${c.insurance==="Seller's Account"?'Seller’s':'Buyer’s'} account.`);
  if(c.inspection==='Any inspection company')stored.push('Inspection by any independent, reputable international inspection company having its registered office in Pakistan, at Seller’s cost.');
  else if(c.inspection&&!['None','No'].includes(c.inspection))stored.push(`Inspection by ${c.inspection} at Seller’s cost.`);
