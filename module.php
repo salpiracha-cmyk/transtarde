@@ -73,9 +73,13 @@ $sharedBootstrap = <<<'HTML'
   const EXPORT_STORE='transtrade_export_v3_operational';
   const PRIVATE_STORES=new Set(['tt34ghati','tt34nilqueue','tt32processingrecon']);
   const allowed=k=>!PRIVATE_STORES.has(k)&&(k===EXPORT_STORE||/^tt[0-9]{2}[a-z0-9_]{2,60}$/.test(k));
-  const originalSet=Storage.prototype.setItem, originalRemove=Storage.prototype.removeItem;
+  const originalSet=Storage.prototype.setItem, originalRemove=Storage.prototype.removeItem, originalGet=Storage.prototype.getItem, originalClear=Storage.prototype.clear;
+  const cacheFallback=new Map(), committedValues=new Map(), receipts=new Map(), failedKeys=new Set();let saveHolds=0;
+  const waiting=()=>document.documentElement.classList.toggle('tt-save-waiting',saveHolds>0||commitWaiters.length>0);
   let applying=false, revision=0, remoteKeys=new Set(), pending=new Map(), inFlight=new Set(), keyVersions=new Map(), queuedBase=new Map(), inboundRetry=0, lastRemoteBy='', lastInboundCheck=0, commitWaiters=[];
-  const directSet=(k,v)=>originalSet.call(localStorage,k,v);
+  // Cache capacity must not decide whether a server write is staged. All readers,
+  // including the Milling bridge, see the same fallback until a native write fits.
+  const directSet=(k,v)=>{k=String(k);v=String(v);try{originalSet.call(localStorage,k,v);cacheFallback.delete(k)}catch(error){if(error?.name!=='QuotaExceededError'&&error?.name!=='NS_ERROR_DOM_QUOTA_REACHED'&&error?.code!==22)throw error;cacheFallback.set(k,v)}};
   const markSaveState=()=>{};
   const parse=(k,d)=>{try{const v=JSON.parse(localStorage.getItem(k));return v??d}catch{return d}};
   const stableId=s=>{let h=2166136261;for(const c of String(s)){h^=c.charCodeAt(0);h=Math.imul(h,16777619)}return 600000000+(h>>>0)%300000000};
@@ -91,25 +95,27 @@ $sharedBootstrap = <<<'HTML'
   function deferInbound(){clearTimeout(inboundRetry);inboundRetry=setTimeout(checkInbound,1000)}
   function applyRemote(data,initial){
     if(!data?.ok)return;
-    for(const key of data.restrictedKeys||[]){originalRemove.call(localStorage,key);pending.delete(key);remoteKeys.delete(key);keyVersions.delete(key);}
+    for(const key of data.restrictedKeys||[]){localStorage.removeItem(key);pending.delete(key);remoteKeys.delete(key);keyVersions.delete(key);committedValues.delete(key);receipts.delete(key);}
     // An in-flight response can arrive after an editor opens. Do not replace its
     // data or advance its version: a later save must still detect real conflicts.
     if(!initial&&exportWorkspaceBusy()){deferInbound();return}
     const incoming=Number(data.revision||0), changed=[];applying=true;
-    Object.entries(data.values||{}).forEach(([k,v])=>{remoteKeys.add(k);if(allowed(k)&&typeof v==='string'&&!pending.has(k)&&!inFlight.has(k)&&localStorage.getItem(k)!==v){directSet(k,v);changed.push(k);lastRemoteBy=data.meta?.[k]?.updatedBy||lastRemoteBy}});
+    Object.entries(data.values||{}).forEach(([k,v])=>{remoteKeys.add(k);if(allowed(k)&&typeof v==='string'&&!pending.has(k)&&!inFlight.has(k)){committedValues.set(k,v);receipts.set(k,v);if(localStorage.getItem(k)!==v){directSet(k,v);changed.push(k);lastRemoteBy=data.meta?.[k]?.updatedBy||lastRemoteBy}}});
     Object.entries(data.meta||{}).forEach(([k,m])=>{if(!pending.has(k)&&!inFlight.has(k))keyVersions.set(k,Number(m?.version||0))});
     applying=false;revision=Math.max(revision,incoming);window.TRANSTRADE_SERVER_NOW_ISO=data.serverNow||window.TRANSTRADE_SERVER_NOW_ISO;
     if(changed.length&&!initial){bridge();notifyRemote()}
   }
   function settleCommits(error=''){
-    if(!error&&inFlight.size)return;
-    const waiters=commitWaiters.splice(0);for(const w of waiters){clearTimeout(w.timer);error?w.reject(new Error(error)):w.resolve({ok:true,revision})}
-    document.documentElement.classList.remove('tt-save-waiting');
+    if(!error&&(inFlight.size||pending.size))return;
+    const waiters=commitWaiters.splice(0);for(const w of waiters){clearTimeout(w.timer);const failure=error||(w.intent&&receipts.get(w.intent.key)!==w.intent.value?'The intended change was not confirmed. Reload and review before retrying.':'');failure?w.reject(new Error(failure)):w.resolve({ok:true,revision})}
+    waiting();
   }
   function saveNow(){
+    const intent=arguments[0];
+    if(intent){if(!allowed(intent.key)||typeof intent.value!=='string'||localStorage.getItem(intent.key)!==intent.value)return Promise.reject(new Error('The staged change no longer matches this action. Review before saving.'));if(receipts.get(intent.key)!==intent.value&&!pending.has(intent.key)&&!inFlight.has(intent.key))queue(intent.key,intent.value)}
     if(!pending.size&&!inFlight.size)return Promise.resolve({ok:true,revision});
-    document.documentElement.classList.add('tt-save-waiting');
-    return new Promise((resolve,reject)=>{const waiter={resolve,reject,timer:0};waiter.timer=setTimeout(()=>{const i=commitWaiters.indexOf(waiter);if(i>=0){commitWaiters.splice(i,1);if(!commitWaiters.length)document.documentElement.classList.remove('tt-save-waiting');reject(new Error('Save timed out. Nothing was advanced; please retry.'))}},20000);commitWaiters.push(waiter);flush()})
+    failedKeys.clear();
+    return new Promise((resolve,reject)=>{const waiter={resolve,reject,intent,timer:0};waiter.timer=setTimeout(()=>{const i=commitWaiters.indexOf(waiter);if(i>=0){commitWaiters.splice(i,1);if(!commitWaiters.length)waiting();reject(new Error('Save was not confirmed before the connection timed out. Reload and review the server state before retrying.'))}},20000);commitWaiters.push(waiter);waiting();flush()})
   }
   function refreshNow(){
     if(pending.size||inFlight.size)return Promise.reject(new Error('Finish the current save before refreshing.'));
@@ -117,19 +123,21 @@ $sharedBootstrap = <<<'HTML'
   }
   function flush(){
     for(const [key,value] of [...pending]){
-      if(inFlight.has(key))continue;
+      if(inFlight.has(key)||failedKeys.has(key))continue;
       pending.delete(key);
       inFlight.add(key);
       fetch(endpoint,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({csrf:access.csrf,key,value,baseVersion:Number(queuedBase.get(key)??keyVersions.get(key)??0),sourceModule:access.module||'Super Admin'})})
-        .then(r=>r.json()).then(r=>{inFlight.delete(key);if(r.ok){revision=Math.max(revision,Number(r.revision||0));keyVersions.set(key,Number(r.keyVersion||r.revision||0));queuedBase.delete(key);markSaveState('Saved');settleCommits();if(typeof dispatchEvent==='function'&&typeof CustomEvent==='function')dispatchEvent(new CustomEvent('tt:shared-saved',{detail:{key}}));return}if(!pending.has(key))pending.set(key,value);const message=r.conflict?'This record changed elsewhere. Refresh and review it before retrying.':(r.error||'The change was not saved.');showSyncError(message,!!r.conflict);settleCommits(message)})
-        .catch(()=>{inFlight.delete(key);if(!pending.has(key))pending.set(key,value);const message='The change was not saved. Check the connection and retry; nothing was advanced.';showSyncError(message);settleCommits(message)});
+        .then(async response=>{const result=await response.json();if(response.ok===false&&result.ok)throw new Error('Invalid save response');return result}).then(r=>{inFlight.delete(key);if(r.ok){revision=Math.max(revision,Number(r.revision||0));keyVersions.set(key,Number(r.keyVersion||r.revision||0));receipts.set(key,value);committedValues.set(key,typeof r.value==='string'?r.value:value);if(pending.has(key))queuedBase.set(key,Number(keyVersions.get(key)||0));else queuedBase.delete(key);markSaveState('Saved');if(typeof dispatchEvent==='function'&&typeof CustomEvent==='function')dispatchEvent(new CustomEvent('tt:shared-saved',{detail:{key}}));if(pending.size)flush();settleCommits();return}if(!pending.has(key))pending.set(key,value);failedKeys.add(key);const message=r.conflict?'This record changed elsewhere. Reload and review it before retrying.':(r.error||'The change was not saved.');showSyncError(message,!!r.conflict);settleCommits(message)})
+        .catch(()=>{inFlight.delete(key);if(!pending.has(key))pending.set(key,value);failedKeys.add(key);const message='The save was not confirmed. Check the connection, then reload and review before retrying.';showSyncError(message);settleCommits(message)});
     }
   }
   // Local form changes stay local. Only an explicit final workflow action
   // calls saveNow(), which creates the durable recovery entry before upload.
   function queue(key,value){if(!allowed(key)||applying)return;if(!pending.has(key))queuedBase.set(key,Number(keyVersions.get(key)||0));pending.set(key,String(value))}
-  Storage.prototype.setItem=function(k,v){originalSet.call(this,k,v);if(this===localStorage)queue(String(k),String(v))};
-  Storage.prototype.removeItem=function(k){originalRemove.call(this,k);};
+  Storage.prototype.getItem=function(k){return this===localStorage&&cacheFallback.has(String(k))?cacheFallback.get(String(k)):originalGet.call(this,k)};
+  Storage.prototype.setItem=function(k,v){if(this===localStorage){directSet(k,v);queue(String(k),String(v))}else originalSet.call(this,k,v)};
+  Storage.prototype.removeItem=function(k){originalRemove.call(this,k);if(this===localStorage)cacheFallback.delete(String(k))};
+  Storage.prototype.clear=function(){originalClear.call(this);if(this===localStorage)cacheFallback.clear()};
   // Final actions lock the workspace until the server answers. Form data stays
   // available after an error so the same action can be retried.
   const blockWhileSaving=event=>{if(!document.documentElement.classList.contains('tt-save-waiting'))return;event.preventDefault();event.stopImmediatePropagation()};
@@ -140,7 +148,7 @@ $sharedBootstrap = <<<'HTML'
   const initial=getRemote(true);
   if(access.moduleId==='exports'&&!initial?.ok){
     // A failed read must never look like an empty shipment book or create a fresh one.
-    Storage.prototype.setItem=originalSet;Storage.prototype.removeItem=originalRemove;
+    Storage.prototype.setItem=originalSet;Storage.prototype.removeItem=originalRemove;Storage.prototype.getItem=originalGet;Storage.prototype.clear=originalClear;
     window.TT_EXPORTS_LOAD_ERROR=true;
     window.TT_SHARED_SYNC={saveNow:()=>Promise.reject(new Error('Exports data has not loaded. Reload before saving.'))};
     const showLoadError=()=>{
@@ -184,7 +192,7 @@ $sharedBootstrap = <<<'HTML'
   function notifyRemote(){dispatchEvent(new CustomEvent('tt:shared-updated',{detail:{by:lastRemoteBy}}))}
   function showSyncError(msg,conflict){console.error(msg);if(conflict)dispatchEvent(new CustomEvent('tt:shared-conflict',{detail:{message:msg}}))}
   function checkInbound(){if(exportWorkspaceBusy()){deferInbound();return}const now=Date.now();if(pending.size||inFlight.size){clearTimeout(inboundRetry);inboundRetry=setTimeout(checkInbound,300);return}if(now-lastInboundCheck<800)return;lastInboundCheck=now;getRemote(false)}
-  window.TT_SHARED_SYNC={flush,saveNow,refresh:refreshNow,bridge,poll:checkInbound};
+  window.TT_SHARED_SYNC={flush,saveNow,refresh:refreshNow,bridge,poll:checkInbound,hold:()=>{saveHolds++;waiting();let released=false;return()=>{if(!released){released=true;saveHolds--;waiting()}}},readCommitted:key=>committedValues.get(key)??null,restoreStaged:(key,before,attempted)=>{if(localStorage.getItem(key)!==attempted)return false;if(pending.get(key)===attempted){pending.delete(key);queuedBase.delete(key)}directSet(key,before);return true}};
   // Permanent rule: only explicit application actions save. Inbound checks are read-only and run when staff return to a tab.
   // Remote changes are staged locally and announced through an internal event without persistent interface notices.
   // Exports must reconcile Mill actuals before app.js reads state. Milling must finish its legacy startup first,

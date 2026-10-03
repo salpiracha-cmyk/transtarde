@@ -6,7 +6,7 @@ const num=v=>Number(v||0);
 const fmt=d=>{const m=String(d||'').match(/^(\d{4})-(\d{2})-(\d{2})/);return m?`${m[3]}-${m[2]}-${m[1]}`:String(d||'')};
 const readJSON=(key,fallback)=>{try{return JSON.parse(localStorage.getItem(key)||'')||fallback}catch{return fallback}};
 const writeJSON=(key,value)=>localStorage.setItem(key,JSON.stringify(value));
-const state=()=>readJSON(STORE,{contracts:[],shipments:[],customers:[]});
+const state=()=>{try{return JSON.parse(window.TT_SHARED_SYNC?.readCommitted?.(STORE)||'null')||{contracts:[],shipments:[],customers:[]}}catch{return{contracts:[],shipments:[],customers:[]}}};
 const writeState=data=>writeJSON(STORE,data);
 const customer=(data,id)=>data.customers?.find(row=>row.id===id)||{};
 const contract=(data,ref)=>data.contracts?.find(row=>row.ref===ref)||{};
@@ -26,12 +26,6 @@ function marker(data){
   out[shipmentKey(s)]={contractRef:s.contractRef,received:!!c.received,bags:bagOrders(data,s).map(po=>[po.poNo,po.issuedAt,(po.lines||[]).map(line=>[line.artworkDocument?.id||line.artworkDocument?.downloadUrl||'',line.masterBag?.artworkDocument?.id||line.masterBag?.artworkDocument?.downloadUrl||'']).flat().join('|')].join('|')).join('||')}
  }
  return out
-}
-function repairCompletedLots(data=state()){
- let changed=false;
- for(const s of lots(data))if(String(s.status||'')==='Completed'&&!s.completed){s.completed=true;s.completedAt=s.completedAt||new Date().toISOString();changed=true}
- if(changed){writeState(data);window.dispatchEvent(new Event('tt:shared-updated'))}
- return changed
 }
 function page(title,body){return`<div class="printDoc"><section class="docPage branded"><h1 class="docTitle">${esc(title)}</h1>${body}<div class="docPageNo">Generated ${fmt(new Date().toISOString())}</div></section></div>`}
 function salesContractRow(data,c){
@@ -58,7 +52,7 @@ function findShipmentForOptions(data,options){
  return(data.shipments||[]).find(s=>s.contractRef===contractRef&&(String(s.lotId||'')===lot||(!s.lotId&&lot==='PRE-SHIPMENT')))||activeProcesses(data).find(s=>s.contractRef===contractRef)
 }
 function augmentOptions(options){
- const data=state(),s=findShipmentForOptions(data,options);if(!s)return options;
+ const data=options.committedSnapshot||state(),s=findShipmentForOptions(data,options);if(!s)return options;
  const c=contract(data,s.contractRef),existing=new Set((options.rows||[]).map(row=>String(row.key||row.name||'')));
  const rows=[...(options.rows||[])],uploads=[...(options.uploads||[])];
  const amt=amtRow(data,s,c);if(!existing.has(amt.key))rows.push(amt);
@@ -86,9 +80,9 @@ function installSaveWrapper(){
 }
 function installSyncWrapper(){
  const sync=window.TT_SHARED_SYNC;if(!sync?.saveNow||sync.__officeHooked)return false;
- const original=sync.saveNow.bind(sync);sync.saveNow=async(...args)=>{const before=state(),result=await original(...args),after=state();repairCompletedLots(after);const last=readJSON(MARKERS,null);if(!last)writeJSON(MARKERS,marker(state()));else for(const s of changedShipments(before,state()))officeSaveShipment(s,'confirmed-change');writeJSON(MARKERS,marker(state()));return result};sync.__officeHooked=true;
+ const original=sync.saveNow.bind(sync);sync.saveNow=async(...args)=>{const before=state(),result=await original(...args),after=state();try{const last=readJSON(MARKERS,null);if(last)for(const s of changedShipments(before,after))void officeSaveShipment(s,'confirmed-change');writeJSON(MARKERS,marker(after))}catch(error){console.warn('Office archive marker unavailable',error)}return result};sync.__officeHooked=true;
  return true
 }
-function boot(){installSaveWrapper();installSyncWrapper();repairCompletedLots();if(!localStorage.getItem(MARKERS))writeJSON(MARKERS,marker(state()))}
+function boot(){installSaveWrapper();installSyncWrapper();if(!localStorage.getItem(MARKERS))writeJSON(MARKERS,marker(state()))}
 boot();let tries=0;const timer=setInterval(()=>{boot();if(++tries>40||(window.TT_SHIPMENT_FILES?.__officeHooked&&window.TT_SHARED_SYNC?.__officeHooked))clearInterval(timer)},250);
 })();

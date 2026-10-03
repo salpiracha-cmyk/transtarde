@@ -124,6 +124,9 @@ jobs:
           node tests/exports-v3/bridge_integration_test.js
           node tests/exports-v3/browser_dom_audit.js
           node tests/exports-v3/focus_preservation_browser_qa.js
+          node tests/exports-v3/shared_save_persistence_test.js
+          node tests/exports-v3/lot_reopen_permission_test.js
+          node tests/exports-v3/lot_completion_persistence_browser_qa.js
           node tests/exports-v3/export_master_icons_audit.js
           node tests/exports-v3/export_entry_ux_audit.js
           node tests/exports-v3/deletion_server_ack_audit.js

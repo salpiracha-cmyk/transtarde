@@ -283,6 +283,17 @@ function operations_apply_export_reset_db(PDO $db, array $user): void {
     if ($changed) operations_reset_export_documents($db);
 }
 
+function operations_validate_lot_reopening(string $oldJson, string $incomingJson, array $user, string $sourceModule): void {
+    if (!in_array($sourceModule, ['Exports', 'Super Admin'], true) || $oldJson === '') return;
+    $old = json_decode($oldJson, true); $next = json_decode($incomingJson, true);
+    $lots = []; foreach (($old['shipments'] ?? []) as $lot) if (($lot['kind'] ?? '') === 'lot' && !empty($lot['completed'])) $lots[(string)($lot['id'] ?? '')] = $lot;
+    foreach (($next['shipments'] ?? []) as $lot) {
+        if (!isset($lots[(string)($lot['id'] ?? '')]) || !empty($lot['completed'])) continue;
+        if (($user['role'] ?? '') !== 'Super Admin') operations_respond(['ok'=>false,'error'=>'Only Super Admin can reopen a completed lot.'],403);
+        if (trim((string)($lot['reopenReason'] ?? '')) === '' || ($lot['reopenedAt'] ?? '') === ($lots[(string)$lot['id']]['reopenedAt'] ?? '')) operations_respond(['ok'=>false,'error'=>'A new reopening reason and recorded action are required.'],422);
+    }
+}
+
 function operations_merge_export(string $currentJson, string $incomingJson, string $sourceModule): string {
     $current = json_decode($currentJson, true);
     $incoming = json_decode($incomingJson, true);
@@ -495,7 +506,7 @@ function operations_file_fallback(array $user): never {
         $old=(string)($store['values'][$key]??''); $keyVersion=(int)($store['meta'][$key]['version']??0);
         if ($baseVersion!==$keyVersion) $conflict=true;
         else {
-            if ($key==='transtrade_export_v3_operational' && $old!=='') $value=operations_merge_export($old,$value,$sourceModule);
+            if ($key==='transtrade_export_v3_operational' && $old!=='') { operations_validate_lot_reopening($old,$value,$user,$sourceModule); $value=operations_merge_export($old,$value,$sourceModule); }
             if ($key==='tt40exinstructions') operations_validate_exmill_completion($value,(string)($store['values']['tt35exload']??'[]'));
             if ($key==='tt35exload') operations_validate_exmill_completion((string)($store['values']['tt40exinstructions']??'[]'),$value);
             $now=gmdate('c');$beforeValues=(array)($store['values']??[]);
@@ -518,7 +529,7 @@ function operations_file_fallback(array $user): never {
     } finally { flock($handle,LOCK_UN); fclose($handle); }
     if ($conflict) operations_respond(['ok'=>false,'conflict'=>true,'error'=>'A newer shared update is available. Refresh before saving again.','keyVersion'=>$keyVersion],409);
     if($key==='transtrade_export_v3_operational')try{tt_receipt_invoice_sync();}catch(Throwable $linkError){error_log('Invoice narration link: '.$linkError->getMessage());}
-    operations_respond(['ok'=>true,'revision'=>$revision,'keyVersion'=>$keyVersion,'updatedAt'=>gmdate('c')]);
+    operations_respond(['ok'=>true,'revision'=>$revision,'keyVersion'=>$keyVersion,'updatedAt'=>gmdate('c'),'value'=>(string)($store['values'][$key]??$value)]);
 }
 
 try {
@@ -593,6 +604,7 @@ try {
         ], 409);
     }
     if ($key === 'transtrade_export_v3_operational' && $oldPayload !== '') {
+        operations_validate_lot_reopening($oldPayload, $value, $user, $sourceModule);
         $value = operations_merge_export($oldPayload, $value, $sourceModule);
     }
     if ($key === 'tt40exinstructions') {
@@ -625,7 +637,7 @@ try {
     $db->commit();
     if($key==='transtrade_export_v3_operational')try{tt_receipt_invoice_sync();}catch(Throwable $linkError){error_log('Invoice narration link: '.$linkError->getMessage());}
     if($inventoryLock){$release=$db->prepare('SELECT RELEASE_LOCK(?)');$release->execute(['tt_inventory_'.substr(hash('sha256',operations_env('DB_NAME')),0,24)]);$inventoryLock=false;}
-    operations_respond(['ok' => true, 'revision' => $version, 'keyVersion' => $version, 'updatedAt' => gmdate('c')]);
+    operations_respond(['ok' => true, 'revision' => $version, 'keyVersion' => $version, 'updatedAt' => gmdate('c'), 'value' => (string)($nextValues[$key]??$value)]);
 } catch (DomainException|InvalidArgumentException $e) {
     if(isset($db)&&$db instanceof PDO&&$db->inTransaction())$db->rollBack();
     operations_respond(['ok'=>false,'error'=>$e->getMessage()],$e instanceof DomainException?403:422);
