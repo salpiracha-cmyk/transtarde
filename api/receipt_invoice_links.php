@@ -5,7 +5,7 @@ declare(strict_types=1);
 function tt_receipt_invoice_links(array $s,array $root,array $fiLinks):array {
  $out=[];$lots=[];foreach((array)($root['shipments']??[]) as $lot)if(is_array($lot)&&!empty($lot['id'])&&!empty($lot['customs']['saved'])&&empty($lot['cancelled']))$lots[(string)$lot['id']]=$lot;
  foreach((array)($s['exportReceipts']??[]) as $r){if(($r['status']??'')!=='Accounts Approved / Posted')continue;$rid=(string)$r['id'];$cur=(string)$r['transactionCurrency'];
-  foreach((array)($r['allocations']??[]) as $a)if(!empty($a['invoiceRef']))$out[$rid][]=['invoiceRef'=>strtoupper((string)$a['invoiceRef']),'currency'=>$cur,'amount'=>round((float)$a['foreignAmount'],2),'source'=>'RECEIPT ALLOCATION'];
+  foreach((array)($r['allocations']??[]) as $a){$ref=(string)($a['invoiceRef']??'');if(($a['targetType']??'')==='EXPORT_RECEIVABLE')$ref=(string)(($s['exportCandidates'][$a['targetId']??'']['meta']['commercialInvoiceNo']??'')?:$ref);if($ref!=='')$out[$rid][]=['invoiceRef'=>strtoupper($ref),'currency'=>$cur,'amount'=>round((float)$a['foreignAmount'],2),'source'=>'RECEIPT ALLOCATION'];}
  }
  foreach((array)($root['fi']??[]) as $fi){$tag=$fiLinks[(string)($fi['id']??'')]??[];if(($tag['status']??'')!=='Matched')continue;$rid=$tag['receiptId'];$r=$s['exportReceipts'][$rid]??[];
   // Existing invoice settlement is already explicit. FI utilisation adds references only to advances.
