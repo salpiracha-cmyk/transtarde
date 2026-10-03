@@ -1191,6 +1191,19 @@ async function copyCommittedShipmentFiles(s,c){
  try{if(!window.TT_SHARED_SYNC?.saveNow)throw new Error('Server saving is unavailable.');await window.TT_SHARED_SYNC.saveNow();const result=await saveShipmentFolder(s,c,true);if(result.skipped)return;const host=document.getElementById('workspaceDetail')||document.getElementById('lotEditorForm');host?.insertAdjacentHTML('afterbegin',`<div class="notice" role="status">${esc(result.count)} shipment files queued for the Office Agent at ${esc(result.path)}.</div>`)}
  catch(error){const host=document.getElementById('workspaceDetail')||document.getElementById('lotEditorForm');host?.insertAdjacentHTML('afterbegin',`<div class="notice warn" role="status">Office archive was not queued. Retry the document Save action or LOT COMPLETE. ${esc(error.message)}</div>`)}
 }
+async function requeueCompletedShipmentFolder(button,s,c){
+ if(!window.TT_SHIPMENT_FILES)return;
+ const host=document.getElementById('completedOfficeArchiveMessage')||document.getElementById('workspaceDetail');
+ button.disabled=true;button.textContent='QUEUING...';
+ try{
+  if(!window.TT_SHARED_SYNC?.saveNow)throw new Error('Server saving is unavailable.');
+  await window.TT_SHARED_SYNC.saveNow();
+  const result=await saveShipmentFolder(s,c,false);
+  if(host)host.innerHTML=`<div class="notice">${esc(result.count)} shipment files queued for the Office Agent at ${esc(result.path)}. This does not reopen or amend the completed lot.</div>`;
+ }catch(error){
+  if(host)host.innerHTML=`<div class="notice warn">Office folder package was not queued. ${esc(error.message)}</div>`;
+ }finally{button.disabled=false;button.textContent='QUEUE OFFICE FOLDER'}
+}
 function recordUploadedDocument(s,name,doc,reference=''){
  name=shipmentUploadName(name);s.uploadedDocuments=Array.isArray(s.uploadedDocuments)?s.uploadedDocuments:[];
  const existing=s.uploadedDocuments.find(row=>shipmentUploadName(row.name)===name),entry={id:existing?.id||uid('UPDOC'),name,reference,uploadedAt:new Date().toISOString(),uploadedBy:currentUser(),finalDocument:doc};
@@ -2375,7 +2388,9 @@ function renderShipmentWorkspace(){
   document.getElementById('backShipments').onclick=()=>{activeWorkspace='';view='home';render()};
   const detail=document.getElementById('workspaceDetail');renderDocumentOutput(detail);detail.querySelectorAll('[data-final-upload],#completeLot').forEach(node=>node.remove());
   const extra=shipmentFolderDocuments(closed,c).filter(row=>row.render&&row.ready&&['salesContract','customInvoice','customPacking','phytoInvoice'].includes(row.key));
-  const toolbar=document.createElement('div');toolbar.className='toolbar';for(const row of extra){const button=document.createElement('button');button.className='btn small soft';button.textContent='PRINT '+row.name.toUpperCase();button.onclick=()=>printShipmentDoc(row.name,row.render(),c.seller);toolbar.appendChild(button)}detail.appendChild(toolbar);renderHistory(document.getElementById('completedLotHistory'));return;
+  const toolbar=document.createElement('div');toolbar.className='toolbar';for(const row of extra){const button=document.createElement('button');button.className='btn small soft';button.textContent='PRINT '+row.name.toUpperCase();button.onclick=()=>printShipmentDoc(row.name,row.render(),c.seller);toolbar.appendChild(button)}
+  if(window.TT_SHIPMENT_FILES){const archive=document.createElement('button');archive.className='btn small navy';archive.textContent='QUEUE OFFICE FOLDER';archive.onclick=()=>requeueCompletedShipmentFolder(archive,closed,c);toolbar.appendChild(archive)}
+  detail.appendChild(toolbar);const message=document.createElement('div');message.id='completedOfficeArchiveMessage';message.setAttribute('role','status');detail.appendChild(message);renderHistory(document.getElementById('completedLotHistory'));return;
  }
  const result=renderShipmentWorkspace__morning_base();
  const s=shipment();if(s?.kind!=='lot'&&s?.production?.sentToMill){

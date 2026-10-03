@@ -14,5 +14,7 @@ assert.match(app,/await saveShipmentFolder\(s,c\)[\s\S]*s.completed=true/,'offic
 assert.match(app,/if\(e\.target\?\.id==='completeLot'\)[\s\S]*completionMissing\(s,c\)/,'click handler revalidates completion server-side state before closing the lot');
 assert.match(app,/function confirmLotCompletionSave\(payload,lotId\)[\s\S]*120000/,'lot completion waits for a slow hosted save before failing');
 assert.match(app,/const confirmed=await confirmLotCompletionSave\(attempted,s\.id\)/,'lot completion uses the durable confirmation helper for the final save');
+assert.match(app,/function requeueCompletedShipmentFolder\(button,s,c\)[\s\S]*saveShipmentFolder\(s,c,false\)/,'completed lots can requeue the final Office Agent folder without reopening');
+assert.match(app,/QUEUE OFFICE FOLDER/,'completed lot view exposes an explicit Office Agent requeue action');
 
 console.log('PASS lot completion stage audit: final-output-only placement, upload gates, original dispatch gates, completed-lot hiding, click-time revalidation');
