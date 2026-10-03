@@ -81,6 +81,7 @@ async function ready(page,quota=false){
   }
   window.testFetch=window.fetch;window.fetch=async(url,options)=>{
    if(options?.method==='POST'){const body=JSON.parse(options.body),root=body.key===STORE?JSON.parse(body.value):null;
+    if(root?.shipments?.find(s=>s.id==='L-FOCUS')?.reopenedAt&&!root?.shipments?.find(s=>s.id==='L-FOCUS')?.completed&&window.rejectReopening)return{ok:false,json:async()=>({ok:false,error:'Reopening denied'})};
     if(root?.shipments?.find(s=>s.id==='L-FOCUS')?.completed&&window.rejectCompletion)return{ok:false,json:async()=>({ok:false,error:'Completion denied'})};
     const response=await testFetch(url,options);if(root?.shipments?.find(s=>s.id==='L-FOCUS')?.completed&&window.holdCompletion)await new Promise(resolve=>window.releaseCompletion=resolve);return response;
    }return testFetch(url,options);
@@ -92,8 +93,8 @@ async function ready(page,quota=false){
  browser=await chromium.launch({headless:true,...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH?{executablePath:process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH}:{})});
  try{
  await check('LOT COMPLETE stays active until hosted acknowledgement; office interval is independent and parent stays active for remaining quantity',async()=>{
-  const p=await pageFor();await ready(p,true);await p.evaluate(()=>{holdCompletion=true;__focusQA.open('L-FOCUS','output')});
-  await p.locator('#completeLot').click();await p.waitForFunction(()=>typeof releaseCompletion==='function');
+  const p=await pageFor();await ready(p,true);await p.addScriptTag({content:fs.readFileSync(path.join(root,'exports/office-agent-shipment-hooks.js'),'utf8')});await p.evaluate(()=>{archiveHold=true;holdCompletion=true;__focusQA.open('L-FOCUS','output')});
+  await p.locator('#completeLot').click();await p.waitForFunction(()=>typeof releaseArchive==='function');await p.evaluate(()=>{window.originalEditor=document.getElementById('workspaceDetail');focusReturn();dispatchEvent(new CustomEvent('tt:shared-updated'))});assert.equal(await p.evaluate(()=>originalEditor===document.getElementById('workspaceDetail')),true);await p.evaluate(()=>{archiveHold=false;releaseArchive()});await p.waitForFunction(()=>typeof releaseCompletion==='function');
   assert.equal(await p.evaluate(()=>__focusQA.snapshot().view),'shipments');
   assert.equal(await p.evaluate(()=>document.documentElement.classList.contains('tt-save-waiting')),true);
   await p.evaluate(()=>{holdCompletion=false;releaseCompletion()});await p.waitForFunction(()=>__focusQA.snapshot().view==='home');
@@ -103,7 +104,8 @@ async function ready(page,quota=false){
   await p.evaluate(()=>{state=load();view='home';render()});assert.equal(await p.evaluate(()=>state.shipments.find(s=>s.id==='L-FOCUS').completed),true);
   const before=await p.evaluate(()=>network.posts.length);await p.evaluate(()=>openShipment('L-FOCUS'));assert.equal(await p.locator('input,textarea,select,#cancelLot,[data-final-upload]').count(),0);assert.equal(await p.evaluate(()=>network.posts.length),before);
   await p.evaluate(async()=>{reason='';await reopenCompletedLot('L-FOCUS')});assert.equal(await p.evaluate(()=>network.posts.length),before);
-  await p.evaluate(async()=>{reason='QA correction';await reopenCompletedLot('L-FOCUS')});assert.equal(await p.evaluate(STORE=>JSON.parse(server.values[STORE]).shipments.find(s=>s.id==='L-FOCUS').completed,STORE),false);
+  await p.evaluate(async()=>{reason='QA correction';rejectReopening=true;await reopenCompletedLot('L-FOCUS')});assert.equal(await p.evaluate(STORE=>JSON.parse(server.values[STORE]).shipments.find(s=>s.id==='L-FOCUS').completed,STORE),true);assert.equal(await p.evaluate(()=>state.shipments.find(s=>s.id==='L-FOCUS').completed),true);
+  await p.evaluate(async()=>{rejectReopening=false;reason='QA correction';await reopenCompletedLot('L-FOCUS')});assert.equal(await p.evaluate(STORE=>JSON.parse(server.values[STORE]).shipments.find(s=>s.id==='L-FOCUS').completed,STORE),false);
   assert.equal(await p.evaluate(STORE=>JSON.parse(server.values[STORE]).shipments.find(s=>s.id==='L-FOCUS').reopenHistory.at(-1).reason,STORE),'QA correction');await p.close();
  });
  for(const fault of ['rejectCompletion','archiveFail'])await check(fault+' preserves open server lot without posting automatic rollback',async()=>{
