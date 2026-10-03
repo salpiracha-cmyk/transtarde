@@ -22,6 +22,11 @@ function tt_user_can_open_module($u,$m){return true;}
 function tt_user_accounts_entities($u){return ['TTI'];}
 function tt_list_masters(){return ['banks'=>[['id'=>'B1','values'=>['Company Account','TTI','','TTI','Fixture Bank','','','PKR','12345']]]];}
 function tt_bank_can_transact($id){return $id==='B1';}
+function tt_next_post_id(array $existing, string $module='Accounts', string $area='Journal', ?string $date=null): string {
+ $year=substr($date ?: date('Y-m-d'),0,4);$n=count($existing)+1;
+ do {$id='POST-'.$year.'-'.str_pad((string)$n,5,'0',STR_PAD_LEFT);$n++;} while (isset($existing[$id]));
+ return $id;
+}
 ''')
     initial={'journals':{},'bankAccountSettings':{'B1':{'defaultPaymentAccount':True}}}
     (root/'data/accounts.json').write_text(json.dumps(initial))
