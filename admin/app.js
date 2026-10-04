@@ -636,8 +636,8 @@
       <input type="hidden" id="${masterInputId(16)}" data-master-field-index="16"><div id="companyRegistrationRows">${registrations.map(companyRegistrationRow).join("")}</div>
     </section>
     <section class="master-editor-section" id="companyChamberSection" ${isPakistanCompany?'':'hidden'}><div class="master-editor-heading"><h3>Chamber / COO details</h3></div><div class="master-form-grid"><label>Chamber name<input data-company-chamber="chamberName" value="${escapeHtml(chamber.chamberName||'')}"></label><label>Membership number<input data-company-chamber="membershipNo" value="${escapeHtml(chamber.membershipNo||values[8]||'')}"></label><label>Authorised signatory name<input data-company-chamber="signatory" value="${escapeHtml(chamber.signatory||'')}"></label><label>Designation<input data-company-chamber="designation" value="${escapeHtml(chamber.designation||'')}"></label></div></section>
-    <section class="master-editor-section"><div class="master-editor-heading"><div><h3>Bank accounts</h3><p>Accounts belong to this company. Existing module bank lists are derived automatically.</p></div><button type="button" class="button secondary" id="addCompanyBank">+ Add bank account</button></div><input type="hidden" id="${masterInputId(13)}" data-master-field-index="13"><div id="companyBankRows">${banks.map(bank=>companyBankRow(bank)).join("")}</div></section>
-    <section class="master-editor-section" id="companyFxSection" ${values[3]==='Pakistan'||values[2]==='Pakistan'?'hidden':''}><div class="master-editor-heading"><div><h3>Exchange rates</h3><p>For company bank currencies. Enter each direction independently; 1 unit of the first currency equals the entered units of the second.</p></div><button type="button" class="button secondary" id="addCompanyFx">+ Add rate pair</button></div><input type="hidden" id="${masterInputId(15)}" data-master-field-index="15"><div id="companyFxRows">${fxPairs.map(companyFxRow).join("")}</div><p id="companyFxHint">Add bank accounts in two currencies to set exchange rates.</p></section>
+    <section class="master-editor-section"><div class="master-editor-heading"><div><h3>Bank accounts</h3><p>Accounts belong to this company. Existing module bank lists are derived automatically.</p></div><button type="button" class="button secondary" id="addCompanyBank">+ Add bank account</button></div><input type="hidden" id="${masterInputId(13)}" data-master-field-index="13"><div id="companyBankRows">${isPakistanCompany?'':'<style>.company-bank-row label:has([data-bank-retention]){display:none!important}</style>'}${banks.map(bank=>companyBankRow(bank,isPakistanCompany)).join("")}</div></section>
+    <section class="master-editor-section" id="companyFxSection" ${values[3]==='Pakistan'||values[2]==='Pakistan'?'hidden':''}><div class="master-editor-heading"><div><h3>Exchange rates & VAT</h3><p>For company bank currencies. Enter each direction independently; 1 unit of the first currency equals the entered units of the second.</p></div><button type="button" class="button secondary" id="addCompanyFx">+ Add rate pair</button></div><div class="master-form-grid"><label>VAT rate (%)<input id="${masterInputId(18)}" data-master-field-index="18" type="number" min="0" max="100" step="0.01" value="${escapeHtml(values[18]??'5')}"></label></div><input type="hidden" id="${masterInputId(15)}" data-master-field-index="15"><div id="companyFxRows">${fxPairs.map(companyFxRow).join("")}</div><p id="companyFxHint">Add bank accounts in two currencies to set exchange rates.</p></section>
     <section class="master-editor-section"><div class="master-editor-heading"><div><h3>Document identity</h3><p>Headers, footers, signatures and stamps remain versioned under the legal company.</p></div><button type="button" class="button secondary" id="addCompanyDocument">+ Add document identity</button></div><input type="hidden" id="${masterInputId(14)}" data-master-field-index="14"><div id="companyDocumentRows">${documents.map(doc=>companyDocumentRow(doc)).join("")}</div></section>
     <section class="master-editor-section"><div class="master-editor-heading"><div><h3>Special workflow & behaviour</h3><p>Keep exceptional entity handling separate from ordinary identity.</p></div></div><div class="master-form-grid"><label>TG special handling<select id="${masterInputId(5)}" data-master-field-index="5">${["No","Yes"].map(x=>`<option ${x===String(values[5]||"No")?"selected":""}>${x}</option>`).join("")}</select></label><label class="full-span">System behaviour / notes<textarea id="${masterInputId(6)}" data-master-field-index="6" rows="4">${escapeHtml(values[6] || "")}</textarea></label></div></section>`;
   }
@@ -648,7 +648,7 @@
   function companyRegistrationRow(item={}) {
     return `<div class="master-form-grid company-registration-row"><label>Registration type<input data-registration-type value="${escapeHtml(item.type||"")}" placeholder="e.g. VAT Registration / VAT TRN"></label><label>Number<input data-registration-number value="${escapeHtml(item.number||"")}"></label><label>Jurisdiction<input data-registration-jurisdiction value="${escapeHtml(item.jurisdiction||"")}"></label><label>Expiry date<input type="date" data-registration-expiry value="${escapeHtml(item.expiryDate||"")}"></label><label class="full-span">Notes<input data-registration-notes value="${escapeHtml(item.notes||"")}"></label><button type="button" class="button danger" data-remove-company-registration>Delete row</button></div>`;
   }
-  function companyBankRow(bank={}) {
+  function companyBankRow(bank={},allowRetention=false) {
     const accountType=bank.accountType||"Company Account";
     const inactive=String(bank.status||"Active").toLowerCase()==="inactive";
     const action=bank.id?(inactive?"":(IS_SUPER_ADMIN?'<button type="button" class="button danger" data-delete-company-bank>Delete</button>':"")):'<button type="button" class="button danger" data-remove-company-bank>Remove</button>';
@@ -977,8 +977,8 @@
   }
   function masterValuesFromForm(type) {
     if (type.id === "companies") {
-      const values=Array(18).fill("");
-      [0,1,2,3,5,6,8,9,10,11,12].forEach(index=>{values[index]=document.getElementById(masterInputId(index))?.value.trim()||""});
+      const values=Array(19).fill("");
+      [0,1,2,3,5,6,8,9,10,11,12,18].forEach(index=>{values[index]=document.getElementById(masterInputId(index))?.value.trim()||""});
       values[17]=JSON.stringify(Object.fromEntries([...document.querySelectorAll('[data-company-chamber]')].map(input=>[input.dataset.companyChamber,input.value.trim()])));
       if(String(values[2]).toLowerCase()==='pakistan')values[8]=JSON.parse(values[17]).membershipNo||'';
       values[4]=[...document.querySelectorAll('[data-master-field-index="4"]:checked')].map(input=>input.value).join("; ");
@@ -986,7 +986,7 @@
       values[7]=JSON.stringify(owners.length?owners:[{name:"",share:100}]);
       values[13]=JSON.stringify([...document.querySelectorAll('.company-bank-row')].map((row,index)=>({
         ...JSON.parse(row.querySelector('[data-bank-json]')?.value||'{}'),id:row.querySelector('[data-bank-id]')?.value||`bank-${Date.now()}-${index}`,
-        accountType:row.querySelector('[data-bank-type]')?.value||'Company Account',personalOwner:row.querySelector('[data-bank-owner]')?.value.trim()||'',bankName:row.querySelector('[data-bank-name]')?.value.trim()||'',accountTitle:row.querySelector('[data-bank-title]')?.value.trim()||'',currency:row.querySelector('[data-bank-currency]')?.value.trim()||'PKR',accountNumber:row.querySelector('[data-bank-number]')?.value.trim()||'',iban:row.querySelector('[data-bank-iban]')?.value.trim()||'',swift:row.querySelector('[data-bank-swift]')?.value.trim()||'',branch:row.querySelector('[data-bank-branch]')?.value.trim()||'',purpose:row.querySelector('[data-bank-purpose]')?.value.trim()||'',retentionAccount:(Object.prototype.hasOwnProperty.call(JSON.parse(row.querySelector('[data-bank-json]')?.value||'{}'),'retentionAccount')||!row.querySelector('[data-bank-id]')?.value||row.querySelector('[data-bank-retention]')?.checked)?!!row.querySelector('[data-bank-retention]')?.checked:undefined,status:JSON.parse(row.querySelector('[data-bank-json]')?.value||'{}').status||'Active'
+        accountType:row.querySelector('[data-bank-type]')?.value||'Company Account',personalOwner:row.querySelector('[data-bank-owner]')?.value.trim()||'',bankName:row.querySelector('[data-bank-name]')?.value.trim()||'',accountTitle:row.querySelector('[data-bank-title]')?.value.trim()||'',currency:row.querySelector('[data-bank-currency]')?.value.trim()||'PKR',accountNumber:row.querySelector('[data-bank-number]')?.value.trim()||'',iban:row.querySelector('[data-bank-iban]')?.value.trim()||'',swift:row.querySelector('[data-bank-swift]')?.value.trim()||'',branch:row.querySelector('[data-bank-branch]')?.value.trim()||'',purpose:row.querySelector('[data-bank-purpose]')?.value.trim()||'',retentionAccount:String(values[2]).toLowerCase()==='pakistan'&&!!row.querySelector('[data-bank-retention]')?.checked,status:JSON.parse(row.querySelector('[data-bank-json]')?.value||'{}').status||'Active'
       })).filter(bank=>bank.bankName||bank.accountTitle||bank.accountNumber||bank.iban));
       values[14]=JSON.stringify([...document.querySelectorAll('.company-document-row')].map(row=>({
         ...JSON.parse(row.querySelector('[data-document-json]')?.value||'{}'),id:row.querySelector('[data-document-id]')?.value||'',type:row.querySelector('[data-document-type]')?.value||'Other',label:row.querySelector('[data-document-label]')?.value.trim()||'',version:row.querySelector('[data-document-version]')?.value.trim()||'1',status:row.querySelector('[data-document-status]')?.value||'Active',isDefault:!!row.querySelector('[data-document-default]')?.checked
@@ -1216,7 +1216,9 @@
     set("bankCurrency",bank.currency||"PKR");
     document.querySelector(`input[name="bankOwnership"][value="${bank.accountType||"Company Account"}"]`).checked=true;
     document.getElementById("bankDefault").checked=!!bank.isDefault;
-    document.getElementById("bankRetention").checked=!!bank.retentionAccount;
+    const pakistanCompany=String(company.values?.[2]||'').toLowerCase()==='pakistan'||String(company.values?.[3]||'').toLowerCase()==='pakistan';
+    document.getElementById("bankRetention").checked=pakistanCompany&&!!bank.retentionAccount;
+    document.getElementById("bankRetention").closest("label").dataset.offshoreHidden=pakistanCompany?'':'1';
     document.getElementById("bankDelete").hidden=!bankId||!IS_SUPER_ADMIN||bank.status==="Inactive";
     document.getElementById("bankDeleteConfirm").hidden=true;
     syncBankDialogOwnership();
@@ -1228,7 +1230,7 @@
     document.getElementById("bankOwnerWrap").hidden=ownership==="Company Account";
     const retention=document.getElementById("bankRetention");
     retention.disabled=ownership==="Personal Account";
-    retention.closest("label").hidden=retention.disabled;
+    retention.closest("label").hidden=retention.disabled||retention.closest("label").dataset.offshoreHidden==='1';
     if(retention.disabled)retention.checked=false;
   }
   function eligibleDefaultBank(bank) {
@@ -1251,7 +1253,8 @@
       if(bankId&&index<0)throw new Error("Bank account no longer exists. Refresh and try again.");
       const currency=document.getElementById("bankCurrency").value;
       const isDefault=document.getElementById("bankDefault").checked;
-      const bank={...(index>=0?banks[index]:{}),id:bankId||`bank-${crypto.randomUUID()}`,bankName:document.getElementById("bankName").value.trim(),branch:document.getElementById("bankBranch").value.trim(),country:document.getElementById("bankCountry").value.trim(),currency,accountTitle:document.getElementById("bankTitle").value.trim(),accountNumber:document.getElementById("bankNumber").value.trim(),iban:document.getElementById("bankIban").value.trim(),swift:document.getElementById("bankSwift").value.trim(),accountType:ownership,personalOwner:ownership==="Company Account"?"":owner,retentionAccount:document.getElementById("bankRetention").checked,isDefault,status:"Active"};
+      const pakistanCompany=String(company.values?.[2]||'').toLowerCase()==='pakistan'||String(company.values?.[3]||'').toLowerCase()==='pakistan';
+      const bank={...(index>=0?banks[index]:{}),id:bankId||`bank-${crypto.randomUUID()}`,bankName:document.getElementById("bankName").value.trim(),branch:document.getElementById("bankBranch").value.trim(),country:document.getElementById("bankCountry").value.trim(),currency,accountTitle:document.getElementById("bankTitle").value.trim(),accountNumber:document.getElementById("bankNumber").value.trim(),iban:document.getElementById("bankIban").value.trim(),swift:document.getElementById("bankSwift").value.trim(),accountType:ownership,personalOwner:ownership==="Company Account"?"":owner,retentionAccount:pakistanCompany&&document.getElementById("bankRetention").checked,isDefault,status:"Active"};
       if(isDefault&&!eligibleDefaultBank(bank))throw new Error("A default must be an operational bank account with an account number or IBAN.");
       if(isDefault)banks.forEach(item=>{if(item.currency===currency)item.isDefault=false});
       if(index>=0)banks[index]=bank;else banks.push(bank);
@@ -1382,7 +1385,7 @@
       document.getElementById(masterInputId(3))?.addEventListener('change',syncFx);
       document.getElementById(masterInputId(1))?.addEventListener('input',syncFx);
       syncFx();
-      document.getElementById('addCompanyBank').onclick=()=>{bankRows.insertAdjacentHTML('beforeend',companyBankRow({accountType:'Company Account',accountTitle:document.getElementById(masterInputId(0))?.value||'',currency:'PKR'}));wireNested();syncFx()};
+      document.getElementById('addCompanyBank').onclick=()=>{bankRows.insertAdjacentHTML('beforeend',companyBankRow({accountType:'Company Account',accountTitle:document.getElementById(masterInputId(0))?.value||'',currency:'PKR'},String(document.getElementById(masterInputId(2))?.value||'').toLowerCase()==='pakistan'));wireNested();syncFx()};
       document.getElementById('addCompanyRegistration').onclick=()=>{registrationRows.insertAdjacentHTML('beforeend',companyRegistrationRow({jurisdiction:document.getElementById(masterInputId(2))?.value||''}));wireRegistrations()};
       document.getElementById(masterInputId(2))?.addEventListener('input',syncRegistrationCountry);
       document.getElementById('addCompanyDocument').onclick=()=>{documentRows.insertAdjacentHTML('beforeend',companyDocumentRow({version:'1',status:'Active'}));wireNested()};

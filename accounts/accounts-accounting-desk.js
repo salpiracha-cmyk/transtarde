@@ -75,7 +75,7 @@
       {title:'Post Bill', native:'payables'}, {title:'Payment', special:'bill-payment'}
     ]},
     {key:'tg-bank', glyph:'▦', title:'Bank & Local Expenses', note:'Bank transfers, payments and local operating expense', actions:[
-      {title:'Inter Account Transfer', special:'internal-bank-transfer'}, {title:'USD ↔ AED Transfer', note:'Use the direction-specific TG Master rate; enter the purpose', special:'tg-currency-transfer'},
+      {title:'Inter Account Transfer', note:'Choose the source and destination; currency direction and the TG Master rate are automatic', special:'internal-bank-transfer'},
       {title:'Bank Receipt / Payment', native:'bank'}, {title:'Local Expense', native:'expenses', then:'[data-expense="general"]'},
       {title:'Utilities', native:'expenses', then:'[data-expense="utility"]'}, {title:'Bank Reconciliation', native:'reconciliation'}
     ]},

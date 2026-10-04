@@ -224,7 +224,7 @@ try {
     }
 
     $schemas=[
-        'companies'=>18,'export_customers'=>22,'business_parties'=>13,'commodities'=>8,'product_settings'=>1,'products'=>22,'purchase_products'=>11,'purchase_kat'=>10,
+        'companies'=>19,'export_customers'=>22,'business_parties'=>13,'commodities'=>8,'product_settings'=>1,'products'=>22,'purchase_products'=>11,'purchase_kat'=>10,
         'mills'=>7,'export_documents'=>5,'export_terms'=>3,
     ];
     if (!isset($schemas[$type])) throw new InvalidArgumentException('Select a valid master section.');
@@ -286,11 +286,14 @@ try {
         $values[16]=(string)(($existingCompany['values'][16]??'[]'));
     }
     if($type==='companies'&&count($raw)<18&&$action==='update'){$existingCompany=master_find_row('companies',$id);$values[17]=(string)($existingCompany['values'][17]??'');}
+    if($type==='companies'&&count($raw)<19&&$action==='update'){$existingCompany=master_find_row('companies',$id);$values[18]=(string)($existingCompany['values'][18]??'5');}
     if($type==='companies'&&$values[15]==='')$values[15]='[]';
     if($type==='companies'&&$values[16]==='')$values[16]='[]';
     if (($values[0] ?? '')==='') throw new InvalidArgumentException('Enter the main record name / commodity / product.');
     if (in_array($type,['companies','commodities'],true) && ($values[1] ?? '')==='') throw new InvalidArgumentException('Enter the short code.');
     if ($type==='companies') {
+        $offshore=strcasecmp((string)$values[2],'Pakistan')!==0&&strcasecmp((string)$values[3],'Pakistan')!==0;
+        if($offshore){if($values[18]==='')$values[18]='5';$vat=filter_var($values[18],FILTER_VALIDATE_FLOAT);if($vat===false||$vat<0||$vat>100)throw new InvalidArgumentException('VAT rate must be between 0 and 100.');$values[18]=(string)$vat;}else{$values[18]='';}
         foreach ([13=>'bank accounts',14=>'document identities',15=>'exchange rates',16=>'registration details'] as $field=>$label) {
             $decoded=json_decode((string)($values[$field]??'[]'),true);
             if (!is_array($decoded)) throw new InvalidArgumentException('The '.$label.' could not be read. Reopen the company and try again.');
@@ -316,7 +319,7 @@ try {
             if(($regType==='' xor $regNumber===''))throw new InvalidArgumentException('Each company registration requires both a type and number.');
             $expiry=(string)($registration['expiryDate']??'');if($expiry!==''&&!preg_match('/^\d{4}-\d{2}-\d{2}$/',$expiry))throw new InvalidArgumentException('Registration expiry dates must be valid dates.');
         }
-        $banks=json_decode((string)$values[13],true)?:[];$currencies=[];$seenBankIds=[];$bankDefaults=[];
+        $banks=json_decode((string)$values[13],true)?:[];if($offshore){foreach($banks as &$offshoreBank)if(is_array($offshoreBank))$offshoreBank['retentionAccount']=false;unset($offshoreBank);$values[13]=json_encode($banks,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);}$currencies=[];$seenBankIds=[];$bankDefaults=[];
         foreach($banks as $bank)if(is_array($bank)){
             $bankId=trim((string)($bank['id']??''));if($bankId==='')throw new InvalidArgumentException('Every saved bank account requires a stable account ID. Reopen the company and try again.');
             if(isset($seenBankIds[$bankId]))throw new InvalidArgumentException('The same bank account appears more than once.');$seenBankIds[$bankId]=true;
