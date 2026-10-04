@@ -27,7 +27,7 @@ function er_reverse_receipt_store(array &$store, string $receiptId, string $enti
         $original=$store['journals'][$id];$lines=[];
         foreach((array)$original['lines'] as $originalLine){$line=$originalLine;$line['debit']=round((float)($originalLine['credit']??0),2);$line['credit']=round((float)($originalLine['debit']??0),2);
             if(array_key_exists('bankDebit',$line)||array_key_exists('bankCredit',$line)){$line['bankDebit']=round((float)($originalLine['bankCredit']??0),2);$line['bankCredit']=round((float)($originalLine['bankDebit']??0),2);} $lines[]=$line;}
-        $reverseId=er_next_id((array)$store['journals'],'RV');
+        $reverseId=tt_next_post_id((array)$store['journals'],'Accounts','Journal',$date);
         $store['journals'][$reverseId]=['id'=>$reverseId,'entity'=>$original['entity'],'date'=>$date,'sourceType'=>'RECEIPT_AMENDMENT_REVERSAL','reference'=>$id,'narration'=>'Amendment reversal of '.$id.' — '.$reason,'lines'=>$lines,'totalDebit'=>round((float)$original['totalCredit'],2),'totalCredit'=>round((float)$original['totalDebit'],2),'status'=>'Posted','meta'=>['receiptId'=>$receiptId,'reason'=>$reason,'originalPostId'=>$id],'createdAt'=>gmdate('c'),'createdBy'=>(string)($user['full_name']??$user['username']??'Accounts'),'userId'=>(int)($user['id']??0),'reversalOf'=>$id];
         $reversed[$id]=$reverseId;
     }

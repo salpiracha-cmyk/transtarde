@@ -22,6 +22,8 @@ assert.match(api,/Submitted JV must contain at least two lines and total debit m
 assert.match(api,/Bank and cash movements must use their dedicated payment, receipt or transfer workflow/);
 assert.match(api,/This JV reference already exists/);
 assert.match(api,/This JV has already been reversed/);
+assert.match(api,/tt_next_post_id\(\(array\)\$s\['journals'\]/, 'Posted and reversing JVs must use the universal Post ID sequence');
+assert.doesNotMatch(api,/jvw_next\(\(array\)\$s\['journals'\]/, 'Journal entries must not use a separate JV or reversal sequence');
 assert.match(api,/flock\(\$h,LOCK_EX\)/);
 assert.match(api,/tt_user_can_access_entity/);
 assert.doesNotMatch(api,/unset\(\$s\['jvDrafts'\]/);

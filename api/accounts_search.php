@@ -26,11 +26,12 @@ function as_first(array $row, array $keys, string $fallback = ''): string {
 }
 
 function as_title(string $collection, string $key, array $row): string {
+    if ($collection === 'journals') return as_first($row, ['id'], $key);
     return as_first($row, ['voucherNo','journalId','billNo','invoiceNo','sodaNo','pohanch','chequeNo','reference','id'], $key ?: ucwords(preg_replace('/(?<!^)[A-Z]/', ' $0', $collection) ?? $collection));
 }
 
 function as_type(string $collection, array $row): string {
-    $given = as_first($row, ['voucherType','eventType','type','kind','transactionType','expenseType']);
+    $given = as_first($row, ['sourceType','voucherType','eventType','type','kind','transactionType','expenseType']);
     if ($given !== '') return $given;
     $labels = [
         'purchaseSodas'=>'Purchase Soda', 'commodityBills'=>'Commodity Bill', 'supplierSettlements'=>'Supplier Payment Voucher',
@@ -45,6 +46,37 @@ function as_type(string $collection, array $row): string {
 function as_printable(string $collection, array $row): bool {
     if (isset($row['voucherNo']) || isset($row['journalId'])) return true;
     return (bool)preg_match('/journal|settlement|payment|receipt|bill|expense/i', $collection);
+}
+
+function as_linked_posting_ids(array $store, string $collection, string $key, array $row): array {
+    if ($collection === 'journals') return [(string)($row['id'] ?? $key)];
+    $ids = [];
+    foreach (['journalId', 'chequeIssueJournalId'] as $field) if (!empty($row[$field])) $ids[] = (string)$row[$field];
+    foreach ((array)($row['postingJournalIds'] ?? []) as $id) if ($id !== '') $ids[] = (string)$id;
+    $id = (string)($row['id'] ?? $key);
+    $bill = is_array($store['supplierBills'][$id] ?? null) ? $store['supplierBills'][$id] : null;
+    if ($bill) foreach ((array)($bill['postingJournalIds'] ?? []) as $jid) if ($jid !== '') $ids[] = (string)$jid;
+    $linked = (string)($row['meta']['supplierBillId'] ?? '');
+    if ($linked !== '' && is_array($store['supplierBills'][$linked] ?? null)) {
+        foreach ((array)($store['supplierBills'][$linked]['postingJournalIds'] ?? []) as $jid) if ($jid !== '') $ids[] = (string)$jid;
+    }
+    return array_values(array_unique(array_filter($ids)));
+}
+
+function as_source_has_post(array $store, string $collection, string $key, array $row): bool {
+    if ($collection === 'journals') return false;
+    return count(as_linked_posting_ids($store, $collection, $key, $row)) > 0;
+}
+
+function as_search_text(array $store, string $collection, string $key, array $row): string {
+    $parts = [(string)$key, as_text($row)];
+    if ($collection === 'journals') {
+        $billId = (string)($row['meta']['supplierBillId'] ?? '');
+        if ($billId !== '' && is_array($store['supplierBills'][$billId] ?? null)) {
+            $parts[] = as_text($store['supplierBills'][$billId]);
+        }
+    }
+    return strtolower(implode(' ', $parts));
 }
 
 try {
@@ -71,9 +103,10 @@ try {
         if (!is_array($records) || in_array($collection, ['revision','settings','masters'], true)) continue;
         foreach ($records as $key => $row) {
             if (!is_array($row)) continue;
+            if (as_source_has_post($store, (string)$collection, (string)$key, $row)) continue;
             $rowEntity = strtoupper((string)($row['entity'] ?? $row['legalEntity'] ?? ''));
             if ($rowEntity !== '' && $rowEntity !== $entity) continue;
-            $haystack = strtolower((string)$key . ' ' . as_text($row));
+            $haystack = as_search_text($store, (string)$collection, (string)$key, $row);
             $references=[$key,$row['meta']['chequeNo']??'',$row['meta']['bankReference']??''];foreach(['id','journalId','billNo','invoiceNo','reference','voucherNo','chequeNo'] as $field)$references[]=$row[$field]??'';$numeric=preg_match('/^(?:\d{4}-)?\d+$/',$query);$match=!$numeric&&str_contains($haystack,$needle);foreach($references as $reference)if(tt_accounts_reference_matches($query,$reference)||($numeric&&!preg_match('/^(?:[A-Z]+-)?\d{4}-\d+$/i',(string)$reference)&&str_contains(strtolower((string)$reference),$needle))){$match=true;break;}if(!$match)continue;
             $amount = as_first($row, ['amount','total','netAmount','finalCommodityValue','supplierPayableTotal','grossPkr','totalDebit']);
             $billId=(string)($row['meta']['supplierBillId']??$row['id']??$key);$amend=null;
@@ -86,10 +119,14 @@ try {
             }
             if($amend&&$collection!=='journals'&&!in_array($collection,['supplierBills','freightBillsV1','transportBillsV1','exportServiceBillsV1'],true))$amend=null;
             if($amend&&$collection!=='journals')$row['postingJournalIds']=$amend['postingJournalIds'];
+            $postIds = as_linked_posting_ids($store, (string)$collection, (string)$key, $row);
+            $primaryPostId = $collection === 'journals' ? (string)($row['id'] ?? $key) : (string)($postIds[0] ?? '');
             $results[] = [
                 'amendRecord'=>$amend,
-                'title'=>as_title((string)$collection, (string)$key, $row),
+                'title'=>$primaryPostId !== '' ? $primaryPostId : as_title((string)$collection, (string)$key, $row),
                 'type'=>as_type((string)$collection, $row),
+                'postId'=>$primaryPostId,
+                'reference'=>as_first($row, ['reference','billNo','invoiceNo','voucherNo','chequeNo','id']),
                 'date'=>as_first($row, ['date','voucherDate','billDate','receiptDate','sodaDate','createdAt']),
                 'party'=>as_first($row, ['party','broker','supplier','vendor','customer','payee','receivedFrom','accountName']),
                 'amount'=>$amount !== '' ? $amount : null,

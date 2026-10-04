@@ -12,7 +12,7 @@ t.setRows([
  {voucher:'RV-2026-000009',date:'2026-10-01',reference:'AUTO-2026-000009',account:'6800',accountName:'Freight',narration:'Correction reversal',debit:0,credit:100,balance:-100},
 ]);
 let groups=t.postingRows();assert.equal(groups.length,2,'Original/reversal IDs must stay distinct even when display numbers coincide');const original=groups.find(x=>x.voucher==='AUTO-2026-000009');assert.equal(original.debit,100);assert.equal(original.credit,100);assert.equal(original.balance,0);assert.equal(original.parties.size,1);assert.equal(t.totals().credit,200);
-assert.equal(t.displayRef('AUTO-2026-000009'),'2026-00009');assert.equal(t.displayRef('JI-8239/26'),'JI-8239/26','External supplier invoice is preserved');
+assert.equal(t.displayRef('AUTO-2026-000009'),'POST-2026-00009');assert.equal(t.displayRef('JI-8239/26'),'JI-8239/26','External supplier invoice is preserved');
 let html=t.rowsHtml();assert.equal((html.match(/class="tal-posting-row"/g)||[]).length,2);assert(html.includes('data-post-id="AUTO-2026-000009"'));assert(html.includes('data-amend-id="AUTO-2026-000009"'));assert(html.includes('Shipment freight'));
 assert.equal(t.displayRef('POST-2026-00009'),'POST-2026-00009','Universal Post IDs remain complete in the ledger');
 t.setRows([{voucher:'AUTO-2026-000010',debit:20,credit:0,balance:20,nativeMissing:true},{voucher:'AUTO-2026-000010',debit:0,credit:5,balance:15}]);groups=t.postingRows();assert.equal(groups[0].balance,15);assert.equal(groups[0].nativeMissing,true,'Grouping cannot invent unavailable native currency amounts');

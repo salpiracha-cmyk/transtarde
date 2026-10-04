@@ -84,6 +84,7 @@ assert(sodaApi.includes("$party=$supplier?(string)$supplier['name']:''") && desk
 assert(sodaApi.includes('tt_purchase_product_profiles()'), 'Soda must use the approved Purchase Product master instead of free-text commodity choices');
 assert(searchApi.includes("'voucherNo','journalId','billNo','invoiceNo','sodaNo','pohanch','chequeNo','reference'"), 'universal search must cover accounting and operational references');
 assert(searchApi.includes("as_text($row)"), 'universal search must include linked shipment fields such as container, B/L, vessel, line and port');
+assert(searchApi.includes("$collection === 'journals'") && searchApi.includes("supplierBillId"), 'posted source records must collapse into their linked Post ID result');
 assert(auth.includes("if (($user['role'] ?? '') === 'Super Admin') return 'index.php'"), 'Super Admin must land in the Control Centre');
 assert(auth.includes("if (tt_user_can_open_module($user, 'Accounts')) return 'accounts/index.php'"), 'Accounts staff must still land directly in Accounts');
 

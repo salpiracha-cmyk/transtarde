@@ -206,6 +206,13 @@ jobs:
             exit 1
           fi
           echo "MASTER_PERMISSION_MIGRATION=$master_permission_result"
+          # Convert historical journals and their links; keep supplier references.
+          if ! post_id_migration_result=$(php "$target/scripts/migrate_accounts_post_ids.php" --apply); then
+            tar -xzf "$backup" -C "$target"
+            echo "Post ID migration failed; code restored. Check migration output for private-data restoration status."
+            exit 1
+          fi
+          echo "POST_ID_MIGRATION=$post_id_migration_result"
           # Historical incident recovery is deliberately not run during normal
           # deployments. Production operational records are authoritative and
           # must never be recreated from an old backup simply because code was
