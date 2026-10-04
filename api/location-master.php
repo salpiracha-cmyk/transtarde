@@ -13,9 +13,13 @@ function location_can_write(array $user): bool {
     }
     return false;
 }
+function location_rows_for_entity(string $entity): array {
+    $rows=tt_active_location_masters();$entity=strtoupper(trim($entity));if($entity!=='TG')return $rows;
+    return array_values(array_filter($rows,static function($row):bool{$v=array_values((array)($row['values']??[]));$text=strtoupper(implode(' ',array_map('strval',array_slice($v,0,5))));return !str_contains($text,'PAKISTAN')&&!str_contains($text,'KARACHI')&&!str_contains($text,'LAHORE')&&(str_contains($text,'DUBAI')||str_contains($text,'UAE')||str_contains($text,'UNITED ARAB EMIRATES')||str_contains($text,'ABU DHABI')||str_contains($text,'TRANS GRAINS'));}));
+}
 try {
     $user=tt_require_login();
-    if ($_SERVER['REQUEST_METHOD']==='GET') location_respond(['ok'=>true,'locations'=>tt_active_location_masters()]);
+    if ($_SERVER['REQUEST_METHOD']==='GET') {$entity=(string)($_GET['entity']??'');location_respond(['ok'=>true,'locations'=>location_rows_for_entity($entity)]);}
     if ($_SERVER['REQUEST_METHOD']!=='POST') location_respond(['ok'=>false,'error'=>'Method not allowed.'],405);
     if (!location_can_write($user)) location_respond(['ok'=>false,'error'=>'Create or Edit permission is required.'],403);
     $body=json_decode((function_exists('tt_accounts_input')?tt_accounts_input():file_get_contents('php://input')) ?: '{}',true);
@@ -25,7 +29,7 @@ try {
         $row=tt_deactivate_location_master(trim((string)($body['id']??'')));
         $name=(string)(($row['values']??[])[0]??'Location');
         tt_audit((int)($user['id']??0),(string)($user['username']??''),'Deactivated Location Master '.$name.' from future selection');
-        location_respond(['ok'=>true,'location'=>$row,'locations'=>tt_active_location_masters()]);
+        location_respond(['ok'=>true,'location'=>$row,'locations'=>location_rows_for_entity((string)($body['entity']??''))]);
     }
     if($action!=='add')throw new InvalidArgumentException('Select add or deactivate.');
     $name=trim((string)($body['name'] ?? ''));$type=tt_normalize_location_type(trim((string)($body['type'] ?? '')));
@@ -36,6 +40,6 @@ try {
     $address=trim((string)($body['address']??''));$contact=trim((string)($body['contact']??''));
     if($address!==''||$contact!==''){$values[3]=$address?:$values[3];$values[4]=$contact?:$values[4];tt_update_master('mills',(string)$row['id'],$values);$row['values']=$values;}
     tt_audit((int)($user['id'] ?? 0),(string)($user['username'] ?? ''),'Location master linked '.$name.' from '.$source);
-    location_respond(['ok'=>true,'location'=>$row,'locations'=>tt_active_location_masters()]);
+    location_respond(['ok'=>true,'location'=>$row,'locations'=>location_rows_for_entity((string)($body['entity']??''))]);
 } catch (InvalidArgumentException $e) { location_respond(['ok'=>false,'error'=>$e->getMessage()],422); }
 catch (Throwable $e) { location_respond(['ok'=>false,'error'=>'The location master could not be updated.'],500); }

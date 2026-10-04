@@ -542,6 +542,17 @@ function tt_company_fx_rate(string $companyCode, string $from, string $to): ?flo
     return null;
 }
 
+function tt_company_vat_rate(string $companyCode, float $default=5.0): float {
+    $companyCode=strtoupper(trim($companyCode));
+    foreach((array)(tt_read_store()['masters']['companies']??[]) as $company){
+        $values=(array)($company['values']??[]);
+        if(strtoupper(trim((string)($values[1]??'')))!==$companyCode)continue;
+        $rate=filter_var($values[18]??null,FILTER_VALIDATE_FLOAT);
+        return $rate!==false&&$rate>=0&&$rate<=100?(float)$rate:$default;
+    }
+    return $default;
+}
+
 function tt_create_master(string $type, array $values): string {
     return tt_mutate_store(function (&$data) use ($type,$values): string {
         if (!isset($data['masters'][$type]) || !is_array($data['masters'][$type])) $data['masters'][$type]=[];
