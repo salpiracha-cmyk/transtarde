@@ -192,9 +192,9 @@ function tt_company_bank_legacy_rows(array $companies): array {
             if (!is_array($bank)) continue;
             $id=trim((string)($bank['id'] ?? '')) ?: 'bank-'.substr(hash('sha256',$companyCode.'|'.json_encode($bank)),0,14);
             $rows[]=['id'=>$id,'companyId'=>(string)($company['id']??''),'retentionAccount'=>array_key_exists('retentionAccount',$bank) ? (bool)$bank['retentionAccount'] : null,'notes'=>(string)($bank['notes'] ?? ''),'values'=>[
-                (string)($bank['accountType'] ?? 'Company Account'),
+                (string)(($bank['accountType'] ?? '')==='Personal Account'?'Proprietor / Owner Account':($bank['accountType'] ?? 'Company Account')),
                 trim($companyCode.' — '.$companyName,' —'),
-                (string)($bank['personalOwner'] ?? $bank['label'] ?? ''),
+                (string)($bank['accountTitle'] ?? $companyName),
                 (string)($bank['accountTitle'] ?? $companyName),
                 (string)($bank['bankName'] ?? ''),
                 (string)($bank['branch'] ?? ''),
@@ -213,24 +213,26 @@ function tt_company_bank_legacy_rows(array $companies): array {
 }
 
 function tt_bank_is_operational_account_type(string $type): bool {
-    return in_array($type,['Company Account','Proprietor / Owner Account'],true);
+    return in_array($type,['Company Account','Proprietor / Owner Account','Personal Account'],true);
 }
 
 /** A Company Master choice overrides historical Accounts settings; older banks retain their saved setting. */
 function tt_bank_is_retention(string $id,array $store): bool {
+    $legacyType='';
     foreach ((array)(tt_list_masters()['banks'] ?? []) as $bank) {
         if ((string)($bank['id'] ?? '') !== $id) continue;
+        $legacyType=(string)(($bank['values'] ?? [])[0] ?? '');
         if (($bank['retentionAccount'] ?? null) !== null) {
             $values=(array)($bank['values'] ?? []);
             $linked=strtoupper((string)($values[1] ?? ''));
             return (bool)$bank['retentionAccount']
                 && (str_contains($linked,'TTI') || str_contains($linked,'TRANSTRADE INTERNATIONAL') || str_contains($linked,'BRM') || str_contains($linked,'BUKSH RICE'))
                 && strtoupper((string)($values[7] ?? 'PKR'))!=='PKR'
-                && tt_bank_is_operational_account_type((string)($values[0] ?? ''));
+                && (string)($values[0] ?? '')==='Company Account';
         }
         break;
     }
-    return !empty($store['bankAccountSettings'][$id]['retentionAccount']);
+    return $legacyType==='Company Account'&&!empty($store['bankAccountSettings'][$id]['retentionAccount']);
 }
 
 /** Active company bank identities can receive and make payments without separate Accounts toggles. */

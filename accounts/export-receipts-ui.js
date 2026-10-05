@@ -61,7 +61,7 @@
     return 'Check its currency in Company Master';
   }
   function selectedBankCurrency() { return String((banks?.accounts || []).find(account => account.id === bankId)?.currency || 'PKR').toUpperCase(); }
-  function bankLabel(account) { return String(account.settings?.displayName || '').trim() || `${account.bankName || account.accountTitle || 'Bank'}${account.accountLast5 ? ` · •••${account.accountLast5}` : ''}`; }
+  function bankLabel(account) { return String(account.settings?.displayName || '').trim() || account.displayLabel || account.iban || account.bankName || account.accountTitle || 'Bank'; }
   function defaultReceiptBankId() {return [...receiptBanks('PKR'),...receiptBanks(currency)].find(row=>row.settings?.defaultReceiptAccount)?.id || '';}
   function bankOptions(currencyCode, selected = '') {
     const rows = [...receiptBanks('PKR'),...receiptBanks(currency)];

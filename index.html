@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="Transtrade unified Super Admin control centre">
   <title>Transtrade Super Admin Console</title>
-  <link rel="stylesheet" href="admin/styles.css?v=20261002-banks-menu-1-20261002-finish-options-1">
+  <link rel="stylesheet" href="admin/styles.css?v=20261005-company-banks-1">
   <link rel="stylesheet" href="brand-theme.css?v=20260914-control-centre-1-20261002-dependent-fields-1">
 </head>
 <body>
@@ -283,10 +283,9 @@
         <label>Country<input id="bankCountry"></label><label>Currency<select id="bankCurrency" required></select></label>
         <label>Account title<input id="bankTitle" required></label><label>Account number<input id="bankNumber"></label>
         <label>IBAN<input id="bankIban"></label><label>SWIFT / BIC<input id="bankSwift"></label>
-        <fieldset class="bank-ownership"><legend>Ownership</legend><label><input type="radio" name="bankOwnership" value="Company Account" checked> Company Account</label><label><input type="radio" name="bankOwnership" value="Proprietor / Owner Account"> Proprietor / Owner Account</label><label><input type="radio" name="bankOwnership" value="Personal Account"> Personal Account</label></fieldset>
-        <label id="bankOwnerWrap" hidden>Account owner<input id="bankOwner"></label>
+        <fieldset class="bank-ownership"><legend>Account type</legend><label><input type="radio" name="bankOwnership" value="Company Account" checked> Company Account</label><label><input type="radio" name="bankOwnership" value="Proprietor / Owner Account"> Proprietor / Personal Account</label></fieldset>
         <label class="bank-check"><input id="bankDefault" type="checkbox"> Default for receipts and payments in this currency</label>
-        <label class="bank-check"><input id="bankRetention" type="checkbox"> Retention account</label>
+        <label class="bank-check bank-retention-check"><input id="bankRetention" type="checkbox"> Retention account</label>
         <div id="bankDeleteConfirm" class="bank-delete-confirm" hidden><strong>Delete this bank account?</strong><p>Existing postings and their historical account identity will remain.</p><label id="bankReplacementWrap" hidden>Replacement default for this currency<select id="bankReplacement"></select></label><button class="button danger" id="bankConfirmDelete" type="button">Confirm delete</button></div>
       </div>
       <div class="modal-actions"><button class="button danger" id="bankDelete" type="button" hidden>Delete</button><button class="button secondary" type="button" data-close-dialog="bankDialog">Cancel</button><button class="button primary" id="bankSave" type="submit">Save</button></div>
@@ -294,7 +293,7 @@
   </dialog>
 
   <div class="toast-region" id="toastRegion" aria-live="polite"></div>
-<script src="admin/app.js?v=20261002-dependent-fields-1"></script>
+<script src="admin/app.js?v=20261005-company-banks-1"></script>
 <script src="brand-theme.js?v=20261002-dependent-fields-1"></script>
 </body>
 </html>

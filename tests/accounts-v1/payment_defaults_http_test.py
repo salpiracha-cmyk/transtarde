@@ -5,9 +5,9 @@ with tempfile.TemporaryDirectory(prefix='bank-defaults-qa-') as temp:
     root = pathlib.Path(temp)
     (root/'api').mkdir(); (root/'data').mkdir()
     for name in ['bank_accounts.php','tg_remittance_core.php']:shutil.copy(ROOT/'api'/name,root/'api'/name)
-    def bank(id, company='TTI', currency='PKR', number='12345', status='Active'):
-        return {'id':id,'values':['Company Account',company,'',company,'Fixture Bank','','',currency,number,'','','','',''+status]}
-    masters = {'banks':[bank('a'),bank('b'),bank('usd',currency='USD'),bank('brm',company='BRM'),bank('inactive',status='Inactive'),bank('incomplete',number='')]}
+    def bank(id, company='TTI', currency='PKR', number='12345', iban='', status='Active'):
+        return {'id':id,'values':['Company Account',company,'','Fixture Account','Fixture Bank','','',currency,number,iban,'','','',''+status]}
+    masters = {'banks':[bank('a',iban='PK00BOTH'),bank('b'),bank('usd',currency='USD'),bank('brm',company='BRM'),bank('inactive',status='Inactive'),bank('incomplete',number=''),bank('iban-only',number='',iban='PK00ONLY')]}
     (root/'masters.json').write_text(json.dumps(masters))
     journals=[{'id':'EXISTING','status':'Posted','entity':'TTI','lines':[{'account':'1110','credit':10,'bankAccountId':'a'}]}]
     settings={id:{'defaultPaymentAccount':True,'defaultReceiptAccount':id=='a'} for id in ['a','usd','brm','inactive','incomplete','CASH|TTI']}
@@ -37,6 +37,9 @@ with tempfile.TemporaryDirectory(prefix='bank-defaults-qa-') as temp:
             except urllib.error.URLError:time.sleep(.1)
         else:raise AssertionError('PHP fixture did not start')
         accounts={row['id']:row for row in data['accounts']}
+        assert accounts['iban-only']['displayLabel']=='PK00ONLY'
+        assert accounts['iban-only']['settings']['active']
+        assert accounts['a']['displayLabel']=='Fixture Account · Fixture Bank · 12345 · PK00BOTH'
         for id in ['inactive','incomplete']:
             assert not accounts[id]['settings']['defaultPaymentAccount']
         assert not data['cash']['settings']['defaultPaymentAccount']

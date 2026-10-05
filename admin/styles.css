@@ -597,6 +597,18 @@ legend { margin-bottom: 10px; color: #445469; font-size: .79rem; font-weight: 75
 .master-detail .table-wrap table { width: 100%; border-collapse: collapse; }
 .master-detail .table-wrap th, .master-detail .table-wrap td { padding: 10px 8px; border-bottom: 1px solid #e8edf1; text-align: left; font-size: .76rem; white-space: nowrap; }
 .master-detail .table-wrap th { color: var(--muted); background: #f8fafb; font-weight: 700; }
+.master-modal .table-wrap { overflow-x: auto; }
+.master-modal .bank-table { width: 100%; min-width: 560px; border-collapse: collapse; table-layout: fixed; }
+.master-modal .bank-table th, .master-modal .bank-table td { padding: 10px 8px; border-bottom: 1px solid var(--line); text-align: left; font-size: .76rem; vertical-align: top; }
+.master-modal .bank-table th { color: var(--muted); background: #f8fafb; font-weight: 700; white-space: nowrap; }
+.master-modal .bank-table th:nth-child(1) { width: 14%; }
+.master-modal .bank-table th:nth-child(2) { width: 22%; }
+.master-modal .bank-table th:nth-child(3) { width: 28%; }
+.master-modal .bank-table th:nth-child(4) { width: 13%; }
+.master-modal .bank-table th:nth-child(5) { width: 15%; }
+.master-modal .bank-table th:nth-child(6) { width: 8%; }
+.master-modal .bank-table td { overflow-wrap: anywhere; }
+.master-modal .bank-table td small { display: block; margin-top: 4px; color: var(--muted); font-size: .68rem; }
 .master-record-list > div { display: flex; justify-content: space-between; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--line); font-size: .8rem; }
 .master-record-list span { color: var(--muted); }
 .master-empty { padding: 22px 0; color: var(--muted); font-size: .82rem; }
@@ -618,11 +630,13 @@ legend { margin-bottom: 10px; color: #445469; font-size: .79rem; font-weight: 75
 .bank-form-fields { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); align-content: start; gap: 16px; }
 .bank-form-fields > label:not(.bank-check) { display: grid; gap: 6px; font-size: .8rem; font-weight: 700; }
 .bank-form-fields input:not([type=checkbox]):not([type=radio]), .bank-form-fields select { min-width: 0; width: 100%; min-height: 39px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 5px; }
-.bank-ownership { grid-column: 1/-1; display: grid; gap: 9px; margin: 0; padding: 12px; border: 1px solid var(--line); border-radius: 5px; font-size: .8rem; }
+.bank-ownership { grid-column: 1/-1; display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 9px; margin: 0; padding: 12px; border: 1px solid var(--line); border-radius: 5px; font-size: .8rem; }
 .bank-ownership legend { padding: 0 5px; font-weight: 750; }
 .bank-ownership label, .bank-check { display: flex; align-items: center; gap: 7px; font-size: .8rem; }
 .bank-check { grid-column: 1/-1; }
 .bank-check input, .bank-ownership input { width: 16px; height: 16px; accent-color: var(--green); }
+.bank-retention-check { grid-column: auto; font-size: .76rem; }
+.bank-retention-check input { flex: 0 0 13px; width: 13px; height: 13px; }
 .bank-delete-confirm { grid-column: 1/-1; padding: 14px; border: 1px solid #e4b5b0; border-radius: 5px; background: #fff8f7; font-size: .8rem; }
 .bank-delete-confirm strong { color: var(--red); }
 .bank-delete-confirm p { margin: 5px 0 12px; color: var(--muted); }
@@ -636,6 +650,7 @@ legend { margin-bottom: 10px; color: #445469; font-size: .79rem; font-weight: 75
 @media(max-width:620px){.master-approval-row{align-items:stretch;flex-direction:column}}
 @media(max-width:900px){#view-masters .master-layout{grid-template-columns:1fr}#view-masters .master-menu{position:static;display:flex;gap:4px;overflow-x:auto;scrollbar-width:thin}#view-masters .master-menu-group{display:flex;align-items:center;flex:0 0 auto}#view-masters .master-menu-group small,#view-masters .master-menu button span{display:none}#view-masters .master-menu button{width:auto;white-space:nowrap}.master-detail-grid{grid-template-columns:1fr}}
 @media(max-width:620px){.master-toolbar{align-items:stretch;flex-direction:column}.master-detail-head{flex-wrap:wrap}.master-detail-head > div{order:2;flex-basis:100%}.master-subhead,.master-subactions{align-items:stretch;flex-direction:column}.bank-form-fields{grid-template-columns:1fr}}
+@media(max-width:620px){.bank-ownership{grid-template-columns:1fr}}
 
 /* Half-window navigation keeps every Control Centre tab reachable. */
 .navigation-close { display:none; }

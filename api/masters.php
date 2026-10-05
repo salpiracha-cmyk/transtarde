@@ -325,8 +325,7 @@ try {
             if(isset($seenBankIds[$bankId]))throw new InvalidArgumentException('The same bank account appears more than once.');$seenBankIds[$bankId]=true;
             $accountType=(string)($bank['accountType']??'Company Account');
             if(!in_array($accountType,['Company Account','Proprietor / Owner Account','Personal Account'],true))throw new InvalidArgumentException('Select a valid bank account ownership type.');
-            if($accountType!=='Company Account'&&trim((string)($bank['personalOwner']??''))==='')throw new InvalidArgumentException('Enter the account owner for proprietor / personal bank accounts.');
-            if(!empty($bank['retentionAccount'])&&$accountType==='Personal Account')throw new InvalidArgumentException('A personal-only account cannot be a company retention ledger.');
+            if(!empty($bank['retentionAccount'])&&$accountType!=='Company Account')throw new InvalidArgumentException('Only a company account can be a retention account.');
             if(!empty($bank['retentionAccount'])&&(!in_array(strtoupper((string)($values[1]??'')),['TTI','BRM'],true)||strtoupper((string)($bank['currency']??'PKR'))==='PKR'))throw new InvalidArgumentException('A retention account must be a foreign-currency TTI or BRM bank account.');
             if(!empty($bank['isDefault'])){
                 if(strcasecmp((string)($bank['status']??'Active'),'Inactive')===0)throw new InvalidArgumentException('An inactive bank account cannot be the default.');

@@ -52,6 +52,11 @@ function ba_mask(string $v,int $last=5): string {
     $tail=substr($clean,-$last);
     return str_repeat('•',max(0,strlen($clean)-strlen($tail))).$tail;
 }
+function ba_display_label(string $title,string $bank,string $number,string $iban): string {
+    $number=trim($number);$iban=trim($iban);
+    if($number==='')return $iban!==''?$iban:trim($title.' · '.$bank,' ·');
+    return implode(' · ',array_filter([trim($title),trim($bank),$number,$iban],static fn($part)=>$part!==''));
+}
 function ba_master_accounts(): array {
     $masters=tt_list_masters();$out=[];
     foreach((array)($masters['banks']??[]) as $row){
@@ -62,14 +67,14 @@ function ba_master_accounts(): array {
             'personalOwner'=>(string)$v[2],'accountTitle'=>(string)$v[3],'bankName'=>(string)$v[4],'branch'=>(string)$v[5],
             'country'=>(string)$v[6],'currency'=>strtoupper(trim((string)$v[7])),'accountNumber'=>(string)$v[8],
             'accountNumberMasked'=>ba_mask((string)$v[8]),'accountLast5'=>substr(preg_replace('/\W+/','',(string)$v[8])??'',-5),
-            'iban'=>(string)$v[9],'ibanMasked'=>ba_mask((string)$v[9]),'swift'=>(string)$v[10],'purpose'=>(string)$v[11],
+            'iban'=>(string)$v[9],'ibanMasked'=>ba_mask((string)$v[9]),'displayLabel'=>ba_display_label((string)$v[3],(string)$v[4],(string)$v[8],(string)$v[9]),'swift'=>(string)$v[10],'purpose'=>(string)$v[11],
             'visibility'=>(string)$v[12],'masterStatus'=>(string)$v[13],'masterRetentionAccount'=>$row['retentionAccount']??null
         ];
     }
     return $out;
 }
 function ba_operational_account_type(string $type): bool {
-    return in_array($type,['Company Account','Proprietor / Owner Account'],true);
+    return in_array($type,['Company Account','Proprietor / Owner Account','Personal Account'],true);
 }
 function ba_default_setting(array $a): array {
     $complete=trim((string)($a['accountNumber']??''))!==''||trim((string)($a['iban']??''))!=='';
@@ -127,6 +132,7 @@ function ba_payload(array $store,string $entity): array {
         $setting['active']=$available;$setting['allowPayments']=$available;$setting['allowReceipts']=$available;
         if(!$available){$setting['active']=false;$setting['allowPayments']=false;$setting['allowReceipts']=false;$setting['defaultReceiptAccount']=false;$setting['defaultPaymentAccount']=false;}
         if($a['masterRetentionAccount']!==null)$setting['retentionAccount']=(bool)$a['masterRetentionAccount'];
+        if($a['accountType']!=='Company Account')$setting['retentionAccount']=false;
         $currency=strtoupper(trim((string)($a['currency']??'')))?:$planningCurrency;$postedBook=ba_balance($store,$entity,$id,$currency);$reserve=$entity==='TG'?tgr_reserved($store,$id):0.0;$book=round($postedBook-$reserve,2);
         $balances[$currency]=round(($balances[$currency]??0)+$book,2);
         if($currency===$planningCurrency&&!empty($setting['active'])&&!empty($setting['includeInPaymentPlanning']))$planning+=max(0,$book);
@@ -186,7 +192,7 @@ try{
         if(!ba_operational_account_type((string)($a['accountType']??'')))ba_respond(['ok'=>false,'error'=>'Personal-only bank accounts cannot be activated as company Cash & Bank accounts.'],422);
         $sourceCurrency=strtoupper(trim((string)(($a['currency']??'')?:$planningCurrency)));
     }else $sourceCurrency=$entity==='TG'?'AED':'PKR';
-    $retentionRequested=$id!==$cashKey&&($a['masterRetentionAccount']??null)!==null?(bool)$a['masterRetentionAccount']:(bool)(ba_read()['bankAccountSettings'][$id]['retentionAccount']??false);
+    $retentionRequested=$id!==$cashKey&&($a['accountType']??'')==='Company Account'&&(($a['masterRetentionAccount']??null)!==null?(bool)$a['masterRetentionAccount']:(bool)(ba_read()['bankAccountSettings'][$id]['retentionAccount']??false));
     if($retentionRequested&&($entity==='TG'||$sourceCurrency==='PKR'||$id===$cashKey))ba_respond(['ok'=>false,'error'=>'Foreign Retention Account can only be enabled for a non-PKR TTI/BRM company bank.'],422);
     $defaultReceiptRequested=(bool)($body['defaultReceiptAccount']??false);
     $defaultPaymentRequested=(bool)($body['defaultPaymentAccount']??false);

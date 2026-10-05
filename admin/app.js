@@ -636,7 +636,7 @@
       <input type="hidden" id="${masterInputId(16)}" data-master-field-index="16"><div id="companyRegistrationRows">${registrations.map(companyRegistrationRow).join("")}</div>
     </section>
     <section class="master-editor-section" id="companyChamberSection" ${isPakistanCompany?'':'hidden'}><div class="master-editor-heading"><h3>Chamber / COO details</h3></div><div class="master-form-grid"><label>Chamber name<input data-company-chamber="chamberName" value="${escapeHtml(chamber.chamberName||'')}"></label><label>Membership number<input data-company-chamber="membershipNo" value="${escapeHtml(chamber.membershipNo||values[8]||'')}"></label><label>Authorised signatory name<input data-company-chamber="signatory" value="${escapeHtml(chamber.signatory||'')}"></label><label>Designation<input data-company-chamber="designation" value="${escapeHtml(chamber.designation||'')}"></label></div></section>
-    <section class="master-editor-section"><div class="master-editor-heading"><div><h3>Bank accounts</h3><p>Accounts belong to this company. Existing module bank lists are derived automatically.</p></div><button type="button" class="button secondary" id="addCompanyBank">+ Add bank account</button></div><input type="hidden" id="${masterInputId(13)}" data-master-field-index="13"><div id="companyBankRows">${isPakistanCompany?'':'<style>.company-bank-row label:has([data-bank-retention]){display:none!important}</style>'}${banks.map(bank=>companyBankRow(bank,isPakistanCompany)).join("")}</div></section>
+    <section class="master-editor-section"><div class="master-editor-heading"><div><h3>Bank accounts</h3><p>Accounts belong to this company. Existing module bank lists are derived automatically.</p></div><button type="button" class="button secondary" id="addCompanyBank">+ Add bank account</button></div><input type="hidden" id="${masterInputId(13)}" data-master-field-index="13" value="${escapeHtml(JSON.stringify(banks))}"><div id="companyBankRows">${companyBankTable(banks)}</div></section>
     <section class="master-editor-section" id="companyFxSection" ${values[3]==='Pakistan'||values[2]==='Pakistan'?'hidden':''}><div class="master-editor-heading"><div><h3>Exchange rates & VAT</h3><p>For company bank currencies. Enter each direction independently; 1 unit of the first currency equals the entered units of the second.</p></div><button type="button" class="button secondary" id="addCompanyFx">+ Add rate pair</button></div><div class="master-form-grid"><label>VAT rate (%)<input id="${masterInputId(18)}" data-master-field-index="18" type="number" min="0" max="100" step="0.01" value="${escapeHtml(values[18]??'5')}"></label></div><input type="hidden" id="${masterInputId(15)}" data-master-field-index="15"><div id="companyFxRows">${fxPairs.map(companyFxRow).join("")}</div><p id="companyFxHint">Add bank accounts in two currencies to set exchange rates.</p></section>
     <section class="master-editor-section"><div class="master-editor-heading"><div><h3>Document identity</h3><p>Headers, footers, signatures and stamps remain versioned under the legal company.</p></div><button type="button" class="button secondary" id="addCompanyDocument">+ Add document identity</button></div><input type="hidden" id="${masterInputId(14)}" data-master-field-index="14"><div id="companyDocumentRows">${documents.map(doc=>companyDocumentRow(doc)).join("")}</div></section>
     <section class="master-editor-section"><div class="master-editor-heading"><div><h3>Special workflow & behaviour</h3><p>Keep exceptional entity handling separate from ordinary identity.</p></div></div><div class="master-form-grid"><label>TG special handling<select id="${masterInputId(5)}" data-master-field-index="5">${["No","Yes"].map(x=>`<option ${x===String(values[5]||"No")?"selected":""}>${x}</option>`).join("")}</select></label><label class="full-span">System behaviour / notes<textarea id="${masterInputId(6)}" data-master-field-index="6" rows="4">${escapeHtml(values[6] || "")}</textarea></label></div></section>`;
@@ -648,11 +648,13 @@
   function companyRegistrationRow(item={}) {
     return `<div class="master-form-grid company-registration-row"><label>Registration type<input data-registration-type value="${escapeHtml(item.type||"")}" placeholder="e.g. VAT Registration / VAT TRN"></label><label>Number<input data-registration-number value="${escapeHtml(item.number||"")}"></label><label>Jurisdiction<input data-registration-jurisdiction value="${escapeHtml(item.jurisdiction||"")}"></label><label>Expiry date<input type="date" data-registration-expiry value="${escapeHtml(item.expiryDate||"")}"></label><label class="full-span">Notes<input data-registration-notes value="${escapeHtml(item.notes||"")}"></label><button type="button" class="button danger" data-remove-company-registration>Delete row</button></div>`;
   }
-  function companyBankRow(bank={},allowRetention=false) {
-    const accountType=bank.accountType||"Company Account";
-    const inactive=String(bank.status||"Active").toLowerCase()==="inactive";
-    const action=bank.id?(inactive?"":(IS_SUPER_ADMIN?'<button type="button" class="button danger" data-delete-company-bank>Delete</button>':"")):'<button type="button" class="button danger" data-remove-company-bank>Remove</button>';
-    return `<div class="master-form-grid company-bank-row" ${inactive?"hidden":""}><input type="hidden" data-bank-json value="${escapeHtml(JSON.stringify(bank))}"><input type="hidden" data-bank-id value="${escapeHtml(bank.id||"")}"><label>Account ownership<select data-bank-type>${["Company Account","Proprietor / Owner Account","Personal Account"].map(type=>`<option value="${escapeHtml(type)}" ${type===accountType?"selected":""}>${escapeHtml(type)}</option>`).join("")}</select></label><label data-bank-owner-wrap ${accountType==="Company Account"?"hidden":""}>Account owner<input data-bank-owner value="${escapeHtml(bank.personalOwner||bank.accountOwner||"")}"></label><label>Bank name<input data-bank-name value="${escapeHtml(bank.bankName||"")}" required></label><label>Account title<input data-bank-title value="${escapeHtml(bank.accountTitle||"")}" required></label><label>Currency<select data-bank-currency>${[...new Set([...(state.masterOptions?.currencies||["PKR","USD","AED","EUR","GBP"]),bank.currency].filter(Boolean))].map(code=>`<option value="${escapeHtml(code)}" ${code===(bank.currency||"PKR")?"selected":""}>${escapeHtml(code)} · ${escapeHtml(state.masterOptions?.currency_names?.[code]||code)}</option>`).join("")}</select></label><label>Account number<input data-bank-number value="${escapeHtml(bank.accountNumber||"")}"></label><label>IBAN<input data-bank-iban value="${escapeHtml(bank.iban||"")}"></label><label>SWIFT / BIC<input data-bank-swift value="${escapeHtml(bank.swift||"")}"></label><label>Branch<input data-bank-branch value="${escapeHtml(bank.branch||"")}"></label><label>Purpose<input data-bank-purpose value="${escapeHtml(bank.purpose||"")}"></label><label><input type="checkbox" data-bank-retention ${bank.retentionAccount?"checked":""} ${accountType==="Personal Account"?"disabled":""}> Foreign retention account — separate bank sub-ledger</label>${action}<span class="tag">${escapeHtml(inactive?"Deleted / inactive":bank.status||"Active")}</span></div>`;
+  function companyBankTable(banks,includeInactive=false) {
+    const visible=banks.filter(bank=>includeInactive||String(bank.status||"Active").toLowerCase()!=="inactive");
+    return `<div class="table-wrap"><table class="bank-table"><thead><tr><th>Bank</th><th>Account</th><th>Number / IBAN</th><th>Currency</th><th>Default</th><th></th></tr></thead><tbody>${visible.length?visible.map(bank=>{
+      const type=bank.accountType==='Company Account'?'Company':'Proprietor / Personal';
+      const details=[type,bank.retentionAccount?'Retention':'',bank.status==='Inactive'?'Inactive':''].filter(Boolean).join(' · ');
+      return `<tr><td>${escapeHtml(bank.bankName||"—")}</td><td><strong>${escapeHtml(bank.accountTitle||"—")}</strong><small>${escapeHtml(details)}</small></td><td>${escapeHtml([bank.accountNumber,bank.iban].filter(Boolean).join(" · ")||"—")}</td><td>${escapeHtml(bank.currency||"—")}</td><td>${bank.isDefault?'<span class="tag">Yes</span>':"—"}</td><td>${canMaster('companies','Edit')&&bank.status!=="Inactive"?`<button class="row-action" type="button" data-edit-company-bank="${escapeHtml(bank.id||"")}">Edit</button>`:""}</td></tr>`;
+    }).join(""):'<tr><td colspan="6">No bank accounts yet.</td></tr>'}</tbody></table></div>`;
   }
   function companyDocumentRow(doc={}) { const controls=doc.id?`<div class="row-actions">${canMaster('companies','View Documents')?'<button type="button" class="row-action" data-preview-company-document>Preview</button>':''}${canMaster('companies','Download Documents')?'<button type="button" class="row-action" data-download-company-document>Download</button>':''}<span class="tag">Version ${escapeHtml(doc.version||1)}</span></div>`:`<label>PNG, JPG, WebP or PDF<input type="file" data-document-file accept="image/png,image/jpeg,image/webp,application/pdf" required></label>`;return `<div class="master-form-grid company-document-row"><input type="hidden" data-document-json value="${escapeHtml(JSON.stringify(doc))}"><input type="hidden" data-document-id value="${escapeHtml(doc.id||"")}"><label>Document type<select data-document-type>${["Header","Footer","Signature","Stamp","Letterhead","Other"].map(x=>`<option ${x===String(doc.type||"")?"selected":""}>${x}</option>`).join("")}</select></label><label>Label<input data-document-label value="${escapeHtml(doc.label||"")}" required></label><label>Version<input data-document-version value="${escapeHtml(doc.version||"1")}" readonly></label><label>Status<select data-document-status><option ${String(doc.status||"Active")==="Active"?"selected":""}>Active</option><option ${String(doc.status||"")==="Inactive"?"selected":""}>Inactive</option></select></label><label><input type="checkbox" data-document-default ${doc.isDefault?"checked":""}> Default for this type</label>${controls}<button type="button" class="button danger" data-remove-company-document>Deactivate</button></div>`; }
   function commodityMasterFieldsHtml(values = []) {
@@ -984,10 +986,7 @@
       values[4]=[...document.querySelectorAll('[data-master-field-index="4"]:checked')].map(input=>input.value).join("; ");
       const owners=[...document.querySelectorAll('.company-owner-row')].map(row=>({name:row.querySelector('[data-company-owner-name]')?.value.trim()||"",share:Number(row.querySelector('[data-company-owner-share]')?.value||0)})).filter(owner=>owner.name||owner.share);
       values[7]=JSON.stringify(owners.length?owners:[{name:"",share:100}]);
-      values[13]=JSON.stringify([...document.querySelectorAll('.company-bank-row')].map((row,index)=>({
-        ...JSON.parse(row.querySelector('[data-bank-json]')?.value||'{}'),id:row.querySelector('[data-bank-id]')?.value||`bank-${Date.now()}-${index}`,
-        accountType:row.querySelector('[data-bank-type]')?.value||'Company Account',personalOwner:row.querySelector('[data-bank-owner]')?.value.trim()||'',bankName:row.querySelector('[data-bank-name]')?.value.trim()||'',accountTitle:row.querySelector('[data-bank-title]')?.value.trim()||'',currency:row.querySelector('[data-bank-currency]')?.value.trim()||'PKR',accountNumber:row.querySelector('[data-bank-number]')?.value.trim()||'',iban:row.querySelector('[data-bank-iban]')?.value.trim()||'',swift:row.querySelector('[data-bank-swift]')?.value.trim()||'',branch:row.querySelector('[data-bank-branch]')?.value.trim()||'',purpose:row.querySelector('[data-bank-purpose]')?.value.trim()||'',retentionAccount:String(values[2]).toLowerCase()==='pakistan'&&!!row.querySelector('[data-bank-retention]')?.checked,status:JSON.parse(row.querySelector('[data-bank-json]')?.value||'{}').status||'Active'
-      })).filter(bank=>bank.bankName||bank.accountTitle||bank.accountNumber||bank.iban));
+      values[13]=document.getElementById(masterInputId(13))?.value||'[]';
       values[14]=JSON.stringify([...document.querySelectorAll('.company-document-row')].map(row=>({
         ...JSON.parse(row.querySelector('[data-document-json]')?.value||'{}'),id:row.querySelector('[data-document-id]')?.value||'',type:row.querySelector('[data-document-type]')?.value||'Other',label:row.querySelector('[data-document-label]')?.value.trim()||'',version:row.querySelector('[data-document-version]')?.value.trim()||'1',status:row.querySelector('[data-document-status]')?.value||'Active',isDefault:!!row.querySelector('[data-document-default]')?.checked
       })).filter(doc=>doc.id&&doc.label));
@@ -1188,8 +1187,9 @@
       let owners=[];try{owners=JSON.parse(row.values?.[7]||"[]")}catch{}
       content=`<dl class="master-detail-grid">${[0,1,2,3].map(index=>detailField(type.fields[index].label,row.values?.[index])).join("")}${detailField("Company roles",row.values?.[4])}${detailField("Owners / partners",Array.isArray(owners)?owners.map(owner=>`${owner.name||"—"} (${owner.share||0}%)`).join(", "):"")}</dl>`;
     }else if(companyDetailTab==="banks"){
-      const banks=companyBanks(row).filter(bank=>document.getElementById("masterIncludeInactive").checked||bank.status!=="Inactive");
-      content=`<div class="master-subhead"><h3>Bank Accounts</h3><div class="master-subactions"><label class="master-inactive-toggle"><input id="bankIncludeInactive" type="checkbox" ${document.getElementById("masterIncludeInactive").checked?"checked":""}> Include inactive</label>${canMaster("companies","Edit")?'<button class="button primary" type="button" data-add-company-bank>+ Add bank account</button>':""}</div></div><div class="table-wrap"><table class="bank-table"><thead><tr><th>Bank</th><th>Account title</th><th>Currency</th><th>Ownership</th><th>Default</th><th>Retention</th><th>Status</th><th></th></tr></thead><tbody>${banks.length?banks.map(bank=>`<tr><td>${escapeHtml(bank.bankName||"—")}</td><td>${escapeHtml(bank.accountTitle||"—")}</td><td>${escapeHtml(bank.currency||"—")}</td><td>${escapeHtml(bank.accountType||"Company Account")}</td><td>${bank.isDefault?'<span class="tag">Default</span>':"—"}</td><td>${bank.retentionAccount?"Yes":"—"}</td><td>${escapeHtml(bank.status||"Active")}</td><td>${canMaster("companies","Edit")&&bank.status!=="Inactive"?`<button class="row-action" type="button" data-edit-company-bank="${escapeHtml(bank.id)}">Edit</button>`:""}</td></tr>`).join(""):'<tr><td colspan="8">No bank accounts found.</td></tr>'}</tbody></table></div>`;
+      const banks=companyBanks(row);
+      const includeInactive=document.getElementById("masterIncludeInactive").checked;
+      content=`<div class="master-subhead"><h3>Bank Accounts</h3><div class="master-subactions"><label class="master-inactive-toggle"><input id="bankIncludeInactive" type="checkbox" ${includeInactive?"checked":""}> Include inactive</label>${canMaster("companies","Edit")?'<button class="button primary" type="button" data-add-company-bank>+ Add bank account</button>':""}</div></div>${companyBankTable(banks,includeInactive)}`;
     }else if(companyDetailTab==="documents"){
       let documents=[];try{documents=JSON.parse(row.values?.[14]||"[]")}catch{}
       content=`<div class="master-subhead"><h3>Document Identity</h3></div><div class="master-record-list">${Array.isArray(documents)&&documents.length?documents.filter(doc=>document.getElementById("masterIncludeInactive").checked||doc.status!=="Inactive").map(doc=>`<div><strong>${escapeHtml(doc.label||doc.type||"Document")}</strong><span>${escapeHtml(doc.type||"")} · Version ${escapeHtml(doc.version||1)} ${doc.isDefault?"· Default":""}</span></div>`).join(""):'<p class="master-empty">No document identities found.</p>'}</div>`;
@@ -1202,21 +1202,25 @@
     detail.innerHTML=head+tabbar+`<div class="master-detail-body">${content}</div>`;
   }
   function openBankDialog(bankId="") {
-    const company=(state.masters.companies||[]).find(row=>row.id===selectedMasterId);
-    if(!company||!canMaster("companies","Edit"))return;
-    const bank=companyBanks(company).find(item=>item.id===bankId)||{};
+    const inEditor=document.getElementById('masterDialog').open;
+    const companyId=inEditor?document.getElementById('editMasterId').value:selectedMasterId;
+    const company=(state.masters.companies||[]).find(row=>row.id===companyId);
+    const draft=inEditor&&!companyId;
+    if((!company&&!draft)||!canMaster("companies",draft?"Create":"Edit"))return;
+    const banks=draft?JSON.parse(document.getElementById(masterInputId(13)).value||'[]'):companyBanks(company);
+    const bank=banks.find(item=>item.id===bankId)||{};
     const form=document.getElementById("bankForm");form.reset();
     document.getElementById("bankEditId").value=bankId;
     document.getElementById("bankDialogTitle").textContent=bankId?"Edit bank account":"Add bank account";
     const set=(id,value)=>{document.getElementById(id).value=value||""};
-    set("bankName",bank.bankName);set("bankBranch",bank.branch);set("bankCountry",bank.country||company.values?.[2]);set("bankTitle",bank.accountTitle);
-    set("bankNumber",bank.accountNumber);set("bankIban",bank.iban);set("bankSwift",bank.swift);set("bankOwner",bank.personalOwner);
+    set("bankName",bank.bankName);set("bankBranch",bank.branch);set("bankCountry",bank.country||company?.values?.[2]||document.getElementById(masterInputId(2))?.value);set("bankTitle",bank.accountTitle);
+    set("bankNumber",bank.accountNumber);set("bankIban",bank.iban);set("bankSwift",bank.swift);
     const currencies=[...new Set([...(state.masterOptions?.currencies||["PKR","USD","AED","EUR","GBP"]),bank.currency].filter(Boolean))];
     document.getElementById("bankCurrency").innerHTML=currencies.map(code=>`<option value="${escapeHtml(code)}">${escapeHtml(code)}</option>`).join("");
     set("bankCurrency",bank.currency||"PKR");
-    document.querySelector(`input[name="bankOwnership"][value="${bank.accountType||"Company Account"}"]`).checked=true;
+    document.querySelector(`input[name="bankOwnership"][value="${bank.accountType==="Personal Account"?"Proprietor / Owner Account":bank.accountType||"Company Account"}"]`).checked=true;
     document.getElementById("bankDefault").checked=!!bank.isDefault;
-    const pakistanCompany=String(company.values?.[2]||'').toLowerCase()==='pakistan'||String(company.values?.[3]||'').toLowerCase()==='pakistan';
+    const pakistanCompany=String(company?.values?.[2]||document.getElementById(masterInputId(2))?.value||'').toLowerCase()==='pakistan'||String(company?.values?.[3]||document.getElementById(masterInputId(3))?.value||'').toLowerCase()==='pakistan';
     document.getElementById("bankRetention").checked=pakistanCompany&&!!bank.retentionAccount;
     document.getElementById("bankRetention").closest("label").dataset.offshoreHidden=pakistanCompany?'':'1';
     document.getElementById("bankDelete").hidden=!bankId||!IS_SUPER_ADMIN||bank.status==="Inactive";
@@ -1227,45 +1231,55 @@
   }
   function syncBankDialogOwnership() {
     const ownership=document.querySelector('input[name="bankOwnership"]:checked')?.value;
-    document.getElementById("bankOwnerWrap").hidden=ownership==="Company Account";
     const retention=document.getElementById("bankRetention");
-    retention.disabled=ownership==="Personal Account";
+    retention.disabled=ownership!=="Company Account";
     retention.closest("label").hidden=retention.disabled||retention.closest("label").dataset.offshoreHidden==='1';
     if(retention.disabled)retention.checked=false;
   }
   function eligibleDefaultBank(bank) {
-    return bank.status!=="Inactive"&&bank.accountType!=="Personal Account"&&!!(bank.accountNumber||bank.iban);
+    return bank.status!=="Inactive"&&!!(bank.accountNumber||bank.iban);
   }
   async function saveBankDialog(event) {
     event.preventDefault();
     if(!event.currentTarget.reportValidity())return;
     const ownership=document.querySelector('input[name="bankOwnership"]:checked')?.value||"Company Account";
-    const owner=document.getElementById("bankOwner").value.trim();
-    if(ownership!=="Company Account"&&!owner){toast("Enter the account owner.");document.getElementById("bankOwner").focus();return;}
+    if(!document.getElementById("bankNumber").value.trim()&&!document.getElementById("bankIban").value.trim()){toast("Enter an account number or IBAN.");document.getElementById("bankNumber").focus();return;}
     const bankId=document.getElementById("bankEditId").value;
     const button=document.getElementById("bankSave");button.disabled=true;
     try {
-      const fresh=await apiRequest(null,"masters");
-      const company=(fresh.masters.companies||[]).find(row=>row.id===selectedMasterId);
-      if(!company)throw new Error("Company no longer exists. Refresh and try again.");
-      const banks=companyBanks(company);
+      const inEditor=document.getElementById('masterDialog').open;
+      const companyId=inEditor?document.getElementById('editMasterId').value:selectedMasterId;
+      const draft=inEditor&&!companyId;
+      const fresh=draft?null:await apiRequest(null,"masters");
+      const company=draft?null:(fresh.masters.companies||[]).find(row=>row.id===companyId);
+      if(!company&&!draft)throw new Error("Company no longer exists. Refresh and try again.");
+      const bankField=document.getElementById(masterInputId(13));
+      const banks=draft?JSON.parse(bankField.value||'[]'):companyBanks(company);
       const index=banks.findIndex(item=>item.id===bankId);
       if(bankId&&index<0)throw new Error("Bank account no longer exists. Refresh and try again.");
       const currency=document.getElementById("bankCurrency").value;
       const isDefault=document.getElementById("bankDefault").checked;
-      const pakistanCompany=String(company.values?.[2]||'').toLowerCase()==='pakistan'||String(company.values?.[3]||'').toLowerCase()==='pakistan';
-      const bank={...(index>=0?banks[index]:{}),id:bankId||`bank-${crypto.randomUUID()}`,bankName:document.getElementById("bankName").value.trim(),branch:document.getElementById("bankBranch").value.trim(),country:document.getElementById("bankCountry").value.trim(),currency,accountTitle:document.getElementById("bankTitle").value.trim(),accountNumber:document.getElementById("bankNumber").value.trim(),iban:document.getElementById("bankIban").value.trim(),swift:document.getElementById("bankSwift").value.trim(),accountType:ownership,personalOwner:ownership==="Company Account"?"":owner,retentionAccount:pakistanCompany&&document.getElementById("bankRetention").checked,isDefault,status:"Active"};
+      const pakistanCompany=String(company?.values?.[2]||document.getElementById(masterInputId(2))?.value||'').toLowerCase()==='pakistan'||String(company?.values?.[3]||document.getElementById(masterInputId(3))?.value||'').toLowerCase()==='pakistan';
+      const title=document.getElementById("bankTitle").value.trim();
+      const bank={...(index>=0?banks[index]:{}),id:bankId||`bank-${crypto.randomUUID()}`,bankName:document.getElementById("bankName").value.trim(),branch:document.getElementById("bankBranch").value.trim(),country:document.getElementById("bankCountry").value.trim(),currency,accountTitle:title,accountNumber:document.getElementById("bankNumber").value.trim(),iban:document.getElementById("bankIban").value.trim(),swift:document.getElementById("bankSwift").value.trim(),accountType:ownership,personalOwner:ownership==="Company Account"?"":title,retentionAccount:pakistanCompany&&ownership==="Company Account"&&document.getElementById("bankRetention").checked,isDefault,status:"Active"};
       if(isDefault&&!eligibleDefaultBank(bank))throw new Error("A default must be an operational bank account with an account number or IBAN.");
       if(isDefault)banks.forEach(item=>{if(item.currency===currency)item.isDefault=false});
       if(index>=0)banks[index]=bank;else banks.push(bank);
+      if(draft){bankField.value=JSON.stringify(banks);document.getElementById('companyBankRows').innerHTML=companyBankTable(banks);bankField.dispatchEvent(new Event('change'));dirtyDialogs.add('masterDialog');dirtyDialogs.delete('bankDialog');document.getElementById('bankDialog').close();savedNotice('Bank account added to the company draft.');return;}
       const values=[...company.values];values[13]=JSON.stringify(banks);
       const data=await apiRequest({action:"update",type:"companies",id:company.id,values},"masters");
       state.masters=ensureMasterSections(data.masters,data.options||state.masterOptions);
+      if(document.getElementById('masterDialog').open&&bankField){const saved=companyBanks((state.masters.companies||[]).find(row=>row.id===company.id));bankField.value=JSON.stringify(saved);document.getElementById('companyBankRows').innerHTML=companyBankTable(saved);bankField.dispatchEvent(new Event('change'));}
       renderMasters();dirtyDialogs.delete("bankDialog");document.getElementById("bankDialog").close();savedNotice("Saved successfully.");
     }catch(error){toast(error.message)}finally{button.disabled=false}
   }
   function prepareBankDelete() {
-    const company=(state.masters.companies||[]).find(row=>row.id===selectedMasterId);
+    if(document.getElementById('masterDialog').open&&!document.getElementById('editMasterId').value){
+      const bankField=document.getElementById(masterInputId(13));
+      const banks=JSON.parse(bankField.value||'[]').filter(item=>item.id!==document.getElementById('bankEditId').value);
+      bankField.value=JSON.stringify(banks);document.getElementById('companyBankRows').innerHTML=companyBankTable(banks);bankField.dispatchEvent(new Event('change'));dirtyDialogs.add('masterDialog');dirtyDialogs.delete('bankDialog');document.getElementById('bankDialog').close();return;
+    }
+    const company=(state.masters.companies||[]).find(row=>row.id===(document.getElementById('masterDialog').open?document.getElementById('editMasterId').value:selectedMasterId));
     const bank=companyBanks(company).find(item=>item.id===document.getElementById("bankEditId").value);
     if(!bank)return;
     const area=document.getElementById("bankDeleteConfirm"),wrap=document.getElementById("bankReplacementWrap"),select=document.getElementById("bankReplacement");
@@ -1279,7 +1293,7 @@
     area.scrollIntoView({block:"nearest"});
   }
   async function confirmBankDelete() {
-    const company=(state.masters.companies||[]).find(row=>row.id===selectedMasterId);
+    const company=(state.masters.companies||[]).find(row=>row.id===(document.getElementById('masterDialog').open?document.getElementById('editMasterId').value:selectedMasterId));
     const bank=companyBanks(company).find(item=>item.id===document.getElementById("bankEditId").value);
     if(!company||!bank)return;
     const replacementBankId=bank.isDefault?document.getElementById("bankReplacement").value:"";
@@ -1288,6 +1302,8 @@
     try{
       const data=await apiRequest({action:"delete-company-bank",type:"companies",id:company.id,bankId:bank.id,replacementBankId},"masters");
       state.masters=ensureMasterSections(data.masters,data.options||state.masterOptions);
+      const bankField=document.getElementById(masterInputId(13));
+      if(document.getElementById('masterDialog').open&&bankField){const saved=companyBanks((state.masters.companies||[]).find(row=>row.id===company.id));bankField.value=JSON.stringify(saved);document.getElementById('companyBankRows').innerHTML=companyBankTable(saved);bankField.dispatchEvent(new Event('change'));}
       renderMasters();dirtyDialogs.delete("bankDialog");document.getElementById("bankDialog").close();savedNotice("Bank account removed from future use. Historical postings remain.");
     }catch(error){toast(error.message);button.disabled=false}
   }
@@ -1321,16 +1337,9 @@
       const wireOwners=()=>{container.querySelectorAll('[data-remove-company-owner]').forEach(button=>button.onclick=()=>{button.closest('.company-owner-row')?.remove();if(!container.children.length)addOwner();if(container.children.length===1)container.querySelector('[data-company-owner-share]').value="100";wireOwners()})};
       const addOwner=()=>{if(container.children.length===1){const share=container.querySelector('[data-company-owner-share]');if(share&&Number(share.value)===100)share.value=""}const row=document.createElement('div');row.className='master-identity-grid company-owner-row';row.innerHTML='<label>Owner / partner name<input data-company-owner-name></label><label>Share %<input data-company-owner-share type="number" min="0" max="100" step="0.01"></label><button type="button" class="button danger" data-remove-company-owner>Remove</button>';container.appendChild(row);wireOwners()};
       document.getElementById("addCompanyOwner").onclick=addOwner;wireOwners();
-      const bankRows=document.getElementById('companyBankRows');
+      const bankField=document.getElementById(masterInputId(13));
       const documentRows=document.getElementById('companyDocumentRows');
       const registrationRows=document.getElementById('companyRegistrationRows');
-      const wireBankOwnership=()=>{
-        bankRows?.querySelectorAll('[data-bank-type]').forEach(select=>{
-          const bankRow=select.closest('.company-bank-row'),ownerWrap=bankRow?.querySelector('[data-bank-owner-wrap]'),retention=bankRow?.querySelector('[data-bank-retention]');
-          const sync=()=>{const personal=select.value==='Personal Account';if(ownerWrap)ownerWrap.hidden=select.value==='Company Account';if(retention){retention.disabled=personal;if(personal)retention.checked=false;}};
-          select.onchange=sync;sync();
-        });
-      };
       const wireRegistrations=()=>registrationRows?.querySelectorAll('[data-remove-company-registration]').forEach(button=>button.onclick=()=>button.closest('.company-registration-row')?.remove());
       const syncRegistrationCountry=()=>{
         const country=String(document.getElementById(masterInputId(2))?.value||'').trim();
@@ -1343,29 +1352,12 @@
       const membership=document.querySelector('[data-company-chamber="membershipNo"]'),legacyMembership=document.getElementById(masterInputId(8));
       if(membership&&legacyMembership){membership.oninput=()=>{legacyMembership.value=membership.value};legacyMembership.oninput=()=>{membership.value=legacyMembership.value}}
       const wireNested=()=>{
-        bankRows?.querySelectorAll('[data-remove-company-bank]').forEach(button=>button.onclick=()=>{button.closest('.company-bank-row')?.remove();syncFx()});
-        bankRows?.querySelectorAll('[data-delete-company-bank]').forEach(button=>button.onclick=async()=>{
-          const bankRow=button.closest('.company-bank-row'),bankId=bankRow?.querySelector('[data-bank-id]')?.value;
-          if(!row?.id||!bankId)return;
-          const bankName=bankRow.querySelector('[data-bank-name]')?.value||'this bank account';
-          if(!window.confirm(`Delete ${bankName} from future use? Historical bank ledger entries will remain preserved.`))return;
-          button.disabled=true;
-          try{
-            const data=await apiRequest({action:'delete-company-bank',type:'companies',id:row.id,bankId},'masters');
-            state.masters=ensureMasterSections(data.masters,data.options||state.masterOptions);
-            pendingBankDeletionRequests=(data.bankDeletionRequests||[]).filter(item=>item.status==='Pending');
-            const original=JSON.parse(bankRow.querySelector('[data-bank-json]')?.value||'{}');original.status='Inactive';bankRow.querySelector('[data-bank-json]').value=JSON.stringify(original);bankRow.hidden=true;
-            renderApprovals();
-            savedNotice('Bank account deleted from future use. Its historical ledger remains preserved.');
-          }catch(error){toast(error.message);button.disabled=false}
-        });
-        wireBankOwnership();
         wireRegistrations();
         documentRows?.querySelectorAll('[data-remove-company-document]').forEach(button=>button.onclick=()=>{const row=button.closest('.company-document-row');if(row){row.querySelector('[data-document-status]').value='Inactive';row.hidden=true}});
         documentRows?.querySelectorAll('[data-preview-company-document],[data-download-company-document]').forEach(button=>button.onclick=()=>{const documentId=button.closest('.company-document-row')?.querySelector('[data-document-id]')?.value;if(!documentId||!row?.id)return;const download=button.hasAttribute('data-download-company-document')?'&download=1':'';window.open(`api/master_documents.php?companyId=${encodeURIComponent(row.id)}&documentId=${encodeURIComponent(documentId)}${download}`,'_blank','noopener')});
       };
       const fxRows=document.getElementById('companyFxRows'),fxSection=document.getElementById('companyFxSection');
-      const currencies=()=>[...new Set([...bankRows.querySelectorAll('.company-bank-row')].filter(row=>JSON.parse(row.querySelector('[data-bank-json]')?.value||'{}').status!=='Inactive').map(row=>row.querySelector('[data-bank-currency]')?.value).concat(document.getElementById(masterInputId(1))?.value.trim().toUpperCase()==='TG'?['AED']:[]).filter(Boolean))].sort();
+      const currencies=()=>[...new Set(JSON.parse(bankField.value||'[]').filter(bank=>bank.status!=='Inactive').map(bank=>bank.currency).concat(document.getElementById(masterInputId(1))?.value.trim().toUpperCase()==='TG'?['AED']:[]).filter(Boolean))].sort();
       const syncFx=()=>{
         const abroad=document.getElementById(masterInputId(3))?.value!=='Pakistan'&&document.getElementById(masterInputId(2))?.value.trim().toLowerCase()!=='pakistan';
         fxSection.hidden=!abroad;
@@ -1374,18 +1366,18 @@
         [...fxRows.querySelectorAll('.company-fx-row')].forEach(row=>{row.hidden=!codes.includes(row.dataset.currencyA)||!codes.includes(row.dataset.currencyB)});
         fxRows.querySelectorAll('[data-remove-company-fx]').forEach(button=>button.onclick=()=>button.closest('.company-fx-row')?.remove());
       };
+      bankField.addEventListener('change',syncFx);
       document.getElementById('addCompanyFx').onclick=()=>{
         const codes=currencies(),used=new Set([...fxRows.querySelectorAll('.company-fx-row')].map(row=>[row.dataset.currencyA,row.dataset.currencyB].sort().join('|')));
         const options=[];codes.forEach((a,i)=>codes.slice(i+1).forEach(b=>{if(!used.has([a,b].sort().join('|')))options.push({currencyA:a,currencyB:b})}));
         if(!options.length){toast('Every available currency pair already has a row.');return}
         fxRows.insertAdjacentHTML('beforeend',companyFxRow(options[0]));syncFx();
       };
-      bankRows.addEventListener('change',event=>{if(event.target.matches('[data-bank-currency]'))syncFx()});
       document.getElementById(masterInputId(2))?.addEventListener('input',syncFx);
       document.getElementById(masterInputId(3))?.addEventListener('change',syncFx);
       document.getElementById(masterInputId(1))?.addEventListener('input',syncFx);
       syncFx();
-      document.getElementById('addCompanyBank').onclick=()=>{bankRows.insertAdjacentHTML('beforeend',companyBankRow({accountType:'Company Account',accountTitle:document.getElementById(masterInputId(0))?.value||'',currency:'PKR'},String(document.getElementById(masterInputId(2))?.value||'').toLowerCase()==='pakistan'));wireNested();syncFx()};
+      document.getElementById('addCompanyBank').onclick=()=>openBankDialog();
       document.getElementById('addCompanyRegistration').onclick=()=>{registrationRows.insertAdjacentHTML('beforeend',companyRegistrationRow({jurisdiction:document.getElementById(masterInputId(2))?.value||''}));wireRegistrations()};
       document.getElementById(masterInputId(2))?.addEventListener('input',syncRegistrationCountry);
       document.getElementById('addCompanyDocument').onclick=()=>{documentRows.insertAdjacentHTML('beforeend',companyDocumentRow({version:'1',status:'Active'}));wireNested()};
@@ -1433,12 +1425,6 @@
     const type = activeMasterType();
     const id = document.getElementById("editMasterId").value;
     if(type.id==="companies"){const shares=[...document.querySelectorAll('[data-company-owner-share]')].map(input=>Number(input.value||0)),total=shares.reduce((sum,value)=>sum+value,0);if(shares.length===1&&shares[0]===0)document.querySelector('[data-company-owner-share]').value="100";else if(Math.abs(total-100)>.001){toast("Owner / partner shares must total 100%.");return}}
-    if(type.id==="companies"&&[...document.querySelectorAll('.company-bank-row')].some(row=>row.querySelector('[data-bank-retention]')?.checked)){
-      const code=String(document.getElementById(masterInputId(1))?.value||'').trim().toUpperCase();
-      if(!['TTI','BRM'].includes(code)){toast('Foreign retention accounts must belong to TTI or BRM.');return}
-      if([...document.querySelectorAll('.company-bank-row')].some(row=>row.querySelector('[data-bank-retention]')?.checked&&String(row.querySelector('[data-bank-currency]')?.value||'PKR').trim().toUpperCase()==='PKR')){toast('A retention account must use a foreign currency, such as USD.');return}
-      if([...document.querySelectorAll('.company-bank-row')].some(row=>row.querySelector('[data-bank-retention]')?.checked&&row.querySelector('[data-bank-type]')?.value==='Personal Account')){toast('A personal-only account cannot be a company retention ledger. Choose Company Account or Proprietor / Owner Account.');return}
-    }
     try { await resolvePartyRoleBeforeSave(type); await resolveProductOptionsBeforeSave(type); } catch (error) { toast(error.message); return; }
     const values = masterValuesFromForm(type);
     const primary = values[0] || type.name;
