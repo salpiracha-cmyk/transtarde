@@ -89,7 +89,21 @@ session_set_cookie_params([
     'httponly' => true, 'samesite' => 'Strict',
 ]);
 tt_configure_session_storage();
+$ttIncomingSession=(string)($_COOKIE[session_name()]??'');
+$ttIncomingFile=ini_get('session.save_handler')==='files'&&preg_match('/^[A-Za-z0-9,-]{1,256}$/D',$ttIncomingSession)?is_file(session_save_path().'/sess_'.$ttIncomingSession):false;
 if (session_status() !== PHP_SESSION_ACTIVE && !session_start()) throw new RuntimeException('Your session could not be opened.');
+// Session-dependent responses, including anonymous redirects, must bypass shared caches.
+header('Cache-Control: private, no-store, no-cache, must-revalidate, max-age=0');
+header('Pragma: no-cache');
+header('X-LiteSpeed-Cache-Control: no-cache');
+// Diagnostic enums never contain cookies, session IDs, user values or filesystem paths.
+header('X-TT-Auth-Revision: 20261006-session-cache-1');
+header('X-TT-Session-Handler: '.ini_get('session.save_handler'));
+header('X-TT-Session-Serializer: '.ini_get('session.serialize_handler'));
+header('X-TT-Session-Node: '.substr(hash('sha256',(string)gethostname()),0,12));
+header('X-TT-Session-File: '.($ttIncomingSession===''?'no-cookie':($ttIncomingFile?'resident':'missing')));
+header('X-TT-Session-Transition: '.($ttIncomingSession===''?'new':(hash_equals($ttIncomingSession,session_id())?(empty($_SESSION['user_id'])?'resumed-empty':'resumed-state'):'replaced')));
+unset($ttIncomingSession,$ttIncomingFile);
 
 function tt_ensure_data_dir(): void {
     if (!is_dir(TT_DATA_DIR) && !mkdir(TT_DATA_DIR, 0700, true) && !is_dir(TT_DATA_DIR)) throw new RuntimeException('The secure data folder could not be created.');

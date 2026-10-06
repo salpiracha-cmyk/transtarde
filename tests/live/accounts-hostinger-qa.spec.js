@@ -46,7 +46,8 @@ function traceSessionNavigation(page) {
       setsSessionCookie: /TRANSTRADE_SESSION=/.test(headers['set-cookie'] || ''),
       fetchSite: requestHeaders['sec-fetch-site'] || '',
       server: headers.server || '', cache: headers['x-hcdn-cache-status'] || headers['x-litespeed-cache'] || headers['x-cache'] || headers['cf-cache-status'] || '',
-      age: headers.age || '', cacheControl: headers['cache-control'] || ''
+      age: headers.age || '', cacheControl: headers['cache-control'] || '',
+      authRevision:headers['x-tt-auth-revision']||'', sessionHandler:headers['x-tt-session-handler']||'', sessionSerializer:headers['x-tt-session-serializer']||'', sessionNode:headers['x-tt-session-node']||'', sessionFile:headers['x-tt-session-file']||'', sessionTransition:headers['x-tt-session-transition']||''
     });
     if (trace.length > 60) trace.shift();
     })());
