@@ -111,7 +111,7 @@ let posted;
   await page.route('https://exports.test/**',async route=>{
     const pathname=new URL(route.request().url()).pathname;
     if(pathname.endsWith('.js')){
-      const asset=path.join(root,pathname.replace(/^\\/+/, ''));
+      const asset=path.join(root,pathname.slice(1));
       if(fs.existsSync(asset))return route.fulfill({body:fs.readFileSync(asset,'utf8'),contentType:'application/javascript'});
       return route.fulfill({status:404,body:'',contentType:'application/javascript'});
     }
