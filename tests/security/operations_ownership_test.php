@@ -25,6 +25,8 @@ $rows=[$manual,$bridge];$amended=$rows;$amended[1]['brand']='REVISED';operations
 foreach([[$manual,array_replace($bridge,['received'=>999])],[$manual,array_diff_key($bridge,['received'=>true])],[array_replace($manual,['_ttBridge'=>'exports']),$bridge],[$bridge],[$manual],[$manual,$bridge,$bridge]] as $bad)denied(fn()=>operations_validate_export_bridge('tt30bags',json_encode($rows),json_encode($bad),'Exports'),'receipt/manual/identity bypass');
 foreach([$bridge,$manual] as $row){$bad=$row;$bad['received']=true;denied(fn()=>operations_validate_export_bridge('tt30bags',json_encode([$row]),json_encode([$bad]),'Exports'),'JSON boolean is not a receipt quantity');}
 verify(operations_same_value(['received'=>200,'brand'=>'B'],['brand'=>'B','received'=>200.0]),'numeric equivalence and object key ordering');
+$rootReads=0;$lazyRoot=function()use(&$rootReads):string{$rootReads++;return '{"shipments":[],"deletedShipments":[]}';};
+operations_validate_export_bridge('tt30bags',json_encode($rows),json_encode($amended),'Exports',$lazyRoot);verify($rootReads===0,'Ordinary instruction amendment does not load large Export root');
 $deleted=json_encode(['shipments'=>[],'deletedShipments'=>[['contractRef'=>'KEEP','deletedAt'=>'2026-10-06']]]);
 $oldLoad=['id'=>'C1','contractRef'=>'KEEP','kg'=>25000];operations_validate_export_bridge('tt35exload',json_encode([$oldLoad]),'[]','Exports',$deleted);verify(true,'Acknowledged deletion removes linked loading');
 denied(fn()=>operations_validate_export_bridge('tt35exload',json_encode([$oldLoad]),'[]','Exports'),'unacknowledged deletion');

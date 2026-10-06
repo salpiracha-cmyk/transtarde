@@ -683,11 +683,15 @@ try {
         $value=tt_inv_restore_artwork($value,tt_inv_public_values($referenceValues)['values']);
         if(strlen($value)>16*1024*1024)throw new InvalidArgumentException('Operational data is too large.');
     }
-    $exportRoot='';
-    if($sourceModule==='Exports' && $key!=='transtrade_export_v3_operational'){
-        $rootRead=$db->prepare('SELECT payload FROM tt_operation_records WHERE storage_key = ? FOR SHARE');
-        $rootRead->execute(['transtrade_export_v3_operational']);$exportRoot=(string)($rootRead->fetchColumn()?:'');
-    }
+    // The large Export root is needed only if linked rows are being removed.
+    // Ordinary instruction saves must not read it for every bridge key.
+    $exportRoot = static function () use ($db): string {
+        static $json;
+        if ($json !== null) return $json;
+        $rootRead=$db->prepare('SELECT payload FROM tt_operation_records WHERE storage_key = ? LOCK IN SHARE MODE');
+        $rootRead->execute(['transtrade_export_v3_operational']);
+        return $json=(string)($rootRead->fetchColumn()?:'');
+    };
     operations_validate_export_bridge($key, $oldPayload, $value, $sourceModule, $exportRoot);
     if ($key === 'transtrade_export_v3_operational') {
         operations_validate_lot_reopening($oldPayload, $value, $user, $sourceModule);

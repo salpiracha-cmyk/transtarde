@@ -30,7 +30,8 @@ function operations_same_value(mixed $left, mixed $right): bool {
     return true;
 }
 
-function operations_export_row_deleted(array $row, string $rootJson): bool {
+function operations_export_row_deleted(array $row, string|Closure $rootJson): bool {
+    if($rootJson instanceof Closure)$rootJson=$rootJson();
     $root=json_decode($rootJson,true);if(!is_array($root))return false;
     $ref=(string)($row['contractRef']??$row['_ttContractRef']??'');
     if($ref==='')return false;
@@ -41,7 +42,7 @@ function operations_export_row_deleted(array $row, string $rootJson): bool {
 
 // Exports revises instructions. Milling owns receipts, production, allocation
 // links and containers. Check existing rows under the version/write lock.
-function operations_validate_export_bridge(string $key, string $oldJson, string $incomingJson, string $module, string $rootJson = ''): void {
+function operations_validate_export_bridge(string $key, string $oldJson, string $incomingJson, string $module, string|Closure $rootJson = ''): void {
     if ($module !== 'Exports') return;
     // Loading feeds are readable by Exports, but only an acknowledged shipment
     // deletion may remove their rows. They are never editable or creatable here.
