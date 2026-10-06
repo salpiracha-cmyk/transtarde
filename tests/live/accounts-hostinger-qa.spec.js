@@ -54,6 +54,8 @@ function traceSessionNavigation(page) {
       age: headers.age || '', cacheControl: headers['cache-control'] || '',
       authRevision:headers['x-tt-auth-revision']||'', sessionHandler:headers['x-tt-session-handler']||'', sessionSerializer:headers['x-tt-session-serializer']||'', sessionNode:headers['x-tt-session-node']||'', sessionFile:headers['x-tt-session-file']||'', sessionTransition:headers['x-tt-session-transition']||''
     });
+    const entry=trace[trace.length-1];
+    console.log('SESSION_REQUEST_TIMING '+JSON.stringify({path:entry.path,method:entry.method,status:entry.status,serverWaitMs:entry.serverWaitMs,serverTiming:entry.serverTiming}));
     if (trace.length > 60) trace.shift();
     })());
   });

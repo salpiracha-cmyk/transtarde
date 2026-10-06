@@ -84,6 +84,7 @@ $_SERVER['REQUEST_URI']='/api/masters.php';$_SERVER['REQUEST_METHOD']=$argv[3];
 $_SERVER['HTTP_X_TT_USER_ACTIVITY']='1';
 require $argv[1].'/auth_store.php';
 $user=tt_require_login();
+if($argv[3]==='GET'&&session_status()===PHP_SESSION_ACTIVE)throw new RuntimeException('API guard kept a read lock');
 if($argv[3]==='POST'){
     try{tt_release_read_session();throw new RuntimeException('POST released');}
     catch(LogicException $expected){}

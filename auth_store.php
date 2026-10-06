@@ -853,6 +853,7 @@ function tt_require_login(): array {
         if(tt_accounts_post_register_read($path,(string)($_SERVER['REQUEST_METHOD']??'GET'),$entity,(string)($_GET['account']??''))){
             if(!tt_user_accounts_entities($user))tt_api_json_error(403,'You do not have permission for any company books.');
             // accounts_ledger_browser.php filters every journal/post by entity View rights.
+            tt_release_read_session();
             return $user;
         }
         if($entity===''&&!empty($policy['required'])&&($user['role']??'')!=='Super Admin')tt_api_json_error(403,'An authorized legal entity is required.');
@@ -863,6 +864,9 @@ function tt_require_login(): array {
             if(!$allowed)tt_api_json_error(403,'You do not have permission for this legal entity.');
         }
     }
+    // Every authenticated API read commits activity and CSRF before building
+    // its response. Financial writes retain their session and store locks.
+    if(str_starts_with($path,'/api/')&&strtoupper((string)($_SERVER['REQUEST_METHOD']??''))==='GET') tt_release_read_session();
     return $user;
 }
 
