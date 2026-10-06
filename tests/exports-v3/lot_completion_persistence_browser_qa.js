@@ -97,10 +97,13 @@ async function ready(page,quota=false){
  try{
  await check('LOT COMPLETE stays active until hosted acknowledgement; office interval is independent and parent stays active for remaining quantity',async()=>{
   const p=await pageFor();await ready(p,true);await p.addScriptTag({content:fs.readFileSync(path.join(root,'exports/office-agent-shipment-hooks.js'),'utf8')});await p.evaluate(()=>{archiveHold=true;holdCompletion=true;__focusQA.open('L-FOCUS','output')});
-  await p.locator('#completeLot').click();await p.waitForFunction(()=>typeof releaseArchive==='function');await p.evaluate(()=>{window.originalEditor=document.getElementById('workspaceDetail');focusReturn();dispatchEvent(new CustomEvent('tt:shared-updated'))});assert.equal(await p.evaluate(()=>originalEditor===document.getElementById('workspaceDetail')),true);await p.evaluate(()=>{archiveHold=false;releaseArchive()});await p.waitForFunction(()=>typeof releaseCompletion==='function');
+  await p.locator('#completeLot').click();await p.waitForFunction(()=>typeof releaseCompletion==='function');
+  await p.evaluate(()=>{window.originalEditor=document.getElementById('workspaceDetail');focusReturn();dispatchEvent(new CustomEvent('tt:shared-updated'))});assert.equal(await p.evaluate(()=>originalEditor===document.getElementById('workspaceDetail')),true);
   assert.equal(await p.evaluate(()=>__focusQA.snapshot().view),'shipments');
   assert.equal(await p.evaluate(()=>document.documentElement.classList.contains('tt-save-waiting')),true);
-  await p.evaluate(()=>{holdCompletion=false;releaseCompletion()});await p.waitForFunction(()=>__focusQA.snapshot().view==='home');
+  await p.evaluate(()=>{holdCompletion=false;releaseCompletion()});await p.waitForFunction(()=>typeof releaseArchive==='function');
+  assert.equal(await p.evaluate(STORE=>JSON.parse(server.values[STORE]).shipments.find(s=>s.id==='L-FOCUS').completed,STORE),true,'Hosted completion must precede the independent archive request');
+  await p.evaluate(()=>{archiveHold=false;releaseArchive()});await p.waitForFunction(()=>__focusQA.snapshot().view==='home');
   const result=await p.evaluate(STORE=>({live:__focusQA.snapshot().state,server:JSON.parse(server.values[STORE]),archives}),STORE);
   assert.equal(result.server.shipments.find(s=>s.id==='L-FOCUS').completed,true);assert.equal(result.live.shipments.find(s=>s.id==='L-FOCUS').completed,true);assert.equal(result.live.shipments.find(s=>s.id==='P-FOCUS').completed,false);assert.equal(result.archives[0].description,'BL AUTHORITATIVE DESCRIPTION');
   const persisted=await p.evaluate(()=>structuredClone(server));const fresh=await pageFor('exports',true,persisted);assert.equal(await fresh.evaluate(()=>__focusQA.getState().shipments.find(s=>s.id==='L-FOCUS').completed),true);await fresh.close();
@@ -114,11 +117,16 @@ async function ready(page,quota=false){
  await check('Incomplete canonical server actuals block closure despite complete browser cache',async()=>{
   const p=await pageFor();await ready(p);await p.evaluate(()=>{incompleteCanonical=true;__focusQA.open('L-FOCUS','output')});await p.locator('#completeLot').click();await p.waitForFunction(()=>document.querySelector('#shipmentFolderMessage .notice.warn')?.textContent.includes('server shipment is incomplete'));assert.equal(await p.evaluate(()=>archives.length),0);assert.equal(await p.evaluate(STORE=>!!JSON.parse(server.values[STORE]).shipments.find(s=>s.id==='L-FOCUS').completed,STORE),false);await p.close();
  });
- for(const fault of ['rejectCompletion','archiveFail'])await check(fault+' preserves open server lot without posting automatic rollback',async()=>{
+ for(const fault of ['rejectCompletion'])await check(fault+' preserves open server lot without posting automatic rollback',async()=>{
   const p=await pageFor();await ready(p);await p.evaluate(fault=>{window[fault]=true;__focusQA.open('L-FOCUS','output')},fault);await p.locator('#completeLot').click();await p.waitForFunction(()=>alerts.some(s=>s.includes('not confirmed'))||document.querySelector('#shipmentFolderMessage .notice.warn'));
   assert.equal(await p.evaluate(STORE=>!!JSON.parse(server.values[STORE]).shipments.find(s=>s.id==='L-FOCUS').completed,STORE),false);
   const count=await p.evaluate(()=>network.posts.length);await p.evaluate(()=>TT_SHARED_SYNC.saveNow());assert.equal(await p.evaluate(()=>network.posts.length),count);
   await p.evaluate(fault=>window[fault]=false,fault);await p.locator('#completeLot').click();await p.waitForFunction(()=>__focusQA.snapshot().view==='home');assert.equal(await p.evaluate(STORE=>JSON.parse(server.values[STORE]).shipments.find(s=>s.id==='L-FOCUS').completed,STORE),true);await p.close();
+ });
+ await check('Archive failure retains acknowledged completion and records a pending office copy',async()=>{
+  const p=await pageFor();await ready(p);await p.evaluate(()=>{archiveFail=true;__focusQA.open('L-FOCUS','output')});await p.locator('#completeLot').click();await p.waitForFunction(()=>__focusQA.snapshot().view==='home');
+  const lot=await p.evaluate(STORE=>JSON.parse(server.values[STORE]).shipments.find(s=>s.id==='L-FOCUS'),STORE);assert.equal(lot.completed,true);assert.equal(lot.officeArchivePending,true);assert.match(lot.officeArchiveError,/Queue unavailable/);
+  const count=await p.evaluate(()=>network.posts.length);await p.evaluate(()=>TT_SHARED_SYNC.saveNow());assert.equal(await p.evaluate(()=>network.posts.length),count);await p.close();
  });
  await check('Existing old lot Customs and active BL saves queue partial committed packages; GD survives Customs save',async()=>{
   const p=await pageFor();await ready(p);await p.evaluate(()=>{__focusQA.getState().shipments.find(s=>s.id==='L-FOCUS').commercial.status='Draft';__focusQA.open('L-FOCUS','customs')});await p.locator('#saveCustoms').click();await p.waitForFunction(()=>archives.length>0);
