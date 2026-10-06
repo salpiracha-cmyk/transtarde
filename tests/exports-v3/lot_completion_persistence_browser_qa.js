@@ -129,6 +129,12 @@ async function ready(page,quota=false){
   const p=await pageFor();await ready(p);await p.evaluate(()=>{TT_MODULE_ACCESS.super=false;const lot=__focusQA.getState().shipments.find(s=>s.id==='L-FOCUS');lot.completed=true;lot.status='Completed';__focusQA.setView('completed')});assert.equal(await p.locator('[data-reopen-lot]').count(),0);const before=await p.evaluate(()=>network.posts.length);await p.evaluate(()=>__focusQA.reopenCompletedLot('L-FOCUS'));assert.equal(await p.evaluate(()=>network.posts.length),before);await p.close();
   assert.doesNotMatch(fs.readFileSync(path.join(root,'exports/index.html'),'utf8'),/reopen-completed-lots\.js/);assert.doesNotMatch(fs.readFileSync(path.join(root,'exports/office-agent-shipment-hooks.js'),'utf8'),/repairCompletedLots/);
  });
+ await check('Active Shipments hides a fully covered completed lot even if parent completed flag is stale',async()=>{
+  const p=await pageFor();await ready(p);await p.evaluate(()=>{const state=__focusQA.getState(),lot=state.shipments.find(s=>s.id==='L-FOCUS'),process=state.shipments.find(s=>s.id==='P-FOCUS'),contract=state.contracts.find(c=>c.ref==='TTI/FOCUS/01');lot.completed=true;lot.status='Completed';process.completed=false;process.status='Lot Created';process.plannedQty=27;contract.qty=27;contract.status='Contract Received';__focusQA.home()});
+  assert.equal(await p.locator('[data-search-card*="tti/focus/01"]').count(),0);
+  assert.match(await p.locator('#activeCards').innerText(),/No active contracts or shipments/);
+  await p.close();
+ });
  console.log('PASS '+results.length+' completion and progressive archive browser scenarios');
  }finally{await browser?.close()}
 })().catch(error=>{console.error(error);process.exitCode=1});
