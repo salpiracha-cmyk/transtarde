@@ -13,7 +13,7 @@
     return clean(v[0]).toUpperCase() === 'RICE' ? [v[1],legacy?'':v[2],legacy?v[2]:v[3]].filter(Boolean).join(' ') : [v[1],legacy?v[2]:v[3]].filter(Boolean).join(' ');
   }));
   const lists = () => ({
-    buyer:customerNames(), supplier:partyNames('Supplier'), broker:partyNames('Broker'),
+    buyer:customerNames(), supplier:partyNames('Supplier'), bagsupplier:partyNames('Bag Supplier'), labourcontractor:partyNames('Labour Contractor'), broker:partyNames('Broker'),
     forwarder:partyNames('Freight Forwarder'), freight:partyNames('Freight Forwarder','Shipping Line / Carrier'), clearing:partyNames('Clearing Agent'),
     transporter:partyNames('Transporter'), fumigation:partyNames('Fumigation'), inspection:partyNames('Inspection'),
     service:partyNames('Service Provider'), shipping:partyNames('Shipping Line / Carrier'),
@@ -21,7 +21,7 @@
     locations:unique((masters.mills || []).filter(row => clean(row?.values?.[5] || 'Active').toLowerCase() === 'active').map(row => row.values[0])),
     products:productNames(), commodities:unique((masters.commodities || []).map(row => row?.values?.[0]))
   });
-  const roleFor = name => ({supplier:'Supplier',broker:'Broker',forwarder:'Freight Forwarder',freight:'Freight Forwarder',clearing:'Clearing Agent',transporter:'Transporter',fumigation:'Fumigation',inspection:'Inspection',service:'Service Provider',shipping:'Shipping Line / Carrier'})[name] || '';
+  const roleFor = name => ({bagsupplier:'Bag Supplier',labourcontractor:'Labour Contractor',supplier:'Supplier',broker:'Broker',forwarder:'Freight Forwarder',freight:'Freight Forwarder',clearing:'Clearing Agent',transporter:'Transporter',fumigation:'Fumigation',inspection:'Inspection',service:'Service Provider',shipping:'Shipping Line / Carrier'})[name] || '';
   function openEditor(input,kind) {
     const type = kind === 'buyer' ? 'export_customers' : 'business_parties';
     const name = clean(input.value);
@@ -36,10 +36,13 @@
       document.body.appendChild(dialog);
     }
     const values = [...(row?.values || [])];
-    const label = kind === 'buyer' ? 'Export Customer' : roleFor(kind);
+    const label = kind === 'buyer' ? 'Export Customer' : (roleFor(kind)||'Business Party');
+    const partyRoles=['Supplier','Bag Supplier','Labour Contractor','Broker','Indentor','Clearing Agent','Freight Forwarder','Shipping Line / Carrier','Transporter','Inspection','Fumigation','Service Provider','Local Buyer','Agent','Other'];
+    const chosenRoles=categories(row);
+    const roleFields=kind==='party'&&(canEdit||!row)?'<fieldset><legend>Party categories</legend>'+partyRoles.map(role=>'<label style="display:block"><input type="checkbox" name="partyRole" value="'+role+'" '+(chosenRoles.includes(role.toLowerCase())?'checked':'')+'> '+role+'</label>').join('')+'</fieldset>':'';
     dialog.replaceChildren();
     const form = document.createElement('form'); form.method = 'dialog';
-    form.innerHTML = `<h3>${row ? 'Edit' : 'Add'} ${label}</h3><p>Saved in Super Admin ${type === 'export_customers' ? 'Export Customers' : 'Business Parties'}.</p>${row&&!canEdit?'<p>Changes to this name require Master Edit permission.</p>':`<label>Name<input name="partyName" required maxlength="180"></label>${type === 'export_customers' ? '<label>Document address<textarea name="address" required rows="3"></textarea></label>' : ''}`}<p class="tt-party-editor-error" role="alert"></p><div style="display:flex;justify-content:flex-end;gap:8px">${row?'<button type="button" data-request-removal>Request removal</button>':''}<button type="button" data-cancel>Cancel</button>${row&&!canEdit?'':'<button type="submit">Save</button>'}</div>`;
+    form.innerHTML = `<h3>${row ? 'Edit' : 'Add'} ${label}</h3><p>Saved in Super Admin ${type === 'export_customers' ? 'Export Customers' : 'Business Parties'}.</p>${row&&!canEdit?'<p>Changes to this name require Master Edit permission.</p>':`<label>Name<input name="partyName" required maxlength="180"></label>${type === 'export_customers' ? '<label>Document address<textarea name="address" required rows="3"></textarea></label>' : ''}`}${roleFields}<p class="tt-party-editor-error" role="alert"></p><div style="display:flex;justify-content:flex-end;gap:8px">${row?'<button type="button" data-request-removal>Request removal</button>':''}<button type="button" data-cancel>Cancel</button>${row&&!canEdit?'':'<button type="submit">Save</button>'}</div>`;
     if (form.elements.partyName) form.elements.partyName.value = values[0] || name;
     if (form.elements.address) form.elements.address.value = values[3] || '';
     form.querySelector('[data-cancel]').onclick = () => dialog.close();
@@ -58,7 +61,7 @@
       if (!newName) return;
       values[0] = newName;
       if (type === 'export_customers') { values[3] = clean(form.elements.address.value); values[10] = values[10] || 'Active'; }
-      else { const roles = new Set(clean(values[2]).split(/[;,]/).filter(Boolean).map(value => value.trim())); roles.add(roleFor(kind)); values[2] = [...roles].join('; '); values[10] = values[10] || 'Active'; }
+      else { const roles = new Set(clean(values[2]).split(/[;,]/).filter(Boolean).map(value => value.trim())); if(kind==='party'){roles.clear();form.querySelectorAll('[name=partyRole]:checked').forEach(input=>roles.add(input.value));if(!roles.size){form.querySelector('.tt-party-editor-error').textContent='Select at least one category.';return}}else if(roleFor(kind))roles.add(roleFor(kind)); values[2] = [...roles].join('; '); values[10] = values[10] || 'Active'; }
       const save = form.querySelector('[type="submit"]'); save.disabled = true;
       try {
         const response = await fetch('../api/masters.php',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({action:row?'update':'create',type,id:row?.id || '',values,csrf:access.csrf})});
@@ -73,14 +76,16 @@
     return true;
   }
   function category(input) {
-    if (!input || input.closest('.tt-search-select') || input.matches('[readonly],[disabled],[type="date"],[type="number"],[type="file"]')) return '';
+    if (!input || input.dataset.ttNumericProxy || input.closest('.tt-search-select') || input.matches('[readonly],[disabled],[type="date"],[type="number"],[type="file"]')) return '';
     if (input.dataset.masterRole) return input.dataset.masterRole;
     const text = clean(input.closest('label')?.textContent + ' ' + input.placeholder + ' ' + input.id).toLowerCase();
     // Document identifiers and charge descriptions are not party selectors.
     if (/invoice|bill number|bill no|reference|description|remarks|notes/.test(text)) return '';
     if (input.id === 'svVendor') return ({CLEARING:'clearing',FUMIGATION:'fumigation',INSPECTION:'inspection'})[document.getElementById('svKind')?.value] || 'service';
     if (/customer|buyer|consignee/.test(text)) return 'buyer';
-    if (/bag supplier|supplier/.test(text)) return 'supplier';
+    if (/bag supplier/.test(text)) return 'bagsupplier';
+    if (/labour contractor/.test(text)) return 'labourcontractor';
+    if (/supplier/.test(text)) return 'supplier';
     if (/broker/.test(text)) return 'broker';
     if (/forwarder/.test(text)) return 'freight';
     if (/clearing/.test(text)) return 'clearing';
@@ -126,6 +131,7 @@
   window.TT_ACCOUNTS_MASTER_CHOICES = {
     refresh: newMasters => { if (newMasters) { masters = newMasters; access.masters = newMasters; } refresh(); },
     partyNames, customerNames,
+    manageParty: (name,onSaved) => openEditor({value:clean(name),dispatchEvent(){onSaved?.(this.value)}},'party'),
     manageCustomer: (name,onSaved) => openEditor({value:clean(name),dispatchEvent(){onSaved?.(this.value)}},'buyer')
   };
   document.readyState === 'loading' ? document.addEventListener('DOMContentLoaded',start,{once:true}) : start();

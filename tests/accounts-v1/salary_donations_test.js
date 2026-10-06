@@ -3,6 +3,7 @@ const fs=require('node:fs'),assert=require('node:assert/strict');
 const read=p=>fs.readFileSync(p,'utf8');
 const seed=JSON.parse(read('accounts/salary_master_seed_v1.json'));
 const chart=JSON.parse(read('accounts/accounting_master_v1.json')).chart;
+assert.equal(chart.find(a=>a.code==='7210').subledger,false,'Zakat has one account without subsidiaries');
 const salaryApi=read('api/rent_salary_v2.php');
 const donationsApi=read('api/donations.php');
 const reportsApi=read('api/accounts_reports.php');

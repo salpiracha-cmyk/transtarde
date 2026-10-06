@@ -1,6 +1,6 @@
 const {JSDOM}=require('jsdom'),fs=require('node:fs'),assert=require('node:assert/strict');
 const source=fs.readFileSync('accounts/jv-workflow-ui.js','utf8');
-const base={ok:true,canWrite:true,canApprove:true,jvs:[],accounts:[{code:'2110',name:'Supplier Payables',requiresSubledger:true}],opening:{allowed:true,enabled:true,canDisable:true,date:'2026-07-01',currency:'PKR',entities:['TTI','TG'],accounts:[{code:'2110',name:'Supplier Payables',requiresSubledger:true},{code:'1120',name:'Cash',requiresSubledger:false},{code:'1110',name:'Bank',requiresSubledger:false}],parties:['ACME RICE'],banks:[{id:'B1',name:'PK Bank',currency:'PKR'},{id:'B2',name:'USD Bank',currency:'USD'}],balances:[],entries:[]}};
+const base={ok:true,canWrite:true,canApprove:true,jvs:[],accounts:[{code:'2110',name:'Supplier Payables',requiresSubledger:true}],opening:{allowed:true,enabled:true,canDisable:true,date:'2026-07-01',currency:'PKR',entities:['TTI','TG'],targets:[{key:'business_parties:P1:2110',label:'ACME RICE — Supplier',name:'ACME RICE',account:'2110',party:'ACME RICE',bankId:'',kind:'party'},{key:'bank:B2',label:'USD Bank — USD',name:'USD Bank',account:'1110',party:'',bankId:'B2',kind:'bank'}],accounts:[{code:'2110',name:'Supplier Payables',requiresSubledger:true},{code:'1120',name:'Cash',requiresSubledger:false},{code:'1110',name:'Bank',requiresSubledger:false}],parties:['ACME RICE'],banks:[{id:'B1',name:'PK Bank',currency:'PKR'},{id:'B2',name:'USD Bank',currency:'USD'}],balances:[],entries:[]}};
 async function scenario(privileged,standalone=false){
  const dom=new JSDOM('<main id="ws-jv" class="active"></main>',{url:'https://fixture.test/accounts/index.php',runScripts:'outside-only'}),w=dom.window;
  const observers=[],NativeObserver=w.MutationObserver;w.MutationObserver=class extends NativeObserver{constructor(callback){super(callback);observers.push(this)}};
@@ -19,6 +19,8 @@ async function scenario(privileged,standalone=false){
  await q('jvwOpeningPost').onclick();assert.equal(calls.length,2);const posted=calls[1].body;
  assert.equal(posted.date,'2026-07-01');assert.equal(posted.side,'Credit');assert.equal(posted.amount,'125');assert.equal(posted.party,'ACME RICE');assert.equal(posted.lines,undefined);assert.ok(posted.requestKey);assert.equal(posted.action,'post_opening_balance');
  if(standalone)assert.ok(calls[0].url.includes('scope=opening'));
+ input('jvwOpeningAccount','ACME RICE');assert.equal(q('jvwOpeningParty').value,'ACME RICE');assert.equal(q('jvwOpeningPartyBox').hidden,true);assert.ok(q('jvwOpeningResolved').textContent.includes('2110'));
+ input('jvwOpeningAccount','USD Bank — USD');assert.equal(q('jvwOpeningBank').value,'B2');assert.equal(q('jvwOpeningBankBox').hidden,true);assert.equal(q('jvwOpeningRateBox').hidden,false);assert.ok(q('jvwOpeningManage'));
  input('jvwOpeningAccount','1110 · Bank');assert.equal(q('jvwOpeningPartyBox').hidden,true);assert.equal(q('jvwOpeningBankBox').hidden,false);
  input('jvwOpeningBank','B2');assert.equal(q('jvwOpeningRateBox').hidden,false);assert.ok(q('jvwOpeningAmountLabel').textContent.includes('USD'));
  input('jvwOpeningAmount','100');input('jvwOpeningRate','280');assert.ok(q('jvwOpeningBookAmount').textContent.includes('28,000'));assert.equal(q('jvwOpeningPost').disabled,false);

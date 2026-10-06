@@ -24,7 +24,8 @@ with tempfile.TemporaryDirectory(prefix='opening-jv-qa-') as tmp:
     function tt_ensure_data_dir(){}
     function tt_verify_csrf($v){return $v==='fixture';}
     function tt_next_post_id($existing,$module='Accounts',$area='Journal',$date=null){$n=count($existing)+1;do{$id='2026-'.str_pad((string)$n++,5,'0',STR_PAD_LEFT);}while(isset($existing[$id]));return $id;}
-    function tt_list_masters(){return ['business_parties'=>[['id'=>'P1','values'=>['ACME RICE']]],'banks'=>[
+    function tt_business_party_categories($v){return array_filter(array_map('trim',preg_split('/[;,|]/',(string)$v)));}
+    function tt_list_masters(){return ['business_parties'=>[['id'=>'P1','values'=>['ACME RICE','','Supplier']]],'banks'=>[
       ['id'=>'B1','values'=>['Company Account','TTI','','TTI','PK BANK','','Pakistan','PKR','123','','','','','Active']],
       ['id'=>'B2','values'=>['Company Account','TG','','TG','UAE BANK','','UAE','USD','456','','','','','Active']]]];}
     ''')
@@ -71,11 +72,16 @@ with tempfile.TemporaryDirectory(prefix='opening-jv-qa-') as tmp:
         assert call(post(party=''))[0]==422
         assert call(post(lines=[]))[0]==422
         assert call(post(csrf='wrong'))[0]==419
-        body=post(party=' acme   rice ',note='OLD PAYABLE')
+        targets=data['opening']['targets'] if 'opening' in data else call()[1]['opening']['targets']
+        assert any(t['key']=='business_parties:P1:2110' and t['party']=='ACME RICE' for t in targets)
+        assert call(post(targetKey='bank:B2'),entity='TTI')[0]==422,'Foreign company bank cannot be selected by target key'
+        assert call(post(targetKey='missing'))[0]==422
+        body=post(targetKey='business_parties:P1:2110',account='6900',party='FORGED PARTY',note='OLD PAYABLE')
         status,data=call(body,user='director');assert status==200,data
         jid=data['result']['journalId'];saved=books.read_bytes()
         j=json.loads(saved)['journals'][jid]
         assert j['date']=='2026-07-01' and j['narration']=='OPENING BALANCE B/F — OLD PAYABLE'
+        assert j['lines'][0]['account']=='2110'
         assert j['lines'][0]['credit']==100 and j['lines'][0]['counterparty']=='ACME RICE'
         assert j['lines'][1]['account']=='3400' and j['lines'][1]['debit']==100
         assert j['totalDebit']==j['totalCredit']==100 and j['approvedBy']=='director'

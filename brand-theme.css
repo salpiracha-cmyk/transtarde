@@ -118,3 +118,13 @@ button:not(.danger):not(.red):not(.xBtn):not(.optionMinus).active{
 @media screen {
  [hidden]{display:none!important}
 }
+
+/* Numeric entry remains numeric in calculations and submits; its visible
+   companion groups thousands and provides a readable screen font. */
+@media screen {
+ .tt-number-entry{display:inline-grid;position:relative;width:100%;min-width:0;vertical-align:middle}
+ .tt-number-entry>input.tt-number-source{position:absolute!important;width:1px!important;height:1px!important;opacity:0!important;padding:0!important;border:0!important;pointer-events:none}
+ .tt-number-entry>input.tt-number-display{width:100%!important;min-width:0!important;font-size:22px!important;line-height:1.4!important;min-height:44px!important;font-variant-numeric:tabular-nums;text-align:right;box-sizing:border-box}
+}
+
+@media print{.tt-number-display{display:none!important}}

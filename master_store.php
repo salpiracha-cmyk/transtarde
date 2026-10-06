@@ -582,7 +582,7 @@ function tt_default_master_options(): array {
     static $cached = null;
     if ($cached !== null) return $cached;
     return $cached = [
-        'party_roles'=>['Buyer','Supplier','Broker','Indentor','Export Buyer','Local Buyer','Customer','Agent','Service Provider','Other'],
+        'party_roles'=>['Buyer','Supplier','Bag Supplier','Labour Contractor','Broker','Indentor','Export Buyer','Local Buyer','Customer','Agent','Service Provider','Other'],
         'product_commodities'=>['Rice','Corn','Sesame Seed'],
         'product_varieties'=>['IRRI-6','C-9','PK-386','Super Kernel Basmati','D-98','1121'],
         'product_rice_types'=>['White','Parboiled','Steam'],

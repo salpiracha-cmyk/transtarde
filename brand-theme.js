@@ -96,3 +96,6 @@
  };
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start);else start();
 })();
+
+// Shared number entry for every authenticated module and management form.
+(()=>{if(document.getElementById('ttNumericEntryScript'))return;const script=document.createElement('script');script.id='ttNumericEntryScript';script.src='/numeric-entry.js?v=20261006-1';document.head.appendChild(script)})();

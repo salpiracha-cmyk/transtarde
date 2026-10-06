@@ -58,13 +58,26 @@ function job_parties(array $s, string $e): array {
     }
     natcasesort($names); return array_values($names);
 }
+/** Management chooses a name; category determines its control account. */
+function job_targets(string $e): array {
+    $map=['Supplier'=>'2110','Broker'=>'2120','Indentor'=>'2120','Local Buyer'=>'1220','Buyer'=>'1210','Customer'=>'1210','Export Buyer'=>'1210','Freight Forwarder'=>'2130','Shipping Line / Carrier'=>'2130','Transporter'=>'2130','Clearing Agent'=>'2130','Inspection'=>'2140','Fumigation'=>'2140','Service Provider'=>'2140','Bag Supplier'=>'2140','Labour Contractor'=>'2140','Agent'=>'2140','Other'=>'2140'];
+    $out=[];
+    foreach(['business_parties','export_customers'] as $type)foreach((array)(tt_list_masters()[$type]??[]) as $r){
+        $v=(array)($r['values']??[]);$name=trim((string)($v[0]??''));if($name===''||strcasecmp((string)($v[10]??'Active'),'Inactive')===0)continue;
+        $roles=$type==='export_customers'?['Export Buyer']:tt_business_party_categories($v[2]??'');
+        $heads=[];foreach($roles as $role)foreach($map as $category=>$code)if(strcasecmp($role,$category)===0)$heads[$code][]=$category;
+        foreach($heads as $code=>$categories)$out[]=['key'=>$type.':'.(string)($r['id']??job_key($name)).':'.$code,'label'=>$name.' — '.implode(' / ',$categories),'name'=>$name,'account'=>(string)$code,'party'=>$name,'bankId'=>'','role'=>$categories[0],'kind'=>'party'];
+    }
+    foreach(job_banks($e) as $b)$out[]=['key'=>'bank:'.$b['id'],'label'=>$b['name'].' — '.$b['currency'],'name'=>$b['name'],'account'=>'1110','party'=>'','bankId'=>$b['id'],'kind'=>'bank'];
+    usort($out,static fn($a,$b)=>strcasecmp($a['label'],$b['label']));return $out;
+}
 function job_balances(array $s, string $e): array {
     $out = [];
     foreach ((array)($s['journals'] ?? []) as $j) {
         if (($j['entity'] ?? '') !== $e || ($j['status'] ?? '') !== 'Posted' || (string)($j['date'] ?? '') > JOB_DATE) continue;
         foreach ((array)($j['lines'] ?? []) as $l) {
             $code = (string)($l['account'] ?? ''); if ($code === JOB_CLEARING) continue;
-            $party = in_array($code,['1110','1120'],true)?'':job_party_name($l,(array)($j['meta']??[]));
+            $party = in_array($code,['1110','1120'],true)||empty(jvw_catalog()[$code]['subledger'])?'':job_party_name($l,(array)($j['meta']??[]));
             $bank = (string)($l['bankAccountId'] ?? $j['meta']['bankAccountId'] ?? '');
             $key = $code.'|'.job_key($party).'|'.$bank;
             $out[$key] ??= ['account'=>$code, 'party'=>$party, 'bankId'=>$bank, 'balance'=>0, 'postIds'=>[]];
@@ -82,7 +95,7 @@ function job_payload(array $s, string $e, array $u): array {
     usort($entries, static fn($a,$b) => strcmp($b['id'], $a['id']));
     $accounts = [];
     foreach (jvw_catalog() as $a) if ((string)$a['code'] !== JOB_CLEARING) $accounts[] = ['code'=>(string)$a['code'], 'name'=>$a['name'], 'requiresSubledger'=>!in_array((string)$a['code'],['1110','1120'],true)&&!empty($a['subledger'])];
-    return ['allowed'=>true, 'enabled'=>($s['openingBalanceSettings'][$e]['enabled'] ?? true) === true, 'canDisable'=>($u['role'] ?? '') === 'Super Admin', 'date'=>JOB_DATE, 'currency'=>$e==='TG'?'AED':'PKR', 'entities'=>job_entities($u), 'accounts'=>$accounts, 'banks'=>job_banks($e), 'parties'=>job_parties($s,$e), 'balances'=>job_balances($s,$e), 'entries'=>$entries];
+    return ['allowed'=>true, 'enabled'=>($s['openingBalanceSettings'][$e]['enabled'] ?? true) === true, 'canDisable'=>($u['role'] ?? '') === 'Super Admin', 'date'=>JOB_DATE, 'currency'=>$e==='TG'?'AED':'PKR', 'entities'=>job_entities($u), 'accounts'=>$accounts, 'banks'=>job_banks($e), 'parties'=>job_parties($s,$e), 'targets'=>job_targets($e), 'balances'=>job_balances($s,$e), 'entries'=>$entries];
 }
 function job_amount(mixed $v, string $label): float {
     if (!is_numeric($v) || !is_finite((float)$v) || (float)$v <= 0 || (float)$v > 100000000000) throw new DomainException($label.' must be a positive amount.');
@@ -92,6 +105,11 @@ function job_post(array &$s, string $e, array $b, array $u): array {
     job_access($u,$e,true);
     if (($s['openingBalanceSettings'][$e]['enabled'] ?? true) !== true) throw new DomainException('Opening balance entry is disabled for these company books.');
     if (($b['date'] ?? JOB_DATE) !== JOB_DATE) throw new DomainException('Opening balance date must be 1 July 2026.');
+    if(!empty($b['targetKey'])){
+        $target=null;foreach(job_targets($e) as $row)if($row['key']===$b['targetKey'])$target=$row;
+        if(!$target)throw new DomainException('This party or bank is no longer available. Refresh and select its current master record.');
+        $b['account']=$target['account'];$b['party']=$target['party'];$b['bankId']=$target['bankId'];
+    }
     $code = trim((string)($b['account'] ?? '')); $catalog = jvw_catalog();
     if ($code === JOB_CLEARING || !isset($catalog[$code])) throw new DomainException('Select an approved opening account.');
     $side = (string)($b['side'] ?? ''); if (!in_array($side,['Debit','Credit'],true)) throw new DomainException('Select Debit or Credit.');

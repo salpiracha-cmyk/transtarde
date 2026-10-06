@@ -773,7 +773,7 @@
       "class": "Expense",
       "level": "general",
       "normal": "Debit",
-      "subledger": true
+      "subledger": false
     },
     {
       "code": "7220",
