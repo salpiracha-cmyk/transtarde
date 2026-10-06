@@ -108,7 +108,15 @@ let posted;
   // Actual Export editor starts at its title and step navigation retains a visible title.
   assert.deepEqual(errors,[]);await page.close();
   page=await browser.newPage({viewport:{width:1400,height:900}});page.on('pageerror',e=>errors.push(e.message));
-  await page.route('https://exports.test/**',r=>r.fulfill({body:'<!doctype html><html><body><div id="app"></div><div id="printRoot"></div></body></html>',contentType:'text/html'}));
+  await page.route('https://exports.test/**',async route=>{
+    const pathname=new URL(route.request().url()).pathname;
+    if(pathname.endsWith('.js')){
+      const asset=path.join(root,pathname.replace(/^\\/+/, ''));
+      if(fs.existsSync(asset))return route.fulfill({body:fs.readFileSync(asset,'utf8'),contentType:'application/javascript'});
+      return route.fulfill({status:404,body:'',contentType:'application/javascript'});
+    }
+    return route.fulfill({body:'<!doctype html><html><body><div id="app"></div><div id="printRoot"></div></body></html>',contentType:'text/html'});
+  });
   await page.goto('https://exports.test/');await page.addStyleTag({content:read('exports/app.css')});
   await page.addScriptTag({content:read('brand-theme.js')});
   await page.addScriptTag({content:read('exports/app.js').replace('mount();restoreContractCheckpoint();','window.__UI_TEST__={startContract};mount();')});
