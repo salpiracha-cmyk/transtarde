@@ -79,10 +79,10 @@ with tempfile.TemporaryDirectory(prefix='opening-jv-qa-') as tmp:
         assert call(post(targetKey='bank:B2'),entity='TTI')[0]==422,'Foreign company bank cannot be selected by target key'
         assert call(post(targetKey='missing'))[0]==422
         assert any(t['key']=='bank:PERSONAL' for t in targets), 'Linked proprietor bank must be available'
-        assert any(t['key']=='business_parties:LAB:2180' for t in targets), 'Labour uses dedicated contractor payable'
-        draft={'action':'submit_jv','date':'2026-10-06','narration':'MANUFACTURING LABOUR','lines':[{'account':'5200','subledger':'MILL LABOUR','debit':100,'credit':0},{'targetKey':'business_parties:LAB:2180','account':'2140','subledger':'FORGED','debit':0,'credit':100}]}
+        assert any(t['key']=='business_parties:LAB:2190' for t in targets), 'Labour uses dedicated contractor payable'
+        draft={'action':'submit_jv','date':'2026-10-06','narration':'MANUFACTURING LABOUR','lines':[{'account':'5200','subledger':'MILL LABOUR','debit':100,'credit':0},{'targetKey':'business_parties:LAB:2190','account':'2140','subledger':'FORGED','debit':0,'credit':100}]}
         status,result=call(draft,scope=False);assert status==200,result
-        lines=json.loads(books.read_text())['jvDrafts'][result['result']['jvId']]['lines'];assert lines[1]['account']=='2180' and lines[1]['subledger']=='MILL LABOUR'
+        lines=json.loads(books.read_text())['jvDrafts'][result['result']['jvId']]['lines'];assert lines[1]['account']=='2190' and lines[1]['subledger']=='MILL LABOUR'
         body=post(targetKey='business_parties:P1:2110',account='6900',party='FORGED PARTY',note='OLD PAYABLE')
         status,data=call(body,user='director');assert status==200,data
         jid=data['result']['journalId'];saved=books.read_bytes()

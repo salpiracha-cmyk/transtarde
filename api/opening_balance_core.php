@@ -58,7 +58,7 @@ function job_parties(array $s, string $e): array {
     }
     natcasesort($names); return array_values($names);
 }
-function job_role_accounts(): array { return ['Supplier'=>'2110','Broker'=>'2120','Indentor'=>'2120','Local Buyer'=>'1220','Buyer'=>'1210','Customer'=>'1210','Export Buyer'=>'1210','Freight Forwarder'=>'2130','Shipping Line / Carrier'=>'2130','Transporter'=>'2130','Clearing Agent'=>'2130','Inspection'=>'2140','Fumigation'=>'2140','Service Provider'=>'2140','Bag Supplier'=>'2140','Labour Contractor'=>'2180','Agent'=>'2140','Other'=>'2140']; }
+function job_role_accounts(): array { return ['Supplier'=>'2110','Broker'=>'2120','Indentor'=>'2120','Local Buyer'=>'1220','Buyer'=>'1210','Customer'=>'1210','Export Buyer'=>'1210','Freight Forwarder'=>'2130','Shipping Line / Carrier'=>'2130','Transporter'=>'2130','Clearing Agent'=>'2130','Inspection'=>'2140','Fumigation'=>'2140','Service Provider'=>'2140','Bag Supplier'=>'2140','Labour Contractor'=>'2190','Agent'=>'2140','Other'=>'2140']; }
 /** Management chooses a name; category determines its control account. */
 function job_targets(string $e): array {
     $map=job_role_accounts();

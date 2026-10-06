@@ -52,7 +52,7 @@ $master=json_decode((string)file_get_contents(dirname(__DIR__).'/accounts/accoun
 $catalog=[];
 // Party balances use receivables, payables, deposits and advances, never the
 // matching bank, inventory, income or expense legs of the same journal.
-$partyAccounts=array_fill_keys(['1210','1220','1230','1240','1250','1400','2110','2120','2130','2140','2150','2160','2170','2180','2210','2220','2400','2500','2510','2520','3100','3200'],true);
+$partyAccounts=array_fill_keys(['1210','1220','1230','1240','1250','1400','2110','2120','2130','2140','2150','2160','2170','2190','2210','2220','2400','2500','2510','2520','3100','3200'],true);
 foreach((array)($master['peopleSubledgers']??[]) as $person)if(is_array($person)&&isset($person['code']))$partyAccounts[(string)$person['code']]=true;
 $missingPartyLines=0;
 $balanceUnavailable=false;
@@ -138,7 +138,7 @@ foreach($journals as $journal){
         if($lineParty===''){$sourceId=(string)($meta['bagBillId']??$meta['billId']??$meta['purchaseId']??'');$source=$store['bagSupplierBills'][$sourceId]??$store['otherPurchases'][$sourceId]??$store['commodityBills'][$sourceId]??[];$lineParty=trim((string)($source['supplier']??$source['broker']??$source['party']??''));}
         if($lineParty===''){$bill=$store['supplierBills'][(string)($meta['supplierBillId']??'')]??[];$lineParty=trim((string)($bill['vendor']??$meta['supplier']??$meta['broker']??$meta['customer']??$meta['counterparty']??''));}
         if($lineParty===''&&!empty($meta['candidateId'])){$candidate=$store['exportCandidates'][(string)$meta['candidateId']]??[];$lineParty=trim((string)($candidate['meta']['customer']??$candidate['meta']['counterparty']??''));}
-        $supplierAccount=in_array($code,['2110','2120','2130','2140','2180','1250','2500'],true);
+        $supplierAccount=in_array($code,['2110','2120','2130','2140','2190','1250','2500'],true);
         $customerAccount=in_array($code,['1210','1220','2160','2510'],true);
         if($category==='party'){
             if(!isset($partyAccounts[$code]))continue;
