@@ -1,7 +1,6 @@
 <?php
 declare(strict_types=1);
 require dirname(__DIR__).'/auth_store.php';
-require_once dirname(__DIR__).'/master_store.php';
 header('Content-Type: application/json; charset=UTF-8');
 header('Cache-Control: no-store, no-cache, must-revalidate');
 const F=TT_DATA_DIR.'/accounts.json';
