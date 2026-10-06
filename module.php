@@ -25,7 +25,7 @@ if ($id === 'exports') {
     if (!is_file($cssFile) || !is_file($jsFile)) { http_response_code(503); exit('Export module assets are unavailable.'); }
     $html = tt_replace_html_once(
         '~<link\b[^>]*href=["\'](?:exports/)?app\.css[^"\']*["\'][^>]*>~i',
-        static fn(): string => '<link rel="stylesheet" href="/exports/app.css">',
+        static fn(): string => '<link rel="stylesheet" href="/export-assets.php?name=app.css">',
         $html
     );
     $receiptBridgeFile = __DIR__ . '/exports/tg-accounts-receipts.js';
@@ -43,7 +43,7 @@ if ($id === 'exports') {
     );
     $html = tt_replace_html_once(
         '~<script\b[^>]*src=["\'](?:exports/)?app\.js[^"\']*["\'][^>]*>\s*</script>~i',
-        static fn(): string => '<script id="exports-app-js" src="/exports/app-runtime.php"></script>',
+        static fn(): string => '<script id="exports-app-js" src="/export-assets.php?name=app.js"></script>',
         $html
     );
 }

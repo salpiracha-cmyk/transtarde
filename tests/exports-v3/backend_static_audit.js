@@ -6,7 +6,7 @@ const root=path.join(__dirname,'../..');
 const mysql=fs.readFileSync(path.join(root,'api/operations.mysql.php'),'utf8');
 const modulePhp=fs.readFileSync(path.join(root,'module.php'),'utf8');
 const runtimeAssets=fs.readFileSync(path.join(root,'exports/runtime_assets.php'),'utf8');
-const runtimeEndpoint=fs.readFileSync(path.join(root,'exports/app-runtime.php'),'utf8');
+const runtimeEndpoint=fs.readFileSync(path.join(root,'export-assets.php'),'utf8');
 const login=fs.readFileSync(path.join(__dirname,'../../login.php'),'utf8');
 const upload=fs.readFileSync(path.join(root,'api/export_documents.php'),'utf8');
 const mastersApi=fs.readFileSync(path.join(__dirname,'../../api/masters.php'),'utf8');
@@ -41,7 +41,7 @@ assert.match(runtimeAssets,/TG_header\.png/);
 assert.match(runtimeAssets,/TG_footer\.png/);
 assert.match(runtimeAssets,/TG_sign\.png/);
 assert.doesNotMatch(runtimeAssets,/TG_(?:header|footer|sign)\.jpg/);
-assert.match(modulePhp,/src="\/exports\/app-runtime\.php"/,'Exports should load cacheable JavaScript separately from the page');
+assert.match(modulePhp,/src="\/export-assets\.php\?name=app\.js"/,'Exports should load cacheable JavaScript separately from the page');
 assert.match(runtimeEndpoint,/tt_user_can_open_module\(\$user,'Exports'\)/,'runtime JavaScript retains module authorization');
 assert.match(runtimeEndpoint,/Cache-Control: private, no-cache, must-revalidate/,'runtime code must revalidate after deployment');
 assert.match(runtimeEndpoint,/http_response_code\(304\)/,'unchanged runtime code should not be retransmitted');
@@ -197,3 +197,5 @@ console.log('PASS backend/static release audit: auth, CSRF, concurrency, self-in
  const hidden=image(true,0);hidden.hidden=true;await context.waitForPrintImages(root([hidden]),1000);
  console.log('PASS print image readiness: cold cache, unavailable artwork, timeout, decoding and hidden images.');
 })().catch(error=>{console.error(error);process.exitCode=1});
+
+assert.equal(fs.readFileSync(path.join(root,'exports/.htaccess'),'utf8').trim(),'Require all denied','Exports source remains private; assets must use the authenticated root route');

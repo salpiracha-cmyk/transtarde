@@ -10,7 +10,7 @@ $raw=(string)file_get_contents(__DIR__.'/../exports/app.js');
 $expected=$raw;
 foreach($assets as $asset){
     $path=__DIR__.'/../exports/assets/'.$asset;
-    $expected=str_replace('assets/'.$asset,'/exports/assets/'.$asset.'?v='.substr(hash_file('sha256',$path),0,16),$expected);
+    $expected=str_replace('assets/'.$asset,'/export-assets.php?name='.$asset.'&v='.substr(hash_file('sha256',$path),0,16),$expected);
 }
 $actual=tt_export_runtime_script();
 check(hash_equals(hash('sha256',$expected),hash('sha256',$actual)),'Runtime delivery changed JavaScript beyond the artwork URLs.');

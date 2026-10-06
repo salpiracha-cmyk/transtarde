@@ -11,7 +11,7 @@ function tt_export_runtime_script(?string $root=null): string {
     foreach(['TTI_header.png','TTI_sign.png','BRM_header.png','BRM_sign.png','TG_header.png','TG_footer.png','TG_sign.png','KCCI_COO_letterpad.jpg'] as $asset){
         $path=$root.'/assets/'.$asset;
         if(!is_file($path)||($hash=hash_file('sha256',$path))===false)throw new RuntimeException('Export document artwork is unavailable.');
-        $url='/exports/assets/'.$asset.'?v='.substr($hash,0,16);
+        $url='/export-assets.php?name='.$asset.'&v='.substr($hash,0,16);
         $js=str_replace('assets/'.$asset,$url,$js);
     }
     return $js;

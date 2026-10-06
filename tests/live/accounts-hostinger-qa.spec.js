@@ -439,7 +439,7 @@ test('read-only Exports and Milling loading, errors and Masters navigation', asy
   test.setTimeout(300_000);
   await signIn(page);
   const failures=[],errors=[],requests=[];
-  page.on('pageerror',error=>errors.push(String(error.message)));
+  page.on('pageerror',error=>{errors.push(String(error.message));console.log('MODULE_JS_ERROR '+String(error.message))});
   page.on('response',response=>{
     const path=new URL(response.url()).pathname;
     if(response.status()>=500)failures.push({path,status:response.status()});
@@ -449,6 +449,7 @@ test('read-only Exports and Milling loading, errors and Masters navigation', asy
     for(let round=0;round<2;round++){
       const started=Date.now();
       const response=await page.goto(BASE_URL+'/module.php?id='+moduleId,{waitUntil:'domcontentloaded',timeout:90_000});
+      console.log('MODULE_STARTUP_STATE '+JSON.stringify(await page.evaluate(()=>({module:window.TT_MODULE_ACCESS?.moduleId,loadError:!!window.TT_EXPORTS_LOAD_ERROR,ready:document.readyState,hasHome:!!document.querySelector('#homeGrid'),hasApp:!!document.querySelector('#app'),runtime:document.querySelector('#exports-app-js')?.getAttribute('src')}))));
       expect(response.status()).toBe(200);
       await expect(page).toHaveTitle(moduleId==='exports'?/Transtrade Exports/:/Transtrade|Milling/i);
       await expect.poll(()=>page.evaluate(()=>window.TT_MODULE_ACCESS?.moduleId),{timeout:30_000}).toBe(moduleId);
@@ -464,16 +465,20 @@ test('read-only Exports and Milling loading, errors and Masters navigation', asy
         initialKeys:Object.keys(window.TT_SHARED_SYNC||{}),loadError:!!window.TT_EXPORTS_LOAD_ERROR
       }));
       console.log('MODULE_LOAD_TIMING '+JSON.stringify({module:moduleId,round,elapsedMs:Date.now()-started,htmlBytes:body.length,inlineImageBytes:(body.toString().match(/data:image[/][^;]+;base64,[A-Za-z0-9+/=]+/g)||[]).reduce((n,s)=>n+s.length,0),serverTiming:response.headers()['server-timing']||'',...metadata}));
-      if(moduleId==='exports'&&round===0&&await page.locator('#exports-app-js[src="/exports/app-runtime.php"]').count()){
-        const runtime=await page.request.get(BASE_URL+'/exports/app-runtime.php');
+      if(moduleId==='exports'&&round===0&&await page.locator('#exports-app-js[src="/export-assets.php?name=app.js"]').count()){
+        const runtime=await page.request.get(BASE_URL+'/export-assets.php?name=app.js');
         expect(runtime.status()).toBe(200);
         const etag=runtime.headers().etag;
         expect(etag).toBeTruthy();
         const script=await runtime.text();
-        expect(script).toContain('/exports/assets/TG_sign.png?v=');
+        expect(script).toContain('/export-assets.php?name=TG_sign.png&v=');
         expect(script).not.toContain('data:image/png;base64,');
-        const unchanged=await page.request.get(BASE_URL+'/exports/app-runtime.php',{headers:{'If-None-Match':etag}});
+        const unchanged=await page.request.get(BASE_URL+'/export-assets.php?name=app.js',{headers:{'If-None-Match':etag}});
         expect(unchanged.status()).toBe(304);
+        const artwork=await page.request.get(BASE_URL+'/export-assets.php?name=TG_sign.png');
+        expect(artwork.status()).toBe(200);expect(artwork.headers()['content-type']).toBe('image/png');
+        const missing=await page.request.get(BASE_URL+'/export-assets.php?name=../auth_store.php');
+        expect(missing.status()).toBe(404);
         console.log('EXPORT_RUNTIME_CACHE_OK '+JSON.stringify({runtimeBytes:Buffer.byteLength(script),conditionalStatus:unchanged.status()}));
       }
     }
