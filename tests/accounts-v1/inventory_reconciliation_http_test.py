@@ -95,7 +95,7 @@ def run() -> None:
         c,d=request('qaexport','/api/operations.mysql.php',{'key':'transtrade_export_v3_operational','value':'{"contracts":[],"shipments":[]}','sourceModule':'Exports','baseVersion':0});check(c==409 and d.get('conflict'),'Version conflict still enforced',(c,d))
         for user,key in [('qamill','tt30mills'),('qaexport','tt30bags'),('qaaccountswrite','tt39salarymaster')]:
             c,d=request(user,'/api/operations.php',{'key':key,'value':'[]'});check(c==409,'Legacy save cannot bypass ownership: '+user,(c,d))
-        bag=[{'id':'QA-BRIDGE-BAG','_ttBridge':'exports','_ttBridgeId':'QA-PO-L1','brand':'QA BRAND','received':0}]
+        bag=[{'id':'QA-BRIDGE-BAG','_ttBridge':'exports','_ttBridgeId':'QA-PO-L1','brand':'QA BRAND','ordered':100,'received':0,'size':'50 kg','tare':'100 g','poNo':'QA-PO-01','supplier':'QA Supplier','mill':'QA Second Mill','isMasterBag':False,'status':'Order from Export — Awaiting Receipt'}]
         c,d=request('qaexport','/api/operations.mysql.php',{'key':'tt30bags','value':json.dumps(bag),'sourceModule':'Exports','baseVersion':0});check(c==200,'Exports creates bag instruction',(c,d))
         bag[0]['received']=15;post('tt30bags',bag)
         view=get('qaexport');ver=view['meta']['tt30bags']['version'];bag[0]['brand']='QA AMENDED'
