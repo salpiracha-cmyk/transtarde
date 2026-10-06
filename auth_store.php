@@ -1,5 +1,14 @@
 <?php
 declare(strict_types=1);
+// Durations only: no identities, record values, paths or credentials.
+$GLOBALS['ttRequestTiming']=['start'=>hrtime(true),'session'=>0.0,'store_wait'=>0.0,'store_read'=>0.0,'store_decode'=>0.0,'store_reads'=>0];
+header_register_callback(static function(): void {
+    $t=$GLOBALS['ttRequestTiming'];
+    $parts=['app;dur='.number_format((hrtime(true)-$t['start'])/1e6,2,'.','')];
+    foreach(['session','store_wait','store_read','store_decode'] as $key)$parts[]=$key.';dur='.number_format($t[$key],2,'.','');
+    $parts[]='store_reads;desc="'.(int)$t['store_reads'].'"';
+    header('Server-Timing: '.implode(', ',$parts),false);
+});
 require_once __DIR__ . '/product_stage.php';
 
 // Keep live credentials and master records outside public_html. Hostinger Git
@@ -112,6 +121,7 @@ session_set_cookie_params([
     'secure' => tt_request_is_https(),
     'httponly' => true, 'samesite' => 'Strict',
 ]);
+$ttSessionTimingStart=hrtime(true);
 tt_configure_session_storage();
 require_once __DIR__ . '/session_store.php';
 $ttSessionStore=new TTAtomicSessionStore(session_save_path());
@@ -136,6 +146,8 @@ if (session_status() !== PHP_SESSION_ACTIVE) {
     if(!$ttSessionOpened)throw new RuntimeException('Your session could not be opened.');
     unset($ttSessionOpened);
 }
+$GLOBALS['ttRequestTiming']['session']=(hrtime(true)-$ttSessionTimingStart)/1e6;
+unset($ttSessionTimingStart);
 // Session-dependent responses, including anonymous redirects, must bypass shared caches.
 header('Cache-Control: private, no-store, no-cache, must-revalidate, max-age=0');
 header('Pragma: no-cache');
@@ -276,7 +288,11 @@ function tt_auth_clear_failures(string $scope,string $identity,bool $bindIp=true
 
 function tt_read_store(): array {
     tt_ensure_data_dir();
+    $started=hrtime(true);
     $lock=tt_open_store_lock(LOCK_SH);
+    $GLOBALS['ttRequestTiming']['store_wait']+=(hrtime(true)-$started)/1e6;
+    $GLOBALS['ttRequestTiming']['store_reads']++;
+    $started=hrtime(true);
     try {
         if(!is_file(TT_STORE_FILE))return tt_empty_store();
         $handle=fopen(TT_STORE_FILE,'rb');
@@ -285,8 +301,11 @@ function tt_read_store(): array {
         if($raw===false)throw new RuntimeException('Secure storage could not be read.');
     } finally {
         flock($lock,LOCK_UN);fclose($lock);
+        $GLOBALS['ttRequestTiming']['store_read']+=(hrtime(true)-$started)/1e6;
     }
-    return tt_decode_store($raw);
+    $started=hrtime(true);
+    try { return tt_decode_store($raw); }
+    finally { $GLOBALS['ttRequestTiming']['store_decode']+=(hrtime(true)-$started)/1e6; }
 }
 
 function tt_mutate_store(callable $callback): mixed {

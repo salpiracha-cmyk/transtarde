@@ -42,6 +42,7 @@ function traceSessionNavigation(page) {
     const [headers, requestHeaders] = await Promise.all([response.allHeaders(), response.request().allHeaders()]);
     trace.push({
       ms: Date.now() - started, path, status: response.status(),
+      serverTiming:headers['server-timing']||'',
       serverWaitMs:Math.round(response.request().timing().responseStart-response.request().timing().requestStart),
       location: headers.location || '', method: response.request().method(),
       sentSessionCookie: /(?:^|;\s*)TRANSTRADE_SESSION=/.test(requestHeaders.cookie || ''),
