@@ -80,7 +80,7 @@ foreach((array)(tt_list_masters()['banks']??[]) as $bank){
         (str_contains($linked,'TRANSTRADE INTERNATIONAL')||preg_match('/(^|\W)TTI($|\W)/',$linked)));
     if(!$belongs||!in_array(($v[0]??''),['Company Account','Proprietor / Owner Account','Personal Account'],true))continue;
     $id=(string)($bank['id']??'');if($id==='')continue;
-    $banks[$id]=['code'=>'BANK|'.$id,'name'=>trim((string)($v[4]??'Bank')).' · '.trim((string)($v[3]??'')).' · '.strtoupper((string)($v[7]??'')).' · '.trim((string)($v[8]??$v[9]??'')),'currency'=>strtoupper((string)($v[7]??''))];
+    $banks[$id]=['code'=>'BANK|'.$id,'name'=>trim((string)($v[4]??'Bank')).' · '.trim((string)($v[3]??'')).' · '.strtoupper((string)($v[7]??'')).' · '.(trim((string)($v[8]??''))!==''?(string)$v[8]:(string)($v[9]??'')),'currency'=>strtoupper((string)($v[7]??''))];
 }
 $catalog['POSTS']='Post ID Register';
 foreach($banks as $bank)$catalog[$bank['code']]=$bank['name'];
@@ -100,7 +100,7 @@ if($requestedPost!==''){
         $belongs=$owner==='TG'?(str_contains($linked,'TRANS GRAINS')||preg_match('/(^|\W)TG($|\W)/',$linked)):
             ($owner==='BRM'?(str_contains($linked,'BUKSH RICE')||preg_match('/(^|\W)BRM($|\W)/',$linked)):
             (str_contains($linked,'TRANSTRADE INTERNATIONAL')||preg_match('/(^|\W)TTI($|\W)/',$linked)));
-        if($belongs)$postBanks[]=['id'=>(string)($bank['id']??''),'label'=>trim((string)($v[4]??'').' · '.(string)($v[3]??'').' · '.(string)($v[7]??''))];
+        if($belongs)$postBanks[]=['id'=>(string)($bank['id']??''),'label'=>trim((string)($v[4]??'').' · '.(string)($v[3]??'').' · '.(string)($v[7]??'').' · '.(trim((string)($v[8]??''))!==''?(string)$v[8]:(string)($v[9]??'')))];
     }
     echo json_encode(['ok'=>true,'entity'=>$posting['entity'],'post'=>$posting,'bankAccounts'=>$postBanks],JSON_UNESCAPED_UNICODE);exit;
 }
