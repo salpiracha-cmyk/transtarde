@@ -171,6 +171,7 @@ jobs:
       - name: PHP syntax audit
         run: |
           php tests/runtime_delivery_test.php
+          python3 tests/operations_compression_http_test.py
           php tests/runtime_asset_version_test.php
           php tests/security/retired_owner_cleanup_test.php
           python3 tests/security/private_session_storage_test.py

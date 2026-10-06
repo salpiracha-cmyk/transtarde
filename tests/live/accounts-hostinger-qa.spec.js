@@ -464,6 +464,18 @@ test('read-only Exports and Milling loading, errors and Masters navigation', asy
         initialKeys:Object.keys(window.TT_SHARED_SYNC||{}),loadError:!!window.TT_EXPORTS_LOAD_ERROR
       }));
       console.log('MODULE_LOAD_TIMING '+JSON.stringify({module:moduleId,round,elapsedMs:Date.now()-started,htmlBytes:body.length,inlineImageBytes:(body.toString().match(/data:image[/][^;]+;base64,[A-Za-z0-9+/=]+/g)||[]).reduce((n,s)=>n+s.length,0),serverTiming:response.headers()['server-timing']||'',...metadata}));
+      if(moduleId==='exports'&&round===0&&await page.locator('#exports-app-js[src="/exports/app-runtime.php"]').count()){
+        const runtime=await page.request.get(BASE_URL+'/exports/app-runtime.php');
+        expect(runtime.status()).toBe(200);
+        const etag=runtime.headers().etag;
+        expect(etag).toBeTruthy();
+        const script=await runtime.text();
+        expect(script).toContain('/exports/assets/TG_sign.png?v=');
+        expect(script).not.toContain('data:image/png;base64,');
+        const unchanged=await page.request.get(BASE_URL+'/exports/app-runtime.php',{headers:{'If-None-Match':etag}});
+        expect(unchanged.status()).toBe(304);
+        console.log('EXPORT_RUNTIME_CACHE_OK '+JSON.stringify({runtimeBytes:Buffer.byteLength(script),conditionalStatus:unchanged.status()}));
+      }
     }
     await page.locator('#ttMasterTop').click();
     await expect(page).toHaveURL(BASE_URL+'/index.php?view=masters&from='+moduleId,{timeout:30_000});

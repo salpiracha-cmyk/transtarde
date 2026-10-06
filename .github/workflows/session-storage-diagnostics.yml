@@ -77,6 +77,14 @@ jobs:
               $start=hrtime(true);$data=json_decode($raw,true);$decode=(hrtime(true)-$start)/1e6;
               $samples[]=['readMs'=>round($read,3),'decodeMs'=>round($decode,3),'lockMs'=>round($wait,3)];
               $out['storageReadProfile'][$name]=['bytes'=>strlen($raw),'validJson'=>json_last_error()===JSON_ERROR_NONE,'samples'=>$samples,'busySamples'=>$busy];
+              if($name==='operations.json'&&$i===0){
+                $out['operationsPayloadProfile']=['storedBytes'=>strlen($raw),'gzipBytes'=>function_exists('gzencode')?strlen(gzencode($raw,6)):null,'keys'=>[]];
+                foreach((array)($data['values']??[])as$key=>$value){
+                  if(!is_string($value))continue;
+                  $out['operationsPayloadProfile']['keys'][]=['key'=>(string)$key,'bytes'=>strlen($value),'inlineImageCount'=>substr_count($value,'data:image/')];
+                }
+                usort($out['operationsPayloadProfile']['keys'],static fn($a,$b)=>$b['bytes']<=>$a['bytes']);
+              }
               unset($data,$raw);
             }
           }

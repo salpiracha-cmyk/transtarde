@@ -11,7 +11,19 @@ header('Cache-Control: no-store, no-cache, must-revalidate');
 
 function operations_respond(array $data, int $status = 200): never {
     http_response_code($status);
-    echo json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    $body=json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    header('Vary: Accept-Encoding');
+    // Keep the exact shared-state contract; reduce only its transfer size.
+    $accept=(string)($_SERVER['HTTP_ACCEPT_ENCODING']??'');
+    if(function_exists('gzencode')&&!ini_get('zlib.output_compression')&&
+       preg_match('/(?:^|,)\\s*gzip(?:\\s*;\\s*q=([0-9.]+))?\\s*(?:,|$)/i',$accept,$match)&&
+       (!isset($match[1])||(float)$match[1]>0)){
+        $compressed=gzencode($body,6);
+        if($compressed!==false&&strlen($compressed)<strlen($body)){
+            header('Content-Encoding: gzip');$body=$compressed;
+        }
+    }
+    echo $body;
     exit;
 }
 

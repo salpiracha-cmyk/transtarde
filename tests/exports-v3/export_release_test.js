@@ -206,7 +206,7 @@ assert.match(source,/master\.printed=false/,'a new Bag Order never defaults Prin
 assert.match(source,/approvedContractPriceItem/,'each packing price block is atomic across printed pages');
 assert.match(source,/contractPaymentBlock/,'the complete payment block moves together when a page fills');
 assert.doesNotMatch(source,/querySelector\('\.stamp'\)\?\.remove\(\)/,'the sent Production Instructions stamp is never removed by a later renderer');
-assert.match(source,/const imageNodes=\[\.\.\.root\.querySelectorAll\('img'\)\],pending=/,'print waits for document artwork using declared local variables');
+assert.match(source,/const images=\[\.\.\.root\.querySelectorAll\('img'\)\]/,'print waits for document artwork using a declared local variable');
 assert.doesNotMatch(source,/,images=\[/,'print must never create the undeclared images variable that broke Review and Save\/Print');
 assert.match(source,/const issuedContract=state\.contracts\.find\(x=>x\.id===contractDraft\.id&&x\.issued\);[\s\S]{0,120}checkpointContractDraft\(\);return true/,'an issued-contract amendment stays attached to its existing contract and shipment');
 assert.match(source,/contractSplitWorkspace/);
