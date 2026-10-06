@@ -27,6 +27,45 @@ async function activate(locator) {
   await locator.evaluate(element => element.click());
 }
 
+
+function traceSessionNavigation(page) {
+  const trace = [];
+  const started = Date.now();
+  page.on('response', response => {
+    const path = new URL(response.url()).pathname;
+    if (!['/login.php','/logout.php','/index.php','/accounts/index.php','/api/session_activity.php','/accounts/app-bundle.php'].includes(path)) return;
+    const headers = response.headers();
+    const requestHeaders = response.request().headers();
+    trace.push({
+      ms: Date.now() - started, path, status: response.status(),
+      location: headers.location || '', method: response.request().method(),
+      sentSessionCookie: /(?:^|;\s*)TRANSTRADE_SESSION=/.test(requestHeaders.cookie || ''),
+      setsSessionCookie: /TRANSTRADE_SESSION=/.test(headers['set-cookie'] || ''),
+      fetchSite: requestHeaders['sec-fetch-site'] || '',
+      server: headers.server || '', cache: headers['x-cache'] || headers['cf-cache-status'] || ''
+    });
+    if (trace.length > 60) trace.shift();
+  });
+  return trace;
+}
+
+async function returnFromMasters(page, trace) {
+  const before = (await page.context().cookies()).find(cookie => cookie.name === 'TRANSTRADE_SESSION');
+  await activate(page.locator('#masterBackTop'));
+  try {
+    await expect(page).toHaveURL(/\/accounts\/index\.php$/, { timeout: 30_000 });
+  } catch (error) {
+    const after = (await page.context().cookies()).find(cookie => cookie.name === 'TRANSTRADE_SESSION');
+    console.log('SESSION_NAVIGATION_DIAGNOSTICS ' + JSON.stringify({
+      trace, finalPath: new URL(page.url()).pathname,
+      cookieBefore: before ? {domain:before.domain,path:before.path,secure:before.secure,sameSite:before.sameSite} : null,
+      cookieAfter: after ? {domain:after.domain,path:after.path,secure:after.secure,sameSite:after.sameSite} : null,
+      sessionCookieChanged: before?.value !== after?.value
+    }));
+    throw error;
+  }
+}
+
 async function responsive(page, label) {
   const elapsed = await page.evaluate(() => new Promise(resolve => {
     const started = performance.now();
@@ -53,6 +92,7 @@ async function closeWorkspace(page) {
 
 test('authenticated Accounts live smoke: professional desk and popup workflows', async ({ page }) => {
   test.setTimeout(480_000);
+  const sessionTrace = traceSessionNavigation(page);
   const pageErrors = [];
   const failedRequests = [];
   const failedResponses = [];
@@ -128,8 +168,7 @@ test('authenticated Accounts live smoke: professional desk and popup workflows',
   await expect(page.locator('#view-masters')).toBeVisible({ timeout: 30_000 });
   await expect(page.locator('#masterTitle')).toBeVisible();
   await expect(page.locator('#masterBackTop')).toHaveAccessibleName('Close Master Records and return to Accounts');
-  await activate(page.locator('#masterBackTop'));
-  await expect(page).toHaveURL(/\/accounts\/index\.php$/, { timeout: 30_000 });
+  await returnFromMasters(page, sessionTrace);
   await expect.poll(() => page.evaluate(() => window.TT_ACCOUNTING_DESK?.installed || false), { timeout: 30_000 }).toBe(true);
 
   await deskAction(page, 'exports', 'Bank Receipt / Credit Advice');
