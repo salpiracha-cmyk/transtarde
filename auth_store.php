@@ -27,6 +27,7 @@ register_shutdown_function(static function(): void {
     $entry['sessionWarnings']=array_values(array_unique(array_intersect((array)($GLOBALS['ttSessionStartupWarnings']??[]),['other','decode','permission','disk-full','open-file-limit','headers-sent','read','write','storage-init','open'])));
     $entry['sessionSerializer']=ini_get('session.serialize_handler');
     $entry['sessionHandler']=ini_get('session.save_handler');
+    $entry['sessionInput']=$GLOBALS['ttSessionInputMetadata']??null;
     $log=TT_DATA_DIR.'/sessions/runtime-errors.json';$handle=@fopen($log,'c+');if($handle===false)return;
     if(!@flock($handle,LOCK_EX|LOCK_NB)){fclose($handle);return;}
     try{$rows=json_decode(stream_get_contents($handle)?:'[]',true);$rows=is_array($rows)?$rows:[];$rows[]=$entry;$json=json_encode(array_slice($rows,-100),JSON_UNESCAPED_SLASHES);if($json!==false){rewind($handle);ftruncate($handle,0);fwrite($handle,$json);fflush($handle);@chmod($log,0600);}}
@@ -116,6 +117,32 @@ session_set_cookie_params([
 tt_configure_session_storage();
 $ttIncomingSession=(string)($_COOKIE[session_name()]??'');
 $ttIncomingFile=ini_get('session.save_handler')==='files'&&preg_match('/^[A-Za-z0-9,-]{1,256}$/D',$ttIncomingSession)?is_file(session_save_path().'/sess_'.$ttIncomingSession):false;
+if($ttIncomingFile){
+    $input=@fopen(session_save_path().'/sess_'.$ttIncomingSession,'rb');
+    if($input!==false){
+        if(flock($input,LOCK_SH)){
+            $raw=stream_get_contents($input);$length=is_string($raw)?strlen($raw):0;
+            $format=$length===0?'empty':(str_starts_with($raw,'a:')?'serialized-array':(ord($raw[0])<32?'binary':'php-delimited'));
+            $offset=0;
+            while($format==='php-delimited'&&$offset<$length){
+                $delimiter=strpos($raw,'|',$offset);
+                if($delimiter===false){$format='malformed-delimited';break;}
+                $key=substr($raw,$offset,$delimiter-$offset);
+                if(!in_array($key,['csrf','user_id','auth_version','authenticated_at','last_activity_at'],true)){$format='other-key';break;}
+                $tail=substr($raw,$delimiter+1);$decoded=@unserialize($tail,['allowed_classes'=>false]);
+                if($decoded===false&&!str_starts_with($tail,'b:0;')){$format='malformed-delimited';break;}
+                if(!is_string($decoded)&&!is_int($decoded)&&!is_bool($decoded)){$format='other-value';break;}
+                $encoded=serialize($decoded);
+                if(!str_starts_with($tail,$encoded)){$format='malformed-delimited';break;}
+                $offset=$delimiter+1+strlen($encoded);
+            }
+            $GLOBALS['ttSessionInputMetadata']=['format'=>$format,'bytes'=>$length];
+            unset($raw,$tail,$decoded,$encoded,$key);flock($input,LOCK_UN);
+        }
+        fclose($input);
+    }
+    unset($input,$length,$format,$offset,$delimiter);
+}
 if (session_status() !== PHP_SESSION_ACTIVE) {
     // Keep diagnostic data to fixed categories; never retain warning text or IDs.
     set_error_handler(static function(int $severity,string $message): bool {
