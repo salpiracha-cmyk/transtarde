@@ -463,10 +463,10 @@ test('read-only Exports and Milling loading, errors and Masters navigation', asy
         resources:performance.getEntriesByType('resource').filter(r=>new URL(r.name).origin===location.origin).map(r=>({path:new URL(r.name).pathname,ms:Math.round(r.duration),bytes:r.transferSize})),
         initialKeys:Object.keys(window.TT_SHARED_SYNC||{}),loadError:!!window.TT_EXPORTS_LOAD_ERROR
       }));
-      console.log('MODULE_LOAD_TIMING '+JSON.stringify({module:moduleId,round,elapsedMs:Date.now()-started,htmlBytes:body.length,inlineImageBytes:(body.toString().match(/data:image\\/[^;]+;base64,[A-Za-z0-9+/=]+/g)||[]).reduce((n,s)=>n+s.length,0),serverTiming:response.headers()['server-timing']||'',...metadata}));
+      console.log('MODULE_LOAD_TIMING '+JSON.stringify({module:moduleId,round,elapsedMs:Date.now()-started,htmlBytes:body.length,inlineImageBytes:(body.toString().match(/data:image[/][^;]+;base64,[A-Za-z0-9+/=]+/g)||[]).reduce((n,s)=>n+s.length,0),serverTiming:response.headers()['server-timing']||'',...metadata}));
     }
     await page.locator('#ttMasterTop').click();
-    await expect(page).toHaveURL(new RegExp('/index\\.php\\?view=masters&from='+moduleId+'$'),{timeout:30_000});
+    await expect(page).toHaveURL(BASE_URL+'/index.php?view=masters&from='+moduleId,{timeout:30_000});
     await expect(page.locator('#masterBackTop')).toBeVisible({timeout:30_000});
     await page.locator('#masterBackTop').click();
     await expect.poll(()=>page.evaluate(()=>window.TT_MODULE_ACCESS?.moduleId),{timeout:30_000}).toBe(moduleId);

@@ -121,6 +121,7 @@ jobs:
         continue-on-error: true # Screenshot storage quota must not override functional test results.
         if: always()
         uses: actions/upload-artifact@v4
+        continue-on-error: true
         with:
           name: export-document-browser-qa
           path: tmp/qa/
