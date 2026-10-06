@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__.'/fi_credit_advice_link.php';
+require_once __DIR__.'/operations_policy.php';
 
 require dirname(__DIR__) . '/auth_store.php';
 require dirname(__DIR__) . '/backup_lib.php';
@@ -365,6 +366,7 @@ function operations_validate_lot_reopening(string $oldJson, string $incomingJson
 function operations_merge_export(string $currentJson, string $incomingJson, string $sourceModule): string {
     $current = json_decode($currentJson, true);
     $incoming = json_decode($incomingJson, true);
+    if (in_array($sourceModule, ['Accounts','Mill','Milling'], true) && (!is_array($current) || !isset($current['contracts'], $current['shipments']) || !is_array($current['contracts']) || !is_array($current['shipments']))) throw new DomainException('Exports must initialize its records before another module can add updates.');
     if (!is_array($current)) return $incomingJson;
     if (!is_array($incoming)) return $currentJson;
     $applyTombstones = static function (array $merged) use ($current, $incoming, $sourceModule): array {
@@ -561,6 +563,7 @@ function operations_file_fallback(array $user): never {
     json_decode($value,true); if (json_last_error()!==JSON_ERROR_NONE) operations_respond(['ok'=>false,'error'=>'Operational data must be valid JSON.'],422);
     if (!in_array($sourceModule,['Exports','Mill','Milling','Accounts','Super Admin'],true)) operations_respond(['ok'=>false,'error'=>'Invalid source module.'],422);
     if (!operations_can_write($user,$sourceModule)) operations_respond(['ok'=>false,'error'=>'Create or Edit permission is required for this module.'],403);
+    operations_validate_key_module($user,$sourceModule,$key);
     if(in_array($key,TT_INV_PRIVATE_KEYS,true))operations_respond(['ok'=>false,'error'=>'Reconciliation is maintained by the server; open the Accounts or Directors report.'],403);
     if($key===TT_INV_CONFIRMATIONS && !tt_inv_has_action($user,'Mill',['stock','export'],'Create') && !tt_inv_has_action($user,'Mill',['stock','export'],'Edit'))operations_respond(['ok'=>false,'error'=>'Stock confirmation permission required.'],403);
     tt_maybe_auto_backup();
@@ -574,9 +577,10 @@ function operations_file_fallback(array $user): never {
         else {
             if(str_contains($value,TT_INV_ARTWORK_URL))$value=tt_inv_restore_artwork($value,tt_inv_public_values((array)($store['values']??[]))['values']);
             if(strlen($value)>16*1024*1024)throw new InvalidArgumentException('Operational data is too large.');
-            if ($key==='transtrade_export_v3_operational' && $old!=='') { operations_validate_lot_reopening($old,$value,$user,$sourceModule); $value=operations_merge_export($old,$value,$sourceModule); }
+            operations_validate_export_bridge($key,$old,$value,$sourceModule,(string)($store['values']['transtrade_export_v3_operational']??''));
+            if ($key==='transtrade_export_v3_operational') { operations_validate_lot_reopening($old,$value,$user,$sourceModule); $value=operations_merge_export($old,$value,$sourceModule); }
             if ($key==='tt40exinstructions') operations_validate_exmill_completion($value,(string)($store['values']['tt35exload']??'[]'));
-            if ($key==='tt35exload') operations_validate_exmill_completion((string)($store['values']['tt40exinstructions']??'[]'),$value);
+            if ($key==='tt35exload' && $sourceModule!=='Exports') operations_validate_exmill_completion((string)($store['values']['tt40exinstructions']??'[]'),$value);
             $now=gmdate('c');$beforeValues=(array)($store['values']??[]);
             $value=tt_inv_prepare_write($beforeValues,$key,$value,$user,$now);
             $nextValues=$beforeValues;$nextValues[$key]=$value;
@@ -649,6 +653,7 @@ try {
         operations_respond(['ok' => false, 'error' => 'Create or Edit permission is required for this module.'], 403);
     }
 
+    operations_validate_key_module($user,$sourceModule,$key);
     if(in_array($key,TT_INV_PRIVATE_KEYS,true))operations_respond(['ok'=>false,'error'=>'Reconciliation is maintained by the server; open the Accounts or Directors report.'],403);
     if($key===TT_INV_CONFIRMATIONS && !tt_inv_has_action($user,'Mill',['stock','export'],'Create') && !tt_inv_has_action($user,'Mill',['stock','export'],'Edit'))operations_respond(['ok'=>false,'error'=>'Stock confirmation permission required.'],403);
     tt_maybe_auto_backup();
@@ -678,7 +683,13 @@ try {
         $value=tt_inv_restore_artwork($value,tt_inv_public_values($referenceValues)['values']);
         if(strlen($value)>16*1024*1024)throw new InvalidArgumentException('Operational data is too large.');
     }
-    if ($key === 'transtrade_export_v3_operational' && $oldPayload !== '') {
+    $exportRoot='';
+    if($sourceModule==='Exports' && $key!=='transtrade_export_v3_operational'){
+        $rootRead=$db->prepare('SELECT payload FROM tt_operation_records WHERE storage_key = ? FOR SHARE');
+        $rootRead->execute(['transtrade_export_v3_operational']);$exportRoot=(string)($rootRead->fetchColumn()?:'');
+    }
+    operations_validate_export_bridge($key, $oldPayload, $value, $sourceModule, $exportRoot);
+    if ($key === 'transtrade_export_v3_operational') {
         operations_validate_lot_reopening($oldPayload, $value, $user, $sourceModule);
         $value = operations_merge_export($oldPayload, $value, $sourceModule);
     }
@@ -687,7 +698,7 @@ try {
         $readLoads->execute(['tt35exload']);
         operations_validate_exmill_completion($value,(string)($readLoads->fetchColumn()?:'[]'));
     }
-    if ($key === 'tt35exload') {
+    if ($key === 'tt35exload' && $sourceModule !== 'Exports') {
         $readInstructions=$db->prepare('SELECT payload FROM tt_operation_records WHERE storage_key = ?');
         $readInstructions->execute(['tt40exinstructions']);
         operations_validate_exmill_completion((string)($readInstructions->fetchColumn()?:'[]'),$value);

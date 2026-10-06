@@ -86,6 +86,7 @@ jobs:
           node tests/offline_recovery_audit.js
       - name: Private stock reconciliation rules
         run: |
+          php tests/security/operations_ownership_test.php
           php tests/accounts-v1/inventory_reconciliation_test.php
           node tests/accounts-v1/inventory_reconciliation_ui_test.js
           python3 tests/accounts-v1/inventory_reconciliation_http_test.py

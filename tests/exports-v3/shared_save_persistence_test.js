@@ -36,4 +36,6 @@ function fixture({quota=false,initial='{"shipments":[]}',moduleId='exports'}={})
  console.log('PASS pipeline hold releases correctly and non-local storage keeps native errors');
  f=fixture({moduleId:'milling',quota:true});f.c.localStorage.setItem('tt30bags','[{"id":1}]');p=f.c.TT_SHARED_SYNC.saveNow();f.ack(0);await p;assert.equal(f.c.TT_SHARED_SYNC.readCommitted('tt30bags'),'[{"id":1}]');assert.equal(f.requests[0].body.sourceModule,'Milling');
  console.log('PASS Milling storage keys retain acknowledged save semantics');
+ f=fixture();f.c.localStorage.setItem('tt40exportreceipts','[{"id":"CACHE"}]');await f.c.TT_SHARED_SYNC.saveNow();assert.equal(f.requests.length,0);assert.equal(f.c.localStorage.getItem('tt40exportreceipts'),'[{"id":"CACHE"}]');console.log('PASS Accounts receipt projection remains local and never enters shared write queue');
+ f=fixture();f.c.localStorage.setItem('tt30bags','[]');f.c.localStorage.setItem(STORE,a);p=f.c.TT_SHARED_SYNC.saveNow();assert.equal(f.requests.length,1);assert.equal(f.requests[0].body.key,STORE);f.ack(0);await tick();assert.equal(f.requests.length,2);assert.equal(f.requests[1].body.key,'tt30bags');f.ack(1);await p;console.log('PASS Export root acknowledges before dependent bridge writes');
 })().catch(error=>{console.error(error);process.exitCode=1});

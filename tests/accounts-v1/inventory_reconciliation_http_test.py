@@ -15,6 +15,7 @@ $root=__DIR__;if(!str_starts_with(basename($root),'tti-stock-http-'))throw new R
 require $root.'/repo/auth_store.php';$pw=bin2hex(random_bytes(20));$users=[];$rw=['View','Create','Edit'];
 foreach(['qaowner'=>['Super Admin',['Mill'=>'all','Accounts'=>'all','Directors'=>'all','Exports'=>'all']],
 'qamill'=>['Mill Operator',['Mill'=>['stock'=>$rw,'production'=>$rw,'export'=>$rw,'arrival'=>$rw,'queue'=>$rw,'reports'=>['View']]]],
+'qaaccountswrite'=>['Accounts Writer',['Accounts'=>['reports'=>['View'],'expenses'=>['View','Create','Edit']]]],
 'qaaccounts'=>['Accounts Operator',['Accounts'=>['reports'=>['View'],'entity-tti'=>['View']]]],
 'qadirector'=>['Director',['Directors'=>['reports'=>['View']]]],
 'qaexport'=>['Export Operator',['Exports'=>'all']],
@@ -79,6 +80,31 @@ def run() -> None:
             c,d=request(user,'/stock-reconciliation.php?entity=TTI');check(c==403,'Financial report denied to '+user,c)
         for user,entity,expected in [('qaaccounts','TTI',200),('qaaccounts','BRM',403),('qadirector','BRM',200)]:
             c,d=request(user,'/stock-reconciliation.php?entity='+entity);check(c==expected,'Financial report company scope '+user+' '+entity,c)
+        before=get('qaaccountswrite')
+        for user,module,key in [('qaaccountswrite','Accounts','tt39salarymaster'),('qaexport','Exports','tt39salarymaster'),('qamill','Mill','tt99fabricated'),('qaexport','Super Admin','tt30mills'),('qaexport','Milling','tt30mills')]:
+            c,d=request(user,'/api/operations.mysql.php',{'key':key,'value':'[]','sourceModule':module,'baseVersion':0})
+            check(c==403,'Target ownership: '+user+' '+module+' '+key,(c,d))
+        after=get('qaaccountswrite');check(before['values']==after['values'] and before['meta']==after['meta'],'Denied writes preserve payloads and versions')
+        for user,module in [('qaaccountswrite','Accounts'),('qamill','Milling')]:
+            c,d=request(user,'/api/operations.mysql.php',{'key':'transtrade_export_v3_operational','value':'{"contracts":[{"ref":"FORGED"}],"shipments":[]}','sourceModule':module,'baseVersion':0})
+            check(c==403,'Only Exports initializes its root: '+module,(c,d))
+        c,d=request('qaexport','/api/operations.mysql.php',{'key':'transtrade_export_v3_operational','value':'{"contracts":[],"shipments":[],"accountsReceipts":[]}','sourceModule':'Exports','baseVersion':0});check(c==200,'Exports initializes its root',(c,d))
+        version=d['keyVersion']
+        c,d=request('qaaccountswrite','/api/operations.mysql.php',{'key':'transtrade_export_v3_operational','value':'{"contracts":[{"ref":"FORGED"}],"shipments":[{"id":"FORGED"}],"accountsReceipts":[{"id":"QA-RECEIPT"}]}','sourceModule':'Accounts','baseVersion':version})
+        check(c==200 and json.loads(d['value'])['contracts']==[] and json.loads(d['value'])['shipments']==[] and json.loads(d['value'])['accountsReceipts'][0]['id']=='QA-RECEIPT','Accounts projection preserves Export records',(c,d))
+        c,d=request('qaexport','/api/operations.mysql.php',{'key':'transtrade_export_v3_operational','value':'{"contracts":[],"shipments":[]}','sourceModule':'Exports','baseVersion':0});check(c==409 and d.get('conflict'),'Version conflict still enforced',(c,d))
+        for user,key in [('qamill','tt30mills'),('qaexport','tt30bags'),('qaaccountswrite','tt39salarymaster')]:
+            c,d=request(user,'/api/operations.php',{'key':key,'value':'[]'});check(c==409,'Legacy save cannot bypass ownership: '+user,(c,d))
+        bag=[{'id':'QA-BRIDGE-BAG','_ttBridge':'exports','_ttBridgeId':'QA-PO-L1','brand':'QA BRAND','received':0}]
+        c,d=request('qaexport','/api/operations.mysql.php',{'key':'tt30bags','value':json.dumps(bag),'sourceModule':'Exports','baseVersion':0});check(c==200,'Exports creates bag instruction',(c,d))
+        bag[0]['received']=15;post('tt30bags',bag)
+        view=get('qaexport');ver=view['meta']['tt30bags']['version'];bag[0]['brand']='QA AMENDED'
+        c,d=request('qaexport','/api/operations.mysql.php',{'key':'tt30bags','value':json.dumps(bag),'sourceModule':'Exports','baseVersion':ver});check(c==200 and json.loads(d['value'])[0]['received']==15,'Export amendment preserves Mill receipt',(c,d))
+        view=get('qaexport');ver=view['meta']['tt30bags']['version'];bag[0]['received']=999
+        c,d=request('qaexport','/api/operations.mysql.php',{'key':'tt30bags','value':json.dumps(bag),'sourceModule':'Exports','baseVersion':ver});check(c==403,'Exports cannot forge Mill receipt',(c,d))
+        bag[0]['received']=True
+        c,d=request('qaexport','/api/operations.mysql.php',{'key':'tt30bags','value':json.dumps(bag),'sourceModule':'Exports','baseVersion':ver});check(c==403,'Boolean cannot replace a positive Mill quantity',(c,d))
+        after=get('qaexport');check(after['values']['tt30bags']==view['values']['tt30bags'] and after['meta']['tt30bags']['version']==ver,'Rejected bridge write preserves payload and version')
         post('tt34ghati',[],expected=403)
         post('tt30prod',[],user='qaview',expected=403)
         c,d=request('qamill','/api/operations.php',{'key':'tt34nilqueue','value':'[]'});check(c==409,'Legacy write cannot bypass server-owned ledger')

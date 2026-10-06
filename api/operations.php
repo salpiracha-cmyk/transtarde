@@ -66,44 +66,10 @@ try {
     if (strlen($raw) > 16 * 1024 * 1024) operations_respond(['ok' => false, 'error' => 'Operational update is too large.'], 413);
     $body = json_decode($raw, true);
     if (!is_array($body) || !tt_verify_csrf((string)($body['csrf'] ?? ''))) operations_respond(['ok' => false, 'error' => 'Your session expired. Refresh and try again.'], 419);
-    tt_maybe_auto_backup();
-    $key = (string)($body['key'] ?? '');
-    $value = $body['value'] ?? null;
-    if (!operations_key_allowed($key) || !is_string($value)) operations_respond(['ok' => false, 'error' => 'Invalid operational update.'], 422);
-    if(in_array($key,TT_INV_PRIVATE_KEYS,true)||in_array($key,TT_INV_SOURCE_KEYS,true))operations_respond(['ok'=>false,'error'=>'Use the current operational save endpoint for this record.'],409);
-    json_decode($value, true);
-    if (json_last_error() !== JSON_ERROR_NONE) operations_respond(['ok' => false, 'error' => 'Operational data must be valid JSON.'], 422);
+    // Legacy clients lack ownership and version checks. Preserve reads; all
+    // writes must use the current authenticated operational API.
+    operations_respond(['ok'=>false,'error'=>'Use the current operational save endpoint for this record.'],409);
 
-    tt_ensure_data_dir();
-    $handle = fopen(TT_OPERATIONS_FILE, 'c+');
-    if ($handle === false || !flock($handle, LOCK_EX)) throw new RuntimeException('Shared operational storage is unavailable.');
-    try {
-        rewind($handle);
-        $existing = stream_get_contents($handle);
-        $store = $existing ? json_decode($existing, true) : null;
-        if (!is_array($store)) $store = ['revision' => 0, 'values' => [], 'meta' => []];
-        $old = (string)($store['values'][$key] ?? '');
-        if (!hash_equals(hash('sha256', $old), hash('sha256', $value))) {
-            $store['values'][$key] = $value;
-            $store['revision'] = (int)($store['revision'] ?? 0) + 1;
-            $store['meta'][$key] = [
-                'updatedAt' => gmdate('c'),
-                'updatedBy' => (string)($user['full_name'] ?? $user['username'] ?? 'Staff'),
-                'userId' => (int)($user['id'] ?? 0),
-            ];
-            rewind($handle);
-            if (!ftruncate($handle, 0)) throw new RuntimeException('Shared operational storage could not be updated.');
-            $encoded = json_encode($store, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
-            if (fwrite($handle, $encoded) === false) throw new RuntimeException('Shared operational storage could not be written.');
-            fflush($handle);
-        }
-        $revision = (int)($store['revision'] ?? 0);
-    } finally {
-        flock($handle, LOCK_UN);
-        fclose($handle);
-    }
-
-    operations_respond(['ok' => true, 'revision' => $revision, 'updatedAt' => gmdate('c')]);
 } catch (Throwable $e) {
     operations_respond(['ok' => false, 'error' => 'The shared operational update could not be completed.'], 500);
 }

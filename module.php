@@ -115,6 +115,9 @@ $sharedBootstrap = <<<'HTML'
   function flush(retry=true){
     if(retry)failedKeys.clear();
     for(const [key,value] of [...pending]){
+      // Commit the Export request first; linked deletion writes must be checked
+      // against its acknowledged tombstone, never a browser-only deletion.
+      if(access.moduleId==='exports'&&key!==EXPORT_STORE&&(pending.has(EXPORT_STORE)||inFlight.has(EXPORT_STORE)||failedKeys.has(EXPORT_STORE)))continue;
       if(inFlight.has(key)||failedKeys.has(key))continue;
       pending.delete(key);
       inFlight.add(key);
@@ -125,7 +128,7 @@ $sharedBootstrap = <<<'HTML'
   }
   // Local form changes stay local. Only an explicit final workflow action
   // calls saveNow(), which creates the durable recovery entry before upload.
-  function queue(key,value){if(!allowed(key)||applying)return;if(!pending.has(key))queuedBase.set(key,Number(keyVersions.get(key)||0));pending.set(key,String(value))}
+  function queue(key,value){if(!allowed(key)||key==='tt40exportreceipts'||applying)return;if(!pending.has(key))queuedBase.set(key,Number(keyVersions.get(key)||0));pending.set(key,String(value))}
   Storage.prototype.getItem=function(k){return this===localStorage&&cacheFallback.has(String(k))?cacheFallback.get(String(k)):originalGet.call(this,k)};
   Storage.prototype.setItem=function(k,v){if(this===localStorage){directSet(k,v);queue(String(k),String(v))}else originalSet.call(this,k,v)};
   Storage.prototype.removeItem=function(k){originalRemove.call(this,k);if(this===localStorage)cacheFallback.delete(String(k))};
