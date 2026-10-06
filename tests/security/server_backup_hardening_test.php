@@ -4,7 +4,7 @@ declare(strict_types=1);
 $root=sys_get_temp_dir().'/tti-backup-'.bin2hex(random_bytes(8));
 $app=$root.'/app';
 if(!mkdir($app,0700,true))throw new RuntimeException('Could not create the disposable backup test directory.');
-foreach(['auth_store.php','master_store.php','product_stage.php','offline_idempotency.php','backup_lib.php'] as $file){
+foreach(['auth_store.php','master_store.php','product_stage.php','offline_idempotency.php','session_store.php','backup_lib.php'] as $file){
     if(!copy(__DIR__.'/../../'.$file,$app.'/'.$file))throw new RuntimeException('Could not prepare '.$file);
 }
 
@@ -73,4 +73,5 @@ try{
     backup_expect(($healthy['backupHealthy']??false)===true&&(int)($healthy['consecutiveFailures']??-1)===0,'A verified snapshot must clear the prior failure state.');
     backup_expect(count(glob(TT_DATA_DIR.'/backup_state.json.tmp-*')?:[])===0,'Atomic backup state writes must not leave temporary files.');
     echo "PASS verified, bounded and observable server backups\n";
-}finally{backup_remove_tree($root);}
+}finally{
+    if(session_status()===PHP_SESSION_ACTIVE)session_write_close();backup_remove_tree($root);}

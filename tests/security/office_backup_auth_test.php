@@ -2,7 +2,7 @@
 declare(strict_types=1);
 $root=sys_get_temp_dir().'/tti-office-'.bin2hex(random_bytes(8));
 $app=$root.'/app';mkdir($app,0700,true);
-foreach(['auth_store.php','master_store.php','product_stage.php','offline_idempotency.php','office_backup_auth.php'] as $file)copy(__DIR__.'/../../'.$file,$app.'/'.$file);
+foreach(['auth_store.php','master_store.php','product_stage.php','offline_idempotency.php','session_store.php','office_backup_auth.php'] as $file)copy(__DIR__.'/../../'.$file,$app.'/'.$file);
 try {
     require $app.'/auth_store.php';require $app.'/office_backup_auth.php';
     if(tt_office_backup_enabled())throw new RuntimeException('Credential must be absent before setup.');
@@ -15,6 +15,7 @@ try {
     if(tt_office_backup_enabled()||tt_office_backup_token_valid($second))throw new RuntimeException('Revocation failed.');
     echo "PASS isolated office backup credential lifecycle\n";
 } finally {
+    if(session_status()===PHP_SESSION_ACTIVE)session_write_close();
     foreach(glob($root.'/transtrade_private/*')?:[] as $path)@unlink($path);
     @rmdir($root.'/transtrade_private');
     foreach(glob($app.'/*')?:[] as $path)@unlink($path);

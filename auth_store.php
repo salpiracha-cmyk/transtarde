@@ -105,9 +105,7 @@ function tt_configure_session_storage(): void {
 
 ini_set('session.use_strict_mode', '1');
 ini_set('session.use_only_cookies', '1');
-// All routes/workers must read the same existing PHP-delimited session format.
-// PHP otherwise destroys a valid file when a worker uses a different codec.
-ini_set('session.serialize_handler', 'php');
+// Legacy file migration below runs before installing the atomic record handler.
 session_name('TRANSTRADE_SESSION');
 session_set_cookie_params([
     'lifetime' => 0, 'path' => '/',
@@ -115,34 +113,14 @@ session_set_cookie_params([
     'httponly' => true, 'samesite' => 'Strict',
 ]);
 tt_configure_session_storage();
-$ttIncomingSession=(string)($_COOKIE[session_name()]??'');
-$ttIncomingFile=ini_get('session.save_handler')==='files'&&preg_match('/^[A-Za-z0-9,-]{1,256}$/D',$ttIncomingSession)?is_file(session_save_path().'/sess_'.$ttIncomingSession):false;
-if($ttIncomingFile){
-    $input=@fopen(session_save_path().'/sess_'.$ttIncomingSession,'rb');
-    if($input!==false){
-        if(flock($input,LOCK_SH)){
-            $raw=stream_get_contents($input);$length=is_string($raw)?strlen($raw):0;
-            $format=$length===0?'empty':(str_starts_with($raw,'a:')?'serialized-array':(ord($raw[0])<32?'binary':'php-delimited'));
-            $offset=0;
-            while($format==='php-delimited'&&$offset<$length){
-                $delimiter=strpos($raw,'|',$offset);
-                if($delimiter===false){$format='malformed-delimited';break;}
-                $key=substr($raw,$offset,$delimiter-$offset);
-                if(!in_array($key,['csrf','user_id','auth_version','authenticated_at','last_activity_at'],true)){$format='other-key';break;}
-                $tail=substr($raw,$delimiter+1);$decoded=@unserialize($tail,['allowed_classes'=>false]);
-                if($decoded===false&&!str_starts_with($tail,'b:0;')){$format='malformed-delimited';break;}
-                if(!is_string($decoded)&&!is_int($decoded)&&!is_bool($decoded)){$format='other-value';break;}
-                $encoded=serialize($decoded);
-                if(!str_starts_with($tail,$encoded)){$format='malformed-delimited';break;}
-                $offset=$delimiter+1+strlen($encoded);
-            }
-            $GLOBALS['ttSessionInputMetadata']=['format'=>$format,'bytes'=>$length];
-            unset($raw,$tail,$decoded,$encoded,$key);flock($input,LOCK_UN);
-        }
-        fclose($input);
-    }
-    unset($input,$length,$format,$offset,$delimiter);
+require_once __DIR__ . '/session_store.php';
+$ttSessionStore=new TTAtomicSessionStore(session_save_path());
+if(session_status()!==PHP_SESSION_ACTIVE){
+    ini_set('session.serialize_handler','php_serialize');
+    if(!session_set_save_handler($ttSessionStore,true))throw new RuntimeException('Private session storage could not be selected.');
 }
+$ttIncomingSession=(string)($_COOKIE[session_name()]??'');
+$ttIncomingFile=$ttIncomingSession!==''&&$ttSessionStore->validateId($ttIncomingSession);
 if (session_status() !== PHP_SESSION_ACTIVE) {
     // Keep diagnostic data to fixed categories; never retain warning text or IDs.
     set_error_handler(static function(int $severity,string $message): bool {
@@ -163,7 +141,7 @@ header('Cache-Control: private, no-store, no-cache, must-revalidate, max-age=0')
 header('Pragma: no-cache');
 header('X-LiteSpeed-Cache-Control: no-cache');
 // Diagnostic enums never contain cookies, session IDs, user values or filesystem paths.
-header('X-TT-Auth-Revision: 20261006-session-cache-1');
+header('X-TT-Auth-Revision: 20261006-atomic-session-1');
 header('X-TT-Session-Handler: '.ini_get('session.save_handler'));
 header('X-TT-Session-Serializer: '.ini_get('session.serialize_handler'));
 header('X-TT-Session-Node: '.substr(hash('sha256',(string)gethostname()),0,12));

@@ -4,7 +4,7 @@ declare(strict_types=1);
 $root=sys_get_temp_dir().'/tti-security-'.bin2hex(random_bytes(8));
 $app=$root.'/app';
 if(!mkdir($app,0700,true))throw new RuntimeException('Could not create the disposable test directory.');
-foreach(['auth_store.php','master_store.php','product_stage.php','offline_idempotency.php'] as $file){
+foreach(['auth_store.php','master_store.php','product_stage.php','offline_idempotency.php','session_store.php'] as $file){
     if(!copy(__DIR__.'/../../'.$file,$app.'/'.$file))throw new RuntimeException('Could not prepare '.$file);
 }
 
@@ -45,6 +45,7 @@ try{
     expect(tt_setup_locked(),'The persistent setup lock must prevent setup from reopening.');
     echo "PASS setup and secure-store hardening\n";
 }finally{
+    if(session_status()===PHP_SESSION_ACTIVE)session_write_close();
     putenv('TT_SETUP_TOKEN');
     remove_tree($root);
 }
