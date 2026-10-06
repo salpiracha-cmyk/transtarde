@@ -169,6 +169,9 @@ jobs:
       - name: PHP syntax audit
         run: |
           php tests/runtime_delivery_test.php
+          php tests/runtime_asset_version_test.php
+          php tests/security/retired_owner_cleanup_test.php
+          node tests/accounts-v1/director_bank_approval_ui_test.js
           php -l module.php
           php -l runtime_html.php
           php -l module_release.php

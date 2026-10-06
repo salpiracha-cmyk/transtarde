@@ -1,10 +1,11 @@
 <?php
 declare(strict_types=1);
 require __DIR__ . '/../auth_store.php';
+require_once __DIR__ . '/../runtime_html.php';
 require_once __DIR__.'/../inventory_reconciliation.php';
 require_once __DIR__.'/../api/assets_registry_core.php';
 $user=tt_require_login();
-if (($user['role'] ?? '')!=='Super Admin' && !tt_user_can_open_module($user,'Directors')) {
+if (!tt_user_can_open_module($user,'Directors')) {
     http_response_code(403); exit('You do not have permission to open the Directors module.');
 }
 if (!empty($user['must_change_password'])) { header('Location: ../change-password.php'); exit; }
@@ -12,6 +13,7 @@ $access=[
     'module'=>'Directors','user'=>(string)($user['full_name']??''),'role'=>(string)($user['role']??''),
     'permissions'=>$user['permissions']['Directors']??[], 'super'=>(($user['role']??'')==='Super Admin'), 'csrf'=>tt_csrf()
 ];
+ob_start();
 ?>
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Transtrade Directors</title>
@@ -28,11 +30,27 @@ $access=[
 <script>
 (()=>{'use strict';
  const access=window.TT_DIRECTORS_ACCESS||{},root=document.getElementById('bankDeletionApprovals');
+ let companies=[];
  const esc=v=>String(v??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
  async function call(body=null){const r=await fetch('../api/masters.php',body?{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({...body,csrf:access.csrf})}:{credentials:'same-origin',headers:{Accept:'application/json'}});let d={};try{d=await r.json()}catch{}if(!r.ok||!d.ok)throw new Error(d.error||'Bank approvals could not be loaded.');return d}
- function render(rows){const pending=(rows||[]).filter(x=>x.status==='Pending');root.className=pending.length?'':'empty';root.innerHTML=pending.length?pending.map(x=>'<div class="alarm critical"><b>'+esc(x.company)+' · '+esc(x.bank)+'</b><small>'+esc(x.requestedBy)+' · '+esc(x.reason)+'</small><div style="margin-top:8px;display:flex;gap:7px"><button class="btn primary" data-bank-approval="'+esc(x.id)+'" data-decision="Approve">Approve</button><button class="btn" data-bank-approval="'+esc(x.id)+'" data-decision="Reject">Reject</button></div></div>').join(''):'No bank deletion approvals are waiting.'}
- async function load(){try{const d=await call();render(d.bankDeletionRequests)}catch(e){root.className='alarm critical';root.textContent=e.message}}
- root?.addEventListener('click',async e=>{const b=e.target.closest('[data-bank-approval]');if(!b)return;b.disabled=true;try{const d=await call({action:'review-bank-deletion',requestId:b.dataset.bankApproval,decision:b.dataset.decision});render(d.bankDeletionRequests)}catch(err){alert(err.message);b.disabled=false}});
+ function replacement(request){
+  const company=companies.find(x=>String(x.id)===String(request.companyId));let banks=[];
+  try{banks=JSON.parse(company?.values?.[13]||'[]')}catch{}
+  if(!Array.isArray(banks))banks=[];
+  const bank=banks.find(x=>String(x.id)===String(request.bankId));
+  const choices=banks.filter(x=>String(x.id)!==String(request.bankId)&&String(x.currency).toUpperCase()===String(bank?.currency).toUpperCase()&&String(x.status||'Active').toLowerCase()!=='inactive'&&['Company Account','Proprietor / Owner Account','Personal Account'].includes(x.accountType||'Company Account')&&!!String(x.accountNumber||x.iban||'').trim());
+  return {required:!!bank?.isDefault,choices};
+ }
+ function render(rows){
+  const pending=(rows||[]).filter(x=>x.status==='Pending');root.className=pending.length?'':'empty';
+  root.innerHTML=pending.length?pending.map(x=>{
+   const r=replacement(x),field=r.required?'<label>Replacement default <select data-bank-replacement="'+esc(x.id)+'"><option value="">Choose replacement</option>'+r.choices.map(bank=>'<option value="'+esc(bank.id)+'">'+esc(bank.bankName)+' · '+esc(bank.accountTitle)+' · '+esc(bank.accountNumber||bank.iban)+'</option>').join('')+'</select></label>':'';
+   return '<div class="alarm critical"><b>'+esc(x.company)+' · '+esc(x.bank)+'</b><small>'+esc(x.requestedBy)+' · '+esc(x.reason)+'</small>'+field+'<div style="margin-top:8px;display:flex;gap:7px"><button class="btn primary" data-bank-approval="'+esc(x.id)+'" data-decision="Approve"'+(r.required&&!r.choices.length?' disabled title="Add an eligible replacement default bank first"':'')+'>Approve</button><button class="btn" data-bank-approval="'+esc(x.id)+'" data-decision="Reject">Reject</button></div></div>';
+  }).join(''):'No bank deletion approvals are waiting.';
+ }
+ async function load(){try{const d=await call();companies=d.masters?.companies||[];render(d.bankDeletionRequests)}catch(e){root.className='alarm critical';root.textContent=e.message}}
+ root?.addEventListener('click',async e=>{const b=e.target.closest('[data-bank-approval]');if(!b)return;const select=b.closest('.alarm')?.querySelector('[data-bank-replacement]'),replacementBankId=select?.value||'';if(b.dataset.decision==='Approve'&&select&&!replacementBankId){alert('Choose a replacement default bank in the same currency.');select.focus();return}b.disabled=true;try{const d=await call({action:'review-bank-deletion',requestId:b.dataset.bankApproval,decision:b.dataset.decision,replacementBankId});companies=d.masters?.companies||[];render(d.bankDeletionRequests)}catch(err){alert(err.message);b.disabled=false}});
  load();
 })();
 </script></body></html>
+<?php echo tt_version_local_assets((string)ob_get_clean(),'/directors/'); ?>

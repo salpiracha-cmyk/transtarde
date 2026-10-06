@@ -235,4 +235,4 @@ if ($id === 'exports') $brandBody .= '<script src="/customer-contract-options.js
 if ($id === 'milling') $brandBody .= '<script src="/milling-quality-identity.js?v=20260910-1"></script>';
 $bodyPos = strripos($html, '</body>');
 if ($bodyPos !== false) $html = substr_replace($html, $accountsSourceBridge.$guard.$brandBody, $bodyPos, 0); else $html .= $accountsSourceBridge.$guard.$brandBody;
-echo $html;
+echo tt_version_local_assets($html);

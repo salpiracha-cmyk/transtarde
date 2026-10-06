@@ -28,6 +28,8 @@ This rule applies across Super Admin, Milling, Exports, Accounts, Directors, sta
 - Data is committed only by the screen's final explicit action, such as **Next**, **Save**, **Confirm**, **Issue**, **Post**, **Create**, **Complete**, or the equivalent action for that workflow.
 - Shared cross-module synchronization may run as a consequence of that explicit committed action, but it must not independently save a draft or replace a form being edited.
 - A page may load the latest shared state once when opened. Later remote changes require an intentional user refresh/reopen action; they must not interrupt active entry.
+- The acknowledgement of the user's explicit Save/Next/Confirm may update that record's committed status and version. It must preserve entered values, focus and scroll, and must not rebuild another active form or save another draft. Navigation occurs only as part of the action selected by the user.
+- The customer-master read described below is a narrow exception for committed reference data. It is not permission for timed transaction refresh or autosave. Such reads must preserve active entry; transaction changes from other users are reconciled on intentional refresh/reopen, with conflicts handled rather than overwritten.
 
 ## Committed customer master corrections — Exports
 
@@ -89,3 +91,8 @@ Every request requiring Director approval must also appear in the Super Admin Co
 
 - Opening an icon, form, step or reused popup must bring its heading and first relevant editable input into view. Reset the actual scrollable popup/window as well as the page. A delayed load must not move the form after the user starts typing or scrolling; background refreshes must keep their position. Do not automatically summon the phone keyboard. Use the shared `TT_FORM_VIEWPORT` implementation.
 - Keep the controlling dropdown/tick visible. Show dependent input boxes and sections only when the selected option makes them applicable. Reopening saved records restores the appropriate fields from their saved choices. Hide inapplicable fields without deleting historical values or changing financial calculations, permission checks or posting rules.
+
+## Retired test-data cleanup and asset delivery
+
+- Opening Super Admin or any module must never run a destructive test-data migration. The September Parties cleanup is retired, including its compatibility function; restoring an older store without its marker must not clear current masters. Preserve existing migration and audit history.
+- Authenticated PHP pages version existing local JavaScript/CSS assets by their content hash when assembling HTML. External resources and dynamic PHP bundles retain their own delivery rules. Inline application scripts remain literal.

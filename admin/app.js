@@ -1237,7 +1237,9 @@
     if(retention.disabled)retention.checked=false;
   }
   function eligibleDefaultBank(bank) {
-    return bank.status!=="Inactive"&&!!(bank.accountNumber||bank.iban);
+    return String(bank.status||"Active").toLowerCase()!=="inactive"
+      &&["Company Account","Proprietor / Owner Account","Personal Account"].includes(bank.accountType||"Company Account")
+      &&!!String(bank.accountNumber||bank.iban||"").trim();
   }
   async function saveBankDialog(event) {
     event.preventDefault();
