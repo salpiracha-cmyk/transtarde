@@ -79,8 +79,8 @@ function installSaveWrapper(){
  return true
 }
 function installSyncWrapper(){
- const sync=window.TT_SHARED_SYNC;if(!sync?.saveNow||sync.__officeHooked)return false;
- const original=sync.saveNow.bind(sync);sync.saveNow=async(...args)=>{const before=state(),result=await original(...args),after=state();try{const last=readJSON(MARKERS,null);if(last)for(const s of changedShipments(before,after))void officeSaveShipment(s,'confirmed-change');writeJSON(MARKERS,marker(after))}catch(error){console.warn('Office archive marker unavailable',error)}return result};sync.__officeHooked=true;
+ const sync=window.TT_SHARED_SYNC;if(!sync||sync.__officeHooked)return false;
+ sync.__officeHooked=true;
  return true
 }
 function boot(){installSaveWrapper();installSyncWrapper();if(!localStorage.getItem(MARKERS))writeJSON(MARKERS,marker(state()))}

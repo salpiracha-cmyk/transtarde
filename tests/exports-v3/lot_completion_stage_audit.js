@@ -19,5 +19,9 @@ assert.match(app,/function requeueCompletedShipmentFolder\(button,s,c\)[\s\S]*sa
 const requeue=app.slice(app.indexOf('function requeueCompletedShipmentFolder'),app.indexOf('\nfunction recordUploadedDocument'));
 assert.doesNotMatch(requeue,/saveNow/,'completed lot office-folder requeue must not wait on a new shared save');
 assert.match(app,/QUEUE OFFICE FOLDER/,'completed lot view exposes an explicit Office Agent requeue action');
+assert.match(app,/function millActualsIssues\(s\)[\s\S]*seal number\(s\) missing/,'Mill loading status reports the exact blocking reason instead of only a count');
+assert.match(app,/phyto:\{label:'Phytosanitary Certificate'[\s\S]*phytosanitary/,'Phytosanitary uploads satisfy phyto certificate requirements');
+const uploadHandler=app.slice(app.indexOf('button.onclick=async()=>',app.indexOf('function renderUploadDocuments')),app.indexOf('\n };\n}',app.indexOf('function renderUploadDocuments')));
+assert.doesNotMatch(uploadHandler,/saveShipmentFolder/,'document uploads must not build the full office shipment package during normal saves');
 
-console.log('PASS lot completion stage audit: final-output-only placement, upload gates, original dispatch gates, completed-lot hiding, click-time revalidation');
+console.log('PASS lot completion stage audit: final-output-only placement, upload gates, exact mill/doc checks, completed-lot hiding, click-time revalidation');
