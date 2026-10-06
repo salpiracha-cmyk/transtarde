@@ -2,7 +2,7 @@ const {JSDOM}=require('jsdom'),fs=require('node:fs'),assert=require('node:assert
 (async()=>{
 const dom=new JSDOM('<form><label>Amount<input id="amount" name="amount" class="sum" type="number" min="0.01" step="0.01" value="1234.50" required></label><input id="rate" type="number" step="0.000001"><input id="reference" value="2026-00123"></form>',{runScripts:'outside-only',url:'https://fixture.test'}),w=dom.window;
 const observers=[],Native=w.MutationObserver;w.MutationObserver=class extends Native{constructor(cb){super(cb);observers.push(this)}};
-w.eval(fs.readFileSync('numeric-entry.js','utf8'));w.TT_NUMERIC_ENTRY.refresh();
+w.eval(fs.readFileSync('brand-theme.js','utf8'));w.TT_NUMERIC_ENTRY.refresh();
 const original=w.document.getElementById('amount'),proxy=original.nextElementSibling,form=original.form;
 assert.equal(proxy.value,'1,234.50');assert.equal(original.value,'1234.50');assert.equal(w.document.querySelectorAll('.sum').length,1,'Numeric calculations must not count a companion field twice');
 let events=0,total=0;original.oninput=e=>{events++;total=Number(e.target.value)*2};
@@ -10,6 +10,7 @@ const enter=value=>{proxy.focus();proxy.value=value;proxy.setSelectionRange(valu
 enter('1234567.89');assert.equal(proxy.value,'1,234,567.89');assert.equal(original.valueAsNumber,1234567.89);assert.equal(total,2469135.78);assert.equal(events,1);assert.equal(new w.FormData(form).get('amount'),'1234567.89');assert.equal(proxy.selectionStart,12);
 enter('1234.');assert.equal(proxy.value,'1,234.');assert.equal(original.valueAsNumber,1234);enter('1234.50');assert.equal(proxy.value,'1,234.50');
 enter('-2');assert.equal(original.validity.rangeUnderflow,true);enter('abc');assert.equal(original.validity.customError,true);enter('0.001');assert.equal(original.validity.stepMismatch,true);enter('12.25');assert.equal(original.checkValidity(),true);
+original.focus();assert.equal(w.document.activeElement,original,'Existing native controls retain programmatic focus and fill behavior');Object.getOwnPropertyDescriptor(w.HTMLInputElement.prototype,'value').set.call(original,'38000');original.dispatchEvent(new w.Event('input',{bubbles:true}));assert.equal(proxy.value,'38,000');assert.equal(total,76000);
 original.value='2000000.00';assert.equal(proxy.value,'2,000,000.00');assert.equal(original.value,'2000000.00');
 const rate=w.document.getElementById('rate');rate.value='3.670001';assert.equal(rate.nextElementSibling.value,'3.670001');assert.equal(rate.valueAsNumber,3.670001);
 original.disabled=true;await new Promise(setImmediate);assert.equal(proxy.disabled,true);original.disabled=false;
