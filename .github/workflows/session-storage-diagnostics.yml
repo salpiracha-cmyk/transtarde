@@ -63,6 +63,23 @@ jobs:
             $out['sessionFormatCounts'][$format]=($out['sessionFormatCounts'][$format]??0)+1;
           }
           $flight=$sessions.'/runtime-errors.json';$out['runtimeFatalClassifications']=is_file($flight)?json_decode(file_get_contents($flight),true):[];
+          $out['storageReadProfile']=[];
+          foreach(['auth.json','accounts.json','operations.json'] as $name){
+            $file=$private.'/'.$name;if(!is_file($file)||is_link($file))continue;
+            $samples=[];$busy=0;
+            for($i=0;$i<5;$i++){
+              $lockPath=$name==='auth.json'?$private.'/auth.lock':$file;
+              $lock=@fopen($lockPath,'rb');if(!$lock)continue;
+              $start=hrtime(true);if(!flock($lock,LOCK_SH|LOCK_NB)){$busy++;fclose($lock);continue;}
+              $wait=(hrtime(true)-$start)/1e6;$start=hrtime(true);
+              $raw=file_get_contents($file);$read=(hrtime(true)-$start)/1e6;
+              flock($lock,LOCK_UN);fclose($lock);if(!is_string($raw))continue;
+              $start=hrtime(true);$data=json_decode($raw,true);$decode=(hrtime(true)-$start)/1e6;
+              $samples[]=['readMs'=>round($read,3),'decodeMs'=>round($decode,3),'lockMs'=>round($wait,3)];
+              $out['storageReadProfile'][$name]=['bytes'=>strlen($raw),'validJson'=>json_last_error()===JSON_ERROR_NONE,'samples'=>$samples,'busySamples'=>$busy];
+              unset($data,$raw);
+            }
+          }
           echo json_encode($out,JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES)."\n";
           PHP
           REMOTE
