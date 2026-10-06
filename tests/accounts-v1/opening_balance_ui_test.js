@@ -6,7 +6,7 @@ async function scenario(privileged,standalone=false){
  const observers=[],NativeObserver=w.MutationObserver;w.MutationObserver=class extends NativeObserver{constructor(callback){super(callback);observers.push(this)}};
  const cleanup=()=>{observers.forEach(observer=>observer.disconnect());dom.window.close()};
  const payload=structuredClone(base);if(!privileged)payload.opening={allowed:false};
- let calls=[],viewport=0;w.TT_ACCOUNT_ACCESS={csrf:'test'};w.TT_OPENING_ONLY=standalone;w.TT_FORM_VIEWPORT={open:()=>viewport++};w.localStorage.setItem('tt_accounts_entity','TTI');
+ let calls=[],viewport=0,summaryRefresh=0;w.TT_ACCOUNTING_DESK={refreshAttention:()=>summaryRefresh++};w.TT_ACCOUNT_ACCESS={csrf:'test'};w.TT_OPENING_ONLY=standalone;w.TT_FORM_VIEWPORT={open:()=>viewport++};w.localStorage.setItem('tt_accounts_entity','TTI');
  w.fetch=async(url,opt)=>{calls.push({url,body:opt.body?JSON.parse(opt.body):null});return {ok:true,json:async()=>({...payload,result:{journalId:'2026-00001'}})}};
  w.eval(source);await w.TT_JV_WORKFLOW.load();const q=id=>w.document.getElementById(id);
  if(!privileged){assert.equal(q('jvwOpeningTick'),null);assert.ok(q('jvwLines'));const select=w.document.querySelector('.jvw-account');assert.ok([...select.options].some(o=>o.textContent.includes('MILL LABOUR')));select.value='party:LAB';select.dispatchEvent(new w.Event('change'));assert.equal(w.document.querySelector('.jvw-subledger').value,'MILL LABOUR');await new Promise(setImmediate);cleanup();return}
@@ -16,7 +16,7 @@ async function scenario(privileged,standalone=false){
  input('jvwOpeningAccount','2110 · Supplier Payables');assert.equal(q('jvwOpeningPartyBox').hidden,false);assert.equal(q('jvwOpeningBankBox').hidden,true);
  input('jvwOpeningParty','ACME RICE');input('jvwOpeningAmount','125');q('jvwOpeningSide').value='Credit';
  assert.equal(q('jvwOpeningPost').disabled,false);assert.equal(calls.length,1,'Typing and changing fields must not fetch or save');
- await q('jvwOpeningPost').onclick();assert.equal(calls.length,2);const posted=calls[1].body;
+ await q('jvwOpeningPost').onclick();assert.equal(calls.length,2);assert.equal(summaryRefresh,1,'A committed opening must refresh the visible bank summary');const posted=calls[1].body;
  assert.equal(posted.date,'2026-07-01');assert.equal(posted.side,'Credit');assert.equal(posted.amount,'125');assert.equal(posted.party,'ACME RICE');assert.equal(posted.lines,undefined);assert.ok(posted.requestKey);assert.equal(posted.action,'post_opening_balance');
  if(standalone)assert.ok(calls[0].url.includes('scope=opening'));
  input('jvwOpeningAccount','ACME RICE');assert.equal(q('jvwOpeningParty').value,'ACME RICE');assert.equal(q('jvwOpeningPartyBox').hidden,true);assert.ok(q('jvwOpeningResolved').textContent.includes('2110'));
