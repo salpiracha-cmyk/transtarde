@@ -11,6 +11,7 @@ $id = strtolower((string)($_GET['id'] ?? ''));
 if (!isset($modules[$id]) || !is_file($modules[$id])) { http_response_code(404); exit('Module not found.'); }
 $permissionName = $id === 'milling' ? 'Mill' : 'Exports';
 if (!tt_user_can_open_module($user, $permissionName)) { http_response_code(403); exit('You do not have permission to open this module.'); }
+tt_release_read_session();
 header('Content-Type: text/html; charset=UTF-8');
 header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');
 header('Pragma: no-cache');
@@ -22,18 +23,9 @@ if ($id === 'exports') {
     $cssFile = __DIR__ . '/exports/app.css';
     $jsFile = __DIR__ . '/exports/app.js';
     if (!is_file($cssFile) || !is_file($jsFile)) { http_response_code(503); exit('Export module assets are unavailable.'); }
-    $css = (string)file_get_contents($cssFile);
-    $js = (string)file_get_contents($jsFile);
-    foreach (['TTI_header.png','TTI_sign.png','BRM_header.png','BRM_sign.png','TG_header.png','TG_footer.png','TG_sign.png','KCCI_COO_letterpad.jpg'] as $asset) {
-        $path = __DIR__ . '/exports/assets/' . $asset;
-        if (is_file($path)) {
-            $mime = str_ends_with(strtolower($asset), '.jpg') || str_ends_with(strtolower($asset), '.jpeg') ? 'image/jpeg' : 'image/png';
-            $js = str_replace('assets/' . $asset, 'data:' . $mime . ';base64,' . base64_encode((string)file_get_contents($path)), $js);
-        }
-    }
     $html = tt_replace_html_once(
         '~<link\b[^>]*href=["\'](?:exports/)?app\.css[^"\']*["\'][^>]*>~i',
-        static fn(): string => '<style id="exports-app-css">' . $css . '</style>',
+        static fn(): string => '<link rel="stylesheet" href="/exports/app.css">',
         $html
     );
     $receiptBridgeFile = __DIR__ . '/exports/tg-accounts-receipts.js';
@@ -43,7 +35,6 @@ if ($id === 'exports') {
         static fn(): string => $receiptBridge === '' ? '' : '<script id="exports-tg-accounts-receipts">' . str_replace('</script', '<\/script', $receiptBridge) . '</script>',
         $html
     );
-    $inlineJs = str_replace('</script', '<\/script', $js);
     $shipmentFiles = (string)file_get_contents(__DIR__ . '/exports/shipment-files.js');
     $html = tt_replace_html_once(
         '~<script\b[^>]*src=["\'](?:/exports/)?shipment-files\.js[^"\']*["\'][^>]*>\s*</script>~i',
@@ -52,7 +43,7 @@ if ($id === 'exports') {
     );
     $html = tt_replace_html_once(
         '~<script\b[^>]*src=["\'](?:exports/)?app\.js[^"\']*["\'][^>]*>\s*</script>~i',
-        static fn(): string => '<script id="exports-app-js">' . $inlineJs . '</script>',
+        static fn(): string => '<script id="exports-app-js" src="/exports/app-runtime.php"></script>',
         $html
     );
 }

@@ -1774,13 +1774,25 @@ function contractBankDetailsHTML(c){
  if(!row)return paymentNeedsSellerBank(c)?`<div class="contractBankMissing">Seller bank account must be selected before issue.</div>`:'';
  return`<div class="contractBankDetails contractBankLines"><div><b>ACCOUNT TITLE:</b> <span>${esc(row[3]||'')}</span></div><div><b>BANK:</b> <span>${esc(row[4]||'')}</span></div><div><b>BRANCH:</b> <span>${esc(row[5]||'')}</span></div><div><b>IBAN:</b> <span>${esc(row[9]||'')}</span></div><div><b>SWIFT CODE:</b> <span>${esc(row[10]||'')}</span></div><div><b>Country:</b> <span>${esc(ttOutputEnglish(row[6]||''))}</span></div></div>`
 };
-function waitForPrintImages(root,timeoutMs=1800){
- const imageNodes=[...root.querySelectorAll('img')],pending=imageNodes.filter(node=>!node.complete);
- if(!pending.length)return Promise.resolve();
- return Promise.race([
-  Promise.all(pending.map(node=>new Promise(resolve=>{node.addEventListener('load',resolve,{once:true});node.addEventListener('error',resolve,{once:true})}))),
-  new Promise(resolve=>setTimeout(resolve,timeoutMs))
- ])
+function waitForPrintImages(root,timeoutMs=30000){
+ const images=[...root.querySelectorAll('img')].filter(image=>getComputedStyle(image).display!=='none');
+ return Promise.all(images.map(image=>new Promise((resolve,reject)=>{
+  let settled=false;
+  const finish=error=>{
+   if(settled)return;settled=true;clearTimeout(timer);
+   image.removeEventListener('load',loaded);image.removeEventListener('error',failed);
+   error?reject(error):resolve();
+  };
+  const failed=()=>finish(new Error('A document image could not be loaded. Please retry before printing.'));
+  const loaded=()=>{
+   if(!image.naturalWidth){failed();return}
+   if(typeof image.decode==='function')image.decode().then(()=>finish(),failed);
+   else finish();
+  };
+  const timer=setTimeout(()=>finish(new Error('A document image is still loading. Please retry before printing.')),timeoutMs);
+  image.addEventListener('load',loaded,{once:true});image.addEventListener('error',failed,{once:true});
+  if(image.complete)loaded();
+ })))
 }
 async function directPrint(title,html,mode='with'){
  try{if(!window.TT_SHARED_SYNC?.saveNow)throw new Error('Server saving is unavailable.');await window.TT_SHARED_SYNC.saveNow()}catch(error){showExportSaveError(error.message);return false}
@@ -1789,7 +1801,7 @@ async function directPrint(title,html,mode='with'){
  const root=document.getElementById('printRoot'),old=document.title;
  root.className=mode==='without'?'printModeWithout':'printModeWith';root.innerHTML=html;root.setAttribute('aria-hidden','false');document.title='';
  const cleanup=()=>{root.innerHTML='';root.className='';root.setAttribute('aria-hidden','true');document.title=old};
- return waitForPrintImages(root,5000).then(()=>new Promise(resolve=>setTimeout(resolve,60))).then(()=>{
+ return waitForPrintImages(root,30000).then(()=>new Promise(resolve=>setTimeout(resolve,60))).then(()=>{
   const unavailable=[...root.querySelectorAll('.commercialInvoiceOnePage .docBrand img,.commercialInvoiceOnePage .docAutoSign img,.tgProformaOnePage .docAutoSign img')].filter(image=>getComputedStyle(image).display!=='none'&&(!image.complete||image.naturalWidth===0));
   if(unavailable.length)throw new Error('A marking or signature image could not be loaded. Please retry before printing.');
   if(!fitCOOPages(root))throw new Error('The Certificate of Origin has more text than can fit in its KCCI boxes. Review the address or description before printing; no content has been removed.');
