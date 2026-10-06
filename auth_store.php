@@ -10,6 +10,25 @@ const TT_STORE_FILE = TT_DATA_DIR . '/auth.json';
 const TT_STORE_LOCK_FILE = TT_DATA_DIR . '/auth.lock';
 const TT_SETUP_LOCK_FILE = TT_DATA_DIR . '/setup.lock';
 const TT_ADMIN_RECOVERY_HASH_FILE = TT_DATA_DIR . '/admin-recovery.hash';
+// Capture only fatal error classifications while investigating intermittent
+// hosting failures. Never persist exception messages, arguments or session IDs.
+register_shutdown_function(static function(): void {
+    $error=error_get_last();
+    if(!$error||!in_array($error['type'],[E_ERROR,E_PARSE,E_CORE_ERROR,E_COMPILE_ERROR,E_USER_ERROR],true))return;
+    $message=(string)($error['message']??'');$category='fatal';$detail='';
+    if(preg_match('/Call to undefined function ([A-Za-z0-9_]+)/',$message,$match)){$category='undefined-function';$detail=$match[1];}
+    elseif(str_contains($message,'Allowed memory size'))$category='memory-limit';
+    elseif(str_contains($message,'Maximum execution time'))$category='execution-limit';
+    elseif(preg_match('/Uncaught ([A-Za-z0-9_\\\\]+)/',$message,$match)){$category='uncaught';$detail=$match[1];}
+    foreach(['Private session storage is unavailable.','Session migration is unavailable.','Session migration could not be saved.','Session migration could not be committed.','Session migration could not be recorded.','Private session storage could not be selected.','Your session could not be opened.']as$known)if(str_contains($message,$known)){$category='session-startup';$detail=$known;break;}
+    $file=basename((string)($error['file']??''));if(!preg_match('/^[A-Za-z0-9_.-]+\.php$/D',$file))$file='hidden';
+    $path=(string)parse_url((string)($_SERVER['REQUEST_URI']??''),PHP_URL_PATH);if(!preg_match('~^/[A-Za-z0-9_./-]*$~D',$path))$path='hidden';
+    $entry=['time'=>gmdate('c'),'path'=>$path,'category'=>$category,'detail'=>$detail,'file'=>$file,'line'=>(int)($error['line']??0),'php'=>PHP_VERSION];
+    $log=TT_DATA_DIR.'/sessions/runtime-errors.json';$handle=@fopen($log,'c+');if($handle===false)return;
+    if(!@flock($handle,LOCK_EX|LOCK_NB)){fclose($handle);return;}
+    try{$rows=json_decode(stream_get_contents($handle)?:'[]',true);$rows=is_array($rows)?$rows:[];$rows[]=$entry;$json=json_encode(array_slice($rows,-100),JSON_UNESCAPED_SLASHES);if($json!==false){rewind($handle);ftruncate($handle,0);fwrite($handle,$json);fflush($handle);@chmod($log,0600);}}
+    finally{flock($handle,LOCK_UN);fclose($handle);}
+});
 require_once __DIR__ . '/offline_idempotency.php';
 const TT_AUTH_RATE_FILE = TT_DATA_DIR . '/auth-rate.json';
 const TT_SESSION_IDLE_TIMEOUT = 3600;
