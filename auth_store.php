@@ -456,7 +456,7 @@ function tt_user_can_module_action(array $user,string $module,string $icon,strin
     $permissions=$user['permissions'][$module]??[];
     if ($permissions==='all') return true;
     if (!is_array($permissions)) return false;
-    if (array_is_list($permissions)) return in_array($action,$permissions,true);
+    if (in_array($action,$permissions,true)) return true; // legacy module-wide grant, including entity-scoped records
     return in_array($action,(array)($permissions[$icon]??[]),true);
 }
 

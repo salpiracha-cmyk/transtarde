@@ -65,6 +65,12 @@ require $argv[1];
     posted = json.loads(books.read_text())
     assert posted['jvDrafts']['JVD-1']['status'] == 'Posted'
     assert len(posted['journals']) == 1
+    # Legacy module-wide actions can coexist with explicit company restrictions.
+    user['permissions']['Accounts'] = {'0':'View','1':'Create','entity-tti':['View','Create']}
+    set_user()
+    status, data = request('journal_vouchers','?entity=TTI')
+    assert status == 200 and data['canWrite'], data
+    assert request('journal_vouchers','?entity=BRM')[0] == 403
     user['role'] = 'Super Admin'
     user['permissions'] = {}
     set_user()
