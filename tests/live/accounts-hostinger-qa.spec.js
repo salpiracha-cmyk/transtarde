@@ -31,20 +31,24 @@ async function activate(locator) {
 function traceSessionNavigation(page) {
   const trace = [];
   const started = Date.now();
+  const pending = [];
+  trace.flush = () => Promise.allSettled(pending);
   page.on('response', response => {
+    pending.push((async () => {
     const path = new URL(response.url()).pathname;
     if (!['/login.php','/logout.php','/index.php','/accounts/index.php','/api/session_activity.php','/accounts/app-bundle.php'].includes(path)) return;
-    const headers = response.headers();
-    const requestHeaders = response.request().headers();
+    const [headers, requestHeaders] = await Promise.all([response.allHeaders(), response.request().allHeaders()]);
     trace.push({
       ms: Date.now() - started, path, status: response.status(),
       location: headers.location || '', method: response.request().method(),
       sentSessionCookie: /(?:^|;\s*)TRANSTRADE_SESSION=/.test(requestHeaders.cookie || ''),
       setsSessionCookie: /TRANSTRADE_SESSION=/.test(headers['set-cookie'] || ''),
       fetchSite: requestHeaders['sec-fetch-site'] || '',
-      server: headers.server || '', cache: headers['x-cache'] || headers['cf-cache-status'] || ''
+      server: headers.server || '', cache: headers['x-hcdn-cache-status'] || headers['x-litespeed-cache'] || headers['x-cache'] || headers['cf-cache-status'] || '',
+      age: headers.age || '', cacheControl: headers['cache-control'] || ''
     });
     if (trace.length > 60) trace.shift();
+    })());
   });
   return trace;
 }
@@ -55,9 +59,11 @@ async function returnFromMasters(page, trace) {
   try {
     await expect(page).toHaveURL(/\/accounts\/index\.php$/, { timeout: 30_000 });
   } catch (error) {
+    await trace.flush();
+    const probe = await page.request.get(BASE_URL + '/accounts/index.php?tt_session_probe=' + Date.now(), {maxRedirects:0});
     const after = (await page.context().cookies()).find(cookie => cookie.name === 'TRANSTRADE_SESSION');
     console.log('SESSION_NAVIGATION_DIAGNOSTICS ' + JSON.stringify({
-      trace, finalPath: new URL(page.url()).pathname,
+      trace, uncachedProbe:{status:probe.status(),location:probe.headers().location||'',cacheControl:probe.headers()['cache-control']||''}, finalPath: new URL(page.url()).pathname,
       cookieBefore: before ? {domain:before.domain,path:before.path,secure:before.secure,sameSite:before.sameSite} : null,
       cookieAfter: after ? {domain:after.domain,path:after.path,secure:after.secure,sameSite:after.sameSite} : null,
       sessionCookieChanged: before?.value !== after?.value
