@@ -93,6 +93,8 @@ const {chromium}=require('playwright'),path=require('path'),out=path.resolve(__d
  await page.evaluate(()=>{window.TT_MODULE_ACCESS={user:'QA'};window.TT_SHARED_SYNC={saveNow:async()=>{window.__committed=localStorage.getItem('transtrade_export_v3_operational');return{ok:true}},readCommitted:()=>window.__committed??null,flush(){}};window.alert=message=>{throw Error(message)}});
  await page.addScriptTag({content:app});await page.evaluate(data=>window.__qa.fixture(data),JSON.parse(JSON.stringify(t.state)));
  await page.addScriptTag({content:fs.readFileSync(path.join(root,'exports/shipment-files.js'),'utf8')});
+ // Exercise the supported legacy/progressive copy mode here. Strict final archive exclusions are checked in shipment_package_20261001_browser_qa.js.
+ await page.evaluate(()=>{const save=window.TT_SHIPMENT_FILES.save;window.TT_SHIPMENT_FILES.save=options=>save({...options,strictFinal:false})});
  const invoiceFixture=structuredClone(t.state),invoiceLot=invoiceFixture.shipments.find(row=>row.kind==='lot');invoiceLot.commercial.saved=false;invoiceLot.commercial.status='Draft';invoiceLot.commercial.bankInvoices=[];
  await page.evaluate(data=>{window.__qa.fixture(data);window.__invoiceServerSaves=0;window.TT_SHARED_SYNC.saveNow=async()=>{window.__invoiceServerSaves++;window.__committed=localStorage.getItem('transtrade_export_v3_operational');return{ok:true}};window.__qa.capturePrint();window.__qa.commercial()},invoiceFixture);
  assert.equal(await page.locator('#createBankInvoice').innerText(),'EDIT FOR RETENTION');assert.equal(await page.locator('#printRetentionInvoice').innerText(),'PRINT RETENTION INVOICE');
