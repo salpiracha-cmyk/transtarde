@@ -26,7 +26,10 @@ session_write_close();echo json_encode($result);
     assert pathlib.Path(first['path']).resolve()==(root/'transtrade_private/sessions').resolve()
     assert first['lifetime']==3600 and first['mode']==0o700
     assert run(old_b,'increment','php_serialize')['counter']==7, 'A worker codec change must not destroy the session'
+    record=next((root/'transtrade_private/sessions/records').glob('*.json'))
+    original_inode=record.stat().st_ino
     assert run(old_a,'read')['counter']==8, 'Different legacy route/worker settings must resolve to the same session'
+    assert record.stat().st_ino==original_inode, 'An unchanged session read must not replace its data file'
     assert not (old_a/'sess_migration-fixture').exists(), 'Retire the legacy copy after migration'
     # Competing PHP processes must never lose updates or read a partial record.
     with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:

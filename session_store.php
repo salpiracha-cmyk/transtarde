@@ -96,7 +96,14 @@ final class TTAtomicSessionStore implements SessionHandlerInterface, SessionUpda
         if(!is_array($values))throw new RuntimeException('Private session payload is invalid.');
         $this->save($id,$values);return true;
     }
-    public function updateTimestamp(string $id,string $data): bool { return $this->write($id,$data); }
+    public function updateTimestamp(string $id,string $data): bool {
+        $this->acquire($id);$path=$this->path($id);
+        // PHP calls this only when the serialized session is unchanged.
+        // Refresh GC age without encoding, fsync or replacing the data record.
+        if(!$this->plainFile($path))return $this->write($id,$data);
+        if(!touch($path))throw new RuntimeException('Private session timestamp could not be updated.');
+        return true;
+    }
     public function destroy(string $id): bool {
         $this->acquire($id);$this->markRetired($id);
         foreach([$this->path($id),$this->legacyPath($id)]as$path)if($this->plainFile($path)&&!unlink($path))throw new RuntimeException('Private session could not be retired.');
