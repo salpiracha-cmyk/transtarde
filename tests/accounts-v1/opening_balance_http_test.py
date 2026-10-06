@@ -1,5 +1,5 @@
 """Real opening JV and ledger endpoints against disposable books and users."""
-import json, os, pathlib, shutil, socket, subprocess, tempfile, time
+import json, os, pathlib, re, shutil, socket, subprocess, tempfile, time
 import urllib.request, urllib.error, urllib.parse
 
 ROOT=pathlib.Path(__file__).resolve().parents[2]
@@ -28,6 +28,9 @@ with tempfile.TemporaryDirectory(prefix='opening-jv-qa-') as tmp:
       ['id'=>'B1','values'=>['Company Account','TTI','','TTI','PK BANK','','Pakistan','PKR','123','','','','','Active']],
       ['id'=>'B2','values'=>['Company Account','TG','','TG','UAE BANK','','UAE','USD','456','','','','','Active']]]];}
     ''')
+    # Exercise the production permission helper alongside the disposable identity fixture.
+    helper=re.search(r'function tt_user_can_module_action\([^\n]*\n.*?\n}',(ROOT/'auth_store.php').read_text(),re.S).group(0)
+    with (root/'auth_store.php').open('a') as fixture: fixture.write(helper+'\n')
     store={'revision':1,'journals':{},'jvDrafts':{},'supplierBills':{'BILL-EXISTING':{'sentinel':True}}}
     books=root/'data/accounts.json';books.write_text(json.dumps(store))
     with socket.socket() as sock: sock.bind(('127.0.0.1',0));port=sock.getsockname()[1]
