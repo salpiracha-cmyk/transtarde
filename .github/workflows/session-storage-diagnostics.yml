@@ -40,6 +40,28 @@ jobs:
           foreach([$root.'/.user.ini',$root.'/accounts/.user.ini'] as $i=>$file)if(is_file($file)){foreach(file($file) as $line)if(preg_match('/^\s*(session\.(?:save_handler|auto_start|gc_maxlifetime|gc_probability|gc_divisor)|opcache\.validate_timestamps)\s*=\s*([^;\r\n]+)/',$line,$m))$out['configuredWebSessionSettings'][$i][$m[1]]=trim($m[2]);}
           $logs=array_unique(array_merge([$root.'/error_log',$root.'/accounts/error_log',dirname($root).'/logs/error.log'],glob(dirname($root).'/logs/*error*')?:[],glob($root.'/logs/*error*')?:[]));
           foreach($logs as $file){if(!is_file($file)||!is_readable($file)||is_link($file))continue;$h=fopen($file,'rb');fseek($h,max(0,filesize($file)-131072));$text=stream_get_contents($h);fclose($h);foreach(explode("\n",$text)as$line){if(!preg_match('/Fatal error|Uncaught|session_start|Session migration|Private session storage|session_save_path/i',$line))continue;$kind='other PHP session/fatal error';if(preg_match('/Call to undefined function ([A-Za-z0-9_]+)/',$line,$m))$kind='Undefined function '.$m[1];elseif(preg_match('/Uncaught ([A-Za-z0-9_\\\\]+)/',$line,$m))$kind='Uncaught '.$m[1];if(str_contains($line,'Private session storage'))$kind='Private session storage unavailable';elseif(str_contains($line,'Session migration'))$kind='Session migration failure';elseif(str_contains($line,'session_start'))$kind='session_start failure';$out['classifiedErrors'][$kind]=($out['classifiedErrors'][$kind]??0)+1;}}
+          $out['sessionFormatCounts']=[];$out['sessionSizeCounts']=['empty'=>0,'small'=>0,'large'=>0];
+          foreach(glob($sessions.'/sess_*')?:[]as$file){
+            if(!is_file($file)||is_link($file))continue;$h=@fopen($file,'rb');if(!$h)continue;
+            if(!flock($h,LOCK_SH|LOCK_NB)){fclose($h);continue;}
+            $raw=stream_get_contents($h);flock($h,LOCK_UN);fclose($h);if(!is_string($raw))continue;
+            $n=strlen($raw);$out['sessionSizeCounts'][$n===0?'empty':($n<=1024?'small':'large')]++;
+            $format=$n===0?'empty':(str_starts_with($raw,'a:')?'serialized-array':(ord($raw[0])<32?'binary':'php-delimited'));
+            if($format==='php-delimited'){
+              $offset=0;
+              while($offset<$n){
+                $delimiter=strpos($raw,'|',$offset);if($delimiter===false){$format='malformed-delimited';break;}
+                $key=substr($raw,$offset,$delimiter-$offset);
+                if(!in_array($key,['csrf','user_id','auth_version','authenticated_at','last_activity_at'],true)){$format='other-key';break;}
+                $tail=substr($raw,$delimiter+1);$decoded=@unserialize($tail,['allowed_classes'=>false]);
+                if($decoded===false&&!str_starts_with($tail,'b:0;')){$format='malformed-delimited';break;}
+                if(!is_string($decoded)&&!is_int($decoded)&&!is_bool($decoded)){$format='other-value';break;}
+                $encoded=serialize($decoded);if(!str_starts_with($tail,$encoded)){$format='malformed-delimited';break;}
+                $offset=$delimiter+1+strlen($encoded);
+              }
+            }
+            $out['sessionFormatCounts'][$format]=($out['sessionFormatCounts'][$format]??0)+1;
+          }
           $flight=$sessions.'/runtime-errors.json';$out['runtimeFatalClassifications']=is_file($flight)?json_decode(file_get_contents($flight),true):[];
           echo json_encode($out,JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES)."\n";
           PHP
