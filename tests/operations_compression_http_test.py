@@ -17,7 +17,7 @@ response_function = source[start:end]
 expected = {"ok": True, "revision": 7, "values": {"tt30prod": json.dumps([{"id": 1, "name": "Rice Å", "kg": 120}] * 2000, ensure_ascii=False)}, "restrictedKeys": ["tt34ghati"]}
 with tempfile.TemporaryDirectory(prefix="tt-response-") as folder:
     fixture_json = json.dumps(expected, ensure_ascii=False)
-    Path(folder, "index.php").write_text("<?php\n" + response_function + "\noperations_respond(json_decode(file_get_contents(__DIR__.'/payload.json'),true));\n")
+    Path(folder, "index.php").write_text("<?php\nrequire '" + str(root/"inventory_reconciliation.php") + "';\n" + response_function + "\noperations_respond(json_decode(file_get_contents(__DIR__.'/payload.json'),true));\n")
     Path(folder, "payload.json").write_text(fixture_json)
     with socket.socket() as sock:
         sock.bind(("127.0.0.1", 0))

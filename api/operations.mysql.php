@@ -10,6 +10,10 @@ header('Content-Type: application/json; charset=UTF-8');
 header('Cache-Control: no-store, no-cache, must-revalidate');
 
 function operations_respond(array $data, int $status = 200): never {
+    if(($_GET['asset_refs']??'')==='1'){
+        if(isset($data['values']))foreach($data['values']as$key=>$json)if(is_string($json))$data['values'][$key]=tt_inv_artwork_json($json);
+        if(isset($data['value'])&&is_string($data['value']))$data['value']=tt_inv_artwork_json($data['value']);
+    }
     http_response_code($status);
     $body=json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
     header('Vary: Accept-Encoding');
@@ -568,6 +572,8 @@ function operations_file_fallback(array $user): never {
         $old=(string)($store['values'][$key]??''); $keyVersion=(int)($store['meta'][$key]['version']??0);
         if ($baseVersion!==$keyVersion) $conflict=true;
         else {
+            if(str_contains($value,TT_INV_ARTWORK_URL))$value=tt_inv_restore_artwork($value,tt_inv_public_values((array)($store['values']??[]))['values']);
+            if(strlen($value)>16*1024*1024)throw new InvalidArgumentException('Operational data is too large.');
             if ($key==='transtrade_export_v3_operational' && $old!=='') { operations_validate_lot_reopening($old,$value,$user,$sourceModule); $value=operations_merge_export($old,$value,$sourceModule); }
             if ($key==='tt40exinstructions') operations_validate_exmill_completion($value,(string)($store['values']['tt35exload']??'[]'));
             if ($key==='tt35exload') operations_validate_exmill_completion((string)($store['values']['tt40exinstructions']??'[]'),$value);
@@ -665,6 +671,12 @@ try {
             'error' => 'A newer shared update is available. Refresh before saving again.',
             'keyVersion' => $version,
         ], 409);
+    }
+    if(str_contains($value,TT_INV_ARTWORK_URL)){
+        $referenceValues=[];
+        foreach($db->query('SELECT storage_key,payload FROM tt_operation_records')->fetchAll()as$row)$referenceValues[(string)$row['storage_key']]=(string)$row['payload'];
+        $value=tt_inv_restore_artwork($value,tt_inv_public_values($referenceValues)['values']);
+        if(strlen($value)>16*1024*1024)throw new InvalidArgumentException('Operational data is too large.');
     }
     if ($key === 'transtrade_export_v3_operational' && $oldPayload !== '') {
         operations_validate_lot_reopening($oldPayload, $value, $user, $sourceModule);

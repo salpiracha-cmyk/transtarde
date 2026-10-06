@@ -306,3 +306,45 @@ function tt_inv_rate(array $values,string $entity,string $asOf): ?float {
         if($date>=$cut&&$date<=$asOf&&$kg>0&&$rate>0){$qty+=$kg;$value+=$kg*$rate;}
     }return $qty>0?round($value/$qty,6):null;
 }
+
+/** Transport old embedded artwork by reference without migrating or deleting stored bytes. */
+const TT_INV_ARTWORK_URL = '/export-assets.php?name=legacy&sha256=';
+function tt_inv_artwork_data(string $value): bool {
+    return preg_match('~^data:image/(?:png|jpeg|gif|webp);base64,[A-Za-z0-9+/=]+$~i',$value)===1;
+}
+function tt_inv_walk_artwork(mixed $value,callable $replace): mixed {
+    if(is_string($value))return $replace($value);
+    if(is_array($value)){foreach($value as$key=>$item)$value[$key]=tt_inv_walk_artwork($item,$replace);}
+    elseif($value instanceof stdClass){foreach($value as$key=>$item)$value->$key=tt_inv_walk_artwork($item,$replace);}
+    return $value;
+}
+function tt_inv_artwork_json(string $json): string {
+    if(!str_contains($json,'data:image/'))return $json;
+    $data=json_decode($json,false,512,JSON_THROW_ON_ERROR);
+    $data=tt_inv_walk_artwork($data,static fn(string $value):string=>tt_inv_artwork_data($value)?TT_INV_ARTWORK_URL.hash('sha256',$value):$value);
+    return json_encode($data,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_PRESERVE_ZERO_FRACTION|JSON_THROW_ON_ERROR);
+}
+function tt_inv_artwork_index(array $publicValues): array {
+    $index=[];
+    foreach($publicValues as$json){
+        if(!is_string($json)||!str_contains($json,'data:image/'))continue;
+        $data=json_decode($json,false,512,JSON_THROW_ON_ERROR);
+        tt_inv_walk_artwork($data,static function(string $value)use(&$index):string{
+            if(tt_inv_artwork_data($value))$index[hash('sha256',$value)]=$value;
+            return $value;
+        });
+    }
+    return $index;
+}
+function tt_inv_restore_artwork(string $json,array $publicValues): string {
+    if(!str_contains($json,TT_INV_ARTWORK_URL))return $json;
+    $index=tt_inv_artwork_index($publicValues);
+    $data=json_decode($json,false,512,JSON_THROW_ON_ERROR);
+    $data=tt_inv_walk_artwork($data,static function(string $value)use($index):string{
+        if(!str_starts_with($value,TT_INV_ARTWORK_URL))return $value;
+        $hash=substr($value,strlen(TT_INV_ARTWORK_URL));
+        if(!preg_match('/^[a-f0-9]{64}$/',$hash)||!isset($index[$hash]))throw new InvalidArgumentException('An artwork reference is unavailable. Reload and review before saving.');
+        return $index[$hash];
+    });
+    return json_encode($data,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_PRESERVE_ZERO_FRACTION|JSON_THROW_ON_ERROR);
+}

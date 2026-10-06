@@ -464,6 +464,11 @@ test('read-only Exports and Milling loading, errors and Masters navigation', asy
         resources:performance.getEntriesByType('resource').filter(r=>new URL(r.name).origin===location.origin).map(r=>({path:new URL(r.name).pathname,ms:Math.round(r.duration),bytes:r.transferSize})),
         initialKeys:Object.keys(window.TT_SHARED_SYNC||{}),loadError:!!window.TT_EXPORTS_LOAD_ERROR
       }));
+      const artworkMetadata=await page.evaluate(()=>{
+        const raw=localStorage.getItem('transtrade_export_v3_operational')||'';
+        return {exportStateBytes:new TextEncoder().encode(raw).length,inlineImages:(raw.match(/data:image[/]/g)||[]).length,artworkRefs:(raw.match(/export-assets[.]php[?]name=legacy/g)||[]).length};
+      });
+      console.log('MODULE_ARTWORK_TRANSPORT '+JSON.stringify({module:moduleId,round,...artworkMetadata}));
       console.log('MODULE_LOAD_TIMING '+JSON.stringify({module:moduleId,round,elapsedMs:Date.now()-started,htmlBytes:body.length,inlineImageBytes:(body.toString().match(/data:image[/][^;]+;base64,[A-Za-z0-9+/=]+/g)||[]).reduce((n,s)=>n+s.length,0),serverTiming:response.headers()['server-timing']||'',...metadata}));
       if(moduleId==='exports'&&round===0&&await page.locator('#exports-app-js[src="/export-assets.php?name=app.js"]').count()){
         const runtime=await page.request.get(BASE_URL+'/export-assets.php?name=app.js');
@@ -475,6 +480,15 @@ test('read-only Exports and Milling loading, errors and Masters navigation', asy
         expect(script).not.toContain('data:image/png;base64,');
         const unchanged=await page.request.get(BASE_URL+'/export-assets.php?name=app.js',{headers:{'If-None-Match':etag}});
         expect(unchanged.status()).toBe(304);
+        const legacyUrl=await page.evaluate(()=>{
+          const raw=localStorage.getItem('transtrade_export_v3_operational')||'';
+          return raw.match(/[/]export-assets[.]php[?]name=legacy&sha256=[a-f0-9]{64}/)?.[0]||'';
+        });
+        if(legacyUrl){
+          const legacy=await page.request.get(BASE_URL+legacyUrl);
+          expect(legacy.status()).toBe(200);expect(legacy.headers()['content-type']).toMatch(/^image[/](png|jpeg|gif|webp)$/);
+          console.log('LEGACY_ARTWORK_LOAD_OK '+JSON.stringify({bytes:(await legacy.body()).length,status:legacy.status()}));
+        }
         const artwork=await page.request.get(BASE_URL+'/export-assets.php?name=TG_sign.png');
         expect(artwork.status()).toBe(200);expect(artwork.headers()['content-type']).toBe('image/png');
         const missing=await page.request.get(BASE_URL+'/export-assets.php?name=../auth_store.php');

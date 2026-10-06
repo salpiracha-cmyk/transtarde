@@ -77,7 +77,7 @@ $sharedBootstrap = <<<'HTML'
   const put=(k,v)=>{const s=JSON.stringify(v);if(localStorage.getItem(k)!==s)localStorage.setItem(k,s)};
   function getRemote(sync=true){
     try{
-      const x=new XMLHttpRequest();x.open('GET',endpoint+'?r='+Date.now(),!sync);x.withCredentials=true;
+      const x=new XMLHttpRequest();x.open('GET',endpoint+'?asset_refs=1&r='+Date.now(),!sync);x.withCredentials=true;
       if(sync){x.send();return x.status===200?JSON.parse(x.responseText):null}
       x.onload=()=>{if(x.status===200)applyRemote(JSON.parse(x.responseText),false)};x.send();
     }catch(e){return null}
@@ -118,7 +118,7 @@ $sharedBootstrap = <<<'HTML'
       if(inFlight.has(key)||failedKeys.has(key))continue;
       pending.delete(key);
       inFlight.add(key);
-      fetch(endpoint,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({csrf:access.csrf,key,value,baseVersion:Number(queuedBase.get(key)??keyVersions.get(key)??0),sourceModule:access.module||'Super Admin'})})
+      fetch(endpoint+'?asset_refs=1',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({csrf:access.csrf,key,value,baseVersion:Number(queuedBase.get(key)??keyVersions.get(key)??0),sourceModule:access.module||'Super Admin'})})
         .then(async response=>{const result=await response.json();if(response.ok===false&&result.ok)throw new Error('Invalid save response');return result}).then(r=>{inFlight.delete(key);if(r.ok){revision=Math.max(revision,Number(r.revision||0));keyVersions.set(key,Number(r.keyVersion||r.revision||0));receipts.set(key,value);committedValues.set(key,typeof r.value==='string'?r.value:value);if(pending.has(key))queuedBase.set(key,Number(keyVersions.get(key)||0));else queuedBase.delete(key);markSaveState('Saved');if(typeof dispatchEvent==='function'&&typeof CustomEvent==='function')dispatchEvent(new CustomEvent('tt:shared-saved',{detail:{key}}));if(pending.size)flush(false);settleCommits();return}if(!pending.has(key))pending.set(key,value);failedKeys.add(key);const message=r.conflict?'This record changed elsewhere. Reload and review it before retrying.':(r.error||'The change was not saved.');showSyncError(message,!!r.conflict);settleCommits(message)})
         .catch(()=>{inFlight.delete(key);if(!pending.has(key))pending.set(key,value);failedKeys.add(key);const message='The save was not confirmed. Check the connection, then reload and review before retrying.';showSyncError(message);settleCommits(message)});
     }
@@ -216,7 +216,7 @@ new MutationObserver(apply).observe(document.body,{childList:true,subtree:true})
 HTML;
 
 $brandHead = '<link rel="stylesheet" href="/brand-theme.css?v=20261006-number-entry-1">';
-if ($id === 'exports') $brandHead .= '<link rel="stylesheet" href="/exports/release-theme.css?v=20260909-1">';
+if ($id === 'exports') $brandHead .= '<link rel="stylesheet" href="/export-assets.php?name=release-theme.css">';
 $headPos = stripos($html, '</head>');
 if ($headPos !== false) $html = substr_replace($html, $brandHead.$bootstrap.$sharedBootstrap, $headPos, 0);
 $accountsSourceBridge = '<script src="accounts/source-bridge.js?v=20260924-explicit-actions-1"></script><script src="accounts/loading-programme-sync.js?v=20260924-explicit-actions-1"></script><script src="accounts/bag-control-bridge.js?v=20260924-explicit-actions-1"></script>';
