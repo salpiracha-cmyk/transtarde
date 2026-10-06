@@ -18,6 +18,8 @@ with tempfile.TemporaryDirectory(prefix='bank-defaults-qa-') as temp:
     function tt_list_masters(){return json_decode(file_get_contents(__DIR__.'/masters.json'),true);}
     function tt_read_store(){return [];}
     function tt_require_login(){return ['role'=>'Super Admin','id'=>1,'username'=>'Fixture'];}
+    // This isolated auth fixture has no PHP session; real lock behavior is tested separately.
+    function tt_release_read_session(){}
     function tt_user_can_open_module($user,$module){return true;}
     function tt_verify_csrf($csrf){return $csrf==='fixture';}
     ''')
