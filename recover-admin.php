@@ -10,8 +10,12 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
     $confirm=(string)($_POST['confirm_password'] ?? '');
     if (!tt_verify_csrf((string)($_POST['csrf'] ?? ''))) $error='Your recovery session expired. Refresh and try again.';
     elseif (!tt_admin_recovery_configured()) $error='Offline recovery is not configured. Sign in normally and create a new code from Recovery Security.';
-    elseif (($retry=max(tt_auth_retry_after('admin-recovery-address','super-admin',4,1800,true),tt_auth_retry_after('admin-recovery-emergency','super-admin',20,1800,false)))>0) $error='Too many unsuccessful recovery attempts. Please wait '.max(1,(int)ceil($retry/60)).' minute(s) and try again.';
-    elseif (!tt_recovery_code_valid($code)) { tt_auth_record_failure('admin-recovery-address','super-admin',4,1800,1800,true);tt_auth_record_failure('admin-recovery-emergency','super-admin',20,1800,3600,false);usleep(500000);$error='The recovery code is incorrect.'; }
+    elseif (($retry=tt_auth_retry_after('admin-recovery-address','super-admin',4,1800,true))>0) $error='Too many unsuccessful recovery attempts. Please wait '.max(1,(int)ceil($retry/60)).' minute(s) and try again.';
+    elseif (!(static function() use ($code): bool {
+        // Aggregate failures slow recovery, while a valid offline code remains usable.
+        if(tt_auth_retry_after('admin-recovery-emergency','super-admin',20,1800,false)>0)usleep(500000);
+        return tt_recovery_code_valid($code);
+    })()) { tt_auth_record_failure('admin-recovery-address','super-admin',4,1800,1800,true);tt_auth_record_failure('admin-recovery-emergency','super-admin',20,1800,3600,false);usleep(500000);$error='The recovery code is incorrect.'; }
     elseif (strlen($password)<10 || !preg_match('/[A-Z]/',$password) || !preg_match('/[a-z]/',$password) || !preg_match('/\d/',$password)) $error='Use at least 10 characters with an uppercase letter, lowercase letter and number.';
     elseif ($password!==$confirm) $error='The two passwords do not match.';
     else {

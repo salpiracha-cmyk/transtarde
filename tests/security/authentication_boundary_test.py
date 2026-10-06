@@ -12,7 +12,7 @@ with tempfile.TemporaryDirectory(prefix='tti-auth-boundary-') as directory:
     app.mkdir()
     for name in ['auth_store.php', 'session_store.php', 'master_store.php', 'product_stage.php',
                  'offline_idempotency.php', 'backup_lib.php', 'qa_account.php', 'login.php',
-                 'change-password.php', 'logout.php']:
+                 'change-password.php', 'logout.php', 'recover-admin.php']:
         shutil.copy(ROOT / name, app / name)
     (app / 'api').mkdir()
     shutil.copy(ROOT / 'api/session_activity.php', app / 'api/session_activity.php')
@@ -37,8 +37,9 @@ if(($cfg['action']??'')==='seed'){
  if(isset($cfg['version']))$_SESSION['auth_version']=$cfg['version'];
  if(isset($cfg['last']))$_SESSION['last_activity_at']=$cfg['last'];
  tt_csrf();
- foreach($cfg['locks']??[]as$scope){$identity=$scope==='login-account'?'fixture':'all-users';
-  tt_auth_rate_mutate(static function(&$s)use($scope,$identity){$s[tt_auth_rate_key($scope,$identity,$scope==='login-address')]=['attempts'=>[],'locked_until'=>time()+1800];});}
+ if(!empty($cfg['recovery']))file_put_contents(TT_DATA_DIR.'/admin-recovery.hash',password_hash('OFFLINEFIXTURECODE123456789ABC',PASSWORD_DEFAULT));
+ foreach($cfg['locks']??[]as$scope){$identity=str_starts_with($scope,'admin-recovery')?'super-admin':($scope==='login-account'?'fixture':'all-users');
+  tt_auth_rate_mutate(static function(&$s)use($scope,$identity){$s[tt_auth_rate_key($scope,$identity,in_array($scope,['login-address','admin-recovery-address'],true))]=['attempts'=>[],'locked_until'=>time()+1800];});}
 }elseif(($cfg['action']??'')==='landing'){
  require $app.'/auth_store.php';echo tt_user_landing_url(tt_find_user_by_id(1));
 }elseif(($cfg['action']??'')==='direct'){
@@ -101,4 +102,18 @@ if(($cfg['action']??'')==='seed'){
     meta, _ = run(path='/login.php', method='POST', sid=seed['sid'],
                   form={'csrf': 'wrong', 'username': 'fixture', 'password': 'FixturePass123!'})
     assert meta['user'] is None
+    for locks, code, allowed in [(['admin-recovery-emergency'], 'OFFLINEFIXTURECODE123456789ABC', True),
+                                  (['admin-recovery-address'], 'OFFLINEFIXTURECODE123456789ABC', False),
+                                  (['admin-recovery-emergency'], 'incorrect-code', False)]:
+        seed, _ = run(action='seed', recovery=True, locks=locks)
+        meta, _ = run(path='/recover-admin.php', method='POST', sid=seed['sid'],
+                      form={'csrf': seed['csrf'], 'recovery_code': code,
+                            'password': 'RecoveredPrivate123!', 'confirm_password': 'RecoveredPrivate123!'})
+        assert (meta['user'] == 99) is allowed, (locks, code, meta)
+    seed, _ = run(action='seed', recovery=True, locks=['admin-recovery-emergency'])
+    meta, _ = run(path='/recover-admin.php', method='POST', sid=seed['sid'],
+                  form={'csrf': 'wrong', 'recovery_code': 'OFFLINEFIXTURECODE123456789ABC',
+                        'password': 'RecoveredPrivate123!', 'confirm_password': 'RecoveredPrivate123!'})
+    assert meta['user'] is None
+    print('PASS offline recovery under aggregate pressure, address limit, invalid code and CSRF')
     print('PASS temporary-password API/page gate, exact lifecycle exceptions, password replacement, stale sessions, logout and login-pressure controls')
