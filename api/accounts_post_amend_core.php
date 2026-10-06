@@ -5,6 +5,7 @@ require_once __DIR__.'/accounts_bank_payment.php';
 /** Journal-level correction shared by every Accounts posting source. Caller holds the accounts.json lock. */
 function apa_correct(array &$store, array $user, string $postId, array $input): array {
     $original=$store['journals'][$postId]??null;
+    if(in_array($original['sourceType']??'', ['OPENING_BALANCE_BF','OPENING_BALANCE_REVERSAL'],true)||!empty($original['meta']['openingBalance']))throw new DomainException('Correct opening balances through the management JV opening-balance form.');
     if(!is_array($original)||($original['status']??'')!=='Posted')throw new DomainException('Posted entry was not found.');
     if(!empty($original['meta']['tgRemittanceId']))throw new DomainException('Use the TG remittance review to reopen and correct this linked payment with a reason.');
     if(isset($store['exportReceipts'][(string)($original['meta']['receiptId']??'')]))throw new DomainException('Amend the linked credit advice to correct all its Pakistan and TG postings together.');

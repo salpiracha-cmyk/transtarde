@@ -45,3 +45,6 @@ assert.match(ui,/Post a complete reversing journal/);
 assert.match(index,/app-bundle\.php/);
 assert.match(bundle,/'jv-workflow-ui\.js'/);
 console.log('Journal Voucher workflow deterministic QA passed.');
+
+const http=require('node:child_process').spawnSync(process.env.PYTHON||'python3',['tests/accounts-v1/opening_balance_http_test.py'],{encoding:'utf8'});
+assert.equal(http.status,0,http.stdout+http.stderr);process.stdout.write(http.stdout);

@@ -2,17 +2,18 @@ const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/st
 const source=fs.readFileSync('admin/app.js','utf8');
 const code=source.slice(source.indexOf('  async function refreshApprovals()'),source.indexOf('  function exportAudit()'));
 const nodes=Object.fromEntries(['refreshApprovals','approvalStatusCount','approvalStatusTitle','approvalStatusDetail'].map(id=>[id,{}]));
-const list={},count={},panel={querySelector:selector=>selector==='.approval-list'?list:count};
+const list={},count={},panel={querySelector:selector=>selector==='.approval-list'?list:count,insertBefore:node=>{nodes[node.id]=node}};
 const context={IS_SUPER_ADMIN:true,pendingDeletionRequests:[],pendingBankDeletionRequests:[],pendingDirectorApprovals:[],approvalsError:'',approvalsLoaded:false,
   state:{masters:{companies:[{id:'C1',banks:[{id:'old',currency:'PKR',isDefault:true},{id:'new',currency:'PKR',bankName:'Fixture Bank',accountTitle:'TTI',iban:'PK1'},{id:'usd',currency:'USD'}]}]}},
   companyBanks:company=>company?.banks||[],eligibleDefaultBank:()=>true,
   escapeHtml:value=>String(value??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;'),
-  document:{getElementById:id=>nodes[id],querySelector:()=>panel},loadServerMasters:async()=>{},apiRequest:async()=>({approvals:[]})};
+  document:{getElementById:id=>nodes[id],querySelector:()=>panel,createElement:()=>({})},loadServerMasters:async()=>{},apiRequest:async()=>({approvals:[]})};
 vm.createContext(context);vm.runInContext(code,context);
 (async()=>{
   context.pendingBankDeletionRequests=[{id:'R1',companyId:'C1',bankId:'old',company:'TTI',bank:'Old Bank'}];
   context.apiRequest=async()=>({approvals:[{kind:'bag',billId:'B1',entity:'TTI',title:'<img src=x onerror=alert(1)>',detail:'Rate mismatch'}]});
   await context.refreshApprovals();
+  assert.equal(nodes.openingBalanceConsoleLink.href,'accounts/opening-balances.php');
   assert.equal(count.textContent,'2 open');assert.equal(nodes.approvalStatusCount.textContent,'2');
   assert.ok(list.innerHTML.includes('data-review-rate-exception="B1"'));
   assert.ok(list.innerHTML.includes('data-rate-approval-reason'));

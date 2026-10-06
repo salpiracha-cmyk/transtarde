@@ -1527,6 +1527,7 @@
     if (!IS_SUPER_ADMIN) return;
     const panel=document.querySelector(".approvals-panel"),list=panel?.querySelector(".approval-list"),count=panel?.querySelector(".count-pill");
     if(!panel||!list||!count)return;
+    if(!document.getElementById("openingBalanceConsoleLink")){const link=document.createElement("a");link.id="openingBalanceConsoleLink";link.className="row-action";link.href="accounts/opening-balances.php";link.textContent="Opening Balances (JV)";panel.insertBefore(link,list)}
     const rows=[
       ...pendingDeletionRequests.map(request=>({kind:"master",id:request.id,title:request.name,detail:`${request.type} · ${request.requestedBy} · ${request.reason}`})),
       ...pendingBankDeletionRequests.map(request=>({kind:"bank",id:request.id,title:`${request.company} · ${request.bank}`,detail:`${request.requestedBy} · ${request.reason}`,replacement:bankApprovalReplacement(request)})),

@@ -417,6 +417,14 @@
       "normal": "Credit"
     },
     {
+      "code": "3400",
+      "name": "Opening Balance Clearing",
+      "class": "Equity",
+      "level": "system",
+      "normal": "Credit",
+      "note": "Temporary management opening entries only. Reconcile before closing the migration."
+    },
+    {
       "code": "4000",
       "name": "REVENUE",
       "class": "Revenue",
