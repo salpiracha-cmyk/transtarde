@@ -31,7 +31,7 @@ function apa_correct(array &$store, array $user, string $postId, array $input): 
     foreach((array)($original['lines']??[]) as $line)if(isset($line['account']))$names[(string)$line['account']]=(string)($line['accountName']??$line['account']);
     $banks=[];
     foreach((array)(tt_list_masters()['banks']??[]) as $bank){
-        if(!is_array($bank)||($bank['values'][0]??'')!=='Company Account')continue;
+        if(!is_array($bank)||!in_array(($bank['values'][0]??''),['Company Account','Proprietor / Owner Account','Personal Account'],true))continue;
         $banks[(string)($bank['id']??'')]=$bank;
     }
     $lines=[];$debit=0;$credit=0;

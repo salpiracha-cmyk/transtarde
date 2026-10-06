@@ -42,9 +42,9 @@ function job_banks(string $e): array {
         $v = array_values((array)($r['values'] ?? [])); $link = strtoupper((string)($v[1] ?? ''));
         $owner = str_contains($link, 'BUKSH') || preg_match('/\bBRM\b/', $link) ? 'BRM' : (str_contains($link, 'TRANS GRAINS') || preg_match('/\bTG\b/', $link) ? 'TG' : (str_contains($link, 'TRANSTRADE INTERNATIONAL') || preg_match('/\bTTI\b/', $link) ? 'TTI' : ''));
         $id = (string)($r['id'] ?? '');
-        if ($owner !== $e || ($v[0] ?? '') !== 'Company Account' || $id === '' || strcasecmp((string)($v[13] ?? 'Active'), 'Active') !== 0) continue;
+        if ($owner !== $e || !in_array(($v[0] ?? ''), ['Company Account','Proprietor / Owner Account','Personal Account'], true) || $id === '' || strcasecmp((string)($v[13] ?? 'Active'), 'Active') !== 0) continue;
         if (function_exists('tt_bank_can_transact') && !tt_bank_can_transact($id)) continue;
-        $out[] = ['id'=>$id, 'name'=>trim((string)($v[4] ?? '').' · '.(string)($v[3] ?? '').' · '.(string)($v[8] ?? '')), 'currency'=>strtoupper((string)($v[7] ?? '')), 'bankName'=>(string)($v[4] ?? ''), 'accountTitle'=>(string)($v[3] ?? '')];
+        $out[] = ['id'=>$id, 'name'=>trim((string)($v[4] ?? '').' · '.(string)($v[3] ?? '').' · '.strtoupper((string)($v[7] ?? '')).' · '.(string)($v[8] ?? '')), 'currency'=>strtoupper((string)($v[7] ?? '')), 'bankName'=>(string)($v[4] ?? ''), 'accountTitle'=>(string)($v[3] ?? '')];
     }
     return $out;
 }
@@ -58,9 +58,10 @@ function job_parties(array $s, string $e): array {
     }
     natcasesort($names); return array_values($names);
 }
+function job_role_accounts(): array { return ['Supplier'=>'2110','Broker'=>'2120','Indentor'=>'2120','Local Buyer'=>'1220','Buyer'=>'1210','Customer'=>'1210','Export Buyer'=>'1210','Freight Forwarder'=>'2130','Shipping Line / Carrier'=>'2130','Transporter'=>'2130','Clearing Agent'=>'2130','Inspection'=>'2140','Fumigation'=>'2140','Service Provider'=>'2140','Bag Supplier'=>'2140','Labour Contractor'=>'2180','Agent'=>'2140','Other'=>'2140']; }
 /** Management chooses a name; category determines its control account. */
 function job_targets(string $e): array {
-    $map=['Supplier'=>'2110','Broker'=>'2120','Indentor'=>'2120','Local Buyer'=>'1220','Buyer'=>'1210','Customer'=>'1210','Export Buyer'=>'1210','Freight Forwarder'=>'2130','Shipping Line / Carrier'=>'2130','Transporter'=>'2130','Clearing Agent'=>'2130','Inspection'=>'2140','Fumigation'=>'2140','Service Provider'=>'2140','Bag Supplier'=>'2140','Labour Contractor'=>'2140','Agent'=>'2140','Other'=>'2140'];
+    $map=job_role_accounts();
     $out=[];
     foreach(['business_parties','export_customers'] as $type)foreach((array)(tt_list_masters()[$type]??[]) as $r){
         $v=(array)($r['values']??[]);$name=trim((string)($v[0]??''));if($name===''||strcasecmp((string)($v[10]??'Active'),'Inactive')===0)continue;
@@ -68,7 +69,7 @@ function job_targets(string $e): array {
         $heads=[];foreach($roles as $role)foreach($map as $category=>$code)if(strcasecmp($role,$category)===0)$heads[$code][]=$category;
         foreach($heads as $code=>$categories)$out[]=['key'=>$type.':'.(string)($r['id']??job_key($name)).':'.$code,'label'=>$name.' — '.implode(' / ',$categories),'name'=>$name,'account'=>(string)$code,'party'=>$name,'bankId'=>'','role'=>$categories[0],'kind'=>'party'];
     }
-    foreach(job_banks($e) as $b)$out[]=['key'=>'bank:'.$b['id'],'label'=>$b['name'].' — '.$b['currency'],'name'=>$b['name'],'account'=>'1110','party'=>'','bankId'=>$b['id'],'kind'=>'bank'];
+    foreach(job_banks($e) as $b)$out[]=['key'=>'bank:'.$b['id'],'label'=>$b['name'],'name'=>$b['name'],'account'=>'1110','party'=>'','bankId'=>$b['id'],'kind'=>'bank'];
     usort($out,static fn($a,$b)=>strcasecmp($a['label'],$b['label']));return $out;
 }
 function job_balances(array $s, string $e): array {

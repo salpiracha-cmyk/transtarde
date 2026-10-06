@@ -318,6 +318,15 @@
       "note": "Accrue only when the related commercial invoice payment is fully received. Retain the native contract-currency amount and the applied credit-advice realization rate in journal metadata."
     },
     {
+      "code": "2180",
+      "name": "Labour Contractors Payable",
+      "class": "Liability",
+      "level": "control",
+      "normal": "Credit",
+      "subledger": true,
+      "note": "Mill labour contractor amounts owed. Manufacturing labour costs are recorded under Milling / Conversion Cost."
+    },
+    {
       "code": "2200",
       "name": "Accruals & Unbilled Liabilities",
       "class": "Liability",

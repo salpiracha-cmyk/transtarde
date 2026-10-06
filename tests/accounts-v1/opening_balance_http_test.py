@@ -6,7 +6,7 @@ ROOT=pathlib.Path(__file__).resolve().parents[2]
 with tempfile.TemporaryDirectory(prefix='opening-jv-qa-') as tmp:
     root=pathlib.Path(tmp)
     for folder in ['api','accounts','data']: (root/folder).mkdir()
-    for name in ['journal_vouchers.php','opening_balance_core.php','accounts_ledger_browser.php','accounts_reference.php','tg_remittance_core.php','fi_credit_advice_link.php','receipt_invoice_links.php']:
+    for name in ['journal_vouchers.php','opening_balance_core.php','accounts_chart_word.php','accounts_chart_word_core.php','accounts_ledger_browser.php','accounts_reference.php','tg_remittance_core.php','fi_credit_advice_link.php','receipt_invoice_links.php']:
         shutil.copy(ROOT/'api'/name,root/'api'/name)
     for path in (ROOT/'accounts').glob('*.json'): shutil.copy(path,root/'accounts'/path.name)
     (root/'auth_store.php').write_text('''<?php
@@ -25,9 +25,11 @@ with tempfile.TemporaryDirectory(prefix='opening-jv-qa-') as tmp:
     function tt_verify_csrf($v){return $v==='fixture';}
     function tt_next_post_id($existing,$module='Accounts',$area='Journal',$date=null){$n=count($existing)+1;do{$id='2026-'.str_pad((string)$n++,5,'0',STR_PAD_LEFT);}while(isset($existing[$id]));return $id;}
     function tt_business_party_categories($v){return array_filter(array_map('trim',preg_split('/[;,|]/',(string)$v)));}
-    function tt_list_masters(){return ['business_parties'=>[['id'=>'P1','values'=>['ACME RICE','','Supplier']]],'banks'=>[
+    function tt_list_masters(){return ['business_parties'=>[['id'=>'P1','values'=>['ACME RICE','','Supplier']],['id'=>'LAB','values'=>['MILL LABOUR','','Labour Contractor']]],'banks'=>[
       ['id'=>'B1','values'=>['Company Account','TTI','','TTI','PK BANK','','Pakistan','PKR','123','','','','','Active']],
-      ['id'=>'B2','values'=>['Company Account','TG','','TG','UAE BANK','','UAE','USD','456','','','','','Active']]]];}
+      ['id'=>'B2','values'=>['Company Account','TG','','TG','UAE BANK','','UAE','USD','456','','','','','Active']],
+      ['id'=>'AED','values'=>['Company Account','TG','','TG','UAE BANK','','UAE','AED','789','','','','','Active']],
+      ['id'=>'PERSONAL','values'=>['Proprietor / Owner Account','TTI','Abdul Razzak','Abdul Razzak','Meezan','','Pakistan','PKR','222','','','','','Active']]]];}
     ''')
     # Exercise the production permission helper alongside the disposable identity fixture.
     helper=re.search(r'function tt_user_can_module_action\([^\n]*\n.*?\n}',(ROOT/'auth_store.php').read_text(),re.S).group(0)
@@ -76,6 +78,11 @@ with tempfile.TemporaryDirectory(prefix='opening-jv-qa-') as tmp:
         assert any(t['key']=='business_parties:P1:2110' and t['party']=='ACME RICE' for t in targets)
         assert call(post(targetKey='bank:B2'),entity='TTI')[0]==422,'Foreign company bank cannot be selected by target key'
         assert call(post(targetKey='missing'))[0]==422
+        assert any(t['key']=='bank:PERSONAL' for t in targets), 'Linked proprietor bank must be available'
+        assert any(t['key']=='business_parties:LAB:2180' for t in targets), 'Labour uses dedicated contractor payable'
+        draft={'action':'submit_jv','date':'2026-10-06','narration':'MANUFACTURING LABOUR','lines':[{'account':'5200','subledger':'MILL LABOUR','debit':100,'credit':0},{'targetKey':'business_parties:LAB:2180','account':'2140','subledger':'FORGED','debit':0,'credit':100}]}
+        status,result=call(draft,scope=False);assert status==200,result
+        lines=json.loads(books.read_text())['jvDrafts'][result['result']['jvId']]['lines'];assert lines[1]['account']=='2180' and lines[1]['subledger']=='MILL LABOUR'
         body=post(targetKey='business_parties:P1:2110',account='6900',party='FORGED PARTY',note='OLD PAYABLE')
         status,data=call(body,user='director');assert status==200,data
         jid=data['result']['journalId'];saved=books.read_bytes()
@@ -95,11 +102,15 @@ with tempfile.TemporaryDirectory(prefix='opening-jv-qa-') as tmp:
         j=json.loads(books.read_text())['journals'][data['result']['journalId']]
         assert j['lines'][0]['bankAccountId']=='B1' and j['lines'][0]['bankDebit']==1000
         assert call(post(account='1110',bankId='B2',party=''))[0]==422,'Bank must belong to selected company'
+        assert not [l for journal in json.loads(books.read_text())['journals'].values() for l in journal['lines'] if l.get('bankAccountId')=='AED'], 'USD opening cannot alter the separate AED bank'
         assert call(post(account='1110',bankId='B2',party='',amount=100),entity='TG')[0]==422,'Foreign bank needs opening rate'
         status,data=call(post(account='1110',bankId='B2',party='',side='Debit',amount=100,rate=3.67),entity='TG');assert status==200,data
         j=json.loads(books.read_text())['journals'][data['result']['journalId']]
         assert j['lines'][0]['debit']==367 and j['lines'][0]['bankDebit']==j['lines'][0]['nativeDebit']==100
         assert j['lines'][1]['credit']==367
+        status,ledger=call(endpoint='accounts_ledger_browser.php',scope=False,entity='TG',category='bank',account='BANK|B2',**{'from':'2026-07-01','to':'2026-10-06'});assert status==200 and ledger['closing']==100,ledger
+        status,ledger=call(endpoint='accounts_ledger_browser.php',scope=False,entity='TG',category='bank',account='BANK|AED',**{'from':'2026-07-01','to':'2026-10-06'});assert status==200 and ledger['closing']==0,ledger
+        status,ledger=call(endpoint='accounts_ledger_browser.php',scope=False,category='bank',account='BANK|PERSONAL',**{'from':'2026-07-01','to':'2026-10-06'});assert status==200,ledger
         setting={'action':'set_opening_balance_enabled','enabled':False,'requestKey':'disable-test-1'}
         assert call(setting,user='director')[0]==403
         assert call(setting)[0]==200
@@ -117,4 +128,13 @@ with tempfile.TemporaryDirectory(prefix='opening-jv-qa-') as tmp:
         assert call(ordinary,user='accounts',scope=False)[0]==422,'Generic JV cannot bypass clearing-account restriction'
         assert json.loads(books.read_text())['supplierBills']==store['supplierBills']
         print('Opening JV HTTP: privileged routes, company scope, fixed date/narration, balanced debit/credit, bank/native amounts, party ledger, replay/duplicate prevention, disable/re-enable, reversal and ordinary JV passed.')
+        import zipfile,io,xml.etree.ElementTree as ET
+        url=f'http://127.0.0.1:{port}/api/accounts_chart_word.php?user=admin&entity=ALL&to=2026-10-06'
+        with urllib.request.urlopen(url) as response:
+            assert response.headers['Content-Type'].startswith('application/vnd.openxmlformats')
+            z=zipfile.ZipFile(io.BytesIO(response.read()));xml=z.read('word/document.xml');ET.fromstring(xml)
+            assert b'Labour Contractors Payable' in xml and b'MILL LABOUR' in xml and b'USD' in xml and b'Meezan' in xml
+        try:
+            urllib.request.urlopen(url.replace('user=admin','user=director'));assert False,'Director without Accounts access must be denied on Accounts export'
+        except urllib.error.HTTPError as error:assert error.code==403
     finally:server.terminate();server.wait(timeout=5)
