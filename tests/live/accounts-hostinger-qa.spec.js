@@ -59,6 +59,8 @@ async function returnFromMasters(page, trace) {
   await activate(page.locator('#masterBackTop'));
   try {
     await expect(page).toHaveURL(/\/accounts\/index\.php$/, { timeout: 30_000 });
+    await expect(page).toHaveTitle(/Transtrade Accounts/, {timeout:30_000});
+    await expect.poll(()=>page.evaluate(()=>window.TT_ACCOUNTING_DESK?.installed||false),{timeout:30_000}).toBe(true);
     await trace.flush();
     console.log('SESSION_NAVIGATION_OK ' + JSON.stringify(trace.slice(-6)));
   } catch (error) {
