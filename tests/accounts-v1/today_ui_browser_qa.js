@@ -29,6 +29,16 @@ let posted;
   });
   await page.goto('https://ui.test/index.php?view=masters&from=accounts');
   await page.addScriptTag({content:read('brand-theme.js')});
+  await page.evaluate(()=>{document.body.insertAdjacentHTML('beforeend','<form id="uiNumericFixture"><label>Amount<input id="uiNumeric" name="amount" type="number" min="0.01" step="0.01" value="1000"></label></form>');document.getElementById('uiNumeric').oninput=e=>window.uiNumericTotal=Number(e.target.value)*2;window.TT_NUMERIC_ENTRY.refresh()});
+  await page.locator('#uiNumeric').fill('38000');
+  assert.equal(await page.locator('#uiNumeric').inputValue(),'38000');
+  const numberDisplay=page.locator('#uiNumericFixture .tt-number-display');assert.equal(await numberDisplay.inputValue(),'38,000');
+  await numberDisplay.fill('1234567.89');assert.equal(await numberDisplay.inputValue(),'1,234,567.89');
+  assert.equal(await page.locator('#uiNumeric').inputValue(),'1234567.89');assert.equal(await page.evaluate(()=>window.uiNumericTotal),2469135.78);
+  assert.equal(await page.evaluate(()=>new FormData(document.getElementById('uiNumericFixture')).get('amount')),'1234567.89');
+  assert.equal(await numberDisplay.evaluate(el=>getComputedStyle(el).fontSize),'22px');
+  await page.locator('#uiNumericFixture').evaluate(el=>el.remove());
+
   await page.addScriptTag({content:read('admin/app.js')});
   await page.waitForSelector('[data-edit-master="UI-COMPANY"]');
   // Drawer is reachable in a half-window and its controls are above the dismiss overlay.
