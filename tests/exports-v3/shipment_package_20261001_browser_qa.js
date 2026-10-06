@@ -35,9 +35,20 @@ z=zipfile.ZipFile(sys.argv[1]);assert z.testzip() is None
 root=E.fromstring(z.read('word/document.xml'));ns={'w':'http://schemas.openxmlformats.org/wordprocessingml/2006/main'}
 text=' '.join(n.text or '' for n in root.findall('.//w:t',ns));assert 'BANK COVERING LETTER' in text and 'Commercial Invoice' in text
 assert root.findall('.//w:tbl',ns);assert not root.findall('.//w:altChunk',ns)`,path.join(out,'Bank_Covering_Letter.docx')]);
-	 assert.ok(Buffer.from(files[prefix+'CUSTOM DOCUMENTS/Customs Invoice.pdf']).subarray(0,4).equals(Buffer.from('%PDF')),'custom documents are saved separately, not zipped');
-	 const lcResult=await page.evaluate(async()=>{
-	  window.__files={};
+		 assert.ok(Buffer.from(files[prefix+'CUSTOM DOCUMENTS/Customs Invoice.pdf']).subarray(0,4).equals(Buffer.from('%PDF')),'custom documents are saved separately, not zipped');
+		 await page.evaluate(()=>window.__files={});
+		 const strictResult=await page.evaluate(()=>TT_SHIPMENT_FILES.save({...window.__args,strictFinal:true}));
+		 assert.equal(strictResult.count,5,'final lot archive should only queue master PDF, bank PDF and three custom documents');
+		 const strictFiles=await page.evaluate(()=>Object.keys(window.__files).sort());
+		 assert.deepEqual(strictFiles,[
+		  prefix+'CUSTOM DOCUMENTS/Customs Invoice.pdf',
+		  prefix+'CUSTOM DOCUMENTS/Customs Packing List.pdf',
+		  prefix+'CUSTOM DOCUMENTS/Phytosanitary Invoice.pdf',
+		  prefix+'Master Shipment Documents.pdf',
+		  prefix+'TG BANK DOCUMENTS.pdf'
+		 ].sort(),'strict final archive must not leave loose originals, Sales Contract, GD copies, TG docs or Word files');
+		 const lcResult=await page.evaluate(async()=>{
+		  window.__files={};
 	  const args={...window.__args,customer:'LC Customer',contract:'TTI/LC/01',lot:'TTI/LC/01/L01'};
 	  args.rows=window.__args.rows.filter(row=>!String(row.key||'').startsWith('tg'));
 	  args.committedSnapshot={contracts:[{ref:'TTI/LC/01',seller:'TTI',paymentCode:'LC_SIGHT',documentsPresented:[{sequence:1,name:'Commercial Invoice',original:1,copies:2},{sequence:2,name:'Packing List',original:1,copies:1},{sequence:3,name:'Goods Declaration (GD)',original:0,copies:1}]}]};

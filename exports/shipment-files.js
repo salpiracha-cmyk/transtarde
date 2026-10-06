@@ -177,7 +177,7 @@ function zip(entries,type){const encoder=new TextEncoder();return zipBytes(Objec
 	 }
 	 return out
 	}
-	async function save({customer,contract,lot,rows,uploads,fit,optional=false,committedSnapshot=null}){
+	async function save({customer,contract,lot,rows,uploads,fit,optional=false,committedSnapshot=null,strictFinal=false}){
 	 if(busy&&!legacyQa())throw new Error('Shipment files are already being prepared.');
 	 if(busy&&legacyQa())busy=false;
 	 busy=true;
@@ -187,20 +187,21 @@ function zip(entries,type){const encoder=new TextEncoder();return zipBytes(Objec
 	   const kind=separate(row.name,row.key),markup=row.render(),folder=row.folder?component(normalizedFolder(row.folder)):'',category=docCategory(row.name,row.key);
 	   const pdfBlob=await pdf(markup,fit),blob=kind==='cover'?word(markup):pdfBlob;
 	   docs.push({category,name:row.name,key:row.key,folder,blob:pdfBlob,render:row.render});
-	   if(kind||folder||row.key==='commercialDraft')files.push({folder,name:component(row.name)+(kind==='cover'?'.docx':'.pdf'),blob});
+	   if(!strictFinal&&(kind||folder||row.key==='commercialDraft'))files.push({folder,name:component(row.name)+(kind==='cover'?'.docx':'.pdf'),blob});
+	   else if(strictFinal&&folder==='CUSTOM DOCUMENTS')files.push({folder,name:component(row.name)+'.pdf',blob:pdfBlob});
 	  }
 	  for(const doc of uploads){
 	   const key=doc.id||doc.downloadUrl||doc.dataUrl;if(!key||seen.has(key))continue;seen.add(key);
 	   const kind=separate(doc.type||doc.name),folder=doc.folder?component(normalizedFolder(doc.folder)):'',original=await uploadBlob(doc),uploadName=cleanUploadName(doc.name),category=docCategory(doc.type||doc.name);
-	   if(kind==='contract')files.push({folder,name:'Signed Sales Contract - '+uploadName,blob:original});
-	   else if(kind==='cover')files.push({folder,name:uploadName,blob:original});
+	   if(!strictFinal&&kind==='contract')files.push({folder,name:'Signed Sales Contract - '+uploadName,blob:original});
+	   else if(!strictFinal&&kind==='cover')files.push({folder,name:uploadName,blob:original});
 	   else{let converted=null;try{converted=await asPdf(original)}catch(error){
 	     const isPdf=/pdf/i.test(original.type||'')||/\.pdf$/i.test(doc.name||'');
 	     if(!isPdf)throw new Error('Cannot add '+(doc.name||doc.type||'this upload')+' to the PDF package. Upload a readable PDF or image. '+error.message);
 	    }
-	    if(kind==='gd'&&converted)files.push({folder,name:'GD - '+component(String(doc.name||'Document').replace(/\.[^.]+$/,''))+'.pdf',blob:converted});
+	    if(!strictFinal&&kind==='gd'&&converted)files.push({folder,name:'GD - '+component(String(doc.name||'Document').replace(/\.[^.]+$/,''))+'.pdf',blob:converted});
 	    if(converted)docs.push({category,name:doc.type||doc.name,folder,blob:converted});
-	    files.push({folder,name:uploadName,blob:original});
+	    if(!strictFinal)files.push({folder,name:uploadName,blob:original});
 	   }
 	  }
 	  const master=[firstDoc(docs,'commercial'),firstDoc(docs,'bl'),firstDoc(docs,'packing'),firstDoc(docs,'coo'),firstDoc(docs,'fumigation'),firstDoc(docs,'phyto')].filter(Boolean).map(doc=>doc.blob);

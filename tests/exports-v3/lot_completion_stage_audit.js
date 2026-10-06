@@ -12,11 +12,12 @@ assert.match(output,/lotCompleteButton.*LOT COMPLETE/,'larger completion button 
 assert.doesNotMatch(output,/id="chooseShipmentFolder"|id="saveShipmentFiles"/,'redundant folder buttons are removed');
 const missing=app.slice(app.indexOf('function completionMissing(s,c)'),app.indexOf("document.addEventListener('click',async e=>"));
 assert.doesNotMatch(missing,/covering|frozen|dispatched/,'covering letter and freeze must not block closure');
-assert.match(app,/await saveShipmentFolder\(s,c\)[\s\S]*s.completed=true/,'office package is saved before closure');
+assert.match(app,/s\.completed=true[\s\S]*const confirmed=await confirmLotCompletionSave\(attempted,s\.id\)[\s\S]*await saveShipmentFolder\(completedLot,completedContract\)/,'lot completion is confirmed before the Office Agent folder is queued');
 assert.match(app,/if\(e\.target\?\.id==='completeLot'\)[\s\S]*completionMissing\(s,c\)/,'click handler revalidates completion server-side state before closing the lot');
 assert.match(app,/function confirmLotCompletionSave\(payload,lotId\)[\s\S]*120000/,'lot completion waits for a slow hosted save before failing');
 assert.match(app,/const confirmed=await confirmLotCompletionSave\(attempted,s\.id\)/,'lot completion uses the durable confirmation helper for the final save');
 assert.match(app,/function requeueCompletedShipmentFolder\(button,s,c\)[\s\S]*saveShipmentFolder\(s,c,false\)/,'completed lots can requeue the final Office Agent folder without reopening');
+assert.match(app,/strictFinal:true/,'Office Agent final package uses the strict final document folder format');
 const requeue=app.slice(app.indexOf('function requeueCompletedShipmentFolder'),app.indexOf('\nfunction recordUploadedDocument'));
 assert.doesNotMatch(requeue,/saveNow/,'completed lot office-folder requeue must not wait on a new shared save');
 assert.match(app,/QUEUE OFFICE FOLDER/,'completed lot view exposes an explicit Office Agent requeue action');

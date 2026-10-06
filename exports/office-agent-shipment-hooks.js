@@ -52,6 +52,7 @@ function findShipmentForOptions(data,options){
  return(data.shipments||[]).find(s=>s.contractRef===contractRef&&(String(s.lotId||'')===lot||(!s.lotId&&lot==='PRE-SHIPMENT')))||activeProcesses(data).find(s=>s.contractRef===contractRef)
 }
 function augmentOptions(options){
+ if(options?.strictFinal)return options;
  const data=options.committedSnapshot||state(),s=findShipmentForOptions(data,options);if(!s)return options;
  const c=contract(data,s.contractRef),existing=new Set((options.rows||[]).map(row=>String(row.key||row.name||'')));
  const rows=[...(options.rows||[])],uploads=[...(options.uploads||[])];

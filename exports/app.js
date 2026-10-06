@@ -645,17 +645,24 @@ document.addEventListener('click',async e=>{if(e.target?.id==='cancelLot'){e.pre
   if(!s||!c)throw new Error('Server shipment state changed. Reload and review.');
   if(s.completed){view='home';render();return}
   const acknowledgedMissing=completionMissing(s,c);if(acknowledgedMissing.length)throw new Error('The saved server shipment is incomplete: '+acknowledgedMissing.join(', '));
-  const result=await saveShipmentFolder(s,c);
-  if(state.shipments.find(row=>row.id===s.id)!==s)throw new Error('Shipment changed while preparing the files. Reload and review before completing.');
-  const latest=completionMissing(s,c);if(latest.length)throw new Error('Shipment changed while saving. Complete: '+latest.join(', '));
-  captureShipmentPartyDetails(s,c);s.completed=true;s.status='Completed';s.completedAt=new Date().toISOString();s.documentFolder=result.path;
-  const p=processFor(s),valid=lotsFor(p).filter(l=>!l.cancelled),allocated=valid.reduce((a,l)=>a+num(l.plannedQty),0);
-  if(valid.length&&valid.every(l=>l.completed)&&allocated+.001>=num(p.plannedQty)*(1-num(c.tolerance)/100)){captureShipmentPartyDetails(p,c);c.documentParties=structuredClone(p.documentParties);p.completed=true;p.status='Completed';c.status='Completed'}
-  audit('Lot','Completed; document package queued',`${s.contractRef} · ${s.lotId} · ${result.path}`);attempted=save();
-  if(feedback)feedback.innerHTML='<div class="notice">Completion saved. Waiting for server confirmation...</div>';
-  const confirmed=await confirmLotCompletionSave(attempted,s.id);
-  if(!confirmed?.shipments?.find(row=>row.id===s.id)?.completed)throw new Error('Server completion was not confirmed. Reload and review this lot.');
-  state=normalize(confirmed);view='home';render()
+	  if(state.shipments.find(row=>row.id===s.id)!==s)throw new Error('Shipment changed while confirming the lot. Reload and review before completing.');
+	  const latest=completionMissing(s,c);if(latest.length)throw new Error('Shipment changed while saving. Complete: '+latest.join(', '));
+	  captureShipmentPartyDetails(s,c);s.completed=true;s.status='Completed';s.completedAt=new Date().toISOString();
+	  const p=processFor(s),valid=lotsFor(p).filter(l=>!l.cancelled),allocated=valid.reduce((a,l)=>a+num(l.plannedQty),0);
+	  if(valid.length&&valid.every(l=>l.completed)&&allocated+.001>=num(p.plannedQty)*(1-num(c.tolerance)/100)){captureShipmentPartyDetails(p,c);c.documentParties=structuredClone(p.documentParties);p.completed=true;p.status='Completed';c.status='Completed'}
+	  audit('Lot','Completed',`${s.contractRef} · ${s.lotId}`);attempted=save();
+	  if(feedback)feedback.innerHTML='<div class="notice">Completion saved. Waiting for server confirmation...</div>';
+	  const confirmed=await confirmLotCompletionSave(attempted,s.id);
+	  if(!confirmed?.shipments?.find(row=>row.id===s.id)?.completed)throw new Error('Server completion was not confirmed. Reload and review this lot.');
+	  state=normalize(confirmed);
+	  try{
+	   const completedLot=state.shipments.find(row=>row.id===s.id),completedContract=completedLot&&contractByRef(completedLot.contractRef);
+	   const result=completedLot&&completedContract?await saveShipmentFolder(completedLot,completedContract):null;
+	   if(result){completedLot.documentFolder=result.path;completedLot.officeArchivePending=false;completedLot.officeArchiveError='';audit('Lot','Document package queued',`${completedLot.contractRef} · ${completedLot.lotId} · ${result.path}`);attempted=save();await acknowledgeExport(attempted)}
+	  }catch(folderError){
+	   const completedLot=state.shipments.find(row=>row.id===s.id);if(completedLot){completedLot.officeArchivePending=true;completedLot.officeArchiveError=folderError.message;attempted=save();try{await acknowledgeExport(attempted)}catch(confirmError){console.warn('Completed lot saved, but office archive retry flag was not confirmed:',confirmError)}}
+	  }
+	  view='home';render()
  }catch(error){
   // Restore the local action only; never post an old root over an uncertain save.
   restoreExportAttempt(before,attempted);
@@ -1218,7 +1225,7 @@ async function saveShipmentFolder(s,c,optional=false){
  if(!lot||!contract)throw new Error('Save this lot in Transtrade before copying its files.');
  const live=state;let rows,name;try{state=saved;rows=shipmentFolderDocuments(lot,contract);name=buyerOf(shipmentDocumentContext(lot,contract)).name||lot.buyer}finally{state=live}
  for(const row of rows)if(row.render){const render=row.render;row.render=()=>{const live=state;try{state=saved;return render()}finally{state=live}}}
- return window.TT_SHIPMENT_FILES.save({customer:name,contract:lot.contractRef,lot:lot.lotId,rows,uploads:shipmentUploadedFiles(lot),fit:fitTGProformaPages,optional,committedSnapshot:saved});
+ return window.TT_SHIPMENT_FILES.save({customer:name,contract:lot.contractRef,lot:lot.lotId,rows,uploads:shipmentUploadedFiles(lot),fit:fitTGProformaPages,optional,committedSnapshot:saved,strictFinal:true});
 }
 async function copyCommittedShipmentFiles(s,c){
  if(!window.TT_SHIPMENT_FILES)return;
