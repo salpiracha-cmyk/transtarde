@@ -167,16 +167,15 @@ const {chromium}=require('playwright'),path=require('path'),out=path.resolve(__d
   await page.evaluate(data=>window.__qa.fixture(data),fixture);
   const result=await page.evaluate(()=>window.__qa.save());assert.equal(result.path,first.path,route+' must reuse the same buyer / shipment / lot');
   const paths=await page.evaluate(()=>Object.keys(window.__savedFiles));
- const customsZipPath='AMT Enterprise/SHIPMENT #13/LOT #AMT-1/Custom documents.zip';
- assert.ok(paths.includes(customsZipPath),route+' Customs documents ZIP must be saved under the lot');
- const zipBytes=await page.evaluate(name=>window.__savedFiles[name],customsZipPath),zipPath=path.join(out,route+'-customs-documents.zip');
- fs.writeFileSync(zipPath,Buffer.from(zipBytes));
- const zipNames=JSON.parse(require('node:child_process').execFileSync('python3',['-c','import zipfile,json,sys; z=zipfile.ZipFile(sys.argv[1]); assert z.testzip() is None; print(json.dumps(z.namelist()))',zipPath],{encoding:'utf8'}));
- for(const name of ['Customs Invoice.pdf','Customs Packing List.pdf','Phytosanitary Invoice.pdf'])assert.ok(zipNames.includes(name),route+' ZIP missing '+name);
+	 for(const name of ['Customs Invoice.pdf','Customs Packing List.pdf','Phytosanitary Invoice.pdf']){
+	  const savedPath='AMT Enterprise/SHIPMENT #13/LOT #AMT-1/CUSTOM DOCUMENTS/'+name;
+	  assert.ok(paths.includes(savedPath),route+' CUSTOM DOCUMENTS folder missing '+name);
+	  assert.equal(Buffer.from(await page.evaluate(path=>window.__savedFiles[path],savedPath)).subarray(0,4).toString(),'%PDF');
+	 }
   assert.ok(paths.some(path=>path.endsWith('/GD - GD.pdf')),route+' GD must be a separate PDF');
   if(route==='TG')for(const name of ['Sales Contract / Proforma','Commercial Invoice','Packing List'])assert.ok(paths.some(path=>path.includes('/TG docs/')&&path.includes(name.replaceAll('/','-'))),name+' must be in TG docs');
  }
  await page.evaluate(()=>{const root={name:'Transtrade software shipment documents',async queryPermission(){return'granted'},async getDirectoryHandle(){return this},async getFileHandle(){throw Error('Office share offline')}};window.showDirectoryPicker=async()=>root});await page.evaluate(()=>window.TT_SHIPMENT_FILES.choose().catch(()=>{}));
- const failure=await page.evaluate(async png=>{try{await window.TT_SHIPMENT_FILES.save({customer:'QA',contract:'TTI/QA/01',lot:'TTI/QA/01/L01',rows:[],uploads:[{id:'fixture',name:'fixture.png',dataUrl:png}]});return''}catch(error){return error.message}},png);assert.match(failure,/0 of 2 files saved/,'failed share write must never report success');
+	 const failure=await page.evaluate(async png=>{try{await window.TT_SHIPMENT_FILES.save({customer:'QA',contract:'TTI/QA/01',lot:'TTI/QA/01/L01',rows:[],uploads:[{id:'fixture',name:'fixture.png',dataUrl:png}]});return''}catch(error){return error.message}},png);assert.match(failure,/0 of \d+ files saved/,'failed share write must never report success');
  await browser.close();console.log('PASS saved B/L description propagation across TTI/BRM/TG and L/C, canonical quoted brands on all outputs, GD prefill/fallback, editable number/date columns, validated multi-GD uploads, Phyto upload/reference, single final table/COO, packing label, branded PDF, and reusable customer/shipment/lot and Customs/TG subfolder saves across TTI, BRM and TG');
 })().catch(error=>{console.error(error);process.exit(1)});
