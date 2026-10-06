@@ -28,6 +28,58 @@ function tt_request_is_https(): bool {
     return strtolower(preg_replace('/:\d+$/','',(string)($_SERVER['HTTP_HOST']??'')))==='app.transtradeinternational.com';
 }
 
+/** Keep file sessions in one private application-owned location across routes/workers. */
+function tt_configure_session_storage(): void {
+    if(session_status()===PHP_SESSION_ACTIVE||ini_get('session.save_handler')!=='files')return;
+    $oldSetting=session_save_path();
+    $parts=explode(';',$oldSetting);
+    $oldRoot=(string)end($parts);
+    if($oldRoot==='')$oldRoot=sys_get_temp_dir();
+    $depth=count($parts)>1&&ctype_digit($parts[0])?(int)$parts[0]:0;
+    tt_ensure_data_dir();
+    $root=TT_DATA_DIR.'/sessions';
+    if(!is_dir($root)&&!mkdir($root,0700,true)&&!is_dir($root))throw new RuntimeException('Private session storage is unavailable.');
+    if(is_link($root)||!is_writable($root))throw new RuntimeException('Private session storage is unavailable.');
+    @chmod($root,0700);
+    $id=session_id()?:((string)($_COOKIE[session_name()]??''));
+    // Carry an existing live file session across the storage move. No IDs or
+    // authentication data are written to logs, responses or business backups.
+    if(preg_match('/^[A-Za-z0-9,-]{1,256}$/D',$id)&&$depth<=strlen($id)){
+        $old=rtrim($oldRoot,'/');
+        for($i=0;$i<$depth;$i++)$old.='/'.$id[$i];
+        $old.='/sess_'.$id;$target=$root.'/sess_'.$id;$migrated=$root.'/.migrated-'.hash('sha256',$id);
+        if($old!==$target&&!is_file($target)&&!is_file($migrated)&&is_file($old)&&!is_link($old)){
+            $lock=fopen($root.'/.migration.lock','c+');
+            if($lock===false||!flock($lock,LOCK_EX))throw new RuntimeException('Session migration is unavailable.');
+            try{
+                if(!is_file($target)&&!is_file($migrated)){
+                    $source=fopen($old,'rb');
+                    if($source!==false){
+                        try{
+                            if(!flock($source,LOCK_SH))throw new RuntimeException('Session migration is unavailable.');
+                            $temp=$root.'/.migration-'.bin2hex(random_bytes(12));
+                            $destination=fopen($temp,'x+b');
+                            if($destination===false)throw new RuntimeException('Session migration is unavailable.');
+                            try{
+                                @chmod($temp,0600);
+                                if(stream_copy_to_stream($source,$destination)===false||!fflush($destination))throw new RuntimeException('Session migration could not be saved.');
+                            }finally{fclose($destination);}
+                            if(!rename($temp,$target))throw new RuntimeException('Session migration could not be committed.');
+                            if(file_put_contents($migrated,'migrated',LOCK_EX)===false)throw new RuntimeException('Session migration could not be recorded.');
+                            @chmod($migrated,0600);
+                            @unlink($old); // Never resurrect a logged-out session from its legacy copy.
+                        }finally{flock($source,LOCK_UN);fclose($source);if(isset($temp)&&is_file($temp))unlink($temp);}
+                    }
+                }
+            }finally{flock($lock,LOCK_UN);fclose($lock);}
+        }
+    }
+    if(session_save_path($root)===false)throw new RuntimeException('Private session storage could not be selected.');
+    ini_set('session.gc_maxlifetime',(string)TT_SESSION_IDLE_TIMEOUT);
+    ini_set('session.gc_probability','1');
+    ini_set('session.gc_divisor','1000');
+}
+
 ini_set('session.use_strict_mode', '1');
 ini_set('session.use_only_cookies', '1');
 session_name('TRANSTRADE_SESSION');
@@ -36,7 +88,8 @@ session_set_cookie_params([
     'secure' => tt_request_is_https(),
     'httponly' => true, 'samesite' => 'Strict',
 ]);
-if (session_status() !== PHP_SESSION_ACTIVE) session_start();
+tt_configure_session_storage();
+if (session_status() !== PHP_SESSION_ACTIVE && !session_start()) throw new RuntimeException('Your session could not be opened.');
 
 function tt_ensure_data_dir(): void {
     if (!is_dir(TT_DATA_DIR) && !mkdir(TT_DATA_DIR, 0700, true) && !is_dir(TT_DATA_DIR)) throw new RuntimeException('The secure data folder could not be created.');
@@ -397,6 +450,16 @@ function tt_user_can_open_module(array $user, string $module): bool {
     return false;
 }
 
+/** Preserve legacy module grants; explicit matrices grant only the selected icon. */
+function tt_user_can_module_action(array $user,string $module,string $icon,string $action): bool {
+    if (($user['role']??'')==='Super Admin') return true;
+    $permissions=$user['permissions'][$module]??[];
+    if ($permissions==='all') return true;
+    if (!is_array($permissions)) return false;
+    if (array_is_list($permissions)) return in_array($action,$permissions,true);
+    return in_array($action,(array)($permissions[$icon]??[]),true);
+}
+
 function tt_user_can_access_masters(array $user): bool {
     if (($user['role'] ?? '')==='Super Admin') return true;
     foreach (['Mill','Exports','Accounts','Directors'] as $module) if (tt_user_can_open_module($user,$module)) return true;
@@ -585,7 +648,8 @@ function tt_destroy_session_state(): void {
     $_SESSION=[];
     if (ini_get('session.use_cookies')) {
         $p=session_get_cookie_params();
-        setcookie(session_name(),'',time()-42000,[
+        setcookie(session_name(),'',[
+            'expires'=>time()-42000,
             'path'=>$p['path']?:'/', 'domain'=>$p['domain']??'',
             'secure'=>(bool)($p['secure']??false), 'httponly'=>(bool)($p['httponly']??true),
             'samesite'=>$p['samesite']??'Strict',
@@ -665,6 +729,21 @@ function tt_accounts_post_register_read(string $path,string $method,string $enti
     return $path==='/api/accounts_ledger_browser.php'&&strtoupper($method)==='GET'&&$entity==='ALL'&&$account==='POSTS';
 }
 
+/** A URL, form and JSON body must identify the same protected company. */
+function tt_resolve_api_entity(array $query,array $form,?array $body,array $policy): string {
+    $entities=[];
+    foreach ([$query,$form,$body??[]] as $values) {
+        if (!array_key_exists('entity',$values)) continue;
+        if (!is_string($values['entity'])) throw new InvalidArgumentException('Select a valid legal entity.');
+        $entity=strtoupper(trim($values['entity']));
+        if ($entity!=='') $entities[$entity]=true;
+    }
+    $fixed=(string)($policy['fixed']??'');
+    if ($fixed!=='') $entities[$fixed]=true;
+    if (count($entities)>1) throw new InvalidArgumentException('Conflicting legal entities were supplied. Refresh and select the company again.');
+    return (string)(array_key_first($entities)??'');
+}
+
 function tt_require_login(): array {
     $user = tt_current_user();
     $path=(string)parse_url((string)($_SERVER['REQUEST_URI']??''),PHP_URL_PATH);
@@ -686,13 +765,14 @@ function tt_require_login(): array {
     tt_offline_request_guard($user);
     if(str_starts_with($path,'/api/')&&$path!=='/api/assets_registry.php'&&tt_user_can_open_module($user,'Accounts')){
         $policy=tt_api_entity_policy($path);
-        $entity=strtoupper(trim((string)($_GET['entity']??$_POST['entity']??'')));
-        if($entity===''&&strtoupper((string)($_SERVER['REQUEST_METHOD']??'GET'))!=='GET'){
+        $body=null;
+        if(strtoupper((string)($_SERVER['REQUEST_METHOD']??'GET'))!=='GET'){
             $raw=file_get_contents('php://input')?:'';
-            $body=$raw!==''?json_decode($raw,true):null;
-            if(is_array($body))$entity=strtoupper(trim((string)($body['entity']??'')));
+            $decoded=$raw!==''?json_decode($raw,true):null;
+            if(is_array($decoded))$body=$decoded;
         }
-        if($entity===''&&$policy['fixed']!=='')$entity=$policy['fixed'];
+        try{$entity=tt_resolve_api_entity($_GET,$_POST,$body,$policy);}
+        catch(InvalidArgumentException $e){tt_api_json_error(403,$e->getMessage());}
         if(tt_accounts_post_register_read($path,(string)($_SERVER['REQUEST_METHOD']??'GET'),$entity,(string)($_GET['account']??''))){
             if(!tt_user_accounts_entities($user))tt_api_json_error(403,'You do not have permission for any company books.');
             // accounts_ledger_browser.php filters every journal/post by entity View rights.

@@ -135,6 +135,13 @@ async function ready(page,quota=false){
   assert.match(await p.locator('#activeCards').innerText(),/No active contracts or shipments/);
   await p.close();
  });
+ await check('Persisted hostile Customs dates remain data and never create executable DOM',async()=>{
+  const p=await pageFor();await ready(p);await p.evaluate(()=>{const lot=__focusQA.getState().shipments.find(s=>s.id==='L-FOCUS');lot.customs.date='\"><img id="injected-date" src=x onerror="window.dateInjected=true">';__focusQA.open('L-FOCUS','customs')});
+  assert.equal(await p.locator('#injected-date').count(),0);
+  assert.equal(await p.evaluate(()=>!!window.dateInjected),false);
+  assert.equal(await p.locator('#cuDate').count(),1);
+  await p.close();
+ });
  console.log('PASS '+results.length+' completion and progressive archive browser scenarios');
  }finally{await browser?.close()}
 })().catch(error=>{console.error(error);process.exitCode=1});

@@ -267,7 +267,7 @@ function tt_backup_private_files(): array {
         if (!$file->isFile() || $file->isLink()) continue;
         $path = $file->getPathname();
         $rel = str_replace('\\', '/', substr($path, strlen($root) + 1));
-        if ($rel === '' || str_starts_with($rel, 'backups/') || $rel === 'backup_state.json' || str_ends_with($rel, '.lock') || str_contains($rel, '.tmp-') || str_contains($rel, '.restore-')) continue;
+        if ($rel === '' || str_starts_with($rel, 'backups/') || str_starts_with($rel, 'sessions/') || $rel === 'backup_state.json' || str_ends_with($rel, '.lock') || str_contains($rel, '.tmp-') || str_contains($rel, '.restore-')) continue;
         $files[$rel] = $path;
     }
     ksort($files);

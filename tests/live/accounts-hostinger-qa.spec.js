@@ -40,6 +40,7 @@ function traceSessionNavigation(page) {
     const [headers, requestHeaders] = await Promise.all([response.allHeaders(), response.request().allHeaders()]);
     trace.push({
       ms: Date.now() - started, path, status: response.status(),
+      serverWaitMs:Math.round(response.request().timing().responseStart-response.request().timing().requestStart),
       location: headers.location || '', method: response.request().method(),
       sentSessionCookie: /(?:^|;\s*)TRANSTRADE_SESSION=/.test(requestHeaders.cookie || ''),
       setsSessionCookie: /TRANSTRADE_SESSION=/.test(headers['set-cookie'] || ''),
@@ -58,6 +59,8 @@ async function returnFromMasters(page, trace) {
   await activate(page.locator('#masterBackTop'));
   try {
     await expect(page).toHaveURL(/\/accounts\/index\.php$/, { timeout: 30_000 });
+    await trace.flush();
+    console.log('SESSION_NAVIGATION_OK ' + JSON.stringify(trace.slice(-6)));
   } catch (error) {
     await trace.flush();
     const probe = await page.request.get(BASE_URL + '/accounts/index.php?tt_session_probe=' + Date.now(), {maxRedirects:0});
@@ -407,3 +410,17 @@ test('authenticated QA cannot read the Super Admin Director approval feed', asyn
   expect(result.ok).toBe(false);
   expect(result).not.toHaveProperty('approvals');
 });
+
+test('session persists through twelve Masters and Accounts round trips', async ({ page }) => {
+  test.setTimeout(240_000);
+  const trace=traceSessionNavigation(page);
+  await signIn(page);
+  for(let round=0;round<12;round++){
+    await expect(page.locator('#ttMasterTop')).toBeVisible({timeout:30_000});
+    await page.locator('#ttMasterTop').click();
+    await expect(page.locator('#masterBackTop')).toBeVisible({timeout:30_000});
+    await returnFromMasters(page,trace);
+    console.log('SESSION_ROUNDTRIP_OK ' + (round+1));
+  }
+});
+
