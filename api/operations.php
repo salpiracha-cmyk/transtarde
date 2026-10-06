@@ -49,6 +49,7 @@ function operations_read(): array {
 try {
     $user = tt_require_login();
     if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+        tt_release_read_session();
         $store = operations_read();
         operations_respond([
             'ok' => true,

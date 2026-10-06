@@ -866,6 +866,19 @@ function tt_require_login(): array {
     return $user;
 }
 
+/**
+ * Call only after this GET route has authenticated and authorized the user.
+ * Commit activity/CSRF before expensive read work; subsequent requests can then
+ * use the same session without waiting for this response to finish.
+ */
+function tt_release_read_session(): void {
+    if (strtoupper((string)($_SERVER['REQUEST_METHOD']??''))!=='GET') throw new LogicException('Only read requests may release the session here.');
+    if (session_status()!==PHP_SESSION_ACTIVE) return;
+    if (empty($_SESSION['user_id'])) throw new LogicException('Authenticate before releasing a read session.');
+    tt_csrf();
+    if (!session_write_close()) throw new RuntimeException('Your session could not be committed.');
+}
+
 function tt_csrf(): string {
     if (empty($_SESSION['csrf'])) $_SESSION['csrf'] = bin2hex(random_bytes(32));
     return $_SESSION['csrf'];

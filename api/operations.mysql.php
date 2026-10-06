@@ -584,6 +584,7 @@ function operations_file_fallback(array $user): never {
 
 try {
     $user = tt_require_login();
+    if ($_SERVER['REQUEST_METHOD']==='GET') tt_release_read_session();
     if (operations_env('DB_HOST') === '' || operations_env('DB_NAME') === '' || operations_env('DB_USER') === '') {
         operations_file_fallback($user);
     }

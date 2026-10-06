@@ -60,7 +60,7 @@ function customer_rows(): array { $m=tt_list_masters();$rows=is_array($m['export
 
 try{
     $user=tt_require_login();if(($user['role']??'')!=='Super Admin'&&!tt_user_can_open_module($user,'Exports'))customer_respond(['ok'=>false,'error'=>'Exports access required.'],403);
-    if($_SERVER['REQUEST_METHOD']==='GET')customer_respond(['ok'=>true,'customers'=>customer_rows()]);
+    if($_SERVER['REQUEST_METHOD']==='GET'){tt_release_read_session();customer_respond(['ok'=>true,'customers'=>customer_rows()]);}
     if($_SERVER['REQUEST_METHOD']!=='POST')customer_respond(['ok'=>false,'error'=>'Method not allowed.'],405);
     if(!customer_can_write($user))customer_respond(['ok'=>false,'error'=>'Create or Edit permission for Customers / Sales Contracts is required.'],403);
     $body=json_decode(file_get_contents('php://input')?:'{}',true);if(!is_array($body)||!tt_verify_csrf((string)($body['csrf']??'')))customer_respond(['ok'=>false,'error'=>'Your session expired. Refresh and try again.'],419);

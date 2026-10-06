@@ -58,3 +58,59 @@ session_write_close();echo json_encode($result);
     files=json.loads(subprocess.run(['php',str(listing),str(app)],capture_output=True,text=True,check=True).stdout)
     assert not any(name.startswith('sessions/') for name in files), 'Session credentials must not enter business recovery backups'
     print('PASS atomic concurrent sessions, worker codec continuity, migration, strict IDs, private permissions, idle lifetime, logout replay protection and backup exclusion')
+
+# A slow authorized read must not hold up a second request from the same user.
+# The first PHP process stays alive on stdin, so this checks the real lock,
+# rather than relying on a timing assertion or a mocked session handler.
+with tempfile.TemporaryDirectory(prefix='tti-read-concurrency-') as directory:
+    root=pathlib.Path(directory);app=root/'app';app.mkdir()
+    for name in ['auth_store.php','master_store.php','product_stage.php','offline_idempotency.php','session_store.php']:
+        shutil.copy(ROOT/name,app/name)
+    private=root/'transtrade_private';private.mkdir()
+    user={'id':1,'username':'fixture','full_name':'Fixture','role':'Super Admin','active':True,'session_version':1,'permissions':{}}
+    auth=private/'auth.json'
+    auth.write_text(json.dumps({'users':[user],'masters':{},'audit':[]}))
+    seed=root/'seed.php'
+    seed.write_text("""<?php
+require $argv[1].'/auth_store.php';
+$_SESSION=['user_id'=>1,'auth_version'=>1,'last_activity_at'=>time()-10];
+$id=session_id();session_write_close();echo $id;
+""")
+    session_id=subprocess.run(['php',str(seed),str(app)],capture_output=True,text=True,check=True).stdout
+    reader=root/'reader.php'
+    reader.write_text("""<?php
+$_COOKIE['TRANSTRADE_SESSION']=$argv[2];
+$_SERVER['REQUEST_URI']='/api/masters.php';$_SERVER['REQUEST_METHOD']=$argv[3];
+$_SERVER['HTTP_X_TT_USER_ACTIVITY']='1';
+require $argv[1].'/auth_store.php';
+$user=tt_require_login();
+if($argv[3]==='POST'){
+    try{tt_release_read_session();throw new RuntimeException('POST released');}
+    catch(LogicException $expected){}
+    if(session_status()!==PHP_SESSION_ACTIVE)throw new RuntimeException('POST lost its lock');
+    session_write_close();echo 'POST_PROTECTED';exit;
+}
+tt_release_read_session();
+if(session_status()===PHP_SESSION_ACTIVE)throw new RuntimeException('Read still holds lock');
+if($argv[4]==='hold'){echo "READY\\n";fflush(STDOUT);fgets(STDIN);}
+echo json_encode(['user'=>$user['id'],'csrf'=>tt_csrf(),'activity'=>$_SESSION['last_activity_at']]);
+""")
+    held=subprocess.Popen(['php',str(reader),str(app),session_id,'GET','hold'],stdin=subprocess.PIPE,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True)
+    try:
+        assert held.stdout.readline().strip()=='READY', 'Read did not release its session'
+        second=subprocess.run(['php',str(reader),str(app),session_id,'GET','probe'],capture_output=True,text=True,timeout=5,check=True)
+        data=json.loads(second.stdout)
+        assert data['user']==1 and len(data['csrf'])==64
+        assert data['activity']>0, 'Committed activity was lost'
+        held.stdin.write('finish\n');held.stdin.flush()
+        remainder,error=held.communicate(timeout=5)
+        assert held.returncode==0, error
+        assert json.loads(remainder)['csrf']==data['csrf'], 'Concurrent read changed CSRF'
+        post=subprocess.run(['php',str(reader),str(app),session_id,'POST','probe'],capture_output=True,text=True,timeout=5,check=True)
+        assert post.stdout=='POST_PROTECTED', 'Write requests must retain session protection'
+        user['session_version']=2;auth.write_text(json.dumps({'users':[user],'masters':{},'audit':[]}))
+        revoked=subprocess.run(['php',str(reader),str(app),session_id,'GET','probe'],capture_output=True,text=True,timeout=5,check=True)
+        assert json.loads(revoked.stdout)['ok'] is False, 'Credential invalidation must survive early read release'
+    finally:
+        if held.poll() is None:held.kill();held.communicate()
+    print('PASS slow reads permit concurrent authenticated requests; CSRF/activity persist, writes retain locks and changed passwords invalidate sessions')
