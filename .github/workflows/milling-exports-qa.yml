@@ -176,6 +176,8 @@ jobs:
           php tests/runtime_asset_version_test.php
           php tests/security/retired_owner_cleanup_test.php
           python3 tests/security/private_session_storage_test.py
+          python3 tests/security/authentication_boundary_test.py
+          python3 tests/security/session_retention_test.py
           python3 tests/security/entity_icon_authorization_test.py
           node tests/accounts-v1/payee_summary_escape_test.js
           node tests/accounts-v1/director_bank_approval_ui_test.js
@@ -195,3 +197,4 @@ jobs:
           php -l scripts/cleanup_qa_data.php
       - name: Runtime delivery and authentication audit
         run: node tests/runtime_security_static_audit.js
+

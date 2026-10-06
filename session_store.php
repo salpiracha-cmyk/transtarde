@@ -4,9 +4,11 @@ declare(strict_types=1);
 /** Private, locked session records. PHP receives a freshly serialized array,
  * never partially written file bytes. No session values enter application logs. */
 final class TTAtomicSessionStore implements SessionHandlerInterface, SessionUpdateTimestampHandlerInterface, SessionIdInterface {
+    public static function isNativeId(string $id): bool { return preg_match('/^tt2-[a-f0-9]{64}$/D',$id)===1; }
     private string $root;
     private string $legacy;
     private $lock = null;
+    private $compatibilityLock = null;
     private string $lockedId = '';
 
     public function __construct(string $legacy) {
@@ -23,13 +25,37 @@ final class TTAtomicSessionStore implements SessionHandlerInterface, SessionUpda
     private function plainFile(string $path): bool { return is_file($path) && !is_link($path); }
     private function acquire(string $id): void {
         if($this->lockedId === $id && is_resource($this->lock))return;
-        $this->close();$path=$this->path($id).'.lock';
+        $this->close();
+        // Keep the record and per-ID lock names readable by older workers.
+        // Native per-ID locks are hard links to permanent stripe inodes, so
+        // unlinking an expired link cannot split locks held by older workers.
+        $path=$this->path($id).'.lock';
+        if(self::isNativeId($id)){
+            $stripe=$this->root.'/.stripe-'.substr(hash('sha256',$id),0,2).'.lock';
+            if(is_link($stripe))throw new RuntimeException('Private session lock is unavailable.');
+            $lock=fopen($stripe,'c+b');
+            if($lock===false || !flock($lock,LOCK_EX)){if(is_resource($lock))fclose($lock);throw new RuntimeException('Private session lock is unavailable.');}
+            chmod($stripe,0600);
+            clearstatcache(true,$path);
+            if(!file_exists($path)&&!@link($stripe,$path)){clearstatcache(true,$path);if(!file_exists($path)){flock($lock,LOCK_UN);fclose($lock);throw new RuntimeException('Private session lock is unavailable.');}}
+            $a=stat($stripe);$b=is_link($path)?false:stat($path);
+            if(!$b){flock($lock,LOCK_UN);fclose($lock);throw new RuntimeException('Private session lock is unavailable.');}
+            if($a['ino']!==$b['ino']||$a['dev']!==$b['dev']){
+                // An old worker can recreate a unique lock after a stale
+                // validateId check. Retain that inode and lock both namespaces.
+                $compat=fopen($path,'c+b');
+                if($compat===false||!flock($compat,LOCK_EX)){if(is_resource($compat))fclose($compat);flock($lock,LOCK_UN);fclose($lock);throw new RuntimeException('Private session lock is unavailable.');}
+                $this->compatibilityLock=$compat;
+            }
+            $this->lock=$lock;$this->lockedId=$id;return;
+        }
         if(is_link($path))throw new RuntimeException('Private session lock is unavailable.');
         $lock=fopen($path,'c+b');
         if($lock===false || !flock($lock,LOCK_EX)){if(is_resource($lock))fclose($lock);throw new RuntimeException('Private session lock is unavailable.');}
         chmod($path,0600);$this->lock=$lock;$this->lockedId=$id;
     }
     private function markRetired(string $id): void {
+        if(self::isNativeId($id))return; // This namespace never imports legacy state.
         $path=$this->retired($id);
         if(is_link($path) || file_put_contents($path,'retired',LOCK_EX)===false)throw new RuntimeException('Session migration could not be recorded.');
         chmod($path,0600);
@@ -63,11 +89,11 @@ final class TTAtomicSessionStore implements SessionHandlerInterface, SessionUpda
         }finally{if(is_resource($handle))fclose($handle);if(is_file($temp))unlink($temp);}
     }
     public function open(string $path,string $name): bool { return true; }
-    public function close(): bool { if(is_resource($this->lock)){flock($this->lock,LOCK_UN);fclose($this->lock);} $this->lock=null;$this->lockedId='';return true; }
-    public function create_sid(): string { return bin2hex(random_bytes(32)); }
+    public function close(): bool { if(is_resource($this->compatibilityLock)){flock($this->compatibilityLock,LOCK_UN);fclose($this->compatibilityLock);} $this->compatibilityLock=null; if(is_resource($this->lock)){flock($this->lock,LOCK_UN);fclose($this->lock);} $this->lock=null;$this->lockedId='';return true; }
+    public function create_sid(): string { return 'tt2-'.bin2hex(random_bytes(32)); }
     public function validateId(string $id): bool {
         if(!$this->valid($id))return false;
-        return $this->plainFile($this->path($id)) || (!$this->plainFile($this->retired($id)) && $this->plainFile($this->legacyPath($id)));
+        return $this->plainFile($this->path($id)) || (!self::isNativeId($id) && !$this->plainFile($this->retired($id)) && $this->plainFile($this->legacyPath($id)));
     }
     public function read(string $id): string|false {
         $this->acquire($id);$path=$this->path($id);
@@ -78,7 +104,7 @@ final class TTAtomicSessionStore implements SessionHandlerInterface, SessionUpda
             return serialize($values);
         }
         $legacy=$this->legacyPath($id);
-        if(!$this->plainFile($this->retired($id))&&$this->plainFile($legacy)){
+        if(!self::isNativeId($id)&&!$this->plainFile($this->retired($id))&&$this->plainFile($legacy)){
             $handle=fopen($legacy,'rb');if($handle===false||!flock($handle,LOCK_EX)){if(is_resource($handle))fclose($handle);throw new RuntimeException('Session migration is unavailable.');}
             try{
                 $raw=stream_get_contents($handle);$values=is_string($raw)?$this->decodeLegacy($raw):null;
@@ -106,17 +132,46 @@ final class TTAtomicSessionStore implements SessionHandlerInterface, SessionUpda
     }
     public function destroy(string $id): bool {
         $this->acquire($id);$this->markRetired($id);
-        foreach([$this->path($id),$this->legacyPath($id)]as$path)if($this->plainFile($path)&&!unlink($path))throw new RuntimeException('Private session could not be retired.');
+        $paths=self::isNativeId($id)?[$this->path($id)]:[$this->path($id),$this->legacyPath($id)];
+        foreach($paths as$path)if($this->plainFile($path)&&!unlink($path))throw new RuntimeException('Private session could not be retired.');
+        if(self::isNativeId($id)&&!is_resource($this->compatibilityLock)){foreach([$this->path($id).'.lock',$this->retired($id)]as$metadata)if($this->plainFile($metadata))unlink($metadata);}
         return true;
     }
     public function gc(int $max_lifetime): int|false {
         $deleted=0;$cutoff=time()-$max_lifetime;
         foreach(glob($this->root.'/*.json')?:[]as$path){
             if(!$this->plainFile($path)||filemtime($path)>$cutoff)continue;
-            $lock=fopen($path.'.lock','c+b');if($lock===false)continue;chmod($path.'.lock',0600);
+            $hash=basename($path,'.json');
+            $stripe=$this->root.'/.stripe-'.substr($hash,0,2).'.lock';
+            $linkPath=$path.'.lock';
+            $a=$this->plainFile($stripe)?stat($stripe):false;
+            $b=$this->plainFile($linkPath)?stat($linkPath):false;
+            $native=$a&&$b&&$a['ino']===$b['ino']&&$a['dev']===$b['dev'];
+            $lockPath=$native?$stripe:$linkPath;
+            if(is_link($lockPath))continue;
+            $lock=fopen($lockPath,'c+b');if($lock===false)continue;chmod($lockPath,0600);
             if(flock($lock,LOCK_EX|LOCK_NB)){
                 clearstatcache(true,$path);
-                if($this->plainFile($path)&&filemtime($path)<=$cutoff){$marker=substr($path,0,-5).'.retired';if(file_put_contents($marker,'retired',LOCK_EX)!==false){chmod($marker,0600);if(unlink($path))$deleted++;}}
+                if($this->plainFile($path)&&filemtime($path)<=$cutoff){
+                    if($native){if(unlink($path)){$deleted++;if($this->plainFile($linkPath))unlink($linkPath);$marker=substr($path,0,-5).'.retired';if($this->plainFile($marker))unlink($marker);}}
+                    else{$marker=substr($path,0,-5).'.retired';if(!is_link($marker)&&file_put_contents($marker,'retired',LOCK_EX)!==false){chmod($marker,0600);if(unlink($path))$deleted++;}}
+                }
+                flock($lock,LOCK_UN);
+            }
+            fclose($lock);
+        }
+        // Old workers may have retired a native session during deployment.
+        // Reclaim only links to permanent stripes, under that same lock.
+        foreach(glob($this->root.'/*.json.lock')?:[]as$linkPath){
+            $path=substr($linkPath,0,-5);$hash=basename($path,'.json');
+            $stripe=$this->root.'/.stripe-'.substr($hash,0,2).'.lock';
+            if(!$this->plainFile($stripe)||!$this->plainFile($linkPath))continue;
+            $a=stat($stripe);$b=stat($linkPath);
+            if($a['ino']!==$b['ino']||$a['dev']!==$b['dev'])continue;
+            $lock=fopen($stripe,'c+b');if($lock===false)continue;
+            if(flock($lock,LOCK_EX|LOCK_NB)){
+                clearstatcache(true,$path);
+                if(!file_exists($path)){if($this->plainFile($linkPath))unlink($linkPath);$marker=substr($path,0,-5).'.retired';if($this->plainFile($marker))unlink($marker);}
                 flock($lock,LOCK_UN);
             }
             fclose($lock);

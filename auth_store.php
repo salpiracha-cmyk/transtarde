@@ -76,7 +76,7 @@ function tt_configure_session_storage(): void {
     $id=session_id()?:((string)($_COOKIE[session_name()]??''));
     // Carry an existing live file session across the storage move. No IDs or
     // authentication data are written to logs, responses or business backups.
-    if(preg_match('/^[A-Za-z0-9,-]{1,256}$/D',$id)&&$depth<=strlen($id)){
+    if(!TTAtomicSessionStore::isNativeId($id)&&preg_match('/^[A-Za-z0-9,-]{1,256}$/D',$id)&&$depth<=strlen($id)){
         $old=rtrim($oldRoot,'/');
         for($i=0;$i<$depth;$i++)$old.='/'.$id[$i];
         $old.='/sess_'.$id;$target=$root.'/sess_'.$id;$migrated=$root.'/.migrated-'.hash('sha256',$id);
@@ -122,8 +122,8 @@ session_set_cookie_params([
     'httponly' => true, 'samesite' => 'Strict',
 ]);
 $ttSessionTimingStart=hrtime(true);
-tt_configure_session_storage();
 require_once __DIR__ . '/session_store.php';
+tt_configure_session_storage();
 $ttSessionStore=new TTAtomicSessionStore(session_save_path());
 if(session_status()!==PHP_SESSION_ACTIVE){
     ini_set('session.serialize_handler','php_serialize');
@@ -650,6 +650,7 @@ function tt_user_accounts_entities(array $user): array {
 }
 
 function tt_user_landing_url(array $user): string {
+    if (!empty($user['must_change_password'])) return 'change-password.php';
     // The owner-level Super Admin always starts in the Control Centre.
     // Operational users continue directly to their assigned workspace.
     if (($user['role'] ?? '') === 'Super Admin') return 'index.php';
@@ -776,6 +777,16 @@ function tt_current_user(): ?array {
         $GLOBALS['TT_SESSION_END_REASON']='credentials';
         tt_destroy_session_state();
         return null;
+    }
+    // Temporary credentials authenticate only the password-change lifecycle.
+    // Keep this at the shared identity boundary, including API callers that
+    // deliberately do not use tt_require_login(). Do not destroy the session.
+    $path=(string)parse_url((string)($_SERVER['REQUEST_URI']??''),PHP_URL_PATH);
+    if (!empty($user['must_change_password']) && !in_array($path,
+        ['/login.php','/change-password.php','/logout.php','/api/session_activity.php'],true)) {
+        if (str_starts_with($path,'/api/')) tt_api_json_error(403,'Change your temporary password before using the software.');
+        header('Location: /change-password.php',true,303);
+        exit;
     }
     if (tt_request_has_user_activity()) tt_touch_session_activity();
     return $user;
