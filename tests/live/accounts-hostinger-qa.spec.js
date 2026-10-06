@@ -227,7 +227,12 @@ test('authenticated Accounts live smoke: professional desk and popup workflows',
   await expect(page.locator('#tal-period')).toHaveValue('till');
   await activate(page.locator('#tal-close'));
 
-  await deskAction(page, 'ledgers', 'Other Account');
+  await deskAction(page, 'ledgers', 'Party Ledgers');
+  await expect(page.locator('#tal-party')).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('#tal-account')).toHaveCount(0);
+  await activate(page.locator('#tal-close'));
+
+  await deskAction(page, 'ledgers', 'Account Ledgers');
   await expect(page.locator('#tal-account')).toBeVisible({ timeout: 30_000 });
   await activate(page.locator('#tal-close'));
 
