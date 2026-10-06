@@ -24,6 +24,7 @@ register_shutdown_function(static function(): void {
     $file=basename((string)($error['file']??''));if(!preg_match('/^[A-Za-z0-9_.-]+\.php$/D',$file))$file='hidden';
     $path=(string)parse_url((string)($_SERVER['REQUEST_URI']??''),PHP_URL_PATH);if(!preg_match('~^/[A-Za-z0-9_./-]*$~D',$path))$path='hidden';
     $entry=['time'=>gmdate('c'),'path'=>$path,'category'=>$category,'detail'=>$detail,'file'=>$file,'line'=>(int)($error['line']??0),'php'=>PHP_VERSION];
+    $entry['sessionWarnings']=array_values(array_unique(array_intersect((array)($GLOBALS['ttSessionStartupWarnings']??[]),['other','decode','permission','disk-full','open-file-limit','headers-sent','read','write','storage-init','open'])));
     $log=TT_DATA_DIR.'/sessions/runtime-errors.json';$handle=@fopen($log,'c+');if($handle===false)return;
     if(!@flock($handle,LOCK_EX|LOCK_NB)){fclose($handle);return;}
     try{$rows=json_decode(stream_get_contents($handle)?:'[]',true);$rows=is_array($rows)?$rows:[];$rows[]=$entry;$json=json_encode(array_slice($rows,-100),JSON_UNESCAPED_SLASHES);if($json!==false){rewind($handle);ftruncate($handle,0);fwrite($handle,$json);fflush($handle);@chmod($log,0600);}}
@@ -110,7 +111,21 @@ session_set_cookie_params([
 tt_configure_session_storage();
 $ttIncomingSession=(string)($_COOKIE[session_name()]??'');
 $ttIncomingFile=ini_get('session.save_handler')==='files'&&preg_match('/^[A-Za-z0-9,-]{1,256}$/D',$ttIncomingSession)?is_file(session_save_path().'/sess_'.$ttIncomingSession):false;
-if (session_status() !== PHP_SESSION_ACTIVE && !session_start()) throw new RuntimeException('Your session could not be opened.');
+if (session_status() !== PHP_SESSION_ACTIVE) {
+    // Keep diagnostic data to fixed categories; never retain warning text or IDs.
+    set_error_handler(static function(int $severity,string $message): bool {
+        if(str_contains($message,'session_start')){
+            $cause='other';
+            foreach(['Failed to decode'=>'decode','Permission denied'=>'permission','No space left'=>'disk-full','Too many open files'=>'open-file-limit','headers already sent'=>'headers-sent','Failed to read'=>'read','Failed to write'=>'write','Failed to initialize'=>'storage-init','open('=>'open'] as $match=>$kind)
+                if(str_contains($message,$match)){$cause=$kind;break;}
+            $GLOBALS['ttSessionStartupWarnings'][]=$cause;
+        }
+        return false;
+    },E_WARNING);
+    try{$ttSessionOpened=session_start();}finally{restore_error_handler();}
+    if(!$ttSessionOpened)throw new RuntimeException('Your session could not be opened.');
+    unset($ttSessionOpened);
+}
 // Session-dependent responses, including anonymous redirects, must bypass shared caches.
 header('Cache-Control: private, no-store, no-cache, must-revalidate, max-age=0');
 header('Pragma: no-cache');
