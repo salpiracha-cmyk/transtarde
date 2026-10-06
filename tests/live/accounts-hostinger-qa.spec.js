@@ -344,7 +344,7 @@ test('TG customer receipt reads the live Exports and bank links without posting'
   await expect(page.locator('#tgRcChargeBank')).toHaveCount(0);
   await expect(page.locator('#tgRcRef')).toBeVisible();
   await expect(page.locator('#tgRcRef').locator('xpath=..')).toContainText('optional');
-  await expect(page.locator('#tgRcCharge').locator('xpath=..')).toContainText('selected bank currency');
+  await expect(page.locator('#tgRcCharge').locator('xpath=ancestor::label[1]')).toContainText('selected bank currency');
   if (amtContract.outstandingAdvance > 0) {
     const advanceLabel = await page.locator('#tgRcTarget option').filter({ hasText: `Sales contract advance · ${amtContract.ref}` }).textContent();
     const amount = value => Number(value).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
