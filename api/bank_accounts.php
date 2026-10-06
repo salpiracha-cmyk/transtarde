@@ -67,7 +67,7 @@ function ba_master_accounts(): array {
             'personalOwner'=>(string)$v[2],'accountTitle'=>(string)$v[3],'bankName'=>(string)$v[4],'branch'=>(string)$v[5],
             'country'=>(string)$v[6],'currency'=>strtoupper(trim((string)$v[7])),'accountNumber'=>(string)$v[8],
             'accountNumberMasked'=>ba_mask((string)$v[8]),'accountLast5'=>substr(preg_replace('/\W+/','',(string)$v[8])??'',-5),
-            'iban'=>(string)$v[9],'ibanMasked'=>ba_mask((string)$v[9]),'displayLabel'=>ba_display_label((string)$v[3],(string)$v[4],strtoupper((string)$v[7]).' · '.(string)$v[8],(string)$v[9]),'swift'=>(string)$v[10],'purpose'=>(string)$v[11],
+            'iban'=>(string)$v[9],'ibanMasked'=>ba_mask((string)$v[9]),'displayLabel'=>($entity==='TG'?strtoupper((string)$v[7]).' · ':'').ba_display_label((string)$v[3],(string)$v[4],(string)$v[8],(string)$v[9]),'swift'=>(string)$v[10],'purpose'=>(string)$v[11],
             'visibility'=>(string)$v[12],'masterStatus'=>(string)$v[13],'masterRetentionAccount'=>$row['retentionAccount']??null
         ];
     }
