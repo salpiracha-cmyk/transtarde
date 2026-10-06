@@ -434,3 +434,44 @@ test('session persists through twelve Masters and Accounts round trips', async (
   }
 });
 
+
+test('read-only Exports and Milling loading, errors and Masters navigation', async ({ page }) => {
+  test.setTimeout(300_000);
+  await signIn(page);
+  const failures=[],errors=[],requests=[];
+  page.on('pageerror',error=>errors.push(String(error.message)));
+  page.on('response',response=>{
+    const path=new URL(response.url()).pathname;
+    if(response.status()>=500)failures.push({path,status:response.status()});
+    if(response.request().method()==='POST'&&!path.endsWith('/session_activity.php'))requests.push(path);
+  });
+  for(const moduleId of ['exports','milling']){
+    for(let round=0;round<2;round++){
+      const started=Date.now();
+      const response=await page.goto(BASE_URL+'/module.php?id='+moduleId,{waitUntil:'domcontentloaded',timeout:90_000});
+      expect(response.status()).toBe(200);
+      await expect(page).toHaveTitle(moduleId==='exports'?/Transtrade Exports/:/Transtrade|Milling/i);
+      await expect.poll(()=>page.evaluate(()=>window.TT_MODULE_ACCESS?.moduleId),{timeout:30_000}).toBe(moduleId);
+      await expect(page.locator('#ttMasterTop')).toBeVisible({timeout:30_000});
+      if(moduleId==='exports'){
+        await expect(page.locator('#app')).toBeVisible();
+        await expect(page.locator('#ttExportsLoadError')).toHaveCount(0);
+      }else await expect(page.locator('#homeGrid')).toHaveCount(1);
+      const body=await response.body();
+      const metadata=await page.evaluate(()=>({
+        domReadyMs:Math.round(performance.getEntriesByType('navigation')[0]?.domContentLoadedEventEnd||0),
+        resources:performance.getEntriesByType('resource').filter(r=>new URL(r.name).origin===location.origin).map(r=>({path:new URL(r.name).pathname,ms:Math.round(r.duration),bytes:r.transferSize})),
+        initialKeys:Object.keys(window.TT_SHARED_SYNC||{}),loadError:!!window.TT_EXPORTS_LOAD_ERROR
+      }));
+      console.log('MODULE_LOAD_TIMING '+JSON.stringify({module:moduleId,round,elapsedMs:Date.now()-started,htmlBytes:body.length,inlineImageBytes:(body.toString().match(/data:image\\/[^;]+;base64,[A-Za-z0-9+/=]+/g)||[]).reduce((n,s)=>n+s.length,0),serverTiming:response.headers()['server-timing']||'',...metadata}));
+    }
+    await page.locator('#ttMasterTop').click();
+    await expect(page).toHaveURL(new RegExp('/index\\.php\\?view=masters&from='+moduleId+'$'),{timeout:30_000});
+    await expect(page.locator('#masterBackTop')).toBeVisible({timeout:30_000});
+    await page.locator('#masterBackTop').click();
+    await expect.poll(()=>page.evaluate(()=>window.TT_MODULE_ACCESS?.moduleId),{timeout:30_000}).toBe(moduleId);
+  }
+  console.log('MODULE_STARTUP_POST_PATHS '+JSON.stringify([...new Set(requests)]));
+  expect(failures,'Modules must load without server errors').toEqual([]);
+  expect(errors,'Modules must load without JavaScript errors').toEqual([]);
+});
