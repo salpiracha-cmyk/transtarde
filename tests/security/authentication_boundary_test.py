@@ -52,7 +52,7 @@ if(($cfg['action']??'')==='seed'){
     def run(**cfg):
         meta = base / 'meta.json'
         meta.unlink(missing_ok=True)
-        result = subprocess.run(['php', str(script), str(app), json.dumps(cfg), str(meta)],
+        result = subprocess.run(['php', '-d', 'disable_functions=link', str(script), str(app), json.dumps(cfg), str(meta)],
                                 capture_output=True, text=True)
         assert result.returncode == 0, result.stdout + result.stderr
         return json.loads(meta.read_text()), result.stdout
