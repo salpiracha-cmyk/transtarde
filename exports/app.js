@@ -419,8 +419,8 @@ function actualRows(s,c){
  if(!actuals.length)return plannedPhysicalRows(s,c);
  const planned=plannedPhysicalRows(s,c),groups=customsPlannedRows(s,c);
  return actuals.map((row,index)=>{
-  const brand=String(row.brand||'').trim().toLowerCase(),packing=String(row.packing||'').trim().toLowerCase(),group=groups.find(item=>(brand&&String(item.brand||'').trim().toLowerCase()===brand)||(packing&&String(item.packing||'').trim().toLowerCase()===packing)),shares=Math.max(1,Math.round(num(group?.containerShares))),fallback=group?{...group,bags:Math.round(num(group.bags)/shares),netKg:num(group.netKg)/shares,tareKg:num(group.tareKg)/shares}:planned[index]||planned[0]||{},bags=num(row.bags)||num(fallback.bags),pack=c.packings?.[num(group?.packIndex)]||c.packings?.find(item=>brand&&String(item.brand||'').trim().toLowerCase()===brand)||c.packings?.[0]||{},unitKg=String(c.packingUnit||'KG').toUpperCase().startsWith('LB')?num(pack.size)*.45359237:num(pack.size),netKg=num(row.netKg)||(bags>0&&unitKg>0?bags*unitKg:num(fallback.netKg)),fallbackBags=num(fallback.bags),tareKg=num(row.tareKg)||(fallbackBags>0?num(fallback.tareKg)*bags/fallbackBags:num(fallback.tareKg)),grossKg=num(row.grossKg)||netKg+tareKg;
-  return{...fallback,...row,bags,netKg,tareKg,grossKg,...(num(row.bags)>0?{}:{_bagsSource:'loadingInstructions'}),...(num(row.netKg)>0?{}:{_weightSource:'loadingInstructions'})}
+  const brand=String(row.brand||'').trim().toLowerCase(),packing=String(row.packing||'').trim().toLowerCase(),group=groups.find(item=>(brand&&String(item.brand||'').trim().toLowerCase()===brand)||(packing&&String(item.packing||'').trim().toLowerCase()===packing)),shares=Math.max(1,Math.round(num(group?.containerShares))),fallback=group?{...group,bags:Math.round(num(group.bags)/shares),netKg:num(group.netKg)/shares,tareKg:num(group.tareKg)/shares}:planned[index]||planned[0]||{},bags=num(row.bags)||num(fallback.bags),pack=c.packings?.[num(group?.packIndex)]||c.packings?.find(item=>brand&&String(item.brand||'').trim().toLowerCase()===brand)||c.packings?.[0]||{},unitKg=String(c.packingUnit||'KG').toUpperCase().startsWith('LB')?num(pack.size)*.45359237:num(pack.size),sourceNetKg=num(row.netKg)||num(row.documentNetKg)||num(row.millNetKg)||num(row.weight)||num(row.kg),netKg=sourceNetKg||(bags>0&&unitKg>0?bags*unitKg:num(fallback.netKg)),fallbackBags=num(fallback.bags),tareKg=num(row.tareKg)||(fallbackBags>0?num(fallback.tareKg)*bags/fallbackBags:num(fallback.tareKg)),grossKg=num(row.grossKg)||netKg+tareKg,number=row.number||row.container||row.containerNo||'';
+  return{...fallback,...row,number,bags,netKg,tareKg,grossKg,...(num(row.bags)>0?{}:{_bagsSource:'loadingInstructions'}),...(sourceNetKg>0?{}:{_weightSource:'loadingInstructions'})}
  })
 }
 function actualTotals(s,c){return totalsFor(actualRows(s,c))}
@@ -428,10 +428,10 @@ function normalizeContainerNumber(value){return String(value||'').replace(/[^A-Z
 function formatContainerNumber(value){const clean=normalizeContainerNumber(value);return CONTAINER_RE.test(clean)?`${clean.slice(0,10)}-${clean.slice(10)}`:String(value||'').trim().toUpperCase()}
 function millActualsIssues(s){
  const c=contractByRef(s?.contractRef);if(c&&isBreakBulk(c))return[];
- const expected=num(s?.containers),rows=Array.isArray(s?.millActuals)?s.millActuals:[],numbers=rows.map(x=>normalizeContainerNumber(x.number)),issues=[];
+ const expected=num(s?.containers),rows=Array.isArray(s?.millActuals)?s.millActuals:[],numbers=rows.map(x=>normalizeContainerNumber(x.number||x.container||x.containerNo)),issues=[];
  if(expected<=0)issues.push('loading plan container count is missing');
  if(rows.length!==expected)issues.push(`${rows.length}/${expected} mill loading row(s) received`);
- const missingNumbers=rows.filter(x=>!String(x.number||'').trim()).length,invalidNumbers=numbers.filter(x=>x&&!CONTAINER_RE.test(x)).length,missingSeals=rows.filter(x=>!String(x.seal||'').trim()).length,duplicates=numbers.filter((x,i)=>x&&numbers.indexOf(x)!==i);
+ const missingNumbers=rows.filter(x=>!String(x.number||x.container||x.containerNo||'').trim()).length,invalidNumbers=numbers.filter(x=>x&&!CONTAINER_RE.test(x)).length,missingSeals=rows.filter(x=>!String(x.seal||'').trim()).length,duplicates=numbers.filter((x,i)=>x&&numbers.indexOf(x)!==i);
  if(missingNumbers)issues.push(`${missingNumbers} container number(s) missing`);
  if(invalidNumbers)issues.push(`${invalidNumbers} invalid container number(s)`);
  if(new Set(duplicates).size)issues.push(`${new Set(duplicates).size} duplicate container number(s)`);

@@ -161,6 +161,58 @@ function operations_union_rows(array $current, array $incoming, array $identitie
     ));
 }
 
+function operations_mill_actual_key(array $row): string {
+    foreach (['number', 'container', 'containerNo', 'id'] as $field) {
+        $value = trim((string)($row[$field] ?? ''));
+        if ($value === '') continue;
+        if ($field !== 'id') $value = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', $value));
+        if ($value !== '') return $value;
+    }
+    return hash('sha256', json_encode($row, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+}
+
+function operations_mill_actual_complete_score(array $row): int {
+    $score = 0;
+    foreach (['number', 'container', 'containerNo', 'seal', 'bags', 'netKg', 'documentNetKg', 'millNetKg', 'weight', 'kg'] as $field) {
+        $value = $row[$field] ?? null;
+        if (is_numeric($value) ? (float)$value > 0 : trim((string)$value) !== '') $score++;
+    }
+    if (!empty($row['contributions']) && is_array($row['contributions'])) $score += count($row['contributions']);
+    return $score;
+}
+
+function operations_merge_mill_actuals(array $current, array $incoming): array {
+    $merged = [];
+    foreach (array_merge($current, $incoming) as $row) {
+        if (!is_array($row)) continue;
+        $key = operations_mill_actual_key($row);
+        $rowScore = operations_mill_actual_complete_score($row);
+        if (!isset($merged[$key])) {
+            $merged[$key] = $row;
+            continue;
+        }
+        $existing = $merged[$key];
+        $preferIncoming = $rowScore >= operations_mill_actual_complete_score($existing);
+        $base = $preferIncoming ? $existing : $row;
+        $overlay = $preferIncoming ? $row : $existing;
+        foreach ($overlay as $field => $value) {
+            if (is_array($value)) {
+                if (!empty($value)) $base[$field] = $value;
+                continue;
+            }
+            if (is_numeric($value)) {
+                if ((float)$value != 0.0 || !isset($base[$field])) $base[$field] = $value;
+                continue;
+            }
+            if (trim((string)$value) !== '' || !isset($base[$field])) $base[$field] = $value;
+        }
+        if (empty($base['number'])) $base['number'] = $base['container'] ?? $base['containerNo'] ?? '';
+        if (empty($base['netKg'])) $base['netKg'] = $base['documentNetKg'] ?? $base['millNetKg'] ?? $base['weight'] ?? $base['kg'] ?? 0;
+        $merged[$key] = $base;
+    }
+    return array_values($merged);
+}
+
 function operations_export_reset_marker(): string {
     return '';
 }
@@ -397,10 +449,9 @@ function operations_merge_export(string $currentJson, string $incomingJson, stri
             if (!is_array($incomingShipment)) continue;
             $id = (string)($incomingShipment['id'] ?? '');
             if ($id === '' || !isset($currentShipments[$id])) continue;
-            $currentShipments[$id]['millActuals'] = operations_union_rows(
+            $currentShipments[$id]['millActuals'] = operations_merge_mill_actuals(
                 (array)($currentShipments[$id]['millActuals'] ?? []),
-                (array)($incomingShipment['millActuals'] ?? []),
-                ['number', 'container', 'id']
+                (array)($incomingShipment['millActuals'] ?? [])
             );
         }
         $merged['shipments'] = array_values($currentShipments);
@@ -450,10 +501,9 @@ function operations_merge_export(string $currentJson, string $incomingJson, stri
         if (!is_array($shipment)) continue;
         $id = (string)($shipment['id'] ?? '');
         if ($id === '' || !isset($currentShipments[$id])) continue;
-        $shipment['millActuals'] = operations_union_rows(
+        $shipment['millActuals'] = operations_merge_mill_actuals(
             (array)($shipment['millActuals'] ?? []),
-            (array)($currentShipments[$id]['millActuals'] ?? []),
-            ['number', 'container', 'id']
+            (array)($currentShipments[$id]['millActuals'] ?? [])
         );
     }
     unset($shipment);

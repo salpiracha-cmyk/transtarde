@@ -31,8 +31,12 @@ context.window.localStorage=localStorage;context.window.document=document;contex
 vm.runInNewContext(match[1],context,{filename:'shared-bridge.js'});
 assert.equal(listeners.DOMContentLoaded,undefined,'initial bridge must run before module application state loads');
 const directInstruction=JSON.parse(localStorage.getItem('tt30ship'))[0];
-directInstruction.containers=[{id:'C-1',container:'MSCU1234567',seal:'SL001',bags:1080,weight:27000,gate:'GP-9',truck:'TRK-1',date:'2026-09-08'},{id:'C-2',container:'MSCU7654321',seal:'SL002',bags:1080,weight:27000,gate:'GP-10',truck:'TRK-2',date:'2026-09-08'}];
+directInstruction.containers=[{id:'C-1',container:'MSCU1234567',seal:'',bags:1080,weight:27000,gate:'GP-9',truck:'TRK-1',date:'2026-09-08'},{id:'C-2',container:'MSCU7654321',seal:'SL002',bags:1080,weight:27000,gate:'GP-10',truck:'TRK-2',date:'2026-09-08'}];
 localStorage.setItem('tt30ship',JSON.stringify([directInstruction]));
+context.window.TT_SHARED_SYNC.bridge();
+const sealedInstruction=JSON.parse(localStorage.getItem('tt30ship'))[0];
+sealedInstruction.containers[0].seal='SL001';
+localStorage.setItem('tt30ship',JSON.stringify([sealedInstruction]));
 context.window.TT_SHARED_SYNC.bridge();context.window.TT_SHARED_SYNC.bridge();
 await context.window.TT_SHARED_SYNC.saveNow(); // explicit committed action; page load alone must never autosave
 const millInstruction=JSON.parse(localStorage.getItem('tt30ship'))[0];
@@ -43,6 +47,7 @@ const synced=JSON.parse(localStorage.getItem('transtrade_export_v3_operational')
 assert.equal(synced.shipments[0].millActuals.length,0,'process shell must not receive lot actuals');
 assert.equal(synced.shipments[1].millActuals.length,1);
 assert.equal(synced.shipments[1].millActuals[0].number,'MSCU123456-7');
+assert.equal(synced.shipments[1].millActuals[0].seal,'SL001');
 assert.equal(synced.shipments[1].millActuals[0].gatePass,'GP-9');
 assert.equal(synced.shipments[1].millActuals[0].source,'Milling');
 assert.equal(synced.shipments[1].millActuals[0].shipmentId,'L-1');

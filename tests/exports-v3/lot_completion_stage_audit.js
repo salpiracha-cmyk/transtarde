@@ -2,6 +2,7 @@ const fs=require('fs');
 const assert=require('assert');
 const path=require('path');
 const app=fs.readFileSync(path.join(__dirname,'../../exports/app.js'),'utf8');
+const operations=fs.readFileSync(path.join(__dirname,'../../api/operations.mysql.php'),'utf8');
 
 assert.ok(!app.includes('class="panel lotFooter"'),'Mark Lot Complete must not render in the global lot workspace footer');
 assert.match(app,/workspaceHead[\s\S]*id="cancelLot"/,'Cancel Lot remains available in the lot header');
@@ -20,6 +21,8 @@ const requeue=app.slice(app.indexOf('function requeueCompletedShipmentFolder'),a
 assert.doesNotMatch(requeue,/saveNow/,'completed lot office-folder requeue must not wait on a new shared save');
 assert.match(app,/QUEUE OFFICE FOLDER/,'completed lot view exposes an explicit Office Agent requeue action');
 assert.match(app,/function millActualsIssues\(s\)[\s\S]*seal number\(s\) missing/,'Mill loading status reports the exact blocking reason instead of only a count');
+assert.match(operations,/function operations_merge_mill_actuals/,'server merge refreshes stale partial Mill actuals instead of preserving old blockers');
+assert.equal((operations.match(/operations_merge_mill_actuals/g)||[]).length,3,'Milling and Export saves both use the dedicated Mill actuals merge');
 assert.match(app,/phyto:\{label:'Phytosanitary Certificate'[\s\S]*phytosanitary/,'Phytosanitary uploads satisfy phyto certificate requirements');
 const uploadHandler=app.slice(app.indexOf('button.onclick=async()=>',app.indexOf('function renderUploadDocuments')),app.indexOf('\n };\n}',app.indexOf('function renderUploadDocuments')));
 assert.doesNotMatch(uploadHandler,/saveShipmentFolder/,'document uploads must not build the full office shipment package during normal saves');
