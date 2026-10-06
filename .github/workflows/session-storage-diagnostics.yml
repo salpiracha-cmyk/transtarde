@@ -1,0 +1,45 @@
+name: Read-only production session diagnostics
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/session-storage-diagnostics.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Inspect session metadata and classified PHP errors
+        env:
+          HOSTINGER_HOST: ${{ secrets.HOSTINGER_HOST }}
+          HOSTINGER_PORT: ${{ secrets.HOSTINGER_PORT }}
+          HOSTINGER_USER: ${{ secrets.HOSTINGER_USER }}
+          HOSTINGER_DEPLOY_PATH: ${{ secrets.HOSTINGER_DEPLOY_PATH }}
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+          HOSTINGER_KNOWN_HOSTS: ${{ secrets.HOSTINGER_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -m 700 -d "$RUNNER_TEMP/ssh"
+          printf '%s\n' "$HOSTINGER_SSH_KEY" | tr -d '\r' > "$RUNNER_TEMP/ssh/key"
+          printf '%s\n' "$HOSTINGER_KNOWN_HOSTS" | tr -d '\r' > "$RUNNER_TEMP/ssh/known_hosts"
+          chmod 600 "$RUNNER_TEMP/ssh/key" "$RUNNER_TEMP/ssh/known_hosts"
+          ssh -i "$RUNNER_TEMP/ssh/key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" -o StrictHostKeyChecking=yes -p "$HOSTINGER_PORT" "$HOSTINGER_USER@$HOSTINGER_HOST" bash -s -- "$HOSTINGER_DEPLOY_PATH" <<'REMOTE'
+          set -euo pipefail
+          target=$1
+          case "$target" in /home/*/domains/app.transtradeinternational.com/public_html) ;; *) exit 1 ;; esac
+          TT_DIAGNOSTIC_ROOT="$target" php <<'PHP'
+          <?php
+          $root=getenv('TT_DIAGNOSTIC_ROOT');$private=dirname($root).'/transtrade_private';$sessions=$private.'/sessions';
+          $out=['authSourceSha256'=>hash_file('sha256',$root.'/auth_store.php'),'phpCliVersion'=>PHP_VERSION,'cliSessionHandler'=>ini_get('session.save_handler'),'sessionDirectoryExists'=>is_dir($sessions),'sessionDirectoryWritable'=>is_writable($sessions),'sessionDirectoryMode'=>is_dir($sessions)?decoct(fileperms($sessions)&0777):null,'sessionFiles'=>0,'sessionFileModes'=>[],'recentSessionFiles'=>0,'configuredWebSessionSettings'=>[],'classifiedErrors'=>[]];
+          foreach(glob($sessions.'/sess_*')?:[] as $file){if(!is_file($file)||is_link($file))continue;$out['sessionFiles']++;$mode=decoct(fileperms($file)&0777);$out['sessionFileModes'][$mode]=($out['sessionFileModes'][$mode]??0)+1;if(filemtime($file)>time()-600)$out['recentSessionFiles']++;}
+          foreach([$root.'/.user.ini',$root.'/accounts/.user.ini'] as $i=>$file)if(is_file($file)){foreach(file($file) as $line)if(preg_match('/^\s*(session\.(?:save_handler|auto_start|gc_maxlifetime|gc_probability|gc_divisor)|opcache\.validate_timestamps)\s*=\s*([^;\r\n]+)/',$line,$m))$out['configuredWebSessionSettings'][$i][$m[1]]=trim($m[2]);}
+          $logs=array_unique(array_merge([$root.'/error_log',$root.'/accounts/error_log',dirname($root).'/logs/error.log'],glob(dirname($root).'/logs/*error*')?:[],glob($root.'/logs/*error*')?:[]));
+          foreach($logs as $file){if(!is_file($file)||!is_readable($file)||is_link($file))continue;$h=fopen($file,'rb');fseek($h,max(0,filesize($file)-131072));$text=stream_get_contents($h);fclose($h);foreach(explode("\n",$text)as$line){if(!preg_match('/Fatal error|Uncaught|session_start|Session migration|Private session storage|session_save_path/i',$line))continue;$kind='other PHP session/fatal error';if(preg_match('/Call to undefined function ([A-Za-z0-9_]+)/',$line,$m))$kind='Undefined function '.$m[1];elseif(preg_match('/Uncaught ([A-Za-z0-9_\\\\]+)/',$line,$m))$kind='Uncaught '.$m[1];if(str_contains($line,'Private session storage'))$kind='Private session storage unavailable';elseif(str_contains($line,'Session migration'))$kind='Session migration failure';elseif(str_contains($line,'session_start'))$kind='session_start failure';$out['classifiedErrors'][$kind]=($out['classifiedErrors'][$kind]??0)+1;}}
+          echo json_encode($out,JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES)."\n";
+          PHP
+          REMOTE
