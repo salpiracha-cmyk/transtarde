@@ -51,6 +51,8 @@ with tempfile.TemporaryDirectory(prefix="company-bank-qa-") as temp:
 define('TT_DATA_DIR',__DIR__.'/data');
 function tt_ensure_data_dir(){}
 function tt_require_login(){return ['role'=>'Super Admin','id'=>1,'username'=>'Fixture'];}
+// No live PHP session in this isolated master fixture; real locks are covered separately.
+function tt_release_read_session(){}
 function tt_user_can_access_masters($user){return true;}
 function tt_user_can_master($user,$type,$action){return true;}
 function tt_user_can_open_module($user,$module){return true;}
