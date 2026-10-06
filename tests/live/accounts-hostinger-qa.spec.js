@@ -32,17 +32,21 @@ function traceSessionNavigation(page) {
   const trace = [];
   const started = Date.now();
   const pending = [];
+  const cookieEpochs = new Map();
+  const epoch=value=>{if(!value)return 0;if(!cookieEpochs.has(value))cookieEpochs.set(value,cookieEpochs.size+1);return cookieEpochs.get(value)};
   trace.flush = () => Promise.allSettled(pending);
   page.on('response', response => {
     pending.push((async () => {
     const path = new URL(response.url()).pathname;
-    if (!['/login.php','/logout.php','/index.php','/accounts/index.php','/api/session_activity.php','/accounts/app-bundle.php'].includes(path)) return;
+    if (new URL(response.url()).origin!==new URL(BASE_URL).origin||!path.endsWith('.php')) return;
     const [headers, requestHeaders] = await Promise.all([response.allHeaders(), response.request().allHeaders()]);
     trace.push({
       ms: Date.now() - started, path, status: response.status(),
       serverWaitMs:Math.round(response.request().timing().responseStart-response.request().timing().requestStart),
       location: headers.location || '', method: response.request().method(),
       sentSessionCookie: /(?:^|;\s*)TRANSTRADE_SESSION=/.test(requestHeaders.cookie || ''),
+      requestCookieEpoch:epoch((requestHeaders.cookie||'').match(/(?:^|;\s*)TRANSTRADE_SESSION=([^;]*)/)?.[1]||''),
+      responseCookieEpoch:epoch((headers['set-cookie']||'').match(/TRANSTRADE_SESSION=([^;]*)/)?.[1]||''),
       setsSessionCookie: /TRANSTRADE_SESSION=/.test(headers['set-cookie'] || ''),
       fetchSite: requestHeaders['sec-fetch-site'] || '',
       server: headers.server || '', cache: headers['x-hcdn-cache-status'] || headers['x-litespeed-cache'] || headers['x-cache'] || headers['cf-cache-status'] || '',
