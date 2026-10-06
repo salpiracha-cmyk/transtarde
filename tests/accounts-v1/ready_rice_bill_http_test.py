@@ -336,7 +336,7 @@ def run():
     assert page.locator('[data-pkr]').evaluate_all('els=>els.map(el=>el.value)')==['840,000.00','14,000.00','21,000.00','2,800.00','-1,400.00']
     ends=[row.locator('[data-pkr]').bounding_box()['x']+row.locator('[data-pkr]').bounding_box()['width'] for row in charges.all()];assert max(ends)-min(ends)<2,ends
     for row in charges.all():
-     bottoms=row.evaluate("row=>['[data-description]','[data-amount]','[data-basis]','[data-pkr]'].map(selector=>{const el=row.querySelector(selector),visible=el.classList.contains('tt-native-select')?el.parentElement.querySelector('input'):el,r=visible.getBoundingClientRect();return r.bottom})");assert max(bottoms)-min(bottoms)<2,bottoms
+     bottoms=row.evaluate("row=>['[data-description]','[data-amount]','[data-basis]','[data-pkr]'].map(selector=>{const el=row.querySelector(selector),visible=el.classList.contains('tt-number-source')?el.parentElement.querySelector('.tt-number-display'):el.classList.contains('tt-native-select')?el.parentElement.querySelector('input'):el,r=visible.getBoundingClientRect();return r.bottom})");assert max(bottoms)-min(bottoms)<2,bottoms
     page.screenshot(path=str(evidence/'freight-usd-charge-bases.png'))
     page.locator('#ttShipmentBillEntry [type=submit]').click();page.get_by_role('heading',name='BILL POSTED',exact=True).wait_for()
     stored=json.loads((root/'transtrade_private/accounts.json').read_text());bill=next(x for x in stored['freightBillsV1'].values() if x['invoiceNo']=='BROWSER-FREIGHT-USD');assert bill['billedTotal']==876400 and stored['supplierBills'][bill['id']]['supplierPayableTotal']==876400
