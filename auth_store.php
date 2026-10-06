@@ -25,6 +25,8 @@ register_shutdown_function(static function(): void {
     $path=(string)parse_url((string)($_SERVER['REQUEST_URI']??''),PHP_URL_PATH);if(!preg_match('~^/[A-Za-z0-9_./-]*$~D',$path))$path='hidden';
     $entry=['time'=>gmdate('c'),'path'=>$path,'category'=>$category,'detail'=>$detail,'file'=>$file,'line'=>(int)($error['line']??0),'php'=>PHP_VERSION];
     $entry['sessionWarnings']=array_values(array_unique(array_intersect((array)($GLOBALS['ttSessionStartupWarnings']??[]),['other','decode','permission','disk-full','open-file-limit','headers-sent','read','write','storage-init','open'])));
+    $entry['sessionSerializer']=ini_get('session.serialize_handler');
+    $entry['sessionHandler']=ini_get('session.save_handler');
     $log=TT_DATA_DIR.'/sessions/runtime-errors.json';$handle=@fopen($log,'c+');if($handle===false)return;
     if(!@flock($handle,LOCK_EX|LOCK_NB)){fclose($handle);return;}
     try{$rows=json_decode(stream_get_contents($handle)?:'[]',true);$rows=is_array($rows)?$rows:[];$rows[]=$entry;$json=json_encode(array_slice($rows,-100),JSON_UNESCAPED_SLASHES);if($json!==false){rewind($handle);ftruncate($handle,0);fwrite($handle,$json);fflush($handle);@chmod($log,0600);}}
@@ -102,6 +104,9 @@ function tt_configure_session_storage(): void {
 
 ini_set('session.use_strict_mode', '1');
 ini_set('session.use_only_cookies', '1');
+// All routes/workers must read the same existing PHP-delimited session format.
+// PHP otherwise destroys a valid file when a worker uses a different codec.
+ini_set('session.serialize_handler', 'php');
 session_name('TRANSTRADE_SESSION');
 session_set_cookie_params([
     'lifetime' => 0, 'path' => '/',

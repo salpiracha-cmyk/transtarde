@@ -10,21 +10,22 @@ with tempfile.TemporaryDirectory(prefix='tti-sessions-') as directory:
     script.write_text('''<?php
 ini_set('session.save_path',$argv[2]);session_name('TRANSTRADE_SESSION');session_id('migration-fixture');
 if($argv[3]==='create'){session_start();$_SESSION=['csrf'=>'fixture','counter'=>7];session_write_close();}
+ini_set('session.serialize_handler',$argv[4]);
 require $argv[1].'/auth_store.php';
 if($argv[3]==='logout'){tt_destroy_session_state();}
 $result=['counter'=>$_SESSION['counter']??null,'path'=>session_save_path(),'lifetime'=>(int)ini_get('session.gc_maxlifetime'),'mode'=>fileperms(session_save_path())&0777,'id'=>session_id()];
 if($argv[3]==='increment'){$_SESSION['counter']++;}
 session_write_close();echo json_encode($result);
 ''')
-    def run(old,action):
-        result=subprocess.run(['php',str(script),str(app),str(old),action],capture_output=True,text=True)
+    def run(old,action,codec='php'):
+        result=subprocess.run(['php',str(script),str(app),str(old),action,codec],capture_output=True,text=True)
         assert result.returncode==0, result.stdout+result.stderr
         return json.loads(result.stdout)
     first=run(old_a,'create')
     assert first['counter']==7 and first['id']=='migration-fixture'
     assert pathlib.Path(first['path']).resolve()==(root/'transtrade_private/sessions').resolve()
     assert first['lifetime']==3600 and first['mode']==0o700
-    assert run(old_b,'increment')['counter']==7
+    assert run(old_b,'increment','php_serialize')['counter']==7, 'A worker codec change must not destroy the session'
     assert run(old_a,'read')['counter']==8, 'Different legacy route/worker settings must resolve to the same session'
     assert not (old_a/'sess_migration-fixture').exists(), 'Retire the legacy copy after migration'
     # Even a leftover/recreated old backend copy must not resurrect a signed-out session.
