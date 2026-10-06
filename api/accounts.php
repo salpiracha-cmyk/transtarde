@@ -313,6 +313,7 @@ try {
         if (!tt_user_can_open_module($user, 'Accounts')) accounts_respond(['ok'=>false,'error'=>'Accounts permission required.'], 403);
         $entity = accounts_validate_entity((string)($_GET['entity'] ?? ''));
         accounts_require_entity_access($user, $entity);
+        tt_release_read_session();
         $store = accounts_read(); $master = accounts_master();
         $forEntity = static fn(array $row): bool => strtoupper((string)($row['entity'] ?? '')) === $entity;
         accounts_respond([
