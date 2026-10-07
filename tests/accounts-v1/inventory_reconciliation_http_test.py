@@ -14,7 +14,7 @@ SEED = r'''<?php
 $root=__DIR__;if(!str_starts_with(basename($root),'tti-stock-http-'))throw new RuntimeException('Unsafe fixture root');
 require $root.'/repo/auth_store.php';$pw=bin2hex(random_bytes(20));$users=[];$rw=['View','Create','Edit'];
 foreach(['qaowner'=>['Super Admin',['Mill'=>'all','Accounts'=>'all','Directors'=>'all','Exports'=>'all']],
-'qamill'=>['Mill Operator',['Mill'=>['stock'=>$rw,'production'=>$rw,'export'=>$rw,'arrival'=>$rw,'queue'=>$rw,'reports'=>['View']]]],
+'qamill'=>['Mill Operator',['Mill'=>['stock'=>$rw,'production'=>$rw,'export'=>$rw,'arrival'=>$rw,'queue'=>$rw,'newbags'=>$rw,'reports'=>['View']]]],
 'qaaccountswrite'=>['Accounts Writer',['Accounts'=>['reports'=>['View'],'expenses'=>['View','Create','Edit']]]],
 'qaaccounts'=>['Accounts Operator',['Accounts'=>['reports'=>['View'],'entity-tti'=>['View']]]],
 'qadirector'=>['Director',['Directors'=>['reports'=>['View']]]],
