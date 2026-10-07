@@ -3,7 +3,7 @@ import json,os,pathlib,shutil,socket,subprocess,tempfile,time,urllib.request,url
 ROOT=pathlib.Path(__file__).resolve().parents[2]
 with tempfile.TemporaryDirectory(prefix='tg-remittance-') as tmp:
  root=pathlib.Path(tmp);(root/'api').mkdir();(root/'accounts').mkdir();(root/'data').mkdir()
- for name in ['export_receipts.php','export_receipt_tg_mirror.php','accounts_receipt_amend_core.php','tg_remittances.php','tg_remittance_core.php','fi_credit_advice_link.php','receipt_invoice_links.php','accounts_reviews.php','accounts_reviews_core.php','accounts_dashboard.php','expense_reminders.php','accounts_ledger_browser.php','accounts_reference.php']:
+ for name in ['export_receipts.php','export_receipt_tg_mirror.php','accounts_receipt_amend_core.php','tg_remittances.php','tg_remittance_core.php','fi_credit_advice_link.php','receipt_invoice_links.php','accounts_reviews.php','accounts_reviews_core.php','accounts_dashboard.php','bank_accounts.php','expense_reminders.php','accounts_ledger_browser.php','accounts_reference.php']:
   shutil.copy(ROOT/'api'/name,root/'api'/name)
  for name in ['accounting_master_v1.json','settlement_policy_v1.json','export_realization_policy_v1.json','tg-remittances-ui.js']:
   shutil.copy(ROOT/'accounts'/name,root/'accounts'/name)
@@ -18,6 +18,7 @@ with tempfile.TemporaryDirectory(prefix='tg-remittance-') as tmp:
  function tt_verify_csrf($v){return $v==='fixture';}function tt_csrf_token(){return 'fixture';}
  function tt_master_options(){return ['currencies'=>['USD','AED','PKR']];}function tt_user_accounts_entities($u){return ['TTI','TG'];}
  function tt_company_fx_rate($e,$f,$t){return $f==='USD'?3.67:1;}
+ function tt_read_store(){return ['masters'=>tt_list_masters()];}
  function tt_list_masters(){return ['banks'=>[['id'=>'PKR','values'=>['Company Account','TTI','','TTI PKR','BANK','','','PKR','789','','','','','Active']],['id'=>'USD','values'=>['Company Account','TG','','TG USD','BANK','','','USD','123','','','','','Active']],['id'=>'AED','values'=>['Company Account','TG','','TG AED','BANK','','','AED','456','','','','','Active']]]];}
  function tt_next_post_id(array $existing, string $module='Accounts', string $area='Journal', ?string $date=null): string {
   $year=substr($date ?: date('Y-m-d'),0,4);$n=count($existing)+1;

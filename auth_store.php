@@ -875,7 +875,7 @@ function tt_api_write_grants(string $endpoint,array $body): ?array {
         'internal_bank_transfers.php'=>'cashbank','retention_remittances.php'=>'cashbank','tg_bank_transfer.php'=>'cashbank',
         'tg_year_end_revaluation.php'=>'cashbank','export_bank_shortfall.php'=>'cashbank',
         'bag_supplier_payments.php'=>'supplier','other_supplier_settlements.php'=>'supplier','supplier_settlements.php'=>'supplier',
-        'payables_planning.php'=>'supplier','tg_liabilities.php'=>'supplier','local_customer_receipts.php'=>'customer',
+        'payment_plans.php'=>'supplier','payables_planning.php'=>'supplier','tg_liabilities.php'=>'supplier','local_customer_receipts.php'=>'customer',
         'export_tax_certificates.php'=>'reports',
         'bank_accounts.php'=>'masters','bag_bill_file.php'=>'purchases',
         'tg_remittances.php'=>'tg','brokerage_transactions.php'=>'supplier',

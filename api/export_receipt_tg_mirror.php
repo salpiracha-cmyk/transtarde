@@ -8,7 +8,7 @@ function er_mirror_tg_receipt(array &$store,array $user,array $body,array $alloc
     $tgBankId=trim((string)($body['tgBankAccountId']??''));
     if($tgBankId==='')er_respond(['ok'=>false,'error'=>'Choose the TG '.$currency.' bank account paying this credit advice.'],422);
     $bank=er_bank_master($tgBankId,'TG');
-    if(($bank['accountType']??'')!=='Company Account'||($bank['currency']??'')!==$currency||strcasecmp((string)($bank['masterStatus']??'Active'),'Active')!==0||((string)$bank['accountNumber']===''&&(string)$bank['iban']===''))er_respond(['ok'=>false,'error'=>'Choose an active TG bank account in the receipt currency with an account number or IBAN.'],422);
+    if(!in_array(($bank['accountType']??''),['Company Account','Proprietor / Owner Account','Personal Account'],true)||($bank['currency']??'')!==$currency||strcasecmp((string)($bank['masterStatus']??'Active'),'Active')!==0||((string)$bank['accountNumber']===''&&(string)$bank['iban']===''))er_respond(['ok'=>false,'error'=>'Choose an active TG bank account in the receipt currency with an account number or IBAN.'],422);
     $native=0.0;$carrying=0.0;
     foreach((array)($store['journals']??[]) as $posted){
         if(!is_array($posted)||($posted['entity']??'')!=='TG'||($posted['status']??'')!=='Posted')continue;

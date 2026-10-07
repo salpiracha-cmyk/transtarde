@@ -1,7 +1,8 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__.'/expense_reminders.php';
-require dirname(__DIR__).'/auth_store.php';
+require_once dirname(__DIR__).'/auth_store.php';
+define('TT_BANK_FUNCTIONS_ONLY',true);require_once __DIR__.'/bank_accounts.php';
 require_once __DIR__.'/accounts_reviews_core.php';
 header('Content-Type: application/json; charset=UTF-8');
 header('Cache-Control: no-store, no-cache, must-revalidate');
@@ -41,6 +42,7 @@ try{
    $amount=is_array($period)?(float)($period['outstanding']??0):(float)($rent['monthlyAmount']??0)*$interval;
    if($amount>.005)$due[]=['label'=>(string)($rent['mill']??'').' rent · '.(string)($rent['payee']??''),'reference'=>(string)($rent['id']??''),'date'=>$dueDate,'currency'=>$e==='TG'?'AED':'PKR','amount'=>$amount];
  }
+ $currentBanks=ba_payload($s,$e);$bank=[];foreach($currentBanks['accounts'] as $a){$tail=substr(preg_replace('/\W/','',(string)($a['accountNumber']?:$a['iban'])),-6);$bank[]=['label'=>$a['bankName'].($tail!==''?' · …'.$tail:''),'bankAccountId'=>$a['id'],'currency'=>$a['currency'],'amount'=>$a['availableBalance']];}if(abs((float)$currentBanks['cash']['bookBalance'])>.005)$bank[]=['label'=>'Cash / Petty Cash','currency'=>$currentBanks['cash']['currency'],'amount'=>$currentBanks['cash']['bookBalance']];if(abs((float)$currentBanks['unassignedBankBalance'])>.005)$bank[]=['label'=>'Unassigned bank posting','currency'=>'PKR','amount'=>$currentBanks['unassignedBankBalance']];
  $sets=['bank'=>array_values($bank),'commodity'=>ad_rows($commodity),'local'=>ad_rows($local),'export'=>ad_rows($export),'expenses'=>ad_rows($expenses),'due'=>ad_rows($due)];foreach($sets as&$rows)if(is_array($rows))foreach($rows as&$row)$row['dateDisplay']=preg_match('/^(\d{4})-(\d{2})-(\d{2})$/',(string)($row['date']??''),$m)?$m[3].'-'.$m[2].'-'.$m[1]:'';unset($row);unset($rows);
  usort($sets['due'],static fn($a,$b)=>strcmp((string)($a['date']??''),(string)($b['date']??'')));
  ad_out(['ok'=>true,'entity'=>$e,'summaries'=>$sets,'attention'=>$attention,'serverNow'=>gmdate('c')]);

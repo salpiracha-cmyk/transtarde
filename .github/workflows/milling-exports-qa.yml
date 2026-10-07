@@ -117,6 +117,7 @@ jobs:
           node tests/accounts-v1/dependent_fields_test.js
           node tests/accounts-v1/form_viewport_browser_test.js
           node tests/accounts-v1/expense_forms_browser_test.js
+          node tests/accounts-v1/payment_plans_browser_test.js
           node tests/accounts-v1/today_ui_browser_qa.js
           node tests/exports-v3/export_release_test.js
           node tests/exports-v3/sales_contract_browser_qa.js

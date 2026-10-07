@@ -2,7 +2,7 @@
 declare(strict_types=1);
 require_once __DIR__.'/tg_remittance_core.php';
 
-require dirname(__DIR__) . '/auth_store.php';
+require_once dirname(__DIR__) . '/auth_store.php';
 header('Content-Type: application/json; charset=UTF-8');
 header('Cache-Control: no-store, no-cache, must-revalidate');
 
@@ -155,6 +155,7 @@ function ba_payload(array $store,string $entity): array {
     ];
 }
 
+if(defined('TT_BANK_FUNCTIONS_ONLY'))return;
 try{
     $user=tt_require_login();
     if(!tt_user_can_open_module($user,'Accounts'))ba_respond(['ok'=>false,'error'=>'Accounts permission required.'],403);

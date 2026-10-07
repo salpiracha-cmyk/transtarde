@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-require dirname(__DIR__) . '/auth_store.php';
+require_once dirname(__DIR__) . '/auth_store.php';
 header('Content-Type: application/json; charset=UTF-8');
 header('Cache-Control: no-store, no-cache, must-revalidate');
 
@@ -155,6 +155,7 @@ function pp_brokers(array $rows): array {
     usort($b,static fn($a,$c)=>strcmp((string)$a['broker'],(string)$c['broker']));return array_values($b);
 }
 
+if(defined('TT_PAYABLES_FUNCTIONS_ONLY'))return;
 try{
     $user=tt_require_login();
     if(!tt_user_can_open_module($user,'Accounts'))pp_respond(['ok'=>false,'error'=>'Accounts permission required.'],403);

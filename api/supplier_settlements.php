@@ -2,7 +2,7 @@
 declare(strict_types=1);
 require_once __DIR__.'/accounts_bank_payment.php';
 
-require dirname(__DIR__) . '/auth_store.php';
+require_once dirname(__DIR__) . '/auth_store.php';
 header('Content-Type: application/json; charset=UTF-8');
 header('Cache-Control: no-store, no-cache, must-revalidate');
 
@@ -118,7 +118,7 @@ function ss_bank_master(string $bankId,string $entity): array {
 }
 function ss_bank_source(array $store,string $entity,string $bankId,string $permission): array {
     $a=ss_bank_master($bankId,$entity);
-    if(($a['accountType']??'')!=='Company Account')ss_respond(['ok'=>false,'error'=>'Only an approved company bank account can be used as a company payment source.'],422);
+    if(!in_array(($a['accountType']??''),['Company Account','Proprietor / Owner Account','Personal Account'],true))ss_respond(['ok'=>false,'error'=>'Only an approved company bank account can be used as a company payment source.'],422);
     if(trim((string)$a['accountNumber'])===''&&trim((string)$a['iban'])==='')ss_respond(['ok'=>false,'error'=>'Complete the account number or IBAN in the shared Bank Master before using this bank.'],422);
     if(!tt_bank_can_transact($bankId))ss_respond(['ok'=>false,'error'=>'Complete and activate this company bank in Company Master.'],422);
     return $a;
@@ -164,6 +164,7 @@ function ss_find_bill(array $store,string $entity,string $billId): array {
     $b=$store['commodityBills'][$billId]??null;
     if(!is_array($b))$b=$store['supplierBills'][$billId]??null;
     if(!is_array($b))$b=ss_external_bill($store,$entity,$billId);
+    if(!is_array($b)&&function_exists('pl_broker_bill'))$b=pl_broker_bill($store,$entity,$billId);
     if(!is_array($b)||($b['entity']??'')!==$entity)ss_respond(['ok'=>false,'error'=>'Supplier bill was not found in the selected entity.'],404);
     return $b;
 }
@@ -214,8 +215,8 @@ function ss_prepare_allocations(array $store,string $entity,array $raw): array {
         if(!is_array($r))continue;$billId=trim((string)($r['billId']??''));$sourceKey=trim((string)($r['sourceKey']??''));$amount=ss_money($r['amount']??0,'Allocation amount');
         $bill=ss_find_bill($store,$entity,$billId);$alloc=ss_bill_allocation($bill,$sourceKey);$cap=ss_component_capacity($store,$entity,$bill,$alloc);$allocationKey=$billId.'|'.$sourceKey;$already=round((float)($requestUsed[$allocationKey]??0),2);$cap['total']=max(0,round($cap['total']-$already,2));if(empty($cap['payableAccount'])){$originalTotal=max(.01,$cap['commodity']+$cap['brokerage']);$cap['commodity']=max(0,round($cap['commodity']-$already*($cap['commodity']/$originalTotal),2));$cap['brokerage']=max(0,round($cap['total']-$cap['commodity'],2));}else $cap['logistics']=$cap['total'];$split=ss_split_payment($amount,$cap);$requestUsed[$allocationKey]=round($already+$amount,2);
         $lineWht=(float)($bill['brokerageWithholding']??0)>0?0.0:round($split['brokerage']*min(100,max(0,(float)($bill['brokerageWhtPercent']??0)))/100,2);$withholding+=$lineWht;
-        $payee=(string)($alloc['payee']??$bill['broker']??$bill['vendor']??'');$brokers[]=$payee;$total+=$amount;$commodity+=$split['commodity'];$brokerage+=$split['brokerage'];$logistics+=($split['logistics']??0);if($split['commodity']>0)$debits['2110']=round(($debits['2110']??0)+$split['commodity'],2);if($split['brokerage']>0)$debits['2120']=round(($debits['2120']??0)+$split['brokerage'],2);if(($split['logistics']??0)>0){$account=(string)($split['payableAccount']??'2130');$debits[$account]=round(($debits[$account]??0)+$split['logistics'],2);}
-        $out[]=['billId'=>$billId,'billNo'=>(string)($bill['billNo']??''),'sourceKey'=>$sourceKey,'soda'=>(string)(($bill['sodas'][0]??'')?:''),'category'=>(string)($bill['category']??'COMMODITY'),'broker'=>$payee,'truck'=>(string)($alloc['truck']??''),'pohanch'=>(string)($alloc['pohanch']??''),'reference'=>(string)($alloc['reference']??''),'dueDate'=>(string)($alloc['dueDate']??''),'amount'=>$amount,'balanceAfter'=>round(max(0,$cap['total']-$amount),2),'commodityAmount'=>$split['commodity'],'brokerageAmount'=>$split['brokerage'],'brokerageWht'=>$lineWht,'logisticsAmount'=>$split['logistics']??0,'payableAccount'=>$split['payableAccount']??''];
+        $payee=trim((string)($alloc['payee']??''))?:trim((string)($bill['broker']??''))?:trim((string)($bill['relationshipName']??$bill['vendor']??$bill['supplier']??''));$brokers[]=$payee;$total+=$amount;$commodity+=$split['commodity'];$brokerage+=$split['brokerage'];$logistics+=($split['logistics']??0);if($split['commodity']>0)$debits['2110']=round(($debits['2110']??0)+$split['commodity'],2);if($split['brokerage']>0)$debits['2120']=round(($debits['2120']??0)+$split['brokerage'],2);if(($split['logistics']??0)>0){$account=(string)($split['payableAccount']??'2130');$debits[$account]=round(($debits[$account]??0)+$split['logistics'],2);}
+        $out[]=['billId'=>$billId,'billNo'=>(string)($bill['billNo']??''),'postId'=>(string)($bill['journalId']??$billId),'sourceKey'=>$sourceKey,'soda'=>(string)(($bill['sodas'][0]??'')?:''),'category'=>(string)($bill['category']??'COMMODITY'),'broker'=>$payee,'truck'=>(string)($alloc['truck']??''),'pohanch'=>(string)($alloc['pohanch']??''),'reference'=>(string)($alloc['reference']??''),'dueDate'=>(string)($alloc['dueDate']??''),'amount'=>$amount,'balanceAfter'=>round(max(0,$cap['total']-$amount),2),'commodityAmount'=>$split['commodity'],'brokerageAmount'=>$split['brokerage'],'brokerageWht'=>$lineWht,'logisticsAmount'=>$split['logistics']??0,'payableAccount'=>$split['payableAccount']??''];
     }
     if(!$out)ss_respond(['ok'=>false,'error'=>'No valid supplier payable allocations were supplied.'],422);
     $unique=array_values(array_unique(array_filter(array_map('trim',$brokers))));if(count($unique)>1)ss_respond(['ok'=>false,'error'=>'One supplier payment / settlement cannot mix different brokers / payees.'],422);

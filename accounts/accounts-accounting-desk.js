@@ -27,9 +27,11 @@
       {title:'Inspection Bill', note:'Shipment and certificate-linked inspection bill', special:'supplier-bills', billKind:'inspection'},
       {title:'Other Export Expense', note:'Export supplies and costs not charged to one shipment', special:'other-export-expense'}
     ]},
-    {key:'commodity', glyph:'▣', title:'Commodity Purchases & Local Sales', note:'Soda through final bill, payment, sale and receipt', actions:[
+    {key:'commodity', glyph:'▣', title:'Local Purchases & Sales', note:'Soda through final bill, payment, sale and receipt', actions:[
       {title:'Soda Centre', note:'Create, search, amend or delete an unlinked Soda', special:'soda'},
       {title:'Bill Posting', note:'Broker or Supplier → Soda → saved/printed Pohanch → final bill', special:'arrival-bills', native:'purchases', then:'[data-purchase="commodity"]'},
+      {title:'Payment Planning', note:'Choose banks and prepare date-wise truck payments', special:'payment-plan'},
+      {title:'Pay Broker', note:'Independent brokerage outside purchase bills', special:'broker-payment-plan'},
       {title:'Local Sales & Receipts', note:'Mill sale approvals and linked receipts awaiting Accounts action', native:'receivables', find:'Local'}
     ]},
     {key:'bank', glyph:'▦', title:'Bank & Cash', note:'Internal transfers, foreign retention and bank reconciliation', actions:[
@@ -143,6 +145,8 @@
   }
 
   async function launch(action) {
+    if(action.special==='payment-plan')return window.TT_PAYMENT_PLANS?.open?.('PARTY');
+    if(action.special==='broker-payment-plan')return window.TT_PAYMENT_PLANS?.open?.('BROKER');
     if(action.special==='tg-remittances')return window.TT_TG_REMITTANCES.open();
     if(action.special==='all-ledgers')return window.TT_ALL_LEDGERS?.open?.('',action.ledgerCategory||'other');
     if(action.special==='bill-registers')return openSearch();
@@ -336,13 +340,13 @@
     try{
       const data=await json(`../api/accounts_dashboard.php?entity=${encodeURIComponent(entity())}`);
       const definitions=entity()==='TG'
-        ? [{key:'bank',label:'Bank Balance',note:'Hover for accounts'},{key:'local',label:'Customer Receivables',note:'Customer detail'},{key:'commodity',label:'Supplier Bills Due',note:'Due-date detail'}]
-        : [{key:'bank',label:'Bank Balance',note:'Hover for accounts'},{key:'commodity',label:'Commodity Bills Due',note:'Due-date detail'},{key:'local',label:'Local Receivables',note:'Customer detail'},{key:'export',label:'Export Receivables',note:'Customer / currency detail'}];
+        ? [{key:'bank',label:'Bank Balance',note:'Bank accounts'},{key:'local',label:'Customer Receivables',note:'Customer detail'},{key:'commodity',label:'Supplier Bills Due',note:'Due-date detail'}]
+        : [{key:'bank',label:'Bank Balance',note:'Bank accounts'},{key:'commodity',label:'Commodity Bills Due',note:'Due-date detail'},{key:'local',label:'Local Receivables',note:'Customer detail'},{key:'export',label:'Export Receivables',note:'Customer / currency detail'}];
       host.style.gridTemplateColumns=`repeat(${definitions.length},1fr)`;
       host.innerHTML=definitions.map(def=>{
         const rows=data.summaries?.[def.key]||[], totals={};rows.forEach(row=>{const cur=row.currency||'PKR';totals[cur]=(totals[cur]||0)+Number(row.amount||0)});
         const first=rows[0];
-        const headline=def.key==='due'?(first?`${esc(first.label)} · ${esc(first.currency||'PKR')} ${money(first.amount)} · ${esc(first.dateDisplay||first.date||'')}`:'No due payments'):Object.keys(totals).length?Object.entries(totals).map(([cur,value])=>`${esc(cur)} ${money(value)}`).join(' · '):'PKR 0.00';
+        const headline=def.key==='bank'?(rows.length?rows.map(row=>`<span style="display:block;font-size:12px;margin:5px 0">${esc(row.label)} · ${esc(row.currency||'PKR')} ${money(row.amount)}</span>`).join(''):'No bank accounts'):def.key==='due'?(first?`${esc(first.label)} · ${esc(first.currency||'PKR')} ${money(first.amount)} · ${esc(first.dateDisplay||first.date||'')}`:'No due payments'):Object.keys(totals).length?Object.entries(totals).map(([cur,value])=>`${esc(cur)} ${money(value)}`).join(' · '):'PKR 0.00';
         const detail=rows.length?rows.slice(0,20).map(row=>`<div><b>${esc(row.label||row.reference||'Account')}</b><br>${esc(row.reference||'')}${row.dateDisplay?' · '+esc(row.dateDisplay):''} · ${esc(row.currency||'PKR')} ${money(row.amount)}</div>`).join(''):'<div>No open balance.</div>';
         return `<button type="button" class="tt-summary ${def.key==='due'&&first&&first.date<=today()?'tt-due-alert':''}" data-summary="${def.key}"><small>${esc(def.label)}</small><b>${headline}</b><em>${esc(def.note)}</em><span class="tt-summary-pop">${detail}</span></button>`;
       }).join('');
