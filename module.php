@@ -48,17 +48,16 @@ if ($id === 'exports') {
     );
 }
 $modulePermissions = $user['permissions'][$permissionName] ?? [];
-$moduleMasters=tt_list_masters();
-// Realization taxes/charges belong to Accounts setup, not the operational
-// Exports/Milling bootstrap. Keep the full master available through its desk.
-unset($moduleMasters['export_realization_charges']);
 $access = [
     'module'=>$permissionName, 'moduleId'=>$id, 'user'=>(string)$user['full_name'],
     'role'=>(string)$user['role'], 'permissions'=>$modulePermissions,
     'super'=>(($user['role'] ?? '')==='Super Admin'), 'csrf'=>tt_csrf(),
     'masterAccess'=>tt_user_can_access_masters($user), 'masterPermissions'=>$user['master_permissions'] ?? [],
-    'masters'=>$moduleMasters, 'masterOptions'=>tt_master_options(),
+    'masters'=>tt_list_masters(), 'masterOptions'=>tt_master_options(),
 ];
+// Realization taxes/charges belong to Accounts setup, not the operational
+// Exports/Milling bootstrap. Keep the full master available through its desk.
+unset($access['masters']['export_realization_charges']);
 $bootstrap = '<script>window.TT_MODULE_ACCESS='.json_encode($access, JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT).';</script>';
 $sharedBootstrap = <<<'HTML'
 <style>html.tt-save-waiting body::after{content:'Saving…';position:fixed;inset:0;display:grid;place-items:center;z-index:2147482999;background:rgba(12,32,22,.45);color:#fff;font:700 20px Arial}</style>
