@@ -29,6 +29,7 @@ with tempfile.TemporaryDirectory(prefix="company-bank-qa-") as temp:
     (root / "api").mkdir()
     (root / "data").mkdir()
     shutil.copy(ROOT / "api/masters.php", root / "api/masters.php")
+    shutil.copy(ROOT / "api/company_bank_retention.php", root / "api/company_bank_retention.php")
     banks = [bank("old", default=True), bank("new"), bank("spare"), bank("usd", "USD")]
     values = [""] * 18
     values[0] = "Fixture Company"

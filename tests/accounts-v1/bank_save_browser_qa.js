@@ -21,6 +21,10 @@ const root=path.resolve(__dirname,'../..'),read=p=>fs.readFileSync(path.join(roo
       if(reject)return route.fulfill({status:422,json:{ok:false,error:'Fixture server rejected the save. Please correct the account.'}});
       if(hold)await new Promise(resolve=>{release=resolve;started();});
       company.values=body.values;
+      const rows=JSON.parse(company.values[13]);
+      const parent=rows.find(row=>row.id==='fixture-bank');
+      if(parent.retentionEnabled&&!rows.some(row=>row.retentionParentBankId===parent.id))rows.push({id:'fixture-retention',retentionParentBankId:parent.id,bankName:'Fixture Bank Retention Account',accountTitle:parent.accountTitle,currency:'USD',accountType:'Company Account',depositType:'CURRENT',accountNumber:'',iban:'',retentionAccount:true,isDefault:false,status:'Active'});
+      company.values[13]=JSON.stringify(rows);
      }
      return route.fulfill({json:{ok:true,masters:{companies:[company]},options:{currencies:['PKR','USD'],countries:['Pakistan']},users:[],requests:[],approvals:[]}});
     }
@@ -33,14 +37,10 @@ const root=path.resolve(__dirname,'../..'),read=p=>fs.readFileSync(path.join(roo
    await page.locator('[data-edit-master="fixture-company"]:visible').click();
    await page.locator('[data-company-editor-tab="banks"]').click();
    await page.locator('[data-edit-company-bank="fixture-bank"]').click();
-   assert.equal(await page.locator('#bankRetention').isVisible(),false,'PKR retention choice is unavailable');
-   assert.equal(await page.locator('#bankRetention').isDisabled(),true);
-   assert.match(await page.locator('#bankRetentionHelp').innerText(),/opening balances/);
-   await page.locator('#bankCurrency').selectOption('USD');
-   assert.equal(await page.locator('#bankRetention').isVisible(),true,'foreign company retention is available');
+   assert.equal(await page.locator('#bankRetention').isVisible(),true,'PKR bank keeps its retention tick');
+   assert.equal(await page.locator('#bankRetention').isDisabled(),false);
+   assert.match(await page.locator('#bankRetentionHelp').innerText(),/separate USD retention account/);
    await page.locator('#bankRetention').check();
-   await page.locator('#bankCurrency').selectOption('PKR');
-   assert.equal(await page.locator('#bankRetention').isChecked(),false,'changing to PKR removes an invalid tick');
    await page.locator('#bankBranch').fill('Saved branch');
    reject=true;await page.locator('#bankSave').click();
    await page.locator('#bankSaveError').waitFor({state:'visible'});
@@ -55,15 +55,25 @@ const root=path.resolve(__dirname,'../..'),read=p=>fs.readFileSync(path.join(roo
    assert.equal(posts,2,'pending save is not submitted twice');
    assert.ok(release);release();hold=false;
    await page.waitForFunction(()=>!document.getElementById('bankDialog').open);
-   const saved=JSON.parse(company.values[13])[0];assert.equal(saved.currency,'PKR');assert.equal(saved.retentionAccount,false);assert.equal(saved.branch,'Saved branch');assert.equal(saved.isDefault,true);
+   const saved=JSON.parse(company.values[13])[0];assert.equal(saved.currency,'PKR');assert.equal(saved.retentionAccount,false);assert.equal(saved.retentionEnabled,true);assert.equal(saved.branch,'Saved branch');assert.equal(saved.isDefault,true);
    await page.locator('[data-edit-company-bank="fixture-bank"]').click();
    assert.equal(await page.locator('#bankBranch').inputValue(),'Saved branch','reopening reads the confirmed save');
    assert.equal(await page.locator('#bankSaveError').isVisible(),false,'old error clears on reopening');
-   await page.locator('#bankCurrency').selectOption('USD');await page.locator('#bankRetention').check();
+   assert.equal(await page.locator('#bankRetention').isChecked(),true,'parent tick survives reopening');
+   await page.locator('#bankSave').click();
+   await page.waitForFunction(()=>!document.getElementById('bankDialog').open);
+   assert.equal(JSON.parse(company.values[13]).filter(row=>row.retentionParentBankId==='fixture-bank').length,1);
+   await page.locator('[data-edit-company-bank="fixture-retention"]').click();
+   assert.equal(await page.locator('#bankCurrency').inputValue(),'USD');
+   assert.equal(await page.locator('#bankCurrency').isDisabled(),true,'linked ledger currency cannot be changed');
+   assert.equal(await page.locator('#bankNumber').inputValue(),'');
+   await page.locator('#bankSave').click();
+   await page.waitForFunction(()=>!document.getElementById('bankDialog').open);
+   await page.locator('[data-edit-company-bank="fixture-bank"]').click();
    await page.locator('input[name="bankOwnership"][value="Proprietor / Owner Account"]').check();
    assert.equal(await page.locator('#bankRetention').isChecked(),false);assert.equal(await page.locator('#bankRetention').isVisible(),false);
    assert.deepEqual(errors,[]);await page.close();
   }
-  console.log('PASS desktop/phone PKR save, eligible retention visibility, visible server errors, retry, duplicate-submit guard and saved-record reopening');
+  console.log('PASS desktop/phone PKR retention tick, separate USD ledger, repeat saves and linked ledger editing, visible server errors, retry, duplicate-submit guard and saved-record reopening');
  }finally{await browser.close()}
 })().catch(error=>{console.error(error);process.exitCode=1});

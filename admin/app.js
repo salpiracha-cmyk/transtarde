@@ -652,7 +652,7 @@
     const visible=banks.filter(bank=>includeInactive||String(bank.status||"Active").toLowerCase()!=="inactive");
     return `<div class="table-wrap"><table class="bank-table"><thead><tr><th>Bank</th><th>Account</th><th>Number / IBAN</th><th>Currency</th><th>Default</th><th></th></tr></thead><tbody>${visible.length?visible.map(bank=>{
       const type=bank.accountType==='Company Account'?'Company':'Proprietor / Personal';
-      const details=[type,bank.retentionAccount?'Retention':'',bank.status==='Inactive'?'Inactive':''].filter(Boolean).join(' · ');
+      const details=[type,bank.retentionEnabled?'Linked USD retention':bank.retentionAccount?'Retention':'',bank.status==='Inactive'?'Inactive':''].filter(Boolean).join(' · ');
       return `<tr><td>${escapeHtml(bank.bankName||"—")}</td><td><strong>${escapeHtml(bank.accountTitle||"—")}</strong><small>${escapeHtml(details)}</small></td><td>${escapeHtml([bank.accountNumber,bank.iban].filter(Boolean).join(" · ")||"—")}</td><td>${escapeHtml(bank.currency||"—")}</td><td>${bank.isDefault?'<span class="tag">Yes</span>':"—"}</td><td>${canMaster('companies','Edit')&&bank.status!=="Inactive"?`<button class="row-action" type="button" data-edit-company-bank="${escapeHtml(bank.id||"")}">Edit</button>`:""}</td></tr>`;
     }).join(""):'<tr><td colspan="6">No bank accounts yet.</td></tr>'}</tbody></table></div>`;
   }
@@ -1223,7 +1223,12 @@
     document.querySelector(`input[name="bankOwnership"][value="${bank.accountType==="Personal Account"?"Proprietor / Owner Account":bank.accountType||"Company Account"}"]`).checked=true;
     document.getElementById("bankDefault").checked=!!bank.isDefault;
     const pakistanCompany=String(company?.values?.[2]||document.getElementById(masterInputId(2))?.value||'').toLowerCase()==='pakistan'||String(company?.values?.[3]||document.getElementById(masterInputId(3))?.value||'').toLowerCase()==='pakistan';
-    document.getElementById("bankRetention").checked=pakistanCompany&&!!bank.retentionAccount;
+    document.getElementById("bankRetention").checked=pakistanCompany&&!!(bank.retentionEnabled||bank.retentionAccount);
+    form.dataset.linkedRetention=bank.retentionParentBankId?"1":"0";
+    const linked=!!bank.retentionParentBankId;
+    ["bankName","bankBranch","bankCountry","bankTitle","bankNumber","bankIban","bankSwift"].forEach(id=>document.getElementById(id).readOnly=linked);
+    ["bankCurrency","bankDepositType","bankDefault"].forEach(id=>document.getElementById(id).disabled=linked);
+    document.querySelectorAll('input[name="bankOwnership"]').forEach(input=>input.disabled=linked);
     const companyCode=String(company?.values?.[1]||document.getElementById(masterInputId(1))?.value||"").trim().toUpperCase();
     document.getElementById("bankRetention").dataset.companyEligible=pakistanCompany&&["TTI","BRM"].includes(companyCode)?"1":"0";
     document.getElementById("bankDelete").hidden=!bankId||!IS_SUPER_ADMIN||bank.status==="Inactive";
@@ -1236,9 +1241,12 @@
     const ownership=document.querySelector('input[name="bankOwnership"]:checked')?.value;
     const retention=document.getElementById("bankRetention");
     const currency=document.getElementById("bankCurrency").value.toUpperCase();
-    retention.disabled=ownership!=="Company Account"||currency==="PKR"||retention.dataset.companyEligible!=="1";
+    const linked=document.getElementById("bankForm").dataset.linkedRetention==="1";
+    retention.disabled=linked||ownership!=="Company Account"||retention.dataset.companyEligible!=="1";
     retention.closest("label").hidden=retention.disabled;
-    document.getElementById("bankRetentionHelp").hidden=!retention.disabled;
+    const help=document.getElementById("bankRetentionHelp");
+    help.hidden=!linked&&retention.disabled;
+    help.textContent=linked?"Linked USD retention account. Manage its retention tick on the original PKR bank.":currency==="PKR"?"Tick to create a separate USD retention account. Your PKR bank remains available for normal entries.":"Mark this foreign-currency company account for retention entries.";
     if(retention.disabled)retention.checked=false;
   }
   function eligibleDefaultBank(bank) {
@@ -1258,7 +1266,7 @@
     syncBankDialogOwnership();
     if(!event.currentTarget.reportValidity())return;
     const ownership=document.querySelector('input[name="bankOwnership"]:checked')?.value||"Company Account";
-    if(!document.getElementById("bankNumber").value.trim()&&!document.getElementById("bankIban").value.trim()){showBankSaveError("Enter an account number or IBAN.");document.getElementById("bankNumber").focus();return;}
+    if(event.currentTarget.dataset.linkedRetention!=="1"&&!document.getElementById("bankNumber").value.trim()&&!document.getElementById("bankIban").value.trim()){showBankSaveError("Enter an account number or IBAN.");document.getElementById("bankNumber").focus();return;}
     const bankId=document.getElementById("bankEditId").value;
     button.disabled=true;
     try {
@@ -1276,7 +1284,7 @@
       const isDefault=document.getElementById("bankDefault").checked;
       const pakistanCompany=String(company?.values?.[2]||document.getElementById(masterInputId(2))?.value||'').toLowerCase()==='pakistan'||String(company?.values?.[3]||document.getElementById(masterInputId(3))?.value||'').toLowerCase()==='pakistan';
       const title=document.getElementById("bankTitle").value.trim();
-      const bank={...(index>=0?banks[index]:{}),id:bankId||`bank-${crypto.randomUUID()}`,bankName:document.getElementById("bankName").value.trim(),branch:document.getElementById("bankBranch").value.trim(),country:document.getElementById("bankCountry").value.trim(),currency,accountTitle:title,accountNumber:document.getElementById("bankNumber").value.trim(),iban:document.getElementById("bankIban").value.trim(),swift:document.getElementById("bankSwift").value.trim(),accountType:ownership,depositType:document.getElementById("bankDepositType").value,personalOwner:ownership==="Company Account"?"":title,retentionAccount:pakistanCompany&&ownership==="Company Account"&&document.getElementById("bankRetention").checked,isDefault,status:"Active"};
+      const bank={...(index>=0?banks[index]:{}),id:bankId||`bank-${crypto.randomUUID()}`,bankName:document.getElementById("bankName").value.trim(),branch:document.getElementById("bankBranch").value.trim(),country:document.getElementById("bankCountry").value.trim(),currency,accountTitle:title,accountNumber:document.getElementById("bankNumber").value.trim(),iban:document.getElementById("bankIban").value.trim(),swift:document.getElementById("bankSwift").value.trim(),accountType:ownership,depositType:document.getElementById("bankDepositType").value,personalOwner:ownership==="Company Account"?"":title,retentionEnabled:currency==="PKR"&&pakistanCompany&&ownership==="Company Account"&&document.getElementById("bankRetention").checked,retentionAccount:currency!=="PKR"&&pakistanCompany&&ownership==="Company Account"&&document.getElementById("bankRetention").checked,isDefault,status:"Active"};
       if(isDefault&&!eligibleDefaultBank(bank))throw new Error("A default must be an operational bank account with an account number or IBAN.");
       if(isDefault)banks.forEach(item=>{if(item.currency===currency)item.isDefault=false});
       if(index>=0)banks[index]=bank;else banks.push(bank);

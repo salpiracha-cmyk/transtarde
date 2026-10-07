@@ -67,8 +67,8 @@ function ba_master_accounts(): array {
             'personalOwner'=>(string)$v[2],'accountTitle'=>(string)$v[3],'bankName'=>(string)$v[4],'branch'=>(string)$v[5],
             'country'=>(string)$v[6],'currency'=>strtoupper(trim((string)$v[7])),'accountNumber'=>(string)$v[8],
             'accountNumberMasked'=>ba_mask((string)$v[8]),'accountLast5'=>substr(preg_replace('/\W+/','',(string)$v[8])??'',-5),
-            'iban'=>(string)$v[9],'ibanMasked'=>ba_mask((string)$v[9]),'displayLabel'=>($entity==='TG'?strtoupper((string)$v[7]).' · ':'').ba_display_label((string)$v[3],(string)$v[4],(string)$v[8],(string)$v[9]),'swift'=>(string)$v[10],'purpose'=>(string)$v[11],
-            'visibility'=>(string)$v[12],'masterStatus'=>(string)$v[13],'masterRetentionAccount'=>$row['retentionAccount']??null,'depositType'=>(string)($row['depositType']??'')
+            'iban'=>(string)$v[9],'ibanMasked'=>ba_mask((string)$v[9]),'displayLabel'=>!empty($row['linkedRetentionAccount'])?(string)$v[4]:($entity==='TG'?strtoupper((string)$v[7]).' · ':'').ba_display_label((string)$v[3],(string)$v[4],(string)$v[8],(string)$v[9]),'swift'=>(string)$v[10],'purpose'=>(string)$v[11],
+            'visibility'=>(string)$v[12],'masterStatus'=>(string)$v[13],'masterRetentionAccount'=>$row['retentionAccount']??null,'linkedRetentionAccount'=>!empty($row['linkedRetentionAccount']),'retentionParentBankId'=>(string)($row['retentionParentBankId']??''),'depositType'=>(string)($row['depositType']??'')
         ];
     }
     return $out;
@@ -77,7 +77,7 @@ function ba_operational_account_type(string $type): bool {
     return in_array($type,['Company Account','Proprietor / Owner Account','Personal Account'],true);
 }
 function ba_default_setting(array $a): array {
-    $complete=trim((string)($a['accountNumber']??''))!==''||trim((string)($a['iban']??''))!=='';
+    $complete=!empty($a['linkedRetentionAccount'])||trim((string)($a['accountNumber']??''))!==''||trim((string)($a['iban']??''))!=='';
     $company=ba_operational_account_type((string)($a['accountType']??''));
     $receiptReady=$company&&$complete&&strcasecmp((string)($a['masterStatus']??'Active'),'Active')===0;
     return [
@@ -136,7 +136,7 @@ function ba_payload(array $store,string $entity): array {
         $currency=strtoupper(trim((string)($a['currency']??'')))?:$planningCurrency;$postedBook=ba_balance($store,$entity,$id,$currency);$reserve=$entity==='TG'?tgr_reserved($store,$id):0.0;$book=round($postedBook-$reserve,2);
         $balances[$currency]=round(($balances[$currency]??0)+$book,2);
         if($currency===$planningCurrency&&!empty($setting['active'])&&!empty($setting['includeInPaymentPlanning']))$planning+=max(0,$book);
-        $rows[]=array_merge($a,['settings'=>$setting,'bookBalance'=>$postedBook,'pendingRemittances'=>$reserve,'availableBalance'=>$book,'needsCompletion'=>(trim((string)$a['accountNumber'])===''&&trim((string)$a['iban'])===''),'deletionPending'=>isset($pending[$id]),'deletionRequest'=>$pending[$id]??null]);
+        $rows[]=array_merge($a,['settings'=>$setting,'bookBalance'=>$postedBook,'pendingRemittances'=>$reserve,'availableBalance'=>$book,'needsCompletion'=>(empty($a['linkedRetentionAccount'])&&trim((string)$a['accountNumber'])===''&&trim((string)$a['iban'])===''),'deletionPending'=>isset($pending[$id]),'deletionRequest'=>$pending[$id]??null]);
     }
     usort($rows,static fn($a,$b)=>strcmp((string)$a['bankName'],(string)$b['bankName'])?:strcmp((string)$a['accountTitle'],(string)$b['accountTitle']));
     $cashKey='CASH|'.$entity;$cashCurrency=$entity==='TG'?'AED':'PKR';$cashSetting=array_replace([
@@ -222,7 +222,7 @@ try{
     if(!$setting['active']||!$setting['allowPayments'])$setting['defaultPaymentAccount']=false;
     if($id!==$cashKey&&($defaultReceiptRequested||$defaultPaymentRequested)){
         if(strcasecmp((string)($a['masterStatus']??'Active'),'Active')!==0)ba_respond(['ok'=>false,'error'=>'Activate this bank inside Super Admin Company Master before enabling payments or receipts.'],422);
-        if(trim((string)$a['accountNumber'])===''&&trim((string)$a['iban'])==='')ba_respond(['ok'=>false,'error'=>'Complete the account number or IBAN in the Company Master before enabling payments or receipts.'],422);
+        if(empty($a['linkedRetentionAccount'])&&trim((string)$a['accountNumber'])===''&&trim((string)$a['iban'])==='')ba_respond(['ok'=>false,'error'=>'Complete the account number or IBAN in the Company Master before enabling payments or receipts.'],422);
     }
     tt_ensure_data_dir();$h=fopen(TT_BANK_ACCOUNTS_FILE,'c+');if($h===false||!flock($h,LOCK_EX))throw new RuntimeException('Accounts storage unavailable.');
     try{

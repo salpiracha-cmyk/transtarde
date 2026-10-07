@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__ . '/api/company_bank_retention.php';
 
 const TT_POST_ID_PREFIX = 'POST';
 const TT_POST_ID_WIDTH = 5;
@@ -183,6 +184,7 @@ function tt_master_json_array(mixed $value): array {
 
 /** Keep the historical 14-column bank contract for existing module APIs. */
 function tt_company_bank_legacy_rows(array $companies): array {
+    $linkedRetentionIds=tt_linked_retention_bank_ids($companies);
     $rows=[];
     foreach ($companies as $company) {
         $cv=array_values((array)($company['values'] ?? []));
@@ -191,7 +193,7 @@ function tt_company_bank_legacy_rows(array $companies): array {
         foreach (tt_master_json_array($cv[13] ?? '') as $bank) {
             if (!is_array($bank)) continue;
             $id=trim((string)($bank['id'] ?? '')) ?: 'bank-'.substr(hash('sha256',$companyCode.'|'.json_encode($bank)),0,14);
-            $rows[]=['id'=>$id,'companyId'=>(string)($company['id']??''),'depositType'=>(string)($bank['depositType']??''),'retentionAccount'=>array_key_exists('retentionAccount',$bank) ? (bool)$bank['retentionAccount'] : null,'notes'=>(string)($bank['notes'] ?? ''),'values'=>[
+            $rows[]=['id'=>$id,'companyId'=>(string)($company['id']??''),'linkedRetentionAccount'=>isset($linkedRetentionIds[$id]),'retentionParentBankId'=>(string)($bank['retentionParentBankId']??''),'depositType'=>(string)($bank['depositType']??''),'retentionAccount'=>array_key_exists('retentionAccount',$bank) ? (bool)$bank['retentionAccount'] : null,'notes'=>(string)($bank['notes'] ?? ''),'values'=>[
                 (string)(($bank['accountType'] ?? '')==='Personal Account'?'Proprietor / Owner Account':($bank['accountType'] ?? 'Company Account')),
                 trim($companyCode.' — '.$companyName,' —'),
                 (string)($bank['accountTitle'] ?? $companyName),
@@ -242,7 +244,7 @@ function tt_bank_can_transact(string $id): bool {
         $v=(array)($bank['values'] ?? []);
         return tt_bank_is_operational_account_type((string)($v[0] ?? ''))
             && strcasecmp((string)($v[13] ?? 'Active'),'Active')===0
-            && (trim((string)($v[8] ?? ''))!=='' || trim((string)($v[9] ?? ''))!=='');
+            && (!empty($bank['linkedRetentionAccount']) || trim((string)($v[8] ?? ''))!=='' || trim((string)($v[9] ?? ''))!=='');
     }
     return false;
 }
