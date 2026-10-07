@@ -7,7 +7,7 @@ with tempfile.TemporaryDirectory(prefix='party-ledger-qa-') as temp:
     root = pathlib.Path(temp)
     for folder in ['api', 'data', 'accounts']:
         (root/folder).mkdir()
-    for name in ['accounts_ledger_browser.php', 'accounts_reference.php', 'tg_remittance_core.php', 'fi_credit_advice_link.php', 'receipt_invoice_links.php']:
+    for name in ['accounts_subaccounts_core.php','assets_registry_core.php','accounts_ledger_browser.php', 'accounts_reference.php', 'tg_remittance_core.php', 'fi_credit_advice_link.php', 'receipt_invoice_links.php']:
         shutil.copy(ROOT/'api'/name, root/'api'/name)
     for path in (ROOT/'accounts').glob('*.json'):
         shutil.copy(path, root/'accounts'/path.name)
@@ -138,3 +138,4 @@ with tempfile.TemporaryDirectory(prefix='party-ledger-qa-') as temp:
                 print('Party Ledger browser: name search, separate tab, date filters, balances, details, Print, Excel and stale-result protection passed')
     finally:
         server.terminate();server.wait(timeout=5)
+

@@ -3,7 +3,7 @@ import json,os,pathlib,shutil,socket,subprocess,tempfile,time,urllib.request,url
 ROOT=pathlib.Path(__file__).resolve().parents[2]
 with tempfile.TemporaryDirectory(prefix='tg-remittance-') as tmp:
  root=pathlib.Path(tmp);(root/'api').mkdir();(root/'accounts').mkdir();(root/'data').mkdir()
- for name in ['export_receipts.php','export_receipt_tg_mirror.php','accounts_receipt_amend_core.php','tg_remittances.php','tg_remittance_core.php','fi_credit_advice_link.php','receipt_invoice_links.php','accounts_reviews.php','accounts_reviews_core.php','accounts_dashboard.php','bank_accounts.php','expense_reminders.php','accounts_ledger_browser.php','accounts_reference.php']:
+ for name in ['accounts_subaccounts_core.php','assets_registry_core.php','export_receipts.php','export_receipt_tg_mirror.php','accounts_receipt_amend_core.php','tg_remittances.php','tg_remittance_core.php','fi_credit_advice_link.php','receipt_invoice_links.php','accounts_reviews.php','accounts_reviews_core.php','accounts_dashboard.php','bank_accounts.php','expense_reminders.php','accounts_ledger_browser.php','accounts_reference.php']:
   shutil.copy(ROOT/'api'/name,root/'api'/name)
  for name in ['accounting_master_v1.json','settlement_policy_v1.json','export_realization_policy_v1.json','tg-remittances-ui.js']:
   shutil.copy(ROOT/'accounts'/name,root/'accounts'/name)
@@ -77,4 +77,5 @@ with tempfile.TemporaryDirectory(prefix='tg-remittance-') as tmp:
   print('TG HTTP and optional browser: pending balance, charges/VAT, split grouping, permissions, stale prevention, USD ledger and idempotency passed')
  finally:
   server.terminate();server.wait(timeout=5);log.close()
+
 
