@@ -72,6 +72,8 @@ require $argv[1];
     result=call(post)['result'];plan=result['plan'];sett=result['settlement'];assert plan['drafts']['Supplier C']['sources'][0]['reference']=='1002';assert sett['netPayment']==320 and len(sett['allocations'])==3,sett
     saved=json.loads(books.read_text());j=saved['journals'][sett['journalId']];assert j['totalDebit']==j['totalCredit']==320,j
     assert {l['account'] for l in j['lines']}=={'2110','2120','1110','2170'},j
+    assert {l['counterparty'] for l in j['lines'] if l['account']=='2110'}=={'Supplier A'},j
+    assert {l['counterparty'] for l in j['lines'] if l['account']=='2120'}=={'Broker A'},j
     count=len(saved['journals']);assert call(post)['result']['settlement']['id']==sett['id'];assert len(json.loads(books.read_text())['journals'])==count
     call({**post,'sources':[{'type':'BANK','bankAccountId':'TTI-B','amount':320,'method':'CHEQUE','reference':'2001'}]},409)
     call({'action':'close','planId':plan['id'],'version':plan['version']},409)
@@ -84,8 +86,10 @@ require $argv[1];
     plan=call({'action':'post','planId':plan['id'],'version':plan['version'],'group':'Supplier C','date':'2026-10-07','rowKeys':plan['groups']['Supplier C']['rowKeys'],'sources':[{'type':'BANK','bankAccountId':'TTI-P','method':'CHEQUE','reference':'1002','amount':300}]})['result']['plan']
     user['permissions']['Accounts']['supplier']=['View','Create'];auth.write_text(json.dumps({'users':[user],'masters':masters,'audit':[]}))
     closed=call({'action':'close','planId':plan['id'],'version':plan['version']})['result']['plan'];assert closed['status']=='Closed'
-    assert read()['plans']==[]
-    user['permissions']['Accounts']['supplier']=['View','Create','Edit']
+    assert read()['plans']==[] and read()['history'][0]['id']==closed['id']
+    call({'action':'reopen','planId':closed['id'],'version':closed['version'],'reason':'Review corrected cheque'},403)
+    user['permissions']['Accounts']['supplier']=['View','Create','Edit'];auth.write_text(json.dumps({'users':[user],'masters':masters,'audit':[]}))
+    reopened=call({'action':'reopen','planId':closed['id'],'version':closed['version'],'reason':'Review corrected cheque'})['result']['plan'];assert reopened['status']=='Open'
     # A posted JV settles old trucks, then partially pays the next; the view makes no new journal.
     store['journals']['ROUND-JV']={'id':'ROUND-JV','entity':'TTI','status':'Posted','sourceType':'JV','date':'2026-09-10','lines':[{'account':'2110','debit':250,'credit':0,'subledger':'Broker A'},{'account':'2170','credit':250,'debit':0,'subledger':'ABC'}]}
     seed(store);payload=read();round_set=payload['adjustments'][0];assert [a['amount'] for a in round_set['allocations']]==[100,150],round_set
