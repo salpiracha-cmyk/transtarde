@@ -138,8 +138,9 @@ $sharedBootstrap = <<<'HTML'
     if(!allowed(key)||key==='tt40exportreceipts'||applying)return;
     value=String(value);
     // Rendering an empty or unchanged collection is not a workflow edit.
+// The Exports root still posts on explicit save for fresh closure validation.
     // Keep prototype/derived display initialization out of another icon's save.
-    if(!pending.has(key)&&!inFlight.has(key)&&(receipts.get(key)===value||(!committedValues.has(key)&&value==='[]')))return;
+    if(!pending.has(key)&&!inFlight.has(key)&&((key!=='transtrade_export_v3_operational'&&receipts.get(key)===value)||(!committedValues.has(key)&&value==='[]')))return;
     if(!pending.has(key))queuedBase.set(key,Number(keyVersions.get(key)||0));pending.set(key,value)
   }
   Storage.prototype.getItem=function(k){return this===localStorage&&cacheFallback.has(String(k))?cacheFallback.get(String(k)):originalGet.call(this,k)};

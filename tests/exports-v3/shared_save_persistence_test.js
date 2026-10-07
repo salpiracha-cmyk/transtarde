@@ -47,8 +47,9 @@ function fixture({quota=false,initial='{"shipments":[]}',moduleId='exports'}={})
  console.log('PASS Milling linked cash waits for acknowledged source and rejects when that source fails');
  f=fixture();f.c.localStorage.setItem('tt40exportreceipts','[{"id":"CACHE"}]');await f.c.TT_SHARED_SYNC.saveNow();assert.equal(f.requests.length,0);assert.equal(f.c.localStorage.getItem('tt40exportreceipts'),'[{"id":"CACHE"}]');console.log('PASS Accounts receipt projection remains local and never enters shared write queue');
  f=fixture();f.c.localStorage.setItem('tt30bags','[{"id":"B1"}]');f.c.localStorage.setItem(STORE,a);p=f.c.TT_SHARED_SYNC.saveNow();assert.equal(f.requests.length,1);assert.equal(f.requests[0].body.key,STORE);f.ack(0);await tick();assert.equal(f.requests.length,2);assert.equal(f.requests[1].body.key,'tt30bags');f.ack(1);await p;console.log('PASS Export root acknowledges before dependent bridge writes');
- f=fixture({moduleId:'milling'});f.c.localStorage.setItem('tt39localsales','[]');f.c.localStorage.setItem(STORE,'{"shipments":[]}');await f.c.TT_SHARED_SYNC.saveNow();assert.equal(f.requests.length,0);
- f.c.localStorage.setItem(STORE,a);p=f.c.TT_SHARED_SYNC.saveNow();f.ack(0);await p;f.c.localStorage.setItem(STORE,a);await f.c.TT_SHARED_SYNC.saveNow();assert.equal(f.requests.length,1);
- f.c.localStorage.setItem(STORE,'{"shipments":[]}');p=f.c.TT_SHARED_SYNC.saveNow();assert.equal(f.requests.length,2);f.ack(1);await p;
+ f=fixture({moduleId:'milling'});f.c.localStorage.setItem('tt39localsales','[]');await f.c.TT_SHARED_SYNC.saveNow();assert.equal(f.requests.length,0);
+ f.c.localStorage.setItem('tt30bags','[{"id":"B1"}]');p=f.c.TT_SHARED_SYNC.saveNow();f.ack(0);await p;f.c.localStorage.setItem('tt30bags','[{"id":"B1"}]');await f.c.TT_SHARED_SYNC.saveNow();assert.equal(f.requests.length,1);
+ f.c.localStorage.setItem('tt30bags','[]');p=f.c.TT_SHARED_SYNC.saveNow();assert.equal(f.requests.length,2);f.ack(1);await p;
+  f=fixture();f.c.localStorage.setItem(STORE,'{"shipments":[]}');p=f.c.TT_SHARED_SYNC.saveNow();assert.equal(f.requests.length,1,'Explicit Export root save must obtain fresh server validation');f.ack(0);await p;
  console.log('PASS empty initialization and unchanged receipts do not stage writes; clearing existing data still saves');
 })().catch(error=>{console.error(error);process.exitCode=1});
