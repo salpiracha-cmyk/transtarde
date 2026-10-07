@@ -113,11 +113,12 @@ require $argv[1];
     assert accounts['parent-tti']['bookBalance']==1000 and accounts[child['id']]['bookBalance']==50
     assert json.loads(books.read_text())['journals']['HIST']==original['journals']['HIST']
     # A real receipt splits PKR credit from USD retention on the same advice.
+    book=json.loads(books.read_text());book['exportCandidates']={'FIXTURE-RECEIVABLE':{'id':'FIXTURE-RECEIVABLE','entity':'TTI','candidateType':'CUSTOMER_EXPORT_SALE','journalId':'HIST','transactionCurrency':'USD','transactionAmount':100,'functionalAmount':28000,'reference':'FIXTURE-INVOICE','meta':{'customer':'Fixture Buyer'}}};books.write_text(json.dumps(book))
     status,data=request('export_receipts',{'action':'post_receipt','entity':'TTI','date':'2026-10-07',
         'transactionCurrency':'USD','foreignAmount':100,'realizationRate':280,'grossPkrEquivalent':28000,
         'bankAccountId':'parent-tti','pkrBankCredit':22400,'bankAdviceRef':'FIXTURE-SPLIT-RETENTION',
-        'retentionForeignAmount':20,'retentionBankAccountId':child['id'],'remitter':'TG',
-        'allocations':[{'targetType':'UNAPPLIED_TG','foreignAmount':100,'customer':'TG'}],'deductions':[]})
+        'retentionForeignAmount':20,'retentionBankAccountId':child['id'],'remitter':'Fixture Buyer',
+        'allocations':[{'targetType':'EXPORT_RECEIVABLE','targetId':'FIXTURE-RECEIVABLE','foreignAmount':100,'customer':'Fixture Buyer'}],'deductions':[]})
     assert status==200,(status,data)
     status,data=request('bank_accounts',{},method='GET');assert status==200,(status,data)
     accounts={row['id']:row for row in data['accounts']}
