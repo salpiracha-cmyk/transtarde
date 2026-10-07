@@ -14,6 +14,7 @@ with tempfile.TemporaryDirectory(prefix='director-approvals-') as temp:
 define('TT_DATA_DIR',__DIR__.'/data'); function tt_ensure_data_dir(){}
 function tt_require_login(){return ['username'=>'Fixture','full_name'=>'Fixture Approver','role'=>$_GET['role']??'Super Admin','permissions'=>['Accounts'=>'all']];}
 function tt_user_can_open_module($u,$m){return true;}
+function tt_api_record_entity_allowed($u,$b,$e){return in_array($e,['TTI','BRM'],true)&&(!isset($b['entity'])||$b['entity']===$e);}
 function tt_verify_csrf($t){return $t==='fixture';}
 function tt_active_business_party_for_role($n,$r){return ['id'=>'supplier','values'=>[$n]];}
 function tt_next_post_id(array $existing, string $module='Accounts', string $area='Journal', ?string $date=null): string {

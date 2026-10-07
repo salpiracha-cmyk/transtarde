@@ -53,6 +53,7 @@ function tt_bill_operational_values(): array {
 /** Save a future default without changing any posted bill or the selling profile. */
 function tt_bill_save_buying_brokery(string $broker,float $amount,string $basis,string $effectiveFrom,string $billId,array $user): void {
     if ($broker===''||$amount<=0) return;
+    if (!tt_user_can_master($user,'business_parties','Edit')) return; // transaction rate remains valid; global defaults are separately authorized
     tt_mutate_store(static function(array &$data)use($broker,$amount,$basis,$effectiveFrom,$billId,$user):void{
         foreach ($data['masters']['business_parties'] as &$row) {
             $v=array_values((array)($row['values']??[]));

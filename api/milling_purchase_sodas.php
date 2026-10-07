@@ -13,7 +13,7 @@ function mps_id(array $rows,string $prefix):string{do{$id=$prefix.'-'.gmdate('Ym
 function mps_sodas(array $s):array{$out=[];foreach(['purchaseSodas','purchaseSodasV2']as $c)foreach((array)($s[$c]??[])as$id=>$r){if(!is_array($r))continue;$key=(string)($r['id']??$id);if(!isset($out[$key]))$out[$key]=$r+['id'=>$key];}return $out;}
 function mps_soda(array $s,string $id):?array{$all=mps_sodas($s);if(isset($all[$id]))return $all[$id];foreach($all as$r)if((string)($r['sodaNo']??'')===$id)return $r;return null;}
 function mps_billed(array $s,string $sourceKey):string{foreach((array)($s['events']??[])as$e)if(is_array($e)&&(string)($e['sourceKey']??'')===$sourceKey&&!empty($e['billId']))return (string)$e['billId'];return '';}
-function mps_can_handoff(array $user,string $entity):bool{return tt_user_can_access_entity($user,$entity,'Create')||tt_user_can_access_entity($user,$entity,'Edit')||tt_user_can_open_module($user,'Mill');}
+function mps_can_handoff(array $user,string $entity):bool{return ((tt_user_can_module_action($user,'Accounts','purchases','Create')||tt_user_can_module_action($user,'Accounts','purchases','Edit'))&&(tt_user_can_access_entity($user,$entity,'Create')||tt_user_can_access_entity($user,$entity,'Edit')))||tt_user_can_module_action($user,'Mill','export','Create')||tt_user_can_module_action($user,'Mill','export','Edit');}
 
 try {
     $user=tt_require_login();

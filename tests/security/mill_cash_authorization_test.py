@@ -67,6 +67,20 @@ if($argv[1]==='seed'){
         result=subprocess.run(['php','-d',f'session.save_path={root}',str(harness),str(app),json.dumps(payload),str(status_file)],env=env,text=True,capture_output=True)
         assert result.returncode==0,result.stdout+result.stderr
         return int(status_file.read_text()),json.loads(result.stdout)
+    # The same real writer also enforces independent non-cash icon boundaries.
+    for key, icon in [('tt30queue','queue'),('tt30slips','arrival'),('tt30prod','production'),('tt33bagreceipts','newbags'),('tt37usedbags','oldbags'),('tt38labourbills','labour'),('tt38reprocessbills','reprocessbill'),('tt35localsales','local'),('tt35exload','export')]:
+        seed({'petty':['View','Create','Edit']});before=stored()
+        assert write(key, [])[0]==403, key
+        assert stored()==before, key+' changed without its owning icon'
+    # Production can append an empty brand, while existing bag quantities stay intact.
+    seed({'production':['View','Create']})
+    brand={'id':7,'brand':'BRAND','size':50,'tare':'—','supplier':'Production Brand','ordered':0,'mill':'TTI Rice Mills','received':0,'quality':''}
+    assert write('tt30bags',[brand],base=0)[0]==200
+    before=stored()
+    assert write('tt30bags',[{**brand,'received':100}],base=1)[0]==403
+    assert stored()==before
+    assert write('tt30bags',[],base=1)[0]==403
+    assert stored()==before
     originals = {k:json.loads(v) for k,v in seed_values.items()}
     receipt={'id':3,'date':'2026-10-07','credit':10,'ref':'Cash Received from Sale of Used Bags — Arrival / Pohanch Stock','voucher':'UB-1001'}
     expense={'id':4,'date':'2026-10-07','amount':30,'type':'Plant Expense','ref':'INV1 — Supplier','voucher':'PE-1002'}

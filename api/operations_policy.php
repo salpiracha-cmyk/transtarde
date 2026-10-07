@@ -18,12 +18,44 @@ function operations_validate_key_module(array $user, string $module, string $key
     ];
     $allowed = $module === 'Mill' ? $millKeys : ($module === 'Exports' ? $exportKeys : []);
     if (!in_array($key, $allowed, true)) throw new DomainException('This module cannot change the selected record.');
+    $icons=$module==='Mill'?[
+        'tt30queue'=>'queue','tt30slips'=>'arrival','tt37arrivalaudit'=>'arrival',
+        'tt30prod'=>'production','tt30prodaudit'=>'production','tt35brandmeta'=>'production','tt36bagissues'=>'production',
+        'tt32stockadj'=>'production','tt32labourfeed'=>'production','tt33bagreceipts'=>'newbags',
+        'tt37usedbags'=>'oldbags','tt37processingexpenses'=>'labour','tt38kebills'=>'labour','tt38labourbills'=>'labour',
+        'tt39rentpayments'=>'labour','tt39salaryadvances'=>'labour','tt38reprocessbills'=>'reprocessbill',
+        'tt35exportersale'=>'local','tt35localsales'=>'local','tt30ship'=>'export','tt35exload'=>'export','tt40exinstructions'=>'export',
+    ]:[ 'tt30bags'=>'bags','tt30prodinst'=>'production','tt30ship'=>'loading','tt40exinstructions'=>'loading' ];
+    if(isset($icons[$key])&&!operations_icon_write($user,$module,$icons[$key]))throw new DomainException('Write permission for the selected workflow is required.');
+    if($module==='Mill'&&$key==='tt37users')throw new DomainException('Only Super Admin may change user settings.');
     $cashIcons=['tt30petty'=>['petty','oldbags'],'tt33pettyexp'=>['petty','labour']];
     if($module==='Mill'&&isset($cashIcons[$key])){
         foreach($cashIcons[$key] as $icon) foreach(['Create','Edit'] as $action)
             if(tt_user_can_module_action($user,'Mill',$icon,$action))return;
         throw new DomainException('Permission for the cash entry workflow is required.');
     }
+}
+
+function operations_icon_write(array $user,string $module,string $icon): bool {
+    return tt_user_can_module_action($user,$module,$icon,'Create')||tt_user_can_module_action($user,$module,$icon,'Edit');
+}
+
+/** Production may add an empty brand placeholder, never receive or revise bags. */
+function operations_validate_brand_bags(array $user,string $module,string $key,string $oldJson,string $incomingJson): void {
+    if(!in_array($module,['Mill','Milling'],true)||$key!=='tt30bags'||operations_icon_write($user,'Mill','newbags'))return;
+    if(!operations_icon_write($user,'Mill','production'))throw new DomainException('New Export Bags write permission is required.');
+    $old=$oldJson===''?[]:json_decode($oldJson,true,512,JSON_THROW_ON_ERROR);$incoming=json_decode($incomingJson,true,512,JSON_THROW_ON_ERROR);
+    if(!is_array($old)||!array_is_list($old)||!is_array($incoming)||!array_is_list($incoming))throw new DomainException('Bag records must be a list.');
+    $existing=[];foreach($old as $row){if(!is_array($row)||!isset($row['id'])||isset($existing[(string)$row['id']]))throw new DomainException('Existing bag identities need review.');$existing[(string)$row['id']]=$row;}
+    $seen=[];
+    foreach($incoming as $row){
+        if(!is_array($row)||!isset($row['id'])||(string)$row['id']===''||isset($seen[(string)$row['id']]))throw new DomainException('Bag identities must be unique.');
+        $id=(string)$row['id'];$seen[$id]=true;
+        if(isset($existing[$id])){if(!operations_same_value($existing[$id],$row))throw new DomainException('New Export Bags Edit permission is required.');continue;}
+        $fields=['id','brand','size','tare','supplier','ordered','mill','received','quality'];
+        if(array_diff(array_keys($row),$fields)||!operations_same_value($row['ordered']??null,0)||!operations_same_value($row['received']??null,0)||trim((string)($row['brand']??''))==='')throw new DomainException('Production can add only an empty brand placeholder.');
+    }
+    if(array_diff_key($existing,$seen))throw new DomainException('New Export Bags Edit permission is required to remove bags.');
 }
 
 /** A linked sale/expense grant permits its derived cash row, not the cash ledger. */

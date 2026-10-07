@@ -26,6 +26,7 @@ try {
     if (!is_array($body) || !tt_verify_csrf((string)($body['csrf'] ?? ''))) location_respond(['ok'=>false,'error'=>'Your session expired. Refresh and try again.'],419);
     $action=strtolower(trim((string)($body['action']??'add')));
     if($action==='deactivate'){
+        if(!tt_user_can_master($user,'mills','Deactivate'))location_respond(['ok'=>false,'error'=>'Location Master Deactivate permission is required.'],403);
         $row=tt_deactivate_location_master(trim((string)($body['id']??'')));
         $name=(string)(($row['values']??[])[0]??'Location');
         tt_audit((int)($user['id']??0),(string)($user['username']??''),'Deactivated Location Master '.$name.' from future selection');
@@ -35,6 +36,7 @@ try {
     $name=trim((string)($body['name'] ?? ''));$type=tt_normalize_location_type(trim((string)($body['type'] ?? '')));
     if(!in_array($type,['Own Mill','Reprocessing Mill','External Mill','Warehouse','Office','Stock Location','Other'],true))throw new InvalidArgumentException('Select a valid Location Type.');
     $source=trim((string)($body['source'] ?? 'Operational workflow'));
+    $exists=false;foreach((array)(tt_list_masters()['mills']??[]) as $location)if(tt_location_identity((string)($location['values'][0]??''))===tt_location_identity($name)){$exists=true;break;}if(!tt_user_can_master($user,'mills',$exists?'Edit':'Create'))location_respond(['ok'=>false,'error'=>'The corresponding Location Master permission is required.'],403);
     $row=tt_upsert_location_master($name,$type,$source);
     $values=array_values((array)($row['values']??[]));while(count($values)<7)$values[]='';
     $address=trim((string)($body['address']??''));$contact=trim((string)($body['contact']??''));

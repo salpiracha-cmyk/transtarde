@@ -858,6 +858,113 @@ function tt_resolve_api_entity(array $query,array $form,?array $body,array $poli
     return (string)(array_key_first($entities)??'');
 }
 
+/** Route ownership is server-defined; company grants never substitute for an icon. */
+function tt_api_write_grants(string $endpoint,array $body): ?array {
+    $routes=[
+        'rent_salary.php'=>'expenses','rent_salary_v2.php'=>'expenses','expenses_v1.php'=>'expenses','donations.php'=>'expenses',
+        'sales_tax_refunds.php'=>'purchases','production_costing.php'=>'purchases','production_fixed_overhead.php'=>'purchases',
+        'production_inventory_transfer.php'=>'purchases','commodity_bills.php'=>'purchases','other_purchases.php'=>'purchases',
+        'management_costing.php'=>'purchases','management_costing_attach.php'=>'purchases',
+        'bank_direct_entries.php'=>'reconciliation','bank_reconciliation.php'=>'reconciliation',
+        'internal_bank_transfers.php'=>'cashbank','retention_remittances.php'=>'cashbank','tg_bank_transfer.php'=>'cashbank',
+        'tg_year_end_revaluation.php'=>'cashbank','export_bank_shortfall.php'=>'cashbank',
+        'bag_supplier_payments.php'=>'supplier','other_supplier_settlements.php'=>'supplier','supplier_settlements.php'=>'supplier',
+        'payables_planning.php'=>'supplier','tg_liabilities.php'=>'supplier','local_customer_receipts.php'=>'customer',
+        'export_tax_certificates.php'=>'reports','export_costing.php'=>'customer','local_sales_costing.php'=>'customer',
+        'bank_accounts.php'=>'masters','bag_bill_file.php'=>'purchases',
+        'tg_remittances.php'=>'tg','brokerage_transactions.php'=>'supplier',
+    ];
+    if(isset($routes[$endpoint]))return [['Accounts',$routes[$endpoint]]];
+    $action=(string)($body['action']??'');
+    if($endpoint==='export_receipts.php'||$endpoint==='accounts_receipt_file.php')return [['Accounts','customer'],['Accounts','cashbank']];
+    if($endpoint==='brokerage_master.php')return [['Accounts','supplier'],['Directors','brokerage']];
+    if($endpoint==='accounts_workflows_v1.php'){
+        $icons=['save_soda'=>'purchases','extend_soda'=>'purchases','resolve_soda'=>'purchases','sync_late_holds'=>'purchases',
+            'save_service_bill'=>'services','save_transport_bill'=>'transport','save_transport_route'=>'transport',
+            'save_freight_bill'=>'freight','settle_freight_dispute'=>'freight'];
+        if(isset($icons[$action]))return [['Accounts',$icons[$action]]];
+        if($action==='register_loading_program')return [['Exports','loading'],['Accounts','transport']];
+        if($action==='save_freight_agreement')return [['Accounts','freight'],['Directors','freight']];
+    }
+    if($endpoint==='milling_purchase_sodas.php')return [['Mill','export'],['Accounts','purchases']];
+    if($endpoint==='bag_purchases.php')return match($action){
+        'sync_po'=>[['Exports','bags']], 'sync_receipt_snapshot'=>[['Mill','newbags']],
+        'sync_export_usage'=>[['Exports','commercial']], 'approve_rate_exception'=>null,
+        default=>[['Accounts','purchases']],
+    };
+    if($endpoint==='nonwoven_bag_bills.php'&&$action!=='approve_rate_exception')return [['Accounts','purchases']];
+    if($endpoint==='local_sales_control.php')return match($action){
+        'approve_candidate','reject_candidate'=>[['Accounts','customer']], 'queue_candidate'=>[['Mill','local']], default=>null,
+    };
+    if($endpoint==='local_sales_payments.php')return in_array($action,['approve_payment','reject_payment'],true)?[['Accounts','customer']]:[['Mill','local']];
+    if($endpoint==='local_sales_entity_rule.php')return [['Mill','local'],['Accounts','customer']];
+    if($endpoint==='tg_bank_transactions.php')return match($action){
+        'post_receipt'=>[['Accounts','customer'],['Accounts','cashbank']],
+        'apply_advance'=>[['Accounts','customer']],
+        'post_payment'=>!empty($body['guidedPayment'])&&($body['paymentType']??'')==='LIABILITY'
+            ?[['Accounts','supplier'],['Accounts','cashbank']]:[['Accounts','cashbank']],default=>null,
+    };
+    if($endpoint==='accounts.php'){
+        if($action==='reverse_journal')return [['Accounts','jv','Approve']];
+        if($action==='save_reminder')return [['Accounts','expenses']];
+        if($action==='post_event')return match(strtoupper(trim((string)($body['eventType']??'')))){
+            'UTILITY_PAYMENT','EXPENSE_REIMBURSEMENT_CAPTURE','EXPENSE_REIMBURSEMENT_SETTLE','CREDIT_CARD_PAYMENT'=>[['Accounts','expenses']],
+            'COMMODITY_RECEIPT_ACCEPTED'=>[['Accounts','purchases'],['Mill','arrival']],
+            'COMMODITY_BILL_VERIFIED','FIXED_ASSET_PURCHASE'=>[['Accounts','purchases']],
+            'SUPPLIER_PAYMENT'=>[['Accounts','supplier']], 'BANK_TRANSFER'=>[['Accounts','cashbank']],
+            'LOCAL_SALE_RECOGNIZED'=>[['Accounts','customer'],['Mill','local']],
+            'EXPORT_SALE_RECOGNIZED'=>[['Accounts','customer'],['Exports','commercial']],
+            'EXPORT_RECEIPT'=>[['Accounts','cashbank'],['Accounts','customer']],
+            'TG_INTERCOMPANY_PAKISTAN','TG_INTERCOMPANY_TG'=>[['Accounts','tg']],default=>null,
+        };
+    }
+    // Other endpoints retain their own specialized guards (JV, assets, Master,
+    // approvals, office tokens). They are not authorized by this route table.
+    return null;
+}
+
+function tt_api_icon_write_allowed(array $user,string $endpoint,array $body): bool {
+    $action=(string)($body['action']??'');
+    if(in_array($endpoint,['rent_salary.php','rent_salary_v2.php'],true)&&in_array($action,['save_salary_master','update_salary_master','deactivate_salary_master'],true)){
+        $masterAction=match($action){'save_salary_master'=>'Create','update_salary_master'=>'Edit',default=>'Deactivate'};
+        if(!tt_user_can_master($user,'salary_staff',$masterAction))return false;
+    }
+    $grants=tt_api_write_grants($endpoint,$body);
+    if($grants===null)return true;
+    foreach($grants as $grant)foreach(isset($grant[2])?[$grant[2]]:['Create','Edit','Approve'] as $action)
+        if(tt_user_can_module_action($user,$grant[0],$grant[1],$action))return true;
+    return false;
+}
+
+function tt_post_correction_allowed(array $user,array $journal): bool {
+    $source=(string)($journal['meta']['originalSourceType']??$journal['sourceType']??'');
+    $groups=[
+        'expenses'=>['UTILITY_PAYMENT','EXPENSE_REIMBURSEMENT_CAPTURE','EXPENSE_REIMBURSEMENT_SETTLE','CREDIT_CARD_PAYMENT','CREDIT_CARD_STATEMENT','CREDIT_CARD_STATEMENT_AMENDMENT','EXPORT_EXPENSE_PAYMENT','GENERAL_EXPENSE_PAYMENT','DONATION_PAYMENT','RENT_MONTHLY_ACCRUAL','RENT_PAYMENT','SALARY_ADVANCE','SALARY_BATCH_PAYMENT','SALARY_MONTHLY_ACCRUAL','SALARY_PAYMENT','SALARY_MONTH_COMPLETED'],
+        'purchases'=>['COMMODITY_RECEIPT_ACCEPTED','COMMODITY_BILL_VERIFIED','EX_MILL_PURCHASE_LIABILITY','EXPORT_BAG_SUPPLIER_BILL','NON_WOVEN_BAG_SUPPLIER_BILL','OTHER_PURCHASE','FIXED_ASSET_PURCHASE','PRODUCTION_INVENTORY_TRANSFER','AUTO_PRODUCTION_COST','ACCOUNTS_BYPRODUCT_VALUATION','SALES_TAX_REFUND_RECEIPT'],
+        'supplier'=>['SUPPLIER_PAYMENT','SUPPLIER_ADVANCE','SUPPLIER_ADVANCE_APPLIED','SUPPLIER_CHEQUE_BANK_REVERSAL','SUPPLIER_CHEQUE_CLEARED','SUPPLIER_CHEQUE_ISSUED','SUPPLIER_CHEQUE_PAYABLE_REOPENED','EXPORT_BAG_SUPPLIER_PAYMENT','NON_WOVEN_BAG_SUPPLIER_PAYMENT','OTHER_SUPPLIER_PAYMENT','BROKERAGE_WHT_DEPOSIT','TG_SUPPLIER_SERVICE_LIABILITY','TG_LIABILITY_PAYMENT','TG_SUPPLIER_ADVANCE'],
+        'customer'=>['LOCAL_SALE_RECOGNIZED','LOCAL_SALE_ADVANCE_APPLIED','LOCAL_SALE_PAYMENT_APPROVED','LOCAL_SALE_COGS','EXPORT_COGS','LOCAL_CUSTOMER_CHEQUE_BANK_REVERSAL','LOCAL_CUSTOMER_CHEQUE_CLEARED','LOCAL_CUSTOMER_CHEQUE_RECEIVABLE_REOPENED','TG_CUSTOMER_ADVANCE_APPLIED','TG_CUSTOMER_ADVANCE_RECEIVED'],
+        'cashbank'=>['BANK_TRANSFER','INTERNAL_BANK_TRANSFER','INTERCOMPANY_ADVANCE_RECEIPT','RETENTION_OUTWARD_REMITTANCE','TG_USD_AED_TRANSFER','TG_YEAR_END_FX_REVALUATION','EXPORT_FOREIGN_BANK_SHORTFALL','TG_BANK_PAYMENT','TG_BANK_RECEIPT'],
+        'reconciliation'=>['BANK_RECON_DIRECT_ENTRY'], 'transport'=>['TRANSPORT_BILL'], 'freight'=>['FREIGHT_BILL'],
+        'services'=>['CLEARING_BILL','FUMIGATION_BILL','INSPECTION_BILL'],
+        'tg'=>['TG_INTERCOMPANY_PAKISTAN','TG_INTERCOMPANY_TG','TG_INTERCOMPANY_PAYABLE_RECOGNIZED'],
+    ];
+    foreach($groups as $icon=>$sources)if(in_array($source,$sources,true))return tt_user_can_module_action($user,'Accounts',$icon,'Edit');
+    if(!in_array($source,['JV','JV_REVERSAL'],true)&&in_array('Edit',(array)($user['permissions']['Accounts']??[]),true))return true;
+    // Approved JVs and unclassified historical journals require the controlled
+    // journal approval authority rather than borrowing an unrelated icon.
+    return tt_user_can_module_action($user,'Accounts','jv','Approve');
+}
+
+/** Check the saved target while its store lock is held, before changing it. */
+function tt_api_record_entity_allowed(array $user,array $body,string $entity): bool {
+    if(!in_array($entity,['TTI','BRM','TG'],true))return false;
+    $requested=strtoupper(trim((string)($body['entity']??$_GET['entity']??'')));
+    if($requested!==''&&$requested!==$entity)return false;
+    if(!tt_user_can_open_module($user,'Accounts'))return true; // separately guarded source/Director workflow
+    foreach(['Create','Edit','Approve'] as $action)if(tt_user_can_access_entity($user,$entity,$action))return true;
+    return false;
+}
+
 function tt_require_login(): array {
     $user = tt_current_user();
     $path=(string)parse_url((string)($_SERVER['REQUEST_URI']??''),PHP_URL_PATH);
@@ -877,14 +984,15 @@ function tt_require_login(): array {
         tt_api_json_error(403,'The production QA account is read-only. Use disposable test storage for write testing.');
     }
     tt_offline_request_guard($user);
+    $body=null;
+    $apiWrite=str_starts_with($path,'/api/')&&!in_array(strtoupper((string)($_SERVER['REQUEST_METHOD']??'GET')),['GET','HEAD','OPTIONS'],true);
+    if($apiWrite){
+        $raw=file_get_contents('php://input')?:'';$decoded=$raw!==''?json_decode($raw,true):null;
+        if(is_array($decoded))$body=$decoded;
+        if(!tt_api_icon_write_allowed($user,basename($path),$body??$_POST))tt_api_json_error(403,'Write permission for this workflow is required.');
+    }
     if(str_starts_with($path,'/api/')&&$path!=='/api/assets_registry.php'&&tt_user_can_open_module($user,'Accounts')){
         $policy=tt_api_entity_policy($path);
-        $body=null;
-        if(strtoupper((string)($_SERVER['REQUEST_METHOD']??'GET'))!=='GET'){
-            $raw=file_get_contents('php://input')?:'';
-            $decoded=$raw!==''?json_decode($raw,true):null;
-            if(is_array($decoded))$body=$decoded;
-        }
         try{$entity=tt_resolve_api_entity($_GET,$_POST,$body,$policy);}
         catch(InvalidArgumentException $e){tt_api_json_error(403,$e->getMessage());}
         if(tt_accounts_post_register_read($path,(string)($_SERVER['REQUEST_METHOD']??'GET'),$entity,(string)($_GET['account']??''))){
@@ -899,6 +1007,11 @@ function tt_require_login(): array {
             $read=strtoupper((string)($_SERVER['REQUEST_METHOD']??'GET'))==='GET';
             $allowed=$read?tt_user_can_access_entity($user,$entity,'View'):(tt_user_can_access_entity($user,$entity,'Create')||tt_user_can_access_entity($user,$entity,'Edit')||tt_user_can_access_entity($user,$entity,'Approve'));
             if(!$allowed)tt_api_json_error(403,'You do not have permission for this legal entity.');
+        }
+        // Downstream JSON handlers must use the company that this guard checked,
+        // including when a caller supplies it only in the URL.
+        if($apiWrite&&$entity!==''&&is_array($body)){
+            $body['entity']=$entity;$GLOBALS['TT_AUTHORIZED_API_BODY']=$body;$_GET['entity']=$entity;
         }
     }
     // Every authenticated API read commits activity and CSRF before building
@@ -948,6 +1061,6 @@ function tt_accounts_uppercase_text(mixed $value):mixed {
     return$value;
 }
 function tt_accounts_input():string {
-    $raw=file_get_contents('php://input')?:'';$body=json_decode($raw,true);
+    $raw=file_get_contents('php://input')?:'';$body=$GLOBALS['TT_AUTHORIZED_API_BODY']??json_decode($raw,true);
     return is_array($body)?json_encode(tt_accounts_uppercase_text($body),JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR):$raw;
 }

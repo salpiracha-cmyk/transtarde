@@ -379,7 +379,9 @@ try {
         $written = accounts_write_locked(function(array &$store) use ($user,$target,$reason) {
             $original = $store['journals'][$target] ?? null;
             if (!is_array($original) || ($original['status'] ?? '') !== 'Posted') accounts_respond(['ok'=>false,'error'=>'Posted journal not found.'], 404);
-            accounts_require_entity_access($user, accounts_validate_entity((string)($original['entity'] ?? '')), 'Edit');
+            accounts_require_entity_access($user, accounts_validate_entity((string)($original['entity'] ?? '')), 'Approve');
+            if (!tt_user_can_module_action($user,'Accounts','jv','Approve')) accounts_respond(['ok'=>false,'error'=>'Journal Voucher approval permission is required.'],403);
+            if (in_array((string)($original['sourceType']??''),['OPENING_BALANCE_BF','OPENING_BALANCE_REVERSAL'],true)||!empty($original['meta']['openingBalance'])||!empty($original['meta']['tgRemittanceId'])||!empty($original['meta']['receiptId'])) accounts_respond(['ok'=>false,'error'=>'Use the linked opening balance, remittance or credit advice correction workflow.'],422);
             foreach ((array)$store['journals'] as $j) if (($j['reversalOf'] ?? null) === $target) accounts_respond(['ok'=>false,'error'=>'This journal has already been reversed.'], 409);
             $id = tt_next_post_id((array)$store['journals'], 'Accounts', 'Journal', gmdate('Y-m-d'));
             $lines = array_map(fn($l)=>['account'=>$l['account'],'accountName'=>$l['accountName'] ?? '', 'debit'=>(float)$l['credit'],'credit'=>(float)$l['debit']], (array)$original['lines']);

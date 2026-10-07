@@ -111,6 +111,7 @@ try{
     $body=json_decode((function_exists('tt_accounts_input')?tt_accounts_input():file_get_contents('php://input'))?:'{}',true);
     if(!is_array($body)||!tt_verify_csrf((string)($body['csrf']??'')))erm_respond(['ok'=>false,'error'=>'Your session expired. Refresh and try again.'],419);
     $action=(string)($body['action']??'');$id=trim((string)($body['id']??''));
+    $masterAction=match($action){'create'=>'Create','update'=>'Edit','delete'=>'Deactivate',default=>''};if($masterAction!==''&&!tt_user_can_master($user,TT_EXPORT_REALIZATION_MASTER_TYPE,$masterAction))erm_respond(['ok'=>false,'error'=>'The corresponding Export Realization Master permission is required.'],403);
     if($action==='delete'){
         if($id==='')erm_respond(['ok'=>false,'error'=>'Select a master record.'],422);
         tt_delete_master(TT_EXPORT_REALIZATION_MASTER_TYPE,$id);tt_audit((int)$user['id'],(string)$user['username'],'Deleted export realization master '.$id);erm_respond(erm_payload($user));

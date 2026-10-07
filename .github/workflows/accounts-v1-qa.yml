@@ -104,6 +104,7 @@ jobs:
           python3 tests/security/authentication_boundary_test.py
           python3 tests/security/session_retention_test.py
           python3 tests/security/entity_icon_authorization_test.py
+          python3 tests/security/api_workflow_authorization_test.py
           python3 tests/security/mill_cash_authorization_test.py
           node tests/accounts-v1/payee_summary_escape_test.js
           node tests/runtime_security_static_audit.js
@@ -167,4 +168,3 @@ jobs:
           name: inventory-reconciliation-${{ github.run_id }}
           path: ${{ runner.temp }}/inventory-evidence/
           retention-days: 14
-

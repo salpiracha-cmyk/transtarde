@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require dirname(__DIR__,2).'/auth_store.php';
 require dirname(__DIR__,2).'/api/operations_policy.php';
 $source=file_get_contents(dirname(__DIR__,2).'/api/operations.mysql.php');
 $start=strpos($source,'function operations_list_by_identity(');$end=strpos($source,'function operations_file_fallback(');

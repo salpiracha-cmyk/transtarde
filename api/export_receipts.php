@@ -137,6 +137,7 @@ function er_prepare_deductions(string $entity,string $date,array $raw,array $cat
     return ['rows'=>$out,'deducted'=>round($deducted,2),'separate'=>round($separate,2),'taxDeducted'=>$taxDeducted,'taxSeparate'=>$taxSeparate];}
 function er_tax_meta(array $rows,array $bank): array {return array_map(static fn($d)=>['taxCode'=>$d['masterCode'],'taxSection'=>$d['taxSection'],'amount'=>$d['amount'],'bankAccountId'=>$bank['id'],'bankName'=>$bank['bankName'],'regime'=>$d['regime']],$rows);}
 function er_save_charge_percentages(array $deductions,array $user): void {
+    if(!tt_user_can_master($user,TT_EXPORT_REALIZATION_MASTER_TYPE,'Edit'))return; // receipt-specific rates do not authorize future defaults
     $rates=[];foreach($deductions as $row)if(($row['percentage']??'')!=='')$rates[(string)$row['masterCode']]=(string)$row['percentage'];
     if(!$rates)return;
     tt_mutate_store(static function (&$store) use ($rates): void {

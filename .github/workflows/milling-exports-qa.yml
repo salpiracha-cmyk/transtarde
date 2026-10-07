@@ -185,6 +185,7 @@ jobs:
           python3 tests/security/authentication_boundary_test.py
           python3 tests/security/session_retention_test.py
           python3 tests/security/entity_icon_authorization_test.py
+          python3 tests/security/api_workflow_authorization_test.py
           node tests/accounts-v1/payee_summary_escape_test.js
           node tests/accounts-v1/director_bank_approval_ui_test.js
           php -l module.php
