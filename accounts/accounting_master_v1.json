@@ -815,6 +815,60 @@
       "class": "Expense",
       "normal": "Debit",
       "subledger": false
+    },
+    {
+      "code": "1430",
+      "name": "Funds with Stockbrokers",
+      "class": "Asset",
+      "level": "general",
+      "normal": "Debit",
+      "parent": "1400",
+      "subledger": true
+    },
+    {
+      "code": "1440",
+      "name": "Company Funds in Transit through Representatives",
+      "class": "Asset",
+      "level": "general",
+      "normal": "Debit",
+      "parent": "1400",
+      "subledger": true
+    },
+    {
+      "code": "1600",
+      "name": "Financial Investments",
+      "class": "Asset",
+      "level": "control",
+      "normal": "Debit",
+      "parent": "1000",
+      "subledger": false
+    },
+    {
+      "code": "1610",
+      "name": "Share Investments",
+      "class": "Asset",
+      "level": "general",
+      "normal": "Debit",
+      "parent": "1600",
+      "subledger": true
+    },
+    {
+      "code": "4450",
+      "name": "Realised Gain on Share Investments",
+      "class": "Income",
+      "level": "general",
+      "normal": "Credit",
+      "parent": "4400",
+      "subledger": true
+    },
+    {
+      "code": "6850",
+      "name": "Realised Loss on Share Investments",
+      "class": "Expense",
+      "level": "general",
+      "normal": "Debit",
+      "parent": "6800",
+      "subledger": true
     }
   ],
   "peopleSubledgers": [
