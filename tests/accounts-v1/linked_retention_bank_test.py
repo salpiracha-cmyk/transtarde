@@ -112,4 +112,14 @@ require $argv[1];
     accounts={row['id']:row for row in data['accounts']}
     assert accounts['parent-tti']['bookBalance']==1000 and accounts[child['id']]['bookBalance']==50
     assert json.loads(books.read_text())['journals']['HIST']==original['journals']['HIST']
+    # A real receipt splits PKR credit from USD retention on the same advice.
+    status,data=request('export_receipts',{'action':'post_receipt','entity':'TTI','date':'2026-10-07',
+        'transactionCurrency':'USD','foreignAmount':100,'realizationRate':280,'grossPkrEquivalent':28000,
+        'bankAccountId':'parent-tti','pkrBankCredit':22400,'bankAdviceRef':'FIXTURE-SPLIT-RETENTION',
+        'retentionForeignAmount':20,'retentionBankAccountId':child['id'],'remitter':'TG',
+        'allocations':[{'targetType':'UNAPPLIED_TG','foreignAmount':100,'customer':'TG'}],'deductions':[]})
+    assert status==200,(status,data)
+    status,data=request('bank_accounts',{},method='GET');assert status==200,(status,data)
+    accounts={row['id']:row for row in data['accounts']}
+    assert accounts['parent-tti']['bookBalance']==23400 and accounts[child['id']]['bookBalance']==70
     print('PASS linked USD retention creation, naming, tick persistence, no duplicates, TTI/BRM Accounts access, opening balances, invalid links and unchanged PKR history')

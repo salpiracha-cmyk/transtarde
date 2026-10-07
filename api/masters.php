@@ -2,7 +2,6 @@
 declare(strict_types=1);
 require dirname(__DIR__) . '/auth_store.php';
 require __DIR__ . '/salary_master_store.php';
-require_once __DIR__ . '/company_bank_retention.php';
 header('Content-Type: application/json; charset=UTF-8');
 function master_respond(array $data,int $status=200): never { http_response_code($status); echo json_encode($data,JSON_UNESCAPED_SLASHES); exit; }
 function master_find_row(string $type,string $id): ?array {
