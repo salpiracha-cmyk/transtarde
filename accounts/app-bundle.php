@@ -85,6 +85,7 @@ $files = [
     'master-autocomplete.js',
     'accounts-accounting-desk.js',
     'assets-registry-ui.js',
+    'company-investments-ui.js',
     'tg-remittances-ui.js',
     'payment-plans-ui.js',
 ];
