@@ -47,8 +47,8 @@ function inv_master(array &$s,string $e,array $b,array $u):array {
     if(!in_array($operation,['add','edit','delete'],true))throw new DomainException('Select Add, Edit or Delete.');
     if($operation!=='add'&&(!is_array($old)||$old['entity']!==$e))throw new DomainException('Record was not found in these company books.');
     if($operation==='delete'){
-        if($kind==='broker'&&(inv_balance($s,$e,'1430','brokerId',$id)!==0||array_filter(inv_holdings($s,$e),static fn($h)=>$h['brokerId']===$id&&$h['quantity']>0)))throw new DomainException('Withdraw broker funds and close holdings before deleting this broker.');
-        if($kind==='route'&&inv_balance($s,$e,'1440','routeId',$id)!==0)throw new DomainException('Complete the routing transfers before deleting this person.');$s[$collection][$id]['active']=false;
+        if(($u['role']??'')!=='Super Admin'&&$kind==='broker'&&(inv_balance($s,$e,'1430','brokerId',$id)!==0||array_filter(inv_holdings($s,$e),static fn($h)=>$h['brokerId']===$id&&$h['quantity']>0)))throw new DomainException('Withdraw broker funds and close holdings before deleting this broker.');
+        if(($u['role']??'')!=='Super Admin'&&$kind==='route'&&inv_balance($s,$e,'1440','routeId',$id)!==0)throw new DomainException('Complete the routing transfers before deleting this person.');$s[$collection][$id]['active']=false;
     }else{
         $name=far_text($b['name']??'',180);if($name===''||inv_normal($name)==='')throw new DomainException('Enter a name.');$account=far_text($b['accountReference']??'',180);
         foreach((array)($s[$collection]??[]) as $r)if($r['entity']===$e&&$r['id']!==$id&&inv_normal($r['name'])===inv_normal($name))throw new DomainException('This name already exists, including an archived record. Edit that record instead.');
