@@ -520,3 +520,35 @@ test('read-only Exports and Milling loading, errors and Masters navigation', asy
   expect(errors,'Modules must load without JavaScript errors').toEqual([]);
 });
 
+
+test('deployed Bank Entry, Bank Finance and subaccount forms respect read-only access', async ({ page }) => {
+  test.setTimeout(120_000);
+  const writes=[];
+  await signIn(page);
+  page.on('request',r=>{if(r.method()==='POST'&&/\/api\/(?:bank_entries|accounts_subaccounts)\.php/.test(r.url()))writes.push(r.url());});
+  await expect.poll(()=>page.evaluate(()=>typeof window.TT_BANK_ENTRIES?.open),{timeout:30_000}).toBe('function');
+  await deskAction(page,'bank','Bank Entry');
+  const form=page.locator('#amBankForm');
+  await expect(form).toBeVisible();
+  await expect(form.getByRole('button',{name:'Post & Print Voucher',exact:true})).toBeDisabled();
+  await form.locator('[name=type]').selectOption('SAVING_PROFIT');
+  await expect(form.locator('[name=withholdingTax]')).toBeVisible();
+  await expect(page.locator('#amPayBankDetails')).toBeHidden();
+  await form.locator('[name=type]').selectOption('FINANCE_REPAY');
+  await expect(form.locator('[name=facilityId]')).toBeVisible();
+  await expect(form.locator('[name=withholdingTax]')).toBeHidden();
+  await activate(page.locator('#amWindow [data-close]'));
+  await deskAction(page,'bank','Bank Finance');
+  await expect(page.locator('#amWindow')).toContainText('Principal outstanding');
+  await expect(page.locator('#amWindow [data-facility]')).toHaveCount(0);
+  await activate(page.locator('#amWindow [data-close]'));
+  await deskAction(page,'ledgers','Manage Subaccounts');
+  await expect(page.locator('#amWindow')).toContainText('Withholding Tax Report');
+  await expect(page.locator('#amWindow [data-add]')).toHaveCount(0);
+  await expect(page.locator('#amWindow [data-edit]')).toHaveCount(0);
+  await expect(page.locator('#amWindow [data-delete]')).toHaveCount(0);
+  await activate(page.locator('#amWindow [data-heads]'));
+  await expect(page.locator('#amWindow')).toContainText('Bank Finance Principal');
+  await activate(page.locator('#amWindow [data-close]'));
+  expect(writes).toEqual([]);
+});
