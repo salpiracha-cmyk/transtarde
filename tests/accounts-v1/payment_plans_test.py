@@ -114,15 +114,52 @@ require $argv[1];
     plan=call({'action':'create','mode':'BROKER','bankIds':['TTI-B'],'rowKeys':[payload['brokerRows'][0]['rowKey']],'date':'2026-10-07'})['result']['plan']
     result=call({'action':'post','planId':plan['id'],'version':plan['version'],'group':'Independent Broker','date':'2026-10-07','sources':[{'type':'BANK','bankAccountId':'TTI-B','amount':85,'method':'CHEQUE','reference':'3001'}]})['result'];saved=json.loads(books.read_text());assert saved['journals'][result['settlement']['journalId']]['totalDebit']==85
     assert not read()['brokerRows'] and next(iter(saved['brokeragePayments'].values()))['amount']==85
-    # The main ladder also includes service, bag and other supplier bills once; native registers stay in step.
+    # Export service, bag and other purchase liabilities never enter commodity planning.
     store['supplierBills']={'SERVICE':{'id':'SERVICE','entity':'TTI','vendor':'Service Vendor','billNo':'SERVICE','billDate':'2026-09-01','dueDate':'2026-09-02','payableAccount':'2130','supplierPayableTotal':25,'receiptAllocations':[{'sourceKey':'SERVICE-KEY','supplierPayableShare':25}]}}
     store['bagSupplierBills']={'BAG':{'id':'BAG','entity':'TTI','supplier':'Bag Vendor','sellerInvoiceDate':'2026-09-01','dueDate':'2026-09-04','totalAmount':30,'status':'Posted'}}
     store['otherPurchases']={'OTHER':{'id':'OTHER','entity':'TTI','supplier':'Other Vendor','invoiceDate':'2026-09-01','dueDate':'2026-09-03','amount':40,'settlement':'CREDIT'}}
-    seed(store);payload=read();assert {r['billId'] for r in payload['rows']}=={'A','B','C','SERVICE','BAG','OTHER'},payload
-    extra=[r['rowKey'] for r in payload['rows'] if r['billId'] in ['SERVICE','BAG','OTHER']]
-    plan=call({'action':'create','mode':'PARTY','bankIds':['TTI-B'],'rowKeys':extra,'date':'2026-10-07'})['result']['plan']
-    plan=call({'action':'post','planId':plan['id'],'version':plan['version'],'group':'Bag Vendor','date':'2026-10-07','sources':[{'type':'BANK','bankAccountId':'TTI-B','amount':30,'method':'CHEQUE','reference':'4001'}]})['result']['plan'];saved=json.loads(books.read_text());assert next(iter(saved['bagSupplierPayments'].values()))['amount']==30
-    assert all(r['billId']!='BAG' for r in read()['rows'])
-    plan=call({'action':'correct','planId':plan['id'],'version':plan['version'],'group':'Bag Vendor','date':'2026-10-07','reason':'Correct bag cheque'})['result']['plan'];saved=json.loads(books.read_text());assert next(iter(saved['bagSupplierPayments'].values()))['status']=='Cancelled'
-    assert any(r['billId']=='BAG' and r['outstanding']==30 for r in read()['rows'])
+    store['journals'].pop('ROUND-JV');store['supplierAdvances']={}
+    seed(store);payload=read();assert {r['billId'] for r in payload['rows']}=={'A','B','C'},payload
+    call({'action':'create','mode':'PARTY','bankIds':['TTI-B'],'rowKeys':['SERVICE|SERVICE-KEY'],'date':'2026-10-07'},409)
+    # Dedicated on-account third-party payment settles oldest truck then part of the next.
+    body={'action':'on_account','party':'Broker A','date':'2026-10-07','sources':[{'type':'THIRD_PARTY','relationship':'OTHER_THIRD_PARTY','payer':'ABC','method':'DIRECT','amount':250}],'requestKey':'on-account-payment-fixture-0001'}
+    result=call(body)['result']['settlement'];assert result['type']=='On Account Payment' and result['netPayment']==250 and result['onAccountAmount']==0
+    assert [a['amount'] for a in result['allocations']]==[100,20,130],result
+    assert result['allocations'][-1]['balanceAfter']==70
+    saved=json.loads(books.read_text());journal=saved['journals'][result['journalId']];assert journal['sourceType']=='SUPPLIER_PAYMENT' and journal['totalDebit']==journal['totalCredit']==250
+    assert all(l['account']!='1110' for l in journal['lines'])
+    count=len(saved['journals']);assert call(body)['result']['settlement']['id']==result['id'];assert len(json.loads(books.read_text())['journals'])==count
+    call({**body,'party':'Service Vendor','requestKey':'on-account-unknown-party-0001'},409)
+    call({'action':'correct_on_account','settlementId':result['id'],'reason':'Correct the payer','date':'2026-10-07'})
+    assert sum(r['outstanding'] for r in read()['rows'] if r['group']=='Broker A')==320
+    # Excess is an advance for this group and is consumed by future commodity dues only.
+    result=call({'action':'on_account','party':'Broker A','date':'2026-10-07','sources':[{'type':'BANK','bankAccountId':'TTI-B','method':'CHEQUE','reference':'5001','amount':350}]})['result']['settlement']
+    assert result['onAccountAmount']==30 and result['netPayment']==350,result
+    saved=json.loads(books.read_text());assert saved['supplierAdvances'][result['unallocatedAdvanceId']]['availableAmount']==30
+    saved['commodityBills']['D']=bill('D','Broker A','Supplier A',50,'2026-10-08','TRUCK-D');books.write_text(json.dumps(saved))
+    payload=read();assert next(r for r in payload['rows'] if r['billId']=='D')['outstanding']==20,payload
+    assert json.loads(books.read_text())['supplierAdvances'][result['unallocatedAdvanceId']]['allocatedAmount']==0,'GET may only preview'
+    call({'action':'correct_on_account','settlementId':result['id'],'reason':'Correct advance payment','date':'2026-10-07'})
+    assert json.loads(books.read_text())['supplierAdvances'][result['unallocatedAdvanceId']]['status']=='Cancelled'
+    # Supplier without broker works, wrong-company bank and missing cheque fail without mutation.
+    seed(store)
+    call({'action':'on_account','party':'Supplier C','date':'2026-10-07','sources':[{'type':'BANK','bankAccountId':'BRM-B','method':'CHEQUE','reference':'6001','amount':100}]},409)
+    call({'action':'on_account','party':'Supplier C','date':'2026-10-07','sources':[{'type':'BANK','bankAccountId':'TTI-B','method':'CHEQUE','amount':100}]},409)
+    result=call({'action':'on_account','party':'Supplier C','date':'2026-10-07','sources':[{'type':'BANK','bankAccountId':'TTI-B','method':'ONLINE_BANKING','reference':'ONLINE','amount':100}]})['result']['settlement']
+    assert result['allocations'][0]['broker']=='Supplier C' and result['allocations'][0]['balanceAfter']==200
+    user['permissions']['Accounts']['supplier']=['View'];seed(store)
+    call({'action':'on_account','party':'Supplier C','date':'2026-10-07','sources':[]},403)
+    call({'action':'correct_on_account','settlementId':result['id'],'reason':'Unauthorized','date':'2026-10-07'},403)
+    # Home totals identify only the default bank while retaining every bank for hover detail.
+    user['permissions']['Accounts']['supplier']=['View','Create','Edit']
+    default_store={**store,'bankAccountSettings':{'TTI-P':{'defaultPaymentAccount':True}}};seed(default_store)
+    status,data=request('accounts_dashboard',{},method='GET');assert status==200,(status,data)
+    assert len(data['summaries']['bank'])==2 and [r['bankAccountId'] for r in data['summaries']['bank'] if r.get('isDefault')]==['TTI-P'],data
+    assert next(r for r in data['summaries']['bank'] if r['isDefault'])['amount']==500
+    # Excess cannot be reversed after it has funded a later bill without correcting that application.
+    seed(store)
+    result=call({'action':'on_account','party':'Broker A','date':'2026-10-07','sources':[{'type':'BANK','bankAccountId':'TTI-B','method':'CHEQUE','reference':'7001','amount':350}]})['result']['settlement']
+    saved=json.loads(books.read_text());saved['commodityBills']['D']=bill('D','Broker A','Supplier A',50,'2026-10-08','TRUCK-D');books.write_text(json.dumps(saved));payload=read();keys=[r['rowKey'] for r in payload['rows'] if r['billId']=='D']
+    plan=call({'action':'create','mode':'PARTY','bankIds':['TTI-B'],'rowKeys':keys,'date':'2026-10-07'})['result']['plan']
+    call({'action':'correct_on_account','settlementId':result['id'],'reason':'Linked advance must be corrected first','date':'2026-10-07'},409)
     print('Payment plans: bank scope, personal banks, grouping, source splits, replay, correction, oldest JV allocations, advances, denied access and independent brokerage passed.')
