@@ -68,8 +68,8 @@ require $argv[1];
     call({'action':'create','mode':'PARTY','bankIds':['BRM-B'],'rowKeys':keys,'date':'2026-10-07'},409)
     call({'action':'create','mode':'PARTY','bankIds':['TTI-B'],'rowKeys':keys,'date':'2026-10-07'},409)
     plan=call({'action':'create','mode':'PARTY','bankIds':['TTI-B','TTI-P'],'rowKeys':keys,'date':'2026-10-07'})['result']['plan']
-    post={'action':'post','planId':plan['id'],'version':plan['version'],'group':'Broker A','date':'2026-10-07','rowKeys':plan['groups']['Broker A']['rowKeys'],'sources':[{'type':'BANK','bankAccountId':'TTI-B','method':'CHEQUE','reference':'1001','amount':120},{'type':'BANK','bankAccountId':'TTI-P','method':'ONLINE_BANKING','reference':'REF-1','amount':100},{'type':'THIRD_PARTY','relationship':'OTHER_THIRD_PARTY','payer':'ABC','reference':'ABC-CHEQUE','amount':100}],'requestKey':'post-party-replay-fixture-0001'}
-    result=call(post)['result'];plan=result['plan'];sett=result['settlement'];assert sett['netPayment']==320 and len(sett['allocations'])==3,sett
+    post={'action':'post','planId':plan['id'],'version':plan['version'],'group':'Broker A','date':'2026-10-07','rowKeys':plan['groups']['Broker A']['rowKeys'],'sources':[{'type':'BANK','bankAccountId':'TTI-B','method':'CHEQUE','reference':'1001','amount':120},{'type':'BANK','bankAccountId':'TTI-P','method':'ONLINE_BANKING','reference':'REF-1','amount':100},{'type':'THIRD_PARTY','relationship':'OTHER_THIRD_PARTY','payer':'ABC','reference':'ABC-CHEQUE','amount':100}],'drafts':{'Supplier C':{'date':'2026-10-07','rowKeys':plan['groups']['Supplier C']['rowKeys'],'sources':[{'type':'BANK','bankAccountId':'TTI-P','method':'CHEQUE','reference':'1002','amount':300}]}},'requestKey':'post-party-replay-fixture-0001'}
+    result=call(post)['result'];plan=result['plan'];sett=result['settlement'];assert plan['drafts']['Supplier C']['sources'][0]['reference']=='1002';assert sett['netPayment']==320 and len(sett['allocations'])==3,sett
     saved=json.loads(books.read_text());j=saved['journals'][sett['journalId']];assert j['totalDebit']==j['totalCredit']==320,j
     assert {l['account'] for l in j['lines']}=={'2110','2120','1110','2170'},j
     count=len(saved['journals']);assert call(post)['result']['settlement']['id']==sett['id'];assert len(json.loads(books.read_text())['journals'])==count
@@ -110,4 +110,15 @@ require $argv[1];
     plan=call({'action':'create','mode':'BROKER','bankIds':['TTI-B'],'rowKeys':[payload['brokerRows'][0]['rowKey']],'date':'2026-10-07'})['result']['plan']
     result=call({'action':'post','planId':plan['id'],'version':plan['version'],'group':'Independent Broker','date':'2026-10-07','sources':[{'type':'BANK','bankAccountId':'TTI-B','amount':85,'method':'CHEQUE','reference':'3001'}]})['result'];saved=json.loads(books.read_text());assert saved['journals'][result['settlement']['journalId']]['totalDebit']==85
     assert not read()['brokerRows'] and next(iter(saved['brokeragePayments'].values()))['amount']==85
+    # The main ladder also includes service, bag and other supplier bills once; native registers stay in step.
+    store['supplierBills']={'SERVICE':{'id':'SERVICE','entity':'TTI','vendor':'Service Vendor','billNo':'SERVICE','billDate':'2026-09-01','dueDate':'2026-09-02','payableAccount':'2130','supplierPayableTotal':25,'receiptAllocations':[{'sourceKey':'SERVICE-KEY','supplierPayableShare':25}]}}
+    store['bagSupplierBills']={'BAG':{'id':'BAG','entity':'TTI','supplier':'Bag Vendor','sellerInvoiceDate':'2026-09-01','dueDate':'2026-09-04','totalAmount':30,'status':'Posted'}}
+    store['otherPurchases']={'OTHER':{'id':'OTHER','entity':'TTI','supplier':'Other Vendor','invoiceDate':'2026-09-01','dueDate':'2026-09-03','amount':40,'settlement':'CREDIT'}}
+    seed(store);payload=read();assert {r['billId'] for r in payload['rows']}=={'A','B','C','SERVICE','BAG','OTHER'},payload
+    extra=[r['rowKey'] for r in payload['rows'] if r['billId'] in ['SERVICE','BAG','OTHER']]
+    plan=call({'action':'create','mode':'PARTY','bankIds':['TTI-B'],'rowKeys':extra,'date':'2026-10-07'})['result']['plan']
+    plan=call({'action':'post','planId':plan['id'],'version':plan['version'],'group':'Bag Vendor','date':'2026-10-07','sources':[{'type':'BANK','bankAccountId':'TTI-B','amount':30,'method':'CHEQUE','reference':'4001'}]})['result']['plan'];saved=json.loads(books.read_text());assert next(iter(saved['bagSupplierPayments'].values()))['amount']==30
+    assert all(r['billId']!='BAG' for r in read()['rows'])
+    plan=call({'action':'correct','planId':plan['id'],'version':plan['version'],'group':'Bag Vendor','date':'2026-10-07','reason':'Correct bag cheque'})['result']['plan'];saved=json.loads(books.read_text());assert next(iter(saved['bagSupplierPayments'].values()))['status']=='Cancelled'
+    assert any(r['billId']=='BAG' and r['outstanding']==30 for r in read()['rows'])
     print('Payment plans: bank scope, personal banks, grouping, source splits, replay, correction, oldest JV allocations, advances, denied access and independent brokerage passed.')
