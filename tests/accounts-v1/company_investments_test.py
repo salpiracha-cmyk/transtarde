@@ -64,6 +64,8 @@ with tempfile.TemporaryDirectory(prefix='company-investments-') as tmp:
   assert post(action='post',date='2026-10-06',reference='BACKDATED',type='SELL',brokerId=bid,symbol='ABC',quantity=1,price=1,fees=0)[0]==422
   assert post(action='reverse',transactionId=buy['transactionId'],date='2026-10-07',reason='Must not strand later sales')[0]==422
   assert post(action='master',kind='broker',operation='delete',id=bid)[0]==422
+  status,current=req();status,archived=req({'csrf':'fixture','entity':'TTI','revision':current['revision'],'requestKey':'super-archive-in-use','action':'master','kind':'broker','operation':'delete','id':bid},'&role=super');assert status==200 and archived['brokers'][0]['balanceCents']==88500
+  good(action='master',kind='broker',operation='edit',id=bid,name='BMA Capital',accountReference='BMA-100')
   assert post(action='post',date='2026-10-07',reference='OVERDRAW',type='WITHDRAW_BANK',brokerId=bid,amount=1000,paymentAccountId='BANK-1')[0]==422
   good(action='reverse',transactionId=sell['transactionId'],date='2026-10-07',reason='Correct share sale')
   good(action='reverse',transactionId=buy['transactionId'],date='2026-10-07',reason='Correct share purchase')
