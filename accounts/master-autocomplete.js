@@ -104,7 +104,7 @@
     if (/mill|location|warehouse|from where|to where/.test(text)) return 'locations';
     if (/commodity/.test(text)) return 'commodities';
     if (/product|variety|rice type/.test(text)) return 'products';
-    if (/party|from whom|received from|account name/.test(text)) return 'parties';
+    if (/party|from whom|received from|account name|paid to|payee|beneficiary/.test(text)) return 'parties';
     return '';
   }
   function refresh() {
