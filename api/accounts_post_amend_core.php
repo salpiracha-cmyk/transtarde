@@ -5,6 +5,7 @@ require_once __DIR__.'/accounts_bank_payment.php';
 /** Journal-level correction shared by every Accounts posting source. Caller holds the accounts.json lock. */
 function apa_correct(array &$store, array $user, string $postId, array $input): array {
     $original=$store['journals'][$postId]??null;
+    if(!empty($original['meta']['investmentTransactionId']))throw new DomainException('Correct this posting in Assets & Investments so broker funds, routing balances and shares stay linked.');
     if(!empty($original['meta']['directExpense']))throw new DomainException('Correct this expense in Pay Expense so its item breakdown and voucher stay linked.');
     if(!empty($original['meta']['planId']))throw new DomainException('Correct this payment through its Payment Plan so truck allocations and plan progress stay linked.');
     if(in_array($original['sourceType']??'', ['OPENING_BALANCE_BF','OPENING_BALANCE_REVERSAL'],true)||!empty($original['meta']['openingBalance']))throw new DomainException('Correct opening balances through the management JV opening-balance form.');
