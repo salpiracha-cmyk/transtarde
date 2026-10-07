@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 /** Bill responsibility belongs to the location master, never to a free-text supplier name. */
 function ev1_owned_locations(string $entity): array {
-    $out=[];
+    $out=[];$user=tt_current_user()??[];$scope=trim((string)($user['location']??'All authorized locations'));$restricted=($user['role']??'')!=='Super Admin'&&!in_array(strtolower($scope),['','all locations','all authorized locations'],true);
     foreach(tt_active_location_masters() as $row){
         $v=array_values((array)($row['values']??[]));$type=tt_normalize_location_type((string)($v[2]??''));
         if(in_array($type,['External Mill','Reprocessing Mill'],true))continue;
@@ -12,6 +12,7 @@ function ev1_owned_locations(string $entity): array {
         if($owner===''&&($row['id']??'')==='mills-1'&&tt_location_identity((string)($v[0]??''))===tt_location_identity('TTI Rice Mills'))$owner='TTI';
         if($owner===''&&($row['id']??'')==='mills-2'&&tt_location_identity((string)($v[0]??''))===tt_location_identity('Karachi Office'))$owner='TTI';
         if($owner!==$entity)continue;
+        if($restricted&&tt_location_identity($scope)!==tt_location_identity((string)($v[0]??'')))continue;
         $out[]=['id'=>(string)$row['id'],'name'=>(string)($v[0]??''),'type'=>$type,'location'=>$type==='Own Mill'?'MILL':($type==='Office'?'OFFICE':'OTHER'),'entity'=>$owner];
     }
     return $out;

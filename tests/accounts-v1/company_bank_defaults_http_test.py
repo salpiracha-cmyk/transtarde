@@ -56,6 +56,7 @@ function tt_release_read_session(){}
 function tt_user_can_access_masters($user){return true;}
 function tt_user_can_master($user,$type,$action){return true;}
 function tt_user_can_open_module($user,$module){return true;}
+function tt_user_can_director_approve($user){return ($user['role']??'')==='Super Admin'||(($user['role']??'')==='Director'&&tt_user_can_open_module($user,'Directors'));}
 function tt_verify_csrf($csrf){return $csrf==='fixture';}
 function tt_read_store(){return json_decode(file_get_contents(__DIR__.'/store.json'),true);}
 function tt_mutate_store($callback){$data=tt_read_store();$result=$callback($data);file_put_contents(__DIR__.'/store.json',json_encode($data));return $result;}
@@ -151,3 +152,4 @@ function tt_master_json_array($value){return json_decode($value,true);}
     finally:
         server.terminate()
         server.wait(timeout=5)
+

@@ -65,6 +65,11 @@ require $argv[1];
     data=call(reminder);uid=data['result']['utilityMasterId']
     assert {'OFFICE','MILL'}.issubset({x['id'] for x in data['locations']}) and not {'OTHER','OUTSIDE'} & {x['id'] for x in data['locations']},data
     call(reminder,409)
+    user['location']='Karachi Office';auth.write_text(json.dumps({'users':[user],'masters':masters,'audit':[]}))
+    scoped=call({**reminder,'id':uid});assert len(scoped['locations'])==1 and scoped['locations'][0]['id']=='OFFICE',scoped
+    call({**reminder,'id':uid,'locationId':'MILL'},422)
+    user['location']='All authorized locations';auth.write_text(json.dumps({'users':[user],'masters':masters,'audit':[]}))
+
     # No end date: a future leap February reminder clamps day 31 to day 29.
     data=call({**reminder,'id':uid,'month':'2028-02'})
     assert any(r['dueDate']=='2028-02-29' for r in data['reminders']),data
