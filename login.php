@@ -28,7 +28,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // account. Account and address limits above remain hard boundaries.
         if (tt_auth_retry_after('login-emergency','all-users',120,900,false)>0) usleep(350000);
         $user = tt_find_user_by_username($username);
+        $verifyStarted=hrtime(true);
         $passwordValid=password_verify($password,(string)($user['password_hash']??TT_LOGIN_DUMMY_HASH));
+        $GLOBALS['ttRequestTiming']['password_verify']+=(hrtime(true)-$verifyStarted)/1e6;
         if ($user && !empty($user['active']) && $passwordValid) {
             tt_auth_clear_failures('login-account',$rateIdentity,false);
             tt_bind_user_session($user);

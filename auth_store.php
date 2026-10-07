@@ -1,11 +1,11 @@
 <?php
 declare(strict_types=1);
 // Durations only: no identities, record values, paths or credentials.
-$GLOBALS['ttRequestTiming']=['start'=>hrtime(true),'session'=>0.0,'store_wait'=>0.0,'store_read'=>0.0,'store_decode'=>0.0,'store_reads'=>0];
+$GLOBALS['ttRequestTiming']=['start'=>hrtime(true),'session'=>0.0,'store_wait'=>0.0,'store_read'=>0.0,'store_decode'=>0.0,'store_mutate'=>0.0,'store_write_wait'=>0.0,'backup_auto'=>0.0,'password_verify'=>0.0,'store_reads'=>0];
 header_register_callback(static function(): void {
     $t=$GLOBALS['ttRequestTiming'];
     $parts=['app;dur='.number_format((hrtime(true)-$t['start'])/1e6,2,'.','')];
-    foreach(['session','store_wait','store_read','store_decode'] as $key)$parts[]=$key.';dur='.number_format($t[$key],2,'.','');
+    foreach(['session','store_wait','store_read','store_decode','store_mutate','store_write_wait','backup_auto','password_verify'] as $key)$parts[]=$key.';dur='.number_format($t[$key],2,'.','');
     $parts[]='store_reads;desc="'.(int)$t['store_reads'].'"';
     header('Server-Timing: '.implode(', ',$parts),false);
 });
@@ -326,9 +326,18 @@ function tt_read_store(): array {
 
 function tt_mutate_store(callable $callback): mixed {
     $backupLib=__DIR__ . '/backup_lib.php';
-    if (is_file($backupLib)) { require_once $backupLib; if (function_exists('tt_maybe_auto_backup')) tt_maybe_auto_backup(); }
+    if (is_file($backupLib)) {
+        require_once $backupLib;
+        if (function_exists('tt_maybe_auto_backup')) {
+            $backupStarted=hrtime(true);
+            try { tt_maybe_auto_backup(); }
+            finally { $GLOBALS['ttRequestTiming']['backup_auto']+=(hrtime(true)-$backupStarted)/1e6; }
+        }
+    }
     tt_ensure_data_dir();
+    $mutateStarted=hrtime(true);
     $lock=tt_open_store_lock(LOCK_EX);
+    $GLOBALS['ttRequestTiming']['store_write_wait']+=(hrtime(true)-$mutateStarted)/1e6;
     try {
         if(is_file(TT_STORE_FILE)){
             $handle=fopen(TT_STORE_FILE,'rb');if($handle===false)throw new RuntimeException('Secure storage is unavailable.');
@@ -341,6 +350,7 @@ function tt_mutate_store(callable $callback): mixed {
         return $result;
     } finally {
         flock($lock,LOCK_UN);fclose($lock);
+        $GLOBALS['ttRequestTiming']['store_mutate']+=(hrtime(true)-$mutateStarted)/1e6;
     }
 }
 
