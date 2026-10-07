@@ -96,7 +96,7 @@
   const currentAreas = () => entity() === 'TG' ? tgAreas : pakistanAreas;
 
   const assetPermission=access.super||access.permissions==='all'||(Array.isArray(access.permissions)?access.permissions.includes('View'):(access.permissions?.assets||[]).includes('View'));
-  if(assetPermission)for(const areas of [pakistanAreas,tgAreas])areas.splice(3,0,{key:'assets',title:'Assets / Properties',note:'Register properties, vehicles and instalment payments',actions:[]});
+  if(assetPermission)for(const areas of [pakistanAreas,tgAreas])areas.splice(3,0,{key:'assets',title:'Assets & Investments',note:'Properties, vehicles, company stockbrokers and share investments',actions:[]});
 
   function installStyle() {
     if (q('#ttAccountingDeskStyle')) return;
@@ -830,4 +830,3 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, {once:true}); else init();
   window.TT_ACCOUNTING_DESK = {installed:true, openSoda, openSearch, showArea, printVoucher, openSavedBill, refreshAttention:loadDashboardSummary};
 })();
-
