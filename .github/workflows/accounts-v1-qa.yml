@@ -150,6 +150,7 @@ jobs:
         run: |
           php tests/accounts-v1/freight_metadata_test.php
           python3 tests/security/mill_cash_authorization_test.py
+          python3 tests/security/export_document_permissions_test.py
           "$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/inventory_reconciliation_http_test.py
       - name: Ready rice bill browser and HTTP flow
         run: '"$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/ready_rice_bill_http_test.py'

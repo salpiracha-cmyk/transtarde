@@ -2,6 +2,9 @@
 import json, os, pathlib, shutil, subprocess, tempfile
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
+MYSQL=os.environ.get('TT_QA_MYSQL')=='1'
+if MYSQL:
+    assert os.environ.get('TT_DB_HOST')=='127.0.0.1' and os.environ.get('TT_DB_NAME','').startswith('transtrade_qa_')
 with tempfile.TemporaryDirectory(prefix='tti-api-permissions-') as directory:
     root = pathlib.Path(directory)
     app = root / 'app'
@@ -25,7 +28,7 @@ require $argv[1];
 ''')
     auth = private / 'auth.json'
     books = private / 'accounts.json'
-    env = {k:v for k,v in os.environ.items() if not k.startswith('TT_DB_')}
+    env = dict(os.environ) if MYSQL else {k:v for k,v in os.environ.items() if not k.startswith('TT_DB_')}
     user = {'id':1,'username':'fixture','full_name':'Fixture','role':'Staff','active':True,'session_version':1,
             'permissions':{'Accounts':{'entity-tti':['View','Create','Edit','Approve'],'assets':['View','Edit']}}}
     def bank(identity, entity, currency='PKR'):
@@ -41,19 +44,35 @@ require $argv[1];
         assert r.returncode==0, r.stdout+r.stderr
         try: return int(status_file.read_text()),json.loads(r.stdout)
         except Exception: raise AssertionError(r.stdout+r.stderr)
+    sql_script = root / 'database.php'
+    sql_script.write_text(r'''<?php
+$p=new PDO('mysql:host='.getenv('TT_DB_HOST').';dbname='.getenv('TT_DB_NAME').';charset=utf8mb4',getenv('TT_DB_USER'),getenv('TT_DB_PASS'),[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);
+$p->exec('CREATE TABLE IF NOT EXISTS tt_operation_records(storage_key VARCHAR(96) PRIMARY KEY,payload LONGTEXT NOT NULL,version BIGINT UNSIGNED NOT NULL DEFAULT 1,updated_at DATETIME(6) NOT NULL,updated_by VARCHAR(160) NOT NULL,updated_by_user BIGINT NULL,updated_by_module VARCHAR(32) NOT NULL) ENGINE=InnoDB');
+if($argv[1]==='seed'){
+ $values=json_decode($argv[2],true);$p->exec('DELETE FROM tt_operation_records');
+ $q=$p->prepare("INSERT INTO tt_operation_records VALUES(?,?,1,NOW(6),'Fixture',1,'Mill')");
+ foreach($values as $key=>$value)$q->execute([$key,$value]);
+}elseif($argv[1]==='cleanup'){
+ $p->exec('DELETE FROM tt_operation_records');$p->exec('DELETE FROM tt_operation_history');
+}else{echo json_encode($p->query('SELECT storage_key,payload,version FROM tt_operation_records ORDER BY storage_key')->fetchAll(PDO::FETCH_ASSOC));}
+''')
     import copy
     key='transtrade_export_v3_operational'
     operations=private/'operations.json'
     original={'version':'clean-v3','customers':[],'suppliers':[],'fi':[],'contracts':[{'id':'C1','ref':'TTI/BUYER/01','seller':'TTI'}],
         'shipments':[{'id':'L1','kind':'lot','contractRef':'TTI/BUYER/01','lotId':'L01','completed':False,'customs':{'saved':False},'bl':{'draftSaved':False},'commercial':{'saved':False},'coo':{'saved':False},'covering':{'saved':False},'lc':{'saved':False},'tgdocs':{'saved':False},'certs':[],'bagOrders':[],'production':{'sentToMill':False},'loading':{'lots':[]}}],
         'accountsReceipts':[],'millSync':{'newExportBags':[],'productionInstructions':[],'exportLoading':[]},'audits':[],'alerts':[],'settings':{}}
+    def stored():
+        if MYSQL:return subprocess.run(['php',str(sql_script),'read'],env=env,check=True,capture_output=True).stdout
+        return operations.read_bytes()
     def put_base(root_state,grants):
         user['permissions']={'Exports':grants};seed()
         operations.write_text(json.dumps({'revision':1,'values':{key:json.dumps(root_state)},'meta':{key:{'version':1}}}))
+        if MYSQL:subprocess.run(['php',str(sql_script),'seed',json.dumps({key:json.dumps(root_state)})],env=env,check=True,capture_output=True)
     def save_root(root_state,status=200):
-        before=operations.read_bytes();actual,data=request('operations.mysql',{'key':key,'value':json.dumps(root_state),'baseVersion':1,'sourceModule':'Exports'},'')
+        before=stored();actual,data=request('operations.mysql',{'key':key,'value':json.dumps(root_state),'baseVersion':1,'sourceModule':'Exports'},'')
         assert actual==status,(actual,data,root_state)
-        if status>=400:assert operations.read_bytes()==before,'Denied document changed shared storage'
+        if status>=400:assert stored()==before,'Denied document changed shared storage'
         return data
     for field,icon in [('customs','customs'),('bl','bl'),('commercial','commercial'),('coo','coo'),('covering','cover'),('lc','lcdraft'),('tgdocs','tg'),('production','production')]:
         change=copy.deepcopy(original);change['shipments'][0][field]={'draftSaved':True,'description':'Saved first document'} if field=='bl' else {'sentToMill':True} if field=='production' else {'saved':True,'description':'Saved first document'}
@@ -91,6 +110,45 @@ require $argv[1];
     # Mill root updates still require Export Loading, despite another writable icon.
     change=copy.deepcopy(original);change['shipments'][0]['millActuals']=[{'id':'CON1','netKg':100}]
     put_base(original,{});user['permissions']={'Mill':{'production':['View','Create']}};auth.write_text(json.dumps({'users':[user],'masters':masters,'audit':[]}))
-    before=operations.read_bytes();status,data=request('operations.mysql',{'key':key,'value':json.dumps(change),'baseVersion':1,'sourceModule':'Mill'},'')
-    assert status==403 and operations.read_bytes()==before,(status,data)
-print('PASS real Exports document Create/Edit matrix, unrelated-icon denial, upload category, completed-lot protection, owner reopening, and Mill source ownership')
+    before=stored();status,data=request('operations.mysql',{'key':key,'value':json.dumps(change),'baseVersion':1,'sourceModule':'Mill'},'')
+    assert status==403 and stored()==before,(status,data)
+    if os.environ.get('TT_QA_HTTP_DOCS')=='1':
+        import socket, time, urllib.request, urllib.error
+        bridge=app/'api'/'document-fixture.php'
+        bridge.write_text(r"""<?php
+$_SERVER['REQUEST_URI']='/api/export_documents.php';session_name('TRANSTRADE_SESSION');session_id('workflow-fixture');session_start();
+$_SESSION=['user_id'=>1,'auth_version'=>1,'last_activity_at'=>time(),'csrf'=>'fixture'];require __DIR__.'/export_documents.php';
+""")
+        probe=socket.socket();probe.bind(('127.0.0.1',0));port=probe.getsockname()[1];probe.close()
+        server=subprocess.Popen(['php','-d',f'session.save_path={root}','-S',f'127.0.0.1:{port}','-t',str(app)],env=env,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+        base_url=f'http://127.0.0.1:{port}/api/document-fixture.php'
+        def upload(category):
+            boundary='FixtureBoundary042';parts=[]
+            for name,value in {'csrf':'fixture','category':category,'contractRef':'TTI/BUYER/01','lotId':'L01'}.items():
+                parts.append(f'--{boundary}\r\nContent-Disposition: form-data; name="{name}"\r\n\r\n{value}\r\n'.encode())
+            pdf=b'%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\n%%EOF\n'
+            parts.append(f'--{boundary}\r\nContent-Disposition: form-data; name="file"; filename="fixture.pdf"\r\nContent-Type: application/pdf\r\n\r\n'.encode()+pdf+f'\r\n--{boundary}--\r\n'.encode())
+            req=urllib.request.Request(base_url,data=b''.join(parts),headers={'Content-Type':'multipart/form-data; boundary='+boundary})
+            try:
+                with urllib.request.urlopen(req) as response:return response.status,json.load(response)
+            except urllib.error.HTTPError as error:return error.code,json.load(error)
+        try:
+            for attempt in range(100):
+                try:
+                    urllib.request.urlopen(base_url).close();break
+                except urllib.error.HTTPError:break
+                except urllib.error.URLError:time.sleep(.05)
+            put_base(original,{'bl':['View','Create']})
+            status,data=upload('final-bl');assert status==200,(status,data)
+            document=data['document'];index=private/'export_documents'/'index.json'
+            before=index.read_bytes();status,data=upload('final-coo');assert status==403 and index.read_bytes()==before,(status,data)
+            with urllib.request.urlopen(base_url+'?id='+document['id']) as response:assert response.read().startswith(b'%PDF'),response.status
+            put_base(original,{'customs':['View','Create']})
+            try:urllib.request.urlopen(base_url+'?id='+document['id']);raise AssertionError('Unrelated icon downloaded B/L')
+            except urllib.error.HTTPError as error:assert error.code==403,error.code
+            put_base(closed,{'bl':['View','Create','Edit']});status,data=upload('final-bl');assert status==403 and index.read_bytes()==before,(status,data)
+            print('PASS real multipart B/L upload/download, unrelated-document upload/download denial, and closed-lot upload denial')
+        finally:
+            server.terminate();server.wait(timeout=5)
+    if MYSQL:subprocess.run(['php',str(sql_script),'cleanup'],env=env,check=True,capture_output=True)
+print('PASS '+('MySQL' if MYSQL else 'file')+' real Exports document Create/Edit matrix, unrelated-icon denial, upload category, completed-lot protection, owner reopening, and Mill source ownership')
