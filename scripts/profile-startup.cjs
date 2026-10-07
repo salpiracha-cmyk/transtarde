@@ -13,6 +13,7 @@ const {chromium}=require('@playwright/test');
   return route.continue();
  });
  const page=await context.newPage();page.setDefaultTimeout(60000);
+ let stage='login';
  const timings=[];const pending=[];
  page.on('response',response=>{
   if(new URL(response.url()).origin!==base)return;
@@ -34,15 +35,22 @@ const {chromium}=require('@playwright/test');
  }
  try{
   await measure('login','/login.php',page.locator('input[name=username]'));
+  stage='fill existing QA credentials';
   await page.locator('input[name=username]').fill(user);
   await page.locator('input[name=password]').fill(password);
-  await Promise.all([page.waitForURL(/accounts\/index\.php/, {timeout:90000}),page.getByRole('button',{name:'Sign in',exact:true}).click()]);
+  stage='submit existing QA login';
+  await Promise.all([page.waitForURL(/accounts\/index\.php/, {timeout:90000}),page.locator('button[type="submit"]').click()]);
+  stage='read-only Masters shell';
   await measure('shared Admin/Masters shell (read-only QA)','/index.php?view=masters',page.locator('#sidebar'));
-  await measure('Exports','/module.php?id=exports',page.getByRole('button',{name:'Active Shipments',exact:true}));
+  stage='Exports';
+  await measure('Exports','/module.php?id=exports',page.getByRole('button',{name:/Active Shipments/i}));
   const theme=await page.locator('.topbar').evaluate(el=>({background:getComputedStyle(el).backgroundImage,palette:getComputedStyle(document.documentElement).getPropertyValue('--tt-brand-deep').trim()}));
   console.log(JSON.stringify({label:'Exports theme',...theme}));
-  if(theme.palette!=='#2e4527'||!theme.background.includes('46, 69, 39'))throw new Error('Approved palette is not authoritative in Exports.');
   await Promise.all(pending);console.log(JSON.stringify({serverTimings:timings}));
+  if(theme.palette!=='#2e4527'||!theme.background.includes('46, 69, 39'))throw new Error('Approved palette is not authoritative in Exports.');
+ }catch(error){
+  await Promise.all(pending);
+  console.log(JSON.stringify({failedStage:stage,path:new URL(page.url()).pathname,errorClass:error.name,serverTimings:timings}));
+  throw error;
  }finally{await browser.close();}
 })().catch(()=>{console.error('Startup profile failed; no business entries were submitted.');process.exitCode=1;});
-
