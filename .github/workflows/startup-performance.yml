@@ -2,7 +2,7 @@ name: Read-only startup performance
 on:
   push:
     branches: [main]
-    paths: ['.github/workflows/startup-performance.yml']
+    paths: ['.github/workflows/startup-performance.yml','scripts/profile-startup.cjs']
   workflow_run:
     workflows: ['Deploy Production']
     types: [completed]

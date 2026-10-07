@@ -41,7 +41,7 @@ const {chromium}=require('@playwright/test');
   stage='submit existing QA login';
   await Promise.all([page.waitForURL(/accounts\/index\.php/, {timeout:90000}),page.locator('button[type="submit"]').click()]);
   stage='read-only Masters shell';
-  await measure('shared Admin/Masters shell (read-only QA)','/index.php?view=masters',page.locator('#sidebar'));
+  await measure('shared Admin/Masters shell (read-only QA)','/index.php?view=masters',page.locator('#view-masters'));
   stage='Exports';
   await measure('Exports','/module.php?id=exports',page.getByRole('button',{name:/Active Shipments/i}));
   const theme=await page.locator('.topbar').evaluate(el=>({background:getComputedStyle(el).backgroundImage,palette:getComputedStyle(document.documentElement).getPropertyValue('--tt-brand-deep').trim()}));

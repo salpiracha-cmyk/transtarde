@@ -41,18 +41,40 @@ function erm_defaults(): array {
 function erm_seed_if_needed(array $user): array {
     $masters=tt_list_masters();
     $rows=is_array($masters[TT_EXPORT_REALIZATION_MASTER_TYPE]??null)?$masters[TT_EXPORT_REALIZATION_MASTER_TYPE]:[];
-    $seen=[];
-    foreach($rows as $row){$v=(array)($row['values']??[]);$code=strtoupper(trim((string)($v[1]??'')));if($code!=='')$seen[$code]=true;}
-    $created=0;
-    foreach(erm_defaults() as $values){$code=strtoupper((string)$values[1]);if(isset($seen[$code]))continue;tt_create_master(TT_EXPORT_REALIZATION_MASTER_TYPE,$values);$seen[$code]=true;$created++;}
-    // Upgrade only the original seeded text bases. Preserve any base or rate the user has edited.
-    foreach($rows as $row){$v=(array)($row['values']??[]);$code=strtoupper((string)($v[1]??''));$base=(string)($v[4]??'');
-        if($code==='EXP-AWT-NTR'&&$base==='As configured from applicable tax rule / bank advice'){$v[4]='PKR_PAYMENT';$v[0]='Withholding Tax';tt_update_master(TT_EXPORT_REALIZATION_MASTER_TYPE,(string)$row['id'],$v);}
-        if($code==='EXP-FED-BANK'&&$base==='Underlying taxable bank charge / actual advice'){$v[4]='CHARGE:EXP-BANK-COMM';$v[5]='';$v[0]='FED Tax';tt_update_master(TT_EXPORT_REALIZATION_MASTER_TYPE,(string)$row['id'],$v);}
+    $seen=[];$needsWrite=false;
+    foreach($rows as $row){
+        $v=(array)($row['values']??[]);$code=strtoupper(trim((string)($v[1]??'')));
+        if($code!=='')$seen[$code]=true;
+        if(($code==='EXP-AWT-NTR'&&($v[4]??'')==='As configured from applicable tax rule / bank advice')
+            ||($code==='EXP-FED-BANK'&&($v[4]??'')==='Underlying taxable bank charge / actual advice'))$needsWrite=true;
     }
-    if($created>0) tt_audit((int)($user['id']??0),(string)($user['username']??'system'),'Seeded export realization taxes/charges master defaults');
-    $masters=tt_list_masters();
-    return is_array($masters[TT_EXPORT_REALIZATION_MASTER_TYPE]??null)?$masters[TT_EXPORT_REALIZATION_MASTER_TYPE]:[];
+    foreach(erm_defaults() as $values)if(!isset($seen[strtoupper((string)$values[1])]))$needsWrite=true;
+    if(!$needsWrite)return $rows;
+    // Recheck and create all missing identities while holding one write lock.
+    // Parallel first reads cannot each append a separate set of defaults.
+    return tt_mutate_store(function (&$data) use ($user): array {
+        if(!isset($data['masters'][TT_EXPORT_REALIZATION_MASTER_TYPE])||!is_array($data['masters'][TT_EXPORT_REALIZATION_MASTER_TYPE]))$data['masters'][TT_EXPORT_REALIZATION_MASTER_TYPE]=[];
+        $saved=&$data['masters'][TT_EXPORT_REALIZATION_MASTER_TYPE];$seen=[];$created=0;
+        foreach($saved as $row){$code=strtoupper(trim((string)($row['values'][1]??'')));if($code!=='')$seen[$code]=true;}
+        foreach(erm_defaults() as $values){
+            $code=strtoupper((string)$values[1]);if(isset($seen[$code]))continue;
+            $saved[]=['id'=>TT_EXPORT_REALIZATION_MASTER_TYPE.'-'.random_int(100000,999999999),'values'=>$values];
+            $seen[$code]=true;$created++;
+        }
+        // Preserve owner-edited rates/bases and all historical record IDs.
+        foreach($saved as &$row){
+            $v=(array)($row['values']??[]);$code=strtoupper((string)($v[1]??''));$base=(string)($v[4]??'');
+            if($code==='EXP-AWT-NTR'&&$base==='As configured from applicable tax rule / bank advice'){$v[4]='PKR_PAYMENT';$v[0]='Withholding Tax';$row['values']=$v;}
+            if($code==='EXP-FED-BANK'&&$base==='Underlying taxable bank charge / actual advice'){$v[4]='CHARGE:EXP-BANK-COMM';$v[5]='';$v[0]='FED Tax';$row['values']=$v;}
+        }
+        unset($row);
+        if($created>0){
+            if(!isset($data['audit'])||!is_array($data['audit']))$data['audit']=[];
+            array_unshift($data['audit'],['user_id'=>(int)($user['id']??0),'username'=>(string)($user['username']??'system'),'action'=>'Seeded export realization taxes/charges master defaults','ip_address'=>$_SERVER['REMOTE_ADDR']??'','created_at'=>gmdate('c')]);
+            $data['audit']=array_slice($data['audit'],0,5000);
+        }
+        return $saved;
+    });
 }
 function erm_clean_values(mixed $raw): array {
     if(!is_array($raw))erm_respond(['ok'=>false,'error'=>'Enter the master record details.'],422);
@@ -110,3 +132,4 @@ try{
     }
     erm_respond(['ok'=>false,'error'=>'Unknown master action.'],422);
 }catch(Throwable $e){erm_respond(['ok'=>false,'error'=>'The export realization master action could not be completed.'],500);}
+
