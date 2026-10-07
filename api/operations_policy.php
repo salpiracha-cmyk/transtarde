@@ -26,7 +26,10 @@ function operations_validate_key_module(array $user, string $module, string $key
         'tt39rentpayments'=>'labour','tt39salaryadvances'=>'labour','tt38reprocessbills'=>'reprocessbill',
         'tt35exportersale'=>'local','tt35localsales'=>'local','tt30ship'=>'export','tt35exload'=>'export','tt40exinstructions'=>'export',
     ]:[ 'tt30bags'=>'bags','tt30prodinst'=>'production','tt30ship'=>'loading','tt40exinstructions'=>'loading' ];
-    if(isset($icons[$key])&&!operations_icon_write($user,$module,$icons[$key]))throw new DomainException('Write permission for the selected workflow is required.');
+    if(isset($icons[$key])&&!operations_icon_write($user,$module,$icons[$key])){
+        $labels=['queue'=>'Arrival List','arrival'=>'Arrival / Pohanch','production'=>'Production','newbags'=>'New Export Bags','oldbags'=>'Used Bags','labour'=>'Processing Expenses','reprocessbill'=>'Reprocessing Bills','local'=>'Local Sales','export'=>'Export Loading','bags'=>'Bag Orders','loading'=>'Loading Instructions'];
+        throw new DomainException('Write permission for '.($labels[$icons[$key]]??ucfirst($icons[$key])).' is required.');
+    }
     if($module==='Mill'&&$key==='tt37users')throw new DomainException('Only Super Admin may change user settings.');
     $cashIcons=['tt30petty'=>['petty','oldbags'],'tt33pettyexp'=>['petty','labour']];
     if($module==='Mill'&&isset($cashIcons[$key])){

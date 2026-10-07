@@ -134,7 +134,14 @@ $sharedBootstrap = <<<'HTML'
   }
   // Local form changes stay local. Only an explicit final workflow action
   // calls saveNow(), which creates the durable recovery entry before upload.
-  function queue(key,value){if(!allowed(key)||key==='tt40exportreceipts'||applying)return;if(!pending.has(key))queuedBase.set(key,Number(keyVersions.get(key)||0));pending.set(key,String(value))}
+  function queue(key,value){
+    if(!allowed(key)||key==='tt40exportreceipts'||applying)return;
+    value=String(value);
+    // Rendering an empty or unchanged collection is not a workflow edit.
+    // Keep prototype/derived display initialization out of another icon's save.
+    if(!pending.has(key)&&!inFlight.has(key)&&(receipts.get(key)===value||(!committedValues.has(key)&&value==='[]')))return;
+    if(!pending.has(key))queuedBase.set(key,Number(keyVersions.get(key)||0));pending.set(key,value)
+  }
   Storage.prototype.getItem=function(k){return this===localStorage&&cacheFallback.has(String(k))?cacheFallback.get(String(k)):originalGet.call(this,k)};
   Storage.prototype.setItem=function(k,v){if(this===localStorage){directSet(k,v);queue(String(k),String(v))}else originalSet.call(this,k,v)};
   Storage.prototype.removeItem=function(k){originalRemove.call(this,k);if(this===localStorage)cacheFallback.delete(String(k))};
