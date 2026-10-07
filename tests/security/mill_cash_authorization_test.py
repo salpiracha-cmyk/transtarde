@@ -42,6 +42,8 @@ if($argv[1]==='seed'){
  $values=json_decode($argv[2],true);$p->exec('DELETE FROM tt_operation_records');
  $q=$p->prepare("INSERT INTO tt_operation_records VALUES(?,?,1,NOW(6),'Fixture',1,'Mill')");
  foreach($values as $key=>$value)$q->execute([$key,$value]);
+}elseif($argv[1]==='cleanup'){
+ $p->exec('DELETE FROM tt_operation_records');$p->exec('DELETE FROM tt_operation_history');
 }else{echo json_encode($p->query('SELECT storage_key,payload,version FROM tt_operation_records ORDER BY storage_key')->fetchAll(PDO::FETCH_ASSOC));}
 ''')
     auth = private / 'auth.json'
@@ -97,4 +99,6 @@ if($argv[1]==='seed'){
     assert write('tt30petty', originals['tt30petty'],base=0)[0]==409
     assert write('tt30petty', originals['tt30petty'],module='Exports')[0]==403
     assert stored()==before
+    if MYSQL:
+        subprocess.run(['php',str(sql_script),'cleanup'],env=env,check=True,capture_output=True)
     print('PASS '+('MySQL' if MYSQL else 'file')+' cash target permissions, unchanged rejected writes, linked sales/expenses, duplicates, exact actions, legacy/owner rights, CSRF and versions')
