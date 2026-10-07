@@ -63,8 +63,7 @@
       {title:'Commodity & Local Sales', native:'reports', find:'Commodity'}
     ]}
   ];
-  pakistanAreas.find(area=>area.key==='routine').actions.push({title:'Routine Expense Masters',note:'Save card, utility, rent and salary details in one place',special:'little-master'});
-  pakistanAreas.find(area=>area.key==='routine').actions.push({title:'Other Purchases',note:'Assets and consumables outside commodity Sodas',special:'supplier-bills',billKind:'other',native:'purchases',then:'[data-purchase="other"]'});
+  pakistanAreas.find(area=>area.key==='commodity').actions.push({title:'Other Purchases',note:'Assets and consumables outside commodity Sodas',special:'supplier-bills',billKind:'other',native:'purchases',then:'[data-purchase="other"]'});
   const tgAreas = [
     {key:'tg-receipts', glyph:'↓', title:'Customer Receipts', note:'Receive money and allocate it to the correct TG customer', actions:[
       {title:'Customer Receipt', special:'tg-customer-receipt'}, {title:'Customer Receivables', native:'receivables'}
@@ -301,8 +300,9 @@
       if(label.includes('report')||label.includes('balance')||label.includes('profit'))return iconPicture('reports');
       return iconPicture('bill');
     };
-    work.innerHTML = `<div class="tt-work-head"><button class="tt-back-areas" type="button" aria-label="Back to main Accounts">BACK</button><div><h2>${esc(area.title)}</h2><p>${esc(area.note)}</p></div></div><div class="tt-action-list" data-area-palette="${esc(area.key)}">${area.actions.map((action, index) => `<button type="button" class="tt-action" data-tt-action="${index}"><span class="tt-action-mark">${actionGlyph(action)}</span><span><b>${esc(action.title)}</b><small>${esc(action.note || 'Open report')}</small></span></button>`).join('')}</div>`;
+    work.innerHTML = `<div class="tt-work-head"><button class="tt-back-areas" type="button" aria-label="Back to main Accounts">BACK</button><div><h2>${esc(area.title)}</h2><p>${esc(area.note)}</p></div>${area.key==='routine'?'<button type="button" class="btn" id="ttExpenseMasters" title="Utility, card, rent and salary masters">⚙ Expense masters</button>':''}</div><div class="tt-action-list" data-area-palette="${esc(area.key)}">${area.actions.map((action, index) => `<button type="button" class="tt-action" data-tt-action="${index}"><span class="tt-action-mark">${actionGlyph(action)}</span><span><b>${esc(action.title)}</b><small>${esc(action.note || 'Open report')}</small></span></button>`).join('')}</div>`;
     q('.tt-back-areas',work).onclick=showAreasHome;
+    const expenseMasters=q('#ttExpenseMasters',work);if(expenseMasters)expenseMasters.onclick=()=>openLittleMaster();
     qa('[data-tt-action]', work).forEach(button => button.onclick = () => launch(area.actions[Number(button.dataset.ttAction)]));
   }
 
