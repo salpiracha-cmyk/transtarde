@@ -43,12 +43,30 @@ function ep_collection(array $user,array $old,array $next,string $icon,string $i
     // Omissions are retained by the server merge; tombstones govern removal.
 }
 
+function ep_child_documents(array $user,array $old,array $next,string $icon,string $identity): void {
+    ep_collection($user,$old,$next,$icon,$identity);
+    if(array_diff_key(ep_index($old,$identity),ep_index($next,$identity)))ep_require($user,$icon,'Edit');
+}
+function ep_document_field(array $user,string $field,string $icon,mixed $old,mixed $next): void {
+    if(in_array($field,['bagOrders','certs'],true)){ep_child_documents($user,(array)$old,(array)$next,$icon,$field==='bagOrders'?'poNo':'id');return;}
+    if($field==='loading'&&is_array($old)&&is_array($next)&&isset($old['lots'],$next['lots'])){
+        ep_child_documents($user,(array)$old['lots'],(array)$next['lots'],$icon,'lotRecordId');$before=$old;$after=$next;unset($before['lots'],$before['draft'],$after['lots'],$after['draft']);
+        ep_require($user,$icon,!ep_equal($before,$after)?'Edit':ep_workspace_action($user,$icon,false));return;
+    }
+    ep_require($user,$icon,ep_workspace_action($user,$icon,ep_document_saved($field,$old)));
+}
+function ep_sync_rows(array $user,string $field,string $icon,array $old,array $next): void {
+    $identify=static function(array $rows)use($field):array{foreach($rows as &$row){$row['_permissionId']=implode('|',$field==='newExportBags'?[$row['contractRef']??'',$row['poNo']??'',$row['line']??''] : ($field==='exportLoading'?[$row['contractRef']??'',$row['shipmentId']??$row['lotId']??'']:[$row['contractRef']??'']));}unset($row);return $rows;};
+    ep_child_documents($user,$identify($old),$identify($next),$icon,'_permissionId');
+}
+
 function ep_document_saved(string $field,mixed $value): bool {
     if(!is_array($value))return !ep_empty($value);
     if(in_array($field,['bagOrders','certs'],true))return count($value)>0;
     if($field==='bl')return !empty($value['draftSaved'])||!empty($value['finalized'])||!empty($value['finalDocument']);
     if($field==='production')return !empty($value['sentToMill']);
-    if(in_array($field,['loading','loadingPlan','loadingProgrammeNo'],true))return !ep_empty($value['lots']??[])||!empty($value['sentToMill'])||!empty($value['issuedAt']);
+    if($field==='loadingPlan')return !ep_empty($value);
+    if(in_array($field,['loading','loadingProgrammeNo'],true))return !ep_empty($value['lots']??[])||!empty($value['sentToMill'])||!empty($value['issuedAt']);
     return !empty($value['saved'])||!empty($value['finalDocument'])||!empty($value['frozen']);
 }
 function ep_workspace_action(array $user,string $icon,bool $saved): string {
@@ -92,7 +110,9 @@ function operations_validate_export_permissions(array $user,string $module,strin
     }
     if($module!=='Exports')return; // Accounts has its own constrained merge route.
     $old=ep_customer_master_projection($old,$next);
-    foreach(['contracts'=>'contracts','suppliers'=>'bags'] as $field=>$icon)ep_collection($user,(array)($old[$field]??[]),(array)($next[$field]??[]),$icon);
+    foreach(['suppliers'=>'bags'] as $field=>$icon)ep_collection($user,(array)($old[$field]??[]),(array)($next[$field]??[]),$icon);
+    $priorContracts=ep_index((array)($old['contracts']??[]));
+    foreach(ep_index((array)($next['contracts']??[])) as $contractId=>$contract){$priorContract=$priorContracts[$contractId]??null;if(ep_equal($priorContract,$contract))continue;$draft=$priorContract&&(($priorContract['issued']??null)===false||($priorContract['status']??'')==='Draft');ep_require($user,'contracts',$priorContract&&!$draft?'Edit':ep_workspace_action($user,'contracts',false));}
     if(!ep_equal(ep_index((array)($old['customers']??[])),ep_index((array)($next['customers']??[])))){
         $derived=false;
         if(!ep_equal($old['contracts']??[],$next['contracts']??[])&&(ep_can($user,'contracts','Create')||ep_can($user,'contracts','Edit'))){
@@ -120,24 +140,24 @@ function operations_validate_export_permissions(array $user,string $module,strin
         $documentChange=false;
         foreach(['uploadedDocuments','finalUploads'] as $uploadField)if(!ep_equal($prior[$uploadField]??[],$lot[$uploadField]??[])){ep_validate_upload_rows($user,$prior[$uploadField]??[],$lot[$uploadField]??[]);$documentChange=true;}
         foreach($fields as $documentField=>$icon)if(!in_array($documentField,['uploadedDocuments','finalUploads'],true)&&!ep_equal($prior[$documentField]??null,$lot[$documentField]??null)&&!(!array_key_exists($documentField,$prior)&&ep_empty($lot[$documentField]??null))){
-            ep_require($user,$icon,ep_workspace_action($user,$icon,ep_document_saved($documentField,$prior[$documentField]??null)));$documentChange=true;
+            ep_document_field($user,$documentField,$icon,$prior[$documentField]??null,$lot[$documentField]??null);$documentChange=true;
         }
         foreach(array_unique(array_merge(array_keys($prior),array_keys($lot))) as $field){
             $a=$prior[$field]??null;$b=$lot[$field]??null;if(ep_equal($a,$b)||(!array_key_exists($field,$prior)&&ep_empty($b)))continue;
             if($field==='millActuals')throw new DomainException('Milling owns container actuals.');
             if(in_array($field,['history','versions','documentActivity'],true)){if(!$documentChange&&!$contractChanged)ep_require($user,'history','Edit');continue;}
             if(in_array($field,['next','status'],true)&&($documentChange||$contractChanged))continue;
-            if(in_array($field,['completed','completedAt','completedBy','completionSnapshot','partySnapshot','companySnapshot','buyerSnapshot','notifySnapshot','next','status'],true)){if(!ep_can($user,'print',ep_workspace_action($user,'print',!empty($prior['completed'])))&&!ep_can($user,'active','Edit')&&!($contractChanged&&ep_can($user,'contracts','Edit')))ep_require($user,'print','Edit');continue;}
+            if(in_array($field,['completed','completedAt','completedBy','completionSnapshot','documentParties','partySnapshot','companySnapshot','buyerSnapshot','notifySnapshot','next','status'],true)){if(!ep_can($user,'print',ep_workspace_action($user,'print',!empty($prior['completed'])))&&!ep_can($user,'active','Edit')&&!($contractChanged&&ep_can($user,'contracts','Edit')))ep_require($user,'print','Edit');continue;}
             if(in_array($field,['cancelled','cancelReason','cancelledAt','cancelledBy'],true)){ep_require($user,'cancelled','Edit');continue;}
             if(in_array($field,['id','kind','parentProcessId','lotId'],true))throw new DomainException('Saved shipment identity cannot be changed.');
             if(isset($fields[$field])){
                 if(in_array($field,['uploadedDocuments','finalUploads'],true)){
                     ep_validate_upload_rows($user,$a,$b);
-                }else ep_require($user,$fields[$field],ep_workspace_action($user,$fields[$field],ep_document_saved($field,$a)));
+                }else ep_document_field($user,$field,$fields[$field],$a,$b);
             }else {if($contractChanged&&in_array($field,['contractRef','buyer','seller','shipmentMode','plannedQty','containers'],true))continue;ep_require($user,'active','Edit');}
         }
     }
-    foreach(['newExportBags'=>'bags','productionInstructions'=>'production','exportLoading'=>'loading'] as $field=>$icon)if(!ep_equal($old['millSync'][$field]??[],$next['millSync'][$field]??[]))ep_require($user,$icon,ep_workspace_action($user,$icon,!ep_empty($old['millSync'][$field]??[])));
+    foreach(['newExportBags'=>'bags','productionInstructions'=>'production','exportLoading'=>'loading'] as $field=>$icon)if(!ep_equal($old['millSync'][$field]??[],$next['millSync'][$field]??[]))ep_sync_rows($user,$field,$icon,(array)($old['millSync'][$field]??[]),(array)($next['millSync'][$field]??[]));
     if(!ep_equal($old['deletedShipments']??[],$next['deletedShipments']??[]))ep_require($user,'active','Edit');
     if(!ep_equal($old['cancelledContracts']??[],$next['cancelledContracts']??[]))ep_require($user,'contracts','Edit');
     $oldAudits=ep_index((array)($old['audits']??[]));

@@ -82,6 +82,29 @@ if($argv[1]==='seed'){
         put_base(change,{icon:['View','Create']});save_root(amend,403)
         put_base(change,{icon:['View','Edit']});save_root(amend)
         put_base(original,{'bags':['View','Create','Edit']});save_root(change,403)
+    # A saved, unissued contract remains a creation draft through the wizard.
+    before=copy.deepcopy(original);before['contracts'][0].update(issued=False,status='Draft',draftStep=1)
+    change=copy.deepcopy(before);change['contracts'][0]['draftStep']=2
+    put_base(before,{'contracts':['View','Create']});save_root(change)
+    issued=copy.deepcopy(change);issued['contracts'][0].update(issued=True,status='Awaiting Customer Confirmation')
+    put_base(change,{'contracts':['View','Create']});save_root(issued)
+    changed=copy.deepcopy(issued);changed['contracts'][0]['price']=999
+    put_base(issued,{'contracts':['View','Create']});save_root(changed,403)
+    # Document Output can complete the lot and freeze its party snapshot.
+    change=copy.deepcopy(original);change['shipments'][0].update(completed=True,status='Completed',completedAt='2026-10-07',documentParties={'buyer':{'name':'Saved Buyer'}})
+    put_base(original,{'print':['View','Create']});save_root(change)
+    # Create-only staff can add another certificate, PO and loading lot;
+    # changing an already-issued child document still needs Edit.
+    for field,icon,identity in [('certs','certs','id'),('bagOrders','bags','poNo')]:
+        before=copy.deepcopy(original);before['shipments'][0][field]=[{identity:'DOC1','text':'Existing'}]
+        change=copy.deepcopy(before);change['shipments'][0][field].append({identity:'DOC2','text':'New document'})
+        put_base(before,{icon:['View','Create']});save_root(change)
+        change['shipments'][0][field][0]['text']='Changed existing'
+        put_base(before,{icon:['View','Create']});save_root(change,403)
+    before=copy.deepcopy(original);before['shipments'][0]['loading']={'lots':[{'lotRecordId':'OLD','totalMT':10}],'draft':None}
+    before['millSync']['exportLoading']=[{'contractRef':'TTI/BUYER/01','shipmentId':'OLD','plan':{}}]
+    change=copy.deepcopy(before);change['shipments'][0]['loading']['lots'].append({'lotRecordId':'NEW','totalMT':10});change['millSync']['exportLoading'].append({'contractRef':'TTI/BUYER/01','shipmentId':'NEW','plan':{}})
+    put_base(before,{'loading':['View','Create']});save_root(change)
     # Upload record authority follows the actual document category, never an unrelated icon.
     change=copy.deepcopy(original);change['shipments'][0]['uploadedDocuments']=[{'id':'D1','name':'Final B/L','finalDocument':{'id':'FILE1'}}]
     change['shipments'][0]['documentActivity']=[{'document':'B/L','action':'Uploaded'}];put_base(original,{'bl':['View','Create']});save_root(change)
