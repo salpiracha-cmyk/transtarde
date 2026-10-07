@@ -18,6 +18,53 @@ function operations_validate_key_module(array $user, string $module, string $key
     ];
     $allowed = $module === 'Mill' ? $millKeys : ($module === 'Exports' ? $exportKeys : []);
     if (!in_array($key, $allowed, true)) throw new DomainException('This module cannot change the selected record.');
+    $cashIcons=['tt30petty'=>['petty','oldbags'],'tt33pettyexp'=>['petty','labour']];
+    if($module==='Mill'&&isset($cashIcons[$key])){
+        foreach($cashIcons[$key] as $icon) foreach(['Create','Edit'] as $action)
+            if(tt_user_can_module_action($user,'Mill',$icon,$action))return;
+        throw new DomainException('Permission for the cash entry workflow is required.');
+    }
+}
+
+/** A linked sale/expense grant permits its derived cash row, not the cash ledger. */
+function operations_validate_mill_cash(array $user,string $module,string $key,string $oldJson,string $incomingJson,array $values): void {
+    if(!in_array($module,['Mill','Milling'],true)||!in_array($key,['tt30petty','tt33pettyexp'],true)||($user['role']??'')==='Super Admin')return;
+    $old=$oldJson===''?[]:json_decode($oldJson,true,512,JSON_THROW_ON_ERROR);
+    $incoming=json_decode($incomingJson,true,512,JSON_THROW_ON_ERROR);
+    if(!is_array($old)||!array_is_list($old)||!is_array($incoming)||!array_is_list($incoming))throw new DomainException('Cash records must be a list.');
+    $index=[];
+    foreach($old as $row){if(!is_array($row)||!isset($row['id'])||(!is_string($row['id'])&&!is_int($row['id'])))throw new DomainException('Existing cash identities need review.');$id=(string)$row['id'];if($id===''||isset($index[$id]))throw new DomainException('Existing cash identities need review.');$index[$id]=$row;}
+    $create=tt_user_can_module_action($user,'Mill','petty','Create');
+    $edit=tt_user_can_module_action($user,'Mill','petty','Edit');
+    $sourceKey=$key==='tt30petty'?'tt37usedbags':'tt37processingexpenses';
+    $sourceIcon=$key==='tt30petty'?'oldbags':'labour';
+    $linkedCreate=tt_user_can_module_action($user,'Mill',$sourceIcon,'Create');
+    $sources=$linkedCreate&&!$create?json_decode((string)($values[$sourceKey]??'[]'),true,512,JSON_THROW_ON_ERROR):[];
+    if(!is_array($sources)||!array_is_list($sources))throw new DomainException('The source cash workflow needs review.');
+    $seen=[];$vouchers=[];
+    foreach($old as $row)if(isset($row['voucher']))$vouchers[(string)$row['voucher']]=true;
+    foreach($incoming as $row){
+        if(!is_array($row)||!isset($row['id'])||(!is_string($row['id'])&&!is_int($row['id'])))throw new DomainException('Each cash row needs a stable identity.');
+        $id=(string)$row['id'];if($id===''||isset($seen[$id]))throw new DomainException('Cash identities must be unique.');$seen[$id]=true;
+        if(isset($index[$id])){if(!operations_same_value($row,$index[$id])&&!$edit)throw new DomainException('Petty Cash Edit permission is required.');continue;}
+        if($create)continue;
+        if(!$linkedCreate||isset($vouchers[(string)($row['voucher']??'')]))throw new DomainException('Petty Cash Create permission is required.');
+        $matched=false;
+        foreach($sources as $source){
+            if(!is_array($source)||!isset($source['id']))continue;
+            if($key==='tt30petty'){
+                if(($source['movement']??'')!=='Outward'||($source['type']??'')!=='Sale'||!is_numeric($source['qty']??null)||!is_numeric($source['rate']??null)||(float)$source['qty']<=0||(float)$source['rate']<=0)continue;
+                $expected=['id'=>$row['id'],'date'=>$source['date']??'','credit'=>(float)$source['qty']*(float)$source['rate'],'ref'=>'Cash Received from Sale of Used Bags — '.(($source['source']??'')==='arrival'?'Arrival / Pohanch Stock':'Outside-Source Stock'),'voucher'=>'UB-'.substr((string)$source['id'],-6)];
+            }else{
+                if(($source['payment']??'')!=='Petty Cash'||!is_numeric($source['amount']??null)||(float)$source['amount']<=0)continue;
+                $expected=['id'=>$row['id'],'date'=>$source['date']??'','amount'=>$source['amount'],'type'=>($source['type']??'')==='Plant Expense'?'Plant Expense':'Milling Expense','ref'=>(string)($source['ref']??'').' — '.((string)($source['party']??'')!==''?$source['party']:($source['type']??'')),'voucher'=>'PE-'.substr((string)$source['id'],-6)];
+            }
+            if(operations_same_value($row,$expected)){$matched=true;break;}
+        }
+        if(!$matched)throw new DomainException('Save the matching source sale or expense before its cash entry.');
+        $vouchers[(string)$row['voucher']]=true;
+    }
+    if(!$edit)foreach($index as $id=>$row)if(!isset($seen[$id]))throw new DomainException('Petty Cash Edit permission is required to remove a cash row.');
 }
 
 // JSON booleans must not compare equal to positive stock quantities. Accept

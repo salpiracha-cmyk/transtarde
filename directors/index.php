@@ -13,6 +13,7 @@ $access=[
     'module'=>'Directors','user'=>(string)($user['full_name']??''),'role'=>(string)($user['role']??''),
     'permissions'=>$user['permissions']['Directors']??[], 'super'=>(($user['role']??'')==='Super Admin'), 'csrf'=>tt_csrf()
 ];
+if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET') tt_release_read_session();
 ob_start();
 ?>
 <!doctype html>

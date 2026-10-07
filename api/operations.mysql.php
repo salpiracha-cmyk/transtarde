@@ -578,6 +578,7 @@ function operations_file_fallback(array $user): never {
             if(str_contains($value,TT_INV_ARTWORK_URL))$value=tt_inv_restore_artwork($value,tt_inv_public_values((array)($store['values']??[]))['values']);
             if(strlen($value)>16*1024*1024)throw new InvalidArgumentException('Operational data is too large.');
             operations_validate_export_bridge($key,$old,$value,$sourceModule,(string)($store['values']['transtrade_export_v3_operational']??''));
+            operations_validate_mill_cash($user,$sourceModule,$key,$old,$value,(array)($store['values']??[]));
             if ($key==='transtrade_export_v3_operational') { operations_validate_lot_reopening($old,$value,$user,$sourceModule); $value=operations_merge_export($old,$value,$sourceModule); }
             if ($key==='tt40exinstructions') operations_validate_exmill_completion($value,(string)($store['values']['tt35exload']??'[]'));
             if ($key==='tt35exload' && $sourceModule!=='Exports') operations_validate_exmill_completion((string)($store['values']['tt40exinstructions']??'[]'),$value);
@@ -693,6 +694,13 @@ try {
         return $json=(string)($rootRead->fetchColumn()?:'');
     };
     operations_validate_export_bridge($key, $oldPayload, $value, $sourceModule, $exportRoot);
+    $cashValues=[];
+    if(in_array($key,['tt30petty','tt33pettyexp'],true)){
+        $cashSource=$key==='tt30petty'?'tt37usedbags':'tt37processingexpenses';
+        $cashRead=$db->prepare('SELECT payload FROM tt_operation_records WHERE storage_key = ? LOCK IN SHARE MODE');
+        $cashRead->execute([$cashSource]);$cashValues[$cashSource]=(string)($cashRead->fetchColumn()?:'[]');
+    }
+    operations_validate_mill_cash($user,$sourceModule,$key,$oldPayload,$value,$cashValues);
     if ($key === 'transtrade_export_v3_operational') {
         operations_validate_lot_reopening($oldPayload, $value, $user, $sourceModule);
         $value = operations_merge_export($oldPayload, $value, $sourceModule);

@@ -104,6 +104,7 @@ jobs:
           python3 tests/security/authentication_boundary_test.py
           python3 tests/security/session_retention_test.py
           python3 tests/security/entity_icon_authorization_test.py
+          python3 tests/security/mill_cash_authorization_test.py
           node tests/accounts-v1/payee_summary_escape_test.js
           node tests/runtime_security_static_audit.js
 
@@ -146,6 +147,7 @@ jobs:
           TT_QA_OUTPUT: ${{ runner.temp }}/inventory-evidence
         run: |
           php tests/accounts-v1/freight_metadata_test.php
+          python3 tests/security/mill_cash_authorization_test.py
           "$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/inventory_reconciliation_http_test.py
       - name: Ready rice bill browser and HTTP flow
         run: '"$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/ready_rice_bill_http_test.py'

@@ -13,6 +13,7 @@ if (!$allowedEntities) {
     http_response_code(403);
     exit('No Accounts legal entity has been assigned to this user.');
 }
+if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET') tt_release_read_session();
 $file = __DIR__ . '/Transtrade_Accounts_Master_V1.html';
 if (!is_file($file)) {
     http_response_code(404);

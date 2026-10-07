@@ -24,14 +24,16 @@ const {chromium}=require('@playwright/test');
   })());
  });
  async function measure(label,url,ready){
+  const start=Date.now();
   const response=await page.goto(base+url,{waitUntil:'domcontentloaded',timeout:90000});
   if(ready)await ready.waitFor({state:'visible',timeout:60000});
+  const readyMs=Date.now()-start;
   const metrics=await page.evaluate(()=>{
    const n=performance.getEntriesByType('navigation')[0];
    const resource=performance.getEntriesByType('resource').map(r=>({path:new URL(r.name).pathname,ms:Math.round(r.duration),bytes:r.transferSize,decodedBytes:r.decodedBodySize})).sort((a,b)=>b.ms-a.ms).slice(0,8);
    return {ttfbMs:Math.round(n.responseStart-n.requestStart),downloadMs:Math.round(n.responseEnd-n.responseStart),domReadyMs:Math.round(n.domContentLoadedEventEnd),htmlBytes:n.decodedBodySize,topResources:resource};
   });
-  console.log(JSON.stringify({label,status:response.status(),...metrics}));
+  console.log(JSON.stringify({label,status:response.status(),readyMs,...metrics}));
  }
  try{
   await measure('login','/login.php',page.locator('input[name=username]'));
@@ -40,8 +42,12 @@ const {chromium}=require('@playwright/test');
   await page.locator('input[name=password]').fill(password);
   stage='submit existing QA login';
   await Promise.all([page.waitForURL(/accounts\/index\.php/, {timeout:90000}),page.locator('button[type="submit"]').click()]);
+  stage='Accounts';
+  await measure('Accounts','/accounts/index.php',page.locator('#entityHome'));
   stage='read-only Masters shell';
   await measure('shared Admin/Masters shell (read-only QA)','/index.php?view=masters',page.locator('#view-masters'));
+  stage='Milling';
+  await measure('Milling','/module.php?id=milling',page.locator('#millCards .mill-card').first());
   stage='Exports';
   await measure('Exports','/module.php?id=exports',page.getByRole('button',{name:/Active Shipments/i}));
   const theme=await page.locator('.topbar').evaluate(el=>({background:getComputedStyle(el).backgroundImage,palette:getComputedStyle(document.documentElement).getPropertyValue('--tt-brand-deep').trim()}));

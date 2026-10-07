@@ -121,6 +121,9 @@ $sharedBootstrap = <<<'HTML'
       // Commit the Export request first; linked deletion writes must be checked
       // against its acknowledged tombstone, never a browser-only deletion.
       if(access.moduleId==='exports'&&key!==EXPORT_STORE&&(pending.has(EXPORT_STORE)||inFlight.has(EXPORT_STORE)||failedKeys.has(EXPORT_STORE)))continue;
+      // Linked Mill cash rows are validated against their committed source.
+      const cashSource=access.moduleId==='milling'?({'tt30petty':'tt37usedbags','tt33pettyexp':'tt37processingexpenses'}[key]):null;
+      if(cashSource&&(pending.has(cashSource)||inFlight.has(cashSource)||failedKeys.has(cashSource)))continue;
       if(inFlight.has(key)||failedKeys.has(key))continue;
       pending.delete(key);
       inFlight.add(key);

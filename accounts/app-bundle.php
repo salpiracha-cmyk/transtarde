@@ -8,6 +8,7 @@ if (!tt_user_can_open_module($user, 'Accounts')) {
     http_response_code(403);
     exit('You do not have permission to open this module.');
 }
+if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET') tt_release_read_session();
 
 $files = [
     'accounts-uppercase.js',
