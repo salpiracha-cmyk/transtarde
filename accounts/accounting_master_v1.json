@@ -869,6 +869,24 @@
       "normal": "Debit",
       "parent": "6800",
       "subledger": true
+    },
+    {
+      "code": "2600",
+      "name": "Bank Finance Liabilities",
+      "class": "Liability",
+      "level": "control",
+      "normal": "Credit",
+      "subledger": true,
+      "parent": "2000"
+    },
+    {
+      "code": "2610",
+      "name": "Bank Finance Principal",
+      "class": "Liability",
+      "level": "general",
+      "normal": "Credit",
+      "subledger": true,
+      "parent": "2600"
     }
   ],
   "peopleSubledgers": [

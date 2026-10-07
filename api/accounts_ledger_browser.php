@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require dirname(__DIR__).'/auth_store.php';
 require_once __DIR__.'/accounts_reference.php';
+require_once __DIR__.'/accounts_subaccounts_core.php';
 require_once __DIR__.'/tg_remittance_core.php';
 require_once __DIR__.'/fi_credit_advice_link.php';
 header('Cache-Control: no-store');
@@ -48,6 +49,9 @@ $party=trim((string)($_GET['party']??''));$parties=[];
 $query=strtolower(trim((string)($_GET['q']??'')));
 $postEntries=$account==='POSTS';
 $bankId=str_starts_with($account,'BANK|')?substr($account,5):'';
+$headId=str_starts_with($account,'HEAD|')?substr($account,5):'';
+$headCodes=$headId!==''?sac_descendants($headId):[];
+$subaccountId=str_starts_with($account,'SUB|')?substr($account,4):'';
 $master=json_decode((string)file_get_contents(dirname(__DIR__).'/accounts/accounting_master_v1.json'),true);
 $catalog=[];
 // Party balances use receivables, payables, deposits and advances, never the
@@ -72,6 +76,8 @@ foreach(['settlement_policy_v1.json','export_realization_policy_v1.json'] as $po
 $file=TT_DATA_DIR.'/accounts.json';
 $store=tt_fi_advice_project(tt_fi_advice_read_json($file),tt_fi_advice_root());
 $banks=[];
+if($headId!==''&&isset($catalog[$headId]))$catalog[$account]='Head of Accounts · '.$catalog[$headId];
+foreach(sac_accounts($store,$entity) as $subaccount)$catalog['SUB|'.$subaccount['id']]=$subaccount['name'].' · '.$subaccount['parentCode'];
 foreach((array)(tt_list_masters()['banks']??[]) as $bank){
     if(!is_array($bank))continue;
     $v=(array)($bank['values']??[]);$linked=strtoupper((string)($v[1]??''));
@@ -131,7 +137,9 @@ foreach($journals as $journal){
         $code=(string)($line['account']??'');
         $lineBank=(string)($line['bankAccountId']??$journal['meta']['bankAccountId']??'');
         if($bankId!==''&&($code!=='1110'||$lineBank!==$bankId))continue;
-        if($account!==''&&$bankId===''&&$code!==$account)continue;
+        if($headId!==''&&!in_array($code,$headCodes,true))continue;
+        if($subaccountId!==''&&($line['subaccountId']??'')!==$subaccountId)continue;
+        if($account!==''&&$bankId===''&&$subaccountId===''&&$headId===''&&$code!==$account)continue;
         $lineParty=trim((string)($line['supplier']??$line['broker']??$line['customer']??$line['counterparty']??$line['party']??''));
         $meta=(array)($journal['meta']??[]);
         $source=[];$bill=[];
@@ -203,3 +211,4 @@ if(($_GET['format']??'')==='csv'){
 }
 header('Content-Type: application/json; charset=UTF-8');
 echo json_encode(['ok'=>true,'entity'=>$entity,'accounts'=>array_map(static fn($code,$name)=>['code'=>(string)$code,'name'=>$name],array_keys($catalog),array_values($catalog)),'from'=>$from,'to'=>$to,'account'=>$account,'currency'=>$bankId!==''?($banks[$bankId]['currency']??''):($entity==='TG'?$nativeCurrency:'PKR'),'pendingRemittances'=>$entity==='TG'&&$bankId!==''?tgr_reserved($store,$bankId):0,'availableBalance'=>$entity==='TG'&&$bankId!==''?tgr_bank_balance($store,$bankId,$banks[$bankId]['currency'])['available']:null,'opening'=>$opening===null?null:round($opening,2),'closing'=>($account!==''||$party!=='')&&!$postEntries?$closing:null,'parties'=>array_keys($parties),'category'=>$category,'party'=>$party,'missingPartyLines'=>$category==='party'?$missingPartyLines:0,'balanceUnavailable'=>$category==='party'&&$balanceUnavailable,'rows'=>$rows],JSON_UNESCAPED_UNICODE);
+

@@ -28,6 +28,7 @@ jobs:
           node tests/accounts-v1/salary_donations_test.js
           node tests/accounts-v1/expenses_v1_test.js
           python3 tests/accounts-v1/direct_expense_http_test.py
+          python3 tests/accounts-v1/bank_entries_http_test.py
           python3 tests/accounts-v1/company_investments_test.py
           python3 tests/accounts-v1/recurring_bills_profit_test.py
           python3 tests/accounts-v1/payment_plans_test.py
@@ -160,6 +161,10 @@ jobs:
         run: '"$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/ready_rice_bill_http_test.py'
       - name: Salary month HTTP and browser flow
         run: '"$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/salary_month_http_test.py'
+      - name: Bank entries, finance and subaccounts browser flow
+        env:
+          TT_QA_OUTPUT: ${{ runner.temp }}/inventory-evidence
+        run: '"$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/bank_entries_browser_test.py'
       - name: Company investments and routed-funds browser flow
         run: '"$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/company_investments_test.py'
       - name: Property registration and instalment browser flow

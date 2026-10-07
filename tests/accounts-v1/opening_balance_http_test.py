@@ -6,7 +6,7 @@ ROOT=pathlib.Path(__file__).resolve().parents[2]
 with tempfile.TemporaryDirectory(prefix='opening-jv-qa-') as tmp:
     root=pathlib.Path(tmp)
     for folder in ['api','accounts','data']: (root/folder).mkdir()
-    for name in ['journal_vouchers.php','opening_balance_core.php','accounts_chart_word.php','accounts_chart_word_core.php','accounts_ledger_browser.php','accounts_reference.php','tg_remittance_core.php','fi_credit_advice_link.php','receipt_invoice_links.php']:
+    for name in ['accounts_subaccounts_core.php','assets_registry_core.php','journal_vouchers.php','opening_balance_core.php','accounts_chart_word.php','accounts_chart_word_core.php','accounts_ledger_browser.php','accounts_reference.php','tg_remittance_core.php','fi_credit_advice_link.php','receipt_invoice_links.php']:
         shutil.copy(ROOT/'api'/name,root/'api'/name)
     for path in (ROOT/'accounts').glob('*.json'): shutil.copy(path,root/'accounts'/path.name)
     (root/'auth_store.php').write_text('''<?php
@@ -138,3 +138,4 @@ with tempfile.TemporaryDirectory(prefix='opening-jv-qa-') as tmp:
             urllib.request.urlopen(url.replace('user=admin','user=director'));assert False,'Director without Accounts access must be denied on Accounts export'
         except urllib.error.HTTPError as error:assert error.code==403
     finally:server.terminate();server.wait(timeout=5)
+

@@ -37,6 +37,8 @@
     {key:'bank', glyph:'▦', title:'Bank & Cash', note:'Internal transfers, foreign retention and bank reconciliation', actions:[
       {title:'Review TG Remittances', special:'tg-remittances'}, {title:'Inter Account Transfer', note:'Move PKR between company accounts or to a personal account with a reason', special:'internal-bank-transfer'},
       {title:'Foreign Retention Account', note:'Settle foreign commissions and other linked outward remittances', special:'retention-remittance'},
+      {title:'Bank Entry', note:'Profit, withholding, charges, payments, receipts and transfers', special:'bank-entry'},
+      {title:'Bank Finance', note:'Drawdown, principal repayment and markup', special:'bank-finance'},
       {title:'Bank Accounts & Balances', native:'bank'}, {title:'Bank Reconciliation', native:'reconciliation'}
     ]},
     {key:'routine', glyph:'◇', title:'Expenses', note:'Pay expenses, utilities, cards or salaries', actions:[
@@ -46,20 +48,19 @@
     ]},
     {key:'ledgers', glyph:'L', title:'Ledgers', note:'Choose a party or account, view balances, print or download Excel', actions:[
       {title:'Party Ledgers', note:'Type a party name to open its ledger', special:'all-ledgers', ledgerCategory:'party'},
-      {title:'Supplier / Broker', special:'all-ledgers', ledgerCategory:'supplier'},
-      {title:'Customer', special:'all-ledgers', ledgerCategory:'customer'},
       {title:'Bank / Cash', special:'all-ledgers', ledgerCategory:'bank'},
-      {title:'Account Ledgers', note:'Search by account head', special:'all-ledgers', ledgerCategory:'other'}
+      {title:'Account Ledgers', note:'Search by account head or named subaccount', special:'all-ledgers', ledgerCategory:'other'},
+      {title:'Head of Accounts', special:'account-heads'}, {title:'Manage Subaccounts', special:'subaccounts'}
     ]},
     {key:'registers', glyph:'▣', title:'Registers & Corrections', note:'Posting records and controlled journal corrections', actions:[
-      {title:'Post ID Register', special:'post-ledger'}, {title:'Journal Voucher', native:'jv'},
-      {title:'Bill & Invoice Registers', special:'bill-registers'}, {title:'Soda Register', special:'soda'}
+      {title:'Post ID Register', special:'post-ledger'},
+      {title:'Bill & Invoice Registers', special:'bill-registers'}
     ]},
     {key:'reports', glyph:'▤', title:'Reports', note:'Financial, tax, party, commodity and shipment reports', actions:[
       {title:'Sales Tax', note:'Search export documents and bank/tax advices by period and reference', special:'sales-tax'},
-      {title:'Trial Balance', native:'reports', find:'Trial Balance'}, {title:'Profit & Loss', native:'reports', find:'Profit'},
+      {title:'Withholding Tax Report', special:'withholding-report'}, {title:'Trial Balance', native:'reports', find:'Trial Balance'}, {title:'Profit & Loss', native:'reports', find:'Profit'},
       {title:'Balance Sheet', native:'reports', find:'Balance Sheet'}, {title:'Receivables / Payables', native:'reports', find:'Receivables'},
-      {title:'Shipment Profitability', native:'reports', find:'Shipment'}, {title:'Bank & Cash Report', native:'bank'},
+      {title:'Shipment Profitability', native:'reports', find:'Shipment'},
       {title:'Commodity & Local Sales', native:'reports', find:'Commodity'}
     ]}
   ];
@@ -73,22 +74,21 @@
     ]},
     {key:'tg-bank', glyph:'▦', title:'Bank & Local Expenses', note:'Bank transfers, payments and local operating expense', actions:[
       {title:'Inter Account Transfer', note:'Choose the source and destination; currency direction and the TG Master rate are automatic', special:'internal-bank-transfer'},
-      {title:'Bank Receipt / Payment', native:'bank'}, {title:'Local Expense', native:'expenses', then:'[data-expense="general"]'},
+      {title:'Bank Entry', special:'bank-entry'}, {title:'Bank Finance', special:'bank-finance'}, {title:'Bank Accounts & Balances', native:'bank'}, {title:'Local Expense', native:'expenses', then:'[data-expense="general"]'},
       {title:'Utilities', native:'expenses', then:'[data-expense="utility"]'}, {title:'Bank Reconciliation', native:'reconciliation'}
     ]},
     {key:'tg-ledgers', glyph:'L', title:'Ledgers', note:'TG party and account statements with print and Excel', actions:[
       {title:'Party Ledgers', note:'Type a party name to open its ledger', special:'all-ledgers', ledgerCategory:'party'},
-      {title:'Supplier / Broker', special:'all-ledgers', ledgerCategory:'supplier'},
-      {title:'Customer', special:'all-ledgers', ledgerCategory:'customer'},
       {title:'Bank / Cash', special:'all-ledgers', ledgerCategory:'bank'},
-      {title:'Account Ledgers', note:'Search by account head', special:'all-ledgers', ledgerCategory:'other'}
+      {title:'Account Ledgers', note:'Search by account head or named subaccount', special:'all-ledgers', ledgerCategory:'other'},
+      {title:'Head of Accounts', special:'account-heads'}, {title:'Manage Subaccounts', special:'subaccounts'}
     ]},
     {key:'tg-registers', glyph:'▣', title:'Registers & Corrections', note:'Posting records and journal corrections', actions:[
-      {title:'Post ID Register', special:'post-ledger'}, {title:'Journal Voucher', native:'jv'},
+      {title:'Post ID Register', special:'post-ledger'},
       {title:'Bill & Invoice Registers', special:'bill-registers'}
     ]},
     {key:'tg-reports', glyph:'▤', title:'Reports', note:'TG balances and financial reports', actions:[
-      {title:'Trial Balance', native:'reports', find:'Trial Balance'}, {title:'Profit & Loss', native:'reports', find:'Profit'},
+      {title:'Withholding Tax Report', special:'withholding-report'}, {title:'Trial Balance', native:'reports', find:'Trial Balance'}, {title:'Profit & Loss', native:'reports', find:'Profit'},
       {title:'Balance Sheet', native:'reports', find:'Balance Sheet'}, {title:'Receivables / Payables', native:'reports', find:'Receivables'}
     ]}
   ];
@@ -139,6 +139,11 @@
   }
 
   async function launch(action) {
+    if(action.special==='bank-entry')return window.TT_BANK_ENTRIES.open();
+    if(action.special==='bank-finance')return window.TT_BANK_ENTRIES.open('','FINANCE');
+    if(action.special==='subaccounts')return window.TT_SUBACCOUNTS.open('manage');
+    if(action.special==='account-heads')return window.TT_SUBACCOUNTS.open('heads');
+    if(action.special==='withholding-report')return window.TT_SUBACCOUNTS.open('tax');
     if(action.special==='expense-pay')return window.TT_EXPENSE_DESK.open();
     if(action.special==='expense-bills')return window.TT_EXPENSE_DESK.bills();
     if(action.special==='expense-salary')return window.TT_EXPENSE_DESK.openNative('salary','Salaries & Staff');

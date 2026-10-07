@@ -18,8 +18,10 @@ if(is_file($file)){
  try{$raw=stream_get_contents($h);}finally{flock($h,LOCK_UN);fclose($h);}
  $store=json_decode((string)$raw,true);if(!is_array($store)){http_response_code(503);exit('Accounts storage unavailable.');}
 }
+require_once __DIR__.'/accounts_subaccounts_core.php';
 $master=json_decode((string)file_get_contents(dirname(__DIR__).'/accounts/accounting_master_v1.json'),true);
 $doc=acw_document($master,$store,tt_list_masters(),$entities,$date);
 header('Content-Type: application/vnd.openxmlformats-officedocument.wordprocessingml.document');
 header('Content-Disposition: attachment; filename="Transtrade_Chart_Accounts_Balances_'.$date.'.docx"');
 header('Content-Length: '.strlen($doc));echo $doc;
+

@@ -865,12 +865,14 @@ function tt_user_can_director_approve(array $user): bool {
 
 /** Route ownership is server-defined; company grants never substitute for an icon. */
 function tt_api_write_grants(string $endpoint,array $body): ?array {
+    if(in_array($endpoint,['bank_entries.php','accounts_subaccounts.php'],true)){$right=($body['action']??'')==='reverse'?'Edit':(($body['operation']??'add')==='delete'?'Delete':(($body['operation']??'add')==='edit'?'Edit':'Create'));return [['Accounts',$endpoint==='bank_entries.php'?'cashbank':'masters',$right]];}
     if($endpoint==='bank_direct_entries.php'&&strtoupper((string)($body['type']??''))==='SAVING_PROFIT')return [['Accounts','cashbank'],['Accounts','reconciliation']];
     $routes=[
         'rent_salary.php'=>'expenses','rent_salary_v2.php'=>'expenses','expenses_v1.php'=>'expenses','donations.php'=>'expenses',
         'sales_tax_refunds.php'=>'purchases','production_costing.php'=>'purchases','production_fixed_overhead.php'=>'purchases',
         'production_inventory_transfer.php'=>'purchases','commodity_bills.php'=>'purchases','other_purchases.php'=>'purchases',
         'management_costing.php'=>'purchases','management_costing_attach.php'=>'purchases',
+        'bank_entries.php'=>'cashbank','accounts_subaccounts.php'=>'masters',
         'bank_direct_entries.php'=>'reconciliation','bank_reconciliation.php'=>'reconciliation',
         'internal_bank_transfers.php'=>'cashbank','retention_remittances.php'=>'cashbank','tg_bank_transfer.php'=>'cashbank',
         'tg_year_end_revaluation.php'=>'cashbank','export_bank_shortfall.php'=>'cashbank',
@@ -952,7 +954,7 @@ function tt_post_correction_allowed(array $user,array $journal): bool {
         'purchases'=>['COMMODITY_RECEIPT_ACCEPTED','COMMODITY_BILL_VERIFIED','EX_MILL_PURCHASE_LIABILITY','EXPORT_BAG_SUPPLIER_BILL','NON_WOVEN_BAG_SUPPLIER_BILL','OTHER_PURCHASE','FIXED_ASSET_PURCHASE','PRODUCTION_INVENTORY_TRANSFER','AUTO_PRODUCTION_COST','ACCOUNTS_BYPRODUCT_VALUATION','SALES_TAX_REFUND_RECEIPT'],
         'supplier'=>['SUPPLIER_PAYMENT','SUPPLIER_ADVANCE','SUPPLIER_ADVANCE_APPLIED','SUPPLIER_CHEQUE_BANK_REVERSAL','SUPPLIER_CHEQUE_CLEARED','SUPPLIER_CHEQUE_ISSUED','SUPPLIER_CHEQUE_PAYABLE_REOPENED','EXPORT_BAG_SUPPLIER_PAYMENT','NON_WOVEN_BAG_SUPPLIER_PAYMENT','OTHER_SUPPLIER_PAYMENT','BROKERAGE_WHT_DEPOSIT','TG_SUPPLIER_SERVICE_LIABILITY','TG_LIABILITY_PAYMENT','TG_SUPPLIER_ADVANCE'],
         'customer'=>['LOCAL_SALE_RECOGNIZED','LOCAL_SALE_ADVANCE_APPLIED','LOCAL_SALE_PAYMENT_APPROVED','LOCAL_SALE_COGS','EXPORT_COGS','LOCAL_CUSTOMER_CHEQUE_BANK_REVERSAL','LOCAL_CUSTOMER_CHEQUE_CLEARED','LOCAL_CUSTOMER_CHEQUE_RECEIVABLE_REOPENED','TG_CUSTOMER_ADVANCE_APPLIED','TG_CUSTOMER_ADVANCE_RECEIVED'],
-        'cashbank'=>['BANK_TRANSFER','INTERNAL_BANK_TRANSFER','INTERCOMPANY_ADVANCE_RECEIPT','RETENTION_OUTWARD_REMITTANCE','TG_USD_AED_TRANSFER','TG_YEAR_END_FX_REVALUATION','EXPORT_FOREIGN_BANK_SHORTFALL','TG_BANK_PAYMENT','TG_BANK_RECEIPT'],
+        'cashbank'=>['BANK_TRANSFER','INTERNAL_BANK_TRANSFER','INTERCOMPANY_ADVANCE_RECEIPT','RETENTION_OUTWARD_REMITTANCE','TG_USD_AED_TRANSFER','TG_YEAR_END_FX_REVALUATION','EXPORT_FOREIGN_BANK_SHORTFALL','TG_BANK_PAYMENT','TG_BANK_RECEIPT','BANK_ENTRY','BANK_ENTRY_REVERSAL'],
         'reconciliation'=>['BANK_RECON_DIRECT_ENTRY'], 'transport'=>['TRANSPORT_BILL'], 'freight'=>['FREIGHT_BILL'],
         'services'=>['CLEARING_BILL','FUMIGATION_BILL','INSPECTION_BILL'],
         'tg'=>['TG_INTERCOMPANY_PAKISTAN','TG_INTERCOMPANY_TG','TG_INTERCOMPANY_PAYABLE_RECOGNIZED'],
@@ -1073,3 +1075,4 @@ function tt_accounts_input():string {
     $raw=file_get_contents('php://input')?:'';$body=$GLOBALS['TT_AUTHORIZED_API_BODY']??json_decode($raw,true);
     return is_array($body)?json_encode(tt_accounts_uppercase_text($body),JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR):$raw;
 }
+

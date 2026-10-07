@@ -103,8 +103,11 @@ async function deskAction(page, area, action) {
 async function closeWorkspace(page) {
   const editorClose = page.locator('[data-editor-back]:visible');
   if (await editorClose.count()) await activate(editorClose.first());
-  const workspaceClose = page.locator('.workspace.active .tt-clean-close:visible');
-  if (await workspaceClose.count()) await activate(workspaceClose.first());
+  const workspaceClose = page.locator('.workspace.active .tt-clean-close:visible, .workspace.active > .panelHead [data-back]:visible');
+  if (await page.locator('.workspace.active').count()) {
+    await expect(workspaceClose.first()).toBeVisible();
+    await activate(workspaceClose.first());
+  }
   await expect(page.locator('#entityHome')).toBeVisible();
   await expect(page.locator('body')).not.toHaveClass(/tt-modal-open/);
 }
@@ -516,3 +519,4 @@ test('read-only Exports and Milling loading, errors and Masters navigation', asy
   expect(failures,'Modules must load without server errors').toEqual([]);
   expect(errors,'Modules must load without JavaScript errors').toEqual([]);
 });
+

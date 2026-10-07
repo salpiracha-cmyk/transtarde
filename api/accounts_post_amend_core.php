@@ -5,6 +5,7 @@ require_once __DIR__.'/accounts_bank_payment.php';
 /** Journal-level correction shared by every Accounts posting source. Caller holds the accounts.json lock. */
 function apa_correct(array &$store, array $user, string $postId, array $input): array {
     $original=$store['journals'][$postId]??null;
+    if (in_array($original['sourceType']??'', ['BANK_ENTRY','BANK_ENTRY_REVERSAL'], true)) throw new DomainException('Correct bank entries from Bank Entry so facility balances and subaccounts stay linked.');
     if(!empty($original['meta']['investmentTransactionId']))throw new DomainException('Correct this posting in Assets & Investments so broker funds, routing balances and shares stay linked.');
     if(!empty($original['meta']['directExpense']))throw new DomainException('Correct this expense in Pay Expense so its item breakdown and voucher stay linked.');
     if(!empty($original['meta']['planId']))throw new DomainException('Correct this payment through its Payment Plan so truck allocations and plan progress stay linked.');
@@ -41,11 +42,13 @@ function apa_correct(array &$store, array $user, string $postId, array $input): 
     foreach($submitted as $i=>$entry){
         if(!is_array($entry))throw new DomainException('Invalid journal line.');
         $account=trim((string)($entry['account']??''));
+        if(in_array($account,['1430','1440','1610','2610'],true))throw new DomainException('Use the investment or bank-finance register for this account.');
         if(!isset($names[$account]))throw new DomainException('Line '.($i+1).' requires an approved ledger account.');
         foreach(['debit','credit'] as $field){$value=$entry[$field]??0;if(!is_numeric($value)||!is_finite((float)$value)||round((float)$value,2)<0)throw new DomainException('Invalid amount on line '.($i+1).'.');}
         $dr=round((float)($entry['debit']??0),2);$cr=round((float)($entry['credit']??0),2);
         if(($dr<=0&&$cr<=0)||($dr>0&&$cr>0))throw new DomainException('Each line needs either a debit or a credit.');
         $line=(array)($original['lines'][$i]??[]);
+        if(!empty($line['subaccountId'])&&$account!==($line['account']??''))throw new DomainException('Correct named subaccount classification through its original entry form.');
         $line['account']=$account;$line['accountName']=$names[$account];$line['debit']=$dr;$line['credit']=$cr;
         foreach(['subledger','party','counterparty','memo','billNo','lineReference'] as $field)
             if(isset($entry[$field]))$line[$field]=mb_substr(trim((string)$entry[$field]),0,180);

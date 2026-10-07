@@ -86,6 +86,7 @@ $files = [
     'accounts-accounting-desk.js',
     'assets-registry-ui.js',
     'company-investments-ui.js',
+    'account-management-ui.js',
     'tg-remittances-ui.js',
     'payment-plans-ui.js',
 ];
