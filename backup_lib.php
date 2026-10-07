@@ -327,7 +327,7 @@ function tt_backup_master_headers(string $type, int $width): array {
         'product_settings'=>['Current crop year'],
         'products'=>['Commodity','Variety','Rice type','Code','Origin','Profile / use','Avg. grain length','Broken','Moisture','Damaged / Shriveled / Yellow','Chalky / Immature','Contrasting / Other varieties','Foreign grains','Foreign matter','Paddy','Red kernels / Red rice','Under-milled / Red-striped','Finish','Additional quality wording','Source / basis','Custom specifications','HS Code'],
         'parties'=>['Party','Code / reference','Type / notes'],
-        'mills'=>['Mill / location','Code / reference','Location type','Full address','Contact details','Status','Notes'],
+        'mills'=>['Mill / location','Code / reference','Location type','Full address','Contact details','Status','Notes','Bills paid by company'],
         'banks'=>['Account type','Company','Label','Account title','Bank name','Branch','Country','Currency','Account number','IBAN','SWIFT','Purpose','Visibility','Status'],
         'salary_staff'=>['Staff / person name','Legal book','Salary group','Net salary / remuneration (Rs)','Zakat (Rs)','Other recurring allowances (Rs)','Effective from','Effective to','Accounts treatment','Include in Mill production cost','Status','Notes'],
         'purchase_products'=>['Commodity','Base variety / product','Rice type','Purchase classification','Purchase unit','Arrival KAT profile (our location only)','Legacy brokery rule','Legacy inventory account','Status','Notes','Broken grade (optional)'],

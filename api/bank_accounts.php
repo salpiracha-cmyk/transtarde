@@ -68,7 +68,7 @@ function ba_master_accounts(): array {
             'country'=>(string)$v[6],'currency'=>strtoupper(trim((string)$v[7])),'accountNumber'=>(string)$v[8],
             'accountNumberMasked'=>ba_mask((string)$v[8]),'accountLast5'=>substr(preg_replace('/\W+/','',(string)$v[8])??'',-5),
             'iban'=>(string)$v[9],'ibanMasked'=>ba_mask((string)$v[9]),'displayLabel'=>($entity==='TG'?strtoupper((string)$v[7]).' · ':'').ba_display_label((string)$v[3],(string)$v[4],(string)$v[8],(string)$v[9]),'swift'=>(string)$v[10],'purpose'=>(string)$v[11],
-            'visibility'=>(string)$v[12],'masterStatus'=>(string)$v[13],'masterRetentionAccount'=>$row['retentionAccount']??null
+            'visibility'=>(string)$v[12],'masterStatus'=>(string)$v[13],'masterRetentionAccount'=>$row['retentionAccount']??null,'depositType'=>(string)($row['depositType']??'')
         ];
     }
     return $out;
@@ -169,6 +169,17 @@ try{
     $action=(string)($body['action']??'');
     $entity=ba_entity((string)($body['entity']??''));$id=trim((string)($body['accountId']??''));if($id==='')ba_respond(['ok'=>false,'error'=>'Select a bank or cash account.'],422);
     $masters=ba_master_accounts();$cashKey='CASH|'.$entity;$planningCurrency=$entity==='TG'?'USD':'PKR';
+    if($action==='save_deposit_type'){
+        if(!tt_user_can_master($user,'companies','Edit'))ba_respond(['ok'=>false,'error'=>'Company Master Edit permission is required.'],403);
+        $a=$masters[$id]??null;if(!is_array($a)||($a['entity']??'')!==$entity)ba_respond(['ok'=>false,'error'=>'Bank account does not belong to these company books.'],422);
+        $depositType=(string)($body['depositType']??'');if(!in_array($depositType,['CURRENT','SAVING'],true))ba_respond(['ok'=>false,'error'=>'Select Saving or Current.'],422);
+        tt_mutate_store(static function(&$auth)use($a,$id,$depositType,$user):void{
+            foreach($auth['masters']['companies'] as &$company){if((string)($company['id']??'')!==$a['companyId'])continue;
+                $banks=tt_master_json_array($company['values'][13]??'');foreach($banks as &$bank){if((string)($bank['id']??'')!==$id)continue;$before=$bank['depositType']??'';$bank['depositType']=$depositType;$company['values'][13]=json_encode($banks,JSON_THROW_ON_ERROR);$auth['audit'][]=['at'=>gmdate('c'),'action'=>'BANK_ACCOUNT_TYPE','id'=>$id,'before'=>$before,'after'=>$depositType,'by'=>$user['username']??''];return;}unset($bank);
+            }unset($company);throw new InvalidArgumentException('Bank account no longer exists.');
+        });
+        ba_respond(['ok'=>true,'entity'=>$entity]+ba_payload(ba_read(),$entity));
+    }
     if($action==='request_delete'){
         if($id===$cashKey)ba_respond(['ok'=>false,'error'=>'Cash cannot be deleted through bank approval.'],422);
         $a=$masters[$id]??null;
@@ -231,3 +242,4 @@ try{
     ba_respond(['ok'=>true,'saved'=>$setting]+ba_payload($store,$entity)+['revision'=>$store['revision']]);
 }catch(InvalidArgumentException $e){ba_respond(['ok'=>false,'error'=>$e->getMessage()],422);}
 catch(Throwable $e){ba_respond(['ok'=>false,'error'=>'The bank-account action could not be completed.'],500);}
+

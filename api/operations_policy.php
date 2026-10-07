@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__.'/export_permission_policy.php';
 
 // Source permissions and target ownership are separate checks. Both storage
 // backends enforce this policy before a backup or any durable write.

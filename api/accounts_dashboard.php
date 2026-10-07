@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__.'/expense_reminders.php';
 require dirname(__DIR__).'/auth_store.php';
 require_once __DIR__.'/accounts_reviews_core.php';
 header('Content-Type: application/json; charset=UTF-8');
@@ -19,10 +20,10 @@ try{
  foreach((array)($s['commodityBills']??[])as$b){if(!is_array($b)||($b['entity']??'')!==$e)continue;$out=round(max(0,(float)($b['supplierPayableTotal']??$b['total']??0)-ad_paid($s,(string)($b['id']??''))),2);if($out>.005)$commodity[]=['label'=>(string)($b['broker']??$b['party']??'Commodity supplier'),'reference'=>(string)($b['billNo']??$b['id']??''),'date'=>(string)($b['dueDateFrom']??$b['billDate']??''),'currency'=>'PKR','amount'=>$out];}
  foreach((array)($s['supplierBills']??[])as$b){if(!is_array($b)||($b['entity']??'')!==$e)continue;$out=round(max(0,(float)($b['supplierPayableTotal']??0)-ad_paid($s,(string)($b['id']??''))),2);if($out>.005)$expenses[]=['label'=>(string)($b['vendor']??$b['broker']??'Supplier'),'reference'=>(string)($b['billNo']??$b['id']??''),'date'=>(string)($b['dueDate']??$b['billDate']??''),'currency'=>'PKR','amount'=>$out];}
  if($e==='TG'){foreach(tgr_items($s) as $draft){if(!empty($draft['legacy']))continue;$key=$draft['currency'].'|'.$draft['bankAccountId'];if(!isset($bank[$key]))$bank[$key]=['label'=>$draft['bank'],'currency'=>$draft['currency'],'amount'=>0.0];$bank[$key]['pending']=round((float)($bank[$key]['pending']??0)+(float)$draft['amountNative'],2);}foreach($bank as &$row){$row['postedAmount']=$row['amount'];$row['amount']=round($row['amount']-(float)($row['pending']??0),2);$row['label'].=' · AVAILABLE';}unset($row);}
- $attention=ar_items($s,$e);
+ $attention=ar_items($s,$e);foreach(tt_expense_due_reminders($s,$e) as $reminder)$attention[]=['kind'=>'REMINDER','type'=>$reminder['type']==='UTILITY'?'Utility Bill':'Credit Card','reference'=>$reminder['label'],'message'=>$reminder['status'].' · due '.$reminder['dueDate'],'target'=>['expense'=>$reminder['type']==='UTILITY'?'utility':'card','month'=>$reminder['month']]];
  $due=$expenses;
  foreach((array)($s['creditCardStatements']??[]) as $statement){
-   if(!is_array($statement)||($statement['entity']??'')!==$e||($statement['status']??'Pending')==='Paid')continue;
+   if(!is_array($statement)||($statement['entity']??'')!==$e||in_array(($statement['status']??'Pending'),['Paid','Deleted'],true))continue;
    $due[]=['label'=>(string)($statement['cardName']??'Credit card').' credit card','reference'=>(string)($statement['id']??''),'date'=>(string)($statement['dueDate']??''),'currency'=>$e==='TG'?'AED':'PKR','amount'=>(float)($statement['total']??0)];
  }
  foreach((array)($s['rentMasters']??[]) as $rent){
@@ -44,3 +45,4 @@ try{
  usort($sets['due'],static fn($a,$b)=>strcmp((string)($a['date']??''),(string)($b['date']??'')));
  ad_out(['ok'=>true,'entity'=>$e,'summaries'=>$sets,'attention'=>$attention,'serverNow'=>gmdate('c')]);
 }catch(Throwable $x){error_log('Accounts dashboard: '.$x->getMessage());ad_out(['ok'=>false,'error'=>'Accounts summary is temporarily unavailable.'],500);}
+

@@ -122,7 +122,7 @@ try {
         master_respond(['ok'=>true,'masters'=>master_all($admin),'bankDeletionRequests'=>(array)(tt_read_store()['bank_deletion_requests']??[])]);
     }
     if ($action==='review-bank-deletion') {
-        $owner=($admin['role']??'')==='Super Admin';$director=($admin['role']??'')==='Director'&&tt_user_can_open_module($admin,'Directors');
+        $owner=($admin['role']??'')==='Super Admin';$director=tt_user_can_director_approve($admin);
         if (!$owner&&!$director) master_respond(['ok'=>false,'error'=>'Director or Super Admin approval required.'],403);
         $requestId=trim((string)($body['requestId']??''));$decision=(string)($body['decision']??'');$replacementBankId=trim((string)($body['replacementBankId']??''));
         if (!in_array($decision,['Approve','Reject'],true))throw new InvalidArgumentException('Choose Approve or Reject.');
@@ -205,6 +205,7 @@ try {
         tt_audit((int)$admin['id'],$admin['username'],ucfirst($optionAction).' '.$optionKey.' option '.$value);
         master_respond(['ok'=>true,'masters'=>master_all($admin),'options'=>master_options_for_console(),'value'=>$value]);
     }
+    if($type==='mills'&&in_array($action,['create','update'],true)){ $locationValues=$body['values']??[];if(!in_array((string)($locationValues[7]??''),['','TTI','BRM','TG'],true))throw new InvalidArgumentException('Select the company responsible for this location bills.'); }
     if ($type==='salary_staff') {
         if ($action==='delete') {
             if ($id==='') throw new InvalidArgumentException('Select a staff record.');
@@ -225,7 +226,7 @@ try {
 
     $schemas=[
         'companies'=>19,'export_customers'=>22,'business_parties'=>13,'commodities'=>8,'product_settings'=>1,'products'=>22,'purchase_products'=>11,'purchase_kat'=>10,
-        'mills'=>7,'export_documents'=>5,'export_terms'=>3,
+        'mills'=>8,'export_documents'=>5,'export_terms'=>3,
     ];
     if (!isset($schemas[$type])) throw new InvalidArgumentException('Select a valid master section.');
     if ($action==='add-party-role') {
@@ -323,6 +324,7 @@ try {
         foreach($banks as $bank)if(is_array($bank)){
             $bankId=trim((string)($bank['id']??''));if($bankId==='')throw new InvalidArgumentException('Every saved bank account requires a stable account ID. Reopen the company and try again.');
             if(isset($seenBankIds[$bankId]))throw new InvalidArgumentException('The same bank account appears more than once.');$seenBankIds[$bankId]=true;
+            $depositType=(string)($bank['depositType']??'');if(!in_array($depositType,['','CURRENT','SAVING'],true))throw new InvalidArgumentException('Select Saving or Current account type.');
             $accountType=(string)($bank['accountType']??'Company Account');
             if(!in_array($accountType,['Company Account','Proprietor / Owner Account','Personal Account'],true))throw new InvalidArgumentException('Select a valid bank account ownership type.');
             if(!empty($bank['retentionAccount'])&&$accountType!=='Company Account')throw new InvalidArgumentException('Only a company account can be a retention account.');
@@ -484,3 +486,4 @@ try {
     master_respond(['ok'=>false,'error'=>'Unknown action.'],400);
 } catch (InvalidArgumentException $e) { master_respond(['ok'=>false,'error'=>$e->getMessage()],422); }
 catch (Throwable $e) { master_respond(['ok'=>false,'error'=>'The master-record action could not be completed.'],500); }
+

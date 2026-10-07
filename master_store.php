@@ -191,7 +191,7 @@ function tt_company_bank_legacy_rows(array $companies): array {
         foreach (tt_master_json_array($cv[13] ?? '') as $bank) {
             if (!is_array($bank)) continue;
             $id=trim((string)($bank['id'] ?? '')) ?: 'bank-'.substr(hash('sha256',$companyCode.'|'.json_encode($bank)),0,14);
-            $rows[]=['id'=>$id,'companyId'=>(string)($company['id']??''),'retentionAccount'=>array_key_exists('retentionAccount',$bank) ? (bool)$bank['retentionAccount'] : null,'notes'=>(string)($bank['notes'] ?? ''),'values'=>[
+            $rows[]=['id'=>$id,'companyId'=>(string)($company['id']??''),'depositType'=>(string)($bank['depositType']??''),'retentionAccount'=>array_key_exists('retentionAccount',$bank) ? (bool)$bank['retentionAccount'] : null,'notes'=>(string)($bank['notes'] ?? ''),'values'=>[
                 (string)(($bank['accountType'] ?? '')==='Personal Account'?'Proprietor / Owner Account':($bank['accountType'] ?? 'Company Account')),
                 trim($companyCode.' — '.$companyName,' —'),
                 (string)($bank['accountTitle'] ?? $companyName),
@@ -412,7 +412,7 @@ function tt_normalize_masters(array $masters): array {
         $values[2]=tt_normalize_location_type((string)$values[2]);
         if ((string)($row['id'] ?? '') === 'mills-1' && strcasecmp(trim((string)$values[0]), 'TTI Rice Mill') === 0) $values[0]='TTI Rice Mills';
         if (trim((string)$values[5])==='') $values[5]='Active';
-        $row['values']=array_slice($values,0,7);
+        $row['values']=array_slice(array_pad($values,8,''),0,8);
     }
     unset($row);
     foreach ($masters['export_customers'] as &$row) {

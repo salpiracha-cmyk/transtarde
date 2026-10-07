@@ -284,7 +284,7 @@ function pc_group_production(array $production): array {
     return $groups;
 }
 
-function pc_cost_sources(array $ops, array $groups): array {
+function pc_cost_sources(array $ops, array $groups, array $store = [], string $entity = 'TTI'): array {
     $sources = [];
     $add = function(string $id, string $type, string $from, string $to, float $amount, string $reference = '') use (&$sources, $groups): void {
         if ($amount <= 0 || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $from) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $to)) return;
@@ -307,6 +307,15 @@ function pc_cost_sources(array $ops, array $groups): array {
         if (!is_array($x)) continue;
         $add('KE|' . ($x['id'] ?? $x['ref'] ?? count($sources)), 'Electricity', (string)($x['readFrom'] ?? $x['date'] ?? ''), (string)($x['readTo'] ?? $x['date'] ?? ''), (float)($x['amount'] ?? 0), (string)($x['ref'] ?? ''));
     }
+    // Accounts payments and Milling bills describe the same utility, not two costs.
+    $seenElectricity=[];foreach(pc_op($ops,'tt38kebills') as $bill)if(is_array($bill))$seenElectricity[strtoupper(trim((string)($bill['ref']??''))).'|'.($bill['readFrom']??'').'|'.($bill['readTo']??'').'|'.round((float)($bill['amount']??0),2)]=true;
+    foreach((array)($store['utilityPayments']??[]) as $bill){
+        if(!is_array($bill)||($bill['entity']??'')!==$entity||($bill['status']??'')==='Deleted'||empty($bill['productionCostEligible']))continue;
+        $from=(string)($bill['readFrom']??$bill['paymentDate']??'');$to=(string)($bill['readTo']??$bill['paymentDate']??'');$reference=(string)($bill['reference']??'');
+        $signature=strtoupper(trim($reference)).'|'.$from.'|'.$to.'|'.round((float)($bill['amount']??0),2);
+        if(($bill['utilityType']??'')==='ELECTRICITY'&&$reference!==''&&isset($seenElectricity[$signature]))continue;
+        $add('UTILITY|'.$bill['id'],(string)($bill['utilityTypeName']??'Mill Utility'),$from,$to,(float)($bill['amount']??0),$reference);
+    }
     foreach (pc_op($ops, 'tt38labourbills') as $x) {
         if (!is_array($x)) continue;
         $add('LAB|' . ($x['id'] ?? $x['billNo'] ?? count($sources)), 'Labour', (string)($x['from'] ?? $x['date'] ?? ''), (string)($x['till'] ?? $x['date'] ?? ''), (float)($x['amount'] ?? 0), (string)($x['billNo'] ?? $x['ref'] ?? ''));
@@ -322,7 +331,7 @@ function pc_cost_sources(array $ops, array $groups): array {
 function pc_calculate(array $store, array $ops, string $entity): array {
     $groups = pc_group_production(pc_production($ops));
     $receipts = array_values(array_filter(pc_receipts($store), static fn($r) => ($r['entity'] ?? 'TTI') === $entity));
-    $sources = pc_cost_sources($ops, $groups);
+    $sources = pc_cost_sources($ops, $groups, $store, $entity);
 
     $events = [];
     foreach ($receipts as $r) $events[] = ['date' => $r['date'], 'kind' => 'R', 'priority' => 0, 'data' => $r];

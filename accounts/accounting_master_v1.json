@@ -135,6 +135,14 @@
       "note": "Use for genuine advances paid before supplier/service liability is recognized. Allocate to the eventual bill; do not expense on payment merely because cash left the bank."
     },
     {
+      "code": "1260",
+      "name": "Withholding Tax Recoverable",
+      "class": "Asset",
+      "level": "general",
+      "normal": "Debit",
+      "subledger": true
+    },
+    {
       "code": "1300",
       "name": "Inventory",
       "class": "Asset",

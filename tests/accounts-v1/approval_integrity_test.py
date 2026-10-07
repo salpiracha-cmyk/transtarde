@@ -12,6 +12,7 @@ define('TT_DATA_DIR',__DIR__.'/data');
 function tt_ensure_data_dir(){}
 function tt_require_login(){return ['username'=>getenv('QA_ACTOR'),'full_name'=>getenv('QA_ACTOR'),'role'=>getenv('QA_ROLE')?:'Super Admin','permissions'=>['Accounts'=>'all']];}
 function tt_user_can_open_module($u,$m){return true;}
+function tt_user_can_director_approve($u){return ($u['role']??'')==='Super Admin'||(($u['role']??'')==='Director'&&tt_user_can_open_module($u,'Directors'));}
 function tt_api_record_entity_allowed($u,$b,$e){return in_array($e,['TTI','BRM'],true)&&(!isset($b['entity'])||$b['entity']===$e);}
 function tt_verify_csrf($t){return $t==='fixture';}
 function tt_accounts_input(){return getenv('QA_PAYLOAD');}

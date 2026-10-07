@@ -19,6 +19,7 @@ $files = [
     'accounts-live.js',
     'accounts-enhancements.js',
     'accounts-navigation-ui.js',
+    'expense-editor-owner.js',
     'rent-salary-ui.js',
     'donations-ui.js',
     'expenses-v1-ui.js',

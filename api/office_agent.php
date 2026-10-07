@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__.'/export_permission_policy.php';
 require dirname(__DIR__) . '/auth_store.php';
 require dirname(__DIR__) . '/office_backup_auth.php';
 
@@ -90,11 +91,12 @@ function office_agent_enqueue_shipment(): never {
     $user = tt_current_user();
     if (!$user) office_agent_error(401, 'Your login session expired. Please sign in again.');
     if (tt_managed_qa_write_blocked($user)) office_agent_error(403, 'The production QA account is read-only.');
-    if (!tt_user_can_open_module($user, 'Exports') || !office_agent_can_export_write($user)) office_agent_error(403, 'Exports Create or Edit permission is required.');
+    if (!tt_user_can_open_module($user, 'Exports') || !(ep_can($user,'print','Create')||ep_can($user,'print','Edit'))) office_agent_error(403, 'Exports Create or Edit permission is required.');
     if (!tt_verify_csrf((string)($_POST['csrf'] ?? ''))) office_agent_error(419, 'Your session expired. Refresh and try again.');
 
     $manifest = json_decode((string)($_POST['manifest'] ?? ''), true);
     if (!is_array($manifest) || ($manifest['type'] ?? '') !== 'shipment_archive') office_agent_error(422, 'Invalid shipment archive package.');
+    ep_require_document_target($user,(string)($manifest['contract']??''),(string)($manifest['lot']??''),'custom-output','View');
     $files = $_FILES['files'] ?? null;
     if (!is_array($files) || !is_array($files['name'] ?? null)) office_agent_error(422, 'Shipment archive package has no files.');
     $count = count($files['name']);
@@ -217,7 +219,7 @@ try {
     if ($_SERVER['REQUEST_METHOD'] === 'GET' && $action === 'file') office_agent_file();
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'ack') office_agent_ack();
     office_agent_error(404, 'Unknown Office Agent action.');
-} catch (Throwable $error) {
+} catch (DomainException $error) {office_agent_error(403,$error->getMessage());} catch (Throwable $error) {
     error_log('Transtrade Office Agent API: ' . $error->getMessage());
     office_agent_error(500, 'Office Agent service is temporarily unavailable.');
 }

@@ -9,7 +9,7 @@ function o(array $d,int $s=200):never{http_response_code($s);echo json_encode($d
 function def():array{return ['revision'=>0,'journals'=>[],'bagPurchaseOrders'=>[],'nonWovenBagSupplierBills'=>[],'nonWovenBagSupplierPayments'=>[],'bankAccountSettings'=>[]];}
 function rd():array{tt_ensure_data_dir();if(!is_file(F))return def();$h=fopen(F,'r');if(!$h||!flock($h,LOCK_SH))throw new RuntimeException();try{$r=stream_get_contents($h);}finally{flock($h,LOCK_UN);fclose($h);} $v=$r?json_decode($r,true):null;return is_array($v)?array_replace_recursive(def(),$v):def();}
 function canw(array $u):bool{if(($u['role']??'')==='Super Admin')return true;$p=$u['permissions']['Accounts']??null;if($p==='all')return true;if(!is_array($p))return false;if(in_array('Create',$p,true)||in_array('Edit',$p,true)||in_array('Approve',$p,true))return true;foreach($p as $a)if(is_array($a)&&(in_array('Create',$a,true)||in_array('Edit',$a,true)||in_array('Approve',$a,true)))return true;return false;}
-function cana(array $u):bool{return ($u['role']??'')==='Super Admin'||stripos((string)($u['role']??''),'director')!==false;}
+function cana(array $u):bool{return tt_user_can_director_approve($u);}
 function ent(string $v):string{$v=strtoupper(trim($v));if(!in_array($v,['TTI','BRM'],true))o(['ok'=>false,'error'=>'Non-Woven bag bills are available for TTI or BRM books.'],422);return $v;}
 function dt(string $v,string $n='date'):string{if(!preg_match('/^\d{4}-\d{2}-\d{2}$/',$v))o(['ok'=>false,'error'=>'Valid '.$n.' required.'],422);return $v;}
 function nw(string $t):bool{$u=strtoupper(trim($t));return str_contains($u,'NON')&&str_contains($u,'WOVEN');}

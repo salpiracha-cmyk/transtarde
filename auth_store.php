@@ -858,8 +858,14 @@ function tt_resolve_api_entity(array $query,array $form,?array $body,array $poli
     return (string)(array_key_first($entities)??'');
 }
 
+/** Shared decision authority for legacy Director approval workflows. */
+function tt_user_can_director_approve(array $user): bool {
+    return ($user['role']??'')==='Super Admin'||(($user['role']??'')==='Director'&&tt_user_can_open_module($user,'Directors'));
+}
+
 /** Route ownership is server-defined; company grants never substitute for an icon. */
 function tt_api_write_grants(string $endpoint,array $body): ?array {
+    if($endpoint==='bank_direct_entries.php'&&strtoupper((string)($body['type']??''))==='SAVING_PROFIT')return [['Accounts','cashbank'],['Accounts','reconciliation']];
     $routes=[
         'rent_salary.php'=>'expenses','rent_salary_v2.php'=>'expenses','expenses_v1.php'=>'expenses','donations.php'=>'expenses',
         'sales_tax_refunds.php'=>'purchases','production_costing.php'=>'purchases','production_fixed_overhead.php'=>'purchases',
@@ -940,6 +946,7 @@ function tt_api_icon_write_allowed(array $user,string $endpoint,array $body): bo
 
 function tt_post_correction_allowed(array $user,array $journal): bool {
     $source=(string)($journal['meta']['originalSourceType']??$journal['sourceType']??'');
+    if($source==='BANK_RECON_DIRECT_ENTRY'&&($journal['meta']['bankDirectType']??'')==='SAVING_PROFIT')return tt_user_can_module_action($user,'Accounts','cashbank','Edit')||tt_user_can_module_action($user,'Accounts','reconciliation','Edit');
     $groups=[
         'expenses'=>['UTILITY_PAYMENT','EXPENSE_REIMBURSEMENT_CAPTURE','EXPENSE_REIMBURSEMENT_SETTLE','CREDIT_CARD_PAYMENT','CREDIT_CARD_STATEMENT','CREDIT_CARD_STATEMENT_AMENDMENT','EXPORT_EXPENSE_PAYMENT','GENERAL_EXPENSE_PAYMENT','DONATION_PAYMENT','RENT_MONTHLY_ACCRUAL','RENT_PAYMENT','SALARY_ADVANCE','SALARY_BATCH_PAYMENT','SALARY_MONTHLY_ACCRUAL','SALARY_PAYMENT','SALARY_MONTH_COMPLETED'],
         'purchases'=>['COMMODITY_RECEIPT_ACCEPTED','COMMODITY_BILL_VERIFIED','EX_MILL_PURCHASE_LIABILITY','EXPORT_BAG_SUPPLIER_BILL','NON_WOVEN_BAG_SUPPLIER_BILL','OTHER_PURCHASE','FIXED_ASSET_PURCHASE','PRODUCTION_INVENTORY_TRANSFER','AUTO_PRODUCTION_COST','ACCOUNTS_BYPRODUCT_VALUATION','SALES_TAX_REFUND_RECEIPT'],

@@ -352,6 +352,7 @@
   }
 
   function reviewAttention(row) {
+    if(row.kind==='REMINDER')return launch({native:'expenses',then:'[data-expense="'+row.target.expense+'"]'});
     if(row.kind==='REMITTANCE')return window.TT_TG_REMITTANCES.open(row.target.remittanceId);
     const company=entity(),host=layer('ttReviewLayer','Review · '+row.type),body=q('.tt-window-body',host);
     body.innerHTML=`<div class="tt-form"><h3>${esc(row.reference||row.type)}</h3><p>${esc(row.message)}</p><p>Discard removes this review from the list. Approve opens the approval or correction form.</p><p id="ttReviewError"></p><button class="btn" id="ttReviewDiscard">Discard</button> <button class="btn green" id="ttReviewApprove">Approve</button></div>`;
