@@ -78,7 +78,7 @@ require $argv[1];
     status,report=request('donations','?entity=TTI');assert status==200 and report['totals']['SADQA']==75
     bank={**body,'requestKey':'direct-cheque-0001','reference':'BANK-1','paymentAccountId':'BANK-1','bankPaymentMethod':'CHEQUE','chequeNo':'CH-123','chequeDate':body['paymentDate']}
     status,result=request('expenses_v1','?entity=TTI',bank);assert status==200,(status,result)
-    bank_id=result['result']['generalExpenseId'];before=books.read_bytes()
+    bank_id=result['result']['generalExpenseId'];assert next(x for x in result['generalExpenses'] if x['id']==bank_id)['chequeNo']=='CH-123';before=books.read_bytes()
     assert request('expenses_v1','?entity=TTI',{**bank,'requestKey':'direct-cheque-0002','reference':'BANK-2'})[0]==422
     assert books.read_bytes()==before,'a duplicate cheque must not post'
     corrected={**bank,'action':'amend_expense','id':bank_id,'reason':'Correct cheque expense','requestKey':'direct-bank-amend-1'}
