@@ -870,12 +870,14 @@ function tt_api_write_grants(string $endpoint,array $body): ?array {
         'tg_year_end_revaluation.php'=>'cashbank','export_bank_shortfall.php'=>'cashbank',
         'bag_supplier_payments.php'=>'supplier','other_supplier_settlements.php'=>'supplier','supplier_settlements.php'=>'supplier',
         'payables_planning.php'=>'supplier','tg_liabilities.php'=>'supplier','local_customer_receipts.php'=>'customer',
-        'export_tax_certificates.php'=>'reports','export_costing.php'=>'customer','local_sales_costing.php'=>'customer',
+        'export_tax_certificates.php'=>'reports',
         'bank_accounts.php'=>'masters','bag_bill_file.php'=>'purchases',
         'tg_remittances.php'=>'tg','brokerage_transactions.php'=>'supplier',
     ];
     if(isset($routes[$endpoint]))return [['Accounts',$routes[$endpoint]]];
     $action=(string)($body['action']??'');
+    if(in_array($endpoint,['export_costing.php','local_sales_costing.php'],true))return $action==='post_waiting'
+        ?[['Accounts','customer'],['Accounts','purchases']]:[['Accounts','customer']];
     if($endpoint==='export_receipts.php'||$endpoint==='accounts_receipt_file.php')return [['Accounts','customer'],['Accounts','cashbank']];
     if($endpoint==='brokerage_master.php')return [['Accounts','supplier'],['Directors','brokerage']];
     if($endpoint==='accounts_workflows_v1.php'){

@@ -81,6 +81,13 @@ require $argv[1];
     seed(initial);status,data=request('local_sales_costing',{'action':'post_waiting'})
     assert status==200,data
     after=json.loads(books.read_text());assert not after['journals'] and not after['localSalesCandidates']['BRM-S'].get('costJournalId'),data
+    # A purchase bill can explicitly post waiting derived stock costs without
+    # granting access to change the Customer workspace's cost-rate form.
+    customer_grant=user['permissions']['Accounts'].pop('customer')
+    seed(initial);status,data=request('local_sales_costing',{'action':'post_waiting'})
+    assert status==200,data
+    assert request('local_sales_costing',{'action':'save_rate','entity':'TTI'})[0]==403
+    user['permissions']['Accounts']['customer']=customer_grant
     # Legitimate same-company certificate and customer-review saves still work.
     seed();status,data=request('export_tax_certificates',{'entity':'TTI','action':'save_certificate','financialYear':'2026-27','bankName':'Bank','certificateNo':'CERT','taxCode':'EXP-AWT-NTR','certificateDate':'2026-10-07','certificateAmount':100})
     assert status==200,data
