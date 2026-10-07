@@ -28,6 +28,7 @@ function tt_read_store(): array {
 }
 
 function tt_mutate_store(callable $callback): mixed {
+    $GLOBALS['qa_profile_mutations']=($GLOBALS['qa_profile_mutations']??0)+1;
     return $callback($GLOBALS['qa_profile_store']);
 }
 
@@ -54,6 +55,10 @@ qa_assert($user['system_qa']===true && $user['test_data_only']===true,'QA identi
 qa_assert(($GLOBALS['qa_profile_store']['settings']['qa_account_profile_version'] ?? null)===3,'existing QA profile migration remains recorded');
 qa_assert(!isset($GLOBALS['qa_profile_store']['settings']['qa_account_provisioning_required']),'existing QA account clears any stale provisioning marker');
 qa_assert(str_contains((string)($GLOBALS['qa_profile_store']['audit'][0]['action'] ?? ''),'Restored operational QA account profile'),'profile repair is audited');
+
+$before=$GLOBALS['qa_profile_mutations'];
+tt_ensure_qa_account();
+qa_assert($GLOBALS['qa_profile_mutations']===$before,'unchanged QA profile does not rewrite the store on login');
 
 // A later ordinary profile drift must self-heal without changing the password.
 $GLOBALS['qa_profile_store']['users'][0]['role']='Director';

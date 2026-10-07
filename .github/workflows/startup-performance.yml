@@ -1,0 +1,38 @@
+name: Read-only startup performance
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/startup-performance.yml']
+  workflow_run:
+    workflows: ['Deploy Production']
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: transtrade-startup-profile
+  cancel-in-progress: false
+jobs:
+  profile:
+    if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: live-qa
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install pinned browser test runtime
+        run: |
+          npm install --no-save @playwright/test@1.63.0
+          npx playwright install --with-deps chromium
+      - name: Measure read-only startup and approved palette
+        env:
+          TRANSTRADE_QA_USERNAME: ${{ secrets.TRANSTRADE_QA_USERNAME }}
+          TRANSTRADE_QA_PASSWORD: ${{ secrets.TRANSTRADE_QA_PASSWORD }}
+        run: node scripts/profile-startup.cjs
+

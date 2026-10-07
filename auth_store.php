@@ -202,6 +202,7 @@ function tt_write_store_atomic(array $data): void {
         if(function_exists('fsync')&&!fsync($handle))throw new RuntimeException('Secure storage could not be synchronized.');
         fclose($handle);$handle=null;
         if(!rename($temp,TT_STORE_FILE))throw new RuntimeException('Secure storage could not be committed.');
+        $GLOBALS['ttAuthStoreGeneration']=($GLOBALS['ttAuthStoreGeneration']??0)+1;
         @chmod(TT_STORE_FILE,0600);
     }finally{
         if(is_resource($handle))fclose($handle);
@@ -287,14 +288,24 @@ function tt_auth_clear_failures(string $scope,string $identity,bool $bindIp=true
 }
 
 function tt_read_store(): array {
+    static $cachedFingerprint=null, $cachedData=null;
     tt_ensure_data_dir();
     $started=hrtime(true);
     $lock=tt_open_store_lock(LOCK_SH);
     $GLOBALS['ttRequestTiming']['store_wait']+=(hrtime(true)-$started)/1e6;
-    $GLOBALS['ttRequestTiming']['store_reads']++;
     $started=hrtime(true);
     try {
+        clearstatcache(true,TT_STORE_FILE);
         if(!is_file(TT_STORE_FILE))return tt_empty_store();
+        // This cache lives only within this PHP request. Keep the shared lock
+        // and recheck the file identity on every call: atomic writes/restores
+        // replace the inode, including same-size writes within one second.
+        clearstatcache(true,TT_STORE_FILE);
+        $stat=stat(TT_STORE_FILE);
+        $fingerprint=$stat!==false && (int)$stat['ino']>0
+            ? [$stat['dev'],$stat['ino'],$stat['size'],$stat['mtime'],$stat['ctime'],$GLOBALS['ttAuthStoreGeneration']??0] : null;
+        if($fingerprint!==null && $fingerprint===$cachedFingerprint && $cachedData!==null)return $cachedData;
+        $GLOBALS['ttRequestTiming']['store_reads']++;
         $handle=fopen(TT_STORE_FILE,'rb');
         if($handle===false)throw new RuntimeException('Secure storage is unavailable.');
         try{$raw=stream_get_contents($handle);}finally{fclose($handle);}
@@ -304,7 +315,12 @@ function tt_read_store(): array {
         $GLOBALS['ttRequestTiming']['store_read']+=(hrtime(true)-$started)/1e6;
     }
     $started=hrtime(true);
-    try { return tt_decode_store($raw); }
+    try {
+        $data=tt_decode_store($raw);
+        $cachedFingerprint=$fingerprint;
+        $cachedData=$data;
+        return $data;
+    }
     finally { $GLOBALS['ttRequestTiming']['store_decode']+=(hrtime(true)-$started)/1e6; }
 }
 

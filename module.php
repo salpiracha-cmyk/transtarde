@@ -218,8 +218,9 @@ new MutationObserver(apply).observe(document.body,{childList:true,subtree:true})
 </script>
 HTML;
 
-$brandHead = '<link rel="stylesheet" href="/brand-theme.css?v=20261006-number-entry-1">';
-if ($id === 'exports') $brandHead .= '<link rel="stylesheet" href="/export-assets.php?name=release-theme.css">';
+$brandHead = $id === 'exports' ? '<link rel="stylesheet" href="/export-assets.php?name=release-theme.css">' : '';
+// Layout polish loads first; the owner-approved palette remains authoritative.
+$brandHead .= '<link rel="stylesheet" href="/brand-theme.css?v=20261006-number-entry-1">';
 $headPos = stripos($html, '</head>');
 if ($headPos !== false) $html = substr_replace($html, $brandHead.$bootstrap.$sharedBootstrap, $headPos, 0);
 $accountsSourceBridge = '<script src="accounts/source-bridge.js?v=20260924-explicit-actions-1"></script><script src="accounts/loading-programme-sync.js?v=20260924-explicit-actions-1"></script><script src="accounts/bag-control-bridge.js?v=20260924-explicit-actions-1"></script>';

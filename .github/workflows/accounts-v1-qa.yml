@@ -57,6 +57,7 @@ jobs:
           python3 tests/accounts-v1/tg_remittance_http_test.py
           php tests/accounts-v1/accounts_reset_scope_test.php
           php tests/accounts-v1/qa_account_profile_test.php
+          php tests/accounts-v1/request_store_read_cache_test.php
           php tests/security/qa_account_read_only_test.php
           node tests/accounts-v1/director_approvals_ui_test.js
           node tests/accounts-v1/director_bank_approval_ui_test.js
@@ -163,4 +164,5 @@ jobs:
           name: inventory-reconciliation-${{ github.run_id }}
           path: ${{ runner.temp }}/inventory-evidence/
           retention-days: 14
+
 

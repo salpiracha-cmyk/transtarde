@@ -61,6 +61,7 @@ function tt_ensure_qa_account(): void {
         // Never adopt an unrelated manually-created account merely because it
         // happens to use the reserved username.
         if (!tt_is_managed_qa_account($existing)) {
+            if (!empty($settings['qa_account_seeded']) && !empty($settings['qa_account_seeded_at'])) return;
             tt_mutate_store(function (&$data): void {
                 if (!isset($data['settings']) || !is_array($data['settings'])) $data['settings']=[];
                 $data['settings']['qa_account_seeded']=true;
@@ -68,6 +69,15 @@ function tt_ensure_qa_account(): void {
             });
             return;
         }
+
+        // A normal login-page read must not take an exclusive business-store
+        // lock, rewrite auth.json or trigger a backup for an unchanged profile.
+        $expected=$existing;
+        $profileChanged=tt_apply_qa_account_profile($expected);
+        if (!$profileChanged && !empty($settings['qa_account_seeded'])
+            && !empty($settings['qa_account_seeded_at'])
+            && ($settings['qa_account_profile_version'] ?? null)===3
+            && !array_key_exists('qa_account_provisioning_required',$settings)) return;
 
         tt_mutate_store(function (&$data): void {
             $changed=false;
