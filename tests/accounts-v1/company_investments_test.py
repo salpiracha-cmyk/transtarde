@@ -41,7 +41,7 @@ with tempfile.TemporaryDirectory(prefix='company-investments-') as tmp:
   args={'action':'post','date':'2026-10-07','reference':'BANK-TRANSFER-1','type':'FUND_ROUTE','routeId':rid,'amount':1000,'remuneration':200,'remunerationTreatment':'NEW_EXPENSE','paymentAccountId':'BANK-1','bankPaymentMethod':'ONLINE_BANKING'}
   transfer,body=good(**args);before=books.read_bytes();status,retry=req(body);assert status==200 and retry['result']==transfer and books.read_bytes()==before
   assert req({**body,'amount':999})[0]==409 and books.read_bytes()==before
-  j=transfer['voucher'];assert [(l['account'],l['debit'],l['credit']) for l in j['lines']]==[('1440',1000,0),('6210',200,0),('1110',0,1200)]
+  j=transfer['voucher'];assert 'SALMAN' in j['narration'];assert [(l['account'],l['debit'],l['credit']) for l in j['lines']]==[('1440',1000,0),('6210',200,0),('1110',0,1200)]
   assert post(**args)[0]==422
   assert req({**body,'requestKey':'stale-test-key','revision':0})[0]==409
   assert req(query='&role=readonly')[0]==200
