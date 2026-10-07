@@ -299,7 +299,17 @@ test('authenticated Accounts live smoke: professional desk and popup workflows',
   await expect(page.locator('#ttUniversalSearch')).toBeVisible();
   await activate(page.locator('#ttSearchLayer .tt-window-close'));
 
-  await deskAction(page, 'routine', 'Utilities');
+  await deskAction(page, 'routine', 'Pay Expense');
+  await expect(page.locator('#dexPayee')).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('#dexPerson')).toHaveCount(0);
+  await expect(page.locator('#ttExpenseDesk [data-post]')).toBeDisabled();
+  await activate(page.locator('#ttExpenseDesk [data-add]'));
+  await expect(page.locator('#ttExpenseDesk .dex-row')).toHaveCount(2);
+  await activate(page.locator('#ttExpenseDesk [data-close]'));
+  await expect(page.locator('#ttPaymentPlanningTop')).toHaveCount(0);
+  await deskAction(page, 'routine', 'Bills & Credit Cards');
+  await expect(page.locator('#ttExpenseDesk [data-card]')).toBeVisible();
+  await activate(page.locator('#ttExpenseDesk [data-utility]'));
   await expect(page.locator('#expenseEditor .tt-search-select input').first()).toBeVisible({ timeout: 30_000 });
   await expect(page.locator('#ttUtilityTreatment')).toBeVisible();
   await expect(page.locator('#ttUtilityTreatment')).toContainText(/Debit.*Credit.*Balanced|Complete form/s);
