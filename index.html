@@ -287,7 +287,7 @@
         <label>Account type<select id="bankDepositType" required><option value="">Select account type</option><option value="CURRENT">Current</option><option value="SAVING">Saving</option></select></label>
         <label class="bank-check"><input id="bankDefault" type="checkbox"> Default for receipts and payments in this currency</label>
         <label class="bank-check bank-retention-check"><input id="bankRetention" type="checkbox"> Retention account</label>
-        <p id="bankRetentionHelp" hidden>Retention applies to foreign-currency company accounts in TTI or BRM. PKR accounts remain available for normal receipts, payments and opening balances.</p>
+        <p id="bankRetentionHelp" hidden>Tick to create a separate USD retention account. Your PKR bank remains available for normal entries.</p>
         <div id="bankDeleteConfirm" class="bank-delete-confirm" hidden><strong>Delete this bank account?</strong><p>Existing postings and their historical account identity will remain.</p><label id="bankReplacementWrap" hidden>Replacement default for this currency<select id="bankReplacement"></select></label><button class="button danger" id="bankConfirmDelete" type="button">Confirm delete</button></div>
       </div>
       <p id="bankSaveError" role="alert" hidden style="color:#b42318;margin:12px 24px;font-weight:700"></p>
@@ -296,7 +296,7 @@
   </dialog>
 
   <div class="toast-region" id="toastRegion" aria-live="polite"></div>
-<script src="admin/app.js?v=20261007-bank-save-errors-1"></script>
+<script src="admin/app.js?v=20261007-linked-usd-retention-1"></script>
 <script src="brand-theme.js?v=20261006-number-entry-1"></script>
 </body>
 </html>

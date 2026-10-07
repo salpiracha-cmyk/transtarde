@@ -68,6 +68,7 @@ function tt_audit($id,$username,$message){}
 function tt_bank_is_operational_account_type($type){return in_array($type,['Company Account','Proprietor / Owner Account'],true);}
 function tt_company_bank_legacy_rows($companies){$out=[];foreach($companies as $company){foreach(json_decode($company['values'][13],true) as $bank){$out[]=['id'=>$bank['id'],'values'=>['Company Account','','','',$bank['bankName'],'','',$bank['currency']]];}}return $out;}
 function tt_master_json_array($value){return json_decode($value,true);}
+function tt_company_retention_banks($banks,$values,$previous=[]){return $banks;}
 """)
     (root / "api/salary_master_store.php").write_text("<?php function sm_master_rows(){return [];}\n")
 

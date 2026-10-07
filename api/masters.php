@@ -320,7 +320,10 @@ try {
             if(($regType==='' xor $regNumber===''))throw new InvalidArgumentException('Each company registration requires both a type and number.');
             $expiry=(string)($registration['expiryDate']??'');if($expiry!==''&&!preg_match('/^\d{4}-\d{2}-\d{2}$/',$expiry))throw new InvalidArgumentException('Registration expiry dates must be valid dates.');
         }
-        $banks=json_decode((string)$values[13],true)?:[];if($offshore){foreach($banks as &$offshoreBank)if(is_array($offshoreBank))$offshoreBank['retentionAccount']=false;unset($offshoreBank);$values[13]=json_encode($banks,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);}$currencies=[];$seenBankIds=[];$bankDefaults=[];
+        $previousBanks=$action==='update'?tt_master_json_array(master_find_row('companies',$id)['values'][13]??'[]'):[];
+        $banks=tt_company_retention_banks(json_decode((string)$values[13],true)?:[],$values,$previousBanks);
+        $values[13]=json_encode($banks,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
+        if($offshore){foreach($banks as &$offshoreBank)if(is_array($offshoreBank))$offshoreBank['retentionAccount']=false;unset($offshoreBank);$values[13]=json_encode($banks,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);}$currencies=[];$seenBankIds=[];$bankDefaults=[];
         foreach($banks as $bank)if(is_array($bank)){
             $bankId=trim((string)($bank['id']??''));if($bankId==='')throw new InvalidArgumentException('Every saved bank account requires a stable account ID. Reopen the company and try again.');
             if(isset($seenBankIds[$bankId]))throw new InvalidArgumentException('The same bank account appears more than once.');$seenBankIds[$bankId]=true;

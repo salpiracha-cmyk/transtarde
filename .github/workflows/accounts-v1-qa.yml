@@ -41,6 +41,7 @@ jobs:
           node tests/accounts-v1/payment_defaults_ui_test.js
           python3 tests/accounts-v1/payment_defaults_http_test.py
           python3 tests/accounts-v1/company_bank_defaults_http_test.py
+          python3 tests/accounts-v1/linked_retention_bank_test.py
           php tests/accounts-v1/finish_options_test.php
           php tests/accounts-v1/post_id_migration_test.php
           python3 tests/accounts-v1/salary_month_http_test.py
