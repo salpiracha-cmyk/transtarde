@@ -123,5 +123,7 @@ function bindCard(){q('#evAddCard').onclick=()=>{editingCard='';cardFormOpen=tru
 
 async function open(next){window.TT_EXPENSE_EDITOR?.claim(next);mode=next;const ed=q('#expenseEditor');if(ed)ed.innerHTML='<div class="tte-box" role="status">Loading…</div>';utilityFormOpen=cardFormOpen=statementFormOpen=false;editingUtilityPayment='';editingUtility='';editingCard='';editingStatement='';settlingReimbursement='';allocationSeed=[];month=thisMonth();await refresh()}
 function install(){style();const utility=q('[data-expense="utility"]'),card=q('[data-expense="card"]'),reimburse=q('[data-expense="reimburse"]'),general=q('[data-expense="general"]');document.addEventListener('click',event=>{const icon=event.target.closest?.('[data-expense="utility"],[data-expense="card"],[data-expense="reimburse"],[data-expense="general"]');if(!icon)return;event.preventDefault();event.stopImmediatePropagation();void open(icon.dataset.expense)},true);qa('.entityBtn').forEach(b=>b.addEventListener('click',()=>{mode=''}))}
+window.TT_EXPENSES_V1={open};
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',install);else install();
 })();
+

@@ -26,6 +26,7 @@ function ev1_delete_expense(array &$store,array $body,string $entity,array $user
     if(!in_array($collection,['utilityPayments','generalExpenses','reimbursements','creditCardStatements','donations'],true))throw new InvalidArgumentException('Select a supported expense record.');
     $record=$store[$collection][$id]??null;
     if(!is_array($record)||($record['entity']??'')!==$entity)throw new DomainException('Expense not found in this company.');
+    if(($record['status']??'')==='Amended')throw new DomainException('Open the replacement expense to delete the current payment.');
     if(($record['status']??'')==='Deleted')return ['id'=>$id,'status'=>'Deleted','duplicate'=>true];
     $ids=[$record['journalId']??null,$record['captureJournalId']??null,$record['statementJournalId']??null];
     $ids=array_merge($ids,(array)($record['postingJournalIds']??[]));foreach((array)($record['settlements']??[]) as $payment)$ids[]=$payment['journalId']??null;
@@ -34,3 +35,4 @@ function ev1_delete_expense(array &$store,array $body,string $entity,array $user
     $store['expenseAudit'][]=['at'=>gmdate('c'),'action'=>'DELETE','collection'=>$collection,'id'=>$id,'entity'=>$entity,'by'=>$user['username']??'','reason'=>$reason,'before'=>$record,'reversalJournalIds'=>$reversals];
     return ['id'=>$id,'status'=>'Deleted','reversalJournalIds'=>$reversals];
 }
+

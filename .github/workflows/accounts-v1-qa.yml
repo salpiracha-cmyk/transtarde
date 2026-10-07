@@ -27,6 +27,7 @@ jobs:
           node tests/accounts-v1/rules_engine_test.js
           node tests/accounts-v1/salary_donations_test.js
           node tests/accounts-v1/expenses_v1_test.js
+          python3 tests/accounts-v1/direct_expense_http_test.py
           python3 tests/accounts-v1/recurring_bills_profit_test.py
           python3 tests/accounts-v1/payment_plans_test.py
           node tests/accounts-v1/reimbursements_general_expenses_test.js
@@ -172,3 +173,4 @@ jobs:
           name: inventory-reconciliation-${{ github.run_id }}
           path: ${{ runner.temp }}/inventory-evidence/
           retention-days: 14
+

@@ -43,12 +43,12 @@
     const roleFields=kind==='party'&&(canEdit||!row)?'<fieldset><legend>Party categories</legend>'+partyRoles.map(role=>'<label style="display:block"><input type="checkbox" name="partyRole" value="'+role+'" '+(chosenRoles.includes(role.toLowerCase())?'checked':'')+'> '+role+'</label>').join('')+'</fieldset>':'';
     dialog.replaceChildren();
     const form = document.createElement('form'); form.method = 'dialog';
-    form.innerHTML = `<h3>${row ? 'Edit' : 'Add'} ${label}</h3><p>Saved in Super Admin ${type === 'export_customers' ? 'Export Customers' : 'Business Parties'}.</p>${row&&!canEdit?'<p>Changes to this name require Master Edit permission.</p>':`<label>Name<input name="partyName" required maxlength="180"></label>${type === 'export_customers' ? '<label>Document address<textarea name="address" required rows="3"></textarea></label>' : ''}`}${typeFields}${roleFields}<p class="tt-party-editor-error" role="alert"></p><div style="display:flex;justify-content:flex-end;gap:8px">${row?'<button type="button" data-request-removal>Request removal</button>':''}<button type="button" data-cancel>Cancel</button>${row&&!canEdit?'':'<button type="submit">Save</button>'}</div>`;
+    form.innerHTML = `<h3>${row ? 'Edit' : 'Add'} ${label}</h3><p>Saved in Super Admin ${type === 'export_customers' ? 'Export Customers' : 'Business Parties'}.</p>${row&&!canEdit?'<p>Changes to this name require Master Edit permission.</p>':`<label>Name<input name="partyName" required maxlength="180"></label>${type === 'export_customers' ? '<label>Document address<textarea name="address" required rows="3"></textarea></label>' : ''}`}${typeFields}${roleFields}<p class="tt-party-editor-error" role="alert"></p><div style="display:flex;justify-content:flex-end;gap:8px">${row?((access.super||(access.masterPermissions?.[type]||[]).includes('Deactivate'))?'<button type="button" data-delete>Delete</button>':'<button type="button" data-request-removal>Request removal</button>'):''}<button type="button" data-cancel>Cancel</button>${row&&!canEdit?'':'<button type="submit">Save</button>'}</div>`;
     if(form.elements.newPartyType)form.elements.newPartyType.onchange=()=>{if(form.elements.newPartyType.value==='buyer'){input.value=clean(form.elements.partyName.value);openEditor(input,'buyer')}};
     if (form.elements.partyName) form.elements.partyName.value = values[0] || name;
     if (form.elements.address) form.elements.address.value = values[3] || '';
     form.querySelector('[data-cancel]').onclick = () => dialog.close();
-    if(row)form.querySelector('[data-request-removal]').onclick = async () => {
+    if(row&&form.querySelector('[data-request-removal]'))form.querySelector('[data-request-removal]').onclick = async () => {
       const reason=prompt('Why should Super Admin remove this name from future selections?');
       if(reason===null)return;
       try {
@@ -56,6 +56,11 @@
         const result=await response.json();if(!response.ok||!result.ok)throw new Error(result.error||'Could not request removal.');
         dialog.close();alert('Deletion request sent to Super Admin. The name remains active until approved.');
       }catch(error){form.querySelector('.tt-party-editor-error').textContent=error.message||String(error);}
+    };
+    const remove=form.querySelector('[data-delete]');
+    if(remove)remove.onclick=async()=>{
+      const reason=prompt('Reason for removing this recipient from future selections? Past postings will remain.');if(reason===null)return;remove.disabled=true;
+      try{const response=await fetch('../api/masters.php',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({action:'delete',type,id:row.id,reason,csrf:access.csrf})});const result=await response.json();if(!response.ok||!result.ok)throw Error(result.error||'Could not delete recipient.');window.TT_ACCOUNTS_MASTER_CHOICES.refresh(result.masters);input.value='';input.dispatchEvent(new Event('change',{bubbles:true}));dialog.close();}catch(e){form.querySelector('.tt-party-editor-error').textContent=e.message;remove.disabled=false;}
     };
     form.onsubmit = async event => {
       event.preventDefault();
@@ -118,10 +123,10 @@
       if (input.getAttribute('list') !== listId) input.setAttribute('list',listId);
       if (input.getAttribute('autocomplete') !== 'off') input.setAttribute('autocomplete','off');
       const type = name === 'buyer' ? 'export_customers' : 'business_parties';
-      if ((name === 'buyer' || roleFor(name)) && !input.dataset.ttMasterManage && !input.closest('#ttPartyInlineEditor')) {
+      if ((name === 'buyer' || name === 'parties' || roleFor(name)) && !input.dataset.ttMasterManage && !input.closest('#ttPartyInlineEditor')) {
         const button = document.createElement('button'); button.type = 'button'; button.className = 'btn tt-master-inline'; button.textContent = 'Add / Edit';
         button.title = `Manage ${name} in Super Admin masters`; button.style.cssText = 'margin:0;padding:5px 8px;font-size:13px;white-space:nowrap';
-        button.onclick = event => { event.preventDefault(); openEditor(input,category(input)); };
+        button.onclick = event => { event.preventDefault(); const name=category(input);const kind=name==='parties'?((masters.business_parties||[]).some(r=>clean(r.values?.[0]).toLowerCase()===clean(input.value).toLowerCase())?'party':(masters.export_customers||[]).some(r=>clean(r.values?.[0]).toLowerCase()===clean(input.value).toLowerCase())?'buyer':'party'):name;openEditor(input,kind); };
         const entry=document.createElement('span');entry.className='tt-master-entry';input.before(entry);entry.append(input,button);input.dataset.ttMasterManage = '1';
       }
     });
@@ -138,3 +143,4 @@
   };
   document.readyState === 'loading' ? document.addEventListener('DOMContentLoaded',start,{once:true}) : start();
 })();
+

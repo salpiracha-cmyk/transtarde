@@ -807,6 +807,14 @@
       "level": "general",
       "normal": "Debit",
       "subledger": true
+    },
+    {
+      "code": "6230",
+      "name": "Medical Expenses — Company / Staff",
+      "level": "general",
+      "class": "Expense",
+      "normal": "Debit",
+      "subledger": false
     }
   ],
   "peopleSubledgers": [
@@ -865,6 +873,13 @@
       "parent": "2150",
       "class": "Liability",
       "normal": "Credit"
+    },
+    {
+      "code": "FAM-HOUSEHOLD",
+      "name": "Household Expenses",
+      "parent": "3200",
+      "class": "Equity",
+      "normal": "Debit"
     }
   ],
   "commodities": [

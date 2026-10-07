@@ -102,3 +102,13 @@ Every request requiring Director approval must also appear in the Super Admin Co
 - On a Pakistan TTI or BRM company PKR bank, keep the Retention account tick visible. Saving it creates one separate linked USD ledger named `<Bank name> Retention Account` (for example, `Meezan Bank Retention Account`). Keep the original PKR account, defaults and historical balances unchanged.
 - The linked USD ledger appears in Accounts for retention receipts, payments and opening balances without requiring another account number or IBAN. Never copy the parent PKR account number into a fabricated foreign account. Validate its parent/company linkage on the server; ordinary incomplete banks remain unavailable.
 - Repeated saves reuse the same linked ledger ID. Unticking removes its retention designation without deleting the account or its history; reticking reuses it. Existing separately entered physical foreign-currency retention accounts retain their identities.
+
+
+## Accounts expense entry and navigation
+
+- The Expenses area has Pay Expense, Bills & Credit Cards (Utilities / Credit Cards), and Salaries & Staff. Pay Expense accepts any recipient, including household expenses without an individual director assignment.
+- A single payment may contain multiple categorized expense rows. Debit the applicable subsidiary accounts and credit the selected bank/cash once for the total. Post & Print Voucher is explicit; this form has no Pay Later or autosave.
+- Corrections reverse and replace the original payment with its expense breakdown retained; deletions reverse postings and retain audit history. Retry keys prevent duplicate postings.
+- Open the modern expense renderer directly, and show the finished form after loading; do not simulate old workspace and child-button clicks.
+- Supplier/Broker Payment is available in Local Purchases and the second Home summary box. Do not add a separate top Home shortcut. Unfinished prepared payment plans remain at the bottom.
+- After explicit posting, refresh summaries without replacing another active entry form. Shared transaction changes appear on intentional reopen/refresh.

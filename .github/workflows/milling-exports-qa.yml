@@ -117,6 +117,7 @@ jobs:
           node tests/accounts-v1/dependent_fields_test.js
           node tests/accounts-v1/form_viewport_browser_test.js
           node tests/accounts-v1/expense_forms_browser_test.js
+          node tests/accounts-v1/direct_expense_browser_test.js
           node tests/accounts-v1/payment_plans_browser_test.js
           node tests/accounts-v1/bank_save_browser_qa.js
           node tests/accounts-v1/today_ui_browser_qa.js
@@ -208,4 +209,5 @@ jobs:
           php -l scripts/cleanup_qa_data.php
       - name: Runtime delivery and authentication audit
         run: node tests/runtime_security_static_audit.js
+
 

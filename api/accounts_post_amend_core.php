@@ -5,6 +5,7 @@ require_once __DIR__.'/accounts_bank_payment.php';
 /** Journal-level correction shared by every Accounts posting source. Caller holds the accounts.json lock. */
 function apa_correct(array &$store, array $user, string $postId, array $input): array {
     $original=$store['journals'][$postId]??null;
+    if(!empty($original['meta']['directExpense']))throw new DomainException('Correct this expense in Pay Expense so its item breakdown and voucher stay linked.');
     if(!empty($original['meta']['planId']))throw new DomainException('Correct this payment through its Payment Plan so truck allocations and plan progress stay linked.');
     if(in_array($original['sourceType']??'', ['OPENING_BALANCE_BF','OPENING_BALANCE_REVERSAL'],true)||!empty($original['meta']['openingBalance']))throw new DomainException('Correct opening balances through the management JV opening-balance form.');
     if(!is_array($original)||($original['status']??'')!=='Posted')throw new DomainException('Posted entry was not found.');
@@ -98,3 +99,4 @@ function apa_correct(array &$store, array $user, string $postId, array $input): 
     $store['postAmendments'][]=['originalPostId'=>$postId,'reversalPostId'=>$reverseId,'replacementPostId'=>$replacementId,'reason'=>$reason,'date'=>$date,'actor'=>$actor,'at'=>$now,'entity'=>$entity];
     return ['originalPostId'=>$postId,'reversalPostId'=>$reverseId,'replacementPostId'=>$replacementId,'entity'=>$entity];
 }
+
