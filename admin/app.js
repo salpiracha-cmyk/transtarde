@@ -1211,6 +1211,7 @@
     const banks=draft?JSON.parse(document.getElementById(masterInputId(13)).value||'[]'):companyBanks(company);
     const bank=banks.find(item=>item.id===bankId)||{};
     const form=document.getElementById("bankForm");form.reset();
+    showBankSaveError("");
     document.getElementById("bankEditId").value=bankId;
     document.getElementById("bankDialogTitle").textContent=bankId?"Edit bank account":"Add bank account";
     const set=(id,value)=>{document.getElementById(id).value=value||""};
@@ -1223,7 +1224,8 @@
     document.getElementById("bankDefault").checked=!!bank.isDefault;
     const pakistanCompany=String(company?.values?.[2]||document.getElementById(masterInputId(2))?.value||'').toLowerCase()==='pakistan'||String(company?.values?.[3]||document.getElementById(masterInputId(3))?.value||'').toLowerCase()==='pakistan';
     document.getElementById("bankRetention").checked=pakistanCompany&&!!bank.retentionAccount;
-    document.getElementById("bankRetention").closest("label").dataset.offshoreHidden=pakistanCompany?'':'1';
+    const companyCode=String(company?.values?.[1]||document.getElementById(masterInputId(1))?.value||"").trim().toUpperCase();
+    document.getElementById("bankRetention").dataset.companyEligible=pakistanCompany&&["TTI","BRM"].includes(companyCode)?"1":"0";
     document.getElementById("bankDelete").hidden=!bankId||!IS_SUPER_ADMIN||bank.status==="Inactive";
     document.getElementById("bankDeleteConfirm").hidden=true;
     syncBankDialogOwnership();
@@ -1233,8 +1235,10 @@
   function syncBankDialogOwnership() {
     const ownership=document.querySelector('input[name="bankOwnership"]:checked')?.value;
     const retention=document.getElementById("bankRetention");
-    retention.disabled=ownership!=="Company Account";
-    retention.closest("label").hidden=retention.disabled||retention.closest("label").dataset.offshoreHidden==='1';
+    const currency=document.getElementById("bankCurrency").value.toUpperCase();
+    retention.disabled=ownership!=="Company Account"||currency==="PKR"||retention.dataset.companyEligible!=="1";
+    retention.closest("label").hidden=retention.disabled;
+    document.getElementById("bankRetentionHelp").hidden=!retention.disabled;
     if(retention.disabled)retention.checked=false;
   }
   function eligibleDefaultBank(bank) {
@@ -1242,13 +1246,21 @@
       &&["Company Account","Proprietor / Owner Account","Personal Account"].includes(bank.accountType||"Company Account")
       &&!!String(bank.accountNumber||bank.iban||"").trim();
   }
+  function showBankSaveError(message) {
+    const error=document.getElementById("bankSaveError");
+    error.textContent=message;error.hidden=!message;
+  }
   async function saveBankDialog(event) {
     event.preventDefault();
+    const button=document.getElementById("bankSave");
+    if(button.disabled)return;
+    showBankSaveError("");
+    syncBankDialogOwnership();
     if(!event.currentTarget.reportValidity())return;
     const ownership=document.querySelector('input[name="bankOwnership"]:checked')?.value||"Company Account";
-    if(!document.getElementById("bankNumber").value.trim()&&!document.getElementById("bankIban").value.trim()){toast("Enter an account number or IBAN.");document.getElementById("bankNumber").focus();return;}
+    if(!document.getElementById("bankNumber").value.trim()&&!document.getElementById("bankIban").value.trim()){showBankSaveError("Enter an account number or IBAN.");document.getElementById("bankNumber").focus();return;}
     const bankId=document.getElementById("bankEditId").value;
-    const button=document.getElementById("bankSave");button.disabled=true;
+    button.disabled=true;
     try {
       const inEditor=document.getElementById('masterDialog').open;
       const companyId=inEditor?document.getElementById('editMasterId').value:selectedMasterId;
@@ -1274,7 +1286,7 @@
       state.masters=ensureMasterSections(data.masters,data.options||state.masterOptions);
       if(document.getElementById('masterDialog').open&&bankField){const saved=companyBanks((state.masters.companies||[]).find(row=>row.id===company.id));bankField.value=JSON.stringify(saved);document.getElementById('companyBankRows').innerHTML=companyBankTable(saved);bankField.dispatchEvent(new Event('change'));}
       renderMasters();dirtyDialogs.delete("bankDialog");document.getElementById("bankDialog").close();savedNotice("Saved successfully.");
-    }catch(error){toast(error.message)}finally{button.disabled=false}
+    }catch(error){showBankSaveError(error.message||"The bank account could not be saved. Please try again.")}finally{button.disabled=false}
   }
   function prepareBankDelete() {
     if(document.getElementById('masterDialog').open&&!document.getElementById('editMasterId').value){
@@ -1854,6 +1866,7 @@
   document.getElementById("bankDelete").addEventListener("click",prepareBankDelete);
   document.getElementById("bankConfirmDelete").addEventListener("click",confirmBankDelete);
   document.querySelectorAll('input[name="bankOwnership"]').forEach(input=>input.addEventListener("change",syncBankDialogOwnership));
+  document.getElementById("bankCurrency").addEventListener("change",syncBankDialogOwnership);
   document.getElementById("addMasterRecord").addEventListener("click", () => openMasterDialog());
   document.getElementById("userSearch").addEventListener("input", renderUsers);
   document.getElementById("moduleFilter").addEventListener("change", renderUsers);
