@@ -49,7 +49,7 @@ jobs:
           test -n "$QA_PASSWORD" || { echo "Missing TRANSTRADE_QA_PASSWORD"; exit 1; }
       - name: Install browser runtime
         run: |
-          npm install --no-save @playwright/test@1.55.0
+          npm install --no-save @playwright/test@1.63.0
           npx playwright install --with-deps chromium
       - name: Wait for Hostinger deployment to settle
         run: |
@@ -82,3 +82,4 @@ jobs:
             playwright-report/
             test-results/
           retention-days: 14
+
