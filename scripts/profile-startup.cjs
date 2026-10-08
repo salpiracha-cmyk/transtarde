@@ -31,7 +31,7 @@ const {chromium}=require('@playwright/test');
   const metrics=await page.evaluate(()=>{
    const n=performance.getEntriesByType('navigation')[0];
    const resource=performance.getEntriesByType('resource').map(r=>({path:new URL(r.name).pathname,ms:Math.round(r.duration),bytes:r.transferSize,decodedBytes:r.decodedBodySize})).sort((a,b)=>b.ms-a.ms).slice(0,8);
-   return {ttfbMs:Math.round(n.responseStart-n.requestStart),downloadMs:Math.round(n.responseEnd-n.responseStart),domReadyMs:Math.round(n.domContentLoadedEventEnd),htmlBytes:n.decodedBodySize,topResources:resource};
+   return {ttfbMs:Math.round(n.responseStart-n.requestStart),downloadMs:Math.round(n.responseEnd-n.responseStart),domReadyMs:Math.round(n.domContentLoadedEventEnd),htmlBytes:n.decodedBodySize,transferBytes:n.transferSize,topResources:resource};
   });
   console.log(JSON.stringify({label,status:response.status(),readyMs,...metrics}));
  }
@@ -44,8 +44,11 @@ const {chromium}=require('@playwright/test');
   const signInStart=Date.now();
   await Promise.all([page.waitForURL(/accounts\/index\.php/, {timeout:90000}),page.locator('button[type="submit"]').click()]);
   console.log(JSON.stringify({label:'sign-in redirect',readyMs:Date.now()-signInStart}));
+  await page.locator('#entityHome').waitFor({state:'visible',timeout:60000});
+  console.log(JSON.stringify({label:'sign-in to usable Accounts',readyMs:Date.now()-signInStart}));
   stage='Accounts';
   await measure('Accounts','/accounts/index.php',page.locator('#entityHome'));
+  console.log(JSON.stringify({label:'Accounts master payload sizes',sizes:await page.evaluate(()=>Object.entries(window.TT_ACCOUNT_ACCESS?.masters||{}).map(([type,rows])=>({type,bytes:new TextEncoder().encode(JSON.stringify(rows)).length,rows:rows.length})))}));
   stage='read-only Masters shell';
   await measure('shared Admin/Masters shell (read-only QA)','/index.php?view=masters',page.locator('#view-masters'));
   stage='Milling';

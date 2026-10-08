@@ -34,8 +34,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($user && !empty($user['active']) && $passwordValid) {
             tt_auth_clear_failures('login-account',$rateIdentity,false);
             tt_bind_user_session($user);
-            tt_set_last_login((int)$user['id']);
-            tt_audit((int)$user['id'], $user['username'], 'Signed in');
+            tt_record_sign_in((int)$user['id'], $user['username']);
             header('Location: ' . (!empty($user['must_change_password']) ? 'change-password.php' : tt_user_landing_url($user))); exit;
         }
         tt_auth_record_failure('login-account',$rateIdentity,10,900,900,false);

@@ -384,10 +384,12 @@ function tt_create_admin(string $username, string $password): int {
     });
 }
 
-function tt_set_last_login(int $id): void {
-    tt_mutate_store(function (&$data) use ($id): void {
+/** Record a successful sign-in in one atomic store update. */
+function tt_record_sign_in(int $id, string $username): void {
+    tt_mutate_store(function (&$data) use ($id, $username): void {
         foreach ($data['users'] as &$user) if ((int)($user['id'] ?? 0) === $id) { $user['last_login_at'] = gmdate('c'); break; }
         unset($user);
+        tt_append_audit($data, $id, $username, 'Signed in');
     });
 }
 
@@ -1053,14 +1055,19 @@ function tt_verify_csrf(string $token): bool {
     return !empty($_SESSION['csrf']) && hash_equals($_SESSION['csrf'], $token);
 }
 
-function tt_audit(?int $userId, string $username, string $action): void {
+/** Append within the caller's existing store transaction. */
+function tt_append_audit(array &$data, ?int $userId, string $username, string $action): void {
     $shorten=static fn(string $value,int $length):string=>function_exists('mb_substr')?mb_substr($value,0,$length):substr($value,0,$length);
     $username=trim((string)preg_replace('/[\x00-\x1F\x7F]+/u',' ',$shorten($username,80)));
     $action=trim((string)preg_replace('/[\x00-\x1F\x7F]+/u',' ',$shorten($action,500)));
     if($username==='')$username='unknown';
+    array_unshift($data['audit'], ['user_id'=>$userId, 'username'=>$username, 'action'=>$action, 'ip_address'=>$_SERVER['REMOTE_ADDR'] ?? '', 'created_at'=>gmdate('c')]);
+    if (count($data['audit']) > 5000) $data['audit'] = array_slice($data['audit'], 0, 5000);
+}
+
+function tt_audit(?int $userId, string $username, string $action): void {
     tt_mutate_store(function (&$data) use ($userId, $username, $action): void {
-        array_unshift($data['audit'], ['user_id'=>$userId, 'username'=>$username, 'action'=>$action, 'ip_address'=>$_SERVER['REMOTE_ADDR'] ?? '', 'created_at'=>gmdate('c')]);
-        if (count($data['audit']) > 5000) $data['audit'] = array_slice($data['audit'], 0, 5000);
+        tt_append_audit($data, $userId, $username, $action);
     });
 }
 
@@ -1075,4 +1082,3 @@ function tt_accounts_input():string {
     $raw=file_get_contents('php://input')?:'';$body=$GLOBALS['TT_AUTHORIZED_API_BODY']??json_decode($raw,true);
     return is_array($body)?json_encode(tt_accounts_uppercase_text($body),JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR):$raw;
 }
-

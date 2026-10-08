@@ -107,6 +107,7 @@ jobs:
           php tests/runtime_asset_version_test.php
           php tests/security/retired_owner_cleanup_test.php
           python3 tests/security/private_session_storage_test.py
+          python3 tests/security/startup_delivery_test.py
           python3 tests/security/authentication_boundary_test.py
           python3 tests/security/session_retention_test.py
           python3 tests/security/entity_icon_authorization_test.py
@@ -181,4 +182,3 @@ jobs:
           name: inventory-reconciliation-${{ github.run_id }}
           path: ${{ runner.temp }}/inventory-evidence/
           retention-days: 14
-

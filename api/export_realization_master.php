@@ -105,7 +105,10 @@ function erm_payload(array $user): array {
 try{
     $user=tt_require_login();
     if(($user['role']??'')!=='Super Admin'&&!tt_user_can_open_module($user,'Accounts'))erm_respond(['ok'=>false,'error'=>'Accounts or Super Admin access required.'],403);
-    if($_SERVER['REQUEST_METHOD']==='GET')erm_respond(erm_payload($user));
+    if($_SERVER['REQUEST_METHOD']==='GET'){
+        if(($_GET['bootstrap']??'')==='1'){erm_seed_if_needed($user);erm_respond(['ok'=>true]);}
+        erm_respond(erm_payload($user));
+    }
     if($_SERVER['REQUEST_METHOD']!=='POST')erm_respond(['ok'=>false,'error'=>'Method not allowed.'],405);
     if(!erm_can_edit($user))erm_respond(['ok'=>false,'error'=>'Accounts Create / Edit / Approve permission required.'],403);
     $body=json_decode((function_exists('tt_accounts_input')?tt_accounts_input():file_get_contents('php://input'))?:'{}',true);
@@ -133,4 +136,3 @@ try{
     }
     erm_respond(['ok'=>false,'error'=>'Unknown master action.'],422);
 }catch(Throwable $e){erm_respond(['ok'=>false,'error'=>'The export realization master action could not be completed.'],500);}
-
