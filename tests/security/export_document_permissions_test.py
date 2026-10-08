@@ -164,7 +164,7 @@ $_SESSION=['user_id'=>1,'auth_version'=>1,'last_activity_at'=>time(),'csrf'=>'fi
             put_base(original,{'bl':['View','Create']})
             status,data=upload('final-bl');assert status==200,(status,data)
             document=data['document'];index=private/'export_documents'/'index.json'
-            before=index.read_bytes();status,data=upload('final-coo');assert status==403 and index.read_bytes()==before,(status,data)
+            before=index.read_bytes();user['system_qa']=True;seed();status,data=upload('final-bl');assert status==403 and index.read_bytes()==before,(status,data);user.pop('system_qa');seed();status,data=upload('final-coo');assert status==403 and index.read_bytes()==before,(status,data)
             with urllib.request.urlopen(base_url+'?id='+document['id']) as response:assert response.read().startswith(b'%PDF'),response.status
             put_base(original,{'customs':['View','Create']})
             try:urllib.request.urlopen(base_url+'?id='+document['id']);raise AssertionError('Unrelated icon downloaded B/L')

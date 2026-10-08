@@ -40,7 +40,7 @@ assert.doesNotMatch(qa,/\$2[ayb]\$\d{2}\$/,'QA password hashes must never be com
 assert.match(qa,/\['Mill'=>\['View'\],'Exports'=>\['View'\],'Accounts'=>\['View'\]\]/);
 assert.match(auth,/tt_managed_qa_write_blocked/);
 assert.match(auth,/production QA account is read-only/);
-assert.match(exportDocuments,/tt_managed_qa_write_blocked/);
+assert.match(exportDocuments,/\$user\s*=\s*tt_require_login\(\)/,'Document routes use the shared QA write, expiry and session-release guard');
 assert.match(documentAi,/tt_managed_qa_write_blocked/);
 assert.match(auth,/TT_ADMIN_RECOVERY_HASH_FILE/);
 assert.doesNotMatch(auth,/const TT_ADMIN_RECOVERY_HASH\s*=/,'recovery hash must remain outside repository code');
