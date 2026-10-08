@@ -212,6 +212,7 @@ try {
         'asOf' => $asOf,
         'generalLedger' => $ledger,
         'expenseActivity' => sac_expense_activity($store,$entity,$from,$asOf),
+        'personalAdjustments'=>array_values(array_filter(array_map(static function($r)use($from,$asOf){$r['rows']=array_values(array_filter((array)$r['rows'],static fn($row)=>($row['date']??'')>=$from&&($row['date']??'')<=$asOf));return $r;},array_filter((array)($store['expensePersonalLinks']??[]),static fn($r)=>($r['entity']??'')===$entity)),static fn($r)=>!empty($r['rows']))),
         'trialBalance' => [
             'rows' => $trial,
             'totalDebit' => $totalDebit,

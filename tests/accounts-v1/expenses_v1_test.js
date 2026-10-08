@@ -23,7 +23,7 @@ assert.match(api,/A statement already exists for this card and month/);
 assert.match(api,/tt_user_can_access_entity/);
 assert.match(api,/\['TTI','BRM','TG'\]/);
 assert.match(ui,/\.\.\/api\/expenses_v1\.php/);
-assert.match(ui,/Posting a statement books its allocations and the credit-card payable/);
+assert.match(ui,/Total bill/);assert.match(ui,/personalAmounts:readPersonal/);assert.doesNotMatch(ui,/Allocate the full statement/);
 assert.match(ui,/FAM-SALMAN/);assert.match(ui,/FAM-TALHA/);assert.match(ui,/FAM-ABU/);assert.match(ui,/FAM-TAYYAB/);
 assert.match(index,/app-bundle\.php/);
 assert.match(bundle,/'expenses-v1-ui\.js'/);

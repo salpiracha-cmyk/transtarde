@@ -132,6 +132,61 @@ require $argv[1];
     before=books.read_bytes();bad={**tax,'requestKey':'vehicle-tax-bad-period','reference':'TAX-BAD','expenseLines':[{**tax['expenseLines'][0],'periodTo':'2026-06-30'}]}
     assert request('expenses_v1','?entity=TTI',bad)[0]==422 and books.read_bytes()==before
     print('Recipient purpose, vehicle costs, company boundaries, reporting and one-ledger activity passed.')
+    # One payee, separate beneficiary, no duplicate financial debit for reporting.
+    school={**body,'requestKey':'beneficiary-school-001','reference':'CAS-OCT','payee':'CAS','amount':10000,'expenseLines':[{'category':'HOME','purpose':'Daughter school fee October','amount':10000,'expenseArea':'HOME','expenseFor':'FAM-TALHA','personalTreatment':'COMPANY'}]}
+    status,result=request('expenses_v1','?entity=TTI',school);assert status==200,(status,result)
+    school_id=result['result']['generalExpenseId']
+    status,person=request('accounts_ledger_browser','?entity=TTI&category=party&party=Talha&from=2026-10-01&to=2026-10-31');assert status==200,(status,person)
+    assert any('CAS' in r['narration'] and r.get('expenseAmount')==10000 for r in person['rows'])
+    status,report=request('accounts_reports','?entity=TTI&from=2026-10-01&asOf=2026-10-31');assert status==200
+    assert any(r['recipient']=='CAS' and r['expenseForName']=='Talha' and r['expenseArea']=='HOME' for r in report['expenseActivity'])
+    # Director remuneration masters and an already accrued payable.
+    store=json.loads(books.read_text())
+    store['salaryMasters']={name:{'id':name,'name':name,'entity':'TTI','category':'DIRECTOR_REMUNERATION','monthlyAmount':75000,'zakatAmount':0,'otherAllowance':0,'effectiveFrom':'2026-07-01','status':'Active','accountingTreatment':'STAFF_COST'} for name in ['SALMAN','TALHA','TAYYAB','ARP']}
+    period='TTI|2026-10|TALHA'
+    store['salaryPeriods']={period:{'id':period,'entity':'TTI','month':'2026-10','salaryMasterId':'TALHA','name':'TALHA','category':'DIRECTOR_REMUNERATION','accountingTreatment':'STAFF_COST','netSalary':75000,'zakatAmount':0,'otherAllowance':0,'gross':75000,'advanceApplied':0,'paidAfterPrepare':0,'outstanding':75000,'status':'Payable'}}
+    books.write_text(json.dumps(store))
+    def bal(code):return round(sum(l['debit']-l['credit'] for j in json.loads(books.read_text())['journals'].values() for l in j['lines'] if l['account']==code),2)
+    master={'action':'save_card_master','csrf':'fixture','entity':'TTI','cardName':'Company Visa','holder':'Salman','issuerBank':'Fixture Bank','last4':'4321','dueDay':20}
+    status,result=request('expenses_v1','?entity=TTI',master);assert status==200,(status,result);card=result['result']['cardMasterId']
+    statement={'action':'save_card_statement','csrf':'fixture','entity':'TTI','requestKey':'simple-card-statement-1','simpleStatement':True,'cardMasterId':card,'statementMonth':'2026-10','statementDate':'2026-10-07','dueDate':'2026-10-20','total':100000,'expenseAccount':'6900','personalAmounts':[{'expenseFor':'FAM-TALHA','personalTreatment':'REMUNERATION','amount':15000},{'expenseFor':'FAM-SALMAN','personalTreatment':'CASH','amount':10000}]}
+    expense_before=bal('6900');cash_before=bal('1120');payable_before=bal('2400');receivable_before=bal('1230')
+    status,result=request('expenses_v1','?entity=TTI',statement);assert status==200,(status,result);st_id=result['result']['statementId'];post_id=result['result']['journalId']
+    assert bal('2400')==payable_before-100000 and bal('6900')==expense_before+75000
+    store=json.loads(books.read_text());assert store['salaryPeriods'][period]['outstanding']==60000
+    before=books.read_bytes();assert request('expenses_v1','?entity=TTI',statement)[1]['result']['duplicate'];assert books.read_bytes()==before
+    payment={'action':'pay_card_statement','csrf':'fixture','entity':'TTI','requestKey':'simple-card-payment-1','statementId':st_id,'paymentDate':'2026-10-08','paymentAccountId':'CASH|TTI','personalAmounts':statement['personalAmounts']}
+    status,result=request('expenses_v1','?entity=TTI',payment);assert status==200,(status,result);payment_id=result['result']['journalId']
+    assert bal('1120')==cash_before-100000 and bal('2400')==payable_before and bal('6900')==expense_before+75000
+    assert json.loads(books.read_text())['salaryPeriods'][period]['outstanding']==60000
+    payment_snapshot=json.loads(books.read_text())['journals'][payment_id]
+    edit={'action':'save_card_adjustments','csrf':'fixture','entity':'TTI','requestKey':'simple-card-adjust-1','statementId':st_id,'adjustmentDate':'2026-10-08','reason':'Correct Talha personal amount','personalAmounts':[{'expenseFor':'FAM-TALHA','personalTreatment':'REMUNERATION','amount':20000},{'expenseFor':'FAM-SALMAN','personalTreatment':'CASH','amount':10000}]}
+    status,result=request('expenses_v1','?entity=TTI',edit);assert status==200,(status,result)
+    assert result['result']['publicPostId']==post_id
+    store=json.loads(books.read_text());assert store['journals'][payment_id]==payment_snapshot and store['salaryPeriods'][period]['outstanding']==55000
+    assert bal('6900')==expense_before+70000 and bal('2400')==payable_before and bal('1120')==cash_before-100000
+    before=books.read_bytes();assert request('expenses_v1','?entity=TTI',{**edit,'requestKey':'simple-card-over-total','personalAmounts':[{'expenseFor':'FAM-TALHA','personalTreatment':'REMUNERATION','amount':100001}]})[0]==422;assert books.read_bytes()==before
+    # Cash recovery reduces only the selected person's receivable; no card posting.
+    recovery={'action':'recover_personal_expense','csrf':'fixture','entity':'TTI','requestKey':'simple-card-cash-receipt','personalLink':'CARD|'+st_id,'index':1,'amount':10000,'paymentDate':'2026-10-08','paymentAccountId':'CASH|TTI'}
+    status,result=request('expenses_v1','?entity=TTI',recovery);assert status==200,(status,result)
+    assert bal('1120')==cash_before-90000 and bal('2400')==payable_before and bal('1230')==receivable_before
+    before=books.read_bytes();assert request('expenses_v1','?entity=TTI',recovery)[1]['result']['duplicate'];assert books.read_bytes()==before
+    assert request('expenses_v1','?entity=TTI',{**recovery,'requestKey':'simple-card-cash-over'})[0]==422
+    # Excess personal amounts carry into future remuneration instead of inventing a payable.
+    november={**statement,'requestKey':'simple-card-november','statementMonth':'2026-11','statementDate':'2026-11-01','dueDate':'2026-11-20','personalAmounts':[{'expenseFor':'FAM-TAYYAB','personalTreatment':'REMUNERATION','amount':80000}]}
+    status,result=request('expenses_v1','?entity=TTI',november);assert status==200,(status,result);nov_id=result['result']['statementId']
+    store=json.loads(books.read_text());adv=next(a for a in store['salaryAdvances'].values() if a.get('personalLink')=='CARD|'+nov_id)
+    assert adv['remaining']==80000 and adv['masterId']=='TAYYAB'
+    # The real remuneration preparation consumes only the available entitlement.
+    status,salary=request('rent_salary_v2','?entity=TTI&month=2026-11',{'action':'prepare_month','csrf':'fixture','entity':'TTI','month':'2026-11'})
+    assert status==200,(status,salary)
+    store=json.loads(books.read_text());paid_period='TTI|2026-11|TAYYAB'
+    assert store['salaryPeriods'][paid_period]['advanceApplied']==75000 and store['salaryAdvances'][adv['id']]['remaining']==5000
+    status,result=request('expenses_v1','?entity=TTI',{**edit,'requestKey':'simple-card-consumed-edit','statementId':nov_id,'adjustmentDate':'2026-11-02','personalAmounts':[{'expenseFor':'FAM-TAYYAB','personalTreatment':'REMUNERATION','amount':10000}]});assert status==200,(status,result)
+    store=json.loads(books.read_text());assert store['salaryPeriods'][paid_period]['outstanding']==65000 and store['salaryPeriods'][paid_period]['advanceApplied']==0
+    assert not any(a.get('personalLink')=='CARD|'+nov_id for a in (store['salaryAdvances'].values() if isinstance(store['salaryAdvances'],dict) else store['salaryAdvances']))
+    print('Beneficiaries, full card payments, internal corrections, cash recovery and remuneration carry-forward passed.')
+
     # Corrupt nonempty books must not become empty books or get overwritten.
 
     for endpoint in ['expenses_v1','donations','rent_salary_v2']:

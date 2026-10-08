@@ -306,12 +306,14 @@ test('authenticated Accounts live smoke: professional desk and popup workflows',
   await expect(page.locator('#ttExpenseDesk .dex-row')).toHaveCount(2);
   await activate(page.locator('#ttExpenseDesk [data-close]'));
   await expect(page.locator('#ttPaymentPlanningTop')).toHaveCount(0);
-  await deskAction(page, 'routine', 'Bills & Credit Cards');
-  await expect(page.locator('#ttExpenseDesk [data-card]')).toBeVisible();
-  await activate(page.locator('#ttExpenseDesk [data-utility]'));
-  await expect(page.locator('#expenseEditor .tt-search-select input').first()).toBeVisible({ timeout: 30_000 });
-  await expect(page.locator('#ttUtilityTreatment')).toBeVisible();
-  await expect(page.locator('#ttUtilityTreatment')).toContainText(/Debit.*Credit.*Balanced|Complete form/s);
+  await deskAction(page, 'routine', 'Pay Expense');
+  await expect(page.locator('#ttExpenseDesk [name=expenseMode]')).toHaveCount(3);
+  await activate(page.locator('#ttExpenseDesk [name=expenseMode][value=utility]'));
+  await expect(page.locator('#ttExpenseDesk #evPayLocName')).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('#ttExpenseDesk #evUtilityFor')).toBeVisible();
+  await activate(page.locator('#ttExpenseDesk [name=expenseMode][value=card]'));
+  await expect(page.locator('#ttExpenseDesk #evAddStatement')).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('#ttExpenseDesk .tte-alloc')).toHaveCount(0);
   await responsive(page, 'professional Accounts modal');
 
   expect(failedRequests, 'Accounts resources must not fail').toEqual([]);

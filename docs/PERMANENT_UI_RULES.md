@@ -106,7 +106,7 @@ Every request requiring Director approval must also appear in the Super Admin Co
 
 ## Accounts expense entry and navigation
 
-- The Expenses area has Pay Expense, Bills & Credit Cards (Utilities / Credit Cards), and Salaries & Staff. Pay Expense accepts any recipient, including household expenses without an individual director assignment.
+- The Expenses area has Pay Expense, Expense Recipients, and Salaries & Staff. Pay Expense opens Other Expense, Utilities, and Credit Card using radio selections on one screen. Pay Expense accepts any recipient, including household expenses without an individual director assignment.
 - A single payment may contain multiple categorized expense rows. Debit the applicable subsidiary accounts and credit the selected bank/cash once for the total. Post is explicit; printing is a separate action in the posting confirmation. This form has no Pay Later or autosave.
 - Corrections reverse and replace the original payment with its expense breakdown retained; deletions reverse postings and retain audit history. Retry keys prevent duplicate postings.
 - Open the modern expense renderer directly, and show the finished form after loading; do not simulate old workspace and child-button clicks.
@@ -130,3 +130,11 @@ Every request requiring Director approval must also appear in the Super Admin Co
 - Corrections retain the original public Post ID while maintaining immutable original/reversal/replacement accounting journals. Show bracketed correction details below narration. Reporting and balances include the full journal audit trail.
 - The Post ID Register has aligned columns and affected party names. Stockbroker transactions show Date separately from Post ID.
 - Post is the final posting action. After successful posting, show a compact centred confirmation with Post ID, debit/credit lines, Print and Close. Print opens the browser printer dialog in the same tab using an isolated print frame; never open a new printing tab or window, or print automatically on Post.
+
+## 8 October 2026 beneficiary and credit-card agreement
+
+- Paid to is the actual recipient. Expense for is a separate row dimension: Salman, Talha, Tayyab, ARP or Shared–Common. Expense area is Office, Home or Milling–Production; production posting retains its dedicated workflow. A CAS school fee can appear in Talha’s Home report without changing CAS as recipient. Reporting dimensions never add monetary debits.
+- Credit cards use saved masters, one bill total, statement date, due date and reminders. No mandatory purchase-by-purchase allocation. Retain existing historical item allocations until explicitly amended. Enter Bill and Pay Bill share Pay Expense; payment clears the payable and never expenses the bill twice.
+- Optional personal-amount ticks select each director once, with amount and remuneration deduction or cash recovery. The full card bill and full bank payment remain intact. Separate internal recovery entries reclassify personal amounts; financial reports must not treat recovered personal spending as business expense.
+- Remuneration deductions use accrued payable first and carry remaining amounts into the existing salary advance/deduction workflow. Never invent an entitlement or double-deduct. Corrections restore earlier salary deductions and replace the allocation, preserving journal history and the original public Post ID. Cash receipts settle the personal receivable without touching the card. A collected cash allocation cannot be removed by silently refunding money.
+- New personal adjustments are explicit Posts with retry keys, entity and icon permissions, and audit history. They may be entered with the bill, at payment or afterwards. No background saving or production test postings.

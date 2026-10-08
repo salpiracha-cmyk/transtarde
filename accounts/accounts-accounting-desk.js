@@ -44,7 +44,6 @@
     {key:'routine', glyph:'◇', title:'Expenses', note:'Pay expenses, utilities, cards or salaries', actions:[
       {title:'Pay Expense', note:'Pay anyone; combine several expenses in one cheque or payment', native:'expenses', special:'expense-pay'},
       {title:'Expense Recipients', note:'Add and edit recipients; choose expense purpose on each payment', special:'expense-recipients'},
-      {title:'Bills & Credit Cards', note:'Choose Utilities or Credit Cards', native:'expenses', special:'expense-bills'},
       {title:'Salaries & Staff', note:'Salary advance and monthly salary preparation', native:'expenses', special:'expense-salary'}
     ]},
     {key:'ledgers', glyph:'L', title:'Ledgers', note:'Choose a party or account, view balances, print or download Excel', actions:[

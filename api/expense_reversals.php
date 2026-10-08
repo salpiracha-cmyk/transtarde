@@ -30,7 +30,7 @@ function ev1_delete_expense(array &$store,array $body,string $entity,array $user
     if(($record['status']??'')==='Deleted')return ['id'=>$id,'status'=>'Deleted','duplicate'=>true];
     $ids=[$record['journalId']??null,$record['captureJournalId']??null,$record['statementJournalId']??null];
     $ids=array_merge($ids,(array)($record['postingJournalIds']??[]));foreach((array)($record['settlements']??[]) as $payment)$ids[]=$payment['journalId']??null;
-    $reason=trim((string)($body['reason']??''));$reversals=ev1_reverse_journals($store,$ids,$entity,$user,$names,$reason);
+    $reason=trim((string)($body['reason']??''));if(!empty($record['personalLink']))pex_clear($store,$entity,$record['personalLink'],$user,$names,$reason);$reversals=ev1_reverse_journals($store,$ids,$entity,$user,$names,$reason);
     $store[$collection][$id]['status']='Deleted';$store[$collection][$id]['deletedAt']=gmdate('c');$store[$collection][$id]['deletedBy']=(string)($user['username']??'');$store[$collection][$id]['deleteReason']=$reason;$store[$collection][$id]['deletionJournalIds']=$reversals;
     $store['expenseAudit'][]=['at'=>gmdate('c'),'action'=>'DELETE','collection'=>$collection,'id'=>$id,'entity'=>$entity,'by'=>$user['username']??'','reason'=>$reason,'before'=>$record,'reversalJournalIds'=>$reversals];
     return ['id'=>$id,'status'=>'Deleted','reversalJournalIds'=>$reversals];

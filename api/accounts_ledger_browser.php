@@ -93,7 +93,7 @@ foreach((array)(tt_list_masters()['banks']??[]) as $bank){
 $catalog['POSTS']='Post ID Register';
 foreach($banks as $bank)$catalog[$bank['code']]=$bank['name'];
 $expenseActivity=$category==='party'?sac_expense_activity($store,$entity,$from,$to):[];
-foreach($expenseActivity as $activity)if($activity['recipient']!=='')$parties[$activity['recipient']]=true;
+foreach($expenseActivity as $activity){if($activity['recipient']!=='')$parties[$activity['recipient']]=true;if(($activity['expenseFor']??'SHARED')!=='SHARED')$parties[$activity['expenseForName']]=true;}
 $requestedPost=trim((string)($_GET['postId']??''));
 if($requestedPost!==''){
     $posting=$store['journals'][$requestedPost]??null;$seen=[];while(is_array($posting)&&!empty($posting['amendedByPostId'])&&!isset($seen[$posting['id']])){$seen[$posting['id']]=true;$next=$store['journals'][$posting['amendedByPostId']]??null;if(!is_array($next))break;$posting=$next;}if(is_array($posting)){$posting['publicPostId']=tt_accounts_public_post($store,$posting);$posting['amendmentNote']=tt_accounts_amendment_note($posting,$store);}
@@ -198,9 +198,9 @@ foreach($rows as &$row){if(($account!==''||$party!=='')&&!$postEntries){$balance
 $closing=$category==='party'&&$balanceUnavailable?null:$balance;
 if($category==='party'&&$balanceUnavailable){$opening=null;foreach($rows as &$row)$row['balance']=null;unset($row);}
 $expenseTotal=0.0;
-if($category==='party'&&$party!=='')foreach($expenseActivity as $activity)if(alb_party_key($activity['recipient'])===alb_party_key($party)){
+if($category==='party'&&$party!=='')foreach($expenseActivity as $activity)if(alb_party_key($activity['recipient'])===alb_party_key($party)||(($activity['expenseFor']??'SHARED')!=='SHARED'&&alb_party_key($activity['expenseForName'])===alb_party_key($party))){
  $expenseTotal=round($expenseTotal+$activity['amount'],2);
- $rows[]=['date'=>$activity['date'],'voucher'=>$activity['voucher'],'account'=>$activity['account'],'accountName'=>$activity['accountName'],'reference'=>$activity['reference'],'narration'=>$activity['accountName'].' · '.$activity['purpose'].($activity['assetName']!==''?' · '.$activity['assetName'].' '.$activity['registrationNo']:''),'party'=>$activity['recipient'],'debit'=>0,'credit'=>0,'balance'=>null,'activityOnly'=>true,'expenseAmount'=>$activity['amount'],'chequeNo'=>'','bankReference'=>''];
+ $rows[]=['date'=>$activity['date'],'voucher'=>$activity['voucher'],'account'=>$activity['account'],'accountName'=>$activity['accountName'],'reference'=>$activity['reference'],'narration'=>$activity['accountName'].' · '.$activity['purpose'].' · Paid to '.$activity['recipient'].' · For '.($activity['expenseForName']??'Shared–Common').($activity['assetName']!==''?' · '.$activity['assetName'].' '.$activity['registrationNo']:''),'party'=>$activity['recipient'],'debit'=>0,'credit'=>0,'balance'=>null,'activityOnly'=>true,'expenseAmount'=>$activity['amount'],'chequeNo'=>'','bankReference'=>''];
 }
 if($query!=='')$rows=array_values(array_filter($rows,static fn($row)=>(!preg_match('/^(?:\d{4}-)?\d+$/',$query)&&str_contains(strtolower(implode(' ',array_map('strval',$row))),$query))||tt_accounts_reference_matches($query,$row['voucher'])||tt_accounts_reference_matches($query,$row['publicPostId']??'')||tt_accounts_reference_matches($query,$row['reference'])||($row['chequeNo']!==''&&str_contains(strtolower($row['chequeNo']),$query))||($row['bankReference']!==''&&str_contains(strtolower($row['bankReference']),$query))||(preg_match('/^(?:\d{4}-)?\d+$/',$query)&&!preg_match('/^(?:[A-Z]+-)?\d{4}-\d+$/i',$row['reference'])&&str_contains(strtolower($row['reference']),$query))));
 // Keep the chronological running balances above, then display newest Post IDs first.
