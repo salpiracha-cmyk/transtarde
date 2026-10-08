@@ -12,7 +12,7 @@ with tempfile.TemporaryDirectory(prefix='tti-authorization-') as directory:
     private.mkdir()
     for name in ['auth_store.php', 'master_store.php', 'product_stage.php', 'offline_idempotency.php','session_store.php']:
         shutil.copy(ROOT / name, app / name)
-    for name in ['bank_entries.php','bank_entries_core.php','accounts_subaccounts.php','accounts_ledger_browser.php','accounts_reports.php','accounts_reference.php','tg_remittance_core.php','fi_credit_advice_link.php','receipt_invoice_links.php','journal_vouchers.php','opening_balance_core.php','accounts_subaccounts_core.php','assets_registry_core.php','expenses_v1.php','direct_expense_core.php','accounts_bank_payment.php','expense_locations.php','expense_reminders.php','expense_reversals.php','donations.php','rent_salary_v2.php','salary_month_workflow.php','salary_master_store.php']:
+    for name in ['accounts_payees.php','bank_entries.php','bank_entries_core.php','accounts_subaccounts.php','accounts_ledger_browser.php','accounts_reports.php','accounts_reference.php','tg_remittance_core.php','fi_credit_advice_link.php','receipt_invoice_links.php','journal_vouchers.php','opening_balance_core.php','accounts_subaccounts_core.php','assets_registry_core.php','expenses_v1.php','direct_expense_core.php','accounts_bank_payment.php','expense_locations.php','expense_reminders.php','expense_reversals.php','donations.php','rent_salary_v2.php','salary_month_workflow.php','salary_master_store.php']:
         shutil.copy(ROOT / 'api' / name, app / 'api' / name)
     shutil.copy(ROOT / 'accounts/accounting_master_v1.json', app / 'accounts/accounting_master_v1.json')
     harness = root / 'request.php'
@@ -69,6 +69,17 @@ require $argv[1];
         return result,body
     sub,b=good('accounts_subaccounts',operation='add',name='Office stationery',parentCode='6900',taxCategory='NONE');sid=sub['result']['subaccountId']
     assert mutate('accounts_subaccounts',operation='add',name='Office.  Stationery',parentCode='6900')[0]==422
+    setup,_=good('accounts_payees',kind='EXPENSE',name='Caretaker',accountCode='6910',expenseCategory='HOME')
+    pid=setup['result']['payee']['id']
+    assert 'Caretaker' not in [x['values'][0] for x in json.loads(auth.read_text())['masters'].get('business_parties',[])], 'expense recipient must not become a Business Party'
+    assert setup['result']['payee']['configured']
+    bankpay={'action':'post','date':'2026-10-07','bankId':'BANK-1','reference':'MULTI-DEBIT','narration':'Home payments','type':'PAYMENT','amount':30,'bankPaymentMethod':'ONLINE_BANKING','debitRows':[{'payeeId':pid,'amount':10},{'payeeId':pid,'amount':20}]}
+    multi,_=good(**bankpay);mj=multi['result']['journal']
+    assert [(x['account'],x['debit'],x['credit']) for x in mj['lines']]==[('6910',10,0),('6910',20,0),('1110',0,30)]
+    assert mj['lines'][-1]['bankName']=='Fixture Bank' and mj['lines'][-1]['accountNumber']=='123456789'
+    before=books.read_bytes();assert mutate('bank_entries',**{**bankpay,'reference':'BAD-SPLIT','amount':31})[0]==422 and books.read_bytes()==before
+    assert mutate('bank_entries',**{**bankpay,'reference':'UNCONFIGURED','debitRows':[{'payeeId':'EXP|talha','amount':30}]})[0]==422
+    permissions['cashbank']=['View'];set_user();assert mutate('accounts_payees',kind='BUSINESS',name='Denied',accountCode='2190')[0]==403;permissions['cashbank']=['View','Create','Edit','Delete'];set_user()
     args={'action':'post','date':'2026-10-07','bankId':'BANK-1','reference':'PROFIT-1','narration':'Monthly gross saving profit','type':'SAVING_PROFIT','amount':1000,'withholdingTax':150}
     result,b=good(**args);j=result['result']['journal'];assert [(x['account'],x['debit'],x['credit']) for x in j['lines']]==[('1110',850,0),('1260',150,0),('4400',0,1000)]
     before=books.read_bytes();status,retry=request('bank_entries','?entity=TTI',b);assert status==200 and retry['result']==result['result'] and books.read_bytes()==before
@@ -149,3 +160,4 @@ require $argv[1];
     for endpoint in ['bank_entries','accounts_subaccounts']:
         books.write_text('{broken JSON');before=books.read_bytes();assert request(endpoint,'?entity=TTI')[0]==500 and books.read_bytes()==before
     print('Bank entries, finance, subaccounts, expense/JV/ledger/report links, retries, corrections, permissions and corrupt-store protection passed.')
+

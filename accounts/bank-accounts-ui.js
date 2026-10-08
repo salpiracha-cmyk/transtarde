@@ -31,7 +31,7 @@
   }
   function label(account) {
     const custom = String(account.settings?.displayName || '').trim();
-    return esc(custom || account.displayLabel || account.iban || account.bankName || account.accountTitle || 'Bank');
+    return esc([account.bankName||'Bank',account.accountNumber||account.iban,account.currency,custom,account.accountTitle].filter(Boolean).join(' · '));
   }
   function badge(setting, key, text) { return setting[key] ? `<span class="ttbk-pill on">${text}</span>` : ''; }
   function check(setting, account, key, text, disabled = false) {
@@ -91,3 +91,4 @@
   document.addEventListener('click', event => { if (event.target.closest?.('.appCard[data-key="bank"]')) setTimeout(() => mount(renderBank),60); if (event.target.closest?.('.tab[data-master="banks"]')) setTimeout(() => mount(renderMasters),30); if (event.target.closest?.('[data-tt-entity]')) data = null; });
   window.TT_BANK_ACCOUNTS_UI = {mountBank:() => mount(renderBank), mountMaster:() => mount(renderMasters), reload:() => load(true).then(() => { renderBank(); renderMasters(); })};
 })();
+

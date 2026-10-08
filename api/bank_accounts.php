@@ -54,8 +54,7 @@ function ba_mask(string $v,int $last=5): string {
 }
 function ba_display_label(string $title,string $bank,string $number,string $iban): string {
     $number=trim($number);$iban=trim($iban);
-    if($number==='')return $iban!==''?$iban:trim($title.' · '.$bank,' ·');
-    return implode(' · ',array_filter([trim($title),trim($bank),$number,$iban],static fn($part)=>$part!==''));
+    return implode(' · ',array_filter([trim($bank),$number!==''?$number:$iban,trim($title)],static fn($part)=>$part!==''));
 }
 function ba_master_accounts(): array {
     $masters=tt_list_masters();$out=[];
@@ -243,4 +242,5 @@ try{
     ba_respond(['ok'=>true,'saved'=>$setting]+ba_payload($store,$entity)+['revision'=>$store['revision']]);
 }catch(InvalidArgumentException $e){ba_respond(['ok'=>false,'error'=>$e->getMessage()],422);}
 catch(Throwable $e){ba_respond(['ok'=>false,'error'=>'The bank-account action could not be completed.'],500);}
+
 

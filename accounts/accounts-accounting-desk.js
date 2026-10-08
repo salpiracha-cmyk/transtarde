@@ -34,15 +34,16 @@
       {title:'Pay Broker', note:'Independent brokerage outside purchase bills', special:'broker-payment-plan'},
       {title:'Local Sales & Receipts', note:'Mill sale approvals and linked receipts awaiting Accounts action', native:'receivables', find:'Local'}
     ]},
-    {key:'bank', glyph:'▦', title:'Bank & Cash', note:'Internal transfers, foreign retention and bank reconciliation', actions:[
+    {key:'bank', glyph:'▦', title:'Bank & Cash', note:'Bank payments, receipts, transfers and reconciliation', actions:[
+      {title:'Bank Entry', note:'Bank payment first; pay parties or expenses, and record other bank entries', special:'bank-entry'},
       {title:'Review TG Remittances', special:'tg-remittances'}, {title:'Inter Account Transfer', note:'Move PKR between company accounts or to a personal account with a reason', special:'internal-bank-transfer'},
       {title:'Foreign Retention Account', note:'Settle foreign commissions and other linked outward remittances', special:'retention-remittance'},
-      {title:'Bank Entry', note:'Profit, withholding, charges, payments, receipts and transfers', special:'bank-entry'},
       {title:'Bank Finance', note:'Drawdown, principal repayment and markup', special:'bank-finance'},
       {title:'Bank Accounts & Balances', native:'bank'}, {title:'Bank Reconciliation', native:'reconciliation'}
     ]},
     {key:'routine', glyph:'◇', title:'Expenses', note:'Pay expenses, utilities, cards or salaries', actions:[
       {title:'Pay Expense', note:'Pay anyone; combine several expenses in one cheque or payment', native:'expenses', special:'expense-pay'},
+      {title:'Expense Recipients', note:'Set up recipient names and their usual expense accounts', special:'expense-recipients'},
       {title:'Bills & Credit Cards', note:'Choose Utilities or Credit Cards', native:'expenses', special:'expense-bills'},
       {title:'Salaries & Staff', note:'Salary advance and monthly salary preparation', native:'expenses', special:'expense-salary'}
     ]},
@@ -149,6 +150,7 @@
     if(action.special==='bank-finance')return window.TT_BANK_ENTRIES.open('','FINANCE');
     if(action.special==='subaccounts')return window.TT_SUBACCOUNTS.open('manage');
     if(action.special==='account-heads')return window.TT_SUBACCOUNTS.open('heads');
+    if(action.special==='expense-recipients')return window.TT_ACCOUNT_PAYEES.open('EXPENSE');
     if(action.special==='withholding-report')return window.TT_SUBACCOUNTS.open('tax');
     if(action.special==='expense-pay')return window.TT_EXPENSE_DESK.open();
     if(action.special==='expense-bills')return window.TT_EXPENSE_DESK.bills();
@@ -625,24 +627,7 @@
       const result=await response.json();if(!response.ok||!result.ok)throw Error(result.error||'Saved posting unavailable.');
       const journal=result.post,lines=Array.isArray(journal.lines)?journal.lines:[];
       if(!lines.length)throw Error('This posting has no accounting lines to print.');
-      const allocations=Array.isArray(details.allocations)?details.allocations:(Array.isArray(journal.meta?.allocations)?journal.meta.allocations:[]);
-      const supplier=/supplier.payment|supplier.cheque/i.test(String(journal.sourceType||''))||/supplier payment/i.test(String(record?.type||''));
-      const receipt=/receipt|customer.advance/i.test(String(journal.sourceType||'')+' '+String(record?.type||''));
-      const transfer=/transfer/i.test(String(journal.sourceType||'')+' '+String(record?.type||''));
-      const heading=supplier?'SUPPLIER PAYMENT VOUCHER':transfer?'TRANSFER VOUCHER':receipt?'RECEIPT VOUCHER':'PAYMENT VOUCHER';
-      const pageSize=supplier&&(allocations.length>5||lines.length>7)?'A4':'A5';
-      const companyName={TTI:'TRANSTRADE INTERNATIONAL',BRM:'BUKSH RICE MILLS',TG:'TRANS GRAINS FOODSTUFF TRADING L.L.C.'}[journal.entity]||journal.entity;
-      const date=String(journal.date||'').split('-').reverse().join('-');
-      const accountRows=lines.map(line=>`<tr><td>${esc(line.accountName||line.account)}${line.subledger||line.counterparty||line.party?`<small>${esc(line.subledger||line.counterparty||line.party)}</small>`:''}</td><td class="amount">${Number(line.debit||0)?money(line.debit):'—'}</td><td class="amount">${Number(line.credit||0)?money(line.credit):'—'}</td></tr>`).join('');
-      const allocationRows=allocations.map(row=>`<tr><td>${esc(row.billNo||row.billId||'—')}<small>${esc([row.soda,row.truck,row.pohanch].filter(Boolean).join(' · '))}</small></td><td class="amount">${money(row.amount)}</td><td class="amount">${row.balanceAfter==null?'—':money(row.balanceAfter)}</td></tr>`).join('');
-      const bankLines=lines.filter(line=>['1110','1120'].includes(String(line.account||''))||line.bankAccountId||line.cashAccountId);
-      const bankAmount=bankLines.reduce((sum,line)=>sum+Number(receipt?line.debit:line.credit||0),0);
-      const paid=Number(details.netPayment||details.foreignAmount||details.amount||journal.meta?.netPayment||bankAmount||journal.totalDebit||0);
-      const currency=String(details.currency||journal.meta?.currency||bankLines.find(line=>line.currency)?.currency||'PKR');
-      const party=details.broker||details.party||record?.party||journal.meta?.broker||journal.meta?.customer||journal.meta?.payee||'—';
-      const bank=details.bankName||journal.meta?.bankName||lines.find(line=>line.bankName)?.bankName||'—';
-      const ref=details.reference||details.bankReference||journal.reference||'—';
-      const html=`<!doctype html><html><head><meta charset="utf-8"><title>${esc(heading)} ${esc(journal.id)}</title><style>@page{size:${pageSize};margin:12mm}body{font:10px Arial,sans-serif;color:#1b2a34;margin:0}header{border-top:5px solid #165848;padding-top:13px;display:flex;justify-content:space-between;align-items:center;gap:8px}header b{color:#165848;font-size:14px}header strong{font-size:11px;text-align:right}.meta{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;background:#edf5f1;margin:15px 0;padding:9px}.meta small,.pair small{display:block;color:#61727b;font-size:8px;text-transform:uppercase;margin-bottom:4px}.pairs{display:grid;grid-template-columns:1fr 1fr;gap:7px 15px;margin:12px 0}.pair{border-bottom:1px solid #cddbd7;padding-bottom:6px;overflow-wrap:anywhere}h3{color:#165848;font-size:10px;margin:16px 0 7px}table{width:100%;border-collapse:collapse;font-size:9px}th{background:#edf5f1;color:#165848;text-align:left}th,td{padding:6px;border-bottom:1px solid #cddbd7}td small{display:block;color:#61727b;margin-top:3px}.amount{text-align:right;white-space:nowrap}tfoot td{background:#edf5f1;font-weight:bold}.narration{margin-top:13px;border-top:1px solid #cddbd7;padding-top:8px;min-height:26px}.narration b{display:block;font-size:8px;color:#61727b;margin-bottom:5px}.sign{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:48px}.sign span{border-top:1px solid #1b2a34;padding-top:6px;font-size:8px}button{margin:0 0 8px auto;display:block}@media print{button{display:none}}${pageSize==='A5'?'body{font-size:9px}header b{font-size:12px}header strong{font-size:9px}.meta{margin:10px 0}.sign{margin-top:35px}th,td{padding:5px}':''}</style></head><body><button onclick="print()">Print voucher</button><header><b>${esc(companyName)}</b><strong>${esc(heading)}</strong></header><div class="meta"><div><small>Post ID</small><b>${esc(window.TT_ALL_LEDGERS?.displayRef?.(journal.id)||journal.id)}</b></div><div><small>Date</small>${esc(date)}</div><div><small>Currency</small>${esc(currency)}</div></div><div class="pairs"><div class="pair"><small>${receipt?'Received from':'Paid to / party'}</small>${esc(party)}</div><div class="pair"><small>Bank / cash account</small>${esc(bank)}</div><div class="pair"><small>${journal.meta?.bankPaymentMethod==='CHEQUE'?'Cheque number':'Reference'}</small>${esc(journal.meta?.chequeNo||journal.meta?.bankReference||ref)}${journal.meta?.chequeDate?' · '+esc(journal.meta.chequeDate):''}</div><div class="pair"><small>Amount ${receipt?'received':'paid'}</small><b>${esc(currency)} ${money(paid)}</b></div>${journal.meta?.bankPaymentMethod?`<div class="pair"><small>Bank payment method</small>${esc(journal.meta.bankPaymentMethod.replaceAll('_',' '))}</div><div class="pair"><small>Bill / invoice reference</small>${esc(window.TT_ALL_LEDGERS?.displayRef?.(journal.reference)||journal.reference)}</div>`:''}</div>${journal.meta?.directExpense?`<h3>EXPENSE DETAILS</h3><table><thead><tr><th>Category</th><th>Purpose</th><th class="amount">Amount</th></tr></thead><tbody>${(journal.meta.expenseLines||[]).map(row=>`<tr><td>${esc(row.category)}${row.medicalFor?' · '+esc(row.medicalFor.replaceAll('_',' ')):''}${row.rentFor?' · '+esc(row.rentFor):''}${row.donationType?' · '+esc(row.donationType.replaceAll('_',' ')):''}</td><td>${esc(row.purpose)}</td><td class="amount">${money(row.amount)}</td></tr>`).join('')}</tbody></table>`:''}${supplier&&allocationRows?`<h3>BILLS SETTLED BY THIS PAYMENT</h3><table><thead><tr><th>Bill / SODA / Truck / Pohanch</th><th class="amount">Paid now</th><th class="amount">Balance</th></tr></thead><tbody>${allocationRows}</tbody></table>`:''}<h3>ACCOUNTING ENTRY</h3><table><thead><tr><th>Account / details</th><th class="amount">Debit</th><th class="amount">Credit</th></tr></thead><tbody>${accountRows}</tbody><tfoot><tr><td>TOTAL</td><td class="amount">${money(journal.totalDebit)}</td><td class="amount">${money(journal.totalCredit)}</td></tr></tfoot></table><div class="narration"><b>NARRATION</b>${esc(journal.narration||'—')}${journal.fiTagText?'<br>'+esc(journal.fiTagText):''}</div><div class="sign"><span>Prepared By</span><span>Checked By</span><span>Receiver's Signature</span></div></body></html>`;
+      const html=window.TT_VOUCHER_HTML(journal,{masters:access.masters,party:details.party||record?.party,allocations:details.allocations});
       popup.document.open();popup.document.write(html);popup.document.close();
     }catch(error){popup.document.body.textContent='Voucher could not be printed: '+error.message}
   }
@@ -841,3 +826,4 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, {once:true}); else init();
   window.TT_ACCOUNTING_DESK = {installed:true, openSoda, openSearch, showArea, printVoucher, openSavedBill, refreshAttention:loadDashboardSummary};
 })();
+

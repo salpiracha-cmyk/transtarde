@@ -12,14 +12,14 @@ function dex_rows(mixed $input,array $names,array $store=[],string $entity='TTI'
         $value=$row['amount']??null;if(!is_numeric($value)||!is_finite((float)$value)||(float)$value<=0||(float)$value>100000000000)throw new InvalidArgumentException('Enter a positive amount for each expense.');
         $amount=round((float)$value,2);if($amount<=0)throw new InvalidArgumentException('Each expense must be at least 0.01.');
         if($purpose===''||strlen($purpose)>500)throw new InvalidArgumentException('Enter the purpose of each expense (up to 500 characters).');
-        $detail='';$account=match($category){'HOME'=>'FAM-HOUSEHOLD','OFFICE','OTHER'=>'6900','MILL'=>'5200','MEDICAL'=>'6230','RENT'=>'6300','DONATION'=>'7200',default=>throw new InvalidArgumentException('Choose Home, Office, Mill, Medical, Rent, Donation or Other.')};
-        if($category==='MEDICAL'){$detail=strtoupper((string)($row['medicalFor']??''));if(!in_array($detail,['HOUSEHOLD','COMPANY_STAFF'],true))throw new InvalidArgumentException('Choose household or company/staff for medical expenses.');if($detail==='HOUSEHOLD')$account='FAM-HOUSEHOLD';}
-        if($category==='RENT'){$detail=strtoupper((string)($row['rentFor']??''));if(!in_array($detail,['HOME','OFFICE','MILL'],true))throw new InvalidArgumentException('Choose Home, Office or Mill for rent.');if($detail==='HOME')$account='FAM-HOUSEHOLD';elseif($detail==='MILL')$account='5200';}
+        $detail='';$account=match($category){'HOME'=>'6910','OFFICE','OTHER'=>'6900','MILL'=>'5200','MEDICAL'=>'6230','RENT'=>'6300','DONATION'=>'7200',default=>throw new InvalidArgumentException('Choose Home, Office, Mill, Medical, Rent, Donation or Other.')};
+        if($category==='MEDICAL'){$detail=strtoupper((string)($row['medicalFor']??''));if(!in_array($detail,['HOUSEHOLD','COMPANY_STAFF'],true))throw new InvalidArgumentException('Choose household or company/staff for medical expenses.');if($detail==='HOUSEHOLD')$account='6910';}
+        if($category==='RENT'){$detail=strtoupper((string)($row['rentFor']??''));if(!in_array($detail,['HOME','OFFICE','MILL'],true))throw new InvalidArgumentException('Choose Home, Office or Mill for rent.');if($detail==='HOME')$account='6910';elseif($detail==='MILL')$account='5200';}
         if($category==='DONATION'){$detail=strtoupper((string)($row['donationType']??''));$account=match($detail){'ZAKAT'=>'7210','SADQA'=>'7220','FI_SABILILLAH'=>'7230',default=>throw new InvalidArgumentException('Choose Zakat, Sadqa or Fi Sabilillah.')};}
         if(!empty($row['accountCode'])){
             $selected=(string)$row['accountCode'];$head=sac_entity_chart($store,$entity)[$selected]??null;
             if(!$head||in_array($head['level']??'',['heading','system'],true)||($head['class']!=='Expense'&&!str_starts_with($selected,'FAM-')&&$selected!=='3200'))throw new InvalidArgumentException('Choose an expense, manufacturing cost or family allocation account.');
-            $account=$selected;
+            $account=$selected;if($category==='DONATION'&&$selected==='7200')$account=match($detail){'ZAKAT'=>'7210','SADQA'=>'7220','FI_SABILILLAH'=>'7230'};if(($category==='MEDICAL'&&$detail==='HOUSEHOLD'&&$selected==='6230')||($category==='RENT'&&$detail==='HOME'&&$selected==='6300'))$account='6910';if($category==='RENT'&&$detail==='MILL'&&$selected==='6300')$account='5200';
         }
         $subextra=[];if(!empty($row['subaccountId'])){$sub=sac_resolve($store,$entity,(string)$row['subaccountId']);if($sub['class']!=='Expense'&&!str_starts_with($sub['parentCode'],'FAM-')&&$sub['parentCode']!=='3200')throw new InvalidArgumentException('Choose an expense, manufacturing cost or family allocation subaccount.');if(!empty($row['accountCode'])&&(string)$row['accountCode']!==$sub['parentCode'])throw new InvalidArgumentException('The subaccount has moved. Reopen Expenses and choose its current head.');$account=$sub['parentCode'];$subextra=sac_extra($sub);}
         if(!isset($names[$account]))throw new RuntimeException('Expense subaccount is unavailable.');
@@ -38,6 +38,7 @@ function dex_check_cheque(array $store,string $entity,string $bankId,array $trac
 }
 function dex_post(array &$store,string $entity,array $body,array $user,array $names,array $tracking): array {
     $payee=trim((string)($body['payee']??''));if($payee===''||strlen($payee)>180)throw new InvalidArgumentException('Enter who receives this payment.');
+    if(!empty($body['payeeId'])){$profile=sac_payee($store,$entity,(string)$body['payeeId']);if($profile['kind']!=='EXPENSE'||sac_normal($profile['name'])!==sac_normal($payee))throw new InvalidArgumentException('Choose the configured expense recipient.');}
     $date=ev1_date((string)($body['paymentDate']??''),'Payment date');$reference=trim((string)($body['reference']??''));if(strlen($reference)>180)throw new InvalidArgumentException('Reference is too long.');
     [$rows,$total]=dex_rows($body['expenseLines']??null,$names,$store,$entity);$paymentId=trim((string)($body['paymentAccountId']??''));
     if(isset($body['amount'])&&(!is_numeric($body['amount'])||abs(round((float)$body['amount'],2)-$total)>.005))throw new InvalidArgumentException('Payment total must equal all expense rows.');
@@ -62,3 +63,4 @@ function dex_amend(array &$store,string $entity,array $body,array $user,array $n
     $store['expenseAudit'][]=['action'=>'AMEND_DIRECT_EXPENSE','entity'=>$entity,'id'=>$id,'replacementExpenseId'=>$newId,'before'=>$old,'reason'=>$reason,'reversalJournalIds'=>$reversals,'at'=>gmdate('c'),'by'=>$user['username']??''];
     return $result+['originalExpenseId'=>$id,'reversalJournalIds'=>$reversals];
 }
+

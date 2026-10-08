@@ -49,7 +49,7 @@ require $argv[1];
     status,result=request('expenses_v1','?entity=TTI',body)
     assert status==200,(status,result)
     first=result['result'];store=json.loads(books.read_text());journal=store['journals'][first['journalId']]
-    assert [x['account'] for x in journal['lines']]==['FAM-HOUSEHOLD','6230','1120']
+    assert [x['account'] for x in journal['lines']]==['6910','6230','1120']
     assert journal['totalDebit']==journal['totalCredit']==150.25
     assert len([x for x in journal['lines'] if x['credit']>0])==1
     before=books.read_bytes();status,retry=request('expenses_v1','?entity=TTI',body)
@@ -88,3 +88,4 @@ require $argv[1];
     for endpoint in ['expenses_v1','donations','rent_salary_v2']:
         books.write_text('{broken JSON');bad=books.read_bytes();assert request(endpoint,'?entity=TTI')[0]==500;assert books.read_bytes()==bad
     print('Direct expense endpoint, correction, deletion, retry and permissions passed.')
+
