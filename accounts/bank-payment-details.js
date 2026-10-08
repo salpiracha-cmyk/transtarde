@@ -20,17 +20,28 @@
     if(method==='CHEQUE'&&!reference)throw Error('Enter the cheque number.');
     return {bankPaymentMethod:method,bankReference:reference,chequeNo:method==='CHEQUE'?reference:'',chequeDate:method==='CHEQUE'?date:'',paymentNarration:narration};
   }
+  // Resolve a display label without changing the saved journal's posting account.
+  window.TT_VOUCHER_ACCOUNT_LABEL=(line,journal={},masters=window.TT_ACCOUNT_ACCESS?.masters||{})=>{
+    if(String(line.account)!=='1110')return line.subaccountName||line.accountName||line.account;
+    const id=line.bankAccountId||journal.meta?.bankAccountId||journal.meta?.paymentAccountId||line.paymentAccountId;
+    const bank=(masters.banks||[]).find(b=>String(b.id)===String(id))?.values||[];
+    const name=line.bankName||bank[4],number=line.accountNumber||line.iban||bank[8]||bank[9];
+    const label=(journal.bankAccounts||[]).find(b=>String(b.id)===String(id))?.label;
+    if(name&&number)return name+' · '+number;
+    if(label)return label;
+    return [name||line.accountName||'Bank',number||id].filter(Boolean).join(' · ');
+  };
   // A shared compact renderer for saved bank, expense and settlement journals.
   window.TT_VOUCHER_HTML=(j,options={})=>{
     const escape=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])),money=v=>Number(v||0).toLocaleString('en-PK',{minimumFractionDigits:2,maximumFractionDigits:2});
     const m=j.meta||{},lines=j.lines||[],base=j.entity==='TG'?'AED':'PKR',company={TTI:'TRANSTRADE INTERNATIONAL',BRM:'BUKSH RICE MILLS',TG:'TRANS GRAINS FOODSTUFF TRADING L.L.C.'}[j.entity]||j.entity;
     const receipt=/receipt|customer.advance/i.test(j.sourceType||'')||m.bankEntryType==='RECEIPT',transfer=/transfer/i.test(j.sourceType||'')||m.bankEntryType==='TRANSFER';
     const heading=transfer?'TRANSFER VOUCHER':receipt?'RECEIPT VOUCHER':m.bankEntryType&&!['PAYMENT','FINANCE_REPAY','FINANCE_MARKUP'].includes(m.bankEntryType)?'BANK VOUCHER':'PAYMENT VOUCHER';
-    const banks=options.masters?.banks||[],bankDetails=lines.filter(l=>l.account==='1110').map(l=>{const b=banks.find(b=>b.id===(l.bankAccountId||m.bankAccountId))?.values||[];return [...new Set([l.bankName||b[4]||'Bank',l.accountNumber||l.iban||b[8]||b[9]||l.bankAccountId].filter(Boolean))].join(' · ');});
+    const bankDetails=lines.filter(l=>String(l.account)==='1110').map(l=>window.TT_VOUCHER_ACCOUNT_LABEL(l,j,options.masters));
     const party=m.payee||m.supplier||m.vendor||m.customer||m.broker||options.party||'';
     const references=[m.chequeNo&&'Cheque '+m.chequeNo,m.chequeDate&&'Cheque date '+m.chequeDate,m.bankReference&&m.bankReference!==m.chequeNo&&'Transaction '+m.bankReference,j.reference&&![m.chequeNo,m.bankReference].includes(j.reference)&&'Reference '+j.reference,m.financeReference&&'Finance '+m.financeReference,m.exportReference&&'Export '+m.exportReference].filter(Boolean);
     const info=[party&&[receipt?'Received from':'Paid to',party],bankDetails.length&&['Bank / account', [...new Set(bankDetails)].join(' / ')],!bankDetails.length&&lines.some(l=>l.account==='1120')&&['Pay from','Cash / Petty Cash'],references.length&&['Reference',references.join(' · ')],m.bankPaymentMethod&&['Method',m.bankPaymentMethod.replaceAll('_',' ')],m.currency&&m.currency!==base&&['Bank amount',m.currency+' '+money(m.amountNative||m.netPayment||0)+' · Rate '+(m.exchangeRate||'')]].filter(Boolean);
-    const accountRows=lines.map(l=>{let detail=l.expensePurpose||l.subaccountName||l.subledger||l.counterparty||'';if(detail===party)detail='';return `<tr><td>${escape(l.accountName||l.account)}${detail?'<small>'+escape(detail)+'</small>':''}</td><td class="amount">${l.debit?money(l.debit):'—'}</td><td class="amount">${l.credit?money(l.credit):'—'}</td></tr>`;}).join('');
+    const accountRows=lines.map(l=>{let detail=l.expensePurpose||l.subaccountName||l.subledger||l.counterparty||'';if(detail===party)detail='';return `<tr><td>${escape(window.TT_VOUCHER_ACCOUNT_LABEL(l,j,options.masters))}${detail?'<small>'+escape(detail)+'</small>':''}</td><td class="amount">${l.debit?money(l.debit):'—'}</td><td class="amount">${l.credit?money(l.credit):'—'}</td></tr>`;}).join('');
     const allocations=m.allocations||options.allocations||[],allocationRows=allocations.map(a=>`<tr><td>${escape(a.billNo||a.billId||'')} ${escape([a.soda,a.truck,a.pohanch].filter(Boolean).join(' · '))}</td><td class="amount">${money(a.amount)}</td><td class="amount">${a.balanceAfter==null?'—':money(a.balanceAfter)}</td></tr>`).join('');
     // Direct-expense purpose already appears alongside each debit. Keep only separately entered payment narration.
     const narration=m.directExpense?m.paymentNarration:j.narration,notes=[narration,j.fiTagText].filter(Boolean);

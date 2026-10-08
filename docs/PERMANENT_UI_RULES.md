@@ -145,3 +145,9 @@ Every request requiring Director approval must also appear in the Super Admin Co
 - Pay Expense removes the visible Expense Area and Expense For controls. Classification follows the selected expense type. Home Expense shows one Home ledger selector: Salman, Talha, Tayyab or Combined Home. ARP Expense is a separate type with subsidiary selection, outside that Home list.
 - Add / Edit Expense Types manages the entire list, including standard types. Standard names are editable through stable subsidiary IDs; their accounting heads and specialised vehicle, medical, rent and donation validation remain intact. Custom types retain classification and subsidiary hierarchy choices.
 - MRS SRP monthly Home allocations report under Salman Home; MRS TRP under Talha Home; MRS TAYYAB under Tayyab Home. Consolidate using reporting dimensions without changing the original recipient, statutory posting head, amount or journal history. Household ledger activity does not create duplicate monetary postings.
+
+
+## 8 October posting confirmation cleanup
+
+- Successful direct expense Post/Amend closes its entry popup. Keep only the compact posting confirmation with Post ID, debit/credit details, Print and Close; do not create a second full-screen Payment Posted page or duplicate print/pay-another controls.
+- Confirmation and voucher account rows show the selected bank name and account number/IBAN rather than the generic Bank Accounts control head. Resolve labels from saved line metadata or the authorised company bank master; retain accounting codes and historical journals unchanged.
