@@ -198,6 +198,14 @@ tbody tr:hover { background: #fbfcfe; }
 .master-checks { display: flex; flex-wrap: wrap; gap: 8px 14px; margin-top: 9px; }
 .master-checks label { display: flex; grid-template-columns: auto 1fr; align-items: center; gap: 6px; font-weight: 650; }
 .master-checks input { width: 16px; height: 16px; min-height: 0; padding: 0; accent-color: var(--blue); }
+.party-role-field { min-width: 0; margin: 16px 0 0; padding: 12px; border: 1px solid var(--line); border-radius: 6px; }
+.party-role-field legend { padding: 0 5px; font-size: .78rem; font-weight: 750; }
+.party-role-options { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 2px 12px; }
+.party-role-option { display: grid; grid-template-columns: 16px minmax(0,1fr); align-items: center; gap: 8px; min-width: 0; padding: 7px 3px; font-size: .78rem; font-weight: 650; }
+.party-role-option input[type="checkbox"] { width: 16px; height: 16px; min-height: 16px; margin: 0; padding: 0; accent-color: var(--green); }
+.party-role-option span { min-width: 0; overflow-wrap: anywhere; }
+@media(max-width:800px){.party-role-options{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:520px){.party-role-options{grid-template-columns:1fr}}
 .modal-help { max-width: 700px; margin: 6px 0 0; color: var(--muted); font-size: .78rem; line-height: 1.45; }
 
 .governance-note { display: flex; gap: 14px; margin-bottom: 18px; padding: 16px 18px; border: 1px solid #bcd5f8; border-radius: 12px; color: #183f68; background: #edf5ff; }

@@ -95,6 +95,36 @@ with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
         version=request(month='2026-12')[1]['salarySheet']['version']
         status,data=request({'action':'complete_salary_month','version':version,'date':'2026-12-01'},'2026-12');assert status==200,data
         assert all(l['account'] in ['2140','1120'] for l in saved()['journals'][data['result']['journalId']]['lines']),'Legacy accrual cannot duplicate expenses'
+        # Master Records edits must invalidate a reviewed but unposted salary draft.
+        assert draft('Alice',100,month='2027-02')[0]==200
+        prior_journals=saved()['journals'].copy()
+        master_edit='''require "auth_store.php"; require "api/salary_master_store.php";
+        sm_save_master(["Alice Updated","TTI","OFFICE_STAFF","1200","20","30","2026-01-01","","STAFF_COST","No","Active",""],["username"=>"Fixture"],"Alice");
+        sm_deactivate_master("Bob",["username"=>"Fixture"]);'''
+        subprocess.run(['php','-r',master_edit],cwd=root,check=True)
+        status,data=request(month='2027-02');assert status==200,data
+        sheet=data['salarySheet'];assert sheet['masterChanged'] and sheet['canRefreshFromMaster']
+        assert sheet['rows']['Alice']['name']=='Alice' and sheet['rows']['Alice']['payment']['amount']==100
+        assert all(m['status']=='Inactive' for m in data['salaryMasters'] if m['id']=='Bob')
+        assert request({'action':'complete_salary_month','version':sheet['version'],'date':'2027-02-01'},'2027-02')[0]==422
+        status,data=request({'action':'refresh_salary_draft','version':sheet['version']},'2027-02');assert status==200,data
+        sheet=data['salarySheet'];assert not sheet.get('masterChanged') and 'Bob' not in sheet['rows']
+        assert sheet['rows']['Alice']['name']=='Alice Updated' and sheet['rows']['Alice']['totalDue']==1250
+        assert not sheet['rows']['Alice']['reviewed'] and sheet['rows']['Alice']['payment'] is None
+        assert saved()['journals']==prior_journals
+        assert request(month='2026-10')[1]['salarySheet']['status']=='Completed'
+        assert draft('Alice',100,version=1,month='2027-02')[0]==422,'The prior tab cannot overwrite the refreshed draft'
+        # With no saved payment choices, the refreshed draft can pick up another edit automatically.
+        subprocess.run(['php','-r','require "auth_store.php"; require "api/salary_master_store.php"; sm_save_master(["Alice Updated","TTI","OFFICE_STAFF","1300","20","30","2026-01-01","","STAFF_COST","No","Active",""],["username"=>"Fixture"],"Alice");'],cwd=root,check=True)
+        assert request(month='2027-02')[1]['salarySheet']['rows']['Alice']['totalDue']==1350
+        assert request({'action':'prepare_month'},'2027-04')[0]==200
+        prepared_journals=saved()['journals'].copy()
+        subprocess.run(['php','-r','require "auth_store.php"; require "api/salary_master_store.php"; sm_save_master(["Alice Updated","TTI","OFFICE_STAFF","1400","20","30","2026-01-01","","STAFF_COST","No","Active",""],["username"=>"Fixture"],"Alice");'],cwd=root,check=True)
+        prepared=request(month='2027-04')[1]['salarySheet']
+        assert prepared['masterChanged'] and not prepared['canRefreshFromMaster']
+        assert prepared['rows']['Alice']['totalDue']==1350,'Prepared accounting retains its posted amount'
+        assert request({'action':'refresh_salary_draft','version':prepared['version']},'2027-04')[0]==422
+        assert saved()['journals']==prepared_journals
         print('Salary drafts, restart persistence, amount caps, payable and advance balances, mixed payments, cheque validation, overdraft and atomic final retry passed')
         if os.getenv('TT_QA_BROWSER')=='1':
             from playwright.sync_api import sync_playwright

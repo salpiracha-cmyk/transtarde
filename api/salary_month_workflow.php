@@ -2,12 +2,21 @@
 declare(strict_types=1);
 
 // Drafts and the final journal share the Accounts storage lock in rent_salary_v2.php.
-function smw_sheet(array $s,string $entity,string $month):array {
-    $key=$entity.'|'.$month;
-    if(isset($s['salarySheets'][$key]))return $s['salarySheets'][$key];
+function smw_master_signature(array $s,string $entity,string $month):string {
+    $masters=[];
+    foreach((array)$s['salaryMasters'] as $id=>$m){
+        if(!is_array($m)||($m['entity']??'')!==$entity||!rsv2_active($m,$month))continue;
+        $masters[(string)$id]=array_intersect_key($m,array_flip(['name','category','monthlyAmount','zakatAmount','otherAllowance','accountingTreatment','productionCostEligible','effectiveFrom','effectiveTo']));
+    }
+    ksort($masters);
+    return hash('sha256',json_encode($masters,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR));
+}
+function smw_fresh_sheet(array $s,string $entity,string $month):array {
     $rows=[];
     foreach((array)$s['salaryMasters'] as $m){
-        if(!is_array($m)||($m['entity']??'')!==$entity||!rsv2_active($m,$month))continue;
+        if(!is_array($m)||($m['entity']??'')!==$entity)continue;
+        $periodId=rsv2_pid($entity,$month,(string)$m['id']);
+        if(!rsv2_active($m,$month)&&!isset($s['salaryPeriods'][$periodId]))continue;
         $row=rsv2_salary_row($s,$m,$month);
         $period=$s['salaryPeriods'][$row['periodId']]??null;
         $row['baseline']=$period===null?'':rsv2_fingerprint($period);
@@ -16,7 +25,43 @@ function smw_sheet(array $s,string $entity,string $month):array {
         $row['originalAdvanceApplied']=$row['advanceApplied'];$row['reviewed']=false;$row['payment']=null;
         $rows[$row['masterId']]=$row;
     }
-    return ['entity'=>$entity,'month'=>$month,'version'=>0,'status'=>'Draft','rows'=>$rows];
+    $sheet=['entity'=>$entity,'month'=>$month,'version'=>0,'status'=>'Draft','rows'=>$rows,'masterSignature'=>smw_master_signature($s,$entity,$month)];
+    foreach($rows as $id=>$row){
+        if(!$row['prepared'])continue;
+        $master=$s['salaryMasters'][$id];
+        if(!rsv2_active($master,$month)||$row['name']!==($master['name']??'')||$row['category']!==($master['category']??'')||abs($row['netSalary']-(float)($master['monthlyAmount']??0))>.005||abs($row['zakatAmount']-(float)($master['zakatAmount']??0))>.005||abs($row['otherAllowance']-(float)($master['otherAllowance']??0))>.005||$row['accountingTreatment']!==($master['accountingTreatment']??'')){
+            $sheet['masterChanged']=true;$sheet['canRefreshFromMaster']=false;break;
+        }
+    }
+    return $sheet;
+}
+function smw_sheet(array $s,string $entity,string $month):array {
+    $key=$entity.'|'.$month;
+    $stored=$s['salarySheets'][$key]??null;
+    if(!is_array($stored))return smw_fresh_sheet($s,$entity,$month);
+    if(($stored['status']??'Draft')==='Completed')return $stored;
+    $fresh=smw_fresh_sheet($s,$entity,$month);
+    if(isset($stored['masterSignature']))$changed=!hash_equals((string)$stored['masterSignature'],$fresh['masterSignature']);
+    else{
+        $fields=['name','category','netSalary','zakatAmount','otherAllowance','accountingTreatment','productionCostEligible'];
+        $storedRows=(array)($stored['rows']??[]);
+        $changed=array_diff(array_keys($storedRows),array_keys($fresh['rows']))||array_diff(array_keys($fresh['rows']),array_keys($storedRows));
+        foreach($fresh['rows'] as $id=>$row)if(!$changed){foreach($fields as $field){
+            $old=$storedRows[$id][$field]??null;$current=$row[$field]??null;
+            if(is_numeric($old)&&is_numeric($current)?abs((float)$old-(float)$current)>.005:$old!==$current){$changed=true;break;}
+        }}
+    }
+    if(!$changed){
+        if(!empty($fresh['masterChanged'])){$stored['masterChanged']=true;$stored['canRefreshFromMaster']=false;}
+        return $stored;
+    }
+    $rows=(array)($stored['rows']??[]);
+    $prepared=array_filter($rows,static fn($row)=>!empty($row['prepared']));
+    $reviewed=array_filter($rows,static fn($row)=>!empty($row['reviewed']));
+    if(!$prepared&&!$reviewed){$fresh['version']=(int)($stored['version']??0)+1;return $fresh;}
+    $stored['masterChanged']=true;
+    $stored['canRefreshFromMaster']=!$prepared;
+    return $stored;
 }
 function smw_check_baseline(array $s,array $row):void {
     $period=$s['salaryPeriods'][$row['periodId']]??null;
@@ -31,6 +76,15 @@ function smw_action(array &$s,string $entity,string $month,array $b,array $u,arr
         throw new DomainException('This month is completed. Amend its Post ID with a reason.');
     }
     if((int)($b['version']??-1)!==$sheet['version'])throw new DomainException('Another salary draft changed. Refresh and review the latest sheet.');
+    if(($b['action']??'')==='refresh_salary_draft'){
+        if(empty($sheet['masterChanged'])||empty($sheet['canRefreshFromMaster']))throw new DomainException('This sheet cannot be refreshed from Salary Master.');
+        $fresh=smw_fresh_sheet($s,$entity,$month);
+        $fresh['version']=$sheet['version']+1;
+        $fresh['updatedAt']=gmdate('c');
+        $s['salarySheets'][$key]=$fresh;
+        return ['refreshed'=>true];
+    }
+    if(!empty($sheet['masterChanged'])&&!empty($sheet['canRefreshFromMaster']))throw new DomainException('Salary Master changed. Refresh this draft and review the payments again.');
     if(!$complete){
         $mid=(string)($b['masterId']??'');$row=$sheet['rows'][$mid]??null;
         if(!$row)throw new DomainException('Select a person on this salary sheet.');
