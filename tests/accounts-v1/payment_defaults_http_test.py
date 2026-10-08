@@ -39,9 +39,9 @@ with tempfile.TemporaryDirectory(prefix='bank-defaults-qa-') as temp:
             except urllib.error.URLError:time.sleep(.1)
         else:raise AssertionError('PHP fixture did not start')
         accounts={row['id']:row for row in data['accounts']}
-        assert accounts['iban-only']['displayLabel']=='PK00ONLY'
+        assert accounts['iban-only']['displayLabel']=='Fixture Bank · PK00ONLY · Fixture Account'
         assert accounts['iban-only']['settings']['active']
-        assert accounts['a']['displayLabel']=='Fixture Account · Fixture Bank · 12345 · PK00BOTH'
+        assert accounts['a']['displayLabel']=='Fixture Bank · 12345 · Fixture Account'
         for id in ['inactive','incomplete']:
             assert not accounts[id]['settings']['defaultPaymentAccount']
         assert not data['cash']['settings']['defaultPaymentAccount']
@@ -61,3 +61,4 @@ with tempfile.TemporaryDirectory(prefix='bank-defaults-qa-') as temp:
         print('Bank default persistence, uniqueness, receipt independence, eligibility and unchanged journals passed')
     finally:
         server.terminate();server.wait(timeout=5)
+
