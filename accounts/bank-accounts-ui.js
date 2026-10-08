@@ -7,7 +7,7 @@
   const entity = () => localStorage.getItem('tt_accounts_entity') || 'TTI';
   const esc = value => String(value ?? '').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
   const fmt = value => Number(value || 0).toLocaleString('en-PK', {maximumFractionDigits:2});
-  let data = null;
+  let data = null,loadSequence=0;
 
   function toast(message, ok = true) {
     let el = q('#ttBankToast');
@@ -24,8 +24,10 @@
   }
   async function load(force = false) {
     if (data && !force && data.entity === entity()) return;
-    const response = await fetch(`${api}?entity=${encodeURIComponent(entity())}`, {credentials:'same-origin', headers:{Accept:'application/json'}});
+    const requestedEntity=entity(),sequence=++loadSequence;
+    const response = await fetch(`${api}?entity=${encodeURIComponent(requestedEntity)}`, {credentials:'same-origin', headers:{Accept:'application/json'}});
     let body = {}; try { body = await response.json(); } catch (_) {}
+    if(sequence!==loadSequence||requestedEntity!==entity())return;
     if (!response.ok || !body.ok) throw new Error(body.error || 'Could not load bank accounts.');
     data = body;
   }
@@ -90,7 +92,7 @@
   }
   async function mount(target) { try { style(); await load(); target(); } catch (error) { toast(String(error.message || error), false); } }
   document.addEventListener('click', event => { if (event.target.closest?.('.appCard[data-key="bank"]')) setTimeout(() => mount(renderBank),60); if (event.target.closest?.('.tab[data-master="banks"]')) setTimeout(() => mount(renderMasters),30); if (event.target.closest?.('[data-tt-entity]')) data = null; });
-  async function open(){style();q('#ttBankAccountsDesk')?.remove();const host=document.createElement('div');host.id='ttBankAccountsDesk';host.style.cssText='position:fixed;inset:0;z-index:100100;background:#17374766;padding:3vh 12px;overflow:auto';host.innerHTML='<section style="background:white;padding:20px;border-radius:12px;max-width:1150px;margin:auto"><header style="display:flex;justify-content:space-between"><h2>Bank Accounts & Balances</h2><button class="btn" data-close>Close</button></header><div data-bank-content>Loading bank accounts…</div></section>';document.body.appendChild(host);host.querySelector('[data-close]').onclick=()=>host.remove();try{await load(true);if(!host.isConnected)return;q('[data-bank-content]').innerHTML=body();bind();}catch(e){if(host.isConnected)q('[data-bank-content]').textContent=e.message;}window.TT_FORM_VIEWPORT?.open(host);}
+  async function open(){const requestedEntity=entity();style();q('#ttBankAccountsDesk')?.remove();const host=document.createElement('div');host.id='ttBankAccountsDesk';host.style.cssText='position:fixed;inset:0;z-index:100100;background:#17374766;padding:3vh 12px;overflow:auto';host.innerHTML='<section style="background:white;padding:20px;border-radius:12px;max-width:1150px;margin:auto"><header style="display:flex;justify-content:space-between"><h2>Bank Accounts & Balances</h2><button class="btn" data-close>Close</button></header><div data-bank-content>Loading bank accounts…</div></section>';document.body.appendChild(host);host.querySelector('[data-close]').onclick=()=>host.remove();try{await load(true);if(!host.isConnected)return;if(requestedEntity!==entity()){host.remove();return;}q('[data-bank-content]').innerHTML=body();bind();}catch(e){if(host.isConnected)q('[data-bank-content]').textContent=e.message;}window.TT_FORM_VIEWPORT?.open(host);}
   window.TT_BANK_ACCOUNTS_UI = {open,mountBank:() => mount(renderBank), mountMaster:() => mount(renderMasters), reload:() => load(true).then(renderVisible)};
 })();
 

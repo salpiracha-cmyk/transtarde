@@ -59,9 +59,9 @@
     q('#ttReportRun').onclick=()=>load().catch(e=>q('#ttReportsBody').textContent=e.message);q('#ttReportPrint').onclick=print;q('#ttReportCsv').onclick=download;panel.querySelectorAll('#ttReportAccount,#ttReportSource,#ttReportSearch,#ttExpenseRecipient,#ttExpenseAsset,#ttExpenseGroup').forEach(input=>input.addEventListener('input',render));panel.querySelectorAll('[data-rpt]').forEach(button=>button.onclick=()=>{view=button.dataset.rpt;panel.querySelectorAll('[data-rpt]').forEach(x=>x.classList.toggle('active',x===button));q('#ttReportSourceWrap').hidden=view!=='gl';render()});q('#ttReportSourceWrap').hidden=true;if(initialLoad)load().catch(e=>q('#ttReportsBody').textContent=e.message);
   }
   async function open(selected='tb'){
-    view=selected;const ws=q('#ws-reports');if(!ws)return;
+    view=selected;data=null;const ws=q('#ws-reports');if(!ws)return;
     document.querySelectorAll('.workspace.active').forEach(w=>w.classList.remove('active'));
-    q('#entityHome').style.display='none';ws.classList.add('active');install(false);
+    q('#entityHome').style.display='none';ws.classList.add('active');install(false);q('#ttReportsBody').textContent='Loading reports…';q('#ttReportSourceWrap').hidden=view!=='gl';
     ws.querySelectorAll(':scope > :not(.panelHead):not(#ttReportsPanel)').forEach(x=>x.hidden=true);
     const title=ws.querySelector('.panelHead h2');if(title)title.textContent='Reports';
     ws.querySelectorAll('[data-rpt]').forEach(b=>b.classList.toggle('active',b.dataset.rpt===view));

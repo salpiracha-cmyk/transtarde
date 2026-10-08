@@ -17,7 +17,6 @@ try {
         if(!far_permission($u,$module,'Create')&&!far_permission($u,$module,'Edit')&&!far_permission($u,$module,'Approve'))far_out(['ok'=>false,'error'=>'Assets write permission required.'],403);
         if(!$director&&!tt_user_can_access_entity($u,$e,'Create')&&!tt_user_can_access_entity($u,$e,'Edit')&&!tt_user_can_access_entity($u,$e,'Approve'))far_out(['ok'=>false,'error'=>'Company write permission required.'],403);
     }
-    if($write){$right=($body['action']??'')==='reopen'?'Approve':(in_array($body['action']??'',['amend','location'],true)?'Edit':'Create');if(!far_permission($u,$module,$right)||(!$director&&!tt_user_can_access_entity($u,$e,$right)))far_out(['ok'=>false,'error'=>'Asset '.$right.' permission required.'],403);}
     tt_ensure_data_dir();$file=TT_DATA_DIR.'/accounts.json';$h=fopen($file,'c+');if($h===false||!flock($h,$write?LOCK_EX:LOCK_SH))throw new RuntimeException('Storage unavailable.');
     try {
         rewind($h);$raw=stream_get_contents($h);$s=$raw!==''?json_decode($raw,true,512,JSON_THROW_ON_ERROR):[];if(!is_array($s))throw new RuntimeException('Invalid Accounts storage.');$result=[];
