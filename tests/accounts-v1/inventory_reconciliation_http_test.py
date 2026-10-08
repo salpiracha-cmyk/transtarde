@@ -147,6 +147,29 @@ def run() -> None:
         check(not (root/'transtrade_private/accounts.json').exists(),'Reconciliation creates no duplicate purchase/accounting journal')
         if os.environ.get('TT_QA_BROWSER')=='1':
             browser_checks(base,clients,request,get,post,private,scope,output)
+        # Exercise the management review endpoint against the same real file/MySQL backend.
+        amended=json.loads(get()['values']['tt30prod'])
+        target=next(r for r in amended if r['id']==10)
+        target['rows'][0]['bags']=100;target['shiftEntriesComplete']=True
+        post('tt30prod',amended);pv=private()
+        check(bool(json.loads(pv['tt39physicalconfirmations'])[0].get('reviewRequired')),'A genuine finalized quantity amendment requires explicit management review')
+        import hashlib
+        keys=['tt30prod','tt30ship','tt30slips','tt32stockadj','tt35localsales','tt35exportersale','tt39physicalconfirmations','tt34ghati','tt34nilqueue','tt32processingrecon','tt34stockreviewaudit']
+        revision=hashlib.sha256(json.dumps({k:pv.get(k,'') for k in sorted(keys)},ensure_ascii=False,separators=(',',':')).encode()).hexdigest()
+        review={'entity':'TTI','revision':revision,'confirmationId':'PC-HTTP','reason':'Verified corrected final production quantity'}
+        for user in ['qamill','qaexport','qaaccounts','qaaccountswrite']:
+            c,d=request(user,'/api/stock_reconciliation_review.php',review)
+            check(c==403,'Operational/View/unrelated expense rights cannot accept stock review: '+user,(c,d))
+        c,d=request('qaowner','/api/stock_reconciliation_review.php',{**review,'csrf':'bad'});check(c==419,'Stock review CSRF is enforced',(c,d))
+        source=pv['tt30prod'];counts=(len(json.loads(pv['tt34ghati'])),len(json.loads(pv['tt32stockadj'])))
+        c,d=request('qaowner','/api/stock_reconciliation_review.php',review);check(c==200,'Authorized stock review saves against actual backend',(c,d))
+        reviewed=private();confirmation=next(r for r in json.loads(reviewed['tt39physicalconfirmations']) if r['id']=='PC-HTTP')
+        check(not confirmation.get('reviewRequired') and confirmation['adjustmentKg']==20000,'Review recalculates only the corrected physical confirmation',confirmation)
+        check(reviewed['tt30prod']==source,'Review leaves saved production facts unchanged')
+        check(counts==(len(json.loads(reviewed['tt34ghati'])),len(json.loads(reviewed['tt32stockadj']))),'Review replaces existing stock/variance rows without duplication')
+        check(json.loads(reviewed['tt34stockreviewaudit'])[-1]['by']=='qaowner','Actual management reviewer is recorded')
+        c,d=request('qaowner','/api/stock_reconciliation_review.php',review);check(c==409 and private()==reviewed,'Stale review replay is a no-op',(c,d))
+        check(not (root/'transtrade_private/accounts.json').exists(),'Review creates no duplicate purchase/accounting journal')
         print(f'PASS {"MySQL" if mysql else "file-backed"} inventory HTTP: {len(checks)} assertions')
     finally:
         if server:

@@ -3,7 +3,7 @@ name: Accounts V1 QA
 on:
   push:
     branches: [main]
-    paths: ['index.html','accounts/**','api/**','scripts/**','auth_store.php','session_store.php','login.php','change-password.php','recover-admin.php','logout.php','master_store.php','backup_lib.php','qa_account.php','offline_idempotency.php','product_stage.php','inventory_reconciliation.php','stock-reconciliation.php','directors/**','module.php','brand-theme.css','brand-theme.js','exports/**','admin/**','milling/**','tests/accounts-v1/**','tests/security/**','tests/offline_recovery_audit.js','tests/super_admin_cleanup_audit.js','tests/live/accounts-hostinger-qa.spec.js','tests/live/hostinger-qa.spec.js','tests/live/exports-reset-only.spec.js','tests/exports-v3/**','.github/workflows/accounts-v1-qa.yml','.github/workflows/milling-exports-qa.yml','.github/workflows/deploy-production.yml','.github/workflows/qa-data-cleanup.yml']
+    paths: ['index.html','accounts/**','api/**','scripts/**','auth_store.php','session_store.php','login.php','change-password.php','recover-admin.php','logout.php','master_store.php','backup_lib.php','qa_account.php','offline_idempotency.php','product_stage.php','inventory_reconciliation.php','stock-reconciliation.php','directors/**','module.php','brand-theme.css','brand-theme.js','exports/**','admin/**','milling/**','tests/master_data_topbar_audit.js','tests/accounts-v1/**','tests/security/**','tests/offline_recovery_audit.js','tests/super_admin_cleanup_audit.js','tests/live/accounts-hostinger-qa.spec.js','tests/live/hostinger-qa.spec.js','tests/live/exports-reset-only.spec.js','tests/exports-v3/**','.github/workflows/accounts-v1-qa.yml','.github/workflows/milling-exports-qa.yml','.github/workflows/deploy-production.yml','.github/workflows/qa-data-cleanup.yml']
   pull_request:
     paths: ['index.html','accounts/**','api/**','scripts/**','auth_store.php','session_store.php','login.php','change-password.php','recover-admin.php','logout.php','master_store.php','backup_lib.php','offline_idempotency.php','product_stage.php','inventory_reconciliation.php','stock-reconciliation.php','directors/**','module.php','brand-theme.css','brand-theme.js','exports/**','admin/**','milling/**','tests/accounts-v1/**','tests/security/**','tests/offline_recovery_audit.js','tests/super_admin_cleanup_audit.js','tests/live/accounts-hostinger-qa.spec.js','tests/live/hostinger-qa.spec.js','tests/live/exports-reset-only.spec.js','tests/exports-v3/**','.github/workflows/accounts-v1-qa.yml','.github/workflows/milling-exports-qa.yml','.github/workflows/deploy-production.yml','.github/workflows/qa-data-cleanup.yml']
 
@@ -42,6 +42,7 @@ jobs:
           node tests/accounts-v1/end_to_end_audit.js
           node tests/accounts-v1/static_audit.js
           node tests/accounts-v1/clean_ui_test.js
+          node tests/master_data_topbar_audit.js
           node tests/accounts-v1/payment_defaults_ui_test.js
           python3 tests/accounts-v1/payment_defaults_http_test.py
           python3 tests/accounts-v1/company_bank_defaults_http_test.py
