@@ -138,3 +138,10 @@ Every request requiring Director approval must also appear in the Super Admin Co
 - Optional personal-amount ticks select each director once, with amount and remuneration deduction or cash recovery. The full card bill and full bank payment remain intact. Separate internal recovery entries reclassify personal amounts; financial reports must not treat recovered personal spending as business expense.
 - Remuneration deductions use accrued payable first and carry remaining amounts into the existing salary advance/deduction workflow. Never invent an entitlement or double-deduct. Corrections restore earlier salary deductions and replace the allocation, preserving journal history and the original public Post ID. Cash receipts settle the personal receivable without touching the card. A collected cash allocation cannot be removed by silently refunding money.
 - New personal adjustments are explicit Posts with retry keys, entity and icon permissions, and audit history. They may be entered with the bill, at payment or afterwards. No background saving or production test postings.
+
+
+## 8 October simplified Home and expense type selection
+
+- Pay Expense removes the visible Expense Area and Expense For controls. Classification follows the selected expense type. Home Expense shows one Home ledger selector: Salman, Talha, Tayyab or Combined Home. ARP Expense is a separate type with subsidiary selection, outside that Home list.
+- Add / Edit Expense Types manages the entire list, including standard types. Standard names are editable through stable subsidiary IDs; their accounting heads and specialised vehicle, medical, rent and donation validation remain intact. Custom types retain classification and subsidiary hierarchy choices.
+- MRS SRP monthly Home allocations report under Salman Home; MRS TRP under Talha Home; MRS TAYYAB under Tayyab Home. Consolidate using reporting dimensions without changing the original recipient, statutory posting head, amount or journal history. Household ledger activity does not create duplicate monetary postings.

@@ -47,8 +47,18 @@ function sac_save_payee(array &$s,string $e,array $b,array $u):array {
  $record=['id'=>$id,'entity'=>$e,'kind'=>$kind,'name'=>$name,'accountCode'=>$code,'subaccountId'=>$subId,'expenseCategory'=>$category,'active'=>true,'configured'=>true];
  $storeKey=$e.'|'.$id;$s['paymentPayees'][$storeKey]=$record;$s['paymentPayeeAudit'][]=['entity'=>$e,'before'=>$old,'after'=>$record,'at'=>gmdate('c'),'by'=>$u['username']??''];return ['payee'=>$record];
 }
+function sac_expense_defaults():array {
+ return ['HOME'=>['Home Expense','6910'],'OFFICE'=>['Office / Administrative Expense','6900'],'CAR_REPAIRS'=>['Car Repairs','6410'],'FUEL'=>['Vehicle Fuel','6610'],'VEHICLE_TAX'=>['Vehicle Tax & Licence Fees','6620'],'REPAIRS'=>['Repairs & Maintenance','6400'],'TRAVEL'=>['Travel & Conveyance','6500'],'PROFESSIONAL'=>['Professional Fees','6700'],'MEDICAL'=>['Medical','6230'],'RENT'=>['Rent','6300'],'DONATION'=>['Donation','7200'],'OTHER'=>['Other Expense','6900'],'ARP'=>['ARP Expense','6910']];
+}
+function sac_home_person(string $name):string {
+ return match(sac_normal($name)){'mrssrp'=>'FAM-SALMAN','mrstrp'=>'FAM-TALHA','mrstayyab'=>'FAM-TAYYAB',default=>'SHARED'};
+}
+function sac_home_name(string $person):string {return match($person){'FAM-SALMAN'=>'Salman Home Expense','FAM-TALHA'=>'Talha Home Expense','FAM-TAYYAB'=>'Tayyab Home Expense',default=>'Combined Home Expense'};}
+function sac_home_id(string $entity,string $person):string {return $entity.'-HOME-'.$person;}
 function sac_accounts(array $s,string $e):array {
- $out=[];foreach(['FI / Instrument Charges'=>'BANK_INSTRUMENT','Card Charges'=>'BANK_CARD','Transfer Charges'=>'BANK_TRANSFER','Bank Financing Charges'=>'BANK_FINANCING','Bank Finance Markup'=>'FINANCE_MARKUP'] as $name=>$key){$id=$e.'-DEFAULT-'.$key;$out[$id]=['id'=>$id,'entity'=>$e,'name'=>$name,'parentCode'=>'6800','taxCategory'=>'NONE','active'=>true];}
+ $out=[];foreach(sac_expense_defaults() as $category=>[$name,$code]){$id=$e.'-EXPENSE-TYPE-'.$category;$out[$id]=['id'=>$id,'entity'=>$e,'name'=>$name,'parentCode'=>$code,'taxCategory'=>'NONE','active'=>true,'builtinCategory'=>$category];}
+ foreach(['FAM-SALMAN','FAM-TALHA','FAM-TAYYAB','SHARED'] as $person){$id=sac_home_id($e,$person);$out[$id]=['id'=>$id,'entity'=>$e,'name'=>sac_home_name($person),'parentCode'=>'6910','parentId'=>$e.'-EXPENSE-TYPE-HOME','taxCategory'=>'NONE','active'=>true,'homePerson'=>$person];}
+ foreach(['FI / Instrument Charges'=>'BANK_INSTRUMENT','Card Charges'=>'BANK_CARD','Transfer Charges'=>'BANK_TRANSFER','Bank Financing Charges'=>'BANK_FINANCING','Bank Finance Markup'=>'FINANCE_MARKUP'] as $name=>$key){$id=$e.'-DEFAULT-'.$key;$out[$id]=['id'=>$id,'entity'=>$e,'name'=>$name,'parentCode'=>'6800','taxCategory'=>'NONE','active'=>true];}
  foreach(['EXPORT','SAVINGS','BROKERAGE','SERVICES'] as $cat)foreach(['RECOVERABLE'=>'1260','PAYABLE'=>'2300'] as $t=>$code){$id=$e.'-DEFAULT-TAX-'.$cat.'-'.$t;$out[$id]=['id'=>$id,'entity'=>$e,'name'=>ucfirst(strtolower($cat)).' Withholding Tax '.ucfirst(strtolower($t)),'parentCode'=>$code,'taxCategory'=>$cat,'active'=>true];}
  foreach((array)($s['accountSubaccounts']??[]) as $id=>$r)if(is_array($r)&&($r['entity']??'')===$e)$out[$id]=$r;return $out;
 }
@@ -88,10 +98,12 @@ function sac_master(array &$s,string $e,array $b,array $u):array {
   $head=$chart[$parent]??null;
   if(!$head||in_array($head['level']??'',['heading','system'],true)||in_array($parent,['1110','1120','1130','1430','1440','1610','2610'],true))throw new DomainException('Select a valid posting head. Bank, investment and finance registers manage their own accounts.');
   $classification=(string)($b['expenseClassification']??$old['expenseClassification']??'');if(!empty($b['expenseType'])){if(!in_array($classification,['MILL','HOME','OFFICE'],true)||$head['class']!=='Expense')throw new DomainException('Choose Milling / Production, Home or Office.');$valid=match($classification){'MILL'=>str_starts_with($parent,'5'),'HOME'=>$parent==='6910','OFFICE'=>!str_starts_with($parent,'5')&&$parent!=='6910'};if(!$valid)throw new DomainException('Choose a parent under the selected expense classification.');}
+  if(!empty($old['builtinCategory'])&&($parent!==$old['parentCode']||$parentId!==''))throw new DomainException('Standard expense types keep their posting head. Add a new type for a different classification.');
+  if(isset($old['homePerson'])&&($parent!=='6910'||$parentId!==$e.'-EXPENSE-TYPE-HOME'))throw new DomainException('Keep Home ledgers under Home Expense.');
   $tax=strtoupper((string)($b['taxCategory']??'NONE'));if(!in_array($tax,['NONE','EXPORT','SAVINGS','BROKERAGE','SERVICES','OTHER'],true)||(!in_array($parent,['1260','2300'],true)&&$tax!=='NONE'))throw new DomainException('Tax category applies to recoverable tax or tax payable heads.');
   foreach(sac_accounts($s,$e) as $other)if($other['id']!==$id&&sac_normal($other['name'])===sac_normal($name))throw new DomainException('This subaccount name already exists. Edit or reactivate it.');
   if($op==='add')$id=far_next((array)($s['accountSubaccounts']??[]),'SUB');
-  $a=['id'=>$id,'entity'=>$e,'name'=>$name,'expenseClassification'=>$classification,'parentCode'=>$parent,'parentId'=>$parentId,'taxCategory'=>$tax,'active'=>!array_key_exists('active',$b)||(bool)$b['active']];
+  $a=['id'=>$id,'entity'=>$e,'name'=>$name,'expenseClassification'=>$classification]+array_intersect_key($old??[],array_flip(['builtinCategory','homePerson']))+['parentCode'=>$parent,'parentId'=>$parentId,'taxCategory'=>$tax,'active'=>!array_key_exists('active',$b)||(bool)$b['active']];
   // A subtree moves together. Its rows keep stable IDs and its vouchers keep saved treatment.
   if($old&&$old['parentCode']!==$parent)foreach(sac_subtree($s,$e,$id) as $child){
    $r=sac_accounts($s,$e)[$child];$r['parentCode']=$parent;if(!in_array($parent,['1260','2300'],true))$r['taxCategory']='NONE';$s['accountSubaccounts'][$child]=$r;
@@ -121,11 +133,17 @@ function sac_expense_activity(array $s,string $e,string $from,string $to):array 
   if(($j['entity']??'')!==$e||($j['status']??'')!=='Posted'||($j['date']??'')<$from||($j['date']??'')>$to)continue;
   $meta=(array)($j['meta']??[]);$source=(array)($s['generalExpenses'][(string)($meta['generalExpenseId']??'')]??[]);
   foreach((array)($j['lines']??[]) as $l){
-   $code=(string)($l['account']??'');if(!empty($l['personalRecovery']))continue;if(($chart[$code]['class']??'')!=='Expense'||str_starts_with($code,'5'))continue;
+   $code=(string)($l['account']??'');if(!empty($l['personalRecovery']))continue;
+   $master=(array)($s['salaryMasters'][(string)($l['salaryMasterId']??$meta['salaryMasterId']??'')]??[]);
+   $monthly=$code==='3200'&&($l['category']??$meta['category']??$master['category']??'')==='HOME_MONTHLY_GIVE';
+   if(!$monthly&&(($chart[$code]['class']??'')!=='Expense'||str_starts_with($code,'5')))continue;
+   if($monthly){$person=sac_home_person((string)($l['person']??$meta['person']??$master['name']??''));$l['expenseFor']=$person;$l['expenseForName']=match($person){'FAM-SALMAN'=>'Salman','FAM-TALHA'=>'Talha','FAM-TAYYAB'=>'Tayyab',default=>'Shared–Common'};$l['expenseArea']='HOME';}
+   $home=($l['expenseArea']??$l['location']??'')==='HOME'||$code==='6910';
+   $homeId=$home&&($l['expenseFor']??'SHARED')!=='FAM-ABU'?sac_home_id($e,(string)($l['expenseFor']??'SHARED')):'';
    $id=(string)($l['expenseRecipientId']??$l['paymentPayeeId']??$meta['payeeId']??$source['payeeId']??'');
    $recipient=(string)($s['paymentPayees'][$e.'|'.$id]['name']??$l['counterparty']??$l['party']??$l['person']??$meta['payee']??$meta['beneficiary']??$source['payee']??'');
    $asset=(array)($s['managedAssets'][(string)($l['assetId']??'')]??[]);
-   $out[]=['date'=>$j['date'],'voucher'=>$j['id'],'journalId'=>$j['id'],'sourceType'=>$j['sourceType']??'','account'=>$code,'accountName'=>$l['accountName']??$chart[$code]['name'],'expenseFor'=>$l['expenseFor']??'SHARED','expenseForName'=>$l['expenseForName']??'Shared–Common','expenseArea'=>$l['expenseArea']??$l['location']??$meta['location']??'','personalTreatment'=>$l['personalTreatment']??'COMPANY','recipient'=>$recipient,'recipientId'=>$id,'assetId'=>$l['assetId']??'','assetName'=>$l['assetName']??$asset['name']??'','registrationNo'=>$l['registrationNo']??$asset['registrationNo']??'','purpose'=>$l['expensePurpose']??$j['narration']??'','reference'=>$j['reference']??'','amount'=>round((float)($l['debit']??0)-(float)($l['credit']??0),2),'reversal'=>!empty($j['reversalOf'])];
+   $out[]=['homeLedgerId'=>$homeId,'homeLedgerName'=>$homeId!==''?sac_home_name((string)($l['expenseFor']??'SHARED')):'','date'=>$j['date'],'voucher'=>$j['id'],'journalId'=>$j['id'],'sourceType'=>$j['sourceType']??'','account'=>$code,'accountName'=>$l['accountName']??$chart[$code]['name'],'expenseFor'=>$l['expenseFor']??'SHARED','expenseForName'=>$l['expenseForName']??'Shared–Common','expenseArea'=>$l['expenseArea']??$l['location']??$meta['location']??'','personalTreatment'=>$l['personalTreatment']??'COMPANY','recipient'=>$recipient,'recipientId'=>$id,'assetId'=>$l['assetId']??'','assetName'=>$l['assetName']??$asset['name']??'','registrationNo'=>$l['registrationNo']??$asset['registrationNo']??'','purpose'=>$l['expensePurpose']??$j['narration']??'','reference'=>$j['reference']??'','amount'=>round((float)($l['debit']??0)-(float)($l['credit']??0),2),'reversal'=>!empty($j['reversalOf'])];
   }
  }
  return $out;

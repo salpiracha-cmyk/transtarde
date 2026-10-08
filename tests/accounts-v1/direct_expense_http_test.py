@@ -12,7 +12,7 @@ with tempfile.TemporaryDirectory(prefix='tti-authorization-') as directory:
     private.mkdir()
     for name in ['auth_store.php', 'master_store.php', 'product_stage.php', 'offline_idempotency.php','session_store.php']:
         shutil.copy(ROOT / name, app / name)
-    for name in ['accounts_subaccounts_core.php','assets_registry_core.php','expenses_v1.php','direct_expense_core.php','accounts_bank_payment.php','expense_locations.php','expense_reminders.php','expense_reversals.php','donations.php','rent_salary_v2.php','salary_month_workflow.php','salary_master_store.php','accounts_reports.php','accounts_ledger_browser.php','accounts_reference.php','tg_remittance_core.php','fi_credit_advice_link.php','receipt_invoice_links.php']:
+    for name in ['accounts_subaccounts.php','accounts_subaccounts_core.php','assets_registry_core.php','expenses_v1.php','direct_expense_core.php','accounts_bank_payment.php','expense_locations.php','expense_reminders.php','expense_reversals.php','donations.php','rent_salary_v2.php','salary_month_workflow.php','salary_master_store.php','accounts_reports.php','accounts_ledger_browser.php','accounts_reference.php','tg_remittance_core.php','fi_credit_advice_link.php','receipt_invoice_links.php']:
         shutil.copy(ROOT / 'api' / name, app / 'api' / name)
     shutil.copy(ROOT / 'accounts/accounting_master_v1.json', app / 'accounts/accounting_master_v1.json')
     harness = root / 'request.php'
@@ -140,6 +140,32 @@ require $argv[1];
     assert any('CAS' in r['narration'] and r.get('expenseAmount')==10000 for r in person['rows'])
     status,report=request('accounts_reports','?entity=TTI&from=2026-10-01&asOf=2026-10-31');assert status==200
     assert any(r['recipient']=='CAS' and r['expenseForName']=='Talha' and r['expenseArea']=='HOME' for r in report['expenseActivity'])
+    # Stable type editing and ARP subsidiaries are available alongside every standard type.
+    permissions['masters']=['View','Create','Edit'];set_user()
+    status,setup=request('accounts_subaccounts','?entity=TTI');assert status==200,(status,setup)
+    types={x.get('builtinCategory'):x for x in setup['subaccounts'] if x.get('builtinCategory')}
+    assert len(types)==13 and all(x in types for x in ['HOME','OFFICE','MEDICAL','RENT','DONATION','ARP'])
+    rename={'csrf':'fixture','entity':'TTI','operation':'edit','id':types['OFFICE']['id'],'name':'Office Running Costs','expenseType':True,'expenseClassification':'OFFICE','parentCode':'6900','parentId':'','revision':setup['revision'],'requestKey':'rename-office-type-001'}
+    status,setup=request('accounts_subaccounts','?entity=TTI',rename);assert status==200,(status,setup)
+    assert next(x for x in setup['subaccounts'] if x['id']==rename['id'])['builtinCategory']=='OFFICE'
+    add={'csrf':'fixture','entity':'TTI','operation':'add','name':'ARP medical costs','expenseType':True,'expenseClassification':'HOME','parentCode':'6910','parentId':types['ARP']['id'],'revision':setup['revision'],'requestKey':'arp-add-subsidiary-001'}
+    status,setup=request('accounts_subaccounts','?entity=TTI',add);assert status==200,(status,setup);arp_sub=setup['result']['subaccountId']
+    arp={**school,'requestKey':'arp-expense-post-001','reference':'ARP-1','amount':50,'expenseLines':[{'category':'ARP','subaccountId':arp_sub,'accountCode':'6910','purpose':'Medical costs','amount':50}]}
+    status,result=request('expenses_v1','?entity=TTI',arp);assert status==200,(status,result)
+    assert json.loads(books.read_text())['journals'][result['result']['journalId']]['lines'][0]['expenseFor']=='FAM-ABU'
+    # Existing monthly Home allocations and direct school fees consolidate without rewriting books.
+    store=json.loads(books.read_text())
+    for name,amount in [('MRS TRP',140000),('MRS SRP',310000),('MRS TAYYAB',160000)]:
+        jid='HOME-'+name.replace(' ','-');store['journals'][jid]={'id':jid,'entity':'TTI','date':'2026-10-31','status':'Posted','sourceType':'SALARY_MONTHLY_ACCRUAL','narration':name+' monthly home','meta':{},'lines':[{'account':'3200','debit':amount,'credit':0,'person':name,'category':'HOME_MONTHLY_GIVE'},{'account':'2140','debit':0,'credit':amount,'person':name}]}
+    books.write_text(json.dumps(store));before=books.read_bytes()
+    for person,amount in [('FAM-TALHA',150000),('FAM-SALMAN',310000),('FAM-TAYYAB',160000)]:
+        status,home=request('accounts_ledger_browser','?entity=TTI&account=SUB|TTI-HOME-'+person+'&from=2026-10-01&to=2026-10-31');assert status==200,(status,home)
+        assert home['homeLedger'] and home['expenseTotal']==amount,(person,home)
+        assert all(x['activityOnly'] and x['debit']==x['credit']==0 for x in home['rows'])
+    assert books.read_bytes()==before,'Reporting must preserve all original journals and amounts'
+    status,home=request('accounts_ledger_browser','?entity=TTI&category=party&party=Talha&from=2026-10-01&to=2026-10-31');assert status==200
+    assert any('MRS TRP' in x['narration'] and x.get('expenseAmount')==140000 for x in home['rows'])
+    print('All standard expense types editable, ARP subsidiaries and three consolidated Home ledgers passed.')
     # Director remuneration masters and an already accrued payable.
     store=json.loads(books.read_text())
     store['salaryMasters']={name:{'id':name,'name':name,'entity':'TTI','category':'DIRECTOR_REMUNERATION','monthlyAmount':75000,'zakatAmount':0,'otherAllowance':0,'effectiveFrom':'2026-07-01','status':'Active','accountingTreatment':'STAFF_COST'} for name in ['SALMAN','TALHA','TAYYAB','ARP']}

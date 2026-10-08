@@ -77,6 +77,7 @@ $file=TT_DATA_DIR.'/accounts.json';
 $store=tt_fi_advice_project(tt_fi_advice_read_json($file),tt_fi_advice_root());
 $headCodes=$headId!==''?sac_descendants($headId,$store,$entity):[];
 $subaccountIds=$subaccountId!==''?sac_subtree($store,$entity,$subaccountId):[];
+$homeLedger=isset(sac_accounts($store,$entity)[$subaccountId]['homePerson']);
 $banks=[];
 if($headId!==''&&isset($catalog[$headId]))$catalog[$account]='Head of Accounts · '.$catalog[$headId];
 foreach(sac_accounts($store,$entity) as $subaccount)$catalog['SUB|'.$subaccount['id']]=$subaccount['name'].' · '.$subaccount['parentCode'];
@@ -92,7 +93,7 @@ foreach((array)(tt_list_masters()['banks']??[]) as $bank){
 }
 $catalog['POSTS']='Post ID Register';
 foreach($banks as $bank)$catalog[$bank['code']]=$bank['name'];
-$expenseActivity=$category==='party'?sac_expense_activity($store,$entity,$from,$to):[];
+$expenseActivity=($category==='party'||$homeLedger)?sac_expense_activity($store,$entity,$from,$to):[];
 foreach($expenseActivity as $activity){if($activity['recipient']!=='')$parties[$activity['recipient']]=true;if(($activity['expenseFor']??'SHARED')!=='SHARED')$parties[$activity['expenseForName']]=true;}
 $requestedPost=trim((string)($_GET['postId']??''));
 if($requestedPost!==''){
@@ -138,6 +139,7 @@ foreach($journals as $journal){
         continue;
     }
     foreach((array)($journal['lines']??[]) as $line){
+        if($homeLedger)continue;
         if(!is_array($line))continue;
         $code=(string)($line['account']??'');
         $lineBank=(string)($line['bankAccountId']??$journal['meta']['bankAccountId']??'');
@@ -198,9 +200,9 @@ foreach($rows as &$row){if(($account!==''||$party!=='')&&!$postEntries){$balance
 $closing=$category==='party'&&$balanceUnavailable?null:$balance;
 if($category==='party'&&$balanceUnavailable){$opening=null;foreach($rows as &$row)$row['balance']=null;unset($row);}
 $expenseTotal=0.0;
-if($category==='party'&&$party!=='')foreach($expenseActivity as $activity)if(alb_party_key($activity['recipient'])===alb_party_key($party)||(($activity['expenseFor']??'SHARED')!=='SHARED'&&alb_party_key($activity['expenseForName'])===alb_party_key($party))){
+if($homeLedger||($category==='party'&&$party!==''))foreach($expenseActivity as $activity)if(($homeLedger&&($activity['homeLedgerId']??'')===$subaccountId)||(!$homeLedger&&(alb_party_key($activity['recipient'])===alb_party_key($party)||(($activity['expenseFor']??'SHARED')!=='SHARED'&&alb_party_key($activity['expenseForName'])===alb_party_key($party))))){
  $expenseTotal=round($expenseTotal+$activity['amount'],2);
- $rows[]=['date'=>$activity['date'],'voucher'=>$activity['voucher'],'account'=>$activity['account'],'accountName'=>$activity['accountName'],'reference'=>$activity['reference'],'narration'=>$activity['accountName'].' · '.$activity['purpose'].' · Paid to '.$activity['recipient'].' · For '.($activity['expenseForName']??'Shared–Common').($activity['assetName']!==''?' · '.$activity['assetName'].' '.$activity['registrationNo']:''),'party'=>$activity['recipient'],'debit'=>0,'credit'=>0,'balance'=>null,'activityOnly'=>true,'expenseAmount'=>$activity['amount'],'chequeNo'=>'','bankReference'=>''];
+ $rows[]=['publicPostId'=>tt_accounts_public_post($store,$store['journals'][$activity['voucher']]??[]),'amendmentNote'=>tt_accounts_amendment_note($store['journals'][$activity['voucher']]??[],$store),'date'=>$activity['date'],'voucher'=>$activity['voucher'],'account'=>$activity['account'],'accountName'=>$activity['accountName'],'reference'=>$activity['reference'],'narration'=>$activity['accountName'].' · '.$activity['purpose'].' · Paid to '.$activity['recipient'].' · For '.($activity['expenseForName']??'Shared–Common').($activity['assetName']!==''?' · '.$activity['assetName'].' '.$activity['registrationNo']:''),'party'=>$activity['recipient'],'debit'=>0,'credit'=>0,'balance'=>null,'activityOnly'=>true,'expenseAmount'=>$activity['amount'],'chequeNo'=>'','bankReference'=>''];
 }
 if($query!=='')$rows=array_values(array_filter($rows,static fn($row)=>(!preg_match('/^(?:\d{4}-)?\d+$/',$query)&&str_contains(strtolower(implode(' ',array_map('strval',$row))),$query))||tt_accounts_reference_matches($query,$row['voucher'])||tt_accounts_reference_matches($query,$row['publicPostId']??'')||tt_accounts_reference_matches($query,$row['reference'])||($row['chequeNo']!==''&&str_contains(strtolower($row['chequeNo']),$query))||($row['bankReference']!==''&&str_contains(strtolower($row['bankReference']),$query))||(preg_match('/^(?:\d{4}-)?\d+$/',$query)&&!preg_match('/^(?:[A-Z]+-)?\d{4}-\d+$/i',$row['reference'])&&str_contains(strtolower($row['reference']),$query))));
 // Keep the chronological running balances above, then display newest Post IDs first.
@@ -220,6 +222,6 @@ if(($_GET['format']??'')==='csv'){
     fclose($out);exit;
 }
 header('Content-Type: application/json; charset=UTF-8');
-echo json_encode(['ok'=>true,'entity'=>$entity,'accounts'=>array_map(static fn($code,$name)=>['code'=>(string)$code,'name'=>$name],array_keys($catalog),array_values($catalog)),'from'=>$from,'to'=>$to,'account'=>$account,'currency'=>$bankId!==''?($banks[$bankId]['currency']??''):($entity==='TG'?$nativeCurrency:'PKR'),'pendingRemittances'=>$entity==='TG'&&$bankId!==''?tgr_reserved($store,$bankId):0,'availableBalance'=>$entity==='TG'&&$bankId!==''?tgr_bank_balance($store,$bankId,$banks[$bankId]['currency'])['available']:null,'opening'=>$opening===null?null:round($opening,2),'closing'=>($account!==''||$party!=='')&&!$postEntries?$closing:null,'parties'=>array_keys($parties),'category'=>$category,'party'=>$party,'expenseTotal'=>$expenseTotal,'expenseCurrency'=>$entity==='TG'?'AED':'PKR','missingPartyLines'=>$category==='party'?$missingPartyLines:0,'balanceUnavailable'=>$category==='party'&&$balanceUnavailable,'rows'=>$rows],JSON_UNESCAPED_UNICODE);
+echo json_encode(['ok'=>true,'entity'=>$entity,'accounts'=>array_map(static fn($code,$name)=>['code'=>(string)$code,'name'=>$name],array_keys($catalog),array_values($catalog)),'from'=>$from,'to'=>$to,'account'=>$account,'currency'=>$bankId!==''?($banks[$bankId]['currency']??''):($entity==='TG'?$nativeCurrency:'PKR'),'pendingRemittances'=>$entity==='TG'&&$bankId!==''?tgr_reserved($store,$bankId):0,'availableBalance'=>$entity==='TG'&&$bankId!==''?tgr_bank_balance($store,$bankId,$banks[$bankId]['currency'])['available']:null,'opening'=>$opening===null?null:round($opening,2),'closing'=>($account!==''||$party!=='')&&!$postEntries?$closing:null,'parties'=>array_keys($parties),'category'=>$category,'party'=>$party,'homeLedger'=>$homeLedger,'expenseTotal'=>$expenseTotal,'expenseCurrency'=>$entity==='TG'?'AED':'PKR','missingPartyLines'=>$category==='party'?$missingPartyLines:0,'balanceUnavailable'=>$category==='party'&&$balanceUnavailable,'rows'=>$rows],JSON_UNESCAPED_UNICODE);
 
 
