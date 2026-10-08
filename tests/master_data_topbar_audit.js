@@ -36,7 +36,8 @@ assert.match(adminApp,/back\.id='masterBackTop'/,'ordinary Master Records render
 assert.match(adminApp,/Close Master Records and return to/,'the Close control names its originating module destination');
 assert.match(adminApp,/topActions\.prepend\(back\)/,'the staff Close control stays in the top-right action area');
 assert.match(accountsCleanUi,/button\.textContent = '× Close'/,'Accounts forms use the standard Close control');
-assert.match(accountsCleanUi,/if \(activeGroup\?\.items\) openGroup\(activeGroup\)/,'closing an Accounts form restores its originating icon group');
+assert.match(accountsCleanUi,/q\('#entityHome'\)\.style\.display = 'block'/,'closing an Accounts form restores the current desk');
+assert.doesNotMatch(accountsCleanUi,/openGroup\(activeGroup\)/,'closing a form cannot revive the retired icon renderer');
 assert.match(accountsCleanUi,/back\.textContent = '← Go Back to Main'/,'Accounts second-tier pages retain Go Back to Main');
 assert.match(exportsApp,/aria-label="Close form and return to previous screen">× Close/,'Exports dialogs use the standard Close control');
 assert.match(exportsApp,/id="backShipments">← Go Back to Main/,'Exports second-tier lot pages retain Go Back to Main');
