@@ -127,6 +127,26 @@ with tempfile.TemporaryDirectory(prefix='opening-jv-qa-') as tmp:
         ordinary['lines'][1]={'account':'3400','credit':20}
         assert call(ordinary,user='accounts',scope=False)[0]==422,'Generic JV cannot bypass clearing-account restriction'
         assert json.loads(books.read_text())['supplierBills']==store['supplierBills']
+        # Ordinary JV banks retain their exact account and native balances through approval/reversal.
+        status,catalog=call(scope=False);assert status==200
+        assert any(x['key']=='bank:B1' for x in catalog['targets'])
+        bank_jv={'action':'submit_jv','date':'2026-10-08','narration':'','lines':[{'targetKey':'bank:B1','debit':0,'credit':25},{'account':'1120','debit':25,'credit':0}]}
+        status,result=call(bank_jv,scope=False);assert status==200,(status,result);bank_id=result['result']['jvId']
+        status,result=call({'action':'approve_jv','id':bank_id},scope=False);assert status==200,(status,result);bank_journal=result['result']['journalId']
+        journal=json.loads(books.read_text())['journals'][bank_journal];line=journal['lines'][0]
+        assert journal['narration']=='' and line['bankAccountId']=='B1' and line['accountNumber']=='123' and line['bankCredit']==25 and line['nativeCredit']==25
+        status,result=call({'action':'reverse_jv','id':bank_id,'date':'2026-10-08','reason':'Correct test bank transfer'},scope=False);assert status==200,(status,result)
+        reversed_line=json.loads(books.read_text())['journals'][result['result']['journalId']]['lines'][0]
+        assert reversed_line['bankAccountId']=='B1' and reversed_line['bankDebit']==25 and reversed_line['bankCredit']==0 and reversed_line['nativeDebit']==25
+        before=books.read_bytes()
+        for lines in [[{'account':'1110','credit':25},{'account':'1120','debit':25}],[{'targetKey':'bank:B2','credit':25},{'account':'1120','debit':25}],[{'account':'1120','debit':'bad'},{'account':'1120','credit':25}]]:
+            status,result=call({**bank_jv,'lines':lines},scope=False);assert status==422,(status,result);assert books.read_bytes()==before
+        foreign={**bank_jv,'lines':[{'targetKey':'bank:B2','debit':367.25,'nativeAmount':100},{'targetKey':'bank:AED','credit':367.25}]}
+        status,result=call(foreign,scope=False,entity='TG');assert status==200,(status,result);foreign_id=result['result']['jvId']
+        status,result=call({'action':'approve_jv','id':foreign_id},scope=False,entity='TG');assert status==200,(status,result)
+        line=json.loads(books.read_text())['journals'][result['result']['journalId']]['lines'][0]
+        assert line['bankDebit']==100 and line['debit']==367.25 and abs(line['rate']-3.6725)<0.000001
+        print('Ordinary JV bank/native linkage, optional narration, reversal, malformed amounts and company isolation passed.')
         print('Opening JV HTTP: privileged routes, company scope, fixed date/narration, balanced debit/credit, bank/native amounts, party ledger, replay/duplicate prevention, disable/re-enable, reversal and ordinary JV passed.')
         import zipfile,io,xml.etree.ElementTree as ET
         url=f'http://127.0.0.1:{port}/api/accounts_chart_word.php?user=admin&entity=ALL&to=2026-10-06'

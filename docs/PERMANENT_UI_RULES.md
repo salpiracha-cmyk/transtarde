@@ -106,7 +106,7 @@ Every request requiring Director approval must also appear in the Super Admin Co
 
 ## Accounts expense entry and navigation
 
-- The Expenses area has Pay Expense, Expense Recipients, and Salaries & Staff. Pay Expense opens Other Expense, Utilities, and Credit Card using radio selections on one screen. Pay Expense accepts any recipient, including household expenses without an individual director assignment.
+- The Expenses area has Pay Expense, Expense Recipients, and Salaries & Staff. Pay Expense opens Other Expense, Utilities, and Credit Card using three centred green icon buttons on one screen. Pay Expense accepts any recipient, including household expenses without an individual director assignment.
 - A single payment may contain multiple categorized expense rows. Debit the applicable subsidiary accounts and credit the selected bank/cash once for the total. Post is explicit; printing is a separate action in the posting confirmation. This form has no Pay Later or autosave.
 - Corrections reverse and replace the original payment with its expense breakdown retained; deletions reverse postings and retain audit history. Retry keys prevent duplicate postings.
 - Open the modern expense renderer directly, and show the finished form after loading; do not simulate old workspace and child-button clicks.
@@ -123,10 +123,10 @@ Every request requiring Director approval must also appear in the Super Admin Co
 
 - Visible dates throughout the application use DD-MM-YYYY. Store and API dates remain ISO for validation and sorting; a presentation change never rewrites transaction dates.
 - Bank Entry offers Bank → Petty Cash: debit company petty cash, credit its company bank once; no expense. Foreign-currency conversions use their dedicated workflow.
-- Ordinary expense types offer Add/Edit in place. Creating a type requires Milling/Production, Home or Office and an appropriate head/subaccount. Milling/Production types remain in their dedicated posting workflow. Changes preserve existing voucher treatment and stable type IDs.
+- Ordinary expense types offer Add/Edit in place. Creating a type requires Milling/Production, Home, Office or General Export and an appropriate head/subaccount. Milling/Production types remain in their dedicated posting workflow. Changes preserve existing voucher treatment and stable type IDs.
 - Add Vehicle beside the expense vehicle selector saves name/model and registration through the shared register, then selects it while preserving the expense draft. Register Another repeats the same simple registration form; full identity details remain under Assets & Investments / Assets / Review / Amend Details.
 - Vehicle Tax & Licence Fees requires a vehicle, period covered and optional challan reference. It is distinct from repairs/fuel and included in vehicle costs. Period metadata alone does not generate monthly prepaid amortisation journals.
-- Expense purpose fills payment narration until the user edits it; user edits remain intact.
+- Narration and purpose populate each other without overwriting manual edits. For several expense lines, narration fills the first purpose only; leave other purposes empty. Either field, or both fields, may be empty when posting.
 - Corrections retain the original public Post ID while maintaining immutable original/reversal/replacement accounting journals. Show bracketed correction details below narration. Reporting and balances include the full journal audit trail.
 - The Post ID Register has aligned columns and affected party names. Stockbroker transactions show Date separately from Post ID.
 - Post is the final posting action. After successful posting, show a compact centred confirmation with Post ID, debit/credit lines, Print and Close. Print opens the browser printer dialog in the same tab using an isolated print frame; never open a new printing tab or window, or print automatically on Post.
@@ -134,7 +134,7 @@ Every request requiring Director approval must also appear in the Super Admin Co
 ## 8 October 2026 beneficiary and credit-card agreement
 
 - Paid to is the actual recipient. Expense for is a separate row dimension: Salman, Talha, Tayyab, ARP or Shared–Common. Expense area is Office, Home or Milling–Production; production posting retains its dedicated workflow. A CAS school fee can appear in Talha’s Home report without changing CAS as recipient. Reporting dimensions never add monetary debits.
-- Credit cards use saved masters, one bill total, statement date, due date and reminders. No mandatory purchase-by-purchase allocation. Retain existing historical item allocations until explicitly amended. Enter Bill and Pay Bill share Pay Expense; payment clears the payable and never expenses the bill twice.
+- Credit cards use saved masters, one bill total, statement date, due date and reminders. No mandatory purchase-by-purchase allocation. Retain existing historical item allocations until explicitly amended. Pay Expense opens one Card Bill & Payment form. New bills and their full payment commit atomically. A saved bill is reused for payment; never expense it twice. Historical bill corrections and later personal adjustments remain explicit actions.
 - Optional personal-amount ticks select each director once, with amount and remuneration deduction or cash recovery. The full card bill and full bank payment remain intact. Separate internal recovery entries reclassify personal amounts; financial reports must not treat recovered personal spending as business expense.
 - Remuneration deductions use accrued payable first and carry remaining amounts into the existing salary advance/deduction workflow. Never invent an entitlement or double-deduct. Corrections restore earlier salary deductions and replace the allocation, preserving journal history and the original public Post ID. Cash receipts settle the personal receivable without touching the card. A collected cash allocation cannot be removed by silently refunding money.
 - New personal adjustments are explicit Posts with retry keys, entity and icon permissions, and audit history. They may be entered with the bill, at payment or afterwards. No background saving or production test postings.
@@ -151,3 +151,11 @@ Every request requiring Director approval must also appear in the Super Admin Co
 
 - Successful direct expense Post/Amend closes its entry popup. Keep only the compact posting confirmation with Post ID, debit/credit details, Print and Close; do not create a second full-screen Payment Posted page or duplicate print/pay-another controls.
 - Confirmation and voucher account rows show the selected bank name and account number/IBAN rather than the generic Bank Accounts control head. Resolve labels from saved line metadata or the authorised company bank master; retain accounting codes and historical journals unchanged.
+
+## 8 October final Accounts review
+
+- JV lists all available posting heads, subsidiaries, individual company banks and company petty cash. Bank lines require an authorised active company bank ID and retain its name/number/currency snapshot. Foreign bank lines require the actual native amount beside the book amount. Approval and reversal preserve both amounts and bank linkage. Special asset/finance registers retain their dedicated integrity checks. Narration is optional.
+- General Export Expense (5550) and its custom subsidiaries are available in Pay Expense without a shipment. Production costs and shipment-specific export bills retain their existing workflows. Include general export costs in expense activity reports.
+- DD-MM-YYYY separators stay fixed during typing, deletion and pasting; validate calendar dates and keep ISO storage. Constraint changes must preserve unfinished date entry.
+- Accounts forms use aligned controls and readable responsive layouts. Add line follows the final row; row actions occupy one final Actions cell. Utilities populate provider/type/location from their saved master and show meter readings only for mill electricity.
+- Voucher company identity is centred above the voucher title, details align left/right and the receiver signature has clear separation. Print opens the same-tab printer dialog. Preserve supplier payments, export receivables, credit advice, company scopes, permissions and journal history.

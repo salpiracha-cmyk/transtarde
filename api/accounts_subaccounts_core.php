@@ -48,7 +48,7 @@ function sac_save_payee(array &$s,string $e,array $b,array $u):array {
  $storeKey=$e.'|'.$id;$s['paymentPayees'][$storeKey]=$record;$s['paymentPayeeAudit'][]=['entity'=>$e,'before'=>$old,'after'=>$record,'at'=>gmdate('c'),'by'=>$u['username']??''];return ['payee'=>$record];
 }
 function sac_expense_defaults():array {
- return ['HOME'=>['Home Expense','6910'],'OFFICE'=>['Office / Administrative Expense','6900'],'CAR_REPAIRS'=>['Car Repairs','6410'],'FUEL'=>['Vehicle Fuel','6610'],'VEHICLE_TAX'=>['Vehicle Tax & Licence Fees','6620'],'REPAIRS'=>['Repairs & Maintenance','6400'],'TRAVEL'=>['Travel & Conveyance','6500'],'PROFESSIONAL'=>['Professional Fees','6700'],'MEDICAL'=>['Medical','6230'],'RENT'=>['Rent','6300'],'DONATION'=>['Donation','7200'],'OTHER'=>['Other Expense','6900'],'ARP'=>['ARP Expense','6910']];
+ return ['HOME'=>['Home Expense','6910'],'OFFICE'=>['Office / Administrative Expense','6900'],'CAR_REPAIRS'=>['Car Repairs','6410'],'FUEL'=>['Vehicle Fuel','6610'],'VEHICLE_TAX'=>['Vehicle Tax & Licence Fees','6620'],'REPAIRS'=>['Repairs & Maintenance','6400'],'TRAVEL'=>['Travel & Conveyance','6500'],'PROFESSIONAL'=>['Professional Fees','6700'],'MEDICAL'=>['Medical','6230'],'RENT'=>['Rent','6300'],'DONATION'=>['Donation','7200'],'EXPORT'=>['General Export Expense','5550'],'OTHER'=>['Other Expense','6900'],'ARP'=>['ARP Expense','6910']];
 }
 function sac_home_person(string $name):string {
  return match(sac_normal($name)){'mrssrp'=>'FAM-SALMAN','mrstrp'=>'FAM-TALHA','mrstayyab'=>'FAM-TAYYAB',default=>'SHARED'};
@@ -72,7 +72,7 @@ function sac_resolve(array $s,string $e,string $id,bool $active=true):array {
  if($active&&!$enabled)throw new DomainException('Select an active subaccount in these company books.');
  $code=(string)$current['parentCode'];$chart=sac_entity_chart($s,$e);$head=$chart[$code]??null;if(!$head)throw new DomainException('Subaccount head is unavailable.');
  $path=$names;$h=$code;$seen=[];while($h!==''&&isset($chart[$h])&&!isset($seen[$h])){$seen[$h]=true;array_unshift($path,$chart[$h]['name']);$h=(string)($chart[$h]['parent']??'');}
- return array_replace($a,['parentId'=>(string)($a['parentId']??''),'parentCode'=>$code,'active'=>$enabled,'ancestorIds'=>$ancestors,'path'=>implode(' / ',$path),'class'=>$head['class'],'parentName'=>$head['name'],'expenseClassification'=>str_starts_with($code,'5')?'MILL':($code==='6910'?'HOME':'OFFICE'),'treatment'=>$code==='1260'?'Recoverable tax':($code==='2300'?'Tax payable':$head['class'])]);
+ return array_replace($a,['parentId'=>(string)($a['parentId']??''),'parentCode'=>$code,'active'=>$enabled,'ancestorIds'=>$ancestors,'path'=>implode(' / ',$path),'class'=>$head['class'],'parentName'=>$head['name'],'expenseClassification'=>$code==='5550'?'EXPORT':(str_starts_with($code,'5')?'MILL':($code==='6910'?'HOME':'OFFICE')),'treatment'=>$code==='1260'?'Recoverable tax':($code==='2300'?'Tax payable':$head['class'])]);
 }
 function sac_extra(array $a):array {return ['subaccountId'=>$a['id'],'subaccountName'=>$a['name'],'subledger'=>$a['name'],'parentAccount'=>$a['parentCode'],'taxCategory'=>$a['taxCategory'],'accountClass'=>$a['class'],'expenseClassification'=>$a['expenseClassification']??'OFFICE'];}
 function sac_master(array &$s,string $e,array $b,array $u):array {
@@ -97,7 +97,7 @@ function sac_master(array &$s,string $e,array $b,array $u):array {
   }
   $head=$chart[$parent]??null;
   if(!$head||in_array($head['level']??'',['heading','system'],true)||in_array($parent,['1110','1120','1130','1430','1440','1610','2610'],true))throw new DomainException('Select a valid posting head. Bank, investment and finance registers manage their own accounts.');
-  $classification=(string)($b['expenseClassification']??$old['expenseClassification']??'');if(!empty($b['expenseType'])){if(!in_array($classification,['MILL','HOME','OFFICE'],true)||$head['class']!=='Expense')throw new DomainException('Choose Milling / Production, Home or Office.');$valid=match($classification){'MILL'=>str_starts_with($parent,'5'),'HOME'=>$parent==='6910','OFFICE'=>!str_starts_with($parent,'5')&&$parent!=='6910'};if(!$valid)throw new DomainException('Choose a parent under the selected expense classification.');}
+  $classification=(string)($b['expenseClassification']??$old['expenseClassification']??'');if(!empty($b['expenseType'])){if(!in_array($classification,['MILL','HOME','OFFICE','EXPORT'],true)||$head['class']!=='Expense')throw new DomainException('Choose Milling / Production, Home, Office or General Export.');$valid=match($classification){'EXPORT'=>$parent==='5550','MILL'=>str_starts_with($parent,'5')&&$parent!=='5550','HOME'=>$parent==='6910','OFFICE'=>!str_starts_with($parent,'5')&&$parent!=='6910'};if(!$valid)throw new DomainException('Choose a parent under the selected expense classification.');}
   if(!empty($old['builtinCategory'])&&($parent!==$old['parentCode']||$parentId!==''))throw new DomainException('Standard expense types keep their posting head. Add a new type for a different classification.');
   if(isset($old['homePerson'])&&($parent!=='6910'||$parentId!==$e.'-EXPENSE-TYPE-HOME'))throw new DomainException('Keep Home ledgers under Home Expense.');
   $tax=strtoupper((string)($b['taxCategory']??'NONE'));if(!in_array($tax,['NONE','EXPORT','SAVINGS','BROKERAGE','SERVICES','OTHER'],true)||(!in_array($parent,['1260','2300'],true)&&$tax!=='NONE'))throw new DomainException('Tax category applies to recoverable tax or tax payable heads.');
@@ -136,7 +136,7 @@ function sac_expense_activity(array $s,string $e,string $from,string $to):array 
    $code=(string)($l['account']??'');if(!empty($l['personalRecovery']))continue;
    $master=(array)($s['salaryMasters'][(string)($l['salaryMasterId']??$meta['salaryMasterId']??'')]??[]);
    $monthly=$code==='3200'&&($l['category']??$meta['category']??$master['category']??'')==='HOME_MONTHLY_GIVE';
-   if(!$monthly&&(($chart[$code]['class']??'')!=='Expense'||str_starts_with($code,'5')))continue;
+   if(!$monthly&&(($chart[$code]['class']??'')!=='Expense'||(str_starts_with($code,'5')&&$code!=='5550')))continue;
    if($monthly){$person=sac_home_person((string)($l['person']??$meta['person']??$master['name']??''));$l['expenseFor']=$person;$l['expenseForName']=match($person){'FAM-SALMAN'=>'Salman','FAM-TALHA'=>'Talha','FAM-TAYYAB'=>'Tayyab',default=>'Shared–Common'};$l['expenseArea']='HOME';}
    $home=($l['expenseArea']??$l['location']??'')==='HOME'||$code==='6910';
    $homeId=$home&&($l['expenseFor']??'SHARED')!=='FAM-ABU'?sac_home_id($e,(string)($l['expenseFor']??'SHARED')):'';

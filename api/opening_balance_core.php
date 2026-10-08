@@ -44,7 +44,7 @@ function job_banks(string $e): array {
         $id = (string)($r['id'] ?? '');
         if ($owner !== $e || !in_array(($v[0] ?? ''), ['Company Account','Proprietor / Owner Account','Personal Account'], true) || $id === '' || strcasecmp((string)($v[13] ?? 'Active'), 'Active') !== 0) continue;
         if (function_exists('tt_bank_can_transact') && !tt_bank_can_transact($id)) continue;
-        $out[] = ['id'=>$id, 'name'=>!empty($r['linkedRetentionAccount'])?(string)($v[4]??'').' · USD':implode(' · ',array_filter([$v[4]??'',(trim((string)($v[8]??''))!==''?(string)$v[8]:(string)($v[9]??'')),strtoupper((string)($v[7]??'')),$v[3]??''])), 'currency'=>strtoupper((string)($v[7] ?? '')), 'bankName'=>(string)($v[4] ?? ''), 'accountTitle'=>(string)($v[3] ?? '')];
+        $out[] = ['id'=>$id, 'name'=>!empty($r['linkedRetentionAccount'])?(string)($v[4]??'').' · USD':implode(' · ',array_filter([$v[4]??'',(trim((string)($v[8]??''))!==''?(string)$v[8]:(string)($v[9]??'')),strtoupper((string)($v[7]??'')),$v[3]??''])), 'currency'=>strtoupper((string)($v[7] ?? '')), 'bankName'=>(string)($v[4] ?? ''), 'accountTitle'=>(string)($v[3] ?? ''),'accountNumber'=>(string)($v[8]??''),'iban'=>(string)($v[9]??'')];
     }
     return $out;
 }

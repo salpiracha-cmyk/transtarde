@@ -160,6 +160,7 @@ jobs:
           node tests/accounts-v1/expense_review_batch_browser_test.js
           node tests/accounts-v1/direct_expense_browser_test.js
           node tests/accounts-v1/unified_expense_browser_test.js
+          node tests/accounts-v1/accounts_date_jv_browser_test.js
           node tests/accounts-v1/form_viewport_browser_test.js
           node tests/accounts-v1/payment_plans_browser_test.js
       - name: Actual MySQL and restricted-user browser reconciliation

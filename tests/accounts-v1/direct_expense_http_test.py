@@ -144,7 +144,7 @@ require $argv[1];
     permissions['masters']=['View','Create','Edit'];set_user()
     status,setup=request('accounts_subaccounts','?entity=TTI');assert status==200,(status,setup)
     types={x.get('builtinCategory'):x for x in setup['subaccounts'] if x.get('builtinCategory')}
-    assert len(types)==13 and all(x in types for x in ['HOME','OFFICE','MEDICAL','RENT','DONATION','ARP'])
+    assert len(types)==14 and all(x in types for x in ['HOME','OFFICE','MEDICAL','RENT','DONATION','ARP'])
     rename={'csrf':'fixture','entity':'TTI','operation':'edit','id':types['OFFICE']['id'],'name':'Office Running Costs','expenseType':True,'expenseClassification':'OFFICE','parentCode':'6900','parentId':'','revision':setup['revision'],'requestKey':'rename-office-type-001'}
     status,setup=request('accounts_subaccounts','?entity=TTI',rename);assert status==200,(status,setup)
     assert next(x for x in setup['subaccounts'] if x['id']==rename['id'])['builtinCategory']=='OFFICE'
@@ -212,6 +212,40 @@ require $argv[1];
     store=json.loads(books.read_text());assert store['salaryPeriods'][paid_period]['outstanding']==65000 and store['salaryPeriods'][paid_period]['advanceApplied']==0
     assert not any(a.get('personalLink')=='CARD|'+nov_id for a in (store['salaryAdvances'].values() if isinstance(store['salaryAdvances'],dict) else store['salaryAdvances']))
     print('Beneficiaries, full card payments, internal corrections, cash recovery and remuneration carry-forward passed.')
+
+    # Optional purpose/narration and general export costs use the same single payment.
+    blank={**body,'requestKey':'blank-purpose-payment','reference':'OPTIONAL-1','paymentNarration':'','expenseLines':[{'category':'OFFICE','purpose':'','amount':10}],'amount':10}
+    status,result=request('expenses_v1','?entity=TTI',blank);assert status==200,(status,result)
+    narrated={**blank,'requestKey':'cash-narration-independent','reference':'OPTIONAL-2','paymentNarration':'Payment details'}
+    status,result=request('expenses_v1','?entity=TTI',narrated);assert status==200,(status,result)
+    assert json.loads(books.read_text())['journals'][result['result']['journalId']]['meta']['paymentNarration']=='PAYMENT DETAILS'
+    export={**blank,'requestKey':'general-export-payment','reference':'EXPORT-GENERAL-1','expenseLines':[{'category':'EXPORT','expenseArea':'EXPORT','purpose':'General export courier','amount':25}],'amount':25}
+    status,result=request('expenses_v1','?entity=TTI',export);assert status==200,(status,result)
+    journal=json.loads(books.read_text())['journals'][result['result']['journalId']]
+    assert journal['lines'][0]['account']=='5550' and journal['lines'][0]['expenseArea']=='EXPORT'
+    assert len(journal['lines'])==2 and journal['totalDebit']==25==journal['totalCredit']
+    status,setup=request('accounts_subaccounts','?entity=TTI');assert status==200
+    custom={'csrf':'fixture','entity':'TTI','requestKey':'general-export-type','revision':setup['revision'],'operation':'add','name':'Export courier','expenseType':True,'expenseClassification':'EXPORT','parentCode':'5550','parentId':'','taxCategory':'NONE','active':True}
+    status,setup=request('accounts_subaccounts','?entity=TTI',custom);assert status==200,(status,setup)
+    assert next(x for x in setup['subaccounts'] if x['name'].casefold()=='export courier')['expenseClassification']=='EXPORT'
+    # Atomic card posting: an invalid payment cannot leave a bill or internal journal behind.
+    combined={**statement,'action':'post_and_pay_card_statement','requestKey':'combined-card-december','statementMonth':'2026-12','statementDate':'2026-12-01','dueDate':'2026-12-20','paymentDate':'2026-12-08','paymentAccountId':'CASH|TTI','total':1000,'personalAmounts':[{'expenseFor':'FAM-SALMAN','personalTreatment':'CASH','amount':100}]}
+    for changed in [{'paymentAccountId':'BANK-OTHER'},{'paymentDate':'2026-11-30'},{'paymentAccountId':'BANK-1','bankPaymentMethod':'CHEQUE','chequeNo':''}]:
+        before=books.read_bytes();status,result=request('expenses_v1','?entity=TTI',{**combined,**changed});assert status==422,(status,result);assert books.read_bytes()==before
+    expense_before=bal('6900');cash_before=bal('1120');payable_before=bal('2400')
+    status,result=request('expenses_v1','?entity=TTI',combined);assert status==200,(status,result)
+    assert result['result']['status']=='Paid' and result['result']['statementJournalId']!=result['result']['journalId']
+    assert bal('6900')==expense_before+900 and bal('1120')==cash_before-1000 and bal('2400')==payable_before
+    before=books.read_bytes();assert request('expenses_v1','?entity=TTI',combined)[1]['result']['duplicate'];assert books.read_bytes()==before
+    assert request('expenses_v1','?entity=TTI',{**combined,'requestKey':'combined-card-duplicate'})[0]==409;assert books.read_bytes()==before
+    # Paying an already recorded bill reuses its expense and payable; stale amount is rejected.
+    pending={**statement,'requestKey':'existing-card-january','statementMonth':'2027-01','statementDate':'2027-01-01','dueDate':'2027-01-20','total':500,'personalAmounts':[]}
+    status,result=request('expenses_v1','?entity=TTI',pending);assert status==200,(status,result);pending_id=result['result']['statementId'];count=len(json.loads(books.read_text())['journals'])
+    pay_existing={**pending,'action':'post_and_pay_card_statement','requestKey':'pay-existing-january','statementId':pending_id,'paymentDate':'2027-01-08','paymentAccountId':'CASH|TTI'}
+    before=books.read_bytes();assert request('expenses_v1','?entity=TTI',{**pay_existing,'total':501})[0]==422;assert books.read_bytes()==before
+    status,result=request('expenses_v1','?entity=TTI',pay_existing);assert status==200,(status,result)
+    assert len(json.loads(books.read_text())['journals'])==count+1
+    print('Optional descriptions, shipment-free export types, atomic card posting, rollback, reuse and replay passed.')
 
     # Corrupt nonempty books must not become empty books or get overwritten.
 

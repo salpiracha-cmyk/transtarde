@@ -12,10 +12,10 @@ function dex_rows(mixed $input,array $names,array $store=[],string $entity='TTI'
         $category=strtoupper(trim((string)($row['category']??'')));$purpose=trim((string)($row['purpose']??''));
         $value=$row['amount']??null;if(!is_numeric($value)||!is_finite((float)$value)||(float)$value<=0||(float)$value>100000000000)throw new InvalidArgumentException('Enter a positive amount for each expense.');
         $amount=round((float)$value,2);if($amount<=0)throw new InvalidArgumentException('Each expense must be at least 0.01.');
-        if($purpose===''||strlen($purpose)>500)throw new InvalidArgumentException('Enter the purpose of each expense (up to 500 characters).');
-        $detail='';$account=match($category){'HOME','ARP'=>'6910','OFFICE','OTHER'=>'6900','MILL'=>'5200','MEDICAL'=>'6230','RENT'=>'6300','DONATION'=>'7200','CAR_REPAIRS'=>'6410','FUEL'=>'6610','VEHICLE_TAX'=>'6620','REPAIRS'=>'6400','TRAVEL'=>'6500','PROFESSIONAL'=>'6700',default=>throw new InvalidArgumentException('Choose Home, Office, Mill, Medical, Rent, Donation or Other.')};
+        if(strlen($purpose)>500)throw new InvalidArgumentException('Purpose must be no longer than 500 characters.');
+        $detail='';$account=match($category){'HOME','ARP'=>'6910','OFFICE','OTHER'=>'6900','EXPORT'=>'5550','MILL'=>'5200','MEDICAL'=>'6230','RENT'=>'6300','DONATION'=>'7200','CAR_REPAIRS'=>'6410','FUEL'=>'6610','VEHICLE_TAX'=>'6620','REPAIRS'=>'6400','TRAVEL'=>'6500','PROFESSIONAL'=>'6700',default=>throw new InvalidArgumentException('Choose Home, Office, Mill, Medical, Rent, Donation or Other.')};
         if($category==='MEDICAL'){$detail=strtoupper((string)($row['medicalFor']??''));if(!in_array($detail,['HOUSEHOLD','COMPANY_STAFF'],true))throw new InvalidArgumentException('Choose household or company/staff for medical expenses.');if($detail==='HOUSEHOLD')$account='6910';}
-        if($category==='RENT'){$detail=strtoupper((string)($row['rentFor']??''));if(!in_array($detail,['HOME','OFFICE','MILL'],true))throw new InvalidArgumentException('Choose Home, Office or Mill for rent.');if($detail==='HOME')$account='6910';elseif($detail==='MILL')$account='5200';}
+        if($category==='RENT'){$detail=strtoupper((string)($row['rentFor']??''));if(!in_array($detail,['HOME','OFFICE','MILL','EXPORT'],true))throw new InvalidArgumentException('Choose Home, Office or Mill for rent.');if($detail==='HOME')$account='6910';elseif($detail==='MILL')$account='5200';}
         if($category==='DONATION'){$detail=strtoupper((string)($row['donationType']??''));$account=match($detail){'ZAKAT'=>'7210','SADQA'=>'7220','FI_SABILILLAH'=>'7230','OTHER'=>'7200',default=>throw new InvalidArgumentException('Choose Zakat, Sadqa or Fi Sabilillah.')};}
         if(!empty($row['accountCode'])){
             $selected=(string)$row['accountCode'];$head=sac_entity_chart($store,$entity)[$selected]??null;
@@ -51,6 +51,7 @@ function dex_check_cheque(array $store,string $entity,string $bankId,array $trac
     foreach((array)($store['issuedCheques']??[]) as $cheque)if(($cheque['entity']??'')===$entity&&($cheque['bankAccountId']??$cheque['paymentAccountId']??'')===$bankId&&strtoupper((string)($cheque['chequeNo']??''))===$number&&!in_array($cheque['status']??'',['Cancelled','Voided','Reversed'],true))throw new InvalidArgumentException('This cheque is already recorded in Issued Cheques.');
 }
 function dex_post(array &$store,string $entity,array $body,array $user,array $names,array $tracking): array {
+    $narration=trim((string)($body['paymentNarration']??''));if(strlen($narration)>900)throw new InvalidArgumentException('Narration is too long.');$tracking=array_replace(['paymentNarration'=>$narration],$tracking);
     $payee=trim((string)($body['payee']??''));if($payee===''||strlen($payee)>180)throw new InvalidArgumentException('Enter who receives this payment.');
     $profile=null;foreach(sac_payees($store,$entity,'EXPENSE') as $candidate)if(sac_normal($candidate['name'])===sac_normal($payee)){$profile=$candidate;break;}
     if(!empty($body['payeeId'])&&(!$profile||$profile['id']!==(string)$body['payeeId']))throw new InvalidArgumentException('Choose the current expense recipient.');
@@ -60,10 +61,10 @@ function dex_post(array &$store,string $entity,array $body,array $user,array $na
     foreach((array)($store['generalExpenses']??[]) as $previous)if(($previous['entity']??'')===$entity&&!in_array(($previous['status']??''),['Deleted','Amended'],true)&&$reference!==''&&strcasecmp((string)($previous['reference']??''),$reference)===0&&strcasecmp((string)($previous['payee']??''),$payee)===0)throw new InvalidArgumentException('This expense reference is already recorded for the recipient.');
     $credit=ev1_pay_line($store,$entity,$paymentId,$total,$names);dex_check_cheque($store,$entity,$paymentId,$tracking);
     $recipientId=$profile['id']??'EXP|'.sac_normal($payee);if(!isset($store['paymentPayees'][$entity.'|'.$recipientId]))$store['paymentPayees'][$entity.'|'.$recipientId]=['id'=>$recipientId,'entity'=>$entity,'kind'=>'EXPENSE','name'=>$payee,'active'=>true,'configured'=>true,'accountCode'=>'6900','subaccountId'=>'','expenseCategory'=>'OFFICE'];
-    $id=ev1_id((array)($store['generalExpenses']??[]),'GEX');$meta=['generalExpenseId'=>$id,'directExpense'=>true,'payee'=>$payee,'payeeId'=>$recipientId,'paymentAccountId'=>$paymentId,'expenseLines'=>$rows];$lines=[];
+    $id=ev1_id((array)($store['generalExpenses']??[]),'GEX');$meta=['generalExpenseId'=>$id,'directExpense'=>true,'payee'=>$payee,'payeeId'=>$recipientId,'paymentAccountId'=>$paymentId,'expenseLines'=>$rows,'paymentNarration'=>$narration];$lines=[];
     foreach($rows as $row)$lines[]=ev1_line($row['account'],$row['amount'],0,$names,array_intersect_key($row,array_flip(['subaccountId','subaccountName','parentAccount','taxCategory','accountClass','expenseClassification','subledger','assetId','assetName','registrationNo','periodFrom','periodTo','challanReference','expenseFor','expenseForName','personalTreatment','expenseArea']))+['counterparty'=>$payee,'expenseRecipientId'=>$recipientId,'generalExpenseId'=>$id,'subledger'=>$row['purpose'],'expenseCategory'=>$row['category'],'expensePurpose'=>$row['purpose'],'medicalFor'=>$row['medicalFor'],'rentFor'=>$row['rentFor'],'donationType'=>$row['donationType'],'location'=>$row['expenseArea']?: (($row['expenseClassification']??'')==='MILL'||$row['category']==='MILL'||$row['rentFor']==='MILL'?'MILL':(($row['expenseClassification']??'')==='HOME'||$row['category']==='HOME'||$row['medicalFor']==='HOUSEHOLD'||$row['rentFor']==='HOME'?'HOME':'OFFICE'))]);
-    $lines[]=array_merge($credit,$tracking);$description=implode(' / ',array_column($rows,'purpose'));
-    $jid=ev1_journal($store,$entity,$date,'DIRECT_EXPENSE_PAYMENT',$reference!==''?$reference:$id,$payee.' — '.$description,$lines,$user,$meta);
+    $lines[]=array_merge($credit,$tracking);$description=implode(' / ',array_filter(array_column($rows,'purpose'),static fn($purpose)=>$purpose!==''));
+    $jid=ev1_journal($store,$entity,$date,'DIRECT_EXPENSE_PAYMENT',$reference!==''?$reference:$id,trim($payee.($description!==''?' — '.$description:'')),$lines,$user,$meta);
     $personalLink=pex_apply($store,$entity,'EXPENSE|'.$id,$rows,$date,$jid,$user,$names);
     $store['generalExpenses'][$id]=array_merge($tracking,['id'=>$id,'entity'=>$entity,'expenseType'=>'DIRECT','personalLink'=>'EXPENSE|'.$id,'personalJournalIds'=>$personalLink['journalIds'],'expenseLines'=>$rows,'expenseAccount'=>count($rows)===1?$rows[0]['account']:'','expenseAccountName'=>count($rows)===1?$rows[0]['accountName']:'Multiple expenses','paymentDate'=>$date,'amount'=>$total,'payeeId'=>$recipientId,'payee'=>$payee,'description'=>$description,'reference'=>$reference,'location'=>count($rows)===1?$rows[0]['category']:'MULTIPLE','paymentAccountId'=>$paymentId,'journalId'=>$jid,'status'=>'Posted','createdAt'=>gmdate('c'),'createdBy'=>$user['full_name']??$user['username']??'Accounts']);
     return ['generalExpenseId'=>$id,'journalId'=>$jid,'amount'=>$total];
@@ -91,7 +92,7 @@ function pex_fields(array $row): array {
     $treatment=strtoupper(trim((string)($row['personalTreatment']??'COMPANY')));
     if(!in_array($treatment,['COMPANY','REMUNERATION','CASH'],true)||($person==='SHARED'&&$treatment!=='COMPANY'))throw new InvalidArgumentException('Choose a person before selecting personal recovery.');
     $area=strtoupper(trim((string)($row['expenseArea']??'')));
-    if($area!==''&&!in_array($area,['HOME','OFFICE','MILL'],true))throw new InvalidArgumentException('Choose Home, Office or Milling–Production.');
+    if($area!==''&&!in_array($area,['HOME','OFFICE','MILL','EXPORT'],true))throw new InvalidArgumentException('Choose Home, Office or Milling–Production.');
     return ['expenseFor'=>$person,'expenseForName'=>pex_people()[$person]??'Shared–Common','personalTreatment'=>$treatment,'expenseArea'=>$area];
 }
 function pex_master(array $s,string $entity,string $person): ?array {

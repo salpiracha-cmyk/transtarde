@@ -307,11 +307,11 @@ test('authenticated Accounts live smoke: professional desk and popup workflows',
   await activate(page.locator('#ttExpenseDesk [data-close]'));
   await expect(page.locator('#ttPaymentPlanningTop')).toHaveCount(0);
   await deskAction(page, 'routine', 'Pay Expense');
-  await expect(page.locator('#ttExpenseDesk [name=expenseMode]')).toHaveCount(3);
-  await activate(page.locator('#ttExpenseDesk [name=expenseMode][value=utility]'));
+  await expect(page.locator('#ttExpenseDesk [data-expense-mode]')).toHaveCount(3);
+  await activate(page.locator('#ttExpenseDesk [data-expense-mode=utility]'));
   await expect(page.locator('#ttExpenseDesk #evPayLocName')).toBeVisible({ timeout: 30_000 });
   await expect(page.locator('#ttExpenseDesk #evUtilityFor')).toBeVisible();
-  await activate(page.locator('#ttExpenseDesk [name=expenseMode][value=card]'));
+  await activate(page.locator('#ttExpenseDesk [data-expense-mode=card]'));
   await expect(page.locator('#ttExpenseDesk #evAddStatement')).toBeVisible({ timeout: 30_000 });
   await expect(page.locator('#ttExpenseDesk .tte-alloc')).toHaveCount(0);
   await responsive(page, 'professional Accounts modal');
