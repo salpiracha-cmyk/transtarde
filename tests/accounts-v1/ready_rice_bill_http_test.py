@@ -294,7 +294,7 @@ def run():
     assert page.locator('.tt-shipment-charge').first.evaluate('el=>el.firstElementChild.hasAttribute("data-remove")')
     ends=[page.locator(sel).first.bounding_box()['x']+page.locator(sel).first.bounding_box()['width'] for sel in ['[data-amount]','#ttShipmentBillBase','#ttShipmentBillTotal']]
     assert max(ends)-min(ends)<16,ends
-    assert page.locator('[name=billDate]').locator('..').inner_text()=='BILL DATE'
+    assert page.locator('[name=billDate]').locator('xpath=ancestor::label[1]').inner_text().splitlines()[0]=='BILL DATE'
     page.locator('#ttTransportAddShipment').click();assert page.locator('.tt-transport-shipment').first.evaluate("el=>getComputedStyle(el).backgroundColor")=='rgb(234, 242, 255)'
     page.locator('#ttTransportQuery').fill('FIXTURE');page.locator('#ttTransportFind').click();page.wait_for_function("!document.querySelector('#ttTransportHits').textContent.includes('Searching Exports')");assert not page.locator('#ttTransportHits').get_by_text('FIXTURE-SHIP-LOT',exact=False).count(),'Selected shipment remains searchable'
     page.locator('#ttTransportQuery').fill('FIXTURE-SHIP-2');page.locator('#ttTransportFind').click();page.locator('#ttTransportHits [data-pick]').click()
