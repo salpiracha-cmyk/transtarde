@@ -5,6 +5,7 @@ require_once __DIR__.'/bank_reconciliation_core.php';
 header('Content-Type: application/json; charset=UTF-8');header('Cache-Control: no-store');
 function br_out(array $d,int $status=200):never{http_response_code($status);echo json_encode($d,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);exit;}
 function br_permission(array $user,string $action):bool {
+ if($action!=='View')return tt_user_can_module_action($user,'Accounts','reconciliation',$action);
  foreach(['cashbank','bank','reconciliation'] as $icon)if(tt_user_can_module_action($user,'Accounts',$icon,$action))return true;return false;
 }
 try{

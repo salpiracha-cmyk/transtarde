@@ -53,7 +53,7 @@ require $argv[1];
         try: return int(status), json.loads(payload)
         except json.JSONDecodeError: raise AssertionError(result.stdout + result.stderr)
     for f in ROOT.joinpath('accounts').glob('*.json'): shutil.copy(f,app/'accounts'/f.name)
-    set_user()
+    permissions['reconciliation']=['View','Create','Edit'];set_user()
     books.write_text(json.dumps({'revision':0,'journals':{},'bankAccountSettings':{'BANK-1':{'defaultPaymentAccount':True}}}))
 
     def journal(id, bank, debit=0, credit=0, **extra):
@@ -68,7 +68,7 @@ require $argv[1];
     assert data['bookBalance']==1100 and len(data['transactions'])==3 and data['statementBalance'] is None
     base={'entity':'TTI','csrf':'fixture','revision':0,'requestKey':'reconcile-fixture-01','bankId':'BANK-1','statementDate':'2026-10-07','statementBalance':1000,'clearedKeys':['OPEN|0']}
     for change,code in [({'csrf':'bad'},419),({'statementDate':'2026-02-31'},422),({'statementBalance':''},422),({'bankId':'BANK-BRM'},422),({'clearedKeys':['OTHER|0']},422),({'revision':99},409)]:
-        before=books.read_bytes();assert request('bank_reconciliation',query,{**base,**change})[0]==code and books.read_bytes()==before,change
+        before=books.read_bytes();status,out=request('bank_reconciliation',query,{**base,**change});assert status==code and books.read_bytes()==before,(change,status,out)
     status,rec=request('bank_reconciliation',query,base);assert status==200,(status,rec)
     assert rec['saved']['status']=='Reconciled' and rec['difference']==0 and rec['outstandingDeposits']==300 and rec['outstandingPayments']==200 and rec['adjustedStatementBalance']==1100
     saved=json.loads(books.read_text());assert saved['journals']==seed['journals'] and saved['sentinel']==seed['sentinel']
@@ -87,11 +87,11 @@ require $argv[1];
     for balance in [0,-100]:
         revision=json.loads(books.read_text())['revision']
         status,out=request('bank_reconciliation',query,{**base,'revision':revision,'requestKey':f'reconcile-signed-{revision}','bankId':'BANK-2','statementBalance':balance,'clearedKeys':[]});assert status==200 and out['saved']['statementBalance']==balance
-    before=books.read_bytes();permissions['cashbank']=['View'];set_user()
+    before=books.read_bytes();permissions['cashbank']=['View'];permissions['reconciliation']=['View'];set_user()
     assert request('bank_reconciliation',query)[1]['canEdit'] is False
     assert request('bank_reconciliation',query,{**base,'requestKey':'reconcile-denied'})[0]==403 and books.read_bytes()==before
     assert request('bank_reconciliation','?entity=BRM')[0]==403
-    permissions['cashbank']=['View','Edit'];permissions['entity-tti']=['View'];set_user()
+    permissions['cashbank']=['View','Edit'];permissions['reconciliation']=['View','Edit'];permissions['entity-tti']=['View'];set_user()
     assert request('bank_reconciliation',query,{**base,'requestKey':'reconcile-entity-denied'})[0]==403
     permissions['entity-tti']=['View','Edit'];set_user()
     books.write_text('{broken JSON');before=books.read_bytes();assert request('bank_reconciliation',query)[0]==500 and books.read_bytes()==before
