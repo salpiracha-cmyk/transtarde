@@ -161,6 +161,7 @@ def run() -> None:
             c,d=request(user,'/api/stock_reconciliation_review.php',review)
             check(c==403,'Operational/View/unrelated expense rights cannot accept stock review: '+user,(c,d))
         c,d=request('qaowner','/api/stock_reconciliation_review.php',{**review,'csrf':'bad'});check(c==419,'Stock review CSRF is enforced',(c,d))
+        account_file=root/'transtrade_private/accounts.json';accounts_before=account_file.read_bytes() if account_file.exists() else None
         source=pv['tt30prod'];counts=(len(json.loads(pv['tt34ghati'])),len(json.loads(pv['tt32stockadj'])))
         c,d=request('qaowner','/api/stock_reconciliation_review.php',review);check(c==200,'Authorized stock review saves against actual backend',(c,d))
         reviewed=private();confirmation=next(r for r in json.loads(reviewed['tt39physicalconfirmations']) if r['id']=='PC-HTTP')
@@ -169,7 +170,7 @@ def run() -> None:
         check(counts==(len(json.loads(reviewed['tt34ghati'])),len(json.loads(reviewed['tt32stockadj']))),'Review replaces existing stock/variance rows without duplication')
         check(json.loads(reviewed['tt34stockreviewaudit'])[-1]['by']=='qaowner','Actual management reviewer is recorded')
         c,d=request('qaowner','/api/stock_reconciliation_review.php',review);check(c==409 and private()==reviewed,'Stale review replay is a no-op',(c,d))
-        check(not (root/'transtrade_private/accounts.json').exists(),'Review creates no duplicate purchase/accounting journal')
+        check((account_file.read_bytes() if account_file.exists() else None)==accounts_before,'Review leaves accounting books unchanged and creates no duplicate journal')
         print(f'PASS {"MySQL" if mysql else "file-backed"} inventory HTTP: {len(checks)} assertions')
     finally:
         if server:
