@@ -526,7 +526,7 @@ test('deployed Bank Entry, Bank Finance and subaccount forms respect read-only a
   await deskAction(page,'bank','Bank Entry');
   const form=page.locator('#amBankForm');
   await expect(form).toBeVisible();
-  await expect(form.getByRole('button',{name:'Post & Print Voucher',exact:true})).toBeDisabled();
+  await expect(form.getByRole('button',{name:'Post',exact:true})).toBeDisabled();
   await form.locator('[name=type]').selectOption('SAVING_PROFIT');
   await expect(form.locator('[name=withholdingTax]')).toBeVisible();
   await expect(page.locator('#amPayBankDetails')).toBeHidden();
