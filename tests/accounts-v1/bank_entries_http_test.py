@@ -126,6 +126,21 @@ require $argv[1];
     assert mutate('bank_entries',**{**payment,'reference':'ARCHIVED-SUB','chequeNo':'CH-99'})[0]==422
     _,ledger=request('accounts_ledger_browser','?entity=TTI&account=SUB|'+sid+'&from=2026-01-01&to=2026-10-07');assert ledger['closing']==225
     good('accounts_subaccounts',operation='edit',id=sid,name='Stationery and maintenance',parentCode='6400',taxCategory='NONE',active=True)
+    child,_=good('accounts_subaccounts',operation='add',name='Printer supplies',parentCode='6400',parentId=sid,taxCategory='NONE');cid=child['result']['subaccountId']
+    grand,_=good('accounts_subaccounts',operation='add',name='Toner supplies',parentCode='6400',parentId=cid,taxCategory='NONE');gid=grand['result']['subaccountId']
+    before=books.read_bytes();assert mutate('accounts_subaccounts',operation='edit',id=sid,name='Stationery and maintenance',parentCode='6400',parentId=gid,taxCategory='NONE')[0]==422 and books.read_bytes()==before
+    historical=json.loads(books.read_text())['journals']
+    good('accounts_subaccounts',operation='edit',id=sid,name='Stationery and maintenance',parentCode='6900',taxCategory='NONE')
+    _,tree=request('accounts_subaccounts','?entity=TTI');desc=next(x for x in tree['subaccounts'] if x['id']==gid);assert desc['parentCode']=='6900' and desc['parentId']==cid and 'TONER SUPPLIES' in desc['path']
+    assert json.loads(books.read_text())['journals']==historical
+    nested={**ex,'requestKey':'nested-expense-01','reference':'NESTED-EXP','expenseLines':[{'category':'OFFICE','purpose':'Printer toner','amount':25,'accountCode':'6900','subaccountId':gid}]}
+    status,res=request('expenses_v1','?entity=TTI',nested);assert status==200,(status,res)
+    _,parent_ledger=request('accounts_ledger_browser','?entity=TTI&account=SUB|'+sid+'&from=2026-01-01&to=2026-10-07');assert parent_ledger['closing']==250
+    bad={**nested,'requestKey':'nested-expense-bad','reference':'BAD-NESTED','expenseLines':[{**nested['expenseLines'][0],'accountCode':'6400'}]};assert request('expenses_v1','?entity=TTI',bad)[0]==422
+    good('accounts_subaccounts',operation='move_head',code='6400',parentCode='5200')
+    _,heads=request('accounts_subaccounts','?entity=TTI');assert next(h for h in heads['heads'] if h['code']=='6400')['parent']=='5200'
+    assert mutate('accounts_subaccounts',operation='move_head',code='5200',parentCode='6400')[0]==422
+    assert mutate('accounts_subaccounts',operation='move_head',code='6400',parentCode='1000')[0]==422
     before=books.read_bytes();permissions['cashbank']=['View'];set_user();assert request('bank_entries','?entity=TTI',{**b,'requestKey':'readonly-bank-key'})[0]==403 and books.read_bytes()==before
     permissions['cashbank']=[];set_user();assert request('bank_entries','?entity=TTI')[0]==403
     permissions['cashbank']=['View','Create','Edit'];permissions['masters']=['View'];set_user();assert mutate('accounts_subaccounts',operation='add',name='Denied master',parentCode='6900')[0]==403

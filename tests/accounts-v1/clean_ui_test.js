@@ -14,18 +14,21 @@ const requireText = (source, value, label) => {
   if (!source.includes(value)) throw new Error(`${label}: missing ${value}`);
 };
 
-for (const label of ['Purchases','Ledgers','Bags','Local Sales','Export Bills','Expenses & Overheads','Reports','Masters']) {
-  requireText(ui, `title:'${label}'`, 'clean Accounts hub');
+requireText(ui, 'captureWorkspaceLaunchers', 'preserve native feature adapters');
+for(const obsolete of ['const groups =','function buildDialog','function rebuildHome','openGroup(activeGroup)']) {
+  if(ui.includes(obsolete)) throw new Error('Obsolete home writer remains: '+obsolete);
 }
-
-for (const marker of ['popupWorkspaces: true','searchableSelects: true','Type 1 or 2 letters to search','× Close','← Go Back to Main','prepareSecondTier','activeGroup?.items','Generated automatically when saved','Bill adjustments (only when required)']) {
-  requireText(ui, marker, 'clean UI rule');
-}
+for (const marker of ['popupWorkspaces: true','searchableSelects: true','Type 1 or 2 letters to search','× Close','prepareSecondTier','Generated automatically when saved','Bill adjustments (only when required)']) requireText(ui, marker, 'shared form controls');
+const desk=read('accounts/accounts-accounting-desk.js');
+requireText(desk,"action.native==='reconciliation'",'reconciliation icon routes to operational form');
+requireText(desk,'TT_BANK_RECONCILIATION.open()','operational reconciliation owner');
+const template=read('accounts/Transtrade_Accounts_Master_V1.html');
+for(const marker of ['Foundation:','const postPreview=','function initJv']) if(template.includes(marker)) throw new Error('Obsolete template form handler remains: '+marker);
 requireText(ui, 'settleSalaryView', 'render-aware salary and rent mode');
 requireText(ui, "root.closest?.('#expenseEditor')", 'salary mutation ancestor detection');
 requireText(ui, "if (!workspace?.classList.contains('active')) return;", 'background expense updates cannot reopen closed modals');
 requireText(ui, "button.removeAttribute('data-back')", 'independent popup close control');
-requireText(ui, "stageEditor(editor, item.title)", 'direct grouped editor staging');
+requireText(ui, "function stageEditor", 'shared native editor staging');
 requireText(ui, "button.removeAttribute('data-editor-back')", 'legacy editor handler isolation');
 requireText(ui, "tt:accounts-desk-form-opened", 'Accounts desk form close-shell integration');
 

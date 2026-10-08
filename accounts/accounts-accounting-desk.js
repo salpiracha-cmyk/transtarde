@@ -139,6 +139,12 @@
   }
 
   async function launch(action) {
+    // One desk owns navigation. Retire the previous workspace before opening another form.
+    qa('.workspace.active').forEach(w=>w.classList.remove('active','tt-clean-modal','tt-editor-open'));
+    qa('.tt-editor-stage').forEach(e=>e.classList.remove('tt-editor-stage'));
+    document.body.classList.remove('tt-modal-open');
+    window.TT_EXPENSE_EDITOR?.claim('');
+    if(action.native==='reconciliation')return window.TT_BANK_RECONCILIATION.open();
     if(action.special==='bank-entry')return window.TT_BANK_ENTRIES.open();
     if(action.special==='bank-finance')return window.TT_BANK_ENTRIES.open('','FINANCE');
     if(action.special==='subaccounts')return window.TT_SUBACCOUNTS.open('manage');

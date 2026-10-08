@@ -92,6 +92,23 @@ $amended=tt_inv_rows($next,'tt30prod');$amended[0]['rows'][0]['bags']=30;$amende
 $r=tt_inv_rows($absent,'tt30prod');$r[0]['rows'][]=['product'=>'Ready Rice — ASAS','bags'=>10,'bagWeight'=>50];$amended=writeSource($absent,'tt30prod',$r,'2026-09-22T08:11:00Z');
 check(!empty(tt_inv_rows($amended,TT_INV_CONFIRMATIONS)[0]['reviewRequired']),'Post-reconciliation source amendment is flagged to management');
 equal(count(tt_inv_rows($amended,'tt34ghati')),1,'Source amendment cannot silently post another gain');
+$unrelatedPending=$scope+['id'=>'unrelated-pending','stockName'=>$stock,'physicalKg'=>0,'snapshotKg'=>-100,'baseline'=>[],'date'=>'2026-09-21','shiftDate'=>'2026-09-21','shift'=>'Day','isRaw'=>false,'status'=>'Awaiting current-shift production'];
+$confirmations=tt_inv_rows($amended,TT_INV_CONFIRMATIONS);$confirmations[]=$unrelatedPending;$amended[TT_INV_CONFIRMATIONS]=tt_inv_json($confirmations);
+$source=$amended['tt30prod'];$reviewed=tt_inv_review($amended,'TTI','pc1','Corrected final shift production',$owner,'2026-09-22T10:00:00Z');
+equal($reviewed['tt30prod'],$source,'Review never rewrites physical production facts');
+equal(count(tt_inv_rows($reviewed,'tt34ghati')),1,'Review replaces the existing gain instead of duplicating it');
+equal(tt_inv_rows($reviewed,'tt34ghati')[0]['kg'],24500.0,'Review uses amended product output');
+equal(tt_inv_rows($reviewed,'tt32stockadj')[0]['readyRiceKg'],24500.0,'Stock adjustment is replaced consistently');
+equal(tt_inv_stock($reviewed,$scope)[$stock],0.0,'Reviewed adjustment restores confirmed physical quantity');
+equal(tt_inv_rows($reviewed,TT_INV_CONFIRMATIONS)[1],$unrelatedPending,'Review cannot resolve another pending physical confirmation');
+check(empty(tt_inv_rows($reviewed,TT_INV_CONFIRMATIONS)[0]['reviewRequired']),'Explicit review clears warning');
+equal(count(tt_inv_rows($reviewed,'tt34stockreviewaudit')),1,'Review records one management audit');
+equal(tt_inv_rows($reviewed,'tt34stockreviewaudit')[0]['by'],'qaowner','Actual reviewer is recorded');
+rejects(static fn()=>tt_inv_review($reviewed,'TTI','pc1','Repeated review',$owner,'2026-09-22T10:01:00Z'),'A repeated review cannot post a duplicate');
+rejects(static fn()=>tt_inv_review($amended,'TTI','pc1','Unauthorized review',$mill,'2026-09-22T10:01:00Z'),'Mill cannot review financial variance');
+rejects(static fn()=>tt_inv_review($amended,'TTI','pc1','Unauthorized review',$accounts,'2026-09-22T10:01:00Z'),'Report View alone cannot amend financial variance');
+rejects(static fn()=>tt_inv_review($amended,'BRM','pc1','Wrong company review',$owner,'2026-09-22T10:01:00Z'),'Review is company scoped');
+
 
 $raw=values(['tt30slips'=>[$scope+['id'=>1,'baseVariety'=>'IRRI-6','riceType'=>'White','productStage'=>'RAW','payableWeight'=>10000],['id'=>2,'entity'=>'TTI','millName'=>'TTI Rice Mills','baseVariety'=>'IRRI-6','riceType'=>'White','productStage'=>'RAW','payableWeight'=>20000],array_replace($scope,['id'=>3,'entity'=>'BRM','baseVariety'=>'IRRI-6','riceType'=>'White','productStage'=>'RAW','payableWeight'=>90000])]]);
 $raw=confirm($raw,$scope,$rawStock,'raw1');equal(tt_inv_stock($raw,$scope)[$rawStock],0.0,'Raw physical NIL applies only at selected mill');

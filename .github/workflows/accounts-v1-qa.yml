@@ -29,6 +29,7 @@ jobs:
           node tests/accounts-v1/expenses_v1_test.js
           python3 tests/accounts-v1/direct_expense_http_test.py
           python3 tests/accounts-v1/bank_entries_http_test.py
+          python3 tests/accounts-v1/bank_reconciliation_http_test.py
           python3 tests/accounts-v1/company_investments_test.py
           python3 tests/accounts-v1/recurring_bills_profit_test.py
           python3 tests/accounts-v1/payment_plans_test.py
@@ -97,6 +98,7 @@ jobs:
         run: |
           php tests/security/operations_ownership_test.php
           php tests/accounts-v1/inventory_reconciliation_test.php
+          python3 tests/accounts-v1/stock_reconciliation_review_http_test.py
           node tests/accounts-v1/inventory_reconciliation_ui_test.js
           python3 tests/accounts-v1/inventory_reconciliation_http_test.py
       - name: PHP syntax

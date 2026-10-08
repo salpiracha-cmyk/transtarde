@@ -16,7 +16,12 @@ function dex_rows(mixed $input,array $names,array $store=[],string $entity='TTI'
         if($category==='MEDICAL'){$detail=strtoupper((string)($row['medicalFor']??''));if(!in_array($detail,['HOUSEHOLD','COMPANY_STAFF'],true))throw new InvalidArgumentException('Choose household or company/staff for medical expenses.');if($detail==='HOUSEHOLD')$account='FAM-HOUSEHOLD';}
         if($category==='RENT'){$detail=strtoupper((string)($row['rentFor']??''));if(!in_array($detail,['HOME','OFFICE','MILL'],true))throw new InvalidArgumentException('Choose Home, Office or Mill for rent.');if($detail==='HOME')$account='FAM-HOUSEHOLD';elseif($detail==='MILL')$account='5200';}
         if($category==='DONATION'){$detail=strtoupper((string)($row['donationType']??''));$account=match($detail){'ZAKAT'=>'7210','SADQA'=>'7220','FI_SABILILLAH'=>'7230',default=>throw new InvalidArgumentException('Choose Zakat, Sadqa or Fi Sabilillah.')};}
-        $subextra=[];if(!empty($row['subaccountId'])){$sub=sac_resolve($store,$entity,(string)$row['subaccountId']);if($sub['class']!=='Expense'&&!str_starts_with($sub['parentCode'],'FAM-')&&$sub['parentCode']!=='3200')throw new InvalidArgumentException('Choose an expense, manufacturing cost or family allocation subaccount.');$account=$sub['parentCode'];$subextra=sac_extra($sub);}
+        if(!empty($row['accountCode'])){
+            $selected=(string)$row['accountCode'];$head=sac_entity_chart($store,$entity)[$selected]??null;
+            if(!$head||in_array($head['level']??'',['heading','system'],true)||($head['class']!=='Expense'&&!str_starts_with($selected,'FAM-')&&$selected!=='3200'))throw new InvalidArgumentException('Choose an expense, manufacturing cost or family allocation account.');
+            $account=$selected;
+        }
+        $subextra=[];if(!empty($row['subaccountId'])){$sub=sac_resolve($store,$entity,(string)$row['subaccountId']);if($sub['class']!=='Expense'&&!str_starts_with($sub['parentCode'],'FAM-')&&$sub['parentCode']!=='3200')throw new InvalidArgumentException('Choose an expense, manufacturing cost or family allocation subaccount.');if(!empty($row['accountCode'])&&(string)$row['accountCode']!==$sub['parentCode'])throw new InvalidArgumentException('The subaccount has moved. Reopen Expenses and choose its current head.');$account=$sub['parentCode'];$subextra=sac_extra($sub);}
         if(!isset($names[$account]))throw new RuntimeException('Expense subaccount is unavailable.');
         $rows[]=$subextra+['category'=>$category,'purpose'=>$purpose,'amount'=>$amount,'account'=>$account,'accountName'=>$names[$account],'medicalFor'=>$category==='MEDICAL'?$detail:'','rentFor'=>$category==='RENT'?$detail:'','donationType'=>$category==='DONATION'?$detail:''];$total=round($total+$amount,2);
     }

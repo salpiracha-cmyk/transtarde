@@ -3,7 +3,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/product_stage.php';
 
 /** Server-owned reconciliation. Operational staff submit facts, never a Ghati balance. */
-const TT_INV_PRIVATE_KEYS = ['tt34ghati','tt34nilqueue','tt32processingrecon'];
+const TT_INV_PRIVATE_KEYS = ['tt34ghati','tt34nilqueue','tt32processingrecon','tt34stockreviewaudit'];
 const TT_INV_CONFIRMATIONS = 'tt39physicalconfirmations';
 const TT_INV_SOURCE_KEYS = ['tt30prod','tt30ship','tt30slips','tt32stockadj','tt35localsales','tt35exportersale',TT_INV_CONFIRMATIONS];
 
@@ -274,6 +274,49 @@ function tt_inv_reconcile(array $values,string $now): array {
     foreach([TT_INV_CONFIRMATIONS=>$confirmations,'tt32stockadj'=>$adjustments,'tt34ghati'=>$events,'tt34nilqueue'=>$queue]as$key=>$rows){if(isset($values[$key])||$rows)$values[$key]=tt_inv_json($rows);}
     return $values;
 }
+
+/** Explicit management review uses the original physical fact and amended production. */
+function tt_inv_can_review(array $user,string $entity):bool {
+ if(($user['role']??'')==='Super Admin')return true;
+ if(tt_inv_has_action($user,'Directors',['reports','stock-reconciliation'],'Edit')||tt_inv_has_action($user,'Directors',['reports','stock-reconciliation'],'Approve'))return tt_inv_can_report($user,$entity);
+ return tt_inv_has_action($user,'Accounts',['reports','stock-reconciliation'],'Edit')&&tt_user_can_access_entity($user,$entity,'Edit');
+}
+function tt_inv_review_revision(array $values):string {
+ $selected=[];foreach(array_merge(TT_INV_SOURCE_KEYS,TT_INV_PRIVATE_KEYS) as $key)$selected[$key]=(string)($values[$key]??'');ksort($selected);return hash('sha256',tt_inv_json($selected));
+}
+function tt_inv_review(array $values,string $entity,string $id,string $reason,array $user,string $now):array {
+ if(!tt_inv_can_review($user,$entity))throw new DomainException('Accounts or Directors reconciliation review permission is required.');
+ if(strlen(trim($reason))<5||strlen($reason)>500)throw new InvalidArgumentException('Enter a review reason of 5 to 500 characters.');
+ $confirmations=tt_inv_rows($values,TT_INV_CONFIRMATIONS);$index=null;
+ foreach($confirmations as $i=>$c)if((string)($c['id']??'')===$id&&tt_inv_entity($c)===$entity)$index=$i;
+ if($index===null)throw new InvalidArgumentException('Select a physical confirmation in these company books.');
+ $before=$confirmations[$index];if(($before['status']??'')!=='Resolved'||empty($before['reviewRequired'])||!empty($before['isRaw']))throw new InvalidArgumentException('This confirmation has no amended production to review.');
+ $reports=tt_inv_shift_reports($values,$before);if(!array_filter($reports,static fn($p)=>!empty($p['shiftEntriesComplete'])))throw new InvalidArgumentException('The current shift must be marked complete in Milling before review.');
+ $ref='STOCK-CONFIRMATION|'.$id;$old=[];foreach(['tt32stockadj','tt34ghati','tt34nilqueue'] as $key){
+  $old[$key]=tt_inv_rows($values,$key);$values[$key]=tt_inv_json(array_values(array_filter($old[$key],static fn($r)=>($r['ref']??'')!==$ref)));
+ }
+ $target=$before;$target['status']='Pending';unset($target['reviewRequired']);$values[TT_INV_CONFIRMATIONS]=tt_inv_json([$target]);
+ $next=tt_inv_reconcile($values,$now);
+ $confirmations[$index]=tt_inv_rows($next,TT_INV_CONFIRMATIONS)[0];$next[TT_INV_CONFIRMATIONS]=tt_inv_json($confirmations);
+ // Replace the existing derived row at its original position. Never duplicate stock.
+ foreach($old as $key=>$rows){
+  $new=tt_inv_rows($next,$key);$replacement=null;foreach($new as $r)if(($r['ref']??'')===$ref)$replacement=$r;
+  $kept=[];$had=false;foreach($rows as $r){if(($r['ref']??'')!==$ref){$kept[]=$r;continue;}$had=true;if($replacement!==null){
+   if($key==='tt34nilqueue')foreach(['productionId','appliedDate','appliedShift','status','existingProductionIds','reconciledAt'] as $field)if(isset($r[$field]))$replacement[$field]=$r[$field];
+   if($key==='tt34ghati')$replacement['time']=$r['time']??$replacement['time'];$kept[]=$replacement;
+  }}
+  if(!$had&&$replacement!==null)$kept[]=$replacement;$next[$key]=tt_inv_json($kept);
+ }
+ $after=tt_inv_rows($next,TT_INV_CONFIRMATIONS)[$index];
+ $audit=tt_inv_rows($next,'tt34stockreviewaudit');$audit[]=['entity'=>$entity,'confirmationId'=>$id,'reason'=>trim($reason),'before'=>$before,'after'=>$after,'derivedBefore'=>$old,'at'=>$now,'by'=>$user['username']??''];$next['tt34stockreviewaudit']=tt_inv_json($audit);
+ return $next;
+}
+function tt_inv_stock_position(array $values,string $entity):array {
+ $scopes=[];foreach(['tt30prod','tt30ship','tt30slips','tt32stockadj','tt35localsales','tt35exportersale'] as $key)foreach(tt_inv_rows($values,$key) as $row)if(tt_inv_entity($row)===$entity){$scope=tt_inv_scope($row);$scopes[tt_inv_location($scope)]=$scope;}
+ $rows=[];foreach($scopes as $scope)foreach(tt_inv_stock($values,$scope) as $name=>$kg)$rows[]=$scope+['stockName'=>$name,'bookKg'=>round($kg,3)];
+ usort($rows,static fn($a,$b)=>strcmp($a['millName'],$b['millName'])?:strcmp($a['stockName'],$b['stockName']));return $rows;
+}
+
 function tt_inv_statement(array $values,string $entity): array {
     $events=[];$ghati=0.;$gain=0.;
     foreach(tt_inv_rows($values,'tt34ghati')as$e){if(tt_inv_entity($e)!==$entity)continue;$kg=max(0,(float)($e['kg']??0));

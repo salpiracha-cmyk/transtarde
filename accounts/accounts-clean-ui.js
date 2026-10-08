@@ -13,40 +13,6 @@
   let activeGroup = null;
   let navigationMode = '';
 
-  const groups = [
-    {key:'purchases', icon:'◉', title:'Purchases', items:[
-      {icon:'◎', title:'Sodas', hint:'Search or create commodity Sodas.', native:'purchases', soda:true},
-      {icon:'▤', title:'Arrival Bill Posting', hint:'Select the Soda; arrivals, quantity, rate and party fill automatically.', native:'purchases', then:'[data-purchase="commodity"]'}
-    ]},
-    {key:'ledgers', icon:'▥', title:'Ledgers', items:[
-      {icon:'↙', title:'Customer Ledger', hint:'Choose the customer whose ledger you want to see.', native:'receivables'},
-      {icon:'↗', title:'Supplier Ledger', hint:'Choose the supplier whose ledger you want to see.', native:'payables'},
-      {icon:'≡', title:'General Ledger', hint:'Open the General Ledger inside Reports.', native:'reports', text:'General Ledger'}
-    ]},
-    {key:'bags', icon:'▧', title:'Bags', items:[
-      {icon:'▧', title:'Bag Bill', hint:'Account-linked bag form with automatic sales-tax working.', native:'purchases', then:'[data-purchase="bags"]'},
-      {icon:'%', title:'Bag Sales Tax', hint:'Sales-tax and bag report from the same records.', native:'purchases', then:'[data-purchase="bags"]', bagMode:'report'}
-    ]},
-    {key:'local', icon:'⌂', title:'Local Sales', items:[
-      {icon:'✓', title:'Sale Approvals', hint:'Approve local and export-linked sale Sodas.', native:'receivables'},
-      {icon:'₹', title:'Payment Approvals', hint:'Approve received payments before posting.', native:'receivables'}
-    ]},
-    {key:'export', icon:'▣', title:'Export Bills', items:[
-      {icon:'⚓', title:'Freight', hint:'Search by shipment, lot, B/L or container.', native:'freight'},
-      {icon:'▰', title:'Transport', hint:'Search the Loading Programme and post the bill.', native:'transport'},
-      {icon:'◫', title:'Clearing', hint:'Search the shipment, then enter the bill amount.', native:'services', service:'CLEARING'},
-      {icon:'◇', title:'Fumigation', hint:'Search the shipment, then enter the bill amount.', native:'services', service:'FUMIGATION'},
-      {icon:'⌕', title:'Inspection', hint:'Search the shipment or lot and post the inspection bill.', native:'services', service:'INSPECTION'}
-    ]},
-    {key:'expenses', icon:'▤', title:'Expenses & Overheads', native:'expenses'},
-    {key:'reports', icon:'▥', title:'Reports', native:'reports'},
-    {key:'masters', icon:'M', title:'Masters', items:[
-      {icon:'♙', title:'Salary Master', hint:'Permanent salary details only; no monthly posting here.', native:'expenses', then:'[data-expense="salary"]', master:'salary'},
-      {icon:'⌂', title:'Rent & Recurring Master', hint:'Add a recurring item once, then reuse it.', native:'expenses', then:'[data-expense="rent"]', master:'rent'},
-      {icon:'⚙', title:'Accounts Masters', hint:'Use approved canonical masters; do not duplicate them.', native:'masters'}
-    ]}
-  ];
-
   function installStyle() {
     if (q('#ttCleanAccountsStyle')) return;
     const style = document.createElement('style');
@@ -101,15 +67,6 @@
     document.head.appendChild(style);
   }
 
-  function buildDialog() {
-    groupDialog = document.createElement('div');
-    groupDialog.id = 'ttQuickDialog';
-    groupDialog.hidden = true;
-    groupDialog.innerHTML = '<div class="tt-quick-window" role="dialog" aria-modal="true"><div class="tt-quick-head"><h2></h2><span></span><button class="tt-cancel" type="button">← Go Back to Main</button></div><div class="tt-quick-items"></div></div>';
-    q('.tt-cancel', groupDialog).onclick = returnToMain;
-    document.body.appendChild(groupDialog);
-  }
-
   function closeGroup() { if (groupDialog) groupDialog.hidden = true; }
 
   function returnToMain() {
@@ -121,75 +78,6 @@
     qa('.tt-editor-stage').forEach(editor => editor.classList.remove('tt-editor-stage'));
     document.body.classList.remove('tt-modal-open');
     q('#entityHome').style.display = 'block';
-  }
-
-  function openGroup(group) {
-    activeGroup = group;
-    navigationMode = 'second-tier';
-    if (group.native) return launch({native:group.native}, false);
-    q('h2', groupDialog).textContent = group.title;
-    const items = q('.tt-quick-items', groupDialog);
-    items.replaceChildren(...group.items.map(item => {
-      const button = document.createElement('button');
-      button.className = 'tt-quick-item';
-      button.type = 'button';
-      button.innerHTML = `<span class="tt-quick-icon">${item.icon}</span><b>${item.title}</b><small>${item.hint}</small>`;
-      button.onclick = () => launch(item, true);
-      return button;
-    }));
-    groupDialog.hidden = false;
-  }
-
-  function findTextButton(root, text) {
-    return qa('button', root).find(button => button.textContent.trim().toLowerCase().includes(text.toLowerCase()));
-  }
-
-  async function launch(item, isForm = true) {
-    closeGroup();
-    navigationMode = isForm ? 'form' : 'second-tier';
-    masterMode = item.master || '';
-    qa('.workspace').forEach(workspace => workspace.classList.remove('active', 'tt-clean-modal', 'tt-editor-open', 'tt-master-only', 'tt-entry-only'));
-    qa('.tt-editor-stage').forEach(editor => editor.classList.remove('tt-editor-stage'));
-    document.body.classList.remove('tt-modal-open');
-    q('#entityHome').style.display = 'block';
-    if (item.soda) sessionStorage.setItem('tt_purchase_focus', 'ALL');
-    const card = nativeCards.get(item.native) || q(`#ttNativeLaunchers .appCard[data-key="${item.native}"]`);
-    if (!card) return;
-    card.click();
-    if (item.soda) {
-      await sleep(180);
-      document.dispatchEvent(new CustomEvent('tt:purchase-focus', {detail:{focus:'ALL'}}));
-      stageEditor(q('#purchaseEditor'), 'Sodas');
-    }
-    if (item.then) {
-      let target = null;
-      for (let tries = 0; tries < 30 && !target; tries += 1) { target = q(item.then); if (!target) await sleep(35); }
-      if (target) {
-        target.click();
-        const editor = q('#purchaseEditor,#expenseEditor', target.closest('.workspace') || document);
-        if (editor) stageEditor(editor, item.title);
-      }
-    }
-    if (item.text) {
-      await sleep(30);
-      findTextButton(q('.workspace.active') || document, item.text)?.click();
-    }
-    if (item.service) {
-      for (let tries = 0; tries < 30 && !q('#svKind'); tries += 1) await sleep(35);
-      const kind = q('#svKind');
-      if (kind) {
-        const option = qa('option', kind).find(x => x.value === item.service || x.textContent.toUpperCase().includes(item.service));
-        if (option) { kind.value = option.value; kind.dispatchEvent(new Event('change', {bubbles:true})); }
-      }
-    }
-    if (item.bagMode) {
-      for (let tries = 0; tries < 30 && !q(`[data-bg-mode="${item.bagMode}"]`); tries += 1) await sleep(35);
-      q(`[data-bg-mode="${item.bagMode}"]`)?.click();
-    }
-    await sleep(20);
-    if (isForm) prepareModal(); else prepareSecondTier();
-    scan(q('.workspace.active') || document);
-    window.TT_FORM_VIEWPORT?.open(q('.workspace.active'));
   }
 
   function stageEditor(editor, title) {
@@ -215,7 +103,7 @@
     q('#entityHome').style.display = 'block';
     masterMode = '';
     navigationMode = 'second-tier';
-    if (activeGroup?.items) openGroup(activeGroup);
+    activeGroup = null;
   }
 
   function makeCloseButton(button, workspace) {
@@ -477,30 +365,19 @@
     });
   }
 
-  function rebuildHome() {
+  function captureWorkspaceLaunchers() {
     const home = q('#homeGrid');
     if (!home || q('#ttNativeLaunchers')) return false;
     const source = document.createElement('div');
     source.id = 'ttNativeLaunchers';
     qa(':scope > .appCard', home).forEach(card => { nativeCards.set(card.dataset.key, card); source.appendChild(card); });
     home.parentNode.insertBefore(source, home.nextSibling);
-    home.classList.add('tt-clean-grid');
-    groups.forEach(group => {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.className = 'appCard tt-clean-card';
-      button.dataset.cleanKey = group.key;
-      button.innerHTML = `<div class="appIcon">${group.icon}</div><h3>${group.title}</h3>`;
-      button.onclick = () => openGroup(group);
-      home.appendChild(button);
-    });
     return true;
   }
 
   function init() {
     installStyle();
-    buildDialog();
-    if (!rebuildHome()) return;
+    if (!captureWorkspaceLaunchers()) return;
     document.addEventListener('click', event => {
       if (event.target.closest('.entityBtn')) window.setTimeout(() => { q('#entityHome').style.display = 'block'; }, 0);
       if (event.target.closest('[data-back]')) window.setTimeout(() => { document.body.classList.remove('tt-modal-open'); masterMode = ''; navigationMode = ''; activeGroup = null; }, 0);

@@ -50,7 +50,7 @@ $query=strtolower(trim((string)($_GET['q']??'')));
 $postEntries=$account==='POSTS';
 $bankId=str_starts_with($account,'BANK|')?substr($account,5):'';
 $headId=str_starts_with($account,'HEAD|')?substr($account,5):'';
-$headCodes=$headId!==''?sac_descendants($headId):[];
+$headCodes=[];
 $subaccountId=str_starts_with($account,'SUB|')?substr($account,4):'';
 $master=json_decode((string)file_get_contents(dirname(__DIR__).'/accounts/accounting_master_v1.json'),true);
 $catalog=[];
@@ -75,6 +75,8 @@ foreach(['settlement_policy_v1.json','export_realization_policy_v1.json'] as $po
 }
 $file=TT_DATA_DIR.'/accounts.json';
 $store=tt_fi_advice_project(tt_fi_advice_read_json($file),tt_fi_advice_root());
+$headCodes=$headId!==''?sac_descendants($headId,$store,$entity):[];
+$subaccountIds=$subaccountId!==''?sac_subtree($store,$entity,$subaccountId):[];
 $banks=[];
 if($headId!==''&&isset($catalog[$headId]))$catalog[$account]='Head of Accounts · '.$catalog[$headId];
 foreach(sac_accounts($store,$entity) as $subaccount)$catalog['SUB|'.$subaccount['id']]=$subaccount['name'].' · '.$subaccount['parentCode'];
@@ -138,7 +140,7 @@ foreach($journals as $journal){
         $lineBank=(string)($line['bankAccountId']??$journal['meta']['bankAccountId']??'');
         if($bankId!==''&&($code!=='1110'||$lineBank!==$bankId))continue;
         if($headId!==''&&!in_array($code,$headCodes,true))continue;
-        if($subaccountId!==''&&($line['subaccountId']??'')!==$subaccountId)continue;
+        if($subaccountId!==''&&!in_array((string)($line['subaccountId']??''),$subaccountIds,true))continue;
         if($account!==''&&$bankId===''&&$subaccountId===''&&$headId===''&&$code!==$account)continue;
         $lineParty=trim((string)($line['supplier']??$line['broker']??$line['customer']??$line['counterparty']??$line['party']??''));
         $meta=(array)($journal['meta']??[]);
