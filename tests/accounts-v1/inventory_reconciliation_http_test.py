@@ -74,7 +74,7 @@ def run() -> None:
             db_php("$p->prepare('INSERT INTO tt_operation_records(storage_key,payload,version,updated_at,updated_by,updated_by_module) VALUES(?,?,1,UTC_TIMESTAMP(),?,?)')->execute(['tt32processingrecon','[{\"narration\":\"MANAGEMENT_PRIVATE_SENTINEL\"}]','QA fixture','System']);")
             view=get()
         check('MANAGEMENT_PRIVATE_SENTINEL' not in json.dumps(view),'Mill receives no private financial snapshot')
-        check(set(view['restrictedKeys'])=={'tt34ghati','tt34nilqueue','tt32processingrecon'},'Server instructs removal of older private cache keys')
+        check(set(view['restrictedKeys'])=={'tt34ghati','tt34nilqueue','tt32processingrecon','tt34stockreviewaudit'},'Server instructs removal of older private cache keys')
         c,d=request('qamill','/api/operations.php');check(c==200 and 'MANAGEMENT_PRIVATE_SENTINEL' not in json.dumps(d),'Legacy read cannot reveal private records')
         for user in ['qamill','qaexport','qaview']:
             c,d=request(user,'/stock-reconciliation.php?entity=TTI');check(c==403,'Financial report denied to '+user,c)
@@ -187,7 +187,7 @@ def browser_checks(base,clients,request,get,post,private,scope,output):
             saved=json.loads(get()['values'].get('tt30queue','[]'))
             check(any(r.get('vehicle')=='QA-901' for r in saved),'Fresh Mill arrival saves without pressing Clear first',dialogs)
             check(page.locator('#ghatiStatementBody').count()==0,'Mill browser contains no Ghati report')
-            check(page.evaluate("['tt34ghati','tt34nilqueue','tt32processingrecon'].every(k=>localStorage.getItem(k)===null)"),'Mill browser cache contains no private reconciliation stores')
+            check(page.evaluate("['tt34ghati','tt34nilqueue','tt32processingrecon','tt34stockreviewaudit'].every(k=>localStorage.getItem(k)===null)"),'Mill browser cache contains no private reconciliation stores')
             page.evaluate("openPanel('export');selectShipment(301)")
             number=page.evaluate("'TGHU654321-'+containerCheckDigit('TGHU654321')")
             main=page.locator('#inlineShipment_301 .tt-container-main')
