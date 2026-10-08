@@ -92,7 +92,7 @@ require $argv[1];
     assert all(l['expenseRecipientId']=='EXP|talha' for l in journal['lines'][:-1])
     assert journal['lines'][1]['assetId']=='CAR-TTI' and journal['lines'][2]['registrationNo']=='ABC-123'
     status,person=request('accounts_ledger_browser','?entity=TTI&category=party&party=Talha&from=2026-10-01&to=2026-10-31');assert status==200,(status,person)
-    assert len(person['rows'])==3 and person['expenseTotal']==90 and person['closing']==0
+    assert len(person['rows'])==3 and person['expenseTotal']==90 and person['expenseCurrency']=='PKR' and person['closing']==0
     status,report=request('accounts_reports','?entity=TTI&from=2026-10-01&asOf=2026-10-31');assert status==200,(status,report)
     assert sum(x['amount'] for x in report['expenseActivity'] if x['assetId']=='CAR-TTI')==70
     assert report['trialBalance']['balanced']
@@ -100,6 +100,8 @@ require $argv[1];
     invalid={**mixed,'requestKey':'purpose-invalid-0001','reference':'MIX-2','expenseLines':[{'category':'FUEL','assetId':'CAR-BRM','purpose':'Wrong company','amount':90}]}
     assert request('expenses_v1','?entity=TTI',invalid)[0]==422 and books.read_bytes()==before
     invalid['expenseLines'][0]['assetId']='';invalid['requestKey']='purpose-invalid-0002'
+    assert request('expenses_v1','?entity=TTI',invalid)[0]==422 and books.read_bytes()==before
+    invalid['expenseLines'][0].update(category='OTHER',accountCode='6610');invalid['requestKey']='purpose-invalid-0003'
     assert request('expenses_v1','?entity=TTI',invalid)[0]==422 and books.read_bytes()==before
     # Expense purpose remains independent of the existing person's first category.
     office={**mixed,'requestKey':'purpose-office-0001','reference':'MIX-3','amount':10,'expenseLines':[{'category':'OFFICE','purpose':'Stationery','amount':10}]}

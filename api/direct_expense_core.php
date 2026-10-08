@@ -22,6 +22,7 @@ function dex_rows(mixed $input,array $names,array $store=[],string $entity='TTI'
             $account=$selected;if($category==='DONATION'&&$selected==='7200')$account=match($detail){'ZAKAT'=>'7210','SADQA'=>'7220','FI_SABILILLAH'=>'7230','OTHER'=>'7200'};if(($category==='MEDICAL'&&$detail==='HOUSEHOLD'&&$selected==='6230')||($category==='RENT'&&$detail==='HOME'&&$selected==='6300'))$account='6910';if($category==='RENT'&&$detail==='MILL'&&$selected==='6300')$account='5200';
         }
         $subextra=[];if(!empty($row['subaccountId'])){$sub=sac_resolve($store,$entity,(string)$row['subaccountId']);if($sub['class']!=='Expense'&&!str_starts_with($sub['parentCode'],'FAM-')&&$sub['parentCode']!=='3200')throw new InvalidArgumentException('Choose an expense, manufacturing cost or family allocation subaccount.');if(!empty($row['accountCode'])&&(string)$row['accountCode']!==$sub['parentCode'])throw new InvalidArgumentException('The subaccount has moved. Reopen Expenses and choose its current head.');$account=$sub['parentCode'];$subextra=sac_extra($sub);}
+        if(in_array($account,['6410','6610'],true))$category=$account==='6410'?'CAR_REPAIRS':'FUEL';
         $assetExtra=[];$assetId=trim((string)($row['assetId']??''));
         if(in_array($category,['CAR_REPAIRS','FUEL'],true)&&$assetId==='')throw new InvalidArgumentException('Choose the vehicle and registration number.');
         if($assetId!==''){
