@@ -127,6 +127,9 @@ with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
         assert saved()['journals']==prepared_journals
         print('Salary drafts, restart persistence, amount caps, payable and advance balances, mixed payments, cheque validation, overdraft and atomic final retry passed')
         if os.getenv('TT_QA_BROWSER')=='1':
+            # Browser setup is independent of the master-edit scenarios above.
+            state=saved();state['salaryMasters']=json.loads(json.dumps(initial['salaryMasters']))
+            (root/'data/accounts.json').write_text(json.dumps(state))
             from playwright.sync_api import sync_playwright
             with sync_playwright() as pw:
                 browser=pw.chromium.launch(headless=True);page=browser.new_page();errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
