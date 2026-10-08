@@ -61,15 +61,15 @@
     return 'Check its currency in Company Master';
   }
   function selectedBankCurrency() { return String((banks?.accounts || []).find(account => account.id === bankId)?.currency || 'PKR').toUpperCase(); }
-  function bankLabel(account) { return String(account.settings?.displayName || '').trim() || account.displayLabel || account.iban || account.bankName || account.accountTitle || 'Bank'; }
+  function bankLabel(account) { return [account.bankName||'Bank',account.accountNumber||account.iban,account.currency,String(account.settings?.displayName||'').trim(),account.accountTitle].filter(Boolean).join(' · '); }
   function defaultReceiptBankId() {return [...receiptBanks('PKR'),...receiptBanks(currency)].find(row=>row.settings?.defaultReceiptAccount)?.id || '';}
   function bankOptions(currencyCode, selected = '') {
     const rows = [...receiptBanks('PKR'),...receiptBanks(currency)];
-    return `<option value="">Choose company account</option>${rows.map(row => `<option value="${esc(row.id)}" ${row.id === selected ? 'selected' : ''}>${esc(bankLabel(row))} · ${esc(row.currency)}</option>`).join('')}`;
+    return `<option value="">Choose company account</option>${rows.map(row => `<option value="${esc(row.id)}" ${row.id === selected ? 'selected' : ''}>${esc(bankLabel(row))}</option>`).join('')}`;
   }
   function retentionBankOptions(currencyCode, selected = '') {
     const rows = receiptBanks(currencyCode).filter(row => row.settings?.retentionAccount);
-    return `<option value="">Choose approved retention account</option>${rows.map(row => `<option value="${esc(row.id)}" ${row.id === selected ? 'selected' : ''}>${esc(bankLabel(row))} · ${esc(row.currency)}</option>`).join('')}`;
+    return `<option value="">Choose approved retention account</option>${rows.map(row => `<option value="${esc(row.id)}" ${row.id === selected ? 'selected' : ''}>${esc(bankLabel(row))}</option>`).join('')}`;
   }
   function sourceRows() {
     const rows = [];
@@ -173,7 +173,7 @@
     if(fields)fields.style.display=enabled?'grid':'none';
     if(!enabled&&q('#erRetention'))q('#erRetention').value='0';
     const account=(banks?.accounts||[]).find(row=>row.id===q('#erRetentionBank')?.value);
-    const details=q('#erRetentionDetails');if(details)details.textContent=account?`${account.bankName||account.accountTitle} · ${account.accountTitle||''} · ${account.currency} · ${account.iban||account.accountNumber||''} ${account.swift?'· SWIFT '+account.swift:''}`:'Select a designated retention account in this company and currency.';
+    const details=q('#erRetentionDetails');if(details)details.textContent=account?`${account.bankName||'Bank'} · ${account.accountNumber||account.iban||''} · ${account.currency} ${account.swift?'· SWIFT '+account.swift:''} · ${account.accountTitle||''}`:'Select a designated retention account in this company and currency.';
     calc();
   }
   function bind() {
@@ -332,3 +332,4 @@
   document.addEventListener('click',event=>{if(event.target.closest('[data-tt-entity], .entityBtn')){closeForm();setTimeout(refreshPending,100);}});
   setInterval(()=>{if(document.visibilityState==='visible'&&['TTI','BRM'].includes(entity()))refreshPending();},30000);
 })();
+

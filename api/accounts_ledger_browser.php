@@ -88,7 +88,7 @@ foreach((array)(tt_list_masters()['banks']??[]) as $bank){
         (str_contains($linked,'TRANSTRADE INTERNATIONAL')||preg_match('/(^|\W)TTI($|\W)/',$linked)));
     if(!$belongs||!in_array(($v[0]??''),['Company Account','Proprietor / Owner Account','Personal Account'],true))continue;
     $id=(string)($bank['id']??'');if($id==='')continue;
-    $banks[$id]=['code'=>'BANK|'.$id,'name'=>trim((string)($v[4]??'Bank')).' · '.trim((string)($v[3]??'')).' · '.strtoupper((string)($v[7]??'')).' · '.(trim((string)($v[8]??''))!==''?(string)$v[8]:(string)($v[9]??'')),'currency'=>strtoupper((string)($v[7]??''))];
+    $banks[$id]=['code'=>'BANK|'.$id,'name'=>implode(' · ',array_filter([$v[4]??'Bank',(trim((string)($v[8]??''))!==''?(string)$v[8]:(string)($v[9]??'')),strtoupper((string)($v[7]??'')),$v[3]??''])),'currency'=>strtoupper((string)($v[7]??''))];
 }
 $catalog['POSTS']='Post ID Register';
 foreach($banks as $bank)$catalog[$bank['code']]=$bank['name'];
@@ -108,7 +108,7 @@ if($requestedPost!==''){
         $belongs=$owner==='TG'?(str_contains($linked,'TRANS GRAINS')||preg_match('/(^|\W)TG($|\W)/',$linked)):
             ($owner==='BRM'?(str_contains($linked,'BUKSH RICE')||preg_match('/(^|\W)BRM($|\W)/',$linked)):
             (str_contains($linked,'TRANSTRADE INTERNATIONAL')||preg_match('/(^|\W)TTI($|\W)/',$linked)));
-        if($belongs)$postBanks[]=['id'=>(string)($bank['id']??''),'label'=>trim((string)($v[4]??'').' · '.(string)($v[3]??'').' · '.(string)($v[7]??'').' · '.(trim((string)($v[8]??''))!==''?(string)$v[8]:(string)($v[9]??'')))];
+        if($belongs)$postBanks[]=['id'=>(string)($bank['id']??''),'label'=>implode(' · ',array_filter([$v[4]??'',(trim((string)($v[8]??''))!==''?(string)$v[8]:(string)($v[9]??'')),$v[7]??'',$v[3]??'']))];
     }
     echo json_encode(['ok'=>true,'entity'=>$posting['entity'],'post'=>$posting,'bankAccounts'=>$postBanks],JSON_UNESCAPED_UNICODE);exit;
 }
@@ -213,4 +213,5 @@ if(($_GET['format']??'')==='csv'){
 }
 header('Content-Type: application/json; charset=UTF-8');
 echo json_encode(['ok'=>true,'entity'=>$entity,'accounts'=>array_map(static fn($code,$name)=>['code'=>(string)$code,'name'=>$name],array_keys($catalog),array_values($catalog)),'from'=>$from,'to'=>$to,'account'=>$account,'currency'=>$bankId!==''?($banks[$bankId]['currency']??''):($entity==='TG'?$nativeCurrency:'PKR'),'pendingRemittances'=>$entity==='TG'&&$bankId!==''?tgr_reserved($store,$bankId):0,'availableBalance'=>$entity==='TG'&&$bankId!==''?tgr_bank_balance($store,$bankId,$banks[$bankId]['currency'])['available']:null,'opening'=>$opening===null?null:round($opening,2),'closing'=>($account!==''||$party!=='')&&!$postEntries?$closing:null,'parties'=>array_keys($parties),'category'=>$category,'party'=>$party,'missingPartyLines'=>$category==='party'?$missingPartyLines:0,'balanceUnavailable'=>$category==='party'&&$balanceUnavailable,'rows'=>$rows],JSON_UNESCAPED_UNICODE);
+
 
