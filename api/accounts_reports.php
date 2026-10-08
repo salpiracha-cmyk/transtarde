@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require dirname(__DIR__).'/auth_store.php';
+require_once __DIR__.'/accounts_subaccounts_core.php';
 
 header('Content-Type: application/json; charset=UTF-8');
 header('Cache-Control: no-store, no-cache, must-revalidate');
@@ -210,6 +211,7 @@ try {
         'from' => $from,
         'asOf' => $asOf,
         'generalLedger' => $ledger,
+        'expenseActivity' => sac_expense_activity($store,$entity,$from,$asOf),
         'trialBalance' => [
             'rows' => $trial,
             'totalDebit' => $totalDebit,

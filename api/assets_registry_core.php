@@ -36,13 +36,13 @@ function far_locations(array $s):array {
 }
 function far_totals(array $a):array {
     $paid=0;foreach($a['payments'] as $p)$paid+=(int)$p['amountCents'];
-    return ['paidCents'=>$paid,'balanceCents'=>max(0,$a['costCents']-$paid),'fullyPaid'=>$paid===$a['costCents']];
+    return ['paidCents'=>$paid,'balanceCents'=>max(0,$a['costCents']-$paid),'fullyPaid'=>empty($a['trackingOnly'])&&$paid===$a['costCents']];
 }
 function far_schedule(array $a):array {
     $rows=[];$paid=max(0,far_totals($a)['paidCents']-(int)($a['schedulePaidBaselineCents']??0));
     foreach($a['schedule'] as $r){$applied=min($paid,$r['amountCents']);$paid-=$applied;$rows[]=$r+['paidCents'=>$applied,'balanceCents'=>$r['amountCents']-$applied];}return $rows;
 }
-function far_visible(array $a,bool $director):bool {return $director||!far_totals($a)['fullyPaid']||!empty($a['reopened']);}
+function far_visible(array $a,bool $director):bool {return $director||($a['type']??'')!=='PROPERTY'||!far_totals($a)['fullyPaid']||!empty($a['reopened']);}
 function far_view(array $a,bool $director):array {
     $out=$a+far_totals($a);$out['schedule']=far_schedule($a);
     if(!$director){unset($out['privateNotes'],$out['documentReferences'],$out['reopenReason']);}
@@ -159,4 +159,15 @@ function far_location_action(array &$s,array $b):array {
         $id=far_next($loc[$kind],$kind==='countries'?'COUNTRY':'CITY');$loc[$kind][$id]=['id'=>$id,'name'=>$name,'active'=>true]+($kind==='cities'?['countryId'=>$parent]:[]);
     }elseif(($b['operation']??'')==='delete'){$id=(string)($b['id']??'');if(!isset($loc[$kind][$id]))throw new DomainException('Location was not found.');$loc[$kind][$id]['active']=false;if($kind==='countries')foreach($loc['cities'] as &$city)if($city['countryId']===$id)$city['active']=false;unset($city);
     }else throw new DomainException('Choose Add or Delete.');$s['assetLocations']=$loc;return ['id'=>$id];
+}
+
+function far_vehicle_identity(array &$s,string $e,array $b,array $u):array {
+ $name=far_text($b['name']??'',180);$registration=far_text($b['registrationNo']??'',100);$type=(string)($b['type']??'VEHICLE');
+ if($name===''||$registration===''||!in_array($type,['VEHICLE','MOTORCYCLE'],true))throw new DomainException('Enter vehicle name and registration number.');
+ $normal=static fn($v)=>strtoupper((string)preg_replace('/[^\pL\pN]/u','',$v));
+ foreach((array)($s['managedAssets']??[]) as $a)if(($a['entity']??'')===$e&&$normal($a['registrationNo']??'')===$normal($registration))throw new DomainException('This vehicle is already registered. Edit its existing record.');
+ $id=far_next((array)($s['managedAssets']??[]),'ASSET');
+ $s['managedAssets'][$id]=['id'=>$id,'entity'=>$e,'version'=>1,'type'=>$type,'name'=>$name,'assetTag'=>$registration,'registrationNo'=>$registration,'ownerType'=>'COMPANY','ownerName'=>$e,'purpose'=>'BUSINESS_USE','trackingOnly'=>true,'purchaseDate'=>'','costCents'=>0,'currency'=>$e==='TG'?'AED':'PKR','payments'=>[],'schedule'=>[],'country'=>'','city'=>'','address'=>'','unitNo'=>'','tenure'=>'','seller'=>'','accountingMode'=>'TRACKING_ONLY','createdAt'=>gmdate('c'),'createdBy'=>$u['username']??'Accounts'];
+ $s['assetRegistrationPosts'][$id]=['id'=>$id,'entity'=>$e,'message'=>'VEHICLE REGISTERED — NO PURCHASE POSTING','date'=>gmdate('Y-m-d'),'createdBy'=>$u['username']??'Accounts'];
+ return ['postId'=>$id,'message'=>'VEHICLE REGISTERED'];
 }

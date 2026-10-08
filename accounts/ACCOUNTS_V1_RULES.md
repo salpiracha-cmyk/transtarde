@@ -44,9 +44,13 @@ Supplier payments and customer receipts use one allocation engine supporting:
 Customer ledgers retain their own transaction currency only. Do not show PKR values inside a USD/EUR/AED customer ledger. Management may separately calculate an indicative PKR equivalent using an SBP indicative exchange rate.
 
 ## 5. Expenses
-Main Expenses area contains Utilities, Credit Cards, Rent & Recurring, Other Purchases, Salaries/Staff and normal operating ledgers. Company-car fuel does not require individual registration numbers.
+Pay Expense is the single ordinary expense form across TTI, BRM and TG. Production/milling, utilities and export workflows remain dedicated. A recipient is one identity; the payment purpose selects the expense account. Zakat and another expense can be paid to the same recipient without creating another ledger. Custom expense types use managed subaccounts.
 
-Fixed-asset capitalization and depreciation are intentionally outside V1. Year-end asset/depreciation treatment will be reviewed separately. Do not auto-depreciate or force a V1 asset register.
+Vehicle repairs and fuel require a company vehicle selected by name and registration. The expense is posted once, with vehicle information attached for reporting. Ordinary repairs are expenses; acquisitions remain in the asset workflow. Existing vehicle identity registration creates no purchase or bank entry. Fully paid vehicles and equipment remain available in Accounts; restricted property visibility is unchanged. Depreciation is not automatically assumed.
+
+Expense and vehicle reports use posted debit/credit lines, including corrections and reversals. Recipient ledger expense activity is separate from its financial payable balance, preventing expenses from being mistaken for amounts still owed.
+
+Stockbroker money is funded from the company bank. Share purchases consume broker funds, sales return proceeds to the broker, and withdrawals return money to the company bank. Commission is optional: empty/zero creates no commission entry. Routed funds remain available as an optional workflow for historical continuity.
 
 ## 6. Purchases / Sodas
 Use one `Purchases / Sodas` icon. Inside it show:

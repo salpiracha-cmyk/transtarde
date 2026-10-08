@@ -896,6 +896,32 @@
       "normal": "Debit",
       "parent": "6900",
       "subledger": true
+    },
+    {
+      "code": "6410",
+      "name": "Car Repairs",
+      "parent": "6400",
+      "class": "Expense",
+      "level": "general",
+      "normal": "Debit",
+      "entities": [
+        "TTI",
+        "BRM",
+        "TG"
+      ]
+    },
+    {
+      "code": "6610",
+      "name": "Vehicle Fuel",
+      "parent": "6600",
+      "class": "Expense",
+      "level": "general",
+      "normal": "Debit",
+      "entities": [
+        "TTI",
+        "BRM",
+        "TG"
+      ]
     }
   ],
   "peopleSubledgers": [

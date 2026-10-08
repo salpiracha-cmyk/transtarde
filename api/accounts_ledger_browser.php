@@ -92,6 +92,8 @@ foreach((array)(tt_list_masters()['banks']??[]) as $bank){
 }
 $catalog['POSTS']='Post ID Register';
 foreach($banks as $bank)$catalog[$bank['code']]=$bank['name'];
+$expenseActivity=$category==='party'?sac_expense_activity($store,$entity,$from,$to):[];
+foreach($expenseActivity as $activity)if($activity['recipient']!=='')$parties[$activity['recipient']]=true;
 $requestedPost=trim((string)($_GET['postId']??''));
 if($requestedPost!==''){
     $posting=$store['journals'][$requestedPost]??null;
@@ -194,6 +196,11 @@ $balance=round($opening,2);
 foreach($rows as &$row){if(($account!==''||$party!=='')&&!$postEntries){$balance=round($balance+$row['debit']-$row['credit'],2);$row['balance']=$balance;}}unset($row);
 $closing=$category==='party'&&$balanceUnavailable?null:$balance;
 if($category==='party'&&$balanceUnavailable){$opening=null;foreach($rows as &$row)$row['balance']=null;unset($row);}
+$expenseTotal=0.0;
+if($category==='party'&&$party!=='')foreach($expenseActivity as $activity)if(alb_party_key($activity['recipient'])===alb_party_key($party)){
+ $expenseTotal=round($expenseTotal+$activity['amount'],2);
+ $rows[]=['date'=>$activity['date'],'voucher'=>$activity['voucher'],'account'=>$activity['account'],'accountName'=>$activity['accountName'],'reference'=>$activity['reference'],'narration'=>$activity['accountName'].' · '.$activity['purpose'].($activity['assetName']!==''?' · '.$activity['assetName'].' '.$activity['registrationNo']:''),'party'=>$activity['recipient'],'debit'=>0,'credit'=>0,'balance'=>null,'activityOnly'=>true,'expenseAmount'=>$activity['amount'],'chequeNo'=>'','bankReference'=>''];
+}
 if($query!=='')$rows=array_values(array_filter($rows,static fn($row)=>(!preg_match('/^(?:\d{4}-)?\d+$/',$query)&&str_contains(strtolower(implode(' ',array_map('strval',$row))),$query))||tt_accounts_reference_matches($query,$row['voucher'])||tt_accounts_reference_matches($query,$row['reference'])||($row['chequeNo']!==''&&str_contains(strtolower($row['chequeNo']),$query))||($row['bankReference']!==''&&str_contains(strtolower($row['bankReference']),$query))||(preg_match('/^(?:\d{4}-)?\d+$/',$query)&&!preg_match('/^(?:[A-Z]+-)?\d{4}-\d+$/i',$row['reference'])&&str_contains(strtolower($row['reference']),$query))));
 // Keep the chronological running balances above, then display newest Post IDs first.
 usort($rows,static function(array $a,array $b):int{
@@ -206,12 +213,12 @@ if(($_GET['format']??'')==='csv'){
     $out=fopen('php://output','w');fwrite($out,"\xEF\xBB\xBF");
     fputcsv($out,['Company',$entity,$category==='party'?'Party':'Account',$category==='party'?$party:($account!==''?$account.' '.$catalog[$account]:'All Ledgers'),'From',$from,'To',$to]);
     fputcsv($out,['Opening Balance','','','','','','','','',($account!==''||$party!=='')?($opening===null?'Unavailable':round($opening,2)):'']);
-    fputcsv($out,['Date','Post ID','Account','Account Name','Reference','Narration','Party','Debit','Credit','Balance']);
-    foreach($rows as $row)fputcsv($out,array_map('alb_cell',[$row['date'],$row['voucher'],$row['account'],$row['accountName'],$row['reference'],$row['narration'],$row['party'],$row['debit'],$row['credit'],$row['balance']??'']));
+    fputcsv($out,['Date','Post ID','Account','Account Name','Reference','Narration','Party','Debit','Credit','Balance','Expense paid']);
+    foreach($rows as $row)fputcsv($out,array_map('alb_cell',[$row['date'],$row['voucher'],$row['account'],$row['accountName'],$row['reference'],$row['narration'],$row['party'],$row['debit'],$row['credit'],$row['balance']??'',$row['expenseAmount']??'']));
     if($category==='party')fputcsv($out,['Closing Balance','','','','','','','','',$balanceUnavailable?'Unavailable':$closing]);
     fclose($out);exit;
 }
 header('Content-Type: application/json; charset=UTF-8');
-echo json_encode(['ok'=>true,'entity'=>$entity,'accounts'=>array_map(static fn($code,$name)=>['code'=>(string)$code,'name'=>$name],array_keys($catalog),array_values($catalog)),'from'=>$from,'to'=>$to,'account'=>$account,'currency'=>$bankId!==''?($banks[$bankId]['currency']??''):($entity==='TG'?$nativeCurrency:'PKR'),'pendingRemittances'=>$entity==='TG'&&$bankId!==''?tgr_reserved($store,$bankId):0,'availableBalance'=>$entity==='TG'&&$bankId!==''?tgr_bank_balance($store,$bankId,$banks[$bankId]['currency'])['available']:null,'opening'=>$opening===null?null:round($opening,2),'closing'=>($account!==''||$party!=='')&&!$postEntries?$closing:null,'parties'=>array_keys($parties),'category'=>$category,'party'=>$party,'missingPartyLines'=>$category==='party'?$missingPartyLines:0,'balanceUnavailable'=>$category==='party'&&$balanceUnavailable,'rows'=>$rows],JSON_UNESCAPED_UNICODE);
+echo json_encode(['ok'=>true,'entity'=>$entity,'accounts'=>array_map(static fn($code,$name)=>['code'=>(string)$code,'name'=>$name],array_keys($catalog),array_values($catalog)),'from'=>$from,'to'=>$to,'account'=>$account,'currency'=>$bankId!==''?($banks[$bankId]['currency']??''):($entity==='TG'?$nativeCurrency:'PKR'),'pendingRemittances'=>$entity==='TG'&&$bankId!==''?tgr_reserved($store,$bankId):0,'availableBalance'=>$entity==='TG'&&$bankId!==''?tgr_bank_balance($store,$bankId,$banks[$bankId]['currency'])['available']:null,'opening'=>$opening===null?null:round($opening,2),'closing'=>($account!==''||$party!=='')&&!$postEntries?$closing:null,'parties'=>array_keys($parties),'category'=>$category,'party'=>$party,'expenseTotal'=>$expenseTotal,'missingPartyLines'=>$category==='party'?$missingPartyLines:0,'balanceUnavailable'=>$category==='party'&&$balanceUnavailable,'rows'=>$rows],JSON_UNESCAPED_UNICODE);
 
 

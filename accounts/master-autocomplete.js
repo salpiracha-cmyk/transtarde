@@ -133,7 +133,7 @@
     });
   }
   let queued = false;
-  const observer = new MutationObserver(() => { if (queued) return; queued = true; requestAnimationFrame(() => { queued = false; refresh(); }); });
+  const observer = new MutationObserver(records => { if(!records.some(r=>[...r.addedNodes].some(n=>n.nodeType===1&&(n.matches?.('input,select')||n.querySelector?.('input,select')))))return; if (queued) return; queued = true; requestAnimationFrame(() => { queued = false; refresh(); }); });
   const start = () => { refresh(); observer.observe(document.body,{childList:true,subtree:true}); };
   document.addEventListener('change',event => { if (event.target?.id === 'svKind') refresh(); });
   window.TT_ACCOUNTS_MASTER_CHOICES = {

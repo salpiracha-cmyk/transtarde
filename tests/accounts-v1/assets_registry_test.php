@@ -34,3 +34,7 @@ $company=$base;$company['assetTag']='CO-001';$company['ownerType']='COMPANY';$co
 $r=far_register($s,'TTI',$company,$u);$companyAsset=$s['managedAssets'][$r['postId']];$purchase=$s['journals'][$companyAsset['purchaseJournalId']];check($purchase['lines'][0]['account']==='1550'&&$purchase['lines'][1]['account']==='2140','New company property records asset and payable once');
 $payment=['instalmentNo'=>'1','date'=>'2026-07-01','amount'=>100,'cashAmount'=>100,'bankAmount'=>0];far_payment($s,$companyAsset,$payment,$u);$last=end($s['journals']);check($last['lines'][0]['account']==='2140','Company instalments reduce liability, not repeat cost');
 echo "Asset registry cutoff, privacy, schedule, split, ownership, country/city history and balanced journals passed\n";
+
+$vehicle=far_vehicle_identity($s,'TTI',['name'=>'Company Corolla','registrationNo'=>'ABC-123'],$u);
+$car=$s['managedAssets'][$vehicle['postId']];check($car['trackingOnly']&&$car['costCents']===0,'Existing vehicle does not invent purchase cost');check(far_visible($car,false)&&!far_totals($car)['fullyPaid'],'Tracking vehicles stay visible without a false fully-paid claim');
+rejects(fn()=>far_vehicle_identity($s,'TTI',['name'=>'Duplicate','registrationNo'=>'abc 123'],$u),'Same registration cannot create two vehicles');

@@ -12,7 +12,7 @@ with tempfile.TemporaryDirectory(prefix='tti-authorization-') as directory:
     private.mkdir()
     for name in ['auth_store.php', 'master_store.php', 'product_stage.php', 'offline_idempotency.php','session_store.php']:
         shutil.copy(ROOT / name, app / name)
-    for name in ['accounts_subaccounts_core.php','assets_registry_core.php','expenses_v1.php','direct_expense_core.php','accounts_bank_payment.php','expense_locations.php','expense_reminders.php','expense_reversals.php','donations.php','rent_salary_v2.php','salary_month_workflow.php','salary_master_store.php']:
+    for name in ['accounts_subaccounts_core.php','assets_registry_core.php','expenses_v1.php','direct_expense_core.php','accounts_bank_payment.php','expense_locations.php','expense_reminders.php','expense_reversals.php','donations.php','rent_salary_v2.php','salary_month_workflow.php','salary_master_store.php','accounts_reports.php','accounts_ledger_browser.php','accounts_reference.php','tg_remittance_core.php','fi_credit_advice_link.php','receipt_invoice_links.php']:
         shutil.copy(ROOT / 'api' / name, app / 'api' / name)
     shutil.copy(ROOT / 'accounts/accounting_master_v1.json', app / 'accounts/accounting_master_v1.json')
     harness = root / 'request.php'
@@ -83,6 +83,30 @@ require $argv[1];
     assert books.read_bytes()==before,'a duplicate cheque must not post'
     corrected={**bank,'action':'amend_expense','id':bank_id,'reason':'Correct cheque expense','requestKey':'direct-bank-amend-1'}
     assert request('expenses_v1','?entity=TTI',corrected)[0]==200,'correcting the original may retain its cheque'
+    # One recipient, three purposes, one bank/cash credit, and vehicle dimensions.
+    store=json.loads(books.read_text());store['managedAssets']={'CAR-TTI':{'id':'CAR-TTI','entity':'TTI','name':'Corolla','type':'VEHICLE','registrationNo':'ABC-123'},'CAR-BRM':{'id':'CAR-BRM','entity':'BRM','name':'Other car','type':'VEHICLE','registrationNo':'XYZ-987'}};books.write_text(json.dumps(store))
+    mixed={**body,'requestKey':'purpose-mixed-0001','reference':'MIX-1','payee':'Talha','payeeId':'EXP|talha','amount':90,'expenseLines':[{'category':'DONATION','donationType':'ZAKAT','purpose':'Zakat distribution','amount':20},{'category':'CAR_REPAIRS','assetId':'CAR-TTI','purpose':'Brake pads','amount':30},{'category':'FUEL','assetId':'CAR-TTI','purpose':'Petrol','amount':40}]}
+    status,result=request('expenses_v1','?entity=TTI',mixed);assert status==200,(status,result)
+    journal=json.loads(books.read_text())['journals'][result['result']['journalId']]
+    assert [l['account'] for l in journal['lines']]==['7210','6410','6610','1120']
+    assert all(l['expenseRecipientId']=='EXP|talha' for l in journal['lines'][:-1])
+    assert journal['lines'][1]['assetId']=='CAR-TTI' and journal['lines'][2]['registrationNo']=='ABC-123'
+    status,person=request('accounts_ledger_browser','?entity=TTI&category=party&party=Talha&from=2026-10-01&to=2026-10-31');assert status==200,(status,person)
+    assert len(person['rows'])==3 and person['expenseTotal']==90 and person['closing']==0
+    status,report=request('accounts_reports','?entity=TTI&from=2026-10-01&asOf=2026-10-31');assert status==200,(status,report)
+    assert sum(x['amount'] for x in report['expenseActivity'] if x['assetId']=='CAR-TTI')==70
+    assert report['trialBalance']['balanced']
+    before=books.read_bytes()
+    invalid={**mixed,'requestKey':'purpose-invalid-0001','reference':'MIX-2','expenseLines':[{'category':'FUEL','assetId':'CAR-BRM','purpose':'Wrong company','amount':90}]}
+    assert request('expenses_v1','?entity=TTI',invalid)[0]==422 and books.read_bytes()==before
+    invalid['expenseLines'][0]['assetId']='';invalid['requestKey']='purpose-invalid-0002'
+    assert request('expenses_v1','?entity=TTI',invalid)[0]==422 and books.read_bytes()==before
+    # Expense purpose remains independent of the existing person's first category.
+    office={**mixed,'requestKey':'purpose-office-0001','reference':'MIX-3','amount':10,'expenseLines':[{'category':'OFFICE','purpose':'Stationery','amount':10}]}
+    assert request('expenses_v1','?entity=TTI',office)[0]==200
+    status,person=request('accounts_ledger_browser','?entity=TTI&category=party&party=Talha&from=2026-10-01&to=2026-10-31')
+    assert status==200 and len(person['rows'])==4 and person['expenseTotal']==100 and person['closing']==0
+    print('Recipient purpose, vehicle costs, company boundaries, reporting and one-ledger activity passed.')
     # Corrupt nonempty books must not become empty books or get overwritten.
 
     for endpoint in ['expenses_v1','donations','rent_salary_v2']:

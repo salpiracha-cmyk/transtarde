@@ -39,7 +39,7 @@ function sac_save_payee(array &$s,string $e,array $b,array $u):array {
  if($kind==='EXPENSE')foreach(sac_payees($s,$e,$kind) as $p)if($p['id']!==$id&&sac_normal($p['name'])===sac_normal($name))throw new DomainException('This recipient already exists. Edit its setup.');
  foreach(sac_payees($s,$e) as $p)if($p['id']===$id)$old=$p;
  if($kind==='BUSINESS'){if(!$old||$old['kind']!=='BUSINESS')throw new DomainException('Add this Business Party in Master Records first.');$name=$old['name'];}
- $code=(string)($b['accountCode']??'');$chart=sac_entity_chart($s,$e);$a=$chart[$code]??null;
+ $code=(string)($b['accountCode']??'');if($kind==='EXPENSE'&&$code==='')$code='6900';$chart=sac_entity_chart($s,$e);$a=$chart[$code]??null;
  if(!$a||in_array($a['level']??'',['heading','system'],true)||in_array($code,['1110','1120','1130','1430','1440','1610','2610'],true))throw new DomainException('Choose the recipient posting account.');
  if($kind==='EXPENSE'&&($a['class']??'')!=='Expense')throw new DomainException('Expense recipients must use an expense or manufacturing cost account.');
  $subId=(string)($b['subaccountId']??'');if($subId!==''){$sub=sac_resolve($s,$e,$subId);if($sub['parentCode']!==$code)throw new DomainException('Choose a subaccount under the selected head.');}
@@ -112,3 +112,20 @@ function sac_payload(array $s,string $e,string $from='',string $to=''):array {
  return ['ok'=>true,'entity'=>$e,'revision'=>(int)($s['revision']??0),'heads'=>array_values($heads),'subaccounts'=>array_values($subs),'taxReport'=>array_values($tax)];
 }
 
+
+/** Expense activity is linked to the recipient, never an artificial receivable. */
+function sac_expense_activity(array $s,string $e,string $from,string $to):array {
+ $chart=sac_chart();$out=[];
+ foreach((array)($s['journals']??[]) as $j){
+  if(($j['entity']??'')!==$e||($j['status']??'')!=='Posted'||($j['date']??'')<$from||($j['date']??'')>$to)continue;
+  $meta=(array)($j['meta']??[]);$source=(array)($s['generalExpenses'][(string)($meta['generalExpenseId']??'')]??[]);
+  foreach((array)($j['lines']??[]) as $l){
+   $code=(string)($l['account']??'');if(($chart[$code]['class']??'')!=='Expense'||str_starts_with($code,'5'))continue;
+   $id=(string)($l['expenseRecipientId']??$meta['payeeId']??$source['payeeId']??'');
+   $recipient=(string)($s['paymentPayees'][$e.'|'.$id]['name']??$l['counterparty']??$l['party']??$l['person']??$meta['payee']??$meta['beneficiary']??$source['payee']??'');
+   $asset=(array)($s['managedAssets'][(string)($l['assetId']??'')]??[]);
+   $out[]=['date'=>$j['date'],'voucher'=>$j['id'],'journalId'=>$j['id'],'sourceType'=>$j['sourceType']??'','account'=>$code,'accountName'=>$l['accountName']??$chart[$code]['name'],'recipient'=>$recipient,'recipientId'=>$id,'assetId'=>$l['assetId']??'','assetName'=>$l['assetName']??$asset['name']??'','registrationNo'=>$l['registrationNo']??$asset['registrationNo']??'','purpose'=>$l['expensePurpose']??$j['narration']??'','reference'=>$j['reference']??'','amount'=>round((float)($l['debit']??0)-(float)($l['credit']??0),2),'reversal'=>!empty($j['reversalOf'])];
+  }
+ }
+ return $out;
+}

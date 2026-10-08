@@ -43,7 +43,7 @@
     ]},
     {key:'routine', glyph:'◇', title:'Expenses', note:'Pay expenses, utilities, cards or salaries', actions:[
       {title:'Pay Expense', note:'Pay anyone; combine several expenses in one cheque or payment', native:'expenses', special:'expense-pay'},
-      {title:'Expense Recipients', note:'Set up recipient names and their usual expense accounts', special:'expense-recipients'},
+      {title:'Expense Recipients', note:'Add and edit recipients; choose expense purpose on each payment', special:'expense-recipients'},
       {title:'Bills & Credit Cards', note:'Choose Utilities or Credit Cards', native:'expenses', special:'expense-bills'},
       {title:'Salaries & Staff', note:'Salary advance and monthly salary preparation', native:'expenses', special:'expense-salary'}
     ]},
@@ -59,7 +59,7 @@
     ]},
     {key:'reports', glyph:'▤', title:'Reports', note:'Financial, tax, party, commodity and shipment reports', actions:[
       {title:'Sales Tax', note:'Search export documents and bank/tax advices by period and reference', special:'sales-tax'},
-      {title:'Withholding Tax Report', special:'withholding-report'}, {title:'Trial Balance', native:'reports', find:'Trial Balance'}, {title:'Profit & Loss', native:'reports', find:'Profit'},
+      {title:'Expenses by Type / Recipient',special:'expense-report'}, {title:'Vehicle / Asset Costs',special:'vehicle-report'}, {title:'Withholding Tax Report', special:'withholding-report'}, {title:'Trial Balance', native:'reports', find:'Trial Balance'}, {title:'Profit & Loss', native:'reports', find:'Profit'},
       {title:'Balance Sheet', native:'reports', find:'Balance Sheet'}, {title:'Receivables / Payables', native:'reports', find:'Receivables'},
       {title:'Shipment Profitability', native:'reports', find:'Shipment'},
       {title:'Commodity & Local Sales', native:'reports', find:'Commodity'}
@@ -75,7 +75,7 @@
     ]},
     {key:'tg-bank', glyph:'▦', title:'Bank & Local Expenses', note:'Bank transfers, payments and local operating expense', actions:[
       {title:'Inter Account Transfer', note:'Choose the source and destination; currency direction and the TG Master rate are automatic', special:'internal-bank-transfer'},
-      {title:'Bank Entry', special:'bank-entry'}, {title:'Bank Finance', special:'bank-finance'}, {title:'Bank Accounts & Balances', native:'bank'}, {title:'Local Expense', native:'expenses', then:'[data-expense="general"]'},
+      {title:'Bank Entry', special:'bank-entry'}, {title:'Bank Finance', special:'bank-finance'}, {title:'Bank Accounts & Balances', native:'bank'}, {title:'Pay Expense', special:'expense-pay'},
       {title:'Utilities', native:'expenses', then:'[data-expense="utility"]'}, {title:'Bank Reconciliation', native:'reconciliation'}
     ]},
     {key:'tg-ledgers', glyph:'L', title:'Ledgers', note:'TG party and account statements with print and Excel', actions:[
@@ -89,7 +89,7 @@
       {title:'Bill & Invoice Registers', special:'bill-registers'}
     ]},
     {key:'tg-reports', glyph:'▤', title:'Reports', note:'TG balances and financial reports', actions:[
-      {title:'Withholding Tax Report', special:'withholding-report'}, {title:'Trial Balance', native:'reports', find:'Trial Balance'}, {title:'Profit & Loss', native:'reports', find:'Profit'},
+      {title:'Expenses by Type / Recipient',special:'expense-report'}, {title:'Vehicle / Asset Costs',special:'vehicle-report'}, {title:'Withholding Tax Report', special:'withholding-report'}, {title:'Trial Balance', native:'reports', find:'Trial Balance'}, {title:'Profit & Loss', native:'reports', find:'Profit'},
       {title:'Balance Sheet', native:'reports', find:'Balance Sheet'}, {title:'Receivables / Payables', native:'reports', find:'Receivables'}
     ]}
   ];
@@ -105,6 +105,8 @@
     style.id = 'ttAccountingDeskStyle';
     style.textContent = `
       body{background:#edf1f4!important;color:#172433}
+      body.tt-workspace-opening .workspace.active{visibility:hidden!important}
+      #ttExpenseFilters[hidden]{display:none!important}
       body.tt-arrival-opening .workspace.active{visibility:hidden!important}body.tt-arrival-opening:after{content:'Loading Bill Posting…';position:fixed;inset:62px 0 0;display:grid;place-items:center;background:#edf1f4;color:#173c63;font-weight:800;z-index:450}
       .topbar{height:62px!important;padding:0 22px!important}.brand{min-width:210px!important}.crumb{opacity:.72}
       #ttConsoleTop,#ttMasterTop,#ttChangeCompanyDesk{border:1px solid #ffffff32;background:#ffffff12;color:#fff;border-radius:9px;height:38px;padding:0 13px;font-weight:800;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center}
@@ -145,6 +147,10 @@
     qa('.tt-editor-stage').forEach(e=>e.classList.remove('tt-editor-stage'));
     document.body.classList.remove('tt-modal-open');
     window.TT_EXPENSE_EDITOR?.claim('');
+    if(action.native==='reports'&&['Trial Balance','Profit','Balance Sheet'].includes(action.find))return window.TT_REPORTS.open(({Trial:'tb',Profit:'pl',Balance:'bs'})[String(action.find||'').split(' ')[0]]||'tb');
+    if(action.native==='bank'&&!action.special)return window.TT_BANK_ACCOUNTS_UI.open();
+    if(action.special==='expense-report')return window.TT_REPORTS.open('expenses');
+    if(action.special==='vehicle-report')return window.TT_REPORTS.open('vehicles');
     if(action.native==='reconciliation')return window.TT_BANK_RECONCILIATION.open();
     if(action.special==='bank-entry')return window.TT_BANK_ENTRIES.open();
     if(action.special==='bank-finance')return window.TT_BANK_ENTRIES.open('','FINANCE');
@@ -173,8 +179,8 @@
     if (action.special === 'export-receipt') return window.TT_EXPORT_RECEIPTS_UI?.openForm?.();
     if (action.special === 'tg-customer-receipt') return window.TT_TG_CUSTOMER_RECEIPTS?.open?.();
     if (action.special === 'internal-bank-transfer') return window.TT_INTERNAL_BANK_TRANSFERS_UI?.open?.();
-    if (action.special === 'tg-currency-transfer') { await launch({native:'bank'}); return window.TT_TG_BANK_TRANSFER_UI?.open?.(); }
-    if (action.special === 'retention-remittance') { await launch({native:'bank'}); return window.TT_RETENTION_REMITTANCE_UI?.open?.(); }
+    if (action.special === 'tg-currency-transfer') { q('#ws-bank')?.classList.add('active'); return window.TT_TG_BANK_TRANSFER_UI?.open?.(); }
+    if (action.special === 'retention-remittance') { const w=q('#ws-bank');if(w){w.classList.add('active');q('#entityHome').style.display='none';w.querySelectorAll(':scope > :not(.panelHead)').forEach(x=>x.hidden=true);} return window.TT_RETENTION_REMITTANCE_UI?.open?.(); }
     if (action.special === 'shipment') return openShipmentChooser();
     if (action.special === 'freight-desk') return openFreightDesk();
     if (action.special === 'shipment-kind') return openShipmentKind(action.shipmentKind);
@@ -182,9 +188,11 @@
     const purchaseEditor = q('#purchaseEditor');
     if (purchaseEditor && arrivalOpening) purchaseEditor.dataset.ttPurchaseMode = 'arrival';
     if (purchaseEditor && action.bagSync) purchaseEditor.dataset.ttPurchaseMode = 'bags';
+    document.body.classList.add('tt-workspace-opening');
     if (arrivalOpening) document.body.classList.add('tt-arrival-opening');
     const card = nativeCard(action.native);
-    if (!card) { document.body.classList.remove('tt-arrival-opening'); return alert('This Accounts area is temporarily unavailable.'); }
+    if (!card) { document.body.classList.remove('tt-arrival-opening','tt-workspace-opening'); return alert('This Accounts area is temporarily unavailable.'); }
+    try {
     card.click();
     if (action.then) {
       let button = null;
@@ -204,6 +212,7 @@
       const root = q('.workspace.active') || document;
       qa('button', root).find(button => button.textContent.toLowerCase().includes(action.find.toLowerCase()))?.click();
     }
+    } finally { document.body.classList.remove('tt-workspace-opening','tt-arrival-opening'); }
     document.dispatchEvent(new CustomEvent('tt:accounts-desk-form-opened', {
       detail: {title: action.title || ''}
     }));
@@ -787,7 +796,7 @@
     };
     qa('.workspace.active').forEach(add);
     const refresh = () => { qa('.workspace.active').forEach(add); ensureLiveTreatments(); };
-    new MutationObserver(refresh).observe(document.body, {subtree:true, childList:true, attributes:true, attributeFilter:['class']});
+    new MutationObserver(records=>{if(records.some(r=>r.type==='attributes'&&r.target.matches?.('.workspace')||r.type==='childList'&&[...r.addedNodes].some(n=>n.nodeType===1&&(n.matches?.('.workspace,input,select,button')||n.querySelector?.('#evPayAmount')))))refresh();}).observe(document.body, {subtree:true, childList:true, attributes:true, attributeFilter:['class']});
   }
 
   function ensureLiveTreatments() {

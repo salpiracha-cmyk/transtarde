@@ -112,3 +112,9 @@ Every request requiring Director approval must also appear in the Super Admin Co
 - Open the modern expense renderer directly, and show the finished form after loading; do not simulate old workspace and child-button clicks.
 - Supplier/Broker Payment is available in Local Purchases and the second Home summary box. Do not add a separate top Home shortcut. Unfinished prepared payment plans remain at the bottom.
 - After explicit posting, refresh summaries without replacing another active entry form. Shared transaction changes appear on intentional reopen/refresh.
+
+- Expense recipients identify who received money; each payment row selects its purpose. Recipient defaults must not force future payments into one expense category. A single person can receive Zakat and other payments.
+- Vehicle repairs and fuel select the vehicle name and registration together. Store stable asset/recipient IDs alongside journal lines for expense, recipient, vehicle and monthly reporting. Never create a second monetary posting for a reporting dimension.
+- An existing vehicle can be registered for cost tracking without inventing its acquisition value or reducing bank funds. Ordinary repairs stay expenses; asset acquisition remains separate.
+- Stockbroker entries initially show funding, buying shares, selling shares and bank withdrawal. Routed funds are optional. Blank commission means no commission posting.
+- Reports and bank balances open their current renderer directly. Ignore stale report responses after company switches; do not rescan the complete workspace on each total or text mutation.
