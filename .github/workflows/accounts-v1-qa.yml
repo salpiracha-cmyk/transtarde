@@ -153,6 +153,14 @@ jobs:
           python3 -m venv "$RUNNER_TEMP/inventory-venv"
           "$RUNNER_TEMP/inventory-venv/bin/pip" -q install playwright==1.55.0
           "$RUNNER_TEMP/inventory-venv/bin/playwright" install --with-deps chromium
+      - name: Expense review and shared form browser flows
+        run: |
+          npm install --prefix "$RUNNER_TEMP/expense-review-node" --no-save playwright@1.55.0
+          export NODE_PATH="$RUNNER_TEMP/expense-review-node/node_modules"
+          node tests/accounts-v1/expense_review_batch_browser_test.js
+          node tests/accounts-v1/direct_expense_browser_test.js
+          node tests/accounts-v1/form_viewport_browser_test.js
+          node tests/accounts-v1/payment_plans_browser_test.js
       - name: Actual MySQL and restricted-user browser reconciliation
         env:
           TT_QA_OUTPUT: ${{ runner.temp }}/inventory-evidence

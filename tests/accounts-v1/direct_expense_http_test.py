@@ -67,6 +67,17 @@ require $argv[1];
     status,result=request('expenses_v1','?entity=TTI',correction);assert status==200,(status,result)
     replacement=result['result'];store=json.loads(books.read_text());assert store['generalExpenses'][first['generalExpenseId']]['status']=='Amended'
     assert len(store['journals'])==3
+    assert replacement['publicPostId']==first['journalId']
+    assert store['journals'][replacement['journalId']]['meta']['publicPostId']==first['journalId']
+    assert 'Purpose:' in store['journals'][replacement['journalId']]['meta']['amendmentNote']
+    status,register=request('accounts_ledger_browser','?entity=TTI&account=POSTS&from=2026-07-01&to=2026-12-31')
+    assert status==200,(status,register)
+    current=next(r for r in register['rows'] if r['publicPostId']==first['journalId'])
+    assert current['voucher']==replacement['journalId'] and current['amendmentNote'] and current['party']
+    assert len([r for r in register['rows'] if r['publicPostId']==first['journalId']])==1
+    status,details=request('accounts_ledger_browser','?entity=TTI&account=POSTS&postId='+first['journalId']+'&to=2026-12-31')
+    assert status==200 and details['post']['id']==replacement['journalId'] and details['post']['publicPostId']==first['journalId']
+
     balance=lambda:round(sum(float(l['debit'])-float(l['credit']) for j in json.loads(books.read_text())['journals'].values() for l in j['lines'] if l['account']=='1120'),2)
     assert balance()==-120
     stale={'action':'delete_expense','csrf':'fixture','entity':'TTI','collection':'generalExpenses','id':first['generalExpenseId'],'reason':'Remove stale expense'}
@@ -108,6 +119,18 @@ require $argv[1];
     assert request('expenses_v1','?entity=TTI',office)[0]==200
     status,person=request('accounts_ledger_browser','?entity=TTI&category=party&party=Talha&from=2026-10-01&to=2026-10-31')
     assert status==200 and len(person['rows'])==4 and person['expenseTotal']==100 and person['closing']==0
+    tax={**body,'requestKey':'vehicle-tax-fixture','reference':'TAX-1','payee':'Excise Department','amount':1200,'expenseLines':[{'category':'VEHICLE_TAX','assetId':'CAR-TTI','purpose':'Annual vehicle token tax','periodFrom':'2026-07-01','periodTo':'2027-06-30','challanReference':'CHALLAN-1','amount':1200}]}
+    # Reuse the vehicle seeded by the earlier company-boundary fixtures.
+    vehicles=json.loads(books.read_text()).get('managedAssets',{})
+    car=next((a['id'] for a in vehicles.values() if a['entity']=='TTI' and a['type']=='VEHICLE'),None)
+    assert car
+    tax['expenseLines'][0]['assetId']=car
+    status,result=request('expenses_v1','?entity=TTI',tax);assert status==200,(status,result)
+    j=json.loads(books.read_text())['journals'][result['result']['journalId']]
+    assert j['lines'][0]['account']=='6620' and j['lines'][0]['assetId']==car
+    assert j['lines'][0]['periodTo']=='2027-06-30' and j['totalDebit']==j['totalCredit']==1200
+    before=books.read_bytes();bad={**tax,'requestKey':'vehicle-tax-bad-period','reference':'TAX-BAD','expenseLines':[{**tax['expenseLines'][0],'periodTo':'2026-06-30'}]}
+    assert request('expenses_v1','?entity=TTI',bad)[0]==422 and books.read_bytes()==before
     print('Recipient purpose, vehicle costs, company boundaries, reporting and one-ledger activity passed.')
     # Corrupt nonempty books must not become empty books or get overwritten.
 

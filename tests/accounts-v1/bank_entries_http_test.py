@@ -69,6 +69,20 @@ require $argv[1];
         return result,body
     sub,b=good('accounts_subaccounts',operation='add',name='Office stationery',parentCode='6900',taxCategory='NONE');sid=sub['result']['subaccountId']
     assert mutate('accounts_subaccounts',operation='add',name='Office.  Stationery',parentCode='6900')[0]==422
+    home,_=good('accounts_subaccounts',operation='add',name='Home gardening',parentCode='6910',expenseType=True,expenseClassification='HOME')
+    homeid=home['result']['subaccountId']
+    assert next(a for a in home['subaccounts'] if a['id']==homeid)['expenseClassification']=='HOME'
+    before=books.read_bytes()
+    assert mutate('accounts_subaccounts',operation='add',name='Bad home head',parentCode='6900',expenseType=True,expenseClassification='HOME')[0]==422 and books.read_bytes()==before
+    mill,_=good('accounts_subaccounts',operation='add',name='Mill supplies',parentCode='5200',expenseType=True,expenseClassification='MILL')
+    assert next(a for a in mill['subaccounts'] if a['id']==mill['result']['subaccountId'])['expenseClassification']=='MILL'
+    office,_=good('accounts_subaccounts',operation='edit',id=homeid,name='Office gardening',parentCode='6900',expenseType=True,expenseClassification='OFFICE')
+    assert office['result']['subaccountId']==homeid and next(a for a in office['subaccounts'] if a['id']==homeid)['expenseClassification']=='OFFICE'
+    petty,body=good(action='post',type='PETTY_CASH',bankId='BANK-1',date='2026-10-08',reference='PETTY-1',narration='Replenish cash',amount=500,bankPaymentMethod='ONLINE_BANKING')
+    assert [(l['account'],l['debit'],l['credit']) for l in petty['result']['journal']['lines']]==[('1120',500,0),('1110',0,500)]
+    before=books.read_bytes();status,retry=request('bank_entries','?entity=TTI',body)
+    assert status==200 and retry['result']==petty['result'] and books.read_bytes()==before
+    assert mutate('bank_entries',action='post',type='PETTY_CASH',bankId='BANK-USD',date='2026-10-08',reference='CASH-FX',narration='Wrong currency',amount=500)[0]==422 and books.read_bytes()==before
     setup,_=good('accounts_payees',kind='EXPENSE',name='Caretaker',accountCode='6910',expenseCategory='HOME')
     pid=setup['result']['payee']['id']
     assert 'Caretaker' not in [x['values'][0] for x in json.loads(auth.read_text())['masters'].get('business_parties',[])], 'expense recipient must not become a Business Party'
@@ -77,6 +91,11 @@ require $argv[1];
     multi,_=good(**bankpay);mj=multi['result']['journal']
     assert [(x['account'],x['debit'],x['credit']) for x in mj['lines']]==[('6910',10,0),('6910',20,0),('1110',0,30)]
     assert mj['lines'][-1]['bankName']=='Fixture Bank' and mj['lines'][-1]['accountNumber']=='123456789'
+    status,ledger=request('accounts_ledger_browser','?entity=TTI&account=BANK%7CBANK-1&category=bank&from=2026-10-01&to=2026-10-31')
+    assert status==200 and next(r for r in ledger['rows'] if r['voucher']==mj['id'])['party'].casefold()=='caretaker'
+    status,register=request('accounts_ledger_browser','?entity=TTI&account=POSTS&from=2026-10-01&to=2026-10-31')
+    assert status==200 and next(r for r in register['rows'] if r['voucher']==mj['id'])['party'].casefold()=='caretaker'
+
     before=books.read_bytes();assert mutate('bank_entries',**{**bankpay,'reference':'BAD-SPLIT','amount':31})[0]==422 and books.read_bytes()==before
     assert mutate('bank_entries',**{**bankpay,'reference':'UNCONFIGURED','debitRows':[{'payeeId':'EXP|talha','amount':30}]})[0]==422
     purpose,_=good(**{**bankpay,'reference':'MIXED-PURPOSE','debitRows':[{'payeeId':pid,'accountCode':'7210','amount':10},{'payeeId':pid,'accountCode':'6900','amount':20}]});assert [l['account'] for l in purpose['result']['journal']['lines']]==['7210','6900','1110']

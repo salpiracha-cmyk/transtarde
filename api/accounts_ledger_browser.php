@@ -96,7 +96,7 @@ $expenseActivity=$category==='party'?sac_expense_activity($store,$entity,$from,$
 foreach($expenseActivity as $activity)if($activity['recipient']!=='')$parties[$activity['recipient']]=true;
 $requestedPost=trim((string)($_GET['postId']??''));
 if($requestedPost!==''){
-    $posting=$store['journals'][$requestedPost]??null;
+    $posting=$store['journals'][$requestedPost]??null;$seen=[];while(is_array($posting)&&!empty($posting['amendedByPostId'])&&!isset($seen[$posting['id']])){$seen[$posting['id']]=true;$next=$store['journals'][$posting['amendedByPostId']]??null;if(!is_array($next))break;$posting=$next;}if(is_array($posting)){$posting['publicPostId']=tt_accounts_public_post($store,$posting);$posting['amendmentNote']=tt_accounts_amendment_note($posting,$store);}
     if(!is_array($posting)||($posting['status']??'')!=='Posted'||($entity!=='ALL'&&($posting['entity']??'')!==$entity)||!tt_user_can_access_entity($user,(string)($posting['entity']??''),'View'))$posting=null;
     if(!$posting)alb_fail('Post ID was not found in these company books.',404);
     $posting['fiTagText']=tt_fi_advice_label((array)($posting['fiTag']??[]));
@@ -124,6 +124,7 @@ usort($journals,static fn($a,$b)=>strcmp((string)$a['date'],(string)$b['date'])?
 $opening=0.0;$rows=[];
 foreach($journals as $journal){
     if($postEntries){
+        if(!empty($journal['amendedByPostId'])||(!empty($journal['reversalOf'])&&(!empty($store['journals'][$journal['reversalOf']]['amendedByPostId']))))continue;
         // Keep every journal in the books, while the user-facing Post ID Register
         // lists only postings that move money through bank or cash.
         $moneyMovement=false;
@@ -133,7 +134,7 @@ foreach($journals as $journal){
         }
         if(!$moneyMovement)continue;
         $date=(string)$journal['date'];if($date<$from)continue;
-        $rows[]=['date'=>$date,'voucher'=>(string)($journal['id']??''),'account'=>'POSTS','accountName'=>(string)$journal['entity'],'reference'=>(string)($journal['reference']??''),'narration'=>(string)($journal['narration']??'').(str_starts_with((string)($journal['meta']['notes']??''),'Mirrored settlement for Pakistan receipt ')?' · '.(string)$journal['meta']['notes']:''),'party'=>(string)($journal['sourceType']??'').(!empty($store['exportReceipts'][(string)($journal['meta']['receiptId']??'')]['replacementReceiptId'])?' · Corrected by '.$store['exportReceipts'][(string)$journal['meta']['receiptId']]['replacementReceiptId']:''),'debit'=>round((float)($journal['totalDebit']??0),2),'credit'=>round((float)($journal['totalCredit']??0),2),'balance'=>null];
+        $rows[]=['date'=>$date,'voucher'=>(string)($journal['id']??''),'account'=>'POSTS','accountName'=>(string)$journal['entity'],'reference'=>(string)($journal['reference']??''),'narration'=>(string)($journal['narration']??'').(str_starts_with((string)($journal['meta']['notes']??''),'Mirrored settlement for Pakistan receipt ')?' · '.(string)$journal['meta']['notes']:''),'publicPostId'=>tt_accounts_public_post($store,$journal),'amendmentNote'=>tt_accounts_amendment_note($journal,$store),'party'=>(string)($journal['meta']['payee']??$journal['meta']['supplier']??$journal['meta']['customer']??$journal['meta']['brokerName']??implode(' · ',array_unique(array_filter(array_map(static fn($l)=>$l['counterparty']??$l['party']??$l['supplier']??$l['customer']??'',(array)$journal['lines']))))).(!empty($store['exportReceipts'][(string)($journal['meta']['receiptId']??'')]['replacementReceiptId'])?' · Corrected by '.$store['exportReceipts'][(string)$journal['meta']['receiptId']]['replacementReceiptId']:''),'debit'=>round((float)($journal['totalDebit']??0),2),'credit'=>round((float)($journal['totalCredit']??0),2),'balance'=>null];
         continue;
     }
     foreach((array)($journal['lines']??[]) as $line){
@@ -148,7 +149,7 @@ foreach($journals as $journal){
         $meta=(array)($journal['meta']??[]);
         $source=[];$bill=[];
         if($lineParty===''){$sourceId=(string)($meta['bagBillId']??$meta['billId']??$meta['purchaseId']??'');$source=$store['bagSupplierBills'][$sourceId]??$store['otherPurchases'][$sourceId]??$store['commodityBills'][$sourceId]??[];$lineParty=trim((string)($source['supplier']??$source['broker']??$source['party']??''));}
-        if($lineParty===''){$bill=$store['supplierBills'][(string)($meta['supplierBillId']??'')]??[];$lineParty=trim((string)($bill['vendor']??$meta['supplier']??$meta['broker']??$meta['customer']??$meta['counterparty']??''));}
+        if($lineParty===''){$bill=$store['supplierBills'][(string)($meta['supplierBillId']??'')]??[];$lineParty=trim((string)($bill['vendor']??$meta['supplier']??$meta['broker']??$meta['customer']??$meta['counterparty']??$meta['payee']??''));}
         if($lineParty===''&&!empty($meta['candidateId'])){$candidate=$store['exportCandidates'][(string)$meta['candidateId']]??[];$lineParty=trim((string)($candidate['meta']['customer']??$candidate['meta']['counterparty']??''));}
         $supplierAccount=in_array($code,['2110','2120','2130','2140','2190','1250','2500'],true);
         $customerAccount=in_array($code,['1210','1220','2160','2510'],true);
@@ -191,7 +192,7 @@ foreach($journals as $journal){
     }
 }
 if($category==='party'&&$party!==''&&!array_filter(array_keys($parties),static fn($name)=>alb_party_key($name)===alb_party_key($party)))alb_fail('No posted party ledger matches this name in the selected company and period.');
-foreach($rows as &$trackingRow){$fiTag=$store['journals'][$trackingRow['voucher']]['fiTag']??[];if($fiTag){$trackingRow['fiTag']=$fiTag;$trackingRow['narration'].=' · '.tt_fi_advice_label($fiTag);}$meta=(array)($store['journals'][$trackingRow['voucher']]['meta']??[]);$trackingRow['chequeNo']=(string)($meta['chequeNo']??'');$trackingRow['bankReference']=(string)($meta['bankReference']??'');}unset($trackingRow);
+foreach($rows as &$trackingRow){$trackedJournal=$store['journals'][$trackingRow['voucher']]??[];$trackingRow['publicPostId']=tt_accounts_public_post($store,$trackedJournal);$trackingRow['amendmentNote']=tt_accounts_amendment_note($trackedJournal,$store);$fiTag=$store['journals'][$trackingRow['voucher']]['fiTag']??[];if($fiTag){$trackingRow['fiTag']=$fiTag;$trackingRow['narration'].=' · '.tt_fi_advice_label($fiTag);}$meta=(array)($store['journals'][$trackingRow['voucher']]['meta']??[]);$trackingRow['chequeNo']=(string)($meta['chequeNo']??'');$trackingRow['bankReference']=(string)($meta['bankReference']??'');}unset($trackingRow);
 $balance=round($opening,2);
 foreach($rows as &$row){if(($account!==''||$party!=='')&&!$postEntries){$balance=round($balance+$row['debit']-$row['credit'],2);$row['balance']=$balance;}}unset($row);
 $closing=$category==='party'&&$balanceUnavailable?null:$balance;
@@ -201,7 +202,7 @@ if($category==='party'&&$party!=='')foreach($expenseActivity as $activity)if(alb
  $expenseTotal=round($expenseTotal+$activity['amount'],2);
  $rows[]=['date'=>$activity['date'],'voucher'=>$activity['voucher'],'account'=>$activity['account'],'accountName'=>$activity['accountName'],'reference'=>$activity['reference'],'narration'=>$activity['accountName'].' · '.$activity['purpose'].($activity['assetName']!==''?' · '.$activity['assetName'].' '.$activity['registrationNo']:''),'party'=>$activity['recipient'],'debit'=>0,'credit'=>0,'balance'=>null,'activityOnly'=>true,'expenseAmount'=>$activity['amount'],'chequeNo'=>'','bankReference'=>''];
 }
-if($query!=='')$rows=array_values(array_filter($rows,static fn($row)=>(!preg_match('/^(?:\d{4}-)?\d+$/',$query)&&str_contains(strtolower(implode(' ',array_map('strval',$row))),$query))||tt_accounts_reference_matches($query,$row['voucher'])||tt_accounts_reference_matches($query,$row['reference'])||($row['chequeNo']!==''&&str_contains(strtolower($row['chequeNo']),$query))||($row['bankReference']!==''&&str_contains(strtolower($row['bankReference']),$query))||(preg_match('/^(?:\d{4}-)?\d+$/',$query)&&!preg_match('/^(?:[A-Z]+-)?\d{4}-\d+$/i',$row['reference'])&&str_contains(strtolower($row['reference']),$query))));
+if($query!=='')$rows=array_values(array_filter($rows,static fn($row)=>(!preg_match('/^(?:\d{4}-)?\d+$/',$query)&&str_contains(strtolower(implode(' ',array_map('strval',$row))),$query))||tt_accounts_reference_matches($query,$row['voucher'])||tt_accounts_reference_matches($query,$row['publicPostId']??'')||tt_accounts_reference_matches($query,$row['reference'])||($row['chequeNo']!==''&&str_contains(strtolower($row['chequeNo']),$query))||($row['bankReference']!==''&&str_contains(strtolower($row['bankReference']),$query))||(preg_match('/^(?:\d{4}-)?\d+$/',$query)&&!preg_match('/^(?:[A-Z]+-)?\d{4}-\d+$/i',$row['reference'])&&str_contains(strtolower($row['reference']),$query))));
 // Keep the chronological running balances above, then display newest Post IDs first.
 usort($rows,static function(array $a,array $b):int{
  $parts=static function(string $id):array{return preg_match('/^[A-Z]+-(\d{4})-(\d+)$/i',$id,$m)?[(int)$m[1],(int)$m[2]]:[0,0];};
@@ -214,7 +215,7 @@ if(($_GET['format']??'')==='csv'){
     fputcsv($out,['Company',$entity,$category==='party'?'Party':'Account',$category==='party'?$party:($account!==''?$account.' '.$catalog[$account]:'All Ledgers'),'From',$from,'To',$to]);
     fputcsv($out,['Opening Balance','','','','','','','','',($account!==''||$party!=='')?($opening===null?'Unavailable':round($opening,2)):'']);
     fputcsv($out,['Date','Post ID','Account','Account Name','Reference','Narration','Party','Debit','Credit','Balance','Expense paid']);
-    foreach($rows as $row)fputcsv($out,array_map('alb_cell',[$row['date'],$row['voucher'],$row['account'],$row['accountName'],$row['reference'],$row['narration'],$row['party'],$row['debit'],$row['credit'],$row['balance']??'',$row['expenseAmount']??'']));
+    foreach($rows as $row)fputcsv($out,array_map('alb_cell',[preg_replace('/^(\d{4})-(\d{2})-(\d{2})$/','$3-$2-$1',$row['date']),$row['publicPostId']??$row['voucher'],$row['account'],$row['accountName'],$row['reference'],$row['narration'],$row['party'],$row['debit'],$row['credit'],$row['balance']??'',$row['expenseAmount']??'']));
     if($category==='party')fputcsv($out,['Closing Balance','','','','','','','','',$balanceUnavailable?'Unavailable':$closing]);
     fclose($out);exit;
 }

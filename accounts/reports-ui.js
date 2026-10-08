@@ -38,13 +38,13 @@
   }
   function download(){
     if(!data)return;const [heads,records]=reportRows();
-    const quote=v=>{const value=String(v??'');return '"'+(typeof v==='string'&&/^[=+@\-\t\r]/.test(value)?"'":'')+value.replaceAll('"','""')+'"'};
+    const quote=v=>{const value=String(window.TT_DATE?.display(v)??v??'');return '"'+(typeof v==='string'&&/^[=+@\-\t\r]/.test(value)?"'":'')+value.replaceAll('"','""')+'"'};
     const csv=[heads.map(quote).join(','),...records.map(record=>record.map(quote).join(','))].join('\r\n');
     const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'})),link=document.createElement('a');
     link.href=url;link.download=`${entity()}-${view}-${data.from}-to-${data.asOf}.csv`;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
   }
-  function print(){const box=q('#ttReportsBody');if(!box||!data)return;const win=window.open('','_blank');if(!win)return alert('Allow popups to print the report.');
-    win.document.write(`<!doctype html><meta charset="utf-8"><title>${esc(entity())} Accounts Report</title><style>body{font:12px Arial;margin:24px;color:#203042}table{width:100%;border-collapse:collapse}td,th{border:1px solid #bac6cf;padding:6px;text-align:left}th{background:#eef3f5}.tableWrap{overflow:visible}button{margin-bottom:15px}@media print{button{display:none}}</style><button onclick="print()">Print</button><h2>${esc(entity())} · ${esc(view.toUpperCase())}</h2><p>${esc(data.from)} to ${esc(data.asOf)} · Account ${esc(q('#ttReportAccount')?.value||'All')} · Search ${esc(q('#ttReportSearch')?.value||'All')} · Posting ${esc(q('#ttReportSource')?.value||'All')}</p>${box.innerHTML}`);win.document.close();
+  function print(){const box=q('#ttReportsBody');if(!box||!data)return;const win=window.TT_PRINT.create();if(!win)return alert('Allow popups to print the report.');
+    win.document.write(`<!doctype html><meta charset="utf-8"><title>${esc(entity())} Accounts Report</title><style>body{font:12px Arial;margin:24px;color:#203042}table{width:100%;border-collapse:collapse}td,th{border:1px solid #bac6cf;padding:6px;text-align:left}th{background:#eef3f5}.tableWrap{overflow:visible}button{margin-bottom:15px}@media print{button{display:none}}</style><button onclick="print()">Print</button><h2>${esc(entity())} · ${esc(view.toUpperCase())}</h2><p>${esc(data.from)} to ${esc(data.asOf)} · Account ${esc(q('#ttReportAccount')?.value||'All')} · Search ${esc(q('#ttReportSearch')?.value||'All')} · Posting ${esc(q('#ttReportSource')?.value||'All')}</p>${box.innerHTML}`);win.document.close();win.print();
   }
   function render(){const box=q('#ttReportsBody');if(!box||!data)return;
     q('#ttExpenseFilters').hidden=!['expenses','vehicles'].includes(view);

@@ -62,9 +62,9 @@ function sac_resolve(array $s,string $e,string $id,bool $active=true):array {
  if($active&&!$enabled)throw new DomainException('Select an active subaccount in these company books.');
  $code=(string)$current['parentCode'];$chart=sac_entity_chart($s,$e);$head=$chart[$code]??null;if(!$head)throw new DomainException('Subaccount head is unavailable.');
  $path=$names;$h=$code;$seen=[];while($h!==''&&isset($chart[$h])&&!isset($seen[$h])){$seen[$h]=true;array_unshift($path,$chart[$h]['name']);$h=(string)($chart[$h]['parent']??'');}
- return array_replace($a,['parentId'=>(string)($a['parentId']??''),'parentCode'=>$code,'active'=>$enabled,'ancestorIds'=>$ancestors,'path'=>implode(' / ',$path),'class'=>$head['class'],'parentName'=>$head['name'],'treatment'=>$code==='1260'?'Recoverable tax':($code==='2300'?'Tax payable':$head['class'])]);
+ return array_replace($a,['parentId'=>(string)($a['parentId']??''),'parentCode'=>$code,'active'=>$enabled,'ancestorIds'=>$ancestors,'path'=>implode(' / ',$path),'class'=>$head['class'],'parentName'=>$head['name'],'expenseClassification'=>str_starts_with($code,'5')?'MILL':($code==='6910'?'HOME':'OFFICE'),'treatment'=>$code==='1260'?'Recoverable tax':($code==='2300'?'Tax payable':$head['class'])]);
 }
-function sac_extra(array $a):array {return ['subaccountId'=>$a['id'],'subaccountName'=>$a['name'],'subledger'=>$a['name'],'parentAccount'=>$a['parentCode'],'taxCategory'=>$a['taxCategory'],'accountClass'=>$a['class']];}
+function sac_extra(array $a):array {return ['subaccountId'=>$a['id'],'subaccountName'=>$a['name'],'subledger'=>$a['name'],'parentAccount'=>$a['parentCode'],'taxCategory'=>$a['taxCategory'],'accountClass'=>$a['class'],'expenseClassification'=>$a['expenseClassification']??'OFFICE'];}
 function sac_master(array &$s,string $e,array $b,array $u):array {
  $op=(string)($b['operation']??'add');$id=(string)($b['id']??'');
  if($op==='move_head'){
@@ -87,10 +87,11 @@ function sac_master(array &$s,string $e,array $b,array $u):array {
   }
   $head=$chart[$parent]??null;
   if(!$head||in_array($head['level']??'',['heading','system'],true)||in_array($parent,['1110','1120','1130','1430','1440','1610','2610'],true))throw new DomainException('Select a valid posting head. Bank, investment and finance registers manage their own accounts.');
+  $classification=(string)($b['expenseClassification']??$old['expenseClassification']??'');if(!empty($b['expenseType'])){if(!in_array($classification,['MILL','HOME','OFFICE'],true)||$head['class']!=='Expense')throw new DomainException('Choose Milling / Production, Home or Office.');$valid=match($classification){'MILL'=>str_starts_with($parent,'5'),'HOME'=>$parent==='6910','OFFICE'=>!str_starts_with($parent,'5')&&$parent!=='6910'};if(!$valid)throw new DomainException('Choose a parent under the selected expense classification.');}
   $tax=strtoupper((string)($b['taxCategory']??'NONE'));if(!in_array($tax,['NONE','EXPORT','SAVINGS','BROKERAGE','SERVICES','OTHER'],true)||(!in_array($parent,['1260','2300'],true)&&$tax!=='NONE'))throw new DomainException('Tax category applies to recoverable tax or tax payable heads.');
   foreach(sac_accounts($s,$e) as $other)if($other['id']!==$id&&sac_normal($other['name'])===sac_normal($name))throw new DomainException('This subaccount name already exists. Edit or reactivate it.');
   if($op==='add')$id=far_next((array)($s['accountSubaccounts']??[]),'SUB');
-  $a=['id'=>$id,'entity'=>$e,'name'=>$name,'parentCode'=>$parent,'parentId'=>$parentId,'taxCategory'=>$tax,'active'=>!array_key_exists('active',$b)||(bool)$b['active']];
+  $a=['id'=>$id,'entity'=>$e,'name'=>$name,'expenseClassification'=>$classification,'parentCode'=>$parent,'parentId'=>$parentId,'taxCategory'=>$tax,'active'=>!array_key_exists('active',$b)||(bool)$b['active']];
   // A subtree moves together. Its rows keep stable IDs and its vouchers keep saved treatment.
   if($old&&$old['parentCode']!==$parent)foreach(sac_subtree($s,$e,$id) as $child){
    $r=sac_accounts($s,$e)[$child];$r['parentCode']=$parent;if(!in_array($parent,['1260','2300'],true))$r['taxCategory']='NONE';$s['accountSubaccounts'][$child]=$r;

@@ -107,7 +107,7 @@ Every request requiring Director approval must also appear in the Super Admin Co
 ## Accounts expense entry and navigation
 
 - The Expenses area has Pay Expense, Bills & Credit Cards (Utilities / Credit Cards), and Salaries & Staff. Pay Expense accepts any recipient, including household expenses without an individual director assignment.
-- A single payment may contain multiple categorized expense rows. Debit the applicable subsidiary accounts and credit the selected bank/cash once for the total. Post & Print Voucher is explicit; this form has no Pay Later or autosave.
+- A single payment may contain multiple categorized expense rows. Debit the applicable subsidiary accounts and credit the selected bank/cash once for the total. Post is explicit; printing is a separate action in the posting confirmation. This form has no Pay Later or autosave.
 - Corrections reverse and replace the original payment with its expense breakdown retained; deletions reverse postings and retain audit history. Retry keys prevent duplicate postings.
 - Open the modern expense renderer directly, and show the finished form after loading; do not simulate old workspace and child-button clicks.
 - Supplier/Broker Payment is available in Local Purchases and the second Home summary box. Do not add a separate top Home shortcut. Unfinished prepared payment plans remain at the bottom.
@@ -118,3 +118,15 @@ Every request requiring Director approval must also appear in the Super Admin Co
 - An existing vehicle can be registered for cost tracking without inventing its acquisition value or reducing bank funds. Ordinary repairs stay expenses; asset acquisition remains separate.
 - Stockbroker entries initially show funding, buying shares, selling shares and bank withdrawal. Routed funds are optional. Blank commission means no commission posting.
 - Reports and bank balances open their current renderer directly. Ignore stale report responses after company switches; do not rescan the complete workspace on each total or text mutation.
+
+## 8 October 2026 expense review batch
+
+- Visible dates throughout the application use DD-MM-YYYY. Store and API dates remain ISO for validation and sorting; a presentation change never rewrites transaction dates.
+- Bank Entry offers Bank → Petty Cash: debit company petty cash, credit its company bank once; no expense. Foreign-currency conversions use their dedicated workflow.
+- Ordinary expense types offer Add/Edit in place. Creating a type requires Milling/Production, Home or Office and an appropriate head/subaccount. Milling/Production types remain in their dedicated posting workflow. Changes preserve existing voucher treatment and stable type IDs.
+- Add Vehicle beside the expense vehicle selector saves name/model and registration through the shared register, then selects it while preserving the expense draft. Register Another repeats the same simple registration form; full identity details remain under Assets & Investments / Assets / Review / Amend Details.
+- Vehicle Tax & Licence Fees requires a vehicle, period covered and optional challan reference. It is distinct from repairs/fuel and included in vehicle costs. Period metadata alone does not generate monthly prepaid amortisation journals.
+- Expense purpose fills payment narration until the user edits it; user edits remain intact.
+- Corrections retain the original public Post ID while maintaining immutable original/reversal/replacement accounting journals. Show bracketed correction details below narration. Reporting and balances include the full journal audit trail.
+- The Post ID Register has aligned columns and affected party names. Stockbroker transactions show Date separately from Post ID.
+- Post is the final posting action. After successful posting, show a compact centred confirmation with Post ID, debit/credit lines, Print and Close. Print opens the browser printer dialog in the same tab using an isolated print frame; never open a new printing tab or window, or print automatically on Post.

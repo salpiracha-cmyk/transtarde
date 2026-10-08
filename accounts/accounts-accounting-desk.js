@@ -560,9 +560,9 @@
   }
 
   function printSoda(row) {
-    const popup=record?.popup||window.open('','_blank');if(!popup)return alert('Allow popups to print the Soda.');
+    const popup=record?.popup||window.TT_PRINT.create();if(!popup)return alert('Allow popups to print the Soda.');
     const fields=[['Soda number',row.sodaNo],['Date',row.sodaDate],['Company',row.entity],['Commodity / product',[row.commodity,row.productStage,row.displayName||row.variety,row.riceType,row.brokenGrade].filter(Boolean).join(' · ')],['Broker',row.broker||'—'],['Supplier',row.party||'—'],['Purchase route',row.readyRoute||row.movementRole||'—'],['Mill / stock location',row.locationName||row.location||'—'],['Quantity',`${money(Number(row.qtyFromKg||0)/1000)} to ${money(Number(row.qtyToKg||0)/1000)} MT`],['Expected trucks / containers',row.expectedTrucks||'—'],['Rate',`${money(row.rate??row.ratePerKg)} per ${row.rateUnit||'KG'}`],['Payment term',`${row.paymentTermType||'CASH'}${row.paymentTermType==='CREDIT'?' · '+(row.creditDays||'')+' days':''}`],['Expected arrival / delivery',row.arrivalDueDate||row.deliveryDeadline||'—'],['Terms / conditions',row.terms||'—'],['Remarks',row.remarks||'—'],['Status',row.calculatedStatus||row.status||'—']];
-    popup.document.write(`<!doctype html><meta charset="utf-8"><title>Soda ${esc(row.sodaNo)}</title><style>@page{size:A4;margin:16mm}body{font:12px Arial;color:#1b2a34}h1{text-align:center;color:#165848;font-size:19px}h2{text-align:center;font-size:15px}table{width:100%;border-collapse:collapse;margin-top:24px}th,td{border:1px solid #cddbd7;padding:9px;text-align:left;vertical-align:top}th{width:32%;background:#edf5f1}button{float:right}@media print{button{display:none}}</style><button onclick="print()">Print Soda</button><h1>${esc(row.entity||entity())}</h1><h2>PURCHASE SODA · ${esc(row.sodaNo)}</h2><table>${fields.map(([label,value])=>`<tr><th>${esc(label)}</th><td>${esc(value)}</td></tr>`).join('')}</table>`);popup.document.close();
+    popup.document.write(`<!doctype html><meta charset="utf-8"><title>Soda ${esc(row.sodaNo)}</title><style>@page{size:A4;margin:16mm}body{font:12px Arial;color:#1b2a34}h1{text-align:center;color:#165848;font-size:19px}h2{text-align:center;font-size:15px}table{width:100%;border-collapse:collapse;margin-top:24px}th,td{border:1px solid #cddbd7;padding:9px;text-align:left;vertical-align:top}th{width:32%;background:#edf5f1}button{float:right}@media print{button{display:none}}</style><button onclick="print()">Print Soda</button><h1>${esc(row.entity||entity())}</h1><h2>PURCHASE SODA · ${esc(row.sodaNo)}</h2><table>${fields.map(([label,value])=>`<tr><th>${esc(label)}</th><td>${esc(value)}</td></tr>`).join('')}</table>`);popup.document.close();popup.print();
   }
 
   function bindSodaRows(host, back) {
@@ -629,21 +629,20 @@
     const details=record?.data||{};
     const id=String(details.journalId||details.chequeIssueJournalId||details.journal?.id||details.postingJournalIds?.[0]||(Array.isArray(details.lines)?details.id:'')||'').trim();
     if(!id)return alert('A saved journal is required to print this voucher. Open the linked Post ID in the ledger.');
-    const popup=record?.popup||window.open('','_blank');if(!popup)return alert('Allow popups to print the voucher.');
-    popup.document.write('<!doctype html><meta charset="utf-8"><title>Loading voucher...</title><body style="font:14px Arial;padding:24px">Loading saved voucher...</body>');
+
     try{
       const response=await fetch('../api/accounts_ledger_browser.php?'+new URLSearchParams({entity:details.entity||entity(),account:'POSTS',postId:id,to:today()}),{credentials:'same-origin'});
       const result=await response.json();if(!response.ok||!result.ok)throw Error(result.error||'Saved posting unavailable.');
       const journal=result.post,lines=Array.isArray(journal.lines)?journal.lines:[];
       if(!lines.length)throw Error('This posting has no accounting lines to print.');
       const html=window.TT_VOUCHER_HTML(journal,{masters:access.masters,party:details.party||record?.party,allocations:details.allocations});
-      popup.document.open();popup.document.write(html);popup.document.close();
-    }catch(error){popup.document.body.textContent='Voucher could not be printed: '+error.message}
+      window.TT_PRINT.html(html);
+    }catch(error){alert('Voucher could not be printed: '+error.message)}
   }
 
   function printSalesTaxRows(rows) {
-    const w=window.open('','_blank','noopener,noreferrer');if(!w)return alert('Allow popups to print the Sales Tax document index.');
-    w.document.write(`<!doctype html><title>Sales Tax Documents</title><style>body{font:12px Arial;color:#172433;padding:28px}h1{text-align:center}table{width:100%;border-collapse:collapse}th,td{border:1px solid #9ca9b4;padding:7px;vertical-align:top}small{color:#5e6b76}@media print{button{display:none}}</style><h1>Sales Tax — ${esc(q('.entityBtn.active strong')?.textContent||entity())}</h1><table><thead><tr><th>Date</th><th>Customer / Contract</th><th>Invoice / GD / B/L</th><th>Documents and Bank Advices</th></tr></thead><tbody>${rows.map(row=>`<tr><td>${esc(row.dateDisplay||row.date||'')}</td><td><b>${esc(row.customer)}</b><br>${esc(row.contractRef)} · ${esc(row.lotRef)}</td><td>${esc(row.commercialInvoice||row.customsInvoice||'')}<br>GD ${esc((row.gdRefs||[]).join(', ')||'—')}<br>B/L ${esc(row.blNo||'—')}</td><td>${(row.documents||[]).map(doc=>esc(doc.name)).join('<br>')||'No uploaded export file'}${(row.advices||[]).map(a=>`<br><b>${esc(a.receiptNo)}</b> · ${esc(a.bankAdviceRef)} · ${esc(a.currency)} ${money(a.foreignAmount)}${a.paperRef?' · '+esc(a.paperRef):''}${a.downloadUrl?' · Credit advice uploaded':''}`).join('')}</td></tr>`).join('')}</tbody></table><button onclick="print()">Print</button>`);w.document.close();
+    const w=window.TT_PRINT.create();if(!w)return alert('Allow popups to print the Sales Tax document index.');
+    w.document.write(`<!doctype html><title>Sales Tax Documents</title><style>body{font:12px Arial;color:#172433;padding:28px}h1{text-align:center}table{width:100%;border-collapse:collapse}th,td{border:1px solid #9ca9b4;padding:7px;vertical-align:top}small{color:#5e6b76}@media print{button{display:none}}</style><h1>Sales Tax — ${esc(q('.entityBtn.active strong')?.textContent||entity())}</h1><table><thead><tr><th>Date</th><th>Customer / Contract</th><th>Invoice / GD / B/L</th><th>Documents and Bank Advices</th></tr></thead><tbody>${rows.map(row=>`<tr><td>${esc(row.dateDisplay||row.date||'')}</td><td><b>${esc(row.customer)}</b><br>${esc(row.contractRef)} · ${esc(row.lotRef)}</td><td>${esc(row.commercialInvoice||row.customsInvoice||'')}<br>GD ${esc((row.gdRefs||[]).join(', ')||'—')}<br>B/L ${esc(row.blNo||'—')}</td><td>${(row.documents||[]).map(doc=>esc(doc.name)).join('<br>')||'No uploaded export file'}${(row.advices||[]).map(a=>`<br><b>${esc(a.receiptNo)}</b> · ${esc(a.bankAdviceRef)} · ${esc(a.currency)} ${money(a.foreignAmount)}${a.paperRef?' · '+esc(a.paperRef):''}${a.downloadUrl?' · Credit advice uploaded':''}`).join('')}</td></tr>`).join('')}</tbody></table><button onclick="print()">Print</button>`);w.document.close();w.print();
   }
 
   async function openSalesTax() {

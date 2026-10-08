@@ -23,7 +23,7 @@ function amountWords(amount){
  return 'Rupees '+whole(rupees)+(paisa?' and '+whole(paisa)+' Paisa':'')+' Only';
 }
 function printJournalVoucher(v){
- const popup=window.open('','_blank');if(!popup){toast('Allow pop-ups to print the JV.',false);return}
+ const popup=window.TT_PRINT.create();if(!popup){toast('Allow pop-ups to print the JV.',false);return}
  const entityName={TTI:'TRANSTRADE INTERNATIONAL',TG:'TRANS GRAINS',BKI:'BUKSH INTERNATIONAL'}[v.entity||entity()]||v.entity||entity();
  const rows=(v.lines||[]).map(l=>'<tr><td><b>'+esc(l.accountName||l.account)+'</b>'+(l.subledger?'<br><small>'+esc(l.subledger)+'</small>':'')+'</td><td>'+esc(l.billNo||'')+'</td><td>'+esc(l.lineReference||'')+'</td><td class="num">'+(Number(l.debit)?fmt(l.debit):'')+'</td><td class="num">'+(Number(l.credit)?fmt(l.credit):'')+'</td></tr><tr class="narration"><td colspan="5">'+esc(l.memo||v.narration||'')+'</td></tr>').join('');
  const date=/^\d{4}-\d{2}-\d{2}$/.test(v.date||'')?`${v.date.slice(8)}/${v.date.slice(5,7)}/${v.date.slice(0,4)}`:v.date||'';

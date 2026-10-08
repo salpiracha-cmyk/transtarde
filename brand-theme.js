@@ -140,3 +140,25 @@
  const start=()=>{refresh();observer.observe(document.body,{subtree:true,childList:true,attributes:true,attributeFilter:['disabled','readonly','value','placeholder','hidden','style','class']})};
  window.TT_NUMERIC_ENTRY={refresh,grouped};document.readyState==='loading'?document.addEventListener('DOMContentLoaded',start,{once:true}):start();
 })();
+
+/* Owner date rule: visible dates DD-MM-YYYY; persisted values remain ISO. */
+(()=>{'use strict';
+ const months={jan:'01',feb:'02',mar:'03',apr:'04',may:'05',jun:'06',jul:'07',aug:'08',sep:'09',oct:'10',nov:'11',dec:'12'};
+ const display=v=>String(v??'').replace(/\b(\d{4})-(\d{2})-(\d{2})(?!\d)/g,'$3-$2-$1').replace(/\b(\d{2})\/(\d{2})\/(\d{4})\b/g,'$1-$2-$3').replace(/\b(\d{1,2}) (Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?) (\d{4})\b/gi,(_,d,m,y)=>d.padStart(2,'0')+'-'+months[m.slice(0,3).toLowerCase()]+'-'+y);
+ const iso=v=>{const m=/^(\d{2})-(\d{2})-(\d{4})$/.exec(v.trim());if(!m)return '';const s=m[3]+'-'+m[2]+'-'+m[1],d=new Date(s+'T00:00:00Z');return Number.isNaN(d.getTime())||d.toISOString().slice(0,10)!==s?'':s;};
+ window.TT_DATE={display,iso};
+ const linked=new WeakMap(),value=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value');
+ function dateField(input){if(linked.has(input)||input.closest('.tt-date-control'))return;
+  const wrap=document.createElement('span');wrap.className='tt-date-control';wrap.style.cssText='display:block;position:relative;min-width:0;width:100%';input.before(wrap);wrap.appendChild(input);
+  const text=document.createElement('input');text.type='text';text.inputMode='numeric';text.placeholder='DD-MM-YYYY';text.autocomplete='off';text.dataset.masterIgnore='';text.setAttribute('aria-label',(input.getAttribute('aria-label')||input.closest('label')?.textContent.trim()||'Date')+' DD-MM-YYYY');text.style.cssText='width:100%;box-sizing:border-box;padding-right:36px';wrap.prepend(text);
+  input.style.cssText+=';position:absolute;right:0;top:0;width:30px!important;min-width:0!important;height:100%;opacity:0;cursor:pointer;';input.tabIndex=-1;
+  const icon=document.createElement('span');icon.textContent='▦';icon.setAttribute('aria-hidden','true');icon.style.cssText='position:absolute;right:10px;top:50%;transform:translateY(-50%);pointer-events:none;color:#526475';wrap.appendChild(icon);
+  const sync=()=>{text.value=display(value.get.call(input));text.required=input.required;text.disabled=input.disabled;text.readOnly=input.readOnly;text.setCustomValidity('');};linked.set(input,{text,sync});
+  Object.defineProperty(input,'value',{configurable:true,get(){return value.get.call(this)},set(v){value.set.call(this,v);sync();}});
+  text.addEventListener('input',()=>{const s=iso(text.value);value.set.call(input,s);text.setCustomValidity(text.value&&!s?'Enter a valid date as DD-MM-YYYY.':s&&input.min&&s<input.min?'Date must be on or after '+display(input.min):s&&input.max&&s>input.max?'Date must be on or before '+display(input.max):'');input.dispatchEvent(new Event('input',{bubbles:true}));});
+  let changingText=false;text.addEventListener('change',()=>{changingText=true;try{input.dispatchEvent(new Event('change',{bubbles:true}));}finally{changingText=false;}});input.addEventListener('change',()=>{if(!changingText)sync();});input.addEventListener('invalid',()=>text.focus());sync();
+ }
+ function scan(root){if(root.nodeType===1){if(root.matches('input[type=date]'))dateField(root);root.querySelectorAll('input[type=date]').forEach(dateField);}const walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);let n;while(n=walker.nextNode()){if(n.parentElement?.closest('script,style,textarea,input,option,[contenteditable]'))continue;const s=display(n.data);if(s!==n.data)n.data=s;}}
+ function start(){scan(document.body);new MutationObserver(records=>{for(const r of records){if(r.type==='attributes'){linked.get(r.target)?.sync();continue;}if(r.type==='characterData'){const n=r.target;if(!n.parentElement?.closest('script,style,textarea,input,option,[contenteditable]')){const s=display(n.data);if(s!==n.data)n.data=s;}}else for(const n of r.addedNodes)if(n.nodeType===1)scan(n);else if(n.nodeType===3){const s=display(n.data);if(s!==n.data)n.data=s;}}}).observe(document.body,{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:['disabled','readonly','required','min','max']});document.addEventListener('reset',e=>queueMicrotask(()=>e.target.querySelectorAll('input[type=date]').forEach(x=>linked.get(x)?.sync())));}
+ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start);else start();
+})();

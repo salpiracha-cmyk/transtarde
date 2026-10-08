@@ -922,6 +922,19 @@
         "BRM",
         "TG"
       ]
+    },
+    {
+      "code": "6620",
+      "name": "Vehicle Tax & Licence Fees",
+      "parent": "6600",
+      "class": "Expense",
+      "level": "general",
+      "normal": "Debit",
+      "entities": [
+        "TTI",
+        "BRM",
+        "TG"
+      ]
     }
   ],
   "peopleSubledgers": [

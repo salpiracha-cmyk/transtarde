@@ -12,6 +12,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET') tt_release_read_session();
 
 $files = [
     'accounts-uppercase.js',
+    'print-dialog.js',
     'post-confirmation-ui.js',
     'bill-layout.js',
     'currency-master-ui.js',

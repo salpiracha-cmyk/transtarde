@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__.'/accounts_reference.php';
 require_once __DIR__.'/accounts_bank_payment.php';
 
 /** Journal-level correction shared by every Accounts posting source. Caller holds the accounts.json lock. */
@@ -95,12 +96,13 @@ function apa_correct(array &$store, array $user, string $postId, array $input): 
     $replacement['sourceType']='POST_AMENDMENT_CORRECTION';
     $replacement['totalDebit']=$debit/100;$replacement['totalCredit']=$credit/100;$replacement['meta']=['originalSourceType'=>(string)($original['meta']['originalSourceType']??$original['sourceType']??''),'amendmentOfPostId'=>$postId,'amendmentReason'=>$reason,'reversalPostId'=>$reverseId];
     $replacement['createdAt']=$now;$replacement['createdBy']=$actor;$replacement['userId']=(int)($user['id']??0);$replacement['reversalOf']=null;
+    $replacement['meta']['publicPostId']=tt_accounts_public_post($store,$original);$replacement['meta']['amendmentNote']='Edited '.gmdate('Y-m-d').' by '.$actor.' — '.$reason.($date!==$original['date']?' — Date: '.$original['date'].' → '.$date:'');
     $store['journals'][$replacementId]=$replacement;
     $store['journals'][$postId]['amendedByPostId']=$replacementId;
     $store['journals'][$postId]['amendmentReversalPostId']=$reverseId;
     // Source records continue to identify the historical operation; their amount fields cannot
     // be inferred from arbitrary ledger corrections. The correction changes the financial ledgers.
     $store['postAmendments'][]=['originalPostId'=>$postId,'reversalPostId'=>$reverseId,'replacementPostId'=>$replacementId,'reason'=>$reason,'date'=>$date,'actor'=>$actor,'at'=>$now,'entity'=>$entity];
-    return ['originalPostId'=>$postId,'reversalPostId'=>$reverseId,'replacementPostId'=>$replacementId,'entity'=>$entity];
+    return ['originalPostId'=>$postId,'reversalPostId'=>$reverseId,'replacementPostId'=>$replacementId,'publicPostId'=>$replacement['meta']['publicPostId'],'entity'=>$entity];
 }
 
