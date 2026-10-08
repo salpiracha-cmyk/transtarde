@@ -83,6 +83,7 @@
     return true;
   }
   function category(input) {
+    if (input?.hasAttribute('data-master-ignore')) return '';
     if (!input || input.dataset.ttNumericProxy || input.closest('.tt-search-select') || input.matches('[readonly],[disabled],[type="date"],[type="number"],[type="file"]')) return '';
     if (input.dataset.masterRole) return input.dataset.masterRole;
     const text = clean(input.closest('label')?.textContent + ' ' + input.placeholder + ' ' + input.id).toLowerCase();
@@ -143,4 +144,5 @@
   };
   document.readyState === 'loading' ? document.addEventListener('DOMContentLoaded',start,{once:true}) : start();
 })();
+
 
