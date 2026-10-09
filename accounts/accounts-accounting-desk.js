@@ -18,6 +18,7 @@
 
   const pakistanAreas = [
     {key:'exports', glyph:'⇄', title:'Export Receipts & Payments', note:'Every export receipt, document and shipment expense', actions:[
+      {title:'Customer / Export Receivables', note:'Group customer invoices, receipts and outstanding balances', special:'customer-receivables'},
       {title:'Bank Receipt / Credit Advice', note:'One linked form for the advice, outstanding item, bank charges, WHT and Advance WHT; FI remains in Exports', special:'export-receipt'},
       {title:'Freight Forwarder / Shipping', note:'Agreed freight and shipment-linked invoice', special:'freight-desk'},
       {title:'Clearing Agent', note:'GD, job and shipment-linked clearing bill', special:'supplier-bills', billKind:'clearing'},
@@ -67,7 +68,7 @@
   pakistanAreas.find(area=>area.key==='commodity').actions.push({title:'Other Purchases',note:'Assets and consumables outside commodity Sodas',special:'supplier-bills',billKind:'other',native:'purchases',then:'[data-purchase="other"]'});
   const tgAreas = [
     {key:'tg-receipts', glyph:'↓', title:'Customer Receipts', note:'Receive money and allocate it to the correct TG customer', actions:[
-      {title:'Customer Receipt', special:'tg-customer-receipt'}, {title:'Customer Receivables', native:'receivables'}
+      {title:'Customer Receipt', special:'tg-customer-receipt'}, {title:'Customer / Export Receivables', special:'customer-receivables'}
     ]},
     {key:'tg-payments', glyph:'↑', title:'Supplier Payments', note:'Supplier liabilities and payments only', actions:[
       {title:'Post Bill', native:'payables'}, {title:'Payment', special:'bill-payment'}
@@ -141,6 +142,7 @@
   }
 
   async function launch(action) {
+    if(action.special==='customer-receivables'){const company=entity();try{const data=await json(`../api/accounts_dashboard.php?entity=${encodeURIComponent(company)}`);if(company===entity())openCustomerReceivables(data.customerReceivables);}catch(error){alert(error.message);}return;}
     // One desk owns navigation. Retire the previous workspace before opening another form.
     qa('.workspace.active').forEach(w=>w.classList.remove('active','tt-clean-modal','tt-editor-open'));
     qa('.tt-editor-stage').forEach(e=>e.classList.remove('tt-editor-stage'));
@@ -266,7 +268,7 @@
     return `<div id="ttAccountingDesk">
       <div class="tt-desk-main">
         <section><div class="tt-desk-heading"><div><h1>Accounts · <span data-tt-entity-name></span></h1><p>Choose the job you need. Every entry remains linked to its original operational record.</p></div><input class="tt-search-main" aria-label="Search previous records" placeholder="Search voucher, bill, Soda, truck or shipment"></div>
-          <div class="tt-position" id="ttSummaryCards"><button class="tt-summary"><small>Bank Balance</small><b>Loading…</b><em>Hover for accounts</em></button><button class="tt-summary"><small>Commodity Bills Due</small><b>Loading…</b><em>Due-date detail</em></button><button class="tt-summary"><small>Local Receivables</small><b>Loading…</b><em>Customer detail</em></button><button class="tt-summary"><small>Export Receivables</small><b>Loading…</b><em>Currency detail</em></button></div>
+          <div class="tt-position" id="ttSummaryCards"><button class="tt-summary"><small>Bank Balance</small><b>Loading…</b><em>Hover for accounts</em></button><button class="tt-summary"><small>Commodity Bills Due</small><b>Loading…</b><em>Due-date detail</em></button><button class="tt-summary"><small>Local Receivables</small><b>Loading…</b><em>Customer detail</em></button><button class="tt-summary"><small>Customer / Export Receivables</small><b>Loading…</b><em>Currency detail</em></button></div>
         </section>
         <section id="ttDeskWork"></section>
         <section><div class="tt-work-head"><div><h2>Held / Incomplete Entries</h2><p>Only entries that need review before posting appear here.</p></div></div><div class="tt-queue" id="ttAttentionQueue"><div class="tt-queue-row"><span>Status</span><b>Loading current work…</b></div></div></section>
@@ -355,24 +357,35 @@
     loadDashboardSummary();
   }
 
+  let dashboardLoad=0;
   async function loadDashboardSummary() {
     const host=q('#ttSummaryCards'), queue=q('#ttAttentionQueue'); if(!host)return;
+    const company=entity(),request=++dashboardLoad;
     try{
-      const data=await json(`../api/accounts_dashboard.php?entity=${encodeURIComponent(entity())}`);
+      const data=await json(`../api/accounts_dashboard.php?entity=${encodeURIComponent(company)}`);
+      if(request!==dashboardLoad||company!==entity())return;
       const definitions=entity()==='TG'
-        ? [{key:'bank',label:'Bank Balance',note:'Default account · hover for all accounts'},{key:'local',label:'Customer Receivables',note:'Customer detail'},{key:'commodity',label:'Supplier Bills Due',note:'Due-date detail'}]
-        : [{key:'bank',label:'Bank Balance',note:'Default account · hover for all accounts'},{key:'commodity',label:'Commodity Bills Due',note:'Due-date detail'},{key:'local',label:'Local Receivables',note:'Customer detail'},{key:'export',label:'Export Receivables',note:'Customer / currency detail'}];
+        ? [{key:'bank',label:'Bank Balance',note:'Default account · hover for all accounts'},{key:'export',label:'Customer / Export Receivables',note:'Group total · customer invoices'},{key:'commodity',label:'Supplier Bills Due',note:'Due-date detail'}]
+        : [{key:'bank',label:'Bank Balance',note:'Default account · hover for all accounts'},{key:'commodity',label:'Commodity Bills Due',note:'Due-date detail'},{key:'local',label:'Local Receivables',note:'Customer detail'},{key:'export',label:'Customer / Export Receivables',note:'Group total · customer invoices'}];
       host.style.gridTemplateColumns=`repeat(${definitions.length},1fr)`;
       host.innerHTML=definitions.map(def=>{
         const rows=data.summaries?.[def.key]||[], totals={};rows.forEach(row=>{const cur=row.currency||'PKR';totals[cur]=(totals[cur]||0)+Number(row.amount||0)});
         const first=rows[0],defaultBank=rows.find(row=>row.isDefault&&row.currency===(entity()==='TG'?'AED':'PKR'))||rows.find(row=>row.isDefault);
         const headline=def.key==='bank'?(defaultBank?`${esc(defaultBank.currency||'PKR')} ${money(defaultBank.amount)}`:'No default account'):def.key==='due'?(first?`${esc(first.label)} · ${esc(first.currency||'PKR')} ${money(first.amount)} · ${esc(first.dateDisplay||first.date||'')}`:'No due payments'):Object.keys(totals).length?Object.entries(totals).map(([cur,value])=>`${esc(cur)} ${money(value)}`).join(' · '):'PKR 0.00';
-        const detail=rows.length?rows.slice(0,20).map(row=>`<div><b>${esc(row.label||row.reference||'Account')}</b><br>${esc(row.reference||'')}${row.dateDisplay?' · '+esc(row.dateDisplay):''} · ${esc(row.currency||'PKR')} ${money(row.amount)}</div>`).join(''):'<div>No open balance.</div>';
+        let detail=rows.length?rows.slice(0,20).map(row=>`<div><b>${esc(row.entity?row.entity+' · ':'')}${esc(row.label||row.reference||'Account')}</b><br>${esc(row.reference||'')}${row.dateDisplay?' · '+esc(row.dateDisplay):''} · ${esc(row.currency||'PKR')} ${money(row.amount)}</div>`).join(''):'<div>No open balance.</div>';
+        if(def.key==='export'){detail+=`<div>Companies: ${esc((data.customerReceivables?.entities||[]).join(', '))}</div>`;if(data.customerReceivables?.drafts?.length)detail+=`<div>${data.customerReceivables.drafts.length} draft invoice(s) excluded from the due total.</div>`;}
         return `<button type="button" class="tt-summary ${def.key==='due'&&first&&first.date<=today()?'tt-due-alert':''}" data-summary="${def.key}"><small>${esc(def.label)}</small><b>${headline}</b><em>${esc(def.note)}</em><span class="tt-summary-pop">${detail}</span></button>`;
       }).join('');
-       qa('[data-summary]',host).forEach(button=>button.onclick=()=>{const key=button.dataset.summary;if(key==='bank')launch({native:'bank'});else if(key==='due')showArea('routine');else if(key==='commodity'){if(entity()!=='TG')window.TT_PAYMENT_PLANS?.choose?.();else launch({native:'payables'});}else launch({native:'receivables'});});
+       qa('[data-summary]',host).forEach(button=>button.onclick=()=>{const key=button.dataset.summary;if(key==='bank')launch({native:'bank'});else if(key==='due')showArea('routine');else if(key==='commodity'){if(entity()!=='TG')window.TT_PAYMENT_PLANS?.choose?.();else launch({native:'payables'});}else if(key==='export')openCustomerReceivables(data.customerReceivables);else launch({native:'receivables'});});
       if(queue){const rows=data.attention||[];queue.innerHTML=rows.length?rows.slice(0,12).map((row,i)=>`<div class="tt-queue-row"><span>${esc(row.type)}</span><b>${esc(row.message)}${row.reference?' · '+esc(row.reference):''}</b><button type="button" data-attention-review="${i}">Review</button></div>`).join(''):'<div class="tt-queue-row"><span>Current</span><b>No held or incomplete entries need attention.</b></div>';qa('[data-attention-review]',queue).forEach(button=>button.onclick=()=>reviewAttention(rows[Number(button.dataset.attentionReview)]));}
-    }catch(error){qa('.tt-summary b',host).forEach(node=>node.textContent='Unavailable');if(queue)queue.innerHTML='<div class="tt-queue-row"><span>Status</span><b>Refresh to load current Accounts attention items.</b></div>';console.warn('Accounts dashboard summary',error);}
+    }catch(error){if(request!==dashboardLoad||company!==entity())return;qa('.tt-summary b',host).forEach(node=>node.textContent='Unavailable');if(queue)queue.innerHTML='<div class="tt-queue-row"><span>Status</span><b>Refresh to load current Accounts attention items.</b></div>';console.warn('Accounts dashboard summary',error);}
+  }
+
+  function openCustomerReceivables(register){
+    const host=layer('ttCustomerReceivables','Customer / Export Receivables'),body=q('.tt-window-body',host);
+    const rows=register?.rows||[],drafts=register?.drafts||[];
+    const table=items=>`<div class="tableWrap"><table><thead><tr><th>Company</th><th>Customer</th><th>Invoice</th><th>Date</th><th>Currency</th><th>Invoice amount</th><th>Received / applied</th><th>Outstanding</th><th>Status</th></tr></thead><tbody>${items.map(r=>`<tr><td>${esc(r.entity)}</td><td>${esc(r.label)}</td><td>${esc(r.reference)}</td><td>${esc(/^\d{4}-\d{2}-\d{2}$/.test(r.date||'')?r.date.split('-').reverse().join('-'):r.date||'')}</td><td>${esc(r.currency)}</td><td>${money(r.invoiceAmount)}</td><td>${money(r.received)}</td><td>${money(r.amount)}</td><td>${esc(r.status)}</td></tr>`).join('')||'<tr><td colspan="9">No outstanding issued customer invoices.</td></tr>'}</tbody></table></div>`;
+    body.innerHTML=`<p>Group customer invoices · ${esc((register?.entities||[]).join(', '))}. Totals stay in each invoice currency. TG settlement packs are excluded.</p>${table(rows)}${drafts.length?`<details><summary>Draft invoices (${drafts.length}) — excluded from due total</summary>${table(drafts)}</details>`:''}`;
   }
 
   function reviewAttention(row) {

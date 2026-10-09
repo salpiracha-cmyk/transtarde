@@ -95,7 +95,7 @@
     },
     {
       "code": "1210",
-      "name": "Export Receivables",
+      "name": "Customer / Export Receivables",
       "class": "Asset",
       "level": "general",
       "normal": "Debit",

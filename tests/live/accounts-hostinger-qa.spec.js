@@ -551,3 +551,27 @@ test('deployed Bank Entry, Bank Finance and subaccount forms respect read-only a
   await activate(page.locator('#amWindow [data-close]'));
   expect(writes).toEqual([]);
 });
+
+
+test('Customer / Export Receivables links group buyer invoices without posting', async ({page}) => {
+  await signIn(page);
+  await expect(page.locator('#ttSummaryCards [data-summary="export"]')).toBeVisible({timeout:30000});
+  await expect(page.locator('#ttSummaryCards [data-summary="export"] small')).toHaveText('Customer / Export Receivables');
+  const entity=await page.evaluate(()=>localStorage.getItem('tt_accounts_entity')||'TTI');
+  const response=await page.request.get(`${BASE_URL}/api/accounts_dashboard.php?entity=${entity}`);
+  expect(response.ok()).toBeTruthy();
+  const payload=await response.json();
+  expect(payload.customerReceivables).toBeTruthy();
+  expect(payload.summaries.export).toEqual(payload.customerReceivables.rows.map(row=>({...row,dateDisplay:/^\d{4}-\d{2}-\d{2}$/.test(row.date||'')?row.date.split('-').reverse().join('-'):''})).sort((a,b)=>b.amount-a.amount));
+  for(const row of payload.customerReceivables.rows){
+    expect(payload.customerReceivables.entities).toContain(row.entity);
+    expect(row.draft).toBe(false);
+    expect(row.amount).toBe(Math.max(0,Math.round((row.invoiceAmount-row.received)*100)/100));
+  }
+  await activate(page.locator('#ttSummaryCards [data-summary="export"]'));
+  await expect(page.locator('#ttCustomerReceivables')).toBeVisible();
+  await expect(page.locator('#ttCustomerReceivables h2')).toHaveText('Customer / Export Receivables');
+  await expect(page.locator('#ttCustomerReceivables')).toContainText('TG settlement packs are excluded.');
+  await activate(page.locator('#ttCustomerReceivables .tt-window-close'));
+  await expect(page.locator('#ttCustomerReceivables')).toBeHidden();
+});

@@ -22,7 +22,7 @@
   },
   "candidateRules": {
     "CUSTOMER_EXPORT_SALE": {
-      "debit":"1210 Export Receivables",
+      "debit":"1210 Customer / Export Receivables",
       "credit":"4100 Export Sales",
       "requiresControlConfirmation":true,
       "requiresFunctionalCurrencyAmount":true,

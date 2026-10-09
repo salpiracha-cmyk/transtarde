@@ -3,7 +3,7 @@ import json,os,pathlib,shutil,socket,subprocess,tempfile,time,urllib.request,url
 ROOT=pathlib.Path(__file__).resolve().parents[2]
 with tempfile.TemporaryDirectory(prefix='tg-remittance-') as tmp:
  root=pathlib.Path(tmp);(root/'api').mkdir();(root/'accounts').mkdir();(root/'data').mkdir()
- for name in ['accounts_subaccounts_core.php','assets_registry_core.php','export_receipts.php','export_receipt_tg_mirror.php','accounts_receipt_amend_core.php','tg_remittances.php','tg_remittance_core.php','fi_credit_advice_link.php','receipt_invoice_links.php','accounts_reviews.php','accounts_reviews_core.php','accounts_dashboard.php','bank_accounts.php','expense_reminders.php','accounts_ledger_browser.php','accounts_reference.php']:
+ for name in ['accounts_subaccounts_core.php','assets_registry_core.php','export_receipts.php','export_receipt_tg_mirror.php','accounts_receipt_amend_core.php','tg_remittances.php','tg_remittance_core.php','fi_credit_advice_link.php','receipt_invoice_links.php','accounts_reviews.php','accounts_reviews_core.php','accounts_dashboard.php','customer_receivables_core.php','bank_accounts.php','expense_reminders.php','accounts_ledger_browser.php','accounts_reference.php']:
   shutil.copy(ROOT/'api'/name,root/'api'/name)
  for name in ['accounting_master_v1.json','settlement_policy_v1.json','export_realization_policy_v1.json','tg-remittances-ui.js']:
   shutil.copy(ROOT/'accounts'/name,root/'accounts'/name)
@@ -47,6 +47,15 @@ with tempfile.TemporaryDirectory(prefix='tg-remittance-') as tmp:
   assert status==200,data
   usd=next(x for x in data['banks'] if x['id']=='USD');assert usd['balance']=={'posted':0,'pending':140000,'available':-140000,'carryingRate':0}
   review=req('accounts_dashboard.php?entity=TG')[1];assert len(review['attention'])==2
+  export_root={'contracts':[{'ref':'C-TG','seller':'TG','currency':'USD'},{'ref':'C-TTI','seller':'TTI','currency':'USD'},{'ref':'C-BRM','seller':'BRM','currency':'USD'}],'shipments':[{'id':'LOT-'+entity,'seller':entity,'contractRef':'C-'+entity,'commercial':{'saved':True,'status':'Final','invoiceNo':'CI-'+entity,'lastInvoiceValue':value},'tgdocs':{'saved':True,'invoiceValue':999999}} for entity,value in [('TG',1000),('TTI',500),('BRM',800)]]}
+  (root/'data/operations.json').write_text(json.dumps({'values':{'transtrade_export_v3_operational':json.dumps(export_root)}}))
+  accounts_before=(root/'data/accounts.json').read_bytes()
+  group=req('accounts_dashboard.php?entity=TG')[1]
+  assert group['customerReceivables']['entities']==['TTI','TG']
+  assert sum(row['amount'] for row in group['summaries']['export'])==1500
+  assert group['summaries']['export']==req('accounts_dashboard.php?entity=TTI')[1]['summaries']['export']
+  assert req('accounts_dashboard.php?entity=BRM')[0]==403
+  assert (root/'data/accounts.json').read_bytes()==accounts_before
   payload={'action':'confirm','csrf':'fixture','requestKey':'http-fixture-request-12345','ids':[x['id'] for x in data['items']],'fingerprints':{x['id']:x['fingerprint'] for x in data['items']},'date':'2026-10-01','bankReference':'','chargeBankAccountId':'USD','chargeAmount':30,'vatAmount':1.5,'sameRemittanceConfirmed':True}
   assert req(body={**payload,'csrf':'wrong'})[0]==419
   assert req(body=payload,role='readonly')[0]==403

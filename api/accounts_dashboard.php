@@ -4,6 +4,8 @@ require_once __DIR__.'/expense_reminders.php';
 require_once dirname(__DIR__).'/auth_store.php';
 define('TT_BANK_FUNCTIONS_ONLY',true);require_once __DIR__.'/bank_accounts.php';
 require_once __DIR__.'/accounts_reviews_core.php';
+require_once __DIR__.'/fi_credit_advice_link.php';
+require_once __DIR__.'/customer_receivables_core.php';
 header('Content-Type: application/json; charset=UTF-8');
 header('Cache-Control: no-store, no-cache, must-revalidate');
 
@@ -43,8 +45,10 @@ try{
    if($amount>.005)$due[]=['label'=>(string)($rent['mill']??'').' rent · '.(string)($rent['payee']??''),'reference'=>(string)($rent['id']??''),'date'=>$dueDate,'currency'=>$e==='TG'?'AED':'PKR','amount'=>$amount];
  }
  $currentBanks=ba_payload($s,$e);$masterDefaults=[];foreach((array)(tt_list_masters()['companies']??[]) as $company){$cv=(array)($company['values']??[]);if(strtoupper(trim((string)($cv[1]??'')))!==$e)continue;foreach(tt_master_json_array($cv[13]??'') as $a)if(!empty($a['isDefault'])&&strcasecmp((string)($a['status']??'Active'),'Active')===0)$masterDefaults[(string)$a['id']]=true;}$bank=[];foreach($currentBanks['accounts'] as $a){$tail=substr(preg_replace('/\W/','',(string)($a['accountNumber']?:$a['iban'])),-6);$bank[]=['label'=>$a['bankName'].($tail!==''?' · …'.$tail:''),'bankAccountId'=>$a['id'],'isDefault'=>!empty($a['settings']['active'])&&(isset($masterDefaults[$a['id']])||(!$masterDefaults&&(!empty($a['settings']['defaultPaymentAccount'])||!empty($a['settings']['defaultReceiptAccount'])))),'currency'=>$a['currency'],'amount'=>$a['availableBalance']];}if(abs((float)$currentBanks['cash']['bookBalance'])>.005)$bank[]=['label'=>'Cash / Petty Cash','currency'=>$currentBanks['cash']['currency'],'amount'=>$currentBanks['cash']['bookBalance']];if(abs((float)$currentBanks['unassignedBankBalance'])>.005)$bank[]=['label'=>'Unassigned bank posting','currency'=>'PKR','amount'=>$currentBanks['unassignedBankBalance']];
+ $allowed=array_values(array_filter(['TTI','BRM','TG'],static fn($company)=>($u['role']??'')==='Super Admin'||tt_user_can_access_entity($u,$company,'View')));
+ $root=tt_fi_advice_root();$receivables=tt_customer_receivables(tt_fi_advice_project($s,$root),$root,$allowed);$export=$receivables['rows'];
  $sets=['bank'=>array_values($bank),'commodity'=>ad_rows($commodity),'local'=>ad_rows($local),'export'=>ad_rows($export),'expenses'=>ad_rows($expenses),'due'=>ad_rows($due)];foreach($sets as&$rows)if(is_array($rows))foreach($rows as&$row)$row['dateDisplay']=preg_match('/^(\d{4})-(\d{2})-(\d{2})$/',(string)($row['date']??''),$m)?$m[3].'-'.$m[2].'-'.$m[1]:'';unset($row);unset($rows);
  usort($sets['due'],static fn($a,$b)=>strcmp((string)($a['date']??''),(string)($b['date']??'')));
- ad_out(['ok'=>true,'entity'=>$e,'summaries'=>$sets,'attention'=>$attention,'serverNow'=>gmdate('c')]);
+ ad_out(['ok'=>true,'entity'=>$e,'summaries'=>$sets,'customerReceivables'=>$receivables,'attention'=>$attention,'serverNow'=>gmdate('c')]);
 }catch(Throwable $x){error_log('Accounts dashboard: '.$x->getMessage());ad_out(['ok'=>false,'error'=>'Accounts summary is temporarily unavailable.'],500);}
 

@@ -159,3 +159,9 @@ Every request requiring Director approval must also appear in the Super Admin Co
 - DD-MM-YYYY separators stay fixed during typing, deletion and pasting; validate calendar dates and keep ISO storage. Constraint changes must preserve unfinished date entry.
 - Accounts forms use aligned controls and readable responsive layouts. Add line follows the final row; row actions occupy one final Actions cell. Utilities populate provider/type/location from their saved master and show meter readings only for mill electricity.
 - Voucher company identity is centred above the voucher title, details align left/right and the receiver signature has clear separation. Print opens the same-tab printer dialog. Preserve supplier payments, export receivables, credit advice, company scopes, permissions and journal history.
+
+## Group customer receivables
+
+- The shared Customer / Export Receivables summary reads issued external buyer Commercial Invoices for TG, TTI and BRM, grouped by original currency. Show company, customer, invoice, receipts and outstanding in its detail. Restrict the group to companies the user may view.
+- Never include TG packs, Customs settlement values or intercompany revenue candidates in this external customer total. Saved drafts are separate estimates; issued invoices awaiting recognition remain visible without creating journals on read.
+- Apply only linked posted receipts and committed advance applications. Unapplied advances are not guessed across lots. Keep statutory company ledgers and posting permissions unchanged.
