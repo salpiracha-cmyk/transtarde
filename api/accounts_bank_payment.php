@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 function tt_accounts_bank_payment_details(array $input): array {
+    if(str_starts_with((string)($input['paymentAccountId']??''),'CARD|'))return [];
     $method=trim((string)($input['bankPaymentMethod']??''));
     if($method==='BANK_TRANSFER')$method='ONLINE_BANKING';
     if($method==='')$method=!empty($input['paymentAccountId'])&&!str_starts_with((string)$input['paymentAccountId'],'CASH|')?'CHEQUE':'';

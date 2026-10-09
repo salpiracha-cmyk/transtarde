@@ -47,16 +47,7 @@
       {title:'Expense Recipients', note:'Add and edit recipients; choose expense purpose on each payment', special:'expense-recipients'},
       {title:'Salaries & Staff', note:'Salary advance and monthly salary preparation', native:'expenses', special:'expense-salary'}
     ]},
-    {key:'ledgers', glyph:'L', title:'Ledgers', note:'Choose a party or account, view balances, print or download Excel', actions:[
-      {title:'Party Ledgers', note:'Type a party name to open its ledger', special:'all-ledgers', ledgerCategory:'party'},
-      {title:'Bank / Cash', special:'all-ledgers', ledgerCategory:'bank'},
-      {title:'Account Ledgers', note:'Search by account head or named subaccount', special:'all-ledgers', ledgerCategory:'other'},
-      {title:'Head of Accounts', special:'account-heads'}, {title:'Manage Subaccounts', special:'subaccounts'}
-    ]},
-    {key:'registers', glyph:'▣', title:'Registers & Corrections', note:'Posting records and controlled journal corrections', actions:[
-      {title:'Post ID Register', special:'post-ledger'},
-      {title:'Bill & Invoice Registers', special:'bill-registers'}
-    ]},
+    {key:'ledgers', glyph:'L', title:'Ledgers', note:'Account and party ledgers, and every posted voucher', actions:[{title:'Ledger',special:'all-ledgers',ledgerCategory:'other'},{title:'Post ID Register',special:'post-ledger'}]},
     {key:'reports', glyph:'▤', title:'Reports', note:'Financial, tax, party, commodity and shipment reports', actions:[
       {title:'Sales Tax', note:'Search export documents and bank/tax advices by period and reference', special:'sales-tax'},
       {title:'Expenses by Type / Recipient',special:'expense-report'}, {title:'Vehicle / Asset Costs',special:'vehicle-report'}, {title:'Withholding Tax Report', special:'withholding-report'}, {title:'Trial Balance', native:'reports', find:'Trial Balance'}, {title:'Profit & Loss', native:'reports', find:'Profit'},
@@ -78,16 +69,7 @@
       {title:'Bank Entry', special:'bank-entry'}, {title:'Bank Finance', special:'bank-finance'}, {title:'Bank Accounts & Balances', native:'bank'}, {title:'Pay Expense', special:'expense-pay'},
       {title:'Utilities', native:'expenses', then:'[data-expense="utility"]'}, {title:'Bank Reconciliation', native:'reconciliation'}
     ]},
-    {key:'tg-ledgers', glyph:'L', title:'Ledgers', note:'TG party and account statements with print and Excel', actions:[
-      {title:'Party Ledgers', note:'Type a party name to open its ledger', special:'all-ledgers', ledgerCategory:'party'},
-      {title:'Bank / Cash', special:'all-ledgers', ledgerCategory:'bank'},
-      {title:'Account Ledgers', note:'Search by account head or named subaccount', special:'all-ledgers', ledgerCategory:'other'},
-      {title:'Head of Accounts', special:'account-heads'}, {title:'Manage Subaccounts', special:'subaccounts'}
-    ]},
-    {key:'tg-registers', glyph:'▣', title:'Registers & Corrections', note:'Posting records and journal corrections', actions:[
-      {title:'Post ID Register', special:'post-ledger'},
-      {title:'Bill & Invoice Registers', special:'bill-registers'}
-    ]},
+    {key:'tg-ledgers', glyph:'L', title:'Ledgers', note:'Account and party ledgers, and every posted voucher', actions:[{title:'Ledger',special:'all-ledgers',ledgerCategory:'other'},{title:'Post ID Register',special:'post-ledger'}]},
     {key:'tg-reports', glyph:'▤', title:'Reports', note:'TG balances and financial reports', actions:[
       {title:'Expenses by Type / Recipient',special:'expense-report'}, {title:'Vehicle / Asset Costs',special:'vehicle-report'}, {title:'Withholding Tax Report', special:'withholding-report'}, {title:'Trial Balance', native:'reports', find:'Trial Balance'}, {title:'Profit & Loss', native:'reports', find:'Profit'},
       {title:'Balance Sheet', native:'reports', find:'Balance Sheet'}, {title:'Receivables / Payables', native:'reports', find:'Receivables'}

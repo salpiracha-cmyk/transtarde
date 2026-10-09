@@ -61,7 +61,7 @@ require $argv[1];
         return data
     def read():
         status,data=request('payment_plans',{},method='GET');assert status==200,(status,data);return data
-    payload=read();assert len(payload['banks'])==2,payload
+    payload=read();assert len(payload['banks'])==3 and any(b['id']=='CASH|TTI' for b in payload['banks']),payload
     assert any(x['accountType'] in ['Personal Account','Proprietor / Owner Account'] for x in payload['banks'])
     assert {r['group'] for r in payload['rows']}=={'Broker A','Supplier C'},payload
     keys=[r['rowKey'] for r in payload['rows']]

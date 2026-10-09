@@ -54,7 +54,7 @@ function dex_post(array &$store,string $entity,array $body,array $user,array $na
     $narration=trim((string)($body['paymentNarration']??''));if(strlen($narration)>900)throw new InvalidArgumentException('Narration is too long.');$tracking=array_replace(['paymentNarration'=>$narration],$tracking);
     $payee=trim((string)($body['payee']??''));if($payee===''||strlen($payee)>180)throw new InvalidArgumentException('Enter who receives this payment.');
     $profile=null;foreach(sac_payees($store,$entity,'EXPENSE') as $candidate)if(sac_normal($candidate['name'])===sac_normal($payee)){$profile=$candidate;break;}
-    if(!empty($body['payeeId'])&&(!$profile||$profile['id']!==(string)$body['payeeId']))throw new InvalidArgumentException('Choose the current expense recipient.');
+    if($profile)$payee=$profile['name'];if(!empty($body['payeeId'])&&(!$profile||$profile['id']!==(string)$body['payeeId']))throw new InvalidArgumentException('Choose the current expense recipient.');
     $date=ev1_date((string)($body['paymentDate']??''),'Payment date');$reference=trim((string)($body['reference']??''));if(strlen($reference)>180)throw new InvalidArgumentException('Reference is too long.');
     [$rows,$total]=dex_rows($body['expenseLines']??null,$names,$store,$entity);$paymentId=trim((string)($body['paymentAccountId']??''));
     if(isset($body['amount'])&&(!is_numeric($body['amount'])||abs(round((float)$body['amount'],2)-$total)>.005))throw new InvalidArgumentException('Payment total must equal all expense rows.');

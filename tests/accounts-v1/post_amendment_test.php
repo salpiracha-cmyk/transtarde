@@ -44,3 +44,16 @@ check(count($salary['journals'][$done['replacementPostId']]['lines'])===122,'Who
 $done=apa_correct($salary,$user,$done['replacementPostId'],$input);
 check($salary['journals'][$done['replacementPostId']]['meta']['originalSourceType']==='SALARY_MONTH_COMPLETED','Salary origin must survive repeated amendments.');
 echo "Salary month amendment size, required cheque number and optional online reference passed.\n";
+
+$opening=['id'=>'POST-2026-00075','entity'=>'TTI','date'=>'2026-07-01','sourceType'=>'OPENING_BALANCE_BF','status'=>'Posted','reference'=>'','narration'=>'OPENING BALANCE B/F','meta'=>['openingBalance'=>true],'totalDebit'=>100,'totalCredit'=>100,'lines'=>[['account'=>'2110','accountName'=>'Supplier','subledger'=>'Haji Khushi Muhammad','counterparty'=>'Haji Khushi Muhammad','debit'=>0,'credit'=>100,'nativeDebit'=>0,'nativeCredit'=>100],['account'=>'3400','accountName'=>'Opening Balance Clearing','subledger'=>'','debit'=>100,'credit'=>0,'nativeDebit'=>100,'nativeCredit'=>0]]];
+$book=['journals'=>[$opening['id']=>$opening],'jvDrafts'=>['OPEN'=>['journalId'=>$opening['id'],'status'=>'Posted']]];
+$input=['reason'=>'Correct opening figure','date'=>'2026-10-09','narration'=>'','lines'=>[['account'=>'2110','subledger'=>'Haji Khushi Muhammad','credit'=>150,'debit'=>0],['account'=>'3400','subledger'=>'','debit'=>150,'credit'=>0]]];
+$done=apa_correct($book,['role'=>'Super Admin','username'=>'owner'],$opening['id'],$input);$new=$book['journals'][$done['replacementPostId']];
+check($new['date']==='2026-07-01'&&$new['sourceType']==='OPENING_BALANCE_BF','Opening corrections must stay at the opening boundary.');
+check($done['publicPostId']===$opening['id']&&$new['lines'][0]['nativeCredit']===150.0,'Opening public identity and native amount must be preserved/corrected.');
+check(count($done['changes'])===2&&$done['changes'][0]['oldCredit']===100,'Confirmation must show old and new amounts.');
+$balance=0;foreach($book['journals'] as $j)foreach($j['lines'] as $l)if($l['account']==='2110')$balance+=$l['debit']-$l['credit'];check($balance===-150.0,'Authoritative opening ledger must show the corrected balance.');
+check($book['jvDrafts']['OPEN']['status']==='Amended','Old opening register must retain history.');
+echo "Opening balance amendment: stable Post ID, fixed date, old-to-new confirmation and corrected ledger passed.\n";
+
+foreach(["75","075","00075","2026-00075"] as $query)check(tt_accounts_reference_matches($query,"POST-2026-00075"),"Post suffix/serial failed: ".$query);check(tt_accounts_reference_matches("75","POST-2026-01075"),"Suffix search must allow multiple matches.");check(!tt_accounts_reference_matches("2026","POST-2026-00075"),"A year is not a serial suffix.");

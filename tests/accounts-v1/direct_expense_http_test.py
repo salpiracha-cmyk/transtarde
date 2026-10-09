@@ -12,7 +12,7 @@ with tempfile.TemporaryDirectory(prefix='tti-authorization-') as directory:
     private.mkdir()
     for name in ['auth_store.php', 'master_store.php', 'product_stage.php', 'offline_idempotency.php','session_store.php']:
         shutil.copy(ROOT / name, app / name)
-    for name in ['accounts_subaccounts.php','accounts_subaccounts_core.php','assets_registry_core.php','expenses_v1.php','direct_expense_core.php','accounts_bank_payment.php','expense_locations.php','expense_reminders.php','expense_reversals.php','donations.php','rent_salary_v2.php','salary_month_workflow.php','salary_master_store.php','accounts_reports.php','accounts_ledger_browser.php','accounts_reference.php','tg_remittance_core.php','fi_credit_advice_link.php','receipt_invoice_links.php']:
+    for name in ['accounts_subaccounts.php','accounts_subaccounts_core.php','assets_registry_core.php','expenses_v1.php','direct_expense_core.php','accounts_bank_payment.php','expense_locations.php','expense_reminders.php','expense_reversals.php','donations.php','rent_salary_v2.php','salary_month_workflow.php','salary_master_store.php','accounts_reports.php','accounts_ledger_browser.php','accounts_post_delete_core.php','accounts_post_amend.php','accounts_post_amend_core.php','opening_balance_core.php','accounts_reference.php','tg_remittance_core.php','fi_credit_advice_link.php','receipt_invoice_links.php']:
         shutil.copy(ROOT / 'api' / name, app / 'api' / name)
     shutil.copy(ROOT / 'accounts/accounting_master_v1.json', app / 'accounts/accounting_master_v1.json')
     harness = root / 'request.php'
@@ -253,6 +253,32 @@ require $argv[1];
     before=books.read_bytes();status,result=request('expenses_v1','?entity=TTI',utility);assert status in (403,422) and 'Service Provider' in result['error'],(status,result);assert books.read_bytes()==before
     status,result=request('expenses_v1','?entity=TTI',{**utility,'payee':'Electric Provider'});assert status==200,(status,result)
     assert json.loads(books.read_text())['journals']==json.loads(before)['journals'],'Master creation must not create an expense posting'
+
+    # Recorded utilities belong to closing-date cycles and are not recognised twice.
+    fixture_auth['users'][0]['role']='Super Admin';auth.write_text(json.dumps(fixture_auth))
+    card_id=next(iter(json.loads(books.read_text())['creditCardMasters']))
+    utility_payment={'action':'pay_utility','csrf':'fixture','entity':'TTI','utilityType':'ELECTRICITY','location':'OFFICE','locationId':'office-fixture','accountingTreatment':'BUSINESS_EXPENSE','payee':'Electric Provider','billMonth':'2027-01','amount':80,'paymentDate':'2027-02-10','paymentAccountId':'CARD|'+card_id,'requestKey':'utility-card-current'}
+    expense_before=bal('6110');cash_before=bal('1120');card_before=bal('2400');other_before=bal('6900')
+    status,result=request('expenses_v1','?entity=TTI',utility_payment);assert status==200,(status,result)
+    utility_id=result['result']['utilityPaymentId'];assert bal('6110')==expense_before+80 and bal('1120')==cash_before and bal('2400')==card_before-80
+    status,result=request('expenses_v1','?entity=TTI',{**utility_payment,'requestKey':'utility-card-next','paymentDate':'2027-02-16','amount':30});assert status==200,(status,result)
+    february={**combined,'cardMasterId':card_id,'statementMonth':'2027-02','statementDate':'2027-02-15','dueDate':'2027-02-20','paymentDate':'2027-02-19','total':200,'personalAmounts':[],'requestKey':'card-utilities-february'}
+    status,result=request('expenses_v1','?entity=TTI',february);assert status==200,(status,result)
+    bill_id=result['result']['statementId'];bill=json.loads(books.read_text())['creditCardStatements'][bill_id]
+    assert bill['includedUtilityTotal']==80 and len(bill['includedUtilities'])==1 and bill['includedUtilities'][0]['id']==utility_id,bill
+    assert bal('6900')==other_before+120 and bal('6110')==expense_before+110 and bal('1120')==cash_before-200 and bal('2400')==card_before-30
+    before=books.read_bytes();assert request('expenses_v1','?entity=TTI',february)[1]['result']['duplicate'];assert books.read_bytes()==before
+    assert request('expenses_v1','?entity=TTI',{**utility_payment,'requestKey':'late-utility-cycle'})[0]==422 and books.read_bytes()==before
+    assert request('expenses_v1','?entity=TTI',{'csrf':'fixture','action':'delete_expense','entity':'TTI','collection':'utilityPayments','id':utility_id,'reason':'Remove wrong utility'})[0] in (403,422) and books.read_bytes()==before
+    # Post cancellation removes the bill/payment effect and releases charge links atomically.
+    post_id=bill['journalId']
+    before=books.read_bytes();assert request('accounts_post_amend','',{'csrf':'fixture','action':'delete_post','postId':post_id,'reason':'x'})[0]==422 and books.read_bytes()==before
+    status,result=request('accounts_post_amend','',{'csrf':'fixture','action':'delete_post','postId':post_id,'reason':'Wrong credit card bill'});assert status==200,(status,result)
+    saved=json.loads(books.read_text());assert saved['creditCardStatements'][bill_id]['status']=='Deleted' and not saved['utilityPayments'][utility_id].get('cardStatementId')
+    assert saved['postDeletions'][-1]['before'] and all(saved['journals'][j]['meta']['deletedFromBooks'] for j in result['result']['cancelledPostIds']+result['result']['reversalPostIds'])
+    assert bal('6900')==other_before and bal('1120')==cash_before and bal('2400')==card_before-110
+    assert request('accounts_post_amend','',{'csrf':'fixture','action':'delete_post','postId':post_id,'reason':'Repeated deletion'})[0]==422
+    print('PASS card utilities: statement boundaries, single expense, full payment, retry, late-charge rejection and audited atomic Post ID deletion')
 
     # Corrupt nonempty books must not become empty books or get overwritten.
 

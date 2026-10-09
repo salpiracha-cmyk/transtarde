@@ -11,7 +11,7 @@
     box.innerHTML='<label>Bank payment method<select data-method><option value="CHEQUE">Cheque</option><option value="ONLINE_BANKING">Online Banking</option></select></label><label><span data-reference-label>Bank transaction reference</span><input data-reference maxlength="180"></label><label>Narration<input data-narration maxlength="300" placeholder="Your payment details"></label>';
     source.closest('label').after(box);
     box.querySelector('[data-method]').value=defaultMethod(source,accounts);
-    const update=()=>{const bank=source.value&&!source.value.startsWith('CASH|');box.hidden=!bank;box.style.display=bank?'grid':'none';const cheque=box.querySelector('[data-method]').value==='CHEQUE';box.querySelector('[data-reference-label]').textContent=cheque?'Cheque number':'Online banking transaction reference (optional)';box.querySelector('[data-reference]').required=!!bank&&cheque;};
+    const update=()=>{const bank=source.value&&!/^(CASH|CARD)\|/.test(source.value);box.hidden=!bank;box.style.display=bank?'grid':'none';const cheque=box.querySelector('[data-method]').value==='CHEQUE';box.querySelector('[data-reference-label]').textContent=cheque?'Cheque number':'Online banking transaction reference (optional)';box.querySelector('[data-reference]').required=!!bank&&cheque;};
     source.addEventListener('change',()=>{box.querySelector('[data-method]').value=defaultMethod(source,accounts);update()});box.querySelector('[data-method]').addEventListener('change',update);update();
   }
   function read(id,date) {

@@ -7,7 +7,7 @@ with tempfile.TemporaryDirectory(prefix='party-ledger-qa-') as temp:
     root = pathlib.Path(temp)
     for folder in ['api', 'data', 'accounts']:
         (root/folder).mkdir()
-    for name in ['accounts_subaccounts_core.php','assets_registry_core.php','accounts_ledger_browser.php', 'accounts_reference.php', 'tg_remittance_core.php', 'fi_credit_advice_link.php', 'receipt_invoice_links.php']:
+    for name in ['accounts_subaccounts_core.php','assets_registry_core.php','accounts_ledger_browser.php','accounts_post_delete_core.php', 'accounts_reference.php', 'tg_remittance_core.php', 'fi_credit_advice_link.php', 'receipt_invoice_links.php']:
         shutil.copy(ROOT/'api'/name, root/'api'/name)
     for path in (ROOT/'accounts').glob('*.json'):
         shutil.copy(path, root/'accounts'/path.name)
@@ -20,7 +20,7 @@ with tempfile.TemporaryDirectory(prefix='party-ledger-qa-') as temp:
     function tt_require_login(){return ['id'=>1,'role'=>'Accounts'];}
     function tt_user_can_open_module($u,$m){return ($_GET['denyModule']??'')!=='1';}
     function tt_user_can_access_entity($u,$e,$a){return $e!=='BRM';}
-    function tt_list_masters(){return ['business_parties'=>[['id'=>'P1','values'=>['ACME Rice']]]];}
+    function tt_list_masters(){return ['business_parties'=>[['id'=>'P1','values'=>['ACME Rice','HKM']]]];}
     ''')
     def line(account, debit=0, credit=0, **extra):
         return dict(account=account, debit=debit, credit=credit, **extra)
@@ -82,6 +82,8 @@ with tempfile.TemporaryDirectory(prefix='party-ledger-qa-') as temp:
         assert result['rows'][0]['balance']==-35
         assert get(party='ACME Rice',q='2')[1]['rows'][0]['voucher']=='POST-2026-00002'
         assert get(party='ACME Rice',postId='POST-2026-00002')[1]['post']['lines'][1]['account']=='1110'
+        assert get(party='HKM')[1]['closing']==-35, 'Saved party codes resolve to the same canonical ledger'
+        status,register=get(category='other',account='POSTS');assert status==200 and any(r['voucher']=='POST-2026-00003' for r in register['rows']), 'Non-cash journals must be in the Post ID Register'
         assert get(party='SECRET BRM')[0]==422
         assert get(entity='BRM')[0]==403
         assert get(entity='ALL')[0]==403

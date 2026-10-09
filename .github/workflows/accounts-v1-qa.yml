@@ -161,6 +161,7 @@ jobs:
           node tests/accounts-v1/accounts_master_controls_test.js
           node tests/accounts-v1/accounts_master_popup_browser_test.js
           node tests/accounts-v1/expense_review_batch_browser_test.js
+          node tests/accounts-v1/post_register_browser_test.js
           node tests/accounts-v1/direct_expense_browser_test.js
           node tests/accounts-v1/unified_expense_browser_test.js
           node tests/accounts-v1/accounts_date_jv_browser_test.js

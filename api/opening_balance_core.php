@@ -67,7 +67,7 @@ function job_targets(string $e): array {
         $v=(array)($r['values']??[]);$name=trim((string)($v[0]??''));if($name===''||strcasecmp((string)($v[10]??'Active'),'Inactive')===0)continue;
         $roles=$type==='export_customers'?['Export Buyer']:tt_business_party_categories($v[2]??'');
         $heads=[];foreach($roles as $role)foreach($map as $category=>$code)if(strcasecmp($role,$category)===0)$heads[$code][]=$category;
-        foreach($heads as $code=>$categories)$out[]=['key'=>$type.':'.(string)($r['id']??job_key($name)).':'.$code,'label'=>$name.' — '.implode(' / ',$categories),'name'=>$name,'account'=>(string)$code,'party'=>$name,'bankId'=>'','role'=>$categories[0],'kind'=>'party'];
+        foreach($heads as $code=>$categories)$out[]=['key'=>$type.':'.(string)($r['id']??job_key($name)).':'.$code,'label'=>$name.(trim((string)($v[1]??''))!==''?' ('.trim((string)$v[1]).')':'').' — '.implode(' / ',$categories),'name'=>$name,'account'=>(string)$code,'party'=>$name,'bankId'=>'','role'=>$categories[0],'kind'=>'party'];
     }
     foreach(job_banks($e) as $b)$out[]=['key'=>'bank:'.$b['id'],'label'=>$b['name'],'name'=>$b['name'],'account'=>'1110','party'=>'','bankId'=>$b['id'],'kind'=>'bank'];
     usort($out,static fn($a,$b)=>strcasecmp($a['label'],$b['label']));return $out;

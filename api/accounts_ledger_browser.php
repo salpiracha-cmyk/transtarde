@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require dirname(__DIR__).'/auth_store.php';
 require_once __DIR__.'/accounts_reference.php';
+require_once __DIR__.'/accounts_post_delete_core.php';
 require_once __DIR__.'/accounts_subaccounts_core.php';
 require_once __DIR__.'/tg_remittance_core.php';
 require_once __DIR__.'/fi_credit_advice_link.php';
@@ -60,11 +61,12 @@ $partyAccounts=array_fill_keys(['1210','1220','1230','1240','1250','1400','2110'
 foreach((array)($master['peopleSubledgers']??[]) as $person)if(is_array($person)&&isset($person['code']))$partyAccounts[(string)$person['code']]=true;
 $missingPartyLines=0;
 $balanceUnavailable=false;
-$partyMasters=tt_list_masters();$partyNames=[];
+$partyMasters=tt_list_masters();$partyNames=[];$partyAliases=[];
 foreach(['business_parties','export_customers'] as $type)foreach((array)($partyMasters[$type]??[]) as $record){
     if(!is_array($record))continue;$name=trim((string)($record['values'][0]??''));
-    if($name!==''){$partyNames[(string)($record['id']??$name)]=$name;$partyNames[alb_party_key($name)]=$name;}
+    if($name!==''){$code=trim((string)($record['values'][1]??''));$partyAliases[]=['name'=>$name,'code'=>$code,'label'=>$name.($code!==''?' ('.$code.')':'')];$partyNames[(string)($record['id']??$name)]=$name;$partyNames[alb_party_key($name)]=$name;}
 }
+if($party!==''){$matches=[];foreach($partyAliases as $alias)if(alb_party_key($party)===alb_party_key($alias['name'])||alb_party_key($party)===alb_party_key($alias['label'])||($alias['code']!==''&&alb_party_key($party)===alb_party_key($alias['code'])))$matches[$alias['name']]=true;if(count($matches)>1)alb_fail('This party code matches more than one party. Select its full name.');if($matches)$party=(string)array_key_first($matches);}
 foreach(array_merge((array)($master['chart']??[]),(array)($master['peopleSubledgers']??[])) as $row){
     if(is_array($row)&&isset($row['code']))$catalog[(string)$row['code']]=(string)($row['name']??$row['code']);
 }
@@ -122,23 +124,16 @@ foreach($journals as $journal)foreach((array)($journal['lines']??[]) as $line)if
 if($account!==''&&!isset($catalog[$account]))alb_fail('Select an account from All Ledgers.');
 ksort($catalog,SORT_NATURAL);
 usort($journals,static fn($a,$b)=>strcmp((string)$a['date'],(string)$b['date'])?:strcmp((string)($a['id']??''),(string)($b['id']??'')));
-$opening=0.0;$rows=[];
+$opening=0.0;$rows=[];$deleteRecordIndex=apd_record_index($store);
 foreach($journals as $journal){
-    if($postEntries){
+    if($postEntries){if(!empty($journal['meta']['deletedFromBooks']))continue;
         if(!empty($journal['amendedByPostId'])||(!empty($journal['reversalOf'])&&(!empty($store['journals'][$journal['reversalOf']]['amendedByPostId']))))continue;
-        // Keep every journal in the books, while the user-facing Post ID Register
-        // lists only postings that move money through bank or cash.
-        $moneyMovement=false;
-        foreach((array)($journal['lines']??[]) as $line){
-            if(!is_array($line))continue;
-            if(in_array((string)($line['account']??''),['1110','1120'],true)||!empty($line['bankAccountId'])||!empty($line['cashAccountId'])){$moneyMovement=true;break;}
-        }
-        if(!$moneyMovement)continue;
         $date=(string)$journal['date'];if($date<$from)continue;
-        $rows[]=['date'=>$date,'voucher'=>(string)($journal['id']??''),'account'=>'POSTS','accountName'=>(string)$journal['entity'],'reference'=>(string)($journal['reference']??''),'narration'=>(string)($journal['narration']??'').(str_starts_with((string)($journal['meta']['notes']??''),'Mirrored settlement for Pakistan receipt ')?' · '.(string)$journal['meta']['notes']:''),'publicPostId'=>tt_accounts_public_post($store,$journal),'amendmentNote'=>tt_accounts_amendment_note($journal,$store),'party'=>(string)($journal['meta']['payee']??$journal['meta']['supplier']??$journal['meta']['customer']??$journal['meta']['brokerName']??implode(' · ',array_unique(array_filter(array_map(static fn($l)=>$l['counterparty']??$l['party']??$l['supplier']??$l['customer']??'',(array)$journal['lines']))))).(!empty($store['exportReceipts'][(string)($journal['meta']['receiptId']??'')]['replacementReceiptId'])?' · Corrected by '.$store['exportReceipts'][(string)$journal['meta']['receiptId']]['replacementReceiptId']:''),'debit'=>round((float)($journal['totalDebit']??0),2),'credit'=>round((float)($journal['totalCredit']??0),2),'balance'=>null];
+        $rows[]=['canDelete'=>apd_supported($store,$journal,$deleteRecordIndex)&&function_exists('tt_post_correction_allowed')&&tt_post_correction_allowed($user,$journal)&&tt_user_can_access_entity($user,(string)$journal['entity'],'Edit'),'date'=>$date,'voucher'=>(string)($journal['id']??''),'account'=>'POSTS','accountName'=>(string)$journal['entity'],'reference'=>(string)($journal['reference']??''),'narration'=>(string)($journal['narration']??'').(str_starts_with((string)($journal['meta']['notes']??''),'Mirrored settlement for Pakistan receipt ')?' · '.(string)$journal['meta']['notes']:''),'publicPostId'=>tt_accounts_public_post($store,$journal),'amendmentNote'=>tt_accounts_amendment_note($journal,$store),'party'=>(string)($journal['meta']['payee']??$journal['meta']['supplier']??$journal['meta']['customer']??$journal['meta']['brokerName']??implode(' · ',array_unique(array_filter(array_map(static fn($l)=>$l['counterparty']??$l['party']??$l['supplier']??$l['customer']??'',(array)$journal['lines']))))).(!empty($store['exportReceipts'][(string)($journal['meta']['receiptId']??'')]['replacementReceiptId'])?' · Corrected by '.$store['exportReceipts'][(string)$journal['meta']['receiptId']]['replacementReceiptId']:''),'debit'=>round((float)($journal['totalDebit']??0),2),'credit'=>round((float)($journal['totalCredit']??0),2),'balance'=>null];
         continue;
     }
     foreach((array)($journal['lines']??[]) as $line){
+        if(!empty($journal['meta']['deletedFromBooks']))continue;
         if($homeLedger)continue;
         if(!is_array($line))continue;
         $code=(string)($line['account']??'');
@@ -170,7 +165,7 @@ foreach($journals as $journal){
                 if(is_array($person)&&(string)($person['code']??'')===$code){$lineParty=trim((string)($person['name']??''));break;}
             }
             if($lineParty===''){$missingPartyLines++;continue;}
-            $lineParty=$partyNames[$lineParty]??$partyNames[alb_party_key($lineParty)]??$lineParty;
+            $codeMatches=array_values(array_unique(array_column(array_filter($partyAliases,static fn($a)=>$a['code']!==''&&alb_party_key($a['code'])===alb_party_key($lineParty)),'name')));if(count($codeMatches)===1)$lineParty=$codeMatches[0];$lineParty=$partyNames[$lineParty]??$partyNames[alb_party_key($lineParty)]??$lineParty;
             $parties[$lineParty]=true;
             if($party===''||alb_party_key($lineParty)!==alb_party_key($party))continue;
         }
@@ -187,7 +182,7 @@ foreach($journals as $journal){
         if($category==='party'&&$nativeMissing)$balanceUnavailable=true;
         if($date<$from){if($account!==''||$party!=='')$opening+=$debit-$credit;continue;}
         $linkedNote=(string)($journal['meta']['notes']??'');$tracking=trim(implode(' · ',array_filter([(string)($journal['meta']['bankPaymentMethod']??''),!empty($journal['meta']['chequeNo'])?'Cheque '.$journal['meta']['chequeNo']:''])));
-        $row=['date'=>$date,'voucher'=>(string)($journal['id']??''),'account'=>$bankId!==''?$account:$code,'accountName'=>$bankId!==''?$catalog[$account]:(string)($line['accountName']??$catalog[$code]??$code),'reference'=>(string)($journal['reference']??''),'narration'=>(string)($journal['narration']??'').(str_starts_with($linkedNote,'Mirrored settlement for Pakistan receipt ')?' · '.$linkedNote:'').($tracking!==''?' · '.$tracking:''),'party'=>$lineParty!==''?$lineParty:(string)($line['subledger']??$line['bankName']??''),'debit'=>$debit,'credit'=>$credit];
+        $row=['canDelete'=>apd_supported($store,$journal,$deleteRecordIndex)&&function_exists('tt_post_correction_allowed')&&tt_post_correction_allowed($user,$journal)&&tt_user_can_access_entity($user,(string)$journal['entity'],'Edit'),'date'=>$date,'voucher'=>(string)($journal['id']??''),'account'=>$bankId!==''?$account:$code,'accountName'=>$bankId!==''?$catalog[$account]:(string)($line['accountName']??$catalog[$code]??$code),'reference'=>(string)($journal['reference']??''),'narration'=>(string)($journal['narration']??'').(str_starts_with($linkedNote,'Mirrored settlement for Pakistan receipt ')?' · '.$linkedNote:'').($tracking!==''?' · '.$tracking:''),'party'=>$lineParty!==''?$lineParty:(string)($line['subledger']??$line['bankName']??''),'debit'=>$debit,'credit'=>$credit];
         if($usdView){$row['nativeMissing']=$nativeMissing;$row['bookCurrency']='AED';$row['bookDebit']=(float)($line['debit']??0);$row['bookCredit']=(float)($line['credit']??0);}
         if($native){$row['bookCurrency']=$entity==='TG'?'AED':'PKR';$row['bookDebit']=round((float)($line['debit']??0),2);$row['bookCredit']=round((float)($line['credit']??0),2);$row['nativeMissing']=!isset($line['bankDebit'])&&!isset($line['bankCredit']);}
         $rows[]=$row;
@@ -222,6 +217,6 @@ if(($_GET['format']??'')==='csv'){
     fclose($out);exit;
 }
 header('Content-Type: application/json; charset=UTF-8');
-echo json_encode(['ok'=>true,'entity'=>$entity,'accounts'=>array_map(static fn($code,$name)=>['code'=>(string)$code,'name'=>$name],array_keys($catalog),array_values($catalog)),'from'=>$from,'to'=>$to,'account'=>$account,'currency'=>$bankId!==''?($banks[$bankId]['currency']??''):($entity==='TG'?$nativeCurrency:'PKR'),'pendingRemittances'=>$entity==='TG'&&$bankId!==''?tgr_reserved($store,$bankId):0,'availableBalance'=>$entity==='TG'&&$bankId!==''?tgr_bank_balance($store,$bankId,$banks[$bankId]['currency'])['available']:null,'opening'=>$opening===null?null:round($opening,2),'closing'=>($account!==''||$party!=='')&&!$postEntries?$closing:null,'parties'=>array_keys($parties),'category'=>$category,'party'=>$party,'homeLedger'=>$homeLedger,'expenseTotal'=>$expenseTotal,'expenseCurrency'=>$entity==='TG'?'AED':'PKR','missingPartyLines'=>$category==='party'?$missingPartyLines:0,'balanceUnavailable'=>$category==='party'&&$balanceUnavailable,'rows'=>$rows],JSON_UNESCAPED_UNICODE);
+echo json_encode(['ok'=>true,'entity'=>$entity,'accounts'=>array_map(static fn($code,$name)=>['code'=>(string)$code,'name'=>$name],array_keys($catalog),array_values($catalog)),'from'=>$from,'to'=>$to,'account'=>$account,'currency'=>$bankId!==''?($banks[$bankId]['currency']??''):($entity==='TG'?$nativeCurrency:'PKR'),'pendingRemittances'=>$entity==='TG'&&$bankId!==''?tgr_reserved($store,$bankId):0,'availableBalance'=>$entity==='TG'&&$bankId!==''?tgr_bank_balance($store,$bankId,$banks[$bankId]['currency'])['available']:null,'opening'=>$opening===null?null:round($opening,2),'closing'=>($account!==''||$party!=='')&&!$postEntries?$closing:null,'partyAliases'=>$partyAliases,'parties'=>array_keys($parties),'category'=>$category,'party'=>$party,'homeLedger'=>$homeLedger,'expenseTotal'=>$expenseTotal,'expenseCurrency'=>$entity==='TG'?'AED':'PKR','missingPartyLines'=>$category==='party'?$missingPartyLines:0,'balanceUnavailable'=>$category==='party'&&$balanceUnavailable,'rows'=>$rows],JSON_UNESCAPED_UNICODE);
 
 
