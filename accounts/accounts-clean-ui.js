@@ -223,6 +223,7 @@
     let visibleOptions = [];
     const render = (showAll = false) => {
       closeMenus();
+      const portal=input.closest('dialog')||document.body;if(menu.parentElement!==portal)portal.append(menu);
       const selected = selectedText().toLowerCase();
       const typed = input.value.trim().toLowerCase();
       // Opening a selector must show every available choice.  Previously the
