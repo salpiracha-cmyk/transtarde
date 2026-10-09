@@ -177,12 +177,15 @@ button:not(.danger):not(.red):not(.xBtn):not(.optionMinus).active{
  .jvw-line>*{min-width:0;max-width:100%}.jvw-line>[type=hidden]{display:none!important}
  .jvw-line>.tt-row-remove-slot{grid-column:auto;align-self:start;padding-top:7px}
  .jvw-line .jvw-manage-party{min-height:28px;padding:4px 8px;font-size:11px;margin-top:5px}
- .jvw input[type=checkbox],.jvw input[type=radio],.am-box input[type=checkbox],.am-box input[type=radio],#ttPartyInlineEditor input[type=checkbox],#ttPartyInlineEditor input[type=radio]{width:17px!important;height:17px!important;min-height:17px!important;max-width:17px;padding:0!important;flex:0 0 17px;margin:0!important;vertical-align:middle;accent-color:#16804a}
+ :is(#ttExpenseDesk,.jvw,.am-box,.tte,.ttrs,.ttrs-master-popup,#ttPartyInlineEditor) input:is([type=checkbox],[type=radio]){width:17px!important;height:17px!important;min-height:17px!important;max-width:17px;padding:0!important;flex:0 0 17px;margin:0!important;vertical-align:middle;accent-color:#16804a}
  #ttPartyInlineEditor{max-height:88vh;overflow:auto;background:#f7faf8}
+ #ttPartyInlineEditor button{min-height:36px;padding:8px 12px;border:1px solid #bfd6c7;border-radius:7px;background:#e7f4ec;color:#175f39;cursor:pointer}
+ #ttPartyInlineEditor button[type=submit]{background:#16804a;color:#fff;border-color:#16804a}#ttPartyInlineEditor button[data-delete]{background:#fff1ef;color:#a22f2f;border-color:#e6c3bd}
  #ttPartyInlineEditor form>label{display:grid;gap:6px;margin:12px 0}
  #ttPartyInlineEditor form>label>input,#ttPartyInlineEditor form>label>select,#ttPartyInlineEditor textarea{width:100%;min-height:42px;padding:9px;border:1px solid #cbd9d1;border-radius:7px}
  .tt-party-roles{border:1px solid #d2e0d8;border-radius:9px;padding:12px;display:grid;grid-template-columns:1fr 1fr;gap:10px}
  #ttPartyInlineEditor .tt-party-role{display:flex!important;flex-direction:row!important;align-items:center;gap:8px;font-size:12px;line-height:1.4;margin:0!important;min-height:28px}
+ :is(.am-grid,.ttrs-grid,.jvw-line) input:not([type=hidden]):not([type=checkbox]):not([type=radio]):not([type=date]):not(.tt-number-source){min-height:44px!important;height:44px!important}
  .am-grid label>.tt-search-select,.jvw-line .tt-search-select{margin-top:0!important}
  .am-bank-header{grid-template-columns:1fr 1fr!important}
  .am-debit-row{grid-template-columns:30px minmax(220px,2fr) minmax(160px,1.1fr) minmax(180px,1.5fr) minmax(140px,1fr)!important;align-items:start;padding:12px;gap:10px}

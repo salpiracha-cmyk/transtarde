@@ -100,7 +100,7 @@ require $argv[1];
     rowpay={**bankpay,'reference':'','narration':'','debitRows':[{'payeeId':pid,'amount':10,'bankPaymentMethod':'CHEQUE','chequeNo':'ROW-101','chequeDate':'2026-10-07','narration':'First payment'},{'payeeId':pid,'amount':20,'bankPaymentMethod':'CHEQUE','chequeNo':'ROW-102','chequeDate':'2026-10-07','narration':''}]}
     posted,_=good(**rowpay);rowj=posted['result']['journal'];banklines=[l for l in rowj['lines'] if l['account']=='1110']
     assert [(l['credit'],l['chequeNo']) for l in banklines]==[(10,'ROW-101'),(20,'ROW-102')]
-    assert rowj['totalDebit']==rowj['totalCredit']==30 and rowj['lines'][0]['memo']=='First payment'
+    assert rowj['totalDebit']==rowj['totalCredit']==30 and rowj['lines'][0]['memo']=='FIRST PAYMENT'
     before=books.read_bytes();assert mutate('bank_entries',**rowpay)[0]==422 and books.read_bytes()==before
     duplicate={**rowpay,'debitRows':[{**r,'chequeNo':'ROW-103'} for r in rowpay['debitRows']]}
     assert mutate('bank_entries',**duplicate)[0]==422 and books.read_bytes()==before

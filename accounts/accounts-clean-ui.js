@@ -223,7 +223,7 @@
     let visibleOptions = [], activeIndex = -1, choiceButtons = [];
     const highlight = index => {
       activeIndex = index;
-      choiceButtons.forEach((button,i) => { button.classList.toggle('tt-keyboard-active',i===index);button.setAttribute('aria-selected',String(i===index)); });
+      choiceButtons.forEach((button,i) => { button.classList.toggle('tt-keyboard-active',i===index);button.setAttribute('aria-current',String(i===index)); });
       const button=choiceButtons[index];
       if(button){input.setAttribute('aria-activedescendant',button.id);button.scrollIntoView({block:'nearest'});}else input.removeAttribute('aria-activedescendant');
     };
@@ -249,7 +249,7 @@
         const button = document.createElement('button');
         button.type = 'button';
         button.id = 'tt-select-choice-'+Math.random().toString(36).slice(2);
-        button.setAttribute('role','option');choiceButtons.push(button);
+        choiceButtons.push(button);
         button.textContent = option.textContent.trim();
         button.onclick = () => { select.value = option.value; input.value = option.textContent.trim(); menu.hidden = true; select.dispatchEvent(new Event('input', {bubbles:true})); select.dispatchEvent(new Event('change', {bubbles:true})); };
         const manager=select._ttMasterControl;
