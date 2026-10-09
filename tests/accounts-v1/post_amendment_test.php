@@ -57,3 +57,26 @@ check($book['jvDrafts']['OPEN']['status']==='Amended','Old opening register must
 echo "Opening balance amendment: stable Post ID, fixed date, old-to-new confirmation and corrected ledger passed.\n";
 
 foreach(["75","075","00075","2026-00075"] as $query)check(tt_accounts_reference_matches($query,"POST-2026-00075"),"Post suffix/serial failed: ".$query);check(tt_accounts_reference_matches("75","POST-2026-01075"),"Suffix search must allow multiple matches.");check(!tt_accounts_reference_matches("2026","POST-2026-00075"),"A year is not a serial suffix.");
+
+require_once dirname(__DIR__,2).'/api/accounts_post_delete_core.php';
+function tt_post_correction_allowed(array $u,array $j):bool{return !empty($u['canEdit']);}
+function tt_user_can_access_entity(array $u,string $e,string $action):bool{return !empty($u['canEdit'])&&$e==='TTI';}
+$advanceJournal=['id'=>'POST-2026-00115','entity'=>'TTI','date'=>'2026-07-01','sourceType'=>'SALARY_ADVANCE','status'=>'Posted','meta'=>['salaryAdvanceId'=>'SADV-1'],'totalDebit'=>27000,'totalCredit'=>27000,'lines'=>[['account'=>'1230','debit'=>27000,'credit'=>0],['account'=>'1110','bankAccountId'=>'TTI-1','bankDebit'=>0,'bankCredit'=>27000,'debit'=>0,'credit'=>27000]]];
+$advances=['journals'=>[$advanceJournal['id']=>$advanceJournal],'salaryAdvances'=>['SADV-1'=>['id'=>'SADV-1','entity'=>'TTI','journalId'=>$advanceJournal['id'],'amount'=>27000,'remaining'=>27000,'monthsRemaining'=>3,'adjustments'=>[]]]];
+$owner=['canEdit'=>true,'username'=>'owner'];
+check(apd_supported($advances,$advanceJournal),'Salary advance must expose supported cancellation.');
+check(apd_delete_reason($advances,$advanceJournal,$owner)==='','Unapplied salary advance must be deletable.');
+$blocked=$advances;$blocked['salaryAdvances']['SADV-1']['remaining']=26000;$blocked['salaryAdvances']['SADV-1']['adjustments']=[['month'=>'2026-07','amount'=>1000,'journalId'=>'MONTH']];$before=$blocked;
+try{apd_delete($blocked,$owner,$advanceJournal['id'],['reason'=>'Wrong salary advance']);throw new RuntimeException('Applied advance deletion accepted.');}catch(DomainException $expected){}
+check($blocked===$before,'Rejected advance cancellation must leave journal and source untouched.');
+$denied=$advances;
+try{apd_delete($denied,['canEdit'=>false],$advanceJournal['id'],['reason'=>'Wrong salary advance']);throw new RuntimeException('Unauthorised advance deletion accepted.');}catch(DomainException $expected){}
+check($denied===$advances,'Permission rejection must not mutate the books.');
+$done=apd_delete($advances,$owner,$advanceJournal['id'],['reason'=>'Wrong salary advance']);
+check($advances['salaryAdvances']['SADV-1']['remaining']===0&&$advances['salaryAdvances']['SADV-1']['status']==='Deleted','Cancelled advance must leave future salary deductions.');
+$reverse=$advances['journals'][$done['reversalPostIds'][0]];
+check($reverse['lines'][1]['bankDebit']===27000&&$reverse['lines'][1]['bankCredit']===0,'Cancellation must restore bank-native funds exactly.');
+check($advances['postDeletions'][0]['before'][$advanceJournal['id']]===$advanceJournal,'Immutable original journal must remain in deletion audit.');
+check(apd_delete_reason($advances,$reverse,$owner)!=='','Cancellation audit rows must explain why they cannot be deleted again.');
+try{apd_delete($advances,$owner,$advanceJournal['id'],['reason'=>'Repeated deletion']);throw new RuntimeException('Duplicate advance deletion accepted.');}catch(DomainException $expected){}
+echo "Salary advance cancellation: permissions, applied-deduction guard, bank/native balance, source status and audit history passed.\n";
