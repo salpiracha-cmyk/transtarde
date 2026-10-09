@@ -45,7 +45,7 @@ function smw_sheet(array $s,string $entity,string $month):array {
     if(!is_array($stored))return smw_fresh_sheet($s,$entity,$month);
     if(($stored['status']??'Draft')==='Completed')return $stored;
     $fresh=smw_fresh_sheet($s,$entity,$month);
-    if(($stored['personalSignature']??smw_personal_signature([],$entity))!==$fresh['personalSignature']){$fresh['version']=(int)($stored['version']??0)+1;return $fresh;}
+    if(($stored['personalSignature']??smw_personal_signature([],$entity))!==$fresh['personalSignature']){if(!empty($stored['masterChanges'])){$stored['masterChanged']=true;$stored['canRefreshFromMaster']=!array_filter((array)$stored['rows'],static fn($row)=>!empty($row['prepared']));return $stored;}$fresh['version']=(int)($stored['version']??0)+1;return $fresh;}
     if(isset($stored['masterSignature']))$changed=!hash_equals((string)$stored['masterSignature'],$fresh['masterSignature']);
     else{
         $fields=['name','category','netSalary','zakatAmount','otherAllowance','accountingTreatment','productionCostEligible'];
