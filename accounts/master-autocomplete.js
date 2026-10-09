@@ -84,6 +84,7 @@
   }
   function category(input) {
     if (input?.hasAttribute('data-master-ignore')) return '';
+    if (input?.dataset.masterRole) return input.dataset.masterRole;
     if (!input || input.dataset.ttNumericProxy || input.closest('.tt-search-select') || input.matches('[readonly],[disabled],[type="date"],[type="number"],[type="file"]')) return '';
     if (input.dataset.masterRole) return input.dataset.masterRole;
     const text = clean(input.closest('label')?.textContent + ' ' + input.placeholder + ' ' + input.id).toLowerCase();
@@ -101,12 +102,25 @@
     if (/inspection/.test(text)) return 'inspection';
     if (/transporter|transport vendor/.test(text)) return 'transporter';
     if (/shipping line/.test(text)) return 'shipping';
-    if (/vendor|service provider/.test(text)) return 'service';
+    if (/provider|utility|vendor|service provider/.test(text)) return 'service';
     if (/mill|location|warehouse|from where|to where/.test(text)) return 'locations';
     if (/commodity/.test(text)) return 'commodities';
     if (/product|variety|rice type/.test(text)) return 'products';
     if (/party|from whom|received from|account name|paid to|payee|beneficiary/.test(text)) return 'parties';
     return '';
+  }
+  function attachPartyMenu(input,initialKind,custom=null){
+    const menu=document.createElement('div');menu.className='tt-select-menu tt-party-menu';menu.hidden=true;menu._ttOwner=input;document.body.append(menu);input.removeAttribute('list');input.setAttribute('role','combobox');input.setAttribute('aria-expanded','false');
+    const kind=()=>input.id==='svVendor'?({CLEARING:'clearing',FUMIGATION:'fumigation',INSPECTION:'inspection'})[document.getElementById('svKind')?.value]||'service':initialKind;
+    const type=()=>kind()==='buyer'?'export_customers':'business_parties';
+    const can=action=>custom?(action==='Create'?custom.canAdd?.()??true:custom.canEdit?.()??true):access.super||(access.masterPermissions?.[type()]||[]).includes(action);
+    const label=()=>custom?.label||roleFor(kind())||(kind()==='buyer'?'Customer':'Business Party');
+    const close=()=>{menu.hidden=true;input.setAttribute('aria-expanded','false')};
+    const render=all=>{document.querySelectorAll('.tt-select-menu').forEach(other=>{if(other!==menu)other.hidden=true});menu.replaceChildren();const items=custom?custom.values():lists()[kind()]||[],term=all?'':clean(input.value).toLowerCase();
+      items.filter(name=>name.toLowerCase().includes(term)).slice(0,100).forEach(name=>{const line=document.createElement('div');line.className='tt-option-row';const choose=document.createElement('button');choose.type='button';choose.textContent=name;choose.onclick=()=>{input.value=name;close();input.dispatchEvent(new Event('change',{bubbles:true}));};line.append(choose);if(can('Edit')){const edit=document.createElement('button');edit.type='button';edit.className='tt-option-edit';edit.textContent='✎';edit.title='Edit '+name;edit.setAttribute('aria-label',edit.title);edit.onclick=()=>{close();if(custom){custom.edit?.(name);return;}openEditor({value:name,dispatchEvent(){input.value=this.value;input.dispatchEvent(new Event('change',{bubbles:true}))}},kind()==='parties'?'party':kind());};line.append(edit)}menu.append(line)});
+      if(can('Create')){const add=document.createElement('button');add.type='button';add.className='tt-option-add';add.textContent='+ Add '+label();add.onclick=()=>{close();if(custom){custom.add?.();return;}openEditor({value:clean(input.value),dispatchEvent(){input.value=this.value;input.dispatchEvent(new Event('change',{bubbles:true}))}},kind()==='parties'?'party':kind());};menu.append(add);}
+      if(!menu.children.length){const empty=document.createElement('div');empty.className='tt-select-empty';empty.textContent='No matching '+label();menu.append(empty)}const rect=input.getBoundingClientRect();menu.style.left=Math.max(8,Math.min(rect.left,innerWidth-rect.width-8))+'px';menu.style.width=rect.width+'px';const below=innerHeight-rect.bottom-12,above=rect.top-12,height=Math.min(220,Math.max(below,above));menu.style.maxHeight=height+'px';menu.style.top=(below>=Math.min(120,height)?rect.bottom+4:Math.max(8,rect.top-height-4))+'px';menu.hidden=false;input.setAttribute('aria-expanded','true');};
+    input.addEventListener('focus',()=>render(true));input.addEventListener('click',()=>{if(menu.hidden)render(true)});input.addEventListener('input',()=>render(false));input.addEventListener('keydown',event=>{if(event.key==='Escape')close();if(event.key==='Enter'&&!menu.hidden){event.preventDefault();menu.querySelector('.tt-option-row button')?.click()}});input.addEventListener('blur',()=>setTimeout(()=>{if(!menu.contains(document.activeElement))close()},150));
   }
   function refresh() {
     for (const [name,items] of Object.entries(lists())) {
@@ -121,14 +135,11 @@
       // Reassigning even the same list dismisses Chromium's open suggestions.
       // Background totals and other DOM updates must leave the field alone.
       const listId = 'tt-master-' + name;
-      if (input.getAttribute('list') !== listId) input.setAttribute('list',listId);
+      if (!input.dataset.ttMasterManage && input.getAttribute('list') !== listId) input.setAttribute('list',listId);
       if (input.getAttribute('autocomplete') !== 'off') input.setAttribute('autocomplete','off');
       const type = name === 'buyer' ? 'export_customers' : 'business_parties';
       if ((name === 'buyer' || name === 'parties' || roleFor(name)) && !input.dataset.ttMasterManage && !input.closest('#ttPartyInlineEditor')) {
-        const button = document.createElement('button'); button.type = 'button'; button.className = 'btn tt-master-inline'; button.textContent = 'Add / Edit';
-        button.title = `Manage ${name} in Super Admin masters`; button.style.cssText = 'margin:0;padding:5px 8px;font-size:13px;white-space:nowrap';
-        button.onclick = event => { event.preventDefault(); const name=category(input);const kind=name==='parties'?((masters.business_parties||[]).some(r=>clean(r.values?.[0]).toLowerCase()===clean(input.value).toLowerCase())?'party':(masters.export_customers||[]).some(r=>clean(r.values?.[0]).toLowerCase()===clean(input.value).toLowerCase())?'buyer':'party'):name;openEditor(input,kind); };
-        const entry=document.createElement('span');entry.className='tt-master-entry';input.before(entry);entry.append(input,button);input.dataset.ttMasterManage = '1';
+        input.dataset.masterRole=name;input.dataset.ttMasterManage='1';attachPartyMenu(input,name);
       }
     });
   }
@@ -139,6 +150,9 @@
   window.TT_ACCOUNTS_MASTER_CHOICES = {
     refresh: newMasters => { if (newMasters) { masters = newMasters; access.masters = newMasters; } refresh(); },
     partyNames, customerNames,
+    manageRole: (kind,name,onSaved) => openEditor({value:clean(name),dispatchEvent(){onSaved?.(this.value)}},kind),
+    attachPartyMenu,
+    manageInput(input,config){if(input&&!input.dataset.ttMasterManage){input.dataset.ttMasterManage='1';attachPartyMenu(input,'parties',config);}},
     manageParty: (name,onSaved) => openEditor({value:clean(name),dispatchEvent(){onSaved?.(this.value)}},'party'),
     manageCustomer: (name,onSaved) => openEditor({value:clean(name),dispatchEvent(){onSaved?.(this.value)}},'buyer')
   };

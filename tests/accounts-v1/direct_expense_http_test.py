@@ -247,6 +247,13 @@ require $argv[1];
     assert len(json.loads(books.read_text())['journals'])==count+1
     print('Optional descriptions, shipment-free export types, atomic card posting, rollback, reuse and replay passed.')
 
+    # Purpose-specific providers reject known rice parties without posting anything.
+    fixture_auth=json.loads(auth.read_text());fixture_auth['masters']['business_parties']=[{'id':'rice-broker','values':['Rice Broker','','Broker','','','','','','','','Active']},{'id':'electric-provider','values':['Electric Provider','','Service Provider;Broker','','','','','','','','Active']}];fixture_auth['masters']['mills']=[{'id':'office-fixture','values':['Office','','Office','','','Active','','TTI']}];auth.write_text(json.dumps(fixture_auth))
+    utility={'action':'save_utility_master','csrf':'fixture','entity':'TTI','utilityType':'ELECTRICITY','location':'OFFICE','locationName':'Office','payee':'Rice Broker','dueDay':10,'remindDays':7}
+    before=books.read_bytes();status,result=request('expenses_v1','?entity=TTI',utility);assert status in (403,422) and 'Service Provider' in result['error'],(status,result);assert books.read_bytes()==before
+    status,result=request('expenses_v1','?entity=TTI',{**utility,'payee':'Electric Provider'});assert status==200,(status,result)
+    assert json.loads(books.read_text())['journals']==json.loads(before)['journals'],'Master creation must not create an expense posting'
+
     # Corrupt nonempty books must not become empty books or get overwritten.
 
     for endpoint in ['expenses_v1','donations','rent_salary_v2']:

@@ -126,6 +126,25 @@ with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
         assert request({'action':'refresh_salary_draft','version':prepared['version']},'2027-04')[0]==422
         assert saved()['journals']==prepared_journals
         print('Salary drafts, restart persistence, amount caps, payable and advance balances, mixed payments, cheque validation, overdraft and atomic final retry passed')
+        # Recurring changes are durable drafts, then commit with the final journal.
+        state=saved();state['salaryMasters']['Bob']['status']='Active';state['salaryMasters']['Bob']['effectiveTo']='';(root/'data/accounts.json').write_text(json.dumps(state))
+        month='2027-05';sheet=request(None,month)[1]['salarySheet'];old_master=json.loads(json.dumps(saved()['salaryMasters']['Alice']));old_periods=json.loads(json.dumps(saved().get('salaryPeriods',{})))
+        edit={'action':'edit_salary_sheet_row','masterId':'Alice','version':sheet['version'],'name':'Alice','category':'OFFICE_STAFF','netSalary':2200,'zakatAmount':0,'otherAllowance':75}
+        status,data=request(edit,month);assert status==200,data
+        assert saved()['salaryMasters']['Alice']==old_master,'Drafts cannot overwrite master defaults'
+        assert request(edit,month)[0]==422,'Stale edits are rejected'
+        status,data=request({'action':'edit_salary_sheet_row','version':data['salarySheet']['version'],'name':'New Staff','category':'OFFICE_STAFF','netSalary':900,'zakatAmount':0,'otherAllowance':0},month);assert status==200,data
+        new_id=next(row['masterId'] for row in data['salarySheet']['rows'].values() if row['name']=='New Staff');assert new_id not in saved()['salaryMasters']
+        status,data=request({'action':'edit_salary_sheet_row','operation':'remove','masterId':'Bob','version':data['salarySheet']['version']},month);assert status==200,data
+        assert saved()['salaryMasters']['Bob']['status']=='Active'
+        for row in list(data['salarySheet']['rows'].values()):
+            status,data=request({'action':'save_salary_draft_payment','masterId':row['masterId'],'version':data['salarySheet']['version'],'amount':0,'date':'2027-05-31','paymentAccountId':'CASH|TTI'},month);assert status==200,data
+        before=saved();status,rejected=request({'action':'complete_salary_month','version':data['salarySheet']['version'],'date':'bad'},month);assert status==422,rejected;assert saved()==before,'Failed completion rolls back all changes'
+        status,data=request({'action':'complete_salary_month','version':data['salarySheet']['version'],'date':'2027-05-31'},month);assert status==200,data
+        assert saved()['salaryMasters']['Alice']['monthlyAmount']==2200 and saved()['salaryMasters']['Alice']['zakatAmount']==0
+        assert saved()['salaryMasters']['Bob']['status']=='Inactive' and saved()['salaryMasters'][new_id]['monthlyAmount']==900
+        for key,value in old_periods.items():assert saved()['salaryPeriods'][key]==value,'Past posted salaries remain unchanged'
+        future=request(None,'2027-06')[1]['salarySheet']['rows'];assert future['Alice']['netSalary']==2200 and new_id in future and 'Bob' not in future
         if os.getenv('TT_QA_BROWSER')=='1':
             # Browser setup is independent of the master-edit scenarios above.
             state=saved();state['salaryMasters']=json.loads(json.dumps(initial['salaryMasters']))
@@ -134,7 +153,7 @@ with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
             with sync_playwright() as pw:
                 browser=pw.chromium.launch(headless=True);page=browser.new_page();errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
                 page.goto(f'http://127.0.0.1:{port}/accounts/index.html');page.locator('[data-expense="salary"]').click()
-                page.locator('#rsAdvanceIcon').wait_for();assert page.locator('#rsPrepare').inner_text().startswith('▦ Prepare Salary for ')
+                page.locator('#rsAdvanceIcon').wait_for();assert page.locator('#rsPrepare').inner_text()=='▦ PREPARE SALARY'
                 page.locator('#rsAdvanceIcon').click();assert page.locator('#rsAdvanceAccount').input_value()=='bank-b','Payment default wins over receipt default'
                 assert page.locator('#rsAdvanceAccountDetails [data-method]').input_value()=='CHEQUE'
                 assert page.locator('#rsAdvanceAccountDetails [data-method] option').count()==2

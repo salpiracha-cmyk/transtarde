@@ -165,7 +165,10 @@
   }
 
   function searchable(select) {
-    if (select.dataset.ttSearchable || select.dataset.ttNative || select.multiple || select.options.length < 2 || select.closest('.entitySwitcher')) return;
+    if (select.dataset.ttSearchable || select.dataset.ttNative || select.multiple || (select.options.length < 2 && !select._ttMasterControl) || select.closest('.entitySwitcher')) return;
+    if(!select._ttMasterControl){const label=select.closest('label'),add=label?.querySelector('button[id*="Add"],button[data-add-master]');if(add){const name=(label.childNodes[0]?.textContent||'Item').trim();select._ttMasterControl={label:name,add:()=>add.click(),canAdd:()=>!add.hidden&&!add.disabled};add.classList.add('tt-dropdown-master-launcher');}}
+    const roleKinds={ttSdSupplier:'supplier',ttSdBroker:'broker'};const kind=roleKinds[select.id];
+    if(kind){const manager=select._ttMasterControl||{},access=window.TT_ACCOUNT_ACCESS||{};manager.edit=(value)=>{const row=(access.masters?.business_parties||[]).find(r=>r.id===value);if(!row)return;window.TT_ACCOUNTS_MASTER_CHOICES?.manageRole(kind,row.values[0],name=>{const option=[...select.options].find(o=>o.value===value);if(option)option.textContent=name;select.dispatchEvent(new Event('change',{bubbles:true}));});};manager.canEdit=option=>(access.super||(access.masterPermissions?.business_parties||[]).includes('Edit'))&&(access.masters?.business_parties||[]).some(r=>r.id===option.value);select._ttMasterControl=manager;}
     select.dataset.ttSearchable = '1';
     select.classList.add('tt-native-select');
     const wrap = document.createElement('div');
@@ -238,8 +241,11 @@
         button.type = 'button';
         button.textContent = option.textContent.trim();
         button.onclick = () => { select.value = option.value; input.value = option.textContent.trim(); menu.hidden = true; select.dispatchEvent(new Event('input', {bubbles:true})); select.dispatchEvent(new Event('change', {bubbles:true})); };
-        menu.appendChild(button);
+        const manager=select._ttMasterControl;
+        if(manager?.edit&&(!manager.canEdit||manager.canEdit(option))){const line=document.createElement('div');line.className='tt-option-row';const edit=document.createElement('button');edit.type='button';edit.className='tt-option-edit';edit.textContent='✎';edit.title='Edit '+option.textContent.trim();edit.setAttribute('aria-label',edit.title);edit.onclick=()=>{menu.hidden=true;manager.edit(option.value,option.textContent.trim());};line.append(button,edit);menu.append(line);}else menu.appendChild(button);
       });
+      const manager=select._ttMasterControl;
+      if(manager?.add&&(!manager.canAdd||manager.canAdd())){const add=document.createElement('button');add.type='button';add.className='tt-option-add';add.textContent='+ Add '+manager.label;add.onclick=()=>{menu.hidden=true;manager.add();};menu.append(add);}
       menu.hidden = false;
       activeSearchMenu = menu;
       positionMenu();
@@ -298,6 +304,7 @@
   function salaryView(root) {
     const editor = (root.matches?.('#expenseEditor') ? root : root.closest?.('#expenseEditor')) || q('#expenseEditor', root);
     if (!editor || !q('.ttrs', editor)) return;
+    if(q('#rsMasterSetup',editor))return; // Salary renderer owns its setup popup and visibility.
     const workspace = editor.closest('.workspace');
     if (!workspace?.classList.contains('active')) return;
     if (navigationMode !== 'form') return;
@@ -329,9 +336,21 @@
     qa('[data-editor-back], .tt-editor-bar .tt-clean-close', workspace).forEach(button => makeCloseButton(button, workspace));
   }
 
+  function normalizeRowControls(root=document){
+    const buttons=[...(root.matches?.('button')?[root]:[]),...qa('button',root)];
+    buttons.forEach(button=>{
+      if(button.closest('.tt-select-menu,dialog form')||button.dataset.ttControlStyle)return;
+      const label=button.textContent.trim();
+      if(button.matches('[data-add],[data-add-debit],#jvwAddLine')||/^(?:\+\s*)?Add (?:another |a )?(?:row|line|charge|deduction|addition|allocation|expense line|debit|item)\b/i.test(label)){button.dataset.ttActionLabel=label;button.classList.add('tt-row-add');button.textContent='+';button.title=label;button.setAttribute('aria-label',label);button.dataset.ttControlStyle='add';}
+      else if(/^(?:Remove|Delete|−|✕|×)$/i.test(label)&&button.closest('tr,.dex-row,.jvw-line,.am-debit-row,[data-charge-row]')){button.dataset.ttActionLabel=label;button.classList.add('tt-row-remove');button.textContent='−';button.title=label+' row';button.setAttribute('aria-label',label+' row');button.dataset.ttControlStyle='remove';const row=button.closest('tr,.dex-row,.jvw-line,.am-debit-row,[data-charge-row]');if(row.tagName==='TR')row.firstElementChild?.prepend(button);else row.prepend(button);}
+      else if(/^Edit$/i.test(label)){button.dataset.ttActionLabel=label;button.classList.add('tt-row-edit');button.textContent='✎';button.title='Edit';button.setAttribute('aria-label','Edit');button.dataset.ttControlStyle='edit';}
+    });
+  }
+
   function scan(root = document) {
     captureLateLaunchers();
     qa('select', root).forEach(searchable);
+    normalizeRowControls(root);
     simplifyCommodity(root);
     markGenerated(root);
     normalizeHeaderCloseButtons(root);
@@ -420,6 +439,8 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, {once:true}); else init();
 
   window.TT_ACCOUNTS_CLEAN_UI = {
+    manageSelect(select,config){if(!select)return;select._ttMasterControl=config;searchable(select);},
+    normalizeRowControls,
     installed: true,
     cleanIconHub: true,
     popupWorkspaces: true,

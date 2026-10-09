@@ -63,7 +63,7 @@ function smw_sheet(array $s,string $entity,string $month):array {
     $rows=(array)($stored['rows']??[]);
     $prepared=array_filter($rows,static fn($row)=>!empty($row['prepared']));
     $reviewed=array_filter($rows,static fn($row)=>!empty($row['reviewed']));
-    if(!$prepared&&!$reviewed){$fresh['version']=(int)($stored['version']??0)+1;return $fresh;}
+    if(!$prepared&&!$reviewed&&empty($stored['masterChanges'])){$fresh['version']=(int)($stored['version']??0)+1;return $fresh;}
     $stored['masterChanged']=true;
     $stored['canRefreshFromMaster']=!$prepared;
     return $stored;
@@ -73,6 +73,34 @@ function smw_check_baseline(array $s,array $row):void {
     $actual=$period===null?'':rsv2_fingerprint($period);
     if($actual!==$row['baseline'])throw new DomainException('Salary balances changed after this sheet was opened. Refresh the sheet before completing it.');
 }
+/** Monthly recurring edits remain drafts until the final successful posting. */
+function smw_edit_row(array &$s,string $entity,string $month,array $b,array $u):array {
+    $key=$entity.'|'.$month;$sheet=smw_sheet($s,$entity,$month);
+    if(($sheet['status']??'')==='Completed')throw new DomainException('This month is completed. Edit future Salary Master or amend its Post ID.');
+    if((int)($b['version']??-1)!==$sheet['version']||!empty($sheet['masterChanged']))throw new DomainException('Salary data changed. Refresh this draft first.');
+    $id=trim((string)($b['masterId']??''));$row=$sheet['rows'][$id]??null;$master=$s['salaryMasters'][$id]??null;
+    if($row&&!empty($row['prepared']))throw new DomainException('This salary was already posted. Keep its history and edit future Salary Master instead.');
+    if($master&&($master['entity']??'')!==$entity)throw new DomainException('Select staff in this company.');
+    if(($b['operation']??'')==='remove'){
+        if(!$row)throw new DomainException('Select a salary row.');
+        $sheet['masterChanges'][$id]=['operation'=>'remove','baseline'=>isset($master)?rsv2_fingerprint($master):''];unset($sheet['rows'][$id]);
+    }else{
+        $name=trim((string)($b['name']??$row['name']??''));$category=rsv2_cat((string)($b['category']??$row['category']??'OFFICE_STAFF'));
+        if($name==='')throw new DomainException('Enter the staff name.');
+        if($entity!=='TTI'&&$category==='MILL_STAFF')throw new DomainException('Mill staff belong to TTI.');
+        foreach($sheet['rows'] as $otherId=>$other)if($otherId!==$id&&rsv2_norm($other['name'])===rsv2_norm($name))throw new DomainException('This person already appears in this month.');
+        foreach((array)$s['salaryMasters'] as $otherId=>$other)if(($other['entity']??'')===$entity&&$otherId!==$id&&($other['status']??'Active')==='Active'&&rsv2_norm($other['name'])===rsv2_norm($name))throw new DomainException('This person already exists in Salary Master. Edit their existing row.');
+        $amounts=[];foreach(['netSalary','zakatAmount','otherAllowance'] as $field){$value=$b[$field]??$row[$field]??0;if(!is_numeric($value)||!is_finite((float)$value)||(float)$value<0||(float)$value>100000000000)throw new DomainException('Enter valid recurring salary amounts.');$amounts[$field]=round((float)$value,2);}
+        if(array_sum($amounts)<=0)throw new DomainException('Total recurring salary must be positive.');
+        if($id==='')$id='SALM-'.bin2hex(random_bytes(8));elseif(!$row)throw new DomainException('Select a salary row.');
+        $treatment=rsv2_treatment((string)($b['accountingTreatment']??$row['accountingTreatment']??'STAFF_COST'),$category);
+        $next=array_merge($master??[],['id'=>$id,'entity'=>$entity,'name'=>$name,'category'=>$category,'monthlyAmount'=>$amounts['netSalary'],'zakatAmount'=>$amounts['zakatAmount'],'otherAllowance'=>$amounts['otherAllowance'],'accountingTreatment'=>$treatment,'productionCostEligible'=>$category==='MILL_STAFF'&&$treatment==='STAFF_COST','status'=>'Active','effectiveFrom'=>$master['effectiveFrom']??$month.'-01','effectiveTo'=>$master['effectiveTo']??'']);
+        $fresh=rsv2_salary_row($s,$next,$month);$fresh['baseline']='';$fresh['advanceApplied']=min($fresh['totalDue'],$fresh['advanceSuggested']);$fresh['originalAdvanceApplied']=$fresh['advanceApplied'];$fresh['outstanding']=round(max(0,$fresh['totalDue']-$fresh['advanceApplied']-$fresh['paidAfterPrepare']),2);$fresh['reviewed']=false;$fresh['payment']=null;
+        $sheet['rows'][$id]=$fresh;$sheet['masterChanges'][$id]=['operation'=>'update','master'=>$next,'baseline'=>$master?rsv2_fingerprint($master):''];
+    }
+    $sheet['version']++;$sheet['updatedAt']=gmdate('c');$s['salarySheets'][$key]=$sheet;return ['masterId'=>$id,'draft'=>true];
+}
+
 function smw_action(array &$s,string $entity,string $month,array $b,array $u,array $names):array {
     $key=$entity.'|'.$month;$sheet=smw_sheet($s,$entity,$month);
     $complete=($b['action']??'')==='complete_salary_month';
@@ -114,6 +142,8 @@ function smw_action(array &$s,string $entity,string $month,array $b,array $u,arr
         $s['salarySheets'][$key]=$sheet;return ['saved'=>true,'masterId'=>$mid];
     }
     if(!$sheet['rows'])throw new DomainException('There are no active salary records for this month.');
+    foreach((array)($sheet['masterChanges']??[]) as $mid=>$change){$current=$s['salaryMasters'][$mid]??null;if(($current?rsv2_fingerprint($current):'')!==$change['baseline'])throw new DomainException('Salary Master changed. Refresh before posting.');}
+
     $lines=[];$date=rsv2_date((string)($b['date']??gmdate('Y-m-d')));
     foreach($sheet['rows'] as $mid=>$row){
         if(!$row['reviewed'])throw new DomainException('Review and save the payment or zero-payment deferral for '.$row['name'].'.');
@@ -141,6 +171,13 @@ function smw_action(array &$s,string $entity,string $month,array $b,array $u,arr
     }
     if(!$lines)throw new DomainException('This month has no new accounting entries to post.');
     $jid=rsv2_journal($s,$entity,$date,'SALARY_MONTH_COMPLETED','SAL-'.$month,'Salary completed — '.$month,$lines,$u,['month'=>$month,'salarySheetKey'=>$key]);
+    foreach((array)($sheet['masterChanges']??[]) as $mid=>$change){
+        $before=$s['salaryMasters'][$mid]??null;
+        if($change['operation']==='remove'){if(!$before)continue;$after=$before;$after['status']='Inactive';$after['effectiveTo']=rsv2_prev_day($month.'-01');}
+        else $after=$change['master'];
+        $after['updatedAt']=gmdate('c');$after['updatedBy']=(string)($u['full_name']??$u['username']??'Accounts');$s['salaryMasters'][$mid]=$after;
+        $s['salaryMasterHistory'][]=['masterId'=>$mid,'month'=>$month,'journalId'=>$jid,'operation'=>$change['operation'],'before'=>$before,'after'=>$after,'userId'=>$u['id']??0,'at'=>gmdate('c')];
+    }
     foreach($sheet['rows'] as $mid=>$row){
         $pid=$row['periodId'];$applied=$row['advanceApplied'];
         if(!$row['prepared']){
