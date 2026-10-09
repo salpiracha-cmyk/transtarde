@@ -281,7 +281,9 @@ test('authenticated Accounts live smoke: professional desk and popup workflows',
   await expect(page.locator('#ws-receivables .tt-prev-search')).toBeVisible();
   await closeWorkspace(page);
 
-  await deskAction(page, 'ledgers', 'Party Ledgers');
+  await deskAction(page, 'ledgers', 'Ledger');
+  await expect(page.locator('#tal-view')).toBeVisible();
+  await page.locator('#tal-view').selectOption('party');
   await expect(page.locator('#tal-party')).toBeVisible({ timeout: 30_000 });
   await expect(page.locator('#tal-print')).toBeVisible();
   await expect(page.locator('#tal-export')).toContainText('Excel');
@@ -289,14 +291,14 @@ test('authenticated Accounts live smoke: professional desk and popup workflows',
   await expect(page.locator('#tal-account')).toHaveCount(0);
   await activate(page.locator('#tal-close'));
 
-  await deskAction(page, 'ledgers', 'Account Ledgers');
+  await deskAction(page, 'ledgers', 'Ledger');
   await expect(page.locator('#tal-account')).toBeVisible({ timeout: 30_000 });
   await activate(page.locator('#tal-close'));
 
-  await deskAction(page, 'registers', 'Bill & Invoice Registers');
-  await expect(page.locator('#ttSearchLayer')).toBeVisible();
-  await expect(page.locator('#ttUniversalSearch')).toBeVisible();
-  await activate(page.locator('#ttSearchLayer .tt-window-close'));
+  await deskAction(page, 'ledgers', 'Post ID Register');
+  await expect(page.locator('#tal-filter')).toBeVisible();
+  await expect(page.locator('#tal-view')).toHaveCount(0);
+  await activate(page.locator('#tal-close'));
 
   await deskAction(page, 'routine', 'Pay Expense');
   await expect(page.locator('#dexPayee')).toBeVisible({ timeout: 30_000 });
@@ -541,7 +543,8 @@ test('deployed Bank Entry, Bank Finance and subaccount forms respect read-only a
   await expect(page.locator('#amWindow')).toContainText('Principal outstanding');
   await expect(page.locator('#amWindow [data-facility]')).toHaveCount(0);
   await activate(page.locator('#amWindow [data-close]'));
-  await deskAction(page,'ledgers','Manage Subaccounts');
+  await deskAction(page,'ledgers','Ledger');
+  await activate(page.locator('#tal-manage'));
   await expect(page.locator('#amWindow')).toContainText('Withholding Tax Report');
   await expect(page.locator('#amWindow [data-add]')).toHaveCount(0);
   await expect(page.locator('#amWindow [data-edit]')).toHaveCount(0);
