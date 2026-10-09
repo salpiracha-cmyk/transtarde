@@ -265,7 +265,7 @@ def run():
     page.locator('[data-tt-area="exports"]').click()
     page.get_by_role('button',name=re.compile('Transport Bill')).click();page.locator('#ttBillDesk [data-post]').click()
     page.locator('#ttBillShipmentQuery').fill('FIXTURE');page.locator('#ttBillShipmentGo').click();page.locator('[data-tt-pick-shipment]').first.click()
-    page.locator('#ttShipmentBillVendor').wait_for();page.wait_for_function("document.querySelector('#ttShipmentBillVendor').getAttribute('list')==='tt-master-transporter'")
+    page.locator('#ttShipmentBillVendor').wait_for();page.wait_for_function("document.querySelector('#ttShipmentBillVendor').getAttribute('role')==='combobox' && document.querySelector('#ttShipmentBillVendor').dataset.masterRole==='transporter'")
     # Browser suggestions must survive unrelated totals/master refreshes.
     page.locator('#ttShipmentBillVendor').click()
     page.evaluate("""() => { window.selectorMutations=[]; const input=document.querySelector('#ttShipmentBillVendor'); new MutationObserver(records=>window.selectorMutations.push(...records.map(r=>r.attributeName))).observe(input,{attributes:true,attributeFilter:['list','autocomplete']}); window.TT_ACCOUNTS_MASTER_CHOICES.refresh(); const marker=document.createElement('span'); marker.id='dropdownBackgroundUpdate'; document.body.append(marker); marker.textContent='Unrelated background total'; }""")
@@ -277,7 +277,7 @@ def run():
     assert max(positions)-min(positions)<2,positions
     assert page.locator('[name=invoiceNo]').get_attribute('list') is None,'Bill number was treated as supplier'
     page.locator('#ttShipmentBillVendor').fill('Cedar Horizon Haulage')
-    page.locator('#ttShipmentBillVendor + .tt-master-inline').click();assert page.locator('#ttPartyInlineEditor h3').inner_text()=='ADD TRANSPORTER'
+    page.locator('.tt-party-menu:not([hidden]) .tt-option-add').click();assert page.locator('#ttPartyInlineEditor h3').inner_text()=='ADD TRANSPORTER'
     page.locator('#ttPartyInlineEditor [name=partyName]').fill('Cedar Horizon Haulage');page.locator('#ttPartyInlineEditor [type=submit]').click();page.wait_for_function("!document.querySelector('#ttPartyInlineEditor').open || document.querySelector('.tt-party-editor-error').textContent.length>0");assert not page.locator('#ttPartyInlineEditor').is_visible(),page.locator('.tt-party-editor-error').inner_text()
     page.locator('[name=containers]').fill('3');page.locator('[name=invoiceNo]').fill('BROWSER-TRANSPORT');page.locator('[name=rate]').fill('38000');page.locator('[name=remarks]').fill('Fixture transport narration')
     page.locator('#ttShipmentBillAdd').click();page.locator('[data-description]').fill('Fixture commission');page.locator('[data-amount]').fill('1500')
