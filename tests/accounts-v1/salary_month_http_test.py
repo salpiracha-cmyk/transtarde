@@ -157,7 +157,7 @@ with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
                 page.locator('#rsAdvanceIcon').click();assert page.locator('#rsAdvanceAccount').input_value()=='bank-b','Payment default wins over receipt default'
                 assert page.locator('#rsAdvanceAccountDetails [data-method]').input_value()=='CHEQUE'
                 assert page.locator('#rsAdvanceAccountDetails [data-method] option').count()==2
-                page.locator('#rsSalaryBack').click();page.locator('#rsPrepare').click();page.locator('#rsMonth').fill('2027-01');page.locator('#rsMonth').dispatch_event('change')
+                page.evaluate("TT_RENT_SALARY_UI.open('salary')");page.locator('#rsPrepare').click();page.locator('#rsMonth').fill('2027-01');page.locator('#rsMonth').dispatch_event('change')
                 page.locator('[data-rs-draft-pay="Bob"]').click();assert page.locator('#rsPaySalAmt').input_value()=='1050'
                 page.locator('[name="rsPaymentMode"][value="BANK"]').check();assert page.locator('#rsPaySalBank').input_value()=='bank-b'
                 page.locator('#rsPaySalBankDetails [data-method]').select_option('ONLINE_BANKING');page.locator('#rsPaySalAmt').fill('500');page.locator('#rsSplitCash').fill('250');page.locator('#rsSplitBank').fill('250');page.locator('#rsPaySalBtn').click()

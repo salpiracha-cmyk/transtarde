@@ -9,6 +9,7 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium}=require('
  await date.press('8');assert.equal(await date.inputValue(),'08-10-2026');
  await date.fill('31-02-2026');assert.equal(await page.locator('#requiredDate').inputValue(),'');assert.equal(await date.evaluate(el=>el.checkValidity()),false);
  await date.fill('');assert.equal(await date.inputValue(),'__-__-____');assert.equal(await date.evaluate(el=>el.checkValidity()),false);
+ await date.fill('09-10-2026');await date.press('ControlOrMeta+A');await date.press('1');assert.equal(await date.evaluate(el=>el.selectionStart),1);await date.pressSequentially('5102026');assert.equal(await date.inputValue(),'15-10-2026');assert.equal(await page.locator('#requiredDate').inputValue(),'2026-10-15');
  const optional=page.locator('#optionalDate').locator('..').locator('input[type=text]');assert.equal(await optional.evaluate(el=>el.checkValidity()),true);
  await date.fill('09');await page.locator('#requiredDate').evaluate(el=>el.min='2026-01-01');await page.waitForTimeout(30);assert.equal(await date.inputValue(),'09-__-____','constraint changes preserve unfinished entry');
  await date.evaluate(el=>{const event=new Event('paste',{bubbles:true,cancelable:true});Object.defineProperty(event,'clipboardData',{value:{getData:()=> '2026-12-31'}});el.dispatchEvent(event);});assert.equal(await date.inputValue(),'31-12-2026');assert.equal(await page.locator('#requiredDate').inputValue(),'2026-12-31');

@@ -239,7 +239,8 @@ test('authenticated Accounts live smoke: professional desk and popup workflows',
   await expect(page.locator('#rsAdvanceIcon')).toBeVisible();
   await activate(page.locator('#rsAdvanceIcon'));
   await expect(page.locator('#rsAdvanceAmount')).toBeVisible();
-  await activate(page.locator('#rsSalaryBack'));
+  await closeWorkspace(page);
+  await deskAction(page, 'routine', 'Salaries & Staff');
   await activate(page.locator('#rsPrepare'));
   await expect(page.locator('#expenseEditor h1')).toContainText('TOTAL SALARY PKR');
   await expect(page.locator('#rsMonth')).toBeVisible();

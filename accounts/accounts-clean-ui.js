@@ -220,7 +220,13 @@
     });
     const syncInput = () => { input.value = select.value === '' ? '' : selectedText(); };
     syncInput();
-    let visibleOptions = [];
+    let visibleOptions = [], activeIndex = -1, choiceButtons = [];
+    const highlight = index => {
+      activeIndex = index;
+      choiceButtons.forEach((button,i) => { button.classList.toggle('tt-keyboard-active',i===index);button.setAttribute('aria-selected',String(i===index)); });
+      const button=choiceButtons[index];
+      if(button){input.setAttribute('aria-activedescendant',button.id);button.scrollIntoView({block:'nearest'});}else input.removeAttribute('aria-activedescendant');
+    };
     const render = (showAll = false) => {
       closeMenus();
       const portal=input.closest('dialog')||document.body;if(menu.parentElement!==portal)portal.append(menu);
@@ -235,11 +241,15 @@
       const contains = options.filter(option => option.textContent.trim().toLowerCase().includes(term));
       options = (starts.length ? starts : contains).slice(0, 100);
       visibleOptions = options;
+      activeIndex = -1; choiceButtons = [];
+      input.removeAttribute('aria-activedescendant');
       menu.replaceChildren();
       if (!options.length) { const empty = document.createElement('div'); empty.className = 'tt-select-empty'; empty.textContent = 'No matching option'; menu.appendChild(empty); }
       options.forEach(option => {
         const button = document.createElement('button');
         button.type = 'button';
+        button.id = 'tt-select-choice-'+Math.random().toString(36).slice(2);
+        button.setAttribute('role','option');choiceButtons.push(button);
         button.textContent = option.textContent.trim();
         button.onclick = () => { select.value = option.value; input.value = option.textContent.trim(); menu.hidden = true; select.dispatchEvent(new Event('input', {bubbles:true})); select.dispatchEvent(new Event('change', {bubbles:true})); };
         const manager=select._ttMasterControl;
@@ -249,6 +259,7 @@
       if(manager?.add&&(!manager.canAdd||manager.canAdd())){const add=document.createElement('button');add.type='button';add.className='tt-option-add';add.textContent='+ Add '+manager.label;add.onclick=()=>{menu.hidden=true;manager.add();};menu.append(add);}
       menu.hidden = false;
       activeSearchMenu = menu;
+      input.setAttribute('aria-expanded','true');
       positionMenu();
     };
     input.onfocus = () => {
@@ -262,13 +273,19 @@
     input.oninput = () => render(false);
     input.onkeydown = event => {
       if (event.key === 'Escape') { menu.hidden = true; syncInput(); return; }
+      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+        event.preventDefault();event.stopPropagation();
+        if(menu.hidden)render(true);
+        if(choiceButtons.length)highlight(activeIndex<0?(event.key==='ArrowDown'?0:choiceButtons.length-1):(activeIndex+(event.key==='ArrowDown'?1:-1)+choiceButtons.length)%choiceButtons.length);
+        return;
+      }
       if (event.key === 'Enter') {
         // A searchable control lives inside operational forms.  Never let
         // Enter accidentally submit/close the whole form or return home.
         event.preventDefault();
         event.stopPropagation();
         const exact=visibleOptions.find(option=>option.textContent.trim().toLowerCase()===input.value.trim().toLowerCase());
-        const option=exact||visibleOptions[0];
+        const option=visibleOptions[activeIndex]||exact||visibleOptions[0];
         if(option){select.value=option.value;syncInput();menu.hidden=true;select.dispatchEvent(new Event('input',{bubbles:true}));select.dispatchEvent(new Event('change',{bubbles:true}));}
       }
     };
@@ -305,7 +322,7 @@
   function salaryView(root) {
     const editor = (root.matches?.('#expenseEditor') ? root : root.closest?.('#expenseEditor')) || q('#expenseEditor', root);
     if (!editor || !q('.ttrs', editor)) return;
-    if(q('#rsMasterSetup',editor))return; // Salary renderer owns its setup popup and visibility.
+    if(q('.ttrs-entry-flow',editor))return; // Salary renderer owns its setup popup and visibility.
     const workspace = editor.closest('.workspace');
     if (!workspace?.classList.contains('active')) return;
     if (navigationMode !== 'form') return;

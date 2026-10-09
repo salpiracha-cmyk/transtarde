@@ -160,7 +160,8 @@
   Object.defineProperty(input,'value',{configurable:true,get(){return value.get.call(this)},set(v){value.set.call(this,v);sync();}});
   const commit=()=>{value.set.call(input,iso(text.value));validity();input.dispatchEvent(new Event('input',{bubbles:true}));};
   text.addEventListener('beforeinput',event=>{if(text.readOnly||text.disabled||event.isComposing)return;const type=event.inputType;if(!type.startsWith('insert')&&!type.startsWith('delete'))return;event.preventDefault();let start=text.selectionStart||0,end=text.selectionEnd||start,out=masked(text.value).split('');
-   if(start===0&&end===10&&type.startsWith('insert')){text.value=masked(event.data||event.dataTransfer?.getData('text/plain')||'');text.setSelectionRange(10,10);commit();return;}
+   const inserted=event.data||event.dataTransfer?.getData('text/plain')||'';
+   if(start===0&&end===10&&type.startsWith('insert')&&/^\d{4}-\d{2}-\d{2}$/.test(inserted)){text.value=masked(inserted);text.setSelectionRange(10,10);commit();return;}
    if(end>start)slots.filter(at=>at>=start&&at<end).forEach(at=>out[at]='_');
    if(type.startsWith('delete')){if(start===end){const at=type==='deleteContentBackward'?[...slots].reverse().find(at=>at<start):slots.find(at=>at>=start);if(at!==undefined){out[at]='_';start=at;}}}
    else{const digits=(event.data||event.dataTransfer?.getData('text/plain')||'').replace(/\D/g,'');for(const digit of digits){const at=slots.find(at=>at>=start);if(at===undefined)break;out[at]=digit;start=at+1;}if(start===2||start===5)start++;}

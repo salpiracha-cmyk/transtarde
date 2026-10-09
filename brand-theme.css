@@ -170,4 +170,29 @@ button:not(.danger):not(.red):not(.xBtn):not(.optionMinus).active{
 
 .tte-master-popup{width:min(900px,94vw);max-height:90vh;overflow:auto;border:0;border-radius:16px;padding:16px;box-shadow:0 20px 60px #102c3440}.tte-master-popup::backdrop{background:#102c3466}.tte-master-popup .tte-box{margin:0}
 
+/* Accounts row geometry: controls occupy cells rather than floating over entry. */
+@media screen {
+ .jvw,.jvw *,.am-box,.am-box *,#ttPartyInlineEditor,#ttPartyInlineEditor *{box-sizing:border-box}
+ .jvw-line{grid-template-columns:34px minmax(230px,2.2fr) minmax(180px,2fr) minmax(100px,1fr) minmax(125px,1fr) minmax(125px,1fr)!important;align-items:start}
+ .jvw-line>*{min-width:0;max-width:100%}.jvw-line>[type=hidden]{display:none!important}
+ .jvw-line>.tt-row-remove-slot{grid-column:auto;align-self:start;padding-top:7px}
+ .jvw-line .jvw-manage-party{min-height:28px;padding:4px 8px;font-size:11px;margin-top:5px}
+ .jvw input[type=checkbox],.jvw input[type=radio],.am-box input[type=checkbox],.am-box input[type=radio],#ttPartyInlineEditor input[type=checkbox],#ttPartyInlineEditor input[type=radio]{width:17px!important;height:17px!important;min-height:17px!important;max-width:17px;padding:0!important;flex:0 0 17px;margin:0!important;vertical-align:middle;accent-color:#16804a}
+ #ttPartyInlineEditor{max-height:88vh;overflow:auto;background:#f7faf8}
+ #ttPartyInlineEditor form>label{display:grid;gap:6px;margin:12px 0}
+ #ttPartyInlineEditor form>label>input,#ttPartyInlineEditor form>label>select,#ttPartyInlineEditor textarea{width:100%;min-height:42px;padding:9px;border:1px solid #cbd9d1;border-radius:7px}
+ .tt-party-roles{border:1px solid #d2e0d8;border-radius:9px;padding:12px;display:grid;grid-template-columns:1fr 1fr;gap:10px}
+ #ttPartyInlineEditor .tt-party-role{display:flex!important;flex-direction:row!important;align-items:center;gap:8px;font-size:12px;line-height:1.4;margin:0!important;min-height:28px}
+ .am-grid label>.tt-search-select,.jvw-line .tt-search-select{margin-top:0!important}
+ .am-bank-header{grid-template-columns:1fr 1fr!important}
+ .am-debit-row{grid-template-columns:30px minmax(220px,2fr) minmax(160px,1.1fr) minmax(180px,1.5fr) minmax(140px,1fr)!important;align-items:start;padding:12px;gap:10px}
+ .am-debit-row>.tt-row-remove-slot{grid-column:auto;align-self:start;margin-top:27px}
+ .am-debit-row [data-row-method]{min-height:30px;font-size:12px;padding:4px 8px}
+ .am-add-line,.ttrs-add-line{display:flex;justify-content:flex-start!important;margin-top:10px}
+ .ttrs-month{justify-content:center!important;margin:12px auto 20px}.ttrs-month input{min-height:42px;max-width:240px}
+ .ttrs table td,.ttrs table th{vertical-align:middle}.ttrs table td:has(.tt-row-remove){width:38px;min-width:38px;padding:8px 4px}
+ .tt-select-menu .tt-keyboard-active{background:#dbf1e2!important;color:#124d2c;outline:2px solid #16804a;outline-offset:-2px}
+ @media(max-width:800px){.am-debit-row{grid-template-columns:30px minmax(0,1fr)!important}.am-debit-row>label{grid-column:2}.am-debit-row>.tt-row-remove-slot{grid-column:1;grid-row:1}.tt-party-roles{grid-template-columns:1fr}.am-bank-header{grid-template-columns:1fr!important}}
+}
+
 tr>td.tt-row-remove-slot,tr>th.tt-row-remove-slot{display:table-cell;width:38px!important;min-width:38px!important;padding:6px!important;vertical-align:top}tr>.tt-row-remove-slot .tt-row-remove{margin:0!important}

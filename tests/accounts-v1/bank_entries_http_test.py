@@ -96,6 +96,17 @@ require $argv[1];
     status,register=request('accounts_ledger_browser','?entity=TTI&account=POSTS&from=2026-10-01&to=2026-10-31')
     assert status==200 and next(r for r in register['rows'] if r['voucher']==mj['id'])['party'].casefold()=='caretaker'
 
+    # Owner batch: row-level cheques and optional narration, all committed atomically.
+    rowpay={**bankpay,'reference':'','narration':'','debitRows':[{'payeeId':pid,'amount':10,'bankPaymentMethod':'CHEQUE','chequeNo':'ROW-101','chequeDate':'2026-10-07','narration':'First payment'},{'payeeId':pid,'amount':20,'bankPaymentMethod':'CHEQUE','chequeNo':'ROW-102','chequeDate':'2026-10-07','narration':''}]}
+    posted,_=good(**rowpay);rowj=posted['result']['journal'];banklines=[l for l in rowj['lines'] if l['account']=='1110']
+    assert [(l['credit'],l['chequeNo']) for l in banklines]==[(10,'ROW-101'),(20,'ROW-102')]
+    assert rowj['totalDebit']==rowj['totalCredit']==30 and rowj['lines'][0]['memo']=='First payment'
+    before=books.read_bytes();assert mutate('bank_entries',**rowpay)[0]==422 and books.read_bytes()==before
+    duplicate={**rowpay,'debitRows':[{**r,'chequeNo':'ROW-103'} for r in rowpay['debitRows']]}
+    assert mutate('bank_entries',**duplicate)[0]==422 and books.read_bytes()==before
+    petty,_=good(action='post',type='PETTY_CASH',bankId='BANK-1',date='2026-10-07',amount=50,reference='',narration='')
+    assert [(l['account'],l['debit'],l['credit']) for l in petty['result']['journal']['lines']]==[('1120',50,0),('1110',0,50)]
+
     before=books.read_bytes();assert mutate('bank_entries',**{**bankpay,'reference':'BAD-SPLIT','amount':31})[0]==422 and books.read_bytes()==before
     assert mutate('bank_entries',**{**bankpay,'reference':'UNCONFIGURED','debitRows':[{'payeeId':'EXP|talha','amount':30}]})[0]==422
     purpose,_=good(**{**bankpay,'reference':'MIXED-PURPOSE','debitRows':[{'payeeId':pid,'accountCode':'7210','amount':10},{'payeeId':pid,'accountCode':'6900','amount':20}]});assert [l['account'] for l in purpose['result']['journal']['lines']]==['7210','6900','1110']
