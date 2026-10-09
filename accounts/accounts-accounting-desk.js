@@ -385,7 +385,8 @@
     const host=layer('ttCustomerReceivables','Customer / Export Receivables'),body=q('.tt-window-body',host);
     const rows=register?.rows||[],drafts=register?.drafts||[];
     const table=items=>`<div class="tableWrap"><table><thead><tr><th>Company</th><th>Customer</th><th>Invoice</th><th>Date</th><th>Currency</th><th>Invoice amount</th><th>Received / applied</th><th>Outstanding</th><th>Status</th></tr></thead><tbody>${items.map(r=>`<tr><td>${esc(r.entity)}</td><td>${esc(r.label)}</td><td>${esc(r.reference)}</td><td>${esc(/^\d{4}-\d{2}-\d{2}$/.test(r.date||'')?r.date.split('-').reverse().join('-'):r.date||'')}</td><td>${esc(r.currency)}</td><td>${money(r.invoiceAmount)}</td><td>${money(r.received)}</td><td>${money(r.amount)}</td><td>${esc(r.status)}</td></tr>`).join('')||'<tr><td colspan="9">No outstanding issued customer invoices.</td></tr>'}</tbody></table></div>`;
-    body.innerHTML=`<p>Group customer invoices · ${esc((register?.entities||[]).join(', '))}. Totals stay in each invoice currency. TG settlement packs are excluded.</p>${table(rows)}${drafts.length?`<details><summary>Draft invoices (${drafts.length}) — excluded from due total</summary>${table(drafts)}</details>`:''}`;
+    body.innerHTML=`<div class="actions"><button class="btn green" id="ttReceivableRecognition">Invoice recognition · ${esc(entity())}</button></div><p>Group customer invoices · ${esc((register?.entities||[]).join(', '))}. Totals stay in each invoice currency. TG settlement packs are excluded.</p>${table(rows)}${drafts.length?`<details><summary>Draft invoices (${drafts.length}) — excluded from due total</summary>${table(drafts)}</details>`:''}`;
+    q('#ttReceivableRecognition',body).onclick=()=>{q('.tt-window-close',host).click();launch({native:'receivables'});};
   }
 
   function reviewAttention(row) {
