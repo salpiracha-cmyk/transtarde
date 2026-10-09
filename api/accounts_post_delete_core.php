@@ -11,7 +11,7 @@ function apd_supported(array $s,array $j,?array $recordIndex=null):bool {
 function apd_delete_reason(array $s,array $j,array $u,?array $recordIndex=null):string {
     if(!empty($j['reversalOf']))return 'This is a cancellation/audit entry. It cannot be deleted again; use the original workflow to enter a new transaction.';
     if(!empty($j['reversedByPostId'])||!empty($j['meta']['reversedByPostId'])||!empty($j['meta']['deletedFromBooks']))return 'This posting has already been cancelled. Its history is retained for audit.';
-    if(!tt_post_correction_allowed($u,$j)||!tt_user_can_access_entity($u,(string)$j['entity'],'Edit'))return 'Company and original workflow Edit permission are required to delete this posting.';
+    if(!function_exists('tt_post_correction_allowed')||!tt_post_correction_allowed($u,$j)||!tt_user_can_access_entity($u,(string)$j['entity'],'Edit'))return 'Company and original workflow Edit permission are required to delete this posting.';
     if(!apd_supported($s,$j,$recordIndex))return 'Cancel this linked posting in its originating workflow so its allocations, registers and related postings remain consistent.';
     return '';
 }
