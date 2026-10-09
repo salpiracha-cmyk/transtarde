@@ -18,13 +18,14 @@ const fs=require('node:fs'),assert=require('node:assert/strict'),{chromium}=requ
   await page.click('#evAddUtility');await page.waitForSelector('#evUmPayee');
   assert.equal(await page.locator('#evUmLocName').inputValue(),'OFFICE','own office auto-selected');
   assert.deepEqual(await page.locator('#evUmLocName option').allTextContents(),['Select company location','Karachi Office','Own Rice Mill']);
+  assert.equal(await page.locator('.tte-master-popup').isVisible(),true,'master setup opens as popup');await page.click('#evUmCancel');
   await page.selectOption('#evPayLocName','MILL');
   assert.equal(await page.locator('#evReadFrom').isVisible(),true,'meter dates visible for mill electricity');
   await page.selectOption('#evPayType','INTERNET');
   assert.equal(await page.locator('#evReadFrom').isVisible(),false,'meter dates hidden for other bills');
   await page.click('[data-expense="card"]');await page.evaluate(()=>resolveNext('expenses_v1'));await page.waitForSelector('#evAddCard');
   assert.equal(await page.locator('#evCardName').count(),0,'credit card setup starts closed');
-  await page.click('#evAddCard');assert.equal(await page.locator('#evCardName').count(),1);
+  await page.click('#evAddCard');assert.equal(await page.locator('#evCardName').count(),1);await page.click('#evCardCancel');
   // A slow response from another module must never replace the newly opened form.
   await page.click('[data-expense="rent"]');await page.click('[data-expense="utility"]');
   await page.evaluate(()=>resolveNext('expenses_v1'));await page.waitForSelector('#evAddUtility');
