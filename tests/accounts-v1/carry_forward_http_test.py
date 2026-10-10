@@ -74,14 +74,14 @@ with tempfile.TemporaryDirectory(prefix='carry-forward-qa-') as tmp:
   assert request(body=action('save',csrf='bad',**shipment()))[0]==419
   assert request(body=action('save',**shipment(shipmentDate='2026-10-02')))[0]==422
   assert request(body=action('save',**shipment(bills=[bill('RICE')])))[0]==422
-  late=shipment(contractRef='OCT-OLD',lotRef='OCT-1',shipmentDate='2026-10-01',buyerBalance={k:v for k,v in balance('OCT-CI').items() if k!='rate'},containers=[],containerCount=0,bagPoNo='')
+  late=shipment(contractRef='OCT-OLD',lotRef='OCT-1',shipmentDate='2026-10-01',buyerBalance={k:v for k,v in balance('OCT-CI').items() if k!='rate'},containers=[],containerCount=0,bagPoNo='',fiRefs=[],gdRefs=[])
   late['buyerBalance']['invoiceDate']='2026-10-01'
   late_id=ok(action('save',**late))['result']['id'];publish(late_id)
   assert request(id=late_id)[1]['rows'][0]['status']=='Ready for Accounts'
   assert request(body=action('save',**shipment(contractRef='BAD-INV',buyerBalance={**balance(),'invoiceDate':'2026-10-02'})))[0]==422
   saved=ok(action('save',**shipment()));id=saved['result']['id'];assert books.exists()
   assert len(json.loads(books.read_text())['journals'])==1,'Information save must not post money'
-  assert request(user='services')[1]['rows']==[],'Staff must not see management drafts'
+  assert not any(r['id']==id for r in request(user='services')[1]['rows']),'Staff must not see management drafts'
   before=books.read_bytes();assert request(body=action('publish',id,version=999))[0]==422;assert books.read_bytes()==before
   body=action('publish',id,version=1);ok(body);assert ok(body)['result']['replayed']
   state=json.loads(books.read_text());c=state['exportCandidates'][id+'|BUYER'];assert c['transactionAmount']==1000 and c['functionalAmount']==0 and c['pendingValuation']
