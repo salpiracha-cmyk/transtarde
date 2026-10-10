@@ -7,6 +7,7 @@ with tempfile.TemporaryDirectory(prefix='tg-remittance-') as tmp:
   shutil.copy(ROOT/'api'/name,root/'api'/name)
  for name in ['accounting_master_v1.json','settlement_policy_v1.json','export_realization_policy_v1.json','tg-remittances-ui.js','export-receipts-ui.js']:
   shutil.copy(ROOT/'accounts'/name,root/'accounts'/name)
+ shutil.copy(ROOT/'brand-theme.js',root/'brand-theme.js');shutil.copy(ROOT/'brand-theme.css',root/'brand-theme.css')
  (root/'auth_store.php').write_text('''<?php
  define('TT_DATA_DIR',__DIR__.'/data');foreach(['HOST','NAME','USER','PASS'] as $k)define('TT_DB_'.$k,'');
  function tt_ensure_data_dir(){} function tt_accounts_input(){return file_get_contents('php://input');}
@@ -106,6 +107,17 @@ with tempfile.TemporaryDirectory(prefix='tg-remittance-') as tmp:
   assert next(x for x in confirmed['banks'] if x['id']=='USD')['balance']['posted']==-350
   before=json.loads((root/'data/accounts.json').read_text());assert req(body=confirm)[1]['posted']['id']==confirmed['posted']['id'];after=json.loads((root/'data/accounts.json').read_text());assert set(after['journals'])==set(before['journals']) and all(after['journals'][k]['lines']==v['lines'] for k,v in before['journals'].items())
   # Browser uses the actual endpoint again from a fresh pending fixture.
+  # Large advice at a fractional rate must balance net receipt plus rounded correspondent fee.
+  fractional_state=json.loads(json.dumps(basket_state));fractional_root=json.loads(json.dumps(basket_root))
+  for i,amount in enumerate([32160,312200],1):
+   fractional_state['exportCandidates'][f'EXP|BASKET-{i}'].update(transactionAmount=amount,functionalAmount=amount*280)
+   fractional_state['exportCandidates'][f'TG-PAY-{i}'].update(transactionAmount=amount,functionalAmount=amount*3.67)
+   fractional_root['shipments'][i-1]['tgdocs']['invoiceValue']=amount
+  (root/'data/accounts.json').write_text(json.dumps(fractional_state));(root/'data/operations.json').write_text(json.dumps({'values':{'transtrade_export_v3_operational':json.dumps(fractional_root)}}))
+  fractional_payload={**basket_payload,'bankAdviceRef':'FRACTIONAL-ADVICE','foreignAmount':344317.5,'tgPaymentTotal':344360,'realizationRate':280.95,'grossPkrEquivalent':96736001.63,'pkrBankCredit':95493274.63,'allocations':[{**basket_payload['allocations'][i-1],'foreignAmount':amount} for i,amount in enumerate([32160,312200],1)],'deductions':[{'masterCode':code,'amount':1,'percentage':pct,'autoCalculate':True} for code,pct in [('EXP-FED-BANK',15),('EXP-BANK-COMM',.03),('EXP-AWT-NTR',1.25)]]}
+  status,fractional=req('export_receipts.php?entity=TTI',fractional_payload);assert status==200,fractional
+  assert fractional['journal']['totalDebit']==fractional['journal']['totalCredit']
+  (root/'data/operations.json').write_text(json.dumps({'values':{'transtrade_export_v3_operational':json.dumps(basket_root)}}))
   if os.environ.get('TT_QA_BROWSER')=='1':
    from playwright.sync_api import sync_playwright
    (root/'data/accounts.json').write_text(json.dumps(s))
@@ -117,7 +129,7 @@ with tempfile.TemporaryDirectory(prefix='tg-remittance-') as tmp:
     evidence=pathlib.Path(os.environ.get('TT_QA_OUTPUT',str(root/'evidence')));evidence.mkdir(exist_ok=True,parents=True);page.screenshot(path=str(evidence/'tg-remittance-desktop.png'));page.set_viewport_size({'width':390,'height':844});page.screenshot(path=str(evidence/'tg-remittance-phone.png'));page.get_by_role('button',name='POST TG REMITTANCE').click();page.get_by_role('heading',name='TG REMITTANCE POSTED').wait_for();assert req()[1]['items']==[]
     # The production receipt UI selects multiple invoices and an advance without losing typed advice.
     (root/'data/accounts.json').write_text(json.dumps(basket_state))
-    (root/'accounts/receipt-harness.html').write_text('<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><script>localStorage.setItem("tt_accounts_entity","TTI");window.TT_ACCOUNT_ACCESS={csrf:"fixture"};</script><script src="export-receipts-ui.js"></script><button onclick="TT_EXPORT_RECEIPTS_UI.openForm()">RECEIPT</button>')
+    (root/'accounts/receipt-harness.html').write_text('<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><script>localStorage.setItem("tt_accounts_entity","TTI");window.TT_ACCOUNT_ACCESS={csrf:"fixture"};</script><link rel="stylesheet" href="/brand-theme.css"><script src="/brand-theme.js"></script><script src="export-receipts-ui.js"></script><button onclick="TT_EXPORT_RECEIPTS_UI.openForm()">RECEIPT</button>')
     page.route('**/api/bank_accounts.php?*',lambda route:route.fulfill(json={'ok':True,'accounts':[{'id':'PKR','bankName':'BANK','accountNumber':'789','currency':'PKR','settings':{'defaultReceiptAccount':True}}]}))
     page.route('**/api/export_realization_master.php',lambda route:route.fulfill(json={'ok':True,'rows':[]}))
     page.route('**/api/tg_bank_transactions.php?*',lambda route:route.fulfill(json={'ok':True,'banks':[{'id':'USD','bank':'TG BANK','title':'USD SENDER','currency':'USD','balance':{'native':1000}}],'openLiabilities':[{'id':'TG-PAY-1'},{'id':'TG-PAY-2'}]}))
@@ -133,7 +145,7 @@ with tempfile.TemporaryDirectory(prefix='tg-remittance-') as tmp:
     page.locator('#erTgItem').select_option('TGPACK|BASKET-2');assert 'USD 350' in page.locator('#erTgTotal').inner_text() and page.locator('#erBankRef').input_value()=='BASKET-UI'
     for index,pct,amount in [(0,'1','980.00'),(1,'0.1','98.00'),(2,'15','14.70')]:
      page.locator('[data-ded-percent]').nth(index).fill(pct);assert page.locator('[data-ded-amount]').nth(index).input_value()==amount
-    page.locator('#erBankCredit').fill('94107.30');assert page.locator('#erPost').is_enabled()
+    page.locator('#erBankCredit + input[data-tt-numeric-proxy]').fill('94107.30');assert page.locator('#erBankCredit + input').input_value()=='94,107.30';assert page.locator('#erPost').is_enabled()
     page.screenshot(path=str(evidence/'tg-multiple-invoices-advance-desktop.png'));page.set_viewport_size({'width':390,'height':844});page.screenshot(path=str(evidence/'tg-multiple-invoices-advance-phone.png'))
     page.locator('#erPost').click();page.locator('#ttExportReceiptToast').filter(has_text='posted').wait_for()
     saved_ui=json.loads((root/'data/accounts.json').read_text());receipt_ui=next(x for x in saved_ui['exportReceipts'].values() if x['bankAdviceRef']=='BASKET-UI')

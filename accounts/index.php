@@ -44,7 +44,7 @@ $html = tt_replace_html_once(
 );
 $html = tt_replace_html_once(
     '/<\/body>/i',
-    static fn(): string => '<script src="/session-activity.js?v=20260929-1"></script><script src="app-bundle.php?v=current"></script><script src="/brand-theme.js?v=20261006-number-entry-1"></script></body>',
+    static fn(): string => '<script src="/session-activity.js?v=20260929-1"></script><script src="app-bundle.php?v=current"></script><script src="/brand-theme.js?v=20261010-number-entry-2"></script></body>',
     $html
 );
 echo tt_version_local_assets($html,'/accounts/');

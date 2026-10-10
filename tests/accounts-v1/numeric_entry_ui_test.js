@@ -1,8 +1,9 @@
 const {JSDOM}=require('jsdom'),fs=require('node:fs'),assert=require('node:assert/strict');
 (async()=>{
-const dom=new JSDOM('<form><label>Amount<input id="amount" name="amount" class="sum" type="number" min="0.01" step="0.01" value="1234.50" required></label><input id="rate" type="number" step="0.000001"><input id="reference" value="2026-00123"></form>',{runScripts:'outside-only',url:'https://fixture.test'}),w=dom.window;
+const dom=new JSDOM('<form><label>Amount<input id="amount" name="amount" class="sum" type="number" min="0.01" step="0.01" value="1234.50" required></label><input id="rate" type="number" step="0.000001"><input id="decimalText" inputmode="decimal" value="95493274.63"><input id="reference" value="2026-00123"></form>',{runScripts:'outside-only',url:'https://fixture.test'}),w=dom.window;
 const observers=[],Native=w.MutationObserver;w.MutationObserver=class extends Native{constructor(cb){super(cb);observers.push(this)}};
 w.eval(fs.readFileSync('brand-theme.js','utf8'));w.TT_NUMERIC_ENTRY.refresh();
+const text=w.document.getElementById('decimalText');assert.equal(text.nextElementSibling.value,'95,493,274.63');text.nextElementSibling.value='1,209,349.28';text.nextElementSibling.dispatchEvent(new w.Event('input',{bubbles:true}));assert.equal(text.value,'1209349.28');
 const original=w.document.getElementById('amount'),proxy=original.nextElementSibling,form=original.form;
 assert.equal(proxy.value,'1,234.50');assert.equal(original.value,'1234.50');assert.equal(w.document.querySelectorAll('.sum').length,1,'Numeric calculations must not count a companion field twice');
 let events=0,total=0;original.oninput=e=>{events++;total=Number(e.target.value)*2};

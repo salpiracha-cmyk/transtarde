@@ -103,6 +103,7 @@
 (()=>{'use strict';
  const value=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value');
  const records=new WeakMap();
+ const numericSelector='input[type="number"],input[inputmode="decimal"]:not([data-tt-numeric-proxy])';
  const raw=s=>String(s??'').replace(/[,\s]/g,'');
  const grouped=s=>{s=raw(s);if(!/^-?\d*(?:\.\d*)?$/.test(s))return s;const [whole,fraction]=s.split('.');return whole.replace(/\B(?=(\d{3})+(?!\d))/g,',')+(fraction===undefined?'':'.'+fraction)};
  function sync(input){const r=records.get(input);if(!r)return;const {proxy}=r;
@@ -133,10 +134,10 @@
   for(const event of ['keydown','keyup'])proxy.addEventListener(event,e=>{const forwarded=new KeyboardEvent(event,{key:e.key,code:e.code,bubbles:true,cancelable:true,ctrlKey:e.ctrlKey,shiftKey:e.shiftKey,altKey:e.altKey,metaKey:e.metaKey});if(!input.dispatchEvent(forwarded))e.preventDefault()});
   sync(input);
  }
- function refresh(root=document){root.querySelectorAll('input[type="number"]').forEach(input=>{enhance(input);sync(input)})}
- document.addEventListener('focusin',e=>{if(e.target.matches?.('input[type="number"]')){enhance(e.target)}});
- document.addEventListener('reset',e=>queueMicrotask(()=>{e.target.querySelectorAll('input[type=number]').forEach(input=>{input.setCustomValidity('');input.value=value.get.call(input)});refresh(e.target)}));
- const observer=new MutationObserver(changes=>{for(const change of changes){if(change.type==='attributes'){if(records.has(change.target))sync(change.target);continue}for(const node of change.addedNodes){if(node.nodeType!==1)continue;if(node.matches('input[type="number"]'))enhance(node);refresh(node)}}});
+ function refresh(root=document){root.querySelectorAll(numericSelector).forEach(input=>{enhance(input);sync(input)})}
+ document.addEventListener('focusin',e=>{if(e.target.matches?.(numericSelector)){enhance(e.target)}});
+ document.addEventListener('reset',e=>queueMicrotask(()=>{e.target.querySelectorAll(numericSelector).forEach(input=>{input.setCustomValidity('');input.value=value.get.call(input)});refresh(e.target)}));
+ const observer=new MutationObserver(changes=>{for(const change of changes){if(change.type==='attributes'){if(records.has(change.target))sync(change.target);continue}for(const node of change.addedNodes){if(node.nodeType!==1)continue;if(node.matches(numericSelector))enhance(node);refresh(node)}}});
  const start=()=>{refresh();observer.observe(document.body,{subtree:true,childList:true,attributes:true,attributeFilter:['disabled','readonly','value','placeholder','hidden','style','class']})};
  window.TT_NUMERIC_ENTRY={refresh,grouped};document.readyState==='loading'?document.addEventListener('DOMContentLoaded',start,{once:true}):start();
 })();
