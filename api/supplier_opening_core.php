@@ -12,6 +12,10 @@ function sop_openings(array $s,string $entity):array {
             $party=trim((string)($l['subledger']??$l['counterparty']??$j['meta']['openingParty']??''));
             $amount=round((float)($l['credit']??0)-(float)($l['debit']??0),2);
             if($party===''||$amount<=.005)continue;
+            // Carry-forward bills already expose their assigned part through the bill register.
+            $native=round((float)($l['nativeCredit']??$amount)-(float)($l['nativeDebit']??0),2);$rate=$native>.005?$amount/$native:1;
+            foreach((array)($s['carryForwardOpeningLinks']??[]) as $link)if(($link['journalId']??'')===$id&&(string)($link['lineIndex']??'')===(string)$index)$amount=round($amount-(float)($link['nativeAmount']??0)*$rate,2);
+            if($amount<=.005)continue;
             $key='BF:'.$id.':'.$index;
             $rows[$key]=['id'=>$key,'journalId'=>(string)$id,'sourceKey'=>'OPENING|'.$index,'party'=>$party,'account'=>$account,'amount'=>$amount,'date'=>(string)$j['date'],'currency'=>$entity==='TG'?'AED':'PKR'];
         }
