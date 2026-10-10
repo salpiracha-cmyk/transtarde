@@ -34,7 +34,7 @@ assert.match(api,/'GENERAL_EXPENSE_PAYMENT'/);
 assert.match(api,/Settlement cannot exceed the outstanding reimbursement/);
 assert.match(api,/This reimbursement reference is already recorded/);
 assert.match(api,/This expense reference is already recorded/);
-assert.match(api,/\['MILL','OFFICE','OTHER'\]/);
+assert.match(api,/\['MILL','OFFICE','HOME','OTHER'\]/);
 assert.match(api,/tt_user_can_access_entity/);
 assert.match(ui,/data-expense="reimburse"/);
 assert.match(ui,/data-expense="general"/);
