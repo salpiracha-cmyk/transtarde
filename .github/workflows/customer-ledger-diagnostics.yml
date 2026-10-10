@@ -34,7 +34,7 @@ jobs:
           case "$target" in /home/*/domains/app.transtradeinternational.com/public_html) ;; *) exit 1 ;; esac
           TT_DIAGNOSTIC_ROOT="$target" php <<'PHP'
           <?php
-          $root=getenv('TT_DIAGNOSTIC_ROOT');require $root.'/auth_store.php';require_once $root.'/api/accounts_shipment_source.php';
+          $root=getenv('TT_DIAGNOSTIC_ROOT');require $root.'/auth_store.php';require_once $root.'/api/accounts_shipment_source.php';require_once $root.'/api/customer_receivables_core.php';
           $s=json_decode((string)file_get_contents(TT_DATA_DIR.'/accounts.json'),true)?:[];$r=tt_accounts_exports_root();$masters=tt_list_masters();$key=fn($v)=>strtoupper(preg_replace('/[^a-z0-9]/i','',(string)$v));
           $watch=['Ali Sulaiman'=>'ALISUL','Azad Labour'=>'AZADLAB','JJ Broker / Shayan'=>'JJBRO','Jaideep Commodities'=>'JAIDEEP'];$summary=[];
           $customers=[];foreach((array)($r['customers']??[]) as $c)$customers[(string)($c['id']??'')]=$c['name']??'';
@@ -48,6 +48,8 @@ jobs:
           foreach((array)($s['exportReceipts']??[]) as $x)if(($x['status']??'')==='Accounts Approved / Posted')foreach((array)($x['allocations']??[]) as $a)if($matches($a['customer']??'')||in_array($a['targetId']??'',$candidateIds,true))$o['receiptAllocations']++;$o['companies']=array_keys($o['companies']);$summary[$label]=$o;}
           $all=['customerMasters'=>count($masters['export_customers']??[]),'customersWithPostedCandidates'=>0,'customersWithUnpostedInvoices'=>0,'customersWithNativeRegistration'=>0,'candidateLinkedPartyLinesMissingNames'=>0];$sets=[[],[],[]];foreach((array)($s['exportCandidates']??[]) as $c)if(($c['candidateType']??'')==='CUSTOMER_EXPORT_SALE'){$n=$key($c['meta']['customer']??$c['counterparty']??'');$i=!empty($c['journalId'])?0:(!empty($c['pendingValuation'])?2:1);$sets[$i][$n]=true;}foreach($sets as $i=>$v)$all[['customersWithPostedCandidates','customersWithUnpostedInvoices','customersWithNativeRegistration'][$i]]=count($v);
           foreach((array)($s['journals']??[]) as $j)if(($j['status']??'')==='Posted')foreach((array)($j['lines']??[]) as $l)if(in_array($l['account']??'',['1210','1220','1240','2160','2510'])){$cid=$l['candidateId']??$l['sourceCandidateId']??$j['meta']['candidateId']??'';if($cid!==''&&isset($s['exportCandidates'][$cid])&&empty($l['counterparty'])&&empty($l['customer'])&&empty($l['party'])&&empty($l['subledger']))$all['candidateLinkedPartyLinesMissingNames']++;}
-          echo json_encode(['readOnly'=>true,'watched'=>$summary,'allCustomers'=>$all],JSON_PRETTY_PRINT)."\n";
+          
+          $projection=tt_customer_receivables($s,$r,['TTI','BRM','TG'],date('Y-m-d'));$aliIssued=0;$aliDraft=0;$customerKeys=[];foreach($projection['rows'] as $x){$customerKeys[$key($x['label'])]=true;if(str_contains($key($x['label']),'ALISUL'))$aliIssued++;}foreach($projection['drafts'] as $x)if(str_contains($key($x['label']),'ALISUL'))$aliDraft++;$verified=['aliIssuedInvoiceRows'=>$aliIssued,'aliDraftInvoiceRows'=>$aliDraft,'allIssuedInvoiceRows'=>count($projection['rows']),'customersWithInvoiceRows'=>count($customerKeys),'carryForwardInvoiceRows'=>count(array_filter($projection['rows'],fn($x)=>!empty($x['carryForward'])))];
+          echo json_encode(['newLedgerProjection'=>$verified,'readOnly'=>true,'watched'=>$summary,'allCustomers'=>$all],JSON_PRETTY_PRINT)."\n";
           PHP
           REMOTE
