@@ -1,0 +1,53 @@
+name: Read-only customer ledger diagnostics
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/customer-ledger-diagnostics.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Trace customer ledger references without amounts or private documents
+        env:
+          HOSTINGER_HOST: ${{ secrets.HOSTINGER_HOST }}
+          HOSTINGER_PORT: ${{ secrets.HOSTINGER_PORT }}
+          HOSTINGER_USER: ${{ secrets.HOSTINGER_USER }}
+          HOSTINGER_DEPLOY_PATH: ${{ secrets.HOSTINGER_DEPLOY_PATH }}
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+          HOSTINGER_KNOWN_HOSTS: ${{ secrets.HOSTINGER_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -m 700 -d "$RUNNER_TEMP/ssh"
+          printf '%s\n' "$HOSTINGER_SSH_KEY" | tr -d '\r' > "$RUNNER_TEMP/ssh/key"
+          printf '%s\n' "$HOSTINGER_KNOWN_HOSTS" | tr -d '\r' > "$RUNNER_TEMP/ssh/known_hosts"
+          chmod 600 "$RUNNER_TEMP/ssh/key" "$RUNNER_TEMP/ssh/known_hosts"
+          ssh -i "$RUNNER_TEMP/ssh/key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" -o StrictHostKeyChecking=yes -p "$HOSTINGER_PORT" "$HOSTINGER_USER@$HOSTINGER_HOST" bash -s -- "$HOSTINGER_DEPLOY_PATH" <<'REMOTE'
+          set -euo pipefail
+          target=$1
+          case "$target" in /home/*/domains/app.transtradeinternational.com/public_html) ;; *) exit 1 ;; esac
+          TT_DIAGNOSTIC_ROOT="$target" php <<'PHP'
+          <?php
+          $root=getenv('TT_DIAGNOSTIC_ROOT');require $root.'/auth_store.php';require_once $root.'/api/accounts_shipment_source.php';
+          $s=json_decode((string)file_get_contents(TT_DATA_DIR.'/accounts.json'),true)?:[];$r=tt_accounts_exports_root();$masters=tt_list_masters();$key=fn($v)=>strtoupper(preg_replace('/[^a-z0-9]/i','',(string)$v));
+          $watch=['Ali Sulaiman'=>'ALISUL','Azad Labour'=>'AZADLAB','JJ Broker / Shayan'=>'JJBRO','Jaideep Commodities'=>'JAIDEEP'];$summary=[];
+          $customers=[];foreach((array)($r['customers']??[]) as $c)$customers[(string)($c['id']??'')]=$c['name']??'';
+          $contracts=[];foreach((array)($r['contracts']??[]) as $c)$contracts[(string)($c['ref']??'')]=$c;
+          foreach($watch as $label=>$needle){$names=[];$ids=[];foreach(['business_parties','export_customers'] as $type)foreach((array)($masters[$type]??[]) as $m)if(str_contains($key($m['values'][0]??''),$needle)){$names[]=$key($m['values'][0]);$ids[]=(string)$m['id'];}
+          $matches=function($v)use($needle,$key,$names,$ids){return in_array((string)$v,$ids,true)||in_array($key($v),$names,true)||str_contains($key($v),$needle);};
+          $o=['masterRecords'=>count($ids),'postedPartyLines'=>0,'lineCandidateLinkedToCustomer'=>0,'linePartyMissingButCandidateMatches'=>0,'exportCandidates'=>0,'recognizedCandidates'=>0,'nativeRegisteredCandidates'=>0,'exportShipments'=>0,'savedInvoices'=>0,'receiptAllocations'=>0,'companies'=>[]];$candidateIds=[];
+          foreach((array)($s['exportCandidates']??[]) as $id=>$c)if($matches($c['counterparty']??'')||$matches($c['meta']['customer']??'')){$candidateIds[]=$id;$o['exportCandidates']++;if(!empty($c['journalId']))$o['recognizedCandidates']++;if(!empty($c['pendingValuation']))$o['nativeRegisteredCandidates']++;$o['companies'][$c['entity']??'UNKNOWN']=true;}
+          foreach((array)($r['shipments']??[]) as $x){$c=$contracts[$x['contractRef']??'']??[];if($matches($x['buyer']??'')||$matches($c['customer']??'')||$matches($customers[$c['customerId']??'']??'')){$o['exportShipments']++;if(!empty($x['commercial']['saved']))$o['savedInvoices']++;}}
+          foreach((array)($s['journals']??[]) as $j)if(($j['status']??'')==='Posted')foreach((array)($j['lines']??[]) as $l){if(!in_array($l['account']??'',['1210','1220','1230','1240','1250','2110','2120','2130','2140','2160','2190','2500','2510','3100','3200']))continue;$party=$l['supplier']??$l['broker']??$l['customer']??$l['counterparty']??$l['party']??$l['subledger']??'';$cid=$l['candidateId']??$l['sourceCandidateId']??$j['meta']['candidateId']??'';if($matches($party))$o['postedPartyLines']++;if(in_array($cid,$candidateIds,true)){$o['lineCandidateLinkedToCustomer']++;if(!$matches($party))$o['linePartyMissingButCandidateMatches']++;}}
+          foreach((array)($s['exportReceipts']??[]) as $x)if(($x['status']??'')==='Accounts Approved / Posted')foreach((array)($x['allocations']??[]) as $a)if($matches($a['customer']??'')||in_array($a['targetId']??'',$candidateIds,true))$o['receiptAllocations']++;$o['companies']=array_keys($o['companies']);$summary[$label]=$o;}
+          $all=['customerMasters'=>count($masters['export_customers']??[]),'customersWithPostedCandidates'=>0,'customersWithUnpostedInvoices'=>0,'customersWithNativeRegistration'=>0,'candidateLinkedPartyLinesMissingNames'=>0];$sets=[[],[],[]];foreach((array)($s['exportCandidates']??[]) as $c)if(($c['candidateType']??'')==='CUSTOMER_EXPORT_SALE'){$n=$key($c['meta']['customer']??$c['counterparty']??'');$i=!empty($c['journalId'])?0:(!empty($c['pendingValuation'])?2:1);$sets[$i][$n]=true;}foreach($sets as $i=>$v)$all[['customersWithPostedCandidates','customersWithUnpostedInvoices','customersWithNativeRegistration'][$i]]=count($v);
+          foreach((array)($s['journals']??[]) as $j)if(($j['status']??'')==='Posted')foreach((array)($j['lines']??[]) as $l)if(in_array($l['account']??'',['1210','1220','1240','2160','2510'])){$cid=$l['candidateId']??$l['sourceCandidateId']??$j['meta']['candidateId']??'';if($cid!==''&&isset($s['exportCandidates'][$cid])&&empty($l['counterparty'])&&empty($l['customer'])&&empty($l['party'])&&empty($l['subledger']))$all['candidateLinkedPartyLinesMissingNames']++;}
+          echo json_encode(['readOnly'=>true,'watched'=>$summary,'allCustomers'=>$all],JSON_PRETTY_PRINT)."\n";
+          PHP
+          REMOTE
