@@ -188,7 +188,7 @@ with tempfile.TemporaryDirectory(prefix='carry-forward-qa-') as tmp:
     bill_form.locator('[name=partyId]').select_option('VENDOR');bill_form.locator('[name=invoiceNo]').fill('BROWSER-TG-FREIGHT');bill_form.locator('[name=amount]').fill('77');bill_form.locator('[name=currency]').select_option('AED')
     bill_form.locator('[name=billDate]').evaluate("el=>{el.value='2026-07-03';el.dispatchEvent(new Event('change',{bubbles:true}));}")
     before_revision=json.loads(books.read_text())['revision'];page.wait_for_timeout(250);assert json.loads(books.read_text())['revision']==before_revision,'Typing must not save'
-    page.locator('#cf-form button[type=submit]').click();page.locator('#cf-publish').wait_for()
+    page.locator('#cf-form button[type=submit]').click();page.get_by_text('Shipment information saved.',exact=True).wait_for()
     saved=next(r for r in json.loads(books.read_text())['carryForwardShipments'].values() if r['contractRef']=='BROWSER-OLD');assert saved['entity']=='TTI' and saved['tgPack'] and len(saved['bills'])==2 and saved['bills'][1]['entity']=='TG';assert saved['notes']=='Keep both sides and all entered values'
     heading=page.locator('.cf-sheet h1').bounding_box();assert heading['y']>=0 and heading['y']<500
     page.locator('[name=advance100]').check();assert page.locator('#cf-advance-date').is_visible();page.locator('[name=advance100]').uncheck();assert not page.locator('#cf-advance-date').is_visible()
