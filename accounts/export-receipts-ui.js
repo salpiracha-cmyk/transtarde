@@ -351,6 +351,5 @@
   const refreshPending=()=>{if(['TTI','BRM'].includes(entity()))load().then(pendingBanner).catch(()=>{});else pendingBanner();};
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',refreshPending,{once:true});else refreshPending();
   document.addEventListener('click',event=>{if(event.target.closest('[data-tt-entity], .entityBtn')){closeForm();setTimeout(refreshPending,100);}});
-  setInterval(()=>{if(document.visibilityState==='visible'&&['TTI','BRM'].includes(entity()))refreshPending();},30000);
 })();
 
