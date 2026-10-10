@@ -143,7 +143,7 @@
   function render() {
     const panel = ensurePanel(); if (!panel) return;
     if (pendingReceipt) {
-      panel.innerHTML = `<div class="tter-head"><b>Export Payment Receipt / Credit Advice</b><div class="sp"></div><button class="btn" data-er-close>Close</button></div><div class="tter-body"><div class="tter-alert">Pakistan receipt ${esc(pendingReceipt.receipt.id)} is posted. Complete its TG payable settlement before entering another receipt.</div><button class="btn green" id="erRetryTg">Retry TG settlement</button></div>`;
+      panel.innerHTML = `<div class="tter-head"><b>Export Payment Receipt / Credit Advice</b><div class="sp"></div><button class="btn" data-er-close>Close</button></div><div class="tter-body"><div class="tter-alert">Pakistan receipt ${esc(pendingReceipt.receipt.id)} is posted. Its TG bank deduction must be reviewed and confirmed in TG Remittances.</div><button class="btn green" id="erRetryTg">Continue to receipt list</button></div>`;
       q('[data-er-close]').onclick=closeForm;
       q('#erRetryTg').onclick = retryTgSettlement;
       return;
@@ -286,35 +286,13 @@
       total += classification === 'CORRESPONDENT' ? Number(item.amount || 0) : num(item.applied);
     }
   }
-  async function postTgSettlements(receipt, classification) {
-    if (payerType !== 'TG'||selectedTgPayment) return;
-    const bank=(tgData?.banks||[]).find(row=>row.id===tgBankId),rate=currency==='AED'?1:Number(tgData?.ratesByCurrency?.[currency]||bank?.balance?.carryingRate||tgData?.rates?.sellUsdToAed||tgData?.rates?.buyUsdWithAed||0);
-    let sequence = 0;
-    for (const item of chosen.values()) {
-      const amount = classification === 'CORRESPONDENT' ? Number(item.amount || 0) : num(item.applied);
-      if (amount <= 0) continue;
-      sequence += 1;
-      const bankReference = `${receipt.bankAdviceRef}-TG-${sequence}`;
-      if ((tgData?.history || []).some(row => row.bankAccountId === tgBankId && row.bankReference === bankReference && row.sourceLiabilityId === item.mirrorCandidateId && Math.abs(Number(row.amountNative)-amount)<.01)) continue;
-      const payload = {action:'post_payment',bankPaymentMethod:'ONLINE_BANKING',csrf:access.csrf,date:receipt.date || today(),paymentType:(item.targetType==='UNAPPLIED_TG' && !item.invoiceRef)?'SUPPLIER_ADVANCE':'LIABILITY',sourceLiabilityId:(item.targetType==='UNAPPLIED_TG' && !item.invoiceRef)?'':item.mirrorCandidateId,bankAccountId:tgBankId,counterparty:entity(),amountNative:amount,bankChargeNative:0,...(rate>0?{rate}:{}),bankReference,rateOverrideNote:'',notes:`Mirrored settlement for Pakistan receipt ${receipt.id}`};
-      const response = await fetch(tgBankApi,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify(payload)}); let body = {}; try { body = await response.json(); } catch (_) {}
-      if (!response.ok || !body.ok) throw new Error(body.error || `Pakistan receipt ${receipt.id} posted, but its TG payable settlement needs review.`);
-      tgData.history = [{bankAccountId:tgBankId,bankReference,sourceLiabilityId:item.mirrorCandidateId,amountNative:amount},...(tgData.history || [])];
-    }
-  }
   async function retryTgSettlement() {
-    if (!pendingReceipt) return;
-    try {
-      restorePending();
-      await loadTg();
-      await postTgSettlements(pendingReceipt.receipt,pendingReceipt.classification);
-      await postShortfalls(pendingReceipt.receipt,pendingReceipt.classification,pendingReceipt.note,pendingReceipt.evidence);
-      const posted = pendingReceipt.receipt;
-      savePending(null);
-      payerType = ''; payer = ''; chosen.clear(); deductions = [];
-      await load(); render(); offerReceiptPrint(posted); window.TT_BANK_ACCOUNTS_UI?.reload?.();
-      toast(`Receipt ${posted.id} and TG payable settlement posted.`);
-    } catch (error) { toast(`Receipt ${pendingReceipt.receipt.id} is already posted. TG settlement still needs review: ${String(error.message || error)}`,false); }
+    if(!pendingReceipt)return;
+    const posted=pendingReceipt.receipt;
+    try{
+      await load();savePending(null);payerType='';payer='';chosen.clear();deductions=[];render();pendingBanner();
+      toast(`Receipt ${posted.id} is already posted. Review its pending payment in TG Remittances before confirming the TG bank deduction.`);
+    }catch(error){toast(error.message||'Could not load the posted receipt.',false);}
   }
   function offerReceiptPrint(receipt) {
     const header=q('#ttExportReceiptDialog [data-er-panel] .tter-head');if(!header||!receipt)return;
