@@ -190,6 +190,7 @@ with tempfile.TemporaryDirectory(prefix='carry-forward-qa-') as tmp:
     before_revision=json.loads(books.read_text())['revision'];page.wait_for_timeout(250);assert json.loads(books.read_text())['revision']==before_revision,'Typing must not save'
     page.locator('#cf-form button[type=submit]').click();page.get_by_text('Shipment information saved.',exact=True).wait_for()
     saved=next(r for r in json.loads(books.read_text())['carryForwardShipments'].values() if r['contractRef']=='BROWSER-OLD');assert saved['entity']=='TTI' and saved['tgPack'] and len(saved['bills'])==2 and saved['bills'][1]['entity']=='TG';assert saved['notes']=='Keep both sides and all entered values'
+    page.wait_for_function("()=>{const y=document.querySelector('.cf-sheet h1')?.getBoundingClientRect().top;return y>=0&&y<500}")
     heading=page.locator('.cf-sheet h1').bounding_box();assert heading['y']>=0 and heading['y']<500
     page.locator('[name=advance100]').check();assert page.locator('#cf-advance-date').is_visible();page.locator('[name=advance100]').uncheck();assert not page.locator('#cf-advance-date').is_visible()
     page.locator('[name=notes]').fill('Post includes my latest unsaved entry')
