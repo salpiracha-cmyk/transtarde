@@ -287,7 +287,12 @@ test('authenticated Accounts live smoke: professional desk and popup workflows',
   await expect(page.locator('#tal-view')).toHaveValue('party');
   const suggestions=await page.locator('#tal-parties option').evaluateAll(rows=>rows.map(r=>r.value.trim().toLowerCase()));
   expect(new Set(suggestions).size,'Canonical party suggestions must not repeat name and code aliases').toBe(suggestions.length);
-  const invoiceResponse=await page.request.get(BASE_URL+'/api/accounts_ledger_browser.php?entity=TTI&category=party&party=Ali%20Sulaiman&from=0001-01-01&to=2099-12-31');
+  const partyResponse=await page.request.get(BASE_URL+'/api/accounts_ledger_browser.php?entity=TTI&category=party&from=0001-01-01&to=2099-12-31');
+  expect(partyResponse.status()).toBe(200);
+  const partyBrowser=await partyResponse.json();
+  const aliName=partyBrowser.parties.find(name=>name.toLowerCase().replace(/[^a-z0-9]/g,'').startsWith('alisul'));
+  expect(Boolean(aliName),'Resolve the saved full party name before requesting its ledger').toBe(true);
+  const invoiceResponse=await page.request.get(BASE_URL+'/api/accounts_ledger_browser.php?'+new URLSearchParams({entity:'TTI',category:'party',party:aliName,from:'0001-01-01',to:'2099-12-31'}));
   expect(invoiceResponse.status()).toBe(200);
   const invoiceLedger=await invoiceResponse.json();
   expect(invoiceLedger.invoiceRows.length,'Ali Sulaiman issued invoices must reach the party ledger').toBeGreaterThan(0);
