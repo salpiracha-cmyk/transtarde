@@ -72,16 +72,20 @@ with tempfile.TemporaryDirectory(prefix='carry-forward-qa-') as tmp:
   assert request(entity='BRM',user='services')[0]==403
   assert request(body=action('save',**shipment()),user='services')[0]==403
   assert request(body=action('save',csrf='bad',**shipment()))[0]==419
-  assert request(body=action('save',**shipment(shipmentDate='2026-07-01')))[0]==422
+  assert request(body=action('save',**shipment(shipmentDate='2026-10-02')))[0]==422
   assert request(body=action('save',**shipment(bills=[bill('RICE')])))[0]==422
+  late=shipment(contractRef='OCT-OLD',lotRef='OCT-1',shipmentDate='2026-10-01',buyerBalance={k:v for k,v in balance('OCT-CI').items() if k!='rate'},containers=[],containerCount=0,bagPoNo='')
+  late['buyerBalance']['invoiceDate']='2026-10-01'
+  late_id=ok(action('save',**late))['result']['id'];publish(late_id)
+  assert request(id=late_id)[1]['rows'][0]['status']=='Ready for Accounts'
+  assert request(body=action('save',**shipment(contractRef='BAD-INV',buyerBalance={**balance(),'invoiceDate':'2026-10-02'})))[0]==422
   saved=ok(action('save',**shipment()));id=saved['result']['id'];assert books.exists()
   assert len(json.loads(books.read_text())['journals'])==1,'Information save must not post money'
   assert request(user='services')[1]['rows']==[],'Staff must not see management drafts'
   before=books.read_bytes();assert request(body=action('publish',id,version=999))[0]==422;assert books.read_bytes()==before
   body=action('publish',id,version=1);ok(body);assert ok(body)['result']['replayed']
-  state=json.loads(books.read_text());c=state['exportCandidates'][id+'|BUYER'];assert c['transactionAmount']==1000 and c['functionalAmount']==280000
-  j=state['journals'][c['journalId']];assert j['lines'][0]['account']=='1210' and j['lines'][1]['account']=='3400'
-  assert not any(l['account'] in ['4100','4500','1310','1320','5100'] for l in j['lines'])
+  state=json.loads(books.read_text());c=state['exportCandidates'][id+'|BUYER'];assert c['transactionAmount']==1000 and c['functionalAmount']==0 and c['pendingValuation']
+  assert not c['journalId'] and len(state['journals'])==1,'Invoice registration must not invent a conversion or monetary journal'
   assert request('accounts_shipment_lookup.php',q='GD-OLD')[1]['rows'][0]['id']==id
   # Each non-rice category becomes an existing normal Supplier Payment payable.
   kinds=['FREIGHT','TRANSPORT','CLEARING','FUMIGATION','INSPECTION','BAGS','OTHER']
@@ -103,8 +107,8 @@ with tempfile.TemporaryDirectory(prefix='carry-forward-qa-') as tmp:
   dupe=request(id=id)[1]['rows'][0]['bills'][-1];before=books.read_bytes();assert request(body=action('post_bill',id,billId=dupe['id']))[0]==422;assert books.read_bytes()==before
   # TG opening pack has matched 1240 / 2500 sides and a separate external buyer balance.
   tg=shipment(contractRef='OLD-TG',lotRef='TG-LOT',tgPack=True,fiRefs=[{'number':'FI-TG','date':'2026-07-03','amount':900}],buyerBalance=balance('TG-BUYER',1200,0,rate=3.6725),pakistanBalance=balance('PK-TG',1000,100),tgPayableBalance=balance('PK-TG',1000,100,rate=3.6725))
-  tid=ok(action('save',**tg))['result']['id'];publish(tid);state=json.loads(books.read_text());p=state['exportCandidates'][tid+'|PAKISTAN'];t=state['exportCandidates'][tid+'|TG'];assert p['transactionAmount']==t['transactionAmount']==900;assert p['mirrorCandidateId']==t['id'];assert t['linkedCandidateId']==p['id'];assert t['functionalRate']==3.6725
-  assert state['journals'][t['journalId']]['lines'][0]['account']=='2500'
+  tid=ok(action('save',**tg))['result']['id'];publish(tid);state=json.loads(books.read_text());p=state['exportCandidates'][tid+'|PAKISTAN'];t=state['exportCandidates'][tid+'|TG'];assert p['transactionAmount']==t['transactionAmount']==900;assert p['mirrorCandidateId']==t['id'];assert t['linkedCandidateId']==p['id'];assert t['pendingValuation'] and t['functionalRate']==0
+  assert not t['journalId']
   assert request(entity='TG',user='services')[0]==403
   visible=request(id=tid,user='services')[1]['rows'][0];assert 'tgPayableBalance' not in visible and 'buyerBalance' not in visible
   for i,kind in enumerate(kinds):
@@ -116,6 +120,9 @@ with tempfile.TemporaryDirectory(prefix='carry-forward-qa-') as tmp:
    assert request('tg_bank_transactions.php',body=payment,entity='TG')[0]==200
    assert request('tg_bank_transactions.php',body={**payment,'amountNative':1,'requestKey':f'cf-tg-overpay-fixture-{i:04}'},entity='TG')[0] in [409,422]
    assert next(x for x in request(entity='TG',id=tid)[1]['rows'][0]['bills'] if x['id']==b['id'])['paymentOutstanding']==0
+  tg_customer_receipt={'action':'post_receipt','date':'2026-07-05','receiptType':'EXPORT_RECEIVABLE','sourceCandidateId':tid+'|BUYER','bankAccountId':'USD','counterparty':'TEST BUYER','settlementAmountNative':1200,'rate':3.6725,'bankReference':'CF-TG-CUSTOMER','bankChargeNative':0}
+  posted=ok(tg_customer_receipt,endpoint='tg_bank_transactions.php',entity='TG');assert posted['journal']['totalDebit']==posted['journal']['totalCredit']
+  state=json.loads(books.read_text());assert not state['exportCandidates'][tid+'|BUYER']['pendingValuation']
   response=request('export_receipts.php');assert response[0]==200,response;pack=response[1]['sources']['tgPackInvoices'];assert any(x['candidateId']==tid+'|PAKISTAN' and x['invoiceRef']=='PK-TG' for x in pack)
   # Existing opening assignment links only the exact native capacity, without a second journal.
   state=json.loads(books.read_text());state['journals']['OPEN-EXISTING']={'id':'OPEN-EXISTING','entity':'TTI','date':'2026-07-01','sourceType':'OPENING_BALANCE_BF','status':'Posted','lines':[{'account':'1210','subledger':'TEST BUYER','nativeCurrency':'USD','nativeDebit':1000,'nativeCredit':0,'debit':280000,'credit':0}]};books.write_text(json.dumps(state))
@@ -129,6 +136,8 @@ with tempfile.TemporaryDirectory(prefix='carry-forward-qa-') as tmp:
   receipt={'action':'post_receipt','entity':'TTI','date':'2026-07-03','bankAdviceRef':'CF-DIRECT-ADVICE','remitter':'TEST BUYER','transactionCurrency':'USD','foreignAmount':1000,'realizationRate':280,'grossPkrEquivalent':280000,'pkrBankCredit':280000,'bankAccountId':'PKR','deductions':[],'allocations':[{'targetType':'EXPORT_RECEIVABLE','targetId':id+'|BUYER','foreignAmount':1000}]}
   posted=ok(receipt,endpoint='export_receipts.php');assert posted['journal']['totalDebit']==posted['journal']['totalCredit']
   assert request(id=id)[1]['rows'][0]['realizations'][0]['date']=='2026-07-03'
+  state=json.loads(books.read_text());assert state['exportCandidates'][id+'|BUYER']['functionalAmount']==280000 and not state['exportCandidates'][id+'|BUYER']['pendingValuation']
+  assert not any(l['account']=='7100' for l in posted['journal']['lines']),'Deferred valuation must not treat the whole receipt as FX gain'
   tagged=request('export_receipts.php')[1]['receipts'];assert next(x for x in tagged if x['bankAdviceRef']=='CF-DIRECT-ADVICE')['fiTag']['fiNumber']=='FI-OLD'
   tg_receipt={**receipt,'bankAdviceRef':'CF-TG-ADVICE','remitter':'TG','tgBankAccountId':'USD','foreignAmount':900,'grossPkrEquivalent':252000,'pkrBankCredit':252000,'allocations':[{'targetType':'INTERCOMPANY_RECEIVABLE','targetId':tid+'|PAKISTAN','foreignAmount':900,'invoiceRef':'PK-TG','contractRef':'OLD-TG'}]}
   posted=ok(tg_receipt,endpoint='export_receipts.php');assert posted['journal']['totalDebit']==posted['journal']['totalCredit']
@@ -154,7 +163,8 @@ with tempfile.TemporaryDirectory(prefix='carry-forward-qa-') as tmp:
     page.locator('[name=tgPack]').check();assert page.locator('#cf-tg-pack').is_visible()
     page.locator('[name=shipmentDate]').evaluate("el=>{el.value='2026-06-28';el.dispatchEvent(new Event('change',{bubbles:true}));}")
     for prefix,invoice,value,rate in [('buyerBalance','BROWSER-BUYER','1200','3.6725'),('pakistanBalance','BROWSER-TG','1000','280'),('tgPayableBalance','BROWSER-TG','1000','3.6725')]:
-     page.locator(f'[name="{prefix}.invoiceNo"]').fill(invoice);page.locator(f'[name="{prefix}.invoiceAmount"]').fill(value);page.locator(f'[name="{prefix}.rate"]').fill(rate)
+     page.locator(f'[name="{prefix}.invoiceNo"]').fill(invoice);page.locator(f'[name="{prefix}.invoiceAmount"]').fill(value)
+    assert page.get_by_text('Opening carrying rate',exact=True).count()==0
     page.locator('[name=ricePaymentReferences]').fill('RICE BANK POST 2026-12345');page.locator('[name=notes]').fill('Keep both sides and all entered values')
     page.locator('#cf-add-draft-bill').click();bill_form=page.locator('#cf-draft-bills .cf-bill-row').last
     bill_form.locator('[name=partyId]').select_option('VENDOR');bill_form.locator('[name=invoiceNo]').fill('BROWSER-FREIGHT');bill_form.locator('[name=amount]').fill('55')
