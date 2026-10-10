@@ -284,7 +284,15 @@ test('authenticated Accounts live smoke: professional desk and popup workflows',
 
   await deskAction(page, 'ledgers', 'Ledger');
   await expect(page.locator('#tal-view')).toBeVisible();
-  await page.locator('#tal-view').selectOption('party');
+  await expect(page.locator('#tal-view')).toHaveValue('party');
+  const suggestions=await page.locator('#tal-parties option').evaluateAll(rows=>rows.map(r=>r.value.trim().toLowerCase()));
+  expect(new Set(suggestions).size,'Canonical party suggestions must not repeat name and code aliases').toBe(suggestions.length);
+  const invoiceResponse=await page.request.get(BASE_URL+'/api/accounts_ledger_browser.php?entity=TTI&category=party&party=Ali%20Sulaiman&from=0001-01-01&to=2099-12-31');
+  expect(invoiceResponse.status()).toBe(200);
+  const invoiceLedger=await invoiceResponse.json();
+  expect(invoiceLedger.invoiceRows.length,'Ali Sulaiman issued invoices must reach the party ledger').toBeGreaterThan(0);
+  expect(invoiceLedger.invoiceRows.every(r=>r.currency&&typeof r.amount==='number'&&r.amount>0)).toBe(true);
+  console.log('LIVE_CUSTOMER_INVOICE_LINK_OK '+JSON.stringify({invoiceRows:invoiceLedger.invoiceRows.length}));
   await expect(page.locator('#tal-party')).toBeVisible({ timeout: 30_000 });
   await expect(page.locator('#tal-print')).toBeVisible();
   await expect(page.locator('#tal-export')).toContainText('Excel');
@@ -293,6 +301,7 @@ test('authenticated Accounts live smoke: professional desk and popup workflows',
   await activate(page.locator('#tal-close'));
 
   await deskAction(page, 'ledgers', 'Ledger');
+  await page.locator('#tal-view').selectOption('other');
   await expect(page.locator('#tal-account')).toBeVisible({ timeout: 30_000 });
   await activate(page.locator('#tal-close'));
 
@@ -545,6 +554,8 @@ test('deployed Bank Entry, Bank Finance and subaccount forms respect read-only a
   await expect(page.locator('#amWindow [data-facility]')).toHaveCount(0);
   await activate(page.locator('#amWindow [data-close]'));
   await deskAction(page,'ledgers','Ledger');
+  await expect(page.locator('#tal-view')).toHaveValue('party');
+  await page.locator('#tal-view').selectOption('other');
   await activate(page.locator('#tal-manage'));
   await expect(page.locator('#amWindow')).toContainText('Withholding Tax Report');
   await expect(page.locator('#amWindow [data-add]')).toHaveCount(0);
