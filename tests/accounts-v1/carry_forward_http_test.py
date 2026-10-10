@@ -124,6 +124,21 @@ with tempfile.TemporaryDirectory(prefix='carry-forward-qa-') as tmp:
   posted=ok(tg_customer_receipt,endpoint='tg_bank_transactions.php',entity='TG');assert posted['journal']['totalDebit']==posted['journal']['totalCredit']
   state=json.loads(books.read_text());assert not state['exportCandidates'][tid+'|BUYER']['pendingValuation']
   response=request('export_receipts.php');assert response[0]==200,response;pack=response[1]['sources']['tgPackInvoices'];assert any(x['candidateId']==tid+'|PAKISTAN' and x['invoiceRef']=='PK-TG' for x in pack)
+  # Saved TG carry-forward invoices remain visible and cannot be mistaken for an advance.
+  draft_tg=shipment(contractRef='SAVED-TG',lotRef='SAVED-TG-LOT',fiRefs=[],gdRefs=[],tgPack=True,buyerBalance=balance('SAVED-BUYER',1500),pakistanBalance=balance('SAVED-PACK',1100),tgPayableBalance=balance('SAVED-PACK',1100,rate=3.6725))
+  did=ok(action('save',**draft_tg))['result']['id'];before=books.read_bytes()
+  preview=request('export_receipts.php')[1]['sources']['tgPackInvoices'];saved_pack=next(x for x in preview if x.get('carryForwardDraftId')==did)
+  assert saved_pack['invoiceRef']=='SAVED-PACK' and saved_pack['outstandingForeign']==1100 and not saved_pack['recognized'] and not saved_pack['candidateId']
+  assert books.read_bytes()==before,'Reading saved invoices must not publish or value them'
+  assert not any(x.get('carryForwardDraftId')==did for x in request('export_receipts.php',user='readonly')[1]['sources']['tgPackInvoices'])
+  assert request(body=action('publish',did,version=999))[0]==422 and books.read_bytes()==before
+  posted_body=action('post',did,version=1,**draft_tg);posted=ok(posted_body);state=json.loads(books.read_text())
+  assert state['carryForwardShipments'][did]['status']=='Ready for Accounts' and state['exportCandidates'][did+'|PAKISTAN']['pendingValuation']
+  before=books.read_bytes();assert ok(posted_body)['result']['replayed'] and books.read_bytes()==before
+  sources=request('export_receipts.php')[1]['sources']['tgPackInvoices'];assert len([x for x in sources if x['id']==did])==1 and next(x for x in sources if x['id']==did)['recognized']
+  # A new, unfinished form can be posted atomically without Save/refresh first.
+  nid=ok(action('post',**shipment(contractRef='ONE-POST',lotRef='ONE-POST-LOT',fiRefs=[],gdRefs=[],buyerBalance=balance('ONE-POST-CI',300))))['result']['id']
+  assert json.loads(books.read_text())['carryForwardShipments'][nid]['status']=='Ready for Accounts'
   # Existing opening assignment links only the exact native capacity, without a second journal.
   state=json.loads(books.read_text());state['journals']['OPEN-EXISTING']={'id':'OPEN-EXISTING','entity':'TTI','date':'2026-07-01','sourceType':'OPENING_BALANCE_BF','status':'Posted','lines':[{'account':'1210','subledger':'TEST BUYER','nativeCurrency':'USD','nativeDebit':1000,'nativeCredit':0,'debit':280000,'credit':0}]};books.write_text(json.dumps(state))
   linked=shipment(contractRef='LINKED-OLD',lotRef='LINK-1',buyerBalance=balance('CI-LINK',500,0,mode='LINK',journalId='OPEN-EXISTING',lineIndex=0))
@@ -177,6 +192,11 @@ with tempfile.TemporaryDirectory(prefix='carry-forward-qa-') as tmp:
     saved=next(r for r in json.loads(books.read_text())['carryForwardShipments'].values() if r['contractRef']=='BROWSER-OLD');assert saved['entity']=='TTI' and saved['tgPack'] and len(saved['bills'])==2 and saved['bills'][1]['entity']=='TG';assert saved['notes']=='Keep both sides and all entered values'
     heading=page.locator('.cf-sheet h1').bounding_box();assert heading['y']>=0 and heading['y']<500
     page.locator('[name=advance100]').check();assert page.locator('#cf-advance-date').is_visible();page.locator('[name=advance100]').uncheck();assert not page.locator('#cf-advance-date').is_visible()
+    page.locator('[name=notes]').fill('Post includes my latest unsaved entry')
+    page.once('dialog',lambda dialog:dialog.accept());page.locator('#cf-publish').click()
+    page.get_by_text('Ready for Accounts',exact=True).wait_for()
+    posted_ui=next(r for r in json.loads(books.read_text())['carryForwardShipments'].values() if r['contractRef']=='BROWSER-OLD')
+    assert posted_ui['notes']=='Post includes my latest unsaved entry' and posted_ui['status']=='Ready for Accounts'
     page.goto(f'http://127.0.0.1:{port}/accounts/?entity=TTI&cfBill={urllib.parse.quote(ui_payable)}');page.locator('#ttSimpleBills [data-payee]').wait_for();assert page.locator('#ttSimpleBills [data-payee]').input_value()=='TEST SERVICES'
     page.locator('#ttSimpleBills [data-bank-method]').select_option('ONLINE_BANKING');page.locator('#ttSimpleBills [data-reference]').fill('BROWSER-CARRY-PAY');page.locator('#ttSimpleBills [type=submit]').click();page.get_by_text('PAYMENT POSTED',exact=True).wait_for()
     assert next(b for b in request(id=id)[1]['rows'][0]['bills'] if b['id']==ui_bill['id'])['paymentOutstanding']==0

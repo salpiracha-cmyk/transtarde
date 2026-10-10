@@ -88,9 +88,9 @@ function cf_register_bill(array &$s,array $r,array &$b,string $jid,array $u):voi
 function cf_action(array &$s,array $b,array $u):array {
  $action=(string)($b['action']??'');$request=cf_text($b['requestKey']??'',128);if(!preg_match('/^[a-zA-Z0-9._:-]{16,128}$/',$request))throw new DomainException('Reopen the form before saving.');$key=(string)($u['id']??0).'|'.$request;$hash=hash('sha256',json_encode($b));if(isset($s['carryForwardRequests'][$key])){if($s['carryForwardRequests'][$key]['hash']!==$hash)throw new DomainException('This request was already used with different details.');$old=$s['carryForwardRequests'][$key]['result'];cf_access($u,$s['carryForwardShipments'][$old['id']]['entity'],$action!=='post_bill'&&$action!=='add_bill');return $old+['replayed'=>true];}
  $id=cf_text($b['id']??'');$old=$id!==''?($s['carryForwardShipments'][$id]??null):null;if($id!==''&&!is_array($old))throw new DomainException('Shipment record not found.');
- if($action==='save'){
+ if($action==='save'||$action==='post'){
   if($old){cf_access($u,$old['entity'],true);if($old['status']!=='Draft')throw new DomainException('Published opening information is locked. Add later bills below; correct financial postings through Accounts.');if((int)($b['version']??0)!==(int)$old['version'])throw new DomainException('This shipment changed. Reopen before saving.');if(($b['entity']??'')!==$old['entity'])throw new DomainException('Company cannot be changed.');}
-  $r=cf_clean($b,$s,$u);if($id==='')$id='CF-'.bin2hex(random_bytes(8));$r+=['id'=>$id,'status'=>'Draft','version'=>(int)($old['version']??0)+1,'createdAt'=>$old['createdAt']??gmdate('c'),'createdBy'=>$old['createdBy']??(string)($u['full_name']??$u['username']??'Management'),'files'=>$old['files']??[]];$s['carryForwardShipments'][$id]=$r;
+  $r=cf_clean($b,$s,$u);if($id==='')$id='CF-'.bin2hex(random_bytes(8));$r+=['id'=>$id,'status'=>'Draft','version'=>(int)($old['version']??0)+1,'createdAt'=>$old['createdAt']??gmdate('c'),'createdBy'=>$old['createdBy']??(string)($u['full_name']??$u['username']??'Management'),'files'=>$old['files']??[]];if($action==='post'){if($r['tgPack'])cf_access($u,'TG',true);cf_publish($s,$r,$u);$r['version']++;}$s['carryForwardShipments'][$id]=$r;
  }elseif($action==='publish'){
   if(!$old||$old['status']!=='Draft')throw new DomainException('Select a saved draft.');cf_access($u,$old['entity'],true);if($old['tgPack'])cf_access($u,'TG',true);if((int)($b['version']??0)!==(int)$old['version'])throw new DomainException('The draft changed. Reopen before bringing forward.');$r=$old;cf_publish($s,$r,$u);$r['version']++;$s['carryForwardShipments'][$id]=$r;
  }elseif($action==='add_bill'||$action==='post_bill'){
@@ -116,4 +116,13 @@ function cf_value_pending_candidate(array &$s,array $u,string $id,string $entity
  $rate=cf_rate($rate);$native=cf_number($c['transactionAmount'],false);$type=$c['candidateType'];$account=match($type){'CUSTOMER_EXPORT_SALE'=>'1210','TG_PAKISTAN_INTERCOMPANY'=>'1240','TG_INTERCOMPANY_PAYABLE'=>'2500',default=>throw new DomainException('Unsupported registered invoice.')};$side=$type==='TG_INTERCOMPANY_PAYABLE'?'Credit':'Debit';$amount=round($native*$rate,2);$meta=(array)$c['meta'];$record=$meta['carryForwardShipmentId'];$date=max(CF_CUTOFF,(string)($meta['commercialInvoiceDate']??CF_CUTOFF));
  $jid=cf_journal($s,$u,$entity,$date,'CARRY_FORWARD_OPENING',$c['reference'],$account,'3400',$amount,$side,['counterparty'=>$c['counterparty'],'subledger'=>$c['counterparty'],'candidateId'=>$id,'currency'=>$currency,'nativeCurrency'=>$currency,'nativeDebit'=>$side==='Debit'?$native:0,'nativeCredit'=>$side==='Credit'?$native:0,'rate'=>$rate],['carryForwardShipmentId'=>$record,'candidateId'=>$id,'openingBalance'=>true,'valuationFromSettlement'=>true]);
  $s['exportCandidates'][$id]=array_replace($c,['pendingValuation'=>false,'journalId'=>$jid,'functionalRate'=>$rate,'currentCarryingRate'=>$rate,'functionalAmount'=>$amount,'currentCarryingAsOf'=>$date,'recognitionDate'=>$date,'status'=>'Registered balance valued at settlement']);
+}
+
+/** Saved sources remain previews until the user explicitly posts the carry-forward. */
+function cf_saved_tg_invoice_sources(array $s,string $entity):array {
+ $rows=[];foreach((array)($s['carryForwardShipments']??[]) as $r){
+  if(($r['status']??'')!=='Draft'||empty($r['tgPack'])||($r['entity']??'')!==$entity)continue;
+  $b=(array)($r['pakistanBalance']??[]);$open=round((float)($b['outstanding']??0),2);if($open<=.005)continue;
+  $rows[]=['id'=>$r['id'],'invoiceRef'=>$b['invoiceNo'],'contractRef'=>$r['contractRef'],'currency'=>$b['currency'],'value'=>$b['invoiceAmount'],'outstandingForeign'=>$open,'candidateId'=>'','mirrorCandidateId'=>'','recognized'=>false,'carryForwardDraftId'=>$r['id'],'carryForwardVersion'=>(int)$r['version']];
+ }return $rows;
 }
