@@ -13,8 +13,13 @@ function ev1_owned_locations(string $entity): array {
         if($owner===''&&($row['id']??'')==='mills-2'&&tt_location_identity((string)($v[0]??''))===tt_location_identity('Karachi Office'))$owner='TTI';
         if($owner!==$entity)continue;
         if($restricted&&tt_location_identity($scope)!==tt_location_identity((string)($v[0]??'')))continue;
-        $out[]=['id'=>(string)$row['id'],'name'=>(string)($v[0]??''),'type'=>$type,'location'=>$type==='Own Mill'?'MILL':($type==='Office'?'OFFICE':'OTHER'),'entity'=>$owner];
+        $home=in_array(tt_location_identity((string)($v[0]??'')),[tt_location_identity('Home'),tt_location_identity('Combined Home')],true);
+        $out[]=['id'=>(string)$row['id'],'name'=>(string)($v[0]??''),'type'=>$type,'location'=>$home?'HOME':($type==='Own Mill'?'MILL':($type==='Office'?'OFFICE':'OTHER')),'entity'=>$owner];
     }
+    // One stable shared Home dimension per company; no additional monetary ledger.
+    $hasHome=(bool)array_filter($out,static fn($row)=>$row['location']==='HOME');
+    $homeAllowed=!$restricted||in_array(tt_location_identity($scope),[tt_location_identity('Home'),tt_location_identity('Combined Home')],true);
+    if(!$hasHome&&$homeAllowed)$out[]=['id'=>'HOME|'.$entity,'name'=>'Home','type'=>'Home','location'=>'HOME','entity'=>$entity];
     return $out;
 }
 

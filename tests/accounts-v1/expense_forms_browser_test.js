@@ -9,7 +9,7 @@ const fs=require('node:fs'),assert=require('node:assert/strict'),{chromium}=requ
   await page.evaluate(()=>{
    window.TT_ACCOUNT_ACCESS={super:true,csrf:'fixture'};localStorage.setItem('tt_accounts_entity','TTI');window.pending=[];
    window.fetch=(url,options)=>new Promise(resolve=>pending.push({url,options,resolve}));
-   window.expenseData={ok:true,utilityMasters:[],utilityPayments:[],creditCardMasters:[],creditCardStatements:[],reimbursements:[],generalExpenses:[],reminders:[],paymentAccounts:[{id:'CASH|TTI',label:'Cash',currency:'PKR',bookBalance:100}],locations:[{id:'OFFICE',name:'Karachi Office',location:'OFFICE',type:'Office'},{id:'MILL',name:'Own Rice Mill',location:'MILL',type:'Own Mill'}]};
+   window.expenseData={ok:true,utilityMasters:[],utilityPayments:[],creditCardMasters:[],creditCardStatements:[],reimbursements:[],generalExpenses:[],reminders:[],paymentAccounts:[{id:'CASH|TTI',label:'Cash',currency:'PKR',bookBalance:100}],locations:[{id:'OFFICE',name:'Karachi Office',location:'OFFICE',type:'Office'},{id:'MILL',name:'Own Rice Mill',location:'MILL',type:'Own Mill'},{id:'HOME|TTI',name:'Home',location:'HOME',type:'Home'}]};
    window.resolveNext=(kind,data)=>{const index=pending.findIndex(row=>row.url.includes(kind));if(index<0)throw Error('Missing request '+kind);const request=pending.splice(index,1)[0];request.resolve({ok:true,json:async()=>data||expenseData});};
   });
   for(const path of ['accounts/expense-editor-owner.js','accounts/rent-salary-ui.js','accounts/donations-ui.js','accounts/expenses-v1-ui.js'])await page.addScriptTag({content:fs.readFileSync(path,'utf8')});
@@ -17,12 +17,23 @@ const fs=require('node:fs'),assert=require('node:assert/strict'),{chromium}=requ
   assert.equal(await page.locator('#evUmPayee').count(),0,'reminder setup starts closed');
   await page.click('#evAddUtility');await page.waitForSelector('#evUmPayee');
   assert.equal(await page.locator('#evUmLocName').inputValue(),'OFFICE','own office auto-selected');
-  assert.deepEqual(await page.locator('#evUmLocName option').allTextContents(),['Select company location','Karachi Office','Own Rice Mill']);
+  assert.deepEqual(await page.locator('#evUmLocName option').allTextContents(),['Select company location','Karachi Office','Own Rice Mill','Home']);
   assert.equal(await page.locator('.tte-master-popup').isVisible(),true,'master setup opens as popup');await page.click('#evUmCancel');
   await page.selectOption('#evPayLocName','MILL');
   assert.equal(await page.locator('#evReadFrom').isVisible(),true,'meter dates visible for mill electricity');
   await page.selectOption('#evPayType','INTERNET');
   assert.equal(await page.locator('#evReadFrom').isVisible(),false,'meter dates hidden for other bills');
+  await page.selectOption('#evPayLocName','HOME|TTI');
+  assert.equal(await page.locator('#evUtilityFor').inputValue(),'SHARED');
+  assert.equal(await page.locator('#evUtilityPersonal').inputValue(),'COMPANY');
+  assert.equal(await page.locator('#evTreatment').inputValue(),'BUSINESS_EXPENSE');
+  assert.equal(await page.locator('#evUtilityFor').isVisible(),true);
+  await page.evaluate(()=>{expenseData.utilityMasters=[{id:'HOME-REMINDER',utilityType:'ELECTRICITY',location:'HOME',locationId:'HOME|TTI',locationName:'Home',payee:'Home Electricity Provider',status:'Active'}];});
+  await page.click('[data-expense="utility"]');await page.evaluate(()=>resolveNext('expenses_v1'));await page.waitForSelector('#evPayMaster');
+  await page.selectOption('#evPayMaster','HOME-REMINDER');
+  assert.equal(await page.locator('#evPayLocName').inputValue(),'HOME|TTI');
+  assert.equal(await page.locator('#evTreatment').inputValue(),'BUSINESS_EXPENSE','Home reminders do not assign the bill to Salman');
+  assert.equal(await page.locator('#evUtilityFor').inputValue(),'SHARED');
   await page.click('[data-expense="card"]');await page.evaluate(()=>resolveNext('expenses_v1'));await page.waitForSelector('#evAddCard');
   assert.equal(await page.locator('#evCardName').count(),0,'credit card setup starts closed');
   await page.click('#evAddCard');assert.equal(await page.locator('#evCardName').count(),1);await page.click('#evCardCancel');
