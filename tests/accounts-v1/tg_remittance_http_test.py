@@ -19,7 +19,7 @@ with tempfile.TemporaryDirectory(prefix='tg-remittance-') as tmp:
  function tt_master_options(){return ['currencies'=>['USD','AED','PKR']];}function tt_user_accounts_entities($u){return ['TTI','TG'];}
  function tt_company_fx_rate($e,$f,$t){return $f==='USD'?3.67:1;}
  function tt_read_store(){return ['masters'=>tt_list_masters()];}
- function tt_list_masters(){return ['banks'=>[['id'=>'PKR','values'=>['Company Account','TTI','','TTI PKR','BANK','','','PKR','789','','','','','Active']],['id'=>'USD','values'=>['Company Account','TG','','TG USD','BANK','','','USD','123','','','','','Active']],['id'=>'AED','values'=>['Company Account','TG','','TG AED','BANK','','','AED','456','','','','','Active']]]];}
+ function tt_list_masters(){return ['export_realization_charges'=>[['id'=>'WHT','values'=>['Withholding Tax','EXP-AWT-NTR','Income Tax','NTR','PKR_PAYMENT','','','','Tax','1260','Yes','TTI; BRM','Active']],['id'=>'COMM','values'=>['Bank Commission','EXP-BANK-COMM','Bank Fee','Any','PKR_PAYMENT','','','','Fee','6810','No','TTI; BRM','Active']],['id'=>'FED','values'=>['FED Tax','EXP-FED-BANK','FED','Any','CHARGE:EXP-BANK-COMM','','','','Tax','6820','No','TTI; BRM','Active']]],'banks'=>[['id'=>'PKR','values'=>['Company Account','TTI','','TTI PKR','BANK','','','PKR','789','','','','','Active']],['id'=>'USD','values'=>['Company Account','TG','','TG USD','BANK','','','USD','123','','','','','Active']],['id'=>'AED','values'=>['Company Account','TG','','TG AED','BANK','','','AED','456','','','','','Active']]]];}
  function tt_next_post_id(array $existing, string $module='Accounts', string $area='Journal', ?string $date=null): string {
   $year=substr($date ?: date('Y-m-d'),0,4);$n=count($existing)+1;
   do {$id='POST-'.$year.'-'.str_pad((string)$n,5,'0',STR_PAD_LEFT);$n++;} while (isset($existing[$id]));
@@ -84,14 +84,16 @@ with tempfile.TemporaryDirectory(prefix='tg-remittance-') as tmp:
    basket_root['contracts'].append({'ref':ref,'seller':'TG','currency':'USD','customer':'BUYER'})
    basket_root['shipments'].append({'id':f'BASKET-{i}','kind':'lot','contractRef':ref,'lotId':f'LOT-{i}','tgdocs':{'saved':True,'customsInvoiceNo':invoice,'exporter':'TTI','currency':'USD','invoiceValue':amount},'customs':{'saved':True}})
   (root/'data/accounts.json').write_text(json.dumps(basket_state));(root/'data/operations.json').write_text(json.dumps({'values':{'transtrade_export_v3_operational':json.dumps(basket_root)}}))
-  basket_payload={**receipt_payload,'bankAdviceRef':'BASKET-ADVICE','foreignAmount':340,'tgPaymentTotal':350,'grossPkrEquivalent':95200,'pkrBankCredit':95200,'allocations':[{'targetType':'INTERCOMPANY_RECEIVABLE','targetId':f'EXP|BASKET-{i}','invoiceRef':f'PACK-{i}','contractRef':f'TG/BASKET/{i}','foreignAmount':amount,'customer':'TG'} for i,amount in enumerate([100,200],1)]+[{'targetType':'UNAPPLIED_TG','foreignAmount':50,'customer':'TG'}]}
+  basket_payload={**receipt_payload,'bankAdviceRef':'BASKET-ADVICE','foreignAmount':340,'tgPaymentTotal':350,'grossPkrEquivalent':95200,'pkrBankCredit':94107.3,'deductions':[{'masterCode':code,'amount':1,'percentage':pct,'autoCalculate':True} for code,pct in [('EXP-FED-BANK',15),('EXP-BANK-COMM',.1),('EXP-AWT-NTR',1)]],'allocations':[{'targetType':'INTERCOMPANY_RECEIVABLE','targetId':f'EXP|BASKET-{i}','invoiceRef':f'PACK-{i}','contractRef':f'TG/BASKET/{i}','foreignAmount':amount,'customer':'TG'} for i,amount in enumerate([100,200],1)]+[{'targetType':'UNAPPLIED_TG','foreignAmount':50,'customer':'TG'}]}
   before=(root/'data/accounts.json').read_bytes()
   assert req('export_receipts.php?entity=TTI',{**basket_payload,'tgPaymentTotal':339})[0]==422
   assert req('export_receipts.php?entity=TTI',{**basket_payload,'tgPaymentTotal':360})[0]==422
   assert (root/'data/accounts.json').read_bytes()==before
   status,basket=req('export_receipts.php?entity=TTI',basket_payload);assert status==200,basket
   journal=basket['journal'];assert journal['totalDebit']==journal['totalCredit']==98000
-  assert sum(x['debit'] for x in journal['lines'] if x['account']=='6810')==2800
+  assert sum(x['debit'] for x in journal['lines'] if x['account']=='6810')==2898
+  charges={x['masterCode']:x for x in basket['receipt']['deductions']};assert charges['EXP-AWT-NTR']['amount']==980 and charges['EXP-BANK-COMM']['amount']==98 and charges['EXP-FED-BANK']['amount']==14.7
+  assert charges['EXP-AWT-NTR']['calculationBasePkr']==98000 and charges['EXP-FED-BANK']['calculationBasePkr']==98
   assert sum(x['credit'] for x in journal['lines'] if x['account']=='1240')==84000
   assert sum(x['credit'] for x in journal['lines'] if x['account']=='2510')==14000
   assert basket['receipt']['foreignAmount']==340 and basket['receipt']['correspondentForeignAmount']==10 and basket['receipt']['tgPaymentTotal']==350
@@ -129,6 +131,9 @@ with tempfile.TemporaryDirectory(prefix='tg-remittance-') as tmp:
     labels=page.locator('#erTgItem').evaluate('el=>[...el.closest(".tter-grid").querySelectorAll(":scope > label")].map(x=>x.childNodes[0].textContent.trim())');assert labels[:3]==['Receipt Currency','Sender account','Invoice / Advance']
     page.locator('[data-tg-remove="TGPACK|BASKET-2"]').click();assert page.locator('#erTgItem option[value="TGPACK|BASKET-2"]').count()==1
     page.locator('#erTgItem').select_option('TGPACK|BASKET-2');assert 'USD 350' in page.locator('#erTgTotal').inner_text() and page.locator('#erBankRef').input_value()=='BASKET-UI'
+    for index,pct,amount in [(0,'1','980.00'),(1,'0.1','98.00'),(2,'15','14.70')]:
+     page.locator('[data-ded-percent]').nth(index).fill(pct);assert page.locator('[data-ded-amount]').nth(index).input_value()==amount
+    page.locator('#erBankCredit').fill('94107.30');assert page.locator('#erPost').is_enabled()
     page.screenshot(path=str(evidence/'tg-multiple-invoices-advance-desktop.png'));page.set_viewport_size({'width':390,'height':844});page.screenshot(path=str(evidence/'tg-multiple-invoices-advance-phone.png'))
     page.locator('#erPost').click();page.locator('#ttExportReceiptToast').filter(has_text='posted').wait_for()
     saved_ui=json.loads((root/'data/accounts.json').read_text());receipt_ui=next(x for x in saved_ui['exportReceipts'].values() if x['bankAdviceRef']=='BASKET-UI')
