@@ -125,7 +125,7 @@
   }
 
   async function launch(action) {
-    if(action.special==='carry-forward'){location.href='/exports/carry-forward.php?entity='+encodeURIComponent(entity());return;}
+    if(action.special==='carry-forward'){location.href='/accounts/carry-forward.php?entity='+encodeURIComponent(entity());return;}
     if(action.special==='customer-receivables'){const company=entity();try{const data=await json(`../api/accounts_dashboard.php?entity=${encodeURIComponent(company)}`);if(company===entity())openCustomerReceivables(data.customerReceivables);}catch(error){alert(error.message);}return;}
     // One desk owns navigation. Retire the previous workspace before opening another form.
     qa('.workspace.active').forEach(w=>w.classList.remove('active','tt-clean-modal','tt-editor-open'));

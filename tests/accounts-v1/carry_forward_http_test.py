@@ -149,7 +149,7 @@ with tempfile.TemporaryDirectory(prefix='carry-forward-qa-') as tmp:
    from playwright.sync_api import sync_playwright
    with sync_playwright() as p:
     browser=p.chromium.launch();page=browser.new_page(viewport={'width':1440,'height':1000})
-    page.goto(f'http://127.0.0.1:{port}/exports/carry-forward.php?entity=TTI');page.locator('#cf-new').wait_for();page.locator('#cf-new').click()
+    page.goto(f'http://127.0.0.1:{port}/accounts/carry-forward.php?entity=TTI');page.locator('#cf-new').wait_for();page.locator('#cf-new').click()
     page.locator('[name=customerId]').select_option('BUYER');page.locator('[name=contractRef]').fill('BROWSER-OLD');page.locator('[name=lotRef]').fill('BROWSER-LOT');page.locator('[name=blNo]').fill('BROWSER-BL')
     page.locator('[name=tgPack]').check();assert page.locator('#cf-tg-pack').is_visible()
     page.locator('[name=shipmentDate]').evaluate("el=>{el.value='2026-06-28';el.dispatchEvent(new Event('change',{bubbles:true}));}")
