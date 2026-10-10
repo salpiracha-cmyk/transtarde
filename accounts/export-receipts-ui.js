@@ -209,9 +209,9 @@
         const response=await fetch('../api/carry_forward_shipments.php',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({action:'publish',entity:entity(),id:item.carryForwardDraftId,version:item.carryForwardVersion,requestKey:crypto.randomUUID(),csrf:access.csrf})});
         const result=await response.json();if(!response.ok||!result.ok)throw Error(result.error||'Could not post the carry-forward shipment.');
         data=await get(`${receiptApi}?entity=${encodeURIComponent(entity())}`);await loadTg();
-        const linked=sourceRows().find(row=>row.key===item.key&&!row.carryForwardDraftId);if(!linked)throw Error('Shipment posted; reopen the receipt to load its linked invoice.');
-        chosen.set(item.key,{...linked,applied:item.applied});render();
-        for(const saved of fields){const el=q(saved.selector);if(el){el.value=saved.value;el.checked=saved.checked;if(saved.manual)el.dataset.manual=saved.manual;if(saved.edited)el.dataset.edited=saved.edited;}}updateRetentionDetails();calc();if(dialog)dialog.scrollTop=scroll;toast('Carry-forward shipment posted. Continue with this payment.');
+        const linked=sourceRows().find(row=>!row.carryForwardDraftId&&row.recognized&&(row.key===item.key||(row.contractRef===item.contractRef&&row.invoiceRef===item.invoiceRef&&row.currency===item.currency)));if(!linked)throw Error('Shipment posted; reopen the receipt to load its linked invoice.');
+        chosen.delete(item.key);chosen.set(linked.key,{...linked,applied:item.applied});render();
+        for(const saved of fields){const el=q(saved.selector);if(el){el.value=saved.value;el.checked=saved.checked;if(saved.manual)el.dataset.manual=saved.manual;if(saved.edited)el.dataset.edited=saved.edited;}}if(q('#erTgItem'))q('#erTgItem').value=linked.key;updateRetentionDetails();calc();if(dialog)dialog.scrollTop=scroll;toast('Carry-forward shipment posted. Continue with this payment.');
       }catch(error){toast(error.message,false);button.disabled=false;}
     });
     q('#erTgItem')?.addEventListener('change',event=>{if(selectedTgPayment)return;const item=availableItems().find(row=>row.key===event.target.value);chosen.clear();if(item)chosen.set(item.key,{...item,applied:item.amount||0});render();if(item?.amount&&q('#erForeign')){q('#erForeign').value=String(item.amount);redistribute();calc();}});
