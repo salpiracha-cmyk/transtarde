@@ -5,7 +5,7 @@
   document.addEventListener('click', event => {
     const icon = event.target.closest?.('[data-expense]');
     if (icon) claim(icon.dataset.expense);
-    else if (event.target.closest?.('.entityBtn,[data-back],[data-editor-back],.tt-clean-close,.appCard[data-key]')) claim('');
+    else if (event.target.closest?.('.entityBtn,[data-tt-entity],[data-tt-area],[data-back],[data-editor-back],.tt-clean-close,.appCard[data-key]')) claim('');
   }, true);
   window.TT_EXPENSE_EDITOR = {
     claim,

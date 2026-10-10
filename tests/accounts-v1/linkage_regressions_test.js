@@ -32,11 +32,11 @@ function extractFunction(source,name){
 assert.match(modulePhp,/poLineKey:lineKey/,'Export bag bridge must carry the explicit PO line key');
 assert.match(modulePhp,/poLineKey:masterKey/,'Master bags must carry their own stable PO line key');
 assert.match(bagUi,/tt:bag-workspace-open/,'opening Bags must have an explicit read-only refresh path');
-assert.match(bagUi,/TT_BAG_PURCHASES_UI\?\.reload/,'the Bags workspace must refresh its server-owned view');
+assert.match(bagUi,/TT_BAG_PURCHASES_UI\?\.(?:reload|mount)/,'the Bags workspace must refresh its server-owned view');
 assert.doesNotMatch(bagUi,/method:\s*['"]POST['"]|setInterval/,'opening Bags must not post or poll in the background');
 assert.match(desk,/ttPurchaseMode = 'bags'/,'Bags navigation must claim the shared purchase editor before asynchronous rendering');
 assert.match(bagPurchases,/ttPurchaseMode='bags'/,'the Bags renderer must retain ownership of the shared purchase editor');
-assert.match(arrivalBills,/ttPurchaseMode==='bags'/,'a late Arrival Bills response must not overwrite the Bags form');
+assert.match(arrivalBills,/\['bags','other'\]\.includes\(editor.dataset.ttPurchaseMode\)/,'a late Arrival Bills response must not overwrite the Bags form');
 
 assert.match(sodaPhp,/\$rows=&\$data\['masters'\]\['business_parties'\]/,'Master mutations must target the canonical stored array by reference');
 assert.doesNotMatch(sodaPhp,/foreach\(\(array\)\(\$data\['masters'\]\['business_parties'\]/,'Master mutations must not iterate a cast temporary by reference');

@@ -55,6 +55,7 @@ jobs:
           node tests/accounts-v1/ledger_posting_rows_test.js
           node tests/accounts-v1/ledger_workbook_test.js
           node tests/accounts-v1/export_v3_linkage_test.js
+          node tests/accounts-v1/export_receipt_scope_test.js
           node tests/accounts-v1/product_stage_architecture_test.js
           node tests/accounts-v1/broker_brokery_master_test.js
           node tests/accounts-v1/soda_milling_routing_test.js
@@ -65,6 +66,7 @@ jobs:
           python3 tests/accounts-v1/fi_credit_advice_http_test.py
           php tests/accounts-v1/tg_receipt_mirror_test.php
           python3 tests/accounts-v1/tg_remittance_http_test.py
+          python3 tests/accounts-v1/general_bag_bill_http_test.py
           php tests/accounts-v1/accounts_reset_scope_test.php
           php tests/accounts-v1/qa_account_profile_test.php
           php tests/accounts-v1/request_store_read_cache_test.php
@@ -165,6 +167,7 @@ jobs:
           node tests/accounts-v1/post_register_browser_test.js
           node tests/accounts-v1/direct_expense_browser_test.js
           node tests/accounts-v1/unified_expense_browser_test.js
+          node tests/accounts-v1/purchase_handler_browser_test.js
           node tests/accounts-v1/accounts_date_jv_browser_test.js
           node tests/accounts-v1/accounts_layout_regression_browser_test.js
           node tests/accounts-v1/form_viewport_browser_test.js

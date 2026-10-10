@@ -6,7 +6,7 @@
 // acknowledged by accounts/bag-control-bridge.js.
 async function refresh(){
   try{
-    await window.TT_BAG_PURCHASES_UI?.reload?.();
+    await window.TT_BAG_PURCHASES_UI?.mount?.();
     document.getElementById('ttBagSyncError')?.remove();
   }catch(error){
     console.error('Bag operations refresh',error);

@@ -5,7 +5,7 @@ with tempfile.TemporaryDirectory(prefix='tg-remittance-') as tmp:
  root=pathlib.Path(tmp);(root/'api').mkdir();(root/'accounts').mkdir();(root/'data').mkdir()
  for name in ['accounts_subaccounts_core.php','assets_registry_core.php','export_receipts.php','export_receipt_tg_mirror.php','accounts_receipt_amend_core.php','tg_remittances.php','tg_remittance_core.php','fi_credit_advice_link.php','receipt_invoice_links.php','accounts_reviews.php','accounts_reviews_core.php','accounts_dashboard.php','customer_receivables_core.php','bank_accounts.php','expense_reminders.php','accounts_ledger_browser.php','accounts_post_delete_core.php','accounts_reference.php']:
   shutil.copy(ROOT/'api'/name,root/'api'/name)
- for name in ['accounting_master_v1.json','settlement_policy_v1.json','export_realization_policy_v1.json','tg-remittances-ui.js','export-receipts-ui.js']:
+ for name in ['accounting_master_v1.json','settlement_policy_v1.json','export_realization_policy_v1.json','tg-remittances-ui.js','export-receipts-ui.js','post-confirmation-ui.js']:
   shutil.copy(ROOT/'accounts'/name,root/'accounts'/name)
  shutil.copy(ROOT/'brand-theme.js',root/'brand-theme.js');shutil.copy(ROOT/'brand-theme.css',root/'brand-theme.css')
  (root/'auth_store.php').write_text('''<?php
@@ -106,6 +106,33 @@ with tempfile.TemporaryDirectory(prefix='tg-remittance-') as tmp:
   status,confirmed=req(body=confirm);assert status==200,confirmed
   assert next(x for x in confirmed['banks'] if x['id']=='USD')['balance']['posted']==-350
   before=json.loads((root/'data/accounts.json').read_text());assert req(body=confirm)[1]['posted']['id']==confirmed['posted']['id'];after=json.loads((root/'data/accounts.json').read_text());assert set(after['journals'])==set(before['journals']) and all(after['journals'][k]['lines']==v['lines'] for k,v in before['journals'].items())
+  # Two parts of one advice use separate rates; blank fees never write off the balance.
+  (root/'data/accounts.json').write_text(json.dumps(basket_state))
+  parts=[]
+  for part,net,fee,rate,allocation,bank in [('1',58,2,280,60,16052.68),('2',40,0,282,40,11154.23)]:
+   split={**basket_payload,'bankAdviceRef':'SPLIT-ADVICE','partialReceipt':True,'paymentPartRef':part,'foreignAmount':net,'tgPaymentTotal':allocation,'grossPkrEquivalent':net*rate,'realizationRate':rate,'pkrBankCredit':bank,'allocations':[{**basket_payload['allocations'][0],'foreignAmount':allocation}]}
+   if fee:split['correspondentForeignAmount']=fee
+   status,result=req('export_receipts.php?entity=TTI',split);assert status==200,result;parts.append(result)
+   assert result['journal']['totalDebit']==result['journal']['totalCredit']
+   before=(root/'data/accounts.json').read_bytes();assert req('export_receipts.php?entity=TTI',split)[0]==409;assert (root/'data/accounts.json').read_bytes()==before
+   invoice=next(x for x in req('export_receipts.php?entity=TTI')[1]['sources']['invoices'] if x['id']=='EXP|BASKET-1');assert invoice['outstandingForeign']==(40 if part=='1' else 0)
+  assert parts[0]['receipt']['deductions'][2]['calculationBasePkr']==16800
+  assert parts[1]['receipt']['correspondentForeignAmount']==0
+  assert sum(x['debit'] for x in parts[1]['journal']['lines'] if x.get('masterCode')=='EXP-BANK-SHORTFALL')==0
+  assert next(x for x in req()[1]['banks'] if x['id']=='USD')['balance']['pending']==100
+  assert next(x for x in req()[1]['banks'] if x['id']=='USD')['balance']['posted']==0
+  projection=json.loads(json.loads((root/'data/operations.json').read_text())['values']['transtrade_export_v3_operational'])['accountsReceipts']
+  assert len(projection)==2 and {x['receiptType'] for x in projection}=={'TG_PACK_PAYMENT'} and [x['realizationRate'] for x in projection]==[280,282]
+  before=(root/'data/accounts.json').read_bytes();assert req('export_receipts.php?entity=TTI',{**split,'paymentPartRef':'3','remitter':'OTHER'})[0]==409;assert (root/'data/accounts.json').read_bytes()==before
+  # Direct customer receipt reduces only its own commercial invoice.
+  direct=json.loads(json.dumps(basket_state));direct['exportCandidates']['DIRECT']={**direct['exportCandidates']['EXP|BASKET-1'],'id':'DIRECT','candidateType':'CUSTOMER_EXPORT_SALE','mirrorCandidateId':'','meta':{'commercialInvoiceNo':'CUSTOMER-CI','contractRef':'DIRECT-CONTRACT','customer':'BUYER'}}
+  (root/'data/accounts.json').write_text(json.dumps(direct))
+  for part,amount,rate in [('1',60,280),('2',40,282)]:
+   payload_direct={**receipt_payload,'bankAdviceRef':'CUSTOMER-SPLIT','remitter':'BUYER','partialReceipt':True,'paymentPartRef':part,'foreignAmount':amount,'realizationRate':rate,'grossPkrEquivalent':amount*rate,'pkrBankCredit':amount*rate,'allocations':[{'targetType':'EXPORT_RECEIVABLE','targetId':'DIRECT','foreignAmount':amount,'customer':'BUYER'}]}
+   status,result=req('export_receipts.php?entity=TTI',payload_direct);assert status==200,result
+   assert sum(x['credit'] for x in result['journal']['lines'] if x['account']=='1210')==amount*280
+  sources=req('export_receipts.php?entity=TTI')[1]['sources']['invoices'];assert next(x for x in sources if x['id']=='DIRECT')['outstandingForeign']==0 and next(x for x in sources if x['id']=='EXP|BASKET-1')['outstandingForeign']==100
+  saved=json.loads((root/'data/accounts.json').read_text());assert saved['exportCandidates']['DIRECT']['transactionAmount']==100
   # Browser uses the actual endpoint again from a fresh pending fixture.
   # Large advice at a fractional rate must balance net receipt plus rounded correspondent fee.
   fractional_state=json.loads(json.dumps(basket_state));fractional_root=json.loads(json.dumps(basket_root))
@@ -151,6 +178,18 @@ with tempfile.TemporaryDirectory(prefix='tg-remittance-') as tmp:
     saved_ui=json.loads((root/'data/accounts.json').read_text());receipt_ui=next(x for x in saved_ui['exportReceipts'].values() if x['bankAdviceRef']=='BASKET-UI')
     assert receipt_ui['tgPaymentTotal']==350 and receipt_ui['foreignAmount']==340 and receipt_ui['correspondentPkrAmount']==2800
     assert req()[1]['items'][0]['amountNative']==350 and next(x for x in req()[1]['banks'] if x['id']=='USD')['balance']['posted']==0
+    # Partial form posts one split at its rate and closes beneath the shared confirmation.
+    (root/'data/accounts.json').write_text(json.dumps(basket_state))
+    original=(root/'accounts/receipt-harness.html').read_text();(root/'accounts/partial-harness.html').write_text(original.replace('<script src="export-receipts-ui.js">','<script src="post-confirmation-ui.js"></script><script src="export-receipts-ui.js">'))
+    page.set_viewport_size({'width':1280,'height':900});page.goto(f'http://127.0.0.1:{port}/accounts/partial-harness.html');page.get_by_role('button',name='RECEIPT',exact=True).click();page.locator('[data-payer-type=TG]').click();page.locator('#erTgItem').select_option('TGPACK|BASKET-1');page.locator('#erPartialReceipt').check();page.locator('#erPaymentPart').fill('1');page.locator('[data-tg-amount]').fill('60');page.locator('#erForeign').fill('58');page.locator('#erCorrespondentAmount').fill('2');page.locator('#erRate').fill('280');page.locator('#erBankRef').fill('PARTIAL-UI')
+    for index,pct in [(0,'1'),(1,'0.1'),(2,'15')]:page.locator('[data-ded-percent]').nth(index).fill(pct)
+    assert page.locator('[data-ded-amount]').nth(0).input_value()=='168.00'
+    page.locator('#erBankCredit + input[data-tt-numeric-proxy]').fill('16052.68');assert page.locator('#erPost').is_enabled();page.locator('#erPost').click();page.locator('#tt-post-confirmation').wait_for();page.wait_for_function('document.querySelector("#ttExportReceiptDialog").hidden');assert page.locator('#tt-post-confirmation td').filter(has_text='Correspondent').count()==1
+    source=next(x for x in req('export_receipts.php?entity=TTI')[1]['sources']['invoices'] if x['id']=='EXP|BASKET-1');assert source['outstandingForeign']==40
+    # Large debit/credit figures remain inside distinct table columns; mobile scrolls horizontally.
+    page.evaluate("TT_POST_CONFIRMATION.showJournal({id:'LAYOUT ONLY',entity:'TTI',date:'2026-10-10',lines:[{accountName:'Long bank and customer account name',debit:96747942,credit:96747942}]})")
+    cells=page.locator('#tt-post-confirmation td');bounds=[cells.nth(i).bounding_box() for i in range(3)];assert bounds[0]['x']+bounds[0]['width']<=bounds[1]['x']+.1 and bounds[1]['x']+bounds[1]['width']<=bounds[2]['x']+.1
+    page.set_viewport_size({'width':390,'height':844});assert page.locator('#tt-post-confirmation table').evaluate('el=>el.parentElement.scrollWidth>el.parentElement.clientWidth')
     browser.close()
   print('TG HTTP and optional browser: pending balance, charges/VAT, split grouping, permissions, stale prevention, USD ledger and idempotency passed')
  finally:

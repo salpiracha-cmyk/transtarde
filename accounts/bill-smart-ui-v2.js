@@ -28,12 +28,13 @@
   }
   async function load(force = false) {
     const company = entity();
-    if (loading || (!force && state.loadedEntity === company)) return;
+    if (!force && state.loadedEntity === company) return;
     loading = true;
     try {
       const response = await fetch(`${lookupApi}?entity=${encodeURIComponent(company)}`, {credentials:'same-origin', headers:{Accept:'application/json'}});
       let body = {}; try { body = await response.json(); } catch (_) {}
       if (!response.ok || !body.ok) throw new Error(body.error || 'Could not load saved Pohanch records.');
+      if(company!==entity())return;
       state.receipts = Array.isArray(body.receipts) ? body.receipts : [];
       state.bills = Array.isArray(body.bills) ? body.bills : [];
       state.sodas = Array.isArray(body.sodas) ? body.sodas : [];
@@ -123,7 +124,7 @@
     return `<details class="ttsb-card ttsb-recent"><summary style="cursor:pointer;font-weight:800">Recent Posted Bills</summary>${rows.length ? `<table><thead><tr><th>Posting</th><th>Bill</th><th>Date</th><th>Soda</th><th>Party</th><th>Value</th></tr></thead><tbody>${rows.map(row => `<tr><td><b>${esc(row.postingNumber || '—')}</b></td><td>${esc(row.billNo || row.id)}</td><td>${esc(row.billDate || '')}</td><td>${esc((row.sodas || []).join(', '))}</td><td>${esc(row.relationshipName || row.broker || '')}</td><td>PKR ${fmt(row.finalCommodityValue)}</td></tr>`).join('')}</tbody></table>` : '<div class="ttsb-empty">No posted bills yet.</div>'}</details>`;
   }
   function render() {
-    const editor = q('#purchaseEditor'); if (!editor) return; style(); editor.dataset.ttSmartBills = 'v3'; editor.dataset.ttPurchaseMode = 'arrival';
+    const editor = q('#purchaseEditor'); if (!editor||editor.dataset.ttPurchaseMode!=='arrival'||state.loadedEntity!==entity()) return; style(); editor.dataset.ttSmartBills = 'v3'; editor.dataset.ttPurchaseMode = 'arrival';
     if (entity() === 'TG') { editor.innerHTML = '<div class="ttsb-card">Pakistan Soda and Pohanch billing is available only in TTI / BRM books.</div>'; return; }
     editor.innerHTML = `<div class="ttsb-wrap"><div class="ttsb-card"><div class="ttsb-title"><div><h3>Bill Posting</h3><p>Search by broker or supplier, then choose the Soda and truck. If a supplier and broker are both present, the supplier receives the commodity bill and the broker receives brokerage separately.</p></div><b>${openRows().length} unposted</b></div>${relationSteps()}</div>${billForm(selected())}${recent()}</div>`;
     bind();
@@ -193,13 +194,13 @@
   }
   let mounting=null;
   async function mount() {
-    const editor=q('#purchaseEditor');if(!editor||editor.dataset.ttPurchaseMode==='bags')return;
-    if(mounting)return mounting;
+    const editor=q('#purchaseEditor');if(!editor||['bags','other'].includes(editor.dataset.ttPurchaseMode))return;
+    if(mounting?.company===entity())return mounting.promise;
     if(editor.dataset.ttSmartBills==='v3'&&editor.querySelector('.ttsb-wrap')&&state.loadedEntity===entity())return;
     editor.dataset.ttPurchaseMode='arrival';const company=entity();
-    mounting=(async()=>{try{await load(true);if(editor.dataset.ttPurchaseMode!=='arrival'||company!==entity())return;render();}
-      catch(error){editor.innerHTML=`<div class="ttsb-card"><h3>Bill Posting</h3><div class="note">${esc(error.message||'Could not load saved Pohanch records.')}</div></div>`;}})();
-    try{await mounting;}finally{mounting=null;}
+    const request={company};mounting=request;request.promise=(async()=>{try{await load(true);if(mounting!==request||editor.dataset.ttPurchaseMode!=='arrival'||company!==entity())return;render();}
+      catch(error){if(editor.dataset.ttPurchaseMode!=='arrival'||company!==entity())return;editor.innerHTML=`<div class="ttsb-card"><h3>Bill Posting</h3><div class="note">${esc(error.message||'Could not load saved Pohanch records.')}</div></div>`;}})();
+    try{await request.promise;}finally{if(mounting===request)mounting=null;}
   }
   document.addEventListener('click',event=>{if(event.target.closest('[data-tt-entity]')){state.loadedEntity='';state.broker='';state.supplier='';resetAfterRelationship();}});
   window.TT_SMART_COMMODITY_BILLS_V2 = {mount, reload:() => load(true).then(render), selectionRows:() => selectedRows().map(row=>({...row})), refreshTotals:syncLines};

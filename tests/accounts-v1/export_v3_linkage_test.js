@@ -18,7 +18,7 @@ assert.doesNotMatch(receiptApi,/transtrade_export_v2_operational/,'receipt API m
 assert.doesNotMatch(receiptApi,/\$root\['receipts'\]/,'receipt API must not write the retired receipt collection');
 
 assert.doesNotMatch(bagSync,/method:\s*['"]POST['"]/,'opening the Accounts Bags workspace must never write or synchronize in the background');
-assert.match(bagSync,/TT_BAG_PURCHASES_UI\?\.reload/,'opening the Accounts Bags workspace may refresh its server-owned view');
+assert.match(bagSync,/TT_BAG_PURCHASES_UI\?\.(?:reload|mount)/,'opening the Accounts Bags workspace may refresh its server-owned view');
 assert.doesNotMatch(bagSync,/operations\.php/,'Accounts bag sync must not call the retired endpoint');
 assert.doesNotMatch(bagSync,/transtrade_export_v2_operational/,'Accounts bag sync must not read retired Export data');
 
