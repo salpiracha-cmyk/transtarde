@@ -199,14 +199,19 @@
       const item=[...chosen.values()].find(row=>row.carryForwardDraftId);if(!item)return;
       if(!confirm('Post this saved carry-forward shipment and make its invoice balances available to Accounts?'))return;
       const button=event.currentTarget;button.disabled=true;
-      const fields=[...document.querySelectorAll('#ttExportReceiptDialog input,#ttExportReceiptDialog textarea,#ttExportReceiptDialog select')].filter(el=>el.id).map(el=>({id:el.id,value:el.value,checked:el.checked}));
+      const dialog=q('#ttExportReceiptDialog .tter-dialog'),scroll=dialog?.scrollTop||0;
+      const fields=[...document.querySelectorAll('#ttExportReceiptDialog input,#ttExportReceiptDialog textarea,#ttExportReceiptDialog select')].map(el=>{
+        const deduction=el.closest('[data-er-ded]'),attribute=['data-ded-code','data-ded-percent','data-ded-amount','data-ded-mode','data-ded-tax'].find(name=>el.hasAttribute(name));
+        const selector=el.id?`#${el.id}`:(deduction&&attribute?`[data-er-ded="${deduction.dataset.erDed}"] [${attribute}]`:'');
+        return {selector,value:el.value,checked:el.checked,manual:el.dataset.manual,edited:el.dataset.edited};
+      }).filter(field=>field.selector);
       try{
         const response=await fetch('../api/carry_forward_shipments.php',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({action:'publish',entity:entity(),id:item.carryForwardDraftId,version:item.carryForwardVersion,requestKey:crypto.randomUUID(),csrf:access.csrf})});
         const result=await response.json();if(!response.ok||!result.ok)throw Error(result.error||'Could not post the carry-forward shipment.');
         data=await get(`${receiptApi}?entity=${encodeURIComponent(entity())}`);await loadTg();
         const linked=sourceRows().find(row=>row.key===item.key&&!row.carryForwardDraftId);if(!linked)throw Error('Shipment posted; reopen the receipt to load its linked invoice.');
         chosen.set(item.key,{...linked,applied:item.applied});render();
-        for(const saved of fields){const el=document.getElementById(saved.id);if(el){el.value=saved.value;el.checked=saved.checked;}}calc();toast('Carry-forward shipment posted. Continue with this payment.');
+        for(const saved of fields){const el=q(saved.selector);if(el){el.value=saved.value;el.checked=saved.checked;if(saved.manual)el.dataset.manual=saved.manual;if(saved.edited)el.dataset.edited=saved.edited;}}updateRetentionDetails();calc();if(dialog)dialog.scrollTop=scroll;toast('Carry-forward shipment posted. Continue with this payment.');
       }catch(error){toast(error.message,false);button.disabled=false;}
     });
     q('#erTgItem')?.addEventListener('change',event=>{if(selectedTgPayment)return;const item=availableItems().find(row=>row.key===event.target.value);chosen.clear();if(item)chosen.set(item.key,{...item,applied:item.amount||0});render();if(item?.amount&&q('#erForeign')){q('#erForeign').value=String(item.amount);redistribute();calc();}});
