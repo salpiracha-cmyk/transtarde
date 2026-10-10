@@ -10,7 +10,7 @@ function fixture(html,source=''){
 }
 // Bags: selecting the PO reveals the invoice fields, then the tax tick reveals GST.
 {
- const w=fixture('<main></main>',`const lines=()=>[{ratePerBag:10,remainingToBill:100,receivedNotBilled:100,po:{poNo:'PO1',supplier:'Supplier'},packingSize:'50kg',brand:'Fixture'}],latestRate=()=>18;${line('accounts/bag-purchases-ui.js','billForm')}${line('accounts/bag-purchases-ui.js','recalc')}`);
+ const w=fixture('<main></main>',`const billPurpose='EXPORT';${line('accounts/bag-purchases-ui.js','purposeField')}const lines=()=>[{ratePerBag:10,remainingToBill:100,receivedNotBilled:100,po:{poNo:'PO1',supplier:'Supplier'},packingSize:'50kg',brand:'Fixture'}],latestRate=()=>18;${line('accounts/bag-purchases-ui.js','billForm')}${line('accounts/bag-purchases-ui.js','recalc')}`);
  w.eval('document.querySelector("main").innerHTML=billForm();recalc()');
  const q=id=>w.document.getElementById(id);
  assert.equal(q('bgSupplier').closest('label').hidden,true);assert.equal(q('bgSave').hidden,true);
