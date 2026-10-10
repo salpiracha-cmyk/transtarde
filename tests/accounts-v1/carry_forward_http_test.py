@@ -193,7 +193,7 @@ with tempfile.TemporaryDirectory(prefix='carry-forward-qa-') as tmp:
     page.wait_for_function("()=>{const y=document.querySelector('.cf-sheet h1')?.getBoundingClientRect().top;return y>=0&&y<500}")
     heading=page.locator('.cf-sheet h1').bounding_box();assert heading['y']>=0 and heading['y']<500
     page.locator('[name=advance100]').check();assert page.locator('#cf-advance-date').is_visible();page.locator('[name=advance100]').uncheck();assert not page.locator('#cf-advance-date').is_visible()
-    page.locator('[name=notes]').fill('Post includes my latest unsaved entry')
+    page.locator('textarea[name=notes]').fill('Post includes my latest unsaved entry')
     page.once('dialog',lambda dialog:dialog.accept());page.locator('#cf-publish').click()
     page.get_by_text('Ready for Accounts',exact=True).wait_for()
     posted_ui=next(r for r in json.loads(books.read_text())['carryForwardShipments'].values() if r['contractRef']=='BROWSER-OLD')
