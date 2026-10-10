@@ -198,7 +198,7 @@
     q('#erPostCarry')?.addEventListener('click',async event=>{
       const item=[...chosen.values()].find(row=>row.carryForwardDraftId);if(!item)return;
       if(!confirm('Post this saved carry-forward shipment and make its invoice balances available to Accounts?'))return;
-      const button=event.currentTarget;button.disabled=true;
+      const button=event.currentTarget;button.disabled=true;item.carryForwardRequestKey ||= crypto.randomUUID();
       const dialog=q('#ttExportReceiptDialog .tter-dialog'),scroll=dialog?.scrollTop||0;
       const fields=[...document.querySelectorAll('#ttExportReceiptDialog input,#ttExportReceiptDialog textarea,#ttExportReceiptDialog select')].map(el=>{
         const deduction=el.closest('[data-er-ded]'),attribute=['data-ded-code','data-ded-percent','data-ded-amount','data-ded-mode','data-ded-tax'].find(name=>el.hasAttribute(name));
@@ -206,7 +206,7 @@
         return {selector,value:el.value,checked:el.checked,manual:el.dataset.manual,edited:el.dataset.edited};
       }).filter(field=>field.selector);
       try{
-        const response=await fetch('../api/carry_forward_shipments.php',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({action:'publish',entity:entity(),id:item.carryForwardDraftId,version:item.carryForwardVersion,requestKey:crypto.randomUUID(),csrf:access.csrf})});
+        const response=await fetch('../api/carry_forward_shipments.php',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({action:'publish',entity:entity(),id:item.carryForwardDraftId,version:item.carryForwardVersion,requestKey:item.carryForwardRequestKey,csrf:access.csrf})});
         const result=await response.json();if(!response.ok||!result.ok)throw Error(result.error||'Could not post the carry-forward shipment.');
         data=await get(`${receiptApi}?entity=${encodeURIComponent(entity())}`);await loadTg();
         const linked=sourceRows().find(row=>!row.carryForwardDraftId&&row.recognized&&(row.key===item.key||(row.contractRef===item.contractRef&&row.invoiceRef===item.invoiceRef&&row.currency===item.currency)));if(!linked)throw Error('Shipment posted; reopen the receipt to load its linked invoice.');
