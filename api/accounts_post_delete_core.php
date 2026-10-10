@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__.'/supplier_opening_core.php';
 
 /** Cancellation capabilities; linked workflows use their own reversal routines under the caller's lock. */
 function apd_record_index(array $s):array { $records=[];foreach(['utilityPayments','generalExpenses','reimbursements','creditCardStatements','donations'] as $collection)foreach((array)($s[$collection]??[]) as $r)foreach(array_merge([$r['journalId']??'', $r['captureJournalId']??'', $r['statementJournalId']??''],(array)($r['postingJournalIds']??[])) as $post)if($post!=='')$records[$post]=true;return $records; }
@@ -20,6 +21,7 @@ function apd_delete(array &$s,array $u,string $id,array $b):array {
     if(!is_array($j)||($j['status']??'')!=='Posted'||!apd_supported($s,$j))throw new DomainException('This posting has already been cancelled, or requires cancellation in its originating workflow.');
     $e=$j['entity'];if(!tt_post_correction_allowed($u,$j)||!tt_user_can_access_entity($u,$e,'Edit'))throw new DomainException('Original workflow and company Edit permission required.');
     $reason=trim((string)($b['reason']??''));if(mb_strlen($reason)<5||mb_strlen($reason)>300)throw new DomainException('Enter a deletion reason of 5 to 300 characters.');
+    if(($j['sourceType']??'')==='OPENING_BALANCE_BF')sop_assert_unpaid($s,$id);
     $before=$s;$journalIds=array_keys((array)$s['journals']);$date=$j['date'];$handled=false;
     foreach(['utilityPayments','generalExpenses','reimbursements','creditCardStatements','donations'] as $collection){foreach((array)($s[$collection]??[]) as $rid=>$r){if(!in_array($id,array_merge([$r['journalId']??'', $r['captureJournalId']??'', $r['statementJournalId']??''],(array)($r['postingJournalIds']??[])),true))continue;
         if(!defined('TT_EXPENSES_FUNCTIONS_ONLY'))define('TT_EXPENSES_FUNCTIONS_ONLY',true);require_once __DIR__.'/expenses_v1.php';ev1_delete_expense($s,['collection'=>$collection,'id'=>$rid,'reason'=>$reason],$e,$u,ev1_names());$handled=true;break 2;

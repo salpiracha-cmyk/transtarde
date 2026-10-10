@@ -87,6 +87,8 @@ jobs:
           php tests/accounts-v1/freight_metadata_test.php
           python3 tests/accounts-v1/ready_rice_bill_http_test.py
           php tests/accounts-v1/supplier_cheque_lifecycle_test.php
+          python3 tests/accounts-v1/supplier_opening_http_test.py
+          php tests/accounts-v1/supplier_opening_core_test.php
           php tests/accounts-v1/local_customer_cheque_test.php
           php tests/security/setup_storage_hardening_test.php
           php tests/security/master_permission_migration_test.php
@@ -168,6 +170,7 @@ jobs:
           node tests/accounts-v1/direct_expense_browser_test.js
           node tests/accounts-v1/unified_expense_browser_test.js
           node tests/accounts-v1/purchase_handler_browser_test.js
+          node tests/accounts-v1/supplier_opening_browser_test.js
           node tests/accounts-v1/accounts_date_jv_browser_test.js
           node tests/accounts-v1/accounts_layout_regression_browser_test.js
           node tests/accounts-v1/form_viewport_browser_test.js

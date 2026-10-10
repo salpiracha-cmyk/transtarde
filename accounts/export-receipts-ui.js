@@ -105,10 +105,11 @@
   }
   function selectedExpected() { return Math.round([...chosen.values()].reduce((sum,item) => sum + (payerType==='TG'||partialReceipt?num(item.applied):Number(item.amount || 0)),0)*100)/100; }
   function redistribute() {
-    if(payerType==='TG')return;
+    if(payerType==='TG'&&(!partialReceipt||selectedTgPayment))return;
     let remaining = num(q('#erForeign')?.value)+(partialReceipt?num(q('#erCorrespondentAmount')?.value):0);
     for (const [key,item] of chosen) { item.applied = item.targetType==='UNAPPLIED_TG' && !item.invoiceRef ? remaining : Math.min(item.amount,remaining); remaining = Math.max(0,remaining - item.applied); chosen.set(key,item); }
   }
+  function syncAppliedFields(){qa('[data-er-applied],[data-tg-amount]').forEach(input=>{input.value=chosen.get(input.dataset.erApplied||input.dataset.tgAmount)?.applied||'';});}
   function tgOptionsHtml() {return `<option value="">Select invoice / advance</option>${availableItems().filter(item=>!chosen.has(item.key)).map(item=>`<option value="${esc(item.key)}">${esc(itemLabel(item)+(item.carryForwardDraftId?' · Saved carry-forward':''))}</option>`).join('')}`;}
   function tgBasketHtml(){return `<div id="erTgBasket" class="tter-items">${[...chosen.values()].map(item=>`<div class="tter-item"><button type="button" data-tg-remove="${esc(item.key)}" class="tter-minus" aria-label="Remove ${esc(item.invoiceRef||'advance')}">−</button><div><b>${esc(item.invoiceRef||'ADVANCE')}</b><small>${esc(item.contractRef||'Unallocated advance')}</small></div><label>${esc(currency)}<input data-tg-amount="${esc(item.key)}" inputmode="decimal" value="${esc(item.applied)}" ${selectedTgPayment?'readonly':''}></label></div>`).join('')}</div><div class="tter-accounting" id="erTgTotal">TOTAL PAYMENT RECEIVED ${esc(currency)} ${fmt(selectedExpected())}</div><div class="tter-note" id="erTgCorrespondent"></div>`;}
   function renderTgBasket(){
@@ -118,7 +119,7 @@
     for(const saved of controls){const el=document.getElementById(saved.id);if(el){el.value=saved.value;el.checked=saved.checked;if(saved.edited)el.dataset.edited=saved.edited;}}
     if(files?.length&&q('#erAdviceFile'))q('#erAdviceFile').files=files;
     if(q('#erForeign')&&!q('#erForeign').dataset.edited)q('#erForeign').value=String(selectedExpected()||'');
-    updateRetentionDetails();calc();if(dialog)dialog.scrollTop=scroll;
+    if(partialReceipt){redistribute();syncAppliedFields();}updateRetentionDetails();calc();if(dialog)dialog.scrollTop=scroll;
   }
   function itemsHtml() {
     const rows = availableItems();
@@ -235,16 +236,17 @@
     q('#erCurrency')?.addEventListener('change', event => { if(selectedTgPayment)return; currency = event.target.value; advanceEntry=false;tgBankId = (tgData?.banks||[]).find(bank=>bank.currency===currency&&bank.settings?.defaultReceiptAccount)?.id||(tgData?.banks||[]).find(bank=>bank.currency===currency)?.id||''; chosen.clear(); render(); });
     q('#erAddDeduction')?.addEventListener('click', () => { const host=q('#erDeductions');if(!host)return;host.insertAdjacentHTML('beforeend',deductionRowHtml({code:'',amount:'',percent:'',mode:'DEDUCTED',taxSection:''},qa('[data-er-ded]').length));bindDeductionRows();calc(); });
     bindDeductionRows();
-    ['erForeign','erRate','erBankCredit','erRetention'].forEach(id => q(`#${id}`)?.addEventListener('input', () => { if (id === 'erForeign') { q('#erForeign').dataset.edited='1';redistribute(); qa('[data-er-applied]').forEach(input => { input.value = chosen.get(input.dataset.erApplied)?.applied || ''; }); } if(id==='erBankCredit')q('#erBankCredit').dataset.edited='1'; calc(); }));
+    ['erForeign','erRate','erBankCredit','erRetention'].forEach(id => q(`#${id}`)?.addEventListener('input', () => { if (id === 'erForeign') { q('#erForeign').dataset.edited='1';redistribute(); syncAppliedFields(); } if(id==='erBankCredit')q('#erBankCredit').dataset.edited='1'; calc(); }));
     q('#erDate')?.addEventListener('change',calc);
-    q('#erPartialReceipt')?.addEventListener('change',event=>{partialReceipt=event.target.checked;q('#erPaymentPartField').hidden=!partialReceipt;q('#erCorrespondentField')&&(q('#erCorrespondentField').hidden=!partialReceipt);redistribute();qa('[data-er-applied]').forEach(input=>input.value=chosen.get(input.dataset.erApplied)?.applied||'');calc();});q('#erCorrespondentAmount')?.addEventListener('input',()=>{redistribute();qa('[data-er-applied]').forEach(input=>input.value=chosen.get(input.dataset.erApplied)?.applied||'');calc();});q('#erPaymentPart')?.addEventListener('input',calc);q('#erPost')?.addEventListener('click',postReceipt);q('#erAmendReason')?.addEventListener('input',event=>{amendmentReason=event.target.value});
+    q('#erPartialReceipt')?.addEventListener('change',event=>{partialReceipt=event.target.checked;q('#erPaymentPartField').hidden=!partialReceipt;q('#erCorrespondentField')&&(q('#erCorrespondentField').hidden=!partialReceipt);redistribute();syncAppliedFields();calc();});q('#erCorrespondentAmount')?.addEventListener('input',()=>{redistribute();syncAppliedFields();calc();});q('#erPaymentPart')?.addEventListener('input',calc);q('#erPost')?.addEventListener('click',postReceipt);q('#erAmendReason')?.addEventListener('input',event=>{amendmentReason=event.target.value});
   }
   function calc() {
     if (!q('#erForeign')) return;
     const expected = selectedExpected(), received = num(q('#erForeign').value), rate = num(q('#erRate')?.value), gross = Math.round(received*rate*100)/100, retentionPkr = num(q('#erRetention')?.value) * rate;
     if(q('#erGross'))q('#erGross').value=gross?gross.toFixed(2):'';
-    calculateChargeRows(partialReceipt||payerType==='TG'&&!selectedTgPayment ? Math.round(expected*rate*100)/100 : gross);
-    const directForeign=selectedBankCurrency()!=='PKR',deducted = deductions.reduce((sum,row) => sum + (row.mode === 'DEDUCTED' && row.code ? num(row.amount) : 0),0), bankExpected = directForeign ? received : Math.max(0,(partialReceipt||payerType==='TG'&&!selectedTgPayment ? Math.round(expected*rate*100)/100-Math.round((partialReceipt?num(q('#erCorrespondentAmount')?.value):Math.max(0,expected-received))*rate*100)/100 : gross) - retentionPkr - deducted), bankField=q('#erBankCredit');
+    const principalPkr=partialReceipt?Math.round((received+num(q('#erCorrespondentAmount')?.value))*rate*100)/100:payerType==='TG'&&!selectedTgPayment?Math.round(expected*rate*100)/100:gross;
+    calculateChargeRows(principalPkr);
+    const directForeign=selectedBankCurrency()!=='PKR',deducted = deductions.reduce((sum,row) => sum + (row.mode === 'DEDUCTED' && row.code ? num(row.amount) : 0),0), bankExpected = directForeign ? received : Math.max(0,(partialReceipt||payerType==='TG'&&!selectedTgPayment ? principalPkr-Math.round((partialReceipt?num(q('#erCorrespondentAmount')?.value):Math.max(0,expected-received))*rate*100)/100 : gross) - retentionPkr - deducted), bankField=q('#erBankCredit');
     if(bankField&&directForeign&&!bankField.dataset.edited)bankField.value=bankExpected?bankExpected.toFixed(2):'';
     const bankCredit = num(bankField?.value), shortfall = partialReceipt?num(q('#erCorrespondentAmount')?.value):Math.max(0,expected - received);
     const allocation = [...chosen.values()].reduce((sum,item) => sum + num(item.applied),0), retentionAmount=num(q('#erRetention')?.value), retentionValid=retentionAmount<=received&&(!retentionAmount||!!q('#erRetentionBank')?.value), balanced = [...chosen.values()].every(item=>num(item.applied)>0&&(!item.invoiceRef||num(item.applied)<=Number(item.amount)+.005)&&!item.carryForwardDraftId) && (partialReceipt?Math.abs(allocation-received-shortfall)<.005:(payerType==='TG'&&!selectedTgPayment?received<=expected+.005&&[...chosen.values()].every(item=>num(item.applied)>0&&(!item.invoiceRef||num(item.applied)<=Number(item.amount)+.005)&&!item.carryForwardDraftId):Math.abs(allocation - received) <= .01)) && (directForeign ? Math.abs(bankCredit-bankExpected) <= .01 : Math.abs(bankCredit-bankExpected) < 1) && retentionValid, incomplete=deductions.some(row => !row.code && num(row.amount)>0),duplicate=new Set(deductions.filter(row=>row.code&&num(row.amount)>0).map(row=>row.code)).size!==deductions.filter(row=>row.code&&num(row.amount)>0).length;

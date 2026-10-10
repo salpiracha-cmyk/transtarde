@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__.'/accounts_bank_payment.php';
+require_once __DIR__.'/supplier_opening_core.php';
 
 require_once dirname(__DIR__) . '/auth_store.php';
 header('Content-Type: application/json; charset=UTF-8');
@@ -141,6 +142,10 @@ function ss_external_bill(array $s,string $entity,string $id):?array {
     foreach((array)($s[$collection]??[]) as $pay){if(!is_array($pay)||($pay['status']??'')==='Cancelled'||!empty($pay['settlementId']))continue;if(($pay[$kind==='BAGS'?'billId':'purchaseId']??'')===$id)$legacyPaid+=(float)($pay['amount']??0);}
     return ['id'=>$id,'entity'=>$entity,'category'=>$kind,'vendor'=>(string)($b['supplier']??''),'broker'=>(string)($b['supplier']??''),'billNo'=>(string)($kind==='BAGS'?($b['sellerInvoice']??''):($b['invoiceNo']??'')),'billDate'=>(string)($kind==='BAGS'?($b['sellerInvoiceDate']??''):($b['invoiceDate']??$b['date']??'')),'dueDate'=>(string)($b['dueDate']??($kind==='BAGS'?($b['sellerInvoiceDate']??''):($b['invoiceDate']??$b['date']??''))),'payableAccount'=>'2140','supplierPayableTotal'=>$total,'receiptAllocations'=>[['sourceKey'=>$kind.'|'.$id,'supplierPayableShare'=>max(0,round($total-$legacyPaid,2))]],'legacyPaid'=>$legacyPaid];
 }
+function ss_opening_bill(array $s,string $entity,string $id):?array {
+    $o=sop_openings($s,$entity)[$id]??null;if(!$o)return null;
+    return ['id'=>$id,'entity'=>$entity,'category'=>'OPENING','openingBalance'=>true,'journalId'=>$o['journalId'],'vendor'=>$o['party'],'broker'=>$o['party'],'billNo'=>'Balance B/F','billDate'=>$o['date'],'dueDate'=>$o['date'],'payableAccount'=>$o['account'],'supplierPayableTotal'=>$o['amount'],'receiptAllocations'=>[['sourceKey'=>$o['sourceKey'],'supplierPayableShare'=>$o['amount']]]];
+}
 function ss_simple_payables(array $s,string $entity):array {
     $rows=[];
     foreach(['supplierBills','bagSupplierBills','otherPurchases'] as $collection)foreach((array)($s[$collection]??[]) as $id=>$raw){
@@ -149,12 +154,13 @@ function ss_simple_payables(array $s,string $entity):array {
         if(!$bill||empty($bill['payableAccount']))continue;
         foreach((array)($bill['receiptAllocations']??[]) as $a){$cap=ss_component_capacity($s,$entity,$bill,$a);if($cap['total']<=.005)continue;$total=(float)$bill['supplierPayableTotal'];$rows[]=['billId'=>(string)$id,'sourceKey'=>(string)$a['sourceKey'],'supplier'=>(string)($bill['vendor']??$bill['broker']??''),'category'=>(string)($bill['category']??'SERVICE'),'billNo'=>(string)($bill['billNo']??''),'billDate'=>(string)($bill['billDate']??''),'total'=>$total,'paid'=>round($total-$cap['total'],2),'outstanding'=>$cap['total']];}
     }
+    foreach(sop_openings($s,$entity) as $id=>$o){$bill=ss_opening_bill($s,$entity,$id);$a=$bill['receiptAllocations'][0];$cap=ss_component_capacity($s,$entity,$bill,$a);if($cap['total']>.005)$rows[]=['billId'=>$id,'sourceKey'=>$o['sourceKey'],'supplier'=>$o['party'],'category'=>'OPENING','openingBalance'=>true,'billNo'=>'Balance B/F','billDate'=>$o['date'],'total'=>$o['amount'],'paid'=>round($o['amount']-$cap['total'],2),'outstanding'=>$cap['total'],'openingPostId'=>$o['journalId']];}
     usort($rows,static fn($a,$b)=>strcmp($a['billDate'],$b['billDate'])?:strcmp($a['billId'],$b['billId'])?:strcmp($a['sourceKey'],$b['sourceKey']));return $rows;
 }
 function ss_oldest_bill_allocations(array $s,string $entity,array $body):array {
     $supplier=trim((string)($body['supplier']??''));$scope=strtoupper(trim((string)($body['category']??'')));$keys=(array)($body['selectedBills']??[]);
     if($supplier===''||count($keys)>200)ss_respond(['ok'=>false,'error'=>'Select a supplier and no more than 200 bills.'],422);
-    $eligible=array_values(array_filter(ss_simple_payables($s,$entity),static fn($r)=>$r['supplier']===$supplier&&($scope===''||$r['category']===$scope)&&(!$keys||in_array($r['billId'].'|'.$r['sourceKey'],$keys,true))));
+    $eligible=array_values(array_filter(ss_simple_payables($s,$entity),static fn($r)=>$r['supplier']===$supplier&&($scope===''||$r['category']===$scope||!empty($r['openingBalance']))&& (empty($r['openingBalance'])||!empty($body['includeOpeningBalance']))&&(!$keys||in_array($r['billId'].'|'.$r['sourceKey'],$keys,true))));
     if($keys&&count(array_unique($keys))!==count($eligible))ss_respond(['ok'=>false,'error'=>'A selected bill changed or is no longer outstanding. Refresh the payment screen.'],409);
     $amount=ss_money($body['amount']??0,'Payment amount');$capacity=round(array_sum(array_column($eligible,'outstanding')),2);
     if($amount>$capacity+.005&&empty($body['allowAdvance']))ss_respond(['ok'=>false,'error'=>'Payment exceeds the selected outstanding bills. Record an explicit supplier advance separately.'],422);
@@ -163,6 +169,7 @@ function ss_oldest_bill_allocations(array $s,string $entity,array $body):array {
 function ss_find_bill(array $store,string $entity,string $billId): array {
     $b=$store['commodityBills'][$billId]??null;
     if(!is_array($b))$b=$store['supplierBills'][$billId]??null;
+    if(!is_array($b))$b=ss_opening_bill($store,$entity,$billId);
     if(!is_array($b))$b=ss_external_bill($store,$entity,$billId);
     if(!is_array($b)&&function_exists('pl_broker_bill'))$b=pl_broker_bill($store,$entity,$billId);
     if(!is_array($b)||($b['entity']??'')!==$entity)ss_respond(['ok'=>false,'error'=>'Supplier bill was not found in the selected entity.'],404);
@@ -251,7 +258,7 @@ try{
         rewind($h);$raw=stream_get_contents($h);$store=$raw?json_decode($raw,true):null;if(!is_array($store))$store=ss_default_store();$store=array_replace_recursive(ss_default_store(),$store);
         if($action==='post_bill_payment'){
             $requestKey=trim((string)($body['requestKey']??''));if(!preg_match('/^[a-zA-Z0-9-]{16,80}$/',$requestKey))ss_respond(['ok'=>false,'error'=>'Payment request ID is required. Reopen the payment screen.'],422);
-            $fingerprint=hash('sha256',json_encode([$entity,$date,$body['supplier']??'',$body['category']??'',$body['selectedBills']??[],$body['amount']??0,$body['paymentMode']??'',$body['bankAccountId']??'',$body['payer']??'',$body['payerRelationship']??'',$body['reference']??'',$body['allowAdvance']??false,$body['narration']??'']));
+            $fingerprint=hash('sha256',json_encode([$entity,$date,$body['supplier']??'',$body['category']??'',$body['selectedBills']??[],$body['amount']??0,$body['paymentMode']??'',$body['bankAccountId']??'',$body['payer']??'',$body['payerRelationship']??'',$body['reference']??'',$body['allowAdvance']??false,$body['narration']??'',$body['includeOpeningBalance']??false]));
             if(!empty($body['bankPaymentMethod']))$fingerprint=hash('sha256',$fingerprint.'|'.json_encode([$body['bankPaymentMethod'],$body['chequeNo']??'',$body['chequeDate']??'']));
             foreach((array)$store['supplierSettlements'] as $existing)if(($existing['requestKey']??'')===$requestKey&&($existing['entity']??'')===$entity){if(($existing['requestFingerprint']??'')!==$fingerprint)ss_respond(['ok'=>false,'error'=>'This draft was already posted with different details. Open another payment.'],409);ss_respond(['ok'=>true,'result'=>$existing,'revision'=>(int)$store['revision']]);}
             $body['allocations']=ss_oldest_bill_allocations($store,$entity,$body);$body['simpleBillPayment']=true;$action=(($body['paymentMode']??'')==='BANK'&&($body['bankPaymentMethod']??'')==='CHEQUE'&&($body['chequeDate']??'')>$date)?'issue_supplier_cheque':'post_supplier_payment';}
@@ -287,7 +294,7 @@ try{
             $store['supplierSettlements'][$id]=$item;$result=$item;
         }
         elseif($action==='post_supplier_payment'||$action==='issue_supplier_cheque'){
-            $prepared=ss_prepare_allocations($store,$entity,(array)($body['allocations']??[]));$advanceAmount=0.0;
+            $prepared=ss_prepare_allocations($store,$entity,(array)($body['allocations']??[]));foreach($prepared['rows'] as $a)if(str_starts_with($a['billId'],'BF:')&&$date<ss_find_bill($store,$entity,$a['billId'])['billDate'])ss_respond(['ok'=>false,'error'=>'Payment date cannot precede the opening balance.'],422);$advanceAmount=0.0;
             if(!empty($body['simpleBillPayment'])&&!empty($body['allowAdvance'])){$advanceAmount=max(0,round((float)$body['amount']-$prepared['total'],2));if($advanceAmount>0){$prepared['debits']['1250']=($prepared['debits']['1250']??0)+$advanceAmount;$prepared['total']+=$advanceAmount;$prepared['netPayment']+=$advanceAmount;}}
             $mode=strtoupper(trim((string)($body['paymentMode']??'')));if(($body['bankPaymentMethod']??'')==='CHEQUE')$body['reference']=trim((string)($body['chequeNo']??''));$bankId=trim((string)($body['bankAccountId']??''));$bankReference=trim((string)($body['reference']??''));
             $issuing=$action==='issue_supplier_cheque';$bankMethod=strtoupper(trim((string)($body['bankPaymentMethod']??($mode==='BANK'?'CHEQUE':''))));if($bankMethod==='BANK_TRANSFER')$bankMethod='ONLINE_BANKING';if($bankMethod!==''&&!in_array($bankMethod,['CHEQUE','ONLINE_BANKING','BANK_TRANSFER'],true))ss_respond(['ok'=>false,'error'=>'Choose Cheque or Online Banking.'],422);if($bankMethod==='CHEQUE'){if(($body['paymentMode']??'')!=='BANK'||trim((string)($body['chequeNo']??''))==='')ss_respond(['ok'=>false,'error'=>'Cheque number and bank are required.'],422);$body['reference']=trim((string)$body['chequeNo']);$chequeDate=ss_date((string)($body['chequeDate']??''));if($chequeDate<$date)ss_respond(['ok'=>false,'error'=>'Cheque date cannot be before payment date.'],422);if($issuing&&!empty($body['allowAdvance']))ss_respond(['ok'=>false,'error'=>'Post-dated cheques cannot include an advance in this screen.'],422);}if($issuing&&$mode!=='BANK')ss_respond(['ok'=>false,'error'=>'A post-dated cheque needs an approved bank account.'],422);

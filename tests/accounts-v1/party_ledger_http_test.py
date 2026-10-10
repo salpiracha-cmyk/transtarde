@@ -7,7 +7,7 @@ with tempfile.TemporaryDirectory(prefix='party-ledger-qa-') as temp:
     root = pathlib.Path(temp)
     for folder in ['api', 'data', 'accounts']:
         (root/folder).mkdir()
-    for name in ['accounts_subaccounts_core.php','assets_registry_core.php','accounts_ledger_browser.php','accounts_post_delete_core.php', 'accounts_reference.php', 'tg_remittance_core.php', 'fi_credit_advice_link.php', 'receipt_invoice_links.php','customer_receivables_core.php']:
+    for name in ['supplier_opening_core.php','accounts_subaccounts_core.php','assets_registry_core.php','accounts_ledger_browser.php','accounts_post_delete_core.php', 'accounts_reference.php', 'tg_remittance_core.php', 'fi_credit_advice_link.php', 'receipt_invoice_links.php','customer_receivables_core.php']:
         shutil.copy(ROOT/'api'/name, root/'api'/name)
     for path in (ROOT/'accounts').glob('*.json'):
         shutil.copy(path, root/'accounts'/path.name)

@@ -142,6 +142,14 @@ def run():
   assert request('/api/tg_bank_transactions.php',tgpay,user='fixtureowner')[1]['transaction']['id']==tg['transaction']['id']
   status,tg=request('/api/tg_bank_transactions.php',{**tgpay,'requestKey':'tg-payment-fixture-002','amountNative':25,'paymentMode':'THIRD_PARTY','payer':'External payer'},user='fixtureowner');assert status==200,(status,tg)
   assert any(l['account']=='2520' and l['credit']==25 for l in tg['journal']['lines']) and not any(l['account'] in ['1110','1120'] for l in tg['journal']['lines'])
+  fixture=json.loads(storefile.read_text());fixture['journals']['TG-OPENING']={'id':'TG-OPENING','entity':'TG','date':'2026-07-01','status':'Posted','sourceType':'OPENING_BALANCE_BF','lines':[{'account':'2130','subledger':'TG Fixture Vendor','credit':100,'debit':0},{'account':'3400','credit':0,'debit':100}]};storefile.write_text(json.dumps(fixture))
+  tg_bf={**tgpay,'requestKey':'tg-opening-payment-fixture','amountNative':225,'paymentMode':'THIRD_PARTY','payer':'External payer','includeOpeningBalance':True}
+  assert request('/api/tg_bank_transactions.php',{**tg_bf,'includeOpeningBalance':False},user='fixtureowner')[0]==422
+  status,tg=request('/api/tg_bank_transactions.php',tg_bf,user='fixtureowner');assert status==200,(status,tg)
+  assert [r['amountNative'] for r in tg['transaction']['liabilityAllocations']]==[100,125]
+  assert any(l['account']=='2130' and l['debit']==100 for l in tg['journal']['lines'])
+  assert all(r['id']!='BF:TG-OPENING:0' for r in tg['openLiabilities'])
+  assert request('/api/tg_bank_transactions.php',tg_bf,user='fixtureowner')[1]['transaction']['id']==tg['transaction']['id']
   status,ledger=request('/api/accounts_ledger_browser.php?entity=TTI&category=supplier&party=Fixture%20Vendor&from=2026-09-01&to=2026-09-30');assert status==200 and ledger['opening']==-300 and ledger['closing']==-150,(status,ledger)
   assert ledger['rows'][0]['party']=='Fixture Vendor'
   status,extra=request('/api/supplier_settlements.php',{**pay,'requestKey':'payment-fixture-advance','amount':200,'allowAdvance':True});assert status==200,(status,extra)

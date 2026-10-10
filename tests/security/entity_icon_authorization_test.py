@@ -12,7 +12,7 @@ with tempfile.TemporaryDirectory(prefix='tti-authorization-') as directory:
     private.mkdir()
     for name in ['auth_store.php', 'master_store.php', 'product_stage.php', 'offline_idempotency.php','session_store.php']:
         shutil.copy(ROOT / name, app / name)
-    for name in ['accounts_subaccounts_core.php','assets_registry_core.php','bank_accounts.php', 'tg_remittance_core.php', 'journal_vouchers.php', 'opening_balance_core.php', 'tg_bank_transfer.php', 'accounts_bank_payment.php']:
+    for name in ['supplier_opening_core.php','accounts_subaccounts_core.php','assets_registry_core.php','bank_accounts.php', 'tg_remittance_core.php', 'journal_vouchers.php', 'opening_balance_core.php', 'tg_bank_transfer.php', 'accounts_bank_payment.php']:
         shutil.copy(ROOT / 'api' / name, app / 'api' / name)
     shutil.copy(ROOT / 'accounts/accounting_master_v1.json', app / 'accounts/accounting_master_v1.json')
     harness = root / 'request.php'

@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__.'/supplier_opening_core.php';
 require_once __DIR__.'/accounts_reference.php';
 require_once __DIR__.'/accounts_bank_payment.php';
 require_once __DIR__.'/opening_balance_core.php';
@@ -18,6 +19,7 @@ function apa_correct(array &$store, array $user, string $postId, array $input): 
     if(!empty($original['reversalOf']))throw new DomainException('Select the original or replacement Post ID to amend.');
     foreach((array)($store['journals']??[]) as $journal)
         if(is_array($journal)&&($journal['reversalOf']??'')===$postId)throw new DomainException('This Post ID was already amended. Open its replacement Post ID.');
+    if($opening)sop_assert_unpaid($store,$postId);
     $entity=(string)($original['entity']??'');
     if(!in_array($entity,['TTI','BRM','TG'],true))throw new DomainException('Unknown company on this posting.');
     $reason=trim((string)($input['reason']??''));

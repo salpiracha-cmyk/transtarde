@@ -3,7 +3,7 @@ import json,os,pathlib,shutil,socket,subprocess,tempfile,time,urllib.request,url
 ROOT=pathlib.Path(__file__).resolve().parents[2]
 with tempfile.TemporaryDirectory(prefix='tg-remittance-') as tmp:
  root=pathlib.Path(tmp);(root/'api').mkdir();(root/'accounts').mkdir();(root/'data').mkdir()
- for name in ['accounts_subaccounts_core.php','assets_registry_core.php','export_receipts.php','export_receipt_tg_mirror.php','accounts_receipt_amend_core.php','tg_remittances.php','tg_remittance_core.php','fi_credit_advice_link.php','receipt_invoice_links.php','accounts_reviews.php','accounts_reviews_core.php','accounts_dashboard.php','customer_receivables_core.php','bank_accounts.php','expense_reminders.php','accounts_ledger_browser.php','accounts_post_delete_core.php','accounts_reference.php']:
+ for name in ['supplier_opening_core.php','accounts_subaccounts_core.php','assets_registry_core.php','export_receipts.php','export_receipt_tg_mirror.php','accounts_receipt_amend_core.php','tg_remittances.php','tg_remittance_core.php','fi_credit_advice_link.php','receipt_invoice_links.php','accounts_reviews.php','accounts_reviews_core.php','accounts_dashboard.php','customer_receivables_core.php','bank_accounts.php','expense_reminders.php','accounts_ledger_browser.php','accounts_post_delete_core.php','accounts_reference.php']:
   shutil.copy(ROOT/'api'/name,root/'api'/name)
  for name in ['accounting_master_v1.json','settlement_policy_v1.json','export_realization_policy_v1.json','tg-remittances-ui.js','export-receipts-ui.js','post-confirmation-ui.js']:
   shutil.copy(ROOT/'accounts'/name,root/'accounts'/name)
@@ -184,9 +184,12 @@ with tempfile.TemporaryDirectory(prefix='tg-remittance-') as tmp:
     page.set_viewport_size({'width':1280,'height':900});page.goto(f'http://127.0.0.1:{port}/accounts/partial-harness.html')
     page.evaluate("window.realFetch=window.fetch;window.fetch=(url,options)=>String(url).includes('export_receipts.php')&&!options?.body?new Promise(resolve=>window.releaseReceipt=()=>resolve(realFetch(url,options))):realFetch(url,options);window.openingReceipt=TT_EXPORT_RECEIPTS_UI.openForm();void 0")
     page.locator('[data-er-close]').click();page.evaluate('releaseReceipt();window.fetch=realFetch');page.evaluate('async()=>await openingReceipt');assert page.locator('#ttExportReceiptDialog').evaluate('el=>el.hidden')
-    page.get_by_role('button',name='RECEIPT',exact=True).click();page.locator('[data-payer-type=TG]').click();page.locator('#erTgItem').select_option('TGPACK|BASKET-1');page.locator('#erPartialReceipt').check();page.locator('#erPaymentPart').fill('1');page.locator('[data-tg-amount]').fill('60');page.locator('#erForeign').fill('58');page.locator('#erCorrespondentAmount').fill('2');page.locator('#erRate').fill('280');page.locator('#erBankRef').fill('PARTIAL-UI')
+    page.get_by_role('button',name='RECEIPT',exact=True).click();page.locator('[data-payer-type=TG]').click();page.locator('#erTgItem').select_option('TGPACK|BASKET-1');page.locator('#erPartialReceipt').check();page.locator('#erPaymentPart').fill('1');page.locator('#erForeign').fill('58');assert page.locator('[data-tg-amount]').input_value()=='58';page.locator('#erCorrespondentAmount').fill('2');page.locator('#erRate').fill('280');page.locator('#erBankRef').fill('PARTIAL-UI')
     for index,pct in [(0,'1'),(1,'0.1'),(2,'15')]:page.locator('[data-ded-percent]').nth(index).fill(pct)
+    assert page.locator('[data-tg-amount]').input_value()=='60'
     assert page.locator('[data-ded-amount]').nth(0).input_value()=='168.00'
+    page.locator('[data-ded-amount]').nth(1).fill('20');page.locator('#erRate').fill('281');assert page.locator('[data-ded-amount]').nth(1).input_value()=='20' and page.locator('[data-ded-amount]').nth(2).input_value()=='3.00'
+    page.locator('[data-ded-percent]').nth(1).fill('0.1');page.locator('#erRate').fill('280')
     page.locator('#erBankCredit + input[data-tt-numeric-proxy]').fill('16052.68');assert page.locator('#erPost').is_enabled();page.locator('#erPost').click();page.locator('#tt-post-confirmation').wait_for();page.wait_for_function('document.querySelector("#ttExportReceiptDialog").hidden');assert page.locator('#tt-post-confirmation td').filter(has_text='Correspondent').count()==1
     source=next(x for x in req('export_receipts.php?entity=TTI')[1]['sources']['invoices'] if x['id']=='EXP|BASKET-1');assert source['outstandingForeign']==40
     # Large debit/credit figures remain inside distinct table columns; mobile scrolls horizontally.
