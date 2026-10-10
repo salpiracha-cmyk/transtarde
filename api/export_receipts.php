@@ -5,7 +5,6 @@ require dirname(__DIR__) . '/auth_store.php';
 require __DIR__ . '/export_receipt_tg_mirror.php';
 require __DIR__ . '/accounts_receipt_amend_core.php';
 require_once __DIR__.'/fi_credit_advice_link.php';
-require_once __DIR__.'/carry_forward_core.php';
 header('Content-Type: application/json; charset=UTF-8');
 header('Cache-Control: no-store, no-cache, must-revalidate');
 
@@ -246,7 +245,7 @@ try{
             if(abs($gross-round($foreign*$rate,2))>2.0)er_respond(['ok'=>false,'error'=>'PKR equivalent must equal the foreign receipt multiplied by the recorded rate.'],422);
         }
         $retentionBank=null;if($retentionForeign>0){if($retentionBankId==='')er_respond(['ok'=>false,'error'=>'Select the approved foreign-currency retention bank account.'],422);$retentionBank=er_receipt_bank($store,$retentionBankId,$entity,$currency);}
-        foreach((array)($body['allocations']??[]) as $a)cf_value_pending_candidate($store,$user,(string)($a['targetId']??''),$entity,$currency,$gross/$foreign);
+        foreach((array)($body['allocations']??[]) as $a)if(!empty($store['exportCandidates'][(string)($a['targetId']??'')]['pendingValuation'])){require_once __DIR__.'/carry_forward_core.php';cf_value_pending_candidate($store,$user,(string)$a['targetId'],$entity,$currency,$gross/$foreign);}
         $alloc=er_prepare_allocations($store,$entity,$currency,$foreign,$gross,(array)($body['allocations']??[]));$ded=er_prepare_deductions($entity,$date,(array)($body['deductions']??[]),$catalog);
         $expected=round($gross-$retentionPkr-$ded['deducted'],2);$roundingDelta=$bankCurrency==='PKR'?round($expected-$bankCredit,2):0.0;
         if(abs($roundingDelta)>=1)er_respond(['ok'=>false,'error'=>'Bank advice does not balance: PKR credit + retention + deductions must equal gross PKR realization. Difference: Rs '.number_format($bankCredit-$expected,2).'. Enter the missing charge or correct the bank figures.'],422);

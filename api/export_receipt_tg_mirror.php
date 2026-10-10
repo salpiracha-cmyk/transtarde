@@ -1,6 +1,5 @@
 <?php
 declare(strict_types=1);
-require_once __DIR__.'/carry_forward_core.php';
 require_once __DIR__.'/tg_remittance_core.php';
 
 /** The Pakistan receipt and TG bank payment are written under the same Accounts lock. */
@@ -35,7 +34,7 @@ function er_mirror_tg_receipt(array &$store,array $user,array $body,array $alloc
         $liabilityId='';$payableRate=$rate;$target='1250';
         if($type==='INTERCOMPANY_RECEIVABLE'){
             $candidate=$store['exportCandidates'][(string)($allocation['targetId']??'')]??null;
-            $liabilityId=(string)($candidate['mirrorCandidateId']??'');cf_value_pending_candidate($store,$user,$liabilityId,'TG',$currency,$rate);$liability=$store['exportCandidates'][$liabilityId]??null;
+            $liabilityId=(string)($candidate['mirrorCandidateId']??'');if(!empty($store['exportCandidates'][$liabilityId]['pendingValuation'])){require_once __DIR__.'/carry_forward_core.php';cf_value_pending_candidate($store,$user,$liabilityId,'TG',$currency,$rate);}$liability=$store['exportCandidates'][$liabilityId]??null;
             if(!is_array($liability)||($liability['entity']??'')!=='TG'||($liability['candidateType']??'')!=='TG_INTERCOMPANY_PAYABLE'||empty($liability['journalId'])||($liability['counterparty']??'')!==$entity)er_respond(['ok'=>false,'error'=>'The TG invoice payable must be posted and linked before this payment.'],422);
             $paid=0.0;foreach((array)($store['tgBankTransactions']??[]) as $prior)if(is_array($prior)&&($prior['status']??'')!=='Reversed for Amendment'&&($prior['kind']??'')==='Payment'&&(string)($prior['sourceLiabilityId']??'')===$liabilityId)$paid+=(float)($prior['amountNative']??0);foreach((array)($store['tgBankTransactions']??[]) as $prior)if(($prior['status']??'')!=='Reversed for Amendment')foreach((array)($prior['liabilityAllocations']??[]) as $la)if(($la['id']??'')===$liabilityId)$paid+=(float)$la['amountNative'];
             if($amount>(float)$liability['transactionAmount']-$paid+.0001)er_respond(['ok'=>false,'error'=>'TG payment exceeds the outstanding payable for '.(string)($allocation['invoiceRef']??'the invoice').'.'],422);
