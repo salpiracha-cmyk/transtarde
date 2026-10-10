@@ -19,6 +19,15 @@ function tt_fi_advice_matches(array $root,array $store): array {
         if(!is_array($fi)||empty($fi['id'])||!empty($fi['cancelled'])||in_array(strtoupper((string)($fi['status']??'')),['CANCELLED','DELETED'],true))continue;
         $fiRows[(string)$fi['id']]=$fi;
     }
+    // Historical references live in Accounts; project them without rebuilding Exports FI/stock records.
+    $known=[];foreach($fiRows as $fi)$known[strtoupper(trim((string)($fi['number']??''))).'|'.($fi['exporter']??'').'|'.($fi['currency']??'')]=true;
+    $carryRows=[];$conflicts=[];foreach((array)($store['carryForwardShipments']??[]) as $carry){
+        if(($carry['status']??'')!=='Ready for Accounts')continue;$balance=$carry['tgPack']?$carry['pakistanBalance']:$carry['buyerBalance'];
+        foreach((array)($carry['fiRefs']??[]) as $ref){$number=trim((string)($ref['number']??''));$key=strtoupper($number).'|'.$carry['entity'].'|'.$balance['currency'];if($number===''||isset($known[$key])||(float)($ref['amount']??0)<=0||empty($ref['date']))continue;
+            $fi=['id'=>'CARRY-FI|'.hash('sha256',$key),'number'=>$number,'exporter'=>$carry['entity'],'currency'=>$balance['currency'],'customer'=>$carry['tgPack']?'TG':$carry['customer'],'date'=>$ref['date'],'value'=>(float)$ref['amount']];
+            if(isset($carryRows[$key])&&$carryRows[$key]!==$fi)$conflicts[$key]=true;else $carryRows[$key]=$fi;
+        }
+    }foreach($carryRows as $key=>$fi)if(!isset($conflicts[$key]))$fiRows[$fi['id']]=$fi;
     foreach((array)($store['exportReceipts']??[]) as $receipt){
         if(!is_array($receipt)||empty($receipt['id'])||!in_array($receipt['status']??'',['Posted','Accounts Approved / Posted'],true)||!empty($receipt['replacementReceiptId'])||($receipt['recordType']??'')==='FOREIGN_BANK_SHORTFALL_ADJUSTMENT')continue;
         $journal=$store['journals'][(string)($receipt['journalId']??'')]??[];

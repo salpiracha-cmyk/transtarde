@@ -47,11 +47,13 @@ if ($id === 'exports') {
         $html
     );
 }
+require_once __DIR__.'/api/carry_forward_core.php';
 $modulePermissions = $user['permissions'][$permissionName] ?? [];
 $access = [
     'module'=>$permissionName, 'moduleId'=>$id, 'user'=>(string)$user['full_name'],
     'role'=>(string)$user['role'], 'permissions'=>$modulePermissions,
     'super'=>(($user['role'] ?? '')==='Super Admin'), 'csrf'=>tt_csrf(),
+    'canCarryForward'=>job_authorized($user),
     'masterAccess'=>tt_user_can_access_masters($user), 'masterPermissions'=>$user['master_permissions'] ?? [],
     'masters'=>tt_list_masters(), 'masterOptions'=>tt_master_options(),
 ];

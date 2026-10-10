@@ -18,6 +18,7 @@
 
   const pakistanAreas = [
     {key:'exports', glyph:'⇄', title:'Export Receipts & Payments', note:'Every export receipt, document and shipment expense', actions:[
+      {title:'Carry-forward Shipments', note:'Historical shipment information, TG Pack and linked expense bills', special:'carry-forward'},
       {title:'Customer / Export Receivables', note:'Group customer invoices, receipts and outstanding balances', special:'customer-receivables'},
       {title:'Bank Receipt / Credit Advice', note:'One linked form for the advice, outstanding item, bank charges, WHT and Advance WHT; FI remains in Exports', special:'export-receipt'},
       {title:'Freight Forwarder / Shipping', note:'Agreed freight and shipment-linked invoice', special:'freight-desk'},
@@ -62,7 +63,7 @@
       {title:'Customer Receipt', special:'tg-customer-receipt'}, {title:'Customer / Export Receivables', special:'customer-receivables'}
     ]},
     {key:'tg-payments', glyph:'↑', title:'Supplier Payments', note:'Supplier liabilities and payments only', actions:[
-      {title:'Post Bill', native:'payables'}, {title:'Payment', special:'bill-payment'}
+      {title:'Carry-forward Shipments', note:'TG Pack opening balances and shipment expense bills', special:'carry-forward'}, {title:'Post Bill', native:'payables'}, {title:'Payment', special:'bill-payment'}
     ]},
     {key:'tg-bank', glyph:'▦', title:'Bank & Local Expenses', note:'Bank transfers, payments and local operating expense', actions:[
       {title:'Inter Account Transfer', note:'Choose the source and destination; currency direction and the TG Master rate are automatic', special:'internal-bank-transfer'},
@@ -124,6 +125,7 @@
   }
 
   async function launch(action) {
+    if(action.special==='carry-forward'){location.href='/exports/carry-forward.php?entity='+encodeURIComponent(entity());return;}
     if(action.special==='customer-receivables'){const company=entity();try{const data=await json(`../api/accounts_dashboard.php?entity=${encodeURIComponent(company)}`);if(company===entity())openCustomerReceivables(data.customerReceivables);}catch(error){alert(error.message);}return;}
     // One desk owns navigation. Retire the previous workspace before opening another form.
     qa('.workspace.active').forEach(w=>w.classList.remove('active','tt-clean-modal','tt-editor-open'));

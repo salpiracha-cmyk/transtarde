@@ -160,6 +160,7 @@ function job_action(array &$s, string $e, array $b, array $u): array {
     }elseif($action==='reverse_opening_balance'){
         $id=(string)($b['postId']??'');$j=$s['journals'][$id]??null;
         if(!is_array($j)||($j['entity']??'')!==$e||($j['sourceType']??'')!=='OPENING_BALANCE_BF'||!empty($j['openingReversalId']))throw new DomainException('Select an unreversed opening balance in these company books.');
+        foreach((array)($s['carryForwardOpeningLinks']??[]) as $link)if(($link['journalId']??'')===$id)throw new DomainException('This opening balance is assigned to a carry-forward shipment. Correct its linked transactions through Accounts before reversing.');
         $reason=jvw_text($b['reason']??'',300,'Reversal reason',true);$rid=tt_next_post_id((array)$s['journals'],'Accounts','Journal',JOB_DATE);$reverse=$j;$reverse['id']=$rid;$reverse['sourceType']='OPENING_BALANCE_REVERSAL';$reverse['reference']=$id;$reverse['reversalOf']=$id;$reverse['narration']='OPENING BALANCE REVERSAL — '.$reason;
         foreach($reverse['lines'] as &$l)foreach([['debit','credit'],['nativeDebit','nativeCredit'],['bankDebit','bankCredit']] as [$dr,$cr])if(isset($l[$dr])||isset($l[$cr])){[$l[$dr],$l[$cr]]=[$l[$cr]??0,$l[$dr]??0];}unset($l);
         $reverse['createdAt']=gmdate('c');$reverse['createdBy']=(string)($u['full_name']??$u['username']??'');$reverse['userId']=(int)($u['id']??0);$reverse['approvedBy']=$reverse['createdBy'];$reverse['approvedByUserId']=$reverse['userId'];$reverse['approvedAt']=$reverse['createdAt'];

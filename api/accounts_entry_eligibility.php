@@ -10,7 +10,7 @@ function tt_accounts_entry_store():array{
 }
 function tt_accounts_contract_freight(array $root,array $store,string $entity,string $ignore=''):array{
     $customers=[];foreach((array)($root['customers']??[]) as $c)$customers[(string)($c['id']??'')]=(string)($c['name']??'');
-    $sources=tt_accounts_shipment_rows($root,$entity);$out=[];
+    $sources=tt_accounts_shipment_rows($root,$entity,$store);$out=[];
     foreach((array)($root['contracts']??[]) as $c){
         $ref=(string)($c['ref']??'');$seller=strtoupper((string)($c['seller']??''));$assigned=strtoupper((string)($c['customsExporter']??''));
         if(!$ref||$seller!==$entity&&($seller!=='TG'||$assigned!==''&&$assigned!==$entity)||in_array(strtolower((string)($c['status']??'')),['cancelled','deleted'],true))continue;

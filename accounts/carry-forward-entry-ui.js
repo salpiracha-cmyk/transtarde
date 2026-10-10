@@ -1,0 +1,8 @@
+(() => {
+ 'use strict';
+ const access=window.TT_ACCOUNT_ACCESS||{},params=new URLSearchParams(location.search),bill=params.get('cfBill'),company=params.get('entity'),q=s=>document.querySelector(s);
+ const entity=()=>localStorage.getItem('tt_accounts_entity')||access.entities?.[0]||'TTI';
+ if(!bill||!company||!access.entities?.includes(company))return;
+ async function open(){const response=await fetch('/api/carry_forward_shipments.php?entity='+encodeURIComponent(company),{credentials:'same-origin'}),data=await response.json();if(!response.ok||!data.ok)throw Error(data.error||'Carry-forward bill unavailable.');const match=(data.rows||[]).flatMap(r=>r.bills||[]).find(b=>b.payableId===bill&&b.entity===company);if(!match)throw Error('This carry-forward payable is not accessible in these company books.');const permission=access.permissions,canPay=access.super||permission==='all'||(Array.isArray(permission)&&permission.includes('Create'))||(Array.isArray(permission?.supplier)&&permission.supplier.includes('Create'));if(!canPay)throw Error('Supplier Payment permission is required.');q(`.entityBtn[data-entity="${company}"]`)?.click();await window.TT_SUPPLIER_SETTLEMENT_UI.openBills('',match.vendor,bill);const url=new URL(location.href);url.searchParams.delete('cfBill');url.searchParams.delete('entity');history.replaceState(null,'',url)}
+ const start=()=>open().catch(error=>{const p=document.createElement('p');p.textContent=error.message;p.setAttribute('role','alert');p.style.cssText='padding:12px;background:#ffe8e8;color:#922';q('.shell')?.prepend(p)});if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start,{once:true});else start();
+})();

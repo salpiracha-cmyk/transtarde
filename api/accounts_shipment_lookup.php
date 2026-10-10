@@ -34,7 +34,7 @@ try{
         $count=0;foreach((array)($contract['packings']??[]) as $packing)if(is_array($packing))$count+=(int)($packing['containers']??0);
         $rows[]=['id'=>'','kind'=>'contract','seller'=>$seller,'lot'=>'Contract planning','contract'=>$ref,'customer'=>$customer,'containers'=>[],'plannedContainers'=>$count,'portOfLoading'=>(string)($contract['pol']??''),'portOfDischarge'=>$port,'loadingProgramme'=>'','shippingLine'=>''];
     }
-    foreach(tt_accounts_shipment_rows($root,$entity) as $row){
+    foreach(tt_accounts_shipment_rows($root,$entity,$store) as $row){
         $kind=strtoupper(trim((string)($_GET['billKind']??'')));if(in_array($kind,['FREIGHT','TRANSPORT','CLEARING','FUMIGATION','INSPECTION'],true)&&tt_accounts_source_billed($store,$entity,$kind,$row['id']))continue;
         $haystack=strtolower(implode(' ',array_map(static fn($item)=>is_array($item)?implode(' ',$item):(string)$item,$row)));
         if(str_contains($haystack,strtolower($term)))$rows[]=$row;

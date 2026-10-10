@@ -27,6 +27,7 @@ jobs:
           node tests/accounts-v1/rules_engine_test.js
           node tests/accounts-v1/salary_donations_test.js
           node tests/accounts-v1/expenses_v1_test.js
+          python3 tests/accounts-v1/carry_forward_http_test.py
           python3 tests/accounts-v1/direct_expense_http_test.py
           python3 tests/accounts-v1/bank_entries_http_test.py
           python3 tests/accounts-v1/bank_reconciliation_http_test.py
@@ -168,6 +169,8 @@ jobs:
           node tests/accounts-v1/accounts_layout_regression_browser_test.js
           node tests/accounts-v1/form_viewport_browser_test.js
           node tests/accounts-v1/payment_plans_browser_test.js
+      - name: Carry-forward shipment form and expense payments
+        run: '"$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/carry_forward_http_test.py'
       - name: Actual MySQL and restricted-user browser reconciliation
         env:
           TT_QA_OUTPUT: ${{ runner.temp }}/inventory-evidence

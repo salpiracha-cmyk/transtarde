@@ -57,6 +57,7 @@ $files = [
     'payment-planning-bank-funds.js',
     'bank-payment-details.js',
     'supplier-settlement-ui.js',
+    'carry-forward-entry-ui.js',
     'payables-bill-summary-ui.js',
     'rice-payment-overpayment-guard.js',
     'supplier-payment-broker-summary-ui.js',

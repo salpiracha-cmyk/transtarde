@@ -69,7 +69,7 @@ function tt_accounts_sync_freight(array $agreement,array $user):void{
         }finally{flock($h,LOCK_UN);fclose($h);}
     }
 }
-function tt_accounts_shipment_rows(array $root,string $entity):array{
+function tt_accounts_shipment_rows(array $root,string $entity,array $store=[]):array{
     $contracts=[];$customers=[];$rows=[];
     foreach((array)($root['customers']??[]) as $customer)if(is_array($customer))$customers[(string)($customer['id']??'')]=(string)($customer['name']??'');
     foreach((array)($root['contracts']??[]) as $contract)if(is_array($contract))$contracts[(string)($contract['ref']??'')]=$contract;
@@ -86,6 +86,11 @@ function tt_accounts_shipment_rows(array $root,string $entity):array{
         $programme='';foreach([$shipment['loadingProgrammeNo']??null,$loading['loadingProgrammeNo']??null,$shipment['bl']['bookingNumber']??null,$loading['bookingNumber']??null,$loading['bookingNo']??null] as $candidate){$programme=trim((string)($candidate??''));if($programme!=='')break;}
         $row=['id'=>(string)($shipment['id']??''),'kind'=>'lot','seller'=>$seller,'pakistanExporter'=>$exporter,'lot'=>(string)($shipment['lotId']??''),'contract'=>$ref,'customer'=>(string)($customers[(string)($contract['customerId']??'')]??$contract['customer']??$shipment['buyer']??''),'commercialInvoice'=>(string)($shipment['commercial']['invoiceNo']??''),'customsInvoice'=>(string)($shipment['customs']['invoiceNo']??''),'bl'=>(string)($shipment['bl']['blNo']??''),'containers'=>array_values(array_unique(array_filter(array_map('trim',$numbers)))),'loadingProgramme'=>$programme,'shippingLine'=>(string)(trim((string)($shipment['bl']['shippingLine']??''))!==''?$shipment['bl']['shippingLine']:($loading['shippingLine']??'')),'forwarder'=>(string)($shipment['forwarder']??$loading['forwarder']??''),'vessel'=>(string)($shipment['bl']['vessel']??$loading['intendedVessel']??''),'voyage'=>(string)($shipment['bl']['voyage']??$loading['voyage']??''),'portOfLoading'=>(string)($shipment['bl']['portOfLoading']??$loading['portOfLoading']??$contract['pol']??''),'portOfDischarge'=>(string)($contract['podPort']??''),'brand'=>implode(', ',array_values(array_filter(array_map(static fn($pack)=>is_array($pack)?(string)($pack['brand']??''):'',(array)($contract['packings']??[]))))),'po'=>implode(', ',$po),'gd'=>implode(', ',array_map(static fn($gd)=>is_array($gd)?(string)($gd['number']??''):(string)$gd,(array)($shipment['customs']['gdRefs']??[]))),'fi'=>implode(', ',array_map(static fn($fi)=>is_array($fi)?(string)($fi['number']??''):(string)$fi,(array)($shipment['customs']['fiAllocations']??[])))];
         $rows[]=$row;
+    }
+    foreach((array)($store['carryForwardShipments']??[]) as $carry){
+        if(($carry['status']??'')!=='Ready for Accounts'||($carry['entity']??'')!==$entity)continue;
+        if(!empty($carry['operationalShipmentId'])){$found=false;foreach($rows as &$row)if($row['id']===$carry['operationalShipmentId']){$row['carryForwardShipmentId']=$carry['id'];$found=true;}unset($row);if($found)continue;}
+        $rows[]=['id'=>$carry['id'],'kind'=>'lot','carryForward'=>true,'seller'=>$carry['tgPack']?'TG':$entity,'pakistanExporter'=>$entity,'lot'=>$carry['lotRef'],'contract'=>$carry['contractRef'],'customer'=>$carry['customer'],'commercialInvoice'=>$carry['buyerBalance']['invoiceNo']??'','customsInvoice'=>$carry['pakistanBalance']['invoiceNo']??$carry['buyerBalance']['invoiceNo']??'','bl'=>$carry['blNo'],'containers'=>$carry['containers'],'containerCount'=>$carry['containerCount'],'loadingProgramme'=>$carry['loadingProgrammeNo'],'shippingLine'=>$carry['shippingLine'],'forwarder'=>$carry['forwarder'],'vessel'=>$carry['vessel'],'voyage'=>$carry['voyage'],'portOfLoading'=>$carry['portOfLoading'],'portOfDischarge'=>$carry['portOfDischarge'],'brand'=>$carry['brand'],'po'=>$carry['bagPoNo'],'gd'=>implode(', ',array_column($carry['gdRefs'],'number')),'fi'=>implode(', ',array_column($carry['fiRefs'],'number'))];
     }
     return $rows;
 }

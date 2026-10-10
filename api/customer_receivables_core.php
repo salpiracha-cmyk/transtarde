@@ -12,7 +12,7 @@ function tt_customer_receivables(array $store, array $root, array $entities): ar
         $m=(array)($c['meta']??[]);$ref=(string)($m['contractRef']??'');$invoice=trim((string)($m['commercialInvoiceNo']??''));$cur=strtoupper((string)($c['transactionCurrency']??''));
         if($invoice===''||$cur==='')continue;
         $k=$key($c['entity'],$ref,$invoice,$cur);$candidateKeys[(string)($c['id']??$id)]=$k;
-        $rows[$k]=['entity'=>$c['entity'],'contractRef'=>$ref,'reference'=>$invoice,'currency'=>$cur,'label'=>(string)($m['customer']??''),'date'=>(string)($m['commercialInvoiceDate']??''),'invoiceAmount'=>round((float)($c['transactionAmount']??0),2),'received'=>0.0,'recognized'=>!empty($c['journalId']),'draft'=>($m['invoiceStage']??'Final')==='Draft','lotId'=>''];
+        $rows[$k]=['entity'=>$c['entity'],'contractRef'=>$ref,'reference'=>$invoice,'currency'=>$cur,'label'=>(string)($m['customer']??''),'date'=>(string)($m['commercialInvoiceDate']??''),'invoiceAmount'=>round((float)($m['invoiceOriginalAmount']??$c['transactionAmount']??0),2),'received'=>round((float)($m['receivedBeforeCutoff']??0),2),'recognized'=>!empty($c['journalId']),'draft'=>($m['invoiceStage']??'Final')==='Draft','lotId'=>''];
     }
     foreach((array)($root['shipments']??[]) as $s){
         if(!is_array($s)||!empty($s['cancelled']))continue;
