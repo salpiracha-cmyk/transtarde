@@ -48,7 +48,7 @@ function er_mirror_tg_receipt(array &$store,array $user,array $body,array $alloc
         if(!empty($allocation['invoiceRef']))$invoices[]=$allocation['invoiceRef'];
     }
     $id=tgr_id((array)($store['tgRemittanceDrafts']??[]),'TGRD');
-    $draft=['id'=>$id,'status'=>'Pending','legacy'=>false,'receiptIds'=>[$receiptId],'pakJournalIds'=>[$pakJournalId],'counterparty'=>$entity,'date'=>$date,'currency'=>$currency,'bankAccountId'=>$tgBankId,'bank'=>$bank['bankName'],'amountNative'=>$total,'bankAdviceRefs'=>[$bankRef],'allocations'=>$parts,'invoiceRefs'=>array_values(array_unique($invoices)),'version'=>1,'createdAt'=>gmdate('c'),'createdBy'=>(string)($user['full_name']??$user['username']??'Accounts')];
+    $draft=['id'=>$id,'status'=>'Pending','legacy'=>false,'receiptIds'=>[$receiptId],'pakJournalIds'=>[$pakJournalId],'counterparty'=>$entity,'date'=>$date,'currency'=>$currency,'bankAccountId'=>$tgBankId,'bank'=>$bank['bankName'],'amountNative'=>$total,'receivedNative'=>(float)($body['foreignAmount']??$total),'correspondentChargeNative'=>max(0,round($total-(float)($body['foreignAmount']??$total),2)),'bankAdviceRefs'=>[$bankRef],'allocations'=>$parts,'invoiceRefs'=>array_values(array_unique($invoices)),'version'=>1,'createdAt'=>gmdate('c'),'createdBy'=>(string)($user['full_name']??$user['username']??'Accounts')];
     $store['tgRemittanceDrafts'][$id]=$draft;
     $store['journals'][$pakJournalId]['meta']['tgRemittanceDraftId']=$id;
     return [['draft'=>$draft]];

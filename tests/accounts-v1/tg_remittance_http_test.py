@@ -5,7 +5,7 @@ with tempfile.TemporaryDirectory(prefix='tg-remittance-') as tmp:
  root=pathlib.Path(tmp);(root/'api').mkdir();(root/'accounts').mkdir();(root/'data').mkdir()
  for name in ['accounts_subaccounts_core.php','assets_registry_core.php','export_receipts.php','export_receipt_tg_mirror.php','accounts_receipt_amend_core.php','tg_remittances.php','tg_remittance_core.php','fi_credit_advice_link.php','receipt_invoice_links.php','accounts_reviews.php','accounts_reviews_core.php','accounts_dashboard.php','customer_receivables_core.php','bank_accounts.php','expense_reminders.php','accounts_ledger_browser.php','accounts_post_delete_core.php','accounts_reference.php']:
   shutil.copy(ROOT/'api'/name,root/'api'/name)
- for name in ['accounting_master_v1.json','settlement_policy_v1.json','export_realization_policy_v1.json','tg-remittances-ui.js']:
+ for name in ['accounting_master_v1.json','settlement_policy_v1.json','export_realization_policy_v1.json','tg-remittances-ui.js','export-receipts-ui.js']:
   shutil.copy(ROOT/'accounts'/name,root/'accounts'/name)
  (root/'auth_store.php').write_text('''<?php
  define('TT_DATA_DIR',__DIR__.'/data');foreach(['HOST','NAME','USER','PASS'] as $k)define('TT_DB_'.$k,'');
@@ -73,6 +73,36 @@ with tempfile.TemporaryDirectory(prefix='tg-remittance-') as tmp:
   status,actual=req('export_receipts.php?entity=TTI',receipt_payload);assert status==200,(actual,(root/'php.log').read_text()[-1500:])
   saved=json.loads((root/'data/accounts.json').read_text());assert actual['receipt']['tgRemittanceDraftId'] and len(saved['journals'])==1 and saved['journals'][actual['receipt']['journalId']]['entity']=='TTI'
   assert req()[1]['banks'][0]['balance']['pending']==100
+  # Two invoices plus an advance settle gross, while Pakistan receives net of correspondent charges.
+  basket_state={'journals':{},'exportCandidates':{},'exportReceipts':{}}
+  basket_root={'fi':[],'contracts':[],'shipments':[]}
+  for i,amount in enumerate([100,200],1):
+   pkid=f'EXP|BASKET-{i}';tgid=f'TG-PAY-{i}';ref=f'TG/BASKET/{i}';invoice=f'PACK-{i}'
+   basket_state['exportCandidates'][pkid]={'id':pkid,'entity':'TTI','candidateType':'TG_PAKISTAN_INTERCOMPANY','transactionCurrency':'USD','transactionAmount':amount,'functionalAmount':amount*280,'journalId':f'PK-OPEN-{i}','mirrorCandidateId':tgid,'meta':{'contractRef':ref,'commercialInvoiceNo':invoice,'customer':'TG'}}
+   basket_state['exportCandidates'][tgid]={'id':tgid,'entity':'TG','candidateType':'TG_INTERCOMPANY_PAYABLE','counterparty':'TTI','transactionCurrency':'USD','transactionAmount':amount,'functionalRate':3.67,'functionalAmount':amount*3.67,'journalId':f'TG-OPEN-{i}','meta':{'contractRef':ref}}
+   for entity,jid in [('TTI',f'PK-OPEN-{i}'),('TG',f'TG-OPEN-{i}')]:basket_state['journals'][jid]={'id':jid,'entity':entity,'date':'2026-07-01','status':'Posted','lines':[]}
+   basket_root['contracts'].append({'ref':ref,'seller':'TG','currency':'USD','customer':'BUYER'})
+   basket_root['shipments'].append({'id':f'BASKET-{i}','kind':'lot','contractRef':ref,'lotId':f'LOT-{i}','tgdocs':{'saved':True,'customsInvoiceNo':invoice,'exporter':'TTI','currency':'USD','invoiceValue':amount},'customs':{'saved':True}})
+  (root/'data/accounts.json').write_text(json.dumps(basket_state));(root/'data/operations.json').write_text(json.dumps({'values':{'transtrade_export_v3_operational':json.dumps(basket_root)}}))
+  basket_payload={**receipt_payload,'bankAdviceRef':'BASKET-ADVICE','foreignAmount':340,'tgPaymentTotal':350,'grossPkrEquivalent':95200,'pkrBankCredit':95200,'allocations':[{'targetType':'INTERCOMPANY_RECEIVABLE','targetId':f'EXP|BASKET-{i}','invoiceRef':f'PACK-{i}','contractRef':f'TG/BASKET/{i}','foreignAmount':amount,'customer':'TG'} for i,amount in enumerate([100,200],1)]+[{'targetType':'UNAPPLIED_TG','foreignAmount':50,'customer':'TG'}]}
+  before=(root/'data/accounts.json').read_bytes()
+  assert req('export_receipts.php?entity=TTI',{**basket_payload,'tgPaymentTotal':339})[0]==422
+  assert req('export_receipts.php?entity=TTI',{**basket_payload,'tgPaymentTotal':360})[0]==422
+  assert (root/'data/accounts.json').read_bytes()==before
+  status,basket=req('export_receipts.php?entity=TTI',basket_payload);assert status==200,basket
+  journal=basket['journal'];assert journal['totalDebit']==journal['totalCredit']==98000
+  assert sum(x['debit'] for x in journal['lines'] if x['account']=='6810')==2800
+  assert sum(x['credit'] for x in journal['lines'] if x['account']=='1240')==84000
+  assert sum(x['credit'] for x in journal['lines'] if x['account']=='2510')==14000
+  assert basket['receipt']['foreignAmount']==340 and basket['receipt']['correspondentForeignAmount']==10 and basket['receipt']['tgPaymentTotal']==350
+  status,review=req();draft=review['items'][0];assert status==200 and draft['amountNative']==350 and len(draft['allocations'])==3 and draft['receivedNative']==340
+  assert next(x for x in review['banks'] if x['id']=='USD')['balance']['posted']==0,'TG bank cannot be deducted before its review'
+  before=(root/'data/accounts.json').read_bytes();assert req('export_receipts.php?entity=TTI',basket_payload)[0]==409;assert (root/'data/accounts.json').read_bytes()==before
+  confirm={**payload,'ids':[draft['id']],'fingerprints':{draft['id']:draft['fingerprint']},'requestKey':'basket-confirm-request-12345','chargeAmount':0,'vatAmount':0}
+  assert req(body=confirm,role='readonly')[0]==403
+  status,confirmed=req(body=confirm);assert status==200,confirmed
+  assert next(x for x in confirmed['banks'] if x['id']=='USD')['balance']['posted']==-350
+  before=json.loads((root/'data/accounts.json').read_text());assert req(body=confirm)[1]['posted']['id']==confirmed['posted']['id'];after=json.loads((root/'data/accounts.json').read_text());assert set(after['journals'])==set(before['journals']) and all(after['journals'][k]['lines']==v['lines'] for k,v in before['journals'].items())
   # Browser uses the actual endpoint again from a fresh pending fixture.
   if os.environ.get('TT_QA_BROWSER')=='1':
    from playwright.sync_api import sync_playwright
@@ -82,7 +112,29 @@ with tempfile.TemporaryDirectory(prefix='tg-remittance-') as tmp:
    (root/'accounts/harness.html').write_text('<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><style>'+css+'</style><script>localStorage.setItem("tt_accounts_entity","TG");window.TT_ACCOUNT_ACCESS={csrf:"fixture"};window.TT_FORM_VIEWPORT={open:h=>h.scrollTop=0};</script><script src="tg-remittances-ui.js"></script><button onclick="TT_TG_REMITTANCES.open()">REVIEW</button>')
    with sync_playwright() as pw:
     browser=pw.chromium.launch();page=browser.new_page(viewport={'width':1280,'height':900});page.goto(f'http://127.0.0.1:{port}/accounts/harness.html');page.get_by_role('button',name='REVIEW',exact=True).click();page.locator('[data-id="DRAFT-1"]').check();page.locator('[name=chargeAmount]').fill('30');page.locator('[name=vatAmount]').fill('1.50');page.locator('[name=sameRemittanceConfirmed]').check();assert '140,000.00' in page.locator('#tgr-total').inner_text();assert '140,031.50' in page.locator('#tgr-debit').inner_text()
-    evidence=pathlib.Path(os.environ.get('TT_QA_OUTPUT',str(root/'evidence')));evidence.mkdir(exist_ok=True,parents=True);page.screenshot(path=str(evidence/'tg-remittance-desktop.png'));page.set_viewport_size({'width':390,'height':844});page.screenshot(path=str(evidence/'tg-remittance-phone.png'));page.get_by_role('button',name='POST TG REMITTANCE').click();page.get_by_role('heading',name='TG REMITTANCE POSTED').wait_for();assert req()[1]['items']==[];browser.close()
+    evidence=pathlib.Path(os.environ.get('TT_QA_OUTPUT',str(root/'evidence')));evidence.mkdir(exist_ok=True,parents=True);page.screenshot(path=str(evidence/'tg-remittance-desktop.png'));page.set_viewport_size({'width':390,'height':844});page.screenshot(path=str(evidence/'tg-remittance-phone.png'));page.get_by_role('button',name='POST TG REMITTANCE').click();page.get_by_role('heading',name='TG REMITTANCE POSTED').wait_for();assert req()[1]['items']==[]
+    # The production receipt UI selects multiple invoices and an advance without losing typed advice.
+    (root/'data/accounts.json').write_text(json.dumps(basket_state))
+    (root/'accounts/receipt-harness.html').write_text('<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><script>localStorage.setItem("tt_accounts_entity","TTI");window.TT_ACCOUNT_ACCESS={csrf:"fixture"};</script><script src="export-receipts-ui.js"></script><button onclick="TT_EXPORT_RECEIPTS_UI.openForm()">RECEIPT</button>')
+    page.route('**/api/bank_accounts.php?*',lambda route:route.fulfill(json={'ok':True,'accounts':[{'id':'PKR','bankName':'BANK','accountNumber':'789','currency':'PKR','settings':{'defaultReceiptAccount':True}}]}))
+    page.route('**/api/export_realization_master.php',lambda route:route.fulfill(json={'ok':True,'rows':[]}))
+    page.route('**/api/tg_bank_transactions.php?*',lambda route:route.fulfill(json={'ok':True,'banks':[{'id':'USD','bank':'TG BANK','title':'USD SENDER','currency':'USD','balance':{'native':1000}}],'openLiabilities':[{'id':'TG-PAY-1'},{'id':'TG-PAY-2'}]}))
+    page.set_viewport_size({'width':1280,'height':900});page.goto(f'http://127.0.0.1:{port}/accounts/receipt-harness.html');page.get_by_role('button',name='RECEIPT',exact=True).click();page.locator('[data-payer-type=TG]').click()
+    page.locator('#erTgItem').select_option('TGPACK|BASKET-1');page.locator('#erBankRef').fill('BASKET-UI');page.locator('#erForeign').fill('340');page.locator('#erRate').fill('280');page.locator('#erBankCredit').fill('95200')
+    page.locator('#erTgItem').select_option('TGPACK|BASKET-2');assert page.locator('#erBankRef').input_value()=='BASKET-UI' and page.locator('#erForeign').input_value()=='340'
+    assert page.locator('#erTgItem option[value="TGPACK|BASKET-1"]').count()==0
+    page.locator('#erTgItem').select_option('TGADV');page.locator('#erTgAdvance').fill('50');page.locator('#erAddTgAdvance').click()
+    assert page.locator('#erTgBasket .tter-item').count()==3 and 'USD 350' in page.locator('#erTgTotal').inner_text()
+    assert 'USD 10' in page.locator('#erTgCorrespondent').inner_text() and '2,800' in page.locator('#erAccountingRows').inner_text()
+    labels=page.locator('#erTgItem').evaluate('el=>[...el.closest(".tter-grid").querySelectorAll(":scope > label")].map(x=>x.childNodes[0].textContent.trim())');assert labels[:3]==['Receipt Currency','Sender account','Invoice / Advance']
+    page.locator('[data-tg-remove="TGPACK|BASKET-2"]').click();assert page.locator('#erTgItem option[value="TGPACK|BASKET-2"]').count()==1
+    page.locator('#erTgItem').select_option('TGPACK|BASKET-2');assert 'USD 350' in page.locator('#erTgTotal').inner_text() and page.locator('#erBankRef').input_value()=='BASKET-UI'
+    page.screenshot(path=str(evidence/'tg-multiple-invoices-advance-desktop.png'));page.set_viewport_size({'width':390,'height':844});page.screenshot(path=str(evidence/'tg-multiple-invoices-advance-phone.png'))
+    page.locator('#erPost').click();page.locator('#ttExportReceiptToast').filter(has_text='posted').wait_for()
+    saved_ui=json.loads((root/'data/accounts.json').read_text());receipt_ui=next(x for x in saved_ui['exportReceipts'].values() if x['bankAdviceRef']=='BASKET-UI')
+    assert receipt_ui['tgPaymentTotal']==350 and receipt_ui['foreignAmount']==340 and receipt_ui['correspondentPkrAmount']==2800
+    assert req()[1]['items'][0]['amountNative']==350 and next(x for x in req()[1]['banks'] if x['id']=='USD')['balance']['posted']==0
+    browser.close()
   print('TG HTTP and optional browser: pending balance, charges/VAT, split grouping, permissions, stale prevention, USD ledger and idempotency passed')
  finally:
   server.terminate();server.wait(timeout=5);log.close()
