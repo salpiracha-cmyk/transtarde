@@ -7,6 +7,7 @@ require_once __DIR__.'/accounts_post_delete_core.php';
 require_once __DIR__.'/accounts_subaccounts_core.php';
 require_once __DIR__.'/tg_remittance_core.php';
 require_once __DIR__.'/fi_credit_advice_link.php';
+require_once __DIR__.'/customer_receivables_core.php';
 header('Cache-Control: no-store');
 
 function alb_fail(string $message, int $status=422): never {
@@ -61,10 +62,10 @@ $partyAccounts=array_fill_keys(['1210','1220','1230','1240','1250','1400','2110'
 foreach((array)($master['peopleSubledgers']??[]) as $person)if(is_array($person)&&isset($person['code']))$partyAccounts[(string)$person['code']]=true;
 $missingPartyLines=0;
 $balanceUnavailable=false;
-$partyMasters=tt_list_masters();$partyNames=[];$partyAliases=[];
+$partyMasters=tt_list_masters();$partyNames=[];$partyAliases=[];$aliasSeen=[];
 foreach(['business_parties','export_customers'] as $type)foreach((array)($partyMasters[$type]??[]) as $record){
     if(!is_array($record))continue;$name=trim((string)($record['values'][0]??''));
-    if($name!==''){$code=trim((string)($record['values'][1]??''));$partyAliases[]=['name'=>$name,'code'=>$code,'label'=>$name.($code!==''?' ('.$code.')':'')];$partyNames[(string)($record['id']??$name)]=$name;$partyNames[alb_party_key($name)]=$name;}
+    if($name!==''){$code=trim((string)($record['values'][1]??''));$aliasKey=alb_party_key($name).'|'.alb_party_key($code);if(!isset($aliasSeen[$aliasKey])){$partyAliases[]=['name'=>$name,'code'=>$code,'label'=>$name.($code!==''?' ('.$code.')':'')];$aliasSeen[$aliasKey]=true;}$partyNames[(string)($record['id']??$name)]=$name;$partyNames[alb_party_key($name)]=$name;}
 }
 if($party!==''){$matches=[];foreach($partyAliases as $alias)if(alb_party_key($party)===alb_party_key($alias['name'])||alb_party_key($party)===alb_party_key($alias['label'])||($alias['code']!==''&&alb_party_key($party)===alb_party_key($alias['code'])))$matches[$alias['name']]=true;if(count($matches)>1)alb_fail('This party code matches more than one party. Select its full name.');if($matches)$party=(string)array_key_first($matches);}
 foreach(array_merge((array)($master['chart']??[]),(array)($master['peopleSubledgers']??[])) as $row){
@@ -77,6 +78,9 @@ foreach(['settlement_policy_v1.json','export_realization_policy_v1.json'] as $po
 }
 $file=TT_DATA_DIR.'/accounts.json';
 $store=tt_fi_advice_project(tt_fi_advice_read_json($file),tt_fi_advice_root());
+$invoiceRegister=$category==='party'?tt_customer_receivables($store,tt_fi_advice_root(),[$entity],$to):['rows'=>[],'drafts'=>[]];
+$partyInvoices=[];$invoiceTotals=[];
+foreach($invoiceRegister['rows'] as $invoice){$name=$partyNames[$invoice['label']]??$partyNames[alb_party_key($invoice['label'])]??$invoice['label'];if($name==='')continue;$parties[$name]=true;if($party!==''&&alb_party_key($name)===alb_party_key($party)&&$invoice['date']>=$from){$invoice['label']=$name;$partyInvoices[]=$invoice;$cur=$invoice['currency'];$invoiceTotals[$cur]=round(($invoiceTotals[$cur]??0)+$invoice['amount'],2);}}
 $headCodes=$headId!==''?sac_descendants($headId,$store,$entity):[];
 $subaccountIds=$subaccountId!==''?sac_subtree($store,$entity,$subaccountId):[];
 $homeLedger=isset(sac_accounts($store,$entity)[$subaccountId]['homePerson']);
@@ -144,6 +148,10 @@ foreach($journals as $journal){
         if($account!==''&&$bankId===''&&$subaccountId===''&&$headId===''&&$code!==$account)continue;
         $lineParty=trim((string)($line['supplier']??$line['broker']??$line['customer']??$line['counterparty']??$line['party']??''));
         $meta=(array)($journal['meta']??[]);
+        $candidateId=(string)($line['candidateId']??$line['sourceCandidateId']??$meta['candidateId']??'');
+        $candidate=(array)($store['exportCandidates'][$candidateId]??[]);
+        // Allocation-level identity takes precedence over the remitter on a multi-buyer receipt.
+        if($candidate)$lineParty=alb_party_name($candidate)?:alb_party_name((array)($candidate['meta']??[]))?:$lineParty;
         $source=[];$bill=[];
         if($lineParty===''){$sourceId=(string)($meta['bagBillId']??$meta['billId']??$meta['purchaseId']??'');$source=$store['bagSupplierBills'][$sourceId]??$store['otherPurchases'][$sourceId]??$store['commodityBills'][$sourceId]??[];$lineParty=trim((string)($source['supplier']??$source['broker']??$source['party']??''));}
         if($lineParty===''){$bill=$store['supplierBills'][(string)($meta['supplierBillId']??'')]??[];$lineParty=trim((string)($bill['vendor']??$meta['supplier']??$meta['broker']??$meta['customer']??$meta['counterparty']??$meta['payee']??''));}
@@ -188,7 +196,7 @@ foreach($journals as $journal){
         $rows[]=$row;
     }
 }
-if($category==='party'&&$party!==''&&!array_filter(array_keys($parties),static fn($name)=>alb_party_key($name)===alb_party_key($party)))alb_fail('No posted party ledger matches this name in the selected company and period.');
+if($category==='party'&&$party!==''&&!array_filter(array_keys($parties),static fn($name)=>alb_party_key($name)===alb_party_key($party)))alb_fail('No posted entries or issued invoices match this party in the selected company and period.');
 foreach($rows as &$trackingRow){$trackedJournal=$store['journals'][$trackingRow['voucher']]??[];$trackingRow['publicPostId']=tt_accounts_public_post($store,$trackedJournal);$trackingRow['amendmentNote']=tt_accounts_amendment_note($trackedJournal,$store);$fiTag=$store['journals'][$trackingRow['voucher']]['fiTag']??[];if($fiTag){$trackingRow['fiTag']=$fiTag;$trackingRow['narration'].=' · '.tt_fi_advice_label($fiTag);}$meta=(array)($store['journals'][$trackingRow['voucher']]['meta']??[]);$trackingRow['chequeNo']=(string)($meta['chequeNo']??'');$trackingRow['bankReference']=(string)($meta['bankReference']??'');}unset($trackingRow);
 $balance=round($opening,2);
 foreach($rows as &$row){if(($account!==''||$party!=='')&&!$postEntries){$balance=round($balance+$row['debit']-$row['credit'],2);$row['balance']=$balance;}}unset($row);
@@ -214,9 +222,10 @@ if(($_GET['format']??'')==='csv'){
     fputcsv($out,['Date','Post ID','Account','Account Name','Reference','Narration','Party','Debit','Credit','Balance','Expense paid']);
     foreach($rows as $row)fputcsv($out,array_map('alb_cell',[preg_replace('/^(\d{4})-(\d{2})-(\d{2})$/','$3-$2-$1',$row['date']),$row['publicPostId']??$row['voucher'],$row['account'],$row['accountName'],$row['reference'],$row['narration'],$row['party'],$row['debit'],$row['credit'],$row['balance']??'',$row['expenseAmount']??'']));
     if($category==='party')fputcsv($out,['Closing Balance','','','','','','','','',$balanceUnavailable?'Unavailable':$closing]);
+    if($partyInvoices){fputcsv($out,[]);fputcsv($out,['Buyer invoice balances — original currency']);fputcsv($out,['Date','Invoice','Contract','Currency','Invoice amount','Received','Outstanding','Status']);foreach($partyInvoices as $i)fputcsv($out,array_map('alb_cell',[$i['date'],$i['reference'],$i['contractRef'],$i['currency'],$i['invoiceAmount'],$i['received'],$i['amount'],$i['status']]));}
     fclose($out);exit;
 }
 header('Content-Type: application/json; charset=UTF-8');
-echo json_encode(['ok'=>true,'entity'=>$entity,'accounts'=>array_map(static fn($code,$name)=>['code'=>(string)$code,'name'=>$name],array_keys($catalog),array_values($catalog)),'from'=>$from,'to'=>$to,'account'=>$account,'currency'=>$bankId!==''?($banks[$bankId]['currency']??''):($entity==='TG'?$nativeCurrency:'PKR'),'pendingRemittances'=>$entity==='TG'&&$bankId!==''?tgr_reserved($store,$bankId):0,'availableBalance'=>$entity==='TG'&&$bankId!==''?tgr_bank_balance($store,$bankId,$banks[$bankId]['currency'])['available']:null,'opening'=>$opening===null?null:round($opening,2),'closing'=>($account!==''||$party!=='')&&!$postEntries?$closing:null,'partyAliases'=>$partyAliases,'parties'=>array_keys($parties),'category'=>$category,'party'=>$party,'homeLedger'=>$homeLedger,'expenseTotal'=>$expenseTotal,'expenseCurrency'=>$entity==='TG'?'AED':'PKR','missingPartyLines'=>$category==='party'?$missingPartyLines:0,'balanceUnavailable'=>$category==='party'&&$balanceUnavailable,'rows'=>$rows],JSON_UNESCAPED_UNICODE);
+echo json_encode(['ok'=>true,'entity'=>$entity,'accounts'=>array_map(static fn($code,$name)=>['code'=>(string)$code,'name'=>$name],array_keys($catalog),array_values($catalog)),'from'=>$from,'to'=>$to,'account'=>$account,'currency'=>$bankId!==''?($banks[$bankId]['currency']??''):($entity==='TG'?$nativeCurrency:'PKR'),'pendingRemittances'=>$entity==='TG'&&$bankId!==''?tgr_reserved($store,$bankId):0,'availableBalance'=>$entity==='TG'&&$bankId!==''?tgr_bank_balance($store,$bankId,$banks[$bankId]['currency'])['available']:null,'opening'=>$opening===null?null:round($opening,2),'closing'=>($account!==''||$party!=='')&&!$postEntries?$closing:null,'partyAliases'=>$partyAliases,'parties'=>array_keys($parties),'category'=>$category,'party'=>$party,'homeLedger'=>$homeLedger,'expenseTotal'=>$expenseTotal,'expenseCurrency'=>$entity==='TG'?'AED':'PKR','missingPartyLines'=>$category==='party'?$missingPartyLines:0,'balanceUnavailable'=>$category==='party'&&$balanceUnavailable,'invoiceRows'=>$partyInvoices,'invoiceTotals'=>$invoiceTotals,'rows'=>$rows],JSON_UNESCAPED_UNICODE);
 
 

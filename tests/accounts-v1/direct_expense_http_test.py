@@ -12,7 +12,7 @@ with tempfile.TemporaryDirectory(prefix='tti-authorization-') as directory:
     private.mkdir()
     for name in ['auth_store.php', 'master_store.php', 'product_stage.php', 'offline_idempotency.php','session_store.php']:
         shutil.copy(ROOT / name, app / name)
-    for name in ['accounts_subaccounts.php','accounts_subaccounts_core.php','assets_registry_core.php','expenses_v1.php','direct_expense_core.php','accounts_bank_payment.php','expense_locations.php','expense_reminders.php','expense_reversals.php','donations.php','rent_salary_v2.php','salary_month_workflow.php','salary_master_store.php','accounts_reports.php','accounts_ledger_browser.php','accounts_post_delete_core.php','accounts_post_amend.php','accounts_post_amend_core.php','opening_balance_core.php','accounts_reference.php','tg_remittance_core.php','fi_credit_advice_link.php','receipt_invoice_links.php']:
+    for name in ['accounts_subaccounts.php','accounts_subaccounts_core.php','assets_registry_core.php','expenses_v1.php','direct_expense_core.php','accounts_bank_payment.php','expense_locations.php','expense_reminders.php','expense_reversals.php','donations.php','rent_salary_v2.php','salary_month_workflow.php','salary_master_store.php','accounts_reports.php','accounts_ledger_browser.php','customer_receivables_core.php','accounts_post_delete_core.php','accounts_post_amend.php','accounts_post_amend_core.php','opening_balance_core.php','accounts_reference.php','tg_remittance_core.php','fi_credit_advice_link.php','receipt_invoice_links.php']:
         shutil.copy(ROOT / 'api' / name, app / 'api' / name)
     shutil.copy(ROOT / 'accounts/accounting_master_v1.json', app / 'accounts/accounting_master_v1.json')
     harness = root / 'request.php'
@@ -268,21 +268,50 @@ require $argv[1];
     assert bill['includedUtilityTotal']==80 and len(bill['includedUtilities'])==1 and bill['includedUtilities'][0]['id']==utility_id,bill
     assert bal('6900')==other_before+120 and bal('6110')==expense_before+110 and bal('1120')==cash_before-200 and bal('2400')==card_before-30
     before=books.read_bytes();assert request('expenses_v1','?entity=TTI',february)[1]['result']['duplicate'];assert books.read_bytes()==before
-    assert request('expenses_v1','?entity=TTI',{**utility_payment,'requestKey':'late-utility-cycle'})[0]==422 and books.read_bytes()==before
+    status,late=request('expenses_v1','?entity=TTI',{**utility_payment,'requestKey':'late-utility-cycle'});assert status==200,(status,late)
+    assert bal('2400')==card_before-30 and bal('1120')==cash_before-200
+    assert json.loads(books.read_text())['creditCardStatements'][bill_id]['total']==200
+    before=books.read_bytes()
     assert request('expenses_v1','?entity=TTI',{'csrf':'fixture','action':'delete_expense','entity':'TTI','collection':'utilityPayments','id':utility_id,'reason':'Remove wrong utility'})[0] in (403,422) and books.read_bytes()==before
-    # Post cancellation removes the bill/payment effect and releases charge links atomically.
-    post_id=bill['journalId']
-    before=books.read_bytes();assert request('accounts_post_amend','',{'csrf':'fixture','action':'delete_post','postId':post_id,'reason':'x'})[0]==422 and books.read_bytes()==before
-    status,result=request('accounts_post_amend','',{'csrf':'fixture','action':'delete_post','postId':post_id,'reason':'Wrong credit card bill'});assert status==200,(status,result)
+    # Post-payment breakdowns reclassify the bill, leave bank/payable/full bill unchanged,
+    # reject overlaps and replay safely; removal frees capacity with an audit reversal.
+    breakdown={'action':'add_card_breakdown','csrf':'fixture','entity':'TTI','statementId':bill_id,'kind':'OTHER','expenseAccount':'6500','amount':30,'adjustmentDate':'2027-02-20','requestKey':'card-breakdown-other'}
+    card_before=bal('2400');cash_before=bal('1120');travel_before=bal('6500');admin_before=bal('6900')
+    status,posted=request('expenses_v1','?entity=TTI',breakdown);assert status==200,(status,posted)
+    breakdown_id=posted['result']['breakdownId']
+    assert bal('6500')==travel_before+30 and bal('6900')==admin_before-30 and bal('2400')==card_before and bal('1120')==cash_before
+    before=books.read_bytes();assert request('expenses_v1','?entity=TTI',breakdown)[1]['result']['duplicate'];assert books.read_bytes()==before
+    assert request('expenses_v1','?entity=TTI',{**breakdown,'requestKey':'card-breakdown-overlap','amount':11})[0]==422;assert books.read_bytes()==before
+    remove={'action':'remove_card_breakdown','csrf':'fixture','entity':'TTI','id':breakdown_id,'reason':'Correct expense category','requestKey':'card-breakdown-remove'}
+    assert request('expenses_v1','?entity=TTI',remove)[0]==200
+    assert bal('6500')==travel_before and bal('6900')==admin_before and bal('2400')==card_before
+    # Saved utilities selected directly from the bill cannot add to its payable.
+    utility_master=next(iter(json.loads(books.read_text())['utilityMasters']))
+    status,posted=request('expenses_v1','?entity=TTI',{**breakdown,'kind':'UTILITY','utilityMasterId':utility_master,'amount':10,'requestKey':'card-breakdown-utility'});assert status==200,(status,posted)
+    assert bal('2400')==card_before and bal('1120')==cash_before
+    utility_breakdown_id=posted['result']['breakdownId']
+    # Other Expense supports cards before a future bill; the eventual bill excludes
+    # that expense from the residual recognition, and cycle metadata is automatic.
+    future={**body,'requestKey':'future-card-other-expense','paymentAccountId':'CARD|'+card_id,'paymentDate':'2027-03-10','reference':'CARD-MARCH','amount':40,'expenseLines':[{'category':'OFFICE','purpose':'Card office supplies','amount':40}]}
+    status,posted=request('expenses_v1','?entity=TTI',future);assert status==200,(status,posted)
+    expense_id=posted['result']['generalExpenseId'];journal=json.loads(books.read_text())['journals'][posted['result']['journalId']]
+    assert journal['lines'][-1]['account']=='2400' and journal['lines'][-1]['cardStatementMonth']=='2027-03'
+    future_bill={**february,'statementMonth':'2027-03','statementDate':'2027-03-15','dueDate':'2027-03-20','paymentDate':'2027-03-19','requestKey':'future-card-march-bill'}
+    status,posted=request('expenses_v1','?entity=TTI',future_bill);assert status==200,(status,posted)
+    future_st=json.loads(books.read_text())['creditCardStatements'][posted['result']['statementId']]
+    assert future_st['includedExpenseTotal']==40 and future_st['includedUtilityTotal']==30 and future_st['total']==200
+    assert any(x['id']==expense_id for x in future_st['includedExpenses'])
+    print('Card classification within paid bill, overlap rejection, reversal, replay, other-expense card choice and automatic cycle inclusion passed.')
+
+    # A card bill with active classifications cannot disappear under those links.
+    before=books.read_bytes();assert request('accounts_post_amend','',{'csrf':'fixture','action':'delete_post','postId':bill['journalId'],'reason':'Wrong credit card bill'})[0]==422;assert books.read_bytes()==before
+    assert request('expenses_v1','?entity=TTI',{**remove,'id':utility_breakdown_id,'requestKey':'utility-breakdown-remove'})[0]==200
+    assert request('expenses_v1','?entity=TTI',{'action':'delete_expense','csrf':'fixture','entity':'TTI','collection':'utilityPayments','id':late['result']['utilityPaymentId'],'reason':'Correct late classification'})[0]==200
+    admin=bal('6900');cash=bal('1120');card=bal('2400')
+    status,result=request('accounts_post_amend','',{'csrf':'fixture','action':'delete_post','postId':bill['journalId'],'reason':'Wrong credit card bill'});assert status==200,(status,result)
     saved=json.loads(books.read_text());assert saved['creditCardStatements'][bill_id]['status']=='Deleted' and not saved['utilityPayments'][utility_id].get('cardStatementId')
-    assert saved['postDeletions'][-1]['before'] and all(saved['journals'][j]['meta']['deletedFromBooks'] for j in result['result']['cancelledPostIds']+result['result']['reversalPostIds'])
-    assert bal('6900')==other_before and bal('1120')==cash_before and bal('2400')==card_before-110
-    assert request('accounts_post_amend','',{'csrf':'fixture','action':'delete_post','postId':post_id,'reason':'Repeated deletion'})[0]==422
-    print('PASS card utilities: statement boundaries, single expense, full payment, retry, late-charge rejection and audited atomic Post ID deletion')
-
-    # Corrupt nonempty books must not become empty books or get overwritten.
-
+    assert bal('6900')==admin-120 and bal('1120')==cash+200 and bal('2400')==card-80
+    assert request('accounts_post_amend','',{'csrf':'fixture','action':'delete_post','postId':bill['journalId'],'reason':'Repeated deletion'})[0]==422
     for endpoint in ['expenses_v1','donations','rent_salary_v2']:
         books.write_text('{broken JSON');bad=books.read_bytes();assert request(endpoint,'?entity=TTI')[0]==500;assert books.read_bytes()==bad
     print('Direct expense endpoint, correction, deletion, retry and permissions passed.')
-

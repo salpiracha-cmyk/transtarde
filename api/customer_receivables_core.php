@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 /** Read-only external buyer invoice register. Never read Customs or TG settlement values. */
-function tt_customer_receivables(array $store, array $root, array $entities): array {
+function tt_customer_receivables(array $store, array $root, array $entities, string $asOf=''): array {
     $contracts=[];$customers=[];$rows=[];$candidateKeys=[];
     foreach((array)($root['customers']??[]) as $c)if(is_array($c))$customers[(string)($c['id']??'')]=(string)($c['name']??'');
     foreach((array)($root['contracts']??[]) as $c)if(is_array($c))$contracts[(string)($c['ref']??$c['id']??'')]=$c;
@@ -12,7 +12,7 @@ function tt_customer_receivables(array $store, array $root, array $entities): ar
         $m=(array)($c['meta']??[]);$ref=(string)($m['contractRef']??'');$invoice=trim((string)($m['commercialInvoiceNo']??''));$cur=strtoupper((string)($c['transactionCurrency']??''));
         if($invoice===''||$cur==='')continue;
         $k=$key($c['entity'],$ref,$invoice,$cur);$candidateKeys[(string)($c['id']??$id)]=$k;
-        $rows[$k]=['entity'=>$c['entity'],'contractRef'=>$ref,'reference'=>$invoice,'currency'=>$cur,'label'=>(string)($m['customer']??''),'date'=>(string)($m['commercialInvoiceDate']??''),'invoiceAmount'=>round((float)($m['invoiceOriginalAmount']??$c['transactionAmount']??0),2),'received'=>round((float)($m['receivedBeforeCutoff']??0),2),'recognized'=>!empty($c['journalId']),'draft'=>($m['invoiceStage']??'Final')==='Draft','lotId'=>''];
+        $rows[$k]=['entity'=>$c['entity'],'contractRef'=>$ref,'reference'=>$invoice,'currency'=>$cur,'label'=>(string)($m['customer']??$c['counterparty']??''),'date'=>(string)($m['commercialInvoiceDate']??''),'invoiceAmount'=>round((float)($m['invoiceOriginalAmount']??$c['transactionAmount']??0),2),'received'=>round((float)($m['receivedBeforeCutoff']??0),2),'pendingValuation'=>!empty($c['pendingValuation']),'carryForward'=>!empty($m['carryForwardShipmentId']),'recognized'=>!empty($c['journalId']),'draft'=>($m['invoiceStage']??'Final')==='Draft','lotId'=>''];
     }
     foreach((array)($root['shipments']??[]) as $s){
         if(!is_array($s)||!empty($s['cancelled']))continue;
@@ -23,12 +23,14 @@ function tt_customer_receivables(array $store, array $root, array $entities): ar
         $invoice=trim((string)($doc['invoiceNo']??''));$cur=strtoupper((string)($doc['currency']??$c['currency']??'USD'));
         if($invoice==='')continue;
         $k=$key($entity,$ref,$invoice,$cur);$prior=$rows[$k]??[];
+        // A committed carry-forward balance remains authoritative over an older operational snapshot.
+        if(!empty($prior['carryForward'])){$rows[$k]['lotId']=(string)($s['id']??'');continue;}
         // The saved buyer CI is authoritative, including reissues before recognition.
-        $rows[$k]=['entity'=>$entity,'contractRef'=>$ref,'reference'=>$invoice,'currency'=>$cur,'label'=>(string)($s['buyer']??$customers[(string)($c['customerId']??'')]??$c['customer']??''),'date'=>(string)($doc['date']??''),'invoiceAmount'=>round((float)($doc['lastInvoiceValue']??$doc['invoiceGross']??$doc['netAmount']??$prior['invoiceAmount']??0),2),'received'=>0.0,'recognized'=>!empty($prior['recognized']),'draft'=>($doc['status']??'Draft')!=='Final','lotId'=>(string)($s['id']??'')];
+        $rows[$k]=['entity'=>$entity,'contractRef'=>$ref,'reference'=>$invoice,'currency'=>$cur,'label'=>(string)($s['buyer']??$customers[(string)($c['customerId']??'')]??$c['customer']??''),'date'=>(string)($doc['date']??''),'invoiceAmount'=>round((float)($doc['lastInvoiceValue']??$doc['invoiceGross']??$doc['netAmount']??$prior['invoiceAmount']??0),2),'received'=>(float)($prior['received']??0),'pendingValuation'=>!empty($prior['pendingValuation']),'carryForward'=>!empty($prior['carryForward']),'recognized'=>!empty($prior['recognized']),'draft'=>($doc['status']??'Draft')!=='Final','lotId'=>(string)($s['id']??'')];
     }
     $apply=static function(string $k,float $amount) use (&$rows):void {if(isset($rows[$k])&&$amount>0)$rows[$k]['received']=round($rows[$k]['received']+$amount,2);};
     foreach((array)($store['exportReceipts']??[]) as $r){
-        if(!is_array($r)||($r['status']??'')!=='Accounts Approved / Posted')continue;
+        if(!is_array($r)||($r['status']??'')!=='Accounts Approved / Posted'||($asOf!==''&&($r['receiptDate']??$r['date']??'')>$asOf))continue;
         $entity=(string)($r['entity']??'');$cur=strtoupper((string)($r['transactionCurrency']??''));
         foreach((array)($r['allocations']??[]) as $a){
             $id=(string)($a['targetId']??'');$k=$candidateKeys[$id]??$key($entity,(string)($a['contractRef']??''),(string)($a['invoiceRef']??''),$cur);
@@ -41,16 +43,16 @@ function tt_customer_receivables(array $store, array $root, array $entities): ar
         }
     }
     foreach((array)($store['tgBankTransactions']??[]) as $r){
-        if(!is_array($r)||($r['kind']??'')!=='Receipt'||($r['receiptType']??'')!=='EXPORT_RECEIVABLE'||($r['status']??'')==='Reversed for Amendment')continue;
+        if(!is_array($r)||($asOf!==''&&($r['transactionDate']??$r['date']??'')>$asOf)||($r['kind']??'')!=='Receipt'||($r['receiptType']??'')!=='EXPORT_RECEIVABLE'||($r['status']??'')==='Reversed for Amendment')continue;
         $k=$candidateKeys[(string)($r['sourceCandidateId']??'')]??$key('TG',(string)($r['contractRef']??''),(string)($r['invoiceRef']??''),strtoupper((string)($r['currency']??'')));
         if(isset($rows[$k])&&$rows[$k]['entity']==='TG'&&$rows[$k]['currency']===strtoupper((string)($r['currency']??'')))$apply($k,(float)($r['settlementAmountNative']??0));
     }
     foreach((array)($store['tgAdvanceApplications']??[]) as $a){
-        if(!is_array($a)||in_array($a['status']??'',['Deleted','Reversed','Reversed for Amendment'],true))continue;
+        if(!is_array($a)||($asOf!==''&&($a['applicationDate']??$a['date']??'')>$asOf)||in_array($a['status']??'',['Deleted','Reversed','Reversed for Amendment'],true))continue;
         $k=$candidateKeys[(string)($a['candidateId']??'')]??'';if(isset($rows[$k])&&$rows[$k]['entity']==='TG')$apply($k,(float)($a['amountNative']??0));
     }
     $open=[];$drafts=[];
-    foreach($rows as $row){$row['amount']=max(0,round($row['invoiceAmount']-$row['received'],2));$row['status']=$row['draft']?'Draft estimate':($row['recognized']?'Recognized':'Issued — awaiting Accounts recognition');if($row['draft']){$drafts[]=$row;continue;}if($row['amount']>.005)$open[]=$row;}
+    foreach($rows as $row){if($asOf!==''&&$row['date']>$asOf)continue;$row['amount']=max(0,round($row['invoiceAmount']-$row['received'],2));$row['status']=$row['draft']?'Draft estimate':($row['pendingValuation']?'Carry-forward balance in invoice currency':($row['recognized']?'Recognized':'Issued — awaiting Accounts recognition'));if($row['draft']){$drafts[]=$row;continue;}if($row['amount']>.005)$open[]=$row;}
     usort($open,static fn($a,$b)=>strcmp($a['entity'],$b['entity'])?:strcmp($a['reference'],$b['reference']));
     return ['rows'=>$open,'drafts'=>$drafts,'entities'=>$entities];
 }

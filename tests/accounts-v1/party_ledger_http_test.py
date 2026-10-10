@@ -7,7 +7,7 @@ with tempfile.TemporaryDirectory(prefix='party-ledger-qa-') as temp:
     root = pathlib.Path(temp)
     for folder in ['api', 'data', 'accounts']:
         (root/folder).mkdir()
-    for name in ['accounts_subaccounts_core.php','assets_registry_core.php','accounts_ledger_browser.php','accounts_post_delete_core.php', 'accounts_reference.php', 'tg_remittance_core.php', 'fi_credit_advice_link.php', 'receipt_invoice_links.php']:
+    for name in ['accounts_subaccounts_core.php','assets_registry_core.php','accounts_ledger_browser.php','accounts_post_delete_core.php', 'accounts_reference.php', 'tg_remittance_core.php', 'fi_credit_advice_link.php', 'receipt_invoice_links.php','customer_receivables_core.php']:
         shutil.copy(ROOT/'api'/name, root/'api'/name)
     for path in (ROOT/'accounts').glob('*.json'):
         shutil.copy(path, root/'accounts'/path.name)
@@ -98,6 +98,20 @@ with tempfile.TemporaryDirectory(prefix='party-ledger-qa-') as temp:
         assert all(r['balance'] is None for r in tg['rows'])
         assert get(entity='TG',party='TTI',currency='AED')[1]['closing']==-330.3
         assert path.read_bytes()==original,'Party ledger reads must not change journals or book balances'
+        books['exportCandidates']={'CF-BUYER':{'id':'CF-BUYER','entity':'TTI','candidateType':'CUSTOMER_EXPORT_SALE','transactionCurrency':'USD','transactionAmount':600,'pendingValuation':True,'journalId':'','counterparty':'Ali Sulaiman','meta':{'customer':'Ali Sulaiman','contractRef':'CF-1','commercialInvoiceNo':'CF-INV-1','commercialInvoiceDate':'2026-06-30','invoiceOriginalAmount':1000,'receivedBeforeCutoff':400,'carryForwardShipmentId':'CF-1','invoiceStage':'Final'}}}
+        books['exportReceipts']={'R1':{'id':'R1','entity':'TTI','status':'Accounts Approved / Posted','receiptDate':'2026-07-10','transactionCurrency':'USD','allocations':[{'targetType':'EXPORT_RECEIVABLE','targetId':'CF-BUYER','foreignAmount':100}]}}
+        path.write_text(json.dumps(books));unchanged=path.read_bytes()
+        status,result=get(party='Ali Sulaiman',from_='0001-01-01')
+        assert status==200 and result['rows']==[] and result['invoiceTotals']=={'USD':500},result
+        assert result['invoiceRows'][0]['received']==500 and result['invoiceRows'][0]['invoiceAmount']==1000
+        assert 'Carry-forward' in result['invoiceRows'][0]['status'] and result['closing']==0
+        assert get(party='Ali Sulaiman',from_='0001-01-01',to='2026-07-09')[1]['invoiceTotals']=={'USD':600}
+        assert 'CF-INV-1' in get(party='Ali Sulaiman',from_='0001-01-01',format='csv')[1]
+        assert path.read_bytes()==unchanged,'Invoice linkage must not create journals or mutate balances'
+        books['journals']['POST-2026-00012']=journal('POST-2026-00012','2026-07-10',[line('1210',credit=25,candidateId='CF-BUYER'),line('1110',debit=25)],meta={'customer':'Different remitter'})
+        path.write_text(json.dumps(books));status,result=get(party='Ali Sulaiman',from_='0001-01-01')
+        assert status==200 and result['rows'][0]['party']=='Ali Sulaiman' and result['closing']==-25,result
+        path.write_bytes(original)
         print('Party ledgers: opening/running balances, cross-head links, master IDs, native-currency gaps, scope, search, CSV and read-only books passed')
         try:
             from playwright.sync_api import sync_playwright
