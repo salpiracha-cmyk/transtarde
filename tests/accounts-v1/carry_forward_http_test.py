@@ -165,8 +165,8 @@ with tempfile.TemporaryDirectory(prefix='carry-forward-qa-') as tmp:
     before_revision=json.loads(books.read_text())['revision'];page.wait_for_timeout(250);assert json.loads(books.read_text())['revision']==before_revision,'Typing must not save'
     page.locator('#cf-form button[type=submit]').click();page.locator('#cf-publish').wait_for()
     saved=next(r for r in json.loads(books.read_text())['carryForwardShipments'].values() if r['contractRef']=='BROWSER-OLD');assert saved['entity']=='TTI' and saved['tgPack'] and len(saved['bills'])==2 and saved['bills'][1]['entity']=='TG';assert saved['notes']=='Keep both sides and all entered values'
-    page.locator('[name=advance100]').check();assert page.locator('#cf-advance-date').is_visible();page.locator('[name=advance100]').uncheck();assert not page.locator('#cf-advance-date').is_visible()
     heading=page.locator('.cf-sheet h1').bounding_box();assert heading['y']>=0 and heading['y']<500
+    page.locator('[name=advance100]').check();assert page.locator('#cf-advance-date').is_visible();page.locator('[name=advance100]').uncheck();assert not page.locator('#cf-advance-date').is_visible()
     page.goto(f'http://127.0.0.1:{port}/accounts/?entity=TTI&cfBill={urllib.parse.quote(ui_payable)}');page.locator('#ttSimpleBills [data-payee]').wait_for();assert page.locator('#ttSimpleBills [data-payee]').input_value()=='TEST SERVICES'
     page.locator('#ttSimpleBills [data-bank-method]').select_option('ONLINE_BANKING');page.locator('#ttSimpleBills [data-reference]').fill('BROWSER-CARRY-PAY');page.locator('#ttSimpleBills [type=submit]').click();page.get_by_text('PAYMENT POSTED',exact=True).wait_for()
     assert next(b for b in request(id=id)[1]['rows'][0]['bills'] if b['id']==ui_bill['id'])['paymentOutstanding']==0
