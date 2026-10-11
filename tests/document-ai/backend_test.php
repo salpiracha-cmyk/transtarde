@@ -9,6 +9,9 @@ require __DIR__.'/../../api/document_ai.php';
 function verify(bool $ok,string $message):void{if(!$ok)throw new RuntimeException($message);}
 function rejects(callable $fn,string $message):void{try{$fn();}catch(RuntimeException|InvalidArgumentException $e){return;}throw new LogicException($message);}
 try{
+    $_SERVER['REQUEST_METHOD']='POST';session_start();$_SESSION['user_id']=1;$_SESSION['csrf']='test-csrf';
+    ai_release_document_session();
+    verify(session_status()!==PHP_SESSION_ACTIVE,'Authenticated POST extraction must release the session without a GET-only helper');
     $schema=['type'=>'object','properties'=>['buyer'=>['type'=>'string'],'amount'=>['type'=>'number'],'bags'=>['type'=>'array','items'=>['type'=>'object','properties'=>['label'=>['type'=>'string']]]]]];
     $data=['buyer'=>'Example buyer','amount'=>42.5,'bags'=>[['label'=>'25 KG']]];
     $response=['status'=>'completed','model'=>'example-mini-2026','usage'=>['input_tokens'=>100],'output'=>[['type'=>'message','content'=>[['type'=>'output_text','text'=>json_encode($data)]]]]];

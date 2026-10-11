@@ -15,6 +15,13 @@ function ai_respond(array $data,int $status=200): never {
     echo json_encode($data,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);
     exit;
 }
+// Uploads are authenticated POST requests, but extraction does not save business data.
+// Commit the session after permission and CSRF checks before waiting on providers.
+function ai_release_document_session(): void {
+    if(session_status()!==PHP_SESSION_ACTIVE)return;
+    if(empty($_SESSION['user_id']))throw new LogicException('Authenticate before document extraction.');
+    if(!session_write_close())throw new RuntimeException('Your session could not be committed.');
+}
 function ai_env(string $name): string {
     return tt_gemini_config_value($name);
 }
@@ -223,7 +230,7 @@ try{
     }else{
         ai_respond(['ok'=>false,'error'=>'Choose a document or paste its text.'],422);
     }
-    tt_release_read_session();
+    ai_release_document_session();
     $result=tt_ai_route($settings,function(array $tier)use($parts){
         $key=tt_ai_provider_key($tier['provider']);
         if($key==='')throw new RuntimeException('Provider credentials are missing.');
