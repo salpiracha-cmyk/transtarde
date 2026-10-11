@@ -172,6 +172,8 @@ jobs:
           export NODE_PATH="$RUNNER_TEMP/expense-review-node/node_modules"
           node tests/accounts-v1/accounts_controls_ui_test.js
           node tests/accounts-v1/module_form_consistency_test.js
+          node tests/accounts-v1/post_confirmation_ownership_test.js
+          node tests/accounts-v1/workspace_response_ownership_test.js
           node tests/accounts-v1/accounts_master_controls_test.js
           node tests/accounts-v1/accounts_master_popup_browser_test.js
           node tests/accounts-v1/expense_review_batch_browser_test.js

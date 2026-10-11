@@ -1,0 +1,21 @@
+'use strict';
+const assert=require('node:assert/strict'),fs=require('node:fs'),{JSDOM}=require('jsdom');
+const turn=()=>new Promise(setImmediate);
+const journal=id=>({id,date:'2026-10-11',entity:'TTI',narration:'Payment fixture',lines:[{account:'2140',counterparty:'MAPCO',debit:1000},{account:'1110',credit:1000}]});
+(async()=>{
+ const dom=new JSDOM('<!doctype html><body><button data-tt-action>Next form</button><div id="inline"></div></body>',{url:'https://fixture.test/',runScripts:'outside-only'}),w=dom.window;
+ w.localStorage.setItem('tt_accounts_entity','TTI');let response={ok:true,result:{journalId:'POST-2026-00192'}},pending=[];
+ w.fetch=async(url,opt={})=>opt.method==='POST'?new Response(JSON.stringify(response)):new Promise(resolve=>pending.push({url,resolve}));
+ w.TT_PRINT={html(){}};w.TT_VOUCHER_HTML=()=>'';
+ w.eval(fs.readFileSync('accounts/post-confirmation-ui.js','utf8'));
+ const resolve=(index,id)=>pending[index].resolve(new Response(JSON.stringify({ok:true,post:journal(id)})));
+ await w.fetch('../api/payment.php',{method:'POST'});const duplicate=w.TT_POST_CONFIRMATION.show(['POST-2026-00192']);await duplicate;
+ assert.equal(pending.length,1,'Automatic and workflow lookups for the same posting must coalesce');resolve(0,'POST-2026-00192');await turn();
+ assert.equal(w.document.querySelectorAll('#tt-post-confirmation').length,1);w.document.querySelector('#tt-post-confirmation [data-close]').click();await w.TT_POST_CONFIRMATION.show(['POST-2026-00192']);assert.equal(pending.length,1,'Closing a result must not allow its delayed duplicate to reopen it');
+ response={ok:true,result:{journalId:'POST-2026-00193'}};await w.fetch('../api/payment.php',{method:'POST'});w.TT_POST_CONFIRMATION.showBill({id:'BAG-1',journalId:'POST-2026-00193',supplier:'MAPCO'});resolve(1,'POST-2026-00193');await turn();assert(w.document.querySelector('#tt-bill-posted-dialog'));assert(!w.document.querySelector('#tt-post-confirmation'),'Bill confirmation must cancel its pending automatic journal popup');w.TT_POST_CONFIRMATION.dismiss();
+ response={ok:true,result:{journalId:'POST-2026-00194'}};await w.fetch('../api/payment.php',{method:'POST'});w.document.querySelector('[data-tt-action]').click();resolve(2,'POST-2026-00194');await turn();assert(!w.document.querySelector('#tt-post-confirmation'),'Navigating away must invalidate pending results');
+ await w.fetch('../api/payment_plans.php',{method:'POST',ttConfirmation:'workflow'});assert.equal(pending.length,3,'Workflow-owned receipts must not create an automatic popup');const target=w.document.querySelector('#inline'),inline=w.TT_POST_CONFIRMATION.show(['POST-2026-00194'],{target});resolve(3,'POST-2026-00194');await inline;assert(target.querySelector('table'));assert.equal(w.document.querySelectorAll('[role=dialog]').length,0,'Inline accounting detail must stay inside the owning workflow');
+ const removed=w.document.createElement('div');w.document.body.append(removed);const late=w.TT_POST_CONFIRMATION.show(['POST-2026-00195'],{target:removed});removed.remove();resolve(4,'POST-2026-00195');await late;assert(!w.document.querySelector('#tt-post-confirmation'),'Closed workflows must not be resurrected by inline detail requests');
+ response={ok:true,journal:journal('POST-2026-00192')};await w.fetch('../api/payment.php',{method:'POST'});assert(w.document.querySelector('#tt-post-confirmation'),'A subsequent real posting can reuse a stable amended Post ID');w.TT_POST_CONFIRMATION.showJournal(response.journal);assert.equal(w.document.querySelectorAll('#tt-post-confirmation').length,1);
+ dom.window.close();console.log('PASS single-owner posting results, automatic/explicit deduplication, bill/journal overlap, navigation and closed-form race isolation');
+})().catch(e=>{console.error(e);process.exitCode=1;});

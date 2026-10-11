@@ -120,7 +120,11 @@
     window.scrollTo(0, 0);
   }
 
+  let editorGeneration=0;
   document.addEventListener('click', event => {
+    const navigation=event.target.closest?.('[data-expense],[data-purchase],.appCard[data-key],[data-back],[data-editor-back],.tt-clean-close,.entityBtn,[data-tt-area]');
+    if(navigation)editorGeneration++;
+    const token=editorGeneration;
     const editorBack = event.target.closest?.('[data-editor-back]');
     if (editorBack) {
       event.preventDefault();
@@ -129,10 +133,10 @@
     }
 
     const expense = event.target.closest?.('[data-expense]');
-    if (expense) window.setTimeout(() => openEditor(q('#expenseEditor'), expense), 0);
+    if (expense) window.setTimeout(() => {if(token===editorGeneration)openEditor(q('#expenseEditor'), expense);}, 0);
 
     const purchase = event.target.closest?.('[data-purchase]');
-    if (purchase) window.setTimeout(() => openEditor(q('#purchaseEditor'), purchase), 0);
+    if (purchase) window.setTimeout(() => {if(token===editorGeneration)openEditor(q('#purchaseEditor'), purchase);}, 0);
 
     if (event.target.closest?.('.appCard[data-key], [data-back]')) {
       qa('.workspace.tt-editor-open').forEach(closeEditor);

@@ -124,4 +124,16 @@ Counts identify source form declarations, not distinct rendered forms. Helper fi
 | tg-remittances-ui.js | 8 | tg_remittances.php |
 | payment-plans-ui.js | 17 | payment_plans.php |
 
-Limitations: live browser inspection was blocked by Chrome reporting another extension UI open. Browser fixture results and deployment checks must be reported separately from direct visual inspection of the live application. Fixed enumerations and filtered open-invoice/stock choices do not get arbitrary Add/Edit. Their records are created or amended in their source workflow. Existing financial/legal-entity/approval checks remain in force.
+Limitations: the initial review could not inspect the live browser because another extension UI was open. The follow-up below did inspect the live payment flow and the supplied screenshot. Fixture coverage and targeted live inspection do not establish that every live form has been manually inspected. Fixed enumerations and filtered open-invoice/stock choices do not get arbitrary Add/Edit. Their records are created or amended in their source workflow. Existing financial/legal-entity/approval checks remain in force.
+
+## Follow-up after the owner's duplicate payment panel report
+
+The supplied 14:32 screenshot shows On Account Payment Posted still open after the journal confirmation was closed. Read-only inspection of the existing live tab confirmed the payment workflow result and separate Posting saved dialog simultaneously visible. No live transaction was created, amended or reversed during investigation.
+
+- Payment plans now own their result surface and show the shared journal details inline. The shared fetch hook honours this ownership. Full-plan completion is also inline rather than a second modal.
+- Automatic and explicit confirmation requests coalesce. Bill results cancel pending journal popups. Navigation/closed-form responses cannot resurrect confirmation panels.
+- Bank/TG transfer/TG transactions/retention share a request owner. Older native bank loads cannot automatically open the TG payment form over a later transfer. Explicit opens retire the old form immediately. Retention reopens restore the hidden attribute as well as the hidden class.
+- Purchase and legacy settlement repeated loads reject superseded results; deferred editor and Accounts desk navigation reject abandoned callbacks.
+- The bundle now includes bank-workspace-owner.js, bringing the loaded-asset count to 84.
+
+Added executable regressions: post_confirmation_ownership_test.js and workspace_response_ownership_test.js. payment_plans_browser_test.js now loads the real shared confirmation implementation and asserts one dialog for both on-account posting and plan completion. Financial posting payloads, ledger calculations and approvals are unchanged by this follow-up.

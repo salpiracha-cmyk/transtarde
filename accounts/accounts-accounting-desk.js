@@ -14,7 +14,8 @@
   const api = '../api/purchase_sodas.php';
   const searchApi = '../api/accounts_search.php';
   let sodaData = {sodas:[], nextSodaNo:'Generated automatically'};
-  let activeSoda = null;
+  let activeSoda = null, launchGeneration = 0;
+  document.addEventListener('click',event=>{if(event.target.closest?.('.entityBtn,[data-tt-entity],[data-tt-area],.tt-back-areas,[data-back],.tt-clean-close')){launchGeneration++;document.body.classList.remove('tt-workspace-opening','tt-arrival-opening');}},true);
 
   const pakistanAreas = [
     {key:'exports', glyph:'⇄', title:'Export Receipts & Payments', note:'Every export receipt, document and shipment expense', actions:[
@@ -125,13 +126,16 @@
   }
 
   async function launch(action) {
+    const token=++launchGeneration,company=entity();
+    const current=()=>token===launchGeneration&&company===entity();
+    window.TT_POST_CONFIRMATION?.dismiss?.();
     if(action.special==='carry-forward'){location.href='/accounts/carry-forward.php?entity='+encodeURIComponent(entity());return;}
     // One desk owns navigation. Retire the previous workspace before opening another form.
     qa('.workspace.active').forEach(w=>w.classList.remove('active','tt-clean-modal','tt-editor-open'));
     qa('.tt-editor-stage').forEach(e=>e.classList.remove('tt-editor-stage'));
     document.body.classList.remove('tt-modal-open');
     window.TT_EXPENSE_EDITOR?.claim('');
-    if(action.special==='customer-receivables'){const company=entity();try{const data=await json(`../api/accounts_dashboard.php?entity=${encodeURIComponent(company)}`);if(company===entity())openCustomerReceivables(data.customerReceivables);}catch(error){alert(error.message);}return;}
+    if(action.special==='customer-receivables'){const company=entity();try{const data=await json(`../api/accounts_dashboard.php?entity=${encodeURIComponent(company)}`);if(current())openCustomerReceivables(data.customerReceivables);}catch(error){alert(error.message);}return;}
     if(action.native==='reports'&&['Trial Balance','Profit','Balance Sheet'].includes(action.find))return window.TT_REPORTS.open(({Trial:'tb',Profit:'pl',Balance:'bs'})[String(action.find||'').split(' ')[0]]||'tb');
     if(action.native==='bank'&&!action.special)return window.TT_BANK_ACCOUNTS_UI.open();
     if(action.special==='expense-report')return window.TT_REPORTS.open('expenses');
@@ -171,6 +175,7 @@
     if (action.special === 'shipment-kind') return openShipmentKind(action.shipmentKind);
     const arrivalOpening = action.special === 'arrival-bills';
     const purchaseEditor = q('#purchaseEditor');
+    if(action.native==='purchases'&&purchaseEditor)purchaseEditor.replaceChildren();
     if (purchaseEditor && arrivalOpening) purchaseEditor.dataset.ttPurchaseMode = 'arrival';
     if (purchaseEditor && action.bagSync) purchaseEditor.dataset.ttPurchaseMode = 'bags';
     document.body.classList.add('tt-workspace-opening');
@@ -181,23 +186,26 @@
     card.click();
     if (action.then) {
       let button = null;
-      for (let i = 0; i < 40 && !button; i += 1) {
+      for (let i = 0; i < 40 && !button && current(); i += 1) {
         button = q(action.then);
         if (!button) await new Promise(resolve => setTimeout(resolve, 40));
       }
+      if(!current())return;
       button?.click();
       if (action.bagSync) document.dispatchEvent(new CustomEvent('tt:bag-workspace-open'));
     }
     if (arrivalOpening) {
       try { await window.TT_SMART_COMMODITY_BILLS_V2?.mount?.(); }
-      finally { document.body.classList.remove('tt-arrival-opening'); }
+      finally { if(current())document.body.classList.remove('tt-arrival-opening'); }
     }
     if (action.find) {
       await new Promise(resolve => setTimeout(resolve, 90));
+      if(!current())return;
       const root = q('.workspace.active') || document;
       qa('button', root).find(button => button.textContent.toLowerCase().includes(action.find.toLowerCase()))?.click();
     }
-    } finally { document.body.classList.remove('tt-workspace-opening','tt-arrival-opening'); }
+    } finally { if(current())document.body.classList.remove('tt-workspace-opening','tt-arrival-opening'); }
+    if(!current())return;
     document.dispatchEvent(new CustomEvent('tt:accounts-desk-form-opened', {
       detail: {title: action.title || ''}
     }));
