@@ -121,6 +121,7 @@ function pl_payer_accounts(array $s,string $e,string $through='9999-12-31'):arra
 }
 function pl_all_payer_parties(array $s,string $e):array{
  $names=[];foreach(pl_payer_accounts($s,$e) as $r)$names[pl_payer_key($r['name'])]=$r['name'];
+ foreach((array)($s['journals']??[]) as $j)if(is_array($j)&&($j['entity']??'')===$e)foreach((array)($j['lines']??[]) as $line){$name=trim((string)($line['counterparty']??$line['party']??$line['customer']??$line['supplier']??''));if($name!=='')$names[pl_payer_key($name)]=$name;}
  $masters=tt_list_masters();foreach(['business_parties','customers','export_customers','companies'] as $kind)foreach((array)($masters[$kind]??[]) as $r){$v=(array)($r['values']??[]);$name=trim((string)($v[0]??''));if($name!=='')$names[pl_payer_key($name)]=$name;}natcasesort($names);return array_values($names);
 }
 function pl_payload(array $s,string $e):array{
