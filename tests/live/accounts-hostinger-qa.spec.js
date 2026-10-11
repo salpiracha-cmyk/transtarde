@@ -610,10 +610,11 @@ test('party payment roles and company-wide ledger matching review are read-only'
   }
   const register=await page.request.get(`${BASE_URL}/api/accounts_ledger_browser.php?entity=ALL&account=POSTS&from=1900-01-01&to=${to}`);expect(register.status()).toBe(200);const posts=await register.json(),types={};for(const r of posts.rows)types[r.sourceType]=(types[r.sourceType]||0)+1;
   console.log('POSTED_BOOKS_PROVENANCE '+JSON.stringify({sourceTypes:Object.keys(types),hasEntriesBeforeFinancialYear:posts.rows.some(r=>r.date<'2026-07-01'),importTypes:[...new Set(posts.rows.filter(r=>/IMPORT|HISTORICAL|TRIAL_BALANCE/i.test(r.sourceType)).map(r=>r.sourceType))]}));
-  await page.evaluate(()=>window.TT_SUPPLIER_SETTLEMENT_UI.openBills('TRANSPORT'));
+  await page.evaluate(()=>{localStorage.setItem('tt_accounts_entity','TTI');return window.TT_SUPPLIER_SETTLEMENT_UI.openBills('TRANSPORT');});
   await expect(page.locator('#ttSimpleBills h2')).toHaveText('Party Payments');
-  const input=page.locator('#ttSimpleBills [data-payee]');await input.click();
-  const ditta=page.locator('.tt-party-menu:not([hidden]) .tt-option-row>button:first-child').filter({hasText:/MEHR ALLAH DITTA/i});expect(await ditta.count(),'Ditta must be an eligible transport party').toBe(1);
+  const input=page.locator('#ttSimpleBills [data-payee]');await input.fill('ditta');await input.click();
+  console.log('LIVE_TRANSPORT_PICKER_STATE '+JSON.stringify(await page.evaluate(()=>({entity:localStorage.getItem('tt_accounts_entity'),role:document.querySelector('#ttSimpleBills [data-payee]')?.dataset.masterRole,managed:document.querySelector('#ttSimpleBills [data-payee]')?.dataset.ttMasterManage,sourceHasDitta:[...document.querySelectorAll('#ttSimplePayees option')].some(o=>/MEHR.*ALLAH.*DITTA/i.test(o.value)),menuHasDitta:[...document.querySelectorAll('.tt-party-menu .tt-option-row>button:first-child')].some(b=>/MEHR.*ALLAH.*DITTA/i.test(b.textContent))}))));
+  const ditta=page.locator('.tt-party-menu:not([hidden]) .tt-option-row>button:first-child').filter({hasText:/MEHR\s+ALLAH\s+DITTA/i});await expect(ditta,'Ditta must be an eligible transport party').toHaveCount(1);
   await ditta.click();await expect(page.locator('#ttSimpleBills [data-bill]').first()).toBeVisible();await page.locator('#ttSimpleBills [data-amount]').fill('1');await expect(page.locator('#ttSimpleBills [data-discount-choice]')).toContainText('as discount?');
   expect(await page.locator('#ttSimpleBills [data-discount],#ttSimpleBills [data-discount-reason]').count()).toBe(0);
   expect(await page.locator('#ttSimpleBills [data-discount-enabled]').isChecked()).toBe(false);

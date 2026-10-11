@@ -158,6 +158,12 @@ foreach($journals as $journal){
         if($lineParty===''){$sourceId=(string)($line['bagBillId']??$line['billId']??$line['purchaseId']??$meta['bagBillId']??$meta['billId']??$meta['purchaseId']??'');$source=$store['bagSupplierBills'][$sourceId]??$store['otherPurchases'][$sourceId]??$store['commodityBills'][$sourceId]??[];$lineParty=trim((string)($source['supplier']??$source['broker']??$source['party']??''));}
         if($lineParty===''){$bill=$store['supplierBills'][(string)($line['supplierBillId']??$meta['supplierBillId']??'')]??[];$lineParty=trim((string)($bill['vendor']??$meta['supplier']??$meta['broker']??$meta['customer']??$meta['counterparty']??$meta['payee']??''));}
         if($lineParty===''&&!empty($meta['candidateId'])){$candidate=$store['exportCandidates'][(string)$meta['candidateId']]??[];$lineParty=trim((string)($candidate['meta']['customer']??$candidate['meta']['counterparty']??''));}
+        // Credit-card control lines carry a card/statement reference rather than a trade-party reference.
+        if($lineParty===''&&$code==='2400'){
+            $statement=(array)($store['creditCardStatements'][(string)($line['statementId']??$meta['statementId']??'')]??[]);
+            $card=(array)($store['creditCardMasters'][(string)($line['cardMasterId']??$meta['cardMasterId']??$statement['cardMasterId']??'')]??[]);
+            if(($card['entity']??$statement['entity']??$journal['entity'])===$journal['entity'])$lineParty=trim((string)($statement['cardName']??$card['cardName']??$meta['cardName']??''));
+        }
         $supplierAccount=in_array($code,['2110','2120','2130','2140','2190','1250','2500'],true);
         $customerAccount=in_array($code,['1210','1220','2160','2510'],true);
         if($category==='party'){

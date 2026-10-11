@@ -51,6 +51,10 @@ with tempfile.TemporaryDirectory(prefix='party-ledger-qa-') as temp:
         'POST-2026-00011': journal('POST-2026-00011','2026-07-07',[
             line('2500',debit=36.7,counterparty='TTI',currency='USD'),line('1110',credit=36.7)],entity='TG',meta={'currency':'USD'}),
     }, 'supplierBills': {'B1': {'vendor':'ACME Rice'}}}
+    books['creditCardMasters']={'C1':{'entity':'TTI','cardName':'Fixture card'}}
+    books['creditCardStatements']={'S1':{'entity':'TTI','cardMasterId':'C1','cardName':'Fixture card'}}
+    books['journals']['POST-2026-00012']=journal('POST-2026-00012','2026-07-10',[line('2400',credit=25,statementId='S1',cardMasterId='C1'),line('6900',debit=25)],sourceType='CREDIT_CARD_STATEMENT')
+    books['journals']['POST-2026-00013']=journal('POST-2026-00013','2026-07-11',[line('2400',debit=25,statementId='S1',cardMasterId='C1'),line('1110',credit=25)],sourceType='CREDIT_CARD_PAYMENT')
     books['journals']['POST-2026-00009']['status']='Draft'
     path=root/'data/accounts.json';path.write_text(json.dumps(books));original=path.read_bytes()
     with socket.socket() as sock:
@@ -71,9 +75,10 @@ with tempfile.TemporaryDirectory(prefix='party-ledger-qa-') as temp:
             try:status,result=get();break
             except urllib.error.URLError:time.sleep(.1)
         assert status==200 and result['rows']==[], result
-        assert set(result['parties'])=={'ACME Rice'}, result
+        assert set(result['parties'])=={'ACME Rice','Fixture card'}, result
         assert result['missingPartyLines']==1
         assert len(result['unmatchedPartyRows'])==1 and result['unmatchedPartyRows'][0]['account']=='2110',result
+        status,card=get(party='Fixture card');assert status==200 and len(card['rows'])==2 and card['closing']==0,card
         status,result=get(party='acme rice')
         assert status==200, result
         assert result['opening']==-100 and result['closing']==-35, result
