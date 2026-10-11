@@ -4,9 +4,9 @@ if(!defined('TT_DOCUMENT_AI_FUNCTIONS_ONLY')||!TT_DOCUMENT_AI_FUNCTIONS_ONLY){
     require dirname(__DIR__) . '/auth_store.php';
     require dirname(__DIR__) . '/upload_validation.php';
 }
-require __DIR__ . '/gemini_runtime.php';
-require __DIR__ . '/document_ai_settings.php';
-require __DIR__ . '/openai_document_runtime.php';
+require_once __DIR__ . '/gemini_runtime.php';
+require_once __DIR__ . '/document_ai_settings.php';
+require_once __DIR__ . '/openai_document_runtime.php';
 
 function ai_respond(array $data,int $status=200): never {
     http_response_code($status);

@@ -13,6 +13,7 @@ let payload=JSON.parse(d.getElementById('tiersPayload').value);assert.equal(payl
 d.getElementById('addTier').click();assert.equal(rows().length,3);
 rows()[2].querySelector('.model input').value='example-flash';rows()[2].querySelector('.model input').dispatchEvent(new w.Event('input'));
 const duplicate=new w.Event('submit',{cancelable:true});d.getElementById('readerForm').dispatchEvent(duplicate);assert.ok(duplicate.defaultPrevented);assert.equal(alerts.length,1);
+const checkButton=d.createElement('button');checkButton.value='check';d.getElementById('readerForm').append(checkButton);const checkEvent=new w.SubmitEvent('submit',{cancelable:true,submitter:checkButton});d.getElementById('readerForm').dispatchEvent(checkEvent);assert.ok(!checkEvent.defaultPrevented,'Checking saved connections must ignore unsaved tier edits');assert.equal(alerts.length,1);assert.equal(checkButton.textContent,'Checking connections…');
 rows()[2].querySelector('[aria-label="Remove tier"]').click();assert.equal(rows().length,2);
 assert.ok(rows()[0].querySelector('[aria-label="Move tier up"]').disabled);
 console.log('Document reader settings UI tests passed');dom.window.close();

@@ -16,7 +16,13 @@ header('Pragma: no-cache');
 header('X-LiteSpeed-Cache-Control: no-cache');
 $html = file_get_contents(__DIR__ . '/index.html');
 if (($user['role'] ?? '') === 'Super Admin') {
-    $html=str_replace('<p class="nav-label">ADMINISTRATION</p>', '<p class="nav-label">ADMINISTRATION</p><a class="nav-item" href="document-reader-settings.php"><span class="nav-icon">AI</span><span>Document Reader Settings</span></a>', (string)$html);
+    require_once __DIR__.'/api/document_ai_health.php';
+    $readerStatus=tt_ai_health_statuses();$readerBadges='';
+    foreach(['openai'=>'OpenAI','gemini'=>'Gemini'] as $provider=>$name){
+        $status=$readerStatus[$provider];
+        $readerBadges.='<span style="display:block;color:'.($status['linked']?'#087548':'#5c6670').';font-size:12px">'.($status['linked']?'✓ ':'').$name.' · '.htmlspecialchars($status['label'],ENT_QUOTES,'UTF-8').'</span>';
+    }
+    $html=str_replace('<p class="nav-label">ADMINISTRATION</p>', '<p class="nav-label">ADMINISTRATION</p><a class="nav-item" href="document-reader-settings.php"><span class="nav-icon">AI</span><span>Document Reader Settings'.$readerBadges.'</span></a>', (string)$html);
 }
 $moduleHomes = [
     'accounts' => ['permission' => 'Accounts', 'url' => '/accounts/index.php', 'label' => 'Accounts'],

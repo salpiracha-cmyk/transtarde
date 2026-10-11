@@ -236,6 +236,16 @@ jobs:
           echo "BACKUP=$backup"
           REMOTE
 
+      - name: Verify saved document provider connections
+        continue-on-error: true
+        run: |
+          result=$(ssh -i "$RUNNER_TEMP/ssh/deploy_key" \
+            -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" \
+            -o StrictHostKeyChecking=yes \
+            -p "$HOSTINGER_PORT" "$HOSTINGER_USER@$HOSTINGER_HOST" \
+            php "$HOSTINGER_DEPLOY_PATH/scripts/diagnose_document_reader.php")
+          echo "DOCUMENT_PROVIDER_HEALTH=$result"
+
       - name: Check whether Exports document reader changed
         id: gemini_scope
         run: |

@@ -36,10 +36,12 @@ function tt_ai_read_settings(): array {
     if(!is_array($data))throw new RuntimeException('Document reader settings are damaged.');
     return tt_ai_validate_settings($data)+['version'=>(int)($data['version']??0)];
 }
-function tt_ai_save_settings(array $input,int $expected,array $user,string $openaiKey=''): array {
+function tt_ai_save_settings(array $input,int $expected,array $user,string $openaiKey='',string $geminiKey=''): array {
     $validated=tt_ai_validate_settings($input);
     $openaiKey=trim($openaiKey);
     if($openaiKey!==''&&!preg_match('/^sk-[A-Za-z0-9_-]{20,500}$/D',$openaiKey))throw new InvalidArgumentException('Enter a valid OpenAI API key.');
+    $geminiKey=trim($geminiKey);
+    if($geminiKey!==''&&!preg_match('/^[A-Za-z0-9_-]{20,200}$/D',$geminiKey))throw new InvalidArgumentException('Enter a valid Gemini API key.');
     tt_ensure_data_dir();
     $lock=fopen(TT_DATA_DIR.'/document-ai.lock','c');
     if($lock===false||!flock($lock,LOCK_EX))throw new RuntimeException('Could not lock reader settings.');
@@ -53,6 +55,7 @@ function tt_ai_save_settings(array $input,int $expected,array $user,string $open
             $credentials=is_array($stored['credentials']??null)?$stored['credentials']:[];
         }
         if($openaiKey!=='')$credentials['openai']=$openaiKey;
+        if($geminiKey!=='')$credentials['gemini']=$geminiKey;
         $storedNext=$next+['credentials'=>$credentials];
         $temp=TT_DATA_DIR.'/.document-ai.'.bin2hex(random_bytes(8)).'.tmp';
         if(file_put_contents($temp,json_encode($storedNext,JSON_THROW_ON_ERROR|JSON_PRETTY_PRINT))===false)throw new RuntimeException('Could not write reader settings.');

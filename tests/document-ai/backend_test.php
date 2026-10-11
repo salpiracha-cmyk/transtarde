@@ -34,5 +34,25 @@ try{
     verify($saved['version']===2&&tt_ai_provider_key('openai')===$key,'Blank key must preserve credential');
     rejects(fn()=>tt_ai_save_settings($settings,2,$user,'invalid-key'),'Invalid credential accepted');
     verify(tt_ai_read_settings()['version']===2,'Invalid save altered settings');
+    require __DIR__.'/../../api/document_ai_health.php';
+    $geminiKey='gemini-test-'.str_repeat('b',30);
+    tt_ai_save_settings($settings,2,$user,'',$geminiKey);
+    verify(tt_ai_provider_key('gemini')===$geminiKey,'Gemini key must save privately too');
+    $sample=ai_schema_example(ai_contract_schema());$sample['ref']='TT-CONNECTION-CHECK';$sample['buyer']='TRANSTRADE CONNECTION TEST';
+    $calls=[];$health=tt_ai_check_connections(function($provider,$key,$model,$parts,$schema)use(&$calls,$sample){
+        $calls[]=$provider;verify($parts[1]['inline_data']['mime_type']==='application/pdf','Connection test must exercise PDF input');
+        if($provider==='openai')throw new RuntimeException('Unauthorized',401);
+        return ['data'=>$sample,'returnedModel'=>'actual-gemini-snapshot'];
+    });
+    verify($calls===['openai','gemini']&&!$health['openai']['linked']&&$health['gemini']['linked'],'Gemini success must not mark OpenAI linked');
+    $health=tt_ai_check_connections(fn($provider,$key,$model,$parts,$schema)=>['data'=>$sample,'returnedModel'=>$model.'-snapshot']);
+    verify($health['openai']['linked']&&$health['gemini']['linked'],'Valid PDF extraction marks both linked');
+    verify(strpos(json_encode($health),$key)===false&&strpos(json_encode($health),$geminiKey)===false,'Health output must not expose credentials');
+    $storedHealth=json_decode(file_get_contents(tt_ai_health_path()),true);$storedHealth['openai']['checkedTimestamp']=time()-86401;
+    file_put_contents(tt_ai_health_path(),json_encode($storedHealth));verify(!tt_ai_health_statuses()['openai']['linked'],'Expired checks must not stay green');
+    $settings['tiers'][1]['model']='replacement-flash';tt_ai_save_settings($settings,3,$user);
+    verify(!tt_ai_health_statuses()['gemini']['linked'],'Model changes must invalidate green status');
+    $health=tt_ai_check_connections(fn()=>['data'=>['buyer'=>'Wrong']]);
+    verify(!$health['openai']['linked']&&!$health['gemini']['linked'],'Malformed results cannot mark credentials linked');
     echo "Document backend tests passed\n";
 }finally{foreach(glob(TT_DATA_DIR.'/*')?:[] as $file)unlink($file);if(is_dir(TT_DATA_DIR))rmdir(TT_DATA_DIR);}
