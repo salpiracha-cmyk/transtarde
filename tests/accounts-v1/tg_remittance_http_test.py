@@ -144,6 +144,16 @@ with tempfile.TemporaryDirectory(prefix='tg-remittance-') as tmp:
   fractional_payload={**basket_payload,'bankAdviceRef':'FRACTIONAL-ADVICE','foreignAmount':344317.5,'tgPaymentTotal':344360,'realizationRate':280.95,'grossPkrEquivalent':96736001.63,'pkrBankCredit':95493274.63,'allocations':[{**basket_payload['allocations'][i-1],'foreignAmount':amount} for i,amount in enumerate([32160,312200],1)],'deductions':[{'masterCode':code,'amount':1,'percentage':pct,'autoCalculate':True} for code,pct in [('EXP-FED-BANK',15),('EXP-BANK-COMM',.03),('EXP-AWT-NTR',1.25)]]}
   status,fractional=req('export_receipts.php?entity=TTI',fractional_payload);assert status==200,fractional
   assert fractional['journal']['totalDebit']==fractional['journal']['totalCredit']
+  # Actual advice amounts override percentages; the owner's split receipt must post when tallied.
+  (root/'data/accounts.json').write_text(json.dumps(fractional_state))
+  manual_payload={**fractional_payload,'bankAdviceRef':'ACTUAL-ADVICE-AMOUNTS','partialReceipt':True,'paymentPartRef':'1','foreignAmount':5682.5,'tgPaymentTotal':5682.5,'grossPkrEquivalent':1596498.38,'pkrBankCredit':1574242.38,'allocations':[{**basket_payload['allocations'][0],'foreignAmount':5682.5}],'deductions':[{'masterCode':code,'amount':amount,'percentage':pct,'autoCalculate':False} for code,amount,pct in [('EXP-AWT-NTR',19956,1.25),('EXP-BANK-COMM',2000,.126),('EXP-FED-BANK',300,15)]]}
+  before_manual=(root/'data/accounts.json').read_bytes()
+  bad_manual={**manual_payload,'deductions':[{**row,'autoCalculate':True} for row in manual_payload['deductions']]}
+  status,bad=req('export_receipts.php?entity=TTI',bad_manual);assert status==422 and 'does not balance' in bad['error'],bad
+  assert (root/'data/accounts.json').read_bytes()==before_manual,'an unbalanced attempt must not post'
+  status,manual=req('export_receipts.php?entity=TTI',manual_payload);assert status==200,manual
+  assert {row['masterCode']:row['amount'] for row in manual['receipt']['deductions']}=={'EXP-AWT-NTR':19956,'EXP-BANK-COMM':2000,'EXP-FED-BANK':300}
+  assert manual['journal']['totalDebit']==manual['journal']['totalCredit']
   (root/'data/operations.json').write_text(json.dumps({'values':{'transtrade_export_v3_operational':json.dumps(basket_root)}}))
   if os.environ.get('TT_QA_BROWSER')=='1':
    from playwright.sync_api import sync_playwright
