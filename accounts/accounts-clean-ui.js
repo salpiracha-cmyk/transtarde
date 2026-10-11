@@ -167,8 +167,16 @@
   function searchable(select) {
     if (select.dataset.ttSearchable || select.dataset.ttNative || select.multiple || (select.options.length < 2 && !select._ttMasterControl) || select.closest('.entitySwitcher')) return;
     if(!select._ttMasterControl){const label=select.closest('label'),add=label?.querySelector('button[id*="Add"],button[data-add-master]');if(add){const name=(label.childNodes[0]?.textContent||'Item').trim();select._ttMasterControl={label:name,add:()=>add.click(),canAdd:()=>!add.hidden&&!add.disabled};add.classList.add('tt-dropdown-master-launcher');}}
-    const roleKinds={ttSdSupplier:'supplier',ttSdBroker:'broker'};const kind=roleKinds[select.id];
-    if(kind){const manager=select._ttMasterControl||{},access=window.TT_ACCOUNT_ACCESS||{};manager.edit=(value)=>{const row=(access.masters?.business_parties||[]).find(r=>r.id===value);if(!row)return;window.TT_ACCOUNTS_MASTER_CHOICES?.manageRole(kind,row.values[0],name=>{const option=[...select.options].find(o=>o.value===value);if(option)option.textContent=name;select.dispatchEvent(new Event('change',{bubbles:true}));});};manager.canEdit=option=>(access.super||(access.masterPermissions?.business_parties||[]).includes('Edit'))&&(access.masters?.business_parties||[]).some(r=>r.id===option.value);select._ttMasterControl=manager;}
+    const roleKinds={ttSdSupplier:'supplier',ttSdBroker:'broker',bgSupplier:'bagsupplier',ttstBroker:'supplier'};const kind=roleKinds[select.id];
+    if(kind){const manager=select._ttMasterControl||{},access=window.TT_ACCOUNT_ACCESS||{},byId=['ttSdSupplier','ttSdBroker'].includes(select.id);
+      const can=action=>access.super||(access.masterPermissions?.business_parties||[]).includes(action);
+      const record=value=>(access.masters?.business_parties||[]).find(r=>byId?r.id===value:String(r.values?.[0]).trim().toLowerCase()===String(value).trim().toLowerCase());
+      const saved=(name,oldValue='')=>{const master=(access.masters?.business_parties||[]).find(r=>r.values?.[0]===name),value=byId?master?.id:name;if(!value)return;let option=[...select.options].find(o=>o.value===(oldValue||value));if(!option){option=document.createElement('option');select.append(option);}option.value=value;option.textContent=name;select.value=value;select.dispatchEvent(new Event('change',{bubbles:true}));};
+      manager.label=kind==='bagsupplier'?'Bag Supplier':kind==='broker'?'Broker':'Supplier';
+      if(!manager.add){manager.add=()=>window.TT_ACCOUNTS_MASTER_CHOICES?.manageRole(kind,'',name=>saved(name));manager.canAdd=()=>can('Create');}
+      manager.edit=value=>{const row=record(value);if(row)window.TT_ACCOUNTS_MASTER_CHOICES?.manageRole(kind,row.values[0],name=>saved(name,value));};
+      manager.canEdit=option=>can('Edit')&&!!record(option.value);select._ttMasterControl=manager;
+    }
     select.dataset.ttSearchable = '1';
     select.classList.add('tt-native-select');
     const wrap = document.createElement('div');

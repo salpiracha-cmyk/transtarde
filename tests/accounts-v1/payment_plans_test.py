@@ -61,6 +61,20 @@ require $argv[1];
         return data
     def read():
         status,data=request('payment_plans',{},method='GET');assert status==200,(status,data);return data
+    # Discounted planned payment and its real correction must restore every accounting head.
+    discount_keys=[r['rowKey'] for r in read()['rows'] if r['group']=='Broker A']
+    dp=call({'action':'create','mode':'PARTY','bankIds':['TTI-B'],'rowKeys':discount_keys,'date':'2026-10-07'})['result']['plan']
+    discounted=call({'action':'post','planId':dp['id'],'version':dp['version'],'group':'Broker A','date':'2026-10-07','discountAmount':5,'discountReason':'Agreed round settlement','sources':[{'type':'BANK','bankAccountId':'TTI-B','method':'ONLINE_BANKING','amount':315}]})['result']
+    ds=discounted['settlement'];dj=json.loads(books.read_text())['journals'][ds['journalId']]
+    assert ds['discountAmount']==5 and ds['netPayment']==315 and ds['amount']==320,ds
+    assert sum(l['credit'] for l in dj['lines'] if l['account']=='1110')==315
+    assert sum(l['credit'] for l in dj['lines'] if l['account']=='4400')==5
+    assert sum(r['outstanding'] for r in read()['rows'] if r['group']=='Broker A')==0
+    call({'action':'correct','planId':dp['id'],'version':discounted['plan']['version'],'group':'Broker A','date':'2026-10-07','reason':'Fixture discount correction'})
+    corrected=json.loads(books.read_text());reverse=[j for j in corrected['journals'].values() if j.get('reversalOf')==dj['id'] or j.get('meta',{}).get('reversalOf')==dj['id']]
+    assert reverse and sum(l['debit'] for l in reverse[0]['lines'] if l['account']=='4400')==5,reverse
+    assert sum(r['outstanding'] for r in read()['rows'] if r['group']=='Broker A')==320
+    seed(store)
     payload=read();assert len(payload['banks'])==3 and any(b['id']=='CASH|TTI' for b in payload['banks']),payload
     assert any(x['accountType'] in ['Personal Account','Proprietor / Owner Account'] for x in payload['banks'])
     assert {r['group'] for r in payload['rows']}=={'Broker A','Supplier C'},payload

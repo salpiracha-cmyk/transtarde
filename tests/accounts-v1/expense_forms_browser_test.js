@@ -12,7 +12,7 @@ const fs=require('node:fs'),assert=require('node:assert/strict'),{chromium}=requ
    window.expenseData={ok:true,utilityMasters:[],utilityPayments:[],creditCardMasters:[],creditCardStatements:[],reimbursements:[],generalExpenses:[],reminders:[],paymentAccounts:[{id:'CASH|TTI',label:'Cash',currency:'PKR',bookBalance:100}],locations:[{id:'OFFICE',name:'Karachi Office',location:'OFFICE',type:'Office'},{id:'MILL',name:'Own Rice Mill',location:'MILL',type:'Own Mill'},{id:'HOME|TTI',name:'Home',location:'HOME',type:'Home'}]};
    window.resolveNext=(kind,data)=>{const index=pending.findIndex(row=>row.url.includes(kind));if(index<0)throw Error('Missing request '+kind);const request=pending.splice(index,1)[0];request.resolve({ok:true,json:async()=>data||expenseData});};
   });
-  for(const path of ['accounts/expense-editor-owner.js','accounts/rent-salary-ui.js','accounts/donations-ui.js','accounts/expenses-v1-ui.js'])await page.addScriptTag({content:fs.readFileSync(path,'utf8')});
+  for(const path of ['accounts/accounts-form-layout.js','accounts/accounts-row-controls.js','accounts/expense-editor-owner.js','accounts/rent-salary-ui.js','accounts/donations-ui.js','accounts/expenses-v1-ui.js'])await page.addScriptTag({content:fs.readFileSync(path,'utf8')});
   await page.click('[data-expense="utility"]');await page.evaluate(()=>resolveNext('expenses_v1'));await page.waitForSelector('#evAddUtility');
   assert.equal(await page.locator('#evUmPayee').count(),0,'reminder setup starts closed');
   await page.click('#evAddUtility');await page.waitForSelector('#evUmPayee');
