@@ -615,9 +615,17 @@ test('party payment roles and company-wide ledger matching review are read-only'
   const input=page.locator('#ttSimpleBills [data-payee]');await input.fill('ditta');await input.click();
   console.log('LIVE_TRANSPORT_PICKER_STATE '+JSON.stringify(await page.evaluate(()=>({entity:localStorage.getItem('tt_accounts_entity'),role:document.querySelector('#ttSimpleBills [data-payee]')?.dataset.masterRole,managed:document.querySelector('#ttSimpleBills [data-payee]')?.dataset.ttMasterManage,sourceHasDitta:[...document.querySelectorAll('#ttSimplePayees option')].some(o=>/MEHR.*ALLAH.*DITTA/i.test(o.value)),menuHasDitta:[...document.querySelectorAll('.tt-party-menu .tt-option-row>button:first-child')].some(b=>/MEHR.*ALLAH.*DITTA/i.test(b.textContent))}))));
   const ditta=page.locator('.tt-party-menu:not([hidden]) .tt-option-row>button:first-child').filter({hasText:/MEHR\s+ALLAH\s+DITTA/i});await expect(ditta,'Ditta must be an eligible transport party').toHaveCount(1);
-  await ditta.click();await expect(page.locator('#ttSimpleBills [data-bill]').first()).toBeVisible();await page.locator('#ttSimpleBills [data-amount]').fill('1');await expect(page.locator('#ttSimpleBills [data-discount-choice]')).toContainText('as discount?');
+  const providerName=await ditta.textContent();
+  const unpaidResponse=await page.request.get(`${BASE_URL}/api/supplier_settlements.php?entity=TTI`);expect(unpaidResponse.status()).toBe(200);const unpaid=await unpaidResponse.json();
+  const identity=n=>String(n||'').toLowerCase().replace(/[^\p{L}\p{N}]/gu,'');
+  const providerBills=(unpaid.payables||[]).filter(r=>r.category==='TRANSPORT'&&identity(r.supplier)===identity(providerName));
+  const ledgerResponse=await page.request.get(`${BASE_URL}/api/accounts_ledger_browser.php?${params}&party=${encodeURIComponent(providerName)}`);expect(ledgerResponse.status()).toBe(200);const providerLedger=await ledgerResponse.json();
+  console.log('LIVE_TRANSPORT_PAYABLE_RECONCILIATION '+JSON.stringify({hasUnpaidBills:providerBills.length>0,hasCreditBalance:Number(providerLedger.closing)<-.005,hasOpeningBalance:(unpaid.payables||[]).some(r=>r.openingBalance&&identity(r.supplier)===identity(providerName))}));
+  expect(providerBills.length>0||Number(providerLedger.closing)>=-.005,'A transport credit balance must have a payable item').toBe(true);
+  await ditta.click();await expect(page.locator('#ttSimpleBills [data-payee]')).toHaveValue(providerName.trim());
+  await expect(page.locator('#ttSimpleBills [data-bill]')).toHaveCount(providerBills.length);
+  if(providerBills.length){await page.locator('#ttSimpleBills [data-amount]').fill('1');await expect(page.locator('#ttSimpleBills [data-discount-choice]')).toContainText('as discount?');expect(await page.locator('#ttSimpleBills [data-discount-enabled]').isChecked()).toBe(false);}
   expect(await page.locator('#ttSimpleBills [data-discount],#ttSimpleBills [data-discount-reason]').count()).toBe(0);
-  expect(await page.locator('#ttSimpleBills [data-discount-enabled]').isChecked()).toBe(false);
   await page.locator('#ttSimpleBills [data-close]').click();
   await page.evaluate(()=>window.TT_ALL_LEDGERS.open('','party'));
   await expect(page.locator('#tal-result')).not.toContainText('Loading ledger');
