@@ -121,6 +121,22 @@ require $argv[1];
     store['journals'].pop('ROUND-JV');store['supplierAdvances']={}
     seed(store);payload=read();assert {r['billId'] for r in payload['rows']}=={'A','B','C'},payload
     call({'action':'create','mode':'PARTY','bankIds':['TTI-B'],'rowKeys':['SERVICE|SERVICE-KEY'],'date':'2026-10-07'},409)
+    # Exact payer account, company scope, typed partial amount and reversal restore the receivable.
+    debtor_store=json.loads(books.read_text())
+    debtor_store['journals']['DEBTOR']={'id':'DEBTOR','entity':'TTI','date':'2026-09-01','status':'Posted','lines':[{'account':'1210','counterparty':'Debtor Co','debit':500,'credit':0},{'account':'4100','debit':0,'credit':500}]}
+    debtor_store['journals']['OTHER-CO']={'id':'OTHER-CO','entity':'BRM','date':'2026-09-01','status':'Posted','lines':[{'account':'1210','counterparty':'Debtor Co','debit':900,'credit':0}]}
+    books.write_text(json.dumps(debtor_store));snapshot=read();assert next(x for x in snapshot['payerAccounts'] if x['name']=='Debtor Co')['balance']==500
+    source={'type':'THIRD_PARTY','relationship':'CUSTOMER_RECEIVABLE','payer':'Debtor Co','payerAccount':'1210','payerSelected':True,'method':'DIRECT','amount':120}
+    settled=call({'action':'on_account','party':'Broker A','date':'2026-10-07','sources':[source]})['result']['settlement']
+    journal=json.loads(books.read_text())['journals'][settled['journalId']];assert any(l['account']=='1210' and l['credit']==120 and l['counterparty']=='Debtor Co' for l in journal['lines']);assert not any(l['account']=='1110' for l in journal['lines'])
+    assert next(x for x in read()['payerAccounts'] if x['name']=='Debtor Co')['balance']==380
+    unchanged=books.read_bytes();call({'action':'on_account','party':'Broker A','date':'2026-10-07','sources':[{**source,'amount':400}]},409);assert books.read_bytes()==unchanged
+    call({'action':'on_account','party':'Broker A','date':'2026-10-07','sources':[{**source,'payerAccount':'1220'}]},409);assert books.read_bytes()==unchanged
+    call({'action':'correct_on_account','settlementId':settled['id'],'reason':'Test correction','date':'2026-10-07'});assert next(x for x in read()['payerAccounts'] if x['name']=='Debtor Co')['balance']==500
+    multi=json.loads(books.read_text());multi['journals']['SECOND-HEAD']={'id':'SECOND-HEAD','entity':'TTI','date':'2026-09-01','status':'Posted','lines':[{'account':'1220','counterparty':'Debtor Co','debit':200,'credit':0}]};books.write_text(json.dumps(multi))
+    total_receipt=call({'action':'on_account','party':'Broker A','date':'2026-10-07','sources':[{**source,'payerAccount':'AUTO','amount':600}]})['result']['settlement'];remaining=sum(x['balance'] for x in read()['payerAccounts'] if x['name']=='Debtor Co');assert remaining==100
+    credited=json.loads(books.read_text())['journals'][total_receipt['journalId']]['lines'];assert sum(l['credit'] for l in credited if l['account'] in ['1210','1220'])==600
+    books.write_text(json.dumps(debtor_store))
     # Dedicated on-account third-party payment settles oldest truck then part of the next.
     body={'action':'on_account','party':'Broker A','date':'2026-10-07','sources':[{'type':'THIRD_PARTY','relationship':'OTHER_THIRD_PARTY','payer':'ABC','method':'DIRECT','amount':250}],'requestKey':'on-account-payment-fixture-0001'}
     result=call(body)['result']['settlement'];assert result['type']=='On Account Payment' and result['netPayment']==250 and result['onAccountAmount']==0

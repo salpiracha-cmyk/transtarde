@@ -42,6 +42,7 @@ try{
   }
   usort($rows,static fn($a,$b)=>strcmp((string)$a['date'],(string)$b['date'])?:((int)$a['sort']<=> (int)$b['sort'])?:strcmp((string)$a['reference'],(string)$b['reference']));
   $balance=0.0; foreach($rows as &$r){ $balance=round($balance+(float)$r['charge']-(float)$r['payment'],2); $r['balance']=$balance; $r['position']=$balance>0.005?'Payable':($balance<-.005?'Advance':'Nil'); } unset($r);
+ $rows=array_reverse($rows);
   $brokerList=array_keys($brokers); sort($brokerList,SORT_NATURAL|SORT_FLAG_CASE);
   sl_out(['ok'=>true,'entity'=>$entity,'broker'=>$broker,'brokers'=>$brokerList,'rows'=>$rows,'balance'=>$balance,'position'=>$balance>0.005?'Payable':($balance<-.005?'Advance':'Nil')]);
 }catch(Throwable $e){sl_out(['ok'=>false,'error'=>'Supplier ledger could not be loaded.'],500);}

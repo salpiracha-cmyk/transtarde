@@ -117,7 +117,7 @@ try {
                 'journalId' => (string)($journal['id'] ?? ''),
                 'sourceType' => (string)($journal['sourceType'] ?? ''),
                 'reference' => (string)($journal['reference'] ?? ''),
-                'narration' => (string)($journal['narration'] ?? ''),
+                'narration' => sac_journal_narration($store,$journal),
                 'account' => $code,
                 'accountName' => (string)($line['accountName'] ?? ($catalog[$code]['name'] ?? $code)),
                 'debit' => $debit,
@@ -126,6 +126,7 @@ try {
         }
     }
 
+    usort($ledger,static fn($a,$b)=>strcmp($b['date'],$a['date'])?:strnatcmp($b['journalId'],$a['journalId']));
     $trial = [];
     foreach ($balances as $code => $net) {
         if (abs($net) < .005) {

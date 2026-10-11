@@ -148,3 +148,20 @@ function sac_expense_activity(array $s,string $e,string $from,string $to):array 
  }
  return $out;
 }
+
+/** Read-only presentation from committed bill snapshots; never changes historic journals. */
+function sac_journal_narration(array $store,array $journal):string {
+ $text=(string)($journal['narration']??'');$meta=(array)($journal['meta']??[]);$detail=[];
+ $bill=$store['supplierBills'][(string)($meta['supplierBillId']??'')]??null;
+ if(is_array($bill)&&($bill['entity']??'')===($journal['entity']??'')){
+  $source=(array)($bill['sourceRecord']??[]);$number=trim((string)($journal['reference']??$bill['billNo']??$source['invoiceNo']??''));if($number!=='')$detail[]='Bill No. '.$number;
+  $sections=(array)($meta['shipmentSections']??$source['shipmentSections']??[]);if(!$sections)$sections=[$source];$count=0;$ports=[];$countries=[];$lots=[];
+  foreach($sections as $r){$count+=(int)($r['containerCount']??count((array)($r['containers']??[])));foreach(['portOfDischarge','dischargePort','destinationPort'] as $key)if(trim((string)($r[$key]??''))!==''){$ports[trim((string)$r[$key])]=true;break;}foreach(['dischargeCountry','podCountry','destinationCountry'] as $key)if(trim((string)($r[$key]??''))!==''){$countries[trim((string)$r[$key])]=true;break;}if(!empty($r['shipmentRef']))$lots[(string)$r['shipmentRef']]=true;}
+  if($count)$detail[]='Containers '.$count;if($ports)$detail[]='Discharge port '.implode(', ',array_keys($ports));if($countries)$detail[]='Discharge country '.implode(', ',array_keys($countries));if($lots)$detail[]='Shipment '.implode(', ',array_keys($lots));
+ }
+ $bag=$store['bagSupplierBills'][(string)($meta['bagBillId']??'')]??null;
+ if(is_array($bag)&&($bag['entity']??'')===($journal['entity']??'')){
+  $number=$journal['reference']??$bag['sellerInvoice']??'';$brand=$meta['brand']??$bag['brand']??'';$bags=$meta['bags']??$bag['bags']??0;$packing=$meta['packingSize']??$bag['packingSize']??'';if($number!=='')$detail[]='Supplier Bill No. '.$number;if($brand!=='')$detail[]='Brand '.$brand;if($bags)$detail[]='Bags '.number_format((float)$bags,0);if($packing!=='')$detail[]='Packing '.$packing;
+ }
+ foreach($detail as $piece)if(stripos($text,$piece)===false)$text.=' · '.$piece;return $text;
+}

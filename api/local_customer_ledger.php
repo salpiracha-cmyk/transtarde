@@ -24,6 +24,7 @@ try{
   $rows[]=['date'=>(string)($x['paymentDate']??''),'sort'=>(string)($x['reviewedAt']??$x['createdAt']??''),'party'=>$p,'soda'=>(string)($x['soda']??''),'product'=>(string)($x['product']??''),'type'=>(string)($x['paymentType']??'Payment'),'reference'=>(string)($x['reference']??$x['sourceKey']??''),'debit'=>0.0,'credit'=>round((float)($x['amount']??0),2)];
  }
  usort($rows,static fn($a,$b)=>strcmp((string)$a['date'],(string)$b['date'])?:strcmp((string)$a['sort'],(string)$b['sort']));$bal=0.0;foreach($rows as &$r){$bal=round($bal+(float)$r['debit']-(float)$r['credit'],2);$r['balance']=$bal;$r['position']=$bal>0.005?'Receivable':($bal<-.005?'Customer Advance':'Nil');}unset($r);
+ $rows=array_reverse($rows);
  $plist=array_keys($parties);sort($plist,SORT_NATURAL|SORT_FLAG_CASE);lcl_out(['ok'=>true,'entity'=>$entity,'party'=>$party,'parties'=>$plist,'rows'=>$rows,'closingBalance'=>$bal,'position'=>$bal>0.005?'Receivable':($bal<-.005?'Customer Advance':'Nil')]);
 }catch(Throwable $e){lcl_out(['ok'=>false,'error'=>'Customer ledger could not be loaded.'],500);}
 

@@ -7,7 +7,7 @@ class Element {
   querySelector(){return this.children[0];}
 }
 (async()=>{
-  const body=new Element(),document={body,createElement:()=>new Element()};
+  const body=new Element(),document={body,readyState:'loading',addEventListener(){},createElement:()=>new Element()};
   let response=new Response(JSON.stringify({ok:false,error:'Bank advice differs by Rs 13.56'}),{status:422});
   const window={fetch:async()=>{if(response instanceof Error)throw response;return response;}};
   vm.runInNewContext(fs.readFileSync('accounts/accounts-notifications.js','utf8'),{window,document});
