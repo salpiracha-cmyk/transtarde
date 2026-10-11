@@ -243,3 +243,5 @@ Status: owner authorised implementation and deployment on 9 October 2026. These 
 - Shared automatic and explicit confirmations for one successful operation coalesce. Dismissing, navigating away, replacing a bill result or closing its owning form invalidates pending detail responses. Later legitimate amendments remain eligible for confirmation.
 - Bank balance, TG transaction, TG transfer and retention screens share a workspace owner. Clear/hide the prior screen immediately on intentional open, guard late responses against the current owner/company, and restore both hidden attributes and classes on reopen. Never replace a draft through a superseded native bank handler.
 - Deferred navigation and repeated purchase/settlement loads must be cancelled when the user closes, changes company or opens another form. This does not change posting authorisation, approval routes or financial entries.
+
+- A TG receipt/payment date edit refreshes accounting rates in place. Keep the entered date, bank, payer, amount, narration and manually entered rate; prevent posting until the new date's rates have loaded.

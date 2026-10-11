@@ -137,3 +137,5 @@ The supplied 14:32 screenshot shows On Account Payment Posted still open after t
 - The bundle now includes bank-workspace-owner.js, bringing the loaded-asset count to 84.
 
 Added executable regressions: post_confirmation_ownership_test.js and workspace_response_ownership_test.js. payment_plans_browser_test.js now loads the real shared confirmation implementation and asserts one dialog for both on-account posting and plan completion. Financial posting payloads, ledger calculations and approvals are unchanged by this follow-up.
+
+The same audit also found TG receipt/payment date changes rebuilding the form. This now refreshes rates in place, preserving the entered draft and manual rate. The workspace ownership regression covers the actual date handler.
