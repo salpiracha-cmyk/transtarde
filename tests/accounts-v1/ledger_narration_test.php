@@ -9,3 +9,6 @@ $bag=sac_journal_narration($store,['entity'=>'TTI','narration'=>'Bag purchase','
 verify(sac_journal_narration($store,array_replace($journal,['entity'=>'BRM']))==='Clearing bill','Bill details must not cross companies');verify($store===$original,'Presentation must not change records');
 $snapshot=sac_journal_narration($store,array_replace($journal,['meta'=>['supplierBillId'=>'CL','shipmentSections'=>[['containerCount'=>1,'portOfDischarge'=>'Dubai','dischargeCountry'=>'UAE']]]]));verify(str_contains($snapshot,'Containers 1')&&!str_contains($snapshot,'Manila'),'Committed journal snapshots win over later bill amendments');
 echo "PASS bill narration, combined containers, discharge details, bag brand, immutable snapshots and entity scope\n";
+
+$chart=sac_chart();if(($chart['6810']['class']??'')!=='Expense'||($chart['6820']['class']??'')!=='Expense'||($chart['7200']['name']??'')!=='Donations')throw new RuntimeException('Policy bank charges must appear in the chart without overwriting existing donations');
+echo "PASS policy account names/types and existing chart identities\n";

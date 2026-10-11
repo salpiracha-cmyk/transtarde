@@ -147,3 +147,5 @@ Ordinary ledger views now use a read-only projection of completed reversal pairs
 Screen statements remain newest first; print, real XLSX and API CSV statements are oldest first. The general-ledger report also exports/prints chronologically. Ledgers now provides Trial Balance, Chart of Accounts & Details, and Subaccounts & Details using existing permissions. Trial Balance has one as-of date and account, party and account-type views; party totals include unassigned company legs.
 
 Added disposable reversal/as-of/account-identity and trial-balance UI tests; updated fixture dependencies and ledger ordering regression expectations. Production records are not altered by these tests.
+
+Live Trial Balance follow-up: policy-only export bank charge/FED accounts were appearing as numeric names and Other type. The canonical chart now includes missing settlement/export-policy accounts without overwriting existing chart codes, so Chart of Accounts and Trial Balance share the saved names and expense classifications. Existing donations 7200 remains intact.

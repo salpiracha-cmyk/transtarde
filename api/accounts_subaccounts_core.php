@@ -4,7 +4,10 @@ require_once __DIR__.'/assets_registry_core.php';
 require_once __DIR__.'/accounts_ledger_visibility.php';
 function sac_chart():array {
  $m=json_decode((string)file_get_contents(__DIR__.'/../accounts/accounting_master_v1.json'),true,512,JSON_THROW_ON_ERROR);$out=[];
- foreach(array_merge($m['chart'],$m['peopleSubledgers']??[]) as $r)$out[(string)$r['code']]=$r;foreach($out as $code=>&$a){if(!empty($a['parent'])||($a['level']??'')==='heading')continue;if(ctype_digit((string)$code)){$control=(string)(intdiv((int)$code,100)*100);$heading=(string)(intdiv((int)$code,1000)*1000);if($control!==(string)$code&&isset($out[$control]))$a['parent']=$control;elseif($heading!==(string)$code&&isset($out[$heading]))$a['parent']=$heading;elseif(($a['class']??'')==='Expense')$a['parent']='6000';}}unset($a);return $out;
+ foreach(array_merge($m['chart'],$m['peopleSubledgers']??[]) as $r)$out[(string)$r['code']]=$r;
+ // Include posted policy heads without overriding an existing chart identity (e.g. donations 7200).
+ foreach(['settlement_policy_v1.json','export_realization_policy_v1.json'] as $file){$path=__DIR__.'/../accounts/'.$file;if(!is_file($path))continue;$policy=json_decode((string)file_get_contents($path),true);foreach((array)($policy['accounts']??[]) as $r)if(is_array($r)&&isset($r['code'])&&!isset($out[(string)$r['code']]))$out[(string)$r['code']]=$r;}
+ foreach($out as $code=>&$a){if(!empty($a['parent'])||($a['level']??'')==='heading')continue;if(ctype_digit((string)$code)){$control=(string)(intdiv((int)$code,100)*100);$heading=(string)(intdiv((int)$code,1000)*1000);if($control!==(string)$code&&isset($out[$control]))$a['parent']=$control;elseif($heading!==(string)$code&&isset($out[$heading]))$a['parent']=$heading;elseif(($a['class']??'')==='Expense')$a['parent']='6000';}}unset($a);return $out;
 }
 function sac_entity_chart(array $store,string $entity):array {
  $chart=sac_chart();foreach((array)($store['accountHierarchy'][$entity]??[]) as $code=>$parent)if(isset($chart[$code],$chart[$parent]))$chart[$code]['parent']=(string)$parent;return $chart;
