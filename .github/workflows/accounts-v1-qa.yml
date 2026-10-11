@@ -59,7 +59,6 @@ jobs:
           python3 tests/accounts-v1/salary_month_http_test.py
           python3 tests/accounts-v1/bank_overdraft_http_test.py
           php tests/accounts-v1/ledger_visibility_test.php
-          node tests/accounts-v1/trial_balance_ui_test.js
           php tests/accounts-v1/ledger_narration_test.php
           node tests/accounts-v1/ledger_posting_rows_test.js
           node tests/accounts-v1/ledger_workbook_test.js
@@ -174,6 +173,7 @@ jobs:
           export NODE_PATH="$RUNNER_TEMP/expense-review-node/node_modules"
           node tests/accounts-v1/accounts_controls_ui_test.js
           node tests/accounts-v1/module_form_consistency_test.js
+          node tests/accounts-v1/trial_balance_ui_test.js
           node tests/accounts-v1/post_confirmation_ownership_test.js
           node tests/accounts-v1/workspace_response_ownership_test.js
           node tests/accounts-v1/accounts_master_controls_test.js
