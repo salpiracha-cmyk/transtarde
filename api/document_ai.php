@@ -1,8 +1,12 @@
 <?php
 declare(strict_types=1);
-require dirname(__DIR__) . '/auth_store.php';
-require dirname(__DIR__) . '/upload_validation.php';
+if(!defined('TT_DOCUMENT_AI_FUNCTIONS_ONLY')||!TT_DOCUMENT_AI_FUNCTIONS_ONLY){
+    require dirname(__DIR__) . '/auth_store.php';
+    require dirname(__DIR__) . '/upload_validation.php';
+}
 require __DIR__ . '/gemini_runtime.php';
+require __DIR__ . '/document_ai_settings.php';
+require __DIR__ . '/openai_document_runtime.php';
 
 function ai_respond(array $data,int $status=200): never {
     http_response_code($status);
@@ -82,7 +86,7 @@ function ai_part_from_upload(array $file): array {
     if(!is_uploaded_file($tmp)||filesize($tmp)!==$size)throw new InvalidArgumentException('The uploaded document could not be verified.');
     $mime=(new finfo(FILEINFO_MIME_TYPE))->file($tmp)?:'';
     $allowed=['application/pdf','image/png','image/jpeg','image/webp','text/plain','text/csv','text/rtf','text/html'];
-    if(!in_array($mime,$allowed,true)) throw new InvalidArgumentException('Gemini reader accepts PDF, PNG, JPG, WebP or text documents. DOCX can still be read through the local fallback.');
+    if(!in_array($mime,$allowed,true)) throw new InvalidArgumentException('Document reader accepts PDF, PNG, JPG, WebP or text documents. DOCX can still be read through the local fallback.');
     if(!str_starts_with($mime,'text/')&&!tt_upload_signature_valid($tmp,$mime))throw new InvalidArgumentException('Upload a valid PDF, PNG, JPG or WebP document.');
     $raw=file_get_contents($tmp);
     if($raw===false) throw new RuntimeException('The uploaded document could not be read.');
@@ -100,6 +104,21 @@ function ai_schema_example(array $schema): mixed {
     if($type==='number'||$type==='integer') return 0;
     if($type==='boolean') return false;
     return '';
+}
+function ai_validate_extraction(mixed $value,array $schema): bool {
+    switch($schema['type']??'string'){
+        case 'object':
+            if(!is_array($value))return false;
+            foreach(($schema['properties']??[]) as $name=>$property)if(!array_key_exists($name,$value)||!ai_validate_extraction($value[$name],$property))return false;
+            return true;
+        case 'array':
+            if(!is_array($value)||!array_is_list($value))return false;
+            foreach($value as $item)if(!ai_validate_extraction($item,$schema['items']))return false;
+            return true;
+        case 'number':case 'integer':return (is_int($value)||is_float($value))&&is_finite((float)$value);
+        case 'boolean':return is_bool($value);
+        default:return is_string($value)&&(!isset($schema['enum'])||in_array($value,$schema['enum'],true));
+    }
 }
 function ai_normalize_schema(mixed $value,array $schema): mixed {
     $type=(string)($schema['type']??'string');
@@ -173,13 +192,15 @@ function ai_call_gemini(string $key,string $model,array $parts,array $schema): a
     foreach((array)($response['candidates'][0]['content']['parts']??[]) as $part){if(isset($part['text']))$text.=(string)$part['text'];}
     $text=preg_replace('/^\s*```(?:json)?\s*|\s*```\s*$/i','',trim($text))??trim($text);
     $data=$text!==''?json_decode($text,true):null;
-    if(!is_array($data)) {
+    if(!ai_validate_extraction($data,$schema)) {
         $providerBody=json_encode($response,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);
         error_log('Gemini extraction JSON parse failed ('.json_last_error_msg().'): '.mb_substr((string)$providerBody,0,4000));
         throw new RuntimeException('Gemini returned an unreadable extraction. Please retry.');
     }
-    return ai_normalize_schema($data,$schema);
+    return ['data'=>ai_normalize_schema($data,$schema),'returnedModel'=>(string)($response['modelVersion']??$model),'usage'=>$response['usageMetadata']??[]];
 }
+
+if(defined('TT_DOCUMENT_AI_FUNCTIONS_ONLY')&&TT_DOCUMENT_AI_FUNCTIONS_ONLY)return;
 
 try{
     $user=tt_current_user();
@@ -190,12 +211,8 @@ try{
     if(!ai_can_write($user)) ai_respond(['ok'=>false,'error'=>'Create or Edit permission is required.'],403);
     if(!tt_verify_csrf((string)($_POST['csrf']??''))) ai_respond(['ok'=>false,'error'=>'Your session expired. Refresh and try again.'],419);
     $kind=strtolower(trim((string)($_POST['kind']??'')));
-    if(!in_array($kind,['contract','pc'],true)) ai_respond(['ok'=>false,'error'=>'Gemini is restricted to Sales Contract and P/C uploads.'],422);
-    $key=ai_env('GEMINI_API_KEY');
-    if($key==='') ai_respond(['ok'=>false,'error'=>'Gemini is not configured on the server yet. Add GEMINI_API_KEY as a protected server secret.','code'=>'GEMINI_NOT_CONFIGURED'],503);
-    $modelChoice=tt_gemini_resolve_model($key,ai_env('GEMINI_MODEL'));
-    $model=(string)$modelChoice['model'];
-    if(($modelChoice['configured']??'')!==''&&$model!==$modelChoice['configured']) error_log('Configured Gemini model is unavailable; selected '.$model.' from the API key model list.');
+    if(!in_array($kind,['contract','pc'],true)) ai_respond(['ok'=>false,'error'=>'AI reading is restricted to Sales Contract and P/C uploads.'],422);
+    $settings=tt_ai_read_settings();
     $parts=[['text'=>ai_prompt($kind)]];
     $text=trim((string)($_POST['text']??''));
     if($text!==''){
@@ -206,26 +223,22 @@ try{
     }else{
         ai_respond(['ok'=>false,'error'=>'Choose a document or paste its text.'],422);
     }
-    $data=null;$lastModelError=null;
-    foreach((array)($modelChoice['candidates']??[$model]) as $candidateModel) {
-        try {
-            $data=ai_call_gemini($key,(string)$candidateModel,$parts,ai_contract_schema());
-            $model=(string)$candidateModel;
-            break;
-        } catch(RuntimeException $e) {
-            $lastModelError=$e;
-            $retryable=in_array($e->getCode(),[404,429,503],true)||$e->getMessage()==='Gemini returned an unreadable extraction. Please retry.';
-            if(!$retryable) throw $e;
-            error_log('Gemini model '.$candidateModel.' unavailable for document extraction (HTTP '.$e->getCode().'); trying the next verified model.');
-        }
-    }
-    if(!is_array($data)) throw $lastModelError??new RuntimeException('Gemini could not read this document.');
-    tt_audit(isset($user['id'])?(int)$user['id']:null,(string)($user['username']??'user'),'Gemini '.$kind.' document extracted for human review');
-    ai_respond(['ok'=>true,'provider'=>'Gemini','model'=>$model,'data'=>$data]);
+    tt_release_read_session();
+    $result=tt_ai_route($settings,function(array $tier)use($parts){
+        $key=tt_ai_provider_key($tier['provider']);
+        if($key==='')throw new RuntimeException('Provider credentials are missing.');
+        if($tier['provider']==='openai')return tt_ai_call_openai($key,$tier['model'],$parts,ai_contract_schema());
+        return ai_call_gemini($key,$tier['model'],$parts,ai_contract_schema());
+    });
+    tt_audit(isset($user['id'])?(int)$user['id']:null,(string)($user['username']??'user'),
+        'Document '.$kind.' extracted for review: '.$result['provider'].' / '.$result['model'].' (returned '.($result['returnedModel']??$result['model']).') tier '.$result['tier'].' usage '.json_encode($result['usage']??[]));
+    ai_respond(['ok'=>true]+$result);
 }catch(InvalidArgumentException $e){ai_respond(['ok'=>false,'error'=>$e->getMessage()],422);
 }catch(Throwable $e){
-    error_log('Transtrade Gemini document reader: '.$e->getMessage());
+    error_log('Transtrade document reader: '.$e->getMessage());
     $safeMessages=[
+        'Document reading is turned off. Use manual entry.',
+        'All selected document readers failed. Use manual entry or ask Super Admin to check the reader settings.',
         'Gemini rejected the document request. Check the file and try again.',
         'Gemini server credentials are not authorized. Ask Super Admin to check the protected API key.',
         'The configured Gemini model is unavailable. Ask Super Admin to check GEMINI_MODEL.',
@@ -238,5 +251,5 @@ try{
     ];
     $message=in_array($e->getMessage(),$safeMessages,true)?$e->getMessage():'AI document reading is temporarily unavailable. Use the local fallback or try again.';
     $status=in_array($e->getCode(),[400,401,403,404,429],true)?$e->getCode():500;
-    ai_respond(['ok'=>false,'error'=>$message,'code'=>'GEMINI_REQUEST_FAILED'],$status);
+    ai_respond(['ok'=>false,'error'=>$message,'code'=>'DOCUMENT_AI_REQUEST_FAILED'],$status);
 }

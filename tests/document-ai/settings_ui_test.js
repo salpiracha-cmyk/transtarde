@@ -1,0 +1,18 @@
+const fs=require('node:fs'),assert=require('node:assert/strict');
+const {JSDOM}=require('jsdom');
+const dom=new JSDOM('<form id="readerForm"><div id="tiers"></div><button id="addTier" type="button">Add</button><input id="tiersPayload"></form>',{runScripts:'outside-only'});
+const w=dom.window,d=w.document;w.READER_SETTINGS={tiers:[{provider:'openai',model:'example-mini',enabled:true},{provider:'gemini',model:'example-flash',enabled:true}]};
+let alerts=[];w.alert=m=>alerts.push(m);w.eval(fs.readFileSync('admin/document-reader-settings.js','utf8'));
+const rows=()=>[...d.querySelectorAll('.tier')];
+rows()[0].querySelector('.model input').value='replacement-mini';rows()[0].querySelector('.model input').dispatchEvent(new w.Event('input'));
+rows()[0].querySelector('[aria-label="Move tier down"]').click();
+assert.equal(rows()[1].querySelector('.model input').value,'replacement-mini','Reordering preserves edits');
+rows()[1].querySelector('input[type="checkbox"]').click();
+d.getElementById('readerForm').dispatchEvent(new w.Event('submit',{cancelable:true}));
+let payload=JSON.parse(d.getElementById('tiersPayload').value);assert.equal(payload[1].enabled,false);assert.equal(payload[0].provider,'gemini');
+d.getElementById('addTier').click();assert.equal(rows().length,3);
+rows()[2].querySelector('.model input').value='example-flash';rows()[2].querySelector('.model input').dispatchEvent(new w.Event('input'));
+const duplicate=new w.Event('submit',{cancelable:true});d.getElementById('readerForm').dispatchEvent(duplicate);assert.ok(duplicate.defaultPrevented);assert.equal(alerts.length,1);
+rows()[2].querySelector('[aria-label="Remove tier"]').click();assert.equal(rows().length,2);
+assert.ok(rows()[0].querySelector('[aria-label="Move tier up"]').disabled);
+console.log('Document reader settings UI tests passed');dom.window.close();

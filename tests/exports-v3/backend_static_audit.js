@@ -147,7 +147,7 @@ assert.match(adminUi,/BREAK_BULK/,'Admin Export Other Terms must expose a break 
 assert.match(adminUi,/CNF_FO/,'Admin export masters must expose CNF FO grouping');
 assert.doesNotMatch(login,/authBrandLogo|TTI_header\.png/,'login must retain text-only Transtrade branding');
 assert.match(documentAi,/function ai_gemini_request/,'Gemini document calls must use the shared request path');
-assert.match(documentAi,/tt_gemini_resolve_model/,'Gemini document extraction must resolve a model available to the configured API key');
+assert.match(documentAi,/tt_ai_route/,'document extraction must use the configured ordered provider tiers');
 assert.match(geminiRuntime,/\/v1beta\/models\?pageSize=100/,'Gemini runtime must discover models from the provider before document extraction');
 assert.match(geminiRuntime,/supportedGenerationMethods/,'Gemini runtime must select only models supporting generateContent');
 assert.match(geminiRuntime,/'candidates'=>\$candidates/,'Gemini runtime must return an ordered verified fallback list');
@@ -162,7 +162,7 @@ assert.match(geminiDiagnostic,/inline_data/,'Gemini health checks must exercise 
 assert.match(geminiDiagnostic,/mime_type'=>'application\/pdf'/,'Gemini health checks must send a real PDF');
 assert.match(geminiDiagnostic,/responseSchema/,'Gemini health checks must exercise structured JSON output');
 assert.match(geminiDiagnostic,/in_array\(\$status,\[404,429,503\],true\)/,'Gemini PDF health checks must retry another verified model on unavailable, quota or high-demand responses');
-assert.match(documentAi,/in_array\(\$e->getCode\(\),\[404,429,503\],true\)/,'document extraction must retry another verified model on unavailable, quota or high-demand responses');
+assert.match(documentAi,/tt_ai_provider_key\(\$tier\['provider'\]\)/,'each configured tier must use its own provider credentials');
 assert.match(documentAi,/Gemini returned an unreadable extraction\. Please retry\./,'document extraction must retry another verified model after malformed structured output');
 assert.match(deployWorkflow,/Diagnose optional Exports Gemini document reader[\s\S]{0,120}continue-on-error:\s*true/,'Gemini quota must not block deployment of Accounts or core workflows');
 assert.match(deployWorkflow,/Accounts and core production health checks will continue/,'the deployment workflow must report optional Gemini degradation');
@@ -171,7 +171,7 @@ assert.match(documentAi,/returned non-JSON HTTP/,'Gemini response parse failures
 assert.match(documentAi,/Gemini extraction JSON parse failed/,'invalid structured output must retain the bounded provider response in protected server logs');
 assert.match(documentAi,/responseSchema/,'Gemini document extraction must first request the strict schema');
 assert.match(documentAi,/\$status===400&&\$index<count\(\$attempts\)-1/,'Gemini schema rejections must retry through the compatible JSON paths');
-assert.match(documentAi,/return ai_normalize_schema\(\$data,\$schema\)/,'fallback Gemini output must be normalized to the application schema');
+assert.match(documentAi,/'data'=>ai_normalize_schema\(\$data,\$schema\)/,'fallback Gemini output must be normalized to the application schema');
 assert.match(documentAi,/in_array\(\$kind,\['contract','pc'\],true\)/,'Gemini endpoint must accept only Sales Contract and P/C extraction jobs');
 assert.doesNotMatch(documentAi,/in_array\(\$kind,\['contract','lc'\]/,'L/C extraction must never be routed to Gemini');
 console.log('PASS backend/static release audit: auth, CSRF, concurrency, self-initializing schema, links and A4 print controls');

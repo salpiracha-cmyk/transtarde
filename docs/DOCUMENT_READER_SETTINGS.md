@@ -1,0 +1,13 @@
+# Document reader provider settings
+
+Super Admin → Document Reader Settings supports 1–20 ordered OpenAI/Gemini tiers, exact model IDs, tier enable/disable and manual reorder/add/remove. Save is explicit, CSRF protected, version checked and atomic. Other roles cannot open the page. QA accounts remain read-only.
+
+The initial order is OpenAI gpt-5.4-mini. On first deployment, the initializer snapshots up to three Gemini models from the existing reader resolver into the following tiers to preserve the available Gemini path. Subsequent deployments retain saved settings. Without Gemini credentials, defaults use GEMINI_MODEL or the existing preferred gemini-3.5-flash-lite. Missing credentials, unavailable models, quota failures and invalid extraction results advance to the next enabled tier when fallback is on. No replacement model is silently selected by the app; the provider itself may redirect aliases. Requested and returned model IDs plus usage are recorded on successful extraction. Compatible replacement IDs can be changed here; a different API or unsupported model may require adapter changes.
+
+Enter the OpenAI API key using the password field and Save settings. A blank field retains the saved key. Credentials are stored in TT_DATA_DIR/document-ai.json outside public_html with mode 0600, excluded from page JSON and audit output. Environment/protected server configuration keys remain supported. Gemini continues using its existing protected key. Buying API credit alone does not configure a key.
+
+Only Sales Contract and customer Proforma Invoice (contract/pc) requests use providers. Existing Exports permissions, CSRF, upload size/type checks and manual review/save remain required. L/C stays local. PDFs/images and pasted text are supported; DOCX follows the existing local text extraction route. No extracted contract is saved by this endpoint.
+
+OpenAI uses Responses API structured output, store:false, strict schema and a 6,000 output-token ceiling. Incomplete, refused and malformed responses fail validation. Both providers return normalized field data, actual model and usage. Failed paid attempts can add cost. The chain stops starting new tiers after 120 seconds; an in-flight request can extend that budget. Gemini retains same-model schema compatibility retries.
+
+Checks: php tests/document-ai/routing_test.php and php tests/document-ai/backend_test.php; both run in the required Accounts QA workflow. Production deployment additionally requires Milling and Exports QA and existing core health checks. Real OpenAI extraction must be verified after configuring the account key, with reviewed sample documents before saving.

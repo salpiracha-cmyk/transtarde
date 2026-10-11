@@ -223,6 +223,12 @@ jobs:
             exit 1
           fi
           echo "EXPORT_DOCUMENT_RECOVERY=$document_recovery_result"
+          if ! reader_settings_result=$(php "$target/scripts/initialize_document_reader.php"); then
+            tar -xzf "$backup" -C "$target"
+            echo "Document reader settings validation failed; previous code restored."
+            exit 1
+          fi
+          echo "DOCUMENT_READER_SETTINGS=$reader_settings_result"
           printf '%s\n' "$sha" > "$target/.transtrade-release"
           rm -f "$archive"
           rm -rf "$stage"

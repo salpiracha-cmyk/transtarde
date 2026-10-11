@@ -3,9 +3,9 @@ name: Accounts V1 QA
 on:
   push:
     branches: [main]
-    paths: ['index.html','accounts/**','api/**','scripts/**','auth_store.php','session_store.php','login.php','change-password.php','recover-admin.php','logout.php','master_store.php','backup_lib.php','qa_account.php','offline_idempotency.php','product_stage.php','inventory_reconciliation.php','stock-reconciliation.php','directors/**','module.php','brand-theme.css','brand-theme.js','exports/**','admin/**','milling/**','tests/master_data_topbar_audit.js','tests/accounts-v1/**','tests/security/**','tests/offline_recovery_audit.js','tests/super_admin_cleanup_audit.js','tests/live/accounts-hostinger-qa.spec.js','tests/live/hostinger-qa.spec.js','tests/live/exports-reset-only.spec.js','tests/exports-v3/**','.github/workflows/accounts-v1-qa.yml','.github/workflows/milling-exports-qa.yml','.github/workflows/deploy-production.yml','.github/workflows/qa-data-cleanup.yml']
+    paths: ['index.html','index.php','document-reader-settings.php','tests/document-ai/**','accounts/**','api/**','scripts/**','auth_store.php','session_store.php','login.php','change-password.php','recover-admin.php','logout.php','master_store.php','backup_lib.php','qa_account.php','offline_idempotency.php','product_stage.php','inventory_reconciliation.php','stock-reconciliation.php','directors/**','module.php','brand-theme.css','brand-theme.js','exports/**','admin/**','milling/**','tests/master_data_topbar_audit.js','tests/accounts-v1/**','tests/security/**','tests/offline_recovery_audit.js','tests/super_admin_cleanup_audit.js','tests/live/accounts-hostinger-qa.spec.js','tests/live/hostinger-qa.spec.js','tests/live/exports-reset-only.spec.js','tests/exports-v3/**','.github/workflows/accounts-v1-qa.yml','.github/workflows/milling-exports-qa.yml','.github/workflows/deploy-production.yml','.github/workflows/qa-data-cleanup.yml']
   pull_request:
-    paths: ['index.html','accounts/**','api/**','scripts/**','auth_store.php','session_store.php','login.php','change-password.php','recover-admin.php','logout.php','master_store.php','backup_lib.php','offline_idempotency.php','product_stage.php','inventory_reconciliation.php','stock-reconciliation.php','directors/**','module.php','brand-theme.css','brand-theme.js','exports/**','admin/**','milling/**','tests/accounts-v1/**','tests/security/**','tests/offline_recovery_audit.js','tests/super_admin_cleanup_audit.js','tests/live/accounts-hostinger-qa.spec.js','tests/live/hostinger-qa.spec.js','tests/live/exports-reset-only.spec.js','tests/exports-v3/**','.github/workflows/accounts-v1-qa.yml','.github/workflows/milling-exports-qa.yml','.github/workflows/deploy-production.yml','.github/workflows/qa-data-cleanup.yml']
+    paths: ['index.html','index.php','document-reader-settings.php','tests/document-ai/**','accounts/**','api/**','scripts/**','auth_store.php','session_store.php','login.php','change-password.php','recover-admin.php','logout.php','master_store.php','backup_lib.php','offline_idempotency.php','product_stage.php','inventory_reconciliation.php','stock-reconciliation.php','directors/**','module.php','brand-theme.css','brand-theme.js','exports/**','admin/**','milling/**','tests/accounts-v1/**','tests/security/**','tests/offline_recovery_audit.js','tests/super_admin_cleanup_audit.js','tests/live/accounts-hostinger-qa.spec.js','tests/live/hostinger-qa.spec.js','tests/live/exports-reset-only.spec.js','tests/exports-v3/**','.github/workflows/accounts-v1-qa.yml','.github/workflows/milling-exports-qa.yml','.github/workflows/deploy-production.yml','.github/workflows/qa-data-cleanup.yml']
 
 permissions:
   contents: read
@@ -22,6 +22,10 @@ jobs:
         run: |
           find accounts exports admin tests/accounts-v1 -name '*.js' -print0 | xargs -0 -n1 node --check
           node -e "JSON.parse(require('fs').readFileSync('accounts/accounting_master_v1.json','utf8'))"
+      - name: Document reader routing and backend checks
+        run: |
+          php tests/document-ai/routing_test.php
+          php tests/document-ai/backend_test.php
       - name: Accounts rule and control audits
         run: |
           node tests/accounts-v1/accounts_notifications_test.js

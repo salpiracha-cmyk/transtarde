@@ -15,6 +15,9 @@ header('Cache-Control: private, no-store, no-cache, must-revalidate, max-age=0')
 header('Pragma: no-cache');
 header('X-LiteSpeed-Cache-Control: no-cache');
 $html = file_get_contents(__DIR__ . '/index.html');
+if (($user['role'] ?? '') === 'Super Admin') {
+    $html=str_replace('<p class="nav-label">ADMINISTRATION</p>', '<p class="nav-label">ADMINISTRATION</p><a class="nav-item" href="document-reader-settings.php"><span class="nav-icon">AI</span><span>Document Reader Settings</span></a>', (string)$html);
+}
 $moduleHomes = [
     'accounts' => ['permission' => 'Accounts', 'url' => '/accounts/index.php', 'label' => 'Accounts'],
     'directors' => ['permission' => 'Directors', 'url' => '/directors/index.php', 'label' => 'Directors'],
