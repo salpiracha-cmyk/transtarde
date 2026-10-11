@@ -8,7 +8,9 @@ w.fetch=async url=>{requests.push(url);return {ok:true,json:async()=>data}};
 w.TT_PRINT={create:()=>({document:{write:html=>prints.push(html),close(){}},print(){}})};
 w.eval(fs.readFileSync('accounts/reports-ui.js','utf8'));
 (async()=>{
- await w.TT_REPORTS.open('tb');
+ const opening=w.TT_REPORTS.open('tb');
+ w.document.querySelector('#ttReportPrint').click();assert.equal(prints.length,0,'Print during report loading must wait for data');
+ await opening;
  const q=id=>w.document.querySelector(id);
  assert(q('#ttReportFrom').closest('label').hidden,'Trial balance has only one visible date');
  assert(!q('#ttReportAsOf').closest('label').hidden);assert(q('#ttReportAsOf').value);
