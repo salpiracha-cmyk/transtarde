@@ -603,13 +603,13 @@ test('party payment roles and company-wide ledger matching review are read-only'
   const params=new URLSearchParams({entity:'TTI',category:'party',from:'1900-01-01',to});
   const overview=await page.request.get(`${BASE_URL}/api/accounts_ledger_browser.php?${params}`);
   expect(overview.status()).toBe(200);const company=await overview.json();expect(company.ok).toBe(true);
-  console.log('COMPANY_PARTY_MATCHING_REVIEW '+JSON.stringify({count:company.missingPartyLines,rows:company.unmatchedPartyRows}));
+  console.log('COMPANY_PARTY_MATCHING_REVIEW '+JSON.stringify({count:company.missingPartyLines,sources:(company.unmatchedPartyRows||[]).map(r=>({account:r.account,sourceType:r.sourceType}))}));
   for(const r of company.unmatchedPartyRows||[]){
     const response=await page.request.get(`${BASE_URL}/api/accounts_ledger_browser.php?${params}&postId=${encodeURIComponent(r.voucher)}`);expect(response.status()).toBe(200);const {post}=await response.json();
-    console.log('UNASSIGNED_POST_SOURCE '+JSON.stringify({postId:r.voucher,sourceType:post.sourceType,reference:post.reference,sourceLinks:Object.fromEntries(Object.entries(post.meta||{}).filter(([key])=>/^(supplierBillId|billId|bagBillId|purchaseId|receiptId|candidateId|openingHelper|openingBalance|salaryRunId|runId)$/.test(key))),lineKeys:post.lines.filter(l=>l.account===r.account).map(l=>Object.keys(l))}));
+    console.log('UNASSIGNED_POST_SOURCE '+JSON.stringify({account:r.account,sourceType:post.sourceType,sourceLinkFields:Object.keys(post.meta||{}).filter(key=>/^(supplierBillId|billId|bagBillId|purchaseId|receiptId|candidateId|openingHelper|openingBalance|salaryRunId|runId)$/.test(key)),lineKeys:post.lines.filter(l=>l.account===r.account).map(l=>Object.keys(l))}));
   }
   const register=await page.request.get(`${BASE_URL}/api/accounts_ledger_browser.php?entity=ALL&account=POSTS&from=1900-01-01&to=${to}`);expect(register.status()).toBe(200);const posts=await register.json(),types={};for(const r of posts.rows)types[r.sourceType]=(types[r.sourceType]||0)+1;
-  console.log('POSTED_BOOKS_PROVENANCE '+JSON.stringify({sourceTypes:types,beforeFinancialYear:posts.rows.filter(r=>r.date<'2026-07-01').map(r=>({postId:r.voucher,date:r.date,sourceType:r.sourceType})),importTypes:posts.rows.filter(r=>/IMPORT|HISTORICAL|TRIAL_BALANCE/i.test(r.sourceType)).map(r=>({postId:r.voucher,date:r.date,sourceType:r.sourceType}))}));
+  console.log('POSTED_BOOKS_PROVENANCE '+JSON.stringify({sourceTypes:Object.keys(types),hasEntriesBeforeFinancialYear:posts.rows.some(r=>r.date<'2026-07-01'),importTypes:[...new Set(posts.rows.filter(r=>/IMPORT|HISTORICAL|TRIAL_BALANCE/i.test(r.sourceType)).map(r=>r.sourceType))]}));
   await page.evaluate(()=>window.TT_SUPPLIER_SETTLEMENT_UI.openBills('TRANSPORT'));
   await expect(page.locator('#ttSimpleBills h2')).toHaveText('Party Payments');
   const input=page.locator('#ttSimpleBills [data-payee]');await input.click();
