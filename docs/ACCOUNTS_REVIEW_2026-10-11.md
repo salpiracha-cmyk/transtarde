@@ -9,7 +9,7 @@ Scope: every JavaScript asset in the authenticated Accounts bundle was inventori
 - Hidden cheque reference retained native required validation in cash/third-party Supplier Payment. Hidden controls no longer block those sources.
 - Cash settlement showed bank method and post-dated cheque controls; those now follow the selected source/method.
 - TG date edits rebuilt the entire transfer form; rate loading now preserves the draft and guards stale responses/posting.
-- Supplier settlement loads could apply data for the previous company; commits to the rendered screen now verify company.
+- Supplier settlement and internal-transfer loads could apply data for the previous company; rendered screens now verify company/request. Service, transport, freight and due-date forms also reject superseded/company responses, with a regression proving an old service response cannot overwrite a new typed draft.
 - Checkbox/radio dimensions and field sizing varied across form families; shared screen-only rules preserve print styles.
 - Shared red remove controls missed plain Delete actions and had an incorrect icon-only plus CSS selector. Both corrected with handlers retained.
 - Supplier settlement concession missing from bill and planned payments; separate cash/discount allocations, accounting lines, reason, fingerprint and correction are now tested.
