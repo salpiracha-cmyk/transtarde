@@ -11,6 +11,7 @@ if (!tt_user_can_open_module($user, 'Accounts')) {
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET') tt_release_read_session();
 
 $files = [
+    'accounts-notifications.js',
     'accounts-uppercase.js',
     'print-dialog.js',
     'post-confirmation-ui.js',

@@ -2,7 +2,7 @@
  'use strict';
  const access=window.TT_CARRY_FORWARD_ACCESS||{},api='/api/carry_forward_shipments.php',q=s=>document.querySelector(s),esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])),money=v=>Number(v||0).toLocaleString('en-PK',{minimumFractionDigits:2,maximumFractionDigits:2}),day=v=>v?String(v).split('-').reverse().join('-'):'',today=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Karachi',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date()),uuid=()=>crypto.randomUUID();
  let data={},row=null,dirty=false,busy=false,requestKey=uuid(),openings={};
- function message(s,error=false){q('#cf-message').textContent=s;q('#cf-message').classList.toggle('cf-error',error)}
+ function message(s,error=false){if(error)window.TT_ACCOUNTS_NOTICE?.error(s);q('#cf-message').textContent=s;q('#cf-message').classList.toggle('cf-error',error)}
  async function get(entity,id=''){const r=await fetch(api+'?entity='+encodeURIComponent(entity)+(id?'&id='+encodeURIComponent(id):''),{credentials:'same-origin'}),d=await r.json();if(!r.ok||!d.ok)throw Error(d.error||'Register unavailable.');return d}
  async function send(body){const r=await fetch(api,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({csrf:access.csrf,...body})}),d=await r.json();if(!r.ok||!d.ok)throw Error(d.error||'Save could not be confirmed.');return d}
  function options(items,value,label=x=>x){return items.map(x=>`<option value="${esc(typeof x==='object'?x.id:x)}" ${(typeof x==='object'?x.id:x)===value?'selected':''}>${esc(label(x))}</option>`).join('')}

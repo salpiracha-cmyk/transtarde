@@ -6,9 +6,9 @@
   const qa=s=>[...document.querySelectorAll(s)];
   let accountingMaster=null;
 
-  function toast(message,ok=true){
+  function toast(message,ok=true){if(!ok&&window.TT_ACCOUNTS_NOTICE)return window.TT_ACCOUNTS_NOTICE.error(message);
     let el=q('#ttAccountsToast');
-    if(!el){el=document.createElement('div');el.id='ttAccountsToast';el.style.cssText='position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:99999;padding:11px 15px;border-radius:10px;color:#fff;font:700 12px Arial;box-shadow:0 8px 25px #0003';document.body.appendChild(el)}
+    if(!el){el=document.createElement('div');el.id='ttAccountsToast';el.style.cssText='position:fixed;left:50%;top:12px;transform:translateX(-50%);z-index:99999;padding:11px 15px;border-radius:10px;color:#fff;font:700 12px Arial;box-shadow:0 8px 25px #0003';document.body.appendChild(el)}
     el.style.background=ok?'#147a5b':'#a93a34';el.textContent=message;el.hidden=false;clearTimeout(el._t);el._t=setTimeout(()=>el.hidden=true,3000);
   }
   async function request(method='GET',body=null){

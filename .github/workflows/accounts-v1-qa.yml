@@ -24,6 +24,7 @@ jobs:
           node -e "JSON.parse(require('fs').readFileSync('accounts/accounting_master_v1.json','utf8'))"
       - name: Accounts rule and control audits
         run: |
+          node tests/accounts-v1/accounts_notifications_test.js
           node tests/accounts-v1/rules_engine_test.js
           node tests/accounts-v1/salary_donations_test.js
           node tests/accounts-v1/expenses_v1_test.js

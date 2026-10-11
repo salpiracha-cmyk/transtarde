@@ -13,9 +13,9 @@
   const state = {receipts:[], bills:[], loadedEntity:'', broker:'', supplier:'', relationshipType:'', relationshipName:'', soda:'', sourceKey:'', multiple:false, sourceKeys:[], adjustmentLines:[], brokerageRate:'', brokerageBasis:'PER_100_KG', kanta:'', loadingRate:'', filling:'', bags:null, bagWeightGrams:null, whtPercent:15, billDate:'', billNo:'', remarks:''};
   let loading = false;
 
-  function toast(message, ok = true) {
+  function toast(message, ok = true) {if(!ok&&window.TT_ACCOUNTS_NOTICE)return window.TT_ACCOUNTS_NOTICE.error(message);
     let el = q('#ttSmartBillToast');
-    if (!el) { el = document.createElement('div'); el.id = 'ttSmartBillToast'; el.style.cssText = 'position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:100080;padding:11px 15px;border-radius:10px;color:#fff;font:700 12px Arial;box-shadow:0 8px 25px #0003'; document.body.appendChild(el); }
+    if (!el) { el = document.createElement('div'); el.id = 'ttSmartBillToast'; el.style.cssText = 'position:fixed;left:50%;top:12px;transform:translateX(-50%);z-index:100080;padding:11px 15px;border-radius:10px;color:#fff;font:700 12px Arial;box-shadow:0 8px 25px #0003'; document.body.appendChild(el); }
     el.style.background = ok ? '#147a5b' : '#a93a34'; el.textContent = message; el.hidden = false; clearTimeout(el._t); el._t = setTimeout(() => { el.hidden = true; }, 3500);
   }
   function style() {

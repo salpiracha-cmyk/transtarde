@@ -9,9 +9,9 @@
   const fmt = value => Number(value || 0).toLocaleString('en-PK', {maximumFractionDigits:2});
   let data = null,loadSequence=0;
 
-  function toast(message, ok = true) {
+  function toast(message, ok = true) {if(!ok&&window.TT_ACCOUNTS_NOTICE)return window.TT_ACCOUNTS_NOTICE.error(message);
     let el = q('#ttBankToast');
-    if (!el) { el = document.createElement('div'); el.id = 'ttBankToast'; el.style.cssText = 'position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:100200;padding:11px 15px;border-radius:10px;color:#fff;font:700 12px Arial;box-shadow:0 8px 25px #0003'; document.body.appendChild(el); }
+    if (!el) { el = document.createElement('div'); el.id = 'ttBankToast'; el.style.cssText = 'position:fixed;left:50%;top:12px;transform:translateX(-50%);z-index:100200;padding:11px 15px;border-radius:10px;color:#fff;font:700 12px Arial;box-shadow:0 8px 25px #0003'; document.body.appendChild(el); }
     el.style.background = ok ? '#147a5b' : '#a93a34'; el.textContent = message; el.hidden = false;
     clearTimeout(el._t); el._t = setTimeout(() => { el.hidden = true; }, 3400);
   }

@@ -13,7 +13,7 @@
   const fmt = value => Number(value || 0).toLocaleString('en-PK', {maximumFractionDigits:2});
   const num = value => Math.max(0, Number(String(value ?? '').replace(/,/g,'')) || 0);
   const today = () => new Intl.DateTimeFormat('en-CA', {timeZone:'Asia/Karachi',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
-  let partialReceipt=false,formGeneration=0;
+  let partialReceipt=false,formGeneration=0,postingReceipt=false;
   let data = null, banks = null, tgData = null, bankId = '', tgBankId = '', payerType = '', payer = '', currency = 'USD', chosen = new Map(), deductions = [], shortfallClass = '', shortfallNote = '', selectedTgPayment = null;
   const regularCodes = ['EXP-AWT-NTR','EXP-BANK-COMM','EXP-FED-BANK'];
   let pendingReceipt = null, amendmentOf = '', amendmentReason = '', advanceEntry = false;
@@ -26,9 +26,9 @@
     } catch (_) { pendingReceipt = null; sessionStorage.removeItem(pendingKey()); }
   }
 
-  function toast(message, ok = true) {
+  function toast(message, ok = true) {if(!ok&&window.TT_ACCOUNTS_NOTICE)return window.TT_ACCOUNTS_NOTICE.error(message);
     let el = q('#ttExportReceiptToast');
-    if (!el) { el = document.createElement('div'); el.id = 'ttExportReceiptToast'; el.style.cssText = 'position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:100090;padding:11px 15px;border-radius:10px;color:#fff;font:700 12px Arial;box-shadow:0 8px 25px #0003'; document.body.appendChild(el); }
+    if (!el) { el = document.createElement('div'); el.id = 'ttExportReceiptToast'; el.style.cssText = 'position:fixed;left:50%;top:12px;transform:translateX(-50%);z-index:100090;padding:11px 15px;border-radius:10px;color:#fff;font:700 12px Arial;box-shadow:0 8px 25px #0003'; document.body.appendChild(el); }
     el.style.background = ok ? '#147a5b' : '#a93a34'; el.textContent = message; el.hidden = false; clearTimeout(el._t); el._t = setTimeout(() => { el.hidden = true; }, 3800);
   }
   async function get(url) {
@@ -268,7 +268,7 @@
     if(duplicate)blockers.push('Each charge may be entered once.');
     const ready=received>0&&rate>0&&bankField?.value!==''&&chosen.size&&balanced&&!blockers.length;
     const status=q('#erPostStatus');if(status){status.className=`tter-note ${ready?'tter-ok':'tter-bad'}`;status.textContent=ready?'Figures tally. Ready to post.':blockers.join(' ');}
-    const post=q('#erPost');if(post){post.disabled=!ready;post.title=ready?'Figures tally. Post this receipt.':blockers.join(' ');}
+    const post=q('#erPost');if(post){post.disabled=postingReceipt;post.dataset.ready=ready?'1':'0';post.title=ready?'Figures tally. Post this receipt.':blockers.join(' ');}
     return !!ready;
   }
   function allocations() {
@@ -321,13 +321,14 @@
     header.insertBefore(button,header.querySelector('[data-er-close]'));
   }
   async function postReceipt() {
+    if(postingReceipt)return;
     if(!calc())return toast(q('#erPost')?.title||'Check the receipt amounts and allocations.',false);
     const expected = selectedExpected(), received = num(q('#erForeign')?.value), shortfall = partialReceipt?num(q('#erCorrespondentAmount')?.value):Math.max(0,expected-received), classification = shortfall > .005 ? (payerType==='TG'&&!selectedTgPayment?'CORRESPONDENT':'PARTIAL') : '', currentShortfallNote = '';
 
     const directForeign=selectedBankCurrency()!=='PKR';
     const body = {action:'post_receipt',partialReceipt,paymentPartRef:partialReceipt?q('#erPaymentPart')?.value.trim():'',...(partialReceipt?{correspondentForeignAmount:shortfall}:{}),csrf:access.csrf,entity:entity(),date:q('#erDate')?.value || today(),bankAdviceRef:q('#erBankRef')?.value.trim() || '',bankAdviceFileRef:'',bankAdvicePaperRef:'',remitter:payer,transactionCurrency:currency,foreignAmount:received,realizationRate:num(q('#erRate')?.value),grossPkrEquivalent:num(q('#erGross')?.value),bankAccountId:bankId,pkrBankCredit:directForeign?0:num(q('#erBankCredit')?.value),nativeBankCredit:directForeign?num(q('#erBankCredit')?.value):0,retentionForeignAmount:num(q('#erRetention')?.value),retentionBankAccountId:q('#erRetentionBank')?.value || '',tgPaymentId:selectedTgPayment?.id || '',tgBankAccountId:payerType==='TG'&&!selectedTgPayment?tgBankId:'',...(payerType==='TG'&&!selectedTgPayment?{tgPaymentTotal:expected}:{}),amendmentOf,amendmentReason:q('#erAmendReason')?.value.trim()||'',allocations:allocations(),deductions:directForeign?[]:deductionPayload(),shortfallClassification:classification,shortfallNote:currentShortfallNote};
     if(amendmentOf&&!body.amendmentReason)return toast('Enter an amendment reason.',false); if (!body.bankAccountId) return toast('Choose the company bank account first.',false); if (!body.bankAdviceRef) return toast('Enter the bank advice / transaction reference.',false);
-    const button = q('#erPost'); button.disabled = true; button.textContent = 'POSTING…';
+    const button = q('#erPost'); postingReceipt=true;button.disabled = true; button.textContent = 'POSTING…';
     try {
       if(payerType==='TG'&&!selectedTgPayment)validateTgSettlement(classification);
       body.bankAdviceFileRef = await uploadAdvice();
@@ -336,7 +337,7 @@
       await postShortfalls(result.receipt,classification,currentShortfallNote,body.bankAdviceFileRef || body.bankAdvicePaperRef);
       savePending(null);amendmentOf='';amendmentReason='';
       toast(`Receipt ${result.receipt.id} posted.${result.ratesSaved===false?' Charge percentages could not be saved to the master; review them there.':''}`,result.ratesSaved!==false); payerType = ''; payer = ''; selectedTgPayment=null; partialReceipt=false; chosen.clear(); deductions = []; await load(); pendingBanner(); if(window.TT_POST_CONFIRMATION){closeForm();}else{render();offerReceiptPrint(result.receipt);} window.TT_BANK_ACCOUNTS_UI?.reload?.();
-    } catch (error) { toast(pendingReceipt ? `Receipt ${pendingReceipt.receipt.id} posted. TG settlement needs review: ${String(error.message || error)}` : String(error.message || error),false); if (pendingReceipt) render(); else { button.disabled = false; button.textContent = 'POST RECEIPT'; } }
+    } catch (error) { toast(pendingReceipt ? `Receipt ${pendingReceipt.receipt.id} posted. TG settlement needs review: ${String(error.message || error)}` : String(error.message || error),false); if (pendingReceipt) render(); else { button.disabled = false; button.textContent = 'POST RECEIPT'; } } finally {postingReceipt=false;calc();}
   }
   async function openForm(paymentId = '', amendId = '') {
     const generation=++formGeneration,company=entity(),current=()=>generation===formGeneration&&company===entity();

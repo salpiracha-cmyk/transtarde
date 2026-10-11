@@ -6,7 +6,7 @@
  const number=v=>Math.max(0,Number(String(v??'').replace(/,/g,''))||0);
  const today=()=>new Intl.DateTimeFormat('en-CA',{timeZone:entity()==='TG'?'Asia/Dubai':'Asia/Karachi',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());let data=null;
  async function request(body){const r=await fetch(api+'?entity='+encodeURIComponent(entity()),{method:body?'POST':'GET',credentials:'same-origin',headers:{'Accept':'application/json','Content-Type':'application/json'},body:body?JSON.stringify({...body,csrf:access.csrf}):undefined});let d={};try{d=await r.json()}catch{}if(!r.ok||!d.ok)throw new Error(d.error||'Could not load internal transfers.');return d}
- function notice(message){let e=q('#ibtNotice');if(!e){e=document.createElement('div');e.id='ibtNotice';e.style.cssText='position:fixed;z-index:100250;bottom:20px;left:50%;transform:translateX(-50%);background:#943e35;color:white;border-radius:9px;padding:11px 16px';document.body.appendChild(e)}e.textContent=message;e.hidden=false;clearTimeout(e.timer);e.timer=setTimeout(()=>e.hidden=true,5000)}
+ function notice(message){if(window.TT_ACCOUNTS_NOTICE)return window.TT_ACCOUNTS_NOTICE.error(message);let e=q('#ibtNotice');if(!e){e=document.createElement('div');e.id='ibtNotice';e.style.cssText='position:fixed;z-index:100250;top:12px;left:50%;transform:translateX(-50%);background:#943e35;color:white;border-radius:9px;padding:11px 16px';document.body.appendChild(e)}e.textContent=message;e.hidden=false;clearTimeout(e.timer);e.timer=setTimeout(()=>e.hidden=true,5000)}
  function close(){q('#ibtDialog')?.remove()}
  function source(){return data?.sources?.find(x=>x.id===q('#ibtSource')?.value)}
  function destination(){return data?.destinations?.find(x=>x.id===q('#ibtDestination')?.value)}
