@@ -112,6 +112,8 @@
   }
   function attachPartyMenu(input,initialKind,custom=null){
     const menu=document.createElement('div');menu.className='tt-select-menu tt-party-menu';menu.hidden=true;menu._ttOwner=input;document.body.append(menu);input.removeAttribute('list');input.setAttribute('role','combobox');input.setAttribute('aria-expanded','false');
+    // Keep the input focused until selection: native change-on-blur can rebuild the form before click.
+    menu.addEventListener('mousedown',event=>{if(event.target.closest('button'))event.preventDefault();});
     const kind=()=>input.id==='svVendor'?({CLEARING:'clearing',FUMIGATION:'fumigation',INSPECTION:'inspection'})[document.getElementById('svKind')?.value]||'service':initialKind;
     const type=()=>kind()==='buyer'?'export_customers':'business_parties';
     const can=action=>custom?(action==='Create'?custom.canAdd?.()??true:custom.canEdit?.()??true):access.super||(access.masterPermissions?.[type()]||[]).includes(action);
