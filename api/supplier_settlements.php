@@ -157,11 +157,18 @@ function ss_simple_payables(array $s,string $entity):array {
     foreach(sop_openings($s,$entity) as $id=>$o){$bill=ss_opening_bill($s,$entity,$id);$a=$bill['receiptAllocations'][0];$cap=ss_component_capacity($s,$entity,$bill,$a);if($cap['total']>.005)$rows[]=['billId'=>$id,'sourceKey'=>$o['sourceKey'],'supplier'=>$o['party'],'category'=>'OPENING','openingBalance'=>true,'billNo'=>'Balance B/F','billDate'=>$o['date'],'total'=>$o['amount'],'paid'=>round($o['amount']-$cap['total'],2),'outstanding'=>$cap['total'],'openingPostId'=>$o['journalId']];}
     usort($rows,static fn($a,$b)=>strcmp($a['billDate'],$b['billDate'])?:strcmp($a['billId'],$b['billId'])?:strcmp($a['sourceKey'],$b['sourceKey']));return $rows;
 }
-function ss_oldest_bill_allocations(array $s,string $entity,array $body):array {
+function ss_oldest_bill_allocations(array $s,string $entity,array &$body):array {
     $supplier=trim((string)($body['supplier']??''));$scope=strtoupper(trim((string)($body['category']??'')));$keys=(array)($body['selectedBills']??[]);
     if($supplier===''||count($keys)>200)ss_respond(['ok'=>false,'error'=>'Select a supplier and no more than 200 bills.'],422);
     $eligible=array_values(array_filter(ss_simple_payables($s,$entity),static fn($r)=>$r['supplier']===$supplier&&($scope===''||$r['category']===$scope||!empty($r['openingBalance']))&& (empty($r['openingBalance'])||!empty($body['includeOpeningBalance']))&&(!$keys||in_array($r['billId'].'|'.$r['sourceKey'],$keys,true))));
     if($keys&&count(array_unique($keys))!==count($eligible))ss_respond(['ok'=>false,'error'=>'A selected bill changed or is no longer outstanding. Refresh the payment screen.'],409);
+    if(array_key_exists('applyPaymentDifferenceAsDiscount',$body)){
+        $capacity=round(array_sum(array_column($eligible,'outstanding')),2);
+        $cash=ss_money($body['amount']??0,'Payment amount');
+        if(isset($body['selectedOutstanding'])&&abs((float)$body['selectedOutstanding']-$capacity)>.005)ss_respond(['ok'=>false,'error'=>'The selected bill balances changed. Review the current bills before posting.'],409);
+        $body['discountAmount']=!empty($body['applyPaymentDifferenceAsDiscount'])?max(0,round($capacity-$cash,2)):0;
+        $body['discountReason']=$body['discountAmount']>0?'Agreed settlement difference':'';
+    }
     $amount=ss_money($body['amount']??0,'Payment amount');$discount=ss_money($body['discountAmount']??0,'Supplier discount',true);if($discount>0&&!empty($body['allowAdvance']))ss_respond(['ok'=>false,'error'=>'A supplier discount cannot be combined with an advance.'],422);$amount=round($amount+$discount,2);$capacity=round(array_sum(array_column($eligible,'outstanding')),2);
     if($amount>$capacity+.005&&empty($body['allowAdvance']))ss_respond(['ok'=>false,'error'=>'Payment exceeds the selected outstanding bills. Record an explicit supplier advance separately.'],422);
     $amount=min($amount,$capacity);$alloc=[];foreach($eligible as $row){if($amount<=.005)break;$part=min($amount,$row['outstanding']);$alloc[]=['billId'=>$row['billId'],'sourceKey'=>$row['sourceKey'],'amount'=>$part];$amount=round($amount-$part,2);}return $alloc;
@@ -263,6 +270,7 @@ try{
         if($action==='post_bill_payment'){
             $requestKey=trim((string)($body['requestKey']??''));if(!preg_match('/^[a-zA-Z0-9-]{16,80}$/',$requestKey))ss_respond(['ok'=>false,'error'=>'Payment request ID is required. Reopen the payment screen.'],422);
             $fingerprint=hash('sha256',json_encode([$entity,$date,$body['supplier']??'',$body['category']??'',$body['selectedBills']??[],$body['amount']??0,$body['paymentMode']??'',$body['bankAccountId']??'',$body['payer']??'',$body['payerRelationship']??'',$body['reference']??'',$body['allowAdvance']??false,$body['narration']??'',$body['includeOpeningBalance']??false,$body['discountAmount']??0,$body['discountReason']??'']));
+            if(array_key_exists('applyPaymentDifferenceAsDiscount',$body))$fingerprint=hash('sha256',$fingerprint.'|'.json_encode([$body['applyPaymentDifferenceAsDiscount'],$body['selectedOutstanding']??null]));
             if(!empty($body['bankPaymentMethod']))$fingerprint=hash('sha256',$fingerprint.'|'.json_encode([$body['bankPaymentMethod'],$body['chequeNo']??'',$body['chequeDate']??'']));
             foreach((array)$store['supplierSettlements'] as $existing)if(($existing['requestKey']??'')===$requestKey&&($existing['entity']??'')===$entity){if(($existing['requestFingerprint']??'')!==$fingerprint)ss_respond(['ok'=>false,'error'=>'This draft was already posted with different details. Open another payment.'],409);ss_respond(['ok'=>true,'result'=>$existing,'revision'=>(int)$store['revision']]);}
             $body['allocations']=ss_oldest_bill_allocations($store,$entity,$body);$body['simpleBillPayment']=true;$action=(($body['paymentMode']??'')==='BANK'&&($body['bankPaymentMethod']??'')==='CHEQUE'&&($body['chequeDate']??'')>$date)?'issue_supplier_cheque':'post_supplier_payment';}

@@ -129,7 +129,7 @@ try {
         }
     }
 
-    usort($ledger,static fn($a,$b)=>strcmp($b['date'],$a['date'])?:strnatcmp($b['journalId'],$a['journalId']));
+    usort($ledger,static fn($a,$b)=>strcmp($a['date'],$b['date'])?:strnatcmp($a['journalId'],$b['journalId']));
     $trial = [];
     foreach ($balances as $code => $net) {
         if (abs($net) < .005) {

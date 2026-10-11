@@ -63,7 +63,7 @@
     {key:'tg-receipts', glyph:'↓', title:'Customer Receipts', note:'Receive money and allocate it to the correct TG customer', actions:[
       {title:'Customer Receipt', special:'tg-customer-receipt'}, {title:'Customer / Export Receivables', special:'customer-receivables'}
     ]},
-    {key:'tg-payments', glyph:'↑', title:'Supplier Payments', note:'Supplier liabilities and payments only', actions:[
+    {key:'tg-payments', glyph:'↑', title:'Party Payments', note:'Party liabilities and payments', actions:[
       {title:'Carry-forward Shipments', note:'TG Pack opening balances and shipment expense bills', special:'carry-forward'}, {title:'Post Bill', native:'payables'}, {title:'Payment', special:'bill-payment'}
     ]},
     {key:'tg-bank', glyph:'▦', title:'Bank & Local Expenses', note:'Bank transfers, payments and local operating expense', actions:[

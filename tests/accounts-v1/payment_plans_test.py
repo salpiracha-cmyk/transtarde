@@ -76,6 +76,25 @@ require $argv[1];
     assert reverse and sum(l['debit'] for l in reverse[0]['lines'] if l['account']=='4400')==5,reverse
     assert sum(r['outstanding'] for r in read()['rows'] if r['group']=='Broker A')==320
     seed(store)
+    # Smaller cheque: balance remains on the final bill unless the difference tick is chosen.
+    for tick in [False, True]:
+        seed(store)
+        keys=[r['rowKey'] for r in read()['rows'] if r['group']=='Broker A']
+        dp=call({'action':'create','mode':'PARTY','bankIds':['TTI-B'],'rowKeys':keys,'date':'2026-10-07'})['result']['plan']
+        result=call({'action':'post','planId':dp['id'],'version':dp['version'],'group':'Broker A','date':'2026-10-07','selectedOutstanding':320,'applyPaymentDifferenceAsDiscount':tick,'sources':[{'type':'BANK','bankAccountId':'TTI-B','method':'ONLINE_BANKING','amount':315}]})['result']
+        st=result['settlement'];assert st['netPayment']==315 and st['discountAmount']==(5 if tick else 0),st
+        assert sum(r['outstanding'] for r in read()['rows'] if r['group']=='Broker A')==(0 if tick else 5)
+        j=json.loads(books.read_text())['journals'][st['journalId']];assert j['totalDebit']==j['totalCredit']
+    # Withholding is recalculated on the genuinely settled brokerage; cash stays exactly as entered.
+    taxed=json.loads(json.dumps(store));taxed['commodityBills']={'T':bill('T','Broker T','',0,'2026-09-05','TAX-TRUCK',100)};taxed['commodityBills']['T']['brokerageWhtPercent']=15
+    for tick in [False,True]:
+        seed(taxed);row=read()['rows'][0];assert row['cashOutstanding']==85,row
+        dp=call({'action':'create','mode':'PARTY','bankIds':['TTI-B'],'rowKeys':[row['rowKey']],'date':'2026-10-07'})['result']['plan']
+        result=call({'action':'post','planId':dp['id'],'version':dp['version'],'group':'Broker T','date':'2026-10-07','selectedOutstanding':85,'applyPaymentDifferenceAsDiscount':tick,'sources':[{'type':'BANK','bankAccountId':'TTI-B','method':'ONLINE_BANKING','amount':80.75}]})['result']['settlement']
+        assert result['netPayment']==80.75 and result['withholding']==14.25,result
+        assert result['discountAmount']==(5 if tick else 0),result
+        assert sum(r['outstanding'] for r in read()['rows'])==(0 if tick else 5)
+    seed(store)
     payload=read();assert len(payload['banks'])==3 and any(b['id']=='CASH|TTI' for b in payload['banks']),payload
     assert any(x['accountType'] in ['Personal Account','Proprietor / Owner Account'] for x in payload['banks'])
     assert {r['group'] for r in payload['rows']}=={'Broker A','Supplier C'},payload

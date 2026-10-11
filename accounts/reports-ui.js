@@ -14,7 +14,7 @@
   const accountMatch=x=>!accountQuery()||String(`${x.account||''} ${x.accountName||x.name||''}`).toLowerCase().includes(accountQuery());
   const rowMatch=x=>accountMatch(x)&&(!textQuery()||Object.values(x).some(v=>String(v??'').toLowerCase().includes(textQuery())));
   const rows=items=>(items||[]).filter(rowMatch);
-  function ledger(){const source=q('#ttReportSource')?.value||'';return rows(data?.generalLedger).filter(x=>!source||x.sourceType===source)}
+  function ledger(){const source=q('#ttReportSource')?.value||'';return rows(data?.generalLedger).filter(x=>!source||x.sourceType===source).sort((a,b)=>String(a.date).localeCompare(String(b.date))||String(a.journalId).localeCompare(String(b.journalId),undefined,{numeric:true}))}
   let loadSequence=0;
   async function load(){
     const sequence=++loadSequence,requestedEntity=entity();

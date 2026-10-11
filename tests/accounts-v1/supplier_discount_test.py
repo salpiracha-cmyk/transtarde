@@ -43,6 +43,19 @@ with tempfile.TemporaryDirectory(prefix='supplier-discount-') as tmp:
  part=req({**p,'requestKey':'discount-fixture-0002','amount':490});assert part['ok'],part
  assert sum(r['outstanding'] for r in req()['payables'])==505
  assert json.loads(books.read_text())['supplierBills']==initial['supplierBills'],'Never rewrite original bills'
+ # New difference tick: server computes the concession, not an arbitrary typed discount.
+ for tick in [False,True]:
+  books.write_text(json.dumps(initial))
+  body={**p,'requestKey':'difference-fixture-'+str(tick),'discountAmount':999,'discountReason':'Ignored old UI','applyPaymentDifferenceAsDiscount':tick,'selectedOutstanding':1000}
+  posted=req(body);assert posted['ok'],posted
+  st=posted['result'];assert st['netPayment']==995,st
+  assert st['discountAmount']==(5 if tick else 0),st
+  assert [a['amount'] for a in st['allocations']]==([600,400] if tick else [600,395]),st
+  assert sum(r['outstanding'] for r in req()['payables'])==(0 if tick else 5)
+  before=books.read_bytes();assert req(body)['result']['journalId']==st['journalId'];assert books.read_bytes()==before
+  assert not req({**body,'applyPaymentDifferenceAsDiscount':not tick})['ok']
+ books.write_text(json.dumps(initial));before=books.read_bytes()
+ assert not req({**p,'requestKey':'stale-difference-fixture','applyPaymentDifferenceAsDiscount':True,'selectedOutstanding':900})['ok'];assert books.read_bytes()==before
  # Commodity settlement uses exact selected allocations and cash-only brokerage WHT.
  books.write_text(json.dumps({'commodityBills':{'C':{'id':'C','entity':'TTI','broker':'BROKER','brokerageWhtPercent':15,'receiptAllocations':[{'sourceKey':'C|BROKERAGE','supplierPayableShare':100,'component':'BROKERAGE'}]}}}))
  response=req({'action':'post_supplier_payment','allocations':[{'billId':'C','sourceKey':'C|BROKERAGE','amount':100}],'discountAmount':5,'discountReason':'Agreed settlement','paymentMode':'CASH','date':'2026-07-21'})

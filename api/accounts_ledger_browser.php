@@ -60,7 +60,7 @@ $catalog=[];
 // matching bank, inventory, income or expense legs of the same journal.
 $partyAccounts=array_fill_keys(['1210','1220','1230','1240','1250','1400','2110','2120','2130','2140','2150','2160','2170','2190','2210','2220','2400','2500','2510','2520','3100','3200'],true);
 foreach((array)($master['peopleSubledgers']??[]) as $person)if(is_array($person)&&isset($person['code']))$partyAccounts[(string)$person['code']]=true;
-$missingPartyLines=0;
+$missingPartyLines=0;$unmatchedPartyRows=[];
 $balanceUnavailable=false;
 $partyMasters=tt_list_masters();$partyNames=[];$partyAliases=[];$aliasSeen=[];
 foreach(['business_parties','export_customers'] as $type)foreach((array)($partyMasters[$type]??[]) as $record){
@@ -135,7 +135,7 @@ foreach($journals as $journal){
     if($postEntries){if(!empty($journal['meta']['deletedFromBooks']))continue;
         if(!empty($journal['amendedByPostId'])||(!empty($journal['reversalOf'])&&(!empty($store['journals'][$journal['reversalOf']]['amendedByPostId']))))continue;
         $date=(string)$journal['date'];if($date<$from)continue;
-        $rows[]=['deleteReason'=>apd_delete_reason($store,$journal,$user,$deleteRecordIndex),'canDelete'=>apd_supported($store,$journal,$deleteRecordIndex)&&function_exists('tt_post_correction_allowed')&&tt_post_correction_allowed($user,$journal)&&tt_user_can_access_entity($user,(string)$journal['entity'],'Edit'),'date'=>$date,'voucher'=>(string)($journal['id']??''),'account'=>'POSTS','accountName'=>(string)$journal['entity'],'reference'=>(string)($journal['reference']??''),'narration'=>(string)($journal['narration']??'').(str_starts_with((string)($journal['meta']['notes']??''),'Mirrored settlement for Pakistan receipt ')?' · '.(string)$journal['meta']['notes']:''),'publicPostId'=>tt_accounts_public_post($store,$journal),'amendmentNote'=>tt_accounts_amendment_note($journal,$store),'party'=>(string)($journal['meta']['payee']??$journal['meta']['supplier']??$journal['meta']['customer']??$journal['meta']['brokerName']??implode(' · ',array_unique(array_filter(array_map(static fn($l)=>$l['counterparty']??$l['party']??$l['supplier']??$l['customer']??'',(array)$journal['lines']))))).(!empty($store['exportReceipts'][(string)($journal['meta']['receiptId']??'')]['replacementReceiptId'])?' · Corrected by '.$store['exportReceipts'][(string)$journal['meta']['receiptId']]['replacementReceiptId']:''),'debit'=>round((float)($journal['totalDebit']??0),2),'credit'=>round((float)($journal['totalCredit']??0),2),'balance'=>null];
+        $rows[]=['sourceType'=>(string)($journal['sourceType']??''),'deleteReason'=>apd_delete_reason($store,$journal,$user,$deleteRecordIndex),'canDelete'=>apd_supported($store,$journal,$deleteRecordIndex)&&function_exists('tt_post_correction_allowed')&&tt_post_correction_allowed($user,$journal)&&tt_user_can_access_entity($user,(string)$journal['entity'],'Edit'),'date'=>$date,'voucher'=>(string)($journal['id']??''),'account'=>'POSTS','accountName'=>(string)$journal['entity'],'reference'=>(string)($journal['reference']??''),'narration'=>(string)($journal['narration']??'').(str_starts_with((string)($journal['meta']['notes']??''),'Mirrored settlement for Pakistan receipt ')?' · '.(string)$journal['meta']['notes']:''),'publicPostId'=>tt_accounts_public_post($store,$journal),'amendmentNote'=>tt_accounts_amendment_note($journal,$store),'party'=>(string)($journal['meta']['payee']??$journal['meta']['supplier']??$journal['meta']['customer']??$journal['meta']['brokerName']??implode(' · ',array_unique(array_filter(array_map(static fn($l)=>$l['counterparty']??$l['party']??$l['supplier']??$l['customer']??'',(array)$journal['lines']))))).(!empty($store['exportReceipts'][(string)($journal['meta']['receiptId']??'')]['replacementReceiptId'])?' · Corrected by '.$store['exportReceipts'][(string)$journal['meta']['receiptId']]['replacementReceiptId']:''),'debit'=>round((float)($journal['totalDebit']??0),2),'credit'=>round((float)($journal['totalCredit']??0),2),'balance'=>null];
         continue;
     }
     foreach((array)($journal['lines']??[]) as $line){
@@ -155,8 +155,8 @@ foreach($journals as $journal){
         // Allocation-level identity takes precedence over the remitter on a multi-buyer receipt.
         if($candidate)$lineParty=alb_party_name($candidate)?:alb_party_name((array)($candidate['meta']??[]))?:$lineParty;
         $source=[];$bill=[];
-        if($lineParty===''){$sourceId=(string)($meta['bagBillId']??$meta['billId']??$meta['purchaseId']??'');$source=$store['bagSupplierBills'][$sourceId]??$store['otherPurchases'][$sourceId]??$store['commodityBills'][$sourceId]??[];$lineParty=trim((string)($source['supplier']??$source['broker']??$source['party']??''));}
-        if($lineParty===''){$bill=$store['supplierBills'][(string)($meta['supplierBillId']??'')]??[];$lineParty=trim((string)($bill['vendor']??$meta['supplier']??$meta['broker']??$meta['customer']??$meta['counterparty']??$meta['payee']??''));}
+        if($lineParty===''){$sourceId=(string)($line['bagBillId']??$line['billId']??$line['purchaseId']??$meta['bagBillId']??$meta['billId']??$meta['purchaseId']??'');$source=$store['bagSupplierBills'][$sourceId]??$store['otherPurchases'][$sourceId]??$store['commodityBills'][$sourceId]??[];$lineParty=trim((string)($source['supplier']??$source['broker']??$source['party']??''));}
+        if($lineParty===''){$bill=$store['supplierBills'][(string)($line['supplierBillId']??$meta['supplierBillId']??'')]??[];$lineParty=trim((string)($bill['vendor']??$meta['supplier']??$meta['broker']??$meta['customer']??$meta['counterparty']??$meta['payee']??''));}
         if($lineParty===''&&!empty($meta['candidateId'])){$candidate=$store['exportCandidates'][(string)$meta['candidateId']]??[];$lineParty=trim((string)($candidate['meta']['customer']??$candidate['meta']['counterparty']??''));}
         $supplierAccount=in_array($code,['2110','2120','2130','2140','2190','1250','2500'],true);
         $customerAccount=in_array($code,['1210','1220','2160','2510'],true);
@@ -174,7 +174,10 @@ foreach($journals as $journal){
             if($lineParty==='')foreach((array)($master['peopleSubledgers']??[]) as $person){
                 if(is_array($person)&&(string)($person['code']??'')===$code){$lineParty=trim((string)($person['name']??''));break;}
             }
-            if($lineParty===''){$missingPartyLines++;continue;}
+            if($lineParty===''){
+                // Generic capital is a company balance, not an unidentified trade party.
+                if(!in_array($code,['3100','3200'],true)){$missingPartyLines++;$unmatchedPartyRows[]=['date'=>$journal['date'],'voucher'=>$journal['id'],'publicPostId'=>tt_accounts_public_post($store,$journal),'account'=>$code,'accountName'=>$catalog[$code]??$code,'narration'=>sac_journal_narration($store,$journal),'debit'=>round((float)($line['debit']??0),2),'credit'=>round((float)($line['credit']??0),2),'sourceType'=>$journal['sourceType']??''];}continue;
+            }
             $codeMatches=array_values(array_unique(array_column(array_filter($partyAliases,static fn($a)=>$a['code']!==''&&alb_party_key($a['code'])===alb_party_key($lineParty)),'name')));if(count($codeMatches)===1)$lineParty=$codeMatches[0];$lineParty=$partyNames[$lineParty]??$partyNames[alb_party_key($lineParty)]??$lineParty;
             $parties[$lineParty]=true;
             if($party===''||alb_party_key($lineParty)!==alb_party_key($party))continue;
@@ -210,10 +213,10 @@ if($homeLedger||($category==='party'&&$party!==''))foreach($expenseActivity as $
  $rows[]=['publicPostId'=>tt_accounts_public_post($store,$store['journals'][$activity['voucher']]??[]),'amendmentNote'=>tt_accounts_amendment_note($store['journals'][$activity['voucher']]??[],$store),'date'=>$activity['date'],'voucher'=>$activity['voucher'],'account'=>$activity['account'],'accountName'=>$activity['accountName'],'reference'=>$activity['reference'],'narration'=>$activity['accountName'].' · '.$activity['purpose'].' · Paid to '.$activity['recipient'].' · For '.($activity['expenseForName']??'Shared–Common').($activity['assetName']!==''?' · '.$activity['assetName'].' '.$activity['registrationNo']:''),'party'=>$activity['recipient'],'debit'=>0,'credit'=>0,'balance'=>null,'activityOnly'=>true,'expenseAmount'=>$activity['amount'],'chequeNo'=>'','bankReference'=>''];
 }
 if($query!=='')$rows=array_values(array_filter($rows,static fn($row)=>(!preg_match('/^(?:\d{4}-)?\d+$/',$query)&&str_contains(strtolower(implode(' ',array_map('strval',$row))),$query))||tt_accounts_reference_matches($query,$row['voucher'])||tt_accounts_reference_matches($query,$row['publicPostId']??'')||tt_accounts_reference_matches($query,$row['reference'])||($row['chequeNo']!==''&&str_contains(strtolower($row['chequeNo']),$query))||($row['bankReference']!==''&&str_contains(strtolower($row['bankReference']),$query))||(preg_match('/^(?:\d{4}-)?\d+$/',$query)&&!preg_match('/^(?:[A-Z]+-)?\d{4}-\d+$/i',$row['reference'])&&str_contains(strtolower($row['reference']),$query))));
-// Keep the chronological running balances above, then display latest dates first.
-usort($rows,static function(array $a,array $b):int{
+// Ordinary ledgers are chronological. The Post ID Register keeps latest first.
+usort($rows,static function(array $a,array $b)use($postEntries):int{
  $parts=static function(string $id):array{return preg_match('/^[A-Z]+-(\d{4})-(\d+)$/i',$id,$m)?[(int)$m[1],(int)$m[2]]:[0,0];};
- $ak=$parts((string)$a['voucher']);$bk=$parts((string)$b['voucher']);return strcmp((string)$b['date'],(string)$a['date'])?:($bk[0]<=>$ak[0])?:($bk[1]<=>$ak[1])?:strcmp((string)$b['voucher'],(string)$a['voucher']);
+ $ak=$parts((string)$a['voucher']);$bk=$parts((string)$b['voucher']);return ($postEntries?-1:1)*(strcmp((string)$a['date'],(string)$b['date'])?:($ak[0]<=>$bk[0])?:($ak[1]<=>$bk[1])?:strcmp((string)$a['voucher'],(string)$b['voucher']));
 });
 if(($_GET['format']??'')==='csv'){
     usort($rows,static fn($a,$b)=>strcmp($a['date'],$b['date'])?:strnatcmp($a['voucher'],$b['voucher']));
@@ -229,6 +232,6 @@ if(($_GET['format']??'')==='csv'){
     fclose($out);exit;
 }
 header('Content-Type: application/json; charset=UTF-8');
-echo json_encode(['ok'=>true,'entity'=>$entity,'accounts'=>array_map(static fn($code,$name)=>['code'=>(string)$code,'name'=>$name],array_keys($catalog),array_values($catalog)),'from'=>$from,'to'=>$to,'account'=>$account,'currency'=>$bankId!==''?($banks[$bankId]['currency']??''):($entity==='TG'?$nativeCurrency:'PKR'),'pendingRemittances'=>$entity==='TG'&&$bankId!==''?tgr_reserved($store,$bankId):0,'availableBalance'=>$entity==='TG'&&$bankId!==''?tgr_bank_balance($store,$bankId,$banks[$bankId]['currency'])['available']:null,'opening'=>$opening===null?null:round($opening,2),'closing'=>($account!==''||$party!=='')&&!$postEntries?$closing:null,'partyAliases'=>$partyAliases,'parties'=>array_keys($parties),'category'=>$category,'party'=>$party,'homeLedger'=>$homeLedger,'expenseTotal'=>$expenseTotal,'expenseCurrency'=>$entity==='TG'?'AED':'PKR','missingPartyLines'=>$category==='party'?$missingPartyLines:0,'balanceUnavailable'=>$category==='party'&&$balanceUnavailable,'invoiceRows'=>$partyInvoices,'invoiceTotals'=>$invoiceTotals,'rows'=>$rows],JSON_UNESCAPED_UNICODE);
+echo json_encode(['ok'=>true,'entity'=>$entity,'accounts'=>array_map(static fn($code,$name)=>['code'=>(string)$code,'name'=>$name],array_keys($catalog),array_values($catalog)),'from'=>$from,'to'=>$to,'account'=>$account,'currency'=>$bankId!==''?($banks[$bankId]['currency']??''):($entity==='TG'?$nativeCurrency:'PKR'),'pendingRemittances'=>$entity==='TG'&&$bankId!==''?tgr_reserved($store,$bankId):0,'availableBalance'=>$entity==='TG'&&$bankId!==''?tgr_bank_balance($store,$bankId,$banks[$bankId]['currency'])['available']:null,'opening'=>$opening===null?null:round($opening,2),'closing'=>($account!==''||$party!=='')&&!$postEntries?$closing:null,'partyAliases'=>$partyAliases,'parties'=>array_keys($parties),'category'=>$category,'party'=>$party,'homeLedger'=>$homeLedger,'expenseTotal'=>$expenseTotal,'expenseCurrency'=>$entity==='TG'?'AED':'PKR','missingPartyLines'=>$category==='party'?$missingPartyLines:0,'unmatchedPartyRows'=>$category==='party'?$unmatchedPartyRows:[],'balanceUnavailable'=>$category==='party'&&$balanceUnavailable,'invoiceRows'=>$partyInvoices,'invoiceTotals'=>$invoiceTotals,'rows'=>$rows],JSON_UNESCAPED_UNICODE);
 
 

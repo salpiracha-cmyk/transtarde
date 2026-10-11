@@ -151,6 +151,19 @@
   window.TT_ACCOUNTS_MASTER_CHOICES = {
     refresh: newMasters => { if (newMasters) { masters = newMasters; access.masters = newMasters; } refresh(); },
     partyNames, customerNames,
+    namesForRole: kind => lists()[kind] || [],
+    manageRoleInput(input,kind,extraValues=()=>[]){
+      if(!input||input.dataset.ttMasterManage)return;
+      input.dataset.masterRole=kind;
+      this.manageInput(input,{
+        values:()=>unique([...(lists()[kind]||[]),...extraValues()]),
+        label:roleFor(kind)||'Business Party',
+        canAdd:()=>access.super||(access.masterPermissions?.business_parties||[]).includes('Create'),
+        canEdit:()=>access.super||(access.masterPermissions?.business_parties||[]).includes('Edit'),
+        add:()=>this.manageRole(kind==='parties'?'party':kind,input.value,name=>{input.value=name;input.dispatchEvent(new Event('change',{bubbles:true}));}),
+        edit:name=>this.manageRole(kind==='parties'?'party':kind,name,saved=>{input.value=saved;input.dispatchEvent(new Event('change',{bubbles:true}));})
+      });
+    },
     manageRole: (kind,name,onSaved) => openEditor({value:clean(name),dispatchEvent(){onSaved?.(this.value)}},kind),
     attachPartyMenu,
     manageInput(input,config){if(input&&!input.dataset.ttMasterManage){input.dataset.ttMasterManage='1';attachPartyMenu(input,'parties',config);}},

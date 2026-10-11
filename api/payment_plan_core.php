@@ -26,6 +26,24 @@ function pl_prepare(array $s,string $e,array $raw,float $discount=0.0):array{
  foreach($raw as $r){$k=pl_key($r);if(isset($used[$k]))throw new DomainException('A truck allocation was repeated.');$used[$k]=true;$p=ss_prepare_allocations($s,$e,[$r]);$total+=$p['total'];$net+=$p['netPayment'];$wht+=$p['withholding'];foreach($p['debits'] as $a=>$v)$debits[$a]=round(($debits[$a]??0)+$v,2);$rows=array_merge($rows,$p['rows']);}
  if(!$rows)throw new DomainException('Select an outstanding bill.');if(!is_finite($discount)||$discount<0||$discount>=$total)throw new DomainException('Discount must be below the selected settlement amount.');$left=round($discount,2);for($i=count($rows)-1;$i>=0;$i--){$part=min($left,$rows[$i]['amount']);$oldWht=$rows[$i]['brokerageWht'];$newWht=round($oldWht*(1-$part/$rows[$i]['amount']),2);$rows[$i]['brokerageWht']=$newWht;$rows[$i]['discountAmount']=$part;$rows[$i]['paidAmount']=round($rows[$i]['amount']-$part-$newWht,2);$wht=round($wht-$oldWht+$newWht,2);$left=round($left-$part,2);}$net=round($total-$wht-$discount,2);return ['rows'=>$rows,'total'=>round($total,2),'netPayment'=>round($net,2),'withholding'=>round($wht,2),'debits'=>$debits];
 }
+/** Allocate the entered cash oldest first; a concession requires an explicit tick. */
+function pl_payment_difference(array $s,string $e,array $raw,float $cash,bool $applyDiscount):array{
+ $full=pl_prepare($s,$e,$raw);$cash=round($cash,2);
+ if($cash>$full['netPayment']+.005)throw new DomainException('Payment exceeds selected bills after withholding. Record an advance separately.');
+ if(abs($cash-$full['netPayment'])<=.005)return ['prepared'=>$full,'discount'=>0.0];
+ if($applyDiscount){
+  $lo=0;$hi=(int)round($full['total']*100)-1;$wanted=(int)round($cash*100);$found=null;
+  while($lo<=$hi){$mid=intdiv($lo+$hi,2);$p=pl_prepare($s,$e,$raw,$mid/100);$net=(int)round($p['netPayment']*100);if($net===$wanted){$found=['prepared'=>$p,'discount'=>$mid/100];$hi=$mid-1;}elseif($net>$wanted)$lo=$mid+1;else $hi=$mid-1;}
+  if($found===null)throw new DomainException('Payment and discount do not balance after withholding. Review the entered payment.');return $found;
+ }
+ $left=(int)round($cash*100);$partial=[];
+ foreach($raw as $r){if($left<=0)break;$whole=pl_prepare($s,$e,[$r]);$net=(int)round($whole['netPayment']*100);if($net<=$left){$partial[]=$r;$left-=$net;continue;}
+  $lo=1;$hi=(int)round($r['amount']*100);$best=null;
+  while($lo<=$hi){$mid=intdiv($lo+$hi,2);$part=$r;$part['amount']=$mid/100;$p=pl_prepare($s,$e,[$part]);$value=(int)round($p['netPayment']*100);if($value<=$left){$best=[$part,$value];$lo=$mid+1;}else $hi=$mid-1;}
+  if(!$best||$best[1]!==$left)throw new DomainException('Partial payment cannot balance after withholding. Review the entered payment.');$partial[]=$best[0];$left=0;
+ }
+ if($left!==0||!$partial)throw new DomainException('Enter a positive payment for the selected bills.');return ['prepared'=>pl_prepare($s,$e,$partial),'discount'=>0.0];
+}
 /** JV payable debits have already moved the ledger. Link them once, oldest first, without another journal. */
 function pl_link_round_journals(array &$s,string $e):void{
  foreach((array)($s['supplierSettlements']??[]) as $id=>$set)if(($set['type']??'')==='Round JV Allocation'&&($set['entity']??'')===$e&&!pl_live_journal($s,(string)$set['journalId']))$s['supplierSettlements'][$id]['status']='Reversed';
@@ -78,7 +96,7 @@ function pl_reverse(array &$s,array $u,string $e,string $sid,string $date,string
  foreach((array)($s['brokeragePayments']??[]) as $id=>$p)if(($p['settlementId']??'')===$sid)$s['brokeragePayments'][$id]['status']='Reversed';pl_audit($s,$u,'PAYMENT_PLAN_CORRECTION',['settlement'=>$set,'reason'=>$reason]);
 }
 function pl_post(array &$s,array $u,array &$plan,array $b):array{
- $onAccount=!empty($plan['onAccount']);$discount=ss_money($b['discountAmount']??0,'Supplier discount',true);$discountReason=trim((string)($b['discountReason']??''));if($discount>0&&($onAccount||strlen($discountReason)<3))throw new DomainException('Select specific bills for a discount and enter the agreed reason.');$e=$plan['entity'];$group=trim((string)($b['group']??''));$saved=$plan['groups'][$group]??null;if(!$saved||!empty($saved['settlementId']))throw new DomainException('Select an unpaid party in this plan.');$date=ss_date((string)($b['date']??''));
+ $onAccount=!empty($plan['onAccount']);$discount=array_key_exists('applyPaymentDifferenceAsDiscount',$b)?0.0:ss_money($b['discountAmount']??0,'Supplier discount',true);$discountReason=trim((string)($b['discountReason']??''));if($discount>0&&($onAccount||strlen($discountReason)<3))throw new DomainException('Select specific bills for a discount and enter the agreed reason.');$e=$plan['entity'];$group=trim((string)($b['group']??''));$saved=$plan['groups'][$group]??null;if(!$saved||!empty($saved['settlementId']))throw new DomainException('Select an unpaid party in this plan.');$date=ss_date((string)($b['date']??''));
  $keys=(array)($b['rowKeys']??$saved['rowKeys']);$allowed=[];foreach(pl_raw_rows($s,$e,$plan['mode']) as $r)if(($r['group']===$group||($onAccount&&$r['broker']===$group))&&!$r['held'])$allowed[]=$r['rowKey'];foreach($keys as $k)if(!in_array($k,$allowed,true))throw new DomainException('A selected truck changed. Review the current dues.');
  $ordered=[];foreach(pl_raw_rows($s,$e,$plan['mode']) as $r)if(in_array($r['rowKey'],$keys,true))$ordered[]=$r['rowKey'];$keys=$ordered;if(!$keys&&!$onAccount)throw new DomainException('Select a truck bill to pay.');$sources=(array)($b['sources']??[]);
  if($onAccount){$left=0.0;foreach($sources as $source)$left+=ss_money($source['amount']??0);$raw=[];foreach(pl_raw_rows($s,$e,'PARTY') as $r){if(!in_array($r['rowKey'],$keys,true)||$left<=.005)continue;$whole=pl_prepare($s,$e,[['billId'=>$r['billId'],'sourceKey'=>$r['sourceKey'],'amount'=>$r['outstanding']]]);$ratio=$whole['netPayment']/$whole['total'];if($ratio<=0)throw new DomainException('Review withholding on this bill before making an on-account payment.');$use=min((float)$r['outstanding'],round($left/$ratio,2));$part=['billId'=>$r['billId'],'sourceKey'=>$r['sourceKey'],'amount'=>$use];$prepared=pl_prepare($s,$e,[$part]);$raw[]=$part;$left=round($left-$prepared['netPayment'],2);}$p=$raw?pl_prepare($s,$e,$raw):['rows'=>[],'total'=>0.0,'netPayment'=>0.0,'withholding'=>0.0,'debits'=>[]];}
@@ -92,6 +110,11 @@ function pl_post(array &$s,array $u,array &$plan,array $b):array{
    elseif(!empty($source['payerSelected'])&&!in_array($payer,pl_all_payer_parties($s,$e),true))throw new DomainException('Choose a saved payer party.');
    $extra=['counterparty'=>$payer,'subledger'=>$payer,'payerRelationship'=>$rel];$label=$payer;}
   else throw new DomainException('Use a bank or third-party payment source.');if($payerAlloc)foreach($payerAlloc as $pa)$lines[]=ss_line($pa['account'],0,$pa['amount'],$catalog,$extra);else $lines[]=ss_line($credit,0,$amount,$catalog,$extra);$total+=$amount;$sourceRows[]=array_merge($source,['amount'=>$amount,'label'=>$label,'method'=>$method]);
+ }
+ if(!$onAccount&&array_key_exists('applyPaymentDifferenceAsDiscount',$b)){
+  $full=pl_prepare($s,$e,$raw);
+  if(isset($b['selectedOutstanding'])&&abs((float)$b['selectedOutstanding']-$full['netPayment'])>.005)throw new DomainException('Selected bill balances or withholding changed. Review the current bills before posting.');
+  $adjusted=pl_payment_difference($s,$e,$raw,round($total,2),!empty($b['applyPaymentDifferenceAsDiscount']));$p=$adjusted['prepared'];$discount=$adjusted['discount'];$discountReason=$discount>0?'Agreed settlement difference':'';
  }
  $excess=$onAccount?max(0,round($total-$p['netPayment'],2)):0.0;if(!$onAccount&&abs(round($total,2)-$p['netPayment'])>.005)throw new DomainException('Payment sources must equal the selected bills net payment of PKR '.number_format($p['netPayment'],2).'.');
  $lines=array_merge($lines,pl_debit_lines($p,$catalog));if($excess>.005)$lines[]=ss_line('1250',$excess,0,$catalog,['counterparty'=>$group,'subledger'=>$group]);if($p['withholding']>0)$lines[]=ss_line('2300',0,$p['withholding'],$catalog);
@@ -128,6 +151,6 @@ function pl_payload(array $s,string $e):array{
  pl_link_round_journals($s,$e);$plans=[];foreach((array)($s['paymentPlans']??[]) as $p)if($p['entity']===$e&&$p['status']==='Open')$plans[]=$p;
  $original=['PARTY'=>pl_raw_rows($s,$e,'PARTY'),'BROKER'=>pl_raw_rows($s,$e,'BROKER')];$preview=$s;
  foreach($original as $mode=>$rows){$groups=[];foreach($rows as $r)if(!$r['held'])$groups[$r['group']][]=$r['rowKey'];foreach($groups as $group=>$keys)pl_apply_advances($preview,['username'=>'Advance allocation preview'],$e,$mode,$keys,$group,(new DateTimeImmutable('now',new DateTimeZone('Asia/Karachi')))->format('Y-m-d'));}
- foreach($original as $mode=>&$rows){$left=array_column(pl_raw_rows($preview,$e,$mode),'outstanding','rowKey');foreach($rows as &$r){$r['beforeAdvance']=$r['outstanding'];$r['advanceApplied']=round($r['outstanding']-(float)($left[$r['rowKey']]??0),2);$r['outstanding']=$left[$r['rowKey']]??0.0;}unset($r);}unset($rows);
+ foreach($original as $mode=>&$rows){$left=array_column(pl_raw_rows($preview,$e,$mode),'outstanding','rowKey');foreach($rows as &$r){$r['beforeAdvance']=$r['outstanding'];$r['advanceApplied']=round($r['outstanding']-(float)($left[$r['rowKey']]??0),2);$r['outstanding']=$left[$r['rowKey']]??0.0;$r['cashOutstanding']=$r['outstanding']>.005?pl_prepare($preview,$e,[['billId'=>$r['billId'],'sourceKey'=>$r['sourceKey'],'amount'=>$r['outstanding']]])['netPayment']:0.0;}unset($r);}unset($rows);
  return ['ok'=>true,'entity'=>$e,'history'=>array_slice(array_reverse(array_values(array_filter((array)($s['paymentPlans']??[]),static fn($p)=>$p['entity']===$e&&$p['status']==='Closed'))),0,50),'payerAccounts'=>pl_payer_accounts($s,$e),'payerParties'=>pl_all_payer_parties($s,$e),'banks'=>pl_bank_rows($s,$e),'parties'=>pl_parties($s,$e),'onAccountPayments'=>array_slice(array_reverse(array_values(array_filter((array)($s['supplierSettlements']??[]),static fn($a)=>($a['entity']??'')===$e&&($a['type']??'')==='On Account Payment'))),0,50),'rows'=>$original['PARTY'],'brokerRows'=>$original['BROKER'],'plans'=>$plans,'adjustments'=>array_values(array_filter((array)($s['supplierSettlements']??[]),static fn($x)=>($x['entity']??'')===$e&&($x['status']??'')==='Posted'&&in_array($x['type']??'',['Round JV Allocation','Supplier Advance Applied'],true))),'advances'=>array_values(array_filter((array)($s['supplierAdvances']??[]),static fn($a)=>($a['entity']??'')===$e&&!in_array($a['status']??'',['Cancelled','Reversed'],true)&&(float)($a['amount']??0)>(float)($a['allocatedAmount']??0)+.005)),'revision'=>$s['revision']??0];
 }

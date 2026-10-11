@@ -595,3 +595,31 @@ test('Customer / Export Receivables links group buyer invoices without posting',
   await activate(page.locator('#ttCustomerReceivables .tt-window-close'));
   await expect(page.locator('#ttCustomerReceivables')).toBeHidden();
 });
+
+
+test('party payment roles and company-wide ledger matching review are read-only', async ({page}) => {
+  await signIn(page);
+  const to=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Karachi',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+  const params=new URLSearchParams({entity:'TTI',category:'party',from:'1900-01-01',to});
+  const overview=await page.request.get(`${BASE_URL}/api/accounts_ledger_browser.php?${params}`);
+  expect(overview.status()).toBe(200);const company=await overview.json();expect(company.ok).toBe(true);
+  console.log('COMPANY_PARTY_MATCHING_REVIEW '+JSON.stringify({count:company.missingPartyLines,rows:company.unmatchedPartyRows}));
+  for(const r of company.unmatchedPartyRows||[]){
+    const response=await page.request.get(`${BASE_URL}/api/accounts_ledger_browser.php?${params}&postId=${encodeURIComponent(r.voucher)}`);expect(response.status()).toBe(200);const {post}=await response.json();
+    console.log('UNASSIGNED_POST_SOURCE '+JSON.stringify({postId:r.voucher,sourceType:post.sourceType,reference:post.reference,sourceLinks:Object.fromEntries(Object.entries(post.meta||{}).filter(([key])=>/^(supplierBillId|billId|bagBillId|purchaseId|receiptId|candidateId|openingHelper|openingBalance|salaryRunId|runId)$/.test(key))),lineKeys:post.lines.filter(l=>l.account===r.account).map(l=>Object.keys(l))}));
+  }
+  const register=await page.request.get(`${BASE_URL}/api/accounts_ledger_browser.php?entity=ALL&account=POSTS&from=1900-01-01&to=${to}`);expect(register.status()).toBe(200);const posts=await register.json(),types={};for(const r of posts.rows)types[r.sourceType]=(types[r.sourceType]||0)+1;
+  console.log('POSTED_BOOKS_PROVENANCE '+JSON.stringify({sourceTypes:types,beforeFinancialYear:posts.rows.filter(r=>r.date<'2026-07-01').map(r=>({postId:r.voucher,date:r.date,sourceType:r.sourceType})),importTypes:posts.rows.filter(r=>/IMPORT|HISTORICAL|TRIAL_BALANCE/i.test(r.sourceType)).map(r=>({postId:r.voucher,date:r.date,sourceType:r.sourceType}))}));
+  await page.evaluate(()=>window.TT_SUPPLIER_SETTLEMENT_UI.openBills('TRANSPORT'));
+  await expect(page.locator('#ttSimpleBills h2')).toHaveText('Party Payments');
+  const input=page.locator('#ttSimpleBills [data-payee]');await input.click();
+  const ditta=page.locator('.tt-party-menu:not([hidden]) .tt-option-row>button:first-child').filter({hasText:/MEHR ALLAH DITTA/i});expect(await ditta.count(),'Ditta must be an eligible transport party').toBe(1);
+  await ditta.click();await expect(page.locator('#ttSimpleBills [data-bill]').first()).toBeVisible();await page.locator('#ttSimpleBills [data-amount]').fill('1');await expect(page.locator('#ttSimpleBills [data-discount-choice]')).toContainText('as discount?');
+  expect(await page.locator('#ttSimpleBills [data-discount],#ttSimpleBills [data-discount-reason]').count()).toBe(0);
+  expect(await page.locator('#ttSimpleBills [data-discount-enabled]').isChecked()).toBe(false);
+  await page.locator('#ttSimpleBills [data-close]').click();
+  await page.evaluate(()=>window.TT_ALL_LEDGERS.open('','party'));
+  await expect(page.locator('#tal-result')).not.toContainText('Loading ledger');
+  if(company.unmatchedPartyRows?.length)await expect(page.locator('#tal-result')).toContainText('Company-wide party matching review');
+  console.log('LIVE_TRANSPORT_PARTY_AND_DISCOUNT_UI_OK');
+});

@@ -73,13 +73,15 @@ with tempfile.TemporaryDirectory(prefix='party-ledger-qa-') as temp:
         assert status==200 and result['rows']==[], result
         assert set(result['parties'])=={'ACME Rice'}, result
         assert result['missingPartyLines']==1
+        assert len(result['unmatchedPartyRows'])==1 and result['unmatchedPartyRows'][0]['account']=='2110',result
         status,result=get(party='acme rice')
         assert status==200, result
         assert result['opening']==-100 and result['closing']==-35, result
         assert sum(r['debit'] for r in result['rows'])==80 and sum(r['credit'] for r in result['rows'])==15, result
         assert {r['account'] for r in result['rows']}=={'2110','1210','1250','2140'}
-        assert result['rows'][0]['voucher']=='POST-2026-00006'
-        assert result['rows'][0]['balance']==-35
+        assert result['rows'][0]['voucher']=='POST-2026-00002'
+        assert result['rows'][-1]['voucher']=='POST-2026-00006'
+        assert result['rows'][-1]['balance']==-35
         assert get(party='ACME Rice',q='2')[1]['rows'][0]['voucher']=='POST-2026-00002'
         assert get(party='ACME Rice',postId='POST-2026-00002')[1]['post']['lines'][1]['account']=='1110'
         assert get(party='HKM')[1]['closing']==-35, 'Saved party codes resolve to the same canonical ledger'

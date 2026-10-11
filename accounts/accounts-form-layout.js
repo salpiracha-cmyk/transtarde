@@ -13,7 +13,7 @@
     @media(max-width:600px){:is(.tt-form-grid,.ttv-grid,.ttst-grid,.tte-grid,.ttrs-grid,.ttdon-form,.ttbk-grid,.ttbag-grid,.tt-plan-actions){grid-template-columns:minmax(0,1fr)!important} :is(.tt-form-grid,.ttv-grid,.ttst-grid,.tte-grid,.ttrs-grid)>.wide{grid-column:1/-1!important}}
   }`;
   document.head.append(style);
-  function prepare(root){for(const input of root.querySelectorAll?.('label>input[type=checkbox],label>input[type=radio]')||[])input.parentElement.classList.add('tt-account-tick');}
+  function prepare(root){for(const input of root?.querySelectorAll?.('label>input[type=checkbox],label>input[type=radio]')||[])input.parentElement.classList.add('tt-account-tick');}
   const start=()=>{prepare(document.body);new MutationObserver(records=>{for(const r of records)for(const n of r.addedNodes)if(n.nodeType===1){if(n.matches?.('label'))prepare(n.parentElement);else prepare(n);}}).observe(document.body,{childList:true,subtree:true});};
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start,{once:true});else start();
 })();
