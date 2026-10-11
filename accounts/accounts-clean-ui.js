@@ -450,7 +450,7 @@
       scan(workspace || document);
     });
     document.addEventListener('click', event => {
-      if (!event.target.closest('.tt-search-select,.tt-select-menu')) qa('.tt-select-menu').forEach(menu => { menu.hidden = true; });
+      if (!event.target.closest('.tt-search-select,.tt-select-menu')) qa('.tt-select-menu').forEach(menu => { if(menu._ttOwner!==event.target&&!menu._ttOwner?.contains(event.target))menu.hidden = true; });
     });
     document.addEventListener('scroll', () => activeSearchMenu?._ttPosition?.(), true);
     window.addEventListener('resize', () => activeSearchMenu?._ttPosition?.());
