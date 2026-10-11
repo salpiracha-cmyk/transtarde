@@ -42,6 +42,16 @@ window.__creditQA.redistribute();assert.equal(window.__creditQA.selectedExpected
 raw[0]['[data-ded-amount]'].value='19956';raw[0]['[data-ded-amount]'].dataset.manual='1';
 raw[1]['[data-ded-amount]'].value='2000';raw[1]['[data-ded-amount]'].dataset.manual='1';
 window.__creditQA.calc();assert.equal(raw[0]['[data-ded-amount]'].value,'19956');assert.equal(raw[1]['[data-ded-amount]'].value,'2000');assert.equal(raw[2]['[data-ded-amount]'].value,'300.00');
+receiptFields['#erPost']={disabled:true};receiptFields['#erPostStatus']={};
+window.__creditQA.calc();assert.equal(receiptFields['#erPost'].disabled,false,'actual balanced advice amounts enable Post');
+assert.equal(receiptFields['#erPostStatus'].textContent,'Figures tally. Ready to post.');
+receiptFields['#erPaymentPart'].value='';window.__creditQA.calc();assert.equal(receiptFields['#erPost'].disabled,true);assert.match(receiptFields['#erPostStatus'].textContent,/Payment Part Reference/);
+receiptFields['#erPaymentPart'].value='1';
+for(const row of raw)delete row['[data-ded-amount]'].dataset.manual;
+raw[1]['[data-ded-percent]'].value='0.126';window.__creditQA.calc();assert.equal(receiptFields['#erPost'].disabled,true);assert.match(receiptFields['#erPostStatus'].textContent,/13.56/,'show the exact screenshot imbalance');
+raw[0]['[data-ded-amount]'].value='19,956';raw[0]['[data-ded-amount]'].dataset.manual='1';
+raw[1]['[data-ded-amount]'].value='2,000';raw[1]['[data-ded-amount]'].dataset.manual='1';
+window.__creditQA.calc();assert.equal(receiptFields['#erPost'].disabled,false,'editing actual comma-formatted amounts immediately enables Post');
 receiptFields['#erCorrespondentAmount'].value='10';window.__creditQA.redistribute();assert.equal(window.__creditQA.selectedExpected(),5692.5);
 assert.match(source,/host\.insertAdjacentHTML\('beforeend',deductionRowHtml/,'adding a charge must append without rebuilding the entered receipt');
 assert.doesNotMatch(source,/id="erFileRef"|id="erExpectedForeign"|id="erShortfall"|id="erExpectedPkr"/,'removed boxes must not return');
