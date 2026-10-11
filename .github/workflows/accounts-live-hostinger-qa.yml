@@ -2,26 +2,9 @@ name: Accounts Hostinger Live Smoke
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
-    paths:
-      - 'tests/live/accounts-hostinger-qa.spec.js'
-      - '.github/workflows/accounts-live-hostinger-qa.yml'
-      - 'accounts/**'
-      - 'index.php'
-      - 'index.html'
-      - 'admin/**'
-      - 'auth_store.php'
-      - 'session_store.php'
-      - 'login.php'
-      - 'qa_account.php'
-      - 'api/accounts.php'
-      - 'api/donations.php'
-      - 'api/expenses_v1.php'
-      - 'api/journal_vouchers.php'
-      - 'api/other_purchases.php'
-      - 'api/rent_salary_v2.php'
-      - 'api/salary_master_store.php'
+  workflow_run:
+    workflows: [Deploy Production]
+    types: [completed]
 
 permissions:
   contents: read
@@ -32,11 +15,14 @@ concurrency:
 
 jobs:
   accounts-live-smoke:
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: live-qa
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
       - uses: actions/setup-node@v4
         with:
           node-version: '22'

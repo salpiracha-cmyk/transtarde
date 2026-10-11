@@ -4,6 +4,7 @@ Scope: every JavaScript asset in the authenticated Accounts bundle was inventori
 
 ## Findings fixed
 
+- Live smoke exposed a top error notice covering the Master Records button; notices now sit below the actual header. The startup currency read omitted its required entity; it now uses an authorised company without weakening API access checks. Live smoke now runs after successful production deployment, checking the deployed revision rather than racing ahead against an older release.
 - Party-role alias used an absent option list; explicit party fields now show saved parties and permission-aware Add/Edit.
 - General/local bags and legacy supplier settlement native supplier selectors now offer authorised Add/Edit without replacing their change handlers.
 - Hidden cheque reference retained native required validation in cash/third-party Supplier Payment. Hidden controls no longer block those sources.
@@ -12,7 +13,7 @@ Scope: every JavaScript asset in the authenticated Accounts bundle was inventori
 - Supplier settlement and internal-transfer loads could apply data for the previous company; rendered screens now verify company/request. Service, transport, freight and due-date forms also reject superseded/company responses, with a regression proving an old service response cannot overwrite a new typed draft.
 - Checkbox/radio dimensions and field sizing varied across form families; shared screen-only rules preserve print styles.
 - Shared red remove controls missed plain Delete actions and had an incorrect icon-only plus CSS selector. Both corrected with handlers retained.
-- Supplier settlement concession missing from bill and planned payments; separate cash/discount allocations, accounting lines, reason, fingerprint and correction are now tested.
+- Supplier settlement concession missing from bill and planned payments; separate cash/discount allocations, accounting lines tagged to the actual bill payee, reason, fingerprint and correction are now tested.
 
 ## Regression coverage by form family
 

@@ -2,6 +2,8 @@
   'use strict';
   if(window.TT_ACCOUNTS_NOTICE)return;
   let panel;
+  function position(){if(panel){const bottom=document.querySelector?.('.topbar')?.getBoundingClientRect?.().bottom||0;panel.style.top=Math.max(12,bottom+12)+'px';}}
+  window.addEventListener?.('resize',position);
   function error(message){
     if(!panel){
       panel=document.createElement('section');panel.id='tt-accounts-error';panel.setAttribute('role','alert');panel.setAttribute('aria-live','assertive');panel.popover='manual';
@@ -9,7 +11,7 @@
       const text=document.createElement('div');text.dataset.errorText='';panel.appendChild(text);
       const close=document.createElement('button');close.type='button';close.textContent='×';close.setAttribute('aria-label','Dismiss message');close.style.cssText='position:absolute;top:8px;right:10px;font-size:26px;background:transparent;border:0;color:inherit;cursor:pointer';close.onclick=()=>{if(panel.hidePopover&&panel.matches(':popover-open'))panel.hidePopover();panel.hidden=true;};panel.appendChild(close);document.body.appendChild(panel);
     }
-    panel.querySelector('[data-error-text]').textContent=String(message||'The action could not be completed.');panel.hidden=false;if(panel.showPopover&&!panel.matches(':popover-open'))panel.showPopover();
+    panel.querySelector('[data-error-text]').textContent=String(message||'The action could not be completed.');panel.hidden=false;position();if(panel.showPopover&&!panel.matches(':popover-open'))panel.showPopover();
   }
   window.TT_ACCOUNTS_NOTICE={error};
   // This file is loaded only by the Accounts bundle. Existing validation alerts use the same visible notice.

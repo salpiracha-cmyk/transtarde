@@ -69,6 +69,7 @@ require $argv[1];
     assert ds['discountAmount']==5 and ds['netPayment']==315 and ds['amount']==320,ds
     assert sum(l['credit'] for l in dj['lines'] if l['account']=='1110')==315
     assert sum(l['credit'] for l in dj['lines'] if l['account']=='4400')==5
+    assert {l['counterparty'] for l in dj['lines'] if l['account']=='4400'}=={'Supplier A'},'Discount must belong to the actual bill payee, not just its planning broker'
     assert sum(r['outstanding'] for r in read()['rows'] if r['group']=='Broker A')==0
     call({'action':'correct','planId':dp['id'],'version':discounted['plan']['version'],'group':'Broker A','date':'2026-10-07','reason':'Fixture discount correction'})
     corrected=json.loads(books.read_text());reverse=[j for j in corrected['journals'].values() if j.get('reversalOf')==dj['id'] or j.get('meta',{}).get('reversalOf')==dj['id']]
