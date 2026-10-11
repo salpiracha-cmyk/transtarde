@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__.'/assets_registry_core.php';
+require_once __DIR__.'/accounts_ledger_visibility.php';
 function sac_chart():array {
  $m=json_decode((string)file_get_contents(__DIR__.'/../accounts/accounting_master_v1.json'),true,512,JSON_THROW_ON_ERROR);$out=[];
  foreach(array_merge($m['chart'],$m['peopleSubledgers']??[]) as $r)$out[(string)$r['code']]=$r;foreach($out as $code=>&$a){if(!empty($a['parent'])||($a['level']??'')==='heading')continue;if(ctype_digit((string)$code)){$control=(string)(intdiv((int)$code,100)*100);$heading=(string)(intdiv((int)$code,1000)*1000);if($control!==(string)$code&&isset($out[$control]))$a['parent']=$control;elseif($heading!==(string)$code&&isset($out[$heading]))$a['parent']=$heading;elseif(($a['class']??'')==='Expense')$a['parent']='6000';}}unset($a);return $out;
@@ -128,8 +129,9 @@ function sac_payload(array $s,string $e,string $from='',string $to=''):array {
 
 /** Expense activity is linked to the recipient, never an artificial receivable. */
 function sac_expense_activity(array $s,string $e,string $from,string $to):array {
- $chart=sac_chart();$out=[];
+ $chart=sac_chart();$out=[];$hidden=alv_hidden($s,$to);
  foreach((array)($s['journals']??[]) as $j){
+  if(isset($hidden[(string)($j['id']??'')]))continue;
   if(($j['entity']??'')!==$e||($j['status']??'')!=='Posted'||($j['date']??'')<$from||($j['date']??'')>$to)continue;
   $meta=(array)($j['meta']??[]);$source=(array)($s['generalExpenses'][(string)($meta['generalExpenseId']??'')]??[]);
   foreach((array)($j['lines']??[]) as $l){

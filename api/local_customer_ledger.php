@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require dirname(__DIR__) . '/auth_store.php';
+require_once __DIR__.'/accounts_ledger_visibility.php';
 header('Content-Type: application/json; charset=UTF-8');
 header('Cache-Control: no-store, no-cache, must-revalidate');
 const TT_LCL_FILE = TT_DATA_DIR . '/accounts.json';
@@ -10,14 +11,16 @@ function lcl_read():array{tt_ensure_data_dir();if(!is_file(TT_LCL_FILE))return [
 try{
  $u=tt_require_login();if(!tt_user_can_open_module($u,'Accounts'))lcl_out(['ok'=>false,'error'=>'Accounts permission required.'],403);
  if($_SERVER['REQUEST_METHOD']!=='GET')lcl_out(['ok'=>false,'error'=>'Method not allowed.'],405);
- $entity=lcl_entity((string)($_GET['entity']??'TTI'));$party=trim((string)($_GET['party']??''));$s=lcl_read();$rows=[];$parties=[];
+ $entity=lcl_entity((string)($_GET['entity']??'TTI'));$party=trim((string)($_GET['party']??''));$s=lcl_read();$hidden=alv_hidden($s);$rows=[];$parties=[];
  foreach((array)($s['localSalesCandidates']??[]) as $x){
+  if(alv_record_hidden((array)$x,$hidden))continue;
   if(!is_array($x)||($x['entity']??'')!==$entity||empty($x['journalId']))continue;
   if(!in_array((string)($x['status']??''),['Approved / Posted','Posted','Approved'],true))continue;
   $p=trim((string)($x['party']??''));if($p==='')continue;$parties[$p]=true;if($party!==''&&strcasecmp($p,$party)!==0)continue;
   $rows[]=['date'=>(string)($x['saleDate']??''),'sort'=>(string)($x['createdAt']??''),'party'=>$p,'soda'=>(string)($x['soda']??''),'product'=>(string)($x['product']??''),'type'=>'Local Sale','reference'=>(string)($x['gatePass']??$x['sourceKey']??''),'debit'=>round((float)($x['amount']??0),2),'credit'=>0.0];
  }
  foreach((array)($s['localSalesPaymentCandidates']??[]) as $x){
+  if(alv_record_hidden((array)$x,$hidden))continue;
   if(!is_array($x)||($x['entity']??'')!==$entity||empty($x['journalId']))continue;
   if(!in_array((string)($x['status']??''),['Approved / Posted','Posted','Approved'],true))continue;
   $p=trim((string)($x['party']??''));if($p==='')continue;$parties[$p]=true;if($party!==''&&strcasecmp($p,$party)!==0)continue;

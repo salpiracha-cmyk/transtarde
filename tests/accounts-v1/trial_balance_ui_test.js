@@ -1,0 +1,23 @@
+'use strict';
+const assert=require('node:assert/strict'),fs=require('node:fs'),{JSDOM}=require('jsdom');
+const dom=new JSDOM('<div id="entityHome"></div><section id="ws-reports" class="workspace"><div class="panelHead"><h2>Reports</h2></div><div class="subGrid"></div></section>',{url:'https://qa.test/accounts/',runScripts:'outside-only'});
+const w=dom.window;w.localStorage.setItem('tt_accounts_entity','TTI');
+const requests=[],prints=[];
+const data={ok:true,from:'2026-01-01',asOf:'2026-10-11',generalLedger:[{date:'2026-10-11',journalId:'POST-2',account:'1110',accountName:'Bank',sourceType:'JV',debit:0,credit:100},{date:'2026-09-01',journalId:'POST-1',account:'2110',accountName:'Supplier',sourceType:'JV',debit:100,credit:0}],trialBalance:{balanced:true,rows:[{account:'1110',name:'Bank',class:'Asset',debit:0,credit:100},{account:'2110',name:'Supplier',class:'Liability',debit:100,credit:0}],partyRows:[{account:'1110',name:'Bank',class:'Asset',party:'Unassigned / company',debit:0,credit:100},{account:'2110',name:'Supplier',class:'Liability',party:'MAPCO',debit:100,credit:0}]},expenseActivity:[],personalAdjustments:[],profitAndLoss:{income:[],expenses:[],profit:0},balanceSheet:{assets:[],liabilities:[],equity:[]}};
+w.fetch=async url=>{requests.push(url);return {ok:true,json:async()=>data}};
+w.TT_PRINT={create:()=>({document:{write:html=>prints.push(html),close(){}},print(){}})};
+w.eval(fs.readFileSync('accounts/reports-ui.js','utf8'));
+(async()=>{
+ await w.TT_REPORTS.open('tb');
+ const q=id=>w.document.querySelector(id);
+ assert(q('#ttReportFrom').closest('label').hidden,'Trial balance has only one visible date');
+ assert(!q('#ttReportAsOf').closest('label').hidden);assert(q('#ttReportAsOf').value);
+ q('#ttTrialView').value='party';q('#ttTrialView').dispatchEvent(new w.Event('input'));
+ assert(q('#ttReportsBody').textContent.includes('MAPCO'));assert(q('#ttReportsBody').textContent.includes('Unassigned / company'));assert(q('#ttReportsBody').textContent.includes('Balanced'));
+ q('#ttTrialView').value='type';q('#ttTrialView').dispatchEvent(new w.Event('input'));assert(q('#ttReportsBody').textContent.includes('Liability'));assert(!q('#ttReportsBody').textContent.includes('MAPCO'));
+ q('#ttReportAsOf').value='2025-12-31';q('#ttReportRun').click();await new Promise(r=>setImmediate(r));
+ assert(requests.at(-1).includes('asOf=2025-12-31'));assert(requests.at(-1).includes('from=2025-01-01'),'Hidden From does not prevent a prior-year trial balance');
+ await w.TT_REPORTS.open('gl');assert(!q('#ttReportFrom').closest('label').hidden);assert(q('#ttTrialViewWrap').hidden);
+ q('#ttReportPrint').click();assert(prints.at(-1).indexOf('POST-1')<prints.at(-1).indexOf('POST-2'),'Printed GL is ascending');assert(q('#ttReportsBody').innerHTML.indexOf('2026-10-11')<q('#ttReportsBody').innerHTML.indexOf('2026-09-01'),'Screen GL stays descending');
+ console.log('Trial balance date, account/party/type views, complete totals and chronological print passed');dom.window.close();
+})().catch(e=>{console.error(e);process.exitCode=1;dom.window.close()});

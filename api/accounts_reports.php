@@ -83,6 +83,7 @@ try {
         }
     }
 
+    $hidden=alv_hidden($store,$asOf);
     $journals = array_values(array_filter(
         (array)($store['journals'] ?? []),
         static fn($journal): bool =>
@@ -99,6 +100,7 @@ try {
             ?: strcmp((string)($a['id'] ?? ''), (string)($b['id'] ?? ''))
     );
 
+    $catalog=array_replace($catalog,sac_entity_chart($store,$entity));
     $balances = [];
     $ledger = [];
     $skippedMalformedLines = 0;
@@ -112,6 +114,7 @@ try {
             $debit = ar_amount($line['debit'] ?? 0);
             $credit = ar_amount($line['credit'] ?? 0);
             $balances[$code] = ($balances[$code] ?? 0.0) + $debit - $credit;
+            if(isset($hidden[(string)($journal['id']??'')]))continue;
             $ledger[] = [
                 'date' => (string)($journal['date'] ?? ''),
                 'journalId' => (string)($journal['id'] ?? ''),
@@ -216,6 +219,7 @@ try {
         'personalAdjustments'=>array_values(array_filter(array_map(static function($r)use($from,$asOf){$r['rows']=array_values(array_filter((array)$r['rows'],static fn($row)=>($row['date']??'')>=$from&&($row['date']??'')<=$asOf));return $r;},array_filter((array)($store['expensePersonalLinks']??[]),static fn($r)=>($r['entity']??'')===$entity)),static fn($r)=>!empty($r['rows']))),
         'trialBalance' => [
             'rows' => $trial,
+            'partyRows'=>alv_party_trial($journals,$catalog),
             'totalDebit' => $totalDebit,
             'totalCredit' => $totalCredit,
             'balanced' => abs($totalDebit - $totalCredit) < .005,

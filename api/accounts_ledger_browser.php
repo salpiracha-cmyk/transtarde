@@ -121,6 +121,7 @@ if($requestedPost!==''){
     }
     echo json_encode(['ok'=>true,'entity'=>$posting['entity'],'post'=>$posting,'bankAccounts'=>$postBanks],JSON_UNESCAPED_UNICODE);exit;
 }
+$ledgerHidden=alv_hidden($store,$to);
 $journals=array_values(array_filter((array)($store['journals']??[]),static fn($j)=>is_array($j)&&($entity==='ALL'?tt_user_can_access_entity($user,(string)($j['entity']??''),'View'):($j['entity']??'')===$entity)&&($j['status']??'')==='Posted'&&($j['date']??'')<=$to));
 foreach($journals as $journal)foreach((array)($journal['lines']??[]) as $line)if(is_array($line)&&isset($line['account'])){
     $code=(string)$line['account'];if(!isset($catalog[$code]))$catalog[$code]=(string)($line['accountName']??$code);
@@ -130,6 +131,7 @@ ksort($catalog,SORT_NATURAL);
 usort($journals,static fn($a,$b)=>strcmp((string)$a['date'],(string)$b['date'])?:strcmp((string)($a['id']??''),(string)($b['id']??'')));
 $opening=0.0;$rows=[];$deleteRecordIndex=apd_record_index($store);
 foreach($journals as $journal){
+    if(!$postEntries&&isset($ledgerHidden[(string)($journal['id']??'')]))continue;
     if($postEntries){if(!empty($journal['meta']['deletedFromBooks']))continue;
         if(!empty($journal['amendedByPostId'])||(!empty($journal['reversalOf'])&&(!empty($store['journals'][$journal['reversalOf']]['amendedByPostId']))))continue;
         $date=(string)$journal['date'];if($date<$from)continue;
@@ -214,6 +216,7 @@ usort($rows,static function(array $a,array $b):int{
  $ak=$parts((string)$a['voucher']);$bk=$parts((string)$b['voucher']);return strcmp((string)$b['date'],(string)$a['date'])?:($bk[0]<=>$ak[0])?:($bk[1]<=>$ak[1])?:strcmp((string)$b['voucher'],(string)$a['voucher']);
 });
 if(($_GET['format']??'')==='csv'){
+    usort($rows,static fn($a,$b)=>strcmp($a['date'],$b['date'])?:strnatcmp($a['voucher'],$b['voucher']));
     header('Content-Type: text/csv; charset=UTF-8');
     header('Content-Disposition: attachment; filename="'.preg_replace('/[^A-Z0-9_-]/i','',$entity.'-ledger-'.$from.'-'.$to).'.csv"');
     $out=fopen('php://output','w');fwrite($out,"\xEF\xBB\xBF");

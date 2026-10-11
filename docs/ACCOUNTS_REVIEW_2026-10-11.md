@@ -139,3 +139,11 @@ The supplied 14:32 screenshot shows On Account Payment Posted still open after t
 Added executable regressions: post_confirmation_ownership_test.js and workspace_response_ownership_test.js. payment_plans_browser_test.js now loads the real shared confirmation implementation and asserts one dialog for both on-account posting and plan completion. Financial posting payloads, ledger calculations and approvals are unchanged by this follow-up.
 
 The same audit also found TG receipt/payment date changes rebuilding the form. This now refreshes rates in place, preserving the entered draft and manual rate. The workspace ownership regression covers the actual date handler.
+
+### Ledger cancellation and Trial Balance follow-up
+
+Ordinary ledger views now use a read-only projection of completed reversal pairs, including legacy metadata links. Both accounting legs must offset in the same company, bank/cash/subaccount and party. Incomplete reversals remain visible; original journals remain visible for as-of dates before cancellation. Source supplier, local customer and brokerage statements also reject cancelled/reversed source records and fully reversed journal references. Audit journals remain stored. Financial report period movements retain their original dates.
+
+Screen statements remain newest first; print, real XLSX and API CSV statements are oldest first. The general-ledger report also exports/prints chronologically. Ledgers now provides Trial Balance, Chart of Accounts & Details, and Subaccounts & Details using existing permissions. Trial Balance has one as-of date and account, party and account-type views; party totals include unassigned company legs.
+
+Added disposable reversal/as-of/account-identity and trial-balance UI tests; updated fixture dependencies and ledger ordering regression expectations. Production records are not altered by these tests.

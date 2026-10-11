@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require dirname(__DIR__).'/auth_store.php';
+require_once __DIR__.'/accounts_ledger_visibility.php';
 header('Content-Type: application/json; charset=UTF-8');
 header('Cache-Control: no-store, no-cache, must-revalidate');
 const BL_FILE=TT_DATA_DIR.'/accounts.json';
@@ -9,14 +10,16 @@ function bl_default():array{return ['revision'=>0,'commodityBills'=>[],'supplier
 function bl_read():array{tt_ensure_data_dir();if(!is_file(BL_FILE))return bl_default();$h=fopen(BL_FILE,'r');if($h===false||!flock($h,LOCK_SH))throw new RuntimeException('store');try{$raw=stream_get_contents($h);}finally{flock($h,LOCK_UN);fclose($h);} $s=$raw?json_decode($raw,true):null;return is_array($s)?array_replace_recursive(bl_default(),$s):bl_default();}
 function bl_money(mixed $v):float{return round((float)$v,2);}
 function bl_rows(array $s,string $entity):array{
-    $out=[];
+    $out=[];$hidden=alv_hidden($s);
     foreach((array)($s['commodityBills']??[]) as $id=>$b){
+        if(alv_record_hidden((array)$b,$hidden))continue;
         if(!is_array($b)||($b['entity']??'')!==$entity)continue;
         $gross=bl_money($b['brokerageGross']??0);if($gross<=0)continue;
         $wht=bl_money($b['brokerageWithholding']??0);$net=round($gross-$wht,2);
         $out[]=['id'=>'AUTO|'.(string)$id,'source'=>'Purchase Bill','sourceId'=>(string)$id,'date'=>(string)($b['billDate']??''),'broker'=>(string)($b['broker']??''),'commodity'=>(string)($b['commodity']??''),'product'=>(string)($b['product']??$b['variety']??''),'sodas'=>array_values((array)($b['sodas']??[])),'gross'=>$gross,'wht'=>$wht,'net'=>$net,'paid'=>0.0,'outstanding'=>$net,'status'=>'Outstanding'];
     }
     foreach((array)($s['brokerageBills']??[]) as $id=>$b){
+        if(alv_record_hidden((array)$b,$hidden))continue;
         if(!is_array($b)||($b['entity']??'')!==$entity||($b['status']??'Posted')==='Cancelled')continue;
         $gross=bl_money($b['acceptedBrokerage']??$b['grossBrokerage']??0);$wht=bl_money($b['whtAmount']??0);$net=round($gross-$wht,2);
         $out[]=['id'=>'SEPARATE|'.(string)$id,'source'=>'Separate Brokerage Bill','sourceId'=>(string)$id,'date'=>(string)($b['billDate']??''),'broker'=>(string)($b['broker']??''),'commodity'=>(string)($b['commodity']??''),'product'=>(string)($b['productSummary']??''),'sodas'=>array_values((array)($b['sodas']??[])),'gross'=>$gross,'wht'=>$wht,'net'=>$net,'paid'=>0.0,'outstanding'=>$net,'status'=>'Outstanding'];
@@ -26,6 +29,7 @@ function bl_rows(array $s,string $entity):array{
     // Automatic brokerage follows its own broker allocation on new bills;
     // historical combined bill allocations retain their original component split.
     foreach((array)($s['supplierSettlements']??[]) as $p){
+        if(alv_record_hidden((array)$p,$hidden))continue;
         if(!is_array($p)||($p['entity']??'')!==$entity||!in_array((string)($p['status']??''),['Posted','Approved / Posted','Approved'],true))continue;
         foreach((array)($p['allocations']??[]) as $a){
             if(!is_array($a))continue;
@@ -36,6 +40,7 @@ function bl_rows(array $s,string $entity):array{
     }
     // Separate brokerage invoices remain separately payable and use the brokerage payment workflow.
     foreach((array)($s['brokeragePayments']??[]) as $p){
+        if(alv_record_hidden((array)$p,$hidden))continue;
         if(!is_array($p)||($p['entity']??'')!==$entity||!in_array((string)($p['status']??''),['Posted','Approved / Posted','Approved'],true))continue;
         $k=(string)($p['brokerageSourceId']??'');if($k!=='')$paid[$k]=round(($paid[$k]??0)+bl_money($p['amount']??0),2);
     }

@@ -4,7 +4,7 @@ ROOT=pathlib.Path(__file__).resolve().parents[2]
 with tempfile.TemporaryDirectory(prefix='bank-entries-browser-') as tmp:
  root=pathlib.Path(tmp)
  for name in ['api','accounts','data']:(root/name).mkdir()
- for name in ['accounts_payees.php','bank_reconciliation.php','bank_reconciliation_core.php','bank_entries.php','bank_entries_core.php','accounts_subaccounts.php','accounts_subaccounts_core.php','assets_registry_core.php','accounts_bank_payment.php']:shutil.copy(ROOT/'api'/name,root/'api'/name)
+ for name in ['accounts_payees.php','bank_reconciliation.php','bank_reconciliation_core.php','bank_entries.php','bank_entries_core.php','accounts_subaccounts.php','accounts_subaccounts_core.php','accounts_ledger_visibility.php','assets_registry_core.php','accounts_bank_payment.php']:shutil.copy(ROOT/'api'/name,root/'api'/name)
  for name in ['bank-reconciliation-ui.js','accounting_master_v1.json','account-management-ui.js','bank-payment-details.js','print-dialog.js','post-confirmation-ui.js']:shutil.copy(ROOT/'accounts'/name,root/'accounts'/name)
  (root/'auth_store.php').write_text('''<?php
  define('TT_DATA_DIR',__DIR__.'/data');function tt_ensure_data_dir(){}

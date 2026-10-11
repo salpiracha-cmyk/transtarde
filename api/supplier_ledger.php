@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require dirname(__DIR__) . '/auth_store.php';
+require_once __DIR__.'/accounts_ledger_visibility.php';
 header('Content-Type: application/json; charset=UTF-8');
 header('Cache-Control: no-store, no-cache, must-revalidate');
 
@@ -14,8 +15,9 @@ try{
   $u=tt_require_login(); if(!tt_user_can_open_module($u,'Accounts'))sl_out(['ok'=>false,'error'=>'Accounts permission required.'],403);
   if($_SERVER['REQUEST_METHOD']!=='GET')sl_out(['ok'=>false,'error'=>'Method not allowed.'],405);
   $entity=sl_entity((string)($_GET['entity']??'TTI')); $broker=trim((string)($_GET['broker']??''));
-  $s=sl_read(); $rows=[]; $brokers=[];
+  $s=sl_read(); $hidden=alv_hidden($s); $rows=[]; $brokers=[];
   foreach((array)($s['commodityBills']??[]) as $bill){
+    if(alv_record_hidden((array)$bill,$hidden))continue;
     if(!is_array($bill)||($bill['entity']??'')!==$entity)continue;
     if(!in_array((string)($bill['status']??''),['Verified / Posted','Posted','Outstanding','Paid'],true))continue;
     $b=trim((string)($bill['broker']??'')); if($b==='')continue; $brokers[$b]=true; if($broker!==''&&strcasecmp($broker,$b)!==0)continue;
@@ -23,11 +25,13 @@ try{
     $rows[]=['date'=>(string)($bill['billDate']??''),'sort'=>10,'type'=>'PURCHASE_BILL','description'=>'Purchase Bill','broker'=>$b,'commodity'=>sl_commodity($bill),'soda'=>(string)(($bill['sodas'][0]??'')?:''),'billNo'=>(string)($bill['billNo']??$bill['id']??''),'reference'=>(string)($bill['id']??''),'charge'=>$amt,'payment'=>0.0,'advance'=>0.0];
   }
   foreach((array)($s['supplierAdvances']??[]) as $a){
+    if(alv_record_hidden((array)$a,$hidden))continue;
     if(!is_array($a)||($a['entity']??'')!==$entity)continue; $b=trim((string)($a['supplier']??'')); if($b==='')continue; $brokers[$b]=true; if($broker!==''&&strcasecmp($broker,$b)!==0)continue;
     $amt=round((float)($a['amount']??0),2); if($amt<=0)continue;
     $rows[]=['date'=>(string)($a['date']??''),'sort'=>20,'type'=>'SUPPLIER_ADVANCE','description'=>'Supplier Advance','broker'=>$b,'commodity'=>'','soda'=>(string)($a['soda']??''),'billNo'=>'','reference'=>(string)($a['id']??''),'charge'=>0.0,'payment'=>$amt,'advance'=>$amt];
   }
   foreach((array)($s['supplierSettlements']??[]) as $st){
+    if(alv_record_hidden((array)$st,$hidden))continue;
     if(!is_array($st)||($st['entity']??'')!==$entity)continue; if(!in_array((string)($st['status']??''),['Posted','Approved / Posted','Approved'],true))continue;
     $b=trim((string)($st['broker']??'')); if($b==='')continue; $brokers[$b]=true; if($broker!==''&&strcasecmp($broker,$b)!==0)continue;
     $type=(string)($st['type']??'');

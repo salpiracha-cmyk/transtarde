@@ -7,7 +7,7 @@ with tempfile.TemporaryDirectory(prefix='party-ledger-qa-') as temp:
     root = pathlib.Path(temp)
     for folder in ['api', 'data', 'accounts']:
         (root/folder).mkdir()
-    for name in ['supplier_opening_core.php','accounts_subaccounts_core.php','assets_registry_core.php','accounts_ledger_browser.php','accounts_post_delete_core.php', 'accounts_reference.php', 'tg_remittance_core.php', 'fi_credit_advice_link.php', 'receipt_invoice_links.php','customer_receivables_core.php']:
+    for name in ['supplier_opening_core.php','accounts_subaccounts_core.php','accounts_ledger_visibility.php','assets_registry_core.php','accounts_ledger_browser.php','accounts_post_delete_core.php', 'accounts_reference.php', 'tg_remittance_core.php', 'fi_credit_advice_link.php', 'receipt_invoice_links.php','customer_receivables_core.php']:
         shutil.copy(ROOT/'api'/name, root/'api'/name)
     for path in (ROOT/'accounts').glob('*.json'):
         shutil.copy(path, root/'accounts'/path.name)
@@ -111,7 +111,21 @@ with tempfile.TemporaryDirectory(prefix='party-ledger-qa-') as temp:
         books['journals']['POST-2026-00012']=journal('POST-2026-00012','2026-07-10',[line('1210',credit=25,candidateId='CF-BUYER'),line('1110',debit=25)],meta={'customer':'Different remitter'})
         path.write_text(json.dumps(books));status,result=get(party='Ali Sulaiman',from_='0001-01-01')
         assert status==200 and result['rows'][0]['party']=='Ali Sulaiman' and result['closing']==-25,result
+        # Existing cancelled journal pairs disappear without rewriting stored books.
+        books['journals']['CANCELLED']=journal('CANCELLED','2026-07-11',[line('2110',credit=75,counterparty='ACME Rice'),line('1310',debit=75)])
+        books['journals']['REVERSAL']=journal('REVERSAL','2026-07-12',[line('2110',debit=75,counterparty='ACME Rice'),line('1310',credit=75)],reversalOf='CANCELLED')
+        path.write_text(json.dumps(books));cancelled_bytes=path.read_bytes()
+        current=get(party='ACME Rice',to='2026-07-31')[1]
+        assert not any(r['voucher'] in ['CANCELLED','REVERSAL'] for r in current['rows']),current
+        historical=get(party='ACME Rice',to='2026-07-11')[1]
+        assert any(r['voucher']=='CANCELLED' for r in historical['rows']),historical
+        _,statement=get(party='ACME Rice',to='2026-07-31',format='csv')
+        import csv as csv_module,io
+        dates=[r[0] for r in csv_module.reader(io.StringIO(statement)) if r and len(r[0])==10 and r[0][:4].isdigit()]
+        assert dates==sorted(dates),'CSV is oldest first'
+        assert path.read_bytes()==cancelled_bytes,'Cancellation display must preserve audit journals'
         path.write_bytes(original)
+        print('Cancellation projection, historical date and ascending CSV passed')
         print('Party ledgers: opening/running balances, cross-head links, master IDs, native-currency gaps, scope, search, CSV and read-only books passed')
         try:
             from playwright.sync_api import sync_playwright
