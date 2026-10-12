@@ -640,6 +640,7 @@ test('party payment roles and company-wide ledger matching review are read-only'
   if(await chequeDate.count()){
     await voucherDate.fill('2026-10-01');await expect(chequeDate).toHaveValue('2026-10-01');
     await chequeDate.fill('2026-09-30');await voucherDate.fill('2026-10-02');await expect(chequeDate).toHaveValue('2026-09-30');
+    await page.locator('#ttSimpleBills [data-bank-method]').selectOption('ONLINE_BANKING');await expect(page.locator('#ttSimpleBills [data-cheque-date]')).toBeVisible();await page.locator('#ttSimpleBills [data-cheque-date]').fill('2026-09-29');await voucherDate.fill('2026-10-03');await expect(page.locator('#ttSimpleBills [data-cheque-date]')).toHaveValue('2026-09-29');console.log('LIVE_ONLINE_BANKING_PAYMENT_DATE_OK');
     console.log('LIVE_VOUCHER_CHEQUE_DATES_EDITABLE_OK');
   }
 
