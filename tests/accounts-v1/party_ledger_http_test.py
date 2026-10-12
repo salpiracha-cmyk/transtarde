@@ -124,6 +124,8 @@ with tempfile.TemporaryDirectory(prefix='party-ledger-qa-') as temp:
         path.write_text(json.dumps(books));cancelled_bytes=path.read_bytes()
         current=get(party='ACME Rice',to='2026-07-31')[1]
         assert not any(r['voucher'] in ['CANCELLED','REVERSAL'] for r in current['rows']),current
+        for end in ['2026-07-11','2026-07-31']:
+            _,register=get(category='other',account='POSTS',to=end);assert not any(r['voucher'] in ['CANCELLED','REVERSAL'] for r in register['rows']),register
         historical=get(party='ACME Rice',to='2026-07-11')[1]
         assert any(r['voucher']=='CANCELLED' for r in historical['rows']),historical
         _,statement=get(party='ACME Rice',to='2026-07-31',format='csv')

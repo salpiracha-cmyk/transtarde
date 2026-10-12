@@ -176,6 +176,7 @@ jobs:
           node tests/accounts-v1/party_payment_choices_test.js
           node tests/accounts-v1/opening_only_payment_ui_test.js
           node tests/accounts-v1/cheque_dates_ui_test.js
+          node tests/accounts-v1/ledger_amend_dates_ui_test.js
           php tests/accounts-v1/cheque_dates_backend_test.php
           node tests/accounts-v1/payment_difference_ui_test.js
           node tests/accounts-v1/trial_balance_ui_test.js

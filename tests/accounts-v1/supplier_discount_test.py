@@ -67,6 +67,13 @@ with tempfile.TemporaryDirectory(prefix='supplier-discount-') as tmp:
  unpaid=req()['payables'];assert {r['billId']:r['outstanding'] for r in unpaid}=={'A':600,'B':400,'BF:OPEN-1:0':100},unpaid
  assert req(body)['result']['journalId']==saved['result']['journalId']
  assert not req({**body,'explicitBillSelection':False})['ok'],'A posted draft cannot change selection semantics'
+ # Legacy explicitly flagged openings and stable party identifiers stay payable.
+ for source in ['JV','CARRY_FORWARD_OPENING']:
+  legacy={**opening,'sourceType':source,'meta':{'openingBalance':True,'openingParty':'MAPCO'}}
+  legacy['lines']=[{'account':'2130','credit':300,'debit':0,'subledger':'','counterparty':'MAPCO'},{'account':'3100','debit':300,'credit':0}]
+  books.write_text(json.dumps({**initial,'journals':{'OPEN-1':legacy}}));assert any(r['openingBalance'] for r in req()['payables'] if 'openingBalance' in r)
+ legacy={**opening,'sourceType':'JV','lines':[opening['lines'][0],{'account':'3400','debit':300,'credit':0}]}
+ books.write_text(json.dumps({**initial,'journals':{'OPEN-1':legacy}}));assert any(r.get('openingBalance') for r in req()['payables'])
  # Commodity settlement uses exact selected allocations and cash-only brokerage WHT.
  books.write_text(json.dumps({'commodityBills':{'C':{'id':'C','entity':'TTI','broker':'BROKER','brokerageWhtPercent':15,'receiptAllocations':[{'sourceKey':'C|BROKERAGE','supplierPayableShare':100,'component':'BROKERAGE'}]}}}))
  response=req({'action':'post_supplier_payment','allocations':[{'billId':'C','sourceKey':'C|BROKERAGE','amount':100}],'discountAmount':5,'discountReason':'Agreed settlement','paymentMode':'CASH','date':'2026-07-21'})

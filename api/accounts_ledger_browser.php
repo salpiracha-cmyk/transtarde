@@ -117,11 +117,11 @@ if($requestedPost!==''){
         $belongs=$owner==='TG'?(str_contains($linked,'TRANS GRAINS')||preg_match('/(^|\W)TG($|\W)/',$linked)):
             ($owner==='BRM'?(str_contains($linked,'BUKSH RICE')||preg_match('/(^|\W)BRM($|\W)/',$linked)):
             (str_contains($linked,'TRANSTRADE INTERNATIONAL')||preg_match('/(^|\W)TTI($|\W)/',$linked)));
-        if($belongs)$postBanks[]=['id'=>(string)($bank['id']??''),'label'=>implode(' · ',array_filter([$v[4]??'',(trim((string)($v[8]??''))!==''?(string)$v[8]:(string)($v[9]??'')),$v[7]??'',$v[3]??'']))];
+        if($belongs)$postBanks[]=['id'=>(string)($bank['id']??''),'currency'=>strtoupper((string)($v[7]??'')),'label'=>implode(' · ',array_filter([$v[4]??'',(trim((string)($v[8]??''))!==''?(string)$v[8]:(string)($v[9]??'')),$v[7]??'',$v[3]??'']))];
     }
     echo json_encode(['ok'=>true,'entity'=>$posting['entity'],'post'=>$posting,'bankAccounts'=>$postBanks],JSON_UNESCAPED_UNICODE);exit;
 }
-$ledgerHidden=alv_hidden($store,$to);
+$ledgerHidden=alv_hidden($store,$postEntries?'':$to);
 $journals=array_values(array_filter((array)($store['journals']??[]),static fn($j)=>is_array($j)&&($entity==='ALL'?tt_user_can_access_entity($user,(string)($j['entity']??''),'View'):($j['entity']??'')===$entity)&&($j['status']??'')==='Posted'&&($j['date']??'')<=$to));
 foreach($journals as $journal)foreach((array)($journal['lines']??[]) as $line)if(is_array($line)&&isset($line['account'])){
     $code=(string)$line['account'];if(!isset($catalog[$code]))$catalog[$code]=(string)($line['accountName']??$code);
@@ -131,7 +131,7 @@ ksort($catalog,SORT_NATURAL);
 usort($journals,static fn($a,$b)=>strcmp((string)$a['date'],(string)$b['date'])?:strcmp((string)($a['id']??''),(string)($b['id']??'')));
 $opening=0.0;$rows=[];$deleteRecordIndex=apd_record_index($store);
 foreach($journals as $journal){
-    if(!$postEntries&&isset($ledgerHidden[(string)($journal['id']??'')]))continue;
+    if(isset($ledgerHidden[(string)($journal['id']??'')]))continue;
     if($postEntries){if(!empty($journal['meta']['deletedFromBooks']))continue;
         if(!empty($journal['amendedByPostId'])||(!empty($journal['reversalOf'])&&(!empty($store['journals'][$journal['reversalOf']]['amendedByPostId']))))continue;
         $date=(string)$journal['date'];if($date<$from)continue;

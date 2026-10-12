@@ -598,6 +598,7 @@ test('Customer / Export Receivables links group buyer invoices without posting',
 
 
 test('party payment roles and company-wide ledger matching review are read-only', async ({page}) => {
+  test.setTimeout(120_000);
   await signIn(page);
   const to=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Karachi',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
   const params=new URLSearchParams({entity:'TTI',category:'party',from:'1900-01-01',to});
@@ -609,7 +610,7 @@ test('party payment roles and company-wide ledger matching review are read-only'
     console.log('UNASSIGNED_POST_SOURCE '+JSON.stringify({account:r.account,sourceType:post.sourceType,sourceLinkFields:Object.keys(post.meta||{}).filter(key=>/^(supplierBillId|billId|bagBillId|purchaseId|receiptId|candidateId|openingHelper|openingBalance|salaryRunId|runId)$/.test(key)),lineKeys:post.lines.filter(l=>l.account===r.account).map(l=>Object.keys(l))}));
   }
   const register=await page.request.get(`${BASE_URL}/api/accounts_ledger_browser.php?entity=ALL&account=POSTS&from=1900-01-01&to=${to}`);expect(register.status()).toBe(200);const posts=await register.json(),types={};for(const r of posts.rows)types[r.sourceType]=(types[r.sourceType]||0)+1;
-  const requestedPost=posts.rows.find(r=>r.voucher==='POST-2026-00196'||r.publicPostId==='POST-2026-00196');console.log('REQUESTED_POST_DELETE_STATUS '+JSON.stringify({found:!!requestedPost,sourceType:requestedPost?.sourceType,canDeleteAsQa:requestedPost?.canDelete,requiresOriginalWorkflow:!!requestedPost?.deleteReason}));
+  const requestedPost=posts.rows.find(r=>/(?:^|-)2026-0*196$/.test(r.voucher)||/(?:^|-)2026-0*196$/.test(r.publicPostId||''));console.log('REQUESTED_POST_DELETE_STATUS '+JSON.stringify({found:!!requestedPost,sourceType:requestedPost?.sourceType,canDeleteAsQa:requestedPost?.canDelete,requiresOriginalWorkflow:!!requestedPost?.deleteReason}));
   console.log('POSTED_BOOKS_PROVENANCE '+JSON.stringify({sourceTypes:Object.keys(types),hasEntriesBeforeFinancialYear:posts.rows.some(r=>r.date<'2026-07-01'),importTypes:[...new Set(posts.rows.filter(r=>/IMPORT|HISTORICAL|TRIAL_BALANCE/i.test(r.sourceType)).map(r=>r.sourceType))]}));
   await page.evaluate(()=>{localStorage.setItem('tt_accounts_entity','TTI');return window.TT_SUPPLIER_SETTLEMENT_UI.openBills('TRANSPORT');});
   await expect(page.locator('#ttSimpleBills h2')).toHaveText('Party Payments');
@@ -619,6 +620,16 @@ test('party payment roles and company-wide ledger matching review are read-only'
   const providerName=await ditta.textContent();
   const unpaidResponse=await page.request.get(`${BASE_URL}/api/supplier_settlements.php?entity=TTI`);expect(unpaidResponse.status()).toBe(200);const unpaid=await unpaidResponse.json();
   const identity=n=>String(n||'').toLowerCase().replace(/[^\p{L}\p{N}]/gu,'');
+  for(const aleem of (company.parties||[]).filter(n=>/ALEEM/i.test(n))){
+    const ar=await page.request.get(`${BASE_URL}/api/accounts_ledger_browser.php?${params}&party=${encodeURIComponent(aleem)}`);expect(ar.status()).toBe(200);const al=await ar.json();
+    const openingRows=(unpaid.payables||[]).filter(r=>r.openingBalance&&identity(r.supplier)===identity(aleem));
+    const openingSources=[];
+    for(const row of (al.rows||[]).filter(r=>['2110','2120','2130','2140','2190'].includes(r.account)).slice(-10)){
+      const jr=await page.request.get(`${BASE_URL}/api/accounts_ledger_browser.php?${params}&postId=${encodeURIComponent(row.voucher)}`);const jp=await jr.json();if(jp.post)openingSources.push({sourceType:jp.post.sourceType,markedOpening:!!jp.post.meta?.openingBalance||!!jp.post.openingBalance,isFinancialYearStart:jp.post.date==='2026-07-01',control:row.account});
+    }
+    console.log('ALEEM_PARTY_OPENING_STATUS '+JSON.stringify({hasUnpaidOpening:openingRows.length>0,hasCreditorBalance:Number(al.closing)<-.005,openingSources}));
+  }
+
   const providerBills=(unpaid.payables||[]).filter(r=>r.category==='TRANSPORT'&&identity(r.supplier)===identity(providerName));
   const ledgerResponse=await page.request.get(`${BASE_URL}/api/accounts_ledger_browser.php?${params}&party=${encodeURIComponent(providerName)}`);expect(ledgerResponse.status()).toBe(200);const providerLedger=await ledgerResponse.json();
   console.log('LIVE_TRANSPORT_PAYABLE_RECONCILIATION '+JSON.stringify({hasUnpaidBills:providerBills.length>0,hasCreditBalance:Number(providerLedger.closing)<-.005,hasOpeningBalance:(unpaid.payables||[]).some(r=>r.openingBalance&&identity(r.supplier)===identity(providerName))}));

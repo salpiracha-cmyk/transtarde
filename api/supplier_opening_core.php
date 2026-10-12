@@ -1,15 +1,23 @@
 <?php
 declare(strict_types=1);
 
+function sop_party_name(array $line,array $meta=[]):string {
+    $raw='';foreach([$line,$meta] as $row)foreach(['subledger','counterparty','party','supplier','broker','vendor','openingParty'] as $key)if(trim((string)($row[$key]??''))!==''){$raw=trim((string)$row[$key]);break 2;}
+    if($raw===''||!function_exists('tt_list_masters'))return $raw;
+    $key=static fn($v)=>strtolower(preg_replace('/[^\p{L}\p{N}]/u','',(string)$v)??'');$names=[];
+    foreach(['business_parties','export_customers'] as $type)foreach((array)(tt_list_masters()[$type]??[]) as $r){$v=(array)($r['values']??[]);$name=trim((string)($v[0]??''));if($name!==''&&($raw===(string)($r['id']??'')||$key($raw)===$key($name)||(!empty($v[1])&&$key($raw)===$key($v[1]))))$names[$name]=true;}
+    return count($names)===1?(string)array_key_first($names):$raw;
+}
 /** Project saved creditor openings into payment choices; reads never create liabilities. */
 function sop_openings(array $s,string $entity):array {
     $rows=[];
     foreach((array)($s['journals']??[]) as $id=>$j){
-        if(($j['entity']??'')!==$entity||($j['status']??'')!=='Posted'||($j['sourceType']??'')!=='OPENING_BALANCE_BF'||!empty($j['openingReversalId'])||!empty($j['amendedByPostId'])||!empty($j['reversalOf'])||!empty($j['reversedByPostId'])||!empty($j['meta']['deletedFromBooks']))continue;
+        $legacyOpening=($j['date']??'')==='2026-07-01'&&(bool)array_filter((array)($j['lines']??[]),static fn($l)=>is_array($l)&&($l['account']??'')==='3400');
+        if(($j['entity']??'')!==$entity||($j['status']??'')!=='Posted'||!(($j['sourceType']??'')==='OPENING_BALANCE_BF'||($j['sourceType']??'')==='CARRY_FORWARD_OPENING'||!empty($j['meta']['openingBalance'])||!empty($j['openingBalance'])||$legacyOpening)||!empty($j['openingReversalId'])||!empty($j['amendedByPostId'])||!empty($j['reversalOf'])||!empty($j['reversedByPostId'])||!empty($j['meta']['deletedFromBooks']))continue;
         foreach((array)($j['lines']??[]) as $index=>$l){
             $account=(string)($l['account']??'');
             if(!in_array($account,['2110','2120','2130','2140','2190'],true))continue;
-            $party=trim((string)($l['subledger']??$l['counterparty']??$j['meta']['openingParty']??''));
+            $party=sop_party_name($l,(array)($j['meta']??[]));
             $amount=round((float)($l['credit']??0)-(float)($l['debit']??0),2);
             if($party===''||$amount<=.005)continue;
             // Carry-forward bills already expose their assigned part through the bill register.

@@ -80,3 +80,11 @@ check($advances['postDeletions'][0]['before'][$advanceJournal['id']]===$advanceJ
 check(apd_delete_reason($advances,$reverse,$owner)!=='','Cancellation audit rows must explain why they cannot be deleted again.');
 try{apd_delete($advances,$owner,$advanceJournal['id'],['reason'=>'Repeated deletion']);throw new RuntimeException('Duplicate advance deletion accepted.');}catch(DomainException $expected){}
 echo "Salary advance cancellation: permissions, applied-deduction guard, bank/native balance, source status and audit history passed.\n";
+
+$dated=source('TTI','DATE-FIXTURE');$dated['date']='2026-10-07';$dates=['journals'=>['DATE-FIXTURE'=>$dated]];
+$change=['date'=>'2026-08-02','reason'=>'Correct posting date','lines'=>[['account'=>'1110','bankAccountId'=>'TTI-1','debit'=>100,'credit'=>0],['account'=>'2130','debit'=>0,'credit'=>100]]];
+$done=apa_correct($dates,$user,'DATE-FIXTURE',$change);
+check($dates['journals'][$done['replacementPostId']]['date']==='2026-08-02','Use corrected posting date, not amendment time.');
+check($dates['journals'][$done['reversalPostId']]['date']==='2026-10-07','Reverse the old date so backdating does not cancel a corrected entry before the original date.');
+check($dates['journals'][$done['replacementPostId']]['meta']['publicPostId']==='DATE-FIXTURE','Keep public posting identity.');
+echo "Corrected posting date, original-date reversal and stable register identity passed\n";

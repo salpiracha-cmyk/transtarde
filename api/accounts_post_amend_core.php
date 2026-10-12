@@ -68,7 +68,7 @@ function apa_correct(array &$store, array $user, string $postId, array $input): 
                 (str_contains($owner,'TRANSTRADE INTERNATIONAL')||preg_match('/(^|\W)TTI($|\W)/',$owner)));
             if(!$matches)throw new DomainException('The selected bank belongs to another company.');
             $currency=strtoupper((string)($values[7]??''));
-            $native=$entry['nativeAmount']??null;
+            $native=$entry['nativeAmount']??($currency===($entity==='TG'?'AED':'PKR')?round($dr+$cr,2):null);
             if(!is_numeric($native)||!is_finite((float)$native)||round((float)$native,2)<0)throw new DomainException('Enter the bank amount in '.$currency.' on line '.($i+1).'.');
             $native=round((float)$native,2);
             if($entity!=='TG'&&$currency==='PKR'&&abs($native-($dr+$cr))>.005)throw new DomainException('PKR bank amount must equal the book amount.');
@@ -92,7 +92,7 @@ function apa_correct(array &$store, array $user, string $postId, array $input): 
     foreach((array)$original['lines'] as $line){$swap=$line;$swap['debit']=round((float)($line['credit']??0),2);$swap['credit']=round((float)($line['debit']??0),2);
         if(isset($line['bankDebit'])||isset($line['bankCredit'])){$swap['bankDebit']=round((float)($line['bankCredit']??0),2);$swap['bankCredit']=round((float)($line['bankDebit']??0),2);}if(isset($line['nativeDebit'])||isset($line['nativeCredit'])){$swap['nativeDebit']=$line['nativeCredit']??0;$swap['nativeCredit']=$line['nativeDebit']??0;}$reverseLines[]=$swap;}
     $now=gmdate('c');$actor=(string)($user['full_name']??$user['username']??'Accounts');
-    $store['journals'][$reverseId]=['id'=>$reverseId,'entity'=>$entity,'date'=>$date,'sourceType'=>'POST_AMENDMENT_REVERSAL','reference'=>$postId,'narration'=>'Correction reversal of '.$postId.' — '.$reason,'lines'=>$reverseLines,'totalDebit'=>round((float)$original['totalCredit'],2),'totalCredit'=>round((float)$original['totalDebit'],2),'status'=>'Posted','meta'=>['reason'=>$reason,'originalPostId'=>$postId],'createdAt'=>$now,'createdBy'=>$actor,'userId'=>(int)($user['id']??0),'reversalOf'=>$postId];
+    $store['journals'][$reverseId]=['id'=>$reverseId,'entity'=>$entity,'date'=>$original['date'],'sourceType'=>'POST_AMENDMENT_REVERSAL','reference'=>$postId,'narration'=>'Correction reversal of '.$postId.' — '.$reason,'lines'=>$reverseLines,'totalDebit'=>round((float)$original['totalCredit'],2),'totalCredit'=>round((float)$original['totalDebit'],2),'status'=>'Posted','meta'=>['reason'=>$reason,'originalPostId'=>$postId],'createdAt'=>$now,'createdBy'=>$actor,'userId'=>(int)($user['id']??0),'reversalOf'=>$postId];
     $replacementId=tt_next_post_id((array)$store['journals'],'Accounts','Journal',$date);
     $replacement=$original;
     $replacement['id']=$replacementId;$replacement['date']=$date;$replacement['reference']=$reference;$replacement['narration']=$narration;$replacement['lines']=$lines;
