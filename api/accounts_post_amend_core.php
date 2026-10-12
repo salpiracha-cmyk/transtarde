@@ -74,7 +74,7 @@ function apa_correct(array &$store, array $user, string $postId, array $input): 
             if($entity!=='TG'&&$currency==='PKR'&&abs($native-($dr+$cr))>.005)throw new DomainException('PKR bank amount must equal the book amount.');
             $line['bankAccountId']=$bankId;$line['bankName']=(string)($values[4]??'');$line['bankAccountTitle']=(string)($values[3]??'');$line['currency']=$currency;
             $line['bankDebit']=$dr>0?$native:0;$line['bankCredit']=$cr>0?$native:0;if($opening){$line['nativeDebit']=$line['bankDebit'];$line['nativeCredit']=$line['bankCredit'];}
-            if($cr>0&&!empty($entry['bankPaymentMethod'])){$method=(string)$entry['bankPaymentMethod'];$tracking=tt_accounts_bank_payment_details(['paymentAccountId'=>$bankId,'date'=>$date,'bankPaymentMethod'=>$method,'bankReference'=>$entry['bankReference']??'','chequeNo'=>$method==='CHEQUE'?($entry['bankReference']??''):'','chequeDate'=>$date,'paymentNarration'=>$entry['paymentNarration']??'']);$line=array_merge($line,$tracking);}
+            if($cr>0&&!empty($entry['bankPaymentMethod'])){$method=(string)$entry['bankPaymentMethod'];$tracking=tt_accounts_bank_payment_details(['paymentAccountId'=>$bankId,'date'=>$date,'bankPaymentMethod'=>$method,'bankReference'=>$entry['bankReference']??'','chequeNo'=>$method==='CHEQUE'?($entry['bankReference']??''):'','chequeDate'=>$entry['chequeDate']??$date,'paymentNarration'=>$entry['paymentNarration']??'']);$line=array_merge($line,$tracking);}
         }
         $lines[]=$line;$debit+=(int)round($dr*100);$credit+=(int)round($cr*100);
     }

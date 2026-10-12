@@ -56,6 +56,17 @@ with tempfile.TemporaryDirectory(prefix='supplier-discount-') as tmp:
   assert not req({**body,'applyPaymentDifferenceAsDiscount':not tick})['ok']
  books.write_text(json.dumps(initial));before=books.read_bytes()
  assert not req({**p,'requestKey':'stale-difference-fixture','applyPaymentDifferenceAsDiscount':True,'selectedOutstanding':900})['ok'];assert books.read_bytes()==before
+ # An explicit empty selection must never fall back to all unpaid invoices.
+ books.write_text(json.dumps(initial));before=books.read_bytes()
+ assert not req({**p,'explicitBillSelection':True,'selectedBills':[]})['ok'];assert books.read_bytes()==before
+ opening={'id':'OPEN-1','entity':'TTI','date':'2026-07-01','status':'Posted','sourceType':'OPENING_BALANCE_BF','lines':[{'account':'2130','credit':300,'debit':0,'counterparty':'MAPCO'},{'account':'3100','debit':300,'credit':0}]}
+ books.write_text(json.dumps({**initial,'journals':{'OPEN-1':opening}}))
+ body={**p,'requestKey':'opening-only-fixture-1','amount':200,'discountAmount':0,'discountReason':'','explicitBillSelection':True,'includeOpeningBalance':True,'selectedBills':['BF:OPEN-1:0|OPENING|0'],'applyPaymentDifferenceAsDiscount':False,'selectedOutstanding':300}
+ saved=req(body);assert saved['ok'],saved
+ assert [a['billId'] for a in saved['result']['allocations']]==['BF:OPEN-1:0'],saved
+ unpaid=req()['payables'];assert {r['billId']:r['outstanding'] for r in unpaid}=={'A':600,'B':400,'BF:OPEN-1:0':100},unpaid
+ assert req(body)['result']['journalId']==saved['result']['journalId']
+ assert not req({**body,'explicitBillSelection':False})['ok'],'A posted draft cannot change selection semantics'
  # Commodity settlement uses exact selected allocations and cash-only brokerage WHT.
  books.write_text(json.dumps({'commodityBills':{'C':{'id':'C','entity':'TTI','broker':'BROKER','brokerageWhtPercent':15,'receiptAllocations':[{'sourceKey':'C|BROKERAGE','supplierPayableShare':100,'component':'BROKERAGE'}]}}}))
  response=req({'action':'post_supplier_payment','allocations':[{'billId':'C','sourceKey':'C|BROKERAGE','amount':100}],'discountAmount':5,'discountReason':'Agreed settlement','paymentMode':'CASH','date':'2026-07-21'})

@@ -14,6 +14,7 @@ $files = [
     'accounts-notifications.js',
     'accounts-row-controls.js',
     'accounts-form-layout.js',
+    'cheque-date-ui.js',
     'bank-workspace-owner.js',
     'accounts-uppercase.js',
     'print-dialog.js',

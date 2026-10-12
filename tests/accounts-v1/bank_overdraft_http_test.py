@@ -66,7 +66,7 @@ with tempfile.TemporaryDirectory(prefix='bank-overdraft-qa-') as temp:
         for tick in [False,True]:
             liability={'id':'FREIGHT-1','counterparty':'Freight One','reference':'F-1','currency':'USD','nativeAmount':100,'recognitionRate':3.67,'payableAccount':'2140','category':'FREIGHT','date':'2026-09-01'}
             books.write_text(json.dumps({'journals':{},'tgLiabilities':{'FREIGHT-1':liability}}))
-            body=dict(action='post_payment',guidedPayment=True,requestKey='tg-discount-fixture-'+str(tick),category='FREIGHT',selectedBills=['FREIGHT-1'],selectedOutstanding=100,applyPaymentDifferenceAsDiscount=tick,bankAccountId='usd',counterparty='Freight One',paymentType='LIABILITY',currency='USD',amountNative=95,rate=3.67)
+            body=dict(action='post_payment',guidedPayment=True,explicitBillSelection=True,requestKey='tg-discount-fixture-'+str(tick),category='FREIGHT',selectedBills=['FREIGHT-1'],selectedOutstanding=100,applyPaymentDifferenceAsDiscount=tick,bankAccountId='usd',counterparty='Freight One',paymentType='LIABILITY',currency='USD',amountNative=95,rate=3.67)
             result=assert_post('tg_bank_transactions',**body);tx=result['transaction'];assert tx['amountNative']==95 and tx['discountNative']==(5 if tick else 0),tx
             assert tx['liabilityAllocations'][0]['balanceAfter']==(0 if tick else 5)
             j=result['journal'];assert sum(l['bankCredit'] for l in j['lines'] if l['account']=='1110')==95

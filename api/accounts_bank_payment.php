@@ -14,8 +14,9 @@ function tt_accounts_bank_payment_details(array $input): array {
     if(strlen($reference)>180||strlen($narration)>900)throw new DomainException('Payment reference or narration is too long.');
     $date=(string)($input['date']??$input['paymentDate']??$input['settlementDate']??'');
     $cheque=trim((string)($input['chequeNo']??''));
-    if($method==='CHEQUE'&&($cheque===''||strlen($cheque)>180||($input['chequeDate']??'')!==$date))throw new DomainException('Enter cheque number and the payment date. Use Issued Cheques for post-dated supplier cheques.');
-    return ['bankPaymentMethod'=>$method,'bankReference'=>$method==='CHEQUE'?$cheque:$reference,'chequeNo'=>$method==='CHEQUE'?$cheque:'','chequeDate'=>$method==='CHEQUE'?$date:'','paymentNarration'=>$narration];
+    $chequeDate=(string)($input['chequeDate']??$date);$parts=explode('-',$chequeDate);
+    if($method==='CHEQUE'&&($cheque===''||strlen($cheque)>180||!preg_match('/^\d{4}-\d{2}-\d{2}$/',$chequeDate)||count($parts)!==3||!checkdate((int)$parts[1],(int)$parts[2],(int)$parts[0])))throw new DomainException('Enter cheque number and a valid cheque date.');
+    return ['bankPaymentMethod'=>$method,'bankReference'=>$method==='CHEQUE'?$cheque:$reference,'chequeNo'=>$method==='CHEQUE'?$cheque:'','chequeDate'=>$method==='CHEQUE'?$chequeDate:'','paymentNarration'=>$narration];
 }
 
 function tt_accounts_track_bank_payment(array &$store,array $originalJournalIds,array $tracking): void {

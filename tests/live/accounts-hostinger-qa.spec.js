@@ -609,6 +609,7 @@ test('party payment roles and company-wide ledger matching review are read-only'
     console.log('UNASSIGNED_POST_SOURCE '+JSON.stringify({account:r.account,sourceType:post.sourceType,sourceLinkFields:Object.keys(post.meta||{}).filter(key=>/^(supplierBillId|billId|bagBillId|purchaseId|receiptId|candidateId|openingHelper|openingBalance|salaryRunId|runId)$/.test(key)),lineKeys:post.lines.filter(l=>l.account===r.account).map(l=>Object.keys(l))}));
   }
   const register=await page.request.get(`${BASE_URL}/api/accounts_ledger_browser.php?entity=ALL&account=POSTS&from=1900-01-01&to=${to}`);expect(register.status()).toBe(200);const posts=await register.json(),types={};for(const r of posts.rows)types[r.sourceType]=(types[r.sourceType]||0)+1;
+  const requestedPost=posts.rows.find(r=>r.voucher==='POST-2026-00196'||r.publicPostId==='POST-2026-00196');console.log('REQUESTED_POST_DELETE_STATUS '+JSON.stringify({found:!!requestedPost,sourceType:requestedPost?.sourceType,canDeleteAsQa:requestedPost?.canDelete,requiresOriginalWorkflow:!!requestedPost?.deleteReason}));
   console.log('POSTED_BOOKS_PROVENANCE '+JSON.stringify({sourceTypes:Object.keys(types),hasEntriesBeforeFinancialYear:posts.rows.some(r=>r.date<'2026-07-01'),importTypes:[...new Set(posts.rows.filter(r=>/IMPORT|HISTORICAL|TRIAL_BALANCE/i.test(r.sourceType)).map(r=>r.sourceType))]}));
   await page.evaluate(()=>{localStorage.setItem('tt_accounts_entity','TTI');return window.TT_SUPPLIER_SETTLEMENT_UI.openBills('TRANSPORT');});
   await expect(page.locator('#ttSimpleBills h2')).toHaveText('Party Payments');
@@ -624,7 +625,22 @@ test('party payment roles and company-wide ledger matching review are read-only'
   expect(providerBills.length>0||Number(providerLedger.closing)>=-.005,'A transport credit balance must have a payable item').toBe(true);
   await ditta.click();await expect(page.locator('#ttSimpleBills [data-payee]')).toHaveValue(providerName.trim());
   await expect(page.locator('#ttSimpleBills [data-bill]')).toHaveCount(providerBills.length);
-  if(providerBills.length){await page.locator('#ttSimpleBills [data-amount]').fill('1');await expect(page.locator('#ttSimpleBills [data-discount-choice]')).toContainText('as discount?');expect(await page.locator('#ttSimpleBills [data-discount-enabled]').isChecked()).toBe(false);}
+  const voucherDate=page.locator('#ttSimpleBills [data-date]'),chequeDate=page.locator('#ttSimpleBills [data-cheque-date]');
+  if(await chequeDate.count()){
+    await voucherDate.fill('2026-10-01');await expect(chequeDate).toHaveValue('2026-10-01');
+    await chequeDate.fill('2026-09-30');await voucherDate.fill('2026-10-02');await expect(chequeDate).toHaveValue('2026-09-30');
+    console.log('LIVE_VOUCHER_CHEQUE_DATES_EDITABLE_OK');
+  }
+
+  if(providerBills.length){await page.locator('#ttSimpleBills [data-bill]').first().check();await page.locator('#ttSimpleBills [data-amount]').fill('1');await expect(page.locator('#ttSimpleBills [data-discount-choice]')).toContainText('as discount?');expect(await page.locator('#ttSimpleBills [data-discount-enabled]').isChecked()).toBe(false);}
+  const openingTick=page.locator('#ttSimpleBills [data-include-opening]');
+  if(await openingTick.count()){
+    await openingTick.check();
+    for(const box of await page.locator('#ttSimpleBills [data-bill]:not([disabled])').all())if(await box.isChecked())await box.uncheck();
+    const onlyOpening=await page.locator('#ttSimpleBills [data-allocation-preview]').textContent();expect(onlyOpening).toContain('Balance B/F');
+    for(const row of await page.locator('#ttSimpleBills [data-allocation-preview] tr').all())await expect(row).toContainText('Balance B/F');
+    console.log('LIVE_TRANSPORT_OPENING_ONLY_SELECTION_OK');
+  }
   expect(await page.locator('#ttSimpleBills [data-discount],#ttSimpleBills [data-discount-reason]').count()).toBe(0);
   await page.locator('#ttSimpleBills [data-close]').click();
   await page.evaluate(()=>window.TT_ALL_LEDGERS.open('','party'));
