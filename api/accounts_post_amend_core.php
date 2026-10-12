@@ -32,7 +32,22 @@ function apa_correct(array &$store, array $user, string $postId, array $input): 
     if(mb_strlen($reference)>180||mb_strlen($narration)>500)throw new DomainException('Reference or narration is too long.');
     $submitted=$input['lines']??null;
     if(!is_array($submitted)||count($submitted)<2||count($submitted)>((($original['sourceType']??'')==='SALARY_MONTH_COMPLETED'||($original['meta']['originalSourceType']??'')==='SALARY_MONTH_COMPLETED')?500:100))throw new DomainException('Enter at least two journal lines within the posting limit.');
-    if($opening){if(count($submitted)!==2)throw new DomainException('Opening balances require the account and clearing line only.');foreach($submitted as $i=>$entry)if(($entry['account']??'')!==($original['lines'][$i]['account']??'')||trim((string)($entry['subledger']??''))!==trim((string)($original['lines'][$i]['subledger']??'')))throw new DomainException('Keep the original opening account and party; amend its amount.');}
+    $openingTarget=null;
+    if($opening){
+        if(count($submitted)!==2)throw new DomainException('Opening balances require the account and clearing line only.');
+        $targetKey=trim((string)($input['openingPartyTargetKey']??''));
+        if($targetKey!==''){
+            foreach(job_targets($entity) as $target)if($target['key']===$targetKey&&$target['kind']==='party')$openingTarget=$target;
+            $heads=array_column((array)$original['lines'],'account');
+            if(!$openingTarget||!in_array($openingTarget['account'],['2110','2120','2130','2140','2190'],true)||!in_array(JOB_CLEARING,$heads,true)||!in_array($openingTarget['account'],$heads,true))throw new DomainException('Choose a current party with the same creditor account as this opening.');
+            foreach((array)($store['carryForwardOpeningLinks']??[]) as $link)if(($link['journalId']??'')===$postId)throw new DomainException('Remove the linked carry-forward allocation before changing this opening party.');
+        }
+        foreach($submitted as $i=>$entry){
+            $before=$original['lines'][$i]??[];
+            $expected=$openingTarget&&($before['account']??'')===$openingTarget['account']?$openingTarget['party']:trim((string)($before['subledger']??''));
+            if(($entry['account']??'')!==($before['account']??'')||trim((string)($entry['subledger']??''))!==$expected)throw new DomainException('Keep the opening accounts and use the selected party on its creditor line.');
+        }
+    }
     $master=json_decode((string)file_get_contents(__DIR__.'/../accounts/accounting_master_v1.json'),true);
     $names=[];
     foreach(array_merge((array)($master['chart']??[]),(array)($master['peopleSubledgers']??[])) as $account)
@@ -57,6 +72,7 @@ function apa_correct(array &$store, array $user, string $postId, array $input): 
         if($opening){if(($entry['bankAccountId']??'')!==($line['bankAccountId']??''))throw new DomainException('Keep the original opening bank account.');if(isset($line['nativeDebit'])||isset($line['nativeCredit'])){$nativeRatio=((float)($line['nativeDebit']??0)+(float)($line['nativeCredit']??0))/max(.01,(float)($line['debit']??0)+(float)($line['credit']??0));$line['nativeDebit']=round($dr*$nativeRatio,2);$line['nativeCredit']=round($cr*$nativeRatio,2);}}$line['account']=$account;$line['accountName']=$names[$account];$line['debit']=$dr;$line['credit']=$cr;
         foreach(['subledger','party','counterparty','memo','billNo','lineReference'] as $field)
             if(isset($entry[$field]))$line[$field]=mb_substr(trim((string)$entry[$field]),0,180);
+        if($openingTarget&&$account===$openingTarget['account']){foreach(['subledger','party','counterparty'] as $field)$line[$field]=$openingTarget['party'];}
         $bankId=trim((string)($entry['bankAccountId']??''));
         if($account==='1110'&&$bankId==='')throw new DomainException('Choose the actual bank account on each bank line.');
         if($bankId==='')foreach(['bankAccountId','bankName','bankAccountTitle','currency','bankDebit','bankCredit','revaluationOnly','bankPaymentMethod','bankReference','chequeNo','chequeDate','paymentNarration'] as $key)unset($line[$key]);
@@ -99,7 +115,7 @@ function apa_correct(array &$store, array $user, string $postId, array $input): 
     // A distinct source type prevents source-workflow scanners from treating a correction as a second bill or payment.
     $replacement['sourceType']=$opening?'OPENING_BALANCE_BF':'POST_AMENDMENT_CORRECTION';
     $replacement['totalDebit']=$debit/100;$replacement['totalCredit']=$credit/100;$replacement['meta']=['originalSourceType'=>(string)($original['meta']['originalSourceType']??$original['sourceType']??''),'amendmentOfPostId'=>$postId,'amendmentReason'=>$reason,'reversalPostId'=>$reverseId];
-    if($opening)$replacement['meta']=array_replace((array)$original['meta'],$replacement['meta']);$changes=[];foreach($lines as $i=>$line){$before=$original['lines'][$i]??[];if(($before['debit']??0)!==$line['debit']||($before['credit']??0)!==$line['credit'])$changes[]=['account'=>$line['accountName'],'party'=>$line['subledger']??'','oldDebit'=>$before['debit']??0,'oldCredit'=>$before['credit']??0,'debit'=>$line['debit'],'credit'=>$line['credit']];}$replacement['meta']['amendmentChanges']=$changes;
+    if($opening)$replacement['meta']=array_replace((array)$original['meta'],$replacement['meta']);if($openingTarget){$replacement['meta']['openingParty']=$openingTarget['party'];$replacement['meta']['openingPartyTargetKey']=$openingTarget['key'];}$changes=[];foreach($lines as $i=>$line){$before=$original['lines'][$i]??[];if(($before['debit']??0)!==$line['debit']||($before['credit']??0)!==$line['credit']||($before['subledger']??'')!==($line['subledger']??''))$changes[]=['account'=>$line['accountName'],'party'=>$line['subledger']??'','oldDebit'=>$before['debit']??0,'oldCredit'=>$before['credit']??0,'debit'=>$line['debit'],'credit'=>$line['credit']];}$replacement['meta']['amendmentChanges']=$changes;
     $replacement['createdAt']=$now;$replacement['createdBy']=$actor;$replacement['userId']=(int)($user['id']??0);$replacement['reversalOf']=null;
     $replacement['meta']['publicPostId']=tt_accounts_public_post($store,$original);$replacement['meta']['amendmentNote']='Edited '.gmdate('Y-m-d').' by '.$actor.' — '.$reason.($date!==$original['date']?' — Date: '.$original['date'].' → '.$date:'');
     if($opening){unset($replacement['openingReversalId'],$replacement['amendedByPostId'],$replacement['amendmentReversalPostId']);$store['journals'][$postId]['openingReversalId']=$reverseId;foreach((array)($store['jvDrafts']??[]) as $key=>$draft)if(($draft['journalId']??'')===$postId){$store['jvDrafts'][$key]['status']='Amended';$next=$replacement;$next['id']='JVD-AMEND-'.$replacementId;$next['journalId']=$replacementId;$next['openingBalance']=true;$store['jvDrafts'][$next['id']]=$next;}}

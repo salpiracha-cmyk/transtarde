@@ -61,6 +61,7 @@ $files = [
     'supplier-payment-planning-ui.js',
     'payment-planning-bank-funds.js',
     'bank-payment-details.js',
+    'opening-balance-review-ui.js',
     'supplier-settlement-ui.js',
     'carry-forward-entry-ui.js',
     'payables-bill-summary-ui.js',

@@ -175,6 +175,7 @@ jobs:
           node tests/accounts-v1/module_form_consistency_test.js
           node tests/accounts-v1/party_payment_choices_test.js
           node tests/accounts-v1/opening_only_payment_ui_test.js
+          node tests/accounts-v1/opening_review_ui_test.js
           node tests/accounts-v1/cheque_dates_ui_test.js
           node tests/accounts-v1/ledger_amend_dates_ui_test.js
           php tests/accounts-v1/cheque_dates_backend_test.php

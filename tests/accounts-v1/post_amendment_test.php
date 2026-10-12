@@ -6,7 +6,9 @@ function tt_next_post_id(array $existing, string $module = 'Accounts', string $a
     do {$id='POST-'.$year.'-'.str_pad((string)$n,5,'0',STR_PAD_LEFT);$n++;} while (isset($existing[$id]));
     return $id;
 }
-function tt_list_masters():array{return ['banks'=>[['id'=>'TTI-1','values'=>['Company Account','TTI','','Meezan TTI','Meezan','','','PKR']],['id'=>'TG-1','values'=>['Company Account','TG','','TG USD','Bank','','','USD']]]];}
+function tt_list_masters():array{return ['business_parties'=>[['id'=>'BAG-FIXTURE','values'=>['Current Bag Party','','Bag Supplier']]],'banks'=>[['id'=>'TTI-1','values'=>['Company Account','TTI','','Meezan TTI','Meezan','','','PKR']],['id'=>'TG-1','values'=>['Company Account','TG','','TG USD','Bank','','','USD']]]];}
+function tt_business_party_categories($v):array{return [$v];}
+function tt_user_can_open_module(array $u,string $m):bool{return false;}
 require dirname(__DIR__,2).'/api/accounts_post_amend_core.php';
 function check(bool $valid,string $message):void{if(!$valid)throw new RuntimeException($message);}
 function source(string $entity,string $id):array{return ['id'=>$id,'entity'=>$entity,'date'=>'2026-09-25','sourceType'=>'ANY_ACCOUNTS_WORKFLOW','reference'=>'REF','narration'=>'Original posting','lines'=>[['account'=>'1110','accountName'=>'Bank','bankAccountId'=>$entity==='TG'?'TG-1':'TTI-1','currency'=>$entity==='TG'?'USD':'PKR','bankDebit'=>100,'bankCredit'=>0,'debit'=>100,'credit'=>0],['account'=>'2130','accountName'=>'Payable','debit'=>0,'credit'=>100]],'totalDebit'=>100,'totalCredit'=>100,'status'=>'Posted','meta'=>['billId'=>'BILL-1'],'reversalOf'=>null];}
@@ -88,3 +90,23 @@ check($dates['journals'][$done['replacementPostId']]['date']==='2026-08-02','Use
 check($dates['journals'][$done['reversalPostId']]['date']==='2026-10-07','Reverse the old date so backdating does not cancel a corrected entry before the original date.');
 check($dates['journals'][$done['replacementPostId']]['meta']['publicPostId']==='DATE-FIXTURE','Keep public posting identity.');
 echo "Corrected posting date, original-date reversal and stable register identity passed\n";
+
+$old=$opening;$old['id']='OPEN-OLD-NAME';$old['lines'][0]=['account'=>'2140','accountName'=>'Service Payable','subledger'=>'Old Bag Name','counterparty'=>'Old Bag Name','debit'=>100,'credit'=>0];$old['lines'][1]['debit']=0;$old['lines'][1]['credit']=100;
+$base=['journals'=>[$old['id']=>$old]];
+$fix=['reason'=>'Correct opening direction and party','openingPartyTargetKey'=>'business_parties:BAG-FIXTURE:2140','lines'=>[['account'=>'2140','subledger'=>'Current Bag Party','debit'=>0,'credit'=>100],['account'=>'3400','subledger'=>'','debit'=>100,'credit'=>0]]];
+foreach(['staff','wrong-target','linked-bill','paid'] as $case){
+ $copy=$base;$bad=$fix;$actor=['role'=>'Super Admin'];
+ if($case==='staff')$actor=['role'=>'Accounts'];
+ if($case==='wrong-target')$bad['openingPartyTargetKey']='business_parties:unknown:2140';
+ if($case==='linked-bill')$copy['carryForwardOpeningLinks']=[['journalId'=>$old['id']]];
+ if($case==='paid')$copy['supplierSettlements']=[['status'=>'Posted','allocations'=>[['billId'=>'BF:'.$old['id'].':0']]]];
+ $before=$copy;try{apa_correct($copy,$actor,$old['id'],$bad);throw new RuntimeException('Unsafe opening correction accepted: '.$case);}catch(DomainException){}
+ check($copy===$before,'Rejected opening repair must leave all data unchanged: '.$case);
+}
+$book=$base;$done=apa_correct($book,['role'=>'Super Admin'],$old['id'],$fix);$new=$book['journals'][$done['replacementPostId']];
+check($book['journals'][$old['id']]['lines']===$old['lines'],'Original opening lines remain immutable.');
+check($new['lines'][0]['subledger']==='Current Bag Party'&&$new['lines'][0]['counterparty']==='Current Bag Party','All opening party references must agree.');
+check($new['meta']['openingParty']==='Current Bag Party','Opening metadata must carry corrected party.');
+$payables=array_values(sop_openings($book,'TTI'));check(count($payables)===1&&$payables[0]['party']==='Current Bag Party'&&$payables[0]['amount']===100.0,'Corrected creditor opening must appear once as payable.');
+check($done['publicPostId']===$old['id'],'Opening review retains the public Post ID.');
+echo "Opening party correction: creditor projection, audit, management access and linked-payment guards passed.\n";
