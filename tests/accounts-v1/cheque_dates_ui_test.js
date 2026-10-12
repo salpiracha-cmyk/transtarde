@@ -11,6 +11,6 @@ const {JSDOM}=require('jsdom'),assert=require('node:assert/strict'),fs=require('
  box.querySelector('[data-reference]').value='Fixture cheque';assert.equal(w.TT_BANK_PAYMENT_DETAILS.read('bank',voucher.value).chequeDate,'2026-09-30');
  edit(cheque,'');edit(voucher,'2026-10-06');assert.equal(cheque.value,'2026-10-06');
  assert.equal(w.document.forms[1].elements.chequeDate.value,'2026-10-03','A reopened saved cheque date is preserved');
- box.querySelector('[data-method]').value='ONLINE_BANKING';box.querySelector('[data-method]').dispatchEvent(new w.Event('change'));assert(box.querySelector('[data-cheque-date-wrap]').hidden);assert.equal(w.TT_BANK_PAYMENT_DETAILS.read('bank',voucher.value).chequeDate,'');
+ box.querySelector('[data-method]').value='ONLINE_BANKING';box.querySelector('[data-method]').dispatchEvent(new w.Event('change'));assert(!box.querySelector('[data-cheque-date-wrap]').hidden);assert.equal(box.querySelector('[data-payment-date-label]').textContent,'Online Banking payment date');edit(cheque,'2026-10-02');assert.equal(w.TT_BANK_PAYMENT_DETAILS.read('bank',voucher.value).bankPaymentDate,'2026-10-02');assert.equal(w.TT_BANK_PAYMENT_DETAILS.read('bank',voucher.value).chequeDate,'');
  observers.forEach(o=>o.disconnect());w.close();console.log('PASS shared cheque dates default to editable voucher dates, preserve explicit/saved dates, and save their actual chosen value');
 })().catch(e=>{console.error(e);process.exitCode=1});

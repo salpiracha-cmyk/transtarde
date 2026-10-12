@@ -110,3 +110,15 @@ check($new['meta']['openingParty']==='Current Bag Party','Opening metadata must 
 $payables=array_values(sop_openings($book,'TTI'));check(count($payables)===1&&$payables[0]['party']==='Current Bag Party'&&$payables[0]['amount']===100.0,'Corrected creditor opening must appear once as payable.');
 check($done['publicPostId']===$old['id'],'Opening review retains the public Post ID.');
 echo "Opening party correction: creditor projection, audit, management access and linked-payment guards passed.\n";
+
+$bank=source('TTI','BANK-DATE-FIXTURE');$bank['sourceType']='BANK_ENTRY';$bank['meta']=['bankEntryType'=>'PAYMENT','bankAccountId'=>'TTI-1','payee'=>'Fixture Party'];$bank['lines']=[['account'=>'2130','debit'=>100,'credit'=>0,'counterparty'=>'Fixture Party'],['account'=>'1110','bankAccountId'=>'TTI-1','currency'=>'PKR','debit'=>0,'credit'=>100,'bankDebit'=>0,'bankCredit'=>100,'bankPaymentMethod'=>'ONLINE_BANKING','bankPaymentDate'=>'2026-09-25','bankReference'=>'FIXTURE']];
+$book=['journals'=>[$bank['id']=>$bank]];$input=['datesOnly'=>true,'date'=>'2026-08-05','reason'=>'Correct Bank Entry dates','lines'=>[['account'=>'WRONG','debit'=>999],['bankPaymentDate'=>'2026-08-04','credit'=>999]]];
+$done=apa_correct($book,$user,$bank['id'],$input);$new=$book['journals'][$done['replacementPostId']];
+check($new['sourceType']==='BANK_ENTRY'&&$new['date']==='2026-08-05','Bank dates correction must retain its source workflow and chosen posting date.');
+check($new['lines'][0]['account']==='2130'&&$new['lines'][0]['debit']===100,'Date correction cannot change accounts or financial figures.');
+check($new['lines'][1]['bankCredit']===100&&$new['lines'][1]['bankPaymentDate']==='2026-08-04','Bank amount is immutable; Online Banking date is separately saved.');
+check($book['journals'][$done['reversalPostId']]['date']===$bank['date']&&$book['journals'][$bank['id']]['lines']===$bank['lines'],'Original-date reversal and immutable original lines are required.');
+check($done['publicPostId']===$bank['id'],'Bank date correction must keep the public Post ID.');
+$bad=['journals'=>[$bank['id']=>$bank]];$before=$bad;$input['lines'][1]['bankPaymentDate']='2026-02-30';try{apa_correct($bad,$user,$bank['id'],$input);throw new RuntimeException('Invalid Online Banking date accepted.');}catch(DomainException){}check($bad===$before,'Rejected bank date correction must not mutate any journal.');
+$draw=$bank;$draw['id']='DRAW';$draw['meta']=['bankEntryType'=>'FINANCE_DRAW','bankFacilityId'=>'FAC'];$later=$bank;$later['id']='LATER';$later['date']='2026-10-01';$later['meta']=['bankEntryType'=>'FINANCE_REPAY','bankFacilityId'=>'FAC'];$bad=['journals'=>['DRAW'=>$draw,'LATER'=>$later]];$before=$bad;$input['lines'][1]['bankPaymentDate']='2026-08-04';try{apa_correct($bad,$user,'DRAW',$input);throw new RuntimeException('Linked finance date changed before later movements.');}catch(DomainException){}check($bad===$before,'Finance date guard must retain the original books.');
+echo "Bank Post ID date corrections: exact source, immutable amounts, separate Online Banking date, audit identity and finance guards passed.\n";

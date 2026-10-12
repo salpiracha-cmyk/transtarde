@@ -8,6 +8,7 @@ require_once __DIR__.'/opening_balance_core.php';
 /** Journal-level correction shared by every Accounts posting source. Caller holds the accounts.json lock. */
 function apa_correct(array &$store, array $user, string $postId, array $input): array {
     $original=$store['journals'][$postId]??null;
+    if(($original['sourceType']??'')==='BANK_ENTRY'&&!empty($input['datesOnly'])){require_once __DIR__.'/accounts_bank_date_correction.php';return apa_bank_dates($store,$user,$postId,$input);}
     if (in_array($original['sourceType']??'', ['BANK_ENTRY','BANK_ENTRY_REVERSAL'], true)) throw new DomainException('Correct bank entries from Bank Entry so facility balances and subaccounts stay linked.');
     if(!empty($original['meta']['investmentTransactionId']))throw new DomainException('Correct this posting in Assets & Investments so broker funds, routing balances and shares stay linked.');
     if(!empty($original['meta']['directExpense']))throw new DomainException('Correct this expense in Pay Expense so its item breakdown and voucher stay linked.');
@@ -75,7 +76,7 @@ function apa_correct(array &$store, array $user, string $postId, array $input): 
         if($openingTarget&&$account===$openingTarget['account']){foreach(['subledger','party','counterparty'] as $field)$line[$field]=$openingTarget['party'];}
         $bankId=trim((string)($entry['bankAccountId']??''));
         if($account==='1110'&&$bankId==='')throw new DomainException('Choose the actual bank account on each bank line.');
-        if($bankId==='')foreach(['bankAccountId','bankName','bankAccountTitle','currency','bankDebit','bankCredit','revaluationOnly','bankPaymentMethod','bankReference','chequeNo','chequeDate','paymentNarration'] as $key)unset($line[$key]);
+        if($bankId==='')foreach(['bankAccountId','bankName','bankAccountTitle','currency','bankDebit','bankCredit','revaluationOnly','bankPaymentMethod','bankReference','chequeNo','chequeDate','bankPaymentDate','paymentNarration'] as $key)unset($line[$key]);
         if($bankId!==''){
             if($account!=='1110'||!isset($banks[$bankId]))throw new DomainException('Bank line '.($i+1).' has an invalid bank account.');
             $bank=$banks[$bankId];$values=(array)($bank['values']??[]);$owner=strtoupper((string)($values[1]??''));
@@ -90,7 +91,7 @@ function apa_correct(array &$store, array $user, string $postId, array $input): 
             if($entity!=='TG'&&$currency==='PKR'&&abs($native-($dr+$cr))>.005)throw new DomainException('PKR bank amount must equal the book amount.');
             $line['bankAccountId']=$bankId;$line['bankName']=(string)($values[4]??'');$line['bankAccountTitle']=(string)($values[3]??'');$line['currency']=$currency;
             $line['bankDebit']=$dr>0?$native:0;$line['bankCredit']=$cr>0?$native:0;if($opening){$line['nativeDebit']=$line['bankDebit'];$line['nativeCredit']=$line['bankCredit'];}
-            if($cr>0&&!empty($entry['bankPaymentMethod'])){$method=(string)$entry['bankPaymentMethod'];$tracking=tt_accounts_bank_payment_details(['paymentAccountId'=>$bankId,'date'=>$date,'bankPaymentMethod'=>$method,'bankReference'=>$entry['bankReference']??'','chequeNo'=>$method==='CHEQUE'?($entry['bankReference']??''):'','chequeDate'=>$entry['chequeDate']??$date,'paymentNarration'=>$entry['paymentNarration']??'']);$line=array_merge($line,$tracking);}
+            if($cr>0&&!empty($entry['bankPaymentMethod'])){$method=(string)$entry['bankPaymentMethod'];$tracking=tt_accounts_bank_payment_details(['paymentAccountId'=>$bankId,'date'=>$date,'bankPaymentMethod'=>$method,'bankReference'=>$entry['bankReference']??'','chequeNo'=>$method==='CHEQUE'?($entry['bankReference']??''):'','chequeDate'=>$entry['chequeDate']??$date,'bankPaymentDate'=>$entry['bankPaymentDate']??$date,'paymentNarration'=>$entry['paymentNarration']??'']);$line=array_merge($line,$tracking);}
         }
         $lines[]=$line;$debit+=(int)round($dr*100);$credit+=(int)round($cr*100);
     }

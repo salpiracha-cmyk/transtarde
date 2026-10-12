@@ -16,7 +16,9 @@ function tt_accounts_bank_payment_details(array $input): array {
     $cheque=trim((string)($input['chequeNo']??''));
     $chequeDate=(string)($input['chequeDate']??$date);$parts=explode('-',$chequeDate);
     if($method==='CHEQUE'&&($cheque===''||strlen($cheque)>180||!preg_match('/^\d{4}-\d{2}-\d{2}$/',$chequeDate)||count($parts)!==3||!checkdate((int)$parts[1],(int)$parts[2],(int)$parts[0])))throw new DomainException('Enter cheque number and a valid cheque date.');
-    return ['bankPaymentMethod'=>$method,'bankReference'=>$method==='CHEQUE'?$cheque:$reference,'chequeNo'=>$method==='CHEQUE'?$cheque:'','chequeDate'=>$method==='CHEQUE'?$chequeDate:'','paymentNarration'=>$narration];
+    $bankPaymentDate=$method==='ONLINE_BANKING'?(string)($input['bankPaymentDate']??$date):'';
+    if($method==='ONLINE_BANKING'){$parts=explode('-',$bankPaymentDate);if(!preg_match('/^\d{4}-\d{2}-\d{2}$/',$bankPaymentDate)||count($parts)!==3||!checkdate((int)$parts[1],(int)$parts[2],(int)$parts[0]))throw new DomainException('Enter a valid Online Banking payment date.');}
+    return ['bankPaymentMethod'=>$method,'bankReference'=>$method==='CHEQUE'?$cheque:$reference,'chequeNo'=>$method==='CHEQUE'?$cheque:'','chequeDate'=>$method==='CHEQUE'?$chequeDate:'','bankPaymentDate'=>$bankPaymentDate,'paymentNarration'=>$narration];
 }
 
 function tt_accounts_track_bank_payment(array &$store,array $originalJournalIds,array $tracking): void {
