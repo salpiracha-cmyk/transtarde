@@ -15,7 +15,8 @@ check($store['journals']['NEW']['reference']==='EXTERNAL-INVOICE-1','Keep invoic
 check($store['journals']['NEW']['meta']['chequeNo']==='123456','Cheque tracking missing.');
 check(str_contains($store['journals']['NEW']['narration'],'Supplier settlement'),'Custom narration missing.');
 check($store['journals']['CASH']['meta']===[],'Do not tag cash as cheque.');
-foreach([['chequeNo'=>''],['chequeDate'=>'2026-10-02'],['paymentAccountId'=>'CASH|TTI'],['bankPaymentMethod'=>'INVALID']] as $bad){try{tt_accounts_bank_payment_details(array_replace($input,$bad));throw new RuntimeException('Invalid bank details were accepted.');}catch(DomainException){}}
+foreach([['chequeNo'=>''],['chequeDate'=>'2026-02-30'],['paymentAccountId'=>'CASH|TTI'],['bankPaymentMethod'=>'INVALID']] as $bad){try{tt_accounts_bank_payment_details(array_replace($input,$bad));throw new RuntimeException('Invalid bank details were accepted.');}catch(DomainException){}}
+foreach(['2026-09-30','2026-10-02'] as $date)check(tt_accounts_bank_payment_details(array_replace($input,['chequeDate'=>$date]))['chequeDate']===$date,'An independently edited cheque date must be retained.');
 $online=tt_accounts_bank_payment_details(array_replace($input,['bankPaymentMethod'=>'ONLINE_BANKING','bankReference'=>'ONLINE-1']));check($online['chequeNo']===''&&$online['bankReference']==='ONLINE-1','Online reference must not become cheque number.');
 echo "Bank tracking, separate invoice reference, narration and unchanged accounting amounts passed\n";
 
