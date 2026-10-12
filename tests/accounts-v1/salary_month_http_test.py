@@ -6,7 +6,7 @@ with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
     for folder in ['api','accounts','data']:(root/folder).mkdir()
     for name in ['rent_salary.php','rent_salary_v2.php','salary_month_workflow.php','salary_master_store.php','accounts_bank_payment.php']:
         shutil.copy(ROOT/'api'/name,root/'api'/name)
-    for name in ['accounting_master_v1.json','rent-salary-ui.js','bank-payment-details.js']:
+    for name in ['accounting_master_v1.json','rent-salary-ui.js','cheque-date-ui.js','bank-payment-details.js']:
         shutil.copy(ROOT/'accounts'/name,root/'accounts'/name)
     masters={'banks':[{'id':'bank-a','values':['Company Account','TTI','','TTI','Fixture Bank','','','PKR','12345','','','','','Active']},{'id':'bank-b','values':['Company Account','TTI','','TTI','Other Bank','','','PKR','67890','','','','','Active']}]}
     (root/'masters.json').write_text(json.dumps(masters))
@@ -30,7 +30,7 @@ with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
     }
     ''')
     popup_css=re.search(r'style.textContent = `([\s\S]*?)`;', (ROOT/'accounts/accounts-clean-ui.js').read_text()).group(1)
-    (root/'accounts/index.html').write_text('<!doctype html><style>'+popup_css+'</style>'+'''<section class="workspace active tt-clean-modal tt-entry-only"><button data-expense="salary">Salaries</button><div id="expenseEditor"></div></section><script>window.TT_ACCOUNT_ACCESS={csrf:'fixture'};localStorage.setItem('tt_accounts_entity','TTI');</script><script src="bank-payment-details.js"></script><script src="rent-salary-ui.js"></script>''')
+    (root/'accounts/index.html').write_text('<!doctype html><style>'+popup_css+'</style>'+'''<section class="workspace active tt-clean-modal tt-entry-only"><button data-expense="salary">Salaries</button><div id="expenseEditor"></div></section><script>window.TT_ACCOUNT_ACCESS={csrf:'fixture'};localStorage.setItem('tt_accounts_entity','TTI');</script><script src="cheque-date-ui.js"></script><script src="bank-payment-details.js"></script><script src="rent-salary-ui.js"></script>''')
     with socket.socket() as sock:sock.bind(('127.0.0.1',0));port=sock.getsockname()[1]
     def start():return subprocess.Popen(['php','-S',f'127.0.0.1:{port}','-t',str(root)],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
     server=start()
