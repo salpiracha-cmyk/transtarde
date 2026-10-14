@@ -101,7 +101,7 @@ require $argv[1];
     record=json.loads(books.read_text());journal=record['journals'][posted['saved']['journalId']]
     assert journal['meta']['chequeDate']=='2026-10-09' and journal['meta']['chequeNo']=='CHQ-200'
     assert journal['lines'][1]['credit']==25 and journal['lines'][1]['bankAccountId']=='BANK-1'
-    assert posted['saved']['bankPaymentDetails']['paymentNarration']=='October purchase'
+    assert posted['saved']['bankPaymentDetails']['paymentNarration']=='OCTOBER PURCHASE'
     before=books.read_bytes();status,out=request('other_purchases',body={**purchase,'invoiceNo':'OP-INVALID','chequeDate':'2026-02-31'})
     assert status==422 and books.read_bytes()==before,(status,out)
     print('Bank reconciliation: outstanding items, dated history, native currencies, signed balances, retries, permissions and storage protection passed.')
