@@ -6,6 +6,7 @@
   function claim(view,root){
     const ws=document.getElementById('ws-bank');
     const token={view,root,workspace:ws,company:company(),revision:++revision};active=token;
+    if(ws){ws.classList.add('active');ws.classList.remove('hidden');ws.hidden=false;const home=document.getElementById('entityHome');if(home)home.style.display='none';}
     if(ws)for(const child of ws.children)if(!child.matches('.panelHead'))child.hidden=child!==root;
     if(root){root.hidden=false;root.classList.remove('hidden');root.innerHTML='<p role="status">Loading bank form…</p>';}
     return token;

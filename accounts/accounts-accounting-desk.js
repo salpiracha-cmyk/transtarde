@@ -371,6 +371,8 @@
   async function loadDashboardSummary() {
     const host=q('#ttSummaryCards'), queue=q('#ttAttentionQueue'); if(!host)return;
     const company=entity(),request=++dashboardLoad;
+    host.innerHTML='<div class="tt-summary" role="status"><b>Loading company balances…</b></div>';
+    if(queue)queue.innerHTML='<div class="tt-queue-row" role="status">Loading company attention items…</div>';
     try{
       const data=await json(`../api/accounts_dashboard.php?entity=${encodeURIComponent(company)}`);
       if(request!==dashboardLoad||company!==entity())return;

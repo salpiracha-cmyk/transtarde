@@ -37,6 +37,7 @@ jobs:
           python3 tests/accounts-v1/party_ledger_http_test.py
           python3 tests/accounts-v1/bank_entries_http_test.py
           python3 tests/accounts-v1/bank_reconciliation_http_test.py
+          php tests/accounts-v1/bank_reconciliation_projection_test.php
           python3 tests/accounts-v1/company_investments_test.py
           python3 tests/accounts-v1/recurring_bills_profit_test.py
           python3 tests/accounts-v1/payment_plans_test.py
@@ -193,6 +194,7 @@ jobs:
           node tests/accounts-v1/trial_balance_ui_test.js
           node tests/accounts-v1/post_confirmation_ownership_test.js
           node tests/accounts-v1/workspace_response_ownership_test.js
+          node tests/accounts-v1/bag_review_lifecycle_test.js
           node tests/accounts-v1/accounts_master_controls_test.js
           node tests/accounts-v1/accounts_master_popup_browser_test.js
           node tests/accounts-v1/expense_review_batch_browser_test.js
