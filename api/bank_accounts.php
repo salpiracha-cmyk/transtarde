@@ -160,7 +160,7 @@ try{
     if(!tt_user_can_open_module($user,'Accounts'))ba_respond(['ok'=>false,'error'=>'Accounts permission required.'],403);
     if($_SERVER['REQUEST_METHOD']==='GET'){
         $entity=ba_entity((string)($_GET['entity']??'TTI'));tt_release_read_session();$store=ba_read();
-        ba_respond(['ok'=>true,'entity'=>$entity]+ba_payload($store,$entity)+['serverNow'=>gmdate('c')]);
+        ba_respond(['ok'=>true,'entity'=>$entity]+ba_payload($store,$entity)+['revision'=>(int)($store['revision']??0),'serverNow'=>gmdate('c')]);
     }
     if($_SERVER['REQUEST_METHOD']!=='POST')ba_respond(['ok'=>false,'error'=>'Method not allowed.'],405);
     if(!ba_can_write($user))ba_respond(['ok'=>false,'error'=>'Accounts Create / Edit / Approve permission required.'],403);
