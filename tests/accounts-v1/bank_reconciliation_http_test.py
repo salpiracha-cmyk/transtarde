@@ -104,4 +104,7 @@ require $argv[1];
     assert posted['saved']['bankPaymentDetails']['paymentNarration']=='OCTOBER PURCHASE'
     before=books.read_bytes();status,out=request('other_purchases',body={**purchase,'invoiceNo':'OP-INVALID','chequeDate':'2026-02-31'})
     assert status==422 and books.read_bytes()==before,(status,out)
+    for field in ['date','invoiceDate']:
+        status,out=request('other_purchases',body={**purchase,'invoiceNo':'OP-INVALID-'+field,field:'2026-02-31'})
+        assert status==422 and books.read_bytes()==before,(field,status,out)
     print('Bank reconciliation: outstanding items, dated history, native currencies, signed balances, retries, permissions and storage protection passed.')
