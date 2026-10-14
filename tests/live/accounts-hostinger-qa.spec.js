@@ -330,7 +330,8 @@ test('authenticated Accounts live smoke: professional desk and popup workflows',
   await expect(page.locator('#ttExpenseDesk #evUtilityFor')).toHaveValue('SHARED');
   await expect(page.locator('#ttExpenseDesk #evUtilityForWrap')).toBeHidden();
   await activate(page.locator('#ttExpenseDesk [data-expense-mode=card]'));
-  await expect(page.locator('#ttExpenseDesk #evAddStatement')).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('#ttExpenseDesk #evStatementForm')).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('#ttExpenseDesk #evAddStatement')).toBeHidden();
   await expect(page.locator('#ttExpenseDesk [data-expense-mode=card]')).toHaveAttribute('type','radio');
   await expect(page.locator('#ttExpenseDesk [data-expense-mode=card]')).not.toHaveAttribute('role','combobox');
   await expect(page.locator('#ttExpenseDesk #evManageCard')).toHaveAttribute('type','checkbox');
@@ -376,9 +377,9 @@ test('TG customer receipt reads the live Exports and bank links without posting'
   expect(options.some(label => /advance|invoice/i.test(label) && /\b(?:USD|AED|EUR|GBP)\b/.test(label)), 'Confirmed advances and invoices must display their currency').toBe(hasOpenTarget);
   if (amtContract.paymentCode === 'CUSTOM' && amtContract.expectedAdvance === 0) expect(options.some(label => label.includes('amount not specified in sales contract'))).toBe(true);
   if (amtContract.paymentCode === 'CUSTOM') expect(amtContract.expectedAdvance, 'Custom wording must not reuse an old advance percentage').toBe(0);
-  await expect(page.locator('#tgRcGross')).toHaveAttribute('readonly', '');
+  expect(await page.locator('#tgRcGross').evaluate(node=>node.tagName)).toBe('OUTPUT');
   await expect(page.locator('#tgRcChargeBank')).toHaveCount(0);
-  await expect(page.locator('#tgRcRef')).toBeVisible();
+  await expect(page.locator('#tgRcRef')).toBeHidden();
   await expect(page.locator('#tgRcRef').locator('xpath=..')).toContainText('optional');
   await expect(page.locator('#tgRcCharge').locator('xpath=ancestor::label[1]')).toContainText('selected bank currency');
   if (amtContract.outstandingAdvance > 0) {
@@ -389,6 +390,7 @@ test('TG customer receipt reads the live Exports and bank links without posting'
   }
   const target = await page.locator('#tgRcTarget option').evaluateAll(rows => rows.find(row => row.value)?.value || '');
   await page.locator('#tgRcTarget').evaluate((select, value) => { select.value = value; select.dispatchEvent(new Event('change', { bubbles: true })); }, target);
+  if(target) await expect(page.locator('#tgRcRef')).toBeVisible();
   const selected = contracts.find(row => target.endsWith(row.ref));
   if (selected && (source.body.banks || []).some(bank => bank.currency === selected.currency)) {
     expect(await page.locator('#tgRcBank option').count(), 'Matching TG bank must be selectable').toBeGreaterThan(1);
@@ -662,7 +664,8 @@ test('party payment roles and company-wide ledger matching review are read-only'
     console.log('LIVE_TRANSPORT_OPENING_ONLY_SELECTION_OK');
   }else{
     await expect(openingTick).toBeDisabled();await expect(openingTick).not.toBeChecked();
-    await expect(page.locator('#ttSimpleBills')).toContainText('No unpaid Balance B/F is linked to this selected party.');
+    await expect(openingTick).toBeHidden();
+    await expect(page.locator('#ttSimpleBills [data-review-opening]')).toBeVisible();
     console.log('LIVE_TRANSPORT_NO_UNPAID_OPENING_GUARD_OK');
   }
   expect(await page.locator('#ttSimpleBills [data-discount],#ttSimpleBills [data-discount-reason]').count()).toBe(0);
