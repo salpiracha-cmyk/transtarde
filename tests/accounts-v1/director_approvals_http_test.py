@@ -7,7 +7,7 @@ with tempfile.TemporaryDirectory(prefix='director-approvals-') as temp:
     (root / 'api').mkdir()
     (root / 'data').mkdir()
     (root / 'accounts').mkdir()
-    for name in ['director_approvals.php', 'director_approvals_core.php', 'opening_balance_core.php','historical_bag_core.php','supplier_opening_core.php','bag_purchases.php', 'nonwoven_bag_bills.php']:
+    for name in ['director_approvals.php', 'director_approvals_core.php', 'opening_balance_core.php','historical_bag_core.php','supplier_opening_core.php','bag_purchases.php', 'nonwoven_bag_bills.php', 'accounts_posting_preview.php']:
         shutil.copy(ROOT / 'api' / name, root / 'api' / name)
     shutil.copy(ROOT / 'accounts/accounting_master_v1.json', root / 'accounts/accounting_master_v1.json')
     (root / 'auth_store.php').write_text('''<?php
@@ -61,6 +61,10 @@ function tt_next_post_id(array $existing, string $module='Accounts', string $are
         assert len(after['journals'])==2
         assert after['bagSupplierBills']['B1']['rateExceptionApprovedBy']=='Fixture Approver'
         assert after['nonWovenBagSupplierBills']['N1']['rateExceptionApprovedBy']=='Fixture Approver'
+        after['jvDrafts']={'JVD-1':{'id':'JVD-1','entity':'TTI','status':'Pending Approval','date':'2026-10-06','createdBy':'Tayyab','reference':'JV-TAYYAB','lines':[{'account':'1120','debit':25},{'account':'1110','credit':25}],'totalDebit':25,'totalCredit':25},'JVD-2':{'id':'JVD-2','entity':'TTI','status':'Posted'}}
+        data_file.write_text(json.dumps(after));before=data_file.read_bytes();queue=request()[1]['approvals']
+        assert len(queue)==1 and queue[0]['kind']=='jv' and queue[0]['id']=='JVD-1' and len(queue[0]['lines'])==2,queue
+        assert data_file.read_bytes()==before,'Loading pending JVs must not post or alter them'
         data_file.write_text('{broken')
         assert request()[0]==500, 'Corrupt storage must report failure, not an empty queue'
         print('Director approvals HTTP: owner-only feed, CSRF, staff denial, shared owner/Director actions, audit actor and failures passed')

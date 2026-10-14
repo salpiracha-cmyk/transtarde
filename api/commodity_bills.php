@@ -1,5 +1,7 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__.'/accounts_posting_preview.php';
+header('X-TT-Posting-Preview: available');
 
 require dirname(__DIR__) . '/auth_store.php';
 require_once __DIR__ . '/commodity_bill_calculation.php';
@@ -185,7 +187,7 @@ try{
     try{
         rewind($h);$raw=stream_get_contents($h);$store=$raw?json_decode($raw,true):null;
         if(!is_array($store))$store=cb_default_store();
-        $store=array_replace_recursive(cb_default_store(),$store);
+        $store=array_replace_recursive(cb_default_store(),$store);$previewBefore=array_map('strval',array_keys((array)($store['journals']??[])));
 
         $events=[];$receiptRows=[];$provisional=0.0;$brokeryWeightKg=0.0;$brokeryBags=0.0;$sodas=[];$brokers=[];$commodities=[];
         foreach($sourceKeys as $key){
@@ -288,11 +290,11 @@ try{
         $delta=round($finalValue-$provisional,2);
         $lines=[cb_line('2210',$provisional,0,$names)];
         if($delta>0)$lines[]=cb_line('1310',$delta,0,$names);elseif($delta<0)$lines[]=cb_line('1310',0,abs($delta),$names);
-        $lines[]=cb_line('2110',0,$finalValue,$names);
+        $lines[]=array_merge(cb_line('2110',0,$finalValue,$names),['counterparty'=>$commodityPayee,'subledger'=>$commodityPayee]);
         $netBrokerage=round($brokerageGross-$brokerageWithholding,2);
         if($brokerageGross>0){
             $lines[]=cb_line('1310',$brokerageGross,0,$names);
-            if($netBrokerage>0)$lines[]=cb_line('2120',0,$netBrokerage,$names);
+            if($netBrokerage>0)$lines[]=array_merge(cb_line('2120',0,$netBrokerage,$names),['counterparty'=>$sodaBroker,'subledger'=>$sodaBroker]);
             if($brokerageWithholding>0)$lines[]=cb_line('2300',0,$brokerageWithholding,$names);
         }
         $dr=round(array_sum(array_column($lines,'debit')),2);$cr=round(array_sum(array_column($lines,'credit')),2);
@@ -342,7 +344,7 @@ try{
             $store['events'][$eventId]['dueDate']=$a['dueDate'];
             $store['events'][$eventId]['supplierPayableShare']=$a['supplierPayableShare'];
         }
-        $store['revision']=(int)($store['revision']??0)+1;
+        tt_posting_preview_exit($body,$store,$previewBefore);$store['revision']=(int)($store['revision']??0)+1;
         rewind($h);if(!ftruncate($h,0))throw new RuntimeException('Accounts storage could not be updated.');
         $enc=json_encode($store,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);
         if(fwrite($h,$enc)===false)throw new RuntimeException('Accounts storage could not be written.');

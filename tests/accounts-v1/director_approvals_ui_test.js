@@ -29,3 +29,5 @@ vm.createContext(context);vm.runInContext(code,context);
   assert.equal(nodes.refreshApprovals.disabled,false);
   console.log('Director approvals UI: shared count, escaped content, rate reasons, bank replacement and visible failures passed');
 })().catch(error=>{console.error(error);process.exitCode=1;});
+
+context.pendingDirectorApprovals=[{kind:'jv',id:'JVD1',entity:'TTI',title:'Tayyab JV',detail:'TTI',lines:[{account:'1120',debit:10},{account:'1110',credit:10}]}];context.approvalsLoaded=true;context.renderApprovals();assert(list.innerHTML.includes('data-review-jv="JVD1"'));assert(list.innerHTML.includes('data-jv-entity="TTI"'));assert(list.innerHTML.includes('data-jv-approval-reason'));assert(!list.innerHTML.includes('data-review-master-deletion="JVD1"'));

@@ -1,5 +1,7 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__.'/accounts_posting_preview.php';
+header('X-TT-Posting-Preview: available');
 require dirname(__DIR__).'/auth_store.php';
 header('Content-Type: application/json; charset=UTF-8');
 header('Cache-Control: no-store, no-cache, must-revalidate');
@@ -39,7 +41,7 @@ $assetName=trim((string)($b['assetName']??''));$assetTag=strtoupper(trim((string
 if($type==='FIXED_ASSET'){if($assetName===''||$assetTag===''||$inServiceDate==='')op_out(['ok'=>false,'error'=>'Asset name, unique asset tag and in-service date are required.'],422);op_date($inServiceDate,'in-service date');$usefulLife=op_years($b['usefulLifeYears']??0);}
 tt_ensure_data_dir();$h=fopen(TT_OP_FILE,'c+');if($h===false||!flock($h,LOCK_EX))throw new RuntimeException('Accounts storage unavailable.');
 try{
-rewind($h);$raw=stream_get_contents($h);$s=$raw?json_decode($raw,true):null;if(!is_array($s))$s=op_def();$s=array_replace_recursive(op_def(),$s);
+rewind($h);$raw=stream_get_contents($h);$s=$raw?json_decode($raw,true):null;if(!is_array($s))$s=op_def();$s=array_replace_recursive(op_def(),$s);$previewBefore=array_map('strval',array_keys((array)($s['journals']??[])));
 if($inv!=='')foreach((array)$s['otherPurchases']as$old)if(is_array($old)&&($old['entity']??'')===$e&&strcasecmp((string)($old['supplier']??''),$supplier)===0&&strcasecmp((string)($old['invoiceNo']??''),$inv)===0)op_out(['ok'=>false,'error'=>'This supplier invoice is already recorded in these company books.'],409);
 if($type==='FIXED_ASSET')foreach((array)$s['fixedAssets']as$old)if(is_array($old)&&($old['entity']??'')===$e&&strcasecmp((string)($old['assetTag']??''),$assetTag)===0)op_out(['ok'=>false,'error'=>'This asset tag already exists in these company books.'],409);
 $names=op_names();$debit=op_account($type,$sub);$purchaseId=op_next((array)$s['otherPurchases'],'OP');$meta=['otherPurchaseId'=>$purchaseId,'purchaseType'=>$type,'purchaseSubtype'=>$sub,'supplier'=>$supplier,'invoiceNo'=>$inv,'description'=>$desc,'location'=>$location];
@@ -51,7 +53,7 @@ $s['journals'][$jid]=['id'=>$jid,'entity'=>$e,'date'=>$date,'sourceType'=>$sourc
 $s['otherPurchases'][$purchaseId]=['id'=>$purchaseId,'entity'=>$e,'date'=>$date,'type'=>$type,'subtype'=>$sub,'supplier'=>$supplier,'description'=>$desc,'invoiceNo'=>$inv,'invoiceDate'=>$invDate,'amount'=>$amount,'location'=>$location,'settlement'=>$settlement,'paymentAccountId'=>$bankId,'status'=>$status,'journalId'=>$jid,'createdAt'=>gmdate('c'),'createdBy'=>(string)($u['full_name']??$u['username']??'Accounts')];
 $assetId='';
 if($type==='FIXED_ASSET'){$assetId=op_next((array)$s['fixedAssets'],'FA');$s['fixedAssets'][$assetId]=['id'=>$assetId,'entity'=>$e,'assetTag'=>$assetTag,'assetName'=>$assetName,'category'=>$sub,'assetAccount'=>$debit,'assetAccountName'=>$names[$debit],'acquisitionDate'=>$date,'inServiceDate'=>$inServiceDate,'cost'=>$amount,'location'=>$location,'custodian'=>$custodian,'usefulLifeYears'=>$usefulLife,'depreciationMethod'=>'STRAIGHT_LINE','residualValue'=>0,'accumulatedDepreciation'=>0,'netBookValue'=>$amount,'status'=>'Active','purchaseId'=>$purchaseId,'journalId'=>$jid,'createdAt'=>gmdate('c'),'createdBy'=>(string)($u['full_name']??$u['username']??'Accounts')];$s['otherPurchases'][$purchaseId]['assetId']=$assetId;}
-$s['revision']=(int)($s['revision']??0)+1;rewind($h);ftruncate($h,0);fwrite($h,json_encode($s,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR));fflush($h);
+tt_posting_preview_exit($b,$s,$previewBefore);$s['revision']=(int)($s['revision']??0)+1;rewind($h);ftruncate($h,0);fwrite($h,json_encode($s,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR));fflush($h);
 }finally{flock($h,LOCK_UN);fclose($h);}
 op_out(op_payload($s,$e)+['saved'=>$s['otherPurchases'][$purchaseId],'assetId'=>$assetId,'revision'=>$s['revision']]);
 }catch(Throwable $x){op_out(['ok'=>false,'error'=>'Other purchase could not be posted.'],500);}

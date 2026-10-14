@@ -12,7 +12,7 @@ with tempfile.TemporaryDirectory(prefix='tti-authorization-') as directory:
     private.mkdir()
     for name in ['auth_store.php', 'master_store.php', 'product_stage.php', 'offline_idempotency.php','session_store.php']:
         shutil.copy(ROOT / name, app / name)
-    for name in ['supplier_opening_core.php','accounts_subaccounts.php','accounts_subaccounts_core.php','accounts_ledger_visibility.php','assets_registry_core.php','expenses_v1.php','direct_expense_core.php','accounts_bank_payment.php','expense_locations.php','expense_reminders.php','expense_reversals.php','donations.php','rent_salary_v2.php','salary_month_workflow.php','salary_master_store.php','accounts_reports.php','service_ledger_groups.php','accounts_ledger_browser.php','customer_receivables_core.php','accounts_post_delete_core.php','accounts_post_amend.php','accounts_post_amend_core.php','opening_balance_core.php','accounts_reference.php','tg_remittance_core.php','fi_credit_advice_link.php','receipt_invoice_links.php']:
+    for name in ['supplier_opening_core.php','accounts_subaccounts.php','accounts_subaccounts_core.php','accounts_ledger_visibility.php','assets_registry_core.php','expenses_v1.php','direct_expense_core.php','accounts_bank_payment.php','expense_locations.php','expense_reminders.php','expense_reversals.php','donations.php','rent_salary_v2.php','salary_month_workflow.php','salary_master_store.php','accounts_reports.php','service_ledger_groups.php','accounts_ledger_browser.php','customer_receivables_core.php','accounts_post_delete_core.php','accounts_post_amend.php','accounts_post_amend_core.php','opening_balance_core.php','accounts_reference.php','tg_remittance_core.php','fi_credit_advice_link.php','receipt_invoice_links.php', 'accounts_posting_preview.php']:
         shutil.copy(ROOT / 'api' / name, app / 'api' / name)
     shutil.copy(ROOT / 'accounts/accounting_master_v1.json', app / 'accounts/accounting_master_v1.json')
     harness = root / 'request.php'
@@ -89,6 +89,7 @@ require $argv[1];
     status,report=request('donations','?entity=TTI');assert status==200 and report['totals']['SADQA']==75
     bank={**body,'requestKey':'direct-cheque-0001','reference':'BANK-1','paymentAccountId':'BANK-1','bankPaymentMethod':'CHEQUE','chequeNo':'CH-123','chequeDate':body['paymentDate']}
     status,result=request('expenses_v1','?entity=TTI',bank);assert status==200,(status,result)
+    before=books.read_bytes();status,ack=request('expenses_v1','?entity=TTI',{**bank,'preview':True});assert status==200 and ack['result']['generalExpenseId']==result['result']['generalExpenseId'] and books.read_bytes()==before
     bank_id=result['result']['generalExpenseId'];assert next(x for x in result['generalExpenses'] if x['id']==bank_id)['chequeNo']=='CH-123';before=books.read_bytes()
     assert request('expenses_v1','?entity=TTI',{**bank,'requestKey':'direct-cheque-0002','reference':'BANK-2'})[0]==422
     assert books.read_bytes()==before,'a duplicate cheque must not post'
@@ -97,6 +98,10 @@ require $argv[1];
     # One recipient, three purposes, one bank/cash credit, and vehicle dimensions.
     store=json.loads(books.read_text());store['managedAssets']={'CAR-TTI':{'id':'CAR-TTI','entity':'TTI','name':'Corolla','type':'VEHICLE','registrationNo':'ABC-123'},'CAR-BRM':{'id':'CAR-BRM','entity':'BRM','name':'Other car','type':'VEHICLE','registrationNo':'XYZ-987'}};books.write_text(json.dumps(store))
     mixed={**body,'requestKey':'purpose-mixed-0001','reference':'MIX-1','payee':'Talha','payeeId':'EXP|talha','amount':90,'expenseLines':[{'category':'DONATION','donationType':'ZAKAT','purpose':'Zakat distribution','amount':20},{'category':'CAR_REPAIRS','assetId':'CAR-TTI','purpose':'Brake pads','amount':30},{'category':'FUEL','assetId':'CAR-TTI','purpose':'Petrol','amount':40}]}
+    before=books.read_bytes()
+    status,preview=request('expenses_v1','?entity=TTI',{**mixed,'preview':True,'requestKey':'purpose-mixed-preview'})
+    assert status==200 and [l['account'] for l in preview['previews'][0]['lines']]==['7210','6410','6610','1120'],(status,preview)
+    assert books.read_bytes()==before,'Expense accounting preview must leave all stored data untouched'
     status,result=request('expenses_v1','?entity=TTI',mixed);assert status==200,(status,result)
     journal=json.loads(books.read_text())['journals'][result['result']['journalId']]
     assert [l['account'] for l in journal['lines']]==['7210','6410','6610','1120']

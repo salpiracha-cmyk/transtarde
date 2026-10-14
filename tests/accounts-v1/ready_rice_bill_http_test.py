@@ -1,4 +1,9 @@
 """Real bill endpoints and optional browser flow, always in disposable private storage."""
+
+def confirm_accounting_review(page, heading):
+    page.wait_for_function("(label)=>document.querySelector('[data-review-post]') || [...document.querySelectorAll('h1,h2,h3,h4')].some(el=>el.textContent.trim()===label)", arg=heading)
+    if page.locator('[data-review-post]').count():
+        page.locator('[data-review-post]').click()
 import http.cookiejar, json, os, re, shutil, socket, subprocess, tempfile, time, urllib.request, urllib.parse
 from pathlib import Path
 SOURCE=Path(__file__).resolve().parents[2]
@@ -308,12 +313,12 @@ def run():
     page.locator('#ttTransportQuery').fill('FIXTURE-SHIP-2');page.locator('#ttTransportFind').click();page.locator('#ttTransportHits [data-pick]').click()
     second=page.locator('.tt-transport-shipment').nth(1);assert second.locator('[data-remove-shipment]').evaluate("el=>getComputedStyle(el).backgroundColor")=='rgb(180, 35, 24)';second.locator('[name=containers]').fill('1');second.locator('[name=rate]').fill('38000');assert page.locator('#ttShipmentBillTotal').inner_text()=='153,200.00'
     page.locator('#ttShipmentBillVendor').fill('JJ');page.locator('#ttShipmentBillEntry [type=submit]').click();page.wait_for_function("document.querySelector('#ttShipmentBillError').textContent.includes('Bill not posted')");assert 'TRANSPORTER' in page.locator('#ttShipmentBillError').inner_text()
-    page.locator('#ttShipmentBillVendor').fill('Cedar Horizon Haulage');page.locator('#ttShipmentBillEntry [type=submit]').click();page.get_by_role('heading',name='BILL POSTED').wait_for()
+    page.locator('#ttShipmentBillVendor').fill('Cedar Horizon Haulage');page.locator('#ttShipmentBillEntry [type=submit]').click();confirm_accounting_review(page,'BILL POSTED');page.get_by_role('heading',name='BILL POSTED').wait_for()
     assert re.search(r'2026-\d+',page.locator('.tt-bill-confirmation').inner_text())
     page.screenshot(path=str(evidence/'transporter-bill-confirmation.png'))
     status,registered=request('/api/accounts_workflows_v1.php?entity=TTI&section=transport');assert status==200 and next(x for x in registered['bills'] if x['invoiceNo']=='BROWSER-TRANSPORT')['total']==153200 and len(next(x for x in registered['bills'] if x['invoiceNo']=='BROWSER-TRANSPORT')['lines'])==2
     assert (root/'transtrade_private/operations.json').read_bytes()==original,'Transport posting changed Mill records'
-    page.locator('#ttShipmentBillPay').click();assert page.locator('#ttSimpleBills [data-bank]').input_value()=='qa-bank-default';page.locator('#ttSimpleBills [data-bank-method]').select_option('CHEQUE');assert page.locator('#ttSimpleBills [data-reference]').locator('..').inner_text()=='CHEQUE NUMBER';assert page.locator('#ttSimpleBills [data-cheque-date]').count()==1;page.locator('#ttSimpleBills [data-bank-method]').select_option('ONLINE_BANKING');page.locator('#ttSimpleBills [data-narration]').fill('Fixture user narration');page.locator('#ttSimpleBills [data-amount]').fill('50000');page.locator('#ttSimpleBills [data-source]').select_option('CASH');page.locator('#ttSimpleBills [type=submit]').click();page.locator('#tt-post-confirmation').wait_for();assert page.locator('#ttSimpleBills').count()==0;assert page.locator('#tt-post-confirmation').count()==1
+    page.locator('#ttShipmentBillPay').click();assert page.locator('#ttSimpleBills [data-bank]').input_value()=='qa-bank-default';page.locator('#ttSimpleBills [data-bank-method]').select_option('CHEQUE');assert page.locator('#ttSimpleBills [data-reference]').locator('..').inner_text()=='CHEQUE NUMBER';assert page.locator('#ttSimpleBills [data-cheque-date]').count()==1;page.locator('#ttSimpleBills [data-bank-method]').select_option('ONLINE_BANKING');page.locator('#ttSimpleBills [data-narration]').fill('Fixture user narration');page.locator('#ttSimpleBills [data-amount]').fill('50000');page.locator('#ttSimpleBills [data-source]').select_option('CASH');page.locator('#ttSimpleBills [type=submit]').click();page.locator('[data-review-post]').click();page.locator('#tt-post-confirmation').wait_for();assert page.locator('#ttSimpleBills').count()==0;assert page.locator('#tt-post-confirmation').count()==1
     assert re.search(r'2026-\d+',page.locator('#tt-post-confirmation').inner_text())
     page.locator('#tt-post-confirmation [data-close]').click()
     page.evaluate("TT_ALL_LEDGERS.open('2130','supplier')");page.locator('#tal-party').fill('Cedar Horizon Haulage');page.locator('#tal-go').click();page.wait_for_function("document.querySelector('.tal-total')?.textContent.includes('103,200.00')")
@@ -346,14 +351,14 @@ def run():
     for row in charges.all():
      bottoms=row.evaluate("row=>['[data-description]','[data-amount]','[data-basis]','[data-pkr]'].map(selector=>{const el=row.querySelector(selector),visible=el.classList.contains('tt-number-source')?el.parentElement.querySelector('.tt-number-display'):el.classList.contains('tt-native-select')?el.parentElement.querySelector('input'):el,r=visible.getBoundingClientRect();return r.bottom})");assert max(bottoms)-min(bottoms)<2,bottoms
     page.screenshot(path=str(evidence/'freight-usd-charge-bases.png'))
-    page.locator('#ttShipmentBillEntry [type=submit]').click();page.get_by_role('heading',name='BILL POSTED',exact=True).wait_for()
+    page.locator('#ttShipmentBillEntry [type=submit]').click();confirm_accounting_review(page,'BILL POSTED');page.get_by_role('heading',name='BILL POSTED',exact=True).wait_for()
     stored=json.loads((root/'transtrade_private/accounts.json').read_text());bill=next(x for x in stored['freightBillsV1'].values() if x['invoiceNo']=='BROWSER-FREIGHT-USD');assert bill['billedTotal']==876400 and stored['supplierBills'][bill['id']]['supplierPayableTotal']==876400
     assert page.locator('#ttServiceAddShipment').count()==0
     page.locator('#ttShipmentBillForm [data-another]').click();assert not page.locator('#ttShipmentBillForm').is_visible();page.locator('#ttBillShipmentQuery').wait_for(state='visible')
     page.locator('#ttBillShipmentQuery').fill('FIXTURE-SHIP');page.locator('#ttBillShipmentGo').click();page.wait_for_function("!document.querySelector('#ttBillShipmentHits').textContent.includes('Searching')");assert 'FIXTURE-SHIP-LOT' not in page.locator('#ttBillShipmentHits').inner_text()
     page.evaluate('id=>TT_ACCOUNTING_DESK.openSearch(id)',bill['id']);page.locator('[data-amend-record]').first.click();page.locator('#ttShipmentBillEntry [name=reason]').wait_for(state='visible')
     assert page.locator('[data-amount]').evaluate_all('els=>els.map(el=>el.value)')==['1000','50','25','10','5'];assert page.locator('[name=exchangeRate]').input_value()=='280'
-    page.locator('[data-amount]').first.fill('1010');page.locator('[name=reason]').fill('Fixture freight rate correction');page.locator('#ttShipmentBillEntry [type=submit]').click();page.get_by_role('heading',name='BILL AMENDED',exact=True).wait_for()
+    page.locator('[data-amount]').first.fill('1010');page.locator('[name=reason]').fill('Fixture freight rate correction');page.locator('#ttShipmentBillEntry [type=submit]').click();confirm_accounting_review(page,'BILL AMENDED');page.get_by_role('heading',name='BILL AMENDED',exact=True).wait_for()
     amended=json.loads((root/'transtrade_private/accounts.json').read_text());assert amended['freightBillsV1'][bill['id']]['billedTotal']==884800 and len(amended['freightBillsV1'])==len(stored['freightBillsV1'])
     assert amended['supplierBills'][bill['id']]['postingJournalIds'][:-1]==stored['supplierBills'][bill['id']]['postingJournalIds'] and amended['journals'][amended['supplierBills'][bill['id']]['postingJournalIds'][-1]]['totalDebit']==8400
 
@@ -380,7 +385,7 @@ def run():
     ends=[page.locator(sel).bounding_box()['x']+page.locator(sel).bounding_box()['width'] for sel in ['#ttsbBrokerage','#ttsbLoadingTotal','[data-line-amount]','#ttsbWithAmt']]
     assert max(ends)-min(ends)<2,ends
     page.locator('[data-line-remove]').click()
-    page.locator('#ttsbVerify').click();page.get_by_role('heading',name='Bill Posted',exact=True).wait_for();assert not page.locator('#ttSmartBillToast').is_visible()
+    page.locator('#ttsbVerify').click();confirm_accounting_review(page,'Bill Posted');page.get_by_role('heading',name='Bill Posted',exact=True).wait_for();assert not page.locator('#ttSmartBillToast').is_visible()
     browser.close()
   print('Ready rice bill HTTP, payee, WHT, due-date, master and duplicate-posting checks passed'+('; browser flow passed' if os.environ.get('TT_QA_BROWSER')=='1' else ''))
  finally:

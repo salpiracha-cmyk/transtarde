@@ -34,7 +34,7 @@ try {
             fclose($handle);
         }
     }
-    echo json_encode(['ok' => true, 'approvals' => tt_pending_director_rate_approvals($store)], JSON_THROW_ON_ERROR);
+    echo json_encode(['ok' => true, 'approvals' => array_merge(tt_pending_director_rate_approvals($store),tt_pending_jv_approvals($store))], JSON_THROW_ON_ERROR);
 } catch (Throwable $error) {
     http_response_code(500);
     echo json_encode(['ok' => false, 'error' => 'Director approvals could not be loaded. Refresh to try again.']);

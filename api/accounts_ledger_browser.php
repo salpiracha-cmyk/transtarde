@@ -109,6 +109,7 @@ if($requestedPost!==''){
     $posting=$store['journals'][$requestedPost]??null;$seen=[];while(is_array($posting)&&!empty($posting['amendedByPostId'])&&!isset($seen[$posting['id']])){$seen[$posting['id']]=true;$next=$store['journals'][$posting['amendedByPostId']]??null;if(!is_array($next))break;$posting=$next;}if(is_array($posting)){$posting['publicPostId']=tt_accounts_public_post($store,$posting);$posting['amendmentNote']=tt_accounts_amendment_note($posting,$store);}
     if(!is_array($posting)||($posting['status']??'')!=='Posted'||($entity!=='ALL'&&($posting['entity']??'')!==$entity)||!tt_user_can_access_entity($user,(string)($posting['entity']??''),'View'))$posting=null;
     if(!$posting)alb_fail('Post ID was not found in these company books.',404);
+    $posting['canEdit']=function_exists('tt_post_correction_allowed')&&tt_post_correction_allowed($user,$posting)&&tt_user_can_access_entity($user,(string)$posting['entity'],'Edit');
     $posting['fiTagText']=tt_fi_advice_label((array)($posting['fiTag']??[]));
     $receipt=(array)($store['exportReceipts'][(string)($posting['meta']['receiptId']??'')]??[]);
     if($receipt){$posting['receiptAmendment']=['status'=>$receipt['status']??'','entity'=>$receipt['entity']??'','replacementReceiptId'=>$receipt['replacementReceiptId']??'','amendmentOf'=>$receipt['amendmentOf']??'','reversalPostIds'=>$receipt['reversalPostIds']??[]];}
@@ -172,7 +173,14 @@ foreach($journals as $journal){
         $customerAccount=in_array($code,['1210','1220','2160','2510'],true);
         if($category==='party'){
             if(!isset($partyAccounts[$code]))continue;
-            $lineParty=alb_party_name($line)?:$lineParty;
+            $explicitParty=alb_party_name($line);
+            if($code==='2210'&&$explicitParty==='')continue;
+            $commodityBill=(array)($store['commodityBills'][(string)($meta['billId']??'')]??[]);
+            if($explicitParty===''&&in_array($journal['meta']['originalSourceType']??$journal['sourceType']??'',['COMMODITY_BILL_VERIFIED'],true)){
+                if($code==='2110')$lineParty=trim((string)($commodityBill['relationshipName']??$meta['relationshipName']??$lineParty));
+                if($code==='2120')$lineParty=trim((string)($commodityBill['broker']??$meta['broker']??$lineParty));
+            }
+            $lineParty=$explicitParty?:$lineParty;
             if($lineParty==='')$lineParty=alb_party_name($source??[]);
             if($lineParty==='')$lineParty=alb_party_name($bill??[]);
             if($lineParty==='')$lineParty=alb_party_name($meta);
@@ -196,12 +204,19 @@ foreach($journals as $journal){
         if($category==='customer'&&!$customerAccount)continue;
         if($category==='bank'&&!in_array($code,['1110','1120'],true))continue;
         if($lineParty!==''&&in_array($category,['supplier','customer'],true))$parties[$lineParty]=true;
-        if($party!==''&&$category!=='party'&&strcasecmp($lineParty,$party)!==0)continue;
+        if($category==='bank'){
+            $bankParties=[];
+            foreach((array)($journal['lines']??[]) as $otherLine){if(in_array((string)($otherLine['account']??''),['1110','1120','1310','2210','2300','7100'],true))continue;$name=alb_party_name((array)$otherLine);if($name!=='')$bankParties[$partyNames[$name]??$partyNames[alb_party_key($name)]??$name]=true;}
+            foreach(['payee','supplier','customer','broker','counterparty'] as $field){$name=trim((string)($meta[$field]??''));if($name!=='')$bankParties[$partyNames[$name]??$partyNames[alb_party_key($name)]??$name]=true;}
+            foreach(array_keys($bankParties) as $name)$parties[$name]=true;
+            $lineParty=implode(' · ',array_keys($bankParties));
+        }
+        if($party!==''&&!in_array($category,['party','bank'],true)&&strcasecmp($lineParty,$party)!==0)continue;
         $date=(string)$journal['date'];
         $usdView=$entity==='TG'&&$bankId===''&&$nativeCurrency==='USD';if($usdView&&$code==='7100')continue;if($usdView&&strtoupper((string)($line['currency']??$journal['meta']['currency']??$journal['meta']['transactionCurrency']??''))!=='USD')continue;
         $native=$bankId!==''&&($banks[$bankId]['currency']??'')!==($entity==='TG'?'AED':'PKR');
         $debit=round((float)($native?($line['bankDebit']??0):($line['debit']??0)),2);$credit=round((float)($native?($line['bankCredit']??0):($line['credit']??0)),2);
-        $nativeMissing=false;if($usdView){$nd=$line['nativeDebit']??null;$nc=$line['nativeCredit']??null;if($code==='1110'){$nd=$line['bankDebit']??null;$nc=$line['bankCredit']??null;}elseif($nd===null&&isset($line['chargeNative'])){$nd=(float)$line['chargeNative'];$nc=0;}elseif($nd===null&&isset($line['vatNative'])){$nd=(float)$line['vatNative'];$nc=0;}elseif($nd===null&&($journal['meta']['targetAccount']??'')===$code&&isset($journal['meta']['settlementAmountNative'])){$nd=(float)($line['debit']??0)>0?$journal['meta']['settlementAmountNative']:0;$nc=(float)($line['credit']??0)>0?$journal['meta']['settlementAmountNative']:0;}elseif($nd===null&&in_array($code,['1250','2500'],true)&&isset($journal['meta']['amountNative'])){$nd=(float)($line['debit']??0)>0?$journal['meta']['amountNative']:0;$nc=(float)($line['credit']??0)>0?$journal['meta']['amountNative']:0;}if($nd===null&&in_array($code,['1210','1250','2500','2510'],true)&&isset($journal['meta']['transactionAmount'])){$nd=(float)($line['debit']??0)>0?$journal['meta']['transactionAmount']:0;$nc=(float)($line['credit']??0)>0?$journal['meta']['transactionAmount']:0;}$nativeMissing=$nd===null||$nc===null;$debit=round((float)($nd??0),2);$credit=round((float)($nc??0),2);}
+        $nativeMissing=$native&&!isset($line['bankDebit'])&&!isset($line['bankCredit']);if($category==='bank'&&$nativeMissing)$balanceUnavailable=true;if($usdView){$nd=$line['nativeDebit']??null;$nc=$line['nativeCredit']??null;if($code==='1110'){$nd=$line['bankDebit']??null;$nc=$line['bankCredit']??null;}elseif($nd===null&&isset($line['chargeNative'])){$nd=(float)$line['chargeNative'];$nc=0;}elseif($nd===null&&isset($line['vatNative'])){$nd=(float)$line['vatNative'];$nc=0;}elseif($nd===null&&($journal['meta']['targetAccount']??'')===$code&&isset($journal['meta']['settlementAmountNative'])){$nd=(float)($line['debit']??0)>0?$journal['meta']['settlementAmountNative']:0;$nc=(float)($line['credit']??0)>0?$journal['meta']['settlementAmountNative']:0;}elseif($nd===null&&in_array($code,['1250','2500'],true)&&isset($journal['meta']['amountNative'])){$nd=(float)($line['debit']??0)>0?$journal['meta']['amountNative']:0;$nc=(float)($line['credit']??0)>0?$journal['meta']['amountNative']:0;}if($nd===null&&in_array($code,['1210','1250','2500','2510'],true)&&isset($journal['meta']['transactionAmount'])){$nd=(float)($line['debit']??0)>0?$journal['meta']['transactionAmount']:0;$nc=(float)($line['credit']??0)>0?$journal['meta']['transactionAmount']:0;}$nativeMissing=$nd===null||$nc===null;$debit=round((float)($nd??0),2);$credit=round((float)($nc??0),2);}
         if($category==='party'&&$nativeMissing)$balanceUnavailable=true;
         if($date<$from){if($account!==''||$party!=='')$opening+=$debit-$credit;continue;}
         $linkedNote=(string)($journal['meta']['notes']??'');$tracking=trim(implode(' · ',array_filter([(string)($journal['meta']['bankPaymentMethod']??''),!empty($journal['meta']['chequeNo'])?'Cheque '.$journal['meta']['chequeNo']:''])));
@@ -215,8 +230,9 @@ if($category==='party'&&$party!==''&&!array_filter(array_keys($parties),static f
 foreach($rows as &$trackingRow){$trackedJournal=$store['journals'][$trackingRow['voucher']]??[];$trackingRow['narration']=sac_journal_narration($store,array_replace($trackedJournal,['narration'=>$trackingRow['narration']]));$trackingRow['publicPostId']=tt_accounts_public_post($store,$trackedJournal);$trackingRow['amendmentNote']=tt_accounts_amendment_note($trackedJournal,$store);$fiTag=$store['journals'][$trackingRow['voucher']]['fiTag']??[];if($fiTag){$trackingRow['fiTag']=$fiTag;$trackingRow['narration'].=' · '.tt_fi_advice_label($fiTag);}$meta=(array)($store['journals'][$trackingRow['voucher']]['meta']??[]);$trackingRow['chequeNo']=(string)($meta['chequeNo']??'');$trackingRow['bankReference']=(string)($meta['bankReference']??'');}unset($trackingRow);
 $balance=round($opening,2);
 foreach($rows as &$row){if(($account!==''||$party!=='')&&!$postEntries){$balance=round($balance+$row['debit']-$row['credit'],2);$row['balance']=$balance;}}unset($row);
-$closing=$category==='party'&&$balanceUnavailable?null:$balance;
-if($category==='party'&&$balanceUnavailable){$opening=null;foreach($rows as &$row)$row['balance']=null;unset($row);}
+$closing=in_array($category,['party','bank'],true)&&$balanceUnavailable?null:$balance;
+if(in_array($category,['party','bank'],true)&&$balanceUnavailable){$opening=null;foreach($rows as &$row)$row['balance']=null;unset($row);}
+if($category==='bank'&&$party!=='')$rows=array_values(array_filter($rows,static function($row)use($party){foreach(explode(' · ',(string)$row['party']) as $name)if(alb_party_key($name)===alb_party_key($party))return true;return false;}));
 $expenseTotal=0.0;
 if($homeLedger||($category==='party'&&$party!==''))foreach($expenseActivity as $activity)if(($homeLedger&&($activity['homeLedgerId']??'')===$subaccountId)||(!$homeLedger&&(alb_party_key($activity['recipient'])===alb_party_key($party)||(($activity['expenseFor']??'SHARED')!=='SHARED'&&alb_party_key($activity['expenseForName'])===alb_party_key($party))))){
  $expenseTotal=round($expenseTotal+$activity['amount'],2);
@@ -242,6 +258,6 @@ if(($_GET['format']??'')==='csv'){
     fclose($out);exit;
 }
 header('Content-Type: application/json; charset=UTF-8');
-echo json_encode(['ok'=>true,'entity'=>$entity,'accounts'=>array_map(static fn($code,$name)=>['code'=>(string)$code,'name'=>$name],array_keys($catalog),array_values($catalog)),'from'=>$from,'to'=>$to,'account'=>$account,'currency'=>$bankId!==''?($banks[$bankId]['currency']??''):($entity==='TG'?$nativeCurrency:'PKR'),'pendingRemittances'=>$entity==='TG'&&$bankId!==''?tgr_reserved($store,$bankId):0,'availableBalance'=>$entity==='TG'&&$bankId!==''?tgr_bank_balance($store,$bankId,$banks[$bankId]['currency'])['available']:null,'opening'=>$opening===null?null:round($opening,2),'closing'=>($account!==''||$party!=='')&&!$postEntries?$closing:null,'partyAliases'=>$partyAliases,'parties'=>array_keys($parties),'category'=>$category,'party'=>$party,'homeLedger'=>$homeLedger,'expenseTotal'=>$expenseTotal,'expenseCurrency'=>$entity==='TG'?'AED':'PKR','missingPartyLines'=>$category==='party'?$missingPartyLines:0,'unmatchedPartyRows'=>$category==='party'?$unmatchedPartyRows:[],'balanceUnavailable'=>$category==='party'&&$balanceUnavailable,'invoiceRows'=>$partyInvoices,'invoiceTotals'=>$invoiceTotals,'serviceGroup'=>$serviceGroup,'serviceGroups'=>slg_groups(),'serviceClassificationReviews'=>slg_reviews($store,$entity,$partyMasters),'rows'=>$rows],JSON_UNESCAPED_UNICODE);
+echo json_encode(['ok'=>true,'entity'=>$entity,'accounts'=>array_map(static fn($code,$name)=>['code'=>(string)$code,'name'=>$name],array_keys($catalog),array_values($catalog)),'from'=>$from,'to'=>$to,'account'=>$account,'currency'=>$bankId!==''?($banks[$bankId]['currency']??''):($entity==='TG'?$nativeCurrency:'PKR'),'pendingRemittances'=>$entity==='TG'&&$bankId!==''?tgr_reserved($store,$bankId):0,'availableBalance'=>$entity==='TG'&&$bankId!==''?tgr_bank_balance($store,$bankId,$banks[$bankId]['currency'])['available']:null,'opening'=>$opening===null?null:round($opening,2),'closing'=>($account!==''||$party!=='')&&!$postEntries?$closing:null,'partyAliases'=>$partyAliases,'parties'=>array_keys($parties),'category'=>$category,'party'=>$party,'homeLedger'=>$homeLedger,'expenseTotal'=>$expenseTotal,'expenseCurrency'=>$entity==='TG'?'AED':'PKR','missingPartyLines'=>$category==='party'?$missingPartyLines:0,'unmatchedPartyRows'=>$category==='party'?$unmatchedPartyRows:[],'balanceUnavailable'=>in_array($category,['party','bank'],true)&&$balanceUnavailable,'invoiceRows'=>$partyInvoices,'invoiceTotals'=>$invoiceTotals,'serviceGroup'=>$serviceGroup,'serviceGroups'=>slg_groups(),'serviceClassificationReviews'=>slg_reviews($store,$entity,$partyMasters),'rows'=>$rows],JSON_UNESCAPED_UNICODE);
 
 

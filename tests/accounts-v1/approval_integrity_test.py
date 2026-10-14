@@ -4,7 +4,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 with tempfile.TemporaryDirectory(prefix="approval-integrity-") as tmp:
     root = pathlib.Path(tmp)
     (root/"api").mkdir(); (root/"data").mkdir(); (root/"accounts").mkdir()
-    for name in ("opening_balance_core.php","historical_bag_core.php","supplier_opening_core.php","bag_purchases.php", "nonwoven_bag_bills.php"):
+    for name in ("accounts_posting_preview.php","opening_balance_core.php","historical_bag_core.php","supplier_opening_core.php","bag_purchases.php", "nonwoven_bag_bills.php"):
         shutil.copy(ROOT/"api"/name, root/"api"/name)
     shutil.copy(ROOT/"accounts/accounting_master_v1.json", root/"accounts/accounting_master_v1.json")
     (root/"auth_store.php").write_text("""<?php

@@ -1,5 +1,7 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__.'/accounts_posting_preview.php';
+header('X-TT-Posting-Preview: available');
 require_once __DIR__.'/accounts_bank_payment.php';
 require_once __DIR__.'/supplier_opening_core.php';
 
@@ -266,7 +268,7 @@ try{
     $action=(string)($body['action']??'');$entity=ss_entity((string)($body['entity']??''));if(!tt_user_can_access_entity($user,$entity,'Create'))ss_respond(['ok'=>false,'error'=>'You do not have permission for this legal entity.'],403);$date=ss_date((string)($body['date']??''));$catalog=ss_catalog();
     tt_ensure_data_dir();$h=fopen(TT_SETTLEMENT_FILE,'c+');if($h===false||!flock($h,LOCK_EX))throw new RuntimeException('Accounts storage unavailable.');
     try{
-        rewind($h);$raw=stream_get_contents($h);$store=$raw?json_decode($raw,true):null;if(!is_array($store))$store=ss_default_store();$store=array_replace_recursive(ss_default_store(),$store);
+        rewind($h);$raw=stream_get_contents($h);$store=$raw?json_decode($raw,true):null;if(!is_array($store))$store=ss_default_store();$store=array_replace_recursive(ss_default_store(),$store);$previewBefore=array_map('strval',array_keys((array)($store['journals']??[])));
         if($action==='post_bill_payment'){
             $requestKey=trim((string)($body['requestKey']??''));if(!preg_match('/^[a-zA-Z0-9-]{16,80}$/',$requestKey))ss_respond(['ok'=>false,'error'=>'Payment request ID is required. Reopen the payment screen.'],422);
             $fingerprint=hash('sha256',json_encode([$entity,$date,$body['supplier']??'',$body['category']??'',$body['selectedBills']??[],$body['amount']??0,$body['paymentMode']??'',$body['bankAccountId']??'',$body['payer']??'',$body['payerRelationship']??'',$body['reference']??'',$body['allowAdvance']??false,$body['narration']??'',$body['includeOpeningBalance']??false,$body['discountAmount']??0,$body['discountReason']??'']));
@@ -343,7 +345,7 @@ try{
             $store['supplierSettlements'][$id]=['id'=>$id,'entity'=>$entity,'date'=>$date,'type'=>'Supplier Advance Applied','broker'=>$prepared['broker'],'amount'=>$prepared['total'],'allocations'=>$prepared['rows'],'advanceId'=>$advanceId,'reference'=>$reference,'journalId'=>$journal['id'],'status'=>'Posted','createdAt'=>gmdate('c'),'createdBy'=>(string)($user['full_name']??$user['username']??'Accounts')];$store['supplierAdvances'][$advanceId]['allocatedAmount']=round((float)($store['supplierAdvances'][$advanceId]['allocatedAmount']??0)+$prepared['total'],2);$left=max(0,round((float)$store['supplierAdvances'][$advanceId]['amount']-(float)$store['supplierAdvances'][$advanceId]['allocatedAmount'],2));$store['supplierAdvances'][$advanceId]['availableAmount']=$left;$store['supplierAdvances'][$advanceId]['status']=$left>0.005?'Partly Applied':'Fully Applied';$result=$store['supplierSettlements'][$id];
         }
         else ss_respond(['ok'=>false,'error'=>'Unknown supplier settlement action.'],422);
-        $store['revision']=(int)($store['revision']??0)+1;rewind($h);ftruncate($h,0);fwrite($h,json_encode($store,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR));fflush($h);
+        tt_posting_preview_exit($body,$store,$previewBefore);$store['revision']=(int)($store['revision']??0)+1;rewind($h);ftruncate($h,0);fwrite($h,json_encode($store,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR));fflush($h);
     }finally{flock($h,LOCK_UN);fclose($h);}
     ss_respond(['ok'=>true,'result'=>$result,'revision'=>(int)$store['revision']]);
 }catch(Throwable $e){ss_respond(['ok'=>false,'error'=>'The supplier settlement could not be completed.'],500);}
