@@ -12,7 +12,7 @@ with tempfile.TemporaryDirectory(prefix='tti-authorization-') as directory:
     private.mkdir()
     for name in ['auth_store.php', 'master_store.php', 'product_stage.php', 'offline_idempotency.php','session_store.php']:
         shutil.copy(ROOT / name, app / name)
-    for name in ['supplier_opening_core.php','bank_reconciliation.php','bank_reconciliation_core.php','bank_entries.php','bank_entries_core.php','mill_cash_core.php','mill_cash_ledger.php','accounts_subaccounts.php','service_ledger_groups.php','accounts_ledger_browser.php','customer_receivables_core.php','accounts_post_delete_core.php','accounts_reports.php','accounts_reference.php','tg_remittance_core.php','fi_credit_advice_link.php','receipt_invoice_links.php','journal_vouchers.php','opening_balance_core.php','accounts_subaccounts_core.php','accounts_ledger_visibility.php','assets_registry_core.php','expenses_v1.php','direct_expense_core.php','accounts_bank_payment.php','expense_locations.php','expense_reminders.php','expense_reversals.php','donations.php','rent_salary_v2.php','salary_month_workflow.php','salary_master_store.php', 'accounts_posting_preview.php']:
+    for name in ['other_purchases.php','supplier_opening_core.php','bank_reconciliation.php','bank_reconciliation_core.php','bank_entries.php','bank_entries_core.php','mill_cash_core.php','mill_cash_ledger.php','accounts_subaccounts.php','service_ledger_groups.php','accounts_ledger_browser.php','customer_receivables_core.php','accounts_post_delete_core.php','accounts_reports.php','accounts_reference.php','tg_remittance_core.php','fi_credit_advice_link.php','receipt_invoice_links.php','journal_vouchers.php','opening_balance_core.php','accounts_subaccounts_core.php','accounts_ledger_visibility.php','assets_registry_core.php','expenses_v1.php','direct_expense_core.php','accounts_bank_payment.php','expense_locations.php','expense_reminders.php','expense_reversals.php','donations.php','rent_salary_v2.php','salary_month_workflow.php','salary_master_store.php', 'accounts_posting_preview.php']:
         shutil.copy(ROOT / 'api' / name, app / 'api' / name)
     shutil.copy(ROOT / 'accounts/accounting_master_v1.json', app / 'accounts/accounting_master_v1.json')
     harness = root / 'request.php'
@@ -95,4 +95,13 @@ require $argv[1];
     assert request('bank_reconciliation',query,{**base,'requestKey':'reconcile-entity-denied'})[0]==403
     permissions['entity-tti']=['View','Edit'];set_user()
     books.write_text('{broken JSON');before=books.read_bytes();assert request('bank_reconciliation',query)[0]==500 and books.read_bytes()==before
+    user['role']='Super Admin';set_user();books.write_text(json.dumps(seed))
+    purchase={'action':'post_purchase','csrf':'fixture','entity':'TTI','date':'2026-10-07','type':'OPERATING','subtype':'OFFICE','location':'OFFICE','supplier':'Fixture supplier','description':'Office supplies','invoiceNo':'OP-FIXTURE-1','invoiceDate':'2026-10-06','amount':25,'settlement':'BANK','bankId':'BANK-1','bankPaymentMethod':'CHEQUE','chequeNo':'CHQ-200','chequeDate':'2026-10-09','paymentNarration':'October purchase'}
+    status,posted=request('other_purchases',body=purchase);assert status==200,(status,posted)
+    record=json.loads(books.read_text());journal=record['journals'][posted['saved']['journalId']]
+    assert journal['meta']['chequeDate']=='2026-10-09' and journal['meta']['chequeNo']=='CHQ-200'
+    assert journal['lines'][1]['credit']==25 and journal['lines'][1]['bankAccountId']=='BANK-1'
+    assert posted['saved']['bankPaymentDetails']['paymentNarration']=='OCTOBER PURCHASE'
+    before=books.read_bytes();status,out=request('other_purchases',body={**purchase,'invoiceNo':'OP-INVALID','chequeDate':'2026-02-31'})
+    assert status==422 and books.read_bytes()==before,(status,out)
     print('Bank reconciliation: outstanding items, dated history, native currencies, signed balances, retries, permissions and storage protection passed.')

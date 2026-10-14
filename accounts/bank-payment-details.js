@@ -1,5 +1,6 @@
 (() => {
   'use strict';
+  window.TT_BANK_LABEL=account=>{const raw=String(account.accountNumber||account.number||account.iban||'').replace(/\s/g,'');return [account.bankName||account.bank||account.title||'Bank',account.currency,raw?'…'+raw.slice(-6):''].filter(Boolean).join(' · ');};
   const find=id=>document.getElementById(id);
   const accountFor=(source,accounts)=>accounts.find(account=>String(account.id)===String(source.value));
   const defaultMethod=(source,accounts)=>String(accountFor(source,accounts)?.entity||localStorage.getItem('tt_accounts_entity')||'').toUpperCase()==='TG'?'ONLINE_BANKING':'CHEQUE';
@@ -8,7 +9,7 @@
     const preferred=[...accounts].sort((a,b)=>Number(b.isDefault||0)-Number(a.isDefault||0)).find(a=>a.isDefault&&!String(a.id).startsWith('CASH|')&&[...source.options].some(o=>o.value===a.id));
     if(preferred&&[...source.options].some(o=>o.value===preferred.id))source.value=preferred.id;
     const box=document.createElement('div');box.id=id+'Details';box.style.cssText='grid-column:1/-1;display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin:8px 0';
-    box.innerHTML='<label>Bank payment method<select data-method><option value="CHEQUE">Cheque</option><option value="ONLINE_BANKING">Online Banking</option></select></label><label><span data-reference-label>Bank transaction reference</span><input data-reference maxlength="180"></label><label data-cheque-date-wrap><span data-payment-date-label>Cheque date</span><input data-cheque-date type="date"></label><label>Narration<input data-narration maxlength="300" placeholder="Your payment details"></label>';
+    box.innerHTML='<label>Bank payment method<select data-method><option value="CHEQUE">Cheque</option><option value="ONLINE_BANKING">Online Banking</option></select></label><label><span data-reference-label>Bank transaction reference</span><input data-reference maxlength="180"></label><label data-cheque-date-wrap><span data-payment-date-label>Cheque date</span><input data-cheque-date type="date"></label><details data-narration-override><summary>Separate payment narration (optional)</summary><label>Payment narration<input data-narration maxlength="300" placeholder="Only if different from the expense purpose"></label></details>';
     source.closest('label').after(box);
     const paymentDate=box.querySelector('[data-cheque-date]'),voucher=window.TT_CHEQUE_DATES?.voucherFor(paymentDate)||source.closest('form')?.querySelector('input[type=date]:not([data-cheque-date])');paymentDate.value=voucher?.value||'';
     box.querySelector('[data-method]').value=defaultMethod(source,accounts);
