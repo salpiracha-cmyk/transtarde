@@ -853,6 +853,6 @@
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, {once:true}); else init();
-  window.TT_ACCOUNTING_DESK = {installed:true, openSoda, openSearch, showArea, printVoucher, openSavedBill, refreshAttention:loadDashboardSummary};
+  window.TT_ACCOUNTING_DESK = {installed:true,openHistoricalBagBill:async id=>{await launch({title:'Historical Bag Bill',native:'purchases',then:'[data-purchase="bags"]',bagSync:true});await window.TT_BAG_PURCHASES_UI.mount();window.TT_BAG_PURCHASES_UI.editHistorical(id);}, openSoda, openSearch, showArea, printVoucher, openSavedBill, refreshAttention:loadDashboardSummary};
 })();
 

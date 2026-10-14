@@ -7,7 +7,7 @@ with tempfile.TemporaryDirectory(prefix='director-approvals-') as temp:
     (root / 'api').mkdir()
     (root / 'data').mkdir()
     (root / 'accounts').mkdir()
-    for name in ['director_approvals.php', 'director_approvals_core.php', 'bag_purchases.php', 'nonwoven_bag_bills.php']:
+    for name in ['director_approvals.php', 'director_approvals_core.php', 'opening_balance_core.php','historical_bag_core.php','supplier_opening_core.php','bag_purchases.php', 'nonwoven_bag_bills.php']:
         shutil.copy(ROOT / 'api' / name, root / 'api' / name)
     shutil.copy(ROOT / 'accounts/accounting_master_v1.json', root / 'accounts/accounting_master_v1.json')
     (root / 'auth_store.php').write_text('''<?php
@@ -28,7 +28,7 @@ function tt_next_post_id(array $existing, string $module='Accounts', string $are
             'status':'Hold - Rate Approval Required','bags':5,'supplier':'Fixture Supplier','sellerInvoice':'INV1',
             'sellerInvoiceDate':'2026-10-01','baseAmount':60,'totalAmount':60,'gstAmount':0,'gstRate':0,
             'packingSize':'50kg','bagType':'Non Woven','brand':'Fixture'}
-    initial = {'revision':0,'journals':{},'bagPurchaseOrders':{'PO1':{'entity':'TTI','lines':[{'lineKey':'L1','ratePerBag':10,'orderedQty':100,'receivedQty':100}]}},
+    initial = {'revision':0,'journals':{},'bagPurchaseOrders':{'PO1':{'shipmentRef':'FIXTURE-SHIPMENT','entity':'TTI','lines':[{'lineKey':'L1','ratePerBag':10,'orderedQty':100,'receivedQty':100}]}},
                'bagSupplierBills':{'B1':bill},'nonWovenBagSupplierBills':{'N1':{**bill,'id':'N1'}}}
     data_file = root / 'data/accounts.json'
     data_file.write_text(json.dumps(initial))

@@ -294,7 +294,7 @@
     },
     {
       "code": "2130",
-      "name": "Freight & Logistics Payables",
+      "name": "Transport, Freight & Clearing Payables",
       "class": "Liability",
       "level": "general",
       "normal": "Credit",

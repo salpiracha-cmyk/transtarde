@@ -3,7 +3,9 @@ import json,pathlib,shutil,socket,subprocess,tempfile,time,urllib.request,urllib
 ROOT=pathlib.Path(__file__).resolve().parents[2]
 with tempfile.TemporaryDirectory(prefix='general-bags-') as tmp:
  root=pathlib.Path(tmp);(root/'api').mkdir();(root/'accounts').mkdir();(root/'data').mkdir()
- shutil.copy(ROOT/'api/bag_purchases.php',root/'api/bag_purchases.php');shutil.copy(ROOT/'accounts/accounting_master_v1.json',root/'accounts/accounting_master_v1.json')
+
+ for name in ['bag_purchases.php','opening_balance_core.php','historical_bag_core.php','supplier_opening_core.php']:shutil.copy(ROOT/'api'/name,root/'api'/name)
+ shutil.copy(ROOT/'accounts/accounting_master_v1.json',root/'accounts/accounting_master_v1.json')
  (root/'auth_store.php').write_text('''<?php
  define('TT_DATA_DIR',__DIR__.'/data');function tt_ensure_data_dir(){}function tt_accounts_input(){return file_get_contents('php://input');}
  function tt_require_login(){return ['username'=>'FIXTURE','permissions'=>['Accounts'=>($_SERVER['HTTP_X_FIXTURE_ROLE']??'')==='readonly'?['View']:['View','Edit']]];}

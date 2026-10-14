@@ -8,6 +8,7 @@ require_once __DIR__.'/opening_balance_core.php';
 /** Journal-level correction shared by every Accounts posting source. Caller holds the accounts.json lock. */
 function apa_correct(array &$store, array $user, string $postId, array $input): array {
     $original=$store['journals'][$postId]??null;
+    if(!empty($original['meta']['historicalBagBillId']))throw new DomainException('Amend this invoice through Historical Export Bag Bill so its opening and payment links remain correct.');
     if(in_array($original['sourceType']??'',['FORWARD_BOOKING_SETTLEMENT','FORWARD_BOOKING_SETTLEMENT_REVERSAL'],true))throw new DomainException('Correct this settlement through Banks → Forward Booking so the contract balance stays linked.');
     if(($original['sourceType']??'')==='BANK_ENTRY'&&!empty($input['datesOnly'])){require_once __DIR__.'/accounts_bank_date_correction.php';return apa_bank_dates($store,$user,$postId,$input);}
     if (in_array($original['sourceType']??'', ['BANK_ENTRY','BANK_ENTRY_REVERSAL'], true)) throw new DomainException('Correct bank entries from Bank Entry so facility balances and subaccounts stay linked.');

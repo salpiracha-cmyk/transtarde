@@ -678,3 +678,16 @@ test('forward booking and register are Pakistan-only and remain read-only for QA
  await deskAction(page,'ledgers','Forward Booking Register');await expect(page.locator('#ttForwardBookings')).toContainText('Forward Booking Register');await expect(page.locator('#ttForwardBookings [data-new]')).toHaveCount(0);await activate(page.locator('#ttForwardBookings [data-close]'));
  const offshore=await page.request.get(BASE_URL+'/api/forward_bookings.php?entity=TG');expect(offshore.status()).toBe(422);expect(writes).toEqual([]);console.log('LIVE_FORWARD_BOOKING_REGISTER_READ_ONLY_OK');
 });
+
+
+test('historical bag entry and service ledger groups preserve live read-only books',async({page})=>{
+ test.setTimeout(120_000);await signIn(page);const writes=[];page.on('request',r=>{if(r.method()==='POST'&&/\/api\/(bag_purchases|supplier_settlements)\.php/.test(r.url()))writes.push(r.url());});
+ const response=await page.request.get(BASE_URL+'/api/bag_purchases.php?entity=TTI');expect(response.status()).toBe(200);const view=await response.json();expect(view.canCreateHistorical).toBe(false);expect(view.canEditHistorical).toBe(false);
+ await deskAction(page,'exports','Bags Bill');await activate(page.locator('#ttBillDesk [data-post]'));await expect(page.locator('#bgPurpose')).toBeVisible();await page.locator('#bgPurpose').selectOption('HISTORICAL');await expect(page.locator('#bgLine')).toHaveCount(0);await expect(page.locator('#bgSave')).toBeDisabled();await expect(page.locator('#purchaseEditor')).toContainText('Historical Export Bag Bill');
+ const period='&from=0001-01-01&to='+new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Karachi'}).format(new Date());
+ const all=await page.request.get(BASE_URL+'/api/accounts_ledger_browser.php?entity=TTI&account=2130'+period);expect(all.status()).toBe(200);const control=await all.json();let grouped=0;
+ for(const kind of ['CLEARING','TRANSPORT','FREIGHT','OTHER']){const r=await page.request.get(BASE_URL+'/api/accounts_ledger_browser.php?entity=TTI&account=SERVICE%7C'+kind+period);expect(r.status()).toBe(200);const group=await r.json();grouped+=Number(group.closing||0);expect(group.rows.every(row=>row.serviceGroup===kind)).toBe(true);}
+ expect(grouped).toBeCloseTo(Number(control.closing||0),2);expect(control.accounts.find(a=>a.code==='2130').name).toBe('Transport, Freight & Clearing Payables');
+ console.log('LIVE_SERVICE_CLASSIFICATION_REVIEW '+JSON.stringify((control.serviceClassificationReviews||[]).map(r=>({party:r.party,postedService:r.postedService,providerService:r.providerService}))));
+ await page.evaluate(()=>window.TT_ALL_LEDGERS.open('','party'));await expect(page.locator('#tal-service-group')).toBeVisible();await page.locator('#tal-service-group').selectOption('TRANSPORT');await expect(page.locator('#tal-result')).not.toContainText('Loading ledger');expect(writes).toEqual([]);console.log('LIVE_HISTORICAL_BAGS_AND_RECONCILED_SERVICE_GROUPS_OK');
+});

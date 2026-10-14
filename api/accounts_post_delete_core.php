@@ -7,6 +7,7 @@ function apd_record_index(array $s):array { $records=[];foreach(['utilityPayment
 function apd_supported(array $s,array $j,?array $recordIndex=null):bool {
     if(!empty($j['reversalOf'])||!empty($j['reversedByPostId'])||!empty($j['meta']['reversedByPostId'])||!empty($j['meta']['deletedFromBooks']))return false;
     $records=$recordIndex??apd_record_index($s);if(isset($records[$j['id']]))return true;
+    if(!empty($j['meta']['historicalBagBillId']))return true;
     return in_array($j['sourceType']??'',['JV','OPENING_BALANCE_BF','BANK_ENTRY','SALARY_ADVANCE'],true)||($j['sourceType']??'')==='FORWARD_BOOKING_SETTLEMENT'||!empty($j['meta']['investmentTransactionId'])||!empty($j['meta']['receiptId'])||!empty($j['meta']['tgRemittanceId'])||!empty($j['meta']['settlementId']);
 }
 function apd_delete_reason(array $s,array $j,array $u,?array $recordIndex=null):string {
@@ -27,6 +28,7 @@ function apd_delete(array &$s,array $u,string $id,array $b):array {
         if(!defined('TT_EXPENSES_FUNCTIONS_ONLY'))define('TT_EXPENSES_FUNCTIONS_ONLY',true);require_once __DIR__.'/expenses_v1.php';ev1_delete_expense($s,['collection'=>$collection,'id'=>$rid,'reason'=>$reason],$e,$u,ev1_names());$handled=true;break 2;
     }}
     if(!$handled&&!empty($j['meta']['investmentTransactionId'])){require_once __DIR__.'/company_investments_core.php';inv_reverse($s,$e,['transactionId'=>$j['meta']['investmentTransactionId'],'date'=>$date,'reason'=>$reason],$u);$handled=true;}
+    if(!$handled&&!empty($j['meta']['historicalBagBillId'])){require_once __DIR__.'/historical_bag_core.php';hbg_cancel($s,$e,(string)$j['meta']['historicalBagBillId'],$reason,$u);$handled=true;}
     if(!$handled&&($j['sourceType']??'')==='FORWARD_BOOKING_SETTLEMENT'){require_once __DIR__.'/forward_booking_core.php';fwb_reverse_settlement($s,$e,(string)$j['meta']['forwardBookingId'],$reason,$u);$handled=true;}
     if(!$handled&&($j['sourceType']??'')==='BANK_ENTRY'){require_once __DIR__.'/assets_registry_core.php';require_once __DIR__.'/bank_entries_core.php';ben_reverse($s,$e,['journalId'=>$id,'date'=>$date,'reason'=>$reason],$u);$handled=true;}
     if(!$handled&&!empty($j['meta']['tgRemittanceId'])){require_once __DIR__.'/tg_remittance_core.php';tgr_reopen($s,['remittanceId'=>$j['meta']['tgRemittanceId'],'date'=>$date,'reason'=>$reason],$u);$handled=true;}

@@ -4,7 +4,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 with tempfile.TemporaryDirectory(prefix="approval-integrity-") as tmp:
     root = pathlib.Path(tmp)
     (root/"api").mkdir(); (root/"data").mkdir(); (root/"accounts").mkdir()
-    for name in ("bag_purchases.php", "nonwoven_bag_bills.php"):
+    for name in ("opening_balance_core.php","historical_bag_core.php","supplier_opening_core.php","bag_purchases.php", "nonwoven_bag_bills.php"):
         shutil.copy(ROOT/"api"/name, root/"api"/name)
     shutil.copy(ROOT/"accounts/accounting_master_v1.json", root/"accounts/accounting_master_v1.json")
     (root/"auth_store.php").write_text("""<?php
@@ -41,7 +41,7 @@ require __DIR__.'/api/'.getenv('QA_ENDPOINT').'.php';
                 'totalAmount':60,'gstAmount':0,'gstRate':0,'packingSize':'50kg',
                 'bagType':'Non Woven','brand':'Fixture','rateExceptionApprovedAt':None}
     def initial():
-        return {'revision':0,'journals':{},'bagPurchaseOrders':{'PO1':{'entity':'TTI','supplier':'Fixture Supplier','lines':[
+        return {'revision':0,'journals':{},'bagPurchaseOrders':{'PO1':{'shipmentRef':'FIXTURE-SHIPMENT','entity':'TTI','supplier':'Fixture Supplier','lines':[
             {'lineKey':'L1','ratePerBag':10,'orderedQty':100,'receivedQty':100,'bagType':'Non Woven','packingSize':'50kg','brand':'Fixture'}]}},
             'bagSupplierBills':{'B1':bill('B1')},
             'nonWovenBagSupplierBills':{'N1':bill('N1'),'N2':bill('N2')}}

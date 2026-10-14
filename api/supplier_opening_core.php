@@ -12,6 +12,7 @@ function sop_party_name(array $line,array $meta=[]):string {
 function sop_openings(array $s,string $entity):array {
     $rows=[];
     foreach((array)($s['journals']??[]) as $id=>$j){
+        if(!empty($j['meta']['historicalBagBillId']))continue;
         $legacyOpening=($j['date']??'')==='2026-07-01'&&(bool)array_filter((array)($j['lines']??[]),static fn($l)=>is_array($l)&&($l['account']??'')==='3400');
         if(($j['entity']??'')!==$entity||($j['status']??'')!=='Posted'||!(($j['sourceType']??'')==='OPENING_BALANCE_BF'||($j['sourceType']??'')==='CARRY_FORWARD_OPENING'||!empty($j['meta']['openingBalance'])||!empty($j['openingBalance'])||$legacyOpening)||!empty($j['openingReversalId'])||!empty($j['amendedByPostId'])||!empty($j['reversalOf'])||!empty($j['reversedByPostId'])||!empty($j['meta']['deletedFromBooks']))continue;
         foreach((array)($j['lines']??[]) as $index=>$l){
