@@ -647,12 +647,19 @@ test('party payment roles and company-wide ledger matching review are read-only'
 
   if(providerBills.length){await page.locator('#ttSimpleBills [data-bill]').first().check();await page.locator('#ttSimpleBills [data-amount]').fill('1');await expect(page.locator('#ttSimpleBills [data-discount-choice]')).toContainText('as discount?');expect(await page.locator('#ttSimpleBills [data-discount-enabled]').isChecked()).toBe(false);}
   const openingTick=page.locator('#ttSimpleBills [data-include-opening]');
-  if(await openingTick.count()){
+  const providerOpenings=(unpaid.payables||[]).filter(r=>r.openingBalance&&identity(r.supplier)===identity(providerName));
+  await expect(openingTick).toHaveCount(1);
+  if(providerOpenings.length){
+    await expect(openingTick).toBeEnabled();
     await openingTick.check();
     for(const box of await page.locator('#ttSimpleBills [data-bill]:not([disabled])').all())if(await box.isChecked())await box.uncheck();
     const onlyOpening=await page.locator('#ttSimpleBills [data-allocation-preview]').textContent();expect(onlyOpening).toContain('Balance B/F');
     for(const row of await page.locator('#ttSimpleBills [data-allocation-preview] tr').all())await expect(row).toContainText('Balance B/F');
     console.log('LIVE_TRANSPORT_OPENING_ONLY_SELECTION_OK');
+  }else{
+    await expect(openingTick).toBeDisabled();await expect(openingTick).not.toBeChecked();
+    await expect(page.locator('#ttSimpleBills')).toContainText('No unpaid Balance B/F is linked to this selected party.');
+    console.log('LIVE_TRANSPORT_NO_UNPAID_OPENING_GUARD_OK');
   }
   expect(await page.locator('#ttSimpleBills [data-discount],#ttSimpleBills [data-discount-reason]').count()).toBe(0);
   await page.locator('#ttSimpleBills [data-close]').click();
