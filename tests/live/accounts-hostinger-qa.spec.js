@@ -695,3 +695,13 @@ test('historical bag entry and service ledger groups preserve live read-only boo
  console.log('LIVE_SERVICE_CLASSIFICATION_REVIEW '+JSON.stringify((control.serviceClassificationReviews||[]).map(r=>({party:r.party,postedService:r.postedService,providerService:r.providerService}))));
  await page.evaluate(()=>window.TT_ALL_LEDGERS.open('','party'));await expect(page.locator('#tal-service-group')).toBeVisible();await page.locator('#tal-service-group').selectOption('TRANSPORT');await expect(page.locator('#tal-result')).not.toContainText('Loading ledger');expect(writes).toEqual([]);console.log('LIVE_HISTORICAL_BAGS_AND_RECONCILED_SERVICE_GROUPS_OK');
 });
+
+
+test('Mill Petty Cash reads the same Accounts postings without writes',async({page})=>{
+ test.setTimeout(120_000);await signIn(page);const writes=[];page.on('request',request=>{if(request.method()==='POST'&&/\/api\/(bank_entries|mill_cash_ledger|operations)\.php/.test(request.url()))writes.push(request.url());});
+ const expenseResponse=await page.request.get(BASE_URL+'/api/expenses_v1.php?entity=TTI');expect(expenseResponse.status()).toBe(200);const expenseView=await expenseResponse.json();const mill=(expenseView.locations||[]).find(location=>location.location==='MILL');expect(mill,'TTI has an owned mill location').toBeTruthy();
+ const response=await page.request.get(BASE_URL+'/api/mill_cash_ledger.php?'+new URLSearchParams({entity:'TTI',locationId:mill.id}));expect(response.status()).toBe(200);const cash=await response.json();expect(cash.ok).toBe(true);expect(cash.location.id).toBe(mill.id);expect(Array.isArray(cash.rows)).toBe(true);expect(new Set(cash.rows.map(row=>row.id)).size).toBe(cash.rows.length);
+ for(const row of cash.rows){expect(row.source).toBe('Accounts');expect(Number.isFinite(row.debit)&&Number.isFinite(row.credit)).toBe(true);expect(row.debit>=0&&row.credit>=0).toBe(true);expect(row.postId).toBeTruthy();}
+ if(cash.rows.length){const row=cash.rows[0],posted=await page.request.get(BASE_URL+'/api/accounts_ledger_browser.php?'+new URLSearchParams({entity:'TTI',account:'POSTS',postId:row.postId}));expect(posted.status()).toBe(200);const view=await posted.json();expect(view.post.lines.some(line=>line.account==='1120'&&line.millLocationId===mill.id)).toBe(true);}
+ expect(writes).toEqual([]);
+});
