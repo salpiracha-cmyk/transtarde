@@ -12,6 +12,7 @@ with tempfile.TemporaryDirectory(prefix='director-approvals-') as temp:
     shutil.copy(ROOT / 'accounts/accounting_master_v1.json', root / 'accounts/accounting_master_v1.json')
     (root / 'auth_store.php').write_text('''<?php
 define('TT_DATA_DIR',__DIR__.'/data'); function tt_ensure_data_dir(){}
+function tt_release_read_session(){}
 function tt_require_login(){return ['username'=>'Fixture','full_name'=>'Fixture Approver','role'=>$_GET['role']??'Super Admin','permissions'=>['Accounts'=>'all']];}
 function tt_user_can_open_module($u,$m){return true;}
 function tt_user_can_director_approve($u){return ($u['role']??'')==='Super Admin'||(($u['role']??'')==='Director'&&tt_user_can_open_module($u,'Directors'));}

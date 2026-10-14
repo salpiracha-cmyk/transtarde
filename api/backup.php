@@ -11,6 +11,7 @@ try {
     $admin=tt_require_login();if(($admin['role']??'')!=='Super Admin')backup_json(['ok'=>false,'error'=>'Super Admin access required.'],403);
     if($_SERVER['REQUEST_METHOD']==='GET'){
         $action=(string)($_GET['action']??'status');if($action!=='status')backup_json(['ok'=>false,'error'=>'Unknown backup action.'],400);
+        tt_release_read_session();
         backup_json(['ok'=>true,'officeBackupEnabled'=>tt_office_backup_enabled()]+tt_backup_status());
     }
     if($_SERVER['REQUEST_METHOD']!=='POST')backup_json(['ok'=>false,'error'=>'Method not allowed.'],405);

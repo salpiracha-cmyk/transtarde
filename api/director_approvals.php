@@ -17,6 +17,7 @@ try {
         echo json_encode(['ok' => false, 'error' => 'Method not allowed.']);
         exit;
     }
+    tt_release_read_session();
     tt_ensure_data_dir();
     $file = TT_DATA_DIR . '/accounts.json';
     $store = [];

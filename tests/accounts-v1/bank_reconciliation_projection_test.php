@@ -21,4 +21,12 @@ check(count(br_txns($store,'TTI','BANK','2026-09-30','USD')['rows'])===3,'A mism
 $store['journals']['REV']['lines'][0]['debit']=27999;
 check(count(br_txns($store,'TTI','BANK','2026-09-30','PKR')['rows'])===3,'Partial accounting reversals must not disappear.');
 check($before['journals']['OPEN']===$store['journals']['OPEN'],'Read-only projection must not amend journals.');
+$multi=['journals'=>['MULTI'=>['id'=>'MULTI','entity'=>'TTI','date'=>'2026-10-01','status'=>'Posted','reference'=>'PAYMENT','meta'=>['bankReference'=>'VOUCHER-REF','bankPaymentMethod'=>'CHEQUE','chequeDate'=>'2026-10-02'],'lines'=>[
+ ['account'=>'1110','bankAccountId'=>'BANK','debit'=>0,'credit'=>10,'bankReference'=>'CHQ-1','chequeDate'=>'2026-10-03'],
+ ['account'=>'1110','bankAccountId'=>'BANK','debit'=>0,'credit'=>20,'bankReference'=>'ONLINE-2','bankPaymentMethod'=>'ONLINE_BANKING','bankPaymentDate'=>'2026-10-04']]]]];
+$original=$multi;$projection=br_txns($multi,'TTI','BANK','2026-10-15','PKR');
+check(array_column($projection['rows'],'bankReference')===['CHQ-1','ONLINE-2'],'Each bank leg retains its own statement reference.');
+check(array_column($projection['rows'],'key')===['MULTI|0','MULTI|1'],'Tracking display cannot change clearing keys.');
+check($projection['rows'][0]['chequeDate']==='2026-10-03'&&$projection['rows'][1]['bankPaymentDate']==='2026-10-04','Line payment dates override voucher defaults.');
+check($projection['bookBalance']===-30.0&&$multi===$original,'Tracking projection preserves balances and journals.');
 echo "PASS reconciliation PKR/native amounts, dated cancellation projection and incomplete reversals\n";

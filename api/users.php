@@ -39,7 +39,7 @@ function clean_input(array $body): array {
 try {
     $admin=tt_require_login();
     if (($admin['role'] ?? '')!=='Super Admin') respond(['ok'=>false,'error'=>'Super Admin access required.'],403);
-    if ($_SERVER['REQUEST_METHOD']==='GET') respond(['ok'=>true,'users'=>tt_list_public_users()]);
+    if ($_SERVER['REQUEST_METHOD']==='GET') { tt_release_read_session(); respond(['ok'=>true,'users'=>tt_list_public_users()]); }
     if ($_SERVER['REQUEST_METHOD']!=='POST') respond(['ok'=>false,'error'=>'Method not allowed.'],405);
     $body=json_decode(file_get_contents('php://input') ?: '{}',true);
     if (!is_array($body) || !tt_verify_csrf((string)($body['csrf'] ?? ''))) respond(['ok'=>false,'error'=>'Your session expired. Refresh and try again.'],419);
