@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__.'/accounts_ledger_visibility.php';
 function br_date(string $v):string {
  $d=DateTimeImmutable::createFromFormat('!Y-m-d',$v);if(!$d||$d->format('Y-m-d')!==$v)throw new DomainException('Select a valid statement date.');return $v;
 }
@@ -16,19 +17,32 @@ function br_banks(array $s,string $entity):array {
  }usort($out,static fn($a,$b)=>strcmp($a['display'],$b['display']));return $out;
 }
 function br_txns(array $s,string $entity,string $bankId,string $toDate,string $currency=''):array {
- $rows=[];$book=0.0;$missing=false;$base=$entity==='TG'?'AED':'PKR';
+ $rows=[];$book=0.0;$missing=false;$base=$entity==='TG'?'AED':'PKR';$hidden=alv_hidden($s,$toDate);
  foreach((array)($s['journals']??[]) as $jid=>$j){
   if(!is_array($j)||($j['status']??'')!=='Posted'||($j['entity']??'')!==$entity)continue;
   $date=(string)($j['date']??'');if($date===''||$date>$toDate)continue;$jm=(array)($j['meta']??[]);
   foreach((array)($j['lines']??[]) as $i=>$l){
    if(!is_array($l)||(string)($l['account']??'')!=='1110'||(string)($l['bankAccountId']??$jm['bankAccountId']??'')!==$bankId)continue;
-   $amt=null;if(isset($l['bankDebit'])||isset($l['bankCredit']))$amt=(float)($l['bankDebit']??0)-(float)($l['bankCredit']??0);
+   $amt=null;if($currency==='PKR')$amt=(float)($l['debit']??0)-(float)($l['credit']??0);
+   elseif(isset($l['bankDebit'])||isset($l['bankCredit']))$amt=(float)($l['bankDebit']??0)-(float)($l['bankCredit']??0);
    elseif($currency===''||$currency===$base)$amt=(float)($l['debit']??0)-(float)($l['credit']??0);
    else $missing=true;
    if($amt!==null)$book+=$amt;
    $rows[]=['key'=>(string)$jid.'|'.$i,'date'=>$date,'journalId'=>(string)$jid,'reference'=>(string)($j['reference']??''),'narration'=>(string)($j['narration']??''),'debit'=>$amt===null?null:round(max(0,$amt),2),'credit'=>$amt===null?null:round(max(0,-$amt),2),'net'=>$amt===null?null:round($amt,2),'amountUnavailable'=>$amt===null];
   }
- }usort($rows,static fn($a,$b)=>strcmp($a['date'],$b['date'])?:strcmp($a['journalId'],$b['journalId']));return ['rows'=>$rows,'bookBalance'=>$missing?null:round($book,2),'balanceUnavailable'=>$missing];
+ }
+ // Suppress complete cancelled pairs only when their bank-currency legs also net to zero.
+ // Keep the book balance from every immutable posted leg, including dated reversals.
+ $bankHidden=[];
+ foreach((array)($s['journals']??[]) as $id=>$journal){
+  if(!is_array($journal))continue;$id=(string)($journal['id']??$id);$original=(string)($journal['reversalOf']??$journal['meta']['reversalOf']??'');
+  if($original===''||!isset($hidden[$id],$hidden[$original]))continue;
+  $pair=array_filter($rows,static fn($row)=>in_array($row['journalId'],[$id,$original],true));
+  if(!$pair||array_filter($pair,static fn($row)=>$row['net']===null))continue;
+  if(abs(array_sum(array_column($pair,'net')))<.005){$bankHidden[$id]=true;$bankHidden[$original]=true;}
+ }
+ $rows=array_values(array_filter($rows,static fn($row)=>!isset($bankHidden[$row['journalId']])));
+ usort($rows,static fn($a,$b)=>strcmp($a['date'],$b['date'])?:strcmp($a['journalId'],$b['journalId']));return ['rows'=>$rows,'bookBalance'=>$missing?null:round($book,2),'balanceUnavailable'=>$missing];
 }
 function br_saved(array $s,string $key,string $date):array {
  $history=(array)($s['bankReconciliationHistory'][$key]??[]);$legacy=$s['bankReconciliations'][$key]??null;
