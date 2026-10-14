@@ -2,7 +2,7 @@
 const fs=require('node:fs'),assert=require('node:assert/strict');
 const {JSDOM}=require('jsdom');
 const read=path=>fs.readFileSync(path,'utf8');
-const line=(path,name)=>{const found=read(path).split('\n').find(row=>row.trimStart().startsWith(`function ${name}(`));assert.ok(found,`${path}: ${name}`);return found;};
+const line=(path,name)=>{const found=read(path).split('\n').find(row=>row.trimStart().startsWith(`function ${name}(`));assert.ok(found,`${path}: ${name}`);if(!found.trimEnd().endsWith('}')){const source=read(path),start=source.indexOf(found),remaining=source.slice(start+found.length),next=remaining.search(/\n(?:async )?function /);return source.slice(start,next<0?source.length:start+found.length+next);}return found;};
 function fixture(html,source=''){
  const dom=new JSDOM(html,{runScripts:'outside-only'}),w=dom.window;
  w.eval(`const q=s=>document.querySelector(s),qa=s=>[...document.querySelectorAll(s)],num=v=>Number(v||0),fmt=v=>Number(v||0).toFixed(2),esc=v=>String(v??''),today=()=> '2026-10-02';${source}`);
