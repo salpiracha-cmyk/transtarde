@@ -12,7 +12,7 @@ with tempfile.TemporaryDirectory(prefix='tti-authorization-') as directory:
     private.mkdir()
     for name in ['auth_store.php', 'master_store.php', 'product_stage.php', 'offline_idempotency.php','session_store.php']:
         shutil.copy(ROOT / name, app / name)
-    for name in ['supplier_opening_core.php','accounts_payees.php','bank_entries.php','bank_entries_core.php','accounts_subaccounts.php','service_ledger_groups.php','accounts_ledger_browser.php','customer_receivables_core.php','accounts_post_delete_core.php','accounts_reports.php','accounts_reference.php','tg_remittance_core.php','fi_credit_advice_link.php','receipt_invoice_links.php','journal_vouchers.php','opening_balance_core.php','accounts_subaccounts_core.php','accounts_ledger_visibility.php','assets_registry_core.php','expenses_v1.php','direct_expense_core.php','accounts_bank_payment.php','expense_locations.php','expense_reminders.php','expense_reversals.php','donations.php','rent_salary_v2.php','salary_month_workflow.php','salary_master_store.php', 'accounts_posting_preview.php']:
+    for name in ['supplier_opening_core.php','accounts_payees.php','bank_entries.php','bank_entries_core.php','mill_cash_core.php','mill_cash_ledger.php','accounts_subaccounts.php','service_ledger_groups.php','accounts_ledger_browser.php','customer_receivables_core.php','accounts_post_delete_core.php','accounts_reports.php','accounts_reference.php','tg_remittance_core.php','fi_credit_advice_link.php','receipt_invoice_links.php','journal_vouchers.php','opening_balance_core.php','accounts_subaccounts_core.php','accounts_ledger_visibility.php','assets_registry_core.php','expenses_v1.php','direct_expense_core.php','accounts_bank_payment.php','expense_locations.php','expense_reminders.php','expense_reversals.php','donations.php','rent_salary_v2.php','salary_month_workflow.php','salary_master_store.php', 'accounts_posting_preview.php']:
         shutil.copy(ROOT / 'api' / name, app / 'api' / name)
     shutil.copy(ROOT / 'accounts/accounting_master_v1.json', app / 'accounts/accounting_master_v1.json')
     harness = root / 'request.php'
@@ -195,6 +195,20 @@ require $argv[1];
     permissions['cashbank']=['View','Create','Edit'];permissions['masters']=['View'];set_user();assert mutate('accounts_subaccounts',operation='add',name='Denied master',parentCode='6900')[0]==403
     assert request('bank_entries','?entity=BRM')[0]==403
     permissions['masters']=['View','Create','Edit','Delete'];set_user();assert request('bank_entries','?entity=TTI',{**b,'csrf':'bad'})[0]==419
+    # One Accounts posting supplies the Mill ledger; reading cannot duplicate or save it.
+    user['permissions']['Mill']={'petty':['View']};set_user()
+    auth_data=json.loads(auth.read_text());auth_data['masters']['mills']=[{'id':'mills-1','values':['TTI Rice Mills','','Own Mill','','','Active','','TTI']}];auth.write_text(json.dumps(auth_data))
+    mill,body=good(action='post',type='PETTY_CASH',bankId='BANK-1',date='2026-10-09',amount=750,pettyCashDestination='MILL',millLocationId='mills-1',reference='MILL-CASH-1',bankPaymentMethod='ONLINE_BANKING')
+    lines=mill['result']['journal']['lines'];assert lines[0]['debit']==750 and lines[1]['credit']==750 and lines[0]['millLocationId']=='mills-1'
+    before=books.read_bytes();status,view=request('mill_cash_ledger','?entity=TTI&locationId=mills-1');assert status==200,(status,view)
+    assert len(view['rows'])==1 and view['rows'][0]['debit']==750 and view['rows'][0]['voucher']==mill['result']['journalId']
+    assert request('mill_cash_ledger','?entity=TTI&locationId=mills-1')[1]['rows']==view['rows'] and books.read_bytes()==before
+    assert mutate('bank_entries',action='post',type='PETTY_CASH',bankId='BANK-1',date='2026-10-09',amount=10,pettyCashDestination='MILL',millLocationId='wrong-mill')[0]==422
+    good(action='reverse',journalId=mill['result']['journalId'],date='2026-10-10',reason='Reverse mill fixture')
+    assert request('mill_cash_ledger','?entity=TTI&locationId=mills-1')[1]['rows']==[]
+    cash,body=good(action='post',type='PETTY_CASH',bankId='CASH|TTI',date='2026-10-10',amount=100,pettyCashDestination='MILL',millLocationId='mills-1',reference='MILL-CASH-2')
+    assert all(line['account']=='1120' for line in cash['result']['journal']['lines'])
+    before=books.read_bytes();user['permissions']['Mill']={'petty':[]};set_user();assert request('mill_cash_ledger','?entity=TTI&locationId=mills-1')[0]==403 and books.read_bytes()==before
     for endpoint in ['bank_entries','accounts_subaccounts']:
         books.write_text('{broken JSON');before=books.read_bytes();assert request(endpoint,'?entity=TTI')[0]==500 and books.read_bytes()==before
     print('Bank entries, finance, subaccounts, expense/JV/ledger/report links, retries, corrections, permissions and corrupt-store protection passed.')

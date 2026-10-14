@@ -4,11 +4,16 @@ ROOT=pathlib.Path(__file__).resolve().parents[2]
 with tempfile.TemporaryDirectory(prefix='bank-entries-browser-') as tmp:
  root=pathlib.Path(tmp)
  for name in ['api','accounts','data']:(root/name).mkdir()
- for name in ['accounts_payees.php','bank_reconciliation.php','bank_reconciliation_core.php','bank_entries.php','bank_entries_core.php','accounts_subaccounts.php','accounts_subaccounts_core.php','accounts_ledger_visibility.php','assets_registry_core.php','accounts_bank_payment.php', 'accounts_posting_preview.php']:shutil.copy(ROOT/'api'/name,root/'api'/name)
+ for name in ['accounts_payees.php','bank_reconciliation.php','bank_reconciliation_core.php','bank_entries.php','bank_entries_core.php','mill_cash_core.php','expense_locations.php','mill_cash_ledger.php','accounts_subaccounts.php','accounts_subaccounts_core.php','accounts_ledger_visibility.php','assets_registry_core.php','accounts_bank_payment.php', 'accounts_posting_preview.php']:shutil.copy(ROOT/'api'/name,root/'api'/name)
  for name in ['bank-reconciliation-ui.js','accounting_master_v1.json','account-management-ui.js','cheque-date-ui.js','bank-payment-details.js','print-dialog.js','post-confirmation-ui.js']:shutil.copy(ROOT/'accounts'/name,root/'accounts'/name)
  (root/'auth_store.php').write_text('''<?php
  define('TT_DATA_DIR',__DIR__.'/data');function tt_ensure_data_dir(){}
  function tt_require_login(){return ['id'=>1,'username'=>'Fixture','role'=>'Super Admin','permissions'=>['Accounts'=>'all']];}
+ function tt_current_user(){return tt_require_login();}
+ function tt_active_location_masters(){return [['id'=>'mills-1','values'=>['TTI Rice Mills','','Own Mill','','','Active','','TTI']]];}
+ function tt_normalize_location_type($type){return $type;}
+ function tt_location_identity($name){return strtolower(preg_replace('/[^a-z0-9]+/i','',$name));}
+ function tt_release_read_session(){}
  function tt_user_can_open_module($u,$m){return true;}
  function tt_user_can_module_action($u,$m,$i,$a){return true;}
  function tt_user_can_access_entity($u,$e,$a){return $e==='TTI';}

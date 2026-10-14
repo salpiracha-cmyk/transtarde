@@ -128,6 +128,7 @@
   }
 
   async function launch(action) {
+    window.TT_ACCOUNTS_NAVIGATION?.captureOrigin?.();
     const token=++launchGeneration,company=entity();
     const current=()=>token===launchGeneration&&company===entity();
     window.TT_POST_CONFIRMATION?.dismiss?.();
@@ -196,6 +197,8 @@
       }
       if(!current())return;
       button?.click();
+      if(action.bagSync)await window.TT_BAG_PURCHASES_UI?.mount?.();
+      if(!current())return;
       if (action.bagSync) document.dispatchEvent(new CustomEvent('tt:bag-workspace-open'));
     }
     if (arrivalOpening) {

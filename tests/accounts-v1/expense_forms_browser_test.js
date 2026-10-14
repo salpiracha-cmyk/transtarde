@@ -13,9 +13,9 @@ const fs=require('node:fs'),assert=require('node:assert/strict'),{chromium}=requ
    window.resolveNext=(kind,data)=>{const index=pending.findIndex(row=>row.url.includes(kind));if(index<0)throw Error('Missing request '+kind);const request=pending.splice(index,1)[0];request.resolve({ok:true,json:async()=>data||expenseData});};
   });
   for(const path of ['accounts/accounts-form-layout.js','accounts/accounts-row-controls.js','accounts/expense-editor-owner.js','accounts/rent-salary-ui.js','accounts/donations-ui.js','accounts/expenses-v1-ui.js'])await page.addScriptTag({content:fs.readFileSync(path,'utf8')});
-  await page.click('[data-expense="utility"]');await page.evaluate(()=>resolveNext('expenses_v1'));await page.waitForSelector('#evAddUtility');
+  await page.click('[data-expense="utility"]');await page.evaluate(()=>resolveNext('expenses_v1'));await page.waitForSelector('#evManageUtility');
   assert.equal(await page.locator('#evUmPayee').count(),0,'reminder setup starts closed');
-  await page.click('#evAddUtility');await page.waitForSelector('#evUmPayee');
+  await page.check('#evManageUtility');await page.waitForSelector('#evUmPayee');
   assert.equal(await page.locator('#evUmLocName').inputValue(),'OFFICE','own office auto-selected');
   assert.deepEqual(await page.locator('#evUmLocName option').allTextContents(),['Select company location','Karachi Office','Own Rice Mill','Home']);
   assert.equal(await page.locator('.tte-master-popup').isVisible(),true,'master setup opens as popup');await page.click('#evUmCancel');
@@ -34,19 +34,19 @@ const fs=require('node:fs'),assert=require('node:assert/strict'),{chromium}=requ
   assert.equal(await page.locator('#evPayLocName').inputValue(),'HOME|TTI');
   assert.equal(await page.locator('#evTreatment').inputValue(),'BUSINESS_EXPENSE','Home reminders do not assign the bill to Salman');
   assert.equal(await page.locator('#evUtilityFor').inputValue(),'SHARED');
-  await page.click('[data-expense="card"]');await page.evaluate(()=>resolveNext('expenses_v1'));await page.waitForSelector('#evAddCard');
+  await page.click('[data-expense="card"]');await page.evaluate(()=>resolveNext('expenses_v1'));await page.waitForSelector('#evManageCard');
   assert.equal(await page.locator('#evCardName').count(),0,'credit card setup starts closed');
-  await page.click('#evAddCard');assert.equal(await page.locator('#evCardName').count(),1);await page.click('#evCardCancel');
+  await page.check('#evManageCard');assert.equal(await page.locator('#evCardName').count(),1);await page.click('#evCardCancel');
   // A slow response from another module must never replace the newly opened form.
   await page.click('[data-expense="rent"]');await page.click('[data-expense="utility"]');
-  await page.evaluate(()=>resolveNext('expenses_v1'));await page.waitForSelector('#evAddUtility');
+  await page.evaluate(()=>resolveNext('expenses_v1'));await page.waitForSelector('#evManageUtility');
   await page.fill('#evPayee','Unsaved current entry');
   await page.evaluate(()=>resolveNext('rent_salary',{ok:true,salaryMasters:[],rentMasters:[],salaryRows:[],rentRows:[],rentReminders:[],paymentAccounts:[]}));
   await page.waitForTimeout(100);assert.equal(await page.locator('#evPayee').inputValue(),'Unsaved current entry');
   await page.click('[data-expense="donations"]');await page.click('[data-expense="card"]');
-  await page.evaluate(()=>resolveNext('expenses_v1'));await page.waitForSelector('#evAddCard');
+  await page.evaluate(()=>resolveNext('expenses_v1'));await page.waitForSelector('#evManageCard');
   await page.evaluate(()=>resolveNext('donations',{ok:true,donations:[],totals:{},paymentAccounts:[]}));
-  await page.waitForTimeout(100);assert.equal(await page.locator('#evAddCard').count(),1,'late donation response cannot switch card screen');
+  await page.waitForTimeout(100);assert.equal(await page.locator('#evManageCard').count(),1,'late donation response cannot switch card screen');
   assert.deepEqual(errors,[]);
   console.log('PASS closed setup forms, own office default, dependent meter fields, and slow rent/donation response isolation');
  }finally{await browser.close()}

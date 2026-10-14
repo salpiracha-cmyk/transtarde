@@ -18,7 +18,7 @@ requireText(ui, 'captureWorkspaceLaunchers', 'preserve native feature adapters')
 for(const obsolete of ['const groups =','function buildDialog','function rebuildHome','openGroup(activeGroup)']) {
   if(ui.includes(obsolete)) throw new Error('Obsolete home writer remains: '+obsolete);
 }
-for (const marker of ['popupWorkspaces: true','searchableSelects: true','Type 1 or 2 letters to search','× Close','prepareSecondTier','Generated automatically when saved','Bill adjustments (only when required)']) requireText(ui, marker, 'shared form controls');
+for (const marker of ['popupWorkspaces: true','searchableSelects: true','Type 1 or 2 letters to search','Close form and return to previous screen','prepareSecondTier','Generated automatically when saved','Bill adjustments (only when required)']) requireText(ui, marker, 'shared form controls');
 const desk=read('accounts/accounts-accounting-desk.js');
 requireText(desk,"action.native==='reconciliation'",'reconciliation icon routes to operational form');
 requireText(desk,'TT_BANK_RECONCILIATION.open()','operational reconciliation owner');

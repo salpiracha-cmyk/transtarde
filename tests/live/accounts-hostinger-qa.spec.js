@@ -331,6 +331,10 @@ test('authenticated Accounts live smoke: professional desk and popup workflows',
   await expect(page.locator('#ttExpenseDesk #evUtilityForWrap')).toBeHidden();
   await activate(page.locator('#ttExpenseDesk [data-expense-mode=card]'));
   await expect(page.locator('#ttExpenseDesk #evAddStatement')).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('#ttExpenseDesk [data-expense-mode=card]')).toHaveAttribute('type','radio');
+  await expect(page.locator('#ttExpenseDesk [data-expense-mode=card]')).not.toHaveAttribute('role','combobox');
+  await expect(page.locator('#ttExpenseDesk #evManageCard')).toHaveAttribute('type','checkbox');
+  await expect(page.locator('#ttExpenseDesk #evManageCard')).toBeDisabled();
   await expect(page.locator('#ttExpenseDesk .tte-alloc')).toHaveCount(0);
   await responsive(page, 'professional Accounts modal');
 
@@ -683,11 +687,21 @@ test('forward booking and register are Pakistan-only and remain read-only for QA
 test('historical bag entry and service ledger groups preserve live read-only books',async({page})=>{
  test.setTimeout(120_000);await signIn(page);const writes=[];page.on('request',r=>{if(r.method()==='POST'&&/\/api\/(bag_purchases|supplier_settlements)\.php/.test(r.url()))writes.push(r.url());});
  const response=await page.request.get(BASE_URL+'/api/bag_purchases.php?entity=TTI');expect(response.status()).toBe(200);const view=await response.json();expect(view.canCreateHistorical).toBe(false);expect(view.canEditHistorical).toBe(false);
- await deskAction(page,'exports','Bags Bill');await activate(page.locator('#ttBillDesk [data-post]'));await expect(page.locator('#bgPurpose')).toBeVisible();await page.locator('#bgPurpose').selectOption('HISTORICAL');await expect(page.locator('#bgLine')).toHaveCount(0);await expect(page.locator('#bgSave')).toBeDisabled();await expect(page.locator('#purchaseEditor')).toContainText('Historical Export Bag Bill');
+ await deskAction(page,'exports','Bags Bill');await activate(page.locator('#ttBillDesk [data-post]'));await expect(page.locator('[name=bgPurposeChoice][value=HISTORICAL]')).toBeVisible();await page.locator('[name=bgPurposeChoice][value=HISTORICAL]').check();await expect(page.locator('#bgLine')).toHaveCount(0);await expect(page.locator('#bgSave')).toBeDisabled();await expect(page.locator('#purchaseEditor')).toContainText('Historical Export Bag Bill');
  const period='&from=0001-01-01&to='+new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Karachi'}).format(new Date());
  const all=await page.request.get(BASE_URL+'/api/accounts_ledger_browser.php?entity=TTI&account=2130'+period);expect(all.status()).toBe(200);const control=await all.json();let grouped=0;
  for(const kind of ['CLEARING','TRANSPORT','FREIGHT','OTHER']){const r=await page.request.get(BASE_URL+'/api/accounts_ledger_browser.php?entity=TTI&account=SERVICE%7C'+kind+period);expect(r.status()).toBe(200);const group=await r.json();grouped+=Number(group.closing||0);expect(group.rows.every(row=>row.serviceGroup===kind)).toBe(true);}
  expect(grouped).toBeCloseTo(Number(control.closing||0),2);expect(control.accounts.find(a=>a.code==='2130').name).toBe('Transport, Freight & Clearing Payables');
  console.log('LIVE_SERVICE_CLASSIFICATION_REVIEW '+JSON.stringify((control.serviceClassificationReviews||[]).map(r=>({party:r.party,postedService:r.postedService,providerService:r.providerService}))));
  await page.evaluate(()=>window.TT_ALL_LEDGERS.open('','party'));await expect(page.locator('#tal-service-group')).toBeVisible();await page.locator('#tal-service-group').selectOption('TRANSPORT');await expect(page.locator('#tal-result')).not.toContainText('Loading ledger');expect(writes).toEqual([]);console.log('LIVE_HISTORICAL_BAGS_AND_RECONCILED_SERVICE_GROUPS_OK');
+});
+
+
+test('Mill Petty Cash reads the same Accounts postings without writes',async({page})=>{
+ test.setTimeout(120_000);await signIn(page);const writes=[];page.on('request',request=>{if(request.method()==='POST'&&/\/api\/(bank_entries|mill_cash_ledger|operations)\.php/.test(request.url()))writes.push(request.url());});
+ const expenseResponse=await page.request.get(BASE_URL+'/api/expenses_v1.php?entity=TTI');expect(expenseResponse.status()).toBe(200);const expenseView=await expenseResponse.json();const mill=(expenseView.locations||[]).find(location=>location.location==='MILL');expect(mill,'TTI has an owned mill location').toBeTruthy();
+ const response=await page.request.get(BASE_URL+'/api/mill_cash_ledger.php?'+new URLSearchParams({entity:'TTI',locationId:mill.id}));expect(response.status()).toBe(200);const cash=await response.json();expect(cash.ok).toBe(true);expect(cash.location.id).toBe(mill.id);expect(Array.isArray(cash.rows)).toBe(true);expect(new Set(cash.rows.map(row=>row.id)).size).toBe(cash.rows.length);
+ for(const row of cash.rows){expect(row.source).toBe('Accounts');expect(Number.isFinite(row.debit)&&Number.isFinite(row.credit)).toBe(true);expect(row.debit>=0&&row.credit>=0).toBe(true);expect(row.postId).toBeTruthy();}
+ if(cash.rows.length){const row=cash.rows[0],posted=await page.request.get(BASE_URL+'/api/accounts_ledger_browser.php?'+new URLSearchParams({entity:'TTI',account:'POSTS',postId:row.postId}));expect(posted.status()).toBe(200);const view=await posted.json();expect(view.post.lines.some(line=>line.account==='1120'&&line.millLocationId===mill.id)).toBe(true);}
+ expect(writes).toEqual([]);
 });
