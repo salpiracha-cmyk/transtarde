@@ -87,7 +87,7 @@
     if (!bar) {
       bar = document.createElement('div');
       bar.className = 'tt-editor-bar';
-      bar.innerHTML = '<button class="backBtn tt-clean-close" type="button">× Close</button><h2></h2>';
+      bar.innerHTML = '<button class="backBtn tt-clean-close" type="button">×</button><h2></h2>';
       workspace.insertBefore(bar, editor);
     }
     makeCloseButton(q('button', bar), workspace);
@@ -97,6 +97,7 @@
   }
 
   function closeModal(workspace) {
+    window.TT_ACCOUNTS_NOTICE?.dismiss();
     qa('.workspace.active').forEach(active => active.classList.remove('active', 'tt-clean-modal', 'tt-editor-open', 'tt-master-only', 'tt-entry-only'));
     qa('.tt-editor-stage', workspace).forEach(editor => editor.classList.remove('tt-editor-stage'));
     document.body.classList.remove('tt-modal-open');
@@ -104,6 +105,7 @@
     masterMode = '';
     navigationMode = 'second-tier';
     activeGroup = null;
+    window.TT_ACCOUNTS_NAVIGATION?.restoreOrigin?.();
   }
 
   function makeCloseButton(button, workspace) {
@@ -114,7 +116,7 @@
     // drill-up navigation and can leave the modal backdrop behind.
     button.removeAttribute('data-editor-back');
     button.classList.add('tt-clean-close');
-    button.textContent = '× Close';
+    button.textContent = '×';
     button.setAttribute('aria-label', 'Close form and return to previous screen');
     button.onclick = event => { event.preventDefault(); event.stopPropagation(); closeModal(workspace); };
   }
@@ -159,7 +161,7 @@
     const headers = [...(root.matches?.(selector) ? [root] : []), ...qa(selector, root)];
     headers.forEach(header => qa('button', header).forEach(button => {
       if (!/^([×✕]\s*)?close$/i.test(button.textContent.trim())) return;
-      button.textContent = '× Close';
+      button.textContent = '×';
       if (!button.getAttribute('aria-label')) button.setAttribute('aria-label', 'Close form and return to previous screen');
     }));
   }

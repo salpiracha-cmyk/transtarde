@@ -50,6 +50,7 @@ jobs:
           node tests/accounts-v1/end_to_end_audit.js
           node tests/accounts-v1/static_audit.js
           node tests/accounts-v1/clean_ui_test.js
+          node tests/accounts-v1/accounts_unified_forms_test.js
           node tests/master_data_topbar_audit.js
           node tests/accounts-v1/payment_defaults_ui_test.js
           python3 tests/accounts-v1/payment_defaults_http_test.py

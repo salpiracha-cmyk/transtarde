@@ -155,7 +155,10 @@
     window.setTimeout(() => setupObserver.disconnect(), 10000);
   }
 
-  window.TT_ACCOUNTS_NAVIGATION = {
+  let restoreOrigin=null;
+  function captureOrigin(){const top=window.scrollY,left=window.scrollX;const positions=qa('#entityHome,#ttAccountingDesk,.workspace.active,.tal-box,.tal-scroll').map(el=>({el,top:el.scrollTop,left:el.scrollLeft}));restoreOrigin=()=>{for(const item of positions)if(item.el.isConnected){item.el.scrollTop=item.top;item.el.scrollLeft=item.left;}window.scrollTo(left,top);};return restoreOrigin;}
+  document.addEventListener('keydown',event=>{if(event.key!=='Escape'||event.defaultPrevented||document.querySelector('dialog[open],[aria-label="Review accounting entries"]'))return;const dialogs=qa('[role="dialog"],.tt-plan-overlay,.am-mask,.workspace.active.tt-clean-modal').filter(el=>el.getClientRects().length&&!el.hidden).sort((a,b)=>(Number(getComputedStyle(b).zIndex)||0)-(Number(getComputedStyle(a).zIndex)||0));const top=dialogs[0];const close=top?.querySelector('[data-close],[data-plan-close],.tt-clean-close,[data-close-complete]');if(close&&!close.disabled&&!top.closest('[data-busy="1"]')){event.preventDefault();close.click();}else if(!top){const back=q('.workspace.active [data-editor-back]');if(back){event.preventDefault();back.click();}}});
+  window.TT_ACCOUNTS_NAVIGATION = {captureOrigin,restoreOrigin:()=>restoreOrigin?.(),
     installed: true,
     directLanding: true,
     topLevelEditors: true,
