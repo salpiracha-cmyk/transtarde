@@ -32,3 +32,16 @@ function tt_pending_director_rate_approvals(array $store): array {
     }
     return $requests;
 }
+
+/** Pending JVs use the same original approval endpoint in both consoles. */
+function tt_pending_jv_approvals(array $store): array {
+    $rows=[];
+    foreach((array)($store['jvDrafts']??[]) as $id=>$draft){
+        if(!is_array($draft)||($draft['status']??'')!=='Pending Approval'||!in_array($draft['entity']??'',['TTI','BRM','TG'],true))continue;
+        $rows[]=['kind'=>'jv','id'=>(string)($draft['id']??$id),'entity'=>(string)$draft['entity'],
+            'title'=>'Journal Voucher · '.(string)(($draft['reference']??'')?:($draft['id']??$id)),
+            'detail'=>implode(' · ',array_filter([$draft['entity'],$draft['date']??'', $draft['createdBy']??'', $draft['narration']??''])),
+            'lines'=>(array)($draft['lines']??[]),'totalDebit'=>(float)($draft['totalDebit']??0),'totalCredit'=>(float)($draft['totalCredit']??0)];
+    }
+    return $rows;
+}

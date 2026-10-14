@@ -4,7 +4,7 @@ ROOT=pathlib.Path(__file__).resolve().parents[2]
 with tempfile.TemporaryDirectory(prefix='supplier-discount-') as tmp:
  root=pathlib.Path(tmp)
  for d in ['api','accounts','data']:(root/d).mkdir()
- for name in ['supplier_settlements.php','supplier_opening_core.php','accounts_bank_payment.php']:shutil.copy(ROOT/'api'/name,root/'api'/name)
+ for name in ['supplier_settlements.php','supplier_opening_core.php','accounts_bank_payment.php', 'accounts_posting_preview.php']:shutil.copy(ROOT/'api'/name,root/'api'/name)
  for name in ['accounting_master_v1.json','settlement_policy_v1.json']:shutil.copy(ROOT/'accounts'/name,root/'accounts'/name)
  (root/'auth_store.php').write_text('''<?php
  define('TT_DATA_DIR',__DIR__.'/data');function tt_ensure_data_dir(){}function tt_accounts_input(){return $GLOBALS['input'];}

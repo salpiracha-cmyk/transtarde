@@ -4,7 +4,7 @@ ROOT=pathlib.Path(__file__).resolve().parents[2]
 with tempfile.TemporaryDirectory(prefix='general-bags-') as tmp:
  root=pathlib.Path(tmp);(root/'api').mkdir();(root/'accounts').mkdir();(root/'data').mkdir()
 
- for name in ['bag_purchases.php','opening_balance_core.php','historical_bag_core.php','supplier_opening_core.php']:shutil.copy(ROOT/'api'/name,root/'api'/name)
+ for name in ['bag_purchases.php','opening_balance_core.php','historical_bag_core.php','supplier_opening_core.php', 'accounts_posting_preview.php']:shutil.copy(ROOT/'api'/name,root/'api'/name)
  shutil.copy(ROOT/'accounts/accounting_master_v1.json',root/'accounts/accounting_master_v1.json')
  (root/'auth_store.php').write_text('''<?php
  define('TT_DATA_DIR',__DIR__.'/data');function tt_ensure_data_dir(){}function tt_accounts_input(){return file_get_contents('php://input');}

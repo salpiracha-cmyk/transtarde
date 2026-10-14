@@ -1,5 +1,7 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__.'/accounts_posting_preview.php';
+header('X-TT-Posting-Preview: available');
 require dirname(__DIR__).'/auth_store.php';
 require_once __DIR__.'/accounts_shipment_source.php';
 require_once __DIR__.'/accounts_entry_eligibility.php';
@@ -121,7 +123,7 @@ try{
  }
  if($_SERVER['REQUEST_METHOD']!=='POST')aw_out(['ok'=>false,'error'=>'Method not allowed.'],405);
  $b=json_decode((function_exists('tt_accounts_input')?tt_accounts_input():file_get_contents('php://input'))?:'',true);if(!is_array($b)||!tt_verify_csrf((string)($b['csrf']??'')))aw_out(['ok'=>false,'error'=>'Session expired. Refresh and try again.'],419);$action=(string)($b['action']??'');$GLOBALS['AW_ACTION']=$action;$sourceLoading=$action==='register_loading_program'&&aw_module_write($u,'Exports');if(!aw_can_write($u)&&!$sourceLoading&&!($action==='save_freight_agreement'&&aw_can_directors($u)))aw_out(['ok'=>false,'error'=>'Accounts Create/Edit permission required.'],403);tt_ensure_data_dir();$h=fopen(AW_FILE,'c+');if($h===false||!flock($h,LOCK_EX))throw new RuntimeException('Accounts storage unavailable.');
- try{$raw=stream_get_contents($h);$decoded=$raw?json_decode($raw,true):null;$s=is_array($decoded)?array_replace_recursive(aw_defaults(),$decoded):aw_defaults();aw_normalize_kat($s);
+ try{$raw=stream_get_contents($h);$decoded=$raw?json_decode($raw,true):null;$s=is_array($decoded)?array_replace_recursive(aw_defaults(),$decoded):aw_defaults();aw_normalize_kat($s);$previewBefore=array_map('strval',array_keys((array)($s['journals']??[])));
   if(array_key_exists('entity',$b)){$requestEntity=aw_entity((string)$b['entity'],$action!=='save_soda'&&$action!=='register_loading_program'&&$action!=='save_transport_bill'&&$action!=='save_freight_bill'&&$action!=='save_service_bill');$GLOBALS['AW_REQUEST_ENTITY']=$requestEntity;if(!$sourceLoading&&!($action==='save_freight_agreement'&&aw_can_directors($u)))aw_require_entity($u,$requestEntity,'Create');}
   if(in_array($action,['extend_soda','resolve_soda'],true)){$target=$s['purchaseSodas'][(string)($b['id']??'')]??null;if(is_array($target))aw_require_entity($u,aw_entity((string)($target['entity']??''),false),'Edit');}
   if($action==='settle_freight_dispute'){$target=$s['freightBillsV1'][(string)($b['id']??'')]??null;if(is_array($target))aw_require_entity($u,aw_entity((string)($target['entity']??''),false),'Edit');}
@@ -158,7 +160,7 @@ try{
   elseif($action==='save_service_bill')aw_post_logistics_bill($s,$u,$row,$kind);
   elseif($action==='settle_freight_dispute'){$openBefore=round(max(0,(float)($before['disputedTotal']??0)-(float)($before['disputeSettledTotal']??0)),2);if($amount>$openBefore+.005)aw_out(['ok'=>false,'error'=>'Settlement accepted amount cannot exceed the open disputed balance.'],422);$row['acceptedLiability']=round((float)($before['acceptedLiability']??0)+$amount,2);$s['freightBillsV1'][$id]=$row;aw_post_logistics_bill($s,$u,$row,'FREIGHT');}
   if(!empty($b['newEntry'])&&empty($b['id'])&&in_array($action,['save_transport_bill','save_freight_bill','save_service_bill'],true)){ $check=$s;foreach(['supplierBills','transportBillsV1','freightBillsV1','exportServiceBillsV1'] as $collection)unset($check[$collection][$row['id']]);$billKind=$action==='save_transport_bill'?'TRANSPORT':($action==='save_freight_bill'?'FREIGHT':$kind);foreach((array)($row['shipmentIds']??[$row['shipmentId']??'']) as $sourceId)if($sourceId!==''&&tt_accounts_source_billed($check,$row['entity'],$billKind,$sourceId))aw_out(['ok'=>false,'error'=>'A bill is already posted for this shipment in this category. Search the existing bill and choose AMEND BILL.'],409);}
-  if(isset($requestEntity)&&in_array($requestEntity,['TTI','BRM'],true))aw_sync_late_holds_scoped($s,$requestEntity);aw_save_handle($h,$s);
+  if(isset($requestEntity)&&in_array($requestEntity,['TTI','BRM'],true))aw_sync_late_holds_scoped($s,$requestEntity);tt_posting_preview_exit($b,$s,$previewBefore);aw_save_handle($h,$s);
  }finally{flock($h,LOCK_UN);fclose($h);}$result=['ok'=>true,'revision'=>(int)$s['revision']];if($action==='save_freight_agreement'){try{if(($row['contractRef']!==''||$row['shipmentId']!=='')&&!isset($s['carryForwardShipments'][$row['shipmentId']]))tt_accounts_sync_freight($row,$u);}catch(Throwable $error){error_log('Freight agreement Exports sync: '.$error->getMessage());aw_out(['ok'=>false,'agreementSaved'=>true,'agreementId'=>$row['id'],'error'=>'Agreement saved, but Exports linkage could not be completed. Retry Save agreement to finish the same record.'],503);}$result['agreement']=$row;$result['exportsSync']=$row['contractRef']!==''?'Complete':'Unlinked planning';}if(in_array($action,['save_transport_bill','save_freight_bill','save_service_bill'],true))$result['bill']=['id'=>(string)($row['id']??''),'postingJournalIds'=>(array)($s['supplierBills'][$row['id']]['postingJournalIds']??[])];aw_out($result);
 }catch(Throwable $e){aw_out(['ok'=>false,'error'=>'Accounts workflow service is temporarily unavailable.'],500);}
 

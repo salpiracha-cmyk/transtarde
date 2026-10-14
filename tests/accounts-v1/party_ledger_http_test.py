@@ -134,7 +134,16 @@ with tempfile.TemporaryDirectory(prefix='party-ledger-qa-') as temp:
         assert dates==sorted(dates),'CSV is oldest first'
         assert path.read_bytes()==cancelled_bytes,'Cancellation display must preserve audit journals'
         path.write_bytes(original)
-        print('Cancellation projection, historical date and ascending CSV passed')
+        # Company provisional clearing must never inherit the broker from a purchase header.
+        audit_books=json.loads(path.read_text());audit_books['journals']['JJ-BILL']=journal('JJ-BILL','2026-07-15',[line('2210',debit=100),line('2110',credit=100),line('2120',credit=5),line('1310',debit=5)],sourceType='COMMODITY_BILL_VERIFIED',meta={'broker':'JJ Broker','relationshipName':'Real Supplier'})
+        path.write_text(json.dumps(audit_books))
+        status,jj=get(party='JJ Broker');assert status==200 and {(r['account'],r['debit'],r['credit']) for r in jj['rows']}=={('2120',0,5)},jj
+        status,supplier=get(party='Real Supplier');assert status==200 and supplier['closing']==-100,supplier
+        status,bank=get(category='bank',account='1110',party='ACME Rice');assert status==200,(status,bank)
+        assert bank['rows'] and all(r['account']=='1110' and 'ACME Rice' in r['party'] for r in bank['rows'])
+        assert len({r['voucher'] for r in bank['rows']})==len(bank['rows']),'A party filter must never duplicate bank movements'
+        path.write_bytes(original)
+        print('Cancellation projection, historical date, ascending CSV, correct broker/supplier scope and party-wise bank movements passed')
         print('Party ledgers: opening/running balances, cross-head links, master IDs, native-currency gaps, scope, search, CSV and read-only books passed')
         try:
             from playwright.sync_api import sync_playwright

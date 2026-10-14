@@ -1,5 +1,7 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__.'/accounts_posting_preview.php';
+header('X-TT-Posting-Preview: available');
 require_once dirname(__DIR__) . '/auth_store.php';
 require_once __DIR__.'/accounts_bank_payment.php';
 require_once __DIR__.'/expense_locations.php';
@@ -17,7 +19,7 @@ function ev1_out(array $data,int $status=200):never{http_response_code($status);
 function ev1_def():array{return ['revision'=>0,'journals'=>[],'bankAccountSettings'=>[],'utilityMasters'=>[],'utilityPayments'=>[],'creditCardMasters'=>[],'creditCardStatements'=>[],'reimbursements'=>[],'generalExpenses'=>[],'postingKeys'=>[]];}
 function ev1_request_key(mixed $v):string{$key=trim((string)$v);if(!preg_match('/^[A-Za-z0-9._:-]{8,128}$/',$key))ev1_out(['ok'=>false,'error'=>'A valid request key is required. Refresh and try again.'],422);return $key;}
 function ev1_canonical(mixed $v):mixed{if(!is_array($v))return $v;foreach($v as $k=>$item)$v[$k]=ev1_canonical($item);ksort($v);return $v;}
-function ev1_fingerprint(array $body):string{unset($body['csrf'],$body['requestKey']);return hash('sha256',json_encode(ev1_canonical($body),JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR));}
+function ev1_fingerprint(array $body):string{unset($body['csrf'],$body['requestKey'],$body['preview']);return hash('sha256',json_encode(ev1_canonical($body),JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR));}
 function ev1_read():array{tt_ensure_data_dir();if(!is_file(EV1_FILE))return ev1_def();$h=fopen(EV1_FILE,'r');if($h===false||!flock($h,LOCK_SH))throw new RuntimeException('Accounts storage unavailable.');try{$raw=stream_get_contents($h);}finally{flock($h,LOCK_UN);fclose($h);}$s=$raw?json_decode($raw,true):null;if($raw!==''&&!is_array($s))throw new RuntimeException('Accounts storage is invalid.');return is_array($s)?array_replace_recursive(ev1_def(),$s):ev1_def();}
 function ev1_can_write(array $u):bool{if(($u['role']??'')==='Super Admin')return true;$p=$u['permissions']['Accounts']??null;if($p==='all')return true;if(!is_array($p))return false;if(in_array('Create',$p,true)||in_array('Edit',$p,true)||in_array('Approve',$p,true))return true;foreach($p as $a)if(is_array($a)&&(in_array('Create',$a,true)||in_array('Edit',$a,true)||in_array('Approve',$a,true)))return true;return false;}
 function ev1_require_entity(array $u,string $entity,bool $write=false):void{if(($u['role']??'')==='Super Admin')return;$allowed=$write?(tt_user_can_access_entity($u,$entity,'Create')||tt_user_can_access_entity($u,$entity,'Edit')||tt_user_can_access_entity($u,$entity,'Approve')):tt_user_can_access_entity($u,$entity,'View');if(!$allowed)ev1_out(['ok'=>false,'error'=>'You do not have permission for this legal entity.'],403);}
@@ -155,7 +157,7 @@ $key=trim((string)($b['personalLink']??''));$link=$s['expensePersonalLinks'][$ke
 }
 else ev1_out(['ok'=>false,'error'=>'Unknown Expenses action.'],422);
 
-tt_accounts_track_bank_payment($s,$bankJournalIds,$bankTracking);if($postingKey!==null)$s['postingKeys'][$postingKey]=['fingerprint'=>(string)$fingerprint,'result'=>$result,'createdAt'=>gmdate('c')];$s['revision']=(int)($s['revision']??0)+1;$encoded=json_encode($s,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);rewind($h);if(!ftruncate($h,0)||fwrite($h,$encoded)!==strlen($encoded)||!fflush($h))throw new RuntimeException('Accounts storage could not be saved.');}finally{flock($h,LOCK_UN);fclose($h);}ev1_out(ev1_payload($s,$entity,$month)+['result'=>$result,'revision'=>$s['revision']]);
+tt_accounts_track_bank_payment($s,$bankJournalIds,$bankTracking);tt_posting_preview_exit($b,$s,$bankJournalIds);if($postingKey!==null)$s['postingKeys'][$postingKey]=['fingerprint'=>(string)$fingerprint,'result'=>$result,'createdAt'=>gmdate('c')];$s['revision']=(int)($s['revision']??0)+1;$encoded=json_encode($s,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);rewind($h);if(!ftruncate($h,0)||fwrite($h,$encoded)!==strlen($encoded)||!fflush($h))throw new RuntimeException('Accounts storage could not be saved.');}finally{flock($h,LOCK_UN);fclose($h);}ev1_out(ev1_payload($s,$entity,$month)+['result'=>$result,'revision'=>$s['revision']]);
 }catch(DomainException $e){ev1_out(['ok'=>false,'error'=>$e->getMessage()],403);}catch(InvalidArgumentException $e){ev1_out(['ok'=>false,'error'=>$e->getMessage()],422);}catch(Throwable $e){ev1_out(['ok'=>false,'error'=>'Expenses could not be updated.'],500);}
 
 

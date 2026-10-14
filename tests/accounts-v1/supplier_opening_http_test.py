@@ -4,7 +4,7 @@ ROOT=pathlib.Path(__file__).resolve().parents[2]
 with tempfile.TemporaryDirectory(prefix='supplier-opening-') as tmp:
  root=pathlib.Path(tmp)
  for d in ['api','accounts','data']:(root/d).mkdir()
- for name in ['supplier_settlements.php','supplier_opening_core.php','accounts_bank_payment.php']:
+ for name in ['supplier_settlements.php','supplier_opening_core.php','accounts_bank_payment.php', 'accounts_posting_preview.php']:
   shutil.copy(ROOT/'api'/name,root/'api'/name)
  for name in ['accounting_master_v1.json','settlement_policy_v1.json']:
   shutil.copy(ROOT/'accounts'/name,root/'accounts'/name)

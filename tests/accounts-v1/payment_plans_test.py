@@ -161,6 +161,10 @@ require $argv[1];
     debtor_store['journals']['OTHER-CO']={'id':'OTHER-CO','entity':'BRM','date':'2026-09-01','status':'Posted','lines':[{'account':'1210','counterparty':'Debtor Co','debit':900,'credit':0}]}
     books.write_text(json.dumps(debtor_store));snapshot=read();assert next(x for x in snapshot['payerAccounts'] if x['name']=='Debtor Co')['balance']==500
     source={'type':'THIRD_PARTY','relationship':'CUSTOMER_RECEIVABLE','payer':'Debtor Co','payerAccount':'1210','payerSelected':True,'method':'DIRECT','amount':120}
+    before=books.read_bytes()
+    preview=call({'action':'preview_on_account','party':'Broker A','date':'2026-10-07','sources':[source]})
+    assert preview['preview']['totalDebit']==preview['preview']['totalCredit']==120
+    assert books.read_bytes()==before,'Payment review must not allocate bills, consume receivables, reserve cheques or persist request keys'
     settled=call({'action':'on_account','party':'Broker A','date':'2026-10-07','sources':[source]})['result']['settlement']
     journal=json.loads(books.read_text())['journals'][settled['journalId']];assert any(l['account']=='1210' and l['credit']==120 and l['counterparty']=='Debtor Co' for l in journal['lines']);assert not any(l['account']=='1110' for l in journal['lines'])
     assert next(x for x in read()['payerAccounts'] if x['name']=='Debtor Co')['balance']==380
@@ -179,6 +183,7 @@ require $argv[1];
     saved=json.loads(books.read_text());journal=saved['journals'][result['journalId']];assert journal['sourceType']=='SUPPLIER_PAYMENT' and journal['totalDebit']==journal['totalCredit']==250
     assert all(l['account']!='1110' for l in journal['lines'])
     count=len(saved['journals']);assert call(body)['result']['settlement']['id']==result['id'];assert len(json.loads(books.read_text())['journals'])==count
+    ack=call({**body,'action':'preview_on_account','originalAction':'on_account','originalRequestKey':body['requestKey'],'requestKey':'preview-acknowledgement-test'});assert ack['result']['alreadyPosted'] and ack['result']['posted']['settlement']['id']==result['id'];assert len(json.loads(books.read_text())['journals'])==count
     call({**body,'party':'Service Vendor','requestKey':'on-account-unknown-party-0001'},409)
     call({'action':'correct_on_account','settlementId':result['id'],'reason':'Correct the payer','date':'2026-10-07'})
     assert sum(r['outstanding'] for r in read()['rows'] if r['group']=='Broker A')==320
@@ -197,6 +202,15 @@ require $argv[1];
     call({'action':'on_account','party':'Supplier C','date':'2026-10-07','sources':[{'type':'BANK','bankAccountId':'TTI-B','method':'CHEQUE','amount':100}]},409)
     result=call({'action':'on_account','party':'Supplier C','date':'2026-10-07','sources':[{'type':'BANK','bankAccountId':'TTI-B','method':'ONLINE_BANKING','reference':'ONLINE','amount':100}]})['result']['settlement']
     assert result['allocations'][0]['broker']=='Supplier C' and result['allocations'][0]['balanceAfter']==200
+    prior=books.read_bytes()
+    edit={'action':'edit_on_account','settlementId':result['id'],'party':'Supplier C','date':'2026-10-06','reason':'Correct payment date and amount','sources':[{'type':'BANK','bankAccountId':'TTI-B','method':'ONLINE_BANKING','bankPaymentDate':'2026-10-05','amount':80}]}
+    preview=call({**edit,'action':'preview_on_account'})
+    assert preview['preview']['totalDebit']==80 and books.read_bytes()==prior
+    replacement=call(edit)['result']['settlement'];saved=json.loads(books.read_text())
+    assert saved['supplierSettlements'][result['id']]['status']=='Reversed'
+    assert replacement['date']=='2026-10-06' and replacement['netPayment']==80
+    assert saved['journals'][replacement['journalId']]['meta']['publicPostId']==result['journalId']
+    result=replacement
     user['permissions']['Accounts']['supplier']=['View'];seed(store)
     call({'action':'on_account','party':'Supplier C','date':'2026-10-07','sources':[]},403)
     call({'action':'correct_on_account','settlementId':result['id'],'reason':'Unauthorized','date':'2026-10-07'},403)
@@ -206,6 +220,15 @@ require $argv[1];
     status,data=request('accounts_dashboard',{},method='GET');assert status==200,(status,data)
     assert len(data['summaries']['bank'])==2 and [r['bankAccountId'] for r in data['summaries']['bank'] if r.get('isDefault')]==['TTI-P'],data
     assert next(r for r in data['summaries']['bank'] if r['isDefault'])['amount']==500
+    # A planned payment edit must update its original allocations and group, not just its GL lines.
+    seed(store);keys=[r['rowKey'] for r in read()['rows'] if r['group']=='Broker A']
+    plan=call({'action':'create','mode':'PARTY','bankIds':['TTI-B'],'rowKeys':keys,'date':'2026-10-07'})['result']['plan']
+    paid=call({'action':'post','planId':plan['id'],'version':plan['version'],'group':'Broker A','rowKeys':keys,'date':'2026-10-07','sources':[{'type':'BANK','bankAccountId':'TTI-B','method':'ONLINE_BANKING','amount':320}]})['result'];plan=paid['plan'];payment=paid['settlement']
+    amendment={'action':'edit_payment','planId':plan['id'],'version':plan['version'],'settlementId':payment['id'],'group':'Broker A','rowKeys':keys,'date':'2026-10-06','reason':'Correct issued payment','applyPaymentDifferenceAsDiscount':False,'selectedOutstanding':320,'sources':[{'type':'BANK','bankAccountId':'TTI-B','method':'ONLINE_BANKING','bankPaymentDate':'2026-10-05','amount':100}]}
+    before=books.read_bytes();preview=call({**amendment,'action':'preview_payment'});assert preview['preview']['totalDebit']==100 and books.read_bytes()==before
+    changed=call(amendment)['result'];saved=json.loads(books.read_text());assert changed['plan']['groups']['Broker A']['settlementId']==changed['settlement']['id']
+    assert saved['journals'][changed['settlement']['journalId']]['meta']['publicPostId']==payment['journalId']
+    assert sum(r['outstanding'] for r in read()['rows'] if r['group']=='Broker A')==220
     # Excess cannot be reversed after it has funded a later bill without correcting that application.
     seed(store)
     result=call({'action':'on_account','party':'Broker A','date':'2026-10-07','sources':[{'type':'BANK','bankAccountId':'TTI-B','method':'CHEQUE','reference':'7001','amount':350}]})['result']['settlement']

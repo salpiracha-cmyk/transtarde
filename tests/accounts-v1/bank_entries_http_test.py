@@ -12,7 +12,7 @@ with tempfile.TemporaryDirectory(prefix='tti-authorization-') as directory:
     private.mkdir()
     for name in ['auth_store.php', 'master_store.php', 'product_stage.php', 'offline_idempotency.php','session_store.php']:
         shutil.copy(ROOT / name, app / name)
-    for name in ['supplier_opening_core.php','accounts_payees.php','bank_entries.php','bank_entries_core.php','accounts_subaccounts.php','service_ledger_groups.php','accounts_ledger_browser.php','customer_receivables_core.php','accounts_post_delete_core.php','accounts_reports.php','accounts_reference.php','tg_remittance_core.php','fi_credit_advice_link.php','receipt_invoice_links.php','journal_vouchers.php','opening_balance_core.php','accounts_subaccounts_core.php','accounts_ledger_visibility.php','assets_registry_core.php','expenses_v1.php','direct_expense_core.php','accounts_bank_payment.php','expense_locations.php','expense_reminders.php','expense_reversals.php','donations.php','rent_salary_v2.php','salary_month_workflow.php','salary_master_store.php']:
+    for name in ['supplier_opening_core.php','accounts_payees.php','bank_entries.php','bank_entries_core.php','accounts_subaccounts.php','service_ledger_groups.php','accounts_ledger_browser.php','customer_receivables_core.php','accounts_post_delete_core.php','accounts_reports.php','accounts_reference.php','tg_remittance_core.php','fi_credit_advice_link.php','receipt_invoice_links.php','journal_vouchers.php','opening_balance_core.php','accounts_subaccounts_core.php','accounts_ledger_visibility.php','assets_registry_core.php','expenses_v1.php','direct_expense_core.php','accounts_bank_payment.php','expense_locations.php','expense_reminders.php','expense_reversals.php','donations.php','rent_salary_v2.php','salary_month_workflow.php','salary_master_store.php', 'accounts_posting_preview.php']:
         shutil.copy(ROOT / 'api' / name, app / 'api' / name)
     shutil.copy(ROOT / 'accounts/accounting_master_v1.json', app / 'accounts/accounting_master_v1.json')
     harness = root / 'request.php'
@@ -78,10 +78,16 @@ require $argv[1];
     assert next(a for a in mill['subaccounts'] if a['id']==mill['result']['subaccountId'])['expenseClassification']=='MILL'
     office,_=good('accounts_subaccounts',operation='edit',id=homeid,name='Office gardening',parentCode='6900',expenseType=True,expenseClassification='OFFICE')
     assert office['result']['subaccountId']==homeid and next(a for a in office['subaccounts'] if a['id']==homeid)['expenseClassification']=='OFFICE'
+    before=books.read_bytes()
+    status,preview,_=mutate('bank_entries',action='post',type='PETTY_CASH',bankId='BANK-1',date='2026-10-08',amount=500,bankPaymentMethod='ONLINE_BANKING',preview=True)
+    assert status==200 and len(preview['previews'])==1,(status,preview)
+    assert preview['previews'][0]['totalDebit']==preview['previews'][0]['totalCredit']==500
+    assert books.read_bytes()==before,'Reviewing bank accounting must not persist journals, IDs, revision or request keys'
     petty,body=good(action='post',type='PETTY_CASH',bankId='BANK-1',date='2026-10-08',reference='PETTY-1',narration='Replenish cash',amount=500,bankPaymentMethod='ONLINE_BANKING')
     assert [(l['account'],l['debit'],l['credit']) for l in petty['result']['journal']['lines']]==[('1120',500,0),('1110',0,500)]
     before=books.read_bytes();status,retry=request('bank_entries','?entity=TTI',body)
     assert status==200 and retry['result']==petty['result'] and books.read_bytes()==before
+    status,ack=request('bank_entries','?entity=TTI',{**body,'preview':True});assert status==200 and ack['result']==petty['result'] and books.read_bytes()==before,'A review retry must acknowledge an already committed request'
     assert mutate('bank_entries',action='post',type='PETTY_CASH',bankId='BANK-USD',date='2026-10-08',reference='CASH-FX',narration='Wrong currency',amount=500)[0]==422 and books.read_bytes()==before
     setup,_=good('accounts_payees',kind='EXPENSE',name='Caretaker',accountCode='6910',expenseCategory='HOME')
     pid=setup['result']['payee']['id']

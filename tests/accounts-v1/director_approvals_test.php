@@ -14,3 +14,8 @@ if (count($requests)!==2 || $requests[0]['billId']!=='B1' || $requests[1]['kind'
     || $requests[1]['entity']!=='BRM' || $store!==$before) throw new RuntimeException('Shared approval queue regression.');
 if (tt_pending_director_rate_approvals([])!==[]) throw new RuntimeException('Empty queue regression.');
 echo "Director approvals: shared rate queue, current PO rate, held quantities and exclusions passed.\n";
+
+$store['jvDrafts']=['JVD1'=>['id'=>'JVD1','entity'=>'TTI','status'=>'Pending Approval','date'=>'2026-10-06','createdBy'=>'Tayyab','reference'=>'','narration'=>'JV to review','lines'=>[['account'=>'1120','debit'=>10],['account'=>'1110','credit'=>10]],'totalDebit'=>10,'totalCredit'=>10],'JVD2'=>['entity'=>'TTI','status'=>'Draft'],'JVD3'=>['entity'=>'TG','status'=>'Posted']];
+$before=$store;$jvs=tt_pending_jv_approvals($store);
+if(count($jvs)!==1||$jvs[0]['id']!=='JVD1'||count($jvs[0]['lines'])!==2||$store!==$before)throw new RuntimeException('Pending JV queue must be complete and read-only.');
+echo "Pending JV queue includes Tayyab, original lines and approval identity without importing drafts or posted records.\n";
