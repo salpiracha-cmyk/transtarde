@@ -282,7 +282,7 @@
     input.onclick = () => { if (menu.hidden) render(true); };
     input.oninput = () => render(false);
     input.onkeydown = event => {
-      if (event.key === 'Escape') { menu.hidden = true; syncInput(); return; }
+      if (event.key === 'Escape' && !menu.hidden) { event.preventDefault(); event.stopPropagation(); menu.hidden = true; syncInput(); return; }
       if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
         event.preventDefault();event.stopPropagation();
         if(menu.hidden)render(true);
