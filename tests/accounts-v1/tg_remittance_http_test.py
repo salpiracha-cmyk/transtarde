@@ -3,7 +3,7 @@ import json,os,pathlib,shutil,socket,subprocess,tempfile,time,urllib.request,url
 ROOT=pathlib.Path(__file__).resolve().parents[2]
 with tempfile.TemporaryDirectory(prefix='tg-remittance-') as tmp:
  root=pathlib.Path(tmp);(root/'api').mkdir();(root/'accounts').mkdir();(root/'data').mkdir()
- for name in ['supplier_opening_core.php','accounts_subaccounts_core.php','accounts_ledger_visibility.php','assets_registry_core.php','export_receipts.php','export_receipt_tg_mirror.php','forward_booking_core.php','accounts_receipt_amend_core.php','tg_remittances.php','tg_remittance_core.php','fi_credit_advice_link.php','receipt_invoice_links.php','accounts_reviews.php','accounts_reviews_core.php','accounts_dashboard.php','customer_receivables_core.php','bank_accounts.php','expense_reminders.php','service_ledger_groups.php','accounts_ledger_browser.php','accounts_post_delete_core.php','accounts_reference.php']:
+ for name in ['supplier_opening_core.php','accounts_subaccounts_core.php','accounts_ledger_visibility.php','assets_registry_core.php','export_receipts.php','export_receipt_tg_mirror.php','forward_booking_core.php','accounts_receipt_amend_core.php','tg_remittances.php','tg_remittance_core.php','fi_credit_advice_link.php','receipt_invoice_links.php','accounts_reviews.php','accounts_reviews_core.php','accounts_dashboard.php','tg_liability_projection.php','customer_receivables_core.php','bank_accounts.php','expense_reminders.php','service_ledger_groups.php','accounts_ledger_browser.php','accounts_post_delete_core.php','accounts_reference.php']:
   shutil.copy(ROOT/'api'/name,root/'api'/name)
  for name in ['accounting_master_v1.json','settlement_policy_v1.json','export_realization_policy_v1.json','tg-remittances-ui.js','export-receipts-ui.js','post-confirmation-ui.js']:
   shutil.copy(ROOT/'accounts'/name,root/'accounts'/name)
@@ -27,7 +27,7 @@ with tempfile.TemporaryDirectory(prefix='tg-remittance-') as tmp:
   return $id;
  }
  ''')
- s={'journals':{},'exportReceipts':{},'tgRemittanceDrafts':{}}
+ s={'journals':{},'exportReceipts':{},'tgRemittanceDrafts':{},'tgLiabilities':{'BILL-USD':{'id':'BILL-USD','counterparty':'Supplier USD','currency':'USD','reference':'INV-USD','nativeAmount':100,'recognitionRate':3.67},'BILL-AED':{'id':'BILL-AED','counterparty':'Supplier AED','currency':'AED','reference':'INV-AED','nativeAmount':50,'recognitionRate':1}},'tgBankTransactions':{'PAY':{'kind':'Payment','liabilityAllocations':[{'id':'BILL-USD','amountNative':30}]}},'commodityBills':{'WRONG':{'entity':'TG','id':'WRONG','total':99999}}}
  for i,amount in enumerate([108000,32000]):
   rid=f'ER-{i}';jid=f'PK-{i}';did=f'DRAFT-{i}'
   s['journals'][jid]={'id':jid,'entity':'TTI','date':'2026-10-01','status':'Posted','meta':{'receiptId':rid},'narration':'CREDIT ADVICE','lines':[]}
@@ -53,6 +53,7 @@ with tempfile.TemporaryDirectory(prefix='tg-remittance-') as tmp:
   accounts_before=(root/'data/accounts.json').read_bytes()
   group=req('accounts_dashboard.php?entity=TG')[1]
   assert group['customerReceivables']['entities']==['TTI','TG']
+  assert {(r['currency'],r['amount']) for r in group['summaries']['commodity']}=={('USD',70),('AED',50)},'TG supplier card must use actual liabilities, net of payments, in invoice currencies'
   assert sum(row['amount'] for row in group['summaries']['export'])==1500
   assert group['summaries']['export']==req('accounts_dashboard.php?entity=TTI')[1]['summaries']['export']
   assert req('accounts_dashboard.php?entity=BRM')[0]==403
