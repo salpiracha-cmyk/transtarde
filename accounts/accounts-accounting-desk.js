@@ -460,7 +460,7 @@
     return sodaData;
   }
 
-  function sodaMode(id,items,value){return `<div class="tt-account-choices" role="radiogroup">${items.map(([key,label])=>`<label><input type="radio" name="${id}Choice" value="${key}" data-soda-mode="${id}" ${key===value?'checked':''}>${esc(label)}</label>`).join('')}</div><select id="${id}" hidden data-master-ignore><option value=""></option>${items.map(([key,label])=>`<option value="${key}" ${key===value?'selected':''}>${esc(label)}</option>`).join('')}</select>`;}
+  function sodaMode(id,items,value){return `<div class="tt-account-choices" role="radiogroup" aria-label="${id==='ttSdStage'?'Purchase type':'Ready rice route'}">${items.map(([key,label])=>`<label><input type="radio" name="${id}Choice" value="${key}" data-soda-mode="${id}" ${key===value?'checked':''}>${esc(label)}</label>`).join('')}</div><select id="${id}" hidden data-master-ignore data-tt-native="1"><option value=""></option>${items.map(([key,label])=>`<option value="${key}" ${key===value?'selected':''}>${esc(label)}</option>`).join('')}</select>`;}
   function sodaForm(record = null) {
     const value = (key, fallback = '') => esc(record?.[key] ?? fallback);
     const credit = String(record?.paymentTermType || (Number(record?.creditDays || 0) ? 'CREDIT' : 'CASH')).toUpperCase();
