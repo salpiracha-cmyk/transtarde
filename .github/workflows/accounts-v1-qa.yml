@@ -203,6 +203,7 @@ jobs:
           node tests/accounts-v1/accounts_master_popup_browser_test.js
           node tests/accounts-v1/expense_review_batch_browser_test.js
           node tests/accounts-v1/costing_navigation_test.js
+          node tests/accounts-v1/payables_draft_stability_test.js
           node tests/accounts-v1/expense_forms_browser_test.js
           node tests/accounts-v1/post_register_browser_test.js
           node tests/accounts-v1/direct_expense_browser_test.js
