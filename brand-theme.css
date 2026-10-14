@@ -188,9 +188,9 @@ button:not(.danger):not(.red):not(.xBtn):not(.optionMinus).active{
  :is(.am-grid,.ttrs-grid,.jvw-line) input:not([type=hidden]):not([type=checkbox]):not([type=radio]):not([type=date]):not(.tt-number-source){min-height:44px!important;height:44px!important}
  .am-grid label>.tt-search-select,.jvw-line .tt-search-select{margin-top:0!important}
  .am-bank-header{grid-template-columns:1fr 1fr!important}
- .am-debit-row{grid-template-columns:30px minmax(180px,1.6fr) minmax(145px,1.1fr) minmax(150px,1fr) minmax(180px,1.5fr) minmax(125px,1fr)!important;align-items:start;padding:12px;gap:10px}
+ .am-debit-row{grid-template-columns:30px minmax(150px,1.4fr) minmax(125px,1fr) minmax(125px,1fr) minmax(135px,1.1fr) minmax(150px,1.3fr) minmax(100px,.9fr)!important;align-items:start;padding:12px;gap:10px}
  .am-debit-row>.tt-row-remove-slot{grid-column:auto;align-self:start;margin-top:27px}
- .am-debit-row [data-row-method]{min-height:30px;font-size:12px;padding:4px 8px}
+ .am-debit-row [data-row-method]{min-height:44px;font-size:15px;padding:10px}
  .am-add-line,.ttrs-add-line{display:flex;justify-content:flex-start!important;margin-top:10px}
  .ttrs-month{justify-content:center!important;margin:12px auto 20px}.ttrs-month input{min-height:42px;max-width:240px}
  .ttrs table td,.ttrs table th{vertical-align:middle}.ttrs table td:has(.tt-row-remove){width:38px;min-width:38px;padding:8px 4px}
