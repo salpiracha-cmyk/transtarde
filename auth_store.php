@@ -324,9 +324,9 @@ function tt_read_store(): array {
     finally { $GLOBALS['ttRequestTiming']['store_decode']+=(hrtime(true)-$started)/1e6; }
 }
 
-function tt_mutate_store(callable $callback): mixed {
+function tt_mutate_store(callable $callback, bool $automaticBackup=true): mixed {
     $backupLib=__DIR__ . '/backup_lib.php';
-    if (is_file($backupLib)) {
+    if ($automaticBackup && is_file($backupLib)) {
         require_once $backupLib;
         if (function_exists('tt_maybe_auto_backup')) {
             $backupStarted=hrtime(true);
@@ -384,13 +384,13 @@ function tt_create_admin(string $username, string $password): int {
     });
 }
 
-/** Record a successful sign-in in one atomic store update. */
+/** Record sign-in atomically; authentication must not build a business snapshot. */
 function tt_record_sign_in(int $id, string $username): void {
     tt_mutate_store(function (&$data) use ($id, $username): void {
         foreach ($data['users'] as &$user) if ((int)($user['id'] ?? 0) === $id) { $user['last_login_at'] = gmdate('c'); break; }
         unset($user);
         tt_append_audit($data, $id, $username, 'Signed in');
-    });
+    },false);
 }
 
 function tt_list_public_users(): array {
@@ -1065,10 +1065,10 @@ function tt_append_audit(array &$data, ?int $userId, string $username, string $a
     if (count($data['audit']) > 5000) $data['audit'] = array_slice($data['audit'], 0, 5000);
 }
 
-function tt_audit(?int $userId, string $username, string $action): void {
+function tt_audit(?int $userId, string $username, string $action, bool $automaticBackup=true): void {
     tt_mutate_store(function (&$data) use ($userId, $username, $action): void {
         tt_append_audit($data, $userId, $username, $action);
-    });
+    },$automaticBackup);
 }
 
 /** Uppercase user accounting text without modifying identity keys or workflow enums. */

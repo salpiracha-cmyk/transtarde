@@ -40,7 +40,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         tt_auth_record_failure('login-account',$rateIdentity,10,900,900,false);
         tt_auth_record_failure('login-address','all-users',20,900,900,true);
         tt_auth_record_failure('login-emergency','all-users',120,900,1800,false);
-        tt_audit($user ? (int)$user['id'] : null, $username ?: 'unknown', 'Failed sign-in');
+        tt_audit($user ? (int)$user['id'] : null, $username ?: 'unknown', 'Failed sign-in',false);
         usleep(350000); $error = 'Incorrect username or password.';
     }
 }
