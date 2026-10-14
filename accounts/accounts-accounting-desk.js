@@ -38,6 +38,7 @@
       {title:'Local Sales & Receipts', note:'Mill sale approvals and linked receipts awaiting Accounts action', native:'receivables', find:'Local'}
     ]},
     {key:'bank', glyph:'▦', title:'Bank & Cash', note:'Bank payments, receipts, transfers and reconciliation', actions:[
+      {title:'Forward Booking',note:'USD/PKR calendar-day contracts, utilisation and expiry settlement',special:'forward-booking'},
       {title:'Bank Entry', note:'Bank payment first; pay parties or expenses, and record other bank entries', special:'bank-entry'},
       {title:'Review TG Remittances', special:'tg-remittances'}, {title:'Inter Account Transfer', note:'Move PKR between company accounts or to a personal account with a reason', special:'internal-bank-transfer'},
       {title:'Foreign Retention Account', note:'Settle foreign commissions and other linked outward remittances', special:'retention-remittance'},
@@ -46,10 +47,10 @@
     ]},
     {key:'routine', glyph:'◇', title:'Expenses', note:'Pay expenses, utilities, cards or salaries', actions:[
       {title:'Pay Expense', note:'Pay anyone; combine several expenses in one cheque or payment', native:'expenses', special:'expense-pay'},
-      {title:'Expense Recipients', note:'Add and edit recipients; choose expense purpose on each payment', special:'expense-recipients'},
+
       {title:'Salaries & Staff', note:'Salary advance and monthly salary preparation', native:'expenses', special:'expense-salary'}
     ]},
-    {key:'ledgers', glyph:'L', title:'Ledgers', note:'Account and party ledgers, and every posted voucher', actions:[{title:'Ledger',special:'all-ledgers',ledgerCategory:'party'},{title:'Post ID Register',special:'post-ledger'},{title:'Trial Balance',native:'reports',find:'Trial Balance'},{title:'Chart of Accounts & Details',special:'account-heads'},{title:'Subaccounts & Details',special:'subaccounts'}]},
+    {key:'ledgers', glyph:'L', title:'Ledgers', note:'Account and party ledgers, and every posted voucher', actions:[{title:'Ledger',special:'all-ledgers',ledgerCategory:'party'},{title:'Post ID Register',special:'post-ledger'},{title:'Trial Balance',native:'reports',find:'Trial Balance'},{title:'Chart of Accounts & Details',special:'account-heads'},{title:'Subaccounts & Details',special:'subaccounts'},{title:'Forward Booking Register',special:'forward-register'}]},
     {key:'reports', glyph:'▤', title:'Reports', note:'Financial, tax, party, commodity and shipment reports', actions:[
       {title:'Sales Tax', note:'Search export documents and bank/tax advices by period and reference', special:'sales-tax'},
       {title:'Expenses by Type / Recipient',special:'expense-report'}, {title:'Vehicle / Asset Costs',special:'vehicle-report'}, {title:'Withholding Tax Report', special:'withholding-report'}, {title:'Trial Balance', native:'reports', find:'Trial Balance'}, {title:'Profit & Loss', native:'reports', find:'Profit'},
@@ -78,6 +79,7 @@
     ]}
   ];
   if(access.canInventoryReconciliation) pakistanAreas.find(area=>area.key==='reports').actions.push({title:'Ghati & Stock Reconciliation',note:'Accounts / Directors only; never adds stock or another purchase',special:'stock-reconciliation'});
+  for(const areas of [pakistanAreas,tgAreas])for(const area of areas)if(area.key.endsWith('reports'))area.actions=area.actions.filter(a=>!(a.native==='reports'&&a.find==='Trial Balance')&&!(areas===tgAreas&&a.special==='withholding-report'));
   const currentAreas = () => entity() === 'TG' ? tgAreas : pakistanAreas;
 
   const assetPermission=access.super||access.permissions==='all'||(Array.isArray(access.permissions)?access.permissions.includes('View'):(access.permissions?.assets||[]).includes('View'));
@@ -141,6 +143,8 @@
     if(action.special==='expense-report')return window.TT_REPORTS.open('expenses');
     if(action.special==='vehicle-report')return window.TT_REPORTS.open('vehicles');
     if(action.native==='reconciliation')return window.TT_BANK_RECONCILIATION.open();
+    if(action.special==='forward-booking')return window.TT_FORWARD_BOOKINGS.open();
+    if(action.special==='forward-register')return window.TT_FORWARD_BOOKINGS.open(true);
     if(action.special==='bank-entry')return window.TT_BANK_ENTRIES.open();
     if(action.special==='bank-finance')return window.TT_BANK_ENTRIES.open('','FINANCE');
     if(action.special==='subaccounts')return window.TT_SUBACCOUNTS.open('manage');
@@ -288,7 +292,7 @@
     return `<svg viewBox="0 0 24 24" width="27" height="27" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[kind]||paths.bill}</svg>`;
   }
 
-  function showAreasHome() {
+  function showAreasHome() {bankMenuGeneration++;
     const work = q('#ttDeskWork'); if (!work) return;
     const items = currentAreas();
     work.innerHTML = `<div class="tt-home-head"><h2>${entity()==='TG'?'Trans Grains Accounts':'What do you want to do?'}</h2><p>${entity()==='TG'?'Only customer receipts, supplier payments, bank/local expenses, ledgers and reports are shown.':'Choose a broad area, then choose the exact entry or report.'}</p></div><div class="tt-area-grid"><button type="button" class="tt-area-card" id="ttMainJV"><span class="tt-area-glyph">${iconPicture('jv')}</span><b>Journal Voucher</b><small>Prepare, approve and print a JV</small></button>${items.map(area=>`<button type="button" class="tt-area-card" data-tt-area="${area.key}"><span class="tt-area-glyph">${iconPicture(area.key.startsWith('tg-')?area.key.slice(3):area.key)}</span><b>${esc(area.title)}</b><small>${esc(area.note)}</small></button>`).join('')}</div>`;
@@ -297,11 +301,23 @@
     window.TT_ACCOUNT_BADGE_REFRESH?.();
   }
 
-  function showArea(key) {
+  let bankMenuGeneration=0;
+  async function showArea(key) {
     const list=currentAreas();
     const area = list.find(item => item.key === key) || list[0];
     const work = q('#ttDeskWork');
     if (!work) return;
+    const menuToken=++bankMenuGeneration,menuCompany=entity();let hiddenSpecials=new Set();
+    if(area.key==='bank'||area.key==='tg-bank'){
+      work.innerHTML='<button class="tt-back-areas" type="button">BACK</button><p>Loading bank options…</p>';q('.tt-back-areas',work).onclick=showAreasHome;
+      const urls=['../api/bank_entries.php?entity='+menuCompany,'../api/bank_accounts.php?entity='+menuCompany,...(menuCompany!=='TG'?['../api/export_receipts.php?entity='+menuCompany]:[])];
+      const results=await Promise.allSettled(urls.map(async url=>{const response=await fetch(url,{credentials:'same-origin'});if(!response.ok)return null;return response.json();}));
+      if(menuToken!==bankMenuGeneration||menuCompany!==entity()||!work.isConnected||document.querySelector('#ttDeskWork')!==work)return;
+      const finance=results[0].status==='fulfilled'?results[0].value:null,banks=results[1].status==='fulfilled'?results[1].value:null,tg=results[2]?.status==='fulfilled'?results[2].value:null;
+      if(finance?.ok&&!finance.canCreate&&!(finance.facilities||[]).some(f=>f.active))hiddenSpecials.add('bank-finance');
+      if(banks?.ok&&!banks.accounts?.some(a=>a.settings?.retentionAccount))hiddenSpecials.add('retention-remittance');
+      if(tg?.ok&&!(tg.pendingTg||[]).length&&!(tg.sources?.tgPackInvoices||[]).length&&!(tg.receipts||[]).some(r=>r.remitter==='TG'))hiddenSpecials.add('tg-remittances');
+    }
     const actionGlyph = action => {
       const label=action.title.toLowerCase();
       if(action.special==='export-receipt'||label.includes('receipt')||label.includes('advice'))return iconPicture('receipt');
@@ -315,15 +331,15 @@
       if(label.includes('report')||label.includes('balance')||label.includes('profit'))return iconPicture('reports');
       return iconPicture('bill');
     };
-    work.innerHTML = `<div class="tt-work-head"><button class="tt-back-areas" type="button" aria-label="Back to main Accounts">BACK</button><div><h2>${esc(area.title)}</h2><p>${esc(area.note)}</p></div>${area.key==='routine'?'<button type="button" class="btn" id="ttExpenseMasters" title="Utility, card, rent and salary masters">⚙ Expense masters</button>':''}</div><div class="tt-action-list" data-area-palette="${esc(area.key)}">${area.actions.map((action, index) => `<button type="button" class="tt-action" data-tt-action="${index}"><span class="tt-action-mark">${actionGlyph(action)}</span><span><b>${esc(action.title)}</b><small>${esc(action.note || 'Open report')}</small></span></button>`).join('')}</div>`;
+    work.innerHTML = `<div class="tt-work-head"><button class="tt-back-areas" type="button" aria-label="Back to main Accounts">BACK</button><div><h2>${esc(area.title)}</h2><p>${esc(area.note)}</p></div>${area.key==='routine'?'<button type="button" class="btn" id="ttExpenseMasters" title="Recipients, utility, card, rent and salary setup">⚙ Accounts Setup</button>':''}</div><div class="tt-action-list" data-area-palette="${esc(area.key)}">${area.actions.map((action, index) => hiddenSpecials.has(action.special)?'':`<button type="button" class="tt-action" data-tt-action="${index}"><span class="tt-action-mark">${actionGlyph(action)}</span><span><b>${esc(action.title)}</b><small>${esc(action.note || 'Open report')}</small></span></button>`).join('')}</div>`;
     q('.tt-back-areas',work).onclick=showAreasHome;
     const expenseMasters=q('#ttExpenseMasters',work);if(expenseMasters)expenseMasters.onclick=()=>openLittleMaster();
     qa('[data-tt-action]', work).forEach(button => button.onclick = () => launch(area.actions[Number(button.dataset.ttAction)]));
   }
 
   function openLittleMaster(){
-    const host=layer('ttLittleMaster','Routine Expense Masters'),body=q('.tt-window-body',host);
-    const masters=[{name:'Credit Cards',native:'expenses',then:'[data-expense="card"]'},{name:'Utility & Club Bills',native:'expenses',then:'[data-expense="utility"]'},{name:'Rent & Recurring',native:'expenses',then:'[data-expense="rent"]'},{name:'Salary & Staff',native:'expenses',then:'[data-expense="salary"]'}];
+    const host=layer('ttLittleMaster','Accounts Setup'),body=q('.tt-window-body',host);
+    const masters=[{name:'Expense Recipients',special:'expense-recipients'},{name:'Credit Cards',native:'expenses',then:'[data-expense="card"]'},{name:'Utility & Club Bills',native:'expenses',then:'[data-expense="utility"]'},{name:'Rent & Recurring',native:'expenses',then:'[data-expense="rent"]'},{name:'Salary & Staff',native:'expenses',then:'[data-expense="salary"]'}];
     body.innerHTML=`<div class="tt-action-list">${masters.map((item,i)=>`<button class="tt-action" data-little="${i}"><span class="tt-action-mark">✎</span><span><b>${esc(item.name)}</b><small>Open saved details and recurring setup</small></span></button>`).join('')}</div>`;
     qa('[data-little]',body).forEach(button=>button.onclick=()=>{q('.tt-window-close',host).click();launch(masters[Number(button.dataset.little)])});
   }

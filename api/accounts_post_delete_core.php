@@ -7,7 +7,7 @@ function apd_record_index(array $s):array { $records=[];foreach(['utilityPayment
 function apd_supported(array $s,array $j,?array $recordIndex=null):bool {
     if(!empty($j['reversalOf'])||!empty($j['reversedByPostId'])||!empty($j['meta']['reversedByPostId'])||!empty($j['meta']['deletedFromBooks']))return false;
     $records=$recordIndex??apd_record_index($s);if(isset($records[$j['id']]))return true;
-    return in_array($j['sourceType']??'',['JV','OPENING_BALANCE_BF','BANK_ENTRY','SALARY_ADVANCE'],true)||!empty($j['meta']['investmentTransactionId'])||!empty($j['meta']['receiptId'])||!empty($j['meta']['tgRemittanceId'])||!empty($j['meta']['settlementId']);
+    return in_array($j['sourceType']??'',['JV','OPENING_BALANCE_BF','BANK_ENTRY','SALARY_ADVANCE'],true)||($j['sourceType']??'')==='FORWARD_BOOKING_SETTLEMENT'||!empty($j['meta']['investmentTransactionId'])||!empty($j['meta']['receiptId'])||!empty($j['meta']['tgRemittanceId'])||!empty($j['meta']['settlementId']);
 }
 function apd_delete_reason(array $s,array $j,array $u,?array $recordIndex=null):string {
     if(!empty($j['reversalOf']))return 'This is a cancellation/audit entry. It cannot be deleted again; use the original workflow to enter a new transaction.';
@@ -27,6 +27,7 @@ function apd_delete(array &$s,array $u,string $id,array $b):array {
         if(!defined('TT_EXPENSES_FUNCTIONS_ONLY'))define('TT_EXPENSES_FUNCTIONS_ONLY',true);require_once __DIR__.'/expenses_v1.php';ev1_delete_expense($s,['collection'=>$collection,'id'=>$rid,'reason'=>$reason],$e,$u,ev1_names());$handled=true;break 2;
     }}
     if(!$handled&&!empty($j['meta']['investmentTransactionId'])){require_once __DIR__.'/company_investments_core.php';inv_reverse($s,$e,['transactionId'=>$j['meta']['investmentTransactionId'],'date'=>$date,'reason'=>$reason],$u);$handled=true;}
+    if(!$handled&&($j['sourceType']??'')==='FORWARD_BOOKING_SETTLEMENT'){require_once __DIR__.'/forward_booking_core.php';fwb_reverse_settlement($s,$e,(string)$j['meta']['forwardBookingId'],$reason,$u);$handled=true;}
     if(!$handled&&($j['sourceType']??'')==='BANK_ENTRY'){require_once __DIR__.'/assets_registry_core.php';require_once __DIR__.'/bank_entries_core.php';ben_reverse($s,$e,['journalId'=>$id,'date'=>$date,'reason'=>$reason],$u);$handled=true;}
     if(!$handled&&!empty($j['meta']['tgRemittanceId'])){require_once __DIR__.'/tg_remittance_core.php';tgr_reopen($s,['remittanceId'=>$j['meta']['tgRemittanceId'],'date'=>$date,'reason'=>$reason],$u);$handled=true;}
     if(!$handled&&!empty($j['meta']['receiptId'])&&isset($s['exportReceipts'][$j['meta']['receiptId']])){require_once __DIR__.'/accounts_receipt_amend_core.php';$receipt=$s['exportReceipts'][$j['meta']['receiptId']];foreach(array_unique(array_merge([$receipt['entity']],!empty($receipt['tgMirrorPostIds'])?['TG']:[])) as $company)if(!tt_user_can_access_entity($u,$company,'Edit'))throw new DomainException('Edit permission for every linked company is required.');er_reverse_receipt_store($s,$j['meta']['receiptId'],$receipt['entity'],$date,$reason,$u);$handled=true;}

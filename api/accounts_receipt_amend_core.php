@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__.'/forward_booking_core.php';
 
 /** Reverse one receipt and every journal it created, leaving the source audit intact. */
 function er_reverse_receipt_store(array &$store, string $receiptId, string $entity, string $date, string $reason, array $user): array {
@@ -7,6 +8,7 @@ function er_reverse_receipt_store(array &$store, string $receiptId, string $enti
     if(!is_array($receipt)||($receipt['entity']??'')!==$entity||($receipt['recordType']??'')==='FOREIGN_BANK_SHORTFALL_ADJUSTMENT')throw new DomainException('Posted credit advice was not found in these company books.');
     if(($receipt['status']??'')==='Reversed for Amendment')throw new DomainException('This advice is already reversed. Continue its correction from the Post ID Register.');
     if(($receipt['status']??'')!=='Accounts Approved / Posted')throw new DomainException('Only a posted credit advice can be amended.');
+    fwb_assert_receipt_reversible($store,$receipt);
     foreach((array)($store['exportBankShortfalls']??[]) as $shortfall)
         if(is_array($shortfall)&&($shortfall['linkedReceiptId']??'')===$receiptId)throw new DomainException('A foreign bank shortfall is linked to this advice. Reverse that adjustment first.');
     foreach(['exportTaxCertificateMatches','retentionRemittances','salesTaxRefundReceipts'] as $collection)

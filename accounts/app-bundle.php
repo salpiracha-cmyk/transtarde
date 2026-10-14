@@ -44,6 +44,7 @@ $files = [
     'internal-bank-transfers-ui.js',
     'tg-liabilities-ui.js',
     'tg-year-end-revaluation-ui.js',
+    'forward-bookings-ui.js',
     'export-receipts-ui.js',
     'retention-remittance-ui.js',
     'bill-smart-ui-v2.js',

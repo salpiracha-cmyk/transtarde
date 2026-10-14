@@ -3,7 +3,7 @@ import json,os,pathlib,shutil,socket,subprocess,tempfile,time,urllib.request,url
 ROOT=pathlib.Path(__file__).resolve().parents[2]
 with tempfile.TemporaryDirectory(prefix='tg-remittance-') as tmp:
  root=pathlib.Path(tmp);(root/'api').mkdir();(root/'accounts').mkdir();(root/'data').mkdir()
- for name in ['supplier_opening_core.php','accounts_subaccounts_core.php','accounts_ledger_visibility.php','assets_registry_core.php','export_receipts.php','export_receipt_tg_mirror.php','accounts_receipt_amend_core.php','tg_remittances.php','tg_remittance_core.php','fi_credit_advice_link.php','receipt_invoice_links.php','accounts_reviews.php','accounts_reviews_core.php','accounts_dashboard.php','customer_receivables_core.php','bank_accounts.php','expense_reminders.php','accounts_ledger_browser.php','accounts_post_delete_core.php','accounts_reference.php']:
+ for name in ['supplier_opening_core.php','accounts_subaccounts_core.php','accounts_ledger_visibility.php','assets_registry_core.php','export_receipts.php','export_receipt_tg_mirror.php','forward_booking_core.php','accounts_receipt_amend_core.php','tg_remittances.php','tg_remittance_core.php','fi_credit_advice_link.php','receipt_invoice_links.php','accounts_reviews.php','accounts_reviews_core.php','accounts_dashboard.php','customer_receivables_core.php','bank_accounts.php','expense_reminders.php','accounts_ledger_browser.php','accounts_post_delete_core.php','accounts_reference.php']:
   shutil.copy(ROOT/'api'/name,root/'api'/name)
  for name in ['accounting_master_v1.json','settlement_policy_v1.json','export_realization_policy_v1.json','tg-remittances-ui.js','export-receipts-ui.js','post-confirmation-ui.js']:
   shutil.copy(ROOT/'accounts'/name,root/'accounts'/name)
@@ -124,6 +124,19 @@ with tempfile.TemporaryDirectory(prefix='tg-remittance-') as tmp:
   projection=json.loads(json.loads((root/'data/operations.json').read_text())['values']['transtrade_export_v3_operational'])['accountsReceipts']
   assert len(projection)==2 and {x['receiptType'] for x in projection}=={'TG_PACK_PAYMENT'} and [x['realizationRate'] for x in projection]==[280,282]
   before=(root/'data/accounts.json').read_bytes();assert req('export_receipts.php?entity=TTI',{**split,'paymentPartRef':'3','remitter':'OTHER'})[0]==409;assert (root/'data/accounts.json').read_bytes()==before
+  # Already-posted TG payment can receive separate forward/manual-rate bank advices without a second TG debit.
+  pending_state=json.loads(json.dumps(basket_state));pending_state['exportCandidates']['TG-PAY-1']['linkedCandidateId']='EXP|BASKET-1'
+  pending_state['tgBankTransactions']={'PAID-TG':{'id':'PAID-TG','kind':'Payment','paymentType':'LIABILITY','status':'Accounts Approved / Posted','sourceLiabilityId':'TG-PAY-1','amountNative':100,'currency':'USD','bankAccountId':'USD','bankReference':'TWO-RATE-TG','date':'2026-10-01'}}
+  pending_state['forwardBookings']={'FB-TG':{'id':'FB-TG','entity':'TTI','status':'Open','bankAccountId':'PKR','bankName':'BANK','bookingDate':'2026-07-01','waitingDays':0,'windowDays':180,'startDate':'2026-07-01','expiryDate':'2026-12-28','amountUsd':60,'rate':280,'contractNumber':''}}
+  (root/'data/accounts.json').write_text(json.dumps(pending_state));(root/'data/operations.json').write_text(json.dumps({'values':{'transtrade_export_v3_operational':json.dumps(basket_root)}}))
+  assert req('export_receipts.php?entity=TTI')[1]['pendingTg'][0]['amount']==100
+  initial_tg_journals={k for k,j in pending_state['journals'].items() if j['entity']=='TG'}
+  for part,amount,rate in [('1',60,280),('2',40,282)]:
+   split_pending={**receipt_payload,'tgPaymentId':'PAID-TG','bankAdviceRef':'TWO-RATE-TG','partialReceipt':True,'paymentPartRef':part,'foreignAmount':amount,'realizationRate':rate,'grossPkrEquivalent':amount*rate,'pkrBankCredit':amount*rate,'forwardBookingId':'FB-TG' if part=='1' else '', 'allocations':[{'targetType':'INTERCOMPANY_RECEIVABLE','targetId':'EXP|BASKET-1','contractRef':'TG/BASKET/1','invoiceRef':'PACK-1','foreignAmount':amount,'customer':'TG'}]}
+   status,posted_part=req('export_receipts.php?entity=TTI',split_pending);assert status==200,posted_part
+   pending=req('export_receipts.php?entity=TTI')[1]['pendingTg'];assert (pending[0]['amount'] if pending else 0)==(40 if part=='1' else 0)
+  saved=json.loads((root/'data/accounts.json').read_text());assert {k for k,j in saved['journals'].items() if j['entity']=='TG'}==initial_tg_journals
+  assert sum(r.get('forwardUsdUsed',0) for r in saved['exportReceipts'].values())==60 and len(saved['exportReceipts'])==2
   # Direct customer receipt reduces only its own commercial invoice.
   direct=json.loads(json.dumps(basket_state));direct['exportCandidates']['DIRECT']={**direct['exportCandidates']['EXP|BASKET-1'],'id':'DIRECT','candidateType':'CUSTOMER_EXPORT_SALE','mirrorCandidateId':'','meta':{'commercialInvoiceNo':'CUSTOMER-CI','contractRef':'DIRECT-CONTRACT','customer':'BUYER'}}
   (root/'data/accounts.json').write_text(json.dumps(direct))

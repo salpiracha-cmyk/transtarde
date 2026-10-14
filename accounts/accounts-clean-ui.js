@@ -297,7 +297,10 @@
         if(option){select.value=option.value;syncInput();menu.hidden=true;select.dispatchEvent(new Event('input',{bubbles:true}));select.dispatchEvent(new Event('change',{bubbles:true}));}
       }
     };
-    input.onblur = () => setTimeout(() => { if (menu.hidden || !menu.contains(document.activeElement)) syncInput(); }, 120);
+    const commitSolePayee=()=>{if(!select.hasAttribute('data-payee-choice')&&!/pay to|paid to|payee|who to pay|recipient|beneficiary/i.test(select.closest('label')?.textContent+' '+select.id+' '+select.name))return false;const term=input.value.trim().toLowerCase(),options=qa('option',select).filter(o=>!o.disabled&&o.value!==''),exact=options.filter(o=>o.textContent.trim().toLowerCase()===term),matches=exact.length?exact:(term.length?options.filter(o=>o.textContent.trim().toLowerCase().includes(term)):[]);if(matches.length!==1)return false;const o=matches[0],changed=select.value!==o.value;select.value=o.value;syncInput();menu.hidden=true;if(changed)select.dispatchEvent(new Event('change',{bubbles:true}));return true;};
+    input._ttResolveUnique=select._ttResolveUnique=commitSolePayee;input.addEventListener('change',commitSolePayee,true);
+    input.onblur=()=>setTimeout(()=>{if(menu.hidden||!menu.contains(document.activeElement)){commitSolePayee();syncInput();}},120);
+
     select.addEventListener('change', syncInput);
   }
 

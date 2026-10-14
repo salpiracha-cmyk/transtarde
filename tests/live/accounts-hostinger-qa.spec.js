@@ -554,10 +554,11 @@ test('deployed Bank Entry, Bank Finance and subaccount forms respect read-only a
   await expect(form.locator('[name=facilityId]')).toBeVisible();
   await expect(form.locator('[name=withholdingTax]')).toBeHidden();
   await activate(page.locator('#amWindow [data-close]'));
-  await deskAction(page,'bank','Bank Finance');
-  await expect(page.locator('#amWindow')).toContainText('Principal outstanding');
-  await expect(page.locator('#amWindow [data-facility]')).toHaveCount(0);
-  await activate(page.locator('#amWindow [data-close]'));
+  const financeResponse=await page.request.get(BASE_URL+'/api/bank_entries.php?entity=TTI');expect(financeResponse.status()).toBe(200);const financeData=await financeResponse.json();
+  if((financeData.facilities||[]).some(f=>f.active)||financeData.canCreate){
+    await deskAction(page,'bank','Bank Finance');await expect(page.locator('#amWindow')).toContainText('Principal outstanding');await expect(page.locator('#amWindow [data-facility]')).toHaveCount(0);await activate(page.locator('#amWindow [data-close]'));
+  }else {await activate(page.locator('.tt-back-areas'));await activate(page.locator('[data-tt-area="bank"]'));await expect(page.locator('[data-area-palette="bank"]')).toBeVisible();await expect(page.locator('.tt-action').filter({hasText:'Bank Finance'})).toHaveCount(0);}
+
   await deskAction(page,'ledgers','Ledger');
   await expect(page.locator('#tal-view')).toHaveValue('party');
   await page.locator('#tal-view').selectOption('other');
@@ -659,4 +660,14 @@ test('party payment roles and company-wide ledger matching review are read-only'
   await expect(page.locator('#tal-result')).not.toContainText('Loading ledger');
   if(company.unmatchedPartyRows?.length)await expect(page.locator('#tal-result')).toContainText('Company-wide party matching review');
   console.log('LIVE_TRANSPORT_PARTY_AND_DISCOUNT_UI_OK');
+});
+
+
+test('forward booking and register are Pakistan-only and remain read-only for QA',async({page})=>{
+ test.setTimeout(120_000);await signIn(page);const writes=[];page.on('request',r=>{if(r.method()==='POST'&&/\/api\/(forward_bookings|export_receipts)\.php/.test(r.url()))writes.push(r.url());});
+ const r=await page.request.get(BASE_URL+'/api/forward_bookings.php?entity=TTI');expect(r.status()).toBe(200);const d=await r.json();expect(d.canCreate).toBe(false);expect(d.canEdit).toBe(false);expect(d.canDelete).toBe(false);
+ for(const b of d.bookings){expect(b.waitingDays).toBeGreaterThanOrEqual(0);expect(b.windowDays).toBeGreaterThan(0);expect(b.remainingUsd).toBeGreaterThanOrEqual(0);expect(b.usedUsd+b.remainingUsd).toBeCloseTo(b.amountUsd,2);}
+ await deskAction(page,'bank','Forward Booking');await expect(page.locator('#ttForwardBookings')).toBeVisible();await expect(page.locator('#ttForwardBookings [data-new]')).toHaveCount(0);await expect(page.locator('#ttForwardBookings [data-settle]')).toHaveCount(0);await activate(page.locator('#ttForwardBookings [data-close]'));
+ await deskAction(page,'ledgers','Forward Booking Register');await expect(page.locator('#ttForwardBookings')).toContainText('Forward Booking Register');await expect(page.locator('#ttForwardBookings [data-new]')).toHaveCount(0);await activate(page.locator('#ttForwardBookings [data-close]'));
+ const offshore=await page.request.get(BASE_URL+'/api/forward_bookings.php?entity=TG');expect(offshore.status()).toBe(422);expect(writes).toEqual([]);console.log('LIVE_FORWARD_BOOKING_REGISTER_READ_ONLY_OK');
 });
