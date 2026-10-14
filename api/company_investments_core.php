@@ -117,6 +117,24 @@ function inv_reverse(array &$s,string $e,array $b,array $u):array {
     $lines=[];foreach($old['lines'] as $l){[$l['debit'],$l['credit']]=[$l['credit'],$l['debit']];if(isset($l['bankDebit']))[$l['bankDebit'],$l['bankCredit']]=[$l['bankCredit'],$l['bankDebit']];$lines[]=$l;}
     $j=inv_journal($s,$e,$date,'REVERSAL',$old['id'],$lines,$u,$old['meta']+['reason'=>$reason]);$s['journals'][$j['id']]['reversalOf']=$old['id'];$s['journals'][$old['id']]['reversedByPostId']=$j['id'];$s['investmentTransactions'][$id]['reversalJournalId']=$j['id'];$s['investmentAudit'][]=['action'=>'REVERSE','id'=>$id,'reason'=>$reason,'date'=>$date,'by'=>$u['id']??0];return ['message'=>'REVERSED — ENTER THE CORRECT REPLACEMENT','journalId'=>$j['id'],'voucher'=>$s['journals'][$j['id']]];
 }
+/** Validate a replacement on a private copy; only the complete correction reaches storage. */
+function inv_amend(array &$s,string $e,array $b,array $u):array {
+ $id=(string)($b['transactionId']??'');$old=$s['investmentTransactions'][$id]??null;
+ if(!is_array($old)||$old['entity']!==$e||$old['status']!=='Posted')throw new DomainException('Select a current investment entry to edit.');
+ $reason=far_text($b['reason']??'',500);if(strlen($reason)<5)throw new DomainException('Enter a correction reason of at least five characters.');
+ if(($b['type']??$old['type'])!==$old['type'])throw new DomainException('Use a reversal and a new entry to change the transaction type.');
+ $next=$s;$original=$next['journals'][$old['journalId']]??null;if(!is_array($original))throw new DomainException('Original investment posting is unavailable.');
+ $reverse=inv_reverse($next,$e,['transactionId'=>$id,'date'=>$old['date'],'reason'=>$reason],$u);
+ $result=inv_post($next,$e,array_replace($b,['type'=>$old['type']]),$u);$newId=$result['transactionId'];$journalId=$result['journalId'];
+ $public=(string)($old['publicPostId']??$original['meta']['publicPostId']??$original['publicPostId']??$original['id']);
+ $next['investmentTransactions'][$id]['status']='Amended';$next['investmentTransactions'][$id]['replacementTransactionId']=$newId;
+ $next['investmentTransactions'][$newId]['amendedFrom']=$id;$next['investmentTransactions'][$newId]['publicPostId']=$public;
+ $next['journals'][$journalId]['meta']['publicPostId']=$public;$next['journals'][$journalId]['meta']['amendmentOf']=$original['id'];
+ $next['journals'][$journalId]['meta']['amendmentNote']='Edited '.gmdate('Y-m-d').' by '.($u['full_name']??$u['username']??'Accounts').' — '.$reason;
+ $next['journals'][$old['journalId']]['amendedByPostId']=$journalId;
+ $next['investmentAudit'][]=['action'=>'AMEND','originalTransactionId'=>$id,'replacementTransactionId'=>$newId,'reversalJournalId'=>$reverse['journalId'],'reason'=>$reason,'at'=>gmdate('c'),'by'=>$u['id']??0];
+ $s=$next;return array_replace($result,['message'=>'CORRECTED','publicPostId'=>$public,'voucher'=>$s['journals'][$journalId]]);
+}
 function inv_payload(array $s,string $e):array {
     $brokers=[];$routes=[];foreach((array)($s['investmentBrokers']??[]) as $b)if($b['entity']===$e)$brokers[]=$b+['balanceCents'=>inv_balance($s,$e,'1430','brokerId',$b['id'])];foreach((array)($s['investmentRoutes']??[]) as $r)if($r['entity']===$e)$routes[]=$r+['balanceCents'=>inv_balance($s,$e,'1440','routeId',$r['id'])];
     $tx=[];foreach((array)($s['investmentTransactions']??[]) as $t)if($t['entity']===$e)$tx[]=$t+['voucher'=>$s['journals'][$t['journalId']]??null];usort($tx,static fn($a,$b)=>$b['sequence']<=>$a['sequence']);

@@ -52,6 +52,7 @@
     ]},
     {key:'ledgers', glyph:'L', title:'Ledgers', note:'Account and party ledgers, and every posted voucher', actions:[{title:'Ledger',special:'all-ledgers',ledgerCategory:'party'},{title:'Post ID Register',special:'post-ledger'},{title:'Trial Balance',native:'reports',find:'Trial Balance'},{title:'Chart of Accounts & Details',special:'account-heads'},{title:'Subaccounts & Details',special:'subaccounts'},{title:'Forward Booking Register',special:'forward-register'}]},
     {key:'reports', glyph:'▤', title:'Reports', note:'Financial, tax, party, commodity and shipment reports', actions:[
+      {title:'Bag Sales Tax / Stock Report',special:'bag-report'}, {title:'Monthly Bag Supplier Files',special:'bag-files'},
       {title:'Sales Tax', note:'Search export documents and bank/tax advices by period and reference', special:'sales-tax'},
       {title:'Expenses by Type / Recipient',special:'expense-report'}, {title:'Vehicle / Asset Costs',special:'vehicle-report'}, {title:'Withholding Tax Report', special:'withholding-report'}, {title:'Trial Balance', native:'reports', find:'Trial Balance'}, {title:'Profit & Loss', native:'reports', find:'Profit'},
       {title:'Balance Sheet', native:'reports', find:'Balance Sheet'}, {title:'Receivables / Payables', native:'reports', find:'Receivables'},
@@ -132,6 +133,7 @@
     const token=++launchGeneration,company=entity();
     const current=()=>token===launchGeneration&&company===entity();
     window.TT_POST_CONFIRMATION?.dismiss?.();
+    if(action.special==='bag-report'||action.special==='bag-files'){sessionStorage.setItem('tt_accounts_bag_report_return',JSON.stringify({company:entity(),area:sessionStorage.getItem('tt_accounts_current_area')||'reports',scroll:window.scrollY}));location.href='/accounts/bag-reports.php?view='+(action.special==='bag-report'?'report':'print')+'&entity='+encodeURIComponent(entity());return;}
     if(action.special==='carry-forward'){sessionStorage.setItem('tt_accounts_carry_return',JSON.stringify({company:entity(),area:sessionStorage.getItem('tt_accounts_current_area')||'',scroll:window.scrollY}));location.href='/accounts/carry-forward.php?entity='+encodeURIComponent(entity());return;}
     // One desk owns navigation. Retire the previous workspace before opening another form.
     qa('.workspace.active').forEach(w=>w.classList.remove('active','tt-clean-modal','tt-editor-open'));
@@ -230,7 +232,7 @@
     const master = document.createElement('button');
     master.id = 'ttMasterTop'; master.type = 'button'; master.title = 'Master Records';
     master.setAttribute('aria-label', 'Open Master Records'); master.textContent = 'M';
-    master.onclick = () => { window.location.href='/index.php?view=masters&from=accounts'; };
+    master.onclick = () => {const p=access.permissions,rights=Array.isArray(p)?p:Object.values(p||{}).flat(),canTax=access.super||p==='all'||rights.some(right=>['Create','Edit','Approve'].includes(right));if(!canTax){window.location.href='/index.php?view=masters&from=accounts';return;}const host=layer('ttAccountsMasterMenu','Master Records'),body=q('.tt-window-body',host);body.innerHTML=`<div class="tt-action-list">${access.super||access.masterAccess?'<a class="tt-action" href="/index.php?view=masters&from=accounts">Company, party and other master records</a>':''}<a class="tt-action" id="ttBagMasterLaunch" href="/accounts/bag-reports.php?view=master&amp;entity=${encodeURIComponent(entity())}">Bag GST Rates</a></div>`;q('#ttBagMasterLaunch',body).onclick=()=>sessionStorage.setItem('tt_accounts_bag_master_return',JSON.stringify({company:entity(),area:sessionStorage.getItem('tt_accounts_current_area')||'',scroll:window.scrollY})); };
     const company = document.createElement('button');
     company.id = 'ttChangeCompanyDesk';
     company.type = 'button';
@@ -295,7 +297,7 @@
     return `<svg viewBox="0 0 24 24" width="27" height="27" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[kind]||paths.bill}</svg>`;
   }
 
-  function showAreasHome() {bankMenuGeneration++;
+  function showAreasHome() {bankMenuGeneration++;sessionStorage.removeItem('tt_accounts_current_area');
     const work = q('#ttDeskWork'); if (!work) return;
     const items = currentAreas();
     work.innerHTML = `<div class="tt-home-head"><h2>${entity()==='TG'?'Trans Grains Accounts':'What do you want to do?'}</h2><p>${entity()==='TG'?'Only customer receipts, supplier payments, bank/local expenses, ledgers and reports are shown.':'Choose a broad area, then choose the exact entry or report.'}</p></div><div class="tt-area-grid"><button type="button" class="tt-area-card" id="ttMainJV"><span class="tt-area-glyph">${iconPicture('jv')}</span><b>Journal Voucher</b><small>Prepare, approve and print a JV</small></button>${items.map(area=>`<button type="button" class="tt-area-card" data-tt-area="${area.key}"><span class="tt-area-glyph">${iconPicture(area.key.startsWith('tg-')?area.key.slice(3):area.key)}</span><b>${esc(area.title)}</b><small>${esc(area.note)}</small></button>`).join('')}</div>`;
@@ -458,6 +460,7 @@
     return sodaData;
   }
 
+  function sodaMode(id,items,value){return `<div class="tt-account-choices" role="radiogroup" aria-label="${id==='ttSdStage'?'Purchase type':'Ready rice route'}">${items.map(([key,label])=>`<label><input type="radio" name="${id}Choice" value="${key}" data-soda-mode="${id}" ${key===value?'checked':''}>${esc(label)}</label>`).join('')}</div><select id="${id}" hidden data-master-ignore data-tt-native="1"><option value=""></option>${items.map(([key,label])=>`<option value="${key}" ${key===value?'selected':''}>${esc(label)}</option>`).join('')}</select>`;}
   function sodaForm(record = null) {
     const value = (key, fallback = '') => esc(record?.[key] ?? fallback);
     const credit = String(record?.paymentTermType || (Number(record?.creditDays || 0) ? 'CREDIT' : 'CASH')).toUpperCase();
@@ -483,12 +486,12 @@
       <div class="tt-form-grid">
         <label>Soda No.<input value="${value('sodaNo', sodaData.nextSodaNo || 'Generated automatically')}" readonly tabindex="-1"></label>
         <label>Soda Date<input id="ttSdDate" type="date" value="${value('sodaDate', today())}" required></label>
-        <label>Type<select id="ttSdStage"><option value="RAW"${productStage==='RAW'?' selected':''}>RAW</option><option value="READY"${productStage==='READY'?' selected':''}>READY</option></select></label>
+        <div><span>Type</span>${sodaMode('ttSdStage',[['RAW','RAW'],['READY','READY']],productStage)}</div>
         <label>Variety<select id="ttSdVariety">${varieties.map(name=>`<option value="${esc(name)}"${name.toLowerCase()===productVariety.toLowerCase()?' selected':''}>${esc(name)}</option>`).join('')}</select></label>
         <label class="wide">Purchase Product<span class="tt-master-control"><select id="ttSdProduct" required><option value="">Choose product for this variety</option>${productOptions}</select><button type="button" class="btn" id="ttSdAddProduct" title="Add Purchase Product"${sodaData.permissions?.canAddProduct?'':' hidden'}>+</button><button type="button" class="btn" id="ttSdRemoveProduct" title="Remove selected Purchase Product"${sodaData.permissions?.canRemoveProduct?'':' hidden'}>−</button></span></label>
         <label>Broker (optional)<span class="tt-master-control"><select id="ttSdBroker"><option value="">No broker — direct purchase</option>${brokerOptions}</select><button type="button" class="btn" id="ttSdAddBroker" title="Add Broker"${sodaData.permissions?.canAddParty?'':' hidden'}>+</button><button type="button" class="btn" id="ttSdRemoveBroker" title="Remove selected Broker"${sodaData.permissions?.canRemoveParty?'':' hidden'}>−</button></span></label>
         <label>Supplier<span class="tt-master-control"><select id="ttSdSupplier"><option value=""${record?.party&&!record?.supplierId?' selected':''}>${record?.party?esc(record.party):'Select supplier if applicable'}</option>${supplierOptions}</select><button type="button" class="btn" id="ttSdAddSupplier" title="Add Supplier"${sodaData.permissions?.canAddParty?'':' hidden'}>+</button><button type="button" class="btn" id="ttSdRemoveSupplier" title="Remove selected Supplier"${sodaData.permissions?.canRemoveParty?'':' hidden'}>−</button></span></label>
-        <label id="ttSdRouteWrap" class="wide"${stage==='READY'?'':' hidden'}>Ready Rice Route<select id="ttSdRoute"><option value="">Choose route — no default</option><option value="EX_MILL"${route==='EX_MILL'?' selected':''}>EX-MILL — load containers at outside mill</option><option value="DELIVER_TO_STOCK"${route==='DELIVER_TO_STOCK'?' selected':''}>DELIVER TO OUR MILL / STOCK LOCATION</option></select><small id="ttSdRouteHelp">${route==='EX_MILL'?'No Pohanch or KAT. Each saved container weighbridge weight posts the purchase liability.':'Delivery to our location uses arrival Pohanch and the approved KAT profile.'}</small></label>
+        <div id="ttSdRouteWrap" class="wide"${stage==='READY'?'':' hidden'}><span>Ready Rice Route</span>${route?'':'<small>Choose route — no default</small>'}${sodaMode('ttSdRoute',[['EX_MILL','EX-MILL — load containers at outside mill'],['DELIVER_TO_STOCK','DELIVER TO OUR MILL / STOCK LOCATION']],route)}<small id="ttSdRouteHelp">${route==='EX_MILL'?'No Pohanch or KAT. Each saved container weighbridge weight posts the purchase liability.':'Delivery to our location uses arrival Pohanch and the approved KAT profile.'}</small></div>
         <label id="ttSdStockWrap" class="wide"${route==='EX_MILL'?' hidden':''}>Mill / Stock Location<span class="tt-master-control"><select id="ttSdStock"><option value="">Select receiving stock location</option>${receiving.map(item=>option(item,locationId,`${item.name} · ${item.type}`)).join('')}</select><button type="button" class="btn" id="ttSdAddStock" title="Add Mill / Stock Location"${sodaData.permissions?.canAddLocation?'':' hidden'}>+</button><button type="button" class="btn" id="ttSdRemoveStock" title="Remove selected Mill / Stock Location"${sodaData.permissions?.canRemoveLocation?'':' hidden'}>−</button></span></label>
         <div id="ttSdExMillWrap" class="wide"${route==='EX_MILL'?'':' hidden'}><label>Ex-Mill Name<span class="tt-master-control"><select id="ttSdExMill"><option value="">Type to search External Mills</option>${external.map(item=>option(item,locationId,item.name)).join('')}</select><button type="button" class="btn" id="ttSdAddMill" title="Add External Mill"${sodaData.permissions?.canAddLocation?'':' hidden'}>+</button><button type="button" class="btn" id="ttSdRemoveMill" title="Remove selected External Mill"${sodaData.permissions?.canRemoveLocation?'':' hidden'}>−</button></span></label><div class="tt-form-actions" style="justify-content:flex-start"><button type="button" class="btn" id="ttSdLinkMill"${sodaData.permissions?.canLinkSupplierMill?'':' hidden'}>Link supplier to selected Ex-Mill</button></div></div>
         <label><span id="ttSdTrucksLabel">${route==='EX_MILL'?'Truck / Containers':'Expected Trucks'}</span><input id="ttSdTrucks" inputmode="numeric" value="${value('expectedTrucks')}"></label>
@@ -535,6 +538,7 @@
       if(select&&add&&window.TT_ACCOUNTS_CLEAN_UI){window.TT_ACCOUNTS_CLEAN_UI.manageSelect(select,{label,add:()=>add.click(),canAdd:()=>allowed});add.classList.add('tt-dropdown-master-launcher');}
       if(remove)remove.hidden=true;
     }
+    for(const id of ['ttSdStage','ttSdRoute']){const source=q('#'+id,form),radios=qa('[data-soda-mode="'+id+'"]',form);radios.forEach(radio=>radio.onchange=()=>{if(radio.checked){source.value=radio.value;source.dispatchEvent(new Event('change'));}});source.addEventListener('change',()=>radios.forEach(radio=>radio.checked=radio.value===source.value));}
     const masterPost=body=>json('../api/masters.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({csrf:access.csrf,...body})});
     const addParty=async(category,control)=>{const name=prompt(`New ${category} name`,'');if(!name?.trim())return;try{const result=await json(api,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'add_party_category',csrf:access.csrf,category,name:name.trim()})});Object.assign(sodaData,result);const rows=category==='Broker'?sodaData.brokers:sodaData.suppliers,row=(rows||[]).find(item=>item.id===result.partyId);if(row){control.add(new Option(row.name,category==='Broker'?row.name:row.id));setSelect(control,category==='Broker'?row.name:row.id);control.dispatchEvent(new Event('change',{bubbles:true}));}}catch(error){alert(error.message);}};
     const removeParty=async(category,control)=>{const selected=category==='Broker'?(sodaData.brokers||[]).find(item=>item.name===control.value):(sodaData.suppliers||[]).find(item=>item.id===control.value);if(!selected)return alert(`Select the ${category} to remove from future Sodas.`);if(!confirm(`Remove ${selected.name} from the ${category} dropdown? Historical Sodas remain unchanged.`))return;try{const result=await json(api,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'remove_party_category',csrf:access.csrf,category,id:selected.id})});Object.assign(sodaData,result);control.selectedOptions[0]?.remove();setSelect(control,'');}catch(error){alert(error.message);}};
@@ -857,6 +861,8 @@
     installStyle();
     buildTopbar();
     buildDesk();
+    const bagReturn=new URLSearchParams(location.search).get('return');if(['bag-report','bag-master'].includes(bagReturn)){const key=bagReturn==='bag-master'?'tt_accounts_bag_master_return':'tt_accounts_bag_report_return';try{const saved=JSON.parse(sessionStorage.getItem(key)||'null');sessionStorage.removeItem(key);if(saved?.company===entity()){if(saved.area&&currentAreas().some(area=>area.key===saved.area))await showArea(saved.area);window.scrollTo(0,Number(saved.scroll)||0);if(bagReturn==='bag-master')q('#ttMasterTop')?.click();}}catch{}}
+    if(new URLSearchParams(location.search).get('area')==='reports')await showArea('reports');
     if(new URLSearchParams(location.search).get('return')==='carry-forward'){try{const saved=JSON.parse(sessionStorage.getItem('tt_accounts_carry_return')||'null');sessionStorage.removeItem('tt_accounts_carry_return');if(saved?.company===entity()&&currentAreas().some(area=>area.key===saved.area)){await showArea(saved.area);window.scrollTo(0,Number(saved.scroll)||0);}}catch{}}
     installPreviousSearch();
     ensureLiveTreatments();

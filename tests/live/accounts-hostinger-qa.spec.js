@@ -330,7 +330,8 @@ test('authenticated Accounts live smoke: professional desk and popup workflows',
   await expect(page.locator('#ttExpenseDesk #evUtilityFor')).toHaveValue('SHARED');
   await expect(page.locator('#ttExpenseDesk #evUtilityForWrap')).toBeHidden();
   await activate(page.locator('#ttExpenseDesk [data-expense-mode=card]'));
-  await expect(page.locator('#ttExpenseDesk #evAddStatement')).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('#ttExpenseDesk #evStatementForm')).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('#ttExpenseDesk #evAddStatement')).toBeHidden();
   await expect(page.locator('#ttExpenseDesk [data-expense-mode=card]')).toHaveAttribute('type','radio');
   await expect(page.locator('#ttExpenseDesk [data-expense-mode=card]')).not.toHaveAttribute('role','combobox');
   await expect(page.locator('#ttExpenseDesk #evManageCard')).toHaveAttribute('type','checkbox');
@@ -376,9 +377,9 @@ test('TG customer receipt reads the live Exports and bank links without posting'
   expect(options.some(label => /advance|invoice/i.test(label) && /\b(?:USD|AED|EUR|GBP)\b/.test(label)), 'Confirmed advances and invoices must display their currency').toBe(hasOpenTarget);
   if (amtContract.paymentCode === 'CUSTOM' && amtContract.expectedAdvance === 0) expect(options.some(label => label.includes('amount not specified in sales contract'))).toBe(true);
   if (amtContract.paymentCode === 'CUSTOM') expect(amtContract.expectedAdvance, 'Custom wording must not reuse an old advance percentage').toBe(0);
-  await expect(page.locator('#tgRcGross')).toHaveAttribute('readonly', '');
+  expect(await page.locator('#tgRcGross').evaluate(node=>node.tagName)).toBe('OUTPUT');
   await expect(page.locator('#tgRcChargeBank')).toHaveCount(0);
-  await expect(page.locator('#tgRcRef')).toBeVisible();
+  await expect(page.locator('#tgRcRef')).toBeHidden();
   await expect(page.locator('#tgRcRef').locator('xpath=..')).toContainText('optional');
   await expect(page.locator('#tgRcCharge').locator('xpath=ancestor::label[1]')).toContainText('selected bank currency');
   if (amtContract.outstandingAdvance > 0) {
@@ -389,6 +390,7 @@ test('TG customer receipt reads the live Exports and bank links without posting'
   }
   const target = await page.locator('#tgRcTarget option').evaluateAll(rows => rows.find(row => row.value)?.value || '');
   await page.locator('#tgRcTarget').evaluate((select, value) => { select.value = value; select.dispatchEvent(new Event('change', { bubbles: true })); }, target);
+  if(target) await expect(page.locator('#tgRcRef')).toBeVisible();
   const selected = contracts.find(row => target.endsWith(row.ref));
   if (selected && (source.body.banks || []).some(bank => bank.currency === selected.currency)) {
     expect(await page.locator('#tgRcBank option').count(), 'Matching TG bank must be selectable').toBeGreaterThan(1);
@@ -662,7 +664,8 @@ test('party payment roles and company-wide ledger matching review are read-only'
     console.log('LIVE_TRANSPORT_OPENING_ONLY_SELECTION_OK');
   }else{
     await expect(openingTick).toBeDisabled();await expect(openingTick).not.toBeChecked();
-    await expect(page.locator('#ttSimpleBills')).toContainText('No unpaid Balance B/F is linked to this selected party.');
+    await expect(openingTick).toBeHidden();
+    await expect(page.locator('#ttSimpleBills [data-review-opening]')).toBeVisible();
     console.log('LIVE_TRANSPORT_NO_UNPAID_OPENING_GUARD_OK');
   }
   expect(await page.locator('#ttSimpleBills [data-discount],#ttSimpleBills [data-discount-reason]').count()).toBe(0);
@@ -704,4 +707,32 @@ test('Mill Petty Cash reads the same Accounts postings without writes',async({pa
  for(const row of cash.rows){expect(row.source).toBe('Accounts');expect(Number.isFinite(row.debit)&&Number.isFinite(row.credit)).toBe(true);expect(row.debit>=0&&row.credit>=0).toBe(true);expect(row.postId).toBeTruthy();}
  if(cash.rows.length){const row=cash.rows[0],posted=await page.request.get(BASE_URL+'/api/accounts_ledger_browser.php?'+new URLSearchParams({entity:'TTI',account:'POSTS',postId:row.postId}));expect(posted.status()).toBe(200);const view=await posted.json();expect(view.post.lines.some(line=>line.account==='1120'&&line.millLocationId===mill.id)).toBe(true);}
  expect(writes).toEqual([]);
+});
+
+test('Accounts review release: company views, reconciliation, entry cleanup and TG transfer',async({page})=>{
+  test.setTimeout(240_000);await signIn(page);
+  const attemptedWrites=[];await page.route('**/api/**',route=>{if(route.request().method()==='POST'){attemptedWrites.push(new URL(route.request().url()).pathname);return route.abort();}return route.continue();});
+  const now=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Karachi',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+  let comparisons=0,reads=0;
+  for(const entity of ['TTI','BRM','TG']){
+    const bankResponse=await page.request.get(`${BASE_URL}/api/bank_accounts.php?entity=${entity}`);expect(bankResponse.status()).toBe(200);const banks=await bankResponse.json();expect(banks.ok).toBe(true);
+    for(const endpoint of ['accounts_dashboard','bank_entries','other_purchases','company_investments']){
+      const r=await page.request.get(`${BASE_URL}/api/${endpoint}.php?entity=${entity}`);expect(r.status(),entity+' '+endpoint).toBe(200);expect((await r.json()).ok).toBe(true);reads++;
+    }
+    for(const bank of (banks.accounts||[]).filter(b=>b.currency==='PKR'&&b.id!=='CASH|'+entity&&b.settings?.reconciliationEnabled!==false)){
+      const r=await page.request.get(`${BASE_URL}/api/bank_reconciliation.php?`+new URLSearchParams({entity,bankId:bank.id,statementDate:'9999-12-31'}));expect(r.status()).toBe(200);const reconciliation=await r.json();expect(reconciliation.ok).toBe(true);
+      if(reconciliation.revision===banks.revision){expect(Math.abs(Number(reconciliation.bookBalance)-Number(bank.bookBalance)),'Reconciliation and bank posted balance must agree for '+entity+' '+bank.id).toBeLessThan(.011);comparisons++;}
+    }
+  }
+  expect(comparisons,'Live books must contain at least one comparable PKR bank').toBeGreaterThan(0);
+  await page.locator('#ttChangeCompanyDesk').click();await page.locator('#ttCompanyMenu [data-entity="TTI"]').click();
+  await page.locator('[data-tt-area="routine"]').click();expect(await page.locator('#ttExpenseMasters').count()).toBe(0);
+  await page.getByRole('button',{name:/^Pay Expense /i}).click();await page.locator('[data-expense-mode="card"]').check();await expect(page.locator('#evStatementForm')).toBeVisible();await expect(page.locator('#evAddStatement')).toBeHidden();
+  const payment=page.locator('#evStatementPayDate');if(await payment.count()){const date=await payment.inputValue();expect(await page.locator('#evStatementPayAccountDetails [data-cheque-date]').inputValue()).toBe(date);}
+  await page.locator('#ttExpenseDesk [data-close]').click();
+  await page.goto(`${BASE_URL}/accounts/bag-reports.php?view=report&entity=TTI`,{waitUntil:'domcontentloaded'});await expect(page.locator('#bgRun')).toBeVisible();expect(await page.locator('#bgSave').count()).toBe(0);expect(await page.locator('.ttbag-tabs').count()).toBe(0);
+  const restricted=await page.request.get(`${BASE_URL}/accounts/bag-reports.php?view=master&entity=TTI`);expect(restricted.status()).toBe(403);
+  await page.goto(`${BASE_URL}/accounts/index.php`,{waitUntil:'domcontentloaded'});await expect(page.locator('#ttChangeCompanyDesk')).toBeVisible();await page.locator('#ttChangeCompanyDesk').click();await page.locator('#ttCompanyMenu [data-entity="TG"]').click();
+  await page.locator('[data-tt-area="tg-bank"]').click();await page.getByRole('button',{name:/^Inter Account Transfer /i}).click();await expect(page.locator('#tgfxDate')).toBeVisible();await expect(page.locator('#ws-bank')).toHaveClass(/active/);await expect(page.locator('#tgfxPost')).toBeDisabled();
+  expect(attemptedWrites).toEqual([]);console.log('ACCOUNTS_REVIEW_READ_ONLY '+JSON.stringify({companyReads:reads,pkrBankComparisons:comparisons,tgTransferVisible:true,financialWrites:0,checkedAt:now}));
 });
