@@ -84,6 +84,8 @@
     return true;
   }
   function category(input) {
+    // Questions and mode choices retain their native controls; they are never party fields.
+    if(input?.matches?.('[type="radio"],[type="checkbox"],[type="hidden"]'))return '';
     if (input?.dataset.ttNumericProxy || input?.hasAttribute('data-master-ignore')) return '';
     if (input?.dataset.masterRole) return input.dataset.masterRole==='party'?'parties':input.dataset.masterRole;
     if (!input || input.dataset.ttNumericProxy || input.closest('.tt-search-select') || input.matches('[readonly],[disabled],[type="date"],[type="number"],[type="file"]')) return '';

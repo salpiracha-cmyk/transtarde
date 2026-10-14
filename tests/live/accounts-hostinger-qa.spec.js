@@ -331,6 +331,10 @@ test('authenticated Accounts live smoke: professional desk and popup workflows',
   await expect(page.locator('#ttExpenseDesk #evUtilityForWrap')).toBeHidden();
   await activate(page.locator('#ttExpenseDesk [data-expense-mode=card]'));
   await expect(page.locator('#ttExpenseDesk #evAddStatement')).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('#ttExpenseDesk [data-expense-mode=card]')).toHaveAttribute('type','radio');
+  await expect(page.locator('#ttExpenseDesk [data-expense-mode=card]')).not.toHaveAttribute('role','combobox');
+  await expect(page.locator('#ttExpenseDesk #evManageCard')).toHaveAttribute('type','checkbox');
+  await expect(page.locator('#ttExpenseDesk #evManageCard')).toBeDisabled();
   await expect(page.locator('#ttExpenseDesk .tte-alloc')).toHaveCount(0);
   await responsive(page, 'professional Accounts modal');
 
