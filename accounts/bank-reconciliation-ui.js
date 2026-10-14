@@ -8,7 +8,7 @@ async function open(initialBank=''){
  q('[data-close]',h).onclick=()=>{if(busy)return;generation++;h.remove();};
  async function load(bank=initialBank,date=today()){
   const requestToken=++requestGeneration;try{const r=await fetch('../api/bank_reconciliation.php?'+new URLSearchParams({entity:e,bankId:bank,statementDate:date}),{credentials:'same-origin',headers:{Accept:'application/json'}});const d=await r.json();if(!r.ok||!d.ok)throw Error(d.error||'Bank reconciliation could not load.');
-  if(token!==generation||requestToken!==requestGeneration||!h.isConnected||e!==entity())return;data=d;pending=null;render();}catch(x){if(h.isConnected&&requestToken===requestGeneration)body.textContent=x.message;}
+  if(token!==generation||requestToken!==requestGeneration||!h.isConnected||e!==entity())return;if(!bank){const preferred=(d.banks||[]).find(b=>b.isDefault);if(preferred)return load(preferred.id,date);}data=d;pending=null;render();}catch(x){if(h.isConnected&&requestToken===requestGeneration)body.textContent=x.message;}
  }
  function totals(){
   const raw=q('[name=statementBalance]',body)?.value.trim()||'',statement=raw===''?null:Number(raw.replace(/,/g,''));let deposits=0,payments=0;

@@ -6,7 +6,7 @@
   const selector=input.dataset.voucherDate;if(selector)return document.querySelector(selector);
   let scope=input.parentElement;while(scope&&scope!==document.body){
    const dates=[...scope.querySelectorAll('input[type=date]')].filter(d=>d!==input&&!isCheque(d)&&!d.closest('table'));
-   const date=dates.find(d=>d.matches('[data-date],[name=date],[data-payment-date],[data-plan-date]'))||dates.find(d=>/payment|voucher|receipt|settlement|posting/i.test(d.id+' '+d.name))||dates.find(d=>!/due|birth|effective|statement|invoice|bill|start|end/i.test(d.id+' '+d.name));
+   const date=dates.find(d=>d.matches('[data-date],[name=date],[data-payment-date],[data-plan-date]'))||dates.find(d=>/payment|paydate|voucher|receipt|settlement|posting/i.test(d.id+' '+d.name))||dates.find(d=>!/due|birth|effective|statement|invoice|bill|start|end/i.test(d.id+' '+d.name));
    if(date)return date;scope=scope.parentElement;
   }return null;
  }

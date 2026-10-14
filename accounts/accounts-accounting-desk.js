@@ -70,7 +70,7 @@
     {key:'tg-bank', glyph:'▦', title:'Bank & Local Expenses', note:'Bank transfers, payments and local operating expense', actions:[
       {title:'Inter Account Transfer', note:'Choose the source and destination; currency direction and the TG Master rate are automatic', special:'internal-bank-transfer'},
       {title:'Bank Entry', special:'bank-entry'}, {title:'Bank Finance', special:'bank-finance'}, {title:'Bank Ledgers by Party',special:'all-ledgers',ledgerCategory:'bank'},{title:'Bank Accounts & Balances', native:'bank'}, {title:'Pay Expense', special:'expense-pay'},
-      {title:'Utilities', native:'expenses', then:'[data-expense="utility"]'}, {title:'Bank Reconciliation', native:'reconciliation'}
+      {title:'Bank Reconciliation', native:'reconciliation'}
     ]},
     {key:'tg-ledgers', glyph:'L', title:'Ledgers', note:'Account and party ledgers, and every posted voucher', actions:[{title:'Ledger',special:'all-ledgers',ledgerCategory:'party'},{title:'Post ID Register',special:'post-ledger'},{title:'Trial Balance',native:'reports',find:'Trial Balance'},{title:'Chart of Accounts & Details',special:'account-heads'},{title:'Subaccounts & Details',special:'subaccounts'}]},
     {key:'tg-reports', glyph:'▤', title:'Reports', note:'TG balances and financial reports', actions:[
@@ -132,7 +132,7 @@
     const token=++launchGeneration,company=entity();
     const current=()=>token===launchGeneration&&company===entity();
     window.TT_POST_CONFIRMATION?.dismiss?.();
-    if(action.special==='carry-forward'){location.href='/accounts/carry-forward.php?entity='+encodeURIComponent(entity());return;}
+    if(action.special==='carry-forward'){sessionStorage.setItem('tt_accounts_carry_return',JSON.stringify({company:entity(),area:sessionStorage.getItem('tt_accounts_current_area')||'',scroll:window.scrollY}));location.href='/accounts/carry-forward.php?entity='+encodeURIComponent(entity());return;}
     // One desk owns navigation. Retire the previous workspace before opening another form.
     qa('.workspace.active').forEach(w=>w.classList.remove('active','tt-clean-modal','tt-editor-open'));
     qa('.tt-editor-stage').forEach(e=>e.classList.remove('tt-editor-stage'));
@@ -308,6 +308,7 @@
   async function showArea(key) {
     const list=currentAreas();
     const area = list.find(item => item.key === key) || list[0];
+    sessionStorage.setItem('tt_accounts_current_area',area.key);
     const work = q('#ttDeskWork');
     if (!work) return;
     const menuToken=++bankMenuGeneration,menuCompany=entity();let hiddenSpecials=new Set();
@@ -334,7 +335,7 @@
       if(label.includes('report')||label.includes('balance')||label.includes('profit'))return iconPicture('reports');
       return iconPicture('bill');
     };
-    work.innerHTML = `<div class="tt-work-head"><button class="tt-back-areas" type="button" aria-label="Back to main Accounts">BACK</button><div><h2>${esc(area.title)}</h2><p>${esc(area.note)}</p></div></div><div class="tt-action-list" data-area-palette="${esc(area.key)}">${area.actions.map((action, index) => hiddenSpecials.has(action.special)?'':`<button type="button" class="tt-action" data-tt-action="${index}"><span class="tt-action-mark">${actionGlyph(action)}</span><span><b>${esc(action.title)}</b><small>${esc(action.note || 'Open report')}</small></span></button>`).join('')}</div>`;
+    work.innerHTML = `<div class="tt-work-head"><button class="tt-back-areas" type="button" aria-label="Back to main Accounts">BACK</button><div><h2>${esc(area.title)}</h2><p>${esc(area.note)}</p></div></div><div class="tt-action-list" data-area-palette="${esc(area.key)}">${area.actions.map((action, index) => hiddenSpecials.has(action.special)?'':`<button type="button" class="tt-action" data-tt-action="${index}"><span class="tt-action-mark">${actionGlyph(action)}</span><span><b>${esc(action.title)}</b>${action.note?`<small>${esc(action.note)}</small>`:''}</span></button>`).join('')}</div>`;
     q('.tt-back-areas',work).onclick=showAreasHome;
     qa('[data-tt-action]', work).forEach(button => button.onclick = () => launch(area.actions[Number(button.dataset.ttAction)]));
   }
@@ -686,7 +687,7 @@
     try {
       const data=await json('../api/expenses_v1.php?entity='+encodeURIComponent(entity()));
       const accounts=data.paymentAccounts||[];
-      body.innerHTML=`<form class="tt-form" id="ttExportExpenseForm"><p>Enter export supplies or shared export costs such as craft paper, silica gel or seals. Shipment-specific supplier bills belong under their shipment icons.</p><div class="tt-form-grid"><label>Date<input type="date" name="paymentDate" value="${esc(today())}" required></label><label>Paid from bank or cash<select name="paymentAccountId" required><option value="">Choose company account</option>${accounts.map(account=>`<option value="${esc(account.id)}">${esc(account.label)} · ${esc(account.currency)}</option>`).join('')}</select></label><label>Payee<input name="payee" required></label><label>Amount (PKR)<input type="number" min="0.01" step="0.01" name="amount" required></label><label>Cheque / payment reference<input name="reference" placeholder="Cheque number or transaction reference"></label><label class="wide">Export expense description<input name="description" placeholder="e.g. silica gel for export packing" required></label></div><div role="alert" id="ttExportExpenseError" class="tt-note"></div><div class="tt-form-actions"><button type="submit" class="btn primary">Post export expense</button></div></form>${(data.generalExpenses||[]).filter(row=>row.expenseType==='EXPORT').slice(-12).reverse().map(row=>`<div class="tt-record-card">${esc(row.paymentDate)} · ${esc(row.payee)} · PKR ${money(row.amount)} · ${esc(row.description)} <b>${esc(row.journalId)}</b></div>`).join('')}`;
+      body.innerHTML=`<form class="tt-form" id="ttExportExpenseForm"><p>Enter export supplies or shared export costs such as craft paper, silica gel or seals. Shipment-specific supplier bills belong under their shipment icons.</p><div class="tt-form-grid"><label>Date<input type="date" name="paymentDate" value="${esc(today())}" required></label><label>Paid from bank or cash<select name="paymentAccountId" required><option value="">Choose company account</option>${accounts.map(account=>`<option value="${esc(account.id)}" ${account.isDefault===2?'selected':''}>${esc(account.label)} · ${esc(account.currency)}</option>`).join('')}</select></label><label>Payee<input name="payee" required></label><label>Amount (PKR)<input type="number" min="0.01" step="0.01" name="amount" required></label><label>Cheque / payment reference<input name="reference" placeholder="Cheque number or transaction reference"></label><label class="wide">Export expense description<input name="description" placeholder="e.g. silica gel for export packing" required></label></div><div role="alert" id="ttExportExpenseError" class="tt-note"></div><div class="tt-form-actions"><button type="submit" class="btn primary">Post export expense</button></div></form>${(data.generalExpenses||[]).filter(row=>row.expenseType==='EXPORT').slice(-12).reverse().map(row=>`<div class="tt-record-card">${esc(row.paymentDate)} · ${esc(row.payee)} · PKR ${money(row.amount)} · ${esc(row.description)} <b>${esc(row.journalId)}</b></div>`).join('')}`;
       const form=q('#ttExportExpenseForm',body);
       const requestKey=crypto.randomUUID();
       form.onsubmit=async event=>{
@@ -845,10 +846,11 @@
     render();
   }
 
-  function init() {
+  async function init() {
     installStyle();
     buildTopbar();
     buildDesk();
+    if(new URLSearchParams(location.search).get('return')==='carry-forward'){try{const saved=JSON.parse(sessionStorage.getItem('tt_accounts_carry_return')||'null');sessionStorage.removeItem('tt_accounts_carry_return');if(saved?.company===entity()&&currentAreas().some(area=>area.key===saved.area)){await showArea(saved.area);window.scrollTo(0,Number(saved.scroll)||0);}}catch{}}
     installPreviousSearch();
     ensureLiveTreatments();
     document.addEventListener('click', event => { if (event.target.closest('.entityBtn')) setTimeout(refreshEntityLabels, 0); }, true);

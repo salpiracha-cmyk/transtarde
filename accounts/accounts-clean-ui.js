@@ -45,7 +45,7 @@
       .workspace.tt-clean-modal textarea{min-height:48px}
       .workspace.tt-clean-modal input,.workspace.tt-clean-modal select,.workspace.tt-clean-modal textarea{padding:8px 9px}
       .workspace.tt-clean-modal .tt-editor-bar{position:sticky;top:0;z-index:14;background:#fff;padding:14px 72px 12px 18px!important;border-radius:18px 18px 0 0}
-      .workspace.tt-clean-modal .tt-editor-bar .tt-clean-close{position:absolute;right:15px;top:12px;color:#8f2d28}
+      .workspace.tt-clean-modal > .panelHead{position:relative;padding-right:55px}.workspace.tt-clean-modal > .panelHead .tt-clean-close,.workspace.tt-clean-modal .tt-editor-bar .tt-clean-close{position:absolute;right:15px;top:12px;color:#8f2d28}
       #ttQuickDialog{position:fixed;inset:0;z-index:220;display:grid;place-items:center;padding:18px;background:rgba(10,25,43,.46)}
       #ttQuickDialog[hidden]{display:none}
       .tt-quick-window{width:min(760px,94vw);max-height:88vh;overflow:auto;background:#f7f9fb;border-radius:18px;box-shadow:0 28px 80px rgba(0,0,0,.3)}

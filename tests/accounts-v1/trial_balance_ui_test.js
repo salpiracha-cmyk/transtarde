@@ -19,7 +19,7 @@ w.eval(fs.readFileSync('accounts/reports-ui.js','utf8'));
  q('#ttTrialView').value='type';q('#ttTrialView').dispatchEvent(new w.Event('input'));assert(q('#ttReportsBody').textContent.includes('Liability'));assert(!q('#ttReportsBody').textContent.includes('MAPCO'));
  q('#ttReportAsOf').value='2025-12-31';q('#ttReportRun').click();await new Promise(r=>setImmediate(r));
  assert(requests.at(-1).includes('asOf=2025-12-31'));assert(requests.at(-1).includes('from=2025-01-01'),'Hidden From does not prevent a prior-year trial balance');
- await w.TT_REPORTS.open('gl');assert(!q('#ttReportFrom').closest('label').hidden);assert(q('#ttTrialViewWrap').hidden);
+ await w.TT_REPORTS.open('gl');const current=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Karachi',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());const financialYear=Number(current.slice(0,4))-(Number(current.slice(5,7))<7?1:0);assert.equal(q('#ttReportFrom').value,financialYear+'-07-01');assert(!q('#ttReportFrom').closest('label').hidden);assert(q('#ttTrialViewWrap').hidden);
  q('#ttReportPrint').click();assert(prints.at(-1).indexOf('POST-1')<prints.at(-1).indexOf('POST-2'),'Printed GL is ascending');assert(q('#ttReportsBody').innerHTML.indexOf('2026-09-01')<q('#ttReportsBody').innerHTML.indexOf('2026-10-11'),'Screen GL is ascending');
  console.log('Trial balance date, account/party/type views, complete totals and chronological print passed');dom.window.close();
 })().catch(e=>{console.error(e);process.exitCode=1;dom.window.close()});
