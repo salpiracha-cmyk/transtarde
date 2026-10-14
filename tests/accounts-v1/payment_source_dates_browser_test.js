@@ -25,6 +25,7 @@ module.exports=async()=>{
   for(const width of [1440,1000,800,390]){
    await page.setViewportSize({width,height:1000});
    const field=await display.boundingBox(),reference=await row.locator('[data-reference-field]').boundingBox(),label=await row.locator('[data-cheque-date-field]').boundingBox();
+   for(const selector of ['[data-source-amount-field] input[type=text]','[data-source-type]','[data-source-bank]','[data-source-method]']){const box=await row.locator(selector).boundingBox();assert(box.width>=140,`Readable ${selector} at ${width}px, got ${box.width}`);}
    assert(field.width>=140,`Readable date at ${width}px, got ${field.width}`);
    assert(field.x>=label.x&&field.x+field.width<=label.x+label.width+1,'Date stays within its field');
    const overlap=Math.min(label.x+label.width,reference.x+reference.width)-Math.max(label.x,reference.x)>1&&Math.min(label.y+label.height,reference.y+reference.height)-Math.max(label.y,reference.y)>1;
