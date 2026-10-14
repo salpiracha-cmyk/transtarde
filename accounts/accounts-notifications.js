@@ -38,7 +38,7 @@
     let response;
     try{response=await originalFetch(input,init);}catch(failure){if(api&&failure?.name!=='AbortError')error('Connection failed. Your action was not confirmed. Check the connection before retrying.',{persistent:mutation});throw failure;}
     if(api){
-      try{const body=await response.clone().json();if(body?.cancelled)return response;if(!response.ok||body?.ok===false)error(body?.error||body?.message||`Accounts request failed (${response.status}).`,{persistent:mutation});}
+      try{const body=await response.clone().json();if(body?.cancelled)return response;if(body?.ok&&mutation&&!Object.hasOwn(body,'previews'))dismiss();if(!response.ok||body?.ok===false)error(body?.error||body?.message||`Accounts request failed (${response.status}).`,{persistent:mutation});}
       catch(_){if(!response.ok)error(`Accounts request failed (${response.status}). Please try again.`,{persistent:mutation});}
     }
     return response;
