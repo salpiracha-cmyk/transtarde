@@ -10,7 +10,7 @@ module.exports=async()=>{
   await page.addStyleTag({content:fs.readFileSync('brand-theme.css','utf8')});
   await page.evaluate(()=>{
    localStorage.setItem('tt_accounts_entity','TTI');window.TT_ACCOUNT_ACCESS={role:'Super Admin',csrf:'fixture'};
-   const fixture={banks:[{id:'B1',bankName:'Meezan',accountNumber:'869880',currency:'PKR',availableBalance:10000,settings:{defaultPaymentAccount:true}},{id:'CASH|TTI',bankName:'Petty Cash',currency:'PKR',availableBalance:1000}],parties:['Supplier'],payerAccounts:[],payerParties:[],rows:[],brokerRows:[],plans:[],onAccountPayments:[]};
+   const fixture={ok:true,banks:[{id:'B1',bankName:'Meezan',accountNumber:'869880',currency:'PKR',availableBalance:10000,settings:{defaultPaymentAccount:true}},{id:'CASH|TTI',bankName:'Petty Cash',currency:'PKR',availableBalance:1000}],parties:['Supplier'],payerAccounts:[],payerParties:[],rows:[],brokerRows:[],plans:[],onAccountPayments:[]};
    window.fetch=async()=>({ok:true,json:async()=>fixture});
   });
   // Match production order: Accounts bundle installs defaulting before date enhancement.
