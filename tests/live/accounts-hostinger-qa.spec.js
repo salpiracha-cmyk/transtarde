@@ -711,7 +711,7 @@ test('Mill Petty Cash reads the same Accounts postings without writes',async({pa
 
 test('Accounts review release: company views, reconciliation, entry cleanup and TG transfer',async({page})=>{
   test.setTimeout(240_000);await signIn(page);
-  const attemptedWrites=[];await page.route('**/api/**',route=>{if(route.request().method()==='POST'){attemptedWrites.push(new URL(route.request().url()).pathname);return route.abort();}return route.continue();});
+  const attemptedWrites=[];await page.route('**/api/**',route=>{if(route.request().method()==='POST'&&new URL(route.request().url()).pathname!=='/api/session_activity.php'){attemptedWrites.push(new URL(route.request().url()).pathname);return route.abort();}return route.continue();});
   const now=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Karachi',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
   let comparisons=0,reads=0;
   for(const entity of ['TTI','BRM','TG']){
@@ -725,6 +725,7 @@ test('Accounts review release: company views, reconciliation, entry cleanup and 
     }
   }
   expect(comparisons,'Live books must contain at least one comparable PKR bank').toBeGreaterThan(0);
+  console.log('ACCOUNTS_REVIEW_BALANCES '+JSON.stringify({companyReads:reads,pkrBankComparisons:comparisons}));
   await page.locator('#ttChangeCompanyDesk').click();await page.locator('#ttCompanyMenu [data-entity="TTI"]').click();
   await page.locator('[data-tt-area="routine"]').click();expect(await page.locator('#ttExpenseMasters').count()).toBe(0);
   await page.getByRole('button',{name:/^Pay Expense /i}).click();await page.locator('[data-expense-mode="card"]').check();await expect(page.locator('#evStatementForm')).toBeVisible();await expect(page.locator('#evAddStatement')).toBeHidden();
