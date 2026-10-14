@@ -178,6 +178,7 @@ jobs:
           npm install --prefix "$RUNNER_TEMP/expense-review-node" --no-save playwright@1.55.0 jsdom@26
           export NODE_PATH="$RUNNER_TEMP/expense-review-node/node_modules"
           node tests/accounts-v1/accounts_unified_forms_test.js
+          node tests/accounts-v1/review_entry_defaults_test.js
           node tests/accounts-v1/accounts_controls_ui_test.js
           node tests/accounts-v1/module_form_consistency_test.js
           node tests/accounts-v1/party_payment_choices_test.js
