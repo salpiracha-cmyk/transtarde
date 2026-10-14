@@ -76,7 +76,10 @@ function sac_resolve(array $s,string $e,string $id,bool $active=true):array {
  if($active&&!$enabled)throw new DomainException('Select an active subaccount in these company books.');
  $code=(string)$current['parentCode'];$chart=sac_entity_chart($s,$e);$head=$chart[$code]??null;if(!$head)throw new DomainException('Subaccount head is unavailable.');
  $path=$names;$h=$code;$seen=[];while($h!==''&&isset($chart[$h])&&!isset($seen[$h])){$seen[$h]=true;array_unshift($path,$chart[$h]['name']);$h=(string)($chart[$h]['parent']??'');}
- return array_replace($a,['parentId'=>(string)($a['parentId']??''),'parentCode'=>$code,'active'=>$enabled,'ancestorIds'=>$ancestors,'path'=>implode(' / ',$path),'class'=>$head['class'],'parentName'=>$head['name'],'expenseClassification'=>$code==='5550'?'EXPORT':(str_starts_with($code,'5')?'MILL':($code==='6910'?'HOME':'OFFICE')),'treatment'=>$code==='1260'?'Recoverable tax':($code==='2300'?'Tax payable':$head['class'])]);
+ return array_replace($a,['parentId'=>(string)($a['parentId']??''),'parentCode'=>$code,'active'=>$enabled,'ancestorIds'=>$ancestors,'path'=>sac_display_path($path),'class'=>$head['class'],'parentName'=>$head['name'],'expenseClassification'=>$code==='5550'?'EXPORT':(str_starts_with($code,'5')?'MILL':($code==='6910'?'HOME':'OFFICE')),'treatment'=>$code==='1260'?'Recoverable tax':($code==='2300'?'Tax payable':$head['class'])]);
+}
+function sac_display_path(array $names):string {
+ $parts=[];foreach($names as $name){$name=trim((string)$name);if($name!==''&&(!$parts||strcasecmp($parts[count($parts)-1],$name)!==0))$parts[]=$name;}return implode(' / ',$parts);
 }
 function sac_extra(array $a):array {return ['subaccountId'=>$a['id'],'subaccountName'=>$a['name'],'subledger'=>$a['name'],'parentAccount'=>$a['parentCode'],'taxCategory'=>$a['taxCategory'],'accountClass'=>$a['class'],'expenseClassification'=>$a['expenseClassification']??'OFFICE'];}
 function sac_master(array &$s,string $e,array $b,array $u):array {
@@ -155,8 +158,24 @@ function sac_expense_activity(array $s,string $e,string $from,string $to):array 
 }
 
 /** Read-only presentation from committed bill snapshots; never changes historic journals. */
+/** Compact display only: the saved narration and immutable journal remain unchanged. */
+function sac_compact_narration(string $text,array $meta=[]):string {
+ $method=(string)($meta['bankPaymentMethod']??'');$cheque=trim((string)($meta['chequeNo']??''));$ref=trim((string)($meta['bankReference']??''));
+ $text=str_replace(['ONLINE_BANKING','BANK_TRANSFER'],['Online Banking','Bank Transfer'],$text);
+ $parts=preg_split('/\s*[·|]\s*/u',$text)?:[$text];$seen=[];$out=[];
+ $hasCheque=$cheque!==''&&stripos($text,$cheque)!==false;
+ foreach($parts as $part){$part=trim($part);if($part==='')continue;$key=strtolower(preg_replace('/[^a-zA-Z0-9]+/','',$part)??$part);
+  if($hasCheque&&strcasecmp($part,'CHEQUE')===0)continue;
+  if($cheque!==''&&$part===$cheque)$part='Cheque '.$cheque;
+  $key=strtolower(preg_replace('/[^a-zA-Z0-9]+/','',$part)??$part);if(isset($seen[$key]))continue;$seen[$key]=true;$out[]=$part;
+ }
+ $joined=implode(' · ',$out);$label=$method==='CHEQUE'&&$cheque!==''?'Cheque '.$cheque:($method==='ONLINE_BANKING'?'Online Banking':($method==='BANK_TRANSFER'?'Bank Transfer':''));
+ if($label!==''&&stripos($joined,$label)===false)$joined.=($joined!==''?' · ':'').$label;
+ if($method!=='CHEQUE'&&$ref!==''&&stripos($joined,$ref)===false)$joined.=' · '.$ref;
+ return $joined;
+}
 function sac_journal_narration(array $store,array $journal):string {
- $text=(string)($journal['narration']??'');$meta=(array)($journal['meta']??[]);$detail=[];
+ $meta=(array)($journal['meta']??[]);$text=sac_compact_narration((string)($journal['narration']??''),$meta);$detail=[];
  $bill=$store['supplierBills'][(string)($meta['supplierBillId']??'')]??null;
  if(is_array($bill)&&($bill['entity']??'')===($journal['entity']??'')){
   $source=(array)($bill['sourceRecord']??[]);$number=trim((string)($journal['reference']??$bill['billNo']??$source['invoiceNo']??''));if($number!=='')$detail[]='Bill No. '.$number;

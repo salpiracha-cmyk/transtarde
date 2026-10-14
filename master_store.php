@@ -1,6 +1,13 @@
 <?php
 declare(strict_types=1);
 
+/** Consistent concise picker identity. Full account details stay in Company Master and bank views. */
+function tt_bank_choice_label(string $bank,string $currency,string $number='',string $iban=''):string {
+ $raw=preg_replace('/\s+/','',trim($number!==''?$number:$iban))??'';
+ return implode(' · ',array_filter([trim($bank),strtoupper(trim($currency)),$raw!==''?'…'.substr($raw,-6):''],static fn($part)=>$part!==''));
+}
+
+
 /** The tick on a PKR bank creates a separate USD ledger, never changes that bank's currency. */
 function tt_company_retention_banks(array $banks, array $values, array $previous=[]): array {
     $eligible=in_array(strtoupper(trim((string)($values[1]??''))),['TTI','BRM'],true)

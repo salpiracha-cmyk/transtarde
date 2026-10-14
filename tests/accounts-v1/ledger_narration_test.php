@@ -12,3 +12,13 @@ echo "PASS bill narration, combined containers, discharge details, bag brand, im
 
 $chart=sac_chart();if(($chart['6810']['class']??'')!=='Expense'||($chart['6820']['class']??'')!=='Expense'||($chart['7200']['name']??'')!=='Donations')throw new RuntimeException('Policy bank charges must appear in the chart without overwriting existing donations');
 echo "PASS policy account names/types and existing chart identities\n";
+
+$tracking=['bankPaymentMethod'=>'ONLINE_BANKING','bankReference'=>'REF-42'];
+$source=['entity'=>'TTI','narration'=>'Office supplies · Online Banking · ONLINE_BANKING · REF-42 · Office supplies','meta'=>$tracking];
+$compact=sac_journal_narration([],$source);verify($compact==='Office supplies · Online Banking · REF-42','Duplicate method, reference and purpose display once');
+verify($source['narration']==='Office supplies · Online Banking · ONLINE_BANKING · REF-42 · Office supplies','Presentation preserves stored text');
+verify(sac_compact_narration('School fee · CHEQUE · 123 · Cheque 123',['bankPaymentMethod'=>'CHEQUE','chequeNo'=>'123'])==='School fee · Cheque 123','Cheque label and number combine once');
+echo "PASS concise payment tracking narration without editing audit text\n";
+
+verify(sac_display_path(['Expenses','Home Expense','Home Expense'])==='Expenses / Home Expense','Adjacent repeated names collapse only in the displayed path');
+verify(sac_display_path(['A','B','A'])==='A / B / A','Distinct ancestor levels remain');
