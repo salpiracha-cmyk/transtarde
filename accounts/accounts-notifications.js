@@ -24,8 +24,8 @@
   window.alert=error;
   // Inline preflight validation must be visible even before a request reaches the server.
   const watch=()=>{
-    const selectors='[role="alert"],[data-error],[id$="Error"],[id$="error"],.tt-plan-error,.tt-form-error';
-    const report=node=>{if(!node?.closest)return;const field=node.closest(selectors);if(field&&!field.closest('#tt-accounts-error')&&!field.hidden&&field.textContent.trim())error(field.textContent.trim());};
+    const selectors='[role="alert"],[data-error],[id$="Error"],[id$="error"],.tt-plan-error,.tt-form-error,.am-error';
+    const report=node=>{if(!node?.closest)return;const field=node.closest(selectors);if(field&&!field.closest('#tt-accounts-error')&&!field.hidden&&field.textContent.trim())error(field.textContent.trim(),{persistent:!!field.closest('form')});};
     new MutationObserver(records=>{for(const r of records){report(r.target.nodeType===3?r.target.parentElement:r.target);for(const n of r.addedNodes){if(n.nodeType===1){report(n);n.querySelectorAll(selectors).forEach(report);}}}}).observe(document.body,{childList:true,characterData:true,subtree:true});
     document.addEventListener('invalid',event=>{const input=event.target;const label=input.closest('label')?.childNodes[0]?.textContent?.trim()||input.getAttribute('aria-label')||'Required field';error(label+': '+input.validationMessage,{persistent:true});},true);
   };
