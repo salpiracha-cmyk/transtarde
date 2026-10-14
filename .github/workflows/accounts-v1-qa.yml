@@ -97,6 +97,7 @@ jobs:
           php tests/accounts-v1/forward_bookings_test.php
           python3 tests/accounts-v1/forward_bookings_http_test.py
           php tests/accounts-v1/post_amendment_test.php
+          python3 tests/accounts-v1/post_cancel_preview_test.py
           php tests/accounts-v1/bank_payment_tracking_test.php
           php tests/accounts-v1/freight_metadata_test.php
           python3 tests/accounts-v1/ready_rice_bill_http_test.py

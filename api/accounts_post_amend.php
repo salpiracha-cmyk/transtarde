@@ -2,6 +2,7 @@
 declare(strict_types=1);
 require dirname(__DIR__).'/auth_store.php';
 require __DIR__.'/accounts_post_amend_core.php';
+require_once __DIR__.'/accounts_posting_preview.php';
 header('Content-Type: application/json; charset=UTF-8');
 header('Cache-Control: no-store');
 function apa_out(array $body,int $status=200):never{http_response_code($status);echo json_encode($body,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);exit;}
@@ -23,7 +24,9 @@ try{
         if(is_array($original)&&in_array((string)($original['meta']['originalSourceType']??$original['sourceType']??''),['JV','JV_REVERSAL'],true)&&!tt_user_can_access_entity($user,$entity,'Approve'))apa_out(['ok'=>false,'error'=>'Company approval permission is required for a Journal Voucher correction.'],403);
         if(!tt_user_can_access_entity($user,$entity,'Edit'))apa_out(['ok'=>false,'error'=>'Accounts Edit permission for this company is required.'],403);
         if(is_array($original)&&(($original['sourceType']??'')==='OPENING_BALANCE_BF'||!empty($original['meta']['openingBalance']))&&(!job_authorized($user)||!in_array($entity,job_entities($user),true)||!tt_user_can_access_entity($user,$entity,'Approve')))apa_out(['ok'=>false,'error'=>'Opening balances require management and company approval permission.'],403);
+        $beforeJournalIds=array_keys((array)($store['journals']??[]));
         if(($body['action']??'')==='delete_post'){require_once __DIR__.'/accounts_post_delete_core.php';$result=apd_delete($store,$user,$postId,$body);}else $result=apa_correct($store,$user,$postId,$body);
+        tt_posting_preview_exit($body,$store,$beforeJournalIds);
         $store['revision']=(int)($store['revision']??0)+1;
         $encoded=json_encode($store,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR);
         rewind($handle);if(!ftruncate($handle,0)||fwrite($handle,$encoded)===false)throw new RuntimeException('Accounts storage could not be updated.');fflush($handle);
