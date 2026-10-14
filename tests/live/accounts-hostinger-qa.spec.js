@@ -705,3 +705,30 @@ test('Mill Petty Cash reads the same Accounts postings without writes',async({pa
  if(cash.rows.length){const row=cash.rows[0],posted=await page.request.get(BASE_URL+'/api/accounts_ledger_browser.php?'+new URLSearchParams({entity:'TTI',account:'POSTS',postId:row.postId}));expect(posted.status()).toBe(200);const view=await posted.json();expect(view.post.lines.some(line=>line.account==='1120'&&line.millLocationId===mill.id)).toBe(true);}
  expect(writes).toEqual([]);
 });
+
+test('Accounts review release: company views, reconciliation, entry cleanup and TG transfer',async({page})=>{
+  test.setTimeout(240_000);await signIn(page);
+  const attemptedWrites=[];await page.route('**/api/**',route=>{if(route.request().method()==='POST'){attemptedWrites.push(new URL(route.request().url()).pathname);return route.abort();}return route.continue();});
+  const now=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Karachi',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+  let comparisons=0,reads=0;
+  for(const entity of ['TTI','BRM','TG']){
+    const bankResponse=await page.request.get(`${BASE_URL}/api/bank_accounts.php?entity=${entity}`);expect(bankResponse.status()).toBe(200);const banks=await bankResponse.json();expect(banks.ok).toBe(true);
+    for(const endpoint of ['accounts_dashboard','bank_entries','other_purchases','company_investments']){
+      const r=await page.request.get(`${BASE_URL}/api/${endpoint}.php?entity=${entity}`);expect(r.status(),entity+' '+endpoint).toBe(200);expect((await r.json()).ok).toBe(true);reads++;
+    }
+    for(const bank of (banks.accounts||[]).filter(b=>b.currency==='PKR'&&b.id!=='CASH|'+entity&&b.settings?.reconciliationEnabled!==false)){
+      const r=await page.request.get(`${BASE_URL}/api/bank_reconciliation.php?`+new URLSearchParams({entity,bankId:bank.id,statementDate:'9999-12-31'}));expect(r.status()).toBe(200);const reconciliation=await r.json();expect(reconciliation.ok).toBe(true);
+      if(reconciliation.revision===banks.revision){expect(Math.abs(Number(reconciliation.bookBalance)-Number(bank.bookBalance)),'Reconciliation and bank posted balance must agree for '+entity+' '+bank.id).toBeLessThan(.011);comparisons++;}
+    }
+  }
+  await page.locator('#ttChangeCompanyDesk').click();await page.locator('#ttCompanyMenu [data-entity="TTI"]').click();
+  await page.locator('[data-tt-area="routine"]').click();expect(await page.locator('#ttExpenseMasters').count()).toBe(0);
+  await page.getByRole('button',{name:/^Pay Expense /i}).click();await page.locator('[data-expense-mode="card"]').check();await expect(page.locator('#evStatementForm')).toBeVisible();await expect(page.locator('#evAddStatement')).toBeHidden();
+  const payment=page.locator('#evStatementPayDate');if(await payment.count()){const date=await payment.inputValue();expect(await page.locator('#evStatementPayAccountDetails [data-cheque-date]').inputValue()).toBe(date);}
+  await page.locator('#ttExpenseDesk [data-close]').click();
+  await page.goto(`${BASE_URL}/accounts/bag-reports.php?view=report&entity=TTI`,{waitUntil:'domcontentloaded'});await expect(page.locator('#bgRun')).toBeVisible();expect(await page.locator('#bgSave').count()).toBe(0);expect(await page.locator('.ttbag-tabs').count()).toBe(0);
+  const restricted=await page.request.get(`${BASE_URL}/accounts/bag-reports.php?view=master&entity=TTI`);expect(restricted.status()).toBe(403);
+  await page.goto(`${BASE_URL}/accounts/index.php`,{waitUntil:'domcontentloaded'});await expect(page.locator('#ttChangeCompanyDesk')).toBeVisible();await page.locator('#ttChangeCompanyDesk').click();await page.locator('#ttCompanyMenu [data-entity="TG"]').click();
+  await page.locator('[data-tt-area="tg-bank"]').click();await page.getByRole('button',{name:/^Inter Account Transfer /i}).click();await expect(page.locator('#tgfxDate')).toBeVisible();await expect(page.locator('#ws-bank')).toHaveClass(/active/);await expect(page.locator('#tgfxPost')).toBeDisabled();
+  expect(attemptedWrites).toEqual([]);console.log('ACCOUNTS_REVIEW_READ_ONLY '+JSON.stringify({companyReads:reads,pkrBankComparisons:comparisons,tgTransferVisible:true,financialWrites:0,checkedAt:now}));
+});

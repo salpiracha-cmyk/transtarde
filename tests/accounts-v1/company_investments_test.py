@@ -4,7 +4,7 @@ ROOT=pathlib.Path(__file__).resolve().parents[2]
 with tempfile.TemporaryDirectory(prefix='company-investments-') as tmp:
  root=pathlib.Path(tmp)
  for name in ['api','accounts','data']:(root/name).mkdir()
- for name in ['company_investments.php','company_investments_core.php','assets_registry_core.php','accounts_bank_payment.php','accounts_post_amend_core.php']:shutil.copy(ROOT/'api'/name,root/'api'/name)
+ for name in ['accounts_posting_preview.php','company_investments.php','company_investments_core.php','assets_registry_core.php','accounts_bank_payment.php','accounts_post_amend_core.php']:shutil.copy(ROOT/'api'/name,root/'api'/name)
  for name in ['accounting_master_v1.json','company-investments-ui.js']:shutil.copy(ROOT/'accounts'/name,root/'accounts'/name)
  (root/'auth_store.php').write_text('''<?php
  define('TT_DATA_DIR',__DIR__.'/data');function tt_ensure_data_dir(){}
@@ -90,6 +90,19 @@ with tempfile.TemporaryDirectory(prefix='company-investments-') as tmp:
   free_sell,_=good(action='post',date='2026-10-07',reference='SELL-NO-COMMISSION',type='SELL',brokerId=bid,symbol='FREE',quantity=10,price=1,fees='')
   assert [l['account'] for l in free_sell['voucher']['lines']]==['1430','1610']
   before=books.read_bytes();books.write_text('{broken-json');assert req()[0]==500;assert req(body)[0]==500 and books.read_text()=='{broken-json';books.write_bytes(before)
+  editable,_=good(action='post',date='2026-10-07',reference='EDIT-FUND',type='FUND_DIRECT',brokerId=bid,amount=25,paymentAccountId='BANK-1',bankPaymentMethod='ONLINE_BANKING',bankPaymentDate='2026-10-08',paymentNarration='Original funding')
+  original=json.loads(books.read_text())['journals'][editable['journalId']]
+  before=books.read_bytes();status,preview,_=post(action='amend',transactionId=editable['transactionId'],preview=True,date='2026-10-07',reference='EDIT-FUND',type='FUND_DIRECT',brokerId=bid,amount=30,paymentAccountId='BANK-1',bankPaymentMethod='ONLINE_BANKING',bankPaymentDate='2026-10-09',reason='Preview the corrected transfer amount')
+  assert status==200 and len(preview['previews'])==2 and books.read_bytes()==before,(status,preview)
+  amended,amend_body=good(action='amend',transactionId=editable['transactionId'],date='2026-10-07',reference='EDIT-FUND',type='FUND_DIRECT',brokerId=bid,amount=30,paymentAccountId='BANK-1',bankPaymentMethod='ONLINE_BANKING',bankPaymentDate='2026-10-09',paymentNarration='Corrected funding',reason='Correct the actual transfer amount')
+  saved=json.loads(books.read_text());assert saved['journals'][editable['journalId']]['lines']==original['lines']
+  assert saved['investmentTransactions'][editable['transactionId']]['status']=='Amended'
+  assert amended['publicPostId']==editable['journalId'] and amended['voucher']['meta']['publicPostId']==editable['journalId']
+  assert amended['voucher']['totalDebit']==30 and amended['voucher']['lines'][1]['bankPaymentDate']=='2026-10-09'
+  before=books.read_bytes();assert req(amend_body)[0]==200 and books.read_bytes()==before
+  assert post(action='amend',transactionId=amended['transactionId'],date='2026-10-07',reference='BAD-EDIT',type='FUND_DIRECT',brokerId=bid,amount=0,paymentAccountId='BANK-1',bankPaymentMethod='ONLINE_BANKING',reason='Invalid corrected amount')[0]==422 and books.read_bytes()==before
+  denied={**amend_body,'requestKey':'readonly-amend-check','transactionId':amended['transactionId'],'revision':saved['revision']}
+  assert req(denied,'&role=readonly')[0]==403 and books.read_bytes()==before
   print('Investment HTTP: routing, remuneration split, shares, return transfers, corrections, replay protection, archived masters, cheque validation and permissions passed.')
   if os.environ.get('TT_QA_NODE_BROWSER')=='1':
    books.write_text(json.dumps(initial))

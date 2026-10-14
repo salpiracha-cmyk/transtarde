@@ -1,0 +1,1 @@
+(()=>{'use strict';const select=document.getElementById('bagPageCompany');select.addEventListener('change',()=>{location.href='/accounts/bag-reports.php?'+new URLSearchParams({view:window.TT_BAG_PAGE_MODE,entity:select.value});});window.TT_BAG_PURCHASES_UI.mount();})();
