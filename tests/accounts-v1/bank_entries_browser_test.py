@@ -9,6 +9,11 @@ with tempfile.TemporaryDirectory(prefix='bank-entries-browser-') as tmp:
  (root/'auth_store.php').write_text('''<?php
  define('TT_DATA_DIR',__DIR__.'/data');function tt_ensure_data_dir(){}
  function tt_require_login(){return ['id'=>1,'username'=>'Fixture','role'=>'Super Admin','permissions'=>['Accounts'=>'all']];}
+ function tt_current_user(){return tt_require_login();}
+ function tt_active_location_masters(){return [['id'=>'mills-1','values'=>['TTI Rice Mills','','Own Mill','','','Active','','TTI']]];}
+ function tt_normalize_location_type($type){return $type;}
+ function tt_location_identity($name){return strtolower(preg_replace('/[^a-z0-9]+/i','',$name));}
+ function tt_release_read_session(){}
  function tt_user_can_open_module($u,$m){return true;}
  function tt_user_can_module_action($u,$m,$i,$a){return true;}
  function tt_user_can_access_entity($u,$e,$a){return $e==='TTI';}
