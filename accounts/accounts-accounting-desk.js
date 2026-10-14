@@ -334,9 +334,8 @@
       if(label.includes('report')||label.includes('balance')||label.includes('profit'))return iconPicture('reports');
       return iconPicture('bill');
     };
-    work.innerHTML = `<div class="tt-work-head"><button class="tt-back-areas" type="button" aria-label="Back to main Accounts">BACK</button><div><h2>${esc(area.title)}</h2><p>${esc(area.note)}</p></div>${area.key==='routine'?'<button type="button" class="btn" id="ttExpenseMasters" title="Recipients, utility, card, rent and salary setup">⚙ Accounts Setup</button>':''}</div><div class="tt-action-list" data-area-palette="${esc(area.key)}">${area.actions.map((action, index) => hiddenSpecials.has(action.special)?'':`<button type="button" class="tt-action" data-tt-action="${index}"><span class="tt-action-mark">${actionGlyph(action)}</span><span><b>${esc(action.title)}</b><small>${esc(action.note || 'Open report')}</small></span></button>`).join('')}</div>`;
+    work.innerHTML = `<div class="tt-work-head"><button class="tt-back-areas" type="button" aria-label="Back to main Accounts">BACK</button><div><h2>${esc(area.title)}</h2><p>${esc(area.note)}</p></div></div><div class="tt-action-list" data-area-palette="${esc(area.key)}">${area.actions.map((action, index) => hiddenSpecials.has(action.special)?'':`<button type="button" class="tt-action" data-tt-action="${index}"><span class="tt-action-mark">${actionGlyph(action)}</span><span><b>${esc(action.title)}</b><small>${esc(action.note || 'Open report')}</small></span></button>`).join('')}</div>`;
     q('.tt-back-areas',work).onclick=showAreasHome;
-    const expenseMasters=q('#ttExpenseMasters',work);if(expenseMasters)expenseMasters.onclick=()=>openLittleMaster();
     qa('[data-tt-action]', work).forEach(button => button.onclick = () => launch(area.actions[Number(button.dataset.ttAction)]));
   }
 
