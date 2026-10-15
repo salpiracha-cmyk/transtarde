@@ -7,6 +7,11 @@ function bor_date(mixed $value):string {
     $parsed=DateTimeImmutable::createFromFormat('!Y-m-d',$date);
     return $parsed&&$parsed->format('Y-m-d')===$date?$date:'';
 }
+/** Issued timestamps are stored in UTC; reporting months follow Karachi business dates. */
+function bor_issue_date(mixed $value):string {
+    $text=trim((string)$value);$date=bor_date($text);if($date===''||!str_contains($text,'T'))return $date;
+    try{return (new DateTimeImmutable($text,new DateTimeZone('UTC')))->setTimezone(new DateTimeZone('Asia/Karachi'))->format('Y-m-d');}catch(Throwable){return '';}
+}
 /** Recover the first issue date from the saved PO versions, without changing either source. */
 function bor_original_dates(array $orders,array $exports,string $entity):array {
     $contracts=[];foreach((array)($exports['contracts']??[]) as $contract)if(is_array($contract))$contracts[(string)($contract['ref']??'')]=$contract;
@@ -16,8 +21,8 @@ function bor_original_dates(array $orders,array $exports,string $entity):array {
         $seller=strtoupper((string)($shipment['seller']??$contract['seller']??'TTI'));$owner=$seller==='TG'?strtoupper((string)($shipment['customs']['exporter']??$contract['customsExporter']??'')):$seller;
         if($owner!==$entity)continue;
         foreach((array)($shipment['bagOrders']??[]) as $po){
-            if(!is_array($po))continue;$key=(string)($po['poNo']??'').'|'.strtolower(trim((string)($po['supplier']??'')));$candidates=[bor_date($po['originalIssuedAt']??$po['issuedAt']??'')];
-            foreach((array)($po['versions']??[]) as $version)if(is_array($version))$candidates[]=bor_date($version['snapshot']['issuedAt']??'');
+            if(!is_array($po))continue;$key=(string)($po['poNo']??'').'|'.strtolower(trim((string)($po['supplier']??'')));$candidates=[bor_issue_date($po['originalIssuedAt']??$po['issuedAt']??'')];
+            foreach((array)($po['versions']??[]) as $version)if(is_array($version))$candidates[]=bor_issue_date($version['snapshot']['issuedAt']??'');
             $candidates=array_values(array_filter($candidates));if($candidates){sort($candidates);$dates[$key]=isset($dates[$key])?min($dates[$key],$candidates[0]):$candidates[0];}
         }
     }
@@ -45,7 +50,7 @@ function bor_report(array $orders,array $millOrders,array $receipts,string $enti
         if(!is_array($po)||($po['entity']??'TTI')!==$entity)continue;
         foreach((array)($po['lines']??[]) as $line){
             if(!is_array($line))continue;
-            $row=['poNo'=>(string)($po['poNo']??''),'lineKey'=>(string)($line['lineKey']??''),'orderDate'=>bor_date($po['originalIssuedAt']??$po['issuedAt']??''),'supplier'=>(string)($po['supplier']??''),'brand'=>(string)($line['brand']??''),'bagType'=>(string)($line['bagType']??''),'packingSize'=>(string)($line['packingSize']??''),'shipment'=>(string)(($po['contractRef']??'')?:($po['shipmentRef']??''))];
+            $row=['poNo'=>(string)($po['poNo']??''),'lineKey'=>(string)($line['lineKey']??''),'orderDate'=>bor_issue_date($po['originalIssuedAt']??$po['issuedAt']??''),'supplier'=>(string)($po['supplier']??''),'brand'=>(string)($line['brand']??''),'bagType'=>(string)($line['bagType']??''),'packingSize'=>(string)($line['packingSize']??''),'shipment'=>(string)(($po['contractRef']??'')?:($po['shipmentRef']??''))];
             foreach(['supplier','brand','bagType','packingSize'] as $field)if(($filters[$field]??'')!==''&&$normal($row[$field])!==$normal($filters[$field]))continue 2;
             if(($filters['q']??'')!==''&&!str_contains($normal($row['poNo'].' '.$row['shipment']),$normal($filters['q'])))continue;
             $ordered=max(0,(float)($line['orderedQty']??0));$datedAll=0.0;$periodReceived=0.0;$throughEnd=0.0;$undatedEvents=0.0;$seenBagIds=[];

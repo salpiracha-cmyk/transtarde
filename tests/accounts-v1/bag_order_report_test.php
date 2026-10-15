@@ -21,4 +21,11 @@ $filters['basis']='orders';$r=bor_report($orders,$mill,$receipts,'TTI',$filters)
 foreach(['supplier'=>'Bag Two','bagType'=>'Cotton','packingSize'=>'50 KG','q'=>'C2'] as $key=>$value){$r=bor_report($orders,$mill,$receipts,'TTI',array_replace($filters,[$key=>$value]));check(count($r['rows'])===0,'Filter '.$key);}
 $duplicate=$receipts;$duplicate[]=$receipts[0];$r=bor_report($orders,$mill,$duplicate,'TTI',$filters);check($r['totals']['receivedInPeriod']===600.0,'Duplicate source receipt is not counted twice');
 check(bor_date('2026-02-30')===''&&bor_date('2026-09-20T10:00:00Z')==='2026-09-20','Strict calendar dates');check(json_encode([$orders,$mill,$receipts])===$before,'Report never changes operational or accounting records');
+check(bor_issue_date('2026-09-30T20:00:00Z')==='2026-10-01','UTC late September order belongs to October in Karachi');
+check(bor_issue_date('2026-09-30T18:59:59Z')==='2026-09-30','Karachi month-end boundary');
+check(bor_issue_date('2026-10-01T00:30:00+05:00')==='2026-10-01','Explicit issue timezone retained');
+check(bor_issue_date('2026-09-30')==='2026-09-30','Date-only historical orders do not shift');
+check(bor_date('2026-09-30')==='2026-09-30','Receipt date-only values unchanged');
+$boundaryOrders=$originalOrders;$boundaryOrders[0]['issuedAt']='2026-09-30T20:00:00Z';$r=bor_report([$boundaryOrders[0]],[],[],'TTI',['from'=>'2026-09-01','to'=>'2026-09-30','basis'=>'orders']);check(count($r['rows'])===0,'September cohort excludes October local order');
+$r=bor_report([$boundaryOrders[0]],[],[],'TTI',['from'=>'2026-10-01','to'=>'2026-10-31','basis'=>'orders']);check(count($r['rows'])===1,'October cohort includes local month boundary order');
 echo "PASS bag order report: company/brand/type/size/supplier/PO filters, order versus receipt dates, cohorts, cutoff, undated balances, duplicate receipt protection and read-only sources\n";
