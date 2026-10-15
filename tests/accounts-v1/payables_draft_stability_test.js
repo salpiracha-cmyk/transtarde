@@ -26,4 +26,10 @@ async function rice(){
  w.TT_RICE_PAYABLE_LINK.open('S1','Broker');w.localStorage.setItem('tt_accounts_entity','BRM');w.document.querySelector('.entityBtn').click();await pause(350);assert.equal(opens,0,'A delayed prior-company command cannot open settlement');assert.equal(w.document.querySelector('#ttRicePayFocus'),null);assert.equal(w.sessionStorage.getItem('tt_rice_payable_focus'),null);
  observer.disconnect();stop();w.close();
 }
-(async()=>{await nonwoven();await rice();console.log('PASS payable draft identity, focus, read counts, stale-company responses and stable Rice focus banner')})().catch(e=>{console.error(e);process.exitCode=1});
+async function tgPlanning(){
+ const dom=new JSDOM('<section id="ws-payables" class="workspace active"><div class="panelHead"></div></section>',{url:'https://fixture.test/accounts/',runScripts:'outside-only'}),w=dom.window;
+ const stop=observers(w),requests=[];w.localStorage.setItem('tt_accounts_entity','TG');w.fetch=async url=>{requests.push(url);throw new Error('Pakistan planning must not be requested for TG')};
+ try{w.eval(fs.readFileSync('accounts/supplier-payment-planning-ui.js','utf8'));await w.TT_SUPPLIER_PAYMENT_PLANNING_UI.mount();await w.TT_SUPPLIER_PAYMENT_PLANNING_UI.refresh();assert.deepEqual(requests,[],'Opening TG bills must not request unsupported Pakistan payables');assert.equal(w.document.querySelector('#ttPayPlanToast'),null);}
+ finally{stop();w.close()}
+}
+(async()=>{await nonwoven();await rice();await tgPlanning();console.log('PASS payable draft identity, focus, read counts, stale-company responses and stable Rice focus banner')})().catch(e=>{console.error(e);process.exitCode=1});
