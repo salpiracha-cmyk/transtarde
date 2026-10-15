@@ -115,9 +115,11 @@ try {
             $credit = ar_amount($line['credit'] ?? 0);
             $balances[$code] = ($balances[$code] ?? 0.0) + $debit - $credit;
             if(isset($hidden[(string)($journal['id']??'')]))continue;
+            if((string)$journal['date']<$from)continue;
             $ledger[] = [
                 'date' => (string)($journal['date'] ?? ''),
                 'journalId' => (string)($journal['id'] ?? ''),
+                'publicPostId' => tt_accounts_public_post($store,$journal),
                 'sourceType' => (string)($journal['sourceType'] ?? ''),
                 'reference' => (string)($journal['reference'] ?? ''),
                 'narration' => sac_journal_narration($store,$journal),
@@ -178,6 +180,9 @@ try {
             $profit -= $amount;
         }
     }
+
+    usort($income,static fn($a,$b)=>strnatcmp((string)$a['account'],(string)$b['account']));
+    usort($expenses,static fn($a,$b)=>strnatcmp((string)$a['account'],(string)$b['account']));
 
     $assets = [];
     $liabilities = [];

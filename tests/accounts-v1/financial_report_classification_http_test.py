@@ -27,6 +27,7 @@ define('TT_DATA_DIR',__DIR__.'/data');function tt_require_login(){return ['role'
   assert abs(pl['profit']-296268.82)<.005 and abs(d['balanceSheet']['totalAssets']-d['balanceSheet']['totalLiabilitiesAndEquity'])<.005,d
   assert d['dataQuality']['unclassifiedBalances']==[]
   status,later=req('2026-10-01');assert status==200 and later['profitAndLoss']['profit']==0 and later['balanceSheet']==d['balanceSheet'],'Period profit must not replace cumulative balance-sheet earnings'
+  assert d['generalLedger'] and later['generalLedger']==[],'Period GL and commodity activity must exclude prior-period postings without changing cumulative balances'
   assert path.read_bytes()==before,'Financial report must never write a balancing entry'
   # Unrecognised accounts remain visible as a concrete review, never hidden by a balancing figure.
   books['journals']['UNKNOWN']=journal('UNKNOWN',[line('1110',5),line('9998',cr=5)]);path.write_text(json.dumps(books));unknown_before=path.read_bytes();status,unknown=req();assert status==200 and unknown['dataQuality']['unclassifiedBalances']==[{'account':'9998','name':'9998','class':'Other','net':-5}]

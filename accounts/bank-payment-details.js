@@ -25,8 +25,25 @@
   function read(id,date) {
     const source=find(id),box=find(id+'Details');if(!source||!box||box.hidden)return {};
     const method=box.querySelector('[data-method]').value,reference=box.querySelector('[data-reference]').value.trim(),narration=box.querySelector('[data-narration]').value.trim();
+    if(!['CHEQUE','ONLINE_BANKING'].includes(method))throw Error('Choose the bank payment method.');
     if(method==='CHEQUE'&&!reference)throw Error('Enter the cheque number.');
     return {bankPaymentMethod:method,bankReference:reference,chequeNo:method==='CHEQUE'?reference:'',chequeDate:method==='CHEQUE'?(box.querySelector('[data-cheque-date]').value||date):'',bankPaymentDate:method==='ONLINE_BANKING'?(box.querySelector('[data-cheque-date]').value||date):'',paymentNarration:narration};
+  }
+  function restore(id,details={},date='') {
+    const source=find(id),box=find(id+'Details');if(!source||!box)return;
+    source.dispatchEvent(new Event('change',{bubbles:true}));
+    const method=box.querySelector('[data-method]');
+    const savedMethod=details.bankPaymentMethod==='BANK_TRANSFER'?'ONLINE_BANKING':details.bankPaymentMethod||(details.chequeNo?'CHEQUE':'');
+    if(!savedMethod&&![...method.options].some(option=>option.value==='')){
+      const option=document.createElement('option');option.value='';option.textContent='Choose payment method';method.prepend(option);
+    }
+    method.value=savedMethod;
+    box.querySelector('[data-reference]').value=savedMethod==='CHEQUE'?(details.chequeNo||details.bankReference||''):(details.bankReference||'');
+    box.querySelector('[data-cheque-date]').value=(savedMethod==='CHEQUE'?details.chequeDate:details.bankPaymentDate)||date;
+    box.querySelector('[data-narration]').value=details.paymentNarration||'';
+    method.dispatchEvent(new Event('change',{bubbles:true}));
+    const narration=box.querySelector('[data-narration-override]');if(narration)narration.open=!!details.paymentNarration;
+    window.TT_ACCOUNTS_CLEAN_UI?.syncSelects?.(box);
   }
   // Resolve a display label without changing the saved journal's posting account.
   window.TT_VOUCHER_ACCOUNT_LABEL=(line,journal={},masters=window.TT_ACCOUNT_ACCESS?.masters||{})=>{
@@ -55,6 +72,6 @@
     const narration=m.directExpense?m.paymentNarration:j.narration,notes=[narration,j.fiTagText].filter(Boolean);
     return `<!doctype html><html><head><meta charset="utf-8"><title>${escape(heading)} ${escape(j.publicPostId||j.meta?.publicPostId||j.id)}</title><style>@page{size:A4;margin:10mm}*{box-sizing:border-box}body{margin:0;color:#182c35;font:11px/1.25 Arial,sans-serif}.voucher{max-width:190mm;margin:0 auto;border:1px solid #a9b9bd;padding:4mm}header{display:grid;text-align:center;gap:4px;border-bottom:2px solid #165848;padding-bottom:2mm}header b{font-size:16px}header strong{font-size:12px}.meta{display:flex;justify-content:space-between;gap:8px;padding:2mm 0}.info{width:100%;margin-bottom:2mm}.info th{width:28mm;background:transparent;white-space:nowrap}.info td,.info th{padding:1mm 2mm;vertical-align:top}table{width:100%;border-collapse:collapse;table-layout:fixed}th{text-align:left;background:#edf4f1}td,th{padding:1.5mm 2mm;border-bottom:1px solid #ccd7d8;overflow-wrap:anywhere;vertical-align:top}.entry th:first-child{width:70%}.amount{text-align:right;white-space:nowrap}small{display:block;font-size:10px;color:#415962;margin-top:1mm}tfoot{font-weight:bold;background:#edf4f1}.notes{padding:2mm 0;overflow-wrap:anywhere}.sign{display:flex;justify-content:space-between;gap:8mm;margin-top:16mm}.sign span{border-top:1px solid #768a90;padding-top:1mm;flex:1;font-size:10px}.allocation{margin-top:2mm}.allocation th:first-child{width:70%}tr{break-inside:avoid}.controls{max-width:190mm;margin:8px auto}@media print{.controls{display:none}.voucher{margin:0}}</style></head><body><div class="controls"><button onclick="print()">Print voucher</button></div><article class="voucher"><header><b>${escape(company)}</b><strong>${escape(heading)}</strong></header><div class="meta"><span>Post ID <b>${escape(j.publicPostId||j.meta?.publicPostId||j.id)}</b></span><span>Date <b>${escape(window.TT_DATE?.display(j.date)||j.date)}</b></span><span>Book currency <b>${base}</b></span></div>${info.length?'<table class="info">'+info.map(([k,v])=>`<tr><th>${escape(k)}</th><td>${escape(v)}</td></tr>`).join('')+'</table>':''}<table class="entry"><thead><tr><th>Account / details</th><th class="amount">Debit</th><th class="amount">Credit</th></tr></thead><tbody>${accountRows}</tbody><tfoot><tr><td>Total</td><td class="amount">${money(j.totalDebit||lines.reduce((n,l)=>n+Number(l.debit||0),0))}</td><td class="amount">${money(j.totalCredit||lines.reduce((n,l)=>n+Number(l.credit||0),0))}</td></tr></tfoot></table>${allocationRows?'<table class="allocation"><thead><tr><th>Bill / shipment</th><th class="amount">Paid</th><th class="amount">Balance</th></tr></thead><tbody>'+allocationRows+'</tbody></table>':''}${notes.length?'<div class="notes"><b>Narration:</b> '+escape(notes.join(' · '))+'</div>':''}<div class="sign"><span>Prepared by</span><span>Checked by</span><span>Receiver signature</span></div></article></body></html>`;
   };
-  window.TT_BANK_PAYMENT_DETAILS={mount,read,orderChoices};
+  window.TT_BANK_PAYMENT_DETAILS={mount,read,restore,orderChoices};
 })();
 
