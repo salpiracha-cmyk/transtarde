@@ -118,6 +118,7 @@ try {
             $ledger[] = [
                 'date' => (string)($journal['date'] ?? ''),
                 'journalId' => (string)($journal['id'] ?? ''),
+                'publicPostId' => tt_accounts_public_post($store,$journal),
                 'sourceType' => (string)($journal['sourceType'] ?? ''),
                 'reference' => (string)($journal['reference'] ?? ''),
                 'narration' => sac_journal_narration($store,$journal),
