@@ -7,8 +7,8 @@ with tempfile.TemporaryDirectory(prefix='bag-report-') as tmp:
  (root/'auth_store.php').write_text("""<?php
 define('TT_DATA_DIR',__DIR__.'/data');function tt_require_login(){return [];}function tt_user_can_open_module($u,$m){return $m==='Accounts';}function tt_user_can_access_entity($u,$e,$a){return $e==='TTI';}function tt_user_can_module_action($u,$m,$i,$a){return empty($_SERVER['HTTP_X_DENY']);}function tt_release_read_session(){}
 """)
- books={'journals':{'kept':{'amount':321}},'bagPurchaseOrders':{'PO':{'entity':'TTI','poNo':'PO','issuedAt':'2026-09-10','supplier':'=Unsafe Formula','contractRef':'CONTRACT','lines':[{'lineKey':'L1','brand':'XYZ','orderedQty':1000,'receivedQty':450,'bagType':'PP','packingSize':'25 KG'}]}}}
- operations={'values':{'tt30bags':json.dumps([{'id':1,'poNo':'PO','_ttBridge':'exports','_ttBridgeId':'x|1','received':450}]),'tt33bagreceipts':json.dumps([{'id':1,'bagId':1,'date':'2026-09-12','qty':400},{'id':2,'bagId':1,'date':'2026-10-12','qty':50}])}}
+ books={'journals':{'kept':{'amount':321}},'bagPurchaseOrders':{'PO':{'entity':'TTI','poNo':'PO','issuedAt':'2026-10-10','supplier':'=Unsafe Formula','contractRef':'CONTRACT','lines':[{'lineKey':'L1','brand':'XYZ','orderedQty':1000,'receivedQty':450,'bagType':'PP','packingSize':'25 KG'}]}}}
+ operations={'values':{'transtrade_export_v3_operational':json.dumps({'shipments':[{'seller':'TTI','bagOrders':[{'poNo':'PO','supplier':'=Unsafe Formula','issuedAt':'2026-10-10','versions':[{'snapshot':{'issuedAt':'2026-09-10'}}]}]}]}),'tt30bags':json.dumps([{'id':1,'poNo':'PO','_ttBridge':'exports','_ttBridgeId':'x|1','received':450}]),'tt33bagreceipts':json.dumps([{'id':1,'bagId':1,'date':'2026-09-12','qty':400},{'id':2,'bagId':1,'date':'2026-10-12','qty':50}])}}
  book=root/'data/accounts.json';op=root/'data/operations.json';book.write_text(json.dumps(books));op.write_text(json.dumps(operations));before=[book.read_bytes(),op.read_bytes()]
  with socket.socket() as sock:sock.bind(('127.0.0.1',0));port=sock.getsockname()[1]
  log=open(root/'server.log','w');server=subprocess.Popen(['php','-S',f'127.0.0.1:{port}','-t',str(root)],stdout=log,stderr=log)

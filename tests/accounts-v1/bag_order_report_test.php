@@ -10,6 +10,9 @@ $orders=[
 ];
 $mill=[['id'=>1,'poNo'=>'SEPT','_ttBridge'=>'exports','_ttBridgeId'=>'contract|1','received'=>800],['id'=>2,'poNo'=>'AUG','_ttBridge'=>'exports','_ttBridgeId'=>'other|1','received'=>400],['id'=>3,'poNo'=>'BRM','_ttBridge'=>'exports','_ttBridgeId'=>'brm|1','received'=>999]];
 $receipts=[['id'=>11,'bagId'=>1,'date'=>'2026-09-15','qty'=>600],['id'=>12,'bagId'=>1,'date'=>'2026-10-01','qty'=>100],['id'=>13,'bagId'=>2,'date'=>'2026-09-20','qty'=>400],['id'=>14,'bagId'=>3,'date'=>'2026-09-20','qty'=>999]];
+$originalOrders=$orders;$orders[0]['issuedAt']='2026-10-14';
+$exports=['shipments'=>[['seller'=>'TTI','bagOrders'=>[['poNo'=>'SEPT','supplier'=>'Bag One','issuedAt'=>'2026-10-14','versions'=>[['snapshot'=>['issuedAt'=>'2026-09-12T10:00:00Z']]]]]]]];
+$orders=bor_original_dates($orders,$exports,'TTI');check($orders[0]['originalIssuedAt']==='2026-09-12','Amendments never move an order to another month');check(!isset($originalOrders[0]['originalIssuedAt']),'Original persisted source unchanged');
 $filters=['from'=>'2026-09-01','to'=>'2026-09-30','brand'=>'xyz','basis'=>'activity'];$before=json_encode([$orders,$mill,$receipts]);
 $r=bor_report($orders,$mill,$receipts,'TTI',$filters);
 check(count($r['rows'])===2,'Company and brand scope');check($r['totals']['orderedInPeriod']===1000.0,'Order date controls ordered month');check($r['totals']['receivedInPeriod']===1000.0,'Receipt date controls receipt month including older orders');check($r['totals']['receivedThroughEnd']===1000.0,'October delivery excluded from September as-of');check($r['totals']['receivedCurrent']===1200.0&&$r['totals']['undatedReceived']===100.0,'Unmatched prior snapshot remains undated');check($r['totals']['outstandingCurrent']===600.0,'Current outstanding separately labelled');check(count($r['warnings'])===1,'Undated receipts visibly flagged');

@@ -18,11 +18,12 @@ try{
     $filters=['from'=>(string)($_GET['from']??substr($today,0,7).'-01'),'to'=>(string)($_GET['to']??$today),'basis'=>(string)($_GET['basis']??'activity')];
     if(bor_date($filters['from'])!==$filters['from']||bor_date($filters['to'])!==$filters['to']||$filters['from']>$filters['to']||!in_array($filters['basis'],['activity','orders'],true))bor_out(['ok'=>false,'error'=>'Choose a valid date range and report basis.'],422);
     foreach(['brand','supplier','bagType','packingSize','q'] as $key){$filters[$key]=trim((string)($_GET[$key]??''));if(strlen($filters[$key])>200)bor_out(['ok'=>false,'error'=>'A report filter is too long.'],422);}
-    tt_release_read_session();$store=bor_read_file(TT_DATA_DIR.'/accounts.json');$keys=['tt30bags','tt33bagreceipts'];$values=[];$db=tt_accounts_exports_db();
-    if($db){$db->beginTransaction();try{$stmt=$db->prepare('SELECT storage_key,payload FROM tt_operation_records WHERE storage_key IN (?,?)');$stmt->execute($keys);foreach($stmt->fetchAll() as $record)$values[$record['storage_key']]=json_decode((string)$record['payload'],true,512,JSON_THROW_ON_ERROR);$db->commit();}catch(Throwable $error){if($db->inTransaction())$db->rollBack();throw $error;}}
+    tt_release_read_session();$store=bor_read_file(TT_DATA_DIR.'/accounts.json');$keys=['tt30bags','tt33bagreceipts','transtrade_export_v3_operational'];$values=[];$db=tt_accounts_exports_db();
+    if($db){$db->beginTransaction();try{$stmt=$db->prepare('SELECT storage_key,payload FROM tt_operation_records WHERE storage_key IN (?,?,?)');$stmt->execute($keys);foreach($stmt->fetchAll() as $record)$values[$record['storage_key']]=json_decode((string)$record['payload'],true,512,JSON_THROW_ON_ERROR);$db->commit();}catch(Throwable $error){if($db->inTransaction())$db->rollBack();throw $error;}}
     else{$operations=bor_read_file(TT_DATA_DIR.'/operations.json');foreach($keys as $key){$raw=$operations['values'][$key]??'[]';$values[$key]=is_string($raw)?json_decode($raw,true,512,JSON_THROW_ON_ERROR):$raw;}}
     foreach($keys as $key)if(isset($values[$key])&&!is_array($values[$key]))throw new RuntimeException('Report source is invalid.');
-    $report=bor_report((array)($store['bagPurchaseOrders']??[]),(array)($values['tt30bags']??[]),(array)($values['tt33bagreceipts']??[]),$entity,$filters);
+    $orders=bor_original_dates((array)($store['bagPurchaseOrders']??[]),(array)($values['transtrade_export_v3_operational']??[]),$entity);
+    $report=bor_report($orders,(array)($values['tt30bags']??[]),(array)($values['tt33bagreceipts']??[]),$entity,$filters);
     if(($_GET['format']??'')==='csv'){
         header('Content-Type: text/csv; charset=UTF-8');header('Content-Disposition: attachment; filename="bag-orders-'.$entity.'-'.$filters['from'].'-'.$filters['to'].'.csv"');$file=fopen('php://output','w');fwrite($file,"\xEF\xBB\xBF");
         $write=static function(array $cells)use($file):void{fputcsv($file,array_map(static fn($value)=>is_string($value)&&preg_match('/^[\s]*[=+@-]/',$value)?"'".$value:$value,$cells),',','"','');};
