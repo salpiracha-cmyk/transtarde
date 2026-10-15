@@ -21,6 +21,7 @@ const turn=()=>new Promise(setImmediate);
  // Reopen a saved electricity payment while a different unsaved utility is visible.
  const saved={id:'UTP-SAVED',journalId:'POST-SAVED',utilityMasterId:'MILL',utilityType:'ELECTRICITY',utilityTypeName:'Electricity',location:'MILL',locationId:'M',locationName:'Rice Mill',payee:'Mill Power',billMonth:'2026-09',amount:12515,paymentDate:'2026-10-13',accountingTreatment:'BUSINESS_EXPENSE',paymentAccountId:'BANK',reference:'INV-SAVED',notes:'Saved invoice note',bankPaymentMethod:'ONLINE_BANKING',bankReference:'TX-SAVED',bankPaymentDate:'2026-10-08',paymentNarration:'Saved separate bank narration'};
  data.utilityPayments.push(saved);await w.TT_EXPENSES_V1.open('utility');await turn();
+ for(const id of ['evPayLocName','evPayType','evTreatment'])w.TT_ACCOUNTS_CLEAN_UI.manageSelect(q('#'+id),{});
  // Install the actual production accounting preview, without starting the unrelated Home desk.
  const desk=fs.readFileSync('accounts/accounts-accounting-desk.js','utf8');const preview=desk.slice(desk.indexOf('  function ensureLiveTreatments()'),desk.indexOf('\n  async function init()',desk.indexOf('  function ensureLiveTreatments()')));
  w.eval('(()=>{const q=s=>document.querySelector(s),esc=v=>String(v??""),money=v=>Number(v||0).toLocaleString("en-PK",{minimumFractionDigits:2,maximumFractionDigits:2});'+preview+';ensureLiveTreatments();})()');
@@ -36,7 +37,7 @@ const turn=()=>new Promise(setImmediate);
  const bank=q('#evPayAccountDetails');assert.equal(bank.querySelector('[data-method]').value,'ONLINE_BANKING');assert.equal(bank.querySelector('[data-reference]').value,'TX-SAVED');assert.equal(bank.querySelector('[data-cheque-date]').value,'2026-10-08');assert.equal(bank.querySelector('[data-narration]').value,saved.paymentNarration);
  assert.equal(q('#evPayUtility').textContent,'Save Utility Correction');
  // Shared display refresh follows programmatic assignment without overwriting a live search.
- q('#evTreatment').value='FAMILY_ALLOCATION';q('#evPayNotes').textContent='trigger unrelated DOM update';await turn();assert.equal(q('#evTreatment').previousElementSibling.value,'Personal / Family Allocation');
+ q('#evTreatment').value='FAMILY_ALLOCATION';w.TT_ACCOUNTS_CLEAN_UI.syncSelects(q('#expenseEditor'));await turn();assert.equal(q('#evTreatment').previousElementSibling.value,'Personal / Family Allocation');
  const hidden=w.document.createElement('select');hidden.hidden=true;hidden.innerHTML='<option>BAG</option><option>KG</option>';q('#expenseEditor').append(hidden);w.TT_ACCOUNTS_CLEAN_UI.manageSelect(hidden,{});assert(!hidden.dataset.ttSearchable,'Dot-choice backing selects never get duplicate controls');
  change('evPayMaster','');assert(q('#evUtilityFields').hidden);assert(q('#evPayUtility').disabled);
  await w.TT_EXPENSES_V1.open('card');await turn();assert.equal(q('#evStatementCard').value,'');assert(q('#evCardFields').hidden);assert(q('#evStatementTotal').matches(':disabled'));
