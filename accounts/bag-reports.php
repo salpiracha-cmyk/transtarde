@@ -10,7 +10,7 @@ $p=$u['permissions']['Accounts']??[];$canTax=($u['role']??'')==='Super Admin'||$
 if(is_array($p))foreach($p as $right)if(in_array($right,['Create','Edit','Approve'],true)||(is_array($right)&&array_intersect($right,['Create','Edit','Approve'])))$canTax=true;
 if($view==='master'&&!$canTax){http_response_code(403);exit('Accounts Create / Edit / Approve permission required.');}
 $entity=(string)($_GET['entity']??'');if(!in_array($entity,$entities,true))$entity=$entities[0];
-$title=['report'=>'Bag Sales Tax / Stock Report','print'=>'Monthly Bag Supplier Files','master'=>'Bag GST Rates'][$view];
+$title=['report'=>'Bag Orders, Receipts & Tax','print'=>'Monthly Bag Supplier Files','master'=>'Bag GST Rates'][$view];
 $access=['super'=>($u['role']??'')==='Super Admin','role'=>$u['role']??'','permissions'=>$p,'csrf'=>tt_csrf()];tt_release_read_session();
 header('Content-Type: text/html; charset=UTF-8');header('Cache-Control: no-store');ob_start();
 ?>

@@ -52,7 +52,7 @@
     ]},
     {key:'ledgers', glyph:'L', title:'Ledgers', note:'Account and party ledgers, and every posted voucher', actions:[{title:'Ledger',special:'all-ledgers',ledgerCategory:'party'},{title:'Post ID Register',special:'post-ledger'},{title:'Trial Balance',native:'reports',find:'Trial Balance'},{title:'Chart of Accounts & Details',special:'account-heads'},{title:'Subaccounts & Details',special:'subaccounts'},{title:'Forward Booking Register',special:'forward-register'}]},
     {key:'reports', glyph:'▤', title:'Reports', note:'Financial, tax, party, commodity and shipment reports', actions:[
-      {title:'Bag Sales Tax / Stock Report',special:'bag-report'}, {title:'Monthly Bag Supplier Files',special:'bag-files'},
+      {title:'Bag Orders, Receipts & Tax',special:'bag-report'}, {title:'Monthly Bag Supplier Files',special:'bag-files'},
       {title:'Sales Tax', note:'Search export documents and bank/tax advices by period and reference', special:'sales-tax'},
       {title:'Expenses by Type / Recipient',special:'expense-report'}, {title:'Vehicle / Asset Costs',special:'vehicle-report'}, {title:'Withholding Tax Report', special:'withholding-report'}, {title:'Trial Balance', native:'reports', find:'Trial Balance'}, {title:'Profit & Loss', native:'reports', find:'Profit'},
       {title:'Balance Sheet', native:'reports', find:'Balance Sheet'}, {title:'Receivables / Payables', native:'reports', find:'Receivables'},

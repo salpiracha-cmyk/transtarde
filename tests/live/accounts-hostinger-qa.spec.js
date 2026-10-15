@@ -447,6 +447,8 @@ test('Accounts repair: clear held-entry label and ledger survives focus changes'
   await expect(page.getByRole('heading', { name: 'Recent Transactions', exact: true })).toBeVisible();
   expect(await page.locator('#ttPendingWork').evaluate(el=>el.open)).toBe(false);
   await expect(page.locator('.tt-desk-heading h1')).toHaveCount(0);
+  await expect.poll(()=>page.locator('#ttRecentTransactions').textContent()).not.toMatch(/^Loading/);
+  if(await page.locator('[data-recent-post]').count()){await page.locator('[data-recent-post]').first().click();await expect(page.locator('#tal-print-voucher')).toBeVisible();await expect(page.locator('#tal-edit-post')).toBeDisabled();await page.locator('#tal-back').click();await page.locator('#tal-close').click();}
   await activate(page.locator('[data-tt-area="commodity"]'));
   await expect(page.locator('#ttSummaryCards')).toBeHidden();
   await expect(page.locator('.tt-search-main')).toBeVisible();
