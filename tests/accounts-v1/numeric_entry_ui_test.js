@@ -11,6 +11,9 @@ const enter=value=>{proxy.focus();proxy.value=value;proxy.setSelectionRange(valu
 enter('1234567.89');assert.equal(proxy.value,'1,234,567.89');assert.equal(original.valueAsNumber,1234567.89);assert.equal(total,2469135.78);assert.equal(events,1);assert.equal(new w.FormData(form).get('amount'),'1234567.89');assert.equal(proxy.selectionStart,12);
 enter('1234.');assert.equal(proxy.value,'1,234.');assert.equal(original.valueAsNumber,1234);enter('1234.50');assert.equal(proxy.value,'1,234.50');
 enter('-2');assert.equal(original.validity.rangeUnderflow,true);enter('abc');assert.equal(original.validity.customError,true);enter('0.001');assert.equal(original.validity.stepMismatch,true);enter('12.25');assert.equal(original.checkValidity(),true);
+original.focus();for(const key of ['ArrowUp','ArrowDown']){const e=new w.KeyboardEvent('keydown',{key,bubbles:true,cancelable:true});original.dispatchEvent(e);assert(e.defaultPrevented);assert.equal(original.value,'12.25');}
+const wheel=new w.WheelEvent('wheel',{deltaY:-1,bubbles:true,cancelable:true});original.dispatchEvent(wheel);assert(wheel.defaultPrevented);assert.equal(original.value,'12.25');
+const css=fs.readFileSync('brand-theme.css','utf8');assert.match(css,/input\[type="number"\]::-webkit-inner-spin-button/);assert.match(css,/-moz-appearance:textfield!important/);
 original.focus();assert.equal(w.document.activeElement,original,'Existing native controls retain programmatic focus and fill behavior');Object.getOwnPropertyDescriptor(w.HTMLInputElement.prototype,'value').set.call(original,'38000');original.dispatchEvent(new w.Event('input',{bubbles:true}));assert.equal(proxy.value,'38,000');assert.equal(total,76000);
 original.value='2000000.00';assert.equal(proxy.value,'2,000,000.00');assert.equal(original.value,'2000000.00');
 const rate=w.document.getElementById('rate');rate.value='3.670001';assert.equal(rate.nextElementSibling.value,'3.670001');assert.equal(rate.valueAsNumber,3.670001);

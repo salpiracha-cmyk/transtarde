@@ -199,3 +199,7 @@ button:not(.danger):not(.red):not(.xBtn):not(.optionMinus).active{
 }
 
 tr>td.tt-row-remove-slot,tr>th.tt-row-remove-slot{display:table-cell;width:38px!important;min-width:38px!important;padding:6px!important;vertical-align:top}tr>.tt-row-remove-slot .tt-row-remove{margin:0!important}
+
+/* Typed numeric entry only: no native spinner hit areas in any module. */
+input[type="number"]{-moz-appearance:textfield!important;appearance:textfield!important}
+input[type="number"]::-webkit-inner-spin-button,input[type="number"]::-webkit-outer-spin-button{-webkit-appearance:none!important;appearance:none!important;display:none!important;margin:0!important}

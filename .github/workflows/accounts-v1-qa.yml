@@ -217,6 +217,8 @@ jobs:
           node tests/accounts-v1/unified_expense_browser_test.js
           node tests/accounts-v1/purchase_handler_browser_test.js
           node tests/accounts-v1/supplier_opening_browser_test.js
+          node tests/accounts-v1/numeric_entry_ui_test.js
+          node tests/accounts-v1/numeric_no_step_browser_test.js
           node tests/accounts-v1/accounts_date_jv_browser_test.js
           node tests/accounts-v1/accounts_layout_regression_browser_test.js
           node tests/accounts-v1/form_viewport_browser_test.js

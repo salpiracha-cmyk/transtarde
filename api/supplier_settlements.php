@@ -164,12 +164,13 @@ function ss_oldest_bill_allocations(array $s,string $entity,array &$body):array 
     if($supplier===''||count($keys)>200)ss_respond(['ok'=>false,'error'=>'Select a supplier and no more than 200 bills.'],422);
     $eligible=array_values(array_filter(ss_simple_payables($s,$entity),static fn($r)=>$r['supplier']===$supplier&&($scope===''||$r['category']===$scope||!empty($r['openingBalance']))&& (empty($r['openingBalance'])||!empty($body['includeOpeningBalance']))&&((!$keys&&empty($body['explicitBillSelection']))||in_array($r['billId'].'|'.$r['sourceKey'],$keys,true))));
     if($keys&&count(array_unique($keys))!==count($eligible))ss_respond(['ok'=>false,'error'=>'A selected bill changed or is no longer outstanding. Refresh the payment screen.'],409);
-    if(array_key_exists('applyPaymentDifferenceAsDiscount',$body)){
-        $capacity=round(array_sum(array_column($eligible,'outstanding')),2);
-        $cash=ss_money($body['amount']??0,'Payment amount');
+    $capacity=round(array_sum(array_column($eligible,'outstanding')),2);$cash=ss_money($body['amount']??0,'Payment amount');
+    $difference=round($capacity-$cash,2);
+    $automaticDiscount=$difference>0&&$difference<100&&empty($body['allowAdvance'])&&(array_key_exists('applyPaymentDifferenceAsDiscount',$body)||(float)($body['discountAmount']??0)<=0);
+    if($automaticDiscount||array_key_exists('applyPaymentDifferenceAsDiscount',$body)){
         if(isset($body['selectedOutstanding'])&&abs((float)$body['selectedOutstanding']-$capacity)>.005)ss_respond(['ok'=>false,'error'=>'The selected bill balances changed. Review the current bills before posting.'],409);
-        $body['discountAmount']=!empty($body['applyPaymentDifferenceAsDiscount'])?max(0,round($capacity-$cash,2)):0;
-        $body['discountReason']=$body['discountAmount']>0?'Agreed settlement difference':'';
+        $body['discountAmount']=($automaticDiscount||!empty($body['applyPaymentDifferenceAsDiscount']))?max(0,$difference):0;
+        $body['discountReason']=$body['discountAmount']>0?($automaticDiscount?'Automatic settlement difference below PKR 100':'Agreed settlement difference'):'';
     }
     $amount=ss_money($body['amount']??0,'Payment amount');$discount=ss_money($body['discountAmount']??0,'Supplier discount',true);if($discount>0&&!empty($body['allowAdvance']))ss_respond(['ok'=>false,'error'=>'A supplier discount cannot be combined with an advance.'],422);$amount=round($amount+$discount,2);$capacity=round(array_sum(array_column($eligible,'outstanding')),2);
     if($amount>$capacity+.005&&empty($body['allowAdvance']))ss_respond(['ok'=>false,'error'=>'Payment exceeds the selected outstanding bills. Record an explicit supplier advance separately.'],422);
