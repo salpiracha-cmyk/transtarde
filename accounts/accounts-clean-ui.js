@@ -169,7 +169,7 @@
   function searchable(select) {
     if (select.dataset.ttSearchable || select.dataset.ttNative || select.multiple || (select.options.length < 2 && !select._ttMasterControl) || select.closest('.entitySwitcher')) return;
     if(!select._ttMasterControl){const label=select.closest('label'),add=label?.querySelector('button[id*="Add"],button[data-add-master]');if(add){const name=(label.childNodes[0]?.textContent||'Item').trim();select._ttMasterControl={label:name,add:()=>add.click(),canAdd:()=>!add.hidden&&!add.disabled};add.classList.add('tt-dropdown-master-launcher');}}
-    const roleKinds={ttSdSupplier:'supplier',ttSdBroker:'broker',bgSupplier:'bagsupplier',ttstBroker:'supplier'};const kind=roleKinds[select.id];
+    const roleKinds={ttSdSupplier:'supplier',ttSdBroker:'broker',bgSupplier:'bagsupplier',bgLinkedSupplier:'bagsupplier',ttstBroker:'supplier'};const kind=roleKinds[select.id];
     if(kind){const manager=select._ttMasterControl||{},access=window.TT_ACCOUNT_ACCESS||{},byId=['ttSdSupplier','ttSdBroker'].includes(select.id);
       const can=action=>access.super||(access.masterPermissions?.business_parties||[]).includes(action);
       const record=value=>(access.masters?.business_parties||[]).find(r=>byId?r.id===value:String(r.values?.[0]).trim().toLowerCase()===String(value).trim().toLowerCase());
