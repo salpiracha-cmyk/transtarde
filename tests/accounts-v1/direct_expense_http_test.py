@@ -317,6 +317,16 @@ require $argv[1];
     saved=json.loads(books.read_text());assert saved['creditCardStatements'][bill_id]['status']=='Deleted' and not saved['utilityPayments'][utility_id].get('cardStatementId')
     assert bal('6900')==admin-120 and bal('1120')==cash+200 and bal('2400')==card-80
     assert request('accounts_post_amend','',{'csrf':'fixture','action':'delete_post','postId':bill['journalId'],'reason':'Repeated deletion'})[0]==422
+    # Utility edits must read their own saved bank metadata, never the current form draft.
+    fixture=json.loads(books.read_text());tracking={'bankPaymentMethod':'ONLINE_BANKING','bankReference':'SAVED-ONLINE','chequeNo':'','chequeDate':'','bankPaymentDate':'2026-10-08','paymentNarration':'Saved separate narration'}
+    fixture['journals']['UTILITY-READ-FIXTURE']={'id':'UTILITY-READ-FIXTURE','entity':'TTI','date':'2026-10-13','status':'Posted','lines':[],'totalDebit':0,'totalCredit':0,'meta':tracking}
+    fixture['utilityPayments']['UTILITY-READ-FIXTURE']={'id':'UTILITY-READ-FIXTURE','entity':'TTI','paymentDate':'2026-10-13','journalId':'UTILITY-READ-FIXTURE','status':'Posted'}
+    books.write_text(json.dumps(fixture));before=books.read_bytes()
+    status,payload=request('expenses_v1','?entity=TTI');assert status==200,(status,payload)
+    payment=next(row for row in payload['utilityPayments'] if row['id']=='UTILITY-READ-FIXTURE')
+    for key,value in tracking.items():assert payment[key]==value,(key,payment)
+    assert books.read_bytes()==before,'Edit hydration GET must not rewrite source or journals'
+    print('Utility edit payload restores saved Online Banking date/reference/narration with zero writes.')
     for endpoint in ['expenses_v1','donations','rent_salary_v2']:
         books.write_text('{broken JSON');bad=books.read_bytes();assert request(endpoint,'?entity=TTI')[0]==500;assert books.read_bytes()==bad
     print('Direct expense endpoint, correction, deletion, retry and permissions passed.')
