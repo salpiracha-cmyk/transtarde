@@ -142,6 +142,7 @@
     document.body.classList.remove('tt-modal-open');
     window.TT_EXPENSE_EDITOR?.claim('');
     if(action.special==='customer-receivables'){const company=entity();try{const data=await json(`../api/accounts_dashboard.php?entity=${encodeURIComponent(company)}`);if(current())openCustomerReceivables(data.customerReceivables);}catch(error){alert(error.message);}return;}
+    if(action.native==='reports'&&['Receivables','Commodity','Shipment'].includes(action.find))return window.TT_REPORTS.open({Receivables:'balances',Commodity:'commodity',Shipment:'shipment'}[action.find]);
     if(action.native==='reports'&&['Trial Balance','Profit','Balance Sheet'].includes(action.find))return window.TT_REPORTS.open(({Trial:'tb',Profit:'pl',Balance:'bs'})[String(action.find||'').split(' ')[0]]||'tb');
     if(action.native==='bank'&&!action.special)return window.TT_BANK_ACCOUNTS_UI.open();
     if(action.special==='expense-report')return window.TT_REPORTS.open('expenses');
