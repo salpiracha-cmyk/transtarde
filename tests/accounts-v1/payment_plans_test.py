@@ -218,7 +218,7 @@ require $argv[1];
     user['permissions']['Accounts']['supplier']=['View','Create','Edit']
     default_store={**store,'bankAccountSettings':{'TTI-P':{'defaultPaymentAccount':True}}};seed(default_store)
     status,data=request('accounts_dashboard',{},method='GET');assert status==200,(status,data)
-    assert len(data['summaries']['bank'])==2 and [r['bankAccountId'] for r in data['summaries']['bank'] if r.get('isDefault')]==['TTI-P'],data
+    assert len(data['summaries']['bank'])==3 and [r.get('bankAccountId') for r in data['summaries']['bank']]==['TTI-P',None,'TTI-B'] and data['summaries']['bank'][1]['isCash'] and [r['bankAccountId'] for r in data['summaries']['bank'] if r.get('isDefault')]==['TTI-P'],data
     assert next(r for r in data['summaries']['bank'] if r['isDefault'])['amount']==500
     # A planned payment edit must update its original allocations and group, not just its GL lines.
     seed(store);keys=[r['rowKey'] for r in read()['rows'] if r['group']=='Broker A']
