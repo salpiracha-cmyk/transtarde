@@ -11,18 +11,18 @@ const turn=()=>new Promise(setImmediate);
  for(const p of ['accounts/accounts-clean-ui.js','accounts/expenses-v1-ui.js'])w.eval(fs.readFileSync(p,'utf8'));
  const q=s=>w.document.querySelector(s),change=(id,value)=>{q('#'+id).value=value;q('#'+id).dispatchEvent(new w.Event('change',{bubbles:true}))};
  await w.TT_EXPENSES_V1.open('utility');await turn();
- assert.equal(q('#evPayMaster').value,'');assert(q('#evUtilityDetails').hidden);assert(q('#evPayAmount').matches(':disabled'));
+ assert.equal(q('#evPayMaster').value,'');assert(q('#evUtilityFields').hidden);assert(q('#evPayAmount').matches(':disabled'));
  // Check the real searchable display as well as the underlying native values.
  w.TT_ACCOUNTS_CLEAN_UI.manageSelect(q('#evPayLocName'),{});w.TT_ACCOUNTS_CLEAN_UI.manageSelect(q('#evPayType'),{});
- change('evPayMaster','MILL');assert(!q('#evUtilityDetails').hidden);assert.equal(q('#evPayLocName').value,'M');assert.equal(q('#evPayLocName').previousElementSibling.value,'Rice Mill');assert.equal(q('#evPayee').value,'Mill Power');assert.equal(q('#evConsumerRef').value,'12374937');assert(!q('#evMeterPeriod').hidden);
+ change('evPayMaster','MILL');assert(!q('#evUtilityFields').hidden);assert.equal(q('#evPayLocName').value,'M');assert.equal(q('#evPayLocName').previousElementSibling.value,'Rice Mill');assert.equal(q('#evPayee').value,'Mill Power');assert.equal(q('#evConsumerRef').value,'12374937');assert(!q('#evMeterPeriod').hidden);
  q('#evPreviousReading').value='100';change('evPayMaster','HOME');assert.equal(q('#evPayLocName').previousElementSibling.value,'Home');assert.equal(q('#evPayType').previousElementSibling.value,'Internet');assert.equal(q('#evPayee').value,'Home Internet');assert.equal(q('#evConsumerRef').value,'98765');assert.equal(q('#evPreviousReading').value,'');assert(q('#evMeterPeriod').hidden);assert.equal(q('#evUtilityFor').value,'SHARED');
- q('#evPayAmount').value='250';q('#evPayNotes').value='Custom payment note';q('#evManageUtility').checked=true;q('#evManageUtility').dispatchEvent(new w.Event('change'));q('#evUmCancel').click();assert.equal(q('#evPayMaster').value,'HOME');assert.equal(q('#evPayAmount').value,'250');assert.equal(q('#evPayNotes').value,'Custom payment note');assert(!q('#evUtilityDetails').hidden);
+ q('#evPayAmount').value='250';q('#evPayNotes').value='Custom payment note';q('#evManageUtility').checked=true;q('#evManageUtility').dispatchEvent(new w.Event('change'));q('#evUmCancel').click();assert.equal(q('#evPayMaster').value,'HOME');assert.equal(q('#evPayAmount').value,'250');assert.equal(q('#evPayNotes').value,'Custom payment note');assert(!q('#evUtilityFields').hidden);
  change('evPayMaster','MANUAL');assert(!q('#evConsumerRef').readOnly);assert.equal(q('#evPayee').value,'');q('#evPayee').value='Manual provider';change('evPayLocName','O');q('#evManageUtility').checked=true;q('#evManageUtility').dispatchEvent(new w.Event('change'));q('#evUmCancel').click();assert.equal(q('#evPayee').value,'Manual provider');assert.equal(q('#evPayLocName').value,'O');
- change('evPayMaster','');assert(q('#evUtilityDetails').hidden);assert(q('#evPayUtility').disabled);
- await w.TT_EXPENSES_V1.open('card');await turn();assert.equal(q('#evStatementCard').value,'');assert(q('#evCardDetails').hidden);assert(q('#evStatementTotal').matches(':disabled'));
- change('evStatementCard','C1');assert(!q('#evCardDetails').hidden);change('evStatementMonth','2026-10');change('evStatementDate','2026-10-01');assert.equal(q('#evDueDate').value,'2026-10-10');change('evStatementCard','C2');assert.equal(q('#evDueDate').value,'2026-10-22');
- q('#evStatementTotal').value='700';q('#evManageCard').checked=true;q('#evManageCard').dispatchEvent(new w.Event('change'));q('#evCardCancel').click();assert.equal(q('#evStatementCard').value,'C2');assert.equal(q('#evStatementTotal').value,'700');assert(!q('#evCardDetails').hidden);
- change('evStatementCard','');assert(q('#evCardDetails').hidden);assert(q('#evStatementSave').disabled);assert.equal(posts.length,0,'Selection and reminder drafts must never post');
+ change('evPayMaster','');assert(q('#evUtilityFields').hidden);assert(q('#evPayUtility').disabled);
+ await w.TT_EXPENSES_V1.open('card');await turn();assert.equal(q('#evStatementCard').value,'');assert(q('#evCardFields').hidden);assert(q('#evStatementTotal').matches(':disabled'));
+ change('evStatementCard','C1');assert(!q('#evCardFields').hidden);change('evStatementMonth','2026-10');change('evStatementDate','2026-10-01');assert.equal(q('#evDueDate').value,'2026-10-10');change('evStatementCard','C2');assert.equal(q('#evDueDate').value,'2026-10-22');
+ q('#evStatementTotal').value='700';q('#evManageCard').checked=true;q('#evManageCard').dispatchEvent(new w.Event('change'));q('#evCardCancel').click();assert.equal(q('#evStatementCard').value,'C2');assert.equal(q('#evStatementTotal').value,'700');assert(!q('#evCardFields').hidden);
+ change('evStatementCard','');assert(q('#evCardFields').hidden);assert(q('#evStatementSave').disabled);assert.equal(posts.length,0,'Selection and reminder drafts must never post');
  console.log('PASS saved utility/card first, visible location/type sync, meter switching, manual entry, due dates and draft preservation; zero writes');
  }finally{observers.forEach(o=>o.disconnect());w.close()}
 })().catch(e=>{console.error(e);process.exitCode=1});

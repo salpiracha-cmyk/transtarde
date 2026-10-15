@@ -327,11 +327,11 @@ test('authenticated Accounts live smoke: professional desk and popup workflows',
   await expect(page.locator('#ttExpenseDesk [data-expense-mode]')).toHaveCount(3);
   await activate(page.locator('#ttExpenseDesk [data-expense-mode=utility]'));
   await expect(page.locator('#ttExpenseDesk #evPayMaster').locator('..')).toBeVisible({ timeout: 30_000 });
-  await expect(page.locator('#ttExpenseDesk #evUtilityDetails')).toBeHidden();
+  await expect(page.locator('#ttExpenseDesk #evUtilityFields')).toBeHidden();
   const utilityChoices=await page.locator('#evPayMaster option').evaluateAll(options=>options.filter(o=>o.value&&o.value!=='MANUAL').slice(0,3).map(o=>({value:o.value,label:o.textContent})));
   for(const choice of utilityChoices){
     await page.locator('#evPayMaster').selectOption(choice.value,{force:true});
-    await expect(page.locator('#evUtilityDetails')).toBeVisible();
+    await expect(page.locator('#evUtilityFields')).toBeVisible();
     const saved=await page.evaluate(()=>{const q=id=>document.getElementById(id),location=q('evPayLocName'),type=q('evPayType');return {location:location.selectedOptions[0]?.textContent||'',visibleLocation:location.closest('.tt-search-select')?.querySelector('input')?.value,type:type.selectedOptions[0]?.textContent||'',visibleType:type.closest('.tt-search-select')?.querySelector('input')?.value,provider:q('evPayee').value,reference:q('evConsumerRef').value};});
     expect(saved.provider).toBeTruthy();expect(choice.label).toContain(saved.provider);expect(choice.label).toContain(saved.location);
     if(saved.visibleLocation!==undefined)expect(saved.visibleLocation).toBe(saved.location);
@@ -346,9 +346,9 @@ test('authenticated Accounts live smoke: professional desk and popup workflows',
   await activate(page.locator('#ttExpenseDesk [data-expense-mode=card]'));
   await expect(page.locator('#ttExpenseDesk #evStatementForm')).toBeVisible({ timeout: 30_000 });
   await expect(page.locator('#ttExpenseDesk #evAddStatement')).toBeHidden();
-  await expect(page.locator('#evCardDetails')).toBeHidden();
+  await expect(page.locator('#evCardFields')).toBeHidden();
   const savedCard=await page.locator('#evStatementCard option').evaluateAll(options=>options.find(o=>o.value)?.value||'');
-  if(savedCard){await page.locator('#evStatementCard').selectOption(savedCard,{force:true});await expect(page.locator('#evCardDetails')).toBeVisible();}
+  if(savedCard){await page.locator('#evStatementCard').selectOption(savedCard,{force:true});await expect(page.locator('#evCardFields')).toBeVisible();}
 
   await expect(page.locator('#ttExpenseDesk [data-expense-mode=card]')).toHaveAttribute('type','radio');
   await expect(page.locator('#ttExpenseDesk [data-expense-mode=card]')).not.toHaveAttribute('role','combobox');
