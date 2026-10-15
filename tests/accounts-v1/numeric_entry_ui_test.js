@@ -18,5 +18,28 @@ original.disabled=true;await new Promise(setImmediate);assert.equal(proxy.disabl
 form.reset();await new Promise(setImmediate);assert.equal(original.value,'1234.50');assert.equal(proxy.value,'1,234.50');
 assert.equal(w.document.getElementById('reference').value,'2026-00123');assert.equal(w.document.getElementById('reference').nextElementSibling,null);
 const dynamic=w.document.createElement('input');dynamic.type='number';form.append(dynamic);await new Promise(setImmediate);assert.equal(dynamic.nextElementSibling.dataset.ttNumericProxy,'1');
-observers.forEach(x=>x.disconnect());w.close();console.log('Numeric entry: grouping, decimals, caret, calculations, form submission, min/step validation, reset, programmatic values, disabled and dynamic fields passed.');
+observers.forEach(x=>x.disconnect());w.close();
+const bankDom=new JSDOM('<!doctype html><body></body>',{url:'https://fixture.test/accounts/',runScripts:'outside-only',pretendToBeVisual:true}),bankWindow=bankDom.window;
+const bankObservers=[],BankObserver=bankWindow.MutationObserver;
+bankWindow.MutationObserver=class extends BankObserver{constructor(fn){super(fn);bankObservers.push(this)}};
+bankWindow.requestAnimationFrame=()=>0;bankWindow.cancelAnimationFrame=()=>{};
+bankWindow.TT_ACCOUNT_ACCESS={csrf:'fixture'};
+let bankWrites=0;
+bankWindow.fetch=async(url,options={})=>{if(options.method==='POST')bankWrites++;return {ok:true,json:async()=>({ok:true,banks:[{id:'bank',name:'Company bank',currency:'PKR'}],facilities:[],subaccounts:[],payees:[],heads:[],millLocations:[],canCreate:true,history:[]})}};
+bankWindow.eval(fs.readFileSync('accounts/account-management-ui.js','utf8'));
+bankWindow.eval(fs.readFileSync('brand-theme.js','utf8'));
+await bankWindow.TT_BANK_ENTRIES.open();
+await new Promise(setImmediate);bankWindow.TT_NUMERIC_ENTRY.refresh();
+const bankForm=bankWindow.document.querySelector('#amBankForm'),bankAmount=bankForm.elements.amount;
+const bankAmountLabel=bankAmount.closest('label').querySelector(':scope > span'),bankProxy=bankAmount.nextElementSibling;
+for(const mode of ['SAVING_PROFIT','RECEIPT','TRANSFER','BANK_CHARGE','FINANCE_DRAW','FINANCE_REPAY','FINANCE_MARKUP']){
+ bankForm.elements.type.value=mode;bankForm.elements.type.dispatchEvent(new bankWindow.Event('change'));
+ await new Promise(setImmediate);
+ assert.equal(bankAmountLabel.textContent,'Amount / Gross profit',`Correct amount label after enhanced Bank Payment changes to ${mode}`);
+ assert.equal(bankAmount.textContent,'','The numeric source must not receive stray label text');
+ bankProxy.value='1,234.50';bankProxy.dispatchEvent(new bankWindow.Event('input',{bubbles:true}));
+ assert.equal(bankAmount.value,'1234.50');assert.equal(bankProxy.getAttribute('aria-label'),'Amount / Gross profit');
+}
+assert.equal(bankWrites,0,'Switching modes and entering amounts must not post');bankObservers.forEach(o=>o.disconnect());bankWindow.close();
+console.log('Numeric entry: grouping, decimals, caret, calculations, form submission, validation, reset, dynamic fields and enhanced Bank Entry mode labels passed.');
 })().catch(e=>{console.error(e);process.exitCode=1});
