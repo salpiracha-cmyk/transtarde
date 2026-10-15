@@ -1,0 +1,35 @@
+"""Actual reporting endpoint: income aliases and signed rounding affect P&L/equity, never journals."""
+import json,pathlib,shutil,socket,subprocess,tempfile,time,urllib.request,urllib.error
+ROOT=pathlib.Path(__file__).resolve().parents[2]
+with tempfile.TemporaryDirectory(prefix='report-class-') as tmp:
+ root=pathlib.Path(tmp);shutil.copytree(ROOT/'api',root/'api');shutil.copytree(ROOT/'accounts',root/'accounts');(root/'data').mkdir()
+ (root/'auth_store.php').write_text("""<?php
+define('TT_DATA_DIR',__DIR__.'/data');function tt_require_login(){return ['role'=>'Super Admin','permissions'=>['Accounts'=>'all']];}function tt_user_can_open_module($u,$m){return $m==='Accounts';}function tt_user_can_access_entity($u,$e,$a){return $e==='TTI';}function tt_user_can_module_action($u,$m,$i,$a){return true;}function tt_release_read_session(){}function tt_list_masters(){return [];}
+""")
+ def line(account,dr=0,cr=0):return {'account':account,'debit':dr,'credit':cr}
+ def journal(id,lines,date='2026-09-12'):return {'id':id,'entity':'TTI','status':'Posted','date':date,'sourceType':'FIXTURE','lines':lines,'totalDebit':sum(x['debit'] for x in lines),'totalCredit':sum(x['credit'] for x in lines)}
+ books={'revision':7,'journals':{j['id']:j for j in [journal('OPEN',[line('1110',1000000),line('3100',cr=1000000)]),journal('GAIN',[line('1110',296258.91),line('4450',cr=296258.91)]),journal('ROUND',[line('7195',.09),line('1120',cr=.09)]),journal('FX',[line('1110',10),line('7100',cr=10)])]}}
+ path=root/'data/accounts.json';path.write_text(json.dumps(books));before=path.read_bytes()
+ with socket.socket() as sock:sock.bind(('127.0.0.1',0));port=sock.getsockname()[1]
+ log=open(root/'server.log','w');server=subprocess.Popen(['php','-S',f'127.0.0.1:{port}','-t',str(root)],stdout=log,stderr=log)
+ def req(from_date='2026-09-01'):
+  try:
+   with urllib.request.urlopen(f'http://127.0.0.1:{port}/api/accounts_reports.php?entity=TTI&from={from_date}&asOf=2026-10-15') as r:return r.status,json.load(r)
+  except urllib.error.HTTPError as e:return e.code,json.load(e)
+ try:
+  for _ in range(60):
+   try:status,d=req();break
+   except urllib.error.URLError:time.sleep(.05)
+  assert status==200,d;assert d['revision']==7 and d['trialBalance']['balanced']
+  pl=d['profitAndLoss'];assert next(r for r in pl['income'] if str(r['account'])=='4450')['amount']==296258.91,pl
+  assert next(r for r in pl['expenses'] if str(r['account'])=='7195')['amount']==.09
+  assert next(r for r in pl['expenses'] if str(r['account'])=='7100')['amount']==-10
+  assert abs(pl['profit']-296268.82)<.005 and abs(d['balanceSheet']['totalAssets']-d['balanceSheet']['totalLiabilitiesAndEquity'])<.005,d
+  assert d['dataQuality']['unclassifiedBalances']==[]
+  status,later=req('2026-10-01');assert status==200 and later['profitAndLoss']['profit']==0 and later['balanceSheet']==d['balanceSheet'],'Period profit must not replace cumulative balance-sheet earnings'
+  assert path.read_bytes()==before,'Financial report must never write a balancing entry'
+  # Unrecognised accounts remain visible as a concrete review, never hidden by a balancing figure.
+  books['journals']['UNKNOWN']=journal('UNKNOWN',[line('1110',5),line('9998',cr=5)]);path.write_text(json.dumps(books));unknown_before=path.read_bytes();status,unknown=req();assert status==200 and unknown['dataQuality']['unclassifiedBalances']==[{'account':'9998','name':'9998','class':'Other','net':-5}]
+  assert path.read_bytes()==unknown_before
+  print('PASS financial reports: Income/Revenue aliases, investment gain, signed rounding/FX, cumulative versus period profit, explicit unclassified balances, revision and zero writes')
+ finally:server.terminate();server.wait();log.close()

@@ -326,3 +326,5 @@ Online Banking payments expose an editable payment date, defaulting from the vou
 - Bag order period reports recover the original issue date from saved Exports PO versions when amendments reset issuedAt. State that ordered quantities include amendments; dated receipt totals remain separate from current balances. A report read never updates Accounts or operational snapshots.
 
 - Report month boundaries use Asia/Karachi for UTC PO issue timestamps. Date-only original invoice/receipt dates stay as entered. In particular 30 September 20:00 UTC is 1 October in Karachi.
+
+- Financial reports recognise both Revenue and Income chart classes in period profit and cumulative earnings. Foreign Exchange Gain/Loss (7100) and Minor Rounding Differences (7195) flow through signed profit/loss. Other or unknown nonzero account balances must be reported as unclassified rather than silently hidden. This reporting rule never changes original journals or creates a balancing transaction.

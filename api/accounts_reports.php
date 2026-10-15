@@ -168,11 +168,11 @@ try {
     foreach ($periodBalances as $code => $net) {
         $account = $catalog[$code] ?? [];
         $class = (string)($account['class'] ?? 'Other');
-        if ($class === 'Revenue') {
+        if (in_array($class, ['Revenue','Income'], true)) {
             $amount = round(-$net, 2);
             $income[] = ['account' => $code, 'name' => (string)($account['name'] ?? $code), 'amount' => $amount];
             $profit += $amount;
-        } elseif ($class === 'Expense' || $code === '7100') {
+        } elseif ($class === 'Expense' || in_array((string)$code, ['7100','7195'], true)) {
             $amount = round($net, 2);
             $expenses[] = ['account' => $code, 'name' => (string)($account['name'] ?? $code), 'amount' => $amount];
             $profit -= $amount;
@@ -193,9 +193,9 @@ try {
             $liabilities[] = ['account' => $code, 'name' => $name, 'amount' => round(-$net, 2)];
         } elseif ($class === 'Equity' && abs($net) > .005) {
             $equity[] = ['account' => $code, 'name' => $name, 'amount' => round(-$net, 2)];
-        } elseif ($class === 'Revenue') {
+        } elseif (in_array($class, ['Revenue','Income'], true)) {
             $cumulativeProfit += -$net;
-        } elseif ($class === 'Expense' || $code === '7100') {
+        } elseif ($class === 'Expense' || in_array((string)$code, ['7100','7195'], true)) {
             $cumulativeProfit -= $net;
         }
     }
@@ -237,7 +237,7 @@ try {
             'totalAssets' => ar_sum_rows($assets, 'amount'),
             'totalLiabilitiesAndEquity' => round(ar_sum_rows($liabilities, 'amount') + ar_sum_rows($equity, 'amount'), 2),
         ],
-        'dataQuality' => ['skippedMalformedLines' => $skippedMalformedLines],
+        'dataQuality' => ['skippedMalformedLines' => $skippedMalformedLines,'unclassifiedBalances'=>array_values(array_map(static fn($code)=>['account'=>(string)$code,'name'=>(string)($catalog[$code]['name']??$code),'class'=>(string)($catalog[$code]['class']??'Other'),'net'=>round($balances[$code],2)],array_filter(array_keys($balances),static fn($code)=>abs($balances[$code])>.005&&!in_array((string)($catalog[$code]['class']??'Other'),['Asset','Liability','Equity','Revenue','Income','Expense'],true)&&!in_array((string)$code,['7100','7195'],true))))],
         'serverNow' => gmdate('c'),
     ]);
 } catch (Throwable $error) {
