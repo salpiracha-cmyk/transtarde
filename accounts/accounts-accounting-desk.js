@@ -40,7 +40,7 @@
     {key:'bank', glyph:'▦', title:'Bank & Cash', note:'Bank payments, receipts, transfers and reconciliation', actions:[
       {title:'Forward Booking',note:'USD/PKR calendar-day contracts, utilisation and expiry settlement',special:'forward-booking'},
       {title:'Bank Entry', note:'Bank payment first; pay parties or expenses, and record other bank entries', special:'bank-entry'},
-      {title:'Review TG Remittances', special:'tg-remittances'}, {title:'Inter Account Transfer', note:'Move PKR between company accounts or to a personal account with a reason', special:'internal-bank-transfer'},
+      {title:'Inter Account Transfer', note:'Move PKR between company accounts or to a personal account with a reason', special:'internal-bank-transfer'},
       {title:'Foreign Retention Account', note:'Settle foreign commissions and other linked outward remittances', special:'retention-remittance'},
       {title:'Bank Finance', note:'Drawdown, principal repayment and markup', special:'bank-finance'},
       {title:'Bank Ledgers by Party',special:'all-ledgers',ledgerCategory:'bank'},{title:'Bank Accounts & Balances', native:'bank'}, {title:'Bank Reconciliation', native:'reconciliation'}
@@ -70,7 +70,7 @@
     ]},
     {key:'tg-bank', glyph:'▦', title:'Bank & Local Expenses', note:'Bank transfers, payments and local operating expense', actions:[
       {title:'Inter Account Transfer', note:'Choose the source and destination; currency direction and the TG Master rate are automatic', special:'internal-bank-transfer'},
-      {title:'Bank Entry', special:'bank-entry'}, {title:'Bank Finance', special:'bank-finance'}, {title:'Bank Ledgers by Party',special:'all-ledgers',ledgerCategory:'bank'},{title:'Bank Accounts & Balances', native:'bank'}, {title:'Pay Expense', special:'expense-pay'},
+      {title:'Bank Entry', special:'bank-entry'}, {title:'Review TG Remittances', special:'tg-remittances'}, {title:'Bank Finance', special:'bank-finance'}, {title:'Bank Ledgers by Party',special:'all-ledgers',ledgerCategory:'bank'},{title:'Bank Accounts & Balances', native:'bank'}, {title:'Pay Expense', special:'expense-pay'},
       {title:'Bank Reconciliation', native:'reconciliation'}
     ]},
     {key:'tg-ledgers', glyph:'L', title:'Ledgers', note:'Account and party ledgers, and every posted voucher', actions:[{title:'Ledger',special:'all-ledgers',ledgerCategory:'party'},{title:'Post ID Register',special:'post-ledger'},{title:'Trial Balance',native:'reports',find:'Trial Balance'},{title:'Chart of Accounts & Details',special:'account-heads'},{title:'Subaccounts & Details',special:'subaccounts'}]},
@@ -142,6 +142,7 @@
     document.body.classList.remove('tt-modal-open');
     window.TT_EXPENSE_EDITOR?.claim('');
     if(action.special==='customer-receivables'){const company=entity();try{const data=await json(`../api/accounts_dashboard.php?entity=${encodeURIComponent(company)}`);if(current())openCustomerReceivables(data.customerReceivables);}catch(error){alert(error.message);}return;}
+    if(action.native==='reports'&&['Receivables','Commodity','Shipment'].includes(action.find))return window.TT_REPORTS.open({Receivables:'balances',Commodity:'commodity',Shipment:'shipment'}[action.find]);
     if(action.native==='reports'&&['Trial Balance','Profit','Balance Sheet'].includes(action.find))return window.TT_REPORTS.open(({Trial:'tb',Profit:'pl',Balance:'bs'})[String(action.find||'').split(' ')[0]]||'tb');
     if(action.native==='bank'&&!action.special)return window.TT_BANK_ACCOUNTS_UI.open();
     if(action.special==='expense-report')return window.TT_REPORTS.open('expenses');

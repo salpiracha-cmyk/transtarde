@@ -13,6 +13,14 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium}=require('
   window.fetch=async(url,options={})=>{if(options.body){const b=JSON.parse(options.body);posted.push(b);return {ok:true,json:async()=>({...fixture,result:{journalId:'POST-2026-00999',journal:{id:'POST-2026-00999',lines:[]}}})};}return {ok:true,json:async()=>structuredClone(fixture)};};
  });
  for(const file of ['accounts/accounts-form-layout.js','accounts/accounts-row-controls.js','brand-theme.js','accounts/accounts-clean-ui.js','accounts/master-autocomplete.js','accounts/cheque-date-ui.js','accounts/bank-payment-details.js','accounts/account-management-ui.js','accounts/jv-workflow-ui.js','accounts/rent-salary-ui.js'])await page.addScriptTag({content:fs.readFileSync(file,'utf8')});
+
+ // Conditional form state must beat author grid/flex styles without clearing values.
+ await page.evaluate(()=>{const host=document.createElement('div');host.id='conditionalFixture';host.className='tte';host.innerHTML='<style>.tte .dependent{display:flex!important}</style><label class="dependent tt-account-tick" hidden><input type="checkbox" checked>Saved choice</label><fieldset class="dependent" hidden><input value="preserved"></fieldset>';document.body.appendChild(host);});
+ assert.equal(await page.locator('#conditionalFixture label').isVisible(),false,'Hidden tick label stays hidden');
+ assert.equal(await page.locator('#conditionalFixture fieldset').isVisible(),false,'Hidden fieldset stays hidden');
+ await page.evaluate(()=>document.querySelectorAll('#conditionalFixture [hidden]').forEach(el=>el.hidden=false));
+ assert.equal(await page.locator('#conditionalFixture label').isVisible(),true);assert.equal(await page.locator('#conditionalFixture label input').isChecked(),true);
+ assert.equal(await page.locator('#conditionalFixture fieldset input').inputValue(),'preserved');await page.evaluate(()=>document.querySelector('#conditionalFixture').remove());
  await page.evaluate(()=>TT_BANK_ENTRIES.open());await page.waitForSelector('#amBankForm');
  const form=page.locator('#amBankForm'),party=form.locator('[data-payee-choice]').first().locator('..').locator('input[type=text]').first();
  await party.fill('');await party.press('ArrowDown');assert.equal(await page.locator('.tt-keyboard-active').textContent(),'Haji Khushi Muhammad');await party.press('ArrowDown');await party.press('Enter');assert.equal(await form.locator('[data-payee-choice]').first().inputValue(),'P2');assert.equal(await page.locator('#amBankForm').count(),1);

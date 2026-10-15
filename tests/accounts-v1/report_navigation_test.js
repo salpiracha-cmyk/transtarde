@@ -1,0 +1,11 @@
+'use strict';
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
+const sandbox={window:{},document:{querySelector:()=>null,addEventListener(){}},localStorage:{getItem:()=> 'TTI'},Intl,URLSearchParams};
+let source=fs.readFileSync('accounts/reports-ui.js','utf8');source=source.replace('window.TT_REPORTS={open};','window.__reportTest={setData:x=>data=x,setView:x=>view=x,reportRows};window.TT_REPORTS={open};');
+vm.runInNewContext(source,sandbox);const t=sandbox.window.__reportTest;
+t.setData({trialBalance:{partyRows:[{account:'1110',name:'Bank',party:'Company',debit:100,credit:0},{account:'1210',name:'Customer receivable',party:'Buyer',debit:50,credit:0},{account:'2140',name:'Supplier payable',party:'Vendor',debit:0,credit:40}]},generalLedger:[{account:'1110',date:'2026-10-01',journalId:'BANK',debit:100,credit:0},{account:'4200',date:'2026-10-02',journalId:'SALE',credit:100,debit:0}],shipmentRows:[{contractRef:'S1',lotRef:'L1',revenue:100,stockCost:0,transport:20,freight:0,clearing:0,fumigation:0,inspection:0,otherPostedCost:0,totalCost:20,grossContribution:80}]});
+t.setView('balances');let [heads,rows]=t.reportRows(true);assert(heads.includes('Book currency'));assert.equal(rows.length,2);assert(rows.some(row=>row[0]==='Buyer'));assert(rows.some(row=>row[0]==='Vendor'));assert(!rows.some(row=>row.includes('Bank')));
+t.setView('commodity');[heads,rows]=t.reportRows(true);assert.equal(rows.length,1);assert.equal(rows[0][1],'SALE');
+t.setView('shipment');[heads,rows]=t.reportRows(true);assert(heads.includes('Provisional contribution'));assert.equal(rows[0].at(-1),'Stock cost not recorded');assert.equal(rows[0][0],'S1');
+const desk=fs.readFileSync('accounts/accounts-accounting-desk.js','utf8');assert(desk.includes("Receivables:'balances',Commodity:'commodity',Shipment:'shipment'"),'Each report icon must explicitly choose its own report');
+console.log('PASS explicit report destinations, party balances, commodity account scope and provisional shipment export rows');

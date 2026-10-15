@@ -167,7 +167,8 @@
   }
 
   function searchable(select) {
-    if (select.dataset.ttSearchable || select.dataset.ttNative || select.multiple || (select.options.length < 2 && !select._ttMasterControl) || select.closest('.entitySwitcher')) return;
+    if (select.dataset.ttSearchable) { select._ttSyncDisplay?.(); return; }
+    if (select.hidden || select.getAttribute('aria-hidden') === 'true' || select.dataset.ttNative || select.multiple || (select.options.length < 2 && !select._ttMasterControl) || select.closest('.entitySwitcher')) return;
     if(!select._ttMasterControl){const label=select.closest('label'),add=label?.querySelector('button[id*="Add"],button[data-add-master]');if(add){const name=(label.childNodes[0]?.textContent||'Item').trim();select._ttMasterControl={label:name,add:()=>add.click(),canAdd:()=>!add.hidden&&!add.disabled};add.classList.add('tt-dropdown-master-launcher');}}
     const roleKinds={ttSdSupplier:'supplier',ttSdBroker:'broker',bgSupplier:'bagsupplier',bgLinkedSupplier:'bagsupplier',ttstBroker:'supplier'};const kind=roleKinds[select.id];
     if(kind){const manager=select._ttMasterControl||{},access=window.TT_ACCOUNT_ACCESS||{},byId=['ttSdSupplier','ttSdBroker'].includes(select.id);
@@ -228,7 +229,18 @@
     const closeMenus = () => qa('.tt-select-menu').forEach(candidate => {
       if (candidate !== menu) candidate.hidden = true;
     });
-    const syncInput = () => { input.value = select.value === '' ? '' : selectedText(); };
+    let displayedValue, displayedText;
+    const syncInput = (force = true) => {
+      const text = select.value === '' ? '' : selectedText();
+      const disabled = select.matches(':disabled');
+      if (input.disabled !== disabled) input.disabled = disabled;
+      if (disabled) menu.hidden = true;
+      // Preserve a search being typed when unrelated DOM content changes.
+      if (force || select.value !== displayedValue || text !== displayedText) input.value = text;
+      displayedValue = select.value;
+      displayedText = text;
+    };
+    select._ttSyncDisplay = () => syncInput(false);
     syncInput();
     let visibleOptions = [], activeIndex = -1, choiceButtons = [], includeZeroBanks=false;
     const highlight = index => {
@@ -464,15 +476,17 @@
     window.addEventListener('resize', () => activeSearchMenu?._ttPosition?.());
     const observer = new MutationObserver(records => {
       records.forEach(record => record.addedNodes.forEach(node => { if (node.nodeType === 1) scan(node); }));
+      qa('select[data-tt-searchable]').forEach(select => select._ttSyncDisplay?.());
       qa('.tt-select-menu').forEach(menu => { if (menu._ttOwner && !menu._ttOwner.isConnected) menu.remove(); });
     });
-    observer.observe(document.body, {childList:true, subtree:true});
+    observer.observe(document.body, {childList:true, subtree:true, attributes:true, attributeFilter:['disabled'], characterData:true});
     scan();
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, {once:true}); else init();
 
   window.TT_ACCOUNTS_CLEAN_UI = {
+    syncSelects(root=document){qa('select[data-tt-searchable]',root).forEach(select=>select._ttSyncDisplay?.());},
     manageSelect(select,config){if(!select)return;select._ttMasterControl=config;searchable(select);},
     normalizeRowControls,
     installed: true,

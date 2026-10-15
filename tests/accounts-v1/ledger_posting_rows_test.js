@@ -3,7 +3,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('nod
 const sandbox={window:{},document:{querySelector:()=>null},localStorage:{getItem:()=>null},Intl,TextEncoder,Uint8Array,DataView,Blob};
 vm.createContext(sandbox);
 let source=fs.readFileSync('accounts/all-ledgers-ui.js','utf8');
-source=source.replace('window.TT_ALL_LEDGERS={','window.__ledgerTest={setAccount:a=>account=a,setRows:r=>data={rows:r,accounts:[],currency:"PKR"},statementRows,postingRows,rowsHtml,totals,displayRef};window.TT_ALL_LEDGERS={');
+source=source.replace('window.TT_ALL_LEDGERS={','window.__ledgerTest={setAccount:a=>account=a,setRows:r=>data={rows:r,accounts:[],currency:"PKR"},statementRows,postingRows,rowsHtml,totals,registerTotals,tableHtml,displayRef};window.TT_ALL_LEDGERS={');
 vm.runInContext(source,sandbox);
 const t=sandbox.window.__ledgerTest;
 t.setRows([
@@ -22,3 +22,13 @@ t.setRows([{voucher:'POST-2026-00012',debit:0,credit:20,balance:20},{voucher:'PO
 console.log('Ledger posting grouping, selected-account balances, original identities and invoice references passed');
 
 t.setRows([{voucher:'POST-2026-00015',debit:100,credit:100,canDelete:true},{voucher:'POST-2026-00014',debit:100,credit:100,canDelete:false,deleteReason:'Already cancelled'}]);html=t.rowsHtml();assert.equal((html.match(/data-delete-id=/g)||[]).length,2,'Every displayed posting row must retain a visible minus action');assert(html.includes('data-delete-reason="Already cancelled"'),'Protected rows must explain the reason rather than silently hide their action');
+
+t.setAccount('POSTS');t.setRows([
+ {voucher:'PK-1',date:'2026-07-01',account:'POSTS',accountName:'TTI',entity:'TTI',bookCurrency:'PKR',debit:100,credit:100},
+ {voucher:'PK-2',date:'2026-07-02',account:'POSTS',accountName:'BRM',entity:'BRM',bookCurrency:'PKR',debit:200,credit:200},
+ {voucher:'TG-1',date:'2026-07-03',account:'POSTS',accountName:'TG',entity:'TG',bookCurrency:'AED',debit:367,credit:367}
+]);
+const currencyTotals=t.registerTotals();assert.equal(currencyTotals.length,3);assert.equal(currencyTotals.find(x=>x.company==='TG').debit,367);assert.equal(currencyTotals.find(x=>x.company==='TTI').debit,100);
+html=t.tableHtml();assert(html.includes('TG · AED'));assert(html.includes('TTI · PKR'));assert(!html.includes('667.00'),'All-company total must never mix AED with PKR');
+const exportRows=Array.from(t.statementRows());assert(exportRows.some(row=>row[0]==='Date'&&row.includes('Book currency')));assert.equal(exportRows.filter(row=>row[0]==='Subtotal').length,3);assert(exportRows.some(row=>row[0]==='Subtotal'&&row[2]==='TG'&&row[3]==='AED'&&row[5]===367));assert(!exportRows.some(row=>row.includes(667)));
+console.log('PASS all-company register currency labels, separate subtotals and shared print/Excel statement');
