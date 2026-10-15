@@ -57,14 +57,14 @@ with tempfile.TemporaryDirectory(prefix='historical-bags-') as tmp:
   before=books.read_bytes();assert req(body={**payload,'requestKey':'historic-link-over','sellerInvoice':'FEB-02','openingPayableMode':'LINK','openingJournalId':'BF','openingLineIndex':0})[0]==422 and books.read_bytes()==before
   # Same consumed invoice billed per kg or per bag; no stock/purchase expense at opening.
   books.write_text(json.dumps({'revision':0,'journals':{}}))
-  kg={**payload,'requestKey':'kg-bill','sellerInvoice':'KG-225','bags':3000,'billingBasis':'KG','billingRate':400,'bagWeightGrams':75,'ratePerBag':999999,'gstAmount':16200,'openingPayableAmount':106200,'openingGstRemaining':16200,'openingStockBags':0}
+  kg={**payload,'requestKey':'historical-kg-bill','sellerInvoice':'KG-225','bags':3000,'billingBasis':'KG','billingRate':400,'bagWeightGrams':75,'ratePerBag':999999,'gstAmount':16200,'openingPayableAmount':106200,'openingGstRemaining':16200,'openingStockBags':0}
   kb=ok(kg)['result'];assert kb['baseAmount']==90000 and kb['totalWeightKg']==225 and kb['ratePerBag']==30 and kb['totalAmount']==106200 and kb['billingBasis']=='KG'
   kj=state()['journals'][kb['journalId']];assert not any(l['account'] in ['1340','5550'] for l in kj['lines']) and kj['date']=='2026-07-01'
   before=books.read_bytes();assert ok(kg)['result']['id']==kb['id'] and books.read_bytes()==before
-  for change in [{'bagWeightGrams':0},{'billingRate':-1},{'billingBasis':'TONNE'}]:
-   assert req(body={**kg,**change,'requestKey':'bad-kg-'+str(change)})[0]==422 and books.read_bytes()==before
+  for index,change in enumerate([{'bagWeightGrams':0},{'billingRate':-1},{'billingBasis':'TONNE'}]):
+   assert req(body={**kg,**change,'requestKey':'historical-bad-kg-'+str(index)})[0]==422 and books.read_bytes()==before
   books.write_text(json.dumps({'revision':0,'journals':{}}))
-  perbag=ok({**kg,'requestKey':'per-bag','sellerInvoice':'BAG-3000','billingBasis':'BAG','billingRate':30})['result'];assert perbag['baseAmount']==kb['baseAmount'] and perbag['gstAmount']==kb['gstAmount'] and perbag['totalAmount']==kb['totalAmount']
+  perbag=ok({**kg,'requestKey':'historical-per-bag','sellerInvoice':'BAG-3000','billingBasis':'BAG','billingRate':30})['result'];assert perbag['baseAmount']==kb['baseAmount'] and perbag['gstAmount']==kb['gstAmount'] and perbag['totalAmount']==kb['totalAmount']
   # All shared-control service groups reconcile back to the same original monetary lines.
   reset={'revision':0,'journals':{},'supplierBills':{}}
   for i,(party,kind,expense) in enumerate([('MAPCO','CLEARING','5530'),('DITTA','TRANSPORT','5510'),('PAKLINK','FREIGHT','5520')]):
