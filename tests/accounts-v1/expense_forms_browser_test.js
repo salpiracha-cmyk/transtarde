@@ -19,6 +19,7 @@ const fs=require('node:fs'),assert=require('node:assert/strict'),{chromium}=requ
   assert.equal(await page.locator('#evUmLocName').inputValue(),'OFFICE','own office auto-selected');
   assert.deepEqual(await page.locator('#evUmLocName option').allTextContents(),['Select company location','Karachi Office','Own Rice Mill','Home']);
   assert.equal(await page.locator('.tte-master-popup').isVisible(),true,'master setup opens as popup');await page.click('#evUmCancel');
+  await page.selectOption('#evPayMaster','MANUAL');
   await page.selectOption('#evPayLocName','MILL');
   assert.equal(await page.locator('#evReadFrom').isVisible(),true,'meter dates visible for mill electricity');
   await page.selectOption('#evPayType','INTERNET');
@@ -40,6 +41,7 @@ const fs=require('node:fs'),assert=require('node:assert/strict'),{chromium}=requ
   // A slow response from another module must never replace the newly opened form.
   await page.click('[data-expense="rent"]');await page.click('[data-expense="utility"]');
   await page.evaluate(()=>resolveNext('expenses_v1'));await page.waitForSelector('#evManageUtility');
+  await page.selectOption('#evPayMaster','MANUAL');
   await page.fill('#evPayee','Unsaved current entry');
   await page.evaluate(()=>resolveNext('rent_salary',{ok:true,salaryMasters:[],rentMasters:[],salaryRows:[],rentRows:[],rentReminders:[],paymentAccounts:[]}));
   await page.waitForTimeout(100);assert.equal(await page.locator('#evPayee').inputValue(),'Unsaved current entry');
@@ -51,3 +53,4 @@ const fs=require('node:fs'),assert=require('node:assert/strict'),{chromium}=requ
   console.log('PASS closed setup forms, own office default, dependent meter fields, and slow rent/donation response isolation');
  }finally{await browser.close()}
 })().catch(error=>{console.error(error);process.exitCode=1});
+

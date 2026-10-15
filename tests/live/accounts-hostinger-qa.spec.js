@@ -326,12 +326,30 @@ test('authenticated Accounts live smoke: professional desk and popup workflows',
   await deskAction(page, 'routine', 'Pay Expense');
   await expect(page.locator('#ttExpenseDesk [data-expense-mode]')).toHaveCount(3);
   await activate(page.locator('#ttExpenseDesk [data-expense-mode=utility]'));
-  await expect(page.locator('#ttExpenseDesk #evPayLocName')).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('#ttExpenseDesk #evPayMaster').locator('..')).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('#ttExpenseDesk #evUtilityFields')).toBeHidden();
+  const utilityChoices=await page.locator('#evPayMaster option').evaluateAll(options=>options.filter(o=>o.value&&o.value!=='MANUAL').slice(0,3).map(o=>({value:o.value,label:o.textContent})));
+  for(const choice of utilityChoices){
+    await page.locator('#evPayMaster').selectOption(choice.value,{force:true});
+    await expect(page.locator('#evUtilityFields')).toBeVisible();
+    const saved=await page.evaluate(()=>{const q=id=>document.getElementById(id),location=q('evPayLocName'),type=q('evPayType');return {location:location.selectedOptions[0]?.textContent||'',visibleLocation:location.closest('.tt-search-select')?.querySelector('input')?.value,type:type.selectedOptions[0]?.textContent||'',visibleType:type.closest('.tt-search-select')?.querySelector('input')?.value,provider:q('evPayee').value,reference:q('evConsumerRef').value};});
+    expect(saved.provider).toBeTruthy();expect(choice.label).toContain(saved.provider);expect(choice.label).toContain(saved.location);
+    if(saved.visibleLocation!==undefined)expect(saved.visibleLocation).toBe(saved.location);
+    if(saved.visibleType!==undefined)expect(saved.visibleType).toBe(saved.type);
+    if(choice.label.includes('…'))expect(saved.reference.replace(/\s/g,'').slice(-5)).toBe(choice.label.split('…').pop().trim());
+  }
+  console.log('LIVE_SAVED_UTILITY_SELECTIONS_OK '+utilityChoices.length);
+  await page.locator('#evPayMaster').selectOption('',{force:true});
+
   await expect(page.locator('#ttExpenseDesk #evUtilityFor')).toHaveValue('SHARED');
   await expect(page.locator('#ttExpenseDesk #evUtilityForWrap')).toBeHidden();
   await activate(page.locator('#ttExpenseDesk [data-expense-mode=card]'));
   await expect(page.locator('#ttExpenseDesk #evStatementForm')).toBeVisible({ timeout: 30_000 });
   await expect(page.locator('#ttExpenseDesk #evAddStatement')).toBeHidden();
+  await expect(page.locator('#evCardFields')).toBeHidden();
+  const savedCard=await page.locator('#evStatementCard option').evaluateAll(options=>options.find(o=>o.value)?.value||'');
+  if(savedCard){await page.locator('#evStatementCard').selectOption(savedCard,{force:true});await expect(page.locator('#evCardFields')).toBeVisible();}
+
   await expect(page.locator('#ttExpenseDesk [data-expense-mode=card]')).toHaveAttribute('type','radio');
   await expect(page.locator('#ttExpenseDesk [data-expense-mode=card]')).not.toHaveAttribute('role','combobox');
   await expect(page.locator('#ttExpenseDesk #evManageCard')).toHaveAttribute('type','checkbox');
@@ -737,3 +755,4 @@ test('Accounts review release: company views, reconciliation, entry cleanup and 
   await page.locator('[data-tt-area="tg-bank"]').click();await page.getByRole('button',{name:/^Inter Account Transfer /i}).click();await expect(page.locator('#tgfxDate')).toBeVisible();await expect(page.locator('#ws-bank')).toHaveClass(/active/);await expect(page.locator('#tgfxPost')).toBeDisabled();
   expect(attemptedWrites).toEqual([]);console.log('ACCOUNTS_REVIEW_READ_ONLY '+JSON.stringify({companyReads:reads,pkrBankComparisons:comparisons,tgTransferVisible:true,financialWrites:0,checkedAt:now}));
 });
+

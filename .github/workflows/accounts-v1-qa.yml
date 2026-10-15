@@ -186,6 +186,7 @@ jobs:
           node tests/accounts-v1/investment_edit_ui_test.js
           node tests/accounts-v1/accounts_controls_ui_test.js
           node tests/accounts-v1/module_form_consistency_test.js
+          node tests/accounts-v1/saved_expense_selection_ui_test.js
           node tests/accounts-v1/party_payment_choices_test.js
           node tests/accounts-v1/opening_only_payment_ui_test.js
           node tests/accounts-v1/opening_review_ui_test.js
@@ -250,3 +251,4 @@ jobs:
           name: inventory-reconciliation-${{ github.run_id }}
           path: ${{ runner.temp }}/inventory-evidence/
           retention-days: 14
+
