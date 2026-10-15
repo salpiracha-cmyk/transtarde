@@ -230,7 +230,7 @@
     });
     const syncInput = () => { input.value = select.value === '' ? '' : selectedText(); };
     syncInput();
-    let visibleOptions = [], activeIndex = -1, choiceButtons = [];
+    let visibleOptions = [], activeIndex = -1, choiceButtons = [], includeZeroBanks=false;
     const highlight = index => {
       activeIndex = index;
       choiceButtons.forEach((button,i) => { button.classList.toggle('tt-keyboard-active',i===index);button.setAttribute('aria-current',String(i===index)); });
@@ -247,6 +247,8 @@
       // made Credit and the other products appear to be missing.
       const term = showAll || (select.value !== '' && typed === selected) ? '' : typed;
       let options = qa('option', select).filter(option => !option.disabled && option.value !== '');
+      const zeroBanks=options.filter(option=>option.dataset.bankBalance!==undefined&&Math.abs(Number(option.dataset.bankBalance))<.005&&option.dataset.bankDefault!=='true'&&option.value!==select.value);
+      if(!term&&!includeZeroBanks)options=options.filter(option=>!zeroBanks.includes(option));
       const starts = options.filter(option => option.textContent.trim().toLowerCase().startsWith(term));
       const contains = options.filter(option => option.textContent.trim().toLowerCase().includes(term));
       options = (starts.length ? starts : contains).slice(0, 100);
@@ -265,6 +267,7 @@
         const manager=select._ttMasterControl;
         if(manager?.edit&&(!manager.canEdit||manager.canEdit(option))){const line=document.createElement('div');line.className='tt-option-row';const edit=document.createElement('button');edit.type='button';edit.className='tt-option-edit';edit.textContent='✎';edit.title='Edit '+option.textContent.trim();edit.setAttribute('aria-label',edit.title);edit.onclick=()=>{menu.hidden=true;manager.edit(option.value,option.textContent.trim());};line.append(button,edit);menu.append(line);}else menu.appendChild(button);
       });
+      if(!term&&!includeZeroBanks&&zeroBanks.length){const more=document.createElement('button');more.type='button';more.textContent='Show zero-balance accounts ('+zeroBanks.length+')';more.onclick=()=>{includeZeroBanks=true;render(true);};menu.append(more);}
       const manager=select._ttMasterControl;
       if(manager?.add&&(!manager.canAdd||manager.canAdd())){const add=document.createElement('button');add.type='button';add.className='tt-option-add';add.textContent='+ Add '+manager.label;add.onclick=()=>{menu.hidden=true;manager.add();};menu.append(add);}
       menu.hidden = false;

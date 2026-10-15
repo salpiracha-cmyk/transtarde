@@ -80,5 +80,12 @@ with tempfile.TemporaryDirectory(prefix='historical-bags-') as tmp:
   # PO checks compare the equivalent per-bag rate while preserving invoice kg units.
   reset['bagPurchaseOrders']['PO']['lines'][0].update({'orderedQty':3000,'receivedQty':3000,'ratePerBag':30});books.write_text(json.dumps(reset))
   pk=ok({**ordinary,'sellerInvoice':'OCT-KG','bags':3000,'billingBasis':'KG','billingRate':400,'bagWeightGrams':75,'ratePerBag':999999})['result'];assert pk['status']=='Posted' and pk['baseAmount']==90000 and pk['ratePerBag']==30 and pk['totalAmount']==106200
+  # Saved GST changes continue from their effective date; posted invoices never recalculate.
+  old_bill=state()['bagSupplierBills'][pk['id']].copy()
+  ok({'action':'save_tax_rate','csrf':'fixture','entity':'TTI','effectiveDate':'2026-10-01','rate':19,'note':'Owner rate change'})
+  general=ok({'action':'create_general_bill','csrf':'fixture','entity':'TTI','supplier':'BAG SUPPLIER','sellerInvoice':'RATE-19','sellerInvoiceDate':'2026-10-13','bagType':'PP','packingSize':'50 KG','bags':100,'ratePerBag':20,'stockTreatment':'CONSUMED','salesTaxInvoice':True})['result']
+  assert general['gstRate']==19 and general['totalAmount']==2380 and state()['bagSupplierBills'][pk['id']]==old_bill
+  before=books.read_bytes()
+  assert req(body={'action':'save_tax_rate','csrf':'fixture','entity':'TTI','effectiveDate':'2026-10-01','rate':'invalid'})[0]==422 and books.read_bytes()==before
   print('PASS historical bag HTTP: calendar cutoff, original invoice GST, July openings, linked capacities, September payment, no duplicate B/F, replay, amendments, cancellations and reconciled service groups')
  finally:server.terminate();server.wait(timeout=5);log.close()

@@ -121,6 +121,7 @@
     `;
     style.textContent += `.tt-area-card,.tt-action{transition:transform .18s ease,box-shadow .18s ease,background .18s ease}.tt-area-card{border-color:var(--tile-border,#d9e2e9);background:linear-gradient(145deg,var(--tile-tint,#fff),#fff 76%)}.tt-area-card .tt-area-glyph{background:var(--tile-icon,#e9f1ec);color:var(--tile-color,#28523d)}.tt-area-card:nth-child(6n+1){--tile-tint:#fff5ef;--tile-icon:#ffe3d0;--tile-color:#ad5d37;--tile-border:#f1d9c8}.tt-area-card:nth-child(6n+2){--tile-tint:#f0f9f5;--tile-icon:#d9f1e3;--tile-color:#287455;--tile-border:#d3e8d9}.tt-area-card:nth-child(6n+3){--tile-tint:#f1f6ff;--tile-icon:#deeaff;--tile-color:#375fa6;--tile-border:#d6e1f4}.tt-area-card:nth-child(6n+4){--tile-tint:#fff9e9;--tile-icon:#ffedbc;--tile-color:#9b7126;--tile-border:#f0e4bf}.tt-area-card:nth-child(6n+5){--tile-tint:#f7f2ff;--tile-icon:#eadffc;--tile-color:#6a50a0;--tile-border:#e5daf3}.tt-area-card:nth-child(6n){--tile-tint:#ecfafb;--tile-icon:#d3f1f4;--tile-color:#237b8c;--tile-border:#cfe9ec}.tt-action-list[data-area-palette] .tt-action{margin:5px;border:1px solid #dfe8eb;background:linear-gradient(100deg,var(--action-tint,#f8fcfd),#fff 62%);border-radius:12px;min-height:88px;align-items:center}.tt-action-list[data-area-palette] .tt-action:hover{box-shadow:0 7px 20px #162f4317;transform:translateY(-1px)}.tt-action-list[data-area-palette] .tt-action-mark{width:44px;height:44px;flex-basis:44px;background:var(--action-icon,#dff2ed);color:var(--action-color,#286e5f);border-radius:12px}.tt-action:nth-child(5n+1){--action-tint:#f0f9f5;--action-icon:#d9f1e3;--action-color:#287455}.tt-action:nth-child(5n+2){--action-tint:#f1f6ff;--action-icon:#deeaff;--action-color:#375fa6}.tt-action:nth-child(5n+3){--action-tint:#fff9ed;--action-icon:#ffedc8;--action-color:#97702a}.tt-action:nth-child(5n+4){--action-tint:#f8f3ff;--action-icon:#eadffc;--action-color:#6a50a0}.tt-action:nth-child(5n){--action-tint:#eefafb;--action-icon:#d3f1f4;--action-color:#237b8c}.tt-action-mark svg{width:24px;height:24px}`;
     style.textContent+='@keyframes ttDuePulse{50%{box-shadow:0 0 0 3px #e5a63788}}.tt-due-alert{animation:ttDuePulse 1.8s ease-in-out infinite}.tt-summary[data-summary="due"] b{font-size:18px;line-height:1.4}';
+    style.textContent+=`.tt-inside-area #ttSummaryCards,.tt-inside-area #ttRecentSection,.tt-inside-area #ttPendingWork{display:none!important}.tt-desk-heading{padding:10px 16px;justify-content:flex-end}.tt-recent-scroll{max-height:340px;overflow:auto}.tt-recent-row{display:grid;grid-template-columns:100px 155px minmax(180px,1fr) 150px;align-items:center;gap:12px;width:100%;min-height:68px;border:0;border-bottom:1px solid #e3e9ed;background:white;padding:10px 16px;text-align:left;cursor:pointer}.tt-recent-row:hover,.tt-recent-row:focus-visible{background:#edf5f1}.tt-recent-row small{display:block;color:#657582;white-space:nowrap;text-overflow:ellipsis;overflow:hidden;max-width:100%}.tt-recent-row>span{min-width:0}.tt-recent-row>b:last-child{text-align:right}#ttPendingWork>summary{padding:14px 18px;cursor:pointer;font-weight:800}#ttRecentRefresh{margin-left:auto}@media(max-width:700px){.tt-recent-row{grid-template-columns:90px 1fr;gap:6px}.tt-recent-row>b:last-child{text-align:left}}`;
     document.head.appendChild(style);
   }
 
@@ -268,11 +269,11 @@
   function deskMarkup() {
     return `<div id="ttAccountingDesk">
       <div class="tt-desk-main">
-        <section><div class="tt-desk-heading"><div><h1>Accounts · <span data-tt-entity-name></span></h1><p>Choose the job you need. Every entry remains linked to its original operational record.</p></div><input class="tt-search-main" aria-label="Search previous records" placeholder="Search voucher, bill, Soda, truck or shipment"></div>
+        <section id="ttDeskOverview"><div class="tt-desk-heading"><input class="tt-search-main" aria-label="Search previous records" placeholder="Search transactions"></div>
           <div class="tt-position" id="ttSummaryCards"><button class="tt-summary"><small>Bank Balance</small><b>Loading…</b><em>Hover for accounts</em></button><button class="tt-summary"><small>Commodity Bills Due</small><b>Loading…</b><em>Due-date detail</em></button><button class="tt-summary"><small>Local Receivables</small><b>Loading…</b><em>Customer detail</em></button><button class="tt-summary"><small>Customer / Export Receivables</small><b>Loading…</b><em>Currency detail</em></button></div>
         </section>
         <section id="ttDeskWork"></section>
-        <section><div class="tt-work-head"><div><h2>Held / Incomplete Entries</h2><p>Only entries that need review before posting appear here.</p></div></div><div class="tt-queue" id="ttAttentionQueue"><div class="tt-queue-row"><span>Status</span><b>Loading current work…</b></div></div></section>
+        <section id="ttRecentSection"><div class="tt-work-head"><h2>Recent Transactions</h2><button type="button" class="btn" id="ttRecentRefresh">Refresh</button></div><div id="ttRecentTransactions" class="tt-recent-scroll" role="region" aria-label="Recent transactions" tabindex="0">Loading transactions…</div></section><details id="ttPendingWork" hidden><summary id="ttPendingCount">Pending Work</summary><div class="tt-queue" id="ttAttentionQueue"></div></details>
       </div>
     </div>`;
   }
@@ -300,7 +301,8 @@
   function showAreasHome() {bankMenuGeneration++;sessionStorage.removeItem('tt_accounts_current_area');
     const work = q('#ttDeskWork'); if (!work) return;
     const items = currentAreas();
-    work.innerHTML = `<div class="tt-home-head"><h2>${entity()==='TG'?'Trans Grains Accounts':'What do you want to do?'}</h2><p>${entity()==='TG'?'Only customer receipts, supplier payments, bank/local expenses, ledgers and reports are shown.':'Choose a broad area, then choose the exact entry or report.'}</p></div><div class="tt-area-grid"><button type="button" class="tt-area-card" id="ttMainJV"><span class="tt-area-glyph">${iconPicture('jv')}</span><b>Journal Voucher</b><small>Prepare, approve and print a JV</small></button>${items.map(area=>`<button type="button" class="tt-area-card" data-tt-area="${area.key}"><span class="tt-area-glyph">${iconPicture(area.key.startsWith('tg-')?area.key.slice(3):area.key)}</span><b>${esc(area.title)}</b><small>${esc(area.note)}</small></button>`).join('')}</div>`;
+    q('#ttAccountingDesk')?.classList.remove('tt-inside-area');
+    work.innerHTML = `<div class="tt-area-grid"><button type="button" class="tt-area-card" id="ttMainJV"><span class="tt-area-glyph">${iconPicture('jv')}</span><b>Journal Voucher</b></button>${items.map(area=>`<button type="button" class="tt-area-card" data-tt-area="${area.key}"><span class="tt-area-glyph">${iconPicture(area.key.startsWith('tg-')?area.key.slice(3):area.key)}</span><b>${esc(area.title)}</b></button>`).join('')}</div>`;
     q('#ttMainJV',work).onclick=()=>launch({native:'jv'});
     qa('[data-tt-area]', work).forEach(button=>button.onclick=()=>button.dataset.ttArea==='assets'?window.TT_ASSETS_UI?.open?.():showArea(button.dataset.ttArea));
     window.TT_ACCOUNT_BADGE_REFRESH?.();
@@ -311,6 +313,7 @@
     const list=currentAreas();
     const area = list.find(item => item.key === key) || list[0];
     sessionStorage.setItem('tt_accounts_current_area',area.key);
+    q('#ttAccountingDesk')?.classList.add('tt-inside-area');
     const work = q('#ttDeskWork');
     if (!work) return;
     const menuToken=++bankMenuGeneration,menuCompany=entity();let hiddenSpecials=new Set();
@@ -337,7 +340,7 @@
       if(label.includes('report')||label.includes('balance')||label.includes('profit'))return iconPicture('reports');
       return iconPicture('bill');
     };
-    work.innerHTML = `<div class="tt-work-head"><button class="tt-back-areas" type="button" aria-label="Back to main Accounts">BACK</button><div><h2>${esc(area.title)}</h2><p>${esc(area.note)}</p></div></div><div class="tt-action-list" data-area-palette="${esc(area.key)}">${area.actions.map((action, index) => hiddenSpecials.has(action.special)?'':`<button type="button" class="tt-action" data-tt-action="${index}"><span class="tt-action-mark">${actionGlyph(action)}</span><span><b>${esc(action.title)}</b>${action.note?`<small>${esc(action.note)}</small>`:''}</span></button>`).join('')}</div>`;
+    work.innerHTML = `<div class="tt-work-head"><button class="tt-back-areas" type="button" aria-label="Back to main Accounts">BACK</button><div><h2>${esc(area.title)}</h2></div></div><div class="tt-action-list" data-area-palette="${esc(area.key)}">${area.actions.map((action, index) => hiddenSpecials.has(action.special)?'':`<button type="button" class="tt-action" data-tt-action="${index}"><span class="tt-action-mark">${actionGlyph(action)}</span><span><b>${esc(action.title)}</b></span></button>`).join('')}</div>`;
     q('.tt-back-areas',work).onclick=showAreasHome;
     qa('[data-tt-action]', work).forEach(button => button.onclick = () => launch(area.actions[Number(button.dataset.ttAction)]));
   }
@@ -358,6 +361,7 @@
     const home = q('#entityHome');
     if (!home || q('#ttAccountingDesk')) return;
     home.insertAdjacentHTML('afterbegin', deskMarkup());
+    q('#ttRecentRefresh').onclick=loadRecentTransactions;
     q('.tt-search-main').addEventListener('keydown', event => { if (event.key === 'Enter') openSearch(event.currentTarget.value); });
     showAreasHome();
     refreshEntityLabels();
@@ -368,6 +372,7 @@
     qa('[data-tt-entity-name]').forEach(node => { node.textContent = name; });
     showAreasHome();
     loadDashboardSummary();
+    loadRecentTransactions();
   }
 
   let dashboardLoad=0;
@@ -392,8 +397,21 @@
         return `<button type="button" class="tt-summary ${def.key==='due'&&first&&first.date<=today()?'tt-due-alert':''}" data-summary="${def.key}"><small>${esc(def.label)}</small><b>${headline}</b><em>${esc(def.note)}</em><span class="tt-summary-pop">${detail}</span></button>`;
       }).join('');
        qa('[data-summary]',host).forEach(button=>button.onclick=()=>{const key=button.dataset.summary;if(key==='bank')launch({native:'bank'});else if(key==='due')showArea('routine');else if(key==='commodity'){if(entity()!=='TG')window.TT_PAYMENT_PLANS?.choose?.();else launch({native:'payables'});}else if(key==='export')openCustomerReceivables(data.customerReceivables);else launch({native:'receivables'});});
-      if(queue){const rows=data.attention||[];queue.innerHTML=rows.length?rows.slice(0,12).map((row,i)=>`<div class="tt-queue-row"><span>${esc(row.type)}</span><b>${esc(row.message)}${row.reference?' · '+esc(row.reference):''}</b><button type="button" data-attention-review="${i}">Review</button></div>`).join(''):'<div class="tt-queue-row"><span>Current</span><b>No held or incomplete entries need attention.</b></div>';qa('[data-attention-review]',queue).forEach(button=>button.onclick=()=>reviewAttention(rows[Number(button.dataset.attentionReview)]));}
-    }catch(error){if(request!==dashboardLoad||company!==entity())return;qa('.tt-summary b',host).forEach(node=>node.textContent='Unavailable');if(queue)queue.innerHTML='<div class="tt-queue-row"><span>Status</span><b>Refresh to load current Accounts attention items.</b></div>';console.warn('Accounts dashboard summary',error);}
+      if(queue){const rows=data.attention||[];q('#ttPendingWork').hidden=!rows.length;q('#ttPendingCount').textContent='Pending Work ('+rows.length+')';queue.innerHTML=rows.length?rows.slice(0,12).map((row,i)=>`<div class="tt-queue-row"><span>${esc(row.type)}</span><b>${esc(row.message)}${row.reference?' · '+esc(row.reference):''}</b><button type="button" data-attention-review="${i}">Review</button></div>`).join(''):'<div class="tt-queue-row"><span>Current</span><b>No held or incomplete entries need attention.</b></div>';qa('[data-attention-review]',queue).forEach(button=>button.onclick=()=>reviewAttention(rows[Number(button.dataset.attentionReview)]));}
+    }catch(error){if(request!==dashboardLoad||company!==entity())return;qa('.tt-summary b',host).forEach(node=>node.textContent='Unavailable');if(queue){q('#ttPendingWork').hidden=false;q('#ttPendingCount').textContent='Pending Work · unavailable';queue.innerHTML='<div class="tt-queue-row" role="alert"><b>Refresh to load pending work.</b></div>';}console.warn('Accounts dashboard summary',error);}
+  }
+
+  let recentLoad=0;
+  async function loadRecentTransactions(){
+    const box=q('#ttRecentTransactions');if(!box)return;
+    const company=entity(),request=++recentLoad;box.textContent='Loading transactions…';
+    try{
+      const result=await json('../api/accounts_ledger_browser.php?'+new URLSearchParams({entity:company,account:'POSTS',from:'0001-01-01',to:today()}));
+      if(request!==recentLoad||company!==entity()||!box.isConnected)return;
+      const rows=result.rows||[];
+      box.innerHTML=rows.length?rows.map(row=>`<button type="button" class="tt-recent-row" data-recent-post="${esc(row.voucher)}"><span>${esc(window.TT_DATE?.display(row.date)||row.date)}</span><b>${esc(displayRef(row.publicPostId||row.voucher))}</b><span><strong>${esc(row.party)}</strong><small>${esc(row.narration||row.reference)}</small></span><b>${esc(company==='TG'?'AED':'PKR')} ${money(row.debit)}</b></button>`).join(''):'<p>No posted transactions.</p>';
+      qa('[data-recent-post]',box).forEach(button=>button.onclick=()=>window.TT_ALL_LEDGERS?.openPosting?.(button.dataset.recentPost));
+    }catch(error){if(request===recentLoad&&company===entity()&&box.isConnected)box.textContent='Transactions unavailable: '+error.message;}
   }
 
   function openCustomerReceivables(register){
@@ -872,6 +890,6 @@
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, {once:true}); else init();
-  window.TT_ACCOUNTING_DESK = {installed:true,openHistoricalBagBill:async id=>{await launch({title:'Historical Bag Bill',native:'purchases',then:'[data-purchase="bags"]',bagSync:true});await window.TT_BAG_PURCHASES_UI.mount();window.TT_BAG_PURCHASES_UI.editHistorical(id);}, openSoda, openSearch, showArea, printVoucher, openSavedBill, refreshAttention:loadDashboardSummary};
+  window.TT_ACCOUNTING_DESK = {installed:true,openHistoricalBagBill:async id=>{await launch({title:'Historical Bag Bill',native:'purchases',then:'[data-purchase="bags"]',bagSync:true});await window.TT_BAG_PURCHASES_UI.mount();window.TT_BAG_PURCHASES_UI.editHistorical(id);}, openSoda, openSearch, showArea, printVoucher, openSavedBill, refreshAttention:async()=>{await Promise.all([loadDashboardSummary(),loadRecentTransactions()]);}};
 })();
 

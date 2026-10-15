@@ -444,9 +444,12 @@ test('Accounts repair: clear held-entry label and ledger survives focus changes'
   test.setTimeout(180_000);
   await signIn(page);
   await expect(page.locator('#ttAccountingDesk')).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByRole('heading', { name: 'Held / Incomplete Entries', exact: true })).toBeVisible();
-  await expect(page.getByText('Only entries that need review before posting appear here.', { exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Recent Transactions', exact: true })).toBeVisible();
+  expect(await page.locator('#ttPendingWork').evaluate(el=>el.open)).toBe(false);
+  await expect(page.locator('.tt-desk-heading h1')).toHaveCount(0);
   await activate(page.locator('[data-tt-area="commodity"]'));
+  await expect(page.locator('#ttSummaryCards')).toBeHidden();
+  await expect(page.locator('.tt-search-main')).toBeVisible();
   await expect(page.locator('#ttDeskWork .tt-action').filter({ hasText: 'Due Payment Working' })).toHaveCount(0);
   await page.evaluate(() => window.TT_ALL_LEDGERS.open('POSTS'));
   await expect(page.locator('#tt-all-ledgers .tal-controls')).toBeVisible({ timeout: 30_000 });
@@ -785,4 +788,14 @@ test('posted JV history is represented in the dated Post ID Register without wri
     }
   }
   expect(writes).toEqual([]);console.log('LIVE_JV_REGISTER_AUDIT '+JSON.stringify({postedJvsChecked:checked,historicalJvLabels:legacy,pendingApproval:pending,registerRows:rows.length,financialWrites:0}));
+});
+
+
+test('bag order period report reconciles live dated receipts without writes',async({page})=>{
+ test.setTimeout(120_000);await signIn(page);const writes=[];page.on('request',r=>{if(r.method()==='POST'&&/\/api\/(?:bag_order_report|bag_purchases)\.php/.test(r.url()))writes.push(r.url());});
+ const response=await page.request.get(`${BASE_URL}/api/bag_order_report.php?entity=TTI&from=2026-09-01&to=2026-09-30&basis=activity`);expect(response.status()).toBe(200);const report=await response.json();expect(report.ok).toBe(true);expect(report.entity).toBe('TTI');
+ for(const key of ['orderedInPeriod','receivedInPeriod','receivedThroughEnd','receivedCurrent','outstandingCurrent','undatedReceived'])expect(Number(report.totals[key]||0)).toBeCloseTo(report.rows.reduce((n,r)=>n+Number(r[key]||0),0),2);
+ for(const r of report.rows){expect(r.orderedInPeriod===0||(r.orderDate>='2026-09-01'&&r.orderDate<='2026-09-30')).toBe(true);expect(r.receivedThroughEnd).toBeLessThanOrEqual(r.receivedCurrent);expect(r.outstandingCurrent).toBeGreaterThanOrEqual(0);}
+ await page.goto(`${BASE_URL}/accounts/bag-reports.php?view=report&entity=TTI`,{waitUntil:'domcontentloaded'});await expect(page.locator('#bgRun')).toBeVisible();await page.locator('#bgFrom').fill('2026-09-01');await page.locator('#bgTo').fill('2026-09-30');await page.locator('#bgRun').click();await expect(page.locator('#bgOrderReport h3')).toHaveText('Bag Orders & Receipts');await expect(page.locator('#bgOrderReport a')).toHaveAttribute('href',/format=csv/);expect(writes).toEqual([]);
+ console.log('LIVE_BAG_ORDER_REPORT_OK dates, filtered controls, report totals; financialWrites 0');
 });

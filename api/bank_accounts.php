@@ -137,7 +137,7 @@ function ba_payload(array $store,string $entity): array {
         if($currency===$planningCurrency&&!empty($setting['active'])&&!empty($setting['includeInPaymentPlanning']))$planning+=max(0,$book);
         $rows[]=array_merge($a,['settings'=>$setting,'bookBalance'=>$postedBook,'pendingRemittances'=>$reserve,'availableBalance'=>$book,'needsCompletion'=>(empty($a['linkedRetentionAccount'])&&trim((string)$a['accountNumber'])===''&&trim((string)$a['iban'])===''),'deletionPending'=>isset($pending[$id]),'deletionRequest'=>$pending[$id]??null]);
     }
-    usort($rows,static fn($a,$b)=>strcmp((string)$a['bankName'],(string)$b['bankName'])?:strcmp((string)$a['accountTitle'],(string)$b['accountTitle']));
+    usort($rows,static fn($a,$b)=>((int)(!empty($b['settings']['defaultPaymentAccount'])||!empty($b['settings']['defaultReceiptAccount']))<=>(int)(!empty($a['settings']['defaultPaymentAccount'])||!empty($a['settings']['defaultReceiptAccount'])))?:((float)$b['availableBalance']<=>(float)$a['availableBalance'])?:strcmp((string)$a['bankName'],(string)$b['bankName']));
     $cashKey='CASH|'.$entity;$cashCurrency=$entity==='TG'?'AED':'PKR';$cashSetting=array_replace([
         'active'=>true,'allowPayments'=>true,'allowReceipts'=>true,'includeInPaymentPlanning'=>false,'visibleToMill'=>false,
         'reconciliationEnabled'=>true,'retentionAccount'=>false,'defaultReceiptAccount'=>false,'defaultPaymentAccount'=>false,'displayName'=>'Cash / Petty Cash','notes'=>'','updatedAt'=>null,'updatedBy'=>null
