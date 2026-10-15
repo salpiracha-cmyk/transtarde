@@ -104,6 +104,9 @@
  const value=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value');
  const records=new WeakMap();
  const numericSelector='input[type="number"],input[inputmode="decimal"]:not([data-tt-numeric-proxy])';
+ // Native numeric controls must never step from incidental arrows or wheel input.
+ document.addEventListener('keydown',event=>{if(event.target.matches?.('input[type="number"]')&&['ArrowUp','ArrowDown'].includes(event.key))event.preventDefault()},true);
+ document.addEventListener('wheel',event=>{if(event.target.matches?.('input[type="number"]')&&event.target===document.activeElement)event.preventDefault()},{capture:true,passive:false});
  const raw=s=>String(s??'').replace(/[,\s]/g,'');
  const grouped=s=>{s=raw(s);if(!/^-?\d*(?:\.\d*)?$/.test(s))return s;const [whole,fraction]=s.split('.');return whole.replace(/\B(?=(\d{3})+(?!\d))/g,',')+(fraction===undefined?'':'.'+fraction)};
  function sync(input){const r=records.get(input);if(!r)return;const {proxy}=r;

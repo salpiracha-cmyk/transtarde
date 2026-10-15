@@ -31,10 +31,11 @@ function pl_payment_difference(array $s,string $e,array $raw,float $cash,bool $a
  $full=pl_prepare($s,$e,$raw);$cash=round($cash,2);
  if($cash>$full['netPayment']+.005)throw new DomainException('Payment exceeds selected bills after withholding. Record an advance separately.');
  if(abs($cash-$full['netPayment'])<=.005)return ['prepared'=>$full,'discount'=>0.0];
- if($applyDiscount){
+ $automatic=$cash>0&&round($full['netPayment']-$cash,2)>0&&round($full['netPayment']-$cash,2)<100;
+ if($applyDiscount||$automatic){
   $lo=0;$hi=(int)round($full['total']*100)-1;$wanted=(int)round($cash*100);$found=null;
   while($lo<=$hi){$mid=intdiv($lo+$hi,2);$p=pl_prepare($s,$e,$raw,$mid/100);$net=(int)round($p['netPayment']*100);if($net===$wanted){$found=['prepared'=>$p,'discount'=>$mid/100];$hi=$mid-1;}elseif($net>$wanted)$lo=$mid+1;else $hi=$mid-1;}
-  if($found===null)throw new DomainException('Payment and discount do not balance after withholding. Review the entered payment.');return $found;
+  if($found===null&&$applyDiscount)throw new DomainException('Payment and discount do not balance after withholding. Review the entered payment.');if($found!==null&&($applyDiscount||$found['discount']<100))return $found;
  }
  $left=(int)round($cash*100);$partial=[];
  foreach($raw as $r){if($left<=0)break;$whole=pl_prepare($s,$e,[$r]);$net=(int)round($whole['netPayment']*100);if($net<=$left){$partial[]=$r;$left-=$net;continue;}
@@ -111,10 +112,10 @@ function pl_post(array &$s,array $u,array &$plan,array $b):array{
    $extra=['counterparty'=>$payer,'subledger'=>$payer,'payerRelationship'=>$rel];$label=$payer;}
   else throw new DomainException('Use a bank or third-party payment source.');if($payerAlloc)foreach($payerAlloc as $pa)$lines[]=ss_line($pa['account'],0,$pa['amount'],$catalog,$extra);else $lines[]=ss_line($credit,0,$amount,$catalog,$extra);$total+=$amount;$sourceRows[]=array_merge($source,['amount'=>$amount,'label'=>$label,'method'=>$method]);
  }
- if(!$onAccount&&array_key_exists('applyPaymentDifferenceAsDiscount',$b)){
+ if(!$onAccount&&(array_key_exists('applyPaymentDifferenceAsDiscount',$b)||($discount<=0&&round($p['netPayment']-$total,2)>0&&round($p['netPayment']-$total,2)<100))){
   $full=pl_prepare($s,$e,$raw);
   if(isset($b['selectedOutstanding'])&&abs((float)$b['selectedOutstanding']-$full['netPayment'])>.005)throw new DomainException('Selected bill balances or withholding changed. Review the current bills before posting.');
-  $adjusted=pl_payment_difference($s,$e,$raw,round($total,2),!empty($b['applyPaymentDifferenceAsDiscount']));$p=$adjusted['prepared'];$discount=$adjusted['discount'];$discountReason=$discount>0?'Agreed settlement difference':'';
+  $adjusted=pl_payment_difference($s,$e,$raw,round($total,2),!empty($b['applyPaymentDifferenceAsDiscount']));$p=$adjusted['prepared'];$discount=$adjusted['discount'];$discountReason=$discount>0?($discount<100?'Automatic settlement difference below PKR 100':'Agreed settlement difference'):'';
  }
  $excess=$onAccount?max(0,round($total-$p['netPayment'],2)):0.0;if(!$onAccount&&abs(round($total,2)-$p['netPayment'])>.005)throw new DomainException('Payment sources must equal the selected bills net payment of PKR '.number_format($p['netPayment'],2).'.');
  $lines=array_merge($lines,pl_debit_lines($p,$catalog));if($excess>.005)$lines[]=ss_line('1250',$excess,0,$catalog,['counterparty'=>$group,'subledger'=>$group]);if($p['withholding']>0)$lines[]=ss_line('2300',0,$p['withholding'],$catalog);

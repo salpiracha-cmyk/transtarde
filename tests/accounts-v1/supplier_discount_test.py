@@ -49,13 +49,33 @@ with tempfile.TemporaryDirectory(prefix='supplier-discount-') as tmp:
   body={**p,'requestKey':'difference-fixture-'+str(tick),'discountAmount':999,'discountReason':'Ignored old UI','applyPaymentDifferenceAsDiscount':tick,'selectedOutstanding':1000}
   posted=req(body);assert posted['ok'],posted
   st=posted['result'];assert st['netPayment']==995,st
-  assert st['discountAmount']==(5 if tick else 0),st
-  assert [a['amount'] for a in st['allocations']]==([600,400] if tick else [600,395]),st
-  assert sum(r['outstanding'] for r in req()['payables'])==(0 if tick else 5)
+  assert st['discountAmount']==5,st
+  assert [a['amount'] for a in st['allocations']]==[600,400],st
+  assert sum(r['outstanding'] for r in req()['payables'])==0
   before=books.read_bytes();assert req(body)['result']['journalId']==st['journalId'];assert books.read_bytes()==before
   assert not req({**body,'applyPaymentDifferenceAsDiscount':not tick})['ok']
  books.write_text(json.dumps(initial));before=books.read_bytes()
  assert not req({**p,'requestKey':'stale-difference-fixture','applyPaymentDifferenceAsDiscount':True,'selectedOutstanding':900})['ok'];assert books.read_bytes()==before
+ # Automatic rule uses strictly less than PKR 100, for current and historical bag balances.
+ for historical in [False,True]:
+  for diff in [0,.01,3,4,5,99.99,100,100.01]:
+   bag={'id':'H','entity':'TTI','status':'Posted','supplier':'BAG SUPPLIER','sellerInvoice':'OLD' if historical else 'NEW','sellerInvoiceDate':'2026-04-01' if historical else '2026-10-01','totalAmount':1500 if historical else 1000,'historicalOpening':historical,'openingPayableAmount':1000,'poNo':''}
+   original={'bagSupplierBills':{'H':bag}};books.write_text(json.dumps(original))
+   body={'action':'post_bill_payment','requestKey':'automatic-bag-fixture-001','supplier':'BAG SUPPLIER','category':'BAGS','selectedBills':['H|BAGS|H'],'explicitBillSelection':True,'selectedOutstanding':1000,'amount':round(1000-diff,2),'applyPaymentDifferenceAsDiscount':False,'paymentMode':'CASH','date':'2026-10-14'}
+   if historical and diff==3:
+    before=books.read_bytes();preview=req({**body,'preview':True});assert preview['ok'] and any(l['account']=='4400' and l['credit']==3 for j in preview['previews'] for l in j['lines']);assert books.read_bytes()==before
+   result=req(body);assert result['ok'],result;st=result['result'];state=json.loads(books.read_text());j=state['journals'][st['journalId']];automatic=diff if 0<diff<100 else 0
+   assert st['discountAmount']==automatic and st['netPayment']==round(1000-diff,2),(diff,st)
+   assert j['totalDebit']==j['totalCredit'] and sum(l['credit'] for l in j['lines'] if l['account']=='4400')==automatic,j
+   assert sum(row['outstanding'] for row in req()['payables'])==(0 if automatic else diff)
+   assert state['bagSupplierBills']==original['bagSupplierBills'];before=books.read_bytes();assert req(body)['result']['journalId']==j['id'] and books.read_bytes()==before
+ # A small concession clears only selected bills, never other bills of the same supplier.
+ books.write_text(json.dumps(initial));saved=req({**p,'requestKey':'selected-auto-fixture-01','selectedBills':['A|SERVICE|A'],'explicitBillSelection':True,'selectedOutstanding':600,'amount':595,'discountAmount':0,'discountReason':'','applyPaymentDifferenceAsDiscount':False});assert saved['ok'],saved
+ assert saved['result']['discountAmount']==5 and {r['billId']:r['outstanding'] for r in req()['payables']}=={'B':400}
+ # Above-bill payment is not a discount; stale balances still reject without changing books.
+ books.write_text(json.dumps(initial));before=books.read_bytes()
+ for change in [{'amount':1003},{'selectedOutstanding':999}]:
+  saved=req({**p,'requestKey':'automatic-invalid-fixture','discountAmount':0,'applyPaymentDifferenceAsDiscount':False,'selectedOutstanding':1000,**change});assert not saved['ok'] and books.read_bytes()==before,saved
  # An explicit empty selection must never fall back to all unpaid invoices.
  books.write_text(json.dumps(initial));before=books.read_bytes()
  assert not req({**p,'explicitBillSelection':True,'selectedBills':[]})['ok'];assert books.read_bytes()==before

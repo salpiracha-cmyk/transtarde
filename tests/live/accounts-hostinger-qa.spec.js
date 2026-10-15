@@ -669,7 +669,7 @@ test('party payment roles and company-wide ledger matching review are read-only'
     console.log('LIVE_VOUCHER_CHEQUE_DATES_EDITABLE_OK');
   }
 
-  if(providerBills.length){await page.locator('#ttSimpleBills [data-bill]').first().check();await page.locator('#ttSimpleBills [data-amount]').fill('1');await expect(page.locator('#ttSimpleBills [data-discount-choice]')).toContainText('as discount?');expect(await page.locator('#ttSimpleBills [data-discount-enabled]').isChecked()).toBe(false);}
+  if(providerBills.length){const box=page.locator('#ttSimpleBills [data-bill]').first();await box.check();const key=await box.getAttribute('data-bill'),bill=providerBills.find(r=>r.billId+'|'+r.sourceKey===key),balance=Number(bill.outstanding);if(balance>.02){const short=Math.min(3,Math.round(balance/2*100)/100),cash=(balance-short).toFixed(2);await page.locator('#ttSimpleBills [data-amount]').fill(cash);await expect(page.locator('#ttSimpleBills [data-auto-discount]')).toContainText('Automatic discount');await expect(page.locator('#ttSimpleBills [data-discount-enabled]')).toHaveCount(0);if(balance>100){await page.locator('#ttSimpleBills [data-amount]').fill((balance-100).toFixed(2));await expect(page.locator('#ttSimpleBills [data-discount-enabled]')).not.toBeChecked();await page.locator('#ttSimpleBills [data-amount]').fill(cash);}console.log('LIVE_SMALL_PKR_DISCOUNT_OK automatic under 100; threshold keeps explicit choice; no financial writes');}}
   const openingTick=page.locator('#ttSimpleBills [data-include-opening]');
   const providerOpenings=(unpaid.payables||[]).filter(r=>r.openingBalance&&identity(r.supplier)===identity(providerName));
   await expect(openingTick).toHaveCount(1);

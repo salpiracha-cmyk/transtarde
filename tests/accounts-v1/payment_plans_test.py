@@ -82,8 +82,8 @@ require $argv[1];
         keys=[r['rowKey'] for r in read()['rows'] if r['group']=='Broker A']
         dp=call({'action':'create','mode':'PARTY','bankIds':['TTI-B'],'rowKeys':keys,'date':'2026-10-07'})['result']['plan']
         result=call({'action':'post','planId':dp['id'],'version':dp['version'],'group':'Broker A','date':'2026-10-07','selectedOutstanding':320,'applyPaymentDifferenceAsDiscount':tick,'sources':[{'type':'BANK','bankAccountId':'TTI-B','method':'ONLINE_BANKING','amount':315}]})['result']
-        st=result['settlement'];assert st['netPayment']==315 and st['discountAmount']==(5 if tick else 0),st
-        assert sum(r['outstanding'] for r in read()['rows'] if r['group']=='Broker A')==(0 if tick else 5)
+        st=result['settlement'];assert st['netPayment']==315 and st['discountAmount']==5,st
+        assert sum(r['outstanding'] for r in read()['rows'] if r['group']=='Broker A')==0
         j=json.loads(books.read_text())['journals'][st['journalId']];assert j['totalDebit']==j['totalCredit']
     # Withholding is recalculated on the genuinely settled brokerage; cash stays exactly as entered.
     taxed=json.loads(json.dumps(store));taxed['commodityBills']={'T':bill('T','Broker T','',0,'2026-09-05','TAX-TRUCK',100)};taxed['commodityBills']['T']['brokerageWhtPercent']=15
@@ -92,8 +92,8 @@ require $argv[1];
         dp=call({'action':'create','mode':'PARTY','bankIds':['TTI-B'],'rowKeys':[row['rowKey']],'date':'2026-10-07'})['result']['plan']
         result=call({'action':'post','planId':dp['id'],'version':dp['version'],'group':'Broker T','date':'2026-10-07','selectedOutstanding':85,'applyPaymentDifferenceAsDiscount':tick,'sources':[{'type':'BANK','bankAccountId':'TTI-B','method':'ONLINE_BANKING','amount':80.75}]})['result']['settlement']
         assert result['netPayment']==80.75 and result['withholding']==14.25,result
-        assert result['discountAmount']==(5 if tick else 0),result
-        assert sum(r['outstanding'] for r in read()['rows'])==(0 if tick else 5)
+        assert result['discountAmount']==5,result
+        assert sum(r['outstanding'] for r in read()['rows'])==0
     seed(store)
     payload=read();assert len(payload['banks'])==3 and any(b['id']=='CASH|TTI' for b in payload['banks']),payload
     assert any(x['accountType'] in ['Personal Account','Proprietor / Owner Account'] for x in payload['banks'])
