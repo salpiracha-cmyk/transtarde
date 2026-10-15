@@ -40,5 +40,8 @@ with tempfile.TemporaryDirectory(prefix='general-bags-') as tmp:
   status,posted=req({**payload,'sellerInvoice':'LOCAL-2','salesTaxInvoice':False,'stockTreatment':'CONSUMED'});assert status==200,posted
   stored=json.loads((root/'data/accounts.json').read_text());journal=stored['journals'][posted['result']['journalId']];assert [(l['account'],l['debit'],l['credit']) for l in journal['lines']]==[('5550',2000,0),('2140',0,2000)]
   data=req()[1];assert data['totals']['inputBags']==data['totals']['gstAmount']==0 and data['generalTotals']['stockBags']==data['generalTotals']['consumedBags']==100 and len(data['generalStock'])==1
+  status,kg=req({**payload,'sellerInvoice':'KG-1','bags':3000,'billingBasis':'KG','billingRate':400,'bagWeightGrams':75,'ratePerBag':999999,'stockTreatment':'CONSUMED'});assert status==200,kg
+  assert kg['result']['baseAmount']==90000 and kg['result']['gstAmount']==16200 and kg['result']['totalAmount']==106200 and kg['result']['totalWeightKg']==225
+  status,invalid=req({**payload,'sellerInvoice':'BAD-KG','billingBasis':'KG','billingRate':400,'bagWeightGrams':0});assert status==422,invalid
   print('General bag bills: supplier-only selection, stock/consumption journals, GST, duplicate/read-only/CSRF and separate export report passed')
  finally:server.terminate();server.wait(timeout=5);log.close()

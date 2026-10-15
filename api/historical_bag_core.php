@@ -13,6 +13,18 @@ function hbg_amount(mixed $value,string $label,bool $positive=false,int $digits=
     if(!is_numeric($value)||!is_finite((float)$value)||(float)$value<0||(float)$value>1e11)throw new DomainException('Enter a valid '.$label.'.');
     $value=round((float)$value,$digits);if($positive&&$value<=0)throw new DomainException($label.' must be greater than zero.');return $value;
 }
+// Keep invoice units separate from the equivalent per-bag cost used by stock and PO controls.
+function hbg_pricing(array $in,float $qty):array {
+    $basis=(string)($in['billingBasis']??'BAG');
+    if(!in_array($basis,['BAG','KG'],true))throw new DomainException('Choose billing per bag or per kg.');
+    $billingRate=hbg_amount($in['billingRate']??$in['ratePerBag']??null,$basis==='KG'?'rate per kg':'rate per bag',true,4);
+    $grams=$basis==='KG'?hbg_amount($in['bagWeightGrams']??null,'empty bag weight in grams',true,4):0.0;
+    $weight=$qty*$grams/1000;
+    $rate=$basis==='KG'?$grams/1000*$billingRate:$billingRate;
+    $base=round(($basis==='KG'?$weight:$qty)*$billingRate,2);
+    if(!is_finite($base)||$base<=0||$base>1e11)throw new DomainException('Enter a valid bill amount.');
+    return ['billingBasis'=>$basis,'billingRate'=>$billingRate,'bagWeightGrams'=>$grams,'totalWeightKg'=>$weight,'ratePerBag'=>$rate,'baseAmount'=>$base];
+}
 function hbg_key(string $value):string{return strtolower(preg_replace('/[^\p{L}\p{N}]/u','',$value)??'');}
 function hbg_active(array $j):bool{return ($j['status']??'')==='Posted'&&empty($j['reversedByPostId'])&&empty($j['reversalOf'])&&empty($j['amendedByPostId'])&&empty($j['meta']['deletedFromBooks']);}
 function hbg_assert_link(string $date,array $po):void {
@@ -44,13 +56,13 @@ function hbg_create(array &$s,array $in,array $u):array {
     $e=ent((string)($in['entity']??''));$date=hbg_date($in['sellerInvoiceDate']??'');if($date>=HBG_LINK_CUTOFF)throw new DomainException('Historical export bag entry ends on 30 September 2026. From 1 October choose a shipment-linked PO.');
     $party=bag_supplier(trim((string)($in['supplier']??'')));$supplier=(string)$party['values'][0];$invoice=trim((string)($in['sellerInvoice']??''));$type=trim((string)($in['bagType']??''));
     if($invoice===''||$type===''||strlen($invoice)>180)throw new DomainException('Enter the supplier invoice number and bag type.');
-    if(!is_numeric($in['bags']??null)||(float)$in['bags']!=(int)$in['bags'])throw new DomainException('Enter a whole number of bags.');$qty=hbg_amount($in['bags']??null,'number of bags',true);if($qty!=(int)$qty)throw new DomainException('Enter a whole number of bags.');$rate=hbg_amount($in['ratePerBag']??null,'rate per bag',true,4);
+    if(!is_numeric($in['bags']??null)||(float)$in['bags']!=(int)$in['bags'])throw new DomainException('Enter a whole number of bags.');$qty=hbg_amount($in['bags']??null,'number of bags',true);if($qty!=(int)$qty)throw new DomainException('Enter a whole number of bags.');$pricing=hbg_pricing($in,$qty);$rate=$pricing['ratePerBag'];
     foreach(['bagSupplierBills','supplierBills','nonWovenBagSupplierBills'] as $collection)foreach((array)($s[$collection]??[]) as $old)if(($old['entity']??'')===$e&&!in_array($old['status']??'',['Cancelled','Deleted'],true)&&hbg_key((string)($old['supplier']??$old['vendor']??''))===hbg_key($supplier)&&hbg_key((string)($old['sellerInvoice']??$old['billNo']??''))===hbg_key($invoice))throw new DomainException('This supplier invoice is already registered. Use the existing bill.');
     $hasTax=filter_var($in['salesTaxInvoice']??false,FILTER_VALIDATE_BOOLEAN);$gst=$hasTax?hbg_amount($in['gstRate']??null,'invoice GST percentage'):0;if($gst>100)throw new DomainException('GST percentage cannot exceed 100.');
-    $base=round($qty*$rate,2);$tax=$hasTax?hbg_amount($in['gstAmount']??round($base*$gst/100,2),'invoice GST amount'):0;$total=round($base+$tax,2);
+    $base=$pricing['baseAmount'];$tax=$hasTax?hbg_amount($in['gstAmount']??round($base*$gst/100,2),'invoice GST amount'):0;$total=round($base+$tax,2);
     $id=nextId((array)($s['bagSupplierBills']??[]),'BAGB');$pre=$date<HBG_OPENING_DATE;$treatment=(string)($in['stockTreatment']??'STOCK');if(!in_array($treatment,['STOCK','CONSUMED'],true))throw new DomainException('Choose bags in stock or consumed.');
     $b=['id'=>$id,'entity'=>$e,'supplier'=>$supplier,'supplierId'=>$party['id'],'sellerInvoice'=>$invoice,'sellerInvoiceDate'=>$date,'bagType'=>$type,'packingSize'=>trim((string)($in['packingSize']??'')),'brand'=>trim((string)($in['brand']??'')),'bags'=>(int)$qty,'ratePerBag'=>$rate,'baseAmount'=>$base,'gstRate'=>$gst,'gstAmount'=>$tax,'totalAmount'=>$total,'salesTaxInvoice'=>$hasTax,'billPurpose'=>'HISTORICAL_EXPORT','historical'=>true,'historicalOpening'=>$pre,'stockTreatment'=>$treatment,'poNo'=>'','lineKey'=>'','attachmentToken'=>trim((string)($in['attachmentToken']??'')),'status'=>'Posted','journalId'=>null,'createdAt'=>gmdate('c'),'createdBy'=>$u['username']??'Accounts'];
-    $n=names();$lines=[];$linked='';
+    $b=array_merge($b,$pricing);$n=names();$lines=[];$linked='';
     if($pre){
         if(!job_authorized($u)||!in_array($e,job_entities($u),true)||(function_exists('tt_user_can_access_entity')&&!tt_user_can_access_entity($u,$e,'Approve')))throw new DomainException('Pre-July opening details require Super Admin or authorised Directors company approval access.');
         if(($s['openingBalanceSettings'][$e]['enabled']??true)!==true)throw new DomainException('Opening entry is disabled for these books.');
