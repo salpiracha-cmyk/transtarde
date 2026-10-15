@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__.'/accounts_reference.php';
 require_once __DIR__.'/accounts_ledger_visibility.php';
 function br_date(string $v):string {
  $d=DateTimeImmutable::createFromFormat('!Y-m-d',$v);if(!$d||$d->format('Y-m-d')!==$v)throw new DomainException('Select a valid statement date.');return $v;
@@ -29,7 +30,7 @@ function br_txns(array $s,string $entity,string $bankId,string $toDate,string $c
    else $missing=true;
    if($amt!==null)$book+=$amt;
    $tracking=array_replace($jm,$l);$bankReference=array_key_exists('bankReference',$l)?trim((string)$l['bankReference']):(array_key_exists('chequeNo',$l)?trim((string)$l['chequeNo']):(trim((string)($jm['bankReference']??''))?:trim((string)($jm['chequeNo']??''))));
-   $rows[]=['bankReference'=>$bankReference,'bankPaymentMethod'=>(string)($tracking['bankPaymentMethod']??''),'chequeDate'=>(string)($tracking['chequeDate']??''),'bankPaymentDate'=>(string)($tracking['bankPaymentDate']??''),'key'=>(string)$jid.'|'.$i,'date'=>$date,'journalId'=>(string)$jid,'reference'=>(string)($j['reference']??''),'narration'=>(string)($j['narration']??''),'debit'=>$amt===null?null:round(max(0,$amt),2),'credit'=>$amt===null?null:round(max(0,-$amt),2),'net'=>$amt===null?null:round($amt,2),'amountUnavailable'=>$amt===null];
+   $rows[]=['bankReference'=>$bankReference,'bankPaymentMethod'=>(string)($tracking['bankPaymentMethod']??''),'chequeDate'=>(string)($tracking['chequeDate']??''),'bankPaymentDate'=>(string)($tracking['bankPaymentDate']??''),'key'=>(string)$jid.'|'.$i,'date'=>$date,'journalId'=>(string)$jid,'publicPostId'=>tt_accounts_public_post($s,$j),'reference'=>(string)($j['reference']??''),'narration'=>(string)($j['narration']??''),'debit'=>$amt===null?null:round(max(0,$amt),2),'credit'=>$amt===null?null:round(max(0,-$amt),2),'net'=>$amt===null?null:round($amt,2),'amountUnavailable'=>$amt===null];
   }
  }
  // Suppress complete cancelled pairs only when their bank-currency legs also net to zero.

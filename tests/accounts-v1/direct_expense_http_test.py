@@ -75,6 +75,10 @@ require $argv[1];
     current=next(r for r in register['rows'] if r['publicPostId']==first['journalId'])
     assert current['voucher']==replacement['journalId'] and current['amendmentNote'] and current['party']
     assert len([r for r in register['rows'] if r['publicPostId']==first['journalId']])==1
+    before_report=books.read_bytes();status,report=request('accounts_reports','?entity=TTI&from=2026-07-01&asOf=2026-12-31');assert status==200,(status,report)
+    assert all(row['publicPostId']==first['journalId'] for row in report['generalLedger'] if row['journalId']==replacement['journalId'])
+    assert any(row['publicPostId']==first['journalId'] and row['journalId']==replacement['journalId'] for row in report['expenseActivity'])
+    assert books.read_bytes()==before_report,'Reporting identity must not renumber or rewrite a posting'
     status,details=request('accounts_ledger_browser','?entity=TTI&account=POSTS&postId='+first['journalId']+'&to=2026-12-31')
     assert status==200 and details['post']['id']==replacement['journalId'] and details['post']['publicPostId']==first['journalId']
 
