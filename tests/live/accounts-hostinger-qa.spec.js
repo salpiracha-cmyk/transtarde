@@ -768,7 +768,8 @@ test('posted JV history is represented in the dated Post ID Register without wri
     const historyResponse=await page.request.get(`${BASE_URL}/api/journal_vouchers.php?entity=${company}`);expect(historyResponse.status()).toBe(200);const history=await historyResponse.json();expect(history.ok).toBe(true);
     for(const jv of history.jvs||[]){
       if(jv.status==='Pending Approval'){pending++;continue;}
-      if(jv.status!=='Posted'||!jv.journalId)continue;
+      if(jv.status!=='Posted')continue;
+      expect(jv.journalId,'Posted JV history must retain its accounting journal link').toBeTruthy();
       expect(jv.publicPostId,'Every posted JV has a public Post ID').toBeTruthy();
       expect(publicIds.has(jv.publicPostId)||internalIds.has(jv.journalId),`Posted JV ${jv.journalId} must be represented in the register`).toBe(true);
       checked++;if(jv.publicPostId.endsWith('-JV'))legacy++;

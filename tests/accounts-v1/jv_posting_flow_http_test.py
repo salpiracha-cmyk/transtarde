@@ -88,7 +88,7 @@ require __DIR__.'/auth_store.php';$h=fopen(TT_DATA_DIR.'/accounts.json','r+');fl
             results=list(pool.map(lambda n:request(submit('concurrent-'+str(n))),range(4)))
         assert all(status==200 for status,_ in results),results
         ids=sorted(body['result']['journalId'] for _,body in results);assert ids==[f'POST-2026-{n:05}' for n in range(44,48)],ids
-        saved=json.loads(data_file.read_text());assert saved['journals']['POST-2026-00039']==initial['journals']['POST-2026-00039'];assert saved['journals']['POST-2026-00041']['meta']['sharedPostSequence'] is True
+        saved=json.loads(data_file.read_text());assert saved['journals']['POST-2026-00039']==initial['journals']['POST-2026-00039'];assert saved['journals']['POST-2026-00041']['meta']['sharedPostSequence'] is True;assert saved['journals']['POST-2026-00041']['reference']=='POST-2026-00041'
         current=request()[1];assert next(r for r in current['jvs'] if r.get('journalId')=='POST-2026-00041')['publicPostId']=='POST-2026-00041'
         print('PASS direct Super Admin post, shared +1 IDs across modules/concurrent JVs, retry protection, preparer approval, private notices/rejection and unchanged historical books')
     except Exception:
