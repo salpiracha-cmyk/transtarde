@@ -756,3 +756,23 @@ test('Accounts review release: company views, reconciliation, entry cleanup and 
   expect(attemptedWrites).toEqual([]);console.log('ACCOUNTS_REVIEW_READ_ONLY '+JSON.stringify({companyReads:reads,pkrBankComparisons:comparisons,tgTransferVisible:true,financialWrites:0,checkedAt:now}));
 });
 
+
+test('posted JV history is represented in the dated Post ID Register without writes', async ({ page }) => {
+  const writes=[];await page.route('**/api/**',route=>{if(route.request().method()!=='GET'){writes.push(new URL(route.request().url()).pathname);return route.abort();}return route.continue();});
+  await signIn(page);
+  const response=await page.request.get(`${BASE_URL}/api/accounts_ledger_browser.php?entity=ALL&account=POSTS&from=0001-01-01&to=9999-12-31`);
+  expect(response.status()).toBe(200);const register=await response.json();expect(register.ok).toBe(true);
+  const rows=register.rows||[],publicIds=new Set(rows.map(r=>r.publicPostId||r.voucher)),internalIds=new Set(rows.map(r=>r.voucher));let checked=0,legacy=0,pending=0;
+  for(let index=1;index<rows.length;index++)expect(rows[index-1].date>=rows[index].date,'Register remains ordered by transaction date').toBe(true);
+  for(const company of ['TTI','BRM','TG']){
+    const historyResponse=await page.request.get(`${BASE_URL}/api/journal_vouchers.php?entity=${company}`);expect(historyResponse.status()).toBe(200);const history=await historyResponse.json();expect(history.ok).toBe(true);
+    for(const jv of history.jvs||[]){
+      if(jv.status==='Pending Approval'){pending++;continue;}
+      if(jv.status!=='Posted'||!jv.journalId)continue;
+      expect(jv.publicPostId,'Every posted JV has a public Post ID').toBeTruthy();
+      expect(publicIds.has(jv.publicPostId)||internalIds.has(jv.journalId),`Posted JV ${jv.journalId} must be represented in the register`).toBe(true);
+      checked++;if(jv.publicPostId.endsWith('-JV'))legacy++;
+    }
+  }
+  expect(writes).toEqual([]);console.log('LIVE_JV_REGISTER_AUDIT '+JSON.stringify({postedJvsChecked:checked,historicalJvLabels:legacy,pendingApproval:pending,registerRows:rows.length,financialWrites:0}));
+});

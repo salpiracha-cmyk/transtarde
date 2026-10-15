@@ -48,6 +48,7 @@ jobs:
           python3 tests/accounts-v1/assets_registry_http_test.py
           node tests/accounts-v1/rent_recurring_test.js
           node tests/accounts-v1/journal_vouchers_test.js
+          python3 tests/accounts-v1/jv_posting_flow_http_test.py
           node tests/accounts-v1/end_to_end_audit.js
           node tests/accounts-v1/static_audit.js
           node tests/accounts-v1/clean_ui_test.js
@@ -187,6 +188,8 @@ jobs:
           node tests/accounts-v1/accounts_controls_ui_test.js
           node tests/accounts-v1/module_form_consistency_test.js
           node tests/accounts-v1/saved_expense_selection_ui_test.js
+          node tests/accounts-v1/jv_decision_notices_ui_test.js
+          node tests/accounts-v1/amendment_bank_fields_ui_test.js
           node tests/accounts-v1/party_payment_choices_test.js
           node tests/accounts-v1/opening_only_payment_ui_test.js
           node tests/accounts-v1/opening_review_ui_test.js

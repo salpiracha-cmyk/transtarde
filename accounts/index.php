@@ -23,6 +23,7 @@ header('Content-Type: text/html; charset=UTF-8');
 $html = (string)file_get_contents($file);
 $access = [
     'module' => 'Accounts',
+    'userId' => (int)($user['id'] ?? 0),
     'user' => (string)($user['full_name'] ?? ''),
     'role' => (string)($user['role'] ?? ''),
     'permissions' => $user['permissions']['Accounts'] ?? [],
@@ -48,3 +49,4 @@ $html = tt_replace_html_once(
     $html
 );
 echo tt_version_local_assets($html,'/accounts/');
+
