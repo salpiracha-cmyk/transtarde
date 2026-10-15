@@ -149,7 +149,7 @@ test('authenticated Accounts live smoke: professional desk and popup workflows',
   await expect.poll(() => page.evaluate(() => window.TT_ACCOUNTS_CLEAN_UI?.installed || false), { timeout: 30_000 }).toBe(true);
   await expect.poll(() => page.evaluate(() => window.TT_ACCOUNT_RUNTIME?.observerCoalescing || false), { timeout: 30_000 }).toBe(true);
   await expect(page.locator('#ttAccountingDesk')).toBeVisible();
-  await expect(page.locator('#ttAccountingDesk [data-tt-entity-name]').first()).toContainText(/Transtrade|Buksh|Trans Grains/);
+  await expect(page.locator('#ttChangeCompanyDesk')).toContainText(/Transtrade|Buksh|Trans Grains/);
 
   const areas = ['exports','commodity','routine','ledgers','reports'];
   for (const key of areas) await expect(page.locator(`[data-tt-area="${key}"]`), `${key} work area must be visible`).toBeVisible();
@@ -798,4 +798,23 @@ test('bag order period report reconciles live dated receipts without writes',asy
  for(const r of report.rows){expect(r.orderedInPeriod===0||(r.orderDate>='2026-09-01'&&r.orderDate<='2026-09-30')).toBe(true);expect(r.receivedThroughEnd).toBeLessThanOrEqual(r.receivedCurrent);expect(r.outstandingCurrent).toBeGreaterThanOrEqual(0);}
  await page.goto(`${BASE_URL}/accounts/bag-reports.php?view=report&entity=TTI`,{waitUntil:'domcontentloaded'});await expect(page.locator('#bgRun')).toBeVisible();await page.locator('#bgFrom').fill('2026-09-01');await page.locator('#bgTo').fill('2026-09-30');await page.locator('#bgRun').click();await expect(page.locator('#bgOrderReport h3')).toHaveText('Bag Orders & Receipts');await expect(page.locator('#bgOrderReport a')).toHaveAttribute('href',/format=csv/);expect(writes).toEqual([]);
  console.log('LIVE_BAG_ORDER_REPORT_OK dates, filtered controls, report totals; financialWrites 0');
+});
+
+
+test('all active financial account ledgers reconcile to same-revision reports',async({page})=>{
+ test.setTimeout(480_000);await signIn(page);const now=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Karachi',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());let reports=0,ledgers=0,changed=0;const sourceCounts={},classificationReviews=[];
+ for(const entity of ['TTI','BRM','TG']){
+  const response=await page.request.get(`${BASE_URL}/api/accounts_reports.php?`+new URLSearchParams({entity,from:'0001-01-01',asOf:now}));expect(response.status(),entity+' financial reports').toBe(200);const report=await response.json();expect(report.ok).toBe(true);expect(report.trialBalance.balanced,entity+' trial balance').toBe(true);expect(report.dataQuality.skippedMalformedLines).toBe(0);expect(Math.abs(report.balanceSheet.totalAssets-report.balanceSheet.totalLiabilitiesAndEquity),entity+' balance sheet').toBeLessThan(.011);reports++;
+  for(const row of report.generalLedger||[])sourceCounts[row.sourceType]=(sourceCounts[row.sourceType]||0)+1;
+  for(const row of report.trialBalance.rows.filter(r=>/^\d+$/.test(r.account))){
+   const r=await page.request.get(`${BASE_URL}/api/accounts_ledger_browser.php?`+new URLSearchParams({entity,account:String(row.account),category:'other',from:'0001-01-01',to:now}));expect(r.status(),entity+' '+row.account).toBe(200);const ledger=await r.json();expect(ledger.ok).toBe(true);if(ledger.revision!==report.revision){changed++;continue;}expect(Number(ledger.closing),entity+' '+row.account+' ledger versus trial balance').toBeCloseTo(Number(row.debit||0)-Number(row.credit||0),2);ledgers++;
+  }
+  if(entity!=='TG'){
+   const b=await page.request.get(`${BASE_URL}/api/bag_purchases.php?entity=${entity}`);expect(b.status()).toBe(200);const bags=await b.json();
+   for(const bill of (bags.bills||[]).filter(b=>b.billPurpose==='GENERAL'&&b.stockTreatment==='CONSUMED'&&b.status==='Posted'&&b.journalId)){
+    const p=await page.request.get(`${BASE_URL}/api/accounts_ledger_browser.php?`+new URLSearchParams({entity,account:'POSTS',postId:bill.journalId}));expect(p.status()).toBe(200);const posting=(await p.json()).post;if(posting.lines.some(l=>l.account==='5550'&&Number(l.debit)>0))classificationReviews.push({entity,postId:posting.publicPostId||posting.id,expectedAccount:'5300',recordedAccount:'5550'});
+   }
+  }
+ }
+ expect(reports).toBe(3);expect(ledgers).toBeGreaterThan(0);console.log('LIVE_FINANCIAL_LEDGER_REVIEW '+JSON.stringify({companyReports:reports,activeAccountLedgersCompared:ledgers,skippedConcurrentRevisionChanges:changed,localBagClassificationReviews:classificationReviews,sourceTypes:Object.keys(sourceCounts),financialWrites:0}));
 });
