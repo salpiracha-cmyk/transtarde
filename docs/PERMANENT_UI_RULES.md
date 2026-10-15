@@ -324,3 +324,5 @@ Online Banking payments expose an editable payment date, defaulting from the vou
 - Consumed General / Local bag bills debit Packaging Consumed (5300), not Other Export Supplies & Costs (5550). Export consumed bills retain 5550, stock purchases retain 1340, and creditor/GST controls remain unchanged. Preserve existing journals; any historical correction uses its authorised source workflow.
 
 - Bag order period reports recover the original issue date from saved Exports PO versions when amendments reset issuedAt. State that ordered quantities include amendments; dated receipt totals remain separate from current balances. A report read never updates Accounts or operational snapshots.
+
+- Report month boundaries use Asia/Karachi for UTC PO issue timestamps. Date-only original invoice/receipt dates stay as entered. In particular 30 September 20:00 UTC is 1 October in Karachi.

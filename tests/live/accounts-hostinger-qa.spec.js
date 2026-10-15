@@ -760,13 +760,13 @@ test('Accounts review release: company views, reconciliation, entry cleanup and 
   console.log('ACCOUNTS_REVIEW_BALANCES '+JSON.stringify({companyReads:reads,pkrBankComparisons:comparisons}));
   await page.locator('#ttChangeCompanyDesk').click();await page.locator('#ttCompanyMenu [data-entity="TTI"]').click();
   await page.locator('[data-tt-area="routine"]').click();expect(await page.locator('#ttExpenseMasters').count()).toBe(0);
-  await page.getByRole('button',{name:/^Pay Expense /i}).click();await page.locator('[data-expense-mode="card"]').check();await expect(page.locator('#evStatementForm')).toBeVisible();await expect(page.locator('#evAddStatement')).toBeHidden();
+  await page.getByRole('button',{name:/^Pay Expense(?:\s|$)/i}).click();await page.locator('[data-expense-mode="card"]').check();await expect(page.locator('#evStatementForm')).toBeVisible();await expect(page.locator('#evAddStatement')).toBeHidden();
   const payment=page.locator('#evStatementPayDate');if(await payment.count()){const date=await payment.inputValue();expect(await page.locator('#evStatementPayAccountDetails [data-cheque-date]').inputValue()).toBe(date);}
   await page.locator('#ttExpenseDesk [data-close]').click();
   await page.goto(`${BASE_URL}/accounts/bag-reports.php?view=report&entity=TTI`,{waitUntil:'domcontentloaded'});await expect(page.locator('#bgRun')).toBeVisible();expect(await page.locator('#bgSave').count()).toBe(0);expect(await page.locator('.ttbag-tabs').count()).toBe(0);
   const restricted=await page.request.get(`${BASE_URL}/accounts/bag-reports.php?view=master&entity=TTI`);expect(restricted.status()).toBe(403);
   await page.goto(`${BASE_URL}/accounts/index.php`,{waitUntil:'domcontentloaded'});await expect(page.locator('#ttChangeCompanyDesk')).toBeVisible();await page.locator('#ttChangeCompanyDesk').click();await page.locator('#ttCompanyMenu [data-entity="TG"]').click();
-  await page.locator('[data-tt-area="tg-bank"]').click();await page.getByRole('button',{name:/^Inter Account Transfer /i}).click();await expect(page.locator('#tgfxDate')).toBeVisible();await expect(page.locator('#ws-bank')).toHaveClass(/active/);await expect(page.locator('#tgfxPost')).toBeDisabled();
+  await page.locator('[data-tt-area="tg-bank"]').click();await page.getByRole('button',{name:/^Inter Account Transfer(?:\s|$)/i}).click();await expect(page.locator('#tgfxDate')).toBeVisible();await expect(page.locator('#ws-bank')).toHaveClass(/active/);await expect(page.locator('#tgfxPost')).toBeDisabled();
   expect(attemptedWrites).toEqual([]);console.log('ACCOUNTS_REVIEW_READ_ONLY '+JSON.stringify({companyReads:reads,pkrBankComparisons:comparisons,tgTransferVisible:true,financialWrites:0,checkedAt:now}));
 });
 
