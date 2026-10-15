@@ -55,6 +55,16 @@ with tempfile.TemporaryDirectory(prefix='historical-bags-') as tmp:
   linked=ok({**payload,'requestKey':'historic-link-1','openingPayableMode':'LINK','openingJournalId':'BF','openingLineIndex':0,'openingGstMode':'INCLUDED','openingStockMode':'INCLUDED','openingStockBags':20});assert len(state()['journals'])==1 and linked['result']['journalId'] is None
   assert len(req('supplier_settlements.php?entity=TTI')[1]['payables'])==1
   before=books.read_bytes();assert req(body={**payload,'requestKey':'historic-link-over','sellerInvoice':'FEB-02','openingPayableMode':'LINK','openingJournalId':'BF','openingLineIndex':0})[0]==422 and books.read_bytes()==before
+  # Same consumed invoice billed per kg or per bag; no stock/purchase expense at opening.
+  books.write_text(json.dumps({'revision':0,'journals':{}}))
+  kg={**payload,'requestKey':'historical-kg-bill','sellerInvoice':'KG-225','bags':3000,'billingBasis':'KG','billingRate':400,'bagWeightGrams':75,'ratePerBag':999999,'gstAmount':16200,'openingPayableAmount':106200,'openingGstRemaining':16200,'openingStockBags':0}
+  kb=ok(kg)['result'];assert kb['baseAmount']==90000 and kb['totalWeightKg']==225 and kb['ratePerBag']==30 and kb['totalAmount']==106200 and kb['billingBasis']=='KG'
+  kj=state()['journals'][kb['journalId']];assert not any(l['account'] in ['1340','5550'] for l in kj['lines']) and kj['date']=='2026-07-01'
+  before=books.read_bytes();assert ok(kg)['result']['id']==kb['id'] and books.read_bytes()==before
+  for index,change in enumerate([{'bagWeightGrams':0},{'billingRate':-1},{'billingBasis':'TONNE'}]):
+   assert req(body={**kg,**change,'requestKey':'historical-bad-kg-'+str(index)})[0]==422 and books.read_bytes()==before
+  books.write_text(json.dumps({'revision':0,'journals':{}}))
+  perbag=ok({**kg,'requestKey':'historical-per-bag','sellerInvoice':'BAG-3000','billingBasis':'BAG','billingRate':30})['result'];assert perbag['baseAmount']==kb['baseAmount'] and perbag['gstAmount']==kb['gstAmount'] and perbag['totalAmount']==kb['totalAmount']
   # All shared-control service groups reconcile back to the same original monetary lines.
   reset={'revision':0,'journals':{},'supplierBills':{}}
   for i,(party,kind,expense) in enumerate([('MAPCO','CLEARING','5530'),('DITTA','TRANSPORT','5510'),('PAKLINK','FREIGHT','5520')]):
@@ -67,5 +77,8 @@ with tempfile.TemporaryDirectory(prefix='historical-bags-') as tmp:
   reset['bagPurchaseOrders']={'PO':{'poNo':'PO','entity':'TTI','supplier':'BAG SUPPLIER','lines':[{'lineKey':'L1','bagType':'PP','packingSize':'50 KG','brand':'FIXTURE','orderedQty':100,'receivedQty':100,'ratePerBag':20}]}};books.write_text(json.dumps(reset))
   ordinary={**payload,'action':'create_bill','poNo':'PO','lineKey':'L1','sellerInvoice':'OCT-01','sellerInvoiceDate':'2026-10-01'};before=books.read_bytes();assert req(body=ordinary)[0]==422 and books.read_bytes()==before
   reset['bagPurchaseOrders']['PO']['shipmentRef']='SHIPMENT-1';books.write_text(json.dumps(reset));assert ok(ordinary)['result']['status']=='Posted'
+  # PO checks compare the equivalent per-bag rate while preserving invoice kg units.
+  reset['bagPurchaseOrders']['PO']['lines'][0].update({'orderedQty':3000,'receivedQty':3000,'ratePerBag':30});books.write_text(json.dumps(reset))
+  pk=ok({**ordinary,'sellerInvoice':'OCT-KG','bags':3000,'billingBasis':'KG','billingRate':400,'bagWeightGrams':75,'ratePerBag':999999})['result'];assert pk['status']=='Posted' and pk['baseAmount']==90000 and pk['ratePerBag']==30 and pk['totalAmount']==106200
   print('PASS historical bag HTTP: calendar cutoff, original invoice GST, July openings, linked capacities, September payment, no duplicate B/F, replay, amendments, cancellations and reconciled service groups')
  finally:server.terminate();server.wait(timeout=5);log.close()
