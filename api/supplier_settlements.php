@@ -165,8 +165,8 @@ function ss_oldest_bill_allocations(array $s,string $entity,array &$body):array 
     $eligible=array_values(array_filter(ss_simple_payables($s,$entity),static fn($r)=>$r['supplier']===$supplier&&($scope===''||$r['category']===$scope||!empty($r['openingBalance']))&& (empty($r['openingBalance'])||!empty($body['includeOpeningBalance']))&&((!$keys&&empty($body['explicitBillSelection']))||in_array($r['billId'].'|'.$r['sourceKey'],$keys,true))));
     if($keys&&count(array_unique($keys))!==count($eligible))ss_respond(['ok'=>false,'error'=>'A selected bill changed or is no longer outstanding. Refresh the payment screen.'],409);
     $capacity=round(array_sum(array_column($eligible,'outstanding')),2);$cash=ss_money($body['amount']??0,'Payment amount');
-    $difference=round($capacity-$cash,2);
-    $automaticDiscount=$difference>0&&$difference<100&&empty($body['allowAdvance'])&&(array_key_exists('applyPaymentDifferenceAsDiscount',$body)||(float)($body['discountAmount']??0)<=0);
+    $difference=round($capacity-$cash,2);$enteredDiscount=ss_money($body['discountAmount']??0,'Supplier discount',true);
+    $automaticDiscount=$difference>0&&$difference<100&&empty($body['allowAdvance'])&&(array_key_exists('applyPaymentDifferenceAsDiscount',$body)||$enteredDiscount===0.0);
     if($automaticDiscount||array_key_exists('applyPaymentDifferenceAsDiscount',$body)){
         if(isset($body['selectedOutstanding'])&&abs((float)$body['selectedOutstanding']-$capacity)>.005)ss_respond(['ok'=>false,'error'=>'The selected bill balances changed. Review the current bills before posting.'],409);
         $body['discountAmount']=($automaticDiscount||!empty($body['applyPaymentDifferenceAsDiscount']))?max(0,$difference):0;

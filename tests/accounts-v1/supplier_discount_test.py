@@ -62,6 +62,8 @@ with tempfile.TemporaryDirectory(prefix='supplier-discount-') as tmp:
    bag={'id':'H','entity':'TTI','status':'Posted','supplier':'BAG SUPPLIER','sellerInvoice':'OLD' if historical else 'NEW','sellerInvoiceDate':'2026-04-01' if historical else '2026-10-01','totalAmount':1500 if historical else 1000,'historicalOpening':historical,'openingPayableAmount':1000,'poNo':''}
    original={'bagSupplierBills':{'H':bag}};books.write_text(json.dumps(original))
    body={'action':'post_bill_payment','requestKey':'automatic-bag-fixture-001','supplier':'BAG SUPPLIER','category':'BAGS','selectedBills':['H|BAGS|H'],'explicitBillSelection':True,'selectedOutstanding':1000,'amount':round(1000-diff,2),'applyPaymentDifferenceAsDiscount':False,'paymentMode':'CASH','date':'2026-10-14'}
+   if historical and diff==3:
+    before=books.read_bytes();preview=req({**body,'preview':True});assert preview['ok'] and any(l['account']=='4400' and l['credit']==3 for j in preview['previews'] for l in j['lines']);assert books.read_bytes()==before
    result=req(body);assert result['ok'],result;st=result['result'];state=json.loads(books.read_text());j=state['journals'][st['journalId']];automatic=diff if 0<diff<100 else 0
    assert st['discountAmount']==automatic and st['netPayment']==round(1000-diff,2),(diff,st)
    assert j['totalDebit']==j['totalCredit'] and sum(l['credit'] for l in j['lines'] if l['account']=='4400')==automatic,j
