@@ -3,6 +3,8 @@
   // Screen controls only: printed vouchers and document geometry retain their own styles.
   const style=document.createElement('style');style.id='ttAccountsFormLayout';
   style.textContent=`@media screen {
+    /* Explicit form state wins over grid/flex layout, including tick labels. */
+    [hidden][hidden]:not([hidden="until-found"]){display:none!important}
     :is(.workspace,.tt-window,.tt-layer,.tt-plan-window,.tte,.ttrs,.ttst-box,.am-box,.ttbr-box) :is(.tt-form-grid,.ttv-grid,.ttst-grid,.tte-grid,.ttrs-grid,.ttdon-form,.ttbk-grid,.ttbag-grid,.tt-plan-actions,.grid2,.grid3)>label{min-width:0;box-sizing:border-box;line-height:1.45}
     :is(.workspace,.tt-window,.tt-layer,.tt-plan-window,.tte,.ttrs,.ttst-box,.am-box,.ttbr-box) label :is(input:not([type=checkbox]):not([type=radio]),select,textarea){box-sizing:border-box;max-width:100%}
     :is(.tt-form-grid,.ttv-grid,.ttst-grid,.tte-grid,.ttrs-grid,.ttdon-form,.ttbk-grid,.ttbag-grid,.tt-plan-actions)>label :is(input:not([type=checkbox]):not([type=radio]),select){width:100%;min-height:42px;font-size:15px}
