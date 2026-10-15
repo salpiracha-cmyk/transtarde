@@ -123,7 +123,7 @@ require __DIR__.'/api/'.getenv('QA_ENDPOINT').'.php';
               'supplier':'Fixture Supplier','sellerInvoice':'OVERFLOW',
               'sellerInvoiceDate':'2026-10-01','bags':5,'ratePerBag':1e308,'csrf':'fixture'}
         response=finish(launch(endpoint,'Overflow','OverflowActor',body=body))
-        assert response[0]==500, (endpoint,response)
+        assert response[0]==(422 if endpoint=='bag_purchases' else 500), (endpoint,response)
         assert data_file.read_text()==before, endpoint+' truncated the store before rejecting an unencodable amount'
     print('PASS serialization failures preserve the existing Accounts store')
 
