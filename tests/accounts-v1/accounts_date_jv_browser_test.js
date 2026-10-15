@@ -20,3 +20,4 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium}=require('
  await require('./jv_history_layout_browser_test.js')(browser);
  console.log('Fixed date separator editing, invalid/optional dates, ISO paste, draft preservation and ordinary JV bank/native/blank-narration browser checks passed.');
 }finally{await browser.close();}})().catch(e=>{console.error(e);process.exit(1);});
+

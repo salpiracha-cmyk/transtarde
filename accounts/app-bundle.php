@@ -31,6 +31,7 @@ $files = [
     'expenses-v1-ui.js',
     'expense-desk-ui.js',
     'jv-workflow-ui.js',
+    'jv-notices-ui.js',
     'export-realization-master-bootstrap.js',
     'export-realization-master-ui.js',
     'export-tax-certificates-ui.js',
@@ -125,4 +126,5 @@ foreach ($files as $file) {
     echo "\n;/* " . str_replace('*/', '', $file) . " */\n";
     readfile(__DIR__ . '/' . $file);
 }
+
 

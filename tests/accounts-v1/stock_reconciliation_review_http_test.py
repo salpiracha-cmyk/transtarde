@@ -12,7 +12,7 @@ with tempfile.TemporaryDirectory(prefix='tti-authorization-') as directory:
     private.mkdir()
     for name in ['inventory_reconciliation.php','auth_store.php', 'master_store.php', 'product_stage.php', 'offline_idempotency.php','session_store.php']:
         shutil.copy(ROOT / name, app / name)
-    for name in ['supplier_opening_core.php','stock_reconciliation_review.php','bank_entries.php','bank_entries_core.php','mill_cash_core.php','mill_cash_ledger.php','accounts_subaccounts.php','service_ledger_groups.php','accounts_ledger_browser.php','customer_receivables_core.php','accounts_post_delete_core.php','accounts_reports.php','accounts_reference.php','tg_remittance_core.php','fi_credit_advice_link.php','receipt_invoice_links.php','journal_vouchers.php','opening_balance_core.php','accounts_subaccounts_core.php','accounts_ledger_visibility.php','assets_registry_core.php','expenses_v1.php','direct_expense_core.php','accounts_bank_payment.php','expense_locations.php','expense_reminders.php','expense_reversals.php','donations.php','rent_salary_v2.php','salary_month_workflow.php','salary_master_store.php', 'accounts_posting_preview.php']:
+    for name in ['supplier_opening_core.php','stock_reconciliation_review.php','bank_entries.php','bank_entries_core.php','mill_cash_core.php','mill_cash_ledger.php','accounts_subaccounts.php','service_ledger_groups.php','accounts_ledger_browser.php','customer_receivables_core.php','accounts_post_delete_core.php','accounts_reports.php','accounts_reference.php','tg_remittance_core.php','fi_credit_advice_link.php','receipt_invoice_links.php','jv_decisions_core.php','journal_vouchers.php','opening_balance_core.php','accounts_subaccounts_core.php','accounts_ledger_visibility.php','assets_registry_core.php','expenses_v1.php','direct_expense_core.php','accounts_bank_payment.php','expense_locations.php','expense_reminders.php','expense_reversals.php','donations.php','rent_salary_v2.php','salary_month_workflow.php','salary_master_store.php', 'accounts_posting_preview.php']:
         shutil.copy(ROOT / 'api' / name, app / 'api' / name)
     shutil.copy(ROOT / 'accounts/accounting_master_v1.json', app / 'accounts/accounting_master_v1.json')
     harness = root / 'request.php'
@@ -96,3 +96,4 @@ require $argv[1];
     before=operations.read_bytes();assert request('stock_reconciliation_review','',payload)[0]==409 and operations.read_bytes()==before
     operations.write_text('{broken JSON');before=operations.read_bytes();assert request('stock_reconciliation_review','',payload)[0]==500 and operations.read_bytes()==before
     print('Stock review HTTP: explicit correction, permissions, company scope, stale protection, no duplicate stock and immutable production/journals passed.')
+
