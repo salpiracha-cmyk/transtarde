@@ -1,12 +1,12 @@
 """Real opening JV and ledger endpoints against disposable books and users."""
-import json, os, pathlib, re, shutil, socket, subprocess, tempfile, time
+import hashlib, json, os, pathlib, re, shutil, socket, subprocess, tempfile, time
 import urllib.request, urllib.error, urllib.parse
 
 ROOT=pathlib.Path(__file__).resolve().parents[2]
 with tempfile.TemporaryDirectory(prefix='opening-jv-qa-') as tmp:
     root=pathlib.Path(tmp)
     for folder in ['api','accounts','data']: (root/folder).mkdir()
-    for name in ['supplier_opening_core.php','accounts_subaccounts_core.php','accounts_ledger_visibility.php','assets_registry_core.php','journal_vouchers.php','opening_balance_core.php','accounts_chart_word.php','accounts_chart_word_core.php','service_ledger_groups.php','accounts_ledger_browser.php','customer_receivables_core.php','accounts_post_delete_core.php','accounts_reference.php','tg_remittance_core.php','fi_credit_advice_link.php','receipt_invoice_links.php']:
+    for name in ['supplier_opening_core.php','accounts_subaccounts_core.php','accounts_ledger_visibility.php','assets_registry_core.php','jv_decisions_core.php','journal_vouchers.php','opening_balance_core.php','accounts_chart_word.php','accounts_chart_word_core.php','service_ledger_groups.php','accounts_ledger_browser.php','customer_receivables_core.php','accounts_post_delete_core.php','accounts_reference.php','tg_remittance_core.php','fi_credit_advice_link.php','receipt_invoice_links.php']:
         shutil.copy(ROOT/'api'/name,root/'api'/name)
     for path in (ROOT/'accounts').glob('*.json'): shutil.copy(path,root/'accounts'/path.name)
     (root/'auth_store.php').write_text('''<?php
@@ -41,6 +41,7 @@ with tempfile.TemporaryDirectory(prefix='opening-jv-qa-') as tmp:
     for key in ['TT_DB_HOST','TT_DB_NAME','TT_DB_USER','TT_DB_PASS']: env.pop(key,None)
     server=subprocess.Popen(['php','-S',f'127.0.0.1:{port}','-t',str(root)],env=env,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
     def call(body=None,user='admin',entity='TTI',scope=True,endpoint='journal_vouchers.php',**query):
+        if body and body.get('action')=='submit_jv':body={**body,'requestKey':body.get('requestKey') or 'fixture-'+hashlib.sha256(json.dumps(body,sort_keys=True).encode()).hexdigest()}
         params={'entity':entity,'user':user,**query}
         if scope:params['scope']='opening'
         req=urllib.request.Request(f'http://127.0.0.1:{port}/api/{endpoint}?'+urllib.parse.urlencode(params),
@@ -81,7 +82,7 @@ with tempfile.TemporaryDirectory(prefix='opening-jv-qa-') as tmp:
         assert any(t['key']=='bank:PERSONAL' for t in targets), 'Linked proprietor bank must be available'
         assert any(t['key']=='business_parties:LAB:2190' for t in targets), 'Labour uses dedicated contractor payable'
         draft={'action':'submit_jv','date':'2026-10-06','narration':'MANUFACTURING LABOUR','lines':[{'account':'5200','subledger':'MILL LABOUR','debit':100,'credit':0},{'targetKey':'business_parties:LAB:2190','account':'2140','subledger':'FORGED','debit':0,'credit':100}]}
-        status,result=call(draft,scope=False);assert status==200,result
+        status,result=call(draft,scope=False,user='accounts');assert status==200,result
         lines=json.loads(books.read_text())['jvDrafts'][result['result']['jvId']]['lines'];assert lines[1]['account']=='2190' and lines[1]['subledger']=='MILL LABOUR'
         body=post(targetKey='business_parties:P1:2110',account='6900',party='FORGED PARTY',note='OLD PAYABLE')
         status,data=call(body,user='director');assert status==200,data
@@ -131,7 +132,7 @@ with tempfile.TemporaryDirectory(prefix='opening-jv-qa-') as tmp:
         status,catalog=call(scope=False);assert status==200
         assert any(x['key']=='bank:B1' for x in catalog['targets'])
         bank_jv={'action':'submit_jv','date':'2026-10-08','narration':'','lines':[{'targetKey':'bank:B1','debit':0,'credit':25},{'account':'1120','debit':25,'credit':0}]}
-        status,result=call(bank_jv,scope=False);assert status==200,(status,result);bank_id=result['result']['jvId']
+        status,result=call(bank_jv,scope=False,user='accounts');assert status==200,(status,result);bank_id=result['result']['jvId']
         status,result=call({'action':'approve_jv','id':bank_id},scope=False);assert status==200,(status,result);bank_journal=result['result']['journalId']
         journal=json.loads(books.read_text())['journals'][bank_journal];line=journal['lines'][0]
         assert journal['narration']=='' and line['bankAccountId']=='B1' and line['accountNumber']=='123' and line['bankCredit']==25 and line['nativeCredit']==25
@@ -143,7 +144,7 @@ with tempfile.TemporaryDirectory(prefix='opening-jv-qa-') as tmp:
             status,result=call({**bank_jv,'lines':lines},scope=False);assert status==422,(status,result);assert books.read_bytes()==before
         foreign={**bank_jv,'lines':[{'targetKey':'bank:B2','debit':367.25,'nativeAmount':100},{'targetKey':'bank:AED','credit':367.25}]}
         status,result=call(foreign,scope=False,entity='TG');assert status==200,(status,result);foreign_id=result['result']['jvId']
-        status,result=call({'action':'approve_jv','id':foreign_id},scope=False,entity='TG');assert status==200,(status,result)
+        assert result['result']['status']=='Posted','Authorized Super Admin posts directly'
         line=json.loads(books.read_text())['journals'][result['result']['journalId']]['lines'][0]
         assert line['bankDebit']==100 and line['debit']==367.25 and abs(line['rate']-3.6725)<0.000001
         print('Ordinary JV bank/native linkage, optional narration, reversal, malformed amounts and company isolation passed.')
@@ -158,4 +159,5 @@ with tempfile.TemporaryDirectory(prefix='opening-jv-qa-') as tmp:
             urllib.request.urlopen(url.replace('user=admin','user=director'));assert False,'Director without Accounts access must be denied on Accounts export'
         except urllib.error.HTTPError as error:assert error.code==403
     finally:server.terminate();server.wait(timeout=5)
+
 

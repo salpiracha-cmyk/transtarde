@@ -12,7 +12,7 @@ with tempfile.TemporaryDirectory(prefix='tti-authorization-') as directory:
     private.mkdir()
     for name in ['auth_store.php', 'master_store.php', 'product_stage.php', 'offline_idempotency.php','session_store.php']:
         shutil.copy(ROOT / name, app / name)
-    for name in ['supplier_opening_core.php','accounts_payees.php','bank_entries.php','bank_entries_core.php','mill_cash_core.php','mill_cash_ledger.php','accounts_subaccounts.php','service_ledger_groups.php','accounts_ledger_browser.php','customer_receivables_core.php','accounts_post_delete_core.php','accounts_reports.php','accounts_reference.php','tg_remittance_core.php','fi_credit_advice_link.php','receipt_invoice_links.php','journal_vouchers.php','opening_balance_core.php','accounts_subaccounts_core.php','accounts_ledger_visibility.php','assets_registry_core.php','expenses_v1.php','direct_expense_core.php','accounts_bank_payment.php','expense_locations.php','expense_reminders.php','expense_reversals.php','donations.php','rent_salary_v2.php','salary_month_workflow.php','salary_master_store.php', 'accounts_posting_preview.php']:
+    for name in ['supplier_opening_core.php','accounts_payees.php','bank_entries.php','bank_entries_core.php','mill_cash_core.php','mill_cash_ledger.php','accounts_subaccounts.php','service_ledger_groups.php','accounts_ledger_browser.php','customer_receivables_core.php','accounts_post_delete_core.php','accounts_reports.php','accounts_reference.php','tg_remittance_core.php','fi_credit_advice_link.php','receipt_invoice_links.php','jv_decisions_core.php','journal_vouchers.php','opening_balance_core.php','accounts_subaccounts_core.php','accounts_ledger_visibility.php','assets_registry_core.php','expenses_v1.php','direct_expense_core.php','accounts_bank_payment.php','expense_locations.php','expense_reminders.php','expense_reversals.php','donations.php','rent_salary_v2.php','salary_month_workflow.php','salary_master_store.php', 'accounts_posting_preview.php']:
         shutil.copy(ROOT / 'api' / name, app / 'api' / name)
     shutil.copy(ROOT / 'accounts/accounting_master_v1.json', app / 'accounts/accounting_master_v1.json')
     harness = root / 'request.php'
@@ -168,7 +168,7 @@ require $argv[1];
     ex={'action':'pay_expense','csrf':'fixture','entity':'TTI','requestKey':'expense-subaccount-01','paymentDate':'2026-10-07','payee':'Stationery shop','paymentAccountId':'BANK-1','reference':'EXP-SUB','amount':25,'bankPaymentMethod':'ONLINE_BANKING','expenseLines':[{'category':'OFFICE','purpose':'Repairs materials','amount':25,'subaccountId':sid}]}
     status,expense=request('expenses_v1','?entity=TTI',ex);assert status==200,(status,expense);j=json.loads(books.read_text())['journals'][expense['result']['journalId']];assert j['lines'][0]['account']=='6400' and j['lines'][0]['subaccountId']==sid and len(j['lines'])==2
     # Named accounts also work in the controlled JV, carrying their head snapshot.
-    draft={'action':'submit_jv','csrf':'fixture','entity':'TTI','date':'2026-10-07','reference':'JV-SUB','narration':'Accrued repairs','lines':[{'account':'SUB|'+sid,'debit':10,'credit':0},{'account':'2140','subledger':'Supplier','debit':0,'credit':10}]}
+    draft={'action':'save_draft','csrf':'fixture','entity':'TTI','date':'2026-10-07','reference':'JV-SUB','narration':'Accrued repairs','lines':[{'account':'SUB|'+sid,'debit':10,'credit':0},{'account':'2140','subledger':'Supplier','debit':0,'credit':10}]}
     status,jv=request('journal_vouchers','?entity=TTI',draft);assert status==200,(status,jv);assert next(v for v in jv['jvs'] if v['id']==jv['result']['jvId'])['lines'][0]['subaccountId']==sid
     # Archive with balance preserves every posted ledger and report.
     good('accounts_subaccounts',operation='delete',id=sid)
@@ -212,4 +212,5 @@ require $argv[1];
     for endpoint in ['bank_entries','accounts_subaccounts']:
         books.write_text('{broken JSON');before=books.read_bytes();assert request(endpoint,'?entity=TTI')[0]==500 and books.read_bytes()==before
     print('Bank entries, finance, subaccounts, expense/JV/ledger/report links, retries, corrections, permissions and corrupt-store protection passed.')
+
 

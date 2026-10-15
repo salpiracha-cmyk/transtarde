@@ -17,5 +17,7 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium}=require('
  await page.addScriptTag({content:fs.readFileSync('accounts/jv-workflow-ui.js','utf8')});await page.evaluate(()=>TT_JV_WORKFLOW.load());await page.waitForSelector('#jvwLines');
  assert.equal(await page.locator('.jvw-account').first().locator('option[value="1120"]').count(),1);
  const first=page.locator('#jvwLines .jvw-line').first(),second=page.locator('#jvwLines .jvw-line').nth(1);await first.locator('.jvw-account').selectOption('bank:B1');assert.equal(await first.locator('.jvw-manage-party').isVisible(),false);assert.equal(await first.locator('.jvw-native').isVisible(),true);await first.locator('.jvw-native').fill('100');await first.locator('.jvw-dr').fill('28000');await second.locator('.jvw-account').selectOption('1120');await second.locator('.jvw-cr').fill('28000');await page.click('#jvwSubmit');await page.waitForFunction(()=>posted.length===1);const body=await page.evaluate(()=>posted[0]);assert.equal(body.narration,'');assert.equal(body.lines[0].bankAccountId,'B1');assert.equal(body.lines[0].nativeAmount,'100');assert.deepEqual(errors,[]);
+ await require('./jv_history_layout_browser_test.js')(browser);
  console.log('Fixed date separator editing, invalid/optional dates, ISO paste, draft preservation and ordinary JV bank/native/blank-narration browser checks passed.');
 }finally{await browser.close();}})().catch(e=>{console.error(e);process.exit(1);});
+
