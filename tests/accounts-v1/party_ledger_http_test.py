@@ -26,7 +26,7 @@ with tempfile.TemporaryDirectory(prefix='party-ledger-qa-') as temp:
         return dict(account=account, debit=debit, credit=credit, **extra)
     def journal(id, date, lines, entity='TTI', **extra):
         return dict(id=id, date=date, entity=entity, status='Posted', lines=lines,
-                    reference=id, narration='TEST '+id, **extra)
+                    reference=id, narration='TEST '+id, totalDebit=sum(x['debit'] for x in lines),totalCredit=sum(x['credit'] for x in lines),**extra)
     books = {'journals': {
         'POST-2026-00001': journal('POST-2026-00001','2026-06-30',[
             line('2110',credit=100,counterparty='ACME Rice'),line('1310',debit=100)],meta={'supplier':'ACME Rice'}),
@@ -94,6 +94,13 @@ with tempfile.TemporaryDirectory(prefix='party-ledger-qa-') as temp:
         assert get(party='SECRET BRM')[0]==422
         assert get(entity='BRM')[0]==403
         assert get(entity='ALL')[0]==403
+        status,all_posts=get(entity='ALL',category='other',account='POSTS');assert status==200 and all_posts['currency']=='MIXED',all_posts
+        assert set(all_posts['registerEntities'])=={'TTI','TG'} and all(row['entity']!='BRM' for row in all_posts['rows'])
+        assert any(row['entity']=='TG' and row['bookCurrency']=='AED' and row['debit']==367 for row in all_posts['rows'])
+        assert all(row['bookCurrency']=='PKR' for row in all_posts['rows'] if row['entity']=='TTI')
+        status,tg_posts=get(entity='ALL',category='other',account='POSTS',registerEntity='TG');assert status==200 and tg_posts['currency']=='AED' and all(row['entity']=='TG' for row in tg_posts['rows'])
+        assert get(entity='ALL',category='other',account='POSTS',registerEntity='BRM')[0]==403
+        status,post_csv=get(entity='ALL',category='other',account='POSTS',format='csv');assert status==200 and 'Book currency' in post_csv and 'AED' in post_csv and 'PKR' in post_csv and 'Subtotal' in post_csv and 'SECRET BRM' not in post_csv
         assert get(denyModule='1')[0]==403
         assert get(party='ACME Rice',account='2110')[0]==422
         assert get(from_='2026-08-01',to='2026-07-01')[0]==422
