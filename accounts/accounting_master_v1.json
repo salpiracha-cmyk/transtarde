@@ -302,7 +302,7 @@
     },
     {
       "code": "2140",
-      "name": "Expense / Utility Payables",
+      "name": "Supplier Payables & Expenses",
       "class": "Liability",
       "level": "general",
       "normal": "Credit",
