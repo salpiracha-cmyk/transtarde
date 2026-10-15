@@ -67,7 +67,7 @@ assert(bags.includes("if($hasTax&&(float)$b['gstAmount']>0)"),'GST recoverable p
 assert(bags.includes("array_key_exists('salesTaxInvoice',$b)"),'legacy bag-tax invoices are not backward compatible');
 assert(!bags.includes('Non-Woven bags are excluded'),'Non-Woven is still excluded from unified bag billing');
 assert(bagsUi.includes('Sales Tax Invoice received'),'bag invoice checkbox missing');
-assert(bagsUi.includes('Every bag type is available'),'bag workflow is not unified');
+assert(bagsUi.includes('function bagTypeField()')&&bagsUi.includes('bagTypes')&&bagsUi.includes('bgSalesTaxInvoice'),'bag workflow must retain shared bag types and invoice tax choice without requiring explanatory copy');
 
 assert(milling.includes("inputStockName:inputStock||millProductIdentity(prodVariety.value,'RAW').displayName"),'normal raw processing must retain the typed Raw Rice source');
 assert(milling.includes("inputStage:inputStock?(/READY RICE$/i.test(inputStock)?'READY':'FINISHED'):'RAW'"),'reprocessing must preserve the actual Ready/Finished input rather than relabel it RAW');

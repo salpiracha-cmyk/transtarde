@@ -94,6 +94,8 @@ jobs:
           node tests/accounts-v1/accounts_uppercase_ui_test.js
           php tests/accounts-v1/credit_advice_amendment_test.php
           php tests/accounts-v1/service_ledger_groups_test.php
+          php tests/accounts-v1/bag_order_report_test.php
+          python3 tests/accounts-v1/bag_order_report_http_test.py
           python3 tests/accounts-v1/historical_bags_http_test.py
           php tests/accounts-v1/forward_bookings_test.php
           python3 tests/accounts-v1/forward_bookings_http_test.py
@@ -184,6 +186,8 @@ jobs:
           node tests/accounts-v1/review_entry_defaults_test.js
           node tests/accounts-v1/review_receipt_ui_test.js
           node tests/accounts-v1/bag_report_modes_test.js
+          node tests/accounts-v1/accounts_home_cleanup_ui_test.js
+          node tests/accounts-v1/bag_order_report_ui_test.js
           node tests/accounts-v1/investment_edit_ui_test.js
           node tests/accounts-v1/accounts_controls_ui_test.js
           node tests/accounts-v1/module_form_consistency_test.js

@@ -212,6 +212,7 @@ try {
     ar_out([
         'ok' => true,
         'entity' => $entity,
+        'revision' => (int)($store['revision'] ?? 0),
         'from' => $from,
         'asOf' => $asOf,
         'generalLedger' => $ledger,
