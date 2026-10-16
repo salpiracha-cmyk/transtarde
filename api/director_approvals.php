@@ -6,9 +6,9 @@ header('Content-Type: application/json; charset=UTF-8');
 header('Cache-Control: no-store, no-cache, must-revalidate');
 try {
     $user = tt_require_login();
-    if (($user['role'] ?? '') !== 'Super Admin') {
+    if (!tt_user_can_director_approve($user)) {
         http_response_code(403);
-        echo json_encode(['ok' => false, 'error' => 'Super Admin access required.']);
+        echo json_encode(['ok' => false, 'error' => 'Director or Super Admin approval access required.']);
         exit;
     }
     if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
@@ -35,7 +35,7 @@ try {
             fclose($handle);
         }
     }
-    echo json_encode(['ok' => true, 'approvals' => array_merge(tt_pending_director_rate_approvals($store),tt_pending_jv_approvals($store))], JSON_THROW_ON_ERROR);
+    $items=array_merge(tt_pending_director_rate_approvals($store),tt_pending_jv_approvals($store));$items=array_values(array_filter($items,static fn($item)=>($user['role']??'')==='Super Admin'||tt_api_record_entity_allowed($user,['entity'=>$item['entity']],$item['entity'])));echo json_encode(['ok'=>true,'approvals'=>$items],JSON_THROW_ON_ERROR);
 } catch (Throwable $error) {
     http_response_code(500);
     echo json_encode(['ok' => false, 'error' => 'Director approvals could not be loaded. Refresh to try again.']);

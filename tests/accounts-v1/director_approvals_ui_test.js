@@ -11,12 +11,12 @@ const context={IS_SUPER_ADMIN:true,pendingDeletionRequests:[],pendingBankDeletio
 vm.createContext(context);vm.runInContext(code,context);
 (async()=>{
   context.pendingBankDeletionRequests=[{id:'R1',companyId:'C1',bankId:'old',company:'TTI',bank:'Old Bank'}];
-  context.apiRequest=async()=>({approvals:[{kind:'bag',billId:'B1',entity:'TTI',title:'<img src=x onerror=alert(1)>',detail:'Rate mismatch'}]});
+  context.apiRequest=async()=>({approvals:[{kind:'bag',billId:'B1',entity:'TTI',title:'<img src=x onerror=alert(1)>',detail:'Quantity exceeds PO',canDecide:false,fingerprint:'EXACT-BILL'}]});
   await context.refreshApprovals();
   assert.equal(nodes.openingBalanceConsoleLink.href,'accounts/opening-balances.php');
   assert.equal(count.textContent,'2 open');assert.equal(nodes.approvalStatusCount.textContent,'2');
   assert.ok(list.innerHTML.includes('data-review-rate-exception="B1"'));
-  assert.ok(list.innerHTML.includes('data-rate-approval-reason'));
+  assert.ok(list.innerHTML.includes('data-rate-approval-reason'));assert.ok(list.innerHTML.includes('disabled title="Accounts must record the supplier settlement first"'));assert.ok(list.innerHTML.includes('data-acceptance-fingerprint="EXACT-BILL"'));
   assert.ok(!list.innerHTML.includes('<img'));
   assert.ok(list.innerHTML.includes('data-bank-approval-replacement="R1"'));
   assert.ok(list.innerHTML.includes('value="new"'));assert.ok(!list.innerHTML.includes('value="usd"'));

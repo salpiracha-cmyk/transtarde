@@ -4,7 +4,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 with tempfile.TemporaryDirectory(prefix="approval-integrity-") as tmp:
     root = pathlib.Path(tmp)
     (root/"api").mkdir(); (root/"data").mkdir(); (root/"accounts").mkdir()
-    for name in ("accounts_posting_preview.php","opening_balance_core.php","historical_bag_core.php","supplier_opening_core.php","bag_purchases.php", "nonwoven_bag_bills.php"):
+    for name in ("accounts_posting_preview.php","opening_balance_core.php","historical_bag_core.php","bag_acceptance_core.php","supplier_opening_core.php","bag_purchases.php", "nonwoven_bag_bills.php"):
         shutil.copy(ROOT/"api"/name, root/"api"/name)
     shutil.copy(ROOT/"accounts/accounting_master_v1.json", root/"accounts/accounting_master_v1.json")
     (root/"auth_store.php").write_text("""<?php
@@ -36,19 +36,23 @@ require __DIR__.'/api/'.getenv('QA_ENDPOINT').'.php';
     data_file=root/"data/accounts.json"
     def bill(identifier):
         return {'id':identifier,'entity':'TTI','poNo':'PO1','lineKey':'L1','ratePerBag':12,
-                'status':'Hold - Rate Approval Required','bags':5,'supplier':'Fixture Supplier',
+                'status':'Hold - Director Approval Required','supplierSettlement':'Supplier contacted and settlement agreed','bags':5,'supplier':'Fixture Supplier',
                 'sellerInvoice':identifier,'sellerInvoiceDate':'2026-10-01','baseAmount':60,
                 'totalAmount':60,'gstAmount':0,'gstRate':0,'packingSize':'50kg',
                 'bagType':'Non Woven','brand':'Fixture','rateExceptionApprovedAt':None}
     def initial():
         return {'revision':0,'journals':{},'bagPurchaseOrders':{'PO1':{'shipmentRef':'FIXTURE-SHIPMENT','entity':'TTI','supplier':'Fixture Supplier','lines':[
-            {'lineKey':'L1','ratePerBag':10,'orderedQty':100,'receivedQty':100,'bagType':'Non Woven','packingSize':'50kg','brand':'Fixture'}]}},
+            {'lineKey':'L1','ratePerBag':10,'orderedQty':100,'receivedQty':100,'acceptance':{'printing':True},'bagType':'Non Woven','packingSize':'50kg','brand':'Fixture'}]}},
             'bagSupplierBills':{'B1':bill('B1')},
             'nonWovenBagSupplierBills':{'N1':bill('N1'),'N2':bill('N2')}}
     def launch(endpoint, identifier, actor, concurrent=False, role='Super Admin', csrf='fixture', body=None):
         status=root/(actor+'-'+identifier+'.status')
         payload=body or {'action':'approve_rate_exception','entity':'TTI','billId':identifier,
                  'csrf':csrf,'reason':'Reason from '+actor}
+        if payload['action']=='approve_rate_exception' and data_file.read_text().lstrip().startswith('{\"revision'):
+            collection='bagSupplierBills' if endpoint=='bag_purchases' else 'nonWovenBagSupplierBills'
+            script="require $argv[1];$h=fopen($argv[2],'r');flock($h,LOCK_SH);$s=json_decode(stream_get_contents($h),true);flock($h,LOCK_UN);fclose($h);echo bqa_assess($s,$s[$argv[3]][$argv[4]])['fingerprint'];"
+            payload['expectedAcceptanceFingerprint']=subprocess.check_output(['php','-r',script,str(ROOT/'api/bag_acceptance_core.php'),str(data_file),collection,identifier],text=True)
         env={**os.environ,'QA_ENDPOINT':endpoint,'QA_PAYLOAD':json.dumps(payload),
              'QA_ACTOR':actor,'QA_ROLE':role,'QA_STATUS':str(status),
              'QA_CONCURRENT':'1' if concurrent else ''}
@@ -109,8 +113,9 @@ require __DIR__.'/api/'.getenv('QA_ENDPOINT').'.php';
     data['bagPurchaseOrders']['PO1']['lines'][0]['receivedQty']=0
     data_file.write_text(json.dumps(data))
     before=data_file.read_text()
-    assert finish(launch('nonwoven_bag_bills','N1','NotReceived'))[0]==409
+    assert finish(launch('nonwoven_bag_bills','N1','UnapprovedPost',body={'action':'try_post_bill','billId':'N1','entity':'TTI','csrf':'fixture'}))[0]==409
     assert data_file.read_text()==before
+    assert finish(launch('nonwoven_bag_bills','N1','NotReceivedDirector'))[0]==200, 'An explicit Director decision can accept the disclosed quantity exception'
     data_file.write_text(json.dumps(initial()))
     assert finish(launch('nonwoven_bag_bills','N1','AfterFailure'))[0]==200
     print('PASS damaged storage and held quantities leave data intact; next save succeeds')
