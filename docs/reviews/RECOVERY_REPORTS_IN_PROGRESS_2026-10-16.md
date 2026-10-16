@@ -16,13 +16,17 @@ This change follows deployed bag PR #259 and Bank menu PR #260. It adds daily pr
 ## Local evidence
 
 - All 113 workflow-listed Accounts audit/control/runtime checks passed locally.
-- Inventory reconciliation: 103 unit assertions, 24 client assertions and 99 real file-backed HTTP assertions passed.
+- Inventory reconciliation: 103 unit assertions, 24 client assertions and 103 real file-backed HTTP assertions passed.
 - Actual recovery sample, weighted costs/by-product deductions, allocation boundaries, legacy approvals, read-only/location/company HTTP access, stale cost approval and corrupted-store protection passed.
 - Entry/report DOM tests passed: saved draft restoration, no automatic writes, dependent defaults, exact cost presentation, CSV/print parity and stale-filter response ownership.
 - New backend checks run from the existing required end-to-end audit; report DOM/browser checks run from the existing costing-navigation check. No workflow file or secret changes.
 
 ## Hosted verification
 
-Pending PR checks, authenticated browser layout checks at desktop/mobile widths, production deployment health and the extended read-only live recovery smoke. Local headless Chromium could not start inside the current runtime; no claim is made that Mac Chrome visual QA was performed. Hosted browser evidence is required before declaring the release verified.
+PR #261: initial hosted Accounts QA [38885558293](https://github.com/salpiracha-cmyk/transtarde/actions/runs/38885558293) and Milling/Exports QA [38885558292](https://github.com/salpiracha-cmyk/transtarde/actions/runs/38885558292) passed. Hosted actual MySQL/browser reconciliation passed 121 assertions on that revision. Desktop (1440px), mobile (390px) report screenshots and the actual Mill entry screenshot were inspected; tables scroll inside their containers and the entry card is aligned. Shorter row-default labels and a single cost summary for a one-group report remove visual duplication.
+
+Final checks additionally exercise the canonical configured file/MySQL operations backend for recovery, final costing and management costing. SQL connection failures must not substitute a stale file. Reprocessing waits for input-stock cost review, distinct B2 CSR values stay separate and empty shift markers create no costing hold.
+
+Pending: final-head hosted suites, production deployment health and extended authenticated read-only live recovery smoke. Local headless Chromium could not start inside the current runtime; no claim is made that Mac Chrome visual QA was performed. Hosted browser evidence is required before declaring the release verified.
 
 Historical input and actual allocation cannot be recovered from an output-only record. Such records remain explicitly incomplete until someone enters the original facts; this is a data limitation, not an automatic migration task.

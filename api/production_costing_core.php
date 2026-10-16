@@ -52,15 +52,7 @@ function pc_read_accounts(): array {
     if($raw!==''&&!is_array($decoded))throw new RuntimeException('Accounts source is invalid.');return is_array($decoded)?array_replace_recursive(pc_accounts_default(),$decoded):pc_accounts_default();
 }
 
-function pc_read_operations(): array {
-    if (!is_file(TT_PC_OPERATIONS)) return ['values' => []];
-    $h = fopen(TT_PC_OPERATIONS, 'r');
-    if ($h === false || !flock($h, LOCK_SH)) throw new RuntimeException('Operational storage unavailable.');
-    try { $raw = stream_get_contents($h); }
-    finally { flock($h, LOCK_UN); fclose($h); }
-    $decoded = $raw ? json_decode($raw, true,512,JSON_THROW_ON_ERROR) : null;
-    if($raw!==''&&!is_array($decoded))throw new RuntimeException('Operations source is invalid.');return is_array($decoded)?$decoded:['values'=>[]];
-}
+function pc_read_operations(): array {return mr_read_operations_source(TT_PC_OPERATIONS);}
 
 function pc_op(array $ops, string $key): array {
     $raw = $ops['values'][$key] ?? '';

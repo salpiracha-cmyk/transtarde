@@ -129,6 +129,10 @@ def run() -> None:
         post('tt30prod',[{**pr,'rawInputs':[]}],expected=403)
         post('tt30prod',[{**pr,'rawInputs':[{'grossKg':10000,'lessKg':10000}]}],expected=403)
         post('tt30prod',[pr]);check(not json.loads(private().get('tt34ghati','[]')),'Partial shift entry does not finalize gain')
+        c,d=request('qamill','/api/mill_recovery.php?entity=TTI');check(c==200 and d['totals']['inputKg']==10000 and d['totals']['outputKg']==10000,'Recovery reads the committed operations backend, not a stale file',d)
+        check(d['sourceBackend']==('mysql' if mysql else 'file'),'Report identifies the actual storage backend')
+        c,d=request('qaowner','/api/production_costing.php?entity=TTI');check(c==200 and d['groups'][0]['inputKg']==10000,'Final costing reads the same committed production source',d)
+        c,d=request('qaowner','/api/management_costing.php?entity=TTI');check(c==200 and d['sheets'][0]['inputKg']==10000,'Management costing reads the same committed production source',d)
         # Final current-shift entry contains no further ASAS: only 15,000kg remains unexplained.
         rows=json.loads(get()['values']['tt30prod']);rows.append({**pr,'id':11,'rawInputs':[{'grossKg':1000}],'shiftEntriesComplete':True,'rows':[{'product':'Ready Rice — OTHER','bags':20,'bagWeight':50}]})
         post('tt30prod',rows);pv=private();events=json.loads(pv['tt34ghati']);check(len(events)==1 and events[0]['kg']==15000 and events[0]['kind']=='gain','Server applies only unexplained remainder once',events)
