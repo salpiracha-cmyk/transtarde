@@ -441,3 +441,28 @@ Additional live action coverage: Accounts → Forward Booking Register opens and
 loads TTI as-of 17-10-2026 with no bookings. Its text correctly distinguishes an
 agreement from a bank receipt. No booking was created, changed or deleted; those
 actions remain not tested here.
+
+
+### Seventh prepared repair — R14 display issues
+
+TG receipt/basket amounts now occupy the second mobile row beside the description,
+rather than the narrow remove/tick column. The amount input uses the full column
+with border-box sizing. The existing actual-browser remittance fixture now checks
+at least 180px and no horizontal text clipping on each visible numeric input.
+
+Bank Finance keeps a deliberate 680px table inside its own horizontal scroller;
+facility names retain readable width and the three actions stay on one row.
+Both existing browser runners now check container scrolling and action positions.
+These layout assertions require hosted browser execution; local syntax passes do
+not establish visual success.
+
+Freight quantity summaries use a separate inline role=status element. Only actual
+failures populate the role=alert error. Changing customer or clearing shipment
+clears prior summaries/errors. The actual form-function runtime fixture verifies
+normal summary, blank selection, failure and clearing without any posting.
+Financial payloads/calculations are unchanged. Hosted QA/deployment remain pending.
+
+PR268 (Brokerage scope and bounded audit history) passed both full hosted suites
+38960520048 / 38960519956 and merged as d68850b85f9719f32f94aa9548fb8d2ae171141e.
+Live verification is temporarily blocked by Chrome's debugger connection failing;
+this is a control-session limitation, not evidence that the application failed.

@@ -11,5 +11,11 @@ const fs=require('node:fs'),assert=require('node:assert/strict'),{JSDOM}=require
   w.body.querySelector(index?'[data-print]':'#ttShipmentBillPrint').click();assert.equal(printed.data.journalId,'POST-2026-00042');assert.equal(printed.data.entity,'TTI');assert.equal(bill.postingJournalIds.length,1);
   w.close();
  }
+ const dom=new JSDOM('<div id="host"><div class="tt-window-body"></div></div>',{runScripts:'outside-only'}),w=dom.window;let fail=false,writes=0;
+ w.q=(s,r=w.document)=>r.querySelector(s);w.layer=()=>w.q('#host');w.esc=String;w.today=()=> '2026-10-17';w.entity=()=> 'TTI';w.access={csrf:'fixture'};
+ w.json=async(url,options)=>{if(options)writes++;if(fail)throw Error('Lookup unavailable');return url.includes('&customer=')?{rows:[{contract:'C1',plannedContainers:10,agreedContainers:3,remainingContainers:7}]}:{customers:['Buyer']};};
+ const start=source.indexOf('  async function openFreightAgreement()'),end=source.indexOf('  function openTransportBillForm',start);w.eval(source.slice(start,end)+';window.openAgreement=openFreightAgreement;');await w.openAgreement();await Promise.resolve();
+ const customer=w.q('#ttFreightCustomer'),select=w.q('#ttFreightShipment');customer.value='Buyer';await customer.onchange();select.value='0';select.onchange();assert.match(w.q('#ttFreightAgreementInfo').textContent,/Remaining: 7/);assert.equal(w.q('#ttFreightAgreementInfo').getAttribute('role'),'status');assert.equal(w.q('#ttFreightAgreementError').textContent,'');
+ select.value='';select.onchange();assert.equal(w.q('#ttFreightAgreementInfo').textContent,'');fail=true;await customer.onchange();assert.equal(w.q('#ttFreightAgreementError').textContent,'Lookup unavailable');customer.oninput();assert.equal(w.q('#ttFreightAgreementError').textContent,'');assert.equal(writes,0);w.close();
  console.log('PASS transport and service/freight result Edit uses original bill amendment, with separate Print and stable journal identity');
 })().catch(error=>{console.error(error);process.exitCode=1});

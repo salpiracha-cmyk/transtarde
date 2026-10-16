@@ -198,6 +198,12 @@ with tempfile.TemporaryDirectory(prefix='tg-remittance-') as tmp:
      page.locator('[data-ded-percent]').nth(index).fill(pct);assert page.locator('[data-ded-amount]').nth(index).input_value()==amount
     page.locator('#erBankCredit + input[data-tt-numeric-proxy]').fill('94107.30');assert page.locator('#erBankCredit + input').input_value()=='94,107.30';assert page.locator('#erPost').is_enabled()
     page.screenshot(path=str(evidence/'tg-multiple-invoices-advance-desktop.png'));page.set_viewport_size({'width':390,'height':844});page.screenshot(path=str(evidence/'tg-multiple-invoices-advance-phone.png'))
+    for amount_input in page.locator('#erTgBasket [data-tg-amount]').all():
+     visible_input=amount_input.locator('xpath=following-sibling::input[@data-tt-numeric-proxy]')
+     if visible_input.count()==0:visible_input=amount_input
+     assert visible_input.bounding_box()['width']>=180, 'Full TG amount needs a readable mobile column'
+     assert visible_input.evaluate('el=>el.scrollWidth<=el.clientWidth+1'), 'TG amount text must fit without horizontal clipping'
+
     page.locator('#erPost').click();page.locator('#ttExportReceiptToast').filter(has_text='posted').wait_for()
     saved_ui=json.loads((root/'data/accounts.json').read_text());receipt_ui=next(x for x in saved_ui['exportReceipts'].values() if x['bankAdviceRef']=='BASKET-UI')
     assert receipt_ui['tgPaymentTotal']==350 and receipt_ui['foreignAmount']==340 and receipt_ui['correspondentPkrAmount']==2800
