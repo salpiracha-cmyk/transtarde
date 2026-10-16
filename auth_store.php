@@ -835,6 +835,8 @@ function tt_api_entity_policy(string $path): array {
     // Assets serves both Accounts and the separately authorised Directors view.
     // Its endpoint enforces module/icon rights and company scope on every request.
     if($endpoint==='assets_registry.php')return['required'=>false,'fixed'=>''];
+    // Read-only aggregate; the endpoint filters each approval by company authority.
+    if($endpoint==='director_approvals.php')return['required'=>false,'fixed'=>''];
     if(in_array($endpoint,$entityIndependent,true))return['required'=>false,'fixed'=>''];
     if(str_starts_with($endpoint,'tg_'))return['required'=>true,'fixed'=>'TG'];
     return['required'=>true,'fixed'=>''];
