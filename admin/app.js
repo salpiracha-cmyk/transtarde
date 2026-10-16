@@ -23,7 +23,7 @@
     ],
     Directors: [
       ["dashboard","Directors Dashboard"],["assets","Assets & Investments"],["tgmaster","TG Master"],
-      ["alerts","Alerts & Renewals"],["approvals","Approvals"],["reports","Management Reports"]
+      ["alerts","Alerts & Renewals"],["approvals","Approvals"],["reports","Management Reports"],["brokerage","Brokerage Master"]
     ],
     Accounts: [
       ["assets","Assets / Properties & Instalments"],
@@ -31,7 +31,7 @@
       ["dashboard","Needs Attention / Dashboard"],["purchases","Purchases / Sodas"],["due","Due Date Report"],
       ["supplier","Supplier Ledgers & Payments"],["customer","Customer Ledgers & Receipts"],["expenses","Expenses & Overheads"],
       ["transport","Transport"],["freight","Freight"],["services","Export Service Bills"],["cashbank","Cash & Bank"],
-      ["jv","Journal Voucher"],["reconciliation","Reconciliation"],["tg","TG / Intercompany"],["reports","Reports"],["masters","Accounts Masters"]
+      ["jv","Journal Voucher"],["reconciliation","Reconciliation"],["tg","TG / Intercompany"],["reports","Reports"],["masters","Accounts Masters"],["brokerage","Brokerage Master"]
     ]
   };
   const SESSION = window.TT_SESSION;

@@ -188,6 +188,8 @@ jobs:
           php tests/accounts-v1/user_input_preservation_test.php
           python3 tests/accounts-v1/ledger_catalog_identity_test.py
           python3 tests/accounts-v1/admin_audit_test.py
+          python3 tests/accounts-v1/brokerage_scope_test.py
+          node tests/accounts-v1/brokerage_readonly_ui_test.js
           node tests/accounts-v1/admin_audit_ui_test.js
           node tests/accounts-v1/mill_read_and_master_ack_test.js
           node tests/accounts-v1/shipment_bill_result_edit_test.js
