@@ -515,7 +515,7 @@ test('read-only Exports and Milling loading, errors and Masters navigation', asy
       if(moduleId==='exports'){
         await expect(page.locator('#app')).toBeVisible();
         await expect(page.locator('#ttExportsLoadError')).toHaveCount(0);
-      }else await expect(page.locator('#homeGrid')).toHaveCount(1);
+      }else{await expect(page.locator('#homeGrid')).toHaveCount(1);await expect.poll(()=>page.evaluate(()=>typeof window.TT_PRODUCTION_RECOVERY?.outputKg),{timeout:30_000}).toBe('function');await expect(page.locator('#milling-production-recovery-entry')).toHaveCount(1);}
       const body=await response.body();
       const metadata=await page.evaluate(()=>({
         domReadyMs:Math.round(performance.getEntriesByType('navigation')[0]?.domContentLoadedEventEnd||0),
@@ -824,6 +824,7 @@ test('all active financial account ledgers reconcile to same-revision reports',a
 // Reads committed production only. Never create a lot, rate, sheet or journal in live QA.
 test('production recovery reports reconcile live actual input and preserve read-only books',async({page})=>{
  test.setTimeout(180_000);await signIn(page);const writes=[];page.on('request',r=>{if(r.method()==='POST'&&/\/api\/(?:mill_recovery|production_costing|management_costing|operations(?:\.mysql)?)\.php/.test(r.url()))writes.push(r.url());});
+ const sourceResponse=await page.request.get(`${BASE_URL}/api/operations.mysql.php`);expect(sourceResponse.status()).toBe(200);const source=await sourceResponse.json(),productionSourceRuns=JSON.parse(source.values?.tt30prod||'[]').length;
  let groups=0,missing=0;
  for(const entity of ['TTI','BRM'])for(const mode of ['production','daily','brand','contract']){
   const response=await page.request.get(`${BASE_URL}/api/mill_recovery.php?`+new URLSearchParams({entity,mode}));expect(response.status()).toBe(200);const report=await response.json();expect(report.ok).toBe(true);expect(report.entity).toBe(entity);
@@ -832,5 +833,5 @@ test('production recovery reports reconcile live actual input and preserve read-
   groups+=report.groups.length;missing+=report.missingInputRuns;
  }
  await page.goto(`${BASE_URL}/accounts/production-reports.php?entity=TTI`,{waitUntil:'domcontentloaded'});await expect(page.locator('[data-generate]')).toBeVisible();await expect(page.locator('[data-status]')).toHaveText('',{timeout:30_000});await expect(page.locator('[data-report] h2')).toContainText('Daily Recovery');await page.locator('[name=mode]').selectOption('contract');await expect(page.locator('[data-print]')).toBeDisabled();await page.locator('[data-generate]').click();await expect(page.locator('[data-report] h2')).toContainText('Contract Recovery');await expect(page.locator('[data-csv]')).toBeEnabled();expect(writes).toEqual([]);
- console.log('LIVE_ACTUAL_RECOVERY_OK '+JSON.stringify({groupsChecked:groups,missingInputRunAppearances:missing,reportModes:4,companies:2,financialWrites:0}));
+ console.log('LIVE_ACTUAL_RECOVERY_OK '+JSON.stringify({productionSourceRuns,groupsChecked:groups,missingInputRunAppearances:missing,reportModes:4,companies:2,financialWrites:0}));
 });

@@ -19,6 +19,16 @@ header('Expires: 0');
 header('Vary: Cookie');
 header('X-LiteSpeed-Cache-Control: no-cache');
 $html = (string)file_get_contents($modules[$id]);
+if ($id === 'milling') {
+    // Milling sources stay protected by .htaccess; deliver this dependency through the authenticated module.
+    $recoveryEntryFile = __DIR__.'/milling/production-recovery-entry.js';
+    if (!is_file($recoveryEntryFile) || ($recoveryEntry = file_get_contents($recoveryEntryFile)) === false) { http_response_code(503); exit('Production entry assets are unavailable.'); }
+    $html = tt_replace_html_once(
+        '~<script\b[^>]*src=["\']/milling/production-recovery-entry\.js[^"\']*["\'][^>]*>\s*</script>~i',
+        static fn(): string => '<script id="milling-production-recovery-entry">' . str_replace('</script', '<\\/script', $recoveryEntry) . '</script>',
+        $html
+    );
+}
 if ($id === 'exports') {
     $cssFile = __DIR__ . '/exports/app.css';
     $jsFile = __DIR__ . '/exports/app.js';
