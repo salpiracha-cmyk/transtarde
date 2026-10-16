@@ -78,7 +78,7 @@ foreach(array_merge((array)($master['chart']??[]),(array)($master['peopleSubledg
 foreach(['settlement_policy_v1.json','export_realization_policy_v1.json'] as $policyFile){
     $path=dirname(__DIR__).'/accounts/'.$policyFile;
     $policy=is_file($path)?json_decode((string)file_get_contents($path),true):[];
-    foreach((array)($policy['accounts']??[]) as $row)if(is_array($row)&&isset($row['code']))$catalog[(string)$row['code']]=(string)($row['name']??$row['code']);
+    foreach((array)($policy['accounts']??[]) as $row)if(is_array($row)&&isset($row['code'])&&!isset($catalog[(string)$row['code']]))$catalog[(string)$row['code']]=(string)($row['name']??$row['code']);
 }
 $file=TT_DATA_DIR.'/accounts.json';
 $store=tt_fi_advice_project(tt_fi_advice_read_json($file),tt_fi_advice_root());

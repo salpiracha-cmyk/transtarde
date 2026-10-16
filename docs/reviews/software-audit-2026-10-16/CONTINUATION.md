@@ -74,7 +74,7 @@ Live mutations are withheld; posting scenarios belong in disposable copies.
 Ten of fourteen targeted checks passed: bank reconciliation API/projection,
 supplier discounts, FI linkage core, approval integrity, bag period report core/UI,
 session hardening, inventory core/UI. Four HTTP tests were blocked by socket
-permissions or require failure-log classification; retain raw logs at
+permissions (all four failure logs classified as denied socket binding); retain raw logs at
 `/tmp/tt-completion-checks`. These are not whole-application acceptance results.
 
 ## Further live findings
@@ -123,7 +123,7 @@ permissions or require failure-log classification; retain raw logs at
 | Accounts | P&L | not tested | Live figures load; C09 requires original source review |
 | Accounts | Pay Expense / Utilities | passed | Bank/cash/card available; saved Mill KESC fills provider, location/reference; no posting |
 
-## Prepared fixes — not deployed
+## First repair batch — merged; deployment verification pending
 
 - Directors opens its existing protected route.
 - Unrelated user edits preserve Directors, unrepresented icons, legacy module-wide
@@ -137,5 +137,58 @@ permissions or require failure-log classification; retain raw logs at
 
 Fresh regression tests for permission preservation (UI + validator) and Mill dates
 pass. Existing Director approvals, Master topbar, Console cleanup and master
-permission migration tests pass. Required hosted QA and remaining audit work are
-still outstanding. No whole-application or data migration sign-off.
+permission migration tests pass. Both hosted QA suites passed for repair commit 5800f59d65a50aa4cb3be43bccca55bd2fef05ef:
+Accounts run 38952258160 and Milling/Exports run 38952258469. PR #264 merged as
+49ffbc26af52ac33904c6d3747ac312b39bc43b2. This is a source merge, not proof
+of production deployment. The merge commit returned no associated workflow runs
+at the last connector check. Post-deployment live visual verification remains
+pending. No whole-application or data migration sign-off.
+
+
+## Continuation checkpoint — 17 October, Pakistan time
+
+The local Chrome connection closed during the resumed session. Reconnection and
+reset both returned `Transport closed`; fresh live UI checks are blocked until
+that connection resumes. Earlier signed-in Mac Chrome observations remain valid
+as earlier evidence. Source work and GitHub access continue.
+
+### Zakat — management clarification; annual form deferred
+
+Salman confirmed on 17 October that calculated Zakat becomes payable throughout
+the year, payments reduce the outstanding payable, and amounts paid belong to that
+year's expense. He requested a future annual Zakat form creating the yearly debit
+entry. The exact balanced entries and treatment of existing records must be
+reviewed when implementing it. Do not add the form or rewrite historical journals
+as part of this checkpoint.
+
+The live source trace found POST-2026-00074 on 1 July: credit 7210 Zakat 852,747,
+debit 3400 Opening Balance Clearing 852,747. Nine subsequent payments total 103,350,
+leaving a credit balance of 749,397. That is a payable balance; its existence is
+not itself an error. C09 remains a reporting/classification issue because P&L
+currently includes the net credit as a negative expense. Verify the paid amounts
+against payment sources and the chosen financial year before changing reporting.
+A reminder to add the annual form is scheduled for 18 October at 14:00 Asia/Karachi.
+
+### C10 — Directors write permissions exceed the selected screen scope
+
+Source-level helper probes in a disposable PHP process show that
+`bm_can_write` allows a Director with only `reports: [View]`, while `tgfx_can_edit`
+allows `assets: [View, Edit]` to edit the TG master. These helpers accept module
+access or writes on an unrelated icon. No actual privileged POST was sent, and
+no real user grants were changed. Brokerage/freight scope must be mapped to the
+canonical permission model, with negative tests for unrelated icons and preserved
+legacy module-wide grants. This remains unresolved.
+
+### C11 — Ledger account names disagree with the chart and P&L
+
+Account 7200 is Donations in the canonical chart/P&L, but the ledger replaces its
+name with an export-policy Tax label for the same code. The repair lets policies
+add missing accounts without overriding an existing chart identity. It does not
+resolve the wider policy code collision or reclassify any posting; review tax
+posting configuration before relying on policy-created tax transactions.
+
+A disposable CLI fixture executes the actual ledger and report routes against a
+balanced 100 debit/100 credit journal. It fails on baseline, passes with the
+repair, confirms identical names and 100 amounts, and verifies the source journal
+file is byte-for-byte unchanged. The test is included in Accounts QA. This repair
+is prepared separately from the first merged batch; no live journal changed.
