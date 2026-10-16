@@ -1,5 +1,6 @@
 """Real ledger/report routes share chart identities; disposable CLI fixture, no socket or live writes."""
 import json
+import os
 import pathlib
 import shutil
 import subprocess
@@ -40,7 +41,10 @@ with tempfile.TemporaryDirectory(prefix='ledger-catalog-') as directory:
     require __DIR__.'/api/'.$argv[1].'.php';
     ''')
     def request(route):
-        result = subprocess.run(['php', str(harness), route], capture_output=True, text=True, check=True)
+        # This is a file-backed fixture; never inherit the runner's MySQL target.
+        request_env = {key: value for key, value in os.environ.items() if not key.startswith('TT_DB_')}
+        result = subprocess.run(['php', str(harness), route], capture_output=True, text=True, env=request_env)
+        assert result.returncode == 0, result.stderr or result.stdout
         assert not result.stderr, result.stderr
         data = json.loads(result.stdout)
         assert data['ok'], data

@@ -204,3 +204,18 @@ approval endpoint, draft or journal. A fixture using the actual approval rendere
 fails on baseline and passes with the repair, including an HTML-like bank name.
 The revised second repair batch is tracked in PR #265; hosted QA and visual
 verification remain pending.
+
+
+### Hosted regression checkpoint
+
+Accounts QA run 38954253701 failed in the newly added file-backed catalog test:
+the test inherited the hosted runner's MySQL environment. Reproduced locally by
+supplying those environment variables. The fixture now strips TT_DB_* only from
+its PHP subprocess environment, so it reads its disposable file-backed source;
+it passes both with and without MySQL variables supplied. Application connection
+settings are unchanged. A fresh complete hosted run remains required before merge.
+
+See MASTER_RECORDS_PROPOSAL.md for the proposed shared management area and the
+initial field-use classification. It additionally records that labour Effective
+From is saved but current rate lookup does not choose by work date. This remains
+an incomplete dated-rate feature; no historical bill was regenerated or changed.
