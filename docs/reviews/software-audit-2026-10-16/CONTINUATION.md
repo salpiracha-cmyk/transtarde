@@ -659,3 +659,38 @@ removal, rounding, unverified history, permission denials and unchanged source b
 Existing inventory (103 assertions), recovery, inventory UI, Mill cash, recovery UI
 and labour scope checks also pass locally. Hosted QA and real Chrome output/layout
 verification are pending at this checkpoint; this is not migration signoff.
+
+## Historical Milling permission editor (R03, prepared)
+
+`tt37users` was never an authoritative permission source. Preserve every stored
+entry and every legacy input, but make that form read-only, label its table as
+historical drafts, and route management to the existing Super Admin Console.
+Direct calls to the old Save handler now perform no write and explicitly say no
+access changes were saved. The historical action text is escaped before rendering.
+A focused DOM test confirms disabled controls, retained historical records, escaped
+content and no direct-handler writes. No actual user grants, roles or company
+restrictions are imported or changed.
+
+PR273 production deployment38964450170/job117187320570 succeeded at569d68c,
+retained its backup, reported changedUserCount=0/Post ID changeCount=0 and confirmed
+the production login healthy. Rice Ledger PR275 remains under hosted QA.
+
+## Sales Tax document selection/output (C17, prepared)
+
+The actual selected-files handler now deduplicates original export file IDs and
+credit-advice URLs across selected rows. Distinct files with the same filename are
+retained. Clearing every Use checkbox now selects nothing; previously it selected
+all rows. Print/download reject changed company/filter snapshots. Starting another
+search clears stale results/actions, and older or detached responses cannot replace
+the new results. A positive DOM test executes the actual form and both output
+handlers with shared artwork/advice, two distinct same-named certificates, empty
+selection and competing searches. It passes without changing stored attachments.
+Process/lot result inclusion, issued CI/PL integration and source-store failure
+handling remain open; this patch does not claim the full Sales Tax workflow passed.
+
+Real Mac Chrome verification after PR273: own-mill Labour Bill shows operational
+estimates and “Unavailable — no recorded production”, not a false zero unit cost.
+AUTO-FILL WORK gives the missing effective agreement message while keeping the
+blank draft and current dates; no Save was clicked. The form and validation were
+visually inspected at the ordinary desktop viewport. Contractor dropdown is empty
+and the central dated labour agreement path remains a readiness gap.
