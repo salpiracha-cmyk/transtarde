@@ -447,4 +447,3 @@ function pc_calculate(array $store, array $ops, string $entity): array {
 
     return ['groups' => $result, 'sourceCosts' => $sources];
 }
-
