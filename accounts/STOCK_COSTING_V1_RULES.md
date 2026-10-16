@@ -47,7 +47,7 @@ The final Accounts calculation can use:
 - approved by-product values;
 - eligible Mill Staff salary and Mill Rent.
 
-Production input remains the existing Transtrade inferred input: the total stock-posting production outputs for the saved shift/day. The costing engine does not create a second physical stock movement.
+From the owner-approved actual-recovery update of 16 October 2026, production input is independently recorded actual raw input. Historical output-only records remain explicitly incomplete for recovery/final cost; their stock movement is preserved until an explicit amendment. The costing engine never creates a second physical movement. Reprocessing must review the cost of its actual input stock rather than reuse the raw-purchase pool as a final cost.
 
 Purchase stock is costed using a moving weighted average by recognized rice variety. Receipts on a date are made available before production on that same date for the costing calculation.
 
@@ -81,5 +81,5 @@ For a TG customer sale linked to the Pakistan intercompany purchase:
 This prevents double costing and prevents the TG cost from being guessed from the customer selling price.
 
 ## Mill screen rule
-The costing sheet reads existing Mill production and sale data. It must not add or change a Mill field or change what Mill staff have to do. Any future Mill-facing change requires owner approval first.
+The costing sheet reads committed Mill production and sale data. The owner-approved 16 October 2026 actual-input entry and allocation controls are used for recovery. Future changes to Mill workflows still require owner approval.
 

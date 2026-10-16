@@ -212,7 +212,7 @@ function pc_production(array $ops,string $entity='TTI'): array {
         if(!is_array($p)||strtoupper((string)($p['entity']??'TTI'))!==$entity)continue;
         $date=(string)($p['date']??'');if(!mr_valid_date($date))continue;
         $outputs=[];$readyKg=0.;foreach(mr_output_rows($p) as $o){$ready=$o['kind']==='finished';$outputs[]=['product'=>$o['product'],'kg'=>$o['kg'],'ready'=>$ready];if($ready)$readyKg+=$o['kg'];}
-        if(!$outputs)continue;
+        if(!$outputs&&mr_actual_input($p)===null)continue;
         $input=mr_actual_input($p);$variety=(string)($p['sourceVariety']??$p['displayName']??$p['variety']??'Rice');
         $rows[]=['id'=>(string)($p['id']??($date.'|'.($p['shift']??'').'-'.count($rows))),'entity'=>$entity,'date'=>$date,'shift'=>(string)($p['shift']??''),'variety'=>$variety,'varietyKey'=>pc_variety_key($variety),'inputKg'=>$input??0,'inputComplete'=>$input!==null&&$input>0,'readyKg'=>round($readyKg,3),'outputs'=>$outputs,'source'=>$p];
     }
@@ -229,13 +229,13 @@ function pc_group_production(array $production): array {
                 'date' => $p['date'],
                 'variety' => $p['variety'],
                 'varietyKey' => $p['varietyKey'],
-                'inputKg' => 0.0,'inputComplete'=>true,'sourceRuns'=>[],
+                'inputKg' => 0.0,'inputComplete'=>true,'requiresInputStockCost'=>false,'sourceRuns'=>[],
                 'readyKg' => 0.0,
                 'outputs' => [],
                 'runIds' => [],
             ];
         }
-        $groups[$id]['inputKg'] += (float)$p['inputKg'];$groups[$id]['inputComplete']=$groups[$id]['inputComplete']&&$p['inputComplete'];$groups[$id]['sourceRuns'][]=$p['source'];
+        $groups[$id]['inputKg'] += (float)$p['inputKg'];$groups[$id]['inputComplete']=$groups[$id]['inputComplete']&&$p['inputComplete'];$groups[$id]['sourceRuns'][]=$p['source'];$groups[$id]['requiresInputStockCost']=$groups[$id]['requiresInputStockCost']||!in_array(strtoupper((string)($p['source']['inputStage']??'RAW')),['','RAW'],true);
         $groups[$id]['readyKg'] += (float)$p['readyKg'];
         $groups[$id]['runIds'][] = $p['id'];
         foreach ($p['outputs'] as $o) {
@@ -334,7 +334,7 @@ function pc_calculate(array $store, array $ops, string $entity): array {
         $state = $pool[$key] ?? ['kg' => 0.0, 'value' => 0.0, 'provisionalKg' => 0.0];
         $available = (float)$state['kg'];
         $average = $available > 0 ? (float)$state['value'] / $available : 0.0;
-        $approved=pc_approved($store,$g,$entity);$sourceChanged=$approved&&!empty($approved['calculation']['productionFingerprint'])&&!hash_equals($approved['calculation']['productionFingerprint'],$g['productionFingerprint']);$poolWasUncertain=!empty($uncertain[$key]);$need=(float)$g['inputKg'];if($approved&&isset($approved['calculation']['inputKg']))$need=(float)$approved['calculation']['inputKg'];if((empty($g['inputComplete'])&&!$approved)||$sourceChanged)$uncertain[$key]=true;
+        $approved=pc_approved($store,$g,$entity);$sourceChanged=$approved&&!empty($approved['calculation']['productionFingerprint'])&&!hash_equals($approved['calculation']['productionFingerprint'],$g['productionFingerprint']);$poolWasUncertain=!empty($uncertain[$key]);$need=(float)$g['inputKg'];if($approved&&isset($approved['calculation']['inputKg']))$need=(float)$approved['calculation']['inputKg'];if((empty($g['inputComplete'])&&!$approved)||!empty($g['requiresInputStockCost'])||$sourceChanged)$uncertain[$key]=true;
         $enough = $available + 0.001 >= $need;
         $share = $available > 0 ? min(1, $need / $available) : 0;
         $provisionalConsumed = (float)$state['provisionalKg'] * $share;
@@ -398,6 +398,7 @@ function pc_calculate(array $store, array $ops, string $entity): array {
 
         $costFingerprint=hash('sha256',json_encode([$g['productionFingerprint'],$entity,$average,$rawCost,$sourceRows,$byProducts,$readyCost],JSON_THROW_ON_ERROR));if($approved&&!empty($approved['calculation']['costFingerprint'])&&!hash_equals($approved['calculation']['costFingerprint'],$costFingerprint)){$sourceChanged=true;$uncertain[$key]=true;}
         if ($approved) $status=$sourceChanged?'Approved cost — production changed or source costs changed; review required':(($approved['calculation']['quantityBasis']??'')==='ACTUAL_INPUT'?'Approved':'Approved historical cost — actual input unverified');
+        elseif (!empty($g['requiresInputStockCost'])) $status='Waiting — reprocessing input-stock cost needs review';
         elseif (empty($g['inputComplete'])) $status='Waiting — actual raw input is missing';
         elseif ($poolWasUncertain) $status='Waiting — earlier production input is missing or changed';
         elseif (!$allocationComplete) $status='Waiting — actual input is missing in the cost-allocation period';
@@ -411,7 +412,7 @@ function pc_calculate(array $store, array $ops, string $entity): array {
         else $status = 'Ready for Accounts Review';
 
         $result[] = [
-            'id' => $g['id'],'runIds'=>$g['runIds'],'productionFingerprint'=>$g['productionFingerprint'],'inputComplete'=>$g['inputComplete'],'approvedSnapshot'=>$approved,
+            'id' => $g['id'],'runIds'=>$g['runIds'],'productionFingerprint'=>$g['productionFingerprint'],'inputComplete'=>$g['inputComplete'],'requiresInputStockCost'=>$g['requiresInputStockCost'],'approvedSnapshot'=>$approved,
             'date' => $g['date'],
             'entity' => $entity,
             'variety' => $g['variety'],
@@ -432,7 +433,7 @@ function pc_calculate(array $store, array $ops, string $entity): array {
             'missingByProductValues' => $missing,
             'byProductValue' => round($byProductValue, 2),
             'readyRiceCost' => $readyCost,
-            'suggestedReadyRiceCostPerKg' => !empty($g['inputComplete'])&&!$poolWasUncertain&&$allocationComplete?round($readyRate,6):null,
+            'suggestedReadyRiceCostPerKg' => !empty($g['inputComplete'])&&empty($g['requiresInputStockCost'])&&!$poolWasUncertain&&$allocationComplete?round($readyRate,6):null,
             'enoughRawStock' => $enough,
             'status' => $status,
             'readyToApprove' => $status === 'Ready for Accounts Review',
