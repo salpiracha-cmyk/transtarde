@@ -740,3 +740,28 @@ No bag stock quantity or saved receipt has been changed in this investigation.
 Rice Ledger PR275 final head0649bd72 passed full Accounts38966386607 and
 Milling/Exports38966386316; merged38fd57e59ddc505a73fce6192d689d86f15777c3.
 Production deployment and fresh Mac Chrome output checks are pending.
+
+## Production/recovery report entry scope (prepared)
+
+The report entry functions previously mounted the shared report without passing the
+selected mill/company. It could inherit the dormant production form's company and
+open all mills. Pass the current Milling company and mill explicitly. Preserve an
+existing report's filters when the scope is unchanged; mount a fresh child root when
+scope changes, so late responses only own detached content. Replace the competing,
+unscoped legacy brand total table with a link to the canonical production report.
+No stored brand specifications are deleted. A DOM test executes the actual entry
+functions for TTI then BRM/another mill and verifies filters, root detachment, hidden
+panels and the brand-report route; existing canonical recovery UI tests also pass.
+
+## Additional bag workflow findings, C19/C20
+
+Disposable source-function probes are stored under probes/. They are diagnostic
+failed audit results, not passing application acceptance tests. C19 reproduces the
+bag-list renderer's automatic renumber/write when duplicate source IDs occur.
+Renumbering historical IDs without receipt/link mapping must not be treated as a
+safe migration repair. C20 enters a20-bag transfer out of100: the source records20
+transferred and claims destination stock updated, but creates no destination receipt
+or order. Repository searches found only source deductions/report display consuming
+that transfer array, with no receiving consumer. The destination company/location
+and receipt acknowledgement require a canonical transfer workflow. No actual bag
+record was renumbered, transferred, deleted or posted by these probes.
