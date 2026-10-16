@@ -80,7 +80,8 @@ assert(!milling.includes("m={'RAW RICE':0}"),'Milling still collapses every raw 
 assert(milling.includes("rawStockName"),'Milling physical adjustments do not preserve their raw variety');
 assert(milling.includes("primary?(r.displayName||finished.displayName)"),'Finished stock is not derived from the FINISHED product identity');
 assert(milling.includes("display=s.displayName||millProductIdentity"),'Printed Pohanch still uses an unstaged variety label');
-assert(milling.includes("n:'Arrival — '+x.truck+' — '+display"),'Rice ledger still hides the arrival product stage');
+const riceLedgerUi=read('milling/rice-ledger.js'),riceLedgerCore=read('api/rice_ledger_core.php');
+assert(milling.includes('TT_RICE_LEDGER?.load()')&&riceLedgerCore.includes('tt_inv_stock($values,$scope,')&&riceLedgerUi.includes('r.product'),'Rice ledger must display canonical staged product identities');
 assert(bridgeRuntime.includes("productStage:'READY'"),'Ex-Mill stock is not classified as READY');
 assert(bridgeRuntime.includes('displayName=readyDisplay(baseVariety)')&&bridgeRuntime.includes("productStage:'READY',displayName"),'Ex-Mill stock lacks its READY display identity');
 assert(exportsApp.includes('commercialProductName'),'Exports commercial-name stage stripping missing');

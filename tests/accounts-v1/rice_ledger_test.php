@@ -1,0 +1,24 @@
+<?php
+declare(strict_types=1);
+require __DIR__.'/../../api/rice_ledger_core.php';
+function eq($a,$b,$why){if($a!==$b)throw new RuntimeException($why.' '.json_encode([$a,$b]));}
+$scope=['entity'=>'TTI','millName'=>'TTI Rice Mills'];$raw='Raw';$ready='Finished';
+$slip=fn($id,$date,$kg)=>$scope+['id'=>$id,'arrivalDate'=>$date,'displayName'=>$raw,'payableWeight'=>$kg];
+$prod=$scope+['id'=>'P1','date'=>'2026-09-05','recoveryVersion'=>1,'actualInputKg'=>600,'inputStockName'=>$raw,'rows'=>[['product'=>$ready,'systemKg'=>550],['product'=>'Bran','systemKg'=>40],['product'=>'PRIVATE','systemKg'=>999,'managementOnly'=>true]]];
+$records=['tt30slips'=>[$slip('A0','2026-08-31',200),$slip('A1','2026-09-01',800),array_replace($slip('X','2026-09-01',9000),['millName'=>'Other Mill']),array_replace($slip('Y','2026-09-01',4000),['entity'=>'BRM'])],'tt30prod'=>[$prod],'tt30ship'=>[$scope+['id'=>'S1','stockSourceName'=>$ready,'containers'=>[['date'=>'2026-09-07','weight'=>60],['date'=>'2026-09-08','weight'=>40]]]]];
+function values($records){return array_map(fn($r)=>json_encode($r,JSON_THROW_ON_ERROR),$records);}
+function report($records,$f=[]){global $scope;return rl_report(values($records),$scope,$f+['from'=>'2026-09-01','to'=>'2026-09-30','movement'=>'All','product'=>'']);}
+function summary($r,$p){return array_values(array_filter($r['summaries'],fn($s)=>$s['product']===$p))[0];}
+$r=report($records);eq(summary($r,$raw)['openingKg'],200.0,'Opening before range');eq(summary($r,$raw)['closingKg'],400.0,'Actual production input consumed');eq(summary($r,$ready)['closingKg'],450.0,'Loading consumed finished stock');eq(summary($r,'Bran')['closingKg'],40.0,'Byproduct separate');eq(in_array('PRIVATE',$r['products']),false,'Management row excluded');
+foreach(tt_inv_stock(values($records),$scope) as $p=>$kg)eq(summary($r,$p)['closingKg'],$kg,'All dated closing matches canonical stock');
+$range=report($records,['from'=>'2026-09-06']);eq(summary($range,$ready)['openingKg'],550.0,'Opening includes earlier production');eq(summary($range,$ready)['closingKg'],450.0,'Range keeps opening');
+$before=report($records,['to'=>'2026-09-07']);eq(summary($before,$ready)['closingKg'],490.0,'Individual container dates respected');
+$out=report($records,['movement'=>'Outward']);eq(summary($out,$raw)['closingKg'],400.0,'Movement filter cannot change balance');eq($out['rows'][0]['balanceKg'],400.0,'Running balance includes hidden arrivals');
+$amend=$records;$amend['tt30prod'][0]['actualInputKg']=650;eq(summary(report($amend),$raw)['closingKg'],350.0,'Amended source reflected without duplicate');unset($amend['tt30ship']);eq(summary(report($amend),$ready)['closingKg'],550.0,'Removed loading restores quantity');
+$unknown=$records;$unknown['tt30slips'][]=$slip('MISSING','',50);$u=report($unknown);eq(summary($u,$raw)['closingKg'],400.0,'No invented date');eq(summary($u,$raw)['undatedKg'],50.0,'Unknown date quantity disclosed');eq(summary($u,$raw)['undatedCount'],1,'Undated movement makes dated balance unverified');
+$legacy=$records;unset($legacy['tt30prod'][0]['recoveryVersion']);$legacy['tt30prod'][0]['rows']=[['product'=>$ready,'bags'=>11,'bagWeight'=>50]];eq(summary(report($legacy),$raw)['closingKg'],450.0,'Preserve canonical historical inference');eq(summary(report($legacy),$raw)['provisional'],true,'Historical inferred consumption never presented as actual');
+foreach(['{broken','{"not":"list"}','[2]'] as $bad){$v=values($records);$v['tt30slips']=$bad;$failed=false;try{rl_report($v,$scope,[]);}catch(Throwable $e){$failed=true;}eq($failed,true,'Malformed source must fail closed');}
+$rounded=$records;$rounded['tt30ship'][0]['containers']=[['date'=>'2026-09-07','weight'=>.0006],['date'=>'2026-09-08','weight'=>.0006]];$rr=report($rounded);eq(summary($rr,$ready)['closingKg'],tt_inv_stock(values($rounded),$scope)[$ready],'Component rounding preserves canonical aggregate');
+$staged=['tt30slips'=>[]];foreach(['RAW','READY','FINISHED'] as $stage)$staged['tt30slips'][]=$scope+['id'=>$stage,'baseVariety'=>'IRRI-6','riceType'=>'White','productStage'=>$stage,'arrivalDate'=>'2026-09-01','payableWeight'=>100];
+$stageReport=report($staged);$identities=[];foreach(['RAW','READY','FINISHED'] as $stage){$name=tt_inv_product(['baseVariety'=>'IRRI-6','riceType'=>'White'],$stage);$identities[]=$name;eq(summary($stageReport,$name)['closingKg'],100.0,'Retain the actual arrival stage in its own stock balance');}eq(count(array_unique($identities)),3,'Raw, Ready and Finished identities remain distinct');
+echo "PASS Rice Ledger: scoped canonical stock, production, openings, container dates, hidden movements, amendments/removal, provisional/undated history and malformed-source failures.\n";

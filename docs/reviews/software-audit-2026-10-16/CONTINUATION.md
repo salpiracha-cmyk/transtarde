@@ -634,3 +634,28 @@ and merged as569d68c2c12cf88eaaed39e8f55c25c566670d76. Production deployments fo
 PR271(run38962870007) and PR272(run38963869599) succeeded, retained backups, reported
 changedUserCount=0 and Post ID changeCount=0, and confirmed healthy production login.
 The later PR273 deployment is still being checked at this checkpoint.
+
+## Rice Ledger replacement prepared (R13, awaiting hosted QA/deployment)
+
+The old Rice Ledger reset its running quantity after filtering, omitted production,
+combined different products in one balance and used today's date for missing dates.
+It is replaced with a read-only server projection of `tt_inv_stock`. An optional
+observer exposes the exact rounded deltas of that existing calculation; existing
+stock arithmetic and saved records are preserved. Per-container dates split the
+aggregate outgoing delta, conserving its three-decimal quantity. Each product has
+its own opening, movements and closing; movement-only display filters do not alter
+balances. Undated history is separately disclosed and excluded from dated balances;
+legacy consumption inferred from output retains canonical quantities and is marked
+provisional. Product/source references are shown, not invented accounting Post IDs.
+Source-form drill-down remains a separate coverage item.
+
+The endpoint validates company, location, report permission, dates, movement filters
+and source JSON; GET never writes. The UI discards late responses after scope/filter
+changes, clears stale results on failure, and uses one generated snapshot for its
+screen, print and CSV. Hidden report panels do not issue report requests. Till Date
+retains its To field. Positive local tests exercise scoped arrivals, actual production,
+by-products, different container dates, period openings, movement filters, amendments,
+removal, rounding, unverified history, permission denials and unchanged source bytes.
+Existing inventory (103 assertions), recovery, inventory UI, Mill cash, recovery UI
+and labour scope checks also pass locally. Hosted QA and real Chrome output/layout
+verification are pending at this checkpoint; this is not migration signoff.
