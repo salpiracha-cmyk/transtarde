@@ -317,17 +317,8 @@
     q('#ttAccountingDesk')?.classList.add('tt-inside-area');
     const work = q('#ttDeskWork');
     if (!work) return;
-    const menuToken=++bankMenuGeneration,menuCompany=entity();let hiddenSpecials=new Set();
-    if(area.key==='bank'||area.key==='tg-bank'){
-      work.innerHTML='<button class="tt-back-areas" type="button">BACK</button><p>Loading bank options…</p>';q('.tt-back-areas',work).onclick=showAreasHome;
-      const urls=['../api/bank_entries.php?entity='+menuCompany,'../api/bank_accounts.php?entity='+menuCompany,...(menuCompany!=='TG'?['../api/export_receipts.php?entity='+menuCompany]:[])];
-      const results=await Promise.allSettled(urls.map(async url=>{const response=await fetch(url,{credentials:'same-origin'});if(!response.ok)return null;return response.json();}));
-      if(menuToken!==bankMenuGeneration||menuCompany!==entity()||!work.isConnected||document.querySelector('#ttDeskWork')!==work)return;
-      const finance=results[0].status==='fulfilled'?results[0].value:null,banks=results[1].status==='fulfilled'?results[1].value:null,tg=results[2]?.status==='fulfilled'?results[2].value:null;
-      if(finance?.ok&&!finance.canCreate&&!(finance.facilities||[]).some(f=>f.active))hiddenSpecials.add('bank-finance');
-      if(banks?.ok&&!banks.accounts?.some(a=>a.settings?.retentionAccount))hiddenSpecials.add('retention-remittance');
-      if(tg?.ok&&!(tg.pendingTg||[]).length&&!(tg.sources?.tgPackInvoices||[]).length&&!(tg.receipts||[]).some(r=>r.remitter==='TG'))hiddenSpecials.add('tg-remittances');
-    }
+    const menuToken=++bankMenuGeneration,menuCompany=entity(),isBankArea=area.key==='bank'||area.key==='tg-bank';
+    const conditionalSpecials=new Set(isBankArea?['bank-finance','retention-remittance','tg-remittances']:[]);
     const actionGlyph = action => {
       const label=action.title.toLowerCase();
       if(action.special==='export-receipt'||label.includes('receipt')||label.includes('advice'))return iconPicture('receipt');
@@ -341,9 +332,19 @@
       if(label.includes('report')||label.includes('balance')||label.includes('profit'))return iconPicture('reports');
       return iconPicture('bill');
     };
-    work.innerHTML = `<div class="tt-work-head"><button class="tt-back-areas" type="button" aria-label="Back to main Accounts">BACK</button><div><h2>${esc(area.title)}</h2></div></div><div class="tt-action-list" data-area-palette="${esc(area.key)}">${area.actions.map((action, index) => hiddenSpecials.has(action.special)?'':`<button type="button" class="tt-action" data-tt-action="${index}"><span class="tt-action-mark">${actionGlyph(action)}</span><span><b>${esc(action.title)}</b></span></button>`).join('')}</div>`;
+    const actionMarkup=(action,index)=>`<button type="button" class="tt-action" data-tt-action="${index}"><span class="tt-action-mark">${actionGlyph(action)}</span><span><b>${esc(action.title)}</b></span></button>`;
+    work.innerHTML = `<div class="tt-work-head"><button class="tt-back-areas" type="button" aria-label="Back to main Accounts">BACK</button><div><h2>${esc(area.title)}</h2></div></div><div class="tt-action-list" data-area-palette="${esc(area.key)}">${area.actions.map((action,index)=>conditionalSpecials.has(action.special)?`<span hidden data-pending-bank-action="${index}"></span>`:actionMarkup(action,index)).join('')}</div>`;
     q('.tt-back-areas',work).onclick=showAreasHome;
     qa('[data-tt-action]', work).forEach(button => button.onclick = () => launch(area.actions[Number(button.dataset.ttAction)]));
+    if(isBankArea){
+      // Optional tool eligibility must never hold the main Bank screen behind a network wait.
+      const urls=['../api/bank_entries.php?entity='+menuCompany,'../api/bank_accounts.php?entity='+menuCompany,...(menuCompany!=='TG'?['../api/export_receipts.php?entity='+menuCompany]:[])];
+      const alive=()=>menuToken===bankMenuGeneration&&menuCompany===entity()&&work.isConnected&&document.querySelector('#ttDeskWork')===work;
+      const reveal=special=>{if(!alive())return;const index=area.actions.findIndex(action=>action.special===special),slot=q('[data-pending-bank-action="'+index+'"]',work);if(!slot)return;slot.outerHTML=actionMarkup(area.actions[index],index);const button=q('[data-tt-action="'+index+'"]',work);if(button)button.onclick=()=>launch(area.actions[index]);};
+      let failed=false;
+      await Promise.allSettled(urls.map(async(url,index)=>{try{const response=await fetch(url,{credentials:'same-origin'});if(!response.ok)throw new Error('Bank option unavailable');const data=await response.json();if(!data.ok)throw new Error('Bank option unavailable');if(index===0&&(data.canCreate||(data.facilities||[]).some(f=>f.active)))reveal('bank-finance');if(index===1&&data.accounts?.some(a=>a.settings?.retentionAccount))reveal('retention-remittance');if(index===2&&((data.pendingTg||[]).length||(data.sources?.tgPackInvoices||[]).length||(data.receipts||[]).some(r=>r.remitter==='TG')))reveal('tg-remittances');}catch{failed=true;}}));
+      if(failed&&alive()){const note=document.createElement('p');note.setAttribute('role','status');note.textContent='Some optional bank tools could not be checked. Reopen Bank & Cash to retry.';work.append(note);}
+    }
   }
 
   function openLittleMaster(){
