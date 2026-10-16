@@ -74,7 +74,7 @@ Live mutations are withheld; posting scenarios belong in disposable copies.
 Ten of fourteen targeted checks passed: bank reconciliation API/projection,
 supplier discounts, FI linkage core, approval integrity, bag period report core/UI,
 session hardening, inventory core/UI. Four HTTP tests were blocked by socket
-permissions or require failure-log classification; retain raw logs at
+permissions (all four failure logs classified as denied socket binding); retain raw logs at
 `/tmp/tt-completion-checks`. These are not whole-application acceptance results.
 
 ## Further live findings
@@ -123,7 +123,7 @@ permissions or require failure-log classification; retain raw logs at
 | Accounts | P&L | not tested | Live figures load; C09 requires original source review |
 | Accounts | Pay Expense / Utilities | passed | Bank/cash/card available; saved Mill KESC fills provider, location/reference; no posting |
 
-## Prepared fixes — not deployed
+## First repair batch — merged; deployment verification pending
 
 - Directors opens its existing protected route.
 - Unrelated user edits preserve Directors, unrepresented icons, legacy module-wide
@@ -137,5 +137,109 @@ permissions or require failure-log classification; retain raw logs at
 
 Fresh regression tests for permission preservation (UI + validator) and Mill dates
 pass. Existing Director approvals, Master topbar, Console cleanup and master
-permission migration tests pass. Required hosted QA and remaining audit work are
-still outstanding. No whole-application or data migration sign-off.
+permission migration tests pass. Both hosted QA suites passed for repair commit 5800f59d65a50aa4cb3be43bccca55bd2fef05ef:
+Accounts run 38952258160 and Milling/Exports run 38952258469. PR #264 merged as
+49ffbc26af52ac33904c6d3747ac312b39bc43b2. This is a source merge, not proof
+of production deployment. The merge commit returned no associated workflow runs
+at the last connector check. Post-deployment live visual verification remains
+pending. No whole-application or data migration sign-off.
+
+
+## Continuation checkpoint — 17 October, Pakistan time
+
+The local Chrome connection closed during the resumed session. Reconnection and
+reset both returned `Transport closed`; fresh live UI checks are blocked until
+that connection resumes. Earlier signed-in Mac Chrome observations remain valid
+as earlier evidence. Source work and GitHub access continue.
+
+### Zakat — management clarification; annual form deferred
+
+Salman confirmed on 17 October that calculated Zakat becomes payable throughout
+the year, payments reduce the outstanding payable, and amounts paid belong to that
+year's expense. He requested a future annual Zakat form creating the yearly debit
+entry. The exact balanced entries and treatment of existing records must be
+reviewed when implementing it. Do not add the form or rewrite historical journals
+as part of this checkpoint.
+
+The live source trace found POST-2026-00074 on 1 July: credit 7210 Zakat 852,747,
+debit 3400 Opening Balance Clearing 852,747. Nine subsequent payments total 103,350,
+leaving a credit balance of 749,397. That is a payable balance; its existence is
+not itself an error. C09 remains a reporting/classification issue because P&L
+currently includes the net credit as a negative expense. Verify the paid amounts
+against payment sources and the chosen financial year before changing reporting.
+A reminder to add the annual form is scheduled for 18 October at 14:00 Asia/Karachi.
+
+### C10 — Directors write permissions exceed the selected screen scope
+
+A disposable endpoint-copy probe now reproduces an actual Brokerage Master write
+for a Director with only `reports: [View]`, and an Accounts user with only
+`reports: [View, Edit]`. It uses the real module-access helper and the complete
+brokerage endpoint, with isolated login/CSRF/input fixtures. Both persist a WHT
+rate in the temporary accounts file; the no-module-access control is denied and
+creates no file. See brokerage_scope_probe.py. No live endpoint POST was sent and
+no real user grants were changed. This remains unresolved.
+
+The separate `tgfx_can_edit` helper also accepts an unrelated `assets` Edit grant,
+but every TG mutation path additionally checks the corresponding Master Records
+action. Therefore that helper result alone does NOT prove unauthorized TG master
+writes. Keep that defense-in-depth distinction; do not label it an end-to-end TG
+write bypass without satisfying the additional master authorization.
+
+Brokerage/freight scope must be mapped to the canonical permission model, with
+negative tests for unrelated icons and preserved legacy module-wide grants.
+
+### C11 — Ledger account names disagree with the chart and P&L
+
+Account 7200 is Donations in the canonical chart/P&L, but the ledger replaces its
+name with an export-policy Tax label for the same code. The repair lets policies
+add missing accounts without overriding an existing chart identity. It does not
+resolve the wider policy code collision or reclassify any posting; review tax
+posting configuration before relying on policy-created tax transactions.
+
+A disposable CLI fixture executes the actual ledger and report routes against a
+balanced 100 debit/100 credit journal. It fails on baseline, passes with the
+repair, confirms identical names and 100 amounts, and verifies the source journal
+file is byte-for-byte unchanged. The test is included in Accounts QA. This repair
+is prepared separately from the first merged batch; no live journal changed.
+
+
+### C01 source trace and prepared display repair
+
+`journal_vouchers.php` snapshots bank name, title, identifier, account number/IBAN
+and currency into the saved draft. The shared approval feed preserves the original
+lines, but Console rendering shows only generic account name and party. The repair
+renders the original bank details and currency, with HTML escaping. It changes no
+approval endpoint, draft or journal. A fixture using the actual approval renderer
+fails on baseline and passes with the repair, including an HTML-like bank name.
+The revised second repair batch is tracked in PR #265; hosted QA and visual
+verification remain pending.
+
+
+### Hosted regression checkpoint
+
+Accounts QA run 38954253701 failed in the newly added file-backed catalog test:
+the test inherited the hosted runner's MySQL environment. Reproduced locally by
+supplying those environment variables. The fixture now strips TT_DB_* only from
+its PHP subprocess environment, so it reads its disposable file-backed source;
+it passes both with and without MySQL variables supplied. Application connection
+settings are unchanged. A fresh complete hosted run remains required before merge.
+
+See MASTER_RECORDS_PROPOSAL.md for the proposed shared management area and the
+initial field-use classification. It additionally records that labour Effective
+From is saved but current rate lookup does not choose by work date. This remains
+an incomplete dated-rate feature; no historical bill was regenerated or changed.
+
+
+### Verified second repair batch
+
+Both complete hosted QA suites passed for application commit
+851c77ab51cd50d031f2fbbcec95cea570adfe18: Accounts run 38954589822 and
+Milling/Exports run 38954589829. Subsequent audit/probe documentation adds no
+application-code changes. PR #265 remains draft; production deployment and live
+visual verification are not confirmed. The full review is still incomplete.
+
+Next required work: restore actual Mac Chrome control, complete remaining
+screen/action coverage, resolve the Brokerage Master permission defect and Mill
+financial handoffs, reconcile policy account identities, test restricted-user
+flows and matching print/exports, and complete a staged import/restore rehearsal.
+No live journal, approval decision or user grant was deliberately changed.
