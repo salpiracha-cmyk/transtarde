@@ -20,4 +20,4 @@ async function scenario(superUser){
   assert.equal(requests.filter(r=>r.method==='POST').length,superUser?2:0,'Read-only users cannot invoke costing posting through sync');
   w.close();
 }
-(async()=>{await scenario(false);await scenario(true);console.log('PASS costing navigation is read-only; explicit authorised estimate preparation and save sync remain available')})().catch(error=>{console.error(error);process.exitCode=1});
+(async()=>{await scenario(false);await scenario(true);require('node:child_process').execFileSync(process.execPath,['tests/accounts-v1/mill_recovery_ui_test.js'],{stdio:'inherit',timeout:60000});console.log('PASS costing navigation is read-only; explicit authorised estimate preparation and save sync remain available')})().catch(error=>{console.error(error);process.exitCode=1});

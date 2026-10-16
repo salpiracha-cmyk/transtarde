@@ -23,7 +23,7 @@ for(const key of ['utility','card','rent','salary','donations','reimburse','gene
 for(const key of ['commodity','other'])assert.match(allUi,new RegExp('data-purchase=[\\\'"]'+key));
 
 const secured=['api/accounts.php','api/donations.php','api/expenses_v1.php','api/journal_vouchers.php','api/other_purchases.php','api/rent_salary_v2.php','api/production_costing.php','api/production_fixed_overhead.php','api/export_accounting.php','api/accounts_workflows_v1.php'];
-for(const file of secured){const s=read(file);assert.match(s,/tt_require_login/,file+' login');assert.match(s,/tt_user_can_open_module/,file+' module access');assert.match(s,/tt_verify_csrf/,file+' CSRF');assert.match(s,/LOCK_EX/,file+' locked writes');assert.match(s,/tt_user_can_access_entity/,file+' entity access');}
+for(const file of secured){const s=read(file)+(file==='api/production_costing.php'?read('api/production_costing_core.php'):'');assert.match(s,/tt_require_login/,file+' login');assert.match(s,/tt_user_can_open_module/,file+' module access');assert.match(s,/tt_verify_csrf/,file+' CSRF');assert.match(s,/LOCK_EX/,file+' locked writes');assert.match(s,/tt_user_can_access_entity/,file+' entity access');}
 const reports=read('api/accounts_reports.php');
 assert.match(reports,/\(\$journal\['entity'\]\s*\?\?\s*''\)\s*===\s*\$entity/);
 assert.match(reports,/\(\$journal\['status'\]\s*\?\?\s*''\)\s*===\s*'Posted'/);
@@ -45,3 +45,6 @@ for(const code of ['FAM-SALMAN','FAM-TALHA','FAM-ABU','FAM-TAYYAB']){assert.equa
 for(const code of ['REIMB-SALMAN','REIMB-TALHA','REIMB-ABU','REIMB-TAYYAB']){assert.equal(people[code].class,'Liability');assert.equal(people[code].normal,'Credit');}
 for(const code of ['7210','7220','7230'])assert.ok(master.chart.some(x=>String(x.code)===code));
 console.log('Accounts end-to-end structural, security, currency and reporting audit passed.');
+
+// Exercise the extracted engines and their real HTTP boundaries in required CI.
+for(const [command,file] of [['php','mill_recovery_test.php'],['php','production_recovery_cost_test.php'],['python3','mill_recovery_http_test.py'],['python3','production_costing_http_test.py']])require('node:child_process').execFileSync(command,['tests/accounts-v1/'+file],{stdio:'inherit',timeout:60000});

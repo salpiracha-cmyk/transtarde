@@ -820,3 +820,17 @@ test('all active financial account ledgers reconcile to same-revision reports',a
  }
  expect(reports).toBe(3);expect(ledgers).toBeGreaterThan(0);console.log('LIVE_FINANCIAL_LEDGER_REVIEW '+JSON.stringify({companyReports:reports,activeAccountLedgersCompared:ledgers,skippedConcurrentRevisionChanges:changed,localBagClassificationReviews:classificationReviews,sourceTypes:Object.keys(sourceCounts),financialWrites:0}));
 });
+
+// Reads committed production only. Never create a lot, rate, sheet or journal in live QA.
+test('production recovery reports reconcile live actual input and preserve read-only books',async({page})=>{
+ test.setTimeout(180_000);await signIn(page);const writes=[];page.on('request',r=>{if(r.method()==='POST'&&/\/api\/(?:mill_recovery|production_costing|management_costing|operations(?:\.mysql)?)\.php/.test(r.url()))writes.push(r.url());});
+ let groups=0,missing=0;
+ for(const entity of ['TTI','BRM'])for(const mode of ['production','daily','brand','contract']){
+  const response=await page.request.get(`${BASE_URL}/api/mill_recovery.php?`+new URLSearchParams({entity,mode}));expect(response.status()).toBe(200);const report=await response.json();expect(report.ok).toBe(true);expect(report.entity).toBe(entity);
+  for(const key of ['inputKg','readyKg','byProductKg','outputKg'])expect(report.totals[key]).toBeCloseTo(report.groups.reduce((n,g)=>n+g[key],0),3);
+  for(const g of report.groups){expect(g.inputKg).toBeCloseTo(g.raw.reduce((n,r)=>n+r.kg,0),3);expect(g.outputKg).toBeCloseTo([...g.finished,...g.byproducts].reduce((n,r)=>n+r.kg,0),3);if(g.inputComplete&&g.inputKg>0)expect(g.recoveryPct).toBeCloseTo(g.outputKg/g.inputKg*100,3);else expect(g.recoveryPct).toBeNull();if(g.cost?.available)expect(g.cost.costPerKg).toBeCloseTo((g.cost.rawValue+g.cost.conversionValue+(g.cost.fixedOverheadValue||0)-g.cost.byProductValue)/g.readyKg,3);else if(g.cost)expect(g.cost.costPerKg).toBeNull();}
+  groups+=report.groups.length;missing+=report.missingInputRuns;
+ }
+ await page.goto(`${BASE_URL}/accounts/production-reports.php?entity=TTI`,{waitUntil:'domcontentloaded'});await expect(page.locator('[data-generate]')).toBeVisible();await expect(page.locator('[data-status]')).toHaveText('',{timeout:30_000});await expect(page.locator('[data-report] h2')).toContainText('Daily Recovery');await page.locator('[name=mode]').selectOption('contract');await expect(page.locator('[data-print]')).toBeDisabled();await page.locator('[data-generate]').click();await expect(page.locator('[data-report] h2')).toContainText('Contract Recovery');await expect(page.locator('[data-csv]')).toBeEnabled();expect(writes).toEqual([]);
+ console.log('LIVE_ACTUAL_RECOVERY_OK '+JSON.stringify({groupsChecked:groups,missingInputRunAppearances:missing,reportModes:4,companies:2,financialWrites:0}));
+});

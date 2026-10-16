@@ -20,7 +20,7 @@ const context={
  currentMill:{id:2,name:'Reprocessing Mill',type:'External Milling / Processing'},
  STORE_PROD:'prod',STORE_PRODAUDIT:'audit',STORE_SHIP:'ship',editingProdId:null,productionRows:[],
  get:(key,d)=>structuredClone(stores[key]??d),set:(key,v)=>{stores[key]=structuredClone(v)},
- document:{getElementById:id=>elements[id]??null},window:{},
+ document:{getElementById:id=>elements[id]??null},window:{TT_PRODUCTION_RECOVERY:{capture:rows=>({recoveryVersion:1,rawInputs:rows.length?[{grossKg:rows.reduce((n,r)=>n+(r.bags||0)*(r.bagWeight||0),0)}]:[]})}},
  prodDate:{value:'2026-09-22'},prodShift:{value:'Day'},prodStart:{value:'06:00'},prodEnd:{value:'18:00'},prodVariety:{value:'IRRI-6 White Rice'},capacityReason:{value:''},
  calcProduction:()=>8,alert:msg=>{context.lastAlert=msg},confirm:()=>true,today:()=> '2026-09-22',
  validateProductionBagAvailability:()=>'',syncProductionBagIssues:()=>{},initProduction:()=>{},setShiftTimes:()=>{},

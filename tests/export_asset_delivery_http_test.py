@@ -21,6 +21,8 @@ with tempfile.TemporaryDirectory(prefix="tt-export-assets-") as folder:
     target=Path(folder)
     (target/"exports/assets").mkdir(parents=True)
     (target/"private").mkdir()
+    (target/"api").mkdir()
+    shutil.copy(root/"api/mill_recovery_core.php",target/"api/mill_recovery_core.php")
     shutil.copy(root/"export-assets.php",target/"export-assets.php")
     shutil.copy(root/"exports/runtime_assets.php",target/"exports/runtime_assets.php")
     for name in ["inventory_reconciliation.php","product_stage.php"]:
