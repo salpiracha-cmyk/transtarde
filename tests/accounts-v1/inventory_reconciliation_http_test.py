@@ -136,6 +136,7 @@ def run() -> None:
         c,d=request('qaowner','/api/production_fixed_overhead.php?entity=TTI');check(c==200 and d['months'][date[:7]]['readyRiceKg']==10000,'Fixed overhead uses same-company canonical finished production',d)
         c,html=request('qamill','/accounts/production-reports.php?entity=TTI');check(c==200 and '/module.php?id=milling' in html,'Mill report return uses the actual module route')
         c,html=request('qaaccounts','/accounts/production-reports.php?entity=TTI');check(c==200 and '/accounts/?return=production-report' in html,'Accounts report return retains Reports origin')
+        c,html=request('qadirector','/accounts/production-reports.php?entity=TTI');check(c==200 and '/directors/index.php' in html,'Director report returns to the authorized Directors module')
         c,html=request('qaexport','/accounts/production-reports.php?entity=TTI');check(c==403,'Unrelated module cannot open the production report page')
         # Final current-shift entry contains no further ASAS: only 15,000kg remains unexplained.
         rows=json.loads(get()['values']['tt30prod']);rows.append({**pr,'id':11,'rawInputs':[{'grossKg':1000}],'shiftEntriesComplete':True,'rows':[{'product':'Ready Rice — OTHER','bags':20,'bagWeight':50}]})
