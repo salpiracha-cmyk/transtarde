@@ -192,6 +192,7 @@ jobs:
           node tests/accounts-v1/brokerage_readonly_ui_test.js
           node tests/accounts-v1/admin_audit_ui_test.js
           node tests/accounts-v1/mill_read_and_master_ack_test.js
+          node tests/accounts-v1/mill_cash_projection_test.js
           node tests/accounts-v1/shipment_bill_result_edit_test.js
           node tests/accounts-v1/fi_tags_read_only_test.js
           node tests/accounts-v1/report_filter_drilldown_test.js
