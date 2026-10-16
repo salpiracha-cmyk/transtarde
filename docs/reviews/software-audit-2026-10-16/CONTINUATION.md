@@ -415,3 +415,29 @@ page. A 137-entry runtime case verifies page bounds, the next page, finding the
 last retained entry and exporting beyond the visible page. No audit row is
 truncated, deleted or rewritten. This correction is included with the pending
 Brokerage repair and must be verified live after deployment.
+
+
+### Sixth prepared repair — consolidate the legacy production-cost report
+
+The Labour / Mill Expenses → Production Cost / Kg entry retains its KE-period
+inputs but now mounts the canonical actual-production/recovery report, passing
+company, selected mill and both dates. It no longer divides global arrival
+quantities into local estimate totals or shows a zero cost as an established
+rate when no production exists. The shared report retains its existing Accounts
+approval/estimate labels, permissions, filters, source runs, print and CSV.
+Existing approved Accounts rates remain authoritative; this change does not
+reallocate costing pools or rewrite approved snapshots.
+
+The actual entry function plus shared report UI fixture checks BRM / another mill,
+period changes, empty production, invalid periods, zero writes and late replies.
+The first fixture exposed that remounting on the same connected root could let a
+prior request overwrite the report. Each explicit Generate now replaces the
+child report root, so the existing disconnected-root guard rejects that reply.
+The expanded UI fixture and actual-input costing PHP fixture pass locally.
+Hosted QA / deployment remain pending. R06 labour draft scope/effective rates and
+R07/R08 financial handoffs are still open, not repaired by this report change.
+
+Additional live action coverage: Accounts → Forward Booking Register opens and
+loads TTI as-of 17-10-2026 with no bookings. Its text correctly distinguishes an
+agreement from a bank receipt. No booking was created, changed or deleted; those
+actions remain not tested here.
