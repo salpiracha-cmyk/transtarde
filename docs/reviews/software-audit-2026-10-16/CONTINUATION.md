@@ -599,3 +599,38 @@ verified through disposable fixtures. The cost entry correctly carries September
 1–30, TTI and TTI Rice Mills into the canonical actual-production report.
 PR272 passed both full suites 38962953176 / 38962953237 and merged as
 1c895eba7c7350cbd9f3cef26c02ea8e47b35109. Its deployment/live status remains tracked.
+
+
+### Current review register and additional report gaps
+
+CURRENT_COVERAGE.csv supersedes early checkpoint status tables for the actions it
+names. Passed applies to that action/environment only; it is not a percentage of
+all possible controls. Remaining screen/variant families are explicitly not tested.
+
+The existing accounting_desk_test.js still fails at its TG pending-payment display
+assertion. Source tracing confirms renderFI has no showTgUnallocatedPayments hook;
+export_tg_unallocated.php exists but is not surfaced. This is an unresolved
+integration, not a weakened/removed test. Current manual TG Unallocated FI records
+are not proof that Accounts outgoing payments are being shown correctly.
+
+Withholding Tax Report opens TTI January1–October17 and shows OTHER payable
+Cr2414.06 and EXPORT recoverable Dr2421170.88. Its screen embeds subaccount controls
+and presents no visible row Post ID drill-down or dedicated report Print/CSV.
+Totals/source classification and full output parity require further reconciliation.
+
+**C17 — Sales Tax document results:** AMT search returns both the actual lot and
+its preparation process. The lot correctly identifies invoice/GD/B-L, but shared
+contract-level artwork appears in both rows; the lot lists two separately uploaded
+fumigation files. Both rows are selected by default. The source download handler
+flatMaps all row documents/advices and opens every URL without deduplicating file
+identity, so the same contract artwork can be opened twice. Generated issued CI/PL
+are not offered in this attachment finder. This is an output/linkage gap requiring
+further review, not permission to delete uploads or rewrite originals. No live
+print/download was executed. September Monthly Supplier Files explicitly reports
+no attached supplier scans; no empty PDF is falsely reported as generated.
+
+PR273 final head1c4c478 passed full Accounts38963690513 and Milling/Exports38963691030
+and merged as569d68c2c12cf88eaaed39e8f55c25c566670d76. Production deployments for
+PR271(run38962870007) and PR272(run38963869599) succeeded, retained backups, reported
+changedUserCount=0 and Post ID changeCount=0, and confirmed healthy production login.
+The later PR273 deployment is still being checked at this checkpoint.
