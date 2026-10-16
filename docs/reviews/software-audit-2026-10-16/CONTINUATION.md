@@ -515,3 +515,46 @@ including the stronger actual-browser mobile amount/table checks, and merged as
 eb749027ed05994d7c26ead715026a4a87239d50. Deployment/live checks for these newer
 batches remain separate. R06 labour rates/scope, R07/R08 accounting handoffs,
 R13 stock ledger, C14 approved-document identity and untouched actions remain open.
+
+
+### Ninth prepared repair — truthful operational status, not a completed handoff
+
+The six old operational saves (KE, labour, processing expense, rent payment
+reference, salary advance reference and reprocessing) no longer claim an Accounts
+liability/payment or settled payable. New rows and success messages explicitly
+say posting/payment is unverified. New rows retain company/mill scope; feed rows
+also retain the original source-record ID. Historical statuses remain stored
+unchanged and are shown as unverified saved references. Labour/reprocessing print
+estimates and local rent/salary summaries explain their operational basis.
+
+The actual six save functions execute against disposable DOM/stores with unchanged
+amounts, saved scopes, original feed references and zero financial endpoint calls.
+This is a correction to misleading status claims, NOT implementation of R07/R08.
+The existing financial handoff, payment verification and reconciliation remain
+migration blockers. No legacy estimate/reference is automatically posted.
+
+### Additional live verification, 17 October Karachi time
+
+Super Admin in a fresh signed-in Mac Chrome tab displays 50 of 4,652 retained server
+audit entries; Next shows 51–100. Search Updated finds 82 entries including older
+master/settings changes beyond the first page. Browser Notes is a distinct empty
+source. Search Updated companies shows 35 actual server changes. The visible table,
+filters and action toolbar were inspected in a screenshot. No record was modified.
+
+Fresh Exports home visually confirms the bounded two-column card grid (one active
+contract occupies one column). FI Register opens with no Saving interruption.
+Its read-only credit-advice refresh marks both saved FIs Credit advice not linked;
+that missing linkage requires further reconciliation, not a guessed assignment.
+The USD32,000 FI restores its date/customer/bank/currency/value in Controlled
+Amendment; Cancel closes it unchanged. Transfer shows only the same-currency target
+and protects the USD32,000 unallocated amount. Allocate opens the matching AMT lot.
+Transfer/Allocate were cancelled without committing. Actual save/reversal cases
+remain fixture-tested or untested as previously recorded, not live-posted.
+
+Deployment logs confirm PR268/d68850b in run38961412400, PR269/5bfe055 in
+38961824433 and PR270/eb749027 in38962200441, all successful. The last run reports
+production login healthy, backup created, changedUserCount=0, Post ID migration
+no-op/changeCount=0, and no business-document recovery applied. These deployment
+checks are separate from the PR suites. PR271 passed both full suites
+38962056492 / 38962056054 and merged as d03128783bd2fffc38e1f15de2700e3248e145d1;
+its deployment/live cash recheck is pending at this checkpoint.
