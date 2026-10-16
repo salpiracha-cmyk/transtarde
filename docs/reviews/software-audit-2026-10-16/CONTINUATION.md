@@ -171,13 +171,22 @@ A reminder to add the annual form is scheduled for 18 October at 14:00 Asia/Kara
 
 ### C10 — Directors write permissions exceed the selected screen scope
 
-Source-level helper probes in a disposable PHP process show that
-`bm_can_write` allows a Director with only `reports: [View]`, while `tgfx_can_edit`
-allows `assets: [View, Edit]` to edit the TG master. These helpers accept module
-access or writes on an unrelated icon. No actual privileged POST was sent, and
-no real user grants were changed. Brokerage/freight scope must be mapped to the
-canonical permission model, with negative tests for unrelated icons and preserved
-legacy module-wide grants. This remains unresolved.
+A disposable endpoint-copy probe now reproduces an actual Brokerage Master write
+for a Director with only `reports: [View]`, and an Accounts user with only
+`reports: [View, Edit]`. It uses the real module-access helper and the complete
+brokerage endpoint, with isolated login/CSRF/input fixtures. Both persist a WHT
+rate in the temporary accounts file; the no-module-access control is denied and
+creates no file. See brokerage_scope_probe.py. No live endpoint POST was sent and
+no real user grants were changed. This remains unresolved.
+
+The separate `tgfx_can_edit` helper also accepts an unrelated `assets` Edit grant,
+but every TG mutation path additionally checks the corresponding Master Records
+action. Therefore that helper result alone does NOT prove unauthorized TG master
+writes. Keep that defense-in-depth distinction; do not label it an end-to-end TG
+write bypass without satisfying the additional master authorization.
+
+Brokerage/freight scope must be mapped to the canonical permission model, with
+negative tests for unrelated icons and preserved legacy module-wide grants.
 
 ### C11 — Ledger account names disagree with the chart and P&L
 
@@ -219,3 +228,18 @@ See MASTER_RECORDS_PROPOSAL.md for the proposed shared management area and the
 initial field-use classification. It additionally records that labour Effective
 From is saved but current rate lookup does not choose by work date. This remains
 an incomplete dated-rate feature; no historical bill was regenerated or changed.
+
+
+### Verified second repair batch
+
+Both complete hosted QA suites passed for application commit
+851c77ab51cd50d031f2fbbcec95cea570adfe18: Accounts run 38954589822 and
+Milling/Exports run 38954589829. Subsequent audit/probe documentation adds no
+application-code changes. PR #265 remains draft; production deployment and live
+visual verification are not confirmed. The full review is still incomplete.
+
+Next required work: restore actual Mac Chrome control, complete remaining
+screen/action coverage, resolve the Brokerage Master permission defect and Mill
+financial handoffs, reconcile policy account identities, test restricted-user
+flows and matching print/exports, and complete a staged import/restore rehearsal.
+No live journal, approval decision or user grant was deliberately changed.
