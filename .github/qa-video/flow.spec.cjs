@@ -76,7 +76,11 @@ test('Exports, Milling and Accounts: linked local QA walkthrough', async ({ page
     ['QAVU000001-6', 'KHI-1001', 'QA-SEAL-01'],
     ['QAVU000002-1', 'KHI-1002', 'QA-SEAL-02']
   ]) {
-    await page.locator('#contNo').fill(number);
+    // The container's stored value is hidden behind the visible split entry.
+    const raw = number.replace(/[^A-Z0-9]/gi, '').toUpperCase();
+    await page.locator('.tt-container-main').fill(raw.slice(0, 10));
+    await page.locator('.tt-container-check').fill(raw.slice(10, 11));
+    await expect(page.locator('#contNo')).toHaveValue(number);
     await page.locator('#contTruck').fill(truck);
     await page.locator('#contWeight').fill('27000');
     await page.locator('#contBags').fill('1350');

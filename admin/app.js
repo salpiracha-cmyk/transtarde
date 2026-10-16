@@ -21,6 +21,10 @@
       ["commercial","Commercial Documents"],["coo","Certificate of Origin"],["certs","Certificates"],["cover","Bank Covering & Dispatch"],
       ["tg","TG Documents"],["lcdraft","L/C Exchange Draft"],["print","Document Output"],["history","History & Versions"]
     ],
+    Directors: [
+      ["dashboard","Directors Dashboard"],["assets","Assets & Investments"],["tgmaster","TG Master"],
+      ["alerts","Alerts & Renewals"],["approvals","Approvals"],["reports","Management Reports"]
+    ],
     Accounts: [
       ["assets","Assets / Properties & Instalments"],
       ["entity-tti","Legal Book · TTI"],["entity-brm","Legal Book · BRM"],["entity-tg","Legal Book · TG"],
@@ -57,7 +61,7 @@
     { id: "milling", name: "Mill", code: "M", color: "#16815a", soft: "#e7f7f0", status: "Live", state: "green", version: "V3.3.2 Audited", description: "Arrivals, stocks, production, bags, loading and mill operations.", href: "module.php?id=milling" },
     { id: "exports", name: "Exports", code: "E", color: "#1769d2", soft: "#eaf2ff", status: "Live", state: "green", version: "V3 Clean Operational", description: "Contracts, export orders, shipment planning and documentation.", href: "module.php?id=exports" },
     { id: "accounts", name: "Accounts", code: "A", color: "#8a55c7", soft: "#f3ecfb", status: "Live", state: "green", version: "Accounts V1 Live", description: "Purchases, ledgers, banking, receivables, payables and reporting.", href: "accounts/index.php" },
-    { id: "directors", name: "Directors", code: "D", color: "#d17b0f", soft: "#fff3e2", status: "Awaiting module", state: "amber", version: "Not connected", description: "Consolidated oversight, Cashflow, alerts, approvals and reports." }
+    { id: "directors", name: "Directors", code: "D", color: "#d17b0f", soft: "#fff3e2", status: "Live", state: "green", version: "Management workspace", description: "Group settings, assets, alerts and approvals.", href: "directors/index.php" }
   ];
 
   const MASTER_TYPES = [
@@ -258,6 +262,12 @@
   function nowStamp() {
     return new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date()).replace(",", "");
   }
+  function userActivityStamp(value) {
+    if (!/^\d{4}-\d{2}-\d{2}T/.test(String(value || ""))) return value || "Not activated";
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+    return new Intl.DateTimeFormat("en-GB", { timeZone:"Asia/Karachi", day:"2-digit", month:"2-digit", year:"numeric", hour:"2-digit", minute:"2-digit", hour12:false }).format(date).replaceAll("/","-");
+  }
   function postIdDigits(value) {
     const digits = String(value || "").replace(/\D+/g, "") || "0";
     return digits.slice(-5).padStart(5, "0");
@@ -424,7 +434,7 @@
       <td>${escapeHtml(user.role)}</td>
       <td><div class="tag-row">${user.modules.map(m => `<span class="tag ${user.role === "Super Admin" ? "super" : ""}">${m}</span>`).join("")}</div></td>
       <td>${escapeHtml(user.location)}</td><td><span class="status ${user.active ? "" : "inactive"}">${user.active ? "Active" : "Inactive"}</span></td>
-      <td>${escapeHtml(user.lastActive)}</td><td>${user.role === "Super Admin" ? `<div class="row-actions"><a class="row-action" href="change-password.php">Change Password</a><a class="row-action" href="recovery-settings.php">Recovery Security</a><span class="tag super">Protected owner</span></div>` : `<div class="row-actions"><button class="row-action" data-edit-user="${user.id}">Edit</button><button class="row-action" data-reset-user="${user.id}">Reset Password</button><button class="row-action delete" data-delete-user="${user.id}">Delete</button></div>`}</td>
+      <td>${escapeHtml(userActivityStamp(user.lastActive))}</td><td>${user.role === "Super Admin" ? `<div class="row-actions"><a class="row-action" href="change-password.php">Change Password</a><a class="row-action" href="recovery-settings.php">Recovery Security</a><span class="tag super">Protected owner</span></div>` : `<div class="row-actions"><button class="row-action" data-edit-user="${user.id}">Edit</button><button class="row-action" data-reset-user="${user.id}">Reset Password</button><button class="row-action delete" data-delete-user="${user.id}">Delete</button></div>`}</td>
     </tr>`).join("");
     document.getElementById("activeUserCount").textContent = state.users.filter(user => user.active).length;
     document.getElementById("permissionChangeCount").textContent = state.permissionChanges;
@@ -503,16 +513,34 @@
     const form = document.getElementById("userForm");
     if (!form.reportValidity()) return;
     const id = document.getElementById("editUserId").value;
-    const permissions = {};
-    document.querySelectorAll("#permissionMatrix input[data-permission-icon]:checked").forEach(input => {
-      const module = input.dataset.permissionModule;
-      const icon = input.dataset.permissionIcon;
-      ((permissions[module] ||= {})[icon] ||= []).push(input.value);
+    const previous = state.users.find(item => item.id === id);
+    const permissions = JSON.parse(JSON.stringify(previous?.permissions || {}));
+    const permissionInputs = [...document.querySelectorAll("#permissionMatrix input[data-permission-icon]")];
+    // An unrelated user amendment must retain grants that this editor does not
+    // represent, including historical module-wide and future screen grants.
+    for (const module of Object.keys(MODULE_ICONS)) {
+      const inputs = permissionInputs.filter(input => input.dataset.permissionModule === module);
+      if (previous && inputs.every(input => input.checked === permissionChecked(previous.permissions, module, input.dataset.permissionIcon, input.value))) continue;
+      const saved = permissions[module];
+      const revised = saved && typeof saved === "object" && !Array.isArray(saved) ? saved : {};
+      for (const input of inputs) {
+        const icon = input.dataset.permissionIcon;
+        revised[icon] = (revised[icon] || []).filter(action => action !== input.value);
+        if (input.checked) revised[icon].push(input.value);
+        if (!revised[icon].length) delete revised[icon];
+      }
+      if (Object.keys(revised).length) permissions[module] = revised;
+      else delete permissions[module];
+    }
+    const masterPermissions = JSON.parse(JSON.stringify(previous?.masterPermissions || {}));
+    document.querySelectorAll('#masterPermissionMatrix input[data-master-permission]').forEach(input => {
+      const type = input.dataset.masterPermission;
+      masterPermissions[type] = (masterPermissions[type] || []).filter(action => action !== input.value);
+      if (input.checked) masterPermissions[type].push(input.value);
+      if (!masterPermissions[type].length) delete masterPermissions[type];
     });
-    const masterPermissions={};
-    document.querySelectorAll('#masterPermissionMatrix input[data-master-permission]:checked').forEach(input=>((masterPermissions[input.dataset.masterPermission]||=[]).push(input.value)));
     const masterAccess=document.getElementById('userMasterAccess').checked;
-    const modules = Object.keys(permissions).filter(module => Object.values(permissions[module]).some(actions=>actions.includes("View")));
+    const modules = Object.keys(permissions).filter(module => permissions[module] === "all" || (Array.isArray(permissions[module]) ? permissions[module].includes("View") : Object.values(permissions[module]).some(actions=>actions.includes("View"))));
     if (!modules.length && !masterAccess) { toast("Select at least one module or Master Records permission."); return; }
     const user = {
       id,
@@ -1135,7 +1163,7 @@
     }
     document.getElementById("addMasterRecord").hidden=!canMaster(type.id,"Create");
     document.getElementById("addMasterRecord").textContent = `+ Add ${type.id === "salary_staff" ? "Staff" : type.id === "purchase_kat" ? "KAT Profile" : type.id === "purchase_products" ? "Purchase Product" : type.id === "companies" ? "Company" : type.id === "commodities" ? "Commodity" : type.id === "products" ? "Export Product" : "Record"}`;
-    const columns = displayColumns(type);
+    const columns = displayColumns(type).filter(index => type.fields[index]?.label !== "Status");
     if(type.id==="purchase_products"){
       document.getElementById("masterTableHead").innerHTML="<tr><th>Variety / Product</th><th>Type</th><th>Stage</th><th>Purchase Unit</th><th>KAT</th><th>Status</th><th>Actions</th></tr>";
       const query=document.getElementById("masterSearch")?.value.toLowerCase()||"",[commodity,stage]=currentPurchaseTab.split("_");

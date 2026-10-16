@@ -4,7 +4,7 @@ require dirname(__DIR__) . '/auth_store.php';
 header('Content-Type: application/json; charset=UTF-8');
 
 function respond(array $data, int $status=200): never { http_response_code($status); echo json_encode($data, JSON_UNESCAPED_SLASHES); exit; }
-function clean_input(array $body): array {
+function clean_input(array $body, array $existingPermissions=[]): array {
     $name=trim((string)($body['name'] ?? '')); $username=strtolower(trim((string)($body['username'] ?? '')));
     $role=trim((string)($body['role'] ?? '')); $location=trim((string)($body['location'] ?? 'All authorized locations'));
     $allowedRoles=['Director','Mill Manager','Mill Staff','Accounts','Exports','Auditor / Reports'];
@@ -14,6 +14,14 @@ function clean_input(array $body): array {
     $allowedActions=['View','Create','Edit','Approve','Reports']; $allowedModules=['Mill','Exports','Accounts','Directors']; $permissions=[];
     foreach ((array)($body['permissions'] ?? []) as $module=>$icons) {
         if (!in_array($module,$allowedModules,true)) continue;
+        // Retain an unchanged historical module-wide grant. New grants still
+        // pass the explicit screen/action validation below.
+        if (($icons === 'all' || (is_array($icons) && array_is_list($icons))) &&
+            array_key_exists($module,$existingPermissions) && $icons === $existingPermissions[$module]) {
+            $permissions[$module]=$icons;
+            continue;
+        }
+        if (!is_array($icons) || array_is_list($icons)) continue;
         foreach ((array)$icons as $icon=>$actions) {
             if (!preg_match('/^[a-z0-9_-]{1,60}$/',(string)$icon)) continue;
             $clean=array_values(array_unique(array_intersect($allowedActions,(array)$actions)));
@@ -50,7 +58,7 @@ try {
         respond(['ok'=>true,'username'=>$input['username'],'temporaryPassword'=>$created['temporaryPassword'],'users'=>tt_list_public_users()]);
     }
     $id=(int)($body['id'] ?? 0); if ($id<=0) throw new InvalidArgumentException('Select a valid user.');
-    if ($action==='update') { $input=clean_input($body); tt_update_staff_user($id,$input); tt_audit((int)$admin['id'],$admin['username'],'Updated user '.$input['username']); respond(['ok'=>true,'users'=>tt_list_public_users()]); }
+    if ($action==='update') { $existing=tt_find_user_by_id($id); $input=clean_input($body,(array)($existing['permissions']??[])); tt_update_staff_user($id,$input); tt_audit((int)$admin['id'],$admin['username'],'Updated user '.$input['username']); respond(['ok'=>true,'users'=>tt_list_public_users()]); }
     if ($action==='delete') { tt_delete_staff_user($id); tt_audit((int)$admin['id'],$admin['username'],'Deleted staff user '.$id); respond(['ok'=>true,'users'=>tt_list_public_users()]); }
     if ($action==='reset-password') { $user=tt_find_user_by_id($id); $temporary=tt_reset_staff_password($id); tt_audit((int)$admin['id'],$admin['username'],'Reset password for '.($user['username'] ?? $id)); respond(['ok'=>true,'username'=>$user['username'] ?? '', 'temporaryPassword'=>$temporary]); }
     respond(['ok'=>false,'error'=>'Unknown action.'],400);

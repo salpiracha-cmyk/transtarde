@@ -1,0 +1,1168 @@
+{
+  "baseline": "1beeac3f880fda95ab2dd722e653bdab0ee067ab",
+  "fixtureOnly": true,
+  "nav": [
+    {
+      "view": "dashboard",
+      "active": "view-dashboard"
+    },
+    {
+      "view": "modules",
+      "active": "view-modules"
+    },
+    {
+      "view": "users",
+      "active": "view-users"
+    },
+    {
+      "view": "masters",
+      "active": "view-masters"
+    },
+    {
+      "view": "locks",
+      "active": "view-locks"
+    },
+    {
+      "view": "audit",
+      "active": "view-audit"
+    },
+    {
+      "view": "backup",
+      "active": "view-backup"
+    }
+  ],
+  "directors": {
+    "opened": 0,
+    "text": "DAwaiting module DirectorsConsolidated oversight, Cashflow, alerts, approvals and reports. Not connectedView status →",
+    "routeExists": true
+  },
+  "lock": {
+    "locked": true,
+    "requests": [],
+    "persistedLocally": true
+  },
+  "audit": {
+    "serverSentinelVisible": false,
+    "source": "state.audit loaded from localStorage"
+  },
+  "userEdit": {
+    "originalDirectorPermissions": {
+      "dashboard": [
+        "View"
+      ],
+      "tgmaster": [
+        "View",
+        "Edit"
+      ]
+    },
+    "directorsCheckboxes": 0,
+    "submittedPermissions": {
+      "Accounts": {
+        "reports": [
+          "View"
+        ]
+      }
+    }
+  },
+  "masters": [
+    {
+      "id": "salary_staff",
+      "name": "Salary & Staff",
+      "fields": [
+        {
+          "index": 0,
+          "label": "Staff / person name",
+          "required": true,
+          "type": "text"
+        },
+        {
+          "index": 1,
+          "label": "Legal book",
+          "required": true,
+          "type": "select"
+        },
+        {
+          "index": 2,
+          "label": "Salary group",
+          "required": true,
+          "type": "select"
+        },
+        {
+          "index": 3,
+          "label": "Net salary / remuneration (Rs)",
+          "required": false,
+          "type": "number"
+        },
+        {
+          "index": 4,
+          "label": "Zakat (Rs)",
+          "required": false,
+          "type": "number"
+        },
+        {
+          "index": 5,
+          "label": "Other recurring allowances (Rs)",
+          "required": false,
+          "type": "number"
+        },
+        {
+          "index": 6,
+          "label": "Effective from",
+          "required": true,
+          "type": "date"
+        },
+        {
+          "index": 7,
+          "label": "Effective to",
+          "required": false,
+          "type": "date"
+        },
+        {
+          "index": 8,
+          "label": "Accounts treatment",
+          "required": true,
+          "type": "select"
+        },
+        {
+          "index": 9,
+          "label": "Include in Mill production cost",
+          "required": false,
+          "type": "select"
+        },
+        {
+          "index": 10,
+          "label": "Status",
+          "required": false,
+          "type": "select"
+        },
+        {
+          "index": 11,
+          "label": "Notes",
+          "required": false,
+          "type": "textarea"
+        }
+      ]
+    },
+    {
+      "id": "companies",
+      "name": "Companies",
+      "fields": [
+        {
+          "index": 0,
+          "label": "Legal company name",
+          "required": true,
+          "type": "text"
+        },
+        {
+          "index": 1,
+          "label": "Short code",
+          "required": true,
+          "type": "text"
+        },
+        {
+          "index": 2,
+          "label": "Country",
+          "required": false,
+          "type": "text"
+        },
+        {
+          "index": 3,
+          "label": "Entity scope",
+          "required": false,
+          "type": "select"
+        },
+        {
+          "index": 4,
+          "label": "Company roles",
+          "required": false,
+          "type": "checks"
+        },
+        {
+          "index": 5,
+          "label": "TG special handling",
+          "required": false,
+          "type": "select"
+        },
+        {
+          "index": 6,
+          "label": "System behaviour / notes",
+          "required": false,
+          "type": "textarea"
+        },
+        {
+          "index": 7,
+          "label": "Owners / partners",
+          "required": false,
+          "type": "textarea"
+        },
+        {
+          "index": 8,
+          "label": "KCCI membership no.",
+          "required": false,
+          "type": "text"
+        },
+        {
+          "index": 9,
+          "label": "REAP membership no.",
+          "required": false,
+          "type": "text"
+        },
+        {
+          "index": 10,
+          "label": "NTN number",
+          "required": false,
+          "type": "text"
+        },
+        {
+          "index": 11,
+          "label": "Sales tax number",
+          "required": false,
+          "type": "text"
+        },
+        {
+          "index": 12,
+          "label": "Company number",
+          "required": false,
+          "type": "text"
+        },
+        {
+          "index": 13,
+          "label": "Bank accounts",
+          "required": false,
+          "type": "hidden"
+        },
+        {
+          "index": 14,
+          "label": "Document identities",
+          "required": false,
+          "type": "hidden"
+        },
+        {
+          "index": 15,
+          "label": "Exchange rates",
+          "required": false,
+          "type": "hidden"
+        },
+        {
+          "index": 16,
+          "label": "Registration details",
+          "required": false,
+          "type": "hidden"
+        },
+        {
+          "index": 17,
+          "label": "Chamber / COO details",
+          "required": false,
+          "type": "hidden"
+        }
+      ]
+    },
+    {
+      "id": "commodities",
+      "name": "Commodity Master",
+      "fields": [
+        {
+          "index": 0,
+          "label": "Commodity",
+          "required": true,
+          "type": "text"
+        },
+        {
+          "index": 1,
+          "label": "Code",
+          "required": true,
+          "type": "text"
+        },
+        {
+          "index": 2,
+          "label": "Base unit",
+          "required": false,
+          "type": "text"
+        },
+        {
+          "index": 3,
+          "label": "Soda / contract enabled",
+          "required": false,
+          "type": "select"
+        },
+        {
+          "index": 4,
+          "label": "Quality / specification profile",
+          "required": false,
+          "type": "text"
+        },
+        {
+          "index": 5,
+          "label": "KAT / deduction profile",
+          "required": false,
+          "type": "text"
+        },
+        {
+          "index": 6,
+          "label": "Default accounting mapping",
+          "required": false,
+          "type": "text"
+        },
+        {
+          "index": 7,
+          "label": "Staff instruction / message",
+          "required": false,
+          "type": "textarea"
+        }
+      ]
+    },
+    {
+      "id": "products",
+      "name": "Export Quality & Specs",
+      "fields": [
+        {
+          "index": 0,
+          "label": "Commodity",
+          "required": true,
+          "type": "text"
+        },
+        {
+          "index": 1,
+          "label": "Variety",
+          "required": true,
+          "type": "text"
+        },
+        {
+          "index": 2,
+          "label": "Rice type",
+          "required": true,
+          "type": "text"
+        },
+        {
+          "index": 3,
+          "label": "Code",
+          "required": true,
+          "type": "text"
+        },
+        {
+          "index": 4,
+          "label": "Origin",
+          "required": false,
+          "type": "text"
+        },
+        {
+          "index": 5,
+          "label": "Profile / use",
+          "required": false,
+          "type": "text"
+        },
+        {
+          "index": 6,
+          "label": "Avg. grain length",
+          "required": false,
+          "type": "text"
+        },
+        {
+          "index": 7,
+          "label": "Broken",
+          "required": false,
+          "type": "text"
+        },
+        {
+          "index": 8,
+          "label": "Moisture",
+          "required": false,
+          "type": "text"
+        },
+        {
+          "index": 9,
+          "label": "Damaged / Shriveled / Yellow",
+          "required": false,
+          "type": "text"
+        },
+        {
+          "index": 10,
+          "label": "Chalky / Immature",
+          "required": false,
+          "type": "text"
+        },
+        {
+          "index": 11,
+          "label": "Contrasting / Other varieties",
+          "required": false,
+          "type": "text"
+        },
+        {
+          "index": 12,
+          "label": "Foreign grains",
+          "required": false,
+          "type": "text"
+        },
+        {
+          "index": 13,
+          "label": "Foreign matter",
+          "required": false,
+          "type": "text"
+        },
+        {
+          "index": 14,
+          "label": "Paddy",
+          "required": false,
+          "type": "text"
+        },
+        {
+          "index": 15,
+          "label": "Red kernels / Red rice",
+          "required": false,
+          "type": "text"
+        },
+        {
+          "index": 16,
+          "label": "Under-milled / Red-striped",
+          "required": false,
+          "type": "text"
+        },
+        {
+          "index": 17,
+          "label": "Finish",
+          "required": false,
+          "type": "text"
+        },
+        {
+          "index": 18,
+          "label": "Additional quality wording",
+          "required": false,
+          "type": "textarea"
+        },
+        {
+          "index": 19,
+          "label": "Source / basis",
+          "required": false,
+          "type": "textarea"
+        },
+        {
+          "index": 20,
+          "label": "Custom specifications",
+          "required": false,
+          "type": "hidden"
+        },
+        {
+          "index": 21,
+          "label": "HS Code",
+          "required": false,
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "id": "purchase_products",
+      "name": "Purchase Commodities & KAT",
+      "fields": [
+        {
+          "index": 0,
+          "label": "Commodity",
+          "required": true,
+          "type": "select"
+        },
+        {
+          "index": 1,
+          "label": "Base variety / product",
+          "required": true,
+          "type": "text"
+        },
+        {
+          "index": 2,
+          "label": "Rice type",
+          "required": false,
+          "type": "text"
+        },
+        {
+          "index": 3,
+          "label": "Purchase classification",
+          "required": true,
+          "type": "select"
+        },
+        {
+          "index": 4,
+          "label": "Purchase unit",
+          "required": true,
+          "type": "select"
+        },
+        {
+          "index": 5,
+          "label": "Arrival KAT profile (our location only)",
+          "required": false,
+          "type": "text"
+        },
+        {
+          "index": 6,
+          "label": "Legacy brokery rule",
+          "required": false,
+          "type": "hidden"
+        },
+        {
+          "index": 7,
+          "label": "Legacy inventory account",
+          "required": false,
+          "type": "hidden"
+        },
+        {
+          "index": 8,
+          "label": "Status",
+          "required": false,
+          "type": "select"
+        },
+        {
+          "index": 9,
+          "label": "Notes",
+          "required": false,
+          "type": "textarea"
+        },
+        {
+          "index": 10,
+          "label": "Broken grade (optional)",
+          "required": false,
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "id": "purchase_kat",
+      "name": "Purchase KAT Profiles",
+      "fields": [
+        {
+          "index": 0,
+          "label": "Commodity",
+          "required": true,
+          "type": "text"
+        },
+        {
+          "index": 1,
+          "label": "Base variety",
+          "required": true,
+          "type": "text"
+        },
+        {
+          "index": 2,
+          "label": "Rice type",
+          "required": false,
+          "type": "text"
+        },
+        {
+          "index": 3,
+          "label": "Purchase classification",
+          "required": true,
+          "type": "text"
+        },
+        {
+          "index": 4,
+          "label": "Profile name",
+          "required": true,
+          "type": "text"
+        },
+        {
+          "index": 5,
+          "label": "Effective from",
+          "required": false,
+          "type": "date"
+        },
+        {
+          "index": 6,
+          "label": "Effective to",
+          "required": false,
+          "type": "date"
+        },
+        {
+          "index": 7,
+          "label": "Status",
+          "required": false,
+          "type": "select"
+        },
+        {
+          "index": 8,
+          "label": "Notes",
+          "required": false,
+          "type": "textarea"
+        },
+        {
+          "index": 9,
+          "label": "Quality parameters",
+          "required": false,
+          "type": "hidden"
+        }
+      ]
+    },
+    {
+      "id": "export_documents",
+      "name": "Export Documents Presented",
+      "fields": [
+        {
+          "index": 0,
+          "label": "Document Name",
+          "required": true,
+          "type": "text"
+        },
+        {
+          "index": 1,
+          "label": "Original",
+          "required": true,
+          "type": "text"
+        },
+        {
+          "index": 2,
+          "label": "Copies",
+          "required": true,
+          "type": "text"
+        },
+        {
+          "index": 3,
+          "label": "Applies To",
+          "required": false,
+          "type": "select"
+        },
+        {
+          "index": 4,
+          "label": "Status",
+          "required": false,
+          "type": "select"
+        }
+      ]
+    },
+    {
+      "id": "export_terms",
+      "name": "Export Other Terms",
+      "fields": [
+        {
+          "index": 0,
+          "label": "Payment Group",
+          "required": true,
+          "type": "select"
+        },
+        {
+          "index": 1,
+          "label": "Term Text",
+          "required": true,
+          "type": "textarea"
+        },
+        {
+          "index": 2,
+          "label": "Status",
+          "required": false,
+          "type": "select"
+        }
+      ]
+    },
+    {
+      "id": "export_customers",
+      "name": "Export Customers",
+      "fields": [
+        {
+          "index": 0,
+          "label": "Customer name",
+          "required": true,
+          "type": "text"
+        },
+        {
+          "index": 1,
+          "label": "Code",
+          "required": false,
+          "type": "text"
+        },
+        {
+          "index": 2,
+          "label": "Roles",
+          "required": false,
+          "type": "text"
+        },
+        {
+          "index": 3,
+          "label": "Primary document address",
+          "required": true,
+          "type": "textarea"
+        },
+        {
+          "index": 4,
+          "label": "Country",
+          "required": false,
+          "type": "text"
+        },
+        {
+          "index": 5,
+          "label": "Email",
+          "required": false,
+          "type": "text"
+        },
+        {
+          "index": 6,
+          "label": "Phone",
+          "required": false,
+          "type": "text"
+        },
+        {
+          "index": 7,
+          "label": "Tax / registration",
+          "required": false,
+          "type": "text"
+        },
+        {
+          "index": 8,
+          "label": "Packing default",
+          "required": false,
+          "type": "text"
+        },
+        {
+          "index": 9,
+          "label": "Notify parties JSON",
+          "required": false,
+          "type": "textarea"
+        },
+        {
+          "index": 10,
+          "label": "Status",
+          "required": false,
+          "type": "select"
+        },
+        {
+          "index": 11,
+          "label": "Notes",
+          "required": false,
+          "type": "textarea"
+        },
+        {
+          "index": 12,
+          "label": "Show country",
+          "required": false,
+          "type": "text"
+        },
+        {
+          "index": 13,
+          "label": "Show email",
+          "required": false,
+          "type": "text"
+        },
+        {
+          "index": 14,
+          "label": "Show phone",
+          "required": false,
+          "type": "text"
+        },
+        {
+          "index": 15,
+          "label": "Show tax",
+          "required": false,
+          "type": "text"
+        },
+        {
+          "index": 16,
+          "label": "Contacts JSON",
+          "required": false,
+          "type": "textarea"
+        },
+        {
+          "index": 17,
+          "label": "Consignees JSON",
+          "required": false,
+          "type": "textarea"
+        },
+        {
+          "index": 18,
+          "label": "Additional notify parties JSON",
+          "required": false,
+          "type": "textarea"
+        },
+        {
+          "index": 19,
+          "label": "Additional document addresses JSON",
+          "required": false,
+          "type": "textarea"
+        },
+        {
+          "index": 20,
+          "label": "Default currency",
+          "required": false,
+          "type": "select"
+        },
+        {
+          "index": 21,
+          "label": "Default payment / customer instructions",
+          "required": false,
+          "type": "textarea"
+        }
+      ]
+    },
+    {
+      "id": "business_parties",
+      "name": "Business Parties",
+      "fields": [
+        {
+          "index": 0,
+          "label": "Party name",
+          "required": true,
+          "type": "text"
+        },
+        {
+          "index": 1,
+          "label": "Code / reference",
+          "required": false,
+          "type": "text"
+        },
+        {
+          "index": 2,
+          "label": "Party roles",
+          "required": true,
+          "type": "checks"
+        },
+        {
+          "index": 3,
+          "label": "Address",
+          "required": false,
+          "type": "textarea"
+        },
+        {
+          "index": 4,
+          "label": "Country",
+          "required": false,
+          "type": "text"
+        },
+        {
+          "index": 5,
+          "label": "Contact person",
+          "required": false,
+          "type": "text"
+        },
+        {
+          "index": 6,
+          "label": "Phone",
+          "required": false,
+          "type": "text"
+        },
+        {
+          "index": 7,
+          "label": "Email",
+          "required": false,
+          "type": "text"
+        },
+        {
+          "index": 8,
+          "label": "NTN / tax number",
+          "required": false,
+          "type": "text"
+        },
+        {
+          "index": 9,
+          "label": "Payment terms",
+          "required": false,
+          "type": "text"
+        },
+        {
+          "index": 10,
+          "label": "Status",
+          "required": false,
+          "type": "select"
+        },
+        {
+          "index": 11,
+          "label": "Notes",
+          "required": false,
+          "type": "textarea"
+        },
+        {
+          "index": 12,
+          "label": "Brokery profile",
+          "required": false,
+          "type": "hidden"
+        }
+      ]
+    },
+    {
+      "id": "reference_lists",
+      "name": "Currency & Reference Master",
+      "fields": [
+        {
+          "index": 0,
+          "label": "List",
+          "required": true,
+          "type": "select"
+        },
+        {
+          "index": 1,
+          "label": "Option / currency code",
+          "required": true,
+          "type": "text"
+        },
+        {
+          "index": 2,
+          "label": "Currency full name",
+          "required": false,
+          "type": "text"
+        }
+      ]
+    },
+    {
+      "id": "mills",
+      "name": "Mills & Locations",
+      "fields": [
+        {
+          "index": 0,
+          "label": "Mill / location",
+          "required": true,
+          "type": "text"
+        },
+        {
+          "index": 1,
+          "label": "Code / reference",
+          "required": false,
+          "type": "text"
+        },
+        {
+          "index": 2,
+          "label": "Location type",
+          "required": false,
+          "type": "select"
+        },
+        {
+          "index": 3,
+          "label": "Full address",
+          "required": false,
+          "type": "textarea"
+        },
+        {
+          "index": 4,
+          "label": "Contact details",
+          "required": false,
+          "type": "text"
+        },
+        {
+          "index": 5,
+          "label": "Status",
+          "required": false,
+          "type": "select"
+        },
+        {
+          "index": 6,
+          "label": "Notes",
+          "required": false,
+          "type": "textarea"
+        },
+        {
+          "index": 7,
+          "label": "Bills paid by company",
+          "required": false,
+          "type": "select"
+        }
+      ]
+    }
+  ],
+  "modulePermissionIcons": {
+    "Mill": [
+      [
+        "stock",
+        "Stock"
+      ],
+      [
+        "queue",
+        "Arrival List"
+      ],
+      [
+        "arrival",
+        "Arrival / Pohanch"
+      ],
+      [
+        "newbags",
+        "New Export Bags"
+      ],
+      [
+        "instructions",
+        "Exports Specifications"
+      ],
+      [
+        "production",
+        "Production"
+      ],
+      [
+        "export",
+        "Export Loading"
+      ],
+      [
+        "local",
+        "Local Sales"
+      ],
+      [
+        "petty",
+        "Petty Cash"
+      ],
+      [
+        "labour",
+        "Processing Expense"
+      ],
+      [
+        "reprocessbill",
+        "Reprocessing Bill"
+      ],
+      [
+        "oldbags",
+        "Used Bags (In & Out)"
+      ],
+      [
+        "reports",
+        "Reports"
+      ]
+    ],
+    "Exports": [
+      [
+        "active",
+        "Active Shipments"
+      ],
+      [
+        "contracts",
+        "Sales Contracts"
+      ],
+      [
+        "completed",
+        "Completed Shipments"
+      ],
+      [
+        "cancelled",
+        "Cancelled"
+      ],
+      [
+        "fi",
+        "FI Register"
+      ],
+      [
+        "reports",
+        "Reports & Registers"
+      ],
+      [
+        "contract",
+        "Sales Contract"
+      ],
+      [
+        "bags",
+        "Bag Order"
+      ],
+      [
+        "production",
+        "Production Instructions"
+      ],
+      [
+        "loading",
+        "Loading Instructions"
+      ],
+      [
+        "customs",
+        "Customs Documents"
+      ],
+      [
+        "bl",
+        "B/L Documents"
+      ],
+      [
+        "commercial",
+        "Commercial Documents"
+      ],
+      [
+        "coo",
+        "Certificate of Origin"
+      ],
+      [
+        "certs",
+        "Certificates"
+      ],
+      [
+        "cover",
+        "Bank Covering & Dispatch"
+      ],
+      [
+        "tg",
+        "TG Documents"
+      ],
+      [
+        "lcdraft",
+        "L/C Exchange Draft"
+      ],
+      [
+        "print",
+        "Document Output"
+      ],
+      [
+        "history",
+        "History & Versions"
+      ]
+    ],
+    "Accounts": [
+      [
+        "assets",
+        "Assets / Properties & Instalments"
+      ],
+      [
+        "entity-tti",
+        "Legal Book · TTI"
+      ],
+      [
+        "entity-brm",
+        "Legal Book · BRM"
+      ],
+      [
+        "entity-tg",
+        "Legal Book · TG"
+      ],
+      [
+        "dashboard",
+        "Needs Attention / Dashboard"
+      ],
+      [
+        "purchases",
+        "Purchases / Sodas"
+      ],
+      [
+        "due",
+        "Due Date Report"
+      ],
+      [
+        "supplier",
+        "Supplier Ledgers & Payments"
+      ],
+      [
+        "customer",
+        "Customer Ledgers & Receipts"
+      ],
+      [
+        "expenses",
+        "Expenses & Overheads"
+      ],
+      [
+        "transport",
+        "Transport"
+      ],
+      [
+        "freight",
+        "Freight"
+      ],
+      [
+        "services",
+        "Export Service Bills"
+      ],
+      [
+        "cashbank",
+        "Cash & Bank"
+      ],
+      [
+        "jv",
+        "Journal Voucher"
+      ],
+      [
+        "reconciliation",
+        "Reconciliation"
+      ],
+      [
+        "tg",
+        "TG / Intercompany"
+      ],
+      [
+        "reports",
+        "Reports"
+      ],
+      [
+        "masters",
+        "Accounts Masters"
+      ]
+    ]
+  },
+  "errors": []
+}
