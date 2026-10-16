@@ -402,3 +402,16 @@ Fourth repair PR #267 passed both full suites (38959196021 / 38959196140) and
 merged as 7a66895f97413a9da9c0be7bd0713f17d260d9d7. Deployment/live verification
 is still tracked separately. R06–R08/C05 and unreviewed screen actions remain open;
 these permission/report repairs are not a full-migration sign-off.
+
+
+### Audit usability correction
+
+A live owner Audit Trail check stalled browser inspection after the unbounded
+server history was rendered. The third batch's table therefore needs bounded
+rendering, even though its smaller fixtures passed. The follow-up renders 50 rows
+per page with Previous/Next and a matching-entry count. Search scans all retained
+entries and resets to page one; Export Matching Activity includes every matching
+page. A 137-entry runtime case verifies page bounds, the next page, finding the
+last retained entry and exporting beyond the visible page. No audit row is
+truncated, deleted or rewritten. This correction is included with the pending
+Brokerage repair and must be verified live after deployment.

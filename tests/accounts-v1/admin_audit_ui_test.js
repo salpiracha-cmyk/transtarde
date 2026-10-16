@@ -30,5 +30,14 @@ const fs=require('node:fs'),assert=require('node:assert/strict'),{JSDOM}=require
  api.toggleLock('milling');assert.match(confirmations[0],/does not prevent|does not control/);
  assert.doesNotMatch(w.document.getElementById('lockGrid').textContent,/workflow is protected/);
  assert.equal(posts,0,'Read/audit/note controls must not create server writes or permissions');
- w.close();console.log('PASS authoritative audit, separated browser notes, escaped actors, filtered exports, stale-feed failure and truthful local approvals');
+ fail=false;entries.splice(0,entries.length,...Array.from({length:137},(_,i)=>({date:'2026-10-16T19:00:00Z',user:'actor',area:'Master',action:'Recorded',detail:'History row '+i,ref:'POST-2026-'+String(i).padStart(5,'0'),source:'Server audit'})));
+ w.document.getElementById('auditSource').value='server';await api.loadServerAudit();
+ assert.equal(w.document.querySelectorAll('#auditRows tr').length,50,'Large retained history must render only one bounded page');
+ assert.match(w.document.getElementById('auditPageStatus').textContent,/1–50 of 137/);
+ w.document.getElementById('auditNext').click();assert.match(w.document.getElementById('auditPageStatus').textContent,/51–100/);
+ w.document.getElementById('auditSearch').value='00136';w.document.getElementById('auditSearch').dispatchEvent(new w.Event('input'));
+ assert.match(w.document.getElementById('auditRows').textContent,/History row 136/,'Search reaches retained rows beyond the current page');assert.equal(w.document.querySelectorAll('#auditRows tr').length,1);
+ api.exportAudit();assert.match(exports.at(-1),/History row 136/);
+ w.document.getElementById('auditSearch').value='';w.document.getElementById('auditSearch').dispatchEvent(new w.Event('input'));api.exportAudit();assert.match(exports.at(-1),/History row 136/,'Export includes all matching pages');
+ w.close();console.log('PASS authoritative audit, separated browser notes, escaped actors, filtered exports, stale-feed failure truthful local approvals and bounded audit pages');
 })().catch(error=>{console.error(error);process.exitCode=1});

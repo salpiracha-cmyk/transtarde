@@ -225,10 +225,11 @@
         </section>
 
         <section class="view" id="view-audit">
-          <div class="page-heading"><div><p class="eyebrow">SECURITY & CONTROL</p><h1>Audit Trail</h1><p>Server administrative activity. Financial posting history is available through Post IDs.</p></div><div class="row-actions"><button class="button secondary" id="refreshAudit">Refresh</button><button class="button secondary" id="exportAudit">Export Audit</button></div></div>
+          <div class="page-heading"><div><p class="eyebrow">SECURITY & CONTROL</p><h1>Audit Trail</h1><p>Server administrative activity. Financial posting history is available through Post IDs.</p></div><div class="row-actions"><button class="button secondary" id="refreshAudit">Refresh</button><button class="button secondary" id="exportAudit">Export Matching Activity</button></div></div>
           <article class="panel table-panel">
             <div class="table-toolbar"><div class="filter-input"><span>⌕</span><input id="auditSearch" type="search" placeholder="Search activity"></div><select id="auditSource" aria-label="Audit source"><option value="server">Server audit</option><option value="browser">Browser notes</option></select><select id="auditFilter"><option value="all">All activity</option><option value="User">Users</option><option value="Permission">Permissions</option><option value="Master">Master records</option><option value="Module">Module notes</option><option value="Server">Other server activity</option></select></div>
             <div class="table-wrap"><table><thead><tr><th>Date & time</th><th>User</th><th>Area</th><th>Action</th><th>Details</th><th>Reference</th><th>Source</th></tr></thead><tbody id="auditRows"></tbody></table></div>
+            <div class="table-toolbar"><span id="auditPageStatus" role="status"></span><div class="row-actions"><button type="button" class="button secondary" id="auditPrevious">Previous</button><button type="button" class="button secondary" id="auditNext">Next</button></div></div>
           </article>
         </section>
       </div>

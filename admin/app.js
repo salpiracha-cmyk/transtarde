@@ -43,6 +43,8 @@
   let approvalsLoaded = false;
   let serverAudit = [], auditLoaded = false, auditLoading = false, auditError = "";
   let auditRequestSerial = 0;
+  let auditPage = 0;
+  const AUDIT_PAGE_SIZE = 50;
   const MASTER_PERMISSION_ACTIONS = ["Use","View","Create","Edit","Deactivate","View Documents","Download Documents"];
   const hasMasterAccess = IS_SUPER_ADMIN || !!SESSION.masterAccess;
   const MASTER_DEFAULT_SCOPES = {
@@ -1570,10 +1572,16 @@
   }
   function renderAudit() {
     const local=document.getElementById("auditSource")?.value==="browser",rows=filteredAuditEntries();
+    auditPage=Math.min(auditPage,Math.max(0,Math.ceil(rows.length/AUDIT_PAGE_SIZE)-1));
+    const start=auditPage*AUDIT_PAGE_SIZE,page=rows.slice(start,start+AUDIT_PAGE_SIZE);
     const notice=!local&&(auditError||auditLoading||!auditLoaded)
       ?`<tr><td colspan="7" role="status">${escapeHtml(auditError||"Loading server audit…")}${auditError&&serverAudit.length?" Displayed server entries may be out of date.":""}</td></tr>`:"";
-    document.getElementById("auditRows").innerHTML=notice+rows.map(item=>`<tr><td>${escapeHtml(userActivityStamp(item.date))}</td><td>${escapeHtml(item.user)}</td><td><span class="tag">${escapeHtml(item.area)}</span></td><td>${escapeHtml(item.action)}</td><td>${escapeHtml(item.detail)}</td><td>${escapeHtml(item.ref)}</td><td>${escapeHtml(item.source)}</td></tr>`).join("")+(!rows.length&&!notice?'<tr><td colspan="7">No matching activity.</td></tr>':"");
+    document.getElementById("auditRows").innerHTML=notice+page.map(item=>`<tr><td>${escapeHtml(userActivityStamp(item.date))}</td><td>${escapeHtml(item.user)}</td><td><span class="tag">${escapeHtml(item.area)}</span></td><td>${escapeHtml(item.action)}</td><td>${escapeHtml(item.detail)}</td><td>${escapeHtml(item.ref)}</td><td>${escapeHtml(item.source)}</td></tr>`).join("")+(!rows.length&&!notice?'<tr><td colspan="7">No matching activity.</td></tr>':"");
+    document.getElementById("auditPageStatus").textContent=rows.length?`${start+1}–${Math.min(start+AUDIT_PAGE_SIZE,rows.length)} of ${rows.length.toLocaleString()} matching entries`:"0 matching entries";
+    document.getElementById("auditPrevious").disabled=auditPage===0;
+    document.getElementById("auditNext").disabled=start+AUDIT_PAGE_SIZE>=rows.length;
   }
+  function resetAuditPage(){auditPage=0;renderAudit();}
   function renderRecentActivity() {
     const root=document.getElementById("recentActivity");
     root.innerHTML=serverAudit.slice(0,4).map(item=>`<div class="timeline-item"><span class="timeline-dot"></span><div><strong>${escapeHtml(item.detail)}</strong><small>${escapeHtml(item.user)} · ${escapeHtml(userActivityStamp(item.date))}</small></div></div>`).join("")||`<p>${escapeHtml(auditError||(!auditLoaded?"Loading server activity…":"No server activity recorded."))}</p>`;
@@ -1952,11 +1960,13 @@
   document.getElementById("masterIncludeInactive").addEventListener("change",renderMasters);
   document.getElementById("masterDetail").addEventListener("change",event=>{if(event.target.id==="bankIncludeInactive"){document.getElementById("masterIncludeInactive").checked=event.target.checked;renderMasterDetail();}});
   document.getElementById("masterTableBody").addEventListener("keydown",event=>{if((event.key==="Enter"||event.key===" ")&&event.target.matches('[data-open-master]')){event.preventDefault();selectedMasterId=event.target.dataset.openMaster;companyDetailTab="overview";renderMasters();}});
-  document.getElementById("auditSearch").addEventListener("input", renderAudit);
-  document.getElementById("auditFilter").addEventListener("change", renderAudit);
+  document.getElementById("auditSearch").addEventListener("input", resetAuditPage);
+  document.getElementById("auditFilter").addEventListener("change", resetAuditPage);
   document.getElementById("exportAudit").addEventListener("click", exportAudit);
   document.getElementById("refreshAudit").addEventListener("click",loadServerAudit);
-  document.getElementById("auditSource").addEventListener("change",renderAudit);
+  document.getElementById("auditSource").addEventListener("change",resetAuditPage);
+  document.getElementById("auditPrevious").addEventListener("click",()=>{auditPage=Math.max(0,auditPage-1);renderAudit();});
+  document.getElementById("auditNext").addEventListener("click",()=>{auditPage++;renderAudit();});
   document.getElementById("refreshBackupStatus").addEventListener("click", loadBackupStatus);
   document.getElementById("downloadBusinessBackup").addEventListener("click", () => downloadBackup("business-download"));
   document.getElementById("downloadFullBackup").addEventListener("click", () => downloadBackup("full-download"));
