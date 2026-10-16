@@ -809,7 +809,6 @@ function syncExMillPurchaseSodas(){
  }
  for(const row of rows)row.loadedKg=loads.filter(x=>String(x.sodaId)===String(row.id)).reduce((n,x)=>n+Number(x.kg||0),0);if(changed){set(STORE_EXINSTR,instructions);set(STORE_EXLOAD,loads)}set(STORE_EXMILL,rows);refreshInstructionBadges()
 }
-const syncExMillPurchaseSodasBeforeMigrationSave=syncExMillPurchaseSodas;syncExMillPurchaseSodas=function(){const before=[localStorage.getItem(STORE_EXMILL),localStorage.getItem(STORE_EXLOAD),localStorage.getItem(STORE_EXINSTR)].join('\n'),result=syncExMillPurchaseSodasBeforeMigrationSave.apply(this,arguments),after=[localStorage.getItem(STORE_EXMILL),localStorage.getItem(STORE_EXLOAD),localStorage.getItem(STORE_EXINSTR)].join('\n');if(before!==after)Promise.resolve().then(()=>window.TT_SHARED_SYNC?.saveNow?.()).catch(error=>console.error('Ex-Mill instruction migration was not saved',error));return result}
 async function loadPurchaseSodas(){let response=await fetch('api/milling_purchase_sodas.php?r='+Date.now(),{credentials:'same-origin',headers:{Accept:'application/json'}}),data=await response.json();if(!response.ok||!data.ok)throw new Error(data.error||'Purchase Sodas could not be loaded.');purchaseSodaFeed=Array.isArray(data.sodas)?data.sodas:[];syncExMillPurchaseSodas();fillMasters();if(window.exMillTabs)renderExMill();return purchaseSodaFeed}
 function queueProductChanged(){refreshBrokenKat();toggleArrivalKats()}
 function renderDirectorAlerts(){let body=document.getElementById('directorAlertRows');if(!body)return;let a=get(DIRECTOR_ALERTS,[]);body.innerHTML=a.length?a.slice().reverse().map(x=>`<tr><td>${escHtml(x.date)}</td><td><b>${escHtml(x.truck)}</b></td><td>${escHtml(x.reason)}</td><td><span class="badge">${escHtml(x.status)}</span></td><td>${x.status==='Pending Director Approval'?`<button class="ok" onclick="approveDuplicateAlert(${Number(x.id)||0})">Approve One Second Trip</button>`:'—'}</td></tr>`).join(''):'<tr><td colspan="5">No duplicate-truck alerts.</td></tr>'}
@@ -877,8 +876,24 @@ function openExMillWorkspace(){currentMill={id:'EXMILL',name:'Ex-Mill',type:'Out
 function isReprocessingMill(){return !!currentMill&&/reprocess|external.*(?:milling|processing)/i.test(String(currentMill.type||''))}
 function renderHomeForCurrentMill(){let re=isReprocessingMill();document.querySelectorAll('[data-home-role="admin-only"],[data-home-role="own-expense"]').forEach(x=>x.classList.toggle('hidden',re));document.querySelectorAll('[data-home-role="reprocess-bill"]').forEach(x=>x.classList.toggle('hidden',!re))}
 function chooseMill(id){let m=get(STORE_MILLS,defaultMills()).find(x=>x.id===id);if(!m)return;const exMillName=exMillInstructions().find(x=>String(x.mill||'').trim().toLowerCase()===String(m.name||'').trim().toLowerCase())?.mill;if(exMillName){openExMillWorkspace();selectExMill(exMillName);return}currentMill=m;millHeader.textContent='Working Mill: '+m.name;homeTitle.textContent=m.name;openPanel('home')}
-function syncLocationMaster(name,type,source){const access=window.TT_MODULE_ACCESS||{};if(!access.csrf)return;fetch('api/location-master.php',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({csrf:access.csrf,name,type,source})}).catch(()=>{})}
-function addMillPrompt(){let name=prompt('Enter mill name');if(!name)return;let t=prompt('Enter 1 for External Processing / Reprocessing Mill');if(t!=='1')return alert('Please enter 1 for External Processing / Reprocessing Mill.');let mills=get(STORE_MILLS,defaultMills());let m={id:Date.now(),name:name.trim(),type:'External Milling / Processing'};mills.push(m);set(STORE_MILLS,mills);syncLocationMaster(m.name,m.type,'Milling mill selector');renderMillCards()}
+async function syncLocationMaster(name,type,source){
+ const access=window.TT_MODULE_ACCESS||{};if(!access.csrf)throw new Error('Session expired. Refresh before adding a mill.');
+ const response=await fetch('api/location-master.php',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({csrf:access.csrf,name,type,source})});
+ const data=await response.json().catch(()=>({}));
+ if(!response.ok||!data.ok||!data.location?.id)throw new Error(data.error||'The location master was not saved. Retry the same mill name.');
+ return data.location;
+}
+async function addMillPrompt(){
+ let name=prompt('Enter mill name');if(!name?.trim())return;
+ let t=prompt('Enter 1 for External Processing / Reprocessing Mill');if(t!=='1')return alert('Please enter 1 for External Processing / Reprocessing Mill.');
+ try{
+  const master=await syncLocationMaster(name.trim(),'Reprocessing Mill','Milling mill selector');
+  const mills=get(STORE_MILLS,defaultMills()),canonical=String(master.values?.[0]||name).trim();
+  let existing=mills.find(row=>String(row.masterId||'')===String(master.id)||String(row.name||'').trim().toLowerCase()===canonical.toLowerCase());
+  if(existing){existing.masterId=master.id;existing.name=canonical;}else mills.push({id:Date.now(),masterId:master.id,name:canonical,type:'External Milling / Processing'});
+  set(STORE_MILLS,mills);await window.TT_SHARED_SYNC?.saveNow?.();renderMillCards();
+ }catch(error){alert(error.message||'Mill was not saved. Retry the same name.');}
+}
 
 
 function defaultExMillSodas(){return []}

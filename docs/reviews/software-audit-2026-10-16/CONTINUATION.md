@@ -243,3 +243,74 @@ screen/action coverage, resolve the Brokerage Master permission defect and Mill
 financial handoffs, reconcile policy account identities, test restricted-user
 flows and matching print/exports, and complete a staged import/restore rehearsal.
 No live journal, approval decision or user grant was deliberately changed.
+
+
+## Resumed review — 17 October, after 00:32 Pakistan time
+
+Local Chrome reconnected to the same verified extension/profile and original
+application tabs. A Console reload briefly reported an open extension panel;
+Accounts controls remained usable, and the Console subsequently loaded the new
+release. This supersedes the earlier browser-blocked checkpoint.
+
+### Deployment evidence
+
+GitHub's Actions UI shows the main-branch QA runs that the commit-runs connector
+omitted: Accounts 38953284753 and Milling/Exports 38953284991 both passed for
+49ffbc26af52ac33904c6d3747ac312b39bc43b2. Deploy Production 38953708084 passed,
+including backup, migration validation and live health. Its log identifies the
+same deployed SHA. The Directors Console card now says Live and its actual button
+opens the protected Directors page. User activity dates display DD-MM-YYYY.
+PR #265 also passed both complete suites at its final head (38955140821 and
+38955140930) and was merged as b40cb01f2cc4d885aa92dfe056e98e572e7be5bb;
+its production/live verification is pending at this checkpoint.
+
+### Additional live coverage
+
+| Screen/action | Result | Evidence / limit |
+|---|---|---|
+| Trial Balance: account and type | passed | Debit/credit each 126,002,433.78; grouped totals agree |
+| Trial Balance: party | passed | Includes company/unassigned rows; gross party totals differ from net-account totals as expected; both sides 301,566,168.29 |
+| Balance Sheet equation | passed | Assets 72,908,419.36 = liabilities 103,923,181.92 + equity -31,014,762.56 |
+| Expenses: recipient and month filters | passed | FAYYAZ GRAVE YARD has two distinct dated posts, total 4,000; four monthly totals sum to 7,272,858.87 |
+| Expense drill-down and chronology | failed | C12: plain Post ID cells without source controls; entries follow source collection rather than date |
+| Vehicle / Asset Costs | passed | Four real asset choices; monthly totals 257,214; source-post drill-down missing |
+| Personal Adjustments | passed | Three remuneration allocations 1,276 / 3,000 / 10,000; zero recoverable displayed, distinct from cash recovery; original-post links missing |
+| Receivables / Payables | passed | Company PKR, account and receivable/payable filters visible; unassigned control balances retained; balances not certified as correct source data |
+| Commodity & Local Sales | failed | A filtered journal list, without commodity/brand quantities or source drill-down; source records must be reached elsewhere |
+| Shipment Contribution | passed | Explicit Provisional status and missing stock-cost/revenue notices; no final profitability sign-off |
+
+The credit Packaging Inventory 5,554,243 and debit GRNI 15,775,607.50 require
+source/opening reconciliation before migration. Their signs alone do not prove a
+calculation defect. No journal was changed to make these balances look normal.
+
+### Third repair batch — prepared, not deployed
+
+- R04: replace unsupported protection claims with explicit browser-local approval
+  notes, retaining the stored flags/history. No operational freeze is invented.
+- R05: owner-only, GET-only server administrative audit feed with whitelisted
+  display fields. Console shows the server feed and keeps old browser notes in a
+  separately selected source. Search/export match that source and filter; failures
+  mark stale results and block an unverified export. Financial posting history
+  remains in its existing Post ID source.
+- R09: remove the startup/read-triggered shared-save wrapper from Soda projection.
+  Derived cache still supplies the view; explicit workflow saves remain available.
+- R11: await the canonical Location Master acknowledgement before adding a local
+  Mill, retain its master ID, surface denial/invalid responses, deduplicate retry,
+  and await explicit shared save before rendering the new Mill card.
+- R15: transport and service/freight result panels add Edit alongside Print, using
+  the existing source-owned bill amendment route and original bill identity.
+
+Fresh tests execute the actual audit endpoint, the actual Console in an isolated
+DOM, Milling read/master functions with a delayed denied response and retry, and
+both shipment result renderers. Existing Console permission, Director queue,
+cleanup and Soda routing/date checks pass. New audit GETs do not mutate the source
+file or expose users, password hashes, master payloads or IP addresses. Required
+hosted checks and remaining live coverage are still pending for this new batch.
+
+
+Additional local check: accounting_desk_test.js fails its pre-existing assertion
+that Exports calls showTgUnallocatedPayments(). Neither exports/app.js nor
+api/export_tg_unallocated.php changed in this repair batch. The absent FI-register
+hook may be a retired path or a real missing handoff; investigate the current TG
+unallocated-payment route before classifying it. The assertion was not weakened.
+The posting-confirmation ownership/review runtime checks pass.

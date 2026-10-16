@@ -41,6 +41,8 @@
   let pendingDirectorApprovals = [];
   let approvalsError = "";
   let approvalsLoaded = false;
+  let serverAudit = [], auditLoaded = false, auditLoading = false, auditError = "";
+  let auditRequestSerial = 0;
   const MASTER_PERMISSION_ACTIONS = ["Use","View","Create","Edit","Deactivate","View Documents","Download Documents"];
   const hasMasterAccess = IS_SUPER_ADMIN || !!SESSION.masterAccess;
   const MASTER_DEFAULT_SCOPES = {
@@ -1520,41 +1522,61 @@
   function renderLocks() {
     document.getElementById("lockGrid").innerHTML = MODULES.map(module => {
       const lock = state.locks[module.id];
-      return `<article class="lock-card"><div class="lock-card-head"><h3>${module.name}</h3><span class="lock-status ${lock.locked ? "locked" : ""}">${lock.locked ? "Locked" : "Open for development"}</span></div>
-        <p>${lock.locked ? "Approved workflow is protected. Reopening requires a documented impact request and Salman’s approval." : "The module may continue development until Salman gives final approval and locks it."}</p>
-        <div class="lock-card-actions"><small>${escapeHtml(lock.changed)}</small><button class="button ${lock.locked ? "secondary" : "primary"}" data-toggle-lock="${module.id}">${lock.locked ? "Request Reopen" : "Lock After Approval"}</button></div></article>`;
+      return `<article class="lock-card"><div class="lock-card-head"><h3>${module.name}</h3><span class="lock-status ${lock.locked ? "locked" : ""}">${lock.locked ? "Approved · local note" : "Review pending"}</span></div>
+        <p>${lock.locked ? "Approval recorded in this browser only." : "No approval note recorded in this browser."}</p>
+        <div class="lock-card-actions"><small>${escapeHtml(lock.changed)}</small><button class="button ${lock.locked ? "secondary" : "primary"}" data-toggle-lock="${module.id}">${lock.locked ? "Reopen Review" : "Record Approval"}</button></div></article>`;
     }).join("");
   }
   function toggleLock(id) {
     const lock = state.locks[id];
     const module = MODULES.find(item => item.id === id);
     if (lock.locked) {
-      const confirmed=window.confirm(`Reopen the ${module.name} module for development? You will be able to change it again until you lock it.`);
+      const confirmed=window.confirm(`Reopen the local approval note for ${module.name}? This note does not control access, posting or deployments.`);
       if(!confirmed) return;
       lock.locked=false; lock.approvedBy="—"; lock.changed=`Reopened by Salman · ${nowStamp()}`;
       addAudit("Module", "Reopened", `${module.name} reopened by Super Admin`, module.version);
-      toast(`${module.name} is open for development.`);
+      toast(`${module.name} review note reopened.`);
     } else {
-      const confirmed = window.confirm(`Lock the ${module.name} module? After locking, no cross-module change can alter it without your documented approval.`);
+      const confirmed = window.confirm(`Record local approval for ${module.name}? This browser note does not prevent module, posting or deployment changes.`);
       if (!confirmed) return;
       lock.locked = true; lock.approvedBy = "Salman"; lock.changed = `Locked by Salman · ${nowStamp()}`;
-      addAudit("Module", "Locked", `${module.name} approved and protected`, module.version);
-      toast(`${module.name} is now locked.`);
+      addAudit("Module", "Locked", `${module.name} local approval note recorded`, module.version);
+      toast(`${module.name} local approval note saved.`);
     }
     saveState(); renderLocks(); renderAudit(); renderRecentActivity();
   }
 
+  function auditEntries() {
+    const local=document.getElementById("auditSource")?.value==="browser";
+    return local?state.audit.map(item=>({...item,source:"Browser note"})):serverAudit;
+  }
+  function filteredAuditEntries() {
+    const query=document.getElementById("auditSearch")?.value||"";
+    const filter=document.getElementById("auditFilter")?.value||"all";
+    return auditEntries().filter(item=>textMatchesPostIdSearch(Object.values(item).join(" "),query)&&(filter==="all"||item.area===filter));
+  }
+  async function loadServerAudit() {
+    if(!IS_SUPER_ADMIN)return;
+    const request=++auditRequestSerial,button=document.getElementById("refreshAudit");
+    auditLoading=true;auditError="";if(button)button.disabled=true;renderAudit();
+    try {
+      const data=await apiRequest(null,"admin_audit");
+      if(request!==auditRequestSerial)return;
+      serverAudit=Array.isArray(data.entries)?data.entries:[];auditLoaded=true;
+    } catch(error) { if(request===auditRequestSerial)auditError=error.message; }
+    finally {
+      if(request===auditRequestSerial){auditLoading=false;if(button)button.disabled=false;renderAudit();renderRecentActivity();}
+    }
+  }
   function renderAudit() {
-    const query = document.getElementById("auditSearch")?.value || "";
-    const filter = document.getElementById("auditFilter")?.value || "all";
-    const rows = state.audit.filter(item => {
-      const match = textMatchesPostIdSearch(Object.values(item).join(" "), query);
-      return match && (filter === "all" || item.area === filter);
-    });
-    document.getElementById("auditRows").innerHTML = rows.map(item => `<tr><td>${escapeHtml(item.date)}</td><td>${escapeHtml(item.user)}</td><td><span class="tag">${escapeHtml(item.area)}</span></td><td>${escapeHtml(item.action)}</td><td>${escapeHtml(item.detail)}</td><td>${escapeHtml(item.ref)}</td></tr>`).join("");
+    const local=document.getElementById("auditSource")?.value==="browser",rows=filteredAuditEntries();
+    const notice=!local&&(auditError||auditLoading||!auditLoaded)
+      ?`<tr><td colspan="7" role="status">${escapeHtml(auditError||"Loading server audit…")}${auditError&&serverAudit.length?" Displayed server entries may be out of date.":""}</td></tr>`:"";
+    document.getElementById("auditRows").innerHTML=notice+rows.map(item=>`<tr><td>${escapeHtml(userActivityStamp(item.date))}</td><td>${escapeHtml(item.user)}</td><td><span class="tag">${escapeHtml(item.area)}</span></td><td>${escapeHtml(item.action)}</td><td>${escapeHtml(item.detail)}</td><td>${escapeHtml(item.ref)}</td><td>${escapeHtml(item.source)}</td></tr>`).join("")+(!rows.length&&!notice?'<tr><td colspan="7">No matching activity.</td></tr>':"");
   }
   function renderRecentActivity() {
-    document.getElementById("recentActivity").innerHTML = state.audit.slice(0, 4).map(item => `<div class="timeline-item"><span class="timeline-dot"></span><div><strong>${escapeHtml(item.detail)}</strong><small>${escapeHtml(item.user)} · ${escapeHtml(item.date)} · ${escapeHtml(item.ref)}</small></div></div>`).join("");
+    const root=document.getElementById("recentActivity");
+    root.innerHTML=serverAudit.slice(0,4).map(item=>`<div class="timeline-item"><span class="timeline-dot"></span><div><strong>${escapeHtml(item.detail)}</strong><small>${escapeHtml(item.user)} · ${escapeHtml(userActivityStamp(item.date))}</small></div></div>`).join("")||`<p>${escapeHtml(auditError||(!auditLoaded?"Loading server activity…":"No server activity recorded."))}</p>`;
   }
   async function refreshApprovals() {
     if (!IS_SUPER_ADMIN) return;
@@ -1607,12 +1629,13 @@
     }).join(""): `<div class="admin-empty-state"><strong>${uncertain?"Checking approvals":"No pending approvals"}</strong><span>Director approval requests also appear here.</span></div>`);
   }
   function exportAudit() {
-    const header = ["Date & Time", "User", "Area", "Action", "Details", "Reference"];
-    const data = [header, ...state.audit.map(item => [item.date, item.user, item.area, item.action, item.detail, item.ref])];
-    const csv = data.map(row => row.map(cell => `"${String(cell).replaceAll('"', '""')}"`).join(",")).join("\n");
-    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv" }));
-    const link = document.createElement("a"); link.href = url; link.download = `Transtrade_Audit_${new Date().toISOString().slice(0,10)}.csv`; link.click(); URL.revokeObjectURL(url);
-    addAudit("Audit", "Exported", "Super Admin audit trail exported", "AUDIT-CSV"); saveState(); renderAudit(); toast("Audit file downloaded.");
+    if(document.getElementById("auditSource")?.value!=="browser"&&(!auditLoaded||auditLoading||auditError)){toast("Refresh the server audit successfully before exporting.");return;}
+    const header=["Date & Time","User","Area","Action","Details","Reference","Source"];
+    const data=[header,...filteredAuditEntries().map(item=>[userActivityStamp(item.date),item.user,item.area,item.action,item.detail,item.ref,item.source])];
+    const csv=data.map(row=>row.map(cell=>`"${(/^[=+@\-\t\r]/.test(String(cell??""))?"'":"")+String(cell??"").replaceAll('"','""')}"`).join(",")).join("\n");
+    const url=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));
+    const link=document.createElement("a");link.href=url;link.download=`Transtrade_Audit_${new Date().toISOString().slice(0,10)}.csv`;link.click();URL.revokeObjectURL(url);
+    toast("Audit download prepared.");
   }
 
 
@@ -1766,6 +1789,7 @@
     if (!IS_SUPER_ADMIN && !(id==="masters"&&hasMasterAccess)) { toast("Master Records access required."); return; }
     document.querySelectorAll(".view").forEach(view => view.classList.toggle("active", view.id === `view-${id}`));
     document.querySelectorAll(".nav-item[data-view]").forEach(item => item.classList.toggle("active", item.dataset.view === id));
+    if(id==="audit")void loadServerAudit();
     setNavigationOpen(false);
     window.scrollTo({ top: 0, behavior: "instant" });
   }
@@ -1779,7 +1803,7 @@
     if (!query) return;
     const user = IS_SUPER_ADMIN ? state.users.find(item => `${item.name} ${item.username} ${item.role}`.toLowerCase().includes(query)) : null;
     const module = IS_SUPER_ADMIN ? MODULES.find(item => `${item.name} ${item.description}`.toLowerCase().includes(query)) : null;
-    const audit = IS_SUPER_ADMIN ? state.audit.find(item => textMatchesPostIdSearch(Object.values(item).join(" "), value)) : null;
+    const audit = IS_SUPER_ADMIN ? auditEntries().find(item => textMatchesPostIdSearch(Object.values(item).join(" "), value)) : null;
     const visibleMasterIds=new Set(MASTER_GROUPS.flatMap(([,ids])=>ids));
     const master = hasMasterAccess ? MASTER_TYPES.filter(item=>visibleMasterIds.has(item.id)&&canMaster(item.id,"View")).find(item => `${item.name} ${item.description}`.toLowerCase().includes(query)) : null;
     if (user) { showView("users"); document.getElementById("userSearch").value = value; renderUsers(); }
@@ -1931,6 +1955,8 @@
   document.getElementById("auditSearch").addEventListener("input", renderAudit);
   document.getElementById("auditFilter").addEventListener("change", renderAudit);
   document.getElementById("exportAudit").addEventListener("click", exportAudit);
+  document.getElementById("refreshAudit").addEventListener("click",loadServerAudit);
+  document.getElementById("auditSource").addEventListener("change",renderAudit);
   document.getElementById("refreshBackupStatus").addEventListener("click", loadBackupStatus);
   document.getElementById("downloadBusinessBackup").addEventListener("click", () => downloadBackup("business-download"));
   document.getElementById("downloadFullBackup").addEventListener("click", () => downloadBackup("full-download"));
@@ -1972,7 +1998,7 @@
     applySessionAccess(); renderModules(); renderUsers(); renderMasters(); renderLocks(); renderAudit(); renderRecentActivity(); renderApprovals(); loadBackupStatus();
     if (new URLSearchParams(location.search).get('view')==='masters' && hasMasterAccess) showView('masters');
     if (IS_SUPER_ADMIN) {
-      try { await Promise.all([loadServerUsers(),refreshApprovals()]); } catch (error) { toast(error.message); }
+      try { await Promise.all([loadServerUsers(),refreshApprovals(),loadServerAudit()]); } catch (error) { toast(error.message); }
     } else if (hasMasterAccess) {
       try { await loadServerMasters(); } catch (error) { toast(error.message); }
     }
