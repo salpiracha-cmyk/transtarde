@@ -374,3 +374,44 @@ those warnings are not suppressed. Hosted verification is still required.
 Third repair batch PR #266 passed full Accounts 38957701428 and Milling/Exports
 38957701777 and merged as 412f6a15f5ff5f1e9b74af44df960105bd90a570.
 Its deployment/live recheck is pending at this checkpoint. No migration sign-off.
+
+
+### Fifth prepared repair batch — Brokerage scope
+
+C10 now has a source repair and actual endpoint regression tests. Granular
+Accounts/Directors matrices must explicitly name Brokerage Master. Create cannot
+change an existing rate; Edit cannot create a new dated rate. Super Admin and
+pre-existing flat/module-wide write grants retain their former master access.
+The Console exposes the explicit Brokerage row in both matrices, initially empty
+where no such grant exists. No actual user file or grant was changed.
+
+Both Accounts and Directors master editors consume the server canCreate/canEdit
+capabilities and disable writes for a read-only user. The endpoint also rejects
+impossible calendar dates, nonnumeric WHT and nonfinite rates instead of storing
+misleading zero/normalised dates. Valid existing data is untouched.
+
+brokerage_scope_test.py executes the full actual endpoint with the actual shared
+authorization helpers against disposable books. Reports-only Directors/Accounts
+and View-only Brokerage requests receive 403 with unchanged source bytes; explicit
+Create/Edit and legacy controls succeed only as intended. The paired actual UI
+fixtures verify read-only fields/buttons on both routes without writes. The
+original brokerage_scope_probe.py is historical reproduction evidence for the
+pre-fix commit, not a current acceptance test. Hosted QA is pending for this batch.
+
+Fourth repair PR #267 passed both full suites (38959196021 / 38959196140) and
+merged as 7a66895f97413a9da9c0be7bd0713f17d260d9d7. Deployment/live verification
+is still tracked separately. R06–R08/C05 and unreviewed screen actions remain open;
+these permission/report repairs are not a full-migration sign-off.
+
+
+### Audit usability correction
+
+A live owner Audit Trail check stalled browser inspection after the unbounded
+server history was rendered. The third batch's table therefore needs bounded
+rendering, even though its smaller fixtures passed. The follow-up renders 50 rows
+per page with Previous/Next and a matching-entry count. Search scans all retained
+entries and resets to page one; Export Matching Activity includes every matching
+page. A 137-entry runtime case verifies page bounds, the next page, finding the
+last retained entry and exporting beyond the visible page. No audit row is
+truncated, deleted or rewritten. This correction is included with the pending
+Brokerage repair and must be verified live after deployment.

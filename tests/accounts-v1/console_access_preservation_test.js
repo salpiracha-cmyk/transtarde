@@ -23,7 +23,7 @@ const {JSDOM} = require('jsdom');
   assert.equal(opened[0][0],'directors/index.php');
   const save = async () => {requests.length=0;await w.testConsole.saveUser({preventDefault(){}});return requests.find(x=>x.action==='update');};
   w.testConsole.openUserDialog('2');
-  assert.equal(w.document.querySelectorAll('[data-permission-module="Directors"]').length,18);
+  assert.equal(w.document.querySelectorAll('[data-permission-module="Directors"]').length,21);
   w.document.getElementById('userName').value='Amended name only';
   let sent=await save();
   assert.deepEqual(sent.permissions,staff.permissions,'Name-only edit must preserve every grant, including unknown icons');
