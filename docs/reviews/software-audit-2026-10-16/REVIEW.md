@@ -26,16 +26,18 @@ Source inventory: Accounts 108 files/6,147 lines; Exports 16/3,878;
 Milling 2/1,351; Admin 9/2,743; Directors 6/136; API 151/13,352.
 These are source counts, not numbers of independently verified screens.
 
+Fresh branch [Accounts QA](https://github.com/salpiracha-cmyk/transtarde/actions/runs/38947118019) and [Milling/Exports QA](https://github.com/salpiracha-cmyk/transtarde/actions/runs/38947117730) both passed at review commit `7eea2ea23e96680c73358d9236144844b84ea2d4`, including the configured MySQL and hosted browser jobs. This resolves local browser-runtime limitations for the existing required Accounts cases; it does not validate the independent defects automatically.
+
 Existing release evidence:
 
 - [Accounts QA](https://github.com/salpiracha-cmyk/transtarde/actions/runs/38890251160)
 - [Milling and Exports QA](https://github.com/salpiracha-cmyk/transtarde/actions/runs/38890251054)
 - [Production deployment](https://github.com/salpiracha-cmyk/transtarde/actions/runs/38890544586)
 
-Fresh review runs (final status recorded after completion):
+Fresh review runs (completed results):
 
-- [Authenticated read-only live smoke](https://github.com/salpiracha-cmyk/transtarde/actions/runs/38946007433)
-- [Three-module disposable walkthrough](https://github.com/salpiracha-cmyk/transtarde/actions/runs/38946032748): failed on obsolete container selector; the stored `#contNo` is intentionally hidden behind visible split entry. Diagnostic test corrected on this branch; this failure does not establish a broken user input.
+- [Authenticated read-only live smoke](https://github.com/salpiracha-cmyk/transtarde/actions/runs/38946007433): **18/18 passed**; 50 ledgers across TTI/BRM/TG reconciled, all three trial balances balanced, balance-sheet differences zero, no startup POSTs and zero financial writes. Recovery endpoint again returned zero production source runs.
+- [Three-module disposable walkthrough](https://github.com/salpiracha-cmyk/transtarde/actions/runs/38946032748): failed on obsolete container selector; the stored `#contNo` is intentionally hidden behind visible split entry. Diagnostic test corrected on this branch; this failure does not establish a broken user input. The [corrected rerun](https://github.com/salpiracha-cmyk/transtarde/actions/runs/38947157532) passed the container save and return-to-Exports check, then stopped on another obsolete Freight Agreed search selector. Its later supplier bills were not reached.
 - [Remaining Accounts disposable walkthrough](https://github.com/salpiracha-cmyk/transtarde/actions/runs/38946055403): 5 failed scenarios; obsolete UI/fixture assumptions need updating before this suite can provide end-to-end assurance (details R12).
 
 Machine-readable local results: `local-checks.json`, `syntax-checks.json`,
@@ -204,8 +206,7 @@ that selector to use the visible controls and asserts the resulting stored value
 Remaining Accounts walkthrough failed 5/5. Observed stale assumptions include
 waiting for an old Soda alert, expecting salary advance immediately rather than
 opening it, treating supplier autocomplete as a select, and looking for the old
-"All Ledgers" label. The credit-advice failure needs separate classification from
-its complete log/trace. These runs cannot certify their later actions. Retain the
+"All Ledgers" label. The credit-advice POST returned HTTP 200 and its following GET contained one receipt; the trace screenshot shows the current green posting dialog with Edit and Print. Its old `Print Receipt Voucher` text assertion is obsolete. These runs cannot certify their later actions. Retain the
 failures and update fixtures/selectors/assertions without weakening the business
 validation or assuming a timeout is an application defect.
 
@@ -221,6 +222,42 @@ current stock service. Route operational stock ledgers through canonical movemen
 and identity projections, retain true period opening, and keep raw/finished/byproduct
 stages distinct. A positive-data opening/production/sale/reversal fixture should
 be the acceptance test before using it as a stock reconciliation report.
+
+### R14 — Hosted visual evidence reveals cramped amounts and misleading alerts (medium)
+
+These observations come from current hosted **disposable fixture** screenshots,
+not the user's Mac Chrome. The browser tests can pass while these details remain.
+
+- On the TG multiple-invoice/advance phone view, amount labels fall into the first
+  30px grid column. USD100/50/200 appear as tiny clipped inputs (1/5/2). The mobile
+  `.tter-item` rule has two columns but its third child amount label is not placed
+  across the useful width. Place it under the description with enough numeric width;
+  assert full visible amount text, not merely an unchanged underlying input value.
+- Bank Finance on a phone wraps a facility name into isolated characters while
+  putting three actions in a narrow right-hand column. Use a compact record card
+  or a deliberate scrollable table; keep actions in one consistent row.
+- A normal freight quantity summary (contract/already agreed/remaining containers)
+  is placed in `#ttFreightAgreementError` with `role="alert"`; the screenshot shows
+  this harmless information as a floating red error over the next bill form.
+  Give informational summaries a normal inline status and clear screen-owned
+  messages when leaving their screen.
+
+Preserved examples: `visual/tg-invoice-phone.png`, `visual/bank-finance-phone.png`,
+`visual/freight-information-alert.png`. These screenshots show the reported
+conditions; they do not prove every visual layout has been reviewed.
+
+### R15 — Shipment bill success panels omit the required Edit action (medium)
+
+`showPosted` in both Transport and the shared service/freight bill entry generates
+Pay This Bill, Post Another Bill and Print controls, but no Edit action. The hosted
+Transport success screenshot confirms it. This conflicts with the standing
+post-result rule requiring separate Edit and Print actions.
+
+Connect Edit to the existing source-owned amendment route with bill/journal
+identity, reason, allocations and paid-bill safeguards. Do not substitute an
+unrestricted generic JV edit or reverse a bill just to open its form.
+Evidence: `visual/transporter-post-result.png` and
+`accounts/accounts-accounting-desk.js` transport/service `showPosted` functions.
 
 ## What belongs where: consolidation proposal
 
@@ -265,9 +302,9 @@ states their purpose and whether they are stored/retrievable.
 
 | Flow | Checks/evidence | Remaining gap |
 |---|---|---|
-| Soda → Mill product/location → Pohanch → supplier bill | Soda routing, master compatibility, ready-rice HTTP, original bill/party tests | End-to-end video uses stale controls; refresh before sign-off |
+| Soda → Mill product/location → Pohanch → supplier bill | Soda routing, master compatibility, ready-rice HTTP, original bill/party tests | End-to-end video uses stale controls; refresh before full sign-off |
 | Pohanch Kat/quantity → provisional receipt → final bill → broker | Rule, supplier discount, ledger-narration/control tests | Real data review beyond current ledger smoke not performed |
-| Ready Ex-Mill purchase → instructions → container lifting | Authority, product match, quantity reservation, linkage tests | Inbound read-trigger save R09; refreshed container round trip needed |
+| Ready Ex-Mill purchase → instructions → container lifting | Authority, product match, quantity reservation, linkage tests | Inbound read-trigger save R09; corrected video confirmed own-Mill container return; full Ex-Mill fixture still required |
 | Export bag PO → receipt/spec → cumulative bills → Director decision | Bag report, history, bill, approval integrity and inventory HTTP tests | Physical supplier quality/weights can only be confirmed from actual receipts |
 | Mill production → stock → actual recovery → costing | Inventory, actual-input, production-cost and report UI tests | No live production; reprocessing valuation is explicitly held for review |
 | Mill bills → Accounts creditors/payment | Source tracing and positive fixture | R07 incomplete handoff; no clean sign-off |
@@ -276,7 +313,7 @@ states their purpose and whether they are stored/retrievable.
 | Bank/payment/cheque → party ledger → Post ID/TB/P&L/BS | Existing backend/DOM tests and baseline live ledger reconciliation | Manual all-role visual audit unavailable |
 | Directors/Super Admin → decisions | Shared endpoint and approval integrity tests | Console launcher/editor defects R01/R02 |
 | Company/party master edits → module forms/documents | Master-role and Export DOM propagation checks | R11 location acknowledgement, scattered masters R10 |
-| Login/session/startup/save conflicts | Existing authorization/session/startup tests | Fresh live smoke result required; no signed-in Mac inspection |
+| Login/session/startup/save conflicts | Existing authorization/session/startup tests | Fresh live smoke passed 18/18; no signed-in Mac inspection |
 
 ## Recommended implementation order
 
@@ -290,8 +327,12 @@ states their purpose and whether they are stored/retrievable.
 5. Remove navigation-triggered saves and acknowledge new master creation failures.
 6. Approve the master consolidation map, then migrate useful controls while
    preserving permissions, dates and historical records.
-7. Refresh stale walkthrough fixtures and finish hosted visual checks, including
+7. Refresh stale walkthrough fixtures and finish remaining visual checks, including
    responsive layouts, print/PDF geometry, every action and restricted roles.
 
 No assertion is made that all buttons, every historical posting, all output
 documents, every responsive layout or every live role has passed this review.
+
+## Delivery status
+
+Fifteen findings are recorded (R01–R15). The current production release remains unchanged. [Draft review PR263](https://github.com/salpiracha-cmyk/transtarde/pull/263) retains this report, positive-data probes and sanitized fixture evidence. The follow-up commit only records final results and screenshot evidence; it changes no application/test logic. Required Accounts and Milling/Exports suites both passed on the preceding review commit. The three-module walkthrough remains partially blocked by stale Freight Agreed selectors, and the older remaining-flows walkthrough requires updates. Manual all-screen Mac Chrome testing, all-role acceptance, exhaustive print/PDF review and actual mill production figures remain outside this completed technical audit pass.
