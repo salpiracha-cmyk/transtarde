@@ -694,3 +694,49 @@ AUTO-FILL WORK gives the missing effective agreement message while keeping the
 blank draft and current dates; no Save was clicked. The form and validation were
 visually inspected at the ordinary desktop viewport. Contractor dropdown is empty
 and the central dated labour agreement path remains a readiness gap.
+
+## TG pending payments / FI reference display (prepared)
+
+Restore the actual pending Accounts-source display in the Exports FI Register,
+including explicit Refresh, source record, exporter, invoice/contract, bank reference,
+currency and amount. This GET-only panel does not create FI records, allocations or
+journals. Late, detached and navigated-away responses cannot overwrite the screen;
+source errors remain errors rather than empty-success messages.
+
+The existing endpoint incorrectly excluded the whole outgoing payment when any
+receipt linked to it, including reversed receipts. Subtract the active received and
+correspondent amounts instead, retain the remainder, and exclude reversed payment
+and receipt sources. Unapplied active Pakistan receipt allocations remain separate
+reference sources. Require FI View access and fail on malformed JSON/record stores,
+non-numeric amounts or missing exporter identity. Release the read session before
+reading Accounts. A positive temporary endpoint case has original100, received35,
+correspondent5, remaining60, a separate unapplied35 and a reversed1000 ignored;
+permission denials and failed reads leave source bytes unchanged. DOM tests check
+source identities/amounts, failures and stale-response rejection.
+
+The broad accounting_desk_test.js now passes the previously real missing integration
+assertion. Its next failure was an obsolete `data-bank-retention` control selector:
+the current Company Master uses bankRetention and serializes independent PKR linked-
+retention versus foreign-account flags. Update that assertion to those current
+controls while retaining the server designation checks. The complete test now passes
+and is added to hosted CI alongside the positive pending-payment tests. Existing
+linked-retention HTTP tests provide independent posting/master evidence. Live TG
+sources and downstream FI matching still need reconciliation after deployment.
+
+## Additional Mill report gaps found during live/source review (C18)
+
+The signed-in own-mill Export Bags Ledger opens correctly but has no recorded
+movements. Positive source review finds Till Date ignores To; range/movement filters
+recompute running brand balances from displayed rows; its inputs do not apply mill/
+company scope. Production-brand summary also reads all saved shifts and includes
+unescaped brand/quality text. Used-bag movements likewise read unscoped arrivals and
+assign today to missing source dates. These are source-confirmed gaps, not a positive
+live reproduction with another mill's data. The Accounts canonical bag-order report
+already separates order dates, receipt activity and undated receipts, but is restricted
+to authorized Accounts report users and must not simply be opened to Mill staff.
+Preserve existing role/entity restrictions when replacing the competing report paths.
+No bag stock quantity or saved receipt has been changed in this investigation.
+
+Rice Ledger PR275 final head0649bd72 passed full Accounts38966386607 and
+Milling/Exports38966386316; merged38fd57e59ddc505a73fce6192d689d86f15777c3.
+Production deployment and fresh Mac Chrome output checks are pending.
