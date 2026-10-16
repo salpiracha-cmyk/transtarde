@@ -584,3 +584,18 @@ The scoped fixture includes matching work, another TTI mill, BRM with the same m
 name/ID, undated work and invalid/missing/future agreements. No source write occurs.
 Hosted checks and live deployment are pending. This reduces R06 but does not make
 R07/R08 handoffs or R13 stock ledger complete.
+
+
+Live recheck also caught the old workspace's separate summary still displaying
+Rs0.00 per kg with no recorded production, below the repaired canonical report.
+That summary now says unavailable and identifies its amounts as operational bill
+estimates; the fixture verifies missing production and selected-mill output.
+
+Fresh Mac Chrome confirms PR271 cash separation, disabled manual-receipt inputs /
+Save, source switching and period opening labels. Both scoped cash and operational
+history currently contain no rows; existing generic company petty-cash transfers
+are not silently attributed to a mill. Positive amounts/reversal behaviour remain
+verified through disposable fixtures. The cost entry correctly carries September
+1–30, TTI and TTI Rice Mills into the canonical actual-production report.
+PR272 passed both full suites 38962953176 / 38962953237 and merged as
+1c895eba7c7350cbd9f3cef26c02ea8e47b35109. Its deployment/live status remains tracked.
