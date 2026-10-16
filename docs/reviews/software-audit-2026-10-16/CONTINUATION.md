@@ -558,3 +558,44 @@ no-op/changeCount=0, and no business-document recovery applied. These deployment
 checks are separate from the PR suites. PR271 passed both full suites
 38962056492 / 38962056054 and merged as d03128783bd2fffc38e1f15de2700e3248e145d1;
 its deployment/live cash recheck is pending at this checkpoint.
+
+
+### Tenth prepared repair — scoped labour draft and safe billing dates
+
+R06 labour autofill now filters arrivals, production packing, loading parents and
+paltai work to the selected company/mill. Undated feed work is not assigned today's
+date. Previous labour billing end and KE period choices are likewise scoped;
+operational bill/production summary quantities no longer mix other mills.
+
+Autofill requires a saved agreement effective on/before the full selected period
+and matching its scope. No agreement, a newer rate or another scope preserves the
+existing draft and requires explicitly agreed tasks/rates. Existing rates and
+bills are untouched. No historical rate revisions are invented. The legacy rate
+store remains a consolidation limitation: unscoped agreement data retains the
+original TTI mill fallback, not an assumed BRM/outside-mill agreement. The charging
+basis of the agreed Unloading-to-Loading line remains arrivals; this change does
+not redefine a commercial agreement as production consumption.
+
+The new positive fixture found a further defect: next-period local midnight plus
+one day, converted back to UTC, repeated the old calendar day in Karachi. Labour
+and reprocessing now advance calendar dates in UTC. The actual functions pass in
+Karachi and Los Angeles, including month/year boundaries and leap day.
+The scoped fixture includes matching work, another TTI mill, BRM with the same mill
+name/ID, undated work and invalid/missing/future agreements. No source write occurs.
+Hosted checks and live deployment are pending. This reduces R06 but does not make
+R07/R08 handoffs or R13 stock ledger complete.
+
+
+Live recheck also caught the old workspace's separate summary still displaying
+Rs0.00 per kg with no recorded production, below the repaired canonical report.
+That summary now says unavailable and identifies its amounts as operational bill
+estimates; the fixture verifies missing production and selected-mill output.
+
+Fresh Mac Chrome confirms PR271 cash separation, disabled manual-receipt inputs /
+Save, source switching and period opening labels. Both scoped cash and operational
+history currently contain no rows; existing generic company petty-cash transfers
+are not silently attributed to a mill. Positive amounts/reversal behaviour remain
+verified through disposable fixtures. The cost entry correctly carries September
+1–30, TTI and TTI Rice Mills into the canonical actual-production report.
+PR272 passed both full suites 38962953176 / 38962953237 and merged as
+1c895eba7c7350cbd9f3cef26c02ea8e47b35109. Its deployment/live status remains tracked.
