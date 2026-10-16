@@ -134,7 +134,7 @@
     const token=++launchGeneration,company=entity();
     const current=()=>token===launchGeneration&&company===entity();
     window.TT_POST_CONFIRMATION?.dismiss?.();
-    if(action.special==='production-recovery'){location.href='/accounts/production-reports.php?entity='+encodeURIComponent(entity());return;}
+    if(action.special==='production-recovery'){sessionStorage.setItem('tt_accounts_production_report_return',JSON.stringify({company:entity(),area:sessionStorage.getItem('tt_accounts_current_area')||'reports',scroll:window.scrollY}));location.href='/accounts/production-reports.php?entity='+encodeURIComponent(entity());return;}
     if(action.special==='bag-report'||action.special==='bag-files'){sessionStorage.setItem('tt_accounts_bag_report_return',JSON.stringify({company:entity(),area:sessionStorage.getItem('tt_accounts_current_area')||'reports',scroll:window.scrollY}));location.href='/accounts/bag-reports.php?view='+(action.special==='bag-report'?'report':'print')+'&entity='+encodeURIComponent(entity());return;}
     if(action.special==='carry-forward'){sessionStorage.setItem('tt_accounts_carry_return',JSON.stringify({company:entity(),area:sessionStorage.getItem('tt_accounts_current_area')||'',scroll:window.scrollY}));location.href='/accounts/carry-forward.php?entity='+encodeURIComponent(entity());return;}
     // One desk owns navigation. Retire the previous workspace before opening another form.
@@ -882,7 +882,7 @@
     installStyle();
     buildTopbar();
     buildDesk();
-    const bagReturn=new URLSearchParams(location.search).get('return');if(['bag-report','bag-master'].includes(bagReturn)){const key=bagReturn==='bag-master'?'tt_accounts_bag_master_return':'tt_accounts_bag_report_return';try{const saved=JSON.parse(sessionStorage.getItem(key)||'null');sessionStorage.removeItem(key);if(saved?.company===entity()){if(saved.area&&currentAreas().some(area=>area.key===saved.area))await showArea(saved.area);window.scrollTo(0,Number(saved.scroll)||0);if(bagReturn==='bag-master')q('#ttMasterTop')?.click();}}catch{}}
+    const bagReturn=new URLSearchParams(location.search).get('return');if(['bag-report','bag-master','production-report'].includes(bagReturn)){const key=bagReturn==='production-report'?'tt_accounts_production_report_return':bagReturn==='bag-master'?'tt_accounts_bag_master_return':'tt_accounts_bag_report_return';try{const saved=JSON.parse(sessionStorage.getItem(key)||'null');sessionStorage.removeItem(key);if(saved?.company===entity()){if(saved.area&&currentAreas().some(area=>area.key===saved.area))await showArea(saved.area);window.scrollTo(0,Number(saved.scroll)||0);if(bagReturn==='bag-master')q('#ttMasterTop')?.click();}}catch{}}
     if(new URLSearchParams(location.search).get('area')==='reports')await showArea('reports');
     if(new URLSearchParams(location.search).get('return')==='carry-forward'){try{const saved=JSON.parse(sessionStorage.getItem('tt_accounts_carry_return')||'null');sessionStorage.removeItem('tt_accounts_carry_return');if(saved?.company===entity()&&currentAreas().some(area=>area.key===saved.area)){await showArea(saved.area);window.scrollTo(0,Number(saved.scroll)||0);}}catch{}}
     installPreviousSearch();

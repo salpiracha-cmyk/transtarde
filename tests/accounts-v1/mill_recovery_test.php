@@ -2,7 +2,7 @@
 declare(strict_types=1);
 require dirname(__DIR__,2).'/api/mill_recovery_core.php';
 function verify(bool $ok,string $message):void{if(!$ok)throw new RuntimeException($message);}
-$run=['id'=>'308','entity'=>'TTI','date'=>'2026-09-21','shift'=>'Day','variety'=>'IRRI-6','recoveryVersion'=>1,'recoveryBrand'=>'EXAMPLE','recoveryContractRef'=>'CONTRACT-1','rawInputs'=>[['lotRef'=>'7511','bags'=>5638,'grossKg'=>475370,'lessKg'=>0]],'rows'=>[['id'=>1,'product'=>'Ready Rice — EXAMPLE','bags'=>8495,'bagWeight'=>40],['id'=>2,'product'=>'Ready Rice — EXAMPLE','bags'=>204,'bagWeight'=>50]]];
+$run=['id'=>'308','entity'=>'TTI','date'=>'2026-09-21','shift'=>'Day','variety'=>'IRRI-6','recoveryVersion'=>1,'recoveryVarianceReason'=>'Recorded weighbridge excess pending reconciliation','recoveryBrand'=>'EXAMPLE','recoveryContractRef'=>'CONTRACT-1','rawInputs'=>[['lotRef'=>'7511','bags'=>5638,'grossKg'=>475370,'lessKg'=>0]],'rows'=>[['id'=>1,'product'=>'Ready Rice — EXAMPLE','bags'=>8495,'bagWeight'=>40],['id'=>2,'product'=>'Ready Rice — EXAMPLE','bags'=>204,'bagWeight'=>50]]];
 foreach(['B2'=>111090,'CSRB2'=>1950,'CSR2'=>8700,'Powder'=>5070,'P.c'=>750,'Sweeping'=>750,'Stone'=>250] as $name=>$kg)$run['rows'][]=['product'=>$name,'systemKg'=>$kg];
 mr_validate_inputs($run);$r=mr_report([$run],['entity'=>'TTI','mode'=>'daily']);$g=$r['groups'][0];
 verify($g['inputKg']==475370&&$g['readyKg']==350000&&$g['byProductKg']==128560&&$g['outputKg']==478560,'Reference report quantities match the sample independently');

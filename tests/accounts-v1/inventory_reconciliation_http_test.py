@@ -125,10 +125,12 @@ def run() -> None:
             shift='Day'
         crows=[{**scope,'id':'PC-HTTP','stockName':stock,'physicalKg':0,'snapshotKg':999999,'sourceShipmentId':'2'}]
         post('tt39physicalconfirmations',crows);pv=private();check(not json.loads(pv.get('tt34ghati','[]')),'Actual loading pending production creates no gain')
-        pr={**scope,'id':10,'date':date,'shift':shift,'baseVariety':'IRRI-6','riceType':'White','inputStage':'RAW','shiftEntriesComplete':False,'rows':[{'product':'Ready Rice — ASAS','bags':200,'bagWeight':50}]}
+        pr={**scope,'id':10,'date':date,'shift':shift,'baseVariety':'IRRI-6','riceType':'White','inputStage':'RAW','recoveryVersion':1,'rawInputs':[{'grossKg':10000}],'shiftEntriesComplete':False,'rows':[{'product':'Ready Rice — ASAS','bags':200,'bagWeight':50}]}
+        post('tt30prod',[{**pr,'rawInputs':[]}],expected=403)
+        post('tt30prod',[{**pr,'rawInputs':[{'grossKg':10000,'lessKg':10000}]}],expected=403)
         post('tt30prod',[pr]);check(not json.loads(private().get('tt34ghati','[]')),'Partial shift entry does not finalize gain')
         # Final current-shift entry contains no further ASAS: only 15,000kg remains unexplained.
-        rows=json.loads(get()['values']['tt30prod']);rows.append({**pr,'id':11,'shiftEntriesComplete':True,'rows':[{'product':'Ready Rice — OTHER','bags':20,'bagWeight':50}]})
+        rows=json.loads(get()['values']['tt30prod']);rows.append({**pr,'id':11,'rawInputs':[{'grossKg':1000}],'shiftEntriesComplete':True,'rows':[{'product':'Ready Rice — OTHER','bags':20,'bagWeight':50}]})
         post('tt30prod',rows);pv=private();events=json.loads(pv['tt34ghati']);check(len(events)==1 and events[0]['kg']==15000 and events[0]['kind']=='gain','Server applies only unexplained remainder once',events)
         check(events[0]['sourceShipments'][0]['contractRef']=='QA-CONTRACT' and events[0]['sourceShipments'][0]['lotRef']=='QA-LOT','Private event retains exact source Contract and Lot')
         adjs=json.loads(pv['tt32stockadj']);check(len(adjs)==1 and adjs[0]['millName']=='QA Second Mill','Correction remains at physical source mill')
@@ -137,7 +139,7 @@ def run() -> None:
         c,d=request('qaaccounts','/stock-reconciliation.php?entity=TTI');check(c==200 and '15,000.000' in d and 'Last loading excess' in d,'Accounts sees real server-derived gain')
         before=len(events);post('tt39physicalconfirmations',crows);check(len(json.loads(private()['tt34ghati']))==before,'Physical confirmation replay does not duplicate gain')
         post('tt39physicalconfirmations',crows,version=0,expected=409);check(len(json.loads(private()['tt34ghati']))==before,'Stale retry does not duplicate gain')
-        rows=json.loads(get()['values']['tt30prod']);rows.append({**pr,'id':12,'shiftEntriesComplete':False,'rows':[]})
+        rows=json.loads(get()['values']['tt30prod']);rows.append({**pr,'id':12,'rawInputs':[],'shiftEntriesComplete':False,'rows':[]})
         post('tt30prod',rows);pv=private();fixed=json.loads(pv['tt34nilqueue']);check(fixed[0].get('productionId')==12 and fixed[0]['noStockPost'],'First subsequent report receives private no-stock row')
         check(not json.loads(pv['tt39physicalconfirmations'])[0].get('reviewRequired'),'Empty later lot creates no false quantity-change alert')
         c,d=request('qaaccounts','/stock-reconciliation.php?entity=TTI');check('QA-CONTRACT · QA-LOT' in d,'Private management report displays original Contract and Lot')
@@ -232,6 +234,8 @@ def browser_checks(base,clients,request,get,post,private,scope,output):
             check(not page.locator('body').inner_text().lower().find('ghati')>=0,'No Ghati wording in operational page')
             if output:page.screenshot(path=str(Path(output)/'mill-physical-workflow.png'),full_page=True)
             page.evaluate("openPanel('production')")
+            check(page.locator('#productionActualInput').is_visible(),'Actual input card appears in the production form')
+            if output:page.screenshot(path=str(Path(output)/'mill-actual-input-entry.png'),full_page=True)
             check(page.locator('#prodShiftComplete').is_visible(),'Mill only confirms that all shift lots have been entered')
             # Direct management URL remains blocked even from the authenticated Mill browser.
             r=page.request.get(base+'/stock-reconciliation.php?entity=TTI');check(r.status==403,'Mill browser cannot open management report by URL')

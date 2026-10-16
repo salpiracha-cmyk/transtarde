@@ -1,7 +1,7 @@
 (()=>{
 'use strict';
 const access=window.TT_ACCOUNT_ACCESS||{},api='../api/management_costing.php',attachApi='../api/management_costing_attach.php',q=s=>document.querySelector(s),entity=()=>localStorage.getItem('tt_accounts_entity')||'TTI';
-const fmt=n=>Number(n||0).toLocaleString('en-PK',{maximumFractionDigits:2}),esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmt=n=>n===null||n===undefined?'—':Number(n||0).toLocaleString('en-PK',{maximumFractionDigits:2}),esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const canWrite=()=>access.super||access.permissions==='all'||Object.values(access.permissions||{}).flat().some(x=>['Create','Edit','Approve'].includes(x));
 let data={sheets:[],millingFallbackRate:3},busy=false;
 function toast(m,ok=true){if(!ok&&window.TT_ACCOUNTS_NOTICE)return window.TT_ACCOUNTS_NOTICE.error(m);let e=q('#ttMcToast');if(!e){e=document.createElement('div');e.id='ttMcToast';e.style.cssText='position:fixed;left:50%;top:12px;transform:translateX(-50%);z-index:100020;padding:10px 14px;border-radius:9px;color:#fff;font:700 12px Arial;box-shadow:0 7px 22px #0003';document.body.appendChild(e)}e.style.background=ok?'#147a5b':'#a93a34';e.textContent=m;e.hidden=false;clearTimeout(e._t);e._t=setTimeout(()=>e.hidden=true,3000)}

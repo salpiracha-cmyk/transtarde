@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__ . '/product_stage.php';
+require_once __DIR__.'/api/mill_recovery_core.php';
 
 /** Server-owned reconciliation. Operational staff submit facts, never a Ghati balance. */
 const TT_INV_PRIVATE_KEYS = ['tt34ghati','tt34nilqueue','tt32processingrecon','tt34stockreviewaudit'];
@@ -128,7 +129,8 @@ function tt_inv_stock(array $values,array $scope): array {
     $m=[];$add=static function(string $n,float $kg)use(&$m):void{$m[$n]=round(($m[$n]??0)+$kg,3);};
     foreach(tt_inv_rows($values,'tt30slips')as$r)if(tt_inv_same_scope($scope,$r))$add((string)($r['displayName']??tt_inv_product($r,(string)($r['productStage']??'RAW'))),(float)($r['payableWeight']??0));
     foreach(tt_inv_rows($values,'tt30prod')as$p){if(!tt_inv_same_scope($scope,$p))continue;$input=0.;
-        foreach((array)($p['rows']??[])as$r){if(!is_array($r)||tt_inv_is_private_row($r)||!empty($r['noStockPost']))continue;$kg=(float)($r['bags']??0)*(float)($r['bagWeight']??0)+(float)($r['loadingAdjustmentKg']??0);$add(tt_inv_output_name($p,$r),$kg);$input+=$kg;}
+        foreach((array)($p['rows']??[])as$r){if(!is_array($r)||tt_inv_is_private_row($r)||!empty($r['noStockPost']))continue;$kg=(float)($r['bags']??0)*(float)($r['bagWeight']??0)+(float)($r['loadingAdjustmentKg']??0);if(!empty($p['recoveryVersion']))$kg=mr_output_kg($r);$add(tt_inv_output_name($p,$r),$kg);$input+=$kg;}
+        if(!empty($p['recoveryVersion']))$input=mr_actual_input($p)??$input;
         $add((string)($p['inputStockName']??tt_inv_product($p,(string)($p['inputStage']??'RAW'))),-$input);
     }
     foreach(tt_inv_rows($values,'tt35localsales')as$r)if(tt_inv_same_scope($scope,$r)){
@@ -207,6 +209,8 @@ function tt_inv_prepare_write(array $values,string $key,string $json,array $user
                 $r=$before;
             }
         }elseif($key==='tt30prod'){
+            if(!empty($before['recoveryVersion'])&&empty($r['recoveryVersion']))throw new DomainException('Actual-input production cannot be downgraded to a legacy entry.');
+            mr_validate_inputs($r,$before===null);if($before===null)$r['recoveryVersion']=1;
             $hidden=array_values(array_filter((array)($before['rows']??[]),static fn($x)=>is_array($x)&&tt_inv_is_private_row($x)));
             foreach((array)($r['rows']??[])as$x)if(is_array($x)&&tt_inv_is_private_row($x))throw new DomainException('Reconciliation rows cannot be entered as production.');
             $r['rows']=array_merge((array)($r['rows']??[]),$hidden);

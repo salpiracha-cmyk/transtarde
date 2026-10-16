@@ -1,17 +1,28 @@
-# Recovery reporting — development checkpoint
+# Actual recovery reporting — release verification
 
-Unpublished work on `fix/actual-recovery-reports-20261016`, based on bag PR #259 head `9b29b5b`. Bag PR #259 itself is published and both hosted QA suites passed. Do not merge or deploy this separate recovery branch in its present state.
+This change follows deployed bag PR #259 and Bank menu PR #260. It adds daily production, daily recovery, brand and contract reporting from actual raw lots and actual outputs, with source tracing, quantity filters, search, print and CSV. It reuses the final Accounts and management costing engines rather than maintaining another financial calculation.
 
-Implemented draft: pure recovery calculation, read-only endpoint, shared Daily Production/Daily Recovery/Brand/Contract report UI with print and CSV, raw-input capture with per-output allocation controls, Accounts report navigation and replacement Mill report views. No historical input is invented from output. Ratios use independent inputs and outputs. Source runs, lots, gross/less/net weights and unassigned allocations are retained.
+## Corrected behavior
 
-Verified so far: `php tests/accounts-v1/mill_recovery_test.php` passes the supplied sample's input 475370kg, finished output 350000kg, by-products 128560kg, total 478560kg, negative difference 3190kg, 100.6711% overall recovery and 73.6269% finished recovery. Tests also cover weighted ratios, missing historical input, filters, private-row exclusion and a missing allocation in one run not being filled by another run's input. Draft JavaScript/PHP and Mill inline syntax passed.
+- New production requires independently recorded raw input. Raw consumption uses that actual input. Existing output-only stock movements remain unchanged until an explicit production amendment; no historical input is generated.
+- The supplied reference is reproduced: 475,370kg input, 350,000kg finished rice, 128,560kg by-products, 478,560kg output, -3,190kg difference, 100.6711% total recovery and 73.6269% finished recovery. Excess remains visible and requires an explanation on new saves.
+- TTI/BRM production, raw purchase pools, processing costs and prior sale valuation sources are separate. Missing earlier input blocks a falsely final weighted average. Incomplete conversion-cost allocation periods remain pending.
+- Approved costs retain their saved snapshots. New approvals require the reviewed source fingerprint; source changes require review. Report reads never save rates, estimates or journals.
+- Management estimates identify their purchase/Director/fallback sources. Missing actual quantities or brand/contract allocation produces no invented cost. Shared by-products are not divided proportionally between brands.
+- Lot brand/contract defaults reduce typing; optional row allocation supports mixed production. Finished brands follow the actual stock product. Explicit changes clear known incompatible contract defaults; edits and output-table changes retain raw drafts.
+- Reports enforce company, module and location restrictions. Location-restricted and Mill-only users receive quantities without company-wide financial figures. Invalid dates, filters or corrupted sources fail explicitly.
+- Print and CSV use the same generated report and applied filters. Filter changes disable old exports until Generate. Company/filter changes discard stale responses. Return navigation restores the Accounts Reports origin.
 
-Still required before publication:
+## Local evidence
 
-1. Wire strict server validation of actual input into operations sanitization; preserve legacy records. Review numeric validation and variance explanations on the server.
-2. Use actual input for new stock consumption in both the Mill quantity ledger and server reconciliation. Preserve old stock movements where actual input was never recorded.
-3. Feed actual input to final and management costing; expose missing input instead of deriving it from outputs. Preserve approved cost snapshots/journals. Confirm entity separation and how mixed missing-input shifts affect weighted raw-stock costing.
-4. Finish report API authorization: company permissions plus Mill-only users and location scope; validate calendar dates and fail closed on invalid source shapes. Add real HTTP read-only/entity/location/corrupt-source tests.
-5. Review raw lot fields, brand/contract choices, context restoration and partial amendments. Avoid erasing draft values on output-table changes. Check report filter stale-response handling, print and CSV filter parity.
-6. Run meaningful entry/report UI tests and browser visual checks at desktop/mobile sizes. Inspect runtime asset paths through module.php. Check new production reset/edit/save flows and existing reconciliation/costing regressions.
-7. Persist final review evidence, publish a separate tested PR, run hosted QA, and obtain/confirm release authorization before deployment. Do not describe this checkpoint as finished recovery reporting.
+- All 113 workflow-listed Accounts audit/control/runtime checks passed locally.
+- Inventory reconciliation: 103 unit assertions, 24 client assertions and 99 real file-backed HTTP assertions passed.
+- Actual recovery sample, weighted costs/by-product deductions, allocation boundaries, legacy approvals, read-only/location/company HTTP access, stale cost approval and corrupted-store protection passed.
+- Entry/report DOM tests passed: saved draft restoration, no automatic writes, dependent defaults, exact cost presentation, CSV/print parity and stale-filter response ownership.
+- New backend checks run from the existing required end-to-end audit; report DOM/browser checks run from the existing costing-navigation check. No workflow file or secret changes.
+
+## Hosted verification
+
+Pending PR checks, authenticated browser layout checks at desktop/mobile widths, production deployment health and the extended read-only live recovery smoke. Local headless Chromium could not start inside the current runtime; no claim is made that Mac Chrome visual QA was performed. Hosted browser evidence is required before declaring the release verified.
+
+Historical input and actual allocation cannot be recovered from an output-only record. Such records remain explicitly incomplete until someone enters the original facts; this is a data limitation, not an automatic migration task.

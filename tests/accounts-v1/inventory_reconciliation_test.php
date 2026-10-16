@@ -30,7 +30,7 @@ function loadFixture(array $scope,string $stock):array{return values([
 ]);}
 function production(array $scope,int $id,float $kg,bool $complete,string $brand='ASAS',string $date='2026-09-21',string $type='White'):array{
  return $scope+['id'=>$id,'date'=>$date,'shift'=>'Day','baseVariety'=>'IRRI-6','riceType'=>$type,'inputStage'=>'RAW','shiftEntriesComplete'=>$complete,
- 'rows'=>[['product'=>'Ready Rice — '.$brand,'bags'=>$kg/50,'bagWeight'=>50]]];
+ 'recoveryVersion'=>1,'rawInputs'=>$kg>0?[['grossKg'=>$kg]]:[],'rows'=>[['product'=>'Ready Rice — '.$brand,'bags'=>$kg/50,'bagWeight'=>50]]];
 }
 function writeSource(array $v,string $key,array $rows,string $at):array{global$owner;$v[$key]=tt_inv_prepare_write($v,$key,tt_inv_json($rows),$owner,$at);return tt_inv_reconcile($v,$at);}
 function confirm(array $v,array $scope,string $stock,string $id='pc1',string $at='2026-09-21T08:00:00Z'):array{
@@ -87,9 +87,9 @@ equal($fixed['productionId'],61,'Fixed row is linked to first subsequent report 
 check($fixed['systemFixed']&&$fixed['noStockPost']&&$fixed['managementOnly'],'Fixed row is informational and private');
 equal(tt_inv_stock($next,$scope)[$stock],0.0,'Fixed row adds no finished stock');equal(tt_inv_stock($next,$scope)[$rawStock],99000.0,'Fixed row consumes no Raw Rice');
 equal(tt_inv_reconcile($next,'2026-09-22T08:00:00Z'),$next,'Fixed row does not reattach or duplicate');
-$amended=tt_inv_rows($next,'tt30prod');$amended[0]['rows'][0]['bags']=30;$amended=writeSource($next,'tt30prod',$amended,'2026-09-22T08:10:00Z');
+$amended=tt_inv_rows($next,'tt30prod');$amended[0]['rows'][0]['bags']=30;$amended[0]['rawInputs']=[['grossKg'=>1500]];$amended=writeSource($next,'tt30prod',$amended,'2026-09-22T08:10:00Z');
 # Amend the reconciled brand specifically to test immutable finalized variance and visible review.
-$r=tt_inv_rows($absent,'tt30prod');$r[0]['rows'][]=['product'=>'Ready Rice — ASAS','bags'=>10,'bagWeight'=>50];$amended=writeSource($absent,'tt30prod',$r,'2026-09-22T08:11:00Z');
+$r=tt_inv_rows($absent,'tt30prod');$r[0]['rows'][]=['product'=>'Ready Rice — ASAS','bags'=>10,'bagWeight'=>50];$r[0]['rawInputs']=[['grossKg'=>1500]];$amended=writeSource($absent,'tt30prod',$r,'2026-09-22T08:11:00Z');
 check(!empty(tt_inv_rows($amended,TT_INV_CONFIRMATIONS)[0]['reviewRequired']),'Post-reconciliation source amendment is flagged to management');
 equal(count(tt_inv_rows($amended,'tt34ghati')),1,'Source amendment cannot silently post another gain');
 $unrelatedPending=$scope+['id'=>'unrelated-pending','stockName'=>$stock,'physicalKg'=>0,'snapshotKg'=>-100,'baseline'=>[],'date'=>'2026-09-21','shiftDate'=>'2026-09-21','shift'=>'Day','isRaw'=>false,'status'=>'Awaiting current-shift production'];
