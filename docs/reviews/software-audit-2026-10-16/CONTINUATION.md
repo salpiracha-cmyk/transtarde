@@ -192,3 +192,15 @@ balanced 100 debit/100 credit journal. It fails on baseline, passes with the
 repair, confirms identical names and 100 amounts, and verifies the source journal
 file is byte-for-byte unchanged. The test is included in Accounts QA. This repair
 is prepared separately from the first merged batch; no live journal changed.
+
+
+### C01 source trace and prepared display repair
+
+`journal_vouchers.php` snapshots bank name, title, identifier, account number/IBAN
+and currency into the saved draft. The shared approval feed preserves the original
+lines, but Console rendering shows only generic account name and party. The repair
+renders the original bank details and currency, with HTML escaping. It changes no
+approval endpoint, draft or journal. A fixture using the actual approval renderer
+fails on baseline and passes with the repair, including an HTML-like bank name.
+The revised second repair batch is tracked in PR #265; hosted QA and visual
+verification remain pending.

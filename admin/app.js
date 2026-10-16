@@ -1574,6 +1574,14 @@
     const choices=banks.filter(item=>item.id!==request.bankId&&item.currency===bank?.currency&&eligibleDefaultBank(item));
     return {required:!!bank?.isDefault,choices};
   }
+  function approvalLineIdentity(line) {
+    const account=String(line.accountName||line.account||'');
+    const bank=line.bankAccountId||line.bankName;
+    const details=bank
+      ? [line.bankName,line.bankAccountTitle,line.accountNumber||line.iban||line.bankAccountId,line.currency]
+      : [line.subledger||line.counterparty];
+    return [account,...details].filter(value=>String(value||'').trim()).join(' · ');
+  }
   function renderApprovals() {
     if (!IS_SUPER_ADMIN) return;
     const panel=document.querySelector(".approvals-panel"),list=panel?.querySelector(".approval-list"),count=panel?.querySelector(".count-pill");
@@ -1593,7 +1601,7 @@
       const jv=item.kind==="jv";
       const rate=item.kind==="bag"||item.kind==="nonwoven";
       const replacement=item.replacement;
-      const input=jv?`<table class="approval-jv-lines" style="background:#e8f6ed;width:100%;border:1px solid #b8d3c6;border-radius:8px"><caption>Accounting entries awaiting approval</caption><thead><tr><th>Account / party</th><th>Debit</th><th>Credit</th></tr></thead><tbody>${(item.lines||[]).map(line=>`<tr><td>${escapeHtml(line.accountName||line.account)} · ${escapeHtml(line.subledger||line.counterparty||"")}</td><td style="text-align:right">${Number(line.debit||0).toLocaleString("en-PK")}</td><td style="text-align:right">${Number(line.credit||0).toLocaleString("en-PK")}</td></tr>`).join("")}</tbody></table><label>Rejection reason<input data-jv-approval-reason maxlength="300" placeholder="Required if rejecting"></label>`:rate?`<label>Approval reason<input data-rate-approval-reason maxlength="500" placeholder="Supplier settlement and reason for accepting the bag discrepancy"></label>`:replacement?.required?`<label>Replacement default<select data-bank-approval-replacement="${escapeHtml(item.id)}"><option value="">Choose replacement</option>${replacement.choices.map(bank=>`<option value="${escapeHtml(bank.id)}">${escapeHtml(bank.bankName)} · ${escapeHtml(bank.accountTitle)} · ${escapeHtml(bank.iban)}</option>`).join("")}</select></label>`:"";
+      const input=jv?`<table class="approval-jv-lines" style="background:#e8f6ed;width:100%;border:1px solid #b8d3c6;border-radius:8px"><caption>Accounting entries awaiting approval</caption><thead><tr><th>Account / party</th><th>Debit</th><th>Credit</th></tr></thead><tbody>${(item.lines||[]).map(line=>`<tr><td>${escapeHtml(approvalLineIdentity(line))}</td><td style="text-align:right">${Number(line.debit||0).toLocaleString("en-PK")}</td><td style="text-align:right">${Number(line.credit||0).toLocaleString("en-PK")}</td></tr>`).join("")}</tbody></table><label>Rejection reason<input data-jv-approval-reason maxlength="300" placeholder="Required if rejecting"></label>`:rate?`<label>Approval reason<input data-rate-approval-reason maxlength="500" placeholder="Supplier settlement and reason for accepting the bag discrepancy"></label>`:replacement?.required?`<label>Replacement default<select data-bank-approval-replacement="${escapeHtml(item.id)}"><option value="">Choose replacement</option>${replacement.choices.map(bank=>`<option value="${escapeHtml(bank.id)}">${escapeHtml(bank.bankName)} · ${escapeHtml(bank.accountTitle)} · ${escapeHtml(bank.iban)}</option>`).join("")}</select></label>`:"";
       const attribute=jv?`data-review-jv="${escapeHtml(item.id)}" data-jv-entity="${escapeHtml(item.entity)}"`:rate?`data-review-rate-exception="${escapeHtml(item.billId)}" data-rate-kind="${escapeHtml(item.kind)}" data-rate-entity="${escapeHtml(item.entity)}" data-acceptance-fingerprint="${escapeHtml(item.fingerprint||'')}"`:item.kind==="bank"?`data-review-bank-deletion="${escapeHtml(item.id)}"`:`data-review-master-deletion="${escapeHtml(item.id)}"`;
       return `<div class="approval-item"><div><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.detail)}</small>${input}</div><div class="row-actions"><button class="row-action" ${attribute} data-decision="Approve" ${rate&&item.canDecide===false?'disabled title="Accounts must record the supplier settlement first"':replacement?.required&&!replacement.choices.length?'disabled title="Add an eligible replacement default bank first"':''}>Approve</button>${rate?"":`<button class="row-action" ${attribute} data-decision="Reject">Reject</button>`}</div></div>`;
     }).join(""): `<div class="admin-empty-state"><strong>${uncertain?"Checking approvals":"No pending approvals"}</strong><span>Director approval requests also appear here.</span></div>`);
