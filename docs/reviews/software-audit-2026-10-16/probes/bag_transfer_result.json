@@ -1,0 +1,16 @@
+{
+  "finding": "C20",
+  "status": "failed",
+  "environment": "Disposable source-function fixture; no live record touched",
+  "entered": {
+    "brand": "Fixture Brand",
+    "source": "TTI Rice Mills",
+    "destination": "Other Mill",
+    "quantity": 20
+  },
+  "savedSourceTransferred": 20,
+  "savedDestinationOrders": 0,
+  "writes": 1,
+  "message": "Bag transfer saved and location stock updated.",
+  "limitation": "No destination receipt is created by this handler. A separate receiving consumer must be demonstrated before claiming location stock updated."
+}
