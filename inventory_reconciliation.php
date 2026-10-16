@@ -125,26 +125,35 @@ function tt_inv_resolve_stock(array $map,array $shipment): string {
     return $finished;
 }
 /** Same quantity ledger as Milling; management-only rows never become production. */
-function tt_inv_stock(array $values,array $scope): array {
-    $m=[];$add=static function(string $n,float $kg)use(&$m):void{$m[$n]=round(($m[$n]??0)+$kg,3);};
-    foreach(tt_inv_rows($values,'tt30slips')as$r)if(tt_inv_same_scope($scope,$r))$add((string)($r['displayName']??tt_inv_product($r,(string)($r['productStage']??'RAW'))),(float)($r['payableWeight']??0));
-    foreach(tt_inv_rows($values,'tt30prod')as$p){if(!tt_inv_same_scope($scope,$p))continue;$input=0.;
+function tt_inv_stock(array $values,array $scope, ?callable $observe=null): array {
+    $m=[];$context=[];
+    $add=static function(string $n,float $kg)use(&$m,&$context,$observe):void{
+        $before=$m[$n]??0.;$m[$n]=round($before+$kg,3);
+        if($observe)$observe($context+['product'=>$n,'kg'=>round($m[$n]-$before,3)]);
+    };
+    $source=static function(string $key,array $r,int $index,string $kind)use(&$context):void{
+        $date=(string)($r['unloadingDate']??$r['arrivalDate']??$r['date']??'');
+        $context=['source'=>$key,'sourceId'=>(string)($r['id']??$r['ref']??$r['slip']??'#'.($index+1)),'date'=>mr_valid_date($date)?$date:'','kind'=>$kind,'basis'=>'Recorded quantity'];
+    };
+    foreach(tt_inv_rows($values,'tt30slips')as$i=>$r)if(tt_inv_same_scope($scope,$r)){$source('tt30slips',$r,$i,'Arrival');$add((string)($r['displayName']??tt_inv_product($r,(string)($r['productStage']??'RAW'))),(float)($r['payableWeight']??0));}
+    foreach(tt_inv_rows($values,'tt30prod')as$i=>$p){if(!tt_inv_same_scope($scope,$p))continue;$source('tt30prod',$p,$i,'Production output');$input=0.;
         foreach((array)($p['rows']??[])as$r){if(!is_array($r)||tt_inv_is_private_row($r)||!empty($r['noStockPost']))continue;$kg=(float)($r['bags']??0)*(float)($r['bagWeight']??0)+(float)($r['loadingAdjustmentKg']??0);if(!empty($p['recoveryVersion']))$kg=mr_output_kg($r);$add(tt_inv_output_name($p,$r),$kg);$input+=$kg;}
         if(!empty($p['recoveryVersion']))$input=mr_actual_input($p)??$input;
+        $context['kind']='Production consumption';if(empty($p['recoveryVersion'])||mr_actual_input($p)===null)$context['basis']='Provisional — input inferred from output';
         $add((string)($p['inputStockName']??tt_inv_product($p,(string)($p['inputStage']??'RAW'))),-$input);
     }
-    foreach(tt_inv_rows($values,'tt35localsales')as$r)if(tt_inv_same_scope($scope,$r)){
+    foreach(tt_inv_rows($values,'tt35localsales')as$i=>$r)if(tt_inv_same_scope($scope,$r)){$source('tt35localsales',$r,$i,'Local sale');$context['parts']=array_map(static fn($x)=>['date'=>(string)($x['date']??(substr((string)($x['gateTime']??''),0,10)?:($r['date']??''))),'kg'=>-(float)($x['kg']??0)],(array)($r['loads']??[]));
         $kg=array_sum(array_map(static fn($x)=>(float)($x['kg']??0),(array)($r['loads']??[])));
         $name=($r['product']??'')==='Ready Rice'?tt_inv_resolve_stock($m,$r+['brand'=>'Local Bags']):(string)($r['product']??'Unknown');$add($name,-$kg);
     }
-    foreach(tt_inv_rows($values,'tt35exportersale')as$r)if(tt_inv_same_scope($scope,$r)){
+    foreach(tt_inv_rows($values,'tt35exportersale')as$i=>$r)if(tt_inv_same_scope($scope,$r)){$source('tt35exportersale',$r,$i,'Sale to exporter');$context['parts']=array_map(static fn($x)=>['date'=>(string)($x['date']??(substr((string)($x['gateTime']??''),0,10)?:($r['date']??''))),'kg'=>-(float)($x['net']??0)],(array)($r['containers']??[]));
         $kg=array_sum(array_map(static fn($x)=>(float)($x['net']??0),(array)($r['containers']??[])));
         $add(($r['product']??'')==='Ready Rice'?tt_inv_resolve_stock($m,$r):(string)($r['brand']??$r['product']??'Unknown'),-$kg);
     }
-    foreach(tt_inv_rows($values,'tt30ship')as$r)if(tt_inv_same_scope($scope,$r)){
+    foreach(tt_inv_rows($values,'tt30ship')as$i=>$r)if(tt_inv_same_scope($scope,$r)){$source('tt30ship',$r,$i,'Export loading');$context['parts']=array_map(static fn($x)=>['date'=>(string)($x['date']??(substr((string)($x['gateTime']??''),0,10)?:($r['date']??''))),'kg'=>-(float)($x['weight']??0)],(array)($r['containers']??[]));
         $kg=array_sum(array_map(static fn($x)=>(float)($x['weight']??0),(array)($r['containers']??[])));$add(tt_inv_resolve_stock($m,$r),-$kg);
     }
-    foreach(tt_inv_rows($values,'tt32stockadj')as$r){if(!tt_inv_same_scope($scope,$r))continue;
+    foreach(tt_inv_rows($values,'tt32stockadj')as$i=>$r){if(!tt_inv_same_scope($scope,$r))continue;$source('tt32stockadj',$r,$i,'Stock adjustment');
         if(($r['type']??'')==='Paltai Transfer'){$add((string)$r['from'],-(float)($r['sourceDeductionKg']??$r['weightKg']??0));$add((string)$r['to'],(float)($r['weightKg']??0));$add((string)($r['rawStockName']??'RAW RICE'),(float)($r['sweepingKg']??0));continue;}
         if(!empty($r['readyRiceKg']))$add((string)($r['stockName']??$r['brand']??'Unknown'),(float)$r['readyRiceKg']);
         if(!empty($r['rawRiceKg']))$add((string)($r['rawStockName']??'RAW RICE'),(float)$r['rawRiceKg']);

@@ -125,6 +125,9 @@ jobs:
         run: |
           php tests/security/operations_ownership_test.php
           php tests/accounts-v1/inventory_reconciliation_test.php
+          php tests/accounts-v1/rice_ledger_test.php
+          python3 tests/accounts-v1/rice_ledger_endpoint_test.py
+          node tests/accounts-v1/rice_ledger_ui_test.js
           python3 tests/accounts-v1/stock_reconciliation_review_http_test.py
           node tests/accounts-v1/inventory_reconciliation_ui_test.js
           python3 tests/accounts-v1/inventory_reconciliation_http_test.py
