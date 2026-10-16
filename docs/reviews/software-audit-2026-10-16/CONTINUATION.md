@@ -466,3 +466,52 @@ PR268 (Brokerage scope and bounded audit history) passed both full hosted suites
 38960520048 / 38960519956 and merged as d68850b85f9719f32f94aa9548fb8d2ae171141e.
 Live verification is temporarily blocked by Chrome's debugger connection failing;
 this is a control-session limitation, not evidence that the application failed.
+
+
+### Eighth prepared repair — C05 cash source separation
+
+Mill cash now distinguishes Accounts-posted cash from manual operational history.
+The headline and default ledger use only canonical Accounts journal rows. A source
+selector exposes preserved operational history separately, scoped to the selected
+company/mill (unscoped legacy rows retain the existing original TTI mill fallback).
+The two sources never enter one running balance. The period's opening is shown.
+Loading or failed Accounts reads show unavailable/loading, never a fabricated zero.
+Both request sequence and company/mill identity protect the read result.
+
+The cash-receipt reference inputs/history remain visible; new manual receipt Save
+is disabled and the handler also refuses a direct call. Receipts are posted in
+Accounts, with no duplicate operational receipt. Existing operational expense entry
+remains explicit, now saving company/mill identity and describing its Accounts
+posting as unverified. The old operational records are neither deleted nor posted.
+
+Actual function/runtime regression checks positive canonical/manual quantities,
+wrong-company history, true opening, disabled and direct receipt Save, separately
+scoped operational expense, failed reads and same-name company switches. Existing
+real operational-write authorization tests also pass. Hosted QA is pending.
+The canonical API's location filtering was traced through ev1_owned_locations;
+no missing location check is asserted merely from the endpoint wrapper.
+
+### Deployment and live report verification
+
+Chrome control recovered after navigation/rebinding. Production deployment
+38960073960 confirms 7a66895f97413a9da9c0be7bd0713f17d260d9d7 deployed and health
+checked. On the refreshed Mac Chrome Accounts screen, expense details are ascending
+by date with clickable Post IDs. Selecting FAYYAZ GRAVE YARD and running again
+retains the selection, two original rows and Rs4,000 total. Opening POST-2026-00290
+shows Home Expense 6910 Dr2,000 / Meezan Bank 1110 Cr2,000 dated 1 September.
+Returning through the ledger and closing restores the original filtered report.
+A visual screenshot confirms aligned filters and an internal wide-table scroller.
+No payment/approval/edit/delete occurred. CSV/print parity for the change remains
+covered by the actual runtime fixture, not a claim of live export execution.
+
+Forward Booking Register empty-state read passed. Post ID Register opens all three
+companies with separate currency subtotals. Shared public IDs on personal-adjustment
+journal rows require further source/identity review; balanced gross register totals
+are not themselves trial-balance reconciliation or proof of duplicate money.
+
+PR269 passed both suites 38960904496 / 38960904508 and merged as
+5bfe0556fea9d22382f94d3ceb07881197e085ff. PR270 passed 38961292673 / 38961292647,
+including the stronger actual-browser mobile amount/table checks, and merged as
+eb749027ed05994d7c26ead715026a4a87239d50. Deployment/live checks for these newer
+batches remain separate. R06 labour rates/scope, R07/R08 accounting handoffs,
+R13 stock ledger, C14 approved-document identity and untouched actions remain open.
