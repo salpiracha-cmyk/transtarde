@@ -127,7 +127,6 @@ jobs:
           php tests/accounts-v1/inventory_reconciliation_test.php
           php tests/accounts-v1/rice_ledger_test.php
           python3 tests/accounts-v1/rice_ledger_endpoint_test.py
-          node tests/accounts-v1/rice_ledger_ui_test.js
           python3 tests/accounts-v1/stock_reconciliation_review_http_test.py
           node tests/accounts-v1/inventory_reconciliation_ui_test.js
           python3 tests/accounts-v1/inventory_reconciliation_http_test.py
@@ -195,6 +194,7 @@ jobs:
           node tests/accounts-v1/brokerage_readonly_ui_test.js
           node tests/accounts-v1/admin_audit_ui_test.js
           node tests/accounts-v1/mill_read_and_master_ack_test.js
+          node tests/accounts-v1/rice_ledger_ui_test.js
           node tests/accounts-v1/mill_cash_projection_test.js
           node tests/accounts-v1/mill_operational_status_test.js
           TZ=Asia/Karachi node tests/accounts-v1/labour_scope_test.js
