@@ -314,3 +314,63 @@ api/export_tg_unallocated.php changed in this repair batch. The absent FI-regist
 hook may be a retired path or a real missing handoff; investigate the current TG
 unallocated-payment route before classifying it. The assertion was not weakened.
 The posting-confirmation ownership/review runtime checks pass.
+
+
+## Continued document and loading review
+
+- The deployed Console now shows each pending JV's original Meezan bank identity,
+  account title/number and PKR. No approval was made. Directors permission controls
+  are present in Talha's editor; it was inspected without changing any grant.
+  The central Business Parties list now has one Status column.
+- AMT/13 COO uses the saved B/L wording (PK-386 100% broken), 5,400 bags, 270 MT net,
+  270.648 MT gross, saved B/L reference and commercial invoice date. The previously
+  recorded Customs HS mismatch remains a source-data review item.
+- Upload type GD reveals saved number/date. Added a blank second draft GD row,
+  removed only that unsaved blank row, then restored Final/Original B/L. Original
+  B/L number/date returned correctly. No file was uploaded or saved.
+- Bank Covering preview carries the correct FI/GD and seven document rows. The
+  mandatory GD copy cannot be deleted. Printing/saving live documents was withheld.
+- TG internal invoice uses Customs USD400/MT, distinct from the buyer's USD610/MT.
+  Ticking Include Importer reveals actual buyer AMT Enterprise and its Gambia
+  address; the option was restored without saving.
+- **C14, source-data blocker:** AMT/13's approved exact Relationship Letter wording
+  names ALI SULAIMAN AL-SHEHRI TRADING COMPANY in Saudi Arabia, while the same
+  screen's Final Buyer and the lot identify AMT Enterprise, Gambia. Final Output
+  marks that relationship letter Ready. Preserve the saved wording; management
+  must review the correct approved text before printing/sending the letter.
+- Final Output contains system CI/PL, original B/L, COO/GD/phyto/fumigation and TG
+  documents; its optional/unissued bank-letter controls are disabled. No lot was
+  completed, cancelled, reopened or combined during this inspection.
+- AMT/13 history shows actors and source references, but some timestamps are out of
+  order in the collection (20:14:56 before 20:14:29). No history rows were changed.
+- Ex-Mill → AL-Harmain shows AMT/13 ten loaded containers, 540 bags each, and no
+  remaining capacity. Numbers/seals/bags match Exports. Mill weighbridge amounts
+  and planned document net weight are distinct: module.php retains millNetKg and
+  documentNetKg separately. Do not overwrite either with the other. Loaded rows
+  are protected against amendment after loading completion.
+
+### Fourth prepared repair batch
+
+- **C15:** FI Register opening called TT_SHARED_SYNC.saveNow before reading credit
+  advice tags, producing a Saving interruption on navigation. Removed that write.
+  The read now updates tags only, refreshes after an acknowledged explicit Exports
+  save, ignores other-store events and drops superseded/navigation-stale replies.
+- Expense/vehicle detail rows now sort by date/Post ID. Run preserves recipient,
+  beneficiary and asset selections, including an empty-result period, rather than
+  silently broadening the report. Company changes clear these scoped selections.
+- Expense/vehicle, Personal Adjustment and General/Commodity Ledger Post IDs open
+  the existing authorized posting viewer. CSV retains the same sorted/filtered
+  records; printed Post IDs remain visible. Aggregate account/party drill-down
+  and commodity quantity reporting remain unfinished parts of C12.
+- Corrected the permission editor's misleading claim that module users can manage
+  masters by default. The existing server fallback is View/Use; the explicit
+  matrix governs writes. No permission semantics or saved grants changed.
+
+Actual runtime regression tests cover all of the above fourth-batch behaviours
+without server writes. A separate existing ownership test passes its assertions
+but logs closed-jsdom MutationObserver teardown warnings in unchanged helpers;
+those warnings are not suppressed. Hosted verification is still required.
+
+Third repair batch PR #266 passed full Accounts 38957701428 and Milling/Exports
+38957701777 and merged as 412f6a15f5ff5f1e9b74af44df960105bd90a570.
+Its deployment/live recheck is pending at this checkpoint. No migration sign-off.

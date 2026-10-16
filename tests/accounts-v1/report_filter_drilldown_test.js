@@ -1,0 +1,20 @@
+const fs=require('node:fs'),assert=require('node:assert/strict'),{JSDOM}=require('jsdom');
+(async()=>{
+ const dom=new JSDOM('<div id="entityHome"></div><section id="ws-reports" class="workspace"><div class="panelHead"><h2>Reports</h2></div></section>',{url:'https://fixture.test/accounts/index.php',runScripts:'outside-only'}),w=dom.window,requests=[],opened=[];let csv='',printed='';
+ const rows=[{date:'2026-07-03',journalId:'ORIGINAL-42',publicPostId:'POST-2026-00042',account:'6900',accountName:'Office',recipient:'Vendor A',expenseFor:'FAM-SALMAN',expenseForName:'Salman',expenseArea:'OFFICE',assetId:'V1',assetName:'Car',registrationNo:'ABC-1',purpose:'Repair',amount:200},{date:'2026-07-01',journalId:'ORIGINAL-43',publicPostId:'POST-2026-00043',account:'6900',accountName:'Office',recipient:'Vendor A',expenseFor:'FAM-SALMAN',expenseForName:'Salman',expenseArea:'OFFICE',assetId:'V1',assetName:'Car',registrationNo:'ABC-1',purpose:'Fuel',amount:100}];
+ let current=rows;
+ w.localStorage.setItem('tt_accounts_entity','TTI');w.alert=message=>{throw Error(message)};w.fetch=async(url,options)=>{requests.push({url,options});return {ok:true,json:async()=>({ok:true,from:'2026-07-01',asOf:'2026-10-16',expenseActivity:current,generalLedger:[],trialBalance:{rows:[],partyRows:[]}})}};
+ w.TT_ALL_LEDGERS={openPosting:async id=>opened.push(id)};w.TT_PRINT={create:()=>({document:{write:html=>printed=html,close(){}},print(){}})};
+ w.Blob=function(parts){this.parts=parts};w.URL.createObjectURL=blob=>{csv=blob.parts.join('');return 'blob:fixture'};w.URL.revokeObjectURL=()=>{};w.HTMLAnchorElement.prototype.click=()=>{};
+ w.eval(fs.readFileSync('accounts/reports-ui.js','utf8'));await w.TT_REPORTS.open('expenses');const q=s=>w.document.querySelector(s);
+ assert.equal(q('[data-report-post]').dataset.reportPost,'ORIGINAL-43','Expense detail sorts chronologically');
+ q('[data-report-post]').click();await Promise.resolve();assert.equal(opened[0],'ORIGINAL-43','Drill-down uses real journal identity, not a guessed public number');
+ for(const [id,value] of [['ttExpenseRecipient','Vendor A'],['ttExpenseFor','FAM-SALMAN'],['ttExpenseAsset','V1']])q('#'+id).value=value;
+ await q('#ttReportRun').onclick();for(const [id,value] of [['ttExpenseRecipient','Vendor A'],['ttExpenseFor','FAM-SALMAN'],['ttExpenseAsset','V1']])assert.equal(q('#'+id).value,value,'Run must preserve '+id);
+ q('#ttReportCsv').click();assert(csv.indexOf('POST-2026-00043')<csv.indexOf('POST-2026-00042'));assert.match(csv,/Vendor A/);
+ q('#ttReportPrint').click();assert.match(printed,/POST-2026-00043/);assert.match(printed,/button\[data-report-post\]\{display:inline!important/,'Printed Post IDs remain visible');
+ current=[];await q('#ttReportRun').onclick();assert.equal(q('#ttExpenseRecipient').value,'Vendor A');assert.match(q('#ttReportsBody').textContent,/No matching entries/,'Empty period cannot broaden the selected recipient');
+ w.localStorage.setItem('tt_accounts_entity','BRM');current=[{...rows[0],recipient:'Vendor B',assetId:'V2'}];await q('#ttReportRun').onclick();assert.equal(q('#ttExpenseRecipient').value,'');assert.equal(q('#ttExpenseFor').value,'');assert.equal(q('#ttExpenseAsset').value,'');assert(!q('#ttExpenseRecipient').textContent.includes('Vendor A'));
+ assert.match(requests.at(-1).url,/entity=BRM/);assert(requests.every(x=>!x.options.method||x.options.method==='GET'));w.close();
+ console.log('PASS report filter preservation, empty-period scope, company isolation, chronological screen/CSV, printed IDs and original-post drill-down without writes');
+})().catch(error=>{console.error(error);process.exitCode=1});
