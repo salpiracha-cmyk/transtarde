@@ -1,0 +1,10 @@
+const fs=require('node:fs'),assert=require('node:assert/strict'),{JSDOM}=require('jsdom');
+(async()=>{
+ const source=fs.readFileSync('exports/app.js','utf8'),a=source.indexOf('let tgUnallocatedReadSequence=0;'),b=source.indexOf('let fiCreditAdviceTagSequence=0;',a),dom=new JSDOM('<div id="tgUnallocatedPayments"></div>',{runScripts:'outside-only'}),w=dom.window,pending=[],requests=[];w.view='fi';w.esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));w.fmt=String;w.money=(v,c)=>c+' '+v;w.fetch=(url,opts)=>{requests.push({url,opts});return new Promise(resolve=>pending.push(d=>resolve({ok:d.ok,json:async()=>d})));};w.eval(source.slice(a,b));
+ const row={id:'TG1',source:'TG outgoing payment',date:'2026-09-01',pakistanExporter:'TTI',invoiceRef:'INV1',bankReference:'AD1',currency:'USD',amount:60};
+ let p=w.showTgUnallocatedPayments();pending.shift()({ok:true,payments:[row]});await p;assert.match(w.document.body.textContent,/USD 60/);assert.match(w.document.body.textContent,/AD1/);assert.match(w.document.body.textContent,/TG1/);
+ const old=w.showTgUnallocatedPayments(),fresh=w.showTgUnallocatedPayments();pending.pop()({ok:true,payments:[{...row,amount:30}]});await fresh;pending.shift()({ok:true,payments:[row]});await old;assert.match(w.document.body.textContent,/USD 30/);assert.doesNotMatch(w.document.body.textContent,/USD 60/);
+ p=w.showTgUnallocatedPayments();pending.shift()({ok:false,error:'Source unreadable'});await p;assert.equal(w.document.body.textContent,'Source unreadable');
+ p=w.showTgUnallocatedPayments();w.view='home';pending.shift()({ok:true,payments:[row]});await p;assert.doesNotMatch(w.document.body.textContent,/AD1/);assert(requests.every(r=>!r.opts.method&&r.opts.cache==='no-store'));
+ assert(source.includes('showTgUnallocatedPayments()')&&source.includes('id="tgUnallocatedPayments"'));console.log('PASS TG pending FI display: exact source identities/amounts, read-only requests, stale/navigation guards and visible source failure.');
+})().catch(e=>{console.error(e);process.exitCode=1});
