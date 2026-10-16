@@ -3,7 +3,7 @@ import json,pathlib,shutil,socket,subprocess,tempfile,time,urllib.request,urllib
 ROOT=pathlib.Path(__file__).resolve().parents[2]
 with tempfile.TemporaryDirectory(prefix='actual-cost-http-') as tmp:
  root=pathlib.Path(tmp);(root/'api').mkdir();(root/'data').mkdir()
- for f in ['production_costing.php','production_costing_core.php','management_costing.php','management_costing_core.php','mill_recovery_core.php']:shutil.copy(ROOT/'api'/f,root/'api'/f)
+ for f in ['production_fixed_overhead.php','production_costing.php','production_costing_core.php','management_costing.php','management_costing_core.php','mill_recovery_core.php']:shutil.copy(ROOT/'api'/f,root/'api'/f)
  (root/'auth_store.php').write_text('''<?php
 define('TT_DATA_DIR',__DIR__.'/data');function tt_ensure_data_dir(){}function tt_release_read_session(){}
 function tt_require_login(){return ['role'=>($_SERVER['HTTP_X_ROLE']??'owner')==='owner'?'Super Admin':'Staff','permissions'=>['Accounts'=>['View']],'full_name'=>'Disposable QA'];}
@@ -40,7 +40,14 @@ function tt_verify_csrf($v){return $v==='fixture';}
   snapshot=json.loads(books.read_text());saved=snapshot['productionCostRuns'][g['id']];assert saved['calculation']['quantityBasis']=='ACTUAL_INPUT' and saved['approvedBy']=='Disposable QA'
   assert snapshot['journals']==store['journals'],'Cost approval must not invent a journal'
   old=books.read_bytes();assert req(action)[0] in [409,422];assert books.read_bytes()==old,'Replay cannot duplicate the approved rate'
+  snapshot['salaryMasters']={'SM':{'entity':'TTI','status':'Active','productionCostEligible':True,'monthlyAmount':7000}}
+  snapshot['salaryPeriods']={'TTI|2026-10|SM':{'netSalary':7000}}
+  books.write_text(json.dumps(snapshot));status,fixed=req({'csrf':'fixture','action':'apply_to_run','entity':'TTI','groupId':g['id']},path='production_fixed_overhead.php');assert status==200,fixed
+  assert abs(fixed['finalCostPerKg']-(saved['costPerKg']+10))<.000001,fixed
+  new_snapshot=json.loads(books.read_text());assert new_snapshot['journals']==store['journals'] and new_snapshot['productionCostRuns'][g['id']]['calculation']==saved['calculation'],'Fixed allocation retains base cost snapshot and creates no duplicate journal'
+  saved=new_snapshot['productionCostRuns'][g['id']];old=books.read_bytes()
   p['rawInputs'][0]['grossKg']=1100;ops['values']['tt30prod']=json.dumps([p]);source.write_text(json.dumps(ops));status,d=req();assert status==200 and 'production changed' in d['groups'][0]['status'];assert d['groups'][0]['suggestedReadyRiceCostPerKg']==saved['costPerKg'];assert books.read_bytes()==old
+  status,fixed=req(path='production_fixed_overhead.php');assert status==200 and fixed['months']['2026-10']['readyRiceKg']==700,fixed
   status,d=req(path='management_costing.php');assert status==200 and d['sheets'][0]['inputKg']==1100,d
   books.write_text('{broken');assert req()[0]==500;assert req(action)[0]==500;assert books.read_text()=='{broken','Malformed store cannot be overwritten'
   print('PASS costing HTTP: approval, stale bill fingerprint, CSRF/entity/write denial, snapshot preservation, duplicate protection, no journal and corrupt-store protection')

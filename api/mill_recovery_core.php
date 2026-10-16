@@ -65,3 +65,9 @@ function mr_read_operations_source(string $path):array {
     if(!is_file($path))return ['values'=>[],'revision'=>0,'sourceBackend'=>'file'];
     $h=fopen($path,'rb');if(!$h||!flock($h,LOCK_SH))throw new RuntimeException('Operational source unavailable.');try{$v=mr_decode_store((string)stream_get_contents($h));if(!is_array($v['values']??null))throw new RuntimeException('Invalid operational values.');$v['sourceBackend']='file';return $v;}finally{flock($h,LOCK_UN);fclose($h);}
 }
+
+function mr_ready_kg_by_month(array $ops,string $entity):array {
+    $raw=$ops['values']['tt30prod']??'[]';if(!is_string($raw))throw new RuntimeException('Invalid production source.');$runs=json_decode($raw,true,512,JSON_THROW_ON_ERROR);if(!is_array($runs)||!array_is_list($runs))throw new RuntimeException('Invalid production rows.');$out=[];
+    foreach($runs as $run){if(!is_array($run)||strtoupper((string)($run['entity']??'TTI'))!==$entity||!mr_valid_date((string)($run['date']??'')))continue;$month=substr($run['date'],0,7);foreach(mr_output_rows($run) as $row)if($row['kind']==='finished')$out[$month]=round(($out[$month]??0)+$row['kg'],3);}
+    return $out;
+}
