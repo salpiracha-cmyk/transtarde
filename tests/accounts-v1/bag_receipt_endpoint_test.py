@@ -48,6 +48,15 @@ else{$out=['values'=>[],'meta'=>[]];foreach($p->query('SELECT storage_key,payloa
         return int(out.stderr.rsplit('STATUS:',1)[1]),json.loads(out.stdout)
     before=snapshot();status,view=req();assert status==200,view;review=view['source'];assert review['order']['received']==100
     assert snapshot()==before and books.read_bytes()==financial,'Receipt review wrote data'
+    # Existing physical receipt facts must never acquire another scope from the parent PO.
+    if not MYSQL:
+        original_store=source.read_bytes()
+        for field,value in [('locationId','mills-2'),('entity','BRM'),('poNo','ORIGINAL-PO'),('poLineKey','L2'),('brand','OTHER'),('size','25 kg'),('bagType','Jute')]:
+            conflict=json.loads(original_store);rows=json.loads(conflict['values']['tt33bagreceipts']);rows[0][field]=value
+            conflict['values']['tt33bagreceipts']=json.dumps(rows);source.write_text(json.dumps(conflict));unchanged=source.read_bytes()
+            status,result=req();assert status==422 and 'Reconcile the original receipt' in result['error'],result
+            assert source.read_bytes()==unchanged and books.read_bytes()==financial,'Conflicting receipt review rewrote evidence'
+        source.write_bytes(original_store)
     assert req(mode='other')[0]==403 and req(mode='company')[0]==403 and req(mode='no-mill')[0]==403
     body=dict(csrf='fixture',action='receive_supplier',entity='TTI',locationId='mills-1',bagId='123',date='2026-10-17',qty=10,sourceFingerprint=review['fingerprint'],requestKey='actual-supplier-receipt-0001',keepReceiptOpen=False,inspected=True,printingMismatch=False,materialMismatch=False,qualityMismatch=False,tareMismatch=False,actualTareGrams=None)
     for denied,mode in [(body,'read'),(dict(body,csrf='bad'),'source'),(body,'company'),(dict(body,entity='BRM'),'source'),(dict(body,locationId='mills-2'),'source')]:

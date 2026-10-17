@@ -9,6 +9,13 @@ $receipt=['id'=>'R1','bagId'=>123,'date'=>'2026-10-01','qty'=>1000];$run=['id'=>
 $values=['tt30bags'=>json_encode([$order]),'tt33bagreceipts'=>json_encode([$receipt]),'tt30prod'=>json_encode([$run]),'tt36bagissues'=>json_encode([$issue])];$original=serialize([$values,$masters]);
 $view=bti_project($values,$masters,$scope,$today,$today);$id='PO|123|mills-1';bi_check($view['lots'][$id]['availableQty']===900,'Actual original PO receipts/production did not reconcile');bi_check($view['unallocatedConsumption']===[],'Unique physical source incorrectly held');
 bi_check(serialize([$values,$masters])===$original,'Inventory read rewrote source data');bi_check(bti_project($values,$masters,$scope,$today,$today)===$view,'Repeated read changed quantities/fingerprint');
+// Legacy physical evidence outranks an amended PO, even when its old display name is missing.
+foreach(['locationId'=>'mills-2','entity'=>'BRM','poNo'=>'ORIGINAL-PO','poLineKey'=>'L2','brand'=>'OTHER','size'=>'25 kg','bagType'=>'Jute'] as $field=>$saved){
+    $conflicting=$values;$conflicting['tt33bagreceipts']=json_encode([array_replace($receipt,[$field=>$saved])]);$before=serialize($conflicting);
+    $held=bti_project($conflicting,$masters,$scope,$today,$today);
+    bi_check($held['lots'][$id]['availableQty']===null&&$held['lots'][$id]['committableQty']===null,'Conflicting saved receipt '.$field.' followed its amended PO');
+    bi_check(serialize($conflicting)===$before,'Receipt conflict review rewrote original facts');
+}
 // Same brand at another packing size must retain separate actual PO balances.
 $second=array_replace($order,['id'=>456,'poNo'=>'PO-2','size'=>'25 kg','received'=>500]);$values['tt30bags']=json_encode([$order,$second]);$values['tt33bagreceipts']=json_encode([$receipt,['id'=>'R2','bagId'=>456,'date'=>'2026-10-01','qty'=>500]]);
 $v=bti_project($values,$masters,$scope,$today,$today);bi_check($v['lots'][$id]['availableQty']===900&&$v['lots']['PO|456|mills-1']['availableQty']===500,'Brand-only consumption deducted from both packing lines');

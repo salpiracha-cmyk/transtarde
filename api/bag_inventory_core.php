@@ -73,6 +73,14 @@ function bti_validate_allocations(array $run,array $allocations,array $lots,arra
 }
 function bti_lot_id(string $bagId,string $location): string {return 'PO|'.$bagId.'|'.$location;}
 function bti_hold(array &$lot,string $why): void {if(!in_array($why,$lot['holds'],true))$lot['holds'][]=$why;}
+/** Saved physical receipt identities must not follow an amended parent PO. */
+function bti_receipt_scope_conflict(array $receipt,array $scope): bool {
+    foreach(['entity','locationId','poNo','poLineKey'] as $field)if(isset($receipt[$field])&&(string)$receipt[$field]!==''&&(string)$receipt[$field]!== (string)($scope[$field]??''))return true;
+    foreach(['brand','bagType'] as $field)if(isset($receipt[$field])&&trim((string)$receipt[$field])!==''&&bti_norm($receipt[$field])!==bti_norm($scope[$field]??''))return true;
+    $packing=(string)($receipt['packingSize']??$receipt['size']??'');
+    if($packing!==''&&bti_packing_kg($packing)!==bti_packing_kg((string)($scope['packingSize']??'')))return true;
+    return false;
+}
 /** Read-only projection of actual source counters, dated receipts, production and acknowledged transfers. */
 function bti_project(array $values,array $masters,array $scope,string $asOf,string $today,array $state=[],?string $excludeProductionId=null): array {
     if(!bti_date($asOf)||!bti_date($today))throw new DomainException('Choose a valid bag stock review date.');
@@ -100,6 +108,7 @@ function bti_project(array $values,array $masters,array $scope,string $asOf,stri
         foreach($index[$bagId]??[] as $r){$rid=(string)($r['id']??'');$qty=bti_count($r['qty']??null);$key=$bagId.'|'.$rid;
             if($rid===''||$qty===null){bti_hold($lot,'A source receipt identity or whole quantity is unverified.');continue;}
             if(isset($receiptIds[$key])){bti_hold($lot,'A repeated source receipt identity requires reconciliation.');continue;}$receiptIds[$key]=true;
+            if(bti_receipt_scope_conflict($r,$lot)){bti_hold($lot,'Saved physical receipt owner, location or specification conflicts with its current PO; reconcile the original receipt.');continue;}
             if(!empty($r['entity'])&&$r['entity']!==$entity){bti_hold($lot,'A source receipt company disagrees with its original PO.');continue;}
             $receiptName=(string)($r['millName']??$r['mill']??'');if($receiptName!==''&&bti_norm($receiptName)!==bti_norm($location['millName'])){bti_hold($lot,'Receipt location differs from its saved PO location; review the actual physical lot.');continue;}
             $totalEvents+=$qty;$physical=$qty;$date=bti_date($r['date']??'');
