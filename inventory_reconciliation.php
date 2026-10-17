@@ -185,7 +185,7 @@ function tt_inv_prepare_write(array $values,string $key,string $json,array $user
     }
     if(in_array($key,TT_BAG_SERVER_KEYS,true))throw new DomainException('Bag movement acknowledgements are server-owned. Use the explicit bag movement workflow.');
     if($key==='tt30prod'){require_once __DIR__.'/api/bag_inventory_core.php';$decoded=json_decode($json,true);$versioned=false;foreach(array_merge(is_array($decoded)?$decoded:[],tt_inv_rows($values,$key)) as $row)if(is_array($row)&&!empty($row['bagAllocationVersion'])){$versioned=true;break;}if($versioned)$json=bti_prepare_production($values,$json,tt_list_masters(),$user,$now);}
-    if(in_array($key,['tt38labourbills','tt38kebills','tt38reprocessbills'],true)){require_once __DIR__.'/api/mill_source_amend_core.php';return msa_guard_append($values,$key,$json,$user);}
+    if(in_array($key,['tt38labourbills','tt38kebills','tt38reprocessbills','tt37processingexpenses'],true)){require_once __DIR__.'/api/mill_source_amend_core.php';return msa_guard_append($values,$key,$json,$user);}
     if(in_array($key,TT_INV_PRIVATE_KEYS,true))throw new DomainException('Reconciliation records are server-owned. Use Accounts or Directors reports.');
     if(!in_array($key,['tt30prod','tt30ship','tt32stockadj',TT_INV_CONFIRMATIONS],true))return $json;
     $incoming=json_decode($json,true);if(!is_array($incoming)||!array_is_list($incoming))throw new InvalidArgumentException('Operational rows must be an array.');

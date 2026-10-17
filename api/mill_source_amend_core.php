@@ -36,7 +36,7 @@ function msa_dependencies(array $books,array $source,string $collection): void {
         if(!is_array($payment)||($payment['entity']??'')!==$entity||!in_array($payment['status']??'',['Posted','Approved / Posted','Approved'],true))continue;
         foreach((array)($payment['allocations']??[]) as $a)if(($a['billId']??'')===$billId&&(float)($a['amount']??0)>0)throw new DomainException('This bill has payment allocations. Reconcile its linked settlement before amending its source.');
     }
-    $prefix=['tt38labourbills'=>'LAB','tt38kebills'=>'KE','tt38reprocessbills'=>'RP'][$collection];
+    $prefix=['tt38labourbills'=>'LAB','tt38kebills'=>'KE','tt38reprocessbills'=>'RP','tt37processingexpenses'=>'EXP'][$collection];
     foreach((array)($books['productionCostRuns']??[]) as $run){
         if(!is_array($run)||($run['entity']??'')!==$entity)continue;
         foreach((array)($run['calculation']['conversionSources']??[]) as $cost)if(($journalId!==''&&($cost['postId']??'')===$journalId)||($cost['id']??'')===$prefix.'|'.$id)throw new DomainException('This bill is included in an approved production cost. Reconcile the linked cost and stock valuation before amending its source.');
@@ -72,9 +72,10 @@ function msa_amend(array $values,array $masters,array $books,array $user,array $
     if(!hash_equals(ml_fingerprint($before),(string)($body['fingerprint']??'')))throw new DomainException('The source changed after review. Reopen the saved bill before amending it.');
     $reason=trim((string)($body['reason']??''));if(strlen($reason)<3||strlen($reason)>500)throw new DomainException('Enter a correction reason between 3 and 500 characters.');
     msa_dependencies($books,$before,$collection);
-    $allowed=match($kind){'ELECTRICITY'=>['date','readFrom','readTo','ref','party','units','amount'],'LABOUR'=>['date','from','till','contractor','lines'],default=>['date','from','till','rawRemovedKg','rate','loadingExtra','other']};
+    $allowed=match($kind){'PROCESSING'=>['date','from','till','ref','party','type','amount','remarks'],'ELECTRICITY'=>['date','readFrom','readTo','ref','party','units','amount'],'LABOUR'=>['date','from','till','contractor','lines'],default=>['date','from','till','rawRemovedKg','rate','loadingExtra','other']};
     $patch=$body['changes']??null;if(!is_array($patch)||!$patch||array_diff(array_keys($patch),$allowed))throw new DomainException('Only the reviewed source fields may be corrected.');
     $after=array_replace($before,$patch);
+    if($kind==='PROCESSING')$after['amount']=ml_money($after['amount']??null);
     if($kind==='ELECTRICITY'){$after['units']=ml_quantity($after['units']??0,true);$after['amount']=ml_money($after['amount']??null);}
     if($kind==='LABOUR'){
         $after['party']=$after['contractor'];$total=0.0;

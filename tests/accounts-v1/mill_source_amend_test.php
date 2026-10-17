@@ -35,3 +35,10 @@ $body=['collection'=>'tt38reprocessbills','entity'=>'TTI','sourceId'=>'RP1','fin
 $rpUser=array_replace($u,['location'=>'External Mill']);$out=msa_amend($ops,$masters,[],$rpUser,$body,'now');check_msa($out['record']['amount']===2500.0,'Actual reprocessing quantity/rate not recalculated');
 reject_msa(fn()=>msa_amend($ops,$masters,[],$rpUser,array_replace($body,['arrivalFingerprint'=>'stale']),'now'),'Unreviewed arrivals accepted');
 echo "PASS audited source amendment, actor/original preservation, replay, scope and paid/cost holds, shared-writer bypass prevention, exact labour rate and company-scoped reprocessing arrival review\n";
+
+$processing=['id'=>'EX1','entity'=>'TTI','millId'=>1,'millName'=>'TTI Rice Mills','date'=>'2026-10-17','from'=>'2026-10-01','till'=>'2026-10-15','ref'=>'PLANT-OCT','party'=>'K-Electric','amount'=>700,'type'=>'Plant Expense','settlementMode'=>'CANONICAL_PAYABLE'];
+$body=['collection'=>'tt37processingexpenses','entity'=>'TTI','sourceId'=>'EX1','fingerprint'=>ml_fingerprint($processing),'requestKey'=>'fixture-exp-amend-001','reason'=>'Correct actual provider bill','changes'=>['amount'=>800]];
+$ops=['tt37processingexpenses'=>json_encode([$processing])];$out=msa_amend($ops,$masters,[],$u,$body,'2026-10-18T12:00:00Z');check_msa($out['record']['amount']===800.0&&$out['record']['_sourceAmendments'][0]['before']===$processing,'Processing amendment lost original source');
+$costs=['productionCostRuns'=>[['entity'=>'TTI','calculation'=>['conversionSources'=>[['id'=>'EXP|EX1']]]]]];reject_msa(fn()=>msa_amend($ops,$masters,$costs,$u,$body,'now'),'Approved processing cost source was amended');
+reject_msa(fn()=>msa_guard_append($ops,'tt37processingexpenses','[]',$u),'Processing source deleted through collection save');
+echo "PASS processing source audit, explicit append and approved-cost dependency lock\n";

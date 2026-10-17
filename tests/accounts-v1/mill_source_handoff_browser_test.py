@@ -56,7 +56,8 @@ def run():
             op=context.request.get(base+'/api/operations.mysql.php').json();rows=json.loads(op['values']['tt38kebills']);assert len(rows)==1 and rows[0]['amount']==1000;source_id=str(rows[0]['id']);assert books.read_bytes()==original_books
             accounts=context.new_page();accounts.on('pageerror',lambda e:errors.append(str(e)));accounts.on('dialog',lambda d:d.accept());accounts.goto(base+'/accounts/');accounts.wait_for_function('!!window.TT_MILL_LIABILITIES')
             accounts.evaluate('window.TT_MILL_LIABILITIES.open()');accounts.locator('[data-review-bill]').click()
-            with accounts.expect_response(lambda r:'/api/mill_liabilities.php' in r.url and r.request.method=='POST') as post_response:accounts.locator('[data-post]').click()
+            with accounts.expect_response(lambda r:'/api/mill_liabilities.php' in r.url and r.request.method=='POST' and not r.request.post_data_json.get('preview')) as post_response:
+                accounts.locator('[data-post]').click();accounts.get_by_role('button',name='Confirm and Post',exact=True).click()
             posted=post_response.value.json();assert post_response.value.status==200,posted;first=posted['result']['record'];accounts.locator('[data-pay]').wait_for()
             initial=json.loads(books.read_text());journal=initial['journals'][first['journalId']];assert journal['totalDebit']==1000 and {l['account'] for l in journal['lines']}=={'5200','2140'}
             # Amend the actual native history row, then replace its liability through Accounts.
@@ -67,7 +68,8 @@ def run():
             mill.locator('[data-mill-source-amend] [data-close]').click()
             accounts.locator('[data-refresh]').click();accounts.locator('[data-replace]').wait_for();assert accounts.locator('[data-pay]').count()==0
             accounts.locator('[data-reason]').fill('Reconcile corrected source bill');accounts.locator('[data-correction-date]').fill('2026-10-17')
-            with accounts.expect_response(lambda r:'/api/mill_liabilities.php' in r.url and r.request.method=='POST') as replacement_response:accounts.locator('[data-replace]').click()
+            with accounts.expect_response(lambda r:'/api/mill_liabilities.php' in r.url and r.request.method=='POST' and not r.request.post_data_json.get('preview')) as replacement_response:
+                accounts.locator('[data-replace]').click();accounts.get_by_role('button',name='Confirm and Post',exact=True).click()
             replaced=replacement_response.value.json();assert replacement_response.value.status==200,replaced;current=replaced['result']['record'];accounts.locator('[data-pay]').wait_for()
             source_key=current['key'];bill_key=current['billId']+'|'+source_key;csrf=accounts.evaluate('window.TT_ACCOUNT_ACCESS.csrf')
             payment=dict(csrf=csrf,action='post_bill_payment',entity='TTI',date='2026-10-17',supplier='K-Electric',category='',selectedBills=[bill_key],explicitBillSelection=True,amount=400,paymentMode='CASH',requestKey='browser-mill-payment-0001',applyPaymentDifferenceAsDiscount=False,selectedOutstanding=1200)
@@ -81,6 +83,24 @@ def run():
             accounts.locator('[data-refresh]').click();accounts.wait_for_function("document.querySelector('[data-review]').textContent.includes('Outstanding PKR 0.00')")
             with accounts.expect_download() as download_info:accounts.locator('[data-csv]').click()
             report=Path(download_info.value.path()).read_text();assert 'Outstanding PKR' in report and 'QA-KE-HANDOFF' in report and '17-10-2026' in report
+            # Actual other-processing form uses the same acknowledged source and Accounts settlement.
+            mill.locator('[onclick="processingTab(\'expenses\')"]').click()
+            for selector,value in {'#expenseDate':'2026-10-17','#expenseFrom':'2026-10-01','#expenseTo':'2026-10-15','#expenseRef':'QA-PROCESSING','#expenseParty':'K-Electric','#expenseAmount':'700','#expenseRemarks':'Actual plant repair bill'}.items():mill.locator(selector).fill(value)
+            processing_books=books.read_bytes();blocked[0]=True
+            mill.get_by_role('button',name='Save bill for Accounts review',exact=True).click();mill.locator('[data-mill-save-recovery]').wait_for();assert mill.locator('#expenseRef').input_value()=='QA-PROCESSING'
+            with mill.expect_response(lambda r:'/api/operations.mysql.php?asset_refs=1' in r.url and r.request.method=='POST') as processing_save:mill.get_by_role('button',name='Save bill for Accounts review',exact=True).click()
+            assert processing_save.value.status==200,processing_save.value.text();mill.wait_for_function("document.querySelector('#expenseRef').value === ''");assert books.read_bytes()==processing_books
+            mill.locator('#processingExpenseBody tr').filter(has_text='QA-PROCESSING').get_by_role('button',name='Amend saved bill',exact=True).click();mill.locator('[data-field="amount"]').fill('800');mill.locator('[data-reason]').fill('Correct actual processing invoice')
+            with mill.expect_response(lambda r:'/api/mill_source_amend.php' in r.url and r.request.method=='POST') as processing_amend:mill.locator('[data-save]').click()
+            assert processing_amend.value.status==200,processing_amend.value.text();assert books.read_bytes()==processing_books;mill.locator('[data-mill-source-amend] [data-close]').click()
+            accounts.locator('[data-refresh]').click();accounts.locator('[data-kind]').select_option('PROCESSING');accounts.locator('[data-review-bill]').click()
+            with accounts.expect_response(lambda r:'/api/mill_liabilities.php' in r.url and r.request.method=='POST' and not r.request.post_data_json.get('preview')) as processing_post:
+                accounts.locator('[data-post]').click();accounts.get_by_role('button',name='Confirm and Post',exact=True).click()
+            processing=processing_post.value.json();assert processing_post.value.status==200,processing;processing=processing['result']['record'];assert processing['amount']==800
+            payment.update(selectedBills=[processing['billId']+'|'+processing['key']],amount=300,requestKey='browser-processing-payment1',selectedOutstanding=800)
+            response=context.request.post(base+'/api/supplier_settlements.php',data=payment);assert response.status==200,response.text()
+            accounts.locator('[data-refresh]').click();accounts.wait_for_function("document.querySelector('[data-review]').textContent.includes('Outstanding PKR 500.00')")
+            current=json.loads(books.read_text());assert sum(l.get('debit',0)-l.get('credit',0) for j in current['journals'].values() for l in j['lines'] if l['account']=='5200')==2000
             # Real authenticated production form: a failed source Save retains its
             # raw inputs; its later acknowledged amendment survives a lost response.
             financial_before=books.read_bytes();mill.evaluate("openPanel('production')")

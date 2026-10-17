@@ -4,7 +4,7 @@ declare(strict_types=1);
 /** Source lock precedes Accounts lock. No route installs schemas or changes sources. */
 function ml_with_sources(callable $callback,array $extraKeys=[]): mixed {
     if(array_diff($extraKeys,['tt30slips']))throw new InvalidArgumentException('Unsupported source collection.');
-    $keys=array_merge(['tt38labourbills','tt38kebills','tt38reprocessbills'],$extraKeys);
+    $keys=array_merge(['tt38labourbills','tt38kebills','tt38reprocessbills','tt37processingexpenses'],$extraKeys);
     $env=static fn($key)=>(string)(defined('TT_'.$key)?constant('TT_'.$key):(getenv('TT_'.$key)?:''));
     if ($env('DB_HOST')!==''&&$env('DB_NAME')!==''&&$env('DB_USER')!=='') {
         $db=new PDO('mysql:host='.$env('DB_HOST').';dbname='.$env('DB_NAME').';charset=utf8mb4',$env('DB_USER'),$env('DB_PASS'),[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);

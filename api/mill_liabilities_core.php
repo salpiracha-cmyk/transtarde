@@ -6,6 +6,7 @@ function ml_kinds(): array {
     return [
         'LABOUR'=>['collection'=>'tt38labourbills','expense'=>'5200','payable'=>'2190','role'=>'Labour Contractor'],
         'ELECTRICITY'=>['collection'=>'tt38kebills','expense'=>'5200','payable'=>'2140','role'=>'Service Provider'],
+        'PROCESSING'=>['collection'=>'tt37processingexpenses','expense'=>'5200','payable'=>'2140','role'=>'Service Provider'],
         'REPROCESSING'=>['collection'=>'tt38reprocessbills','expense'=>'5200','payable'=>'2140','role'=>'Service Provider'],
     ];
 }
@@ -80,6 +81,10 @@ function ml_source(array $values,array $masters,string $kind,string $id,string $
         $gross=round($billable*$rate+ml_quantity($r['loadingExtra']??0,true)+ml_quantity($r['other']??0,true),2);
         if (abs($gross-$amount)>.01) throw new DomainException('Reprocessing quantities, rates, extras and bill total disagree.');
     }
+    if($kind==='PROCESSING'){
+        if(($r['settlementMode']??'')!=='CANONICAL_PAYABLE'||!empty($r['payment'])||!empty($r['payments'])||(float)($r['paid']??0)>0)throw new DomainException('Reconcile historical reported processing payments to canonical Accounts before posting this cost.');
+        if(!in_array($r['type']??'',['Plant Expense','Milling Expense'],true))throw new DomainException('Select an actual plant or milling processing cost.');
+    }
     // Reported paid amounts cannot be imported as either cash or a second liability.
     if ($kind==='REPROCESSING'&&((float)($r['paid']??0)>0||!empty($r['payments']))) throw new DomainException('Reconcile reported reprocessing payments to canonical Accounts before posting this bill.');
     $key='MILL|'.$entity.'|'.$r['millId'].'|'.$policy['collection'].'|'.$id;
@@ -97,7 +102,7 @@ function ml_post(array &$store,array $source,array $user,string $expectedFingerp
         if (!is_array($journal)||($journal['status']??'')!=='Posted'||($journal['meta']['millSourceKey']??'')!==$source['key']||!is_array($bill)||($bill['entity']??'')!==$source['entity']) throw new DomainException('The previous acknowledgement has no verified canonical journal and bill. Reconcile it before retrying.');
         return ['duplicate'=>true,'record'=>$existing];
     }
-    foreach (['supplierBills','otherPurchases','utilityPayments'] as $collection) foreach ((array)($store[$collection]??[]) as $bill) {
+    foreach (['supplierBills','otherPurchases','utilityPayments','generalExpenses'] as $collection) foreach ((array)($store[$collection]??[]) as $bill) {
         if (!is_array($bill)||($bill['entity']??'')!==$source['entity']||in_array($bill['status']??'',['Cancelled','Deleted','Reversed'],true)) continue;
         $party=(string)($bill['vendor']??$bill['supplier']??$bill['payee']??'');$ref=(string)($bill['billNo']??$bill['invoiceNo']??$bill['reference']??'');
         if (ml_name($party)===ml_name($source['party'])&&strcasecmp(trim($ref),$source['reference'])===0) throw new DomainException('This provider reference already exists in Accounts. Reconcile it instead of posting again.');
@@ -127,7 +132,7 @@ function ml_reverse(array &$store,string $sourceKey,string $entity,array $user,s
             if (($allocation['billId']??'')===$record['billId']&&(float)($allocation['amount']??0)>0) throw new DomainException('This bill has payment allocations. Correct or reverse its linked settlement before changing the liability.');
         }
     }
-    $prefix=['tt38labourbills'=>'LAB','tt38kebills'=>'KE','tt38reprocessbills'=>'RP'][$record['sourceCollection']??'']??'';
+    $prefix=['tt38labourbills'=>'LAB','tt38kebills'=>'KE','tt38reprocessbills'=>'RP','tt37processingexpenses'=>'EXP'][$record['sourceCollection']??'']??'';
     foreach ((array)($store['productionCostRuns']??[]) as $run) {
         if (!is_array($run)||($run['entity']??'')!==$entity) continue;
         foreach ((array)($run['calculation']['conversionSources']??[]) as $cost) {

@@ -39,3 +39,11 @@ $values['tt38reprocessbills']=json_encode([$rp]);verify(ml_source($values,$maste
 $rp['rawRemovedKg']=2000;$values['tt38reprocessbills']=json_encode([$rp]);denied(fn()=>ml_source($values,$masters,'REPROCESSING','RP1','TTI'),'Inconsistent reprocessing quantity accepted');
 $rp['rawRemovedKg']=1000;$rp['paid']=1000;$rp['payments']=[['amount'=>1000,'reference'=>'Legacy reference']];$values['tt38reprocessbills']=json_encode([$rp]);denied(fn()=>ml_source($values,$masters,'REPROCESSING','RP1','TTI'),'Unreconciled reported reprocessing payment imported');
 echo "PASS Mill liability source/master/date validation, zero-write review, correct accrual without cash, idempotent post/reversal, settled correction refusal, immutable original and deferred Maize guard\n";
+
+$processing=['id'=>'EX1','entity'=>'TTI','millId'=>1,'millName'=>'TTI Rice Mills','date'=>'2026-10-17','from'=>'2026-10-01','till'=>'2026-10-15','ref'=>'PLANT-OCT','party'=>'K-Electric','amount'=>700,'type'=>'Plant Expense','settlementMode'=>'CANONICAL_PAYABLE'];
+$ops=['tt37processingexpenses'=>json_encode([$processing])];$ps=ml_source($ops,$masters,'PROCESSING','EX1','TTI');verify($ps['amount']===700.0&&$ps['expenseAccount']==='5200','Processing bill source/treatment lost');
+$legacy=$processing;$legacy['payment']='Petty Cash';$oldOps=['tt37processingexpenses'=>json_encode([$legacy])];denied(fn()=>ml_source($oldOps,$masters,'PROCESSING','EX1','TTI'),'Reported paid expense became a duplicate liability');
+$store=['journals'=>[],'supplierBills'=>[],'generalExpenses'=>[['entity'=>'TTI','payee'=>'K-Electric','reference'=>'PLANT-OCT','status'=>'Posted']]];
+denied(function()use(&$store,$ps,$user,$date){ml_post($store,$ps,$user,$ps['fingerprint'],'PLANT1',$date);},'Already paid direct expense reference was posted again');verify(!$store['journals'],'Duplicate bill wrote cash/expense');
+unset($store['generalExpenses']);$posted=ml_post($store,$ps,$user,$ps['fingerprint'],'PLANT1',$date);verify(array_column($store['journals']['PLANT1']['lines'],'account')===['5200','2140'],'Processing accrual spent money');
+echo "PASS actual processing bills: service provider, explicit unpaid source, historical paid hold, duplicate canonical payment protection and production-cost liability\n";
