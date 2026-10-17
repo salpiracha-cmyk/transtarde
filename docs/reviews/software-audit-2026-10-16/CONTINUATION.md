@@ -821,3 +821,26 @@ Both final-head PR279 suites passed (Accounts39012882204; Milling/Exports3901288
 C19 prepared correction makes bag identity normalization a pure validation/derived copy. Missing, duplicate, unsafe or noncanonical numeric IDs stop the list and stale receipt/status/transfer actions without writing. It never assigns replacement IDs or repairs history. Local actual-function regression test and preserved probe show [7,7] unchanged,0 writes. Canonical numeric-string IDs remain usable as in the old view. Full hosted QA and deployment not yet claimed.
 
 Actual POST45 balances PKR29943000 (USD108000 at277.25). Its edit dispatch sees confirmed tgRemittanceId, correctly requiring linked TG reopening first; the current generic switch-company message lacks context. No financial correction made. FI matching requires2-day unique date proximity; actual25/22Sep versus receipt1Oct explains no match, without authority to guess allocation.
+
+
+### PR279 live acceptance; PR280 merged
+
+PR279 production run39013354578/job117340327907 succeeded: DEPLOYED_SHA c9bda30904ef99b93d8c33aa65e4c44ff3b4bb2a, backup retained, changed users0 and healthy login. Mac Chrome now generates canonical Rice Ledger: arrivals30500+39000+50000=119500kg; period24–30Sep opening119500/period0/closing119500 even with Outward-only display. All three source references remain visible in the full-period report. No claim of physical stock reconciliation. Mac CSV download inspection timed out and reset browser tooling; actual CSV acceptance is unverified, not an application failure. Chrome was recovered with existing tab/account intact.
+
+Corrected Milling permissions link opened the authenticated Console at /index.php. Export Bags Ledger opened and explicitly showed no matching movements for selectedTTI/TTI Rice Mills. Positive closing/period cases remain controlled fixtures. That older report lacks print/CSV controls and shows From even in Till mode; these remain open UI/output gaps.
+
+Both PR280 final-head hosted suites passed39013302325/39013302356. Merged as7475f111271c1fb315eb1326c916b1a43e796176; main QA/deployment pending. No production identity repair or renumbering performed.
+
+Live Labour/KE/rent/salary controls inspected without saving. Labour agreed-rate guard behaved correctly. Salary Cost — Accounts opens a separate operational reference sheet; launcher wording remains misleading. R07/R08 acceptance requirements source-traced in MILL_HANDOFF_REQUIREMENTS.md.
+
+
+### PR280 deployed; actual wrong-mill order exposure prepared fix
+
+Deployment39013780419/job117341567768 confirmed7475f111271c1fb315eb1326c916b1a43e796176, backup, changed users0, healthy login. Actual bag list opens; no replacement IDs assigned. It exposed unscoped actual ASAS/Indus orders under selectedTTI Rice Mills alongside GHAZAL5508/TTI. Prepared next batch scopes order display and stale receipt/status/transfer and production selection, scopes issues through original production, rejects ambiguous transfer sources/fractions and replaces false destination-updated success with an unverified-receipt statement. It does not implement C20 receiving or multi-PO consumption allocation. New local actual-function scope regression passes.
+
+PR279 live smoke39013404296/job117340469064 passed17/18, including50 ledgers/three balanced entities and all4 actual recovery modes (0 production). Six Masters round trips passed; seventh lacked masterBackTop for30seconds despite index200. Root cause unverified. Failure artifact12094191462 exists; inbound download URL could not be retrieved by local DNS. Prepared minimal failure-only browser diagnostics keep the12-round assertion unchanged. PR280 fresh smoke39013826582 pending.
+
+
+### Original bag marking display added to pending PR281
+
+Actual Chrome GHAZAL receipt conditional tare field passed:122 persisted while hidden/reshown, with no receipt save. The Artwork control instead opened hardcoded GHAZAL BAG ARTWORK text headed Approved Artwork. C22 prepared fix renders the actual linked image and filename, never invents approval, handles missing/failed images visibly and rejects external/unsafe references. The module bridge now retains file-backed artworkDocument download/data references. Existing document authorization is unchanged; a403 remains a visible failure, not a bypass. Local actual-function tests cover embedded/protected/file-backed images, stale failures, unsafe URLs and wrong/ambiguous order scope. Full hosted/live acceptance remains pending on the revised head.
