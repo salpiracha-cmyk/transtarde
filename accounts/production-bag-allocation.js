@@ -42,7 +42,7 @@ async function load(){
   const response=await fetch('/api/bag_transfers.php?'+query,{credentials:'same-origin',headers:{Accept:'application/json'}}),data=await response.json();
   if(request!==sequence)return;if(stamp!==signature(current())){message.textContent='Production scope or packing changed. Review source bags again.';return;}if(!response.ok||!data.ok)throw Error(data.error||'Source stock could not be reviewed.');
   if(data.entity!==record.entity||data.locationId!==mill.id||data.inventory?.asOfDate!==record.date)throw Error('The source stock response belongs to another review.');
-  review={signature:stamp,inventory:data.inventory};host.querySelector('[data-bag-source-review]').innerHTML=sourceTable(data.inventory,record,previous);message.textContent='Enter bags against the actual source lots. Save Production commits the selection.'+(data.inventory.warnings?.length?' '+data.inventory.warnings.join(' '):'');
+  const latest=[...host.querySelectorAll('[data-source-lot]')];const selection=latest.length?new Map(latest.map(input=>[input.dataset.sourceLot,input.value])):previous;review={signature:stamp,inventory:data.inventory};host.querySelector('[data-bag-source-review]').innerHTML=sourceTable(data.inventory,record,selection);message.textContent='Enter bags against the actual source lots. Save Production commits the selection.'+(data.inventory.warnings?.length?' '+data.inventory.warnings.join(' '):'');
  }catch(error){if(request===sequence)message.textContent=error.message+' Your production entry is retained.';}finally{if(request===sequence)button.disabled=false;}
 }
 function prepare(record){

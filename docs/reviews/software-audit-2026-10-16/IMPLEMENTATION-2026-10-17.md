@@ -208,3 +208,16 @@ Added a draft Production review of actual empty bags, original PO/source lots, p
 Save Production now passes the reviewed source allocations and stock fingerprint to the existing atomic source writer. Saved source snapshots remain visible during amendments. Raw-input-only edits retain their original bag allocation without a fresh stock read. Quantity, date and company/location changes require review; failed reviews preserve entered source quantities, and late responses cannot replace another scope. The existing real browser handoff now selects actual source bags and verifies original PO and remaining stock.
 
 Local syntax and pure count/unchanged-allocation checks pass. Local workspace execution became unavailable during this continuation; the enhanced DOM and actual browser/controller suites are being run through the draft branch's hosted QA. The connected local browser tool also reports that this chat lacks its originating browser context. No live stock test was posted. Transfer/receiving screens, quarantine and legacy receipt-scope reconciliation remain unfinished release gates. Maize labour design remains deferred.
+
+
+### Acknowledged dispatch and accepted receiving UI — draft continuation
+
+Production allocation at 8364d34ba05644ed69e68d722063bc8be99eef63 passed full Accounts 39046365220 (audit 117435784508 and actual runtime 117435784738) and Milling/Exports 39046365242 (117435784793).
+
+The native New Export Bags panel now opens the draft source-lot transfer controller instead of writing a legacy brand-only transfer into a supplier PO. It shows company/physical location, original PO lines, packing/material, available committed stock and held lots. Dispatch chooses explicit source lots and an actual Master destination. Destination receiving requires actual accepted whole quantities; physical returns are a separate source action with a reason. Neither dispatch nor receipt fabricates a destination PO.
+
+Every write retains an actor/scope-bound durable request before sending, waits for the controller acknowledgement and clears only its own acknowledged entry. Uncertain responses can only retry the original facts; a definite 403/422 refusal permits correction with the same uncommitted request identity or explicit discard. Failed saves retain entered quantities and focus. Scope navigation retains dispatch drafts; response refresh preserves source quantities typed during the read. No typing initiates a read or write.
+
+Added DOM regressions for full dispatch, partial accepted receiving, failures, lost responses, exact retries, permission/refusal corrections, source/destination actions and unrelated draft isolation. The legacy native location test now verifies controller delegation and no PO/cache writes. Production's review also preserves source quantities typed while its response was in flight.
+
+This remains draft PR 291. Complete quarantine handling, supplier receipt atomic acknowledgement and legacy receipt-scope reconciliation are still release gates. Existing supplier receipt entry remains staged. No live inventory or financial entry has been created or amended. The local workspace/browser connections remain unavailable; hosted QA verifies this checkpoint.
