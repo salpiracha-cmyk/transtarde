@@ -675,7 +675,7 @@
 
   function openSearch(initial = '') {
     const host = layer('ttSearchLayer', 'Search Previous Accounts Entry');
-    q('.tt-window-body', host).innerHTML = `<div class="tt-searchbar"><input id="ttUniversalSearch" value="${esc(typeof initial === 'string' ? initial : '')}" autofocus placeholder="Voucher, bill, Soda, truck, cheque, shipment, container, B/L, party, date or amount"><button type="button">Search</button></div><div id="ttSearchResults"></div>`;
+    q('.tt-window-body', host).innerHTML = `<div class="tt-searchbar"><input id="ttUniversalSearch" data-master-ignore value="${esc(typeof initial === 'string' ? initial : '')}" autofocus placeholder="Voucher, bill, Soda, truck, cheque, shipment, container, B/L, party, date or amount"><button type="button">Search</button></div><div id="ttSearchResults"></div>`;
     const go = () => runSearch(host, q('#ttUniversalSearch', host).value);
     q('.tt-searchbar button', host).onclick = go;
     q('#ttUniversalSearch', host).onkeydown = event => { if (event.key === 'Enter') go(); };
