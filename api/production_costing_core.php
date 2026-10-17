@@ -221,12 +221,16 @@ function pc_group_production(array $production): array {
                 'date' => $p['date'],
                 'variety' => $p['variety'],
                 'varietyKey' => $p['varietyKey'],
-                'inputKg' => 0.0,'inputComplete'=>true,'requiresInputStockCost'=>false,'sourceRuns'=>[],
+                'millInputs'=>[], 'inputKg' => 0.0,'inputComplete'=>true,'requiresInputStockCost'=>false,'sourceRuns'=>[],
                 'readyKg' => 0.0,
                 'outputs' => [],
                 'runIds' => [],
             ];
         }
+        $mill=pc_norm((string)($p['source']['millName']??$p['source']['locationName']??''));
+        if (!isset($groups[$id]['millInputs'][$mill])) $groups[$id]['millInputs'][$mill]=['kg'=>0.0,'complete'=>true];
+        $groups[$id]['millInputs'][$mill]['kg']+=(float)$p['inputKg'];
+        $groups[$id]['millInputs'][$mill]['complete']=$groups[$id]['millInputs'][$mill]['complete']&&$p['inputComplete'];
         $groups[$id]['inputKg'] += (float)$p['inputKg'];$groups[$id]['inputComplete']=$groups[$id]['inputComplete']&&$p['inputComplete'];$groups[$id]['sourceRuns'][]=$p['source'];$groups[$id]['requiresInputStockCost']=$groups[$id]['requiresInputStockCost']||!in_array(strtoupper((string)($p['source']['inputStage']??'RAW')),['','RAW'],true);
         $groups[$id]['readyKg'] += (float)$p['readyKg'];
         $groups[$id]['runIds'][] = $p['id'];
@@ -249,45 +253,53 @@ function pc_group_production(array $production): array {
 }
 
 function pc_cost_sources(array $ops, array $groups, array $store = [], string $entity = 'TTI'): array {
-    $sources = [];
-    $add = function(string $id, string $type, string $from, string $to, float $amount, string $reference = '') use (&$sources, $groups): void {
-        if ($amount <= 0 || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $from) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $to)) return;
-        $kg = 0.0;$complete=true;
-        foreach ($groups as $g) if ($g['date'] >= $from && $g['date'] <= $to){$kg += (float)$g['inputKg'];$complete=$complete&&!empty($g['inputComplete']);}
-        if ($kg <= 0) return;
-        $sources[] = [
-            'id' => $id,'inputComplete'=>$complete,
-            'type' => $type,
-            'from' => $from,
-            'to' => $to,
-            'amount' => round($amount, 2),
-            'productionKg' => round($kg, 3),
-            'ratePerKg' => $amount / $kg,
-            'reference' => $reference,
-        ];
+    $sources=[];
+    $add=static function(string $id,string $type,string $from,string $to,float $amount,string $reference,string $mill,array $provenance=[])use(&$sources,$groups):void {
+        if ($amount<=0||!mr_valid_date($from)||!mr_valid_date($to)||$to<$from) return;
+        $amount=round($amount,2);$scope=pc_norm($mill);$kg=0.0;$complete=$scope!==''&&empty($provenance['sourceAmended'])&&($provenance['postingVerified']??true);$eligible=[];
+        foreach ($groups as $g) {
+            if ($scope===''||$g['date']<$from||$g['date']>$to) continue;
+            $part=$g['millInputs'][$scope]??['kg'=>0,'complete'=>false];
+            if ($part['kg']>0) {$kg+=(float)$part['kg'];$complete=$complete&&!empty($part['complete']);$eligible[$g['id']]=(float)$part['kg'];}
+        }
+        $allocations=[];$used=0.0;$last=array_key_last($eligible);
+        foreach ($eligible as $key=>$part) {$share=$key===$last?round($amount-$used,2):round($amount*$part/$kg,2);$allocations[$key]=$share;$used=round($used+$share,2);}
+        $sources[]=['id'=>$id,'type'=>$type,'from'=>$from,'to'=>$to,'amount'=>round($amount,2),'reference'=>$reference,'millName'=>$mill,'millScope'=>$scope,'productionKg'=>round($kg,3),'ratePerKg'=>$kg>0?$amount/$kg:0,'inputComplete'=>$complete&&$kg>0,'allocations'=>$allocations,
+            'allocationStatus'=>$scope===''?'Mill location unverified':($kg>0?'Allocated to this mill production':'No confirmed production at this mill in this period')]+$provenance;
     };
-
-    foreach (pc_op($ops, 'tt38kebills') as $x) {
-        if (!is_array($x)||strtoupper((string)($x['entity']??'TTI'))!==$entity) continue;
-        $add('KE|' . ($x['id'] ?? $x['ref'] ?? count($sources)), 'Electricity', (string)($x['readFrom'] ?? $x['date'] ?? ''), (string)($x['readTo'] ?? $x['date'] ?? ''), (float)($x['amount'] ?? 0), (string)($x['ref'] ?? ''));
+    $booked=[];
+    foreach ((array)($store['millLiabilities']??[]) as $record) {
+        if (!is_array($record)||($record['entity']??'')!==$entity) continue;
+        $booked[(string)($record['sourceCollection']??'').'|'.(string)($record['sourceRecordId']??'')]=$record;
     }
-    // Accounts payments and Milling bills describe the same utility, not two costs.
-    $seenElectricity=[];foreach(pc_op($ops,'tt38kebills') as $bill)if(is_array($bill)&&strtoupper((string)($bill['entity']??'TTI'))===$entity)$seenElectricity[strtoupper(trim((string)($bill['ref']??''))).'|'.($bill['readFrom']??'').'|'.($bill['readTo']??'').'|'.round((float)($bill['amount']??0),2)]=true;
-    foreach((array)($store['utilityPayments']??[]) as $bill){
-        if(!is_array($bill)||($bill['entity']??'')!==$entity||($bill['status']??'')==='Deleted'||empty($bill['productionCostEligible']))continue;
-        $from=(string)($bill['readFrom']??$bill['paymentDate']??'');$to=(string)($bill['readTo']??$bill['paymentDate']??'');$reference=(string)($bill['reference']??'');
-        $signature=strtoupper(trim($reference)).'|'.$from.'|'.$to.'|'.round((float)($bill['amount']??0),2);
-        if(($bill['utilityType']??'')==='ELECTRICITY'&&$reference!==''&&isset($seenElectricity[$signature]))continue;
-        $add('UTILITY|'.$bill['id'],(string)($bill['utilityTypeName']??'Mill Utility'),$from,$to,(float)($bill['amount']??0),$reference);
+    $collections=['tt38kebills'=>['KE','Electricity'],'tt38labourbills'=>['LAB','Labour'],'tt37processingexpenses'=>['EXP','Processing Expense'],'tt38reprocessbills'=>['RP','Reprocessing']];
+    $seen=[];$seenElectricity=[];
+    foreach ($collections as $collection=>[$prefix,$type]) {
+        $rows=pc_op($ops,$collection);
+        // The immutable posted snapshot remains a source if an operational row disappears.
+        foreach ($booked as $key=>$record) if (($record['sourceCollection']??'')===$collection&&!array_filter($rows,static fn($r)=>(string)($r['id']??'')===(string)$record['sourceRecordId'])&&is_array($record['sourceSnapshot']??null)) $rows[]=$record['sourceSnapshot'];
+        foreach ($rows as $current) {
+            if (!is_array($current)||strtoupper((string)($current['entity']??''))!==$entity) continue;
+            $key=$collection.'|'.(string)($current['id']??'');if(isset($seen[$key]))continue;$seen[$key]=true;
+            $record=$booked[$key]??null;
+            if (is_array($record)&&($record['status']??'')==='Reversed') continue;
+            $x=is_array($record['sourceSnapshot']??null)?$record['sourceSnapshot']:$current;
+            $journal=is_array($record)?($store['journals'][$record['journalId']??'']??null):null;
+            $verified=!is_array($record)||(is_array($journal)&&($journal['status']??'')==='Posted'&&($journal['meta']['millSourceKey']??'')===($record['key']??''));
+            $provenance=['sourceCollection'=>$collection,'sourceRecordId'=>(string)($x['id']??''),'postingVerified'=>$verified,'accountsStatus'=>is_array($record)?($verified?'Posted':'Posting requires reconciliation'):'Operational bill — Accounts posting unverified','postId'=>(string)($record['journalId']??''),'sourceAmended'=>is_array($record)&&$current!==$x];
+            $from=(string)($prefix==='KE'?($x['readFrom']??$x['date']??''):($x['from']??$x['date']??''));$to=(string)($prefix==='KE'?($x['readTo']??$x['date']??''):($x['till']??$x['date']??''));
+            $ref=(string)($x['billNo']??$x['ref']??'');$mill=(string)($x['millName']??$x['locationName']??$x['mill']??'');
+            $amount=(float)($x['amount']??0);
+            $add($prefix.'|'.($x['id']??$ref),$prefix==='EXP'?(string)($x['type']??$type):$type,$from,$to,$amount,$ref,$mill,$provenance);
+            if ($prefix==='KE') $seenElectricity[strtoupper(trim($ref)).'|'.$from.'|'.$to.'|'.round($amount,2).'|'.pc_norm($mill)]=true;
+        }
     }
-    foreach (pc_op($ops, 'tt38labourbills') as $x) {
-        if (!is_array($x)||strtoupper((string)($x['entity']??'TTI'))!==$entity) continue;
-        $add('LAB|' . ($x['id'] ?? $x['billNo'] ?? count($sources)), 'Labour', (string)($x['from'] ?? $x['date'] ?? ''), (string)($x['till'] ?? $x['date'] ?? ''), (float)($x['amount'] ?? 0), (string)($x['billNo'] ?? $x['ref'] ?? ''));
-    }
-    foreach (pc_op($ops, 'tt37processingexpenses') as $x) {
-        if (!is_array($x)||strtoupper((string)($x['entity']??'TTI'))!==$entity) continue;
-        $date = (string)($x['date'] ?? '');
-        $add('EXP|' . ($x['id'] ?? $x['ref'] ?? count($sources)), (string)($x['type'] ?? 'Processing Expense'), $date, $date, (float)($x['amount'] ?? 0), (string)($x['ref'] ?? ''));
+    foreach ((array)($store['utilityPayments']??[]) as $bill) {
+        if (!is_array($bill)||($bill['entity']??'')!==$entity||($bill['status']??'')==='Deleted'||empty($bill['productionCostEligible'])) continue;
+        $from=(string)($bill['readFrom']??$bill['paymentDate']??'');$to=(string)($bill['readTo']??$bill['paymentDate']??'');$reference=(string)($bill['reference']??'');$mill=(string)($bill['locationName']??'');
+        $signature=strtoupper(trim($reference)).'|'.$from.'|'.$to.'|'.round((float)($bill['amount']??0),2).'|'.pc_norm($mill);
+        if (($bill['utilityType']??'')==='ELECTRICITY'&&$reference!==''&&isset($seenElectricity[$signature])) continue;
+        $add('UTILITY|'.$bill['id'],(string)($bill['utilityTypeName']??'Mill Utility'),$from,$to,(float)($bill['amount']??0),$reference,$mill,['accountsStatus'=>'Posted payment','postId'=>(string)($bill['journalId']??'')]);
     }
     return $sources;
 }
@@ -346,11 +358,12 @@ function pc_calculate(array $store, array $ops, string $entity): array {
         $sourceRows = [];
         foreach ($sources as $source) {
             if ($g['date'] < $source['from'] || $g['date'] > $source['to']) continue;
-            $allocated = (float)$g['inputKg'] * (float)$source['ratePerKg'];
+            if (!array_key_exists($g['id'],$source['allocations'])) continue;
+            $allocated = (float)$source['allocations'][$g['id']];
             $conversion += $allocated;
             $sourceRows[] = [
                 'id' => $source['id'],
-                'type' => $source['type'],
+                'type' => $source['type'],'millName'=>$source['millName'],'accountsStatus'=>$source['accountsStatus']??'Unverified','postId'=>$source['postId']??'','sourceAmended'=>$source['sourceAmended']??false,'postingVerified'=>$source['postingVerified']??true,
                 'reference' => $source['reference'],
                 'allocatedAmount' => round($allocated, 2),
                 'ratePerKg' => round((float)$source['ratePerKg'], 6),'inputComplete'=>$source['inputComplete']??true,
@@ -386,13 +399,16 @@ function pc_calculate(array $store, array $ops, string $entity): array {
         $missing = array_values(array_unique($missing));
         $readyCost = round($jointCost - $byProductValue, 2);
         $readyRate = $g['readyKg'] > 0 && $readyCost > 0 ? $readyCost / (float)$g['readyKg'] : 0;
-        $allocationComplete=true;foreach($sourceRows as $source)if(($source['inputComplete']??true)===false)$allocationComplete=false;
+        $unknownCostLocation=false;foreach($sources as $s)if($s['millScope']===''&&$g['date']>=$s['from']&&$g['date']<=$s['to'])$unknownCostLocation=true;
+        $allocationComplete=!$unknownCostLocation;foreach($sourceRows as $source)if(($source['inputComplete']??true)===false)$allocationComplete=false;
 
-        $costFingerprint=hash('sha256',json_encode([$g['productionFingerprint'],$entity,$average,$rawCost,$sourceRows,$byProducts,$readyCost],JSON_THROW_ON_ERROR));if($approved&&!empty($approved['calculation']['costFingerprint'])&&!hash_equals($approved['calculation']['costFingerprint'],$costFingerprint)){$sourceChanged=true;$uncertain[$key]=true;}
+        $numericSourceRows=array_map(static fn($r)=>array_diff_key($r,array_flip(['millName','accountsStatus','postId','sourceAmended','postingVerified'])),$sourceRows);
+        $costFingerprint=hash('sha256',json_encode([$g['productionFingerprint'],$entity,$average,$rawCost,$numericSourceRows,$byProducts,$readyCost],JSON_THROW_ON_ERROR));if($approved&&!empty($approved['calculation']['costFingerprint'])&&!hash_equals($approved['calculation']['costFingerprint'],$costFingerprint)){$sourceChanged=true;$uncertain[$key]=true;}
         if ($approved) $status=$sourceChanged?'Approved cost — production changed or source costs changed; review required':(($approved['calculation']['quantityBasis']??'')==='ACTUAL_INPUT'?'Approved':'Approved historical cost — actual input unverified');
         elseif (!empty($g['requiresInputStockCost'])) $status='Waiting — reprocessing input-stock cost needs review';
         elseif (empty($g['inputComplete'])) $status='Waiting — actual raw input is missing';
         elseif ($poolWasUncertain) $status='Waiting — earlier production input is missing or changed';
+        elseif ($unknownCostLocation) $status='Waiting — Mill cost location is unverified';
         elseif (!$allocationComplete) $status='Waiting — actual input is missing in the cost-allocation period';
         elseif (!$enough) $status = 'Waiting — purchase stock is short';
         elseif ($average <= 0) $status = 'Waiting — purchase cost is missing';
@@ -432,7 +448,7 @@ function pc_calculate(array $store, array $ops, string $entity): array {
             'approvedRateId' => $approved['rateId'] ?? null,
             'approvedAt' => $approved['approvedAt'] ?? null,
         ];
-        $last=count($result)-1;$result[$last]['reviewFingerprint']=hash('sha256',json_encode([$g['productionFingerprint'],$entity,$average,$rawCost,$sourceRows,$byProducts,$readyCost],JSON_THROW_ON_ERROR));
+        $last=count($result)-1;$result[$last]['reviewFingerprint']=hash('sha256',json_encode([$g['productionFingerprint'],$entity,$average,$rawCost,$numericSourceRows,$byProducts,$readyCost],JSON_THROW_ON_ERROR));
         if($approved){$row=&$result[count($result)-1];foreach(['inputKg','readyKg','rawAverageCostPerKg','rawCost','conversionCost','conversionCostPerKg','byProducts','conversionSources','byProductValue','readyRiceCost'] as $field)if(array_key_exists($field,$approved['calculation']??[]))$row[$field]=$approved['calculation'][$field];$row['suggestedReadyRiceCostPerKg']=$approved['costPerKg']??null;unset($row);}
 
     }

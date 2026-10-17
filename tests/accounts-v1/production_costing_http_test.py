@@ -11,9 +11,9 @@ function tt_user_can_open_module($u,$m){return $m==='Accounts';}
 function tt_user_can_access_entity($u,$e,$a='View'){return $u['role']==='Super Admin'||($e==='TTI'&&$a==='View');}
 function tt_verify_csrf($v){return $v==='fixture';}
 ''')
- p={'id':1,'entity':'TTI','date':'2026-10-03','variety':'IRRI-6','sourceVariety':'IRRI-6 White Rice','recoveryVersion':1,'rawInputs':[{'grossKg':1000}],'rows':[{'id':1,'product':'Ready Rice — A','bags':14,'bagWeight':50},{'id':2,'product':'Stone','bags':6,'bagWeight':50}]}
+ p={'id':1,'entity':'TTI','millName':'TTI Rice Mills','date':'2026-10-03','variety':'IRRI-6','sourceVariety':'IRRI-6 White Rice','recoveryVersion':1,'rawInputs':[{'grossKg':1000}],'rows':[{'id':1,'product':'Ready Rice — A','bags':14,'bagWeight':50},{'id':2,'product':'Stone','bags':6,'bagWeight':50}]}
  store={'revision':1,'events':[{'entity':'TTI','eventType':'COMMODITY_RECEIPT_ACCEPTED','sourceKey':'R1','journalId':'J1'}],'journals':{'J1':{'id':'J1','entity':'TTI','date':'2026-10-01','totalDebit':60000,'meta':{'variety':'IRRI-6 White Rice','payableWeightKg':2000}}},'commodityBills':{'B1':{'id':'B1','status':'Verified / Posted','finalCommodityValue':60000,'receiptAllocations':[{'sourceKey':'R1','provisionalAmount':60000}]}}}
- ops={'values':{'tt30prod':json.dumps([p]),'tt38labourbills':json.dumps([{'id':1,'entity':'TTI','date':'2026-10-03','amount':2000}])}}
+ ops={'values':{'tt30prod':json.dumps([p]),'tt38labourbills':json.dumps([{'id':1,'entity':'TTI','millName':'TTI Rice Mills','date':'2026-10-03','amount':2000}])}}
  books=root/'data/accounts.json';source=root/'data/operations.json';books.write_text(json.dumps(store));source.write_text(json.dumps(ops))
  with socket.socket() as s:s.bind(('127.0.0.1',0));port=s.getsockname()[1]
  log=open(root/'php.log','w');server=subprocess.Popen(['php','-S',f'127.0.0.1:{port}','-t',str(root)],stdout=log,stderr=log)
