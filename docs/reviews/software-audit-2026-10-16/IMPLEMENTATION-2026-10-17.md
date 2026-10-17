@@ -157,6 +157,13 @@ Local pure, source-controller, lock-contention, original/replay, dependency, per
 
 Hosted confirmation: both full suites passed at 366ef860e3a625f2bb0477aa44cc09d0340c12ff (Accounts 39033723677; Milling/Exports 39033723714). The hosted inventory runtime explicitly passed the actual native save/retention/print DOM case, source amendment UI recovery/read-only/validation case and real MySQL amendment/lock/replay controller case. An additional disposable full-browser handoff now exercises the real authenticated Milling wrapper, failed native source save and retry, actual Accounts review and source amendment/replacement, partial/full payment and replay, original journal preservation, verified Mill outstanding balance and CSV. It awaits its own hosted full run. PR 290 remains undeployed.
 
+### Added owner requirement — individual bank ledgers in name search
+
+Owner reported that typing Meezan Bank in Ledgers by Party or Name did not show individual bank accounts. The name selector listed only party aliases and posted parties; actual company bank accounts were available only through the separate account selector.
+
+Added each company-scoped bank account to the same name search with its saved bank name, account number/title and currency. Selection routes to the existing exact BANK identity and clears the counterparty filter, so another account at the same bank is not mixed into the statement. The name-search view remains selected; ordinary party lookup and the existing direct bank selector remain available. Unused saved bank ledgers remain reviewable as provided by the existing bank catalog. Typing does not refresh or save. Print and Excel continue to use the selected committed statement.
+
+Local actual ledger endpoint fixtures pass separate same-bank account openings, movements and transfers; company isolation; unused USD account; and byte-unchanged original journals. Hosted DOM coverage for selection, retained name mode, statement/print identity, manual-only reads and existing party/direct-bank routes awaits full CI. No bank master, opening balance or journal has been changed.
 ### Production Save acknowledgement — separate release candidate
 
 PR 292's public-only operational Save responses are deployed as e10fa4954a3665974459dfcede3a52a9b5fe342c. Main Accounts 39038650976 and Milling/Exports 39038650953 passed; deployment 39038874494 succeeded. Live read-only smoke 39038943741 and startup performance 39038943957 passed.

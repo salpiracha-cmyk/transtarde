@@ -1,0 +1,22 @@
+const assert=require('node:assert/strict'),fs=require('node:fs'),{JSDOM}=require('jsdom');
+const dom=new JSDOM('<body></body>',{url:'https://fixture.invalid/accounts/',runScripts:'outside-only'}),w=dom.window;
+const turn=()=>new Promise(r=>setTimeout(r,0));let requests=[],printed='';
+w.localStorage.setItem('tt_accounts_entity','TTI');
+const accounts=[{code:'BANK|M1',name:'Meezan Bank · 001122 · PKR · Current account'},{code:'BANK|M2',name:'Meezan Bank · 003344 · PKR · Savings account'},{code:'BANK|ZERO',name:'Meezan Bank · 005566 · USD · Dollar account'},{code:'1110',name:'Bank control'}];
+w.fetch=async url=>{const p=new URL(String(url),w.location.href).searchParams;requests.push(Object.fromEntries(p));const bank=p.get('account')||'',party=p.get('party')||'',n=bank==='BANK|M1'?112:bank==='BANK|M2'?222:0;
+ return {ok:true,json:async()=>({ok:true,accounts,rows:bank?[{voucher:bank==='BANK|M1'?'POST-2026-00001':'POST-2026-00002',date:'2026-10-01',account:bank,accountName:accounts.find(r=>r.code===bank).name,debit:n,credit:0,balance:n,narration:'Actual selected bank movement'}]:[],opening:0,closing:bank?n:null,currency:bank==='BANK|ZERO'?'USD':'PKR',party,parties:['Meezan Bank Supplies'],partyAliases:[{name:'Meezan Bank Supplies',code:'SUP-1'}]})};};
+w.TT_PRINT={create:()=>({document:{write:s=>printed=s,close:()=>{}},print:()=>{}})};
+w.eval(fs.readFileSync('accounts/all-ledgers-ui.js','utf8'));
+const q=s=>w.document.querySelector(s);
+(async()=>{
+ await w.TT_ALL_LEDGERS.open('','party');assert.equal(q('#tal-view').value,'party');assert.equal(q('#tal-account'),null);
+ const options=[...q('#tal-parties').options].map(r=>r.value);assert.equal(options.filter(s=>s.includes('Bank account')).length,3,'Every individual bank, including unused bank, is searchable');assert(options.some(s=>s.includes('Meezan Bank Supplies')));
+ const bank1=options.find(s=>s.includes('001122')),bank2=options.find(s=>s.includes('003344'));
+ const count=requests.length;q('#tal-party').value='meezan bank';q('#tal-party').dispatchEvent(new w.Event('input',{bubbles:true}));await turn();assert.equal(requests.length,count,'Typing refreshed the statement');
+ q('#tal-party').value=bank1;q('#tal-party').dispatchEvent(new w.Event('change',{bubbles:true}));await turn();await turn();
+ assert.equal(requests.at(-1).account,'BANK|M1');assert.equal(requests.at(-1).category,'bank');assert.equal(requests.at(-1).party,'','Bank name must not become a counterparty filter');assert.equal(q('#tal-view').value,'party','Selected bank should stay in the name lookup');assert.equal(q('#tal-party').value,bank1);assert.match(q('#tal-result').textContent,/112\.00/);q('#tal-print').click();assert(printed.includes('001122')&&!printed.includes('003344'));
+ q('#tal-party').value=bank2;q('#tal-party').dispatchEvent(new w.Event('change',{bubbles:true}));await turn();await turn();assert.equal(requests.at(-1).account,'BANK|M2');assert.equal(requests.at(-1).party,'');assert.match(q('#tal-result').textContent,/222\.00/);assert(!q('#tal-result').textContent.includes('POST-2026-00001'));
+ q('#tal-party').value='Meezan Bank Supplies';q('#tal-party').dispatchEvent(new w.Event('change',{bubbles:true}));await turn();await turn();assert.equal(requests.at(-1).category,'party');assert.equal(requests.at(-1).account,'');assert.equal(requests.at(-1).party,'Meezan Bank Supplies');
+ await w.TT_ALL_LEDGERS.open('BANK|M1');assert.equal(q('#tal-view').value,'other');assert.equal(q('#tal-account').value,'BANK|M1','Existing direct bank-ledger route remains available');
+ w.close();console.log('PASS name search lists separate bank accounts and currencies including zero activity, typing reads nothing, chosen bank retains name mode and exact ledger/print identity, party and direct-bank routes preserved');
+})().catch(error=>{console.error(error);process.exitCode=1;w.close();});
