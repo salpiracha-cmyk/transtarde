@@ -84,10 +84,10 @@ def run():
             # Real authenticated production form: a failed source Save retains its
             # raw inputs; its later acknowledged amendment survives a lost response.
             financial_before=books.read_bytes();mill.evaluate("openPanel('production')")
-            mill.locator('#prodDate').fill('2026-10-17');mill.locator('#capacityReason').fill('Actual fixture production downtime')
+            mill.locator('#prodDate').fill('2026-10-17')
             mill.locator('#prodTable tr').first.locator('input').first.fill('10')
             raw=mill.locator('#productionActualInput [data-raw-index="0"]')
-            raw.locator('[data-field="lotRef"]').fill('QA-RAW-LOT');raw.locator('[data-field="grossKg"]').fill('600')
+            raw.locator('[data-field="lotRef"]').fill('QA-RAW-LOT');raw.locator('[data-field="grossKg"]').fill('600');mill.locator('#capacityReason').fill('Actual fixture production downtime')
             blocked[0]=True;mill.get_by_role('button',name='Save Production',exact=True).click();mill.locator('[data-production-save-recovery]').wait_for()
             assert raw.locator('[data-field="grossKg"]').input_value()=='600' and books.read_bytes()==financial_before
             with mill.expect_response(lambda r:'/api/operations.mysql.php?asset_refs=1' in r.url and r.request.method=='POST') as production_response:mill.get_by_role('button',name='Save Production',exact=True).click()
