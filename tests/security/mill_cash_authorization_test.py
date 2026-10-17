@@ -113,6 +113,17 @@ if($argv[1]==='seed'){
     assert write('tt30petty', originals['tt30petty'],base=0)[0]==409
     assert write('tt30petty', originals['tt30petty'],module='Exports')[0]==403
     assert stored()==before
+    # A public edit restores server-only reconciliation rows internally, but its
+    # acknowledgement must use the same public projection as an operational GET.
+    hidden={'product':'INTERNAL_RECONCILIATION_SENTINEL','systemKg':999,'managedReconciliation':True,'managementOnly':True,'systemFixed':True,'noStockPost':True,'calculationRate':987654321}
+    production={'id':700,'entity':'TTI','millId':1,'millName':'TTI Rice Mills','date':'2026-10-17','shift':'Day','variety':'IRRI-6','rows':[hidden],'reason':'Original'}
+    seed_values['tt30prod']=json.dumps([production]);seed({'production':['View','Edit']})
+    public={**production,'rows':[],'reason':'Actual permitted operational note edit'}
+    status,response=write('tt30prod',[public]);assert status==200,response
+    assert 'INTERNAL_RECONCILIATION_SENTINEL' not in json.dumps(response) and '987654321' not in json.dumps(response),'Save acknowledgement revealed protected reconciliation facts'
+    assert json.loads(response['value'])[0]['rows']==[]
+    private_values={r['storage_key']:r['payload'] for r in json.loads(stored())} if MYSQL else json.loads(stored())['values']
+    assert json.loads(private_values['tt30prod'])[0]['rows']==[hidden],'Public response filtering deleted protected source history'
     if MYSQL:
         subprocess.run(['php',str(sql_script),'cleanup'],env=env,check=True,capture_output=True)
-    print('PASS '+('MySQL' if MYSQL else 'file')+' cash target permissions, unchanged rejected writes, linked sales/expenses, duplicates, exact actions, legacy/owner rights, CSRF and versions')
+    print('PASS '+('MySQL' if MYSQL else 'file')+' cash target permissions, unchanged rejected writes, linked sales/expenses, duplicates, exact actions, legacy/owner rights, CSRF, versions and public-only save acknowledgements preserving private rows')
