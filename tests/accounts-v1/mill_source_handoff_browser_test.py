@@ -88,6 +88,7 @@ def run():
             mill.locator('#prodTable tr').first.locator('input').first.fill('10')
             raw=mill.locator('#productionActualInput [data-raw-index="0"]')
             raw.locator('[data-field="lotRef"]').fill('QA-RAW-LOT');raw.locator('[data-field="grossKg"]').fill('600');mill.locator('#capacityReason').fill('Actual fixture production downtime')
+            mill.locator('[data-review-source-bags]').click();mill.locator('[data-source-lot]').wait_for();mill.locator('[data-source-lot]').fill('10')
             blocked[0]=True;mill.get_by_role('button',name='Save Production',exact=True).click();mill.locator('[data-production-save-recovery]').wait_for()
             assert raw.locator('[data-field="grossKg"]').input_value()=='600' and books.read_bytes()==financial_before
             with mill.expect_response(lambda r:'/api/operations.mysql.php?asset_refs=1' in r.url and r.request.method=='POST') as production_response:mill.get_by_role('button',name='Save Production',exact=True).click()
@@ -95,8 +96,11 @@ def run():
             mill.wait_for_function("document.querySelector('#productionActualInput [data-field=grossKg]').value === ''")
             saved_ops=context.request.get(base+'/api/operations.mysql.php').json();productions=json.loads(saved_ops['values']['tt30prod']);assert len(productions)==1
             run=productions[0];assert run['rawInputs'][0]['grossKg']==600 and run['rows'][0]['bags']==10
+            assert run['bagAllocationVersion']==1 and run['bagAllocations'][0]['qty']==10 and run['bagAllocations'][0]['sourceSnapshot']['poNo']=='QA-PO'
+            inventory=context.request.get(base+'/api/bag_transfers.php?purpose=production&entity=TTI&locationId=mills-1&asOf=2026-10-17').json();assert inventory['inventory']['lots']['PO|100|mills-1']['availableQty']==90
             issues=json.loads(saved_ops['values']['tt36bagissues']);assert len(issues)==1 and issues[0]['usage']['QA PRODUCTION']==10 and issues[0]['userId']==1000
             mill.evaluate('(id)=>loadProductionForEdit(id)',run['id']);assert mill.locator('#capacityReason').input_value()=='Actual fixture production downtime';raw=mill.locator('#productionActualInput [data-raw-index="0"]');raw.locator('[data-field="grossKg"]').fill('700');mill.locator('#prodTable tr').first.locator('input').first.fill('12')
+            mill.locator('[data-review-source-bags]').click();mill.locator('[data-source-lot]').wait_for();mill.locator('[data-source-lot]').fill('12')
             context.unroute('**/api/operations.mysql.php?asset_refs=1',intercept);lost=[True];source_posts=[]
             def lost_ack(route):
                 if route.request.method=='POST':

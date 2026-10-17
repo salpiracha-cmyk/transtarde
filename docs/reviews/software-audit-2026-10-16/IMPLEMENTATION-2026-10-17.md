@@ -199,3 +199,12 @@ The new owner bank-ledger requirement passed full Accounts 39040449161 and Milli
 Production Save release final verification: live read-only smoke 39040700045/job 117419452710 passed 18/18. Bank lookup main Accounts 39040726613 and Milling/Exports 39040726698 passed; deployment 39040963203 succeeded at 4a7d213d65f444d6bf5578e8c58eb3d8be72b129. Bank release live smoke 39041022060 and startup performance 39041022169 remain in progress at this checkpoint. All live validation is read-only; no production, bank opening or financial test entry was made.
 
 The bag allocation draft additionally rejects future-dated actual packing, using the same actual-date validation as dispatch. Local shared-writer allocation tests pass. This additional draft change and integration with the deployed bank lookup require fresh full branch QA; native transfer/receipt/quarantine/legacy reconciliation release gates remain open.
+
+
+### Production source-bag selection UI — resumed 17 October
+
+Added a draft Production review of actual empty bags, original PO/source lots, packing and material. Separate lots and packing sizes are chosen explicitly, including received transfer stock; quantities must match actual whole bag usage. Fractional output equivalents remain unchanged and require independently entered whole empty-bag counts. Invalid or blank physical counts cannot be rounded or converted into zero. Reads occur only on explicit Review; typing never commits or refreshes.
+
+Save Production now passes the reviewed source allocations and stock fingerprint to the existing atomic source writer. Saved source snapshots remain visible during amendments. Raw-input-only edits retain their original bag allocation without a fresh stock read. Quantity, date and company/location changes require review; failed reviews preserve entered source quantities, and late responses cannot replace another scope. The existing real browser handoff now selects actual source bags and verifies original PO and remaining stock.
+
+Local syntax and pure count/unchanged-allocation checks pass. Local workspace execution became unavailable during this continuation; the enhanced DOM and actual browser/controller suites are being run through the draft branch's hosted QA. The connected local browser tool also reports that this chat lacks its originating browser context. No live stock test was posted. Transfer/receiving screens, quarantine and legacy receipt-scope reconciliation remain unfinished release gates. Maize labour design remains deferred.
