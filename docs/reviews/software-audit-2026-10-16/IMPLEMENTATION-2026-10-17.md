@@ -173,3 +173,74 @@ Production Save previously announced success, staged browser collections and cle
 Bag-use history and actual-actor amendment evidence now commit inside the production transaction. MySQL locks the dependent rows and returns their public confirmed versions. Source-managed history cannot be overwritten, deleted or attributed by generic browser writes. Management-only reconciliation rows stay stored and stay out of source and related-history acknowledgements. Production continues to use its existing actual input/recovery validation and existing packing availability rule; this does not release the unfinished acknowledged transfer/allocation UI.
 
 Local source-save, shared-cache isolation, actual production controller, Create/Edit boundaries, atomic usage/audit, private preservation and inventory regression tests pass. Hosted full QA, native DOM and real authenticated browser failure/lost-response tests are pending for this release candidate. No live production, financial or opening records were created.
+
+
+### Continued full review — 18 October 2026, connection-limited checkpoint
+
+The owner's specifically authorised date correction is saved and verified after
+reload; the current bank balance did not change. The three previously identified
+test arrivals remain archived; no second withdrawal was performed.
+
+Sales Tax PR298 merged dfcbeda51496ee1b44e8e30d790e5234ce3222ea after final
+Accounts39067668505 / Milling39067668421 passed. Main39067928763/39067928762 passed.
+Deployment39068162740/job117500035685 confirmed this exact deployed SHA and healthy
+login. Post-deploy smoke39068250504/job117500292732 and startup39068250546/
+job117500292906 passed. Actual Chrome verified three matching lot rows for the
+selected September-to-October interval, with preparation rows removed and distinct
+same-named uploads retained. Issued native CI/PL archive links and original advice
+mapping are not certified by this result.
+
+WHT PR300 final head d126f3a9938e04ef6391a6c867f5526af1750e83 passed full
+Accounts39068647505 (jobs117501457087/117501457256) and Milling39068647514
+(job117501457056). Native browser tests printed the source report, downloaded CSV,
+compared matching source references/tax figures and retained byte-identical books.
+Initial requests now use displayed dates; source detail, summary, category filter
+and exports share one snapshot. Narratives require Reports View and are omitted
+from ordinary master-editor responses. Merged f7dcdc0c92a535b3d42f97bc3f3e1e59e02706ea.
+Its main Accounts39069072183 passed; Milling39069072160 passed. Combined production
+deployment and fresh live acceptance still need final confirmation.
+
+Sales Tax source integrity PR301 head17220c0e112cb713c9d80d1d8963fe2aa8b87f4a
+passed Accounts39068925008 and Milling39068925085. Merged
+cd4f78727a6710434eecf9934c17a7d4f969d8ba. Shared file-read locks and strict JSON
+validation now return an explicit failure for unreadable sources instead of false
+empty results; a failed configured document database no longer falls back to an
+older file index. Corrupt-source endpoint probes preserve the source bytes.
+
+Actual Chrome confirmed Product Status duplicated Profile/use wording. PR302
+head010eb2e6c3da7b11f3498ab13780c67b6be37cd8 passed Accounts39069028358 and
+Milling39069028419. Merged ee4e85de869d9f521ebb6ae2324c69a9547f66a9. The label
+uses the same existing inactive rule, preserving profiles, filters and records.
+Main Accounts39069326811 / Milling39069326681 and combined deployment are pending.
+
+Draft PR284 is superseded by PR299. Latest group foundation
+94e1815e54e0f893a6bc0efa3bec711246e2b03a passed Accounts39068452707 and
+Milling39068452799. It includes cutoff-aware original-post detail, partial annual
+assessment labels, completed-only prior-year carry and server-derived selected
+Rice actual comparisons. Original run IDs/source revisions survive; estimates or
+incomplete cost allocation never become actual costs. Optional separate freight
+proceeds receive proportional deductions once, while freight paid remains a cost.
+Keep draft/undeployed: automatic Daily report, missing-cost estimates, Corn actual
+comparison, source-linked TG shipment profit and final annual payment reconciliation
+remain unfinished.
+
+PR303 strengthens the existing workspace-response fixture: uncaught DOM exceptions
+must fail the test. Its initial drain-only cleanup still failed because window
+closure itself queues observer callbacks. Latest b5dba16401c554081bee901c2250764b8d05b2de
+disconnects fixture-owned observers before closing and retains all active-lifetime
+error assertions. Accounts39069446646 / Milling39069446651 are running.
+
+Local shell, alternate file runtime and Chrome transports disconnected during this
+continuation. GitHub remains available; source review and hosted checks continue.
+Fresh Chrome checks, local updates and restore acceptance cannot be claimed until
+the connection recovers. Security Scan SKILL.md was read but its mandatory prologue
+and preflight could not load (skill environment unavailable). No security scan was
+started, no worker was launched and no security clearance is claimed. Resume by
+reading the required references and obtaining a ready preflight first.
+
+The full review and migration sign-off remain open. Preserve missing historical
+receipt facts and salary/rent allocation holds. Complete the canonical recurring
+reference reconciliation, external Corn route, report/document outputs, Master
+agreement versions and remaining real role/action/source/restore acceptance.
+Maize labour design remains explicitly deferred; do not infer Rice rates or repeat
+its existing reminder. No master field or historical financial record was deleted.
