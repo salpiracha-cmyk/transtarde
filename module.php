@@ -29,6 +29,16 @@ if ($id === 'milling') {
         $html
     );
 }
+if ($id === 'milling') {
+    // This folder is intentionally denied by Apache; deliver the ledger only after module authentication.
+    $riceLedgerFile = __DIR__.'/milling/rice-ledger.js';
+    if (!is_file($riceLedgerFile) || ($riceLedger = file_get_contents($riceLedgerFile)) === false) { http_response_code(503); exit('Rice Ledger assets are unavailable.'); }
+    $html = tt_replace_html_once(
+        '~<script\b[^>]*src=["\']/milling/rice-ledger\.js[^"\']*["\'][^>]*>\s*</script>~i',
+        static fn(): string => '<script id="milling-rice-ledger">' . str_replace('</script', '<\\/script', $riceLedger) . '</script>',
+        $html
+    );
+}
 if ($id === 'exports') {
     $cssFile = __DIR__ . '/exports/app.css';
     $jsFile = __DIR__ . '/exports/app.js';

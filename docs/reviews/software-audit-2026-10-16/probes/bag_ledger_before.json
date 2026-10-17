@@ -1,0 +1,16 @@
+{
+  "finding": "C18",
+  "status": "failed",
+  "environment": "Disposable actual report-function DOM fixture; no live record touched",
+  "selectedScope": {
+    "entity": "TTI",
+    "millName": "TTI Rice Mills"
+  },
+  "selectedTo": "2026-09-30",
+  "expectedTTIBrandAClosing": 25,
+  "rangeOutwardDisplayedClosing": "-5",
+  "tillDateDisplayedClosing": "125",
+  "afterAddingBRMReceiptDisplayedClosing": "525",
+  "writes": 0,
+  "interpretation": "Range/movement filtering loses opening and hidden movement balances; Till Date includes future receipts; other-company records affect selected-mill report."
+}

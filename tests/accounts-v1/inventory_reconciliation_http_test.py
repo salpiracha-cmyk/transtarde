@@ -136,6 +136,7 @@ def run() -> None:
         c,d=request('qaowner','/api/production_fixed_overhead.php?entity=TTI');check(c==200 and d['months'][date[:7]]['readyRiceKg']==10000,'Fixed overhead uses same-company canonical finished production',d)
         c,module_html=request('qamill','/module.php?id=milling');check(c==200 and '<script id="milling-production-recovery-entry">' in module_html and '<script src="/milling/production-recovery-entry.js' not in module_html,'Protected Milling dependency is delivered inline through authenticated module')
         check(module_html.index('window.TT_PRODUCTION_RECOVERY=')<module_html.index('function calcProduction('),'Actual input helper executes before production startup')
+        check('<script id="milling-rice-ledger">' in module_html and '<script src="/milling/rice-ledger.js' not in module_html and 'window.TT_RICE_LEDGER={load,print,csv}' in module_html,'Rice Ledger is delivered through the actual authenticated module, not the denied Milling folder')
         c,html=request('qamill','/accounts/production-reports.php?entity=TTI');check(c==200 and '/module.php?id=milling' in html,'Mill report return uses the actual module route')
         c,html=request('qaaccounts','/accounts/production-reports.php?entity=TTI');check(c==200 and '/accounts/?return=production-report' in html,'Accounts report return retains Reports origin')
         c,html=request('qadirector','/accounts/production-reports.php?entity=TTI');check(c==200 and '/directors/index.php' in html,'Director report returns to the authorized Directors module')
