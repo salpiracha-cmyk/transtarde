@@ -4,7 +4,7 @@ require dirname(__DIR__,2).'/scripts/arrival_dependency_core.php';
 function check(bool $condition,string $message):void {if (!$condition) throw new RuntimeException($message);}
 $slips=[];
 foreach (arrival_test_manifest() as $slip=>$expected) {
-    $i=count($slips);$slips[]=array_merge($expected,['slip'=>$slip,'id'=>1800000000000+$i,'queueId'=>1700000000000+$i,'bridgeId'=>'PHB-180000000000'.$i,'broker'=>'Shams','unloadingDate'=>'2026-09-23']);
+    $i=count($slips);$slips[]=array_merge($expected,['slip'=>$slip,'id'=>1800000000000+$i,'queueId'=>1700000000000+$i,'bridgeId'=>'PHB-180000000000'.$i,'broker'=>'shams broker','unloadingDate'=>'2026-09-23']);
 }
 $values=['tt30slips'=>json_encode($slips),'tt30queue'=>json_encode([['id'=>$slips[0]['queueId']]]),'tt38labourbills'=>json_encode([['id'=>'LAB-1','sourceSlips'=>[$slips[1]['id']]]]),'tt30ship'=>json_encode([['id'=>'REAL-SHIP','soda'=>'26002']])];
 $books=['events'=>['EVENT-1'=>['id'=>'EVENT-1','sourceKey'=>'TTI|'.$slips[0]['bridgeId'],'journalId'=>'POST-1']],

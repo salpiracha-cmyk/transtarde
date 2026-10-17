@@ -46,7 +46,7 @@ function arrival_dependency_audit(array $values, array $accounts): array {
         $row=$matches[0];$mismatch=[];
         foreach ($expected as $key=>$value) if (is_numeric($value)?(!is_numeric($row[$key]??null)||(float)$row[$key]!== (float)$value):strtoupper(trim((string)($row[$key]??'')))!==$value) $mismatch[]=$key;
         if (($row['unloadingDate']??'')!=='2026-09-23') $mismatch[]='unloadingDate';
-        if (strcasecmp(trim((string)($row['broker']??'')),'shams')!==0) $mismatch[]='broker';
+        if (strcasecmp(trim((string)($row['broker']??'')),'shams broker')!==0) $mismatch[]='broker';
         if (empty($row['id'])||empty($row['queueId'])) $mismatch[]='stable arrival / queue IDs';
         if ($mismatch) $errors[]=$slip.': identity mismatch: '.implode(', ',$mismatch);
         $targets[$slip]=$row;
@@ -73,6 +73,14 @@ function arrival_dependency_audit(array $values, array $accounts): array {
     }
     // Resolve financial dependencies by their canonical IDs too, even when the
     // dependent payment/allocation no longer carries the original PH number.
+    $acknowledgements=[];
+    foreach ($references as $ref) {
+        if ($ref['store']!=='operations'||$ref['collection']!=='tt39accountsoutbox'||$ref['journalId']==='') continue;
+        $journal=$accounts['journals'][$ref['journalId']]??null;
+        $paths=is_array($journal)?arrival_reference_paths($journal,$tokens):[];
+        $acknowledgements[]=['outboxKey'=>$ref['key'],'journalId'=>$ref['journalId'],'currentJournalExists'=>is_array($journal),'matchesArrival'=>(bool)$paths,
+            'currentSourceType'=>is_array($journal)?($journal['sourceType']??''):'','currentReference'=>is_array($journal)?($journal['reference']??''):''];
+    }
     $financialIds=[];
     foreach ($references as $r) if ($r['store']==='accounts') foreach (['key','id','journalId','billId'] as $key) if ($r[$key]!=='') $financialIds[]=$r[$key];
     $financialIds=array_values(array_unique($financialIds));$indirect=[];$seen=[];
@@ -101,6 +109,6 @@ function arrival_dependency_audit(array $values, array $accounts): array {
         if (!is_array($row)||!in_array((string)($row['sodaNo']??''),['26001','26002'],true)) continue;
         $sodas[]=['collection'=>$collection,'id'=>$row['id']??'','sodaNo'=>$row['sodaNo'],'entity'=>$row['entity']??'','locationId'=>$row['locationId']??'','locationName'=>$row['locationName']??$row['location']??''];
     }
-    return ['readOnly'=>true,'identityVerified'=>!$errors,'errors'=>$errors,'targets'=>$targets,'references'=>$references,'financialLinks'=>$indirect,'sourceSodas'=>$sodas,
+    return ['readOnly'=>true,'identityVerified'=>!$errors,'errors'=>$errors,'targets'=>$targets,'references'=>$references,'financialLinks'=>$indirect,'outboxAcknowledgements'=>$acknowledgements,'sourceSodas'=>$sodas,
         'scope'=>'Current operational and Accounts stores only. Historical snapshots/audit are retained. This report never authorises deletion of journals, bills, payments or source Sodas.'];
 }
