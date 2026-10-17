@@ -244,3 +244,47 @@ reference reconciliation, external Corn route, report/document outputs, Master
 agreement versions and remaining real role/action/source/restore acceptance.
 Maize labour design remains explicitly deferred; do not infer Rice rates or repeat
 its existing reminder. No master field or historical financial record was deleted.
+
+
+### Final verified release evidence for this connected interval
+
+Main ee4e85de869d9f521ebb6ae2324c69a9547f66a9 passed Accounts39069326811 and
+Milling39069326681. Deployment39069565736/job117504163064 succeeded; logs confirm
+that exact DEPLOYED_SHA and healthy production login. It includes PR298/300/301/302.
+Post-deployment Accounts smoke39069616913/job117504322430 passed18/18:10 individual
+PKR-bank comparisons,50 account-ledger comparisons across3 companies,0 concurrent
+revision skips and0 financial writes. Startup39069616869/job117504321811 passed.
+
+A separate hosted browser reached the production reports through the existing QA
+account while the local Chrome connection remained unavailable. Targeted
+run39069913412 passed initially; final count-evidence run39070073487/
+job117505673824 passed with3 Sales Tax rows,8 WHT source lines and15 product
+availability statuses. It validates deployed source loads, report date cutoffs,
+original-file IDs, WHT summary-to-line reconciliation and omission of transaction
+narratives from ordinary master responses. All report requests are GET. PR305
+retains these checks in the normal read-only post-deployment smoke; merged
+52e9ff0e2aaf7c307822f39028b6da7703d2d307. The temporary verification workflow is
+confined to verify/deployed-reports-20261018 and was not added to main.
+
+PR303 final full suites39069446646/39069446651 passed; merged
+311018374a19c884e99f019ba29dca1d70e76588. Its main full suites39069708396/
+39069708438 also passed. The first drain-only attempt remains recorded as failed;
+tracking/disconnecting fixture-owned observers before closing fixes the teardown
+without hiding uncaught errors during the test. These later commits change tests
+and evidence, not application transaction behavior.
+
+External Corn follow-up source trace: purchase_sodas.php chooses EX_MILL only for
+READY products; milling_purchase_sodas.php forces every RAW feed back to
+DELIVER_TO_STOCK; syncExMillPurchaseSodas in the native Mill HTML selects READY
+EX_MILL sources. The existing lifting handoff already carries commodity metadata
+and permits zero bags at the server, but the external native UI and Soda route
+still impose Rice assumptions. Before expanding this path, review handoff
+company/location authority and dated provisional-journal correction behavior in
+milling_purchase_sodas.php, then exercise the real native Corn purchase/load/bill
+flow in disposable storage. Do not describe the existing bridge-only case as full
+external Corn acceptance.
+
+Local shell, alternate filesystem runtime, Chrome and mandatory security skill
+reference reads remain disconnected. No security scan was started; its required
+preflight never returned ready. Preserve the open full-review/migration gates and
+resume without asking for the authorised date or repeating the test-arrival cleanup.
