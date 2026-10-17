@@ -83,6 +83,15 @@ else{$out=['values'=>[],'meta'=>[]];foreach($p->query('SELECT storage_key,payloa
     evidence=root/'acceptance.php';evidence.write_text("<?php require __DIR__.'/auth_store.php';require __DIR__.'/api/bag_acceptance_core.php';echo json_encode(bqa_current_line(['lineKey'=>'L1','orderedQty'=>200],['entity'=>'TTI','poNo'=>'PO-1','lineKey'=>'L1']));")
     def acceptance_now():return json.loads(subprocess.run(['php',str(evidence)],env=env,text=True,capture_output=True,check=True).stdout)
     actual=acceptance_now();assert actual['receivedQty']==114 and actual['acceptance']['material'],actual
+    if not MYSQL:
+        original_store=source.read_bytes()
+        for field,value in [('entity','BRM'),('locationId','mills-2'),('poNo','OTHER-PO'),('poLineKey','L2'),('brand','OTHER'),('size','25 kg'),('bagType','Jute')]:
+            conflict=json.loads(original_store);rows=json.loads(conflict['values']['tt33bagreceipts']);rows[0][field]=value
+            conflict['values']['tt33bagreceipts']=json.dumps(rows);source.write_text(json.dumps(conflict));unchanged=source.read_bytes()
+            refused=subprocess.run(['php',str(evidence)],env=env,text=True,capture_output=True)
+            assert refused.returncode!=0 and 'Reconcile the original receipt before billing' in refused.stderr,(field,refused.stdout,refused.stderr)
+            assert source.read_bytes()==unchanged and books.read_bytes()==financial,'Billing conflict review rewrote receipt evidence or books'
+        source.write_bytes(original_store)
     review=req()[1]['source'];disposition=dict(csrf='fixture',action='return_supplier',entity='TTI',locationId='mills-1',bagId='123',receiptId=receipt_id,date='2026-10-17',qty=1,reason='Actually returned damaged bags to original supplier',physicallyReturned=True,sourceFingerprint=review['fingerprint'],requestKey='actual-quarantine-return-0004')
     before=snapshot();assert req(dict(disposition,physicallyReturned=False))[0]==422 and snapshot()==before
     assert req(dict(disposition,date='2026-10-16'))[0]==422 and snapshot()==before

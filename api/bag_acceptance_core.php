@@ -67,6 +67,8 @@ function bqa_current_line(array $line,array $bill):array {
         $keep=$keep||!empty($order['keepReceiptOpen']);$flags['exception']=$flags['exception']||!empty($order['exceptionAlert']);
         foreach(['printing'=>'printingMismatch','material'=>'materialMismatch','quality'=>'qualityMismatch','tareMismatch'=>'tareMismatch'] as $out=>$in)$flags[$out]=$flags[$out]||!empty($order[$in]);$flags['tareMismatch']=$flags['tareMismatch']||!empty($order['actualTare']);
         foreach($receipts as $r){
+            $scope=['entity'=>$owner,'locationId'=>(string)($order['locationId']??$order['bagReceiptScope']['locationId']??''),'poNo'=>(string)$order['poNo'],'poLineKey'=>bqa_mill_line_key($order),'brand'=>(string)($order['brand']??''),'packingSize'=>(string)($order['size']??''),'bagType'=>(string)($order['bagType']??'')];
+            if(bti_receipt_scope_conflict($r,$scope)||(!empty($r['bagReceiptVersion'])&&bti_receipt_scope_conflict((array)($r['sourceSnapshot']??[]),$scope)))throw new DomainException('Physical receipt source conflicts with its current PO. Reconcile the original receipt before billing.');
             $position=br_position($r,$dispositions);$returned+=$position['returnedQty'];$grams=(float)($r['actualTareGrams']??0);$net=$position['netReceivedQty'];
             if($grams>0){$measured+=$net;$weight+=$net*$grams/1000;}
             foreach($position['events'] as $event)if($event['action']==='accept_corrected'&&(float)($event['actualTareGrams']??0)>0){$count=(int)$event['qty'];if($grams>0)$weight-=$count*$grams/1000;else $measured+=$count;$weight+=$count*(float)$event['actualTareGrams']/1000;}

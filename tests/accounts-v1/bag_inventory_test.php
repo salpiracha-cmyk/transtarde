@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require dirname(__DIR__,2).'/api/bag_inventory_core.php';
+require dirname(__DIR__,2).'/api/bag_receipts_core.php';
 function bi_check(bool $yes,string $why): void {if(!$yes)throw new RuntimeException($why);}
 $masters=['mills'=>[['id'=>'mills-1','values'=>['TTI Rice Mills','','Own Mill','','','Active']],['id'=>'mills-2','values'=>['Indus Rice Mill','','External Mill','','','Active']]]];
 $scope=['entity'=>'TTI','locationId'=>'mills-1','millName'=>'TTI Rice Mills'];$dest=['entity'=>'TTI','locationId'=>'mills-2','millName'=>'Indus Rice Mill'];$today='2026-10-17';
@@ -9,6 +10,12 @@ $receipt=['id'=>'R1','bagId'=>123,'date'=>'2026-10-01','qty'=>1000];$run=['id'=>
 $values=['tt30bags'=>json_encode([$order]),'tt33bagreceipts'=>json_encode([$receipt]),'tt30prod'=>json_encode([$run]),'tt36bagissues'=>json_encode([$issue])];$original=serialize([$values,$masters]);
 $view=bti_project($values,$masters,$scope,$today,$today);$id='PO|123|mills-1';bi_check($view['lots'][$id]['availableQty']===900,'Actual original PO receipts/production did not reconcile');bi_check($view['unallocatedConsumption']===[],'Unique physical source incorrectly held');
 bi_check(serialize([$values,$masters])===$original,'Inventory read rewrote source data');bi_check(bti_project($values,$masters,$scope,$today,$today)===$view,'Repeated read changed quantities/fingerprint');
+// Generic PO edits cannot relocate or erase pre-controller physical receipt history.
+foreach(['entity'=>'BRM','locationId'=>'mills-2','mill'=>'Indus Rice Mill','poNo'=>'OTHER','poLineKey'=>'L2','brand'=>'OTHER','size'=>'25 kg','bagType'=>'Jute','supplier'=>'Other supplier','tare'=>'200 g'] as $field=>$saved){
+    try{br_guard_write($values,'tt30bags',json_encode([array_replace($order,[$field=>$saved])]));throw new RuntimeException('Legacy physical source '.$field.' changed through generic PO save');}catch(DomainException){}
+}
+try{br_guard_write($values,'tt30bags','[]');throw new RuntimeException('Legacy physical source deleted through generic PO save');}catch(DomainException){}
+bi_check(br_guard_write($values,'tt30bags',json_encode([array_replace($order,['ordered'=>1500])]))===json_encode([array_replace($order,['ordered'=>1500])]),'Administrative ordered quantity change incorrectly rewrote physical source');
 // Legacy physical evidence outranks an amended PO, even when its old display name is missing.
 foreach(['locationId'=>'mills-2','entity'=>'BRM','poNo'=>'ORIGINAL-PO','poLineKey'=>'L2','brand'=>'OTHER','size'=>'25 kg','bagType'=>'Jute'] as $field=>$saved){
     $conflicting=$values;$conflicting['tt33bagreceipts']=json_encode([array_replace($receipt,[$field=>$saved])]);$before=serialize($conflicting);

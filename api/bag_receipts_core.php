@@ -83,9 +83,11 @@ function br_guard_write(array $values,string $key,string $json): string {
         }else{
             if(!$prior&&(!empty($row['received'])||!empty($row['bagReceiptVersion'])))throw new DomainException('A new bag order cannot invent received stock. Use the actual receipt workflow.');
             if($prior&&($prior['received']??0)!=($row['received']??0))throw new DomainException('Received bags are maintained by the atomic receipt workflow.');
+            $physical=$prior&&(!empty($prior['received'])||array_filter(bti_rows($values,'tt33bagreceipts'),static fn($receipt)=>(string)($receipt['bagId']??'')===$id));
+            if($physical)foreach(['entity','locationId','mill','millName','brand','size','bagType','poNo','poLineKey','supplier','tare'] as $field)if(($prior[$field]??null)!=($row[$field]??null))throw new DomainException('Existing physical receipt sources require explicit reconciliation before changing owner, location or specification.');
             if(!empty($prior['bagReceiptVersion']))foreach(['bagReceiptVersion','keepReceiptOpen','bagReceiptScope','entity','locationId','mill','millName','brand','size','bagType','poNo','poLineKey','supplier','tare'] as $field)if(($prior[$field]??null)!=($row[$field]??null))throw new DomainException('An acknowledged physical lot cannot be moved or relabelled by changing its PO. Reconcile the original lot.');
         }
     }
-    foreach($old as $row)if(!isset($seen[(string)($row['id']??'')])&&($key==='tt33bagreceipts'||!empty($row['bagReceiptVersion'])))throw new DomainException('Original physical receipt history cannot be deleted.');
+    foreach($old as $row)if(!isset($seen[(string)($row['id']??'')])&&($key==='tt33bagreceipts'||!empty($row['bagReceiptVersion'])||!empty($row['received'])||array_filter(bti_rows($values,'tt33bagreceipts'),static fn($receipt)=>(string)($receipt['bagId']??'')===(string)($row['id']??''))))throw new DomainException('Original physical receipt history cannot be deleted.');
     return $json;
 }
