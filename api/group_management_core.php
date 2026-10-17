@@ -35,10 +35,12 @@ function gm_row(array $row):array {
         default=>gm_number($row['amount']??null,'row amount',true)
     };
     if($type==='GOLD'&&(gm_text($row['holder']??'')===''||gm_text($row['purity']??'')===''))throw new DomainException('Enter the gold holder and purity; use a market rate for that same purity.');
+    $amount=gm_number($amount,'calculated row amount',true);
     $excluded=!empty($row['excluded']);$reason=gm_text($row['reason']??'',1000);if($excluded&&$reason==='')throw new DomainException('Enter a reason for excluding a row.');
     $entity=strtoupper(gm_text($row['entity']??'GROUP',5));if(!in_array($entity,['TTI','BRM','TG','GROUP'],true))throw new DomainException('Select the row company or Group.');
     $out=['id'=>$id,'label'=>$label,'type'=>$type,'entity'=>$entity,'currency'=>$currency,'amount'=>round($amount,2),'excluded'=>$excluded,'reason'=>$reason,'source'=>gm_text($row['source']??'Manual',2000),'basis'=>gm_text($row['basis']??'Manual review',200)];
-    foreach(['marketValue','valuationBasis','instalmentsPaid','grams','ratePerGram','holder','purity','quantity','marketRate','sourceDate','sourceFingerprint','account','subaccountId'] as $key)if(isset($row[$key]))$out[$key]=is_numeric($row[$key])?(float)$row[$key]:gm_text($row[$key]);
+    foreach(['marketValue','instalmentsPaid','grams','ratePerGram','quantity','marketRate','originalAmount'] as $key)if(isset($row[$key]))$out[$key]=gm_number($row[$key],$key,true);
+    foreach(['valuationBasis','holder','purity','sourceDate','sourceFingerprint','account','subaccountId','originalCurrency'] as $key)if(isset($row[$key]))$out[$key]=gm_text($row[$key]);
     if(isset($row['postIds'])){if(!is_array($row['postIds'])||count($row['postIds'])>20000)throw new DomainException('Invalid source Post IDs.');$out['postIds']=array_map(static fn($v)=>gm_text($v,120),$row['postIds']);}
     return $out;
 }
@@ -123,7 +125,7 @@ function gm_financial_source(array $state,string $date):array {
         }
     }
     if($intercompany)$unclassified[]='Intercompany balances are excluded provisionally. Reconcile both sides and exchange differences before completing the group report.';
-    $out=[];foreach($rows as $row){$row['amount']=round($row['amount'],2);if(abs($row['amount'])<.005)continue;$row['postIds']=array_keys($row['postIds']);$row['sourceFingerprint']=hash('sha256',json_encode($row,JSON_THROW_ON_ERROR));$out[]=$row;}
+    $out=[];foreach($rows as $row){$row['amount']=round($row['amount'],2);if(abs($row['amount'])<.005)continue;$row['postIds']=array_keys($row['postIds']);$row['originalAmount']=$row['amount'];$row['originalCurrency']=$row['currency'];$row['sourceDate']=$date;$row['sourceFingerprint']=hash('sha256',json_encode($row,JSON_THROW_ON_ERROR));$out[]=$row;}
     usort($out,static fn($a,$b)=>(str_contains(strtolower($a['label']),'sales tax')||str_contains(strtolower($a['label']),'gst'))<=>(str_contains(strtolower($b['label']),'sales tax')||str_contains(strtolower($b['label']),'gst'))?:strcmp($a['entity'].'|'.$a['account'].'|'.$a['label'],$b['entity'].'|'.$b['account'].'|'.$b['label']));
     return ['rows'=>$out,'warnings'=>array_values(array_unique($unclassified)),'accountsRevision'=>(int)($state['revision']??0),'asOf'=>$date,'basis'=>'Committed journals through the selected date. Excludes fixed assets and share holdings. Inventory is book cost until reviewed at market value. Unposted operational liabilities and shipment estimates require separate review.'];
 }

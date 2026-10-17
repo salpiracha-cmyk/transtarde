@@ -64,3 +64,12 @@ Corn PR283 (`implement/corn-actual-weights-20261017`) is running full hosted QA.
 Group foundation PR284 is a separate unfinished draft stacked on the Corn branch. Local formula and actual PHP endpoint tests pass for separate atomic report storage, zero-write reads, section conflicts, Create/Edit distinctions, existing entity restrictions from either portal, CSRF, duplicate source IDs and preserving original Accounts bytes. Remaining automatic daily/estimated/source-linked management workflows and UI acceptance are not complete.
 
 Additional source finding: Used Bags still aggregates arrivals/manual history across mills, invents today's date for undated receipts and writes unscoped manual records. Its legacy sale reference writes an operational cash credit rather than a canonical receipt. This is uncorrected and must be treated as unverified operational history, not confirmed cash or stock reconciliation.
+
+
+## Corn released; Used Bags prepared
+
+PR283 final head9add15660edad18699ffd5ffadbabc28001cea5a passed full Accounts39022148194 and Milling/Exports39022148190. Merged49d4a9318751212f20885bd6f5571c1811aec591. Main QA passed; production run39022638272/job117367330012 succeeded with the exact DEPLOYED_SHA and healthy login. Mac Chrome Exports opens without errors and includes the authenticated commodity helper. Opening then closing an unsaved contract left the three original contracts unchanged; Next was deliberately not used because it saves a contract draft. Actual live positive Corn loading/documents remains unverified; controlled suites cover it. Smoke39022679246 is still running at this checkpoint.
+
+PR285 final head52ee151f172678d3020d4d3fea552960a5b56d61 passed both full hosted suites39022649875/39022649868. Its Used Bags correction scopes dated/verified movements, retains unassigned history with warnings, records company/mill on new manual entries and removes new fake legacy cash credits for sale references. It does not create the canonical Accounts sale receipt. Deployment/live verification must be recorded separately.
+
+The shared report draft additionally preserves the original book figure/provenance when the reviewed report amount changes. Original source details are resolved on the server; forged book IDs/provenance are rejected. Formula and direct endpoint tests pass locally. This does not finish the management workflows or justify deploying PR284.
