@@ -35,7 +35,7 @@ elseif($argv[1]==='cleanup'){$p->exec('DELETE FROM tt_operation_records');$p->ex
 else{$out=['values'=>[],'meta'=>[]];foreach($p->query('SELECT storage_key,payload,version FROM tt_operation_records ORDER BY storage_key')->fetchAll(PDO::FETCH_ASSOC)as$r){$out['values'][$r['storage_key']]=$r['payload'];$out['meta'][$r['storage_key']]=['version'=>(int)$r['version']];}$out['history']=$p->query('SELECT storage_key,version,payload_sha256 FROM tt_operation_history ORDER BY id')->fetchAll(PDO::FETCH_ASSOC);echo json_encode($out);}
 ''')
     def sql_run(mode,*args):return subprocess.run(['php',str(sql),mode,*args],env=env,text=True,capture_output=True,check=True).stdout
-    order=dict(id=123,entity='TTI',mill='TTI Rice Mills',brand='ASAS',size='50 kg',bagType='PP',received=100,poNo='PO-1',poLineKey='L1')
+    order=dict(_ttBridge='exports',id=123,entity='TTI',mill='TTI Rice Mills',brand='ASAS',size='50 kg',bagType='PP',received=100,poNo='PO-1',poLineKey='L1')
     source=root/'data/operations.json';books=root/'data/accounts.json'
     initial={'revision':3,'values':{'tt30bags':json.dumps([order,dict(order,id=124,received=0,poLineKey='L2',size='25 kg')]),'tt33bagreceipts':json.dumps([{'id':'R1','bagId':123,'date':'2026-10-01','qty':100}]),'tt99keep':'{"untouched":true}'},'meta':{}}
     source.write_text(json.dumps(initial));books.write_text('{"journals":{"KEEP":{"amount":1000}}}');financial=books.read_bytes()
@@ -63,11 +63,32 @@ else{$out=['values'=>[],'meta'=>[]];foreach($p->query('SELECT storage_key,payloa
     review=req()[1]['source'];held=dict(body,qty=4,requestKey='actual-quarantine-receipt-0002',sourceFingerprint=review['fingerprint'],materialMismatch=True)
     status,quarantined=req(held);assert status==200,quarantined;assert quarantined['receipt']['acceptedQty']==0 and quarantined['receipt']['quarantinedQty']==4 and quarantined['order']['received']==114
     # Project actual committed stock: quarantine is visible, never usable or dispatchable.
-    probe=root/'inventory.php';probe.write_text("<?php require __DIR__.'/auth_store.php';require __DIR__.'/api/bag_inventory_core.php';$v=json_decode(stream_get_contents(STDIN),true);echo json_encode(bti_project($v['values'],tt_list_masters(),['entity'=>'TTI','locationId'=>'mills-1','millName'=>'TTI Rice Mills','status'=>'Active'],'2026-10-17','2026-10-17')); ")
+    probe=root/'inventory.php';probe.write_text("<?php require __DIR__.'/auth_store.php';require __DIR__.'/api/bag_inventory_core.php';$v=json_decode(stream_get_contents(STDIN),true);echo json_encode(bti_project($v['values'],tt_list_masters(),['entity'=>'TTI','locationId'=>'mills-1','millName'=>'TTI Rice Mills','status'=>'Active'],'2026-10-17','2026-10-17',json_decode($v['values']['tt41bagtransfers']??'{}',true))); ")
     out=subprocess.run(['php',str(probe)],input=json.dumps(stored()),env=env,text=True,capture_output=True,check=True);inventory=json.loads(out.stdout);lot=inventory['lots']['PO|123|mills-1'];assert lot['availableQty']==110 and lot['quarantinedQty']==4,lot
     review=req()[1]['source'];status_body=dict(csrf='fixture',action='receipt_status',entity='TTI',locationId='mills-1',bagId='123',sourceFingerprint=review['fingerprint'],requestKey='actual-receipt-status-0003',keepReceiptOpen=True)
     status,status_saved=req(status_body);assert status==200,status_saved;assert all(row['keepReceiptOpen'] for row in json.loads(stored()['values']['tt30bags']));assert status_saved['receipt'] is None and status_saved['order']['received']==114 and status_saved['order']['keepReceiptOpen']
     status_snapshot=snapshot();assert req(status_body)[1]['replayed'] and snapshot()==status_snapshot
+    immutable_receipts=stored()['values']['tt33bagreceipts'];original_counter=stored()['values']['tt30bags'];receipt_id=quarantined['receipt']['id']
+    def inventory_now():
+        output=subprocess.run(['php',str(probe)],input=json.dumps(stored()),env=env,text=True,capture_output=True,check=True);return json.loads(output.stdout)['lots']['PO|123|mills-1']
+    evidence=root/'acceptance.php';evidence.write_text("<?php require __DIR__.'/auth_store.php';require __DIR__.'/api/bag_acceptance_core.php';echo json_encode(bqa_current_line(['lineKey'=>'L1','orderedQty'=>200],['entity'=>'TTI','poNo'=>'PO-1','lineKey'=>'L1']));")
+    def acceptance_now():return json.loads(subprocess.run(['php',str(evidence)],env=env,text=True,capture_output=True,check=True).stdout)
+    actual=acceptance_now();assert actual['receivedQty']==114 and actual['acceptance']['material'],actual
+    review=req()[1]['source'];disposition=dict(csrf='fixture',action='return_supplier',entity='TTI',locationId='mills-1',bagId='123',receiptId=receipt_id,date='2026-10-17',qty=1,reason='Actually returned damaged bags to original supplier',physicallyReturned=True,sourceFingerprint=review['fingerprint'],requestKey='actual-quarantine-return-0004')
+    before=snapshot();assert req(dict(disposition,physicallyReturned=False))[0]==422 and snapshot()==before
+    assert req(dict(disposition,date='2026-10-16'))[0]==422 and snapshot()==before
+    assert req(disposition,mode='read')[0]==403 and snapshot()==before
+    status,returned=req(disposition);assert status==200,returned;assert returned['disposition']['qty']==1 and returned['disposition']['userId']==7
+    after=snapshot();assert req(disposition)[1]['replayed'] and snapshot()==after
+    actual=acceptance_now();assert actual['receivedQty']==113 and actual['acceptance']['material'],actual
+    review=req()[1]['source'];correction=dict(csrf='fixture',action='accept_corrected',entity='TTI',locationId='mills-1',bagId='123',receiptId=receipt_id,date='2026-10-17',qty=2,reason='Material physically replaced and reinspected against original PO',inspected=True,matchesOriginalSpecification=True,sourceFingerprint=review['fingerprint'],requestKey='actual-quarantine-correct-0005')
+    before=snapshot();assert req(dict(correction,matchesOriginalSpecification=False))[0]==422 and snapshot()==before;assert req(dict(correction,qty=4))[0]==422 and snapshot()==before
+    status,corrected=req(correction);assert status==200,corrected;after=snapshot();assert req(correction)[1]['replayed'] and snapshot()==after
+    projected=inventory_now();assert projected['availableQty']==112 and projected['quarantinedQty']==1,projected
+    review=req()[1]['source'];last=dict(disposition,requestKey='actual-quarantine-return-0006',sourceFingerprint=review['fingerprint']);status,closed=req(last);assert status==200,closed
+    projected=inventory_now();assert projected['availableQty']==112 and projected['quarantinedQty']==0,projected;actual=acceptance_now();assert actual['receivedQty']==112 and not actual['acceptance']['material'],actual
+    assert stored()['values']['tt33bagreceipts']==immutable_receipts and stored()['values']['tt30bags']==original_counter,'Disposition rewrote original receipt facts or gross counters'
+    status_snapshot=snapshot()
     # Generic writers cannot change an acknowledged counter, relabel its physical source or erase receipt evidence.
     guard=root/'guard.php';guard.write_text("<?php require __DIR__.'/auth_store.php';require __DIR__.'/inventory_reconciliation.php';$r=json_decode(stream_get_contents(STDIN),true);try{tt_inv_prepare_write($r['values'],$r['key'],json_encode($r['rows']),['role'=>'Super Admin'],gmdate('c'));echo 'allowed';}catch(DomainException){echo 'denied';}")
     current=stored();orders=json.loads(current['values']['tt30bags']);receipts=json.loads(current['values']['tt33bagreceipts'])

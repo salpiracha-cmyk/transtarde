@@ -16,7 +16,7 @@ try {
     $user=tt_require_login();$masters=tt_list_masters();$method=$_SERVER['REQUEST_METHOD']??'GET';
     if($method==='GET'){
         $bagId=(string)($_GET['bagId']??'');$entity=(string)($_GET['entity']??'');$locationId=(string)($_GET['locationId']??'');br_access($user,$masters,$entity,$locationId,'View');if(function_exists('tt_release_read_session'))tt_release_read_session();
-        $result=bts_with_sources(false,$user,static function($values,$state,$now)use($masters,$bagId,$entity,$locationId){$source=br_source($values,$masters,$bagId);if($source['scope']['entity']!==$entity||$source['scope']['locationId']!==$locationId)throw new BagReceiptDenied('Select a receipt order for this stock owner and physical location.');return ['source'=>$source];});br_out(['ok'=>true]+$result);
+        $result=bts_with_sources(false,$user,static function($values,$state,$now)use($masters,$bagId,$entity,$locationId){$source=br_source($values,$masters,$bagId);if($source['scope']['entity']!==$entity||$source['scope']['locationId']!==$locationId)throw new BagReceiptDenied('Select a receipt order for this stock owner and physical location.');return ['source'=>$source];});$canEdit=true;try{br_access($user,$masters,$entity,$locationId,'Edit');}catch(BagReceiptDenied){$canEdit=false;}br_out(['ok'=>true,'canEdit'=>$canEdit]+$result);
     }
     if($method!=='POST')br_out(['ok'=>false,'error'=>'Method not allowed.'],405);
     $raw=(function_exists('tt_accounts_input')?tt_accounts_input():file_get_contents('php://input'))?:'';if(strlen($raw)>32768)br_out(['ok'=>false,'error'=>'Receipt request too large.'],413);$body=json_decode($raw,true);

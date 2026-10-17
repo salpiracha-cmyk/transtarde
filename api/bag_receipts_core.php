@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__.'/bag_inventory_core.php';
+require_once __DIR__.'/bag_receipt_quantities.php';
 
 /** Receipt facts retain their original owner, physical location and issued specification. */
 function br_source(array $values,array $masters,string $bagId): array {
@@ -17,26 +18,27 @@ function br_source(array $values,array $masters,string $bagId): array {
     if($po&&($po['entity']!==$entity||bti_norm($po['brand'])!==bti_norm($spec['brand'])||bti_norm($po['bagType'])!==bti_norm($spec['bagType'])||bti_packing_kg($po['packingSize'])!==bti_packing_kg($spec['packingSize'])))throw new DomainException('The Mill receipt source disagrees with its issued PO. Resolve the original source first.');
     $receipts=array_values(array_filter(bti_rows($values,'tt33bagreceipts'),static fn($r)=>(string)($r['bagId']??'')===$bagId));
     foreach($receipts as $receipt)if(!empty($receipt['serverManaged'])&&($receipt['sourceSnapshot']??null)!=$spec)throw new DomainException('The PO owner, location or specification changed after receiving. Reconcile the original physical lot before another receipt.');
-    return ['order'=>$order,'scope'=>$spec,'receipts'=>$receipts,'fingerprint'=>bt_hash([$order,$receipts])];
+    $rawState=$values['tt41bagtransfers']??'{}';$state=is_string($rawState)?json_decode($rawState,true,512,JSON_THROW_ON_ERROR):$rawState;$events=array_values(array_filter((array)($state['receiptDispositions']??[]),static fn($r)=>in_array($r['receiptId']??'',array_column($receipts,'id'),true)));return ['order'=>$order,'scope'=>$spec,'receipts'=>$receipts,'dispositions'=>$events,'positions'=>array_map(static fn($r)=>['receiptId'=>$r['id']]+br_position($r,$events),$receipts),'fingerprint'=>bt_hash([$order,$receipts,$events])];
 }
 function br_flags(array $body): array {
     $flags=[];foreach(['printingMismatch','materialMismatch','qualityMismatch','tareMismatch'] as $key){if(!isset($body[$key])||!is_bool($body[$key]))throw new DomainException('Confirm each actual receipt specification check.');$flags[$key]=$body[$key];}return $flags;
 }
 function br_commit(array &$values,array &$state,array $masters,array $body,array $user,string $now,callable $authorize): array {
-    $action=(string)($body['action']??'');if(!in_array($action,['receive_supplier','receipt_status'],true))throw new DomainException('Choose an explicit supplier receipt action.');
+    $action=(string)($body['action']??'');if(!in_array($action,['receive_supplier','receipt_status','accept_corrected','return_supplier'],true))throw new DomainException('Choose an explicit supplier receipt action.');
     $request=bt_request($state,$body,$user,'SUPPLIER_'.$action);
     if($request['prior']){
         $prior=$request['prior'];if(($prior['kind']??'')!=='supplierReceipt')throw new DomainException('This request identity belongs to another movement.');$scope=$prior['scope'];
-        $authorize($scope['entity'],$scope['millName'],$action==='receipt_status'?'Edit':'Create',$scope['locationId']);
+        $authorize($scope['entity'],$scope['millName'],$action==='receive_supplier'?'Create':'Edit',$scope['locationId']);
         $orders=bti_rows($values,'tt30bags');$matching=array_values(array_filter($orders,static fn($r)=>(string)($r['id']??'')===(string)$body['bagId']));
-        return ['receipt'=>$prior['receipt'],'order'=>count($matching)===1?$matching[0]:$prior['order'],'replayed'=>true];
+        return ['receipt'=>$prior['receipt'],'disposition'=>$prior['disposition']??null,'order'=>count($matching)===1?$matching[0]:$prior['order'],'replayed'=>true];
     }
     $source=br_source($values,$masters,(string)($body['bagId']??''));$scope=$source['scope'];
     if(($body['entity']??'')!==$scope['entity']||($body['locationId']??'')!==$scope['locationId'])throw new DomainException('The original receipt belongs to another company or physical location.');
-    $authorize($scope['entity'],$scope['millName'],$action==='receipt_status'?'Edit':'Create',$scope['locationId']);
+    $authorize($scope['entity'],$scope['millName'],$action==='receive_supplier'?'Create':'Edit',$scope['locationId']);
     if(!hash_equals($source['fingerprint'],(string)($body['sourceFingerprint']??'')))throw new DomainException('The order or receipts changed. Review the original order again; your entry is retained.');
+    $dispositionAction=in_array($action,['accept_corrected','return_supplier'],true);if($dispositionAction)$body['keepReceiptOpen']=!empty($source['order']['keepReceiptOpen']);
     if(!isset($body['keepReceiptOpen'])||!is_bool($body['keepReceiptOpen']))throw new DomainException('Confirm whether to keep the PO receipt open.');
-    $orders=bti_rows($values,'tt30bags');$receipts=bti_rows($values,'tt33bagreceipts');$receipt=null;
+    $orders=bti_rows($values,'tt30bags');$receipts=bti_rows($values,'tt33bagreceipts');$receipt=null;$disposition=null;
     if($action==='receive_supplier'){
         $qty=bt_qty($body['qty']??null);$date=bt_date((string)($body['date']??''),$now);$flags=br_flags($body);$quarantined=in_array(true,$flags,true);
         if(($body['inspected']??null)!==true)throw new DomainException('Confirm these bags were physically counted and inspected.');
@@ -45,9 +47,20 @@ function br_commit(array &$values,array &$state,array $masters,array $body,array
         $receipt=['id'=>'BR-'.substr(hash('sha256',$request['id']),0,24),'bagId'=>$source['order']['id'],'entity'=>$scope['entity'],'locationId'=>$scope['locationId'],'millName'=>$scope['millName'],'brand'=>$scope['brand'],'date'=>$date,'qty'=>$qty,'actualTareGrams'=>$actual===null?null:(float)$actual,'serverManaged'=>true,'bagReceiptVersion'=>1,'sourceSnapshot'=>$scope,'inspectionStatus'=>$quarantined?'Quarantined':'Accepted','acceptedQty'=>$quarantined?0:$qty,'quarantinedQty'=>$quarantined?$qty:0,'inspected'=>true,'at'=>$now]+$flags+bt_actor($user);
         $receipts[]=$receipt;
     }
+    if($dispositionAction){
+        $found=array_values(array_filter($source['receipts'],static fn($r)=>(string)($r['id']??'')===(string)($body['receiptId']??'')));if(count($found)!==1||empty($found[0]['bagReceiptVersion']))throw new DomainException('Select one acknowledged quarantined supplier receipt.');$receipt=$found[0];
+        $position=br_position($receipt,(array)($state['receiptDispositions']??[]));$qty=bt_qty($body['qty']??null);if($qty>$position['quarantinedQty'])throw new DomainException('The disposition exceeds this receipt quantity still in quarantine.');
+        $date=bt_date((string)($body['date']??''),$now);if($date<$receipt['date'])throw new DomainException('Physical correction or return cannot precede the original receipt.');$reason=trim((string)($body['reason']??''));if(strlen($reason)<10||strlen($reason)>1000)throw new DomainException('Record the actual physical correction or supplier return evidence (10–1000 characters).');
+        $measured=null;
+        if($action==='accept_corrected'){
+            if(($body['inspected']??null)!==true||($body['matchesOriginalSpecification']??null)!==true)throw new DomainException('Only physically corrected, reinspected bags matching the original specification may become available. Unchanged discrepancies remain quarantined.');
+            if(!empty($receipt['tareMismatch'])){$agreed=preg_match('/^\s*([0-9]+(?:\.[0-9]+)?)\s*(?:g|grams?)\s*$/i',(string)($receipt['sourceSnapshot']['tare']??''),$m)?(float)$m[1]:0;$actual=$body['actualTareGrams']??null;if(!is_numeric($actual)||is_bool($actual)||$agreed<=0||!is_finite((float)$actual)||abs((float)$actual-$agreed)>.000001)throw new DomainException('Record the corrected measured tare matching the original agreed tare; an unchanged tare discrepancy cannot be released.');$measured=(float)$actual;}
+        }elseif(($body['physicallyReturned']??null)!==true)throw new DomainException('Confirm these bags were physically returned to the supplier.');
+        $disposition=['id'=>'BRD-'.substr(hash('sha256',$request['id']),0,24),'receiptId'=>$receipt['id'],'bagId'=>$source['order']['id'],'entity'=>$scope['entity'],'locationId'=>$scope['locationId'],'date'=>$date,'action'=>$action,'qty'=>$qty,'reason'=>$reason,'actualTareGrams'=>$measured,'at'=>$now]+$request['actor'];$state['receiptDispositions'][]=$disposition;
+    }
     foreach($orders as &$order){if((string)($order['id']??'')===(string)$source['order']['id']){
         $counter=bti_count($order['received']??0);if($counter===null)throw new DomainException('Reconcile the actual received counter before recording another receipt.');
-        $order['received']=$counter+($receipt['qty']??0);if($order['received']>9007199254740991)throw new DomainException('Received bag quantity exceeds the supported whole count.');
+        $order['received']=$counter+($action==='receive_supplier'?($receipt['qty']??0):0);if($order['received']>9007199254740991)throw new DomainException('Received bag quantity exceeds the supported whole count.');
         $order['bagReceiptVersion']=1;$order['bagReceiptScope']=$scope;$order['entity']=$scope['entity'];$order['locationId']=$scope['locationId'];
         $order['keepReceiptOpen']=$body['keepReceiptOpen'];$saved=$order;
     }}unset($order);
@@ -56,8 +69,8 @@ function br_commit(array &$values,array &$state,array $masters,array $body,array
         try{$other=br_source($values,$masters,(string)($order['id']??''));if($other['scope']['entity']===$scope['entity']&&$other['scope']['locationId']===$scope['locationId'])$order['keepReceiptOpen']=$body['keepReceiptOpen'];}catch(DomainException){/* Unverified other sources remain unchanged. */}
     }unset($order);
     $values['tt30bags']=json_encode($orders,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR);$values['tt33bagreceipts']=json_encode($receipts,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR);
-    $state['requests'][$request['id']]=['fingerprint'=>$request['fingerprint'],'kind'=>'supplierReceipt','receipt'=>$receipt,'order'=>$saved,'scope'=>$scope,'action'=>$action,'at'=>$now]+$request['actor'];$state['audit'][]=['bagId'=>$source['order']['id'],'receiptId'=>$receipt['id']??null,'action'=>$action,'at'=>$now]+$request['actor'];
-    return ['receipt'=>$receipt,'order'=>$saved,'replayed'=>false];
+    $state['requests'][$request['id']]=['fingerprint'=>$request['fingerprint'],'kind'=>'supplierReceipt','receipt'=>$receipt,'disposition'=>$disposition,'order'=>$saved,'scope'=>$scope,'action'=>$action,'at'=>$now]+$request['actor'];$state['audit'][]=['bagId'=>$source['order']['id'],'receiptId'=>$receipt['id']??null,'action'=>$action,'at'=>$now]+$request['actor'];
+    return ['receipt'=>$receipt,'disposition'=>$disposition,'order'=>$saved,'replayed'=>false];
 }
 /** Generic collection writers must not erase acknowledged physical facts or attribute new ones. */
 function br_guard_write(array $values,string $key,string $json): string {
@@ -69,7 +82,7 @@ function br_guard_write(array $values,string $key,string $json): string {
         }else{
             if(!$prior&&(!empty($row['received'])||!empty($row['bagReceiptVersion'])))throw new DomainException('A new bag order cannot invent received stock. Use the actual receipt workflow.');
             if($prior&&($prior['received']??0)!=($row['received']??0))throw new DomainException('Received bags are maintained by the atomic receipt workflow.');
-            if(!empty($prior['bagReceiptVersion']))foreach(['bagReceiptVersion','bagReceiptScope','entity','locationId','mill','millName','brand','size','bagType','poNo','poLineKey','supplier','tare'] as $field)if(($prior[$field]??null)!=($row[$field]??null))throw new DomainException('An acknowledged physical lot cannot be moved or relabelled by changing its PO. Reconcile the original lot.');
+            if(!empty($prior['bagReceiptVersion']))foreach(['bagReceiptVersion','keepReceiptOpen','bagReceiptScope','entity','locationId','mill','millName','brand','size','bagType','poNo','poLineKey','supplier','tare'] as $field)if(($prior[$field]??null)!=($row[$field]??null))throw new DomainException('An acknowledged physical lot cannot be moved or relabelled by changing its PO. Reconcile the original lot.');
         }
     }
     foreach($old as $row)if(!isset($seen[(string)($row['id']??'')])&&($key==='tt33bagreceipts'||!empty($row['bagReceiptVersion'])))throw new DomainException('Original physical receipt history cannot be deleted.');

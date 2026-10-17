@@ -2,6 +2,7 @@
 declare(strict_types=1);
 require_once __DIR__.'/bag_transfer_core.php';
 require_once __DIR__.'/bag_acceptance_core.php';
+require_once __DIR__.'/bag_receipt_quantities.php';
 
 function bti_rows(array $values,string $key): array {
     $v=$values[$key]??'[]';if(is_string($v))$v=json_decode($v,true,512,JSON_THROW_ON_ERROR);
@@ -103,8 +104,8 @@ function bti_project(array $values,array $masters,array $scope,string $asOf,stri
             $receiptName=(string)($r['millName']??$r['mill']??'');if($receiptName!==''&&bti_norm($receiptName)!==bti_norm($location['millName'])){bti_hold($lot,'Receipt location differs from its saved PO location; review the actual physical lot.');continue;}
             $totalEvents+=$qty;$physical=$qty;$date=bti_date($r['date']??'');
             if(!empty($r['bagReceiptVersion'])){
-                $accepted=bti_count($r['acceptedQty']??null);$quarantined=bti_count($r['quarantinedQty']??null);$snapshot=(array)($r['sourceSnapshot']??[]);
-                if($accepted===null||$quarantined===null||$accepted+$quarantined!==$physical||($snapshot['entity']??'')!==$entity||($snapshot['locationId']??'')!==$location['locationId']||bti_norm($snapshot['brand']??'')!==bti_norm($brand)||bti_packing_kg((string)($snapshot['packingSize']??''))!==$kg||bti_norm($snapshot['bagType']??'')!==bti_norm($type)){bti_hold($lot,'The immutable receipt source or accepted/quarantined counts disagree with this physical lot.');$qty=0;}else{$qty=$accepted;if($date!==''&&$date<=$asOf)$lot['quarantinedQty']+=$quarantined;}
+                $position=br_position($r,(array)($state['receiptDispositions']??[]),$asOf);$accepted=bti_count($r['acceptedQty']??null);$quarantined=bti_count($r['quarantinedQty']??null);$snapshot=(array)($r['sourceSnapshot']??[]);
+                if($accepted===null||$quarantined===null||$accepted+$quarantined!==$physical||($snapshot['entity']??'')!==$entity||($snapshot['locationId']??'')!==$location['locationId']||bti_norm($snapshot['brand']??'')!==bti_norm($brand)||bti_packing_kg((string)($snapshot['packingSize']??''))!==$kg||bti_norm($snapshot['bagType']??'')!==bti_norm($type)){bti_hold($lot,'The immutable receipt source or accepted/quarantined counts disagree with this physical lot.');$qty=0;}else{$qty=$accepted;if($date!==''&&$date<=$asOf)$lot['quarantinedQty']+=$position['quarantinedQty'];foreach($position['events'] as $event)if($event['action']==='accept_corrected')$movements[]=['date'=>$event['date'],'lotId'=>$id,'entity'=>$entity,'locationId'=>$location['locationId'],'qty'=>$event['qty'],'type'=>'SUPPLIER_QUARANTINE_ACCEPTED_AFTER_CORRECTION','reference'=>$event['id']];if($date!==''&&$date<=$asOf)$datedThrough+=$position['acceptedQty']-$accepted;}
             }
             if($date==='')$undated+=$qty;elseif($date<=$asOf)$datedThrough+=$qty;
             $movements[]=['date'=>$date,'lotId'=>$id,'entity'=>$entity,'locationId'=>$location['locationId'],'qty'=>$qty,'type'=>'SUPPLIER_RECEIPT','reference'=>$rid];

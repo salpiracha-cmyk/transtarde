@@ -188,6 +188,16 @@ def run():
             stock=context.request.get(base+'/api/bag_transfers.php?entity=TTI&locationId=mills-1&asOf=2026-10-17').json();source_lot=stock['inventory']['lots']['PO|100|mills-1']
             assert source_lot['availableQty']==90 and source_lot['quarantinedQty']==4,source_lot
             assert books.read_bytes()==financial_before,'Supplier receipt created a financial posting'
+            immutable_receipts=context.request.get(base+'/api/operations.mysql.php').json()['values']['tt33bagreceipts']
+            mill.locator('#bagOrdersBody tr.clickrow').first.click();mill.get_by_role('button',name='Review receipt history / quarantine',exact=True).click();mill.locator('[data-correct-receipt]').wait_for();mill.locator('[data-correct-receipt]').click()
+            mill.locator('[data-disposition-date]').fill('2026-10-17');mill.locator('[data-disposition-qty]').fill('2');mill.locator('[data-disposition-reason]').fill('Material physically replaced and original specification reinspected');mill.locator('[data-disposition-confirm]').check()
+            with mill.expect_response(lambda r:'/api/bag_receipts.php' in r.url and r.request.method=='POST') as correction_response:mill.locator('[data-save-disposition]').click()
+            assert correction_response.value.status==200,correction_response.value.text();mill.locator('[data-return-supplier]').wait_for();mill.locator('[data-return-supplier]').click()
+            mill.locator('[data-disposition-date]').fill('2026-10-17');mill.locator('[data-disposition-qty]').fill('2');mill.locator('[data-disposition-reason]').fill('Actually returned remaining rejected bags to supplier');mill.locator('[data-disposition-confirm]').check()
+            with mill.expect_response(lambda r:'/api/bag_receipts.php' in r.url and r.request.method=='POST') as supplier_return_response:mill.locator('[data-save-disposition]').click()
+            assert supplier_return_response.value.status==200,supplier_return_response.value.text()
+            stock=context.request.get(base+'/api/bag_transfers.php?entity=TTI&locationId=mills-1&asOf=2026-10-17').json();source_lot=stock['inventory']['lots']['PO|100|mills-1'];assert source_lot['availableQty']==92 and source_lot['quarantinedQty']==0,source_lot
+            saved_ops=context.request.get(base+'/api/operations.mysql.php').json();assert saved_ops['values']['tt33bagreceipts']==immutable_receipts and json.loads(saved_ops['values']['tt30bags'])[0]['received']==114 and books.read_bytes()==financial_before
             assert not errors,errors
             if output:
                 output.mkdir(parents=True,exist_ok=True);accounts.screenshot(path=str(output/'mill-source-handoff-accounts.png'),full_page=True);mill.screenshot(path=str(output/'mill-source-handoff-mill.png'),full_page=True)
