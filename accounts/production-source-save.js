@@ -28,8 +28,8 @@
     return confirmation(confirmed[0],saved.value,Number(saved.keyVersion||0),false,saved.related||{});
   }
   const access=()=>window.TT_MODULE_ACCESS||{},token=r=>'tt_ui_production_pending_'+access().userId+'_'+r.entity+'_'+r.millId;
-  let busy=false,baseline=null;
-  const signature=r=>{const copy=clone(r);for(const k of ['id','clientSaveRequestId','createdAt','updatedAt','serverSequence'])delete copy[k];return canonical(copy);};
+  let busy=false,baseline=null,generation=0;
+  const signature=r=>{const copy=clone(r);for(const k of ['id','clientSaveRequestId','createdAt','updatedAt','serverSequence'])delete copy[k];if(typeof editingProdId!=='undefined'&&editingProdId!==null)copy.editingProductionId=String(editingProdId);return canonical(copy);};
   const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   function pendingPanel(storageKey,intent){
     const host=document.querySelector('#production');if(!host)return;host.querySelector('[data-production-save-recovery]')?.remove();
@@ -46,10 +46,10 @@
     if(intent&&intent.signature!==sig){pendingPanel(storageKey,intent);alert('Confirm the previous production save using its recovery panel. Your current entry is retained.');return;}
     if(!intent){const editing=typeof editingProdId!=='undefined'&&editingProdId!==null;if(editing&&(!baseline||String(baseline.id)!==String(record.id))){alert('Reopen the saved production report before amending. Your entry is retained.');return;}intent={signature:sig,before:editing?clone(baseline):null,record:{...(editing?clone(baseline):{}),...clone(record),id:editing?record.id:Date.now()*1000+Math.floor(Math.random()*1000),clientSaveRequestId:crypto.randomUUID()}};}
     try{localStorage.setItem(storageKey,JSON.stringify(intent));}catch{alert('The production retry identity could not be retained. No request was sent.');return;}
-    busy=true;const form=document.querySelector('#production'),focus=document.activeElement,wasInert=form?.inert;if(form)form.inert=true;let acknowledged=false;
-    try{const saved=await window.TT_SHARED_SYNC.commitProduction(intent.record,intent.before);acknowledged=true;localStorage.removeItem(storageKey);form?.querySelector('[data-production-save-recovery]')?.remove();try{onSaved?.(saved);}catch{alert('Production is saved. Reopen the saved report to update its display.');}return saved;}
+    busy=true;const startedGeneration=generation,form=document.querySelector('#production'),focus=document.activeElement,wasInert=form?.inert;if(form)form.inert=true;let acknowledged=false;
+    try{const saved=await window.TT_SHARED_SYNC.commitProduction(intent.record,intent.before);acknowledged=true;localStorage.removeItem(storageKey);form?.querySelector('[data-production-save-recovery]')?.remove();try{const mill=typeof currentMill==='undefined'?null:currentMill,company=typeof stockEntityForView==='function'?stockEntityForView():mill?.entity;if(generation===startedGeneration&&(!mill||token({entity:company,millId:mill.id})===storageKey))onSaved?.(saved);else alert('Production saved. Your current entry is retained.');}catch{alert('Production is saved. Reopen the saved report to update its display.');}return saved;}
     catch(error){if(error.editable){intent.editable=true;try{localStorage.setItem(storageKey,JSON.stringify(intent));}catch{}}pendingPanel(storageKey,intent);alert(error.message+' Your production entry is retained.');}
     finally{busy=false;if(form)form.inert=wasInert;if(!acknowledged&&focus?.isConnected)focus.focus({preventScroll:true});}
   }
-  window.TT_PRODUCTION_SOURCE_SAVE={commit,save,remember:row=>{baseline=row?clone(row):null;},showRecovery};
+  window.TT_PRODUCTION_SOURCE_SAVE={commit,save,remember:row=>{baseline=row?clone(row):null;generation++;},showRecovery};
 })();
