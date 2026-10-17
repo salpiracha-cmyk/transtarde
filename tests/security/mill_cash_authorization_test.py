@@ -145,6 +145,8 @@ if($argv[1]==='seed'){
     # Same request cannot rewrite its committed production facts or derived rows.
     forged=json.loads(amended['value']);next(r for r in forged if r['id']==701)['reason']='Forged same-request change'
     before=stored();assert write('tt30prod',forged,base=3)[0]==403 and stored()==before
+    missing_input=json.loads(amended['value']);missing=next(r for r in missing_input if r['id']==701);missing.update(rawInputs=[],recoveryVersion=0,clientSaveRequestId='production-no-input-forged-0003')
+    before=stored();assert write('tt30prod',missing_input,base=3)[0]==403 and stored()==before,'Acknowledged source save inferred missing raw input from output'
     # Fixed private rows also stay private inside an acknowledgement's related audit.
     private_edit=json.loads(amended['value']);next(r for r in private_edit if r['id']==700).update(reason='Actual operational note amendment',clientSaveRequestId='production-private-amend-0003')
     status,private_saved=write('tt30prod',private_edit,base=3);assert status==200,private_saved

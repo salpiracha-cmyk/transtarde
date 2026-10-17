@@ -232,6 +232,7 @@ function tt_inv_prepare_write(array $values,string $key,string $json,array $user
         }elseif($key==='tt30prod'){
             if(!empty($before['clientSaveRequestId'])&&empty($r['clientSaveRequestId']))throw new DomainException('Reload the saved production report before amending its acknowledged source.');
             if(!empty($before['recoveryVersion'])&&empty($r['recoveryVersion']))throw new DomainException('Actual-input production cannot be downgraded to a legacy entry.');
+            if(!empty($r['clientSaveRequestId']))$r['recoveryVersion']=1;
             mr_validate_inputs($r,$before===null);if($before===null)$r['recoveryVersion']=1;
             $hidden=array_values(array_filter((array)($before['rows']??[]),static fn($x)=>is_array($x)&&tt_inv_is_private_row($x)));
             foreach((array)($r['rows']??[])as$x)if(is_array($x)&&tt_inv_is_private_row($x))throw new DomainException('Reconciliation rows cannot be entered as production.');
