@@ -35,7 +35,7 @@ try{
     if($method!=='POST')bgt_out(['ok'=>false,'error'=>'Method not allowed.'],405);
     $raw=(function_exists('tt_accounts_input')?tt_accounts_input():file_get_contents('php://input'))?:'';if(strlen($raw)>65536)bgt_out(['ok'=>false,'error'=>'Bag movement request too large.'],413);
     $body=json_decode($raw,true);if(!is_array($body)||!tt_verify_csrf((string)($body['csrf']??'')))bgt_out(['ok'=>false,'error'=>'Refresh the session before saving the movement.'],419);
-    $action=(string)($body['action']??'');if(!in_array($action,['dispatch','receive','return_to_source'],true))bgt_out(['ok'=>false,'error'=>'Choose an explicit supported bag movement action.'],422);
+    $action=(string)($body['action']??'');if(!in_array($action,['dispatch','receive','return_to_source','quarantine','accept_quarantine','return_quarantine'],true))bgt_out(['ok'=>false,'error'=>'Choose an explicit supported bag movement action.'],422);
     $result=bts_with_sources(true,$user,static function($values,array &$state,$now)use($body,$action,$user,$masters){
         $authorize=static function($entity,$historicalName,$right,$locationId)use($user,$masters){bgt_access($user,$entity,bgt_master($masters,$locationId),$right);};
         if($action==='dispatch'){
@@ -44,7 +44,7 @@ try{
             $inventory=bti_project($values,$masters,$scope,(string)($body['date']??''),$today,$state);$id='BT-'.substr(hash('sha256',(int)$user['id'].'|'.(string)($body['requestKey']??'')),0,24);
             return ['movement'=>bt_dispatch($state,$inventory,$destination,$body,$user,$now,$id,$authorize)];
         }
-        return ['movement'=>bt_receive($state,$body,$user,$now,$authorize,$action==='return_to_source')];
+        return ['movement'=>in_array($action,['quarantine','accept_quarantine','return_quarantine'],true)?bt_quarantine($state,$body,$user,$now,$authorize):bt_receive($state,$body,$user,$now,$authorize,$action==='return_to_source')];
     });bgt_out(['ok'=>true]+$result);
 }catch(BagTransferAccessDenied $e){bgt_out(['ok'=>false,'error'=>$e->getMessage()],403);}
 catch(DomainException|InvalidArgumentException $e){bgt_out(['ok'=>false,'error'=>$e->getMessage()],422);}

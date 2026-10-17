@@ -28,17 +28,26 @@ function bt_request(array $state,array $body,array $user,string $action): array 
 }
 function bt_totals(array $transfer): array {
     if(!bt_is_date((string)($transfer['date']??'')))throw new DomainException('Movement history has an invalid actual dispatch date.');
-    $totals=[];foreach($transfer['lines'] as $line){$id=(string)($line['lineId']??'');if($id===''||isset($totals[$id]))throw new DomainException('Movement history has an ambiguous source line.');$totals[$id]=['dispatched'=>bt_qty($line['qty']),'received'=>0,'returned'=>0];}
-    $events=[];foreach(['receipts'=>'received','returns'=>'returned'] as $collection=>$field)foreach((array)($transfer[$collection]??[]) as $event){
-        $eid=(string)($event['id']??'');if($eid===''||isset($events[$eid]))throw new DomainException('Movement history has a repeated acknowledgement identity.');$events[$eid]=true;
-        if(!bt_is_date((string)($event['date']??''))||$event['date']<$transfer['date'])throw new DomainException('Movement history has an invalid acknowledgement date.');$seen=[];
-        foreach($event['lines'] as $line){$id=(string)($line['lineId']??'');if(!isset($totals[$id])||isset($seen[$id]))throw new DomainException('Movement history contains an unknown or repeated source line.');$seen[$id]=true;$totals[$id][$field]+=bt_qty($line['qty']);}
+    $totals=[];foreach($transfer['lines'] as $line){$id=(string)($line['lineId']??'');if($id===''||isset($totals[$id]))throw new DomainException('Movement history has an ambiguous source line.');$totals[$id]=['dispatched'=>bt_qty($line['qty']),'received'=>0,'returned'=>0,'inTransit'=>bt_qty($line['qty']),'quarantined'=>0];}
+    $events=[];$ids=[];
+    foreach(['receipts','returns','quarantines','quarantineAcceptances','quarantineReturns'] as $collection)foreach((array)($transfer[$collection]??[]) as $event){
+        $eid=(string)($event['id']??'');if($eid===''||isset($ids[$eid]))throw new DomainException('Movement history has a repeated acknowledgement identity.');$ids[$eid]=true;
+        if(!bt_is_date((string)($event['date']??''))||$event['date']<$transfer['date'])throw new DomainException('Movement history has an invalid acknowledgement date.');
+        $events[]=['collection'=>$collection,'event'=>$event];
     }
-    foreach($totals as &$line){$line['inTransit']=$line['dispatched']-$line['received']-$line['returned'];if($line['inTransit']<0)throw new DomainException('Movement history exceeds its dispatched quantity.');}unset($line);
+    // Same-day physical holds precede their releases; each event remains immutable.
+    $rank=['quarantines'=>0,'receipts'=>1,'returns'=>1,'quarantineAcceptances'=>2,'quarantineReturns'=>2];
+    usort($events,static fn($a,$b)=>strcmp($a['event']['date'],$b['event']['date'])?:($rank[$a['collection']]<=>$rank[$b['collection']]));
+    foreach($events as $item){$collection=$item['collection'];$seen=[];foreach($item['event']['lines'] as $line){$id=(string)($line['lineId']??'');if(!isset($totals[$id])||isset($seen[$id]))throw new DomainException('Movement history contains an unknown or repeated source line.');$seen[$id]=true;$qty=bt_qty($line['qty']);$t=&$totals[$id];
+        if(in_array($collection,['quarantineAcceptances','quarantineReturns'],true)){$t['quarantined']-=$qty;$t[$collection==='quarantineAcceptances'?'received':'returned']+=$qty;}
+        else{$t['inTransit']-=$qty;$t[$collection==='quarantines'?'quarantined':($collection==='receipts'?'received':'returned')]+=$qty;}
+        if($t['inTransit']<0||$t['quarantined']<0)throw new DomainException('Movement history exceeds the physical quantity available on its date.');unset($t);
+    }}
     return $totals;
 }
 function bt_status(array $transfer): string {
-    $rows=bt_totals($transfer);$pending=array_sum(array_column($rows,'inTransit'));$received=array_sum(array_column($rows,'received'));$returned=array_sum(array_column($rows,'returned'));
+    $rows=bt_totals($transfer);$pending=array_sum(array_column($rows,'inTransit'));$received=array_sum(array_column($rows,'received'));$returned=array_sum(array_column($rows,'returned'));$held=array_sum(array_column($rows,'quarantined'));
+    if($held>0)return $pending>0?'Partly acknowledged — bags in transit and quarantine':'Quarantined — inspection or physical return pending';
     return $pending>0?($received||$returned?'Partly received / returned — balance in transit':'In transit'):($returned?($received?'Closed — received and returned':'Returned to source'):'Received');
 }
 function bt_replay(array $state,array $request): ?array {
@@ -91,6 +100,24 @@ function bt_receive(array &$state,array $body,array $user,string $now,callable $
     foreach($allocations as $a){$lineId=(string)($a['lineId']??'');if(!isset($totals[$lineId])||isset($seen[$lineId]))throw new DomainException('Select each exact transfer source line once.');$seen[$lineId]=true;$qty=bt_qty($a['qty']??null);
         if($qty>$totals[$lineId]['inTransit'])throw new DomainException('The received quantity exceeds this line remaining in transit. Refresh the transfer.');$lines[]=['lineId'=>$lineId,'qty'=>$qty];}
     $event=['id'=>'BTE-'.substr(hash('sha256',$request['id']),0,24),'date'=>$date,'lines'=>$lines,'reason'=>$reason,'at'=>$now]+$request['actor'];
-    $collection=$returnToSource?'returns':'receipts';$record[$collection][]=$event;$state['transfers'][$id]=$record;bt_commit_request($state,$request,$record,$action,$now);
+    $collection=$returnToSource?'returns':'receipts';$record[$collection][]=$event;bt_totals($record);$state['transfers'][$id]=$record;bt_commit_request($state,$request,$record,$action,$now);
+    return ['record'=>$record,'status'=>bt_status($record),'replayed'=>false];
+}
+
+/** Rejected delivery is physically held, never available stock or an automatic source return. */
+function bt_quarantine(array &$state,array $body,array $user,string $now,callable $authorize): array {
+    $action=(string)($body['action']??'');$collections=['quarantine'=>'quarantines','accept_quarantine'=>'quarantineAcceptances','return_quarantine'=>'quarantineReturns'];
+    if(!isset($collections[$action]))throw new DomainException('Choose a supported physical quarantine action.');
+    $request=bt_request($state,$body,$user,strtoupper($action));$id=(string)($body['transferId']??'');$record=$state['transfers'][$id]??null;
+    if(!is_array($record)||($record['entity']??'')!==($body['entity']??''))throw new DomainException('The transfer was not found in the selected stock owner.');
+    $returned=$action==='return_quarantine';$authorize($record['entity'],$returned?$record['source']['millName']:$record['destination']['name'],'Create',$returned?$record['source']['locationId']:$record['destination']['id']);
+    if($replay=bt_replay($state,$request))return $replay;
+    $date=bt_date((string)($body['date']??''),$now);if($date<$record['date'])throw new DomainException('The physical acknowledgement cannot precede dispatch.');
+    $reason=trim((string)($body['reason']??''));if(strlen($reason)<3||strlen($reason)>500)throw new DomainException('Record the inspection, rejection or actual physical return reason (3 to 500 characters).');
+    $totals=bt_totals($record);$allocations=$body['allocations']??null;if(!is_array($allocations)||!array_is_list($allocations)||!$allocations)throw new DomainException('Enter actual physical quantities against the original source lines.');
+    $lines=[];$seen=[];$bucket=$action==='quarantine'?'inTransit':'quarantined';
+    foreach($allocations as $a){$lineId=(string)($a['lineId']??'');if(!isset($totals[$lineId])||isset($seen[$lineId]))throw new DomainException('Select each original transfer line once.');$seen[$lineId]=true;$qty=bt_qty($a['qty']??null);if($qty>$totals[$lineId][$bucket])throw new DomainException('The actual quantity exceeds the remaining physical balance. Refresh the transfer.');$lines[]=['lineId'=>$lineId,'qty'=>$qty];}
+    $event=['id'=>'BTE-'.substr(hash('sha256',$request['id']),0,24),'date'=>$date,'lines'=>$lines,'reason'=>$reason,'at'=>$now]+$request['actor'];
+    $record[$collections[$action]][]=$event;bt_totals($record);$state['transfers'][$id]=$record;bt_commit_request($state,$request,$record,strtoupper($action),$now);
     return ['record'=>$record,'status'=>bt_status($record),'replayed'=>false];
 }

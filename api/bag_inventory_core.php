@@ -143,11 +143,14 @@ function bti_project(array $values,array $masters,array $scope,string $asOf,stri
         if($transfer['date']<=$asOf)$lots[$sourceId]['transferredOutQty']+=(int)$line['qty'];
         $movements[]=['date'=>$transfer['date'],'lotId'=>$sourceId,'entity'=>$transfer['entity'],'locationId'=>$transfer['source']['locationId'],'qty'=>-(int)$line['qty'],'type'=>'TRANSFER_DISPATCH','reference'=>$transfer['id']];
     }
-    foreach(['receipts'=>'TRANSFER_RECEIPT','returns'=>'TRANSFER_RETURN'] as $collection=>$type)foreach((array)($transfer[$collection]??[]) as $event)foreach($event['lines'] as $ack){$line=$byLine[$ack['lineId']]??null;if(!$line)throw new DomainException('Transfer receipt lost its original source line.');
-        $id=$collection==='receipts'?'BT|'.$transfer['id'].'|'.$ack['lineId']:$line['sourceLotId'];if(!isset($lots[$id]))continue;$qty=(int)$ack['qty'];
-        if($event['date']<=$asOf)$lots[$id][$collection==='receipts'?'receivedQty':'returnedQty']+=$qty;
+    foreach(['receipts'=>'TRANSFER_RECEIPT','returns'=>'TRANSFER_RETURN','quarantineAcceptances'=>'TRANSFER_QUARANTINE_ACCEPTANCE','quarantineReturns'=>'TRANSFER_QUARANTINE_RETURN'] as $collection=>$type)foreach((array)($transfer[$collection]??[]) as $event)foreach($event['lines'] as $ack){$line=$byLine[$ack['lineId']]??null;if(!$line)throw new DomainException('Transfer receipt lost its original source line.');
+        $destinationReceipt=in_array($collection,['receipts','quarantineAcceptances'],true);$id=$destinationReceipt?'BT|'.$transfer['id'].'|'.$ack['lineId']:$line['sourceLotId'];if(!isset($lots[$id]))continue;$qty=(int)$ack['qty'];
+        if($event['date']<=$asOf)$lots[$id][$destinationReceipt?'receivedQty':'returnedQty']+=$qty;
         $movements[]=['date'=>$event['date'],'lotId'=>$id,'entity'=>$transfer['entity'],'locationId'=>$lots[$id]['locationId'],'qty'=>$qty,'type'=>$type,'reference'=>$event['id']];
     }}
+    foreach((array)($state['transfers']??[]) as $transfer)foreach(['quarantines'=>1,'quarantineAcceptances'=>-1,'quarantineReturns'=>-1] as $collection=>$direction)foreach((array)($transfer[$collection]??[]) as $event)foreach($event['lines'] as $ack){
+        $id='BT|'.$transfer['id'].'|'.$ack['lineId'];if(isset($lots[$id])&&$event['date']<=$asOf)$lots[$id]['quarantinedQty']+=$direction*(int)$ack['qty'];
+    }
     $runs=[];foreach($production as $r)if(is_array($r))$runs[(string)($r['id']??'')][]=$r;
     $issueCount=[];foreach($issues as $i)if(is_array($i))$issueCount[(string)($i['productionId']??'')]=($issueCount[(string)($i['productionId']??'')]??0)+1;
     $consume=static function(array $r,array $allocs,string $reference)use(&$lots,&$movements,$asOf,$today,$masters){$location=bti_run_location($masters,$r);$date=bti_date($r['date']??'');foreach($allocs as $a){$id=(string)($a['lotId']??'');$qty=bti_count($a['qty']??null);if(!isset($lots[$id])||$qty===null||!$location||$lots[$id]['entity']!==($r['entity']??'')||$lots[$id]['locationId']!==$location['locationId'])throw new DomainException('Saved production allocation lost its actual company/location source lot.');

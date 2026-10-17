@@ -73,6 +73,32 @@ else{$out=['values'=>[],'meta'=>[]];foreach($p->query('SELECT storage_key,payloa
     last=dict(receipt,requestKey='actual-receipt-final-0001',allocations=[dict(lineId=line,qty=2)]);status,closed=req(last,mode='target',location='mills-2');assert status==200 and closed['movement']['status']=='Closed — received and returned',closed
     assert req(mode='target',location='mills-2')[1]['inventory']['lots'][target_id]['availableQty']==8 and req()[1]['inventory']['lots'][lot]['availableQty']==92
     assert json.loads(stored()['values']['tt30bags'])==[order] and books.read_bytes()==financial,'Acknowledgement fabricated a PO or a financial write'
+    # Rejected delivery stays unavailable at both locations until explicit resolution.
+    fresh=req()[1]['inventory'];held_dispatch=dict(body,requestKey='held-dispatch-0001',sourceFingerprint=fresh['fingerprint'])
+    status,ack=req(held_dispatch);assert status==200,ack
+    held_record=ack['movement']['record'];held_id=held_record['id'];held_line=held_record['lines'][0]['lineId'];held_lot='BT|'+held_id+'|'+held_line
+    quarantine=dict(receipt,action='quarantine',transferId=held_id,requestKey='held-quarantine-001',reason='Damaged bags inspected and held',allocations=[dict(lineId=held_line,qty=10)])
+    before=snapshot();assert req(quarantine)[0]==403 and snapshot()==before
+    status,ack=req(quarantine,mode='target',location='mills-2');assert status==200,ack
+    before=snapshot();assert req(quarantine,mode='target',location='mills-2')[1]['movement']['replayed'] and snapshot()==before
+    held_view=req(mode='target',location='mills-2')[1]['inventory']['lots'][held_lot]
+    assert held_view['availableQty']==0 and held_view['quarantinedQty']==10
+    assert req()[1]['inventory']['lots'][lot]['availableQty']==82
+    release=dict(quarantine,action='accept_quarantine',requestKey='held-acceptance-001',reason='Reinspected and accepted',allocations=[dict(lineId=held_line,qty=6)])
+    before=snapshot();assert req(release)[0]==403 and snapshot()==before
+    status,ack=req(release,mode='target',location='mills-2');assert status==200,ack
+    held_view=req(mode='target',location='mills-2')[1]['inventory']['lots'][held_lot]
+    assert held_view['availableQty']==6 and held_view['quarantinedQty']==4
+    back=dict(quarantine,action='return_quarantine',requestKey='held-source-return-01',reason='Actually unloaded back at source',allocations=[dict(lineId=held_line,qty=4)])
+    before=snapshot();assert req(back,mode='target',location='mills-2')[0]==403 and snapshot()==before
+    status,ack=req(back);assert status==200,ack
+    before=snapshot();assert req(back)[1]['movement']['replayed'] and snapshot()==before
+    assert req()[1]['inventory']['lots'][lot]['availableQty']==86
+    held_view=req(mode='target',location='mills-2')[1]['inventory']['lots'][held_lot]
+    assert held_view['availableQty']==6 and held_view['quarantinedQty']==0
+    assert ack['movement']['status']=='Closed — received and returned'
+    before=snapshot();assert req(dict(release,requestKey='held-acceptance-overflow'),mode='target',location='mills-2')[0]==422 and snapshot()==before
+    assert json.loads(stored()['values']['tt30bags'])==[order] and books.read_bytes()==financial
     # The generic operational cache cannot expose or overwrite the server-owned request/acknowledgement ledger.
     probe=root/'privacy.php';probe.write_text('''<?php require __DIR__.'/auth_store.php';require __DIR__.'/inventory_reconciliation.php';$v=json_decode(stream_get_contents(STDIN),true);$public=tt_inv_public_values($v['values'],$v['meta']);try{tt_inv_prepare_write($v['values'],'tt41bagtransfers','{}',['role'=>'Super Admin'],gmdate('c'));$public['bypass']=true;}catch(DomainException){$public['bypass']=false;}echo json_encode($public);''')
     p=subprocess.run(['php',str(probe)],input=json.dumps(stored()),env=env,text=True,capture_output=True,check=True);public=json.loads(p.stdout)
