@@ -1,5 +1,5 @@
 const {test,expect}=require('@playwright/test');
-const BASE=process.env.TRANSTRADE_BASE_URL,USERNAME=process.env.TRANSTRADE_QA_USERNAME,PASSWORD=process.env.TRANSTRADE_QA_PASSWORD;
+const BASE=process.env.TRANSTRADE_BASE_URL||'https://app.transtradeinternational.com',USERNAME=process.env.TRANSTRADE_QA_USERNAME,PASSWORD=process.env.TRANSTRADE_QA_PASSWORD;
 test('deployed Sales Tax, WHT source reconciliation and product availability are read-only',async({page})=>{
  test.setTimeout(180000);
  expect(USERNAME,'Existing QA username required').toBeTruthy();expect(PASSWORD,'Existing QA password required').toBeTruthy();
@@ -12,5 +12,5 @@ test('deployed Sales Tax, WHT source reconciliation and product availability are
  for(const row of wht.taxReport){const total=totals.get(row.head+'|'+row.category);expect(!!total,'Summary source lines missing').toBe(true);expect(Math.abs(total.debit-row.debit)<0.005&&Math.abs(total.credit-row.credit)<0.005,'WHT summary/source mismatch').toBe(true);}
  const normal=await page.request.get(BASE+'/api/accounts_subaccounts.php?entity=TTI');expect(normal.status()).toBe(200);expect(Object.hasOwn(await normal.json(),'taxEntries'),'Master response must omit transaction narratives').toBe(false);
  await page.goto(BASE+'/index.php?view=masters&from=accounts',{waitUntil:'domcontentloaded'});await page.locator('[data-master=products]').click();await expect(page.locator('#masterTitle')).toContainText('Export Quality');const statuses=page.locator('#masterTableBody .tag');await expect(statuses.first()).toBeVisible();for(const label of await statuses.allTextContents())expect(['Active','Deactivated'].includes(label.trim()),'Product Status contains profile wording').toBe(true);
- console.log('PASS deployed report source load, dated WHT reconciliation, ordinary master response privacy and product-status labels; only GET report requests');
+ console.log('PASS deployed report review '+JSON.stringify({salesTaxRows:tax.rows.length,whtSourceLines:wht.taxEntries.length,productStatuses:await statuses.count(),reportRequests:'GET only'}));
 });
