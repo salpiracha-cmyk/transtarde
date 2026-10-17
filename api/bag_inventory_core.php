@@ -217,7 +217,8 @@ function bti_prepare_production(array $values,string $json,array $masters,array 
         }
         bti_production_access($user,(string)($r['entity']??''),$location,$before?'Edit':'Create');
         $scope=['entity'=>(string)$r['entity'],'locationId'=>$location['locationId'],'millName'=>$location['millName'],'status'=>$location['status']];
-        $review=bti_project($values,$masters,$scope,(string)($r['date']??''),$today,$state,$id);
+        $actualDate=bt_date((string)($r['date']??''),$now);
+        $review=bti_project($values,$masters,$scope,$actualDate,$today,$state,$id);
         if(!preg_match('/^[a-f0-9]{64}$/D',(string)($r['bagStockFingerprint']??''))||!hash_equals($review['fingerprint'],$r['bagStockFingerprint']))throw new DomainException('The reviewed bag stock changed. Retain production entry and review the actual source lots again.');
         bti_validate_allocations($r,$r['bagAllocations'],$review['lots'],$masters);
         $canonical=[];foreach($r['bagAllocations'] as $a){$lot=$review['lots'][(string)$a['lotId']];$qty=bt_qty($a['qty']);if(!is_int($lot['committableQty'])||$lot['committableQty']<$qty)throw new DomainException('The selected source bag lot is held or has insufficient available stock.');
