@@ -119,18 +119,31 @@ function sac_master(array &$s,string $e,array $b,array $u):array {
  }
  $s['accountSubaccounts'][$id]=$a;$s['subaccountAudit'][]=['id'=>$id,'entity'=>$e,'operation'=>$op,'before'=>$old,'after'=>$a,'at'=>gmdate('c'),'by'=>$u['username']??''];return ['subaccountId'=>$id];
 }
+function sac_tax_entries(array $state,string $entity,string $from='',string $to=''):array {
+ $rows=[];
+ foreach((array)($state['journals']??[]) as $id=>$journal){
+  if(!is_array($journal)||($journal['entity']??'')!==$entity||($journal['status']??'')!=='Posted')continue;
+  $date=(string)($journal['date']??'');if(!preg_match('/^(\d{4})-(\d{2})-(\d{2})$/',$date,$parts)||!checkdate((int)$parts[2],(int)$parts[3],(int)$parts[1])||($from!==''&&$date<$from)||($to!==''&&$date>$to))continue;
+  foreach((array)($journal['lines']??[]) as $index=>$line){$code=(string)($line['account']??'');if(!in_array($code,['1260','2300'],true))continue;
+   $category=(string)($line['taxCategory']??$journal['meta']['taxCategory']??(($journal['meta']['bankDirectType']??'')==='SAVING_PROFIT'?'SAVINGS':(str_contains($journal['sourceType']??'','EXPORT')?'EXPORT':'OTHER')));
+   $rows[]=['journalId'=>(string)($journal['id']??$id),'postId'=>tt_accounts_public_post($state,$journal),'lineIndex'=>$index,'date'=>$date,'entity'=>$entity,'currency'=>$entity==='TG'?'AED':'PKR','head'=>$code,'treatment'=>$code==='1260'?'Recoverable':'Payable','category'=>$category,'subaccountId'=>(string)($line['subaccountId']??''),'subaccountName'=>(string)($line['subaccountName']??''),'party'=>(string)($line['counterparty']??$line['subledger']??$line['partyName']??$journal['meta']['customer']??''),'reference'=>(string)($journal['reference']??''),'narration'=>(string)($journal['narration']??''),'debit'=>round((float)($line['debit']??0),2),'credit'=>round((float)($line['credit']??0),2),'reversalOf'=>(string)($journal['reversalOf']??'')];
+  }
+ }
+ usort($rows,static fn($a,$b)=>strcmp($a['date'].'|'.$a['journalId'],$b['date'].'|'.$b['journalId'])?:($a['lineIndex']<=>$b['lineIndex']));return $rows;
+}
 function sac_payload(array $s,string $e,string $from='',string $to=''):array {
  $chart=sac_entity_chart($s,$e);$heads=[];$subs=sac_accounts($s,$e);$tax=[];
  foreach($chart as $code=>$r)$heads[(string)$code]=$r+['balance'=>0,'subaccounts'=>[]];
  foreach($subs as $id=>$r){$a=sac_resolve($s,$e,$id,false);$subs[$id]=$a+['balance'=>0];}
  foreach((array)($s['journals']??[]) as $j)if(($j['entity']??'')===$e&&($j['status']??'')==='Posted'&&($to===''||($j['date']??'')<=$to))foreach((array)($j['lines']??[]) as $l){$code=(string)($l['account']??'');$n=round((float)($l['debit']??0)-(float)($l['credit']??0),2);if(isset($heads[$code]))$heads[$code]['balance']+=$n;$id=(string)($l['subaccountId']??'');if(isset($subs[$id]))$subs[$id]['balance']+=$n;
-  if(in_array($code,['1260','2300'],true)&&($from===''||($j['date']??'')>=$from)){$cat=$l['taxCategory']??($j['meta']['taxCategory']??(($j['meta']['bankDirectType']??'')==='SAVING_PROFIT'?'SAVINGS':(str_contains($j['sourceType']??'','EXPORT')?'EXPORT':'OTHER')));$k=$code.'|'.$cat;$tax[$k]??=['head'=>$code,'treatment'=>$code==='1260'?'Recoverable':'Payable','category'=>$cat,'debit'=>0,'credit'=>0];$tax[$k]['debit']+=(float)($l['debit']??0);$tax[$k]['credit']+=(float)($l['credit']??0);}
+
  }
  foreach($heads as &$head)$head['directBalance']=$head['balance'];unset($head);foreach($heads as $code=>$head){$parent=(string)($head['parent']??'');$seen=[];while($parent!==''&&isset($heads[$parent])&&!isset($seen[$parent])){$heads[$parent]['balance']+=$head['directBalance'];$seen[$parent]=true;$parent=(string)($heads[$parent]['parent']??'');}}
  foreach($subs as &$a)$a['directBalance']=$a['balance'];unset($a);
  foreach($subs as $a)foreach($a['ancestorIds'] as $parent)if(isset($subs[$parent]))$subs[$parent]['balance']+=$a['directBalance'];
  foreach($subs as $a)if(empty($a['parentId'])&&isset($heads[$a['parentCode']]))$heads[$a['parentCode']]['subaccounts'][]=$a;
- return ['ok'=>true,'entity'=>$e,'revision'=>(int)($s['revision']??0),'heads'=>array_values($heads),'subaccounts'=>array_values($subs),'taxReport'=>array_values($tax)];
+ $taxEntries=sac_tax_entries($s,$e,$from,$to);foreach($taxEntries as $entry){$k=$entry['head'].'|'.$entry['category'];$tax[$k]??=array_intersect_key($entry,array_flip(['head','treatment','category']))+['debit'=>0.,'credit'=>0.];$tax[$k]['debit']+=$entry['debit'];$tax[$k]['credit']+=$entry['credit'];}
+ return ['ok'=>true,'entity'=>$e,'taxEntries'=>$taxEntries,'taxFilters'=>['from'=>$from,'to'=>$to],'currency'=>$e==='TG'?'AED':'PKR','revision'=>(int)($s['revision']??0),'heads'=>array_values($heads),'subaccounts'=>array_values($subs),'taxReport'=>array_values($tax)];
 }
 
 
