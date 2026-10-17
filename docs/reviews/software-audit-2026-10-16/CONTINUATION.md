@@ -844,3 +844,10 @@ PR279 live smoke39013404296/job117340469064 passed17/18, including50 ledgers/thr
 ### Original bag marking display added to pending PR281
 
 Actual Chrome GHAZAL receipt conditional tare field passed:122 persisted while hidden/reshown, with no receipt save. The Artwork control instead opened hardcoded GHAZAL BAG ARTWORK text headed Approved Artwork. C22 prepared fix renders the actual linked image and filename, never invents approval, handles missing/failed images visibly and rejects external/unsafe references. The module bridge now retains file-backed artworkDocument download/data references. Existing document authorization is unchanged; a403 remains a visible failure, not a bypass. Local actual-function tests cover embedded/protected/file-backed images, stale failures, unsafe URLs and wrong/ambiguous order scope. Full hosted/live acceptance remains pending on the revised head.
+
+
+### C24 — 119500kg cannot be accepted as TTI Rice Mills stock
+
+User challenged the mill location. Actual Mac Chrome source tracing now confirms original23September Pohanch PH-00001 / ABC-123 / Soda26002, PH-00002 / ABC-345 / Soda26001, PH-00003 / TK-123 / Soda26002, all shams broker. Original Accounts search confirms both Purchase Soda26001 and26002, dated11September2026, list indus rice mill. This conflicts with Rice Ledger grouping30500+39000+50000=119500kg under TTI Rice Mills. The earlier statement accepting that total as verified TTI stock is withdrawn; only arithmetic/rendering was verified.
+
+Source inventory_reconciliation.php defaults missing millName/locationName/mill/stockLocation to TTI Rice Mills. This is a possible contributor, not yet proof the three saved receipts lack location fields; explicit wrong receipt metadata is another possibility. Inspect exact saved Pohanch fields, sourceSodaId/locationId and actual unloading before correction. No records moved, reprinted (which writes printed status), saved or amended during tracing. Coverage Rice Ledger marked failed for source location integrity.

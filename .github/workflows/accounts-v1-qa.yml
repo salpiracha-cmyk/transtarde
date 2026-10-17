@@ -205,6 +205,10 @@ jobs:
           node tests/accounts-v1/mill_cash_projection_test.js
           node tests/accounts-v1/mill_operational_status_test.js
           TZ=Asia/Karachi node tests/accounts-v1/labour_scope_test.js
+          node tests/corn_weights_test.js
+          node tests/accounts-v1/corn_stock_test.js
+          node tests/accounts-v1/corn_completion_test.js
+          php tests/accounts-v1/corn_weights_test.php
           TZ=America/Los_Angeles node tests/accounts-v1/labour_scope_test.js
           node tests/accounts-v1/shipment_bill_result_edit_test.js
           node tests/accounts-v1/fi_tags_read_only_test.js

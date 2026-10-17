@@ -2,6 +2,7 @@
 declare(strict_types=1);
 require_once __DIR__.'/fi_credit_advice_link.php';
 require_once __DIR__.'/operations_policy.php';
+require_once __DIR__.'/commodity_weights_core.php';
 
 require dirname(__DIR__) . '/auth_store.php';
 require dirname(__DIR__) . '/backup_lib.php';
@@ -581,6 +582,7 @@ function operations_file_fallback(array $user): never {
             operations_validate_mill_cash($user,$sourceModule,$key,$old,$value,(array)($store['values']??[]));
             operations_validate_brand_bags($user,$sourceModule,$key,$old,$value);
             if ($key==='transtrade_export_v3_operational') { operations_validate_export_permissions($user,$sourceModule,$old,$value); operations_validate_lot_reopening($old,$value,$user,$sourceModule); $value=operations_merge_export($old,$value,$sourceModule); }
+            if ($key==='tt30ship') tt_validate_corn_loading($value,$old);
             if ($key==='tt40exinstructions') operations_validate_exmill_completion($value,(string)($store['values']['tt35exload']??'[]'));
             if ($key==='tt35exload' && $sourceModule!=='Exports') operations_validate_exmill_completion((string)($store['values']['tt40exinstructions']??'[]'),$value);
             $now=gmdate('c');$beforeValues=(array)($store['values']??[]);
@@ -708,6 +710,7 @@ try {
         operations_validate_lot_reopening($oldPayload, $value, $user, $sourceModule);
         $value = operations_merge_export($oldPayload, $value, $sourceModule);
     }
+    if ($key === 'tt30ship') tt_validate_corn_loading($value,$oldPayload);
     if ($key === 'tt40exinstructions') {
         $readLoads=$db->prepare('SELECT payload FROM tt_operation_records WHERE storage_key = ?');
         $readLoads->execute(['tt35exload']);

@@ -98,7 +98,7 @@ function tt_inv_shift_at(string $now): array {
     return ['date'=>($hour<6?$d->modify('-1 day'):$d)->format('Y-m-d'),'shift'=>$shift];
 }
 function tt_inv_product(array $row,string $stage='FINISHED'): string {
-    return tt_product_display('RICE',(string)($row['baseVariety']??$row['variety']??$row['displayName']??''),$stage,(string)($row['riceType']??''));
+    return tt_product_display((string)($row['commodity']??'RICE'),(string)($row['baseVariety']??$row['variety']??$row['displayName']??''),$stage,(string)($row['riceType']??''));
 }
 function tt_inv_output_name(array $production,array $row): string {
     $name=(string)($row['product']??'Unknown');
@@ -116,6 +116,7 @@ function tt_inv_output_kg(array $production,string $stockName): float {
 }
 function tt_inv_resolve_stock(array $map,array $shipment): string {
     $explicit=trim((string)($shipment['stockSourceName']??''));if($explicit!=='')return $explicit;
+    if(in_array(strtoupper((string)($shipment['commodity']??'')),['MAIZE','CORN','MAKAI'],true))return tt_inv_product($shipment,'RAW');
     $brand=(string)($shipment['brand']??'');$finished=tt_inv_product($shipment).($brand!==''?' — '.$brand:'');
     if(array_key_exists($finished,$map))return $finished;
     $ready=tt_inv_product($shipment,'READY');

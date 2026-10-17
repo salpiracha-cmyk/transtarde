@@ -277,3 +277,11 @@ assert.match(orderedPo,/Second[\s\S]*<b>With handle<\/b>/i);
 assert.doesNotMatch(orderedPo,/Unit Rate|Line Amount|Sales Contract|Customer/);
 
 console.log('PASS export release unit/integration assertions');
+
+// Corn actuals retain zero bags and real deductions; final customs shares the same net.
+const cornContract={...structuredClone(c),id:'CORN-C',ref:'CORN-TEST',product:'Yellow Maize',commodity:'MAIZE',packings:[{brand:'CORN',type:'Loose bulk in containers',looseBulk:true,size:0,containers:1,weightPer:27.5,tare:0,rate:250}]};
+t.state.contracts.push(cornContract);
+const cornLot={...t.makeShipment(cornContract),kind:'lot',contractRef:cornContract.ref,containers:1,plannedQty:27.5,millLoadingCompleted:false,loadingPlan:{allocations:[{packIndex:0,containers:1,weightPer:27.5}]},millActuals:[{number:'MSCU123456-7',seal:'CORN-SEAL',bags:0,netKg:27470,millNetKg:27470,tareKg:30,grossKg:27500,brand:'CORN',packing:'Loose bulk in containers'}]};
+assert.equal(t.actualRows(cornLot,cornContract)[0].bags,0);assert.equal(t.actualRows(cornLot,cornContract)[0].netKg,27470);assert.equal(t.millActualsComplete(cornLot),false,'Corn actuals require explicit loading completion');
+cornLot.millLoadingCompleted=true;assert.equal(t.millActualsComplete(cornLot),true);const cornCustom=t.commercialInvoiceDoc(cornLot,cornContract,true),cornPacking=t.packingListDoc(cornLot,cornContract,true);assert.match(cornCustom,/27\.470/,'Revised Customs Invoice uses actual tonnes');assert.match(cornPacking,/27[,.]?470|27470/,'Revised Customs Packing List uses actual net');
+console.log('PASS corn final/customs actual weights and bulk zero-bag output');
