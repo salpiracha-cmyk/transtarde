@@ -124,6 +124,38 @@ if($argv[1]==='seed'){
     assert json.loads(response['value'])[0]['rows']==[]
     private_values={r['storage_key']:r['payload'] for r in json.loads(stored())} if MYSQL else json.loads(stored())['values']
     assert json.loads(private_values['tt30prod'])[0]['rows']==[hidden],'Public response filtering deleted protected source history'
+    # The explicit production source save commits its packing mirror and actual
+    # amendment evidence inside this same writer transaction, including MySQL.
+    seed({'production':['View','Create']})
+    auth_data=json.loads(auth.read_text());auth_data['masters']={'mills':[{'id':'mills-1','values':['TTI Rice Mills','','Own Mill','','','Active','','TTI']}]}
+    auth.write_text(json.dumps(auth_data))
+    original_public={**production,'rows':[]}
+    actual={'id':701,'entity':'TTI','millId':1,'millName':'TTI Rice Mills','date':'2026-10-17','shift':'Day','variety':'IRRI-6','baseVariety':'IRRI-6','riceType':'White','recoveryVersion':1,'rawInputs':[{'grossKg':500}],'rows':[{'product':'Ready Rice — ASAS','bags':10,'bagWeight':50}],'clientSaveRequestId':'production-original-0001'}
+    status,created=write('tt30prod',[original_public,actual]);assert status==200,created
+    confirmed=json.loads(created['value']);source=next(r for r in confirmed if r['id']==701)
+    mirror=json.loads(created['related']['tt36bagissues']['value']);assert len(mirror)==1 and mirror[0]['usage']['ASAS']==10 and mirror[0]['userId']==1 and mirror[0]['serverManaged']
+    before=stored();edited={**source,'rawInputs':[{'grossKg':600}],'rows':[{'product':'Ready Rice — ASAS','bags':12,'bagWeight':50}],'clientSaveRequestId':'production-amendment-0002'}
+    candidate=[edited if r['id']==701 else r for r in confirmed]
+    assert write('tt30prod',candidate,base=2)[0]==403 and stored()==before,'Create-only user amended production or its atomic packing history'
+    auth_data['users'][0]['permissions']['Mill']['production'].append('Edit');auth.write_text(json.dumps(auth_data))
+    status,amended=write('tt30prod',candidate,base=2);assert status==200,amended
+    mirror=json.loads(amended['related']['tt36bagissues']['value']);history=json.loads(amended['related']['tt30prodaudit']['value'])
+    assert len(mirror)==1 and mirror[0]['usage']['ASAS']==12 and len(history)==1 and history[0]['user']=='Fixture' and history[0]['userId']==1
+    assert history[0]['before']['rows'][0]['bags']==10 and history[0]['after']['rows'][0]['bags']==12
+    # Same request cannot rewrite its committed production facts or derived rows.
+    forged=json.loads(amended['value']);next(r for r in forged if r['id']==701)['reason']='Forged same-request change'
+    before=stored();assert write('tt30prod',forged,base=3)[0]==403 and stored()==before
+    missing_input=json.loads(amended['value']);missing=next(r for r in missing_input if r['id']==701);missing.update(rawInputs=[],recoveryVersion=0,clientSaveRequestId='production-no-input-forged-0003')
+    before=stored();assert write('tt30prod',missing_input,base=3)[0]==403 and stored()==before,'Acknowledged source save inferred missing raw input from output'
+    # Fixed private rows also stay private inside an acknowledgement's related audit.
+    private_edit=json.loads(amended['value']);next(r for r in private_edit if r['id']==700).update(reason='Actual operational note amendment',clientSaveRequestId='production-private-amend-0003')
+    status,private_saved=write('tt30prod',private_edit,base=3);assert status==200,private_saved
+    assert 'INTERNAL_RECONCILIATION_SENTINEL' not in json.dumps(private_saved) and '987654321' not in json.dumps(private_saved)
+    raw={r['storage_key']:r['payload'] for r in json.loads(stored())} if MYSQL else json.loads(stored())['values']
+    audit=json.loads(raw['tt30prodaudit']);assert audit[-1]['before']['rows']==[hidden] and audit[-1]['after']['rows']==[hidden]
+    before=stored()
+    for key in ['tt36bagissues','tt30prodaudit']:
+        assert write(key,[],base=3)[0]==403 and stored()==before,'Generic writer deleted source-owned production history'
     if MYSQL:
         subprocess.run(['php',str(sql_script),'cleanup'],env=env,check=True,capture_output=True)
     print('PASS '+('MySQL' if MYSQL else 'file')+' cash target permissions, unchanged rejected writes, linked sales/expenses, duplicates, exact actions, legacy/owner rights, CSRF, versions and public-only save acknowledgements preserving private rows')

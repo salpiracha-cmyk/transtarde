@@ -156,3 +156,13 @@ Local pure, source-controller, lock-contention, original/replay, dependency, per
 
 
 Hosted confirmation: both full suites passed at 366ef860e3a625f2bb0477aa44cc09d0340c12ff (Accounts 39033723677; Milling/Exports 39033723714). The hosted inventory runtime explicitly passed the actual native save/retention/print DOM case, source amendment UI recovery/read-only/validation case and real MySQL amendment/lock/replay controller case. An additional disposable full-browser handoff now exercises the real authenticated Milling wrapper, failed native source save and retry, actual Accounts review and source amendment/replacement, partial/full payment and replay, original journal preservation, verified Mill outstanding balance and CSV. It awaits its own hosted full run. PR 290 remains undeployed.
+
+### Production Save acknowledgement — separate release candidate
+
+PR 292's public-only operational Save responses are deployed as e10fa4954a3665974459dfcede3a52a9b5fe342c. Main Accounts 39038650976 and Milling/Exports 39038650953 passed; deployment 39038874494 succeeded. Live read-only smoke 39038943741 and startup performance 39038943957 passed.
+
+Production Save previously announced success, staged browser collections and cleared actual raw inputs before durable acknowledgement. The new source-only Save reads the committed collection, checks an edit's original reviewed record, and saves one stable production identity at the current collection version. The native form clears only after exact server confirmation. A lost response confirms the original request, without another production entry or write. Durable recovery preserves a newly entered draft; failed saves preserve raw inputs and focus. Other pending forms are not flushed.
+
+Bag-use history and actual-actor amendment evidence now commit inside the production transaction. MySQL locks the dependent rows and returns their public confirmed versions. Source-managed history cannot be overwritten, deleted or attributed by generic browser writes. Management-only reconciliation rows stay stored and stay out of source and related-history acknowledgements. Production continues to use its existing actual input/recovery validation and existing packing availability rule; this does not release the unfinished acknowledged transfer/allocation UI.
+
+Local source-save, shared-cache isolation, actual production controller, Create/Edit boundaries, atomic usage/audit, private preservation and inventory regression tests pass. Hosted full QA, native DOM and real authenticated browser failure/lost-response tests are pending for this release candidate. No live production, financial or opening records were created.
