@@ -88,7 +88,7 @@ $sharedBootstrap = <<<'HTML'
   const access=window.TT_MODULE_ACCESS||{}, endpoint='api/operations.mysql.php';
   const cornContract=c=>/\b(?:CORN|MAIZE|MAKAI)\b/i.test([c?.commodity,c?.product,c?.variety,c?.baseVariety].filter(Boolean).join(' '));
   const EXPORT_STORE='transtrade_export_v3_operational';
-  const PRIVATE_STORES=new Set(['tt34ghati','tt34nilqueue','tt32processingrecon']);
+  const PRIVATE_STORES=new Set(['tt34ghati','tt34nilqueue','tt32processingrecon','tt41bagtransfers']);
   const allowed=k=>!PRIVATE_STORES.has(k)&&(k===EXPORT_STORE||/^tt[0-9]{2}[a-z0-9_]{2,60}$/.test(k));
   const originalSet=Storage.prototype.setItem, originalRemove=Storage.prototype.removeItem, originalGet=Storage.prototype.getItem, originalClear=Storage.prototype.clear;
   const cacheFallback=new Map(), committedValues=new Map(), receipts=new Map(), failedKeys=new Set();let saveHolds=0;

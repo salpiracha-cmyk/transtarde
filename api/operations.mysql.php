@@ -33,6 +33,13 @@ function operations_respond(array $data, int $status = 200): never {
     exit;
 }
 
+/** Save acknowledgements have the same visibility boundary as operational GETs. */
+function operations_public_value(string $key,string $value): string {
+    $visible=tt_inv_public_values([$key=>$value]);
+    if(!array_key_exists($key,$visible['values']))throw new DomainException('This source has no public operational representation.');
+    return (string)$visible['values'][$key];
+}
+
 function operations_key_allowed(string $key): bool {
     return $key === 'transtrade_export_v3_operational'
         || (bool)preg_match('/^tt[0-9]{2}[a-z0-9_]{2,60}$/', $key);
@@ -605,7 +612,7 @@ function operations_file_fallback(array $user): never {
     } finally { flock($handle,LOCK_UN); fclose($handle); }
     if ($conflict) operations_respond(['ok'=>false,'conflict'=>true,'error'=>'A newer shared update is available. Refresh before saving again.','keyVersion'=>$keyVersion],409);
     if($key==='transtrade_export_v3_operational')try{tt_receipt_invoice_sync();}catch(Throwable $linkError){error_log('Invoice narration link: '.$linkError->getMessage());}
-    operations_respond(['ok'=>true,'revision'=>$revision,'keyVersion'=>$keyVersion,'updatedAt'=>gmdate('c'),'value'=>(string)($store['values'][$key]??$value)]);
+    operations_respond(['ok'=>true,'revision'=>$revision,'keyVersion'=>$keyVersion,'updatedAt'=>gmdate('c'),'value'=>operations_public_value($key,(string)($store['values'][$key]??$value))]);
 }
 
 try {
@@ -741,7 +748,7 @@ try {
     $db->commit();
     if($key==='transtrade_export_v3_operational')try{tt_receipt_invoice_sync();}catch(Throwable $linkError){error_log('Invoice narration link: '.$linkError->getMessage());}
     if($inventoryLock){$release=$db->prepare('SELECT RELEASE_LOCK(?)');$release->execute(['tt_inventory_'.substr(hash('sha256',operations_env('DB_NAME')),0,24)]);$inventoryLock=false;}
-    operations_respond(['ok' => true, 'revision' => $version, 'keyVersion' => $version, 'updatedAt' => gmdate('c'), 'value' => (string)($nextValues[$key]??$value)]);
+    operations_respond(['ok' => true, 'revision' => $version, 'keyVersion' => $version, 'updatedAt' => gmdate('c'), 'value' => operations_public_value($key,(string)($nextValues[$key]??$value))]);
 } catch (DomainException|InvalidArgumentException $e) {
     if(isset($db)&&$db instanceof PDO&&$db->inTransaction())$db->rollBack();
     operations_respond(['ok'=>false,'error'=>$e->getMessage()],$e instanceof DomainException?403:422);

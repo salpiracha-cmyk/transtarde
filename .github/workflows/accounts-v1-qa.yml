@@ -30,6 +30,10 @@ jobs:
         run: |
           python3 tests/accounts-v1/commodity_lookup_read_only_test.py
           php tests/accounts-v1/arrival_dependency_test.php
+          php tests/accounts-v1/bag_transfer_test.php
+          php tests/accounts-v1/bag_inventory_test.php
+          php tests/accounts-v1/bag_production_allocation_test.php
+          python3 tests/accounts-v1/bag_transfer_endpoint_test.py
           php tests/accounts-v1/mill_source_amend_test.php
           python3 tests/accounts-v1/mill_source_amend_endpoint_test.py
           php tests/accounts-v1/mill_liabilities_test.php
@@ -288,6 +292,7 @@ jobs:
           php tests/accounts-v1/freight_metadata_test.php
           python3 tests/security/mill_cash_authorization_test.py
           TT_MSA_TEST_MYSQL=1 python3 tests/accounts-v1/mill_source_amend_endpoint_test.py
+          TT_BAG_TEST_MYSQL=1 python3 tests/accounts-v1/bag_transfer_endpoint_test.py
           python3 tests/security/export_document_permissions_test.py
           "$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/inventory_reconciliation_http_test.py
           "$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/mill_source_handoff_browser_test.py

@@ -10,6 +10,7 @@ function bt_qty(mixed $value): int {
     if(!is_int($value)&&!is_float($value)&&!(is_string($value)&&ctype_digit($value)))throw new DomainException('Enter a positive whole number of bags.');
     $n=(float)$value;if(!is_finite($n)||$n<=0||$n>9007199254740991||floor($n)!==$n)throw new DomainException('Enter a positive whole number of bags.');return (int)$n;
 }
+function bt_is_date(string $date): bool {$d=DateTimeImmutable::createFromFormat('!Y-m-d',$date);return $d&&$d->format('Y-m-d')===$date;}
 function bt_date(string $date,string $now): string {
     $d=DateTimeImmutable::createFromFormat('!Y-m-d',$date);$errors=DateTimeImmutable::getLastErrors();
     if(!$d||($errors&&($errors['warning_count']||$errors['error_count']))||$d->format('Y-m-d')!==$date)throw new DomainException('Enter the actual movement date.');
@@ -26,9 +27,12 @@ function bt_request(array $state,array $body,array $user,string $action): array 
     return ['id'=>$requestId,'fingerprint'=>$hash,'prior'=>$prior,'actor'=>$actor];
 }
 function bt_totals(array $transfer): array {
-    $totals=[];foreach($transfer['lines'] as $line)$totals[$line['lineId']]=['dispatched'=>(int)$line['qty'],'received'=>0,'returned'=>0];
-    foreach(['receipts'=>'received','returns'=>'returned'] as $collection=>$field)foreach((array)($transfer[$collection]??[]) as $event)foreach($event['lines'] as $line){
-        if(!isset($totals[$line['lineId']]))throw new DomainException('Movement history contains an unknown source line.');$totals[$line['lineId']][$field]+=(int)$line['qty'];
+    if(!bt_is_date((string)($transfer['date']??'')))throw new DomainException('Movement history has an invalid actual dispatch date.');
+    $totals=[];foreach($transfer['lines'] as $line){$id=(string)($line['lineId']??'');if($id===''||isset($totals[$id]))throw new DomainException('Movement history has an ambiguous source line.');$totals[$id]=['dispatched'=>bt_qty($line['qty']),'received'=>0,'returned'=>0];}
+    $events=[];foreach(['receipts'=>'received','returns'=>'returned'] as $collection=>$field)foreach((array)($transfer[$collection]??[]) as $event){
+        $eid=(string)($event['id']??'');if($eid===''||isset($events[$eid]))throw new DomainException('Movement history has a repeated acknowledgement identity.');$events[$eid]=true;
+        if(!bt_is_date((string)($event['date']??''))||$event['date']<$transfer['date'])throw new DomainException('Movement history has an invalid acknowledgement date.');$seen=[];
+        foreach($event['lines'] as $line){$id=(string)($line['lineId']??'');if(!isset($totals[$id])||isset($seen[$id]))throw new DomainException('Movement history contains an unknown or repeated source line.');$seen[$id]=true;$totals[$id][$field]+=bt_qty($line['qty']);}
     }
     foreach($totals as &$line){$line['inTransit']=$line['dispatched']-$line['received']-$line['returned'];if($line['inTransit']<0)throw new DomainException('Movement history exceeds its dispatched quantity.');}unset($line);
     return $totals;
@@ -51,8 +55,9 @@ function bt_dispatch(array &$state,array $inventory,array $destination,array $bo
     $request=bt_request($state,$body,$user,'DISPATCH');$source=(array)($inventory['scope']??[]);$entity=(string)($source['entity']??'');
     if(!in_array($entity,['TTI','BRM'],true)||$entity!==($body['entity']??''))throw new DomainException('Select the actual source stock owner.');
     if(empty($source['locationId'])||(string)($body['sourceLocationId']??'')!==(string)$source['locationId'])throw new DomainException('The reviewed source location identity changed.');
-    $authorize($entity,(string)($source['millName']??''),'Create');
+    $authorize($entity,(string)($source['millName']??''),'Create',(string)$source['locationId']);
     if($replay=bt_replay($state,$request))return $replay;
+    if(($source['status']??'Active')!=='Active')throw new DomainException('The source mill is not active.');
     if($id===''||isset($state['transfers'][$id]))throw new DomainException('A unique transfer identity is required.');
     $date=bt_date((string)($body['date']??''),$now);
     if(($inventory['asOfDate']??'')!==$date||!preg_match('/^[a-f0-9]{64}$/D',(string)($inventory['fingerprint']??''))||!hash_equals((string)($inventory['fingerprint']??''),(string)($body['sourceFingerprint']??'')))throw new DomainException('Source stock changed or was not reviewed for the dispatch date. Review it again.');
@@ -64,7 +69,7 @@ function bt_dispatch(array &$state,array $inventory,array $destination,array $bo
         $lotId=(string)($a['lotId']??'');if($lotId===''||isset($seen[$lotId]))throw new DomainException('Select each actual source lot once.');$seen[$lotId]=true;
         $lot=$inventory['lots'][$lotId]??null;if(!is_array($lot)||($lot['entity']??'')!==$entity||($lot['locationId']??'')!==($source['locationId']??''))throw new DomainException('The source lot does not belong to this company and mill.');
         if(!empty($lot['hold'])||empty($lot['originBagId'])||empty($lot['skuKey']))throw new DomainException('Resolve the source lot identity, specifications or unallocated consumption before dispatch.');
-        $qty=bt_qty($a['qty']??null);if(!isset($lot['availableQty'])||!is_int($lot['availableQty'])||$lot['availableQty']<$qty)throw new DomainException('Insufficient verified source bags in the selected lot.');
+        $qty=bt_qty($a['qty']??null);if(!isset($lot['availableQty'])||!is_int($lot['availableQty'])||($lot['committableQty']??$lot['availableQty'])<$qty)throw new DomainException('Insufficient verified source bags in the selected lot.');
         $lineId='BTL-'.substr(hash('sha256',$id.'|'.$lotId),0,24);
         $lines[]=['lineId'=>$lineId,'sourceLotId'=>$lotId,'originBagId'=>(string)$lot['originBagId'],'qty'=>$qty,'sourceSnapshot'=>array_intersect_key($lot,array_flip(['originBagId','poNo','poLineKey','brand','packingSize','bagType','skuKey','entity','locationId','millName']))];
     }
@@ -76,7 +81,7 @@ function bt_dispatch(array &$state,array $inventory,array $destination,array $bo
 function bt_receive(array &$state,array $body,array $user,string $now,callable $authorize,bool $returnToSource=false): array {
     $action=$returnToSource?'RETURN_TO_SOURCE':'RECEIVE';$request=bt_request($state,$body,$user,$action);$id=(string)($body['transferId']??'');$record=$state['transfers'][$id]??null;
     if(!is_array($record)||($record['entity']??'')!==($body['entity']??''))throw new DomainException('The transfer was not found in the selected stock owner.');
-    $mill=$returnToSource?(string)$record['source']['millName']:(string)$record['destination']['name'];$authorize($record['entity'],$mill,'Create');
+    $mill=$returnToSource?(string)$record['source']['millName']:(string)$record['destination']['name'];$authorize($record['entity'],$mill,'Create',$returnToSource?(string)$record['source']['locationId']:(string)$record['destination']['id']);
     if($replay=bt_replay($state,$request))return $replay;
     $date=bt_date((string)($body['date']??''),$now);if($date<$record['date'])throw new DomainException('A receipt or return cannot precede dispatch.');
     $reason=trim((string)($body['reason']??''));if($returnToSource&&strlen($reason)<3)throw new DomainException('Record why the bags were physically returned and received at the source.');
