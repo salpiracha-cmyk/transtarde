@@ -2,7 +2,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('n
 const root=path.join(__dirname,'../..'),html=fs.readFileSync(path.join(root,'milling/Transtrade_Master_Milling_V3_3_2_AUDITED.html'),'utf8');
 const dom=new JSDOM('<body><section id="production"><input id="prodDate" value="2026-10-17"><input id="prodShift" value="Day"><input id="prodStart" value="08:00"><input id="prodEnd" value="20:00"><input id="prodVariety" value="IRRI-6"><input id="prodEntity" value="TTI"><input id="capacityReason" value="Recorded reason"><input id="rawKg" value="500"><input id="prodShiftComplete" type="checkbox"></section></body>',{url:'https://fixture.invalid/module.php?id=milling',runScripts:'outside-only'}),w=dom.window;
 let calls=[],resets=0,fail=true,alerts=[],messages=[];
-w.TT_MODULE_ACCESS={userId:7,module:'Mill'};w.currentMill={id:1,entity:'TTI'};w.stockEntityForView=()=> 'TTI';w.editingProdId=null;
+w.TT_PRODUCTION_BAGS={prepare:record=>record};w.TT_MODULE_ACCESS={userId:7,module:'Mill'};w.currentMill={id:1,entity:'TTI'};w.stockEntityForView=()=> 'TTI';w.editingProdId=null;
 w.STORE_PROD='tt30prod';w.get=()=>[];w.productionRows=[{id:1,product:'Ready Rice — ASAS',bags:10,bagWeight:50}];w.isOperationalProductionRow=()=>true;w.calcProduction=()=>8;
 w.TT_PRODUCTION_RECOVERY={capture:()=>({recoveryVersion:1,rawInputs:[{grossKg:Number(w.rawKg.value)}]})};w.isReprocessingMill=()=>false;
 w.millProductIdentity=()=>({baseVariety:'IRRI-6',riceType:'White',displayName:'IRRI-6 WHITE READY RICE'});w.operationalStockScope=()=>({entity:'TTI',millId:1,millName:'TTI Rice Mills'});w.validateProductionBagAvailability=()=>'';

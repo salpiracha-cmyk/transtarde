@@ -74,7 +74,7 @@ def run() -> None:
             db_php("$p->prepare('INSERT INTO tt_operation_records(storage_key,payload,version,updated_at,updated_by,updated_by_module) VALUES(?,?,1,UTC_TIMESTAMP(),?,?)')->execute(['tt32processingrecon','[{\"narration\":\"MANAGEMENT_PRIVATE_SENTINEL\"}]','QA fixture','System']);")
             view=get()
         check('MANAGEMENT_PRIVATE_SENTINEL' not in json.dumps(view),'Mill receives no private financial snapshot')
-        check(set(view['restrictedKeys'])=={'tt34ghati','tt34nilqueue','tt32processingrecon','tt34stockreviewaudit'},'Server instructs removal of older private cache keys')
+        check(set(view['restrictedKeys'])=={'tt34ghati','tt34nilqueue','tt32processingrecon','tt34stockreviewaudit','tt41bagtransfers'},'Server instructs removal of older private cache keys')
         c,d=request('qamill','/api/operations.php');check(c==200 and 'MANAGEMENT_PRIVATE_SENTINEL' not in json.dumps(d),'Legacy read cannot reveal private records')
         for user in ['qamill','qaexport','qaview']:
             c,d=request(user,'/stock-reconciliation.php?entity=TTI');check(c==403,'Financial report denied to '+user,c)

@@ -7,7 +7,7 @@ require_once __DIR__.'/export_permission_policy.php';
 function operations_validate_key_module(array $user, string $module, string $key): void {
     $module = $module === 'Milling' ? 'Mill' : $module;
     if ($module === 'Super Admin' && ($user['role'] ?? '') !== 'Super Admin') throw new DomainException('Only Super Admin may use this save route.');
-    if (in_array($key, ['tt34ghati','tt34nilqueue','tt32processingrecon','tt40exportreceipts'], true)) throw new DomainException('This record is maintained by the server.');
+    if (in_array($key, ['tt34ghati','tt34nilqueue','tt32processingrecon','tt40exportreceipts','tt41bagtransfers'], true)) throw new DomainException('This record is maintained by the server.');
     if (($user['role'] ?? '') === 'Super Admin') return;
     if ($key === 'transtrade_export_v3_operational') return;
     $exportKeys = ['tt30bags','tt30prodinst','tt30ship','tt35exmill','tt40exinstructions','tt39bridgequarantine','tt39accountsoutbox','tt32exportsync','tt35exload'];

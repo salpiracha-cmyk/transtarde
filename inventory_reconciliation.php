@@ -6,6 +6,7 @@ require_once __DIR__.'/api/arrival_withdrawal_core.php';
 
 /** Server-owned reconciliation. Operational staff submit facts, never a Ghati balance. */
 const TT_INV_PRIVATE_KEYS = ['tt34ghati','tt34nilqueue','tt32processingrecon','tt34stockreviewaudit'];
+const TT_BAG_SERVER_KEYS = ['tt41bagtransfers'];
 const TT_INV_CONFIRMATIONS = 'tt39physicalconfirmations';
 const TT_INV_SOURCE_KEYS = ['tt30prod','tt30ship','tt30slips','tt32stockadj','tt35localsales','tt35exportersale',TT_INV_CONFIRMATIONS];
 
@@ -57,7 +58,7 @@ function tt_inv_public_adjustment(array $row): array {
 }
 /** Never return management stores through the operational shared-state route. */
 function tt_inv_public_values(array $values,array $meta=[]): array {
-    foreach(TT_INV_PRIVATE_KEYS as $key){unset($values[$key],$meta[$key]);}
+    foreach(array_merge(TT_INV_PRIVATE_KEYS,TT_BAG_SERVER_KEYS) as $key){unset($values[$key],$meta[$key]);}
     if(isset($values['tt30prod'])){
         $rows=tt_inv_rows($values,'tt30prod');
         foreach($rows as &$r){$r['rows']=array_values(array_filter((array)($r['rows']??[]),static fn($x)=>!is_array($x)||!tt_inv_is_private_row($x)));}
@@ -78,7 +79,7 @@ function tt_inv_public_values(array $values,array $meta=[]): array {
             ['id','entity','millId','millName','locationId','stockName','physicalKg','date','shift','shiftDate','status','createdAt','sourceShipmentId']
         )),tt_inv_rows($values,TT_INV_CONFIRMATIONS)));
     }
-    return ['values'=>$values,'meta'=>$meta,'restrictedKeys'=>TT_INV_PRIVATE_KEYS];
+    return ['values'=>$values,'meta'=>$meta,'restrictedKeys'=>array_merge(TT_INV_PRIVATE_KEYS,TT_BAG_SERVER_KEYS)];
 }
 function tt_inv_date(string $value): string {
     $d=DateTimeImmutable::createFromFormat('!Y-m-d',$value);$e=DateTimeImmutable::getLastErrors();
@@ -173,7 +174,6 @@ function tt_inv_quantities(array $reports,string $stockName): array {
 /** Preserve server-only portions when a filtered browser saves its operational projection. */
 function tt_inv_prepare_write(array $values,string $key,string $json,array $user,string $now): string {
     tt_guard_arrival_collection($key,(string)($values[$key]??'[]'),$json);
-    if(in_array($key,['tt38labourbills','tt38kebills','tt38reprocessbills'],true)){require_once __DIR__.'/api/mill_source_amend_core.php';return msa_guard_append($values,$key,$json,$user);}
     if(in_array($key,['tt36bagissues','tt30prodaudit'],true)){
         $incoming=json_decode($json,true,512,JSON_THROW_ON_ERROR);if(!is_array($incoming)||!array_is_list($incoming))throw new DomainException('Production history must be a list.');
         $identity=static fn($r)=>(string)($key==='tt36bagissues'?($r['productionId']??''):($r['id']??''));
@@ -182,6 +182,9 @@ function tt_inv_prepare_write(array $values,string $key,string $json,array $user
         $seen=[];foreach($incoming as &$row){if(!is_array($row))throw new DomainException('Production history must contain records.');$id=$identity($row);if(isset($managed[$id])){if(isset($seen[$id])||($public[$id]??null)!=$row)throw new DomainException('Saved production history is maintained by its explicit source save.');$row=$managed[$id];$seen[$id]=true;}elseif(!empty($row['serverManaged']))throw new DomainException('Production history cannot be attributed by a client.');}unset($row);
         if(array_diff_key($managed,$seen))throw new DomainException('Saved production history cannot be removed from an operational collection.');$json=tt_inv_json($incoming);
     }
+    if(in_array($key,TT_BAG_SERVER_KEYS,true))throw new DomainException('Bag movement acknowledgements are server-owned. Use the explicit bag movement workflow.');
+    if($key==='tt30prod'){require_once __DIR__.'/api/bag_inventory_core.php';$decoded=json_decode($json,true);$versioned=false;foreach(array_merge(is_array($decoded)?$decoded:[],tt_inv_rows($values,$key)) as $row)if(is_array($row)&&!empty($row['bagAllocationVersion'])){$versioned=true;break;}if($versioned)$json=bti_prepare_production($values,$json,tt_list_masters(),$user,$now);}
+    if(in_array($key,['tt38labourbills','tt38kebills','tt38reprocessbills'],true)){require_once __DIR__.'/api/mill_source_amend_core.php';return msa_guard_append($values,$key,$json,$user);}
     if(in_array($key,TT_INV_PRIVATE_KEYS,true))throw new DomainException('Reconciliation records are server-owned. Use Accounts or Directors reports.');
     if(!in_array($key,['tt30prod','tt30ship','tt32stockadj',TT_INV_CONFIRMATIONS],true))return $json;
     $incoming=json_decode($json,true);if(!is_array($incoming)||!array_is_list($incoming))throw new InvalidArgumentException('Operational rows must be an array.');

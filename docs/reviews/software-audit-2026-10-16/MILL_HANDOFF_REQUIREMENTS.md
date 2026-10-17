@@ -1,19 +1,21 @@
-# Mill liabilities and payment references — unresolved migration gate
+# Mill liabilities and remaining payment-reference migration gates
 
-This is a source-traced implementation boundary, not a completed feature or permission to post historical estimates.
+KE, Rice labour and reprocessing handoffs were deployed in PR 290 on 17 October. Other processing, rent and salary references remain migration gates. No historical estimate is permission to post a liability or payment.
 
 ## Current entry-to-output gaps
 
 | Mill entry | Saved source | Actual downstream behavior | Required acceptance |
 |---|---|---|---|
-| Labour Bill | tt38labourbills | postAccountsLiability appends tt38accountsfeed; no canonical payable consumer found | Correct active contractor, company/mill, bill period and agreed tasks reach an Accounts review; acknowledged posting, liability, settlement and source drill-down |
-| K-Electric Bill | tt38kebills | Same unconsumed feed; no payable/payment created | Actual provider identity, bill reference, received date, reading dates and amount retained; eligible cost period agrees with costing |
+| Labour Bill | tt38labourbills | PR 290: acknowledged source Save, audited source amendment, canonical reviewed liability and linked supplier settlement; Maize remains deferred | Correct active contractor, company/mill, bill period and agreed tasks reach an Accounts review; acknowledged posting, liability, settlement and source drill-down |
+| K-Electric Bill | tt38kebills | PR 290: acknowledged actual source, reviewed canonical liability and immutable correction, linked partial/full payment | Actual provider identity, bill reference, received date, reading dates and amount retained; eligible cost period agrees with costing |
 | Other processing | tt37processingexpenses | Operational costs are not proof of Accounts expense/liability | Distinguish paid canonical costs from estimates, with source and Post ID, avoiding duplicate inclusion |
 | Rent payment reference | tt39rentpayments | Operational estimate uses reported amounts and legacy master; no Accounts settlement | Match existing rent master/accrual/payment before adding anything; preserve reference history |
 | Salary advance reference | tt39salaryadvances | Separate from canonical Salary Master and posted advances | Match existing canonical staff/advance first; never manufacture a second payment |
-| Reprocessing | tt38reprocessbills | Operational record/feed does not establish posted balance | Source job, agreed scope, actual quantities, party, stock and Accounts treatment must reconcile |
+| Reprocessing | tt38reprocessbills | PR 290: actual scoped quantities/rates and source versions reach reviewed liability, existing supplier payment and verified outstanding balance; reported historical payments remain held for reconciliation | Source job, agreed scope, actual quantities, party, stock and Accounts treatment must reconcile |
 
 Actual Mac Chrome checks on17 October found no saved processing bills, rent references or salary reference rows in the selected TTI Rice Mills screen. This does not establish absence in every mill/company or authoritative Accounts store. Labour contractor choices were empty. AUTO-FILL WORK correctly refused to infer an agreement; no save was performed. The Salary Cost — Accounts launcher actually opened Operational Salary References — Unreconciled; its launcher wording remains misleading.
+
+Release evidence: full Accounts/Milling suites, actual file/MySQL amendment and dependency-lock fixtures, and the complete authenticated disposable native-browser handoff passed. Deployed ee828bbbb828793c0ab6e74ef42eee80232a05ea; live read-only smoke 39034874582 passed 18 tests. No real test liability/payment was posted.
 
 ## Existing canonical routes to preserve
 
