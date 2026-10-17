@@ -1,0 +1,25 @@
+name: Targeted deployed report review
+on:
+  push:
+    branches: [verify/deployed-reports-20261018]
+permissions:
+  contents: read
+jobs:
+  read-only-report-review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: live-qa
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Install the existing pinned browser runtime
+        run: |
+          npm install --no-save @playwright/test@1.63.0
+          npx playwright install --with-deps chromium
+      - name: Verify deployed reports without financial writes
+        env:
+          TRANSTRADE_BASE_URL: https://app.transtradeinternational.com
+          TRANSTRADE_QA_USERNAME: ${{ secrets.TRANSTRADE_QA_USERNAME }}
+          TRANSTRADE_QA_PASSWORD: ${{ secrets.TRANSTRADE_QA_PASSWORD }}
+        run: npx playwright test tests/live/deployed-reports-review.spec.js --reporter=line
