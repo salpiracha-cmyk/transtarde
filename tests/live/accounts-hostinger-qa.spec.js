@@ -481,14 +481,24 @@ test('authenticated QA cannot read the Super Admin Director approval feed', asyn
 
 test('session persists through twelve Masters and Accounts round trips', async ({ page }) => {
   test.setTimeout(240_000);
-  const trace=traceSessionNavigation(page);
+  const trace=traceSessionNavigation(page),runtimeErrors=[],assetResponses=[],failedRequests=[];
+  page.on('pageerror',error=>runtimeErrors.push(String(error.message)));
+  page.on('requestfailed',request=>failedRequests.push({path:new URL(request.url()).pathname,error:request.failure()?.errorText||''}));
+  page.on('response',response=>{const url=new URL(response.url());if(url.origin===new URL(BASE_URL).origin&&/\.(?:js|css)$/.test(url.pathname))assetResponses.push({path:url.pathname,status:response.status()});});
   await signIn(page);
   for(let round=0;round<12;round++){
-    await expect(page.locator('#ttMasterTop')).toBeVisible({timeout:30_000});
-    await page.locator('#ttMasterTop').click();
-    await expect(page.locator('#masterBackTop')).toBeVisible({timeout:30_000});
-    await returnFromMasters(page,trace);
-    console.log('SESSION_ROUNDTRIP_OK ' + (round+1));
+    try{
+      await expect(page.locator('#ttMasterTop')).toBeVisible({timeout:30_000});
+      await page.locator('#ttMasterTop').click();
+      await expect(page.locator('#masterBackTop')).toBeVisible({timeout:30_000});
+      await returnFromMasters(page,trace);
+      console.log('SESSION_ROUNDTRIP_OK ' + (round+1));
+    }catch(error){
+      await trace.flush();
+      const screen=await page.evaluate(()=>({ready:document.readyState,title:document.title,bodyClass:document.body.className,masterViewVisible:!!document.querySelector('#view-masters')?.getBoundingClientRect().width,masterBackPresent:!!document.querySelector('#masterBackTop'),accountsMasterMenuPresent:!!document.querySelector('#ttAccountsMasterMenu'),sessionPresent:!!window.TT_SESSION,superAdmin:window.TT_SESSION?.role==='Super Admin',masterAccess:!!window.TT_SESSION?.masterAccess,returnPath:window.TT_SESSION?.masterReturn?.url||'',adminScript:document.querySelector('script[src*="admin/app.js"]')?.getAttribute('src')||''}));
+      console.log('SESSION_MASTERS_ENTRY_FAILURE '+JSON.stringify({round:round+1,path:new URL(page.url()).pathname,screen,runtimeErrors:runtimeErrors.slice(-10),assetResponses:assetResponses.slice(-20),failedRequests:failedRequests.slice(-20),trace:trace.slice(-12)}));
+      throw error;
+    }
   }
 });
 

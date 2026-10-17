@@ -200,6 +200,7 @@ jobs:
           node tests/accounts-v1/mill_report_entry_scope_test.js
           node tests/accounts-v1/mill_bag_ledger_scope_test.js
           node tests/accounts-v1/mill_bag_identity_read_test.js
+          node tests/accounts-v1/mill_bag_location_test.js
           node tests/accounts-v1/mill_cash_projection_test.js
           node tests/accounts-v1/mill_operational_status_test.js
           TZ=Asia/Karachi node tests/accounts-v1/labour_scope_test.js
