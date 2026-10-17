@@ -36,4 +36,10 @@ register_shutdown_function(function(){fwrite(STDERR,'STATUS:'.(http_response_cod
         result=subprocess.run(['php',str(root/'runner.php')],input=json.dumps({'query':dict(entity='TTI',**dates),'method':'GET'}),capture_output=True,text=True,check=True);assert 'STATUS:422' in result.stderr
     assert req(method='POST')[0]==405
     assert snapshot()==before,'Read-only report changed financial, operational or document bytes'
+    for name in ['accounts.json','operations.json','export_documents/index.json']:
+        target=root/'data'/name;original=target.read_bytes();target.write_text('{broken')
+        assert req()[0]==500,'Unreadable source was reported as empty: '+name
+        assert target.read_text()=='{broken','Report rewrote unreadable source'
+        target.write_bytes(original)
+    assert snapshot()==before,'Source integrity probes changed original stores'
 print('PASS actual Sales Tax endpoint: canonical lots, parent uploads, module/company permissions, date validation, GET-only and unchanged stores')

@@ -9,9 +9,22 @@ const AST_OPS_KEY='transtrade_export_v3_operational';
 function ast_out(array $v,int $s=200):never{http_response_code($s);echo json_encode($v,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);exit;}
 function ast_env(string $n):string{$c='TT_'.$n;if(defined($c))return(string)constant($c);$v=getenv($c);return$v===false?'':(string)$v;}
 function ast_db():?PDO{if(ast_env('DB_HOST')===''||ast_env('DB_NAME')===''||ast_env('DB_USER')==='')return null;return new PDO('mysql:host='.ast_env('DB_HOST').';dbname='.ast_env('DB_NAME').';charset=utf8mb4',ast_env('DB_USER'),ast_env('DB_PASS'),[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC,PDO::ATTR_EMULATE_PREPARES=>false]);}
-function ast_root():array{$db=ast_db();if($db){$q=$db->prepare('SELECT payload FROM tt_operation_records WHERE storage_key=? LIMIT 1');$q->execute([AST_OPS_KEY]);$raw=$q->fetchColumn();$v=is_string($raw)?json_decode($raw,true):null;return is_array($v)?$v:[];}$p=TT_DATA_DIR.'/operations.json';$raw=is_file($p)?file_get_contents($p):false;$ops=$raw?json_decode($raw,true):null;$v=is_array($ops)?json_decode((string)($ops['values'][AST_OPS_KEY]??''),true):null;return is_array($v)?$v:[];}
-function ast_accounts():array{$p=TT_DATA_DIR.'/accounts.json';$raw=is_file($p)?file_get_contents($p):false;$v=$raw?json_decode($raw,true):null;return is_array($v)?$v:[];}
-function ast_documents():array{$out=[];$db=ast_db();if($db)try{$rows=$db->query('SELECT id,contract_ref,lot_ref,category,original_name,mime_type,file_size,uploaded_at FROM tt_export_documents WHERE deleted_at IS NULL ORDER BY uploaded_at DESC')->fetchAll();foreach($rows as$r)$out[]=['id'=>(string)$r['id'],'contractRef'=>(string)$r['contract_ref'],'lotRef'=>(string)$r['lot_ref'],'category'=>(string)$r['category'],'name'=>(string)$r['original_name'],'mime'=>(string)$r['mime_type'],'size'=>(int)$r['file_size'],'uploadedAt'=>(string)$r['uploaded_at'],'downloadUrl'=>'/api/export_documents.php?id='.(string)$r['id']];return$out;}catch(Throwable $e){error_log('Sales tax document DB lookup: '.$e->getMessage());}$p=TT_DATA_DIR.'/export_documents/index.json';$raw=is_file($p)?file_get_contents($p):false;$rows=$raw?json_decode($raw,true):[];foreach((array)$rows as$r)if(is_array($r)&&empty($r['deleted_at']))$out[]=['id'=>(string)($r['id']??''),'contractRef'=>(string)($r['contract_ref']??''),'lotRef'=>(string)($r['lot_ref']??''),'category'=>(string)($r['category']??''),'name'=>(string)($r['original_name']??'Document'),'mime'=>(string)($r['mime_type']??''),'size'=>(int)($r['file_size']??0),'uploadedAt'=>(string)($r['uploaded_at']??''),'downloadUrl'=>'/api/export_documents.php?id='.(string)($r['id']??'')];return$out;}
+function ast_read_json(string $path,bool $required=false):array {
+ if(!is_file($path)){if($required)throw new RuntimeException('Required report source unavailable.');return [];}
+ $handle=fopen($path,'rb');if(!$handle||!flock($handle,LOCK_SH))throw new RuntimeException('Report source unavailable.');
+ try{$value=json_decode((string)stream_get_contents($handle),true,512,JSON_THROW_ON_ERROR);if(!is_array($value))throw new RuntimeException('Invalid report source.');return $value;}
+ finally{flock($handle,LOCK_UN);fclose($handle);}
+}
+function ast_root():array {
+ $db=ast_db();if($db){$q=$db->prepare('SELECT payload FROM tt_operation_records WHERE storage_key=? LIMIT 1');$q->execute([AST_OPS_KEY]);$raw=$q->fetchColumn();if($raw===false)return [];}
+ else{$ops=ast_read_json(TT_DATA_DIR.'/operations.json');$raw=$ops['values'][AST_OPS_KEY]??'{}';}
+ if(!is_string($raw))throw new RuntimeException('Invalid Export source.');$root=json_decode($raw,true,512,JSON_THROW_ON_ERROR);if(!is_array($root))throw new RuntimeException('Invalid Export source.');return $root;
+}
+function ast_accounts():array {return ast_read_json(TT_DATA_DIR.'/accounts.json',true);}
+function ast_documents():array {
+ $db=ast_db();$rows=$db?$db->query('SELECT id,contract_ref,lot_ref,category,original_name,mime_type,file_size,uploaded_at FROM tt_export_documents WHERE deleted_at IS NULL ORDER BY uploaded_at DESC')->fetchAll():ast_read_json(TT_DATA_DIR.'/export_documents/index.json');
+ $out=[];foreach($rows as $r){if(!is_array($r))throw new RuntimeException('Invalid document index.');if(!empty($r['deleted_at']))continue;$out[]=['id'=>(string)($r['id']??''),'contractRef'=>(string)($r['contract_ref']??''),'lotRef'=>(string)($r['lot_ref']??''),'category'=>(string)($r['category']??''),'name'=>(string)($r['original_name']??'Document'),'mime'=>(string)($r['mime_type']??''),'size'=>(int)($r['file_size']??0),'uploadedAt'=>(string)($r['uploaded_at']??''),'downloadUrl'=>'/api/export_documents.php?id='.(string)($r['id']??'')];}return $out;
+}
 function ast_date(string $v):string{if($v===''||ast_valid_date($v))return$v;ast_out(['ok'=>false,'error'=>'Use a valid date range.'],422);}
 
 try{
