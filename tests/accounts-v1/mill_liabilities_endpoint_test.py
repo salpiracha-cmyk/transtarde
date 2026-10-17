@@ -32,7 +32,7 @@ register_shutdown_function(function(){fwrite(STDERR,'STATUS:'.(http_response_cod
     def sources():source.write_text(json.dumps({'values':{'tt38kebills':json.dumps([bill])}}))
     sources();books.write_text(json.dumps({'revision':7,'journals':{},'supplierBills':{}}));before=books.read_bytes();source_before=source.read_bytes()
     def req(body=None,mode='all',entity='TTI',endpoint='mill_liabilities.php',mill='TTI Rice Mills'):
-        r=subprocess.run(['php',str(root/'runner.php')],input=json.dumps({'query':{'entity':entity,'mode':mode,'millName':mill},'body':body,'endpoint':endpoint}),capture_output=True,text=True,check=True)
+        r=subprocess.run(['php',str(root/'runner.php')],input=json.dumps({'query':{'entity':entity,'mode':mode,'millName':mill,'collection':'tt38kebills','sourceId':'KE-1'},'body':body,'endpoint':endpoint}),capture_output=True,text=True,check=True)
         return int(r.stderr.rsplit('STATUS:',1)[1]),json.loads(r.stdout)
     status,d=req();assert status==200 and len(d['rows'])==1,d;row=d['rows'][0]
     assert books.read_bytes()==before and source.read_bytes()==source_before
@@ -50,12 +50,17 @@ register_shutdown_function(function(){fwrite(STDERR,'STATUS:'.(http_response_cod
     status,d=req(post);assert status==200 and d['result']['replayed'] and books.read_bytes()==saved,d
     assert req(dict(post,amount=4))[0]==422,'Save identity accepted different body'
     # A changed source must be explicitly reversed/replaced, with old journal retained.
-    bill['amount']=1200;sources();status,d=req();row=d['rows'][0]
+    source_review=req(endpoint='mill_source_amend.php')[1]
+    amend=dict(csrf='fixture',collection='tt38kebills',entity='TTI',sourceId='KE-1',fingerprint=source_review['fingerprint'],requestKey='fixture-source-amend-0001',reason='Correct received bill',changes={'amount':1200})
+    canonical_before_amend=books.read_bytes();status,amended=req(amend,endpoint='mill_source_amend.php');assert status==200,amended
+    assert books.read_bytes()==canonical_before_amend,'Operational amendment wrote a financial correction'
+    bill=amended['result']['record'];assert bill['_sourceAmendments'][0]['before']['amount']==1000
+    status,d=req();row=d['rows'][0]
     replace=dict(csrf='fixture',action='replace',entity='TTI',kind='ELECTRICITY',sourceId='KE-1',fingerprint=row['fingerprint'],postedFingerprint=record['fingerprint'],requestKey='fixture-amend-0001',correctionDate='2026-10-17',reason='Correct received bill')
     status,d=req(replace);assert status==200,d;after=books.read_bytes();s=json.loads(after)
     assert len(s['journals'])==3 and s['journals'][record['journalId']]['totalDebit']==1000
     assert req(replace)[1]['result']['replayed'] and books.read_bytes()==after,'Replacement retry duplicated journals'
-    assert source.read_bytes()!=source_before and json.loads(source.read_text())['values']['tt38kebills']==json.dumps([bill]),'Endpoint changed original source'
+    assert source.read_bytes()!=source_before and json.loads(json.loads(source.read_text())['values']['tt38kebills'])==[bill],'Endpoint changed original source'
     # Settle through the actual existing supplier endpoint, not a parallel payment engine.
     current=req()[1]['rows'][0];posted=current['posted'];bill_key=posted['billId']+'|'+current['key']
     payment=dict(csrf='fixture',action='post_bill_payment',entity='TTI',date='2026-10-17',supplier='K-Electric',category='',selectedBills=[bill_key],explicitBillSelection=True,amount=400,paymentMode='CASH',requestKey='fixture-payment-0001',applyPaymentDifferenceAsDiscount=False,selectedOutstanding=1200)

@@ -2,13 +2,15 @@
 declare(strict_types=1);
 
 /** Source lock precedes Accounts lock. No route installs schemas or changes sources. */
-function ml_with_sources(callable $callback): mixed {
+function ml_with_sources(callable $callback,array $extraKeys=[]): mixed {
+    if(array_diff($extraKeys,['tt30slips']))throw new InvalidArgumentException('Unsupported source collection.');
+    $keys=array_merge(['tt38labourbills','tt38kebills','tt38reprocessbills'],$extraKeys);
     $env=static fn($key)=>(string)(defined('TT_'.$key)?constant('TT_'.$key):(getenv('TT_'.$key)?:''));
     if ($env('DB_HOST')!==''&&$env('DB_NAME')!==''&&$env('DB_USER')!=='') {
         $db=new PDO('mysql:host='.$env('DB_HOST').';dbname='.$env('DB_NAME').';charset=utf8mb4',$env('DB_USER'),$env('DB_PASS'),[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);
         $db->beginTransaction();
         try {
-            $rows=$db->query("SELECT storage_key,payload FROM tt_operation_records WHERE storage_key IN ('tt38labourbills','tt38kebills','tt38reprocessbills') LOCK IN SHARE MODE")->fetchAll(PDO::FETCH_KEY_PAIR);
+            $read=$db->prepare('SELECT storage_key,payload FROM tt_operation_records WHERE storage_key IN ('.implode(',',array_fill(0,count($keys),'?')).') LOCK IN SHARE MODE');$read->execute($keys);$rows=$read->fetchAll(PDO::FETCH_KEY_PAIR);
             $result=$callback($rows);$db->rollBack();return $result;
         } catch (Throwable $e) {if ($db->inTransaction()) $db->rollBack();throw $e;}
     }

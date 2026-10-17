@@ -59,7 +59,7 @@ function mr_read_operations_source(string $path):array {
     $config=static fn(string $name):string=>(string)(defined('TT_DB_'.$name)?constant('TT_DB_'.$name):(getenv('TT_DB_'.$name)?:''));
     if($config('HOST')!==''&&$config('NAME')!==''&&$config('USER')!==''){
         $db=new PDO('mysql:host='.$config('HOST').';dbname='.$config('NAME').';charset=utf8mb4',$config('USER'),$config('PASS'),[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC]);
-        $keys=['tt30prod','tt38kebills','tt38labourbills','tt37processingexpenses','tt35localsales','tt35exportersale'];
+        $keys=['tt30prod','tt38kebills','tt38labourbills','tt38reprocessbills','tt37processingexpenses','tt35localsales','tt35exportersale'];
         $db->beginTransaction();try{$q=$db->prepare('SELECT storage_key,payload,version FROM tt_operation_records WHERE storage_key IN ('.implode(',',array_fill(0,count($keys),'?')).')');$q->execute($keys);$values=[];$revision=0;foreach($q->fetchAll() as $r){$values[(string)$r['storage_key']]=(string)$r['payload'];$revision=max($revision,(int)$r['version']);}$db->commit();return ['values'=>$values,'revision'=>$revision,'sourceBackend'=>'mysql'];}catch(Throwable $e){if($db->inTransaction())$db->rollBack();throw $e;}
     }
     if(!is_file($path))return ['values'=>[],'revision'=>0,'sourceBackend'=>'file'];

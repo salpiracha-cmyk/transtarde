@@ -869,6 +869,7 @@ function tt_user_can_director_approve(array $user): bool {
 
 /** Route ownership is server-defined; company grants never substitute for an icon. */
 function tt_api_write_grants(string $endpoint,array $body): ?array {
+    if($endpoint==='mill_source_amend.php')return [['Mill',($body['collection']??'')==='tt38reprocessbills'?'reprocessbill':'labour','Edit']];
     if(in_array($endpoint,['bank_entries.php','accounts_subaccounts.php'],true)){$right=($body['action']??'')==='reverse'?'Edit':(($body['operation']??'add')==='delete'?'Delete':(in_array($body['operation']??'add',['edit','move_head'],true)?'Edit':'Create'));return [['Accounts',$endpoint==='bank_entries.php'?'cashbank':'masters',$right]];}
     if($endpoint==='bank_direct_entries.php'&&strtoupper((string)($body['type']??''))==='SAVING_PROFIT')return [['Accounts','cashbank'],['Accounts','reconciliation']];
     $routes=[

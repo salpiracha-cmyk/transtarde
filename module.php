@@ -239,7 +239,20 @@ $sharedBootstrap = <<<'HTML'
       return result.record;
     }finally{inFlight.delete(key);saveHolds--;waiting()}
   }
-  window.TT_SHARED_SYNC={appendMillBill,flush,saveNow,refresh:refreshNow,bridge,poll:checkInbound,hold:()=>{saveHolds++;waiting();let released=false;return()=>{if(!released){released=true;saveHolds--;waiting()}}},readCommitted:key=>committedValues.get(key)??null,restoreStaged:(key,before,attempted)=>{if(localStorage.getItem(key)!==attempted)return false;if(pending.get(key)===attempted){pending.delete(key);queuedBase.delete(key)}directSet(key,before);return true}};
+  async function amendMillBill(key,body){
+    if(access.moduleId!=='milling'||!['tt38labourbills','tt38kebills','tt38reprocessbills'].includes(key)||body.collection!==key)throw new Error('Unsupported Mill amendment.');
+    if(pending.has(key)||inFlight.has(key))throw new Error('This collection has an unfinished local change. Review it before amending.');
+    const before=localStorage.getItem(key);inFlight.add(key);saveHolds++;waiting();
+    try{
+      const response=await fetch('api/mill_source_amend.php',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({...body,csrf:access.csrf})}),data=await response.json();
+      if(!response.ok||!data.ok)throw Object.assign(new Error(data.error||'The amendment was not confirmed.'),{definitive:response.status===422});
+      if(data.collection!==key||data.entity!==body.entity||String(data.result?.record?.id)!==String(body.sourceId)||typeof data.result?.value!=='string')throw new Error('The amendment acknowledgement did not match this source.');
+      const result=data.result;
+      if(!pending.has(key)&&localStorage.getItem(key)===before){directSet(key,result.value);committedValues.set(key,result.value);receipts.set(key,result.value);keyVersions.set(key,Number(result.version));remoteKeys.add(key)}
+      return result;
+    }finally{inFlight.delete(key);saveHolds--;waiting()}
+  }
+  window.TT_SHARED_SYNC={appendMillBill,amendMillBill,flush,saveNow,refresh:refreshNow,bridge,poll:checkInbound,hold:()=>{saveHolds++;waiting();let released=false;return()=>{if(!released){released=true;saveHolds--;waiting()}}},readCommitted:key=>committedValues.get(key)??null,restoreStaged:(key,before,attempted)=>{if(localStorage.getItem(key)!==attempted)return false;if(pending.get(key)===attempted){pending.delete(key);queuedBase.delete(key)}directSet(key,before);return true}};
   // Permanent rule: only explicit application actions save. Inbound checks are read-only and run when staff return to a tab.
   // Remote changes are staged locally and announced through an internal event without persistent interface notices.
   // Exports must reconcile Mill actuals before app.js reads state. Milling must finish its legacy startup first,
@@ -279,7 +292,7 @@ $accountsSourceBridge = '<script src="accounts/source-bridge.js?v=20260924-expli
 $brandBody = '<script src="/session-activity.js?v=20260929-1"></script><script src="/brand-theme.js?v=20261006-number-entry-1"></script>';
 $brandBody .= '<script src="/global-validation.js?v=20260909-1"></script>';
 if ($id === 'exports') $brandBody .= '<script src="/customer-contract-options.js?v=20260911-reports-1&fix=20261003-no-legacy-completion-1"></script>';
-if ($id === 'milling') $brandBody .= '<script src="/milling-quality-identity.js?v=20260910-1"></script><script src="/accounts/mill-liability-status.js?v=20261017-1"></script><script src="/accounts/mill-source-save.js?v=20261017-1"></script>';
+if ($id === 'milling') $brandBody .= '<script src="/milling-quality-identity.js?v=20260910-1"></script><script src="/accounts/mill-liability-status.js?v=20261017-1"></script><script src="/accounts/mill-source-save.js?v=20261017-1"></script><script src="/accounts/mill-source-amend-ui.js?v=20261017-1"></script>';
 $bodyPos = strripos($html, '</body>');
 if ($bodyPos !== false) $html = substr_replace($html, $accountsSourceBridge.$guard.$brandBody, $bodyPos, 0); else $html .= $accountsSourceBridge.$guard.$brandBody;
 echo tt_version_local_assets($html);
