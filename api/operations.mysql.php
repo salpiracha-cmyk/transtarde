@@ -33,6 +33,16 @@ function operations_respond(array $data, int $status = 200): never {
     exit;
 }
 
+/** Save acknowledgements have the same visibility boundary as operational GETs. */
+function operations_production_related(array $values,array $meta): array {
+    $out=[];foreach(['tt36bagissues','tt30prodaudit'] as $key)if(isset($values[$key]))$out[$key]=['value'=>operations_public_value($key,(string)$values[$key]),'version'=>$meta[$key]['version']??null];return $out;
+}
+function operations_public_value(string $key,string $value): string {
+    $visible=tt_inv_public_values([$key=>$value]);
+    if(!array_key_exists($key,$visible['values']))throw new DomainException('This source has no public operational representation.');
+    return (string)$visible['values'][$key];
+}
+
 function operations_key_allowed(string $key): bool {
     return $key === 'transtrade_export_v3_operational'
         || (bool)preg_match('/^tt[0-9]{2}[a-z0-9_]{2,60}$/', $key);
@@ -588,6 +598,7 @@ function operations_file_fallback(array $user): never {
             $now=gmdate('c');$beforeValues=(array)($store['values']??[]);
             $value=tt_inv_prepare_write($beforeValues,$key,$value,$user,$now);
             $nextValues=$beforeValues;$nextValues[$key]=$value;
+            if($key==='tt30prod'){require_once __DIR__.'/production_save_core.php';$nextValues=ps_effects($beforeValues,$nextValues,$user,$now);}
             if(in_array($key,TT_INV_SOURCE_KEYS,true))$nextValues=tt_inv_reconcile($nextValues,$now);
             foreach($nextValues as$changedKey=>$changedValue){
                 if(($beforeValues[$changedKey]??'')===$changedValue)continue;
@@ -605,7 +616,7 @@ function operations_file_fallback(array $user): never {
     } finally { flock($handle,LOCK_UN); fclose($handle); }
     if ($conflict) operations_respond(['ok'=>false,'conflict'=>true,'error'=>'A newer shared update is available. Refresh before saving again.','keyVersion'=>$keyVersion],409);
     if($key==='transtrade_export_v3_operational')try{tt_receipt_invoice_sync();}catch(Throwable $linkError){error_log('Invoice narration link: '.$linkError->getMessage());}
-    operations_respond(['ok'=>true,'revision'=>$revision,'keyVersion'=>$keyVersion,'updatedAt'=>gmdate('c'),'value'=>(string)($store['values'][$key]??$value)]);
+    operations_respond(['ok'=>true,'revision'=>$revision,'keyVersion'=>$keyVersion,'updatedAt'=>gmdate('c'),'value'=>operations_public_value($key,(string)($store['values'][$key]??$value)), 'related'=>$key==='tt30prod'?operations_production_related($store['values'],$store['meta']):[]]);
 }
 
 try {
@@ -724,7 +735,13 @@ try {
     $nowIso=gmdate('c');$beforeValues=[];
     if(in_array($key,TT_INV_SOURCE_KEYS,true))foreach($db->query('SELECT storage_key,payload FROM tt_operation_records')->fetchAll()as$row)$beforeValues[(string)$row['storage_key']]=(string)$row['payload'];
     else $beforeValues[$key]=$oldPayload;
+    $productionMeta=[];
+    if($key==='tt30prod'){
+        $dependent=$db->query("SELECT storage_key,payload,version FROM tt_operation_records WHERE storage_key IN ('tt30prodaudit','tt36bagissues') ORDER BY storage_key FOR UPDATE");
+        foreach($dependent->fetchAll() as $row){$beforeValues[$row['storage_key']]=$row['payload'];$productionMeta[$row['storage_key']]=['version'=>(int)$row['version']];}
+    }
     $value=tt_inv_prepare_write($beforeValues,$key,$value,$user,$nowIso);$nextValues=$beforeValues;$nextValues[$key]=$value;
+    if($key==='tt30prod'){require_once __DIR__.'/production_save_core.php';$nextValues=ps_effects($beforeValues,$nextValues,$user,$nowIso);}
     if(in_array($key,TT_INV_SOURCE_KEYS,true))$nextValues=tt_inv_reconcile($nextValues,$nowIso);
     $now=(new DateTimeImmutable('now',new DateTimeZone('UTC')))->format('Y-m-d H:i:s.u');
     $name=(string)($user['full_name']??$user['username']??'Staff');$userId=isset($user['id'])?(int)$user['id']:null;
@@ -732,6 +749,7 @@ try {
         if(($beforeValues[$changedKey]??'')===$changedValue)continue;
         $select->execute([$changedKey]);$record=$select->fetch();$newVersion=(int)($record['version']??0)+1;
         if($changedKey===$key)$version=$newVersion;
+        if(in_array($changedKey,['tt30prodaudit','tt36bagissues'],true))$productionMeta[$changedKey]=['version'=>$newVersion];
         $writer=$changedKey===$key?$sourceModule:'System';
         $upsert=$db->prepare('INSERT INTO tt_operation_records (storage_key,payload,version,updated_at,updated_by,updated_by_user,updated_by_module) VALUES (?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE payload=VALUES(payload),version=VALUES(version),updated_at=VALUES(updated_at),updated_by=VALUES(updated_by),updated_by_user=VALUES(updated_by_user),updated_by_module=VALUES(updated_by_module)');
         $upsert->execute([$changedKey,$changedValue,$newVersion,$now,$name,$userId,$writer]);
@@ -741,7 +759,7 @@ try {
     $db->commit();
     if($key==='transtrade_export_v3_operational')try{tt_receipt_invoice_sync();}catch(Throwable $linkError){error_log('Invoice narration link: '.$linkError->getMessage());}
     if($inventoryLock){$release=$db->prepare('SELECT RELEASE_LOCK(?)');$release->execute(['tt_inventory_'.substr(hash('sha256',operations_env('DB_NAME')),0,24)]);$inventoryLock=false;}
-    operations_respond(['ok' => true, 'revision' => $version, 'keyVersion' => $version, 'updatedAt' => gmdate('c'), 'value' => (string)($nextValues[$key]??$value)]);
+    operations_respond(['ok' => true, 'revision' => $version, 'keyVersion' => $version, 'updatedAt' => gmdate('c'), 'value' => operations_public_value($key,(string)($nextValues[$key]??$value)), 'related'=>$key==='tt30prod'?operations_production_related($nextValues,$productionMeta):[]]);
 } catch (DomainException|InvalidArgumentException $e) {
     if(isset($db)&&$db instanceof PDO&&$db->inTransaction())$db->rollBack();
     operations_respond(['ok'=>false,'error'=>$e->getMessage()],$e instanceof DomainException?403:422);

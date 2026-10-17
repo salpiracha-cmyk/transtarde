@@ -2,6 +2,7 @@
 declare(strict_types=1);
 require_once __DIR__ . '/product_stage.php';
 require_once __DIR__.'/api/mill_recovery_core.php';
+require_once __DIR__.'/api/arrival_withdrawal_core.php';
 
 /** Server-owned reconciliation. Operational staff submit facts, never a Ghati balance. */
 const TT_INV_PRIVATE_KEYS = ['tt34ghati','tt34nilqueue','tt32processingrecon','tt34stockreviewaudit'];
@@ -171,6 +172,16 @@ function tt_inv_quantities(array $reports,string $stockName): array {
 }
 /** Preserve server-only portions when a filtered browser saves its operational projection. */
 function tt_inv_prepare_write(array $values,string $key,string $json,array $user,string $now): string {
+    tt_guard_arrival_collection($key,(string)($values[$key]??'[]'),$json);
+    if(in_array($key,['tt38labourbills','tt38kebills','tt38reprocessbills'],true)){require_once __DIR__.'/api/mill_source_amend_core.php';return msa_guard_append($values,$key,$json,$user);}
+    if(in_array($key,['tt36bagissues','tt30prodaudit'],true)){
+        $incoming=json_decode($json,true,512,JSON_THROW_ON_ERROR);if(!is_array($incoming)||!array_is_list($incoming))throw new DomainException('Production history must be a list.');
+        $identity=static fn($r)=>(string)($key==='tt36bagissues'?($r['productionId']??''):($r['id']??''));
+        $managed=[];foreach(tt_inv_rows($values,$key) as $row)if(!empty($row['serverManaged']))$managed[$identity($row)]=$row;
+        $public=[];foreach(tt_inv_rows(tt_inv_public_values([$key=>$values[$key]??'[]'])['values'],$key) as $row)if(!empty($row['serverManaged']))$public[$identity($row)]=$row;
+        $seen=[];foreach($incoming as &$row){if(!is_array($row))throw new DomainException('Production history must contain records.');$id=$identity($row);if(isset($managed[$id])){if(isset($seen[$id])||($public[$id]??null)!=$row)throw new DomainException('Saved production history is maintained by its explicit source save.');$row=$managed[$id];$seen[$id]=true;}elseif(!empty($row['serverManaged']))throw new DomainException('Production history cannot be attributed by a client.');}unset($row);
+        if(array_diff_key($managed,$seen))throw new DomainException('Saved production history cannot be removed from an operational collection.');$json=tt_inv_json($incoming);
+    }
     if(in_array($key,TT_INV_PRIVATE_KEYS,true))throw new DomainException('Reconciliation records are server-owned. Use Accounts or Directors reports.');
     if(!in_array($key,['tt30prod','tt30ship','tt32stockadj',TT_INV_CONFIRMATIONS],true))return $json;
     $incoming=json_decode($json,true);if(!is_array($incoming)||!array_is_list($incoming))throw new InvalidArgumentException('Operational rows must be an array.');
@@ -219,7 +230,9 @@ function tt_inv_prepare_write(array $values,string $key,string $json,array $user
                 $r=$before;
             }
         }elseif($key==='tt30prod'){
+            if(!empty($before['clientSaveRequestId'])&&empty($r['clientSaveRequestId']))throw new DomainException('Reload the saved production report before amending its acknowledged source.');
             if(!empty($before['recoveryVersion'])&&empty($r['recoveryVersion']))throw new DomainException('Actual-input production cannot be downgraded to a legacy entry.');
+            if(!empty($r['clientSaveRequestId']))$r['recoveryVersion']=1;
             mr_validate_inputs($r,$before===null);if($before===null)$r['recoveryVersion']=1;
             $hidden=array_values(array_filter((array)($before['rows']??[]),static fn($x)=>is_array($x)&&tt_inv_is_private_row($x)));
             foreach((array)($r['rows']??[])as$x)if(is_array($x)&&tt_inv_is_private_row($x))throw new DomainException('Reconciliation rows cannot be entered as production.');

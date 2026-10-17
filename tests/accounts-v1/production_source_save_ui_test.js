@@ -1,0 +1,22 @@
+const assert=require('node:assert/strict'),fs=require('node:fs'),path=require('node:path'),{JSDOM}=require('jsdom');
+const root=path.join(__dirname,'../..'),html=fs.readFileSync(path.join(root,'milling/Transtrade_Master_Milling_V3_3_2_AUDITED.html'),'utf8');
+const dom=new JSDOM('<body><section id="production"><input id="prodDate" value="2026-10-17"><input id="prodShift" value="Day"><input id="prodStart" value="08:00"><input id="prodEnd" value="20:00"><input id="prodVariety" value="IRRI-6"><input id="prodEntity" value="TTI"><input id="capacityReason" value="Recorded reason"><input id="rawKg" value="500"><input id="prodShiftComplete" type="checkbox"></section></body>',{url:'https://fixture.invalid/module.php?id=milling',runScripts:'outside-only'}),w=dom.window;
+let calls=[],resets=0,fail=true,alerts=[],messages=[];
+w.TT_MODULE_ACCESS={userId:7,module:'Mill'};w.currentMill={id:1,entity:'TTI'};w.stockEntityForView=()=> 'TTI';w.editingProdId=null;
+w.STORE_PROD='tt30prod';w.get=()=>[];w.productionRows=[{id:1,product:'Ready Rice — ASAS',bags:10,bagWeight:50}];w.isOperationalProductionRow=()=>true;w.calcProduction=()=>8;
+w.TT_PRODUCTION_RECOVERY={capture:()=>({recoveryVersion:1,rawInputs:[{grossKg:Number(w.rawKg.value)}]})};w.isReprocessingMill=()=>false;
+w.millProductIdentity=()=>({baseVariety:'IRRI-6',riceType:'White',displayName:'IRRI-6 WHITE READY RICE'});w.operationalStockScope=()=>({entity:'TTI',millId:1,millName:'TTI Rice Mills'});w.validateProductionBagAvailability=()=>'';
+w.initProduction=()=>{resets++;w.rawKg.value='';};w.today=()=> '2026-10-17';for(const n of ['setShiftTimes','renderRecentProduction','renderProductionReport','renderRecoveryReport','renderProcessingExpenses'])w[n]=()=>{};
+w.showNonBlockingMessage=s=>messages.push(s);w.alert=s=>alerts.push(s);w.confirm=()=>true;
+w.TT_SHARED_SYNC={commitProduction:async(rec,before)=>{calls.push(JSON.parse(JSON.stringify({rec,before})));if(fail)throw Error('Connection unavailable');return rec;}};
+w.eval(fs.readFileSync(path.join(root,'accounts/production-source-save.js'),'utf8'));
+w.eval(html.split('\n').find(l=>l.startsWith('async function saveProduction(')));
+const q=s=>w.document.querySelector(s);
+(async()=>{
+ q('#rawKg').focus();q('#rawKg').dispatchEvent(new w.Event('input',{bubbles:true}));assert.equal(calls.length,0,'Typing committed production');
+ await w.saveProduction();assert.equal(calls.length,1);assert.equal(resets,0);assert.equal(messages.length,0);assert.equal(w.rawKg.value,'500');assert.equal(w.document.activeElement,w.rawKg);assert.ok(q('[data-production-save-recovery]'));
+ const id=calls[0].rec.id;fail=false;await w.saveProduction();assert.equal(calls[1].rec.id,id);assert.equal(resets,1);assert.equal(messages.length,1);assert.equal(w.rawKg.value,'');
+ fail=true;w.rawKg.value='600';await w.saveProduction();assert.equal(resets,1);const original=calls.at(-1).rec;
+ w.rawKg.value='700';fail=false;q('[data-production-save-recovery] button').click();await new Promise(r=>setTimeout(r,0));assert.equal(resets,1,'Recovering a previous save cleared the current draft');assert.equal(w.rawKg.value,'700');assert.deepEqual(calls.at(-1).rec,original);assert.match(q('[data-production-save-recovery]').textContent,/saved/);
+ dom.window.close();console.log('PASS native production Save awaits source acknowledgement, retains failed form/focus/raw input, retries same identity, announces only confirmed save and recovers previous save without clearing current draft');
+})().catch(e=>{console.error(e);process.exitCode=1;dom.window.close();});

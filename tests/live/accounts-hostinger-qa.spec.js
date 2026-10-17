@@ -758,12 +758,15 @@ test('Accounts review release: company views, reconciliation, entry cleanup and 
   let comparisons=0,reads=0;
   for(const entity of ['TTI','BRM','TG']){
     const bankResponse=await page.request.get(`${BASE_URL}/api/bank_accounts.php?entity=${entity}`);expect(bankResponse.status()).toBe(200);const banks=await bankResponse.json();expect(banks.ok).toBe(true);
+    expect(banks.balanceAsOfDate,'Current bank balance must expose its Karachi date cutoff').toBe(now);
     for(const endpoint of ['accounts_dashboard','bank_entries','other_purchases','company_investments']){
       const r=await page.request.get(`${BASE_URL}/api/${endpoint}.php?entity=${entity}`);expect(r.status(),entity+' '+endpoint).toBe(200);expect((await r.json()).ok).toBe(true);reads++;
     }
     for(const bank of (banks.accounts||[]).filter(b=>b.currency==='PKR'&&b.id!=='CASH|'+entity&&b.settings?.reconciliationEnabled!==false)){
-      const r=await page.request.get(`${BASE_URL}/api/bank_reconciliation.php?`+new URLSearchParams({entity,bankId:bank.id,statementDate:'9999-12-31'}));expect(r.status()).toBe(200);const reconciliation=await r.json();expect(reconciliation.ok).toBe(true);
+      const r=await page.request.get(`${BASE_URL}/api/bank_reconciliation.php?`+new URLSearchParams({entity,bankId:bank.id,statementDate:banks.balanceAsOfDate}));expect(r.status()).toBe(200);const reconciliation=await r.json();expect(reconciliation.ok).toBe(true);
       if(reconciliation.revision===banks.revision){expect(Math.abs(Number(reconciliation.bookBalance)-Number(bank.bookBalance)),'Reconciliation and bank posted balance must agree for '+entity+' '+bank.id).toBeLessThan(.011);comparisons++;}
+      const ledgerResponse=await page.request.get(`${BASE_URL}/api/accounts_ledger_browser.php?`+new URLSearchParams({entity,account:'BANK|'+bank.id,category:'bank',from:'0001-01-01',to:banks.balanceAsOfDate}));expect(ledgerResponse.status()).toBe(200);const ledger=await ledgerResponse.json();expect(ledger.ok).toBe(true);
+      if(ledger.revision===banks.revision)expect(Number(ledger.closing),'Same-day bank ledger and Home balance must agree for '+entity+' '+bank.id).toBeCloseTo(Number(bank.bookBalance),2);
     }
   }
   expect(comparisons,'Live books must contain at least one comparable PKR bank').toBeGreaterThan(0);

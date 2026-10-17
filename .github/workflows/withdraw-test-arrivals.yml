@@ -1,0 +1,53 @@
+name: Withdraw owner-identified test arrivals
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: transtrade-production-deployment
+  cancel-in-progress: false
+
+jobs:
+  withdraw:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: live-qa
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate tested withdrawal and recovery
+        run: python3 tests/accounts-v1/arrival_withdrawal_test.py
+      - name: Archive the three test arrivals under exact reviewed snapshot checks
+        env:
+          HOSTINGER_HOST: ${{ secrets.HOSTINGER_HOST }}
+          HOSTINGER_PORT: ${{ secrets.HOSTINGER_PORT }}
+          HOSTINGER_USER: ${{ secrets.HOSTINGER_USER }}
+          HOSTINGER_DEPLOY_PATH: ${{ secrets.HOSTINGER_DEPLOY_PATH }}
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+          HOSTINGER_KNOWN_HOSTS: ${{ secrets.HOSTINGER_KNOWN_HOSTS }}
+          EXPECTED_RELEASE: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          case "$HOSTINGER_DEPLOY_PATH" in
+            /home/*/domains/app.transtradeinternational.com/public_html) ;;
+            *) echo "Unexpected production path"; exit 1 ;;
+          esac
+          install -m 700 -d "$RUNNER_TEMP/ssh"
+          printf '%s\n' "$HOSTINGER_SSH_KEY" | tr -d '\r' > "$RUNNER_TEMP/ssh/key"
+          printf '%s\n' "$HOSTINGER_KNOWN_HOSTS" | tr -d '\r' > "$RUNNER_TEMP/ssh/known_hosts"
+          chmod 600 "$RUNNER_TEMP/ssh/key" "$RUNNER_TEMP/ssh/known_hosts"
+          ssh -i "$RUNNER_TEMP/ssh/key" \
+            -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" \
+            -o StrictHostKeyChecking=yes -p "$HOSTINGER_PORT" \
+            "$HOSTINGER_USER@$HOSTINGER_HOST" bash -s -- "$HOSTINGER_DEPLOY_PATH" "$EXPECTED_RELEASE" <<'REMOTE'
+          set -euo pipefail
+          target=$1
+          test "$(cat "$target/.transtrade-release")" = "$2" || { echo 'Deploy the reviewed cache guards first.'; exit 1; }
+          php "$target/scripts/withdraw_test_arrivals.php" --apply \
+            --expect-operations=56ea381e84d9ee4f5e9aa673138e2e7ff994414fcbcc23f4118354d654c3ae2b \
+            --expect-accounts=23ef49b98550dcb1e010930f3878a4398944be35c071c0bca8b167302b6afffc
+          php "$target/scripts/arrival_dependency_audit.php"
+          REMOTE

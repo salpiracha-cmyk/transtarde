@@ -7,7 +7,7 @@ function eq(value,want,name){assertions++;assert.deepEqual(value,want,name)}
 function fn(name){
  const start=src.indexOf('function '+name+'(');assert.ok(start>=0,name);
  const body=src.indexOf('){',start)+1;let depth=0,quote='',escape=false;
- for(let i=body;i<src.length;i++){const c=src[i];if(quote){if(escape)escape=false;else if(c==='\\')escape=true;else if(c===quote)quote='';continue}if(c==='"'||c==="'"||c==='`'){quote=c;continue}if(c==='{')depth++;else if(c==='}'&&--depth===0)return src.slice(start,i+1)}throw Error('Unterminated '+name);
+ for(let i=body;i<src.length;i++){const c=src[i];if(quote){if(escape)escape=false;else if(c==='\\')escape=true;else if(c===quote)quote='';continue}if(c==='"'||c==="'"||c==='`'){quote=c;continue}if(c==='{')depth++;else if(c==='}'&&--depth===0)return src.slice(src.slice(start-6,start)==='async '?start-6:start,i+1)}throw Error('Unterminated '+name);
 }
 const page=src.split('<script>')[0];
 for(const text of ['Ghati Statement','ghatiStatementBody','ghatiRate','Processing Reconciliation','name="completionMode"','id="shortProdBox"','id="excessBox"'])ok(!page.includes(text),'Mill markup has no '+text);
@@ -25,15 +25,17 @@ const context={
  prodDate:{value:'2026-09-22'},prodShift:{value:'Day'},prodStart:{value:'06:00'},prodEnd:{value:'18:00'},prodVariety:{value:'IRRI-6 White Rice'},capacityReason:{value:''},
  calcProduction:()=>8,alert:msg=>{context.lastAlert=msg},confirm:()=>true,today:()=> '2026-09-22',
  validateProductionBagAvailability:()=>'',syncProductionBagIssues:()=>{},initProduction:()=>{},setShiftTimes:()=>{},
- renderRecentProduction:()=>{},renderProductionReport:()=>{},renderRecoveryReport:()=>{},renderProcessingExpenses:()=>{},
+ showNonBlockingMessage:()=>{},renderRecentProduction:()=>{},renderProductionReport:()=>{},renderRecoveryReport:()=>{},renderProcessingExpenses:()=>{},
 };
+(async()=>{
+context.window.TT_PRODUCTION_SOURCE_SAVE={save:async(rec,onSaved)=>{(stores.prod??=[]).push(structuredClone(rec));onSaved?.();return rec;}};
 vm.createContext(context);
 for(const name of ['millBaseVariety','millRiceType','millProductIdentity','isReprocessingMill','stockEntityForView','operationalStockScope','isOperationalProductionRow','saveProduction'])vm.runInContext(fn(name),context);
-context.productionRows=[{product:'Ready Rice — ASAS',bags:500,bagWeight:50}];context.saveProduction();
+context.productionRows=[{product:'Ready Rice — ASAS',bags:500,bagWeight:50}];await context.saveProduction();
 let p=stores.prod[0];eq(p.inputStage,'READY','Rework retains Ready input');eq(p.inputStockName,'IRRI-6 White Ready Rice','Rework retains actual source stock');eq(p.millName,'Reprocessing Mill','Production writer retains location');eq(p.entity,'TTI','Production writer retains company');eq(p.shiftEntriesComplete,false,'First partial lot is not a complete shift');
-stores.prod=[];context.currentMill={id:1,name:'TTI Rice Mills',type:'Own Mill'};context.productionRows=[{product:'Ready Rice — ASAS',bags:500,bagWeight:50}];elements.prodShiftComplete.checked=true;context.saveProduction();
+stores.prod=[];context.currentMill={id:1,name:'TTI Rice Mills',type:'Own Mill'};context.productionRows=[{product:'Ready Rice — ASAS',bags:500,bagWeight:50}];elements.prodShiftComplete.checked=true;await context.saveProduction();
 p=stores.prod[0];eq(p.inputStage,'RAW','Normal processing retains Raw input');eq(p.inputStockName,'IRRI-6 White Raw Rice','Raw input retains Rice Type');eq(p.shiftEntriesComplete,true,'Final-lot control persists to server');
-context.productionRows=[{product:'Ready Rice — ASAS',bags:10,bagWeight:50},{product:'Last loading excess',systemFixed:true,noStockPost:true,bags:100,bagWeight:50}];context.saveProduction();
+context.productionRows=[{product:'Ready Rice — ASAS',bags:10,bagWeight:50},{product:'Last loading excess',systemFixed:true,noStockPost:true,bags:100,bagWeight:50}];await context.saveProduction();
 eq(stores.prod.at(-1).rows.length,1,'Historical management row cannot become new production');
 // Exercise original loading save with no finished stock and no production entries.
 stores.prod=[];stores.ship=[{id:101,status:'Loading',containers:[],audit:[],totalContainers:1,bagsPerContainer:500}];
@@ -45,3 +47,5 @@ Object.assign(context,{currentShipment:101,containerCommitPending:null,editingCo
 for(const name of ['shipmentLoadedBags','shipmentAskedBags','saveContainerOnly'])vm.runInContext(fn(name),context);
 context.saveContainerOnly();eq(stores.ship[0].containers[0].weight,25000,'Actual loading saves before production is recorded');eq(stores.prod.length,0,'Loading cannot fabricate production');ok(!!context.sent,'Actual loading still follows server acknowledgement');ok(!Object.keys(stores).some(k=>/ghati|nilqueue|processingrecon/.test(k)),'Loading writes no financial Ghati store');
 console.log(`PASS inventory reconciliation client: ${assertions} assertions`);
+
+})().catch(error=>{console.error(error);process.exitCode=1;});

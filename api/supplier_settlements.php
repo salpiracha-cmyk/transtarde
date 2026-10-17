@@ -225,6 +225,15 @@ function ss_split_payment(float $amount,array $capacity): array {
     $brokerage=round($amount-$commodity,2);if($brokerage>$capacity['brokerage']+.005){$brokerage=$capacity['brokerage'];$commodity=round($amount-$brokerage,2);}
     return ['commodity'=>round($commodity,2),'brokerage'=>round($brokerage,2),'logistics'=>0.0,'payableAccount'=>'','total'=>round($amount,2)];
 }
+function ss_request_has_mill_bill(array $body): bool {
+    $ids=(array)($body['selectedBills']??[]);foreach((array)($body['allocations']??[]) as $a)if(is_array($a))$ids[]=(string)($a['billId']??'');
+    foreach($ids as $id)if(str_starts_with((string)$id,'MB-'))return true;
+    if(($body['action']??'')==='post_bill_payment'&&!$ids&&empty($body['explicitBillSelection']))foreach((array)(ss_read()['supplierBills']??[]) as $id=>$bill){
+        if(!is_array($bill)||!str_starts_with((string)$id,'MB-')||($bill['entity']??'')!==($body['entity']??'')||($bill['vendor']??'')!==($body['supplier']??''))continue;
+        if(($body['category']??'')===''||($bill['category']??'')===$body['category'])return true;
+    }
+    return false;
+}
 function ss_prepare_allocations(array $store,string $entity,array $raw,float $discount=0.0): array {
     if(!$raw||count($raw)>200)ss_respond(['ok'=>false,'error'=>'Select at least one supplier payable allocation.'],422);
     $gross=round(array_sum(array_map(static fn($r)=>(float)($r['amount']??0),$raw)),2);
@@ -234,7 +243,7 @@ function ss_prepare_allocations(array $store,string $entity,array $raw,float $di
     $out=[];$total=0.0;$commodity=0.0;$brokerage=0.0;$logistics=0.0;$withholding=0.0;$brokers=[];$debits=[];$requestUsed=[];
     foreach($raw as $rowKey=>$r){
         if(!is_array($r))continue;$billId=trim((string)($r['billId']??''));$sourceKey=trim((string)($r['sourceKey']??''));$amount=ss_money($r['amount']??0,'Allocation amount');
-        $bill=ss_find_bill($store,$entity,$billId);$alloc=ss_bill_allocation($bill,$sourceKey);$cap=ss_component_capacity($store,$entity,$bill,$alloc);$allocationKey=$billId.'|'.$sourceKey;$already=round((float)($requestUsed[$allocationKey]??0),2);$cap['total']=max(0,round($cap['total']-$already,2));if(empty($cap['payableAccount'])){$originalTotal=max(.01,$cap['commodity']+$cap['brokerage']);$cap['commodity']=max(0,round($cap['commodity']-$already*($cap['commodity']/$originalTotal),2));$cap['brokerage']=max(0,round($cap['total']-$cap['commodity'],2));}else $cap['logistics']=$cap['total'];$split=ss_split_payment($amount,$cap);$rowDiscount=$discounts[$rowKey]??0.0;$requestUsed[$allocationKey]=round($already+$amount,2);
+        $bill=ss_find_bill($store,$entity,$billId);if(!empty($bill['sourceRecord']['millSourceKey'])){if(!isset($GLOBALS['ttMillPaymentSourceValues']))throw new DomainException('Use the linked Mill supplier-payment workflow for this bill.');mpg_assert($store,$bill,$GLOBALS['ttMillPaymentSourceValues']);}$alloc=ss_bill_allocation($bill,$sourceKey);$cap=ss_component_capacity($store,$entity,$bill,$alloc);$allocationKey=$billId.'|'.$sourceKey;$already=round((float)($requestUsed[$allocationKey]??0),2);$cap['total']=max(0,round($cap['total']-$already,2));if(empty($cap['payableAccount'])){$originalTotal=max(.01,$cap['commodity']+$cap['brokerage']);$cap['commodity']=max(0,round($cap['commodity']-$already*($cap['commodity']/$originalTotal),2));$cap['brokerage']=max(0,round($cap['total']-$cap['commodity'],2));}else $cap['logistics']=$cap['total'];$split=ss_split_payment($amount,$cap);$rowDiscount=$discounts[$rowKey]??0.0;$requestUsed[$allocationKey]=round($already+$amount,2);
         $lineWht=(float)($bill['brokerageWithholding']??0)>0?0.0:round($split['brokerage']*(1-$rowDiscount/$amount)*min(100,max(0,(float)($bill['brokerageWhtPercent']??0)))/100,2);$withholding+=$lineWht;
         $payee=trim((string)($alloc['payee']??''))?:trim((string)($bill['broker']??''))?:trim((string)($bill['relationshipName']??$bill['vendor']??$bill['supplier']??''));$brokers[]=$payee;$total+=$amount;$commodity+=$split['commodity'];$brokerage+=$split['brokerage'];$logistics+=($split['logistics']??0);if($split['commodity']>0)$debits['2110']=round(($debits['2110']??0)+$split['commodity'],2);if($split['brokerage']>0)$debits['2120']=round(($debits['2120']??0)+$split['brokerage'],2);if(($split['logistics']??0)>0){$account=(string)($split['payableAccount']??'2130');$debits[$account]=round(($debits[$account]??0)+$split['logistics'],2);}
         $out[]=['billId'=>$billId,'billNo'=>(string)($bill['billNo']??''),'postId'=>(string)($bill['journalId']??(array_slice((array)($bill['postingJournalIds']??[]),-1)[0]??$billId)),'sourceKey'=>$sourceKey,'soda'=>(string)(($bill['sodas'][0]??'')?:''),'category'=>(string)($bill['category']??'COMMODITY'),'broker'=>$payee,'truck'=>(string)($alloc['truck']??''),'pohanch'=>(string)($alloc['pohanch']??''),'reference'=>(string)($alloc['reference']??''),'dueDate'=>(string)($alloc['dueDate']??''),'amount'=>$amount,'discountAmount'=>$rowDiscount,'paidAmount'=>round($amount-$rowDiscount-$lineWht,2),'balanceAfter'=>round(max(0,$cap['total']-$amount),2),'commodityAmount'=>$split['commodity'],'brokerageAmount'=>$split['brokerage'],'brokerageWht'=>$lineWht,'logisticsAmount'=>$split['logistics']??0,'payableAccount'=>$split['payableAccount']??''];
@@ -267,6 +276,7 @@ try{
     if($_SERVER['REQUEST_METHOD']!=='POST')ss_respond(['ok'=>false,'error'=>'Method not allowed.'],405);if(!ss_can_write($user))ss_respond(['ok'=>false,'error'=>'Accounts Create / Edit / Approve permission required.'],403);
     $body=json_decode((function_exists('tt_accounts_input')?tt_accounts_input():file_get_contents('php://input'))?:'',true);if(!is_array($body)||!tt_verify_csrf((string)($body['csrf']??'')))ss_respond(['ok'=>false,'error'=>'Your session expired. Refresh and try again.'],419);
     $action=(string)($body['action']??'');$entity=ss_entity((string)($body['entity']??''));if(!tt_user_can_access_entity($user,$entity,'Create'))ss_respond(['ok'=>false,'error'=>'You do not have permission for this legal entity.'],403);$date=ss_date((string)($body['date']??''));$catalog=ss_catalog();
+    if(ss_request_has_mill_bill($body)){require_once __DIR__.'/mill_bill_payment_guard.php';$millPaymentLease=mpg_acquire();$GLOBALS['ttMillPaymentSourceValues']=$millPaymentLease['values'];}
     tt_ensure_data_dir();$h=fopen(TT_SETTLEMENT_FILE,'c+');if($h===false||!flock($h,LOCK_EX))throw new RuntimeException('Accounts storage unavailable.');
     try{
         rewind($h);$raw=stream_get_contents($h);$store=$raw?json_decode($raw,true):null;if(!is_array($store))$store=ss_default_store();$store=array_replace_recursive(ss_default_store(),$store);$previewBefore=array_map('strval',array_keys((array)($store['journals']??[])));
@@ -348,5 +358,6 @@ try{
         else ss_respond(['ok'=>false,'error'=>'Unknown supplier settlement action.'],422);
         tt_posting_preview_exit($body,$store,$previewBefore);$store['revision']=(int)($store['revision']??0)+1;rewind($h);ftruncate($h,0);fwrite($h,json_encode($store,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR));fflush($h);
     }finally{flock($h,LOCK_UN);fclose($h);}
+    if(isset($millPaymentLease))($millPaymentLease['release'])();
     ss_respond(['ok'=>true,'result'=>$result,'revision'=>(int)$store['revision']]);
-}catch(Throwable $e){ss_respond(['ok'=>false,'error'=>'The supplier settlement could not be completed.'],500);}
+}catch(DomainException $e){if(isset($millPaymentLease))($millPaymentLease['release'])();ss_respond(['ok'=>false,'error'=>$e->getMessage()],422);}catch(Throwable $e){if(isset($millPaymentLease))($millPaymentLease['release'])();ss_respond(['ok'=>false,'error'=>'The supplier settlement could not be completed.'],500);}
