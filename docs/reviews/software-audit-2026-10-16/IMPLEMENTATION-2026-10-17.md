@@ -221,3 +221,18 @@ Every write retains an actor/scope-bound durable request before sending, waits f
 Added DOM regressions for full dispatch, partial accepted receiving, failures, lost responses, exact retries, permission/refusal corrections, source/destination actions and unrelated draft isolation. The legacy native location test now verifies controller delegation and no PO/cache writes. Production's review also preserves source quantities typed while its response was in flight.
 
 This remains draft PR 291. Complete quarantine handling, supplier receipt atomic acknowledgement and legacy receipt-scope reconciliation are still release gates. Existing supplier receipt entry remains staged. No live inventory or financial entry has been created or amended. The local workspace/browser connections remain unavailable; hosted QA verifies this checkpoint.
+
+
+### Verified native bag workflow checkpoint
+
+Code checkpoint b12f81107907c0a9146779f610f7822c91f918c4 passed full Accounts 39047137957 (audit 117438013527; inventory runtime 117438013310) and Milling/Exports 39047137962 (audit 117438013713). Both new source-allocation/transfer DOM suites passed. The actual guarded MySQL controller passed company/location/role/CSRF checks, atomic partial receipts and returns, stable replay/version conservation, private-ledger protection and unchanged original PO/books. The real authenticated native browser flow passed failed dispatch retention, exact retry, zero destination availability before acceptance, partial receiving whose committed response is lost, replay with byte-unchanged store, and physical source return. Final source available stock was 80 after original 100 less production 12 less dispatch 10 plus physical return 2; destination accepted stock was 6. These are disposable fixtures, not live balances.
+
+Receipt drafts now survive location navigation, including actual date, quantities, reason and inspection choice. Explicit review preserves quantities typed while its request is in flight. Visible movement dates follow DD-MM-YYYY. The previous runtime failure was an isolated legacy fixture without window after native transfer delegation; the fixture now tests the fail-closed component boundary and keeps every original identity/history assertion. No application validation was bypassed to make that test pass.
+
+Remaining release gates are concrete:
+- Supplier receipt functions receiveBagsInline/receiveBags still stage tt33bagreceipts and tt30bags separately and clear without exact server acknowledgement; they need one actor-bound atomic request and retained retry identity.
+- Legacy receipts without immutable company/location/packing evidence can still follow a changed PO. Their source must be confirmed or held without inventing a physical opening or rewriting issued documents.
+- Accepted-only destination receiving is tested. Rejected or quarantined physical receipts and their explicit disposition still need a separate inventory workflow; the existing invoice-specification approval must not silently make rejected bags available.
+- Existing untraceable external ready-rice bag consumption and ambiguous historical allocations remain held until actual facts are supplied.
+
+PR 291 remains draft and undeployed. The independent bank ledger and Production Save releases remain live and verified. No live stock, opening or financial test movement was posted.
