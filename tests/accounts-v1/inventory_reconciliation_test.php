@@ -180,3 +180,7 @@ $bad=$scope+['id'=>'bad-ref','stockName'=>$stock,'physicalKg'=>0,'sourceShipment
 rejects(static fn()=>tt_inv_prepare_write(loadFixture($scope,$stock),TT_INV_CONFIRMATIONS,tt_inv_json([$bad]),$mill,'2026-09-21T09:00:00Z'),'Unrelated source shipment cannot be used for stock confirmation');
 
 echo "PASS inventory reconciliation: $count assertions; in-memory fixtures only; temporary sessions removed.\n";
+
+$cornScope=['entity'=>'TTI','millId'=>2,'millName'=>'Other Mill'];
+$cornValues=values(['tt30slips'=>[$cornScope+['id'=>'CORN-ARRIVAL','commodity'=>'CORN','baseVariety'=>'Yellow Corn','displayName'=>'Yellow Corn','payableWeight'=>100000]],'tt30ship'=>[$cornScope+['id'=>'CORN-SHIP','commodity'=>'MAIZE','baseVariety'=>'Yellow Corn','brand'=>'CORN BRAND','containers'=>[['weight'=>27470]]]]]);
+$cornStock=tt_inv_stock($cornValues,$cornScope);equal($cornStock['Yellow Corn'],72530.,'Corn loading consumes received commodity without a fictitious production run');equal(count($cornStock),1,'Corn does not create a separate branded Rice stock');

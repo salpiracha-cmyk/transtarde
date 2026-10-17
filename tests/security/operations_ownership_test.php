@@ -41,3 +41,10 @@ denied(fn()=>operations_validate_export_bridge('tt30ship','[]',json_encode([$shi
 $instruction=['id'=>5,'_ttBridge'=>'exports','sourceSodaId'=>'S1','loadingComplete'=>true,'completedAt'=>'2026-10-01'];$bad=$instruction;$bad['sourceSodaId']='S2';denied(fn()=>operations_validate_export_bridge('tt40exinstructions',json_encode([$instruction]),json_encode([$bad]),'Exports'),'allocation overwrite');
 $legacy=['id'=>6,'_ttBridge'=>'exports'];operations_validate_export_bridge('tt35exmill',json_encode([$manual,$legacy]),json_encode([$manual]),'Exports');verify(true,'Pseudo-SODA cleanup preserves ordinary SODA');denied(fn()=>operations_validate_export_bridge('tt35exmill','[]',json_encode([$legacy]),'Exports'),'new pseudo-SODA');
 echo "PASS operations ownership: $count checks; immutable fixtures, no storage writes.\n";
+
+// Corn instruction metadata is owned by Exports; saved Mill physical facts remain protected.
+$corn=['id'=>40,'_ttBridge'=>'exports','contractRef'=>'CORN','entity'=>'TTI','commodity'=>'MAIZE','looseBulk'=>true,'packingType'=>'Loose bulk in containers','containers'=>[],'audit'=>[],'status'=>'Open','recovery'=>.6,'byProducts'=>['B2'=>.32,'CSR'=>.03,'Powder'=>.03,'Other'=>.02]];
+operations_validate_export_bridge('tt30ship','[]',json_encode([$corn]),'Exports');
+$corn['containers']=[['id'=>'CORN1','weight'=>27470,'weightBasis'=>'PACKED_CARGO']];$changed=$corn;$changed['inspection']='SGS';operations_validate_export_bridge('tt30ship',json_encode([$corn]),json_encode([$changed]),'Exports');
+$changed['containers'][0]['weight']=27500;denied(fn()=>operations_validate_export_bridge('tt30ship',json_encode([$corn]),json_encode([$changed]),'Exports'),'Corn physical weight remains Mill-owned');
+echo "PASS Corn instruction metadata saves without allowing Exports to alter Mill physical weights\n";
