@@ -331,6 +331,30 @@ require $argv[1];
     for key,value in tracking.items():assert payment[key]==value,(key,payment)
     assert books.read_bytes()==before,'Edit hydration GET must not rewrite source or journals'
     print('Utility edit payload restores saved Online Banking date/reference/narration with zero writes.')
+    # Correcting a mistyped future year must not create a current bank receipt.
+    books.write_text(json.dumps(initial))
+    future={**body,'requestKey':'future-original-1','paymentDate':'8026-10-24','paymentAccountId':'BANK-1','bankPaymentMethod':'ONLINE_BANKING','bankPaymentDate':'8026-10-24','reference':'FUTURE-1','amount':10727,'expenseLines':[{'category':'HOME','purpose':'Cafe','amount':10727}]}
+    status,ack=request('expenses_v1','?entity=TTI',future);assert status==200,(status,ack)
+    original=ack['result']
+    correction={**future,'action':'amend_expense','id':original['generalExpenseId'],'requestKey':'future-correction-1','reason':'Correct mistyped year','paymentDate':'2026-10-24','bankPaymentDate':'2026-10-24'}
+    before=books.read_bytes()
+    status,preview=request('expenses_v1','?entity=TTI',{**correction,'preview':True});assert status==200,(status,preview)
+    assert books.read_bytes()==before
+    assert [j['date'] for j in preview['previews']]==['8026-10-24','2026-10-24'],preview
+    status,ack=request('expenses_v1','?entity=TTI',correction);assert status==200,(status,ack)
+    fixed=ack['result'];saved=json.loads(books.read_text())
+    assert fixed['publicPostId']==original['journalId']
+    assert saved['generalExpenses'][fixed['generalExpenseId']]['bankPaymentDate']=='2026-10-24'
+    assert saved['journals'][original['journalId']]['date']=='8026-10-24'
+    assert saved['journals'][fixed['reversalJournalIds'][0]]['date']=='8026-10-24'
+    for cutoff,expected in [('2026-10-18',0),('2026-10-24',-10727),('9999-12-31',-10727)]:
+        actual=sum(float(l['debit'])-float(l['credit']) for j in saved['journals'].values() if j['date']<=cutoff for l in j['lines'] if l.get('bankAccountId')=='BANK-1')
+        assert actual==expected,(cutoff,actual,expected)
+        status,report=request('accounts_reports','?entity=TTI&from=2026-07-01&asOf='+cutoff);assert status==200,(status,report)
+        assert report['trialBalance']['balanced']
+    before=books.read_bytes();status,retry=request('expenses_v1','?entity=TTI',correction)
+    assert status==200 and retry['result']['journalId']==fixed['journalId'] and books.read_bytes()==before
+    print('Future expense amendment preview, original-date cancellation, cutoffs, identity and retry passed.')
     for endpoint in ['expenses_v1','donations','rent_salary_v2']:
         books.write_text('{broken JSON');bad=books.read_bytes();assert request(endpoint,'?entity=TTI')[0]==500;assert books.read_bytes()==bad
     print('Direct expense endpoint, correction, deletion, retry and permissions passed.')
