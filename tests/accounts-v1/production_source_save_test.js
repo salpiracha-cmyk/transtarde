@@ -35,6 +35,11 @@ const record={id:100,entity:'TTI',millId:1,millName:'TTI Rice Mills',date:'2026-
  // A late acknowledgement must not clear a production form reopened meanwhile.
  let finish;w.TT_SHARED_SYNC.commitProduction=()=>new Promise(resolve=>{finish=resolve;});
  const waiting=w.TT_PRODUCTION_SOURCE_SAVE.save({...record,date:'2026-10-16'},()=>resets++);await Promise.resolve();w.TT_PRODUCTION_SOURCE_SAVE.remember({id:200});finish(record);await waiting;assert.equal(resets,1,'Late save acknowledgement cleared a reopened form');
+ // A definitive refusal permits correction of this source, never another report.
+ context.editingProdId=200;w.TT_PRODUCTION_SOURCE_SAVE.remember({...record,id:200});
+ let refused=0;w.TT_SHARED_SYNC.commitProduction=async()=>{refused++;throw Object.assign(Error('Validation refused'),{editable:true});};
+ await w.TT_PRODUCTION_SOURCE_SAVE.save({...record,id:200},()=>resets++);assert.equal(refused,1);
+ context.editingProdId=201;w.TT_PRODUCTION_SOURCE_SAVE.remember({...record,id:201});await w.TT_PRODUCTION_SOURCE_SAVE.save({...record,id:201},()=>resets++);assert.equal(refused,1,'A corrected retry was redirected to a different production source');
  const native=fs.readFileSync(path.join(root,'milling/Transtrade_Master_Milling_V3_3_2_AUDITED.html'),'utf8').split('\n').find(l=>l.startsWith('async function saveProduction('));
  assert.ok(native.includes('await window.TT_PRODUCTION_SOURCE_SAVE.save(rec,'));assert.ok(!native.includes('set(STORE_')&&!native.includes('syncProductionBagIssues(rec)')&&!native.includes('Directors + Master Admin alerted'));
  console.log('PASS production-only acknowledged save: exact lost-ack replay, edit baseline/concurrency holds, isolated cache, stable durable intent, retained failed form and no premature native reset or derivative write');
