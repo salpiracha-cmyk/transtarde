@@ -28,6 +28,8 @@ jobs:
           php tests/document-ai/backend_test.php
       - name: Accounts rule and control audits
         run: |
+          php tests/accounts-v1/group_management_test.php
+          python3 tests/accounts-v1/group_management_endpoint_test.py
           python3 tests/accounts-v1/commodity_lookup_read_only_test.py
           php tests/accounts-v1/arrival_dependency_test.php
           php tests/accounts-v1/mill_source_amend_test.php
@@ -234,6 +236,7 @@ jobs:
           python3 tests/accounts-v1/tg_pending_fi_endpoint_test.py
           node tests/accounts-v1/report_filter_drilldown_test.js
           node tests/accounts-v1/sales_tax_output_ui_test.js
+          node tests/accounts-v1/group_management_ui_test.js
           node tests/accounts-v1/mill_date_control_test.js
           node tests/accounts-v1/accounts_unified_forms_test.js
           node tests/accounts-v1/review_entry_defaults_test.js
