@@ -2,6 +2,9 @@
 declare(strict_types=1);
 require dirname(__DIR__).'/auth_store.php';
 require_once __DIR__.'/mill_liabilities_core.php';
+require_once __DIR__.'/mill_liabilities_store.php';
+define('TT_SETTLEMENTS_FUNCTIONS_ONLY',true);
+require_once __DIR__.'/supplier_settlements.php';
 header('Content-Type: application/json; charset=UTF-8');
 header('Cache-Control: no-store');
 
@@ -13,33 +16,11 @@ function ml_location_allowed(array $user,string $name): bool {
 function ml_permission(array $user,string $entity,string $action): bool {
     return tt_user_can_open_module($user,'Accounts')&&tt_user_can_module_action($user,'Accounts','expenses',$action)&&tt_user_can_access_entity($user,$entity,$action);
 }
-/** Source lock precedes Accounts lock. No route installs schemas or changes sources. */
-function ml_with_sources(callable $callback): mixed {
-    $env=static fn($key)=>(string)(defined('TT_'.$key)?constant('TT_'.$key):(getenv('TT_'.$key)?:''));
-    if ($env('DB_HOST')!==''&&$env('DB_NAME')!==''&&$env('DB_USER')!=='') {
-        $db=new PDO('mysql:host='.$env('DB_HOST').';dbname='.$env('DB_NAME').';charset=utf8mb4',$env('DB_USER'),$env('DB_PASS'),[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);
-        $db->beginTransaction();
-        try {
-            $rows=$db->query("SELECT storage_key,payload FROM tt_operation_records WHERE storage_key IN ('tt38labourbills','tt38kebills','tt38reprocessbills') LOCK IN SHARE MODE")->fetchAll(PDO::FETCH_KEY_PAIR);
-            $result=$callback($rows);$db->rollBack();return $result;
-        } catch (Throwable $e) {if ($db->inTransaction()) $db->rollBack();throw $e;}
-    }
-    $path=TT_DATA_DIR.'/operations.json';if (!is_file($path)) return $callback([]);
-    $h=fopen($path,'r');if (!$h||!flock($h,LOCK_SH)) throw new RuntimeException('Mill sources unavailable.');
-    try {$store=json_decode((string)stream_get_contents($h),true,512,JSON_THROW_ON_ERROR);return $callback((array)($store['values']??[]));}
-    finally {flock($h,LOCK_UN);fclose($h);}
-}
-function ml_read_accounts(): array {
-    $path=TT_DATA_DIR.'/accounts.json';if (!is_file($path)) return [];
-    $h=fopen($path,'r');if (!$h||!flock($h,LOCK_SH)) throw new RuntimeException('Accounts storage unavailable.');
-    try {$store=json_decode((string)stream_get_contents($h),true,512,JSON_THROW_ON_ERROR);if (!is_array($store)) throw new RuntimeException('Invalid Accounts store.');return $store;}
-    finally {flock($h,LOCK_UN);fclose($h);}
-}
 function ml_review_rows(array $values,array $masters,array $store,string $entity): array {
     $rows=[];
     foreach (ml_kinds() as $kind=>$policy) foreach (ml_rows($values,$policy['collection']) as $r) {
         if (!is_array($r)||($r['entity']??'')!==$entity) continue;
-        $summary=['kind'=>$kind,'sourceId'=>(string)($r['id']??''),'reference'=>(string)($r['ref']??$r['billNo']??''),'date'=>(string)($r['date']??''),'millName'=>(string)($r['millName']??$r['mill']??''),'party'=>(string)($r['party']??$r['contractor']??$r['mill']??''),'amount'=>$r['amount']??null];
+        $summary=['kind'=>$kind,'sourceId'=>(string)($r['id']??''),'reference'=>(string)($r['ref']??$r['billNo']??''),'date'=>(string)($r['date']??''),'from'=>(string)($r['readFrom']??$r['from']??''),'to'=>(string)($r['readTo']??$r['till']??''),'millName'=>(string)($r['millName']??$r['mill']??''),'party'=>(string)($r['party']??$r['contractor']??$r['mill']??''),'amount'=>$r['amount']??null];
         $summary['key']='MILL|'.$entity.'|'.($r['millId']??'').'|'.$policy['collection'].'|'.$summary['sourceId'];
         $summary['posted']=$store['millLiabilities'][$summary['key']]??null;
         if (is_array($summary['posted'])) unset($summary['posted']['sourceSnapshot'],$summary['posted']['versions']);
@@ -51,6 +32,27 @@ function ml_review_rows(array $values,array $masters,array $store,string $entity
         } catch (DomainException $e) {$summary['blocker']=$e->getMessage();}
         $rows[]=$summary;
     }
+    $seen=array_fill_keys(array_column($rows,'key'),true);
+    foreach ((array)($store['millLiabilities']??[]) as $record) {
+        if (!is_array($record)||($record['entity']??'')!==$entity||isset($seen[$record['key']??''])) continue;
+        $kind=null;foreach(ml_kinds() as $name=>$policy)if($policy['collection']===($record['sourceCollection']??''))$kind=$name;
+        if (!$kind) continue;$r=(array)($record['sourceSnapshot']??[]);$posted=$record;unset($posted['sourceSnapshot'],$posted['versions']);
+        $rows[]=['kind'=>$kind,'sourceId'=>(string)$record['sourceRecordId'],'key'=>$record['key'],'fingerprint'=>'','reference'=>(string)($r['ref']??$r['billNo']??''),'date'=>(string)($r['date']??''),'from'=>(string)($r['readFrom']??$r['from']??''),'to'=>(string)($r['readTo']??$r['till']??''),'millName'=>(string)($r['millName']??$r['mill']??''),'party'=>(string)($r['party']??$r['contractor']??$r['mill']??''),'amount'=>$record['amount'],'posted'=>$posted,'blocker'=>'The original Mill source is missing. The preserved posting and source snapshot require review.'];
+    }
+    foreach ($rows as &$summary) {
+        if (is_array($summary['posted'])) {
+            $j=$store['journals'][$summary['posted']['journalId']??'']??null;
+            if (!is_array($j)||($j['status']??'')!=='Posted'||($j['meta']['millSourceKey']??'')!==$summary['key']) {$summary['posted']['status']='Posting unverified';$summary['blocker']='The linked journal could not be verified. Reconcile its original posting.';}
+        }
+        if (is_array($summary['posted'])&&($summary['posted']['entity']??'')===$entity) {
+            $canonical=$store['supplierBills'][$summary['posted']['billId']]??null;
+            if (is_array($canonical)&&($canonical['entity']??'')===$entity) {
+                $allocation=$canonical['receiptAllocations'][0]??[];$capacity=ss_component_capacity($store,$entity,$canonical,$allocation);
+                $summary['posted']['outstandingAmount']=$capacity['total'];
+                $summary['posted']['settledAmount']=ss_previous_allocation_components($store,$entity,$canonical['id'],(string)($allocation['sourceKey']??''))['total'];
+            } else {$summary['blocker']='The linked canonical supplier bill is missing. Reconcile its original posting.';}
+        }
+    }unset($summary);
     usort($rows,static fn($a,$b)=>strcmp($b['date'],$a['date'])?:strcmp($a['reference'],$b['reference']));return $rows;
 }
 

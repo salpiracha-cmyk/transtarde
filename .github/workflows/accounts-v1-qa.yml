@@ -31,6 +31,7 @@ jobs:
           python3 tests/accounts-v1/commodity_lookup_read_only_test.py
           php tests/accounts-v1/arrival_dependency_test.php
           php tests/accounts-v1/mill_liabilities_test.php
+          php tests/accounts-v1/mill_liability_cost_sources_test.php
           python3 tests/accounts-v1/mill_liabilities_endpoint_test.py
           python3 tests/accounts-v1/arrival_withdrawal_test.py
           node tests/accounts-v1/accounts_notifications_test.js
@@ -193,6 +194,7 @@ jobs:
           npm install --prefix "$RUNNER_TEMP/expense-review-node" --no-save playwright@1.55.0 jsdom@26
           export NODE_PATH="$RUNNER_TEMP/expense-review-node/node_modules"
           node tests/accounts-v1/mill_liabilities_ui_test.js
+          node tests/accounts-v1/mill_liability_status_ui_test.js
           node tests/accounts-v1/console_access_preservation_test.js
           php tests/accounts-v1/user_input_preservation_test.php
           python3 tests/accounts-v1/ledger_catalog_identity_test.py

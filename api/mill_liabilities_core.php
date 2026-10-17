@@ -14,10 +14,11 @@ function ml_date(string $date): string {
     if (!$d||($errors&&($errors['warning_count']||$errors['error_count']))||$d->format('Y-m-d')!==$date) throw new DomainException('A valid saved source date is required.');
     return $date;
 }
-function ml_money(mixed $amount): float {
-    if (!is_numeric($amount)||!is_finite((float)$amount)||(float)$amount<=0) throw new DomainException('A positive verified source amount is required.');
-    return round((float)$amount,2);
+function ml_quantity(mixed $value,bool $allowZero=false): float {
+    if (!is_numeric($value)||!is_finite((float)$value)||($allowZero?(float)$value<0:(float)$value<=0)) throw new DomainException('Enter a valid saved source quantity or rate.');
+    return (float)$value;
 }
+function ml_money(mixed $amount): float {return round(ml_quantity($amount),2);}
 function ml_name(string $name): string {return strtolower(trim((string)preg_replace('/\s+/',' ',$name)));}
 function ml_rows(array $values,string $key): array {
     $rows=$values[$key]??'[]';if (is_string($rows)) $rows=json_decode($rows,true,512,JSON_THROW_ON_ERROR);
@@ -45,6 +46,7 @@ function ml_source(array $values,array $masters,string $kind,string $id,string $
         if (!empty($r['locationId'])&&($m['id']??'')!==$r['locationId']) throw new DomainException('The source mill ID and name disagree.');
         $owner=strtoupper(trim((string)($v[7]??'')));
         if ($owner===''&&($m['id']??'')==='mills-1'&&ml_name($millName)==='tti rice mills') $owner='TTI';
+        if ($kind==='REPROCESSING'&&!in_array($v[2]??'',['External Mill','Reprocessing Mill'],true)) throw new DomainException('Select the actual external reprocessing mill.');
         if ($kind!=='REPROCESSING'&&($owner!==$entity||($v[2]??'')!=='Own Mill')) throw new DomainException('This company does not own the selected bill location.');
         $locations[]=['id'=>(string)$m['id'],'name'=>(string)$v[0]];
     }
@@ -59,23 +61,30 @@ function ml_source(array $values,array $masters,string $kind,string $id,string $
     }
     if (count($parties)!==1) throw new DomainException('Resolve one active source payee in Business Parties.');
     $date=ml_date((string)($r['date']??''));$from=ml_date((string)($kind==='ELECTRICITY'?($r['readFrom']??''):($r['from']??'')));$to=ml_date((string)($kind==='ELECTRICITY'?($r['readTo']??''):($r['till']??'')));
+    if ($date<$to) throw new DomainException('The bill date cannot precede the billed period end.');
     if ($to<$from) throw new DomainException('The source cost period is invalid.');
     $amount=ml_money($r['amount']??null);$reference=trim((string)($r['ref']??$r['billNo']??''));if ($reference==='') throw new DomainException('The original bill reference is required.');
     if ($kind==='LABOUR') {
         if (strtoupper(trim((string)($r['commodity']??'')))!=='RICE') throw new DomainException('Maize labour bill and rate design remains deferred.');
         $total=0.0;$lines=(array)($r['lines']??[]);if (!$lines) throw new DomainException('The saved labour work lines are missing.');
         foreach ($lines as $line) {
-            $qty=ml_money($line['qty']??null);$rate=ml_money($line['rate']??null);$basis=(string)($line['basis']??'');
+            $qty=ml_quantity($line['qty']??null);$rate=ml_quantity($line['rate']??null);$basis=(string)($line['basis']??'');
             if ($basis==='') throw new DomainException('Saved labour rate basis is required.');
             $total+=$qty/(str_contains($basis,'100 kg')?100:(str_contains($basis,'50 kg')?50:1))*$rate;
         }
         if (abs(round($total,2)-$amount)>.01) throw new DomainException('Saved labour lines and bill total disagree.');
     }
+    if ($kind==='REPROCESSING') {
+        $arrival=ml_quantity($r['arrivalKg']??null);$removed=ml_quantity($r['rawRemovedKg']??0,true);$billable=ml_quantity($r['billableKg']??null,true);$rate=ml_quantity($r['rate']??null);
+        if ($removed>$arrival||abs($billable-($arrival-$removed))>.0005) throw new DomainException('Reprocessing arrival, raw returns and billable quantity disagree.');
+        $gross=round($billable*$rate+ml_quantity($r['loadingExtra']??0,true)+ml_quantity($r['other']??0,true),2);
+        if (abs($gross-$amount)>.01) throw new DomainException('Reprocessing quantities, rates, extras and bill total disagree.');
+    }
     // Reported paid amounts cannot be imported as either cash or a second liability.
     if ($kind==='REPROCESSING'&&((float)($r['paid']??0)>0||!empty($r['payments']))) throw new DomainException('Reconcile reported reprocessing payments to canonical Accounts before posting this bill.');
     $key='MILL|'.$entity.'|'.$r['millId'].'|'.$policy['collection'].'|'.$id;
     return ['key'=>$key,'kind'=>$kind,'sourceId'=>$id,'collection'=>$policy['collection'],'entity'=>$entity,'millId'=>(string)$r['millId'],'locationId'=>$locations[0]['id'],'millName'=>$locations[0]['name'],
-        'partyId'=>$parties[0]['id'],'party'=>$parties[0]['name'],'date'=>$date,'from'=>$from,'to'=>$to,'reference'=>$reference,'amount'=>$amount,'expenseAccount'=>$policy['expense'],'payableAccount'=>$policy['payable'],'fingerprint'=>ml_fingerprint(['source'=>$r,'location'=>$locations[0],'party'=>$parties[0],'policy'=>$policy]),'original'=>$r];
+        'partyId'=>$parties[0]['id'],'party'=>$parties[0]['name'],'date'=>$date,'from'=>$from,'to'=>$to,'reference'=>$reference,'amount'=>$amount,'workLines'=>$kind==='LABOUR'?array_map(static fn($l)=>array_intersect_key($l,array_flip(['label','key','qty','basis','rate','auto'])),(array)($r['lines']??[])):[],'reprocessing'=>$kind==='REPROCESSING'?array_intersect_key($r,array_flip(['arrivalKg','rawRemovedKg','billableKg','rate','loadingExtra','other'])):null,'expenseAccount'=>$policy['expense'],'payableAccount'=>$policy['payable'],'fingerprint'=>ml_fingerprint(['source'=>$r,'location'=>$locations[0],'party'=>$parties[0],'policy'=>$policy]),'original'=>$r];
 }
 
 /** Pure posting transform. Caller owns the operations + Accounts locks and access. */
@@ -84,6 +93,8 @@ function ml_post(array &$store,array $source,array $user,string $expectedFingerp
     $existing=$store['millLiabilities'][$source['key']]??null;
     if (is_array($existing)&&($existing['status']??'')!=='Reversed') {
         if (!hash_equals((string)$existing['fingerprint'],$source['fingerprint'])) throw new DomainException('This posted source was amended. Use the linked correction workflow.');
+        $journal=$store['journals'][$existing['journalId']??'']??null;$bill=$store['supplierBills'][$existing['billId']??'']??null;
+        if (!is_array($journal)||($journal['status']??'')!=='Posted'||($journal['meta']['millSourceKey']??'')!==$source['key']||!is_array($bill)||($bill['entity']??'')!==$source['entity']) throw new DomainException('The previous acknowledgement has no verified canonical journal and bill. Reconcile it before retrying.');
         return ['duplicate'=>true,'record'=>$existing];
     }
     foreach (['supplierBills','otherPurchases','utilityPayments'] as $collection) foreach ((array)($store[$collection]??[]) as $bill) {
@@ -114,6 +125,13 @@ function ml_reverse(array &$store,string $sourceKey,string $entity,array $user,s
         if (!is_array($payment)||($payment['entity']??'')!==$entity||!in_array($payment['status']??'',['Posted','Approved / Posted','Approved'],true)) continue;
         foreach ((array)($payment['allocations']??[]) as $allocation) {
             if (($allocation['billId']??'')===$record['billId']&&(float)($allocation['amount']??0)>0) throw new DomainException('This bill has payment allocations. Correct or reverse its linked settlement before changing the liability.');
+        }
+    }
+    $prefix=['tt38labourbills'=>'LAB','tt38kebills'=>'KE','tt38reprocessbills'=>'RP'][$record['sourceCollection']??'']??'';
+    foreach ((array)($store['productionCostRuns']??[]) as $run) {
+        if (!is_array($run)||($run['entity']??'')!==$entity) continue;
+        foreach ((array)($run['calculation']['conversionSources']??[]) as $cost) {
+            if (($cost['postId']??'')===$record['journalId']||($prefix!==''&&($cost['id']??'')===$prefix.'|'.$record['sourceRecordId'])) throw new DomainException('This bill is included in an approved production cost. Reconcile the linked cost and stock valuation before reversing its liability.');
         }
     }
     $linkedBill=$store['supplierBills'][$record['billId']]??null;
