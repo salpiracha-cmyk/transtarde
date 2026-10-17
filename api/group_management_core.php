@@ -137,17 +137,32 @@ function gm_zakat_payments(array $state,string $from,string $to):array {
     }
     usort($rows,static fn($a,$b)=>strcmp($a['date'].'|'.$a['postId'],$b['date'].'|'.$b['postId']));return ['totalPKR'=>round($total,2),'rows'=>$rows];
 }
+/** A partial assessment must never silently become next year's opening balance. */
+function gm_assessment_progress(array $record):array {
+    $required=['header','financials','properties','gold','shares','adjustments'];$missing=[];
+    foreach($required as $name){$section=$record['sections'][$name]??[];
+        if($name==='header'){if(empty($section['data']['ramadanDateConfirmed'])||empty($section['data']['hijriYear']))$missing[]=$name;}
+        elseif(empty($section['complete']))$missing[]=$name;
+    }
+    return ['complete'=>!$missing,'missingSections'=>$missing,'status'=>$missing?'PARTIAL':'COMPLETE'];
+}
+function gm_post_detail(array $state,string $id,string $date):array {
+    $post=$state['journals'][$id]??null;
+    if(!is_array($post)||!in_array($post['entity']??'',['TTI','BRM','TG'],true)||!in_array($post['status']??'',['Posted','Posted / Bill Pending'],true)||!mr_valid_date((string)($post['date']??''))||$post['date']>$date)throw new DomainException('The source posting is unavailable at this report date.');
+    $lines=[];foreach((array)($post['lines']??[]) as $line)$lines[]=['account'=>(string)($line['account']??''),'accountName'=>(string)($line['accountName']??''),'debit'=>(float)($line['debit']??0),'credit'=>(float)($line['credit']??0),'party'=>(string)($line['counterparty']??$line['subledger']??$line['partyName']??''),'bankAccountId'=>(string)($line['bankAccountId']??'')];
+    return ['id'=>(string)($post['id']??$id),'entity'=>$post['entity'],'currency'=>$post['entity']==='TG'?'AED':'PKR','date'=>$post['date'],'reference'=>(string)($post['reference']??''),'narration'=>(string)($post['narration']??''),'lines'=>$lines];
+}
 function gm_assessment_summary(array $record,array $state,string $through,?float $opening=null):array {
     $rates=(array)($record['sections']['header']['data']['rates']??[]);$sections=array_intersect_key((array)($record['sections']??[]),array_flip(['financials','properties','gold','shares','adjustments']));$posted=[];
     foreach($sections as $key=>$section)if(!empty($section['complete']))$posted[$key]=$section;
     $payments=gm_zakat_payments($state,$record['date'],$through);$carry=$opening??gm_number($record['sections']['header']['data']['openingCarryPKR']??0,'opening Zakat carry-forward',true);
-    return gm_zakat($posted,$rates,$carry,$payments['totalPKR'])+['payments'=>$payments['rows'],'through'=>$through,'assessmentOnly'=>true,'expenseBasis'=>'Only actual TTI Zakat payment postings in account 7210. Assessment section completion does not post another expense.'];
+    return gm_zakat($posted,$rates,$carry,$payments['totalPKR'])+['payments'=>$payments['rows'],'through'=>$through,'assessmentOnly'=>true,'progress'=>gm_assessment_progress($record),'expenseBasis'=>'Only actual TTI Zakat payment postings in account 7210. Assessment section completion does not post another expense.'];
 }
 function gm_record_summary(array $record,array $state,string $through):array {
     if($record['kind']==='ZAKAT'){
         $next=array_values(array_filter((array)($state['groupManagementRecords']??[]),static fn($r)=>($r['kind']??'')==='ZAKAT'&&($r['date']??'')>$record['date']));usort($next,static fn($a,$b)=>strcmp($a['date'],$b['date']));if($next)$through=min($through,(new DateTimeImmutable($next[0]['date']))->modify('-1 day')->format('Y-m-d'));
         $prior=array_values(array_filter((array)($state['groupManagementRecords']??[]),static fn($r)=>($r['kind']??'')==='ZAKAT'&&($r['date']??'')<$record['date']));usort($prior,static fn($a,$b)=>strcmp($a['date'],$b['date']));$opening=null;
-        foreach($prior as $r){$end=(new DateTimeImmutable($record['date']))->modify('-1 day')->format('Y-m-d');$next=array_values(array_filter($prior,static fn($x)=>$x['date']>$r['date']));if($next)$end=(new DateTimeImmutable($next[0]['date']))->modify('-1 day')->format('Y-m-d');$opening=gm_assessment_summary($r,$state,$end,$opening)['balancePKR'];}
+        foreach($prior as $r){if(!gm_assessment_progress($r)['complete'])throw new DomainException('Complete the prior Zakat assessment dated '.$r['date'].' before carrying its balance forward.');$end=(new DateTimeImmutable($record['date']))->modify('-1 day')->format('Y-m-d');$next=array_values(array_filter($prior,static fn($x)=>$x['date']>$r['date']));if($next)$end=(new DateTimeImmutable($next[0]['date']))->modify('-1 day')->format('Y-m-d');$opening=gm_assessment_summary($r,$state,$end,$opening)['balancePKR'];}
         return gm_assessment_summary($record,$state,$through,$opening);
     }
     $rates=(array)($record['sections']['header']['data']['rates']??[]);$rows=[];foreach((array)($record['sections']??[]) as $key=>$section)if($key!=='header')$rows=array_merge($rows,(array)($section['rows']??[]));return gm_total($rows,$rates);

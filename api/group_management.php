@@ -19,6 +19,7 @@ try {
     $file=TT_DATA_DIR.'/accounts.json';if(!is_file($file))throw new RuntimeException('Accounts source has not been initialized.');
     $booksHandle=fopen($file,'rb');if(!$booksHandle||!flock($booksHandle,LOCK_SH))throw new RuntimeException('Accounts source unavailable.');
     try{$raw=(string)stream_get_contents($booksHandle);if($raw==='')throw new RuntimeException('Empty Accounts source.');$state=mr_decode_store($raw);$booksRevision=(int)($state['revision']??0);}finally{flock($booksHandle,LOCK_UN);fclose($booksHandle);}
+    if(!$write&&isset($_GET['postId']))gm_out(['ok'=>true,'post'=>gm_post_detail($state,gm_text($_GET['postId'],120),$date)]);
     $reportFile=TT_DATA_DIR.'/group-management.json';$lockFile=$reportFile.'.lock';$h=null;
     if($write||is_file($lockFile)){$h=fopen($lockFile,$write?'c+':'rb');if(!$h||!flock($h,$write?LOCK_EX:LOCK_SH))throw new RuntimeException('Report storage unavailable.');}
     try {

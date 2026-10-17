@@ -25,3 +25,16 @@ $books=['journals'=>[
 $before=serialize($books);$source=gm_financial_source($books,'2026-10-17');$by=[];foreach($source['rows'] as $row)$by[$row['account']]=$row;
 near($by['1110']['amount'],1000.,'Report cutoff retains only dated actual cash');near($by['2210']['amount'],-500.,'Accepted unbilled liability cannot disappear');if(!str_contains($by['1210']['label'],'Buyer A'))throw new RuntimeException('Counterparty omitted');if(isset($by['1510']))throw new RuntimeException('Operating fixed assets in cashflow');if(!$by['1240']['excluded']||!$source['warnings'])throw new RuntimeException('Unreconciled intercompany elimination must be explicit');if($before!==serialize($books))throw new RuntimeException('Source report mutated original books');
 echo "PASS financial source uses party and bank identities, accepted unbilled liabilities, date cutoff and explicit provisional eliminations; reads preserve books\n";
+
+$partial=['id'=>'ZAKAT|2026-03-01','kind'=>'ZAKAT','date'=>'2026-03-01','sections'=>['header'=>['data'=>['rates'=>[], 'hijriYear'=>'1447','ramadanDateConfirmed'=>true]],'financials'=>['complete'=>true,'rows'=>[['id'=>'F1','label'=>'Eligible financial wealth','amount'=>10000]]]]];
+$summary=gm_assessment_summary($partial,[],'2026-10-17');
+if($summary['progress']['complete']||$summary['progress']['missingSections']!==['properties','gold','shares','adjustments'])throw new RuntimeException('Partial assessment presented as complete');
+near($summary['assessmentPKR'],250.,'Partial completed sections remain inspectable');
+$next=['id'=>'ZAKAT|2027-02-18','kind'=>'ZAKAT','date'=>'2027-02-18','sections'=>[]];
+reject(fn()=>gm_record_summary($next,['groupManagementRecords'=>[$partial]],'2027-10-01'),'Unfinished prior year must not silently seed carry-forward');
+$complete=$partial;foreach(['properties','gold','shares','adjustments'] as $name)$complete['sections'][$name]=['complete'=>true,'rows'=>[]];
+$summary=gm_record_summary($next,['groupManagementRecords'=>[$complete]],'2027-10-01');near($summary['openingCarryPKR'],250.,'Completed prior assessment carries exact signed obligation');
+$detail=gm_post_detail($books,'PAID','2026-10-17');near($detail['lines'][0]['debit'],1000.,'Source drilldown retains original amount');
+reject(fn()=>gm_post_detail($books,'FUTURE','2026-10-17'),'Future posting cannot enter historical drilldown');
+reject(fn()=>gm_post_detail($books,'MISSING','2026-10-17'),'Unknown source posting');
+echo "PASS partial assessment status, completed-only annual carry, and immutable cutoff-aware source drilldown\n";

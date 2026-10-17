@@ -14,14 +14,19 @@ function tt_release_read_session(){}function tt_verify_csrf($v){return $v==='fix
  (root/'runner.php').write_text("""<?php
 $r=json_decode(stream_get_contents(STDIN),true);$_GET=$r['query'];$_SERVER['REQUEST_METHOD']=$r['body']===null?'GET':'POST';$GLOBALS['fixtureBody']=json_encode($r['body']);register_shutdown_function(function(){fwrite(STDERR,'STATUS:'.(http_response_code()?:200));});require __DIR__.'/api/group_management.php';
 """)
- def req(body=None,mode='all',kind='CASHFLOW',origin='accounts'):
+ def req(body=None,mode='all',kind='CASHFLOW',origin='accounts',postId=None):
   query={'kind':kind,'date':'2026-10-17','mode':mode,'origin':origin};data=None if body is None else {'csrf':'fixture','kind':kind,'date':'2026-10-17',**body}
+  if postId is not None:query['postId']=postId
   r=subprocess.run(['php',str(root/'runner.php')],input=json.dumps({'query':query,'body':data}),text=True,capture_output=True,check=True)
   return int(r.stderr.rsplit('STATUS:',1)[1]),json.loads(r.stdout)
  def save(section,version=0,requestKey='fixture-save-001',**extra):return {'action':'save-section','section':section,'version':version,'requestKey':requestKey,**extra}
  try:
   status,d=req()
   assert status==200,d;assert not (root/'data/group-management.json').exists();assert not (root/'data/group-management.json.lock').exists(),'GET created report storage'
+  status,detail=req(postId='BOOK1');assert status==200 and detail['post']['lines'][0]['debit']==100,detail
+  assert req(postId='MISSING')[0]==422
+  assert req(postId='BOOK1',mode='limited')[0]==403
+  assert not (root/'data/group-management.json.lock').exists(),'Drilldown created report storage'
   assert req(mode='limited')[0]==403
   assert req(mode='limited',origin='directors')[0]==403,'Directors origin bypassed company restriction'
   h=save('header',data={'rates':{'AED':76,'USD':280}});status,d=req(h,mode='create');assert status==200,d
