@@ -805,3 +805,10 @@ bag-list ID renumbering and destination transfer receipts remain separate open d
 Temporary jsdom installation cannot resolve the npm registry in this local environment;
 DOM tests will run in the established hosted runtime. Previous DOM results are retained
 as historical evidence; the real PHP renderer test is a fresh local pass.
+
+Live permission screen verification: all historical inputs/actions are disabled and
+the explanation correctly says the drafts do not grant access. Its new Console link
+pointed to /admin/ and actually opened403. Correct that audit-introduced route to the
+real authenticated /index.php entry. Strengthen the permission test with existence
+and authentication checks for the actual linked entry rather than accepting an
+invented directory. No actual user grant is changed.
