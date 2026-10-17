@@ -355,7 +355,7 @@ try {
         $lines = accounts_event_lines($eventType, $body);
         $meta = is_array($body['meta'] ?? null) ? $body['meta'] : [];
         $written = accounts_write_locked(function(array &$store) use ($user,$entity,$date,$eventType,$sourceKey,$reference,$narration,$lines,$meta) {
-            if ($eventType==='COMMODITY_RECEIPT_ACCEPTED') tt_guard_withdrawn_arrival(['sourceKey'=>$sourceKey,'meta'=>$meta]);
+            if ($eventType==='COMMODITY_RECEIPT_ACCEPTED') tt_guard_withdrawn_arrival(['entity'=>$entity,'sourceKey'=>$sourceKey,'meta'=>$meta]);
             $eventId = $entity.'|'.$eventType.'|'.$sourceKey;
             $identityId = $entity.'|'.$sourceKey;
             if (!isset($store['postingIdentities']) || !is_array($store['postingIdentities'])) $store['postingIdentities'] = [];
@@ -380,6 +380,7 @@ try {
         if ($target === '' || $reason === '') accounts_respond(['ok'=>false,'error'=>'Journal and reversal reason are required.'], 422);
         $written = accounts_write_locked(function(array &$store) use ($user,$target,$reason) {
             $original = $store['journals'][$target] ?? null;
+            if (!empty($original['meta']['millSourceKey'])) accounts_respond(['ok'=>false,'error'=>'Correct this Mill bill in Mill Liability Review so its payable and settlement links stay consistent.'],422);
             if (!is_array($original) || ($original['status'] ?? '') !== 'Posted') accounts_respond(['ok'=>false,'error'=>'Posted journal not found.'], 404);
             accounts_require_entity_access($user, accounts_validate_entity((string)($original['entity'] ?? '')), 'Approve');
             if (!tt_user_can_module_action($user,'Accounts','jv','Approve')) accounts_respond(['ok'=>false,'error'=>'Journal Voucher approval permission is required.'],403);

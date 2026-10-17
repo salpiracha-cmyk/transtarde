@@ -75,7 +75,7 @@ function ml_source(array $values,array $masters,string $kind,string $id,string $
     if ($kind==='REPROCESSING'&&((float)($r['paid']??0)>0||!empty($r['payments']))) throw new DomainException('Reconcile reported reprocessing payments to canonical Accounts before posting this bill.');
     $key='MILL|'.$entity.'|'.$r['millId'].'|'.$policy['collection'].'|'.$id;
     return ['key'=>$key,'kind'=>$kind,'sourceId'=>$id,'collection'=>$policy['collection'],'entity'=>$entity,'millId'=>(string)$r['millId'],'locationId'=>$locations[0]['id'],'millName'=>$locations[0]['name'],
-        'partyId'=>$parties[0]['id'],'party'=>$parties[0]['name'],'date'=>$date,'from'=>$from,'to'=>$to,'reference'=>$reference,'amount'=>$amount,'expenseAccount'=>$policy['expense'],'payableAccount'=>$policy['payable'],'fingerprint'=>ml_fingerprint($r),'original'=>$r];
+        'partyId'=>$parties[0]['id'],'party'=>$parties[0]['name'],'date'=>$date,'from'=>$from,'to'=>$to,'reference'=>$reference,'amount'=>$amount,'expenseAccount'=>$policy['expense'],'payableAccount'=>$policy['payable'],'fingerprint'=>ml_fingerprint(['source'=>$r,'location'=>$locations[0],'party'=>$parties[0],'policy'=>$policy]),'original'=>$r];
 }
 
 /** Pure posting transform. Caller owns the operations + Accounts locks and access. */

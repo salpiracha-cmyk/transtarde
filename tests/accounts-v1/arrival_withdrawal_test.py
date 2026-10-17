@@ -23,7 +23,7 @@ with tempfile.TemporaryDirectory(prefix='arrival-withdrawal-') as tmp:
     slips = [dict(slip=ph,truck=truck,soda=soda,payableWeight=kg,bags=bags,id=id,queueId=qid,bridgeId=f'PHB-{id}-{suffix}',broker='shams broker',unloadingDate='2026-09-23') for ph,truck,soda,kg,bags,id,qid,suffix in expected]
     real = {'id': 'REAL-ARRIVAL', 'slip': 'PH-00004', 'soda': '26002', 'payableWeight': 9000}
     rows = {'tt30slips': slips + [real], 'tt30queue': [{'id': x['queueId']} for x in slips]+[{'id':'REAL-QUEUE'}],
-            'tt39accountsoutbox': [{'body':{'sourceKey':x['bridgeId']},'journalId':f'OLD-{i}'} for i,x in enumerate(slips*2)],
+            'tt39accountsoutbox': [{'body':{'entity':'TTI','sourceKey':('POHANCH|'+x['slip']) if i<3 else ('POHANCH|1|'+x['bridgeId'])},'journalId':f'OLD-{i}'} for i,x in enumerate(slips*2)],
             'tt30ship': [{'id':'REAL-SHIP','soda':'26002'}]}
     ops = {'revision': 7, 'values': {k: json.dumps(v) for k,v in rows.items()}, 'meta': {}}
     books = {'revision': 19, 'journals': {'REAL-POST': {'reference': 'unrelated'}},'purchaseSodas':[{'sodaNo':'26002','locationName':'indus rice mill'}]}
@@ -71,6 +71,9 @@ foreach (tt_withdrawn_arrivals() as $row) {
   try {tt_guard_withdrawn_arrival(['sourceKey'=>'POHANCH|1|'.$row['bridgeId']]);exit(1);}catch(DomainException $e){}
   try {tt_guard_arrival_collection('tt30slips','[]',json_encode([$row]));exit(2);}catch(DomainException $e){}
   tt_guard_arrival_collection('tt30slips',json_encode([$row]),json_encode([$row]));
+  try {tt_guard_withdrawn_arrival(['entity'=>'TTI','sourceKey'=>'POHANCH|'.$row['slip']]);exit(3);}catch(DomainException $e){}
+  tt_guard_withdrawn_arrival(['entity'=>'BRM','sourceKey'=>'POHANCH|'.$row['slip']]);
+  try {tt_guard_withdrawn_arrival(['key'=>'TTI|COMMODITY_RECEIPT_ACCEPTED|POHANCH|'.$row['slip']]);exit(4);}catch(DomainException $e){}
 }
 tt_guard_withdrawn_arrival(['slip'=>'PH-00001','soda'=>'26002','bridgeId'=>'NEW-REAL-RECEIPT']);
 ''')

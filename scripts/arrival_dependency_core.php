@@ -76,9 +76,10 @@ function arrival_dependency_audit(array $values, array $accounts): array {
     $acknowledgements=[];
     foreach ($references as $ref) {
         if ($ref['store']!=='operations'||$ref['collection']!=='tt39accountsoutbox'||$ref['journalId']==='') continue;
+        $outbox=$collections['tt39accountsoutbox'][(int)$ref['key']]??[];
         $journal=$accounts['journals'][$ref['journalId']]??null;
         $paths=is_array($journal)?arrival_reference_paths($journal,$tokens):[];
-        $acknowledgements[]=['outboxKey'=>$ref['key'],'journalId'=>$ref['journalId'],'currentJournalExists'=>is_array($journal),'matchesArrival'=>(bool)$paths,
+        $acknowledgements[]=['sourceKey'=>(string)($outbox['body']['sourceKey']??''),'entity'=>(string)($outbox['body']['entity']??''),'outboxKey'=>$ref['key'],'journalId'=>$ref['journalId'],'currentJournalExists'=>is_array($journal),'matchesArrival'=>(bool)$paths,
             'currentSourceType'=>is_array($journal)?($journal['sourceType']??''):'','currentReference'=>is_array($journal)?($journal['reference']??''):''];
     }
     $financialIds=[];

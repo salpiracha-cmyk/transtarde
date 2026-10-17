@@ -872,7 +872,7 @@ function tt_api_write_grants(string $endpoint,array $body): ?array {
     if(in_array($endpoint,['bank_entries.php','accounts_subaccounts.php'],true)){$right=($body['action']??'')==='reverse'?'Edit':(($body['operation']??'add')==='delete'?'Delete':(in_array($body['operation']??'add',['edit','move_head'],true)?'Edit':'Create'));return [['Accounts',$endpoint==='bank_entries.php'?'cashbank':'masters',$right]];}
     if($endpoint==='bank_direct_entries.php'&&strtoupper((string)($body['type']??''))==='SAVING_PROFIT')return [['Accounts','cashbank'],['Accounts','reconciliation']];
     $routes=[
-        'rent_salary.php'=>'expenses','rent_salary_v2.php'=>'expenses','expenses_v1.php'=>'expenses','donations.php'=>'expenses',
+        'mill_liabilities.php'=>'expenses','rent_salary.php'=>'expenses','rent_salary_v2.php'=>'expenses','expenses_v1.php'=>'expenses','donations.php'=>'expenses',
         'sales_tax_refunds.php'=>'purchases','production_costing.php'=>'purchases','production_fixed_overhead.php'=>'purchases',
         'production_inventory_transfer.php'=>'purchases','commodity_bills.php'=>'purchases','other_purchases.php'=>'purchases',
         'management_costing.php'=>'purchases','management_costing_attach.php'=>'purchases',
