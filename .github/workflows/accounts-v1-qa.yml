@@ -229,6 +229,8 @@ jobs:
           TZ=America/Los_Angeles node tests/accounts-v1/labour_scope_test.js
           node tests/accounts-v1/shipment_bill_result_edit_test.js
           node tests/accounts-v1/fi_tags_read_only_test.js
+          php tests/accounts-v1/sales_tax_source_test.php
+          python3 tests/accounts-v1/sales_tax_endpoint_test.py
           php tests/accounts-v1/withholding_source_test.php
           node tests/accounts-v1/accounting_desk_test.js
           node tests/accounts-v1/tg_pending_fi_ui_test.js
