@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require dirname(__DIR__) . '/auth_store.php';
+require_once __DIR__.'/arrival_withdrawal_core.php';
 header('Content-Type: application/json; charset=UTF-8');
 header('Cache-Control: no-store, no-cache, must-revalidate');
 
@@ -354,6 +355,7 @@ try {
         $lines = accounts_event_lines($eventType, $body);
         $meta = is_array($body['meta'] ?? null) ? $body['meta'] : [];
         $written = accounts_write_locked(function(array &$store) use ($user,$entity,$date,$eventType,$sourceKey,$reference,$narration,$lines,$meta) {
+            if ($eventType==='COMMODITY_RECEIPT_ACCEPTED') tt_guard_withdrawn_arrival(['sourceKey'=>$sourceKey,'meta'=>$meta]);
             $eventId = $entity.'|'.$eventType.'|'.$sourceKey;
             $identityId = $entity.'|'.$sourceKey;
             if (!isset($store['postingIdentities']) || !is_array($store['postingIdentities'])) $store['postingIdentities'] = [];
@@ -415,6 +417,8 @@ try {
     }
 
     accounts_respond(['ok'=>false,'error'=>'Unknown Accounts action.'], 422);
+} catch (DomainException $e) {
+    accounts_respond(['ok'=>false,'error'=>$e->getMessage()],422);
 } catch (Throwable $e) {
     accounts_respond(['ok'=>false,'error'=>'The Accounts update could not be completed.'], 500);
 }

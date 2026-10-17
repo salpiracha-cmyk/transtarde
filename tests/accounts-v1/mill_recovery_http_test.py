@@ -4,7 +4,7 @@ ROOT=pathlib.Path(__file__).resolve().parents[2]
 with tempfile.TemporaryDirectory(prefix='mill-recovery-http-') as tmp:
  root=pathlib.Path(tmp)
  for d in ['api','data']:(root/d).mkdir()
- for f in ['mill_recovery.php','mill_recovery_core.php','mill_recovery_cost.php','production_costing_core.php','management_costing_core.php']:shutil.copy(ROOT/'api'/f,root/'api'/f)
+ for f in ['arrival_withdrawal_core.php','mill_recovery.php','mill_recovery_core.php','mill_recovery_cost.php','production_costing_core.php','management_costing_core.php']:shutil.copy(ROOT/'api'/f,root/'api'/f)
  for f in ['inventory_reconciliation.php','product_stage.php']:shutil.copy(ROOT/f,root/f)
  (root/'auth_store.php').write_text('''<?php
  define('TT_DATA_DIR',__DIR__.'/data');function tt_release_read_session(){}
