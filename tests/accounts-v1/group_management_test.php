@@ -38,3 +38,17 @@ $detail=gm_post_detail($books,'PAID','2026-10-17');near($detail['lines'][0]['deb
 reject(fn()=>gm_post_detail($books,'FUTURE','2026-10-17'),'Future posting cannot enter historical drilldown');
 reject(fn()=>gm_post_detail($books,'MISSING','2026-10-17'),'Unknown source posting');
 echo "PASS partial assessment status, completed-only annual carry, and immutable cutoff-aware source drilldown\n";
+
+near(gm_costing($corn+['freightRealizationUSDPerMT'=>10])['netSalesPKRPerMT'],71817.2,'Freight proceeds receive the same proportional deductions once');
+reject(fn()=>gm_costing(array_replace($corn,['commodity'=>'UNRECOGNIZED'])),'Unknown commodity');
+if(!defined('TT_DATA_DIR'))define('TT_DATA_DIR',sys_get_temp_dir().'/group-comparison-no-write');
+$selection=['entity'=>'TTI','from'=>'2026-09-01','to'=>'2026-09-30','mill'=>'Selected Mill','variety'=>'IRRI-6'];
+$run=['id'=>'ACTUAL1','entity'=>'TTI','millName'=>'Selected Mill','date'=>'2026-09-21','shift'=>'Day','variety'=>'IRRI-6','rawInputs'=>[['grossKg'=>1000]],'rows'=>[['product'=>'Ready Rice — Sample','systemKg'=>600],['product'=>'B2','systemKg'=>400]]];
+$ops=['revision'=>4,'values'=>['tt30prod'=>json_encode([$run,array_replace($run,['id'=>'OTHER','entity'=>'BRM']),array_replace($run,['id'=>'FUTURE','date'=>'2026-10-01'])])]];
+$sourceBefore=serialize([$ops,$books]);$comparison=gm_actual_comparison($selection,$ops,$books,$r,'RICE');
+near($comparison['readyRecoveryPct'],60.,'Actual recovery weighted by original input');
+if($comparison['sourceRunIds']!==['ACTUAL1']||$comparison['productionCostPKRPerMT']!==null||$comparison['productionCostVariancePKRPerMT']!==null)throw new RuntimeException('Unapproved or unrelated actual cost was manufactured');
+$missing=gm_actual_comparison(array_replace($selection,['mill'=>'Missing Mill']),$ops,$books,$r,'RICE');if($missing['quantityAvailable']||$missing['readyRecoveryPct']!==null)throw new RuntimeException('Missing actuals turned into a recovery assumption');
+reject(fn()=>gm_actual_comparison($selection,$ops,$books,$r,'CORN'),'Do not compare Corn to Rice milling');
+if($sourceBefore!==serialize([$ops,$books]))throw new RuntimeException('Actual comparison mutated source books');
+echo "PASS separate freight proceeds, actual Rice run identity/cutoffs, unavailable unapproved costs and immutable comparison sources\n";

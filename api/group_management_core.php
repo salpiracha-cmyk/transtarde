@@ -70,7 +70,7 @@ function gm_raw_position(array $input):array {
     return ['rawRequiredMT'=>round($rawRequired,6),'positionMT'=>round($balance,6),'status'=>$balance<-.000001?'SHORT':($balance>.000001?'LONG':'BALANCED')];
 }
 function gm_costing(array $input):array {
-    $commodity=strtoupper(gm_text($input['commodity']??'RICE'));$corn=in_array($commodity,['CORN','MAIZE','MAKAI'],true);
+    $commodity=strtoupper(gm_text($input['commodity']??'RICE'));if(!in_array($commodity,['RICE','CORN','MAIZE','MAKAI'],true))throw new DomainException('Select Rice or Corn.');$corn=in_array($commodity,['CORN','MAIZE','MAKAI'],true);
     $fx=gm_number($input['fx']??null,'PKR exchange rate');if($fx<=0)throw new DomainException('Exchange rate must be positive.');
     $sale=gm_number($input['saleUSDPerMT']??null,'sale price');$freight=gm_number($input['freightUSDPerMT']??0,'freight');$otherUSD=gm_number($input['otherUSDPerMT']??0,'foreign expenses');
     $purchase=gm_number($input['purchaseRate']??null,'purchase rate');$unit=(string)($input['purchaseUnit']??'KG');$factor=match($unit){'KG'=>1000.,'MAUND'=>25.,'MT'=>1.,default=>throw new DomainException('Select purchase unit.')};
@@ -85,10 +85,10 @@ function gm_costing(array $input):array {
     }
     if(abs($sum-100)>.00001||$ready<=0)throw new DomainException('Finished output, by-products and waste must total 100% with positive finished recovery.');
     if($corn&&array_filter($outputs,static fn($r)=>($r['kind']??'')==='byproduct'&&(float)($r['recoveryPct']??0)>0))throw new DomainException('Direct-loading Corn has no milling by-products.');
-    $grossPKR=$sale*$fx;$wht=$grossPKR*.0125;$bank=$grossPKR*.001;$net=$grossPKR-$wht-$bank;
+    $freightProceeds=gm_number($input['freightRealizationUSDPerMT']??0,'separate freight realization');$grossPKR=($sale+$freightProceeds)*$fx;$wht=$grossPKR*.0125;$bank=$grossPKR*.001;$net=$grossPKR-$wht-$bank;
     $shipmentTotal=$shipment+($freight+$otherUSD)*$fx;$rawCost=$purchase*$factor;
     $readyCost=($rawCost+$conversion-$credit)/$ready+$shipmentTotal;$maxRaw=($net-$shipmentTotal-$margin)*$ready+$credit-$conversion;
-    return ['purchasePKRPerRawMT'=>round($rawCost,4),'readyRecoveryPct'=>round($ready*100,6),'byproductCreditPKRPerRawMT'=>round($credit,4),'grossSalesPKRPerMT'=>round($grossPKR,4),'whtPKRPerMT'=>round($wht,4),'bankDeductionPKRPerMT'=>round($bank,4),'effectiveFX'=>$fx*.9865,'netSalesPKRPerMT'=>round($net,4),'costPKRPerReadyMT'=>round($readyCost,4),'profitPKRPerMT'=>round($net-$readyCost,4),'watakPurchaseRate'=>round($maxRaw/$factor,6),'watakPurchaseUnit'=>$unit];
+    return ['purchasePKRPerRawMT'=>round($rawCost,4),'readyRecoveryPct'=>round($ready*100,6),'byproductCreditPKRPerRawMT'=>round($credit,4),'grossSalesPKRPerMT'=>round($grossPKR,4),'whtPKRPerMT'=>round($wht,4),'bankDeductionPKRPerMT'=>round($bank,4),'effectiveFX'=>$fx*.9865,'netSalesPKRPerMT'=>round($net,4),'productionCostPKRPerReadyMT'=>round(($rawCost+$conversion-$credit)/$ready,4),'freightRealizationUSDPerMT'=>$freightProceeds,'costPKRPerReadyMT'=>round($readyCost,4),'profitPKRPerMT'=>round($net-$readyCost,4),'watakPurchaseRate'=>round($maxRaw/$factor,6),'watakPurchaseUnit'=>$unit];
 }
 function gm_tg_profit(array $receipts,float $costs):array {
     $bank=0.;$margin=0.;$working=[];
@@ -166,4 +166,26 @@ function gm_record_summary(array $record,array $state,string $through):array {
         return gm_assessment_summary($record,$state,$through,$opening);
     }
     $rates=(array)($record['sections']['header']['data']['rates']??[]);$rows=[];foreach((array)($record['sections']??[]) as $key=>$section)if($key!=='header')$rows=array_merge($rows,(array)($section['rows']??[]));return gm_total($rows,$rates);
+}
+
+/** Compare only the selected actual Rice runs; production cost excludes shipment expenses. */
+function gm_actual_comparison(array $selection,array $ops,array $books,array $calculation,string $commodity):array {
+ if(strtoupper($commodity)!=='RICE')throw new DomainException('Actual Corn comparison requires its direct loading and purchase sources; do not substitute Rice milling.');
+ $entity=strtoupper(gm_text($selection['entity']??'',3));if(!in_array($entity,['TTI','BRM'],true))throw new DomainException('Select the actual production company.');
+ $from=gm_date($selection['from']??'');$to=gm_date($selection['to']??'');if($from>$to)throw new DomainException('Actual period From cannot follow To.');
+ $mill=gm_text($selection['mill']??'',200);$variety=gm_text($selection['variety']??'',200);if($mill===''||$variety==='')throw new DomainException('Select the exact actual mill and source variety.');
+ if(preg_match('/\b(CORN|MAIZE|MAKAI)\b/i',$variety))throw new DomainException('Choose Rice production; Corn uses direct loading sources.');
+ $raw=$ops['values']['tt30prod']??'[]';if(!is_string($raw))throw new DomainException('Actual production source is unreadable.');$runs=json_decode($raw,true,512,JSON_THROW_ON_ERROR);if(!is_array($runs)||!array_is_list($runs))throw new DomainException('Actual production source is unreadable.');
+ // Do not borrow a legacy missing company or mill from the report's defaults.
+ $runs=array_values(array_filter($runs,static fn($r)=>is_array($r)&&($r['entity']??'')===$entity&&($r['millName']??$r['locationName']??'')===$mill));
+ $report=mr_report($runs,['entity'=>$entity,'from'=>$from,'to'=>$to,'mill'=>$mill,'variety'=>$variety,'mode'=>'daily']);
+ $total=$report['totals'];$ids=[];foreach($report['groups'] as $group)foreach($group['runs'] as $run)$ids[$run['id']]=true;
+ $available=$total['inputComplete']&&$total['inputKg']>0&&$total['readyKg']>0;$recovery=$available?round($total['readyKg']/$total['inputKg']*100,6):null;
+ $cost=null;$costBasis=[];$costStatus='Actual production cost unavailable';
+ if($available){require_once __DIR__.'/mill_recovery_cost.php';$costed=mr_attach_costs($report,$runs,mr_cost_sources($books,$ops,$entity));$costBasis=$costed['costTotals']['basis'];
+  // Management estimates and incomplete overhead allocations cannot be labelled actual costs.
+  if($costed['costTotals']['available']&&$costBasis&&count(array_filter($costBasis,static fn($basis)=>$basis!=='Approved Accounts cost'))===0){$cost=round($costed['costTotals']['costPerKg']*1000,4);$costStatus='Approved Accounts production cost';}
+  elseif($costBasis)$costStatus=implode('; ',$costBasis);
+ }
+ return ['selection'=>['entity'=>$entity,'from'=>$from,'to'=>$to,'mill'=>$mill,'variety'=>$variety],'sourceRunIds'=>array_keys($ids),'operationsRevision'=>(int)($ops['revision']??0),'accountsRevision'=>(int)($books['revision']??0),'sourceFingerprint'=>hash('sha256',json_encode([$runs,$books['productionCostRates']??[],$books['revision']??0],JSON_THROW_ON_ERROR)),'quantityAvailable'=>$available,'status'=>$available?($total['differenceKg']<-.001?'Actual output exceeds input — reconcile':'Actual quantities recorded'):'Complete actual input and finished output required','inputKg'=>$total['inputKg'],'readyKg'=>$total['readyKg'],'readyRecoveryPct'=>$recovery,'estimatedReadyRecoveryPct'=>$calculation['readyRecoveryPct'],'recoveryVariancePoints'=>$recovery===null?null:round($recovery-$calculation['readyRecoveryPct'],6),'productionCostPKRPerMT'=>$cost,'estimatedProductionCostPKRPerMT'=>$calculation['productionCostPKRPerReadyMT'],'productionCostVariancePKRPerMT'=>$cost===null?null:round($cost-$calculation['productionCostPKRPerReadyMT'],4),'costStatus'=>$costStatus,'costBasis'=>$costBasis];
 }

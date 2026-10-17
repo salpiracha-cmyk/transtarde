@@ -4,7 +4,7 @@ ROOT=pathlib.Path(__file__).resolve().parents[2]
 with tempfile.TemporaryDirectory(prefix='group-management-') as tmp:
  root=pathlib.Path(tmp);shutil.copytree(ROOT/'api',root/'api');shutil.copytree(ROOT/'accounts',root/'accounts');(root/'data').mkdir()
  (root/'auth_store.php').write_text('''<?php
-define('TT_DATA_DIR',__DIR__.'/data');
+define('TT_DATA_DIR',__DIR__.'/data');define('TT_DB_HOST','');
 function tt_require_login(){return ['id'=>1,'username'=>'Fixture','role'=>($_GET['mode']??'')==='super'?'Super Admin':'Staff'];}
 function tt_user_can_module_action($u,$m,$i,$a){$mode=$_GET['mode']??'all';return $mode==='create'?$a!=='Edit':($mode==='read'?$a==='View':true);}
 function tt_user_can_access_entity($u,$e,$a){return ($_GET['mode']??'')!=='limited'||$e!=='TG';}
@@ -48,6 +48,13 @@ $r=json_decode(stream_get_contents(STDIN),true);$_GET=$r['query'];$_SERVER['REQU
   status,d=req(save('financials',3,'fixture-fin-002',rows=[source],reason='Reviewed valuation'));assert status==200,d
   saved=d['record']['sections']['financials']['rows'][0];assert saved['amount']==50 and saved['originalAmount']==100 and saved['source']=='Accounts journals',saved
   source['id']='BOOK-forged';status,d=req(save('adjustments',0,'fixture-adj-002',rows=[source]));assert status==422,d
+  run={'id':'ACTUAL-1','entity':'TTI','millName':'Selected Mill','date':'2026-09-21','variety':'IRRI-6','rawInputs':[{'grossKg':1000}],'rows':[{'product':'Ready Rice — Test','systemKg':600},{'product':'B2','systemKg':400}]}
+  (root/'data/operations.json').write_text(json.dumps({'revision':4,'values':{'tt30prod':json.dumps([run])}}));ops_before=(root/'data/operations.json').read_bytes()
+  scenario={'commodity':'RICE','fx':280,'saleUSDPerMT':600,'purchaseRate':100,'purchaseUnit':'KG','outputs':[{'product':'READY','kind':'finished','recoveryPct':60},{'product':'B2','kind':'byproduct','recoveryPct':40,'ratePKRPerKg':50}],'actualSelection':{'enabled':True,'entity':'TTI','from':'2026-09-01','to':'2026-09-30','mill':'Selected Mill','variety':'IRRI-6'},'actualComparison':{'readyRecoveryPct':999}}
+  status,d=req(save('costing',requestKey='fixture-actual-001',data=scenario),kind='COSTING');assert status==200,d
+  actual=d['record']['sections']['costing']['data']['actualComparison'];assert actual['sourceRunIds']==['ACTUAL-1'] and actual['readyRecoveryPct']==60 and actual['productionCostPKRPerMT'] is None,actual
+  assert actual['accountsRevision']==7 and actual['operationsRevision']==4,'Report revision replaced original source revision'
+  assert path.read_bytes()==before and (root/'data/operations.json').read_bytes()==ops_before,'Comparison changed original sources'
   persisted=json.loads((root/'data/group-management.json').read_text());assert 'journals' not in persisted and path.read_bytes()==before,'Assessment changed canonical books'
   print('PASS shared group report GET zero writes; own atomic store; row persistence, section conflicts, permission/CSRF checks, duplicate protection and original books unchanged')
  finally:pass
