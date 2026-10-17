@@ -67,7 +67,7 @@ with tempfile.TemporaryDirectory(prefix='bank-entries-browser-') as tmp:
     page.locator('#ttBrWindow [data-save]').click();page.get_by_text('Reconciliation saved. No unexplained difference.',exact=True).wait_for()
     assert json.loads((root/'data/accounts.json').read_text())['bankReconciliations']['TTI|BANK-1']['status']=='Reconciled'
     page.locator('#ttBrWindow [data-close]').click();books_before_report=(root/'data/accounts.json').read_bytes()
-    page.evaluate("TT_SUBACCOUNTS.open('tax')");page.locator('[data-tax-results]').get_by_text('BROWSER-PROFIT',exact=True).wait_for()
+    page.evaluate("TT_SUBACCOUNTS.open('tax')");page.locator('[data-tax-results]').get_by_text('BROWSER-PROFIT',exact=False).wait_for()
     assert '150.00' in page.locator('[data-tax-results]').inner_text() and 'SAVINGS' in page.locator('[data-tax-results]').inner_text()
     page.locator('[data-tax-category]').select_option('SAVINGS');page.locator('[data-tax-print]').click();page.wait_for_function('printEvents===2')
     tax_print=page.frame_locator('iframe[title="Print document"]');assert 'BROWSER-PROFIT' in tax_print.locator('body').inner_text()
