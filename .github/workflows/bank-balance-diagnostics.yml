@@ -1,0 +1,45 @@
+name: Read-only bank balance diagnostics
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [audit/bank-balance-diagnostics-20261018]
+    paths: ['.github/workflows/bank-balance-diagnostics.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Classify bank balance discrepancy without identities or amounts
+        env:
+          HOSTINGER_HOST: ${{ secrets.HOSTINGER_HOST }}
+          HOSTINGER_PORT: ${{ secrets.HOSTINGER_PORT }}
+          HOSTINGER_USER: ${{ secrets.HOSTINGER_USER }}
+          HOSTINGER_DEPLOY_PATH: ${{ secrets.HOSTINGER_DEPLOY_PATH }}
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+          HOSTINGER_KNOWN_HOSTS: ${{ secrets.HOSTINGER_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -m 700 -d "$RUNNER_TEMP/ssh"
+          printf '%s\n' "$HOSTINGER_SSH_KEY" | tr -d '\r' > "$RUNNER_TEMP/ssh/key"
+          printf '%s\n' "$HOSTINGER_KNOWN_HOSTS" | tr -d '\r' > "$RUNNER_TEMP/ssh/known_hosts"
+          chmod 600 "$RUNNER_TEMP/ssh/key" "$RUNNER_TEMP/ssh/known_hosts"
+          ssh -i "$RUNNER_TEMP/ssh/key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" -o StrictHostKeyChecking=yes -p "$HOSTINGER_PORT" "$HOSTINGER_USER@$HOSTINGER_HOST" bash -s -- "$HOSTINGER_DEPLOY_PATH" <<'REMOTE'
+          set -euo pipefail
+          target=$1
+          case "$target" in /home/*/domains/app.transtradeinternational.com/public_html) ;; *) exit 1 ;; esac
+          TT_DIAGNOSTIC_ROOT="$target" php <<'PHP'
+          <?php
+          $root=getenv('TT_DIAGNOSTIC_ROOT');require $root.'/auth_store.php';define('TT_BANK_FUNCTIONS_ONLY',true);require $root.'/api/bank_accounts.php';require $root.'/api/bank_reconciliation_core.php';
+          $h=fopen(TT_DATA_DIR.'/accounts.json','rb');if(!$h||!flock($h,LOCK_SH))throw new RuntimeException('Read lock unavailable');try{$raw=stream_get_contents($h);$s=json_decode($raw,true,512,JSON_THROW_ON_ERROR);}finally{flock($h,LOCK_UN);fclose($h);}
+          $before=hash('sha256',$raw);$entity='TTI';$bank='banks-1';$today=(new DateTimeImmutable('now',new DateTimeZone('Asia/Karachi')))->format('Y-m-d');$current=ba_balance($s,$entity,$bank,'PKR');$reconciled=br_txns($s,$entity,$bank,$today,'PKR')['bookBalance'];$delta=(int)round(100*($current-$reconciled));$groups=[];
+          foreach((array)($s['journals']??[]) as $j){if(!is_array($j)||($j['status']??'')!=='Posted'||($j['entity']??'')!==$entity)continue;$date=(string)($j['date']??'');$jm=(array)($j['meta']??[]);$classes=[];if($date==='')$classes[]='missingDate';elseif($date>$today)$classes[]='futureDate';if(!empty($jm['deletedFromBooks']))$classes[]='deletedFromBooks';if(!$classes)continue;
+          foreach((array)($j['lines']??[]) as $line){if(!is_array($line)||(string)($line['account']??'')!=='1110'||(string)($line['bankAccountId']??$jm['bankAccountId']??'')!==$bank)continue;$n=(int)round(100*((float)($line['debit']??0)-(float)($line['credit']??0)));foreach($classes as $class){$groups[$class]['lines']=($groups[$class]['lines']??0)+1;$groups[$class]['net']=($groups[$class]['net']??0)+$n;}}}
+          $summary=[];foreach($groups as $class=>$g)$summary[$class]=['lines'=>$g['lines'],'coversObservedDifference'=>$delta!==0&&$g['net']===$delta,'nonzeroNet'=>$g['net']!==0];
+          echo json_encode(['revision'=>$s['revision']??0,'currentBalanceMatchesReconciliation'=>$delta===0,'diagnosticGroups'=>$summary,'sourceBytesUnchanged'=>$before===hash_file('sha256',TT_DATA_DIR.'/accounts.json'),'releaseCodeHashes'=>['bank'=>hash_file('sha256',$root.'/api/bank_accounts.php'),'reconciliation'=>hash_file('sha256',$root.'/api/bank_reconciliation_core.php')]],JSON_THROW_ON_ERROR),"\n";
+          PHP
+          REMOTE
