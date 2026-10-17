@@ -84,10 +84,20 @@ function ba_default_setting(array $a): array {
         'visibleToMill'=>false,'reconciliationEnabled'=>true,'retentionAccount'=>false,'defaultReceiptAccount'=>false,'defaultPaymentAccount'=>false,'displayName'=>'','notes'=>'','updatedAt'=>null,'updatedBy'=>null
     ];
 }
-function ba_balance(array $store,string $entity,string $bankId,string $currency): float {
-    $bal=0.0;$currency=strtoupper(trim($currency));
+function ba_balance_date(?string $asOf=null): string {
+    $date=$asOf??(new DateTimeImmutable('now',new DateTimeZone('Asia/Karachi')))->format('Y-m-d');
+    $parsed=DateTimeImmutable::createFromFormat('!Y-m-d',$date);
+    if(!$parsed||$parsed->format('Y-m-d')!==$date)throw new InvalidArgumentException('Select a valid bank balance date.');
+    return $date;
+}
+function ba_journal_as_of(array $journal,string $entity,string $date): bool {
+    $day=(string)($journal['date']??'');$parsed=DateTimeImmutable::createFromFormat('!Y-m-d',$day);
+    return ($journal['status']??'')==='Posted'&&($journal['entity']??'')===$entity&&$parsed&&$parsed->format('Y-m-d')===$day&&$day<=$date;
+}
+function ba_balance(array $store,string $entity,string $bankId,string $currency,?string $asOf=null): float {
+    $bal=0.0;$currency=strtoupper(trim($currency));$date=ba_balance_date($asOf);
     foreach((array)($store['journals']??[]) as $j){
-        if(!is_array($j)||($j['status']??'')!=='Posted'||($j['entity']??'')!==$entity)continue;
+        if(!is_array($j)||!ba_journal_as_of($j,$entity,$date))continue;
         $jm=is_array($j['meta']??null)?$j['meta']:[];
         foreach((array)($j['lines']??[]) as $line){
             if(!is_array($line)||(string)($line['account']??'')!=='1110')continue;
@@ -98,18 +108,18 @@ function ba_balance(array $store,string $entity,string $bankId,string $currency)
     }
     return round($bal,2);
 }
-function ba_cash_balance(array $store,string $entity): float {
-    $bal=0.0;
+function ba_cash_balance(array $store,string $entity,?string $asOf=null): float {
+    $bal=0.0;$date=ba_balance_date($asOf);
     foreach((array)($store['journals']??[]) as $j){
-        if(!is_array($j)||($j['status']??'')!=='Posted'||($j['entity']??'')!==$entity)continue;
+        if(!is_array($j)||!ba_journal_as_of($j,$entity,$date))continue;
         foreach((array)($j['lines']??[]) as $line)if(is_array($line)&&(string)($line['account']??'')==='1120')$bal+=(float)($line['debit']??0)-(float)($line['credit']??0);
     }
     return round($bal,2);
 }
-function ba_unassigned_bank_balance(array $store,string $entity): float {
-    $bal=0.0;
+function ba_unassigned_bank_balance(array $store,string $entity,?string $asOf=null): float {
+    $bal=0.0;$date=ba_balance_date($asOf);
     foreach((array)($store['journals']??[]) as $j){
-        if(!is_array($j)||($j['status']??'')!=='Posted'||($j['entity']??'')!==$entity)continue;
+        if(!is_array($j)||!ba_journal_as_of($j,$entity,$date))continue;
         $jm=is_array($j['meta']??null)?$j['meta']:[];
         foreach((array)($j['lines']??[]) as $line){
             if(!is_array($line)||(string)($line['account']??'')!=='1110')continue;
@@ -147,7 +157,7 @@ function ba_payload(array $store,string $entity): array {
     if($cashCurrency===$planningCurrency&&!empty($cashSetting['active'])&&!empty($cashSetting['includeInPaymentPlanning']))$planning+=max(0,$cash);
     ksort($balances);
     return [
-        'accounts'=>$rows,'balancesByCurrency'=>$balances,
+        'balanceAsOfDate'=>ba_balance_date(),'accounts'=>$rows,'balancesByCurrency'=>$balances,
         'cash'=>['id'=>$cashKey,'entity'=>$entity,'accountTitle'=>'Cash / Petty Cash','currency'=>$cashCurrency,'bookBalance'=>$cash,'settings'=>$cashSetting],
         'paymentPlanningCurrency'=>$planningCurrency,'paymentPlanningFunds'=>round($planning,2),
         'unassignedBankBalance'=>ba_unassigned_bank_balance($store,$entity),'unassignedBankBalanceCurrency'=>'PKR'
