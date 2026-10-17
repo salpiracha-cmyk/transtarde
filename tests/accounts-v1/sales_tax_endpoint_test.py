@@ -9,7 +9,7 @@ with tempfile.TemporaryDirectory(prefix='sales-tax-source-') as temp:
     root=Path(temp);(root/'api').mkdir();(root/'data/export_documents').mkdir(parents=True)
     for name in ['accounts_sales_tax.php','accounts_sales_tax_core.php']:shutil.copy(ROOT/'api'/name,root/'api'/name)
     (root/'auth_store.php').write_text('''<?php
-define('TT_DATA_DIR',__DIR__.'/data');
+define('TT_DATA_DIR',__DIR__.'/data');define('TT_DB_HOST','');
 function tt_require_login(){return ['role'=>'Staff'];}
 function tt_user_can_open_module($u,$m){return ($_GET['mode']??'')!=='no-module';}
 function tt_user_can_access_entity($u,$e,$a){return $e==='TTI';}
