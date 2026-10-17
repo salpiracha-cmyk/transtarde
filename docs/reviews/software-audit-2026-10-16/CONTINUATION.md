@@ -812,3 +812,12 @@ pointed to /admin/ and actually opened403. Correct that audit-introduced route t
 real authenticated /index.php entry. Strengthen the permission test with existence
 and authentication checks for the actual linked entry rather than accepting an
 invented directory. No actual user grant is changed.
+
+
+### 17 October continued: PR279 and C19 prepared protection
+
+Both final-head PR279 suites passed (Accounts39012882204; Milling/Exports39012882228). Merged as c9bda30904ef99b93d8c33aa65e4c44ff3b4bb2a. Main QA and production delivery/live acceptance pending. Current deployed PR278 independently confirmed via38968355570/job117200326455; backup, users0, PostID changes0 and healthy login.
+
+C19 prepared correction makes bag identity normalization a pure validation/derived copy. Missing, duplicate, unsafe or noncanonical numeric IDs stop the list and stale receipt/status/transfer actions without writing. It never assigns replacement IDs or repairs history. Local actual-function regression test and preserved probe show [7,7] unchanged,0 writes. Canonical numeric-string IDs remain usable as in the old view. Full hosted QA and deployment not yet claimed.
+
+Actual POST45 balances PKR29943000 (USD108000 at277.25). Its edit dispatch sees confirmed tgRemittanceId, correctly requiring linked TG reopening first; the current generic switch-company message lacks context. No financial correction made. FI matching requires2-day unique date proximity; actual25/22Sep versus receipt1Oct explains no match, without authority to guess allocation.
