@@ -290,6 +290,7 @@ jobs:
           TT_MSA_TEST_MYSQL=1 python3 tests/accounts-v1/mill_source_amend_endpoint_test.py
           python3 tests/security/export_document_permissions_test.py
           "$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/inventory_reconciliation_http_test.py
+          "$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/mill_source_handoff_browser_test.py
       - name: Ready rice bill browser and HTTP flow
         run: '"$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/ready_rice_bill_http_test.py'
       - name: Salary month HTTP and browser flow

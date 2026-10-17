@@ -73,7 +73,7 @@
       busy=true;q('[data-form]').inert=true;
       try{
         const response=await window.TT_SHARED_SYNC.amendMillBill(collection,body);if(!host.isConnected)return;localStorage.removeItem(token);pending=null;
-        q('[data-message]').textContent='Source amendment confirmed for '+(response.record.ref||response.record.billNo)+'. Accounts review is required before paying a changed liability.';
+        q('[data-message]').textContent='Source amendment confirmed for '+(response.record.ref||response.record.billNo)+' · PKR '+money(response.record.amount)+(retry?'. Current fields are retained; reopen to review the saved version.':'')+'. Accounts review is required before paying a changed liability.';
         q('[data-save]').disabled=true;q('[data-retry]')?.remove();window.renderProcessingExpenses?.();window.renderReprocessHistory?.();
       }catch(error){if(error.definitive){localStorage.removeItem(token);pending=null;q('[data-retry]')?.remove();q('[data-message]').textContent=error.message+' Your fields are retained for correction.';return;}q('[data-message]').textContent=error.message+' Your amendment is retained. Retry confirms the same amendment.';if(!q('[data-retry]')){const button=document.createElement('button');button.type='button';button.dataset.retry='';button.textContent='Confirm previous amendment';button.onclick=()=>save(true);q('[data-form]').appendChild(button);}}
       finally{busy=false;if(q('[data-form]'))q('[data-form]').inert=false;}
