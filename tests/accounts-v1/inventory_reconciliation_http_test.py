@@ -21,7 +21,7 @@ foreach(['qaowner'=>['Super Admin',['Mill'=>'all','Accounts'=>'all','Directors'=
 'qaexport'=>['Export Operator',['Exports'=>'all']],
 'qaview'=>['Mill Viewer',['Mill'=>['stock'=>['View'],'production'=>['View']]]]] as $name=>[$role,$p])
 $users[]=['id'=>1000+count($users),'username'=>$name,'full_name'=>$name,'role'=>$role,'permissions'=>$p,'active'=>true,'must_change_password'=>false,'password_hash'=>password_hash($pw,PASSWORD_DEFAULT),'master_access'=>false];
-$masters=tt_default_masters();$masters['business_parties'][]=['id'=>'QA-BROKER','values'=>['QA Broker','QA','Broker','','','','','','','','Active','','{"buying":[],"selling":[]}']];
+$masters=tt_default_masters();$masters['mills'][]=['id'=>'QA-MILL-2','values'=>['QA Second Mill','','Own Mill','','','Active','','TTI']];$masters['business_parties'][]=['id'=>'QA-BROKER','values'=>['QA Broker','QA','Broker','','','','','','','','Active','','{"buying":[],"selling":[]}']];
 tt_ensure_data_dir();file_put_contents(TT_STORE_FILE,json_encode(['users'=>$users,'masters'=>$masters,'settings'=>['qa_account_seeded'=>true],'master_options'=>tt_default_master_options(),'audit'=>[]]));
 file_put_contents($root.'/credentials.json',json_encode(['password'=>$pw,'users'=>array_column($users,'username')]));
 file_put_contents(TT_DATA_DIR.'/operations.json',json_encode(['revision'=>0,'values'=>['tt32processingrecon'=>'[{"id":"private-legacy","narration":"MANAGEMENT_PRIVATE_SENTINEL","rate":987654321}]'],'meta'=>[]]));
@@ -95,11 +95,13 @@ def run() -> None:
         c,d=request('qaexport','/api/operations.mysql.php',{'key':'transtrade_export_v3_operational','value':'{"contracts":[],"shipments":[]}','sourceModule':'Exports','baseVersion':0});check(c==409 and d.get('conflict'),'Version conflict still enforced',(c,d))
         for user,key in [('qamill','tt30mills'),('qaexport','tt30bags'),('qaaccountswrite','tt39salarymaster')]:
             c,d=request(user,'/api/operations.php',{'key':key,'value':'[]'});check(c==409,'Legacy save cannot bypass ownership: '+user,(c,d))
-        bag=[{'id':'QA-BRIDGE-BAG','_ttBridge':'exports','_ttBridgeId':'QA-PO-L1','brand':'QA BRAND','ordered':100,'received':0,'size':'50 kg','tare':'100 g','poNo':'QA-PO-01','supplier':'QA Supplier','mill':'QA Second Mill','isMasterBag':False,'status':'Order from Export — Awaiting Receipt'}]
+        bag=[{'id':9001,'entity':'TTI','locationId':'QA-MILL-2','bagType':'PP','poLineKey':'L1','_ttBridge':'exports','_ttBridgeId':'QA-PO-L1','brand':'QA BRAND','ordered':100,'received':0,'size':'50 kg','tare':'100 g','poNo':'QA-PO-01','supplier':'QA Supplier','mill':'QA Second Mill','isMasterBag':False,'status':'Order from Export — Awaiting Receipt'}]
         c,d=request('qaexport','/api/operations.mysql.php',{'key':'tt30bags','value':json.dumps(bag),'sourceModule':'Exports','baseVersion':0});check(c==200,'Exports creates bag instruction',(c,d))
-        bag[0]['received']=15;post('tt30bags',bag)
-        view=get('qaexport');ver=view['meta']['tt30bags']['version'];bag[0]['brand']='QA AMENDED'
-        c,d=request('qaexport','/api/operations.mysql.php',{'key':'tt30bags','value':json.dumps(bag),'sourceModule':'Exports','baseVersion':ver});check(c==200 and json.loads(d['value'])[0]['received']==15,'Export amendment preserves Mill receipt',(c,d))
+        bag[0]['received']=15;post('tt30bags',bag,expected=403)
+        c,review=request('qamill','/api/bag_receipts.php?entity=TTI&locationId=QA-MILL-2&bagId=9001');check(c==200,'Actual original supplier receipt review',(c,review))
+        c,received=request('qamill','/api/bag_receipts.php',{'action':'receive_supplier','entity':'TTI','locationId':'QA-MILL-2','bagId':'9001','date':'2026-10-17','qty':15,'inspected':True,'keepReceiptOpen':False,'printingMismatch':False,'materialMismatch':False,'qualityMismatch':False,'tareMismatch':False,'actualTareGrams':100,'requestKey':'qa-real-receipt-0001','sourceFingerprint':review['source']['fingerprint']});check(c==200 and received['order']['received']==15,'Actual atomic Mill receipt',(c,received))
+        bag=json.loads(get('qaexport')['values']['tt30bags']);view=get('qaexport');ver=view['meta']['tt30bags']['version'];bag[0]['ordered']=120
+        c,d=request('qaexport','/api/operations.mysql.php',{'key':'tt30bags','value':json.dumps(bag),'sourceModule':'Exports','baseVersion':ver});check(c==200 and json.loads(d['value'])[0]['received']==15,'Export quantity amendment preserves immutable Mill receipt',(c,d))
         view=get('qaexport');ver=view['meta']['tt30bags']['version'];bag[0]['received']=999
         c,d=request('qaexport','/api/operations.mysql.php',{'key':'tt30bags','value':json.dumps(bag),'sourceModule':'Exports','baseVersion':ver});check(c==403,'Exports cannot forge Mill receipt',(c,d))
         bag[0]['received']=True
