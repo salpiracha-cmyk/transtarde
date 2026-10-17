@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require dirname(__DIR__).'/auth_store.php';
+require_once __DIR__.'/arrival_withdrawal_core.php';
 
 header('Content-Type: application/json; charset=UTF-8');
 header('Cache-Control: no-store, no-cache, must-revalidate');
@@ -145,6 +146,7 @@ try {
     }
 
     if ($action === 'enqueue') {
+        tt_guard_withdrawn_arrival($input['body']??[]);
         $kind = bo_kind((string)($input['kind'] ?? ''));
         $body = is_array($input['body'] ?? null) ? $input['body'] : [];
         $module = bo_module($kind);
@@ -238,6 +240,8 @@ try {
     }
 
     bo_out(['ok' => false, 'error' => 'Unknown bridge outbox action.'], 422);
+} catch (DomainException $e) {
+    bo_out(['ok'=>false,'error'=>$e->getMessage()],422);
 } catch (Throwable $error) {
     error_log('Accounts bridge outbox failed: '.$error->getMessage());
     bo_out(['ok' => false, 'error' => 'Accounts bridge handoff could not be updated.'], 500);

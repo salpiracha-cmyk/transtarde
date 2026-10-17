@@ -2,6 +2,7 @@
 declare(strict_types=1);
 require_once __DIR__ . '/product_stage.php';
 require_once __DIR__.'/api/mill_recovery_core.php';
+require_once __DIR__.'/api/arrival_withdrawal_core.php';
 
 /** Server-owned reconciliation. Operational staff submit facts, never a Ghati balance. */
 const TT_INV_PRIVATE_KEYS = ['tt34ghati','tt34nilqueue','tt32processingrecon','tt34stockreviewaudit'];
@@ -171,6 +172,7 @@ function tt_inv_quantities(array $reports,string $stockName): array {
 }
 /** Preserve server-only portions when a filtered browser saves its operational projection. */
 function tt_inv_prepare_write(array $values,string $key,string $json,array $user,string $now): string {
+    tt_guard_arrival_collection($key,(string)($values[$key]??'[]'),$json);
     if(in_array($key,TT_INV_PRIVATE_KEYS,true))throw new DomainException('Reconciliation records are server-owned. Use Accounts or Directors reports.');
     if(!in_array($key,['tt30prod','tt30ship','tt32stockadj',TT_INV_CONFIRMATIONS],true))return $json;
     $incoming=json_decode($json,true);if(!is_array($incoming)||!array_is_list($incoming))throw new InvalidArgumentException('Operational rows must be an array.');

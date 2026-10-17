@@ -10,6 +10,7 @@ with tempfile.TemporaryDirectory(prefix='tti-startup-') as directory:
     private = root / 'transtrade_private'
     private.mkdir()
     shutil.copy(ROOT / 'api/mill_recovery_core.php', app / 'api/mill_recovery_core.php')
+    shutil.copy(ROOT / 'api/arrival_withdrawal_core.php', app / 'api/arrival_withdrawal_core.php')
     for name in ['auth_store.php','master_store.php','product_stage.php','offline_idempotency.php','session_store.php','inventory_reconciliation.php','runtime_html.php']:
         shutil.copy(ROOT / name, app / name)
     for name in ['index.php','Transtrade_Accounts_Master_V1.html','accounting_master_v1.json','export_realization_policy_v1.json','settlement_policy_v1.json']:
