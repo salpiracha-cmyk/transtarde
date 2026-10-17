@@ -57,7 +57,7 @@ jobs:
           TRANSTRADE_QA_USERNAME: ${{ secrets.TRANSTRADE_QA_USERNAME }}
           TRANSTRADE_QA_PASSWORD: ${{ secrets.TRANSTRADE_QA_PASSWORD }}
           PLAYWRIGHT_HTML_OPEN: never
-        run: npx playwright test tests/live/accounts-hostinger-qa.spec.js --reporter=line,html
+        run: npx playwright test tests/live/accounts-hostinger-qa.spec.js tests/live/deployed-reports-review.spec.js --reporter=line,html
       - name: Upload failure evidence
         if: failure()
         uses: actions/upload-artifact@v4
