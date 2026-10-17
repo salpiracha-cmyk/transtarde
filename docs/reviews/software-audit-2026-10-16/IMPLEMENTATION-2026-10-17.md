@@ -73,3 +73,30 @@ PR283 final head9add15660edad18699ffd5ffadbabc28001cea5a passed full Accounts390
 PR285 final head52ee151f172678d3020d4d3fea552960a5b56d61 passed both full hosted suites39022649875/39022649868. Its Used Bags correction scopes dated/verified movements, retains unassigned history with warnings, records company/mill on new manual entries and removes new fake legacy cash credits for sale references. It does not create the canonical Accounts sale receipt. Deployment/live verification must be recorded separately.
 
 The shared report draft additionally preserves the original book figure/provenance when the reviewed report amount changes. Original source details are resolved on the server; forged book IDs/provenance are rejected. Formula and direct endpoint tests pass locally. This does not finish the management workflows or justify deploying PR284.
+
+
+## Further live acceptance and exact remaining scope
+
+- Corn production smoke39022679246/job117367448838 passed18/18, including12 Masters round trips and50 account-ledger comparisons across3 company reports with0 skipped concurrent-revision cases.
+- Mac Chrome Maize AUTO-FILL refuses to infer a Rice agreement and asks for a separate commodity/company/mill/period agreement. Rice selection restored; no bill saved. Maize rate/bill design is still deferred.
+- Used Bags PR285 mergedf96d0d17762e14865dada9e506e62134dfd39c0e. Deployment39023086699/job117368637535 confirmed that exact SHA, backup and healthy login. Mac Chrome opens the repaired screen. The displayed1300 arrival bags are400+400+500 from PH-00001/2/3, still user-identified test data, not accepted opening/physical stock. Their current metadata passes explicit company/location checks; a missing-location fallback alone cannot explain their TTI grouping.
+- Live acceptance caught stale static cash guidance. PR286 corrects that wording; mergedf1192bd8a130f2028bcc2e496d5be1d5fd42af5b after both hosted suites passed39023221631/39023221589. Deployment/fresh text acceptance still pending at this checkpoint.
+- Actual TTI Accounts search returned no matching previous record for each PH-00001/2/3. This is limited to search coverage and is not proof of zero dependencies. No Delete, reversal, payment, approval or reprint was performed.
+- Universal search wrongly gained Add Business Party because its placeholder contains party. PR287 adds the existing master-ignore attribute to the search input. Its CI/live acceptance is pending. Real party selectors are untouched.
+- Source review confirms the outside-mill Corn route is not complete: the existing Ex-Mill selector still expects READY/EX_MILL purchases and positive bag counts. The own/direct-loading repair must not be described as full acceptance of every outside-mill bulk-Corn route.
+- Latest group foundation UI now has a real DOM fixture covering typing with zero writes, row draft retention, failed-save conflicts, successful explicit saves and context restoration after failed report changes. Both prior/full foundation suites passed; latest UI-expanded full suites39023096322/39023096474 also passed. PR284 remains an undeployed draft, without the final Daily report, automated missing-cost estimates, actual comparison, fully source-linked TG P&L, annual completeness controls or complete Zakat payment/allocation reconciliation.
+
+Next implementation priorities remain: verified test-arrival cleanup with dependency/backup/restore checks; canonical Mill bill-to-Accounts liabilities/payment/reversal; acknowledged destination bag transfers; remaining Corn routes/documents; then complete and connect the management reports. Do not invent migration openings or silently rewrite issued documents, real journals, staff grants or historical stock locations. Do not declare the whole-application review or migration complete.
+
+
+Additional live Accounts finding: the Home Recent Transactions section renders278 rows and repeats displayed public Post IDs00332,00145 and00112. This is a display/source-grouping and density review, not proof of duplicate journal money. Do not delete or sum those postings without tracing linked journals. The search dialog was closed without changes after tracing test references.
+
+
+## Final verified continuation checkpoint
+
+- PR285's read-only production smoke39023123803/job117368746112 passed18/18. PR286 wording deployed asf1192bd8a130f2028bcc2e496d5be1d5fd42af5b in39023679267/job117370343441, with exact SHA and healthy login confirmed. Fresh Mac Chrome shows the corrected stock-only sale/Accounts receipt guidance.
+- PR287 final headc04faac881242a74f6f894e3381f1fb5a21f655c passed Accounts39023508026 and Milling/Exports39023508018. Merged047c9dc253aefc7a8f7f148e4dc2c7bfef66ef0d. Both main suites passed39023737844/39023737866. Deployment39023946620/job117371115981 succeeded. Fresh Chrome verifies the universal search has master-ignore, finds the expected no-match result for PH-00002, shows0 Add Business Party buttons, and closes back to Accounts. No data was added, posted, approved, reversed, deleted or reprinted by these live checks.
+- PR284 remains a draft. Latest functional head's full suites passed39023096322/39023096474, including the added real DOM conflict/draft test. Its report source code and adjustment provenance are saved in branchimplement/shared-group-reports-20261017. It must not be merged or called complete while the management-source and annual-accounting requirements listed above remain open.
+- Current local continuation branch isimplement/shared-group-reports-20261017. The separate Used Bags and Accounts search changes are already on main; integrate that current main before the report feature's eventual release. No migration opening was inserted. The three test Pohanch records remain; their1300 bags and119500kg must not be accepted as physical stock.
+
+The whole application review, automatic management reports and migration rehearsal remain unfinished. The next worker must continue the unresolved source and workflow work, not repeat the completed releases or treat passing suites as whole-application sign-off.
