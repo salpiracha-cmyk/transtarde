@@ -140,6 +140,10 @@ require $argv[1];
     assert {l['account'] for l in ledger['rows']}=={'6900','6400'}
     status,report=request('accounts_reports','?entity=TTI&asOf=2026-10-07&from=2026-01-01');assert status==200 and report['trialBalance']['totalDebit']==report['trialBalance']['totalCredit']
     tax=request('accounts_subaccounts','?entity=TTI&from=2026-01-01&to=2026-10-07')[1]['taxReport'];assert next(r for r in tax if r['category']=='SAVINGS' and r['treatment']=='Recoverable')['debit']==150
+    before_tax=books.read_bytes();detail=request('accounts_subaccounts','?entity=TTI&from=2026-01-01&to=2026-10-07&report=withholding');assert detail[0]==200 and any(r['debit']==150 for r in detail[1]['taxEntries'])
+    reports_before=permissions['reports'];permissions['reports']=[];set_user();assert request('accounts_subaccounts','?entity=TTI&report=withholding')[0]==403
+    status,master_view=request('accounts_subaccounts','?entity=TTI');assert status==200 and 'taxEntries' not in master_view,'Master-only access exposed report narratives'
+    permissions['reports']=reports_before;set_user();assert books.read_bytes()==before_tax,'Read-only tax permission probes changed books'
     transfer,_=good(action='post',type='TRANSFER',bankId='BANK-1',destinationBankId='BANK-2',date='2026-10-07',reference='TRANSFER-1',narration='Company bank transfer',amount=50,bankPaymentMethod='ONLINE_BANKING')
     assert [l['bankAccountId'] for l in transfer['result']['journal']['lines']]==['BANK-2','BANK-1']
     facility,_=good(action='facility',operation='add',name='Export refinance',bankId='BANK-1',reference='FAC-1');fid=facility['result']['facilityId']

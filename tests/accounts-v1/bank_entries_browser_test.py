@@ -66,6 +66,15 @@ with tempfile.TemporaryDirectory(prefix='bank-entries-browser-') as tmp:
     page.locator('#ttBrWindow [name=statementBalance]').fill(str(balance));assert '0.00' in page.locator('[data-value=difference]').inner_text()
     page.locator('#ttBrWindow [data-save]').click();page.get_by_text('Reconciliation saved. No unexplained difference.',exact=True).wait_for()
     assert json.loads((root/'data/accounts.json').read_text())['bankReconciliations']['TTI|BANK-1']['status']=='Reconciled'
+    page.locator('#ttBrWindow [data-close]').click();books_before_report=(root/'data/accounts.json').read_bytes()
+    page.evaluate("TT_SUBACCOUNTS.open('tax')");page.locator('[data-tax-results]').get_by_text('BROWSER-PROFIT',exact=False).wait_for()
+    assert '150.00' in page.locator('[data-tax-results]').inner_text() and 'SAVINGS' in page.locator('[data-tax-results]').inner_text()
+    page.locator('[data-tax-category]').select_option('SAVINGS');page.locator('[data-tax-print]').click();page.wait_for_function('printEvents===2')
+    tax_print=page.frame_locator('iframe[title="Print document"]');assert 'BROWSER-PROFIT' in tax_print.locator('body').inner_text()
+    with page.expect_download() as download_info:page.locator('[data-tax-csv]').click()
+    csv_path=root/'withholding.csv';download_info.value.save_as(str(csv_path));csv_text=csv_path.read_text(encoding='utf-8-sig');assert 'BROWSER-PROFIT' in csv_text and 'SAVINGS' in csv_text and '150' in csv_text
+    page.locator('[data-tax-filter] [name=from]').fill('2000-01-01');assert page.locator('[data-tax-print]').is_disabled() and page.locator('[data-tax-csv]').is_disabled()
+    assert (root/'data/accounts.json').read_bytes()==books_before_report,'WHT view, print or downloaded CSV changed original books'
     assert not errors,errors;browser.close()
    print('Bank Entry browser: subaccount creation, profit/tax, facility, drawdown, repayment, conditional fields, vouchers and mobile passed.')
  finally:server.terminate();server.wait()
