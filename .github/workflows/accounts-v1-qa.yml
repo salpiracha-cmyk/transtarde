@@ -200,6 +200,7 @@ jobs:
           node tests/accounts-v1/mill_report_entry_scope_test.js
           node tests/accounts-v1/mill_bag_ledger_scope_test.js
           node tests/accounts-v1/mill_bag_identity_read_test.js
+          node tests/accounts-v1/used_bag_scope_test.js
           node tests/accounts-v1/mill_bag_location_test.js
           node tests/accounts-v1/mill_bag_artwork_test.js
           node tests/accounts-v1/mill_cash_projection_test.js
