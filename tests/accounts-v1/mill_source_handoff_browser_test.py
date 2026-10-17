@@ -166,6 +166,24 @@ def run():
             assert stock['inventory']['lots']['PO|100|mills-1']['availableQty']==80
             saved_ops=context.request.get(base+'/api/operations.mysql.php').json()
             assert saved_ops['values']['tt30bags']==original_orders and books.read_bytes()==financial_before,'Native transfer UI changed supplier PO or financial records'
+            # Rejected delivery remains physically held until inspected acceptance or actual return.
+            mill.evaluate("chooseMill(2);openPanel('newbags')");mill.locator('[data-hold-transfer]').wait_for();mill.locator('[data-hold-transfer]').click()
+            mill.locator('[data-ack-date]').fill('2026-10-17');mill.locator('[data-ack-line]').fill('2');mill.locator('[data-ack-reason]').fill('Damaged bags held at destination')
+            with mill.expect_response(lambda r:'/api/bag_transfers.php' in r.url and r.request.method=='POST') as held_transfer:mill.locator('[data-save-ack]').click()
+            assert held_transfer.value.status==200,held_transfer.value.text();mill.locator('[data-release-transfer]').wait_for()
+            target=context.request.get(base+'/api/bag_transfers.php?entity=TTI&locationId=mills-2&asOf=2026-10-17').json()['inventory']['lots'][target_lot]
+            assert target['availableQty']==6 and target['quarantinedQty']==2
+            mill.locator('[data-release-transfer]').click();mill.locator('[data-ack-date]').fill('2026-10-17');mill.locator('[data-ack-line]').fill('1');mill.locator('[data-ack-reason]').fill('One bag corrected and inspected');mill.locator('[data-accepted-inspection]').check()
+            with mill.expect_response(lambda r:'/api/bag_transfers.php' in r.url and r.request.method=='POST') as accepted_transfer:mill.locator('[data-save-ack]').click()
+            assert accepted_transfer.value.status==200,accepted_transfer.value.text();mill.wait_for_function("!document.querySelector('[data-ack-line]')")
+            mill.evaluate("chooseMill(1);openPanel('newbags')");mill.locator('[data-held-return]').wait_for();mill.locator('[data-held-return]').click()
+            mill.locator('[data-ack-date]').fill('2026-10-17');mill.locator('[data-ack-line]').fill('1');mill.locator('[data-ack-reason]').fill('Damaged bag physically received at source')
+            with mill.expect_response(lambda r:'/api/bag_transfers.php' in r.url and r.request.method=='POST') as returned_hold:mill.locator('[data-save-ack]').click()
+            assert returned_hold.value.status==200,returned_hold.value.text();mill.wait_for_function("!document.querySelector('[data-ack-line]')")
+            stock=context.request.get(base+'/api/bag_transfers.php?entity=TTI&locationId=mills-1&asOf=2026-10-17').json()
+            target=context.request.get(base+'/api/bag_transfers.php?entity=TTI&locationId=mills-2&asOf=2026-10-17').json()['inventory']['lots'][target_lot]
+            assert stock['inventory']['lots']['PO|100|mills-1']['availableQty']==81 and target['availableQty']==7 and target['quarantinedQty']==0
+            assert books.read_bytes()==financial_before,'Quarantine acknowledgement changed money'
             # Actual native supplier receipt: failed acknowledgement retains entry; accepted/quarantined counters commit together.
             mill.locator('#bagOrdersBody tr.clickrow').first.click();mill.locator('#inlineBagDate').fill('2026-10-17');mill.locator('#inlineBagQty').fill('10');mill.locator('#inlineBagInspected').check()
             receipt_failed=[True];supplier_posts=[]
@@ -186,7 +204,7 @@ def run():
             assert held_response.value.status==200,held_response.value.text();mill.wait_for_function("!document.querySelector('#inlineBagQty')")
             assert held_response.value.json()['receipt']['quarantinedQty']==4 and held_response.value.json()['order']['received']==114
             stock=context.request.get(base+'/api/bag_transfers.php?entity=TTI&locationId=mills-1&asOf=2026-10-17').json();source_lot=stock['inventory']['lots']['PO|100|mills-1']
-            assert source_lot['availableQty']==90 and source_lot['quarantinedQty']==4,source_lot
+            assert source_lot['availableQty']==91 and source_lot['quarantinedQty']==4,source_lot
             assert books.read_bytes()==financial_before,'Supplier receipt created a financial posting'
             immutable_receipts=context.request.get(base+'/api/operations.mysql.php').json()['values']['tt33bagreceipts']
             mill.locator('#bagOrdersBody tr.clickrow').first.click();mill.get_by_role('button',name='Review receipt history / quarantine',exact=True).click();mill.locator('[data-correct-receipt]').wait_for();mill.locator('[data-correct-receipt]').click()
@@ -196,7 +214,7 @@ def run():
             mill.locator('[data-disposition-date]').fill('2026-10-17');mill.locator('[data-disposition-qty]').fill('2');mill.locator('[data-disposition-reason]').fill('Actually returned remaining rejected bags to supplier');mill.locator('[data-disposition-confirm]').check()
             with mill.expect_response(lambda r:'/api/bag_receipts.php' in r.url and r.request.method=='POST') as supplier_return_response:mill.locator('[data-save-disposition]').click()
             assert supplier_return_response.value.status==200,supplier_return_response.value.text()
-            stock=context.request.get(base+'/api/bag_transfers.php?entity=TTI&locationId=mills-1&asOf=2026-10-17').json();source_lot=stock['inventory']['lots']['PO|100|mills-1'];assert source_lot['availableQty']==92 and source_lot['quarantinedQty']==0,source_lot
+            stock=context.request.get(base+'/api/bag_transfers.php?entity=TTI&locationId=mills-1&asOf=2026-10-17').json();source_lot=stock['inventory']['lots']['PO|100|mills-1'];assert source_lot['availableQty']==93 and source_lot['quarantinedQty']==0,source_lot
             saved_ops=context.request.get(base+'/api/operations.mysql.php').json();assert saved_ops['values']['tt33bagreceipts']==immutable_receipts and json.loads(saved_ops['values']['tt30bags'])[0]['received']==114 and books.read_bytes()==financial_before
             assert not errors,errors
             if output:
