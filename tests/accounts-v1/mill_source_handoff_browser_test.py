@@ -166,6 +166,28 @@ def run():
             assert stock['inventory']['lots']['PO|100|mills-1']['availableQty']==80
             saved_ops=context.request.get(base+'/api/operations.mysql.php').json()
             assert saved_ops['values']['tt30bags']==original_orders and books.read_bytes()==financial_before,'Native transfer UI changed supplier PO or financial records'
+            # Actual native supplier receipt: failed acknowledgement retains entry; accepted/quarantined counters commit together.
+            mill.locator('#bagOrdersBody tr.clickrow').first.click();mill.locator('#inlineBagDate').fill('2026-10-17');mill.locator('#inlineBagQty').fill('10');mill.locator('#inlineBagInspected').check()
+            receipt_failed=[True];supplier_posts=[]
+            def supplier_receipt_failure(route):
+                if route.request.method=='POST':
+                    supplier_posts.append(route.request.post_data_json)
+                    if receipt_failed[0]:receipt_failed[0]=False;route.abort();return
+                route.continue_()
+            context.route('**/api/bag_receipts.php',supplier_receipt_failure)
+            mill.locator('[onclick="receiveBagsInline(event)"]').click();mill.locator('[data-bag-receipt-recovery]').wait_for();assert mill.locator('#inlineBagQty').input_value()=='10'
+            with mill.expect_response(lambda r:'/api/bag_receipts.php' in r.url and r.request.method=='POST') as supplier_response:mill.locator('[onclick="receiveBagsInline(event)"]').click()
+            assert supplier_response.value.status==200,supplier_response.value.text();mill.wait_for_function("!document.querySelector('#inlineBagQty')")
+            assert len(supplier_posts)==2 and supplier_posts[0]==supplier_posts[1],'Supplier retry changed the original receipt facts'
+            assert supplier_response.value.json()['receipt']['acceptedQty']==10 and supplier_response.value.json()['order']['received']==110
+            context.unroute('**/api/bag_receipts.php',supplier_receipt_failure)
+            mill.locator('#bagOrdersBody tr.clickrow').first.click();mill.locator('#inlineBagDate').fill('2026-10-17');mill.locator('#inlineBagQty').fill('4');mill.locator('#inlineBagInspected').check();mill.locator('#inlineMaterialMismatch').check()
+            with mill.expect_response(lambda r:'/api/bag_receipts.php' in r.url and r.request.method=='POST') as held_response:mill.locator('[onclick="receiveBagsInline(event)"]').click()
+            assert held_response.value.status==200,held_response.value.text();mill.wait_for_function("!document.querySelector('#inlineBagQty')")
+            assert held_response.value.json()['receipt']['quarantinedQty']==4 and held_response.value.json()['order']['received']==114
+            stock=context.request.get(base+'/api/bag_transfers.php?entity=TTI&locationId=mills-1&asOf=2026-10-17').json();source_lot=stock['inventory']['lots']['PO|100|mills-1']
+            assert source_lot['availableQty']==90 and source_lot['quarantinedQty']==4,source_lot
+            assert books.read_bytes()==financial_before,'Supplier receipt created a financial posting'
             assert not errors,errors
             if output:
                 output.mkdir(parents=True,exist_ok=True);accounts.screenshot(path=str(output/'mill-source-handoff-accounts.png'),full_page=True);mill.screenshot(path=str(output/'mill-source-handoff-mill.png'),full_page=True)
