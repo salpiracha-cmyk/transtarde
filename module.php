@@ -228,6 +228,20 @@ $sharedBootstrap = <<<'HTML'
   function showSyncError(msg,conflict){console.error(msg);if(conflict)dispatchEvent(new CustomEvent('tt:shared-conflict',{detail:{message:msg}}))}
   function checkInbound(){if(exportWorkspaceBusy()){deferInbound();return}const now=Date.now();if(pending.size||inFlight.size){clearTimeout(inboundRetry);inboundRetry=setTimeout(checkInbound,300);return}if(now-lastInboundCheck<800)return;lastInboundCheck=now;getRemote(false)}
   // A bill Save appends only its reviewed record. It never flushes another form.
+  async function commitProduction(record,before=null){
+    if(access.moduleId!=='milling')throw new Error('Open the Milling workspace before saving production.');
+    const keys=['tt30prod','tt36bagissues','tt30prodaudit'];
+    if(keys.some(key=>pending.has(key)||inFlight.has(key)))throw new Error('Production has an unfinished local change. Review it before saving.');
+    const originals=new Map(keys.map(key=>[key,localStorage.getItem(key)]));keys.forEach(key=>inFlight.add(key));saveHolds++;waiting();
+    try{
+      const result=await window.TT_PRODUCTION_SOURCE_SAVE.commit({endpoint,access,record,before});
+      const values={tt30prod:{value:result.value,version:result.version},...result.related};
+      for(const key of keys){const row=values[key];if(!row||typeof row.value!=='string'||pending.has(key)||localStorage.getItem(key)!==originals.get(key))continue;
+        directSet(key,row.value);committedValues.set(key,row.value);receipts.set(key,row.value);if(Number.isInteger(row.version))keyVersions.set(key,row.version);remoteKeys.add(key);
+      }
+      return result.record;
+    }finally{keys.forEach(key=>inFlight.delete(key));saveHolds--;waiting()}
+  }
   async function appendMillBill(key,record,prefix=''){
     if(access.moduleId!=='milling'||!['tt38labourbills','tt38kebills','tt38reprocessbills'].includes(key))throw new Error('Unsupported Mill bill.');
     if(pending.has(key)||inFlight.has(key))throw new Error('This bill collection has an unfinished local change. Review it before saving.');
@@ -252,7 +266,7 @@ $sharedBootstrap = <<<'HTML'
       return result;
     }finally{inFlight.delete(key);saveHolds--;waiting()}
   }
-  window.TT_SHARED_SYNC={appendMillBill,amendMillBill,flush,saveNow,refresh:refreshNow,bridge,poll:checkInbound,hold:()=>{saveHolds++;waiting();let released=false;return()=>{if(!released){released=true;saveHolds--;waiting()}}},readCommitted:key=>committedValues.get(key)??null,restoreStaged:(key,before,attempted)=>{if(localStorage.getItem(key)!==attempted)return false;if(pending.get(key)===attempted){pending.delete(key);queuedBase.delete(key)}directSet(key,before);return true}};
+  window.TT_SHARED_SYNC={commitProduction,appendMillBill,amendMillBill,flush,saveNow,refresh:refreshNow,bridge,poll:checkInbound,hold:()=>{saveHolds++;waiting();let released=false;return()=>{if(!released){released=true;saveHolds--;waiting()}}},readCommitted:key=>committedValues.get(key)??null,restoreStaged:(key,before,attempted)=>{if(localStorage.getItem(key)!==attempted)return false;if(pending.get(key)===attempted){pending.delete(key);queuedBase.delete(key)}directSet(key,before);return true}};
   // Permanent rule: only explicit application actions save. Inbound checks are read-only and run when staff return to a tab.
   // Remote changes are staged locally and announced through an internal event without persistent interface notices.
   // Exports must reconcile Mill actuals before app.js reads state. Milling must finish its legacy startup first,
@@ -292,7 +306,7 @@ $accountsSourceBridge = '<script src="accounts/source-bridge.js?v=20260924-expli
 $brandBody = '<script src="/session-activity.js?v=20260929-1"></script><script src="/brand-theme.js?v=20261006-number-entry-1"></script>';
 $brandBody .= '<script src="/global-validation.js?v=20260909-1"></script>';
 if ($id === 'exports') $brandBody .= '<script src="/customer-contract-options.js?v=20260911-reports-1&fix=20261003-no-legacy-completion-1"></script>';
-if ($id === 'milling') $brandBody .= '<script src="/milling-quality-identity.js?v=20260910-1"></script><script src="/accounts/mill-liability-status.js?v=20261017-1"></script><script src="/accounts/mill-source-save.js?v=20261017-1"></script><script src="/accounts/mill-source-amend-ui.js?v=20261017-1"></script>';
+if ($id === 'milling') $brandBody .= '<script src="/milling-quality-identity.js?v=20260910-1"></script><script src="/accounts/mill-liability-status.js?v=20261017-1"></script><script src="/accounts/mill-source-save.js?v=20261017-1"></script><script src="/accounts/production-source-save.js?v=20261017-1"></script><script src="/accounts/mill-source-amend-ui.js?v=20261017-1"></script>';
 $bodyPos = strripos($html, '</body>');
 if ($bodyPos !== false) $html = substr_replace($html, $accountsSourceBridge.$guard.$brandBody, $bodyPos, 0); else $html .= $accountsSourceBridge.$guard.$brandBody;
 echo tt_version_local_assets($html);
