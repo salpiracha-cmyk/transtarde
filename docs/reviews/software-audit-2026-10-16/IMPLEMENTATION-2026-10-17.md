@@ -51,3 +51,16 @@ No production data writes or migration sign-off have been made by this batch. Fu
 - Chrome connected on 17 October but Transtrade redirected to login after inactivity. The login tab was left ready; live application acceptance awaits sign-in.
 - New shared group-report files are unfinished drafts, excluded from the Corn release. They require source, permission, concurrency and accounting validation before integration. Daily report, automatic estimates, actual-versus-costing, source-linked TG profit and canonical Zakat payments are not completed by this batch.
 - Bulk Corn through external-mill UI and all archive/revision outputs remain acceptance gaps; a bridge fixture alone does not certify the full route. No real financial records or test Pohanch entries were altered.
+
+
+## Live continuation at 14:45 PKT
+
+Chrome signed-in Console, Milling, bag orders and arrival search were inspected. TTI Rice Mills now shows only GHAZAL5508; the original GHAZAL artwork image `50 KGS.jpeg` loads visibly, without an invented approval claim. This closes the previously pending positive UI checks for PR281 behaviour; it is not a transfer destination receipt test.
+
+Date23September arrival search still returns exactly PH-00001/ABC-123/Soda26002, PH-00002/ABC-345/Soda26001, PH-00003/TK-123/Soda26002. Search offers Reprint only. No reprint, save or deletion was performed. Controlled cleanup and verified dependencies remain outstanding.
+
+Corn PR283 (`implement/corn-actual-weights-20261017`) is running full hosted QA. The first full attempt caught two concrete integration failures: empty previous loading payload decoded as invalid JSON, and older isolated VM fixtures omitted the now-required commodity helper. Both corrected locally without weakening assertions. Existing ownership tests additionally prove Corn instruction fields can save while Exports cannot alter Mill physical weights. No deployment claimed.
+
+Group foundation PR284 is a separate unfinished draft stacked on the Corn branch. Local formula and actual PHP endpoint tests pass for separate atomic report storage, zero-write reads, section conflicts, Create/Edit distinctions, existing entity restrictions from either portal, CSRF, duplicate source IDs and preserving original Accounts bytes. Remaining automatic daily/estimated/source-linked management workflows and UI acceptance are not complete.
+
+Additional source finding: Used Bags still aggregates arrivals/manual history across mills, invents today's date for undated receipts and writes unscoped manual records. Its legacy sale reference writes an operational cash credit rather than a canonical receipt. This is uncorrected and must be treated as unverified operational history, not confirmed cash or stock reconciliation.
