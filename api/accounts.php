@@ -355,7 +355,7 @@ try {
         $lines = accounts_event_lines($eventType, $body);
         $meta = is_array($body['meta'] ?? null) ? $body['meta'] : [];
         $written = accounts_write_locked(function(array &$store) use ($user,$entity,$date,$eventType,$sourceKey,$reference,$narration,$lines,$meta) {
-            if ($eventType==='COMMODITY_RECEIPT_ACCEPTED') tt_guard_withdrawn_arrival(['sourceKey'=>$sourceKey,'meta'=>$meta]);
+            if ($eventType==='COMMODITY_RECEIPT_ACCEPTED') tt_guard_withdrawn_arrival(['entity'=>$entity,'sourceKey'=>$sourceKey,'meta'=>$meta]);
             $eventId = $entity.'|'.$eventType.'|'.$sourceKey;
             $identityId = $entity.'|'.$sourceKey;
             if (!isset($store['postingIdentities']) || !is_array($store['postingIdentities'])) $store['postingIdentities'] = [];

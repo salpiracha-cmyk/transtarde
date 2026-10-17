@@ -11,8 +11,11 @@ function tt_withdrawn_arrivals(): array {
 }
 
 function tt_is_withdrawn_arrival(mixed $value): bool {
-    if (is_array($value)) {foreach ($value as $child) if (tt_is_withdrawn_arrival($child)) return true;return false;}
+    if (is_array($value)) {
+        foreach (tt_withdrawn_arrivals() as $row) if (($value['entity']??'')==='TTI'&&($value['sourceKey']??'')==='POHANCH|'.$row['slip']) return true;
+        foreach ($value as $child) if (tt_is_withdrawn_arrival($child)) return true;return false;}
     if (!is_scalar($value)) return false;
+    foreach (tt_withdrawn_arrivals() as $row) if ((string)$value==='TTI|COMMODITY_RECEIPT_ACCEPTED|POHANCH|'.$row['slip']) return true;
     foreach (tt_withdrawn_arrivals() as $row) foreach (['id','queueId','bridgeId'] as $key) {
         if (preg_match('/(?<![A-Za-z0-9])'.preg_quote($row[$key],'/').'(?![A-Za-z0-9])/',(string)$value)) return true;
     }
