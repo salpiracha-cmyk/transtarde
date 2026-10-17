@@ -2,6 +2,8 @@
 
 **Decision: NOT READY for full-data migration. The exhaustive review is unfinished.**
 
+**Later checkpoint:** See [STATUS-2026-10-17.md](STATUS-2026-10-17.md) for PR275–278, the pending bag-ledger repair and current connection/test limits. The batch counts and coverage register below predate that continuation.
+
 Ten repair batches, PR264–273, are merged. Each final repair head passed both full
 hosted QA suites. These results establish the scenarios exercised by those suites;
 they do not establish that every screen/action, original figure or output is clean.

@@ -765,3 +765,50 @@ or order. Repository searches found only source deductions/report display consum
 that transfer array, with no receiving consumer. The destination company/location
 and receipt acknowledgement require a canonical transfer workflow. No actual bag
 record was renumbered, transferred, deleted or posted by these probes.
+
+## 17 October recovery and report
+
+Local commands and GitHub access respond again. The last interrupted checkpoint
+command did not save/commit its intended coverage/readiness updates. HEAD remains
+e7bc7f4 with the Export Bags Ledger report repair and its before/after fixtures
+uncommitted. PR278 is confirmed merged as ee25a145fa43a9d8116732541bd3d121b974bbcc.
+The required Browser control tool is not exposed in this session. The current Chrome
+panel state could not be rechecked. A fresh local DOM test stopped at missing jsdom:
+temporary dependencies from the previous session are gone. No new application test
+pass, deployment or browser acceptance is claimed. STATUS-2026-10-17.md provides
+the consolidated report, including the pending repair and remaining migration gates.
+
+## 17 October signed-in live continuation and Rice Ledger delivery defect
+
+Chrome control returned and Salman signed in. Actual own-mill Rice Ledger opened,
+but Generate left its initial message unchanged. DOM script references included
+/milling/rice-ledger.js. Source tracing found Milling's deliberate `Require all denied`
+folder protection; PR275 introduced a direct script dependency into that folder,
+while the older production helper was already delivered inline by module.php.
+This is a defect in the audit's Rice Ledger repair, missed by its standalone DOM/
+endpoint tests. Deployment success was not functional acceptance, and no passing
+live Rice Ledger result is claimed before this correction.
+
+Deliver the ledger source inline through the authenticated module, preserving the
+folder denial. A new positive test renders the real module.php in a disposable CLI
+fixture, checks the actual ledger initializer is inline with no denied external path,
+parses every emitted inline script, verifies forbidden users receive403 without
+source and a missing required ledger asset produces503. It passes locally. Extend
+the existing authenticated HTTP module test to assert the same delivery path.
+
+The pending bag-ledger report repair is included in this stock-report batch: selected
+company/mill, parent production scope, genuine openings, movement-independent balances,
+Till cutoff, explicit undated history and ambiguous-ID refusal. Saved before/after
+fixtures retain expected25 versus old-5/125/525 and corrected25 in each case. No stock
+writer, existing ID or destination-transfer record is changed. Used-bag scope, automatic
+bag-list ID renumbering and destination transfer receipts remain separate open defects.
+Temporary jsdom installation cannot resolve the npm registry in this local environment;
+DOM tests will run in the established hosted runtime. Previous DOM results are retained
+as historical evidence; the real PHP renderer test is a fresh local pass.
+
+Live permission screen verification: all historical inputs/actions are disabled and
+the explanation correctly says the drafts do not grant access. Its new Console link
+pointed to /admin/ and actually opened403. Correct that audit-introduced route to the
+real authenticated /index.php entry. Strengthen the permission test with existence
+and authentication checks for the actual linked entry rather than accepting an
+invented directory. No actual user grant is changed.
