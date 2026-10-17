@@ -21,7 +21,7 @@ function tt_corn_weights(array $row): array {
 function tt_validate_corn_loading(string $json,?string $previous=null):void {
     $rows=json_decode($json,true,512,JSON_THROW_ON_ERROR);
     if(!is_array($rows))throw new DomainException('Invalid loading instructions.');
-    $old=json_decode($previous??'[]',true,512,JSON_THROW_ON_ERROR);$historical=[];
+    $old=json_decode($previous===null||$previous===''?'[]':$previous,true,512,JSON_THROW_ON_ERROR);$historical=[];
     foreach((array)$old as $shipment)foreach((array)($shipment['containers']??[]) as $row)$historical[(string)($shipment['id']??'').'|'.(string)($row['id']??'')]=$row;
     foreach($rows as $shipment){
         $corn=preg_match('/\b(?:CORN|MAIZE|MAKAI)\b/i',implode(' ',array_map(static fn($key)=>(string)($shipment[$key]??''),['commodity','product','baseVariety','displayName'])))===1;

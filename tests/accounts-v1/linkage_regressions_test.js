@@ -80,6 +80,7 @@ assert.equal(stores.instructions[0].sourceSodaId,'S-2','Equivalent Export and Ac
 const stockFns=['millBaseVariety','millRiceType','millProductIdentity','stockEntityForView','isOperationalProductionRow','stockScopeMatches','resolveStockKey','shipmentLoadedWeight','computedStockRows'].map(n=>extractFunction(milling,n)).join('\n');
 const stockStores={};
 const stockContext={
+ TT_COMMODITY_FLOW:require('../../commodity-flow.js'),
   STORE_PROD:'prod',STORE_SLIPS:'slips',STORE_LOCALSALES:'local',STORE_EXPORTERSALE:'exporter',STORE_SHIP:'ship',STORE_STOCKADJ:'adj',
   currentMill:{id:1,name:'TTI Rice Mills'},get:(key,fallback)=>structuredClone(stockStores[key]??fallback),
   defaultExporterSales:()=>[],defaultShipments:()=>[],millLocationIdentity:value=>String(value||'').toLowerCase().replace(/[^a-z0-9]+/g,'')

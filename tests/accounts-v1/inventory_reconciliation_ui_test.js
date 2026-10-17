@@ -17,6 +17,7 @@ ok(!src.includes('function applyPendingNilGainsToCurrentProduction('),'Managemen
 ok(src.includes('id="prodShiftComplete"'),'Neutral all-lots-entered confirmation exists');
 const stores={},elements={prodEntity:{value:'TTI'},prodShiftComplete:{checked:false},prodInputStock:{value:'IRRI-6 White Ready Rice'}};
 const context={
+ TT_COMMODITY_FLOW:require('../../commodity-flow.js'),
  currentMill:{id:2,name:'Reprocessing Mill',type:'External Milling / Processing'},
  STORE_PROD:'prod',STORE_PRODAUDIT:'audit',STORE_SHIP:'ship',editingProdId:null,productionRows:[],
  get:(key,d)=>structuredClone(stores[key]??d),set:(key,v)=>{stores[key]=structuredClone(v)},

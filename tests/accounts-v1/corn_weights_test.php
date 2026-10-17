@@ -20,3 +20,6 @@ tt_validate_corn_loading(json_encode($historical),json_encode($historical));
 $changed=$historical;$changed[0]['containers'][0]['weight']=27500;
 foreach([[$changed,$historical],[$historical,[]]] as [$next,$old]){$failed=false;try{tt_validate_corn_loading(json_encode($next),json_encode($old));}catch(DomainException $e){$failed=true;}check($failed,'New/corrected Corn weights require a basis while original history remains intact');}
 echo "PASS explicit weighbridge basis for new/corrected Corn; original historical readings retained\n";
+
+tt_validate_corn_loading('[{"id":1,"containers":[]}]','');
+echo "PASS first shared loading save accepts an empty prior store\n";
