@@ -173,3 +173,19 @@ Versioned production allocations now pass through the existing shared production
 Local pure movement, inventory, production-writer, real file-backed controller, financial preservation and private-response regression tests pass. Hosted QA now includes the real guarded MySQL controller case; results remain pending. Native production save acknowledgement, explicit allocation selection, transfer/receipt screens, quality quarantine, legacy source reconciliation and receipt scope history remain unfinished release gates. No live stock, physical opening or financial test posting was created.
 
 Separately, PR 292 passed both full PR suites (Accounts 39038386003; Milling/Exports 39038386090) and merged as e10fa4954a3665974459dfcede3a52a9b5fe342c. Operational POST acknowledgements now use the same public projection as GET, preserving server-only reconciliation rows without returning them. Main QA and deployment confirmation remain pending at this checkpoint.
+
+
+### Backend QA and independent Production Save release candidate
+
+Bag backend PR 291 passed both full suites at 343a5313408366053ca75d472e802a438ca99a6e (Accounts 39038823648; Milling/Exports 39038823615). The actual guarded MySQL controller test passed partial destination receipt, physical source return, replay/version conservation, protected private ledger and unchanged original PO/financial records (runtime job 117413980881). This remains a draft, without the transfer/allocation UI, quarantine workflow or legacy receipt-scope reconciliation.
+
+Privacy PR 292 is deployed at e10fa4954a3665974459dfcede3a52a9b5fe342c; deployment 39038874494, live read-only smoke 39038943741 and startup performance 39038943957 passed.
+
+Production Save acknowledgement is being released independently through PR 293 so it does not wait for the unfinished bag screens. The native form now waits for an exact saved-source acknowledgement, retains failed actual inputs/focus and a stable durable request, and checks an edit's original reviewed record. Production, its bag-use mirror and actual-actor amendment evidence commit together. Source-managed history cannot be rewritten through generic collection saves; hidden reconciliation history stays private in related responses. Recovery and late acknowledgements preserve current/reopened drafts. Local source/controller/inventory and hosted native DOM/MySQL checks pass; the full real browser failure/lost-response run and complete final suites remain pending. No live test production, financial or opening records were created.
+
+
+### Production acknowledgement merged; bank ledger search added to scope
+
+PR 293 passed full Accounts 39040079352 and Milling/Exports 39040079418 at 863084a11889228a5ebf73f36e2cec4c0bf663e2, then merged as 557880902de3bb15ec75aeb9b8f05404d530910b. Runtime job 117417577129 passed native failed-save retention, real MySQL atomic usage/audit/private-row checks, and the actual authenticated production amendment whose committed response is lost and confirmed by retry without another source mutation. Reopened production now restores its saved downtime reason. Historical amendments through the acknowledged source route require actual independently recorded raw inputs. Main QA/deployment/live smoke remain pending at this checkpoint.
+
+Owner added: every company bank ledger must be individually available through Ledgers by Party or Name, including typing Meezan Bank and choosing the actual account. Implemented separately in PR 294: company-scoped bank choices show account number/title/currency, retain the name-search view and route to the exact existing bank ledger without a counterparty-name filter. Local endpoint tests confirm separate same-bank balances, opening and transfer movements, unused USD account, company isolation and unchanged journals. Full hosted UI/regression validation and deployment remain pending. No bank records or openings are invented.

@@ -21,7 +21,7 @@ $masters['business_parties']=array_values(array_filter($masters['business_partie
 $masters['business_parties'][]=['id'=>'QA-KE','values'=>['K-Electric','','Service Provider','','','','','','','','Active']];
 $user=['id'=>1000,'username'=>'qaowner','full_name'=>'QA Mill Handoff','role'=>'Super Admin','permissions'=>['Mill'=>'all','Accounts'=>'all','Directors'=>'all','Exports'=>'all'],'active'=>true,'must_change_password'=>false,'password_hash'=>password_hash($password,PASSWORD_DEFAULT),'master_access'=>true];
 tt_ensure_data_dir();file_put_contents(TT_STORE_FILE,json_encode(['users'=>[$user],'masters'=>$masters,'settings'=>['qa_account_seeded'=>true],'master_options'=>tt_default_master_options(),'audit'=>[]]));
-file_put_contents(TT_DATA_DIR.'/operations.json',json_encode(['revision'=>0,'values'=>[],'meta'=>[]]));
+file_put_contents(TT_DATA_DIR.'/operations.json',json_encode(['revision'=>0,'values'=>['tt30bags'=>json_encode([['id'=>100,'entity'=>'TTI','mill'=>'TTI Rice Mills','brand'=>'QA PRODUCTION','size'=>'50 kg','bagType'=>'PP','ordered'=>100,'received'=>100,'poNo'=>'QA-PO','poLineKey'=>'L1']]),'tt33bagreceipts'=>json_encode([['id'=>101,'bagId'=>100,'date'=>'2026-10-01','qty'=>100]])],'meta'=>[]]));
 file_put_contents(TT_DATA_DIR.'/accounts.json',json_encode(['revision'=>0,'journals'=>new stdClass(),'supplierBills'=>new stdClass()]));
 file_put_contents(__DIR__.'/credentials.json',json_encode(['password'=>$password,'dataDir'=>TT_DATA_DIR]));
 '''
@@ -81,11 +81,42 @@ def run():
             accounts.locator('[data-refresh]').click();accounts.wait_for_function("document.querySelector('[data-review]').textContent.includes('Outstanding PKR 0.00')")
             with accounts.expect_download() as download_info:accounts.locator('[data-csv]').click()
             report=Path(download_info.value.path()).read_text();assert 'Outstanding PKR' in report and 'QA-KE-HANDOFF' in report and '17-10-2026' in report
+            # Real authenticated production form: a failed source Save retains its
+            # raw inputs; its later acknowledged amendment survives a lost response.
+            financial_before=books.read_bytes();mill.evaluate("openPanel('production')")
+            mill.locator('#prodDate').fill('2026-10-17')
+            mill.locator('#prodTable tr').first.locator('input').first.fill('10')
+            raw=mill.locator('#productionActualInput [data-raw-index="0"]')
+            raw.locator('[data-field="lotRef"]').fill('QA-RAW-LOT');raw.locator('[data-field="grossKg"]').fill('600');mill.locator('#capacityReason').fill('Actual fixture production downtime')
+            blocked[0]=True;mill.get_by_role('button',name='Save Production',exact=True).click();mill.locator('[data-production-save-recovery]').wait_for()
+            assert raw.locator('[data-field="grossKg"]').input_value()=='600' and books.read_bytes()==financial_before
+            with mill.expect_response(lambda r:'/api/operations.mysql.php?asset_refs=1' in r.url and r.request.method=='POST') as production_response:mill.get_by_role('button',name='Save Production',exact=True).click()
+            assert production_response.value.status==200,production_response.value.text()
+            mill.wait_for_function("document.querySelector('#productionActualInput [data-field=grossKg]').value === ''")
+            saved_ops=context.request.get(base+'/api/operations.mysql.php').json();productions=json.loads(saved_ops['values']['tt30prod']);assert len(productions)==1
+            run=productions[0];assert run['rawInputs'][0]['grossKg']==600 and run['rows'][0]['bags']==10
+            issues=json.loads(saved_ops['values']['tt36bagissues']);assert len(issues)==1 and issues[0]['usage']['QA PRODUCTION']==10 and issues[0]['userId']==1000
+            mill.evaluate('(id)=>loadProductionForEdit(id)',run['id']);assert mill.locator('#capacityReason').input_value()=='Actual fixture production downtime';raw=mill.locator('#productionActualInput [data-raw-index="0"]');raw.locator('[data-field="grossKg"]').fill('700');mill.locator('#prodTable tr').first.locator('input').first.fill('12')
+            context.unroute('**/api/operations.mysql.php?asset_refs=1',intercept);lost=[True];source_posts=[]
+            def lost_ack(route):
+                if route.request.method=='POST':
+                    source_posts.append(route.request.post_data_json)
+                    if lost[0]:
+                        lost[0]=False;response=route.fetch();assert response.status==200,response.text();route.abort();return
+                route.continue_()
+            context.route('**/api/operations.mysql.php?asset_refs=1',lost_ack)
+            mill.get_by_role('button',name='Save Production',exact=True).click();mill.locator('[data-production-save-recovery]').wait_for();assert raw.locator('[data-field="grossKg"]').input_value()=='700'
+            mill.get_by_role('button',name='Save Production',exact=True).click();mill.wait_for_function("document.querySelector('#productionActualInput [data-field=grossKg]').value === ''")
+            assert len(source_posts)==1,'Confirming the real lost response sent another production mutation'
+            saved_ops=context.request.get(base+'/api/operations.mysql.php').json();productions=json.loads(saved_ops['values']['tt30prod']);issues=json.loads(saved_ops['values']['tt36bagissues']);audits=json.loads(saved_ops['values']['tt30prodaudit'])
+            assert len(productions)==1 and productions[0]['id']==run['id'] and productions[0]['rows'][0]['bags']==12 and productions[0]['rawInputs'][0]['grossKg']==700
+            assert len(issues)==1 and issues[0]['usage']['QA PRODUCTION']==12 and len(audits)==1 and audits[0]['userId']==1000 and audits[0]['before']['rows'][0]['bags']==10 and audits[0]['after']['rows'][0]['bags']==12
+            assert books.read_bytes()==financial_before,'Production Save or retry wrote financial journals'
             assert not errors,errors
             if output:
                 output.mkdir(parents=True,exist_ok=True);accounts.screenshot(path=str(output/'mill-source-handoff-accounts.png'),full_page=True);mill.screenshot(path=str(output/'mill-source-handoff-mill.png'),full_page=True)
             browser.close()
-        print('PASS real native Mill save/retry -> Accounts liability -> audited source amendment -> immutable replacement -> partial/full/replayed payment -> verified Mill balance and saved review CSV; no duplicate expense')
+        print('PASS real native Mill save/retry -> Accounts liability -> audited source amendment -> immutable replacement -> partial/full/replayed payment -> verified Mill balance and saved review CSV; actual production source/packing/audit transaction with failed Save retention and real lost-response replay; no duplicate expense')
     except Exception:
         if output:
             output.mkdir(parents=True,exist_ok=True);log.flush();tail=(root/'server.log').read_text(errors='replace').splitlines()[-35:];(output/'mill-source-handoff-failure.txt').write_text('\n'.join(tail))

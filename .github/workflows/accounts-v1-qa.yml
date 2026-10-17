@@ -40,6 +40,7 @@ jobs:
           php tests/accounts-v1/mill_liability_cost_sources_test.php
           python3 tests/accounts-v1/mill_liabilities_endpoint_test.py
           python3 tests/accounts-v1/arrival_withdrawal_test.py
+          node tests/accounts-v1/production_source_save_test.js
           node tests/accounts-v1/mill_source_save_test.js
           node tests/accounts-v1/accounts_notifications_test.js
           node tests/accounts-v1/rules_engine_test.js
@@ -202,6 +203,7 @@ jobs:
           export NODE_PATH="$RUNNER_TEMP/expense-review-node/node_modules"
           node tests/accounts-v1/mill_liabilities_ui_test.js
           node tests/accounts-v1/mill_liability_status_ui_test.js
+          node tests/accounts-v1/production_source_save_ui_test.js
           node tests/accounts-v1/mill_source_save_ui_test.js
           node tests/accounts-v1/mill_source_amend_ui_test.js
           node tests/accounts-v1/console_access_preservation_test.js
