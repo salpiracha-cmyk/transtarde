@@ -1107,8 +1107,7 @@
     if (type.id === "salary_staff") return String(row.values?.[10] || "Active");
     if (type.id === "products") {
       const profile = String(row.values?.[5] || "");
-      if (/inactive|reference/i.test(profile)) return profile;
-      return profile || "Active";
+      return /inactive|deactivated/i.test(profile) ? "Inactive" : "Active";
     }
     const statusFields={export_customers:10,business_parties:10,purchase_products:8,purchase_kat:7,mills:5,export_documents:4,export_terms:2};
     if (Object.hasOwn(statusFields,type.id)) return String(row.values?.[statusFields[type.id]] || (type.id.startsWith("purchase_") ? "Draft – review required" : "Active"));
