@@ -14,5 +14,12 @@ const tick=()=>new Promise(r=>setTimeout(r,0)),q=s=>w.document.querySelector(s);
  failSave=true;q('[data-reverse]').click();await tick();assert.equal(posts.length,2);assert.equal(q('[data-reason]').value,'Correct reading period');assert.equal(q('[data-correction-date]').value,'2026-10-18');assert.match(q('[data-message]').textContent,/retained/);
  q('[data-reverse]').click();await tick();assert.equal(posts[1].requestKey,posts[2].requestKey,'Failed retry changed idempotency identity');
  q('[data-pay]').click();assert.deepEqual(payCalls,[['','K-Electric','MB-1']]);assert.equal(q('#ttMillLiabilities'),null);
- assert.equal(posts.filter(p=>p.action==='post').length,1);dom.window.close();console.log('PASS Mill review explicit-only requests, source detail, first field, acknowledged-save refresh failure, retained correction draft, stable retries and linked payment launcher');
+ assert.equal(posts.filter(p=>p.action==='post').length,1);
+ // Review exports honour the same bill-type filter and retain outstanding/source warnings.
+ failRead=false;row.fingerprint='CHANGED';row.posted.outstandingAmount=400;await w.TT_MILL_LIABILITIES.open();q('[data-review-bill]').click();assert.equal(q('[data-pay]'),null,'Changed source still offers payment');
+ let csv='',paper='';w.Blob=class{constructor(parts){csv=parts.join('')}};w.URL.createObjectURL=()=> 'blob:fixture';w.URL.revokeObjectURL=()=>{};w.HTMLAnchorElement.prototype.click=()=>{};
+ w.open=()=>({document:{write:s=>paper=s,close:()=>{}},focus:()=>{},print:()=>{}});
+ q('[data-csv]').click();assert.match(csv,/Outstanding PKR/);assert.match(csv,/400/);assert.match(csv,/17-10-2026/);assert.match(csv,/Source changed/);
+ q('[data-kind]').value='LABOUR';q('[data-kind]').dispatchEvent(new w.Event('change'));q('[data-csv]').click();assert.doesNotMatch(csv,/KE-SEP/,'CSV ignored visible filter');q('[data-print]').click();assert.doesNotMatch(paper,/KE-SEP/,'Print ignored visible filter');assert.match(paper,/Rice labour/);
+ dom.window.close();console.log('PASS Mill review explicit-only requests, source detail, first field, acknowledged-save refresh failure, retained correction draft, stable retries and linked payment launcher');
 })().catch(e=>{console.error(e);process.exitCode=1;dom.window.close();});

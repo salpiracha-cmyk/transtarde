@@ -59,6 +59,10 @@ register_shutdown_function(function(){fwrite(STDERR,'STATUS:'.(http_response_cod
     # Settle through the actual existing supplier endpoint, not a parallel payment engine.
     current=req()[1]['rows'][0];posted=current['posted'];bill_key=posted['billId']+'|'+current['key']
     payment=dict(csrf='fixture',action='post_bill_payment',entity='TTI',date='2026-10-17',supplier='K-Electric',category='',selectedBills=[bill_key],explicitBillSelection=True,amount=400,paymentMode='CASH',requestKey='fixture-payment-0001',applyPaymentDifferenceAsDiscount=False,selectedOutstanding=1200)
+    unchanged_payment_books=books.read_bytes();bill['amount']=1300;sources()
+    status,d=req(payment,endpoint='supplier_settlements.php');assert status==422 and 'source changed' in d['error'],d
+    assert books.read_bytes()==unchanged_payment_books,'Changed-source payment altered books'
+    bill['amount']=1200;sources()
     status,d=req(payment,endpoint='supplier_settlements.php');assert status==200,d
     paid_once=books.read_bytes();status,d=req(payment,endpoint='supplier_settlements.php');assert status==200 and books.read_bytes()==paid_once,d
     current=req()[1]['rows'][0];assert current['posted']['outstandingAmount']==800 and current['posted']['settledAmount']==400,current
