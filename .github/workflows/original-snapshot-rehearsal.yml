@@ -33,12 +33,17 @@ jobs:
           cd "$1"
           php <<'PHP'
           <?php
+          $stage='initial';
+          set_exception_handler(static function(Throwable $e)use(&$stage):void{echo json_encode(['rehearsalFailedStage'=>$stage,'errorClass'=>get_class($e)])."\n";exit(1);});
           $live=getcwd();$livePrivate=dirname($live).'/transtrade_private';
           $name='auto-20261018-080738-65d37676.zip';
           $snapshot=$livePrivate.'/backups/'.$name;
+          $stage='snapshot-presence';
           if(!is_file($snapshot))throw new RuntimeException('Named original snapshot is unavailable.');
           $root=dirname($live).'/.review-restore-'.bin2hex(random_bytes(8));
+          $stage='space-check';
           if(disk_free_space(dirname($live))<filesize($snapshot)*2+268435456)throw new RuntimeException('Insufficient free space for isolated recovery.');
+          $stage='private-target';
           if(!mkdir($root.'/app',0700,true))throw new RuntimeException('Isolated recovery target unavailable.');
           function removeReviewTree(string $path):void{
            if(is_link($path)||is_file($path)){unlink($path);return;}
@@ -46,19 +51,26 @@ jobs:
            rmdir($path);
           }
           try{
+           $stage='copy-runtime';
            foreach(['auth_store.php','master_store.php','product_stage.php','offline_idempotency.php','session_store.php','backup_lib.php'] as $file)if(!copy($live.'/'.$file,$root.'/app/'.$file))throw new RuntimeException('Runtime copy failed.');
            $_SERVER['REQUEST_URI']='/isolated-private-restore-review';
            $_SERVER['HTTP_HOST']='localhost';
+           $stage='isolated-runtime';
            require $root.'/app/auth_store.php';
            require_once $root.'/app/backup_lib.php';
+           $stage='isolation-guard';
            if(realpath(TT_DATA_DIR)===realpath($livePrivate)||realpath(dirname(TT_DATA_DIR))!==realpath($root))throw new RuntimeException('Isolation guard refused the target.');
+           $stage='isolated-baseline';
            tt_mutate_store(static function(array &$data):void{$data['users'][]=['id'=>7007,'username'=>'isolated-review-only','role'=>'Super Admin'];});
            file_put_contents(tt_operations_file(),json_encode(['revision'=>1,'values'=>[],'meta'=>[]],JSON_THROW_ON_ERROR));
            $baseline=['auth.json'=>hash_file('sha256',TT_DATA_DIR.'/auth.json'),'operations.json'=>hash_file('sha256',tt_operations_file())];
            tt_backup_ensure_dirs();
            if(!link($snapshot,tt_backup_dir().'/'.$name))throw new RuntimeException('Read-only snapshot link failed.');
+           $stage='original-verification';
            $manifest=tt_backup_verified_server_snapshot($name);
+           $stage='isolated-restore';
            $result=tt_restore_server_snapshot($name);
+           $stage='hash-comparison';
            $matched=0;$jsonFiles=0;
            foreach($manifest['recoveryFiles'] as $item){
             $dest=TT_DATA_DIR.'/'.$item['path'];
@@ -70,6 +82,7 @@ jobs:
            $ops=json_decode(file_get_contents(tt_operations_file()),true,512,JSON_THROW_ON_ERROR);
            $accounts=json_decode(file_get_contents(TT_DATA_DIR.'/accounts.json'),true,512,JSON_THROW_ON_ERROR);
            $summary=['isolated'=>true,'verifiedOriginalFiles'=>$matched,'restoredFiles'=>$result['restoredFiles'],'validJSONFiles'=>$jsonFiles,'userCount'=>count($auth['users']??[]),'operationalRevision'=>$ops['revision']??null,'operationalCollections'=>count($ops['values']??[]),'journalCount'=>count($accounts['journals']??[])];
+           $stage='isolated-rollback';
            tt_restore_server_snapshot($result['safetySnapshot']);
            foreach($baseline as $file=>$hash)if(!hash_equals($hash,hash_file('sha256',TT_DATA_DIR.'/'.$file)))throw new RuntimeException('Canonical rollback comparison failed.');
            $summary['canonicalRollbackMatched']=true;
