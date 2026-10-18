@@ -4,7 +4,7 @@ ROOT=pathlib.Path(__file__).resolve().parents[2]
 with tempfile.TemporaryDirectory(prefix='tti-group-report-access-') as directory:
  root=pathlib.Path(directory);app=root/'app';shutil.copytree(ROOT,app,ignore=shutil.ignore_patterns('.git','node_modules','__pycache__','tmp','playwright-report','test-results'));private=root/'transtrade_private';private.mkdir()
  harness=root/'request.php';harness.write_text(r'''<?php
-$_GET=json_decode($argv[3],true);$_SERVER['REQUEST_URI']='/api/group_management.php';$_SERVER['REQUEST_METHOD']=$argv[4]==='null'?'GET':'POST';$_SERVER['REMOTE_ADDR']='192.0.2.46';
+$_GET=json_decode($argv[3],true);$_SERVER['REQUEST_URI']=substr($argv[1],strlen(__DIR__.'/app'));$_SERVER['REQUEST_METHOD']=$argv[4]==='null'?'GET':'POST';$_SERVER['REMOTE_ADDR']='192.0.2.46';
 session_name('TRANSTRADE_SESSION');session_id('group-access-'.bin2hex(random_bytes(12)));session_start();$_SESSION=['user_id'=>1,'auth_version'=>1,'last_activity_at'=>time(),'csrf'=>'fixture'];session_write_close();$GLOBALS['fixtureBody']=$argv[4];$GLOBALS['statusFile']=$argv[2];
 class FixtureGroupInput{public $context;private $offset=0;function stream_open($p,$m,$o,&$opened){return $p==='php://input';}function stream_read($n){$v=substr($GLOBALS['fixtureBody'],$this->offset,$n);$this->offset+=strlen($v);return $v;}function stream_eof(){return $this->offset>=strlen($GLOBALS['fixtureBody']);}function stream_stat(){return [];}}
 stream_wrapper_unregister('php');stream_wrapper_register('php',FixtureGroupInput::class);register_shutdown_function(static function(){file_put_contents($GLOBALS['statusFile'],(string)(http_response_code()?:200));});require $argv[1];
@@ -27,6 +27,7 @@ stream_wrapper_unregister('php');stream_wrapper_register('php',FixtureGroupInput
  assert request(user(role='Super Admin'))[0]==200
  assert request(viewer,kind='ZAKAT')[0]==403
  assert request(viewer,kind='COSTING')[0]==403,'Group report icon granted the separate costing action'
+ assert request({**viewer,'system_qa':True},body={'action':'save-section','section':'header','version':0,'requestKey':'fixture-managed','data':{'rates':{}}})[0]==403
  assert request(viewer,body={'action':'save-section','section':'header','version':0,'requestKey':'fixture-read-only','data':{'rates':{}}})[0]==403
  for u,visible in [(viewer,True),(limited,False),(wrong,False)]:
   status,html=request(u,'accounts/index.php');assert status==200,(status,html);assert ('"canGroupDaily":true' in html)==visible
