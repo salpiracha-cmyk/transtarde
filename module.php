@@ -19,7 +19,13 @@ header('Expires: 0');
 header('Vary: Cookie');
 header('X-LiteSpeed-Cache-Control: no-cache');
 $html = (string)file_get_contents($modules[$id]);
+$millingTaskScripts = '';
 if ($id === 'milling') {
+    foreach (['maize-labour', 'lifting-review'] as $task) {
+        $taskFile = __DIR__.'/milling/'.$task.'.js';
+        if (!is_file($taskFile) || ($taskScript = file_get_contents($taskFile)) === false) { http_response_code(503); exit('Milling task assets are unavailable.'); }
+        $millingTaskScripts .= '<script id="milling-'.$task.'">'.str_replace('</script', '<\\/script', $taskScript).'</script>';
+    }
     // Milling sources stay protected by .htaccess; deliver this dependency through the authenticated module.
     $recoveryEntryFile = __DIR__.'/milling/production-recovery-entry.js';
     if (!is_file($recoveryEntryFile) || ($recoveryEntry = file_get_contents($recoveryEntryFile)) === false) { http_response_code(503); exit('Production entry assets are unavailable.'); }
@@ -40,6 +46,13 @@ if ($id === 'milling') {
     );
 }
 if ($id === 'exports') {
+    $officeHookFile = __DIR__.'/exports/office-agent-shipment-hooks.js';
+    if (!is_file($officeHookFile) || ($officeHook = file_get_contents($officeHookFile)) === false) { http_response_code(503); exit('Export office hook assets are unavailable.'); }
+    $html = tt_replace_html_once(
+        '~<script\b[^>]*src=["\'](?:/?exports/)?office-agent-shipment-hooks\.js[^"\']*["\'][^>]*>\s*</script>~i',
+        static fn(): string => '<script id="exports-office-agent-hooks">'.str_replace('</script', '<\\/script', $officeHook).'</script>',
+        $html
+    );
     $cssFile = __DIR__ . '/exports/app.css';
     $jsFile = __DIR__ . '/exports/app.js';
     if (!is_file($cssFile) || !is_file($jsFile)) { http_response_code(503); exit('Export module assets are unavailable.'); }
@@ -313,7 +326,7 @@ $accountsSourceBridge = '<script src="accounts/source-bridge.js?v=20260924-expli
 $brandBody = '<script src="/session-activity.js?v=20260929-1"></script><script src="/brand-theme.js?v=20261006-number-entry-1"></script>';
 $brandBody .= '<script src="/global-validation.js?v=20260909-1"></script>';
 if ($id === 'exports') $brandBody .= '<script src="/customer-contract-options.js?v=20260911-reports-1&fix=20261003-no-legacy-completion-1"></script>';
-if ($id === 'milling') $brandBody .= '<script src="/milling-quality-identity.js?v=20260910-1"></script><script src="/accounts/mill-liability-status.js?v=20261017-1"></script><script src="/accounts/mill-source-save.js?v=20261017-1"></script><script src="/accounts/production-source-save.js?v=20261017-1"></script><script src="/accounts/production-bag-allocation.js?v=20261017-1"></script><script src="/accounts/bag-transfers-ui.js?v=20261017-1"></script><script src="/accounts/bag-receipts-ui.js?v=20261017-1"></script><script src="/accounts/mill-source-amend-ui.js?v=20261017-1"></script><script src="/milling/maize-labour.js"></script><script src="/milling/lifting-review.js"></script>';
+if ($id === 'milling') $brandBody .= '<script src="/milling-quality-identity.js?v=20260910-1"></script><script src="/accounts/mill-liability-status.js?v=20261017-1"></script><script src="/accounts/mill-source-save.js?v=20261017-1"></script><script src="/accounts/production-source-save.js?v=20261017-1"></script><script src="/accounts/production-bag-allocation.js?v=20261017-1"></script><script src="/accounts/bag-transfers-ui.js?v=20261017-1"></script><script src="/accounts/bag-receipts-ui.js?v=20261017-1"></script><script src="/accounts/mill-source-amend-ui.js?v=20261017-1"></script>' . $millingTaskScripts;
 $bodyPos = strripos($html, '</body>');
 if ($bodyPos !== false) $html = substr_replace($html, $accountsSourceBridge.$guard.$brandBody, $bodyPos, 0); else $html .= $accountsSourceBridge.$guard.$brandBody;
 echo tt_version_local_assets($html);

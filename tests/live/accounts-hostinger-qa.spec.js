@@ -525,7 +525,20 @@ test('read-only Exports and Milling loading, errors and Masters navigation', asy
       if(moduleId==='exports'){
         await expect(page.locator('#app')).toBeVisible();
         await expect(page.locator('#ttExportsLoadError')).toHaveCount(0);
+        await expect.poll(()=>page.evaluate(()=>window.TT_SHIPMENT_FILES?.__officeHooked===true),{timeout:30_000}).toBe(true);
       }else{await expect(page.locator('#homeGrid')).toHaveCount(1);await expect.poll(()=>page.evaluate(()=>typeof window.TT_PRODUCTION_RECOVERY?.outputKg),{timeout:30_000}).toBe('function');await expect(page.locator('#milling-production-recovery-entry')).toHaveCount(1);}
+      if(moduleId==='milling'){
+        await expect.poll(()=>page.evaluate(()=>typeof window.TT_LIFTING_REVIEW?.confirm),{timeout:30_000}).toBe('function');
+        await page.evaluate(()=>{openPanel('labour');const commodity=document.getElementById('labCommodity');commodity.value='Maize';commodity.dispatchEvent(new Event('change'));});
+        await expect(page.locator('#maizeLabour')).toBeVisible();
+        await expect(page.locator('#maizeLoadRate')).toHaveValue('');
+        for(const [route,unload,paltai] of [['DIRECT',true,true],['WAREHOUSE_BULK',false,true],['WAREHOUSE_PACKED',false,false]]){
+          await page.evaluate(value=>{const route=document.getElementById('maizeRoute');route.value=value;route.dispatchEvent(new Event('change'));},route);
+          expect(await page.locator('#maizeUnload').isHidden()).toBe(unload);
+          expect(await page.locator('#maizePaltai').isHidden()).toBe(paltai);
+        }
+        console.log('LIVE_MAIZE_REVIEW_DELIVERY_OK three routes, blank agreed rate, review function; no Save or financial action');
+      }
       const body=await response.body();
       const metadata=await page.evaluate(()=>({
         domReadyMs:Math.round(performance.getEntriesByType('navigation')[0]?.domContentLoadedEventEnd||0),
