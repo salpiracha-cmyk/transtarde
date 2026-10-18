@@ -288,6 +288,7 @@ jobs:
           node tests/accounts-v1/payment_difference_ui_test.js
           node tests/accounts-v1/trial_balance_ui_test.js
           node tests/accounts-v1/report_navigation_test.js
+          python3 tests/accounts-v1/shipment_posting_evidence_test.py
           node tests/accounts-v1/post_confirmation_ownership_test.js
           node tests/accounts-v1/workspace_response_ownership_test.js
           node tests/accounts-v1/bag_review_lifecycle_test.js

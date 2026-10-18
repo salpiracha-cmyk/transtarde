@@ -7,5 +7,6 @@ t.setData({trialBalance:{partyRows:[{account:'1110',name:'Bank',party:'Company',
 t.setView('balances');let [heads,rows]=t.reportRows(true);assert(heads.includes('Book currency'));assert.equal(rows.length,2);assert(rows.some(row=>row[0]==='Buyer'));assert(rows.some(row=>row[0]==='Vendor'));assert(!rows.some(row=>row.includes('Bank')));
 t.setView('commodity');[heads,rows]=t.reportRows(true);assert.equal(rows.length,1);assert.equal(rows[0][1],'SALE');
 t.setView('shipment');[heads,rows]=t.reportRows(true);assert(heads.includes('Provisional contribution'));assert.equal(rows[0].at(-1),'Stock cost not recorded');assert.equal(rows[0][0],'S1');
+t.setData({shipmentSourceHolds:['Supplier bill B1: missing original Post'],shipmentRows:[{contractRef:'HELD',revenue:100,stockCost:20,totalCost:null,grossContribution:null}]});[heads,rows]=t.reportRows(true);assert.equal(rows[0][9],'Review required');assert.equal(rows[0][10],'Review required');assert(rows[0].at(-1).includes('Supplier bill B1'));
 const desk=fs.readFileSync('accounts/accounts-accounting-desk.js','utf8');assert(desk.includes("Receivables:'balances',Commodity:'commodity',Shipment:'shipment'"),'Each report icon must explicitly choose its own report');
 console.log('PASS explicit report destinations, party balances, commodity account scope and provisional shipment export rows');
