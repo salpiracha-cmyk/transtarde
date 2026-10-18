@@ -22,10 +22,12 @@
       ["tg","TG Documents"],["lcdraft","L/C Exchange Draft"],["print","Document Output"],["history","History & Versions"]
     ],
     Directors: [
+      ["group-reports","Group Daily / Cashflow"],["costing","Rice / Corn Costing"],["zakat","Annual Zakat Assessment"],
       ["dashboard","Directors Dashboard"],["assets","Assets & Investments"],["tgmaster","TG Master"],
       ["alerts","Alerts & Renewals"],["approvals","Approvals"],["reports","Management Reports"],["brokerage","Brokerage Master"]
     ],
     Accounts: [
+      ["group-reports","Group Daily / Cashflow"],["costing","Rice / Corn Costing"],["zakat","Annual Zakat Assessment"],
       ["assets","Assets / Properties & Instalments"],
       ["entity-tti","Legal Book · TTI"],["entity-brm","Legal Book · BRM"],["entity-tg","Legal Book · TG"],
       ["dashboard","Needs Attention / Dashboard"],["purchases","Purchases / Sodas"],["due","Due Date Report"],

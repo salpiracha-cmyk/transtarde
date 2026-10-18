@@ -2,6 +2,7 @@
 declare(strict_types=1);
 require __DIR__ . '/../auth_store.php';
 require_once __DIR__.'/../inventory_reconciliation.php';
+require_once __DIR__.'/../api/group_management_core.php';
 require_once __DIR__ . '/../runtime_html.php';
 $user = tt_require_login();
 if (!tt_user_can_open_module($user, 'Accounts')) {
@@ -30,6 +31,7 @@ $access = [
     'super' => (($user['role'] ?? '') === 'Super Admin'),
     'csrf' => tt_csrf(),
     'entities' => $allowedEntities,
+    'canGroupDaily'=>gm_permission($user,'DAILY','View','Accounts'),
     'canInventoryReconciliation'=>tt_inv_can_report($user), 'masterAccess' => tt_user_can_access_masters($user),
     'masterPermissions' => $user['master_permissions'] ?? [],
     'masters' => tt_user_visible_masters($user),
