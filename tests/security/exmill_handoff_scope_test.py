@@ -26,9 +26,9 @@ require $argv[1];
     worker = {'id':1,'username':'fixture','full_name':'Fixture worker','role':'Staff','active':True,'session_version':1,'location':'TTI Rice Mills','permissions':{'Mill':{'export':['View','Create','Edit']}}}
     body = {'action':'sync_lifting','csrf':'fixture','sourceSodaId':'S1','liftingId':'CN-ABCD1234567','entity':'TTI','date':'2026-10-18','container':'ABCD1234567','truck':'QA123','kg':100,'bags':2,'qualityStatus':'OK'}
 
-    def request(user, source=soda, payload=body):
+    def request(user, source=soda, payload=body, reset=True):
         auth.write_text(json.dumps({'users':[user],'masters':{},'audit':[]}))
-        books.write_text(json.dumps({'revision':0,'purchaseSodas':{'S1':source},'journals':{},'events':{},'purchaseSodaLiftings':{}}))
+        if reset:books.write_text(json.dumps({'revision':0,'purchaseSodas':{'S1':source},'journals':{},'events':{},'purchaseSodaLiftings':{}}))
         before = books.read_bytes()
         status_file = root / 'status.txt'
         result = subprocess.run(['php','-d',f'session.save_path={root}',str(harness),str(app/'api/milling_purchase_sodas.php'),str(status_file),json.dumps(payload)],env=env,text=True,capture_output=True)
@@ -51,4 +51,13 @@ require $argv[1];
     status,_,before,after = request(denied_company,{**soda,'entity':'BRM'},{**body,'entity':'BRM'})
     assert status == 403 and before == after
     assert request({**worker,'role':'Super Admin'})[0] == 200
-    print('PASS actual Ex-Mill handoff scope: unrelated physical location denied without writes; exact/broad assigned locations and authorized Accounts/Super Admin retained; view-only and company denials preserve books')
+    # The same ISO identity must not recognize a second liability under punctuation/case aliases.
+    for alias in ['ABCD123456-7','abcd1234567','ABCD 1234567','ABCD.1234567','ABCD123456-8','ABCD1234569']:
+        payload={**body,'container':alias,'liftingId':'ALIAS-'+alias}
+        status,data,before,after=request(assigned,payload=payload,reset=False)
+        assert status==422 and before==after,('duplicate container alias recognized another liability',alias,status,data)
+        assert len(json.loads(after)['journals'])==1
+    different={**body,'container':'ZZZZ7654321','liftingId':'CN-ZZZZ7654321'}
+    status,data,_,after=request(assigned,payload=different,reset=False)
+    assert status==200 and len(json.loads(after)['journals'])==2,('a genuinely different container was blocked',status,data)
+    print('PASS actual Ex-Mill handoff scope: unrelated physical location denied without writes; exact/broad assigned locations and authorized Accounts/Super Admin retained; view-only and company denials preserve books; ISO container aliases cannot recognize a second liability')
