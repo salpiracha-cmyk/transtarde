@@ -82,8 +82,8 @@ assert(milling.includes("primary?(r.displayName||finished.displayName)"),'Finish
 assert(milling.includes("display=s.displayName||millProductIdentity"),'Printed Pohanch still uses an unstaged variety label');
 const riceLedgerUi=read('milling/rice-ledger.js'),riceLedgerCore=read('api/rice_ledger_core.php');
 assert(milling.includes('TT_RICE_LEDGER?.load()')&&riceLedgerCore.includes('tt_inv_stock($values,$scope,')&&riceLedgerUi.includes('r.product'),'Rice ledger must display canonical staged product identities');
-assert(bridgeRuntime.includes("productStage:'READY'"),'Ex-Mill stock is not classified as READY');
-assert(bridgeRuntime.includes('displayName=readyDisplay(baseVariety)')&&bridgeRuntime.includes("productStage:'READY',displayName"),'Ex-Mill stock lacks its READY display identity');
+assert(bridgeRuntime.includes("productStage:cornContract(c)?'RAW':'READY'"),'Ex-Mill stock is not classified as READY');
+assert(bridgeRuntime.includes('displayName=readyDisplay(baseVariety)')&&bridgeRuntime.includes("productStage:cornContract(c)?'RAW':'READY',displayName"),'Ex-Mill stock lacks its READY display identity');
 assert(exportsApp.includes('commercialProductName'),'Exports commercial-name stage stripping missing');
 
 assert(commodityBills.includes("$deductionKg=round($weight*$deductionPer100/100,3)"),'Corn/Sesame KAT is not deducted in kilograms');

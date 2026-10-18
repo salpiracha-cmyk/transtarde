@@ -140,7 +140,7 @@ function operations_validate_export_bridge(string $key, string $oldJson, string 
         'tt30bags' => 'id _ttBridge _ttBridgeId contractRef poNo supplier mill artworkName artworkData status poLineKey isMasterBag brand size tare ordered',
         'tt30prodinst' => 'id _ttBridge _ttBridgeId contractRef ref brand variety productIdentityCode baseVariety riceType productStage displayName quality requiredMT packing requiredBy broken moisture chalky damage foreign polish special bagSupplier inspection dpp sentAt',
         'tt30ship' => 'id _ttBridge _ttBridgeId _ttBridgeIndex _ttShipmentId _ttLotId contractRef ref entity commodity looseBulk packingType productIdentityCode baseVariety riceType productStage displayName contractContainers brand shipping mill totalContainers bagsPerContainer bagSize dryon craft inspection dpp emptyRequired sentAt reportedBrandKg',
-        'tt40exinstructions' => 'id _ttBridge _ttBridgeId _ttBridgeIndex _ttShipmentId legacySodaId entity mill commercialProduct productIdentityCode baseVariety riceType productStage displayName brand instructionQtyKg quality packing special bagTare dryon craft inspection dpp lotRef shipmentId contractContainers totalContainers contractRef sentAt brokenGrade',
+        'tt40exinstructions' => 'id _ttBridge _ttBridgeId _ttBridgeIndex _ttShipmentId legacySodaId entity commodity looseBulk packingType mill commercialProduct productIdentityCode baseVariety riceType productStage displayName brand instructionQtyKg quality packing special bagTare dryon craft inspection dpp lotRef shipmentId contractContainers totalContainers contractRef sentAt brokenGrade',
         'tt35exmill' => '', // Only retirement of old pseudo-SODAs is supported.
     ];
     if (!array_key_exists($key, $fields)) return;

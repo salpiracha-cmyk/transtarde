@@ -4,6 +4,7 @@ require_once __DIR__.'/fi_credit_advice_link.php';
 require_once __DIR__.'/operations_policy.php';
 require_once __DIR__.'/operations_read_policy.php';
 require_once __DIR__.'/commodity_weights_core.php';
+require_once __DIR__.'/exmill_corn_core.php';
 
 require dirname(__DIR__) . '/auth_store.php';
 require dirname(__DIR__) . '/backup_lib.php';
@@ -59,7 +60,7 @@ function operations_validate_exmill_completion(string $instructionsJson, string 
         foreach($loads as $load){
             if(!is_array($load)||(string)($load['instructionId']??'')!==(string)($instruction['id']??''))continue;
             if((string)($load['shipmentId']??'')!==(string)($instruction['shipmentId']??'')||(string)($load['contractRef']??'')!==(string)($instruction['contractRef']??'')||(string)($load['lotRef']??'')!==(string)($instruction['lotRef']??''))throw new InvalidArgumentException('Ex-Mill container identity does not match its Contract, Lot and Shipment.');
-            if(empty($load['serverPosted'])||!preg_match('/^[A-Z]{4}[0-9]{6}-?[0-9]$/',(string)($load['container']??''))||trim((string)($load['truck']??''))===''||trim((string)($load['seal']??''))===''||(float)($load['kg']??0)<=0||(float)($load['bags']??0)<=0||(string)($load['issue']??'')!=='OK')throw new InvalidArgumentException('Save complete details for every Ex-Mill container before Loading Complete.');
+            if(empty($load['serverPosted'])||!preg_match('/^[A-Z]{4}[0-9]{6}-?[0-9]$/',(string)($load['container']??''))||trim((string)($load['truck']??''))===''||trim((string)($load['seal']??''))===''||(float)($load['kg']??0)<=0||(tt_exmill_bulk($instruction)?(float)($load['bags']??0)!==0.:(float)($load['bags']??0)<=0)||(string)($load['issue']??'')!=='OK')throw new InvalidArgumentException('Save complete details for every Ex-Mill container before Loading Complete.');
             $number=str_replace('-','',(string)$load['container']);if(isset($numbers[$number]))throw new InvalidArgumentException('Duplicate Ex-Mill container in this instruction.');$numbers[$number]=true;$matched[]=$load;
         }
         if($expected<1||count($matched)!==$expected||(string)($instruction['allocationStatus']??'')!=='LINKED'||empty($instruction['sourceSodaId'])||empty($instruction['localSodaId']))throw new InvalidArgumentException('Loading Complete requires every instructed container and the existing SODA link.');
@@ -595,6 +596,7 @@ function operations_file_fallback(array $user): never {
             if ($key==='transtrade_export_v3_operational') { operations_validate_export_permissions($user,$sourceModule,$old,$value); operations_validate_lot_reopening($old,$value,$user,$sourceModule); $value=operations_merge_export($old,$value,$sourceModule); }
             if ($key==='tt30ship') tt_validate_corn_loading($value,$old);
             if ($key==='tt40exinstructions') operations_validate_exmill_completion($value,(string)($store['values']['tt35exload']??'[]'));
+            if ($key==='tt35exload' && $sourceModule!=='Exports')tt_exmill_corn_loads($value,(string)($store['values']['tt40exinstructions']??'[]'),$old);
             if ($key==='tt35exload' && $sourceModule!=='Exports') operations_validate_exmill_completion((string)($store['values']['tt40exinstructions']??'[]'),$value);
             $now=gmdate('c');$beforeValues=(array)($store['values']??[]);
             $value=tt_inv_prepare_write($beforeValues,$key,$value,$user,$now);
@@ -732,7 +734,8 @@ try {
     if ($key === 'tt35exload' && $sourceModule !== 'Exports') {
         $readInstructions=$db->prepare('SELECT payload FROM tt_operation_records WHERE storage_key = ?');
         $readInstructions->execute(['tt40exinstructions']);
-        operations_validate_exmill_completion((string)($readInstructions->fetchColumn()?:'[]'),$value);
+        $instructionsPayload=(string)($readInstructions->fetchColumn()?:'[]');tt_exmill_corn_loads($value,$instructionsPayload,$oldPayload);
+        operations_validate_exmill_completion($instructionsPayload,$value);
     }
     $nowIso=gmdate('c');$beforeValues=[];
     if(in_array($key,array_merge(TT_INV_SOURCE_KEYS,['tt30bags','tt33bagreceipts']),true))foreach($db->query('SELECT storage_key,payload FROM tt_operation_records')->fetchAll()as$row)$beforeValues[(string)$row['storage_key']]=(string)$row['payload'];

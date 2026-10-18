@@ -245,7 +245,7 @@ try{
             $brokeryWeightKg=$calculation['netRiceWeightKg'];
         }
         $brokeryRate=cb_brokery_rate($soda);if($commodity==='RICE'&&$brokeryRate&&($brokeryRate['basis']??'')==='PER_50_KG_BAG'){$brokeryRate['amount']=round((float)$brokeryRate['amount']*2,2);$brokeryRate['basis']='PER_100_KG';}
-        if($brokeryBags<=0&&is_array($body['inspection']??null))$brokeryBags=max(0,(float)($body['inspection']['bags']??0));
+        if(!($commodity==='CORN'&&$exMill)&&$brokeryBags<=0&&is_array($body['inspection']??null))$brokeryBags=max(0,(float)($body['inspection']['bags']??0));
         if($brokeryRate&&($brokeryRate['basis']??'')==='PER_BAG'&&$brokeryBags<=0)cb_respond(['ok'=>false,'error'=>'This broker uses Per bag Buying Brokery, but the selected Pohanch records do not contain a bag quantity. Correct the arrival before posting the bill.'],422);
         $enteredBasis=trim((string)($body['brokerageBasis']??''));
         $enteredRate=cb_money($body['brokerageRate']??0,'Buying brokery rate',true);
@@ -261,6 +261,7 @@ try{
         if($sodaBroker===''&&$brokerageGross>0)cb_respond(['ok'=>false,'error'=>'Buying brokery requires a broker on the Soda.'],422);
         $brokerageWithholding=round($brokerageGross*$whtPercent/100,2);
         if(in_array($commodity,['CORN','SESAME'],true)){
+            if($commodity==='CORN'&&$exMill){$sourceWeight=array_sum(array_column($receiptRows,'payableWeightKg'));if(abs((float)($body['inspection']['karachiWeightKg']??0)-$sourceWeight)>.001)cb_respond(['ok'=>false,'error'=>'Ex-Mill Corn billing must use the saved container net weights. Correct the source loading before billing.'],422);}
             $calculation=cb_nonrice_calculation($store,$soda,$commodity,$body);
             $finalValue=$calculation['finalCommodityValue'];
             $calculation['brokerageGross']=$brokerageGross;
