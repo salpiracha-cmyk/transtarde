@@ -1,6 +1,13 @@
 <?php
 declare(strict_types=1);
 
+/** Stable reviewed accounting facts; allocated IDs and timestamps are not amounts. */
+function mps_review_fingerprint(array $journals): string {
+    $facts=[];
+    foreach($journals as $journal)$facts[]=array_intersect_key($journal,array_flip(['entity','date','sourceType','reference','narration','lines','totalDebit','totalCredit']));
+    return hash('sha256',json_encode($facts,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR));
+}
+
 /** The accepted receipt journal is immutable. Its event always points at the current replacement. */
 function mps_verified_journal(array $store,array $lifting,string $entity,string $sourceKey): array {
     $journal=$store['journals'][$lifting['journalId']??'']??null;

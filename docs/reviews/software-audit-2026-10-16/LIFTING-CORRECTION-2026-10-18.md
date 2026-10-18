@@ -36,7 +36,7 @@ The native loading Save requests a server preview, then shows a centred green
 Debit/Credit review. Cancel retains the draft and creates no financial or shared
 source save. Confirm posts the reviewed values. The date and all other values
 are captured before review, so later changes cannot alter that reviewed payload.
-An acknowledged retry reuses the server result without another posting. A posted
+A fingerprint of reviewed accounting facts is checked again under the store lock; a changed source rate/amount stops Confirm with no write and requires a fresh review. An acknowledged retry reuses the server result without another posting. A posted
 row exposes a correction-reason field; history and current journal link persist.
 
 Real-auth disposable API validation covers original legacy visibility, no-write

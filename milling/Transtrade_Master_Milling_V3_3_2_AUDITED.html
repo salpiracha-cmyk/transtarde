@@ -959,8 +959,8 @@ async function saveExMillLoad(id,event){
   const busy=window.ttExMillSaving||(window.ttExMillSaving=new Set()),key=sourceSodaId+'|'+container;if(busy.has(key))return;busy.add(key);
   try{
    const payload={action:'sync_lifting',csrf:window.TT_MODULE_ACCESS?.csrf||'',entity:soda.entity||'TTI',sourceSodaId,liftingId:'CN-'+container,date,container,truck,seal,kg,bags,qualityStatus:issue,shipmentId:x.shipmentId||x._ttShipmentId||'',contractRef:x.contractRef||'',lotRef:x.lotRef||'',instructionKey:x._ttBridgeId||'',...(cornWeights||{}),expectedJournalId:existing?.liabilityJournalId||'',correctionReason:existing?.serverPosted?document.getElementById('exCorrection_'+id)?.value.trim()||'':''};
-   const send=async preview=>{const response=await fetch('api/milling_purchase_sodas.php',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({...payload,preview})}),result=await response.json();if(!response.ok||!result.ok)throw new Error(result.error||'Accounts could not save the lifting.');return result};
-   const reviewed=await send(true);let result=reviewed;
+   let reviewFingerprint;const send=async preview=>{const response=await fetch('api/milling_purchase_sodas.php',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({...payload,preview,...(!preview&&reviewFingerprint?{reviewFingerprint}:{})})}),result=await response.json();if(!response.ok||!result.ok)throw new Error(result.error||'Accounts could not save the lifting.');return result};
+   const reviewed=await send(true);reviewFingerprint=reviewed.reviewFingerprint;let result=reviewed;
    if(!reviewed.replayed){if(!window.TT_LIFTING_REVIEW?.confirm)throw Error('Accounting review is unavailable. Refresh before posting.');if(!await window.TT_LIFTING_REVIEW.confirm(reviewed.previews))return showContainerFeedback('Posting cancelled. Your entry is retained.');result=await send(false);}
    if(existing)existing.liabilityJournalId=String(result.journal?.id||'');else x._lastLiabilityJournalId=String(result.journal?.id||'')
   }
