@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__.'/bag_receipt_quantities.php';
 
 /** Read-only order/receipt projection. Invoice dates are never receipt dates. */
 function bor_date(mixed $value):string {
@@ -28,7 +29,7 @@ function bor_original_dates(array $orders,array $exports,string $entity):array {
     }
     foreach($orders as &$po){if(!is_array($po)||($po['entity']??'TTI')!==$entity)continue;$key=(string)($po['poNo']??'').'|'.strtolower(trim((string)($po['supplier']??'')));if(isset($dates[$key]))$po['originalIssuedAt']=$dates[$key];}unset($po);return $orders;
 }
-function bor_report(array $orders,array $millOrders,array $receipts,string $entity,array $filters):array {
+function bor_report(array $orders,array $millOrders,array $receipts,string $entity,array $filters,array $dispositions=[]):array {
     $from=$filters['from'];$to=$filters['to'];$basis=$filters['basis']??'activity';$rows=[];$warnings=[];$totals=[];
     $inside=static fn($date)=>$date!==''&&$date>=$from&&$date<=$to;
     $normal=static fn($value)=>strtolower(trim((string)$value));
@@ -54,19 +55,29 @@ function bor_report(array $orders,array $millOrders,array $receipts,string $enti
             foreach(['supplier','brand','bagType','packingSize'] as $field)if(($filters[$field]??'')!==''&&$normal($row[$field])!==$normal($filters[$field]))continue 2;
             if(($filters['q']??'')!==''&&!str_contains($normal($row['poNo'].' '.$row['shipment']),$normal($filters['q'])))continue;
             $ordered=max(0,(float)($line['orderedQty']??0));$datedAll=0.0;$periodReceived=0.0;$throughEnd=0.0;$undatedEvents=0.0;$seenBagIds=[];
+            $returnedCurrent=0.0;$returnedThroughEnd=0.0;$returnedInPeriod=0.0;$quarantinedCurrent=0.0;
             foreach($lineIndex[$row['poNo'].'|'.$row['lineKey']]??[] as $mill){
                 $bagId=(string)($mill['id']??'');if(isset($seenBagIds[$bagId])){$warnings['duplicate-bag']='Duplicate Mill bag-order IDs require source review.';continue;}$seenBagIds[$bagId]=true;
-                foreach($receiptIndex[$bagId]??[] as $receipt){$qty=(float)$receipt['qty'];$date=bor_date($receipt['date']??'');if($date===''){$undatedEvents+=$qty;continue;}$datedAll+=$qty;if($inside($date))$periodReceived+=$qty;if($date<=$to)$throughEnd+=$qty;}
+                foreach($receiptIndex[$bagId]??[] as $receipt){
+                    $qty=(float)$receipt['qty'];$date=bor_date($receipt['date']??'');
+                    if(!empty($receipt['bagReceiptVersion'])){
+                        $position=br_position($receipt,$dispositions);$cutoff=br_position($receipt,$dispositions,$to);
+                        $returnedCurrent+=$position['returnedQty'];$returnedThroughEnd+=$cutoff['returnedQty'];$quarantinedCurrent+=$position['quarantinedQty'];
+                        foreach($position['events'] as $event)if($event['action']==='return_supplier'&&$inside($event['date']))$returnedInPeriod+=$event['qty'];
+                    }
+                    if($date===''){$undatedEvents+=$qty;continue;}$datedAll+=$qty;if($inside($date))$periodReceived+=$qty;if($date<=$to)$throughEnd+=$qty;
+                }
             }
             $snapshot=max(0,(float)($line['receivedQty']??0));
             foreach($lineIndex[$row['poNo'].'|'.$row['lineKey']]??[] as $mill)$snapshot=max($snapshot,(float)($mill['received']??0));
-            $currentReceived=max($snapshot,$datedAll+$undatedEvents);$undated=max($undatedEvents,$currentReceived-$datedAll);
+            $grossCurrent=max($snapshot,$datedAll+$undatedEvents);$undated=max($undatedEvents,$grossCurrent-$datedAll);$currentReceived=$grossCurrent-$returnedCurrent;
+            if($currentReceived<0||$returnedThroughEnd>$throughEnd)throw new DomainException('Supplier returns exceed the linked physical receipt evidence.');
             $orderInPeriod=$inside($row['orderDate']);
             if($row['orderDate']==='')$warnings['order-date']='Some orders have no valid issue date; they cannot be assigned to an order month.';
             if($basis==='orders'&&!$orderInPeriod)continue;
-            if($basis==='activity'&&!$orderInPeriod&&$periodReceived<=0)continue;
-            $row+=['ordered'=>$ordered,'orderedInPeriod'=>$orderInPeriod?$ordered:0.0,'receivedInPeriod'=>$periodReceived,'receivedThroughEnd'=>$throughEnd,'receivedCurrent'=>$currentReceived,'outstandingCurrent'=>max(0,$ordered-$currentReceived),'undatedReceived'=>$undated];
-            $rows[]=$row;foreach(['ordered','orderedInPeriod','receivedInPeriod','receivedThroughEnd','receivedCurrent','outstandingCurrent','undatedReceived'] as $key)$totals[$key]=($totals[$key]??0)+$row[$key];
+            if($basis==='activity'&&!$orderInPeriod&&$periodReceived<=0&&$returnedInPeriod<=0)continue;
+            $row+=['ordered'=>$ordered,'orderedInPeriod'=>$orderInPeriod?$ordered:0.0,'receivedInPeriod'=>$periodReceived,'receivedThroughEnd'=>$throughEnd,'netReceivedThroughEnd'=>$throughEnd-$returnedThroughEnd,'returnedInPeriod'=>$returnedInPeriod,'returnedCurrent'=>$returnedCurrent,'quarantinedCurrent'=>$quarantinedCurrent,'receivedCurrent'=>$currentReceived,'outstandingCurrent'=>max(0,$ordered-$currentReceived),'undatedReceived'=>$undated];
+            $rows[]=$row;foreach(['ordered','orderedInPeriod','receivedInPeriod','receivedThroughEnd','netReceivedThroughEnd','returnedInPeriod','returnedCurrent','quarantinedCurrent','receivedCurrent','outstandingCurrent','undatedReceived'] as $key)$totals[$key]=($totals[$key]??0)+$row[$key];
         }
     }
     usort($rows,static fn($a,$b)=>strcmp($a['orderDate'],$b['orderDate'])?:strnatcasecmp($a['poNo'],$b['poNo'])?:strcmp($a['lineKey'],$b['lineKey']));
