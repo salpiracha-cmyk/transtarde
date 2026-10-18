@@ -91,3 +91,54 @@ Production automated browser checks are authenticated and read-only; positive
 financial cases run only in disposable test stores/databases. Local Mac Chrome
 control remains unavailable in this turn. The broader gates listed above are
 still open; there is no whole-application acceptance or formal security sign-off.
+
+
+## Native outside-mill Corn follow-up — PR335
+
+PR335 merged as `9e3dc6c98ca2053ed8901eb2cd2eb439a683946e`, tree
+`67fdfe5966343e6078276ec46a7bfbb05e542342`. This supersedes the route/zero-bag
+failure described above for the tested native Corn cases. It does not supersede
+the broader source, correction, mixed-allocation, migration or security gates.
+See `OUTSIDE-CORN-2026-10-18.md` for the full acceptance boundary.
+
+Accounts accepts the explicit Ex-Mill route for RAW Corn; Milling and Export
+instructions retain Corn identity and loose/packed packing. Native entry checks
+net/packed/vehicle weight bases and deductions. Loose bulk has zero bags; packed
+Corn and Rice still require bags. A new Corn liability requires its committed
+Export allocation and correct company, product, location and packing, within
+instruction container/quantity and Soda limits. A retry acknowledges original
+journal bytes; materially changed posted Corn liftings are held for Accounts
+correction. Corn bills use their selected saved container net weights with the
+approved KAT and agreed rate unit, without rewriting original journals.
+
+The actual-auth test fails on original main aa13422 at Corn Ex-Mill creation;
+the actual module bridge independently loses Corn identity on that old tree.
+The corrected disposable test covers Exports instruction save, native Milling
+link, packed/loose loading, source/weight/company/quantity denials, shared loading
+save/completion, combined bill, Corn KAT, duplicates and original-journal
+preservation. Actual Accounts/Milling form functions run in JSDOM, including
+conditional inputs and explicit Save. Eighteen related local commands passed;
+focused API/form checks passed after final replay/completion enhancements.
+
+Final feature head `8d87fcd7ee01e2e286215964133344f1d94019b7` passed full
+Accounts39150597667 (audit117743268898/inventory117743269150) and
+Milling39150597653 (audit117743268678). An earlier CI run failed because the new
+JSDOM test was placed before its dependency installation. It now runs in the
+existing browser job with JSDOM installed; no assertion was removed or weakened.
+Final feature and merged-main trees match exactly.
+
+Exact-main Accounts39150892699 (audit117744135147/inventory117744135197)
+and Milling39150892757 (audit117744135240) passed. Deployment39151077320
+(job117744671383) deployed exact9e3dc6c and confirmed healthy login,
+changedUserCount0 and journal-ID migration changeCount0. Read-only
+startup39151238590 passed. Authenticated read-only live smoke39151238583 / job117745148802 passed20/20,
+with10bank comparisons,50active account ledgers across3company reports,
+0concurrent-revision skips and0financialwrites. The production recovery check
+still saw0source runs; it does not establish positive production/recovery
+acceptance. No positive Corn liability/bill was created in production. No production
+stock, supplier bill, payment, approval, issued document or role was changed by
+positive tests. This turn has no connected Mac Chrome tools; local-Mac UI
+inspection is not claimed. Other original report/intercompany/source acceptance,
+rent/salary reference reconciliation, full migration and formal security gates
+remain open. The correction workflow for a changed posted Corn lifting remains
+unfinished; holding the change is not completion of that workflow.

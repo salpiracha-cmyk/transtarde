@@ -6,7 +6,7 @@ KE, Rice labour and reprocessing handoffs were deployed in PR 290 on 17 October.
 
 | Mill entry | Saved source | Actual downstream behavior | Required acceptance |
 |---|---|---|---|
-| Labour Bill | tt38labourbills | PR 290: acknowledged source Save, audited source amendment, canonical reviewed liability and linked supplier settlement; Maize remains deferred | Correct active contractor, company/mill, bill period and agreed tasks reach an Accounts review; acknowledged posting, liability, settlement and source drill-down |
+| Labour Bill | tt38labourbills | PR 290: acknowledged source Save, audited source amendment, canonical reviewed liability and linked supplier settlement; separate Maize flow deployed in PR318 with three routes and explicitly confirmed rates | Correct active contractor, company/mill, bill period and agreed tasks reach an Accounts review; acknowledged posting, liability, settlement and source drill-down |
 | K-Electric Bill | tt38kebills | PR 290: acknowledged actual source, reviewed canonical liability and immutable correction, linked partial/full payment | Actual provider identity, bill reference, received date, reading dates and amount retained; eligible cost period agrees with costing |
 | Other processing | tt37processingexpenses | Operational costs are not proof of Accounts expense/liability | Distinguish paid canonical costs from estimates, with source and Post ID, avoiding duplicate inclusion |
 | Rent payment reference | tt39rentpayments | Operational estimate uses reported amounts and legacy master; no Accounts settlement | Match existing rent master/accrual/payment before adding anything; preserve reference history |
