@@ -3,10 +3,11 @@ declare(strict_types=1);
 require dirname(__DIR__).'/auth_store.php';
 require_once __DIR__.'/mill_liabilities_core.php';
 require_once __DIR__.'/mill_liabilities_store.php';
+require_once __DIR__.'/accounts_posting_preview.php';
 define('TT_SETTLEMENTS_FUNCTIONS_ONLY',true);
 require_once __DIR__.'/supplier_settlements.php';
 header('Content-Type: application/json; charset=UTF-8');
-header('Cache-Control: no-store');
+header('Cache-Control: no-store');header('X-TT-Posting-Preview: available');
 
 function ml_out(array $data,int $status=200): never {http_response_code($status);echo json_encode($data,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);exit;}
 function ml_location_allowed(array $user,string $name): bool {
@@ -75,15 +76,17 @@ try {
     if (!ml_permission($user,$entity,$action==='post'?'Create':'Edit')||($action!=='post'&&!ml_permission($user,$entity,'Approve'))) ml_out(['ok'=>false,'error'=>'Accounts expense and company permissions are required for this action.'],403);
     $requestKey=(string)($body['requestKey']??'');
     if (!preg_match('/^[A-Za-z0-9_-]{16,120}$/D',$requestKey)) ml_out(['ok'=>false,'error'=>'A stable save request identity is required.'],422);
-    $requestBody=$body;unset($requestBody['csrf']);$requestFingerprint=ml_fingerprint($requestBody);
+    $requestBody=tt_preview_request_body($body);unset($requestBody['csrf']);$requestFingerprint=ml_fingerprint($requestBody);
     $masters=tt_list_masters();
     $result=ml_with_sources(static function($values)use($body,$entity,$action,$masters,$user,$requestKey,$requestFingerprint):array {
         $source=$action==='reverse'?null:ml_source($values,$masters,(string)($body['kind']??''),(string)($body['sourceId']??''),$entity);
         if ($source&&!ml_location_allowed($user,$source['millName'])) throw new DomainException('This bill belongs to another authorised location.');
         // A valid explicit post is the first point at which storage may be created.
-        tt_ensure_data_dir();$h=fopen(TT_DATA_DIR.'/accounts.json','c+');if (!$h||!flock($h,LOCK_EX)) throw new RuntimeException('Accounts storage unavailable.');
+        $preview=!empty($body['preview']);$path=TT_DATA_DIR.'/accounts.json';
+        if(!$preview)tt_ensure_data_dir();$h=$preview?(is_file($path)?fopen($path,'rb'):null):fopen($path,'c+');
+        if(($h===false)||($h&&!flock($h,$preview?LOCK_SH:LOCK_EX)))throw new RuntimeException('Accounts storage unavailable.');
         try {
-            $raw=stream_get_contents($h);$store=$raw===''?[]:json_decode($raw,true,512,JSON_THROW_ON_ERROR);if (!is_array($store)) throw new RuntimeException('Invalid Accounts store.');
+            $raw=$h?stream_get_contents($h):'';$store=$raw===''?[]:json_decode($raw,true,512,JSON_THROW_ON_ERROR);if (!is_array($store)) throw new RuntimeException('Invalid Accounts store.');
             $requestId=$entity.'|'.$requestKey;$priorRequest=$store['millLiabilityRequests'][$requestId]??null;
             if (is_array($priorRequest)) {
                 if (!hash_equals((string)$priorRequest['fingerprint'],$requestFingerprint)) throw new DomainException('This save identity was already used for another request.');
@@ -106,13 +109,14 @@ try {
                     $out=ml_post($store,$source,$user,(string)($body['fingerprint']??''),$replacement,$now);
                 }
             }
+            tt_posting_preview_exit($body,$store,array_keys((array)($before['journals']??[])));
             $store['millLiabilityRequests'][$requestId]=['fingerprint'=>$requestFingerprint,'result'=>$out+['revision'=>(int)($store['revision']??0)+1],'at'=>$now,'userId'=>(int)($user['id']??0)];
             if ($store!==$before) {
                 $store['revision']=(int)($store['revision']??0)+1;$encoded=json_encode($store,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);
                 rewind($h);if (!ftruncate($h,0)||fwrite($h,$encoded)!==strlen($encoded)||!fflush($h)) throw new RuntimeException('Accounts liability could not be saved.');
             }
             return $out+['revision'=>(int)($store['revision']??0)];
-        } finally {flock($h,LOCK_UN);fclose($h);}
+        } finally {if(is_resource($h)){flock($h,LOCK_UN);fclose($h);}}
     });
     ml_out(['ok'=>true,'result'=>$result]);
 } catch (DomainException|InvalidArgumentException $e) {ml_out(['ok'=>false,'error'=>$e->getMessage()],422);}

@@ -673,7 +673,7 @@ try {
     if($key===TT_INV_CONFIRMATIONS && !tt_inv_has_action($user,'Mill',['stock','export'],'Create') && !tt_inv_has_action($user,'Mill',['stock','export'],'Edit'))operations_respond(['ok'=>false,'error'=>'Stock confirmation permission required.'],403);
     tt_maybe_auto_backup();
     $inventoryLock=false;
-    if(in_array($key,TT_INV_SOURCE_KEYS,true)){
+    if(in_array($key,array_merge(TT_INV_SOURCE_KEYS,['tt30bags','tt33bagreceipts']),true)){
         $lock=$db->prepare('SELECT GET_LOCK(?,10)');$lock->execute(['tt_inventory_'.substr(hash('sha256',operations_env('DB_NAME')),0,24)]);
         if((int)$lock->fetchColumn()!==1)throw new RuntimeException('Inventory is being saved; retry.');$inventoryLock=true;
     }
@@ -733,7 +733,7 @@ try {
         operations_validate_exmill_completion((string)($readInstructions->fetchColumn()?:'[]'),$value);
     }
     $nowIso=gmdate('c');$beforeValues=[];
-    if(in_array($key,TT_INV_SOURCE_KEYS,true))foreach($db->query('SELECT storage_key,payload FROM tt_operation_records')->fetchAll()as$row)$beforeValues[(string)$row['storage_key']]=(string)$row['payload'];
+    if(in_array($key,array_merge(TT_INV_SOURCE_KEYS,['tt30bags','tt33bagreceipts']),true))foreach($db->query('SELECT storage_key,payload FROM tt_operation_records')->fetchAll()as$row)$beforeValues[(string)$row['storage_key']]=(string)$row['payload'];
     else $beforeValues[$key]=$oldPayload;
     $productionMeta=[];
     if($key==='tt30prod'){

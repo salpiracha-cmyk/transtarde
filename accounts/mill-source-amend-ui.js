@@ -2,7 +2,7 @@
   'use strict';
   const access=window.TT_MODULE_ACCESS||{},esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const money=v=>Number(v||0).toLocaleString('en-PK',{minimumFractionDigits:2,maximumFractionDigits:2});
-  const kinds={tt38kebills:'ELECTRICITY',tt38labourbills:'LABOUR',tt38reprocessbills:'REPROCESSING'};
+  const kinds={tt37processingexpenses:'PROCESSING',tt38kebills:'ELECTRICITY',tt38labourbills:'LABOUR',tt38reprocessbills:'REPROCESSING'};
   function canEdit(collection){const p=access.permissions||{},a=p==='all'?['Edit']:Array.isArray(p)?p:p[collection==='tt38reprocessbills'?'reprocessbill':'labour']||[];return access.super||a.includes('Edit');}
   function canView(collection){const p=access.permissions||{},a=p==='all'?['View']:Array.isArray(p)?p:p[collection==='tt38reprocessbills'?'reprocessbill':'labour']||[];return access.super||a.includes('View');}
   async function open(collection,id) {
@@ -28,7 +28,7 @@
     const val=name=>q('[data-field="'+name+'"]')?.value||'';
     function readLines(){return [...q('[data-lines]').querySelectorAll('tr[data-line]')].map((row,i)=>({...lines[i],label:row.querySelector('[data-label]').value,qty:Number(row.querySelector('[data-qty]').value),rate:Number(row.querySelector('[data-rate]').value),basis:row.querySelector('[data-basis]').value}));}
     function total() {
-      let amount=0;if(kinds[collection]==='ELECTRICITY')amount=Number(val('amount'));
+      let amount=0;if(['ELECTRICITY','PROCESSING'].includes(kinds[collection]))amount=Number(val('amount'));
       if(kinds[collection]==='LABOUR')amount=readLines().reduce((sum,r)=>sum+r.qty/(r.basis.includes('100 kg')?100:r.basis.includes('50 kg')?50:1)*r.rate,0);
       if(kinds[collection]==='REPROCESSING')amount=Math.max(0,Number(preview?.arrivalKg||0)-Number(val('rawRemovedKg')))*Number(val('rate'))+Number(val('loadingExtra'))+Number(val('other'));
       q('[data-total]').textContent='Reviewed source total: PKR '+money(amount);
@@ -40,6 +40,7 @@
       const from=kind==='ELECTRICITY'?'readFrom':'from',till=kind==='ELECTRICITY'?'readTo':'till';
       let fields=field('date','Bill date','date',r.date)+field(from,'Period from','date',r[from])+field(till,'Period to','date',r[till]);
       if(kind==='ELECTRICITY')fields+=field('ref','Original electricity reference','text',r.ref)+field('party','Actual service provider','text',r.party)+field('units','Units (optional)','number',r.units||0)+field('amount','Bill amount PKR','number',r.amount);
+      if(kind==='PROCESSING')fields+=field('ref','Original bill reference','text',r.ref)+field('party','Actual service provider','text',r.party)+field('type','Plant Expense or Milling Expense','text',r.type)+field('amount','Bill amount PKR','number',r.amount)+field('remarks','Details','text',r.remarks||'');
       if(kind==='LABOUR')fields+=field('contractor','Actual Labour Contractor','text',r.contractor||r.party);
       if(kind==='REPROCESSING')fields+=field('rawRemovedKg','Actual raw rice removed kg','number',r.rawRemovedKg||0)+field('rate','Agreed rate per billable kg','number',r.rate)+field('loadingExtra','Loading / labour extras PKR','number',r.loadingExtra||0)+field('other','Other agreed charges PKR','number',r.other||0);
       const history=r._sourceAmendments||[];
@@ -60,6 +61,7 @@
         const kind=kinds[collection],changes={date:val('date')};
         if(kind==='ELECTRICITY')Object.assign(changes,{readFrom:val('readFrom'),readTo:val('readTo'),ref:val('ref').trim(),party:val('party').trim(),units:Number(val('units')),amount:Number(val('amount'))});
         else Object.assign(changes,{from:val('from'),till:val('till')});
+        if(kind==='PROCESSING')Object.assign(changes,{ref:val('ref').trim(),party:val('party').trim(),type:val('type'),amount:Number(val('amount')),remarks:val('remarks').trim()});
         if(kind==='LABOUR')Object.assign(changes,{contractor:val('contractor').trim(),lines:readLines()});
         if(kind==='REPROCESSING'){
           if(!preview){q('[data-message]').textContent='Review the actual arrivals for this period before saving.';return;}
