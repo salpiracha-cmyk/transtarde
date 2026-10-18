@@ -160,7 +160,8 @@
   const mask='__-__-____',slots=[0,1,3,4,6,7,8,9];
   const masked=raw=>{if(/^\d{4}-\d{2}-\d{2}$/.test(raw))raw=display(raw);if(/^[\d_]{2}-[\d_]{2}-[\d_]{4}$/.test(raw))return raw;const digits=raw.replace(/\D/g,'').slice(0,8),out=mask.split('');slots.forEach((at,i)=>out[at]=digits[i]||'_');return out.join('');};
   const validity=()=>{const s=iso(text.value),hasDigits=/\d/.test(text.value);text.setCustomValidity(hasDigits&&!s?'Enter a valid date as DD-MM-YYYY.':!s&&input.required?'Enter a date as DD-MM-YYYY.':s&&input.min&&s<input.min?'Date must be on or after '+display(input.min):s&&input.max&&s>input.max?'Date must be on or before '+display(input.max):'');};
-  const sync=(preserve=false)=>{if(!preserve)text.value=display(value.get.call(input))||mask;text.required=false;text.disabled=input.disabled;text.readOnly=input.readOnly;validity();};linked.set(input,{text,sync});
+  let changeValue=value.get.call(input);
+  const sync=(preserve=false)=>{if(!preserve){text.value=display(value.get.call(input))||mask;changeValue=value.get.call(input);}text.required=false;text.disabled=input.disabled;text.readOnly=input.readOnly;validity();};linked.set(input,{text,sync});
   Object.defineProperty(input,'value',{configurable:true,get(){return value.get.call(this)},set(v){value.set.call(this,v);sync();}});
   const commit=()=>{value.set.call(input,iso(text.value));validity();input.dispatchEvent(new Event('input',{bubbles:true}));};
   text.addEventListener('beforeinput',event=>{if(text.readOnly||text.disabled||event.isComposing)return;const type=event.inputType;if(!type.startsWith('insert')&&!type.startsWith('delete'))return;event.preventDefault();let start=text.selectionStart||0,end=text.selectionEnd||start,out=masked(text.value).split('');
@@ -173,7 +174,10 @@
   });
   text.addEventListener('paste',event=>{if(text.readOnly||text.disabled)return;event.preventDefault();const raw=event.clipboardData?.getData('text')||'';text.value=masked(raw);text.setSelectionRange(10,10);commit();});
   text.addEventListener('input',()=>{text.value=masked(text.value);commit();});
-  let changingText=false;text.addEventListener('change',()=>{changingText=true;try{input.dispatchEvent(new Event('change',{bubbles:true}));}finally{changingText=false;}});input.addEventListener('change',()=>{if(!changingText)sync();});input.addEventListener('invalid',()=>text.focus());sync();
+  // Masked typing/paste sets the value programmatically, so native change may never fire.
+  // Notify once when the user leaves the field; never reload a form during typing.
+  let changingText=false;const changed=()=>{const next=value.get.call(input);if(next===changeValue)return;changeValue=next;changingText=true;try{input.dispatchEvent(new Event('change',{bubbles:true}));}finally{changingText=false;}};
+  text.addEventListener('change',changed);text.addEventListener('blur',changed);input.addEventListener('change',()=>{changeValue=value.get.call(input);if(!changingText)sync();});input.addEventListener('invalid',()=>text.focus());sync();
  }
  function scan(root){if(root.nodeType===1){if(root.matches('input[type=date]'))dateField(root);root.querySelectorAll('input[type=date]').forEach(dateField);}const walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);let n;while(n=walker.nextNode()){if(n.parentElement?.closest('script,style,textarea,input,option,[contenteditable]'))continue;const s=display(n.data);if(s!==n.data)n.data=s;}}
  function start(){scan(document.body);new MutationObserver(records=>{for(const r of records){if(r.type==='attributes'){linked.get(r.target)?.sync(true);continue;}if(r.type==='characterData'){const n=r.target;if(!n.parentElement?.closest('script,style,textarea,input,option,[contenteditable]')){const s=display(n.data);if(s!==n.data)n.data=s;}}else for(const n of r.addedNodes)if(n.nodeType===1)scan(n);else if(n.nodeType===3){const s=display(n.data);if(s!==n.data)n.data=s;}}}).observe(document.body,{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:['disabled','readonly','required','min','max']});document.addEventListener('reset',e=>queueMicrotask(()=>e.target.querySelectorAll('input[type=date]').forEach(x=>linked.get(x)?.sync())));}
