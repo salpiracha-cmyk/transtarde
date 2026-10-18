@@ -2,7 +2,7 @@ const fs=require('fs');
 const assert=require('assert');
 const {JSDOM,VirtualConsole}=require('jsdom');
 let app=fs.readFileSync(__dirname+'/../../exports/app.js','utf8');
-app=app.replace('mount();',`window.__DOM_AUDIT__={state,makeShipment,makeLotRecord,render,openShipment,openContract,openFIAllocation,persistContractStepDraft,saveContract,getContractDraft:()=>contractDraft,setContractStep:value=>contractStep=value,showHome:()=>{contractDraft=null;view='home';render()},contractSpecRows,defaultDocsFor,millLocations,registerMillLocation};mount();`);
+app=app.replace('mount();',`window.__DOM_AUDIT__={openFI:openFIModal,state,makeShipment,makeLotRecord,render,openShipment,openContract,openFIAllocation,persistContractStepDraft,saveContract,getContractDraft:()=>contractDraft,setContractStep:value=>contractStep=value,showHome:()=>{contractDraft=null;view='home';render()},contractSpecRows,defaultDocsFor,millLocations,registerMillLocation};mount();`);
 const css=fs.readFileSync(__dirname+'/../../exports/app.css','utf8');
 const html=`<!doctype html><html><head><style>${css}</style></head><body><div id="app"></div><div id="printRoot"></div></body></html>`;
 const errors=[],vc=new VirtualConsole();vc.on('jsdomError',e=>errors.push(e.message));vc.on('error',e=>errors.push(String(e)));
@@ -12,6 +12,23 @@ const w=dom.window,d=w.document,t=w.__DOM_AUDIT__;
 (async()=>{
 assert.ok(t,'test API is available: '+errors.join(' | '));
 assert.equal(t.state.contracts.length,0,'release must start without dummy contracts');
+const beforeFI=JSON.stringify(t.state.fi);t.openFI();
+const fiType=d.getElementById('mFIType'),lcNo=d.getElementById('mFILC'),lcDate=d.getElementById('mFILCDate'),fiCustomer=d.getElementById('mFICustomer');
+assert.equal(lcNo.closest('.field').hidden,true,'Advance FI must not show L/C-only fields');
+assert.equal(lcDate.closest('.field').hidden,true);
+fiType.value='L/C';fiType.dispatchEvent(new w.Event('change',{bubbles:true}));
+assert.equal(lcNo.closest('.field').hidden,false);assert.equal(lcNo.required,true);
+lcNo.value='LC-RETAINED';lcDate.value='2026-09-20';
+for(const type of ['CAD','TG Unallocated','Advance']){
+ fiType.value=type;fiType.dispatchEvent(new w.Event('change',{bubbles:true}));
+ assert.equal(lcNo.closest('.field').hidden,true,type+' must hide L/C fields');assert.equal(lcNo.required,false);
+ assert.equal(fiCustomer.closest('.field').hidden,type==='TG Unallocated','Only TG unallocated hides the irrelevant customer picker');
+}
+fiType.value='L/C';fiType.dispatchEvent(new w.Event('change',{bubbles:true}));
+assert.equal(lcNo.value,'LC-RETAINED');assert.equal(lcDate.value,'2026-09-20','Switching type preserves entered L/C details');
+d.querySelector('[data-modal-close]').click();assert.equal(JSON.stringify(t.state.fi),beforeFI,'Inspection and Cancel must not save any FI');
+console.log('PASS actual FI form conditional fields, retained L/C facts, TG customer context and cancel without records');
+
 const customer={id:'DOM-C',name:'DOM Buyer',code:'DOM',address:'Dubai',packingDefault:'KG',nextSeq:1};
 t.state.customers.push(customer);
 const contract={id:'DOM-CT',ref:'TTI/DOM/01',seller:'TTI',customerId:customer.id,date:'2026-09-08',product:'IRRI-6 White Rice',broken:5,brokenText:'5%',finish:'Silky Polished & Sortexed',cropYear:'2025/2026',quality:'Free from live insects, bad odour and rice fit for human consumption.',specMode:'Contract Specific',specRows:[{name:'Moisture',value:'14% MAX'}],containers:4,weightPer:27,qty:108,tolerance:5,pol:'Port Qasim',podPort:'Jebel Ali',packingUnit:'KG',currency:'USD',incoterm:'CIF',inspection:'SGS',insurance:"Seller's Account",paymentCode:'LC_SIGHT',docs:t.defaultDocsFor({incoterm:'CIF'}),terms:[],signedDeadline:'2026-09-10',paymentDeadline:'2026-09-12',issued:true,received:true,status:'Contract Received',packings:[{type:'PP Bags',size:25,brand:'DOM BRAND',tare:80,containers:4,weightPer:27,price:400,freight:20,insurance:2,extraBagPct:2,masterBag:{enabled:true,bagsPerMaster:2,qty:2204,tare:120}}]};

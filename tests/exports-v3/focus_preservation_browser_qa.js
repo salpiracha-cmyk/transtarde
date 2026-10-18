@@ -103,6 +103,19 @@ async function check(name,fn){await fn();results.push(name);console.log('PASS '+
    assert.equal(await page.evaluate(()=>modal===document.querySelector('[data-modal]')),true);
    await page.locator('[data-modal-close]').first().click();
   });
+  await check('FI type controls hide inapplicable fields, retain L/C facts and cancel without posting',async()=>{
+   await page.evaluate(()=>{__focusQA.home();__focusQA.openFI();network.posts=[]});
+   assert.equal(await page.locator('#mFILC').isVisible(),false);assert.equal(await page.locator('#mFILCDate').isVisible(),false);
+   await page.locator('#mFIType').selectOption('L/C');assert.equal(await page.locator('#mFILC').isVisible(),true);
+   await page.locator('#mFILC').fill('LC-RETAINED');await page.locator('#mFILCDate').fill('2026-09-20');
+   for(const type of ['CAD','TG Unallocated','Advance']){
+    await page.locator('#mFIType').selectOption(type);assert.equal(await page.locator('#mFILC').isVisible(),false);
+    assert.equal(await page.locator('#mFICustomer').isVisible(),type!=='TG Unallocated');
+    if(type==='TG Unallocated')assert.match(await page.locator('#mFITypeHelp').innerText(),/TG unallocated funds are recorded for/);
+   }
+   await page.locator('#mFIType').selectOption('L/C');assert.equal(await page.locator('#mFILC').inputValue(),'LC-RETAINED');assert.equal(await page.locator('#mFILCDate').inputValue(),'2026-09-20');
+   await page.locator('[data-modal-close]').first().click();assert.equal(await page.evaluate(()=>network.posts.length),0);
+  });
   // Isolate inbound polling from the prior editor tests and their throttle/retry timers.
   const overview=await pageFor();
   await check('Incoming Exports change refreshes lot overview without returning home',async()=>{

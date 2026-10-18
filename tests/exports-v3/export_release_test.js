@@ -102,6 +102,7 @@ assert.ok(!t.CONTAINER_RE.test('MSCU123456'));
 assert.equal(t.unitRate({price:400,freight:30,insurance:2},{incoterm:'FOB'}),400);
 assert.equal(t.unitRate({price:400,freight:30,insurance:2},{incoterm:'CFR'}),430);
 assert.equal(t.unitRate({price:400,freight:30,insurance:2},{incoterm:'CIF'}),432);
+assert.ok(!t.lcSpecificTerms({paymentCode:'LC_SIGHT',paymentDeadline:''}).join(' ').includes('Invalid Date'),'Blank draft L/C deadline needs a clear placeholder');
 const lockedLC=t.lcSpecificTerms({paymentCode:'LC_SIGHT',paymentDeadline:'2026-09-15'}).join('\n');
 assert.match(lockedLC,/IF THE L\/C IS ISSUED BY A BANK WHICH IS NOT A FIRST-CLASS BANK ACCEPTABLE TO THE SELLER/);
 assert.match(lockedLC,/ALL BANK CHARGES OUTSIDE PAKISTAN SHALL BE FOR BUYER’S ACCOUNT\. CONFIRMATION CHARGES, IF ANY, SHALL ALSO BE FOR BUYER’S ACCOUNT\./);
