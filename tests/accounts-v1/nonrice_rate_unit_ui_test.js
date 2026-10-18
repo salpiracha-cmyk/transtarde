@@ -1,0 +1,13 @@
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
+const source=fs.readFileSync('accounts/commodity-calculation-ui.js','utf8'),start=source.indexOf('  function calculateCommodity(){'),end=source.indexOf('  function relabelLegacyBillFields(',start);
+const elements=Object.fromEntries(['#ttCommodityKatCalc','#ttsbFinal','#ttKatResult'].map(id=>[id,{value:'',textContent:'',innerHTML:''}]));
+let soda={rate:100,rateUnit:'KG'},commodity='CORN',moisture=14,refreshed=0;
+const context={q:id=>elements[id],current:()=>({soda,commodity,profile:commodity}),inspection:()=>({karachiWeightKg:1000,otherDeductionKgPer100:0,moisturePct:moisture,damageFungusPct:2,admixturePct:1}),data:{katMaster:{CORN:{rules:{moistureFreePct:14,maundKg:40}},SESAME:{rules:{admixtureFreePct:1,maundKg:40}}}},applyBrokeryPreview:()=>({label:'No brokery',amount:0}),window:{TT_SMART_COMMODITY_BILLS_V2:{refreshTotals:()=>refreshed++}}};
+vm.createContext(context);vm.runInContext(source.slice(start,end),context);
+context.calculateCommodity();assert.equal(elements['#ttsbFinal'].value,'100000.00');assert.match(elements['#ttKatResult'].innerHTML,/per kg/);
+soda={rate:4000,rateUnit:'MAUND'};context.calculateCommodity();assert.equal(elements['#ttsbFinal'].value,'100000.00');assert.match(elements['#ttKatResult'].innerHTML,/per maund/);
+soda={rate:4000};context.calculateCommodity();assert.equal(elements['#ttsbFinal'].value,'100000.00','Legacy MAUND changed');
+soda={rate:100,rateUnit:'KG'};moisture=16;context.calculateCommodity();assert.equal(elements['#ttsbFinal'].value,'98000.00','KAT must apply before selected price unit');
+commodity='SESAME';context.calculateCommodity();assert.equal(elements['#ttsbFinal'].value,'100000.00');
+soda={rate:100,rateUnit:'TON'};const before=refreshed;context.calculateCommodity();assert.equal(elements['#ttsbFinal'].value,'');assert.match(elements['#ttKatResult'].textContent,/Review.*unit/);assert.equal(refreshed,before,'Invalid unit refreshed a guessed total');
+console.log('PASS actual non-Rice preview uses the saved KG/MAUND unit, preserves legacy prices, applies KAT first and refuses an unknown unit');
