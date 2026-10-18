@@ -89,7 +89,7 @@ try {
         static fn($journal): bool =>
             is_array($journal)
             && ($journal['entity'] ?? '') === $entity
-            && ($journal['status'] ?? '') === 'Posted'
+            && alv_posted($journal)
             && is_string($journal['date'] ?? null)
             && $journal['date'] <= $asOf
     ));
