@@ -1,0 +1,34 @@
+name: Read-only original WHT output review
+on:
+  push:
+    branches: [review/wht-original-output-20261018]
+permissions:
+  contents: read
+jobs:
+  original-wht:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: live-qa
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install browser runtime
+        run: |
+          npm install --no-save @playwright/test@1.63.0
+          npx playwright install --with-deps chromium
+      - name: Compare original WHT screen CSV and print without financial writes
+        env:
+          TRANSTRADE_BASE_URL: https://app.transtradeinternational.com
+          TRANSTRADE_QA_USERNAME: ${{ secrets.TRANSTRADE_QA_USERNAME }}
+          TRANSTRADE_QA_PASSWORD: ${{ secrets.TRANSTRADE_QA_PASSWORD }}
+          PLAYWRIGHT_HTML_OPEN: never
+        run: npx playwright test tests/live/accounts-hostinger-qa.spec.js --grep 'WHT period and category' --reporter=line
+      - name: Retain failure evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: original-wht-output-failure
+          path: test-results/
+          retention-days: 7
