@@ -136,7 +136,7 @@ function tt_inv_stock(array $values,array $scope, ?callable $observe=null): arra
     };
     $source=static function(string $key,array $r,int $index,string $kind)use(&$context):void{
         $date=(string)($r['unloadingDate']??$r['arrivalDate']??$r['date']??'');
-        $context=['source'=>$key,'sourceId'=>(string)($r['id']??$r['ref']??$r['slip']??'#'.($index+1)),'date'=>mr_valid_date($date)?$date:'','kind'=>$kind,'basis'=>'Recorded quantity'];
+        $context=['source'=>$key,'sourceId'=>(string)($r['id']??$r['ref']??$r['slip']??'#'.($index+1)),'date'=>mr_valid_date($date)?$date:'','kind'=>$kind,'basis'=>'Recorded quantity','scopeVerified'=>trim((string)($r['entity']??''))!==''&&trim((string)($r['millName']??$r['locationName']??$r['mill']??$r['stockLocation']??''))!==''];
     };
     foreach(tt_inv_rows($values,'tt30slips')as$i=>$r)if(tt_inv_same_scope($scope,$r)){$source('tt30slips',$r,$i,'Arrival');$add((string)($r['displayName']??tt_inv_product($r,(string)($r['productStage']??'RAW'))),(float)($r['payableWeight']??0));}
     foreach(tt_inv_rows($values,'tt30prod')as$i=>$p){if(!tt_inv_same_scope($scope,$p))continue;$source('tt30prod',$p,$i,'Production output');$input=0.;

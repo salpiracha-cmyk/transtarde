@@ -13,6 +13,62 @@ function sp_amount(mixed $value):float {
     if(!is_numeric($value)||!is_finite((float)$value)||abs((float)$value)>1e14)throw new DomainException('Reconcile the original amount.');
     return round((float)$value,2);
 }
+function sp_active_reversals(array $state,array $hidden):array {
+    $out=[];foreach((array)($state['journals']??[]) as $key=>$journal){
+        if(!is_array($journal)||($journal['status']??'')!=='Posted'||isset($hidden[(string)($journal['id']??$key)]))continue;
+        $original=(string)($journal['reversalOf']??$journal['meta']['reversalOf']??'');
+        if($original!=='')$out[(string)($journal['entity']??'').'|'.$original]=true;
+    }return $out;
+}
+function sp_source_post(array $state,string $id,string $entity,string $type,string $ownerField,string $owner,array $hidden,array $activeReversals):array {
+    $j=$state['journals'][$id]??null;
+    if(!is_array($j)||($j['id']??'')!==$id||($j['entity']??'')!==$entity||($j['status']??'')!=='Posted'||isset($hidden[$id])||!empty($j['amendedByPostId'])||!empty($j['reversalOf'])||!empty($j['reversedByPostId'])||!empty($j['meta']['reversedByPostId']))throw new DomainException('Linked Post '.$id.' is unavailable or superseded; reconcile the source.');
+    if(isset($activeReversals[$entity.'|'.$id]))throw new DomainException('The linked posting has an unreconciled reversal.');
+    $source=($j['sourceType']??'')==='POST_AMENDMENT_CORRECTION'?($j['meta']['originalSourceType']??''):($j['sourceType']??'');
+    if($source!==$type||($j['meta'][$ownerField]??'')!==$owner)throw new DomainException('Linked Post '.$id.' does not identify this source.');
+    $dr=0.;$cr=0.;$lines=$j['lines']??null;
+    if(!is_array($lines)||!array_is_list($lines)||count($lines)<2)throw new DomainException('Reconcile the linked posting lines.');
+    foreach($lines as $line){
+        if(!is_array($line)||!is_scalar($line['account']??null)||trim((string)$line['account'])==='')throw new DomainException('Reconcile the linked posting lines.');
+        $debit=sp_amount($line['debit']??0);$credit=sp_amount($line['credit']??0);
+        if($debit<0||$credit<0)throw new DomainException('Reconcile the linked posting lines.');
+        $dr+=$debit;$cr+=$credit;
+    }
+    if($dr<=0||abs($dr-$cr)>.005||(isset($j['totalDebit'])&&abs($dr-sp_amount($j['totalDebit']))>.005)||(isset($j['totalCredit'])&&abs($cr-sp_amount($j['totalCredit']))>.005))throw new DomainException('The linked posting does not balance.');
+    return $j;
+}
+function sp_post_net(array $journal,string $account):float {
+    $net=0.;foreach($journal['lines'] as $line)if((string)$line['account']===$account)$net+=(float)($line['debit']??0)-(float)($line['credit']??0);return round($net,2);
+}
+/** Read accepted revenue/COGS only after validating their posted source identities. */
+function sp_sale_evidence(array $state,array $candidate,string $entity,array $hidden,array $activeReversals):?array {
+    $id=(string)($candidate['id']??'');$saleId=(string)($candidate['journalId']??'');$costId=(string)($candidate['costJournalId']??'');
+    if($id===''||$saleId==='')throw new DomainException('Reconcile missing sale source/Post identities.');
+    foreach([$saleId,$costId] as $postId)if($postId!==''&&!empty($state['journals'][$postId]['amendedByPostId']))throw new DomainException('A linked posting was amended; reconcile the current source amount.');
+    if(isset($hidden[$saleId])){if($costId===''||isset($hidden[$costId]))return null;throw new DomainException('The sale was cancelled but its stock cost remains active.');}
+    if(($candidate['status']??'')!=='Recognized / Posted')throw new DomainException('The sale source is not recognized/posted.');
+    $type=($candidate['candidateType']??'')==='TG_PAKISTAN_INTERCOMPANY'?'TG_INTERCOMPANY_PAKISTAN':'EXPORT_SALE_RECOGNIZED';
+    $sale=sp_source_post($state,$saleId,$entity,$type,'candidateId',$id,$hidden,$activeReversals);
+    $revenue=sp_amount($candidate['functionalAmount']??null);$account=$type==='TG_INTERCOMPANY_PAKISTAN'?'4500':'4200';
+    if($revenue<=0||abs(-sp_post_net($sale,$account)-$revenue)>.005||abs(sp_amount($sale['meta']['functionalAmount']??null)-$revenue)>.005)throw new DomainException('Accepted sale amount does not reconcile to its revenue posting.');
+    if($costId===''){
+        if(isset($candidate['costAmount'])&&sp_amount($candidate['costAmount'])!=0)throw new DomainException('Stock cost has no linked posting.');
+        return ['revenue'=>$revenue,'stockCost'=>null];
+    }
+    $cost=$state['journals'][$costId]??[];$costType=($cost['sourceType']??'')==='POST_AMENDMENT_CORRECTION'?($cost['meta']['originalSourceType']??''):($cost['sourceType']??'');
+    if($entity==='TG'&&$costType==='TG_INTERCOMPANY_PAYABLE_RECOGNIZED'){
+        $linkedId=(string)($candidate['tgPayableCandidateId']??$cost['meta']['candidateId']??'');$linked=$state['exportCandidates'][$linkedId]??null;
+        if(!is_array($linked)||($linked['id']??'')!==$linkedId||($linked['entity']??'')!==$entity||($linked['candidateType']??'')!=='TG_INTERCOMPANY_PAYABLE'||($linked['journalId']??'')!==$costId||($linked['status']??'')!=='Recognized / Posted'||($linked['costAccount']??'')!=='5100'||empty($candidate['sourceKey'])||($linked['sourceKey']??'')!==$candidate['sourceKey'])throw new DomainException('Reconcile the linked TG direct stock-cost source.');
+        $cost=sp_source_post($state,$costId,$entity,$costType,'candidateId',$linkedId,$hidden,$activeReversals);
+        if(abs(sp_amount($linked['functionalAmount']??null)-sp_amount($candidate['costAmount']??null))>.005)throw new DomainException('TG linked cost amounts do not reconcile.');
+    }else{
+        $cost=sp_source_post($state,$costId,$entity,'EXPORT_COGS','exportCandidateId',$id,$hidden,$activeReversals);
+        if(($cost['meta']['saleJournalId']??'')!==$saleId)throw new DomainException('Stock cost does not identify this sale posting.');
+    }
+    $amount=sp_amount($candidate['costAmount']??null);
+    if($amount<=0||abs(sp_post_net($cost,'5100')-$amount)>.005)throw new DomainException('Accepted stock cost does not reconcile to its cost posting.');
+    return ['revenue'=>$revenue,'stockCost'=>$amount];
+}
 /** Reconcile a current bill to all its signed original liability postings, including amendments.
  * Payment/settlement journals do not create another shipment cost.
  */
