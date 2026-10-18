@@ -103,6 +103,20 @@ async function check(name,fn){await fn();results.push(name);console.log('PASS '+
    assert.equal(await page.evaluate(()=>modal===document.querySelector('[data-modal]')),true);
    await page.locator('[data-modal-close]').first().click();
   });
+  await check('Empty draft L/C preview never manufactures an Invalid Date or saves a contract',async()=>{
+   await page.evaluate(()=>{__focusQA.home();network.posts=[]});
+   const count=await page.evaluate(()=>__focusQA.snapshot().state.contracts.length);
+   await page.getByRole('button',{name:'+ NEW SALES CONTRACT',exact:true}).click();
+   await page.locator('[data-step="6"]').click();
+   for(const payment of ['LC_SIGHT','LC_USANCE']){
+    await page.locator('#cPayment').selectOption(payment);
+    await page.waitForFunction(()=>document.getElementById('salesContractPreview')?.innerText.includes('TO BE ADVISED'));
+    // Check after the input-driven preview task and the document-level deadline handler.
+    await page.waitForTimeout(20);
+    assert.equal((await page.locator('#salesContractPreview').innerText()).includes('Invalid Date'),false);
+   }
+   await page.locator('#closeContract').click();assert.equal(await page.evaluate(()=>__focusQA.snapshot().state.contracts.length),count);assert.equal(await page.evaluate(()=>network.posts.length),0);
+  });
   await check('FI type controls hide inapplicable fields, retain L/C facts and cancel without posting',async()=>{
    await page.evaluate(()=>{__focusQA.home();__focusQA.openFI();network.posts=[]});
    assert.equal(await page.locator('#mFILC').isVisible(),false);assert.equal(await page.locator('#mFILCDate').isVisible(),false);

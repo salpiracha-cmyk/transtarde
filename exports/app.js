@@ -6,8 +6,8 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const num=v=>Number(v||0);
 const money=(v,c='USD')=>`${c} ${num(v).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})}`;
 const fmt=d=>{if(!d)return'';const m=String(d).match(/^(\d{4})-(\d{2})-(\d{2})$/);return m?`${m[3]}-${m[2]}-${m[1]}`:d};
-const addDays=(iso,n)=>{const d=new Date(`${iso}T12:00:00`);d.setDate(d.getDate()+n);return d.toLocaleDateString('en-CA')};
-const addBankDays=(iso,n)=>{let d=new Date(`${iso}T12:00:00`),c=0;while(c<n){d.setDate(d.getDate()+1);if(d.getDay()!==0&&d.getDay()!==6)c++}return d.toLocaleDateString('en-CA')};
+const addDays=(iso,n)=>{const d=new Date(`${iso}T12:00:00`);if(!Number.isFinite(d.getTime()))return '';d.setDate(d.getDate()+n);return d.toLocaleDateString('en-CA')};
+const addBankDays=(iso,n)=>{let d=new Date(`${iso}T12:00:00`),c=0;if(!Number.isFinite(d.getTime()))return '';while(c<n){d.setDate(d.getDate()+1);if(d.getDay()!==0&&d.getDay()!==6)c++}return d.toLocaleDateString('en-CA')};
 
 const DEFAULT_QUALITY='Free from live insects, bad odour and rice fit for human consumption.';
 const PAYMENT_LABELS={ADV_SCAN:'Advance + Balance Against Scan Copies',ADV_CAD:'Advance + Balance CAD',ADV100:'100% Advance',LC_SIGHT:'100% Irrevocable L/C at Sight',LC_USANCE:'Usance L/C',CAD100:'100% CAD',CUSTOM:'Custom Payment Terms'};
