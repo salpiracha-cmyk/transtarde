@@ -3,3 +3,6 @@ const source=fs.readFileSync('milling/Transtrade_Master_Milling_V3_3_2_AUDITED.h
 const ctx={TT_COMMODITY_FLOW:flow,STORE_PROD:'prod',STORE_SLIPS:'slips',STORE_LOCALSALES:'local',STORE_EXPORTERSALE:'sale',STORE_SHIP:'ships',STORE_STOCKADJ:'adj',get:(key,fallback)=>data[key]||fallback,stockScopeMatches:row=>row.entity===scope.entity&&row.millId===scope.millId,defaultExporterSales:()=>[],defaultShipments:()=>[]};vm.createContext(ctx);
 for(const name of ['millBaseVariety','millRiceType','millProductIdentity','resolveStockKey','shipmentLoadedWeight','computedStockRows']){const start=source.indexOf('function '+name+'('),end=name==='computedStockRows'?source.indexOf('\nfunction ',start+1):source.indexOf('\n',start);assert.ok(start>=0,name);vm.runInContext(source.slice(start,end),ctx)}
 const rows=ctx.computedStockRows();assert.equal(rows.length,1);assert.equal(rows[0].name,'Yellow Corn');assert.equal(rows[0].kg,72530);console.log('PASS Mill corn stock uses net container weight and no production conversion');
+
+// A direct truck receipt and dispatch of the same net weight leaves no warehouse balance.
+data.slips[0].payableWeight=27470;assert.deepEqual(JSON.parse(JSON.stringify(ctx.computedStockRows())),[]);
