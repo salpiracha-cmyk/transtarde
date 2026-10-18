@@ -10,6 +10,17 @@ $receipt=['id'=>'R1','bagId'=>123,'date'=>'2026-10-01','qty'=>1000];$run=['id'=>
 $values=['tt30bags'=>json_encode([$order]),'tt33bagreceipts'=>json_encode([$receipt]),'tt30prod'=>json_encode([$run]),'tt36bagissues'=>json_encode([$issue])];$original=serialize([$values,$masters]);
 $view=bti_project($values,$masters,$scope,$today,$today);$id='PO|123|mills-1';bi_check($view['lots'][$id]['availableQty']===900,'Actual original PO receipts/production did not reconcile');bi_check($view['unallocatedConsumption']===[],'Unique physical source incorrectly held');
 bi_check(serialize([$values,$masters])===$original,'Inventory read rewrote source data');bi_check(bti_project($values,$masters,$scope,$today,$today)===$view,'Repeated read changed quantities/fingerprint');
+// Historical receipt discrepancies must not become accepted stock merely because
+// the older source predates the immutable quarantine controller.
+foreach(['printingMismatch','materialMismatch','qualityMismatch','tareMismatch'] as $flag){
+    $flagged=$values;$flagged['tt33bagreceipts']=json_encode([array_replace($receipt,[$flag=>true])]);$unchanged=serialize($flagged);
+    $held=bti_project($flagged,$masters,$scope,$today,$today);
+    bi_check($held['lots'][$id]['availableQty']===null&&$held['lots'][$id]['committableQty']===null,'Legacy receipt '.$flag.' became usable packing stock');
+    bi_check($held['lots'][$id]['balanceBeforeUnallocated']===900,'Legacy discrepancy changed original physical arithmetic');
+    $state=[];$dispatch=['entity'=>'TTI','sourceLocationId'=>'mills-1','destinationId'=>'mills-2','date'=>$today,'sourceFingerprint'=>$held['fingerprint'],'requestKey'=>'legacy-discrepancy-'.$flag,'allocations'=>[['lotId'=>$id,'qty'=>1]]];
+    try{bt_dispatch($state,$held,['id'=>'mills-2','name'=>'Indus Rice Mill','status'=>'Active'],$dispatch,['id'=>7],$today.'T10:00:00Z','HELD',static function(){});throw new RuntimeException('Legacy discrepant receipt could be dispatched');}catch(DomainException){}
+    bi_check($state===[]&&serialize($flagged)===$unchanged,'Review or refused dispatch rewrote original receipt/stock facts');
+}
 // Generic PO edits cannot relocate or erase pre-controller physical receipt history.
 foreach(['entity'=>'BRM','locationId'=>'mills-2','mill'=>'Indus Rice Mill','poNo'=>'OTHER','poLineKey'=>'L2','brand'=>'OTHER','size'=>'25 kg','bagType'=>'Jute','supplier'=>'Other supplier','tare'=>'200 g'] as $field=>$saved){
     try{br_guard_write($values,'tt30bags',json_encode([array_replace($order,[$field=>$saved])]));throw new RuntimeException('Legacy physical source '.$field.' changed through generic PO save');}catch(DomainException){}
