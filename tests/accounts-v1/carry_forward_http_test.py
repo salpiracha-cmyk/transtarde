@@ -157,6 +157,15 @@ with tempfile.TemporaryDirectory(prefix='carry-forward-qa-') as tmp:
   tg_receipt={**receipt,'bankAdviceRef':'CF-TG-ADVICE','remitter':'TG','tgBankAccountId':'USD','foreignAmount':900,'grossPkrEquivalent':252000,'pkrBankCredit':252000,'allocations':[{'targetType':'INTERCOMPANY_RECEIVABLE','targetId':tid+'|PAKISTAN','foreignAmount':900,'invoiceRef':'PK-TG','contractRef':'OLD-TG'}]}
   posted=ok(tg_receipt,endpoint='export_receipts.php');assert posted['journal']['totalDebit']==posted['journal']['totalCredit']
   state=json.loads(books.read_text());assert any(x['allocations'][0]['sourceLiabilityId']==tid+'|TG' for x in state['tgRemittanceDrafts'].values()),'Pakistan advice must link its TG counterpart'
+  # The actual registered/settled opening sources are not new sale recognition failures.
+  original_bytes=books.read_bytes();summary=request('shipment_profitability.php')[1]
+  for candidate_id,contract_ref in [(id+'|BUYER','OLD-SHIPMENT'),(tid+'|PAKISTAN','OLD-TG')]:
+   assert not any(candidate_id+':' in hold for hold in summary['sourceHolds']),summary['sourceHolds']
+   historical_row=next(r for r in summary['rows'] if r['contractRef']==contract_ref)
+   assert historical_row['historicalOpeningCount']==1 and historical_row['revenue'] is None and historical_row['stockCost'] is None and historical_row['grossContribution'] is None,historical_row
+  assert books.read_bytes()==original_bytes,'Reporting posted carry-forward sources changed their original books'
+  print('PASS actual carry-forward registration and settlement: historical opening report labels, no false sale holds, no reposted revenue/cost and unchanged source bytes')
+
   assert json.loads(ops.read_text())['values']['transtrade_export_v3_operational']
   root_ops=json.loads(json.loads(ops.read_text())['values']['transtrade_export_v3_operational']);assert root_ops['shipments']==[] and root_ops['inventorySentinel']=={'riceKg':12345}
   # An existing unposted lot/invoice is reused, with one source in normal shipment search.
