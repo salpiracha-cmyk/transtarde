@@ -367,3 +367,8 @@ The whole-application review remains in progress. PR297 mill/bag handoff and PR2
 The current source-readiness probe (39113356547) runs the draft projection against original live records without mutation: 3 bag orders, 0 receipts, 0 production runs, two TTI locations, no ambiguous/held lots and no unallocated consumption. All physical and available quantities remain zero. This resolves the historical-data release concern for the current sources; it does not invent opening stock or certify future unentered receipts.
 
 PR291/297 changes, including discrepancy guard PR306 and return-report PR309, are now integrated with latest main and the deployed backup repair in a separate release candidate. No application merge conflicts occurred; historical branch notes and newer continuation evidence are both retained above. Full hosted integration suites, exact deployment identity and fresh native Chrome acceptance remain required before calling this candidate live. Larger automatic management reports and outside-mill Corn work remain separate.
+
+
+## Current release / Daily continuation checkpoint — 18 October 2026
+
+The integrated bag/Mill candidate was deployed through PR311, followed by permission repairs PR312/313. Current verified production code is2815a6616403306747caabc3ee10561dbdedbe51; its live smoke passed19/19. Earlier draft wording above is historical. PR297 is closed as superseded. Daily source-derived work continues in draft PR314 and is not deployed. See the final section of [RESUMED-2026-10-18.md](RESUMED-2026-10-18.md) for exact deployment/test identities, the retained intermittent Exports startup failure, original-file source proof and remaining work. Whole-application completion remains open.
