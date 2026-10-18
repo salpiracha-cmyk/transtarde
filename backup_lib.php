@@ -482,7 +482,7 @@ function tt_backup_verify_snapshot(string $path, array $expectedInventory): void
         $actual = [];
         foreach ((array)($manifest['recoveryFiles'] ?? []) as $entry) {
             $logical = (string)($entry['path'] ?? '');
-            if ($logical === '') throw new RuntimeException('The server snapshot inventory is invalid.');
+            if (!tt_backup_restore_allowed($logical) || isset($actual[$logical])) throw new RuntimeException('The server snapshot contains an unsupported or repeated recovery path.');
             $digest = $reader->storedDigest('System_Recovery/private/' . $logical);
             if ($digest === false) throw new RuntimeException('The server snapshot is incomplete.');
             if ((int)($entry['size'] ?? -1) !== $digest['size'] || !hash_equals((string)($entry['sha256'] ?? ''), $digest['sha256'])) throw new RuntimeException('A server snapshot entry failed integrity verification.');
@@ -640,7 +640,13 @@ function tt_backup_verify_full(string $path,string $password):array{
     }finally{$zip->close();}
 }
 function tt_backup_atomic_write(string $path,string $data):void{$dir=dirname($path);if(!is_dir($dir)&&!mkdir($dir,0700,true)&&!is_dir($dir))throw new RuntimeException('A recovery folder could not be created.');$tmp=$path.'.restore-'.bin2hex(random_bytes(4));if(file_put_contents($tmp,$data,LOCK_EX)===false)throw new RuntimeException('A recovery file could not be written.');@chmod($tmp,0600);if(!rename($tmp,$path)){@unlink($tmp);throw new RuntimeException('A recovery file could not be replaced.');}}
-function tt_backup_restore_allowed(string $rel):bool{return $rel!==''&&!str_contains($rel,'..')&&!str_starts_with($rel,'/')&&!str_starts_with($rel,'backups/')&&!in_array($rel,['backup_state.json','auth.lock','backup-job.lock','backup-state.lock'],true)&&preg_match('/\.(json|pdf|doc|docx|xls|xlsx|csv|txt|jpg|jpeg|png|webp)$/i',$rel)===1;}
+function tt_backup_restore_allowed(string $rel):bool{
+    if($rel===''||str_contains($rel,'..')||str_contains($rel,'\\')||str_contains($rel,':')||str_contains($rel,"\0")||str_starts_with($rel,'/')||str_starts_with($rel,'backups/')||str_starts_with($rel,'sessions/')||in_array($rel,['backup_state.json','auth.lock','backup-job.lock','backup-state.lock'],true))return false;
+    // Exact private credential names are part of an existing installation's
+    // recovery. Do not broadly allow arbitrary .hash/.sha256 files.
+    if(in_array($rel,['admin-recovery.hash','office-backup-token.sha256'],true))return true;
+    return preg_match('/\.(json|pdf|doc|docx|xls|xlsx|csv|txt|jpg|jpeg|png|webp)$/i',$rel)===1;
+}
 function tt_backup_commit_staged(array $staged):int{
     $authLock=tt_open_store_lock(LOCK_EX);$operationsLock=null;$count=0;
     try{

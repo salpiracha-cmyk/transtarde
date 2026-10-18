@@ -23,6 +23,12 @@ try{
     if(!mkdir(TT_DATA_DIR.'/documents',0700,true)&&!is_dir(TT_DATA_DIR.'/documents'))throw new RuntimeException('Could not create document fixture folder.');
     $payload=str_repeat('Transtrade-stream-test-',140000);
     file_put_contents(TT_DATA_DIR.'/documents/large-fixture.txt',$payload);
+    // Real configured installations retain these exact credential files. They
+    // belong to disaster recovery but must not enable arbitrary hash/file paths.
+    $recoveryHash=password_hash('fixture-offline-recovery-code',PASSWORD_DEFAULT);
+    $officeHash=hash('sha256','fixture-office-token');
+    file_put_contents(TT_DATA_DIR.'/admin-recovery.hash',$recoveryHash);
+    file_put_contents(TT_DATA_DIR.'/office-backup-token.sha256',$officeHash);
 
     $snapshot=tt_create_server_snapshot('manual');
     $path=tt_backup_dir().'/'.$snapshot;
@@ -48,15 +54,28 @@ try{
     backup_expect(str_contains((string)$xlsxZip->get('xl/worksheets/sheet1.xml'),"&apos;=1+1"),'Excel cells must neutralize formulas.');
     $xlsxZip->close();@unlink($xlsx);
     $serverManifest=tt_backup_verified_server_snapshot($snapshot);
+    foreach(['../auth.json','/auth.json','sessions/actor.json','backups/old.json','unrecognised.hash','documents/office-backup-token.sha256','C:/auth.json','folder\\auth.json'] as $unsafe)backup_expect(!tt_backup_restore_allowed($unsafe),'Unsafe/unrecognised recovery path allowed: '.$unsafe);
     backup_expect((int)$serverManifest['recoveryFileCount']>=3,'Super Admin server snapshot verification must check every entry.');
     file_put_contents(TT_DATA_DIR.'/documents/large-fixture.txt','changed after snapshot');
+    file_put_contents(TT_DATA_DIR.'/admin-recovery.hash','changed');
+    file_put_contents(TT_DATA_DIR.'/office-backup-token.sha256','changed');
     $restoredResult=tt_restore_server_snapshot($snapshot);
     backup_expect(file_get_contents(TT_DATA_DIR.'/documents/large-fixture.txt')===$payload&&$restoredResult['restoredFiles']>=3,'Verified server snapshot must restore stored documents.');
     backup_expect(is_file(tt_backup_dir().'/'.$restoredResult['safetySnapshot']),'Restore must preserve a safety snapshot.');
+    backup_expect(file_get_contents(TT_DATA_DIR.'/admin-recovery.hash')===$recoveryHash&&file_get_contents(TT_DATA_DIR.'/office-backup-token.sha256')===$officeHash,'Server restore lost configured recovery credentials.');
     $full=tt_build_download_backup(true,'test-backup-password-2026');
+    file_put_contents(TT_DATA_DIR.'/admin-recovery.hash','changed');
+    file_put_contents(TT_DATA_DIR.'/office-backup-token.sha256','changed');
     $fullResult=tt_restore_complete_backup($full['path'],'test-backup-password-2026');
     backup_expect($fullResult['restoredFiles']>=3&&file_get_contents(TT_DATA_DIR.'/documents/large-fixture.txt')===$payload,'Chunk-encrypted complete backup must restore documents.');
+    backup_expect(file_get_contents(TT_DATA_DIR.'/admin-recovery.hash')===$recoveryHash&&file_get_contents(TT_DATA_DIR.'/office-backup-token.sha256')===$officeHash,'Complete recovery silently skipped its configured recovery credentials.');
     @unlink($full['path']);
+
+    file_put_contents(TT_DATA_DIR.'/documents/unrecognised.hash','fixture-only');
+    $unsupported=false;
+    try{tt_create_server_snapshot('manual');}catch(RuntimeException){$unsupported=true;}
+    backup_expect($unsupported,'Snapshot creation must not certify an inventory its restore validator rejects.');
+    unlink(TT_DATA_DIR.'/documents/unrecognised.hash');
 
     file_put_contents(TT_DATA_DIR.'/operations.json','{"revision":');
     $failed=false;
