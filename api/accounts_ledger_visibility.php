@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+function alv_posted(array $journal):bool {return ($journal['status']??'')==='Posted'||(($journal['status']??'')==='Posted / Bill Pending'&&($journal['sourceType']??'')==='EX_MILL_PURCHASE_LIABILITY');}
+
 /** Read-only cancellation projection. Never removes or changes audit journals.
  * A later reversal does not suppress the original on an earlier as-of date.
  * Only complete, same-entity, opposite accounting legs are suppressed together.
@@ -10,11 +12,11 @@ function alv_hidden(array $store, string $asOf = ''): array {
     foreach($journals as $id=>$j)if(is_array($j)&&!empty($j['meta']['deletedFromBooks']))$hidden[(string)($j['id']??$id)]=true;
     uasort($journals,static fn($a,$b)=>strcmp((string)($b['date']??''),(string)($a['date']??''))?:strnatcmp((string)($b['id']??''),(string)($a['id']??'')));
     foreach($journals as $id=>$j) {
-        if(!is_array($j)||($j['status']??'')!=='Posted')continue;
+        if(!is_array($j)||!alv_posted($j))continue;
         $originalId=(string)($j['reversalOf']??$j['meta']['reversalOf']??'');
         $original=$journals[$originalId]??null;
         if(isset($hidden[(string)($j['id']??$id)])||isset($hidden[$originalId]))continue;
-        if($originalId===''||!is_array($original)||($original['status']??'')!=='Posted'
+        if($originalId===''||!is_array($original)||!alv_posted($original)
             ||($original['entity']??'')!==($j['entity']??'')
             ||($asOf!==''&&(($j['date']??'')>$asOf||($original['date']??'')>$asOf)))continue;
         $legs=[];

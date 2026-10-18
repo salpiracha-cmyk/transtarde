@@ -51,6 +51,13 @@ with tempfile.TemporaryDirectory(prefix='tti-outside-corn-') as directory:
  first_journal=posted['journal'];before=books.read_bytes();status,replay=request('milling_purchase_sodas.php',lifting);assert status==200 and replay['replayed'] and books.read_bytes()==before,(status,replay)
  status,alias=request('milling_purchase_sodas.php',{**lifting,'sourceSodaId':soda['sodaNo']});assert status==200 and alias['replayed'] and books.read_bytes()==before,(status,alias)
  changed={**lifting,'kg':24960,'weighbridgeKg':24990};status,data=request('milling_purchase_sodas.php',changed);assert status==409 and books.read_bytes()==before,(status,data)
+ # Explicit Corn correction uses the same issued allocation and retains the original journal.
+ corn_before=books.read_bytes();corn_correction={**lifting,'kg':24960,'weighbridgeKg':24990,'expectedJournalId':first_journal['id'],'correctionReason':'Correct the original Corn weighbridge reading'}
+ status,preview=request('milling_purchase_sodas.php',{**corn_correction,'preview':True});assert status==200 and len(preview['previews'])==2 and books.read_bytes()==corn_before,(status,preview)
+ status,corn_fixed=request('milling_purchase_sodas.php',corn_correction);assert status==200 and corn_fixed['journal']['totalDebit']==2496000,(status,corn_fixed)
+ assert json.loads(books.read_text())['journals'][first_journal['id']]==first_journal
+ corrected_bytes=books.read_bytes();status,replay=request('milling_purchase_sodas.php',corn_correction);assert status==200 and replay['replayed'] and books.read_bytes()==corrected_bytes,(status,replay)
+ books.write_bytes(corn_before)
  second={**lifting,'liftingId':'CN-TGHU6543210','container':'TGHU6543210','truck':'KHI-456'};status,posted2=request('milling_purchase_sodas.php',second);assert status==200,(status,posted2)
  third={**lifting,'liftingId':'CN-CMAU5555555','container':'CMAU5555555'};before=books.read_bytes();status,data=request('milling_purchase_sodas.php',third);assert status==422 and books.read_bytes()==before,(status,data)
  # The real shared-save endpoint accepts complete loose bulk and rejects inconsistent weights.

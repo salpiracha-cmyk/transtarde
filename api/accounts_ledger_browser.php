@@ -108,10 +108,10 @@ $expenseActivity=($category==='party'||$homeLedger)&&$serviceGroup===''?sac_expe
 foreach($expenseActivity as $activity){if($activity['recipient']!=='')$parties[$activity['recipient']]=true;if(($activity['expenseFor']??'SHARED')!=='SHARED')$parties[$activity['expenseForName']]=true;}
 $requestedPost=trim((string)($_GET['postId']??''));
 if($requestedPost!==''){
-    $posting=$store['journals'][$requestedPost]??null;$seen=[];while(is_array($posting)&&!empty($posting['amendedByPostId'])&&!isset($seen[$posting['id']])){$seen[$posting['id']]=true;$next=$store['journals'][$posting['amendedByPostId']]??null;if(!is_array($next))break;$posting=$next;}if(is_array($posting)){$posting['publicPostId']=tt_accounts_public_post($store,$posting);$posting['amendmentNote']=tt_accounts_amendment_note($posting,$store);}
-    if(!is_array($posting)||($posting['status']??'')!=='Posted'||($entity!=='ALL'&&($posting['entity']??'')!==$entity)||!tt_user_can_access_entity($user,(string)($posting['entity']??''),'View'))$posting=null;
+    $posting=$store['journals'][$requestedPost]??null;$seen=[];while(is_array($posting)&&(!empty($posting['amendedByPostId'])||!empty($store['exMillPostReplacements'][$posting['id']]))&&!isset($seen[$posting['id']])){$seen[$posting['id']]=true;$next=$store['journals'][$posting['amendedByPostId']??$store['exMillPostReplacements'][$posting['id']]]??null;if(!is_array($next))break;$posting=$next;}if(is_array($posting)){$posting['publicPostId']=tt_accounts_public_post($store,$posting);$posting['amendmentNote']=tt_accounts_amendment_note($posting,$store);}
+    if(!is_array($posting)||!alv_posted($posting)||($entity!=='ALL'&&($posting['entity']??'')!==$entity)||!tt_user_can_access_entity($user,(string)($posting['entity']??''),'View'))$posting=null;
     if(!$posting)alb_fail('Post ID was not found in these company books.',404);
-    $posting['canEdit']=function_exists('tt_post_correction_allowed')&&tt_post_correction_allowed($user,$posting)&&tt_user_can_access_entity($user,(string)$posting['entity'],'Edit');
+    $posting['canEdit']=!in_array($posting['sourceType']??'',['EX_MILL_PURCHASE_LIABILITY','EX_MILL_LIFTING_REVERSAL'],true)&&function_exists('tt_post_correction_allowed')&&tt_post_correction_allowed($user,$posting)&&tt_user_can_access_entity($user,(string)$posting['entity'],'Edit');
     $posting['fiTagText']=tt_fi_advice_label((array)($posting['fiTag']??[]));
     $receipt=(array)($store['exportReceipts'][(string)($posting['meta']['receiptId']??'')]??[]);
     if($receipt){$posting['receiptAmendment']=['status'=>$receipt['status']??'','entity'=>$receipt['entity']??'','replacementReceiptId'=>$receipt['replacementReceiptId']??'','amendmentOf'=>$receipt['amendmentOf']??'','reversalPostIds'=>$receipt['reversalPostIds']??[]];}
@@ -128,7 +128,7 @@ if($requestedPost!==''){
     echo json_encode(['ok'=>true,'entity'=>$posting['entity'],'post'=>$posting,'bankAccounts'=>$postBanks],JSON_UNESCAPED_UNICODE);exit;
 }
 $ledgerHidden=alv_hidden($store,$postEntries?'':$to);
-$journals=array_values(array_filter((array)($store['journals']??[]),static fn($j)=>is_array($j)&&($entity==='ALL'?tt_user_can_access_entity($user,(string)($j['entity']??''),'View'):($j['entity']??'')===$entity)&&($registerEntity===''||($j['entity']??'')===$registerEntity)&&($j['status']??'')==='Posted'&&($j['date']??'')<=$to));
+$journals=array_values(array_filter((array)($store['journals']??[]),static fn($j)=>is_array($j)&&($entity==='ALL'?tt_user_can_access_entity($user,(string)($j['entity']??''),'View'):($j['entity']??'')===$entity)&&($registerEntity===''||($j['entity']??'')===$registerEntity)&&alv_posted($j)&&($j['date']??'')<=$to));
 foreach($journals as $journal)foreach((array)($journal['lines']??[]) as $line)if(is_array($line)&&isset($line['account'])){
     $code=(string)$line['account'];if(!isset($catalog[$code]))$catalog[$code]=(string)($line['accountName']??$code);
 }

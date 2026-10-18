@@ -2,6 +2,10 @@
 declare(strict_types=1);
 require __DIR__.'/../../api/accounts_ledger_visibility.php';
 function check(bool $test,string $message):void {if(!$test)throw new RuntimeException($message);}
+check(alv_posted(['status'=>'Posted']),'Ordinary posted journals remain in the books');
+check(alv_posted(['status'=>'Posted / Bill Pending','sourceType'=>'EX_MILL_PURCHASE_LIABILITY']),'Legacy posted Ex-Mill receipts remain in the books before billing');
+foreach(['Draft','Pending Approval','Pending','Reversed'] as $status)check(!alv_posted(['status'=>$status,'sourceType'=>'EX_MILL_PURCHASE_LIABILITY']),'Unposted or reversed receipts must remain excluded');
+check(!alv_posted(['status'=>'Posted / Bill Pending','sourceType'=>'OTHER_PURCHASE']),'The legacy status exception must not admit unrelated pending sources');
 function journal(string $id,string $date,array $lines,?string $reversal=null,string $entity='TTI'):array {return ['id'=>$id,'date'=>$date,'entity'=>$entity,'status'=>'Posted','lines'=>$lines,'reversalOf'=>$reversal];}
 $lines=[['account'=>'2110','supplier'=>'MAPCO','debit'=>100,'credit'=>0],['account'=>'1110','bankAccountId'=>'BANK1','debit'=>0,'credit'=>100]];
 $reverse=array_map(static fn($l)=>array_replace($l,['debit'=>$l['credit'],'credit'=>$l['debit']]),$lines);
