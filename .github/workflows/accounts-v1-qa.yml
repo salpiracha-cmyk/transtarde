@@ -312,11 +312,12 @@ jobs:
           php tests/accounts-v1/freight_metadata_test.php
           python3 tests/security/mill_cash_authorization_test.py
           TT_MSA_TEST_MYSQL=1 python3 tests/accounts-v1/mill_source_amend_endpoint_test.py
+          # The later inventory HTTP fixture drops this disposable database in cleanup.
+          php tests/accounts-v1/group_daily_mysql_test.php
           TT_BAG_TEST_MYSQL=1 python3 tests/accounts-v1/bag_transfer_endpoint_test.py
           TT_BAG_TEST_MYSQL=1 python3 tests/accounts-v1/bag_receipt_endpoint_test.py
           python3 tests/security/export_document_permissions_test.py
           "$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/inventory_reconciliation_http_test.py
-          php tests/accounts-v1/group_daily_mysql_test.php
           "$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/mill_source_handoff_browser_test.py
           "$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/group_daily_browser_test.py
       - name: Ready rice bill browser and HTTP flow
