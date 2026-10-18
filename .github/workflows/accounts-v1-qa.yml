@@ -239,6 +239,7 @@ jobs:
           node tests/accounts-v1/mill_permission_reference_test.js
           node tests/accounts-v1/rice_ledger_ui_test.js
           node tests/accounts-v1/mill_report_entry_scope_test.js
+          node tests/accounts-v1/mill_reference_scope_test.js
           node tests/accounts-v1/mill_bag_ledger_scope_test.js
           node tests/accounts-v1/mill_bag_identity_read_test.js
           node tests/accounts-v1/used_bag_scope_test.js
