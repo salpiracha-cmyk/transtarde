@@ -21,9 +21,13 @@ context.globalThis=context;
 let source=fs.readFileSync(__dirname+'/../../exports/app.js','utf8');
 const mutableExportOverrides=source.split('\n').filter(line=>/^[A-Za-z_$][\w$]*\s*=\s*function\s*\(/.test(line)).map(line=>line.match(/^([A-Za-z_$][\w$]*)/)[1]);
 assert.deepEqual(mutableExportOverrides,[],'Export module must not contain mutable function override assignments');
-source=source.replace('mount();','window.__EXPORT_TEST__={parseContractText,parseLCText,paymentText,lcSpecificTerms,effectiveTerms,documentsPresented,inspectionDocumentName,packingPrefix,unitRate,makeShipment,salesContractPrint,purchaseOrderPrint,commercialInvoiceDoc,tgInternalCommercialInvoiceDoc,packingListDoc,phytoInvoiceDoc,blDraftDoc,coveringDoc,lcControlDoc,lcDraftDoc,actualRows,millActualsComplete,fiGdRows,applyProductMaster,productLabel,productMasters,qualityDescription,contractSpecRows,currentCropYear,millLocations,brokenEntry,normalizeBrokenEntry,brokenEntryValid,finishChoices,DEFAULT_QUALITY,CONTAINER_RE,state};\nmount();');
+source=source.replace('mount();','window.__EXPORT_TEST__={addDays,addBankDays,parseContractText,parseLCText,paymentText,lcSpecificTerms,effectiveTerms,documentsPresented,inspectionDocumentName,packingPrefix,unitRate,makeShipment,salesContractPrint,purchaseOrderPrint,commercialInvoiceDoc,tgInternalCommercialInvoiceDoc,packingListDoc,phytoInvoiceDoc,blDraftDoc,coveringDoc,lcControlDoc,lcDraftDoc,actualRows,millActualsComplete,fiGdRows,applyProductMaster,productLabel,productMasters,qualityDescription,contractSpecRows,currentCropYear,millLocations,brokenEntry,normalizeBrokenEntry,brokenEntryValid,finishChoices,DEFAULT_QUALITY,CONTAINER_RE,state};\nmount();');
 vm.runInNewContext(source,context,{filename:'app.js'});
 const t=window.__EXPORT_TEST__;
+assert.equal(t.addDays('',2),'','Blank contract date must not produce an invalid deadline');
+assert.equal(t.addBankDays('',5),'','Blank contract date must not produce an invalid bank deadline');
+assert.equal(t.addBankDays('2026-09-18',1),'2026-09-21','Existing weekend calculation stays unchanged');
+assert.equal(t.addDays('2026-09-18',2),'2026-09-20');
 
 assert.match(elements.get('app').innerHTML,/TRANSTRADE EXPORTS/);
 assert.ok(elements.has('main')&&elements.has('nav')&&elements.has('logoutTop'));

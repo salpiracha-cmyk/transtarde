@@ -1,0 +1,20 @@
+'use strict';
+const fs=require('node:fs'),assert=require('node:assert/strict'),{JSDOM}=require('jsdom');
+const source=fs.readFileSync('milling/Transtrade_Master_Milling_V3_3_2_AUDITED.html','utf8');
+const dom=new JSDOM(source,{url:'https://mill.qa.invalid/',runScripts:'outside-only'}),w=dom.window,d=w.document;
+const fn=name=>source.split('\n').find(line=>line.startsWith('function '+name+'('));
+let records=[],writes=0;
+w.exporterSalesData=()=>records;w.set=(key,value)=>{records=value;writes++};
+w.today=()=>'2026-10-18';w.renderSavedExporterSales=()=>{};w.showNonBlockingMessage=()=>{};w.alert=message=>{throw Error(message)};
+w.STORE_EXPORTERSALE='fixture';w.exporterContainers=[];w.currentExporterSale='';
+for(const name of ['toggleExporterBroker','saleType','saveExporterSale'])if(fn(name))w.eval(fn(name));
+const through=d.getElementById('exThrough'),broker=d.getElementById('exBroker');
+if(through.getAttribute('onchange'))through.onchange=new w.Function(through.getAttribute('onchange'));
+w.saleType('exporter');assert.equal(broker.parentElement.hidden,true,'Direct sale must hide the unused broker field');assert.equal(writes,0);
+through.value='Broker';through.dispatchEvent(new w.Event('change'));assert.equal(broker.parentElement.hidden,false);
+broker.value='Existing draft broker';through.value='Direct';through.dispatchEvent(new w.Event('change'));assert.equal(broker.parentElement.hidden,true);assert.equal(broker.value,'Existing draft broker');
+through.value='Broker';through.dispatchEvent(new w.Event('change'));assert.equal(broker.value,'Existing draft broker');assert.equal(writes,0,'Changing a choice must not save');
+function enter(){d.getElementById('exBuyer').value='Fixture Buyer';d.getElementById('exBrand').value='FIXTURE';d.getElementById('exSaleQty').value='1000';d.getElementById('exRate').value='10';}
+enter();w.saveExporterSale();assert.equal(records[0].broker,'Existing draft broker');assert.equal(records[0].through,'Broker');assert.equal(broker.parentElement.hidden,true,'Reset after Save returns to Direct');
+const original=JSON.stringify(records[0]);enter();broker.value='Hidden stale draft';w.saveExporterSale();assert.equal(records[0].through,'Direct');assert.equal(records[0].broker,'','A new Direct sale must ignore stale hidden broker text');assert.equal(JSON.stringify(records[1]),original,'An earlier saved sale must not be rewritten');
+assert.equal(writes,2);dom.window.close();console.log('Milling exporter sale: Direct/Broker visibility, draft retention, no change autosave, clean new Direct record and preserved historical sale passed');
