@@ -45,3 +45,49 @@ document replacement or live restore was performed. The Security Scan skill's
 required `references/scan-prologue.md` resource cannot be read, and no scan
 preflight tools are exposed. Its required ready preflight did not run; no formal
 security clearance is claimed.
+
+## Released corrections and current acceptance boundary
+
+PR332 merged as `2d7d592993db76da94576c58ab758a2de3eb25a0`. Full feature
+Accounts39147165296/Milling39147165275 and exact-main
+Accounts39147502603/Milling39147502622 passed. Production39147696184 and
+read-only startup39147883454 passed. This is the unchanged-lifting replay fix
+above, not a completed redesign of lifting amendments or outside-mill Corn.
+
+PR333 merged as `d200630ad8bea120b4dc3b89e8104564fb28fed4`. Both Corn and
+Sesame bills now honor the saved KG, MAUND or MT rate after KAT. An actual-auth
+disposable request reproduced 1,000 kg at Rs100/kg being calculated as Rs2,500;
+it now calculates Rs100,000. Legacy records with no unit retain MAUND behavior;
+explicit unsupported units are held. No historical bill or agreed Soda price
+is rewritten. The matching numeric preview and authenticated endpoint checks
+are in Accounts CI. See `NONRICE-PRICE-UNIT-2026-10-18.md` for scope.
+
+The final PR333 head `ce617f4b69bc7aa76eb7a35a9ce83edb13338e55` passed full
+Accounts39147826479 and Milling39147826474. An obsolete static assertion that
+required every bill to use maunds was replaced with the new actual numeric
+unit tests; KAT architecture coverage remains. Exact-main
+Accounts39148217137 (inventory117736331195/audit117736331376) and
+Milling39148217115 (audit117736331145) passed. Production39148487334 /
+job117737117581 deployed the exact merge SHA and confirmed a healthy login,
+changedUserCount0 and journal-ID migration changeCount0. Final read-only
+startup39148541769 passed. Authenticated read-only live smoke39148541819 /
+job117737343492 passed20/20, with10bank comparisons,50active account ledgers
+across3company reports,0concurrent-revision skips and0financialwrites. The
+production recovery checks saw0source runs, so positive recovery/source cases
+remain unproved by that live pass.
+The earlier live smoke39147883583 was cancelled automatically by the newer
+deployment; it is not claimed as a pass.
+
+The existing separate Maize labour flow from PR318 remains in the combined
+tree and CI: direct container loading; warehouse unloading plus bulk container
+loading; or warehouse unloading, 25/50 kg paltai and separate container loading.
+Rates remain explicit and initially blank; extra work is additions only. Rice
+labour quantities and rates are not reused. These checks do not certify the
+separate outside-mill Corn purchase/loading route.
+
+No live test stock, supplier bill, payment, approval, original issued document
+replacement, role grant or restore was performed during this continuation.
+Production automated browser checks are authenticated and read-only; positive
+financial cases run only in disposable test stores/databases. Local Mac Chrome
+control remains unavailable in this turn. The broader gates listed above are
+still open; there is no whole-application acceptance or formal security sign-off.
