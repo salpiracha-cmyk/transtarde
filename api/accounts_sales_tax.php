@@ -2,6 +2,7 @@
 declare(strict_types=1);
 require dirname(__DIR__).'/auth_store.php';
 require_once __DIR__.'/accounts_sales_tax_core.php';
+require_once __DIR__.'/shipment_archive_core.php';
 header('Content-Type: application/json; charset=UTF-8');
 header('Cache-Control: no-store, no-cache, must-revalidate');
 const AST_OPS_KEY='transtrade_export_v3_operational';
@@ -23,7 +24,7 @@ function ast_root():array {
 function ast_accounts():array {return ast_read_json(TT_DATA_DIR.'/accounts.json',true);}
 function ast_documents():array {
  $db=ast_db();$rows=$db?$db->query('SELECT id,contract_ref,lot_ref,category,original_name,mime_type,file_size,uploaded_at FROM tt_export_documents WHERE deleted_at IS NULL ORDER BY uploaded_at DESC')->fetchAll():ast_read_json(TT_DATA_DIR.'/export_documents/index.json');
- $out=[];foreach($rows as $r){if(!is_array($r))throw new RuntimeException('Invalid document index.');if(!empty($r['deleted_at']))continue;$out[]=['id'=>(string)($r['id']??''),'contractRef'=>(string)($r['contract_ref']??''),'lotRef'=>(string)($r['lot_ref']??''),'category'=>(string)($r['category']??''),'name'=>(string)($r['original_name']??'Document'),'mime'=>(string)($r['mime_type']??''),'size'=>(int)($r['file_size']??0),'uploadedAt'=>(string)($r['uploaded_at']??''),'downloadUrl'=>'/api/export_documents.php?id='.(string)($r['id']??'')];}return $out;
+ $out=[];foreach($rows as $r){if(!is_array($r))throw new RuntimeException('Invalid document index.');if(!empty($r['deleted_at']))continue;$out[]=['id'=>(string)($r['id']??''),'contractRef'=>(string)($r['contract_ref']??''),'lotRef'=>(string)($r['lot_ref']??''),'category'=>(string)($r['category']??''),'name'=>(string)($r['original_name']??'Document'),'mime'=>(string)($r['mime_type']??''),'size'=>(int)($r['file_size']??0),'uploadedAt'=>(string)($r['uploaded_at']??''),'downloadUrl'=>'/api/export_documents.php?id='.(string)($r['id']??'')];}return array_merge($out,sa_documents(TT_DATA_DIR.'/office_agent_jobs'));
 }
 function ast_date(string $v):string{if($v===''||ast_valid_date($v))return$v;ast_out(['ok'=>false,'error'=>'Use a valid date range.'],422);}
 
