@@ -642,9 +642,10 @@ function tt_backup_verify_full(string $path,string $password):array{
 function tt_backup_atomic_write(string $path,string $data):void{$dir=dirname($path);if(!is_dir($dir)&&!mkdir($dir,0700,true)&&!is_dir($dir))throw new RuntimeException('A recovery folder could not be created.');$tmp=$path.'.restore-'.bin2hex(random_bytes(4));if(file_put_contents($tmp,$data,LOCK_EX)===false)throw new RuntimeException('A recovery file could not be written.');@chmod($tmp,0600);if(!rename($tmp,$path)){@unlink($tmp);throw new RuntimeException('A recovery file could not be replaced.');}}
 function tt_backup_restore_allowed(string $rel):bool{
     if($rel===''||str_contains($rel,'..')||str_contains($rel,'\\')||str_contains($rel,':')||str_contains($rel,"\0")||str_starts_with($rel,'/')||str_starts_with($rel,'backups/')||str_starts_with($rel,'sessions/')||in_array($rel,['backup_state.json','auth.lock','backup-job.lock','backup-state.lock'],true))return false;
-    // Exact private credential names are part of an existing installation's
-    // recovery. Do not broadly allow arbitrary .hash/.sha256 files.
-    if(in_array($rel,['admin-recovery.hash','office-backup-token.sha256'],true))return true;
+    // Exact current/legacy credential files belong to existing installations.
+    // Office job ZIPs restore as opaque bytes; nothing extracts or executes them.
+    if(in_array($rel,['admin-recovery.hash','office-backup-token.sha256','gemini.key'],true))return true;
+    if(str_starts_with($rel,'office_agent_jobs/')&&preg_match('/\.zip$/i',$rel)===1)return true;
     return preg_match('/\.(json|pdf|doc|docx|xls|xlsx|csv|txt|jpg|jpeg|png|webp)$/i',$rel)===1;
 }
 function tt_backup_commit_staged(array $staged):int{

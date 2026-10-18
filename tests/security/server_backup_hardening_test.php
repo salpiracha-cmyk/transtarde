@@ -29,6 +29,11 @@ try{
     $officeHash=hash('sha256','fixture-office-token');
     file_put_contents(TT_DATA_DIR.'/admin-recovery.hash',$recoveryHash);
     file_put_contents(TT_DATA_DIR.'/office-backup-token.sha256',$officeHash);
+    $legacyAI='fixture-legacy-document-reader-key';
+    file_put_contents(TT_DATA_DIR.'/gemini.key',$legacyAI);
+    mkdir(TT_DATA_DIR.'/office_agent_jobs/0123456789abcdef0123456789abcdef',0700,true);
+    $jobPath=TT_DATA_DIR.'/office_agent_jobs/0123456789abcdef0123456789abcdef/package.zip';
+    $jobBytes='fixture-archived-office-package';file_put_contents($jobPath,$jobBytes);
 
     $snapshot=tt_create_server_snapshot('manual');
     $path=tt_backup_dir().'/'.$snapshot;
@@ -54,21 +59,25 @@ try{
     backup_expect(str_contains((string)$xlsxZip->get('xl/worksheets/sheet1.xml'),"&apos;=1+1"),'Excel cells must neutralize formulas.');
     $xlsxZip->close();@unlink($xlsx);
     $serverManifest=tt_backup_verified_server_snapshot($snapshot);
-    foreach(['../auth.json','/auth.json','sessions/actor.json','backups/old.json','unrecognised.hash','documents/office-backup-token.sha256','C:/auth.json','folder\\auth.json'] as $unsafe)backup_expect(!tt_backup_restore_allowed($unsafe),'Unsafe/unrecognised recovery path allowed: '.$unsafe);
+    foreach(['../auth.json','/auth.json','sessions/actor.json','backups/old.json','unrecognised.hash','unrecognised.key','documents/gemini.key','documents/office-backup-token.sha256','documents/archive.zip','office_agent_jobs/../archive.zip','office_agent_jobs/code.php','C:/auth.json','folder\\auth.json'] as $unsafe)backup_expect(!tt_backup_restore_allowed($unsafe),'Unsafe/unrecognised recovery path allowed: '.$unsafe);
     backup_expect((int)$serverManifest['recoveryFileCount']>=3,'Super Admin server snapshot verification must check every entry.');
     file_put_contents(TT_DATA_DIR.'/documents/large-fixture.txt','changed after snapshot');
     file_put_contents(TT_DATA_DIR.'/admin-recovery.hash','changed');
     file_put_contents(TT_DATA_DIR.'/office-backup-token.sha256','changed');
+    file_put_contents(TT_DATA_DIR.'/gemini.key','changed');file_put_contents($jobPath,'changed');
     $restoredResult=tt_restore_server_snapshot($snapshot);
     backup_expect(file_get_contents(TT_DATA_DIR.'/documents/large-fixture.txt')===$payload&&$restoredResult['restoredFiles']>=3,'Verified server snapshot must restore stored documents.');
     backup_expect(is_file(tt_backup_dir().'/'.$restoredResult['safetySnapshot']),'Restore must preserve a safety snapshot.');
     backup_expect(file_get_contents(TT_DATA_DIR.'/admin-recovery.hash')===$recoveryHash&&file_get_contents(TT_DATA_DIR.'/office-backup-token.sha256')===$officeHash,'Server restore lost configured recovery credentials.');
+    backup_expect(file_get_contents(TT_DATA_DIR.'/gemini.key')===$legacyAI&&file_get_contents($jobPath)===$jobBytes,'Server restore lost its legacy reader key or archived Office job.');
     $full=tt_build_download_backup(true,'test-backup-password-2026');
     file_put_contents(TT_DATA_DIR.'/admin-recovery.hash','changed');
     file_put_contents(TT_DATA_DIR.'/office-backup-token.sha256','changed');
+    file_put_contents(TT_DATA_DIR.'/gemini.key','changed');file_put_contents($jobPath,'changed');
     $fullResult=tt_restore_complete_backup($full['path'],'test-backup-password-2026');
     backup_expect($fullResult['restoredFiles']>=3&&file_get_contents(TT_DATA_DIR.'/documents/large-fixture.txt')===$payload,'Chunk-encrypted complete backup must restore documents.');
     backup_expect(file_get_contents(TT_DATA_DIR.'/admin-recovery.hash')===$recoveryHash&&file_get_contents(TT_DATA_DIR.'/office-backup-token.sha256')===$officeHash,'Complete recovery silently skipped its configured recovery credentials.');
+    backup_expect(file_get_contents(TT_DATA_DIR.'/gemini.key')===$legacyAI&&file_get_contents($jobPath)===$jobBytes,'Complete recovery lost its legacy reader key or archived Office job.');
     @unlink($full['path']);
 
     file_put_contents(TT_DATA_DIR.'/documents/unrecognised.hash','fixture-only');
