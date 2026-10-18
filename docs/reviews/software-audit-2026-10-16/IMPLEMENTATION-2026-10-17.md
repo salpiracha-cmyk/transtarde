@@ -288,3 +288,10 @@ Local shell, alternate filesystem runtime, Chrome and mandatory security skill
 reference reads remain disconnected. No security scan was started; its required
 preflight never returned ready. Preserve the open full-review/migration gates and
 resume without asking for the authorised date or repeating the test-arrival cleanup.
+
+
+## Review resumed with connected Mac Chrome — 18 October 2026
+
+Read [RESUMED-2026-10-18.md](RESUMED-2026-10-18.md) for the current continuation evidence. It records deployed backup fixes PR307/308, successful verification of the original 705-file snapshot, actual isolated original-file restore and three-store rollback, 19/19 read-only live checks, exact bank-name ledger acceptance and unreleased bag receipt/report fixes PR306/309.
+
+The whole-application review remains in progress. PR297 mill/bag handoff and PR299 group management reports are not production releases. Management source workflows, outside-mill Corn, original advice/document reconciliation, remaining role/action/output variants, large offline recovery and migration acceptance remain open. Do not repeat the earlier test-truck withdrawal or authorised date correction, invent actual opening stock, apply Rice labour rates to Maize, or treat these targeted passes as whole-application sign-off.
