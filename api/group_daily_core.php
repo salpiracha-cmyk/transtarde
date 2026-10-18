@@ -140,5 +140,5 @@ function gd_summary(array $record):array {
     $source=$saved['data']['source'];$rates=(array)($record['sections']['header']['data']['rates']??[]);
     $rows=array_merge($source['financials']['rows'],(array)($record['sections']['adjustments']['rows']??[]));
     $total=gm_total($rows,$rates);
-    return $total+['daily'=>$saved['calculation'],'sourceAsOf'=>$source['asOf'],'sourceFingerprint'=>$source['fingerprint'],'financialWarnings'=>$source['financials']['warnings'],'snapshotSavedAt'=>$saved['savedAt'],'complete'=>!empty($saved['complete']),'basis'=>'Saved book balances and separately identified adjustments. Stock quantities are shown separately; unvalued stock is not assigned an invented market value.'];
+    return $total+['daily'=>$saved['calculation'],'sourceAsOf'=>$source['asOf'],'sourceFingerprint'=>$source['fingerprint'],'financialWarnings'=>$source['financials']['warnings'],'snapshotSavedAt'=>$saved['savedAt'],'complete'=>!empty($saved['complete'])&&(!isset($record['sections']['adjustments'])||!empty($record['sections']['adjustments']['complete'])),'basis'=>'Saved book balances and separately identified adjustments. Stock quantities are shown separately; unvalued stock is not assigned an invented market value.'];
 }

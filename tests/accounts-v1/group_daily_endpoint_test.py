@@ -45,11 +45,16 @@ $r=json_decode(stream_get_contents(STDIN),true);$_GET=$r['query'];$_SERVER['REQU
  row={'id':d['source']['rows'][0]['id'],'label':'Repeated bank','amount':100,'currency':'PKR'}
  assert req(save('adjustments',key='fixture-duplicate-001',rows=[row]))[0]==422,'Bank counted twice'
  assert (bp.read_bytes(),op.read_bytes())==before,'Daily report changed canonical books or stock'
+ status,d=req(save('adjustments',key='fixture-adjustment-001',rows=[{'id':'MANUAL-REVIEW','label':'Reviewed missing cost','amount':-10,'currency':'PKR'}]));assert status==200,d;assert d['summary']['totalPKR']==90 and not d['summary']['complete'],'Draft adjustment was labelled complete'
+ status,d=req(save('adjustments',1,'fixture-adjustment-002',rows=[{'id':'MANUAL-REVIEW','label':'Reviewed missing cost','amount':-10,'currency':'PKR'}],complete=True,reviewConfirmed=True));assert status==200,d;assert d['summary']['complete']
  # Later source changes are visible for a deliberate new save but never rewrite the retained snapshot.
  books['revision']=8;books['journals']['BOOK1']['lines'][0]['debit']=999;bp.write_text(json.dumps(books))
- status,d=req();assert status==200,d;assert d['dailySource']['fingerprint']!=fingerprint and d['summary']['totalPKR']==100
+ status,d=req();assert status==200,d;assert d['dailySource']['fingerprint']!=fingerprint and d['summary']['totalPKR']==90
  assert d['record']['sections']['daily']['data']['source']['accountsRevision']==7
  assert req(save('daily',2,'fixture-moved-001',sourceFingerprint=fingerprint,data={'config':config},reason='Review'))[0]==409
+ # Completion also requires every financial currency's saved exchange rate.
+ books['journals']['TG1']={'id':'TG1','entity':'TG','status':'Posted','date':'2026-10-01','lines':[{'account':'1110','debit':10,'credit':0}]};books['revision']=9;bp.write_text(json.dumps(books));status,d=req();assert status==200,d
+ latest=d['dailySource']['fingerprint'];saved=report.read_bytes();status,d=req(save('daily',2,'fixture-fx-001',sourceFingerprint=latest,data={'config':config},complete=True,reviewConfirmed=True,reason='Review new source'));assert status==422,d;assert report.read_bytes()==saved,'Missing FX completed a Daily report'
  # Missing operational source cannot become a zero position.
  op.unlink();assert req()[0]==500
  print('PASS Daily endpoint: real source snapshots, forged-source rejection, version/source conflicts, idempotent retries, explicit review, permission checks, retained historical balances and zero stock/book writes')

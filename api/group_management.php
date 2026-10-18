@@ -49,6 +49,7 @@ try {
                     if(!hash_equals($fresh['fingerprint'],(string)($body['sourceFingerprint']??'')))gm_out(['ok'=>false,'error'=>'Daily sources changed. Your draft is retained. Refresh deliberately and review the changed sources before saving.'],409);
                     $config=gd_clean_config((array)($body['data']['config']??[]));$calculation=gd_positions($fresh,$config);
                     if(!empty($body['complete'])&&(!$calculation['complete']||empty($body['reviewConfirmed'])))throw new DomainException('Review every source hold and unmapped commitment, and confirm the product specifications, before completing the Daily section.');
+                    if(!empty($body['complete'])){if(!isset($record['sections']['header']))throw new DomainException('Save the Daily date and exchange-rate header first.');gm_total(array_merge($fresh['financials']['rows'],(array)($record['sections']['adjustments']['rows']??[])),(array)($record['sections']['header']['data']['rates']??[]));}
                     $data=['config'=>$config,'source'=>$fresh];
                 }elseif($section==='costing'){$data=(array)($body['data']??[]);$calculation=gm_costing($data);unset($data['actualComparison']);if(!empty($data['actualSelection']['enabled'])){$ops=mr_read_operations_source(TT_DATA_DIR.'/operations.json');$data['actualComparison']=gm_actual_comparison((array)$data['actualSelection'],$ops,array_replace($state,['revision'=>$booksRevision]),$calculation,(string)($data['commodity']??'RICE'));}}
                 else {
@@ -69,7 +70,7 @@ try {
                 $reportState=['groupManagementRecords'=>$state['groupManagementRecords'],'groupManagementRequests'=>$state['groupManagementRequests'],'revision'=>$state['revision']];
                 $encoded=json_encode($reportState,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR);$temp=tempnam(TT_DATA_DIR,'gm-save-');if($temp===false)throw new RuntimeException('Report save unavailable.');
                 try{if(file_put_contents($temp,$encoded)!==strlen($encoded)||!rename($temp,$reportFile))throw new RuntimeException('Report save failed.');}finally{if(is_file($temp))unlink($temp);}
-                $result=['sectionVersion'=>$saved['version'],'message'=>!empty($saved['complete'])?'Section completed. Assessment control updated; no new expense posted.':'Section saved.'];
+                $result=['sectionVersion'=>$saved['version'],'message'=>!empty($saved['complete'])?('Section completed.'.($kind==='ZAKAT'?' Assessment control updated; no new expense posted.':'')):'Section saved.'];
             }
         }
         $source=gm_financial_source($state,$date);$source['accountsRevision']=$booksRevision;$summary=null;$summaryError='';
