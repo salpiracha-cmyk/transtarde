@@ -88,7 +88,7 @@ $sharedBootstrap = <<<'HTML'
   const access=window.TT_MODULE_ACCESS||{}, endpoint='api/operations.mysql.php';
   const cornContract=c=>/\b(?:CORN|MAIZE|MAKAI)\b/i.test([c?.commodity,c?.product,c?.variety,c?.baseVariety].filter(Boolean).join(' '));
   const EXPORT_STORE='transtrade_export_v3_operational';
-  const PRIVATE_STORES=new Set(['tt34ghati','tt34nilqueue','tt32processingrecon']);
+  const PRIVATE_STORES=new Set(['tt34ghati','tt34nilqueue','tt32processingrecon','tt41bagtransfers']);
   const allowed=k=>!PRIVATE_STORES.has(k)&&(k===EXPORT_STORE||/^tt[0-9]{2}[a-z0-9_]{2,60}$/.test(k));
   const originalSet=Storage.prototype.setItem, originalRemove=Storage.prototype.removeItem, originalGet=Storage.prototype.getItem, originalClear=Storage.prototype.clear;
   const cacheFallback=new Map(), committedValues=new Map(), receipts=new Map(), failedKeys=new Set();let saveHolds=0;
@@ -242,8 +242,15 @@ $sharedBootstrap = <<<'HTML'
       return result.record;
     }finally{keys.forEach(key=>inFlight.delete(key));saveHolds--;waiting()}
   }
+  async function commitBagReceipt(intent){
+    if(access.moduleId!=='milling')throw new Error('Supplier receipt saving belongs to Milling.');
+    const keys=['tt30bags','tt33bagreceipts'];if(keys.some(key=>pending.has(key)||inFlight.has(key)))throw new Error('A bag order or receipt has an unfinished local change. Review it before saving.');
+    const originals=new Map(keys.map(key=>[key,localStorage.getItem(key)]));keys.forEach(key=>inFlight.add(key));saveHolds++;waiting();
+    try{const saved=await window.TT_BAG_RECEIPTS.commit(intent);for(const key of keys){const row=saved.sourceValues?.[key];if(!row||typeof row.value!=='string'||pending.has(key)||localStorage.getItem(key)!==originals.get(key))continue;directSet(key,row.value);committedValues.set(key,row.value);receipts.set(key,row.value);keyVersions.set(key,Number(row.version||0));remoteKeys.add(key);}return saved;}
+    finally{keys.forEach(key=>inFlight.delete(key));saveHolds--;waiting();}
+  }
   async function appendMillBill(key,record,prefix=''){
-    if(access.moduleId!=='milling'||!['tt38labourbills','tt38kebills','tt38reprocessbills'].includes(key))throw new Error('Unsupported Mill bill.');
+    if(access.moduleId!=='milling'||!['tt38labourbills','tt38kebills','tt38reprocessbills','tt37processingexpenses'].includes(key))throw new Error('Unsupported Mill bill.');
     if(pending.has(key)||inFlight.has(key))throw new Error('This bill collection has an unfinished local change. Review it before saving.');
     const before=localStorage.getItem(key);inFlight.add(key);saveHolds++;waiting();
     try{
@@ -254,7 +261,7 @@ $sharedBootstrap = <<<'HTML'
     }finally{inFlight.delete(key);saveHolds--;waiting()}
   }
   async function amendMillBill(key,body){
-    if(access.moduleId!=='milling'||!['tt38labourbills','tt38kebills','tt38reprocessbills'].includes(key)||body.collection!==key)throw new Error('Unsupported Mill amendment.');
+    if(access.moduleId!=='milling'||!['tt38labourbills','tt38kebills','tt38reprocessbills','tt37processingexpenses'].includes(key)||body.collection!==key)throw new Error('Unsupported Mill amendment.');
     if(pending.has(key)||inFlight.has(key))throw new Error('This collection has an unfinished local change. Review it before amending.');
     const before=localStorage.getItem(key);inFlight.add(key);saveHolds++;waiting();
     try{
@@ -266,7 +273,7 @@ $sharedBootstrap = <<<'HTML'
       return result;
     }finally{inFlight.delete(key);saveHolds--;waiting()}
   }
-  window.TT_SHARED_SYNC={commitProduction,appendMillBill,amendMillBill,flush,saveNow,refresh:refreshNow,bridge,poll:checkInbound,hold:()=>{saveHolds++;waiting();let released=false;return()=>{if(!released){released=true;saveHolds--;waiting()}}},readCommitted:key=>committedValues.get(key)??null,restoreStaged:(key,before,attempted)=>{if(localStorage.getItem(key)!==attempted)return false;if(pending.get(key)===attempted){pending.delete(key);queuedBase.delete(key)}directSet(key,before);return true}};
+  window.TT_SHARED_SYNC={commitProduction,commitBagReceipt,appendMillBill,amendMillBill,flush,saveNow,refresh:refreshNow,bridge,poll:checkInbound,hold:()=>{saveHolds++;waiting();let released=false;return()=>{if(!released){released=true;saveHolds--;waiting()}}},readCommitted:key=>committedValues.get(key)??null,restoreStaged:(key,before,attempted)=>{if(localStorage.getItem(key)!==attempted)return false;if(pending.get(key)===attempted){pending.delete(key);queuedBase.delete(key)}directSet(key,before);return true}};
   // Permanent rule: only explicit application actions save. Inbound checks are read-only and run when staff return to a tab.
   // Remote changes are staged locally and announced through an internal event without persistent interface notices.
   // Exports must reconcile Mill actuals before app.js reads state. Milling must finish its legacy startup first,
@@ -306,7 +313,7 @@ $accountsSourceBridge = '<script src="accounts/source-bridge.js?v=20260924-expli
 $brandBody = '<script src="/session-activity.js?v=20260929-1"></script><script src="/brand-theme.js?v=20261006-number-entry-1"></script>';
 $brandBody .= '<script src="/global-validation.js?v=20260909-1"></script>';
 if ($id === 'exports') $brandBody .= '<script src="/customer-contract-options.js?v=20260911-reports-1&fix=20261003-no-legacy-completion-1"></script>';
-if ($id === 'milling') $brandBody .= '<script src="/milling-quality-identity.js?v=20260910-1"></script><script src="/accounts/mill-liability-status.js?v=20261017-1"></script><script src="/accounts/mill-source-save.js?v=20261017-1"></script><script src="/accounts/production-source-save.js?v=20261017-1"></script><script src="/accounts/mill-source-amend-ui.js?v=20261017-1"></script>';
+if ($id === 'milling') $brandBody .= '<script src="/milling-quality-identity.js?v=20260910-1"></script><script src="/accounts/mill-liability-status.js?v=20261017-1"></script><script src="/accounts/mill-source-save.js?v=20261017-1"></script><script src="/accounts/production-source-save.js?v=20261017-1"></script><script src="/accounts/production-bag-allocation.js?v=20261017-1"></script><script src="/accounts/bag-transfers-ui.js?v=20261017-1"></script><script src="/accounts/bag-receipts-ui.js?v=20261017-1"></script><script src="/accounts/mill-source-amend-ui.js?v=20261017-1"></script>';
 $bodyPos = strripos($html, '</body>');
 if ($bodyPos !== false) $html = substr_replace($html, $accountsSourceBridge.$guard.$brandBody, $bodyPos, 0); else $html .= $accountsSourceBridge.$guard.$brandBody;
 echo tt_version_local_assets($html);

@@ -1,6 +1,6 @@
 (() => {
   'use strict';
-  const collections=new Set(['tt38labourbills','tt38kebills','tt38reprocessbills']);
+  const collections=new Set(['tt38labourbills','tt38kebills','tt38reprocessbills','tt37processingexpenses']);
   const canonical=v=>JSON.stringify(v&&typeof v==='object'?Array.isArray(v)?v.map(x=>JSON.parse(canonical(x))):Object.fromEntries(Object.keys(v).sort().map(k=>[k,JSON.parse(canonical(v[k]))])):v);
   const same=(a,b)=>canonical(a)===canonical(b);
   const rows=value=>{const parsed=JSON.parse(value||'[]');if(!Array.isArray(parsed))throw Error('Saved bill collection is invalid.');return parsed;};

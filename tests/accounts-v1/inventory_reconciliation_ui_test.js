@@ -28,6 +28,7 @@ const context={
  showNonBlockingMessage:()=>{},renderRecentProduction:()=>{},renderProductionReport:()=>{},renderRecoveryReport:()=>{},renderProcessingExpenses:()=>{},
 };
 (async()=>{
+context.window.TT_PRODUCTION_BAGS={prepare:record=>record};
 context.window.TT_PRODUCTION_SOURCE_SAVE={save:async(rec,onSaved)=>{(stores.prod??=[]).push(structuredClone(rec));onSaved?.();return rec;}};
 vm.createContext(context);
 for(const name of ['millBaseVariety','millRiceType','millProductIdentity','isReprocessingMill','stockEntityForView','operationalStockScope','isOperationalProductionRow','saveProduction'])vm.runInContext(fn(name),context);

@@ -87,4 +87,24 @@ register_shutdown_function(function(){fwrite(STDERR,'STATUS:'.(http_response_cod
     assert req(None,endpoint='supplier_settlements.php')[1]['payables']==[],'Fully settled bill remains payable'
     source.write_text(json.dumps({'values':{'tt38kebills':'[]'}}));status,d=req();assert status==200 and d['rows'][0]['posted']['journalId'] and 'missing' in d['rows'][0]['blocker'],d
     books.unlink();assert req()[0]==200 and not books.exists(),'GET created canonical books'
+    # The same canonical bill/settlement engine owns actual unpaid processing costs.
+    processing=dict(id='EX1',entity='TTI',millId=1,millName='TTI Rice Mills',date='2026-10-17',**{'from':'2026-10-01'},till='2026-10-15',ref='PLANT-OCT',party='K-Electric',amount=700,type='Plant Expense',settlementMode='CANONICAL_PAYABLE')
+    source.write_text(json.dumps({'values':{'tt37processingexpenses':json.dumps([processing])}}))
+    books.write_text(json.dumps({'revision':0,'journals':{},'supplierBills':{}}));before=books.read_bytes();source_before=source.read_bytes()
+    status,d=req();assert status==200 and len(d['rows'])==1,d;row=d['rows'][0];assert row['kind']=='PROCESSING'
+    assert books.read_bytes()==before and source.read_bytes()==source_before
+    post=dict(csrf='fixture',action='post',entity='TTI',kind='PROCESSING',sourceId='EX1',fingerprint=row['fingerprint'],requestKey='fixture-processing-01',amount=99999)
+    before=books.read_bytes();status,preview=req(dict(post,preview=True));assert status==200 and len(preview['previews'])==1,preview
+    assert books.read_bytes()==before and source.read_bytes()==source_before,'Processing preview persisted a financial/source write'
+    status,d=req(post);assert status==200,d;record=d['result']['record'];s=json.loads(books.read_text());j=s['journals'][record['journalId']]
+    assert j['totalDebit']==700 and [l['account'] for l in j['lines']]==['5200','2140']
+    before=books.read_bytes();assert req(post)[1]['result']['replayed'] and books.read_bytes()==before
+    payment.update(selectedBills=[record['billId']+'|'+row['key']],amount=300,requestKey='fixture-processing-pay1',selectedOutstanding=700)
+    status,d=req(payment,endpoint='supplier_settlements.php');assert status==200,d
+    current=req()[1]['rows'][0];assert current['posted']['outstandingAmount']==400 and current['posted']['settledAmount']==300
+    cancel.update(sourceKey=row['key'],postedFingerprint=record['fingerprint'],requestKey='processing-paid-cancel1')
+    before=books.read_bytes();assert req(cancel)[0]==422 and books.read_bytes()==before
+    status,d=req(endpoint='mill_liability_status.php');assert status==200 and d['rows'][0]['collection']=='tt37processingexpenses' and d['rows'][0]['outstanding']==400,d
+    s=json.loads(books.read_text());assert sum(l.get('debit',0)-l.get('credit',0) for j in s['journals'].values() for l in j['lines'] if l['account']=='5200')==700
+    assert source.read_bytes()==source_before,'Canonical review/payment rewrote the physical cost source'
     print('PASS real Mill liability GET zero writes, company/permission/CSRF checks, source-owned amount, stale/reforged requests, canonical post, immutable amendment, lost-ack replay, actual supplier partial/full settlement, outstanding balances and no duplicate expense')

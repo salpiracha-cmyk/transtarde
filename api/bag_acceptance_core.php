@@ -47,18 +47,38 @@ function bqa_mill_line_key(array $order):string {
 
 /** Committed Mill evidence is authoritative even before the handoff snapshot catches up. */
 function bqa_current_line(array $line,array $bill):array {
-    if(!defined('TT_DATA_DIR')||!is_file(TT_DATA_DIR.'/operations.json'))return $line;
+    if(!defined('TT_DATA_DIR'))return $line;
+    $env=static fn($key)=>(string)(defined('TT_'.$key)?constant('TT_'.$key):(getenv('TT_'.$key)?:''));$mysql=$env('DB_HOST')!==''&&$env('DB_NAME')!==''&&$env('DB_USER')!=='';
+    if(!$mysql&&!is_file(TT_DATA_DIR.'/operations.json'))return $line;
     static $ops=null;
-    if($ops===null){$h=fopen(TT_DATA_DIR.'/operations.json','r');if(!$h||!flock($h,LOCK_SH))throw new RuntimeException('Mill acceptance evidence unavailable.');try{$raw=stream_get_contents($h);$ops=json_decode($raw,true,512,JSON_THROW_ON_ERROR);if(!is_array($ops))throw new RuntimeException('Mill acceptance evidence unavailable.');}finally{flock($h,LOCK_UN);fclose($h);}}
+    if($ops===null){require_once __DIR__.'/bag_transfers_store.php';$ops=bts_with_sources(false,[],static fn($values,$state,$now)=>['values'=>$values]);}
+    require_once __DIR__.'/bag_receipt_quantities.php';
     $decode=static function(string $key)use($ops):array{$v=$ops['values'][$key]??[];if(is_string($v))$v=json_decode($v,true,512,JSON_THROW_ON_ERROR);return is_array($v)?$v:[];};
-    foreach($decode('tt30bags') as $order){
-        if(!is_array($order)||($order['_ttBridge']??'')!=='exports'||($order['poNo']??'')!==($bill['poNo']??''))continue;
-        $key=bqa_mill_line_key($order);if($key!==($bill['lineKey']??''))continue;
-        $receipts=array_values(array_filter($decode('tt33bagreceipts'),static fn($r)=>(string)($r['bagId']??'')===(string)($order['id']??'')));
-        $measured=0.;$weight=0.;$flags=['printing'=>!empty($order['printingMismatch']),'material'=>!empty($order['materialMismatch']),'quality'=>!empty($order['qualityMismatch']),'tareMismatch'=>!empty($order['tareMismatch'])||!empty($order['actualTare'])];
-        foreach($receipts as $r){$grams=(float)($r['actualTareGrams']??0);if($grams>0){$measured+=(float)($r['qty']??0);$weight+=(float)($r['qty']??0)*$grams/1000;}foreach(['printing'=>'printingMismatch','material'=>'materialMismatch','quality'=>'qualityMismatch','tareMismatch'=>'tareMismatch'] as $out=>$in)$flags[$out]=$flags[$out]||!empty($r[$in]);}
-        $line['keepReceiptOpen']=!empty($order['keepReceiptOpen']);$line['receivedQty']=max(0,(int)($order['received']??0));$line['agreedTareGrams']=(float)($line['agreedTareGrams']??$order['tare']??0);$line['acceptance']=$flags+['exception'=>!empty($order['exceptionAlert']),'receivedWeightKg'=>$measured+0.0001>=$line['receivedQty']&&$line['receivedQty']>0?round($weight,6):null,'weightComplete'=>$measured+0.0001>=$line['receivedQty'],'receiptEvidence'=>$receipts];return $line;
+    require_once __DIR__.'/bag_inventory_core.php';$poSources=bti_po_sources($decode('transtrade_export_v3_operational'));
+    $orders=$decode('tt30bags');$allReceipts=$decode('tt33bagreceipts');$movementState=$decode('tt41bagtransfers');$allDispositions=(array)($movementState['receiptDispositions']??[]);
+    $flags=['printing'=>false,'material'=>false,'quality'=>false,'tareMismatch'=>false,'exception'=>false];$found=false;$received=0;$measured=0.;$weight=0.;$keep=false;$evidence=[];$dispositionEvidence=[];$ids=[];
+    foreach($orders as $order)if(is_array($order))$ids[(string)($order['id']??'')]=($ids[(string)($order['id']??'')]??0)+1;
+    foreach($orders as $order){
+        if(!is_array($order)||($order['_ttBridge']??'')!=='exports'||($order['poNo']??'')!==($bill['poNo']??'')||bqa_mill_line_key($order)!==($bill['lineKey']??''))continue;
+        $candidates=array_values($poSources[(string)$order['poNo'].'|'.bqa_mill_line_key($order)]??[]);$owner=(string)($order['entity']??$order['bagReceiptScope']['entity']??(count($candidates)===1?$candidates[0]['entity']:''));
+        if($owner===''&&!empty($order['received']))throw new DomainException('Receipt stock ownership requires reconciliation before billing.');if($owner!==($bill['entity']??''))continue;
+        $id=(string)($order['id']??'');if($id===''||($ids[$id]??0)!==1)throw new DomainException('Receipt identities require reconciliation before billing.');$found=true;
+        $receipts=array_values(array_filter($allReceipts,static fn($r)=>(string)($r['bagId']??'')===$id));$receiptIds=array_column($receipts,'id');$dispositions=array_values(array_filter($allDispositions,static fn($r)=>in_array($r['receiptId']??'',$receiptIds,true)));$returned=0;
+        $keep=$keep||!empty($order['keepReceiptOpen']);$flags['exception']=$flags['exception']||!empty($order['exceptionAlert']);
+        foreach(['printing'=>'printingMismatch','material'=>'materialMismatch','quality'=>'qualityMismatch','tareMismatch'=>'tareMismatch'] as $out=>$in)$flags[$out]=$flags[$out]||!empty($order[$in]);$flags['tareMismatch']=$flags['tareMismatch']||!empty($order['actualTare']);
+        foreach($receipts as $r){
+            $scope=['entity'=>$owner,'locationId'=>(string)($order['locationId']??$order['bagReceiptScope']['locationId']??''),'poNo'=>(string)$order['poNo'],'poLineKey'=>bqa_mill_line_key($order),'brand'=>(string)($order['brand']??''),'packingSize'=>(string)($order['size']??''),'bagType'=>(string)($order['bagType']??'')];
+            if(bti_receipt_scope_conflict($r,$scope)||(!empty($r['bagReceiptVersion'])&&bti_receipt_scope_conflict((array)($r['sourceSnapshot']??[]),$scope)))throw new DomainException('Physical receipt source conflicts with its current PO. Reconcile the original receipt before billing.');
+            $position=br_position($r,$dispositions);$returned+=$position['returnedQty'];$grams=(float)($r['actualTareGrams']??0);$net=$position['netReceivedQty'];
+            if($grams>0){$measured+=$net;$weight+=$net*$grams/1000;}
+            foreach($position['events'] as $event)if($event['action']==='accept_corrected'&&(float)($event['actualTareGrams']??0)>0){$count=(int)$event['qty'];if($grams>0)$weight-=$count*$grams/1000;else $measured+=$count;$weight+=$count*(float)$event['actualTareGrams']/1000;}
+            if(empty($r['bagReceiptVersion'])||$position['quarantinedQty']>0)foreach(['printing'=>'printingMismatch','material'=>'materialMismatch','quality'=>'qualityMismatch','tareMismatch'=>'tareMismatch'] as $out=>$in)$flags[$out]=$flags[$out]||!empty($r[$in]);
+        }
+        $counter=bti_count($order['received']??null);if($counter===null||$returned>$counter)throw new DomainException('Actual receipt and supplier return quantities need reconciliation before billing.');$received+=$counter-$returned;
+        $evidence[]=['orderId'=>$id,'receipts'=>$receipts];array_push($dispositionEvidence,...$dispositions);if(!isset($line['agreedTareGrams']))$line['agreedTareGrams']=(float)($order['tare']??0);
     }
+    if($found){$line['keepReceiptOpen']=$keep;$line['receivedQty']=$received;$line['acceptance']=$flags+['receivedWeightKg'=>$measured+.0001>=$received&&$received>0?round($weight,6):null,'weightComplete'=>$measured+.0001>=$received,'receiptEvidence'=>$evidence,'physicalDispositions'=>$dispositionEvidence];}
+
     return $line;
 }
 
