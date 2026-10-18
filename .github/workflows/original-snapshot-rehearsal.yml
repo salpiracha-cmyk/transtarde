@@ -1,0 +1,83 @@
+name: Original snapshot isolated recovery rehearsal
+on:
+  push:
+    branches: [review/original-snapshot-rehearsal-20261018]
+permissions:
+  contents: read
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Configure existing verified production connection
+        env:
+          SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.HOSTINGER_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -m 700 -d "$RUNNER_TEMP/ssh"
+          printf '%s\n' "$SSH_KEY" | tr -d '\r' > "$RUNNER_TEMP/ssh/key"
+          printf '%s\n' "$KNOWN_HOSTS" | tr -d '\r' > "$RUNNER_TEMP/ssh/known_hosts"
+          chmod 600 "$RUNNER_TEMP/ssh/key" "$RUNNER_TEMP/ssh/known_hosts"
+      - name: Restore original snapshot only into a private disposable copy
+        env:
+          HOST: ${{ secrets.HOSTINGER_HOST }}
+          PORT: ${{ secrets.HOSTINGER_PORT }}
+          ACCOUNT: ${{ secrets.HOSTINGER_USER }}
+          TARGET: ${{ secrets.HOSTINGER_DEPLOY_PATH }}
+        run: |
+          set -euo pipefail
+          case "$TARGET" in /home/*/domains/app.transtradeinternational.com/public_html) ;; *) exit 1;; esac
+          ssh -i "$RUNNER_TEMP/ssh/key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" -o StrictHostKeyChecking=yes -p "$PORT" "$ACCOUNT@$HOST" bash -s -- "$TARGET" <<'REMOTE'
+          set -euo pipefail
+          cd "$1"
+          php <<'PHP'
+          <?php
+          $live=getcwd();$livePrivate=dirname($live).'/transtrade_private';
+          $name='auto-20261018-080738-65d37676.zip';
+          $snapshot=$livePrivate.'/backups/'.$name;
+          if(!is_file($snapshot))throw new RuntimeException('Named original snapshot is unavailable.');
+          $root=dirname($live).'/.review-restore-'.bin2hex(random_bytes(8));
+          if(disk_free_space(dirname($live))<filesize($snapshot)*2+268435456)throw new RuntimeException('Insufficient free space for isolated recovery.');
+          if(!mkdir($root.'/app',0700,true))throw new RuntimeException('Isolated recovery target unavailable.');
+          function removeReviewTree(string $path):void{
+           if(is_link($path)||is_file($path)){unlink($path);return;}
+           foreach(scandir($path)?:[] as $entry)if($entry!=='.'&&$entry!=='..')removeReviewTree($path.'/'.$entry);
+           rmdir($path);
+          }
+          try{
+           foreach(['auth_store.php','master_store.php','product_stage.php','offline_idempotency.php','session_store.php','backup_lib.php'] as $file)if(!copy($live.'/'.$file,$root.'/app/'.$file))throw new RuntimeException('Runtime copy failed.');
+           $_SERVER['REQUEST_URI']='/isolated-private-restore-review';
+           $_SERVER['HTTP_HOST']='localhost';
+           require $root.'/app/auth_store.php';
+           require_once $root.'/app/backup_lib.php';
+           if(realpath(TT_DATA_DIR)===realpath($livePrivate)||realpath(dirname(TT_DATA_DIR))!==realpath($root))throw new RuntimeException('Isolation guard refused the target.');
+           tt_mutate_store(static function(array &$data):void{$data['users'][]=['id'=>7007,'username'=>'isolated-review-only','role'=>'Super Admin'];});
+           file_put_contents(tt_operations_file(),json_encode(['revision'=>1,'values'=>[],'meta'=>[]],JSON_THROW_ON_ERROR));
+           $baseline=['auth.json'=>hash_file('sha256',TT_DATA_DIR.'/auth.json'),'operations.json'=>hash_file('sha256',tt_operations_file())];
+           tt_backup_ensure_dirs();
+           if(!link($snapshot,tt_backup_dir().'/'.$name))throw new RuntimeException('Read-only snapshot link failed.');
+           $manifest=tt_backup_verified_server_snapshot($name);
+           $result=tt_restore_server_snapshot($name);
+           $matched=0;$jsonFiles=0;
+           foreach($manifest['recoveryFiles'] as $item){
+            $dest=TT_DATA_DIR.'/'.$item['path'];
+            if(!is_file($dest)||filesize($dest)!==$item['size']||!hash_equals($item['sha256'],hash_file('sha256',$dest)))throw new RuntimeException('Recovered file comparison failed.');
+            if(str_ends_with(strtolower($item['path']),'.json')){json_decode(file_get_contents($dest),true,512,JSON_THROW_ON_ERROR);$jsonFiles++;}
+            $matched++;
+           }
+           $auth=tt_decode_store(file_get_contents(TT_DATA_DIR.'/auth.json'));
+           $ops=json_decode(file_get_contents(tt_operations_file()),true,512,JSON_THROW_ON_ERROR);
+           $accounts=json_decode(file_get_contents(TT_DATA_DIR.'/accounts.json'),true,512,JSON_THROW_ON_ERROR);
+           $summary=['isolated'=>true,'verifiedOriginalFiles'=>$matched,'restoredFiles'=>$result['restoredFiles'],'validJSONFiles'=>$jsonFiles,'userCount'=>count($auth['users']??[]),'operationalRevision'=>$ops['revision']??null,'operationalCollections'=>count($ops['values']??[]),'journalCount'=>count($accounts['journals']??[])];
+           tt_restore_server_snapshot($result['safetySnapshot']);
+           foreach($baseline as $file=>$hash)if(!hash_equals($hash,hash_file('sha256',TT_DATA_DIR.'/'.$file)))throw new RuntimeException('Canonical rollback comparison failed.');
+           $summary['canonicalRollbackMatched']=true;
+           $summary['liveRestoreCalled']=false;
+           echo json_encode($summary,JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES)."\n";
+          }finally{
+           if(is_dir($root))removeReviewTree($root);
+          }
+          echo "PRIVATE_REHEARSAL_REMOVED=true\n";
+          PHP
+          REMOTE
