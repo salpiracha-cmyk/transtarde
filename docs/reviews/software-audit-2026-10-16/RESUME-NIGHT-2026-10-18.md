@@ -1,6 +1,8 @@
-# Latest continuation checkpoint — lifting and reference scope
+Latest report/source continuation: [RESUME-REPORT-EVIDENCE-2026-10-18.md](RESUME-REPORT-EVIDENCE-2026-10-18.md).
 
-The latest application main is `b97d02ea6bd41f5ea7f207fb466a8f2b41f07661`,
+# Previous continuation checkpoint — lifting and reference scope
+
+Application main at this checkpoint was `b97d02ea6bd41f5ea7f207fb466a8f2b41f07661`,
 exact tree `c5b1cef52165e202964b88274f74fbbc291ec7bf`. The whole application
 review remains incomplete. Earlier entries below are chronological evidence;
 read this checkpoint and CURRENT_COVERAGE.csv before treating an old gap as current.
