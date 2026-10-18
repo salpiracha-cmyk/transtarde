@@ -1,0 +1,43 @@
+name: Diagnose Exports receipt startup (read only)
+on:
+  push:
+    branches: [diagnose/exports-receipt-startup-20261018]
+permissions:
+  contents: read
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: live-qa
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 2815a6616403306747caabc3ee10561dbdedbe51
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Install existing browser test runtime
+        run: |
+          npm install --no-save @playwright/test@1.63.0
+          npx playwright install --with-deps chromium
+      - name: Add failure-only startup response diagnostics
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('tests/live/accounts-hostinger-qa.spec.js')
+          s=p.read_text()
+          anchor="test('TG customer receipt reads the live Exports and bank links without posting', async ({ page }) => {\n"
+          addition="""  const receiptStartupReads=[];page.on('response',response=>{const path=new URL(response.url()).pathname;if(['/api/operations.mysql.php','/api/tg_export_accounts_receipts.php'].includes(path))receiptStartupReads.push({path,status:response.status(),timing:response.headers()['server-timing']||''})});page.on('requestfailed',request=>{const path=new URL(request.url()).pathname;if(['/api/operations.mysql.php','/api/tg_export_accounts_receipts.php'].includes(path))receiptStartupReads.push({path,failure:request.failure()?.errorText||'failed'})});\n"""
+          assert s.count(anchor)==1
+          s=s.replace(anchor,anchor+addition)
+          check="  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('tt40exportreceipts') || 'null')), { timeout: 15_000 }).toEqual(exportsReceipts.body.receipts);"
+          assert s.count(check)==1
+          replacement="  try {"+check.strip()+"console.log('EXPORT_RECEIPT_STARTUP_OK',JSON.stringify(receiptStartupReads));}catch(error){console.log('EXPORT_RECEIPT_STARTUP_FAILED',JSON.stringify({reads:receiptStartupReads,loadError:await page.getByRole('heading',{name:'Exports data could not be loaded',exact:true}).count()}));throw error;}"
+          p.write_text(s.replace(check,replacement))
+          PY
+      - name: Exercise existing read-only TG receipt and Exports flow
+        env:
+          TRANSTRADE_BASE_URL: https://app.transtradeinternational.com
+          TRANSTRADE_QA_USERNAME: ${{ secrets.TRANSTRADE_QA_USERNAME }}
+          TRANSTRADE_QA_PASSWORD: ${{ secrets.TRANSTRADE_QA_PASSWORD }}
+          PLAYWRIGHT_HTML_OPEN: never
+        run: npx playwright test tests/live/accounts-hostinger-qa.spec.js --grep 'TG customer receipt reads' --workers=1 --reporter=line
