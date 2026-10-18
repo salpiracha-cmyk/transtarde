@@ -133,6 +133,7 @@ jobs:
           node tests/exports-v3/sales_contract_browser_qa.js
           node tests/exports-v3/shipment_documents_browser_qa.js
           node tests/exports-v3/coo_master_refresh_20260930_audit.js
+          node tests/exports-v3/completed_reprint_test.js
           node tests/exports-v3/final_documents_20260930_browser_qa.js
           node tests/exports-v3/shipment_package_20261001_browser_qa.js
       - name: Preserve Export visual QA evidence
@@ -220,3 +221,13 @@ jobs:
         run: node tests/runtime_security_static_audit.js
 
 
+      - name: Retain packing copy-label visual evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: packing-label-${{ github.run_id }}
+          path: |
+            tmp/qa/final-files-20260930/packing-copy-label-flow.png
+            tmp/qa/final-files-20260930/packing-copy-label-flow.pdf
+          if-no-files-found: ignore
+          retention-days: 7
