@@ -48,9 +48,39 @@ try {
             $date=mps_date($body['date']??'');if(isset($body['qualityStatus'])&&strtoupper(trim((string)$body['qualityStatus']))!=='OK')throw new InvalidArgumentException('Only quality-approved loaded containers can create an Ex-Mill purchase liability.');$kg=round(mps_num($body['kg']??null,'Container weighbridge weight'),3);$bags=(int)round(mps_num($body['bags']??0,'Bags',false));$container=trim((string)($body['container']??''));if($container==='')throw new InvalidArgumentException('Container number is required before the Ex-Mill liability can be recognized.');
             $key=$entity.'|'.$sourceSodaId.'|'.$liftingId;$sourceKey='EXMILL|'.$sourceSodaId.'|'.$liftingId;$old=$store['purchaseSodaLiftings'][$key]??null;$billId=mps_billed($store,$sourceKey);
             foreach((array)$store['purchaseSodaLiftings']as$otherKey=>$other)if($otherKey!==$key&&is_array($other)&&empty($other['reversed'])&&mps_container_identity((string)($other['container']??''))===mps_container_identity($container))throw new InvalidArgumentException('This container is already linked to another Ex-Mill lifting.');
+            $reversed=!empty($body['reversed']);if($billId!==''&&(!is_array($old)||round((float)($old['kg']??0),3)!==$kg||(string)($old['container']??'')!==$container||!empty($old['reversed'])!==$reversed))mps_out(['ok'=>false,'error'=>'This lifting is already included in supplier bill '.$billId.'. Amend or reverse the bill first.'],409);
+            // A retry acknowledges the original committed facts. It must not reprice
+            // a receipt after a Soda amendment or rewrite its Post ID/history.
+            if(is_array($old)){
+                $same=(string)($old['date']??'')===$date
+                    &&(string)($old['container']??'')===$container
+                    &&(string)($old['truck']??'')===trim((string)($body['truck']??''))
+                    &&round((float)($old['kg']??0),3)===$kg
+                    &&(int)($old['bags']??0)===$bags
+                    &&(string)($old['shipmentId']??'')===trim((string)($body['shipmentId']??''))
+                    &&(string)($old['contractRef']??'')===trim((string)($body['contractRef']??''))
+                    &&(string)($old['lotRef']??'')===trim((string)($body['lotRef']??''))
+                    &&!empty($old['reversed'])===$reversed;
+                if($same){
+                    $priorJournal=$store['journals'][$old['journalId']??'']??null;
+                    $priorEvent=$store['events'][$entity.'|COMMODITY_RECEIPT_ACCEPTED|'.$sourceKey]??null;
+                    $expected=round((float)($old['provisionalAmount']??-1),2);
+                    if(!is_array($priorJournal)||!is_array($priorEvent)
+                        ||($priorJournal['id']??'')!==($old['journalId']??'')
+                        ||($priorJournal['entity']??'')!==$entity
+                        ||($priorJournal['sourceType']??'')!=='EX_MILL_PURCHASE_LIABILITY'
+                        ||!in_array($priorJournal['status']??'',$reversed?['Reversed']:['Posted / Bill Pending','Posted'],true)
+                        ||($priorJournal['meta']['sourceKey']??'')!==$sourceKey
+                        ||($priorEvent['sourceKey']??'')!==$sourceKey
+                        ||($priorEvent['journalId']??'')!==($old['journalId']??'')
+                        ||round((float)($priorJournal['totalDebit']??-2),2)!==$expected
+                        ||round((float)($priorJournal['totalCredit']??-2),2)!==$expected)
+                        mps_out(['ok'=>false,'error'=>'The saved lifting acknowledgement requires Accounts reconciliation. No record was changed.'],409);
+                    mps_out(['ok'=>true,'replayed'=>true,'lifting'=>$old,'journal'=>$priorJournal,'event'=>$priorEvent,'revision'=>(int)$store['revision']]);
+                }
+            }
             $received=0.0;foreach((array)$store['purchaseSodaLiftings']as$otherKey=>$other)if($otherKey!==$key&&is_array($other)&&empty($other['reversed'])&&(string)($other['sourceSodaId']??'')===$sourceSodaId)$received+=(float)($other['kg']??0);
             $maximum=(float)($soda['qtyToKg']??0);if($maximum>0&&$received+$kg>$maximum*1.05+.001)throw new InvalidArgumentException('The lifting exceeds the contracted Ex-Mill quantity by more than 5%. Amend the Soda before posting additional weight.');
-            $reversed=!empty($body['reversed']);if($billId!==''&&(!is_array($old)||round((float)($old['kg']??0),3)!==$kg||(string)($old['container']??'')!==$container||!empty($old['reversed'])!==$reversed))mps_out(['ok'=>false,'error'=>'This lifting is already included in supplier bill '.$billId.'. Amend or reverse the bill first.'],409);
             $rate=mps_num($soda['ratePerKg']??$soda['rate']??0,'Approved Soda rate');$amount=round($kg*$rate,2);$jid=(string)($old['journalId']??'');if($jid===''||!isset($store['journals'][$jid]))$jid=tt_next_post_id((array)$store['journals'],'Accounts','Journal');
             $record=['key'=>$key,'entity'=>$entity,'sourceSodaId'=>(string)($soda['id']??$sourceSodaId),'soda'=>(string)($soda['sodaNo']??''),'liftingId'=>$liftingId,'sourceKey'=>$sourceKey,'date'=>$date,'container'=>$container,'truck'=>trim((string)($body['truck']??'')),'kg'=>$kg,'bags'=>$bags,'shipmentId'=>trim((string)($body['shipmentId']??'')),'contractRef'=>trim((string)($body['contractRef']??'')),'lotRef'=>trim((string)($body['lotRef']??'')),'journalId'=>$jid,'provisionalAmount'=>$reversed?0:$amount,'reversed'=>$reversed,'updatedAt'=>gmdate('c'),'updatedBy'=>(string)($user['full_name']??$user['username']??'Mill')];
             if(is_array($old)){$history=is_array($old['versions']??null)?$old['versions']:[];$snapshot=$old;unset($snapshot['versions']);$history[]=['at'=>gmdate('c'),'before'=>$snapshot,'by'=>$record['updatedBy']];$record['versions']=$history;$record['createdAt']=$old['createdAt']??gmdate('c');$record['createdBy']=$old['createdBy']??$record['updatedBy'];}else{$record['createdAt']=gmdate('c');$record['createdBy']=$record['updatedBy'];}

@@ -40,6 +40,23 @@ require $argv[1];
     assigned = {**worker,'location':'  INDUS   RICE MILL  '}
     status,data,_,after = request(assigned)
     assert status == 200 and data['lifting']['kg'] == 100 and len(json.loads(after)['journals']) == 1,(status,data)
+    # A lost acknowledgement must preserve the complete original Accounts bytes.
+    status,retry,before,after = request(assigned,reset=False)
+    assert status==200 and retry.get('replayed') and before==after,('unchanged retry rewrote Accounts',status,retry)
+    original_journal=retry['journal']
+    changed=json.loads(after);changed['purchaseSodas']['S1']['ratePerKg']=999;changed['purchaseSodas']['S1']['qtyToKg']=50;books.write_text(json.dumps(changed))
+    status,retry,before,after=request(assigned,reset=False)
+    assert status==200 and retry['journal']==original_journal and before==after,('retry repriced an original lifting after a Soda rate change',status,retry)
+    # Once billed, the same receipt still acknowledges without altering the bill/event.
+    changed=json.loads(after);next(iter(changed['events'].values()))['billId']='BILL-1';books.write_text(json.dumps(changed))
+    status,retry,before,after=request(assigned,reset=False)
+    assert status==200 and retry['event']['billId']=='BILL-1' and before==after
+    changed=json.loads(after);next(iter(changed['journals'].values()))['status']='Deleted';books.write_text(json.dumps(changed))
+    status,retry,before,after=request(assigned,reset=False)
+    assert status==409 and before==after,('deleted journal acknowledged as posted',status,retry)
+    changed=json.loads(after);changed['journals'].clear();books.write_text(json.dumps(changed))
+    status,retry,before,after=request(assigned,reset=False)
+    assert status==409 and before==after,('missing acknowledgement journal was silently recreated',status,retry)
     for location in ['', 'All locations', 'All authorized locations']:
         assert request({**worker,'location':location})[0] == 200
     view_only = {**assigned,'permissions':{'Mill':{'export':['View']}}}
