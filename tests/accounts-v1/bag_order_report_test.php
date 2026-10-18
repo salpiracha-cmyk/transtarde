@@ -28,4 +28,15 @@ check(bor_issue_date('2026-09-30')==='2026-09-30','Date-only historical orders d
 check(bor_date('2026-09-30')==='2026-09-30','Receipt date-only values unchanged');
 $boundaryOrders=$originalOrders;$boundaryOrders[0]['issuedAt']='2026-09-30T20:00:00Z';$r=bor_report([$boundaryOrders[0]],[],[],'TTI',['from'=>'2026-09-01','to'=>'2026-09-30','basis'=>'orders']);check(count($r['rows'])===0,'September cohort excludes October local order');
 $r=bor_report([$boundaryOrders[0]],[],[],'TTI',['from'=>'2026-10-01','to'=>'2026-10-31','basis'=>'orders']);check(count($r['rows'])===1,'October cohort includes local month boundary order');
+$physical=[['id'=>'R1','bagId'=>1,'date'=>'2026-08-31','qty'=>800,'bagReceiptVersion'=>1,'acceptedQty'=>500,'quarantinedQty'=>300,'sourceSnapshot'=>['entity'=>'TTI','locationId'=>'TTI']]];
+$events=[['id'=>'D1','receiptId'=>'R1','date'=>'2026-09-10','qty'=>100,'action'=>'return_supplier','entity'=>'TTI','locationId'=>'TTI'],['id'=>'D2','receiptId'=>'R1','date'=>'2026-10-10','qty'=>50,'action'=>'return_supplier','entity'=>'TTI','locationId'=>'TTI'],['id'=>'D3','receiptId'=>'R1','date'=>'2026-10-11','qty'=>100,'action'=>'accept_corrected','entity'=>'TTI','locationId'=>'TTI']];
+$sourceBefore=json_encode([$orders,$mill,$physical,$events]);
+$r=bor_report([$originalOrders[0]],[$mill[0]],$physical,'TTI',['from'=>'2026-09-01','to'=>'2026-09-30','basis'=>'activity'],$events);$row=$r['rows'][0];
+check($row['receivedInPeriod']===0.0&&$row['returnedInPeriod']===100.0,'Return date is separate from original receipt date');
+check($row['receivedThroughEnd']===800.0&&$row['netReceivedThroughEnd']===700.0,'September cutoff excludes later returns without erasing original receipts');
+check($row['receivedCurrent']===650.0&&$row['returnedCurrent']===150.0&&$row['outstandingCurrent']===350.0,'Supplier returns reopen outstanding despite unchanged gross PO counters');
+check($row['quarantinedCurrent']===50.0,'Correction acceptance releases quarantine without inventing another receipt');
+check(json_encode([$orders,$mill,$physical,$events])===$sourceBefore,'Disposition projection never changes source evidence');
+$old=$originalOrders[0];$old['issuedAt']='2026-08-01';$r=bor_report([$old],[$mill[0]],$physical,'TTI',['from'=>'2026-09-01','to'=>'2026-09-30','basis'=>'activity'],$events);check(count($r['rows'])===1,'Return-only activity for an older PO remains visible');
+$invalid=$events;$invalid[0]['qty']=900;try{bor_report([$old],[$mill[0]],$physical,'TTI',['from'=>'2026-09-01','to'=>'2026-09-30'],$invalid);throw new RuntimeException('Invalid return history must refuse');}catch(DomainException){}
 echo "PASS bag order report: company/brand/type/size/supplier/PO filters, order versus receipt dates, cohorts, cutoff, undated balances, duplicate receipt protection and read-only sources\n";
