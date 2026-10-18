@@ -1,4 +1,6 @@
-# Continuation checkpoint — protected shipment archive reads
+# Previous checkpoint — protected shipment archive reads
+
+Latest continuation: RESUME-HISTORICAL-REPORT-2026-10-19.md.
 
 Application release: PR343, merge78c5a5adb7bab895905ebf1f2858428c8274ce3a,
 exact tree251ca900c7acd67585028267b599600f8d647930. Previous checkpoint:
