@@ -284,6 +284,8 @@ function pc_cost_sources(array $ops, array $groups, array $store = [], string $e
             $record=$booked[$key]??null;
             if (is_array($record)&&($record['status']??'')==='Reversed') continue;
             $x=is_array($record['sourceSnapshot']??null)?$record['sourceSnapshot']:$current;
+            // Maize handling/packing is not a Rice milling conversion cost.
+            if ($prefix==='LAB'&&in_array(strtoupper(trim((string)($x['commodity']??''))),['MAIZE','CORN','MAKAI'],true)) continue;
             $journal=is_array($record)?($store['journals'][$record['journalId']??'']??null):null;
             $verified=!is_array($record)||(is_array($journal)&&($journal['status']??'')==='Posted'&&($journal['meta']['millSourceKey']??'')===($record['key']??''));
             $provenance=['sourceCollection'=>$collection,'sourceRecordId'=>(string)($x['id']??''),'postingVerified'=>$verified,'accountsStatus'=>is_array($record)?($verified?'Posted':'Posting requires reconciliation'):'Operational bill — Accounts posting unverified','postId'=>(string)($record['journalId']??''),'sourceAmended'=>is_array($record)&&$current!==$x];
