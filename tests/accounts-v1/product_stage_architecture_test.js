@@ -87,6 +87,7 @@ assert(bridgeRuntime.includes('displayName=readyDisplay(baseVariety)')&&bridgeRu
 assert(exportsApp.includes('commercialProductName'),'Exports commercial-name stage stripping missing');
 
 assert(commodityBills.includes("$deductionKg=round($weight*$deductionPer100/100,3)"),'Corn/Sesame KAT is not deducted in kilograms');
-assert(commodityBills.includes("$value=round($netKg/$maund*$rate,2)"),'Corn/Sesame payable value is not based on net kg divided by maund');
+// KG/MAUND numeric behavior is exercised by nonrice_rate_unit_test.py and
+// nonrice_rate_unit_ui_test.js; explicit per-kg Sodas must not be forced to maunds.
 
 console.log('Product-stage architecture audit passed.');
