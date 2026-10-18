@@ -2,6 +2,7 @@
 declare(strict_types=1);
 require_once __DIR__.'/fi_credit_advice_link.php';
 require_once __DIR__.'/operations_policy.php';
+require_once __DIR__.'/operations_read_policy.php';
 require_once __DIR__.'/commodity_weights_core.php';
 
 require dirname(__DIR__) . '/auth_store.php';
@@ -621,6 +622,7 @@ function operations_file_fallback(array $user): never {
 
 try {
     $user = tt_require_login();
+    if ($_SERVER['REQUEST_METHOD']==='GET' && !operations_can_read($user)) operations_respond(['ok'=>false,'error'=>'Application module access is required to read operational records.'],403);
     if ($_SERVER['REQUEST_METHOD']==='GET') tt_release_read_session();
     if (operations_env('DB_HOST') === '' || operations_env('DB_NAME') === '' || operations_env('DB_USER') === '') {
         operations_file_fallback($user);

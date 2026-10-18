@@ -4,6 +4,7 @@ declare(strict_types=1);
 require dirname(__DIR__) . '/auth_store.php';
 require dirname(__DIR__) . '/backup_lib.php';
 require_once dirname(__DIR__) . '/inventory_reconciliation.php';
+require_once __DIR__ . '/operations_read_policy.php';
 header('Content-Type: application/json; charset=UTF-8');
 header('Cache-Control: no-store, no-cache, must-revalidate');
 
@@ -49,6 +50,7 @@ function operations_read(): array {
 try {
     $user = tt_require_login();
     if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+        if (!operations_can_read($user)) operations_respond(['ok'=>false,'error'=>'Application module access is required to read operational records.'],403);
         tt_release_read_session();
         $store = operations_read();
         operations_respond([
