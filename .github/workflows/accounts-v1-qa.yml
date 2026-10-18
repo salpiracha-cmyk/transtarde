@@ -213,6 +213,7 @@ jobs:
         run: |
           npm install --prefix "$RUNNER_TEMP/expense-review-node" --no-save playwright@1.55.0 jsdom@26
           export NODE_PATH="$RUNNER_TEMP/expense-review-node/node_modules"
+          node tests/accounts-v1/assets_company_load_ui_test.js
           node tests/accounts-v1/mill_liabilities_ui_test.js
           node tests/accounts-v1/mill_liability_status_ui_test.js
           node tests/accounts-v1/bag_transfers_ui_test.js
