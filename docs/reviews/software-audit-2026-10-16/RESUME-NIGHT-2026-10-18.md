@@ -1,3 +1,123 @@
+# Latest continuation checkpoint — lifting and reference scope
+
+The latest application main is `b97d02ea6bd41f5ea7f207fb466a8f2b41f07661`,
+exact tree `c5b1cef52165e202964b88274f74fbbc291ec7bf`. The whole application
+review remains incomplete. Earlier entries below are chronological evidence;
+read this checkpoint and CURRENT_COVERAGE.csv before treating an old gap as current.
+
+## PR337 — immutable unbilled lifting corrections and receipt visibility
+
+PR337 merged as `aeb2e5e91cebbb113d550fc51af262b57d7d4819`, tree
+`8f26b0348427bab46d0f5eb328120ac7ace7cbe2`. Unbilled Rice/Corn corrections
+require scoped Edit permission, a reason and the current journal identity. They
+preserve the original, add a linked reversal/replacement at the accepted rate,
+and retain source history. Billed corrections and cancellation remain held.
+Native Save has a no-write green accounting preview; Confirm checks the reviewed
+amount fingerprint under the store lock. Cancel and unchanged replay do not write.
+
+The legacy posted Ex-Mill receipt status was omitted by Accounts reports. The
+Rs10,000 actual-auth fixture reproduces that omission on old code. The shared
+read projection now includes the exact legacy receipt type without migrating
+history, and excludes drafts and unrelated pending sources. New journal status
+is Posted with a separate Pending bill dimension. Inventory, GRNI and supplier
+balances reconcile through correction and final billing in disposable fixtures.
+See LIFTING-CORRECTION-2026-10-18.md for scope and handoff limitations.
+
+Final feature `ad8d607c51660a77bf3581b3e4c7a31d071aacfb` passed Accounts
+39153343162 (audit117751350551/inventory117751350400) and Milling39153343168
+(audit117751350295). Exact-main Accounts39153605023
+(audit117752123304/inventory117752123091) and Milling39153605203
+(audit117752123422) passed. Deployment39153862436/job117752886320 confirmed the
+exact merge SHA, healthy login, changedUserCount0 and journal-ID changeCount0.
+
+Authenticated read-only smoke39153990547/job117753280878 passed20/20:
+10bank comparisons,50active ledgers across3company reports,0concurrent-revision
+skips and0financialwrites. Recovery read0source runs, so positive recovery
+acceptance remains open. Startup39153990541/job117753280653 FAILED at the
+read-only Masters shell with TimeoutError. It returned successful login/Accounts
+requests and a200 Masters response, but did not observe the visible Masters view.
+The separate smoke passed its Masters round trips. The profiler failure is
+retained; neither its cause nor an intermittent startup repair is claimed.
+
+## PR338 — selected company/mill reference estimates
+
+PR338 merged as `2028774d67c16cb0dee61e2a5f85c192b234b343`, tree
+`12ed83b24278cc9f081fb8d21081edebb98e2a23`.
+Rent and same-person/month salary advance estimates no longer include another
+company or mill's reported references. Existing legacy unscoped fallback remains;
+no missing source ownership is guessed or rewritten. Actual render/save tests
+first fail on the preceding code (Rs350 versus correct Rs850 rent remainder),
+then pass, including no-write reads and explicit saves preserving other history.
+Canonical salary/rent master, liability and payment reconciliation remains R08.
+See MILL-REFERENCE-SCOPE-2026-10-18.md.
+
+Feature `58c0becb1b3b4f67143e376e227c44f09b71f53a` passed Accounts39153666697
+(audit117752311717/inventory117752311846) and Milling39153666701
+(audit117752311752). Exact-main Accounts39154027220
+(audit117753391014/inventory117753391125) and Milling39154027239
+(audit117753390955) passed. Deployment39154286642/job117754172273 confirmed exact2028774, healthy login,
+changedUserCount0 and journal-ID changeCount0. Startup39154348833/job117754359815
+passed (Masters1156ms, Milling899ms, Exports1089ms), without erasing the earlier
+Masters timeout. Authenticated read-only smoke39154348821/job117754359422 passed
+20/20,10bank comparisons,50ledgers/3companies,0concurrent-revision skips and
+0financialwrites. Recovery saw0source runs. Neither smoke checked the blocked
+Maize/review runtime or missing Export office hook; their delivery failure was
+found in the startup resource evidence and is addressed separately by PR339.
+
+## PR339 — actual Maize/review/office-hook runtime delivery
+
+PR339 merged as `b97d02ea6bd41f5ea7f207fb466a8f2b41f07661`, tree
+`c5b1cef52165e202964b88274f74fbbc291ec7bf`. Maize and lifting-review scripts
+were requested from the intentionally denied milling folder. The Export office
+hook relative URL pointed at an absent root file. Prior shell smoke passes did
+not assert these runtimes and therefore did not certify their delivery.
+
+The authenticated module now embeds the existing scripts at their existing
+execution positions, as for Rice Ledger. Folder protection and permissions are
+unchanged; required missing assets return503. The actual module-renderer test
+fails before repair and passes afterward, with denied-user, missing-asset and
+assembled-script checks. Native Maize/Corn form regressions pass. Live smoke now
+checks installed office hooks, the lifting-review function and actual Maize
+route visibility with blank rates, without Save or financial action.
+
+Final feature531b4bfffe835f991e6f928ec33fae5c18741afc passed Accounts39154736432
+(audit117755508479/inventory117755508346) and Milling39154736447
+(audit117755508240). Exact-main Accounts39154981721
+(audit117756231644/inventory117756231961) and Milling39154981666
+(audit117756231161) passed. Deployment39155244119/job117757012123 confirmed exactb97d02e, healthy login,
+changedUserCount0 and journal-ID changeCount0. Read-only startup39155329309/
+job117757262183 passed. Expanded live smoke39155329141/job117757261502
+passed20/20 (4.1minutes). LIVE_MAIZE_REVIEW_DELIVERY_OK appeared in both Milling
+loads: all3actual routes, initially blank agreed rate and review function. The
+Export installed-office-hook assertion also passed. Module POST paths were[],
+10bank comparisons and50ledgers across3company reports matched with0concurrent
+revision skips and0financialwrites. Recovery read0source runs. Startup measured
+Masters1181ms, Milling987ms and Exports800ms. This certifies the tested read-only
+runtime delivery, not a live labour bill, correction or office-agent write. See MODULE-SCRIPT-DELIVERY-2026-10-18.md.
+
+## Open acceptance boundaries
+
+Separate Maize labour PR318 implemented three routes, separate initially blank
+agreed rates,25/50kg paltai and additions only. Rice work/rates are not reused.
+The subsequent PR339 delivery repair is required because source-file fixtures
+and module-shell smoke had missed blocked scripts. Do not infer usable live
+Maize controls from earlier shell checks; use the new route/form assertions.
+
+Open: current positive stock/source and intercompany reconciliation; mixed
+historical allocations; billed/cancelled receipt corrections; canonical rent/salary
+reference reconciliation; issued-document/archive contradictions and remaining
+master/role/action/output variants; independent MySQL/full-browser migration;
+intermittent startup and formal security preflight. Local Mac Chrome control is
+not exposed in this chat. No Mac visual acceptance is claimed here. Mandatory
+security preflight could not run because its prologue/tooling is unavailable;
+ordinary functional checks are not formal security clearance.
+
+No production financial posting, stock test, payment, approval, original issued
+file replacement, role grant or restore was used. Positive cases are disposable;
+production browser checks are authenticated and read-only.
+
+---
+
 # Continuation in the replacement chat — 18 October 2026
 
 Recovered main d10bd1b and the final PR330/331 audit checkpoint. The application
