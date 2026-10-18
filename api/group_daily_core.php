@@ -18,11 +18,12 @@ function gd_date(mixed $value):string {
 function gd_commodity(mixed $value):string {
     $value=strtoupper(trim((string)$value));return in_array($value,['CORN','MAIZE','MAKAI'],true)?'CORN':$value;
 }
-/** Corn must have an explicit native Corn/Maize/Makai product identity. Rice cannot consume those products. */
+/** Match the native Milling owner/serial identity without rewriting display text. */
 function gd_container_identity(mixed $value):string {
     $id=(string)preg_replace('/[^A-Z0-9]/','',strtoupper(trim((string)$value)));
     return preg_match('/^[A-Z]{4}[0-9]{7}$/D',$id)?substr($id,0,10):$id;
 }
+/** Corn must have an explicit native Corn/Maize/Makai product identity. Rice cannot consume those products. */
 function gd_stock_matches_commodity(array $stock,string $commodity):bool {
     $corn=preg_match('/\b(?:CORN|MAIZE|MAKAI)\b/i',(string)($stock['product']??''))===1;
     return $commodity==='CORN'?$corn:!$corn;
@@ -81,11 +82,11 @@ function gd_sources(array $books,array $ops,string $date):array {
     }
     $outside=gd_rows($values,'tt35exload');$localSodas=[];
     foreach(gd_rows($values,'tt35exmill') as $soda)$localSodas[(string)($soda['id']??'')]=(string)($soda['_ttPurchaseSodaId']??$soda['_ttBridgeId']??'');
-    foreach((array)($books['purchaseSodaLiftings']??[]) as $id=>$lifting){
+    $physicalLiftings=[];foreach((array)($books['purchaseSodaLiftings']??[]) as $id=>$lifting){
         if(!is_array($lifting)||!empty($lifting['reversed']))continue;$entity=(string)($lifting['entity']??'');$key='PURCHASE|'.$entity.'|'.(string)($lifting['sourceSodaId']??'');if(!isset($purchase[$key]))continue;
-        $on=gd_date($lifting['date']??'');if($on!==''&&$on>$date)continue;
-        $matches=array_values(array_filter($outside,static fn($r)=>strtoupper((string)($r['container']??''))===strtoupper((string)($lifting['container']??''))&&(string)($r['sourceSodaId']??$localSodas[(string)($r['sodaId']??'')]??'')===(string)($lifting['sourceSodaId']??'')));
-        if($on===''||count($matches)!==1||abs((float)($matches[0]['kg']??0)-(float)($lifting['kg']??0))>.001||gd_date($matches[0]['date']??'')!==$on){$purchase[$key]['receivedKnown']=false;gd_hold($holds,'LIFTING|'.$id,'Reconcile the financial lifting with its original dated physical loading source.');continue;}
+        $on=gd_date($lifting['date']??'');if($on!==''&&$on>$date)continue;$container=gd_container_identity($lifting['container']??'');$physical=$entity.'|'.(string)($lifting['sourceSodaId']??'').'|'.$container;if($container!==''&&isset($physicalLiftings[$physical]))throw new DomainException('More than one financial lifting refers to the same physical container. Reconcile the original receipt before reporting purchase commitments.');if($container!=='')$physicalLiftings[$physical]=true;
+        $matches=array_values(array_filter($outside,static fn($r)=>gd_container_identity($r['container']??'')===gd_container_identity($lifting['container']??'')&&(string)($r['sourceSodaId']??$localSodas[(string)($r['sodaId']??'')]??'')===(string)($lifting['sourceSodaId']??'')));
+        if($container===''||$on===''||count($matches)!==1||abs((float)($matches[0]['kg']??0)-(float)($lifting['kg']??0))>.001||gd_date($matches[0]['date']??'')!==$on){$purchase[$key]['receivedKnown']=false;gd_hold($holds,'LIFTING|'.$id,'Reconcile the financial lifting with its original dated physical loading source.');continue;}
         $purchase[$key]['receivedMT']+=gm_number($lifting['kg']??null,'actual lifted kg')/1000;$purchase[$key]['receiptIds'][]='purchaseSodaLiftings|'.$id;
     }
     foreach($purchase as &$row){$row['receivedMT']=round($row['receivedMT'],6);$known=$row['quantityKnown']&&$row['receivedKnown'];$row['undeliveredMinMT']=$known?($row['closed']?0.:max(0,$row['contractedMinMT']-$row['receivedMT'])):null;$row['undeliveredMaxMT']=$known?($row['closed']?0.:max(0,$row['contractedMaxMT']-$row['receivedMT'])):null;}unset($row);
