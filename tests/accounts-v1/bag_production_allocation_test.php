@@ -15,6 +15,12 @@ $order=['id'=>123,'entity'=>'TTI','mill'=>'TTI Rice Mills','brand'=>'ASAS','size
 $review=bti_project($values,$masters,$scope,$date,$date,[],'P1');$id='PO|123|mills-1';
 $record=['id'=>'P1','entity'=>'TTI','millId'=>1,'millName'=>'TTI Rice Mills','date'=>$date,'shift'=>'Day','variety'=>'IRRI-6','baseVariety'=>'IRRI-6','riceType'=>'White','recoveryVersion'=>1,'rawInputs'=>[['grossKg'=>500]],'rows'=>[['product'=>'Ready Rice — ASAS','bags'=>10,'bagWeight'=>50]],'bagAllocationVersion'=>1,'bagStockFingerprint'=>$review['fingerprint'],'bagAllocations'=>[['lotId'=>$id,'qty'=>10,'sourceSnapshot'=>['brand'=>'FORGED','packingSize'=>'1 kg']]]];
 $stored=json_decode(tt_inv_prepare_write($values,'tt30prod',json_encode([$record]),$user,$now),true)[0];bp_check($stored['bagAllocations'][0]['sourceSnapshot']['brand']==='ASAS','Client replaced authoritative bag source snapshot');bp_check($stored['bagAllocationActor']['userId']===7&&$stored['bagAllocationScope']['locationId']==='mills-1','Actual producer or stock scope lost');bp_check(serialize($values)===$original,'Validation wrote its sources');
+foreach(['printingMismatch','materialMismatch','qualityMismatch','tareMismatch'] as $flag){
+    $heldValues=$values;$receipts=json_decode($heldValues['tt33bagreceipts'],true);$receipts[0][$flag]=true;$heldValues['tt33bagreceipts']=json_encode($receipts);$unchanged=serialize($heldValues);
+    $heldReview=bti_project($heldValues,$masters,$scope,$date,$date,[],'P1');$heldRun=$record;$heldRun['bagStockFingerprint']=$heldReview['fingerprint'];
+    bp_reject(fn()=>tt_inv_prepare_write($heldValues,'tt30prod',json_encode([$heldRun]),$user,$now),'Actual production writer consumed a historical discrepant receipt');
+    bp_check(serialize($heldValues)===$unchanged,'Refused production rewrote historical receipt facts');
+}
 $committed=$values;$committed['tt30prod']=json_encode([$stored]);$after=bti_project($committed,$masters,$scope,$date,$date);bp_check($after['lots'][$id]['availableQty']===90,'Canonical production did not consume exact source lot');
 $stale=$record;$stale['bagStockFingerprint']='stale';bp_reject(fn()=>bti_prepare_production($values,json_encode([$stale]),$masters,$user,$now),'Stale bag review was accepted');
 $future=$record;$future['date']='2026-10-18';bp_reject(fn()=>bti_prepare_production($values,json_encode([$future]),$masters,$user,$now),'Future-dated actual packing was accepted');
