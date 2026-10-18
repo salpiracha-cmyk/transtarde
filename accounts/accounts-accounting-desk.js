@@ -341,11 +341,11 @@
     qa('[data-tt-action]', work).forEach(button => button.onclick = () => launch(area.actions[Number(button.dataset.ttAction)]));
     if(isBankArea){
       // Optional tool eligibility must never hold the main Bank screen behind a network wait.
-      const urls=['../api/bank_entries.php?entity='+menuCompany,'../api/bank_accounts.php?entity='+menuCompany,...(menuCompany!=='TG'?['../api/export_receipts.php?entity='+menuCompany]:[])];
+      const urls=['../api/bank_entries.php?entity='+menuCompany,'../api/bank_accounts.php?entity='+menuCompany,menuCompany==='TG'?'../api/tg_remittances.php?entity=TG':'../api/export_receipts.php?entity='+menuCompany];
       const alive=()=>menuToken===bankMenuGeneration&&menuCompany===entity()&&work.isConnected&&document.querySelector('#ttDeskWork')===work;
       const reveal=special=>{if(!alive())return;const index=area.actions.findIndex(action=>action.special===special),slot=q('[data-pending-bank-action="'+index+'"]',work);if(!slot)return;slot.outerHTML=actionMarkup(area.actions[index],index);const button=q('[data-tt-action="'+index+'"]',work);if(button)button.onclick=()=>launch(area.actions[index]);};
       let failed=false;
-      await Promise.allSettled(urls.map(async(url,index)=>{try{const response=await fetch(url,{credentials:'same-origin'});if(!response.ok)throw new Error('Bank option unavailable');const data=await response.json();if(!data.ok)throw new Error('Bank option unavailable');if(index===0&&(data.canCreate||(data.facilities||[]).some(f=>f.active)))reveal('bank-finance');if(index===1&&data.accounts?.some(a=>a.settings?.retentionAccount))reveal('retention-remittance');if(index===2&&((data.pendingTg||[]).length||(data.sources?.tgPackInvoices||[]).length||(data.receipts||[]).some(r=>r.remitter==='TG')))reveal('tg-remittances');}catch{failed=true;}}));
+      await Promise.allSettled(urls.map(async(url,index)=>{try{const response=await fetch(url,{credentials:'same-origin'});if(!response.ok)throw new Error('Bank option unavailable');const data=await response.json();if(!data.ok)throw new Error('Bank option unavailable');if(index===0&&(data.canCreate||(data.facilities||[]).some(f=>f.active)))reveal('bank-finance');if(index===1&&data.accounts?.some(a=>a.settings?.retentionAccount))reveal('retention-remittance');if(index===2&&(menuCompany==='TG'?(data.items||[]).length:((data.pendingTg||[]).length||(data.sources?.tgPackInvoices||[]).length||(data.receipts||[]).some(r=>r.remitter==='TG'))))reveal('tg-remittances');}catch{failed=true;}}));
       if(failed&&alive()){const note=document.createElement('p');note.setAttribute('role','status');note.textContent='Some optional bank tools could not be checked. Reopen Bank & Cash to retry.';work.append(note);}
     }
   }
