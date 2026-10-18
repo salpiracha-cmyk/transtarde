@@ -55,6 +55,14 @@ $r=json_decode(stream_get_contents(STDIN),true);$_GET=$r['query'];$_SERVER['REQU
  # Completion also requires every financial currency's saved exchange rate.
  books['journals']['TG1']={'id':'TG1','entity':'TG','status':'Posted','date':'2026-10-01','lines':[{'account':'1110','debit':10,'credit':0}]};books['revision']=9;bp.write_text(json.dumps(books));status,d=req();assert status==200,d
  latest=d['dailySource']['fingerprint'];saved=report.read_bytes();status,d=req(save('daily',2,'fixture-fx-001',sourceFingerprint=latest,data={'config':config},complete=True,reviewConfirmed=True,reason='Review new source'));assert status==422,d;assert report.read_bytes()==saved,'Missing FX completed a Daily report'
+ # Conflicting native loading routes cannot count a container twice or replace a saved report.
+ load={'id':'LOAD1','container':'ABCD1234567','date':'2026-10-01','weight':20000}
+ ops['values']['tt30ship']=json.dumps([{'id':'SHIP1','entity':'TTI','millName':'Fixture mill','contractRef':'TG/C1','containers':[load]}])
+ ops['values']['tt35exload']=json.dumps([{'id':'OUT1','container':'ABCD123456-8','contractRef':'TG/C1','date':'2026-10-01','kg':20000}]);op.write_text(json.dumps(ops))
+ canonical=(bp.read_bytes(),op.read_bytes());saved=report.read_bytes()
+ status,d=req();assert status==422 and 'same physical container' in d['error'],d
+ status,d=req(save('daily',2,'fixture-duplicate-load',sourceFingerprint=latest,data={'config':config},reason='Review new source'));assert status==422,d
+ assert report.read_bytes()==saved and (bp.read_bytes(),op.read_bytes())==canonical,'Rejected loading conflict changed original sources or saved report'
  # Missing operational source cannot become a zero position.
  op.unlink();assert req()[0]==500
  print('PASS Daily endpoint: real source snapshots, forged-source rejection, version/source conflicts, idempotent retries, explicit review, permission checks, retained historical balances and zero stock/book writes')

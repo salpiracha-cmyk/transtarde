@@ -372,3 +372,10 @@ PR291/297 changes, including discrepancy guard PR306 and return-report PR309, ar
 ## Current release / Daily continuation checkpoint — 18 October 2026
 
 The integrated bag/Mill candidate was deployed through PR311, followed by permission repairs PR312/313. Current verified production code is2815a6616403306747caabc3ee10561dbdedbe51; its live smoke passed19/19. Earlier draft wording above is historical. PR297 is closed as superseded. Daily source-derived work continues in draft PR314 and is not deployed. See the final section of [RESUMED-2026-10-18.md](RESUMED-2026-10-18.md) for exact deployment/test identities, the retained intermittent Exports startup failure, original-file source proof and remaining work. Whole-application completion remains open.
+
+
+## Container identity release and validated Daily candidate — 18 October 2026
+
+PR316 is released asca7050c6d0f5b29c2eaf33e7ae6a47417f18e98d (deployment39119392157); startup39119473546 and authenticated read-only smoke39119473548 (19/19;0financialwrites) passed. It prevents equivalent physical ISO container aliases from recognizing another Ex-Mill liability, retains native display text and preserves authorization. Full feature/main suites passed. Actual production financial test records were not created.
+
+The Daily candidate8f5d98d passed full hosted actual-auth/MySQL/native-browser tests. Draft PR314 now includes the released repair plus an additional reproduced Rice/Corn stock mismatch guard at727080e; fresh combined full Accounts39119342929 and Milling39119342931 passed. Reports are not deployed. Intercompany/source/product compatibility acceptance, broader management reports, Corn source authority/immutable correction and migration/security sign-off remain open. See the newest checkpoint in RESUMED-2026-10-18.md; it supersedes older pending/menu/tool-availability statements.

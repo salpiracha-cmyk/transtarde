@@ -19,6 +19,10 @@ function gd_commodity(mixed $value):string {
     $value=strtoupper(trim((string)$value));return in_array($value,['CORN','MAIZE','MAKAI'],true)?'CORN':$value;
 }
 /** Corn must have an explicit native Corn/Maize/Makai product identity. Rice cannot consume those products. */
+function gd_container_identity(mixed $value):string {
+    $id=(string)preg_replace('/[^A-Z0-9]/','',strtoupper(trim((string)$value)));
+    return preg_match('/^[A-Z]{4}[0-9]{7}$/D',$id)?substr($id,0,10):$id;
+}
 function gd_stock_matches_commodity(array $stock,string $commodity):bool {
     $corn=preg_match('/\b(?:CORN|MAIZE|MAKAI)\b/i',(string)($stock['product']??''))===1;
     return $commodity==='CORN'?$corn:!$corn;
@@ -103,11 +107,11 @@ function gd_sources(array $books,array $ops,string $date):array {
         $on=gd_date($row['date']??$row['loadingAt']??$row['gateTime']??'');if($on===''){$sales[$id]['loadedKnown']=false;gd_hold($holds,$identity,'An undated physical load cannot reduce a dated sales commitment.');return;}if($on>$date)return;
         if(isset($loadIds[$identity]))throw new DomainException('A repeated physical loading identity requires reconciliation.');$loadIds[$identity]=true;
         if(str_contains(strtoupper((string)($row['issue']??'')),'HOLD')){$sales[$id]['loadedKnown']=false;gd_hold($holds,$identity,'A held physical loading requires disposition before reducing the sales commitment.');return;}
-        $sales[$id]['loadedMT']+=$kg/1000;$sales[$id]['loadingIds'][]=$identity;$loadedContainers[$ref.'|'.strtoupper(str_replace('-','',(string)($row['container']??'')))]=true;
+        $container=gd_container_identity($row['container']??'');$physical=$ref.'|'.$container;if($container!==''&&isset($loadedContainers[$physical]))throw new DomainException('The same physical container appears in more than one native loading record. Reconcile its original source before reporting outstanding sales.');$sales[$id]['loadedMT']+=$kg/1000;$sales[$id]['loadingIds'][]=$identity;if($container!=='')$loadedContainers[$physical]=['kg'=>$kg,'sourceId'=>$identity];
     };
     foreach(gd_rows($values,'tt30ship') as $ship)foreach((array)($ship['containers']??[]) as $row){if(!is_array($row))throw new DomainException('Invalid physical loading row.');$identity='tt30ship|'.(string)($ship['id']??'').'|'.(string)($row['id']??$row['container']??'');$load($row,(string)($ship['contractRef']??''),$identity,'weight');}
     foreach($outside as $row)$load($row,(string)($row['contractRef']??''),'tt35exload|'.(string)($row['id']??''),'kg');
-    foreach((array)($root['shipments']??[]) as $shipment){if(!is_array($shipment)||!empty($shipment['cancelled']))continue;$ref=(string)($shipment['contractRef']??'');if(!isset($refs[$ref]))continue;foreach((array)($shipment['millActuals']??[]) as $actual){if((float)($actual['millNetKg']??$actual['netKg']??0)<=0)continue;$key=$ref.'|'.strtoupper(str_replace('-','',(string)($actual['number']??$actual['container']??'')));if(!isset($loadedContainers[$key])){$sales[$refs[$ref]]['loadedKnown']=false;gd_hold($holds,'EXPORT-ACTUAL|'.(string)($shipment['id']??''),'Export actuals have no matching committed native loading source in this snapshot.');}}}
+    foreach((array)($root['shipments']??[]) as $shipment){if(!is_array($shipment)||!empty($shipment['cancelled']))continue;$ref=(string)($shipment['contractRef']??'');if(!isset($refs[$ref]))continue;foreach((array)($shipment['millActuals']??[]) as $actual){if((float)($actual['millNetKg']??$actual['netKg']??0)<=0)continue;$key=$ref.'|'.gd_container_identity($actual['number']??$actual['container']??'');$native=$loadedContainers[$key]??null;if(!$native||abs((float)($actual['millNetKg']??$actual['netKg']??0)-$native['kg'])>.001){$sales[$refs[$ref]]['loadedKnown']=false;gd_hold($holds,'EXPORT-ACTUAL|'.(string)($shipment['id']??''),$native?'Export actual weight disagrees with its original native loading source.':'Export actuals have no matching committed native loading source in this snapshot.');}}}
     foreach($sales as &$row){$row['loadedMT']=round($row['loadedMT'],6);$row['outstandingMT']=$row['loadedKnown']&&$row['contractedMT']>0?($row['closed']?0.:max(0,$row['contractedMT']-$row['loadedMT'])):null;}unset($row);
 
     $stock=[];$scopes=[];$safe=$values;
