@@ -19,8 +19,9 @@ function rl_report(array $values,array $scope,array $filters):array {
     $products=array_keys($stock);sort($products);$selected=(string)($filters['product']??'');
     $from=(string)($filters['from']??'');$to=(string)($filters['to']??'');$movement=(string)($filters['movement']??'All');
     $balances=[];$summaries=[];$rows=[];$undated=[];
-    foreach($products as $product){if($selected!==''&&$product!==$selected)continue;$balances[$product]=0.;$summaries[$product]=['product'=>$product,'openingKg'=>0.,'inwardKg'=>0.,'outwardKg'=>0.,'closingKg'=>0.,'undatedKg'=>0.,'undatedCount'=>0,'provisional'=>false];}
+    foreach($products as $product){if($selected!==''&&$product!==$selected)continue;$balances[$product]=0.;$summaries[$product]=['product'=>$product,'openingKg'=>0.,'inwardKg'=>0.,'outwardKg'=>0.,'closingKg'=>0.,'undatedKg'=>0.,'undatedCount'=>0,'scopeUnverifiedCount'=>0,'provisional'=>false];}
     foreach($moves as $row){$p=$row['product'];if(!isset($summaries[$p]))continue;$s=&$summaries[$p];
+        if(($row['scopeVerified']??true)===false&&($row['date']===''||$to===''||$row['date']<=$to))$s['scopeUnverifiedCount']++;
         if($row['date']===''){$s['undatedKg']=round($s['undatedKg']+$row['kg'],3);$s['undatedCount']++;$undated[]=$row;unset($s);continue;}
         if($to!==''&&$row['date']>$to){unset($s);continue;}
         if(str_starts_with($row['basis'],'Provisional'))$s['provisional']=true;
@@ -29,7 +30,7 @@ function rl_report(array $values,array $scope,array $filters):array {
         if($row['kg']>0)$s['inwardKg']=round($s['inwardKg']+$row['kg'],3);else $s['outwardKg']=round($s['outwardKg']-$row['kg'],3);
         if($movement==='All'||($movement==='Inward'&&$row['kg']>0)||($movement==='Outward'&&$row['kg']<0))$rows[]=$row;unset($s);
     }
-    foreach($summaries as $p=>&$s){$s['closingKg']=$balances[$p];$s['status']=$s['undatedCount']?'Unverified — undated movements excluded':($s['provisional']?'Provisional — historical input inferred':'Recorded quantities');}unset($s);
+    foreach($summaries as $p=>&$s){$s['closingKg']=$balances[$p];$issues=[];if($s['undatedCount'])$issues[]='Unverified — undated movements excluded';if($s['scopeUnverifiedCount'])$issues[]='Unverified — source company/mill not recorded';if($s['provisional'])$issues[]='Provisional — historical input inferred';$s['status']=$issues?implode('; ',$issues):'Recorded quantities';}unset($s);
     foreach($rows as &$row)$row['status']=$summaries[$row['product']]['status'];unset($row);
-    return ['ok'=>true,'scope'=>$scope,'filters'=>$filters,'products'=>$products,'summaries'=>array_values($summaries),'rows'=>$rows,'undated'=>$undated,'note'=>'Balances are separate for each product and include all dated movements, regardless of the Movement display filter. Undated history is excluded from dated balances. Inferred production consumption remains provisional. Source references identify operational records, not accounting Post IDs.'];
+    return ['ok'=>true,'scope'=>$scope,'filters'=>$filters,'products'=>$products,'summaries'=>array_values($summaries),'rows'=>$rows,'undated'=>$undated,'note'=>'Balances are separate for each product and include all dated movements, regardless of the Movement display filter. Undated history is excluded from dated balances. Inferred production consumption remains provisional. Legacy movements without recorded company/mill retain the existing quantity projection but their ownership is unverified. Source references identify operational records, not accounting Post IDs.'];
 }

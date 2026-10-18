@@ -37,3 +37,19 @@ identity-based duplicate download handling are already repaired. Their old C17
 duplicate diagnosis is historical. Generated issued CI/PL archive integration
 and original document/source contradictions remain separate open gates; no
 issued file or office archive has been rewritten.
+
+## Missing operational ownership labels
+
+The Rice Ledger also labelled a dated legacy receipt with no saved company/mill
+as Recorded quantities. Its new regression fails on that label before repair.
+The canonical quantity observer now carries whether those source fields exist;
+the report discloses missing ownership in each affected product's status and
+movement rows. Existing quantities and the historical default projection remain
+unchanged. Undated and inferred-input warnings remain alongside this warning.
+This is not ownership verification or reassignment: the C24 original unloading
+location discrepancy still requires independent source reconciliation.
+
+Ten related stock/Daily/API/UI commands passed after the ownership-status change.
+The local Daily MySQL test refused execution because its disposable database
+guard was absent; the guard was preserved. Its required isolated MySQL check
+remains in hosted CI, not a production database test.
