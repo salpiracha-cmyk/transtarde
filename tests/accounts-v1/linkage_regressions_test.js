@@ -50,7 +50,7 @@ const exContext={
   stableSodaId:value=>700000000+String(value).length,nowText:()=> 'QA',refreshInstructionBadges:()=>{}
 };
 vm.createContext(exContext);
-vm.runInContext(['millBaseVariety','exMillVarietyKey','exMillRiceTypeKey','exMillBrokenKey','syncExMillPurchaseSodas'].map(name=>extractFunction(milling,name)).join('\n'),exContext);
+vm.runInContext(['millBaseVariety','exMillCommodityKey','exMillVarietyKey','exMillRiceTypeKey','exMillBrokenKey','syncExMillPurchaseSodas'].map(name=>extractFunction(milling,name)).join('\n'),exContext);
 
 stores.ex=[];stores.loads=[];stores.instructions=[{id:222,_ttBridge:'exports',_ttBridgeId:'EXP-A',entity:'TTI',mill:'Outside Mill',baseVariety:'IRRI-6',riceType:'White',instructionQtyKg:100000}];
 exContext.purchaseSodaFeed=[{id:'S-BRM',entity:'BRM',sodaNo:'1',productStage:'READY',readyRoute:'EX_MILL',locationName:'Outside Mill',baseVariety:'IRRI-6',riceType:'White',displayName:'IRRI-6 White Ready Rice',qtyToKg:100000}];

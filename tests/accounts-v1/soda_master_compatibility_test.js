@@ -25,7 +25,7 @@ assert.match(soda,/tt_master_names_conflict\(\$name,\(string\)\$v\[0\],'business
 assert.match(soda,/function ps_remove_party_category/);
 assert.match(soda,/strcasecmp\(\(string\)\(\$p\['baseVariety'\]\?\?''\),'IRRI-6'\)===0/);
 
-assert.match(desk,/Ready Rice Route/);
+assert.match(desk,/Purchase Route/);
 assert.match(desk,/routeWrap\.hidden=!ready/);
 assert.match(desk,/daysWrap\.hidden=!isCredit/);
 assert.match(desk,/rawPurchaseProductId/);

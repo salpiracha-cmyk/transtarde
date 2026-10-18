@@ -802,12 +802,13 @@ async function validateExMillSodaCapacity(rows,c,excludeShipmentId=''){
  const external=normalizeLoadingAllocations(rows).filter(exMillAllocation);if(!external.length)return'';
  let response;try{response=await fetch('api/milling_purchase_sodas.php?r='+Date.now(),{credentials:'same-origin',headers:{Accept:'application/json'}})}catch{return'Accounts purchase authorization could not be checked. Retry before sending Loading Instructions.'}
  let data={};try{data=await response.json()}catch{}if(!response.ok||!data.ok)return data.error||'Accounts purchase authorization could not be checked.';
- const entity=String(c.seller||'TTI').toUpperCase()==='BRM'?'BRM':'TTI',base=sodaIdentityText(c.variety||c.product),rice=exMillRiceTypeKey(c.riceType||c.product),grade=exMillBrokenKey(c.brokenText||c.brokenGrade||'');
+ const entity=String(c.seller||'TTI').toUpperCase()==='BRM'?'BRM':'TTI',base=sodaIdentityText(c.variety||c.product),rice=/\b(?:CORN|MAIZE|MAKAI)\b/i.test([c.commodity,c.product].join(' '))?'':exMillRiceTypeKey(c.riceType||c.product),grade=exMillBrokenKey(c.brokenText||c.brokenGrade||'');
  const authorized=(data.sodas||[]).filter(s=>String(s.entity||'TTI').toUpperCase()===entity&&String(s.readyRoute||'').toUpperCase()==='EX_MILL');
  for(const name of [...new Set(external.map(a=>String(a.name||'').trim()))]){
   const location=exMillLocationKey(name),atMill=authorized.filter(s=>exMillLocationKey(s.locationName)===location);
   if(!atMill.length)return `No active ${entity} Ex-Mill purchase Soda exists for ${name}. Check the saved Soda route and Ex-Mill location in Accounts.`;
-  const sameVariety=atMill.filter(s=>sodaIdentityText(s.baseVariety||s.displayName)===base);
+  const corn=/\b(?:CORN|MAIZE|MAKAI)\b/i.test([c.commodity,c.variety,c.product].join(' '));
+  const sameVariety=atMill.filter(s=>/\b(?:CORN|MAIZE|MAKAI)\b/i.test([s.commodity,s.baseVariety,s.displayName].join(' '))===corn&&sodaIdentityText(s.baseVariety||s.displayName)===base);
   if(!sameVariety.length)return `The active ${entity} Ex-Mill Soda for ${name} has a different rice variety from Sales Contract ${c.ref||''}. Amend the correct Soda in Accounts.`;
   const sameRice=sameVariety.filter(s=>!rice||!exMillRiceTypeKey(s.riceType)||exMillRiceTypeKey(s.riceType)===rice);
   if(!sameRice.length)return `The active ${entity} Ex-Mill Soda for ${name} has a different rice type from Sales Contract ${c.ref||''}.`;

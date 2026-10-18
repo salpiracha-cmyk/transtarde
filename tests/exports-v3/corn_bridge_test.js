@@ -26,3 +26,11 @@ context.parse=(k,f)=>JSON.parse(localStorage.getItem(k)||JSON.stringify(f));cont
 saved.millActuals=[];saved.millLoadingCompleted=false;localStorage.setItem(context.EXPORT_STORE,JSON.stringify({...root,shipments:[saved]}));
 vm.runInNewContext(source.slice(millStart,millEnd)+'millToExports();',context);saved=JSON.parse(localStorage.getItem(context.EXPORT_STORE)).shipments[0];assert.equal(saved.customsActualWeightKg,26000,'External actual is included in first completion pass');
 console.log('PASS corrected completed weights refresh totals and external actuals precede completion');
+
+// The native outside-mill path must receive Corn's RAW identity and packing choice.
+root.millSync.exportLoading[0].plan.allocations[0].type='Ex-Mill';
+localStorage.setItem('transtrade_export_v3_operational',JSON.stringify(root));localStorage.setItem('tt35exload','[]');
+context.window.TT_SHARED_SYNC.bridge();
+const outside=JSON.parse(localStorage.getItem('tt40exinstructions')).find(row=>row._ttBridge==='exports');
+assert.equal(outside.commodity,'CORN');assert.equal(outside.productStage,'RAW');assert.equal(outside.looseBulk,true);assert.equal(outside.packingType,'Loose bulk in containers');assert.doesNotMatch(outside.displayName,/Ready Rice/);
+console.log('PASS native Ex-Mill Corn bridge retains commodity, RAW stage and loose packing identity');

@@ -130,7 +130,9 @@ jobs:
           php tests/accounts-v1/freight_metadata_test.php
           python3 tests/accounts-v1/ready_rice_bill_http_test.py
           python3 tests/accounts-v1/nonrice_rate_unit_test.py
+          python3 tests/accounts-v1/outside_corn_route_test.py
           node tests/accounts-v1/nonrice_rate_unit_ui_test.js
+          node tests/accounts-v1/outside_corn_ui_test.js
           php tests/accounts-v1/supplier_cheque_lifecycle_test.php
           python3 tests/accounts-v1/supplier_opening_http_test.py
           php tests/accounts-v1/supplier_opening_core_test.php
