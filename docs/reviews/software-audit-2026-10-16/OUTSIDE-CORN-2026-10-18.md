@@ -36,9 +36,9 @@ a bulk shipment cannot invent bags to satisfy a per-bag broker profile.
 
 Validation uses disposable stores only. The real authenticated API test covers
 Soda creation/retry, Corn feed, issued-allocation/company/packing/weight denials,
-two zero-bag container liabilities, byte-identical replay, blocked original-journal
-amendment, third-container denial, shared physical save and completion, combined
-bill, source-weight tampering and duplicate billing. Actual Accounts/Milling form
+packed Corn with positive bags, two zero-bag container liabilities, byte-identical replay, blocked original-journal
+amendment, third-container denial, actual Export instruction save / Milling link, shared physical save and completion, combined
+bill and Corn KAT deduction, source-weight tampering and duplicate billing. Actual Accounts/Milling form
 functions run in JSDOM, including explicit final Save, dependent fields, net/gross
 packing deductions and Rice isolation. The actual module bridge verifies Corn's
 outside-mill identity. Eighteen related local CI commands passed before final
