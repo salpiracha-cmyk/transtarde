@@ -1,0 +1,46 @@
+name: Diagnose snapshot inventory (read only)
+on:
+  push:
+    branches: [diagnose/backup-inventory-20261018]
+permissions:
+  contents: read
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Configure existing verified production connection
+        env:
+          SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.HOSTINGER_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -m 700 -d "$RUNNER_TEMP/ssh"
+          printf '%s\n' "$SSH_KEY" | tr -d '\r' > "$RUNNER_TEMP/ssh/key"
+          printf '%s\n' "$KNOWN_HOSTS" | tr -d '\r' > "$RUNNER_TEMP/ssh/known_hosts"
+          chmod 600 "$RUNNER_TEMP/ssh/key" "$RUNNER_TEMP/ssh/known_hosts"
+      - name: Inspect snapshot path policy without changing application data
+        env:
+          HOST: ${{ secrets.HOSTINGER_HOST }}
+          PORT: ${{ secrets.HOSTINGER_PORT }}
+          ACCOUNT: ${{ secrets.HOSTINGER_USER }}
+          TARGET: ${{ secrets.HOSTINGER_DEPLOY_PATH }}
+        run: |
+          set -euo pipefail
+          case "$TARGET" in /home/*/domains/app.transtradeinternational.com/public_html) ;; *) exit 1;; esac
+          ssh -i "$RUNNER_TEMP/ssh/key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" -o StrictHostKeyChecking=yes -p "$PORT" "$ACCOUNT@$HOST" bash -s -- "$TARGET" <<'REMOTE'
+          set -euo pipefail
+          cd "$1"
+          php <<'PHP'
+          <?php
+          $_SERVER['REQUEST_URI']='/read-only-backup-diagnostic';
+          require getcwd().'/auth_store.php';
+          require_once getcwd().'/backup_lib.php';
+          $name='auto-20261018-080738-65d37676.zip';
+          $reader=new TT_SimpleZipReader(tt_backup_dir().'/'.$name,0xffffffff);
+          $manifest=json_decode($reader->get('backup-manifest.json'),true,512,JSON_THROW_ON_ERROR);
+          $reader->close();$bad=[];$seen=[];
+          foreach($manifest['recoveryFiles'] as $row){$rel=(string)$row['path'];$allowed=tt_backup_restore_allowed($rel);$duplicate=isset($seen[$rel]);$seen[$rel]=true;if(!$allowed||$duplicate){$category=str_contains($rel,'/')?explode('/',$rel)[0]:'private-root';$bad[]=['category'=>$category,'extension'=>pathinfo($rel,PATHINFO_EXTENSION),'rootTechnicalName'=>!str_contains($rel,'/')&&preg_match('/^[a-z_.-]{1,80}$/D',$rel)?$rel:null,'pathHash'=>hash('sha256',$rel),'duplicate'=>$duplicate];}}
+          echo json_encode(['backupCodeSHA256'=>hash_file('sha256',getcwd().'/backup_lib.php'),'recoveryPolicy'=>tt_backup_restore_allowed('admin-recovery.hash'),'officePolicy'=>tt_backup_restore_allowed('office-backup-token.sha256'),'manifestEntries'=>count($manifest['recoveryFiles']),'rejected'=>$bad,'databaseConfigured'=>(defined('TT_DB_HOST')?TT_DB_HOST:(getenv('TT_DB_HOST')?:''))!==''],JSON_UNESCAPED_SLASHES|JSON_PRETTY_PRINT)."\n";
+          PHP
+          REMOTE
