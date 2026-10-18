@@ -25,6 +25,7 @@ stream_wrapper_unregister('php');stream_wrapper_register('php',FixtureGroupInput
  status,text=request(viewer);assert status==200 and 'GROUP_PRIVATE_SENTINEL' in text,(status,text)
  assert request(director,origin='directors')[0]==200
  assert request(user(role='Super Admin'))[0]==200
+ status,html=request(user(role='Super Admin'),'accounts/group-management.php');assert status==200 and '"allowed":["DAILY"]' in html and '<h1>Group Daily Position</h1>' in html,'Daily navigation exposed unrelated report drafts'
  assert request(viewer,kind='ZAKAT')[0]==403
  assert request(viewer,kind='COSTING')[0]==403,'Group report icon granted the separate costing action'
  assert request({**viewer,'system_qa':True},body={'action':'save-section','section':'header','version':0,'requestKey':'fixture-managed','data':{'rates':{}}})[0]==403
