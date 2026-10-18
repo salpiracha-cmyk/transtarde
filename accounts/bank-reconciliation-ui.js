@@ -8,7 +8,7 @@ async function open(initialBank=''){
  const token=++generation,e=entity();style();q('#ttBrWindow')?.remove();const h=document.createElement('div');h.id='ttBrWindow';h.className='ttbr-mask';h.innerHTML=`<section class="ttbr" role="dialog" aria-modal="true" aria-label="Bank Reconciliation"><div class="ttbr-head"><h2>Bank Reconciliation · ${esc(e)}</h2><button class="btn" data-close>Close</button></div><div data-body>Loading…</div></section>`;document.body.appendChild(h);const body=q('[data-body]',h);let data=null,busy=false,pending=null,requestGeneration=0;
  q('[data-close]',h).onclick=()=>{if(busy)return;generation++;h.remove();};
  async function load(bank=initialBank,date=today()){
-  const requestToken=++requestGeneration;try{const r=await fetch('../api/bank_reconciliation.php?'+new URLSearchParams({entity:e,bankId:bank,statementDate:date}),{credentials:'same-origin',headers:{Accept:'application/json'}});const d=await r.json();if(!r.ok||!d.ok)throw Error(d.error||'Bank reconciliation could not load.');
+  const requestToken=++requestGeneration;const saveButton=q('[data-save]',body);if(saveButton){saveButton.disabled=true;q('[data-message]',body).textContent='Loading selected bank and statement date…';}try{const r=await fetch('../api/bank_reconciliation.php?'+new URLSearchParams({entity:e,bankId:bank,statementDate:date}),{credentials:'same-origin',headers:{Accept:'application/json'}});const d=await r.json();if(!r.ok||!d.ok)throw Error(d.error||'Bank reconciliation could not load.');
   if(token!==generation||requestToken!==requestGeneration||!h.isConnected||e!==entity())return;if(!bank){const preferred=(d.banks||[]).find(b=>b.isDefault);if(preferred)return load(preferred.id,date);}data=d;pending=null;render();}catch(x){if(h.isConnected&&requestToken===requestGeneration)body.textContent=x.message;}
  }
  function totals(){
@@ -24,11 +24,12 @@ async function open(initialBank=''){
   if(!data.bank)return;
   q('[name=statementBalance]',body).oninput=totals;body.querySelectorAll('[data-key]').forEach(i=>i.onchange=totals);
   q('[data-search]',body).oninput=x=>body.querySelectorAll('tbody tr').forEach(r=>r.hidden=!r.textContent.toLowerCase().includes(x.target.value.toLowerCase()));
-  q('[data-refresh]',body).onclick=()=>load(data.bank.id,data.statementDate);
+  q('[data-refresh]',body).onclick=()=>load(q('[name=bankId]',body).value,q('[name=statementDate]',body).value);
   body.querySelectorAll('[data-history]').forEach(b=>b.onclick=()=>load(data.bank.id,b.dataset.history));q('[data-save]',body).onclick=save;totals();window.TT_FORM_VIEWPORT?.open(q('.ttbr',h));
  }
  async function save(){
   if(busy)return;const message=q('[data-message]',body),v=totals();if(e!==entity())return message.textContent='Company changed. Reopen reconciliation.';
+  if(q('[name=bankId]',body).value!==data.bank.id||q('[name=statementDate]',body).value!==data.statementDate)return message.textContent='Bank or statement date changed. Reload from books before saving.';
   if(v.statement===null||!Number.isFinite(v.statement))return message.textContent='Enter the statement closing balance, including zero or an overdraft.';
   const payload={entity:e,csrf:access.csrf,revision:data.revision,bankId:data.bank.id,statementDate:data.statementDate,statementBalance:v.statement,clearedKeys:[...body.querySelectorAll('[data-key]:checked')].map(i=>i.dataset.key)};
   const signature=JSON.stringify(payload);if(!pending||pending.signature!==signature)pending={signature,key:'recon-'+(crypto.randomUUID?.()||Date.now()+'-'+Math.random().toString(16).slice(2))};payload.requestKey=pending.key;

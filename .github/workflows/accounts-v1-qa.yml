@@ -308,6 +308,7 @@ jobs:
           node tests/accounts-v1/numeric_entry_ui_test.js
           node tests/accounts-v1/numeric_no_step_browser_test.js
           node tests/accounts-v1/accounts_date_jv_browser_test.js
+          node tests/accounts-v1/reconciliation_date_browser_test.js
           node tests/accounts-v1/accounts_layout_regression_browser_test.js
           node tests/accounts-v1/form_viewport_browser_test.js
           node tests/accounts-v1/payment_plans_browser_test.js
