@@ -13,7 +13,19 @@ function mps_id(array $rows,string $prefix):string{do{$id=$prefix.'-'.gmdate('Ym
 function mps_sodas(array $s):array{$out=[];foreach(['purchaseSodas','purchaseSodasV2']as $c)foreach((array)($s[$c]??[])as$id=>$r){if(!is_array($r))continue;$key=(string)($r['id']??$id);if(!isset($out[$key]))$out[$key]=$r+['id'=>$key];}return $out;}
 function mps_soda(array $s,string $id):?array{$all=mps_sodas($s);if(isset($all[$id]))return $all[$id];foreach($all as$r)if((string)($r['sodaNo']??'')===$id)return $r;return null;}
 function mps_billed(array $s,string $sourceKey):string{foreach((array)($s['events']??[])as$e)if(is_array($e)&&(string)($e['sourceKey']??'')===$sourceKey&&!empty($e['billId']))return (string)$e['billId'];return '';}
-function mps_can_handoff(array $user,string $entity):bool{return ((tt_user_can_module_action($user,'Accounts','purchases','Create')||tt_user_can_module_action($user,'Accounts','purchases','Edit'))&&(tt_user_can_access_entity($user,$entity,'Create')||tt_user_can_access_entity($user,$entity,'Edit')))||tt_user_can_module_action($user,'Mill','export','Create')||tt_user_can_module_action($user,'Mill','export','Edit');}
+function mps_can_handoff(array $user,string $entity,array $soda):bool {
+    if((tt_user_can_module_action($user,'Accounts','purchases','Create')||tt_user_can_module_action($user,'Accounts','purchases','Edit'))&&(tt_user_can_access_entity($user,$entity,'Create')||tt_user_can_access_entity($user,$entity,'Edit')))return true;
+    if(!tt_user_can_module_action($user,'Mill','export','Create')&&!tt_user_can_module_action($user,'Mill','export','Edit'))return false;
+    $grants=(array)($user['permissions']['Accounts']??[]);
+    foreach(['entity-tti','entity-brm','entity-tg'] as $key)if(array_key_exists($key,$grants)){
+        if(!tt_user_can_access_entity($user,$entity,'Create')&&!tt_user_can_access_entity($user,$entity,'Edit'))return false;
+        break;
+    }
+    $normal=static fn($value)=>strtolower(trim((string)preg_replace('/\s+/',' ',(string)$value)));
+    $assigned=$normal($user['location']??'');
+    $physical=$normal(($soda['locationName']??'')?:($soda['location']??''));
+    return in_array($assigned,['','all locations','all authorized locations'],true)||($physical!==''&&$assigned===$physical);
+}
 
 try {
     $user=tt_require_login();
@@ -29,7 +41,7 @@ try {
         try{
             rewind($handle);$raw=stream_get_contents($handle);$decoded=$raw?json_decode($raw,true):null;$store=is_array($decoded)?array_replace_recursive(mps_store(),$decoded):mps_store();
             $soda=mps_soda($store,$sourceSodaId);if(!is_array($soda)||(string)($soda['readyRoute']??'')!=='EX_MILL')throw new InvalidArgumentException('The linked Ex-Mill purchase Soda was not found.');
-            $entity=strtoupper((string)($soda['entity']??''));if(!in_array($entity,['TTI','BRM'],true)||!mps_can_handoff($user,$entity))mps_out(['ok'=>false,'error'=>'You do not have permission to hand this lifting to Accounts.'],403);
+            $entity=strtoupper((string)($soda['entity']??''));if(!in_array($entity,['TTI','BRM'],true)||!mps_can_handoff($user,$entity,$soda))mps_out(['ok'=>false,'error'=>'You do not have permission to hand this lifting to Accounts.'],403);
             $claimed=strtoupper(trim((string)($body['entity']??'')));if($claimed!==''&&$claimed!==$entity)throw new InvalidArgumentException('The legal entity must come from the approved Soda.');
             $date=mps_date($body['date']??'');if(isset($body['qualityStatus'])&&strtoupper(trim((string)$body['qualityStatus']))!=='OK')throw new InvalidArgumentException('Only quality-approved loaded containers can create an Ex-Mill purchase liability.');$kg=round(mps_num($body['kg']??null,'Container weighbridge weight'),3);$bags=(int)round(mps_num($body['bags']??0,'Bags',false));$container=trim((string)($body['container']??''));if($container==='')throw new InvalidArgumentException('Container number is required before the Ex-Mill liability can be recognized.');
             $key=$entity.'|'.$sourceSodaId.'|'.$liftingId;$sourceKey='EXMILL|'.$sourceSodaId.'|'.$liftingId;$old=$store['purchaseSodaLiftings'][$key]??null;$billId=mps_billed($store,$sourceKey);
