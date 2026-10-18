@@ -34,7 +34,7 @@ jobs:
           php <<'PHP'
           <?php
           $stage='initial';
-          set_exception_handler(static function(Throwable $e)use(&$stage):void{echo json_encode(['rehearsalFailedStage'=>$stage,'errorClass'=>get_class($e)])."\n";exit(1);});
+          set_exception_handler(static function(Throwable $e)use(&$stage):void{echo json_encode(['rehearsalFailedStage'=>$stage,'errorClass'=>get_class($e),'undefinedFunction'=>preg_match('/Call to undefined function ([A-Za-z0-9_]+)/',$e->getMessage(),$m)?$m[1]:null])."\n";exit(1);});
           $live=getcwd();$livePrivate=dirname($live).'/transtrade_private';
           $name='auto-20261018-080738-65d37676.zip';
           $snapshot=$livePrivate.'/backups/'.$name;
@@ -42,7 +42,7 @@ jobs:
           if(!is_file($snapshot))throw new RuntimeException('Named original snapshot is unavailable.');
           $root=dirname($live).'/.review-restore-'.bin2hex(random_bytes(8));
           $stage='space-check';
-          if(disk_free_space(dirname($live))<filesize($snapshot)*2+268435456)throw new RuntimeException('Insufficient free space for isolated recovery.');
+          if(disk_free_space(dirname($live))<filesize($snapshot)*3+268435456)throw new RuntimeException('Insufficient free space for isolated recovery.');
           $stage='private-target';
           if(!mkdir($root.'/app',0700,true))throw new RuntimeException('Isolated recovery target unavailable.');
           function removeReviewTree(string $path):void{
@@ -65,7 +65,8 @@ jobs:
            file_put_contents(tt_operations_file(),json_encode(['revision'=>1,'values'=>[],'meta'=>[]],JSON_THROW_ON_ERROR));
            $baseline=['auth.json'=>hash_file('sha256',TT_DATA_DIR.'/auth.json'),'operations.json'=>hash_file('sha256',tt_operations_file())];
            tt_backup_ensure_dirs();
-           if(!link($snapshot,tt_backup_dir().'/'.$name))throw new RuntimeException('Read-only snapshot link failed.');
+           $stage='snapshot-copy';
+           if(!copy($snapshot,tt_backup_dir().'/'.$name))throw new RuntimeException('Private snapshot copy failed.');
            $stage='original-verification';
            $manifest=tt_backup_verified_server_snapshot($name);
            $stage='isolated-restore';
