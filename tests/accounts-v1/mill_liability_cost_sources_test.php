@@ -25,4 +25,6 @@ check_cost(!$u['inputComplete']&&$u['allocations']===[]&&$u['allocationStatus']=
 $parts=[];for($i=1;$i<=3;$i++)$parts[]=$run('ROUND-'.$i,'2026-10-0'.$i,'TTI Rice Mills','IRRI-6 White Rice',1);
 $ops['values']['tt30prod']=json_encode($parts);$bill['amount']=1000;$ops['values']['tt38kebills']=json_encode([$bill]);
 $g=pc_group_production(pc_production($ops));$r=pc_cost_sources($ops,$g)[0];check_cost(array_sum($r['allocations'])===1000.0&&array_values($r['allocations'])[2]===333.34,'Rounded allocations did not reconcile to the exact bill');
+$ops['values']['tt38labourbills']=json_encode([['id'=>'MAIZE','entity'=>'TTI','millName'=>'TTI Rice Mills','commodity'=>'Makai','from'=>'2026-10-01','till'=>'2026-10-18','amount'=>999999]]);
+check_cost(count(pc_cost_sources($ops,$g))===1,'Maize labour contaminated Rice conversion costs');
 echo "PASS cost sources: same mill only, immutable booked amount and Post ID, amendment hold, missing-source preservation, KE/payment deduplication, reversal removal, unknown location hold and exact rounded allocation\n";

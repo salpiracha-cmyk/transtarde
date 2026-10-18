@@ -24,7 +24,7 @@ function msa_guard_append(array $values,string $key,string $json,array $user): s
         if(!is_array($r)||!is_string($r['id']??null)&&!is_int($r['id']??null))throw new DomainException('Each Mill bill needs a stable identity.');
         $id=(string)$r['id'];if($id===''||isset($seen[$id]))throw new DomainException('Mill bill identities must be unique.');$seen[$id]=true;
         if(isset($index[$id])){if(!hash_equals(ml_fingerprint($index[$id]),ml_fingerprint($r)))throw new DomainException('Use Amend saved bill to preserve the original source and its audit history.');}
-        else{if(isset($r['_sourceAmendments']))throw new DomainException('Bill amendment history is server-owned.');msa_scope($user,$r,$kind,'Create');}
+        else{if(isset($r['_sourceAmendments']))throw new DomainException('Bill amendment history is server-owned.');msa_scope($user,$r,$kind,'Create');if($kind==='LABOUR'&&in_array(strtoupper(trim((string)($r['commodity']??''))),['MAIZE','CORN','MAKAI'],true)){require_once __DIR__.'/maize_labour_core.php';maize_labour_validate($r);}}
     }
     if(array_diff_key($index,$seen))throw new DomainException('Saved Mill sources cannot be removed through a collection save. Use the explicit correction workflow.');
     return $json;

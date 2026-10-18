@@ -37,6 +37,7 @@ jobs:
           python3 tests/accounts-v1/bag_receipt_endpoint_test.py
           php tests/accounts-v1/mill_source_amend_test.php
           python3 tests/accounts-v1/mill_source_amend_endpoint_test.py
+          php tests/accounts-v1/maize_labour_test.php
           php tests/accounts-v1/mill_liabilities_test.php
           php tests/accounts-v1/mill_liability_cost_sources_test.php
           python3 tests/accounts-v1/mill_liabilities_endpoint_test.py
@@ -221,6 +222,7 @@ jobs:
           node tests/accounts-v1/brokerage_readonly_ui_test.js
           node tests/accounts-v1/admin_audit_ui_test.js
           node tests/accounts-v1/mill_read_and_master_ack_test.js
+          node tests/accounts-v1/maize_labour_ui_test.js
           node tests/accounts-v1/mill_permission_reference_test.js
           node tests/accounts-v1/rice_ledger_ui_test.js
           node tests/accounts-v1/mill_report_entry_scope_test.js
