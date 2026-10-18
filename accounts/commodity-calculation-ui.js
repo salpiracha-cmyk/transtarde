@@ -125,9 +125,9 @@
     const deduction=values.karachiWeightKg*per100/100;
     const net=Math.max(0,values.karachiWeightKg-deduction);
     const unit=String(context.soda.rateUnit??'MAUND').trim().toUpperCase();
-    if(!['KG','MAUND'].includes(unit)||!Number.isFinite(maund)||maund<=0){if(q('#ttsbFinal'))q('#ttsbFinal').value='';q('#ttKatResult').textContent='Review the approved Soda rate unit and positive maund weight before posting.';return;}
-    const value=unit==='KG'?net*rate:net/maund*rate;
-    const priceCalculation=unit==='KG'?`${net.toFixed(3)} kg × Rs ${rate.toLocaleString()} per kg`:`${net.toFixed(3)} kg ÷ ${maund} × Rs ${rate.toLocaleString()} per maund`;
+    if(!['KG','MAUND','MT'].includes(unit)||!Number.isFinite(maund)||maund<=0){if(q('#ttsbFinal'))q('#ttsbFinal').value='';q('#ttKatResult').textContent='Review the approved Soda rate unit and positive maund weight before posting.';return;}
+    const value=unit==='KG'?net*rate:unit==='MT'?net/1000*rate:net/maund*rate;
+    const priceCalculation=unit==='KG'?`${net.toFixed(3)} kg × Rs ${rate.toLocaleString()} per kg`:unit==='MT'?`${net.toFixed(3)} kg ÷ 1,000 × Rs ${rate.toLocaleString()} per MT`:`${net.toFixed(3)} kg ÷ ${maund} × Rs ${rate.toLocaleString()} per maund`;
     if(q('#ttsbFinal'))q('#ttsbFinal').value=value.toFixed(2);
     window.TT_SMART_COMMODITY_BILLS_V2?.refreshTotals?.();
     const brokery=applyBrokeryPreview();

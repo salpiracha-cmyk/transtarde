@@ -6,8 +6,9 @@ const context={q:id=>elements[id],current:()=>({soda,commodity,profile:commodity
 vm.createContext(context);vm.runInContext(source.slice(start,end),context);
 context.calculateCommodity();assert.equal(elements['#ttsbFinal'].value,'100000.00');assert.match(elements['#ttKatResult'].innerHTML,/per kg/);
 soda={rate:4000,rateUnit:'MAUND'};context.calculateCommodity();assert.equal(elements['#ttsbFinal'].value,'100000.00');assert.match(elements['#ttKatResult'].innerHTML,/per maund/);
+soda={rate:100000,rateUnit:'MT'};context.calculateCommodity();assert.equal(elements['#ttsbFinal'].value,'100000.00');assert.match(elements['#ttKatResult'].innerHTML,/per MT/);
 soda={rate:4000};context.calculateCommodity();assert.equal(elements['#ttsbFinal'].value,'100000.00','Legacy MAUND changed');
 soda={rate:100,rateUnit:'KG'};moisture=16;context.calculateCommodity();assert.equal(elements['#ttsbFinal'].value,'98000.00','KAT must apply before selected price unit');
 commodity='SESAME';context.calculateCommodity();assert.equal(elements['#ttsbFinal'].value,'100000.00');
 soda={rate:100,rateUnit:'TON'};const before=refreshed;context.calculateCommodity();assert.equal(elements['#ttsbFinal'].value,'');assert.match(elements['#ttKatResult'].textContent,/Review.*unit/);assert.equal(refreshed,before,'Invalid unit refreshed a guessed total');
-console.log('PASS actual non-Rice preview uses the saved KG/MAUND unit, preserves legacy prices, applies KAT first and refuses an unknown unit');
+console.log('PASS actual non-Rice preview uses the saved KG/MAUND/MT unit, preserves legacy prices, applies KAT first and refuses an unknown unit');

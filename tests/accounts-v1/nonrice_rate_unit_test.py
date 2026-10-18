@@ -19,7 +19,7 @@ register_shutdown_function(static function(){file_put_contents($GLOBALS['statusF
 ''')
     env={k:v for k,v in os.environ.items() if not k.startswith('TT_DB_')}
     def request(commodity,unit,rate,moisture=14):
-        soda={'id':'S1','entity':'TTI','sodaNo':'UNIT1','commodity':commodity,'productStage':'RAW','rate':rate,'ratePerKg':rate if unit=='KG' else rate/40,'paymentTermType':'CASH','party':'Fixture supplier','broker':''}
+        soda={'id':'S1','entity':'TTI','sodaNo':'UNIT1','commodity':commodity,'productStage':'RAW','rate':rate,'ratePerKg':rate if unit=='KG' else rate/1000 if unit=='MT' else rate/40,'paymentTermType':'CASH','party':'Fixture supplier','broker':''}
         if unit is not None:soda['rateUnit']=unit
         source='POHANCH|UNIT1';eid='TTI|COMMODITY_RECEIPT_ACCEPTED|'+source
         meta={'soda':'UNIT1','commodity':commodity,'party':'Fixture supplier','broker':'','payableWeightKg':1000,'weighbridgeWeightKg':1000,'bags':20,'productStage':'RAW'}
@@ -30,7 +30,7 @@ register_shutdown_function(static function(){file_put_contents($GLOBALS['statusF
         assert out.returncode==0,out.stderr+out.stdout
         return int(status_file.read_text()),json.loads(out.stdout),before,books.read_bytes()
     for commodity in ['CORN','SESAME']:
-        for unit,rate in [('KG',100),('MAUND',4000),(None,4000)]:
+        for unit,rate in [('KG',100),('MAUND',4000),('MT',100000),(None,4000)]:
             status,data,_,after=request(commodity,unit,rate)
             assert status==200,(commodity,unit,status,data)
             assert data['bill']['finalCommodityValue']==100000,(commodity,unit,'wrong approved price-unit value',data['bill']['finalCommodityValue'])
@@ -40,4 +40,4 @@ register_shutdown_function(static function(){file_put_contents($GLOBALS['statusF
     assert status==200 and data['bill']['calculation']['netPayableKg']==980 and data['bill']['finalCommodityValue']==98000,('KAT or unit application',status,data)
     status,data,before,after=request('CORN','TON',100)
     assert status==422 and before==after,('Unknown unit must fail without a posting',status,data)
-    print('PASS actual non-Rice bill endpoint: KG and MAUND agree for equivalent prices, legacy MAUND retained, Corn KAT applies before price, original provisional sources preserved and invalid units refuse without writes')
+    print('PASS actual non-Rice bill endpoint: KG, MAUND and MT agree for equivalent prices, legacy MAUND retained, Corn KAT applies before price, original provisional sources preserved and invalid units refuse without writes')
