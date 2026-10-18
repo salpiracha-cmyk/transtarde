@@ -30,17 +30,19 @@ test('shipment contribution retains posted evidence and unavailable costs withou
   }return route.continue();
  });
  await page.goto(BASE+'/login.php',{waitUntil:'domcontentloaded',timeout:90000});await page.locator('[name=username]').fill(USERNAME);await page.locator('[name=password]').fill(PASSWORD);await page.locator('button[type=submit]').click();await expect(page).toHaveURL(/\/accounts\/(?:index.php)?$/,{timeout:30000});
- const counts={companies:0,rows:0,heldSources:0,unavailableRows:0};let current;
+ const counts={companies:0,rows:0,heldSources:0,unavailableRows:0,historicalOpeningRows:0,historicalOpenings:0};let current;
  for(const entity of ['TTI','BRM','TG']){
   const response=await page.request.get(BASE+'/api/shipment_profitability.php?entity='+entity);expect(response.status()).toBe(200);const result=await response.json();expect(result.ok).toBe(true);expect(Array.isArray(result.sourceHolds)).toBe(true);
   counts.companies++;counts.rows+=result.rows.length;counts.heldSources+=result.sourceHolds.length;if(entity==='TTI')current=result;
   for(const row of result.rows){
+   if(row.historicalOpeningCount){counts.historicalOpeningRows++;counts.historicalOpenings+=row.historicalOpeningCount;expect(row.totalCost).toBeNull();expect(row.grossContribution).toBeNull();}
    for(const field of ['revenue','stockCost'])if(row[field]!==null){expect(Number.isFinite(row[field])).toBe(true);expect(row[field==='revenue'?'revenueVerified':'stockCostVerified']).toBe(true);}
    if(result.sourceHolds.length||row.revenue===null||row.stockCost===null){counts.unavailableRows++;expect(row.totalCost).toBeNull();expect(row.grossContribution).toBeNull();}
    else{const cost=['stockCost','transport','freight','clearing','fumigation','inspection','otherPostedCost'].reduce((sum,key)=>sum+row[key],0);expect(Math.abs(row.totalCost-cost)).toBeLessThan(.005);expect(Math.abs(row.grossContribution-row.revenue+row.totalCost)).toBeLessThan(.005);}
   }
  }
  await page.evaluate(()=>localStorage.setItem('tt_accounts_entity','TTI'));await page.waitForFunction(()=>typeof window.TT_REPORTS?.open==='function');await page.evaluate(()=>window.TT_REPORTS.open('shipment'));await expect(page.locator('#ttReportsPanel h2')).toContainText('Shipment Contribution');
+ if(current.rows.some(row=>row.historicalOpeningCount)&&!current.sourceHolds.length)await expect(page.locator('#ttReportsBody')).toContainText('Historical opening balance');
  if(current.sourceHolds.length)await expect(page.locator('#ttReportsBody [role=alert]')).toBeVisible();
  if(current.rows.some(row=>row.revenue===null||row.stockCost===null))await expect(page.locator('#ttReportsBody')).toContainText('Unavailable');
  if(current.rows.some(row=>row.totalCost===null))await expect(page.locator('#ttReportsBody')).toContainText('Review required');

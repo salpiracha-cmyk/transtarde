@@ -85,6 +85,50 @@ with tempfile.TemporaryDirectory(prefix='shipment-evidence-') as tmp:
  tg_cost={**cost_post,'entity':'TG','sourceType':'TG_INTERCOMPANY_PAYABLE_RECOGNIZED','meta':{'candidateId':'TGP','functionalAmount':400},'lines':[{'account':'5100','debit':400,'credit':0},{'account':'2410','debit':0,'credit':400}]}
  d=report({'exportCandidates':{'SALE1':tg_sale,'TGP':tg_payable},'journals':{'SALEPOST':tg_sale_post,'COSTPOST':tg_cost}},'TG');assert not d['sourceHolds'] and d['rows'][0]['grossContribution']==600,d
  tg_payable['sourceKey']='OTHER';d=report({'exportCandidates':{'SALE1':tg_sale,'TGP':tg_payable},'journals':{'SALEPOST':tg_sale_post,'COSTPOST':tg_cost}},'TG');assert d['sourceHolds'],d
+ # Historical opening balances are source-owned receivables, not a current sale or missing COGS.
+ historical={'id':'CF1|PAKISTAN','entity':'TTI','candidateType':'TG_PAKISTAN_INTERCOMPANY','sourceKey':'CF1','reference':'OLD-INV','transactionCurrency':'USD','transactionAmount':1000,'functionalCurrency':'PKR','functionalAmount':280000,'journalId':'OPEN1','status':'Registered balance valued at settlement','meta':{'carryForwardShipmentId':'CF1','historicalCostExcluded':True,'contractRef':'OLD1','lotRef':'L1'}}
+ record={'id':'CF1','entity':'TTI','tgPack':True,'status':'Ready for Accounts','pakistanCandidateId':'CF1|PAKISTAN','contractRef':'OLD1','lotRef':'L1','pakistanBalance':{'invoiceNo':'OLD-INV','currency':'USD','outstanding':1000}}
+ opening={'id':'OPEN1','entity':'TTI','status':'Posted','date':'2026-07-01','sourceType':'CARRY_FORWARD_OPENING','meta':{'carryForwardShipmentId':'CF1','candidateId':'CF1|PAKISTAN'},'lines':[{'account':'1240','debit':280000,'credit':0},{'account':'3400','debit':0,'credit':280000}]}
+ historical_state={'carryForwardShipments':{'CF1':record},'exportCandidates':{'CF1|PAKISTAN':historical},'journals':{'OPEN1':opening}}
+ d=report(historical_state);r=d['rows'][0];assert not d['sourceHolds'] and r['historicalOpeningCount']==1 and r['revenue'] is None and r['stockCost'] is None and r['grossContribution'] is None,d
+ # A real current sale is still counted separately, without implying a complete lifetime margin.
+ mixed=json.loads(json.dumps(historical_state));mixed['exportCandidates']['SALE1']={**sale,'meta':{'contractRef':'OLD1','lotRef':'L1'}};mixed['journals'].update(sale_state['journals'])
+ d=report(mixed);r=d['rows'][0];assert not d['sourceHolds'] and r['historicalOpeningCount']==1 and r['revenue']==1000 and r['stockCost']==400 and r['grossContribution'] is None,d
+ for mutation in ['missing-record','draft-record','wrong-pointer','wrong-contract','foreign-record','unmarked','wrong-amount','wrong-native','wrong-owner','wrong-post-type','missing-post','draft-post','foreign-post','unbalanced','current-cost','reversal','revenue-line']:
+  changed=json.loads(json.dumps(historical_state));c=changed['exportCandidates']['CF1|PAKISTAN'];j=changed['journals']['OPEN1'];r=changed['carryForwardShipments']['CF1']
+  if mutation=='missing-record':changed['carryForwardShipments']={}
+  if mutation=='draft-record':r['status']='Draft'
+  if mutation=='wrong-pointer':r['pakistanCandidateId']='OTHER'
+  if mutation=='wrong-contract':r['contractRef']='OTHER'
+  if mutation=='foreign-record':r['entity']='BRM'
+  if mutation=='unmarked':c['meta']['historicalCostExcluded']=False
+  if mutation=='wrong-amount':c['functionalAmount']=1
+  if mutation=='wrong-native':c['transactionAmount']=1
+  if mutation=='wrong-owner':j['meta']['carryForwardShipmentId']='OTHER'
+  if mutation=='wrong-post-type':j['sourceType']='EXPORT_SALE_RECOGNIZED'
+  if mutation=='missing-post':changed['journals']={}
+  if mutation=='draft-post':j['status']='Draft'
+  if mutation=='foreign-post':j['entity']='BRM'
+  if mutation=='unbalanced':j['lines'][1]['credit']=1
+  if mutation=='current-cost':c['costJournalId']='COST1'
+  if mutation=='reversal':changed['journals']['R1']={**j,'id':'R1','reversalOf':'OPEN1'}
+  if mutation=='revenue-line':j['lines'][1]['account']='4500'
+  d=report(changed);assert d['sourceHolds'] and all(r['grossContribution'] is None for r in d['rows']),(mutation,d)
+ # Explicit allocations of one shared original opening are allowed for distinct historical sources.
+ linked=json.loads(json.dumps(historical_state));linked['journals']['OPEN1'].update(sourceType='OPENING_BALANCE_BF',meta={});linked['journals']['OPEN1']['lines'][0].update(nativeCurrency='USD',nativeDebit=2000,debit=560000);linked['journals']['OPEN1']['lines'][1]['credit']=560000
+ linked['carryForwardOpeningLinks']={'CF1|PAKISTAN':{'shipmentId':'CF1','entity':'TTI','journalId':'OPEN1','lineIndex':0,'currency':'USD','nativeAmount':1000}}
+ linked['carryForwardShipments']['CF2']={**record,'id':'CF2','pakistanCandidateId':'CF2|PAKISTAN','contractRef':'OLD2'}
+ linked['exportCandidates']['CF2|PAKISTAN']={**historical,'id':'CF2|PAKISTAN','sourceKey':'CF2','meta':{**historical['meta'],'carryForwardShipmentId':'CF2','contractRef':'OLD2'}}
+ linked['carryForwardOpeningLinks']['CF2|PAKISTAN']={**linked['carryForwardOpeningLinks']['CF1|PAKISTAN'],'shipmentId':'CF2'}
+ d=report(linked);assert not d['sourceHolds'] and len(d['rows'])==2 and all(r['historicalOpeningCount']==1 for r in d['rows']),d
+ for mutation in ['missing-link','wrong-line','wrong-currency','wrong-native','wrong-entity']:
+  changed=json.loads(json.dumps(linked));l=changed['carryForwardOpeningLinks']['CF1|PAKISTAN']
+  if mutation=='missing-link':del changed['carryForwardOpeningLinks']['CF1|PAKISTAN']
+  if mutation=='wrong-line':l['lineIndex']=1
+  if mutation=='wrong-currency':l['currency']='AED'
+  if mutation=='wrong-native':l['nativeAmount']=2001
+  if mutation=='wrong-entity':l['entity']='BRM'
+  d=report(changed);assert d['sourceHolds'],(mutation,d)
  # The actual authentication boundary still enforces module and company View access.
  path.write_text(json.dumps(sale_state));before=path.read_bytes()
  for permissions in [{'Mill':['View']},{'Accounts':{'reports':['View'],'entity-brm':['View']}}]:
@@ -92,4 +136,4 @@ with tempfile.TemporaryDirectory(prefix='shipment-evidence-') as tmp:
  set_user(owner)
  # Input errors must not look like a successful empty report.
  path.write_text('{broken');status,d=request();assert status==500 and not d['ok'],'Corrupt original books reported as empty success'
- print('PASS shipment contribution: sale/COGS/liability identity and amount evidence, TG direct cost, missing-cost nulls, full reversals, duplicates, immutable reads and corrupt-source failure')
+ print('PASS shipment contribution: sale/COGS/liability identity and amount evidence, TG direct cost, verified historical opening classification and shared allocations, missing-cost nulls, full reversals, duplicates, immutable reads and corrupt-source failure')

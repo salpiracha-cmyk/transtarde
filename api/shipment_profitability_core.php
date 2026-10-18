@@ -20,12 +20,10 @@ function sp_active_reversals(array $state,array $hidden):array {
         if($original!=='')$out[(string)($journal['entity']??'').'|'.$original]=true;
     }return $out;
 }
-function sp_source_post(array $state,string $id,string $entity,string $type,string $ownerField,string $owner,array $hidden,array $activeReversals):array {
+function sp_posted_journal(array $state,string $id,string $entity,array $hidden,array $activeReversals):array {
     $j=$state['journals'][$id]??null;
     if(!is_array($j)||($j['id']??'')!==$id||($j['entity']??'')!==$entity||($j['status']??'')!=='Posted'||isset($hidden[$id])||!empty($j['amendedByPostId'])||!empty($j['reversalOf'])||!empty($j['reversedByPostId'])||!empty($j['meta']['reversedByPostId']))throw new DomainException('Linked Post '.$id.' is unavailable or superseded; reconcile the source.');
     if(isset($activeReversals[$entity.'|'.$id]))throw new DomainException('The linked posting has an unreconciled reversal.');
-    $source=($j['sourceType']??'')==='POST_AMENDMENT_CORRECTION'?($j['meta']['originalSourceType']??''):($j['sourceType']??'');
-    if($source!==$type||($j['meta'][$ownerField]??'')!==$owner)throw new DomainException('Linked Post '.$id.' does not identify this source.');
     $dr=0.;$cr=0.;$lines=$j['lines']??null;
     if(!is_array($lines)||!array_is_list($lines)||count($lines)<2)throw new DomainException('Reconcile the linked posting lines.');
     foreach($lines as $line){
@@ -37,8 +35,58 @@ function sp_source_post(array $state,string $id,string $entity,string $type,stri
     if($dr<=0||abs($dr-$cr)>.005||(isset($j['totalDebit'])&&abs($dr-sp_amount($j['totalDebit']))>.005)||(isset($j['totalCredit'])&&abs($cr-sp_amount($j['totalCredit']))>.005))throw new DomainException('The linked posting does not balance.');
     return $j;
 }
+function sp_source_post(array $state,string $id,string $entity,string $type,string $ownerField,string $owner,array $hidden,array $activeReversals):array {
+    $j=sp_posted_journal($state,$id,$entity,$hidden,$activeReversals);
+    $source=($j['sourceType']??'')==='POST_AMENDMENT_CORRECTION'?($j['meta']['originalSourceType']??''):($j['sourceType']??'');
+    if($source!==$type||($j['meta'][$ownerField]??'')!==$owner)throw new DomainException('Linked Post '.$id.' does not identify this source.');
+    return $j;
+}
 function sp_post_net(array $journal,string $account):float {
     $net=0.;foreach($journal['lines'] as $line)if((string)$line['account']===$account)$net+=(float)($line['debit']??0)-(float)($line['credit']??0);return round($net,2);
+}
+/** A linked opening receivable is not a second sale or historical cost posting. */
+function sp_historical_opening(array $state,array $candidate,string $entity,array $hidden,array $activeReversals):bool {
+    $meta=(array)($candidate['meta']??[]);$recordId=(string)($meta['carryForwardShipmentId']??'');
+    if($recordId===''&&empty($meta['historicalCostExcluded']))return false;
+    $record=$state['carryForwardShipments'][$recordId]??null;$id=(string)($candidate['id']??'');
+    $intercompany=($candidate['candidateType']??'')==='TG_PAKISTAN_INTERCOMPANY';
+    $balanceKey=$intercompany?'pakistanBalance':'buyerBalance';$pointer=$intercompany?'pakistanCandidateId':'buyerCandidateId';
+    if(!is_array($record)||($record['id']??'')!==$recordId||($record['status']??'')!=='Ready for Accounts'
+        ||($meta['historicalCostExcluded']??false)!==true||($record[$pointer]??'')!==$id
+        ||($meta['contractRef']??'')!==($record['contractRef']??null)||($meta['lotRef']??'')!==($record['lotRef']??null)
+        ||($candidate['sourceKey']??'')!==(($record['operationalShipmentId']??'')?:$recordId)
+        ||($intercompany&&!($record['tgPack']??false)))throw new DomainException('Reconcile the historical shipment source identity.');
+    $ownerEntity=!$intercompany&&!empty($record['tgPack'])?'TG':($record['entity']??'');
+    $balance=$record[$balanceKey]??[];$native=sp_amount($candidate['transactionAmount']??null);
+    if($ownerEntity!==$entity||($candidate['entity']??'')!==$entity||$native<=0
+        ||($candidate['reference']??'')!==($balance['invoiceNo']??null)
+        ||($candidate['transactionCurrency']??'')!==($balance['currency']??null)
+        ||abs($native-sp_amount($balance['outstanding']??null))>.005
+        ||!in_array($candidate['status']??'',['Opening receivable / payable linked','Registered balance valued at settlement'],true)
+        ||!empty($candidate['costJournalId'])||sp_amount($candidate['costAmount']??0)!=0)
+        throw new DomainException('Reconcile the historical opening balance; it cannot be counted as current sale/cost.');
+    $post=(string)($candidate['journalId']??'');$journal=sp_posted_journal($state,$post,$entity,$hidden,$activeReversals);
+    $account=$intercompany?'1240':'1210';$amount=sp_amount($candidate['functionalAmount']??null);
+    if($amount<=0||sp_post_net($journal,'4200')!=0||sp_post_net($journal,'4500')!=0||sp_post_net($journal,'5100')!=0)
+        throw new DomainException('Historical opening contains sale/cost amounts requiring reconciliation.');
+    if(($journal['sourceType']??'')==='CARRY_FORWARD_OPENING'){
+        if(($journal['meta']['carryForwardShipmentId']??'')!==$recordId
+            ||(!empty($journal['meta']['candidateId'])&&$journal['meta']['candidateId']!==$id)
+            ||abs(sp_post_net($journal,$account)-$amount)>.005||abs(-sp_post_net($journal,'3400')-$amount)>.005)
+            throw new DomainException('Reconcile the linked historical opening posting.');
+    }elseif(($journal['sourceType']??'')==='OPENING_BALANCE_BF'){
+        // Existing shared openings are owned by their explicit allocation link, not a guessed journal owner.
+        $link=$state['carryForwardOpeningLinks'][$id]??[];$index=$link['lineIndex']??null;
+        if(($link['shipmentId']??'')!==$recordId||($link['entity']??'')!==$entity||($link['journalId']??'')!==$post
+            ||!is_int($index)||$index<0||($link['currency']??'')!==$candidate['transactionCurrency']
+            ||abs(sp_amount($link['nativeAmount']??null)-$native)>.005||!empty($journal['openingReversalId']))
+            throw new DomainException('Reconcile the existing opening allocation.');
+        $line=$journal['lines'][$index]??[];$capacity=sp_amount($line['nativeDebit']??(($line['nativeCurrency']??$line['currency']??'')===($candidate['functionalCurrency']??'')?($line['debit']??0):0));
+        if(($line['account']??'')!==$account||($line['nativeCurrency']??$line['currency']??'')!==$candidate['transactionCurrency']
+            ||$capacity<$native||$capacity<=0||abs(round($native*sp_amount($line['debit']??0)/$capacity,2)-$amount)>.005)
+            throw new DomainException('Reconcile the existing opening line and allocated amount.');
+    }else throw new DomainException('Historical shipment does not link an opening posting.');
+    return true;
 }
 /** Read accepted revenue/COGS only after validating their posted source identities. */
 function sp_sale_evidence(array $state,array $candidate,string $entity,array $hidden,array $activeReversals):?array {
@@ -46,6 +94,7 @@ function sp_sale_evidence(array $state,array $candidate,string $entity,array $hi
     if($id===''||$saleId==='')throw new DomainException('Reconcile missing sale source/Post identities.');
     foreach([$saleId,$costId] as $postId)if($postId!==''&&!empty($state['journals'][$postId]['amendedByPostId']))throw new DomainException('A linked posting was amended; reconcile the current source amount.');
     if(isset($hidden[$saleId])){if($costId===''||isset($hidden[$costId]))return null;throw new DomainException('The sale was cancelled but its stock cost remains active.');}
+    if(sp_historical_opening($state,$candidate,$entity,$hidden,$activeReversals))return ['historicalOpening'=>true];
     if(($candidate['status']??'')!=='Recognized / Posted')throw new DomainException('The sale source is not recognized/posted.');
     $type=($candidate['candidateType']??'')==='TG_PAKISTAN_INTERCOMPANY'?'TG_INTERCOMPANY_PAKISTAN':'EXPORT_SALE_RECOGNIZED';
     $sale=sp_source_post($state,$saleId,$entity,$type,'candidateId',$id,$hidden,$activeReversals);
