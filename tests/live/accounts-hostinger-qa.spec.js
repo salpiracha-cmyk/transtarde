@@ -848,3 +848,33 @@ test('production recovery reports reconcile live actual input and preserve read-
  await page.goto(`${BASE_URL}/accounts/production-reports.php?entity=TTI`,{waitUntil:'domcontentloaded'});await expect(page.locator('[data-generate]')).toBeVisible();await expect(page.locator('[data-status]')).toHaveText('',{timeout:30_000});await expect(page.locator('[data-report] h2')).toContainText('Daily Recovery');await page.locator('[name=mode]').selectOption('contract');await expect(page.locator('[data-print]')).toBeDisabled();await page.locator('[data-generate]').click();await expect(page.locator('[data-report] h2')).toContainText('Contract Recovery');await expect(page.locator('[data-csv]')).toBeEnabled();expect(writes).toEqual([]);
  console.log('LIVE_ACTUAL_RECOVERY_OK '+JSON.stringify({productionSourceRuns,groupsChecked:groups,missingInputRunAppearances:missing,reportModes:4,companies:2,financialWrites:0}));
 });
+
+// Compare the real filtered screen/CSV/print against the same original response.
+// No payment, tax, master or journal may be posted to make this test pass.
+test('WHT period and category screen, CSV and print agree with original postings without writes',async({page})=>{
+ test.setTimeout(120_000);await signIn(page);const writes=[];
+ await page.route('**/api/**',route=>{const r=route.request(),path=new URL(r.url()).pathname;if(r.method()==='POST'&&path!=='/api/session_activity.php'){writes.push(path);return route.abort();}return route.continue();});
+ await deskAction(page,'reports','Withholding Tax Report');const form=page.locator('#amWindow');
+ await expect(form.locator('[data-tax-message]')).toContainText('Saved postings loaded');
+ await form.getByRole('textbox',{name:'From DD-MM-YYYY',exact:true}).fill('01-09-2026');await form.getByRole('textbox',{name:'From DD-MM-YYYY',exact:true}).press('Tab');
+ await form.getByRole('textbox',{name:'To DD-MM-YYYY',exact:true}).fill('30-09-2026');await form.getByRole('textbox',{name:'To DD-MM-YYYY',exact:true}).press('Tab');
+ await expect(form.locator('[data-tax-csv]')).toBeDisabled();await expect(form.locator('[data-tax-print]')).toBeDisabled();
+ const loading=page.waitForResponse(r=>r.url().includes('/api/accounts_subaccounts.php')&&r.url().includes('report=withholding')&&r.url().includes('from=2026-09-01')&&r.url().includes('to=2026-09-30'));
+ await form.getByRole('button',{name:'View Report',exact:true}).click();const response=await loading;expect(response.status()).toBe(200);const source=await response.json();expect(source.ok).toBe(true);expect(source.entity).toBe('TTI');
+ await expect(form.locator('[data-tax-message]')).toContainText('Saved postings loaded');
+ const chosen='OTHER',expected=source.taxEntries.filter(r=>r.category===chosen);expect(expected.length,'Original September OTHER postings must remain available').toBeGreaterThan(0);
+ await form.locator('[data-tax-category]').selectOption(chosen);
+ const visible=await form.locator('[data-tax-results] table').last().locator('tbody tr').allTextContents();expect(visible.length).toBe(expected.length);for(let i=0;i<expected.length;i++)expect(visible[i]).toContain(expected[i].postId);
+ // Capture the actual application's print markup, avoiding a native printer dialog.
+ await page.evaluate(()=>{window.__whtPrint='';window.TT_PRINT.html=html=>{window.__whtPrint=html;};});await form.locator('[data-tax-print]').click();
+ const printed=await page.evaluate(()=>{const doc=new DOMParser().parseFromString(window.__whtPrint,'text/html');return [...doc.querySelectorAll('table')].at(-1)?[...([...doc.querySelectorAll('table')].at(-1).querySelectorAll('tbody tr'))].map(tr=>[...tr.cells].map(c=>c.textContent)):[];});expect(printed.length).toBe(expected.length);
+ const downloading=page.waitForEvent('download');await form.locator('[data-tax-csv]').click();const download=await downloading;expect(download.suggestedFilename()).toBe('Withholding-Tax-TTI-2026-09-01-2026-09-30.csv');
+ const stream=await download.createReadStream();const chunks=[];for await(const chunk of stream)chunks.push(chunk);const csv=Buffer.concat(chunks).toString('utf8').replace(/^\uFEFF/,'');
+ // General CSV parser retains embedded commas, quotes and line breaks in original narratives.
+ const records=[];let record=[],field='',quoted=false;
+ for(let i=0;i<csv.length;i++){const c=csv[i];if(c==='"'){if(quoted&&csv[i+1]==='"'){field+='"';i++;}else quoted=!quoted;}else if(c===','&&!quoted){record.push(field);field='';}else if((c==='\r'||c==='\n')&&!quoted){if(c==='\r'&&csv[i+1]==='\n')i++;record.push(field);records.push(record);record=[];field='';}else field+=c;}
+ expect(quoted,'Downloaded CSV has an unterminated field').toBe(false);if(field!==''||record.length){record.push(field);records.push(record);}const header=records.shift();expect(header).toContain('Audit journal');expect(records.length).toBe(expected.length);
+ let debit=0,credit=0;
+ for(let i=0;i<expected.length;i++){const r=expected[i],row=Object.fromEntries(header.map((h,n)=>[h,records[i][n]]));expect(row.Company).toBe('TTI');expect(row.From).toBe('01-09-2026');expect(row.To).toBe('30-09-2026');expect(row['Post ID']).toBe(r.postId);expect(row['Audit journal']).toBe(r.journalId);expect(row['Tax category']).toBe(chosen);expect(Number(row.Debit)).toBeCloseTo(r.debit,2);expect(Number(row.Credit)).toBeCloseTo(r.credit,2);expect(Number(row.Net)).toBeCloseTo(r.debit-r.credit,2);expect(printed[i][0]).toContain(r.postId);expect(Number(printed[i][4].replaceAll(',',''))).toBeCloseTo(r.debit,2);expect(Number(printed[i][5].replaceAll(',',''))).toBeCloseTo(r.credit,2);debit+=r.debit;credit+=r.credit;}
+ expect(writes).toEqual([]);console.log('LIVE_WHT_OUTPUT_RECONCILIATION '+JSON.stringify({entity:'TTI',from:'2026-09-01',to:'2026-09-30',category:chosen,sourceLines:expected.length,screenLines:visible.length,csvLines:records.length,printLines:printed.length,debit,credit,financialWrites:0}));
+});
