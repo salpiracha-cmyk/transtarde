@@ -630,7 +630,7 @@ function renderReports(){document.getElementById('main').innerHTML=`<div class="
 function openModal(title,body,foot){const id=uid('modal');modalStack.push(id);const w=document.createElement('div');w.className='modalBackdrop';w.dataset.modal=id;w.innerHTML=`<div class="modal"><div class="modalHead"><h3>${esc(title)}</h3><div style="margin-left:auto"></div><button class="btn small" data-modal-close aria-label="Close form and return to previous screen">× Close</button></div><div class="modalBody">${body}</div><div class="modalFoot">${foot||''}</div></div>`;document.body.appendChild(w);w.querySelectorAll('[data-modal-close]').forEach(x=>x.onclick=closeModal);return w}
 function closeModal(){const id=modalStack.pop();document.querySelector(`[data-modal="${id}"]`)?.remove()}
 function directPrint__legacy_v0(title,html,mode='with'){const root=document.getElementById('printRoot');root.className=mode==='without'?'printModeWithout':'printModeWith';root.innerHTML=html;root.setAttribute('aria-hidden','false');const old=document.title;document.title='';setTimeout(()=>{window.print();setTimeout(()=>{root.innerHTML='';root.className='';root.setAttribute('aria-hidden','true');document.title=old},250)},100)}
-function printShipmentDoc__legacy_v0(title,html,seller='TTI'){const hasFooter=!!SELLER_DETAILS[seller]?.footer,label=hasFooter?'HEADER / FOOTER':'HEADER';openModal('Print / Save — '+title,`<div class="notice info"><b>Choose the paper mode.</b> Saved PDFs and plain-paper prints include the full-width ${esc(seller)} ${hasFooter?'header and footer':'header (this company has no footer)'}. Physical company letterhead leaves the artwork blank and preserves printing space.</div><div class="cards"><button class="btn green big" id="printWith">WITH ${label}<br><span class="tiny">Save PDF or print on plain paper</span></button><button class="btn amber big" id="printWithout">WITHOUT ${label}<br><span class="tiny">Print on physical company letterhead</span></button></div>`,`<button class="btn" data-modal-close>Cancel</button>`);document.getElementById('printWith').onclick=()=>{closeModal();directPrint(title,html,'with')};document.getElementById('printWithout').onclick=()=>{closeModal();directPrint(title,html,'without')}}
+function printShipmentDoc__legacy_v0(title,html,seller='TTI',readOnly=false){const hasFooter=!!SELLER_DETAILS[seller]?.footer,label=hasFooter?'HEADER / FOOTER':'HEADER';openModal('Print / Save — '+title,`<div class="notice info"><b>Choose the paper mode.</b> Saved PDFs and plain-paper prints include the full-width ${esc(seller)} ${hasFooter?'header and footer':'header (this company has no footer)'}. Physical company letterhead leaves the artwork blank and preserves printing space.</div><div class="cards"><button class="btn green big" id="printWith">WITH ${label}<br><span class="tiny">Save PDF or print on plain paper</span></button><button class="btn amber big" id="printWithout">WITHOUT ${label}<br><span class="tiny">Print on physical company letterhead</span></button></div>`,`<button class="btn" data-modal-close>Cancel</button>`);document.getElementById('printWith').onclick=()=>{closeModal();directPrint(title,html,'with',readOnly)};document.getElementById('printWithout').onclick=()=>{closeModal();directPrint(title,html,'without',readOnly)}}
 function printHTML(title,html){directPrint(title,html,'with')}
 window.addEventListener('beforeprint',()=>document.getElementById('printRoot')?.setAttribute('aria-hidden','false'));
 document.addEventListener('change',e=>{if(!contractDraft)return;if(e.target?.id==='cPayment')contractDraft.paymentDeadline=addBankDays(contractDraft.date,String(contractDraft.paymentCode).startsWith('LC_')?5:4);if(e.target?.id==='cDate')contractDraft.paymentDeadline=addBankDays(contractDraft.date,String(contractDraft.paymentCode).startsWith('LC_')?5:4);if(e.target?.id==='cProduct'&&productMasters().length){applyProductMaster(contractDraft,e.target.value);renderContractStep()}});
@@ -1062,12 +1062,12 @@ function tgInternalDoc(s,c){const settings=s.tgdocs?.covering||s.covering;return
 function tgPakistanCoveringDoc(s,c){return coveringDoc(s,c,s.tgdocs?.covering||s.covering,true)}
 
 const printShipmentDocBeforePlainBL=printShipmentDoc__legacy_v0;
-function printShipmentDoc(title,html,seller='TTI'){
+function printShipmentDoc(title,html,seller='TTI',readOnly=false){
  const template=document.createElement('template');template.innerHTML=html;
  const pages=template.content.querySelectorAll('.docPage'),covers=template.content.querySelectorAll('.bankCoveringPage');
- if(covers.length&&covers.length===pages.length)return directPrint(title,html,'with');
- if(/^B\/L (?:DRAFT|INSTRUCTIONS)/i.test(title))return directPrint(title,html,'with');
- return printShipmentDocBeforePlainBL(title,html,seller)
+ if(covers.length&&covers.length===pages.length)return directPrint(title,html,'with',readOnly);
+ if(/^B\/L (?:DRAFT|INSTRUCTIONS)/i.test(title))return directPrint(title,html,'with',readOnly);
+ return printShipmentDocBeforePlainBL(title,html,seller,readOnly)
 };
 const renderDocumentOutputBeforePackExclusions=renderDocumentOutput__legacy_v2;
 function renderDocumentOutput__legacy_v3(d){renderDocumentOutputBeforePackExclusions(d);const s=shipment(),c=contractByRef(s.contractRef);d.querySelector('[data-output="customInvoice"]')?.closest('label')?.remove();const notice=d.querySelector('.notice');if(notice)notice.insertAdjacentHTML('beforeend','<br><b>Excluded from combined packs:</b> B/L Draft and Customs Invoice remain individual outputs only.');if(s.seller==='TG'){const button=d.querySelector('#printTGPakistanSet');if(button)button.onclick=()=>{const origin=pakistanOriginContext(s,c),certDrafts=s.certs.filter(x=>!x.finalDocument).map(x=>pageDoc(origin,x.type,`${partyGrid(origin)}<p class="certificateText">${esc(x.text)}</p><p><b>Reference:</b> ${esc(x.reference)} · <b>Date:</b> ${fmt(x.date)}</p>${signature(origin)}`)).join(''),html=packingListDoc(s,c,true)+phytoInvoiceDoc(s,c)+cooDoc(s,c,false)+certDrafts+tgInternalDoc(s,c)+tgPakistanCoveringDoc(s,c);printShipmentDoc('PAKISTAN EXPORT DOCUMENT SET',html,pakistanExporterKey(s))}}};
@@ -1100,7 +1100,7 @@ function officeShipmentFolderHelp(){
 function renderDocumentOutput(d){
  const s=shipment(),c=contractByRef(s.contractRef),rows=finalShipmentDocuments(s,c),missing=completionMissing(s,c);
  d.innerHTML=`<div class="section"><h3>FINAL SHIPMENT DOCUMENTS</h3><div id="shipmentFolderMessage" role="status"></div><div class="tableWrap"><table class="table"><thead><tr><th>Document</th><th>Source</th><th>Reference / Status</th><th>File / Print</th></tr></thead><tbody>${rows.map((row,index)=>`<tr><td>${esc(row.name)}</td><td>${esc(row.source)}</td><td>${esc([row.reference,row.status].filter(Boolean).join(' · '))}</td><td>${row.document?fileLink(row.document):row.render?`<button class="btn small soft" data-final-document="${index}" ${row.ready?'':'disabled'}>PRINT / SAVE PDF</button>`:'<button class="btn small soft" data-final-upload>UPLOAD ORIGINAL</button>'}</td></tr>`).join('')}</tbody></table></div><div class="toolbar">${s.status==='Completed'?'':`<button class="btn navy big lotCompleteButton" id="completeLot" ${missing.length?'disabled':''}>LOT COMPLETE</button>`}</div>${missing.length?`<details><summary>Requirements to mark this lot complete (${missing.length})</summary><div class="notice warn">${missing.map(esc).join('<br>')}</div></details>`:''}</div>`;
- d.querySelectorAll('[data-final-document]').forEach(button=>button.onclick=()=>{const row=rows[num(button.dataset.finalDocument)];printShipmentDoc(row.name,row.render(),c.seller)});
+ d.querySelectorAll('[data-final-document]').forEach(button=>button.onclick=()=>{const row=rows[num(button.dataset.finalDocument)];printShipmentDoc(row.name,row.render(),c.seller,!!s.completed)});
  d.querySelectorAll('[data-final-upload]').forEach(button=>button.onclick=()=>{activeWorkspace='uploads';renderShipmentWorkspace()});
 }
 
@@ -1827,8 +1827,9 @@ function waitForPrintImages(root,timeoutMs=30000){
   if(image.complete)loaded();
  })))
 }
-async function directPrint(title,html,mode='with'){
- try{if(!window.TT_SHARED_SYNC?.saveNow)throw new Error('Server saving is unavailable.');await window.TT_SHARED_SYNC.saveNow()}catch(error){showExportSaveError(error.message);return false}
+async function directPrint(title,html,mode='with',readOnly=false){
+ // Completed VIEW routes render committed snapshots and must never resave the workspace.
+ if(!readOnly)try{if(!window.TT_SHARED_SYNC?.saveNow)throw new Error('Server saving is unavailable.');await window.TT_SHARED_SYNC.saveNow()}catch(error){showExportSaveError(error.message);return false}
  const template=document.createElement('template');template.innerHTML=html;
  if(template.content.querySelector('.bankCoveringPage')&&!window.confirm('Did you put the original letterhead in the printer?'))return Promise.resolve(false);
  const root=document.getElementById('printRoot'),old=document.title;
@@ -2473,7 +2474,7 @@ function renderShipmentWorkspace(){
   document.getElementById('backShipments').onclick=()=>{activeWorkspace='';view='home';render()};
   const detail=document.getElementById('workspaceDetail');renderDocumentOutput(detail);detail.querySelectorAll('[data-final-upload],#completeLot').forEach(node=>node.remove());
   const extra=shipmentFolderDocuments(closed,c).filter(row=>row.render&&row.ready&&['salesContract','customInvoice','customPacking','phytoInvoice'].includes(row.key));
-  const toolbar=document.createElement('div');toolbar.className='toolbar';for(const row of extra){const button=document.createElement('button');button.className='btn small soft';button.textContent='PRINT '+row.name.toUpperCase();button.onclick=()=>printShipmentDoc(row.name,row.render(),c.seller);toolbar.appendChild(button)}
+  const toolbar=document.createElement('div');toolbar.className='toolbar';for(const row of extra){const button=document.createElement('button');button.className='btn small soft';button.textContent='PRINT '+row.name.toUpperCase();button.onclick=()=>printShipmentDoc(row.name,row.render(),c.seller,true);toolbar.appendChild(button)}
   if(window.TT_SHIPMENT_FILES){const archive=document.createElement('button');archive.className='btn small navy';archive.textContent='QUEUE OFFICE FOLDER';archive.onclick=()=>requeueCompletedShipmentFolder(archive,closed,c);toolbar.appendChild(archive)}
   detail.appendChild(toolbar);const message=document.createElement('div');message.id='completedOfficeArchiveMessage';message.setAttribute('role','status');detail.appendChild(message);renderHistory(document.getElementById('completedLotHistory'));return;
  }
