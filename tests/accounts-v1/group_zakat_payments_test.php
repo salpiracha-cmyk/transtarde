@@ -1,0 +1,23 @@
+<?php
+declare(strict_types=1);
+require __DIR__.'/../../api/group_management_core.php';
+function zp_check(bool $ok,string $message):void{if(!$ok)throw new RuntimeException($message);}
+function zp_post(string $id,string $date,array $lines,array $extra=[]):array{return ['id'=>$id,'date'=>$date,'entity'=>'TTI','status'=>'Posted','lines'=>$lines]+$extra;}
+$direct=zp_post('DIRECT','2026-05-01',[['account'=>'7210','debit'=>100,'credit'=>0],['account'=>'1110','debit'=>0,'credit'=>100]]);
+$reverse=zp_post('REFUND','2026-06-01',[['account'=>'7210','debit'=>0,'credit'=>20],['account'=>'1110','debit'=>20,'credit'=>0]],['reversalOf'=>'DIRECT']);
+$accrual=zp_post('UNPAID','2026-05-01',[['account'=>'7210','debit'=>50,'credit'=>0],['account'=>'2140','debit'=>0,'credit'=>50]]);
+$state=['journals'=>[$direct,$reverse,$accrual]];$before=serialize($state);$r=gm_zakat_payments($state,'2026-03-01','2026-10-17');zp_check($r['totalPKR']===80.0&&count($r['rows'])===2&&!$r['warnings'],'Dedicated original cash/refund payments counted; unpaid accrual excluded');zp_check(serialize($state)===$before,'Payment projection changed original books');
+$future=gm_zakat_payments($state,'2026-03-01','2026-05-31');zp_check($future['totalPKR']===100.0,'Later cash refund does not change earlier cut-off');
+$mixed=zp_post('MIXED','2026-05-01',[['account'=>'7210','debit'=>50,'credit'=>0],['account'=>'6210','debit'=>950,'credit'=>0],['account'=>'2140','debit'=>0,'credit'=>900],['account'=>'1110','debit'=>0,'credit'=>100]]);
+$r=gm_zakat_payments(['journals'=>[$mixed]],'2026-03-01','2026-10-17');zp_check($r['totalPKR']===0.0&&count($r['warnings'])===1,'Cash exceeding Zakat does not prove which component of a partial mixed payment was paid');
+$meta=['salaryMasterId'=>'EMP1','month'=>'2026-05'];$salaryAccrual=zp_post('SAL-ACCRUAL','2026-05-31',[['account'=>'6210','debit'=>950,'credit'=>0]+$meta,['account'=>'7210','debit'=>50,'credit'=>0]+$meta,['account'=>'2140','debit'=>0,'credit'=>1000]+$meta],['sourceType'=>'SALARY_MONTH_COMPLETED']);
+$payment=zp_post('SAL-PAY','2026-06-05',[['account'=>'2140','debit'=>100,'credit'=>0]+$meta,['account'=>'1110','debit'=>0,'credit'=>100,'paymentDate'=>'2026-06-05']+$meta],['sourceType'=>'SALARY_MONTH_COMPLETED']);
+$r=gm_zakat_payments(['journals'=>[$salaryAccrual,$payment]],'2026-03-01','2026-10-17');zp_check($r['totalPKR']===0.0&&count($r['warnings'])===1,'Later salary liability settlement requires explicit Zakat component allocation');
+$r=gm_zakat_payments(['journals'=>[$salaryAccrual,$payment]],'2026-03-01','2026-06-01');zp_check($r['totalPKR']===0.0&&!$r['warnings'],'Future payroll cash does not block an earlier assessment cutoff');
+$salaryMixed=$mixed;$salaryMixed['sourceType']='SALARY_MONTH_COMPLETED';$r=gm_zakat_payments(['journals'=>[$salaryMixed]],'2026-03-01','2026-10-17');zp_check($r['totalPKR']===0.0&&$r['warnings'],'Same-post payroll components are not assumed paid first');
+$record=['id'=>'ZAKAT|2026-03-01','kind'=>'ZAKAT','date'=>'2026-03-01','sections'=>['header'=>['data'=>['rates'=>[],'hijriYear'=>'1447','ramadanDateConfirmed'=>true]]]];foreach(['financials','properties','gold','shares','adjustments'] as $name)$record['sections'][$name]=['complete'=>true,'rows'=>[]];$record['sections']['financials']['rows']=[['id'=>'W1','label'=>'Wealth','amount'=>10000]];
+$r=gm_assessment_summary($record,['journals'=>[$mixed]],'2026-10-17');zp_check(!$r['progress']['complete']&&$r['paymentWarnings']&&$r['paidPKR']===0.0,'Ambiguous cash cannot mark the annual payment reconciliation complete');
+$next=['id'=>'ZAKAT|2027-02-18','kind'=>'ZAKAT','date'=>'2027-02-18','sections'=>[]];try{gm_record_summary($next,['journals'=>[$mixed],'groupManagementRecords'=>[$record]],'2027-10-17');throw new RuntimeException('Unreviewed payment allocation carried into next assessment');}catch(DomainException){}
+$wrong=$direct;$wrong['entity']='BRM';zp_check(gm_zakat_payments(['journals'=>[$wrong]],'2026-03-01','2026-10-17')['totalPKR']===0.0,'Non-TTI expense does not discharge TTI assessment control');
+$dated=$direct;$dated['lines'][1]['paymentDate']='2026-06-02';$r=gm_zakat_payments(['journals'=>[$dated]],'2026-03-01','2026-10-17');zp_check($r['totalPKR']===0.0&&$r['warnings'],'Conflicting actual/voucher dates require reconciliation');
+echo "PASS Zakat payment reconciliation: original direct cash/refunds, unpaid/future/non-TTI exclusions, ambiguous payroll and mixed-payment holds, original dates, zero source writes and blocked annual carry until allocation review\n";

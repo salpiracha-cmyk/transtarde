@@ -130,12 +130,26 @@ function gm_financial_source(array $state,string $date):array {
     return ['rows'=>$out,'warnings'=>array_values(array_unique($unclassified)),'accountsRevision'=>(int)($state['revision']??0),'asOf'=>$date,'basis'=>'Committed journals through the selected date. Excludes fixed assets and share holdings. Inventory is book cost until reviewed at market value. Unposted operational liabilities and shipment estimates require separate review.'];
 }
 function gm_zakat_payments(array $state,string $from,string $to):array {
-    $rows=[];$total=0.;
-    foreach((array)($state['journals']??[]) as $id=>$j){if(!is_array($j)||($j['entity']??'')!=='TTI'||($j['status']??'')!=='Posted')continue;$date=(string)($j['date']??'');if(!mr_valid_date($date)||$date<$from||$date>$to)continue;
-        $amount=0.;foreach((array)($j['lines']??[]) as $line)if((string)($line['account']??'')==='7210')$amount+=(float)($line['debit']??0)-(float)($line['credit']??0);
-        if(abs($amount)<.005)continue;$cash=0.;foreach((array)($j['lines']??[]) as $line)if(in_array((string)($line['account']??''),['1110','1120'],true))$cash+=(float)($line['credit']??0)-(float)($line['debit']??0);if(($amount>0&&$cash+.005<$amount)||($amount<0&&$cash-.005>$amount))continue;$amount=round($amount,2);$total+=$amount;$rows[]=['postId'=>(string)($j['id']??$id),'date'=>$date,'amountPKR'=>$amount,'reference'=>(string)($j['reference']??''),'reversalOf'=>$j['reversalOf']??null];
+    $rows=[];$total=0.;$warnings=[];$salary=[];
+    // An accrual is not payment. Payroll cash can settle several components and
+    // must not be allocated to Zakat by an assumed payment order or proportion.
+    foreach((array)($state['journals']??[]) as $j){if(!is_array($j)||($j['entity']??'')!=='TTI'||($j['status']??'')!=='Posted'||!mr_valid_date((string)($j['date']??''))||$j['date']>$to)continue;foreach((array)($j['lines']??[]) as $line)if(isset($line['salaryMasterId'],$line['month'])&&in_array((string)($line['account']??''),['6210','6220','7210','3200'],true)){$key=(string)$line['salaryMasterId'].'|'.(string)$line['month'];$salary[$key]??=0.;if((string)($line['account']??'')==='7210')$salary[$key]+=(float)($line['debit']??0)-(float)($line['credit']??0);}}
+    foreach((array)($state['journals']??[]) as $id=>$j){
+        if(!is_array($j)||($j['entity']??'')!=='TTI'||($j['status']??'')!=='Posted')continue;$date=(string)($j['date']??'');$postId=(string)($j['id']??$id);$amount=0.;$cash=0.;$payroll=str_starts_with((string)($j['sourceType']??''),'SALARY_');$salaryKnown=true;$salaryZakat=false;$cashInPeriod=false;$dateMismatch=false;$nonCashCredit=0.;$nonCashDebit=0.;
+        foreach((array)($j['lines']??[]) as $line){$code=(string)($line['account']??'');$net=(float)($line['debit']??0)-(float)($line['credit']??0);if($code==='7210')$amount+=$net;
+            if(in_array($code,['1110','1120'],true)){$cash-=$net;$on=(string)($line['paymentDate']??$date);if(!mr_valid_date($on))$dateMismatch=true;elseif($on>=$from&&$on<=$to)$cashInPeriod=true;if($on!==$date)$dateMismatch=true;
+                if(isset($line['salaryMasterId'],$line['month'])){$payroll=true;$key=(string)$line['salaryMasterId'].'|'.(string)$line['month'];if(!array_key_exists($key,$salary))$salaryKnown=false;elseif($salary[$key]>.005)$salaryZakat=true;}elseif($payroll)$salaryKnown=false;
+            }else{$nonCashCredit+=max(0,-$net);$nonCashDebit+=max(0,$net);}
+        }
+        if(abs($cash)>.005&&($cashInPeriod||!mr_valid_date($date))&&$payroll&&($amount>.005||$salaryZakat||!$salaryKnown)){$warnings[]='Review the original Zakat component of payroll cash Post '.$postId.'; no salary payment allocation has been guessed.';continue;}
+        if(abs($amount)<.005)continue;
+        if($cashInPeriod&&$dateMismatch){$warnings[]='Reconcile the actual payment date against the voucher date of Zakat Post '.$postId.'.';continue;}
+        if(!mr_valid_date($date)){$warnings[]='Confirm the original date of Zakat Post '.$postId.' before payment reconciliation.';continue;}if($date<$from||$date>$to)continue;
+        if(abs($cash)<.005)continue; // Pure unpaid expense/accrual, not an actual payout.
+        if($dateMismatch||($amount>0&&($cash+.005<$amount||$nonCashCredit>.005))||($amount<0&&($cash-.005>$amount||$nonCashDebit>.005))){$warnings[]='Review the mixed or partial cash settlement of Zakat Post '.$postId.' before applying it to the assessment.';continue;}
+        $amount=round($amount,2);$total+=$amount;$rows[]=['postId'=>$postId,'date'=>$date,'amountPKR'=>$amount,'reference'=>(string)($j['reference']??''),'reversalOf'=>$j['reversalOf']??null];
     }
-    usort($rows,static fn($a,$b)=>strcmp($a['date'].'|'.$a['postId'],$b['date'].'|'.$b['postId']));return ['totalPKR'=>round($total,2),'rows'=>$rows];
+    usort($rows,static fn($a,$b)=>strcmp($a['date'].'|'.$a['postId'],$b['date'].'|'.$b['postId']));return ['totalPKR'=>round($total,2),'rows'=>$rows,'warnings'=>array_values(array_unique($warnings))];
 }
 /** A partial assessment must never silently become next year's opening balance. */
 function gm_assessment_progress(array $record):array {
@@ -156,13 +170,14 @@ function gm_assessment_summary(array $record,array $state,string $through,?float
     $rates=(array)($record['sections']['header']['data']['rates']??[]);$sections=array_intersect_key((array)($record['sections']??[]),array_flip(['financials','properties','gold','shares','adjustments']));$posted=[];
     foreach($sections as $key=>$section)if(!empty($section['complete']))$posted[$key]=$section;
     $payments=gm_zakat_payments($state,$record['date'],$through);$carry=$opening??gm_number($record['sections']['header']['data']['openingCarryPKR']??0,'opening Zakat carry-forward',true);
-    return gm_zakat($posted,$rates,$carry,$payments['totalPKR'])+['payments'=>$payments['rows'],'through'=>$through,'assessmentOnly'=>true,'progress'=>gm_assessment_progress($record),'expenseBasis'=>'Only actual TTI Zakat payment postings in account 7210. Assessment section completion does not post another expense.'];
+    $progress=gm_assessment_progress($record);if($payments['warnings']){$progress['complete']=false;$progress['status']='PARTIAL';$progress['missingSections'][]='payment allocation review';}
+    return gm_zakat($posted,$rates,$carry,$payments['totalPKR'])+['payments'=>$payments['rows'],'through'=>$through,'assessmentOnly'=>true,'progress'=>$progress,'paymentWarnings'=>$payments['warnings'],'expenseBasis'=>'Only actual TTI Zakat payment postings in account 7210. Assessment section completion does not post another expense.'];
 }
 function gm_record_summary(array $record,array $state,string $through):array {
     if($record['kind']==='ZAKAT'){
         $next=array_values(array_filter((array)($state['groupManagementRecords']??[]),static fn($r)=>($r['kind']??'')==='ZAKAT'&&($r['date']??'')>$record['date']));usort($next,static fn($a,$b)=>strcmp($a['date'],$b['date']));if($next)$through=min($through,(new DateTimeImmutable($next[0]['date']))->modify('-1 day')->format('Y-m-d'));
         $prior=array_values(array_filter((array)($state['groupManagementRecords']??[]),static fn($r)=>($r['kind']??'')==='ZAKAT'&&($r['date']??'')<$record['date']));usort($prior,static fn($a,$b)=>strcmp($a['date'],$b['date']));$opening=null;
-        foreach($prior as $r){if(!gm_assessment_progress($r)['complete'])throw new DomainException('Complete the prior Zakat assessment dated '.$r['date'].' before carrying its balance forward.');$end=(new DateTimeImmutable($record['date']))->modify('-1 day')->format('Y-m-d');$next=array_values(array_filter($prior,static fn($x)=>$x['date']>$r['date']));if($next)$end=(new DateTimeImmutable($next[0]['date']))->modify('-1 day')->format('Y-m-d');$opening=gm_assessment_summary($r,$state,$end,$opening)['balancePKR'];}
+        foreach($prior as $r){if(!gm_assessment_progress($r)['complete'])throw new DomainException('Complete the prior Zakat assessment dated '.$r['date'].' before carrying its balance forward.');$end=(new DateTimeImmutable($record['date']))->modify('-1 day')->format('Y-m-d');$next=array_values(array_filter($prior,static fn($x)=>$x['date']>$r['date']));if($next)$end=(new DateTimeImmutable($next[0]['date']))->modify('-1 day')->format('Y-m-d');$priorSummary=gm_assessment_summary($r,$state,$end,$opening);if(!$priorSummary['progress']['complete'])throw new DomainException('Review the original payment allocations for the prior Zakat assessment dated '.$r['date'].' before carrying its balance forward.');$opening=$priorSummary['balancePKR'];}
         return gm_assessment_summary($record,$state,$through,$opening);
     }
     $rates=(array)($record['sections']['header']['data']['rates']??[]);$rows=[];foreach((array)($record['sections']??[]) as $key=>$section)if($key!=='header')$rows=array_merge($rows,(array)($section['rows']??[]));return gm_total($rows,$rates);
