@@ -31,6 +31,7 @@ jobs:
           php tests/accounts-v1/group_management_test.php
           php tests/accounts-v1/group_zakat_payments_test.php
           php tests/accounts-v1/group_daily_test.php
+          php tests/accounts-v1/group_pending_remittances_test.php
           python3 tests/accounts-v1/group_management_endpoint_test.py
           python3 tests/accounts-v1/group_daily_endpoint_test.py
           python3 tests/accounts-v1/commodity_lookup_read_only_test.py

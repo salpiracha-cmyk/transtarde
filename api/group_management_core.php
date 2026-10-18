@@ -105,6 +105,22 @@ function gm_permission(array $user,string $kind,string $action='View',string $or
     foreach(['TTI','BRM','TG'] as $entity)if(!tt_user_can_access_entity($user,$entity,'View'))return false;
     return true;
 }
+/** Pending TG bank confirmations explain a timing hold, never another settled payment. */
+function gm_pending_tg_remittances(array $state,string $date):array {
+    $rows=[];$totals=[];$warnings=[];$seen=[];
+    foreach((array)($state['tgRemittanceDrafts']??[]) as $key=>$draft){
+        if(!is_array($draft)||($draft['status']??'')!=='Pending')continue;
+        $id=gm_text($draft['id']??$key,160);$on=(string)($draft['date']??'');if($id===''||isset($seen[$id])){$warnings[]='Reconcile missing or repeated pending TG remittance identities.';continue;}$seen[$id]=true;
+        if(!mr_valid_date($on)){$warnings[]='Confirm the original date of pending TG remittance '.$id.'.';continue;}if($on>$date)continue;
+        $currency=strtoupper((string)($draft['currency']??''));$amount=$draft['amountNative']??null;
+        if(!in_array($currency,['USD','AED','PKR'],true)||!is_numeric($amount)||!is_finite((float)$amount)||(float)$amount<=0||(float)$amount>1e14){$warnings[]='Reconcile the original currency and amount of pending TG remittance '.$id.'.';continue;}
+        $posts=[];$valid=true;foreach((array)($draft['pakJournalIds']??[]) as $postId){$post=$state['journals'][(string)$postId]??null;if(!is_array($post)||($post['status']??'')!=='Posted'||!in_array($post['entity']??'',['TTI','BRM'],true)||!mr_valid_date((string)($post['date']??''))||$post['date']>$date){$valid=false;break;}$posts[]=(string)$postId;}
+        if(!$valid||!$posts){$warnings[]='Reconcile the original Pakistan advice posting linked to TG remittance '.$id.'.';continue;}
+        $rows[]=['id'=>$id,'date'=>$on,'currency'=>$currency,'amountNative'=>round((float)$amount,2),'pakJournalIds'=>array_values(array_unique($posts)),'status'=>'Awaiting TG bank confirmation'];$totals[$currency]=round(($totals[$currency]??0)+(float)$amount,2);
+    }
+    usort($rows,static fn($a,$b)=>strcmp($a['date'].'|'.$a['id'],$b['date'].'|'.$b['id']));
+    return ['rows'=>$rows,'totals'=>$totals,'warnings'=>array_values(array_unique($warnings)),'basis'=>'Pakistan credit advices already posted; TG remittances await their separate original-bank review. Pending amounts do not settle TG payables or reduce its bank balances.'];
+}
 function gm_financial_source(array $state,string $date):array {
     $chart=sac_chart();$names=[];$classes=[];
     foreach($chart as $r){$names[(string)$r['code']]=$r['name'];$classes[(string)$r['code']]=$r['class'];}
@@ -124,10 +140,10 @@ function gm_financial_source(array $state,string $date):array {
             if(in_array($code,['1240','2500'],true)){$rows[$id]['excluded']=true;$rows[$id]['reason']='Group intercompany elimination; reconcile counterpart balances and exchange differences.';$intercompany[$id]=true;}
         }
     }
-    if($intercompany)$unclassified[]='Intercompany balances are excluded provisionally. Reconcile both sides and exchange differences before completing the group report.';
+    if($intercompany)$unclassified[]='Intercompany balances are excluded provisionally. Reconcile both sides and exchange differences before completing the group report.';$pending=gm_pending_tg_remittances($state,$date);$unclassified=array_merge($unclassified,$pending['warnings']);if($pending['rows'])$unclassified[]='TG bank confirmation is pending for '.count($pending['rows']).' saved remittances. Review the original TG remittance and Pakistan advice references below; no payment has been assumed.';
     $out=[];foreach($rows as $row){$row['amount']=round($row['amount'],2);if(abs($row['amount'])<.005)continue;$row['postIds']=array_keys($row['postIds']);$row['originalAmount']=$row['amount'];$row['originalCurrency']=$row['currency'];$row['sourceDate']=$date;$row['sourceFingerprint']=hash('sha256',json_encode($row,JSON_THROW_ON_ERROR));$out[]=$row;}
     usort($out,static fn($a,$b)=>(str_contains(strtolower($a['label']),'sales tax')||str_contains(strtolower($a['label']),'gst'))<=>(str_contains(strtolower($b['label']),'sales tax')||str_contains(strtolower($b['label']),'gst'))?:strcmp($a['entity'].'|'.$a['account'].'|'.$a['label'],$b['entity'].'|'.$b['account'].'|'.$b['label']));
-    return ['rows'=>$out,'warnings'=>array_values(array_unique($unclassified)),'accountsRevision'=>(int)($state['revision']??0),'asOf'=>$date,'basis'=>'Committed journals through the selected date. Excludes fixed assets and share holdings. Inventory is book cost until reviewed at market value. Unposted operational liabilities and shipment estimates require separate review.'];
+    return ['rows'=>$out,'pendingTgRemittances'=>$pending,'warnings'=>array_values(array_unique($unclassified)),'accountsRevision'=>(int)($state['revision']??0),'asOf'=>$date,'basis'=>'Committed journals through the selected date. Excludes fixed assets and share holdings. Inventory is book cost until reviewed at market value. Unposted operational liabilities and shipment estimates require separate review.'];
 }
 function gm_zakat_payments(array $state,string $from,string $to):array {
     $rows=[];$total=0.;$warnings=[];$salary=[];

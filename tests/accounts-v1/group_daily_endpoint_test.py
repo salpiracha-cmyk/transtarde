@@ -55,6 +55,13 @@ $r=json_decode(stream_get_contents(STDIN),true);$_GET=$r['query'];$_SERVER['REQU
  # Completion also requires every financial currency's saved exchange rate.
  books['journals']['TG1']={'id':'TG1','entity':'TG','status':'Posted','date':'2026-10-01','lines':[{'account':'1110','debit':10,'credit':0}]};books['revision']=9;bp.write_text(json.dumps(books));status,d=req();assert status==200,d
  latest=d['dailySource']['fingerprint'];saved=report.read_bytes();status,d=req(save('daily',2,'fixture-fx-001',sourceFingerprint=latest,data={'config':config},complete=True,reviewConfirmed=True,reason='Review new source'));assert status==422,d;assert report.read_bytes()==saved,'Missing FX completed a Daily report'
+ # Original pending TG confirmation is retained as evidence, never a settled payment.
+ books['tgRemittanceDrafts']={'TGRD1':{'id':'TGRD1','status':'Pending','date':'2026-10-01','currency':'USD','amountNative':100,'pakJournalIds':['BOOK1']}};books['revision']=10;bp.write_text(json.dumps(books));canonical=(bp.read_bytes(),op.read_bytes());saved=report.read_bytes()
+ status,d=req();assert status==200,d
+ pending=d['dailySource']['financials']['pendingTgRemittances'];assert pending['totals']=={'USD':100} and pending['rows'][0]['pakJournalIds']==['BOOK1']
+ assert not d['record']['sections']['daily']['data']['source']['financials']['pendingTgRemittances']['rows'],'New pending item rewrote historical saved source'
+ latest=d['dailySource']['fingerprint'];status,d=req(save('daily',2,'fixture-pending-tg',sourceFingerprint=latest,data={'config':config},complete=True,reviewConfirmed=True,reason='Review pending confirmation'));assert status==422,d
+ assert report.read_bytes()==saved and (bp.read_bytes(),op.read_bytes())==canonical,'Pending evidence changed books or completed report'
  # Conflicting native loading routes cannot count a container twice or replace a saved report.
  load={'id':'LOAD1','container':'ABCD1234567','date':'2026-10-01','weight':20000}
  ops['values']['tt30ship']=json.dumps([{'id':'SHIP1','entity':'TTI','millName':'Fixture mill','contractRef':'TG/C1','containers':[load]}])
