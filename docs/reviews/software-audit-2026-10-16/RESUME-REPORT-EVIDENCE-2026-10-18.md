@@ -1,4 +1,6 @@
-# Continuation checkpoint — shipment and stock-source evidence
+# Previous checkpoint — shipment and stock-source evidence
+
+Latest continuation: RESUME-ARCHIVE-READ-2026-10-18.md.
 
 Application release: PR341, merge79ec45bd2ed6201a8eb67e2661a18bc6f9d1fd04,
 exact tree d1ea34ec6ace7fa266174fe7f1d36fcc1460a9e0. This follows the completed
