@@ -157,7 +157,7 @@ def pull(config, destination):
         for folder in (daily_dir, weekly_dir, monthly_dir): folder.mkdir(parents=True, exist_ok=True)
         daily = daily_dir / ('TRANSTRADE_FULL_' + stamp.strftime('%Y-%m-%d_%H%M') + '_' + expected[:12] + '.zip')
         os.replace(temp, daily); temp = None
-        if stamp.weekday() == 6 or not list(weekly_dir.glob('TRANSTRADE_FULL_' + stamp.strftime('%G-W%V') + '_*.zip')):
+        if not list(weekly_dir.glob('TRANSTRADE_FULL_' + stamp.strftime('%G-W%V') + '_*.zip')):
             weekly = weekly_dir / ('TRANSTRADE_FULL_' + stamp.strftime('%G-W%V_%H%M') + '_' + expected[:12] + '.zip')
             copy_verified(daily, weekly, expected)
         if not list(monthly_dir.glob('TRANSTRADE_FULL_' + stamp.strftime('%Y-%m') + '_*.zip')):
@@ -294,7 +294,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--config', type=Path, default=config_path())
     parser.add_argument('--init', action='store_true', help='Save backup-only credentials and destination securely')
-    parser.add_argument('--force', action='store_true', help='Pull now even if a weekly backup succeeded recently')
+    parser.add_argument('--force', action='store_true', help='Pull now even if a daily backup succeeded recently')
     parser.add_argument('--shipments-only', action='store_true', help='Only process pending shipment archive jobs')
     parser.add_argument('--backup-only', action='store_true', help='Only pull the encrypted system backup')
     args = parser.parse_args()
@@ -307,8 +307,10 @@ def main():
         destination = Path(config.get('backupDestination') or config.get('destination')).expanduser().resolve()
         state_path = args.config.with_name('office-backup-state.json')
         state = json.loads(state_path.read_text(encoding='utf-8')) if state_path.exists() else {}
-        if not args.force and time.time() - float(state.get('last_success', 0)) < 7 * 86400:
-            print('Weekly backup is current.'); return 0
+        age = time.time() - float(state.get('last_success', 0))
+        last_file = destination / 'Daily' / Path(str(state.get('last_file', ''))).name
+        if not args.force and 0 <= age < 86400 and last_file.is_file():
+            print('Daily backup is current.'); return 0
         for attempt in range(3):
             try:
                 path, digest = pull(config, destination)
