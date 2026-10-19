@@ -48,3 +48,12 @@ test('shipment contribution retains posted evidence and unavailable costs withou
  if(current.rows.some(row=>row.totalCost===null))await expect(page.locator('#ttReportsBody')).toContainText('Review required');
  expect(attemptedWrites).toEqual([]);console.log('LIVE_SHIPMENT_EVIDENCE_OK '+JSON.stringify({...counts,financialWrites:0}));
 });
+
+test('annual Zakat control is available read-only and preserves company journals',async({page,context})=>{
+ test.setTimeout(180000);const attemptedWrites=[];
+ await context.route('**/*',route=>{const r=route.request(),url=new URL(r.url());if(!['GET','HEAD'].includes(r.method())&&!(url.origin===BASE&&url.pathname==='/login.php'&&r.method()==='POST')){if(url.pathname!=='/api/session_activity.php')attemptedWrites.push(url.pathname);return route.abort();}return route.continue();});
+ await page.goto(BASE+'/login.php',{waitUntil:'domcontentloaded',timeout:90000});await page.locator('[name=username]').fill(USERNAME);await page.locator('[name=password]').fill(PASSWORD);await page.locator('button[type=submit]').click();await expect(page).toHaveURL(/\/accounts\/(?:index.php)?$/,{timeout:30000});
+ expect(await page.evaluate(()=>window.TT_ACCOUNT_ACCESS.canGroupZakat),'Existing read-only group permission exposes Annual Zakat').toBe(true);
+ await page.goto(BASE+'/accounts/group-management.php?kind=ZAKAT',{waitUntil:'domcontentloaded'});await expect(page.locator('#gmSummary')).toContainText('TTI Annual Zakat Control');await expect(page.locator('#gmSummary')).toContainText('Actual payments');await expect(page.locator('#gmSave')).toBeDisabled();expect(await page.locator('#gmKind option').allTextContents()).toHaveLength(1);
+ expect(attemptedWrites).toEqual([]);console.log('LIVE_ANNUAL_ZAKAT_CONTROL_READ_ONLY_OK '+JSON.stringify({financialWrites:0,stockWrites:0,assessmentWrites:0}));
+});

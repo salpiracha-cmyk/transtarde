@@ -34,6 +34,13 @@ stream_wrapper_unregister('php');stream_wrapper_register('php',FixtureGroupInput
   status,html=request(u,'accounts/index.php');assert status==200,(status,html);assert ('"canGroupDaily":true' in html)==visible
  for u,visible in [(director,True),(user(entities,{'reports':['View']}),False)]:
   status,html=request(u,'directors/index.php',origin='directors');assert status==200,(status,html);assert ('Group Daily Position' in html)==visible
+ # Annual Zakat has its own exact icon, native links, all-company scope and focused form.
+ for u,origin,visible in [(user({**entities,'zakat':['View']}),'accounts',True),(user({'entity-tti':['View'],'zakat':['View']}),'accounts',False),(viewer,'accounts',False),(user(entities,{'zakat':['View']}),'directors',True),(director,'directors',False)]:
+  status,text=request(u,kind='ZAKAT',origin=origin);assert (status==200)==visible,(status,text)
+  status,html=request(u,'accounts/index.php' if origin=='accounts' else 'directors/index.php',origin=origin)
+  assert status==200,(status,html)
+  assert (('"canGroupZakat":true' in html) if origin=='accounts' else ('Annual Zakat' in html))==visible
+ status,html=request(user(role='Super Admin'),'accounts/group-management.php',kind='ZAKAT');assert status==200 and '"allowed":["ZAKAT"]' in html,'Annual form exposed unrelated report workspaces'
  writer=user({**entities,'group-reports':['View','Create']});status,text=request(writer,body={'action':'save-section','section':'header','version':0,'requestKey':'fixture-authorized','data':{'rates':{}}});assert status==200,(status,text);assert (private/'group-management.json').exists()
  director_writer=user(entities,{'group-reports':['View','Create','Edit']});status,text=request(director_writer,origin='directors',body={'action':'save-section','section':'header','version':1,'requestKey':'fixture-director','data':{'rates':{'AED':76}}});assert status==200,(status,text)
  assert (books.read_bytes(),ops.read_bytes())==before,'Report permissions or header save changed canonical sources'

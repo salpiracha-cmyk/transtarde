@@ -30,9 +30,15 @@ function ar_date(string $value, string $label): string {
 }
 
 function ar_read(string $path): array {
-    $raw = is_file($path) ? file_get_contents($path) : false;
-    $value = $raw ? json_decode($raw, true) : null;
-    return is_array($value) ? $value : [];
+    if(!is_file($path))throw new RuntimeException('Report source is unavailable.');
+    $handle=@fopen($path,'rb');
+    if($handle===false)throw new RuntimeException('Report source is unavailable.');
+    try {
+        if(!flock($handle,LOCK_SH))throw new RuntimeException('Report source is busy.');
+        $value=json_decode((string)stream_get_contents($handle),true,512,JSON_THROW_ON_ERROR);
+        if(!is_array($value)||($value!==[]&&array_is_list($value)))throw new RuntimeException('Report source is invalid.');
+        return $value;
+    } finally {flock($handle,LOCK_UN);fclose($handle);}
 }
 
 function ar_amount(mixed $value): float {
@@ -76,6 +82,8 @@ try {
 
     $store = ar_read(AR_FILE);
     $master = ar_read(AR_MASTER);
+    if(isset($store['journals'])&&!is_array($store['journals']))throw new RuntimeException('Journal source is invalid.');
+    if(!is_array($master['chart']??null)||!$master['chart'])throw new RuntimeException('Account catalog is unavailable.');
     $catalog = [];
     foreach (array_merge((array)($master['chart'] ?? []), (array)($master['peopleSubledgers'] ?? [])) as $account) {
         if (is_array($account) && isset($account['code'])) {

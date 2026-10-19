@@ -56,5 +56,13 @@ $r=json_decode(stream_get_contents(STDIN),true);$_GET=$r['query'];$_SERVER['REQU
   assert actual['accountsRevision']==7 and actual['operationsRevision']==4,'Report revision replaced original source revision'
   assert path.read_bytes()==before and (root/'data/operations.json').read_bytes()==ops_before,'Comparison changed original sources'
   persisted=json.loads((root/'data/group-management.json').read_text());assert 'journals' not in persisted and path.read_bytes()==before,'Assessment changed canonical books'
+  # The completed annual form records one assessment debit in its control ledger, never another expense journal.
+  status,d=req(save('header',requestKey='zakat-header-001',data={'rates':{},'hijriYear':'1448','ramadanDateConfirmed':True,'openingCarryPKR':-50}),kind='ZAKAT');assert status==200,d
+  for name,rows in [('financials',[{'id':'Z-WEALTH','label':'Reviewed wealth','amount':10000}]),('properties',[]),('gold',[{'id':'G-'+str(i),'label':'Gold '+str(i),'type':'GOLD','holder':'Wife '+str(i),'purity':'22K','grams':0,'ratePerGram':0} for i in range(1,4)]),('shares',[]),('adjustments',[])]:
+   status,d=req(save(name,requestKey='zakat-'+name+'-001',rows=rows,complete=True,reviewConfirmed=True),kind='ZAKAT');assert status==200,d
+  ledger=d['summary']['controlLedger'];assert ledger['assessmentRecorded'] and ledger['annualDebitPKR']==250 and ledger['paidExpensePKR']==0 and ledger['balancePKR']==200,ledger
+  assert ledger['rows'][1]['reference']=='ZAKAT|2026-10-17' and ledger['rows'][1]['debitPKR']==250
+  saved_report=(root/'data/group-management.json').read_bytes();status,replay=req(save('adjustments',requestKey='zakat-adjustments-001',rows=[],complete=True,reviewConfirmed=True),kind='ZAKAT');assert status==200 and replay['result']['duplicate'] and (root/'data/group-management.json').read_bytes()==saved_report
+  assert path.read_bytes()==before and (root/'data/operations.json').read_bytes()==ops_before,'Annual control debit must not duplicate monetary journals or stock'
   print('PASS shared group report GET zero writes; own atomic store; row persistence, section conflicts, permission/CSRF checks, duplicate protection and original books unchanged')
  finally:pass

@@ -9,7 +9,20 @@ const TT_LS_ACCOUNTS_FILE = TT_DATA_DIR . '/accounts.json';
 const TT_LS_MASTER_FILE = __DIR__ . '/../accounts/accounting_master_v1.json';
 const TT_LS_POLICY_FILE = __DIR__ . '/../accounts/local_sales_policy_v1.json';
 
-function ls_respond(array $data,int $status=200):never{http_response_code($status);echo json_encode($data,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);exit;}
+function ls_public_summary(array $summary,array $user,array $policy):array {
+ if(($user['role']??'')==='Super Admin')return $summary;
+ $scope=(array)($policy['scope']??[]);$entities=array_unique(array_merge((array)($scope['localSaleEntities']??['TTI','BRM']),(array)($scope['exportSaleEntities']??['TTI','BRM'])));
+ foreach($entities as $entity)if(!tt_user_can_open_module($user,'Accounts')||!tt_user_can_access_entity($user,(string)$entity,'View'))return ['restricted'=>true,'warningPercent'=>$policy['warningPercent']??4.8,'criticalPercent'=>$policy['criticalPercent']??5.0];
+ return $summary;
+}
+function ls_respond(array $data,int $status=200):never{
+ $user=$GLOBALS['user']??null;$policy=$GLOBALS['policy']??[];
+ if(is_array($user)){
+  if(is_array($data['summary']??null))$data['summary']=ls_public_summary($data['summary'],$user,$policy);
+  foreach(['localSalesControlBefore','localSalesControlProjected'] as $field)if(is_array($data['journal']['meta'][$field]??null))$data['journal']['meta'][$field]=ls_public_summary($data['journal']['meta'][$field],$user,$policy);
+ }
+ http_response_code($status);echo json_encode($data,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);exit;
+}
 function ls_json(string $path):array{$raw=is_file($path)?file_get_contents($path):false;$v=$raw?json_decode($raw,true):null;if(!is_array($v))throw new RuntimeException('Required configuration is unavailable.');return $v;}
 function ls_module_write(array $u,string $m):bool{if(($u['role']??'')==='Super Admin')return true;$p=$u['permissions'][$m]??null;if($p==='all')return true;if(!is_array($p))return false;if(in_array('Create',$p,true)||in_array('Edit',$p,true)||in_array('Approve',$p,true))return true;foreach($p as $a)if(is_array($a)&&(in_array('Create',$a,true)||in_array('Edit',$a,true)||in_array('Approve',$a,true)))return true;return false;}
 function ls_default_store():array{return ['revision'=>0,'journals'=>[],'events'=>[],'reminders'=>[],'alerts'=>[],'masters'=>[],'commodityBills'=>[],'exportCandidates'=>[],'localSalesCandidates'=>[],'localSalesPaymentCandidates'=>[]];}
@@ -30,7 +43,7 @@ function ls_balance(array $s,string $entity,string $account,string $soda,bool $c
 try{
  $user=tt_require_login();$policy=ls_json(TT_LS_POLICY_FILE);
  if($_SERVER['REQUEST_METHOD']==='GET'){
-  if(!tt_user_can_open_module($user,'Accounts'))ls_respond(['ok'=>false,'error'=>'Accounts permission required.'],403);$asOf=ls_date((string)($_GET['asOf']??(new DateTimeImmutable('now',new DateTimeZone('Asia/Karachi')))->format('Y-m-d')));$s=ls_read();$summary=ls_summary($s,$asOf,$policy);$pending=array_values(array_filter((array)$s['localSalesCandidates'],static fn($x)=>is_array($x)&&($x['status']??'')==='Pending Accounts Approval'));usort($pending,static fn($a,$b)=>strcmp((string)($b['createdAt']??''),(string)($a['createdAt']??'')));ls_respond(['ok'=>true,'summary'=>$summary,'pending'=>$pending,'policy'=>$policy,'serverNow'=>gmdate('c')]);
+  if(!tt_user_can_open_module($user,'Accounts')||!tt_user_can_module_action($user,'Accounts','customer','View'))ls_respond(['ok'=>false,'error'=>'Local Sales View permission required.'],403);$entity=ls_valid_entity((string)($_GET['entity']??'TTI'));if(!tt_user_can_access_entity($user,$entity,'View'))ls_respond(['ok'=>false,'error'=>'Company View permission required.'],403);$asOf=ls_date((string)($_GET['asOf']??(new DateTimeImmutable('now',new DateTimeZone('Asia/Karachi')))->format('Y-m-d')));$s=ls_read();$summary=ls_summary($s,$asOf,$policy);$pending=array_values(array_filter((array)$s['localSalesCandidates'],static fn($x)=>is_array($x)&&($x['entity']??'')===$entity&&($x['status']??'')==='Pending Accounts Approval'));usort($pending,static fn($a,$b)=>strcmp((string)($b['createdAt']??''),(string)($a['createdAt']??'')));ls_respond(['ok'=>true,'entity'=>$entity,'summary'=>$summary,'pending'=>$pending,'policy'=>$policy,'serverNow'=>gmdate('c')]);
  }
  if($_SERVER['REQUEST_METHOD']!=='POST')ls_respond(['ok'=>false,'error'=>'Method not allowed.'],405);$body=json_decode((function_exists('tt_accounts_input')?tt_accounts_input():file_get_contents('php://input'))?:'',true);if(!is_array($body)||!tt_verify_csrf((string)($body['csrf']??'')))ls_respond(['ok'=>false,'error'=>'Your session expired. Refresh and try again.'],419);$action=(string)($body['action']??'');
  if($action==='preflight'){

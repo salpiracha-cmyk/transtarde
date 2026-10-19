@@ -32,6 +32,7 @@ $access = [
     'csrf' => tt_csrf(),
     'entities' => $allowedEntities,
     'canGroupDaily'=>gm_permission($user,'DAILY','View','Accounts'),
+    'canGroupZakat'=>gm_permission($user,'ZAKAT','View','Accounts'),
     'canInventoryReconciliation'=>tt_inv_can_report($user), 'masterAccess' => tt_user_can_access_masters($user),
     'masterPermissions' => $user['master_permissions'] ?? [],
     'masters' => tt_user_visible_masters($user),

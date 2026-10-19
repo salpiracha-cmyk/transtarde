@@ -99,7 +99,7 @@ function gd_sources(array $books,array $ops,string $date):array {
         if(isset($refs[$ref]))throw new DomainException('A repeated sales-contract reference requires reconciliation.');$refs[$ref]=$id;
         $qty=gm_number($contract['qty']??0,'contract tonnes');if($qty<=0&&strtoupper((string)($contract['shipmentMode']??'FCL'))!=='BREAK_BULK')$qty=gm_number($contract['containers']??0,'contract containers')*gm_number($contract['weightPer']??0,'contract MT per container');
         if($qty<=0)gd_hold($holds,$id,'The original sale has no verified tonne quantity.');
-        $status=(string)($contract['status']??'');$closed=!empty($contract['cancelled'])||in_array(strtolower($status),['cancelled','closed'],true);
+        $status=(string)($contract['status']??'');$closed=!empty($contract['cancelled'])||in_array(strtolower($status),['cancelled','closed','completed'],true);
         $sales[$id]=['id'=>$id,'ref'=>$ref,'entity'=>$seller,'date'=>$on,'product'=>(string)($contract['product']??$contract['displayName']??''),'commodity'=>gd_commodity(($contract['commodity']??'')?: (preg_match('/\b(?:CORN|MAIZE|MAKAI)\b/i',(string)($contract['product']??''))?'CORN':(preg_match('/\bRICE\b/i',(string)($contract['product']??''))?'RICE':''))),'productIdentityCode'=>(string)($contract['productIdentityCode']??''),'broken'=>(string)($contract['brokenText']??$contract['broken']??''),'signed'=>!empty($contract['received']),'closed'=>$closed,'contractedMT'=>$qty,'loadedMT'=>0.,'loadedKnown'=>true,'loadingIds'=>[],'sourceFingerprint'=>hash('sha256',json_encode($contract,JSON_THROW_ON_ERROR))];
     }
     $loadIds=[];$loadedContainers=[];

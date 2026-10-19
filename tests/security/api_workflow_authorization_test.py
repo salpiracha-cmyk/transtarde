@@ -10,7 +10,7 @@ with tempfile.TemporaryDirectory(prefix='tti-api-permissions-') as directory:
     private.mkdir()
     harness = root / 'request.php'
     harness.write_text(r'''<?php
-$req=json_decode($argv[2],true);$_SERVER['REQUEST_URI']=$req['uri'];$_SERVER['REQUEST_METHOD']='POST';$_SERVER['REMOTE_ADDR']='192.0.2.42';
+$req=json_decode($argv[2],true);$_SERVER['REQUEST_URI']=$req['uri'];$_SERVER['REQUEST_METHOD']=$req['method']??'POST';$_SERVER['REMOTE_ADDR']='192.0.2.42';
 parse_str((string)(parse_url($req['uri'],PHP_URL_QUERY)??''),$_GET);$_POST=$req['form']??[];
 session_name('TRANSTRADE_SESSION');session_id('workflow-fixture');session_start();
 $_SESSION=['user_id'=>1,'auth_version'=>1,'last_activity_at'=>time(),'csrf'=>'fixture'];session_write_close();
@@ -34,8 +34,8 @@ require $argv[1];
     def seed(store=None):
         auth.write_text(json.dumps({'users':[user],'masters':masters,'audit':[]}))
         books.write_text(json.dumps(store or {'revision':0,'journals':{}}))
-    def request(endpoint, body, query='?entity=TTI', form=None):
-        req={'uri':'/api/'+endpoint+'.php'+query,'body':{'csrf':'fixture',**body},'form':form or {}}
+    def request(endpoint, body, query='?entity=TTI', form=None, method='POST'):
+        req={'method':method,'uri':'/api/'+endpoint+'.php'+query,'body':{'csrf':'fixture',**body},'form':form or {}}
         status_file=root/'status.txt'
         r=subprocess.run(['php','-d',f'session.save_path={root}',str(harness),str(app/'api'/f'{endpoint}.php'),json.dumps(req),str(status_file)],env=env,text=True,capture_output=True)
         assert r.returncode==0, r.stdout+r.stderr
@@ -143,4 +143,20 @@ require $argv[1];
     user['permissions']={'Accounts':['View','Create','Edit','Approve']};seed()
     status,data=request('export_tax_certificates',{'action':'save_certificate','financialYear':'2026-27','bankName':'Bank','certificateNo':'LEGACY','taxCode':'EXP-AWT-NTR','certificateDate':'2026-10-07','certificateAmount':100})
     assert status==200,data
+    # Local Sales reads must enforce company scope before serializing pending rows and group totals.
+    user['permissions']={'Accounts':{'entity-tti':['View','Create','Edit'],'customer':['View','Edit']}}
+    scoped={'revision':3,'journals':{'BRM-J':{'id':'BRM-J','entity':'BRM','date':'2026-10-01','status':'Posted','lines':[{'account':'1110','debit':987654,'credit':0},{'account':'4100','debit':0,'credit':987654}]}},'localSalesCandidates':{'TTI-S':{'id':'TTI-S','entity':'TTI','status':'Pending Accounts Approval','saleDate':'2026-10-01','party':'TTI Buyer'},'BRM-SECRET':{'id':'BRM-SECRET','entity':'BRM','status':'Pending Accounts Approval','party':'BRM Secret'}}}
+    seed(scoped);before=books.read_bytes();status,data=request('local_sales_control',{},method='GET');assert status==200,data
+    assert [x['id'] for x in data['pending']]==['TTI-S'],data
+    assert data['summary']['restricted'] is True and 'exportSales' not in data['summary'] and 'BRM Secret' not in json.dumps(data) and '987654' not in json.dumps(data),data
+    assert books.read_bytes()==before
+    assert request('local_sales_control',{},'?entity=BRM',method='GET')[0]==403
+    status,preflight=request('local_sales_control',{'action':'preflight','saleDate':'2026-10-01','amount':100});assert status==200 and preflight['summary']['restricted'] and '987654' not in json.dumps(preflight),preflight
+    scoped['localSalesCandidates']['TTI-S'].update({'amount':100,'product':'Rice','sourceKey':'GATE-1','soda':'S-1','loadedKg':1})
+    seed(scoped);status,posted=request('local_sales_control',{'entity':'TTI','action':'approve_candidate','candidateId':'TTI-S'});assert status==200 and posted['summary']['restricted'] and '987654' not in json.dumps(posted),posted
+    assert posted['journal']['meta']['localSalesControlBefore']['restricted'] and posted['journal']['meta']['localSalesControlProjected']['restricted']
+    user['permissions']['Accounts']['entity-brm']=['View'];seed(scoped)
+    status,data=request('local_sales_control',{},method='GET');assert status==200 and data['summary']['exportSales']==987654 and [x['id'] for x in data['pending']]==['TTI-S'],data
+    user['permissions']['Accounts'].pop('customer');user['permissions']['Accounts']['assets']=['View'];seed(scoped)
+    assert request('local_sales_control',{},method='GET')[0]==403,'Unrelated icon exposed pending local sales'
     print('PASS real API owning icons, company IDs/batches, linked sync, Master denials, TG bank targets, refund banks, JV corrections and legacy rights')

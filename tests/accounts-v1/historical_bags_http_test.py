@@ -29,7 +29,7 @@ with tempfile.TemporaryDirectory(prefix='historical-bags-') as tmp:
    except urllib.error.URLError:time.sleep(.05)
   before=books.read_bytes();assert req(body=payload,readonly=True)[0]==403 and books.read_bytes()==before
   assert req(body={**payload,'csrf':'bad'})[0]==419 and books.read_bytes()==before
-  for change in [{'sellerInvoiceDate':'2026-10-01'},{'sellerInvoiceDate':'2026-02-30'},{'openingGstRemaining':361},{'bags':1.001},{'openingPayableAmount':2361},{'openingStockBags':101},{'entity':'BRM'}]:
+  for change in [{'sellerInvoiceDate':'2026-10-01'},{'sellerInvoiceDate':'2026-02-30'},{'openingGstRemaining':361},{'bags':1.001},{'openingPayableAmount':2361},{'openingStockBags':101},{'openingStockBags':1},{'openingStockBags':-1},{'stockTreatment':'STOCK'},{'sellerInvoiceDate':'2026-08-01','stockTreatment':'STOCK'},{'sellerInvoiceDate':'2026-08-01','openingStockBags':1},{'entity':'BRM'}]:
    assert req(body={**payload,**change})[0] in [403,422] and books.read_bytes()==before,change
   result=ok(payload);b=result['result'];bid=b['id'];j=state()['journals'][b['journalId']];assert j['date']=='2026-07-01' and b['sellerInvoiceDate']=='2026-02-15';assert j['totalDebit']==j['totalCredit']==2360
   assert [(l['account'],l['debit'],l['credit']) for l in j['lines']]==[('2140',0,2360),('1230',360,0),('3400',2000,0)];assert not any(l['account']=='5550' for l in j['lines'])
@@ -46,13 +46,13 @@ with tempfile.TemporaryDirectory(prefix='historical-bags-') as tmp:
   current=ok({**payload,'requestKey':'historic-july-1','sellerInvoice':'JULY-01','sellerInvoiceDate':'2026-07-15'});cj=state()['journals'][current['result']['journalId']];assert cj['date']=='2026-07-15' and cj['lines'][0]['account']=='5550'
   amended=ok({**payload,'requestKey':'historic-amend-1','sellerInvoice':'JULY-01','sellerInvoiceDate':'2026-08-15','amendBillId':current['result']['id'],'amendReason':'Correct original invoice date'});assert state()['journals'][amended['result']['journalId']]['date']=='2026-08-15' and state()['bagSupplierBills'][current['result']['id']]['status']=='Cancelled'
   assert ok({'action':'cancel_historical_bill','entity':'TTI','csrf':'fixture','billId':amended['result']['id'],'reason':'Remove duplicate source'})['result']['journalId']
-  stock=ok({**payload,'requestKey':'historic-stock-1','sellerInvoice':'APRIL-STOCK','sellerInvoiceDate':'2026-04-10','openingPayableAmount':0,'openingGstRemaining':0,'openingStockBags':20});sj=state()['journals'][stock['result']['journalId']];assert [(l['account'],l['debit'],l['credit']) for l in sj['lines']]==[('1340',400,0),('3400',0,400)]
+  before=books.read_bytes();assert req(body={**payload,'requestKey':'historic-stock-1','sellerInvoice':'APRIL-STOCK','sellerInvoiceDate':'2026-04-10','openingPayableAmount':0,'openingGstRemaining':0,'openingStockBags':20})[0]==422 and books.read_bytes()==before
   generic=ok({**payload,'requestKey':'historic-generic-1','sellerInvoice':'SEPT-DELETE','sellerInvoiceDate':'2026-09-10'});gid=generic['result']['journalId']
   status,d=req('accounts_post_amend.php',{'csrf':'fixture','postId':gid,'action':'delete_post','reason':'Correct historical invoice'});assert status==200,d;assert state()['bagSupplierBills'][generic['result']['id']]['status']=='Cancelled'
   status,d=req('accounts_ledger_browser.php?entity=TTI&account=POSTS&from=2026-07-01&to=2026-10-14');assert status==200,d;assert not any(r['voucher']==gid for r in d['rows'])
-  # Link invoice detail to existing creditor/GST/stock openings without a second opening journal.
+  # Link invoice detail to existing creditor/GST openings while leaving independent physical stock untouched without a second opening journal.
   reset={'revision':0,'journals':{'BF':{'id':'BF','entity':'TTI','status':'Posted','date':'2026-07-01','sourceType':'OPENING_BALANCE_BF','lines':[{'account':'2140','supplier':'BAG SUPPLIER','credit':2360,'debit':0},{'account':'1230','debit':360,'credit':0},{'account':'1340','debit':400,'credit':0},{'account':'3400','debit':1600,'credit':0}],'totalDebit':2360,'totalCredit':2360}}};books.write_text(json.dumps(reset))
-  linked=ok({**payload,'requestKey':'historic-link-1','openingPayableMode':'LINK','openingJournalId':'BF','openingLineIndex':0,'openingGstMode':'INCLUDED','openingStockMode':'INCLUDED','openingStockBags':20});assert len(state()['journals'])==1 and linked['result']['journalId'] is None
+  linked=ok({**payload,'requestKey':'historic-link-1','openingPayableMode':'LINK','openingJournalId':'BF','openingLineIndex':0,'openingGstMode':'INCLUDED'});assert len(state()['journals'])==1 and linked['result']['journalId'] is None and state()['journals']['BF']==reset['journals']['BF'];assert linked['result']['openingStockBags']==0
   assert len(req('supplier_settlements.php?entity=TTI')[1]['payables'])==1
   before=books.read_bytes();assert req(body={**payload,'requestKey':'historic-link-over','sellerInvoice':'FEB-02','openingPayableMode':'LINK','openingJournalId':'BF','openingLineIndex':0})[0]==422 and books.read_bytes()==before
   # Same consumed invoice billed per kg or per bag; no stock/purchase expense at opening.

@@ -182,12 +182,25 @@ function gm_post_detail(array $state,string $id,string $date):array {
     $lines=[];foreach((array)($post['lines']??[]) as $line)$lines[]=['account'=>(string)($line['account']??''),'accountName'=>(string)($line['accountName']??''),'debit'=>(float)($line['debit']??0),'credit'=>(float)($line['credit']??0),'party'=>(string)($line['counterparty']??$line['subledger']??$line['partyName']??''),'bankAccountId'=>(string)($line['bankAccountId']??'')];
     return ['id'=>(string)($post['id']??$id),'entity'=>$post['entity'],'currency'=>$post['entity']==='TG'?'AED':'PKR','date'=>$post['date'],'reference'=>(string)($post['reference']??''),'narration'=>(string)($post['narration']??''),'lines'=>$lines];
 }
+/** Annual debit and cash credits in the TTI assessment control; never a second expense journal. */
+function gm_zakat_control(array $record,array $summary,array $payments,bool $complete):array {
+    $balance=0.;$rows=[];
+    $append=static function(string $date,string $reference,string $description,float $amount)use(&$balance,&$rows):void{
+        $balance=round($balance+$amount,2);
+        $rows[]=['date'=>$date,'reference'=>$reference,'description'=>$description,'debitPKR'=>max(0,$amount),'creditPKR'=>max(0,-$amount),'balancePKR'=>$balance];
+    };
+    $append($record['date'],'OPENING','Prior Zakat payable / excess carried forward',(float)$summary['openingCarryPKR']);
+    if($complete)$append($record['date'],$record['id'],'Yearly assessed Zakat · '.($record['sections']['header']['data']['hijriYear']??'').' AH',(float)$summary['assessmentPKR']);
+    foreach($payments as $payment)$append($payment['date'],$payment['postId'],$payment['amountPKR']<0?'Zakat payment reversed / refunded':'Actual TTI Zakat payment',-(float)$payment['amountPKR']);
+    return ['entity'=>'TTI','currency'=>'PKR','assessmentRecorded'=>$complete,'annualDebitPKR'=>$complete?$summary['assessmentPKR']:null,'paidExpensePKR'=>$summary['paidPKR'],'balancePKR'=>$balance,'rows'=>$rows,'basis'=>'Assessment control: debit increases Zakat due; credit reduces it. Complete every annual section to record the yearly debit. Actual payments alone are expense; no duplicate company journal is created by the assessment.'];
+}
 function gm_assessment_summary(array $record,array $state,string $through,?float $opening=null):array {
     $rates=(array)($record['sections']['header']['data']['rates']??[]);$sections=array_intersect_key((array)($record['sections']??[]),array_flip(['financials','properties','gold','shares','adjustments']));$posted=[];
     foreach($sections as $key=>$section)if(!empty($section['complete']))$posted[$key]=$section;
     $payments=gm_zakat_payments($state,$record['date'],$through);$carry=$opening??gm_number($record['sections']['header']['data']['openingCarryPKR']??0,'opening Zakat carry-forward',true);
     $progress=gm_assessment_progress($record);if($payments['warnings']){$progress['complete']=false;$progress['status']='PARTIAL';$progress['missingSections'][]='payment allocation review';}
-    return gm_zakat($posted,$rates,$carry,$payments['totalPKR'])+['payments'=>$payments['rows'],'through'=>$through,'assessmentOnly'=>true,'progress'=>$progress,'paymentWarnings'=>$payments['warnings'],'expenseBasis'=>'Only actual TTI Zakat payment postings in account 7210. Assessment section completion does not post another expense.'];
+    $summary=gm_zakat($posted,$rates,$carry,$payments['totalPKR']);
+    return $summary+['controlLedger'=>gm_zakat_control($record,$summary,$payments['rows'],gm_assessment_progress($record)['complete']),'payments'=>$payments['rows'],'through'=>$through,'assessmentOnly'=>true,'progress'=>$progress,'paymentWarnings'=>$payments['warnings'],'expenseBasis'=>'Only actual TTI Zakat payment postings in account 7210. Assessment section completion does not post another expense.'];
 }
 function gm_record_summary(array $record,array $state,string $through):array {
     if($record['kind']==='ZAKAT'){
