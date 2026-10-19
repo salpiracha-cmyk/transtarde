@@ -3,7 +3,7 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium}=require('
 (async()=>{const browser=await chromium.launch({headless:true});try{
  const shot=async(locator,name)=>{if(process.env.TT_QA_OUTPUT){fs.mkdirSync(process.env.TT_QA_OUTPUT,{recursive:true});await locator.screenshot({path:process.env.TT_QA_OUTPUT+'/'+name+'.png'});}};
  const page=await browser.newPage({viewport:{width:1440,height:1000}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
- await page.route('http://layout.test/**',r=>r.fulfill({contentType:'text/html',body:'<!doctype html><div id="entityHome"><div id="homeGrid"></div></div><section class="workspace" id="ws-jv"></section><section class="workspace" id="ws-expenses"><div id="expenseEditor"></div></section>'}));await page.goto('http://layout.test/');
+ await page.route('https://layout.test/**',r=>r.fulfill({contentType:'text/html',body:'<!doctype html><div id="entityHome"><div id="homeGrid"></div></div><section class="workspace" id="ws-jv"></section><section class="workspace" id="ws-expenses"><div id="expenseEditor"></div></section>'}));await page.goto('https://layout.test/');
  // Production's native page styles include a global 5px input margin. Omitting
  // them hides the live plain/date-versus-searchable-control row offset.
  const nativeHtml=fs.readFileSync('accounts/Transtrade_Accounts_Master_V1.html','utf8');
@@ -53,6 +53,7 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium}=require('
  await page.evaluate(()=>document.querySelector('#ttExpenseDesk').remove());
  // The actual investment renderer shares the same native 5px base margin.
  await page.evaluate(()=>TT_INVESTMENTS_UI.open('TTI'));await page.locator('#ivNewPost').click();
+ assert.deepEqual(errors,[],'Native investment form initialises without page errors on the production HTTPS surface');
  const investment=page.locator('#ivEntry');await investment.locator('[name=type]').selectOption('BUY');
  await page.waitForFunction(()=>document.querySelector('#ivEntry [name=quantity]').closest('label').querySelector('input[type=text]'));
  const investmentTops=await investment.evaluate(form=>['brokerId','symbol','quantity'].map(name=>{const label=form.querySelector('[name="'+name+'"]').closest('label');const field=[...label.querySelectorAll('input,select')].find(e=>{const r=e.getBoundingClientRect();return r.width>30&&r.height>0&&getComputedStyle(e).opacity!=='0'});if(!field)throw Error('Missing visible investment input '+name);return field.getBoundingClientRect().top;}));
