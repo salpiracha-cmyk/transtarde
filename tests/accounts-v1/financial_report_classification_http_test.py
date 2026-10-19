@@ -54,6 +54,7 @@ define('TT_DATA_DIR',__DIR__.'/data');function tt_require_login(){return ['role'
   paid=journal('Z-PERIOD-PAID',[line('7210',5),line('1120',cr=5)],'2026-09-01')
   returned=journal('Z-PERIOD-RETURN',[line('1120',5),line('7210',cr=5)],'2026-10-01');returned['reversalOf']='Z-PERIOD-PAID'
   path.write_text(json.dumps({'revision':7,'journals':{x['id']:x for x in [paid,returned]}}));status,z=req('2026-10-01');assert status==200 and z['profitAndLoss']['profit']==5,z
+  assert [(r['journalId'],r['credit']) for r in z['generalLedger'] if str(r['account'])=='7210']==[('Z-PERIOD-RETURN',5)],'Period GL must show the reversal of an earlier-period original'
   assert [(r['journalId'],r['amount']) for r in z['expenseActivity']]==[('Z-PERIOD-RETURN',-5)],'Register hiding must not erase a dated Zakat refund'
   status,z=req('2026-09-01');assert z['profitAndLoss']['profit']==0 and sum(r['amount'] for r in z['expenseActivity'])==0
   books=base;path.write_text(json.dumps(books))

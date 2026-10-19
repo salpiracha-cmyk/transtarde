@@ -92,6 +92,14 @@ try {
     }
 
     $hidden=alv_hidden($store,$asOf);
+    // Hiding a complete cancellation pair must not erase its current-period
+    // reversal when the original belongs to an earlier reporting period.
+    foreach((array)($store['journals']??[]) as $key=>$j){
+        if(!is_array($j)||($j['entity']??'')!==$entity||!alv_posted($j)||($j['date']??'')<$from||($j['date']??'')>$asOf)continue;
+        $originalId=(string)($j['reversalOf']??$j['meta']['reversalOf']??'');$original=$store['journals'][$originalId]??null;
+        if(is_array($original)&&($original['entity']??'')===$entity&&($original['date']??'')<$from)unset($hidden[(string)($j['id']??$key)]);
+    }
+
     $journals = array_values(array_filter(
         (array)($store['journals'] ?? []),
         static fn($journal): bool =>
