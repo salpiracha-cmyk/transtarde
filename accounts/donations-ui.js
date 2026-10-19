@@ -1,6 +1,6 @@
 (()=>{
 'use strict';
-const access=window.TT_ACCOUNT_ACCESS||{},api='../api/donations.php',q=s=>document.querySelector(s),fmt=n=>Number(n||0).toLocaleString('en-PK',{maximumFractionDigits:2}),today=()=>new Date().toISOString().slice(0,10),entity=()=>localStorage.getItem('tt_accounts_entity')||'TTI',currency=()=>entity()==='TG'?'AED':'Rs',esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const access=window.TT_ACCOUNT_ACCESS||{},api='../api/donations.php',q=s=>document.querySelector(s),fmt=n=>Number(n||0).toLocaleString('en-PK',{maximumFractionDigits:2}),today=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Karachi',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date()),entity=()=>localStorage.getItem('tt_accounts_entity')||'TTI',currency=()=>entity()==='TG'?'AED':'Rs',esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let data={donations:[],totals:{},paymentAccounts:[]},selected='ZAKAT',busy=false,pendingRequestKey='';
 const labels={ZAKAT:'Zakat',SADQA:'Sadqa',FI_SABILILLAH:'Fi Sabilillah'};
 function requestKey(){return globalThis.crypto?.randomUUID?.()||('DON-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2))}
