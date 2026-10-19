@@ -1,6 +1,9 @@
 <?php
 declare(strict_types=1);
 
+/** An unreadable payload has no trustworthy authentication identity. */
+final class TTInvalidSessionRecord extends RuntimeException {}
+
 /** Private, locked session records. PHP receives a freshly serialized array,
  * never partially written file bytes. No session values enter application logs. */
 final class TTAtomicSessionStore implements SessionHandlerInterface, SessionUpdateTimestampHandlerInterface, SessionIdInterface {
@@ -105,8 +108,9 @@ final class TTAtomicSessionStore implements SessionHandlerInterface, SessionUpda
         $this->acquire($id);
         if($this->plainFile($path)){
             $raw=file_get_contents($path);if($raw===false)throw new RuntimeException('Private session read is unavailable.');
-            $values=json_decode($raw,true,512,JSON_THROW_ON_ERROR);
-            if(!is_array($values))throw new RuntimeException('Private session record is invalid.');
+            try{$values=json_decode($raw,true,512,JSON_THROW_ON_ERROR);}
+            catch(JsonException $error){throw new TTInvalidSessionRecord('Private session record is invalid.',0,$error);}
+            if(!is_array($values))throw new TTInvalidSessionRecord('Private session record is invalid.');
             return serialize($values);
         }
         $legacy=$this->legacyPath($id);

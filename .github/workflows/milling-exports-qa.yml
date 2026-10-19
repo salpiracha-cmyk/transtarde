@@ -202,6 +202,7 @@ jobs:
           php tests/runtime_asset_version_test.php
           php tests/security/retired_owner_cleanup_test.php
           python3 tests/security/private_session_storage_test.py
+          python3 tests/security/corrupt_session_recovery_test.py
           python3 tests/security/authentication_boundary_test.py
           python3 tests/security/session_retention_test.py
           python3 tests/security/entity_icon_authorization_test.py

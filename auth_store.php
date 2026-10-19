@@ -142,7 +142,18 @@ if (session_status() !== PHP_SESSION_ACTIVE) {
         }
         return false;
     },E_WARNING);
-    try{$ttSessionOpened=session_start();}finally{restore_error_handler();}
+    try{
+        try{$ttSessionOpened=session_start();}
+        catch(TTInvalidSessionRecord){
+            // Expire only this client's untrustworthy session. Preserve its stored
+            // bytes for diagnosis; never recover an identity from damaged JSON.
+            if(session_status()===PHP_SESSION_ACTIVE)session_abort();
+            $ttSessionStore->close();$_SESSION=[];
+            unset($_COOKIE[session_name()]);session_id('');
+            $ttSessionOpened=session_start();
+            header('X-TT-Session-Recovery: invalid-record-replaced');
+        }
+    }finally{restore_error_handler();}
     if(!$ttSessionOpened)throw new RuntimeException('Your session could not be opened.');
     unset($ttSessionOpened);
 }
