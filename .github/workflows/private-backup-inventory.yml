@@ -1,0 +1,42 @@
+name: Read-only private backup inventory
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths: ['.github/workflows/private-backup-inventory.yml', '.github/scripts/private_backup_inventory.php']
+  push:
+    branches: [main]
+    paths: ['.github/workflows/private-backup-inventory.yml', '.github/scripts/private_backup_inventory.php']
+
+permissions:
+  contents: read
+
+jobs:
+  boundaries:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: php -l .github/scripts/private_backup_inventory.php
+  inspect:
+    needs: boundaries
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Inventory backup metadata without loading the application
+        env:
+          HOSTINGER_HOST: ${{ secrets.HOSTINGER_HOST }}
+          HOSTINGER_PORT: ${{ secrets.HOSTINGER_PORT }}
+          HOSTINGER_USER: ${{ secrets.HOSTINGER_USER }}
+          HOSTINGER_DEPLOY_PATH: ${{ secrets.HOSTINGER_DEPLOY_PATH }}
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+          HOSTINGER_KNOWN_HOSTS: ${{ secrets.HOSTINGER_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -m 700 -d "$RUNNER_TEMP/ssh"
+          printf '%s\n' "$HOSTINGER_SSH_KEY" | tr -d '\r' > "$RUNNER_TEMP/ssh/key"
+          printf '%s\n' "$HOSTINGER_KNOWN_HOSTS" | tr -d '\r' > "$RUNNER_TEMP/ssh/known_hosts"
+          chmod 600 "$RUNNER_TEMP/ssh/key" "$RUNNER_TEMP/ssh/known_hosts"
+          [[ "$HOSTINGER_DEPLOY_PATH" =~ ^/home/[a-zA-Z0-9_-]+/domains/app\.transtradeinternational\.com/public_html$ ]]
+          ssh -o ConnectTimeout=20 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -i "$RUNNER_TEMP/ssh/key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" -o StrictHostKeyChecking=yes -p "$HOSTINGER_PORT" "$HOSTINGER_USER@$HOSTINGER_HOST" "TT_BACKUP_INVENTORY_ROOT='$HOSTINGER_DEPLOY_PATH' php" < .github/scripts/private_backup_inventory.php
