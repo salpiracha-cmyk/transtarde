@@ -6,8 +6,8 @@ require_once dirname(__DIR__).'/runtime_html.php';
 $user=tt_require_login();$origin=($_GET['origin']??'accounts')==='directors'?'Directors':'Accounts';$kind=strtoupper((string)($_GET['kind']??'DAILY'));
 if(!in_array($kind,['CASHFLOW','ZAKAT','COSTING','DAILY'],true))$kind='DAILY';
 $allowed=array_values(array_filter(['CASHFLOW','ZAKAT','COSTING','DAILY'],static fn($k)=>gm_permission($user,$k,'View',$origin)));
-// Daily navigation exposes its released workspace; other report drafts keep their explicit preview routes.
-if($kind==='DAILY')$allowed=array_values(array_intersect($allowed,['DAILY']));
+// Released Daily and Annual Zakat navigation each opens its own permitted workspace.
+if(in_array($kind,['DAILY','ZAKAT'],true))$allowed=array_values(array_intersect($allowed,[$kind]));
 if(!in_array($kind,$allowed,true)){http_response_code(403);exit('Shared group report access is required.');}
 $config=['csrf'=>tt_csrf(),'kind'=>$kind,'allowed'=>$allowed,'origin'=>strtolower($origin),'today'=>(new DateTimeImmutable('now',new DateTimeZone('Asia/Karachi')))->format('Y-m-d')];tt_release_read_session();
 header('Cache-Control: private, no-store');ob_start();
