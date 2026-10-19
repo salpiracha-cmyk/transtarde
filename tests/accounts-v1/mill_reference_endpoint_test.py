@@ -9,7 +9,7 @@ with tempfile.TemporaryDirectory(prefix='mill-reference-') as tmp:
 define('TT_DATA_DIR',__DIR__.'/data');function tt_require_login(){return ['id'=>1,'username'=>'Fixture','role'=>'Staff','location'=>($_GET['mode']??'')==='location'?'Another Mill':'Selected Mill'];}
 function tt_user_can_open_module($u,$m){return $m==='Accounts'&&($_GET['mode']??'')!=='module';}
 function tt_user_can_module_action($u,$m,$i,$a){return $m==='Accounts'&&$i==='expenses'&&($_GET['mode']??'')!=='icon'&&(($a==='View')||($_GET['mode']??'')!=='read');}
-function tt_user_can_access_entity($u,$e,$a){return $e==='TTI';}function tt_release_read_session(){}function tt_verify_csrf($v){return $v==='fixture';}function tt_accounts_input(){return $GLOBALS['fixtureBody'];}function tt_list_masters(){return json_decode(file_get_contents(__DIR__.'/masters.json'),true);}
+function tt_user_can_access_entity($u,$e,$a){return $e==='TTI';}function tt_release_read_session(){if(($_SERVER['REQUEST_METHOD']??'GET')!=='GET')throw new RuntimeException('Only read requests may release the session here.');}function tt_verify_csrf($v){return $v==='fixture';}function tt_accounts_input(){return $GLOBALS['fixtureBody'];}function tt_list_masters(){return json_decode(file_get_contents(__DIR__.'/masters.json'),true);}
 ''')
  (root/'runner.php').write_text("<?php $r=json_decode(stream_get_contents(STDIN),true);$_GET=$r['query'];$_SERVER['REQUEST_METHOD']=$r['body']===null?'GET':'POST';$GLOBALS['fixtureBody']=json_encode($r['body']);register_shutdown_function(function(){fwrite(STDERR,'STATUS:'.(http_response_code()?:200));});require __DIR__.'/api/mill_reference_reconciliation.php';")
  def req(body=None,mode='',entity='TTI'):

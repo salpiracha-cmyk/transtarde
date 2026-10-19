@@ -25,7 +25,7 @@ try{
     $body=[];if($method==='POST'){$raw=function_exists('tt_accounts_input')?tt_accounts_input():file_get_contents('php://input');if(strlen((string)$raw)>16384)mref_out(['ok'=>false,'error'=>'Request too large.'],413);$body=json_decode((string)$raw,true,512,JSON_THROW_ON_ERROR);if(!is_array($body)||!tt_verify_csrf((string)($body['csrf']??'')))mref_out(['ok'=>false,'error'=>'Refresh your session before saving.'],419);}
     $entity=(string)($body['entity']??$_GET['entity']??'');if(!in_array($entity,['TTI','BRM'],true))mref_out(['ok'=>false,'error'=>'Choose TTI or BRM.'],422);
     if(!mref_allowed($user,$entity,'View')||($method==='POST'&&!mref_allowed($user,$entity,'Edit')))mref_out(['ok'=>false,'error'=>'Accounts expense and company permissions required.'],403);
-    if(function_exists('tt_release_read_session'))tt_release_read_session();$masters=tt_list_masters();
+    if($method==='GET'&&function_exists('tt_release_read_session'))tt_release_read_session();$masters=tt_list_masters();
     $result=ml_with_sources(static function($values)use($method,$entity,$user,$body,$masters):array {
         $h=@fopen(TT_DATA_DIR.'/accounts.json',$method==='POST'?'r+b':'rb');if(!$h)throw new RuntimeException('Accounts source unavailable.');
         try{if(!flock($h,$method==='POST'?LOCK_EX:LOCK_SH))throw new RuntimeException('Accounts source busy.');$books=json_decode((string)stream_get_contents($h),true,512,JSON_THROW_ON_ERROR);if(!is_array($books)||($books!==[]&&array_is_list($books)))throw new RuntimeException('Invalid Accounts source.');
