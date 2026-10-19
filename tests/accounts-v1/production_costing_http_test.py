@@ -44,6 +44,12 @@ function tt_verify_csrf($v){return $v==='fixture';}
   snapshot['salaryPeriods']={'TTI|2026-10|SM':{'netSalary':7000}}
   books.write_text(json.dumps(snapshot));status,fixed=req({'csrf':'fixture','action':'apply_to_run','entity':'TTI','groupId':g['id']},path='production_fixed_overhead.php');assert status==200,fixed
   assert abs(fixed['finalCostPerKg']-(saved['costPerKg']+10))<.000001,fixed
+  # Posted monthly additions/reductions affect eligible mill salary cost; recoveries do not.
+  adjusted=json.loads(books.read_text());adjusted['salaryPeriods']['TTI|2026-10|SM'].update({'monthlyAddition':1000,'monthlyReduction':300,'advanceApplied':500,'paidAfterPrepare':2000})
+  books.write_text(json.dumps(adjusted));before=books.read_bytes();status,month_cost=req(path='production_fixed_overhead.php')
+  assert status==200 and month_cost['months']['2026-10']['millSalary']==7700,month_cost
+  assert books.read_bytes()==before,'Viewing changed salary costs never rewrites approved stock rates'
+
   new_snapshot=json.loads(books.read_text());assert new_snapshot['journals']==store['journals'] and new_snapshot['productionCostRuns'][g['id']]['calculation']==saved['calculation'],'Fixed allocation retains base cost snapshot and creates no duplicate journal'
   saved=new_snapshot['productionCostRuns'][g['id']];old=books.read_bytes()
   p['rawInputs'][0]['grossKg']=1100;ops['values']['tt30prod']=json.dumps([p]);source.write_text(json.dumps(ops));status,d=req();assert status==200 and 'production changed' in d['groups'][0]['status'];assert d['groups'][0]['suggestedReadyRiceCostPerKg']==saved['costPerKg'];assert books.read_bytes()==old
