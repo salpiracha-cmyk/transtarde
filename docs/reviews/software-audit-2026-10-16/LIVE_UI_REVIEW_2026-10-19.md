@@ -1,5 +1,27 @@
 # Live cloud Chrome audit — 19 October 2026
 
+[Current closeout and required source decisions](CLOSEOUT_2026-10-20.md)
+
+### Final released repairs — 20 October
+
+PR389 b38bea60 passed feature and main full suites, deployment39305075149, startup39305228568 and full protected live39305228614.19October native Home/PayExpense both9313735.81 versus the old selector9153897.81. No journal/payment amendment.
+
+PR390 final18bf17f6/tree f4912e7a passed feature Accounts39307012827/Milling39307013040 and main Accounts39307588592/Milling39307588910. Merge b788a86ad4e7e106b0096011c5785b3bbb272c28 deployed39307971281.20October actual Buy form Broker/Symbol/Quantity tops357/height40, heading91.75, no width overflow; closed without Post.0user changes,0journal-ID changes,418journals retained. Startup39308295528passed; complete protected live39308295453/job118250962062passed. Retained earlier fixture failures and HTTPS/root-cause detail are in CLOSEOUT_2026-10-20.md.
+
+
+## Corrected closeout checkpoint — 19 October late evening
+
+The C24 test-arrival blocker in the preceding checkpoint was stale. Re-read production withdrawal39026907691/job117379600725: on17October it archived exactly3slips,3queue rows and6outbox rows, removing119500kg/1300test bags, accountsUnchanged:true. It recorded operations SHA256b8651798522d79b43a3d428453b6428bcc4c12e0b4d13b7bcbda6cd68c7fde0e. The protected19October read39295755611/job118207828951 returned that exact operations hash, no PH-00001/00002/00003 targets, no references and no financial links. Their absence is expected, not missing business stock. Do not ask the owner to reconcile/reassign/recreate these withdrawn test trucks. The original Accounts Sodas remain Indus. No new withdrawal or restoration was performed.
+
+Rice Ledger remains partial only for separately supplied real physical openings/positive actual production and reversals. Financial B/F stays ledger-only. The test-truck grouping must not be retained as a current failed physical-ownership issue. Coverage156:124passed,20partial,3failed,6not tested,2blocked,1intermittent;32open/partial action scopes, not32bugs.
+
+The later complete protected live39296506222 and startup39296506159 both passed on deployed7da2d8a. This supplies a clean final workflow result beyond the earlier23/23test-step/cancelled-job observation. Preserve the initial login failure as dated intermittent evidence.
+
+An additional reproduced read-only bug is addressed in PR389: expense and salary/rent payment-choice balances included future/invalid dated postings, unlike Home's current Karachi-date cutoff. The expanded actual-helper regression passes the correction and fails previous helpers; real disposable expense correction/retry/permissions and salary month/mixed-payment/final-retry suites pass. PR389 feature Accounts39304004982/Milling39304004989 and exact-main Accounts39304584953/Milling39304584958 all passed. Merged b38bea60f3c75738d6c2d976e1f238b0fb96140c deployed39305075149. 19October live cloud Chrome Home and Pay Expense both show9313735.81 for the same Meezan bank; old selector9153897.81. No journal/payment save. Full post-release live39305228614/job118240420876 and startup39305228568 both passed. Deployment changed0users and0journal IDs, preserving418journals.
+
+Remaining owner/source decisions are the approved annual Zakat monetary counterpart and original7210opening classification; AMT13 relationship-letter buyer/address and Customs HS versus the issued goods description; handling the preserved historical ASAS62packing PDF; and separately advised real Mill/bag openings. Existing Annual Zakat functionality is not missing. Missing positive supplier scans/production sources cannot be manufactured for acceptance. All other partial rows describe specific unexercised live variants or independent migration/security/office-delivery acceptance; existing disposable passes remain valid but do not authorise production test transactions. Backup/storage work remains with Resume check status.
+
+
 Status: Four observed UI defects fixed, merged, deployed and remeasured in authenticated cloud Chrome. All35 indexed archive downloads verified. Three original arrivals remain unidentified; protected live test step passed23/23, with cancelled final workflow conclusion retained. This is not whole-software/migration/security sign-off.
 
 ## Actual authenticated scope
@@ -31,7 +53,7 @@ Bank Receipt uses Received into bank and Received from. Tayyab's saved Director 
 
 The live loading report now displays native historical Indus loads as Indus and separates Completed from Quality: OK. Its dates were cleared and Generate Report used read-only. This confirms the visible source/status repair, not the actual unloading ownership of PH00001/PH00002/PH00003. Financial B/F remains ledger-only; physical mill openings still require the owner's separate originals.
 
-The Pay Expense bank-picker amount differed from Home during review. Source inspection shows Home uses ba_payload/availableBalance with ba_balance's date cutoff, while ev1_payment_accounts uses ev1_balance over all posted dates. This is a dated-source reconciliation item, not proof of incorrect books or authority to rewrite journals; no speculative monetary correction was made.
+The Pay Expense selector shows9,153,897.81 while Home shows9,313,735.81. PR389 reproduces the date-cutoff cause in native helper regression: old expense/salary helpers counted future/invalid dated postings, unlike Home. The repair changes only read-side bank/cash selection balances; it never rewrites journals. Release evidence follows in the corrected closeout checkpoint.
 
 Original-source/all-archive workflow39282043846 failed before business reads because .transtrade-release was absent. PR382 merged aa1a91eb5f52d7270cbe2d44cb879bf3bf75d98c; protected workflow39295755611 completed. It verified447 application files with0business-file writes. All35 currently indexed TTI/BRM archive packs downloaded:174454403bytes, strict length/PDF/saved-hash checks and unchanged final index; receipts SHA256152513f158c4da4d3686e03f5664b1f7b9e8037be19c72e6d6f434280f4dde7b. This closes indexed-byte availability only, not current issued CI/PL wording, individual attachments, physical printing or office delivery.
 
@@ -39,4 +61,4 @@ The workflow's green outcome is not warehouse identity acceptance: its diagnosti
 
 The unused legacy master_architecture_20260919 suite's stale expectation of an export_customers seed in auth_store.php remains recorded in the earlier checkpoint; current seeds reside in master_store.php and native/HTTP master suites pass. No stopped legacy assertions are silently counted green.
 
-The backup/storage/login recovery and retention work belongs to Resume check status. Its canonical LOGIN_QUOTA_RECOVERY_2026-10-19.md and BUSINESS_BACKUP_OPTIMISATION_2026-10-19.md are preserved; this UI continuation performs no backup cleanup or hosting action. Original tax/ASAS/address/HS decisions, independent issued outputs, real production/cost, migration/recovery and formal audit gates remain as documented. Actual cloud UI evidence does not make untested actions pass.
+The backup/storage/login recovery and retention work belongs to Resume check status. Its canonical LOGIN_QUOTA_RECOVERY_2026-10-19.md and BUSINESS_BACKUP_OPTIMISATION_2026-10-19.md are preserved; this UI continuation makes no separate backup/storage changes; its authorised code deployments use the existing deployment pipeline and retention policy. Original tax/ASAS/address/HS decisions, independent issued outputs, real production/cost, migration/recovery and formal audit gates remain as documented. Actual cloud UI evidence does not make untested actions pass.
