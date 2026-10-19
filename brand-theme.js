@@ -47,6 +47,10 @@
    for(const header of document.querySelectorAll('.topbar,header')){
     const style=getComputedStyle(header),rect=header.getBoundingClientRect();
     if(['sticky','fixed'].includes(style.position)&&rect.top<=1&&rect.bottom>0)inset=Math.max(inset,rect.bottom+12);
+    // A header still in normal flow can become sticky during this very scroll.
+    // Reserve its pinned height before moving the newly opened form upward.
+    const pinnedTop=parseFloat(style.top);
+    if(style.position==='sticky'&&Number.isFinite(pinnedTop)&&pinnedTop>=0&&rect.top>1&&rect.top<=root.getBoundingClientRect().top)inset=Math.max(inset,pinnedTop+rect.height+12);
    }
    window.scrollTo({left:window.scrollX,top:Math.max(0,window.scrollY+root.getBoundingClientRect().top-inset),behavior:'instant'});
   }

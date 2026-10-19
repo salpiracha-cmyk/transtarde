@@ -33,6 +33,14 @@ const {chromium}=require('playwright');
    assert.equal(await page.locator('.tt-window').evaluate(el=>el.scrollTop),500,'user activity cancels deferred positioning');
    await page.evaluate(()=>{const label=document.createElement('label');label.className='grid';label.hidden=true;label.innerHTML='<input>';document.body.append(label)});
    assert.equal(await page.locator('label[hidden]').evaluate(el=>getComputedStyle(el).display),'none','hidden grid stays hidden');
+   // Exports opens from the top of a padded shell: its header is initially
+   // 18px below the viewport, then pins to zero during the form-opening scroll.
+   await page.setContent('<style>body{margin:0}.shell{padding:18px}.topbar{position:sticky;top:0;height:74px;z-index:2;background:white}main{margin-top:40px}.panel{padding:16px}h2{margin:0 0 20px}.field{display:block}input{height:40px}.spacer{height:1400px}</style><div class="shell"><div class="topbar">Exports header</div><main><section class="panel"><h2>Sales Contract</h2><label class="field">Customer<input id="exportFirst"></label><div class="spacer"></div></section></main></div>');
+   await page.addScriptTag({content:fs.readFileSync('brand-theme.js','utf8')});
+   await page.evaluate(()=>TT_FORM_VIEWPORT.open(document.querySelector('.panel')));
+   await page.waitForTimeout(150);
+   assert.equal(await page.locator('.panel h2').evaluate(el=>el.getBoundingClientRect().top>=document.querySelector('.topbar').getBoundingClientRect().bottom+4),true,'new form heading stays below a header that becomes sticky during opening');
+   assert.equal(await page.locator('#exportFirst').evaluate(el=>el.getBoundingClientRect().top>=74&&el.getBoundingClientRect().bottom<=innerHeight),true,'Exports first field remains visible');
    await page.close();
   }
   console.log('Desktop and phone: first input, reused popup, delayed load, focus and background stability passed');
