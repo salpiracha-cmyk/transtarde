@@ -157,6 +157,36 @@ jobs:
           measure_storage account_mail "$account/mail"
           measure_storage account_logs "$account/logs"
           measure_storage host_cache "$account/.cache"
+          # Classify account-root entries without publishing names or contents.
+          other_index=0
+          for location in "$account"/* "$account"/.[!.]* "$account"/..?*; do
+            [ -e "$location" ] || continue
+            [ ! -L "$location" ] || continue
+            [ -d "$location" ] || continue
+            name=${location##*/}
+            case "$name" in
+              domains) label=websites ;;
+              backups|backup|.backups) label=account_backups ;;
+              .trash|.Trash|.Trash-*) label=trash ;;
+              .logs|logs) label=logs ;;
+              .cache|cache|.npm|.composer) label=cache ;;
+              .cagefs|.cl.selector|.local|.config|.ssh|.pki) label=host_environment ;;
+              tmp|temp) label=temporary ;;
+              mail|imap) label=mail ;;
+              *) other_index=$((other_index+1)); label=other_directory_$other_index ;;
+            esac
+            measure_storage "root_$label" "$location"
+          done
+          root_files_complete=true
+          root_files=$(find "$account" -xdev -maxdepth 1 -type f -printf '%b %s %f\n' 2>/dev/null | awk '
+            {category="other_files";
+             if($3~/^core([.][0-9]+)?$/)category="core_dumps";
+             else if($3~/[.](zip|gz|tgz|tar|bz2|xz|zst)$/)category="archives";
+             else if($3~/[.](log|out)$/)category="logs";
+             count[category]++;blocks[category]+=$1;bytes[category]+=$2}
+            END {for(category in count)printf "ACCOUNT_ROOT_FILES category=%s files=%d allocated_bytes=%.0f apparent_bytes=%.0f\n",category,count[category],blocks[category]*512,bytes[category]}') || root_files_complete=false
+          printf '%s\n' "$root_files"
+          echo "ACCOUNT_ROOT_FILES complete=$root_files_complete"
           count_complete=true
           counts=$(find "$account" -xdev -printf '%y\n' 2>/dev/null | awk '{c[$1]++}END {printf "files=%d directories=%d symlinks=%d",c["f"],c["d"],c["l"]}') || count_complete=false
           echo "ACCOUNT_FILE_COUNTS $counts complete=$count_complete"
