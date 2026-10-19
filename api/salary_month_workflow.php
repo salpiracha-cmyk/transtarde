@@ -130,6 +130,7 @@ function smw_action(array &$s,string $entity,string $month,array $b,array $u,arr
     }
     if(!empty($sheet['masterChanged'])&&!empty($sheet['canRefreshFromMaster']))throw new DomainException('Salary Master changed. Refresh this draft and review the payments again.');
     if(!$complete){
+        if(isset($sheet['paymentGroups']))throw new DomainException('Salary payments now use transaction rows. Reload Accounts to review and save this draft.');
         $mid=(string)($b['masterId']??'');$row=$sheet['rows'][$mid]??null;
         if(!$row)throw new DomainException('Select a person on this salary sheet.');
         smw_check_baseline($s,$row);

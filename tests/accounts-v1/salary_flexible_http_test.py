@@ -84,6 +84,9 @@ with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
         assert result['salarySheet']['rows']['Mrs']['payment']['amount']==300000
         assert result['salarySheet']['rows']['Salman']['payment']['amount']==10000
         assert not saved()['journals'] and not saved()['investmentTransactions'],'Draft never posts assets or cash'
+        before=saved();status,rejected=action('save_salary_draft_payment','Mrs',amount=100,date='2026-10-10',paymentAccountId='CASH|TTI')
+        assert status==422 and saved()==before,'A cached older salary editor cannot overwrite transaction allocations'
+
         assert action('save_salary_transactions','Salman',transactions=[],advanceApplied=5000)[0]==200
         assert action('save_salary_transactions','Worker',transactions=[],advanceApplied=0)[0]==200
         # Posting preview must leave draft, investments, journals and request keys unchanged.
