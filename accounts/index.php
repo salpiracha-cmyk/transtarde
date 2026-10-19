@@ -24,6 +24,7 @@ header('Content-Type: text/html; charset=UTF-8');
 $html = (string)file_get_contents($file);
 $access = [
     'module' => 'Accounts',
+    'workspaces' => tt_user_workspaces($user),
     'userId' => (int)($user['id'] ?? 0),
     'user' => (string)($user['full_name'] ?? ''),
     'role' => (string)($user['role'] ?? ''),

@@ -377,3 +377,5 @@ Online Banking payments expose an editable payment date, defaulting from the vou
 - Directors with explicit Accounts JV approval and company approval rights can post their own JVs directly and complete an existing own pending JV. Ordinary preparers retain separate approval. Director title alone does not bypass saved icon, company, location, master or owner-security controls.
 - Bank Receipt labels identify the receiving bank as Received into bank and the payer as Received from. Payment labels retain Pay from bank. Mode changes retain unfinished values and make no posting.
 - Accounts Mill Bill Review distinguishes Rice labour from Maize / Corn / Makai labour using the saved source commodity. Both retain the same source-linked payable review and correction safeguards, with separate agreed work/rates.
+
+- Users assigned several modules have a Home link from Accounts, Milling, Exports and Directors to a server-rendered chooser containing only their current authorised workspaces. A Director receives operational navigation without access to owner-only user/security administration. Home also uses the same private JV decision notices.

@@ -677,6 +677,13 @@ function tt_user_accounts_entities(array $user): array {
     return array_values(array_filter(['TTI','BRM','TG'], static fn(string $entity): bool => tt_user_can_access_entity($user, $entity, 'View')));
 }
 
+/** Navigation reflects existing grants; it grants no new module authority. */
+function tt_user_workspaces(array $user): array {
+    $choices=['Accounts'=>['label'=>'Accounts','url'=>'/accounts/index.php'],'Mill'=>['label'=>'Mill','url'=>'/module.php?id=milling'],'Exports'=>['label'=>'Exports','url'=>'/module.php?id=exports'],'Directors'=>['label'=>'Directors','url'=>'/directors/index.php']];
+    $out=[];foreach($choices as $module=>$choice)if(tt_user_can_open_module($user,$module))$out[]=['module'=>$module]+$choice;
+    return $out;
+}
+
 function tt_user_landing_url(array $user): string {
     if (!empty($user['must_change_password'])) return 'change-password.php';
     // The owner-level Super Admin always starts in the Control Centre.

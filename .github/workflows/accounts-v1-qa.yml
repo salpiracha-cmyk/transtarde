@@ -3,9 +3,9 @@ name: Accounts V1 QA
 on:
   push:
     branches: [main]
-    paths: ['jv_notice_ui.php','index.html','index.php','document-reader-settings.php','tests/document-ai/**','accounts/**','api/**','scripts/**','auth_store.php','session_store.php','login.php','change-password.php','recover-admin.php','logout.php','master_store.php','backup_lib.php','qa_account.php','offline_idempotency.php','product_stage.php','inventory_reconciliation.php','stock-reconciliation.php','directors/**','module.php','brand-theme.css','brand-theme.js','exports/**','admin/**','milling/**','tests/master_data_topbar_audit.js','tests/accounts-v1/**','tests/security/**','tests/offline_recovery_audit.js','tests/super_admin_cleanup_audit.js','tests/live/accounts-hostinger-qa.spec.js','tests/live/hostinger-qa.spec.js','tests/live/exports-reset-only.spec.js','tests/exports-v3/**','.github/workflows/accounts-v1-qa.yml','.github/workflows/milling-exports-qa.yml','.github/workflows/deploy-production.yml','.github/workflows/qa-data-cleanup.yml']
+    paths: ['staff-home.php','jv_notice_ui.php','index.html','index.php','document-reader-settings.php','tests/document-ai/**','accounts/**','api/**','scripts/**','auth_store.php','session_store.php','login.php','change-password.php','recover-admin.php','logout.php','master_store.php','backup_lib.php','qa_account.php','offline_idempotency.php','product_stage.php','inventory_reconciliation.php','stock-reconciliation.php','directors/**','module.php','brand-theme.css','brand-theme.js','exports/**','admin/**','milling/**','tests/master_data_topbar_audit.js','tests/accounts-v1/**','tests/security/**','tests/offline_recovery_audit.js','tests/super_admin_cleanup_audit.js','tests/live/accounts-hostinger-qa.spec.js','tests/live/hostinger-qa.spec.js','tests/live/exports-reset-only.spec.js','tests/exports-v3/**','.github/workflows/accounts-v1-qa.yml','.github/workflows/milling-exports-qa.yml','.github/workflows/deploy-production.yml','.github/workflows/qa-data-cleanup.yml']
   pull_request:
-    paths: ['jv_notice_ui.php','index.html','index.php','document-reader-settings.php','tests/document-ai/**','accounts/**','api/**','scripts/**','auth_store.php','session_store.php','login.php','change-password.php','recover-admin.php','logout.php','master_store.php','backup_lib.php','offline_idempotency.php','product_stage.php','inventory_reconciliation.php','stock-reconciliation.php','directors/**','module.php','brand-theme.css','brand-theme.js','exports/**','admin/**','milling/**','tests/accounts-v1/**','tests/security/**','tests/offline_recovery_audit.js','tests/super_admin_cleanup_audit.js','tests/live/accounts-hostinger-qa.spec.js','tests/live/hostinger-qa.spec.js','tests/live/exports-reset-only.spec.js','tests/exports-v3/**','.github/workflows/accounts-v1-qa.yml','.github/workflows/milling-exports-qa.yml','.github/workflows/deploy-production.yml','.github/workflows/qa-data-cleanup.yml']
+    paths: ['staff-home.php','jv_notice_ui.php','index.html','index.php','document-reader-settings.php','tests/document-ai/**','accounts/**','api/**','scripts/**','auth_store.php','session_store.php','login.php','change-password.php','recover-admin.php','logout.php','master_store.php','backup_lib.php','offline_idempotency.php','product_stage.php','inventory_reconciliation.php','stock-reconciliation.php','directors/**','module.php','brand-theme.css','brand-theme.js','exports/**','admin/**','milling/**','tests/accounts-v1/**','tests/security/**','tests/offline_recovery_audit.js','tests/super_admin_cleanup_audit.js','tests/live/accounts-hostinger-qa.spec.js','tests/live/hostinger-qa.spec.js','tests/live/exports-reset-only.spec.js','tests/exports-v3/**','.github/workflows/accounts-v1-qa.yml','.github/workflows/milling-exports-qa.yml','.github/workflows/deploy-production.yml','.github/workflows/qa-data-cleanup.yml']
 
 permissions:
   contents: read
@@ -174,6 +174,7 @@ jobs:
           python3 tests/security/authentication_boundary_test.py
           python3 tests/security/session_retention_test.py
           python3 tests/security/entity_icon_authorization_test.py
+          python3 tests/security/workspace_navigation_test.py
           python3 tests/security/api_workflow_authorization_test.py
           python3 tests/security/operations_read_access_test.py
           python3 tests/security/group_report_access_test.py
@@ -320,6 +321,7 @@ jobs:
           node tests/accounts-v1/purchase_handler_browser_test.js
           node tests/accounts-v1/supplier_opening_browser_test.js
           node tests/accounts-v1/numeric_entry_ui_test.js
+          node tests/accounts-v1/super_admin_console_navigation_audit.js
           node tests/accounts-v1/numeric_no_step_browser_test.js
           node tests/accounts-v1/accounts_date_jv_browser_test.js
           node tests/accounts-v1/reconciliation_date_browser_test.js
