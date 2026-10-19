@@ -78,11 +78,21 @@ require $argv[1];
     assert json.loads(books.read_text())['journals']==original_journals
     assert request('journal_vouchers','?entity=TTI&notices=1&pending=1')[1]['notices']==[]
     before=books.read_bytes();assert request('journal_vouchers','?entity=TTI',{'entity':'BRM','action':'dismiss_jv_notice','noticeId':7,'csrf':'fixture'})[0]==403;assert books.read_bytes()==before
-    # A Director uses the saved JV and company actions; a title does not bypass either matrix.
-    user['role']='Director';user['permissions']['Accounts']={'jv':['View','Create','Approve'],'entity-tti':['View','Create','Approve']};set_user()
-    status,data=request('journal_vouchers','?entity=TTI');assert status==200 and data['canPostDirectly'] and data['canWrite'],data
-    before=books.read_bytes();assert request('journal_vouchers','?entity=BRM')[0]==403;assert books.read_bytes()==before
-    user['permissions']['Accounts']['jv']=['View','Create'];set_user();assert not request('journal_vouchers','?entity=TTI')[1]['canPostDirectly']
+    # Director role alone supplies all business actions/company books; no saved boxes.
+    user['role']='Director';user['permissions']={};user['location']='Karachi Office';set_user()
+    for entity in ['TTI','BRM','TG']:
+        status,data=request('journal_vouchers','?entity='+entity);assert status==200 and data['canPostDirectly'] and data['canWrite'],data
+    before=books.read_bytes();assert request('journal_vouchers','?entity=UNKNOWN')[0]==403;assert books.read_bytes()==before
+    body={'entity':'BRM','action':'submit_jv','requestKey':'director-no-boxes','date':'2026-10-01','narration':'Director role fixture','csrf':'fixture','lines':[{'account':'6900','subledger':'Fixture expense','debit':25,'credit':0},{'account':'2140','subledger':'Fixture payable','debit':0,'credit':25}]}
+    original=json.loads(books.read_text())['journals'].copy();status,data=request('journal_vouchers','?entity=BRM',body);assert status==200 and data['result']['status']=='Posted',data
+    posted=json.loads(books.read_text())['journals'];assert len(posted)==len(original)+1 and all(posted[k]==v for k,v in original.items())
+    assert request('journal_vouchers','?entity=BRM',body)[1]['replayed'];assert len(json.loads(books.read_text())['journals'])==len(posted)
+    body['requestKey']='director-unbalanced';body['lines'][0]['debit']=24;before=books.read_bytes();assert request('journal_vouchers','?entity=BRM',body)[0]==422;assert books.read_bytes()==before,'Director must still balance journals'
+
+    # A role downgrade immediately restores granular staff restrictions.
+    user['role']='Accounts';user['permissions']={'Accounts':{'jv':['View'],'entity-tti':['View']}};set_user()
+    assert not request('journal_vouchers','?entity=TTI')[1]['canPostDirectly']
+    assert request('journal_vouchers','?entity=BRM')[0]==403
     user['role'] = 'Super Admin'
     user['permissions'] = {}
     set_user()

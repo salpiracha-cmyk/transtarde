@@ -396,11 +396,12 @@ function tt_record_sign_in(int $id, string $username): void {
 function tt_list_public_users(): array {
     return array_map(static function (array $user): array {
         $permissions = is_array($user['permissions'] ?? null) ? $user['permissions'] : [];
+        $effective = tt_user_business_access($user);
         return [
             'id' => (string)$user['id'], 'name' => (string)($user['full_name'] ?? ''),
             'username' => (string)($user['username'] ?? ''), 'role' => (string)($user['role'] ?? ''),
             'location' => (string)($user['location'] ?? 'All authorized locations'),
-            'active' => !empty($user['active']), 'modules' => array_keys($permissions),
+            'active' => !empty($user['active']), 'modules' => array_keys($effective['permissions'] ?? []),
             'permissions' => $permissions,
             'masterAccess' => !empty($user['master_access']),
             'masterPermissions' => is_array($user['master_permissions'] ?? null) ? $user['master_permissions'] : [],
@@ -545,8 +546,27 @@ function tt_reset_admin_with_recovery(string $newPassword): int {
     });
 }
 
+/** Director is a business role, never an alias for the owner/security role. */
+function tt_business_modules(): array { return ['Mill','Exports','Accounts','Directors']; }
+
+function tt_director_master_permissions(): array {
+    $types=array_unique(array_merge(array_keys(tt_default_masters()),['salary_staff','reference_lists','export_realization_charges']));
+    return array_fill_keys($types,['Use','View','Create','Edit','Deactivate','View Documents','Download Documents']);
+}
+
+/** Derive current role access without rewriting saved custom grants or identity. */
+function tt_user_business_access(array $user): array {
+    if (($user['role'] ?? '') !== 'Director') return $user;
+    $user['permissions']=array_fill_keys(tt_business_modules(),'all');
+    $user['location']='All authorized locations';
+    $user['master_access']=true;
+    $user['master_permissions']=tt_director_master_permissions();
+    return $user;
+}
+
 function tt_user_can_open_module(array $user, string $module): bool {
     if (($user['role'] ?? '') === 'Super Admin') return true;
+    if (($user['role'] ?? '') === 'Director') return in_array($module,tt_business_modules(),true);
     $permissions=$user['permissions'][$module] ?? [];
     if ($permissions === 'all') return true;
     if (!is_array($permissions)) return false;
@@ -558,6 +578,8 @@ function tt_user_can_open_module(array $user, string $module): bool {
 /** Preserve legacy module grants; explicit matrices grant only the selected icon. */
 function tt_user_can_module_action(array $user,string $module,string $icon,string $action): bool {
     if (($user['role']??'')==='Super Admin') return true;
+    if (($user['role']??'')==='Director') return in_array($module,tt_business_modules(),true)
+        && in_array($action,['View','Create','Edit','Approve','Reports','Delete'],true);
     $permissions=$user['permissions'][$module]??[];
     if ($permissions==='all') return true;
     if (!is_array($permissions)) return false;
@@ -607,7 +629,7 @@ function tt_migrate_legacy_master_permissions(array &$data): array {
     $changed=[];
     if (!isset($data['users']) || !is_array($data['users'])) $data['users']=[];
     foreach ($data['users'] as &$user) {
-        if (($user['role'] ?? '')==='Super Admin' || !empty($user['master_access'])) continue;
+        if (in_array(($user['role'] ?? ''),['Super Admin','Director'],true) || !empty($user['master_access'])) continue;
         // The managed QA identity is deliberately read-only and its stable
         // profile is restored independently by qa_account.php.
         if (!empty($user['system_qa']) || !empty($user['test_data_only'])) continue;
@@ -630,6 +652,7 @@ function tt_user_can_master(array $user,string $type,string $action='View'): boo
     if (($user['role'] ?? '')==='Super Admin') return true;
     if (!tt_user_can_access_masters($user)) return false;
     if (in_array($type,['purchase_kat','commodities'],true)) $type='purchase_products';
+    if (($user['role'] ?? '')==='Director') return in_array($action,tt_director_master_permissions()[$type]??[],true);
     // An explicit Super Admin matrix overrides the module defaults, including View.
     if (!empty($user['master_access'])) return in_array($action,(array)($user['master_permissions'][$type] ?? []),true);
     // New or incomplete accounts may see and use only their module-related
@@ -661,6 +684,7 @@ function tt_user_can_access_entity(array $user, string $entity, string $action =
     if (($user['role'] ?? '') === 'Super Admin') return true;
     $entity = strtoupper(trim($entity));
     if (!in_array($entity, ['TTI','BRM','TG'], true)) return false;
+    if (($user['role'] ?? '') === 'Director') return in_array($action,['View','Create','Edit','Approve','Reports','Delete'],true);
     $permissions = $user['permissions']['Accounts'] ?? null;
     if ($permissions === 'all') return true;
     if (!is_array($permissions)) return false;
@@ -824,7 +848,7 @@ function tt_current_user(): ?array {
         exit;
     }
     if (tt_request_has_user_activity()) tt_touch_session_activity();
-    return $user;
+    return tt_user_business_access($user);
 }
 
 function tt_api_json_error(int $status,string $message): never {

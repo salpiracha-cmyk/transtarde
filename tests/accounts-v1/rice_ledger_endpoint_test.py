@@ -2,7 +2,7 @@
 import json,shutil,subprocess,tempfile
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[2]
-auth=(ROOT/'auth_store.php').read_text();a=auth.index('function tt_user_can_open_module(');b=auth.index('function tt_user_can_access_masters(',a);helpers=auth[a:b]
+auth=(ROOT/'auth_store.php').read_text();a=auth.index('function tt_business_modules(');b=auth.index('function tt_user_can_access_masters(',a);helpers=auth[a:b]
 a=auth.index('function tt_user_can_access_entity(');b=auth.index('function tt_user_landing_url(',a);helpers+=auth[a:b]
 with tempfile.TemporaryDirectory(prefix='rice-ledger-endpoint-') as directory:
  root=Path(directory);(root/'api').mkdir();(root/'data').mkdir()
