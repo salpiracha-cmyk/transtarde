@@ -1,0 +1,67 @@
+name: Verified business backup optimisation
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths: ['.github/workflows/business-backup-maintenance.yml', '.github/scripts/business_backup_maintenance.php', 'backup_lib.php', 'tests/security/backup_compression_retention_test.php', 'scripts/migrate_master_permissions.php', 'tests/security/master_migration_noop_backup_test.php']
+  push:
+    branches: [main]
+    paths: ['.github/workflows/business-backup-maintenance.yml', '.github/scripts/business_backup_maintenance.php', 'backup_lib.php', 'tests/security/backup_compression_retention_test.php', 'scripts/migrate_master_permissions.php', 'tests/security/master_migration_noop_backup_test.php']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: transtrade-production-deployment
+  cancel-in-progress: false
+
+jobs:
+  boundaries:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          php -l backup_lib.php
+          php -l .github/scripts/business_backup_maintenance.php
+          php tests/security/server_backup_hardening_test.php
+          php tests/security/backup_compression_retention_test.php
+          php tests/security/master_migration_noop_backup_test.php
+  optimise:
+    needs: boundaries
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create and verify complete recovery before bounded backup cleanup
+        env:
+          HOSTINGER_HOST: ${{ secrets.HOSTINGER_HOST }}
+          HOSTINGER_PORT: ${{ secrets.HOSTINGER_PORT }}
+          HOSTINGER_USER: ${{ secrets.HOSTINGER_USER }}
+          HOSTINGER_DEPLOY_PATH: ${{ secrets.HOSTINGER_DEPLOY_PATH }}
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+          HOSTINGER_KNOWN_HOSTS: ${{ secrets.HOSTINGER_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -m 700 -d "$RUNNER_TEMP/ssh"
+          printf '%s\n' "$HOSTINGER_SSH_KEY" | tr -d '\r' > "$RUNNER_TEMP/ssh/key"
+          printf '%s\n' "$HOSTINGER_KNOWN_HOSTS" | tr -d '\r' > "$RUNNER_TEMP/ssh/known_hosts"
+          chmod 600 "$RUNNER_TEMP/ssh/key" "$RUNNER_TEMP/ssh/known_hosts"
+          [[ "$HOSTINGER_DEPLOY_PATH" =~ ^/home/[a-zA-Z0-9_-]+/domains/app\.transtradeinternational\.com/public_html$ ]]
+          python3 - <<'PYBUILD'
+          import pathlib,base64,hashlib
+          source=pathlib.Path('backup_lib.php').read_bytes()
+          script=pathlib.Path('.github/scripts/business_backup_maintenance.php').read_text()
+          script=script.replace('__BACKUP_LIBRARY_BASE64__',base64.b64encode(source).decode()).replace('__NEW_LIBRARY_SHA256__',hashlib.sha256(source).hexdigest()).replace('__OLD_LIBRARY_SHA256__','7876554b63606497f0776f97357cc7792a9d62184e6e8c358da4c88322597f19')
+          migration=pathlib.Path('scripts/migrate_master_permissions.php').read_bytes()
+          script=script.replace('__MIGRATION_SOURCE_BASE64__',base64.b64encode(migration).decode()).replace('__NEW_MIGRATION_SHA256__',hashlib.sha256(migration).hexdigest()).replace('__OLD_MIGRATION_SHA256__','e293e518f9a3692325978e09f825a228aace0d97f49bde967dc21cd9b56f2e3b')
+          pathlib.Path('/tmp/tt-backup-maintenance.php').write_text(script)
+          PYBUILD
+          ssh -o ConnectTimeout=20 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -i "$RUNNER_TEMP/ssh/key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" -o StrictHostKeyChecking=yes -p "$HOSTINGER_PORT" "$HOSTINGER_USER@$HOSTINGER_HOST" "TT_BACKUP_MAINTENANCE_ROOT='$HOSTINGER_DEPLOY_PATH' php" < /tmp/tt-backup-maintenance.php
+      - name: Verify public login still responds
+        run: |
+          set -euo pipefail
+          code=$(curl --silent --show-error --location --max-time 30 -o "$RUNNER_TEMP/login.html" -w '%{http_code}' https://app.transtradeinternational.com/login.php)
+          test "$code" = 200
+          grep -q 'name="password"' "$RUNNER_TEMP/login.html"
+          echo 'PUBLIC_LOGIN_HEALTH_OK'

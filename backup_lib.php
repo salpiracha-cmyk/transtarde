@@ -57,13 +57,15 @@ final class TT_SimpleZipWriter {
         if ($source === false) throw new RuntimeException('A backup source file could not be read.');
         [$mtime, $mdate] = self::dosTime(filemtime($path) ?: null);
         $flags = 0x0808; // UTF-8 name plus a data descriptor after streamed contents.
-        $method = 0; // Documents are commonly pre-compressed; store them without buffering in PHP memory.
+        $method = $compress && preg_match('/\.(json|txt|csv|log|sql)([.-]|$)/i', $name) ? 8 : 0;
+        $deflater = $method === 8 ? deflate_init(ZLIB_ENCODING_RAW, ['level'=>6]) : null;
+        if ($method === 8 && $deflater === false) { fclose($source); throw new RuntimeException('Backup compression could not start.'); }
         $offset = $this->offset;
         $local = pack('VvvvvvVVVvv', 0x04034b50, 20, $flags, $method, $mtime, $mdate, 0, 0, 0, strlen($name), 0);
         $this->write($local . $name);
         $crcContext = hash_init('crc32b');
         $shaContext = hash_init('sha256');
-        $size = 0;
+        $size = 0; $csize = 0;
         try {
             while (!feof($source)) {
                 $chunk = fread($source, 1024 * 1024);
@@ -73,7 +75,14 @@ final class TT_SimpleZipWriter {
                 if ($size > 0xffffffff) throw new RuntimeException('A backup source file is too large for this ZIP format.');
                 hash_update($crcContext, $chunk);
                 hash_update($shaContext, $chunk);
-                $this->write($chunk);
+                $encoded = $method === 8 ? deflate_add($deflater, $chunk, ZLIB_NO_FLUSH) : $chunk;
+                if ($encoded === false) throw new RuntimeException('Backup compression failed.');
+                $this->write($encoded); $csize += strlen($encoded);
+            }
+            if ($method === 8) {
+                $encoded = deflate_add($deflater, '', ZLIB_FINISH);
+                if ($encoded === false) throw new RuntimeException('Backup compression failed.');
+                $this->write($encoded); $csize += strlen($encoded);
             }
         } finally {
             fclose($source);
@@ -81,8 +90,8 @@ final class TT_SimpleZipWriter {
         $crcHex = hash_final($crcContext);
         $sha256 = hash_final($shaContext);
         $crc = (int)hexdec($crcHex);
-        $this->write(pack('VVVV', 0x08074b50, $crc, $size, $size));
-        $this->central[] = ['name'=>$name,'flags'=>$flags,'method'=>$method,'mtime'=>$mtime,'mdate'=>$mdate,'crc'=>$crc,'csize'=>$size,'usize'=>$size,'offset'=>$offset];
+        $this->write(pack('VVVV', 0x08074b50, $crc, $csize, $size));
+        $this->central[] = ['name'=>$name,'flags'=>$flags,'method'=>$method,'mtime'=>$mtime,'mdate'=>$mdate,'crc'=>$crc,'csize'=>$csize,'usize'=>$size,'offset'=>$offset];
         return ['size'=>$size, 'sha256'=>$sha256];
     }
 
@@ -151,27 +160,36 @@ final class TT_SimpleZipReader {
     public function names(): array { return array_keys($this->entries); }
     public function has(string $name): bool { return isset($this->entries[$name]); }
 
-    /** Verify a stored entry with bounded memory, including the ZIP CRC. */
+    /** Stream and verify legacy stored or deflated recovery entries with bounded memory. */
     public function storedDigest(string $name, mixed $destination = null): array|false {
         $e = $this->entries[$name] ?? null;
         if (!$e) return false;
-        if ((int)$e['method'] !== 0) throw new InvalidArgumentException('A server snapshot entry is not stored in the supported format.');
+        if (!in_array((int)$e['method'], [0,8], true)) throw new InvalidArgumentException('Unsupported server snapshot compression.');
         fseek($this->fh, (int)$e['offset']);
         $local = $this->readExact(30);
         if (substr($local, 0, 4) !== "PK\x03\x04") throw new InvalidArgumentException('The backup ZIP entry is invalid.');
         $u = unpack('vneed/vflags/vmethod/vtime/vdate/Vcrc/Vcsize/Vusize/vnlen/velen', substr($local, 4));
         $localName = $this->readExact((int)$u['nlen']);
-        if ($localName !== $name || (int)$u['method'] !== 0) throw new InvalidArgumentException('The backup ZIP entry name or format is invalid.');
+        if ($localName !== $name || (int)$u['method'] !== (int)$e['method']) throw new InvalidArgumentException('The backup ZIP entry name or format is invalid.');
         if ((int)$u['elen'] > 0) $this->readExact((int)$u['elen']);
         $sha = hash_init('sha256'); $crc = hash_init('crc32b');
-        $remaining = (int)$e['csize'];
+        $remaining = (int)$e['csize']; $decodedBytes = 0;
+        $inflater = (int)$e['method'] === 8 ? inflate_init(ZLIB_ENCODING_RAW) : null;
+        if ($inflater === false) throw new InvalidArgumentException('Backup decompression could not start.');
         while ($remaining > 0) {
-            $chunk = $this->readExact(min($remaining, 1024 * 1024));
+            $chunk = $this->readExact(min($remaining, 4096));
+            $remaining -= strlen($chunk);
+            if ((int)$e['method'] === 8) {
+                $chunk = @inflate_add($inflater, $chunk, $remaining === 0 ? ZLIB_FINISH : ZLIB_SYNC_FLUSH);
+                if ($chunk === false) throw new InvalidArgumentException('Compressed recovery data is damaged.');
+            }
+            $decodedBytes += strlen($chunk);
+            if ($decodedBytes > (int)$e['usize']) throw new InvalidArgumentException('Recovery data exceeds its declared size.');
             hash_update($sha, $chunk); hash_update($crc, $chunk);
             if ($destination !== null && fwrite($destination, $chunk) !== strlen($chunk)) throw new RuntimeException('A recovery file could not be staged.');
-            $remaining -= strlen($chunk);
         }
-        if ((int)$e['csize'] !== (int)$e['usize'] || sprintf('%u', hexdec(hash_final($crc))) !== sprintf('%u', (int)$e['crc'])) throw new InvalidArgumentException('A backup entry failed its ZIP integrity check.');
+        if ((int)$e['method'] === 8 && (inflate_get_status($inflater) !== ZLIB_STREAM_END || inflate_get_read_len($inflater) !== (int)$e['csize'])) throw new InvalidArgumentException('Incomplete compressed recovery data.');
+        if ($decodedBytes !== (int)$e['usize'] || sprintf('%u', hexdec(hash_final($crc))) !== sprintf('%u', (int)$e['crc'])) throw new InvalidArgumentException('A backup entry failed its ZIP integrity check.');
         return ['size'=>(int)$e['usize'], 'sha256'=>hash_final($sha)];
     }
 
@@ -529,7 +547,7 @@ function tt_create_server_snapshot(string $kind='auto'): string {
         $zip = new TT_SimpleZipWriter($temp);
         $inventory = [];
         foreach ($sources as $rel => $file) {
-            $meta = $zip->addFile('System_Recovery/private/' . $rel, $file, false);
+            $meta = $zip->addFile('System_Recovery/private/' . $rel, $file, true);
             $inventory[$rel] = $meta;
         }
         ksort($inventory);
@@ -547,6 +565,7 @@ function tt_create_server_snapshot(string $kind='auto'): string {
         $zip->close();
         @chmod($temp, 0600);
         tt_backup_verify_snapshot($temp, $inventory);
+        tt_backup_prune_stale_temps(); // Full recovery verified; job lock still exclusive.
         if (!rename($temp, $path)) throw new RuntimeException('The verified server snapshot could not be committed.');
         $temp = '';
         @chmod($path, 0600);
@@ -577,22 +596,43 @@ function tt_create_server_snapshot(string $kind='auto'): string {
     }
 }
 
-function tt_backup_rotate(): void {
-    $now = time();
-    $auto = glob(tt_backup_dir() . '/auto-*.zip') ?: [];
-    rsort($auto, SORT_STRING);
-    $keep = []; $days = []; $months = [];
-    foreach ($auto as $path) {
-        $mtime = filemtime($path) ?: $now; $age = $now - $mtime;
-        if ($age <= 48 * 3600) { $keep[$path] = true; continue; }
-        if ($age <= 30 * 86400) { $key=gmdate('Y-m-d',$mtime); if (!isset($days[$key])) { $days[$key]=true; $keep[$path]=true; } continue; }
-        if ($age <= 366 * 86400) { $key=gmdate('Y-m',$mtime); if (!isset($months[$key])) { $months[$key]=true; $keep[$path]=true; } }
+/** Caller must hold backup-job.lock exclusively; fresh/unknown temporary files stay. */
+function tt_backup_prune_stale_temps(): void {
+    foreach(glob(tt_backup_dir().'/.snapshot-*.tmp')?:[] as $path){
+        if(!is_file($path)||is_link($path)||!preg_match('/^\.snapshot-[a-f0-9]{16}\.tmp$/D',basename($path)))continue;
+        $st=stat($path);if(!$st||time()-max($st['mtime'],$st['ctime'])<86400)continue;
+        if(!@unlink($path))error_log('Transtrade could not remove a stale incomplete backup.');
     }
-    foreach ($auto as $path) if (!isset($keep[$path]) && !@unlink($path)) error_log('Transtrade could not prune expired automatic snapshot ' . basename($path));
-    foreach (['manual'=>12, 'pre-restore'=>12] as $prefix => $limit) {
-        $files = glob(tt_backup_dir() . '/' . $prefix . '-*.zip') ?: [];
-        rsort($files, SORT_STRING);
-        foreach (array_slice($files, $limit) as $path) if (!@unlink($path)) error_log('Transtrade could not prune expired ' . $prefix . ' snapshot ' . basename($path));
+}
+/** Four latest hourly points, seven daily, four weekly and three monthly points. */
+function tt_backup_retention_keep(array $paths, ?int $now=null): array {
+    $now ??= time(); rsort($paths, SORT_STRING); $keep=[]; $days=[]; $weeks=[]; $months=[];
+    foreach ($paths as $index=>$path) {
+        $stamp=filemtime($path); if ($stamp===false) { $keep[$path]=true; continue; }
+        $age=max(0,$now-$stamp);
+        if ($index<4) $keep[$path]=true;
+        if ($age<=7*86400) { $key=gmdate('Y-m-d',$stamp); if(!isset($days[$key])){$days[$key]=true;$keep[$path]=true;} }
+        elseif ($age<=35*86400) { $key=gmdate('o-W',$stamp); if(count($weeks)<4&&!isset($weeks[$key])){$weeks[$key]=true;$keep[$path]=true;} }
+        elseif ($age<=100*86400) { $key=gmdate('Y-m',$stamp); if(count($months)<3&&!isset($months[$key])){$months[$key]=true;$keep[$path]=true;} }
+    }
+    return $keep;
+}
+function tt_backup_managed_snapshot(string $path): bool {
+    if (!is_file($path)||is_link($path)||!preg_match('/^(auto|manual|pre-restore)-[0-9]{8}-[0-9]{6}(?:-[a-f0-9]{8})?\.zip$/D',basename($path))) return false;
+    try {
+        $reader=new TT_SimpleZipReader($path,0xffffffff);
+        try { $manifest=json_decode((string)$reader->get('backup-manifest.json'),true); }
+        finally { $reader->close(); }
+        return is_array($manifest)&&($manifest['application']??'')==='Transtrade'&&($manifest['type']??'')==='server_snapshot'&&!empty($manifest['recoveryFiles']);
+    } catch(Throwable) { return false; }
+}
+function tt_backup_rotate(): void {
+    $auto=array_values(array_filter(glob(tt_backup_dir().'/auto-*.zip')?:[], 'tt_backup_managed_snapshot'));
+    $keep=tt_backup_retention_keep($auto);
+    foreach($auto as $path)if(!isset($keep[$path])&&!@unlink($path))error_log('Transtrade could not prune an expired automatic snapshot.');
+    foreach(['manual'=>12,'pre-restore'=>12] as $prefix=>$limit){
+        $files=array_values(array_filter(glob(tt_backup_dir().'/'.$prefix.'-*.zip')?:[], 'tt_backup_managed_snapshot'));rsort($files,SORT_STRING);
+        foreach(array_slice($files,$limit)as$path)if(!@unlink($path))error_log('Transtrade could not prune an expired recovery snapshot.');
     }
 }
 
