@@ -22,6 +22,14 @@ const key='tt38labourbills',row={id:100,date:'2026-10-17',entity:'TTI',millId:1,
  assert.equal(values.get(key).rows[0].amount,99);assert.equal(posts[1].baseVersion,1);
  await assert.rejects(w.TT_MILL_SOURCE_SAVE.append({...input,record:{...row,id:300}}),/identical bill/);
  values.clear();posts=[];deny=true;await assert.rejects(w.TT_MILL_SOURCE_SAVE.append(input),/Create permission/);assert.equal(values.size,0);deny=false;
+ // Rent/advance references use the same acknowledged append and never flush another draft.
+ values.clear();posts=[];const rentReference={id:401,entity:'TTI',millId:1,millName:'Selected Mill',date:'2026-10-17',amount:125,fromMonth:'2026-09',tillMonth:'2026-09',ref:'RENT-ORIGINAL'};
+ const referenceInput={...input,key:'tt39rentpayments',record:rentReference,prefix:''};loseAck=true;
+ await assert.rejects(w.TT_MILL_SOURCE_SAVE.append(referenceInput),/Connection lost/);saved=await w.TT_MILL_SOURCE_SAVE.append(referenceInput);assert(saved.replayed&&posts.length===1&&values.get('tt39rentpayments').rows.length===1,'Reference retry duplicated the saved source');
+ const advanceInput={...input,key:'tt39salaryadvances',prefix:'',record:{id:402,entity:'TTI',millId:1,date:'2026-10-17',person:'Alice',amount:25,ref:''}};
+ await w.TT_MILL_SOURCE_SAVE.append(advanceInput);await w.TT_MILL_SOURCE_SAVE.append({...advanceInput,record:{...advanceInput.record,id:403,amount:35}});assert.equal(values.get('tt39salaryadvances').rows.length,2,'Optional blank references incorrectly merge distinct advances');
+ await assert.rejects(w.TT_MILL_SOURCE_SAVE.append({...advanceInput,record:{...advanceInput.record,id:404}}),/identical reference/);
+ values.clear();posts=[];
  // Evaluate the real shared-bootstrap adapter: it must not save another key/draft.
  const module=fs.readFileSync(path.join(root,'module.php'),'utf8'),start=module.indexOf('  async function appendMillBill('),end=module.indexOf('  window.TT_SHARED_SYNC=',start);
  vm.runInContext(`const access=window.TT_MODULE_ACCESS,endpoint='api/operations.mysql.php',pending=new Map([['tt30prod','unsaved production']]),inFlight=new Set(),committedValues=new Map(),receipts=new Map(),keyVersions=new Map(),remoteKeys=new Set();let saveHolds=0;const waiting=()=>{},directSet=(k,v)=>localStorage.setItem(k,v);${module.slice(start,end)}window.TT_SHARED_SYNC={appendMillBill};`,context);

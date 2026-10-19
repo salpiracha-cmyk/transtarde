@@ -149,13 +149,14 @@ function sac_payload(array $s,string $e,string $from='',string $to=''):array {
 
 /** Expense activity is linked to the recipient, never an artificial receivable. */
 function sac_expense_activity(array $s,string $e,string $from,string $to):array {
- $chart=sac_chart();$out=[];$hidden=alv_hidden($s,$to);
+ $chart=sac_chart();$out=[];$hidden=alv_hidden($s,$to);$zakat=gm_zakat_payments($s,$from,$to,$e);$paid=array_column($zakat['rows'],'amountPKR','postId');
  foreach((array)($s['journals']??[]) as $j){
-  if(isset($hidden[(string)($j['id']??'')]))continue;
+  $hiddenJournal=isset($hidden[(string)($j['id']??'')]);
   if(($j['entity']??'')!==$e||($j['status']??'')!=='Posted'||($j['date']??'')<$from||($j['date']??'')>$to)continue;
   $meta=(array)($j['meta']??[]);$source=(array)($s['generalExpenses'][(string)($meta['generalExpenseId']??'')]??[]);
   foreach((array)($j['lines']??[]) as $l){
-   $code=(string)($l['account']??'');if(!empty($l['personalRecovery']))continue;
+   $code=(string)($l['account']??'');if(!empty($l['personalRecovery'])||($hiddenJournal&&$code!=='7210'))continue;
+   if($code==='7210'&&!array_key_exists((string)$j['id'],$paid))continue;
    $master=(array)($s['salaryMasters'][(string)($l['salaryMasterId']??$meta['salaryMasterId']??'')]??[]);
    $monthly=$code==='3200'&&($l['category']??$meta['category']??$master['category']??'')==='HOME_MONTHLY_GIVE';
    if(!$monthly&&(($chart[$code]['class']??'')!=='Expense'||(str_starts_with($code,'5')&&$code!=='5550')))continue;
@@ -202,4 +203,35 @@ function sac_journal_narration(array $store,array $journal):string {
   $number=$journal['reference']??$bag['sellerInvoice']??'';$brand=$meta['brand']??$bag['brand']??'';$bags=$meta['bags']??$bag['bags']??0;$packing=$meta['packingSize']??$bag['packingSize']??'';if($number!=='')$detail[]='Supplier Bill No. '.$number;if($brand!=='')$detail[]='Brand '.$brand;if($bags)$detail[]='Bags '.number_format((float)$bags,0);if($packing!=='')$detail[]='Packing '.$packing;
  }
  foreach($detail as $piece)if(stripos($text,$piece)===false)$text.=' · '.$piece;return $text;
+}
+
+
+/** Paid-basis reporting only. No assessment, journal, allocation or storage writes. */
+function zp_valid_date(string $value):bool {
+    $date=DateTimeImmutable::createFromFormat('!Y-m-d',$value);
+    $errors=DateTimeImmutable::getLastErrors();
+    return $date!==false&&($errors===false||($errors['warning_count']===0&&$errors['error_count']===0))&&$date->format('Y-m-d')===$value;
+}
+function gm_zakat_payments(array $state,string $from,string $to,string $entity='TTI'):array {
+    $rows=[];$total=0.;$warnings=[];$salary=[];
+    // An accrual is not payment. Payroll cash can settle several components and
+    // must not be allocated to Zakat by an assumed payment order or proportion.
+    foreach((array)($state['journals']??[]) as $j){if(!is_array($j)||($j['entity']??'')!==$entity||($j['status']??'')!=='Posted'||!zp_valid_date((string)($j['date']??''))||$j['date']>$to)continue;foreach((array)($j['lines']??[]) as $line)if(isset($line['salaryMasterId'],$line['month'])&&in_array((string)($line['account']??''),['6210','6220','7210','3200'],true)){$key=(string)$line['salaryMasterId'].'|'.(string)$line['month'];$salary[$key]??=0.;if((string)($line['account']??'')==='7210')$salary[$key]+=(float)($line['debit']??0)-(float)($line['credit']??0);}}
+    foreach((array)($state['journals']??[]) as $id=>$j){
+        if(!is_array($j)||($j['entity']??'')!==$entity||($j['status']??'')!=='Posted')continue;$date=(string)($j['date']??'');$postId=(string)($j['id']??$id);$amount=0.;$cash=0.;$payroll=str_starts_with((string)($j['sourceType']??''),'SALARY_');$salaryKnown=true;$salaryZakat=false;$cashInPeriod=false;$dateMismatch=false;$nonCashCredit=0.;$nonCashDebit=0.;$valid=true;$debits=0.;$credits=0.;$hasZakat=false;
+        foreach((array)($j['lines']??[]) as $line){if(!is_array($line)){$valid=false;continue;}foreach(['debit','credit'] as $side)if(!is_numeric($line[$side]??0)||!is_finite((float)($line[$side]??0))||(float)($line[$side]??0)<0)$valid=false;$debits+=(float)($line['debit']??0);$credits+=(float)($line['credit']??0);$code=(string)($line['account']??'');$net=(float)($line['debit']??0)-(float)($line['credit']??0);if($code==='7210'){$hasZakat=true;$amount+=$net;}
+            if(in_array($code,['1110','1120'],true)){$cash-=$net;$on=(string)($line['paymentDate']??$date);if(!zp_valid_date($on))$dateMismatch=true;elseif($on>=$from&&$on<=$to)$cashInPeriod=true;if($on!==$date)$dateMismatch=true;
+                if(isset($line['salaryMasterId'],$line['month'])){$payroll=true;$key=(string)$line['salaryMasterId'].'|'.(string)$line['month'];if(!array_key_exists($key,$salary))$salaryKnown=false;elseif($salary[$key]>.005)$salaryZakat=true;}elseif($payroll)$salaryKnown=false;
+            }else{$nonCashCredit+=max(0,-$net);$nonCashDebit+=max(0,$net);}
+        }
+        if((!$valid||abs($debits-$credits)>.005)&&($hasZakat||$payroll)&&(!zp_valid_date($date)||($date>=$from&&$date<=$to))){$warnings[]='Reconcile the invalid or unbalanced Zakat source Post '.$postId.' before reporting paid expense.';continue;}
+        if(abs($cash)>.005&&($cashInPeriod||!zp_valid_date($date))&&$payroll&&($amount>.005||$salaryZakat||!$salaryKnown)){$warnings[]='Review the original Zakat component of payroll cash Post '.$postId.'; no salary payment allocation has been guessed.';continue;}
+        if(abs($amount)<.005)continue;
+        if($cashInPeriod&&$dateMismatch){$warnings[]='Reconcile the actual payment date against the voucher date of Zakat Post '.$postId.'.';continue;}
+        if(!zp_valid_date($date)){$warnings[]='Confirm the original date of Zakat Post '.$postId.' before payment reconciliation.';continue;}if($date<$from||$date>$to)continue;
+        if(abs($cash)<.005)continue; // Pure unpaid expense/accrual, not an actual payout.
+        if($dateMismatch||($amount>0&&($cash+.005<$amount||$nonCashCredit>.005))||($amount<0&&($cash-.005>$amount||$nonCashDebit>.005))){$warnings[]='Review the mixed or partial cash settlement of Zakat Post '.$postId.' before applying it to the assessment.';continue;}
+        $amount=round($amount,2);$total+=$amount;$rows[]=['postId'=>$postId,'date'=>$date,'amountPKR'=>$amount,'reference'=>(string)($j['reference']??''),'reversalOf'=>$j['reversalOf']??null];
+    }
+    usort($rows,static fn($a,$b)=>strcmp($a['date'].'|'.$a['postId'],$b['date'].'|'.$b['postId']));return ['totalPKR'=>round($total,2),'rows'=>$rows,'warnings'=>array_values(array_unique($warnings))];
 }

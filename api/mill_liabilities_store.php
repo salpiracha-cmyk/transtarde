@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 /** Source lock precedes Accounts lock. No route installs schemas or changes sources. */
 function ml_with_sources(callable $callback,array $extraKeys=[]): mixed {
-    if(array_diff($extraKeys,['tt30slips']))throw new InvalidArgumentException('Unsupported source collection.');
+    if(array_diff($extraKeys,['tt30slips','tt39rentpayments','tt39salaryadvances']))throw new InvalidArgumentException('Unsupported source collection.');
     $keys=array_merge(['tt38labourbills','tt38kebills','tt38reprocessbills','tt37processingexpenses'],$extraKeys);
     $env=static fn($key)=>(string)(defined('TT_'.$key)?constant('TT_'.$key):(getenv('TT_'.$key)?:''));
     if ($env('DB_HOST')!==''&&$env('DB_NAME')!==''&&$env('DB_USER')!=='') {

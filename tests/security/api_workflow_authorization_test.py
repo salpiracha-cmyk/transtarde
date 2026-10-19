@@ -42,7 +42,7 @@ require $argv[1];
         try: return int(status_file.read_text()),json.loads(r.stdout)
         except Exception: raise AssertionError(r.stdout+r.stderr)
     # Every listed real route rejects an unrelated icon even with company rights.
-    routes=['rent_salary','rent_salary_v2','expenses_v1','donations','sales_tax_refunds','production_costing',
+    routes=['mill_reference_reconciliation','rent_salary','rent_salary_v2','expenses_v1','donations','sales_tax_refunds','production_costing',
             'production_fixed_overhead','production_inventory_transfer','commodity_bills','other_purchases',
             'management_costing','management_costing_attach','bank_direct_entries','bank_reconciliation',
             'internal_bank_transfers','retention_remittances','export_bank_shortfall','bag_supplier_payments',
