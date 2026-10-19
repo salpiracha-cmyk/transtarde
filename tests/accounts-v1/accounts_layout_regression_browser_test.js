@@ -43,6 +43,25 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium}=require('
  const jvInputTops=await jv.locator('input:not([type=hidden])').evaluateAll(nodes=>nodes.filter(n=>{const r=n.getBoundingClientRect();return r.width>30&&r.height>0&&getComputedStyle(n).opacity!=='0'}).map(n=>n.getBoundingClientRect().top));assert(jvInputTops.length>=5,'Inspect actual party, narration, bill, debit and credit inputs');assert(jvInputTops.every(y=>Math.abs(y-jvInputTops[0])<2),'JV narration/bill boxes align with searchable party and formatted debit/credit');
  const jvCentres=await jv.evaluate(el=>{const minus=el.querySelector('.tt-row-remove').getBoundingClientRect(),field=[...el.querySelectorAll('input')].find(n=>n.getBoundingClientRect().width>30&&getComputedStyle(n).opacity!=='0').getBoundingClientRect();return {button:minus.top+minus.height/2,field:field.top+field.height/2}});assert(Math.abs(jvCentres.button-jvCentres.field)<1,'JV remove button is centred on its input row');
  await shot(page.locator('.jvw'),'journal-voucher');await page.evaluate(()=>TT_ACCOUNTS_MASTER_CHOICES.manageParty('Haji Khushi Muhammad'));await page.waitForSelector('#ttPartyInlineEditor[open]');assert(await page.locator('.tt-party-role').count()>5);assert(await page.locator('.tt-party-role').first().evaluate(label=>{const box=label.querySelector('input').getBoundingClientRect(),r=label.getBoundingClientRect();return box.width<24&&Math.abs(box.y+(box.height/2)-r.y-(r.height/2))<3;}));await shot(page.locator('#ttPartyInlineEditor'),'party-roles');await page.locator('#ttPartyInlineEditor [data-cancel]').click();
+ // Exercise the actual salary advance renderer and shared payment details.
+ await page.evaluate(()=>{fixture.canOpenSalaryAdvance=true;fixture.salaryMasters=[{id:'S1',name:'QA staff',status:'Active'}];fixture.paymentAccounts=[{id:'B1',label:'QA bank',entity:'TTI',isDefault:true,balance:1000},{id:'CASH|TTI',label:'Cash',balance:100}];document.querySelector('#ws-jv').classList.remove('active');document.querySelector('#ws-expenses').classList.add('active');return TT_RENT_SALARY_UI.open('salary');});
+ await page.locator('#rsAdvanceIcon').click();
+ const details=page.locator('#rsAdvanceAccountDetails');
+ await page.waitForFunction(()=>!!document.querySelector('#rsAdvanceAccountDetails .tt-search-select'));
+ const paymentTops=await details.evaluate(box=>[...box.querySelectorAll(':scope>label')].map(label=>[...label.querySelectorAll('input,select')].find(e=>{const r=e.getBoundingClientRect();return r.width>30&&r.height>0&&getComputedStyle(e).opacity!=='0'}).getBoundingClientRect().top));
+ assert.equal(paymentTops.length,3);assert(paymentTops.every(y=>Math.abs(y-paymentTops[0])<2),'Salary bank method, reference and payment date align: '+JSON.stringify(paymentTops));
+ const writesBefore=await page.evaluate(()=>posted.length);
+ await details.locator('[data-reference]').fill('UNSAVED-CHEQUE');
+ await details.locator('[data-method]').selectOption('ONLINE_BANKING');
+ assert.match(await details.locator('[data-payment-date-label]').innerText(),/Online Banking payment date/);
+ assert.equal(await details.locator('[data-reference]').inputValue(),'UNSAVED-CHEQUE');
+ await page.locator('#rsAdvanceKind').selectOption('BF');assert.equal(await details.isVisible(),false);assert.equal(await page.locator('#rsAdvancePaymentSource').isVisible(),false);
+ await page.locator('#rsAdvanceKind').selectOption('PAID');assert.equal(await details.isVisible(),true);assert.equal(await details.locator('[data-reference]').inputValue(),'UNSAVED-CHEQUE');
+ await page.locator('#rsAdvanceAccount').selectOption('CASH|TTI');assert.equal(await details.isVisible(),false);
+ await page.locator('#rsAdvanceAccount').selectOption('B1');assert.equal(await details.isVisible(),true);
+ await page.setViewportSize({width:390,height:844});assert.equal(await page.locator('.ttrs').evaluate(el=>el.scrollWidth<=el.clientWidth+2),true,'Salary advance form fits mobile');
+ assert.equal(await page.evaluate(()=>posted.length),writesBefore,'Changing payment/opening controls makes no posting');
+ await page.setViewportSize({width:1440,height:1000});
  await page.evaluate(()=>{document.querySelector('#ws-jv').classList.remove('active');document.querySelector('#ws-expenses').classList.add('active');return TT_RENT_SALARY_UI.open('salary');});await page.waitForSelector('#rsPrepare');assert.equal(await page.locator('#rsMasterSetup,#rsSalaryBack').count(),0);await page.locator('#rsPrepare').click();assert.equal(await page.locator('#rsSalaryBack').count(),0);await shot(page.locator('.ttrs'),'salary-sheet');const plus=await page.locator('#rsAddSheetPerson').boundingBox();assert(plus.x<page.viewportSize().width/2,'Salary add is below rows on the left');
 
  // The remove cell must not span the row and squeeze every input into 30px.

@@ -62,6 +62,10 @@ button:not(.danger):not(.red):not(.xBtn):not(.optionMinus).active{
  .tt-master-entry{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px;align-items:stretch;min-width:0}
  .tt-master-entry>.tt-master-inline{align-self:stretch;min-height:42px}
  .tt-form-grid .tt-search-select,.tt-bill-adjustment .tt-search-select{margin-top:0!important}
+ /* Shared salary/rent/expense payment details also use searchable selects. */
+ .tt-bank-payment-fields{align-items:end}
+ .tt-bank-payment-fields>label{display:flex;flex-direction:column;gap:6px;min-width:0}
+ .tt-bank-payment-fields :is(input,select,.tt-search-select){margin-top:0!important}
  :is(.tt-modebar,.tabs,.nav,.purchase-product-tabs,.purchase-workspace-tabs,.brokery-tabs){align-items:stretch}
  :is(.tt-modebar,.tabs,.nav,.purchase-product-tabs,.purchase-workspace-tabs,.brokery-tabs)>button{min-height:46px;font-size:16px}
 }
