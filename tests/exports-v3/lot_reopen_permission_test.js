@@ -12,7 +12,8 @@ $lot=['id'=>'L1','kind'=>'lot','completed'=>false,'reopenedAt'=>'new','reopenRea
 run_case($old,$lot,'Staff','Exports',403);
 run_case($old,$lot,'Staff','Super Admin',403);
 run_case($old,$lot,'Super Admin','Exports',200);
-$lot['reopenReason']=' ';run_case($old,$lot,'Super Admin','Exports',422);
+run_case($old,$lot,'Director','Exports',200);
+$lot['reopenReason']=' ';run_case($old,$lot,'Super Admin','Exports',422);run_case($old,$lot,'Director','Exports',422);
 $lot['reopenReason']='Correction';$lot['reopenedAt']='old';run_case($old,$lot,'Super Admin','Exports',422);
 $lot['completed']=true;run_case($old,$lot,'Staff','Exports',200);
 $lot['completed']=false;run_case($old,$lot,'Staff','Milling',200);run_case($old,$lot,'Staff','Accounts',200);

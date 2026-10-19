@@ -7,3 +7,5 @@
 
 - New and reopened forms must show the heading and first relevant input without manual scrolling. Use the shared form viewport helper; typing and background refreshes must preserve position.
 - Dependent inputs must follow the selected dropdown/tick and remain hidden when inapplicable. Saved selections restore their visibility; preserve historical values and business validation.
+
+- Owner clarification, 19 October 2026: Director is the full business-access role below Super Admin. Derive all four modules, TTI/BRM/TG, all locations, business actions and Master Records from that role; hide permission matrices in its user editor. Preserve staff custom permissions and all owner-only identity/security/backup/module-lock controls. Do not persist derived Director grants that would survive a role downgrade.

@@ -439,7 +439,7 @@
       <td><div class="user-cell"><div class="avatar">${initials(user.name)}</div><div><strong>${escapeHtml(user.name)}</strong><small>@${escapeHtml(user.username)}</small></div></div></td>
       <td>${escapeHtml(user.role)}</td>
       <td><div class="tag-row">${user.modules.map(m => `<span class="tag ${user.role === "Super Admin" ? "super" : ""}">${m}</span>`).join("")}</div></td>
-      <td>${escapeHtml(user.location)}</td><td><span class="status ${user.active ? "" : "inactive"}">${user.active ? "Active" : "Inactive"}</span></td>
+      <td>${escapeHtml(user.role === "Director" ? "All authorized locations" : user.location)}</td><td><span class="status ${user.active ? "" : "inactive"}">${user.active ? "Active" : "Inactive"}</span></td>
       <td>${escapeHtml(userActivityStamp(user.lastActive))}</td><td>${user.role === "Super Admin" ? `<div class="row-actions"><a class="row-action" href="change-password.php">Change Password</a><a class="row-action" href="recovery-settings.php">Recovery Security</a><span class="tag super">Protected owner</span></div>` : `<div class="row-actions"><button class="row-action" data-edit-user="${user.id}">Edit</button><button class="row-action" data-reset-user="${user.id}">Reset Password</button><button class="row-action delete" data-delete-user="${user.id}">Delete</button></div>`}</td>
     </tr>`).join("");
     document.getElementById("activeUserCount").textContent = state.users.filter(user => user.active).length;
@@ -464,10 +464,30 @@
     const visibleMasterPermissions=MASTER_TYPES.filter(type=>type.id!=="reference_lists"&&type.id!=="commodities"&&type.id!=="purchase_kat");
     return `<div class="permission-row header master-permission-row"><strong>Master</strong>${MASTER_PERMISSION_ACTIONS.map(action=>`<span>${action.replace(' Documents',' Docs')}</span>`).join("")}</div>`+visibleMasterPermissions.map(type=>`<div class="permission-row master-permission-row"><strong>${escapeHtml(type.name)}</strong>${MASTER_PERMISSION_ACTIONS.map(action=>`<label title="${escapeHtml(type.name)} · ${action}"><input type="checkbox" data-master-permission="${type.id}" value="${action}" ${Array.isArray(saved[type.id])&&saved[type.id].includes(action)?"checked":""}></label>`).join("")}</div>`).join("");
   }
+  let directorPermissionDraft = null;
+  function syncUserRoleAccess() {
+    const director = document.getElementById("userRole").value === "Director";
+    const inputs = [...document.querySelectorAll('#userModulePermissions input, #userMasterPermissions input')];
+    const location = document.getElementById("userLocation");
+    if (director && !directorPermissionDraft) {
+      directorPermissionDraft = {checks: inputs.map(input => input.checked), location: location.value};
+      inputs.forEach(input => { input.checked = true; input.disabled = true; });
+      location.value = "All authorized locations";
+      location.disabled = true;
+    } else if (!director && directorPermissionDraft) {
+      inputs.forEach((input,index) => { input.checked = directorPermissionDraft.checks[index]; input.disabled = false; });
+      location.value = directorPermissionDraft.location;
+      location.disabled = false;
+      directorPermissionDraft = null;
+    }
+    document.getElementById("directorAccessSummary").hidden = !director;
+    for (const id of ["userModulePermissions","userMasterPermissions","userLocationField"]) document.getElementById(id).hidden = director;
+  }
   function openUserDialog(userId) {
     const dialog = document.getElementById("userDialog");
     const form = document.getElementById("userForm");
     form.reset();
+    directorPermissionDraft = null;
     const user = state.users.find(item => item.id === userId);
     document.getElementById("userDialogTitle").textContent = user ? "Edit User" : "Create User";
     document.getElementById("editUserId").value = user?.id || "";
@@ -491,6 +511,7 @@
       document.getElementById("deleteUserButton").hidden = !user;
       document.getElementById("resetPasswordButton").hidden = !user;
     }
+    syncUserRoleAccess();
     dialog.showModal();
   }
   async function deleteUser(selectedId) {
@@ -520,7 +541,8 @@
     if (!form.reportValidity()) return;
     const id = document.getElementById("editUserId").value;
     const previous = state.users.find(item => item.id === id);
-    const permissions = JSON.parse(JSON.stringify(previous?.permissions || {}));
+    const director = document.getElementById("userRole").value === "Director";
+    let permissions = JSON.parse(JSON.stringify(previous?.permissions || {}));
     const permissionInputs = [...document.querySelectorAll("#permissionMatrix input[data-permission-icon]")];
     // An unrelated user amendment must retain grants that this editor does not
     // represent, including historical module-wide and future screen grants.
@@ -538,16 +560,23 @@
       if (Object.keys(revised).length) permissions[module] = revised;
       else delete permissions[module];
     }
-    const masterPermissions = JSON.parse(JSON.stringify(previous?.masterPermissions || {}));
+    let masterPermissions = JSON.parse(JSON.stringify(previous?.masterPermissions || {}));
     document.querySelectorAll('#masterPermissionMatrix input[data-master-permission]').forEach(input => {
       const type = input.dataset.masterPermission;
       masterPermissions[type] = (masterPermissions[type] || []).filter(action => action !== input.value);
       if (input.checked) masterPermissions[type].push(input.value);
       if (!masterPermissions[type].length) delete masterPermissions[type];
     });
-    const masterAccess=document.getElementById('userMasterAccess').checked;
+    let masterAccess=document.getElementById('userMasterAccess').checked;
+    if (director) {
+      // Automatic role rights are not saved as custom grants. Changing back
+      // to a staff role restores its explicit permissions instead.
+      permissions = JSON.parse(JSON.stringify(previous?.permissions || {}));
+      masterPermissions = JSON.parse(JSON.stringify(previous?.masterPermissions || {}));
+      masterAccess = !!previous?.masterAccess;
+    }
     const modules = Object.keys(permissions).filter(module => permissions[module] === "all" || (Array.isArray(permissions[module]) ? permissions[module].includes("View") : Object.values(permissions[module]).some(actions=>actions.includes("View"))));
-    if (!modules.length && !masterAccess) { toast("Select at least one module or Master Records permission."); return; }
+    if (!director && !modules.length && !masterAccess) { toast("Select at least one module or Master Records permission."); return; }
     const user = {
       id,
       name: document.getElementById("userName").value.trim(),
@@ -1927,6 +1956,7 @@
     if(input.value==="View"&&!input.checked)row?.querySelectorAll('input:not([value="Use"]):not([value="View"])').forEach(box=>box.checked=false);
   });
   document.getElementById("userForm").addEventListener("submit", saveUser);
+  document.getElementById("userRole").addEventListener("change", syncUserRoleAccess);
   document.getElementById("deleteUserButton").addEventListener("click", () => deleteUser());
   document.getElementById("resetPasswordButton").addEventListener("click", () => resetPassword());
   document.getElementById("deleteMasterButton").addEventListener("click", () => deleteMasterRecord());
