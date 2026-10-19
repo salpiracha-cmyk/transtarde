@@ -2,7 +2,7 @@
 
 **Decision: not ready for full-data migration or whole-audit sign-off.**
 
-This replaces the 17 October readiness summary, whose implementation/deferred-Zakat wording was stale. Historical observations and failures remain in REVIEW.md and CONTINUATION.md. CURRENT_COVERAGE.csv records 155 action checks: 122 passed, 20 partial, 4 failed, 6 not tested, 2 blocked and 1 intermittent. The 33 open/partial action checks are not 33 separate proven code defects.
+This replaces the 17 October readiness summary, whose implementation/deferred-Zakat wording was stale. Historical observations and failures remain in REVIEW.md and CONTINUATION.md. CURRENT_COVERAGE.csv records 156 action checks: 122 passed, 20 partial, 5 failed, 6 not tested, 2 blocked and 1 intermittent. The 34 open/partial action checks are not 33 separate proven code defects.
 
 ## Current implemented scope
 
@@ -18,6 +18,7 @@ This replaces the 17 October readiness summary, whose implementation/deferred-Za
 
 | Gate | What remains |
 |---|---|
+| Unified Export Loading Report | New native reproduction confirms hardcoded TTI mill labels and invented current dates. PR369 prepares the reporting-only correction; required CI is queued, so no deployment/acceptance is claimed. See ORIGINAL_SOURCE_RESUME_2026-10-19.md. |
 | C24 actual warehouse ownership | Original Pohanch/unloading locations for PH00001/ABC123/Soda26002, PH00002/ABC345/Soda26001 and PH00003/TK123/Soda26002; resolve 119,500 kg Indus-versus-TTI grouping without reassignment by assumption. Financial B/F and future physical openings do not answer this existing-source discrepancy. |
 | C09 monetary annual Zakat/opening classification | Review the canonical balanced annual entry and original legacy opening schedule. The annual control and paid-expense repair do not authorise a guessed equity/counterpart journal or historical reclassification. |
 | C11 inactive historical tax mapping | The old fixed/FTR tax policy/master still maps 7200, while the canonical chart uses 7200 for Donations. The affected seeded historical rules are inactive; current advance WHT remains 1260. Earlier ledger naming repair did not approve a new monetary tax mapping. Review the historic/auditor-approved account before enabling or using those rules; no original tax/donation posting is reclassified. |
@@ -34,3 +35,5 @@ This replaces the 17 October readiness summary, whose implementation/deferred-Za
 Salman asked work to continue while closing the MacBook. Local Chrome is not assumed available. Source review, disposable tests and hosted protected read-only checks can continue; they do not replace the final original-source/user-session acceptance. Earlier connected Mac Chrome evidence remains dated evidence.
 
 Each release's exact tree, feature/main QA, deployment, startup and read-only result belongs in its linked continuation report. A merged PR alone is not deployed acceptance. Ordinary fixture passes are not independent migration, formal security or exhaustive UI clearance. No production financial, stock, annual assessment, approval, source-link, original-document or restore test mutation is permitted. Annual Zakat is already implemented; no duplicate reminder or automation is needed.
+
+19October evening: Salman reports Chrome available, but local Browser controls are not exposed to this chat after skill/tool/plugin discovery; no fresh Mac UI acceptance is claimed. PR368 original warehouse/all-indexed-archive acceptance and PR369 full report QA remain queued. No source data or historical backups were modified.
