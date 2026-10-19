@@ -18,7 +18,7 @@ function tt_decode_store(string $raw):array{$a=json_decode($raw,true,512,JSON_TH
 function tt_open_store_lock(int $mode){$path=TT_DATA_DIR.'/auth.lock';if(!is_file($path)||is_link($path))throw new RuntimeException('Authentication lock unavailable');$h=fopen($path,'rb');if(!$h||!flock($h,$mode))throw new RuntimeException('Authentication lock unavailable');return $h;}
 require $stage;
 function maintenance_usage():array{$out=['files'=>0,'bytes'=>0];foreach(new RecursiveIteratorIterator(new RecursiveDirectoryIterator(tt_backup_dir(),FilesystemIterator::SKIP_DOTS))as$f)if($f->isFile()&&!$f->isLink()){$out['files']++;$out['bytes']+=$f->getSize();}return $out;}
-$before=maintenance_usage();
+$before=maintenance_usage();$tempsBefore=[];foreach(glob(tt_backup_dir().'/.snapshot-*.tmp')?:[]as$p)if(is_file($p)&&!is_link($p))$tempsBefore[$p]=filesize($p);
 // Install only the tested library. Preserve its exact previous code first.
 $rollback=$work.'/previous-'.$expected.'.php';if(!file_exists($rollback)&&hash_file('sha256',$live)===$expected){if(!copy($live,$rollback))throw new RuntimeException('Cannot preserve previous library');chmod($rollback,0600);}
 $tmp=$target.'/.backup-lib-policy-'.bin2hex(random_bytes(6)).'.tmp';
@@ -37,5 +37,6 @@ try{
   $bytes=$st['size'];if(!unlink($p))throw new RuntimeException('Unable to remove stale snapshot temporary file');$tempsRemoved++;$tempBytes+=$bytes;
  }
 }finally{flock($lock,LOCK_UN);fclose($lock);}
+$tempsRemoved=0;$tempBytes=0;foreach($tempsBefore as$p=>$bytes)if(!file_exists($p)){$tempsRemoved++;$tempBytes+=$bytes;}
 $after=maintenance_usage();
 echo 'BUSINESS_BACKUP_MAINTENANCE '.json_encode(['before'=>$before,'after'=>$after,'netBytesFreed'=>$before['bytes']-$after['bytes'],'staleTempsRemoved'=>$tempsRemoved,'staleTempBytesRemoved'=>$tempBytes,'currentBusinessFilesDeleted'=>0,'oldRecoveryFilesDeleted'=>0,'uploadedDocumentsDeleted'=>0],JSON_THROW_ON_ERROR)."\n";

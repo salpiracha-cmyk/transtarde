@@ -565,6 +565,7 @@ function tt_create_server_snapshot(string $kind='auto'): string {
         $zip->close();
         @chmod($temp, 0600);
         tt_backup_verify_snapshot($temp, $inventory);
+        tt_backup_prune_stale_temps(); // Full recovery verified; job lock still exclusive.
         if (!rename($temp, $path)) throw new RuntimeException('The verified server snapshot could not be committed.');
         $temp = '';
         @chmod($path, 0600);
@@ -595,6 +596,14 @@ function tt_create_server_snapshot(string $kind='auto'): string {
     }
 }
 
+/** Caller must hold backup-job.lock exclusively; fresh/unknown temporary files stay. */
+function tt_backup_prune_stale_temps(): void {
+    foreach(glob(tt_backup_dir().'/.snapshot-*.tmp')?:[] as $path){
+        if(!is_file($path)||is_link($path)||!preg_match('/^\.snapshot-[a-f0-9]{16}\.tmp$/D',basename($path)))continue;
+        $st=stat($path);if(!$st||time()-max($st['mtime'],$st['ctime'])<86400)continue;
+        if(!@unlink($path))error_log('Transtrade could not remove a stale incomplete backup.');
+    }
+}
 /** Four latest hourly points, seven daily, four weekly and three monthly points. */
 function tt_backup_retention_keep(array $paths, ?int $now=null): array {
     $now ??= time(); rsort($paths, SORT_STRING); $keep=[]; $days=[]; $weeks=[]; $months=[];

@@ -33,7 +33,9 @@ checks every payload against the manifest before committing and rotating older
 automatic copies. It verifies that new snapshot again through the restore-reader
 path. No production restore is executed. Under the exclusive backup-job lock it
 may remove only generated .snapshot-16hex.tmp files whose mtime and ctime are both
-more than24hours old. Other temporary files are held.
+more than24hours old. Other temporary files are held. The same stale-temp rule runs under the exclusive
+job lock during future snapshot creation, preventing abandoned partial copies
+from accumulating after process termination.
 
 Validation: existing complete/encrypted/server backup restore tests and new
 compressed/legacy byte-exact restore, corruption refusal and retention-bucket
