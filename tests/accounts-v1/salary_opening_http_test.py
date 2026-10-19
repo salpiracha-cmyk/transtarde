@@ -53,7 +53,8 @@ with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
     try:
         assert wait()[0]==200
         # A saved July payment must not silently change when a B/F is added.
-        assert draft('Bob',0,month='2026-07')[0]==200
+        assert draft('Bob',1050,month='2026-07')[0]==200
+        assert draft('Alice',100,month='2026-07')[0]==200
         before=saved()
         opening={'action':'record_salary_opening_advance','masterId':'Bob','amount':79000,'months':79,'date':'2026-07-01','requestKey':'opening-bob-2026'}
         status,preview=request({**opening,'preview':True},'2026-07');assert status==200,preview
@@ -70,9 +71,11 @@ with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
         assert request({**opening,'masterId':'Cara','requestKey':'invalid-source','paymentAccountId':'bank-a'},'2026-07')[0]==422
         assert request({**opening,'masterId':'Cara','requestKey':'invalid-months','months':27.5},'2026-07')[0]==422
         assert request({**opening,'masterId':'Cara','requestKey':'invalid-date','date':'2026-07-02'},'2026-07')[0]==422
-        july=request(None,'2026-07')[1]['salarySheet'];assert july['masterChanged'] and july['rows']['Bob']['payment']['amount']==0
+        july=request(None,'2026-07')[1]['salarySheet'];assert not july.get('masterChanged') and july['rows']['Bob']['payment']['amount']==1050
+        assert july['rows']['Bob']['advanceReviewRequired'] and not july['rows']['Bob']['reviewed']
+        assert july['rows']['Alice']==before['salarySheets']['TTI|2026-07']['rows']['Alice'],'Other staff saved work stays exact'
         assert request({'action':'complete_salary_month','version':july['version'],'date':'2026-07-31'},'2026-07')[0]==422
-        assert request({'action':'refresh_salary_draft','version':july['version']},'2026-07')[0]==200
+        assert draft('Bob',50,month='2026-07')[1]['salarySheet']['rows']['Bob']['advanceApplied']==1000
         cara={**opening,'masterId':'Cara','amount':27000,'months':27,'requestKey':'opening-cara-2026'}
         assert request(cara,'2026-07')[0]==200
         assert request(None,'2026-06')[1]['salarySheet']['rows']['Bob']['advanceApplied']==0

@@ -145,7 +145,7 @@ function smw_action(array &$s,string $entity,string $month,array $b,array $u,arr
         }elseif($amount>.005){rsv2_pay_line($s,$entity,$source,$amount,$names);if(!str_starts_with($source,'CASH|'))$tracking=tt_accounts_bank_payment_details($b);$parts[]=['amount'=>$amount,'paymentAccountId'=>$source]+$tracking;}
         $row['advanceApplied']=round(min($row['prepared']?$row['originalAdvanceApplied']:min($row['totalDue'],$row['advanceSuggested']),max(0,$maximum-$amount)),2);
         $row['outstanding']=round(max(0,$maximum-$row['advanceApplied']-$amount),2);
-        $row['reviewed']=true;$row['payment']=['amount'=>$amount,'date'=>$date,'paymentAccountId'=>$source,'parts'=>$parts]+$tracking;
+        $row['reviewed']=true;unset($row['advanceReviewRequired']);$row['payment']=['amount'=>$amount,'date'=>$date,'paymentAccountId'=>$source,'parts'=>$parts]+$tracking;
         $sheet['rows'][$mid]=$row;$sheet['version']++;$sheet['updatedAt']=gmdate('c');
         $s['salarySheets'][$key]=$sheet;return ['saved'=>true,'masterId'=>$mid];
     }

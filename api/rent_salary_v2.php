@@ -82,6 +82,20 @@ function rsv2_opening_advance(array &$s,string $entity,array $b,array $u,array $
     $meta=['salaryAdvanceId'=>$id,'salaryMasterId'=>$mid,'person'=>$m['name'],'party'=>$m['name'],'counterparty'=>$m['name'],'subledger'=>$m['name'],'openingBalance'=>true,'openingAccount'=>'1230','openingParty'=>$m['name'],'months'=>$months,'monthlyDeduction'=>$monthly];
     $jid=rsv2_journal($s,$entity,$date,'SALARY_ADVANCE_OPENING',$id,'Salary advance balance B/F — '.$m['name'],[rsv2_line('1230',$amount,0,$names,$meta),rsv2_line('3400',0,$amount,$names)],$u,$meta);
     $s['salaryAdvances'][$id]=['id'=>$id,'entity'=>$entity,'masterId'=>$mid,'person'=>$m['name'],'date'=>$date,'amount'=>$amount,'remaining'=>$amount,'months'=>$months,'monthsRemaining'=>$months,'monthlyDeduction'=>$monthly,'openingBalance'=>true,'journalId'=>$jid,'adjustments'=>[]];
+    // The explicit opening save changes only this person's unfinished draft rows.
+    // Preserve every saved payment and all other staff; require renewed review.
+    foreach((array)($s['salarySheets']??[]) as $sheetKey=>$sheet){
+        if(($sheet['entity']??'')!==$entity||($sheet['status']??'')==='Completed'||($sheet['month']??'')<substr($date,0,7)||!isset($sheet['rows'][$mid])||!empty($sheet['rows'][$mid]['prepared']))continue;
+        $row=$sheet['rows'][$mid];$current=rsv2_salary_row($s,$m,(string)$sheet['month']);
+        $row['advanceOutstanding']=$current['advanceOutstanding'];$row['advanceSuggested']=$current['advanceSuggested'];
+        $row['originalAdvanceApplied']=min($row['totalDue'],$current['advanceSuggested']);
+        $row['advanceApplied']=round(min($row['originalAdvanceApplied'],max(0,$row['totalDue']-$row['paidAfterPrepare']-(float)($row['payment']['amount']??0))),2);
+        $row['outstanding']=round(max(0,$row['totalDue']-$row['paidAfterPrepare']-$row['advanceApplied']-(float)($row['payment']['amount']??0)),2);
+        $row['reviewed']=false;$row['advanceReviewRequired']=true;
+        $s['salarySheets'][$sheetKey]['rows'][$mid]=$row;
+        $s['salarySheets'][$sheetKey]['advanceSignature']=smw_advance_signature($s,$entity,(string)$sheet['month']);
+        $s['salarySheets'][$sheetKey]['version']=(int)$sheet['version']+1;
+    }
     $result=['advanceId'=>$id,'journalId'=>$jid,'monthlyDeduction'=>$monthly];$s['postingKeys'][$key]=['fingerprint'=>$fingerprint,'result'=>$result,'createdAt'=>gmdate('c')];return $result;
 }
 function rsv2_months(string $from,string $to):array{rsv2_month($from);rsv2_month($to);if($to<$from)rsv2_out(['ok'=>false,'error'=>'Rent To Month cannot be before From Month.'],422);$o=[];$d=new DateTimeImmutable($from.'-01');$end=new DateTimeImmutable($to.'-01');while($d<=$end&&count($o)<60){$o[]=$d->format('Y-m');$d=$d->modify('+1 month');}return $o;}
