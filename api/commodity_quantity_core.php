@@ -14,9 +14,15 @@ function cq_report(array $books,array $ops,string $entity,string $from,string $t
     if(!is_array($root)||!is_array($root['contracts']??null)||!is_array($root['shipments']??null))throw new DomainException('The saved Export source needs reconciliation.');
     $contracts=array_values(array_filter($root['contracts'],static fn($r)=>is_array($r)&&($r['seller']??'')===$entity));$refs=array_fill_keys(array_column($contracts,'ref'),true);
     $safe=['transtrade_export_v3_operational'=>json_encode(['contracts'=>$contracts,'shipments'=>array_values(array_filter($root['shipments'],static fn($r)=>is_array($r)&&isset($refs[$r['contractRef']??''])))],JSON_THROW_ON_ERROR)];
+    // An outside load's original native Soda can identify its commitment company.
+    // Keep the saved rows untouched; this is a scoped join, not stock ownership repair.
+    $outsideParents=[];foreach(gd_rows($values,'tt35exmill') as $parent){$id=(string)($parent['id']??'');if($id!=='')$outsideParents[$id][]=$parent;}
     foreach(['tt30slips','tt30ship','tt35exload','tt35exmill'] as $key){
         $safeRows=[];foreach(gd_rows($values,$key) as $row){
-            $owner=(string)($row['entity']??'');
+            $owner=strtoupper(trim((string)($row['entity']??'')));
+            if($key==='tt35exmill'&&count($outsideParents[(string)($row['id']??'')]??[])!==1){if($owner===$entity||$owner==='')$holds['AMBIGUOUS|tt35exmill']=['sourceId'=>'tt35exmill','message'=>'Duplicate or missing native outside Soda identities require reconciliation.'];continue;}
+            if($key==='tt35exload'&&$owner===''){$parents=$outsideParents[(string)($row['sodaId']??'')]??[];if(count($parents)===1){$parentOwner=strtoupper(trim((string)($parents[0]['entity']??'')));if(in_array($parentOwner,['TTI','BRM','TG'],true))$owner=$parentOwner;}}
+
             // A TG sale can be loaded at a Pakistan mill. Only the selected contract's
             // native loading participates; no other company's books or stock are read.
             $saleLoad=in_array($key,['tt30ship','tt35exload'],true)&&isset($refs[$row['contractRef']??'']);
