@@ -76,7 +76,7 @@ This rule applies across Super Admin, Milling, Exports, Accounts, Directors, sta
 
 - Bank Covering Letter is optional for closure. Save / Print saves the letter to the server before printing; it never freezes dispatch. Preserve earlier saved letter revisions.
 - Final Output has one larger LOT COMPLETE control in the existing bottom toolbar. Remove the separate office-folder-selection and save-all buttons and generic explanatory green commentary.
-- LOT COMPLETE queues the committed file package and closes the lot only after the hosted server acknowledges the completed lot state. The Office Agent five-minute interval is independent of completion. A lost acknowledgement requires reload and review; never automatically overwrite the server with an old root. Completed VIEW is read/reprint only. Only Super Admin may REOPEN LOT with a mandatory recorded reason and acknowledged save.
+- LOT COMPLETE queues the committed file package and closes the lot only after the hosted server acknowledges the completed lot state. The Office Agent five-minute interval is independent of completion. A lost acknowledgement requires reload and review; never automatically overwrite the server with an old root. Completed VIEW is read/reprint only. Director and Super Admin may REOPEN LOT with a mandatory recorded reason and acknowledged save; ordinary staff remain blocked.
 - One Master Shipment Documents.pdf contains all available final/supporting documents except sales contracts, Goods Declarations and bank covering letters. GD uploads are also saved separately as PDF; saved bank covering letters are native editable .docx; Sales Contract and uploaded Signed Sales Contract remain separate. Retain uploaded originals and Custom documents / TG docs subfolders.
 - Company Master has a Pakistan-only Chamber / COO details section with chamber name, membership number, authorised signatory and designation. These settings control the COO, rather than ownership position or an assumed designation. Open lots use current settings; closed lots retain the settings captured at closure. Existing TTI/BRM approved identities remain during migration; new companies have no guessed person or designation.
 - Screen form/table controls must fit their cells and align at row tops across Exports, Milling and Accounts. Shared screen CSS must not alter document print positioning.
@@ -374,7 +374,7 @@ Online Banking payments expose an editable payment date, defaulting from the vou
 
 - JV approval/rejection notices belong on the recipient's main/home screen. Keep each pending decision until that user explicitly closes it with X; do not expire it after a timeout. Store recipient-specific acknowledgement on the server so closing/reopening a browser does not silently lose a decision. A failed dismissal keeps the notice available.
 - Notification-only reads may check for newly decided JVs while the home screen is visible. They must not refresh financial/stock sources into an active editor, clear entry, save drafts, or extend inactivity sign-in. Leaving home hides the notice without acknowledging it; returning shows it again.
-- Directors with explicit Accounts JV approval and company approval rights can post their own JVs directly and complete an existing own pending JV. Ordinary preparers retain separate approval. Director title alone does not bypass saved icon, company, location, master or owner-security controls.
+- Director role supplies full business actions and company scope automatically, including posting own JVs and completing an existing own pending JV. Ordinary preparers retain separate approval. Director does not become Super Admin; owner-security controls and business validation remain enforced.
 - Bank Receipt labels identify the receiving bank as Received into bank and the payer as Received from. Payment labels retain Pay from bank. Mode changes retain unfinished values and make no posting.
 - Accounts Mill Bill Review distinguishes Rice labour from Maize / Corn / Makai labour using the saved source commodity. Both retain the same source-linked payable review and correction safeguards, with separate agreed work/rates.
 
@@ -382,7 +382,7 @@ Online Banking payments expose an editable payment date, defaulting from the vou
 
 ## Accounts permission action completeness — 19 October
 
-- The owner editor represents the real Accounts View/Create/Edit/Approve/Reports/Delete actions, including company-scope rows. Existing grants remain unchanged when the editor is opened or an unrelated user field is saved. Delete is never inferred from Director title, Edit, Approve or Select all being displayed. An explicit saved choice is required.
+- The owner editor represents the real Accounts View/Create/Edit/Approve/Reports/Delete actions, including company-scope rows. Existing grants remain unchanged when the editor is opened or an unrelated user field is saved. For ordinary staff, Delete is never inferred from Edit, Approve or Select all being displayed; an explicit saved choice is required. Director uses the automatic full business-access preset below.
 - Removing View clears every dependent action in that row. Action checkboxes align beneath their corresponding headings on desktop and within a horizontally scrollable matrix on mobile. Master permission columns retain their own seven actions.
 
 
@@ -391,3 +391,12 @@ Online Banking payments expose an editable payment date, defaulting from the vou
 - Management can explicitly record a one-time salary advance at 1 July 2026, Dr Staff Advances (1230), Cr Opening Balance Clearing (3400). No new bank/cash payment, salary expense or stock is created. Respect company write/approval rights and the opening-entry switch. Reject duplicate person openings, existing opening balances and altered request-key replays.
 - Opening advances allow up to 600 recovery months and retain their original monthly recovery, capped by the remaining debt. Recovery stops at zero; later salaries receive no advance deduction. Salary months before the opening date do not recover it. Existing completed/prepared salaries remain unchanged; affected saved drafts require explicit review/refresh.
 - Unallocated production costs are informational statuses inside Production Costing, not global salary validation errors. Hidden workspace validation messages must not become top-screen popups; actual visible form errors remain prominent.
+
+
+## Director role preset — owner clarification, 19 October 2026
+
+- Choosing Director automatically provides all four business workspaces, TTI/BRM/TG, all locations, business View/Create/Edit/Approve/Reports/Delete actions and all operational Master Records. Existing Directors receive the same effective access without a checkbox amendment or data migration.
+- Hide module, company, action, master and assigned-location choices for Director. Show a concise full-business-access summary and the owner-only boundary. Keep name, username, role and active status editable only by Super Admin.
+- Derive access from the current server-authenticated role. Never set the Super Admin flag or grant owner Console, user/password administration, security/AI-provider configuration, backups/restores, module locks or permanent source/master purges. Retain controlled bank-deletion approval and opening-period lock rules.
+- Preserve original custom staff scopes separately from derived role access. Changing away from Director restores the custom form choices, and the next authenticated request uses the saved lower role; do not leave synthetic all-grants behind. Ordinary staff and managed read-only QA restrictions remain unchanged.
+- Full business access still requires valid source ownership, balanced accounting, CSRF, explicit reasons/decisions, retry protection and immutable history. It never auto-approves a pending bill, posts a payment or invents stock.

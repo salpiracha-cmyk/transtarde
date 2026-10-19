@@ -1,7 +1,7 @@
 """Execute the pending-TG endpoint against temporary Accounts records and actual permission helpers."""
 import json,subprocess,shutil,tempfile
 from pathlib import Path
-ROOT=Path(__file__).resolve().parents[2];auth=(ROOT/'auth_store.php').read_text();a=auth.index('function tt_user_can_open_module(');b=auth.index('function tt_user_can_access_masters(',a)
+ROOT=Path(__file__).resolve().parents[2];auth=(ROOT/'auth_store.php').read_text();a=auth.index('function tt_business_modules(');b=auth.index('function tt_user_can_access_masters(',a)
 with tempfile.TemporaryDirectory(prefix='tg-pending-fi-') as directory:
  root=Path(directory);(root/'api').mkdir();(root/'data').mkdir();shutil.copy(ROOT/'api/export_tg_unallocated.php',root/'api/export_tg_unallocated.php')
  (root/'auth_store.php').write_text("<?php define('TT_DATA_DIR',__DIR__.'/data');function tt_release_read_session(){}function tt_require_login(){return json_decode(file_get_contents(__DIR__.'/user.json'),true);}"+auth[a:b])

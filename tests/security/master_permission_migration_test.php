@@ -39,4 +39,17 @@ $explicit=['role'=>'Mill Staff','permissions'=>['Mill'=>['stock'=>['View']]],'ma
 mp_check(tt_user_can_master($explicit,'purchase_kat','View')===true,'KAT must follow explicit purchase product permission.');
 mp_check(tt_user_can_master($explicit,'purchase_kat','Edit')===false,'Explicit view-only KAT access must remain view-only.');
 
+$director=['id'=>44,'role'=>'Director','permissions'=>['Accounts'=>['entity-tti'=>['View']]],'location'=>'Karachi Office','master_access'=>true,'master_permissions'=>['companies'=>[]]];
+$original=$director;$effective=tt_user_business_access($director);
+mp_check($director===$original && $effective['role']==='Director','Effective role access must not mutate stored identity or become Super Admin.');
+mp_check($effective['permissions']===array_fill_keys(['Mill','Exports','Accounts','Directors'],'all') && $effective['location']==='All authorized locations','Director must cover every business workspace and location.');
+foreach(['Mill','Exports','Accounts','Directors'] as $module)foreach(['View','Create','Edit','Approve','Reports','Delete'] as $action)mp_check(tt_user_can_module_action($director,$module,'future-business-screen',$action),'Director role must supply '.$module.'/'.$action);
+foreach(['TTI','BRM','TG'] as $entity)foreach(['View','Create','Edit','Approve','Reports','Delete'] as $action)mp_check(tt_user_can_access_entity($director,$entity,$action),'Director company action missing.');
+foreach(tt_director_master_permissions() as $type=>$actions)foreach($actions as $action)mp_check(tt_user_can_master($director,$type,$action),'Director Master action missing: '.$type.'/'.$action);
+foreach(['salary_staff','reference_lists','companies','banks','purchase_kat','business_parties','export_realization_charges'] as $type)mp_check(tt_user_can_master($director,$type,'Edit'),'Director virtual/operational Master missing: '.$type);
+mp_check(!tt_user_can_open_module($director,'Security') && !tt_user_can_module_action($director,'Accounts','cashbank','Manage Users') && !tt_user_can_access_entity($director,'INVALID'),'Role must not invent owner/system access or invalid books.');
+$data=['users'=>[$director]];mp_check(tt_migrate_legacy_master_permissions($data)===[] && $data['users'][0]===$original,'Migration must not materialise role rights.');
+$demoted=$director;$demoted['role']='Accounts';mp_check(!tt_user_can_open_module($demoted,'Exports') && !tt_user_can_access_entity($demoted,'BRM') && !tt_user_can_module_action($demoted,'Accounts','cashbank','Delete'),'Demotion must remove automatic rights.');
+mp_check(tt_user_business_access($explicit)===$explicit,'Ordinary staff effective access must remain unchanged.');
+
 echo "PASS Master permission migration preserves existing access and hardens future fallback\n";

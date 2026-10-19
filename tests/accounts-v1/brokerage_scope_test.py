@@ -2,7 +2,7 @@
 import json, os, shutil, subprocess, tempfile
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[2]
-auth=(ROOT/'auth_store.php').read_text();a=auth.index('function tt_user_can_open_module(');b=auth.index('function tt_user_can_access_masters(',a);helpers=auth[a:b]
+auth=(ROOT/'auth_store.php').read_text();a=auth.index('function tt_business_modules(');b=auth.index('function tt_user_can_access_masters(',a);helpers=auth[a:b]
 with tempfile.TemporaryDirectory(prefix='brokerage-rights-') as directory:
     root=Path(directory);(root/'api').mkdir();(root/'data').mkdir();shutil.copy(ROOT/'api/brokerage_master.php',root/'api/brokerage_master.php')
     store=root/'data/accounts.json';store.write_text(json.dumps({'revision':0,'brokerageMaster':{'productRates':{},'whtRates':{}}}))
@@ -15,8 +15,8 @@ with tempfile.TemporaryDirectory(prefix='brokerage-rights-') as directory:
     '''+helpers)
     (root/'request.php').write_text("<?php $_SERVER['REQUEST_METHOD']=$argv[1];register_shutdown_function(function(){file_put_contents(__DIR__.'/status.json',json_encode(http_response_code()));});require __DIR__.'/api/brokerage_master.php';")
     base={'action':'save_product_rate','csrf':'fixture','product':'Fixture rice','ratePer100Kg':100,'effectiveFrom':'2026-10-01','active':True}
-    def request(permission,body=base,status=200,method='POST',owner=False):
-        (root/'user.json').write_text(json.dumps({'id':1,'role':'Super Admin' if owner else 'Director','username':'fixture','permissions':permission}))
+    def request(permission,body=base,status=200,method='POST',owner=False,role='Accounts'):
+        (root/'user.json').write_text(json.dumps({'id':1,'role':'Super Admin' if owner else role,'username':'fixture','permissions':permission}))
         (root/'input.json').write_text(json.dumps(body))
         before=store.read_bytes();r=subprocess.run(['php',str(root/'request.php'),method],capture_output=True,text=True)
         assert r.returncode==0,r.stderr or r.stdout
@@ -42,6 +42,8 @@ with tempfile.TemporaryDirectory(prefix='brokerage-rights-') as directory:
     request({}, {**base,'effectiveFrom':'2026-13-01'},422,owner=True)
     request({}, {**wht,'whtPercent':'not a rate'},422,owner=True)
     request({}, {**base,'ratePer100Kg':'1e309'},422,owner=True)
-    final=json.loads(store.read_text());assert len(final['brokerageMaster']['productRates'])==4
+    request({}, {**base,'effectiveFrom':'2026-10-05'},role='Director')
+    data=request({},method='GET',role='Director');assert data['canCreate'] and data['canEdit'],'Director requires no saved brokerage boxes'
+    final=json.loads(store.read_text());assert len(final['brokerageMaster']['productRates'])==5
     assert next(iter(final['brokerageMaster']['whtRates'].values()))['whtPercent']==10
 print('PASS Brokerage exact-screen/action scopes, reports-only denials, create-versus-edit enforcement, legacy grants, GET capabilities and unchanged denied records')

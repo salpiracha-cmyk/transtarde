@@ -250,10 +250,11 @@
         <label>Full name<input id="userName" required autocomplete="off"></label>
         <label>Username<input id="username" required autocomplete="off"></label>
         <label>Role<select id="userRole" required><option value="">Select role</option><option>Director</option><option>Mill Manager</option><option>Mill Staff</option><option>Accounts</option><option>Exports</option><option>Auditor / Reports</option></select></label>
-        <label>Assigned location<select id="userLocation"><option>All authorized locations</option><option>TTI Rice Mill</option><option>Karachi Office</option><option>External mills only</option></select></label>
+        <label id="userLocationField">Assigned location<select id="userLocation"><option>All authorized locations</option><option>TTI Rice Mill</option><option>Karachi Office</option><option>External mills only</option></select></label>
       </div>
-      <fieldset><legend>Module access and actions</legend><div class="permission-matrix" id="permissionMatrix"></div></fieldset>
-      <fieldset><legend>Master Records access</legend>
+      <div id="directorAccessSummary" class="notice" hidden><strong>Director · Full business access</strong><p>All modules, TTI, BRM, TG and all locations. Includes entries, amendments, permitted deletions, approvals, reports and Master Records. Access is automatic.</p><p>User administration, security settings, backups/restores and module locks remain with Super Admin.</p></div>
+      <fieldset id="userModulePermissions"><legend>Module access and actions</legend><div class="permission-matrix" id="permissionMatrix"></div></fieldset>
+      <fieldset id="userMasterPermissions"><legend>Master Records access</legend>
         <label class="switch-row"><span><strong>Customize Master Records permissions</strong><small>Module users can view and use their authorized masters. Enable this to set explicit actions for each master section.</small></span><input type="checkbox" id="userMasterAccess"><i></i></label>
         <div class="permission-matrix" id="masterPermissionMatrix"><div class="permission-row header"><strong>Master</strong><span>Use</span><span>View</span><span>Create</span><span>Edit</span><span>Deactivate</span><span>View Docs</span><span>Download</span></div></div>
       </fieldset>

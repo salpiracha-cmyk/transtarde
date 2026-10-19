@@ -371,7 +371,7 @@ function operations_validate_lot_reopening(string $oldJson, string $incomingJson
     $lots = []; foreach (($old['shipments'] ?? []) as $lot) if (($lot['kind'] ?? '') === 'lot' && !empty($lot['completed'])) $lots[(string)($lot['id'] ?? '')] = $lot;
     foreach (($next['shipments'] ?? []) as $lot) {
         if (!isset($lots[(string)($lot['id'] ?? '')]) || !empty($lot['completed'])) continue;
-        if (($user['role'] ?? '') !== 'Super Admin') operations_respond(['ok'=>false,'error'=>'Only Super Admin can reopen a completed lot.'],403);
+        if (!in_array(($user['role'] ?? ''),['Super Admin','Director'],true)) operations_respond(['ok'=>false,'error'=>'Only Directors or Super Admin can reopen a completed lot.'],403);
         if (trim((string)($lot['reopenReason'] ?? '')) === '' || ($lot['reopenedAt'] ?? '') === ($lots[(string)$lot['id']]['reopenedAt'] ?? '')) operations_respond(['ok'=>false,'error'=>'A new reopening reason and recorded action are required.'],422);
     }
 }

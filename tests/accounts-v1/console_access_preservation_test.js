@@ -4,7 +4,7 @@ const {JSDOM} = require('jsdom');
 
 (async () => {
   const requests = [], opened = [];
-  const staff = {id:'2',name:'Fixture Director',username:'fixture.director',role:'Director',location:'All authorized locations',active:true,modules:['Accounts','Directors'],permissions:{Accounts:{reports:['View']},Directors:{tgmaster:['View','Edit'],future_screen:['View']}},masterAccess:true,masterPermissions:{products:['View'],reference_lists:['Use','View'],product_settings:['View','Edit']},lastActive:'2026-10-16T20:00:00+00:00'};
+  const staff = {id:'2',name:'Fixture Director',username:'fixture.director',role:'Accounts',location:'All authorized locations',active:true,modules:['Accounts','Directors'],permissions:{Accounts:{reports:['View']},Directors:{tgmaster:['View','Edit'],future_screen:['View']}},masterAccess:true,masterPermissions:{products:['View'],reference_lists:['Use','View'],product_settings:['View','Edit']},lastActive:'2026-10-16T20:00:00+00:00'};
   const dom = new JSDOM(fs.readFileSync('index.html','utf8'), {url:'https://fixture.test/index.php',runScripts:'outside-only',pretendToBeVisual:true});
   const w = dom.window;
   w.TT_SESSION = {id:'1',name:'Fixture Owner',role:'Super Admin',csrf:'fixture'};
@@ -46,6 +46,19 @@ const {JSDOM} = require('jsdom');
     sent=await save();
     assert.deepEqual(sent.permissions.Directors,legacy,'Unchanged legacy grant must retain its meaning');
   }
+  w.testConsole.openUserDialog('2');
+  const originalChecks=[...w.document.querySelectorAll('#userModulePermissions input,#userMasterPermissions input')].map(x=>x.checked);
+  const role=w.document.getElementById('userRole');role.value='Director';role.dispatchEvent(new w.Event('change'));
+  for(const id of ['userModulePermissions','userMasterPermissions','userLocationField'])assert(w.document.getElementById(id).hidden,'Director must hide individual access choices');
+  assert(!w.document.getElementById('directorAccessSummary').hidden);
+  assert([...w.document.querySelectorAll('#userModulePermissions input,#userMasterPermissions input')].every(x=>x.checked&&x.disabled),'Director preset selects all business actions automatically');
+  sent=await save();assert.equal(sent.role,'Director');assert.deepEqual(sent.permissions,staff.permissions,'Do not persist the derived role rights as custom grants');
+  w.testConsole.openUserDialog('2');role.value='Director';role.dispatchEvent(new w.Event('change'));role.value='Accounts';role.dispatchEvent(new w.Event('change'));
+  assert.deepEqual([...w.document.querySelectorAll('#userModulePermissions input,#userMasterPermissions input')].map(x=>x.checked),originalChecks,'Switching back restores custom staff scope');
+  assert(w.document.getElementById('directorAccessSummary').hidden);
+  staff.role='Director';w.testConsole.openUserDialog('2');assert(w.document.getElementById('userModulePermissions').hidden,'Reopened Director uses preset too');staff.role='Accounts';
+  w.testConsole.openUserDialog();w.document.getElementById('userName').value='New Director';w.document.getElementById('username').value='new.director';role.value='Director';role.dispatchEvent(new w.Event('change'));requests.length=0;await w.testConsole.saveUser({preventDefault(){}});const created=requests.find(x=>x.action==='create');assert(created&&created.role==='Director');assert.deepEqual(created.permissions,{},'Role-only creation requires no boxes or persistent synthetic grants');
+  staff.role='Director';staff.permissions=[];staff.masterPermissions=[];w.testConsole.openUserDialog('2');role.value='Accounts';role.dispatchEvent(new w.Event('change'));w.document.querySelector('[data-permission-module="Accounts"][data-permission-icon="reports"][value="View"]').checked=true;w.document.getElementById('userMasterAccess').checked=true;w.document.querySelector('[data-master-permission="companies"][value="View"]').checked=true;sent=await save();assert.deepEqual(sent.permissions,{Accounts:{reports:['View']}},'Empty PHP grant arrays must become a map before adding custom staff scope');assert.deepEqual(sent.masterPermissions,{companies:['View']});
   assert.match(w.document.getElementById('userRows').textContent,/17-10-2026, 01:00/);
   for(const name of ['export_customers','business_parties','export_documents','export_terms']) {
     w.document.querySelector(`[data-master="${name}"]`).click();
