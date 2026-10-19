@@ -1,0 +1,14 @@
+const fs=require('node:fs'),assert=require('node:assert/strict');
+const {chromium}=require('playwright');
+(async()=>{const browser=await chromium.launch({headless:true});try{const page=await browser.newPage();
+await page.setContent('<style>.workspace{display:none}.workspace.active{display:block}</style><div id="cost" class="workspace"></div><form id="salary"></form>');
+await page.addScriptTag({content:fs.readFileSync('accounts/accounts-notifications.js','utf8')});
+await page.evaluate(()=>{document.querySelector('#cost').innerHTML='<p role="alert">Unallocated Internet utility UTP-2026-000016</p>';});
+await page.waitForTimeout(50);assert.equal(await page.locator('#tt-accounts-error').count(),0,'Hidden workspace warnings cannot become salary errors');
+await page.evaluate(()=>{document.querySelector('#salary').innerHTML='<p class="am-error">Salary amount exceeds entitlement</p>';});
+await page.locator('#tt-accounts-error').waitFor({state:'visible'});assert.match(await page.locator('#tt-accounts-error').innerText(),/Salary amount/);
+await page.getByRole('button',{name:'Dismiss message'}).click();
+await page.evaluate(()=>{document.querySelector('#cost').classList.add('active');document.querySelector('#cost').innerHTML='<p role="status">Unallocated Internet utility UTP-2026-000016</p>';});
+await page.waitForTimeout(50);assert.equal(await page.locator('#tt-accounts-error').isVisible(),false,'Informational allocation status stays in its own report');
+console.log('PASS native visibility: hidden costing status never overlays salary; visible salary errors still persist');
+}finally{await browser.close();}})().catch(e=>{console.error(e);process.exitCode=1});
