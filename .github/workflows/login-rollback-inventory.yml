@@ -47,4 +47,7 @@ jobs:
           PHP
           php -l "$RUNNER_TEMP/inventory.php"
           target_q=$(printf '%q' "$HOSTINGER_DEPLOY_PATH")
-          ssh -i "$RUNNER_TEMP/ssh/key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" -o StrictHostKeyChecking=yes -p "$HOSTINGER_PORT" "$HOSTINGER_USER@$HOSTINGER_HOST" "TT_LOGIN_TARGET=$target_q php" < "$RUNNER_TEMP/inventory.php"
+          for attempt in 1 2 3; do
+            if ssh -o ConnectTimeout=15 -o ConnectionAttempts=1 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -i "$RUNNER_TEMP/ssh/key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" -o StrictHostKeyChecking=yes -p "$HOSTINGER_PORT" "$HOSTINGER_USER@$HOSTINGER_HOST" "TT_LOGIN_TARGET=$target_q php" < "$RUNNER_TEMP/inventory.php"; then exit 0; fi
+          done
+          exit 1
