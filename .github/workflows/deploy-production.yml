@@ -292,6 +292,19 @@ jobs:
           echo "Production login health check failed."
           exit 1
 
+      - name: Retain one verified code rollback after production health succeeds
+        run: |
+          set -euo pipefail
+          target_q=$(printf '%q' "$HOSTINGER_DEPLOY_PATH")
+          cp .github/scripts/code_backup_retirement.sh "$RUNNER_TEMP/code-backup-rotation.sh"
+          printf '\nbr_main "$@"\n' >> "$RUNNER_TEMP/code-backup-rotation.sh"
+          ssh -o ConnectTimeout=20 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 \
+            -i "$RUNNER_TEMP/ssh/deploy_key" \
+            -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" \
+            -o StrictHostKeyChecking=yes \
+            -p "$HOSTINGER_PORT" "$HOSTINGER_USER@$HOSTINGER_HOST" \
+            "bash -s -- rotate $target_q $DEPLOY_SHA" < "$RUNNER_TEMP/code-backup-rotation.sh"
+
       - name: Deployment summary
         run: |
           echo "## Production deployment" >> "$GITHUB_STEP_SUMMARY"
