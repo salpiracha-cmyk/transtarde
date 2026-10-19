@@ -1,0 +1,46 @@
+name: Read-only login capacity rollback inventory
+on:
+  pull_request:
+    paths: ['.github/workflows/login-rollback-inventory.yml', '.github/scripts/login_rollback_inventory*']
+  push:
+    branches: [main]
+    paths: ['.github/workflows/login-rollback-inventory.yml', '.github/scripts/login_rollback_inventory*']
+permissions:
+  contents: read
+jobs:
+  boundaries:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 .github/scripts/login_rollback_inventory_shell_test.py
+  inventory:
+    needs: boundaries
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    environment: live-qa
+    concurrency:
+      group: transtrade-production-deployment
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - name: Read exact code-backup candidates and verify retained baselines
+        env:
+          HOSTINGER_HOST: ${{ secrets.HOSTINGER_HOST }}
+          HOSTINGER_PORT: ${{ secrets.HOSTINGER_PORT }}
+          HOSTINGER_USER: ${{ secrets.HOSTINGER_USER }}
+          HOSTINGER_DEPLOY_PATH: ${{ secrets.HOSTINGER_DEPLOY_PATH }}
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+          HOSTINGER_KNOWN_HOSTS: ${{ secrets.HOSTINGER_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          case "$HOSTINGER_DEPLOY_PATH" in /home/*/domains/app.transtradeinternational.com/public_html) ;; *) exit 1 ;; esac
+          install -m 700 -d "$RUNNER_TEMP/ssh"
+          printf '%s\n' "$HOSTINGER_SSH_KEY" | tr -d '\r' > "$RUNNER_TEMP/ssh/key"
+          printf '%s\n' "$HOSTINGER_KNOWN_HOSTS" | tr -d '\r' > "$RUNNER_TEMP/ssh/known_hosts"
+          chmod 600 "$RUNNER_TEMP/ssh/key" "$RUNNER_TEMP/ssh/known_hosts"
+          target_q=$(printf '%q' "$HOSTINGER_DEPLOY_PATH")
+          for attempt in 1 2 3; do
+            if ssh -o ConnectTimeout=15 -o ConnectionAttempts=1 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -i "$RUNNER_TEMP/ssh/key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" -o StrictHostKeyChecking=yes -p "$HOSTINGER_PORT" "$HOSTINGER_USER@$HOSTINGER_HOST" "bash -s -- $target_q" < .github/scripts/login_rollback_inventory.sh; then exit 0; fi
+          done
+          exit 1

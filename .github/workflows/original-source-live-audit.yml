@@ -2,10 +2,10 @@ name: Read-only original warehouse and archive audit
 
 on:
   pull_request:
-    paths: ['.github/workflows/original-source-live-audit.yml', '.github/scripts/archive_read_acceptance*', '.github/scripts/original_archive_live.spec.cjs']
+    paths: ['.github/workflows/original-source-live-audit.yml', '.github/scripts/archive_read_acceptance*', '.github/scripts/original_archive_live.spec.cjs', '.github/scripts/original_source_*']
   push:
     branches: [main]
-    paths: ['.github/workflows/original-source-live-audit.yml', '.github/scripts/archive_read_acceptance*', '.github/scripts/original_archive_live.spec.cjs']
+    paths: ['.github/workflows/original-source-live-audit.yml', '.github/scripts/archive_read_acceptance*', '.github/scripts/original_archive_live.spec.cjs', '.github/scripts/original_source_*']
 
 permissions:
   contents: read
@@ -21,6 +21,9 @@ jobs:
           node --check .github/scripts/original_archive_live.spec.cjs
           node --test .github/scripts/archive_read_acceptance_test.cjs
           php tests/accounts-v1/arrival_dependency_test.php
+          php .github/scripts/original_source_match_test.php
+          python3 -m py_compile .github/scripts/original_source_package.py
+          python3 .github/scripts/original_source_package_test.py
           npm install --no-save @playwright/test@1.63.0
           npx playwright test .github/scripts/original_archive_live.spec.cjs --list
 
@@ -65,12 +68,8 @@ jobs:
           set -euo pipefail
           case "$HOSTINGER_DEPLOY_PATH" in /home/*/domains/app.transtradeinternational.com/public_html) ;; *) exit 1 ;; esac
           target_q=$(printf '%q' "$HOSTINGER_DEPLOY_PATH")
-          deployed=$(ssh -i "$RUNNER_TEMP/ssh/key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" -o StrictHostKeyChecking=yes -p "$HOSTINGER_PORT" "$HOSTINGER_USER@$HOSTINGER_HOST" "cat $target_q/.transtrade-release")
-          case "$deployed" in *[!0-9a-f]*|'') exit 1 ;; esac
-          test "${#deployed}" -eq 40
-          git cat-file -e "$deployed^{commit}"
-          test -z "$(git diff --name-only "$deployed" HEAD -- . ':(exclude).github/**' ':(exclude)tests/**' ':(exclude)docs/**' ':(exclude)AGENTS.md')"
-          echo "APPLICATION_SOURCE_MATCHED=$deployed"
+          python3 .github/scripts/original_source_package.py > "$RUNNER_TEMP/source-match.php"
+          ssh -i "$RUNNER_TEMP/ssh/key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" -o StrictHostKeyChecking=yes -p "$HOSTINGER_PORT" "$HOSTINGER_USER@$HOSTINGER_HOST" "env TT_SOURCE_ROOT=$target_q php" < "$RUNNER_TEMP/source-match.php"
       - name: Read exact saved warehouse originals and financial dependencies without mutation
         run: |
           set -euo pipefail

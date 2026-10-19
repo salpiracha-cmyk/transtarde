@@ -9,3 +9,5 @@
 - Dependent inputs must follow the selected dropdown/tick and remain hidden when inapplicable. Saved selections restore their visibility; preserve historical values and business validation.
 
 - Owner clarification, 19 October 2026: Director is the full business-access role below Super Admin. Derive all four modules, TTI/BRM/TG, all locations, business actions and Master Records from that role; hide permission matrices in its user editor. Preserve staff custom permissions and all owner-only identity/security/backup/module-lock controls. Do not persist derived Director grants that would survive a role downgrade.
+
+- Backup compression, expiry and scheduled maintenance must follow `docs/BACKUP_POLICY.md`. Preserve a newer fully verified survivor before pruning; never introduce unbounded deployment/migration copies or age-delete live records/documents.

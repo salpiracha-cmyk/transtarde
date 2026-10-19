@@ -13,6 +13,13 @@ if (!$apply) {
     exit(0);
 }
 
+// A completed schema migration must not create another full recovery copy or
+// rewrite the store on every unrelated software deployment.
+if ((int)($store['settings']['master_permission_schema'] ?? 0)>=2) {
+    echo json_encode(['ok'=>true,'mode'=>'applied','changedUserCount'=>0],JSON_UNESCAPED_SLASHES|JSON_PRETTY_PRINT).PHP_EOL;
+    exit(0);
+}
+
 if (is_file(TT_STORE_FILE)) {
     $backupDir=TT_DATA_DIR.'/security-migrations';
     if (!is_dir($backupDir) && !mkdir($backupDir,0700,true) && !is_dir($backupDir)) throw new RuntimeException('Migration backup folder could not be created.');

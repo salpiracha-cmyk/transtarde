@@ -1,0 +1,74 @@
+name: Automatic fifteen-day backup policy
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '20 22 * * *'
+  pull_request:
+    paths: ['backup_lib.php', 'index.html', 'tests/security/backup_expiry_safety_test.php', 'tests/security/backup_compression_retention_test.php', 'tests/security/server_backup_hardening_test.php', '.github/scripts/business_backup_policy.php', '.github/workflows/business-backup-policy.yml']
+  push:
+    branches: [main]
+    paths: ['backup_lib.php', 'index.html', 'tests/security/backup_expiry_safety_test.php', 'tests/security/backup_compression_retention_test.php', 'tests/security/server_backup_hardening_test.php', '.github/scripts/business_backup_policy.php', '.github/workflows/business-backup-policy.yml']
+
+permissions:
+  contents: read
+concurrency:
+  group: transtrade-production-deployment
+  cancel-in-progress: false
+jobs:
+  boundaries:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          php -l backup_lib.php
+          php -l .github/scripts/business_backup_policy.php
+          php tests/security/server_backup_hardening_test.php
+          php tests/security/backup_compression_retention_test.php
+          php tests/security/backup_expiry_safety_test.php
+          php tests/security/master_migration_noop_backup_test.php
+  maintain:
+    needs: boundaries
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy policy or run scheduled verified expiry
+        env:
+          HOSTINGER_HOST: ${{ secrets.HOSTINGER_HOST }}
+          HOSTINGER_PORT: ${{ secrets.HOSTINGER_PORT }}
+          HOSTINGER_USER: ${{ secrets.HOSTINGER_USER }}
+          HOSTINGER_DEPLOY_PATH: ${{ secrets.HOSTINGER_DEPLOY_PATH }}
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+          HOSTINGER_KNOWN_HOSTS: ${{ secrets.HOSTINGER_KNOWN_HOSTS }}
+          TT_BACKUP_POLICY_INSTALL: ${{ github.event_name == 'schedule' && '0' || '1' }}
+        run: |
+          set -euo pipefail
+          install -m 700 -d "$RUNNER_TEMP/ssh"
+          printf '%s\n' "$HOSTINGER_SSH_KEY" | tr -d '\r' > "$RUNNER_TEMP/ssh/key"
+          printf '%s\n' "$HOSTINGER_KNOWN_HOSTS" | tr -d '\r' > "$RUNNER_TEMP/ssh/known_hosts"
+          chmod 600 "$RUNNER_TEMP/ssh/key" "$RUNNER_TEMP/ssh/known_hosts"
+          [[ "$HOSTINGER_DEPLOY_PATH" =~ ^/home/[A-Za-z0-9_-]+/domains/app\.transtradeinternational\.com/public_html$ ]]
+          python3 - <<'PYBUILD'
+          import pathlib,hashlib,base64,json
+          old={'backup_lib.php':'f62d723ddbf9fbe73710f9a1a8a25801983f2fbd004055d167871a872001f68e','index.html':'bacaf3b208ae628cebbd4eaf64a408b3b6429a90225a210655cb0246992f88aa'}
+          package={}
+          for path,digest in old.items():
+              source=pathlib.Path(path).read_bytes()
+              package[path]={'old':digest,'new':hashlib.sha256(source).hexdigest(),'source':base64.b64encode(source).decode()}
+          payload=base64.b64encode(json.dumps(package).encode()).decode()
+          driver=pathlib.Path('.github/scripts/business_backup_policy.php').read_text().replace('__POLICY_PACKAGE_BASE64__',payload)
+          pathlib.Path('/tmp/tt-backup-policy.php').write_text(driver)
+          PYBUILD
+          ssh -o ConnectTimeout=20 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -i "$RUNNER_TEMP/ssh/key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" -o StrictHostKeyChecking=yes -p "$HOSTINGER_PORT" "$HOSTINGER_USER@$HOSTINGER_HOST" "TT_BACKUP_POLICY_ROOT='$HOSTINGER_DEPLOY_PATH' TT_BACKUP_POLICY_INSTALL='$TT_BACKUP_POLICY_INSTALL' php" < /tmp/tt-backup-policy.php
+          if [ "$TT_BACKUP_POLICY_INSTALL" = 1 ]; then
+            echo 'Verifying the scheduled maintenance path without deploying code'
+            ssh -o ConnectTimeout=20 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -i "$RUNNER_TEMP/ssh/key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" -o StrictHostKeyChecking=yes -p "$HOSTINGER_PORT" "$HOSTINGER_USER@$HOSTINGER_HOST" "TT_BACKUP_POLICY_ROOT='$HOSTINGER_DEPLOY_PATH' TT_BACKUP_POLICY_INSTALL=0 php" < /tmp/tt-backup-policy.php
+          fi
+      - name: Check login health
+        run: |
+          set -euo pipefail
+          test "$(curl --silent --show-error --location --max-time 30 -o "$RUNNER_TEMP/login.html" -w '%{http_code}' https://app.transtradeinternational.com/login.php)" = 200
+          grep -q 'name="password"' "$RUNNER_TEMP/login.html"
+          echo 'PUBLIC_LOGIN_HEALTH_OK'

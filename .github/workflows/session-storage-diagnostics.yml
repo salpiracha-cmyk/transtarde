@@ -2,6 +2,8 @@ name: Read-only production session diagnostics
 
 on:
   workflow_dispatch:
+  pull_request:
+    paths: ['.github/workflows/session-storage-diagnostics.yml']
   push:
     branches: [main]
     paths: ['.github/workflows/session-storage-diagnostics.yml']
@@ -10,7 +12,23 @@ permissions:
   contents: read
 
 jobs:
+  boundaries:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check protected diagnostic shell syntax
+        run: |
+          python3 - <<'PY'
+          import pathlib,subprocess
+          source=pathlib.Path('.github/workflows/session-storage-diagnostics.yml').read_text()
+          script=source.split('        run: |\n')[-1]
+          script='\n'.join(line[10:] if line.startswith('          ') else line for line in script.splitlines())
+          subprocess.run(['bash','-n'],input=script,text=True,check=True)
+          print('PASS read-only diagnostic shell syntax; production credentials remain unavailable on pull requests')
+          PY
   diagnose:
+    needs: boundaries
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -28,7 +46,7 @@ jobs:
           printf '%s\n' "$HOSTINGER_SSH_KEY" | tr -d '\r' > "$RUNNER_TEMP/ssh/key"
           printf '%s\n' "$HOSTINGER_KNOWN_HOSTS" | tr -d '\r' > "$RUNNER_TEMP/ssh/known_hosts"
           chmod 600 "$RUNNER_TEMP/ssh/key" "$RUNNER_TEMP/ssh/known_hosts"
-          ssh -i "$RUNNER_TEMP/ssh/key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" -o StrictHostKeyChecking=yes -p "$HOSTINGER_PORT" "$HOSTINGER_USER@$HOSTINGER_HOST" bash -s -- "$HOSTINGER_DEPLOY_PATH" <<'REMOTE'
+          ssh -o ConnectTimeout=20 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -i "$RUNNER_TEMP/ssh/key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" -o StrictHostKeyChecking=yes -p "$HOSTINGER_PORT" "$HOSTINGER_USER@$HOSTINGER_HOST" bash -s -- "$HOSTINGER_DEPLOY_PATH" <<'REMOTE'
           set -euo pipefail
           target=$1
           case "$target" in /home/*/domains/app.transtradeinternational.com/public_html) ;; *) exit 1 ;; esac
@@ -113,4 +131,63 @@ jobs:
             echo 'HOST_QUOTA_NUMERIC_VALUES (block and file usage/limits; no account or filesystem names)'
             quota -s 2>/dev/null | awk 'NR>2 {for(i=1;i<=NF;i++)if($i~/^[0-9.]+[kKmMgGtT]?[*!]?$/)printf "%s ",$i;print ""}' || true
           fi
+          account=${target%%/domains/*}
+          case "$account" in /home/*) ;; *) exit 1 ;; esac
+          test "$(realpath "$account")" = "$account"
+          test ! -L "$account"
+          measure_storage() {
+            label=$1; location=$2
+            if [ ! -e "$location" ] || [ -L "$location" ]; then
+              echo "ACCOUNT_STORAGE category=$label available=false";return
+            fi
+            complete=true
+            value=$(du -skx -- "$location" 2>/dev/null) || complete=false
+            kib=$(printf '%s\n' "$value" | awk 'NR==1 {print $1}')
+            case "$kib" in *[!0-9]*|'') kib=0;complete=false ;; esac
+            echo "ACCOUNT_STORAGE category=$label kib=$kib complete=$complete"
+          }
+          measure_storage account_total "$account"
+          measure_storage all_websites "$account/domains"
+          measure_storage application_public "$target"
+          measure_storage application_private "${target%/public_html}/transtrade_private"
+          measure_storage business_recovery_snapshots "${target%/public_html}/transtrade_private/backups"
+          measure_storage application_sessions "${target%/public_html}/transtrade_private/sessions"
+          measure_storage software_deployment "${target%/public_html}/.transtrade-deploy"
+          measure_storage software_backups "${target%/public_html}/.transtrade-deploy/backups"
+          measure_storage account_mail "$account/mail"
+          measure_storage account_logs "$account/logs"
+          measure_storage host_cache "$account/.cache"
+          # Classify account-root entries without publishing names or contents.
+          other_index=0
+          for location in "$account"/* "$account"/.[!.]* "$account"/..?*; do
+            [ -e "$location" ] || continue
+            [ ! -L "$location" ] || continue
+            [ -d "$location" ] || continue
+            name=${location##*/}
+            case "$name" in
+              domains) label=websites ;;
+              backups|backup|.backups) label=account_backups ;;
+              .trash|.Trash|.Trash-*) label=trash ;;
+              .logs|logs) label=logs ;;
+              .cache|cache|.npm|.composer) label=cache ;;
+              .cagefs|.cl.selector|.local|.config|.ssh|.pki) label=host_environment ;;
+              tmp|temp) label=temporary ;;
+              mail|imap) label=mail ;;
+              *) other_index=$((other_index+1)); label=other_directory_$other_index ;;
+            esac
+            measure_storage "root_$label" "$location"
+          done
+          root_files_complete=true
+          root_files=$(find "$account" -xdev -maxdepth 1 -type f -printf '%b %s %f\n' 2>/dev/null | awk '
+            {category="other_files";
+             if($3~/^core([.][0-9]+)?$/)category="core_dumps";
+             else if($3~/[.](zip|gz|tgz|tar|bz2|xz|zst)$/)category="archives";
+             else if($3~/[.](log|out)$/)category="logs";
+             count[category]++;blocks[category]+=$1;bytes[category]+=$2}
+            END {for(category in count)printf "ACCOUNT_ROOT_FILES category=%s files=%d allocated_bytes=%.0f apparent_bytes=%.0f\n",category,count[category],blocks[category]*512,bytes[category]}') || root_files_complete=false
+          printf '%s\n' "$root_files"
+          echo "ACCOUNT_ROOT_FILES complete=$root_files_complete"
+          count_complete=true
+          counts=$(find "$account" -xdev -printf '%y\n' 2>/dev/null | awk '{c[$1]++}END {printf "files=%d directories=%d symlinks=%d",c["f"],c["d"],c["l"]}') || count_complete=false
+          echo "ACCOUNT_FILE_COUNTS $counts complete=$count_complete"
           REMOTE
