@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: php .github/scripts/login_rollback_inventory_test.php
+      - run: python3 .github/scripts/login_rollback_inventory_shell_test.py
   inventory:
     needs: boundaries
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -39,15 +39,8 @@ jobs:
           printf '%s\n' "$HOSTINGER_SSH_KEY" | tr -d '\r' > "$RUNNER_TEMP/ssh/key"
           printf '%s\n' "$HOSTINGER_KNOWN_HOSTS" | tr -d '\r' > "$RUNNER_TEMP/ssh/known_hosts"
           chmod 600 "$RUNNER_TEMP/ssh/key" "$RUNNER_TEMP/ssh/known_hosts"
-          cp .github/scripts/login_rollback_inventory.php "$RUNNER_TEMP/inventory.php"
-          cat >> "$RUNNER_TEMP/inventory.php" <<'PHP'
-          $target=(string)getenv('TT_LOGIN_TARGET');
-          if(!preg_match('~^/home/[^/]+/domains/app\.transtradeinternational\.com/public_html$~D',$target)||realpath($target)!==$target||is_link($target))throw new RuntimeException('Unexpected target');
-          echo json_encode(ri_inventory(dirname($target).'/.transtrade-deploy/backups'),JSON_PRETTY_PRINT|JSON_THROW_ON_ERROR)."\n";
-          PHP
-          php -l "$RUNNER_TEMP/inventory.php"
           target_q=$(printf '%q' "$HOSTINGER_DEPLOY_PATH")
           for attempt in 1 2 3; do
-            if ssh -o ConnectTimeout=15 -o ConnectionAttempts=1 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -i "$RUNNER_TEMP/ssh/key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" -o StrictHostKeyChecking=yes -p "$HOSTINGER_PORT" "$HOSTINGER_USER@$HOSTINGER_HOST" "TT_LOGIN_TARGET=$target_q php" < "$RUNNER_TEMP/inventory.php"; then exit 0; fi
+            if ssh -o ConnectTimeout=15 -o ConnectionAttempts=1 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -i "$RUNNER_TEMP/ssh/key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" -o StrictHostKeyChecking=yes -p "$HOSTINGER_PORT" "$HOSTINGER_USER@$HOSTINGER_HOST" "bash -s -- $target_q" < .github/scripts/login_rollback_inventory.sh; then exit 0; fi
           done
           exit 1
