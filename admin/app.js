@@ -453,10 +453,10 @@
     return Array.isArray(saved?.[icon]) && saved[icon].includes(action);
   }
   function permissionMatrix(permissions = {}) {
-    return Object.entries(MODULE_ICONS).map(([module,icons]) => `<section class="permission-module">
+    return Object.entries(MODULE_ICONS).map(([module,icons]) => `<section class="permission-module" style="--tt-permission-actions:${module==="Accounts"?6:3}">
       <div class="permission-module-head"><strong>${module}</strong><label><input type="checkbox" data-select-module="${module}"> Select all ${module}</label></div>
-      <div class="permission-row header"><strong>Icon / Screen</strong>${(module==="Accounts"?["View","Create","Edit","Approve","Reports"]:ICON_ACTIONS).map(action=>`<span>${action}</span>`).join("")}</div>
-      ${icons.map(([id,label])=>`<div class="permission-row"><strong>${label}</strong>${(module==="Accounts"?["View","Create","Edit","Approve","Reports"]:ICON_ACTIONS).map(action=>`<label title="${module} · ${label} · ${action}"><input type="checkbox" data-permission-module="${module}" data-permission-icon="${id}" value="${action}" ${permissionChecked(permissions,module,id,action)?"checked":""}></label>`).join("")}</div>`).join("")}
+      <div class="permission-row header"><strong>Icon / Screen</strong>${(module==="Accounts"?["View","Create","Edit","Approve","Reports","Delete"]:ICON_ACTIONS).map(action=>`<span>${action}</span>`).join("")}</div>
+      ${icons.map(([id,label])=>`<div class="permission-row"><strong>${label}</strong>${(module==="Accounts"?["View","Create","Edit","Approve","Reports","Delete"]:ICON_ACTIONS).map(action=>`<label title="${module} · ${label} · ${action}"><input type="checkbox" data-permission-module="${module}" data-permission-icon="${id}" value="${action}" ${permissionChecked(permissions,module,id,action)?"checked":""}></label>`).join("")}</div>`).join("")}
     </section>`).join("");
   }
   function masterPermissionMatrix(user = {}) {
@@ -1918,7 +1918,7 @@
     const input=event.target.closest("input[data-permission-icon]"); if(!input)return;
     const row=input.closest(".permission-row"),view=row?.querySelector('input[value="View"]');
     if(input.value!=="View"&&input.checked&&view)view.checked=true;
-    if(input.value==="View"&&!input.checked)row?.querySelectorAll('input[value="Create"],input[value="Edit"]').forEach(x=>x.checked=false);
+    if(input.value==="View"&&!input.checked)row?.querySelectorAll('input[data-permission-icon]:not([value="View"])').forEach(x=>x.checked=false);
   });
   document.getElementById("masterPermissionMatrix").addEventListener("change", event=>{
     const input=event.target.closest('input[data-master-permission]');if(!input)return;

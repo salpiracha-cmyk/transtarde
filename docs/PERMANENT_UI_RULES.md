@@ -379,3 +379,8 @@ Online Banking payments expose an editable payment date, defaulting from the vou
 - Accounts Mill Bill Review distinguishes Rice labour from Maize / Corn / Makai labour using the saved source commodity. Both retain the same source-linked payable review and correction safeguards, with separate agreed work/rates.
 
 - Users assigned several modules have a Home link from Accounts, Milling, Exports and Directors to a server-rendered chooser containing only their current authorised workspaces. A Director receives operational navigation without access to owner-only user/security administration. Home also uses the same private JV decision notices.
+
+## Accounts permission action completeness — 19 October
+
+- The owner editor represents the real Accounts View/Create/Edit/Approve/Reports/Delete actions, including company-scope rows. Existing grants remain unchanged when the editor is opened or an unrelated user field is saved. Delete is never inferred from Director title, Edit, Approve or Select all being displayed. An explicit saved choice is required.
+- Removing View clears every dependent action in that row. Action checkboxes align beneath their corresponding headings on desktop and within a horizontally scrollable matrix on mobile. Master permission columns retain their own seven actions.
