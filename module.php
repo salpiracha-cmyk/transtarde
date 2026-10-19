@@ -263,7 +263,7 @@ $sharedBootstrap = <<<'HTML'
     finally{keys.forEach(key=>inFlight.delete(key));saveHolds--;waiting();}
   }
   async function appendMillBill(key,record,prefix=''){
-    if(access.moduleId!=='milling'||!['tt38labourbills','tt38kebills','tt38reprocessbills','tt37processingexpenses'].includes(key))throw new Error('Unsupported Mill bill.');
+    if(access.moduleId!=='milling'||!['tt38labourbills','tt38kebills','tt38reprocessbills','tt37processingexpenses','tt39rentpayments','tt39salaryadvances'].includes(key))throw new Error('Unsupported Mill bill.');
     if(pending.has(key)||inFlight.has(key))throw new Error('This bill collection has an unfinished local change. Review it before saving.');
     const before=localStorage.getItem(key);inFlight.add(key);saveHolds++;waiting();
     try{

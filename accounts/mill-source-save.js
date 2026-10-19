@@ -1,6 +1,6 @@
 (() => {
   'use strict';
-  const collections=new Set(['tt38labourbills','tt38kebills','tt38reprocessbills','tt37processingexpenses']);
+  const collections=new Set(['tt38labourbills','tt38kebills','tt38reprocessbills','tt37processingexpenses','tt39rentpayments','tt39salaryadvances']);
   const canonical=v=>JSON.stringify(v&&typeof v==='object'?Array.isArray(v)?v.map(x=>JSON.parse(canonical(x))):Object.fromEntries(Object.keys(v).sort().map(k=>[k,JSON.parse(canonical(v[k]))])):v);
   const same=(a,b)=>canonical(a)===canonical(b);
   const rows=value=>{const parsed=JSON.parse(value||'[]');if(!Array.isArray(parsed))throw Error('Saved bill collection is invalid.');return parsed;};
@@ -15,7 +15,9 @@
       return {record:matches[0],value:JSON.stringify(current),version:Number(snapshot.meta?.[key]?.version||0),replayed:true};
     }
     if(prefix&&current.some(r=>signature(r)===signature(record)))throw Object.assign(Error('An identical bill is already saved. Review its saved reference before creating another bill.'),{editable:true});
-    if(!prefix&&current.some(r=>r.entity===record.entity&&String(r.millId)===String(record.millId)&&String(r.ref).trim().toLowerCase()===String(record.ref).trim().toLowerCase()))throw Object.assign(Error('This bill reference already exists at this company and mill. Review the saved bill.'),{editable:true});
+    const reference=['tt39rentpayments','tt39salaryadvances'].includes(key);
+    if(reference&&current.some(r=>signature(r)===signature(record)))throw Object.assign(Error('An identical reference is already saved. Review it before adding another reference.'),{editable:true});
+    if(!prefix&&!reference&&current.some(r=>r.entity===record.entity&&String(r.millId)===String(record.millId)&&String(r.ref).trim().toLowerCase()===String(record.ref).trim().toLowerCase()))throw Object.assign(Error('This bill reference already exists at this company and mill. Review the saved bill.'),{editable:true});
     const candidate=JSON.parse(JSON.stringify(record));
     if(prefix){const highest=current.reduce((max,r)=>{const ref=String(r.billNo||r.ref||'');return ref.startsWith(prefix)?Math.max(max,Number(ref.slice(prefix.length))||0):max},0);candidate.billNo=candidate.ref=prefix+String(highest+1).padStart(5,'0');}
     current.push(candidate);
@@ -76,5 +78,5 @@
     finally{busy=false;if(form)form.inert=wasInert;if(!acknowledged&&focus?.isConnected)focus.focus({preventScroll:true});if(acknowledged&&form)window.TT_FORM_VIEWPORT?.open(form);}
   }
   window.TT_MILL_SOURCE_SAVE={append,save};
-  for(const name of ['processingTab','renderReprocessingBill']){const original=window[name];if(typeof original==='function')window[name]=function(...args){const result=original.apply(this,args);showRecovery();return result;};}
+  for(const name of ['processingTab','renderReprocessingBill','renderRentAccount','renderSalaryAccount']){const original=window[name];if(typeof original==='function')window[name]=function(...args){const result=original.apply(this,args);showRecovery();return result;};}
 })();
