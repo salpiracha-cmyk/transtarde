@@ -189,7 +189,7 @@ button:not(.danger):not(.red):not(.xBtn):not(.optionMinus).active{
  .am-grid label>.tt-search-select,.jvw-line .tt-search-select{margin-top:0!important}
  /* These rows provide their own gap; the base page's extra input margin must
     not offset plain/date controls below searchable choices and amounts. */
- :is(.am-grid,.jvw-line) :is(input:not([type=checkbox]):not([type=radio]),select,textarea){margin-top:0!important}
+ :is(.am-grid,.jvw-line,.iv-grid) :is(input:not([type=checkbox]):not([type=radio]),select,textarea,.tt-search-select){margin-top:0!important}
  .am-bank-header{grid-template-columns:1fr 1fr!important}
  .am-debit-row{grid-template-columns:30px minmax(150px,1.4fr) minmax(125px,1fr) minmax(125px,1fr) minmax(135px,1.1fr) minmax(150px,1.3fr) minmax(100px,.9fr)!important;align-items:start;padding:12px;gap:10px}
  .am-debit-row>.tt-row-remove-slot{grid-column:auto;align-self:start;margin-top:45px}
