@@ -36,7 +36,8 @@ define('TT_DATA_DIR',__DIR__.'/data');function tt_require_login(){return ['role'
   refund=journal('Z-REFUND',[line('1120',100),line('7210',cr=100)])
   unpaid=journal('Z-UNPAID',[line('7210',50),line('2140',cr=50)])
   foreign=journal('Z-FOREIGN',[line('7210',999999),line('1120',cr=999999)]);foreign['entity']='BRM'
-  books['journals'].update({j['id']:j for j in [opening,payment,refund,unpaid,foreign]});path.write_text(json.dumps(books));zbefore=path.read_bytes()
+  advance=journal('STAFF-ADVANCE',[line('1230',100),line('1110',cr=100)]);advance['sourceType']='SALARY_ADVANCE'
+  books['journals'].update({j['id']:j for j in [opening,payment,refund,unpaid,foreign,advance]});path.write_text(json.dumps(books));zbefore=path.read_bytes()
   status,z=req('2026-07-01');assert status==200,z
   assert next(x for x in z['profitAndLoss']['expenses'] if str(x['account'])=='7210')['amount']==103250
   assert abs(z['profitAndLoss']['profit']-(296268.82-103250))<.005,z
