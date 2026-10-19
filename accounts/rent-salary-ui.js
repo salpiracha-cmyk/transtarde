@@ -1,6 +1,6 @@
 (()=>{
 'use strict';
-const access=window.TT_ACCOUNT_ACCESS||{},api='../api/rent_salary.php',q=s=>document.querySelector(s),fmt=n=>Number(n||0).toLocaleString('en-PK',{maximumFractionDigits:2}),today=()=>new Date().toISOString().slice(0,10),thisMonth=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')},entity=()=>localStorage.getItem('tt_accounts_entity')||'TTI';
+const access=window.TT_ACCOUNT_ACCESS||{},api='../api/rent_salary.php',q=s=>document.querySelector(s),fmt=n=>Number(n||0).toLocaleString('en-PK',{maximumFractionDigits:2}),today=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Karachi',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date()),thisMonth=()=>today().slice(0,7),entity=()=>localStorage.getItem('tt_accounts_entity')||'TTI';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const catName=v=>({MILL_STAFF:'Mill Staff',OFFICE_STAFF:'Office Staff',HOME_STAFF:'Home Staff',DIRECTOR_REMUNERATION:'Director Remuneration',HOME_MONTHLY_GIVE:"Director's Home / Wife Payment"}[v]||v);
 const salaryCategories=()=>entity()==='TTI'?['MILL_STAFF','OFFICE_STAFF','HOME_STAFF','DIRECTOR_REMUNERATION','HOME_MONTHLY_GIVE']:['OFFICE_STAFF','HOME_STAFF','DIRECTOR_REMUNERATION','HOME_MONTHLY_GIVE'];

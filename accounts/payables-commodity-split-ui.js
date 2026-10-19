@@ -11,7 +11,7 @@ window.fetch=(input,init)=>{
     const raw=typeof input==='string'?input:(input?.url||'');
     if(method==='GET'&&raw.includes('payables_planning.php')){
       const focus=getFocus();
-      if(focus==='OTHER')return Promise.resolve(new Response(JSON.stringify({ok:true,entity:localStorage.getItem('tt_accounts_entity')||'TTI',commodity:'OTHER',asOf:new Date().toISOString().slice(0,10),funds:0,ladder:{rows:[],totalEligibleOutstanding:0},ageing:{},brokers:[],payables:[],unpostedReceipts:[]}),{status:200,headers:{'Content-Type':'application/json'}}));
+      if(focus==='OTHER')return Promise.resolve(new Response(JSON.stringify({ok:true,entity:localStorage.getItem('tt_accounts_entity')||'TTI',commodity:'OTHER',asOf:new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Karachi',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date()),funds:0,ladder:{rows:[],totalEligibleOutstanding:0},ageing:{},brokers:[],payables:[],unpostedReceipts:[]}),{status:200,headers:{'Content-Type':'application/json'}}));
       const u=new URL(raw,location.href);
       if(!u.searchParams.get('commodity'))u.searchParams.set('commodity',focus);
       input=typeof input==='string'?u.href:new Request(u.href,input);
