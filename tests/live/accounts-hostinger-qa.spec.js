@@ -540,6 +540,21 @@ test('read-only Exports and Milling loading, errors and Masters navigation', asy
           expect(await page.locator('#maizePaltai').isHidden()).toBe(paltai);
         }
         console.log('LIVE_MAIZE_REVIEW_DELIVERY_OK three routes, blank agreed rate, review function; no Save or financial action');
+        const loadingReport=await page.evaluate(()=>{
+          const ships=get(STORE_SHIP,[]),loads=get(STORE_EXLOAD,[]),sodas=exMillSodas(),before=JSON.stringify([ships,loads,sodas]),entity=String(stockEntityForView()).toUpperCase();
+          openPanel('reports');showReport('exportReport');
+          for(const id of ['exportReportFrom','exportReportTo'])document.getElementById(id).value='';
+          for(const [id,value] of [['exportReportBrand','All Brands'],['exportReportMill','All'],['exportReportSource','All'],['exportReportStatus','All']])document.getElementById(id).value=value;
+          renderExportReport();
+          const rendered=[...document.querySelectorAll('#exportReportBody tr')].map(r=>[...r.cells].map(c=>c.textContent));
+          const expected=[];
+          for(const s of ships){if(String(s.entity||'').trim().toUpperCase()!==entity)continue;const mill=[s.millName,s.locationName,s.mill,s.stockLocation].map(v=>String(v||'').trim()).find(Boolean);if(mill)for(const c of s.containers||[])expected.push({container:c.container,mill});}
+          for(const c of loads){const matches=sodas.filter(s=>String(s.id??'')!==''&&String(s.id)===String(c.sodaId??''));if(matches.length!==1)continue;const s=matches[0],mill=[s.millName,s.locationName,s.mill,s.stockLocation].map(v=>String(v||'').trim()).find(Boolean);if(mill&&String(s.entity||c.entity||'').trim().toUpperCase()===entity)expected.push({container:c.container,mill});}
+          return {currentRenderer:renderExportReport.toString().includes('load date not recorded or invalid'),expectedSources:expected.length,missing:expected.filter(e=>!rendered.some(r=>r[2]===String(e.container??'')&&r[1].startsWith(e.mill+' — '))).length,unchanged:before===JSON.stringify([get(STORE_SHIP,[]),get(STORE_EXLOAD,[]),exMillSodas()]),visible:document.getElementById('exportReport').classList.contains('hidden')===false};
+        });
+        expect(loadingReport.currentRenderer).toBe(true);expect(loadingReport.missing).toBe(0);expect(loadingReport.unchanged).toBe(true);expect(loadingReport.visible).toBe(true);
+        await expect(page.locator('#exportReport')).toBeVisible();
+        console.log('LIVE_EXPORT_LOADING_ORIGINAL_SCOPE_OK '+JSON.stringify({...loadingReport,sourceWrites:0}));
       }
       const body=await response.body();
       const metadata=await page.evaluate(()=>({
