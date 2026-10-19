@@ -1,0 +1,128 @@
+name: Hosting cache and source-matched live audit
+
+on:
+  pull_request:
+    paths: ['.github/workflows/hosting-cache-live-audit.yml', '.github/scripts/deployment_cache_audit*']
+  push:
+    branches: [main]
+    paths: ['.github/workflows/hosting-cache-live-audit.yml', '.github/scripts/deployment_cache_audit*']
+
+permissions:
+  contents: read
+
+jobs:
+  cache-boundary-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify cache deletion and probe boundaries in disposable storage
+        run: |
+          php -l .github/scripts/deployment_cache_audit.php
+          php .github/scripts/deployment_cache_audit_test.php
+
+  host-and-live-audit:
+    needs: cache-boundary-tests
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: live-qa
+    concurrency:
+      group: transtrade-production-deployment
+      cancel-in-progress: false
+    env:
+      HOSTINGER_HOST: ${{ secrets.HOSTINGER_HOST }}
+      HOSTINGER_PORT: ${{ secrets.HOSTINGER_PORT }}
+      HOSTINGER_USER: ${{ secrets.HOSTINGER_USER }}
+      HOSTINGER_DEPLOY_PATH: ${{ secrets.HOSTINGER_DEPLOY_PATH }}
+      AUDIT_SHA: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Configure verified host access
+        env:
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+          HOSTINGER_KNOWN_HOSTS: ${{ secrets.HOSTINGER_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -m 700 -d "$RUNNER_TEMP/ssh"
+          printf '%s\n' "$HOSTINGER_SSH_KEY" | tr -d '\r' > "$RUNNER_TEMP/ssh/key"
+          printf '%s\n' "$HOSTINGER_KNOWN_HOSTS" | tr -d '\r' > "$RUNNER_TEMP/ssh/known_hosts"
+          chmod 600 "$RUNNER_TEMP/ssh/key" "$RUNNER_TEMP/ssh/known_hosts"
+      - name: Classify a disposable 4KB write and remove only generated deployment caches
+        id: cache
+        run: |
+          set -euo pipefail
+          target_q=$(printf '%q' "$HOSTINGER_DEPLOY_PATH")
+          set +e
+          ssh -i "$RUNNER_TEMP/ssh/key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" -o StrictHostKeyChecking=yes -p "$HOSTINGER_PORT" "$HOSTINGER_USER@$HOSTINGER_HOST" "php /dev/stdin $target_q --cleanup" < .github/scripts/deployment_cache_audit.php > "$RUNNER_TEMP/storage-audit.json"
+          audit_status=$?
+          set -e
+          cat "$RUNNER_TEMP/storage-audit.json"
+          test "$audit_status" -eq 0
+          node -e 'const fs=require("fs"),r=JSON.parse(fs.readFileSync(process.env.RUNNER_TEMP+"/storage-audit.json","utf8"));if(!r.ok||!r.probeAfter.ok||!r.probeAfter.removed||!r.probeBefore.removed||r.cleanup.backupFilesTouched!==0||r.cleanup.businessFilesTouched!==0||!/^[a-f0-9]{40}$/.test(r.deployedSha))process.exit(1);fs.appendFileSync(process.env.GITHUB_ENV,"DEPLOYED_APP_SHA="+r.deployedSha+"\n");'
+      - name: Require identical application source before testing an already deployed release
+        id: source
+        run: |
+          set -euo pipefail
+          git cat-file -e "$DEPLOYED_APP_SHA^{commit}"
+          changes=$(git diff --name-only "$DEPLOYED_APP_SHA" HEAD -- . ':(exclude).github/**' ':(exclude)tests/**' ':(exclude)docs/**' ':(exclude)AGENTS.md')
+          if [ -n "$changes" ]; then
+            echo 'Application source differs from the deployed release; a real deployment is required.'
+            printf '%s\n' "$changes"
+            exit 1
+          fi
+          echo "APPLICATION_SOURCE_MATCHED=$DEPLOYED_APP_SHA"
+      - name: Verify a full release archive uploads with matching SHA-256
+        run: |
+          set -euo pipefail
+          case "$AUDIT_SHA" in *[!0-9a-f]*|'') exit 1 ;; esac
+          test "${#AUDIT_SHA}" -eq 40
+          tar --exclude='./.git' --exclude='./.github' --exclude='./tests' --exclude='./node_modules' --exclude='./data/*' --exclude='./uploads' --exclude='./storage' --exclude='./cache' --exclude='./logs' -czf "$RUNNER_TEMP/source-audit.tgz" .
+          remote_archive="${HOSTINGER_DEPLOY_PATH%/public_html}/.transtrade-deploy/incoming/release-$AUDIT_SHA.tgz"
+          scp -i "$RUNNER_TEMP/ssh/key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" -o StrictHostKeyChecking=yes -P "$HOSTINGER_PORT" "$RUNNER_TEMP/source-audit.tgz" "$HOSTINGER_USER@$HOSTINGER_HOST:$remote_archive"
+          expected=$(sha256sum "$RUNNER_TEMP/source-audit.tgz" | cut -d' ' -f1)
+          target_q=$(printf '%q' "$HOSTINGER_DEPLOY_PATH")
+          ssh -i "$RUNNER_TEMP/ssh/key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" -o StrictHostKeyChecking=yes -p "$HOSTINGER_PORT" "$HOSTINGER_USER@$HOSTINGER_HOST" bash -s -- "$HOSTINGER_DEPLOY_PATH" "$AUDIT_SHA" "$expected" <<'REMOTE'
+          set -euo pipefail
+          target=$1; sha=$2; expected=$3
+          case "$target" in /home/*/domains/app.transtradeinternational.com/public_html) ;; *) exit 1 ;; esac
+          case "$sha" in *[!0-9a-f]*|'') exit 1 ;; esac
+          test "${#sha}" -eq 40
+          archive="${target%/public_html}/.transtrade-deploy/incoming/release-$sha.tgz"
+          test -f "$archive" && test ! -L "$archive"
+          test "$(sha256sum "$archive" | cut -d' ' -f1)" = "$expected"
+          echo "FULL_ARCHIVE_UPLOAD_VERIFIED=$sha"
+          REMOTE
+      - name: Remove only this audit's generated upload
+        if: always() && steps.cache.outcome == 'success'
+        run: |
+          set -euo pipefail
+          ssh -i "$RUNNER_TEMP/ssh/key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" -o StrictHostKeyChecking=yes -p "$HOSTINGER_PORT" "$HOSTINGER_USER@$HOSTINGER_HOST" bash -s -- "$HOSTINGER_DEPLOY_PATH" "$AUDIT_SHA" <<'REMOTE'
+          set -euo pipefail
+          target=$1; sha=$2
+          case "$target" in /home/*/domains/app.transtradeinternational.com/public_html) ;; *) exit 1 ;; esac
+          case "$sha" in *[!0-9a-f]*|'') exit 1 ;; esac
+          test "${#sha}" -eq 40
+          archive="${target%/public_html}/.transtrade-deploy/incoming/release-$sha.tgz"
+          test ! -L "$archive"
+          rm -f "$archive"
+          echo 'AUDIT_UPLOAD_REMOVED'
+          REMOTE
+      - name: Install browser runtime
+        id: browser
+        if: always() && steps.cache.outcome == 'success' && steps.source.outcome == 'success'
+        run: |
+          npm install --no-save @playwright/test@1.63.0
+          npx playwright install --with-deps chromium
+      - name: Verify protected read-only application flows and original outputs
+        if: always() && steps.source.outcome == 'success' && steps.browser.outcome == 'success'
+        env:
+          TRANSTRADE_BASE_URL: https://app.transtradeinternational.com
+          TRANSTRADE_QA_USERNAME: ${{ secrets.TRANSTRADE_QA_USERNAME }}
+          TRANSTRADE_QA_PASSWORD: ${{ secrets.TRANSTRADE_QA_PASSWORD }}
+          PLAYWRIGHT_HTML_OPEN: never
+        run: npx playwright test tests/live/accounts-hostinger-qa.spec.js tests/live/deployed-reports-review.spec.js --reporter=line
