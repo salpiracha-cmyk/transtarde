@@ -17,7 +17,8 @@ foreach(['qaowner'=>['Super Admin',['Mill'=>'all','Accounts'=>'all','Directors'=
 'qamill'=>['Mill Operator',['Mill'=>['stock'=>$rw,'production'=>$rw,'export'=>$rw,'arrival'=>$rw,'queue'=>$rw,'newbags'=>$rw,'reports'=>['View']]]],
 'qaaccountswrite'=>['Accounts Writer',['Accounts'=>['reports'=>['View'],'expenses'=>['View','Create','Edit']]]],
 'qaaccounts'=>['Accounts Operator',['Accounts'=>['reports'=>['View'],'entity-tti'=>['View']]]],
-'qadirector'=>['Director',['Directors'=>['reports'=>['View']]]],
+'qadirector'=>['Director',[]],
+'qareports'=>['Auditor / Reports',['Directors'=>['reports'=>['View']]]],
 'qaexport'=>['Export Operator',['Exports'=>'all']],
 'qaview'=>['Mill Viewer',['Mill'=>['stock'=>['View'],'production'=>['View']]]]] as $name=>[$role,$p])
 $users[]=['id'=>1000+count($users),'username'=>$name,'full_name'=>$name,'role'=>$role,'permissions'=>$p,'active'=>true,'must_change_password'=>false,'password_hash'=>password_hash($pw,PASSWORD_DEFAULT),'master_access'=>false];
@@ -142,7 +143,8 @@ def run() -> None:
         check('<script id="milling-rice-ledger">' in module_html and '<script src="/milling/rice-ledger.js' not in module_html and 'window.TT_RICE_LEDGER={load,print,csv}' in module_html,'Rice Ledger is delivered through the actual authenticated module, not the denied Milling folder')
         c,html=request('qamill','/accounts/production-reports.php?entity=TTI');check(c==200 and '/module.php?id=milling' in html,'Mill report return uses the actual module route')
         c,html=request('qaaccounts','/accounts/production-reports.php?entity=TTI');check(c==200 and '/accounts/?return=production-report' in html,'Accounts report return retains Reports origin')
-        c,html=request('qadirector','/accounts/production-reports.php?entity=TTI');check(c==200 and '/directors/index.php' in html,'Director report returns to the authorized Directors module')
+        c,html=request('qadirector','/accounts/production-reports.php?entity=TTI');check(c==200 and '/accounts/?return=production-report' in html,'Full-access Director can return through Accounts')
+        c,html=request('qareports','/accounts/production-reports.php?entity=TTI');check(c==200 and '/directors/index.php' in html,'Granular reports-only user returns to the authorized Directors module')
         c,html=request('qaexport','/accounts/production-reports.php?entity=TTI');check(c==403,'Unrelated module cannot open the production report page')
         # Final current-shift entry contains no further ASAS: only 15,000kg remains unexplained.
         rows=json.loads(get()['values']['tt30prod']);rows.append({**pr,'id':11,'rawInputs':[{'grossKg':1000}],'shiftEntriesComplete':True,'rows':[{'product':'Ready Rice — OTHER','bags':20,'bagWeight':50}]})

@@ -542,7 +542,7 @@
     const id = document.getElementById("editUserId").value;
     const previous = state.users.find(item => item.id === id);
     const director = document.getElementById("userRole").value === "Director";
-    let permissions = JSON.parse(JSON.stringify(previous?.permissions || {}));
+    let permissions = JSON.parse(JSON.stringify(previous?.permissions && !Array.isArray(previous.permissions) ? previous.permissions : {}));
     const permissionInputs = [...document.querySelectorAll("#permissionMatrix input[data-permission-icon]")];
     // An unrelated user amendment must retain grants that this editor does not
     // represent, including historical module-wide and future screen grants.
@@ -560,7 +560,7 @@
       if (Object.keys(revised).length) permissions[module] = revised;
       else delete permissions[module];
     }
-    let masterPermissions = JSON.parse(JSON.stringify(previous?.masterPermissions || {}));
+    let masterPermissions = JSON.parse(JSON.stringify(previous?.masterPermissions && !Array.isArray(previous.masterPermissions) ? previous.masterPermissions : {}));
     document.querySelectorAll('#masterPermissionMatrix input[data-master-permission]').forEach(input => {
       const type = input.dataset.masterPermission;
       masterPermissions[type] = (masterPermissions[type] || []).filter(action => action !== input.value);
