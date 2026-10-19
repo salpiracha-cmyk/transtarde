@@ -175,7 +175,7 @@ button:not(.danger):not(.red):not(.xBtn):not(.optionMinus).active{
  .jvw,.jvw *,.am-box,.am-box *,#ttPartyInlineEditor,#ttPartyInlineEditor *{box-sizing:border-box}
  .jvw-line{grid-template-columns:34px minmax(230px,2.2fr) minmax(180px,2fr) minmax(100px,1fr) minmax(125px,1fr) minmax(125px,1fr)!important;align-items:start}
  .jvw-line>*{min-width:0;max-width:100%}.jvw-line>[type=hidden]{display:none!important}
- .jvw-line>.tt-row-remove-slot{grid-column:auto;align-self:start;padding-top:7px}
+ .jvw-line>.tt-row-remove-slot{grid-column:auto;align-self:start;padding-top:9px}
  .jvw-line .jvw-manage-party{min-height:28px;padding:4px 8px;font-size:11px;margin-top:5px}
  :is(#ttExpenseDesk,.jvw,.am-box,.tte,.ttrs,.ttrs-master-popup,#ttPartyInlineEditor) input:is([type=checkbox],[type=radio]){width:17px!important;height:17px!important;min-height:17px!important;max-width:17px;padding:0!important;flex:0 0 17px;margin:0!important;vertical-align:middle;accent-color:#16804a}
  #ttPartyInlineEditor{max-height:88vh;overflow:auto;background:#f7faf8}
@@ -192,7 +192,7 @@ button:not(.danger):not(.red):not(.xBtn):not(.optionMinus).active{
  :is(.am-grid,.jvw-line) :is(input:not([type=checkbox]):not([type=radio]),select,textarea){margin-top:0!important}
  .am-bank-header{grid-template-columns:1fr 1fr!important}
  .am-debit-row{grid-template-columns:30px minmax(150px,1.4fr) minmax(125px,1fr) minmax(125px,1fr) minmax(135px,1.1fr) minmax(150px,1.3fr) minmax(100px,.9fr)!important;align-items:start;padding:12px;gap:10px}
- .am-debit-row>.tt-row-remove-slot{grid-column:auto;align-self:start;margin-top:27px}
+ .am-debit-row>.tt-row-remove-slot{grid-column:auto;align-self:start;margin-top:45px}
  .am-debit-row [data-row-method]{min-height:44px;font-size:15px;padding:10px}
  .am-add-line,.ttrs-add-line{display:flex;justify-content:flex-start!important;margin-top:10px}
  .ttrs-month{justify-content:center!important;margin:12px auto 20px}.ttrs-month input{min-height:42px;max-width:240px}
