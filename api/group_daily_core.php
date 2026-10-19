@@ -54,7 +54,7 @@ function gd_clean_config(array $config):array {
     }
     return ['buckets'=>$out];
 }
-function gd_sources(array $books,array $ops,string $date):array {
+function gd_sources(array $books,array $ops,string $date,bool $includeAncillary=true):array {
     gm_date($date);$values=(array)($ops['values']??[]);$holds=[];$purchase=[];$numberIndex=[];
     foreach(['purchaseSodas','purchaseSodasV2'] as $collection)foreach((array)($books[$collection]??[]) as $id=>$soda){
         if(!is_array($soda))throw new DomainException('A saved purchase Soda is invalid.');
@@ -116,9 +116,11 @@ function gd_sources(array $books,array $ops,string $date):array {
     foreach($sales as &$row){$row['loadedMT']=round($row['loadedMT'],6);$row['outstandingMT']=$row['loadedKnown']&&$row['contractedMT']>0?($row['closed']?0.:max(0,$row['contractedMT']-$row['loadedMT'])):null;}unset($row);
 
     $stock=[];$scopes=[];$safe=$values;
+    if($includeAncillary){
     foreach(array_slice(TT_INV_SOURCE_KEYS,0,6) as $key){$safeRows=[];foreach(gd_rows($values,$key) as $row){$entity=strtoupper((string)($row['entity']??''));$mill=trim((string)($row['millName']??$row['locationName']??$row['mill']??''));$rid=$key.'|'.(string)($row['id']??'');if(!in_array($entity,['TTI','BRM'],true)||$mill===''){gd_hold($holds,$rid,'Confirm physical stock owner and location; no default company or mill was assumed.');continue;}$safeRows[]=$row;$scopes[$entity.'|'.$mill]=['entity'=>$entity,'millName'=>$mill];}$safe[$key]=json_encode($safeRows,JSON_THROW_ON_ERROR);}
     foreach($scopes as $scope){$ledger=rl_report($safe,$scope,['from'=>'','to'=>$date,'product'=>'','movement'=>'All']);foreach($ledger['summaries'] as $row){$id='STOCK|'.substr(hash('sha256',$scope['entity'].'|'.$scope['millName'].'|'.$row['product']),0,24);$role=in_array(strtoupper(trim($row['product'])),['B2','B3','CSR','B2CSR','POWDER','WASTE','OTHER'],true)?'byproduct':(preg_match('/\bRAW\b|\b(?:CORN|MAIZE|MAKAI)\b/i',$row['product'])?'raw':'finished');$stock[$id]=['id'=>$id]+$scope+['role'=>$role,'product'=>$row['product'],'quantityMT'=>$row['closingKg']/1000,'known'=>$row['undatedCount']===0&&!$row['provisional'],'status'=>$row['status']];if(!$stock[$id]['known'])gd_hold($holds,$id,'Undated or inferred stock cannot become verified usable stock.');}}
-    $source=['asOf'=>$date,'purchaseOrders'=>array_values($purchase),'salesContracts'=>array_values($sales),'stocks'=>array_values($stock),'financials'=>gm_financial_source($books,$date),'holds'=>array_values($holds),'operationsRevision'=>(int)($ops['revision']??0),'operationsVersions'=>(array)($ops['versions']??$ops['meta']??[]),'sourceBackend'=>(string)($ops['sourceBackend']??'supplied'),'accountsRevision'=>(int)($books['revision']??0),'basis'=>'Original committed quantities through the selected date, using current saved contract versions. Review historical amendments and every missing source; no opening quantity is inferred.'];
+    }
+    $source=['asOf'=>$date,'purchaseOrders'=>array_values($purchase),'salesContracts'=>array_values($sales),'stocks'=>array_values($stock),'financials'=>$includeAncillary?gm_financial_source($books,$date):[],'holds'=>array_values($holds),'operationsRevision'=>(int)($ops['revision']??0),'operationsVersions'=>(array)($ops['versions']??$ops['meta']??[]),'sourceBackend'=>(string)($ops['sourceBackend']??'supplied'),'accountsRevision'=>(int)($books['revision']??0),'basis'=>'Original committed quantities through the selected date, using current saved contract versions. Review historical amendments and every missing source; no opening quantity is inferred.'];
     $source['fingerprint']=hash('sha256',json_encode($source,JSON_THROW_ON_ERROR));return $source;
 }
 

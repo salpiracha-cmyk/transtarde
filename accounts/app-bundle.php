@@ -30,6 +30,7 @@ $files = [
     'donations-ui.js',
     'expenses-v1-ui.js',
     'mill-liabilities-ui.js',
+    'mill-reference-ui.js',
     'expense-desk-ui.js',
     'jv-workflow-ui.js',
     'jv-notices-ui.js',

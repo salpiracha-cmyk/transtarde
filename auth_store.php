@@ -870,6 +870,7 @@ function tt_user_can_director_approve(array $user): bool {
 /** Route ownership is server-defined; company grants never substitute for an icon. */
 function tt_api_write_grants(string $endpoint,array $body): ?array {
     if($endpoint==='group_management.php'){$origin=($_GET['origin']??'accounts')==='directors'?'Directors':'Accounts';$kind=strtoupper((string)($body['kind']??$_GET['kind']??'CASHFLOW'));$icon=$kind==='ZAKAT'?'zakat':($kind==='COSTING'?'costing':'group-reports');return [[$origin,$icon,'Create'],[$origin,$icon,'Edit']];}
+    if($endpoint==='mill_reference_reconciliation.php')return [['Accounts','expenses','Edit']];
     if($endpoint==='bag_transfers.php')return [['Mill','newbags','Create']];
     if($endpoint==='mill_source_amend.php')return [['Mill',($body['collection']??'')==='tt38reprocessbills'?'reprocessbill':'labour','Edit']];
     if(in_array($endpoint,['bank_entries.php','accounts_subaccounts.php'],true)){$right=($body['action']??'')==='reverse'?'Edit':(($body['operation']??'add')==='delete'?'Delete':(in_array($body['operation']??'add',['edit','move_head'],true)?'Edit':'Create'));return [['Accounts',$endpoint==='bank_entries.php'?'cashbank':'masters',$right]];}

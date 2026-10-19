@@ -2,6 +2,7 @@
 declare(strict_types=1);
 require dirname(__DIR__).'/auth_store.php';
 require_once __DIR__.'/mill_liabilities_core.php';
+require_once __DIR__.'/mill_reference_core.php';
 require_once __DIR__.'/mill_liabilities_store.php';
 define('TT_SETTLEMENTS_FUNCTIONS_ONLY',true);
 require_once __DIR__.'/supplier_settlements.php';
@@ -47,7 +48,12 @@ try {
             }
             $result[]=['collection'=>$record['sourceCollection'],'sourceId'=>(string)$record['sourceRecordId'],'entity'=>$entity,'millName'=>$mill,'status'=>$status,'postId'=>(string)($journal['meta']['publicPostId']??$record['journalId']??''),'reversalPostId'=>(string)($record['reversalJournalId']??''),'postedAmount'=>(float)$record['amount'],'outstanding'=>$outstanding,'sourceNeedsReview'=>$changed];
         }
+        if($labour)foreach(mref_policies() as $kind=>$collection)foreach(ml_rows($values,$collection) as $r){
+            if(!is_array($r)||($r['entity']??'')!==$entity||ml_name((string)($r['millName']??''))!==ml_name($mill))continue;
+            $status=['status'=>'Needs source review'];try{$source=mref_source($values,$masters,$entity,$kind,(string)($r['id']??''));$status=mref_status($store,$source);}catch(DomainException $e){$status['blocker']=$e->getMessage();}
+            $result[]=['collection'=>$collection,'sourceId'=>(string)($r['id']??''),'entity'=>$entity,'millName'=>$mill,'referenceKind'=>$kind,'status'=>$status['status'],'postId'=>$status['target']['journalId']??'','postedAmount'=>$status['target']['amount']??null,'outstanding'=>$status['target']['remaining']??null,'sourceNeedsReview'=>in_array($status['status'],['Needs source review','Needs reconciliation'],true),'blocker'=>$status['blocker']??''];
+        }
         return $result;
-    });
+    },array_values(mref_policies()));
     mls_out(['ok'=>true,'entity'=>$entity,'millName'=>$mill,'rows'=>$rows,'checkedAt'=>gmdate('c')]);
 } catch (Throwable $e) {error_log('Mill liability status: '.$e->getMessage());mls_out(['ok'=>false,'error'=>'Accounts status could not be verified. No posting is assumed.'],500);}

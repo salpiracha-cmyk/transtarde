@@ -31,6 +31,8 @@ jobs:
           php tests/accounts-v1/group_management_test.php
           php tests/accounts-v1/group_zakat_payments_test.php
           php tests/accounts-v1/group_daily_test.php
+          php tests/accounts-v1/commodity_quantity_test.php
+          python3 tests/accounts-v1/commodity_quantity_endpoint_test.py
           php tests/accounts-v1/group_pending_remittances_test.php
           python3 tests/accounts-v1/group_management_endpoint_test.py
           python3 tests/accounts-v1/group_daily_endpoint_test.py
@@ -47,6 +49,7 @@ jobs:
           php tests/accounts-v1/mill_liabilities_test.php
           php tests/accounts-v1/mill_liability_cost_sources_test.php
           python3 tests/accounts-v1/mill_liabilities_endpoint_test.py
+          python3 tests/accounts-v1/mill_reference_endpoint_test.py
           python3 tests/accounts-v1/arrival_withdrawal_test.py
           node tests/accounts-v1/production_source_save_test.js
           node tests/accounts-v1/mill_source_save_test.js
@@ -240,6 +243,7 @@ jobs:
           node tests/accounts-v1/rice_ledger_ui_test.js
           node tests/accounts-v1/mill_report_entry_scope_test.js
           node tests/accounts-v1/mill_reference_scope_test.js
+          node tests/accounts-v1/mill_reference_ui_test.js
           node tests/accounts-v1/mill_bag_ledger_scope_test.js
           node tests/accounts-v1/mill_bag_identity_read_test.js
           node tests/accounts-v1/used_bag_scope_test.js
@@ -264,6 +268,7 @@ jobs:
           node tests/accounts-v1/tg_pending_fi_ui_test.js
           python3 tests/accounts-v1/tg_pending_fi_endpoint_test.py
           node tests/accounts-v1/report_filter_drilldown_test.js
+          node tests/accounts-v1/commodity_quantity_ui_test.js
           node tests/accounts-v1/sales_tax_output_ui_test.js
           node tests/accounts-v1/group_management_ui_test.js
           node tests/accounts-v1/group_daily_ui_test.js

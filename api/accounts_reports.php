@@ -172,6 +172,17 @@ try {
         }
     }
 
+    $zakat=gm_zakat_payments($store,$from,$asOf,$entity);
+    $zakatBookNet=round((float)($periodBalances['7210']??0),2);
+    $zakatControlNet=round((float)($balances['7210']??0),2);
+    $zakatAllPaid=gm_zakat_payments($store,'0001-01-01',$asOf,$entity);
+    // Presentation follows actual payments, not the chart's legacy Expense label.
+    // Never create a balancing figure or alter original opening/payment journals.
+    if(isset($periodBalances['7210'])||$zakat['rows']||$zakat['warnings'])$periodBalances['7210']=$zakat['totalPKR'];
+    $zakatClassificationComplete=abs($zakatControlNet-$zakatAllPaid['totalPKR'])<.005&&!$zakatAllPaid['warnings'];
+    $statementWarnings=$zakat['warnings'];
+    $balanceSheetWarnings=$zakatClassificationComplete?[]:['Zakat 7210 includes unpaid or opening control amounts. This is the original posted-books balance sheet; reconcile the annual control and its approved counterpart before finalising its classification. No reclassification journal or balancing equity has been assumed.'];
+
     $income = [];
     $expenses = [];
     $profit = 0.0;
@@ -184,7 +195,7 @@ try {
             $profit += $amount;
         } elseif ($class === 'Expense' || in_array((string)$code, ['7100','7195'], true)) {
             $amount = round($net, 2);
-            $expenses[] = ['account' => $code, 'name' => (string)($account['name'] ?? $code), 'amount' => $amount];
+            $expenses[] = ['account' => $code, 'name' => (string)($account['name'] ?? $code), 'amount' => (string)$code==='7210'&&$zakat['warnings']?null:$amount];
             $profit -= $amount;
         }
     }
@@ -241,9 +252,13 @@ try {
         'profitAndLoss' => [
             'income' => $income,
             'expenses' => $expenses,
-            'profit' => round($profit, 2),
+            'profit' => $zakat['warnings']?null:round($profit, 2),
+            'warnings' => $statementWarnings,
         ],
+        'zakatReporting' => ['basis'=>'Actual paid Zakat less verified refunds; unpaid assessments and financial opening balances are excluded from expense.','bookNetPeriod'=>$zakatBookNet,'paidExpense'=>$zakat['warnings']?null:$zakat['totalPKR'],'verifiedPaidSubtotal'=>$zakat['totalPKR'],'paymentRows'=>$zakat['rows'],'warnings'=>$statementWarnings,'controlBookNet'=>$zakatControlNet,'classificationComplete'=>$zakatClassificationComplete],
         'balanceSheet' => [
+            'classificationComplete' => $zakatClassificationComplete,
+            'warnings' => $balanceSheetWarnings,
             'assets' => $assets,
             'liabilities' => $liabilities,
             'equity' => $equity,

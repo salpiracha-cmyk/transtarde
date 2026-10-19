@@ -29,6 +29,26 @@ define('TT_DATA_DIR',__DIR__.'/data');function tt_require_login(){return ['role'
   status,later=req('2026-10-01');assert status==200 and later['profitAndLoss']['profit']==0 and later['balanceSheet']==d['balanceSheet'],'Period profit must not replace cumulative balance-sheet earnings'
   assert d['generalLedger'] and later['generalLedger']==[],'Period GL and commodity activity must exclude prior-period postings without changing cumulative balances'
   assert path.read_bytes()==before,'Financial report must never write a balancing entry'
+  # Opening allocation is not a negative expense. Only original payouts/refunds count.
+  base=json.loads(json.dumps(books))
+  opening=journal('Z-OPEN',[line('3400',852747),line('7210',cr=852747)],'2026-07-01');opening['sourceType']='OPENING_BALANCE_BF'
+  payment=journal('Z-PAID',[line('7210',103350),line('1120',cr=103350)])
+  refund=journal('Z-REFUND',[line('1120',100),line('7210',cr=100)])
+  unpaid=journal('Z-UNPAID',[line('7210',50),line('2140',cr=50)])
+  foreign=journal('Z-FOREIGN',[line('7210',999999),line('1120',cr=999999)]);foreign['entity']='BRM'
+  books['journals'].update({j['id']:j for j in [opening,payment,refund,unpaid,foreign]});path.write_text(json.dumps(books));zbefore=path.read_bytes()
+  status,z=req('2026-07-01');assert status==200,z
+  assert next(x for x in z['profitAndLoss']['expenses'] if str(x['account'])=='7210')['amount']==103250
+  assert abs(z['profitAndLoss']['profit']-(296268.82-103250))<.005,z
+  assert not z['balanceSheet']['classificationComplete'] and z['balanceSheet']['warnings']
+  assert z['zakatReporting']['paidExpense']==103250 and z['zakatReporting']['controlBookNet']==-749447
+  assert {x['journalId'] for x in z['expenseActivity'] if str(x['account'])=='7210'}=={'Z-PAID','Z-REFUND'}
+  assert sum(x['amount'] for x in z['expenseActivity'] if str(x['account'])=='7210')==103250
+  assert path.read_bytes()==zbefore,'Paid-basis presentation must never reclassify or duplicate journals'
+  mixed=journal('Z-MIXED',[line('7210',100),line('1120',cr=50),line('2140',cr=50)])
+  books['journals']['Z-MIXED']=mixed;path.write_text(json.dumps(books));status,z=req();assert z['profitAndLoss']['profit'] is None and z['zakatReporting']['paidExpense'] is None and 'Z-MIXED' in ' '.join(z['profitAndLoss']['warnings'])
+  bad=journal('Z-BAD',[line('7210',100),line('1120',cr=90)]);books['journals']['Z-BAD']=bad;path.write_text(json.dumps(books));assert 'Z-BAD' in ' '.join(req()[1]['profitAndLoss']['warnings'])
+  books=base;path.write_text(json.dumps(books))
   # Unrecognised accounts remain visible as a concrete review, never hidden by a balancing figure.
   books['journals']['UNKNOWN']=journal('UNKNOWN',[line('1110',5),line('9998',cr=5)]);path.write_text(json.dumps(books));unknown_before=path.read_bytes();status,unknown=req();assert status==200 and unknown['dataQuality']['unclassifiedBalances']==[{'account':'9998','name':'9998','class':'Other','net':-5}]
   assert path.read_bytes()==unknown_before
