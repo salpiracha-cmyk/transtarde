@@ -1,6 +1,18 @@
 <?php
 declare(strict_types=1);
 
+/** Current payment-choice balances exclude future or malformed journal dates. */
+function tt_accounts_balance_date(?string $asOf=null): string {
+    $date=$asOf??(new DateTimeImmutable('now',new DateTimeZone('Asia/Karachi')))->format('Y-m-d');
+    $parsed=DateTimeImmutable::createFromFormat('!Y-m-d',$date);
+    if(!$parsed||$parsed->format('Y-m-d')!==$date)throw new InvalidArgumentException('Select a valid bank balance date.');
+    return $date;
+}
+function tt_accounts_journal_as_of(array $journal,string $entity,string $date): bool {
+    $day=(string)($journal['date']??'');$parsed=DateTimeImmutable::createFromFormat('!Y-m-d',$day);
+    return ($journal['status']??'')==='Posted'&&($journal['entity']??'')===$entity&&$parsed&&$parsed->format('Y-m-d')===$day&&$day<=$date;
+}
+
 function tt_accounts_bank_payment_details(array $input): array {
     if(str_starts_with((string)($input['paymentAccountId']??''),'CARD|'))return [];
     $method=trim((string)($input['bankPaymentMethod']??''));
