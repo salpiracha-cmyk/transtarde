@@ -119,13 +119,37 @@ function sac_master(array &$s,string $e,array $b,array $u):array {
  }
  $s['accountSubaccounts'][$id]=$a;$s['subaccountAudit'][]=['id'=>$id,'entity'=>$e,'operation'=>$op,'before'=>$old,'after'=>$a,'at'=>gmdate('c'),'by'=>$u['username']??''];return ['subaccountId'=>$id];
 }
+/** Classify saved tax facts without changing journals or consulting today's masters. */
+function sac_tax_category(array $state,array $journal,array $line,array $seen=[]):string {
+ foreach([$line['taxCategory']??null,$journal['meta']['taxCategory']??null] as $saved)if($saved!==null)return (string)$saved;
+ $id=(string)($journal['id']??'');if(isset($seen[$id])||count($seen)>=16)return 'OTHER';$seen[$id]=true;
+ $originalId=(string)($journal['reversalOf']??$journal['meta']['reversalOf']??'');
+ if($originalId!==''){
+  $original=$state['journals'][$originalId]??null;$categories=[];
+  if(is_array($original)&&($original['entity']??'')===($journal['entity']??'')&&($original['status']??'')==='Posted'){
+   // A generic cancellation may have discarded the source metadata. Inherit only
+   // from exact opposite tax lines in the explicitly linked original company.
+   foreach((array)($original['lines']??[]) as $old)if(is_array($old)&&(string)($old['account']??'')===(string)($line['account']??'')&&(string)($old['subaccountId']??'')===(string)($line['subaccountId']??'')&&(int)round((float)($old['debit']??0)*100)===(int)round((float)($line['credit']??0)*100)&&(int)round((float)($old['credit']??0)*100)===(int)round((float)($line['debit']??0)*100))$categories[sac_tax_category($state,$original,$old,$seen)]=true;
+  }
+  return count($categories)===1?(string)array_key_first($categories):'OTHER';
+ }
+ $source=(string)($journal['meta']['originalSourceType']??$journal['sourceType']??'');$meta=(array)($journal['meta']??[]);$code=(string)($line['account']??'');
+ if($code==='2300'){
+  if($source==='BROKERAGE_WHT_DEPOSIT')return 'BROKERAGE';
+  $withheld=$source==='COMMODITY_BILL_VERIFIED'?(float)($meta['brokerageWithholding']??0):0.;
+  if(in_array($source,['SUPPLIER_PAYMENT','SUPPLIER_CHEQUE_ISSUED'],true))foreach((array)($meta['allocations']??[]) as $allocation)if(is_array($allocation))$withheld+=(float)($allocation['brokerageWht']??0);
+  if($withheld>0&&(int)round($withheld*100)===(int)round(((float)($line['credit']??0)-(float)($line['debit']??0))*100))return 'BROKERAGE';
+ }
+ if(($meta['bankDirectType']??$meta['bankEntryType']??'')==='SAVING_PROFIT')return 'SAVINGS';
+ return str_contains($source,'EXPORT')?'EXPORT':'OTHER';
+}
 function sac_tax_entries(array $state,string $entity,string $from='',string $to=''):array {
  $rows=[];
  foreach((array)($state['journals']??[]) as $id=>$journal){
   if(!is_array($journal)||($journal['entity']??'')!==$entity||($journal['status']??'')!=='Posted')continue;
   $date=(string)($journal['date']??'');if(!preg_match('/^(\d{4})-(\d{2})-(\d{2})$/',$date,$parts)||!checkdate((int)$parts[2],(int)$parts[3],(int)$parts[1])||($from!==''&&$date<$from)||($to!==''&&$date>$to))continue;
   foreach((array)($journal['lines']??[]) as $index=>$line){$code=(string)($line['account']??'');if(!in_array($code,['1260','2300'],true))continue;
-   $category=(string)($line['taxCategory']??$journal['meta']['taxCategory']??(($journal['meta']['bankDirectType']??'')==='SAVING_PROFIT'?'SAVINGS':(str_contains($journal['sourceType']??'','EXPORT')?'EXPORT':'OTHER')));
+   $category=sac_tax_category($state,$journal,$line);
    $rows[]=['journalId'=>(string)($journal['id']??$id),'postId'=>tt_accounts_public_post($state,$journal),'lineIndex'=>$index,'date'=>$date,'entity'=>$entity,'currency'=>$entity==='TG'?'AED':'PKR','head'=>$code,'treatment'=>$code==='1260'?'Recoverable':'Payable','category'=>$category,'subaccountId'=>(string)($line['subaccountId']??''),'subaccountName'=>(string)($line['subaccountName']??''),'party'=>(string)($line['counterparty']??$line['subledger']??$line['partyName']??$journal['meta']['customer']??''),'reference'=>(string)($journal['reference']??''),'narration'=>(string)($journal['narration']??''),'debit'=>round((float)($line['debit']??0),2),'credit'=>round((float)($line['credit']??0),2),'reversalOf'=>(string)($journal['reversalOf']??'')];
   }
  }

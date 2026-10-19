@@ -400,3 +400,8 @@ Online Banking payments expose an editable payment date, defaulting from the vou
 - Derive access from the current server-authenticated role. Never set the Super Admin flag or grant owner Console, user/password administration, security/AI-provider configuration, backups/restores, module locks or permanent source/master purges. Retain controlled bank-deletion approval and opening-period lock rules.
 - Preserve original custom staff scopes separately from derived role access. Changing away from Director restores the custom form choices, and the next authenticated request uses the saved lower role; do not leave synthetic all-grants behind. Ordinary staff and managed read-only QA restrictions remain unchanged.
 - Full business access still requires valid source ownership, balanced accounting, CSRF, explicit reasons/decisions, retry protection and immutable history. It never auto-approves a pending bill, posts a payment or invents stock.
+
+## Withholding source categories and reversals
+
+- WHT report, print and CSV share the same committed source projection. Explicit saved line/journal categories take priority over current masters. Buying Brokery withholding and Brokerage WHT deposits retain Brokerage classification from exact native source evidence.
+- A generic reversal inherits a tax category only through its explicit link to matching opposite tax lines in the same company's posted original. Preserve the reversal's own date, amounts and audit identity. Missing, conflicting or ambiguous originals must not acquire a guessed category. Reporting never rewrites historic journals or creates another posting.
