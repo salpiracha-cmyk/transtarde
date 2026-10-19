@@ -307,9 +307,11 @@ def main():
         destination = Path(config.get('backupDestination') or config.get('destination')).expanduser().resolve()
         state_path = args.config.with_name('office-backup-state.json')
         state = json.loads(state_path.read_text(encoding='utf-8')) if state_path.exists() else {}
-        age = time.time() - float(state.get('last_success', 0))
+        now = time.time()
+        last_success = float(state.get('last_success', 0))
+        same_day = datetime.fromtimestamp(now, timezone.utc).date() == datetime.fromtimestamp(last_success, timezone.utc).date()
         last_file = destination / 'Daily' / Path(str(state.get('last_file', ''))).name
-        if not args.force and 0 <= age < 86400 and last_file.is_file():
+        if not args.force and last_success <= now and same_day and last_file.is_file():
             print('Daily backup is current.'); return 0
         for attempt in range(3):
             try:

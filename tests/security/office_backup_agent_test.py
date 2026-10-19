@@ -31,6 +31,7 @@ class FakeResponse(io.BytesIO):
 class OfficeAgentTest(unittest.TestCase):
     def test_daily_schedule_and_missing_local_copy(self):
         for age, exists, force, pulls in [(3600, True, False, 0),
+                                          (23 * 3600, True, False, 1),
                                           (2 * 86400, True, False, 1),
                                           (3600, False, False, 1),
                                           (-3600, True, False, 1),
