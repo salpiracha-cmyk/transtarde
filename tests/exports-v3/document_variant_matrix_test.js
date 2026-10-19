@@ -36,6 +36,11 @@ try{
   // Every actual container must appear once in each packing list, including a
   // 30-container lot that needs multiple physical pages.
   for(const name of ['packing'])for(const row of s.millActuals)assert.equal(docs[name].split(row.number).length-1,1,name+' keeps each actual container exactly once');
+  const packing=w.document.createElement('div');packing.innerHTML=docs.packing;
+  assert.equal(packing.querySelectorAll('.docPage').length,count===30?4:1,'Packing rows paginate without losing a container');
+  assert(packing.textContent.includes((count*27000).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})+' KGS'),'Packing net weight equals original actuals');
+  assert(packing.textContent.includes((count*27000/size).toLocaleString()+' BAGS'),'Packing packages equal original bag size and actuals');
+  for(const gd of s.customs.gdRefs)assert(docs.customInvoice.includes(gd.number),'Customs output retains every saved GD number');
   const folder=t.shipmentFolderDocuments(s,c);assert(folder.some(row=>row.key==='commercial'));assert(folder.some(row=>row.key==='packing'));
   assert.equal(JSON.stringify({c,s}),before,'Document generation never changes its original sources');cases++;
  }
