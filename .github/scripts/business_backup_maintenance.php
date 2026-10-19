@@ -7,6 +7,10 @@ $private=dirname($target).'/transtrade_private';$deploy=dirname($target).'/.tran
 foreach([$target,$private,$deploy,$private.'/backups']as$p)if(!is_dir($p)||is_link($p)||realpath($p)!==$p)throw new RuntimeException('Unsafe directory');
 $library=base64_decode('__BACKUP_LIBRARY_BASE64__',true);$expected='__OLD_LIBRARY_SHA256__';$newHash='__NEW_LIBRARY_SHA256__';
 if(!is_string($library)||!hash_equals($newHash,hash('sha256',$library)))throw new RuntimeException('Package mismatch');
+$migration=base64_decode('__MIGRATION_SOURCE_BASE64__',true);$migrationOld='__OLD_MIGRATION_SHA256__';$migrationNew='__NEW_MIGRATION_SHA256__';
+if(!is_string($migration)||!hash_equals($migrationNew,hash('sha256',$migration)))throw new RuntimeException('Migration package mismatch');
+$migrationLive=$target.'/scripts/migrate_master_permissions.php';
+if(!is_file($migrationLive)||is_link($migrationLive)||!in_array(hash_file('sha256',$migrationLive),[$migrationOld,$migrationNew],true)||is_link($target.'/scripts'))throw new RuntimeException('Live migration changed; refusing overwrite');
 $live=$target.'/backup_lib.php';if(!is_file($live)||is_link($live)||!in_array(hash_file('sha256',$live),[$expected,$newHash],true))throw new RuntimeException('Live library changed; refusing overwrite');
 $work=$deploy.'/business-backup-maintenance';if(is_link($work)||(!is_dir($work)&&!mkdir($work,0700)))throw new RuntimeException('Unsafe maintenance directory');
 if(realpath($work)!==$work)throw new RuntimeException('Unsafe maintenance path');
@@ -24,6 +28,12 @@ $rollback=$work.'/previous-'.$expected.'.php';if(!file_exists($rollback)&&hash_f
 $tmp=$target.'/.backup-lib-policy-'.bin2hex(random_bytes(6)).'.tmp';
 try{if(file_put_contents($tmp,$library,LOCK_EX)!==strlen($library)||!hash_equals($newHash,hash_file('sha256',$tmp)))throw new RuntimeException('Cannot prepare library');chmod($tmp,0644);if(!rename($tmp,$live))throw new RuntimeException('Cannot install library');}finally{if(is_file($tmp))unlink($tmp);}
 echo 'BACKUP_LIBRARY_INSTALLED sha256='.$newHash."\n";
+$migrationRollback=$work.'/migration-previous-'.$migrationOld.'.php';
+if(!file_exists($migrationRollback)&&hash_file('sha256',$migrationLive)===$migrationOld){if(!copy($migrationLive,$migrationRollback))throw new RuntimeException('Cannot preserve previous migration');chmod($migrationRollback,0600);}
+$migrationTmp=$target.'/scripts/.master-permission-policy-'.bin2hex(random_bytes(6)).'.tmp';
+try{if(file_put_contents($migrationTmp,$migration,LOCK_EX)!==strlen($migration)||!hash_equals($migrationNew,hash_file('sha256',$migrationTmp)))throw new RuntimeException('Cannot prepare migration');chmod($migrationTmp,0644);if(!rename($migrationTmp,$migrationLive))throw new RuntimeException('Cannot install migration');}finally{if(is_file($migrationTmp))unlink($migrationTmp);}
+echo 'NOOP_MIGRATION_FIX_INSTALLED sha256='.$migrationNew."\n";
+
 // Snapshot creation takes the normal shared auth/operations locks, verifies
 // every recovery payload before committing, then applies bounded retention.
 $name=tt_create_server_snapshot('manual');$manifest=tt_backup_verified_server_snapshot($name);

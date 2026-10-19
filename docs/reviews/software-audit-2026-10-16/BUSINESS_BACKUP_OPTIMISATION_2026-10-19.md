@@ -26,7 +26,7 @@ regular files with managed generated names and a readable Transtrade server
 manifest qualify for rotation; unknown files, symlinks and unreadable archives
 are held. Existing other recovery copies in the private tree remain untouched.
 
-The protected production maintenance installs only backup_lib.php, guarded by
+The protected production maintenance installs only backup_lib.php and the completed-migration no-op fix, guarded by
 exact old/new hashes, preserving the previous exact library. It uses the same
 backup/auth/operations locks, creates a full manual compressed snapshot and
 checks every payload against the manifest before committing and rotating older
@@ -36,6 +36,12 @@ may remove only generated .snapshot-16hex.tmp files whose mtime and ctime are bo
 more than24hours old. Other temporary files are held. The same stale-temp rule runs under the exclusive
 job lock during future snapshot creation, preventing abandoned partial copies
 from accumulating after process termination.
+
+The master-permission deployment migration previously copied the full auth store
+before checking that schema2 was already applied. The new early no-op path avoids
+both another full migration copy and an unnecessary store rewrite, preserving
+existing effective permissions. A real disposable-store CLI repeat test verifies
+zero backup creation and byte-identical security data across two runs.
 
 Validation: existing complete/encrypted/server backup restore tests and new
 compressed/legacy byte-exact restore, corruption refusal and retention-bucket
