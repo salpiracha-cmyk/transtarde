@@ -96,7 +96,7 @@ try{
 
     file_put_contents(TT_DATA_DIR.'/operations.json',json_encode(['revision'=>2,'values'=>[],'meta'=>[]],JSON_THROW_ON_ERROR));
     for($i=0;$i<14;$i++)tt_create_server_snapshot('manual');
-    backup_expect(count(glob(tt_backup_dir().'/manual-*.zip')?:[])===12,'Manual server snapshots must have a finite retention limit.');
+    backup_expect(count(glob(tt_backup_dir().'/manual-*.zip')?:[])===3,'Manual server snapshots must have a finite retention limit.');
     $healthy=tt_backup_status();
     backup_expect(($healthy['backupHealthy']??false)===true&&(int)($healthy['consecutiveFailures']??-1)===0,'A verified snapshot must clear the prior failure state.');
     backup_expect(count(glob(TT_DATA_DIR.'/backup_state.json.tmp-*')?:[])===0,'Atomic backup state writes must not leave temporary files.');
