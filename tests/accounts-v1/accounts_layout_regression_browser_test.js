@@ -59,7 +59,10 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium}=require('
  await page.locator('#rsAdvanceKind').selectOption('PAID');assert.equal(await details.isVisible(),true);assert.equal(await details.locator('[data-reference]').inputValue(),'UNSAVED-CHEQUE');
  await page.locator('#rsAdvanceAccount').selectOption('CASH|TTI');assert.equal(await details.isVisible(),false);
  await page.locator('#rsAdvanceAccount').selectOption('B1');assert.equal(await details.isVisible(),true);
- await page.setViewportSize({width:390,height:844});assert.equal(await page.locator('.ttrs').evaluate(el=>el.scrollWidth<=el.clientWidth+2),true,'Salary advance form fits mobile');
+ await page.setViewportSize({width:390,height:844});
+ const salaryMobile=await page.locator('.ttrs').evaluate(el=>({width:el.clientWidth,scroll:el.scrollWidth,overflow:[...el.querySelectorAll('*')].filter(n=>n.getBoundingClientRect().right>el.getBoundingClientRect().right+2).slice(0,12).map(n=>({tag:n.tagName,cls:n.className,text:n.textContent.slice(0,35),width:n.getBoundingClientRect().width}))}));
+ assert(salaryMobile.scroll<=salaryMobile.width+2,'Salary advance form fits mobile: '+JSON.stringify(salaryMobile));
+ assert.equal(await page.locator('.ttrs-table-wrap').evaluate(el=>getComputedStyle(el).overflowX),'auto','Advance history scrolls independently when wider than a mobile screen');
  assert.equal(await page.evaluate(()=>posted.length),writesBefore,'Changing payment/opening controls makes no posting');
  await page.setViewportSize({width:1440,height:1000});
  await page.evaluate(()=>{document.querySelector('#ws-jv').classList.remove('active');document.querySelector('#ws-expenses').classList.add('active');return TT_RENT_SALARY_UI.open('salary');});await page.waitForSelector('#rsPrepare');assert.equal(await page.locator('#rsMasterSetup,#rsSalaryBack').count(),0);await page.locator('#rsPrepare').click();assert.equal(await page.locator('#rsSalaryBack').count(),0);await shot(page.locator('.ttrs'),'salary-sheet');const plus=await page.locator('#rsAddSheetPerson').boundingBox();assert(plus.x<page.viewportSize().width/2,'Salary add is below rows on the left');
