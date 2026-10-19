@@ -1,5 +1,5 @@
 """Actual reporting endpoint: income aliases and signed rounding affect P&L/equity, never journals."""
-import json,pathlib,shutil,socket,subprocess,tempfile,time,urllib.request,urllib.error
+import json,pathlib,shutil,socket,subprocess,tempfile,time,urllib.request,urllib.error,fcntl,concurrent.futures
 ROOT=pathlib.Path(__file__).resolve().parents[2]
 with tempfile.TemporaryDirectory(prefix='report-class-') as tmp:
  root=pathlib.Path(tmp);shutil.copytree(ROOT/'api',root/'api');shutil.copytree(ROOT/'accounts',root/'accounts');(root/'data').mkdir()
@@ -32,5 +32,17 @@ define('TT_DATA_DIR',__DIR__.'/data');function tt_require_login(){return ['role'
   # Unrecognised accounts remain visible as a concrete review, never hidden by a balancing figure.
   books['journals']['UNKNOWN']=journal('UNKNOWN',[line('1110',5),line('9998',cr=5)]);path.write_text(json.dumps(books));unknown_before=path.read_bytes();status,unknown=req();assert status==200 and unknown['dataQuality']['unclassifiedBalances']==[{'account':'9998','name':'9998','class':'Other','net':-5}]
   assert path.read_bytes()==unknown_before
+  # A concurrent writer must finish before the report reads the file.
+  with path.open('rb') as locked,concurrent.futures.ThreadPoolExecutor() as executor:
+   fcntl.flock(locked,fcntl.LOCK_EX);future=executor.submit(req)
+   try:future.result(timeout=.15);raise AssertionError('Report ignored the source write lock')
+   except concurrent.futures.TimeoutError:pass
+   finally:fcntl.flock(locked,fcntl.LOCK_UN)
+   assert future.result(timeout=5)[0]==200
+  # Damaged or unavailable books must never look like successful zero-balance reports.
+  for invalid in ['', '{"journals":', 'null', '[{"journals":[]}]', '{"journals":"invalid"}']:
+   path.write_text(invalid);saved=path.read_bytes();status,failed=req();assert status==500 and not failed['ok'] and 'trialBalance' not in failed,(invalid,failed);assert path.read_bytes()==saved
+  path.unlink();assert req()[0]==500 and not path.exists(),'A report must not initialize missing books'
+  path.write_bytes(unknown_before)
   print('PASS financial reports: Income/Revenue aliases, investment gain, signed rounding/FX, cumulative versus period profit, explicit unclassified balances, revision and zero writes')
  finally:server.terminate();server.wait();log.close()
