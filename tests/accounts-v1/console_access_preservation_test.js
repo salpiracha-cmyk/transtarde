@@ -35,6 +35,11 @@ const {JSDOM} = require('jsdom');
   assert.deepEqual(sent.permissions.Directors.tgmaster,['View'],'Explicit removal must take effect');
   assert.deepEqual(sent.permissions.Directors.future_screen,['View']);
   assert.deepEqual(sent.permissions.Accounts,staff.permissions.Accounts);
+  w.testConsole.openUserDialog('2');
+  const grant=w.document.querySelector('[data-permission-module="Accounts"][data-permission-icon="cashbank"][value="Delete"]');assert(grant&&!grant.checked,'New Delete action must not silently change saved users');grant.checked=true;grant.dispatchEvent(new w.Event('change',{bubbles:true}));
+  sent=await save();assert.deepEqual(sent.permissions.Accounts.cashbank,['View','Delete']);assert.equal(sent.permissions.Accounts['entity-brm'],undefined,'No company grant is inferred');
+  w.testConsole.openUserDialog('2');const row=w.document.querySelector('[data-permission-module="Accounts"][data-permission-icon="reports"]').closest('.permission-row');for(const box of row.querySelectorAll('input'))box.checked=true;const view=row.querySelector('input[value="View"]');view.checked=false;view.dispatchEvent(new w.Event('change',{bubbles:true}));assert.equal(row.querySelectorAll('input:checked').length,0,'Removing View revokes every dependent action, including Approve, Reports and Delete');
+  assert.match(w.document.querySelector('[data-permission-module="Accounts"]').closest('.permission-module').getAttribute('style'),/--tt-permission-actions:6/);
   for(const legacy of ['all',['View','Edit']]) {
     staff.permissions.Directors=legacy;
     w.testConsole.openUserDialog('2');

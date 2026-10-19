@@ -246,11 +246,11 @@ legend { margin-bottom: 10px; color: #445469; font-size: .79rem; font-weight: 75
 .tt-modebar { display:flex; flex-wrap:wrap; gap:7px; margin:12px 0; }
 .tt-modebar button { border:1px solid var(--line); background:#fff; color:var(--navy); border-radius:8px; padding:8px 12px; font-weight:800; cursor:pointer; }
 .tt-modebar button.active { background:var(--navy); color:#fff; border-color:var(--navy); }
-.permission-module { min-width: 520px; border: 1px solid var(--line); border-radius: 12px; margin: 12px 0; overflow: hidden; }
+.permission-module { min-width: max(520px, calc(190px + var(--tt-permission-actions,3)*80px)); border: 1px solid var(--line); border-radius: 12px; margin: 12px 0; overflow: hidden; }
 .permission-module-head { display:flex; align-items:center; justify-content:space-between; padding:12px; background:#eef4ff; }
 .permission-module-head label { font-size:.75rem; font-weight:800; display:flex; gap:7px; align-items:center; }
-.permission-row { min-width: 500px; display: grid; grid-template-columns: minmax(190px,1fr) repeat(3, 80px); align-items: center; border-bottom: 1px solid var(--line); }
-.master-permission-row { min-width: 820px; grid-template-columns: minmax(190px,1fr) repeat(7, 88px); }
+.permission-row { min-width: 500px; display: grid; grid-template-columns: minmax(190px,1fr) repeat(var(--tt-permission-actions,3), 80px); align-items: center; border-bottom: 1px solid var(--line); }
+.master-permission-row { --tt-permission-actions:7; min-width: 820px; grid-template-columns: minmax(190px,1fr) repeat(7, 88px); }
 .permission-row:last-child { border-bottom: 0; }
 .permission-row.header { color: var(--muted); background: #f8fafc; font-size: .66rem; font-weight: 800; text-transform: uppercase; }
 .permission-row > * { padding: 9px 6px; text-align: center; }
@@ -514,11 +514,11 @@ legend { margin-bottom: 10px; color: #445469; font-size: .79rem; font-weight: 75
   #view-users .row-action { flex: 1 1 auto; justify-content: center; }
 
   #userDialog form { padding: 16px; }
-  #userDialog .permission-module { min-width: 0; }
+  #userDialog .permission-module { min-width: calc(122px + var(--tt-permission-actions,3)*52px); }
   #userDialog .permission-module-head { align-items: flex-start; flex-wrap: wrap; }
   #userDialog .permission-row {
-    min-width: 0;
-    grid-template-columns: minmax(122px, 1fr) repeat(3, 52px);
+    min-width: calc(122px + var(--tt-permission-actions,3)*52px);
+    grid-template-columns: minmax(122px, 1fr) repeat(var(--tt-permission-actions,3), 52px);
   }
   #userDialog .permission-row > * { padding: 8px 2px; }
   #userDialog .permission-row > strong {

@@ -17,4 +17,7 @@ foreach(['all',['View','Edit']] as $legacy){
 }
 $input=$base;$input['permissions']['Directors']=['tgmaster'=>['View'],'assets'=>['View','Edit']];
 check(clean_input($input)['permissions']['Directors']===$input['permissions']['Directors'],'Granular grants changed');
+$input=$base;$input['permissions']['Accounts']=['cashbank'=>['Delete'],'entity-tti'=>['View','Delete']];
+$result=clean_input($input);check($result['permissions']['Accounts']['cashbank']===['View','Delete'],'Explicit Delete grant must persist with its required View');
+check(!in_array('Delete',clean_input($base)['permissions']['Accounts']['reports'],true),'Do not grant Delete through another action');
 echo "PASS user validator retains existing legacy grants without creating new legacy grants\n";
