@@ -12,7 +12,7 @@ with tempfile.TemporaryDirectory(prefix='tti-authorization-') as directory:
     private.mkdir()
     for name in ['auth_store.php', 'master_store.php', 'product_stage.php', 'offline_idempotency.php','session_store.php']:
         shutil.copy(ROOT / name, app / name)
-    for name in ['supplier_opening_core.php','accounts_subaccounts.php','accounts_subaccounts_core.php','accounts_ledger_visibility.php','assets_registry_core.php','expenses_v1.php','direct_expense_core.php','accounts_bank_payment.php','expense_locations.php','expense_reminders.php','expense_reversals.php','donations.php','rent_salary_v2.php','salary_month_workflow.php','salary_master_store.php','accounts_reports.php','service_ledger_groups.php','accounts_ledger_browser.php','customer_receivables_core.php','accounts_post_delete_core.php','accounts_post_amend.php','accounts_post_amend_core.php','opening_balance_core.php','accounts_reference.php','tg_remittance_core.php','fi_credit_advice_link.php','receipt_invoice_links.php', 'accounts_posting_preview.php']:
+    for name in ['supplier_opening_core.php','accounts_subaccounts.php','accounts_subaccounts_core.php','accounts_ledger_visibility.php','assets_registry_core.php','expenses_v1.php','direct_expense_core.php','accounts_bank_payment.php','expense_locations.php','expense_reminders.php','expense_reversals.php','donations.php','rent_salary_v2.php','salary_month_workflow.php','salary_flexible_workflow.php','salary_master_store.php','accounts_reports.php','service_ledger_groups.php','accounts_ledger_browser.php','customer_receivables_core.php','accounts_post_delete_core.php','accounts_post_amend.php','accounts_post_amend_core.php','opening_balance_core.php','accounts_reference.php','tg_remittance_core.php','fi_credit_advice_link.php','receipt_invoice_links.php', 'accounts_posting_preview.php']:
         shutil.copy(ROOT / 'api' / name, app / 'api' / name)
     shutil.copy(ROOT / 'accounts/accounting_master_v1.json', app / 'accounts/accounting_master_v1.json')
     harness = root / 'request.php'
@@ -188,23 +188,23 @@ require $argv[1];
     expense_before=bal('6900');cash_before=bal('1120');payable_before=bal('2400');receivable_before=bal('1230')
     status,result=request('expenses_v1','?entity=TTI',statement);assert status==200,(status,result);st_id=result['result']['statementId'];post_id=result['result']['journalId']
     assert bal('2400')==payable_before-100000 and bal('6900')==expense_before+75000
-    store=json.loads(books.read_text());assert store['salaryPeriods'][period]['outstanding']==60000
+    store=json.loads(books.read_text());assert store['salaryPeriods'][period]['outstanding']==75000
     before=books.read_bytes();assert request('expenses_v1','?entity=TTI',statement)[1]['result']['duplicate'];assert books.read_bytes()==before
     payment={'action':'pay_card_statement','csrf':'fixture','entity':'TTI','requestKey':'simple-card-payment-1','statementId':st_id,'paymentDate':'2026-10-08','paymentAccountId':'CASH|TTI','personalAmounts':statement['personalAmounts']}
     status,result=request('expenses_v1','?entity=TTI',payment);assert status==200,(status,result);payment_id=result['result']['journalId']
     assert bal('1120')==cash_before-100000 and bal('2400')==payable_before and bal('6900')==expense_before+75000
-    assert json.loads(books.read_text())['salaryPeriods'][period]['outstanding']==60000
+    assert json.loads(books.read_text())['salaryPeriods'][period]['outstanding']==75000
     payment_snapshot=json.loads(books.read_text())['journals'][payment_id]
     edit={'action':'save_card_adjustments','csrf':'fixture','entity':'TTI','requestKey':'simple-card-adjust-1','statementId':st_id,'adjustmentDate':'2026-10-08','reason':'Correct Talha personal amount','personalAmounts':[{'expenseFor':'FAM-TALHA','personalTreatment':'REMUNERATION','amount':20000},{'expenseFor':'FAM-SALMAN','personalTreatment':'CASH','amount':10000}]}
     status,result=request('expenses_v1','?entity=TTI',edit);assert status==200,(status,result)
     assert result['result']['publicPostId']==post_id
-    store=json.loads(books.read_text());assert store['journals'][payment_id]==payment_snapshot and store['salaryPeriods'][period]['outstanding']==55000
+    store=json.loads(books.read_text());assert store['journals'][payment_id]==payment_snapshot and store['salaryPeriods'][period]['outstanding']==75000
     assert bal('6900')==expense_before+70000 and bal('2400')==payable_before and bal('1120')==cash_before-100000
     before=books.read_bytes();assert request('expenses_v1','?entity=TTI',{**edit,'requestKey':'simple-card-over-total','personalAmounts':[{'expenseFor':'FAM-TALHA','personalTreatment':'REMUNERATION','amount':100001}]})[0]==422;assert books.read_bytes()==before
     # Cash recovery reduces only the selected person's receivable; no card posting.
     recovery={'action':'recover_personal_expense','csrf':'fixture','entity':'TTI','requestKey':'simple-card-cash-receipt','personalLink':'CARD|'+st_id,'index':1,'amount':10000,'paymentDate':'2026-10-08','paymentAccountId':'CASH|TTI'}
     status,result=request('expenses_v1','?entity=TTI',recovery);assert status==200,(status,result)
-    assert bal('1120')==cash_before-90000 and bal('2400')==payable_before and bal('1230')==receivable_before
+    assert bal('1120')==cash_before-90000 and bal('2400')==payable_before and bal('1230')==receivable_before+20000
     before=books.read_bytes();assert request('expenses_v1','?entity=TTI',recovery)[1]['result']['duplicate'];assert books.read_bytes()==before
     assert request('expenses_v1','?entity=TTI',{**recovery,'requestKey':'simple-card-cash-over'})[0]==422
     # Excess personal amounts carry into future remuneration instead of inventing a payable.
@@ -213,13 +213,13 @@ require $argv[1];
     store=json.loads(books.read_text());adv=next(a for a in store['salaryAdvances'].values() if a.get('personalLink')=='CARD|'+nov_id)
     assert adv['remaining']==80000 and adv['masterId']=='TAYYAB'
     # The real remuneration preparation consumes only the available entitlement.
-    status,salary=request('rent_salary_v2','?entity=TTI&month=2026-11',{'action':'prepare_month','csrf':'fixture','entity':'TTI','month':'2026-11'})
+    status,salary=request('rent_salary_v2','?entity=TTI&month=2026-12',{'action':'prepare_month','csrf':'fixture','entity':'TTI','month':'2026-12'})
     assert status==200,(status,salary)
-    store=json.loads(books.read_text());paid_period='TTI|2026-11|TAYYAB'
+    store=json.loads(books.read_text());paid_period='TTI|2026-12|TAYYAB'
     assert store['salaryPeriods'][paid_period]['advanceApplied']==75000 and store['salaryAdvances'][adv['id']]['remaining']==5000
     status,result=request('expenses_v1','?entity=TTI',{**edit,'requestKey':'simple-card-consumed-edit','statementId':nov_id,'adjustmentDate':'2026-11-02','personalAmounts':[{'expenseFor':'FAM-TAYYAB','personalTreatment':'REMUNERATION','amount':10000}]});assert status==200,(status,result)
-    store=json.loads(books.read_text());assert store['salaryPeriods'][paid_period]['outstanding']==65000 and store['salaryPeriods'][paid_period]['advanceApplied']==0
-    assert not any(a.get('personalLink')=='CARD|'+nov_id for a in (store['salaryAdvances'].values() if isinstance(store['salaryAdvances'],dict) else store['salaryAdvances']))
+    store=json.loads(books.read_text());assert store['salaryPeriods'][paid_period]['outstanding']==75000 and store['salaryPeriods'][paid_period]['advanceApplied']==0
+    assert sum(a['remaining'] for a in store['salaryAdvances'].values() if a.get('personalLink')=='CARD|'+nov_id)==10000
     print('Beneficiaries, full card payments, internal corrections, cash recovery and remuneration carry-forward passed.')
 
     # Optional purpose/narration and general export costs use the same single payment.
@@ -355,6 +355,17 @@ require $argv[1];
     before=books.read_bytes();status,retry=request('expenses_v1','?entity=TTI',correction)
     assert status==200 and retry['result']['journalId']==fixed['journalId'] and books.read_bytes()==before
     print('Future expense amendment preview, original-date cancellation, cutoffs, identity and retry passed.')
+    # Director payable/recovery subledgers remain distinct under their combined parent.
+    store={'journals':{},'salaryMasters':{'D':{'id':'D','entity':'TTI','name':'SALMAN','category':'DIRECTOR_REMUNERATION','monthlyAmount':75000,'zakatAmount':0,'otherAllowance':0,'accountingTreatment':'STAFF_COST','status':'Active','effectiveFrom':'2026-07-01'},'H':{'id':'H','entity':'TTI','name':'MRS SRP','category':'HOME_MONTHLY_GIVE','monthlyAmount':300000,'zakatAmount':0,'otherAllowance':0,'accountingTreatment':'FAMILY_ALLOCATION','status':'Active','effectiveFrom':'2026-07-01'}}}
+    books.write_text(json.dumps(store));status,result=request('rent_salary_v2','?entity=TTI&month=2027-02',{'action':'prepare_month','csrf':'fixture','entity':'TTI','month':'2027-02'});assert status==200,(status,result)
+    balances=[]
+    for account,expected in [('PAYROLL|D',-75000),('PAYROLL|H',-300000),('DIRECTOR|SALMAN',-375000)]:
+        status,ledger=request('accounts_ledger_browser','?entity=TTI&category=other&account='+account+'&from=2027-01-01&to=2027-12-31');assert status==200,(status,ledger)
+        assert ledger['closing']==expected,(account,ledger)
+        assert all(r['account']=='2140' for r in ledger['rows'])
+        balances.append(ledger['closing'])
+    assert balances[0]+balances[1]==balances[2]
+    print('Separate Director remuneration/home payable ledgers reconcile to their combined parent without rewriting historical lines.')
     for endpoint in ['expenses_v1','donations','rent_salary_v2']:
         books.write_text('{broken JSON');bad=books.read_bytes();assert request(endpoint,'?entity=TTI')[0]==500;assert books.read_bytes()==bad
     print('Direct expense endpoint, correction, deletion, retry and permissions passed.')

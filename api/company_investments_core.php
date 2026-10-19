@@ -108,6 +108,7 @@ function inv_post(array &$s,string $e,array $b,array $u):array {
 }
 function inv_reverse(array &$s,string $e,array $b,array $u):array {
     $id=(string)($b['transactionId']??'');$t=$s['investmentTransactions'][$id]??null;if(!is_array($t)||$t['entity']!==$e||$t['status']!=='Posted')throw new DomainException('Select a current transaction to reverse.');
+    if(!empty($t['salarySheetKey']))throw new DomainException('This company allocation belongs to a split salary payment. Correct the complete salary payment with all its allocations; do not reverse only the broker leg.');
     $reason=far_text($b['reason']??'',500);if(strlen($reason)<5)throw new DomainException('Enter a reversal reason of at least five characters.');$date=far_date($b['date']??'');if($date<$t['date'])throw new DomainException('Reversal date must be on or after the original transaction.');
     $s['investmentTransactions'][$id]['status']='Reversed';inv_validate_timeline($s,$e);$old=$s['journals'][$t['journalId']]??null;if(!is_array($old)||!empty($old['reversedByPostId']))throw new DomainException('This posting is already reversed.');
     if(!empty($t['salaryPeriodId'])){

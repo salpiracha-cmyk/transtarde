@@ -88,6 +88,7 @@ jobs:
           php tests/accounts-v1/post_id_migration_test.php
           python3 tests/accounts-v1/salary_month_http_test.py
           python3 tests/accounts-v1/salary_opening_http_test.py
+          python3 tests/accounts-v1/salary_flexible_http_test.py
           python3 tests/accounts-v1/bank_overdraft_http_test.py
           php tests/accounts-v1/ledger_visibility_test.php
           php tests/accounts-v1/ledger_narration_test.php
@@ -356,7 +357,9 @@ jobs:
       - name: Ready rice bill browser and HTTP flow
         run: '"$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/ready_rice_bill_http_test.py'
       - name: Salary month HTTP and browser flow
-        run: '"$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/salary_month_http_test.py'
+        run: |
+          "$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/salary_month_http_test.py
+          "$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/salary_flexible_http_test.py
       - name: Bank entries, finance and subaccounts browser flow
         env:
           TT_QA_OUTPUT: ${{ runner.temp }}/inventory-evidence

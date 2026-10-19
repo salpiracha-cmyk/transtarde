@@ -9,6 +9,7 @@ require_once __DIR__.'/opening_balance_core.php';
 function apa_correct(array &$store, array $user, string $postId, array $input): array {
     $original=$store['journals'][$postId]??null;
     if(in_array($original['meta']['originalSourceType']??$original['sourceType']??'',['EX_MILL_PURCHASE_LIABILITY','EX_MILL_LIFTING_REVERSAL'],true))throw new DomainException('Correct this receipt through its native Milling loading form so physical quantities and supplier-bill sources stay linked.');
+    if(in_array($original['meta']['originalSourceType']??$original['sourceType']??'',['SALARY_ALLOCATED_PAYMENT','SALARY_ALLOCATED_PAYMENT_REVERSAL'],true)||!empty($original['meta']['paymentPostIds']))throw new DomainException('Review this month in Salaries & Staff. Reverse the complete actual payment there so beneficiaries and company investments stay linked.');
     if(!empty($original['meta']['millSourceKey']))throw new DomainException('Correct this bill in Mill Liability Review so its payable and settlement links remain consistent.');
     if(!empty($original['meta']['historicalBagBillId']))throw new DomainException('Amend this invoice through Historical Export Bag Bill so its opening and payment links remain correct.');
     if(in_array($original['sourceType']??'',['FORWARD_BOOKING_SETTLEMENT','FORWARD_BOOKING_SETTLEMENT_REVERSAL'],true))throw new DomainException('Correct this settlement through Banks → Forward Booking so the contract balance stays linked.');
