@@ -875,7 +875,25 @@ test('WHT period and category screen, CSV and print agree with original postings
  const loading=page.waitForResponse(r=>r.url().includes('/api/accounts_subaccounts.php')&&r.url().includes('report=withholding')&&r.url().includes('from=2026-09-01')&&r.url().includes('to=2026-09-30'));
  await form.getByRole('button',{name:'View Report',exact:true}).click();const response=await loading;expect(response.status()).toBe(200);const source=await response.json();expect(source.ok).toBe(true);expect(source.entity).toBe('TTI');
  await expect(form.locator('[data-tax-message]')).toContainText('Saved postings loaded');
- const chosen='OTHER',expected=source.taxEntries.filter(r=>r.category===chosen);expect(expected.length,'Original September OTHER postings must remain available').toBeGreaterThan(0);
+ expect(source.taxEntries.length,'Original September tax postings must remain available').toBeGreaterThan(0);
+ // Verify classification against the original posted voucher, not a stale label.
+ // This must establish the native Brokerage evidence before accepting OTHER's disappearance.
+ let brokerageOriginals=0;const originals=new Map();
+ for(const row of source.taxEntries){
+  if(!originals.has(row.journalId)){const r=await page.request.get(BASE_URL+'/api/accounts_ledger_browser.php?'+new URLSearchParams({entity:'TTI',account:'POSTS',postId:row.journalId}));expect(r.status()).toBe(200);originals.set(row.journalId,(await r.json()).post);}
+  const original=originals.get(row.journalId);expect(original.id,'Source review must resolve the actual journal, not a replacement').toBe(row.journalId);expect(original.entity).toBe('TTI');expect(original.date).toBe(row.date);
+  const line=original.lines[row.lineIndex];expect(String(line.account)).toBe(row.head);expect(Number(line.debit||0)).toBeCloseTo(row.debit,2);expect(Number(line.credit||0)).toBeCloseTo(row.credit,2);
+  const explicit=line.taxCategory??original.meta?.taxCategory;
+  if(explicit!==undefined&&explicit!==null)expect(row.category).toBe(String(explicit));
+  else if(row.head==='2300'){
+   const kind=original.meta?.originalSourceType||original.sourceType;
+   const withheld=kind==='COMMODITY_BILL_VERIFIED'?Number(original.meta?.brokerageWithholding||0):['SUPPLIER_PAYMENT','SUPPLIER_CHEQUE_ISSUED'].includes(kind)?(original.meta?.allocations||[]).reduce((sum,a)=>sum+Number(a.brokerageWht||0),0):0;
+   if(kind==='BROKERAGE_WHT_DEPOSIT'||(withheld>0&&Math.abs(withheld-(row.credit-row.debit))<.005)){expect(row.category).toBe('BROKERAGE');brokerageOriginals++;console.log('LIVE_WHT_ORIGINAL_CLASSIFICATION '+JSON.stringify({sourceType:kind,category:row.category,debit:row.debit,credit:row.credit,withholdingEvidence:withheld,financialWrites:0}));}
+  }
+ }
+ expect(brokerageOriginals,'September classification repair must be evidenced by original native Brokerage postings').toBeGreaterThan(0);
+ const categories=[...new Set(source.taxEntries.map(r=>r.category))].sort();let compared=0;
+ for(const chosen of categories){const expected=source.taxEntries.filter(r=>r.category===chosen);compared+=expected.length;
  await form.locator('[data-tax-category]').selectOption(chosen);
  const visible=await form.locator('[data-tax-results] table').last().locator('tbody tr').allTextContents();expect(visible.length).toBe(expected.length);for(let i=0;i<expected.length;i++)expect(visible[i]).toContain(expected[i].postId);
  // Capture the actual application's print markup, avoiding a native printer dialog.
@@ -889,5 +907,7 @@ test('WHT period and category screen, CSV and print agree with original postings
  expect(quoted,'Downloaded CSV has an unterminated field').toBe(false);if(field!==''||record.length){record.push(field);records.push(record);}const header=records.shift();expect(header).toContain('Audit journal');expect(records.length).toBe(expected.length);
  let debit=0,credit=0;
  for(let i=0;i<expected.length;i++){const r=expected[i],row=Object.fromEntries(header.map((h,n)=>[h,records[i][n]]));expect(row.Company).toBe('TTI');expect(row.From).toBe('01-09-2026');expect(row.To).toBe('30-09-2026');expect(row['Post ID']).toBe(r.postId);expect(row['Audit journal']).toBe(r.journalId);expect(row['Tax category']).toBe(chosen);expect(Number(row.Debit)).toBeCloseTo(r.debit,2);expect(Number(row.Credit)).toBeCloseTo(r.credit,2);expect(Number(row.Net)).toBeCloseTo(r.debit-r.credit,2);expect(printed[i][0]).toContain(r.postId);expect(Number(printed[i][4].replaceAll(',',''))).toBeCloseTo(r.debit,2);expect(Number(printed[i][5].replaceAll(',',''))).toBeCloseTo(r.credit,2);debit+=r.debit;credit+=r.credit;}
- expect(writes).toEqual([]);console.log('LIVE_WHT_OUTPUT_RECONCILIATION '+JSON.stringify({entity:'TTI',from:'2026-09-01',to:'2026-09-30',category:chosen,sourceLines:expected.length,screenLines:visible.length,csvLines:records.length,printLines:printed.length,debit,credit,financialWrites:0}));
+ console.log('LIVE_WHT_OUTPUT_RECONCILIATION '+JSON.stringify({entity:'TTI',from:'2026-09-01',to:'2026-09-30',category:chosen,sourceLines:expected.length,screenLines:visible.length,csvLines:records.length,printLines:printed.length,debit,credit,financialWrites:0}));
+ }
+ expect(compared).toBe(source.taxEntries.length);expect(writes).toEqual([]);console.log('LIVE_WHT_ALL_POPULATED_CATEGORIES_OK '+JSON.stringify({categories,sourceLines:compared,originalsCompared:originals.size,brokerageOriginals,financialWrites:0}));
 });

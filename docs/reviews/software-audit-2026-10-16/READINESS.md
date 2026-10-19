@@ -1,74 +1,34 @@
-# Transtrade migration readiness — 17 October 2026, Karachi
+# Transtrade migration readiness — 19 October 2026
 
-**Decision: NOT READY for full-data migration. The exhaustive review is unfinished.**
+**Decision: not ready for full-data migration or whole-audit sign-off.**
 
-**Later checkpoint:** See [STATUS-2026-10-17.md](STATUS-2026-10-17.md) for PR275–278, the pending bag-ledger repair and current connection/test limits. The batch counts and coverage register below predate that continuation.
+This replaces the 17 October readiness summary, whose implementation/deferred-Zakat wording was stale. Historical observations and failures remain in REVIEW.md and CONTINUATION.md. CURRENT_COVERAGE.csv records154 action checks:121 passed,20 partial,4 failed,6 not tested,2 blocked and1 intermittent. The33 open/partial action checks are not33 separate proven code defects.
 
-Ten repair batches, PR264–273, are merged. Each final repair head passed both full
-hosted QA suites. These results establish the scenarios exercised by those suites;
-they do not establish that every screen/action, original figure or output is clean.
-The original audit evidence remains in REVIEW.md; later work and exact run/commit
-identities are in CONTINUATION.md. CURRENT_COVERAGE.csv is the current action register.
+## Current implemented scope
 
-## Repairs delivered or awaiting final deployment confirmation
+- Director now automatically receives all business modules, companies, locations, actions and Master permissions, below Super Admin. Its matrices are hidden; staff custom scopes and owner security/recovery controls remain protected. PR358/359 are live and accepted, including Tayyab's actual role display without a user Save.
+- Financial customer/supplier/service/bag B/F posts to the appropriate original financial accounts and ledgers without creating physical rice or bags. Completed historical shipments do not become new production requirements. Salman's separate actual Mill physical opening schedule is still outstanding; no stock has been inferred from financial B/F.
+- The annual Zakat form and yearly assessment-control debit already exist in Accounts/Directors. Verified payments/refunds drive paid expense reporting and the payable control. The canonical annual monetary counterpart and legacy opening Balance Sheet classification remain unresolved; do not ask Salman to explain the form again or describe it as deferred. Pooled friends' collections remain a separate distribution liability, not TTI income or own annual expense.
+- Mill source-linked liabilities, controlled bill review, correction and supplier settlement have tested canonical routes. Operational rent/salary references can explicitly reconcile to existing payments without another posting. Original-source matching is still required; empty current references do not certify every historical payment.
+- Source-linked commodity quantities, protected native stock ledgers, source-preserving unbilled Ex-Mill correction, native outside Corn loading/billing, acknowledged bag transfers and scoped company/mill views are implemented. These do not establish actual physical stock ownership or a completed billed cancellation workflow.
+- Durable private home JV decision notices remain until the recipient closes X. Bank Receipt uses Received into bank / Received from. Screen/print/CSV consistency, source errors, opening amendments, date cutoffs, document layout and other repairs have individual release evidence in CONTINUATION.md.
+- PR362 fixes native Brokerage WHT categories and generic Export/Savings/Services reversals without changing journal bytes. Full feature/main suites and production deployment passed for `6f44e5651b0c564e9016ff0db6e57a2533a962a2`; final protected read-only acceptance is recorded in WHT_SOURCE_REVIEW_2026-10-19.md. Its wider original tax/output action remains partial.
 
-- Restore the Directors launcher; preserve existing/legacy/unrepresented permissions;
-  show one master Status column and readable activity dates.
-- Keep the chart's approved account names and show original bank identity in pending JV decisions.
-- Replace unsupported browser-lock claims with local-note wording; expose the owner-only
-  server administrative audit, separate browser notes, and paginate 50 rows while searching/exporting all matches.
-- Stop operational saves on purchase-Soda/FI reads; await new-mill master acknowledgement;
-  restore source-owned Edit and separate Print actions after shipment-bill posting.
-- Preserve expense/vehicle filters on Run, order detail rows chronologically and open
-  original postings from details without losing the filtered report.
-- Enforce explicit Brokerage Master Create/Edit scope; retain pre-existing flat grants;
-  reject invalid dates/numbers; expose read-only editors accurately.
-- Replace legacy all-mill arrival-based cost arithmetic with the canonical actual-production
-  report. Keep missing actual input/costs unverified.
-- Fit phone TG amounts, contain Bank Finance tables/actions and keep freight information
-  separate from real error alerts.
-- Separate canonical Accounts mill cash from preserved unreconciled operational history;
-  disable duplicate manual receipt creation and retain original source records.
-- Describe old Mill bills/payment references truthfully as unverified. Scope labour work,
-  require an applicable saved agreement, preserve drafts when historical rates are missing,
-  exclude undated work from guessed periods, and correct next-day billing dates across time zones.
+## Remaining gates
 
-Production deployment/health and live checks are tracked individually in CONTINUATION.md;
-a merged PR is not itself proof of deployment. No real payment, approval, cancellation,
-master edit, staff-permission change or data import was deliberately performed for this review.
-
-## Blocking work
-
-| Blocker | What must be established before migration |
+| Gate | What remains |
 |---|---|
-| Mill bills → Accounts, R07 | Acknowledged source-linked review and idempotent posting, correct company/mill/party/account, amendment/reversal and settlement. Existing operational estimates must not be posted en masse. |
-| Rent / salary advances / reprocessing references, R08 | Match reported payments to actual canonical postings; preserve history and avoid a second payment. Determine a permission-preserving, scoped Mill view of Accounts records. |
-| Rice stock ledger, R13 | Use canonical raw/finished/by-product movements with genuine period opening, production consumption/output and reversals. Compare to independent source quantities. |
-| TG pending-payment / FI integration | Restore and verify the missing pending-Accounts-payment display; reconcile unlinked bank advices and exact allocation identities. Do not equate a manually recorded TG Unallocated FI with this integration. |
-| Reports/output completeness, C12/C17 | Finish aggregate source drill-down, commodity quantities and relevant print/export parity; deduplicate selected tax-document files and review preparation-process versus lot records. |
-| Approved document/source mismatches, C07/C14 | Owner review of AMT's saved Customs HS versus its broken-rice description, and the relationship letter naming ASAS/Saudi Arabia while the final AMT buyer is in Gambia. No silent rewriting of approved/issued wording. |
-| Master/permission consolidation, R03/R10/C04 | Replace the ineffective separate Milling permission editor; resolve competing settings and distinguish actual active status from profile/reference wording. Preserve every historical record and existing grant. |
-| Full action/data/restore acceptance | Complete the untested control/output variants, reconcile original opening/current balances, allocations, stock and attachments, and execute import/rollback in a named secure disposable target. |
+| C24 actual warehouse ownership | Original Pohanch/unloading locations for PH00001/ABC123/Soda26002, PH00002/ABC345/Soda26001 and PH00003/TK123/Soda26002; resolve119500kg Indus-versus-TTI grouping without reassignment by assumption. Financial B/F and future physical openings do not answer this existing-source discrepancy. |
+| C09 monetary annual Zakat/opening classification | Review the canonical balanced annual entry and original legacy opening schedule. The annual control and paid-expense repair do not authorise a guessed equity/counterpart journal or historical reclassification. |
+| Issued document/source decisions | AMT13 original HS/100%-broken description and ASAS Saudi relationship letter versus Gambia buyer; preserved ASAS62 uploaded packing label overlap. New generated layout acceptance does not permit replacing an issued original. |
+| Original output completeness | Complete actual multi-file tax/issued CI/PL/archive, WHT original statement/category, supplier scans and TG/direct/L/C/multi-GD variants.35 archive listings and one verified downloaded pack do not certify every file. |
+| Current stock, production and costing | Independently reconcile native ownership, positive production, recovery, overhead and actual shipment contributions. Earlier protected checks had0actual production and8unavailable contributions; disposable positives are not real results. Separately insert physical openings only from Salman's supplied facts. |
+| Remaining action variants | Final user-session review and any unexercised master/downstream, asset/share/property, finance, payment-plan, amendment/cancellation, mixed allocation and approval variants. Do not approve a real pending request or post a hypothetical transaction for an audit. |
+| Independent migration/recovery | Original-file restore/rollback rehearsal passed separately:705files/308JSON were hash-checked in a private disposable copy. Independent full source-to-target counts, balances, allocations, stock/attachments, configured MySQL/browser recovery, oversized offline acceptance and rollback still require an identified secure rehearsal dataset/target. No production restore is an audit test. |
+| Formal security and startup | Mandatory formal scan preflight resource/helpers were unavailable; no formal scan started and functional QA does not confer clearance. Retain original intermittent login/renderer timeouts and failed attempts; a successful unchanged retry does not prove their root cause. |
 
-The proposed central Master Records groups and preliminary field-purpose tracing are
-in MASTER_RECORDS_PROPOSAL.md. That is a proposal, not an exhaustive field audit or
-approval to remove fields.
+## Evidence boundaries
 
-## Evidence limits and deferred Zakat
+Salman asked work to continue while closing the MacBook. Local Chrome is not assumed available. Source review, disposable tests and hosted protected read-only checks can continue; they do not replace the final original-source/user-session acceptance. Earlier connected Mac Chrome evidence remains dated evidence.
 
-Actual local Chrome (extension, Person 1) was used with the signed-in production app.
-Hosted browser fixtures, local function/endpoint fixtures and live Mac checks are
-identified separately. Tests that could not bind local sockets were not counted as
-software failures. A known accounting_desk_test.js failure remains recorded because
-its missing TG integration assertion is supported by source inspection.
-
-There are no recorded actual Mill production runs in the inspected period. Forms
-and calculations were exercised with controlled positive fixtures; real recovery
-and final costing still need original production records. Negative/unassigned
-opening balances are not corrected merely because their signs look unexpected.
-
-The user deferred the annual Zakat form. Retain the requested policy for the later
-feature: annual calculation creates the year's payable/debit entry, payments reduce
-the payable, and the paying part is that year's expense. Do not silently reclassify
-or repost the existing opening balance. The existing reminder is scheduled for
-18 October 2026 at 14:00 Asia/Karachi; no duplicate reminder was created here.
+Each release's exact tree, feature/main QA, deployment, startup and read-only result belongs in its linked continuation report. A merged PR alone is not deployed acceptance. Ordinary fixture passes are not independent migration, formal security or exhaustive UI clearance. No production financial, stock, annual assessment, approval, source-link, original-document or restore test mutation is permitted. Annual Zakat is already implemented; no duplicate reminder or automation is needed.
