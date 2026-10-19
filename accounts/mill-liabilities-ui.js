@@ -13,13 +13,13 @@
     const company=entity();if(!['TTI','BRM'].includes(company))return;
     document.querySelector('#ttMillLiabilities')?.remove();
     const host=document.createElement('div');host.id='ttMillLiabilities';host.className='tt-layer';host.setAttribute('role','dialog');host.setAttribute('aria-modal','true');host.setAttribute('aria-label','Mill Bill Review');
-    host.innerHTML='<section class="tt-window"><header class="tt-window-head"><h2>Mill Bill Review</h2><span></span><button class="btn" data-close>× Close</button></header><div class="tt-window-body"><label>Bill type <select data-kind><option value="">All Mill bills</option><option value="LABOUR">Rice labour</option><option value="ELECTRICITY">Electricity</option><option value="REPROCESSING">Reprocessing</option><option value="PROCESSING">Other processing</option></select></label> <button class="btn" data-refresh>Refresh saved bills</button> <button class="btn" data-csv>Export CSV</button> <button class="btn" data-print>Print saved review</button><p data-message role="status">Loading saved Mill bills…</p><div data-list></div><section data-review hidden></section></div></section>';
+    host.innerHTML='<section class="tt-window"><header class="tt-window-head"><h2>Mill Bill Review</h2><span></span><button class="btn" data-close>× Close</button></header><div class="tt-window-body"><label>Bill type <select data-kind><option value="">All Mill bills</option><option value="LABOUR">Rice labour</option><option value="ELECTRICITY">Electricity</option><option value="REPROCESSING">Reprocessing</option><option value="PROCESSING">Other processing</option></select></label> <button class="btn" data-reference-review>Rent / Salary References</button> <button class="btn" data-refresh>Refresh saved bills</button> <button class="btn" data-csv>Export CSV</button> <button class="btn" data-print>Print saved review</button><p data-message role="status">Loading saved Mill bills…</p><div data-list></div><section data-review hidden></section></div></section>';
     document.body.appendChild(host);const q=s=>host.querySelector(s);
     let data={rows:[]},selected='',busy=false,pending=null,reason='',correctionDate=today(),checkedAt='';
     const identity=r=>r.kind+'|'+r.sourceId;
     function close(){if(busy)return;host.remove();document.removeEventListener('keydown',escape,true);}
     function escape(e){if(!host.isConnected){document.removeEventListener('keydown',escape,true);return;}if(e.key==='Escape'&&!busy){e.preventDefault();e.stopImmediatePropagation();close();}}
-    document.addEventListener('keydown',escape,true);q('[data-close]').onclick=close;
+    document.addEventListener('keydown',escape,true);q('[data-close]').onclick=close;q('[data-reference-review]').onclick=()=>{if(busy)return;close();window.TT_MILL_REFERENCES?.open();};
     function remember(){reason=q('[data-reason]')?.value??reason;correctionDate=q('[data-correction-date]')?.value??correctionDate;}
     function detail(row) {
       const box=q('[data-review]');box.hidden=!row;if(!row)return;

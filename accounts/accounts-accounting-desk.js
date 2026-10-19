@@ -49,7 +49,6 @@
       {title:'Pay Expense', note:'Pay anyone; combine several expenses in one cheque or payment', native:'expenses', special:'expense-pay'},
 
       {title:'Mill Bill Review', note:'Record verified Mill liabilities and follow linked supplier payments', native:'expenses', special:'mill-liabilities'},
-      {title:'Mill Rent / Salary References', note:'Reconcile reported references with existing Accounts payments', native:'expenses', special:'mill-references'},
       {title:'Salaries & Staff', note:'Salary advance and monthly salary preparation', native:'expenses', special:'expense-salary'}
     ]},
     {key:'ledgers', glyph:'L', title:'Ledgers', note:'Account and party ledgers, and every posted voucher', actions:[{title:'Ledger',special:'all-ledgers',ledgerCategory:'party'},{title:'Post ID Register',special:'post-ledger'},{title:'Trial Balance',native:'reports',find:'Trial Balance'},{title:'Chart of Accounts & Details',special:'account-heads'},{title:'Subaccounts & Details',special:'subaccounts'},{title:'Forward Booking Register',special:'forward-register'}]},
@@ -163,7 +162,6 @@
     if(action.special==='account-heads')return window.TT_SUBACCOUNTS.open('heads');
     if(action.special==='expense-recipients')return window.TT_ACCOUNT_PAYEES.open('EXPENSE');
     if(action.special==='withholding-report')return window.TT_SUBACCOUNTS.open('tax');
-    if(action.special==='mill-references')return window.TT_MILL_REFERENCES.open();
     if(action.special==='mill-liabilities')return window.TT_MILL_LIABILITIES.open();
     if(action.special==='expense-pay')return window.TT_EXPENSE_DESK.open();
     if(action.special==='expense-bills')return window.TT_EXPENSE_DESK.bills();

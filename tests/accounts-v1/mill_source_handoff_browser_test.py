@@ -237,7 +237,11 @@ def run():
             stock=context.request.get(base+'/api/bag_transfers.php?entity=TTI&locationId=mills-1&asOf=2026-10-17').json();source_lot=stock['inventory']['lots']['PO|100|mills-1'];assert source_lot['availableQty']==93 and source_lot['quarantinedQty']==0,source_lot
             saved_ops=context.request.get(base+'/api/operations.mysql.php').json();assert saved_ops['values']['tt33bagreceipts']==immutable_receipts and json.loads(saved_ops['values']['tt30bags'])[0]['received']==114 and books.read_bytes()==financial_before
             # Rent reference uses the actual native form and links an existing original payment.
-            canonical=json.loads(books.read_text());allocation=[{'month':'2026-09','amount':125,'payable':125,'prepaid':0}]
+            canonical=json.loads(books.read_text())
+            for collection in ['rentMasters','rentSalaryPayments']:
+                if not isinstance(canonical.get(collection),dict):
+                    assert not canonical.get(collection),'Unexpected existing rent fixture';canonical[collection]={}
+            allocation=[{'month':'2026-09','amount':125,'payable':125,'prepaid':0}]
             canonical.setdefault('rentMasters',{})['QA-RM']={'id':'QA-RM','entity':'TTI','mill':'TTI Rice Mills','payee':'QA Landlord','effectiveFrom':'2026-07-01'}
             canonical.setdefault('rentSalaryPayments',{})['QA-RENT-PAY']={'id':'QA-RENT-PAY','entity':'TTI','type':'RENT','masterId':'QA-RM','date':'2026-10-17','amount':125,'journalId':'QA-ORIGINAL-RENT','allocations':allocation}
             canonical['journals']['QA-ORIGINAL-RENT']={'id':'QA-ORIGINAL-RENT','entity':'TTI','status':'Posted','date':'2026-10-17','sourceType':'RENT_PAYMENT','meta':{'rentMasterId':'QA-RM','allocations':allocation},'lines':[{'account':'2140','debit':125,'credit':0},{'account':'1120','debit':0,'credit':125}]}
@@ -246,7 +250,7 @@ def run():
             for selector,value in {'#rentPayDate':'2026-10-17','#rentPayAmount':'125','#rentPayFrom':'2026-09','#rentPayTill':'2026-09','#rentPayRef':'QA-RENT-RECEIPT'}.items():mill.locator(selector).fill(value)
             with mill.expect_response(lambda r:'/api/operations.mysql.php?asset_refs=1' in r.url and r.request.method=='POST') as rent_save:mill.get_by_role('button',name='SAVE RENT REFERENCE',exact=True).click()
             assert rent_save.value.status==200,rent_save.value.text();assert books.read_bytes()==canonical_before,'Operational rent reference posted money'
-            accounts.evaluate('window.TT_MILL_REFERENCES.open()');accounts.locator('.tt-mref [data-row]').click();accounts.locator('.tt-mref [data-target]').select_option('RENT|QA-RENT-PAY');accounts.locator('.tt-mref [data-reason]').fill('Original rent receipt and existing Accounts Post verified')
+            accounts.evaluate('window.TT_MILL_LIABILITIES.open()');accounts.locator('#ttMillLiabilities [data-reference-review]').click();accounts.locator('.tt-mref [data-row]').click();accounts.locator('.tt-mref [data-target]').select_option('RENT|QA-RENT-PAY');accounts.locator('.tt-mref [data-reason]').fill('Original rent receipt and existing Accounts Post verified')
             with accounts.expect_response(lambda r:'/api/mill_reference_reconciliation.php' in r.url and r.request.method=='POST') as linked:accounts.locator('.tt-mref [data-link]').click()
             assert linked.value.status==200,linked.value.text();accounts.wait_for_function("document.querySelector('.tt-mref [data-review]').textContent.includes('Verified existing payment')")
             reconciled=json.loads(books.read_text());assert reconciled['journals']==canonical['journals'] and reconciled['rentSalaryPayments']==canonical['rentSalaryPayments'],'Reference link duplicated or rewrote the original payment'
