@@ -152,7 +152,9 @@ reset both returned `Transport closed`; fresh live UI checks are blocked until
 that connection resumes. Earlier signed-in Mac Chrome observations remain valid
 as earlier evidence. Source work and GitHub access continue.
 
-### Zakat — management clarification; annual form deferred
+### Zakat — management clarification and 19 October scope update
+
+**19 October update:** Salman confirmed the annual form was already explained and is within the agreed work. The earlier deferred wording below describes the 17 October checkpoint only. PR347 adds native Accounts/Directors navigation and the annual assessment-control debit, original payments/refunds and carry-forward ledger. It does not create a second monetary expense. C09 canonical annual journal mapping and legacy P&L classification remain an explicit accounting review gate. See `NON_UI_AUDIT_2026-10-19.md` and the current coverage register.
 
 Salman confirmed on 17 October that calculated Zakat becomes payable throughout
 the year, payments reduce the outstanding payable, and amounts paid belong to that

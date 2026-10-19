@@ -1,5 +1,7 @@
 # Continuation checkpoint — historical shipment opening classification
 
+Latest continuation: `NON_UI_AUDIT_2026-10-19.md`. Salman confirmed financial B/F has no physical stock and the annual Zakat scope is already explained; the earlier deferred label below is superseded.
+
 Application release: PR345, merge6575df7843f1a1094a0a0eea2adbcf4772a5722e,
 exact tree038083d3f15683a92a238c6279a1151655898c08. Previous checkpoint:
 RESUME-ARCHIVE-READ-2026-10-18.md. The broader application audit remains open.
