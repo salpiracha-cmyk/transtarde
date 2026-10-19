@@ -166,6 +166,18 @@ with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
                 assert page.locator('[name=rsPaymentMode][value=BANK]').is_checked()
                 assert page.locator('#rsSplitCash').input_value()=='250'
                 assert page.locator('#rsSplitBank').input_value()=='250'
+                page.evaluate("TT_RENT_SALARY_UI.open('salary')");page.locator('#rsAdvanceIcon').click()
+                page.locator('#rsAdvanceKind').select_option('BF')
+                assert not page.locator('#rsAdvanceAccount').is_visible()
+                assert not page.locator('#rsAdvanceAccountDetails').is_visible()
+                assert page.locator('#rsAdvanceDate').input_value()=='2026-07-01'
+                assert page.locator('#rsAdvanceMonths').get_attribute('max')=='600'
+                page.locator('#rsAdvancePerson').select_option('Bob');page.locator('#rsAdvanceAmount').fill('79000');page.locator('#rsAdvanceMonths').fill('79')
+                before=saved();page.locator('#rsAdvanceSave').click()
+                page.get_by_text('Balance B/F',exact=True).wait_for()
+                assert len(saved()['journals'])==len(before['journals'])+1
+                opening=[j for j in saved()['journals'].values() if j['sourceType']=='SALARY_ADVANCE_OPENING'][-1]
+                assert {l['account'] for l in opening['lines']}=={'1230','3400'}
                 assert not errors,errors;browser.close()
                 print('Actual salary browser: two icons, advance unchanged, payment default, two methods, saved draft and Amend passed')
     finally:server.terminate();server.wait(timeout=5)

@@ -384,3 +384,10 @@ Online Banking payments expose an editable payment date, defaulting from the vou
 
 - The owner editor represents the real Accounts View/Create/Edit/Approve/Reports/Delete actions, including company-scope rows. Existing grants remain unchanged when the editor is opened or an unrelated user field is saved. Delete is never inferred from Director title, Edit, Approve or Select all being displayed. An explicit saved choice is required.
 - Removing View clears every dependent action in that row. Action checkboxes align beneath their corresponding headings on desktop and within a horizontally scrollable matrix on mobile. Master permission columns retain their own seven actions.
+
+
+## Salary advances brought forward — 19 October 2026
+
+- Management can explicitly record a one-time salary advance at 1 July 2026, Dr Staff Advances (1230), Cr Opening Balance Clearing (3400). No new bank/cash payment, salary expense or stock is created. Respect company write/approval rights and the opening-entry switch. Reject duplicate person openings, existing opening balances and altered request-key replays.
+- Opening advances allow up to 600 recovery months and retain their original monthly recovery, capped by the remaining debt. Recovery stops at zero; later salaries receive no advance deduction. Salary months before the opening date do not recover it. Existing completed/prepared salaries remain unchanged; affected saved drafts require explicit review/refresh.
+- Unallocated production costs are informational statuses inside Production Costing, not global salary validation errors. Hidden workspace validation messages must not become top-screen popups; actual visible form errors remain prominent.

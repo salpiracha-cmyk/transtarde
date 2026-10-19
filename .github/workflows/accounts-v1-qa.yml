@@ -87,6 +87,7 @@ jobs:
           php tests/accounts-v1/finish_options_test.php
           php tests/accounts-v1/post_id_migration_test.php
           python3 tests/accounts-v1/salary_month_http_test.py
+          python3 tests/accounts-v1/salary_opening_http_test.py
           python3 tests/accounts-v1/bank_overdraft_http_test.py
           php tests/accounts-v1/ledger_visibility_test.php
           php tests/accounts-v1/ledger_narration_test.php
@@ -331,6 +332,7 @@ jobs:
           node tests/accounts-v1/numeric_no_step_browser_test.js
           node tests/accounts-v1/accounts_date_jv_browser_test.js
           node tests/accounts-v1/reconciliation_date_browser_test.js
+          node tests/accounts-v1/accounts_notifications_visibility_test.js
           node tests/accounts-v1/accounts_layout_regression_browser_test.js
           node tests/accounts-v1/form_viewport_browser_test.js
           node tests/accounts-v1/payment_plans_browser_test.js
