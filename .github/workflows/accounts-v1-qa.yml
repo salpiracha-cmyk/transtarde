@@ -344,6 +344,7 @@ jobs:
           python3 tests/security/export_document_permissions_test.py
           "$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/inventory_reconciliation_http_test.py
           "$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/mill_source_handoff_browser_test.py
+          "$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/workspace_home_browser_test.py
           "$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/group_daily_browser_test.py
       - name: Ready rice bill browser and HTTP flow
         run: '"$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/ready_rice_bill_http_test.py'
