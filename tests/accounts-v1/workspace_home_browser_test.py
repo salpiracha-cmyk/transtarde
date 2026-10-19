@@ -14,7 +14,7 @@ tt_ensure_data_dir();file_put_contents(TT_STORE_FILE,json_encode(['users'=>[['id
  server=subprocess.Popen(['php','-S',f'127.0.0.1:{port}','-t',str(app)],env=env,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL);url=f'http://127.0.0.1:{port}';books=pathlib.Path(fixture['dataDir'])/'accounts.json';before=json.loads(books.read_text())['journals']
  try:
   with sync_playwright() as p:
-   browser=p.chromium.launch();page=browser.new_page(viewport={'width':1280,'height':900});errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
+   browser=p.chromium.launch();page=browser.new_page(viewport={'width':1280,'height':900});errors=[];page.on('pageerror',lambda e:errors.append({'url':page.url,'error':str(e),'stack':e.stack}))
    for attempt in range(50):
     try:page.goto(url+'/login.php');break
     except Exception:time.sleep(.1)
