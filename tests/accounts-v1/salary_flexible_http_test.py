@@ -18,7 +18,7 @@ with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
     function tt_ensure_data_dir(){}
     function tt_list_masters(){return json_decode(file_get_contents(__DIR__.'/masters.json'),true);}
     function tt_read_store(){return [];}
-    function tt_require_login(){return ['role'=>'Super Admin','id'=>1,'username'=>'Fixture'];}
+    function tt_require_login(){return is_file(__DIR__.'/user.json')?json_decode(file_get_contents(__DIR__.'/user.json'),true):['role'=>'Super Admin','id'=>1,'username'=>'Fixture'];}
     function tt_user_can_open_module($user,$module){return true;}
     function tt_user_can_access_entity($user,$entity,$action){return $entity==='TTI';}
     function tt_verify_csrf($csrf){return $csrf==='fixture';}
@@ -115,6 +115,10 @@ with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
         state=saved();assert balance('1440')==10000 and balance('1430')==10000
         # Reverse every leg together, including the BMA asset and all beneficiaries.
         bank_id=next(j['id'] for j in state['journals'].values() if j['sourceType']=='SALARY_ALLOCATED_PAYMENT' and j['date']=='2026-10-10')
+        (root/'user.json').write_text(json.dumps({'role':'Accounts Assistant','id':2,'permissions':{'Accounts':{'expenses':['View','Create','Edit'],'assets':['View','Create']}}}))
+        before=saved();status,rejected=request({'action':'reverse_salary_allocated_payment','journalId':bank_id,'date':'2026-10-10','reason':'Permission fixture'})
+        assert status==422 and saved()==before,'Creating investment allocations does not grant permission to reverse them'
+        (root/'user.json').unlink()
         status,result=request({'action':'reverse_salary_allocated_payment','journalId':bank_id,'date':'2026-10-10','reason':'Correct allocation fixture'})
         assert status==200,result
         state=saved();assert balance('1430')==0 and balance('1110')==-10000 and balance('1440')==10000

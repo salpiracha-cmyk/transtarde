@@ -51,9 +51,9 @@ function sfw_adjust(array &$s,string $e,string $m,array $b,array $u):array {
     $sheet['rows'][$id]=$row;sfw_recalculate($sheet);$sheet['version']++;$sheet['updatedAt']=gmdate('c');
     $sheet['adjustmentAudit'][]=['masterId'=>$id,'reason'=>$row['adjustmentReason'],'by'=>$u['id']??0,'at'=>gmdate('c')];$s['salarySheets'][$e.'|'.$m]=$sheet;return ['saved'=>true,'masterId'=>$id,'monthlyOnly'=>true];
 }
-function sfw_company_access(array $u):void {
+function sfw_company_access(array $u,string $action='Create'):void {
     require_once __DIR__.'/company_investments_core.php';
-    if(!far_permission($u,'Accounts','Create'))throw new DomainException('Accounts and Assets create permission is required for company investment allocations.');
+    if(!far_permission($u,'Accounts',$action))throw new DomainException('Assets '.$action.' permission is required for company investment allocations.');
 }
 function sfw_validate_company(array $s,string $e,array $a,array $u):array {
     sfw_company_access($u);$route=inv_route($s,$e,(string)($a['routeId']??''));
@@ -138,7 +138,7 @@ function sfw_reverse_payment(array &$s,string $e,string $m,array $b,array $u,arr
     $key=$e.'|'.$m;$owner=$j['meta']['paymentGroupOwner'];$index=$j['meta']['paymentGroupIndex'];$t=$s['salarySheets'][$key]['paymentGroups'][$owner][$index]??null;
     if(!$t||($t['status']??'')==='Reversed')throw new DomainException('The original salary transaction needs review.');
     foreach($t['allocations'] as $a)if($a['type']==='SALARY'){$pid=rsv2_pid($e,$m,$a['masterId']);$p=$s['salaryPeriods'][$pid]??null;if(!$p||(float)$p['paidAfterPrepare']<$a['amount']-.005)throw new DomainException('The beneficiary payment balance changed. Review the original period.');$s['salaryPeriods'][$pid]['paidAfterPrepare']=round($p['paidAfterPrepare']-$a['amount'],2);$s['salaryPeriods'][$pid]['outstanding']=round($p['outstanding']+$a['amount'],2);$s['salaryPeriods'][$pid]['status']='Payable';$r=&$s['salarySheets'][$key]['rows'][$a['masterId']];$r['payment']['amount']=round($r['payment']['amount']-$a['amount'],2);$r['outstanding']=round($r['outstanding']+$a['amount'],2);unset($r);}
-    foreach((array)($s['investmentTransactions']??[]) as $eventId=>$event)if(($event['journalId']??'')===$id){sfw_company_access($u);$s['investmentTransactions'][$eventId]['status']='Reversed';}
+    foreach((array)($s['investmentTransactions']??[]) as $eventId=>$event)if(($event['journalId']??'')===$id){sfw_company_access($u,'Edit');$s['investmentTransactions'][$eventId]['status']='Reversed';}
     if(function_exists('inv_validate_timeline'))inv_validate_timeline($s,$e);
     $lines=$j['lines'];foreach($lines as &$l){[$l['debit'],$l['credit']]=[$l['credit'],$l['debit']];if(isset($l['bankDebit']))[$l['bankDebit'],$l['bankCredit']]=[$l['bankCredit'],$l['bankDebit']];}unset($l);
     $rid=rsv2_journal($s,$e,$date,'SALARY_ALLOCATED_PAYMENT_REVERSAL',$id,'Reverse salary payment — '.$reason,$lines,$u,['salarySheetKey'=>$key,'originalPostId'=>$id,'reason'=>$reason]);$s['journals'][$rid]['reversalOf']=$id;$s['journals'][$id]['reversedByPostId']=$rid;
