@@ -1,0 +1,110 @@
+name: Bounded login recovery delivery
+on:
+  pull_request:
+    paths: ['.github/workflows/login-recovery-delivery.yml', '.github/scripts/login_recovery_deploy*']
+  push:
+    branches: [main]
+    paths: ['.github/workflows/login-recovery-delivery.yml', '.github/scripts/login_recovery_deploy*']
+permissions:
+  contents: read
+jobs:
+  boundaries:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          php -l .github/scripts/login_recovery_deploy.php
+          php .github/scripts/login_recovery_deploy_test.php
+          python3 tests/security/corrupt_session_recovery_test.py
+          python3 tests/security/private_session_storage_test.py
+          php tests/security/authentication_hardening_test.php
+          php tests/security/session_web_hardening_test.php
+  repair:
+    needs: boundaries
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    environment: live-qa
+    concurrency:
+      group: transtrade-production-deployment
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - name: Package only the approved login repair and exact application manifest
+        run: |
+          set -euo pipefail
+          test -z "$(git diff --name-only d383ea5d2040781cb2aeea81fd7b779351c46352 HEAD -- . ':(exclude).github/**' ':(exclude)tests/**' ':(exclude)docs/**' ':(exclude)AGENTS.md')"
+          python3 - <<'PY'
+          import base64,hashlib,json,os,pathlib,subprocess
+          manifest={}
+          for name in subprocess.check_output(['git','ls-files','-z']).decode().split('\0'):
+            if not name or name=='AGENTS.md' or name.split('/')[0] in ['.github','tests','docs','data','uploads','storage','cache','logs']:continue
+            manifest[name]=hashlib.sha256(pathlib.Path(name).read_bytes()).hexdigest()
+          files={name:base64.b64encode(pathlib.Path(name).read_bytes()).decode() for name in ['session_store.php','auth_store.php']}
+          old={name:hashlib.sha256(subprocess.check_output(['git','show','39e505c3152572feae96350124b00b372ff07138:'+name])).hexdigest() for name in files}
+          package={'releaseSha':os.environ['GITHUB_SHA'],'manifest':manifest,'files':files,'oldHashes':old}
+          encoded=base64.b64encode(json.dumps(package).encode()).decode()
+          script=pathlib.Path('.github/scripts/login_recovery_deploy.php').read_text()+"\n$package=json_decode(base64_decode('"+encoded+"'),true,512,JSON_THROW_ON_ERROR);\nlr_main((string)getenv('TT_LOGIN_TARGET'),$package);\n"
+          pathlib.Path(os.environ['RUNNER_TEMP'],'login-recovery.php').write_text(script)
+          print('Approved application source d383ea5; manifest files',len(manifest),'; replacement code files',len(files))
+          PY
+          php -l "$RUNNER_TEMP/login-recovery.php"
+      - name: Verify host, check capacity, preserve code rollback and apply the two-file repair
+        env:
+          HOSTINGER_HOST: ${{ secrets.HOSTINGER_HOST }}
+          HOSTINGER_PORT: ${{ secrets.HOSTINGER_PORT }}
+          HOSTINGER_USER: ${{ secrets.HOSTINGER_USER }}
+          HOSTINGER_DEPLOY_PATH: ${{ secrets.HOSTINGER_DEPLOY_PATH }}
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+          HOSTINGER_KNOWN_HOSTS: ${{ secrets.HOSTINGER_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          case "$HOSTINGER_DEPLOY_PATH" in /home/*/domains/app.transtradeinternational.com/public_html) ;; *) exit 1 ;; esac
+          install -m 700 -d "$RUNNER_TEMP/ssh"
+          printf '%s\n' "$HOSTINGER_SSH_KEY" | tr -d '\r' > "$RUNNER_TEMP/ssh/key"
+          printf '%s\n' "$HOSTINGER_KNOWN_HOSTS" | tr -d '\r' > "$RUNNER_TEMP/ssh/known_hosts"
+          chmod 600 "$RUNNER_TEMP/ssh/key" "$RUNNER_TEMP/ssh/known_hosts"
+          target_q=$(printf '%q' "$HOSTINGER_DEPLOY_PATH")
+          ssh -i "$RUNNER_TEMP/ssh/key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" -o StrictHostKeyChecking=yes -p "$HOSTINGER_PORT" "$HOSTINGER_USER@$HOSTINGER_HOST" "TT_LOGIN_TARGET=$target_q php" < "$RUNNER_TEMP/login-recovery.php"
+      - name: Check public sign-in availability
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --max-time 45 https://app.transtradeinternational.com/login.php > "$RUNNER_TEMP/login.html"
+          python3 - <<'PY'
+          import os,pathlib
+          body=pathlib.Path(os.environ['RUNNER_TEMP'],'login.html').read_text()
+          assert 'name="username"' in body and 'Fatal error' not in body
+          print('PUBLIC_SIGN_IN_FORM_OK; credential submission remains independently checked')
+          PY
+      - name: Verify an actual sign-in with the existing read-only QA identity
+        env:
+          TRANSTRADE_QA_USERNAME: ${{ secrets.TRANSTRADE_QA_USERNAME }}
+          TRANSTRADE_QA_PASSWORD: ${{ secrets.TRANSTRADE_QA_PASSWORD }}
+        run: |
+          python3 - <<'PY'
+          import html.parser,http.cookiejar,json,os,urllib.parse,urllib.request,urllib.error
+          class Form(html.parser.HTMLParser):
+            csrf=''
+            def handle_starttag(self,tag,attrs):
+              a=dict(attrs)
+              if tag=='input' and a.get('name')=='csrf':self.csrf=a.get('value','')
+          user=os.environ['TRANSTRADE_QA_USERNAME'];password=os.environ['TRANSTRADE_QA_PASSWORD']
+          assert user=='qa.assistant' and password,'Existing read-only QA identity required'
+          client=urllib.request.build_opener(urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
+          base='https://app.transtradeinternational.com';stage='login form'
+          try:
+            with client.open(base+'/login.php',timeout=45) as r:
+              form=Form();form.feed(r.read().decode());assert r.status==200 and form.csrf
+            stage='credential submission'
+            request=urllib.request.Request(base+'/login.php',data=urllib.parse.urlencode({'username':user,'password':password,'csrf':form.csrf}).encode())
+            with client.open(request,timeout=60) as r:
+              body=r.read().decode();assert r.status==200 and urllib.parse.urlparse(r.url).path in ['/accounts/','/accounts/index.php']
+              assert 'entityHome' in body and 'name="password"' not in body
+            print('AUTHENTICATED_QA_ACCOUNTS_OK; existing identity, no financial/stock/document test writes')
+          except urllib.error.HTTPError as error:
+            print(json.dumps({'loginVerified':False,'stage':stage,'httpStatus':error.code}));raise SystemExit(1)
+          except Exception as error:
+            print(json.dumps({'loginVerified':False,'stage':stage,'errorType':type(error).__name__}));raise SystemExit(1)
+          PY
