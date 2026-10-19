@@ -6,6 +6,7 @@ on:
     paths:
       - 'index.html'
       - 'index.php'
+      - 'jv_notice_ui.php'
       - 'document-reader-settings.php'
       - 'admin/document-reader*'
       - 'exports/**'
@@ -45,6 +46,7 @@ on:
     paths:
       - 'index.html'
       - 'index.php'
+      - 'jv_notice_ui.php'
       - 'document-reader-settings.php'
       - 'admin/document-reader*'
       - 'exports/**'

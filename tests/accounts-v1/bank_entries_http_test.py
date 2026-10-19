@@ -213,6 +213,16 @@ require $argv[1];
     cash,body=good(action='post',type='PETTY_CASH',bankId='CASH|TTI',date='2026-10-10',amount=100,pettyCashDestination='MILL',millLocationId='mills-1',reference='MILL-CASH-2')
     assert all(line['account']=='1120' for line in cash['result']['journal']['lines'])
     before=books.read_bytes();user['permissions']['Mill']={'petty':[]};set_user();assert request('mill_cash_ledger','?entity=TTI&locationId=mills-1')[0]==403 and books.read_bytes()==before
+    # Consortium funds are a liability, independent of the owner's Zakat expense.
+    fund,_=good('accounts_subaccounts',operation='add',name='Zakat collected for distribution',parentCode='2100',taxCategory='NONE');fund_id=fund['result']['subaccountId']
+    report_query='?entity=TTI&from=2026-10-01&to=2026-10-31';before_pl=request('accounts_reports',report_query)[1]['profitAndLoss']
+    collection,collection_body=good(action='post',type='RECEIPT',bankId='BANK-1',date='2026-10-11',amount=200,subaccountId=fund_id,payee='Consortium donor',reference='ZAKAT-FUND-COLLECTION',narration='Funds received for distribution')
+    collection_lines=collection['result']['journal']['lines'];assert [(l['account'],l['debit'],l['credit']) for l in collection_lines]==[('2100',0,200),('1110',200,0)]
+    before=books.read_bytes();assert request('bank_entries','?entity=TTI',collection_body)[0]==200 and books.read_bytes()==before
+    distribution,_=good(action='post',type='PAYMENT',bankId='BANK-1',date='2026-10-12',amount=75,subaccountId=fund_id,payee='Fund beneficiary',reference='ZAKAT-FUND-DISTRIBUTION',narration='Distribute collected funds',bankPaymentMethod='ONLINE_BANKING')
+    assert [(l['account'],l['debit'],l['credit']) for l in distribution['result']['journal']['lines']]==[('2100',75,0),('1110',0,75)]
+    assert request('accounts_reports',report_query)[1]['profitAndLoss']==before_pl,'Collection and fund distribution must not create or refund the owner Zakat expense'
+    _,fund_ledger=request('accounts_ledger_browser','?entity=TTI&account=SUB|'+fund_id+'&from=2026-10-01&to=2026-10-31');assert fund_ledger['closing']==-125 and len(fund_ledger['rows'])==2
     for endpoint in ['bank_entries','accounts_subaccounts']:
         books.write_text('{broken JSON');before=books.read_bytes();assert request(endpoint,'?entity=TTI')[0]==500 and books.read_bytes()==before
     print('Bank entries, finance, subaccounts, expense/JV/ledger/report links, retries, corrections, permissions and corrupt-store protection passed.')

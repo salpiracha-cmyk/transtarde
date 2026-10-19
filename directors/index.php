@@ -56,4 +56,4 @@ ob_start();
  load();
 })();
 </script></body></html>
-<?php echo tt_version_local_assets((string)ob_get_clean(),'/directors/'); ?>
+<?php require_once __DIR__.'/../jv_notice_ui.php'; echo tt_version_local_assets(str_replace('</body>',tt_jv_notice_ui($user,'#directorHome').'</body>',(string)ob_get_clean()),'/directors/'); ?>

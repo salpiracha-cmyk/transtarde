@@ -25,7 +25,7 @@ if(!function_exists('mb_strlen')){function mb_strlen($s){return strlen($s);}}
 require __DIR__.'/master_store.php';
 function tt_require_login(){return ['id'=>(int)($_SERVER['HTTP_X_QA_USER']??1),'role'=>$_SERVER['HTTP_X_QA_ROLE']??'Super Admin','username'=>'Fixture','full_name'=>'Fixture'];}
 function tt_user_can_open_module($u,$m){return true;}
-function tt_user_can_module_action($u,$m,$icon,$action){if($action==='View')return ($_SERVER['HTTP_X_QA_NO_VIEW']??'')!=='1';if($action==='Approve')return in_array($u['role'],['Super Admin','Reviewer'])&&($_SERVER['HTTP_X_QA_NO_APPROVE']??'')!=='1';return $u['role']!=='Viewer';}
+function tt_user_can_module_action($u,$m,$icon,$action){if($action==='View')return ($_SERVER['HTTP_X_QA_NO_VIEW']??'')!=='1';if($action==='Approve')return in_array($u['role'],['Super Admin','Director','Reviewer'])&&($_SERVER['HTTP_X_QA_NO_APPROVE']??'')!=='1';return $u['role']!=='Viewer';}
 function tt_user_can_access_entity($u,$e,$a){return $e==='TTI';}
 function tt_ensure_data_dir(){}
 function tt_verify_csrf($value){return $value==='fixture';}
@@ -81,6 +81,14 @@ require __DIR__.'/auth_store.php';$h=fopen(TT_DATA_DIR.'/accounts.json','r+');fl
         pending2=request(submit('rejected'),user=2,role='Accountant')[1]['result'];reason='Amount does not match the original invoice'
         rejected=request({'action':'reject_jv','id':pending2['jvId'],'reason':reason})[1]['result'];assert rejected['status']=='Rejected'
         feed=request(user=2,role='Accountant',query='&notices=1&after='+str(staff_feed['cursor']))[1];assert len(feed['notices'])==1 and feed['notices'][0]['reason']==reason
+        pending_feed=request(user=2,role='Accountant',query='&notices=1&pending=1')[1]
+        assert len(pending_feed['notices'])==2,'A fresh session must retain undecided-by-user notifications'
+        before_books=json.loads(data_file.read_text())['journals'];nid=staff_feed['notices'][0]['id']
+        assert request({'action':'dismiss_jv_notice','noticeId':nid},user=3,role='Accountant')[0]==422,'Another user cannot dismiss the preparer notice'
+        assert request({'action':'dismiss_jv_notice','noticeId':nid},user=2,role='Viewer')[1]['result']['dismissed'],'View-only recipient can close their own message'
+        assert request({'action':'dismiss_jv_notice','noticeId':nid},user=2,role='Viewer')[0]==200,'Dismiss retries are safe'
+        assert json.loads(data_file.read_text())['journals']==before_books,'Dismissing changes no financial journal'
+        remaining=request(user=2,role='Accountant',query='&notices=1&pending=1')[1]['notices'];assert len(remaining)==1 and remaining[0]['status']=='Rejected'
         assert request(submit('viewer'),user=3,role='Viewer')[0]==403
         no_approve=request(submit('limited-admin'),extra={'X-QA-No-Approve':'1'})[1]['result'];assert no_approve['status']=='Pending Approval','Direct post still requires approval authority'
         unbalanced=submit('unbalanced');unbalanced['lines'][1]['credit']=1;before=data_file.read_bytes();assert request(unbalanced)[0]==422;assert data_file.read_bytes()==before
@@ -90,6 +98,9 @@ require __DIR__.'/auth_store.php';$h=fopen(TT_DATA_DIR.'/accounts.json','r+');fl
         ids=sorted(body['result']['journalId'] for _,body in results);assert ids==[f'POST-2026-{n:05}' for n in range(44,48)],ids
         saved=json.loads(data_file.read_text());assert saved['journals']['POST-2026-00039']==initial['journals']['POST-2026-00039'];assert saved['journals']['POST-2026-00041']['meta']['sharedPostSequence'] is True;assert saved['journals']['POST-2026-00041']['reference']=='POST-2026-00041'
         current=request()[1];assert next(r for r in current['jvs'] if r.get('journalId')=='POST-2026-00041')['publicPostId']=='POST-2026-00041'
+        director=request(submit('director'),user=4,role='Director')[1];assert director['canPostDirectly'] and director['result']['status']=='Posted','Director with explicit JV approval permission posts directly'
+        limited=request(submit('limited-director'),user=4,role='Director',extra={'X-QA-No-Approve':'1'})[1];assert not limited['canPostDirectly'] and limited['result']['status']=='Pending Approval'
+        approved_own=request({'action':'approve_jv','id':limited['result']['jvId']},user=4,role='Director')[1];assert approved_own['result']['status']=='Posted','Existing own pending JV can be completed after approval authority is granted'
         print('PASS direct Super Admin post, shared +1 IDs across modules/concurrent JVs, retry protection, preparer approval, private notices/rejection and unchanged historical books')
     except Exception:
         server_log.flush();print((root/'server.log').read_text()[-5000:]);raise

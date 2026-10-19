@@ -13,10 +13,12 @@
     const company=entity();if(!['TTI','BRM'].includes(company))return;
     document.querySelector('#ttMillLiabilities')?.remove();
     const host=document.createElement('div');host.id='ttMillLiabilities';host.className='tt-layer';host.setAttribute('role','dialog');host.setAttribute('aria-modal','true');host.setAttribute('aria-label','Mill Bill Review');
-    host.innerHTML='<section class="tt-window"><header class="tt-window-head"><h2>Mill Bill Review</h2><span></span><button class="btn" data-close>× Close</button></header><div class="tt-window-body"><label>Bill type <select data-kind><option value="">All Mill bills</option><option value="LABOUR">Rice labour</option><option value="ELECTRICITY">Electricity</option><option value="REPROCESSING">Reprocessing</option><option value="PROCESSING">Other processing</option></select></label> <button class="btn" data-reference-review>Rent / Salary References</button> <button class="btn" data-refresh>Refresh saved bills</button> <button class="btn" data-csv>Export CSV</button> <button class="btn" data-print>Print saved review</button><p data-message role="status">Loading saved Mill bills…</p><div data-list></div><section data-review hidden></section></div></section>';
+    host.innerHTML='<section class="tt-window"><header class="tt-window-head"><h2>Mill Bill Review</h2><span></span><button class="btn" data-close>× Close</button></header><div class="tt-window-body"><label>Bill type <select data-kind><option value="">All Mill bills</option><option value="RICE_LABOUR">Rice labour</option><option value="MAIZE_LABOUR">Maize / Corn / Makai labour</option><option value="ELECTRICITY">Electricity</option><option value="REPROCESSING">Reprocessing</option><option value="PROCESSING">Other processing</option></select></label> <button class="btn" data-reference-review>Rent / Salary References</button> <button class="btn" data-refresh>Refresh saved bills</button> <button class="btn" data-csv>Export CSV</button> <button class="btn" data-print>Print saved review</button><p data-message role="status">Loading saved Mill bills…</p><div data-list></div><section data-review hidden></section></div></section>';
     document.body.appendChild(host);const q=s=>host.querySelector(s);
     let data={rows:[]},selected='',busy=false,pending=null,reason='',correctionDate=today(),checkedAt='';
     const identity=r=>r.kind+'|'+r.sourceId;
+    const commodity=r=>String(r.commodity||'').trim().toUpperCase(),isMaize=r=>['MAIZE','CORN','MAKAI'].includes(commodity(r));
+    const billType=r=>r.kind==='LABOUR'?(isMaize(r)?'Maize / Corn / Makai labour':commodity(r)==='RICE'?'Rice labour':'Labour — commodity unverified'):r.kind;
     function close(){if(busy)return;host.remove();document.removeEventListener('keydown',escape,true);}
     function escape(e){if(!host.isConnected){document.removeEventListener('keydown',escape,true);return;}if(e.key==='Escape'&&!busy){e.preventDefault();e.stopImmediatePropagation();close();}}
     document.addEventListener('keydown',escape,true);q('[data-close]').onclick=close;q('[data-reference-review]').onclick=()=>{if(busy)return;close();window.TT_MILL_REFERENCES?.open();};
@@ -31,16 +33,16 @@
       box.querySelector('[data-pay]')?.addEventListener('click',()=>{close();window.TT_SUPPLIER_SETTLEMENT_UI?.openBills('',row.party,posted.billId);});
       window.TT_FORM_VIEWPORT?.open(box);
     }
-    const filteredRows=()=>data.rows.filter(r=>!q('[data-kind]').value||r.kind===q('[data-kind]').value);
+    const filteredRows=()=>data.rows.filter(r=>{const v=q('[data-kind]').value,maize=isMaize(r);return !v||(v==='RICE_LABOUR'?r.kind==='LABOUR'&&commodity(r)==='RICE':v==='MAIZE_LABOUR'?r.kind==='LABOUR'&&maize:r.kind===v);});
     function render() {
       const rows=filteredRows();
-      q('[data-list]').innerHTML=rows.length?`<table><thead><tr><th>Bill date</th><th>Reference</th><th>Mill</th><th>Payee</th><th>PKR</th><th>Accounts status</th><th></th></tr></thead><tbody>${rows.map(r=>`<tr><td>${esc(date(r.date))}</td><td>${esc(r.reference)}</td><td>${esc(r.millName)}</td><td>${esc(r.party)}</td><td>${money(r.amount)}</td><td>${esc(r.blocker?'Needs source review':r.posted?.status||'Unposted')}</td><td><button class="btn" data-review-bill="${esc(identity(r))}">Review</button></td></tr>`).join('')}</tbody></table>`:'<p>No saved Mill bills for this selection.</p>';
+      q('[data-list]').innerHTML=rows.length?`<table><thead><tr><th>Bill date</th><th>Bill type</th><th>Reference</th><th>Mill</th><th>Payee</th><th>PKR</th><th>Accounts status</th><th></th></tr></thead><tbody>${rows.map(r=>`<tr><td>${esc(date(r.date))}</td><td>${esc(billType(r))}</td><td>${esc(r.reference)}</td><td>${esc(r.millName)}</td><td>${esc(r.party)}</td><td>${money(r.amount)}</td><td>${esc(r.blocker?'Needs source review':r.posted?.status||'Unposted')}</td><td><button class="btn" data-review-bill="${esc(identity(r))}">Review</button></td></tr>`).join('')}</tbody></table>`:'<p>No saved Mill bills for this selection.</p>';
       q('[data-list]').querySelectorAll('[data-review-bill]').forEach(b=>b.onclick=()=>{remember();selected=b.dataset.reviewBill;reason='';pending=null;detail(data.rows.find(r=>identity(r)===selected));});
       detail(data.rows.find(r=>identity(r)===selected));
     }
     async function load(){
       if(busy)return;remember();busy=true;host.inert=true;
-      try{const next=await request(company);if(!host.isConnected||entity()!==company)return;data=next;checkedAt=new Date().toLocaleString('en-GB',{timeZone:'Asia/Karachi'})+' PKT';render();q('[data-message]').textContent='Saved sources only. Review and post each actual bill explicitly; Maize labour remains deferred.';}
+      try{const next=await request(company);if(!host.isConnected||entity()!==company)return;data=next;checkedAt=new Date().toLocaleString('en-GB',{timeZone:'Asia/Karachi'})+' PKT';render();q('[data-message]').textContent='Saved sources only. Review and post each actual bill explicitly; Rice and Maize use their separate saved work and agreed rates.';}
       catch(e){q('[data-message]').textContent=e.message;}
       finally{busy=false;host.inert=false;}
     }
@@ -54,8 +56,8 @@
       finally{busy=false;host.inert=false;}
     }
     q('[data-kind]').onchange=()=>{remember();render();};q('[data-refresh]').onclick=load;
-    const outputHeaders=['Company','Kind','Bill reference','Bill date','Period from','Period to','Mill','Payee','Saved source PKR','Accounts status','Posted PKR','Outstanding PKR','Settled PKR','Post ID','Reversal Post ID','Source review issue'];
-    const outputValues=r=>[company,r.kind,r.reference,date(r.date),date(r.from),date(r.to),r.millName,r.party,r.amount,r.posted?.status||'Unposted',r.posted?.amount??'',r.posted?.outstandingAmount??'',r.posted?.settledAmount??'',r.posted?.journalId||'',r.posted?.reversalJournalId||'',r.blocker||(r.posted?.status==='Posted'&&r.posted.fingerprint!==r.fingerprint?'Source changed — payment held':'')];
+    const outputHeaders=['Company','Kind','Commodity','Bill reference','Bill date','Period from','Period to','Mill','Payee','Saved source PKR','Accounts status','Posted PKR','Outstanding PKR','Settled PKR','Post ID','Reversal Post ID','Source review issue'];
+    const outputValues=r=>[company,r.kind,r.commodity||'',r.reference,date(r.date),date(r.from),date(r.to),r.millName,r.party,r.amount,r.posted?.status||'Unposted',r.posted?.amount??'',r.posted?.outstandingAmount??'',r.posted?.settledAmount??'',r.posted?.journalId||'',r.posted?.reversalJournalId||'',r.blocker||(r.posted?.status==='Posted'&&r.posted.fingerprint!==r.fingerprint?'Source changed — payment held':'')];
     q('[data-csv]').onclick=()=>{
       const quote=v=>{let text=String(v??'');if(typeof v==='string'&&/^[=+@-]/.test(text))text="'"+text;return '"'+text.replace(/"/g,'""')+'"';},rows=[outputHeaders,...filteredRows().map(outputValues)];
       const url=URL.createObjectURL(new Blob([rows.map(r=>r.map(quote).join(',')).join('\r\n')],{type:'text/csv;charset=utf-8'})),a=document.createElement('a');a.href=url;a.download=company+'-mill-bill-review.csv';a.click();URL.revokeObjectURL(url);

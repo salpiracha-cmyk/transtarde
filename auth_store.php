@@ -1023,7 +1023,9 @@ function tt_require_login(): array {
         if($entity===''&&!empty($policy['required'])&&($user['role']??'')!=='Super Admin')tt_api_json_error(403,'An authorized legal entity is required.');
         if($entity!==''&&!in_array($entity,['TTI','BRM','TG'],true))tt_api_json_error(403,'Select a valid legal entity.');
         if($entity!==''){
-            $read=strtoupper((string)($_SERVER['REQUEST_METHOD']??'GET'))==='GET';
+            // Recipient acknowledgement changes notification metadata only, never books.
+            $noticeAck=$path==='/api/journal_vouchers.php'&&($body['action']??'')==='dismiss_jv_notice';
+            $read=strtoupper((string)($_SERVER['REQUEST_METHOD']??'GET'))==='GET'||$noticeAck;
             $allowed=$read?tt_user_can_access_entity($user,$entity,'View'):(tt_user_can_access_entity($user,$entity,'Create')||tt_user_can_access_entity($user,$entity,'Edit')||tt_user_can_access_entity($user,$entity,'Approve'));
             if(!$allowed)tt_api_json_error(403,'You do not have permission for this legal entity.');
         }
