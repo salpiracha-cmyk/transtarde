@@ -32,7 +32,7 @@ define('TT_DATA_DIR',__DIR__.'/data');function tt_require_login(){return ['role'
   # Opening allocation is not a negative expense. Only original payouts/refunds count.
   base=json.loads(json.dumps(books))
   opening=journal('Z-OPEN',[line('3400',852747),line('7210',cr=852747)],'2026-07-01');opening['sourceType']='OPENING_BALANCE_BF'
-  payment=journal('Z-PAID',[line('7210',103350),line('1120',cr=103350)])
+  payment=journal('Z-PAID',[{**line('7210',100000),'counterparty':'Recipient A'},{**line('7210',3350),'counterparty':'Recipient B'},line('1120',cr=103350)])
   refund=journal('Z-REFUND',[line('1120',100),line('7210',cr=100)])
   unpaid=journal('Z-UNPAID',[line('7210',50),line('2140',cr=50)])
   foreign=journal('Z-FOREIGN',[line('7210',999999),line('1120',cr=999999)]);foreign['entity']='BRM'
@@ -44,6 +44,7 @@ define('TT_DATA_DIR',__DIR__.'/data');function tt_require_login(){return ['role'
   assert z['zakatReporting']['paidExpense']==103250 and z['zakatReporting']['controlBookNet']==-749447
   assert {x['journalId'] for x in z['expenseActivity'] if str(x['account'])=='7210'}=={'Z-PAID','Z-REFUND'}
   assert sum(x['amount'] for x in z['expenseActivity'] if str(x['account'])=='7210')==103250
+  assert [(x['recipient'],x['amount']) for x in z['expenseActivity'] if x['journalId']=='Z-PAID']==[('Recipient A',100000),('Recipient B',3350)],'Paid expense must preserve separate original recipients and purpose lines'
   assert path.read_bytes()==zbefore,'Paid-basis presentation must never reclassify or duplicate journals'
   mixed=journal('Z-MIXED',[line('7210',100),line('1120',cr=50),line('2140',cr=50)])
   books['journals']['Z-MIXED']=mixed;path.write_text(json.dumps(books));status,z=req();assert z['profitAndLoss']['profit'] is None and z['zakatReporting']['paidExpense'] is None and 'Z-MIXED' in ' '.join(z['profitAndLoss']['warnings'])

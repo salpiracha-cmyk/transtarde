@@ -149,14 +149,14 @@ function sac_payload(array $s,string $e,string $from='',string $to=''):array {
 
 /** Expense activity is linked to the recipient, never an artificial receivable. */
 function sac_expense_activity(array $s,string $e,string $from,string $to):array {
- $chart=sac_chart();$out=[];$hidden=alv_hidden($s,$to);$zakat=gm_zakat_payments($s,$from,$to,$e);$paid=array_column($zakat['rows'],'amountPKR','postId');$zakatSeen=[];
+ $chart=sac_chart();$out=[];$hidden=alv_hidden($s,$to);$zakat=gm_zakat_payments($s,$from,$to,$e);$paid=array_column($zakat['rows'],'amountPKR','postId');
  foreach((array)($s['journals']??[]) as $j){
   if(isset($hidden[(string)($j['id']??'')]))continue;
   if(($j['entity']??'')!==$e||($j['status']??'')!=='Posted'||($j['date']??'')<$from||($j['date']??'')>$to)continue;
   $meta=(array)($j['meta']??[]);$source=(array)($s['generalExpenses'][(string)($meta['generalExpenseId']??'')]??[]);
   foreach((array)($j['lines']??[]) as $l){
    $code=(string)($l['account']??'');if(!empty($l['personalRecovery']))continue;
-   if($code==='7210'){if(!array_key_exists((string)$j['id'],$paid)||isset($zakatSeen[(string)$j['id']]))continue;$zakatSeen[(string)$j['id']]=true;$l['debit']=max(0,$paid[(string)$j['id']]);$l['credit']=max(0,-$paid[(string)$j['id']]);}
+   if($code==='7210'&&!array_key_exists((string)$j['id'],$paid))continue;
    $master=(array)($s['salaryMasters'][(string)($l['salaryMasterId']??$meta['salaryMasterId']??'')]??[]);
    $monthly=$code==='3200'&&($l['category']??$meta['category']??$master['category']??'')==='HOME_MONTHLY_GIVE';
    if(!$monthly&&(($chart[$code]['class']??'')!=='Expense'||(str_starts_with($code,'5')&&$code!=='5550')))continue;
