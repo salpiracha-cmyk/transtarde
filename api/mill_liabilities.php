@@ -21,7 +21,7 @@ function ml_review_rows(array $values,array $masters,array $store,string $entity
     $rows=[];
     foreach (ml_kinds() as $kind=>$policy) foreach (ml_rows($values,$policy['collection']) as $r) {
         if (!is_array($r)||($r['entity']??'')!==$entity) continue;
-        $summary=['kind'=>$kind,'sourceId'=>(string)($r['id']??''),'reference'=>(string)($r['ref']??$r['billNo']??''),'date'=>(string)($r['date']??''),'from'=>(string)($r['readFrom']??$r['from']??''),'to'=>(string)($r['readTo']??$r['till']??''),'millName'=>(string)($r['millName']??$r['mill']??''),'party'=>(string)($r['party']??$r['contractor']??$r['mill']??''),'amount'=>$r['amount']??null];
+        $summary=['commodity'=>(string)($r['commodity']??''),'kind'=>$kind,'sourceId'=>(string)($r['id']??''),'reference'=>(string)($r['ref']??$r['billNo']??''),'date'=>(string)($r['date']??''),'from'=>(string)($r['readFrom']??$r['from']??''),'to'=>(string)($r['readTo']??$r['till']??''),'millName'=>(string)($r['millName']??$r['mill']??''),'party'=>(string)($r['party']??$r['contractor']??$r['mill']??''),'amount'=>$r['amount']??null];
         $summary['key']='MILL|'.$entity.'|'.($r['millId']??'').'|'.$policy['collection'].'|'.$summary['sourceId'];
         $summary['posted']=$store['millLiabilities'][$summary['key']]??null;
         if (is_array($summary['posted'])) unset($summary['posted']['sourceSnapshot'],$summary['posted']['versions']);
@@ -38,7 +38,7 @@ function ml_review_rows(array $values,array $masters,array $store,string $entity
         if (!is_array($record)||($record['entity']??'')!==$entity||isset($seen[$record['key']??''])) continue;
         $kind=null;foreach(ml_kinds() as $name=>$policy)if($policy['collection']===($record['sourceCollection']??''))$kind=$name;
         if (!$kind) continue;$r=(array)($record['sourceSnapshot']??[]);$posted=$record;unset($posted['sourceSnapshot'],$posted['versions']);
-        $rows[]=['kind'=>$kind,'sourceId'=>(string)$record['sourceRecordId'],'key'=>$record['key'],'fingerprint'=>'','reference'=>(string)($r['ref']??$r['billNo']??''),'date'=>(string)($r['date']??''),'from'=>(string)($r['readFrom']??$r['from']??''),'to'=>(string)($r['readTo']??$r['till']??''),'millName'=>(string)($r['millName']??$r['mill']??''),'party'=>(string)($r['party']??$r['contractor']??$r['mill']??''),'amount'=>$record['amount'],'posted'=>$posted,'blocker'=>'The original Mill source is missing. The preserved posting and source snapshot require review.'];
+        $rows[]=['commodity'=>(string)($r['commodity']??''),'kind'=>$kind,'sourceId'=>(string)$record['sourceRecordId'],'key'=>$record['key'],'fingerprint'=>'','reference'=>(string)($r['ref']??$r['billNo']??''),'date'=>(string)($r['date']??''),'from'=>(string)($r['readFrom']??$r['from']??''),'to'=>(string)($r['readTo']??$r['till']??''),'millName'=>(string)($r['millName']??$r['mill']??''),'party'=>(string)($r['party']??$r['contractor']??$r['mill']??''),'amount'=>$record['amount'],'posted'=>$posted,'blocker'=>'The original Mill source is missing. The preserved posting and source snapshot require review.'];
     }
     foreach ($rows as &$summary) {
         if (is_array($summary['posted'])) {

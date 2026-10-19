@@ -3,7 +3,7 @@ declare(strict_types=1);
 require_once __DIR__.'/accounts_reference.php';
 
 function jvd_direct_post(array $user,string $entity):bool {
-    return ($user['role']??'')==='Super Admin'
+    return in_array(($user['role']??''),['Super Admin','Director'],true)
         && tt_user_can_module_action($user,'Accounts','jv','Approve')
         && tt_user_can_access_entity($user,$entity,'Approve');
 }
@@ -23,4 +23,17 @@ function jvd_feed(array $store,array $user,?int $after):array {
         unset($notice['recipientIds']);$items[]=$notice;
     }
     return ['ok'=>true,'cursor'=>$latest,'notices'=>$items];
+}
+
+/** Unacknowledged decisions survive a new browser/session and are private to their recipients. */
+function jvd_pending_feed(array $store,array $user):array {
+    $uid=(int)($user['id']??0);$dismissed=(array)($store['jvNoticeDismissals'][(string)$uid]??[]);$feed=jvd_feed($store,$user,0);
+    $feed['notices']=array_values(array_filter($feed['notices'],static fn($n)=>!isset($dismissed[(string)$n['id']])));
+    return $feed;
+}
+function jvd_dismiss(array &$store,array $user,int $id,string $entity):void {
+    foreach(jvd_feed($store,$user,0)['notices'] as $notice)if((int)$notice['id']===$id&&$notice['entity']===$entity){
+        $store['jvNoticeDismissals'][(string)(int)$user['id']][(string)$id]=gmdate('c');return;
+    }
+    throw new DomainException('This JV decision is not available to this user and company.');
 }

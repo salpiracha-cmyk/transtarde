@@ -233,10 +233,10 @@
     const top = q('.topbar');
     if (!top || q('#ttChangeCompanyDesk')) return;
     const power = q('.power', top);
-    const consoleLink = access.super ? document.createElement('a') : null;
+    const consoleLink = (access.super||(access.workspaces||[]).length>1) ? document.createElement('a') : null;
     if (consoleLink) {
-      consoleLink.id = 'ttConsoleTop'; consoleLink.href = '/index.php';
-      consoleLink.title = 'Return to Control Centre'; consoleLink.textContent = 'Console';
+      consoleLink.id = 'ttConsoleTop'; consoleLink.href = access.super?'/index.php':'/staff-home.php';
+      consoleLink.title = access.super?'Return to Control Centre':'Your authorised workspaces'; consoleLink.textContent = access.super?'Console':'Home';
     }
     const master = document.createElement('button');
     master.id = 'ttMasterTop'; master.type = 'button'; master.title = 'Master Records';

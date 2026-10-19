@@ -13,6 +13,8 @@ with tempfile.TemporaryDirectory(prefix='rice-module-delivery-') as directory:
  function tt_user_can_access_masters($u){return false;} function tt_list_masters(){return [];}
  function tt_master_options(){return [];}
  ''')
+ auth_source=(ROOT/'auth_store.php').read_text();start=auth_source.index('function tt_user_workspaces(');end=auth_source.index('function tt_user_landing_url(',start)
+ with (root/'auth_store.php').open('a') as fixture:fixture.write(auth_source[start:end])
  (root/'api/carry_forward_core.php').write_text('<?php function job_authorized($u){return false;}')
  (root/'request.php').write_text("<?php $_GET=['id'=>$argv[1]??'milling'];register_shutdown_function(function(){file_put_contents(__DIR__.'/status.json',json_encode(http_response_code()?:200));});require __DIR__.'/module.php';")
  def run(denied=False,module='milling'):

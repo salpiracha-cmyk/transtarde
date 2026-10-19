@@ -54,3 +54,40 @@ Startup `39229101981` / job `117982466173` passed: usable Accounts 1,205 ms; Acc
 - The MacBook Chrome user-session review. This chat still exposes no connected local Browser control. Hosted disposable/live read-only browser checks are recorded separately and do not replace that review.
 
 Coverage after this continuation: 146 action rows — 112 passed, 21 partial, 4 failed, 6 not tested, 2 blocked and 1 intermittent. The 34 open/partial rows are action-level acceptance items, not 34 distinct defects. No overall 100% claim is made.
+
+## Connected Chrome continuation — 19 October 2026
+
+This supersedes the earlier connection limitation above. The Browser extension now identifies Chrome and exposes the owner's signed-in Transtrade session (Salman / Super Admin). The existing Accounts tab contained an open Bank Entry form; it was inspected but left untouched. Review navigation used a separate temporary tab and the native Console-to-Mill route.
+
+Read-only native UI observations:
+
+- Accounts → Reports → Annual Zakat opens the annual assessment/control, its incomplete-section gate, six section controls, yearly-debit pending status and actual-payments expense wording. No section was saved. This confirms availability, not completion of the annual monetary posting or its counterpart.
+- Commodity & Local Sales renders original ordered/moved/outstanding quantities, product/brand filters and financial-only B/F rows with no physical quantities. PS-RICE-26003 displays its ten original lifting references and moved quantity without the earlier false parent-ownership hold.
+- P&L displays actual paid Zakat expense of PKR 103,350 for the selected 1 July–19 October period. Balance Sheet retains the explicit 7210 opening/unpaid classification review; no balancing equity or reclassification was assumed.
+- Expenses → Mill Bill Review → Rent / Salary References opens the existing-payment reconciliation screen and reports no explicitly owned saved references. This is empty-state/navigation acceptance, not a new positive live link or payment test.
+- Mill → TTI Rice Mills → Labour / Mill Expenses → Maize opens the separate Maize form. Direct route shows container loading; warehouse bulk adds incoming-bag unloading; packed route additionally separates 50 kg and 25 kg paltai with explicitly selected rate bases. All rates remain blank, contractor confirmation is unchecked, and Rice auto-fill is absent. No work line or bill was saved. This supplements PR318/339 implementation evidence with connected Chrome route inspection.
+- Captured warning/error logs were empty on the reviewed Accounts and Milling tabs. This is scoped to these views, not full application clearance.
+
+One newly confirmed UI inconsistency remains: Accounts Mill Bill Review still says “Maize labour remains deferred” and its bill-type filter lists Rice but not Maize, despite the released native Maize flow. Record this for reconciliation with the actual review/posting implementation; do not describe the entire Maize flow as unimplemented or use this text as permission to create live bills.
+
+No financial, stock, assessment, source-reference-link or master save/post action was performed. The remaining source/accounting/document and formal acceptance gates above remain open. This scoped Chrome continuation does not certify every role, company, workflow variant or printed original, and the coverage totals have not been promoted on that basis.
+
+
+## Owner follow-up — approval notices, Director JV and receipt direction
+
+Owner requested completion plus three defects on 19 October. Connected Chrome confirmed Tayyab is active Director with all four modules and every displayed screen/action/master checkbox selected. No user grant, password or security setting was changed during inspection.
+
+Changes prepared in `audit/approval-director-receipts-20261019`:
+
+- Private JV notifications now read unacknowledged recipient decisions on Accounts home, Console dashboard or Directors home. Approval and rejection both remain until X. Leaving home hides without acknowledging; returning restores the same decision. A fresh browser/session reads outstanding decisions without advancing past them. X saves a recipient-specific acknowledgement under the existing Accounts lock/CSRF/entity checks. A View-only recipient can close their own message; foreign users/companies cannot. A failed acknowledgement keeps the message. Notification reads do not update transaction forms or inactivity timestamps.
+- Directors with the existing JV Approve and selected-company Approve actions can directly post and complete their own pending JV. Ordinary preparers still require another approver. Title alone does not bypass the selected matrices. This corrects the proven JV restriction; it is not certification of every possible restriction Tayyab may encounter.
+- Bank Receipt identifies Received into bank and Received from, retaining Pay from bank for outgoing modes. No mode change creates an entry.
+- Mill review separately filters Rice and Maize/Corn/Makai; original commodity is retained even on a blocked/missing-source review, and unknown commodity is not labelled Rice. Screen, CSV and print share the filter. Existing posting, correction and settlement safeguards remain.
+
+Zakat consortium treatment is distinct from the owner's own assessment/expense. Where TTI actually recognises/controls the collection and owes distribution, existing named-liability Bank Receipt can debit the receiving bank and credit a `Zakat collected for distribution` subaccount under Trade & Other Payables (2100). Paying that collected fund debits the same liability and credits the bank. This does not change 7210 expense or duplicate the annual assessment. If Salman personally holds the fund outside TTI, its bank and distribution liability belong in the separate fund records; do not invent a TTI bank asset. A due-from Salman entry would require an actual TTI-controlled claim/obligation, not merely the use of a personal bank account. No fund account or collection was created in production.
+
+Targeted UI, actual endpoint, actual-auth, journal concurrency/idempotency and consortium receipt/distribution checks passed locally. The real-auth test caught and fixed the shared company guard initially treating a recipient acknowledgement as a financial write; the exception is confined to this action and still requires View plus recipient ownership. Consortium fixture receipts/distributions leave the entire P&L unchanged and leave the correctly signed remaining fund liability. Full feature/main/deployment evidence is to be recorded after release. Existing source/document/migration/formal-sign-off exceptions remain open; inspection is not an overall 100% claim.
+
+A second Director access issue was confirmed in the native source: non-Super-Admin users had no header route from Accounts/other modules to the other workspaces already granted to them. The continuation adds a genuine permission-filtered staff Home with links from all four workspaces for users assigned more than one module. It does not expose owner-only Console administration or expand grants. Actual-auth delivery tests exercise a Director assigned all four modules, then narrow current permissions and verify forbidden modules remain 403, owner Console remains redirected, and original books remain unchanged.
+
+Native Director Home acceptance exposed an additional real Exports startup exception: the shared header removes the legacy `logoutTop` control before Exports' delayed cleanup, which then read `.style` on null (`export-assets.php?name=app.js:151`). The cleanup now checks the current control before hiding it. A focused actual-mount DOM regression covers standalone logout, shared-header cleanup and prior removal; native Director acceptance continues to require zero page exceptions and an unchanged original balanced journal. The earlier fixture-only login prerequisite/empty-object checks are retained in workflow history, not mistaken for production financial defects.

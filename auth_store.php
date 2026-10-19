@@ -677,6 +677,13 @@ function tt_user_accounts_entities(array $user): array {
     return array_values(array_filter(['TTI','BRM','TG'], static fn(string $entity): bool => tt_user_can_access_entity($user, $entity, 'View')));
 }
 
+/** Navigation reflects existing grants; it grants no new module authority. */
+function tt_user_workspaces(array $user): array {
+    $choices=['Accounts'=>['label'=>'Accounts','url'=>'/accounts/index.php'],'Mill'=>['label'=>'Mill','url'=>'/module.php?id=milling'],'Exports'=>['label'=>'Exports','url'=>'/module.php?id=exports'],'Directors'=>['label'=>'Directors','url'=>'/directors/index.php']];
+    $out=[];foreach($choices as $module=>$choice)if(tt_user_can_open_module($user,$module))$out[]=['module'=>$module]+$choice;
+    return $out;
+}
+
 function tt_user_landing_url(array $user): string {
     if (!empty($user['must_change_password'])) return 'change-password.php';
     // The owner-level Super Admin always starts in the Control Centre.
@@ -1023,7 +1030,9 @@ function tt_require_login(): array {
         if($entity===''&&!empty($policy['required'])&&($user['role']??'')!=='Super Admin')tt_api_json_error(403,'An authorized legal entity is required.');
         if($entity!==''&&!in_array($entity,['TTI','BRM','TG'],true))tt_api_json_error(403,'Select a valid legal entity.');
         if($entity!==''){
-            $read=strtoupper((string)($_SERVER['REQUEST_METHOD']??'GET'))==='GET';
+            // Recipient acknowledgement changes notification metadata only, never books.
+            $noticeAck=$path==='/api/journal_vouchers.php'&&($body['action']??'')==='dismiss_jv_notice';
+            $read=strtoupper((string)($_SERVER['REQUEST_METHOD']??'GET'))==='GET'||$noticeAck;
             $allowed=$read?tt_user_can_access_entity($user,$entity,'View'):(tt_user_can_access_entity($user,$entity,'Create')||tt_user_can_access_entity($user,$entity,'Edit')||tt_user_can_access_entity($user,$entity,'Approve'));
             if(!$allowed)tt_api_json_error(403,'You do not have permission for this legal entity.');
         }

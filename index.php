@@ -55,7 +55,9 @@ $bootstrap = '<script>window.TT_SESSION=' . json_encode($session, JSON_HEX_TAG|J
 // Commit activity and CSRF before assembling the page so its API reads and
 // other tabs do not queue behind the Console's session lock.
 tt_release_read_session();
+require_once __DIR__.'/jv_notice_ui.php';
+$noticeUi=tt_jv_notice_ui($user,'#view-dashboard');
 $customerMaster = '<script src="/customer-master.js?v=20260909-1"></script>';
 $release = '<script src="/session-activity.js?v=20260929-1"></script><script src="/customer-contract-options.js?v=20260911-reports-1&fix=20261003-no-legacy-completion-1"></script><script src="/global-validation.js?v=20260909-1"></script>';
 $html = str_replace('</head>', $bootstrap . '</head>', (string)$html);
-echo tt_version_local_assets(str_replace('</body>', $customerMaster . $release . '</body>', $html));
+echo tt_version_local_assets(str_replace('</body>', $customerMaster . $release . $noticeUi . '</body>', $html));

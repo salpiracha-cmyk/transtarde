@@ -38,6 +38,8 @@ const bankAmountLabel=bankAmount.closest('label').querySelector(':scope > span')
 for(const mode of ['SAVING_PROFIT','RECEIPT','TRANSFER','BANK_CHARGE','FINANCE_DRAW','FINANCE_REPAY','FINANCE_MARKUP']){
  bankForm.elements.type.value=mode;bankForm.elements.type.dispatchEvent(new bankWindow.Event('change'));
  await new Promise(setImmediate);
+ assert.equal(bankForm.querySelector('[data-bank-label]>span').textContent,['RECEIPT','SAVING_PROFIT','FINANCE_DRAW'].includes(mode)?'Received into bank':'Pay from bank');
+ if(mode==='RECEIPT')assert.equal(bankForm.querySelector('[data-payee]>span').textContent,'Received from');
  assert.equal(bankAmountLabel.textContent,'Amount / Gross profit',`Correct amount label after enhanced Bank Payment changes to ${mode}`);
  assert.equal(bankAmount.textContent,'','The numeric source must not receive stray label text');
  bankProxy.value='1,234.50';bankProxy.dispatchEvent(new bankWindow.Event('input',{bubbles:true}));

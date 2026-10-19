@@ -71,6 +71,18 @@ require $argv[1];
     status, data = request('journal_vouchers','?entity=TTI')
     assert status == 200 and data['canWrite'], data
     assert request('journal_vouchers','?entity=BRM')[0] == 403
+    # Real auth permits a read-only recipient to acknowledge only their own notice.
+    saved=json.loads(books.read_text());saved['jvNoticeSequence']=7;saved['jvNotices']=[{'id':7,'recipientIds':[1],'entity':'TTI','jvId':'JVD-1','status':'Posted','postId':'POST-TEST'}];books.write_text(json.dumps(saved))
+    user['permissions']['Accounts']={'jv':['View'],'entity-tti':['View']};set_user();original_journals=saved['journals']
+    status,data=request('journal_vouchers','?entity=TTI',{'entity':'TTI','action':'dismiss_jv_notice','noticeId':7,'csrf':'fixture'});assert status==200 and data['result']['dismissed'],data
+    assert json.loads(books.read_text())['journals']==original_journals
+    assert request('journal_vouchers','?entity=TTI&notices=1&pending=1')[1]['notices']==[]
+    before=books.read_bytes();assert request('journal_vouchers','?entity=TTI',{'entity':'BRM','action':'dismiss_jv_notice','noticeId':7,'csrf':'fixture'})[0]==403;assert books.read_bytes()==before
+    # A Director uses the saved JV and company actions; a title does not bypass either matrix.
+    user['role']='Director';user['permissions']['Accounts']={'jv':['View','Create','Approve'],'entity-tti':['View','Create','Approve']};set_user()
+    status,data=request('journal_vouchers','?entity=TTI');assert status==200 and data['canPostDirectly'] and data['canWrite'],data
+    before=books.read_bytes();assert request('journal_vouchers','?entity=BRM')[0]==403;assert books.read_bytes()==before
+    user['permissions']['Accounts']['jv']=['View','Create'];set_user();assert not request('journal_vouchers','?entity=TTI')[1]['canPostDirectly']
     user['role'] = 'Super Admin'
     user['permissions'] = {}
     set_user()
