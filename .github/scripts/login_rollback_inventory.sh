@@ -15,7 +15,17 @@ for path in "$directory"/*; do
     items+=("$(stat -c %Y "$path")|$name"); total=$((total+$(stat -c %s "$path")))
   else ignored=$((ignored+1)); fi
 done
-mapfile -t sorted < <(printf '%s\n' "${items[@]}" | sort -t '|' -k1,1n -k2,2)
+sorted=("${items[@]}")
+# The shared host has no /dev/fd; sort in memory without process substitution or temporary files.
+for ((i=1;i<${#sorted[@]};i++)); do
+  value=${sorted[i]}; stamp=${value%%|*}; j=$((i-1))
+  while ((j>=0)); do
+    left=${sorted[j]}; left_stamp=${left%%|*}
+    [[ $left_stamp -gt $stamp || ( $left_stamp -eq $stamp && ${left#*|} > ${value#*|} ) ]] || break
+    sorted[j+1]=$left; j=$((j-1))
+  done
+  sorted[j+1]=$value
+done
 count=${#items[@]}; proposed=$((count>30?count-30:0)); ((proposed<=20)) || proposed=20
 verified=true; ((proposed>0 && count>=3)) || verified=false
 proposed_bytes=0; candidates=''; baselines=''
