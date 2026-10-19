@@ -90,6 +90,27 @@ jobs:
               unset($data,$raw);
             }
           }
+          // Metadata only: never print file contents, business names or credentials.
+          $deployment=dirname($root).'/.transtrade-deploy';
+          $out['hostStorage']=['filesystemFreeBytes'=>disk_free_space(dirname($root)),'filesystemTotalBytes'=>disk_total_space(dirname($root)),'incomingWritable'=>is_writable($deployment.'/incoming'),'generatedArtifacts'=>[]];
+          foreach(['incoming','staging','backups'] as $kind){
+            $dir=$deployment.'/'.$kind;$row=['exists'=>is_dir($dir),'files'=>0,'directories'=>0,'bytes'=>0,'symlinksSkipped'=>0,'complete'=>true];
+            if(is_dir($dir)&&!is_link($dir))try{
+              $iterator=new RecursiveIteratorIterator(new RecursiveDirectoryIterator($dir,FilesystemIterator::SKIP_DOTS),RecursiveIteratorIterator::SELF_FIRST);
+              foreach($iterator as $item){
+                if($item->isLink()){$row['symlinksSkipped']++;continue;}
+                if($item->isDir())$row['directories']++;elseif($item->isFile()){$row['files']++;$row['bytes']+=$item->getSize();}
+                if($row['files']+$row['directories']>=1000000){$row['complete']=false;break;}
+              }
+            }catch(Throwable){$row['complete']=false;}
+            $out['hostStorage']['generatedArtifacts'][$kind]=$row;
+          }
           echo json_encode($out,JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES)."\n";
           PHP
+          echo 'HOST_FILESYSTEM_INODES total used free percentage'
+          df -Pi "$target" | awk 'NR==2 {print $2, $3, $4, $5}'
+          if command -v quota >/dev/null 2>&1; then
+            echo 'HOST_QUOTA_NUMERIC_VALUES (block and file usage/limits; no account or filesystem names)'
+            quota -s 2>/dev/null | awk 'NR>2 {for(i=1;i<=NF;i++)if($i~/^[0-9.]+[kKmMgGtT]?[*!]?$/)printf "%s ",$i;print ""}' || true
+          fi
           REMOTE
