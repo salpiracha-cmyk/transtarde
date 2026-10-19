@@ -50,7 +50,7 @@ function cq_report(array $books,array $ops,string $entity,string $from,string $t
             if(!is_array($r[$schema[2]]??null)||!array_is_list($r[$schema[2]]))throw new DomainException('A local sale loading list is invalid.');
             foreach($r[$schema[2]] as $load){
                 if(!is_array($load))throw new DomainException('A local sale loading is invalid.');
-                $lid=(string)($load['id']??$load['container']??$load['gatePass']??'');$date=gd_date($load['date']??$load['gateTime']??'');$kg=gm_number($load[$schema[3]]??null,'original loaded kg');
+                $lid=(string)($load['bridgeId']??$load['id']??$load['container']??$load['gatePassRef']??$load['gatePass']??'');$date=gd_date($load['date']??$load['gateTime']??'');$kg=gm_number($load[$schema[3]]??null,'original loaded kg');
                 if($date!==''&&$date>$to)continue;
                 if($lid===''||isset($loadIds[$lid])){$known=false;$holds[$key.'|'.$id.'|IDENTITY']=['sourceId'=>$key.'|'.$id,'message'=>'Reconcile missing or repeated original loading identities.'];continue;}$loadIds[$lid]=true;
                 if($date===''||$date<$on||str_contains(strtoupper((string)($load['issue']??'')),'HOLD')){$known=false;$holds[$key.'|'.$id.'|DATE']=['sourceId'=>$key.'|'.$id,'message'=>'Reconcile the original loading date and held disposition.'];continue;}
