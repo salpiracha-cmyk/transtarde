@@ -1,5 +1,27 @@
 # 19 October evening audit resumption
 
+[Current closeout and required source decisions](CLOSEOUT_2026-10-20.md)
+
+### Final released repairs — 20 October
+
+PR389 b38bea60 passed feature and main full suites, deployment39305075149, startup39305228568 and full protected live39305228614.19October native Home/PayExpense both9313735.81 versus the old selector9153897.81. No journal/payment amendment.
+
+PR390 final18bf17f6/tree f4912e7a passed feature Accounts39307012827/Milling39307013040 and main Accounts39307588592/Milling39307588910. Merge b788a86ad4e7e106b0096011c5785b3bbb272c28 deployed39307971281.20October actual Buy form Broker/Symbol/Quantity tops357/height40, heading91.75, no width overflow; closed without Post.0user changes,0journal-ID changes,418journals retained. Startup39308295528passed; complete protected live39308295453/job118250962062passed. Retained earlier fixture failures and HTTPS/root-cause detail are in CLOSEOUT_2026-10-20.md.
+
+
+## Corrected closeout checkpoint — 19 October late evening
+
+The C24 test-arrival blocker in the preceding checkpoint was stale. Re-read production withdrawal39026907691/job117379600725: on17October it archived exactly3slips,3queue rows and6outbox rows, removing119500kg/1300test bags, accountsUnchanged:true. It recorded operations SHA256b8651798522d79b43a3d428453b6428bcc4c12e0b4d13b7bcbda6cd68c7fde0e. The protected19October read39295755611/job118207828951 returned that exact operations hash, no PH-00001/00002/00003 targets, no references and no financial links. Their absence is expected, not missing business stock. Do not ask the owner to reconcile/reassign/recreate these withdrawn test trucks. The original Accounts Sodas remain Indus. No new withdrawal or restoration was performed.
+
+Rice Ledger remains partial only for separately supplied real physical openings/positive actual production and reversals. Financial B/F stays ledger-only. The test-truck grouping must not be retained as a current failed physical-ownership issue. Coverage156:124passed,20partial,3failed,6not tested,2blocked,1intermittent;32open/partial action scopes, not32bugs.
+
+The later complete protected live39296506222 and startup39296506159 both passed on deployed7da2d8a. This supplies a clean final workflow result beyond the earlier23/23test-step/cancelled-job observation. Preserve the initial login failure as dated intermittent evidence.
+
+An additional reproduced read-only bug is addressed in PR389: expense and salary/rent payment-choice balances included future/invalid dated postings, unlike Home's current Karachi-date cutoff. The expanded actual-helper regression passes the correction and fails previous helpers; real disposable expense correction/retry/permissions and salary month/mixed-payment/final-retry suites pass. PR389 feature Accounts39304004982/Milling39304004989 and exact-main Accounts39304584953/Milling39304584958 all passed. Merged b38bea60f3c75738d6c2d976e1f238b0fb96140c deployed39305075149. 19October live cloud Chrome Home and Pay Expense both show9313735.81 for the same Meezan bank; old selector9153897.81. No journal/payment save. Full post-release live39305228614/job118240420876 and startup39305228568 both passed. Deployment changed0users and0journal IDs, preserving418journals.
+
+Remaining owner/source decisions are the approved annual Zakat monetary counterpart and original7210opening classification; AMT13 relationship-letter buyer/address and Customs HS versus the issued goods description; handling the preserved historical ASAS62packing PDF; and separately advised real Mill/bag openings. Existing Annual Zakat functionality is not missing. Missing positive supplier scans/production sources cannot be manufactured for acceptance. All other partial rows describe specific unexercised live variants or independent migration/security/office-delivery acceptance; existing disposable passes remain valid but do not authorise production test transactions. Backup/storage work remains with Resume check status.
+
+
 ## Latest accepted checkpoint — authenticated cloud Chrome, 19 October evening
 
 This section supersedes pending/queued statements in the historical entries below. See LIVE_UI_REVIEW_2026-10-19.md for exact scope, release IDs, measured geometry and limitations.

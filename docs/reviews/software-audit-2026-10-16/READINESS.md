@@ -1,5 +1,27 @@
 # Transtrade migration readiness — 19 October 2026
 
+[Current closeout and required source decisions](CLOSEOUT_2026-10-20.md)
+
+### Final released repairs — 20 October
+
+PR389 b38bea60 passed feature and main full suites, deployment39305075149, startup39305228568 and full protected live39305228614.19October native Home/PayExpense both9313735.81 versus the old selector9153897.81. No journal/payment amendment.
+
+PR390 final18bf17f6/tree f4912e7a passed feature Accounts39307012827/Milling39307013040 and main Accounts39307588592/Milling39307588910. Merge b788a86ad4e7e106b0096011c5785b3bbb272c28 deployed39307971281.20October actual Buy form Broker/Symbol/Quantity tops357/height40, heading91.75, no width overflow; closed without Post.0user changes,0journal-ID changes,418journals retained. Startup39308295528passed; complete protected live39308295453/job118250962062passed. Retained earlier fixture failures and HTTPS/root-cause detail are in CLOSEOUT_2026-10-20.md.
+
+
+## Corrected closeout checkpoint — 19 October late evening
+
+The C24 test-arrival blocker in the preceding checkpoint was stale. Re-read production withdrawal39026907691/job117379600725: on17October it archived exactly3slips,3queue rows and6outbox rows, removing119500kg/1300test bags, accountsUnchanged:true. It recorded operations SHA256b8651798522d79b43a3d428453b6428bcc4c12e0b4d13b7bcbda6cd68c7fde0e. The protected19October read39295755611/job118207828951 returned that exact operations hash, no PH-00001/00002/00003 targets, no references and no financial links. Their absence is expected, not missing business stock. Do not ask the owner to reconcile/reassign/recreate these withdrawn test trucks. The original Accounts Sodas remain Indus. No new withdrawal or restoration was performed.
+
+Rice Ledger remains partial only for separately supplied real physical openings/positive actual production and reversals. Financial B/F stays ledger-only. The test-truck grouping must not be retained as a current failed physical-ownership issue. Coverage156:124passed,20partial,3failed,6not tested,2blocked,1intermittent;32open/partial action scopes, not32bugs.
+
+The later complete protected live39296506222 and startup39296506159 both passed on deployed7da2d8a. This supplies a clean final workflow result beyond the earlier23/23test-step/cancelled-job observation. Preserve the initial login failure as dated intermittent evidence.
+
+An additional reproduced read-only bug is addressed in PR389: expense and salary/rent payment-choice balances included future/invalid dated postings, unlike Home's current Karachi-date cutoff. The expanded actual-helper regression passes the correction and fails previous helpers; real disposable expense correction/retry/permissions and salary month/mixed-payment/final-retry suites pass. PR389 feature Accounts39304004982/Milling39304004989 and exact-main Accounts39304584953/Milling39304584958 all passed. Merged b38bea60f3c75738d6c2d976e1f238b0fb96140c deployed39305075149. 19October live cloud Chrome Home and Pay Expense both show9313735.81 for the same Meezan bank; old selector9153897.81. No journal/payment save. Full post-release live39305228614/job118240420876 and startup39305228568 both passed. Deployment changed0users and0journal IDs, preserving418journals.
+
+Remaining owner/source decisions are the approved annual Zakat monetary counterpart and original7210opening classification; AMT13 relationship-letter buyer/address and Customs HS versus the issued goods description; handling the preserved historical ASAS62packing PDF; and separately advised real Mill/bag openings. Existing Annual Zakat functionality is not missing. Missing positive supplier scans/production sources cannot be manufactured for acceptance. All other partial rows describe specific unexercised live variants or independent migration/security/office-delivery acceptance; existing disposable passes remain valid but do not authorise production test transactions. Backup/storage work remains with Resume check status.
+
+
 ## Latest accepted checkpoint — authenticated cloud Chrome, 19 October evening
 
 This section supersedes pending/queued statements in the historical entries below. See LIVE_UI_REVIEW_2026-10-19.md for exact scope, release IDs, measured geometry and limitations.
@@ -14,7 +36,7 @@ This section supersedes pending/queued statements in the historical entries belo
 
 **Decision: not ready for full-data migration or whole-audit sign-off.**
 
-This replaces the 17 October readiness summary, whose implementation/deferred-Zakat wording was stale. Historical observations and failures remain in REVIEW.md and CONTINUATION.md. CURRENT_COVERAGE.csv records 156 action checks: 122 passed, 20 partial, 5 failed, 6 not tested, 2 blocked and 1 intermittent. The 34 open/partial action checks are not 33 separate proven code defects.
+This replaces the 17 October readiness summary, whose implementation/deferred-Zakat wording was stale. Historical observations and failures remain in REVIEW.md and CONTINUATION.md. CURRENT_COVERAGE.csv records156action checks:124passed,20partial,3failed,6not tested,2blocked and1intermittent. The32open/partial scopes include source decisions and unexercised variants; they are not32proven code defects.
 
 ## Current implemented scope
 
@@ -30,16 +52,15 @@ This replaces the 17 October readiness summary, whose implementation/deferred-Za
 
 | Gate | What remains |
 |---|---|
-| Unified Export Loading Report | New native reproduction confirms hardcoded TTI mill labels and invented current dates. PR369 prepares the reporting-only correction; required CI is queued, so no deployment/acceptance is claimed. See ORIGINAL_SOURCE_RESUME_2026-10-19.md. |
-| C24 actual warehouse ownership | Original Pohanch/unloading locations for PH00001/ABC123/Soda26002, PH00002/ABC345/Soda26001 and PH00003/TK123/Soda26002; resolve 119,500 kg Indus-versus-TTI grouping without reassignment by assumption. Financial B/F and future physical openings do not answer this existing-source discrepancy. |
+| Real physical stock acceptance | C24 test trucks were withdrawn17October;19October matches the verified post-withdrawal store byte-for-byte. No current119500kg test-stock ownership blocker remains. Await separately advised real Mill/bag opening figures and positive actual production sources; financial B/F creates no stock. |
 | C09 monetary annual Zakat/opening classification | Review the canonical balanced annual entry and original legacy opening schedule. The annual control and paid-expense repair do not authorise a guessed equity/counterpart journal or historical reclassification. |
 | C11 inactive historical tax mapping | The old fixed/FTR tax policy/master still maps 7200, while the canonical chart uses 7200 for Donations. The affected seeded historical rules are inactive; current advance WHT remains 1260. Earlier ledger naming repair did not approve a new monetary tax mapping. Review the historic/auditor-approved account before enabling or using those rules; no original tax/donation posting is reclassified. |
 | Issued document/source decisions | AMT13 original HS/100%-broken description and ASAS Saudi relationship letter versus Gambia buyer; preserved ASAS62 uploaded packing label overlap. New generated layout acceptance does not permit replacing an issued original. |
-| Original output completeness | Complete actual multi-file tax/issued CI/PL/archive, WHT independent bank/tax statement, supplier scans and TG/direct/L/C/multi-GD variants.35 archive listings and one verified downloaded pack do not certify every file. |
+| Original output completeness | Complete actual multi-file tax/issued CI/PL/archive, WHT independent bank/tax statement, supplier scans and TG/direct/L/C/multi-GD variants.All35indexed archive packs now pass protected byte/hash/download acceptance. This does not certify current issued documents or physical printing. |
 | Current stock, production and costing | Independently reconcile native ownership, positive production, recovery, overhead and actual shipment contributions. Earlier protected checks had 0 actual production and 8 unavailable contributions; disposable positives are not real results. Separately insert physical openings only from Salman's supplied facts. |
 | Remaining action variants | Final user-session review and any unexercised master/downstream, asset/share/property, finance, payment-plan, amendment/cancellation, mixed allocation and approval variants. Do not approve a real pending request or post a hypothetical transaction for an audit. |
 | Independent migration/recovery | Original-file restore/rollback rehearsal passed separately: 705 files / 308 JSON files were hash-checked in a private disposable copy. Independent full source-to-target counts, balances, allocations, stock/attachments, configured MySQL/browser recovery, oversized offline acceptance and rollback still require an identified secure rehearsal dataset/target. No production restore is an audit test. |
-| Hosting capacity and deployment retention | Account quota blocked the test-only release upload twice. A disposable write proved DISK_QUOTA_EXCEEDED;53.4MB of rebuildable deployment caches were removed, after which a full archive upload/hash check and23/23 source-matched read-only flows passed. All499historical code backups (6.29GB) remain intact. A durable retention/capacity decision and full deployment staging/rollback peak acceptance are still required; restoring one upload is not unlimited headroom. See HOST_DEPLOYMENT_CAPACITY_2026-10-19.md. |
+| Hosting / retention ownership | Recovery, verified optimisation and automatic retention are owned by Resume check status; use LOGIN_QUOTA_RECOVERY_2026-10-19.md, BUSINESS_BACKUP_OPTIMISATION_2026-10-19.md and BACKUP_POLICY.md. The earlier499-retained statement is historical and superseded. No duplicate cleanup is required by this UI pass; broader independent capacity acceptance remains separate. |
 | Formal security and startup | Mandatory formal scan preflight resource/helpers were unavailable; no formal scan started and functional QA does not confer clearance. Retain original intermittent login/renderer timeouts and failed attempts; a successful unchanged retry does not prove their root cause. |
 
 ## Evidence boundaries
