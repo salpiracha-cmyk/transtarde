@@ -36,7 +36,7 @@ tt_ensure_data_dir();file_put_contents(TT_STORE_FILE,json_encode(['users'=>[['id
    assert dialog.locator('#userModulePermissions input:not(:checked),#userMasterPermissions input:not(:checked)').count()==0
    assert dialog.locator('#userModulePermissions input:enabled,#userMasterPermissions input:enabled').count()==0
    for size,label in [({'width':1280,'height':900},'desktop'),({'width':390,'height':844},'mobile')]:
-    page.set_viewport_size(size);assert dialog.get_by_role('heading',name='Edit User').is_visible();assert dialog.locator('#userName').is_visible();assert summary.is_visible();assert page.locator('body').evaluate('(e)=>e.scrollWidth<=innerWidth')
+    page.set_viewport_size(size);assert dialog.get_by_role('heading',name='Edit User').is_visible();assert dialog.locator('#userName').is_visible();assert summary.is_visible();assert page.locator('body').evaluate('(e)=>e.scrollWidth<=innerWidth');assert dialog.evaluate('(e)=>e.scrollWidth<=e.clientWidth'),'Hidden Active switch input must not overflow the compact dialog';active=dialog.locator('#userActive');active.uncheck();assert not active.is_checked();active.check();assert active.is_checked()
     if os.environ.get('TT_QA_OUTPUT'):page.screenshot(path=str(pathlib.Path(os.environ['TT_QA_OUTPUT'])/('director-role-preset-'+label+'.png')),full_page=True)
    # Demotion reveals the old custom scope, with no inherited automatic Delete rights.
    dialog.locator('#userRole').select_option('Accounts');grant=dialog.locator('[data-permission-module="Accounts"][data-permission-icon="cashbank"][value="Delete"]');assert grant.is_visible() and not grant.is_checked()
