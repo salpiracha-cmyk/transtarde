@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 import hashlib
 import io
 import json
@@ -28,6 +29,28 @@ class FakeResponse(io.BytesIO):
 
 
 class OfficeAgentTest(unittest.TestCase):
+    def test_daily_schedule_and_missing_local_copy(self):
+        for age, exists, force, pulls in [(3600, True, False, 0),
+                                          (2 * 86400, True, False, 1),
+                                          (3600, False, False, 1),
+                                          (-3600, True, False, 1),
+                                          (3600, True, True, 1)]:
+            with self.subTest(age=age, exists=exists, force=force), tempfile.TemporaryDirectory() as folder:
+                root = Path(folder)
+                config = root / 'office-backup.json'
+                config.write_text(json.dumps({'destination': str(root)}))
+                daily = root / 'Daily' / 'verified.zip'
+                daily.parent.mkdir()
+                if exists: daily.write_bytes(b'previous verified fixture')
+                (root / 'office-backup-state.json').write_text(json.dumps({
+                    'last_success': 1_000_000 - age, 'last_file': daily.name}))
+                argv = ['agent', '--config', str(config), '--backup-only'] + (['--force'] if force else [])
+                with patch.object(agent.sys, 'argv', argv), patch.object(agent.time, 'time', return_value=1_000_000), patch.object(agent, 'pull', return_value=(daily, 'a' * 64)) as pull:
+                    self.assertEqual(agent.main(), 0)
+                    self.assertEqual(pull.call_count, pulls)
+                if pulls:
+                    self.assertEqual(json.loads((root / 'office-backup-state.json').read_text())['last_success'], 1_000_000)
+
     def test_verified_pull_and_retention(self):
         contents = io.BytesIO()
         with zipfile.ZipFile(contents, 'w') as archive:
@@ -43,6 +66,16 @@ class OfficeAgentTest(unittest.TestCase):
             with patch.object(agent.request, 'build_opener') as opener:
                 opener.return_value.open.side_effect = response
                 path, actual = agent.pull({'url': 'https://app.transtradeinternational.com/api/office_backup.php', 'token': 'x', 'password': 'password123456'}, dest)
+            self.assertEqual(len(list((dest / 'Daily').glob('*.zip'))), 1)
+            self.assertEqual(len(list((dest / 'Weekly').glob('*.zip'))), 1)
+            self.assertEqual(len(list((dest / 'Monthly').glob('*.zip'))), 1)
+            # Two Sunday pulls must not create two weekly retention points.
+            with patch.object(agent.request, 'build_opener') as opener, patch.object(agent, 'datetime') as clock:
+                opener.return_value.open.side_effect = response
+                for hour in (10, 11):
+                    clock.now.return_value = datetime(2026, 10, 25, hour, tzinfo=timezone.utc)
+                    agent.pull({'url': 'https://app.transtradeinternational.com/api/office_backup.php', 'token': 'x', 'password': 'password123456'}, dest)
+            self.assertEqual(len(list((dest / 'Weekly').glob('TRANSTRADE_FULL_2026-W43_*.zip'))), 1)
             self.assertEqual(actual, digest)
             self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), digest)
             self.assertEqual(len(list(dest.glob('weekly-*.zip'))), 4)
