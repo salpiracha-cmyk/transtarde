@@ -4,7 +4,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
     root=pathlib.Path(temp)
     for folder in ['api','accounts','data']:(root/folder).mkdir()
-    for name in ['rent_salary.php','rent_salary_v2.php','salary_month_workflow.php','salary_master_store.php','accounts_bank_payment.php', 'accounts_posting_preview.php']:
+    for name in ['rent_salary.php','rent_salary_v2.php','salary_month_workflow.php','salary_flexible_workflow.php','salary_master_store.php','accounts_bank_payment.php', 'accounts_posting_preview.php']:
         shutil.copy(ROOT/'api'/name,root/'api'/name)
     for name in ['accounting_master_v1.json','rent-salary-ui.js','cheque-date-ui.js','bank-payment-details.js']:
         shutil.copy(ROOT/'accounts'/name,root/'accounts'/name)
@@ -158,14 +158,19 @@ with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
                 assert page.locator('#rsAdvanceAccountDetails [data-method]').input_value()=='CHEQUE'
                 assert page.locator('#rsAdvanceAccountDetails [data-method] option').count()==2
                 page.evaluate("TT_RENT_SALARY_UI.open('salary')");page.locator('#rsPrepare').click();page.locator('#rsMonth').fill('2027-01');page.locator('#rsMonth').dispatch_event('change')
-                page.locator('[data-rs-draft-pay="Bob"]').click();assert page.locator('#rsPaySalAmt').input_value()=='1050'
-                page.locator('[name="rsPaymentMode"][value="BANK"]').check();assert page.locator('#rsPaySalBank').input_value()=='bank-b'
-                page.locator('#rsPaySalBankDetails [data-method]').select_option('ONLINE_BANKING');page.locator('#rsPaySalAmt').fill('500');page.locator('#rsSplitCash').fill('250');page.locator('#rsSplitBank').fill('250');page.locator('#rsPaySalBtn').click()
-                page.get_by_role('button',name='Amend',exact=True).wait_for();page.locator('[data-rs-draft-pay="Bob"]').click();assert page.locator('#rsPaySalAmt').input_value()=='500'
-                assert page.locator('[name=rsPaymentMode][value=CASH]').is_checked()
-                assert page.locator('[name=rsPaymentMode][value=BANK]').is_checked()
-                assert page.locator('#rsSplitCash').input_value()=='250'
-                assert page.locator('#rsSplitBank').input_value()=='250'
+                page.locator('[data-rs-draft-pay="Bob"]').click()
+                page.locator('#rsAddTransaction').click()
+                tx=page.locator('.rs-transaction').last
+                tx.locator('[data-tx-amount]').fill('250');tx.locator('[data-allocation-amount]').fill('250')
+                page.locator('#rsAddTransaction').click();tx=page.locator('.rs-transaction').last
+                tx.locator('[data-tx-amount]').fill('250');tx.locator('[data-allocation-amount]').fill('250')
+                tx.locator('[data-tx-source]').select_option('bank-b');tx.locator('[data-method]').select_option('ONLINE_BANKING')
+                page.locator('#rsPaySalBtn').click()
+                page.get_by_role('button',name='Amend',exact=True).wait_for();page.locator('[data-rs-draft-pay="Bob"]').click()
+                assert page.locator('.rs-transaction').count()==2
+                assert page.locator('[data-tx-source]').nth(0).input_value()=='CASH|TTI'
+                assert page.locator('[data-tx-source]').nth(1).input_value()=='bank-b'
+                assert page.locator('[data-tx-amount]').nth(1).input_value()=='250'
                 page.evaluate("TT_RENT_SALARY_UI.open('salary')");page.locator('#rsAdvanceIcon').click()
                 page.locator('#rsAdvanceKind').select_option('BF')
                 assert not page.locator('#rsAdvanceAccount').is_visible()

@@ -401,6 +401,15 @@ Online Banking payments expose an editable payment date, defaulting from the vou
 - Preserve original custom staff scopes separately from derived role access. Changing away from Director restores the custom form choices, and the next authenticated request uses the saved lower role; do not leave synthetic all-grants behind. Ordinary staff and managed read-only QA restrictions remain unchanged.
 - Full business access still requires valid source ownership, balanced accounting, CSRF, explicit reasons/decisions, retry protection and immutable history. It never auto-approves a pending bill, posts a payment or invents stock.
 
+
+## Salary month adjustments and payment allocations — 19 October 2026
+
+- Salary Master supplies defaults. “Adjust month” changes only the selected month's salary, Zakat, allowances, extra addition, salary reduction and advance/personal recovery. Require a reason for additions/reductions. Recurring edits remain an explicit separate choice and commit only with the month. Preserve completed periods.
+- Actual payments are dated cash/bank transaction rows, each with allocations that exactly equal its amount. Director/home payments can settle multiple remuneration/home beneficiaries and route company funds. Credit the actual payment source once. Saving a payment remains draft-only; final completion atomically posts the accrual/recovery and linked, separately dated actual payment Post IDs. Preserve legacy draft choices on explicit recovery-source refresh.
+- Company funds held through a routing person are asset 1440. Confirmed broker receipts move them to broker asset 1430 and create the canonical investment events; require the existing route/broker, evidence reference and Assets create rights. Never treat company broker funding as remuneration or home spending. Reverse a split payment as one complete source transaction; reject isolated broker-leg or generic journal corrections that would desynchronise its beneficiaries.
+- Director Accounts exposes separate remuneration and home-expense entitlement subledgers under a combined Director view. Use canonical salary master IDs on payable/advance control lines; do not rewrite historical postings or include company investments in those personal balances.
+- Personal spending defaults to recovery from the following salary month (September spending → October recovery). Never automatically settle the oldest unpaid remuneration period. Apply the same cutoff to legacy unconsumed personal advances. Keep source date, Post ID, eligible month, outstanding balance and deferred recoveries visible. Previously posted incorrect allocations require source correction with audit history.
+
 ## Withholding source categories and reversals
 
 - WHT report, print and CSV share the same committed source projection. Explicit saved line/journal categories take priority over current masters. Buying Brokery withholding and Brokerage WHT deposits retain Brokerage classification from exact native source evidence.

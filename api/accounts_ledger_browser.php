@@ -57,6 +57,9 @@ if($registerEntity!==''&&(!in_array($registerEntity,['TTI','BRM','TG'],true)||!t
 $bankId=str_starts_with($account,'BANK|')?substr($account,5):'';
 $headId=str_starts_with($account,'HEAD|')?substr($account,5):'';
 $headCodes=[];
+$payrollId=str_starts_with($account,'PAYROLL|')?substr($account,8):'';
+$directorGroup=str_starts_with($account,'DIRECTOR|')?substr($account,9):'';
+$payrollIds=[];
 $subaccountId=str_starts_with($account,'SUB|')?substr($account,4):'';
 $master=json_decode((string)file_get_contents(dirname(__DIR__).'/accounts/accounting_master_v1.json'),true);
 $catalog=[];
@@ -82,6 +85,16 @@ foreach(['settlement_policy_v1.json','export_realization_policy_v1.json'] as $po
 }
 $file=TT_DATA_DIR.'/accounts.json';
 $store=tt_fi_advice_project(tt_fi_advice_read_json($file),tt_fi_advice_root());
+$directorMembers=[];
+foreach((array)($store['salaryMasters']??[]) as $id=>$person){
+    if(($person['entity']??'')!==$entity||!in_array($person['category']??'',['DIRECTOR_REMUNERATION','HOME_MONTHLY_GIVE'],true))continue;
+    $name=(string)$person['name'];$normal=strtoupper((string)preg_replace('/[^A-Z0-9]/i','',$name));
+    $group=str_contains($normal,'TALHA')?'TALHA':(str_contains($normal,'TAYYAB')?'TAYYAB':(str_contains($normal,'SALMAN')||$normal==='MRSSRP'?'SALMAN':$normal));
+    $directorMembers[$group][(string)$id]=true;
+    $catalog['PAYROLL|'.$id]='Director accounts · '.ucwords(strtolower($group)).' · '.(($person['category']??'')==='DIRECTOR_REMUNERATION'?'Remuneration':'Home expense').' · '.$name;
+}
+foreach($directorMembers as $group=>$members)$catalog['DIRECTOR|'.$group]='Director accounts · '.ucwords(strtolower($group)).' · Combined';
+if($payrollId!=='')$payrollIds=[$payrollId=>true];elseif($directorGroup!=='')$payrollIds=$directorMembers[$directorGroup]??[];
 $invoiceRegister=$category==='party'&&$serviceGroup===''?tt_customer_receivables($store,tt_fi_advice_root(),[$entity],$to):['rows'=>[],'drafts'=>[]];
 $partyInvoices=[];$invoiceTotals=[];
 foreach($invoiceRegister['rows'] as $invoice){$name=$partyNames[$invoice['label']]??$partyNames[alb_party_key($invoice['label'])]??$invoice['label'];if($name==='')continue;$parties[$name]=true;if($party!==''&&alb_party_key($name)===alb_party_key($party)&&$invoice['date']>=$from){$invoice['label']=$name;$partyInvoices[]=$invoice;$cur=$invoice['currency'];$invoiceTotals[$cur]=round(($invoiceTotals[$cur]??0)+$invoice['amount'],2);}}
@@ -154,7 +167,8 @@ foreach($journals as $journal){
         if($bankId!==''&&($code!=='1110'||$lineBank!==$bankId))continue;
         if($headId!==''&&!in_array($code,$headCodes,true))continue;
         if($subaccountId!==''&&!in_array((string)($line['subaccountId']??''),$subaccountIds,true))continue;
-        if($account!==''&&$bankId===''&&$subaccountId===''&&$headId===''&&!$serviceAccount&&$code!==$account)continue;
+        if(($payrollId!==''||$directorGroup!=='')&&(!isset($payrollIds[(string)($line['salaryMasterId']??$journal['meta']['salaryMasterId']??'')])||!in_array($code,['1230','2140'],true)))continue;
+        if($account!==''&&$payrollId===''&&$directorGroup===''&&$bankId===''&&$subaccountId===''&&$headId===''&&!$serviceAccount&&$code!==$account)continue;
         $lineParty=trim((string)($line['supplier']??$line['broker']??$line['customer']??$line['counterparty']??$line['party']??''));
         $meta=(array)($journal['meta']??[]);
         $candidateId=(string)($line['candidateId']??$line['sourceCandidateId']??$meta['candidateId']??'');
