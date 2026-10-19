@@ -285,6 +285,7 @@ jobs:
           node tests/accounts-v1/opening_only_payment_ui_test.js
           node tests/accounts-v1/opening_review_ui_test.js
           node tests/accounts-v1/historical_bags_ui_test.js
+          node tests/accounts-v1/completed_instruction_ui_test.js
           node tests/accounts-v1/bag_linked_supplier_ui_test.js
           node tests/accounts-v1/forward_bookings_ui_test.js
           node tests/accounts-v1/pay_to_unique_choice_test.js

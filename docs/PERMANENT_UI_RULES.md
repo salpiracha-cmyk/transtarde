@@ -346,3 +346,19 @@ Online Banking payments expose an editable payment date, defaulting from the vou
 - Final production cost uses weighted finalized purchase costs plus recorded conversion costs less by-product values. Management estimates retain explicit source/fallback labels. No report read saves rates, prepares sheets or posts journals.
 - Preserve approved cost snapshots. Approval requires the reviewed quantity/cost fingerprint; changed source facts require reopening the review. An approved historical cost without actual-input evidence remains labelled unverified.
 - Shared by-products require actual brand/contract allocation for those cost reports; never invent proportional brand recovery. Use a lot default with optional row allocations; typing and changing filters never save production or Accounts data.
+
+
+## Historical financial B/F and separate physical stock — 19 October 2026
+
+- Historical customer, supplier, shipment and bag balances must reach their respective financial accounts, party ledgers and settlement workflows. Those shipments were completed and documents sent before the software; invoice quantities are reference details, never proof of physical rice or bag stock.
+- Historical bag-bill entry is financial only. It must not offer stock treatment, create account 1340 stock, consume physical stock or infer opening quantities. Reject attempts through the API as well as the form. Keep original quantities, original GST, recoverable GST and unpaid supplier amounts.
+- Preserve posted historical data and separately sourced actual stock movements. Do not silently rewrite a legacy invoice carrying stock as a financial-only amendment; reconcile its original allocation explicitly first.
+- Salman will provide Mill rice and bag opening quantities separately. No financial B/F entry, customer invoice, completed shipment or prior bag bill supplies those quantities by inference.
+- Completed or closed contracts retain their specifications as historical references and do not create a new production or outstanding-sale requirement. Never fill missing historical production or loading with fabricated physical movements.
+
+## Annual Zakat control — confirmed scope
+
+- The annual form is within the agreed scope. Group TTI, BRM and TG wealth workings determine the annual amount; the liability and payment expense belong to TTI.
+- The TTI assessment control shows signed prior carry-forward, the current annual assessment debit, actual payment credits/refunds and the remaining payable or excess. Complete all reviewed annual sections to record the yearly control debit. A partial assessment cannot carry forward as a final obligation.
+- Actual payments alone count as expense; the annual calculation must not charge it again. Retain payment Post IDs and original dates and show unresolved payment allocations explicitly.
+- The control calculation is separate from monetary journals. Preserve the existing opening Dr3400 / Cr7210 and payment Dr7210 / Crbank originals. A change to canonical annual debit/credit mapping requires an evidenced balanced accounting review; never invent the counterpart or silently reclassify originals.
