@@ -1,5 +1,17 @@
 # Transtrade migration readiness — 19 October 2026
 
+## Latest accepted checkpoint — authenticated cloud Chrome, 19 October evening
+
+This section supersedes pending/queued statements in the historical entries below. See LIVE_UI_REVIEW_2026-10-19.md for exact scope, release IDs, measured geometry and limitations.
+
+- Four observed UI defects repaired and deployed: bank/JV field offsets, remove-button centres, Exports contract heading under sticky header, FI currency wrapping/allocation Total alignment. Final535798a passed both main full suites and deployment39295513273; all four changes verified in actual authenticated cloud Chrome. Ten master families and representative editors inspected/cancelled; no production Save/approval/assessment/stock action.
+- PR369 loading-report correction merged, full QA passed and actual Indus labels/completion-quality separation verified. No original warehouse reassignment.
+- PR382 protected run39295755611 verified447app files and all35indexed archive packs (174454403bytes),0documentwrites. Warehouse diagnostic explicitly identityVerified:false:0matches for each PH-00001/00002/00003 in current operational arrivals. C24 remains unresolved; Accounts Sodas26001/26002 both identify Indus. Green workflow does not mean warehouse identity passed.
+- Startup39295695273 failed once at login500/timeout, then attempt2passed; protected live39295695327 test step passed23/23 (53ledgers/3companies,16loading sources,0financial/source writes), but its final job conclusion is cancelled. Earlier live39294528242 was also cancelled. Retain intermittent startup evidence.
+- Coverage156actions:124passed,19partial,4failed,6not tested,2blocked,1intermittent:32open/partial actions. This is not32distinct bugs or a full-software certificate. Original accounting/warehouse/issued-output facts, untested variants, migration and formal sign-off remain open.
+- Backup/storage work is owned by Resume check status. Its canonical LOGIN_QUOTA_RECOVERY_2026-10-19.md, BUSINESS_BACKUP_OPTIMISATION_2026-10-19.md and BACKUP_POLICY.md supersede this chat's old499-retained statements. Preserve concurrent runtime changes; no duplicate cleanup here. Annual Zakat exists; financial B/F creates no rice or bag stock.
+
+
 **Decision: not ready for full-data migration or whole-audit sign-off.**
 
 This replaces the 17 October readiness summary, whose implementation/deferred-Zakat wording was stale. Historical observations and failures remain in REVIEW.md and CONTINUATION.md. CURRENT_COVERAGE.csv records 156 action checks: 122 passed, 20 partial, 5 failed, 6 not tested, 2 blocked and 1 intermittent. The 34 open/partial action checks are not 33 separate proven code defects.
@@ -37,3 +49,5 @@ Salman asked work to continue while closing the MacBook. Local Chrome is not ass
 Each release's exact tree, feature/main QA, deployment, startup and read-only result belongs in its linked continuation report. A merged PR alone is not deployed acceptance. Ordinary fixture passes are not independent migration, formal security or exhaustive UI clearance. No production financial, stock, annual assessment, approval, source-link, original-document or restore test mutation is permitted. Annual Zakat is already implemented; no duplicate reminder or automation is needed.
 
 19October evening: Salman reports Chrome available, but local Browser controls are not exposed to this chat after skill/tool/plugin discovery; no fresh Mac UI acceptance is claimed. PR368 original warehouse/all-indexed-archive acceptance and PR369 full report QA remain queued. No source data or historical backups were modified.
+
+Updated19October continuation: PR368 preflight passed/merged5f4e92e; its protected original-file run remains queued. PR369 final3c86f9bd also separates saved loading completion from quality, with full native negative/positive regression coverage; final feature39283028465/39283028495 await runners. No final QA/deployment/Chrome acceptance. See the latest CONTINUATION.md section; earlier report head1751 is superseded.
