@@ -357,6 +357,8 @@ jobs:
       - name: Ready rice bill browser and HTTP flow
         run: '"$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/ready_rice_bill_http_test.py'
       - name: Salary month HTTP and browser flow
+        env:
+          TT_QA_OUTPUT: ${{ runner.temp }}/inventory-evidence
         run: |
           "$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/salary_month_http_test.py
           "$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/salary_flexible_http_test.py

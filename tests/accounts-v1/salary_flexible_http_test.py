@@ -157,9 +157,16 @@ with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
                 assert request(month='2027-03')[1]['salarySheet']['rows']['Salman']['payment']['amount']==10000
                 page.locator('[data-rs-draft-pay="Mrs"]').click();assert page.locator('.rs-transaction').count()==2
                 assert page.locator('.rs-allocation').count()==4
+                if os.getenv('TT_QA_OUTPUT'):
+                    output=pathlib.Path(os.environ['TT_QA_OUTPUT']);output.mkdir(parents=True,exist_ok=True)
+                    page.locator('#rsDraftForm').screenshot(path=str(output/'salary-split-payment.png'))
+                assert page.locator('#rsDraftForm').evaluate('(el)=>el.getBoundingClientRect().right<=innerWidth && el.getBoundingClientRect().left>=0'),'Payment editor must fit the desktop viewport'
+
                 page.locator('[data-rs-draft-pay="Salman"]').click();assert 'Already allocated through another recipient' in page.locator('#rsDraftForm').inner_text()
                 assert page.locator('.rs-transaction').count()==0
-                page.locator('[data-rs-month-adjust="Worker"]').click();page.locator('[name=monthlyAddition]').fill('5000');page.locator('[name=adjustmentReason]').fill('One-off bonus');assert page.locator('[data-month-total]').input_value()=='55000';page.locator('[data-month-total]').fill('56000');page.get_by_role('button',name='Save month adjustment',exact=True).click()
+                page.locator('[data-rs-month-adjust="Worker"]').click();page.locator('[name=monthlyAddition]').fill('5000');page.locator('[name=adjustmentReason]').fill('One-off bonus');assert page.locator('[data-month-total]').input_value()=='55000';page.locator('[data-month-total]').fill('56000');
+                if os.getenv('TT_QA_OUTPUT'):page.locator('dialog').screenshot(path=str(pathlib.Path(os.environ['TT_QA_OUTPUT'])/'salary-month-adjustment.png'))
+                page.get_by_role('button',name='Save month adjustment',exact=True).click()
                 assert request(month='2027-03')[1]['salarySheet']['rows']['Worker']['totalDue']==56000
                 assert saved()['salaryMasters']['Worker']['monthlyAmount']==50000
                 assert not errors,errors
