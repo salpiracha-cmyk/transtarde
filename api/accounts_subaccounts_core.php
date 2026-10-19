@@ -151,11 +151,11 @@ function sac_payload(array $s,string $e,string $from='',string $to=''):array {
 function sac_expense_activity(array $s,string $e,string $from,string $to):array {
  $chart=sac_chart();$out=[];$hidden=alv_hidden($s,$to);$zakat=gm_zakat_payments($s,$from,$to,$e);$paid=array_column($zakat['rows'],'amountPKR','postId');
  foreach((array)($s['journals']??[]) as $j){
-  if(isset($hidden[(string)($j['id']??'')]))continue;
+  $hiddenJournal=isset($hidden[(string)($j['id']??'')]);
   if(($j['entity']??'')!==$e||($j['status']??'')!=='Posted'||($j['date']??'')<$from||($j['date']??'')>$to)continue;
   $meta=(array)($j['meta']??[]);$source=(array)($s['generalExpenses'][(string)($meta['generalExpenseId']??'')]??[]);
   foreach((array)($j['lines']??[]) as $l){
-   $code=(string)($l['account']??'');if(!empty($l['personalRecovery']))continue;
+   $code=(string)($l['account']??'');if(!empty($l['personalRecovery'])||($hiddenJournal&&$code!=='7210'))continue;
    if($code==='7210'&&!array_key_exists((string)$j['id'],$paid))continue;
    $master=(array)($s['salaryMasters'][(string)($l['salaryMasterId']??$meta['salaryMasterId']??'')]??[]);
    $monthly=$code==='3200'&&($l['category']??$meta['category']??$master['category']??'')==='HOME_MONTHLY_GIVE';

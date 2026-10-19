@@ -49,6 +49,13 @@ define('TT_DATA_DIR',__DIR__.'/data');function tt_require_login(){return ['role'
   mixed=journal('Z-MIXED',[line('7210',100),line('1120',cr=50),line('2140',cr=50)])
   books['journals']['Z-MIXED']=mixed;path.write_text(json.dumps(books));status,z=req();assert z['profitAndLoss']['profit'] is None and z['zakatReporting']['paidExpense'] is None and 'Z-MIXED' in ' '.join(z['profitAndLoss']['warnings'])
   bad=journal('Z-BAD',[line('7210',100),line('1120',cr=90)]);books['journals']['Z-BAD']=bad;path.write_text(json.dumps(books));assert 'Z-BAD' in ' '.join(req()[1]['profitAndLoss']['warnings'])
+  # A later cancellation/refund remains in its actual reporting period even
+  # when the Post ID register hides the complete pair.
+  paid=journal('Z-PERIOD-PAID',[line('7210',5),line('1120',cr=5)],'2026-09-01')
+  returned=journal('Z-PERIOD-RETURN',[line('1120',5),line('7210',cr=5)],'2026-10-01');returned['reversalOf']='Z-PERIOD-PAID'
+  path.write_text(json.dumps({'revision':7,'journals':{x['id']:x for x in [paid,returned]}}));status,z=req('2026-10-01');assert status==200 and z['profitAndLoss']['profit']==5,z
+  assert [(r['journalId'],r['amount']) for r in z['expenseActivity']]==[('Z-PERIOD-RETURN',-5)],'Register hiding must not erase a dated Zakat refund'
+  status,z=req('2026-09-01');assert z['profitAndLoss']['profit']==0 and sum(r['amount'] for r in z['expenseActivity'])==0
   books=base;path.write_text(json.dumps(books))
   # Unrecognised accounts remain visible as a concrete review, never hidden by a balancing figure.
   books['journals']['UNKNOWN']=journal('UNKNOWN',[line('1110',5),line('9998',cr=5)]);path.write_text(json.dumps(books));unknown_before=path.read_bytes();status,unknown=req();assert status==200 and unknown['dataQuality']['unclassifiedBalances']==[{'account':'9998','name':'9998','class':'Other','net':-5}]
