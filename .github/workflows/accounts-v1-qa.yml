@@ -217,6 +217,12 @@ jobs:
           python3 -m venv "$RUNNER_TEMP/inventory-venv"
           "$RUNNER_TEMP/inventory-venv/bin/pip" -q install playwright==1.55.0
           "$RUNNER_TEMP/inventory-venv/bin/playwright" install --with-deps chromium
+      - name: Native Director Home and persistent decisions
+        env:
+          TT_QA_OUTPUT: ${{ runner.temp }}/inventory-evidence
+        run: |
+          mkdir -p "$RUNNER_TEMP/inventory-evidence"
+          "$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/workspace_home_browser_test.py
       - name: Expense review and shared form browser flows
         run: |
           npm install --prefix "$RUNNER_TEMP/expense-review-node" --no-save playwright@1.55.0 jsdom@26
@@ -344,7 +350,6 @@ jobs:
           python3 tests/security/export_document_permissions_test.py
           "$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/inventory_reconciliation_http_test.py
           "$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/mill_source_handoff_browser_test.py
-          "$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/workspace_home_browser_test.py
           "$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/group_daily_browser_test.py
       - name: Ready rice bill browser and HTTP flow
         run: '"$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/ready_rice_bill_http_test.py'
