@@ -4,9 +4,6 @@ on:
   workflow_dispatch:
   pull_request:
     paths: ['.github/workflows/business-backup-maintenance.yml', '.github/scripts/business_backup_maintenance.php', 'backup_lib.php', 'tests/security/backup_compression_retention_test.php', 'scripts/migrate_master_permissions.php', 'tests/security/master_migration_noop_backup_test.php']
-  push:
-    branches: [main]
-    paths: ['.github/workflows/business-backup-maintenance.yml', '.github/scripts/business_backup_maintenance.php', 'backup_lib.php', 'tests/security/backup_compression_retention_test.php', 'scripts/migrate_master_permissions.php', 'tests/security/master_migration_noop_backup_test.php']
 
 permissions:
   contents: read

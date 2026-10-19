@@ -508,6 +508,7 @@ function tt_backup_verify_snapshot(string $path, array $expectedInventory): void
         }
         if ($actual !== $expectedInventory) throw new RuntimeException('The server snapshot inventory changed while it was being created.');
     } finally { $reader->close(); }
+    tt_backup_note_verified($path);
 }
 
 function tt_create_server_snapshot(string $kind='auto'): string {
@@ -569,13 +570,14 @@ function tt_create_server_snapshot(string $kind='auto'): string {
         if (!rename($temp, $path)) throw new RuntimeException('The verified server snapshot could not be committed.');
         $temp = '';
         @chmod($path, 0600);
+        tt_backup_note_verified($path);
         $now = gmdate('c');
         $statePatch = ['last_snapshot'=>$name, 'last_success_at'=>$now, 'last_error_at'=>null, 'last_error'=>null, 'consecutive_failures'=>0];
         if ($kind === 'auto') $statePatch['last_auto_at'] = $now;
         elseif ($kind === 'manual') $statePatch['last_manual_at'] = $now;
         elseif ($kind === 'pre-restore') $statePatch['last_pre_restore_at'] = $now;
         tt_backup_write_state($statePatch);
-        tt_backup_rotate();
+        tt_backup_rotate($name);
         return $name;
     } catch (Throwable $error) {
         if ($temp !== '' && is_file($temp)) @unlink($temp);
@@ -604,35 +606,60 @@ function tt_backup_prune_stale_temps(): void {
         if(!@unlink($path))error_log('Transtrade could not remove a stale incomplete backup.');
     }
 }
-/** Four latest hourly points, seven daily, four weekly and three monthly points. */
-function tt_backup_retention_keep(array $paths, ?int $now=null): array {
-    $now ??= time(); rsort($paths, SORT_STRING); $keep=[]; $days=[]; $weeks=[]; $months=[];
-    foreach ($paths as $index=>$path) {
-        $stamp=filemtime($path); if ($stamp===false) { $keep[$path]=true; continue; }
-        $age=max(0,$now-$stamp);
-        if ($index<4) $keep[$path]=true;
-        if ($age<=7*86400) { $key=gmdate('Y-m-d',$stamp); if(!isset($days[$key])){$days[$key]=true;$keep[$path]=true;} }
-        elseif ($age<=35*86400) { $key=gmdate('o-W',$stamp); if(count($weeks)<4&&!isset($weeks[$key])){$weeks[$key]=true;$keep[$path]=true;} }
-        elseif ($age<=100*86400) { $key=gmdate('Y-m',$stamp); if(count($months)<3&&!isset($months[$key])){$months[$key]=true;$keep[$path]=true;} }
+/** A receipt exists only after every payload has passed CRC, size and SHA256. */
+function tt_backup_note_verified(string $path): void {
+    clearstatcache(true,$path);$st=stat($path);
+    if($st)$GLOBALS['ttVerifiedBackupReceipts'][$path]=array_intersect_key($st,array_flip(['dev','ino','size','mtime','ctime']))+['sha256'=>hash_file('sha256',$path)];
+}
+function tt_backup_has_verified_receipt(string $path): bool {
+    clearstatcache(true,$path);$st=@stat($path);
+    return $st && isset($GLOBALS['ttVerifiedBackupReceipts'][$path]) && $GLOBALS['ttVerifiedBackupReceipts'][$path]===array_intersect_key($st,array_flip(['dev','ino','size','mtime','ctime']))+['sha256'=>hash_file('sha256',$path)];
+}
+/** Four recent points, daily through seven days, weekly through fifteen days. */
+function tt_backup_retention_keep(array $paths, ?int $now=null, array $created=[]): array {
+    $now ??= time();rsort($paths,SORT_STRING);$keep=[];$days=[];$weeks=[];$recent=0;
+    foreach($paths as $path){
+        $stamp=$created[$path]??filemtime($path);
+        if($stamp===false||$stamp>$now+300){$keep[$path]=true;continue;}
+        $age=max(0,$now-$stamp);if($age>15*86400)continue;
+        if($recent++<4)$keep[$path]=true;
+        if($age<=7*86400){$key=gmdate('Y-m-d',$stamp);if(!isset($days[$key])){$days[$key]=true;$keep[$path]=true;}}
+        else{$key=gmdate('o-W',$stamp);if(count($weeks)<2&&!isset($weeks[$key])){$weeks[$key]=true;$keep[$path]=true;}}
     }
     return $keep;
 }
-function tt_backup_managed_snapshot(string $path): bool {
-    if (!is_file($path)||is_link($path)||!preg_match('/^(auto|manual|pre-restore)-[0-9]{8}-[0-9]{6}(?:-[a-f0-9]{8})?\.zip$/D',basename($path))) return false;
-    try {
+function tt_backup_snapshot_metadata(string $path): ?array {
+    if(!is_file($path)||is_link($path)||!preg_match('/^(auto|manual|pre-restore)-[0-9]{8}-[0-9]{6}(?:-[a-f0-9]{8})?\.zip$/D',basename($path)))return null;
+    try{
         $reader=new TT_SimpleZipReader($path,0xffffffff);
-        try { $manifest=json_decode((string)$reader->get('backup-manifest.json'),true); }
-        finally { $reader->close(); }
-        return is_array($manifest)&&($manifest['application']??'')==='Transtrade'&&($manifest['type']??'')==='server_snapshot'&&!empty($manifest['recoveryFiles']);
-    } catch(Throwable) { return false; }
+        try{$manifest=json_decode((string)$reader->get('backup-manifest.json'),true);}finally{$reader->close();}
+        if(!is_array($manifest)||($manifest['application']??'')!=='Transtrade'||($manifest['type']??'')!=='server_snapshot'||empty($manifest['recoveryFiles']))return null;
+        $stamp=strtotime((string)($manifest['createdAt']??''));
+        if(!$stamp||$stamp>time()+300)return null;
+        return ['created'=>$stamp];
+    }catch(Throwable){return null;}
 }
-function tt_backup_rotate(): void {
-    $auto=array_values(array_filter(glob(tt_backup_dir().'/auto-*.zip')?:[], 'tt_backup_managed_snapshot'));
-    $keep=tt_backup_retention_keep($auto);
-    foreach($auto as $path)if(!isset($keep[$path])&&!@unlink($path))error_log('Transtrade could not prune an expired automatic snapshot.');
-    foreach(['manual'=>12,'pre-restore'=>12] as $prefix=>$limit){
-        $files=array_values(array_filter(glob(tt_backup_dir().'/'.$prefix.'-*.zip')?:[], 'tt_backup_managed_snapshot'));rsort($files,SORT_STRING);
-        foreach(array_slice($files,$limit)as$path)if(!@unlink($path))error_log('Transtrade could not prune an expired recovery snapshot.');
+function tt_backup_managed_snapshot(string $path): bool {return tt_backup_snapshot_metadata($path)!==null;}
+/** Called under backup-job.lock, with a fresh fully verified surviving snapshot. */
+function tt_backup_rotate(?string $verifiedSnapshot=null): void {
+    if($verifiedSnapshot===null||basename($verifiedSnapshot)!==$verifiedSnapshot)return;
+    $fresh=tt_backup_dir().'/'.$verifiedSnapshot;
+    if(!tt_backup_has_verified_receipt($fresh))return;
+    $freshMeta=tt_backup_snapshot_metadata($fresh);if(!$freshMeta)return;
+    $created=[];$groups=['auto'=>[],'manual'=>[],'pre-restore'=>[]];
+    foreach(array_keys($groups)as$kind)foreach(glob(tt_backup_dir().'/'.$kind.'-*.zip')?:[]as$path){
+        $meta=tt_backup_snapshot_metadata($path);if(!$meta)continue;
+        $created[$path]=$meta['created'];$groups[$kind][]=$path;
+    }
+    $keep=tt_backup_retention_keep($groups['auto'],null,$created);$keep[$fresh]=true;
+    foreach(['manual','pre-restore']as$kind){
+        rsort($groups[$kind],SORT_STRING);$recent=str_starts_with($verifiedSnapshot,$kind.'-')?1:0;
+        foreach($groups[$kind]as$path)if($path!==$fresh&&time()-$created[$path]<=15*86400&&$recent++<3)$keep[$path]=true;
+    }
+    foreach($groups as$paths)foreach($paths as$path){
+        // Never retire the verified survivor or a point newer than that survivor.
+        if(isset($keep[$path])||$created[$path]>$freshMeta['created'])continue;
+        if(!@unlink($path))error_log('Transtrade could not prune an expired managed recovery snapshot.');
     }
 }
 

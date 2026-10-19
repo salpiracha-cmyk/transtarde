@@ -16,9 +16,9 @@ try{
  $now=strtotime('2026-10-19T17:00:00Z');$paths=[];
  for($i=0;$i<110;$i++){$stamp=$now-$i*86400;$path=$root.'/auto-'.gmdate('Ymd-His',$stamp).'.zip';file_put_contents($path,'fixture');touch($path,$stamp);$paths[]=$path;}
  for($i=1;$i<12;$i++){$stamp=$now-$i*3600;$path=$root.'/auto-'.gmdate('Ymd-His',$stamp).'.zip';file_put_contents($path,'fixture');touch($path,$stamp);$paths[]=$path;}
- $keep=tt_backup_retention_keep($paths,$now);check_policy(count($keep)<=19,'Automatic history must stay bounded across hourly/daily/weekly/monthly buckets.');
+ $keep=tt_backup_retention_keep($paths,$now);check_policy(count($keep)<=14,'Automatic history must stay bounded across recent/daily/weekly buckets.');
  rsort($paths,SORT_STRING);foreach(array_slice($paths,0,4)as$p)check_policy(isset($keep[$p]),'Keep the four latest snapshots.');
  check_policy(isset($keep[$root.'/auto-'.gmdate('Ymd-His',$now-6*86400).'.zip']),'Keep a recent daily recovery point.');
- check_policy(!isset($keep[$root.'/auto-'.gmdate('Ymd-His',$now-109*86400).'.zip']),'Expire history outside the configured window.');
+ check_policy(!isset($keep[$root.'/auto-'.gmdate('Ymd-His',$now-16*86400).'.zip']),'Expire history outside the configured window.');
  echo "PASS compressed and legacy streaming restores, corrupted-data refusal, bounded recovery history\n";
 }finally{foreach(glob($root.'/*')?:[]as$p)unlink($p);rmdir($root);}
