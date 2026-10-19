@@ -1,0 +1,87 @@
+name: Read-only original warehouse and archive audit
+
+on:
+  pull_request:
+    paths: ['.github/workflows/original-source-live-audit.yml', '.github/scripts/archive_read_acceptance*', '.github/scripts/original_archive_live.spec.cjs']
+  push:
+    branches: [main]
+    paths: ['.github/workflows/original-source-live-audit.yml', '.github/scripts/archive_read_acceptance*', '.github/scripts/original_archive_live.spec.cjs']
+
+permissions:
+  contents: read
+
+jobs:
+  boundaries:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - run: |
+          node --check .github/scripts/original_archive_live.spec.cjs
+          node --test .github/scripts/archive_read_acceptance_test.cjs
+          php tests/accounts-v1/arrival_dependency_test.php
+          npm install --no-save @playwright/test@1.63.0
+          npx playwright test .github/scripts/original_archive_live.spec.cjs --list
+
+  originals:
+    needs: boundaries
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    environment: live-qa
+    concurrency:
+      group: transtrade-production-deployment
+      cancel-in-progress: false
+    env:
+      HOSTINGER_HOST: ${{ secrets.HOSTINGER_HOST }}
+      HOSTINGER_PORT: ${{ secrets.HOSTINGER_PORT }}
+      HOSTINGER_USER: ${{ secrets.HOSTINGER_USER }}
+      HOSTINGER_DEPLOY_PATH: ${{ secrets.HOSTINGER_DEPLOY_PATH }}
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/setup-node@v4
+        with: {node-version: '22'}
+      - name: Configure verified read-only host diagnostic
+        env:
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+          HOSTINGER_KNOWN_HOSTS: ${{ secrets.HOSTINGER_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -m 700 -d "$RUNNER_TEMP/ssh"
+          printf '%s\n' "$HOSTINGER_SSH_KEY" | tr -d '\r' > "$RUNNER_TEMP/ssh/key"
+          printf '%s\n' "$HOSTINGER_KNOWN_HOSTS" | tr -d '\r' > "$RUNNER_TEMP/ssh/known_hosts"
+          chmod 600 "$RUNNER_TEMP/ssh/key" "$RUNNER_TEMP/ssh/known_hosts"
+          python3 - <<'PY'
+          import os,pathlib
+          core=pathlib.Path('scripts/arrival_dependency_core.php').read_text()
+          runner=pathlib.Path('scripts/arrival_dependency_audit.php').read_text()
+          runner=runner.replace('<?php\n','',1).replace('declare(strict_types=1);\n','',1).replace("require __DIR__.'/arrival_dependency_core.php';\n",'',1)
+          pathlib.Path(os.environ['RUNNER_TEMP'],'original-arrivals.php').write_text(core+'\n'+runner)
+          PY
+      - name: Confirm current deployed application source matches this audit
+        run: |
+          set -euo pipefail
+          case "$HOSTINGER_DEPLOY_PATH" in /home/*/domains/app.transtradeinternational.com/public_html) ;; *) exit 1 ;; esac
+          target_q=$(printf '%q' "$HOSTINGER_DEPLOY_PATH")
+          deployed=$(ssh -i "$RUNNER_TEMP/ssh/key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" -o StrictHostKeyChecking=yes -p "$HOSTINGER_PORT" "$HOSTINGER_USER@$HOSTINGER_HOST" "cat $target_q/.transtrade-release")
+          case "$deployed" in *[!0-9a-f]*|'') exit 1 ;; esac
+          test "${#deployed}" -eq 40
+          git cat-file -e "$deployed^{commit}"
+          test -z "$(git diff --name-only "$deployed" HEAD -- . ':(exclude).github/**' ':(exclude)tests/**' ':(exclude)docs/**' ':(exclude)AGENTS.md')"
+          echo "APPLICATION_SOURCE_MATCHED=$deployed"
+      - name: Read exact saved warehouse originals and financial dependencies without mutation
+        run: |
+          set -euo pipefail
+          target_q=$(printf '%q' "$HOSTINGER_DEPLOY_PATH")
+          ssh -i "$RUNNER_TEMP/ssh/key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" -o StrictHostKeyChecking=yes -p "$HOSTINGER_PORT" "$HOSTINGER_USER@$HOSTINGER_HOST" "env TT_DIAGNOSTIC_ROOT=$target_q php" < "$RUNNER_TEMP/original-arrivals.php"
+      - name: Install isolated protected HTTP acceptance runtime
+        run: |
+          npm install --no-save @playwright/test@1.63.0
+          npx playwright install --with-deps chromium
+      - name: Read all currently indexed original shipment packs
+        env:
+          TRANSTRADE_QA_USERNAME: ${{ secrets.TRANSTRADE_QA_USERNAME }}
+          TRANSTRADE_QA_PASSWORD: ${{ secrets.TRANSTRADE_QA_PASSWORD }}
+        run: npx playwright test .github/scripts/original_archive_live.spec.cjs --reporter=line --workers=1
