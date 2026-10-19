@@ -1,5 +1,7 @@
 # Non-UI audit continuation — 19 October 2026
 
+**Later 19 October continuation:** PR349 adds paid-basis Zakat expense reporting, original commodity quantities and explicit Mill rent/salary reference reconciliation; PR352 corrects the salary-advance and native-parent source holds found by the live review. See `ACCOUNTING_REPORTS_AND_REFERENCES_2026-10-19.md` for its exact validation/release and remaining gates; it supersedes the implementation-state wording below for C09/C12/R08.
+
 This checkpoint incorporates Salman's financial B/F clarification and the already agreed annual Zakat scope. It supersedes earlier notes calling the annual form deferred. It is not a declaration that every workflow, financial classification, original document or stock balance has passed. The action-level coverage register remains authoritative.
 
 ## Implemented and checked in this continuation
