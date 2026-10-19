@@ -9,6 +9,7 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium}=require('
   await page.evaluate(()=>{
    window.state={fi:[{id:'FI1',number:'MBL-EXP-719124-24092026',date:'2026-09-25',type:'Advance',customer:'TRANS GRAINS FOODSTUFF TRADING L.L.C',paymentTerms:'100% ADVANCE',bank:'TTI — Transtrade International · Meezan bank limited · Joria bazar branch, Karachi, Pakistan.',currency:'USD',value:108000,allocations:[{id:'A1',contractRef:'TG/AMT/13',lotRef:'TG/AMT/13/L01',amount:108000}]},{id:'FI2',number:'LARGE-VALUE',date:'2026-09-22',type:'TG Unallocated',customer:'Customer',bank:'Bank',currency:'USD',value:980000000.12,allocations:[]}]};
    window.renderNav=window.refreshFICreditAdviceTags=window.showTgUnallocatedPayments=()=>{};
+   window.openFIModal=()=>{throw new Error('Layout fixture must not open an FI creation action')};
    window.lcRegisterRows=()=>[];window.fiUsed=f=>f.allocations.reduce((n,a)=>n+a.amount,0);
    window.num=n=>Number(n)||0;window.money=(n,c)=>c+' '+Number(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});window.fmt=s=>s;window.esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
    window.original=JSON.stringify(state);
