@@ -63,13 +63,15 @@ with tempfile.TemporaryDirectory(prefix='staff-payment-amend-') as temp:
  st,cancelled=request(cancel);assert st==200,(st,cancelled);assert not any(r['billId']==cancelId for r in request(endpoint='supplier_settlements')[1]['payables'])
  stable=books.read_bytes();assert request(cancel)[0]==200 and books.read_bytes()==stable
  # Mill K-Electric invoice is a liability and production cost, not a payment.
- utility={'entity':'TTI','action':'capture_utility_invoice','requestKey':'utility-invoice-capture-01','payee':'K-Electric','utilityType':'ELECTRICITY','locationId':'MILL','utilityMasterId':'','billMonth':'2026-09','amount':1000.08,'invoiceNo':'KE-001','invoiceDate':'2026-10-01','dueDate':'2026-10-15','accountingTreatment':'BUSINESS_EXPENSE','readFrom':'2026-09-01','readTo':'2026-09-30','previousReading':100,'currentReading':200}
+ utility={'entity':'TTI','action':'capture_utility_invoice','requestKey':'utility-invoice-capture-01','payee':'K-Electric','utilityType':'ELECTRICITY','locationId':'MILL','utilityMasterId':'','billMonth':'2026-09','amount':1000.08,'accountReference':'MANUAL-CONSUMER-001','invoiceNo':'KE-001','invoiceDate':'2026-10-01','dueDate':'2026-10-15','accountingTreatment':'BUSINESS_EXPENSE','readFrom':'2026-09-01','readTo':'2026-09-30','previousReading':100,'currentReading':200}
  st,saved=request(utility);assert st==200,(st,saved);ubid=saved['result']['invoiceId'];uj=saved['result']['journalId'];state=json.loads(books.read_text());assert state['supplierBills'][ubid]['productionCostEligible'] and state['journals'][uj]['lines'][0]['account']=='5200'
+ assert state['supplierBills'][ubid]['accountReference']=='MANUAL-CONSUMER-001'
  assert not state.get('utilityPayments'),state.get('utilityPayments')
  # Projection uses bill month, original invoice and exact later allocation/bank date.
  projection=root/'projection.php';projection.write_text("<?php require $argv[1].'/api/accounts_sales_tax_core.php';require $argv[1].'/api/monthly_tax_core.php';$s=json_decode(file_get_contents($argv[2]),true);echo json_encode(mt_projection($s,[],[],['B1'=>['name'=>'Fixture Bank','number'=>'123456']],'TTI','2026-09'));")
  def tax():return json.loads(subprocess.check_output(['php',str(projection),str(app),str(books)],env=env,text=True))
- r=tax();assert len(r['utilities'])==1 and r['utilities'][0]['payments']==[] and r['utilities'][0]['invoices'][0]['number']=='KE-001',r
+ r=tax();assert r['utilities'][0]['account']=='MANUAL-CONSUMER-001',r
+ assert len(r['utilities'])==1 and r['utilities'][0]['payments']==[] and r['utilities'][0]['invoices'][0]['number']=='KE-001',r
  upay={**payment,'requestKey':'utility-partial-payment-01','supplier':'K-Electric','category':'UTILITIES','selectedBills':[ubid+'|EXPENSE|'+ubid],'amount':1000,'selectedOutstanding':1000.08,'date':'2026-10-03','bankPaymentDate':'2026-10-02'}
  st,res=request(upay,endpoint='supplier_settlements');assert st==200,(st,res);r=tax();assert r['utilities'][0]['payments'][0]['invoicePaid']==1000 and r['utilities'][0]['payments'][0]['sources'][0]['paymentDate']=='2026-10-02',r
  assert request({**utility,'requestKey':'utility-duplicate-invoice'})[0]==422
@@ -81,4 +83,8 @@ with tempfile.TemporaryDirectory(prefix='staff-payment-amend-') as temp:
  assert request({**invoice,'invoiceNo':'DENIED','requestKey':'denied-invoice-test-01'})[0]==403 and books.read_bytes()==stable
  assert request({**corrected,'expectedJournalId':new,'requestKey':'denied-amend-test-01'})[0]==403 and books.read_bytes()==stable
  auth.write_bytes(good_auth)
+ # Manual consumer identity also survives the original paid-utility route.
+ direct_utility={**utility,'action':'pay_utility','location':'MILL','locationName':'Fixture Mill','requestKey':'manual-paid-utility-01','reference':'KE-DIRECT-001','billMonth':'2026-10','paymentDate':'2026-10-03','paymentAccountId':'B1','bankPaymentMethod':'ONLINE_BANKING','bankPaymentDate':'2026-10-03','accountReference':'MANUAL-PAID-ACCOUNT'}
+ st,res=request(direct_utility);assert st==200,(st,res);uid=res['result']['utilityPaymentId'];state=json.loads(books.read_text());assert state['utilityPayments'][uid]['accountReference']=='MANUAL-PAID-ACCOUNT'
+ assert state['journals'][res['result']['journalId']]['meta']['accountReference']=='MANUAL-PAID-ACCOUNT'
  print('PASS actual expense invoices: full recognition, precise partial/final payments, no second expense, unpaid corrections, stable public IDs, cancellation, replay, stale/paid-source holds, utility tax month/bank linkage, preview and staff scope')
