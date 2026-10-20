@@ -40,6 +40,19 @@ register_shutdown_function(function(){fwrite(STDERR,'STATUS:'.(http_response_cod
         result=subprocess.run(['php',str(root/'runner.php')],input=json.dumps({'query':dict(entity='TTI',**dates),'method':'GET'}),capture_output=True,text=True,check=True);assert 'STATUS:422' in result.stderr
     assert req(method='POST')[0]==405
     assert snapshot()==before,'Read-only report changed financial, operational or document bytes'
+    # Older shipments may have their only GD references in the saved B/L draft.
+    operations=root/'data/operations.json';original_operations=operations.read_bytes()
+    legacy={**lot,'id':'BL-LEGACY','lotId':'BL-LOT','commercial':{'date':'2026-09-04','invoiceNo':'BL-INV'},'customs':{'gdRefs':[]},'bl':{'blNo':'BL-ORIGINAL','gdRefs':[{'number':'GD-ONLY-IN-BL-1','date':'2026-09-01'},{'number':'GD-ONLY-IN-BL-2','date':'2026-09-02'}]}}
+    operations.write_text(json.dumps({'values':{'transtrade_export_v3_operational':json.dumps({'contracts':[{'ref':'C'}],'shipments':[process,lot,legacy]})}}))
+    legacy_before=snapshot()
+    for reference in ['GD-ONLY-IN-BL-1','gd-only-in-bl-2','BL-ORIGINAL','BL-INV','BL-LOT']:
+        status,result=req(q=reference)
+        assert status==200 and len(result['rows'])==1,(reference,status,result)
+        assert result['rows'][0]['lotRef']=='BL-LOT' and result['rows'][0]['gdRefs']==['GD-ONLY-IN-BL-1','GD-ONLY-IN-BL-2'],result
+    assert req(q='GD-ONLY-IN-BL-1',**{'from':'2026-09-05'})[1]['rows']==[]
+    assert snapshot()==legacy_before,'B/L search changed shipment, Accounts, upload or archive bytes'
+    operations.write_bytes(original_operations)
+    assert snapshot()==before
     for name in ['accounts.json','operations.json','export_documents/index.json','office_agent_jobs/'+('a'*32)+'/job.json']:
         target=root/'data'/name;original=target.read_bytes();target.write_text('{broken')
         assert req()[0]==500,'Unreadable source was reported as empty: '+name

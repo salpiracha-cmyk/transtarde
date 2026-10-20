@@ -24,4 +24,22 @@ check(count(ast_rows($root,$books,$docs,'TTI','','','process1'))===3,'Parent ref
 check(count(ast_rows($root,$books,$docs,'TTI','2026-09-03','2026-09-03'))===1,'Inclusive report cutoff failed');
 check(ast_valid_date('2024-02-29')&&!ast_valid_date('2026-02-29')&&!ast_valid_date('2026-13-01'),'Impossible calendar date accepted');
 check($before===serialize([$root,$books,$docs]),'Report projection rewrote source data');
+$legacy=['id'=>'LEGACY-BL','kind'=>'lot','lotId'=>'OLD-LOT','contractRef'=>'OLD-C','seller'=>'TTI','buyer'=>'Legacy Buyer','commercial'=>['date'=>'2026-09-04','invoiceNo'=>'OLD-INV'],'customs'=>['gdRefs'=>[['number'=>'','date'=>'']]],'bl'=>['blNo'=>'OLD-BL','gdRefs'=>[['number'=>'GD-BL-1','date'=>'2026-09-01'],['number'=>'GD-BL-2','date'=>'2026-09-02'],['number'=>'GD-BL-1','date'=>'2026-09-01']]]];
+$legacyRoot=['shipments'=>[$legacy]];$legacyBefore=serialize($legacyRoot);
+foreach(['old-c','old-lot','old-inv','legacy buyer','old-bl','gd-bl-1','gd-bl-2'] as $reference){
+    $found=ast_rows($legacyRoot,[],[],'TTI','','',$reference);
+    check(count($found)===1,'B/L-only shipment reference missing: '.$reference);
+    check($found[0]['gdRefs']===['GD-BL-1','GD-BL-2'],'B/L fallback must retain both unique GD numbers');
+}
+check(ast_rows($legacyRoot,[],[],'BRM')===[],'B/L fallback crossed exporter books');
+check(ast_rows($legacyRoot,[],[],'TTI','','','unknown-ref')===[],'Unmatched reference returned a shipment');
+check(ast_rows($legacyRoot,[],[],'TTI','2026-09-05')===[],'B/L fallback bypassed date cutoff');
+$current=$legacy;$current['customs']['gdRefs']=[['number'=>'GD-CURRENT','date'=>'2026-09-03']];
+check(ast_rows(['shipments'=>[$current]],[],[],'TTI','','','gd-bl-1')===[],'Obsolete B/L GD returned despite explicit Customs references');
+check(count(ast_rows(['shipments'=>[$current]],[],[],'TTI','','','gd-current'))===1,'Current Customs GD disappeared');
+$current['customs']['gdRefs']=[['number'=>'','date'=>'2026-09-03']];
+check(ast_rows(['shipments'=>[$current]],[],[],'TTI','','','gd-bl-1')===[],'Partially entered Customs reference must not revive old B/L numbers');
+$legacy['commercial']['gdRefs']=[['number'=>'COMMERCIAL-GD']];
+check(count(ast_rows(['shipments'=>[$legacy]],[],[],'TTI','','','commercial-gd'))===1,'Existing commercial GD compatibility lost');
+check(serialize($legacyRoot)===$legacyBefore,'B/L reference search rewrote original shipment');
 echo "PASS Sales Tax canonical lots, original-file identity, parent uploads, scoped current advices, inclusive real dates and unchanged sources\n";
