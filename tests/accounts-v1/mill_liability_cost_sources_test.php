@@ -44,3 +44,8 @@ $reminderStore['supplierSettlements'][0]['allocations'][0]['amount']=2000;$remin
 check_cost(!tt_expense_monthly_reminders($reminderStore,'TTI','2026-10')[0]['paid'],'Uncleared cheque was reported paid');
 $reminderStore['supplierSettlements'][0]['chequeStatus']='Cleared';check_cost(tt_expense_monthly_reminders($reminderStore,'TTI','2026-10')[0]['paid'],'Cleared full invoice did not close utility reminder');
 echo "PASS captured utility reminders: unpaid and partial remain open, issued cheque waits for clearance, fully cleared closes\n";
+
+$discounted=['entity'=>'TTI','status'=>'Posted','date'=>'2026-10-02','chequeStatus'=>'Issued','allocations'=>[['billId'=>'EINV1','amount'=>1000,'paidAmount'=>900,'discountAmount'=>100]]];
+$projection=eiv_balance(['supplierSettlements'=>[$discounted]],['id'=>'EINV1','entity'=>'TTI','supplierPayableTotal'=>1000,'status'=>'Posted']);
+check_cost($projection['allocated']===1000.0&&$projection['pendingCheque']===900.0&&$projection['discount']===100.0&&$projection['cashPaid']===0.0&&(float)$projection['outstanding']===0.0,'Pending cheque amount incorrectly included the agreed supplier discount');
+echo "PASS pending cheque reports its actual net amount separately from the agreed discount\n";

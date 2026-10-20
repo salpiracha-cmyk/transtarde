@@ -10,7 +10,7 @@ function eiv_balance(array $store,array $bill): array {
             if(($a['billId']??'')!==($bill['id']??''))continue;
             $amount=round((float)($a['amount']??0),2);$allocated+=$amount;$discount+=(float)($a['discountAmount']??0);
             $issued=!empty($p['chequeStatus'])&&($p['chequeStatus']??'')!=='Cleared';
-            if($issued)$pending+=$amount;else $cash+=(float)($a['paidAmount']??$amount);
+            if($issued)$pending+=(float)($a['paidAmount']??$amount);else $cash+=(float)($a['paidAmount']??$amount);
             $payments[]=['postId'=>$p['journalId']??'','date'=>$p['date']??'','allocated'=>$amount,'discount'=>$a['discountAmount']??0,'pendingCheque'=>$issued];
         }
     }
