@@ -484,3 +484,16 @@ Online Banking payments expose an editable payment date, defaulting from the vou
 - Expense Invoices & Balances filters current balances by supplier, original invoice/month/date, due date, head and payment status; CSV/print reflect those filters. Pending cheques remain distinct from cleared payment. Invoice-date filters are not a historical-balance cutoff.
 - Unpaid correction/cancellation requires Expenses Edit, company authority, current source identity and a reason. Reverse linked payments first; reject raw journal edits. Preserve audit history, original public Post ID and idempotent retry behavior.
 - Captured Mill K-Electric invoices feed their actual billing month in Sales Tax & Refund and their actual meter period in production costs. Original documents remain required. Payment notes derive from the exact invoice allocation and actual bank source/date/reference. A reminder alone never posts.
+
+## Customer reference fields in Exports
+
+- Contacts and alternative buyer document addresses are selected explicitly on the Sales Contract. Related consignees, additional notify parties and document addresses are available in Customs, B/L, Commercial/packing and TG party choices, deduplicated by name/address.
+- Customer default currency applies when starting a new contract for that buyer. It never replaces the currency on an existing contract. Customer payment instructions are shown as a suggestion; the user must explicitly choose to use them as contractual wording.
+- Selected contact/address details and related parties follow committed master corrections for active records. Completed records retain their captured party snapshots. Reference loading and selection never post, save or replace unfinished transaction fields.
+- Validate new/changed reference lists and show invalid legacy reference data as a review warning. Preserve the raw historical fields on unrelated edits.
+
+## Office shipment copy feedback
+
+- Show preparation/upload progress on the active shipment copy action. Bound a stalled page-render wait and report the failure rather than leaving QUEUING indefinitely.
+- Completed lots offer an explicit Check Office Delivery action for the latest package. Do not poll/rebuild an active form in the background.
+- Queued is not delivered. Mark delivery verified only when the Office Agent reports every expected file exactly once with the matching folder/name, size and SHA256. Old incomplete claims remain stored but display as unverified. These shipment controls do not change the separate PC backup task or retention.

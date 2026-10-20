@@ -14,7 +14,7 @@
   const parseRoot=()=>{try{return JSON.parse(localStorage.getItem(ROOT)||'null')}catch{return null}};
   const getNotifiesText=c=>(c.notifies||[]).map(n=>[n.name,n.address].filter(Boolean).join(' | ')).join('\n');
   const parseNotifies=text=>String(text||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean).map(line=>{const [name,...rest]=line.split('|');return{name:String(name||'').trim(),address:rest.join('|').trim()}});
-  const canonical=c=>({masterId:c.masterId||'',name:c.name||'',code:c.code||'',roles:c.roles||'Export Buyer',address:c.address||'',country:c.country||'',email:c.email||'',phone:c.phone||'',tax:c.tax||'',packingDefault:c.packingDefault||'KG',notifies:Array.isArray(c.notifies)?c.notifies:[],status:c.status||'Active',notes:c.notes||'',showCountry:!!c.showCountry,showEmail:!!c.showEmail,showPhone:!!c.showPhone,showTax:!!c.showTax});
+  const canonical=c=>({masterId:c.masterId||'',name:c.name||'',code:c.code||'',roles:c.roles||'Export Buyer',address:c.address||'',country:c.country||'',email:c.email||'',phone:c.phone||'',tax:c.tax||'',contacts:Array.isArray(c.contacts)?c.contacts:[],consignees:Array.isArray(c.consignees)?c.consignees:[],additionalNotifies:Array.isArray(c.additionalNotifies)?c.additionalNotifies:[],documentAddresses:Array.isArray(c.documentAddresses)?c.documentAddresses:[],defaultCurrency:c.defaultCurrency||'',customerInstructions:c.customerInstructions||'',advancedWarnings:c.advancedWarnings||[],packingDefault:c.packingDefault||'KG',notifies:Array.isArray(c.notifies)?c.notifies:[],status:c.status||'Active',notes:c.notes||'',showCountry:!!c.showCountry,showEmail:!!c.showEmail,showPhone:!!c.showPhone,showTax:!!c.showTax});
 
 
   const SHARED_MASTER_DEFS={
@@ -92,7 +92,7 @@
         l={id:`M-${m.masterId}`,nextSeq:1};root.customers.push(l);changed=true;
       }
       const before=JSON.stringify(l);
-      Object.assign(l,{masterId:m.masterId,name:m.name,code:m.code,address:m.address,country:m.country,email:m.email,phone:m.phone,tax:m.tax,notifies:m.notifies||[],packingDefault:m.packingDefault||'KG',showCountry:!!m.showCountry,showEmail:!!m.showEmail,showPhone:!!m.showPhone,showTax:!!m.showTax,inactive:String(m.status||'Active').toLowerCase()==='inactive'});
+      Object.assign(l,{masterId:m.masterId,name:m.name,code:m.code,address:m.address,country:m.country,email:m.email,phone:m.phone,tax:m.tax,contacts:m.contacts||[],consignees:m.consignees||[],additionalNotifies:m.additionalNotifies||[],documentAddresses:m.documentAddresses||[],defaultCurrency:m.defaultCurrency||'',customerInstructions:m.customerInstructions||'',advancedWarnings:m.advancedWarnings||[],notifies:m.notifies||[],packingDefault:m.packingDefault||'KG',showCountry:!!m.showCountry,showEmail:!!m.showEmail,showPhone:!!m.showPhone,showTax:!!m.showTax,inactive:String(m.status||'Active').toLowerCase()==='inactive'});
       if(JSON.stringify(l)!==before)changed=true;
     }
     if(removeDeleted){
