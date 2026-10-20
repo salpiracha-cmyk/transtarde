@@ -3,8 +3,9 @@ declare(strict_types=1);
 
 $store = [];
 
-function tt_mutate_store(callable $callback): void {
+function tt_mutate_store(callable $callback,bool $automaticBackup=true): void {
     global $store;
+    $GLOBALS['postIdMutations'][]=$automaticBackup;
     $callback($store);
 }
 
@@ -33,4 +34,9 @@ try {
     post_id_check($error->getMessage() === 'Yearly Post ID limit reached.', 'Overflow is rejected');
 }
 
+$before=count($GLOBALS['postIdMutations']);$block=tt_reserve_post_id_block(['POST-'.date('Y').'-00080'=>['id'=>'POST-'.date('Y').'-00080']],4);
+post_id_check(count($GLOBALS['postIdMutations'])===$before+1,'A correction batch uses one sequence write');
+post_id_check(end($GLOBALS['postIdMutations'])===false,'No backup may run under the Accounts lock');
+post_id_check($block[0]==='POST-'.date('Y').'-00081'&&$block[3]==='POST-'.date('Y').'-00084','Batch uses the shared yearly counter');
+post_id_check(tt_next_post_id([], 'Mill','Arrival')==='POST-'.date('Y').'-00085','Other modules continue after the reserved block');
 echo "Universal post ID sequence test passed.\n";

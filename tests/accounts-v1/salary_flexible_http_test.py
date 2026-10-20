@@ -23,6 +23,10 @@ with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
     function tt_user_can_access_entity($user,$entity,$action){return $entity==='TTI';}
     function tt_verify_csrf($csrf){return $csrf==='fixture';}
     function tt_bank_can_transact($id){return in_array($id,['bank-a','bank-b']);}
+    function tt_reserve_post_id_block(array $existing,int $count,string $module='Accounts',string $area='Salary correction'):array {
+        file_put_contents(__DIR__.'/batch-id-calls.txt','called\\n',FILE_APPEND);$ids=[];
+        for($i=0;$i<$count;$i++){$id=tt_next_post_id($existing);$existing[$id]=['id'=>$id];$ids[]=$id;}return $ids;
+    }
     function tt_next_post_id(array $existing, string $module='Accounts', string $area='Journal', ?string $date=null): string {
         $year=substr($date ?: date('Y-m-d'),0,4);$n=count($existing)+1;
         do {$id='POST-'.$year.'-'.str_pad((string)$n,5,'0',STR_PAD_LEFT);$n++;} while (isset($existing[$id]));
@@ -115,9 +119,11 @@ with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
         # An unrelated supplier payable must never be reclassified.
         legacy['journals']['SUPPLIER']={'id':'SUPPLIER','entity':'TTI','date':'2026-10-01','status':'Posted','sourceType':'OTHER_PURCHASE','lines':[{'account':'1340','debit':50,'credit':0},{'account':'2140','debit':0,'credit':50,'party':'Supplier'}],'totalDebit':50,'totalCredit':50}
         (root/'data/accounts.json').write_text(json.dumps(legacy))
+        (root/'batch-id-calls.txt').unlink(missing_ok=True)
         snap=request()[1]['salaryCorrectionSnapshot']
         correction={'action':'correct_salary_records','date':'2026-10-06','reason':'Owner corrected payroll date and separate salary payables','snapshot':snap,'requestKey':'fixture-payroll-correction'}
         before=saved();status,preview=request({**correction,'preview':True});assert status==200,preview;assert saved()==before
+        assert not (root/'batch-id-calls.txt').exists(),'Preview cannot reserve shared IDs'
         summary=next(j['meta']['salarySummary'] for j in preview['previews'] if j.get('meta',{}).get('salarySummary'))
         assert summary['bank']==120000 and summary['cash']==200000 and summary['otherPayments']==10000
         (root/'user.json').write_text(json.dumps({'role':'Accounts Assistant','permissions':{'Accounts':['Edit']}}))
@@ -126,6 +132,7 @@ with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
         assert request({**correction,'snapshot':'stale'})[0]==422 and saved()==before
         assert request({**correction,'date':'2026-11-06'})[0]==422 and saved()==before
         status,corrected=request(correction);assert status==200,corrected
+        assert (root/'batch-id-calls.txt').read_text().count('called')==1,'One reservation for the entire correction'
         migrated=saved();assert migrated['journals']['SUPPLIER']==legacy['journals']['SUPPLIER']
         def net(code,books):return round(sum(l['debit']-l['credit'] for j in books['journals'].values() for l in j['lines'] if l['account']==code),2)
         for code in ['1110','1120','1430','1440','6210','3200','1230']:assert net(code,migrated)==net(code,legacy),(code,migrated)
