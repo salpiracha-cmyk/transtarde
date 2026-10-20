@@ -87,6 +87,7 @@ function sfw_save(array &$s,string $e,string $m,array $b,array $u,array $names):
             $sum+=(int)round($n*100);$allocations[]=$allocation;
         }
         if($sum!==(int)round($amount*100))throw new DomainException('Allocations must equal the actual transaction amount.');
+        sea_source($s,$e,['paymentAccountId'=>$source,'allocations'=>$allocations]);
         $transactions[]=['amount'=>$amount,'date'=>$date,'paymentAccountId'=>$source,'recipient'=>$recipient,'allocations'=>$allocations]+$tracking;
     }
     $groups=sfw_groups($sheet);$old=$groups[$id]??[];$groups[$id]=$transactions;$sheet['paymentGroups']=$groups;
@@ -112,7 +113,7 @@ function sfw_post_groups(array &$s,string $e,string $m,array $sheet,array $u,arr
         $assetTotals[$aid]=($assetTotals[$aid]??0)+(int)round($a['amount']*100);
         if($assetTotals[$aid]>far_totals($s['managedAssets'][$aid])['balanceCents'])throw new DomainException('Combined payments exceed the remaining asset balance.');
     }
-    foreach($sheet['paymentGroups'] as $owner=>$transactions)foreach($transactions as $index=>$t){if(($t['status']??'')==='Reversed')continue;sfw_assert_reference($s,$e,$t);$amount=0;$lines=[];$events=[];
+    foreach($sheet['paymentGroups'] as $owner=>$transactions)foreach($transactions as $index=>$t){if(($t['status']??'')==='Reversed')continue;sea_source($s,$e,$t);sfw_assert_reference($s,$e,$t);$amount=0;$lines=[];$events=[];
         foreach($t['allocations'] as $a){$n=sfw_money($a['amount'],'allocation');$amount=round($amount+$n,2);$meta=['month'=>$m,'paymentRecipient'=>$t['recipient'],'paymentGroupOwner'=>$owner,'allocationPurpose'=>$a['purpose']??''];
             if($a['type']==='SALARY'){$r=$sheet['rows'][$a['masterId']];$lines[]=rsv2_line('2140',$n,0,$names,$meta+['salaryMasterId'=>$a['masterId'],'party'=>$r['name'],'person'=>$r['name'],'category'=>$r['category']]);}
             elseif($a['type']==='EXPENSE'){$sub=sea_validate($s,$e,$a,$u,$t['date']);$lines[]=rsv2_line($sub['parentCode'],$n,0,$names,$meta+sac_extra($sub)+$sub['paymentExtra']+['party'=>$t['recipient'],'counterparty'=>$t['recipient'],'expensePurpose'=>$a['purpose']??'','expenseFor'=>$sub['homePerson']??'SHARED','expenseArea'=>$sub['expenseClassification']==='HOME'?'HOME':'OFFICE','personalTreatment'=>'COMPANY']);}

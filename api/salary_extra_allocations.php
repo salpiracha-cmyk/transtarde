@@ -33,6 +33,13 @@ function sea_validate(array $s,string $e,array $a,array $u,string $date):array {
     foreach($asset['payments'] as $p)if($p['instalmentNo']===$label)throw new DomainException('This asset instalment is already recorded.');
     return $asset;
 }
+/** Direct capital funding follows the same company-bank rule as Assets. */
+function sea_source(array $s,string $e,array $t):void {
+    if(!array_filter($t['allocations'],static fn($a)=>in_array($a['type'],['BROKER_FUND','ASSET_PAYMENT'],true)))return;
+    if($t['paymentAccountId']==='CASH|'.$e)return;
+    foreach(far_banks($s,$e) as $bank)if($bank['id']===$t['paymentAccountId']&&$bank['currency']===($e==='TG'?'AED':'PKR'))return;
+    throw new DomainException('Capital payments require a company bank in the book currency or company cash.');
+}
 function sea_asset_links(array &$s,array $allocations,array $t,string $jid,array $u):void {
     foreach($allocations as $a)if($a['type']==='ASSET_PAYMENT'){
         $asset=&$s['managedAssets'][$a['assetId']];$id=far_next($asset['payments'],'AP');$cash=str_starts_with($t['paymentAccountId'],'CASH|');$cents=(int)round($a['amount']*100);
