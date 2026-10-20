@@ -130,3 +130,6 @@ Latest released live39495236012/job118878482410 passed24/24, including LIVE_ASAS
 
 
 Recovery39495236037/job118878544959 passed its exact24/24live prerequisite and copied both the application and private originals, then timed out again. Fixed diagnostics show hostHTTP000 and runnerHTTP000, with connection_refused. No browser/control/rollback acceptance was reached. Because even the host-local request failed, the next diagnostic tests only an empty temporary PHP server with a random request gate, publishes fixed startup-error categories and native loopback-bind availability, and removes itself. It reads/writes zero application files and does not reduce hosting protection.
+
+
+Protected empty-server diagnostic39497270033/job118885497525 succeeded. Default, resolved-binary and cleared-environment modes all reportedserver_started andnativeLoopbackBind allowed, but host cURL returned000 for each. The remaining private rehearsal server log also categorizedserver_started. A blanket PHP-startup/bind prohibition is therefore not established. The follow-up reports a native PHP socket HTTP status and numeric socket error without logging response content, to determine whether PHP itself can reach the gated empty server. All probes use only temporary diagnostic files.
