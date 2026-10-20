@@ -32,6 +32,16 @@ try{
  $h=fopen($p,'rb');flock($h,LOCK_EX);check(!otc_remove($p,$c,$uid,$now,fn()=>true),'hold locked file');flock($h,LOCK_UN);fclose($h);
  $changed=$c;$changed['identity']['size']++;check(!otc_remove($p,$changed,$uid,$now,fn()=>true),'hold changed identity');
  check(otc_remove($p,$c,$uid,$now,fn()=>true)&&!file_exists($p),'remove identified abandoned archive');
+ $partial=$dir.'/tt-backup-PAR123';$writer=new TT_SimpleZipWriter($partial);
+ for($i=1;$i<=8;$i++)$writer->addString('Encrypted/'.sprintf('%06d',$i).'.bin',str_repeat(chr($i),4096),false);$writer->close();
+ $fullBytes=file_get_contents($partial);$central=strpos($fullBytes,"PK\x01\x02");file_put_contents($partial,substr($fullBytes,0,$central));
+ check(otc_partial_export($partial)!==null,'recognise interrupted encrypted export without its final directory');
+ $corrupt=file_get_contents($partial);$corrupt[100]=chr(ord($corrupt[100])^255);file_put_contents($partial,$corrupt);
+ check(otc_partial_export($partial)===null,'reject changed encrypted prefix CRC');
+ file_put_contents($partial,'unrelated data');check(otc_partial_export($partial)===null,'reject unrelated temporary file');
+ $remaining=array_fill(0,4,['uid'=>$uid,'size'=>100]);$remaining[0]['size']=3841207733;
+ check(otc_approved_cohort($remaining,$uid),'recognise exact four-file remainder after the first two removals');
+ $remaining[0]['size']++;check(!otc_approved_cohort($remaining,$uid),'reject changed remaining cohort');
  check(is_file($unknown)&&is_link($link),'unknown files untouched');
  echo "OFFICE_TEMP_CLEANUP_BOUNDARIES_OK\n";
 }finally{foreach(glob($dir.'/*')?:[]as$p)unlink($p);rmdir($dir);}
