@@ -53,9 +53,9 @@ function src_correct(array &$s,string $e,string $m,array $b,array $u,array $name
             if(($l['account']??'')==='2140'&&($l['salaryMasterId']??$j['meta']['salaryMasterId']??'')!==''){$l['account']='2230';$l['accountName']=$names['2230'];$reclassified=true;}
             if($changeDate)foreach(['paymentDate','chequeDate','bankPaymentDate'] as $field)if(!empty($l[$field]))$l[$field]=$date;
         }unset($l);
-        if(!$reclassified&&(!$changeDate||$j['date']===$date))continue;
+        if(!$reclassified&&(!$changeDate||($j['date']===$date&&$lines===$j['lines'])))continue;
         $dr=0;$cr=0;foreach($j['lines'] as $l){$dr+=(int)round(100*(float)$l['debit']);$cr+=(int)round(100*(float)$l['credit']);}
-        if($dr<=0||$dr!==$cr)throw new DomainException('A selected salary journal is unbalanced. Correct its original source first.');
+        if($dr<=0||$dr!==$cr||$dr!==(int)round(100*(float)($j['totalDebit']??0))||$cr!==(int)round(100*(float)($j['totalCredit']??0)))throw new DomainException('A selected salary journal is unbalanced. Correct its original source first.');
         $reverse=$j['lines'];foreach($reverse as &$l){[$l['debit'],$l['credit']]=[$l['credit'],$l['debit']];foreach([['bankDebit','bankCredit'],['nativeDebit','nativeCredit']] as [$a,$c])if(isset($l[$a])||isset($l[$c]))[$l[$a],$l[$c]]=[$l[$c]??0,$l[$a]??0];}unset($l);
         $rid=rsv2_journal($next,$e,$j['date'],'SALARY_RECORD_CORRECTION_REVERSAL',$id,'Payroll correction reversal — '.$reason,$reverse,$u,['originalPostId'=>$id,'reason'=>$reason]);$next['journals'][$rid]['reversalOf']=$id;
         $meta=(array)($j['meta']??[]);$meta['publicPostId']=tt_accounts_public_post($s,$j);$meta['reconciliationPostId']=$meta['reconciliationPostId']??$id;$meta['amendmentOfPostId']=$id;$meta['amendmentReason']=$reason;$meta['reversalPostId']=$rid;$meta['amendmentNote']='Edited '.gmdate('Y-m-d').' by '.($u['full_name']??$u['username']??'Accounts').' — '.$reason.($changeDate?' — Date: '.$j['date'].' → '.$date:'').($reclassified?' — Payroll payable: 2140 → 2230':'');
@@ -69,7 +69,7 @@ function src_correct(array &$s,string $e,string $m,array $b,array $u,array $name
     if(!$map)throw new DomainException('The selected payroll dates and accounts already match.');
     // Update canonical links, not amounts or allocations. No new investment event or instalment.
     foreach(['rentSalaryPayments','salaryPeriods','investmentTransactions'] as $collection)foreach($next[$collection]??[] as $id=>$r){$old=$r['journalId']??'';if(!isset($map[$old]))continue;$next[$collection][$id]['journalId']=$map[$old];if($date!==''&&src_month($s['journals'][$old])===$m&&isset($r['date']))$next[$collection][$id]['date']=$date;}
-    foreach($next['managedAssets']??[] as $aid=>$asset)foreach($asset['payments']??[] as $pid=>$p)if(isset($map[$p['journalId']??''])){$old=$p['journalId'];$next['managedAssets'][$aid]['payments'][$pid]['journalId']=$map[$old];if($date!==''&&src_month($s['journals'][$old])===$m)$next['managedAssets'][$aid]['payments'][$pid]['date']=$date;}
+    foreach($next['managedAssets']??[] as $aid=>$asset)foreach($asset['payments']??[] as $pid=>$p)if(isset($map[$p['journalId']??''])){$old=$p['journalId'];$next['managedAssets'][$aid]['payments'][$pid]['journalId']=$map[$old];if($date!==''&&src_month($s['journals'][$old])===$m){if($date<($asset['purchaseDate']??'2026-07-01'))throw new DomainException('An asset payment cannot precede its agreement.');$next['managedAssets'][$aid]['payments'][$pid]['date']=$date;foreach(['chequeDate','bankPaymentDate'] as $field)if(!empty($p[$field]))$next['managedAssets'][$aid]['payments'][$pid][$field]=$date;}$next['managedAssets'][$aid]['version']=(int)$asset['version']+1;}
     foreach($next['salarySheets']??[] as $sk=>$sheet){if(($sheet['entity']??'')!==$e)continue;
         if(isset($map[$sheet['journalId']??'']))$next['salarySheets'][$sk]['journalId']=$map[$sheet['journalId']];
         $next['salarySheets'][$sk]['paymentPostIds']=array_map(static fn($id)=>$map[$id]??$id,$sheet['paymentPostIds']??[]);
@@ -79,6 +79,8 @@ function src_correct(array &$s,string $e,string $m,array $b,array $u,array $name
         if(($sheet['status']??'')==='Completed')$next['salarySheets'][$sk]['version']++;
     }
     foreach($map as $old=>$new){$meta=&$next['journals'][$new]['meta'];if(isset($meta['paymentPostIds']))$meta['paymentPostIds']=array_map(static fn($id)=>$map[$id]??$id,$meta['paymentPostIds']);if(isset($map[$meta['salaryMonthPostId']??'']))$meta['salaryMonthPostId']=$map[$meta['salaryMonthPostId']];unset($meta);}
+    foreach($next['salaryAdvances']??[] as $advance)foreach($advance['adjustments']??[] as $ix=>$adjustment){$old=$adjustment['journalId']??'';if(!isset($map[$old]))continue;if($date!==''&&src_month($s['journals'][$old])===$m&&$date<($advance['date']??''))throw new DomainException('Salary recovery cannot precede the original advance date.');}
+    foreach($next['salaryAdvances']??[] as $aid=>$advance)foreach($advance['adjustments']??[] as $ix=>$adjustment)if(isset($map[$adjustment['journalId']??'']))$next['salaryAdvances'][$aid]['adjustments'][$ix]['journalId']=$map[$adjustment['journalId']];
     foreach($next['postingKeys']??[] as $pk=>$record){foreach(['journalId','replacementPostId'] as $field){if(isset($map[$record[$field]??'']))$next['postingKeys'][$pk][$field]=$map[$record[$field]];if(isset($map[$record['result'][$field]??'']))$next['postingKeys'][$pk]['result'][$field]=$map[$record['result'][$field]];}}
     if(function_exists('inv_validate_timeline'))inv_validate_timeline($next,$e);
     $monthId=$next['salarySheets'][$e.'|'.$m]['journalId']??reset($map);$summary=src_summary($next,$e,$m,smw_sheet($next,$e,$m));
