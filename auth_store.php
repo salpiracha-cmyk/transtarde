@@ -765,6 +765,7 @@ function tt_company_vat_rate(string $companyCode, float $default=5.0): float {
 }
 
 function tt_create_master(string $type, array $values): string {
+    if($type==='export_customers')tt_export_customer_notify_json($values[9]??'');
     return tt_mutate_store(function (&$data) use ($type,$values): string {
         if (!isset($data['masters'][$type]) || !is_array($data['masters'][$type])) $data['masters'][$type]=[];
         if($type==='companies')foreach($data['masters'][$type] as $row)if(strcasecmp(trim((string)($row['values'][1]??'')),trim((string)($values[1]??'')))===0)throw new InvalidArgumentException('This company short code already belongs to another company. Open that existing company instead.');
@@ -778,6 +779,12 @@ function tt_create_master(string $type, array $values): string {
 function tt_update_master(string $type, string $id, array $values): void {
     tt_mutate_store(function (&$data) use ($type,$id,$values): void {
         if (!isset($data['masters'][$type]) || !is_array($data['masters'][$type])) throw new RuntimeException('Master type not found.');
+        if($type==='export_customers'){
+            $current=null;foreach($data['masters'][$type] as $row)if(($row['id']??'')===$id)$current=$row;
+            // Preserve unchanged historical input on unrelated amendments. New
+            // party details must pass the same checks through every save route.
+            if((string)($current['values'][9]??'')!==(string)($values[9]??''))tt_export_customer_notify_json($values[9]??'');
+        }
         if($type==='companies'){
             $current=null;foreach($data['masters'][$type] as $row)if(($row['id']??'')===$id)$current=$row;
             if(strcasecmp(trim((string)($current['values'][1]??'')),trim((string)($values[1]??'')))!==0)foreach($data['masters'][$type] as $row)if(($row['id']??'')!==$id&&strcasecmp(trim((string)($row['values'][1]??'')),trim((string)($values[1]??'')))===0)throw new InvalidArgumentException('This company short code already belongs to another company.');

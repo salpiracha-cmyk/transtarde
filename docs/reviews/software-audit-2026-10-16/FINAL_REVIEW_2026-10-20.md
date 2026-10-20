@@ -398,8 +398,11 @@ backup was restored, and no PC task was inferred from an active credential.
 A further actual-auth master regression reproduced a new correctness defect:
 the customer endpoint accepted a notify party with no address and silently
 truncated a list after12parties, despite the native form rejecting incomplete
-parties. The repair rejects malformed/non-list JSON, invalid row types,
-incomplete name/address pairs and lists above12before any save. Empty lists,
+parties. The repair shares validation across the native customer endpoint and generic
+Master Records create/amend routes. It rejects malformed/non-list JSON, invalid
+row/text types, oversized fields, incomplete name/address pairs and lists above12
+before any save. Unchanged historical notify data remains editable alongside
+unrelated notes; it is not silently migrated. Empty lists,
 12complete parties, JSON lists and legacy Name | Address lines remain valid.
 Rejected edits preserve the authentication/master store and Accounts bytes;
 valid edits retain customer fields16–21 and the original financial journals.

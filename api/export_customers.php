@@ -13,27 +13,6 @@ function customer_roles(string $roles): string {
     if(!array_filter($items,fn($r)=>preg_match('/\bexport\s*buyer\b/i',$r))) array_unshift($items,'Export Buyer');
     return implode('; ',$items);
 }
-function customer_notify_json(mixed $input): string {
-    if(is_string($input)){
-        $text=trim($input);
-        if($text==='')return '[]';
-        $decoded=json_decode($input,true); if(json_last_error()===JSON_ERROR_NONE) $input=$decoded;
-        elseif(in_array($text[0],['[','{'],true))throw new InvalidArgumentException('Notify parties JSON could not be read.');
-        else { $rows=preg_split('/\r?\n/',$input)?:[]; $input=array_map(function($line){$p=array_map('trim',explode('|',(string)$line,2));return ['name'=>$p[0]??'','address'=>$p[1]??''];},$rows); }
-    }
-    if(!is_array($input)||!array_is_list($input))throw new InvalidArgumentException('Notify parties must be a list of names and addresses.'); $out=[];
-    foreach($input as $row){
-        if(!is_array($row))throw new InvalidArgumentException('Each notify party must include a name and full address.');
-        if(!is_string($row['name']??'')||!is_string($row['address']??''))throw new InvalidArgumentException('Notify party names and addresses must be text.');
-        $name=trim($row['name']??'');$address=trim($row['address']??'');
-        if(strlen($name)>180||strlen($address)>1200)throw new InvalidArgumentException('Notify party name or address is too long. Shorten it before saving.');
-        if($name===''&&$address==='')continue;
-        if($name===''||$address==='')throw new InvalidArgumentException('Each notify party must include a name and full address.');
-        $out[]=['name'=>$name,'address'=>$address];
-        if(count($out)>12)throw new InvalidArgumentException('A customer can have at most 12 notify parties. Remove extra rows before saving.');
-    }
-    return json_encode($out,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);
-}
 function customer_row(array $row): array {
     $v=array_values(is_array($row['values']??null)?$row['values']:[]); while(count($v)<16)$v[]='';
     $notifies=[]; if($v[9]!==''){ $d=json_decode((string)$v[9],true); if(is_array($d))$notifies=$d; }
@@ -81,7 +60,7 @@ try{
         $input=is_array($body['customer']??null)?$body['customer']:[];$mode=(string)($body['mode']??'edit');$mid=customer_text($input['masterId']??'',80);$name=customer_text($input['name']??'',220);$address=customer_text($input['address']??'',1200);
         if($name===''||$address==='')throw new InvalidArgumentException('Customer name and address are required.');
         $code=strtoupper(preg_replace('/[^A-Z0-9-]/i','',customer_text($input['code']??'',24))?:'');if($code==='')$code=strtoupper(substr(preg_replace('/[^A-Za-z]/','',$name)?:'CUS',0,6));
-        $incoming=[$name,$code,customer_roles(customer_text($input['roles']??'Export Buyer',500)),$address,customer_text($input['country']??'',180),customer_text($input['email']??'',220),customer_text($input['phone']??'',120),customer_text($input['tax']??'',220),strtoupper(customer_text($input['packingDefault']??'KG',8))==='LB'?'LB':'KG',customer_notify_json($input['notifies']??[]),in_array(strtolower(customer_text($input['status']??'Active',20)),['inactive','archived'],true)?'Inactive':'Active',customer_text($input['notes']??'',1200),customer_bool($input['showCountry']??false)?'Yes':'No',customer_bool($input['showEmail']??false)?'Yes':'No',customer_bool($input['showPhone']??false)?'Yes':'No',customer_bool($input['showTax']??false)?'Yes':'No','','','','','',''];
+        $incoming=[$name,$code,customer_roles(customer_text($input['roles']??'Export Buyer',500)),$address,customer_text($input['country']??'',180),customer_text($input['email']??'',220),customer_text($input['phone']??'',120),customer_text($input['tax']??'',220),strtoupper(customer_text($input['packingDefault']??'KG',8))==='LB'?'LB':'KG',tt_export_customer_notify_json($input['notifies']??[]),in_array(strtolower(customer_text($input['status']??'Active',20)),['inactive','archived'],true)?'Inactive':'Active',customer_text($input['notes']??'',1200),customer_bool($input['showCountry']??false)?'Yes':'No',customer_bool($input['showEmail']??false)?'Yes':'No',customer_bool($input['showPhone']??false)?'Yes':'No',customer_bool($input['showTax']??false)?'Yes':'No','','','','','',''];
         $match=null;foreach($partyRows as $row){$v=$row['values']??[];if(($mid!==''&&(string)($row['id']??'')===$mid)||($mid===''&&customer_identity((string)($v[0]??''))===customer_identity($name))||($mid===''&&$code!==''&&strcasecmp((string)($v[1]??''),$code)===0)){$match=$row;break;}}
         if(!tt_user_can_master($user,'export_customers',$match?'Edit':'Create'))customer_respond(['ok'=>false,'error'=>'The corresponding Export Customer Master permission is required.'],403);$created=false;if($match){$existing=array_values(is_array($match['values']??null)?$match['values']:[]);while(count($existing)<22)$existing[]='';for($i=0;$i<16;$i++){if($mode!=='sync'||($incoming[$i]!==''&&!($i===10&&$existing[$i]!=='')))$existing[$i]=$incoming[$i];}if($existing[2]==='')$existing[2]='Export Buyer';if($existing[8]==='')$existing[8]='KG';if($existing[10]==='')$existing[10]='Active';$values=$existing;tt_update_master('export_customers',(string)$match['id'],$values);$mid=(string)$match['id'];tt_audit((int)$user['id'],(string)$user['username'],'Updated Export customer master '.$name);}else{$mid=tt_create_master('export_customers',$incoming);$created=true;tt_audit((int)$user['id'],(string)$user['username'],'Created Export customer master '.$name);}
         customer_respond(['ok'=>true,'created'=>$created,'customer'=>customer_row(['id'=>$mid,'values'=>$values??$incoming]),'customers'=>customer_rows()]);
