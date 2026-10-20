@@ -1,5 +1,13 @@
 # Full audit continuation and closeout evidence — 20 October 2026
 
+**Latest verified runtime:** `297c8c6fff1b7a428a0d56d220aed6ab86ea44a1` (PR457).
+Feature and main Accounts/Milling/Exports suites passed. Production matched all
+458application files; final read-only live39476682595passed23/23.
+**Disposition:** the functional review is closed with recorded qualifications;
+125of156business acceptance scopes pass,31remain qualified. These31are not a
+count of unfixed software bugs. Missing source facts and separate device/service
+acceptance are listed below; unconditional business or security sign-off is held.
+
 This report reconciles the complete 156-scope register. The register measures
 business acceptance, not the number of times an automated suite has been run.
 The preceding checkpoint was 125 accepted scopes and 31 scopes with remaining
@@ -433,3 +441,46 @@ No remaining qualification has been relabelled passed solely because there are
 no current transactions to exercise, or because the same green suite ran again.
 The156-scope business-acceptance count remains125passed and31qualified.
 Release acceptance for the final notify-party/card-label repair follows below.
+
+
+### Connected document-reader status
+
+The live settings screen in this final continuation showed document reading
+enabled, fallback enabled, OpenAI **Linked — verified**, and Gemini
+**Connection or document check failed** (last checked20October23:22PKT).
+This is the saved provider-check status, not a new successful read of a business
+document. No model, key, fallback order or setting was changed; no paid synthetic
+provider request was initiated by this inspection. Gemini fallback readiness is
+not certified by a successful primary OpenAI check.
+
+
+### Final release acceptance — PR457
+
+- Final feature head `fbf98105b7178b00f119c9e085a85a7b9e0c23ee`: Accounts
+  **39475164353** (both jobs) and Milling/Exports **39475164315** passed.
+- Main/runtime `297c8c6fff1b7a428a0d56d220aed6ab86ea44a1`: Accounts
+  **39475805652** (both jobs), Milling/Exports **39475805792**, and seven-day
+  backup policy **39475805725** passed.
+- Deploy **39476324853**, job **118813100014**, passed. The source verifier
+  matched all458application files to that exact commit and wrote0business
+  files. Login health passed; code rotation kept1copy, removed1older managed
+  code copy and touched0private backups.
+- Startup **39476682512**, job **118814336763**, passed: login545ms, sign-in
+  to usable Accounts1164ms; Accounts/Admin/Milling/Exports returnedHTTP200
+  and the approved Exports palette passed. Historical intermittent scope119
+  remains qualified; this is a current pass, not a historical root cause.
+- Final live **39476682595**, job **118814337757**, passed23/23in2.7minutes.
+  It compared58active account ledgers across3company reports at revision18697,
+  with0concurrent-revision skips and10PKR bank comparisons. All3trial balances
+  balanced, all3balance-sheet differences were0 and unclassified balances were
+  empty. It checked30posted JVs and468register rows, with0pending approvals.
+  Original WHT/screen/CSV/print agreement passed. Financial, stock, reference
+  and annual-assessment test writes were0.
+- Connected owner Chrome verified **Stored backup archives** and the explicit
+  explanation that available recovery points are listed below. No live customer
+  or notify party was created/amended to demonstrate the server validation.
+
+The report and register are the final review record, with the exact retained
+limitations. Documentation-only publication after this verification changes no
+application source or business record and does not require inventing another
+production business case.
