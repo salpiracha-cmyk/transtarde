@@ -1,6 +1,6 @@
 <?php
 declare(strict_types=1);
-require dirname(__DIR__).'/auth_store.php';
+require_once dirname(__DIR__).'/auth_store.php';
 require_once __DIR__.'/accounts_sales_tax_core.php';
 require_once __DIR__.'/shipment_archive_core.php';
 header('Content-Type: application/json; charset=UTF-8');
@@ -28,6 +28,7 @@ function ast_documents():array {
 }
 function ast_date(string $v):string{if($v===''||ast_valid_date($v))return$v;ast_out(['ok'=>false,'error'=>'Use a valid date range.'],422);}
 
+if(defined('TT_SALES_TAX_FUNCTIONS_ONLY'))return;
 try{
  $u=tt_require_login();if(($_SERVER['REQUEST_METHOD']??'GET')!=='GET')ast_out(['ok'=>false,'error'=>'Method not allowed.'],405);if(!tt_user_can_open_module($u,'Accounts'))ast_out(['ok'=>false,'error'=>'Accounts permission required.'],403);$entity=strtoupper(trim((string)($_GET['entity']??'')));if(!in_array($entity,['TTI','BRM'],true))ast_out(['ok'=>false,'error'=>'Sales Tax export documents are available for TTI or BRM.'],422);if(($u['role']??'')!=='Super Admin'&&!tt_user_can_access_entity($u,$entity,'View'))ast_out(['ok'=>false,'error'=>'You do not have permission for these company books.'],403);$from=ast_date(trim((string)($_GET['from']??'')));$to=ast_date(trim((string)($_GET['to']??'')));if($from!==''&&$to!==''&&$from>$to)ast_out(['ok'=>false,'error'=>'From date must not follow To date.'],422);$needle=strtolower(trim((string)($_GET['q']??'')));$root=ast_root();$accounts=ast_accounts();$docs=ast_documents();$rows=ast_rows($root,$accounts,$docs,$entity,$from,$to,$needle);
  ast_out(['ok'=>true,'entity'=>$entity,'rows'=>$rows,'filters'=>['from'=>$from,'to'=>$to,'q'=>$needle],'serverNow'=>gmdate('c')]);

@@ -53,8 +53,8 @@
     ]},
     {key:'ledgers', glyph:'L', title:'Ledgers', note:'Account and party ledgers, and every posted voucher', actions:[{title:'Ledger',special:'all-ledgers',ledgerCategory:'party'},{title:'Post ID Register',special:'post-ledger'},{title:'Trial Balance',native:'reports',find:'Trial Balance'},{title:'Chart of Accounts & Details',special:'account-heads'},{title:'Subaccounts & Details',special:'subaccounts'},{title:'Forward Booking Register',special:'forward-register'}]},
     {key:'reports', glyph:'▤', title:'Reports', note:'Financial, tax, party, commodity and shipment reports', actions:[
-      {title:'Production & Recovery',special:'production-recovery'}, {title:'Bag Orders, Receipts & Tax',special:'bag-report'}, {title:'Monthly Bag Supplier Files',special:'bag-files'},
-      {title:'Sales Tax', note:'Search export documents and bank/tax advices by period and reference', special:'sales-tax'},
+      {title:'Production & Recovery',special:'production-recovery'}, {title:'Bag Orders, Receipts & Tax',special:'bag-report'},
+      {title:'Sales Tax & Refund', note:'Monthly return and refund files with payment tracing', special:'sales-tax'},
       {title:'Expenses by Type / Recipient',special:'expense-report'}, {title:'Vehicle / Asset Costs',special:'vehicle-report'}, {title:'Withholding Tax Report', special:'withholding-report'}, {title:'Trial Balance', native:'reports', find:'Trial Balance'}, {title:'Profit & Loss', native:'reports', find:'Profit'},
       {title:'Balance Sheet', native:'reports', find:'Balance Sheet'}, {title:'Receivables / Payables', native:'reports', find:'Receivables'},
       {title:'Shipment Profitability', native:'reports', find:'Shipment'},
@@ -180,7 +180,7 @@
     if (action.special === 'stock-reconciliation' && access.canInventoryReconciliation) { location.href='/stock-reconciliation.php?origin=accounts&entity='+encodeURIComponent(entity()); return; }
     if (action.special === 'soda') return openSoda();
     if (action.special === 'search') return openSearch();
-    if (action.special === 'sales-tax') return openSalesTax();
+    if (action.special === 'sales-tax') return window.TT_MONTHLY_SALES_TAX.open();
     if (action.special === 'export-receipt') return window.TT_EXPORT_RECEIPTS_UI?.openForm?.();
     if (action.special === 'tg-customer-receipt') return window.TT_TG_CUSTOMER_RECEIPTS?.open?.();
     if (action.special === 'internal-bank-transfer') return window.TT_INTERNAL_BANK_TRANSFERS_UI?.open?.();
@@ -903,6 +903,6 @@
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, {once:true}); else init();
-  window.TT_ACCOUNTING_DESK = {installed:true,openHistoricalBagBill:async id=>{await launch({title:'Historical Bag Bill',native:'purchases',then:'[data-purchase="bags"]',bagSync:true});await window.TT_BAG_PURCHASES_UI.mount();window.TT_BAG_PURCHASES_UI.editHistorical(id);}, openSoda, openSearch, showArea, printVoucher, openSavedBill, refreshAttention:async()=>{await Promise.all([loadDashboardSummary(),loadRecentTransactions()]);}};
+  window.TT_ACCOUNTING_DESK = {installed:true,openSalesTaxSearch:openSalesTax,openHistoricalBagBill:async id=>{await launch({title:'Historical Bag Bill',native:'purchases',then:'[data-purchase="bags"]',bagSync:true});await window.TT_BAG_PURCHASES_UI.mount();window.TT_BAG_PURCHASES_UI.editHistorical(id);}, openSoda, openSearch, showArea, printVoucher, openSavedBill, refreshAttention:async()=>{await Promise.all([loadDashboardSummary(),loadRecentTransactions()]);}};
 })();
 

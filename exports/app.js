@@ -48,11 +48,11 @@ function applyProductMaster__legacy_v0(c,identity){const v=productMasters().find
 function seed(){return {version:'clean-v3',customers:[],suppliers:[],fi:[],contracts:[],shipments:[],accountsReceipts:[],millSync:{newExportBags:[],productionInstructions:[],exportLoading:[]},audits:[],alerts:[],settings:{}}}
 function normalize(x){x=x&&typeof x==='object'?x:seed();x.version='clean-v3';for(const k of ['customers','suppliers','fi','contracts','shipments','accountsReceipts','audits','alerts'])x[k]=Array.isArray(x[k])?x[k]:[];const cancelledRefs=new Set(x.contracts.filter(c=>c&&(c.status==='Cancelled'||c.cancelled)).map(c=>c.ref));x.contracts=x.contracts.filter(c=>c&&c.status!=='Cancelled'&&!c.cancelled);x.shipments=x.shipments.filter(s=>s&&!s.cancelled&&!cancelledRefs.has(s.contractRef));for(const s of x.shipments)delete s.bagOrderDraft;x.millSync=x.millSync||{};for(const k of ['newExportBags','productionInstructions','exportLoading'])x.millSync[k]=Array.isArray(x.millSync[k])?x.millSync[k]:[];return x}
 function load(){try{return normalize(JSON.parse(localStorage.getItem(STORE)||'null'))}catch{return seed()}}
-let state=load(), view='home', currentShipmentId='', activeWorkspace='', contractDraft=null, contractStep=1, activePackingIndex=-1, packingDraft=null, modalStack=[];
+let state=window.TT_EXPORT_TAX_SOURCE?normalize(structuredClone(window.TT_EXPORT_TAX_SOURCE)):load(), view='home', currentShipmentId='', activeWorkspace='', contractDraft=null, contractStep=1, activePackingIndex=-1, packingDraft=null, modalStack=[];
 const bagOrderDrafts=new Map();
 const pendingFinalOrders=new Map();
 let exportCommitBusy=false;
-function save(){const payload=JSON.stringify(state);localStorage.setItem(STORE,payload);return payload}
+function save(){if(window.TT_EXPORT_TAX_SOURCE)throw new Error('The tax invoice renderer is read-only.');const payload=JSON.stringify(state);localStorage.setItem(STORE,payload);return payload}
 async function acknowledgeExport(payload=save()){
  if(!window.TT_SHARED_SYNC?.saveNow)throw new Error('Server saving is unavailable. Reload before continuing.');
  await window.TT_SHARED_SYNC.saveNow({key:STORE,value:payload});
@@ -91,7 +91,7 @@ function requiredReason(message){const reason=String(prompt(message)||'').trim()
 function snapshot(target,reason,action='Amended'){target.versions=Array.isArray(target.versions)?target.versions:[];target.versions.push({at:new Date().toISOString(),by:currentUser(),role:currentRole(),reason,action,snapshot:structuredClone({...target,versions:[]})})}
 function contractHasDownstream(c){const p=state.shipments.find(s=>s.kind!=='lot'&&s.contractRef===c.ref);return !!p&&((p.bagOrders||[]).length||p.production?.sentToMill||lotsFor(p).length)}
 function accountsFor(s,c,scope='CUSTOMER'){
- let external=[];try{external=JSON.parse(localStorage.getItem('tt40exportreceipts')||'[]')}catch{}
+ let external=[];if(!window.TT_EXPORT_TAX_SOURCE)try{external=JSON.parse(localStorage.getItem('tt40exportreceipts')||'[]')}catch{}
  const merged=new Map([...state.accountsReceipts,...(Array.isArray(external)?external:[])].map(r=>[String(r.id||r.receiptNo||JSON.stringify(r)),r])),tgRef=String(s.tgdocs?.customsInvoiceNo||s.customs?.invoiceNo||''),invoiceRef=scope==='TG_PACK'?tgRef:String(s.commercial?.invoiceNo||c.ref||''),currency=scope==='TG_PACK'?customsCurrencyFor(s,c):c.currency;
  return [...merged.values()].filter(r=>{
   if(r.status==='Reversed'||r.currency!==currency)return false;
@@ -348,9 +348,9 @@ async function refreshExportCompanyMasters(){
   if(preview&&lot&&contract&&!shipmentPartyDetailsClosed(lot)){preview.innerHTML=cooDoc(lot,contract);fitCOOPages(preview)}
  }catch(error){console.warn('Company master refresh:',error.message)}finally{companyMasterRefreshRunning=false}
 }
-window.addEventListener('focus',refreshExportCompanyMasters);
-document.addEventListener('visibilitychange',()=>{if(document.visibilityState!=='hidden')void refreshExportCompanyMasters()});
-setInterval(refreshExportCompanyMasters,30000);
+if(!window.TT_EXPORT_TAX_SOURCE)window.addEventListener('focus',refreshExportCompanyMasters);
+document.addEventListener('visibilitychange',()=>{if(!window.TT_EXPORT_TAX_SOURCE&&document.visibilityState!=='hidden')void refreshExportCompanyMasters()});
+if(!window.TT_EXPORT_TAX_SOURCE)setInterval(refreshExportCompanyMasters,30000);
 function shipmentPartyDetailsClosed(s){return !!(s&&(s.completed||s.cancelled||/^(completed|closed|archived|cancelled)$/i.test(String(s.status||''))))}
 function captureShipmentPartyDetails(s,c,legacy=false,root=state){
  if(s.documentParties){if(!s.documentParties.exporterKey)s.documentParties.exporterKey=s.seller==='TG'?pakistanExporterKey(s):c.seller;if(!s.documentParties.cooExporter){const code=s.seller==='TG'?pakistanExporterKey(s):c.seller;s.documentParties.cooExporter=structuredClone(legacy?(SELLER_DETAILS[code]||sellerOf({seller:code})):sellerOf({seller:code}))}if(!s.documentParties.chamber)s.documentParties.chamber=legacy?legacyShipmentChamber(s,c):companyChamberDetails(s.seller==='TG'?pakistanExporterKey(s):c.seller);return s.documentParties;}
@@ -2513,5 +2513,6 @@ window.addEventListener('tt:shared-updated',()=>{
  if(restored){restored.value=query;restored.dispatchEvent(new Event('input',{bubbles:true}));if(focused){restored.focus({preventScroll:true});restored.setSelectionRange(...selection)}}
  window.scrollTo(scrollX,scrollY)
 });
-if(!window.TT_EXPORTS_LOAD_ERROR){mount();restoreContractCheckpoint();}
+if(window.TT_EXPORT_TAX_SOURCE){window.TT_TAX_INVOICE_HTML=()=>{const s=structuredClone(state.shipments[0]),c=structuredClone(state.contracts[0]);return (s.seller||c.seller)==='TG'?tgInternalCommercialInvoiceDoc(s,c):commercialCopyLabel(commercialInvoiceDoc(s,c,false),'ORIGINAL');};}
+else if(!window.TT_EXPORTS_LOAD_ERROR){mount();restoreContractCheckpoint();}
 })();
