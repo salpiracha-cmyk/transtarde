@@ -6,6 +6,7 @@ processes shipment archive jobs created by Transtrade without exposing SMB to
 the hosted application or browser clients.
 """
 import argparse
+from contextlib import redirect_stderr, redirect_stdout
 import getpass
 import hashlib
 import http.client
@@ -321,7 +322,19 @@ def main():
     parser.add_argument('--shipments-only', action='store_true', help='Only process pending shipment archive jobs')
     parser.add_argument('--backup-only', action='store_true', help='Only pull the encrypted system backup')
     parser.add_argument('--scheduled', action='store_true', help='Once per 18:00 Pakistan-time slot, catching up missed runs')
+    parser.add_argument('--log-file', type=Path, help='Write the latest scheduled run output to this file')
     args = parser.parse_args()
+    if args.log_file is not None:
+        try:
+            with args.log_file.open('w',encoding='utf-8',buffering=1) as log, redirect_stdout(log), redirect_stderr(log):
+                return run(args)
+        except OSError as exc:
+            print('Office backup log could not be opened:', str(exc), file=sys.stderr)
+            return 1
+    return run(args)
+
+
+def run(args):
     try:
         if args.init: initialize(args.config); return 0
         config = json.loads(args.config.read_text(encoding='utf-8'))

@@ -1,12 +1,12 @@
 # Run as the existing backup task's Windows user, after updating the agent.
 [CmdletBinding()]
-param()
+param([string]$AgentDirectory = $PSScriptRoot)
 $ErrorActionPreference = 'Stop'
 $taskName = 'Transtrade_Office_Backup'
 $task = Get-ScheduledTask -TaskName $taskName
 if ($task.State -eq 'Running') { throw 'A backup is running. Let it finish before changing its schedule.' }
 if ((Get-TimeZone).Id -ne 'Pakistan Standard Time') { throw 'The server clock must use Pakistan Standard Time before installing the 6 pm schedule.' }
-$agentPath = Join-Path $PSScriptRoot 'office_backup_agent.py'
+$agentPath = Join-Path $AgentDirectory 'office_backup_agent.py'
 if (!(Test-Path -LiteralPath $agentPath -PathType Leaf)) { throw 'The office backup agent is missing from this folder.' }
 if (!(Get-Content -LiteralPath $agentPath -Raw).Contains("'--scheduled'")) { throw 'Install the updated backup agent before changing the task.' }
 $identity = [System.Security.Principal.WindowsIdentity]::GetCurrent()
@@ -24,19 +24,11 @@ if (!(Test-Path -LiteralPath $pythonPath -PathType Leaf)) { throw 'The configure
 $probe = 'import ssl, json, zipfile; print("PYTHON_BACKUP_LIBRARIES_OK")'
 $probe | & $pythonPath -u -
 if ($LASTEXITCODE -ne 0) { throw 'Python could not load its backup libraries. The task was not changed.' }
-$savedTask = Join-Path $PSScriptRoot 'Transtrade_Office_Backup.before-6pm.xml'
+$savedTask = Join-Path $AgentDirectory 'Transtrade_Office_Backup.before-6pm.xml'
 if (!(Test-Path -LiteralPath $savedTask)) { Export-ScheduledTask -TaskName $taskName | Set-Content -LiteralPath $savedTask -Encoding UTF8 }
-$runnerPath = Join-Path $PSScriptRoot 'run_office_backup.ps1'
-$logPath = Join-Path $PSScriptRoot 'office-backup-latest.log'
-$runner = @'
-$ErrorActionPreference = 'Continue'
-& '__PYTHON__' -u '__AGENT__' --backup-only --scheduled *> '__LOG__'
-exit $LASTEXITCODE
-'@
-$runner = $runner.Replace('__PYTHON__', $pythonPath.Replace("'", "''")).Replace('__AGENT__', $agentPath.Replace("'", "''")).Replace('__LOG__', $logPath.Replace("'", "''"))
-$runner | Set-Content -LiteralPath $runnerPath -Encoding UTF8
-$powershellPath = Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
-$action = New-ScheduledTaskAction -Execute $powershellPath -Argument ('-NoProfile -NonInteractive -File "' + $runnerPath + '"') -WorkingDirectory $PSScriptRoot
+$logPath = Join-Path $AgentDirectory 'office-backup-latest.log'
+$arguments = '-u "' + $agentPath + '" --backup-only --scheduled --log-file "' + $logPath + '"'
+$action = New-ScheduledTaskAction -Execute $pythonPath -Argument $arguments -WorkingDirectory $AgentDirectory
 $daily = New-ScheduledTaskTrigger -Daily -At '18:00'
 $catchup = New-ScheduledTaskTrigger -AtLogOn -User $owner
 $settings = $task.Settings

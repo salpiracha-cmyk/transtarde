@@ -11,10 +11,6 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: transtrade-production-deployment
-  cancel-in-progress: false
-
 jobs:
   validate:
     runs-on: ubuntu-latest
@@ -47,6 +43,9 @@ jobs:
   repair:
     needs: [validate, windows-syntax]
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    concurrency:
+      group: transtrade-production-deployment
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
