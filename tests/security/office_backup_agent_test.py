@@ -17,18 +17,39 @@ spec.loader.exec_module(agent)
 
 class FakeResponse(io.BytesIO):
     status = 200
-    def __init__(self, payload, digest):
+    def __init__(self, payload, digest, advertised_length=None, encoding='identity'):
         super().__init__(payload)
         self.headers = self
         self.digest = digest
+        self.advertised_length = len(payload) if advertised_length is None else advertised_length
+        self.encoding = encoding
     def get_content_type(self): return 'application/zip'
     def get(self, name, default=''):
-        return {'X-Backup-SHA256': self.digest, 'Content-Length': str(len(self.getvalue()))}.get(name, default)
+        return {'X-Backup-SHA256': self.digest, 'Content-Length': str(self.advertised_length), 'Content-Encoding': self.encoding}.get(name, default)
     def __enter__(self): return self
     def __exit__(self, *_): self.close()
 
 
 class OfficeAgentTest(unittest.TestCase):
+    def test_interrupted_or_transformed_download_preserves_completed_backups(self):
+        config = {'url': 'https://app.transtradeinternational.com/api/office_backup.php', 'token': 'fixture-token', 'password': 'fixture-password'}
+        for response, message in [(FakeResponse(b'', '0' * 64, 1000), 'received 0 of 1,000'),
+                                  (FakeResponse(b'partial', '0' * 64, 1000), 'received 7 of 1,000'),
+                                  (FakeResponse(b'compressed', '0' * 64, encoding='gzip'), 'HTTP compression')]:
+            with self.subTest(message=message), tempfile.TemporaryDirectory() as folder:
+                root = Path(folder)
+                daily = root / 'Daily'
+                daily.mkdir()
+                survivor = daily / 'TRANSTRADE_FULL_2026-10-09_1004_verified.zip'
+                survivor.write_bytes(b'previous verified recovery copy')
+                with patch.object(agent.request, 'build_opener') as opener:
+                    opener.return_value.open.return_value = response
+                    with self.assertRaisesRegex(ValueError, message):
+                        agent.pull(config, root)
+                self.assertEqual(survivor.read_bytes(), b'previous verified recovery copy')
+                self.assertEqual(list(daily.iterdir()), [survivor])
+                self.assertFalse(list(root.glob('.downloading-*')))
+
     def test_daily_schedule_and_missing_local_copy(self):
         for age, exists, force, pulls in [(3600, True, False, 0),
                                           (23 * 3600, True, False, 1),

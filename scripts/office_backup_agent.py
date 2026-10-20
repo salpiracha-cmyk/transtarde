@@ -8,6 +8,7 @@ the hosted application or browser clients.
 import argparse
 import getpass
 import hashlib
+import http.client
 import json
 import os
 from pathlib import Path
@@ -132,24 +133,36 @@ def pull(config, destination):
     require_endpoint(url, '/api/office_backup.php')
     destination.mkdir(parents=True, exist_ok=True)
     payload = json.dumps({'password': config['password']}).encode('utf-8')
-    req = request.Request(url, data=payload, headers={'Content-Type': 'application/json', 'X-TT-Backup-Token': config['token']}, method='POST')
+    req = request.Request(url, data=payload, headers={'Content-Type': 'application/json', 'Accept-Encoding': 'identity', 'X-TT-Backup-Token': config['token']}, method='POST')
     temp = None
     try:
+        print('Requesting encrypted backup from the hosted server...', flush=True)
         with opener().open(req, timeout=300) as response:
             if response.status != 200 or response.headers.get_content_type() != 'application/zip': raise ValueError('Unexpected backup response.')
+            encoding = response.headers.get('Content-Encoding', 'identity').strip().lower()
+            if encoding not in ('', 'identity'): raise ValueError('Backup response was transformed by HTTP compression; an unchanged ZIP transfer is required.')
             expected = response.headers.get('X-Backup-SHA256', '').lower()
             if len(expected) != 64 or any(c not in '0123456789abcdef' for c in expected): raise ValueError('Missing transfer checksum.')
             length = int(response.headers.get('Content-Length', '0'))
-            if length <= 0 or shutil.disk_usage(destination).free < length * 2: raise RuntimeError('Not enough free disk space for verified backup.')
+            if length <= 0: raise ValueError('Hosted backup response has no valid file length.')
+            if shutil.disk_usage(destination).free < length * 2: raise RuntimeError('Not enough free disk space for verified backup.')
+            print(f'Downloading {length:,} bytes; verification is required before saving.', flush=True)
             fd, temp = tempfile.mkstemp(prefix='.downloading-', dir=destination)
-            digest = hashlib.sha256(); received = 0
+            digest = hashlib.sha256(); received = 0; last_progress = time.monotonic()
             with os.fdopen(fd, 'wb') as out:
                 while True:
-                    chunk = response.read(1024 * 1024)
+                    try:
+                        chunk = response.read(1024 * 1024)
+                    except http.client.IncompleteRead as exc:
+                        raise ValueError(f'Backup transfer incomplete: received {received + len(exc.partial):,} of {length:,} bytes. Existing verified backups were preserved.') from exc
                     if not chunk: break
                     out.write(chunk); digest.update(chunk); received += len(chunk)
+                    if time.monotonic() - last_progress >= 30:
+                        print(f'Received {received:,} of {length:,} bytes.', flush=True)
+                        last_progress = time.monotonic()
                 out.flush(); os.fsync(out.fileno())
-            if received != length or digest.hexdigest() != expected: raise ValueError('Backup transfer checksum mismatch.')
+            if received != length: raise ValueError(f'Backup transfer incomplete: received {received:,} of {length:,} bytes. Existing verified backups were preserved.')
+            if digest.hexdigest() != expected: raise ValueError(f'Backup transfer checksum mismatch after receiving all {received:,} bytes. Existing verified backups were preserved.')
         validate_zip(temp)
         stamp = datetime.now(timezone.utc)
         retention = config.get('retention') or {}
@@ -321,7 +334,8 @@ def main():
                 return 0
             except (error.URLError, OSError, ValueError, RuntimeError, zipfile.BadZipFile) as exc:
                 if attempt == 2: raise
-                print('Backup attempt failed; retrying shortly:', type(exc).__name__, file=sys.stderr)
+                detail = f'HTTP {exc.code}' if isinstance(exc, error.HTTPError) else str(exc)
+                print('Backup attempt failed; retrying shortly:', type(exc).__name__, detail, file=sys.stderr, flush=True)
                 time.sleep(2 ** attempt * 5)
     except (error.URLError, OSError, ValueError, RuntimeError, KeyError, json.JSONDecodeError, zipfile.BadZipFile) as exc:
         print('Office backup failed:', type(exc).__name__, str(exc) if not isinstance(exc, error.HTTPError) else f'HTTP {exc.code}', file=sys.stderr)
