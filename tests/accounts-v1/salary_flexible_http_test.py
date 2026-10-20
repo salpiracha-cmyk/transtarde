@@ -119,6 +119,7 @@ with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
         # An unrelated supplier payable must never be reclassified.
         legacy['journals']['SUPPLIER']={'id':'SUPPLIER','entity':'TTI','date':'2026-10-01','status':'Posted','sourceType':'OTHER_PURCHASE','lines':[{'account':'1340','debit':50,'credit':0},{'account':'2140','debit':0,'credit':50,'party':'Supplier'}],'totalDebit':50,'totalCredit':50}
         (root/'data/accounts.json').write_text(json.dumps(legacy))
+        (root/'batch-id-calls.txt').unlink(missing_ok=True)
         snap=request()[1]['salaryCorrectionSnapshot']
         correction={'action':'correct_salary_records','date':'2026-10-06','reason':'Owner corrected payroll date and separate salary payables','snapshot':snap,'requestKey':'fixture-payroll-correction'}
         before=saved();status,preview=request({**correction,'preview':True});assert status==200,preview;assert saved()==before
