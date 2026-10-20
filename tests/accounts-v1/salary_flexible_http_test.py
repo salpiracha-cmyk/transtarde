@@ -138,14 +138,16 @@ with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
         # one cash movement, canonical subsidiary records, atomic reversal and no entitlement inflation.
         original=saved()
         state=saved();state['managedAssets']={'PROP':{'id':'PROP','entity':'TTI','version':1,'type':'PROPERTY','name':'Private fixture property','ownerType':'COMPANY','currency':'PKR','purchaseDate':'2026-07-01','costCents':10000000,'payments':{},'schedule':[]}}
+        state['managedAssets']['CAR']={'id':'CAR','entity':'TTI','type':'VEHICLE','name':'Fixture car','registrationNo':'QA-1','trackingOnly':True,'payments':{}}
         state['accountSubaccounts']={'SRP':{'id':'SRP','entity':'TTI','name':'SRP Home Expense','parentCode':'6910','active':True,'taxCategory':'NONE'}}
         (root/'data/accounts.json').write_text(json.dumps(state))
         choices=request()[1];assert any(x['id']=='SRP' for x in choices['allocationExpenses']);assert any(x['id']=='BROKER_FUND|BMA' for x in choices['allocationCapital'])
         expense={'type':'EXPENSE','amount':20000,'subaccountId':'SRP','purpose':'Extra household payment'}
         funding={'type':'BROKER_FUND','amount':10000,'brokerId':'BMA','reference':'DIRECT-BMA-APRIL'}
         asset={'type':'ASSET_PAYMENT','amount':30000,'assetId':'PROP','assetVersion':1,'instalmentNo':'APR-1','purpose':'Private fixture property instalment'}
-        tx=payment(360000,'2027-04-03','CASH|TTI',[alloc('Mrs',300000),expense,funding,asset])
-        for bad in [{**expense,'subaccountId':'BRM-HOME-FAM-SALMAN'},{**expense,'subaccountId':'TTI-DEFAULT-TAX-EXPORT-RECOVERABLE'},{**asset,'assetVersion':0},{**asset,'amount':100001}]:
+        fuel={'type':'EXPENSE','amount':5000,'subaccountId':'TTI-EXPENSE-TYPE-FUEL','assetId':'CAR','purpose':'Car fuel'}
+        tx=payment(365000,'2027-04-03','bank-b',[alloc('Mrs',300000),expense,funding,asset,fuel]);tx['bankReference']='Private fixture property transfer';tx['paymentNarration']='Private fixture property bank narration'
+        for bad in [{**fuel,'assetId':''},{**expense,'subaccountId':'BRM-HOME-FAM-SALMAN'},{**expense,'subaccountId':'TTI-DEFAULT-TAX-EXPORT-RECOVERABLE'},{**asset,'assetVersion':0},{**asset,'amount':100001}]:
             before=saved();badtx=payment(bad['amount'],'2027-04-03','CASH|TTI',[bad]);assert action('save_salary_transactions','Mrs',month='2027-04',transactions=[badtx],advanceApplied=0)[0]==422;assert saved()==before
         (root/'user.json').write_text(json.dumps({'role':'Accounts Assistant','permissions':{'Accounts':{'expenses':['View','Create','Edit']}}}))
         assert request()[1]['allocationCapital']==[]
@@ -164,7 +166,8 @@ with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
         (root/'data/accounts.json').write_text(json.dumps(before))
         status,result=request(body,'2027-04');assert status==200,result
         posted=saved();journal=next(j for j in posted['journals'].values() if j['sourceType']=='SALARY_ALLOCATED_PAYMENT' and j['date']=='2027-04-03')
-        cashlines=[l for l in journal['lines'] if l['account']=='1120'];assert len(cashlines)==1 and cashlines[0]['credit']==360000
+        cashlines=[l for l in journal['lines'] if l['account']=='1110'];assert len(cashlines)==1 and cashlines[0]['credit']==365000
+        assert any(l['account']=='6610' and l['debit']==5000 and l['assetId']=='CAR' and l['registrationNo']=='QA-1' for l in journal['lines'])
         assert any(l['account']=='6910' and l['debit']==20000 and l['subaccountId']=='SRP' for l in journal['lines'])
         assert any(l['account']=='1430' and l['debit']==10000 and l['brokerId']=='BMA' for l in journal['lines'])
         assert 'Private fixture property' not in json.dumps(journal),'Property details stay out of the public journal'

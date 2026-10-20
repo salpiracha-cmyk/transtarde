@@ -125,6 +125,7 @@ function sfw_post_groups(array &$s,string $e,string $m,array $sheet,array $u,arr
         }
         if(abs($amount-$t['amount'])>.005)throw new DomainException('Saved allocation totals changed. Review the payments.');
         $tracking=str_starts_with($t['paymentAccountId'],'CASH|')?[]:tt_accounts_bank_payment_details($t);
+        if(array_filter($t['allocations'],static fn($a)=>$a['type']==='ASSET_PAYMENT')){if(!empty($tracking['bankReference']))$tracking['bankPaymentReferenceHash']=hash('sha256',$tracking['bankReference']);unset($tracking['bankReference'],$tracking['paymentNarration']);}
         $lines[]=rsv2_pay_line($s,$e,$t['paymentAccountId'],$amount,$names)+$tracking+['paymentRecipient'=>$t['recipient']];
         $jid=rsv2_journal($s,$e,$t['date'],'SALARY_ALLOCATED_PAYMENT','SAL-'.$m,'Salary / home payment — '.$t['recipient'],$lines,$u,['month'=>$m,'salarySheetKey'=>$e.'|'.$m,'paymentGroupOwner'=>$owner,'paymentGroupIndex'=>$index]);$ids[]=$jid;
         sea_asset_links($s,$t['allocations'],$t,$jid,$u);
@@ -172,7 +173,7 @@ function sfw_reverse_payment(array &$s,string $e,string $m,array $b,array $u,arr
 function sfw_assert_reference(array $s,string $e,array $t):void {
     $reference=trim((string)($t['bankReference']??$t['chequeNo']??''));if($reference===''||str_starts_with($t['paymentAccountId'],'CASH|'))return;
     foreach((array)$s['journals'] as $j){if(($j['entity']??'')!==$e||($j['status']??'')!=='Posted'||!empty($j['reversedByPostId'])||!empty($j['reversalOf']))continue;
-        foreach((array)$j['lines'] as $line)if(($line['bankAccountId']??'')===$t['paymentAccountId']&&(float)($line['credit']??0)>.005&&trim((string)($line['bankReference']??$line['chequeNo']??$j['meta']['bankReference']??''))===$reference)throw new DomainException('This bank reference is already posted. Review the original payment instead of paying again.');
+        foreach((array)$j['lines'] as $line)if(($line['bankAccountId']??'')===$t['paymentAccountId']&&(float)($line['credit']??0)>.005&&(trim((string)($line['bankReference']??$line['chequeNo']??$j['meta']['bankReference']??''))===$reference||($line['bankPaymentReferenceHash']??'')===hash('sha256',$reference)))throw new DomainException('This bank reference is already posted. Review the original payment instead of paying again.');
     }
 }
 function sfw_company_allowed(array $u):bool {
