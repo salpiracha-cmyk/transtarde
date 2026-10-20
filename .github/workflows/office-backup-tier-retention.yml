@@ -1,0 +1,30 @@
+name: Windows office backup tier replacement
+on:
+  pull_request:
+    paths: ['scripts/office_backup_agent.py', 'tests/security/office_backup_tier_retention_test.py', '.github/scripts/windows_office_retention_update.ps1', '.github/workflows/office-backup-tier-retention.yml']
+  push:
+    branches: [main]
+    paths: ['scripts/office_backup_agent.py', 'tests/security/office_backup_tier_retention_test.py', '.github/scripts/windows_office_retention_update.ps1', '.github/workflows/office-backup-tier-retention.yml']
+permissions:
+  contents: read
+jobs:
+  validate:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.14'}
+      - run: python tests/security/office_backup_tier_retention_test.py
+      - run: python tests/security/office_backup_agent_test.py
+      - run: python tests/security/office_backup_protocol_test.py
+      - run: python tests/security/office_agent_jobs_test.py
+      - if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $tokens = $null; $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $PWD '.github/scripts/windows_office_retention_update.ps1'), [ref]$tokens, [ref]$errors) | Out-Null
+          if ($errors.Count) { throw 'Retention updater parsing failed.' }
+          Write-Host 'RETENTION_UPDATER_SYNTAX_OK'

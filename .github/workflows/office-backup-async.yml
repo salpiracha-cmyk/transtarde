@@ -4,7 +4,7 @@ on:
     paths: ['office_backup_jobs.php', 'api/office_backup.php', 'scripts/office_backup_agent.py', 'tests/security/office_backup*', '.github/scripts/office_backup_async_deploy.php', '.github/workflows/office-backup-async.yml']
   push:
     branches: [main]
-    paths: ['office_backup_jobs.php', 'api/office_backup.php', 'scripts/office_backup_agent.py', 'tests/security/office_backup*', '.github/scripts/office_backup_async_deploy.php', '.github/workflows/office-backup-async.yml']
+    paths: ['office_backup_jobs.php', 'api/office_backup.php', '.github/scripts/office_backup_async_deploy.php', '.github/workflows/office-backup-async.yml']
 permissions:
   contents: read
 jobs:
