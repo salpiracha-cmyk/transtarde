@@ -161,8 +161,13 @@ original invoice value. The other affected renderer variants are covered by the
 The Customs Packing List output control opens the native print workflow; its
 print dialog stalled browser evaluation. Escape did not restore observation,
 so only the agent-created output-test tab was closed to cancel it. The original
-user tabs were retained. No final print, original-file replacement or record
-Save/Post was performed. No browser-control timeout is misreported as an app
-login failure or a failed accounting transaction.
+user tabs were retained. No final print, original-file replacement or
+financial Post was performed. The output control calls normal saveNow() before
+printing; that is a no-op when nothing is queued, but can flush queued operational
+changes. No form fields were edited, and this manual click was not instrumented
+for network writes. Therefore this report does not claim zero operational-save
+requests from that action. The protected suite's0financial-write result is its
+own measured evidence. No browser-control timeout is misreported as an app login
+failure or a failed accounting transaction.
 
 PR414/ebbcdffc later adjusts only the separate legacy-temporary-backup cleanup scripts and BACKUP_POLICY.md. A direct diff from deployed5f6c3554 to ebbcdffc contains no application runtime files; the completed live result above remains the runtime acceptance used here. The office-PC task/ZIP acceptance is still separate.
