@@ -611,7 +611,7 @@
     return [['SODA number',row.sodaNo],['Date',sodaDate(row.sodaDate)],['Broker',row.broker||'Direct purchase'],['Supplier',row.party||'—'],['Product',row.displayName||[row.commodity,row.variety,row.riceType,row.brokenGrade,row.productStage].filter(Boolean).join(' · ')],['Quantity',`${money(Number(row.qtyFromKg||0)/1000)}${Number(row.qtyToKg)>Number(row.qtyFromKg)?' – '+money(Number(row.qtyToKg)/1000):''} MT${row.expectedTrucks?' · '+row.expectedTrucks+' trucks / containers':''}`],['Rate',`PKR ${money(row.rate??row.ratePerKg)} per ${row.rateUnit==='MAUND'?'maund (40 kg)':'kg'}`],['Delivery location',row.locationName||row.location||'—'],['Route',row.readyRoute==='EX_MILL'?'Ex-Mill container loading':'Delivery to mill / stock'],['Delivery by',sodaDate(row.arrivalDueDate||row.deliveryDeadline)||'—'],['Payment terms',row.paymentTermType==='CREDIT'?`Credit · ${row.creditDays||0} days`:'Cash · arrival + 2 days'],['Terms / conditions',row.terms||'—'],['Agreed remarks',row.remarks||'—']];
   }
   function sodaContract(row) {
-    const companies={TTI:'Transtrade International',BRM:'Barkat Rice Mills'};
+    const companies={TTI:'Transtrade International',BRM:'Buksh Rice Mills'};
     return `<article class="soda-contract"><header><strong>${esc(companies[row.entity]||row.entity)}</strong><span>PURCHASE SODA / CONTRACT</span></header><div class="contract-ref"><b>SODA ${esc(row.sodaNo)}</b><b>${esc(sodaDate(row.sodaDate))}</b></div><dl>${sodaFields(row).slice(2).map(([label,value])=>`<div><dt>${esc(label)}</dt><dd>${esc(value)}</dd></div>`).join('')}</dl><footer>Broker / Supplier confirmation ____________________</footer></article>`;
   }
   function printSodas(rows, summary = false, label = '') {
