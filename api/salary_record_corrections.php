@@ -98,7 +98,11 @@ function src_correct(array &$s,string $e,string $m,array $b,array $u,array $name
 function src_payments(array $s,string $e,string $m,array $u):array {
     $out=[];$sheet=$s['salarySheets'][$e.'|'.$m]??[];
     foreach(src_current($s,$e) as $id=>$j){
-        if(($j['sourceType']??'')!=='SALARY_ALLOCATED_PAYMENT'||src_month($j)!==$m)continue;
+        if(src_month($j)!==$m)continue;
+        if(($j['sourceType']??'')==='SALARY_PAYMENT'){
+            foreach($s['rentSalaryPayments']??[] as $payment)if(($payment['journalId']??'')===$id&&($payment['entity']??'')===$e&&($payment['status']??'Posted')!=='Reversed'){$mid=$payment['masterId'];$out[]=['journalId'=>$id,'publicPostId'=>tt_accounts_public_post($s,$j),'owner'=>$mid,'canAmend'=>false,'transaction'=>['recipient'=>$sheet['rows'][$mid]['name']??$j['meta']['person']??$mid,'date'=>$payment['date'],'paymentAccountId'=>$payment['paymentAccountId'],'amount'=>$payment['amount'],'allocations'=>[['type'=>'SALARY','masterId'=>$mid,'amount'=>$payment['amount']]]]];break;}continue;
+        }
+        if(($j['sourceType']??'')!=='SALARY_ALLOCATED_PAYMENT')continue;
         $owner=$j['meta']['paymentGroupOwner']??'';$index=$j['meta']['paymentGroupIndex']??-1;
         $t=$sheet['paymentGroups'][$owner][$index]??null;if(!$t||($t['status']??'')==='Reversed')continue;
         foreach($t['allocations'] as &$a)if(($a['type']??'')==='ASSET_PAYMENT'&&isset($s['managedAssets'][$a['assetId']]))$a['assetVersion']=$s['managedAssets'][$a['assetId']]['version'];unset($a);
