@@ -35,6 +35,7 @@ try{
     $jobPath=TT_DATA_DIR.'/office_agent_jobs/0123456789abcdef0123456789abcdef/package.zip';
     $jobBytes='fixture-archived-office-package';file_put_contents($jobPath,$jobBytes);
 
+    $stateBefore=tt_backup_read_state();tt_maybe_auto_backup();backup_expect(tt_backup_read_state()===$stateBefore,'Page activity must not create backups.');
     $snapshot=tt_create_server_snapshot('manual');
     $path=tt_backup_dir().'/'.$snapshot;
     backup_expect(is_file($path),'A verified manual snapshot must be committed.');
@@ -96,7 +97,9 @@ try{
 
     file_put_contents(TT_DATA_DIR.'/operations.json',json_encode(['revision'=>2,'values'=>[],'meta'=>[]],JSON_THROW_ON_ERROR));
     for($i=0;$i<14;$i++)tt_create_server_snapshot('manual');
-    backup_expect(count(glob(tt_backup_dir().'/manual-*.zip')?:[])===3,'Manual server snapshots must have a finite retention limit.');
+    backup_expect(count(glob(tt_backup_dir().'/manual-*.zip')?:[])===1,'Manual server snapshots must have a finite retention limit.');
+    $daily=tt_create_server_snapshot('auto');
+    backup_expect(tt_create_server_snapshot('auto')===$daily,'Repeated scheduler runs must reuse the verified daily snapshot.');
     $healthy=tt_backup_status();
     backup_expect(($healthy['backupHealthy']??false)===true&&(int)($healthy['consecutiveFailures']??-1)===0,'A verified snapshot must clear the prior failure state.');
     backup_expect(count(glob(TT_DATA_DIR.'/backup_state.json.tmp-*')?:[])===0,'Atomic backup state writes must not leave temporary files.');
