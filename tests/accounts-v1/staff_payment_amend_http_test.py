@@ -46,6 +46,14 @@ with tempfile.TemporaryDirectory(prefix='staff-payment-amend-') as temp:
  books.write_text(json.dumps(invoice));invbody={**body,'requestKey':'fixture-invoice-amend-0002','selectedBills':['BILL1|SERVICE|BILL1'],'includeOpeningBalance':False}
  status,res=request(invbody);assert status==200,(status,res)
  dues={p['billId']:p['outstanding'] for p in request()[1]['payables']};assert dues['BILL1']==700 and dues[bf]==1000,dues
+ # Explicit partial amendments retain even eight paisa and the stable public Post ID.
+ books.write_text(json.dumps(invoice));small={**invbody,'requestKey':'fixture-partial-amend-0003','amount':999.92,'paymentIntent':'PARTIAL','discountAmount':0}
+ before=books.read_bytes();status,preview=request({**small,'preview':True});assert status==200,(status,preview);assert books.read_bytes()==before
+ status,res=request(small);assert status==200,(status,res);assert res['result']['publicPostId']==pay and res['result']['paymentIntent']=='PARTIAL' and res['result']['discountAmount']==0
+ state=json.loads(books.read_text());assert all(l['account']!='4400' for j in state['journals'].values() for l in j['lines'])
+ dues={p['billId']:p['outstanding'] for p in request()[1]['payables']};assert dues['BILL1']==.08 and dues[bf]==1000,dues
+ before=books.read_bytes();assert request(small)[1]['result']['journalId']==res['result']['journalId'] and books.read_bytes()==before
+ assert request({**small,'paymentIntent':'SETTLE'})[0]==422 and books.read_bytes()==before
  # A commodity source cannot be converted into an unrelated simple-bill payment.
  invoice['supplierSettlements']['S1']['allocations']=[{**inv_alloc,'billId':'CB1'}];books.write_text(json.dumps(invoice));before=books.read_bytes()
  assert request(query='?entity=TTI&editPayment=S1')[0]==422 and books.read_bytes()==before

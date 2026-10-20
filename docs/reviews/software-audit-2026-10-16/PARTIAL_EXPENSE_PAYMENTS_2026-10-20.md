@@ -1,6 +1,6 @@
 # Partial expense payments — implementation plan, 20 October 2026
 
-Status: requested and planned; the additional expense-bill workflow below is not yet deployed. Party restoration and duplicate-opening safeguards are tracked separately in PR425. Existing invoice/B/F payment options must remain available while this work proceeds.
+Status: explicit partial intent for existing party invoice/B/F payments is implemented in the current continuation and awaiting release acceptance. The additional ordinary expense invoice-capture workflow below is still planned, not deployed. Party restoration and duplicate-opening safeguards are tracked separately in PR425. Existing invoice/B/F payment options must remain available while this work proceeds.
 
 ## Confirmed current behavior
 
@@ -40,3 +40,11 @@ Always show original invoice total, prior payments, chosen allocation, this actu
 - Test cash, cheque, online banking, third-party payer and eligible TG currency routes; maintain withholding and expense/GST treatment.
 - Test partial then final settlement, multiple bills, concurrent balance changes, excessive/zero payments, replay/lost acknowledgement, reversal/amendment, company/role scope and cancelled-source exclusion.
 - Verify the real UI using authorised reads and disposable financial fixtures. Do not create sample production bills/payments to demonstrate the feature.
+
+## Resumed implementation evidence
+
+The existing Party Payments route now has explicit SETTLE/PARTIAL intent in UI, server validation, replay identity and saved source metadata. PARTIAL bypasses all automatic settlement-difference concessions; contradictory discount inputs are rejected. Old clients without intent retain existing settlement behaviour. Legacy zero-discount amendments reopen in PARTIAL mode. No historical financial record is rewritten.
+
+Disposable endpoint tests cover123456.78paid100000,1000.08paid1000, small remainders through99.99, final settlement, unchanged unselected invoices, B/F-only eight-paisa remainder, preview without writes, stale/excess/zero rejection, replay identity and actual staff-authorised amendment retaining its public Post ID. Native amendment and browser tests verify the new control and persistence across payment-source changes.
+
+This closes only the explicit partial-payment defect in the existing bill/B/F workflow. General/utility invoice capture, broad expense discoverability and expanded outstanding reporting remain separate implementation work; the business audit count is not increased by these fixture tests.
