@@ -100,6 +100,7 @@ jobs:
           node tests/accounts-v1/export_receipt_scope_test.js
           node tests/accounts-v1/product_stage_architecture_test.js
           node tests/accounts-v1/broker_brokery_master_test.js
+          php tests/accounts-v1/soda_completion_test.php
           node tests/accounts-v1/soda_milling_routing_test.js
           node tests/accounts-v1/soda_master_compatibility_test.js
           python3 tests/accounts-v1/purchase_master_kat_link_test.py
@@ -352,6 +353,7 @@ jobs:
           node tests/accounts-v1/accounts_notifications_visibility_test.js
           node tests/accounts-v1/accounts_layout_regression_browser_test.js
           node tests/accounts-v1/form_viewport_browser_test.js
+          node tests/accounts-v1/soda_register_browser_test.js
           node tests/accounts-v1/payment_plans_browser_test.js
       - name: Carry-forward shipment form and expense payments
         run: '"$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/carry_forward_http_test.py'

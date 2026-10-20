@@ -22,12 +22,12 @@ const billTerms = fs.readFileSync('accounts/bill-payment-terms.js', 'utf8');
 
 assert(bundle.includes("'accounts-accounting-desk.js'"), 'professional Accounts desk must be loaded last');
 assert(desk.includes("master.id = 'ttMasterTop'"), 'Masters must be available through top-bar M');
-assert(desk.includes('New Soda') && desk.includes('Search / Amend Soda'), 'Soda Centre must have New and Search/Amend choices');
+assert(desk.includes('New SODA') && desk.includes('Recent SODAs') && desk.includes('Search all SODAs') && !desk.includes('Search / Amend Soda'), 'Soda Centre must have one searchable recent register');
 assert(desk.includes('Saving a Soda creates an open purchase commitment only'), 'Soda form must explain that no GL entry is made');
 assert(desk.includes('Reason for Amendment'), 'Soda amendment reason must be visible and compulsory');
 assert(desk.includes("title:'Bill Posting'") && !desk.includes("title:'Arrival / Rice Bill'"), 'purchase entry must use the approved Bill Posting label');
 assert(!desk.includes('class="btn tt-prev-direct"'), 'duplicate Search Previous button must not appear in the Purchases workspace');
-assert(desk.includes('data-soda-delete') && sodaApi.includes("$action === 'delete'"), 'Super Admin must be able to delete an unused Soda from Search/Amend');
+assert(desk.includes('data-delete-soda') && sodaApi.includes("$action === 'delete'"), 'Super Admin must be able to delete an unused Soda from its detail view');
 assert(billUi.includes('data-open-receipt') && !billUi.includes('type="checkbox" class="ttsb-select"'), 'Arrival Bills must open from a receipt row without tick boxes');
 assert(bridge.includes("'POHANCH|' + String(saved.millId") || bridge.includes("'POHANCH|'+String(saved.millId"), 'Pohanch handoff identity must not rely on the reusable printed number');
 assert(milling.includes('function editSlip') && milling.includes('Save Amendment'), 'saved unprinted Pohanch must provide an edit workflow');
