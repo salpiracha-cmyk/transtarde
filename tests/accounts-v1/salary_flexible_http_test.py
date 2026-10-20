@@ -145,6 +145,26 @@ with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
         assert saved()['salaryPeriods']['TTI|2026-10|Mrs']['outstanding']==100000
         (root/'data/accounts.json').write_text(json.dumps(amend_base))
         print('PASS payment amendment preview/rollback/stale/retry, source/date/amount, beneficiary balances, unchanged recovery/entitlement, investment event replacement and reversal')
+        # Retained monthly remuneration is an unpaid payable, never another expense.
+        retained_base=saved()
+        assert action('adjust_salary_month','Salman',month='2027-03',netSalary=95000,advanceApplied=0)[0]==200
+        assert action('save_salary_transactions','Salman',month='2027-03',transactions=[payment(40000,'2027-03-06','CASH|TTI',[alloc('Salman',40000)])],advanceApplied=0)[0]==200
+        for who in ['Mrs','Worker']:assert action('save_salary_transactions',who,month='2027-03',transactions=[],advanceApplied=0)[0]==200
+        complete={'action':'complete_salary_month','version':request(month='2027-03')[1]['salarySheet']['version'],'date':'2027-03-31'}
+        assert request(complete,'2027-03')[0]==200
+        rs=saved();assert rs['salaryPeriods']['TTI|2027-03|Salman']['outstanding']==55000
+        assert rs['salarySheets']['TTI|2027-03']['rows']['Salman']['outstanding']==55000
+        later={'action':'salary_payment','masterId':'Salman','amount':25000,'date':'2027-04-01','paymentAccountId':'CASH|TTI','requestKey':'fixture-retained-withdrawal'}
+        before=saved();assert request({**later,'preview':True},'2027-03')[0]==200 and saved()==before
+        status,paid=request(later,'2027-03');assert status==200,paid
+        rs=saved();assert rs['salaryPeriods']['TTI|2027-03|Salman']['outstanding']==30000
+        assert rs['salarySheets']['TTI|2027-03']['rows']['Salman']['outstanding']==30000
+        journal=rs['journals'][paid['result']['journalId']];assert [l['account'] for l in journal['lines']]==['2230','1120']
+        assert len(request(month='2027-03')[1]['salaryPayments'])==2
+        assert request(later,'2027-03')[1]['result']['duplicate'] and saved()==rs
+        assert request({**later,'requestKey':'fixture-over-retained','amount':30001},'2027-03')[0]==422 and saved()==rs
+        (root/'data/accounts.json').write_text(json.dumps(retained_base))
+        print('PASS partial cash retains payable; later withdrawal preview, exact payable/cash posting, completed sheet, payment list, cap and retry')
         # Explicit payroll separation/date correction preserves books, stable public IDs,
         # company investment events, completed sheet links and source reversibility.
         correction_base=saved()
