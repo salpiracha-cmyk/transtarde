@@ -269,7 +269,7 @@ with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
         asset_amend_base=saved();rec=next(r for r in request(month='2027-04')[1]['salaryPayments'] if r['journalId']==journal['id'])
         changed_tx=json.loads(json.dumps(rec['transaction']));changed_tx['date']='2027-04-04';changed_tx['bankPaymentDate']='2027-04-04'
         for a in changed_tx['allocations']:
-            if a['type']=='ASSET_PAYMENT':a['assetVersion']=asset_amend_base['managedAssets']['PROP']['version']
+            if a['type']=='ASSET_PAYMENT':assert a['assetVersion']==asset_amend_base['managedAssets']['PROP']['version']
         amend_asset={'action':'amend_salary_allocated_payment','journalId':journal['id'],'transaction':changed_tx,'reason':'Correct source asset payment date','snapshot':request(month='2027-04')[1]['salaryCorrectionSnapshot'],'requestKey':'fixture-amend-asset'}
         assert request({**amend_asset,'preview':True},'2027-04')[0]==200 and saved()==asset_amend_base
         status,amended_asset=request(amend_asset,'2027-04');assert status==200,amended_asset

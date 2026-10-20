@@ -101,6 +101,7 @@ function src_payments(array $s,string $e,string $m,array $u):array {
         if(($j['sourceType']??'')!=='SALARY_ALLOCATED_PAYMENT'||src_month($j)!==$m)continue;
         $owner=$j['meta']['paymentGroupOwner']??'';$index=$j['meta']['paymentGroupIndex']??-1;
         $t=$sheet['paymentGroups'][$owner][$index]??null;if(!$t||($t['status']??'')==='Reversed')continue;
+        foreach($t['allocations'] as &$a)if(($a['type']??'')==='ASSET_PAYMENT'&&isset($s['managedAssets'][$a['assetId']]))$a['assetVersion']=$s['managedAssets'][$a['assetId']]['version'];unset($a);
         $out[]=['journalId'=>$id,'publicPostId'=>tt_accounts_public_post($s,$j),'owner'=>$owner,'transaction'=>$t,
             'canAmend'=>tt_user_can_access_entity($u,$e,'Edit')&&(!function_exists('tt_post_correction_allowed')||tt_post_correction_allowed($u,$j))];
     }
