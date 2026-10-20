@@ -357,7 +357,7 @@ def run():
     charges.nth(1).locator('[data-currency]').select_option('PKR',force=True);charges.nth(1).locator('[data-amount]').fill('6500')
     charges.nth(2).locator('[data-currency]').select_option('PKR',force=True);charges.nth(2).locator('[data-amount]').fill('100')
     assert page.locator('#ttShipmentBillTotal').inner_text()=='848,200.00'
-    assert charges.nth(1).locator('[data-rate-label]').inner_text()=='Rate (PKR)' and charges.nth(1).locator('[data-pkr]').input_value()=='6,500.00'
+    assert charges.nth(1).locator('[data-rate-label]').inner_text()=='RATE (PKR)' and charges.nth(1).locator('[data-pkr]').input_value()=='6,500.00'
     charges.nth(1).locator('[data-currency]').select_option('USD',force=True);charges.nth(1).locator('[data-amount]').fill('50')
     charges.nth(2).locator('[data-currency]').select_option('USD',force=True);charges.nth(2).locator('[data-amount]').fill('25')
     assert page.locator('#ttShipmentBillTotal').inner_text()=='876,400.00'
