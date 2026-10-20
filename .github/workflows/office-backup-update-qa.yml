@@ -1,10 +1,10 @@
 name: Windows office backup updater syntax
 on:
   pull_request:
-    paths: ['.github/scripts/windows_office_backup_update.ps1', '.github/workflows/office-backup-update-qa.yml']
+    paths: ['.github/scripts/windows_office_backup_update.ps1', 'scripts/install_office_backup_schedule.ps1', 'tests/security/office_backup_task_owner_test.ps1', '.github/workflows/office-backup-update-qa.yml']
   push:
     branches: [main]
-    paths: ['.github/scripts/windows_office_backup_update.ps1', '.github/workflows/office-backup-update-qa.yml']
+    paths: ['.github/scripts/windows_office_backup_update.ps1', 'scripts/install_office_backup_schedule.ps1', 'tests/security/office_backup_task_owner_test.ps1', '.github/workflows/office-backup-update-qa.yml']
 permissions:
   contents: read
 jobs:
@@ -19,3 +19,4 @@ jobs:
           [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $PWD '.github/scripts/windows_office_backup_update.ps1'), [ref]$tokens, [ref]$parseErrors) | Out-Null
           if ($parseErrors.Count) { $parseErrors | Format-List; throw 'Updater contains syntax errors.' }
           Write-Host 'WINDOWS_UPDATER_SYNTAX_OK'
+          & (Join-Path $PWD 'tests/security/office_backup_task_owner_test.ps1')
