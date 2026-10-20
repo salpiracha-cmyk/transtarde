@@ -37,6 +37,23 @@ function alb_party_name(array $row): string {
     }
     return '';
 }
+/** Resolve register headings from the linked business source without rewriting journals. */
+function alb_register_party(array $store,array $journal): string {
+    $meta=(array)($journal['meta']??[]);$entity=(string)($journal['entity']??'');
+    $pick=static function(array $row):string {foreach(['payee','supplier','customer','brokerName','broker','counterparty','party','vendor','person'] as $key){$name=trim((string)($row[$key]??''));if($name!=='')return $name;}return '';};
+    $sources=[$meta,...(array)($journal['lines']??[])];
+    foreach($sources as $fields){
+        foreach(['supplierBillId'=>'supplierBills','bagBillId'=>'bagSupplierBills','purchaseId'=>'otherPurchases','generalExpenseId'=>'generalExpenses','utilityPaymentId'=>'utilityPayments'] as $key=>$collection){
+            $record=$store[$collection][(string)($fields[$key]??'')]??null;
+            if(is_array($record)&&(!isset($record['entity'])||$record['entity']===$entity)){ $name=$pick($record);if($name!=='')return $name; }
+        }
+        $candidate=$store['exportCandidates'][(string)($fields['candidateId']??$fields['sourceCandidateId']??'')]??null;
+        if(is_array($candidate)&&(!isset($candidate['entity'])||$candidate['entity']===$entity)){ $name=$pick($candidate)?:$pick((array)($candidate['meta']??[]));if($name!=='')return $name; }
+    }
+    $name=$pick($meta);if($name!=='')return $name;
+    $names=[];foreach((array)($journal['lines']??[]) as $line){$name=$pick((array)$line);if($name!=='')$names[$name]=true;}
+    return implode(' · ',array_keys($names));
+}
 $user=tt_require_login();
 if(!tt_user_can_open_module($user,'Accounts'))alb_fail('Accounts permission required.',403);
 $entity=strtoupper(trim((string)($_GET['entity']??'')));
@@ -154,7 +171,7 @@ foreach($journals as $journal){
     if($postEntries){if(!empty($journal['meta']['deletedFromBooks']))continue;
         if(!empty($journal['amendedByPostId'])||(!empty($journal['reversalOf'])&&(!empty($store['journals'][$journal['reversalOf']]['amendedByPostId']))))continue;
         $date=(string)$journal['date'];if($date<$from)continue;
-        $rows[]=['entity'=>(string)$journal['entity'],'bookCurrency'=>$journal['entity']==='TG'?'AED':'PKR','sourceType'=>(string)($journal['sourceType']??''),'deleteReason'=>apd_delete_reason($store,$journal,$user,$deleteRecordIndex),'canDelete'=>apd_supported($store,$journal,$deleteRecordIndex)&&function_exists('tt_post_correction_allowed')&&tt_post_correction_allowed($user,$journal)&&tt_user_can_access_entity($user,(string)$journal['entity'],'Edit'),'date'=>$date,'voucher'=>(string)($journal['id']??''),'account'=>'POSTS','accountName'=>(string)$journal['entity'],'reference'=>(string)($journal['reference']??''),'narration'=>(string)($journal['narration']??'').(str_starts_with((string)($journal['meta']['notes']??''),'Mirrored settlement for Pakistan receipt ')?' · '.(string)$journal['meta']['notes']:''),'publicPostId'=>tt_accounts_public_post($store,$journal),'amendmentNote'=>tt_accounts_amendment_note($journal,$store),'party'=>(string)($journal['meta']['payee']??$journal['meta']['supplier']??$journal['meta']['customer']??$journal['meta']['brokerName']??implode(' · ',array_unique(array_filter(array_map(static fn($l)=>$l['counterparty']??$l['party']??$l['supplier']??$l['customer']??'',(array)$journal['lines']))))).(!empty($store['exportReceipts'][(string)($journal['meta']['receiptId']??'')]['replacementReceiptId'])?' · Corrected by '.$store['exportReceipts'][(string)$journal['meta']['receiptId']]['replacementReceiptId']:''),'debit'=>round((float)($journal['totalDebit']??0),2),'credit'=>round((float)($journal['totalCredit']??0),2),'balance'=>null];
+        $rows[]=['entity'=>(string)$journal['entity'],'bookCurrency'=>$journal['entity']==='TG'?'AED':'PKR','sourceType'=>(string)($journal['sourceType']??''),'deleteReason'=>apd_delete_reason($store,$journal,$user,$deleteRecordIndex),'canDelete'=>apd_supported($store,$journal,$deleteRecordIndex)&&function_exists('tt_post_correction_allowed')&&tt_post_correction_allowed($user,$journal)&&tt_user_can_access_entity($user,(string)$journal['entity'],'Edit'),'date'=>$date,'voucher'=>(string)($journal['id']??''),'account'=>'POSTS','accountName'=>(string)$journal['entity'],'reference'=>(string)($journal['reference']??''),'narration'=>(string)($journal['narration']??'').(str_starts_with((string)($journal['meta']['notes']??''),'Mirrored settlement for Pakistan receipt ')?' · '.(string)$journal['meta']['notes']:''),'publicPostId'=>tt_accounts_public_post($store,$journal),'amendmentNote'=>tt_accounts_amendment_note($journal,$store),'party'=>alb_register_party($store,$journal).(!empty($store['exportReceipts'][(string)($journal['meta']['receiptId']??'')]['replacementReceiptId'])?' · Corrected by '.$store['exportReceipts'][(string)$journal['meta']['receiptId']]['replacementReceiptId']:''),'debit'=>round((float)($journal['totalDebit']??0),2),'credit'=>round((float)($journal['totalCredit']??0),2),'balance'=>null];
         continue;
     }
     foreach(slg_lines($store,$journal,$partyMasters) as $line){

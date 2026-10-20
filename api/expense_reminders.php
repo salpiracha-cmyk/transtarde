@@ -49,7 +49,7 @@ function tt_expense_monthly_reminders(array $store,string $entity,string $month)
             if($type==='UTILITY'){
                 foreach((array)($store['utilityPayments']??[]) as $payment)if(($payment['entity']??'')===$entity&&($payment['status']??'')!=='Deleted'&&($payment['utilityMasterId']??'')===$master['id']&&($payment['billMonth']??'')===$month){$paid=true;break;}
                 $invoiceRows=array_values(array_filter(eiv_invoices($store,$entity),static fn($bill)=>($bill['status']??'')==='Posted'&&($bill['invoiceKind']??'')==='UTILITY'&&($bill['utilityMasterId']??'')===$master['id']&&($bill['billMonth']??'')===$month));
-                if($invoiceRows)$paid=!array_filter($invoiceRows,static fn($bill)=>$bill['paymentStatus']!=='Paid');
+                if($invoiceRows){$due=(string)($invoiceRows[0]['dueDate']??$due);$paid=!array_filter($invoiceRows,static fn($bill)=>$bill['paymentStatus']!=='Paid');}
                 $label=($master['utilityTypeName']??$master['utilityType']).' — '.($master['locationName']??'');
             }else{
                 foreach((array)($store['creditCardStatements']??[]) as $candidate)if(($candidate['entity']??'')===$entity&&($candidate['status']??'')!=='Deleted'&&($candidate['cardMasterId']??'')===$master['id']&&($candidate['statementMonth']??'')===$month){$statement=$candidate;break;}
