@@ -109,3 +109,8 @@ Exact-main Accounts39491835045 and Milling/Exports39491834915 passed for b0b75e0
 Exact deployed b0b75e09 live39492533960/job118869149320 passed **24/24**. The real ASAS62 completed packing-list test logged LIVE_ASAS62_PACKING_REPRINT_OK: originalLabelInNormalFlow true, overlap false, pdfGenerated true, originalUploadsReplaced0, financialWrites0 and documentWrites0. This verifies the actual read-only staff output path, including the corrected permission gate, without replacing the issued historical upload.
 
 Post-deployment startup39492533980/job118869226425 also passed: login334ms, sign-in to usable Accounts802ms, Accounts reload1695ms, Milling1301ms and Exports962ms. Historical provider interstitial and separate prior network failures remain in the register; a current green run does not erase them.
+
+
+## Protected recovery attempt retained
+
+Recovery39492533976/job118869229237 passed its exact-live prerequisite and boundary checks, then stopped at private target readiness after four minutes. It did not reach source/target browser comparison, rollback or PDF acceptance, so no production-data recovery pass is claimed. The temporary host harness retains its cleanup trap and twenty-minute TTL. The next protected diagnostic classifies whether SSH allows a direct channel to closed loopback port1, with zero payload and no server/configuration change; no raw SSH log is published. A successful local fixture remains separate from this failed hosted readiness attempt.

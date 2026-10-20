@@ -199,3 +199,16 @@ jobs:
           counts=$(find "$account" -xdev -printf '%y\n' 2>/dev/null | awk '{c[$1]++}END {printf "files=%d directories=%d symlinks=%d",c["f"],c["d"],c["l"]}') || count_complete=false
           echo "ACCOUNT_FILE_COUNTS $counts complete=$count_complete"
           REMOTE
+          # Probe only whether SSH permits a direct channel to closed loopback
+          # port1. No application payload, copy, server or configuration change.
+          forward_log="$RUNNER_TEMP/ssh/forward-category"
+          forward_exit=0
+          timeout 25s ssh -T -W 127.0.0.1:1 -o ConnectTimeout=15 -o ServerAliveInterval=5 -o ServerAliveCountMax=2 -i "$RUNNER_TEMP/ssh/key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" -o StrictHostKeyChecking=yes -p "$HOSTINGER_PORT" "$HOSTINGER_USER@$HOSTINGER_HOST" </dev/null >"$forward_log" 2>&1 || forward_exit=$?
+          forward_category=unclassified
+          if grep -Eqi 'administratively prohibited|forwarding disabled' "$forward_log"; then forward_category=forwarding_denied;
+          elif grep -Eqi 'connect failed: Connection refused|connect failed: connection refused' "$forward_log"; then forward_category=channel_allowed_loopback_refused;
+          elif [ "$forward_exit" = 124 ]; then forward_category=connection_timeout;
+          elif [ "$forward_exit" = 0 ]; then forward_category=channel_opened;
+          fi
+          rm -f -- "$forward_log"
+          echo "SSH_LOOPBACK_CHANNEL category=$forward_category payload_bytes=0 configuration_changes=0"
