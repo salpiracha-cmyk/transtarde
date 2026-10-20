@@ -39,4 +39,14 @@ with tempfile.TemporaryDirectory(prefix='staff-payment-amend-') as temp:
  status,post=request(query='?entity=TTI&account=POSTS&postId='+pay,endpoint='accounts_ledger_browser');assert status==200 and post['post']['id']==new and post['post']['meta']['publicPostId']==pay,(status,post)
  assert request({'entity':'TTI','postId':new,'reason':'Raw edit must be blocked','date':'2026-07-06','lines':state['journals'][new]['lines']},query='',endpoint='accounts_post_amend')[0]==422
  assert books.read_bytes()==committed
+ # Repeat with an actual service invoice, excluding the separate B/F.
+ invoice=json.loads(json.dumps(initial));invoice['supplierBills']={'BILL1':{'id':'BILL1','entity':'TTI','category':'FREIGHT','vendor':'Fixture Shipping Services','broker':'Fixture Shipping Services','billNo':'FIXTURE-INVOICE','billDate':'2026-07-01','payableAccount':'2130','supplierPayableTotal':1000,'receiptAllocations':[{'sourceKey':'SERVICE|BILL1','supplierPayableShare':1000}]}}
+ inv_alloc={**allocation,'billId':'BILL1','sourceKey':'SERVICE|BILL1','billNo':'FIXTURE-INVOICE','category':'FREIGHT'}
+ invoice['supplierSettlements']['S1']['allocations']=[inv_alloc];invoice['journals'][pay]['meta']['allocations']=[inv_alloc]
+ books.write_text(json.dumps(invoice));invbody={**body,'requestKey':'fixture-invoice-amend-0002','selectedBills':['BILL1|SERVICE|BILL1'],'includeOpeningBalance':False}
+ status,res=request(invbody);assert status==200,(status,res)
+ dues={p['billId']:p['outstanding'] for p in request()[1]['payables']};assert dues['BILL1']==700 and dues[bf]==1000,dues
+ # A commodity source cannot be converted into an unrelated simple-bill payment.
+ invoice['supplierSettlements']['S1']['allocations']=[{**inv_alloc,'billId':'CB1'}];books.write_text(json.dumps(invoice));before=books.read_bytes()
+ assert request(query='?entity=TTI&editPayment=S1')[0]==422 and books.read_bytes()==before
  print('PASS actual staff authority: payment/BF correction, earlier valid date, preview rollback, source allocations, stable Post ID, replay, stale/company/role/amount rejection and raw linked-journal hold')
