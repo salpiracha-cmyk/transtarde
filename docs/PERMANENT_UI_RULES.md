@@ -414,3 +414,10 @@ Online Banking payments expose an editable payment date, defaulting from the vou
 
 - WHT report, print and CSV share the same committed source projection. Explicit saved line/journal categories take priority over current masters. Buying Brokery withholding and Brokerage WHT deposits retain Brokerage classification from exact native source evidence.
 - A generic reversal inherits a tax category only through its explicit link to matching opposite tax lines in the same company's posted original. Preserve the reversal's own date, amounts and audit identity. Missing, conflicting or ambiguous originals must not acquire a guessed category. Reporting never rewrites historic journals or creates another posting.
+
+
+## Director / Mrs payment composition — 20 October 2026
+
+- Keep monthly entitlement and recovery at the top. Add removable other-payment rows before the payment sources, using one searchable Pay for list of the existing expense/subledger names and the same Add expense type editor as Expenses. The named Director/Mrs is the recipient; do not ask for Pay to on these rows. Keep required capital, vehicle/tax and remuneration deduction details conditional on the actual selected account.
+- Use one payment section after additions: total, editable petty cash and an optional Bank tick with bank/cheque/online details. Petty cash defaults to the entire total and follows additions/removals until edited. A reduced petty cash amount automatically enables Bank and assigns the exact balance to it; clearing Bank returns the full total to petty cash. Preserve unfinished bank details while hidden and ignore their validation until applicable.
+- Compose exact allocations for each actual cash/bank transaction; never change monthly entitlement to absorb extra expenses or credit the payment source twice. Restore saved splits and purposes. Historical payments with distinct dates, banks or references retain the original detailed editor instead of silently merging their accounting facts. Saving remains draft-only; completion retains the canonical posting, preview, reversal, version and permission safeguards.

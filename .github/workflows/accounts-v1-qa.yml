@@ -274,6 +274,7 @@ jobs:
           php tests/accounts-v1/corn_weights_test.php
           TZ=America/Los_Angeles node tests/accounts-v1/labour_scope_test.js
           node tests/accounts-v1/shipment_bill_result_edit_test.js
+          node tests/accounts-v1/family_payment_plan_test.js
           node tests/accounts-v1/fi_tags_read_only_test.js
           php tests/accounts-v1/sales_tax_source_test.php
           python3 tests/accounts-v1/sales_tax_endpoint_test.py
