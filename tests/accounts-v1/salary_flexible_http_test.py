@@ -4,7 +4,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
     root=pathlib.Path(temp)
     for folder in ['api','accounts','data']:(root/folder).mkdir()
-    for name in ['company_investments_core.php','assets_registry_core.php','rent_salary.php','rent_salary_v2.php','salary_month_workflow.php','salary_flexible_workflow.php','salary_master_store.php','accounts_bank_payment.php', 'accounts_posting_preview.php']:
+    for name in ['company_investments_core.php','assets_registry_core.php','rent_salary.php','rent_salary_v2.php','salary_month_workflow.php','salary_flexible_workflow.php','salary_extra_allocations.php','accounts_subaccounts_core.php','accounts_reference.php','accounts_ledger_visibility.php','salary_master_store.php','accounts_bank_payment.php', 'accounts_posting_preview.php']:
         shutil.copy(ROOT/'api'/name,root/'api'/name)
     for name in ['accounting_master_v1.json','rent-salary-ui.js','cheque-date-ui.js','bank-payment-details.js']:
         shutil.copy(ROOT/'accounts'/name,root/'accounts'/name)
@@ -134,36 +134,91 @@ with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
         status,result=request({'action':'refresh_salary_draft','version':fresh['version']},'2027-02');assert status==200,result
         assert result['salarySheet']['rows']['Worker']['netSalary']==51000 and result['salarySheet']['rows']['Worker']['payment']['amount']==100
         assert not result['salarySheet']['rows']['Worker']['reviewed']
+        # Monthly Mrs amount plus extra expense, direct BMA capital and property payment:
+        # one cash movement, canonical subsidiary records, atomic reversal and no entitlement inflation.
+        original=saved()
+        state=saved();state['managedAssets']={'PROP':{'id':'PROP','entity':'TTI','version':1,'type':'PROPERTY','name':'Private fixture property','ownerType':'COMPANY','currency':'PKR','purchaseDate':'2026-07-01','costCents':10000000,'payments':{},'schedule':[]}}
+        state['accountSubaccounts']={'SRP':{'id':'SRP','entity':'TTI','name':'SRP Home Expense','parentCode':'6910','active':True,'taxCategory':'NONE'}}
+        (root/'data/accounts.json').write_text(json.dumps(state))
+        choices=request()[1];assert any(x['id']=='SRP' for x in choices['allocationExpenses']);assert any(x['id']=='BROKER_FUND|BMA' for x in choices['allocationCapital'])
+        expense={'type':'EXPENSE','amount':20000,'subaccountId':'SRP','purpose':'Extra household payment'}
+        funding={'type':'BROKER_FUND','amount':10000,'brokerId':'BMA','reference':'DIRECT-BMA-APRIL'}
+        asset={'type':'ASSET_PAYMENT','amount':30000,'assetId':'PROP','assetVersion':1,'instalmentNo':'APR-1','purpose':'Private fixture property instalment'}
+        tx=payment(360000,'2027-04-03','CASH|TTI',[alloc('Mrs',300000),expense,funding,asset])
+        for bad in [{**expense,'subaccountId':'BRM-HOME-FAM-SALMAN'},{**expense,'subaccountId':'TTI-DEFAULT-TAX-EXPORT-RECOVERABLE'},{**asset,'assetVersion':0},{**asset,'amount':100001}]:
+            before=saved();badtx=payment(bad['amount'],'2027-04-03','CASH|TTI',[bad]);assert action('save_salary_transactions','Mrs',month='2027-04',transactions=[badtx],advanceApplied=0)[0]==422;assert saved()==before
+        (root/'user.json').write_text(json.dumps({'role':'Accounts Assistant','permissions':{'Accounts':{'expenses':['View','Create','Edit']}}}))
+        assert request()[1]['allocationCapital']==[]
+        before=saved();assert action('save_salary_transactions','Mrs',month='2027-04',transactions=[tx],advanceApplied=0)[0]==422;assert saved()==before
+        (root/'user.json').unlink()
+        status,result=action('save_salary_transactions','Mrs',month='2027-04',transactions=[tx],advanceApplied=0);assert status==200,result
+        assert result['salarySheet']['rows']['Mrs']['payment']['amount']==300000
+        assert result['salarySheet']['rows']['Mrs']['totalDue']==300000,'Extra Home Expense must be additional to the monthly Mrs entitlement'
+        assert not saved()['managedAssets']['PROP']['payments'],'Saving a draft creates no property payment'
+        for who in ['Salman','Worker']:assert action('save_salary_transactions',who,month='2027-04',transactions=[],advanceApplied=0)[0]==200
+        sheet=request(month='2027-04')[1]['salarySheet'];body={'action':'complete_salary_month','version':sheet['version'],'date':'2027-04-30'}
+        before=saved();status,preview=request({**body,'preview':True},'2027-04');assert status==200,preview;assert saved()==before
+        # Concurrent asset change is detected at final posting, with all accounting rolled back.
+        changed=saved();changed['managedAssets']['PROP']['version']=2;(root/'data/accounts.json').write_text(json.dumps(changed))
+        status,rejected=request(body,'2027-04');assert status==422,rejected;assert saved()==changed
+        (root/'data/accounts.json').write_text(json.dumps(before))
+        status,result=request(body,'2027-04');assert status==200,result
+        posted=saved();journal=next(j for j in posted['journals'].values() if j['sourceType']=='SALARY_ALLOCATED_PAYMENT' and j['date']=='2027-04-03')
+        cashlines=[l for l in journal['lines'] if l['account']=='1120'];assert len(cashlines)==1 and cashlines[0]['credit']==360000
+        assert any(l['account']=='6910' and l['debit']==20000 and l['subaccountId']=='SRP' for l in journal['lines'])
+        assert any(l['account']=='1430' and l['debit']==10000 and l['brokerId']=='BMA' for l in journal['lines'])
+        assert 'Private fixture property' not in json.dumps(journal),'Property details stay out of the public journal'
+        link=next(iter(posted['managedAssets']['PROP']['payments'].values()));assert link['amountCents']==3000000 and link['journalId']==journal['id']
+        assert any(x['type']=='FUND_DIRECT' and x['journalId']==journal['id'] and x['brokerDeltas']=={'BMA':1000000} for x in posted['investmentTransactions'].values())
+        before_retry=saved();assert request(body,'2027-04')[0]==200;assert saved()==before_retry
+        status,result=request({'action':'reverse_salary_allocated_payment','journalId':journal['id'],'date':'2027-04-03','reason':'Reverse complete extra payment'},'2027-04');assert status==200,result
+        reversed_state=saved();assert not reversed_state['managedAssets']['PROP']['payments'];assert reversed_state['managedAssets']['PROP']['paymentCorrections'][0]['payment']==link
+        assert reversed_state['salaryPeriods']['TTI|2027-04|Mrs']['outstanding']==300000
+        assert all(x['status']=='Reversed' for x in reversed_state['investmentTransactions'].values() if x['journalId']==journal['id'])
+        (root/'data/accounts.json').write_text(json.dumps(original))
+        print('PASS extra expense + direct BMA funding + property instalment: one payment, independent monthly entitlement, permissions, stale-asset rollback, preview, retry and full reversal')
         if os.getenv('TT_QA_BROWSER')=='1':
             from playwright.sync_api import sync_playwright
             with sync_playwright() as pw:
                 browser=pw.chromium.launch(headless=True);page=browser.new_page(viewport={'width':1280,'height':900});errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
                 page.goto(f'http://127.0.0.1:{port}/accounts/index.html');page.locator('[data-expense="salary"]').click();page.locator('#rsPrepare').click()
                 page.locator('#rsMonth').fill('2027-03');page.locator('#rsMonth').dispatch_event('change')
-                page.locator('[data-rs-draft-pay="Mrs"]').click();page.locator('#rsAddTransaction').click()
-                tx=page.locator('.rs-transaction').last;tx.locator('[data-tx-amount]').fill('200000');tx.locator('[data-allocation-amount]').fill('200000');tx.locator('[data-tx-date]').fill('2027-03-03')
+                page.locator('[data-rs-draft-pay="Mrs"]').click()
+                assert page.locator('.rs-transaction').count()==1,'Monthly amount is ready immediately'
+                tx=page.locator('.rs-transaction').first
+                assert tx.locator('[data-allocation-amount]').input_value()=='300000'
+                tx.locator('[data-allocation-amount]').fill('200000');tx.locator('[data-tx-date]').fill('2027-03-03')
                 assert tx.locator('[data-tx-source]').input_value()=='CASH|TTI'
                 page.locator('#rsAddTransaction').click();tx=page.locator('.rs-transaction').last
-                tx.locator('[data-tx-amount]').fill('120000');tx.locator('[data-tx-date]').fill('2027-03-10');tx.locator('[data-tx-source]').select_option('bank-b');tx.locator('[data-method]').select_option('ONLINE_BANKING');tx.locator('[data-reference]').fill('MARCH-BANK-1');tx.locator('[data-cheque-date]').fill('2027-03-10')
-                tx.locator('[data-allocation-amount]').fill('100000');tx.locator('[data-add-allocation]').click()
-                allocation=tx.locator('.rs-allocation').last;allocation.locator('[data-allocation-target]').select_option('SALARY|Salman');allocation.locator('[data-allocation-amount]').fill('10000')
+                assert tx.locator('[data-allocation-amount]').input_value()=='100000'
+                tx.locator('[data-tx-date]').fill('2027-03-10');tx.locator('[data-tx-source]').select_option('bank-b');tx.locator('[data-method]').select_option('ONLINE_BANKING');tx.locator('[data-reference]').fill('MARCH-BANK-1');tx.locator('[data-cheque-date]').fill('2027-03-10')
+                tx.locator('[data-add-monthly]').click();allocation=tx.locator('.rs-allocation').last
+                allocation.locator('[data-allocation-target]').select_option('SALARY|Salman');allocation.locator('[data-allocation-amount]').fill('10000')
                 tx.locator('[data-add-allocation]').click();allocation=tx.locator('.rs-allocation').last
-                assert not allocation.locator('[data-allocation-route]').is_visible()
-                allocation.locator('[data-allocation-target]').select_option('COMPANY_HELD');assert allocation.locator('[data-allocation-route]').is_visible();assert not allocation.locator('[data-allocation-broker]').is_visible()
-                allocation.locator('[data-allocation-target]').select_option('BROKER_RECEIVED');allocation.locator('[data-allocation-amount]').fill('10000');allocation.locator('[data-allocation-route]').select_option('R');allocation.locator('[data-allocation-broker]').select_option('BMA');allocation.locator('[data-allocation-reference]').fill('BMA-MARCH-1')
-                assert 'Difference Rs 0' in tx.locator('[data-transaction-balance]').inner_text()
+                allocation.locator('[data-extra-category]').select_option('CAPITAL');allocation.locator('[data-extra-capital]').select_option('BROKER_RECEIVED')
+                assert allocation.locator('[data-allocation-route]').is_visible()
+                allocation.locator('[data-allocation-amount]').fill('10000');allocation.locator('[data-allocation-route]').select_option('R');allocation.locator('[data-allocation-broker]').select_option('BMA');allocation.locator('[data-allocation-reference]').fill('BMA-MARCH-1')
+                assert tx.locator('[data-tx-amount]').input_value()=='120000'
+                tx.locator('[data-add-allocation]').click();extra=tx.locator('.rs-allocation').last
+                assert extra.locator('[data-extra-category]').input_value()=='EXPENSE'
+                extra.locator('[data-extra-expense]').select_option('TTI-HOME-FAM-SALMAN');extra.locator('[data-allocation-amount]').fill('20000');extra.locator('[data-allocation-purpose]').fill('SRP extra home expense')
+                assert tx.locator('[data-tx-amount]').input_value()=='140000'
+                assert not extra.locator('[data-allocation-route]').is_visible()
+                extra.locator('[data-remove-allocation]').click();assert tx.locator('[data-tx-amount]').input_value()=='120000'
                 page.locator('#rsPaySalBtn').click();page.locator('[data-rs-draft-pay="Mrs"]').filter(has_text='Amend').wait_for()
                 assert request(month='2027-03')[1]['salarySheet']['rows']['Mrs']['payment']['amount']==300000
                 assert request(month='2027-03')[1]['salarySheet']['rows']['Salman']['payment']['amount']==10000
                 page.locator('[data-rs-draft-pay="Mrs"]').click();assert page.locator('.rs-transaction').count()==2
                 assert page.locator('.rs-allocation').count()==4
-                if os.getenv('TT_QA_OUTPUT'):
-                    output=pathlib.Path(os.environ['TT_QA_OUTPUT']);output.mkdir(parents=True,exist_ok=True)
-                    page.locator('#rsDraftForm').screenshot(path=str(output/'salary-split-payment.png'))
-                assert page.locator('#rsDraftForm').evaluate('(el)=>el.getBoundingClientRect().right<=innerWidth && el.getBoundingClientRect().left>=0'),'Payment editor must fit the desktop viewport'
-
+                assert page.locator('#rsDraftForm').evaluate('(el)=>el.getBoundingClientRect().right<=innerWidth && el.getBoundingClientRect().left>=0')
+                page.locator('#rsDraftCancel').click()
+                for width in [1280,1024,700,390]:
+                    page.set_viewport_size({'width':width,'height':900})
+                    assert page.locator('.ttrs-salary-table').evaluate('(el)=>el.scrollWidth<=el.clientWidth+2'),'Salary sheet fits without horizontal scrolling'
+                    for selector in ['[data-rs-draft-pay="Mrs"]','[data-rs-month-adjust="Mrs"]','[data-rs-sheet-edit="Mrs"]','[data-rs-sheet-remove="Mrs"]']:
+                        assert page.locator(selector).evaluate('(el)=>{const r=el.getBoundingClientRect();return r.left>=0&&r.right<=innerWidth}'),'All row actions fit'
+                page.set_viewport_size({'width':1280,'height':900})
                 page.locator('[data-rs-draft-pay="Salman"]').click();assert 'Already allocated through another recipient' in page.locator('#rsDraftForm').inner_text()
-                assert page.locator('.rs-transaction').count()==0
                 page.locator('[data-rs-month-adjust="Worker"]').click();page.locator('[name=monthlyAddition]').fill('5000');page.locator('[name=adjustmentReason]').fill('One-off bonus');assert page.locator('[data-month-total]').input_value()=='55000';page.locator('[data-month-total]').fill('56000');
                 if os.getenv('TT_QA_OUTPUT'):page.locator('dialog').screenshot(path=str(pathlib.Path(os.environ['TT_QA_OUTPUT'])/'salary-month-adjustment.png'))
                 page.get_by_role('button',name='Save month adjustment',exact=True).click()
