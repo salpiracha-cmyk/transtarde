@@ -52,6 +52,21 @@ let posted;
   assert.equal(await page.evaluate(()=>document.activeElement.id),'menuButton');
   // Both master routes use the same bank table and popup.
   await page.locator('[data-edit-master="UI-COMPANY"]:visible').click();
+  // Actual company owner rows must keep destructive controls aligned with inputs.
+  const checkOwners=async()=>{
+   const geometry=await page.locator('.company-owner-row').evaluateAll(rows=>rows.map(row=>{
+    const input=row.querySelector('[data-company-owner-name]').getBoundingClientRect(),button=row.querySelector('[data-remove-company-owner]').getBoundingClientRect();
+    return {inputTop:input.top,inputHeight:input.height,buttonTop:button.top,buttonHeight:button.height,columns:getComputedStyle(row).gridTemplateColumns.split(' ').length};
+   }));
+   assert.ok(geometry.length>0);
+   for(const row of geometry){assert.ok(Math.abs(row.buttonHeight-row.inputHeight)<1,'Owner Remove must have the input control height');if(row.columns===3)assert.ok(Math.abs(row.inputTop-row.buttonTop)<1,'Owner Remove aligns with inputs rather than their labels');}
+  };
+  for(const width of [1366,900,390]){await page.setViewportSize({width,height:740});await checkOwners();}
+  await page.setViewportSize({width:1366,height:740});
+  await page.locator('#addCompanyOwner').click();await checkOwners();
+  await page.locator('.company-owner-row').last().locator('[data-remove-company-owner]').click();
+  assert.equal(await page.locator('[data-company-owner-share]').inputValue(),'100');
+  await page.setViewportSize({width:900,height:740});
   await page.locator('[data-company-editor-tab="banks"]').click();
   assert.equal(await page.locator('#companyBankRows tbody tr').count(),1);
   await page.locator('#companyBankRows tbody td:nth-child(2) strong').evaluate(el=>el.textContent='Abdul Razzak Paracha (Salman Razzak Paracha)');
