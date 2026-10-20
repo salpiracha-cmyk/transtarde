@@ -445,3 +445,9 @@ Online Banking payments expose an editable payment date, defaulting from the vou
 - Amendment and cancellation requests must carry the original legal entity and retain staff workflow/action permissions. Never bypass entity validation to fix a missing request field.
 - Amend ordinary supplier/service invoice and B/F payments through the original settlement engine, restoring saved source, dates, cheque/reference and allocations. Preview without writes; atomically reverse/repost on explicit confirmation, keep the public Post ID and original/reversal/replacement history, and make retries idempotent. Hold linked advances, payment plans, Mill payments and post-dated cheques for their original workflows. Never replace these sources through a raw journal edit.
 - Reopening a payment must not silently replace an unavailable original bank with a default bank. Require an explicit active payment bank. Closing or cancelling an amendment preserves the posted books.
+
+## Completed salary payment amendments — 20 October 2026
+
+- Completed sheets show one Payments / Amend control. Open a searchable person/date/source/amount table; open the selected source payment for editing. Keep cancellation inside its details, with an explicit reason/date and accounting preview. Never display a wall of payment/reversal buttons.
+- Amend a whole actual payment through salary allocation validation. Keep the recipient, entitlement and posted advance recovery, update every affected beneficiary, investment event and asset instalment atomically, and credit the revised cash/bank source once. Reject stale snapshots, invalid allocations, inactive sources, unauthorised corrections and changed retry payloads. Preview and cancellation make no financial writes.
+- Retain immutable original/reversal/replacement journals and public Post IDs. Voucher Edit returns to the salary source editor; never offer raw journal line editing for a linked salary payment.

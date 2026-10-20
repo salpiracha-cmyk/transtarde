@@ -13,8 +13,8 @@ function sfw_money(mixed $value,string $label):float {
     if(!is_numeric($value)||!is_finite((float)$value)||(float)$value<0||(float)$value>100000000000)throw new DomainException('Enter a valid '.$label.'.');
     return round((float)$value,2);
 }
-function sfw_editable(array $s,string $e,string $m,array $b):array {
-    $sheet=smw_sheet($s,$e,$m);
+function sfw_editable(array $s,string $e,string $m,array $b,bool $sourceAmendment=false):array {
+    $sheet=$sourceAmendment?$s['salarySheets'][$e.'|'.$m]:smw_sheet($s,$e,$m);
     if(($sheet['status']??'')==='Completed')throw new DomainException('This month is completed. Correct the original Post ID with a reason.');
     if((int)($b['version']??-1)!==(int)$sheet['version']||!empty($sheet['masterChanged']))throw new DomainException('Salary inputs changed. Refresh and review this draft first.');
     $id=(string)($b['masterId']??'');if(!isset($sheet['rows'][$id]))throw new DomainException('Select a person on this salary sheet.');
@@ -62,8 +62,8 @@ function sfw_validate_company(array $s,string $e,array $a,array $u):array {
     if(trim((string)($a['reference']??''))==='')throw new DomainException('Enter the company transfer / broker receipt reference.');
     return ['route'=>$route,'broker'=>$broker];
 }
-function sfw_save(array &$s,string $e,string $m,array $b,array $u,array $names):array {
-    $sheet=sfw_editable($s,$e,$m,$b);$id=(string)$b['masterId'];$owner=$sheet['rows'][$id];$family=in_array($owner['category'],['DIRECTOR_REMUNERATION','HOME_MONTHLY_GIVE'],true);
+function sfw_save(array &$s,string $e,string $m,array $b,array $u,array $names,bool $sourceAmendment=false):array {
+    $sheet=sfw_editable($s,$e,$m,$b,$sourceAmendment);$id=(string)$b['masterId'];$owner=$sheet['rows'][$id];$family=in_array($owner['category'],['DIRECTOR_REMUNERATION','HOME_MONTHLY_GIVE'],true);
     $raw=$b['transactions']??null;if(!is_array($raw)||count($raw)>100)throw new DomainException('Enter up to 100 actual payment transactions.');
     $transactions=[];$references=[];
     foreach($raw as $t){if(!is_array($t))throw new DomainException('Invalid payment transaction.');
@@ -155,7 +155,7 @@ function sfw_refresh_sources(array &$s,string $e,string $m,array $sheet):array {
     unset($sheet['sourceInputsChanged'],$sheet['masterChanged'],$sheet['canRefreshFromMaster']);$sheet['version']++;$sheet['updatedAt']=gmdate('c');$s['salarySheets'][$e.'|'.$m]=$sheet;return ['refreshed'=>true,'paymentsPreserved'=>true];
 }
 /** Reverse the complete actual payment, including all beneficiaries and company allocations. */
-function sfw_reverse_payment(array &$s,string $e,string $m,array $b,array $u,array $names):array {
+function sfw_reverse_payment(array &$s,string $e,string $m,array $b,array $u,array $names,bool $atomicReplacement=false):array {
     $id=(string)($b['journalId']??'');$j=$s['journals'][$id]??null;
     if(!$j||($j['entity']??'')!==$e||($j['sourceType']??'')!=='SALARY_ALLOCATED_PAYMENT'||($j['meta']['salarySheetKey']??'')!==$e.'|'.$m)throw new DomainException('Select an actual salary payment from this company and month.');
     if(!tt_user_can_access_entity($u,$e,'Edit')||(function_exists('tt_post_correction_allowed')&&!tt_post_correction_allowed($u,$j)))throw new DomainException('Salary payment correction permission is required.');
@@ -166,7 +166,7 @@ function sfw_reverse_payment(array &$s,string $e,string $m,array $b,array $u,arr
     if(!$t||($t['status']??'')==='Reversed')throw new DomainException('The original salary transaction needs review.');
     foreach($t['allocations'] as $allocation)foreach(sea_charges($allocation) as $a){$pid=rsv2_pid($e,$m,$a['masterId']);$p=$s['salaryPeriods'][$pid]??null;if(!$p||(float)$p['paidAfterPrepare']<$a['amount']-.005)throw new DomainException('The beneficiary payment balance changed. Review the original period.');$s['salaryPeriods'][$pid]['paidAfterPrepare']=round($p['paidAfterPrepare']-$a['amount'],2);$s['salaryPeriods'][$pid]['outstanding']=round($p['outstanding']+$a['amount'],2);$s['salaryPeriods'][$pid]['status']='Payable';$r=&$s['salarySheets'][$key]['rows'][$a['masterId']];$r['payment']['amount']=round($r['payment']['amount']-$a['amount'],2);$r['outstanding']=round($r['outstanding']+$a['amount'],2);unset($r);}
     foreach((array)($s['investmentTransactions']??[]) as $eventId=>$event)if(($event['journalId']??'')===$id){sfw_company_access($u,'Edit');$s['investmentTransactions'][$eventId]['status']='Reversed';}
-    if(function_exists('inv_validate_timeline'))inv_validate_timeline($s,$e);
+    if(!$atomicReplacement&&function_exists('inv_validate_timeline'))inv_validate_timeline($s,$e);
     $lines=$j['lines'];foreach($lines as &$l){[$l['debit'],$l['credit']]=[$l['credit'],$l['debit']];if(isset($l['bankDebit']))[$l['bankDebit'],$l['bankCredit']]=[$l['bankCredit'],$l['bankDebit']];}unset($l);
     $rid=rsv2_journal($s,$e,$date,'SALARY_ALLOCATED_PAYMENT_REVERSAL',$id,'Reverse salary payment — '.$reason,$lines,$u,['salarySheetKey'=>$key,'originalPostId'=>$id,'reason'=>$reason]);$s['journals'][$rid]['reversalOf']=$id;$s['journals'][$id]['reversedByPostId']=$rid;
     sea_reverse_assets($s,$id,$rid,$reason,$u);
