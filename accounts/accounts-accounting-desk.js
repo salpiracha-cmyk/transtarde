@@ -903,10 +903,11 @@
       const debit = treatment.value === 'FAMILY_ALLOCATION'
         ? (q('#evPerson')?.selectedOptions?.[0]?.textContent || 'Selected personal / family account')
         : (q('#evPayType')?.selectedOptions?.[0]?.textContent || 'Utility Expense');
-      const credit = account.selectedOptions?.[0]?.textContent || 'Select bank or cash account';
-      box.innerHTML = `<strong>Accounting treatment before posting</strong><div class="tt-treatment-row"><span>Debit</span><span>${esc(debit)}</span><b>Rs ${money(value)}</b></div><div class="tt-treatment-row"><span>Credit</span><span>${esc(credit)}</span><b>Rs ${money(value)}</b></div><div class="tt-treatment-row tt-treatment-total"><span>Total</span><span>Debit Rs ${money(value)} · Credit Rs ${money(value)}</span><b>${value > 0 && account.value ? 'Balanced' : 'Complete form'}</b></div>`;
+      const invoice = q('#evInvoiceMode')?.value === 'INVOICE';
+      const credit = invoice ? 'Supplier payable · '+(q('#evPayee')?.value || 'Choose supplier') : account.selectedOptions?.[0]?.textContent || 'Select bank or cash account';
+      box.innerHTML = `<strong>Accounting treatment before posting</strong><div class="tt-treatment-row"><span>Debit</span><span>${esc(debit)}</span><b>Rs ${money(value)}</b></div><div class="tt-treatment-row"><span>Credit</span><span>${esc(credit)}</span><b>Rs ${money(value)}</b></div><div class="tt-treatment-row tt-treatment-total"><span>Total</span><span>Debit Rs ${money(value)} · Credit Rs ${money(value)}</span><b>${value > 0 && (invoice || account.value) ? 'Balanced' : 'Complete form'}</b></div>`;
     };
-    [amount, account, treatment, q('#evPerson'), q('#evPayType')].filter(Boolean).forEach(control => { control.addEventListener('input', render); control.addEventListener('change', render); });
+    [amount, account, treatment, q('#evPerson'), q('#evPayType'), q('#evInvoiceMode'), q('#evPayee')].filter(Boolean).forEach(control => { control.addEventListener('input', render); control.addEventListener('change', render); });
     render();
   }
 

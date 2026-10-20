@@ -3,6 +3,68 @@ declare(strict_types=1);
 require_once __DIR__.'/accounts_subaccounts_core.php';
 require_once __DIR__.'/accounts_reference.php';
 
+/** Capture a supplier obligation once; payments use the existing settlement engine. */
+function eiv_capture(array &$s,string $entity,array $b,array $u,array $names,bool $utility=false): array {
+    if(!empty($b['paymentAccountId'])||!empty($b['bankPaymentMethod']))throw new InvalidArgumentException('Record the full invoice first; make payments through Party Payments.');
+    if(!in_array($entity,['TTI','BRM'],true))throw new InvalidArgumentException('Use the dedicated native-currency supplier bill workflow for TG.');
+    $id=trim((string)($b['invoiceId']??''));$old=$id!==''?($s['supplierBills'][$id]??null):null;
+    if($id!==''&&(!is_array($old)||($old['entity']??'')!==$entity||empty($old['expenseInvoice'])||($old['status']??'')!=='Posted'))throw new InvalidArgumentException('Select a current expense invoice in this company.');
+    if($old){
+        $reason=trim((string)($b['reason']??''));if(strlen($reason)<5||strlen($reason)>500)throw new InvalidArgumentException('Enter a correction reason of 5 to 500 characters.');
+        if(($b['expectedJournalId']??'')!==$old['journalId'])throw new InvalidArgumentException('The invoice changed. Reopen it before correcting.');
+        if(eiv_balance($s,$old)['allocated']>.005)throw new InvalidArgumentException('This invoice has linked payments. Reverse those payments through their original workflow before correcting the invoice.');
+        if(($old['invoiceKind']??'GENERAL')!==($utility?'UTILITY':'GENERAL'))throw new InvalidArgumentException('Keep the original invoice type.');
+    }
+    $date=ev1_date((string)($b['invoiceDate']??''),'Invoice date');$due=ev1_date((string)($b['dueDate']??$date),'Due date');
+    if($due<$date)throw new InvalidArgumentException('Due date cannot precede the invoice date.');
+    $number=trim((string)($b['invoiceNo']??''));$payee=trim((string)($b['payee']??''));
+    if($number===''||strlen($number)>180||$payee===''||strlen($payee)>180)throw new InvalidArgumentException('Enter the supplier and original invoice number (up to 180 characters each).');
+    $profile=null;foreach(sac_payees($s,$entity,'EXPENSE') as $p)if(sac_normal($p['name'])===sac_normal($payee)){$profile=$p;$payee=$p['name'];break;}
+    if(!empty($b['payeeId'])&&(!$profile||$profile['id']!==$b['payeeId']))throw new InvalidArgumentException('Choose the current supplier identity.');
+    $notes=trim((string)($b['notes']??''));if(strlen($notes)>1000)throw new InvalidArgumentException('Notes must be no longer than 1000 characters.');
+    $extra=['notes'=>$notes];
+    if($utility){
+        $type=ev1_utility_type((string)($b['utilityType']??''));$owned=ev1_bill_location($b,$entity);$month=ev1_month((string)($b['billMonth']??''));$master=trim((string)($b['utilityMasterId']??''));
+        ev1_validate_utility_provider($payee);
+        if($master!==''){$m=$s['utilityMasters'][$master]??null;if(!$m||($m['entity']??'')!==$entity||($m['status']??'Active')!=='Active'||($m['utilityType']??'')!==$type||strcasecmp(trim((string)$m['payee']),$payee)!==0||(!empty($m['locationId'])?$m['locationId']!==$owned['id']:tt_location_identity((string)$m['locationName'])!==tt_location_identity($owned['name'])))throw new InvalidArgumentException('The invoice must match the saved utility provider and company location.');}
+        $treatment=(string)($b['accountingTreatment']??'BUSINESS_EXPENSE');if(!in_array($treatment,['BUSINESS_EXPENSE','FAMILY_ALLOCATION'],true))throw new InvalidArgumentException('Choose the utility accounting treatment.');
+        $production=$owned['location']==='MILL'&&$treatment==='BUSINESS_EXPENSE';$account=$treatment==='FAMILY_ALLOCATION'?ev1_person((string)($b['personAccount']??'')):($production?'5200':ev1_utility_account($type));
+        $amount=ev1_amount($b['amount']??0);$personal=pex_fields(array_replace($b,['expenseArea'=>$owned['location']]));
+        $extra=$extra+$personal+ev1_reading_period($b,$owned['location']==='MILL'&&$type==='ELECTRICITY')+['accountReference'=>$master!==''?(string)($m['accountReference']??''):'','utilityMasterId'=>$master,'utilityType'=>$type,'utilityTypeName'=>ev1_utility_name($type),'locationId'=>$owned['id'],'location'=>$owned['location'],'locationName'=>$owned['name'],'accountingTreatment'=>$treatment,'productionCostEligible'=>$production];
+        if($production&&$type==='ELECTRICITY')foreach((array)($s['millLiabilities']??[]) as $existing){$snapshot=$existing['sourceSnapshot']??[];if(($existing['entity']??'')===$entity&&($existing['sourceCollection']??'')==='tt38kebills'&&($existing['status']??'')==='Posted'&&strcasecmp(trim((string)($snapshot['ref']??$snapshot['reference']??'')),$number)===0&&tt_location_identity((string)($snapshot['millName']??''))===tt_location_identity($owned['name']))throw new InvalidArgumentException('This mill bill already has a posted liability. Pay or correct its original mill bill instead of recording another invoice.');}
+        $rows=[$personal+['amount'=>$amount,'account'=>$account,'accountName'=>$names[$account],'purpose'=>ev1_utility_name($type),'category'=>'UTILITY']];
+    }else{
+        [$rows,$amount]=dex_rows($b['expenseLines']??null,$names,$s,$entity);foreach($rows as $row)if(in_array($row['account'],['7200','7210','7220','7230'],true))throw new InvalidArgumentException('Record donations through their dedicated workflow, not a supplier invoice.');$month=ev1_month((string)($b['billMonth']??substr($date,0,7)));
+    }
+    if(isset($b['amount'])&&(!is_numeric($b['amount'])||!is_finite((float)$b['amount'])||abs(round((float)$b['amount'],2)-$amount)>.005))throw new InvalidArgumentException('Invoice total must equal its expense rows.');
+    foreach(['supplierBills','generalExpenses','utilityPayments','otherPurchases'] as $collection)foreach((array)($s[$collection]??[]) as $key=>$record){
+        if(($record['entity']??'')!==$entity||($collection==='supplierBills'&&(string)$key===$id)||in_array($record['status']??'',['Cancelled','Deleted','Amended'],true))continue;
+        $sameParty=sac_normal((string)($record['vendor']??$record['supplier']??$record['payee']??''))===sac_normal($payee);
+        $sameNumber=strcasecmp(trim((string)($record['billNo']??$record['invoiceNo']??$record['reference']??'')),$number)===0;
+        $sameUtility=$utility&&!empty($extra['utilityMasterId'])&&($record['utilityMasterId']??'')===$extra['utilityMasterId']&&($record['billMonth']??'')===$month;
+        if(($sameParty&&$sameNumber)||$sameUtility)throw new InvalidArgumentException('This supplier invoice or utility month is already recorded. Open the existing source instead of recording its expense twice.');
+    }
+    if($id==='')$id=ev1_id((array)($s['supplierBills']??[]),'EINV');
+    if($old){$reason=trim((string)($b['reason']??''));pex_clear($s,$entity,'EXPENSE-INVOICE|'.$id,$u,$names,$reason);$reversed=ev1_reverse_journals($s,[$old['journalId']],$entity,$u,$names,$reason);foreach($reversed as $rid)if($s['journals'][$rid]['date']<$old['billDate'])$s['journals'][$rid]['date']=$old['billDate'];}
+    $recipient=$profile['id']??'EXP|'.sac_normal($payee);$meta=$extra+['expenseInvoiceId'=>$id,'supplierBillId'=>$id,'payee'=>$payee,'party'=>$payee,'payeeId'=>$recipient,'billMonth'=>$month,'invoiceNo'=>$number,'expenseLines'=>$rows];$lines=[];
+    foreach($rows as $row){$fields=$row;unset($fields['account'],$fields['accountName'],$fields['amount']);$lines[]=ev1_line($row['account'],$row['amount'],0,$names,$fields+$extra+['counterparty'=>$payee,'expenseRecipientId'=>$recipient,'expenseInvoiceId'=>$id,'expensePurpose'=>$row['purpose']??'','subledger'=>$row['purpose']??'','expenseCategory'=>$row['category']??'OTHER']);}
+    $lines[]=ev1_line('2130',0,$amount,$names,['counterparty'=>$payee,'supplierBillId'=>$id,'expenseInvoiceId'=>$id]);
+    $jid=ev1_journal($s,$entity,$date,$utility?'UTILITY_INVOICE':'EXPENSE_INVOICE',$number,'Supplier invoice — '.$payee.' — '.$number,$lines,$u,$meta);
+    $personal=pex_apply($s,$entity,'EXPENSE-INVOICE|'.$id,$rows,$date,$jid,$u,$names);
+    $s['supplierBills'][$id]=$extra+['id'=>$id,'entity'=>$entity,'expenseInvoice'=>true,'invoiceKind'=>$utility?'UTILITY':'GENERAL','category'=>$utility?'UTILITIES':'SERVICE','payeeId'=>$recipient,'vendor'=>$payee,'broker'=>$payee,'billNo'=>$number,'invoiceNo'=>$number,'reference'=>$number,'billDate'=>$date,'dueDate'=>$due,'billMonth'=>$month,'amount'=>$amount,'supplierPayableTotal'=>$amount,'payableAccount'=>'2130','receiptAllocations'=>[['sourceKey'=>'EXPENSE|'.$id,'supplierPayableShare'=>$amount]],'expenseLines'=>$rows,'personalLink'=>'EXPENSE-INVOICE|'.$id,'personalJournalIds'=>$personal['journalIds'],'journalId'=>$jid,'postingJournalIds'=>array_merge((array)($old['postingJournalIds']??[]),[$jid]),'status'=>'Posted','createdAt'=>$old['createdAt']??gmdate('c'),'createdBy'=>$old['createdBy']??($u['full_name']??$u['username']??''),'updatedAt'=>gmdate('c')];
+    if($old){$public=tt_accounts_public_post($s,$s['journals'][$old['journalId']]);$s['journals'][$old['journalId']]['amendedByPostId']=$jid;$s['journals'][$jid]['meta']['publicPostId']=$public;$s['journals'][$jid]['meta']['amendmentOfPostId']=$old['journalId'];$s['journals'][$jid]['meta']['amendmentNote']='Invoice corrected — '.trim((string)$b['reason']);foreach($personal['journalIds'] as $pid)$s['journals'][$pid]['meta']['publicPostId']=$public;if(isset($s['expensePersonalLinks']['EXPENSE-INVOICE|'.$id]))$s['expensePersonalLinks']['EXPENSE-INVOICE|'.$id]['publicPostId']=$public;$s['expenseAudit'][]=['action'=>'AMEND_EXPENSE_INVOICE','entity'=>$entity,'id'=>$id,'before'=>$old,'reason'=>$b['reason'],'at'=>gmdate('c'),'by'=>$u['username']??''];}
+    return ['invoiceId'=>$id,'journalId'=>$jid,'amount'=>$amount];
+}
+function eiv_cancel(array &$s,string $entity,array $b,array $u,array $names): array {
+    $id=(string)($b['invoiceId']??'');$old=$s['supplierBills'][$id]??null;
+    if(!$old||($old['entity']??'')!==$entity||empty($old['expenseInvoice'])||($old['status']??'')!=='Posted'||($b['expectedJournalId']??'')!==$old['journalId'])throw new InvalidArgumentException('This invoice changed. Reload its current source.');
+    if(eiv_balance($s,$old)['allocated']>.005)throw new InvalidArgumentException('Reverse linked payments through their original workflow before cancelling this invoice.');
+    $reason=trim((string)($b['reason']??''));if(strlen($reason)<5||strlen($reason)>500)throw new InvalidArgumentException('Enter a cancellation reason of 5 to 500 characters.');pex_clear($s,$entity,'EXPENSE-INVOICE|'.$id,$u,$names,$reason);$ids=ev1_reverse_journals($s,[$old['journalId']],$entity,$u,$names,$reason);
+    foreach($ids as $rid)if($s['journals'][$rid]['date']<$old['billDate'])$s['journals'][$rid]['date']=$old['billDate'];
+    $s['supplierBills'][$id]['status']='Cancelled';$s['supplierBills'][$id]['cancellationReason']=$reason;$s['expenseAudit'][]=['action'=>'CANCEL_EXPENSE_INVOICE','entity'=>$entity,'id'=>$id,'before'=>$old,'reason'=>$reason,'at'=>gmdate('c'),'by'=>$u['username']??''];
+    return ['invoiceId'=>$id,'journalId'=>$ids[0],'status'=>'Cancelled'];
+}
+
 /** One recipient and one payment source; every expense has its own debit leg. */
 function dex_rows(mixed $input,array $names,array $store=[],string $entity='TTI'): array {
     if(!is_array($input)||count($input)<1||count($input)>50)throw new InvalidArgumentException('Add between one and 50 expense rows.');
@@ -59,6 +121,7 @@ function dex_post(array &$store,string $entity,array $body,array $user,array $na
     [$rows,$total]=dex_rows($body['expenseLines']??null,$names,$store,$entity);$paymentId=trim((string)($body['paymentAccountId']??''));
     if(isset($body['amount'])&&(!is_numeric($body['amount'])||abs(round((float)$body['amount'],2)-$total)>.005))throw new InvalidArgumentException('Payment total must equal all expense rows.');
     foreach((array)($store['generalExpenses']??[]) as $previous)if(($previous['entity']??'')===$entity&&!in_array(($previous['status']??''),['Deleted','Amended'],true)&&$reference!==''&&strcasecmp((string)($previous['reference']??''),$reference)===0&&strcasecmp((string)($previous['payee']??''),$payee)===0)throw new InvalidArgumentException('This expense reference is already recorded for the recipient.');
+    eiv_assert_not_captured($store,$entity,$payee,$reference);
     $credit=ev1_card_charge_credit($store,$entity,$paymentId,$total,$date,$names);dex_check_cheque($store,$entity,$paymentId,$tracking);
     $recipientId=$profile['id']??'EXP|'.sac_normal($payee);if(!isset($store['paymentPayees'][$entity.'|'.$recipientId]))$store['paymentPayees'][$entity.'|'.$recipientId]=['id'=>$recipientId,'entity'=>$entity,'kind'=>'EXPENSE','name'=>$payee,'active'=>true,'configured'=>true,'accountCode'=>'6900','subaccountId'=>'','expenseCategory'=>'OFFICE'];
     $id=ev1_id((array)($store['generalExpenses']??[]),'GEX');$meta=['generalExpenseId'=>$id,'directExpense'=>true,'payee'=>$payee,'payeeId'=>$recipientId,'paymentAccountId'=>$paymentId,'expenseLines'=>$rows,'paymentNarration'=>$narration];$lines=[];
