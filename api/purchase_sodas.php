@@ -203,10 +203,10 @@ function ps_rows(array $store, string $entity): array {
         }
         $blockers = [];
         if ($received <= 0) $blockers[] = 'No committed receipts / liftings';
-        if (!$weightMet) $blockers[] = 'Received quantity is below the completion threshold';
-        if (!$truckMet) $blockers[] = 'Expected truck / container units are not yet received';
+        if (!$weightMet) $blockers[] = 'Quantity still required: '.number_format(max(0, ($readyRice ? $maximum * .95 : ($exMill ? $minimum * .95 : $minimum)) - $received) / 1000, 3).' MT';
+        if (!$truckMet) $blockers[] = 'Truck / container units still required: '.max(0, $expected - $truckUnits);
         if ($overMaximum) $blockers[] = 'Quantity exceeds tolerance; review required';
-        if ($unbilled > 0 || $billed <= 0) $blockers[] = 'Receipt / lifting billing is incomplete';
+        if ($unbilled > 0 || $billed <= 0) $blockers[] = 'Receipt / lifting billing incomplete: '.$unbilled.' unbilled receipt(s)';
         if (round($outstanding, 2) > .005) $blockers[] = 'Outstanding supplier payable: PKR '.number_format($outstanding, 2);
         $rows[] = $soda + ['completionBlockers'=>$blockers] + ['id'=>(string)$id, 'basis'=>$hasWeight && $hasTrucks ? 'BOTH' : ($hasWeight ? 'WEIGHT' : 'TRUCKS'), 'receivedKg'=>round($received,3), 'liftedKg'=>(string)($soda['readyRoute']??'')==='EX_MILL'?round($received,3):0, 'trucksReceived'=>$physicalTrucks, 'truckUnitsReceived'=>$truckUnits, 'unbilledArrivals'=>$unbilled, 'billedAmount'=>round($billed,2), 'paidAmount'=>round($paid,2), 'payableOutstanding'=>round($outstanding,2), 'calculatedStatus'=>$status, 'minAllowedKg'=>round($readyRice?$maximum*.95:($exMill?$minimum*.95:$minimum),3), 'tolerancePercent'=>$exMill||$readyRice?5:0, 'maxAllowedKg'=>round($maxAllowed,3), 'overMaximum'=>$overMaximum, 'receipts'=>$receipts];
     }
