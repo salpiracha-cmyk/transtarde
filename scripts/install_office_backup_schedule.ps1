@@ -2,6 +2,19 @@
 [CmdletBinding()]
 param([string]$AgentDirectory = $PSScriptRoot)
 $ErrorActionPreference = 'Stop'
+function Resolve-TtiBackupTaskOwnerSid {
+    param([string]$AccountName)
+    if ([string]::IsNullOrWhiteSpace($AccountName)) { throw 'The task has no user account.' }
+    if ($AccountName -match '^S-1-') {
+        return ([System.Security.Principal.SecurityIdentifier]::new($AccountName)).Value
+    }
+    # Task Scheduler can store a local username without its computer prefix.
+    # Qualify it before translation, particularly when both names are identical.
+    if (!$AccountName.Contains('\') -and !$AccountName.Contains('@')) {
+        $AccountName = $env:COMPUTERNAME + '\' + $AccountName
+    }
+    return ([System.Security.Principal.NTAccount]::new($AccountName)).Translate([System.Security.Principal.SecurityIdentifier]).Value
+}
 $taskName = 'Transtrade_Office_Backup'
 $task = Get-ScheduledTask -TaskName $taskName
 if ($task.State -eq 'Running') { throw 'A backup is running. Let it finish before changing its schedule.' }
@@ -12,7 +25,7 @@ if (!(Get-Content -LiteralPath $agentPath -Raw).Contains("'--scheduled'")) { thr
 $identity = [System.Security.Principal.WindowsIdentity]::GetCurrent()
 $owner = $task.Principal.UserId
 try {
-    $ownerSid = if ($owner -match '^S-1-') { $owner } else { ([System.Security.Principal.NTAccount]$owner).Translate([System.Security.Principal.SecurityIdentifier]).Value }
+    $ownerSid = Resolve-TtiBackupTaskOwnerSid -AccountName $owner
 } catch { throw 'Could not verify the existing task owner. The task was not changed.' }
 if ($ownerSid -ne $identity.User.Value) { throw 'Sign in as the existing backup task owner so its protected configuration remains available.' }
 $configPath = Join-Path $env:APPDATA 'Transtrade\office-backup.json'
@@ -30,7 +43,7 @@ $logPath = Join-Path $AgentDirectory 'office-backup-latest.log'
 $arguments = '-u "' + $agentPath + '" --backup-only --scheduled --log-file "' + $logPath + '"'
 $action = New-ScheduledTaskAction -Execute $pythonPath -Argument $arguments -WorkingDirectory $AgentDirectory
 $daily = New-ScheduledTaskTrigger -Daily -At '18:00'
-$catchup = New-ScheduledTaskTrigger -AtLogOn -User $owner
+$catchup = New-ScheduledTaskTrigger -AtLogOn -User $identity.Name
 $settings = $task.Settings
 $settings.StartWhenAvailable = $true
 $settings.MultipleInstances = 2 # IgnoreNew: one backup task at a time.
