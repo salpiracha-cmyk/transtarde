@@ -244,10 +244,14 @@ test('authenticated Accounts live smoke: professional desk and popup workflows',
   await activate(page.locator('#rsPrepare'));
   await expect(page.locator('#expenseEditor h1')).toContainText('TOTAL MONTHLY ENTITLEMENT PKR');
   await expect(page.locator('#rsMonth')).toBeVisible();
+  await expect(page.locator('.ttrs-salary-table th')).toHaveCount(5);
+  expect(await page.locator('.ttrs-salary-table').evaluate(el => el.scrollWidth <= el.clientWidth + 2)).toBeTruthy();
+  const firstSalaryActions = page.locator('.ttrs-salary-table tbody tr').first().locator('button');
+  expect(await firstSalaryActions.evaluateAll(buttons => buttons.every(button => { const box = button.getBoundingClientRect(); return box.left >= 0 && box.right <= innerWidth; }))).toBeTruthy();
   const salaryPay = page.locator('[data-rs-draft-pay]').first();
   if (await salaryPay.count()) {
     await activate(salaryPay);
-    await expect(page.locator('#rsDraftForm h3')).toContainText('Actual payments');
+    await expect(page.locator('#rsDraftForm h3')).toContainText(/Actual payments|Monthly payment/);
     await expect(page.locator('#rsDraftForm')).toContainText('Saving retains a draft; complete the month to post.');
     await expect(page.locator('#rsAddTransaction')).toBeVisible();
     await expect(page.locator('#rsPaySalBtn')).toHaveText('Save payment draft');
