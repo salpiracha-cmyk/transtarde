@@ -1,6 +1,6 @@
 # Run as the existing backup task's Windows user, after updating the agent.
 [CmdletBinding()]
-param([string]$AgentDirectory = $PSScriptRoot)
+param([string]$AgentDirectory = $PSScriptRoot, [System.Management.Automation.PSCredential]$TaskCredential)
 $ErrorActionPreference = 'Stop'
 function Resolve-TtiBackupTaskOwnerSid {
     param([string]$AccountName)
@@ -28,6 +28,10 @@ try {
     $ownerSid = Resolve-TtiBackupTaskOwnerSid -AccountName $owner
 } catch { throw 'Could not verify the existing task owner. The task was not changed.' }
 if ($ownerSid -ne $identity.User.Value) { throw 'Sign in as the existing backup task owner so its protected configuration remains available.' }
+if ($task.Principal.LogonType -eq 'Password') {
+    if (!$TaskCredential) { throw 'Updating this password-based task requires its current Windows password. Use the updated office updater.' }
+    if ((Resolve-TtiBackupTaskOwnerSid $TaskCredential.UserName) -ne $ownerSid) { throw 'The supplied credential must belong to the existing task owner.' }
+}
 $configPath = Join-Path $env:APPDATA 'Transtrade\office-backup.json'
 if (!(Test-Path -LiteralPath $configPath -PathType Leaf)) { throw 'The existing protected backup configuration was not found. The task was not changed.' }
 $originalAction = $task.Actions | Select-Object -First 1
@@ -53,7 +57,20 @@ $settings.ExecutionTimeLimit = 'PT4H'
 $settings.WakeToRun = $true
 $settings.DisallowStartIfOnBatteries = $false
 $settings.StopIfGoingOnBatteries = $false
-Set-ScheduledTask -TaskName $taskName -Action $action -Trigger @($daily, $catchup) -Settings $settings | Out-Null
+$updateParameters = @{TaskName=$taskName; Action=$action; Trigger=@($daily, $catchup); Settings=$settings; ErrorAction='Stop'}
+if ($TaskCredential) {
+    $updateParameters.User = $identity.Name
+    $updateParameters.Password = $TaskCredential.GetNetworkCredential().Password
+}
+try {
+    Set-ScheduledTask @updateParameters | Out-Null
+} catch {
+    throw 'Windows did not accept the task update. Check the Windows account password (not its PIN). The 6 pm schedule was not installed.'
+} finally {
+    $updateParameters.Remove('Password')
+}
+$confirmed = Get-ScheduledTask -TaskName $taskName
+if (($confirmed.Actions | Select-Object -First 1).Arguments -ne $arguments) { throw 'The installed task action did not match. Schedule installation was not verified.' }
 Write-Host 'Installed: daily 6 pm Pakistan time; missed-run catch-up; weekly Monday and monthly first weekday use the same verified download.'
 Write-Host ('Latest run log: ' + $logPath)
 Get-ScheduledTask -TaskName $taskName | Get-ScheduledTaskInfo | Format-List LastRunTime, LastTaskResult, NextRunTime
