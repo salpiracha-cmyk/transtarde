@@ -39,7 +39,7 @@ with tempfile.TemporaryDirectory(prefix='party-ledger-qa-') as temp:
         'POST-2026-00005': journal('POST-2026-00005','2026-07-04',[
             line('2110',credit=7),line('1310',debit=7)]),
         'POST-2026-00006': journal('POST-2026-00006','2026-07-04',[
-            line('2140',credit=15),line('6800',debit=15)],meta={'supplierBillId':'B1'}),
+            line('2140',credit=15),line('6800',debit=15)],meta={'payee':'','supplierBillId':'B1'}),
         'POST-2026-00007': journal('POST-2026-00007','2026-07-05',[
             line('2110',credit=900,counterparty='SECRET BRM'),line('1310',debit=900)],entity='BRM'),
         'POST-2026-00008': journal('POST-2026-00008','2026-08-01',[
@@ -55,6 +55,8 @@ with tempfile.TemporaryDirectory(prefix='party-ledger-qa-') as temp:
     books['creditCardStatements']={'S1':{'entity':'TTI','cardMasterId':'C1','cardName':'Fixture card'}}
     books['journals']['POST-2026-00012']=journal('POST-2026-00012','2026-07-10',[line('2400',credit=25,statementId='S1',cardMasterId='C1'),line('6900',debit=25)],sourceType='CREDIT_CARD_STATEMENT')
     books['journals']['POST-2026-00013']=journal('POST-2026-00013','2026-07-11',[line('2400',debit=25,statementId='S1',cardMasterId='C1'),line('1110',credit=25)],sourceType='CREDIT_CARD_PAYMENT')
+    books['exportCandidates']={'CAND1':{'entity':'TTI','meta':{'vendor':'ACME Rice'}}}
+    books['journals']['POST-2026-00014']=journal('POST-2026-00014','2026-07-12',[line('6500',debit=3),line('6900',credit=3)],meta={'candidateId':'CAND1'})
     books['journals']['POST-2026-00009']['status']='Draft'
     path=root/'data/accounts.json';path.write_text(json.dumps(books));original=path.read_bytes()
     with socket.socket() as sock:
@@ -91,6 +93,10 @@ with tempfile.TemporaryDirectory(prefix='party-ledger-qa-') as temp:
         assert get(party='ACME Rice',postId='POST-2026-00002')[1]['post']['lines'][1]['account']=='1110'
         assert get(party='HKM')[1]['closing']==-35, 'Saved party codes resolve to the same canonical ledger'
         status,register=get(category='other',account='POSTS');assert status==200 and any(r['voucher']=='POST-2026-00003' for r in register['rows']), 'Non-cash journals must be in the Post ID Register'
+        headings={row['voucher']:row['party'] for row in register['rows']}
+        assert headings['POST-2026-00014']=='ACME Rice','Accepted source candidate must name its supplier in the register'
+        assert headings['POST-2026-00006']=='ACME Rice','Source-linked supplier bill must name the party in the register'
+        assert headings['POST-2026-00004']=='acme   rice','Explicit party survives without an invented ledger label'
         assert get(party='SECRET BRM')[0]==422
         assert get(entity='BRM')[0]==403
         assert get(entity='ALL')[0]==403
