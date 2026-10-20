@@ -1,6 +1,15 @@
 <?php
 declare(strict_types=1);
 
+/** Reject impossible calendar dates before a master can affect dated workflows. */
+function tt_master_calendar_date(string $value,string $label,bool $optional=false): string {
+    $value=trim($value);
+    if($optional&&$value==='')return '';
+    $date=DateTimeImmutable::createFromFormat('!Y-m-d',$value);
+    if(!preg_match('/^\d{4}-\d{2}-\d{2}$/D',$value)||!$date||$date->format('Y-m-d')!==$value)throw new InvalidArgumentException($label.' must be a valid calendar date.');
+    return $value;
+}
+
 /** Consistent concise picker identity. Full account details stay in Company Master and bank views. */
 function tt_bank_choice_label(string $bank,string $currency,string $number='',string $iban=''):string {
  $raw=preg_replace('/\s+/','',trim($number!==''?$number:$iban))??'';

@@ -767,6 +767,7 @@ function tt_company_vat_rate(string $companyCode, float $default=5.0): float {
 function tt_create_master(string $type, array $values): string {
     return tt_mutate_store(function (&$data) use ($type,$values): string {
         if (!isset($data['masters'][$type]) || !is_array($data['masters'][$type])) $data['masters'][$type]=[];
+        if($type==='companies')foreach($data['masters'][$type] as $row)if(strcasecmp(trim((string)($row['values'][1]??'')),trim((string)($values[1]??'')))===0)throw new InvalidArgumentException('This company short code already belongs to another company. Open that existing company instead.');
         if($type==='business_parties')foreach($data['masters'][$type] as $row)if(tt_master_names_conflict((string)($values[0]??''),(string)($row['values'][0]??''),$type))throw new InvalidArgumentException('A matching or confusingly similar party already exists. Select its existing master record.');
         $id=$type.'-'.random_int(100000,999999999);
         $data['masters'][$type][]= ['id'=>$id,'values'=>$values];
@@ -777,6 +778,10 @@ function tt_create_master(string $type, array $values): string {
 function tt_update_master(string $type, string $id, array $values): void {
     tt_mutate_store(function (&$data) use ($type,$id,$values): void {
         if (!isset($data['masters'][$type]) || !is_array($data['masters'][$type])) throw new RuntimeException('Master type not found.');
+        if($type==='companies'){
+            $current=null;foreach($data['masters'][$type] as $row)if(($row['id']??'')===$id)$current=$row;
+            if(strcasecmp(trim((string)($current['values'][1]??'')),trim((string)($values[1]??'')))!==0)foreach($data['masters'][$type] as $row)if(($row['id']??'')!==$id&&strcasecmp(trim((string)($row['values'][1]??'')),trim((string)($values[1]??'')))===0)throw new InvalidArgumentException('This company short code already belongs to another company.');
+        }
         if($type==='business_parties')foreach($data['masters'][$type] as $other)if(($other['id']??'')!==$id&&tt_master_names_conflict((string)($values[0]??''),(string)($other['values'][0]??''),$type)){
             $current=null;foreach($data['masters'][$type] as $row)if(($row['id']??'')===$id)$current=$row;
             if(tt_master_name_identity((string)($current['values'][0]??''),$type)!==tt_master_name_identity((string)($values[0]??''),$type))throw new InvalidArgumentException('A matching or confusingly similar party already exists. Select its existing master record.');
