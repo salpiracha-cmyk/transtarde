@@ -1,6 +1,6 @@
 # Transtrade migration readiness — 19 October 2026
 
-Latest resumed pass: [20 October live review and PR395 backup fixes](RESUMED_AUDIT_2026-10-20.md). Chrome reconnected; exact-main QA passed. Coverage156:124passed,22partial,3failed,4not tested,2blocked,1intermittent. Office PC runtime, original-source decisions, independent migration and formal security remain open.
+Latest continuation: [20 October authenticated cloud master review and PR398–400 repairs](CLOUD_MASTER_AUDIT_2026-10-20.md). Current coverage156:124passed,23partial,3failed,3not tested,2blocked,1intermittent. The32open scopes include unavailable source/device acceptance; they are not32confirmed code defects. Earlier chronological counts below are historical checkpoints.
 
 [Current closeout and required source decisions](CLOSEOUT_2026-10-20.md)
 
