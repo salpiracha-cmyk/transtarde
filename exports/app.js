@@ -91,7 +91,7 @@ function requiredReason(message){const reason=String(prompt(message)||'').trim()
 function snapshot(target,reason,action='Amended'){target.versions=Array.isArray(target.versions)?target.versions:[];target.versions.push({at:new Date().toISOString(),by:currentUser(),role:currentRole(),reason,action,snapshot:structuredClone({...target,versions:[]})})}
 function contractHasDownstream(c){const p=state.shipments.find(s=>s.kind!=='lot'&&s.contractRef===c.ref);return !!p&&((p.bagOrders||[]).length||p.production?.sentToMill||lotsFor(p).length)}
 function accountsFor(s,c,scope='CUSTOMER'){
- let external=[];if(!window.TT_EXPORT_TAX_SOURCE)try{external=JSON.parse(localStorage.getItem('tt40exportreceipts')||'[]')}catch{}
+ let external=[];if(typeof window==='undefined'||!window.TT_EXPORT_TAX_SOURCE)try{external=JSON.parse(localStorage.getItem('tt40exportreceipts')||'[]')}catch{}
  const merged=new Map([...state.accountsReceipts,...(Array.isArray(external)?external:[])].map(r=>[String(r.id||r.receiptNo||JSON.stringify(r)),r])),tgRef=String(s.tgdocs?.customsInvoiceNo||s.customs?.invoiceNo||''),invoiceRef=scope==='TG_PACK'?tgRef:String(s.commercial?.invoiceNo||c.ref||''),currency=scope==='TG_PACK'?customsCurrencyFor(s,c):c.currency;
  return [...merged.values()].filter(r=>{
   if(r.status==='Reversed'||r.currency!==currency)return false;
