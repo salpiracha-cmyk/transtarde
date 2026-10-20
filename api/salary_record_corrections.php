@@ -93,3 +93,69 @@ function src_correct(array &$s,string $e,string $m,array $b,array $u,array $name
     $result=['journalId'=>$monthId,'correctedDates'=>$dateCount,'separatedJournals'=>$accountCount,'changes'=>$changes];
     $next['postingKeys'][$key]=['fingerprint'=>$fingerprint,'result'=>$result,'createdAt'=>gmdate('c')];$s=$next;return $result;
 }
+
+/** Active source transactions for the payment list. Labels never change journal identity. */
+function src_payments(array $s,string $e,string $m,array $u):array {
+    $out=[];$sheet=$s['salarySheets'][$e.'|'.$m]??[];
+    foreach(src_current($s,$e) as $id=>$j){
+        if(($j['sourceType']??'')!=='SALARY_ALLOCATED_PAYMENT'||src_month($j)!==$m)continue;
+        $owner=$j['meta']['paymentGroupOwner']??'';$index=$j['meta']['paymentGroupIndex']??-1;
+        $t=$sheet['paymentGroups'][$owner][$index]??null;if(!$t||($t['status']??'')==='Reversed')continue;
+        foreach($t['allocations'] as &$a)if(($a['type']??'')==='ASSET_PAYMENT'&&isset($s['managedAssets'][$a['assetId']]))$a['assetVersion']=$s['managedAssets'][$a['assetId']]['version'];unset($a);
+        $out[]=['journalId'=>$id,'publicPostId'=>tt_accounts_public_post($s,$j),'owner'=>$owner,'transaction'=>$t,
+            'canAmend'=>tt_user_can_access_entity($u,$e,'Edit')&&(!function_exists('tt_post_correction_allowed')||tt_post_correction_allowed($u,$j))];
+    }
+    return $out;
+}
+/** Amend one complete source payment through the same canonical allocation engine. */
+function src_amend_payment(array &$s,string $e,string $m,array $b,array $u,array $names):array {
+    $key=$e.'|SALARY_PAYMENT_AMEND|'.rsv2_request_key($b['requestKey']??'');
+    $fp=rsv2_fingerprint(array_intersect_key($b,array_flip(['month','journalId','transaction','reason','snapshot'])));
+    if(isset($s['postingKeys'][$key])){if(!hash_equals($s['postingKeys'][$key]['fingerprint'],$fp))throw new DomainException('This amendment key was already used for different details.');return $s['postingKeys'][$key]['result']+['duplicate'=>true];}
+    if(!hash_equals(src_snapshot($s,$e),(string)($b['snapshot']??'')))throw new DomainException('Salary records changed. Reopen this payment before amending it.');
+    $id=(string)($b['journalId']??'');$j=src_current($s,$e)[$id]??null;
+    if(!$j||($j['sourceType']??'')!=='SALARY_ALLOCATED_PAYMENT'||($j['meta']['salarySheetKey']??'')!==$e.'|'.$m)throw new DomainException('Select a current actual salary payment from this company and month.');
+    $reason=trim((string)($b['reason']??''));if(strlen($reason)<5||strlen($reason)>300)throw new DomainException('Enter an amendment reason (5–300 characters).');
+    $sk=$e.'|'.$m;$closed=$s['salarySheets'][$sk]??[];
+    if(($closed['status']??'')!=='Completed')throw new DomainException('Use the draft payment editor for an unfinished salary month.');
+    $owner=$j['meta']['paymentGroupOwner'];$index=$j['meta']['paymentGroupIndex'];$original=$closed['paymentGroups'][$owner][$index]??null;
+    $tx=$b['transaction']??null;if(!is_array($tx)||!$original)throw new DomainException('The original payment requires review.');
+    // The recipient belongs to this source; amendments must not silently change it.
+    $tx['recipient']=$original['recipient'];
+    $next=$s;$reverse=sfw_reverse_payment($next,$e,$m,['journalId'=>$id,'reason'=>$reason,'date'=>$j['date']],$u,$names,true);
+    $rid=$reverse['journalId'];$closed=$next['salarySheets'][$sk];
+    // Isolate the replacement from other already-posted groups. Current period
+    // balances count those payments; revalidating/reposting them would double-pay.
+    $temp=$closed;$temp['status']='Draft';$temp['version']=0;$temp['paymentGroups']=[];
+    unset($temp['masterChanged'],$temp['sourceInputsChanged'],$temp['canRefreshFromMaster']);
+    $temp['masterSignature']=smw_master_signature($next,$e,$m);
+    $temp['advanceSignature']=smw_advance_signature($next,$e,$m);$temp['personalSignature']=smw_personal_signature($next,$e,$m);
+    foreach($temp['rows'] as $mid=>&$row){$p=$next['salaryPeriods'][$row['periodId']]??null;if(!$p)throw new DomainException('The original salary period is unavailable.');
+        $row['prepared']=true;$row['baseline']=rsv2_fingerprint($p);$row['paidAfterPrepare']=(float)$p['paidAfterPrepare']+(float)($p['personalDeducted']??0);
+        $row['advanceApplied']=$row['originalAdvanceApplied']=$row['requestedRecovery']=(float)$p['advanceApplied'];$row['payment']=null;$row['outstanding']=$p['outstanding'];
+    }unset($row);
+    // Removing this source's asset instalment increments its register version.
+    foreach($tx['allocations']??[] as $ix=>$a)if(($a['type']??'')==='ASSET_PAYMENT')foreach($original['allocations'] as $old)if(($old['type']??'')==='ASSET_PAYMENT'&&($old['assetId']??'')===($a['assetId']??'')&&(int)($a['assetVersion']??-1)===(int)($s['managedAssets'][$a['assetId']]['version']??-2))$tx['allocations'][$ix]['assetVersion']=$next['managedAssets'][$a['assetId']]['version'];
+    $next['salarySheets'][$sk]=$temp;
+    sfw_save($next,$e,$m,['masterId'=>$owner,'version'=>0,'transactions'=>[$tx],'advanceApplied'=>$temp['rows'][$owner]['advanceApplied']],$u,$names,true);
+    $valid=$next['salarySheets'][$sk];
+    foreach($valid['rows'] as $mid=>$row)if(abs($row['advanceApplied']-$temp['rows'][$mid]['advanceApplied'])>.005)throw new DomainException('Payment exceeds the unpaid entitlement after posted advance recovery for '.$row['name'].'.');
+    $ids=sfw_post_groups($next,$e,$m,$valid,$u,$names);if(count($ids)!==1)throw new DomainException('Amend exactly one actual payment.');$nid=$ids[0];$tx=$valid['paymentGroups'][$owner][0];
+    foreach($tx['allocations'] as $a)foreach(sea_charges($a) as $c){$pid=rsv2_pid($e,$m,$c['masterId']);$p=&$next['salaryPeriods'][$pid];$p['paidAfterPrepare']=round($p['paidAfterPrepare']+$c['amount'],2);$p['outstanding']=round($p['outstanding']-$c['amount'],2);if($p['outstanding']<-.005)throw new DomainException('Payment exceeds the beneficiary balance.');$p['status']=$p['outstanding']>.005?'Payable':'Paid';unset($p);}
+    $closed['paymentGroups'][$owner][$index]=$tx;
+    $groupPaid=[];foreach(sfw_groups($closed) as $ts)foreach($ts as $t)if(($t['status']??'')!=='Reversed')foreach($t['allocations'] as $a)foreach(sea_charges($a) as $c)$groupPaid[$c['masterId']]=round(($groupPaid[$c['masterId']]??0)+$c['amount'],2);
+    foreach($closed['rows'] as $mid=>&$row){$p=$next['salaryPeriods'][$row['periodId']];$row['paidAfterPrepare']=round($p['paidAfterPrepare']+($p['personalDeducted']??0)-($groupPaid[$mid]??0),2);}unset($row);
+    sfw_recalculate($closed);
+    // Preserve the completed month's posted recovery and entitlement exactly.
+    foreach($closed['rows'] as $mid=>$row)if(abs($row['advanceApplied']-$s['salarySheets'][$sk]['rows'][$mid]['advanceApplied'])>.005)throw new DomainException('A payment amendment cannot change posted advance recovery.');
+    $closed['paymentPostIds']=array_map(static fn($v)=>$v===$id?$nid:$v,$closed['paymentPostIds']);
+    $closed['corrections'][array_key_last($closed['corrections'])]['replacementPostId']=$nid;$closed['updatedAt']=gmdate('c');$next['salarySheets'][$sk]=$closed;
+    $meta=&$next['journals'][$nid]['meta'];$meta['paymentGroupIndex']=$index;$meta['salaryMonthPostId']=$closed['journalId'];$meta['publicPostId']=tt_accounts_public_post($s,$j);$meta['amendmentOfPostId']=$id;$meta['amendmentReason']=$reason;$meta['reversalPostId']=$rid;$meta['amendmentNote']='Edited '.gmdate('Y-m-d').' by '.($u['full_name']??$u['username']??'Accounts').' — '.$reason;
+    // Retain a cleared-bank identity only when its amount, date and source are unchanged.
+    if($tx['date']===$original['date']&&$tx['paymentAccountId']===$original['paymentAccountId']&&abs($tx['amount']-$original['amount'])<.005)$meta['reconciliationPostId']=$j['meta']['reconciliationPostId']??$id;
+    $meta['salarySummary']=src_summary($next,$e,$m,$closed);unset($meta);
+    $next['journals'][$id]['amendedByPostId']=$nid;$next['journals'][$id]['amendmentReversalPostId']=$rid;
+    foreach($next['postingKeys']??[] as $pk=>$r)foreach(['journalId','replacementPostId'] as $f)if(($r['result'][$f]??'')===$id)$next['postingKeys'][$pk]['result'][$f]=$nid;
+    $next['postAmendments'][]=['originalPostId'=>$id,'reversalPostId'=>$rid,'replacementPostId'=>$nid,'entity'=>$e,'reason'=>$reason,'date'=>$tx['date'],'actor'=>$u['username']??'Accounts','at'=>gmdate('c')];
+    $result=['journalId'=>$nid,'replacementPostId'=>$nid,'reversalPostId'=>$rid];$next['postingKeys'][$key]=['fingerprint'=>$fp,'result'=>$result,'createdAt'=>gmdate('c')];$s=$next;return $result;
+}

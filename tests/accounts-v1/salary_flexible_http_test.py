@@ -109,6 +109,42 @@ with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
         assert state['salaryPeriods']['TTI|2026-10|Salman']['outstanding']==185000
         assert state['salaryAdvances']['P']['remaining']==5000
         before=saved();assert request({'action':'complete_salary_month','version':sheet['version'],'date':'2026-10-31'})[0]==200;assert saved()==before,'Completion retry is idempotent'
+        # Amend a single posted source through its canonical engine, never a raw JV.
+        amend_base=saved()
+        changed_defaults=saved();changed_defaults['salaryMasters']['Mrs']['monthlyAmount']=310000;(root/'data/accounts.json').write_text(json.dumps(changed_defaults))
+        paylist=request()[1]['salaryPayments'];assert len(paylist)==2
+        record=next(r for r in paylist if r['transaction']['paymentAccountId']=='bank-b')
+        tx=json.loads(json.dumps(record['transaction']));tx['date']='2026-10-09';tx['bankPaymentDate']=tx['date'];tx['paymentAccountId']='bank-a'
+        tx['allocations'][0]['amount']=90000;tx['amount']=110000
+        amend={'action':'amend_salary_allocated_payment','journalId':record['journalId'],'transaction':tx,'reason':'Correct source and partial monthly payment','snapshot':request()[1]['salaryCorrectionSnapshot'],'requestKey':'fixture-amend-payment'}
+        before=saved();status,preview=request({**amend,'preview':True});assert status==200,preview;assert saved()==before
+        assert len(preview['previews'])==2
+        assert request({**amend,'snapshot':'stale'})[0]==422 and saved()==before
+        invalid=json.loads(json.dumps(amend));invalid['transaction']['amount']=1
+        assert request(invalid)[0]==422 and saved()==before
+        invalid=json.loads(json.dumps(amend));invalid['transaction']['allocations'][0]['amount']=999999;invalid['transaction']['amount']=1019999
+        assert request(invalid)[0]==422 and saved()==before
+        status,result=request(amend);assert status==200,result
+        amended=saved();newid=result['result']['journalId'];replacement=amended['journals'][newid]
+        assert replacement['meta']['publicPostId']==record['journalId']
+        assert replacement['meta']['paymentGroupIndex']==1
+        assert amended['journals'][record['journalId']]['amendedByPostId']==newid
+        assert amended['salaryPeriods']['TTI|2026-10|Mrs']['outstanding']==10000
+        assert amended['salaryPeriods']['TTI|2026-10|Salman']['outstanding']==185000
+        assert amended['salaryAdvances']==before['salaryAdvances']
+        assert amended['salarySheets']['TTI|2026-10']['rows']['Mrs']['outstanding']==10000
+        assert amended['salarySheets']['TTI|2026-10']['rows']['Mrs']['payment']['amount']==290000
+        assert amended['salarySheets']['TTI|2026-10']['journalId']==before['salarySheets']['TTI|2026-10']['journalId']
+        assert len([e for e in amended['investmentTransactions'].values() if e['status']=='Posted'])==2
+        assert replacement['totalDebit']==replacement['totalCredit']==120000
+        assert next(l for l in replacement['lines'] if l['account']=='1110')['bankAccountId']=='bank-a'
+        assert request(amend)[1]['result']['duplicate'] and saved()==amended
+        assert request({**amend,'reason':'Altered replay'})[0]==422 and saved()==amended
+        # Canonical links allow a subsequent full reversal of the replacement.
+        assert request({'action':'reverse_salary_allocated_payment','journalId':newid,'date':'2026-10-09','reason':'Reverse amended source fixture'})[0]==200
+        assert saved()['salaryPeriods']['TTI|2026-10|Mrs']['outstanding']==100000
+        (root/'data/accounts.json').write_text(json.dumps(amend_base))
+        print('PASS payment amendment preview/rollback/stale/retry, source/date/amount, beneficiary balances, unchanged recovery/entitlement, investment event replacement and reversal')
         # Explicit payroll separation/date correction preserves books, stable public IDs,
         # company investment events, completed sheet links and source reversibility.
         correction_base=saved()
@@ -229,6 +265,20 @@ with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
         bma_after=sum(l['debit']-l['credit'] for j in posted['journals'].values() for l in j['lines'] if l['account']=='1430' and l.get('brokerId')=='BMA')
         assert bma_after-bma_before==10000,'BMA capital/funds balance increases by the actual funding once; the source is credited once'
         before_retry=saved();assert request(body,'2027-04')[0]==200;assert saved()==before_retry
+        # Asset versions are refreshed only for the instalment reversed atomically.
+        asset_amend_base=saved();rec=next(r for r in request(month='2027-04')[1]['salaryPayments'] if r['journalId']==journal['id'])
+        changed_tx=json.loads(json.dumps(rec['transaction']));changed_tx['date']='2027-04-04';changed_tx['bankPaymentDate']='2027-04-04'
+        for a in changed_tx['allocations']:
+            if a['type']=='ASSET_PAYMENT':assert a['assetVersion']==asset_amend_base['managedAssets']['PROP']['version']
+        amend_asset={'action':'amend_salary_allocated_payment','journalId':journal['id'],'transaction':changed_tx,'reason':'Correct source asset payment date','snapshot':request(month='2027-04')[1]['salaryCorrectionSnapshot'],'requestKey':'fixture-amend-asset'}
+        assert request({**amend_asset,'preview':True},'2027-04')[0]==200 and saved()==asset_amend_base
+        status,amended_asset=request(amend_asset,'2027-04');assert status==200,amended_asset
+        asset_jid=amended_asset['result']['journalId'];asset_store=saved()
+        assert len(asset_store['managedAssets']['PROP']['payments'])==1
+        assert next(iter(asset_store['managedAssets']['PROP']['payments'].values()))['journalId']==asset_jid
+        assert len([t for t in asset_store['investmentTransactions'].values() if t['journalId']==asset_jid and t['status']=='Posted'])==1
+        assert asset_store['salaryPeriods']['TTI|2027-04|Mrs']['outstanding']==0
+        (root/'data/accounts.json').write_text(json.dumps(asset_amend_base))
         status,result=request({'action':'reverse_salary_allocated_payment','journalId':journal['id'],'date':'2027-04-03','reason':'Reverse complete extra payment'},'2027-04');assert status==200,result
         reversed_state=saved();assert not reversed_state['managedAssets']['PROP']['payments'];assert reversed_state['managedAssets']['PROP']['paymentCorrections'][0]['payment']==link
         assert reversed_state['salaryPeriods']['TTI|2027-04|Mrs']['outstanding']==300000
