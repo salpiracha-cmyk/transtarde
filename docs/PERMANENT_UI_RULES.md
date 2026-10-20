@@ -418,6 +418,13 @@ Online Banking payments expose an editable payment date, defaulting from the vou
 
 ## Director / Mrs payment composition — 20 October 2026
 
+
 - Keep monthly entitlement and recovery at the top. Add removable other-payment rows before the payment sources, using one searchable Pay for list of the existing expense/subledger names and the same Add expense type editor as Expenses. The named Director/Mrs is the recipient; do not ask for Pay to on these rows. Keep required capital, vehicle/tax and remuneration deduction details conditional on the actual selected account.
 - Use one payment section after additions: total, editable petty cash and an optional Bank tick with bank/cheque/online details. Petty cash defaults to the entire total and follows additions/removals until edited. A reduced petty cash amount automatically enables Bank and assigns the exact balance to it; clearing Bank returns the full total to petty cash. Preserve unfinished bank details while hidden and ignore their validation until applicable.
 - Compose exact allocations for each actual cash/bank transaction; never change monthly entitlement to absorb extra expenses or credit the payment source twice. Restore saved splits and purposes. Historical payments with distinct dates, banks or references retain the original detailed editor instead of silently merging their accounting facts. Saving remains draft-only; completion retains the canonical posting, preview, reversal, version and permission safeguards.
+
+## Historical party identity — 20 October 2026
+
+- Descriptive business suffixes such as Shipping Services must not permit a second shortened party master. Check existing masters and original creditor/bill names before creating or renaming a party. Allow explicit restoration of a missing full historical name without changing any journal. Do not automatically merge similar businesses.
+- Permanent master removal must also check historical name references, since older bills may not store a master ID. Keep deactivation and audit history available. A similar creditor name cannot introduce the same opening balance twice in the same company/control account.
+- Post cancellation uses an in-page reason form followed by the existing accounting preview and permission checks. Keep and Escape abandon the action. The original and balanced reversal remain in audit history.
