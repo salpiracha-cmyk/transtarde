@@ -65,6 +65,50 @@ with tempfile.TemporaryDirectory(prefix='master-family-') as directory:
         tail=next(r for r in request()[1]['masters']['export_customers'] if r['id']==customer['masterId'])['values'][16:]
         customer['address']='Revised fixture address'; assert request('/api/export_customers.php',{'action':'upsert','customer':customer})[0]==200
         assert next(r for r in request()[1]['masters']['export_customers'] if r['id']==customer['masterId'])['values'][16:]==tail
+        # The native editor rejects incomplete notify parties; the endpoint must
+        # not silently discard malformed input or truncate the thirteenth party.
+        for invalid in [[{'name':'Notify without address'}], [{'address':'Address without name'}], ['invalid row'], {'name':'Not a list'}, 123,
+                        '{"name":"Not a list"}', '{}', '[{"name":', 'null', '123',
+                        [{'name':[],'address':{}}], [{'name':'X'*181,'address':'Valid address'}],
+                        [{'name':'Valid name','address':'X'*1201}], [{'name':'名'*61,'address':'住所'}],
+                        [{'name':f'Notify {i}','address':f'Address {i}'} for i in range(13)]]:
+            changed=copy.deepcopy(customer); changed['notifies']=invalid
+            before=(auth.read_bytes(),books.read_bytes())
+            status,data=request('/api/export_customers.php',{'action':'upsert','customer':changed})
+            assert status==422 and not data['ok'],('Malformed notify party accepted',invalid,status)
+            assert (auth.read_bytes(),books.read_bytes())==before,'Rejected customer edits must preserve originals'
+            generic=next(r for r in request()[1]['masters']['export_customers'] if r['id']==customer['masterId'])['values']
+            generic[9]=invalid if isinstance(invalid,str) else json.dumps(invalid)
+            unchanged_failure('export_customers',generic,customer['masterId'])
+            generic[0]='Invalid New Notify Fixture'
+            unchanged_failure('export_customers',generic)
+        valid_parties=[{'name':f'Notify {i}','address':f'Address {i}'} for i in range(12)]
+        for supplied,expected in [(valid_parties,valid_parties),(json.dumps(valid_parties),valid_parties),
+                                  ('Notify One | Full Address One\nNotify Two | Full Address Two',
+                                   [{'name':'Notify One','address':'Full Address One'},{'name':'Notify Two','address':'Full Address Two'}]),
+                                  ('',[]),([],[])]:
+            changed=copy.deepcopy(customer); changed['notifies']=supplied
+            status,data=request('/api/export_customers.php',{'action':'upsert','customer':changed})
+            assert status==200 and data['customer']['notifies']==expected,(status,data)
+            saved=next(r for r in request()[1]['masters']['export_customers'] if r['id']==customer['masterId'])
+            assert saved['values'][16:]==tail and json.loads(books.read_text())['journals']==original_journals
+        # Existing incomplete historical data is not silently migrated or made
+        # uneditable when an owner changes an unrelated master note.
+        stored=json.loads(auth.read_text()); legacy=next(r for r in stored['masters']['export_customers'] if r['id']==customer['masterId'])
+        legacy[ 'values'][9]='[{"name":"Historical notify without address"}]';auth.write_text(json.dumps(stored))
+        legacy_values=copy.deepcopy(legacy['values']);legacy_values[11]='Unrelated note amendment'
+        assert save('export_customers',legacy_values,customer['masterId'])[0]==200
+        saved=next(r for r in request()[1]['masters']['export_customers'] if r['id']==customer['masterId'])
+        assert saved['values'][9]==legacy_values[9] and saved['values'][16:]==tail
+        legacy_values[9]=json.dumps(valid_parties)
+        assert save('export_customers',legacy_values,customer['masterId'])[0]==200
+        legacy_values[9]='Generic Notify | Full generic address'
+        assert save('export_customers',legacy_values,customer['masterId'])[0]==200
+        canonical_customer=next(c for c in request('/api/export_customers.php')[1]['customers'] if c['masterId']==customer['masterId'])
+        assert canonical_customer['notifies']==[{'name':'Generic Notify','address':'Full generic address'}]
+        generic_new=copy.deepcopy(legacy_values);generic_new[0]='Valid Generic Notify Fixture';generic_new[1]='VGN'
+        status,data=save('export_customers',generic_new);assert status==200
+        assert next(c for c in request('/api/export_customers.php')[1]['customers'] if c['masterId']==data['id'])['notifies']==canonical_customer['notifies']
         # Reference options are a separate visible family with their canonical shared reader.
         status,data=request(body={'action':'manage-option','type':'reference_lists','optionAction':'add','optionKey':'packing_types','value':'Fixture Packing'}); assert status==200,(status,data)
         status,data=request(body={'action':'manage-option','type':'reference_lists','optionAction':'rename','optionKey':'packing_types','old':'Fixture Packing','value':'Fixture Packing Revised'}); assert status==200,(status,data)

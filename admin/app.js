@@ -1756,7 +1756,7 @@
           ? "Verified automatic snapshots are active"
           : `Backup needs attention${data.lastBackupErrorAt ? ` · last failure ${backupFriendlyDate(data.lastBackupErrorAt)}` : ""}`;
       document.getElementById("backupSnapshotCount").textContent = String(data.snapshotCount ?? 0);
-      document.getElementById("backupSnapshotSize").textContent = `${backupBytes(data.snapshotBytes)} stored privately on server`;
+      document.getElementById("backupSnapshotSize").textContent = `${backupBytes(data.snapshotBytes)} across all stored archives; available recovery points are listed below`;
       document.getElementById("backupLastOwner").textContent = data.lastOwnerDownload ? backupFriendlyDate(data.lastOwnerDownload) : "Not downloaded yet";
       document.getElementById("officeBackupStatus").textContent = data.officeBackupEnabled ? "Backup-only credential active" : "No office backup credential issued";
       const choice = document.getElementById("serverSnapshotChoice");
