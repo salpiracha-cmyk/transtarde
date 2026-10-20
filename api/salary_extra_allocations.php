@@ -64,7 +64,7 @@ function sea_charges(array $a):array {
 function sea_remuneration_balances(array $s,string $e):array {
     $out=[];$asOf=(new DateTimeImmutable('now',new DateTimeZone('Asia/Karachi')))->format('Y-m-d');$hidden=alv_hidden($s,$asOf);
     foreach($s['salaryMasters']??[] as $id=>$m)if(($m['entity']??'')===$e&&($m['category']??'')==='DIRECTOR_REMUNERATION')$out[$id]=['masterId'=>$id,'name'=>$m['name'],'debit'=>0,'credit'=>0,'asOf'=>$asOf];
-    foreach($s['journals']??[] as $id=>$j)if(($j['entity']??'')===$e&&($j['status']??'')==='Posted'&&($j['date']??'')<=$asOf&&!isset($hidden[$id]))foreach($j['lines']??[] as $l){$mid=$l['salaryMasterId']??$j['meta']['salaryMasterId']??'';if(isset($out[$mid])&&in_array($l['account']??'',['1230','2140'],true)){$out[$mid]['debit']+=(float)$l['debit'];$out[$mid]['credit']+=(float)$l['credit'];}}
+    foreach($s['journals']??[] as $id=>$j)if(($j['entity']??'')===$e&&($j['status']??'')==='Posted'&&($j['date']??'')<=$asOf&&!isset($hidden[$id]))foreach($j['lines']??[] as $l){$mid=$l['salaryMasterId']??$j['meta']['salaryMasterId']??'';if(isset($out[$mid])&&in_array($l['account']??'',['1230','2140','2230'],true)){$out[$mid]['debit']+=(float)$l['debit'];$out[$mid]['credit']+=(float)$l['credit'];}}
     foreach($out as &$v){$v['receivableByDirector']=round(max(0,$v['credit']-$v['debit']),2);$v['recoverableFromDirector']=round(max(0,$v['debit']-$v['credit']),2);}unset($v);return array_values($out);
 }
 function sea_home_meta(array $s,string $e,array $row):array {

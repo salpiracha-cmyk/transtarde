@@ -358,6 +358,16 @@
       "subledger": true
     },
     {
+      "code": "2230",
+      "name": "Salaries, Remuneration & Home Payables",
+      "class": "Liability",
+      "level": "general",
+      "normal": "Credit",
+      "subledger": true,
+      "parent": "2200",
+      "note": "Individual payroll and monthly home entitlements. Separate from supplier liabilities; canonical salary master ID identifies each beneficiary."
+    },
+    {
       "code": "2300",
       "name": "Taxes / Withholding Payable",
       "class": "Liability",

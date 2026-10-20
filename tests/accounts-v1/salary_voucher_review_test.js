@@ -1,0 +1,21 @@
+'use strict';
+const assert=require('node:assert/strict'),fs=require('node:fs'),{JSDOM}=require('jsdom');
+(async()=>{
+ const dom=new JSDOM('<body><input id="draft" value="Keep draft"></body>',{url:'https://fixture.test/accounts/',runScripts:'outside-only'}),w=dom.window;
+ w.fetch=async()=>new Response('{}');w.TT_PRINT={html(){}};
+ w.eval(fs.readFileSync('accounts/bank-payment-details.js','utf8'));
+ w.eval(fs.readFileSync('accounts/post-confirmation-ui.js','utf8'));
+ const summary={month:'2026-07',entitlement:1573692,advances:2000,bank:352750,cash:1170942,remaining:48000,people:[{name:'Salman',amount:45000},{name:'Mehmood Driver',amount:3000}]};
+ const accrual={id:'POST-2026-00560',entity:'TTI',date:'2026-07-06',sourceType:'SALARY_MONTH_COMPLETED',meta:{month:'2026-07',salarySummary:summary},lines:[{account:'6210',accountName:'Net Salaries & Remuneration',person:'IRFAN',debit:42750,credit:0},{account:'2230',accountName:'Salaries, Remuneration & Home Payables',person:'IRFAN',debit:0,credit:42750}]};
+ const payment={id:'POST-2026-00559',entity:'TTI',date:'2026-07-06',sourceType:'SALARY_ALLOCATED_PAYMENT',meta:{month:'2026-07'},lines:[{account:'2230',person:'MRS SRP',paymentRecipient:'MRS SRP',debit:110000,credit:0},{account:'2230',person:'SALMAN',paymentRecipient:'MRS SRP',debit:10000,credit:0},{account:'1110',accountName:'Bank',bankName:'Meezan Bank',accountNumber:'488109',bankAccountId:'bank-a',bankCredit:120000,bankPaymentMethod:'ONLINE_BANKING',bankPaymentDate:'2026-07-06',debit:0,credit:120000}]};
+ const pending=w.TT_POST_CONFIRMATION.review({journals:[accrual,payment]});
+ const popup=w.document.querySelector('[role=dialog]');assert(popup.querySelector('[data-salary-summary]'));assert(popup.textContent.includes('1,573,692.00'));assert(popup.textContent.includes('48,000.00'));assert(popup.textContent.includes('IRFAN'));assert(popup.textContent.includes('SALMAN'));assert(popup.textContent.includes('Meezan Bank'));assert(!popup.textContent.includes('Supplier Payables'));
+ assert(!popup.querySelector('details').open,'Summary appears first; detailed journal is expandable');
+ assert(!popup.querySelector('[data-review-post]').disabled);popup.querySelector('[data-review-cancel]').click();assert.equal(await pending,false);assert.equal(w.document.querySelector('#draft').value,'Keep draft');
+ const a=new JSDOM(w.TT_VOUCHER_HTML(accrual)).window.document,b=new JSDOM(w.TT_VOUCHER_HTML(payment)).window.document;
+ assert(a.title.startsWith('SALARY ENTITLEMENT JOURNAL'));assert(a.body.textContent.includes('IRFAN'));assert(a.querySelector('[data-salary-summary]'));
+ assert(b.title.startsWith('SALARY PAYMENT VOUCHER'));assert(b.body.textContent.includes('Paid toMRS SRP'));assert(b.body.textContent.includes('Paid fromMeezan Bank · 488109'));assert(b.body.textContent.includes('SALMAN'));assert(b.body.textContent.includes('Salary month2026-07'));assert.equal(b.querySelectorAll('.entry tbody tr').length,3);
+ assert.equal(b.querySelectorAll('.entry tbody tr:last-child .amount')[1].textContent,'120,000.00');
+ w.TT_POST_CONFIRMATION.showJournal(accrual);assert(w.document.querySelector('#tt-post-confirmation [data-salary-summary]'));assert(w.document.querySelector('#tt-post-confirmation').textContent.includes('IRFAN'));
+ dom.window.close();console.log('PASS salary review reconciliation before confirmation; person names, separate payable, payment sources, voucher titles and cancelled draft retained');
+})().catch(e=>{console.error(e);process.exitCode=1;});

@@ -31,7 +31,7 @@ for(const row of rows){
   if(row.monthlyAmount>0)lines.push([row.accountingTreatment==='FAMILY_ALLOCATION'?'3200':'6210',row.monthlyAmount,0]);
   if(row.zakatAmount>0)lines.push(['7210',row.zakatAmount,0]);
   if(row.otherAllowance>0)lines.push([row.accountingTreatment==='FAMILY_ALLOCATION'?'3200':'6220',row.otherAllowance,0]);
-  lines.push(['2140',0,total(row)]);
+  lines.push(['2230',0,total(row)]);
   assert.ok(lines.every(line=>approved.has(line[0])));
   assert.equal(lines.reduce((value,line)=>value+line[1],0),lines.reduce((value,line)=>value+line[2],0),row.name+' salary journal must balance');
   for(const [account,debit,credit] of lines){
@@ -40,7 +40,7 @@ for(const row of rows){
   }
 }
 assert.deepEqual(totals.debit,{'3200':610000,'6210':888692,'7210':19000,'6220':52000});
-assert.deepEqual(totals.credit,{'2140':1569692});
+assert.deepEqual(totals.credit,{'2230':1569692});
 
 const donationAccounts={ZAKAT:'7210',SADQA:'7220',FI_SABILILLAH:'7230'};
 const donationRows=[];

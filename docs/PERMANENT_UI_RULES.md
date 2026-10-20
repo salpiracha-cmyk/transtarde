@@ -431,6 +431,14 @@ Online Banking payments expose an editable payment date, defaulting from the vou
 - Permanent master removal must also check historical name references, since older bills may not store a master ID. Keep deactivation and audit history available. A similar creditor name cannot introduce the same opening balance twice in the same company/control account.
 - Post cancellation uses an in-page reason form followed by the existing accounting preview and permission checks. Keep and Escape abandon the action. The original and balanced reversal remain in audit history.
 
+
+## Salary reconciliation and payable separation — 20 October 2026
+
+- Completing a salary month opens the shared green pre-post review with its reconciliation first: entitlement, advance recoveries, actual bank and petty-cash payments, additional purposes/non-cash remuneration adjustments when present, and remaining payables by person. Debit/credit journal details remain expandable below. Cancel retains the draft; only Confirm and Post commits.
+- Payroll and monthly home entitlements use dedicated liability 2230, Salaries, Remuneration & Home Payables, with canonical salary master IDs. Supplier and company asset instalment liabilities retain their existing controls. A salary transaction is never a supplier settlement.
+- Print separate Salary Entitlement Journal and Salary Payment Voucher titles. Retain person names on every relevant debit/credit line; payments identify the actual recipient, salary month and bank/cash source. No duplicate expense or payment is created for presentation.
+- An explicit Director/Super Admin salary correction separates evidenced historical payroll liabilities using immutable original/reversal/replacement journals, stable public Post IDs and updated canonical source links. Optional date correction applies only to the selected completed salary month, including its entitlement and actual payments. Keep amounts, beneficiaries, external references, advance recoveries and investment events intact; validate investment chronology, exact source snapshots, permissions, preview and retries. Never migrate on page load.
+
 ## Party-first posting and payment amendments — 20 October 2026
 
 - Existing and new posting previews, saved Post ID details and printed vouchers identify each actual party/person and payment bank or cash source before any accounting head. Resolve historical names at display time; never rewrite journals merely to change their labels or invent a missing party. Preserve distinct third-party payers and the exact debit/credit amounts. Chart configuration and manual JV controls retain their accounting purpose.

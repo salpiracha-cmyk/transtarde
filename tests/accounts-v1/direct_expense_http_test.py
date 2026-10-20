@@ -12,7 +12,7 @@ with tempfile.TemporaryDirectory(prefix='tti-authorization-') as directory:
     private.mkdir()
     for name in ['auth_store.php', 'master_store.php', 'product_stage.php', 'offline_idempotency.php','session_store.php']:
         shutil.copy(ROOT / name, app / name)
-    for name in ['supplier_opening_core.php','accounts_subaccounts.php','accounts_subaccounts_core.php','accounts_ledger_visibility.php','assets_registry_core.php','expenses_v1.php','direct_expense_core.php','accounts_bank_payment.php','expense_locations.php','expense_reminders.php','expense_reversals.php','donations.php','rent_salary_v2.php','salary_month_workflow.php','salary_flexible_workflow.php','salary_extra_allocations.php','company_investments_core.php','salary_master_store.php','accounts_reports.php','service_ledger_groups.php','accounts_ledger_browser.php','customer_receivables_core.php','accounts_post_delete_core.php','accounts_post_amend.php','accounts_post_amend_core.php','opening_balance_core.php','accounts_reference.php','tg_remittance_core.php','fi_credit_advice_link.php','receipt_invoice_links.php', 'accounts_posting_preview.php']:
+    for name in ['supplier_opening_core.php','accounts_subaccounts.php','accounts_subaccounts_core.php','accounts_ledger_visibility.php','assets_registry_core.php','expenses_v1.php','direct_expense_core.php','accounts_bank_payment.php','expense_locations.php','expense_reminders.php','expense_reversals.php','donations.php','rent_salary_v2.php','salary_month_workflow.php','salary_flexible_workflow.php','salary_record_corrections.php','salary_extra_allocations.php','company_investments_core.php','salary_master_store.php','accounts_reports.php','service_ledger_groups.php','accounts_ledger_browser.php','customer_receivables_core.php','accounts_post_delete_core.php','accounts_post_amend.php','accounts_post_amend_core.php','opening_balance_core.php','accounts_reference.php','tg_remittance_core.php','fi_credit_advice_link.php','receipt_invoice_links.php', 'accounts_posting_preview.php']:
         shutil.copy(ROOT / 'api' / name, app / 'api' / name)
     shutil.copy(ROOT / 'accounts/accounting_master_v1.json', app / 'accounts/accounting_master_v1.json')
     harness = root / 'request.php'
@@ -362,7 +362,7 @@ require $argv[1];
     for account,expected in [('PAYROLL|D',-75000),('PAYROLL|H',-300000),('DIRECTOR|SALMAN',-375000)]:
         status,ledger=request('accounts_ledger_browser','?entity=TTI&category=other&account='+account+'&from=2027-01-01&to=2027-12-31');assert status==200,(status,ledger)
         assert ledger['closing']==expected,(account,ledger)
-        assert all(r['account']=='2140' for r in ledger['rows'])
+        assert all(r['account']=='2230' for r in ledger['rows'])
         balances.append(ledger['closing'])
     assert balances[0]+balances[1]==balances[2]
     print('Separate Director remuneration/home payable ledgers reconcile to their combined parent without rewriting historical lines.')

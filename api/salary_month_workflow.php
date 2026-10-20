@@ -166,17 +166,17 @@ function smw_action(array &$s,string $entity,string $month,array $b,array $u,arr
         if(!$row['prepared']){
             foreach([[$companyHome?'6910':($row['accountingTreatment']==='FAMILY_ALLOCATION'?'3200':'6210'),round($row['netSalary']+(float)($row['monthlyAddition']??0)-(float)($row['monthlyReduction']??0),2)],['7210',$row['zakatAmount']],[$companyHome?'6910':($row['accountingTreatment']==='FAMILY_ALLOCATION'?'3200':'6220'),$row['otherAllowance']]] as [$account,$amount])if($amount>.005)$lines[]=rsv2_line($account,$amount,0,$names,$meta+($account==='6910'?$homeMeta:[]));
             if($applied>.005)$lines[]=rsv2_line('1230',0,$applied,$names,$meta+['salaryAdvanceApplied'=>$applied]);
-            if($row['totalDue']-$applied>.005)$lines[]=rsv2_line('2140',0,$row['totalDue']-$applied,$names,$meta);
+            if($row['totalDue']-$applied>.005)$lines[]=rsv2_line('2230',0,$row['totalDue']-$applied,$names,$meta);
             $available=array_sum(array_column(rsv2_open_advances($s,$entity,$mid,$month),'remaining'));
             if($applied>$available+.005)throw new DomainException('Advance balance changed for '.$row['name'].'. Amend this payment before completing.');
         }else{
             if($companyHome&&empty($s['salaryPeriods'][$row['periodId']]['companyHomeExpense'])){$base=round($row['netSalary']+(float)($row['monthlyAddition']??0)-(float)($row['monthlyReduction']??0)+(float)$row['otherAllowance'],2);$old=$row['accountingTreatment']==='FAMILY_ALLOCATION'?'3200':'6210';if($base>.005){$lines[]=rsv2_line('6910',$base,0,$names,$meta+$homeMeta);if($old==='3200')$lines[]=rsv2_line('3200',0,$base,$names,$meta);else{foreach([['6210',$base-$row['otherAllowance']],['6220',$row['otherAllowance']]] as [$code,$part])if($part>.005)$lines[]=rsv2_line($code,0,$part,$names,$meta);}}}
             $previous=(float)$s['salaryPeriods'][$row['periodId']]['advanceApplied'];$restore=round($previous-$applied,2);
-            if($restore>.005){$lines[]=rsv2_line('1230',$restore,0,$names,$meta);$lines[]=rsv2_line('2140',0,$restore,$names,$meta);}
+            if($restore>.005){$lines[]=rsv2_line('1230',$restore,0,$names,$meta);$lines[]=rsv2_line('2230',0,$restore,$names,$meta);}
         }
         $payment=$row['payment'];
         if(!isset($sheet['paymentGroups'])&&$payment['amount']>.005){
-            $lines[]=rsv2_line('2140',$payment['amount'],0,$names,$meta);
+            $lines[]=rsv2_line('2230',$payment['amount'],0,$names,$meta);
             $parts=$payment['parts']??[['amount'=>$payment['amount'],'paymentAccountId'=>$payment['paymentAccountId']]+$payment];
             $sum=0;foreach($parts as $part){$partAmount=round((float)$part['amount'],2);if($partAmount<=0)throw new DomainException('Invalid saved salary split.');$sum+=(int)round($partAmount*100);$tracking=str_starts_with($part['paymentAccountId'],'CASH|')?[]:tt_accounts_bank_payment_details(array_merge($part,['date'=>$payment['date']]));$lines[]=array_merge(rsv2_pay_line($s,$entity,$part['paymentAccountId'],$partAmount,$names),$meta,$tracking,['paymentDate'=>$payment['date']]);}
             if($sum!==(int)round($payment['amount']*100))throw new DomainException('Saved salary portions do not equal the payment.');
@@ -207,5 +207,6 @@ function smw_action(array &$s,string $entity,string $month,array $b,array $u,arr
         if(!isset($sheet['paymentGroups'])&&$row['payment']['amount']>.005){$id=rsv2_next((array)$s['rentSalaryPayments'],'RSP');$s['rentSalaryPayments'][$id]=['id'=>$id,'type'=>'SALARY','entity'=>$entity,'masterId'=>$mid,'month'=>$month,'journalId'=>$jid]+$row['payment'];}
     }
     $sheet['paymentPostIds']=$groupJournals;$sheet['status']='Completed';$sheet['journalId']=$jid;$sheet['completedAt']=gmdate('c');$sheet['version']++;$s['salarySheets'][$key]=$sheet;
+    $s['journals'][$jid]['meta']['salarySummary']=src_summary($s,$entity,$month,$sheet);
     return ['journalId'=>$jid];
 }

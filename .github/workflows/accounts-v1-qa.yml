@@ -327,6 +327,7 @@ jobs:
           node tests/accounts-v1/party_payment_amend_ui_test.js
           node tests/accounts-v1/party_voucher_display_test.js
           node tests/accounts-v1/post_confirmation_ownership_test.js
+          node tests/accounts-v1/salary_voucher_review_test.js
           node tests/accounts-v1/workspace_response_ownership_test.js
           node tests/accounts-v1/bag_review_lifecycle_test.js
           node tests/accounts-v1/accounts_master_controls_test.js
