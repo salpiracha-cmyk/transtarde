@@ -4,7 +4,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
     root=pathlib.Path(temp)
     for folder in ['api','accounts','data']:(root/folder).mkdir()
-    for name in ['company_investments_core.php','assets_registry_core.php','rent_salary.php','rent_salary_v2.php','salary_month_workflow.php','salary_flexible_workflow.php','salary_extra_allocations.php','accounts_subaccounts_core.php','accounts_reference.php','accounts_ledger_visibility.php','salary_master_store.php','accounts_bank_payment.php', 'accounts_posting_preview.php']:
+    for name in ['company_investments_core.php','assets_registry_core.php','rent_salary.php','rent_salary_v2.php','salary_month_workflow.php','salary_flexible_workflow.php','salary_record_corrections.php','salary_extra_allocations.php','accounts_subaccounts_core.php','accounts_reference.php','accounts_ledger_visibility.php','salary_master_store.php','accounts_bank_payment.php', 'accounts_posting_preview.php']:
         shutil.copy(ROOT/'api'/name,root/'api'/name)
     for name in ['accounting_master_v1.json','rent-salary-ui.js','cheque-date-ui.js','bank-payment-details.js']:
         shutil.copy(ROOT/'accounts'/name,root/'accounts'/name)
@@ -105,6 +105,50 @@ with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
         assert state['salaryPeriods']['TTI|2026-10|Salman']['outstanding']==185000
         assert state['salaryAdvances']['P']['remaining']==5000
         before=saved();assert request({'action':'complete_salary_month','version':sheet['version'],'date':'2026-10-31'})[0]==200;assert saved()==before,'Completion retry is idempotent'
+        # Explicit payroll separation/date correction preserves books, stable public IDs,
+        # company investment events, completed sheet links and source reversibility.
+        correction_base=saved()
+        legacy=json.loads(json.dumps(correction_base))
+        for j in legacy['journals'].values():
+            for l in j['lines']:
+                if l['account']=='2230':l['account']='2140';l['accountName']='Supplier Payables & Expenses'
+        # An unrelated supplier payable must never be reclassified.
+        legacy['journals']['SUPPLIER']={'id':'SUPPLIER','entity':'TTI','date':'2026-10-01','status':'Posted','sourceType':'OTHER_PURCHASE','lines':[{'account':'1340','debit':50,'credit':0},{'account':'2140','debit':0,'credit':50,'party':'Supplier'}],'totalDebit':50,'totalCredit':50}
+        (root/'data/accounts.json').write_text(json.dumps(legacy))
+        snap=request()[1]['salaryCorrectionSnapshot']
+        correction={'action':'correct_salary_records','date':'2026-10-06','reason':'Owner corrected payroll date and separate salary payables','snapshot':snap,'requestKey':'fixture-payroll-correction'}
+        before=saved();status,preview=request({**correction,'preview':True});assert status==200,preview;assert saved()==before
+        summary=next(j['meta']['salarySummary'] for j in preview['previews'] if j.get('meta',{}).get('salarySummary'))
+        assert summary['bank']==120000 and summary['cash']==200000 and summary['otherPayments']==10000
+        (root/'user.json').write_text(json.dumps({'role':'Accounts Assistant','permissions':{'Accounts':['Edit']}}))
+        assert request(correction)[0]==422 and saved()==before,'Staff cannot bulk-correct payroll dates'
+        (root/'user.json').unlink()
+        assert request({**correction,'snapshot':'stale'})[0]==422 and saved()==before
+        assert request({**correction,'date':'2026-11-06'})[0]==422 and saved()==before
+        status,corrected=request(correction);assert status==200,corrected
+        migrated=saved();assert migrated['journals']['SUPPLIER']==legacy['journals']['SUPPLIER']
+        def net(code,books):return round(sum(l['debit']-l['credit'] for j in books['journals'].values() for l in j['lines'] if l['account']==code),2)
+        for code in ['1110','1120','1430','1440','6210','3200','1230']:assert net(code,migrated)==net(code,legacy),(code,migrated)
+        assert net('2140',migrated)==-50
+        assert net('2230',migrated)==net('2140',legacy)+50
+        assert len(migrated['investmentTransactions'])==len(legacy['investmentTransactions'])
+        assert all(t['date']=='2026-10-06' for t in migrated['investmentTransactions'].values())
+        current_ids=[migrated['salarySheets']['TTI|2026-10']['journalId'],*migrated['salarySheets']['TTI|2026-10']['paymentPostIds']]
+        assert all(migrated['journals'][id]['date']=='2026-10-06' for id in current_ids)
+        for id in current_ids:
+            j=migrated['journals'][id];assert j['meta']['publicPostId'] in legacy['journals'];assert j['totalDebit']==j['totalCredit']
+            assert not any(l['account']=='2140' and l.get('salaryMasterId') for l in j['lines'])
+            for l in j['lines']:
+                if l.get('bankPaymentDate'):assert l['bankPaymentDate']=='2026-10-06'
+        before=saved();assert request(correction)[1]['result']['duplicate'] and saved()==before
+        assert request({**correction,'reason':'Changed retry reason'})[0]==422 and saved()==before
+        # Corrected split remains reversible with its new canonical linked journal.
+        payment_id=migrated['salarySheets']['TTI|2026-10']['paymentPostIds'][1]
+        status,res=request({'action':'reverse_salary_allocated_payment','journalId':payment_id,'date':'2026-10-06','reason':'Correction reversal fixture'})
+        assert status==200,res
+        assert all(t['status']=='Reversed' for t in saved()['investmentTransactions'].values())
+        (root/'data/accounts.json').write_text(json.dumps(correction_base));state=correction_base
+        print('PASS payroll correction preview/permissions/stale snapshot/retry; supplier isolated; dates, public IDs, investments, source links and balances preserved; corrected payment reversal')
         # Held funds are a company routing asset until a confirmed onward receipt.
         held={'type':'COMPANY_HELD','amount':10000,'routeId':'R','reference':'HELD-2'}
         tx={**payment(10000,'2026-11-03','bank-b',[held]),'bankReference':'fixture-held-transfer'}

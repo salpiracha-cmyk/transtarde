@@ -29,4 +29,6 @@ check(array_column($projection['rows'],'bankReference')===['CHQ-1','ONLINE-2'],'
 check(array_column($projection['rows'],'key')===['MULTI|0','MULTI|1'],'Tracking display cannot change clearing keys.');
 check($projection['rows'][0]['chequeDate']==='2026-10-03'&&$projection['rows'][1]['bankPaymentDate']==='2026-10-04','Line payment dates override voucher defaults.');
 check($projection['bookBalance']===-30.0&&$multi===$original,'Tracking projection preserves balances and journals.');
+$corrected=$multi;$corrected['journals']['REPLACEMENT']=$corrected['journals']['MULTI'];unset($corrected['journals']['MULTI']);$corrected['journals']['REPLACEMENT']['id']='REPLACEMENT';$corrected['journals']['REPLACEMENT']['meta']['reconciliationPostId']='MULTI';
+$projection=br_txns($corrected,'TTI','BANK','2026-10-15','PKR');check(array_column($projection['rows'],'key')===['MULTI|0','MULTI|1'],'Date/account-only salary corrections retain the original bank clearing keys.');
 echo "PASS reconciliation PKR/native amounts, dated cancellation projection and incomplete reversals\n";
