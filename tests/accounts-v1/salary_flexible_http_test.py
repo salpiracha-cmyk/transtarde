@@ -250,6 +250,8 @@ with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
                 tx=page.locator('.rs-plan-row').first
                 assert tx.locator('[data-allocation-amount]').input_value()=='310000'
                 tx.locator('[data-allocation-amount]').fill('210000');tx.locator('[data-tx-date]').fill('2027-03-03')
+                tx.locator('[data-plan-deduct]').check();tx.locator('[data-plan-deduction-amount]').fill('-1');tx.locator('[data-plan-deduct]').uncheck()
+                assert not tx.locator('[data-plan-deduction-fields]').is_visible(),'An unchecked deduction is inapplicable and must not block saving'
                 page.locator('#rsAddTransaction').click();tx=page.locator('.rs-plan-row').last
                 assert tx.locator('[data-allocation-amount]').input_value()=='100000'
                 tx.locator('[data-tx-date]').fill('2027-03-10');tx.locator('[data-tx-source]').select_option('bank-b');tx.locator('[data-reference]').fill('MRS-100');tx.locator('[data-cheque-date]').fill('2027-03-10')
