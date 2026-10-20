@@ -102,6 +102,13 @@ with tempfile.TemporaryDirectory(prefix='master-family-') as directory:
         assert saved['values'][9]==legacy_values[9] and saved['values'][16:]==tail
         legacy_values[9]=json.dumps(valid_parties)
         assert save('export_customers',legacy_values,customer['masterId'])[0]==200
+        legacy_values[9]='Generic Notify | Full generic address'
+        assert save('export_customers',legacy_values,customer['masterId'])[0]==200
+        canonical_customer=next(c for c in request('/api/export_customers.php')[1]['customers'] if c['masterId']==customer['masterId'])
+        assert canonical_customer['notifies']==[{'name':'Generic Notify','address':'Full generic address'}]
+        generic_new=copy.deepcopy(legacy_values);generic_new[0]='Valid Generic Notify Fixture';generic_new[1]='VGN'
+        status,data=save('export_customers',generic_new);assert status==200
+        assert next(c for c in request('/api/export_customers.php')[1]['customers'] if c['masterId']==data['id'])['notifies']==canonical_customer['notifies']
         # Reference options are a separate visible family with their canonical shared reader.
         status,data=request(body={'action':'manage-option','type':'reference_lists','optionAction':'add','optionKey':'packing_types','value':'Fixture Packing'}); assert status==200,(status,data)
         status,data=request(body={'action':'manage-option','type':'reference_lists','optionAction':'rename','optionKey':'packing_types','old':'Fixture Packing','value':'Fixture Packing Revised'}); assert status==200,(status,data)
