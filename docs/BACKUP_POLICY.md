@@ -57,3 +57,12 @@ Candidate identity, manifest and age are rechecked immediately before unlink;
 locked files and files observed open by other processes stay. Recent, unknown,
 unreadable, foreign-owned and symlink files remain held. No restore or live
 record/document deletion is permitted. This is separate from ordinary retention.
+
+For the one-time old-code backlog only, completed schema 1/2 archives whose
+manifest, mtime and ctime all predate 20 October 2026 10:17:16 UTC (the repair
+validation start) may also be removed after a 30-minute grace period. This
+exception additionally requires readable descriptor directories for every
+observable same-user process and no open reference to the candidate. Newer
+schema 3 copies and incomplete/unknown files receive no exception. The same
+persistent newer survivor, lock and identity checks apply. The cutoff is fixed
+and cannot admit future archives.

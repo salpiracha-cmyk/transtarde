@@ -6,24 +6,42 @@ function otc_identity(string $path): ?array {
     if(!$s||($s['mode']&0170000)!==0100000||is_link($path))return null;
     return array_intersect_key($s,array_flip(['dev','ino','mode','uid','nlink','size','mtime','ctime']));
 }
+function otc_legacy_grace(array $s,int $now,int $schema,int $created):bool {
+    $cutoff=strtotime('2026-10-20T10:17:16Z');
+    return $schema<=2&&$schema>=1&&$created<$cutoff&&$s['mtime']<$cutoff&&$s['ctime']<$cutoff&&$now-max($s['mtime'],$s['ctime'],$created)>=1800;
+}
 function otc_classify(string $path,int $uid,int $now):array {
     $s=otc_identity($path);
     if(!$s||$s['uid']!==$uid||$s['nlink']!==1||!preg_match('/^tt-backup-[A-Za-z0-9]{6}$/D',basename($path)))return ['reason'=>'unknown'];
     $base=['identity'=>$s,'bytes'=>$s['size']];
-    if($now-max($s['mtime'],$s['ctime'])<86400)return $base+['reason'=>'recent'];
+    $recent=$now-max($s['mtime'],$s['ctime'])<86400;
+    $legacyCutoff=strtotime('2026-10-20T10:17:16Z');
+    $legacyPossible=$s['mtime']<$legacyCutoff&&$s['ctime']<$legacyCutoff&&$now-max($s['mtime'],$s['ctime'])>=1800;
+    if($recent&&!$legacyPossible)return $base+['reason'=>'recent'];
     $reader=null;
     try{
         $reader=new TT_SimpleZipReader($path,0xffffffff);
         $raw=$reader->get('backup-manifest.json');
         if($raw===false||strlen($raw)>16777216)throw new RuntimeException('No bounded manifest');
         $m=json_decode($raw,true,512,JSON_THROW_ON_ERROR);$created=strtotime((string)($m['createdAt']??''));
-        if(($m['application']??'')!=='Transtrade'||($m['type']??'')!=='full_recovery'||!in_array((int)($m['schema']??0),[1,2,3],true)||empty($m['encryptedEntries'])||empty($m['recoveryFiles'])||!$created||$created>$now-86400)throw new RuntimeException('Unrecognised archive');
-        return $base+['reason'=>'eligible','created'=>$created,'date'=>gmdate('Y-m-d',$created),'schema'=>(int)$m['schema'],'manifestSha256'=>hash('sha256',$raw)];
+        if(($m['application']??'')!=='Transtrade'||($m['type']??'')!=='full_recovery'||!in_array((int)($m['schema']??0),[1,2,3],true)||empty($m['encryptedEntries'])||empty($m['recoveryFiles'])||!$created||$created>$now-1800)throw new RuntimeException('Unrecognised archive');
+        if($recent&&!otc_legacy_grace($s,$now,(int)$m['schema'],$created))return $base+['reason'=>'recent'];
+        return $base+['reason'=>'eligible','legacyRecent'=>$recent,'created'=>$created,'date'=>gmdate('Y-m-d',$created),'schema'=>(int)$m['schema'],'manifestSha256'=>hash('sha256',$raw)];
     }catch(Throwable){return $base+['reason'=>'unrecognised'];}
     finally{if($reader)$reader->close();}
 }
+function otc_process_visibility(int $uid):bool {
+    if(!is_dir('/proc/'.getmypid().'/fd'))return false;
+    foreach(glob('/proc/[0-9]*',GLOB_ONLYDIR)?:[]as$process){
+        if(@fileowner($process)!==$uid)continue;
+        if(!is_readable($process.'/fd')||!is_executable($process.'/fd'))return false;
+        foreach(glob($process.'/fd/*')?:[]as$fd)if(@readlink($fd)===false&&file_exists($fd))return false;
+    }
+    return true;
+}
 function otc_remove(string $path,array $planned,int $uid,int $now,callable $survivor):bool {
     if(($planned['reason']??'')!=='eligible'||!$survivor())return false;
+    if(!empty($planned['legacyRecent'])&&!otc_process_visibility($uid))return false;
     $handle=@fopen($path,'rb');if(!$handle)return false;
     try{
         if(!flock($handle,LOCK_EX|LOCK_NB))return false;
