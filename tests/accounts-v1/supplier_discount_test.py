@@ -122,4 +122,14 @@ with tempfile.TemporaryDirectory(prefix='supplier-discount-') as tmp:
  response=req({'action':'post_supplier_payment','allocations':[{'billId':'C','sourceKey':'C|BROKERAGE','amount':100}],'discountAmount':5,'discountReason':'Agreed settlement','paymentMode':'CASH','date':'2026-07-21'})
  assert response['ok'],response
  assert response['result']['withholding']==14.25 and response['result']['netPayment']==80.75,response
+ # Refuse malformed books and non-finite inputs without replacing or truncating originals.
+ for damaged in ['{broken','null','false']:
+  books.write_text(damaged);before=books.read_bytes();assert not req()['ok'];assert books.read_bytes()==before
+  assert not req(p)['ok'];assert books.read_bytes()==before
+ books.write_text(json.dumps(initial));before=books.read_bytes()
+ for invalid in [{'amount':'1e309'},{'discountAmount':'1e309'}]:
+  assert not req({**p,**invalid})['ok'];assert books.read_bytes()==before
+ # Existing non-encodable numeric data must fail serialization before truncating the file.
+ books.write_text(json.dumps(initial)[:-1]+',"legacyMetric":1e309}');before=books.read_bytes()
+ assert not req(p)['ok'];assert books.read_bytes()==before
  print('Supplier discounts: correct heads, full/partial balances, cash-only WHT, atomic rejection, replay, cancellation capacity, original bills passed.')

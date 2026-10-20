@@ -37,6 +37,7 @@ function ss_read(): array {
     if($h===false||!flock($h,LOCK_SH))throw new RuntimeException('Accounts storage unavailable.');
     try{$raw=stream_get_contents($h);}finally{flock($h,LOCK_UN);fclose($h);}
     $s=$raw?json_decode($raw,true):null;
+    if($raw!==''&&!is_array($s))throw new RuntimeException('Accounts storage is invalid.');
     return is_array($s)?array_replace_recursive(ss_default_store(),$s):ss_default_store();
 }
 function ss_can_write(array $user): bool {
@@ -61,7 +62,7 @@ function ss_date(string $v): string {
 function ss_money(mixed $v,string $label='Amount',bool $allowZero=false): float {
     if(!is_int($v)&&!is_float($v)&&!(is_string($v)&&trim($v)!==''&&is_numeric($v)))ss_respond(['ok'=>false,'error'=>$label.' must be a valid number.'],422);
     $n=round((float)$v,2);
-    if($n<0||(!$allowZero&&$n<=0))ss_respond(['ok'=>false,'error'=>$label.' must be greater than zero.'],422);
+    if(!is_finite($n)||$n<0||(!$allowZero&&$n<=0))ss_respond(['ok'=>false,'error'=>$label.' must be greater than zero.'],422);
     return $n;
 }
 function ss_catalog(): array {
@@ -299,7 +300,7 @@ try{
     if(ss_request_has_mill_bill($body)){require_once __DIR__.'/mill_bill_payment_guard.php';$millPaymentLease=mpg_acquire();$GLOBALS['ttMillPaymentSourceValues']=$millPaymentLease['values'];}
     tt_ensure_data_dir();$h=fopen(TT_SETTLEMENT_FILE,'c+');if($h===false||!flock($h,LOCK_EX))throw new RuntimeException('Accounts storage unavailable.');
     try{
-        rewind($h);$raw=stream_get_contents($h);$store=$raw?json_decode($raw,true):null;if(!is_array($store))$store=ss_default_store();$store=array_replace_recursive(ss_default_store(),$store);$previewBefore=array_map('strval',array_keys((array)($store['journals']??[])));
+        rewind($h);$raw=stream_get_contents($h);$store=$raw?json_decode($raw,true):null;if($raw!==''&&!is_array($store))throw new RuntimeException('Accounts storage is invalid.');if(!is_array($store))$store=ss_default_store();$store=array_replace_recursive(ss_default_store(),$store);$previewBefore=array_map('strval',array_keys((array)($store['journals']??[])));
         $amendingPayment=null;
         if($action==='amend_bill_payment'){
             if(!tt_user_can_access_entity($user,$entity,'Edit'))ss_respond(['ok'=>false,'error'=>'Company Edit permission is required to amend a payment.'],403);
@@ -401,7 +402,7 @@ try{
             $result=$store['supplierSettlements'][$result['id']];$result['publicPostId']=$public;
             $store['supplierPaymentAmendmentRequests'][$amendKey]=['hash'=>$amendHash,'result'=>$result];
         }
-        tt_posting_preview_exit($body,$store,$previewBefore);$store['revision']=(int)($store['revision']??0)+1;rewind($h);ftruncate($h,0);fwrite($h,json_encode($store,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR));fflush($h);
+        tt_posting_preview_exit($body,$store,$previewBefore);$store['revision']=(int)($store['revision']??0)+1;$encoded=json_encode($store,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);rewind($h);if(!ftruncate($h,0)||fwrite($h,$encoded)!==strlen($encoded)||!fflush($h))throw new RuntimeException('Accounts storage write failed.');
     }finally{flock($h,LOCK_UN);fclose($h);}
     if(isset($millPaymentLease))($millPaymentLease['release'])();
     ss_respond(['ok'=>true,'result'=>$result,'revision'=>(int)$store['revision']]);
