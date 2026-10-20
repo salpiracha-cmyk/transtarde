@@ -13,6 +13,7 @@ import hashlib
 import http.client
 import json
 import os
+import re
 from pathlib import Path
 import shutil
 import socket
@@ -21,6 +22,7 @@ import sys
 import tempfile
 import time
 from datetime import datetime, timedelta, timezone
+from datetime import datetime as ArchiveDateTime
 from urllib import error, parse, request
 import zipfile
 
@@ -128,6 +130,7 @@ def validate_zip(path):
         if not entries or 'System_Recovery/private/auth.json' not in entries: raise ValueError('Recovery data is missing.')
         if any(not name.startswith('Encrypted/') and name not in ('README.txt', 'backup-manifest.json') for name in names):
             raise ValueError('Unexpected unencrypted recovery entry.')
+        return manifest
 
 
 def scheduled_backup_time(timestamp):
@@ -264,14 +267,18 @@ def pull(config, destination, scheduled_for=None):
         for folder in (daily_dir, weekly_dir, monthly_dir): folder.mkdir(parents=True, exist_ok=True)
         daily = daily_dir / ('TRANSTRADE_FULL_' + stamp.strftime('%Y-%m-%d_%H%M') + '_' + expected[:12] + '.zip')
         os.replace(temp, daily); temp = None
+        promotions = []
         if not list(weekly_dir.glob('TRANSTRADE_FULL_' + bucket_stamp.strftime('%G-W%V') + '_*.zip')):
             weekly = weekly_dir / ('TRANSTRADE_FULL_' + bucket_stamp.strftime('%G-W%V') + stamp.strftime('_%H%M') + '_' + expected[:12] + '.zip')
             copy_verified(daily, weekly, expected)
+            promotions.append(('weekly', weekly, expected))
         # Scheduled monthly points wait for a weekday, with catch-up on the first
         # successful working-day run. No office holiday calendar is available.
         if (scheduled_for is None or bucket_stamp.weekday() < 5) and not list(monthly_dir.glob('TRANSTRADE_FULL_' + bucket_stamp.strftime('%Y-%m') + '_*.zip')):
             monthly = monthly_dir / ('TRANSTRADE_FULL_' + bucket_stamp.strftime('%Y-%m') + stamp.strftime('_%H%M') + '_' + expected[:12] + '.zip')
             copy_verified(daily, monthly, expected)
+            promotions.append(('monthly', monthly, expected))
+        apply_tier_retention(destination, promotions)
         rotate(daily_dir, 'TRANSTRADE_FULL_*.zip', int(retention.get('daily', 7)))
         rotate(weekly_dir, 'TRANSTRADE_FULL_*.zip', int(retention.get('weekly', 4)))
         rotate(monthly_dir, 'TRANSTRADE_FULL_*.zip', int(retention.get('monthly', 12)))
@@ -281,6 +288,91 @@ def pull(config, destination, scheduled_for=None):
         return daily, expected
     finally:
         if temp and os.path.exists(temp): os.unlink(temp)
+
+
+_MANAGED_BACKUP = re.compile(r'^TRANSTRADE_FULL_\d{4}-(?:W\d{2}|\d{2}(?:-\d{2})?)_\d{4}_([a-f0-9]{12})\.zip$')
+
+
+def backup_identity(path):
+    if path.is_symlink() or not path.is_file(): raise ValueError('Backup is not a regular file.')
+    stat = path.stat()
+    if stat.st_nlink != 1: raise ValueError('Backup has another hard link.')
+    return (stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns)
+
+
+def retention_receipt(path, expected=None):
+    match = _MANAGED_BACKUP.fullmatch(path.name)
+    if not match: raise ValueError('Unrecognised backup filename.')
+    before = backup_identity(path)
+    manifest = validate_zip(path)
+    created = ArchiveDateTime.fromisoformat(str(manifest.get('createdAt', '')).replace('Z', '+00:00'))
+    if created.tzinfo is None or created.timestamp() > time.time() + 300:
+        raise ValueError('Invalid recovery creation date.')
+    actual = sha256_file(path)
+    if actual[:12] != match.group(1) or (expected is not None and actual != expected):
+        raise ValueError('Retained recovery checksum mismatch.')
+    # Full server SHA256 receipts prove known survivors unchanged. Unknown old
+    # candidates also need every ZIP member CRC to pass before disposal.
+    if expected is None:
+        with zipfile.ZipFile(path) as archive:
+            if archive.testzip() is not None: raise ValueError('Older backup is unreadable.')
+    if backup_identity(path) != before: raise ValueError('Backup changed during verification.')
+    return {'name': path.name, 'sha256': actual, 'createdAt': created.astimezone(timezone.utc).isoformat(), 'identity': before}
+
+
+def apply_tier_retention(destination, promotions=(), verified_state=None):
+    for folder in ('Daily', 'Weekly', 'Monthly'):
+        path = destination / folder
+        if path.is_symlink() or (path.exists() and (not path.is_dir() or path.resolve() != destination.resolve() / folder)):
+            raise RuntimeError('Linked or unexpected backup tier directory; cleanup refused.')
+    catalog_path = destination / 'tier-retention.json'
+    catalog = {}
+    if catalog_path.is_file() and not catalog_path.is_symlink() and catalog_path.stat().st_size < 8192:
+        try: catalog = json.loads(catalog_path.read_text(encoding='utf-8'))
+        except (OSError, ValueError): pass
+    if not isinstance(catalog, dict): catalog = {}
+    catalog = {k:v for k,v in catalog.items() if k in ('weekly', 'monthly') and isinstance(v, dict)}
+    additions = list(promotions)
+    # Bootstrap an already-created weekly/monthly copy only from the complete
+    # SHA256 saved by the last successful download, never from a name alone.
+    known = (verified_state or {}).get('sha256', '')
+    if isinstance(known, str) and re.fullmatch('[a-f0-9]{64}', known):
+        for tier, folder in [('weekly','Weekly'), ('monthly','Monthly')]:
+            for path in (destination / folder).glob('TRANSTRADE_FULL_*_' + known[:12] + '.zip'):
+                additions.append((tier, path, known))
+    for tier, path, expected in additions:
+        try:
+            receipt = retention_receipt(path, expected)
+            previous = catalog.get(tier, {})
+            if not previous or receipt['createdAt'] >= previous.get('createdAt', ''):
+                catalog[tier] = {k:v for k,v in receipt.items() if k != 'identity'}
+        except (OSError, ValueError, zipfile.BadZipFile):
+            continue
+    removed = 0; freed = 0; held = 0
+    for tier, folders in [('monthly', ('Weekly','Daily')), ('weekly', ('Daily',))]:
+        entry = catalog.get(tier)
+        if not entry or not re.fullmatch('[a-f0-9]{64}', str(entry.get('sha256', ''))): continue
+        survivor = destination / ('Monthly' if tier == 'monthly' else 'Weekly') / Path(str(entry.get('name', ''))).name
+        try: proof = retention_receipt(survivor, entry['sha256'])
+        except (OSError, ValueError, zipfile.BadZipFile): continue
+        cutoff = ArchiveDateTime.fromisoformat(proof['createdAt'])
+        for folder in folders:
+            for old in (destination / folder).glob('*.zip'):
+                if old == survivor: continue
+                try:
+                    candidate = retention_receipt(old)
+                    if ArchiveDateTime.fromisoformat(candidate['createdAt']) >= cutoff: continue
+                    if backup_identity(survivor) != proof['identity'] or sha256_file(survivor) != proof['sha256']:
+                        raise RuntimeError('Replacement backup changed. Retention cleanup stopped.')
+                    if backup_identity(old) != candidate['identity']:
+                        held += 1; continue
+                    size = old.stat().st_size
+                    old.unlink(); removed += 1; freed += size
+                except (OSError, ValueError, zipfile.BadZipFile): held += 1
+    write_json(catalog_path, catalog)
+    if removed or held:
+        print(f'Backup retention: removed {removed} older daily/weekly copies ({freed:,} bytes); held {held} unrecognised, changed or unreadable copies.', flush=True)
+    return {'removed': removed, 'freedBytes': freed, 'held': held}
 
 
 def copy_verified(source, target, expected):
@@ -404,6 +496,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--config', type=Path, default=config_path())
     parser.add_argument('--init', action='store_true', help='Save backup-only credentials and destination securely')
+    parser.add_argument('--retention-only', action='store_true', help='Apply verified weekly/monthly replacement cleanup without downloading')
     parser.add_argument('--force', action='store_true', help='Pull now even if a daily backup succeeded recently')
     parser.add_argument('--shipments-only', action='store_true', help='Only process pending shipment archive jobs')
     parser.add_argument('--backup-only', action='store_true', help='Only pull the encrypted system backup')
@@ -424,6 +517,13 @@ def run(args):
     try:
         if args.init: initialize(args.config); return 0
         config = json.loads(args.config.read_text(encoding='utf-8'))
+        if args.retention_only:
+            destination = Path(config.get('backupDestination') or config.get('destination')).expanduser().resolve()
+            state_path = args.config.with_name('office-backup-state.json')
+            state = json.loads(state_path.read_text(encoding='utf-8')) if state_path.exists() else {}
+            result = apply_tier_retention(destination, verified_state=state)
+            print('Retention policy installed. Removed', result['removed'], 'older copies; verified replacements preserved.')
+            return 0
         if not args.backup_only:
             process_shipments(config)
             if args.shipments_only: return 0

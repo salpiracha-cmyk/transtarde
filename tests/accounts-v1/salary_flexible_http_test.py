@@ -172,7 +172,11 @@ with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
         assert any(l['account']=='1430' and l['debit']==10000 and l['brokerId']=='BMA' for l in journal['lines'])
         assert 'Private fixture property' not in json.dumps(journal),'Property details stay out of the public journal'
         link=next(iter(posted['managedAssets']['PROP']['payments'].values()));assert link['amountCents']==3000000 and link['journalId']==journal['id']
-        assert any(x['type']=='FUND_DIRECT' and x['journalId']==journal['id'] and x['brokerDeltas']=={'BMA':1000000} for x in posted['investmentTransactions'].values())
+        bma_events=[x for x in posted['investmentTransactions'].values() if x['type']=='FUND_DIRECT' and x['journalId']==journal['id']]
+        assert len(bma_events)==1 and bma_events[0]['brokerDeltas']=={'BMA':1000000}
+        bma_before=sum(l['debit']-l['credit'] for j in before['journals'].values() for l in j['lines'] if l['account']=='1430' and l.get('brokerId')=='BMA')
+        bma_after=sum(l['debit']-l['credit'] for j in posted['journals'].values() for l in j['lines'] if l['account']=='1430' and l.get('brokerId')=='BMA')
+        assert bma_after-bma_before==10000,'BMA capital/funds balance increases by the actual funding once; the source is credited once'
         before_retry=saved();assert request(body,'2027-04')[0]==200;assert saved()==before_retry
         status,result=request({'action':'reverse_salary_allocated_payment','journalId':journal['id'],'date':'2027-04-03','reason':'Reverse complete extra payment'},'2027-04');assert status==200,result
         reversed_state=saved();assert not reversed_state['managedAssets']['PROP']['payments'];assert reversed_state['managedAssets']['PROP']['paymentCorrections'][0]['payment']==link
@@ -252,15 +256,16 @@ with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
                 assert not page.locator('#rsFamilyBankFields').is_visible()
                 assert page.locator('[data-tx-recipient]').count()==0
                 page.locator('#rsAddTransaction').click();tx=page.locator('.rs-plan-row').last
-                tx.locator('[data-plan-ledger]').select_option('BROKER_FUND|BMA');tx.locator('[data-allocation-amount]').fill('10000');tx.locator('[data-allocation-reference]').fill('MARCH-BMA-1')
+                tx.locator('[data-plan-ledger]').select_option('BROKER_FUND|BMA');tx.locator('[data-allocation-amount]').fill('10000')
+                assert not tx.locator('[data-allocation-reference]').is_visible() and not tx.locator('[data-allocation-purpose]').is_visible()
+                assert tx.locator('[data-allocation-reference]').input_value().startswith('SALARY-CAPITAL-')
                 page.locator('#rsAddTransaction').click();tx=page.locator('.rs-plan-row').last
                 tx.locator('[data-plan-ledger]').select_option('SALARY|Salman');tx.locator('[data-allocation-amount]').fill('10000')
                 assert page.locator('#rsFamilyCash').input_value()=='330000'
                 before_ui=saved();page.locator('#rsAddTransaction').click();tx=page.locator('.rs-plan-row').last
-                tx.locator('[data-plan-ledger]').select_option('EXPENSE|TTI-HOME-FAM-SALMAN');tx.locator('[data-allocation-amount]').fill('20000');tx.locator('[data-plan-deduct]').check();tx.locator('[data-plan-director]').select_option('Salman')
-                assert tx.locator('[data-plan-deduction-amount]').input_value()=='20000'
-                tx.locator('[data-plan-deduction-amount]').fill('-1');tx.locator('[data-plan-deduct]').uncheck()
-                assert not tx.locator('[data-plan-deduction-fields]').is_visible()
+                tx.locator('[data-plan-ledger]').select_option('EXPENSE|TTI-HOME-FAM-SALMAN');tx.locator('[data-allocation-amount]').fill('20000')
+                assert not tx.locator('[data-allocation-purpose]').is_visible() and not tx.locator('[data-plan-deduction]').is_visible()
+                assert 'Director remuneration' in page.locator('.rs-plan-row').first.locator('[data-plan-ledger]').text_content()
                 assert saved()==before_ui,'Editing and adding/removing rows never saves automatically'
                 tx.locator('[data-remove-transaction]').click();assert page.locator('#rsFamilyCash').input_value()=='330000'
                 page.locator('#rsFamilyCash').fill('210000');assert page.locator('#rsFamilyUseBank').is_checked()

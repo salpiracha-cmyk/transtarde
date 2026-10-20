@@ -79,3 +79,15 @@ unsuccessful new generation cannot displace its previous archive. Its staging
 path and state are fixed and bounded. This cache is separate from retained
 server recovery points. The office credential and recovery password never
 appear in public status responses or logs.
+
+TTI-SERVER Windows tier replacement (owner request, 20 October 2026): after a
+weekly copy is verified against the full server SHA256, remove identifiable
+daily copies with strictly earlier manifest creation times. After a monthly
+copy verifies, apply the same rule to older weekly and daily copies. Preserve
+the current recovery point, newer daily copies, and existing monthly retention.
+Use a bounded two-entry receipt catalog for the latest weekly/monthly proof;
+recheck the survivor identity and full SHA256 before each deletion. Unreadable,
+unknown, linked or changed files remain held. Existing copies may seed a proof
+only when their full SHA256 matches the saved successful-download state. The
+--retention-only command installs/applies this policy without downloading or
+changing task credentials, triggers or backup destinations.
