@@ -444,7 +444,13 @@ try {
             if($values[2]==='')throw new InvalidArgumentException('Select the Rice Type, for example White, Parboiled / Sella or Steam.');
             // An Accounts purchase can introduce a variety before its Export quality specifications exist.
             // The base name stays separate from broken grade, so no incomplete Export product is created.
-            if(trim((string)$values[5])!==''){$kat=master_find_row('purchase_kat',(string)$values[5]);if(!$kat)throw new InvalidArgumentException('Select a saved KAT Profile from the list.');$kv=(array)($kat['values']??[]);if(strcasecmp((string)($kv[0]??''),$values[0])!==0||strcasecmp(tt_product_base((string)($kv[1]??'')),$values[1])!==0||strcasecmp(tt_product_type((string)($kv[2]??'')),$values[2])!==0||strcasecmp(tt_product_stage((string)($kv[3]??'')),$values[3])!==0)throw new InvalidArgumentException('The selected KAT Profile belongs to a different variety, rice type or purchase classification.');}
+        }
+        if(trim((string)$values[5])!==''){
+            $kat=master_find_row('purchase_kat',(string)$values[5]);
+            if(!$kat)throw new InvalidArgumentException('Select a saved KAT Profile from the list.');
+            $kv=(array)($kat['values']??[]);
+            $katType=$values[0]==='RICE'?tt_product_type((string)($kv[2]??'')):trim((string)($kv[2]??''));
+            if(strcasecmp((string)($kv[0]??''),$values[0])!==0||strcasecmp(tt_product_base((string)($kv[1]??'')),$values[1])!==0||strcasecmp($katType,$values[2])!==0||strcasecmp(tt_product_stage((string)($kv[3]??'')),$values[3])!==0)throw new InvalidArgumentException('The selected KAT Profile belongs to a different commodity, variety, type or purchase classification.');
         }
         $candidate=strtolower($values[0].'|'.$values[1].'|'.$values[2].'|'.$values[3].'|'.$values[10]);
         foreach ((array)(master_all($admin)['purchase_products']??[]) as $row) {

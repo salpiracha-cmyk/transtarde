@@ -100,6 +100,8 @@ jobs:
           node tests/accounts-v1/broker_brokery_master_test.js
           node tests/accounts-v1/soda_milling_routing_test.js
           node tests/accounts-v1/soda_master_compatibility_test.js
+          node tests/accounts-v1/purchase_master_conditionals_test.js
+          python3 tests/accounts-v1/purchase_master_kat_link_test.py
           node tests/accounts-v1/linkage_regressions_test.js
           php tests/accounts-v1/customer_receivables_test.php
           php tests/accounts-v1/fi_credit_advice_link_test.php

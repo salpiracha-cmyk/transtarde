@@ -887,7 +887,7 @@
       if(manage)manage.onclick=()=>{menu.hidden=!menu.hidden;if(!menu.hidden){menu.scrollIntoView({block:"nearest",inline:"nearest"});menu.querySelector("button")?.focus({preventScroll:true})}};
       if(menu)menu.onclick=async event=>{
         const choose=event.target.closest("[data-choose-product-option]");
-        if(choose){input.value=choose.dataset.chooseProductOption||"";menu.hidden=true;return}
+        if(choose){input.value=choose.dataset.chooseProductOption||"";menu.hidden=true;input.dispatchEvent(new Event("change",{bubbles:true}));return}
         const add=event.target.closest("[data-add-product-option]");
         const rename=event.target.closest("[data-rename-product-option]");
         const remove=event.target.closest("[data-delete-product-option]");
@@ -1112,6 +1112,11 @@
     if (type.id === "purchase_products") {
       const values=Array(11).fill("");
       [0,1,2,3,4,5,8,9,10].forEach(index=>{values[index]=document.getElementById(masterInputId(index))?.value.trim()||""});
+      if(values[0]!=="RICE"){
+        values[10]="";
+        const original=document.getElementById("masterForm").dataset.purchaseCommodity||"";
+        if(!original||original!==values[0])values[2]="";
+      }
       return values;
     }
     return type.fields.map((field, index) => {
@@ -1411,6 +1416,7 @@
     const type = activeMasterType();
     const row = (state.masters[type.id] || []).find(item => item.id === id);
     document.getElementById("masterForm").reset();
+    document.getElementById("masterForm").dataset.purchaseCommodity=type.id==="purchase_products"?String(row?.values?.[0]||"").toUpperCase():"";
     document.getElementById("editMasterId").value = row?.id || "";
     document.getElementById("masterDialogTitle").textContent = `${row ? "Edit" : "Add"} ${type.name}`;
     document.getElementById("masterDialogHelp").textContent = type.description + " Complete as much information as available; only the essential identity fields are mandatory.";
@@ -1470,6 +1476,28 @@
       wireNested();
     }
     if (["products","purchase_products","purchase_kat"].includes(type.id)) wireProductOptionFields();
+    if(type.id==="purchase_products"){
+      const commodity=document.getElementById(masterInputId(0)),riceType=document.getElementById(masterInputId(2)),broken=document.getElementById(masterInputId(10)),kat=document.getElementById(masterInputId(5));
+      const syncPurchaseFields=(changed=false)=>{
+        const isRice=commodity.value==="RICE";
+        riceType.closest("label").hidden=!isRice;riceType.required=isRice;
+        broken.closest("label").hidden=!isRice;
+        const original=document.getElementById("masterForm").dataset.purchaseCommodity||"";
+        const kind=isRice?riceType.value.trim():original===commodity.value?riceType.value.trim():"";
+        const same=(a,b)=>String(a||"").trim().toLowerCase()===String(b||"").trim().toLowerCase();
+        const selected=kat.value,profiles=state.masters?.purchase_kat||[];
+        const matches=profiles.filter(row=>{
+          const v=row.values||[];
+          return v[7]!=="Inactive"&&same(v[0],commodity.value)&&same(v[1],document.getElementById(masterInputId(1)).value)&&same(v[2],kind)&&same(v[3],document.getElementById(masterInputId(3)).value);
+        });
+        kat.replaceChildren(new Option("No KAT profile",""));
+        matches.forEach(row=>kat.add(new Option(row.values?.[4]||row.id,row.id)));
+        if(!changed&&selected&&!matches.some(row=>row.id===selected))kat.add(new Option("Saved KAT profile — review product match",selected));
+        kat.value=[...kat.options].some(option=>option.value===selected)?selected:"";
+      };
+      [0,1,2,3].forEach(index=>{const field=document.getElementById(masterInputId(index));field.addEventListener("change",()=>syncPurchaseFields(true));field.addEventListener("input",()=>syncPurchaseFields(true));});
+      syncPurchaseFields();
+    }
     if(type.id==="business_parties"){
       const syncBrokerSection=()=>{const checked=[...document.querySelectorAll('[data-master-field-index="2"]:checked')].some(input=>input.value==="Broker");const section=document.getElementById("brokeryProfileSection");if(section)section.hidden=!checked};
       document.querySelectorAll('[data-master-field-index="2"]').forEach(input=>input.addEventListener("change",syncBrokerSection));
