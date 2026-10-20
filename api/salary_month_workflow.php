@@ -125,6 +125,15 @@ function smw_action(array &$s,string $entity,string $month,array $b,array $u,arr
         throw new DomainException('This month is completed. Amend its Post ID with a reason.');
     }
     if((int)($b['version']??-1)!==$sheet['version'])throw new DomainException('Another salary draft changed. Refresh and review the latest sheet.');
+    if(($b['action']??'')==='reset_salary_draft'){
+        if(!src_allowed($u,$entity))throw new DomainException('Director or Super Admin Edit permission is required to reset a salary draft.');
+        $reason=trim((string)($b['reason']??''));if(strlen($reason)<5)throw new DomainException('Enter the reason for resetting this salary draft.');
+        $fresh=smw_fresh_sheet($s,$entity,$month);
+        $fresh['version']=$sheet['version']+1;$fresh['updatedAt']=gmdate('c');
+        $s['salaryDraftResets'][]=['entity'=>$entity,'month'=>$month,'reason'=>$reason,'before'=>$s['salarySheets'][$key]??$sheet,'at'=>gmdate('c'),'by'=>$u['username']??$u['full_name']??'Accounts'];
+        $s['salarySheets'][$key]=$fresh;
+        return ['draftReset'=>true,'postedEntriesPreserved'=>true];
+    }
     if(($b['action']??'')==='refresh_salary_draft'){
         if(empty($sheet['masterChanged'])||empty($sheet['canRefreshFromMaster']))throw new DomainException('This sheet cannot be refreshed from Salary Master.');
         if(!empty($sheet['sourceInputsChanged'])&&($sheet['masterSignature']??'')===smw_master_signature($s,$entity,$month))return sfw_refresh_sources($s,$entity,$month,$sheet);

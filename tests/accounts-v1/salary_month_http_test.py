@@ -151,6 +151,22 @@ with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
         assert all(l['account'] not in ['6210','6220','7210'] for j in new_journals for l in j['lines']),'No duplicate salary expense'
         assert saved()['salaryPeriods']['TTI|2027-04|Alice']['outstanding']==1250
         print('Salary drafts, restart persistence, amount caps, payable and advance balances, mixed payments, cheque validation, overdraft and atomic final retry passed')
+        # Explicit reset clears only unfinished plans, retaining the accrued books.
+        assert request({'action':'prepare_month'},'2028-06')[0]==200
+        current=request(month='2028-06')[1]['salarySheet']
+        tx['date']='2028-06-03'
+        status,data=request({'action':'save_salary_transactions','masterId':'Alice','version':current['version'],'transactions':[tx],'advanceApplied':0},'2028-06');assert status==200,data
+        reset_before=saved();version=data['salarySheet']['version']
+        status,data=request({'action':'reset_salary_draft','version':version,'reason':'Owner requests clean payment inputs'},'2028-06');assert status==200,data
+        assert data['result']['draftReset'] and all(not r['reviewed'] and r['payment'] is None for r in data['salarySheet']['rows'].values())
+        assert 'paymentGroups' not in data['salarySheet']
+        reset_after=saved()
+        for key in ['journals','salaryPeriods','salaryAdvances','salaryMasters']:assert reset_before.get(key)==reset_after.get(key),key
+        assert len(reset_after['salaryDraftResets'])==1 and reset_after['salaryDraftResets'][0]['before']['paymentGroups']
+        assert request({'action':'reset_salary_draft','version':version,'reason':'Stale tab'},'2028-06')[0]==422
+        assert saved()==reset_after,'Stale reset cannot clear newer work'
+        assert request({'action':'reset_salary_draft','version':0,'reason':'Completed month'},'2026-10')[0]==422
+        assert saved()==reset_after,'Completed salary cannot be reset'
         # Recurring changes are durable drafts, then commit with the final journal.
         state=saved();state['salaryMasters']['Bob']['status']='Active';state['salaryMasters']['Bob']['effectiveTo']='';(root/'data/accounts.json').write_text(json.dumps(state))
         month='2027-05';sheet=request(None,month)[1]['salarySheet'];old_master=json.loads(json.dumps(saved()['salaryMasters']['Alice']));old_periods=json.loads(json.dumps(saved().get('salaryPeriods',{})))
