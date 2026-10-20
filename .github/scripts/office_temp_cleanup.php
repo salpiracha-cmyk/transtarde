@@ -13,12 +13,31 @@ function otc_legacy_grace(array $s,int $now,int $schema,int $created):bool {
 // Owner approval at 22:45:20 Pakistan time covers only the measured six-file cohort.
 function otc_approved_cohort(array $identities,int $uid):bool {
     $owned=array_filter($identities,static fn($s)=>is_array($s)&&$s['uid']===$uid);
-    return count($owned)===6&&array_sum(array_column($owned,'size'))===6856173595;
+    return (count($owned)===6&&array_sum(array_column($owned,'size'))===6856173595)
+        ||(count($owned)===4&&array_sum(array_column($owned,'size'))===3841208033);
 }
 function otc_owner_grace(array $s,int $now,int $schema,int $created,int $approvedBefore):bool {
     return $approvedBefore>0&&$schema>=1&&$schema<=3&&$created<$approvedBefore
         &&$s['mtime']<$approvedBefore&&$s['ctime']<$approvedBefore
         &&$now-max($s['mtime'],$s['ctime'],$created)>=1800;
+}
+/** Identify an interrupted export from eight sequential, CRC-checked local entries.
+ * No ciphertext is printed, restored, decrypted, or executed. */
+function otc_partial_export(string $path):?string {
+    $h=@fopen($path,'rb');if(!$h)return null;$fingerprint=hash_init('sha256');
+    try{
+        for($i=1;$i<=8;$i++){
+            $header=fread($h,30);if(strlen($header)!==30||substr($header,0,4)!=="PK\x03\x04")return null;
+            $e=unpack('vversion/vflags/vmethod/vtime/vdate/Vcrc/Vpacked/Vplain/vname/vextra',substr($header,4));
+            if($e['version']!==20||$e['flags']!==0x0800||$e['method']!==0||$e['packed']!==$e['plain']||$e['packed']>67108864||$e['extra']!==0)return null;
+            $expected='Encrypted/'.sprintf('%06d',$i).'.bin';
+            if($e['name']!==strlen($expected))return null;$name=fread($h,$e['name']);if($name!==$expected)return null;
+            hash_update($fingerprint,$header.$name);$crc=hash_init('crc32b');$left=$e['packed'];
+            while($left>0){$chunk=fread($h,min(1048576,$left));if($chunk===false||$chunk==='')return null;$left-=strlen($chunk);hash_update($crc,$chunk);hash_update($fingerprint,$chunk);}
+            if(hash_final($crc)!==sprintf('%08x',$e['crc']))return null;
+        }
+        return hash_final($fingerprint);
+    }finally{fclose($h);}
 }
 function otc_classify(string $path,int $uid,int $now,int $approvedBefore=0):array {
     $s=otc_identity($path);
@@ -38,7 +57,16 @@ function otc_classify(string $path,int $uid,int $now,int $approvedBefore=0):arra
         if(($m['application']??'')!=='Transtrade'||($m['type']??'')!=='full_recovery'||!in_array((int)($m['schema']??0),[1,2,3],true)||empty($m['encryptedEntries'])||empty($m['recoveryFiles'])||!$created||$created>$now-1800)throw new RuntimeException('Unrecognised archive');
         if($recent&&!otc_legacy_grace($s,$now,(int)$m['schema'],$created)&&!otc_owner_grace($s,$now,(int)$m['schema'],$created,$approvedBefore))return $base+['reason'=>'recent'];
         return $base+['reason'=>'eligible','legacyRecent'=>$recent,'created'=>$created,'date'=>gmdate('Y-m-d',$created),'schema'=>(int)$m['schema'],'manifestSha256'=>hash('sha256',$raw)];
-    }catch(Throwable){return $base+['reason'=>'unrecognised'];}
+    }catch(Throwable){
+        // Only the fixed owner-approved cohort may use structural proof when a
+        // failed export never reached its final manifest/central directory.
+        if($reader){$reader->close();$reader=null;}
+        if($ownerPossible&&($prefix=otc_partial_export($path))!==null){
+            $created=max($s['mtime'],$s['ctime']);
+            return $base+['reason'=>'eligible','legacyRecent'=>$recent,'created'=>$created,'date'=>gmdate('Y-m-d',$created),'archiveState'=>'interrupted_encrypted_export','prefixSha256'=>$prefix];
+        }
+        return $base+['reason'=>'unrecognised'];
+    }
     finally{if($reader)$reader->close();}
 }
 function otc_process_visibility(int $uid):bool {
@@ -80,7 +108,7 @@ function otc_main():void {
     $uid=posix_geteuid();$now=time();$plan=[];$summary=[];$dates=[];
     $candidates=glob(sys_get_temp_dir().'/tt-backup-*')?:[];
     $identities=array_map('otc_identity',$candidates);
-    if(!otc_approved_cohort($identities,$uid))throw new RuntimeException('The approved six-file, 6856173595-byte cohort changed; no files removed.');
+    if(!otc_approved_cohort($identities,$uid))throw new RuntimeException('The approved temporary archive cohort changed; no files removed.');
     $approvedBefore=strtotime('2026-10-20T17:45:20Z');
     foreach($candidates as$p){
         $c=otc_classify($p,$uid,$now,$approvedBefore);$plan[$p]=$c;$r=$c['reason'];

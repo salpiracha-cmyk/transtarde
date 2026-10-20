@@ -95,3 +95,13 @@ A new complete persistent data snapshot must verify first; each candidate is
 rechecked immediately before deletion. Future, changed, unknown, incomplete,
 linked, foreign-owned, open or locked files stay. This approval does not remove
 any retained recovery point or original live record/document.
+
+The same approval covers the exact four-file remainder of 3,841,208,033 bytes
+following removal of two complete archives. An interrupted export without its
+final manifest is identifiable only when its first eight local ZIP entries are
+sequential Encrypted/000001.bin through Encrypted/000008.bin with expected
+version, flags and storage method, bounded payload sizes and valid per-entry
+CRC. A prefix SHA256 is bound to the candidate and rechecked before unlink.
+The original fixed approval cutoff, minimum age, process visibility, exclusive
+lock, file identity and fully verified newer persistent survivor still apply.
+Unknown headers or damaged prefix payloads remain held; no live data is restored.
