@@ -35,3 +35,14 @@ Policy deployment may atomically replace only backup_lib.php and the owner
 backup-page guidance, guarded by exact old/new hashes and previous-code copies.
 
 This supersedes the seven-day/daily plus100-day/monthly policy from PR385.
+
+Encrypted owner/office downloads (20 October 2026): schema 3 compresses text and
+application source before encryption, and stores uploaded document bytes once
+while retaining both logical recovery paths. Older schema 1/2 encrypted copies
+remain readable by the new reader. Each build removes only its own temporary
+archive on failure/shutdown; unknown or other requests' temporary files are not
+pruned. Office download streaming disables output buffering and HTTP content
+transformations; transfer length and SHA256 must still match before acceptance.
+The independent Windows agent needs an explicit update and the closing-time
+installer described in BACKUP_RECOVERY.md; hosted deployment alone does not
+change its schedule, local credentials or existing retention counts.

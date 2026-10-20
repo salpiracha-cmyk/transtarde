@@ -1,0 +1,79 @@
+name: Verify and repair office backup downloads
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths: ['backup_lib.php', 'api/backup.php', 'api/office_backup.php', 'scripts/office_backup_agent.py', 'tests/security/office_backup*', '.github/scripts/office_backup_repair.php', '.github/workflows/office-backup-repair.yml']
+  push:
+    branches: [main]
+    paths: ['.github/scripts/office_backup_repair.php', '.github/workflows/office-backup-repair.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          php -l backup_lib.php
+          php -l api/backup.php
+          php -l api/office_backup.php
+          php -l .github/scripts/office_backup_repair.php
+          php tests/security/server_backup_hardening_test.php
+          php tests/security/backup_compression_retention_test.php
+          php tests/security/backup_expiry_safety_test.php
+          php tests/security/office_backup_compression_test.php
+          python3 tests/security/backup_stream_http_test.py
+          python3 tests/security/office_backup_agent_test.py
+          python3 tests/security/office_agent_jobs_test.py
+  windows-syntax:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Parse Windows schedule installer without changing any task
+        shell: pwsh
+        run: |
+          $tokens = $null
+          $parseErrors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $PWD 'scripts/install_office_backup_schedule.ps1'), [ref]$tokens, [ref]$parseErrors) | Out-Null
+          if ($parseErrors.Count) { $parseErrors | Format-List; throw 'Schedule installer contains syntax errors.' }
+          Write-Host 'WINDOWS_SCHEDULE_SYNTAX_OK'
+  repair:
+    needs: [validate, windows-syntax]
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    concurrency:
+      group: transtrade-production-deployment
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify candidate recovery and atomically install three backup files
+        env:
+          HOSTINGER_HOST: ${{ secrets.HOSTINGER_HOST }}
+          HOSTINGER_PORT: ${{ secrets.HOSTINGER_PORT }}
+          HOSTINGER_USER: ${{ secrets.HOSTINGER_USER }}
+          HOSTINGER_DEPLOY_PATH: ${{ secrets.HOSTINGER_DEPLOY_PATH }}
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+          HOSTINGER_KNOWN_HOSTS: ${{ secrets.HOSTINGER_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -m 700 -d "$RUNNER_TEMP/ssh"
+          printf '%s\n' "$HOSTINGER_SSH_KEY" | tr -d '\r' > "$RUNNER_TEMP/ssh/key"
+          printf '%s\n' "$HOSTINGER_KNOWN_HOSTS" | tr -d '\r' > "$RUNNER_TEMP/ssh/known_hosts"
+          chmod 600 "$RUNNER_TEMP/ssh/key" "$RUNNER_TEMP/ssh/known_hosts"
+          [[ "$HOSTINGER_DEPLOY_PATH" =~ ^/home/[a-zA-Z0-9_-]+/domains/app\.transtradeinternational\.com/public_html$ ]]
+          python3 - <<'PY'
+          import pathlib,base64,hashlib,json,os
+          package={p:{'source':base64.b64encode(pathlib.Path(p).read_bytes()).decode(),'sha256':hashlib.sha256(pathlib.Path(p).read_bytes()).hexdigest()} for p in ['backup_lib.php','api/backup.php','api/office_backup.php']}
+          source=pathlib.Path('.github/scripts/office_backup_repair.php').read_text().replace('__OFFICE_BACKUP_PACKAGE__',base64.b64encode(json.dumps(package).encode()).decode())
+          pathlib.Path(os.environ['RUNNER_TEMP'],'office-backup-repair.php').write_text(source)
+          PY
+          ssh -o ConnectTimeout=20 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -i "$RUNNER_TEMP/ssh/key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" -o StrictHostKeyChecking=yes -p "$HOSTINGER_PORT" "$HOSTINGER_USER@$HOSTINGER_HOST" "TT_OFFICE_BACKUP_REPAIR_ROOT='$HOSTINGER_DEPLOY_PATH' php" < "$RUNNER_TEMP/office-backup-repair.php"
+      - name: Verify login still responds
+        run: |
+          curl --fail --silent --show-error --max-time 30 https://app.transtradeinternational.com/login.php > "$RUNNER_TEMP/login.html"
+          grep -q 'name="password"' "$RUNNER_TEMP/login.html"
+          echo 'PUBLIC_LOGIN_HEALTH_OK'

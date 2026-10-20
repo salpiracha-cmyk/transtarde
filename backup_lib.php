@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-const TT_BACKUP_SCHEMA = 2;
+const TT_BACKUP_SCHEMA = 3;
 const TT_BACKUP_APP_VERSION = 'Transtrade V1';
 const TT_BACKUP_MAX_RESTORE_BYTES = 536870912; // 512 MB
 
@@ -445,8 +445,35 @@ function tt_backup_business_payloads(): array {
 
 function tt_backup_manifest(string $type,array $files,array $extra=[]):array{$inventory=[];foreach($files as $rel=>$path)$inventory[]=['path'=>$rel,'size'=>is_file($path)?filesize($path):0,'sha256'=>is_file($path)?hash_file('sha256',$path):''];return array_merge(['schema'=>TT_BACKUP_SCHEMA,'application'=>'Transtrade','appVersion'=>TT_BACKUP_APP_VERSION,'type'=>$type,'createdAt'=>gmdate('c'),'recoveryFileCount'=>count($inventory),'recoveryFiles'=>$inventory],$extra);}
 function tt_backup_derive_key(string $password,string $salt,int $iterations):string{if(strlen($password)<12)throw new InvalidArgumentException('Recovery ZIP password must contain at least 12 characters.');return hash_pbkdf2('sha256',$password,$salt,$iterations,32,true);}
-function tt_backup_encrypt(string $plain,string $key):array{if(!function_exists('openssl_encrypt'))throw new RuntimeException('OpenSSL encryption is not available on this server.');$nonce=random_bytes(12);$tag='';$cipher=openssl_encrypt($plain,'aes-256-gcm',$key,OPENSSL_RAW_DATA,$nonce,$tag,'TRANSTRADE-BACKUP');if($cipher===false)throw new RuntimeException('Recovery data could not be encrypted.');return ['cipher'=>$cipher,'nonce'=>base64_encode($nonce),'tag'=>base64_encode($tag),'sha256'=>hash('sha256',$plain),'size'=>strlen($plain)];}
-function tt_backup_decrypt(string $cipher,array $meta,string $key):string{if(!function_exists('openssl_decrypt'))throw new RuntimeException('OpenSSL decryption is not available on this server.');$plain=openssl_decrypt($cipher,'aes-256-gcm',$key,OPENSSL_RAW_DATA,base64_decode((string)$meta['nonce'],true)?:'',base64_decode((string)$meta['tag'],true)?:'','TRANSTRADE-BACKUP');if($plain===false||!hash_equals((string)($meta['sha256']??''),hash('sha256',$plain)))throw new InvalidArgumentException('The backup password is incorrect or an encrypted file failed integrity verification.');return $plain;}
+function tt_backup_encrypt(string $plain,string $key,bool $compress=false):array{
+    if(!function_exists('openssl_encrypt'))throw new RuntimeException('OpenSSL encryption is not available on this server.');
+    $encoded=$plain;$compression='';
+    if($compress&&$plain!==''){
+        $packed=gzdeflate($plain,6);if($packed===false)throw new RuntimeException('Recovery compression failed.');
+        if(strlen($packed)<strlen($plain)){$encoded=$packed;$compression='deflate';}
+    }
+    $nonce=random_bytes(12);$tag='';$aad=$compression==='deflate'?'TRANSTRADE-BACKUP-DEFLATE':'TRANSTRADE-BACKUP';
+    $cipher=openssl_encrypt($encoded,'aes-256-gcm',$key,OPENSSL_RAW_DATA,$nonce,$tag,$aad);
+    if($cipher===false)throw new RuntimeException('Recovery data could not be encrypted.');
+    $meta=['cipher'=>$cipher,'nonce'=>base64_encode($nonce),'tag'=>base64_encode($tag),'sha256'=>hash('sha256',$plain),'size'=>strlen($plain)];
+    if($compression!=='')$meta['compression']=$compression;
+    return $meta;
+}
+function tt_backup_decrypt(string $cipher,array $meta,string $key):string{
+    if(!function_exists('openssl_decrypt'))throw new RuntimeException('OpenSSL decryption is not available on this server.');
+    $compression=(string)($meta['compression']??'');
+    if(!in_array($compression,['','deflate'],true))throw new InvalidArgumentException('Unsupported encrypted recovery compression.');
+    $aad=$compression==='deflate'?'TRANSTRADE-BACKUP-DEFLATE':'TRANSTRADE-BACKUP';
+    $plain=openssl_decrypt($cipher,'aes-256-gcm',$key,OPENSSL_RAW_DATA,base64_decode((string)$meta['nonce'],true)?:'',base64_decode((string)$meta['tag'],true)?:'',$aad);
+    if($plain===false)throw new InvalidArgumentException('The backup password is incorrect or an encrypted file failed integrity verification.');
+    if($compression==='deflate'){
+        $limit=(int)($meta['size']??0);
+        if($limit<1||$limit>TT_BACKUP_MAX_RESTORE_BYTES)throw new InvalidArgumentException('Invalid compressed recovery size.');
+        $plain=@gzinflate($plain,$limit);
+    }
+    if(!is_string($plain)||strlen($plain)!==(int)($meta['size']??-1)||!hash_equals((string)($meta['sha256']??''),hash('sha256',$plain)))throw new InvalidArgumentException('The backup password is incorrect or an encrypted file failed integrity verification.');
+    return $plain;
+}
 function tt_backup_decrypt_entry(TT_SimpleZipReader $zip,array $meta,string $key,mixed $destination):void{
     $digest=hash_init('sha256');$size=0;
     foreach(isset($meta['chunks']) ? (array)$meta['chunks'] : [$meta] as $chunk){
@@ -462,13 +489,20 @@ function tt_build_download_backup(bool $full,string $password=''):array{
     foreach($private as $rel=>$path)if(preg_match('#^(documents|uploads)/(.*)$#i',$rel,$m))$documents['Documents/'.$m[2]]=$path;
     $estimate=0;foreach($private as $path)$estimate+=filesize($path)?:0;foreach($appFiles as $path)$estimate+=filesize($path)?:0;
     $tmp=tempnam(sys_get_temp_dir(),'tt-backup-');if($tmp===false)throw new RuntimeException('Temporary backup file could not be created.');
+    @chmod($tmp,0600);
+    // Also release this request's file after fatal PHP termination. This never
+    // enumerates or deletes any other request's temporary or completed backup.
+    register_shutdown_function(static function()use($tmp):void{if(is_file($tmp))@unlink($tmp);});
     try { tt_backup_require_space(dirname($tmp),$full ? $estimate*2 : array_sum(array_map('filesize',$documents))); }
     catch(Throwable $error) { @unlink($tmp); throw $error; }
     $zip=new TT_SimpleZipWriter($tmp);
+    try {
     if(!$full){foreach($business as $entry=>$data)$zip->addString($entry,$data);foreach($documents as $entry=>$path)$zip->addFile($entry,$path);$manifest=tt_backup_manifest('business_data',[],['businessSheets'=>count($datasets),'containsTechnicalSecrets'=>false]);$zip->addString('backup-manifest.json',json_encode($manifest,JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR));$zip->close();return ['path'=>$tmp,'manifest'=>$manifest];}
-    $salt=random_bytes(16);$iterations=200000;$key=tt_backup_derive_key($password,$salt,$iterations);$map=[];$counter=1;
-    $addEncrypted=function(string $logical,string $data)use($zip,$key,&$map,&$counter):void{$enc=tt_backup_encrypt($data,$key);$stored='Encrypted/'.str_pad((string)$counter++,6,'0',STR_PAD_LEFT).'.bin';$zip->addString($stored,$enc['cipher']);unset($enc['cipher']);$enc['stored']=$stored;$map[$logical]=$enc;};
-    $addEncryptedFile=function(string $logical,string $path)use($zip,$key,&$map,&$counter):void{
+    $salt=random_bytes(16);$iterations=200000;$key=tt_backup_derive_key($password,$salt,$iterations);$map=[];$counter=1;$encryptedFiles=[];
+    $addEncrypted=function(string $logical,string $data)use($zip,$key,&$map,&$counter):void{$enc=tt_backup_encrypt($data,$key,true);$stored='Encrypted/'.str_pad((string)$counter++,6,'0',STR_PAD_LEFT).'.bin';$zip->addString($stored,$enc['cipher'],false);unset($enc['cipher']);$enc['stored']=$stored;$map[$logical]=$enc;};
+    $addEncryptedFile=function(string $logical,string $path)use($zip,$key,&$map,&$counter,&$encryptedFiles):void{
+        if(isset($encryptedFiles[$path])){$map[$logical]=$encryptedFiles[$path];return;}
+        $compress=(bool)preg_match('/\.(json|txt|csv|log|sql|php|js|css|html?|xml|svg|md|ya?ml)([.-]|$)/i',$path);
         $source=fopen($path,'rb');if($source===false)throw new RuntimeException('A recovery source file could not be read.');
         $chunks=[];$digest=hash_init('sha256');$size=0;
         try {
@@ -476,11 +510,12 @@ function tt_build_download_backup(bool $full,string $password=''):array{
                 $plain=fread($source,1024*1024);
                 if($plain===false)throw new RuntimeException('A recovery source file could not be read.');
                 $size+=strlen($plain);hash_update($digest,$plain);
-                $enc=tt_backup_encrypt($plain,$key);$stored='Encrypted/'.str_pad((string)$counter++,6,'0',STR_PAD_LEFT).'.bin';
+                $enc=tt_backup_encrypt($plain,$key,$compress);$stored='Encrypted/'.str_pad((string)$counter++,6,'0',STR_PAD_LEFT).'.bin';
                 $zip->addString($stored,$enc['cipher'],false);unset($enc['cipher']);$enc['stored']=$stored;$chunks[]=$enc;
             } while(!feof($source));
         } finally { fclose($source); }
         $map[$logical]=['size'=>$size,'sha256'=>hash_final($digest),'chunks'=>$chunks];
+        $encryptedFiles[$path]=$map[$logical];
     };
     foreach($business as $entry=>$data)$addEncrypted($entry,$data);
     foreach($documents as $entry=>$path)$addEncryptedFile($entry,$path);
@@ -489,6 +524,31 @@ function tt_build_download_backup(bool $full,string $password=''):array{
     $appInventory=[];foreach($appFiles as $rel=>$path)$appInventory[]=['path'=>$rel,'size'=>filesize($path)?:0,'sha256'=>hash_file('sha256',$path)?:''];
     $manifest=tt_backup_manifest('full_recovery',$private,['businessSheets'=>count($datasets),'containsTechnicalSecrets'=>true,'appFileCount'=>count($appFiles),'applicationFiles'=>$appInventory,'encryption'=>['algorithm'=>'AES-256-GCM','kdf'=>'PBKDF2-HMAC-SHA256','iterations'=>$iterations,'salt'=>base64_encode($salt)],'encryptedEntries'=>$map]);
     $zip->addString('README.txt',"TRANSTRADE COMPLETE RECOVERY BACKUP\n\nSensitive contents are encrypted with the password chosen by the owner. Restore through Transtrade Super Admin > Backup & Data Export.\nThe password is not stored in this ZIP.\n");$zip->addString('backup-manifest.json',json_encode($manifest,JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR));$zip->close();return ['path'=>$tmp,'manifest'=>$manifest];
+    }catch(Throwable $error){try{$zip->close();}catch(Throwable){}@unlink($tmp);throw $error;}
+}
+
+function tt_backup_stream_file(string $path,string $filename,string $sha256=''):void{
+    $handle=fopen($path,'rb');if($handle===false)throw new RuntimeException('Could not stream the backup.');
+    try{
+        $stat=fstat($handle);if($stat===false)throw new RuntimeException('Could not read backup transfer size.');
+        @set_time_limit(900);
+        @ini_set('zlib.output_compression','0');
+        while(ob_get_level()>0){if(!@ob_end_clean())throw new RuntimeException('Could not disable backup output buffering.');}
+        header('Content-Type: application/zip');
+        header('Content-Disposition: attachment; filename="'.basename($filename).'"');
+        header('Content-Length: '.$stat['size']);
+        header('Cache-Control: no-store, no-cache, must-revalidate, no-transform');
+        header('Content-Encoding: identity');
+        header('X-Accel-Buffering: no');
+        if($sha256!=='')header('X-Backup-SHA256: '.$sha256);
+        flush();$sent=0;
+        while(!feof($handle)){
+            $chunk=fread($handle,1024*1024);if($chunk===false)throw new RuntimeException('Backup transfer was interrupted.');
+            echo $chunk;$sent+=strlen($chunk);flush();
+            if(connection_aborted())throw new RuntimeException('Backup recipient disconnected.');
+        }
+        if($sent!==$stat['size'])throw new RuntimeException('Backup transfer ended before all bytes were sent.');
+    }finally{fclose($handle);}
 }
 
 function tt_backup_verify_snapshot(string $path, array $expectedInventory): void {

@@ -5,7 +5,7 @@ require dirname(__DIR__) . '/backup_lib.php';
 require dirname(__DIR__) . '/office_backup_auth.php';
 
 function backup_json(array $data,int $status=200): never {http_response_code($status);header('Content-Type: application/json; charset=UTF-8');header('Cache-Control: no-store');echo json_encode($data,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);exit;}
-function backup_stream(string $path,string $filename): never {header('Content-Type: application/zip');header('Content-Disposition: attachment; filename="'.$filename.'"');header('Content-Length: '.filesize($path));header('Cache-Control: no-store, no-cache, must-revalidate');readfile($path);@unlink($path);exit;}
+function backup_stream(string $path,string $filename): never {try{tt_backup_stream_file($path,$filename);}finally{@unlink($path);}exit;}
 
 try {
     $admin=tt_require_login();if(($admin['role']??'')!=='Super Admin')backup_json(['ok'=>false,'error'=>'Super Admin access required.'],403);

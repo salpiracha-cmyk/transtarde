@@ -17,18 +17,71 @@ spec.loader.exec_module(agent)
 
 class FakeResponse(io.BytesIO):
     status = 200
-    def __init__(self, payload, digest):
+    def __init__(self, payload, digest, advertised_length=None, encoding='identity'):
         super().__init__(payload)
         self.headers = self
         self.digest = digest
+        self.advertised_length = len(payload) if advertised_length is None else advertised_length
+        self.encoding = encoding
     def get_content_type(self): return 'application/zip'
     def get(self, name, default=''):
-        return {'X-Backup-SHA256': self.digest, 'Content-Length': str(len(self.getvalue()))}.get(name, default)
+        return {'X-Backup-SHA256': self.digest, 'Content-Length': str(self.advertised_length), 'Content-Encoding': self.encoding}.get(name, default)
     def __enter__(self): return self
     def __exit__(self, *_): self.close()
 
 
 class OfficeAgentTest(unittest.TestCase):
+    def test_closing_backup_and_missed_run_catchup(self):
+        cases = [
+            ('2026-10-20T18:00:00+05:00', '2026-10-20T15:00:00+05:00', None, 1),
+            ('2026-10-20T18:30:00+05:00', '2026-10-20T18:10:00+05:00', '2026-10-20T18:00:00+05:00', 0),
+            ('2026-10-21T08:00:00+05:00', '2026-10-20T18:10:00+05:00', '2026-10-20T18:00:00+05:00', 0),
+            ('2026-10-21T18:00:00+05:00', '2026-10-20T18:10:00+05:00', '2026-10-20T18:00:00+05:00', 1),
+            ('2026-10-20T08:00:00+05:00', '2026-10-18T18:10:00+05:00', '2026-10-18T18:00:00+05:00', 1),
+        ]
+        for now_text, last_text, slot, expected_pulls in cases:
+            with self.subTest(now=now_text, slot=slot), tempfile.TemporaryDirectory() as folder:
+                root = Path(folder)
+                config = root / 'office-backup.json'
+                config.write_text(json.dumps({'destination':str(root)}))
+                daily = root / 'Daily' / 'verified.zip'
+                daily.parent.mkdir()
+                daily.write_bytes(b'previous verified fixture')
+                state = {'last_success':datetime.fromisoformat(last_text).timestamp(),'last_file':daily.name}
+                if slot: state['scheduled_for'] = slot
+                state_path = root / 'office-backup-state.json'
+                state_path.write_text(json.dumps(state))
+                now = datetime.fromisoformat(now_text).timestamp()
+                argv = ['agent','--config',str(config),'--backup-only','--scheduled']
+                with patch.object(agent.sys,'argv',argv), patch.object(agent.time,'time',return_value=now), patch.object(agent,'pull',return_value=(daily,'a'*64)) as pull:
+                    self.assertEqual(agent.main(),0)
+                    self.assertEqual(pull.call_count,expected_pulls)
+                    if expected_pulls:
+                        due = pull.call_args.kwargs['scheduled_for']
+                        self.assertEqual(due.hour,18)
+                        self.assertLessEqual(due.timestamp(),now)
+                        self.assertLess(now-due.timestamp(),86400)
+                        self.assertEqual(json.loads(state_path.read_text())['scheduled_for'],due.isoformat())
+
+    def test_interrupted_or_transformed_download_preserves_completed_backups(self):
+        config = {'url': 'https://app.transtradeinternational.com/api/office_backup.php', 'token': 'fixture-token', 'password': 'fixture-password'}
+        for response, message in [(FakeResponse(b'', '0' * 64, 1000), 'received 0 of 1,000'),
+                                  (FakeResponse(b'partial', '0' * 64, 1000), 'received 7 of 1,000'),
+                                  (FakeResponse(b'compressed', '0' * 64, encoding='gzip'), 'HTTP compression')]:
+            with self.subTest(message=message), tempfile.TemporaryDirectory() as folder:
+                root = Path(folder)
+                daily = root / 'Daily'
+                daily.mkdir()
+                survivor = daily / 'TRANSTRADE_FULL_2026-10-09_1004_verified.zip'
+                survivor.write_bytes(b'previous verified recovery copy')
+                with patch.object(agent.request, 'build_opener') as opener:
+                    opener.return_value.open.return_value = response
+                    with self.assertRaisesRegex(ValueError, message):
+                        agent.pull(config, root)
+                self.assertEqual(survivor.read_bytes(), b'previous verified recovery copy')
+                self.assertEqual(list(daily.iterdir()), [survivor])
+                self.assertFalse(list(root.glob('.downloading-*')))
+
     def test_daily_schedule_and_missing_local_copy(self):
         for age, exists, force, pulls in [(3600, True, False, 0),
                                           (23 * 3600, True, False, 1),
@@ -86,6 +139,22 @@ class OfficeAgentTest(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, 'checksum mismatch'):
                     agent.pull({'url': 'https://app.transtradeinternational.com/api/office_backup.php', 'token': 'x', 'password': 'password123456'}, dest)
             self.assertFalse(list(dest.glob('.downloading-*')))
+
+        # November starts on Sunday. Catching up that slot on Monday morning
+        # must not create Monday's weekly/monthly point before closing time.
+        with tempfile.TemporaryDirectory() as folder:
+            dest = Path(folder)
+            config = {'url':'https://app.transtradeinternational.com/api/office_backup.php','token':'fixture','password':'fixture-password'}
+            with patch.object(agent.request,'build_opener') as opener, patch.object(agent,'datetime') as clock:
+                opener.return_value.open.side_effect = response
+                clock.now.return_value = datetime.fromisoformat('2026-11-02T08:00:00+05:00')
+                agent.pull(config,dest,scheduled_for=datetime.fromisoformat('2026-11-01T18:00:00+05:00'))
+                self.assertFalse(list((dest/'Monthly').glob('*.zip')))
+                self.assertFalse(list((dest/'Weekly').glob('TRANSTRADE_FULL_2026-W45_*.zip')))
+                clock.now.return_value = datetime.fromisoformat('2026-11-02T18:00:00+05:00')
+                agent.pull(config,dest,scheduled_for=datetime.fromisoformat('2026-11-02T18:00:00+05:00'))
+                self.assertEqual(len(list((dest/'Monthly').glob('TRANSTRADE_FULL_2026-11_*.zip'))),1)
+                self.assertEqual(len(list((dest/'Weekly').glob('TRANSTRADE_FULL_2026-W45_*.zip'))),1)
 
 
 if __name__ == '__main__': unittest.main()
