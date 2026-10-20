@@ -117,7 +117,8 @@ authorization, privacy, CSRF, storage, replay and concurrency tests are separate
 
 ## Release acceptance
 
-The deployed application is27a847e69239d5778bd835a102cfe00e528c2c88.
+The initial accepted audit release was27a847e69239d5778bd835a102cfe00e528c2c88.
+The final combined-release addendum below records the subsequent release.
 
 - PR438 final combined featureaf7d85603ecbc875b0deb0c7eb4b541db413a9b2
   passed Accounts39439155009(both jobs) and Milling/Exports39439155088.
@@ -160,3 +161,35 @@ outstanding scope is dispositioned above. The bounded software test and repair
 run is finished; unconditional business-data, migration, office-device and formal
 security sign-off is not issued. No remaining source fact is silently treated
 as a completed test or a new financial posting.
+
+
+## Final combined release and deployment-trigger repair
+
+While this closeout was saved, the separate salary stream merged additional
+source-preserving payment/reset controls. A documentation-only commit then
+exposed an existing pipeline gap: production required QA for the exact latest
+main SHA, but path-filtered main workflows never ran for that documentation SHA.
+PR446 removes only the two main-push path filters. Every main commit now receives
+both unchanged suites; PR path filters, jobs, permissions and the exact-commit
+production gate remain unchanged. Parsed-YAML equivalence checks confirmed that
+only the intended trigger conditions changed. This prevents an audit/documentation
+merge from stranding a concurrent application release.
+
+The combined runtime6c2a20eb873b2566187680fea12efdc8919b5cc9 passed
+main Accounts39444509500(both jobs) and Milling/Exports39444509525.
+Deploy39445100966/job118704796324 succeeded, matching all458application
+files to that exact SHA with0verifier business writes,0changed users and
+0journal-ID changes. Login health passed. Rollback rotation retained1code
+copy, removed1older managed code copy and touched0private backups.
+Final startup39445359353 passed. Authenticated read-only live39445359319 /
+job118705699429 passed23/23 in3.1minutes against this combined runtime.
+It compared58active account ledgers across3companies with0concurrent-revision
+skips,10PKR bank comparisons,30posted JVs and468Post Register rows. WHT
+screen/CSV/print agreed with original postings. The suite recorded0financial
+writes. These are observations of the current live data; the earlier57ledger,
+29JV and465register counts describe the previous accepted run, before concurrent
+user activity. Source/annual/device/security qualifications above still apply.
+
+This final addendum changes documentation only. The accepted runtime is the exact
+6c2a20eb873b2566187680fea12efdc8919b5cc9 release; documentation-triggered reruns
+do not change that application-code acceptance.
