@@ -1,6 +1,8 @@
 # Transtrade migration readiness — 19 October 2026
 
-Latest continuation: [Connected Chrome acceptance, two additional repairs and exact remaining work](REMAINING_ACCEPTANCE_2026-10-20.md). Coverage156:125passed,22partial,3failed,3not tested,2blocked,1intermittent. The AMT reference-search action is newly closed;31scopes remain. Earlier counts below are historical checkpoints.
+Latest afternoon evidence: [Authorised party correction, deployed protections and partial-payment plan](PARTY_CORRECTION_2026-10-20.md). Scope37 advances from not tested to partial;125passed and31open remain unchanged.
+
+Latest continuation: [Connected Chrome acceptance, two additional repairs and exact remaining work](REMAINING_ACCEPTANCE_2026-10-20.md). Coverage156:125passed,23partial,3failed,2not tested,2blocked,1intermittent. The AMT reference-search action is newly closed;31scopes remain. Earlier counts below are historical checkpoints.
 
 [Current closeout and required source decisions](CLOSEOUT_2026-10-20.md)
 
