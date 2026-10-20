@@ -20,6 +20,7 @@ try{
         rewind($handle);$raw=stream_get_contents($handle);$store=$raw?json_decode($raw,true):null;
         if(!is_array($store))throw new RuntimeException('Accounts storage unavailable.');
         $entity=(string)($store['journals'][$postId]['entity']??'');
+        if(isset($body['entity'])&&strtoupper(trim((string)$body['entity']))!==$entity)apa_out(['ok'=>false,'error'=>'The selected posting belongs to another company. Reopen its original company books.'],403);
         $original=$store['journals'][$postId]??null;if(is_array($original)&&!tt_post_correction_allowed($user,$original))apa_out(['ok'=>false,'error'=>'Edit permission for the original workflow, or Journal Voucher approval for a JV, is required.'],403);
         if(is_array($original)&&in_array((string)($original['meta']['originalSourceType']??$original['sourceType']??''),['JV','JV_REVERSAL'],true)&&!tt_user_can_access_entity($user,$entity,'Approve'))apa_out(['ok'=>false,'error'=>'Company approval permission is required for a Journal Voucher correction.'],403);
         if(!tt_user_can_access_entity($user,$entity,'Edit'))apa_out(['ok'=>false,'error'=>'Accounts Edit permission for this company is required.'],403);
