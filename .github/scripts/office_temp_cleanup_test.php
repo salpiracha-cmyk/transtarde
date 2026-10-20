@@ -14,6 +14,17 @@ try{
  check(!otc_legacy_grace(['mtime'=>$cut-60,'ctime'=>$cut-60],$cut+900,2,$cut-60),'hold within grace');
  check(!otc_legacy_grace(['mtime'=>$cut+1,'ctime'=>$cut+1],$cut+86400,2,$cut-3600),'hold changed after repair');
  check(!otc_legacy_grace($old,$cut+900,2,$cut+1),'hold manifest after cutoff');
+ $approval=strtotime('2026-10-20T17:45:20Z');$approvedOld=['mtime'=>$approval-4000,'ctime'=>$approval-4000];
+ check(otc_owner_grace($approvedOld,$approval+60,3,$approval-4000,$approval),'owner permits the existing completed schema3 cohort');
+ check(!otc_owner_grace($approvedOld,$approval+60,3,$approval-4000,0),'no owner exception by default');
+ check(!otc_owner_grace(['mtime'=>$approval+1,'ctime'=>$approval-4000],$approval+9000,3,$approval-4000,$approval),'hold files changed after approval');
+ check(!otc_owner_grace($approvedOld,$approval+60,3,$approval+1,$approval),'hold manifest newer than approval');
+ check(!otc_owner_grace($approvedOld,$approval+60,4,$approval-4000,$approval),'hold unknown schemas');
+ check(!otc_owner_grace(['mtime'=>$approval-60,'ctime'=>$approval-60],$approval+60,3,$approval-60,$approval),'hold recently generated files');
+ $cohort=array_fill(0,6,['uid'=>$uid,'size'=>100]);$cohort[0]['size']=6856173095;
+ check(otc_approved_cohort($cohort,$uid),'recognise only measured six-file cohort');
+ $cohort[0]['size']++;check(!otc_approved_cohort($cohort,$uid),'stop on changed cohort bytes');
+ array_pop($cohort);check(!otc_approved_cohort($cohort,$uid),'stop on changed cohort count');
  check(otc_classify($p,$uid+1,$now)['reason']==='unknown','hold other owner');
  $link=$dir.'/tt-backup-SYM123';symlink($p,$link);check(otc_classify($link,$uid,$now)['reason']==='unknown','hold symlink');
  $unknown=$dir.'/tt-backup-BAD123';file_put_contents($unknown,'unrecognised');check(otc_classify($unknown,$uid,$now)['reason']==='unrecognised','hold unreadable');
