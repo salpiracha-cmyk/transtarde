@@ -180,46 +180,113 @@ with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
         assert all(x['status']=='Reversed' for x in reversed_state['investmentTransactions'].values() if x['journalId']==journal['id'])
         (root/'data/accounts.json').write_text(json.dumps(original))
         print('PASS extra expense + direct BMA funding + property instalment: one payment, independent monthly entitlement, permissions, stale-asset rollback, preview, retry and full reversal')
+        # Owner's exact planning example, company-borne Home and director balance.
+        original_plan=saved()
+        state={key:original_plan[key] for key in ['salaryMasters','investmentBrokers','investmentRoutes','bankAccountSettings'] if key in original_plan}
+        state['journals']={'CARD':{'id':'CARD','entity':'TTI','date':'2026-07-10','status':'Posted','sourceType':'PERSONAL_EXPENSE_ADJUSTMENT','meta':{},'lines':[{'account':'1230','debit':12000,'credit':0,'salaryMasterId':'Salman'},{'account':'6910','debit':0,'credit':12000}]}}
+        state['salaryAdvances']={'CARD-ADV':{'id':'CARD-ADV','entity':'TTI','masterId':'Salman','person':'Salman','date':'2026-07-10','amount':12000,'remaining':12000,'monthsRemaining':1,'personalLink':'CARD','recoveryFromMonth':'2026-08','adjustments':[]}}
+        (root/'data/accounts.json').write_text(json.dumps(state))
+        assert action('adjust_salary_month','Mrs',month='2026-08',netSalary=310000,advanceApplied=0)[0]==200
+        cheque={**payment(100000,'2026-08-03','bank-b',[alloc('Mrs',100000)]),'bankPaymentMethod':'CHEQUE','chequeNo':'MRS-100','chequeDate':'2026-08-03'}
+        plan=[payment(210000,'2026-08-03','CASH|TTI',[alloc('Mrs',210000)]),cheque,payment(10000,'2026-08-03','CASH|TTI',[{'type':'BROKER_FUND','amount':10000,'brokerId':'BMA','reference':'PLAN-BMA-1'}]),payment(10000,'2026-08-03','CASH|TTI',[alloc('Salman',10000)])]
+        before=saved();status,result=action('save_salary_transactions','Mrs',month='2026-08',transactions=plan,advanceApplied=0,companyHomeExpense=True);assert status==200,result
+        assert result['salarySheet']['rows']['Mrs']['payment']['amount']==310000
+        assert result['salarySheet']['rows']['Salman']['payment']['amount']==10000
+        assert saved()['journals']==before['journals']
+        assert action('save_salary_transactions','Salman',month='2026-08',transactions=[],advanceApplied=12000)[0]==200
+        assert action('save_salary_transactions','Worker',month='2026-08',transactions=[],advanceApplied=0)[0]==200
+        body={'action':'complete_salary_month','version':request(month='2026-08')[1]['salarySheet']['version'],'date':'2026-08-31'}
+        before=saved();assert request({**body,'preview':True},'2026-08')[0]==200;assert saved()==before
+        status,result=request(body,'2026-08');assert status==200,result
+        state=saved();period=state['salaryPeriods']['TTI|2026-08|Salman'];assert period['outstanding']==178000
+        assert state['salaryPeriods']['TTI|2026-08|Mrs']['outstanding']==0
+        payments=[j for j in state['journals'].values() if j['sourceType']=='SALARY_ALLOCATED_PAYMENT'];assert sum(l['credit'] for j in payments for l in j['lines'] if l['account'] in ['1110','1120'])==330000
+        assert sum(l['credit'] for j in payments for l in j['lines'] if l['account']=='1120')==230000
+        assert sum(l['credit'] for j in payments for l in j['lines'] if l['account']=='1110')==100000
+        accrual=state['journals'][state['salaryPeriods']['TTI|2026-08|Mrs']['journalId']];assert any(l['account']=='6910' and l['debit']==310000 and l['salaryMasterId']=='Mrs' for l in accrual['lines'])
+        balance_row=next(r for r in request(month='2026-08')[1]['remunerationBalances'] if r['masterId']=='Salman');assert balance_row['receivableByDirector']==178000 and balance_row['recoverableFromDirector']==0
+        # Partial deductions on a monthly Home amount and an additional expense debit
+        # the director's payable without creating another bank/cash payment.
+        home={**alloc('Mrs',100000),'remunerationMasterId':'Salman','remunerationAmount':10000}
+        extra={'type':'EXPENSE','subaccountId':'TTI-HOME-FAM-SALMAN','amount':50000,'remunerationMasterId':'Salman','remunerationAmount':20000,'purpose':'Home with partial remuneration deduction'}
+        for bad in [{**extra,'remunerationAmount':50001},{**extra,'remunerationMasterId':'Worker'}]:
+            before=saved();assert action('save_salary_transactions','Mrs',month='2026-09',transactions=[payment(50000,'2026-09-03','CASH|TTI',[bad])],advanceApplied=0,companyHomeExpense=True)[0]==422;assert saved()==before
+        tx=payment(160000,'2026-09-03','CASH|TTI',[home,extra,alloc('Salman',10000)])
+        status,result=action('save_salary_transactions','Mrs',month='2026-09',transactions=[tx],advanceApplied=0,companyHomeExpense=True);assert status==200,result
+        assert result['salarySheet']['rows']['Mrs']['payment']['amount']==100000
+        assert result['salarySheet']['rows']['Salman']['payment']['amount']==40000
+        for who in ['Salman','Worker']:assert action('save_salary_transactions',who,month='2026-09',transactions=[],advanceApplied=0)[0]==200
+        status,result=request({'action':'complete_salary_month','version':request(month='2026-09')[1]['salarySheet']['version'],'date':'2026-09-30'},'2026-09');assert status==200,result
+        state=saved();j=next(j for j in state['journals'].values() if j['sourceType']=='SALARY_ALLOCATED_PAYMENT' and j['date']=='2026-09-03')
+        assert sum(l['credit'] for l in j['lines'] if l['account']=='1120')==160000
+        assert sum(l['credit'] for l in j['lines'] if l['account']=='6910')==30000
+        assert state['salaryPeriods']['TTI|2026-09|Mrs']['outstanding']==200000 and state['salaryPeriods']['TTI|2026-09|Salman']['outstanding']==160000
+        status,result=request({'action':'reverse_salary_allocated_payment','journalId':j['id'],'date':'2026-09-03','reason':'Correct complete household plan'},'2026-09');assert status==200,result
+        assert saved()['salaryPeriods']['TTI|2026-09|Mrs']['outstanding']==300000 and saved()['salaryPeriods']['TTI|2026-09|Salman']['outstanding']==200000
+        # An unfinished, already accrued Home month gets an explicit reclassification,
+        # preserving its original journal instead of silently rewriting history.
+        status,result=request({'action':'prepare_month','date':'2026-07-31'},'2026-07');assert status==200,result
+        prior=saved();prior_journals=prior['journals'].copy()
+        for who in ['Mrs','Salman','Worker']:
+            status,result=action('save_salary_transactions',who,month='2026-07',transactions=[],advanceApplied=0,companyHomeExpense=who=='Mrs');assert status==200,result
+        status,result=request({'action':'complete_salary_month','version':request(month='2026-07')[1]['salarySheet']['version'],'date':'2026-07-31'},'2026-07');assert status==200,result
+        after=saved();assert all(after['journals'][id]==j for id,j in prior_journals.items())
+        new=[j for id,j in after['journals'].items() if id not in prior_journals];assert len(new)==1
+        assert any(l['account']=='6910' and l['debit']==300000 for l in new[0]['lines'])
+        assert any(l['account']=='3200' and l['credit']==300000 for l in new[0]['lines'])
+        assert not any(l['account'] in ['1110','1120','2140'] for l in new[0]['lines'])
+        (root/'data/accounts.json').write_text(json.dumps(original_plan))
+        print('PASS exact Rs330,000 plan; company Home expense; partial remuneration/home deductions; credit-card debit and unpaid director receivable; no duplicate cash and atomic reversal')
         if os.getenv('TT_QA_BROWSER')=='1':
             from playwright.sync_api import sync_playwright
             with sync_playwright() as pw:
                 browser=pw.chromium.launch(headless=True);page=browser.new_page(viewport={'width':1280,'height':900});errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
                 page.goto(f'http://127.0.0.1:{port}/accounts/index.html');page.locator('[data-expense="salary"]').click();page.locator('#rsPrepare').click()
                 page.locator('#rsMonth').fill('2027-03');page.locator('#rsMonth').dispatch_event('change')
+                assert action('adjust_salary_month','Mrs',month='2027-03',netSalary=310000,advanceApplied=0)[0]==200
+                page.locator('#rsRefresh').click()
                 page.locator('[data-rs-draft-pay="Mrs"]').click()
-                assert page.locator('.rs-transaction').count()==1,'Monthly amount is ready immediately'
-                tx=page.locator('.rs-transaction').first
-                assert tx.locator('[data-allocation-amount]').input_value()=='300000'
-                tx.locator('[data-allocation-amount]').fill('200000');tx.locator('[data-tx-date]').fill('2027-03-03')
-                assert tx.locator('[data-tx-source]').input_value()=='CASH|TTI'
-                page.locator('#rsAddTransaction').click();tx=page.locator('.rs-transaction').last
+                assert page.locator('.rs-plan-row').count()==1
+                tx=page.locator('.rs-plan-row').first
+                assert tx.locator('[data-allocation-amount]').input_value()=='310000'
+                tx.locator('[data-allocation-amount]').fill('210000');tx.locator('[data-tx-date]').fill('2027-03-03')
+                page.locator('#rsAddTransaction').click();tx=page.locator('.rs-plan-row').last
                 assert tx.locator('[data-allocation-amount]').input_value()=='100000'
-                tx.locator('[data-tx-date]').fill('2027-03-10');tx.locator('[data-tx-source]').select_option('bank-b');tx.locator('[data-method]').select_option('ONLINE_BANKING');tx.locator('[data-reference]').fill('MARCH-BANK-1');tx.locator('[data-cheque-date]').fill('2027-03-10')
-                tx.locator('[data-add-monthly]').click();allocation=tx.locator('.rs-allocation').last
-                allocation.locator('[data-allocation-target]').select_option('SALARY|Salman');allocation.locator('[data-allocation-amount]').fill('10000')
-                tx.locator('[data-add-allocation]').click();allocation=tx.locator('.rs-allocation').last
-                allocation.locator('[data-extra-category]').select_option('CAPITAL');allocation.locator('[data-extra-capital]').select_option('BROKER_RECEIVED')
-                assert allocation.locator('[data-allocation-route]').is_visible()
-                allocation.locator('[data-allocation-amount]').fill('10000');allocation.locator('[data-allocation-route]').select_option('R');allocation.locator('[data-allocation-broker]').select_option('BMA');allocation.locator('[data-allocation-reference]').fill('BMA-MARCH-1')
-                assert tx.locator('[data-tx-amount]').input_value()=='120000'
-                tx.locator('[data-add-allocation]').click();extra=tx.locator('.rs-allocation').last
-                assert extra.locator('[data-extra-category]').input_value()=='EXPENSE'
-                extra.locator('[data-extra-expense]').select_option('TTI-HOME-FAM-SALMAN');extra.locator('[data-allocation-amount]').fill('20000');extra.locator('[data-allocation-purpose]').fill('SRP extra home expense')
-                assert tx.locator('[data-tx-amount]').input_value()=='140000'
-                assert not extra.locator('[data-allocation-route]').is_visible()
-                extra.locator('[data-remove-allocation]').click();assert tx.locator('[data-tx-amount]').input_value()=='120000'
+                tx.locator('[data-tx-date]').fill('2027-03-10');tx.locator('[data-tx-source]').select_option('bank-b');tx.locator('[data-reference]').fill('MRS-100');tx.locator('[data-cheque-date]').fill('2027-03-10')
+                page.locator('#rsAddTransaction').click();tx=page.locator('.rs-plan-row').last
+                tx.locator('[data-plan-category]').select_option('CAPITAL');tx.locator('[data-plan-ledger]').select_option('BROKER_FUND|BMA');tx.locator('[data-allocation-amount]').fill('10000');tx.locator('[data-allocation-reference]').fill('MARCH-BMA-1')
+                assert not tx.locator('[data-allocation-route]').is_visible()
+                page.locator('#rsAddTransaction').click();tx=page.locator('.rs-plan-row').last
+                tx.locator('[data-plan-category]').select_option('REMUNERATION');tx.locator('[data-plan-ledger]').select_option('SALARY|Salman');tx.locator('[data-allocation-amount]').fill('10000')
+                assert '330,000' in page.locator('#rsAllocationSummary').inner_text()
+                before_ui=saved();page.locator('#rsAddTransaction').click();tx=page.locator('.rs-plan-row').last
+                tx.locator('[data-plan-ledger]').select_option('EXPENSE|TTI-HOME-FAM-SALMAN');tx.locator('[data-allocation-amount]').fill('20000');tx.locator('[data-plan-deduct]').check();tx.locator('[data-plan-director]').select_option('Salman')
+                assert tx.locator('[data-plan-deduction-amount]').input_value()=='20000'
+                tx.locator('[data-plan-deduct]').uncheck();assert not tx.locator('[data-plan-deduction-fields]').is_visible()
+                tx.locator('[data-plan-deduct]').check();assert tx.locator('[data-plan-deduction-amount]').input_value()=='20000'
+                assert saved()==before_ui,'Editing and adding/removing rows never saves automatically'
+                tx.locator('[data-remove-transaction]').click();assert '330,000' in page.locator('#rsAllocationSummary').inner_text()
                 page.locator('#rsPaySalBtn').click();page.locator('[data-rs-draft-pay="Mrs"]').filter(has_text='Amend').wait_for()
-                assert request(month='2027-03')[1]['salarySheet']['rows']['Mrs']['payment']['amount']==300000
+                assert request(month='2027-03')[1]['salarySheet']['rows']['Mrs']['payment']['amount']==310000
                 assert request(month='2027-03')[1]['salarySheet']['rows']['Salman']['payment']['amount']==10000
-                page.locator('[data-rs-draft-pay="Mrs"]').click();assert page.locator('.rs-transaction').count()==2
-                assert page.locator('.rs-allocation').count()==4
+                page.locator('[data-rs-draft-pay="Mrs"]').click();assert page.locator('.rs-plan-row').count()==4
+                assert page.locator('.rs-plan-row').nth(2).locator('[data-plan-ledger]').input_value()=='BROKER_FUND|BMA'
+                assert page.locator('.rs-plan-row').nth(3).locator('[data-plan-category]').input_value()=='REMUNERATION'
                 assert page.locator('#rsDraftForm').evaluate('(el)=>el.getBoundingClientRect().right<=innerWidth && el.getBoundingClientRect().left>=0')
+                # Two purposes on one cheque remain one actual bank payment.
+                tx=page.locator('.rs-plan-row').nth(3);tx.locator('[data-tx-date]').fill('2027-03-10');tx.locator('[data-tx-source]').select_option('bank-b');tx.locator('[data-method]').select_option('CHEQUE');tx.locator('[data-reference]').fill('MRS-100');tx.locator('[data-cheque-date]').fill('2027-03-10')
+                with page.expect_response(lambda response: 'rent_salary.php' in response.url and response.request.method=='POST') as saved_response:
+                    page.locator('#rsPaySalBtn').click()
+                assert saved_response.value.json()['ok']
+                groups=request(month='2027-03')[1]['salarySheet']['paymentGroups']['Mrs'];assert len(groups)==3
+                bank_group=next(t for t in groups if t['paymentAccountId']=='bank-b');assert bank_group['amount']==110000 and len(bank_group['allocations'])==2
+                page.locator('[data-rs-draft-pay="Mrs"]').click();assert page.locator('.rs-plan-row').count()==4
                 page.locator('#rsDraftCancel').click()
                 for width in [1280,1024,700,390]:
                     page.set_viewport_size({'width':width,'height':900})
-                    assert page.locator('.ttrs-salary-table').evaluate('(el)=>el.scrollWidth<=el.clientWidth+2'),'Salary sheet fits without horizontal scrolling'
+                    assert page.locator('.ttrs-salary-table').evaluate('(el)=>el.scrollWidth<=el.clientWidth+2')
                     for selector in ['[data-rs-draft-pay="Mrs"]','[data-rs-month-adjust="Mrs"]','[data-rs-sheet-edit="Mrs"]','[data-rs-sheet-remove="Mrs"]']:
-                        assert page.locator(selector).evaluate('(el)=>{const r=el.getBoundingClientRect();return r.left>=0&&r.right<=innerWidth}'),'All row actions fit'
+                        assert page.locator(selector).evaluate('(el)=>{const r=el.getBoundingClientRect();return r.left>=0&&r.right<=innerWidth}')
                 page.set_viewport_size({'width':1280,'height':900})
                 page.locator('[data-rs-draft-pay="Salman"]').click();assert 'Already allocated through another recipient' in page.locator('#rsDraftForm').inner_text()
                 page.locator('[data-rs-month-adjust="Worker"]').click();page.locator('[name=monthlyAddition]').fill('5000');page.locator('[name=adjustmentReason]').fill('One-off bonus');assert page.locator('[data-month-total]').input_value()=='55000';page.locator('[data-month-total]').fill('56000');
