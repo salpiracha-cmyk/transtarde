@@ -242,6 +242,8 @@ jobs:
           node tests/accounts-v1/mill_source_amend_ui_test.js
           node tests/accounts-v1/console_access_preservation_test.js
           node tests/accounts-v1/purchase_master_conditionals_test.js
+          node tests/accounts-v1/master_reference_conditionals_test.js
+          node tests/accounts-v1/master_business_date_test.js
           php tests/accounts-v1/user_input_preservation_test.php
           python3 tests/accounts-v1/ledger_catalog_identity_test.py
           python3 tests/accounts-v1/admin_audit_test.py
