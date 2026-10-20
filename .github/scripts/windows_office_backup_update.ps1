@@ -2,10 +2,10 @@
 # Payloads are pinned to the reviewed commit and verified before installation.
 $ErrorActionPreference = 'Stop'
 $folder = 'D:\transtrade office agent'
-$release = '00514e00baa92fc280e0d5ecb9cc017781226148'
+$release = '56496c9a14087ba321fd7b1315ed117bb4a31390'
 $files = @{
     'office_backup_agent.py' = '8c467d06702e0268b4b2a341f2a847579feb63aecb27e06eb0a9d30c13cf744f'
-    'install_office_backup_schedule.ps1' = '82a49235b021aed41d26ee1cabcd34727f92ffb9475ed53b25fb3f405ec55ce3'
+    'install_office_backup_schedule.ps1' = '894b8404d0e09734c28405cfe4f3aa99e8ac621830dbd0a9c741be56cba3c751'
 }
 $task = Get-ScheduledTask -TaskName 'Transtrade_Office_Backup'
 if (!(Test-Path -LiteralPath (Join-Path $folder 'office_backup_agent.py') -PathType Leaf)) { throw 'The existing office agent was not found. Nothing was changed.' }
