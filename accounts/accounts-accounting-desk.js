@@ -605,51 +605,73 @@
     };
   }
 
-  function renderSodaSearch(host, term = '') {
-    const body = q('.tt-window-body', host);
-    const needle = term.trim().toLowerCase();
-    const rows = (sodaData.sodas || []).filter(row => !needle || [row.sodaNo,row.broker,row.party,row.commodity,row.variety,row.location,row.status,row.sodaDate].some(value => String(value || '').toLowerCase().includes(needle)));
-    body.innerHTML = `<div class="tt-modebar"><button data-soda-mode="new">New Soda</button><button class="active" data-soda-mode="search">Search / Amend Soda</button></div><div class="tt-searchbar"><input id="ttSodaSearch" value="${esc(term)}" placeholder="Soda no, broker, supplier, commodity, variety, mill or date"><button type="button">Search</button></div><div class="tt-records"><div class="tableWrap"><table><thead><tr><th>Soda</th><th>Date</th><th>Commodity</th><th>Broker / Supplier</th><th>Quantity</th><th>Rate</th><th>Status</th><th></th></tr></thead><tbody>${rows.length ? rows.map(row => `<tr><td><b>${esc(row.sodaNo)}</b></td><td>${esc(row.sodaDate)}</td><td>${esc(row.commodity)}<br><small>${esc(row.variety)}</small></td><td>${esc(row.broker)}<br><small>${esc(row.party || '')}</small></td><td>${Number(row.qtyFromKg||0)?money(Number(row.qtyFromKg)/1000)+'–'+money(Number(row.qtyToKg||row.qtyFromKg)/1000)+' MT':''}${row.expectedTrucks?'<br>'+esc(row.expectedTrucks)+' trucks':''}</td><td>${money(row.rate ?? row.ratePerKg)} / ${esc(row.rateUnit || 'KG')}</td><td>${esc(row.calculatedStatus || row.status)}</td><td><button type="button" class="btn" data-soda-edit="${esc(row.id)}">View / Amend</button> <button type="button" class="btn" data-soda-print="${esc(row.id)}">Print</button>${access.super?` <button type="button" class="btn danger" data-soda-delete="${esc(row.id)}">Delete</button>`:''}</td></tr>`).join('') : '<tr><td colspan="8">No matching Soda.</td></tr>'}</tbody></table></div></div>`;
-    q('[data-soda-mode="new"]', body).onclick = () => renderSodaNew(host);
-    const search = () => renderSodaSearch(host, q('#ttSodaSearch', body).value);
-    q('.tt-searchbar button', body).onclick = search;
-    q('#ttSodaSearch', body).onkeydown = event => { if (event.key === 'Enter') search(); };
-    bindSodaRows(host, () => renderSodaSearch(host, term));
-    qa('[data-soda-delete]', body).forEach(button => button.onclick = async () => {
-      const record=(sodaData.sodas||[]).find(row=>row.id===button.dataset.sodaDelete);if(!record)return;
-      if(!confirm(`Permanently delete Soda ${record.sodaNo}? This is allowed only before any Pohanch, bill or settlement is linked.`))return;
-      const reason=prompt('Reason for permanent deletion:','Entered in error');if(!reason?.trim())return;
-      try{sodaData=await json(api,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'delete',csrf:access.csrf,entity:entity(),id:record.id,reason:reason.trim()})});renderSodaSearch(host,term)}catch(error){alert(error.message)}
-    });
+  const sodaDate = value => window.TT_DATE?.display(value) || String(value || '').replace(/^(\d{4})-(\d{2})-(\d{2})$/, '$3-$2-$1');
+  const sodaStatus = row => row.calculatedStatus === 'Completed' ? 'SODA COMPLETE AND CLOSED' : row.calculatedStatus || row.status || 'Open';
+  function sodaFields(row) {
+    return [['SODA number',row.sodaNo],['Date',sodaDate(row.sodaDate)],['Broker',row.broker||'Direct purchase'],['Supplier',row.party||'—'],['Product',row.displayName||[row.commodity,row.variety,row.riceType,row.brokenGrade,row.productStage].filter(Boolean).join(' · ')],['Quantity',`${money(Number(row.qtyFromKg||0)/1000)}${Number(row.qtyToKg)>Number(row.qtyFromKg)?' – '+money(Number(row.qtyToKg)/1000):''} MT${row.expectedTrucks?' · '+row.expectedTrucks+' trucks / containers':''}`],['Rate',`PKR ${money(row.rate??row.ratePerKg)} per ${row.rateUnit==='MAUND'?'maund (40 kg)':'kg'}`],['Delivery location',row.locationName||row.location||'—'],['Route',row.readyRoute==='EX_MILL'?'Ex-Mill container loading':'Delivery to mill / stock'],['Delivery by',sodaDate(row.arrivalDueDate||row.deliveryDeadline)||'—'],['Payment terms',row.paymentTermType==='CREDIT'?`Credit · ${row.creditDays||0} days`:'Cash · arrival + 2 days'],['Terms / conditions',row.terms||'—'],['Agreed remarks',row.remarks||'—']];
   }
-
-  function printSoda(row) {
-    const popup=record?.popup||window.TT_PRINT.create();if(!popup)return alert('Allow popups to print the Soda.');
-    const fields=[['Soda number',row.sodaNo],['Date',row.sodaDate],['Company',row.entity],['Commodity / product',[row.commodity,row.productStage,row.displayName||row.variety,row.riceType,row.brokenGrade].filter(Boolean).join(' · ')],['Broker',row.broker||'—'],['Supplier',row.party||'—'],['Purchase route',row.readyRoute||row.movementRole||'—'],['Mill / stock location',row.locationName||row.location||'—'],['Quantity',`${money(Number(row.qtyFromKg||0)/1000)} to ${money(Number(row.qtyToKg||0)/1000)} MT`],['Expected trucks / containers',row.expectedTrucks||'—'],['Rate',`${money(row.rate??row.ratePerKg)} per ${row.rateUnit||'KG'}`],['Payment term',`${row.paymentTermType||'CASH'}${row.paymentTermType==='CREDIT'?' · '+(row.creditDays||'')+' days':''}`],['Expected arrival / delivery',row.arrivalDueDate||row.deliveryDeadline||'—'],['Terms / conditions',row.terms||'—'],['Remarks',row.remarks||'—'],['Status',row.calculatedStatus||row.status||'—']];
-    popup.document.write(`<!doctype html><meta charset="utf-8"><title>Soda ${esc(row.sodaNo)}</title><style>@page{size:A4;margin:16mm}body{font:12px Arial;color:#1b2a34}h1{text-align:center;color:#165848;font-size:19px}h2{text-align:center;font-size:15px}table{width:100%;border-collapse:collapse;margin-top:24px}th,td{border:1px solid #cddbd7;padding:9px;text-align:left;vertical-align:top}th{width:32%;background:#edf5f1}button{float:right}@media print{button{display:none}}</style><button onclick="print()">Print Soda</button><h1>${esc(row.entity||entity())}</h1><h2>PURCHASE SODA · ${esc(row.sodaNo)}</h2><table>${fields.map(([label,value])=>`<tr><th>${esc(label)}</th><td>${esc(value)}</td></tr>`).join('')}</table>`);popup.document.close();popup.print();
+  function sodaContract(row) {
+    const companies={TTI:'Transtrade International',BRM:'Barkat Rice Mills'};
+    return `<article class="soda-contract"><header><strong>${esc(companies[row.entity]||row.entity)}</strong><span>PURCHASE SODA / CONTRACT</span></header><div class="contract-ref"><b>SODA ${esc(row.sodaNo)}</b><b>${esc(sodaDate(row.sodaDate))}</b></div><dl>${sodaFields(row).slice(2).map(([label,value])=>`<div><dt>${esc(label)}</dt><dd>${esc(value)}</dd></div>`).join('')}</dl><footer>Broker / Supplier confirmation ____________________</footer></article>`;
   }
+  function printSodas(rows, summary = false, label = '') {
+    if(!rows.length)return alert('No SODAs match these print filters.');
+    const filename=(summary?`SODA Register - ${label}`:rows.length===1?`${rows[0].broker||rows[0].party||'Direct purchase'} - ${rows[0].sodaNo}`:`SODA Contracts - ${label}`).replace(/[<>:"/\\|?*\x00-\x1f]/g,' ').replace(/\s+/g,' ').trim();
+    const popup=window.TT_PRINT.create();
+    const originalTitle=document.title;document.title=filename;
+    popup.addEventListener('afterprint',()=>{if(document.title===filename)document.title=originalTitle;},{once:true});
+    popup.document.open();
+    popup.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${esc(filename)}</title><style>@page{size:A4 portrait;margin:10mm}*{box-sizing:border-box}body{font:11px Arial,sans-serif;color:#20352e;margin:0}header{text-align:center;border-bottom:2px solid #22624c;padding-bottom:6px}header strong{display:block;font-size:19px}header span{display:block;font-size:11px;letter-spacing:1px;margin-top:4px}.soda-contract{width:100%;min-height:126mm;padding:6mm 3mm;break-inside:avoid;page-break-inside:avoid}.soda-contract:nth-of-type(2n){break-after:page;page-break-after:always}.soda-contract:last-child{break-after:auto;page-break-after:auto}.contract-ref{display:flex;justify-content:space-between;padding:9px 0;font-size:13px}dl{margin:0;display:grid;grid-template-columns:1fr 1fr;border-top:1px solid #d4dfd9}dl div{display:flex;gap:8px;border-bottom:1px solid #d4dfd9;padding:5px 3px;min-width:0}dl div:nth-last-child(-n+2){grid-column:1/-1}dt{font-weight:bold;flex:0 0 90px}dd{margin:0;overflow-wrap:anywhere;white-space:pre-wrap}footer{padding-top:14px;font-size:10px}table{width:100%;border-collapse:collapse;font-size:10px}th,td{border:1px solid #cbd8d1;padding:6px;text-align:left;overflow-wrap:anywhere}th{background:#edf5ef}thead{display:table-header-group}tr{break-inside:avoid}h1{font-size:18px}p{white-space:pre-wrap}</style></head><body>${summary?`<h1>SODA Register · ${esc(entity())}</h1><p>${esc(label)} · ${rows.length} SODA(s)</p><table><thead><tr>${['Date','SODA','Broker / Supplier','Product','Quantity MT','Rate / basis','Status'].map(v=>`<th>${v}</th>`).join('')}</tr></thead><tbody>${rows.map(row=>`<tr><td>${esc(sodaDate(row.sodaDate))}</td><td>${esc(row.sodaNo)}</td><td>${esc(row.broker||'Direct')}<br>${esc(row.party||'')}</td><td>${esc(row.displayName||row.variety||row.commodity)}</td><td>${money(Number(row.qtyToKg||row.qtyFromKg||0)/1000)}</td><td>${money(row.rate??row.ratePerKg)} / ${esc(row.rateUnit||'KG')}</td><td>${esc(sodaStatus(row))}</td></tr>`).join('')}</tbody></table>`:rows.map(sodaContract).join('')}</body></html>`);
+    popup.document.close();popup.print();
+  }
+  function printSoda(row) { printSodas([row]); }
+  function renderSodaSearch(host, term = '') { renderSodaNew(host, term); }
 
   function bindSodaRows(host, back) {
     const body=q('.tt-window-body',host);
-    qa('[data-soda-print]',body).forEach(button=>button.onclick=()=>{const row=(sodaData.sodas||[]).find(item=>item.id===button.dataset.sodaPrint);if(row)printSoda(row)});
-    qa('[data-soda-edit]',body).forEach(button=>button.onclick=()=>{
-      activeSoda=(sodaData.sodas||[]).find(row=>row.id===button.dataset.sodaEdit);if(!activeSoda)return;
-      body.innerHTML=`<div class="tt-modebar"><button data-back-soda>← Sodas</button><button type="button" class="btn" data-soda-print="${esc(activeSoda.id)}">Print Soda</button></div>${sodaForm(activeSoda)}${activeSoda.audit?.length?`<div class="tt-record-card"><b>Amendment history</b><pre>${esc(JSON.stringify(activeSoda.audit,null,2))}</pre></div>`:''}`;
-      q('[data-back-soda]',body).onclick=back;
-      q('[data-soda-print]',body).onclick=()=>printSoda(activeSoda);
-      bindSodaForm(host,activeSoda);
+    qa('[data-soda-print]',body).forEach(button=>button.onclick=event=>{event.stopPropagation();const row=sodaData.sodas.find(item=>item.id===button.dataset.sodaPrint);if(row)printSoda(row);});
+    qa('[data-soda-view]',body).forEach(element=>{
+      const open=()=>{
+        const record=sodaData.sodas.find(row=>row.id===element.dataset.sodaView);if(!record)return;
+        activeSoda=record;
+        // Detach, rather than recreate, the originating form: unfinished values and listeners survive.
+        const saved=document.createDocumentFragment();while(body.firstChild)saved.appendChild(body.firstChild);
+        const scroll=body.scrollTop;
+        const windowScroll=q('.tt-window',host)?.scrollTop||0;
+        const restore=()=>{body.replaceChildren(saved);body.scrollTop=scroll;if(q('.tt-window',host))q('.tt-window',host).scrollTop=windowScroll;};
+        const details=()=>{
+          body.innerHTML=`<div class="tt-modebar"><button data-back-soda>← SODAs</button><button type="button" data-pencil-soda aria-label="Edit SODA ${esc(record.sodaNo)}" title="Edit SODA" style="background:#e5a126">✎</button><button type="button" data-print-contract style="background:#22624c;color:white">Print Contract</button>${access.super?'<button type="button" data-delete-soda style="color:#a22">Delete unused SODA</button>':''}</div><div class="tt-record-card"><h3>SODA ${esc(record.sodaNo)} · ${esc(sodaStatus(record))}</h3><dl class="tt-soda-details">${sodaFields(record).map(([label,value])=>`<div><dt>${esc(label)}</dt><dd>${esc(value)}</dd></div>`).join('')}</dl><h4>Completion checks</h4><p>Received / lifted: ${money(Number(record.receivedKg||0)/1000)} MT · Billed: PKR ${money(record.billedAmount)} · Settled: PKR ${money(record.paidAmount)} · Outstanding: PKR ${money(record.payableOutstanding)}</p><p>${esc((record.completionBlockers||[]).join(' · ')||sodaStatus(record))}</p>${record.receipts?.length?`<details><summary>Linked receipts / liftings (${record.receipts.length})</summary>${record.receipts.map(item=>`<p>${esc(sodaDate(item.date))} · ${esc(item.truck||item.id||'')} · ${money(item.kg)} kg · ${esc(item.billId||'Bill pending')}</p>`).join('')}</details>`:''}${record.audit?.length?`<details><summary>Amendment history</summary>${record.audit.map(item=>`<p>${esc(sodaDate(item.at))} · ${esc(item.by)} · ${esc(item.reason)}</p>`).join('')}</details>`:''}</div>`;
+          q('[data-back-soda]',body).onclick=restore;
+          q('[data-print-contract]',body).onclick=()=>printSoda(record);
+          if(q('[data-delete-soda]',body))q('[data-delete-soda]',body).onclick=async()=>{if(!confirm(`Permanently delete unused SODA ${record.sodaNo}? Linked records cannot be deleted.`))return;const reason=prompt('Reason for permanent deletion:','Entered in error');if(!reason?.trim())return;try{sodaData=await json(api,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'delete',csrf:access.csrf,entity:entity(),id:record.id,reason:reason.trim()})});renderSodaNew(host);}catch(error){alert(error.message);}};
+          q('[data-pencil-soda]',body).onclick=()=>{
+            body.innerHTML=`<div class="tt-modebar"><button data-back-detail>← SODA details</button></div>${sodaForm(record)}`;
+            q('[data-back-detail]',body).onclick=details;bindSodaForm(host,record);q('#ttSdReset',body).onclick=details;body.scrollTop=0;window.TT_FORM_VIEWPORT?.open(host);
+          };
+          body.scrollTop=0;
+          window.TT_FORM_VIEWPORT?.open(host);
+        };details();
+      };
+      element.onclick=open;element.onkeydown=event=>{if(event.target===element&&['Enter',' '].includes(event.key)){event.preventDefault();open();}};
     });
   }
 
-  function renderSodaNew(host) {
-    const body = q('.tt-window-body', host);
-    const cutoff=new Date(`${today()}T12:00:00`);cutoff.setMonth(cutoff.getMonth()-2);
-    const dateFloor=cutoff.getFullYear()+'-'+String(cutoff.getMonth()+1).padStart(2,'0')+'-'+String(cutoff.getDate()).padStart(2,'0');
-    const recent=(sodaData.sodas||[]).filter(row=>String(row.sodaDate||'')>=dateFloor).sort((a,b)=>String(b.sodaDate||'').localeCompare(String(a.sodaDate||''))||String(b.sodaNo||'').localeCompare(String(a.sodaNo||'')));
-    body.innerHTML = `<div class="tt-modebar"><button class="active" data-soda-mode="new">New Soda</button><button data-soda-mode="search">Search / Amend Soda</button></div>${sodaForm()}<div class="tt-records"><h3>Recent Sodas · last two months</h3><div class="tableWrap"><table><thead><tr><th>Date</th><th>Soda</th><th>Supplier / Broker</th><th>Product</th><th>Quantity</th><th>Status</th><th>Action</th></tr></thead><tbody>${recent.length?recent.map(row=>`<tr><td>${esc(row.sodaDate)}</td><td><b>${esc(row.sodaNo)}</b></td><td>${esc(row.party||'—')}<br><small>${esc(row.broker||'')}</small></td><td>${esc(row.displayName||row.variety||row.commodity)}</td><td>${money(Number(row.qtyToKg||row.qtyFromKg||0)/1000)} MT</td><td>${esc(row.calculatedStatus||row.status)}</td><td><button type="button" class="btn" data-soda-edit="${esc(row.id)}">View / Amend</button> <button type="button" class="btn" data-soda-print="${esc(row.id)}">Print</button></td></tr>`).join(''):'<tr><td colspan="7">No Sodas dated within the last two months. Search previous Sodas for older records.</td></tr>'}</tbody></table></div></div>`;
-    q('[data-soda-mode="search"]', body).onclick = () => renderSodaSearch(host);
-    bindSodaRows(host,()=>renderSodaNew(host));
-    bindSodaForm(host);
+  function renderSodaNew(host, term = '') {
+    const body=q('.tt-window-body',host);
+    body.innerHTML=`<style>.tt-soda-table{table-layout:fixed;width:100%;min-width:0!important}.tt-soda-table th,.tt-soda-table td{white-space:normal!important;overflow-wrap:anywhere;padding:7px!important}.tt-soda-table tr[data-soda-view]{cursor:pointer}.tt-soda-table tr[data-soda-view]:hover,.tt-soda-table tr[data-soda-view]:focus{background:#edf5f1;outline:2px solid #8cae9e}.tt-soda-toolbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.tt-soda-toolbar input{flex:1;min-width:180px}.tt-soda-details{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}.tt-soda-details dt{font-weight:bold}.tt-soda-details dd{margin:3px 0;white-space:pre-wrap}.tt-soda-print-filters{display:flex;gap:12px;flex-wrap:wrap;padding:12px 0}.tt-soda-print-filters label{display:grid;gap:5px}.tt-soda-print-filters select{max-width:240px}</style><div class="tt-modebar"><button class="active" data-soda-new>New SODA</button></div>${sodaForm()}<section class="tt-records"><h3>Recent SODAs</h3><div class="tt-soda-toolbar"><input id="ttSodaSearch" aria-label="Search all SODAs" placeholder="Search SODA, broker, supplier, product or date" value="${esc(term)}"><button type="button" data-print-sodas style="background:#22624c;color:white">Print SODAs</button></div><form class="tt-soda-print-filters" hidden><label>From date<input name="from" type="date" required value="${today()}"></label><label>To date<input name="to" type="date" required value="${today()}"></label><label>Broker<select name="broker"><option value="">All brokers</option>${[...new Set(sodaData.sodas.map(row=>row.broker).filter(Boolean))].sort().map(name=>`<option value="${esc(name)}">${esc(name)}</option>`).join('')}</select></label><label>Format<select name="format"><option value="summary">Summary Register</option><option value="contracts">Individual Contracts</option></select></label><button type="submit">Print</button><p data-print-error role="alert"></p></form><div class="tableWrap"><table class="tt-soda-table"><colgroup><col style="width:12%"><col style="width:9%"><col style="width:21%"><col style="width:21%"><col style="width:11%"><col style="width:19%"><col style="width:7%"></colgroup><thead><tr><th>Date</th><th>SODA</th><th>Supplier / Broker</th><th>Product</th><th>Quantity</th><th>Status</th><th>Print</th></tr></thead><tbody data-soda-results></tbody></table></div></section>`;
+    const results=q('[data-soda-results]',body);
+    const filter=()=>{
+      const needle=q('#ttSodaSearch',body).value.trim().toLowerCase();
+      const rows=sodaData.sodas.filter(row=>!needle||[row.sodaNo,row.broker,row.party,row.commodity,row.variety,row.displayName,row.location,sodaStatus(row),row.sodaDate,sodaDate(row.sodaDate)].some(value=>String(value||'').toLowerCase().includes(needle)));
+      results.innerHTML=rows.length?rows.map(row=>`<tr tabindex="0" data-soda-view="${esc(row.id)}" aria-label="Open SODA ${esc(row.sodaNo)}"><td>${esc(sodaDate(row.sodaDate))}</td><td><b>${esc(row.sodaNo)}</b></td><td>${esc(row.party||'—')}<br><small>${esc(row.broker||'Direct purchase')}</small></td><td>${esc(row.displayName||row.variety||row.commodity)}</td><td>${money(Number(row.qtyToKg||row.qtyFromKg||0)/1000)} MT</td><td>${esc(sodaStatus(row))}</td><td><button type="button" data-soda-print="${esc(row.id)}" aria-label="Print SODA ${esc(row.sodaNo)}" title="Print Contract">⎙</button></td></tr>`).join(''):'<tr><td colspan="7">No matching SODAs.</td></tr>';
+      bindSodaRows(host,()=>renderSodaNew(host,needle));
+    };
+    q('#ttSodaSearch',body).oninput=filter;
+    q('[data-soda-new]',body).onclick=()=>{q('#ttSodaForm',body).scrollIntoView({block:'start'});q('#ttSdDate',body).focus();};
+    const printForm=q('.tt-soda-print-filters',body);
+    q('[data-print-sodas]',body).onclick=()=>{printForm.hidden=!printForm.hidden;};
+    printForm.onsubmit=event=>{event.preventDefault();const {from,to,broker,format}=printForm.elements;const error=q('[data-print-error]',printForm);if(from.value>to.value){error.textContent='From date must be on or before To date.';return;}const rows=sodaData.sodas.filter(row=>row.sodaDate>=from.value&&row.sodaDate<=to.value&&(!broker.value||row.broker===broker.value));if(!rows.length){error.textContent='No SODAs match these filters.';return;}error.textContent='';printSodas(rows,format.value==='summary',`${broker.value||'All brokers'} · ${sodaDate(from.value)} to ${sodaDate(to.value)}`);};
+    bindSodaForm(host);filter();
   }
 
   async function openSoda() {

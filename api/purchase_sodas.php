@@ -132,7 +132,7 @@ function ps_next_no(array $sodas): string {
 function ps_paid_for_bill(array $store, string $billId): float {
     $total = 0.0;
     foreach ((array)($store['supplierSettlements'] ?? []) as $settlement) {
-        if (!is_array($settlement) || !in_array((string)($settlement['status'] ?? ''), ['Posted','Approved / Posted'], true)) continue;
+        if (!is_array($settlement) || (string)($settlement['entity'] ?? '') !== (string)($store['commodityBills'][$billId]['entity'] ?? '') || !in_array((string)($settlement['status'] ?? ''), ['Posted','Approved / Posted'], true)) continue;
         foreach ((array)($settlement['allocations'] ?? []) as $allocation) {
             if (is_array($allocation) && (string)($allocation['billId'] ?? '') === $billId) $total += (float)($allocation['amount'] ?? 0);
         }
@@ -146,13 +146,35 @@ function ps_rows(array $store, string $entity): array {
         if (!is_array($soda) || strtoupper((string)($soda['entity'] ?? '')) !== $entity) continue;
         $commodity = strtoupper((string)($soda['commodity'] ?? 'RICE'));
         $number = (string)($soda['sodaNo'] ?? '');
-        $received = 0.0; $truckUnits = 0; $physicalTrucks = 0; $unbilled = 0; $billed = 0.0; $paid = 0.0;
+        $received = 0.0; $truckUnits = 0; $physicalTrucks = 0; $unbilled = 0; $billed = 0.0; $paid = 0.0; $outstanding = 0.0;
         $receipts = [];
-        if((string)($soda['readyRoute']??'')==='EX_MILL')foreach((array)($store['purchaseSodaLiftings']??[])as$lifting){if(!is_array($lifting)||!empty($lifting['reversed'])||strtoupper((string)($lifting['entity']??''))!==$entity||((string)($lifting['sourceSodaId']??'')!==(string)$id&&(string)($lifting['soda']??'')!==$number))continue;$kg=(float)($lifting['kg']??0);if($kg<=0)continue;$received+=$kg;$physicalTrucks++;$truckUnits++;$receipts[]=['type'=>'Ex-Mill Lifting','date'=>(string)($lifting['date']??''),'truck'=>(string)($lifting['truck']??''),'pohanch'=>(string)($lifting['container']??$lifting['liftingId']??''),'kg'=>$kg,'truckUnits'=>1,'billed'=>false,'billId'=>''];}
+        $postedBills = [];
+        foreach ((array)($store['commodityBills'] ?? []) as $billId => $bill) {
+            if (!is_array($bill) || strtoupper((string)($bill['entity'] ?? '')) !== $entity || !in_array($number, array_map('strval', (array)($bill['sodas'] ?? [])), true)) continue;
+            if (strtoupper((string)($bill['commodity'] ?? $commodity)) !== $commodity || !in_array((string)($bill['status'] ?? ''), ['Verified / Posted','Posted','Approved / Posted'], true)) continue;
+            $postedBills[(string)$billId] = $bill;
+            $amount = round((float)($bill['supplierPayableTotal'] ?? $bill['finalCommodityValue'] ?? 0), 2);
+            $settled = ps_paid_for_bill($store, (string)$billId);
+            $billed += $amount; $paid += min($amount, $settled);
+            $outstanding += max(0, round($amount - $settled, 2));
+        }
+        if ((string)($soda['readyRoute'] ?? '') === 'EX_MILL') {
+            foreach ((array)($store['purchaseSodaLiftings'] ?? []) as $lifting) {
+                if (!is_array($lifting) || !empty($lifting['reversed']) || strtoupper((string)($lifting['entity'] ?? '')) !== $entity || ((string)($lifting['sourceSodaId'] ?? '') !== (string)$id && (string)($lifting['soda'] ?? '') !== $number)) continue;
+                $kg = (float)($lifting['kg'] ?? 0); if ($kg <= 0) continue;
+                $sourceKey = 'EXMILL|'.(string)($lifting['sourceSodaId'] ?? $id).'|'.(string)($lifting['liftingId'] ?? '');
+                $billId = '';
+                foreach ((array)($store['events'] ?? []) as $event) {
+                    if (is_array($event) && ($event['entity'] ?? '') === $entity && ($event['sourceKey'] ?? '') === $sourceKey && ($event['status'] ?? '') !== 'Reversed' && isset($postedBills[(string)($event['billId'] ?? '')])) { $billId = (string)$event['billId']; break; }
+                }
+                $received += $kg; $physicalTrucks++; $truckUnits++; if ($billId === '') $unbilled++;
+                $receipts[] = ['type'=>'Ex-Mill Lifting','date'=>(string)($lifting['date'] ?? ''),'truck'=>(string)($lifting['truck'] ?? ''),'pohanch'=>(string)($lifting['container'] ?? $lifting['liftingId'] ?? ''),'kg'=>$kg,'truckUnits'=>1,'billed'=>$billId !== '','billId'=>$billId];
+            }
+        }
         foreach ((array)($store['events'] ?? []) as $event) {
-            if (!is_array($event) || ($event['eventType'] ?? '') !== 'COMMODITY_RECEIPT_ACCEPTED' || strtoupper((string)($event['entity'] ?? '')) !== $entity) continue;
+            if (!is_array($event) || ($event['status'] ?? '') === 'Reversed' || ($event['eventType'] ?? '') !== 'COMMODITY_RECEIPT_ACCEPTED' || strtoupper((string)($event['entity'] ?? '')) !== $entity) continue;
             $journal = $store['journals'][$event['journalId'] ?? ''] ?? null;
-            if (!is_array($journal)) continue;
+            if (!is_array($journal) || ($journal['status'] ?? '') === 'Reversed') continue;
             $meta = is_array($journal['meta'] ?? null) ? $journal['meta'] : [];
             if ((string)($meta['soda'] ?? '') !== $number || (string)($soda['readyRoute']??'')==='EX_MILL') continue;
             $eventCommodity = strtoupper((string)($meta['commodity'] ?? $commodity));
@@ -160,31 +182,33 @@ function ps_rows(array $store, string $entity): array {
             $kg = (float)($meta['payableWeightKg'] ?? 0);
             $units = $kg > PS_TRUCK_DOUBLE_KG ? 2 : 1;
             $received += $kg; $truckUnits += $units; $physicalTrucks++;
-            $billId = (string)($event['billId'] ?? '');
+            $billId = isset($postedBills[(string)($event['billId'] ?? '')]) ? (string)$event['billId'] : '';
             if ($billId === '') $unbilled++;
             $receipts[] = ['date'=>(string)($journal['date'] ?? ''), 'truck'=>(string)($meta['truck'] ?? ''), 'pohanch'=>(string)($meta['pohanch'] ?? $journal['reference'] ?? ''), 'kg'=>$kg, 'truckUnits'=>$units, 'billed'=>$billId !== '', 'billId'=>$billId];
-        }
-        foreach ((array)($store['commodityBills'] ?? []) as $billId => $bill) {
-            if (!is_array($bill) || strtoupper((string)($bill['entity'] ?? '')) !== $entity || !in_array($number, (array)($bill['sodas'] ?? []), true)) continue;
-            if (strtoupper((string)($bill['commodity'] ?? $commodity)) !== $commodity) continue;
-            $billed += (float)($bill['supplierPayableTotal'] ?? $bill['finalCommodityValue'] ?? 0);
-            $paid += ps_paid_for_bill($store, (string)$billId);
         }
         $minimum = (float)($soda['qtyFromKg'] ?? 0); $maximum = (float)($soda['qtyToKg'] ?? 0); $expected = (int)($soda['expectedTrucks'] ?? 0);
         $hasWeight = $minimum > 0; $hasTrucks = $expected > 0;
         $exMill=(string)($soda['readyRoute']??'')==='EX_MILL';$readyRice=strtoupper((string)($soda['commodity']??''))==='RICE'&&strtoupper((string)($soda['productStage']??''))==='READY';
         $weightMet = !$hasWeight || $received >= ($readyRice?$maximum*.95:($exMill?$minimum*.95:$minimum)); $truckMet = !$hasTrucks || $truckUnits >= $expected;
         $maxAllowed = $maximum > 0 ? ($exMill||$readyRice?$maximum*1.05:$maximum + PS_MAX_OVER_KG) : 0; $overMaximum = $maxAllowed > 0 && $received > $maxAllowed + .001;
-        if((string)($soda['readyRoute']??'')==='EX_MILL')$unbilled=$received>0&&$billed<=0?1:0;
         $status = (string)($soda['status'] ?? 'Open');
         if (!in_array($status, ['Completed','Short Closed','Cancelled'], true)) {
             if ($received <= 0) $status = 'Open';
             elseif ($overMaximum) $status = 'Over Maximum — Review';
             elseif (!$weightMet || !$truckMet) $status = 'Part Received';
             elseif ($unbilled > 0) $status = 'Received / Bill Pending';
-            else $status = 'Ready to Complete';
+            elseif ($billed <= 0) $status = 'Received / Bill Pending';
+            elseif (round($outstanding, 2) > .005) $status = 'Payment Pending';
+            else $status = 'Completed';
         }
-        $rows[] = $soda + ['id'=>(string)$id, 'basis'=>$hasWeight && $hasTrucks ? 'BOTH' : ($hasWeight ? 'WEIGHT' : 'TRUCKS'), 'receivedKg'=>round($received,3), 'liftedKg'=>(string)($soda['readyRoute']??'')==='EX_MILL'?round($received,3):0, 'trucksReceived'=>$physicalTrucks, 'truckUnitsReceived'=>$truckUnits, 'unbilledArrivals'=>$unbilled, 'billedAmount'=>round($billed,2), 'paidAmount'=>round($paid,2), 'payableOutstanding'=>round(max(0,$billed-$paid),2), 'calculatedStatus'=>$status, 'minAllowedKg'=>round($readyRice?$maximum*.95:($exMill?$minimum*.95:$minimum),3), 'tolerancePercent'=>$exMill||$readyRice?5:0, 'maxAllowedKg'=>round($maxAllowed,3), 'overMaximum'=>$overMaximum, 'receipts'=>$receipts];
+        $blockers = [];
+        if ($received <= 0) $blockers[] = 'No committed receipts / liftings';
+        if (!$weightMet) $blockers[] = 'Received quantity is below the completion threshold';
+        if (!$truckMet) $blockers[] = 'Expected truck / container units are not yet received';
+        if ($overMaximum) $blockers[] = 'Quantity exceeds tolerance; review required';
+        if ($unbilled > 0 || $billed <= 0) $blockers[] = 'Receipt / lifting billing is incomplete';
+        if (round($outstanding, 2) > .005) $blockers[] = 'Outstanding supplier payable: PKR '.number_format($outstanding, 2);
+        $rows[] = $soda + ['completionBlockers'=>$blockers] + ['id'=>(string)$id, 'basis'=>$hasWeight && $hasTrucks ? 'BOTH' : ($hasWeight ? 'WEIGHT' : 'TRUCKS'), 'receivedKg'=>round($received,3), 'liftedKg'=>(string)($soda['readyRoute']??'')==='EX_MILL'?round($received,3):0, 'trucksReceived'=>$physicalTrucks, 'truckUnitsReceived'=>$truckUnits, 'unbilledArrivals'=>$unbilled, 'billedAmount'=>round($billed,2), 'paidAmount'=>round($paid,2), 'payableOutstanding'=>round($outstanding,2), 'calculatedStatus'=>$status, 'minAllowedKg'=>round($readyRice?$maximum*.95:($exMill?$minimum*.95:$minimum),3), 'tolerancePercent'=>$exMill||$readyRice?5:0, 'maxAllowedKg'=>round($maxAllowed,3), 'overMaximum'=>$overMaximum, 'receipts'=>$receipts];
     }
     usort($rows, static fn(array $a, array $b): int => strcmp((string)($b['sodaDate'] ?? ''), (string)($a['sodaDate'] ?? '')) ?: strcmp((string)($b['sodaNo'] ?? ''), (string)($a['sodaNo'] ?? '')));
     return $rows;
