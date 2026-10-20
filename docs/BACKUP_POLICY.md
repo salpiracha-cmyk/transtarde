@@ -46,3 +46,14 @@ transformations; transfer length and SHA256 must still match before acceptance.
 The independent Windows agent needs an explicit update and the closing-time
 installer described in BACKUP_RECOVERY.md; hosted deployment alone does not
 change its schedule, local credentials or existing retention counts.
+
+Owner-authorised abandoned office download cleanup (20 October 2026): the
+main-only office-temp-cleanup workflow may remove same-user, single-link,
+regular `tt-backup-6alnum` temporary archives older than 24 hours, only when
+their readable manifest identifies a Transtrade schema 1/2/3 full recovery.
+A new persistent server snapshot must first pass every payload check; its
+identity and SHA256 are bound to cleanup under the exclusive backup job lock.
+Candidate identity, manifest and age are rechecked immediately before unlink;
+locked files and files observed open by other processes stay. Recent, unknown,
+unreadable, foreign-owned and symlink files remain held. No restore or live
+record/document deletion is permitted. This is separate from ordinary retention.

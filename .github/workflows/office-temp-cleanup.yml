@@ -1,0 +1,54 @@
+name: Clean abandoned office backup archives
+on:
+  pull_request:
+    paths: ['.github/scripts/office_temp_cleanup*', '.github/workflows/office-temp-cleanup.yml']
+  push:
+    branches: [main]
+    paths: ['.github/scripts/office_temp_cleanup*', '.github/workflows/office-temp-cleanup.yml']
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          php -l .github/scripts/office_temp_cleanup.php
+          php .github/scripts/office_temp_cleanup_test.php
+  cleanup:
+    needs: validate
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    concurrency:
+      group: transtrade-production-deployment
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify persistent recovery and clean only recognised old temporary archives
+        env:
+          HOSTINGER_HOST: ${{ secrets.HOSTINGER_HOST }}
+          HOSTINGER_PORT: ${{ secrets.HOSTINGER_PORT }}
+          HOSTINGER_USER: ${{ secrets.HOSTINGER_USER }}
+          HOSTINGER_DEPLOY_PATH: ${{ secrets.HOSTINGER_DEPLOY_PATH }}
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+          HOSTINGER_KNOWN_HOSTS: ${{ secrets.HOSTINGER_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -m 700 -d "$RUNNER_TEMP/ssh"
+          printf '%s\n' "$HOSTINGER_SSH_KEY" | tr -d '\r' > "$RUNNER_TEMP/ssh/key"
+          printf '%s\n' "$HOSTINGER_KNOWN_HOSTS" | tr -d '\r' > "$RUNNER_TEMP/ssh/known_hosts"
+          chmod 600 "$RUNNER_TEMP/ssh/key" "$RUNNER_TEMP/ssh/known_hosts"
+          [[ "$HOSTINGER_DEPLOY_PATH" =~ ^/home/[a-zA-Z0-9_-]+/domains/app\.transtradeinternational\.com/public_html$ ]]
+          python3 - <<'PYCODE'
+          import pathlib,hashlib,os
+          source=pathlib.Path('.github/scripts/office_temp_cleanup.php').read_text().replace('__LIBRARY_SHA256__',hashlib.sha256(pathlib.Path('backup_lib.php').read_bytes()).hexdigest())
+          source += '\notc_main();\n'
+          pathlib.Path(os.environ['RUNNER_TEMP'],'office-temp-cleanup.php').write_text(source)
+          PYCODE
+          ssh -o ConnectTimeout=20 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -i "$RUNNER_TEMP/ssh/key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" -o StrictHostKeyChecking=yes -p "$HOSTINGER_PORT" "$HOSTINGER_USER@$HOSTINGER_HOST" "TT_OFFICE_TEMP_ROOT='$HOSTINGER_DEPLOY_PATH' php" < "$RUNNER_TEMP/office-temp-cleanup.php"
+      - name: Verify login still responds
+        run: |
+          curl --fail --silent --show-error --max-time 30 https://app.transtradeinternational.com/login.php > "$RUNNER_TEMP/login.html"
+          grep -q 'name="password"' "$RUNNER_TEMP/login.html"
+          echo 'PUBLIC_LOGIN_HEALTH_OK'
