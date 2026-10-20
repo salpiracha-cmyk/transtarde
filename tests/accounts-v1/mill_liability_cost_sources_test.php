@@ -35,9 +35,9 @@ check_cost(count(pc_cost_sources($ops,$g))===1,'Maize labour contaminated Rice c
 echo "PASS cost sources: same mill only, immutable booked amount and Post ID, amendment hold, missing-source preservation, KE/payment deduplication, reversal removal, unknown location hold and exact rounded allocation\n";
 
 require dirname(__DIR__,2).'/api/expense_reminders.php';
-$inv=$invoice+['supplierPayableTotal'=>2000,'billMonth'=>'2026-10','utilityMasterId'=>'MASTER','vendor'=>'K-Electric','billDate'=>'2026-10-01'];
+$inv=$invoice+['supplierPayableTotal'=>2000,'billMonth'=>'2026-10','utilityMasterId'=>'MASTER','vendor'=>'K-Electric','billDate'=>'2026-10-01','dueDate'=>'2026-10-25'];
 $reminderStore=['utilityMasters'=>[['id'=>'MASTER','entity'=>'TTI','utilityType'=>'ELECTRICITY','locationName'=>'Fixture Mill','status'=>'Active']],'supplierBills'=>['EINV1'=>$inv]];
-check_cost(!tt_expense_monthly_reminders($reminderStore,'TTI','2026-10')[0]['paid'],'Unpaid invoice reminder disappeared');
+check_cost(!tt_expense_monthly_reminders($reminderStore,'TTI','2026-10')[0]['paid'],'Unpaid invoice reminder disappeared');check_cost(tt_expense_monthly_reminders($reminderStore,'TTI','2026-10')[0]['dueDate']==='2026-10-25','Reminder ignored the original invoice due date');
 $reminderStore['supplierSettlements']=[['entity'=>'TTI','status'=>'Posted','date'=>'2026-10-02','allocations'=>[['billId'=>'EINV1','amount'=>1000,'paidAmount'=>1000]]]];
 check_cost(!tt_expense_monthly_reminders($reminderStore,'TTI','2026-10')[0]['paid'],'Partial payment closed the utility reminder');
 $reminderStore['supplierSettlements'][0]['allocations'][0]['amount']=2000;$reminderStore['supplierSettlements'][0]['chequeStatus']='Issued';
