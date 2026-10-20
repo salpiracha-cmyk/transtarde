@@ -159,7 +159,7 @@ function src_amend_payment(array &$s,string $e,string $m,array $b,array $u,array
     if($tx['date']===$original['date']&&$tx['paymentAccountId']===$original['paymentAccountId']&&abs($tx['amount']-$original['amount'])<.005)$meta['reconciliationPostId']=$j['meta']['reconciliationPostId']??$id;
     $meta['salarySummary']=src_summary($next,$e,$m,$closed);unset($meta);
     $next['journals'][$id]['amendedByPostId']=$nid;$next['journals'][$id]['amendmentReversalPostId']=$rid;
-    foreach($next['postingKeys']??[] as $pk=>$r)foreach(['journalId','replacementPostId'] as $f)if(($r['result'][$f]??'')===$id)$next['postingKeys'][$pk]['result'][$f]=$nid;
+    foreach($next['postingKeys']??[] as $pk=>$r)foreach(['journalId','replacementPostId'] as $f){if(($r['result'][$f]??'')===$id)$next['postingKeys'][$pk]['result'][$f]=$nid;if(($r[$f]??'')===$id)$next['postingKeys'][$pk][$f]=$nid;}
     $next['postAmendments'][]=['originalPostId'=>$id,'reversalPostId'=>$rid,'replacementPostId'=>$nid,'entity'=>$e,'reason'=>$reason,'date'=>$tx['date'],'actor'=>$u['username']??'Accounts','at'=>gmdate('c')];
     $result=['journalId'=>$nid,'replacementPostId'=>$nid,'reversalPostId'=>$rid];$next['postingKeys'][$key]=['fingerprint'=>$fp,'result'=>$result,'createdAt'=>gmdate('c')];$s=$next;return $result;
 }

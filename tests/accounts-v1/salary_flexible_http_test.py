@@ -159,10 +159,17 @@ with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
         status,paid=request(later,'2027-03');assert status==200,paid
         rs=saved();assert rs['salaryPeriods']['TTI|2027-03|Salman']['outstanding']==30000
         assert rs['salarySheets']['TTI|2027-03']['rows']['Salman']['outstanding']==30000
-        journal=rs['journals'][paid['result']['journalId']];assert [l['account'] for l in journal['lines']]==['2230','1120']
+        journal=rs['journals'][paid['result']['journalId']];assert [l['account'] for l in journal['lines']]==['2230','1120'];assert journal['sourceType']=='SALARY_ALLOCATED_PAYMENT';assert journal['meta']['paymentGroupOwner']=='Salman'
         assert len(request(month='2027-03')[1]['salaryPayments'])==2
         assert request(later,'2027-03')[1]['result']['duplicate'] and saved()==rs
         assert request({**later,'requestKey':'fixture-over-retained','amount':30001},'2027-03')[0]==422 and saved()==rs
+        entry=next(r for r in request(month='2027-03')[1]['salaryPayments'] if r['journalId']==paid['result']['journalId']);tx=json.loads(json.dumps(entry['transaction']));tx['amount']=20000;tx['allocations'][0]['amount']=20000
+        status,corrected=request({'action':'amend_salary_allocated_payment','journalId':entry['journalId'],'transaction':tx,'reason':'Correct retained withdrawal amount','snapshot':request(month='2027-03')[1]['salaryCorrectionSnapshot'],'requestKey':'fixture-retained-amend'},'2027-03');assert status==200,corrected
+        assert saved()['salaryPeriods']['TTI|2027-03|Salman']['outstanding']==35000
+        before_retry=saved();assert request(later,'2027-03')[1]['result']['journalId']==corrected['result']['journalId'] and saved()==before_retry
+        assert request({'action':'reverse_salary_allocated_payment','journalId':corrected['result']['journalId'],'date':'2027-04-01','reason':'Reverse retained withdrawal fixture'},'2027-03')[0]==200
+        assert saved()['salaryPeriods']['TTI|2027-03|Salman']['outstanding']==55000
+        assert saved()['salarySheets']['TTI|2027-03']['rows']['Salman']['payment']['amount']==40000
         (root/'data/accounts.json').write_text(json.dumps(retained_base))
         print('PASS partial cash retains payable; later withdrawal preview, exact payable/cash posting, completed sheet, payment list, cap and retry')
         # Explicit payroll separation/date correction preserves books, stable public IDs,
