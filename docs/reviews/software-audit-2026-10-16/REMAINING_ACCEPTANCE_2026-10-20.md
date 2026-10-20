@@ -1,5 +1,7 @@
 # Remaining audit acceptance — 20 October 2026, connected Chrome continuation
 
+Latest afternoon evidence: [Authorised party correction, deployed protections and partial-payment plan](PARTY_CORRECTION_2026-10-20.md). Scope37 advances from not tested to partial;125passed and31open remain unchanged.
+
 This continues the PR401 checkpoint and incorporates subsequent main changes
 through the concurrent PR406 backup release a3b14b962188caa1980d7bf237d6c10903d430d6.
 Local Chrome was actually connected,
@@ -92,7 +94,7 @@ follows.
 ## Exact remaining work
 
 After accepting only the completed reference-search action, coverage is156scopes:
-125passed,22partial,3failed,3not tested,2blocked,1intermittent. There are31remaining
+125passed,23partial,3failed,2not tested,2blocked,1intermittent. There are31remaining
 scopes. This is one newly closed scope, not a claim that every other scope is
 blocked or complete. The table preserves the outstanding test matrices as well
 as requirements that need original facts, actual business cases or another device.
@@ -104,7 +106,7 @@ No existing action was split or renamed to increase the passed count.
 | 9 | Console / Backup | partial | An identified original snapshot, isolated restore destination and independently reconciled balances/counts/attachments; never restore over production for a test. |
 | 22 | Masters / All master families | partial | The remaining create/amend-to-consumer matrix for every dependent document, plus an owner decision on the six advanced customer fields without a demonstrated canonical-reader consumer; existing editor and linkage fixtures cover only part. |
 | 30 | Accounts / Profit & Loss / Zakat | partial | Approved annual monetary counterpart and the original account7210 opening allocation. |
-| 37 | Accounts / All production payments / cancellations | not tested | Approved actual business payment/cancellation cases; isolated test postings are already covered and must not be confused with production business acceptance. |
+| 37 | Accounts / All production payments / cancellations | partial | One owner-authorised real creditor/B/F correction is now verified in connected Chrome; remaining actual business payment/cancellation variants are still open. See the afternoon checkpoint. |
 | 50 | Milling / Rent / Salary advance | partial | An actual Mill reference with an exact canonical Accounts payment/person/month match; current reference data is empty. |
 | 51 | Milling / Rice Ledger | partial | Actual physical Mill/bag opening quantities and positive production/reversal control totals. |
 | 62 | Exports / AMT13 relationship letter | failed | Approved AMT13 relationship-letter buyer/address/relationship wording from the commercial originals. |
