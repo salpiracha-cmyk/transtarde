@@ -295,3 +295,85 @@ and was left alone. The file browser and provider usage counters use different
 reported totals/counts and do not fully reconcile here. No unsupported inference
 that all22.82GBbelongs to current operational entries is made. Complete billable
 category reconciliation and physical office-PC verification remain open in155.
+
+
+## Expense invoices and final continuation — 20 October, 23:15 PKT
+
+PRs 450, 452 and 455 are deployed in commit
+`4cb563245ba9ea045514651a2214fc2266df487f`.
+
+TTI/BRM can record an original ordinary or utility invoice in full, without a
+bank payment, then settle its same supplier liability through Party Payments.
+The route is **Expenses → Pay Expense → Record invoice — pay later**.
+**Expense invoices & balances → Pay** opens the linked payment draft. The
+register filters current balances and exports the filtered CSV/print rows.
+TG retains its native-currency supplier-bill workflow. Existing paid expenses
+were not converted or charged again.
+
+Unpaid corrections and cancellations retain source identity and audited
+reversals. Active linked payments, stale edits, duplicate invoices, invalid
+inputs, wrong company/role and raw linked-journal edits are held. The existing
+explicit partial-payment choice keeps a rounded remainder payable unless the
+user deliberately records an agreed discount. Pending cheques show their net
+payment separately from that discount and from cleared cash.
+
+Mill K-Electric invoices retain their billing month, original filing-document
+slot, meter-period cost and exact later payment evidence. Utility reminders use
+the invoice due date. Manual consumer/account references survive both invoice
+capture and the original paid-utility route and appear in the monthly filing
+row. Saved utility masters remain authoritative for their own references. No
+missing historical consumer reference was guessed or backfilled.
+
+The transaction register now resolves original supplier names from the linked
+bill/candidate before explicit journal party fields. Connected owner Chrome
+verified formerly blank headings on original Paklink freight and MAPCO clearing
+bills. It also verified **Total invoice**, the accessible **Invoice date**, the
+empty new invoice register, and the saved Mill K-Electric form with meter fields
+and a supplier-payable preview. Bank/cheque controls and payment-only narration
+were hidden in invoice mode. These forms were closed without Record/Post.
+
+| Feature | Final feature head | Accounts QA | Milling/Exports QA |
+|---|---|---|---|
+| Original invoice capture and linked settlement, PR 450 | `7d95958` | 39466465714, both jobs passed | 39466465727 passed |
+| Original party headings, due dates and labels, PR 452 | `f833c22` | 39468321428, both jobs passed | 39468321467 passed |
+| Consumer references and net pending cheques, PR 455 | `cbca651` | 39471045447, both jobs passed | 39471045477 passed |
+
+Final main-branch Accounts QA **39471698718** (both jobs) and Milling/Exports QA
+**39471698738** passed for `4cb5632`. Deployment **39472215443**, job
+**118798897030**, verified all **458 application files** against the exact
+commit with **0 business-file writes**. Login health passed. Code rotation kept
+one rollback copy, removed one older managed copy and touched no private data
+backups.
+
+Final live run **39472429276**, job **118799640181**, passed **23/23 in 2.6
+minutes**: 58 active account ledgers, three company reports, 10 PKR bank
+comparisons, 30 posted JVs and 468 register rows. Every company trial balance
+balanced; every balance-sheet difference was zero; unclassified balances were
+empty. Concurrent-revision skips were zero. Financial/stock/reference test
+writes were zero. No production test invoice or payment was created.
+
+Startup **39472429076**, job **118799641797**, passed: login 531 ms, sign-in to
+usable Accounts 771 ms, and the approved Exports palette. Earlier intermittent
+startup failures remain recorded under scope 119; this pass does not establish
+their root cause.
+
+The register still has **125 passed, 24 partial, 1 not tested, 3 failed, 2
+blocked and 1 intermittent**, totaling 156 scopes. It counts business acceptance
+scopes. Closing the known invoice-capture gap adds implementation and verified
+runtime evidence; composite scope 78 remains partial because real original
+allocation/plan confirmations and every production source variant were not
+fabricated. Missing originals, classification decisions, physical office-PC
+recovery verification and the other listed qualifications retain their status.
+No final profit certification is inferred from balanced reports.
+
+The formal security scan remains blocked. The
+[security-scan skill](skill://Plugin_1e648473be9c8191a91ac3947151af55/security-scan/SKILL.md)
+requires: “Start source review and launch scan workers only after preflight
+returns `ready`.” That prerequisite remains unavailable. Routine functional,
+permission and regression checks above are recorded separately.
+
+Separate backup-policy and approved temporary-cleanup changes in PRs 451, 453
+and 454 were preserved. Earlier storage figures remain timestamped observations;
+this continuation makes no fresh provider-quota or physical-PC claim.
+
+See [Expense invoice user route and validation](EXPENSE_INVOICES_2026-10-20.md).
