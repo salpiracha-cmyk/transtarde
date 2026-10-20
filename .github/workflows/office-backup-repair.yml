@@ -29,6 +29,7 @@ jobs:
           php tests/security/backup_compression_retention_test.php
           php tests/security/backup_expiry_safety_test.php
           php tests/security/office_backup_compression_test.php
+          python3 tests/security/backup_stream_http_test.py
           python3 tests/security/office_backup_agent_test.py
           python3 tests/security/office_agent_jobs_test.py
   windows-syntax:

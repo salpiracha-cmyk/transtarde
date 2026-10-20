@@ -7,6 +7,7 @@ function office_expect(bool $condition,string $message):void{if(!$condition)thro
 function office_remove(string $path):void{if(is_dir($path)){foreach(scandir($path)?:[]as$name)if($name!=='.'&&$name!=='..')office_remove($path.'/'.$name);rmdir($path);}else @unlink($path);}
 try{
     require $app.'/auth_store.php';require_once $app.'/backup_lib.php';
+    tt_mutate_store(static function(array &$store):void{$store['users'][]=['id'=>7,'username'=>'backup-fixture','role'=>'Super Admin'];},false);
     $text=str_repeat('{"historical":"original data retained"}',250000);
     file_put_contents(TT_DATA_DIR.'/history.json',$text);
     mkdir(TT_DATA_DIR.'/documents',0700,true);
