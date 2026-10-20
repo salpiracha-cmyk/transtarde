@@ -1,4 +1,5 @@
 """Build a read-only stdin verifier from exact Git objects; no host writes."""
+import argparse
 import base64
 import hashlib
 import json
@@ -22,21 +23,24 @@ def manifest(revision):
     return result
 
 
-def build():
+def build(exact=False):
     head = git('rev-parse', 'HEAD').decode().strip()
     current = manifest(head)
     manifests = {head: current}
     # The last accepted deployment may precede the separately queued login repair.
     # Accept one WHOLE known tree only when its sole app differences are those two
     # authentication files. A mixed old/new tree never satisfies either candidate.
-    baseline = manifest(BASELINE)
-    changed = {name for name in current.keys() | baseline.keys() if current.get(name) != baseline.get(name)}
-    if current.keys() == baseline.keys() and changed <= {'auth_store.php', 'session_store.php'}:
-        manifests[BASELINE] = baseline
+    if not exact:
+        baseline = manifest(BASELINE)
+        changed = {name for name in current.keys() | baseline.keys() if current.get(name) != baseline.get(name)}
+        if current.keys() == baseline.keys() and changed <= {'auth_store.php', 'session_store.php'}:
+            manifests[BASELINE] = baseline
     encoded = base64.b64encode(json.dumps(manifests).encode()).decode()
     core = pathlib.Path('.github/scripts/original_source_match.php').read_text()
     return core + "\nos_match_main((string)getenv('TT_SOURCE_ROOT'), json_decode(base64_decode('" + encoded + "'),true,512,JSON_THROW_ON_ERROR));\n"
 
 
 if __name__ == '__main__':
-    print(build())
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--exact', action='store_true', help='Require only the exact release tree, never a previous authentication baseline.')
+    print(build(exact=parser.parse_args().exact))
