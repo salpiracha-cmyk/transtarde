@@ -373,11 +373,10 @@ with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
                 page.locator('[data-rs-draft-pay="Mrs"]').click()
                 assert page.locator('.rs-plan-row').count()==0
                 assert page.locator('#rsFamilyMonthly').input_value()=='310000'
-                assert not page.locator('#rsFamilyUseCash').is_checked() and not page.locator('#rsFamilyUseBank').is_checked()
-                assert page.locator('#rsFamilyRetained').input_value()=='310000'
-                assert not page.locator('#rsFamilyBankFields').is_visible()
-                page.locator('#rsFamilyUseCash').check()
-                assert page.locator('#rsFamilyCash').input_value()=='310000'
+                assert page.locator('#rsFamilyUseRetain').is_checked() and page.locator('#rsFamilyRetained').input_value()=='310000'
+                assert not page.locator('#rsFamilyCashFields').is_visible()
+                page.locator('#rsFamilyUseCash').check();assert page.locator('#rsFamilyCash').input_value()=='310000'
+                assert not page.locator('#rsFamilyBankDetailsFields').is_visible()
                 assert page.locator('[data-tx-recipient]').count()==0
                 page.locator('#rsAddTransaction').click();tx=page.locator('.rs-plan-row').last
                 tx.locator('[data-plan-ledger]').select_option('BROKER_FUND|BMA');tx.locator('[data-allocation-amount]').fill('10000')
@@ -395,7 +394,7 @@ with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
                 page.locator('#rsFamilyCash').fill('210000');assert not page.locator('#rsFamilyUseBank').is_checked()
                 assert page.locator('#rsFamilyRetained').input_value()=='120000'
                 page.locator('#rsFamilyUseBank').check()
-                assert page.locator('#rsFamilyBankAmount').input_value()=='120000' and page.locator('#rsFamilyRetained').input_value()=='0'
+                assert page.locator('#rsFamilyBankAmount').input_value()=='120000'
                 page.locator('#rsFamilyDate').fill('2027-03-10');page.locator('#rsFamilyBank').select_option('bank-b');page.locator('[data-reference]').fill('MRS-100');page.locator('[data-cheque-date]').fill('2027-03-10')
                 page.locator('#rsPaySalBtn').click();page.locator('[data-rs-draft-pay="Mrs"]').filter(has_text='Amend').wait_for()
                 assert request(month='2027-03')[1]['salarySheet']['rows']['Mrs']['payment']['amount']==310000
@@ -405,9 +404,9 @@ with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
                 assert page.locator('.rs-plan-row').nth(1).locator('[data-plan-ledger]').input_value()=='SALARY|Salman'
                 assert page.locator('#rsFamilyCash').input_value()=='210000' and page.locator('#rsFamilyBankAmount').input_value()=='120000'
                 assert page.locator('[data-reference]').input_value()=='MRS-100'
-                page.locator('#rsFamilyUseBank').uncheck();assert page.locator('#rsFamilyCash').input_value()=='210000' and not page.locator('#rsFamilyBankFields').is_visible()
+                page.locator('#rsFamilyUseBank').uncheck();assert page.locator('#rsFamilyCash').input_value()=='210000' and not page.locator('#rsFamilyBankDetailsFields').is_visible()
                 assert page.locator('#rsFamilyRetained').input_value()=='120000'
-                page.locator('#rsFamilyUseBank').check();assert page.locator('#rsFamilyBankAmount').input_value()=='120000' and page.locator('[data-reference]').input_value()=='MRS-100'
+                page.locator('#rsFamilyUseBank').check();assert page.locator('#rsFamilyCash').input_value()=='210000' and page.locator('[data-reference]').input_value()=='MRS-100'
                 assert page.locator('#rsDraftForm').evaluate('(el)=>el.getBoundingClientRect().right<=innerWidth && el.getBoundingClientRect().left>=0')
                 with page.expect_response(lambda response: 'rent_salary.php' in response.url and response.request.method=='POST') as saved_response:
                     page.locator('#rsPaySalBtn').click()
