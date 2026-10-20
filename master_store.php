@@ -25,6 +25,41 @@ function tt_export_customer_notify_json(mixed $input): string {
     return json_encode($out,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);
 }
 
+/** Shared customer reference collections; validate writes, retain old raw values on reads. */
+function tt_export_customer_collection(mixed $input,int $field): array {
+    $labels=[16=>'Contacts',17=>'Consignees',18=>'Additional notify parties',19=>'Additional document addresses'];
+    $label=$labels[$field]??'Customer details';
+    if(is_string($input)){
+        if(trim($input)==='')return [];
+        if(!str_starts_with(ltrim($input),'['))throw new InvalidArgumentException($label.' must be a JSON list.');
+        $input=json_decode($input,true);
+    }
+    if(!is_array($input)||!array_is_list($input)||count($input)>50)throw new InvalidArgumentException($label.' must contain at most 50 rows.');
+    $out=[];$ids=[];
+    foreach($input as $row){
+        if(!is_array($row)||array_is_list($row))throw new InvalidArgumentException($label.' contains an invalid row.');
+        $allowed=$field===16?['id','name','email','phone','designation','status']:['id','name','address','country','status'];
+        if($field===19)$allowed[]='label';
+        if(array_diff(array_keys($row),$allowed))throw new InvalidArgumentException($label.' contains an unsupported field. Use '.implode(', ',$allowed).'.');
+        if(isset($row['status'])&&!in_array($row['status'],['','Active','Inactive','Archived'],true))throw new InvalidArgumentException($label.' status must be Active, Inactive or Archived.');
+        if(!empty($row['id'])){if(!is_string($row['id'])||isset($ids[$row['id']]))throw new InvalidArgumentException($label.' row IDs must be unique text.');$ids[$row['id']]=true;}
+        $clean=[];
+        foreach(['id'=>100,'name'=>220,'label'=>220,'address'=>1200,'country'=>180,'email'=>220,'phone'=>120,'designation'=>220,'status'=>20] as $key=>$limit){
+            if(!isset($row[$key]))continue;
+            if(!is_string($row[$key])||strlen(trim($row[$key]))>$limit)throw new InvalidArgumentException($label.': '.$key.' must be text within '.$limit.' bytes.');
+            $clean[$key]=trim($row[$key]);
+        }
+        if($field===16&&empty($clean['name']))throw new InvalidArgumentException('Each contact needs a name.');
+        if($field!==16&&(empty($clean['address'])||($field!==19&&empty($clean['name']))))throw new InvalidArgumentException($label.' needs a name and full address (a document address may use the buyer name).');
+        $out[]=$clean;
+    }
+    return $out;
+}
+function tt_validate_export_customer_advanced(array $values,?array $old=null): void {
+    foreach([16,17,18,19] as $field)if($old===null||($values[$field]??'')!==($old[$field]??''))tt_export_customer_collection($values[$field]??'', $field);
+    if(($old===null||($values[20]??'')!==($old[20]??''))&&!in_array(strtoupper(trim((string)($values[20]??''))),['','USD','EUR','GBP','AED','PKR'],true))throw new InvalidArgumentException('Select a supported customer default currency.');
+}
+
 /** Reject impossible calendar dates before a master can affect dated workflows. */
 function tt_master_calendar_date(string $value,string $label,bool $optional=false): string {
     $value=trim($value);

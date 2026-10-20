@@ -14,9 +14,14 @@ function customer_roles(string $roles): string {
     return implode('; ',$items);
 }
 function customer_row(array $row): array {
-    $v=array_values(is_array($row['values']??null)?$row['values']:[]); while(count($v)<16)$v[]='';
+    $v=array_values(is_array($row['values']??null)?$row['values']:[]); while(count($v)<22)$v[]='';
     $notifies=[]; if($v[9]!==''){ $d=json_decode((string)$v[9],true); if(is_array($d))$notifies=$d; }
-    return [
+    $advanced=[];$warnings=[];
+    foreach([16=>'contacts',17=>'consignees',18=>'additionalNotifies',19=>'documentAddresses'] as $field=>$key){
+        try{$advanced[$key]=tt_export_customer_collection($v[$field],$field);}catch(InvalidArgumentException $e){$advanced[$key]=[];$warnings[]=$e->getMessage();}
+    }
+    return $advanced+[
+        'defaultCurrency'=>strtoupper(trim((string)$v[20])),'customerInstructions'=>(string)$v[21],'advancedWarnings'=>$warnings,
         'masterId'=>(string)($row['id']??''),'name'=>(string)$v[0],'code'=>(string)$v[1],'roles'=>(string)$v[2],
         'address'=>(string)$v[3],'country'=>(string)$v[4],'email'=>(string)$v[5],'phone'=>(string)$v[6],'tax'=>(string)$v[7],
         'packingDefault'=>(string)($v[8]?:'KG'),'notifies'=>$notifies,'status'=>(string)($v[10]?:'Active'),'notes'=>(string)$v[11],

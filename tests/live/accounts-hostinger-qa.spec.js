@@ -935,3 +935,63 @@ test('WHT period and category screen, CSV and print agree with original postings
  }
  expect(compared).toBe(source.taxEntries.length);expect(writes).toEqual([]);console.log('LIVE_WHT_ALL_POPULATED_CATEGORIES_OK '+JSON.stringify({categories,sourceLines:compared,originalsCompared:originals.size,brokerageOriginals,financialWrites:0}));
 });
+
+test('completed ASAS62 packing reprint uses corrected ORIGINAL layout without changing its original records', async ({ page }) => {
+  test.setTimeout(150_000);
+  const writes=[];
+  await page.context().route('**/*',route=>{
+    const request=route.request(),url=new URL(request.url());
+    if(!['GET','HEAD'].includes(request.method())&&!(url.origin===BASE_URL&&url.pathname==='/login.php'&&request.method()==='POST')){
+      if(url.pathname!=='/api/session_activity.php')writes.push(url.pathname);
+      return route.abort();
+    }
+    return route.continue();
+  });
+  await page.addInitScript(()=>{
+    window.print=()=>{
+      const root=document.getElementById('printRoot');
+      window.__closedPackingPrint={html:root.innerHTML,className:root.className};
+    };
+  });
+  await signIn(page);
+  const originalFingerprint=async()=>{
+    const response=await page.request.get(BASE_URL+'/api/operations.mysql.php');expect(response.status()).toBe(200);
+    const data=await response.json();expect(data.ok).toBe(true);
+    const root=JSON.parse(data.values.transtrade_export_v3_operational);
+    const original={contracts:(root.contracts||[]).filter(row=>row.ref==='TTI/ASAS/62'),shipments:(root.shipments||[]).filter(row=>row.contractRef==='TTI/ASAS/62')};
+    expect(original.contracts.length).toBeGreaterThan(0);expect(original.shipments.length).toBeGreaterThan(0);
+    return require('node:crypto').createHash('sha256').update(JSON.stringify(original)).digest('hex');
+  };
+  const before=await originalFingerprint();
+  await page.goto(BASE_URL+'/module.php?id=exports',{waitUntil:'domcontentloaded',timeout:90_000});
+  await page.getByRole('button',{name:'Completed Shipments',exact:true}).click();
+  // The completed list is checked by visible contract identity, not by a guessed lot ID.
+  const entry=page.getByText('TTI/ASAS/62 — TTI/ASAS/62/L01',{exact:true});
+  await expect(entry).toBeVisible();
+  const card=entry.locator('..');
+  await card.getByRole('button',{name:'VIEW',exact:true}).click();
+  await expect(page.getByRole('heading',{name:'TTI/ASAS/62 — TTI/ASAS/62/L01 · Completed',exact:true})).toBeVisible();
+  await page.getByRole('row').filter({has:page.getByRole('cell',{name:'Packing List',exact:true})}).getByRole('button',{name:'PRINT / SAVE PDF',exact:true}).click();
+  await page.getByRole('button',{name:/^WITH HEADER/}).click();
+  await page.waitForFunction(()=>!!window.__closedPackingPrint,undefined,{timeout:45_000});
+  const captured=await page.evaluate(()=>window.__closedPackingPrint);
+  // Re-render captured committed print markup in the same browser/CSS, with no
+  // physical print dialog, folder queue, Save, document upload or source rewrite.
+  await page.evaluate(capture=>{
+    const root=document.createElement('div');root.id='printRoot';root.className=capture.className;root.innerHTML=capture.html;root.setAttribute('aria-hidden','false');document.body.replaceChildren(root);
+  },captured);
+  await page.emulateMedia({media:'print'});
+  const label=page.locator('.commercialCopyLabel');await expect(label).toHaveText('ORIGINAL');
+  const geometry=await page.evaluate(()=>{
+    const label=document.querySelector('.commercialCopyLabel'),reference=document.querySelector('.approvedInvoiceReference'),parties=document.querySelector('.packingParties');
+    if(!label||!reference||!parties)return null;
+    const a=label.getBoundingClientRect(),b=reference.getBoundingClientRect(),c=parties.getBoundingClientRect();
+    return {position:getComputedStyle(label).position,labelBottom:a.bottom,referenceTop:b.top,partiesTop:c.top,labelHeight:a.height};
+  });
+  expect(geometry).not.toBeNull();expect(geometry.position).toBe('static');expect(geometry.labelHeight).toBeGreaterThan(0);
+  expect(geometry.labelBottom).toBeLessThanOrEqual(geometry.referenceTop+1);expect(geometry.labelBottom).toBeLessThanOrEqual(geometry.partiesTop+1);
+  const text=await page.locator('#printRoot').innerText();expect(text).toContain('TTI/ASAS/62');expect(text).toContain('80,400');expect(text).toContain('80,641.20');
+  const pdf=await page.pdf({format:'A4',printBackground:true,displayHeaderFooter:false});expect(pdf.subarray(0,5).toString()).toBe('%PDF-');
+  expect(writes).toEqual([]);expect(await originalFingerprint()).toBe(before);
+  console.log('LIVE_ASAS62_PACKING_REPRINT_OK '+JSON.stringify({contract:'TTI/ASAS/62',originalLabelInNormalFlow:true,overlap:false,pdfGenerated:true,originalUploadsReplaced:0,financialWrites:0,documentWrites:0}));
+});

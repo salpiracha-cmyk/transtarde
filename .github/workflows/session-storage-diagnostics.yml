@@ -58,6 +58,14 @@ jobs:
           foreach([$root.'/.user.ini',$root.'/accounts/.user.ini'] as $i=>$file)if(is_file($file)){foreach(file($file) as $line)if(preg_match('/^\s*(session\.(?:save_handler|auto_start|gc_maxlifetime|gc_probability|gc_divisor)|opcache\.validate_timestamps)\s*=\s*([^;\r\n]+)/',$line,$m))$out['configuredWebSessionSettings'][$i][$m[1]]=trim($m[2]);}
           $logs=array_unique(array_merge([$root.'/error_log',$root.'/accounts/error_log',dirname($root).'/logs/error.log'],glob(dirname($root).'/logs/*error*')?:[],glob($root.'/logs/*error*')?:[]));
           foreach($logs as $file){if(!is_file($file)||!is_readable($file)||is_link($file))continue;$h=fopen($file,'rb');fseek($h,max(0,filesize($file)-131072));$text=stream_get_contents($h);fclose($h);foreach(explode("\n",$text)as$line){if(!preg_match('/Fatal error|Uncaught|session_start|Session migration|Private session storage|session_save_path/i',$line))continue;$kind='other PHP session/fatal error';if(preg_match('/Call to undefined function ([A-Za-z0-9_]+)/',$line,$m))$kind='Undefined function '.$m[1];elseif(preg_match('/Uncaught ([A-Za-z0-9_\\\\]+)/',$line,$m))$kind='Uncaught '.$m[1];if(str_contains($line,'Private session storage'))$kind='Private session storage unavailable';elseif(str_contains($line,'Session migration'))$kind='Session migration failure';elseif(str_contains($line,'session_start'))$kind='session_start failure';$out['classifiedErrors'][$kind]=($out['classifiedErrors'][$kind]??0)+1;}}
+          $out['anonymousLoginProbe']=['supported'=>function_exists('curl_init')];
+          if(function_exists('curl_init')){
+            $probe=curl_init('https://app.transtradeinternational.com/login.php');
+            curl_setopt_array($probe,[CURLOPT_FOLLOWLOCATION=>false,CURLOPT_CONNECTTIMEOUT=>10,CURLOPT_TIMEOUT=>15,CURLOPT_WRITEFUNCTION=>static fn($handle,$chunk)=>strlen($chunk),CURLOPT_HTTPHEADER=>['Accept: text/html'],CURLOPT_USERAGENT=>'Transtrade-ReadOnly-Session-Diagnostic']);
+            curl_exec($probe);$info=curl_getinfo($probe);
+            $out['anonymousLoginProbe']+=['httpStatus'=>(int)$info['http_code'],'curlErrorCode'=>curl_errno($probe),'dnsSeconds'=>$info['namelookup_time'],'tcpSeconds'=>$info['connect_time'],'tlsSeconds'=>$info['appconnect_time']??null,'firstByteSeconds'=>$info['starttransfer_time'],'totalSeconds'=>$info['total_time']];
+            curl_close($probe);
+          }
           $out['releaseSha']=is_file($root.'/.transtrade-release')?trim(file_get_contents($root.'/.transtrade-release')):null;
           $out['sessionRecordCounts']=['records'=>count(glob($sessions.'/records/*.json')?:[]),'locks'=>count(glob($sessions.'/records/*.json.lock')?:[]),'retired'=>count(glob($sessions.'/records/*.retired')?:[])];
           $out['sessionFormatCounts']=[];$out['sessionSizeCounts']=['empty'=>0,'small'=>0,'large'=>0];

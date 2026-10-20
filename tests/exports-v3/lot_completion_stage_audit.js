@@ -16,7 +16,7 @@ assert.match(app,/s\.completed=true[\s\S]*const confirmed=await confirmLotComple
 assert.match(app,/if\(e\.target\?\.id==='completeLot'\)[\s\S]*completionMissing\(s,c\)/,'click handler revalidates completion server-side state before closing the lot');
 assert.match(app,/function confirmLotCompletionSave\(payload,lotId\)[\s\S]*120000/,'lot completion waits for a slow hosted save before failing');
 assert.match(app,/const confirmed=await confirmLotCompletionSave\(attempted,s\.id\)/,'lot completion uses the durable confirmation helper for the final save');
-assert.match(app,/function requeueCompletedShipmentFolder\(button,s,c\)[\s\S]*saveShipmentFolder\(s,c,false\)/,'completed lots can requeue the final Office Agent folder without reopening');
+assert.match(app,/function requeueCompletedShipmentFolder\(button,s,c\)[\s\S]*saveShipmentFolder\(s,c,false,progress=>/,'completed lots can requeue the final Office Agent folder without reopening');
 assert.match(app,/strictFinal:true/,'Office Agent final package uses the strict final document folder format');
 const requeue=app.slice(app.indexOf('function requeueCompletedShipmentFolder'),app.indexOf('\nfunction recordUploadedDocument'));
 assert.doesNotMatch(requeue,/saveNow/,'completed lot office-folder requeue must not wait on a new shared save');

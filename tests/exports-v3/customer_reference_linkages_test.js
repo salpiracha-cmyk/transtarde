@@ -1,0 +1,32 @@
+'use strict';
+const fs=require('node:fs'),assert=require('node:assert/strict'),{JSDOM}=require('jsdom');
+const dom=new JSDOM('<div id="app"></div><div id="printRoot"></div><div id="contractBody"></div>',{url:'https://fixture.test/exports/',runScripts:'outside-only'}),w=dom.window,d=w.document;
+w.structuredClone=structuredClone;w.TT_MODULE_ACCESS={user:'Reference fixture',masters:{}};w.scrollTo=()=>{};
+let source=fs.readFileSync(process.env.TT_EXPORT_SOURCE||'exports/app.js','utf8');
+source=source.replace('mount();restoreContractCheckpoint();',`window.referenceFixture={state,newContractShape,applyBuyerTemplate,renderContractStep,buyerOf,ttPartyOutput,knownShipmentParties,blRelatedParties,makeShipment,commercialInvoiceDoc,packingListDoc,applyExportCustomerMasters,captureShipmentPartyDetails,contractPaymentSectionText,salesContractPrint,customsPartyOptions,tgImporterOptions,getDraft:()=>contractDraft,setDraft:c=>contractDraft=c,setStep:n=>contractStep=n};`);
+w.eval(source);const t=w.referenceFixture;
+const master={id:'CUST',masterId:'MASTER',name:'Reference Buyer',code:'REF',address:'Primary Road',notifies:[{name:'Primary Notify',address:'Primary Notify Road'}],contacts:[{id:'CONTACT',name:'Buyer Contact',email:'contact@example.test',phone:'123',designation:'Manager'}],consignees:[{id:'CONSIGNEE',name:'Named Consignee',address:'Consignee Road'}],additionalNotifies:[{id:'NOTIFY',name:'Additional Notify',address:'Additional Road'},{name:'Primary Notify',address:'Primary Notify Road'}],documentAddresses:[{id:'ADDRESS',label:'Billing office',address:'Billing Road',country:'Fixture Country'}],defaultCurrency:'EUR',customerInstructions:'Pay through the agreed bank after document review.',showEmail:true,showPhone:true};
+t.state.customers=[structuredClone(master)];t.state.contracts=[];t.state.shipments=[];t.setDraft(t.newContractShape());
+const savedBefore=w.localStorage.getItem('transtrade_export_v3_operational');t.applyBuyerTemplate(master.id);const c=t.getDraft();
+assert.equal(c.currency,'EUR','customer default currency must reach a new contract');assert.equal(c.customerInstructions,master.customerInstructions);
+assert.equal(c.paymentSectionOverride,'','instructions must not silently replace contractual payment terms');
+t.setStep(1);t.renderContractStep();
+for(const [id,value] of [['cCustomerContact','0'],['cCustomerDocumentAddress','0']]){const node=d.getElementById(id);assert(node,id+' selector missing');node.value=value;node.dispatchEvent(new w.Event('change'));}
+let buyer=t.buyerOf(c);assert.equal(buyer.address,'Billing Road');assert.equal(buyer.email,'contact@example.test');assert.match(t.ttPartyOutput(buyer).address,/ATTN: Buyer Contact \(Manager\)/i);
+assert.equal(w.localStorage.getItem('transtrade_export_v3_operational'),savedBefore,'selection must not save a draft');
+c.seller='TTI';c.product='White Rice';c.packings=[{brand:'Fixture',size:25,type:'PP',containers:1,weightPer:27,price:400}];c.qty=27;c.containers=1;c.weightPer=27;
+const lot=t.makeShipment(c);lot.id='LOT';lot.kind='lot';lot.lotId='1';lot.bl={...lot.bl,consignee:'Named Consignee, Consignee Road',notify:'Additional Notify, Additional Road'};
+lot.commercial={...lot.commercial,notifyParty:lot.bl.consignee,packingConsignee:lot.bl.consignee,packingNotify:lot.bl.notify};
+const choices=t.knownShipmentParties(lot,c);assert(choices.some(p=>p.name==='Named Consignee'));assert(choices.some(p=>p.name==='Additional Notify'));assert(choices.some(p=>p.address==='Billing Road'));
+for(const options of [t.customsPartyOptions(lot,c),t.tgImporterOptions(lot,c)]){assert(options.some(p=>p.party.name==='Named Consignee'));assert(options.some(p=>p.party.name==='Additional Notify'));}
+const bl=t.blRelatedParties(lot,c);assert.equal(bl.filter(p=>p.value==='Primary Notify, Primary Notify Road').length,1,'deduplicate related parties');
+assert.match(t.commercialInvoiceDoc(lot,c),/Named Consignee|Named consignee/);assert.match(t.packingListDoc(lot,c),/Additional Notify|Additional notify/);
+t.setStep(6);t.renderContractStep();assert.match(d.querySelector('.customerPaymentInstructions').textContent,/Pay through/);d.getElementById('cUseCustomerInstructions').click();assert.equal(c.paymentSectionOverride,master.customerInstructions);assert.match(t.salesContractPrint(c),/Pay through the agreed bank/);
+assert.equal(w.localStorage.getItem('transtrade_export_v3_operational'),savedBefore,'using instructions must still require explicit Save');
+c.status='Draft';t.state.contracts=[c];t.state.shipments=[lot];t.captureShipmentPartyDetails(lot,c);const closed=structuredClone(lot);closed.id='CLOSED';closed.completed=true;closed.status='Completed';t.state.shipments.push(closed);
+const closedBefore=JSON.stringify(closed.documentParties),oldCurrency=c.currency,oldWording=c.paymentSectionOverride;
+w.localStorage.setItem('transtrade_export_v3_operational',JSON.stringify(t.state));lot.bl.vessel='Unfinished vessel entry';
+const revised={...master,defaultCurrency:'GBP',customerInstructions:'Different future instructions',documentAddresses:[{...master.documentAddresses[0],address:'New Billing Road'}],consignees:[{...master.consignees[0],address:'New Consignee Road'}],contacts:[{...master.contacts[0],email:'new@example.test'}]};
+t.applyExportCustomerMasters([revised]);assert.equal(c.currency,oldCurrency);assert.equal(c.paymentSectionOverride,oldWording);assert.equal(t.buyerOf(c).address,'New Billing Road');assert.equal(t.buyerOf(c).email,'new@example.test');assert.match(lot.bl.consignee,/New Consignee Road/);assert.equal(JSON.stringify(closed.documentParties),closedBefore);
+assert.equal(lot.bl.vessel,'Unfinished vessel entry');assert.notEqual(JSON.parse(w.localStorage.getItem('transtrade_export_v3_operational')).shipments[0].bl.vessel,'Unfinished vessel entry','master refresh cannot save unfinished fields');
+console.log('PASS all six customer reference fields: native selectors/defaults/instruction choice, shipment outputs, deduplication, closed snapshots and no draft autosave');dom.window.close();

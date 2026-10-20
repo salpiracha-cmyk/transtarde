@@ -85,6 +85,8 @@ jobs:
           node tests/exports-v3/commercial_documents_20260915_audit.js
           node tests/exports-v3/document_rules_20260917_audit.js
           node tests/exports-v3/document_variant_matrix_test.js
+          node tests/exports-v3/customer_reference_linkages_test.js
+          node tests/exports-v3/shipment_copy_reuse_test.js
       - name: Verify rendered Export document behavior
         run: |
           node tests/accounts-v1/dependent_fields_test.js

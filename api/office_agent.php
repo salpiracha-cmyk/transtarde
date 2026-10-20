@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__.'/export_permission_policy.php';
+require_once __DIR__.'/office_agent_delivery.php';
 require dirname(__DIR__) . '/auth_store.php';
 require dirname(__DIR__) . '/office_backup_auth.php';
 
@@ -194,6 +195,28 @@ function office_agent_file(): never {
     exit;
 }
 
+function office_agent_shipment_status(): never {
+    $user=tt_current_user();if(!$user)office_agent_error(401,'Sign in to check office delivery.');
+    $id=strtolower(trim((string)($_GET['id']??'')));$contract=trim((string)($_GET['contract']??''));$lot=trim((string)($_GET['lot']??''));
+    $root=rtrim((string)TT_DATA_DIR,DIRECTORY_SEPARATOR).'/office_agent_jobs';$found=null;
+    if($id!==''&&!preg_match('/^[a-f0-9]{32}$/D',$id))office_agent_error(422,'Invalid office package reference.');
+    if($id==='')ep_require_document_target($user,$contract,$lot,'custom-output','View');
+    if(is_dir($root)&&!is_link($root)){
+        $paths=$id!==''?[$root.'/'.$id.'/job.json']:(glob($root.'/*/job.json')?:[]);
+        if(count($paths)>5000)office_agent_error(409,'Select the exact package reference to check delivery.');
+        foreach($paths as $path){
+            if(!is_file($path)||is_link($path)||is_link(dirname($path))||!preg_match('/^[a-f0-9]{32}$/D',basename(dirname($path))))continue;
+            $job=json_decode((string)file_get_contents($path),true);
+            if(!is_array($job)||($job['type']??'')!=='shipment_archive'||($job['id']??'')!==basename(dirname($path)))continue;
+            if($id===''&&(($job['contract']??'')!==$contract||($job['lot']??'')!==$lot))continue;
+            if(!$found||strcmp((string)($job['createdAt']??''),(string)($found['createdAt']??''))>0)$found=$job;
+        }
+    }
+    if(!$found){if($id!=='')office_agent_error(404,'Office package not found.');tt_release_read_session();office_agent_respond(['ok'=>true,'found'=>false]);}
+    ep_require_document_target($user,(string)($found['contract']??''),(string)($found['lot']??''),'custom-output','View');
+    tt_release_read_session();office_agent_respond(['ok'=>true,'found'=>true,'job'=>office_delivery_public_status($found)]);
+}
+
 function office_agent_ack(): never {
     office_agent_require_token();
     $body = json_decode(file_get_contents('php://input') ?: '', true);
@@ -202,6 +225,7 @@ function office_agent_ack(): never {
     $status = strtoupper(trim((string)($body['status'] ?? '')));
     if (!in_array($status, ['COMPLETE','ERROR'], true)) office_agent_error(422, 'Invalid Office Agent job status.');
     $job = office_agent_read_job($id);
+    if($status==='COMPLETE'&&!office_delivery_receipt_matches($job,is_array($body['files']??null)?$body['files']:[]))office_agent_error(422,'Office delivery receipt does not match every expected file.');
     $job['status'] = $status === 'COMPLETE' ? 'VERIFIED' : 'ERROR';
     $job['updatedAt'] = gmdate('c');
     $job['attempts'] = (int)($job['attempts'] ?? 0) + 1;
@@ -215,6 +239,7 @@ function office_agent_ack(): never {
 try {
     $action = (string)($_GET['action'] ?? $_POST['action'] ?? '');
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'enqueue-shipment') office_agent_enqueue_shipment();
+    if ($_SERVER['REQUEST_METHOD'] === 'GET' && $action === 'shipment-status') office_agent_shipment_status();
     if ($_SERVER['REQUEST_METHOD'] === 'GET' && $action === 'poll') office_agent_poll();
     if ($_SERVER['REQUEST_METHOD'] === 'GET' && $action === 'file') office_agent_file();
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'ack') office_agent_ack();

@@ -32,14 +32,14 @@ async function pdf(markup,fit){
    const page=pages[i];page.style.height='297mm';page.style.minHeight='297mm';page.style.margin='0';page.style.boxShadow='none';
    const overflowY=Math.max(0,page.scrollHeight-page.clientHeight),overflowX=Math.max(0,page.scrollWidth-page.clientWidth);
    if(overflowY>2||overflowX>2){
-    const canvas=await window.html2canvas(page,{scale:2,backgroundColor:'#fff',logging:false,imageTimeout:30000});
+    const canvas=await withTimeout(window.html2canvas(page,{scale:2,backgroundColor:'#fff',logging:false,imageTimeout:30000}),60000,'A document page could not be rendered within one minute. Retry Queue Office Folder.');
     if(i)output.addPage();
     const ratio=Math.min(210/(canvas.width/2),297/(canvas.height/2));
     const width=(canvas.width/2)*ratio,height=(canvas.height/2)*ratio;
     output.addImage(canvas,'PNG',(210-width)/2,(297-height)/2,width,height,undefined,'FAST');
     continue;
    }
-   if(i)output.addPage();const canvas=await window.html2canvas(page,{scale:2,backgroundColor:'#fff',logging:false,imageTimeout:30000});output.addImage(canvas,'PNG',0,0,210,297,undefined,'FAST');
+   if(i)output.addPage();const canvas=await withTimeout(window.html2canvas(page,{scale:2,backgroundColor:'#fff',logging:false,imageTimeout:30000}),60000,'A document page could not be rendered within one minute. Retry Queue Office Folder.');output.addImage(canvas,'PNG',0,0,210,297,undefined,'FAST');
   }
   return output.output('blob');
  }finally{root.remove()}
@@ -165,7 +165,8 @@ function zip(entries,type){const encoder=new TextEncoder();return zipBytes(Objec
 	 const labels=[];for(let i=0;i<originals;i++)labels.push('ORIGINAL');for(let i=0;i<copies;i++)labels.push('COPY');
 	 if(!labels.length)labels.push('ORIGINAL');
 	 const base=doc.render();
-	 return Promise.all(labels.map(label=>pdf(relabelCopy(base,label),fit)));
+	 const rendered=new Map();
+	 return Promise.all(labels.map(label=>{if(!rendered.has(label))rendered.set(label,pdf(relabelCopy(base,label),fit));return rendered.get(label)}));
 	}
 	async function bankBlobsForDocuments(c,docs,fit){
 	 const out=[],commercial=firstDoc(docs,'commercial'),packing=firstDoc(docs,'packing');
@@ -177,19 +178,22 @@ function zip(entries,type){const encoder=new TextEncoder();return zipBytes(Objec
 	 }
 	 return out
 	}
-	async function save({customer,contract,lot,rows,uploads,fit,optional=false,committedSnapshot=null,strictFinal=false}){
+	async function save({customer,contract,lot,rows,uploads,fit,optional=false,committedSnapshot=null,strictFinal=false,onProgress=null}){
 	 if(busy&&!legacyQa())throw new Error('Shipment files are already being prepared.');
 	 if(busy&&legacyQa())busy=false;
 	 busy=true;
 	 try{
 	  const parts=folderParts(customer,contract,lot),files=[],docs=[],seen=new Set();
-	  for(const row of rows.filter(row=>row.render&&row.ready)){
+	  const generatedRows=rows.filter(row=>row.render&&row.ready);let prepared=0;const progress=stage=>{try{onProgress?.({stage,completed:prepared,total:generatedRows.length})}catch{}};
+	  for(const row of generatedRows){
+	   progress('Preparing '+row.name);
 	   const kind=separate(row.name,row.key),markup=row.render(),folder=row.folder?component(normalizedFolder(row.folder)):'',category=docCategory(row.name,row.key);
 	   const pdfBlob=await pdf(markup,fit),blob=kind==='cover'?word(markup):pdfBlob;
-	   docs.push({category,name:row.name,key:row.key,folder,blob:pdfBlob,render:row.render});
+	   prepared++;docs.push({category,name:row.name,key:row.key,folder,blob:pdfBlob,render:row.render});
 	   if(!strictFinal&&(kind||folder||row.key==='commercialDraft'))files.push({folder,name:component(row.name)+(kind==='cover'?'.docx':'.pdf'),blob});
 	   else if(strictFinal&&folder==='CUSTOM DOCUMENTS')files.push({folder,name:component(row.name)+'.pdf',blob:pdfBlob});
 	  }
+	  progress('Reading saved original documents');
 	  for(const doc of uploads){
 	   const key=doc.id||doc.downloadUrl||doc.dataUrl;if(!key||seen.has(key))continue;seen.add(key);
 	   const kind=separate(doc.type||doc.name),folder=doc.folder?component(normalizedFolder(doc.folder)):'',original=await uploadBlob(doc),uploadName=cleanUploadName(doc.name),category=docCategory(doc.type||doc.name);
@@ -206,12 +210,14 @@ function zip(entries,type){const encoder=new TextEncoder();return zipBytes(Objec
 	  }
 	  const master=[firstDoc(docs,'commercial'),firstDoc(docs,'bl'),firstDoc(docs,'packing'),firstDoc(docs,'coo'),firstDoc(docs,'fumigation'),firstDoc(docs,'phyto')].filter(Boolean).map(doc=>doc.blob);
 	  if(master.length)files.unshift({folder:'',name:'Master Shipment Documents.pdf',blob:await mergedPdf(master)});
+	  progress('Preparing bank document copies');
 	  const c=contractSnapshot(committedSnapshot,contract),bank=[];
 	  if(isLcContract(c))bank.push(...await bankBlobsForDocuments(c,docs,fit));
 	  else if(String(c?.seller||'').toUpperCase()==='TG'||docs.some(doc=>/^tg/.test(doc.category)))for(const category of ['cover','bl','tgInvoice','tgPacking','phyto','relationship','gd'])appendDoc(bank,firstDoc(docs,category));
 	  else for(const category of ['cover','gd'])appendDoc(bank,firstDoc(docs,category));
 	  if(bank.length)files.unshift({folder:'',name:(String(c?.seller||'').toUpperCase()==='TG'||docs.some(doc=>/^tg/.test(doc.category)))?'TG BANK DOCUMENTS.pdf':'DOCUMENTS FOR BANK.pdf',blob:await mergedPdf(bank)});
 	  if(!files.length)throw new Error('No saved documents are available for this lot.');
+  progress('Assembling office package');
   let archiveFiles=files,cleanupFolders=[];
   if(!optional)({files:archiveFiles,cleanupFolders}=await finalizeFolderZips(files));
   const used=new Set();for(const file of archiveFiles){const base=file.name;let index=2;while(used.has(file.folder+'/'+file.name)){const at=base.lastIndexOf('.');file.name=base.slice(0,at)+' ('+index+++')'+base.slice(at)}used.add(file.folder+'/'+file.name)}
@@ -221,6 +227,7 @@ function zip(entries,type){const encoder=new TextEncoder();return zipBytes(Objec
    let saved=0;try{saved=await legacyWrite(legacyRoot,parts,archiveFiles)}catch(error){throw new Error(saved+' of '+archiveFiles.length+' files saved. '+error.message)}
    return{count:archiveFiles.length,path:parts.join(' / '),status:'SAVED'}
   }
+  progress('Uploading office package');
   const job=await withTimeout(postJob(manifest,archiveFiles),120000,'Office archive job upload timed out. Retry Queue Office Folder.');
   return{count:archiveFiles.length,path:parts.join(' / '),jobId:job.id,status:job.status||'PENDING'};
  }finally{busy=false}

@@ -58,6 +58,16 @@ with tempfile.TemporaryDirectory(prefix='master-family-') as directory:
         kat[8]='Amended fixture text'; status,data=save('purchase_kat',kat,ids['purchase_kat']); assert status==200,(status,data)
         purchase=next(r for r in data['masters']['purchase_products'] if r['id']==ids['purchase_products'])['values']; purchase[5]=ids['purchase_kat']
         assert save('purchase_products',purchase,ids['purchase_products'])[0]==200
+        advanced_values=next(r for r in request()[1]['masters']['export_customers'] if r['id']==ids['export_customers'])['values']
+        advanced_payloads=[[{'id':'CONTACT','name':'Fixture Contact','email':'fixture@example.test','phone':'123','designation':'Manager'}],[{'name':'Fixture Consignee','address':'Consignee Road'}],[{'name':'Fixture Notify','address':'Notify Road'}],[{'label':'Billing Office','address':'Billing Road'}]]
+        for field,payload in zip(range(16,20),advanced_payloads): advanced_values[field]=json.dumps(payload)
+        advanced_values[20]='EUR';advanced_values[21]='Fixture payment instructions'
+        assert save('export_customers',advanced_values,ids['export_customers'])[0]==200
+        advanced_reader=next(c for c in request('/api/export_customers.php')[1]['customers'] if c['masterId']==ids['export_customers'])
+        for key,payload in zip(['contacts','consignees','additionalNotifies','documentAddresses'],advanced_payloads): assert advanced_reader[key]==payload
+        assert advanced_reader['defaultCurrency']=='EUR' and advanced_reader['customerInstructions']=='Fixture payment instructions' and advanced_reader['advancedWarnings']==[]
+        for field,bad in [(16,'{}'),(16,'[{"name":"Contact","unsupported":"ignored value"}]'),(17,'[{"name":"Missing address"}]'),(18,'broken json'),(19,'[1]'),(20,'UNKNOWN')]:
+            invalid=copy.deepcopy(advanced_values);invalid[field]=bad;unchanged_failure('export_customers',invalid,ids['export_customers'])
         # Canonical customer consumer uses the same saved identity and preserves advanced tail on edit.
         status,customers=request('/api/export_customers.php'); assert status==200
         customer=next(c for c in customers['customers'] if c['masterId']==ids['export_customers'])

@@ -1,0 +1,109 @@
+name: Private recovery rehearsal
+
+on:
+  pull_request:
+    paths: ['.github/scripts/migration_rehearsal*', '.github/workflows/migration-rehearsal.yml']
+  workflow_run:
+    workflows: [Deploy Production]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: private-recovery-rehearsal
+  cancel-in-progress: false
+
+jobs:
+  boundaries:
+    runs-on: ubuntu-latest
+    outputs:
+      required: ${{ steps.scope.outputs.required }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          fetch-depth: 2
+      - id: scope
+        name: Limit private copies to changes in this rehearsal
+        run: |
+          if git diff --name-only HEAD^ HEAD -- .github/scripts/migration_rehearsal_host.sh .github/scripts/migration_rehearsal_browser.cjs .github/workflows/migration-rehearsal.yml | grep -q .; then
+            echo 'required=true' >> "$GITHUB_OUTPUT"
+          fi
+      - run: |
+          bash -n .github/scripts/migration_rehearsal_host.sh
+          node --check .github/scripts/migration_rehearsal_browser.cjs
+          python3 .github/scripts/migration_rehearsal_boundaries.py
+  rehearse:
+    needs: boundaries
+    if: needs.boundaries.outputs.required == 'true' && github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main'
+    runs-on: ubuntu-latest
+    environment: live-qa
+    timeout-minutes: 25
+    env:
+      DEPLOY_SHA: ${{ github.event.workflow_run.head_sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.DEPLOY_SHA }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Wait for the exact deployed live smoke
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 60); do
+            outcome=$(gh api "/repos/$GITHUB_REPOSITORY/actions/workflows/accounts-live-hostinger-qa.yml/runs?head_sha=$DEPLOY_SHA&event=workflow_run&per_page=20" --jq '.workflow_runs[0].conclusion // "pending"')
+            if [ "$outcome" = success ]; then exit 0; fi
+            if [ "$outcome" != pending ]; then echo 'Live acceptance did not pass; rehearsal stopped.'; exit 1; fi
+            sleep 10
+          done
+          echo 'Exact deployed live acceptance was unavailable; rehearsal stopped.'
+          exit 1
+      - name: Install the isolated browser runtime
+        run: |
+          npm install --no-save playwright@1.63.0
+          npx playwright install --with-deps chromium
+      - name: Compare and roll back only the private temporary target
+        env:
+          HOSTINGER_HOST: ${{ secrets.HOSTINGER_HOST }}
+          HOSTINGER_PORT: ${{ secrets.HOSTINGER_PORT }}
+          HOSTINGER_USER: ${{ secrets.HOSTINGER_USER }}
+          HOSTINGER_DEPLOY_PATH: ${{ secrets.HOSTINGER_DEPLOY_PATH }}
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+          HOSTINGER_KNOWN_HOSTS: ${{ secrets.HOSTINGER_KNOWN_HOSTS }}
+          TRANSTRADE_QA_USERNAME: ${{ secrets.TRANSTRADE_QA_USERNAME }}
+          TRANSTRADE_QA_PASSWORD: ${{ secrets.TRANSTRADE_QA_PASSWORD }}
+        run: |
+          set -euo pipefail
+          umask 077
+          task_private=$(mktemp -d "$RUNNER_TEMP/tt-rehearsal-XXXXXXXX")
+          ssh_pid=''
+          cleanup(){
+            if [ -n "$ssh_pid" ]; then kill "$ssh_pid" 2>/dev/null || true; wait "$ssh_pid" 2>/dev/null || true; fi
+            rm -rf -- "$task_private"
+          }
+          trap cleanup EXIT
+          printf '%s\n' "$HOSTINGER_SSH_KEY" | tr -d '\r' > "$task_private/key"
+          printf '%s\n' "$HOSTINGER_KNOWN_HOSTS" | tr -d '\r' > "$task_private/known_hosts"
+          node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("hex"))' > "$task_private/gate"
+          gate=$(cat "$task_private/gate")
+          echo "::add-mask::$gate"
+          port=$(( 20000 + RANDOM % 20000 ))
+          { printf 'export TT_REHEARSAL_GATE_HEX=%s\n' "$gate"; cat .github/scripts/migration_rehearsal_host.sh; } > "$task_private/host.sh"
+          ssh -i "$task_private/key" -o UserKnownHostsFile="$task_private/known_hosts" -o StrictHostKeyChecking=yes -o ConnectTimeout=20 -o ExitOnForwardFailure=yes -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -L "127.0.0.1:$port:127.0.0.1:$port" -p "$HOSTINGER_PORT" "$HOSTINGER_USER@$HOSTINGER_HOST" bash -s -- "$HOSTINGER_DEPLOY_PATH" "$port" < "$task_private/host.sh" > "$task_private/host.log" 2>&1 &
+          ssh_pid=$!
+          export TT_REHEARSAL_GATE_FILE="$task_private/gate"
+          export TT_REHEARSAL_URL="http://127.0.0.1:$port"
+          ready=0
+          for attempt in $(seq 1 120); do
+            kill -0 "$ssh_pid" 2>/dev/null || { echo 'Private target failed to start; private logs are not published.'; exit 1; }
+            if curl --silent --fail --max-time 2 -H "X-TT-Rehearsal: $gate" "$TT_REHEARSAL_URL/__audit/ready" -o /dev/null 2>/dev/null; then ready=1; break; fi
+            sleep 2
+          done
+          [ "$ready" = 1 ] || { echo 'Private target readiness timed out.'; exit 1; }
+          node .github/scripts/migration_rehearsal_browser.cjs

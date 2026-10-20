@@ -62,6 +62,7 @@ const {chromium}=require('@playwright/test');
  }catch(error){
   await Promise.all(pending);
   console.log(JSON.stringify({failedStage:stage,path:new URL(page.url()).pathname,errorClass:error.name,serverTimings:timings}));
+  console.log(JSON.stringify({anonymousConnectivity:await require('./startup-network.cjs').startupNetworkProbe()}));
   throw error;
  }finally{await browser.close();}
 })().catch(()=>{console.error('Startup profile failed; no business entries were submitted.');process.exitCode=1;});
