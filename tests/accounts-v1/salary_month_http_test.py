@@ -121,10 +121,35 @@ with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
         prepared_journals=saved()['journals'].copy()
         subprocess.run(['php','-r','require "auth_store.php"; require "api/salary_master_store.php"; sm_save_master(["Alice Updated","TTI","OFFICE_STAFF","1400","20","30","2026-01-01","","STAFF_COST","No","Active",""],["username"=>"Fixture"],"Alice");'],cwd=root,check=True)
         prepared=request(month='2027-04')[1]['salarySheet']
-        assert prepared['masterChanged'] and not prepared['canRefreshFromMaster']
+        assert not prepared.get('masterChanged'),'Later master defaults cannot block an accrued salary payment'
         assert prepared['rows']['Alice']['totalDue']==1350,'Prepared accounting retains its posted amount'
         assert request({'action':'refresh_salary_draft','version':prepared['version']},'2027-04')[0]==422
         assert saved()['journals']==prepared_journals
+        # The actual flexible payment endpoint must accept an accrued month whose
+        # master was renamed/repriced, retain saved plans, and reject stale tabs.
+        tx={'amount':100,'date':'2027-04-03','paymentAccountId':'CASH|TTI','recipient':'Alice Updated','allocations':[{'type':'SALARY','masterId':'Alice','amount':100}]}
+        status,data=request({'action':'save_salary_transactions','masterId':'Alice','version':prepared['version'],'transactions':[tx],'advanceApplied':0},'2027-04');assert status==200,data
+        old_version=data['salarySheet']['version']
+        subprocess.run(['php','-r','require "auth_store.php"; require "api/salary_master_store.php"; sm_save_master(["Alice New Name","TTI","OFFICE_STAFF","1500","20","30","2026-01-01","","STAFF_COST","No","Active",""],["username"=>"Fixture"],"Alice");'],cwd=root,check=True)
+        after=request(month='2027-04')[1]['salarySheet']
+        assert not after.get('masterChanged') and after['rows']['Alice']['payment']['amount']==100
+        assert after['rows']['Alice']['totalDue']==1350 and after['rows']['Alice']['name']=='Alice Updated'
+        snapshot=saved();changed=json.loads(json.dumps(snapshot));changed['salaryPeriods']['TTI|2027-04|Alice']['outstanding']-=1;(root/'data/accounts.json').write_text(json.dumps(changed))
+        status,rejected=request({'action':'save_salary_transactions','masterId':'Alice','version':after['version'],'transactions':[tx],'advanceApplied':0},'2027-04')
+        assert status==422 and 'balances changed' in rejected['error'],'The original period baseline remains protected'
+        (root/'data/accounts.json').write_text(json.dumps(snapshot))
+        changed=json.loads(json.dumps(snapshot));changed['salaryMasters']['Added']=staff('Added');(root/'data/accounts.json').write_text(json.dumps(changed))
+        assert request(month='2027-04')[1]['salarySheet'].get('masterChanged'),'An added unprepared person still requires review'
+        (root/'data/accounts.json').write_text(json.dumps(snapshot))
+        for mid in after['rows']:
+            status,data=request({'action':'save_salary_transactions','masterId':mid,'version':data['salarySheet']['version'],'transactions':[tx] if mid=='Alice' else [],'advanceApplied':0},'2027-04');assert status==200,data
+        assert request({'action':'save_salary_transactions','masterId':'Alice','version':old_version,'transactions':[tx],'advanceApplied':0},'2027-04')[0]==422
+        assert saved()['journals']==prepared_journals,'Draft changes cannot post or rewrite accruals'
+        status,data=request({'action':'complete_salary_month','version':data['salarySheet']['version'],'date':'2027-04-03'},'2027-04');assert status==200,data
+        assert all(saved()['journals'][jid]==j for jid,j in prepared_journals.items())
+        new_journals=[j for jid,j in saved()['journals'].items() if jid not in prepared_journals]
+        assert all(l['account'] not in ['6210','6220','7210'] for j in new_journals for l in j['lines']),'No duplicate salary expense'
+        assert saved()['salaryPeriods']['TTI|2027-04|Alice']['outstanding']==1250
         print('Salary drafts, restart persistence, amount caps, payable and advance balances, mixed payments, cheque validation, overdraft and atomic final retry passed')
         # Recurring changes are durable drafts, then commit with the final journal.
         state=saved();state['salaryMasters']['Bob']['status']='Active';state['salaryMasters']['Bob']['effectiveTo']='';(root/'data/accounts.json').write_text(json.dumps(state))

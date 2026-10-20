@@ -34,13 +34,8 @@ function smw_fresh_sheet(array $s,string $entity,string $month):array {
         $rows[$row['masterId']]=$row;
     }
     $sheet=['entity'=>$entity,'month'=>$month,'version'=>0,'status'=>'Draft','rows'=>$rows,'advanceSignature'=>smw_advance_signature($s,$entity,$month),'personalSignature'=>smw_personal_signature($s,$entity,$month),'masterSignature'=>smw_master_signature($s,$entity,$month)];
-    foreach($rows as $id=>$row){
-        if(!$row['prepared'])continue;
-        $master=$s['salaryMasters'][$id];
-        if(!rsv2_active($master,$month)||$row['name']!==($master['name']??'')||$row['category']!==($master['category']??'')||abs($row['netSalary']-(float)($master['monthlyAmount']??0))>.005||abs($row['zakatAmount']-(float)($master['zakatAmount']??0))>.005||abs($row['otherAllowance']-(float)($master['otherAllowance']??0))>.005||$row['accountingTreatment']!==($master['accountingTreatment']??'')){
-            $sheet['masterChanged']=true;$sheet['canRefreshFromMaster']=false;break;
-        }
-    }
+    // Prepared periods own this month's entitlement. Later master defaults must not
+    // prevent settlement or silently rewrite the original accrued salary.
     return $sheet;
 }
 function smw_sheet(array $s,string $entity,string $month):array {
@@ -63,6 +58,17 @@ function smw_sheet(array $s,string $entity,string $month):array {
             $old=$storedRows[$id][$field]??null;$current=$row[$field]??null;
             if(is_numeric($old)&&is_numeric($current)?abs((float)$old-(float)$current)>.005:$old!==$current){$changed=true;break;}
         }}
+    }
+    // A fully accrued sheet can keep its saved payment choices when only future
+    // staff defaults changed. New/unprepared people and recovery-source changes
+    // still require review; every payment also checks the exact period baseline.
+    $preparedOnly=!empty($stored['rows'])&&empty($stored['masterChanges'])
+        &&!array_diff_key($stored['rows'],$fresh['rows'])&&!array_diff_key($fresh['rows'],$stored['rows']);
+    foreach((array)$stored['rows'] as $id=>$row)if(empty($row['prepared'])||empty($fresh['rows'][$id]['prepared']))$preparedOnly=false;
+    if($preparedOnly){
+        unset($stored['masterChanged'],$stored['canRefreshFromMaster']);
+        $stored['masterSignature']=$fresh['masterSignature'];
+        return $stored;
     }
     if(!$changed){
         if(!empty($fresh['masterChanged'])){$stored['masterChanged']=true;$stored['canRefreshFromMaster']=false;}
