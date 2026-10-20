@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__.'/salary_extra_allocations.php';
 /** Draft-only monthly adjustments and actual payments. The endpoint holds the Accounts write lock. */
 function sfw_recovery_month(array $a):string {
     if(!empty($a['recoveryFromMonth']))return (string)$a['recoveryFromMonth'];
@@ -76,6 +77,9 @@ function sfw_save(array &$s,string $e,string $m,array $b,array $u,array $names):
             if($type==='SALARY'){$target=(string)($a['masterId']??$id);$r=$sheet['rows'][$target]??null;
                 if(!$r||($target!==$id&&(!$family||!in_array($r['category'],['DIRECTOR_REMUNERATION','HOME_MONTHLY_GIVE'],true))))throw new DomainException('Choose an eligible remuneration or home-expense beneficiary.');
                 smw_check_baseline($s,$r);$allocation['masterId']=$target;
+            }elseif(in_array($type,['EXPENSE','BROKER_FUND','ASSET_PAYMENT'],true)&&$family){
+                $allocation+=['subaccountId'=>(string)($a['subaccountId']??''),'brokerId'=>(string)($a['brokerId']??''),'reference'=>trim((string)($a['reference']??'')),'assetId'=>(string)($a['assetId']??''),'assetVersion'=>(int)($a['assetVersion']??-1),'instalmentNo'=>far_text($a['instalmentNo']??'',60),'periodFrom'=>(string)($a['periodFrom']??''),'periodTo'=>(string)($a['periodTo']??''),'challanReference'=>far_text($a['challanReference']??'',180)];
+                sea_validate($s,$e,$allocation,$u,$date);
             }elseif(in_array($type,['COMPANY_HELD','BROKER_RECEIVED'],true)&&$family){$allocation+=['routeId'=>(string)($a['routeId']??''),'brokerId'=>(string)($a['brokerId']??''),'reference'=>trim((string)($a['reference']??''))];sfw_validate_company($s,$e,$allocation,$u);
                 $ref=$allocation['reference'].'|'.$allocation['routeId'];if(isset($references[$ref]))throw new DomainException('Use one company allocation for each transfer reference.');$references[$ref]=true;
                 foreach((array)($s['investmentTransactions']??[]) as $previous)if(($previous['entity']??'')===$e&&($previous['status']??'')==='Posted'&&($previous['reference']??'')===$allocation['reference']&&($previous['paymentAccountId']??'')===$source)throw new DomainException('This company transfer is already recorded. Link/correct the original payment instead.');
@@ -83,9 +87,17 @@ function sfw_save(array &$s,string $e,string $m,array $b,array $u,array $names):
             $sum+=(int)round($n*100);$allocations[]=$allocation;
         }
         if($sum!==(int)round($amount*100))throw new DomainException('Allocations must equal the actual transaction amount.');
+        sea_source($s,$e,['paymentAccountId'=>$source,'allocations'=>$allocations]);
         $transactions[]=['amount'=>$amount,'date'=>$date,'paymentAccountId'=>$source,'recipient'=>$recipient,'allocations'=>$allocations]+$tracking;
     }
     $groups=sfw_groups($sheet);$old=$groups[$id]??[];$groups[$id]=$transactions;$sheet['paymentGroups']=$groups;
+    $assetTotals=[];$assetLabels=[];
+    foreach($groups as $txs)foreach($txs as $tx)if(($tx['status']??'')!=='Reversed')foreach($tx['allocations'] as $a)if($a['type']==='ASSET_PAYMENT'){
+        sea_validate($s,$e,$a,$u,$tx['date']);$aid=$a['assetId'];$label=$aid.'|'.$a['instalmentNo'];
+        if(isset($assetLabels[$label]))throw new DomainException('Use a separate label for each asset instalment.');$assetLabels[$label]=true;
+        $assetTotals[$aid]=($assetTotals[$aid]??0)+(int)round($a['amount']*100);
+        if($assetTotals[$aid]>far_totals($s['managedAssets'][$aid])['balanceCents'])throw new DomainException('Combined payments exceed the remaining asset balance.');
+    }
     $affected=[];foreach(array_merge($old,$transactions) as $t)foreach($t['allocations'] as $a)if($a['type']==='SALARY')$affected[$a['masterId']]=true;
     foreach(array_keys($affected) as $target)$sheet['rows'][$target]['reviewed']=false;
     $recovery=sfw_money($b['advanceApplied']??$owner['advanceApplied'],'advance recovery');$max=$owner['prepared']?$owner['originalAdvanceApplied']:min($owner['totalDue'],$owner['advanceOutstanding']);
@@ -94,22 +106,33 @@ function sfw_save(array &$s,string $e,string $m,array $b,array $u,array $names):
     $sheet['version']++;$sheet['updatedAt']=gmdate('c');$s['salarySheets'][$e.'|'.$m]=$sheet;return ['saved'=>true,'masterId'=>$id];
 }
 function sfw_post_groups(array &$s,string $e,string $m,array $sheet,array $u,array $names):array {
-    $ids=[];
-    foreach($sheet['paymentGroups'] as $owner=>$transactions)foreach($transactions as $index=>$t){if(($t['status']??'')==='Reversed')continue;sfw_assert_reference($s,$e,$t);$amount=0;$lines=[];$events=[];
+    $ids=[];$assetTotals=[];$assetLabels=[];
+    foreach($sheet['paymentGroups'] as $txs)foreach($txs as $tx)if(($tx['status']??'')!=='Reversed')foreach($tx['allocations'] as $a)if($a['type']==='ASSET_PAYMENT'){
+        sea_validate($s,$e,$a,$u,$tx['date']);$aid=$a['assetId'];$label=$aid.'|'.$a['instalmentNo'];
+        if(isset($assetLabels[$label]))throw new DomainException('Duplicate asset instalment label.');$assetLabels[$label]=true;
+        $assetTotals[$aid]=($assetTotals[$aid]??0)+(int)round($a['amount']*100);
+        if($assetTotals[$aid]>far_totals($s['managedAssets'][$aid])['balanceCents'])throw new DomainException('Combined payments exceed the remaining asset balance.');
+    }
+    foreach($sheet['paymentGroups'] as $owner=>$transactions)foreach($transactions as $index=>$t){if(($t['status']??'')==='Reversed')continue;sea_source($s,$e,$t);sfw_assert_reference($s,$e,$t);$amount=0;$lines=[];$events=[];
         foreach($t['allocations'] as $a){$n=sfw_money($a['amount'],'allocation');$amount=round($amount+$n,2);$meta=['month'=>$m,'paymentRecipient'=>$t['recipient'],'paymentGroupOwner'=>$owner,'allocationPurpose'=>$a['purpose']??''];
             if($a['type']==='SALARY'){$r=$sheet['rows'][$a['masterId']];$lines[]=rsv2_line('2140',$n,0,$names,$meta+['salaryMasterId'=>$a['masterId'],'party'=>$r['name'],'person'=>$r['name'],'category'=>$r['category']]);}
-            else{foreach((array)($s['investmentTransactions']??[]) as $prior)if(($prior['entity']??'')===$e&&($prior['status']??'')==='Posted'&&($prior['reference']??'')===$a['reference']&&($prior['paymentAccountId']??'')===$t['paymentAccountId'])throw new DomainException('The company transfer reference was posted after this draft. Review the original investment payment.');$part=sfw_validate_company($s,$e,$a,$u);$route=$part['route'];$broker=$part['broker'];$meta+=['routeId'=>$route['id'],'routeName'=>$route['name'],'companyOwned'=>true,'reference'=>$a['reference']];
+            elseif($a['type']==='EXPENSE'){$sub=sea_validate($s,$e,$a,$u,$t['date']);$lines[]=rsv2_line($sub['parentCode'],$n,0,$names,$meta+sac_extra($sub)+$sub['paymentExtra']+['party'=>$t['recipient'],'counterparty'=>$t['recipient'],'expensePurpose'=>$a['purpose']??'','expenseFor'=>$sub['homePerson']??'SHARED','expenseArea'=>$sub['expenseClassification']==='HOME'?'HOME':'OFFICE','personalTreatment'=>'COMPANY']);}
+            elseif($a['type']==='ASSET_PAYMENT'){$asset=$s['managedAssets'][$a['assetId']];unset($meta['allocationPurpose']);$lines[]=rsv2_line($asset['ownerType']==='PERSONAL'?'3200':'2140',$n,0,$names,$meta);}
+            elseif($a['type']==='BROKER_FUND'){$broker=sea_validate($s,$e,$a,$u,$t['date']);foreach((array)($s['investmentTransactions']??[]) as $prior)if(($prior['entity']??'')===$e&&($prior['status']??'')==='Posted'&&($prior['reference']??'')===$a['reference']&&($prior['paymentAccountId']??'')===$t['paymentAccountId'])throw new DomainException('This broker funding reference is already posted.');$lines[]=rsv2_line('1430',$n,0,$names,$meta+['brokerId'=>$broker['id'],'brokerName'=>$broker['name'],'party'=>$broker['name'],'companyOwned'=>true,'reference'=>$a['reference']]);$events[]=['type'=>'FUND_DIRECT','a'=>$a,'route'=>null,'broker'=>$broker];}
+            else{foreach((array)($s['investmentTransactions']??[]) as $prior)if(($prior['entity']??'')===$e&&($prior['status']??'')==='Posted'&&($prior['reference']??'')===$a['reference']&&($prior['paymentAccountId']??'')===$t['paymentAccountId'])throw new DomainException('The company transfer reference was posted after this draft. Review the original investment payment.');$part=sfw_validate_company($s,$e,$a,$u);$route=$part['route'];$broker=$part['broker'];$meta+=['routeId'=>$route['id'],'routeName'=>$route['name']??'','companyOwned'=>true,'reference'=>$a['reference']];
                 $lines[]=rsv2_line('1440',$n,0,$names,$meta+['party'=>$route['name']]);$events[]=['type'=>'FUND_ROUTE','a'=>$a,'route'=>$route,'broker'=>null];
                 if($broker){$bm=$meta+['brokerId'=>$broker['id'],'brokerName'=>$broker['name'],'party'=>$broker['name']];$lines[]=rsv2_line('1440',0,$n,$names,$meta+['party'=>$route['name']]);$lines[]=rsv2_line('1430',$n,0,$names,$bm);$events[]=['type'=>'ROUTE_TO_BROKER','a'=>$a,'route'=>$route,'broker'=>$broker];}
             }
         }
         if(abs($amount-$t['amount'])>.005)throw new DomainException('Saved allocation totals changed. Review the payments.');
         $tracking=str_starts_with($t['paymentAccountId'],'CASH|')?[]:tt_accounts_bank_payment_details($t);
+        if(array_filter($t['allocations'],static fn($a)=>$a['type']==='ASSET_PAYMENT')){if(!empty($tracking['bankReference']))$tracking['bankPaymentReferenceHash']=hash('sha256',$tracking['bankReference']);unset($tracking['bankReference'],$tracking['paymentNarration']);}
         $lines[]=rsv2_pay_line($s,$e,$t['paymentAccountId'],$amount,$names)+$tracking+['paymentRecipient'=>$t['recipient']];
         $jid=rsv2_journal($s,$e,$t['date'],'SALARY_ALLOCATED_PAYMENT','SAL-'.$m,'Salary / home payment — '.$t['recipient'],$lines,$u,['month'=>$m,'salarySheetKey'=>$e.'|'.$m,'paymentGroupOwner'=>$owner,'paymentGroupIndex'=>$index]);$ids[]=$jid;
+        sea_asset_links($s,$t['allocations'],$t,$jid,$u);
         foreach($t['allocations'] as $a)if($a['type']==='SALARY'){$paymentId=rsv2_next((array)$s['rentSalaryPayments'],'RSP');$s['rentSalaryPayments'][$paymentId]=['id'=>$paymentId,'type'=>'SALARY','entity'=>$e,'masterId'=>$a['masterId'],'month'=>$m,'journalId'=>$jid,'amount'=>$a['amount'],'date'=>$t['date'],'paymentAccountId'=>$t['paymentAccountId'],'salarySheetKey'=>$e.'|'.$m,'status'=>'Posted'];}
-        foreach($events as $event){$a=$event['a'];$route=$event['route'];$broker=$event['broker'];$cents=(int)round($a['amount']*100);$rid=$route['id'];$bid=$broker['id']??'';$id=far_next((array)($s['investmentTransactions']??[]),'INV');
-            $s['investmentTransactions'][$id]=['id'=>$id,'entity'=>$e,'date'=>$t['date'],'type'=>$event['type'],'amountCents'=>$cents,'grossCents'=>0,'feesCents'=>0,'costCents'=>0,'quantity'=>0,'price'=>0,'remunerationCents'=>0,'remunerationTreatment'=>'','brokerDeltas'=>$broker?[$bid=>$cents]:[],'routeDeltas'=>[$rid=>$broker?-$cents:$cents],'brokerId'=>$bid,'brokerName'=>$broker['name']??'','routeId'=>$rid,'routeName'=>$route['name'],'companyOwned'=>true,'reference'=>$a['reference'],'paymentAccountId'=>$event['type']==='FUND_ROUTE'?$t['paymentAccountId']:'','salaryPeriodId'=>'','journalId'=>$jid,'salarySheetKey'=>$e.'|'.$m,'status'=>'Posted','sequence'=>count((array)($s['investmentTransactions']??[]))+1,'createdBy'=>$u['username']??'Accounts'];
+        foreach($events as $event){$a=$event['a'];$route=$event['route'];$broker=$event['broker'];$cents=(int)round($a['amount']*100);$rid=$route['id']??'';$bid=$broker['id']??'';$id=far_next((array)($s['investmentTransactions']??[]),'INV');
+            $s['investmentTransactions'][$id]=['id'=>$id,'entity'=>$e,'date'=>$t['date'],'type'=>$event['type'],'amountCents'=>$cents,'grossCents'=>0,'feesCents'=>0,'costCents'=>0,'quantity'=>0,'price'=>0,'remunerationCents'=>0,'remunerationTreatment'=>'','brokerDeltas'=>$broker?[$bid=>$cents]:[],'routeDeltas'=>$route?[$rid=>$broker?-$cents:$cents]:[],'brokerId'=>$bid,'brokerName'=>$broker['name']??'','routeId'=>$rid,'routeName'=>$route['name']??'','companyOwned'=>true,'reference'=>$a['reference'],'paymentAccountId'=>in_array($event['type'],['FUND_ROUTE','FUND_DIRECT'],true)?$t['paymentAccountId']:'','salaryPeriodId'=>'','journalId'=>$jid,'salarySheetKey'=>$e.'|'.$m,'status'=>'Posted','sequence'=>count((array)($s['investmentTransactions']??[]))+1,'createdBy'=>$u['username']??'Accounts'];
         }
     }
     if(function_exists('inv_validate_timeline'))inv_validate_timeline($s,$e);return $ids;
@@ -142,6 +165,7 @@ function sfw_reverse_payment(array &$s,string $e,string $m,array $b,array $u,arr
     if(function_exists('inv_validate_timeline'))inv_validate_timeline($s,$e);
     $lines=$j['lines'];foreach($lines as &$l){[$l['debit'],$l['credit']]=[$l['credit'],$l['debit']];if(isset($l['bankDebit']))[$l['bankDebit'],$l['bankCredit']]=[$l['bankCredit'],$l['bankDebit']];}unset($l);
     $rid=rsv2_journal($s,$e,$date,'SALARY_ALLOCATED_PAYMENT_REVERSAL',$id,'Reverse salary payment — '.$reason,$lines,$u,['salarySheetKey'=>$key,'originalPostId'=>$id,'reason'=>$reason]);$s['journals'][$rid]['reversalOf']=$id;$s['journals'][$id]['reversedByPostId']=$rid;
+    sea_reverse_assets($s,$id,$rid,$reason,$u);
     foreach((array)$s['rentSalaryPayments'] as $paymentId=>$payment)if(($payment['journalId']??'')===$id){$s['rentSalaryPayments'][$paymentId]['originalAmount']=$payment['amount'];$s['rentSalaryPayments'][$paymentId]['amount']=0;$s['rentSalaryPayments'][$paymentId]['status']='Reversed';$s['rentSalaryPayments'][$paymentId]['reversalJournalId']=$rid;}
     $s['salarySheets'][$key]['paymentGroups'][$owner][$index]['status']='Reversed';$s['salarySheets'][$key]['version']++;$s['salarySheets'][$key]['corrections'][]=['originalPostId'=>$id,'reversalPostId'=>$rid,'reason'=>$reason,'at'=>gmdate('c'),'by'=>$u['id']??0];
     return ['journalId'=>$rid];
@@ -150,7 +174,7 @@ function sfw_reverse_payment(array &$s,string $e,string $m,array $b,array $u,arr
 function sfw_assert_reference(array $s,string $e,array $t):void {
     $reference=trim((string)($t['bankReference']??$t['chequeNo']??''));if($reference===''||str_starts_with($t['paymentAccountId'],'CASH|'))return;
     foreach((array)$s['journals'] as $j){if(($j['entity']??'')!==$e||($j['status']??'')!=='Posted'||!empty($j['reversedByPostId'])||!empty($j['reversalOf']))continue;
-        foreach((array)$j['lines'] as $line)if(($line['bankAccountId']??'')===$t['paymentAccountId']&&(float)($line['credit']??0)>.005&&trim((string)($line['bankReference']??$line['chequeNo']??$j['meta']['bankReference']??''))===$reference)throw new DomainException('This bank reference is already posted. Review the original payment instead of paying again.');
+        foreach((array)$j['lines'] as $line)if(($line['bankAccountId']??'')===$t['paymentAccountId']&&(float)($line['credit']??0)>.005&&(trim((string)($line['bankReference']??$line['chequeNo']??$j['meta']['bankReference']??''))===$reference||($line['bankPaymentReferenceHash']??'')===hash('sha256',$reference)))throw new DomainException('This bank reference is already posted. Review the original payment instead of paying again.');
     }
 }
 function sfw_company_allowed(array $u):bool {

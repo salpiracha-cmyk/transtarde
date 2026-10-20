@@ -4,7 +4,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
     root=pathlib.Path(temp)
     for folder in ['api','accounts','data']:(root/folder).mkdir()
-    for name in ['rent_salary.php','rent_salary_v2.php','salary_month_workflow.php','salary_flexible_workflow.php','salary_master_store.php','accounts_bank_payment.php', 'accounts_posting_preview.php']:
+    for name in ['rent_salary.php','rent_salary_v2.php','salary_month_workflow.php','salary_flexible_workflow.php','salary_extra_allocations.php','accounts_subaccounts_core.php','accounts_reference.php','accounts_ledger_visibility.php','assets_registry_core.php','company_investments_core.php','salary_master_store.php','accounts_bank_payment.php', 'accounts_posting_preview.php']:
         shutil.copy(ROOT/'api'/name,root/'api'/name)
     for name in ['accounting_master_v1.json','rent-salary-ui.js','cheque-date-ui.js','bank-payment-details.js']:
         shutil.copy(ROOT/'accounts'/name,root/'accounts'/name)

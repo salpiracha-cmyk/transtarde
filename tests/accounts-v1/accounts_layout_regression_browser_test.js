@@ -67,6 +67,21 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium}=require('
  await page.setViewportSize({width:1440,height:1000});
  await page.evaluate(()=>{document.querySelector('#ws-jv').classList.remove('active');document.querySelector('#ws-expenses').classList.add('active');return TT_RENT_SALARY_UI.open('salary');});await page.waitForSelector('#rsPrepare');assert.equal(await page.locator('#rsMasterSetup,#rsSalaryBack').count(),0);await page.locator('#rsPrepare').click();assert.equal(await page.locator('#rsSalaryBack').count(),0);await shot(page.locator('.ttrs'),'salary-sheet');const plus=await page.locator('#rsAddSheetPerson').boundingBox();assert(plus.x<page.viewportSize().width/2,'Salary add is below rows on the left');
 
+ // A long real salary list must keep every person's actions beside their name;
+ // the shared control normalizer must not move removal into a new column.
+ await page.evaluate(()=>{fixture.salarySheet.rows=Object.fromEntries(Array.from({length:31},(_,i)=>{const id='S'+i;return [id,{masterId:id,name:'Staff member '+i,category:'OFFICE_STAFF',categoryName:'Office Staff',netSalary:50000,zakatAmount:1000,otherAllowance:2000,totalDue:53000,advanceApplied:1000,paidAfterPrepare:0,outstanding:52000}]}));return TT_RENT_SALARY_UI.open('salary');});
+ await page.locator('#rsPrepare').click();
+ for(const width of [1440,1280,1024,700,390]){
+  await page.setViewportSize({width,height:900});await page.waitForTimeout(70);
+  assert.equal(await page.locator('.ttrs-salary-table th').count(),5,'Shared row normalizer preserves the five-column sheet');
+  assert(await page.locator('.ttrs-salary-table').evaluate(el=>el.scrollWidth<=el.clientWidth+2),'No salary horizontal scroll at '+width);
+  for(const attr of ['draft-pay','month-adjust','sheet-edit','sheet-remove']){
+   const control=page.locator('[data-rs-'+attr+'="S0"]');
+   assert(await control.evaluate(el=>{const r=el.getBoundingClientRect();return r.left>=0&&r.right<=innerWidth}),'First person action stays within viewport at '+width);
+  }
+ }
+ await page.setViewportSize({width:1440,height:1000});
+
  // The remove cell must not span the row and squeeze every input into 30px.
  await page.evaluate(()=>{const host=document.createElement('div');host.id='ttExpenseDesk';host.innerHTML='<section style="width:1000px"><article class="dex-row" style="display:grid;grid-template-columns:30px minmax(0,1fr);gap:10px"><div class="tt-row-remove-slot"><button class="tt-row-remove">−</button></div><div class="dex-fields" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px"><label>Expense type<select><option>Office</option></select></label><label>Purpose<input></label><label>Amount<input></label></div></article></section>';document.body.appendChild(host);});
  const expenseBoxes=await page.locator('#ttExpenseDesk .dex-fields>label').evaluateAll(nodes=>nodes.map(n=>{const r=n.getBoundingClientRect();return {x:r.x,right:r.right,y:r.y,width:r.width};}));
