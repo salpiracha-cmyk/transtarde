@@ -87,6 +87,29 @@ with tempfile.TemporaryDirectory(prefix='supplier-discount-') as tmp:
  unpaid=req()['payables'];assert {r['billId']:r['outstanding'] for r in unpaid}=={'A':600,'B':400,'BF:OPEN-1:0':100},unpaid
  assert req(body)['result']['journalId']==saved['result']['journalId']
  assert not req({**body,'explicitBillSelection':False})['ok'],'A posted draft cannot change selection semantics'
+ # Explicit part payment never converts a remainder into a discount, even below one rupee.
+ for total,paid in [(123456.78,100000),(1000.08,1000),(1000,999.99),(1000,900.01),(1000,900)]:
+  original={'supplierBills':{'A':bill('A','2130',total),'B':bill('B','2140',400)}}
+  books.write_text(json.dumps(original));before=books.read_bytes()
+  body={**p,'requestKey':'explicit-partial-fixture-01','paymentIntent':'PARTIAL','amount':paid,'discountAmount':0,'discountReason':'','applyPaymentDifferenceAsDiscount':False,'explicitBillSelection':True,'selectedBills':['A|SERVICE|A'],'selectedOutstanding':total}
+  preview=req({**body,'preview':True});assert preview['ok'],preview;assert books.read_bytes()==before
+  assert all(l['account']!='4400' for j in preview['previews'] for l in j['lines'])
+  for invalid in [{'discountAmount':.01},{'applyPaymentDifferenceAsDiscount':True},{'selectedOutstanding':total-1},{'paymentIntent':'UNKNOWN'},{'amount':total+1},{'amount':0}]:
+   response=req({**body,**invalid});assert not response['ok'],response;assert books.read_bytes()==before
+  result=req(body);assert result['ok'],result;st=result['result'];remaining=round(total-paid,2)
+  assert st['paymentIntent']=='PARTIAL' and st['discountAmount']==0 and st['netPayment']==paid,st
+  assert {r['billId']:r['outstanding'] for r in req()['payables']}=={'A':remaining,'B':400}
+  before=books.read_bytes();assert req(body)['result']['journalId']==st['journalId'];assert books.read_bytes()==before
+  assert not req({**body,'paymentIntent':'SETTLE'})['ok'];assert books.read_bytes()==before
+  final=req({**body,'requestKey':'explicit-partial-final-01','amount':remaining,'selectedOutstanding':remaining});assert final['ok'],final
+  state=json.loads(books.read_text());assert state['supplierBills']==original['supplierBills']
+  assert {r['billId']:r['outstanding'] for r in req()['payables']}=={'B':400}
+  assert all(l['account']!='4400' for j in state['journals'].values() for l in j['lines'])
+ # Opening-only partial payment retains small balances without touching invoices.
+ books.write_text(json.dumps({**initial,'journals':{'OPEN-1':opening}}))
+ part_open={**body,'requestKey':'partial-opening-only-001','paymentIntent':'PARTIAL','selectedBills':['BF:OPEN-1:0|OPENING|0'],'includeOpeningBalance':True,'selectedOutstanding':300,'amount':299.92}
+ saved=req(part_open);assert saved['ok'],saved
+ assert saved['result']['discountAmount']==0 and {r['billId']:r['outstanding'] for r in req()['payables']}=={'A':600,'B':400,'BF:OPEN-1:0':.08}
  # Legacy explicitly flagged openings and stable party identifiers stay payable.
  for source in ['JV','CARRY_FORWARD_OPENING']:
   legacy={**opening,'sourceType':source,'meta':{'openingBalance':True,'openingParty':'MAPCO'}}
