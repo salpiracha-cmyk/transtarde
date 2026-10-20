@@ -1,6 +1,6 @@
 # Partial expense payments — implementation plan, 20 October 2026
 
-Status: explicit partial intent for existing party invoice/B/F payments is implemented in the current continuation and awaiting release acceptance. The additional ordinary expense invoice-capture workflow below is still planned, not deployed. Party restoration and duplicate-opening safeguards are tracked separately in PR425. Existing invoice/B/F payment options must remain available while this work proceeds.
+Status: explicit partial intent for existing party invoice/B/F payments is deployed and accepted in PR448/runtime64047f0; live23/23 and owner Chrome unsaved eight-paisa preview passed. The additional ordinary expense invoice-capture workflow below is still planned, not deployed. Party restoration and duplicate-opening safeguards are tracked separately in PR425. Existing invoice/B/F payment options must remain available while this work proceeds.
 
 ## Confirmed current behavior
 
@@ -48,3 +48,9 @@ The existing Party Payments route now has explicit SETTLE/PARTIAL intent in UI, 
 Disposable endpoint tests cover123456.78paid100000,1000.08paid1000, small remainders through99.99, final settlement, unchanged unselected invoices, B/F-only eight-paisa remainder, preview without writes, stale/excess/zero rejection, replay identity and actual staff-authorised amendment retaining its public Post ID. Native amendment and browser tests verify the new control and persistence across payment-source changes.
 
 This closes only the explicit partial-payment defect in the existing bill/B/F workflow. General/utility invoice capture, broad expense discoverability and expanded outstanding reporting remain separate implementation work; the business audit count is not increased by these fixture tests.
+
+PR448 also refuses malformed Accounts storage and non-finite amounts, serializes
+before truncation, and verifies the write/flush. The encoding-failure and damaged-
+book regressions preserve exact original bytes. Final feature9f4b8ca passed
+full Accounts39459519891(both jobs) and Milling/Exports39459519847.
+Release evidence is recorded in FINAL_REVIEW_2026-10-20.md.

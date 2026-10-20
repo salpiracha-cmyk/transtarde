@@ -193,3 +193,105 @@ user activity. Source/annual/device/security qualifications above still apply.
 This final addendum changes documentation only. The accepted runtime is the exact
 6c2a20eb873b2566187680fea12efdc8919b5cc9 release; documentation-triggered reruns
 do not change that application-code acceptance.
+
+## Resumed remaining-work repair — 20 October evening
+
+The owner requested continuation after the preceding qualified closeout. PR448
+adds explicit Full / agreed settlement versus Pay part — keep balance to the
+existing TTI/BRM Party Payments workflow. Partial intent preserves every unpaid
+paisa, including differences below PKR100, across selected invoices and separately
+selected B/F. It bypasses automatic discounts on the server, rejects contradictory
+discount instructions, binds intent to replay identity, and saves it with payment
+and journal metadata. Amendment restores the choice; legacy zero-discount edits
+default to keeping the unpaid balance. The settlement choice retains the approved
+small-difference concession. No historical source is rewritten. TG and specialised
+salary, reimbursement, credit-card and commodity-plan engines are unchanged.
+
+The same endpoint had a confirmed storage failure path: malformed books could
+fall back to an empty store, and JSON encoding occurred after truncation. It now
+refuses malformed stored data and non-finite amounts, serializes before truncation,
+and checks the write/flush. Disposable tests confirm that damaged books and
+serialization failures preserve the exact original bytes. This does not claim
+protection against every hardware or process failure during a physical write.
+
+Endpoint tests cover123456.78paid100000,1000.08paid1000, later final settlement,
+unselected invoices, B/F-only small balances, preview without writes, stale/excess/
+zero rejection, replay changes, and actual staff-authorised partial amendment
+preserving the public Post ID. Native amendment and real Chromium fixture tests
+cover choice visibility and preservation across payment-source changes, existing
+settlement discounts and unchanged TG routing. Local B/F, payment-plan, cheque
+lifecycle, bank-default and amendment controls also passed.
+
+Final feature9f4b8ca759c842c404a0f2cc825dad29dc0dca5b passed Accounts39459519891
+(both jobs) and Milling/Exports39459519847. PR448 merged as
+64047f0778318d632248544040ca3aaf84e9793d. Release acceptance is recorded below.
+
+Connected local Chrome was verified as Chrome, but direct application navigation
+initially showed Sign in. The owner session subsequently became available; the
+real Party Payments screen was inspected, its custom dropdown selected, and an
+unsaved original-invoice preview retained0.08with no discount. The form was closed
+without Post. No credential, financial sample or uploaded original was supplied
+by the agent. The Security Scan preflight
+resource remains unavailable as described above. Hosting quota was subsequently obtained as recorded below; the actual Windows
+office agent and complete quota-to-folder reconciliation remain unverified. Existing original-data, annual
+allocation, commercial-document and physical-device qualifications remain.
+
+The broader general/utility invoice-capture/pay-later workflow and expanded expense
+outstanding reporting remain the separate plan. They are not claimed as deployed
+by this partial-intent repair. Business acceptance remains125of156scopes;
+fixes within a composite partial scope do not certify missing original evidence.
+
+### Evening release acceptance
+
+- Exact-main64047f0778318d632248544040ca3aaf84e9793d passed Accounts39460125658
+  (both jobs) and Milling/Exports39460125811. Deploy39460649596 /
+  job118758922893 succeeded; all458application files matched that SHA, verifier
+  business writes0, changed users0, journal-ID changes0. Login health passed.
+  Code rollback rotation retained1copy and removed1older managed copy, with
+  private backups touched0.
+- Authenticated read-only live39460912044 / job118759823415 passed23/23 in
+  2.4minutes. It compared58active ledgers across3companies with0concurrent skips,
+  10PKR bank comparisons,30posted JVs and468Post Register rows. All3Trial
+  Balances balanced, all3Balance Sheet differences were0, and no unclassified
+  balances were reported. Suite financial/stock/reference-link writes0. Existing
+  Zakat/payroll and original7210review holds remain; profit is not certified.
+- Startup39460912141 first failed at login with a blank path, TimeoutError and
+  no server timings. The independently successful live suite justified one
+  retry without any code/assertion change. Attempt2/job118762054487 passed:
+  login353ms, sign-in to usable Accounts950ms; approved Exports palette passed.
+  This is not a proven root cause or closure of historical intermittent scope119.
+- Fresh connected owner Chrome confirmed the explicit partial choice through
+  the real shared custom-select/numeric controls, retained an eight-paisa
+  remainder with no discount, and closed without Post. Actual3Paklink invoice
+  rows and the independent B/F control were present. No invoice/payment was saved.
+
+### Provider quota and visible storage categories
+
+Hostinger's signed-in plan resource page for the application successfully
+recalculated usage on20October evening:22.82GB used of200GB and13,572
+inodes used of600,000. This is shared hosting-plan usage, not a count or size
+of Accounts entries. No capacity upgrade, process stop, restore or file deletion
+was performed.
+
+The hosting File Browser's directory-size calculation separately displayed:
+
+| Visible category | Displayed size | Meaning / limitation |
+|---|---:|---|
+| All domain folders |13.78GiB| Separate file-browser calculation, not the full provider quota. |
+| Application domain folder |13.38GiB| Includes private recovery material and the web application. |
+| Application public files |24.9MiB| Application files and their public assets. |
+| Code deployment directory |16.57MiB| Separate from business recovery snapshots. |
+| Application private folder |13.34GiB| Includes the following categories; not all live business data. |
+| Retained server backups |11.97GiB| Visible managed snapshots plus historical recovery material. |
+| Security migration recovery files |939.23MiB| Recovery sources retained; not deleted or classified as disposable. |
+| Office agent jobs |404.61MiB| Directory presence does not verify the physical Windows task/destination. |
+| Live Accounts JSON |2.25MiB| One current Accounts source file, not the entire database/document inventory. |
+| Authentication/master store |3.93MiB| Size only; credentials/file contents were not opened. |
+
+Recent retained automatic ZIPs displayed about464.7MiB each; older retained
+11–18October ZIPs displayed about998MiB–1.32GiB. A three-hour-old generated
+snapshot temporary file was present; it is below the24hour stale-temp policy
+and was left alone. The file browser and provider usage counters use different
+reported totals/counts and do not fully reconcile here. No unsupported inference
+that all22.82GBbelongs to current operational entries is made. Complete billable
+category reconciliation and physical office-PC verification remain open in155.
