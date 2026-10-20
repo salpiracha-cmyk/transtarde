@@ -100,6 +100,7 @@ jobs:
           node tests/accounts-v1/broker_brokery_master_test.js
           node tests/accounts-v1/soda_milling_routing_test.js
           node tests/accounts-v1/soda_master_compatibility_test.js
+          python3 tests/accounts-v1/purchase_master_kat_link_test.py
           node tests/accounts-v1/linkage_regressions_test.js
           php tests/accounts-v1/customer_receivables_test.php
           php tests/accounts-v1/fi_credit_advice_link_test.php
@@ -240,6 +241,7 @@ jobs:
           node tests/accounts-v1/mill_source_save_ui_test.js
           node tests/accounts-v1/mill_source_amend_ui_test.js
           node tests/accounts-v1/console_access_preservation_test.js
+          node tests/accounts-v1/purchase_master_conditionals_test.js
           php tests/accounts-v1/user_input_preservation_test.php
           python3 tests/accounts-v1/ledger_catalog_identity_test.py
           python3 tests/accounts-v1/admin_audit_test.py
