@@ -616,9 +616,54 @@ function tt_master_names_conflict(string $candidate,string $existing,string $typ
     $a=tt_master_name_identity($candidate,$type);$b=tt_master_name_identity($existing,$type);
     if($a===''||$b==='')return false;
     if($a===$b)return true;
+    if($type==='business_parties'){
+        // A descriptive business suffix must not turn a known party into a new ledger.
+        $core=static function(string $name):string {
+            $name=strtolower(trim((string)preg_replace('/[^a-z0-9]+/i',' ',$name)));
+            do {$before=$name;$name=trim((string)preg_replace('/\s+(?:shipping services?|freight forwarding|freight forwarders?|shipping|logistics|services?|private limited|pvt ltd|limited|ltd)$/','',$name));}while($name!==$before);
+            return tt_master_name_identity($name,'business_parties');
+        };
+        $ca=$core($candidate);$cb=$core($existing);
+        if(strlen($ca)>=5&&$ca===$cb)return true;
+    }
     $distance=levenshtein($a,$b);
     $contains=(str_contains($a,$b)||str_contains($b,$a))&&abs(strlen($a)-strlen($b))<=3;
     return ($distance<=2&&min(strlen($a),strlen($b))>=5)||$contains;
+}
+
+/** Names persisted before Business Parties became mandatory must still prevent duplicates. */
+function tt_master_party_history(?array $books=null): array {
+    if($books===null){
+        $path=TT_DATA_DIR.'/accounts.json';if(!is_file($path))return [];
+        $h=fopen($path,'r');if($h===false||!flock($h,LOCK_SH))throw new RuntimeException('Could not check historical party identities.');
+        try{$books=json_decode((string)stream_get_contents($h),true,512,JSON_THROW_ON_ERROR);}finally{flock($h,LOCK_UN);fclose($h);}
+        if(!is_array($books))throw new RuntimeException('Historical party identities need review.');
+    }
+    $names=[];$add=static function(array $row)use(&$names):void{
+        foreach(['vendor','supplier','broker','counterparty','party','subledger','openingParty'] as $field){
+            $name=trim((string)($row[$field]??''));if($name!=='')$names[$name]=true;
+        }
+    };
+    foreach(['supplierBills','commodityBills','freightBillsV1','transportBillsV1','exportServiceBillsV1'] as $collection)
+        foreach((array)($books[$collection]??[]) as $row)if(is_array($row))$add($row);
+    foreach((array)($books['journals']??[]) as $journal){
+        if(!is_array($journal)||($journal['status']??'')!=='Posted')continue;
+        foreach((array)($journal['lines']??[]) as $line)if(is_array($line)&&in_array((string)($line['account']??''),['2110','2120','2130','2140','2190'],true)){
+            $add($line);$add((array)($journal['meta']??[]));
+        }
+    }
+    return array_keys($names);
+}
+
+function tt_assert_party_history_name(string $candidate,?array $books=null):void {
+    $names=tt_master_party_history($books);$key=tt_master_name_identity($candidate,'business_parties');
+    $exact=false;foreach($names as $name)if($key===tt_master_name_identity($name,'business_parties'))$exact=true;
+    foreach($names as $name){
+        $existingKey=tt_master_name_identity($name,'business_parties');
+        // Restore a known full name, but never introduce its shorter duplicate.
+        if($key===$existingKey||($exact&&strlen($key)>=strlen($existingKey)))continue;
+        if(tt_master_names_conflict($candidate,$name,'business_parties'))throw new InvalidArgumentException('A matching historical party already exists as “'.$name.'”. Restore or select that full party name instead of creating another ledger.');
+    }
 }
 
 /** Active broker profiles used by Soda and accounting. Brokery is owned here, never by a product or KAT rule. */

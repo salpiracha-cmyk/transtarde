@@ -133,7 +133,7 @@ function job_post(array &$s, string $e, array $b, array $u): array {
         if (!is_numeric($rate) || !is_finite((float)$rate) || (float)$rate <= 0 || (float)$rate > 1000000) throw new DomainException('Enter the opening exchange rate to '.$base.'.');
         $rate=(float)$rate;$amount=job_amount($native*$rate,'Book amount');
     }
-    foreach (job_balances($s,$e) as $existing) if ($existing['account']===$code && job_key($existing['party'])===job_key($party) && $existing['bankId']===$bankId && abs($existing['balance'])>.005) {
+    foreach (job_balances($s,$e) as $existing) if ($existing['account']===$code && (job_key($existing['party'])===job_key($party) || ($party!==''&&in_array($code,['2110','2120','2130','2140','2190'],true)&&function_exists('tt_master_names_conflict')&&tt_master_names_conflict($party,$existing['party'],'business_parties'))) && $existing['bankId']===$bankId && abs($existing['balance'])>.005) {
         jvw_out(['ok'=>false,'error'=>'This account / party already has a balance at 1 July 2026. Review its existing Post IDs before adding an opening balance.','existing'=>$existing],409);
     }
     $note=jvw_text($b['note'] ?? '',400,'Details');$ref=jvw_text($b['reference'] ?? '',120,'Reference');jvw_duplicate($s,$e,$ref);

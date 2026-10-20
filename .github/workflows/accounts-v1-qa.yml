@@ -93,6 +93,7 @@ jobs:
           php tests/accounts-v1/ledger_visibility_test.php
           php tests/accounts-v1/ledger_narration_test.php
           node tests/accounts-v1/ledger_posting_rows_test.js
+          python3 tests/accounts-v1/party_history_http_test.py
           node tests/accounts-v1/ledger_workbook_test.js
           node tests/accounts-v1/export_v3_linkage_test.js
           node tests/accounts-v1/export_receipt_scope_test.js
@@ -332,6 +333,7 @@ jobs:
           node tests/accounts-v1/payables_draft_stability_test.js
           node tests/accounts-v1/tg_navigation_scope_test.js
           node tests/accounts-v1/expense_forms_browser_test.js
+          node tests/accounts-v1/cancellation_reason_ui_test.js
           node tests/accounts-v1/post_register_browser_test.js
           node tests/accounts-v1/direct_expense_browser_test.js
           node tests/accounts-v1/unified_expense_browser_test.js

@@ -245,6 +245,7 @@ try {
         $row=master_find_row($type,$id);if(!$row)throw new InvalidArgumentException('Master record not found.');
         $statusIndex=$purgeStatusFields[$type];$values=array_values((array)($row['values']??[]));while(count($values)<=$statusIndex)$values[]='';
         $referenced=false;
+        if($type==='business_parties')foreach(tt_master_party_history() as $name)if(tt_master_names_conflict((string)$values[0],$name,'business_parties')){$referenced=true;break;}
         foreach(glob(TT_DATA_DIR.'/*.json')?:[] as $file){
             if(realpath($file)===realpath(TT_STORE_FILE))continue;
             $raw=@file_get_contents($file);if($raw!==false&&str_contains($raw,'"'.addcslashes($id,"\\\"").'"')){$referenced=true;break;}
@@ -387,6 +388,7 @@ try {
             $existingName=(string)(($existingRow['values']??[])[0]??'');
             if (tt_master_names_conflict((string)$values[0],$existingName,$type)) throw new InvalidArgumentException('A matching or confusingly similar record already exists as “'.$existingName.'”. Open that record instead of creating a duplicate.');
         }
+        if($type==='business_parties'&&$nameChanged)tt_assert_party_history_name((string)$values[0]);
     }
     if ($type==='product_settings' && !preg_match('/^\d{4}\/\d{4}$/',(string)$values[0])) {
         throw new InvalidArgumentException('Enter Crop Year as YYYY/YYYY, for example 2025/2026.');

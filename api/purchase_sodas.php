@@ -68,6 +68,8 @@ function ps_link_supplier_mill(string $supplierId,string $millId): void {
 function ps_upsert_party_category(string $name,string $category): array {
     $name=trim(preg_replace('/\s+/u',' ',$name)??'');
     if($name===''||strlen($name)>180)throw new InvalidArgumentException('Enter a valid '.$category.' name.');
+    $known=false;foreach((array)(tt_list_masters()['business_parties']??[]) as $row)if(tt_master_names_conflict($name,(string)($row['values'][0]??''),'business_parties')){$known=true;break;}
+    if(!$known)tt_assert_party_history_name($name);
     return tt_mutate_store(function(&$data)use($name,$category):array{
         if(!isset($data['masters']['business_parties'])||!is_array($data['masters']['business_parties']))$data['masters']['business_parties']=[];
         foreach($data['masters']['business_parties']as&$row){$v=array_values((array)($row['values']??[]));while(count($v)<13)$v[]='';if(!tt_master_names_conflict($name,(string)$v[0],'business_parties'))continue;$categories=tt_business_party_categories($v[2]);if(!array_filter($categories,static fn($item)=>strcasecmp($item,$category)===0))$categories[]=$category;$v[2]=implode('; ',$categories);$v[10]='Active';$profile=json_decode((string)$v[12],true);if(!is_array($profile))$profile=[];$profile['buying']=array_values(is_array($profile['buying']??null)?$profile['buying']:[]);$profile['selling']=array_values(is_array($profile['selling']??null)?$profile['selling']:[]);$v[12]=json_encode($profile,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);$row['values']=$v;$out=$row;unset($row);return$out;}unset($row);
