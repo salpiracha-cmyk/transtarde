@@ -15,12 +15,24 @@ function customer_roles(string $roles): string {
 }
 function customer_notify_json(mixed $input): string {
     if(is_string($input)){
-        $decoded=json_decode($input,true); if(is_array($decoded)) $input=$decoded;
+        $text=trim($input);
+        if($text==='')return '[]';
+        $decoded=json_decode($input,true); if(json_last_error()===JSON_ERROR_NONE) $input=$decoded;
+        elseif(in_array($text[0],['[','{'],true))throw new InvalidArgumentException('Notify parties JSON could not be read.');
         else { $rows=preg_split('/\r?\n/',$input)?:[]; $input=array_map(function($line){$p=array_map('trim',explode('|',(string)$line,2));return ['name'=>$p[0]??'','address'=>$p[1]??''];},$rows); }
     }
-    if(!is_array($input)) return '[]'; $out=[];
-    foreach($input as $row){ if(!is_array($row))continue; $name=customer_text($row['name']??'',180);$address=customer_text($row['address']??'',1200);if($name===''&&$address==='')continue;$out[]=['name'=>$name,'address'=>$address];if(count($out)>=12)break; }
-    return json_encode($out,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE)?:'[]';
+    if(!is_array($input)||!array_is_list($input))throw new InvalidArgumentException('Notify parties must be a list of names and addresses.'); $out=[];
+    foreach($input as $row){
+        if(!is_array($row))throw new InvalidArgumentException('Each notify party must include a name and full address.');
+        if(!is_string($row['name']??'')||!is_string($row['address']??''))throw new InvalidArgumentException('Notify party names and addresses must be text.');
+        $name=trim($row['name']??'');$address=trim($row['address']??'');
+        if(strlen($name)>180||strlen($address)>1200)throw new InvalidArgumentException('Notify party name or address is too long. Shorten it before saving.');
+        if($name===''&&$address==='')continue;
+        if($name===''||$address==='')throw new InvalidArgumentException('Each notify party must include a name and full address.');
+        $out[]=['name'=>$name,'address'=>$address];
+        if(count($out)>12)throw new InvalidArgumentException('A customer can have at most 12 notify parties. Remove extra rows before saving.');
+    }
+    return json_encode($out,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);
 }
 function customer_row(array $row): array {
     $v=array_values(is_array($row['values']??null)?$row['values']:[]); while(count($v)<16)$v[]='';

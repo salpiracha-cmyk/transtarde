@@ -95,11 +95,11 @@ integration evidence for PR442, not a reason to weaken the search assertion.
 | 62,63 | The AMT13 original relationship-letter and Customs HS discrepancy is recorded; generated identities and HS rules are tested separately. | Commercially approved relationship/buyer wording and Customs classification must come from the original source. Neither is guessed or silently amended. |
 | 71 | The cross-module regression workflows, native browser scenarios, 42-case exporter/payment/packing renderer matrix and named source/permission tests form the bounded software audit. | This is not mathematical proof of every possible control/data combination, nor a record of actual financial test postings in production. |
 | 73,75,88 | The month-based filing feature is deployed; source/permissions/uploads/native invoice/complete six-page synthetic PDF tests and live GD/invoice/B-L reads are accepted. | Required original supplier/utility scans must be attached. Missing originals remain visibly incomplete; historical packs are not substituted. |
-| 76,77,78 | Existing assets/investment/property, bank/finance/reconciliation, supplier allocation/plan/amendment/reversal/retry and read-only live suites are retained and rerun for the final release. | Positive original finance/share/property/statement/plan transactions are not created as audit samples. The separately requested expansion of expense invoice-capture/partial-payment options remains a feature plan, not a deployed claim. |
+| 76,77,78 | Existing assets/investment/property, bank/finance/reconciliation, supplier allocation/plan/amendment/reversal/retry and read-only live suites are retained and rerun for the final release. | Positive original finance/share/property/statement/plan transactions are not created as audit samples. PRs450/452/455 deployed full expense/utility invoice capture, linked partial settlement, current balances, due dates, consumer references and original-party headings; exact release acceptance is recorded below. Positive real finance/share/plan cases remain separate. |
 | 79,80,81 | Native Sales Contract/FI/document/upload boundaries, saved terms, multi-GD/multi-page/PDF/folder tests and source-preserving variants are covered by the full workflows. All35current indexed archive revisions passed protected downloads. | Commercial acceptance of every issued original, physical print, and the actual office folder still requires the original documents/device. |
 | 119 | Current startup checks and read-only diagnostics are retained. | The historical intermittent runner-to-login/network cause is not proven by a later successful run. |
 | 123 | Current generated packing layout is fixed and tested. | The older issued/uploaded ASAS62 PDF is preserved. Publishing a corrected historical revision must retain the original and its issue history. |
-| 155 | Hosting code-backup retirement/15-day retention evidence and current deployment verification are retained. | Full billable hosting quota/file counts and the actual office PC's installed agent, task history, destination and independently verified archives remain external checks. The separate backup chat owns that PC investigation. |
+| 155 | Provider quota/file counts and directory sizes were obtained on20October evening. The latest owner policy supersedes15-day retention: seven daily hosted data recovery points, with separate PC daily/weekly/monthly copies. Chrome now displays seven restore choices; the archive-storage total also includes other retained ZIPs. | The historical quota counters do not fully reconcile, and a new post-cleanup provider measurement is not inferred from application archive sizes. The actual office PC task, destination and independent recovery proof remain external checks; hosted deployment does not prove PC installation. |
 
 The prior inactive FTR mapping exception is also retained: legacy rules pointing
 to7200Donations stay inactive pending the auditor-approved mapping. Current
@@ -377,3 +377,56 @@ and 454 were preserved. Earlier storage figures remain timestamped observations;
 this continuation makes no fresh provider-quota or physical-PC claim.
 
 See [Expense invoice user route and validation](EXPENSE_INVOICES_2026-10-20.md).
+
+
+## Final remaining-scope review — 20 October late evening
+
+All31 qualifications were re-read against the current156-row register and
+latest main `ab02a73380b370a36176cc781b8141fa190a2269`. The current-disposition
+table above now reflects deployed invoice capture and the superseding seven-day
+backup policy. Earlier dated measurements and failures remain as history.
+
+Fresh connected Chrome, Salman/Super Admin, showed0open approval requests.
+No decision was manufactured to turn an empty queue into a positive case. The
+backup screen showed36stored ZIP archives totaling7.3GB, but seven choices in
+the restore dropdown. These are different populations: the storage summary
+counts all top-level ZIPs, while the dropdown lists named server snapshots.
+The card label is corrected to **Stored backup archives**, with an explanation
+that available recovery points are listed below. No archive was deleted, no
+backup was restored, and no PC task was inferred from an active credential.
+
+A further actual-auth master regression reproduced a new correctness defect:
+the customer endpoint accepted a notify party with no address and silently
+truncated a list after12parties, despite the native form rejecting incomplete
+parties. The repair rejects malformed/non-list JSON, invalid row types,
+incomplete name/address pairs and lists above12before any save. Empty lists,
+12complete parties, JSON lists and legacy Name | Address lines remain valid.
+Rejected edits preserve the authentication/master store and Accounts bytes;
+valid edits retain customer fields16–21 and the original financial journals.
+The new regression failed on the unmodified source withHTTP200for the missing
+address case, then passed after the repair. This does not claim that generic
+Master Records advanced customer fields now populate export documents.
+
+The formal security preflight was checked again: the plugin-root referenced
+scan-prologue resource could not be read, and the tool inventory exposes no
+security_scan/preflight/start helper. The skill's mandatory ready condition
+remains unmet; no substitute formal clearance is issued.
+
+### Conditions that cannot be completed by invented production activity
+
+- Genuine monthly K-Electric/PP tax scans, bank payment proof, independent
+  physical Mill/bag openings, approved Maize rates and original production
+  references are required to certify those specific business outputs.
+- Annual Zakat and the7210opening need their approved monetary classification
+  and source allocation. Balanced trial balances do not settle those decisions.
+- AMT13 relationship/buyer wording and Customs HS require approved originals;
+  the historic ASAS62 upload remains preserved beside the fixed current renderer.
+- Source-to-target migration needs an actual target and control totals; physical
+  printing, office-folder delivery and PC recovery need the actual destination.
+- Earlier intermittent login failures remain historical observations with no
+  established root cause. Current healthy checks do not erase them.
+
+No remaining qualification has been relabelled passed solely because there are
+no current transactions to exercise, or because the same green suite ran again.
+The156-scope business-acceptance count remains125passed and31qualified.
+Release acceptance for the final notify-party/card-label repair follows below.

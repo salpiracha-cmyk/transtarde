@@ -65,6 +65,28 @@ with tempfile.TemporaryDirectory(prefix='master-family-') as directory:
         tail=next(r for r in request()[1]['masters']['export_customers'] if r['id']==customer['masterId'])['values'][16:]
         customer['address']='Revised fixture address'; assert request('/api/export_customers.php',{'action':'upsert','customer':customer})[0]==200
         assert next(r for r in request()[1]['masters']['export_customers'] if r['id']==customer['masterId'])['values'][16:]==tail
+        # The native editor rejects incomplete notify parties; the endpoint must
+        # not silently discard malformed input or truncate the thirteenth party.
+        for invalid in [[{'name':'Notify without address'}], [{'address':'Address without name'}], ['invalid row'], {'name':'Not a list'}, 123,
+                        '{"name":"Not a list"}', '[{"name":', 'null', '123',
+                        [{'name':[],'address':{}}], [{'name':'X'*181,'address':'Valid address'}],
+                        [{'name':'Valid name','address':'X'*1201}], [{'name':'名'*61,'address':'住所'}],
+                        [{'name':f'Notify {i}','address':f'Address {i}'} for i in range(13)]]:
+            changed=copy.deepcopy(customer); changed['notifies']=invalid
+            before=(auth.read_bytes(),books.read_bytes())
+            status,data=request('/api/export_customers.php',{'action':'upsert','customer':changed})
+            assert status==422 and not data['ok'],('Malformed notify party accepted',invalid,status)
+            assert (auth.read_bytes(),books.read_bytes())==before,'Rejected customer edits must preserve originals'
+        valid_parties=[{'name':f'Notify {i}','address':f'Address {i}'} for i in range(12)]
+        for supplied,expected in [(valid_parties,valid_parties),(json.dumps(valid_parties),valid_parties),
+                                  ('Notify One | Full Address One\nNotify Two | Full Address Two',
+                                   [{'name':'Notify One','address':'Full Address One'},{'name':'Notify Two','address':'Full Address Two'}]),
+                                  ('',[]),([],[])]:
+            changed=copy.deepcopy(customer); changed['notifies']=supplied
+            status,data=request('/api/export_customers.php',{'action':'upsert','customer':changed})
+            assert status==200 and data['customer']['notifies']==expected,(status,data)
+            saved=next(r for r in request()[1]['masters']['export_customers'] if r['id']==customer['masterId'])
+            assert saved['values'][16:]==tail and json.loads(books.read_text())['journals']==original_journals
         # Reference options are a separate visible family with their canonical shared reader.
         status,data=request(body={'action':'manage-option','type':'reference_lists','optionAction':'add','optionKey':'packing_types','value':'Fixture Packing'}); assert status==200,(status,data)
         status,data=request(body={'action':'manage-option','type':'reference_lists','optionAction':'rename','optionKey':'packing_types','old':'Fixture Packing','value':'Fixture Packing Revised'}); assert status==200,(status,data)
