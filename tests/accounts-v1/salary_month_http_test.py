@@ -4,7 +4,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
     root=pathlib.Path(temp)
     for folder in ['api','accounts','data']:(root/folder).mkdir()
-    for name in ['rent_salary.php','rent_salary_v2.php','salary_month_workflow.php','salary_flexible_workflow.php','salary_extra_allocations.php','accounts_subaccounts_core.php','accounts_reference.php','accounts_ledger_visibility.php','assets_registry_core.php','company_investments_core.php','salary_master_store.php','accounts_bank_payment.php', 'accounts_posting_preview.php']:
+    for name in ['rent_salary.php','rent_salary_v2.php','salary_month_workflow.php','salary_flexible_workflow.php','salary_record_corrections.php','salary_extra_allocations.php','accounts_subaccounts_core.php','accounts_reference.php','accounts_ledger_visibility.php','assets_registry_core.php','company_investments_core.php','salary_master_store.php','accounts_bank_payment.php', 'accounts_posting_preview.php']:
         shutil.copy(ROOT/'api'/name,root/'api'/name)
     for name in ['accounting_master_v1.json','rent-salary-ui.js','cheque-date-ui.js','bank-payment-details.js']:
         shutil.copy(ROOT/'accounts'/name,root/'accounts'/name)
@@ -71,7 +71,7 @@ with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
         assert store['salaryAdvances']['ADV']['remaining']==300,'Deferred advance carried forward'
         assert store['salaryPeriods']['TTI|2026-10|Bob']['outstanding']==450
         assert store['salaryPeriods']['TTI|2026-10|Cara']['outstanding']==1050
-        assert any(l.get('party')=='Bob' and l['account']=='2140' for l in journal['lines'])
+        assert any(l.get('party')=='Bob' and l['account']=='2230' for l in journal['lines'])
         bob=[l for l in journal['lines'] if l.get('party')=='Bob']
         assert any(l['account']=='1120' and l['credit']==300 for l in bob),bob
         assert any(l['account']=='1110' and l['credit']==300 for l in bob),bob
@@ -94,7 +94,7 @@ with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
         for mid in ['Alice','Bob','Cara']:assert draft(mid,1050,month='2026-12')[0]==200
         version=request(month='2026-12')[1]['salarySheet']['version']
         status,data=request({'action':'complete_salary_month','version':version,'date':'2026-12-01'},'2026-12');assert status==200,data
-        assert all(l['account'] in ['2140','1120'] for l in saved()['journals'][data['result']['journalId']]['lines']),'Legacy accrual cannot duplicate expenses'
+        assert all(l['account'] in ['2230','1120'] for l in saved()['journals'][data['result']['journalId']]['lines']),'Legacy accrual cannot duplicate expenses'
         # Master Records edits must invalidate a reviewed but unposted salary draft.
         assert draft('Alice',100,month='2027-02')[0]==200
         prior_journals=saved()['journals'].copy()

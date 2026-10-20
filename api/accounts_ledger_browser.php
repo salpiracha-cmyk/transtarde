@@ -65,7 +65,7 @@ $master=json_decode((string)file_get_contents(dirname(__DIR__).'/accounts/accoun
 $catalog=[];
 // Party balances use receivables, payables, deposits and advances, never the
 // matching bank, inventory, income or expense legs of the same journal.
-$partyAccounts=array_fill_keys(['1210','1220','1230','1240','1250','1400','2110','2120','2130','2140','2150','2160','2170','2190','2210','2220','2400','2500','2510','2520','3100','3200'],true);
+$partyAccounts=array_fill_keys(['1210','1220','1230','1240','1250','1400','2110','2120','2130','2140','2150','2160','2170','2190','2210','2220','2230','2400','2500','2510','2520','3100','3200'],true);
 foreach((array)($master['peopleSubledgers']??[]) as $person)if(is_array($person)&&isset($person['code']))$partyAccounts[(string)$person['code']]=true;
 $missingPartyLines=0;$unmatchedPartyRows=[];
 $balanceUnavailable=false;
@@ -167,7 +167,7 @@ foreach($journals as $journal){
         if($bankId!==''&&($code!=='1110'||$lineBank!==$bankId))continue;
         if($headId!==''&&!in_array($code,$headCodes,true))continue;
         if($subaccountId!==''&&!in_array((string)($line['subaccountId']??''),$subaccountIds,true))continue;
-        if(($payrollId!==''||$directorGroup!=='')&&(!isset($payrollIds[(string)($line['salaryMasterId']??$journal['meta']['salaryMasterId']??'')])||!in_array($code,['1230','2140'],true)))continue;
+        if(($payrollId!==''||$directorGroup!=='')&&(!isset($payrollIds[(string)($line['salaryMasterId']??$journal['meta']['salaryMasterId']??'')])||!in_array($code,['1230','2140','2230'],true)))continue;
         if($account!==''&&$payrollId===''&&$directorGroup===''&&$bankId===''&&$subaccountId===''&&$headId===''&&!$serviceAccount&&$code!==$account)continue;
         $lineParty=trim((string)($line['supplier']??$line['broker']??$line['customer']??$line['counterparty']??$line['party']??''));
         $meta=(array)($journal['meta']??[]);
