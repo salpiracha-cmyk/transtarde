@@ -16,9 +16,11 @@ try{
  $now=strtotime('2026-10-19T17:00:00Z');$paths=[];
  for($i=0;$i<110;$i++){$stamp=$now-$i*86400;$path=$root.'/auto-'.gmdate('Ymd-His',$stamp).'.zip';file_put_contents($path,'fixture');touch($path,$stamp);$paths[]=$path;}
  for($i=1;$i<12;$i++){$stamp=$now-$i*3600;$path=$root.'/auto-'.gmdate('Ymd-His',$stamp).'.zip';file_put_contents($path,'fixture');touch($path,$stamp);$paths[]=$path;}
- $keep=tt_backup_retention_keep($paths,$now);check_policy(count($keep)<=14,'Automatic history must stay bounded across recent/daily/weekly buckets.');
- rsort($paths,SORT_STRING);foreach(array_slice($paths,0,4)as$p)check_policy(isset($keep[$p]),'Keep the four latest snapshots.');
- check_policy(isset($keep[$root.'/auto-'.gmdate('Ymd-His',$now-6*86400).'.zip']),'Keep a recent daily recovery point.');
- check_policy(!isset($keep[$root.'/auto-'.gmdate('Ymd-His',$now-16*86400).'.zip']),'Expire history outside the configured window.');
+ $keep=tt_backup_retention_keep($paths,$now);check_policy(count($keep)===7,'Keep exactly seven distinct daily points.');
+ foreach(range(0,6)as$i)check_policy(isset($keep[$root.'/auto-'.gmdate('Ymd-His',$now-$i*86400).'.zip']),'Keep the latest point on each Pakistan date.');
+ check_policy(!isset($keep[$root.'/auto-'.gmdate('Ymd-His',$now-7*86400).'.zip']),'The eighth daily point replaces the oldest.');
+ $before=strtotime('2026-10-20T20:59:59+05:00');$after=strtotime('2026-10-20T21:00:00+05:00');
+ check_policy(tt_backup_daily_slot($before)===strtotime('2026-10-19T21:00:00+05:00'),'Before closing use the previous due slot.');
+ check_policy(tt_backup_daily_slot($after)===$after,'Closing time is 9 pm Pakistan time.');
  echo "PASS compressed and legacy streaming restores, corrupted-data refusal, bounded recovery history\n";
 }finally{foreach(glob($root.'/*')?:[]as$p)unlink($p);rmdir($root);}

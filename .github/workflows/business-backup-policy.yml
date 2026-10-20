@@ -1,9 +1,9 @@
-name: Automatic fifteen-day backup policy
+name: Seven daily business data backups
 
 on:
   workflow_dispatch:
   schedule:
-    - cron: '20 22 * * *'
+    - cron: '0 16 * * *'
   pull_request:
     paths: ['backup_lib.php', 'index.html', 'tests/security/backup_expiry_safety_test.php', 'tests/security/backup_compression_retention_test.php', 'tests/security/server_backup_hardening_test.php', '.github/scripts/business_backup_policy.php', '.github/workflows/business-backup-policy.yml']
   push:
@@ -52,7 +52,7 @@ jobs:
           [[ "$HOSTINGER_DEPLOY_PATH" =~ ^/home/[A-Za-z0-9_-]+/domains/app\.transtradeinternational\.com/public_html$ ]]
           python3 - <<'PYBUILD'
           import pathlib,hashlib,base64,json
-          old={'backup_lib.php':'f62d723ddbf9fbe73710f9a1a8a25801983f2fbd004055d167871a872001f68e','index.html':'bacaf3b208ae628cebbd4eaf64a408b3b6429a90225a210655cb0246992f88aa'}
+          old={'backup_lib.php':'b774c1b6551dad0426a7d43fc843caad6eaa0863f8c362f0f2cf7090ef4f8414','index.html':'56dec9ec4e795f0aa7b3c531f5e49dd4fc124cf747619cb89efce6c8d7823ac4'}
           package={}
           for path,digest in old.items():
               source=pathlib.Path(path).read_bytes()

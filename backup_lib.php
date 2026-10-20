@@ -502,7 +502,7 @@ function tt_build_download_backup(bool $full,string $password=''):array{
     $addEncrypted=function(string $logical,string $data)use($zip,$key,&$map,&$counter):void{$enc=tt_backup_encrypt($data,$key,true);$stored='Encrypted/'.str_pad((string)$counter++,6,'0',STR_PAD_LEFT).'.bin';$zip->addString($stored,$enc['cipher'],false);unset($enc['cipher']);$enc['stored']=$stored;$map[$logical]=$enc;};
     $addEncryptedFile=function(string $logical,string $path)use($zip,$key,&$map,&$counter,&$encryptedFiles):void{
         if(isset($encryptedFiles[$path])){$map[$logical]=$encryptedFiles[$path];return;}
-        $compress=(bool)preg_match('/\.(json|txt|csv|log|sql|php|js|css|html?|xml|svg|md|ya?ml)([.-]|$)/i',$path);
+        $compress=(bool)preg_match('/\.(json|txt|csv|log|sql)([.-]|$)/i',$path);
         $source=fopen($path,'rb');if($source===false)throw new RuntimeException('A recovery source file could not be read.');
         $chunks=[];$digest=hash_init('sha256');$size=0;
         try {
@@ -582,7 +582,10 @@ function tt_create_server_snapshot(string $kind='auto'): string {
         if ($kind === 'auto') {
             $state = tt_backup_read_state();
             $last = strtotime((string)($state['last_auto_at'] ?? '')) ?: 0;
-            if (time() - $last < 3600 && !empty($state['last_snapshot'])) return (string)$state['last_snapshot'];
+            if ($last >= tt_backup_daily_slot() && !empty($state['last_auto_snapshot']) && is_file(tt_backup_dir().'/'.basename((string)$state['last_auto_snapshot']))) {
+                try { tt_backup_verified_server_snapshot(basename((string)$state['last_auto_snapshot'])); return basename((string)$state['last_auto_snapshot']); }
+                catch (Throwable) { /* Build a fresh verified replacement if the saved copy is damaged. */ }
+            }
         }
         $authLock = tt_open_store_lock(LOCK_SH);
         if (is_file(TT_STORE_FILE)) {
@@ -633,7 +636,7 @@ function tt_create_server_snapshot(string $kind='auto'): string {
         tt_backup_note_verified($path);
         $now = gmdate('c');
         $statePatch = ['last_snapshot'=>$name, 'last_success_at'=>$now, 'last_error_at'=>null, 'last_error'=>null, 'consecutive_failures'=>0];
-        if ($kind === 'auto') $statePatch['last_auto_at'] = $now;
+        if ($kind === 'auto') { $statePatch['last_auto_at'] = $now; $statePatch['last_auto_snapshot'] = $name; }
         elseif ($kind === 'manual') $statePatch['last_manual_at'] = $now;
         elseif ($kind === 'pre-restore') $statePatch['last_pre_restore_at'] = $now;
         tt_backup_write_state($statePatch);
@@ -675,16 +678,15 @@ function tt_backup_has_verified_receipt(string $path): bool {
     clearstatcache(true,$path);$st=@stat($path);
     return $st && isset($GLOBALS['ttVerifiedBackupReceipts'][$path]) && $GLOBALS['ttVerifiedBackupReceipts'][$path]===array_intersect_key($st,array_flip(['dev','ino','size','mtime','ctime']))+['sha256'=>hash_file('sha256',$path)];
 }
-/** Four recent points, daily through seven days, weekly through fifteen days. */
+/** Latest verified recovery point on each of seven distinct Pakistan dates. */
 function tt_backup_retention_keep(array $paths, ?int $now=null, array $created=[]): array {
-    $now ??= time();rsort($paths,SORT_STRING);$keep=[];$days=[];$weeks=[];$recent=0;
+    $now ??= time(); $keep=[]; $days=[]; $zone=new DateTimeZone('Asia/Karachi');
+    usort($paths,static fn($a,$b)=>(($created[$b]??filemtime($b)) <=> ($created[$a]??filemtime($a))) ?: strcmp($b,$a));
     foreach($paths as $path){
         $stamp=$created[$path]??filemtime($path);
         if($stamp===false||$stamp>$now+300){$keep[$path]=true;continue;}
-        $age=max(0,$now-$stamp);if($age>15*86400)continue;
-        if($recent++<4)$keep[$path]=true;
-        if($age<=7*86400){$key=gmdate('Y-m-d',$stamp);if(!isset($days[$key])){$days[$key]=true;$keep[$path]=true;}}
-        else{$key=gmdate('o-W',$stamp);if(count($weeks)<2&&!isset($weeks[$key])){$weeks[$key]=true;$keep[$path]=true;}}
+        $day=(new DateTimeImmutable('@'.$stamp))->setTimezone($zone)->format('Y-m-d');
+        if(!isset($days[$day])&&count($days)<7){$days[$day]=true;$keep[$path]=true;}
     }
     return $keep;
 }
@@ -711,11 +713,11 @@ function tt_backup_rotate(?string $verifiedSnapshot=null): void {
         $meta=tt_backup_snapshot_metadata($path);if(!$meta)continue;
         $created[$path]=$meta['created'];$groups[$kind][]=$path;
     }
-    $keep=tt_backup_retention_keep($groups['auto'],null,$created);$keep[$fresh]=true;
-    foreach(['manual','pre-restore']as$kind){
-        rsort($groups[$kind],SORT_STRING);$recent=str_starts_with($verifiedSnapshot,$kind.'-')?1:0;
-        foreach($groups[$kind]as$path)if($path!==$fresh&&time()-$created[$path]<=15*86400&&$recent++<3)$keep[$path]=true;
-    }
+    $keep=tt_backup_retention_keep(array_merge(...array_values($groups)),null,$created);
+    $zone=new DateTimeZone('Asia/Karachi');
+    $freshDay=(new DateTimeImmutable('@'.$freshMeta['created']))->setTimezone($zone)->format('Y-m-d');
+    foreach(array_keys($keep) as $path) if($created[$path]<=$freshMeta['created'] && (new DateTimeImmutable('@'.$created[$path]))->setTimezone($zone)->format('Y-m-d')===$freshDay) unset($keep[$path]);
+    $keep[$fresh]=true;
     foreach($groups as$paths)foreach($paths as$path){
         // Never retire the verified survivor or a point newer than that survivor.
         if(isset($keep[$path])||$created[$path]>$freshMeta['created'])continue;
@@ -723,15 +725,15 @@ function tt_backup_rotate(?string $verifiedSnapshot=null): void {
     }
 }
 
+/** Most recent office-closing slot; scheduled retries reuse the same slot. */
+function tt_backup_daily_slot(?int $now=null): int {
+    $local=(new DateTimeImmutable('@'.($now??time())))->setTimezone(new DateTimeZone('Asia/Karachi'));
+    $due=$local->setTime(21,0,0);
+    return ($local<$due?$due->modify('-1 day'):$due)->getTimestamp();
+}
 function tt_maybe_auto_backup(): void {
-    try {
-        tt_backup_ensure_dirs();
-        $state = tt_backup_read_state();
-        $last = strtotime((string)($state['last_auto_at'] ?? '')) ?: 0;
-        if (time() - $last >= 3600) tt_create_server_snapshot('auto');
-    } catch (Throwable $error) {
-        error_log('Transtrade automatic backup failed: ' . $error->getMessage());
-    }
+    // Activity and status reads must never start a backup. The daily scheduler
+    // invokes tt_create_server_snapshot('auto') independently at closing time.
 }
 
 function tt_backup_status(): array {
