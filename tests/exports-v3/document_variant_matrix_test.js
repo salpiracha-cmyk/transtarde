@@ -7,7 +7,7 @@ w.structuredClone=structuredClone;
 w.TT_MODULE_ACCESS={user:'Document fixture',masters:{}};
 let source=fs.readFileSync('exports/app.js','utf8');
 assert(source.includes('mount();restoreContractCheckpoint();'));
-source=source.replace('mount();restoreContractCheckpoint();','window.documentFixture={state,makeShipment,paymentText,salesContractPrint,commercialInvoiceDoc,packingListDoc,blDraftDoc,shipmentFolderDocuments};');
+source=source.replace('mount();restoreContractCheckpoint();','window.documentFixture={state,makeShipment,paymentText,salesContractPrint,commercialInvoiceDoc,packingListDoc,phytoInvoiceDoc,blDraftDoc,shipmentFolderDocuments};');
 w.eval(source);
 const t=w.documentFixture,buyer={id:'BUYER',name:'Fixture Buyer',address:'Fixture buyer address',notifies:[{name:'Fixture Notify',address:'Fixture notify address'}]};
 t.state.customers=[buyer];
@@ -24,7 +24,7 @@ try{
   s.customs={...s.customs,saved:true,exporter:seller==='TG'?'TTI':seller,description:'FIXTURE WHITE RICE',rate:400,customsPaymentCode:paymentCode,fiAllocations:[],gdRefs:[{number:'FIXTURE-GD-1',date:'2026-10-02'},{number:'FIXTURE-GD-2',date:'2026-10-03'}],openAccount:count*27*400};
   s.tgdocs={saved:true};t.state.shipments=[s];
   const before=JSON.stringify({c,s});
-  const docs={contract:t.salesContractPrint(c),invoice:t.commercialInvoiceDoc(s,c),packing:t.packingListDoc(s,c),customInvoice:t.commercialInvoiceDoc(s,c,true),customPacking:t.packingListDoc(s,c,true),bl:t.blDraftDoc(s,c)};
+  const docs={contract:t.salesContractPrint(c),invoice:t.commercialInvoiceDoc(s,c),packing:t.packingListDoc(s,c),customInvoice:t.commercialInvoiceDoc(s,c,true),customPacking:t.packingListDoc(s,c,true),phytoInvoice:t.phytoInvoiceDoc(s,c),bl:t.blDraftDoc(s,c)};
   for(const [name,html]of Object.entries(docs)){
    assert(html&&html.includes('docPage'),seller+'/'+paymentCode+'/'+size+'/'+name+' produces a document');
    assert.doesNotMatch(html,/\b(?:NaN|undefined)\b/,name+' has no missing-value output');
@@ -41,6 +41,8 @@ try{
   assert(packing.textContent.includes((count*27000).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})+' KGS'),'Packing net weight equals original actuals');
   assert(packing.textContent.includes((count*27000/size).toLocaleString()+' BAGS'),'Packing packages equal original bag size and actuals');
   for(const gd of s.customs.gdRefs)assert(docs.customInvoice.includes(gd.number),'Customs output retains every saved GD number');
+  for(const name of ['invoice','customInvoice','customPacking','phytoInvoice'])assert.doesNotMatch(docs[name],/class="docPageNo">Generated/,'Reprinting '+name+' must not add the current generation date');
+  assert.match(docs.packing,/PAGE 1 OF/,'Removing generation stamps must retain actual packing pagination');
   const folder=t.shipmentFolderDocuments(s,c);assert(folder.some(row=>row.key==='commercial'));assert(folder.some(row=>row.key==='packing'));
   assert.equal(JSON.stringify({c,s}),before,'Document generation never changes its original sources');cases++;
  }
