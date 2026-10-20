@@ -119,3 +119,14 @@ Recovery39492533976/job118869229237 passed its exact-live prerequisite and bound
 ## Follow-up connection diagnostic
 
 PR461 diagnostic39494089536/job118874537233 passed: anonymous loginHTTP200/curl0, TLS156ms and total301ms. The direct SSH channel to closed loopback port1 was permitted and refused by the destination, so the prior target-readiness timeout is not attributed to blanket SSH forwarding denial. No payload or configuration change was made. The protected rehearsal now reports only fixed copy/server phases, numeric host/runner HTTP codes and fixed browser phases on failure; private SSH/PHP logs, gate values and source records remain unpublished. The original four-minute bound, exact-live prerequisite, loopback/gate isolation and data limits remain in force.
+
+
+## Final diagnostic release
+
+PR462 merged asf35a3fe7757d23207cd857bf5ae670c87d489703. Exact-main Accounts39494552555 and Milling/Exports39494552617 passed. Deployment39495063042/job118877887843 matched all460application files and recordedbusinessFilesWritten0. Only diagnostic/rehearsal scripts and audit records changed from the previously verified business application. The final owner Chrome check still reads: Package queued; waiting for the office agent to confirm all5files. No second package was queued and no PC task or credential was changed.
+
+
+Latest released live39495236012/job118878482410 passed24/24, including LIVE_ASAS62_PACKING_REPRINT_OK with actual PDF generation, normal-flow ORIGINAL, no overlap and zero original replacement/financial/document writes. Startup39495236080/job118878549656 passed: login447ms, usable Accounts921ms, Accounts reload1582ms, Milling1215ms and Exports929ms.
+
+
+Recovery39495236037/job118878544959 passed its exact24/24live prerequisite and copied both the application and private originals, then timed out again. Fixed diagnostics show hostHTTP000 and runnerHTTP000, with connection_refused. No browser/control/rollback acceptance was reached. Because even the host-local request failed, the next diagnostic tests only an empty temporary PHP server with a random request gate, publishes fixed startup-error categories and native loopback-bind availability, and removes itself. It reads/writes zero application files and does not reduce hosting protection.

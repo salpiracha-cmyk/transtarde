@@ -198,6 +198,56 @@ jobs:
           count_complete=true
           counts=$(find "$account" -xdev -printf '%y\n' 2>/dev/null | awk '{c[$1]++}END {printf "files=%d directories=%d symlinks=%d",c["f"],c["d"],c["l"]}') || count_complete=false
           echo "ACCOUNT_FILE_COUNTS $counts complete=$count_complete"
+          # No application data: diagnose an ephemeral loopback-only PHP server.
+          task_probe=$(mktemp -d /tmp/tt-server-probe-XXXXXXXX)
+          task_probe_pid=''
+          task_probe_cleanup(){
+            if [ -n "$task_probe_pid" ]; then kill "$task_probe_pid" 2>/dev/null || true; wait "$task_probe_pid" 2>/dev/null || true; fi
+            case "$task_probe" in /tmp/tt-server-probe-????????) rm -rf -- "$task_probe" ;; esac
+          }
+          trap task_probe_cleanup EXIT
+          mkdir -m 700 "$task_probe/www"
+          php -r 'echo bin2hex(random_bytes(32));' > "$task_probe/gate"
+          cat > "$task_probe/router.php" <<'PROBEROUTER'
+          <?php
+          if(!hash_equals(file_get_contents(__DIR__.'/gate'),(string)($_SERVER['HTTP_X_TT_PROBE']??''))){http_response_code(404);exit;}
+          header('Content-Type: application/json');echo '{"ok":true}';
+          PROBEROUTER
+          task_probe_resolved=$(php -r 'echo PHP_BINARY;')
+          for task_probe_runner in command resolved cleared_env; do
+          task_probe_php=php
+          if [ "$task_probe_runner" = resolved ]; then
+            case "$task_probe_resolved" in /*) [ -x "$task_probe_resolved" ] && task_probe_php=$task_probe_resolved ;; esac
+          fi
+          task_probe_port=$((20000 + RANDOM % 20000))
+          if [ "$task_probe_runner" = cleared_env ]; then
+            env -u TT_DB_HOST -u TT_DB_NAME -u TT_DB_USER -u TT_DB_PASS "$task_probe_php" -S "127.0.0.1:$task_probe_port" -t "$task_probe/www" "$task_probe/router.php" > "$task_probe/server.log" 2>&1 &
+          else
+            "$task_probe_php" -S "127.0.0.1:$task_probe_port" -t "$task_probe/www" "$task_probe/router.php" > "$task_probe/server.log" 2>&1 &
+          fi
+          task_probe_pid=$!
+          task_probe_status=000
+          for attempt in 1 2 3 4 5; do
+            task_probe_status=$(curl --noproxy 127.0.0.1 --silent --output /dev/null --write-out '%{http_code}' --max-time 2 -H "X-TT-Probe: $(cat "$task_probe/gate")" "http://127.0.0.1:$task_probe_port/ready") || true
+            [ "$task_probe_status" = 200 ] && break
+            sleep 1
+          done
+          TT_SERVER_PROBE_LOG="$task_probe/server.log" TT_SERVER_PROBE_STATUS="$task_probe_status" TT_SERVER_PROBE_RUNNER="$task_probe_runner" "$task_probe_php" <<'PROBECATEGORY'
+          <?php
+          function probe_category(string $log): string { $category='unclassified';
+          foreach(['server_started'=>'/Development Server .*started/i','listen_failed'=>'/Failed to listen/i','unsupported_server'=>'/unknown option|invalid option|unrecognized option|not supported|Usage:/i','filesystem_restriction'=>'/open_basedir/i','port_in_use'=>'/Address already in use/i','permission_denied'=>'/Permission denied|Operation not permitted/i','resource_limit'=>'/fork|Resource temporarily unavailable|Too many open files|Cannot allocate memory/i','runtime_crash'=>'/Segmentation fault|core dumped|Aborted/i','command_missing'=>'/command not found|No such file or directory|Could not open input file/i','startup_failure'=>'/PHP (?:Fatal error|Warning:.*Startup)|Fatal error:/i','socket_family'=>'/Address family not supported/i'] as $label=>$pattern)if(preg_match($pattern,$log))$category=$label;return $category;}
+          $category=probe_category(file_get_contents(getenv('TT_SERVER_PROBE_LOG')));
+          $existing=[];foreach(glob('/tmp/tt-audit-rehearsal-*')?:[] as $dir){if(!preg_match('~/tt-audit-rehearsal-[A-Za-z0-9]{8}$~D',$dir)||!is_readable($dir.'/server.log'))continue;$existing[]=['category'=>probe_category((string)file_get_contents($dir.'/server.log'))];}
+          $bind='unavailable';if(function_exists('stream_socket_server')){$socket=@stream_socket_server('tcp://127.0.0.1:0',$errno,$message);$bind=$socket?'allowed':'denied';if($socket)fclose($socket);}
+          $status=getenv('TT_SERVER_PROBE_STATUS');if(!preg_match('/^[0-9]{3}$/D',$status))$status='unclassified';
+          echo 'PRIVATE_PHP_SERVER_PROBE '.json_encode(['runner'=>getenv('TT_SERVER_PROBE_RUNNER'),'httpStatus'=>$status,'serverCategory'=>$category,'nativeLoopbackBind'=>$bind,'existingRehearsalServers'=>$existing,'applicationFilesRead'=>0,'applicationFilesWritten'=>0],JSON_THROW_ON_ERROR)."\n";
+          PROBECATEGORY
+          kill "$task_probe_pid" 2>/dev/null || true
+          wait "$task_probe_pid" 2>/dev/null || true
+          task_probe_pid=''
+          done
+          task_probe_cleanup
+          trap - EXIT
           REMOTE
           # Probe only whether SSH permits a direct channel to closed loopback
           # port1. No application payload, copy, server or configuration change.
