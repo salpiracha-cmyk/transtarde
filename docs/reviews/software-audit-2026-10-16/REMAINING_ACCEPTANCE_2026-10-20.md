@@ -1,5 +1,7 @@
 # Remaining audit acceptance — 20 October 2026, connected Chrome continuation
 
+Latest consolidated evidence: [Full audit continuation and exact release closeout](FINAL_REVIEW_2026-10-20.md). The156-scope business-acceptance register is125passed,24partial,1not tested,3source/document failures,2blocked and1intermittent. These statuses are retained rather than inflated by repeated test runs.
+
 Latest afternoon evidence: [Authorised party correction, deployed protections and partial-payment plan](PARTY_CORRECTION_2026-10-20.md). Scope37 advances from not tested to partial;125passed and31open remain unchanged.
 
 This continues the PR401 checkpoint and incorporates subsequent main changes

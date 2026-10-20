@@ -1,5 +1,7 @@
 # Transtrade migration readiness — 19 October 2026
 
+Latest consolidated evidence: [Full audit continuation and exact release closeout](FINAL_REVIEW_2026-10-20.md). The156-scope business-acceptance register is125passed,24partial,1not tested,3source/document failures,2blocked and1intermittent. These statuses are retained rather than inflated by repeated test runs.
+
 Latest afternoon evidence: [Authorised party correction, deployed protections and partial-payment plan](PARTY_CORRECTION_2026-10-20.md). Scope37 advances from not tested to partial;125passed and31open remain unchanged.
 
 Latest continuation: [Connected Chrome acceptance, two additional repairs and exact remaining work](REMAINING_ACCEPTANCE_2026-10-20.md). Coverage156:125passed,23partial,3failed,2not tested,2blocked,1intermittent. The AMT reference-search action is newly closed;31scopes remain. Earlier counts below are historical checkpoints.

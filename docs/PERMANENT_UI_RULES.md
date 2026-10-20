@@ -460,6 +460,10 @@ Online Banking payments expose an editable payment date, defaulting from the vou
 - Invoice payment notes come from exact saved allocations and actual bank/cash legs, including later/partial payments, original advance funding and separate cheque/payment/reference dates. Deduplicate source/native payment registers. Issued PDCs are labelled awaiting bank clearance, not statement proof. Never infer that an unrelated supplier payment settled an invoice, or that a cheque date is its statement-clearing date. A marked bank statement is attached separately by the user.
 - Keep original bill/source-linked upload identities, replacement history and explicit filing progress separate from financial posting. File reads and uploads enforce company and original workflow permissions. Complete print/download includes the actual PDF/image pages and checklist/payment notes; missing originals block complete printing. Changing company/month or a saved source invalidates the prepared pack. Read/print never marks a return or refund submitted.
 
+## Free register search — 20 October 2026
+
+- Register and report search bars remain free text filters even when their labels mention supplier, broker or buyer. Mark them outside automatic master selection. They must not offer party creation, silently resolve a party name, or replace a typed reference. Native regressions for these screens load the shared autocomplete as well as the screen itself.
+
 ## Salary payment choices and retained remuneration — 20 October 2026
 
 - Three independent choices: Petty Cash reveals only its amount; Bank reveals an editable amount and the shared bank/payment details; Retain with Company reveals the calculated unpaid monthly balance. Support all seven combinations. Bank is selected only by the user; changing ticks never replaces an edited cash amount. Any unpaid remainder automatically selects Retain with Company.
