@@ -49,7 +49,9 @@ function sm_amount(mixed $value,string $label): float {
 function sm_date(string $value,string $label,bool $optional=false): string {
     $value=trim($value);
     if ($optional && $value==='') return '';
-    return tt_master_calendar_date($value,$label,$optional);
+    $date=DateTimeImmutable::createFromFormat('!Y-m-d',$value);
+    if(!preg_match('/^\d{4}-\d{2}-\d{2}$/D',$value)||!$date||$date->format('Y-m-d')!==$value)throw new InvalidArgumentException($label.' must be a valid calendar date.');
+    return $value;
 }
 function sm_category(string $value): string {
     $value=strtoupper(trim($value));
