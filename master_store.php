@@ -148,6 +148,21 @@ function tt_reserve_post_id(string $module, string $area, array $context = []): 
     return tt_format_post_id($next, $year);
 }
 
+/** Reserve a correction batch once while the caller holds Accounts storage.
+ * Never start a backup (which also reads Accounts) under that lock. */
+function tt_reserve_post_id_block(array $existing,int $count,string $module='Accounts',string $area='Salary correction'):array {
+    if($count<1||$count>2000)throw new InvalidArgumentException('Invalid posting batch size.');
+    $year=tt_post_id_year();$minimum=0;$ids=[];
+    foreach($existing as $key=>$j){$id=(string)($j['id']??$key);if(preg_match('/^POST-'.$year.'-(\\d{5})$/',$id,$m))$minimum=max($minimum,(int)$m[1]);}
+    tt_mutate_store(function(&$data)use($year,$minimum,$count,$module,$area,&$ids){
+        $last=max($minimum,(int)($data['post_sequence']['years'][(string)$year]['last']??0));
+        tt_format_post_id($last+$count,$year);
+        for($i=1;$i<=$count;$i++){$id=tt_format_post_id($last+$i,$year);$ids[]=$id;$data['post_sequence']['history'][]=['post_id'=>$id,'year'=>$year,'number'=>$last+$i,'module'=>$module,'area'=>$area,'context'=>['batchSize'=>$count],'created_at'=>date(DATE_ATOM)];}
+        $data['post_sequence']['years'][(string)$year]['last']=$last+$count;$data['post_sequence']['last']=max((int)($data['post_sequence']['last']??0),$last+$count);
+    },false);
+    return $ids;
+}
+
 function tt_next_post_id(array $existing = [], string $module = 'Accounts', string $area = 'Journal', ?string $date = null): string {
     $year = preg_match('/^(\d{4})-/', (string)$date, $match) ? (int)$match[1] : tt_post_id_year();
     $minimum = 0;

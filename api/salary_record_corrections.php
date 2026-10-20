@@ -45,8 +45,13 @@ function src_correct(array &$s,string $e,string $m,array $b,array $u,array $name
     if(isset($s['postingKeys'][$key])){if(!hash_equals($s['postingKeys'][$key]['fingerprint'],$fingerprint))throw new DomainException('This correction key was already used for different details.');return $s['postingKeys'][$key]['result']+['duplicate'=>true];}
     if(!hash_equals(src_snapshot($s,$e),(string)($b['snapshot']??'')))throw new DomainException('Payroll records changed. Reopen and review this correction.');
     $date=trim((string)($b['date']??''));if($date!==''){$d=DateTimeImmutable::createFromFormat('!Y-m-d',$date);if(!$d||$d->format('Y-m-d')!==$date||substr($date,0,7)!==$m)throw new DomainException('Choose a valid date in the selected salary month.');if(($s['salarySheets'][$e.'|'.$m]['status']??'')!=='Completed')throw new DomainException('Complete the salary month before correcting its posted dates.');}
+    $current=src_current($s,$e);$planned=0;
+    foreach($current as $j){$needed=$date!==''&&src_month($j)===$m&&$j['date']!==$date;foreach($j['lines'] as $l){if(($l['account']??'')==='2140'&&($l['salaryMasterId']??$j['meta']['salaryMasterId']??'')!=='')$needed=true;if($date!==''&&src_month($j)===$m)foreach(['paymentDate','chequeDate','bankPaymentDate'] as $f)if(!empty($l[$f])&&$l[$f]!==$date)$needed=true;}if($needed)$planned++;}
+    if(!$planned)throw new DomainException('The selected payroll dates and accounts already match.');
+    if(empty($b['preview'])&&function_exists('tt_reserve_post_id_block'))$ids=tt_reserve_post_id_block($s['journals'],$planned*2);
+    else{$ids=[];$year=gmdate('Y');$minimum=0;foreach($s['journals'] as $id=>$j)if(preg_match('/^POST-'.$year.'-(\\d+)$/',(string)$id,$match))$minimum=max($minimum,(int)$match[1]);for($i=1;$i<=$planned*2;$i++)$ids[]='POST-'.$year.'-'.str_pad((string)($minimum+$i),5,'0',STR_PAD_LEFT);}
     $next=$s;$map=[];$changes=[];$dateCount=0;$accountCount=0;
-    foreach(src_current($s,$e) as $id=>$j){
+    foreach($current as $id=>$j){
         $changeDate=$date!==''&&src_month($j)===$m;$lines=$j['lines'];$reclassified=false;
         foreach($lines as &$l){
             // Company asset instalments in a mixed salary payment stay supplier liabilities.
@@ -57,10 +62,10 @@ function src_correct(array &$s,string $e,string $m,array $b,array $u,array $name
         $dr=0;$cr=0;foreach($j['lines'] as $l){$dr+=(int)round(100*(float)$l['debit']);$cr+=(int)round(100*(float)$l['credit']);}
         if($dr<=0||$dr!==$cr||$dr!==(int)round(100*(float)($j['totalDebit']??0))||$cr!==(int)round(100*(float)($j['totalCredit']??0)))throw new DomainException('A selected salary journal is unbalanced. Correct its original source first.');
         $reverse=$j['lines'];foreach($reverse as &$l){[$l['debit'],$l['credit']]=[$l['credit'],$l['debit']];foreach([['bankDebit','bankCredit'],['nativeDebit','nativeCredit']] as [$a,$c])if(isset($l[$a])||isset($l[$c]))[$l[$a],$l[$c]]=[$l[$c]??0,$l[$a]??0];}unset($l);
-        $rid=rsv2_journal($next,$e,$j['date'],'SALARY_RECORD_CORRECTION_REVERSAL',$id,'Payroll correction reversal — '.$reason,$reverse,$u,['originalPostId'=>$id,'reason'=>$reason]);$next['journals'][$rid]['reversalOf']=$id;
+        $rid=rsv2_journal($next,$e,$j['date'],'SALARY_RECORD_CORRECTION_REVERSAL',$id,'Payroll correction reversal — '.$reason,$reverse,$u,['originalPostId'=>$id,'reason'=>$reason],array_shift($ids));$next['journals'][$rid]['reversalOf']=$id;
         $meta=(array)($j['meta']??[]);$meta['publicPostId']=tt_accounts_public_post($s,$j);$meta['reconciliationPostId']=$meta['reconciliationPostId']??$id;$meta['amendmentOfPostId']=$id;$meta['amendmentReason']=$reason;$meta['reversalPostId']=$rid;$meta['amendmentNote']='Edited '.gmdate('Y-m-d').' by '.($u['full_name']??$u['username']??'Accounts').' — '.$reason.($changeDate?' — Date: '.$j['date'].' → '.$date:'').($reclassified?' — Payroll payable: 2140 → 2230':'');
         if($changeDate)foreach(['paymentDate','chequeDate','bankPaymentDate'] as $field)if(!empty($meta[$field]))$meta[$field]=$date;
-        $nid=rsv2_journal($next,$e,$changeDate?$date:$j['date'],$j['sourceType'],(string)($j['reference']??''),(string)($j['narration']??''),$lines,$u,$meta);
+        $nid=rsv2_journal($next,$e,$changeDate?$date:$j['date'],$j['sourceType'],(string)($j['reference']??''),(string)($j['narration']??''),$lines,$u,$meta,array_shift($ids));
         $next['journals'][$id]['amendedByPostId']=$nid;$next['journals'][$id]['amendmentReversalPostId']=$rid;$next['journals'][$id]['reversedByPostId']=$rid;$map[$id]=$nid;
         $changes[]=['originalPostId'=>$id,'replacementPostId'=>$nid,'publicPostId'=>$meta['publicPostId'],'oldDate'=>$j['date'],'date'=>$changeDate?$date:$j['date'],'payrollSeparated'=>$reclassified];
         $dateCount+=(int)($changeDate&&$j['date']!==$date);$accountCount+=(int)$reclassified;
