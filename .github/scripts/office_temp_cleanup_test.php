@@ -7,6 +7,13 @@ try{
  $p=$dir.'/tt-backup-ABC123';$z=new TT_SimpleZipWriter($p);$z->addString('backup-manifest.json',json_encode(['application'=>'Transtrade','type'=>'full_recovery','schema'=>2,'createdAt'=>gmdate('c'),'encryptedEntries'=>['entry'=>['stored'=>'payload']],'recoveryFiles'=>[['path'=>'auth.json']]]));$z->close();
  $c=otc_classify($p,$uid,$now);check($c['reason']==='eligible','recognise known generated archive');
  check(otc_classify($p,$uid,time())['reason']==='recent','hold recent');
+ check(is_bool(otc_process_visibility($uid)),'visibility check has explicit result');
+ $cut=strtotime('2026-10-20T10:17:16Z');$old=['mtime'=>$cut-3600,'ctime'=>$cut-3600];
+ check(otc_legacy_grace($old,$cut+900,2,$cut-3600),'recognise fixed pre-repair legacy backlog');
+ check(!otc_legacy_grace($old,$cut+900,3,$cut-3600),'new schema has no age exception');
+ check(!otc_legacy_grace(['mtime'=>$cut-60,'ctime'=>$cut-60],$cut+900,2,$cut-60),'hold within grace');
+ check(!otc_legacy_grace(['mtime'=>$cut+1,'ctime'=>$cut+1],$cut+86400,2,$cut-3600),'hold changed after repair');
+ check(!otc_legacy_grace($old,$cut+900,2,$cut+1),'hold manifest after cutoff');
  check(otc_classify($p,$uid+1,$now)['reason']==='unknown','hold other owner');
  $link=$dir.'/tt-backup-SYM123';symlink($p,$link);check(otc_classify($link,$uid,$now)['reason']==='unknown','hold symlink');
  $unknown=$dir.'/tt-backup-BAD123';file_put_contents($unknown,'unrecognised');check(otc_classify($unknown,$uid,$now)['reason']==='unrecognised','hold unreadable');
