@@ -107,7 +107,7 @@ Every request requiring Director approval must also appear in the Super Admin Co
 ## Accounts expense entry and navigation
 
 - The Expenses area has Pay Expense, Expense Recipients, and Salaries & Staff. Pay Expense opens Other Expense, Utilities, and Credit Card using three centred green icon buttons on one screen. Pay Expense accepts any recipient, including household expenses without an individual director assignment.
-- A single payment may contain multiple categorized expense rows. Debit the applicable subsidiary accounts and credit the selected bank/cash once for the total. Post is explicit; printing is a separate action in the posting confirmation. This form has no Pay Later or autosave.
+- A single payment may contain multiple categorized expense rows. Debit the applicable subsidiary accounts and credit the selected bank/cash once for the total. Post is explicit; printing is a separate action in the posting confirmation. Pay now remains the direct-payment path. A separate explicit Record invoice — pay later mode records the original supplier obligation; its later payments use Party Payments. No autosave.
 - Corrections reverse and replace the original payment with its expense breakdown retained; deletions reverse postings and retain audit history. Retry keys prevent duplicate postings.
 - Open the modern expense renderer directly, and show the finished form after loading; do not simulate old workspace and child-button clicks.
 - Supplier/Broker Payment is available in Local Purchases and the second Home summary box. Do not add a separate top Home shortcut. Unfinished prepared payment plans remain at the bottom.
@@ -475,3 +475,12 @@ Online Banking payments expose an editable payment date, defaulting from the vou
 - Party Payments for TTI/BRM offers Full / agreed settlement and Pay part — keep balance. Explicit part payment preserves every unpaid rupee/paisa, including differences below PKR100, and never applies a discount. The settlement choice retains the existing small-difference rule and larger explicit agreed-discount tick. This qualifies the 15 October rule; historical postings are unchanged.
 - Enforce intent on the server, reject contradictory discounts, bind it to retry identity, and retain it with the source payment/journal. Preview, amendment and reopening preserve the choice. Legacy zero-discount amendments default to keeping the balance; no historical discount is silently removed.
 - Exact selected invoices and separately selected B/F remain authoritative. Later settlement clears the same liability without a second expense. TG, salary, reimbursement, credit-card and commodity planning retain their own engines.
+
+
+## Expense invoices and later payments — 20 October 2026
+
+- TTI/BRM ordinary and utility expenses may record the full original invoice without a bank/cash payment. Keep invoice number/date, bill month, due date, original supplier and expense rows. TG retains its existing native-currency supplier-bill workflow.
+- Post the expense and supplier payable once. Partial/final bank, cash and approved existing settlement routes clear that same liability; never recognize the expense again. A round payment keeps the remainder payable unless an explicit agreed discount is selected.
+- Expense Invoices & Balances filters current balances by supplier, original invoice/month/date, due date, head and payment status; CSV/print reflect those filters. Pending cheques remain distinct from cleared payment. Invoice-date filters are not a historical-balance cutoff.
+- Unpaid correction/cancellation requires Expenses Edit, company authority, current source identity and a reason. Reverse linked payments first; reject raw journal edits. Preserve audit history, original public Post ID and idempotent retry behavior.
+- Captured Mill K-Electric invoices feed their actual billing month in Sales Tax & Refund and their actual meter period in production costs. Original documents remain required. Payment notes derive from the exact invoice allocation and actual bank source/date/reference. A reminder alone never posts.

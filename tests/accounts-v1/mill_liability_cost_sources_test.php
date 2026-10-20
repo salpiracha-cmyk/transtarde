@@ -19,7 +19,12 @@ check_cost($frozen['postId']==='POST1','Cost lost canonical Post ID');
 $ops['values']['tt38kebills']='[]';$orphan=pc_cost_sources($ops,$groups,$store);check_cost(count($orphan)===1&&$orphan[0]['amount']===2000.0,'Missing operational source erased posted cost');
 $store['utilityPayments']=['U1'=>['id'=>'U1','entity'=>'TTI','status'=>'Posted','productionCostEligible'=>true,'utilityType'=>'ELECTRICITY','readFrom'=>$bill['readFrom'],'readTo'=>$bill['readTo'],'reference'=>$bill['ref'],'locationName'=>$bill['millName'],'amount'=>2000]];
 check_cost(count(pc_cost_sources($ops,$groups,$store))===1,'Same KE bill and recorded utility payment counted twice');
-unset($store['utilityPayments']);$store['millLiabilities'][$key]['status']='Reversed';check_cost(pc_cost_sources($ops,$groups,$store)===[],'Reversed liability remained in conversion cost');
+unset($store['utilityPayments']);
+$invoice=['id'=>'EINV1','entity'=>'TTI','status'=>'Posted','expenseInvoice'=>true,'invoiceKind'=>'UTILITY','productionCostEligible'=>true,'utilityType'=>'ELECTRICITY','readFrom'=>$bill['readFrom'],'readTo'=>$bill['readTo'],'reference'=>$bill['ref'],'locationName'=>$bill['millName'],'amount'=>2000,'journalId'=>'INVOICE1'];
+$store['supplierBills']=['EINV1'=>$invoice];check_cost(count(pc_cost_sources($ops,$groups,$store))===1,'Captured KE invoice duplicated the same original operational bill');
+$store['millLiabilities'][$key]['status']='Reversed';$cost=pc_cost_sources($ops,$groups,$store);check_cost(count($cost)===1&&$cost[0]['accountsStatus']==='Posted invoice'&&$cost[0]['postId']==='INVOICE1','Unpaid invoice lost its production cost');
+$store['supplierSettlements']=['PAY1'=>['allocations'=>[['billId'=>'EINV1','amount'=>2000]]]];check_cost(pc_cost_sources($ops,$groups,$store)===$cost,'Paying the invoice changed the production expense');
+$store['supplierBills']['EINV1']['status']='Cancelled';check_cost(pc_cost_sources($ops,$groups,$store)===[],'Cancelled invoice remained in production costs');unset($store['supplierBills']);$store['millLiabilities'][$key]['status']='Reversed';check_cost(pc_cost_sources($ops,$groups,$store)===[],'Reversed liability remained in conversion cost');
 $unknown=$bill;unset($unknown['millName']);$ops['values']['tt38kebills']=json_encode([$unknown]);$u=pc_cost_sources($ops,$groups)[0];
 check_cost(!$u['inputComplete']&&$u['allocations']===[]&&$u['allocationStatus']==='Mill location unverified','Unknown mill silently assigned to TTI');
 $parts=[];for($i=1;$i<=3;$i++)$parts[]=$run('ROUND-'.$i,'2026-10-0'.$i,'TTI Rice Mills','IRRI-6 White Rice',1);
@@ -28,3 +33,14 @@ $g=pc_group_production(pc_production($ops));$r=pc_cost_sources($ops,$g)[0];check
 $ops['values']['tt38labourbills']=json_encode([['id'=>'MAIZE','entity'=>'TTI','millName'=>'TTI Rice Mills','commodity'=>'Makai','from'=>'2026-10-01','till'=>'2026-10-18','amount'=>999999]]);
 check_cost(count(pc_cost_sources($ops,$g))===1,'Maize labour contaminated Rice conversion costs');
 echo "PASS cost sources: same mill only, immutable booked amount and Post ID, amendment hold, missing-source preservation, KE/payment deduplication, reversal removal, unknown location hold and exact rounded allocation\n";
+
+require dirname(__DIR__,2).'/api/expense_reminders.php';
+$inv=$invoice+['supplierPayableTotal'=>2000,'billMonth'=>'2026-10','utilityMasterId'=>'MASTER','vendor'=>'K-Electric','billDate'=>'2026-10-01'];
+$reminderStore=['utilityMasters'=>[['id'=>'MASTER','entity'=>'TTI','utilityType'=>'ELECTRICITY','locationName'=>'Fixture Mill','status'=>'Active']],'supplierBills'=>['EINV1'=>$inv]];
+check_cost(!tt_expense_monthly_reminders($reminderStore,'TTI','2026-10')[0]['paid'],'Unpaid invoice reminder disappeared');
+$reminderStore['supplierSettlements']=[['entity'=>'TTI','status'=>'Posted','date'=>'2026-10-02','allocations'=>[['billId'=>'EINV1','amount'=>1000,'paidAmount'=>1000]]]];
+check_cost(!tt_expense_monthly_reminders($reminderStore,'TTI','2026-10')[0]['paid'],'Partial payment closed the utility reminder');
+$reminderStore['supplierSettlements'][0]['allocations'][0]['amount']=2000;$reminderStore['supplierSettlements'][0]['chequeStatus']='Issued';
+check_cost(!tt_expense_monthly_reminders($reminderStore,'TTI','2026-10')[0]['paid'],'Uncleared cheque was reported paid');
+$reminderStore['supplierSettlements'][0]['chequeStatus']='Cleared';check_cost(tt_expense_monthly_reminders($reminderStore,'TTI','2026-10')[0]['paid'],'Cleared full invoice did not close utility reminder');
+echo "PASS captured utility reminders: unpaid and partial remain open, issued cheque waits for clearance, fully cleared closes\n";

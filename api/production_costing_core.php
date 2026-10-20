@@ -296,12 +296,12 @@ function pc_cost_sources(array $ops, array $groups, array $store = [], string $e
             if ($prefix==='KE') $seenElectricity[strtoupper(trim($ref)).'|'.$from.'|'.$to.'|'.round($amount,2).'|'.pc_norm($mill)]=true;
         }
     }
-    foreach ((array)($store['utilityPayments']??[]) as $bill) {
+    foreach (array_merge((array)($store['utilityPayments']??[]),array_filter((array)($store['supplierBills']??[]),static fn($b)=>!empty($b['expenseInvoice'])&&($b['invoiceKind']??'')==='UTILITY'&&($b['status']??'')==='Posted')) as $bill) {
         if (!is_array($bill)||($bill['entity']??'')!==$entity||($bill['status']??'')==='Deleted'||empty($bill['productionCostEligible'])) continue;
-        $from=(string)($bill['readFrom']??$bill['paymentDate']??'');$to=(string)($bill['readTo']??$bill['paymentDate']??'');$reference=(string)($bill['reference']??'');$mill=(string)($bill['locationName']??'');
+        $from=(string)($bill['readFrom']??$bill['billDate']??$bill['paymentDate']??'');$to=(string)($bill['readTo']??$bill['billDate']??$bill['paymentDate']??'');$reference=(string)($bill['reference']??'');$mill=(string)($bill['locationName']??'');
         $signature=strtoupper(trim($reference)).'|'.$from.'|'.$to.'|'.round((float)($bill['amount']??0),2).'|'.pc_norm($mill);
         if (($bill['utilityType']??'')==='ELECTRICITY'&&$reference!==''&&isset($seenElectricity[$signature])) continue;
-        $add('UTILITY|'.$bill['id'],(string)($bill['utilityTypeName']??'Mill Utility'),$from,$to,(float)($bill['amount']??0),$reference,$mill,['accountsStatus'=>'Posted payment','postId'=>(string)($bill['journalId']??'')]);
+        $add('UTILITY|'.$bill['id'],(string)($bill['utilityTypeName']??'Mill Utility'),$from,$to,(float)($bill['amount']??0),$reference,$mill,['accountsStatus'=>!empty($bill['expenseInvoice'])?'Posted invoice':'Posted payment','postId'=>(string)($bill['journalId']??'')]);
     }
     return $sources;
 }
