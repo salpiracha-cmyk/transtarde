@@ -4,11 +4,11 @@ require_once __DIR__.'/accounts_subaccounts_core.php';
 /** Canonical choices only: extra payments never change monthly entitlement. */
 function sea_choices(array $s,string $e,array $u):array {
     $expenses=[];$capital=[];
-    foreach(sac_accounts($s,$e) as $id=>$unused){try{$a=sac_resolve($s,$e,(string)$id);if($a['class']==='Expense'&&$a['expenseClassification']!=='MILL')$expenses[]=['id'=>$id,'name'=>$a['path'],'parentCode'=>$a['parentCode']];}catch(DomainException $ignore){}}
+    foreach(sac_accounts($s,$e) as $id=>$unused){try{$a=sac_resolve($s,$e,(string)$id);if($a['class']==='Expense'&&$a['expenseClassification']!=='MILL')$expenses[]=['id'=>$id,'name'=>$a['name'],'parentCode'=>$a['parentCode']];}catch(DomainException $ignore){}}
     usort($expenses,static fn($a,$b)=>strnatcasecmp($a['name'],$b['name']));
     if(far_permission($u,'Accounts','Create')){
-        foreach((array)($s['managedAssets']??[]) as $a)if(($a['entity']??'')===$e&&empty($a['trackingOnly'])&&($a['currency']??'')===($e==='TG'?'AED':'PKR')&&far_totals($a)['balanceCents']>0)$capital[]=['id'=>'ASSET_PAYMENT|'.$a['id'],'name'=>'Property / asset payment · '.$a['name'],'version'=>(int)$a['version']];
-        foreach((array)($s['investmentBrokers']??[]) as $a)if(($a['entity']??'')===$e&&!empty($a['active']))$capital[]=['id'=>'BROKER_FUND|'.$a['id'],'name'=>$a['name'].' capital / funding'];
+        foreach((array)($s['managedAssets']??[]) as $a)if(($a['entity']??'')===$e&&empty($a['trackingOnly'])&&($a['currency']??'')===($e==='TG'?'AED':'PKR')&&far_totals($a)['balanceCents']>0)$capital[]=['id'=>'ASSET_PAYMENT|'.$a['id'],'name'=>$a['name'],'version'=>(int)$a['version']];
+        foreach((array)($s['investmentBrokers']??[]) as $a)if(($a['entity']??'')===$e&&!empty($a['active']))$capital[]=['id'=>'BROKER_FUND|'.$a['id'],'name'=>$a['name']];
         $capital[]=['id'=>'COMPANY_HELD','name'=>'Company funds held for onward transfer'];
         $capital[]=['id'=>'BROKER_RECEIVED','name'=>'Company broker · routed receipt confirmed'];
     }
@@ -53,4 +53,20 @@ function sea_reverse_assets(array &$s,string $jid,string $rid,string $reason,arr
         $s['managedAssets'][$aid]['paymentCorrections'][]=['payment'=>$p,'reversalJournalId'=>$rid,'reason'=>$reason,'at'=>gmdate('c'),'by'=>$u['username']??'Accounts'];
         unset($s['managedAssets'][$aid]['payments'][$pid]);$s['managedAssets'][$aid]['version']++;
     }
+}
+
+/** All charges against a monthly entitlement, including expense portions borne by a director. */
+function sea_charges(array $a):array {
+    $out=$a['type']==='SALARY'?[['masterId'=>$a['masterId'],'amount'=>$a['amount'],'internal'=>false]]:[];
+    if(($a['remunerationAmount']??0)>.005)$out[]=['masterId'=>$a['remunerationMasterId'],'amount'=>$a['remunerationAmount'],'internal'=>true];
+    return $out;
+}
+function sea_remuneration_balances(array $s,string $e):array {
+    $out=[];$asOf=(new DateTimeImmutable('now',new DateTimeZone('Asia/Karachi')))->format('Y-m-d');$hidden=alv_hidden($s,$asOf);
+    foreach($s['salaryMasters']??[] as $id=>$m)if(($m['entity']??'')===$e&&($m['category']??'')==='DIRECTOR_REMUNERATION')$out[$id]=['masterId'=>$id,'name'=>$m['name'],'debit'=>0,'credit'=>0,'asOf'=>$asOf];
+    foreach($s['journals']??[] as $id=>$j)if(($j['entity']??'')===$e&&($j['status']??'')==='Posted'&&($j['date']??'')<=$asOf&&!isset($hidden[$id]))foreach($j['lines']??[] as $l){$mid=$l['salaryMasterId']??$j['meta']['salaryMasterId']??'';if(isset($out[$mid])&&in_array($l['account']??'',['1230','2140'],true)){$out[$mid]['debit']+=(float)$l['debit'];$out[$mid]['credit']+=(float)$l['credit'];}}
+    foreach($out as &$v){$v['receivableByDirector']=round(max(0,$v['credit']-$v['debit']),2);$v['recoverableFromDirector']=round(max(0,$v['debit']-$v['credit']),2);}unset($v);return array_values($out);
+}
+function sea_home_meta(array $s,string $e,array $row):array {
+    $person=sac_home_person($row['name']);$sub=sac_resolve($s,$e,sac_home_id($e,$person));return sac_extra($sub)+['expenseFor'=>$person,'expenseArea'=>'HOME','companyHomeExpense'=>true];
 }

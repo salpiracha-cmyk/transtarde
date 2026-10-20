@@ -251,7 +251,7 @@ test('authenticated Accounts live smoke: professional desk and popup workflows',
   const salaryPay = page.locator('[data-rs-draft-pay]').first();
   if (await salaryPay.count()) {
     await activate(salaryPay);
-    await expect(page.locator('#rsDraftForm h3')).toContainText(/Actual payments|Monthly payment/);
+    await expect(page.locator('#rsDraftForm h3')).toContainText(/Actual payments|Monthly payment|Payment plan/);
     await expect(page.locator('#rsDraftForm')).toContainText('Saving retains a draft; complete the month to post.');
     await expect(page.locator('#rsAddTransaction')).toBeVisible();
     await expect(page.locator('#rsPaySalBtn')).toHaveText('Save payment draft');
