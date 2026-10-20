@@ -174,12 +174,12 @@ function ps_rows(array $store, string $entity): array {
         foreach ((array)($store['events'] ?? []) as $event) {
             if (!is_array($event) || ($event['status'] ?? '') === 'Reversed' || ($event['eventType'] ?? '') !== 'COMMODITY_RECEIPT_ACCEPTED' || strtoupper((string)($event['entity'] ?? '')) !== $entity) continue;
             $journal = $store['journals'][$event['journalId'] ?? ''] ?? null;
-            if (!is_array($journal) || ($journal['status'] ?? '') === 'Reversed') continue;
+            if (!is_array($journal) || ($journal['entity'] ?? '') !== $entity || ($journal['status'] ?? '') === 'Reversed') continue;
             $meta = is_array($journal['meta'] ?? null) ? $journal['meta'] : [];
             if ((string)($meta['soda'] ?? '') !== $number || (string)($soda['readyRoute']??'')==='EX_MILL') continue;
             $eventCommodity = strtoupper((string)($meta['commodity'] ?? $commodity));
             if ($eventCommodity !== $commodity) continue;
-            $kg = (float)($meta['payableWeightKg'] ?? 0);
+            $kg = (float)($meta['payableWeightKg'] ?? 0); if ($kg <= 0) continue;
             $units = $kg > PS_TRUCK_DOUBLE_KG ? 2 : 1;
             $received += $kg; $truckUnits += $units; $physicalTrucks++;
             $billId = isset($postedBills[(string)($event['billId'] ?? '')]) ? (string)$event['billId'] : '';
