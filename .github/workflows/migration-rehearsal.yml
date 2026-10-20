@@ -19,17 +19,26 @@ concurrency:
 jobs:
   boundaries:
     runs-on: ubuntu-latest
+    outputs:
+      required: ${{ steps.scope.outputs.required }}
     steps:
       - uses: actions/checkout@v4
         with:
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          fetch-depth: 2
+      - id: scope
+        name: Limit private copies to changes in this rehearsal
+        run: |
+          if git diff --name-only HEAD^ HEAD -- .github/scripts/migration_rehearsal_host.sh .github/scripts/migration_rehearsal_browser.cjs .github/workflows/migration-rehearsal.yml | grep -q .; then
+            echo 'required=true' >> "$GITHUB_OUTPUT"
+          fi
       - run: |
           bash -n .github/scripts/migration_rehearsal_host.sh
           node --check .github/scripts/migration_rehearsal_browser.cjs
           python3 .github/scripts/migration_rehearsal_boundaries.py
   rehearse:
     needs: boundaries
-    if: github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main'
+    if: needs.boundaries.outputs.required == 'true' && github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main'
     runs-on: ubuntu-latest
     environment: live-qa
     timeout-minutes: 25
