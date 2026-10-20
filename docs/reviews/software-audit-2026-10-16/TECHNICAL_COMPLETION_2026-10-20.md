@@ -18,7 +18,7 @@ Current passing startup checks do not establish the cause of past runner-to-logi
 
 ## Current provider evidence
 
-Connected owner Chrome shows both OpenAI and Gemini Linked — verified, checked20October23:49PKT. Returned models: gpt-5.4-mini-2026-03-17 and gemini-3.5-flash-lite. No key/model/order was changed by this review and no extra paid provider call was initiated. This closes the previously observed failed first Gemini fallback check; it is not evidence that every lower fallback tier has independently succeeded.
+Connected owner Chrome shows both OpenAI and Gemini Linked — verified, checked20October23:49PKT. Returned models: gpt-5.4-mini-2026-03-17 and gemini-3.5-flash-lite. No key/model/order was changed by this review. This Chrome inspection read the existing verification status; the deployment provider health calls are recorded separately below. This closes the previously observed failed first Gemini fallback check; it is not evidence that every lower fallback tier has independently succeeded.
 
 ## Historical packing and output
 
@@ -32,7 +32,7 @@ The five held items remain untouched. Functional workflow tests use disposable d
 
 Formal security preflight remains unavailable. The required referenced prologue cannot be read and no ready preflight helper is exposed. The skill rule, “Start source review and launch scan workers only after preflight returns ready,” continues to prevent a formal security clearance; ordinary functional authorization tests do not replace it.
 
-Feature/main deployment and final live acceptance will be added after execution. This file is not a premature deployment claim.
+Feature/main deployment and final live acceptance are recorded in the release evidence below.
 
 ## Additional office-copy defects repaired
 
@@ -43,3 +43,69 @@ The live action also exposed an opaque QUEUING state. The repair adds document/u
 Existing COMPLETE acknowledgements were accepted without matching the submitted receipt against the package manifest. The repair requires all file identities, sizes and hashes to match exactly once before accepting COMPLETE. Legacy VERIFIED claims with incomplete evidence are displayed as UNVERIFIED without rewriting them. The existing office agent already reports the required receipt fields; its Windows script, credentials and backup task are unchanged.
 
 Actual-auth HTTP tests cover pending/latest versus verified state, company denial, invalid identity, incomplete/wrong/duplicate receipt rejection without changing the job, successful full acknowledgement and unchanged original operational/financial data. No actual agent receipt is fabricated.
+
+
+## Isolated recovery and migration scope
+
+The new protected rehearsal copies current originals into a private temporary target on the hosting account, verifies every copied file against the source SHA256 manifest, compares all operational payloads and three-company Trial Balance / Balance Sheet / General Ledger / data-quality controls, and opens the real Accounts, Milling and Exports interfaces. It deliberately replaces and restores only the copy's three canonical stores, re-authenticates, compares all controls again, and checks production business controls remained unchanged.
+
+The target binds only loopback, requires a random request gate, clears live database environment variables, rejects symlinks, bounds count/size/free space and removes itself on normal exit or its twenty-minute TTL. The temporary source copy is not uploaded as an artifact. Production files are read only; existing backup archives, sessions and old security/arrival recovery sources are excluded. No office-PC backup task or destination is involved. The job runs only when the rehearsal implementation changes, after the exact deployed live smoke passes.
+
+The actual local host fixture copied four files, excluded its backup fixture, refused an incorrect gate, restored all three original stores with the real restore helper, proved unchanged source bytes and shut down cleanly. The protected production-data rehearsal result is separately recorded below. This is evidence for the current file-backed application, not an acceptance of an unspecified future MySQL conversion or a production restore.
+
+## Current host metadata
+
+Read-only protected run39486106492/job118846912049 at20October19:45UTC found all three canonical JSON stores valid: auth4,120,940bytes, Accounts2,359,431bytes and operations13,121,841bytes, approximately19.60MB combined. An anonymous login returnedHTTP200 withcurlErrorCode0 in230ms. No new fatal classification was present; the retained19October auth-store fatal remains historical evidence. Host CLI8.5.11 is distinct from the earlier web-runtime version and does not prove web PHP settings.
+
+Allocated filesystem inventory was10,892,404KiB for the account and9,677,172KiB for application private storage, including8,198,912KiB of business recovery snapshots. All account totals were completely traversed:13,232files and702directories, plus26symlinks counted without following them. The earlier provider dashboard22.82GB and these later filesystem totals are different measurements; no unsupported exact billable-quota reconciliation is claimed. No additional backup or original was deleted in this review.
+
+The initial PHP cURL timing projection returned a null TLS field because the associative response did not supply that key. The follow-up diagnostic reads CURLINFO_APPCONNECT_TIME explicitly. It changes diagnostic metadata only.
+
+
+## Exact released implementation
+
+PR459 merged as44d943ecf92fc5d1835c47ccd90419c62c6ad752. Feature checks: Accounts39485473764 (both accounts-audit and inventory-runtime), Milling/Exports39485474131, session diagnostic boundaries39485473981 and private-recovery boundaries39485474215 all passed. Exact-main Accounts39486106370 and Milling/Exports39486106383 passed before deployment39486473149/job118848066654.
+
+The deployment independently matched all460application files to44d943ec, businessFilesWritten0. Its actual provider health checks verified both OpenAI and Gemini, and the Gemini document-reader diagnostic returnedHTTP200, pdfInput true and structuredJson true for gemini-3.5-flash-lite. No provider configuration/order was changed. This supersedes the earlier first-tier provider failure while retaining its history; lower fallback tiers are not independently certified.
+
+Connected owner Chrome was reloaded onto the release and the actual completed ASAS62 view showed CHECK OFFICE DELIVERY. The status GET returned: Package queued; waiting for the office agent to confirm all5files. No second package, PC credential, backup task, financial entry, stock movement or completed-lot amendment was made during this check. The package is not falsely marked delivered.
+
+
+Post-deployment startup39486749127/job118849099871 passed on a fresh runner: login1045ms, sign-in to usable Accounts879ms, Accounts reload1243ms, Milling1036ms and Exports915ms. The successful probe and run are fresh health evidence; historical intermittent runner-to-login failures remain qualified, with failure-only phase diagnostics installed and no weakened assertion.
+
+## Five owner-deferred items
+
+1. Missing original monthly K-Electric / PP-bag tax scans and independent payment proof.
+2. Accountant-approved annual Zakat monetary counterpart / original7210opening allocation.
+3. Physical Mill/bag opening quantities and approved Maize rates.
+4. AMT13 original-source buyer wording / Customs HS decisions.
+5. Actual office-PC backup task, archive and restore verification.
+
+These remain untouched. Office shipment-copy delivery is distinct from item5 and remains pending its actual agent receipt. The mandatory formal security preflight is independently unavailable; no formal security clearance is asserted. Approval/trade/stock originals absent from production are not invented merely to change an audit count. Bounded disposable workflow acceptance is recorded as such.
+
+
+## First live attempt retained
+
+Live39486749130/job118849034854 passed20/24. Its four failures stopped before login: the saved error contexts all display the hosting provider's Checking your browser before accessing screen, not an application login form. The new ASAS62 case never reached its business assertions in that attempt. Failure artifact12294811901 contains that direct evidence. An unchanged fresh-runner retry is tracked separately; no protection, credentials, business validation or expected result was changed. This establishes the cause of these four failures, not automatically every historical timeout.
+
+The dependent recovery39486749532/job118849107316 stopped safely after its exact-live prerequisite did not finish within ten minutes. It did not start copying or restoring data. It will only be retried after exact-live success.
+
+
+## Completed-reprint permission defect discovered by live acceptance
+
+The unchanged fresh runner118855793472 passed the existing23checks and reached the new ASAS62 case. Its retained artifact12295380919 directly shows Create permission is not allowed for this icon after PRINT / SAVE PDF. The module capture guard classified the word Save as Create even though completed VIEW passes the committed-snapshot readOnly flag and never saves. Owner/Super Admin Chrome could open the modal, explaining why that earlier UI check did not reveal the staff-role defect.
+
+PR460 gives only completed reprint controls and their two paper choices an explicit read intent. Existing View remains mandatory; active Print / Save retains its Create/Edit and acknowledged-save requirement. Backend mutation permissions, users and grants are unchanged. The new actual renderer/modal/capture-guard DOM test reproduces the original failure and passes both paper modes, missing-View refusal and denied/allowed active writes. The private rehearsal also checks the actual ASAS62 corrected PDF after isolated rollback, then compares its controls again. Release proof is recorded after execution.
+
+
+PR460 merged asb0b75e0926c8fdef3aded815f6d2d3016321c880 after final feature Accounts39491235644, Milling/Exports39491235659 and private-recovery boundaries39491235359 passed. Both the current shipment screen and Document Output View are required for a completed reprint. The actual PHP host fixture also proved a restored user can still match an existing session; clearing only the disposable context forces a genuine fresh login against the restored authentication store. That four-file, real-three-store rollback/login fixture passed with unchanged source bytes and complete cleanup.
+
+
+Exact-main Accounts39491835045 and Milling/Exports39491834915 passed for b0b75e09. Deployment39492309058/job118868373036 succeeded, retained both provider health checks, and matched the exact application source before publishing. Public live, post-deployment startup and private recovery are tracked independently below; no earlier failed attempt is counted as a pass.
+
+
+## Final deployed live acceptance — 21 October PKT
+
+Exact deployed b0b75e09 live39492533960/job118869149320 passed **24/24**. The real ASAS62 completed packing-list test logged LIVE_ASAS62_PACKING_REPRINT_OK: originalLabelInNormalFlow true, overlap false, pdfGenerated true, originalUploadsReplaced0, financialWrites0 and documentWrites0. This verifies the actual read-only staff output path, including the corrected permission gate, without replacing the issued historical upload.
+
+Post-deployment startup39492533980/job118869226425 also passed: login334ms, sign-in to usable Accounts802ms, Accounts reload1695ms, Milling1301ms and Exports962ms. Historical provider interstitial and separate prior network failures remain in the register; a current green run does not erase them.
