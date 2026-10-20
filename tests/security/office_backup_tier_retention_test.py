@@ -74,6 +74,13 @@ class TierRetentionTest(unittest.TestCase):
             newer,_=backup(root,'Daily','2026-10-20_1800','2026-10-20T10:00:00Z')
             self.assertEqual(agent.apply_tier_retention(root)['removed'],0)
             self.assertTrue(newer.exists())
+    def test_linked_tier_directory_refuses_cleanup(self):
+        with tempfile.TemporaryDirectory() as d, tempfile.TemporaryDirectory() as outside:
+            root=Path(d)
+            try:(root/'Daily').symlink_to(Path(outside),target_is_directory=True)
+            except OSError:self.skipTest('Directory symlinks are unavailable on this runner.')
+            with self.assertRaises(RuntimeError):agent.apply_tier_retention(root)
+
     def test_survivor_change_stops_cleanup(self):
         with tempfile.TemporaryDirectory() as d:
             root=Path(d)

@@ -321,6 +321,10 @@ def retention_receipt(path, expected=None):
 
 
 def apply_tier_retention(destination, promotions=(), verified_state=None):
+    for folder in ('Daily', 'Weekly', 'Monthly'):
+        path = destination / folder
+        if path.is_symlink() or (path.exists() and (not path.is_dir() or path.resolve() != destination.resolve() / folder)):
+            raise RuntimeError('Linked or unexpected backup tier directory; cleanup refused.')
     catalog_path = destination / 'tier-retention.json'
     catalog = {}
     if catalog_path.is_file() and not catalog_path.is_symlink() and catalog_path.stat().st_size < 8192:
