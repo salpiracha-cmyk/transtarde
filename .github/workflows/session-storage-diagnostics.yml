@@ -214,13 +214,17 @@ jobs:
           header('Content-Type: application/json');echo '{"ok":true}';
           PROBEROUTER
           task_probe_resolved=$(php -r 'echo PHP_BINARY;')
-          for task_probe_runner in command resolved; do
+          for task_probe_runner in command resolved cleared_env; do
           task_probe_php=php
           if [ "$task_probe_runner" = resolved ]; then
             case "$task_probe_resolved" in /*) [ -x "$task_probe_resolved" ] && task_probe_php=$task_probe_resolved ;; esac
           fi
           task_probe_port=$((20000 + RANDOM % 20000))
-          "$task_probe_php" -S "127.0.0.1:$task_probe_port" -t "$task_probe/www" "$task_probe/router.php" > "$task_probe/server.log" 2>&1 &
+          if [ "$task_probe_runner" = cleared_env ]; then
+            env -u TT_DB_HOST -u TT_DB_NAME -u TT_DB_USER -u TT_DB_PASS "$task_probe_php" -S "127.0.0.1:$task_probe_port" -t "$task_probe/www" "$task_probe/router.php" > "$task_probe/server.log" 2>&1 &
+          else
+            "$task_probe_php" -S "127.0.0.1:$task_probe_port" -t "$task_probe/www" "$task_probe/router.php" > "$task_probe/server.log" 2>&1 &
+          fi
           task_probe_pid=$!
           task_probe_status=000
           for attempt in 1 2 3 4 5; do
