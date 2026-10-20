@@ -246,43 +246,41 @@ with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
                 assert action('adjust_salary_month','Mrs',month='2027-03',netSalary=310000,advanceApplied=0)[0]==200
                 page.locator('#rsRefresh').click()
                 page.locator('[data-rs-draft-pay="Mrs"]').click()
-                assert page.locator('.rs-plan-row').count()==1
-                tx=page.locator('.rs-plan-row').first
-                assert tx.locator('[data-allocation-amount]').input_value()=='310000'
-                tx.locator('[data-allocation-amount]').fill('210000');tx.locator('[data-tx-date]').fill('2027-03-03')
-                tx.locator('[data-plan-deduct]').check();tx.locator('[data-plan-deduction-amount]').fill('-1');tx.locator('[data-plan-deduct]').uncheck()
-                assert not tx.locator('[data-plan-deduction-fields]').is_visible(),'An unchecked deduction is inapplicable and must not block saving'
+                assert page.locator('.rs-plan-row').count()==0
+                assert page.locator('#rsFamilyMonthly').input_value()=='310000'
+                assert page.locator('#rsFamilyCash').input_value()=='310000'
+                assert not page.locator('#rsFamilyBankFields').is_visible()
+                assert page.locator('[data-tx-recipient]').count()==0
                 page.locator('#rsAddTransaction').click();tx=page.locator('.rs-plan-row').last
-                assert tx.locator('[data-allocation-amount]').input_value()=='100000'
-                tx.locator('[data-tx-date]').fill('2027-03-10');tx.locator('[data-tx-source]').select_option('bank-b');tx.locator('[data-reference]').fill('MRS-100');tx.locator('[data-cheque-date]').fill('2027-03-10')
+                tx.locator('[data-plan-ledger]').select_option('BROKER_FUND|BMA');tx.locator('[data-allocation-amount]').fill('10000');tx.locator('[data-allocation-reference]').fill('MARCH-BMA-1')
                 page.locator('#rsAddTransaction').click();tx=page.locator('.rs-plan-row').last
-                tx.locator('[data-plan-category]').select_option('CAPITAL');tx.locator('[data-plan-ledger]').select_option('BROKER_FUND|BMA');tx.locator('[data-allocation-amount]').fill('10000');tx.locator('[data-allocation-reference]').fill('MARCH-BMA-1')
-                assert not tx.locator('[data-allocation-route]').is_visible()
-                page.locator('#rsAddTransaction').click();tx=page.locator('.rs-plan-row').last
-                tx.locator('[data-plan-category]').select_option('REMUNERATION');tx.locator('[data-plan-ledger]').select_option('SALARY|Salman');tx.locator('[data-allocation-amount]').fill('10000')
-                assert '330,000' in page.locator('#rsAllocationSummary').inner_text()
+                tx.locator('[data-plan-ledger]').select_option('SALARY|Salman');tx.locator('[data-allocation-amount]').fill('10000')
+                assert page.locator('#rsFamilyCash').input_value()=='330000'
                 before_ui=saved();page.locator('#rsAddTransaction').click();tx=page.locator('.rs-plan-row').last
                 tx.locator('[data-plan-ledger]').select_option('EXPENSE|TTI-HOME-FAM-SALMAN');tx.locator('[data-allocation-amount]').fill('20000');tx.locator('[data-plan-deduct]').check();tx.locator('[data-plan-director]').select_option('Salman')
                 assert tx.locator('[data-plan-deduction-amount]').input_value()=='20000'
-                tx.locator('[data-plan-deduct]').uncheck();assert not tx.locator('[data-plan-deduction-fields]').is_visible()
-                tx.locator('[data-plan-deduct]').check();assert tx.locator('[data-plan-deduction-amount]').input_value()=='20000'
+                tx.locator('[data-plan-deduction-amount]').fill('-1');tx.locator('[data-plan-deduct]').uncheck()
+                assert not tx.locator('[data-plan-deduction-fields]').is_visible()
                 assert saved()==before_ui,'Editing and adding/removing rows never saves automatically'
-                tx.locator('[data-remove-transaction]').click();assert '330,000' in page.locator('#rsAllocationSummary').inner_text()
+                tx.locator('[data-remove-transaction]').click();assert page.locator('#rsFamilyCash').input_value()=='330000'
+                page.locator('#rsFamilyCash').fill('210000');assert page.locator('#rsFamilyUseBank').is_checked()
+                assert '120,000' in page.locator('#rsFamilyBankAmount').inner_text()
+                page.locator('#rsFamilyDate').fill('2027-03-10');page.locator('#rsFamilyBank').select_option('bank-b');page.locator('[data-reference]').fill('MRS-100');page.locator('[data-cheque-date]').fill('2027-03-10')
                 page.locator('#rsPaySalBtn').click();page.locator('[data-rs-draft-pay="Mrs"]').filter(has_text='Amend').wait_for()
                 assert request(month='2027-03')[1]['salarySheet']['rows']['Mrs']['payment']['amount']==310000
                 assert request(month='2027-03')[1]['salarySheet']['rows']['Salman']['payment']['amount']==10000
-                page.locator('[data-rs-draft-pay="Mrs"]').click();assert page.locator('.rs-plan-row').count()==4
-                assert page.locator('.rs-plan-row').nth(2).locator('[data-plan-ledger]').input_value()=='BROKER_FUND|BMA'
-                assert page.locator('.rs-plan-row').nth(3).locator('[data-plan-category]').input_value()=='REMUNERATION'
+                page.locator('[data-rs-draft-pay="Mrs"]').click();assert page.locator('.rs-plan-row').count()==2
+                assert page.locator('.rs-plan-row').nth(0).locator('[data-plan-ledger]').input_value()=='BROKER_FUND|BMA'
+                assert page.locator('.rs-plan-row').nth(1).locator('[data-plan-ledger]').input_value()=='SALARY|Salman'
+                assert page.locator('#rsFamilyCash').input_value()=='210000' and '120,000' in page.locator('#rsFamilyBankAmount').inner_text()
+                assert page.locator('[data-reference]').input_value()=='MRS-100'
                 assert page.locator('#rsDraftForm').evaluate('(el)=>el.getBoundingClientRect().right<=innerWidth && el.getBoundingClientRect().left>=0')
-                # Two purposes on one cheque remain one actual bank payment.
-                tx=page.locator('.rs-plan-row').nth(3);tx.locator('[data-tx-date]').fill('2027-03-10');tx.locator('[data-tx-source]').select_option('bank-b');tx.locator('[data-method]').select_option('CHEQUE');tx.locator('[data-reference]').fill('MRS-100');tx.locator('[data-cheque-date]').fill('2027-03-10')
                 with page.expect_response(lambda response: 'rent_salary.php' in response.url and response.request.method=='POST') as saved_response:
                     page.locator('#rsPaySalBtn').click()
                 assert saved_response.value.json()['ok']
-                groups=request(month='2027-03')[1]['salarySheet']['paymentGroups']['Mrs'];assert len(groups)==3
-                bank_group=next(t for t in groups if t['paymentAccountId']=='bank-b');assert bank_group['amount']==110000 and len(bank_group['allocations'])==2
-                page.locator('[data-rs-draft-pay="Mrs"]').click();assert page.locator('.rs-plan-row').count()==4
+                groups=request(month='2027-03')[1]['salarySheet']['paymentGroups']['Mrs'];assert len(groups)==2
+                bank_group=next(t for t in groups if t['paymentAccountId']=='bank-b');assert bank_group['amount']==120000 and len(bank_group['allocations'])==3
+                page.locator('[data-rs-draft-pay="Mrs"]').click();assert page.locator('.rs-plan-row').count()==2
                 page.locator('#rsDraftCancel').click()
                 for width in [1280,1024,700,390]:
                     page.set_viewport_size({'width':width,'height':900})
