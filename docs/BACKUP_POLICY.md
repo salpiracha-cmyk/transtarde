@@ -84,3 +84,14 @@ unknown, linked or changed files remain held. Existing copies may seed a proof
 only when their full SHA256 matches the saved successful-download state. The
 --retention-only command installs/applies this policy without downloading or
 changing task credentials, triggers or backup destinations.
+
+One-time owner approval, 20 October 2026 22:45:20 Pakistan time: remove the
+six measured generated temporary archives totalling 6,856,173,595 bytes after
+checking their recognised complete-recovery manifests, exclusive locks and
+same-user process descriptor visibility. This exact cohort may use a 30-minute
+minimum grace instead of 24 hours only when manifest, mtime and ctime all predate
+17:45:20 UTC that day. A changed file count/byte total aborts before any removal.
+A new complete persistent data snapshot must verify first; each candidate is
+rechecked immediately before deletion. Future, changed, unknown, incomplete,
+linked, foreign-owned, open or locked files stay. This approval does not remove
+any retained recovery point or original live record/document.

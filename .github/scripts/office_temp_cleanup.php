@@ -10,14 +10,25 @@ function otc_legacy_grace(array $s,int $now,int $schema,int $created):bool {
     $cutoff=strtotime('2026-10-20T10:17:16Z');
     return $schema<=2&&$schema>=1&&$created<$cutoff&&$s['mtime']<$cutoff&&$s['ctime']<$cutoff&&$now-max($s['mtime'],$s['ctime'],$created)>=1800;
 }
-function otc_classify(string $path,int $uid,int $now):array {
+// Owner approval at 22:45:20 Pakistan time covers only the measured six-file cohort.
+function otc_approved_cohort(array $identities,int $uid):bool {
+    $owned=array_filter($identities,static fn($s)=>is_array($s)&&$s['uid']===$uid);
+    return count($owned)===6&&array_sum(array_column($owned,'size'))===6856173595;
+}
+function otc_owner_grace(array $s,int $now,int $schema,int $created,int $approvedBefore):bool {
+    return $approvedBefore>0&&$schema>=1&&$schema<=3&&$created<$approvedBefore
+        &&$s['mtime']<$approvedBefore&&$s['ctime']<$approvedBefore
+        &&$now-max($s['mtime'],$s['ctime'],$created)>=1800;
+}
+function otc_classify(string $path,int $uid,int $now,int $approvedBefore=0):array {
     $s=otc_identity($path);
     if(!$s||$s['uid']!==$uid||$s['nlink']!==1||!preg_match('/^tt-backup-[A-Za-z0-9]{6}$/D',basename($path)))return ['reason'=>'unknown'];
     $base=['identity'=>$s,'bytes'=>$s['size']];
     $recent=$now-max($s['mtime'],$s['ctime'])<86400;
     $legacyCutoff=strtotime('2026-10-20T10:17:16Z');
     $legacyPossible=$s['mtime']<$legacyCutoff&&$s['ctime']<$legacyCutoff&&$now-max($s['mtime'],$s['ctime'])>=1800;
-    if($recent&&!$legacyPossible)return $base+['reason'=>'recent'];
+    $ownerPossible=$approvedBefore>0&&$s['mtime']<$approvedBefore&&$s['ctime']<$approvedBefore&&$now-max($s['mtime'],$s['ctime'])>=1800;
+    if($recent&&!$legacyPossible&&!$ownerPossible)return $base+['reason'=>'recent'];
     $reader=null;
     try{
         $reader=new TT_SimpleZipReader($path,0xffffffff);
@@ -25,7 +36,7 @@ function otc_classify(string $path,int $uid,int $now):array {
         if($raw===false||strlen($raw)>16777216)throw new RuntimeException('No bounded manifest');
         $m=json_decode($raw,true,512,JSON_THROW_ON_ERROR);$created=strtotime((string)($m['createdAt']??''));
         if(($m['application']??'')!=='Transtrade'||($m['type']??'')!=='full_recovery'||!in_array((int)($m['schema']??0),[1,2,3],true)||empty($m['encryptedEntries'])||empty($m['recoveryFiles'])||!$created||$created>$now-1800)throw new RuntimeException('Unrecognised archive');
-        if($recent&&!otc_legacy_grace($s,$now,(int)$m['schema'],$created))return $base+['reason'=>'recent'];
+        if($recent&&!otc_legacy_grace($s,$now,(int)$m['schema'],$created)&&!otc_owner_grace($s,$now,(int)$m['schema'],$created,$approvedBefore))return $base+['reason'=>'recent'];
         return $base+['reason'=>'eligible','legacyRecent'=>$recent,'created'=>$created,'date'=>gmdate('Y-m-d',$created),'schema'=>(int)$m['schema'],'manifestSha256'=>hash('sha256',$raw)];
     }catch(Throwable){return $base+['reason'=>'unrecognised'];}
     finally{if($reader)$reader->close();}
@@ -39,13 +50,13 @@ function otc_process_visibility(int $uid):bool {
     }
     return true;
 }
-function otc_remove(string $path,array $planned,int $uid,int $now,callable $survivor):bool {
+function otc_remove(string $path,array $planned,int $uid,int $now,callable $survivor,int $approvedBefore=0):bool {
     if(($planned['reason']??'')!=='eligible'||!$survivor())return false;
     if(!empty($planned['legacyRecent'])&&!otc_process_visibility($uid))return false;
     $handle=@fopen($path,'rb');if(!$handle)return false;
     try{
         if(!flock($handle,LOCK_EX|LOCK_NB))return false;
-        $fresh=otc_classify($path,$uid,$now);
+        $fresh=otc_classify($path,$uid,$now,$approvedBefore);
         if($fresh!==$planned||otc_identity($path)!==$planned['identity'])return false;
         $fd=fstat($handle);if(!$fd||$fd['ino']!==$planned['identity']['ino']||$fd['dev']!==$planned['identity']['dev'])return false;
         // Never remove a file still open by another observable process.
@@ -67,8 +78,12 @@ function otc_main():void {
     define('TT_DATA_DIR',$private);define('TT_STORE_FILE',$private.'/auth.json');require $library;
     if(!function_exists('posix_geteuid'))throw new RuntimeException('Ownership unavailable');
     $uid=posix_geteuid();$now=time();$plan=[];$summary=[];$dates=[];
-    foreach(glob(sys_get_temp_dir().'/tt-backup-*')?:[]as$p){
-        $c=otc_classify($p,$uid,$now);$plan[$p]=$c;$r=$c['reason'];
+    $candidates=glob(sys_get_temp_dir().'/tt-backup-*')?:[];
+    $identities=array_map('otc_identity',$candidates);
+    if(!otc_approved_cohort($identities,$uid))throw new RuntimeException('The approved six-file, 6856173595-byte cohort changed; no files removed.');
+    $approvedBefore=strtotime('2026-10-20T17:45:20Z');
+    foreach($candidates as$p){
+        $c=otc_classify($p,$uid,$now,$approvedBefore);$plan[$p]=$c;$r=$c['reason'];
         $summary[$r]['files']=($summary[$r]['files']??0)+1;$summary[$r]['bytes']=($summary[$r]['bytes']??0)+($c['bytes']??0);
         if($r==='eligible'){$d=$c['date'];$dates[$d]['files']=($dates[$d]['files']??0)+1;$dates[$d]['bytes']=($dates[$d]['bytes']??0)+$c['bytes'];}
     }
@@ -83,7 +98,7 @@ function otc_main():void {
         foreach($plan as$p=>$c){
             if(($c['reason']??'')!=='eligible'||$c['created']>=$survivorCreated)continue;
             if($removed%20===0&&!tt_backup_has_verified_receipt($survivor))throw new RuntimeException('Survivor changed');
-            if(otc_remove($p,$c,$uid,$now,static fn():bool=>otc_identity($survivor)===$survivorIdentity)){$removed++;$bytes+=$c['bytes'];}else$held++;
+            if(otc_remove($p,$c,$uid,$now,static fn():bool=>otc_identity($survivor)===$survivorIdentity,$approvedBefore)){$removed++;$bytes+=$c['bytes'];}else$held++;
         }
         if(!tt_backup_has_verified_receipt($survivor))throw new RuntimeException('Survivor changed');
     }finally{flock($lock,LOCK_UN);fclose($lock);}
