@@ -30,18 +30,13 @@ if (strlen($password)<12 || strlen($password)>256) office_backup_error(400, 'A r
 
 $path='';$failure=null;
 try {
+    @set_time_limit(900);
+    if(session_status()===PHP_SESSION_ACTIVE)session_write_close();
     $built=tt_build_download_backup(true,$password);
     $path=$built['path'];
     $digest=hash_file('sha256',$path);
     if ($digest===false) throw new RuntimeException('Could not verify office backup transfer.');
-    header('Content-Type: application/zip');
-    header('Content-Disposition: attachment; filename="TRANSTRADE_OFFICE_BACKUP_'.gmdate('Y-m-d_His').'.zip"');
-    header('Content-Length: '.filesize($path));
-    header('X-Backup-SHA256: '.$digest);
-    $handle=fopen($path,'rb');
-    if ($handle===false) throw new RuntimeException('Could not stream office backup.');
-    try { while (!feof($handle)) { $chunk=fread($handle,1024*1024); if ($chunk===false) throw new RuntimeException('Office backup transfer was interrupted.'); echo $chunk; flush(); } }
-    finally { fclose($handle); }
+    tt_backup_stream_file($path,'TRANSTRADE_OFFICE_BACKUP_'.gmdate('Y-m-d_His').'.zip',$digest);
 } catch (Throwable $error) {
     error_log('Transtrade office backup failed: '.$error->getMessage());
     $failure=$error;

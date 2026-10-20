@@ -18,7 +18,7 @@ import ssl
 import sys
 import tempfile
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from urllib import error, parse, request
 import zipfile
 
@@ -128,7 +128,14 @@ def validate_zip(path):
             raise ValueError('Unexpected unencrypted recovery entry.')
 
 
-def pull(config, destination):
+def scheduled_backup_time(timestamp):
+    """Most recent 18:00 Pakistan-time slot, including a missed previous day."""
+    now = datetime.fromtimestamp(timestamp, timezone(timedelta(hours=5)))
+    due = now.replace(hour=18, minute=0, second=0, microsecond=0)
+    return due if now >= due else due - timedelta(days=1)
+
+
+def pull(config, destination, scheduled_for=None):
     url = config.get('backupUrl') or config.get('url')
     require_endpoint(url, '/api/office_backup.php')
     destination.mkdir(parents=True, exist_ok=True)
@@ -164,17 +171,20 @@ def pull(config, destination):
             if received != length: raise ValueError(f'Backup transfer incomplete: received {received:,} of {length:,} bytes. Existing verified backups were preserved.')
             if digest.hexdigest() != expected: raise ValueError(f'Backup transfer checksum mismatch after receiving all {received:,} bytes. Existing verified backups were preserved.')
         validate_zip(temp)
-        stamp = datetime.now(timezone.utc)
+        stamp = datetime.now(timezone(timedelta(hours=5))) if scheduled_for is not None else datetime.now(timezone.utc)
+        bucket_stamp = scheduled_for if scheduled_for is not None else stamp
         retention = config.get('retention') or {}
         daily_dir, weekly_dir, monthly_dir = destination / 'Daily', destination / 'Weekly', destination / 'Monthly'
         for folder in (daily_dir, weekly_dir, monthly_dir): folder.mkdir(parents=True, exist_ok=True)
         daily = daily_dir / ('TRANSTRADE_FULL_' + stamp.strftime('%Y-%m-%d_%H%M') + '_' + expected[:12] + '.zip')
         os.replace(temp, daily); temp = None
-        if not list(weekly_dir.glob('TRANSTRADE_FULL_' + stamp.strftime('%G-W%V') + '_*.zip')):
-            weekly = weekly_dir / ('TRANSTRADE_FULL_' + stamp.strftime('%G-W%V_%H%M') + '_' + expected[:12] + '.zip')
+        if not list(weekly_dir.glob('TRANSTRADE_FULL_' + bucket_stamp.strftime('%G-W%V') + '_*.zip')):
+            weekly = weekly_dir / ('TRANSTRADE_FULL_' + bucket_stamp.strftime('%G-W%V') + stamp.strftime('_%H%M') + '_' + expected[:12] + '.zip')
             copy_verified(daily, weekly, expected)
-        if not list(monthly_dir.glob('TRANSTRADE_FULL_' + stamp.strftime('%Y-%m') + '_*.zip')):
-            monthly = monthly_dir / ('TRANSTRADE_FULL_' + stamp.strftime('%Y-%m_%H%M') + '_' + expected[:12] + '.zip')
+        # Scheduled monthly points wait for a weekday, with catch-up on the first
+        # successful working-day run. No office holiday calendar is available.
+        if (scheduled_for is None or bucket_stamp.weekday() < 5) and not list(monthly_dir.glob('TRANSTRADE_FULL_' + bucket_stamp.strftime('%Y-%m') + '_*.zip')):
+            monthly = monthly_dir / ('TRANSTRADE_FULL_' + bucket_stamp.strftime('%Y-%m') + stamp.strftime('_%H%M') + '_' + expected[:12] + '.zip')
             copy_verified(daily, monthly, expected)
         rotate(daily_dir, 'TRANSTRADE_FULL_*.zip', int(retention.get('daily', 7)))
         rotate(weekly_dir, 'TRANSTRADE_FULL_*.zip', int(retention.get('weekly', 4)))
@@ -310,6 +320,7 @@ def main():
     parser.add_argument('--force', action='store_true', help='Pull now even if a daily backup succeeded recently')
     parser.add_argument('--shipments-only', action='store_true', help='Only process pending shipment archive jobs')
     parser.add_argument('--backup-only', action='store_true', help='Only pull the encrypted system backup')
+    parser.add_argument('--scheduled', action='store_true', help='Once per 18:00 Pakistan-time slot, catching up missed runs')
     args = parser.parse_args()
     try:
         if args.init: initialize(args.config); return 0
@@ -324,12 +335,20 @@ def main():
         last_success = float(state.get('last_success', 0))
         same_day = datetime.fromtimestamp(now, timezone.utc).date() == datetime.fromtimestamp(last_success, timezone.utc).date()
         last_file = destination / 'Daily' / Path(str(state.get('last_file', ''))).name
-        if not args.force and last_success <= now and same_day and last_file.is_file():
+        scheduled_for = scheduled_backup_time(now) if args.scheduled else None
+        if scheduled_for is not None:
+            recorded_slot = state.get('scheduled_for')
+            current = recorded_slot == scheduled_for.isoformat() if recorded_slot else scheduled_for.timestamp() <= last_success <= now
+        else:
+            current = last_success <= now and same_day
+        if not args.force and current and last_file.is_file():
             print('Daily backup is current.'); return 0
         for attempt in range(3):
             try:
-                path, digest = pull(config, destination)
-                write_json(state_path, {'last_success': time.time(), 'last_file': path.name, 'sha256': digest})
+                path, digest = pull(config, destination, scheduled_for=scheduled_for) if scheduled_for is not None else pull(config, destination)
+                new_state = {'last_success': time.time(), 'last_file': path.name, 'sha256': digest}
+                if scheduled_for is not None: new_state['scheduled_for'] = scheduled_for.isoformat()
+                write_json(state_path, new_state)
                 print('Verified encrypted backup saved:', path.name)
                 return 0
             except (error.URLError, OSError, ValueError, RuntimeError, zipfile.BadZipFile) as exc:
