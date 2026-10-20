@@ -1,0 +1,22 @@
+'use strict';
+const assert=require('node:assert/strict'),fs=require('node:fs'),{JSDOM}=require('jsdom');
+(async()=>{
+ const dom=new JSDOM('<!doctype html><body></body>',{url:'https://fixture.test/accounts/',runScripts:'outside-only'}),w=dom.window,posts=[];
+ const observers=[],Observer=w.MutationObserver;w.MutationObserver=class extends Observer{constructor(fn){super(fn);observers.push(this)}};
+ w.localStorage.setItem('tt_accounts_entity','TTI');w.TT_ACCOUNT_ACCESS={csrf:'staff-csrf'};w.TT_FORM_VIEWPORT={open(){}};
+ let returned=0;w.TT_POST_CONFIRMATION={returnNow(){returned++},show(){}};
+ const p={id:'SP1',journalId:'J1',publicPostId:'POST-2026-00001',broker:'Fixture Freight',date:'2026-10-20',netPayment:200,paymentMode:'BANK',bankAccountId:'B1',bankPaymentMethod:'CHEQUE',chequeNo:'CHEQUE-1',chequeDate:'2026-10-20',allocations:[{billId:'BF:OPEN:0',sourceKey:'OPENING|0',amount:200}]};
+ const bf={billId:'BF:OPEN:0',sourceKey:'OPENING|0',supplier:p.broker,category:'OPENING',openingBalance:true,billNo:'Balance B/F',billDate:'2026-07-01',total:1000,paid:0,outstanding:1000,currency:'PKR'};
+ let active=true;
+ w.fetch=async(url,opt={})=>{if(opt.method==='POST'){posts.push(JSON.parse(opt.body));return new Response(JSON.stringify({ok:false,error:'Fixture preview held for review'}),{status:422})}return new Response(JSON.stringify(String(url).includes('bank_accounts')?{ok:true,accounts:[{id:'B1',currency:'PKR',bankName:'Fixture Bank',settings:{active,allowPayments:true}},{id:'B2',currency:'PKR',bankName:'Other Bank',settings:{active:true,allowPayments:true,defaultPaymentAccount:true}}]}:{ok:true,editingPayment:p,payables:[bf]}))};
+ w.eval(fs.readFileSync('accounts/supplier-settlement-ui.js','utf8'));
+ const q=s=>w.document.querySelector(s),change=(s,v)=>{q(s).value=v;q(s).dispatchEvent(new w.Event('change',{bubbles:true}))};
+ await w.TT_SUPPLIER_SETTLEMENT_UI.amend('SP1',p.broker);
+ assert.match(q('h2').textContent,/Amend Party Payment.*POST-2026-00001/);assert(q('[data-payee]').readOnly);assert(q('[data-include-opening]').checked);assert.equal(q('[data-bank]').value,'B1');assert.equal(q('[data-reference]').value,'CHEQUE-1');assert.equal(q('[data-date]').value,p.date);assert.equal(q('[data-amount]').value,'200');
+ q('[data-amend-reason]').value='Correct payment date';q('[data-amount]').value='300';change('[data-bank-method]','ONLINE_BANKING');assert.equal(q('[data-amend-reason]').value,'Correct payment date');assert.equal(q('[data-amount]').value,'300');
+ change('[data-date]','2026-07-06');change('[data-cheque-date]','2026-07-06');await q('form').onsubmit({preventDefault(){}});
+ assert.equal(posts.length,1);const b=posts[0];assert.equal(b.action,'amend_bill_payment');assert.equal(b.entity,'TTI');assert.equal(b.csrf,'staff-csrf');assert.equal(b.settlementId,'SP1');assert.equal(b.expectedJournalId,'J1');assert.equal(b.supplier,p.broker);assert.equal(b.amount,300);assert.equal(b.date,'2026-07-06');assert.equal(b.bankPaymentDate,'2026-07-06');assert.deepEqual(b.selectedBills,[bf.billId+'|'+bf.sourceKey]);assert.equal(b.reason,'Correct payment date');assert.equal(q('[data-amount]').value,'300','Rejected preview retains the complete edit draft');
+ q('[data-close]').click();assert.equal(returned,1);assert.equal(posts.length,1,'Closing must never submit an amendment');
+ active=false;await w.TT_SUPPLIER_SETTLEMENT_UI.amend('SP1',p.broker);assert.equal(q('[data-bank]').value,'','An unavailable original bank must not silently become the default bank');assert.match(q('[data-error]').textContent,/original bank is unavailable/);observers.forEach(o=>o.disconnect());w.close();
+ console.log('PASS native party payment amendment: original source/date/BF restoration, entity and source IDs, draft retention, explicit bank replacement and cancel without posting');
+})().catch(e=>{console.error(e);process.exitCode=1});

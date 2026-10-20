@@ -264,6 +264,20 @@ function ss_advance_credit_account(string $relationship,string $person): string 
     return match($relationship){'OWN_BANK'=>'1110','OWN_CASH'=>'1120','CUSTOMER_RECEIVABLE'=>'1220','CUSTOMER_ADVANCE'=>'2160','OTHER_THIRD_PARTY'=>'2170','FAMILY_STAFF'=>ss_person_account($person),'GROUP_ENTITY'=>ss_respond(['ok'=>false,'error'=>'Group-entity payments must use the Intercompany workflow, not Third Party Settlement.'],422),default=>ss_respond(['ok'=>false,'error'=>'Select the payer relationship for this supplier advance.'],422)};
 }
 
+/** Inspect one original payment; never infer or rewrite an invoice allocation. */
+function ss_payment_for_amend(array $s,string $entity,string $id):array {
+ require_once __DIR__.'/accounts_reference.php';
+ $p=$s['supplierSettlements'][$id]??null;$j=is_array($p)?($s['journals'][$p['journalId']??'']??null):null;
+ if(!is_array($p)||($p['entity']??'')!==$entity||($p['status']??'')!=='Posted'||!is_array($j)||($j['sourceType']??'')!=='SUPPLIER_PAYMENT'||!empty($j['amendedByPostId'])||!empty($j['meta']['reversedByPostId']))throw new DomainException('This payment has changed or was reversed. Reopen its current Post ID.');
+ if(!empty($j['meta']['planId'])||!empty($p['sources'])||!empty($p['advanceId'])||!empty($p['unallocatedAdvanceId'])||(float)($p['advanceAmount']??0)>.005||!empty($p['chequeStatus']))throw new DomainException('Correct this linked advance, payment plan or post-dated cheque through its original workflow.');
+ foreach((array)($p['allocations']??[]) as $a)if(str_starts_with((string)($a['billId']??''),'MB-'))throw new DomainException('Correct this payment through the linked Mill payment workflow.');
+ if(empty($p['allocations']))throw new DomainException('The original invoice allocations need review before this payment can be amended.');
+ $p['publicPostId']=tt_accounts_public_post($s,$j);$p['bankAccountId']=$p['bankAccountId']??$j['meta']['bankAccountId']??'';
+ $p['narration']=$p['paymentNarration']??$j['meta']['paymentNarration']??$j['narration']??'';
+ return $p;
+}
+function ss_payment_amend_hash(array $body):string {unset($body['preview'],$body['csrf'],$body['requestKey']);return hash('sha256',json_encode($body,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR));}
+
 if(defined('TT_SETTLEMENTS_FUNCTIONS_ONLY'))return;
 try{
     $user=tt_require_login();if(!tt_user_can_open_module($user,'Accounts'))ss_respond(['ok'=>false,'error'=>'Accounts permission required.'],403);
@@ -271,15 +285,31 @@ try{
         $entity=ss_entity((string)($_GET['entity']??'TTI'));if(!tt_user_can_access_entity($user,$entity,'View'))ss_respond(['ok'=>false,'error'=>'You do not have permission for this legal entity.'],403);$store=ss_read();$adv=[];
         foreach((array)($store['supplierAdvances']??[]) as $a)if(is_array($a)&&($a['entity']??'')===$entity){$x=$a;$x['availableAmount']=max(0,round((float)($a['amount']??0)-(float)($a['allocatedAmount']??0),2));$adv[]=$x;}
         usort($adv,static fn($a,$b)=>strcmp((string)($b['date']??''),(string)($a['date']??'')));$hist=[];foreach((array)($store['supplierSettlements']??[]) as $s)if(is_array($s)&&($s['entity']??'')===$entity)$hist[]=$s;usort($hist,static fn($a,$b)=>strcmp((string)($b['date']??''),(string)($a['date']??'')));
-        ss_respond(['ok'=>true,'payables'=>ss_simple_payables($store,$entity),'advances'=>$adv,'settlements'=>$hist,'policy'=>ss_json(TT_SETTLEMENT_POLICY),'serverNow'=>gmdate('c')]);
+        $editingPayment=null;if(!empty($_GET['editPayment'])){$editingPayment=ss_payment_for_amend($store,$entity,(string)$_GET['editPayment']);$store['supplierSettlements'][$editingPayment['id']]['status']='Reversed';}
+        ss_respond(['ok'=>true,'editingPayment'=>$editingPayment,'payables'=>ss_simple_payables($store,$entity),'advances'=>$adv,'settlements'=>$hist,'policy'=>ss_json(TT_SETTLEMENT_POLICY),'serverNow'=>gmdate('c')]);
     }
     if($_SERVER['REQUEST_METHOD']!=='POST')ss_respond(['ok'=>false,'error'=>'Method not allowed.'],405);if(!ss_can_write($user))ss_respond(['ok'=>false,'error'=>'Accounts Create / Edit / Approve permission required.'],403);
     $body=json_decode((function_exists('tt_accounts_input')?tt_accounts_input():file_get_contents('php://input'))?:'',true);if(!is_array($body)||!tt_verify_csrf((string)($body['csrf']??'')))ss_respond(['ok'=>false,'error'=>'Your session expired. Refresh and try again.'],419);
-    $action=(string)($body['action']??'');$entity=ss_entity((string)($body['entity']??''));if(!tt_user_can_access_entity($user,$entity,'Create'))ss_respond(['ok'=>false,'error'=>'You do not have permission for this legal entity.'],403);$date=ss_date((string)($body['date']??''));$catalog=ss_catalog();
+    $action=(string)($body['action']??'');$entity=ss_entity((string)($body['entity']??''));if(!tt_user_can_access_entity($user,$entity,$action==='amend_bill_payment'?'Edit':'Create'))ss_respond(['ok'=>false,'error'=>'You do not have permission for this legal entity.'],403);$date=ss_date((string)($body['date']??''));$catalog=ss_catalog();
     if(ss_request_has_mill_bill($body)){require_once __DIR__.'/mill_bill_payment_guard.php';$millPaymentLease=mpg_acquire();$GLOBALS['ttMillPaymentSourceValues']=$millPaymentLease['values'];}
     tt_ensure_data_dir();$h=fopen(TT_SETTLEMENT_FILE,'c+');if($h===false||!flock($h,LOCK_EX))throw new RuntimeException('Accounts storage unavailable.');
     try{
         rewind($h);$raw=stream_get_contents($h);$store=$raw?json_decode($raw,true):null;if(!is_array($store))$store=ss_default_store();$store=array_replace_recursive(ss_default_store(),$store);$previewBefore=array_map('strval',array_keys((array)($store['journals']??[])));
+        $amendingPayment=null;
+        if($action==='amend_bill_payment'){
+            if(!tt_user_can_access_entity($user,$entity,'Edit'))ss_respond(['ok'=>false,'error'=>'Company Edit permission is required to amend a payment.'],403);
+            $amendKey=trim((string)($body['requestKey']??''));if(!preg_match('/^[a-zA-Z0-9-]{16,80}$/',$amendKey))throw new DomainException('Reopen the amendment to obtain its request ID.');
+            $amendHash=ss_payment_amend_hash($body);$replay=$store['supplierPaymentAmendmentRequests'][$amendKey]??null;
+            if(is_array($replay)){if(($replay['hash']??'')!==$amendHash)throw new DomainException('This amendment request was already used with different details.');ss_respond(['ok'=>true,'result'=>$replay['result'],'revision'=>(int)$store['revision']]);}
+            $amendingPayment=ss_payment_for_amend($store,$entity,(string)($body['settlementId']??''));$originalJournal=$store['journals'][$amendingPayment['journalId']];
+            if(!tt_post_correction_allowed($user,$originalJournal))ss_respond(['ok'=>false,'error'=>'Edit permission for the original payment workflow is required.'],403);
+            if(($body['expectedJournalId']??'')!==$amendingPayment['journalId'])throw new DomainException('The original payment changed. Reopen it before amending.');
+            $amendReason=trim((string)($body['reason']??''));if(strlen($amendReason)<5||strlen($amendReason)>300)throw new DomainException('Enter an amendment reason of 5 to 300 characters.');
+            if(strcasecmp(trim((string)($body['supplier']??'')),trim((string)$amendingPayment['broker']))!==0)throw new DomainException('Keep the original party when amending its bill payment.');
+            if(!empty($body['allowAdvance']))throw new DomainException('Record any new advance separately from this invoice-payment amendment.');
+            require_once __DIR__.'/payment_plan_core.php';pl_reverse($store,$user,$entity,$amendingPayment['id'],$originalJournal['date'],$amendReason);
+            $action='post_bill_payment';$body['action']=$action;
+        }
         if($action==='post_bill_payment'){
             $requestKey=trim((string)($body['requestKey']??''));if(!preg_match('/^[a-zA-Z0-9-]{16,80}$/',$requestKey))ss_respond(['ok'=>false,'error'=>'Payment request ID is required. Reopen the payment screen.'],422);
             $fingerprint=hash('sha256',json_encode([$entity,$date,$body['supplier']??'',$body['category']??'',$body['selectedBills']??[],$body['amount']??0,$body['paymentMode']??'',$body['bankAccountId']??'',$body['payer']??'',$body['payerRelationship']??'',$body['reference']??'',$body['allowAdvance']??false,$body['narration']??'',$body['includeOpeningBalance']??false,$body['discountAmount']??0,$body['discountReason']??'']));
@@ -330,7 +360,7 @@ try{
             elseif($mode==='THIRD_PARTY'&&!empty($body['simpleBillPayment'])){$relationship=strtoupper(trim((string)($body['payerRelationship']??'')));$payer=trim((string)($body['payer']??''));if($payer==='')ss_respond(['ok'=>false,'error'=>'Select who paid on behalf of the company.'],422);if(!in_array($relationship,['CUSTOMER_RECEIVABLE','CUSTOMER_ADVANCE','OTHER_THIRD_PARTY','FAMILY_STAFF'],true))ss_respond(['ok'=>false,'error'=>'Select the third-party relationship.'],422);$credit=ss_advance_credit_account($relationship,$payer);$creditLine=ss_line($credit,0,$prepared['netPayment'],$catalog,['counterparty'=>$payer,'subledger'=>$payer]);$sourceMeta=['paymentMode'=>'THIRD_PARTY','payer'=>$payer,'payerRelationship'=>$relationship];$sourceLabel=$payer;}
             else ss_respond(['ok'=>false,'error'=>'Select an actual Bank Account or Cash payment source.'],422);
             $lines=[];foreach($prepared['debits'] as $account=>$value)if($value>0)$lines[]=ss_line((string)$account,(float)$value,0,$catalog,['counterparty'=>$prepared['broker']]);if($prepared['withholding']>0)$lines[]=ss_line('2300',0,$prepared['withholding'],$catalog);$lines[]=$creditLine;if($discount>0)$lines[]=ss_line('4400',0,$discount,$catalog,['counterparty'=>$prepared['broker'],'subledger'=>'Supplier Settlement Discounts','narration'=>$discountReason]);
-            $onlineDate=$mode==='BANK'&&$bankMethod==='ONLINE_BANKING'?ss_date((string)($body['bankPaymentDate']??$date)):'';if($onlineDate!==''){$sourceMeta['bankPaymentDate']=$onlineDate;foreach($lines as &$line)if(($line['account']??'')==='1110'&&($line['credit']??0)>0)$line['bankPaymentDate']=$onlineDate;unset($line);}$sourceMeta['discountAmount']=$discount;$sourceMeta['discountReason']=$discountReason;$sourceMeta['bankPaymentMethod']=$mode==='BANK'?$bankMethod:'';if($bankMethod==='CHEQUE'||$issuing){$sourceMeta['chequeNo']=$bankReference;$sourceMeta['chequeDate']=$chequeDate;}
+            $onlineDate=$mode==='BANK'&&$bankMethod==='ONLINE_BANKING'?ss_date((string)($body['bankPaymentDate']??$date)):'';if($onlineDate!==''){$sourceMeta['bankPaymentDate']=$onlineDate;foreach($lines as &$line)if(($line['account']??'')==='1110'&&($line['credit']??0)>0)$line['bankPaymentDate']=$onlineDate;unset($line);}$sourceMeta['paymentNarration']=trim((string)($body['narration']??''));$sourceMeta['discountAmount']=$discount;$sourceMeta['discountReason']=$discountReason;$sourceMeta['bankPaymentMethod']=$mode==='BANK'?$bankMethod:'';if($bankMethod==='CHEQUE'||$issuing){$sourceMeta['chequeNo']=$bankReference;$sourceMeta['chequeDate']=$chequeDate;}
             $id=ss_next_id((array)$store['supplierSettlements'],'SP');$reference=trim((string)($body['reference']??''))?:$id;$journal=ss_post_journal($store,$user,$entity,$date,$issuing?'SUPPLIER_CHEQUE_ISSUED':'SUPPLIER_PAYMENT',$reference,($issuing?'Post-dated supplier cheque issued':'Supplier payment').' — '.$prepared['broker'].' — '.$sourceLabel.(trim((string)($body['narration']??''))!==''?' — '.trim((string)$body['narration']):''),$lines,array_merge(['settlementId'=>$id,'broker'=>$prepared['broker'],'allocations'=>$prepared['rows']],$sourceMeta));
             $store['supplierSettlements'][$id]=array_merge(['id'=>$id,'entity'=>$entity,'date'=>$date,'type'=>$issuing?'Post-Dated Supplier Cheque':'Bank / Cash Supplier Payment','broker'=>$prepared['broker'],'amount'=>$prepared['total'],'withholding'=>$prepared['withholding'],'netPayment'=>$prepared['netPayment'],'allocations'=>$prepared['rows'],'reference'=>$reference,'chequeNo'=>$mode==='BANK'&&($bankMethod===''||$bankMethod==='CHEQUE')?$bankReference:'','journalId'=>$journal['id'],'status'=>'Posted','createdAt'=>gmdate('c'),'createdBy'=>(string)($user['full_name']??$user['username']??'Accounts')],$sourceMeta,$issuing?['chequeDate'=>$chequeDate,'chequeStatus'=>'Issued','chequeIssueJournalId'=>$journal['id']]:[]);if(!empty($body['simpleBillPayment'])){$store['supplierSettlements'][$id]['requestKey']=$requestKey;$store['supplierSettlements'][$id]['requestFingerprint']=$fingerprint;}$result=$store['supplierSettlements'][$id];
             if($advanceAmount>0){$advanceId=ss_next_id((array)$store['supplierAdvances'],'SA');$store['supplierAdvances'][$advanceId]=['id'=>$advanceId,'entity'=>$entity,'date'=>$date,'supplier'=>$prepared['broker'],'amount'=>$advanceAmount,'allocatedAmount'=>0.0,'availableAmount'=>$advanceAmount,'soda'=>'','sourceKey'=>'','reference'=>$reference,'journalId'=>$journal['id'],'status'=>'Available / Unallocated','createdAt'=>gmdate('c')]+$sourceMeta;$store['supplierSettlements'][$id]['advanceId']=$advanceId;$store['supplierSettlements'][$id]['advanceAmount']=$advanceAmount;$result=$store['supplierSettlements'][$id];}
@@ -356,6 +386,15 @@ try{
             $store['supplierSettlements'][$id]=['id'=>$id,'entity'=>$entity,'date'=>$date,'type'=>'Supplier Advance Applied','broker'=>$prepared['broker'],'amount'=>$prepared['total'],'allocations'=>$prepared['rows'],'advanceId'=>$advanceId,'reference'=>$reference,'journalId'=>$journal['id'],'status'=>'Posted','createdAt'=>gmdate('c'),'createdBy'=>(string)($user['full_name']??$user['username']??'Accounts')];$store['supplierAdvances'][$advanceId]['allocatedAmount']=round((float)($store['supplierAdvances'][$advanceId]['allocatedAmount']??0)+$prepared['total'],2);$left=max(0,round((float)$store['supplierAdvances'][$advanceId]['amount']-(float)$store['supplierAdvances'][$advanceId]['allocatedAmount'],2));$store['supplierAdvances'][$advanceId]['availableAmount']=$left;$store['supplierAdvances'][$advanceId]['status']=$left>0.005?'Partly Applied':'Fully Applied';$result=$store['supplierSettlements'][$id];
         }
         else ss_respond(['ok'=>false,'error'=>'Unknown supplier settlement action.'],422);
+        if($amendingPayment){
+            $oldId=$amendingPayment['journalId'];$newId=$result['journalId'];$public=$amendingPayment['publicPostId'];
+            $store['journals'][$oldId]['amendedByPostId']=$newId;
+            $store['journals'][$newId]['meta']['publicPostId']=$public;$store['journals'][$newId]['meta']['amendmentOfPostId']=$oldId;
+            $store['journals'][$newId]['meta']['amendmentReason']=$amendReason;$store['journals'][$newId]['meta']['amendmentNote']='Edited by '.($user['full_name']??$user['username']??'').' — '.$amendReason;
+            $store['supplierSettlements'][$result['id']]['amendmentOf']=$amendingPayment['id'];$store['supplierSettlements'][$result['id']]['amendmentReason']=$amendReason;
+            $result=$store['supplierSettlements'][$result['id']];$result['publicPostId']=$public;
+            $store['supplierPaymentAmendmentRequests'][$amendKey]=['hash'=>$amendHash,'result'=>$result];
+        }
         tt_posting_preview_exit($body,$store,$previewBefore);$store['revision']=(int)($store['revision']??0)+1;rewind($h);ftruncate($h,0);fwrite($h,json_encode($store,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR));fflush($h);
     }finally{flock($h,LOCK_UN);fclose($h);}
     if(isset($millPaymentLease))($millPaymentLease['release'])();

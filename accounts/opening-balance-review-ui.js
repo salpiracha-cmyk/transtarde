@@ -34,7 +34,7 @@
           if(!j||!target||!Number.isFinite(amount)||amount<=0||target.account!==line(j).account)throw Error('Choose a saved opening, its correct party and a positive amount.');
           const credit=q('[data-side]').value==='Credit';const lines=j.lines.map(l=>({account:l.account,subledger:l.account==='3400'?(l.subledger||''):target.party,debit:(l.account==='3400'?credit:!credit)?amount:0,credit:(l.account==='3400'?!credit:credit)?amount:0}));
           button.disabled=true;
-          const saved=await json('../api/accounts_post_amend.php',{method:'POST',ttConfirmation:'workflow',headers:{'Content-Type':'application/json'},body:JSON.stringify({csrf:window.TT_ACCOUNT_ACCESS?.csrf,postId:j.id,date:o.date,reason:q('[data-reason]').value.trim(),openingPartyTargetKey:target.key,lines})});
+          const saved=await json('../api/accounts_post_amend.php',{method:'POST',ttConfirmation:'workflow',headers:{'Content-Type':'application/json'},body:JSON.stringify({csrf:window.TT_ACCOUNT_ACCESS?.csrf,entity:company,postId:j.id,date:o.date,reason:q('[data-reason]').value.trim(),openingPartyTargetKey:target.key,lines})});
           host.remove();await onSaved?.(target.party);await window.TT_POST_CONFIRMATION?.show([saved.result.replacementPostId]);
         }catch(e){if(host.isConnected){button.disabled=false;fail(e);}else window.TT_ACCOUNTS_NOTICE?.error('Opening correction saved. Reopen Party Payments to load the updated balance.');}
       };
