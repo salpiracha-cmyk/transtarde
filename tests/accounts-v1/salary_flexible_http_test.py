@@ -274,6 +274,8 @@ with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
                 assert page.locator('.rs-plan-row').nth(1).locator('[data-plan-ledger]').input_value()=='SALARY|Salman'
                 assert page.locator('#rsFamilyCash').input_value()=='210000' and '120,000' in page.locator('#rsFamilyBankAmount').inner_text()
                 assert page.locator('[data-reference]').input_value()=='MRS-100'
+                page.locator('#rsFamilyUseBank').uncheck();assert page.locator('#rsFamilyCash').input_value()=='330000' and not page.locator('#rsFamilyBankFields').is_visible()
+                page.locator('#rsFamilyCash').fill('210000');assert page.locator('#rsFamilyUseBank').is_checked() and page.locator('[data-reference]').input_value()=='MRS-100'
                 assert page.locator('#rsDraftForm').evaluate('(el)=>el.getBoundingClientRect().right<=innerWidth && el.getBoundingClientRect().left>=0')
                 with page.expect_response(lambda response: 'rent_salary.php' in response.url and response.request.method=='POST') as saved_response:
                     page.locator('#rsPaySalBtn').click()
