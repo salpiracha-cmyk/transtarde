@@ -99,11 +99,28 @@ jobs:
           ssh_pid=$!
           export TT_REHEARSAL_GATE_FILE="$task_private/gate"
           export TT_REHEARSAL_URL="http://127.0.0.1:$port"
+          # Publish only fixed phases and numeric HTTP status; never raw SSH/PHP logs.
+          readiness_summary(){
+            python3 - "$task_private/host.log" <<'PYREADY'
+          import pathlib,re,sys
+          log=pathlib.Path(sys.argv[1]).read_text(errors='replace')
+          for line in log.splitlines():
+            if re.fullmatch(r'PRIVATE_REHEARSAL_STAGE (app_copy_started|app_copy_complete|private_copy_started|private_copy_complete)|PRIVATE_REHEARSAL_TARGET_STARTED|PRIVATE_REHEARSAL_HOST_HTTP status=[0-9]{3}',line): print(line)
+          category='unclassified'
+          if re.search('administratively prohibited|forwarding disabled',log,re.I): category='forwarding_denied'
+          elif re.search('connect failed: connection refused',log,re.I): category='connection_refused'
+          print('PRIVATE_REHEARSAL_CHANNEL category='+category)
+          PYREADY
+          }
           ready=0
+          ready_status=000
           for attempt in $(seq 1 120); do
-            kill -0 "$ssh_pid" 2>/dev/null || { echo 'Private target failed to start; private logs are not published.'; exit 1; }
-            if curl --silent --fail --max-time 2 -H "X-TT-Rehearsal: $gate" "$TT_REHEARSAL_URL/__audit/ready" -o /dev/null 2>/dev/null; then ready=1; break; fi
+            kill -0 "$ssh_pid" 2>/dev/null || { readiness_summary; echo 'Private target failed to start; private logs are not published.'; exit 1; }
+            ready_status=$(curl --noproxy 127.0.0.1 --silent --max-time 2 --write-out '%{http_code}' -H "X-TT-Rehearsal: $gate" "$TT_REHEARSAL_URL/__audit/ready" -o /dev/null 2>/dev/null) || true
+            if [ "$ready_status" = 200 ]; then ready=1; break; fi
             sleep 2
           done
+          readiness_summary
+          case "$ready_status" in [0-9][0-9][0-9]) echo "PRIVATE_REHEARSAL_RUNNER_HTTP status=$ready_status" ;; esac
           [ "$ready" = 1 ] || { echo 'Private target readiness timed out.'; exit 1; }
           node .github/scripts/migration_rehearsal_browser.cjs

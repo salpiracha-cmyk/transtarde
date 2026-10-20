@@ -114,3 +114,8 @@ Post-deployment startup39492533980/job118869226425 also passed: login334ms, sign
 ## Protected recovery attempt retained
 
 Recovery39492533976/job118869229237 passed its exact-live prerequisite and boundary checks, then stopped at private target readiness after four minutes. It did not reach source/target browser comparison, rollback or PDF acceptance, so no production-data recovery pass is claimed. The temporary host harness retains its cleanup trap and twenty-minute TTL. The next protected diagnostic classifies whether SSH allows a direct channel to closed loopback port1, with zero payload and no server/configuration change; no raw SSH log is published. A successful local fixture remains separate from this failed hosted readiness attempt.
+
+
+## Follow-up connection diagnostic
+
+PR461 diagnostic39494089536/job118874537233 passed: anonymous loginHTTP200/curl0, TLS156ms and total301ms. The direct SSH channel to closed loopback port1 was permitted and refused by the destination, so the prior target-readiness timeout is not attributed to blanket SSH forwarding denial. No payload or configuration change was made. The protected rehearsal now reports only fixed copy/server phases, numeric host/runner HTTP codes and fixed browser phases on failure; private SSH/PHP logs, gate values and source records remain unpublished. The original four-minute bound, exact-live prerequisite, loopback/gate isolation and data limits remain in force.
