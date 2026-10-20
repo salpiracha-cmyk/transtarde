@@ -24,7 +24,7 @@ function rentReminderRows(){let rows=data.rentReminders||[];return `<div class="
 function rentRows(){let rows=data.rentRows||[];if(!rows.length)return '<div class="ttrs-box muted">No active rent records for this month.</div>';return `<div class="ttrs-box"><b>Monthly Rent Accrual</b><div class="tableWrap"><table><thead><tr><th>Mill</th><th>Payee</th><th>Monthly Rent</th><th>Prepaid Used</th><th>Paid</th><th>Balance</th><th>Status</th></tr></thead><tbody>${rows.map(x=>`<tr><td><b>${esc(x.mill)}</b></td><td>${esc(x.payee)}</td><td>Rs ${fmt(x.monthlyAmount)}</td><td>Rs ${fmt(x.prepaidUsed)}</td><td>Rs ${fmt(x.paidAfterPrepare)}</td><td><b>Rs ${fmt(x.outstanding)}</b></td><td><span class="${x.prepared?(x.outstanding>.005?'wait':'good'):'wait'}">${esc(x.status)}</span></td></tr>`).join('')}</tbody></table></div></div>`}
 function monthBar(){return `<div class="ttrs-head"><h3>${mode==='salary'?'Salaries & Staff':'Rent & Recurring'}</h3><div class="sp"></div><label style="font-size:10px;font-weight:800">Month <input id="rsMonth" type="month" value="${esc(month)}" style="width:auto;margin-left:5px"></label><button class="btn" id="rsPrepare">Prepare Month</button></div>`}
 function salarySplit(payment){if(!payment)return {cash:0,bank:0};if(Array.isArray(payment.parts))return payment.parts.reduce((v,p)=>{v[p.paymentAccountId.startsWith('CASH|')?'cash':'bank']+=Number(p.amount||0);return v},{cash:0,bank:0});return {cash:payment.paymentAccountId.startsWith('CASH|')?payment.amount:0,bank:payment.paymentAccountId.startsWith('CASH|')?0:payment.amount}}
-let familyCashAutomatic=true;
+let familyCashAutomatic=true,familyLoading=false,familyDeduction=0;
 function familyPlanCompatible(){
  const owner=sheetRows().find(r=>r.masterId===payingMaster),txs=(draftGroups()[payingMaster]||[]).filter(t=>t.status!=='Reversed'),banks=txs.filter(t=>!t.paymentAccountId.startsWith('CASH|'));
  // Preserve separately dated/referenced historical plans in their existing editor.
@@ -41,6 +41,7 @@ function addFamilyExtra(a={type:'EXPENSE',amount:0}){
  updateFamilyPlan();return box;
 }
 function bindFamilyPlan(){
+ familyLoading=true;familyDeduction=0;
  const own=(draftGroups()[payingMaster]||[]).filter(t=>t.status!=='Reversed'),bank=own.find(t=>!t.paymentAccountId.startsWith('CASH|')),extras=new Map();let monthly=0,cash=0;
  for(const t of own){if(t.paymentAccountId.startsWith('CASH|'))cash+=t.amount;for(const a of t.allocations){if(a.type==='SALARY'&&a.masterId===payingMaster){monthly+=a.amount;continue;}const key=JSON.stringify({...a,amount:0,remunerationAmount:0}),previous=extras.get(key);if(previous){previous.amount+=a.amount;previous.remunerationAmount=Number(previous.remunerationAmount||0)+Number(a.remunerationAmount||0);}else extras.set(key,{...a});}}
  q('#rsFamilyMonthly').value=own.length?monthly:remainingMonthly();q('#rsFamilyCash').value=cash;familyCashAutomatic=!own.length||!bank;q('#rsFamilyUseBank').checked=!!bank;q('#rsFamilyDate').value=own[0]?.date||today();
@@ -49,14 +50,16 @@ function bindFamilyPlan(){
  let recovery=Number(q('#rsRecovery').value);q('#rsRecovery').oninput=()=>{const next=Number(q('#rsRecovery').value||0);q('#rsFamilyMonthly').value=Math.max(0,Math.round((Number(q('#rsFamilyMonthly').value)+recovery-next)*100)/100);recovery=next;updateFamilyPlan();};
  q('#rsFamilyCash').oninput=()=>{familyCashAutomatic=Math.abs(Number(q('#rsFamilyCash').value)-familyTotal())<.005;q('#rsFamilyUseBank').checked=Number(q('#rsFamilyCash').value)<familyTotal()-.005;updateFamilyPlan();};
  q('#rsFamilyUseBank').onchange=()=>{if(!q('#rsFamilyUseBank').checked)familyCashAutomatic=true;else if(familyCashAutomatic){familyCashAutomatic=false;q('#rsFamilyCash').value=0;}updateFamilyPlan();};
- q('#rsDraftForm').addEventListener('input',updateFamilyPlan);q('#rsDraftForm').addEventListener('change',updateFamilyPlan);q('#rsAddTransaction').onclick=()=>{const box=addFamilyExtra();window.TT_FORM_VIEWPORT?.open(box);};q('#rsDraftCancel').onclick=()=>{payingMaster='';render();};q('#rsPaySalBtn').onclick=saveTransactions;updateFamilyPlan();
+ q('#rsDraftForm').addEventListener('input',updateFamilyPlan);q('#rsDraftForm').addEventListener('change',updateFamilyPlan);q('#rsAddTransaction').onclick=()=>{const box=addFamilyExtra();window.TT_FORM_VIEWPORT?.open(box);};q('#rsDraftCancel').onclick=()=>{payingMaster='';render();};q('#rsPaySalBtn').onclick=saveTransactions;familyDeduction=familyOwnDeduction();familyLoading=false;updateFamilyPlan();
 }
 function familyAllocations(){return [{type:'SALARY',masterId:payingMaster,amount:Number(q('#rsFamilyMonthly').value||0)},...[...document.querySelectorAll('#rsTransactions .rs-allocation')].map(readAllocation)].filter(a=>a.amount!==0)}
 function familyTotal(){return Math.round(familyAllocations().reduce((n,a)=>n+a.amount,0)*100)/100}
+function familyOwnDeduction(){return [...document.querySelectorAll('#rsTransactions .rs-allocation')].map(readAllocation).filter(a=>a.remunerationMasterId===payingMaster).reduce((n,a)=>n+Number(a.remunerationAmount||0),0)}
 function updateFamilyPlan(){
+ const deduction=familyOwnDeduction();if(!familyLoading&&Math.abs(deduction-familyDeduction)>.005){q('#rsFamilyMonthly').value=Math.max(0,Math.round((Number(q('#rsFamilyMonthly').value)+familyDeduction-deduction)*100)/100);familyDeduction=deduction;}
  const total=familyTotal(),input=q('#rsFamilyCash');if(familyCashAutomatic)input.value=total;const cash=Number(input.value||0),bank=Math.max(0,Math.round((total-cash)*100)/100);input.max=total;input.setCustomValidity(cash>total+.005?'Petty cash cannot exceed the total.':'');q('#rsFamilyTotal').textContent='Rs '+fmt(total);q('#rsFamilyBankAmount').textContent='Rs '+fmt(bank);if(bank>.005)q('#rsFamilyUseBank').checked=true;
  const fields=q('#rsFamilyBankFields'),details=q('#rsFamilyBankDetails');fields.hidden=!q('#rsFamilyUseBank').checked;if(details)details.hidden=fields.hidden;for(const control of fields.querySelectorAll('input,select'))control.disabled=fields.hidden;
- const row=sheetRows().find(r=>r.masterId===payingMaster),remaining=Math.max(0,row.totalDue-row.paidAfterPrepare-Number(q('#rsRecovery').value||0)-Number(q('#rsFamilyMonthly').value||0));q('#rsAllocationSummary').textContent='Monthly remaining Rs '+fmt(remaining);formDirty=true;
+ const row=sheetRows().find(r=>r.masterId===payingMaster),remaining=Math.max(0,row.totalDue-row.paidAfterPrepare-Number(q('#rsRecovery').value||0)-Number(q('#rsFamilyMonthly').value||0)-deduction);q('#rsAllocationSummary').textContent='Monthly remaining Rs '+fmt(remaining);formDirty=true;
 }
 function familyTransactions(){
  const cents=n=>Math.round(Number(n)*100),allocations=familyAllocations(),total=cents(familyTotal()),cash=cents(q('#rsFamilyCash').value||0),bank=total-cash,date=q('#rsFamilyDate').value,recipient=sheetRows().find(r=>r.masterId===payingMaster).name;
