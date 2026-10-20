@@ -207,6 +207,13 @@ def run():
   detailed={**freight,'invoiceNo':'FREIGHT-USD-BASIS','shipmentSections':[{'shipmentId':'FIXTURE-SHIP','containerCount':3,'charges':[{'charge':name,'currency':'USD','basis':basis,'billedRate':rate,'acceptedRate':rate} for name,basis,rate in [('Freight','PER_CONTAINER',1000),('B/L charges','PER_BL',50),('Handling','PER_CONTAINER',25),('Documentation','PER_BL',10),('Discount','PER_BL',-5)]]}]}
   status,recorded=request('/api/accounts_workflows_v1.php',detailed);assert status==200,(status,recorded)
   state=json.loads(storefile.read_text());source=state['supplierBills'][recorded['bill']['id']]['sourceRecord'];assert source['billedTotal']==876400 and source['acceptedLiability']==876400 and source['freightAcceptedUsd']==3000
+  # PKR B/L and local charges alongside USD freight must convert only the USD lines.
+  mixed={**freight,'invoiceNo':'FREIGHT-MIXED-CURRENCY','shipmentSections':[{'shipmentId':'FIXTURE-SHIP','containerCount':3,'charges':[{'charge':name,'currency':currency,'basis':basis,'billedRate':billed,'acceptedRate':accepted} for name,currency,basis,billed,accepted in [('Freight','USD','PER_CONTAINER',1000,1000),('B/L charges','PKR','PER_BL',6500,6000),('Handling','PKR','PER_CONTAINER',100,100),('Discount','PKR','PER_BL',-50,-50)]]}]}
+  status,mixed_recorded=request('/api/accounts_workflows_v1.php',mixed);assert status==200,(status,mixed_recorded)
+  state=json.loads(storefile.read_text());mixed_bill=state['supplierBills'][mixed_recorded['bill']['id']];source=mixed_bill['sourceRecord'];assert source['billedTotal']==846750 and source['acceptedLiability']==846250 and source['disputedTotal']==500 and source['freightAcceptedUsd']==3000
+  assert source['shipmentSections'][0]['amount']==846250 and source['shipmentSections'][0]['billLines'][1]['currency']=='PKR'
+  assert mixed_bill['supplierPayableTotal']==846250
+  print('Mixed USD/PKR freight, per-B/L and per-container local charges, deduction and disputed payable totals passed')
   invalid={**detailed,'invoiceNo':'BAD-BASIS','shipmentSections':[{'shipmentId':'FIXTURE-SHIP','containerCount':3,'charges':[{'charge':'Wrong','currency':'USD','basis':'UNKNOWN','billedRate':1,'acceptedRate':1}]}]};assert request('/api/accounts_workflows_v1.php',invalid)[0]==422
   assert request('/api/accounts_workflows_v1.php',{**detailed,'invoiceNo':'NO-FX','exchangeRate':0})[0]==422
   status,filtered=request('/api/accounts_shipment_lookup.php?scope=freight&entity=TTI&q=FIXTURE&customer=Fixture%20Customer');assert status==200 and all(row['customer']=='Fixture Customer' for row in filtered['rows'])
@@ -347,9 +354,16 @@ def run():
     page.locator('[data-deduct]').click();charges.nth(4).locator('[data-description]').fill('Discount');charges.nth(4).locator('[data-amount]').fill('5');charges.nth(4).locator('[data-basis]').select_option('PER_BL',force=True)
     assert page.locator('#ttShipmentBillTotal').inner_text()=='876,400.00'
     assert page.locator('[data-pkr]').evaluate_all('els=>els.map(el=>el.value)')==['840,000.00','14,000.00','21,000.00','2,800.00','-1,400.00']
+    charges.nth(1).locator('[data-currency]').select_option('PKR',force=True);charges.nth(1).locator('[data-amount]').fill('6500')
+    charges.nth(2).locator('[data-currency]').select_option('PKR',force=True);charges.nth(2).locator('[data-amount]').fill('100')
+    assert page.locator('#ttShipmentBillTotal').inner_text()=='848,200.00'
+    assert charges.nth(1).locator('[data-rate-label]').inner_text()=='RATE (PKR)' and charges.nth(1).locator('[data-pkr]').input_value()=='6,500.00'
+    charges.nth(1).locator('[data-currency]').select_option('USD',force=True);charges.nth(1).locator('[data-amount]').fill('50')
+    charges.nth(2).locator('[data-currency]').select_option('USD',force=True);charges.nth(2).locator('[data-amount]').fill('25')
+    assert page.locator('#ttShipmentBillTotal').inner_text()=='876,400.00'
     ends=[row.locator('[data-pkr]').bounding_box()['x']+row.locator('[data-pkr]').bounding_box()['width'] for row in charges.all()];assert max(ends)-min(ends)<2,ends
     for row in charges.all():
-     bottoms=row.evaluate("row=>['[data-description]','[data-amount]','[data-basis]','[data-pkr]'].map(selector=>{const el=row.querySelector(selector),visible=el.classList.contains('tt-number-source')?el.parentElement.querySelector('.tt-number-display'):el.classList.contains('tt-native-select')?el.parentElement.querySelector('input'):el,r=visible.getBoundingClientRect();return r.bottom})");assert max(bottoms)-min(bottoms)<2,bottoms
+     bottoms=row.evaluate("row=>['[data-description]','[data-currency]','[data-amount]','[data-basis]','[data-pkr]'].map(selector=>{const el=row.querySelector(selector),visible=el.classList.contains('tt-number-source')?el.parentElement.querySelector('.tt-number-display'):el.classList.contains('tt-native-select')?el.parentElement.querySelector('input'):el,r=visible.getBoundingClientRect();return r.bottom})");assert max(bottoms)-min(bottoms)<2,bottoms
     page.screenshot(path=str(evidence/'freight-usd-charge-bases.png'))
     page.locator('#ttShipmentBillEntry [type=submit]').click();confirm_accounting_review(page,'BILL POSTED');page.get_by_role('heading',name='BILL POSTED',exact=True).wait_for()
     stored=json.loads((root/'transtrade_private/accounts.json').read_text());bill=next(x for x in stored['freightBillsV1'].values() if x['invoiceNo']=='BROWSER-FREIGHT-USD');assert bill['billedTotal']==876400 and stored['supplierBills'][bill['id']]['supplierPayableTotal']==876400
