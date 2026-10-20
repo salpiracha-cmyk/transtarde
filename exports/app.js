@@ -1829,7 +1829,7 @@ function ttProperNounOutput(value){
  const keep=new Set(['TTI','TG','BRM','P.P.','BOPP','DPP','SGS','FI','GD','IBAN','SWIFT','FOB','CFR','CNF','CIF','FCL','LC','L/C','UAE','UK','USA','HS','PO','P.O.','MT','KG','KGS','MV','LLC','L.L.C','L.L.C.','FZE','FZC','DMCC','PJSC','PLC','PVT']);
  return source.toLowerCase().replace(/\b[\w./'-]+\b/g,(word,index)=>{const upper=word.toUpperCase();if(keep.has(upper)||/^(?:[A-Z]\.)+[A-Z]?$/.test(upper))return upper;if(index>0&&['and','or','of','the','in','to','for'].includes(word))return word;return word.charAt(0).toUpperCase()+word.slice(1)}).replace(/\bP\.p\./g,'P.P.').replace(/\bBopp\b/g,'BOPP')
 }
-function ttPartyOutput(party){const contact=[party?.attention&&`ATTN: ${party.attention}`,party?.country,party?.email&&`EMAIL: ${party.email}`,party?.phone&&`TEL: ${party.phone}`,party?.tax&&`TAX / REGISTRATION: ${party.tax}`].filter(Boolean);return{name:ttProperNounOutput(party?.name||''),address:[ttProperNounOutput(party?.address||''),...contact.map(ttProperNounOutput)].filter(Boolean).join('\n')}}
+function ttPartyOutput(party){const contact=[party?.country,party?.email&&`EMAIL: ${party.email}`,party?.phone&&`TEL: ${party.phone}`,party?.tax&&`TAX / REGISTRATION: ${party.tax}`].filter(Boolean);return{name:ttProperNounOutput(party?.name||''),address:[ttProperNounOutput(party?.address||''),party?.attention&&ttProperNounOutput('ATTN: '+party.attention),...contact.map(ttProperNounOutput)].filter(Boolean).join('\n')}}
 const ttContractPortBeforeAcceptance=contractPort__legacy_v0;
 function contractPort(c){return ttProperNounOutput(ttContractPortBeforeAcceptance(c))};
 const ttPricePortBeforeAcceptance=pricePort__legacy_v0;

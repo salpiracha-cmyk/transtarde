@@ -1,5 +1,7 @@
 """Accounts recurring bills, meter periods, audited reversal, and saving profit using real PHP APIs."""
 import json, os, pathlib, shutil, subprocess, tempfile
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 with tempfile.TemporaryDirectory(prefix='tti-api-permissions-') as directory:
@@ -73,7 +75,9 @@ require $argv[1];
     # No end date: a future leap February reminder clamps day 31 to day 29.
     data=call({**reminder,'id':uid,'month':'2028-02'})
     assert any(r['dueDate']=='2028-02-29' for r in data['reminders']),data
-    data=call({'action':'save_card_master','entity':'TTI','cardName':'Office Card','holder':'Accounts','issuerBank':'Bank','last4':'1234','dueDay':20})
+    # This case checks a missing future statement, independently of today's due-day boundary.
+    future_month=(datetime.now(ZoneInfo('Asia/Karachi')).replace(day=1)+timedelta(days=32)).strftime('%Y-%m')
+    data=call({'action':'save_card_master','entity':'TTI','cardName':'Office Card','holder':'Accounts','issuerBank':'Bank','last4':'1234','dueDay':20},query='?entity=TTI&month='+future_month)
     assert any(r['type']=='CREDIT_CARD' and r['status']=='Statement needed' for r in data['reminders']),data
     payment={'action':'pay_utility','entity':'TTI','month':'2026-10','utilityMasterId':'','utilityType':'ELECTRICITY','location':'MILL','locationId':'MILL','accountingTreatment':'BUSINESS_EXPENSE','payee':'Electricity Provider','paymentDate':'2026-10-07','billMonth':'2026-10','amount':100,'paymentAccountId':'CASH|TTI','reference':'MILL-BILL','requestKey':'bill-fixture-001'}
     call(payment,422)
