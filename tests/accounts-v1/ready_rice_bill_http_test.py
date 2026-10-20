@@ -207,6 +207,13 @@ def run():
   detailed={**freight,'invoiceNo':'FREIGHT-USD-BASIS','shipmentSections':[{'shipmentId':'FIXTURE-SHIP','containerCount':3,'charges':[{'charge':name,'currency':'USD','basis':basis,'billedRate':rate,'acceptedRate':rate} for name,basis,rate in [('Freight','PER_CONTAINER',1000),('B/L charges','PER_BL',50),('Handling','PER_CONTAINER',25),('Documentation','PER_BL',10),('Discount','PER_BL',-5)]]}]}
   status,recorded=request('/api/accounts_workflows_v1.php',detailed);assert status==200,(status,recorded)
   state=json.loads(storefile.read_text());source=state['supplierBills'][recorded['bill']['id']]['sourceRecord'];assert source['billedTotal']==876400 and source['acceptedLiability']==876400 and source['freightAcceptedUsd']==3000
+  # PKR B/L and local charges alongside USD freight must convert only the USD lines.
+  mixed={**freight,'invoiceNo':'FREIGHT-MIXED-CURRENCY','shipmentSections':[{'shipmentId':'FIXTURE-SHIP','containerCount':3,'charges':[{'charge':name,'currency':currency,'basis':basis,'billedRate':billed,'acceptedRate':accepted} for name,currency,basis,billed,accepted in [('Freight','USD','PER_CONTAINER',1000,1000),('B/L charges','PKR','PER_BL',6500,6000),('Handling','PKR','PER_CONTAINER',100,100),('Discount','PKR','PER_BL',-50,-50)]]}]}
+  status,mixed_recorded=request('/api/accounts_workflows_v1.php',mixed);assert status==200,(status,mixed_recorded)
+  state=json.loads(storefile.read_text());mixed_bill=state['supplierBills'][mixed_recorded['bill']['id']];source=mixed_bill['sourceRecord'];assert source['billedTotal']==846750 and source['acceptedLiability']==846250 and source['disputedTotal']==500 and source['freightAcceptedUsd']==3000
+  assert source['shipmentSections'][0]['amount']==846250 and source['shipmentSections'][0]['billLines'][1]['currency']=='PKR'
+  assert mixed_bill['supplierPayableTotal']==846250
+  print('Mixed USD/PKR freight, per-B/L and per-container local charges, deduction and disputed payable totals passed')
   invalid={**detailed,'invoiceNo':'BAD-BASIS','shipmentSections':[{'shipmentId':'FIXTURE-SHIP','containerCount':3,'charges':[{'charge':'Wrong','currency':'USD','basis':'UNKNOWN','billedRate':1,'acceptedRate':1}]}]};assert request('/api/accounts_workflows_v1.php',invalid)[0]==422
   assert request('/api/accounts_workflows_v1.php',{**detailed,'invoiceNo':'NO-FX','exchangeRate':0})[0]==422
   status,filtered=request('/api/accounts_shipment_lookup.php?scope=freight&entity=TTI&q=FIXTURE&customer=Fixture%20Customer');assert status==200 and all(row['customer']=='Fixture Customer' for row in filtered['rows'])
