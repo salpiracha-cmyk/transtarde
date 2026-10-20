@@ -105,7 +105,7 @@ jobs:
           import pathlib,re,sys
           log=pathlib.Path(sys.argv[1]).read_text(errors='replace')
           for line in log.splitlines():
-            if re.fullmatch(r'PRIVATE_REHEARSAL_STAGE (app_copy_started|app_copy_complete|private_copy_started|private_copy_complete)|PRIVATE_REHEARSAL_TARGET_STARTED|PRIVATE_REHEARSAL_HOST_HTTP status=[0-9]{3}',line): print(line)
+            if re.fullmatch(r'PRIVATE_REHEARSAL_STAGE (app_copy_started|app_copy_complete|private_copy_started|private_copy_complete)|PRIVATE_REHEARSAL_TARGET_STARTED|PRIVATE_REHEARSAL_HOST_HTTP status=[0-9]{3}|PRIVATE_REHEARSAL_PREFLIGHT_HTTP status=[0-9]{3}|PRIVATE_REHEARSAL_LOOPBACK_UNAVAILABLE before_source_copy=true',line): print(line)
           category='unclassified'
           if re.search('administratively prohibited|forwarding disabled',log,re.I): category='forwarding_denied'
           elif re.search('connect failed: connection refused',log,re.I): category='connection_refused'

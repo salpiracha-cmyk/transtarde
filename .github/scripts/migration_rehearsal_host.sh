@@ -4,6 +4,8 @@ set -euo pipefail
 umask 077
 source_app=$1
 port=$2
+mode=${3:-browser}
+case "$mode" in browser|files-only) ;; *) exit 1 ;; esac
 case "$source_app" in /home/*/domains/app.transtradeinternational.com/public_html) ;; *) exit 1 ;; esac
 [[ "$port" =~ ^[0-9]{4,5}$ ]]
 [[ "${TT_REHEARSAL_GATE_HEX:-}" =~ ^[a-f0-9]{64}$ ]]
@@ -12,18 +14,43 @@ server_pid=''
 cleanup(){
   if [ -n "$server_pid" ]; then kill "$server_pid" 2>/dev/null || true; wait "$server_pid" 2>/dev/null || true; fi
   case "$task_work" in /tmp/tt-audit-rehearsal-????????) rm -rf -- "$task_work" ;; *) exit 1 ;; esac
+  [ ! -e "$task_work" ] || exit 1
+  printf '%s\n' 'PRIVATE_REHEARSAL_CLEANUP_OK'
 }
 trap cleanup EXIT
 trap 'exit 130' HUP INT TERM
 export TT_REHEARSAL_WORK="$task_work"
 mkdir -m 700 "$task_work/app" "$task_work/transtrade_private" "$task_work/preimage"
+# Refuse the browser path before copying any application or private data when
+# this hosting account cannot reach its own gated loopback listener.
+printf '%s' "$TT_REHEARSAL_GATE_HEX" > "$task_work/gate"
+unset TT_REHEARSAL_GATE_HEX
+if [ "$mode" = browser ]; then
+  cat > "$task_work/probe.php" <<'PREFLIGHT'
+<?php
+if(!hash_equals(file_get_contents(__DIR__.'/gate'),(string)($_SERVER['HTTP_X_TT_REHEARSAL']??''))||parse_url($_SERVER['REQUEST_URI'],PHP_URL_PATH)!=='/__audit/probe'){http_response_code(404);exit;}
+echo '{}';
+PREFLIGHT
+  php -S "127.0.0.1:$port" -t "$task_work/app" "$task_work/probe.php" > "$task_work/server.log" 2>&1 &
+  server_pid=$!
+  probe_status=000
+  for attempt in 1 2 3 4 5; do
+    probe_status=$(curl --noproxy 127.0.0.1 --silent --output /dev/null --write-out '%{http_code}' --max-time 2 -H "X-TT-Rehearsal: $(cat "$task_work/gate")" "http://127.0.0.1:$port/__audit/probe") || true
+    [ "$probe_status" = 200 ] && break
+    sleep 1
+  done
+  case "$probe_status" in [0-9][0-9][0-9]) printf 'PRIVATE_REHEARSAL_PREFLIGHT_HTTP status=%s\n' "$probe_status" ;; esac
+  if [ "$probe_status" != 200 ]; then printf '%s\n' 'PRIVATE_REHEARSAL_LOOPBACK_UNAVAILABLE before_source_copy=true'; exit 1; fi
+  kill "$server_pid" 2>/dev/null || true
+  wait "$server_pid" 2>/dev/null || true
+  server_pid=''
+  rm -f -- "$task_work/probe.php" "$task_work/server.log"
+fi
 printf '%s\n' 'PRIVATE_REHEARSAL_STAGE app_copy_started'
 cp -a "$source_app/." "$task_work/app/"
 printf '%s\n' 'PRIVATE_REHEARSAL_STAGE app_copy_complete'
 # Reject app links rather than exposing any source path through the test server.
 if [ -n "$(find "$task_work/app" -type l -print -quit)" ]; then exit 1; fi
-printf '%s' "$TT_REHEARSAL_GATE_HEX" > "$task_work/gate"
-unset TT_REHEARSAL_GATE_HEX
 export TT_REHEARSAL_SOURCE_APP="$source_app"
 printf '%s\n' 'PRIVATE_REHEARSAL_STAGE private_copy_started'
 php <<'PHP'
@@ -62,6 +89,30 @@ try{
 }catch(Throwable $error){fwrite(STDERR,"Private rehearsal copy failed its source-consistency checks.\n");exit(1);}
 PHP
 printf '%s\n' 'PRIVATE_REHEARSAL_STAGE private_copy_complete'
+if [ "$mode" = files-only ]; then
+  env -u TT_DB_HOST -u TT_DB_NAME -u TT_DB_USER -u TT_DB_PASS php <<'FILEVERIFY'
+<?php
+$work=getenv('TT_REHEARSAL_WORK');$source=dirname(getenv('TT_REHEARSAL_SOURCE_APP')).'/transtrade_private';
+try{
+ if(!preg_match('~^/tmp/tt-audit-rehearsal-[A-Za-z0-9]{8}$~D',$work)||realpath($work)!==$work||realpath($work.'/transtrade_private')===realpath($source))throw new RuntimeException('Boundary');
+ $manifest=json_decode(file_get_contents($work.'/manifest.json'),true,512,JSON_THROW_ON_ERROR);$ready=json_decode(file_get_contents($work.'/ready.json'),true,512,JSON_THROW_ON_ERROR);
+ foreach(['auth_store.php','backup_lib.php']as$name)if(!hash_equals(hash_file('sha256',getenv('TT_REHEARSAL_SOURCE_APP').'/'.$name),hash_file('sha256',$work.'/app/'.$name)))throw new RuntimeException('Program changed');
+ foreach(['accounts.json','operations.json']as$name)if(!hash_equals($manifest[$name]['sha256'],hash_file('sha256',$source.'/'.$name)))throw new RuntimeException('Source changed');
+ require $work.'/app/auth_store.php';require $work.'/app/backup_lib.php';
+ if(realpath(TT_DATA_DIR)!==realpath($work.'/transtrade_private'))throw new RuntimeException('Store boundary');
+ $staged=[];foreach(['auth.json','accounts.json','operations.json']as$name){
+  if(!hash_equals($manifest[$name]['sha256'],hash_file('sha256',$work.'/preimage/'.$name)))throw new RuntimeException('Preimage');
+  $temp=$work.'/file-restore-'.$name;if(!copy($work.'/preimage/'.$name,$temp))throw new RuntimeException('Stage');$staged[$name]=$temp;
+ }
+ foreach(array_keys($staged)as$name)if(file_put_contents(TT_DATA_DIR.'/'.$name,'{}')===false)throw new RuntimeException('Target preparation');
+ $restored=tt_backup_commit_staged($staged);if($restored!==3)throw new RuntimeException('Restore count');
+ foreach($manifest as$rel=>$row){if(str_starts_with($rel,'/')||str_contains('/'.$rel.'/','/../')||is_link(TT_DATA_DIR.'/'.$rel)||!hash_equals($row['sha256'],hash_file('sha256',TT_DATA_DIR.'/'.$rel)))throw new RuntimeException('Restored original');}
+ foreach(['accounts.json','operations.json']as$name)if(!hash_equals($manifest[$name]['sha256'],hash_file('sha256',$source.'/'.$name)))throw new RuntimeException('Source changed');
+ echo 'PRIVATE_CURRENT_FILE_RESTORE_OK '.json_encode(['manifestFiles'=>count($manifest),'manifestBytes'=>$ready['bytes'],'canonicalStoresRestored'=>$restored,'allOriginalFileHashesAgree'=>true,'sourceBusinessFilesUnchanged'=>true,'sourceBusinessWrites'=>0,'browserAcceptance'=>false],JSON_THROW_ON_ERROR)."\n";
+}catch(Throwable $error){fwrite(STDERR,"Private file-only restore failed; no production restore was performed.\n");exit(1);}
+FILEVERIFY
+  exit 0
+fi
 cat > "$task_work/router.php" <<'PHP'
 <?php
 $work=__DIR__;$provided=(string)($_SERVER['HTTP_X_TT_REHEARSAL']??'');

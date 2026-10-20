@@ -17,3 +17,13 @@ assert "github.event_name == 'workflow_run'" in workflow
 assert 'upload-artifact' not in workflow and 'StrictHostKeyChecking=yes' in workflow
 assert 'office_backup' not in host+browser+workflow
 print('PASS private recovery boundaries: main-only credentials, gated loopback, target-only rollback, TTL cleanup, exact controls and no raw-data artifact')
+
+assert 'case "$mode" in browser|files-only)' in host
+assert host.index('PRIVATE_REHEARSAL_LOOPBACK_UNAVAILABLE') < host.index('cp -a "$source_app/."')
+assert 'PRIVATE_CURRENT_FILE_RESTORE_OK' in host and "'browserAcceptance'=>false" in host
+assert 'sourceBusinessFilesUnchanged' in host
+
+file_workflow=(root/'.github/workflows/private-file-recovery.yml').read_text()
+assert "github.event_name == 'push' && github.ref == 'refs/heads/main'" in file_workflow
+assert 'environment: live-qa' in file_workflow and '23456 files-only' in file_workflow
+assert 'upload-artifact' not in file_workflow and 'StrictHostKeyChecking=yes' in file_workflow
