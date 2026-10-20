@@ -34,7 +34,7 @@ assert(milling.includes('function editSlip') && milling.includes('Save Amendment
 assert(desk.includes('Search Previous Accounts Entry'), 'every workspace must expose previous-entry search');
 assert(desk.includes('Print Voucher'), 'third-party accounting search results must expose voucher print');
 assert(desk.includes('Export Receipts & Payments') && desk.includes('Bank Receipt / Credit Advice') && desk.includes('Local Sales & Receipts'), 'receipt work must be grouped under the approved broad areas');
-assert(desk.includes("title:'Sales Tax'") && !desk.includes("title:'Sales Tax Export File'"), 'report must use the exact Sales Tax name');
+assert(desk.includes("title:'Sales Tax & Refund'") && !desk.includes("title:'Sales Tax Export File'"), 'report must use the consolidated Sales Tax & Refund name');
 assert(desk.includes('const tgAreas') && !desk.includes("key:'tg-purchases'"), 'TG must have the simplified receipt, payment, bank, ledger and report menu without Pakistan purchase workflows');
 assert(desk.includes('accounts_dashboard.php') && desk.includes('accounts_sales_tax.php'), 'dashboard summaries and Sales Tax search must use linked read-only endpoints');
 assert(dashboardApi.includes("['1110','1120']") || (dashboardApi.includes("$a==='1110'") && dashboardApi.includes("$a==='1120'")), 'dashboard bank summary must come from posted bank and cash ledger lines');

@@ -57,6 +57,7 @@ $files = [
     'nonwoven-bag-ui.js',
     'bag-bill-review-ui.js',
     'sales-tax-refund-ui.js',
+    'monthly-sales-tax-ui.js',
     'other-purchases-ui.js',
     'bill-payment-terms.js',
     'payables-commodity-split-ui.js',

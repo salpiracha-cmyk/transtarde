@@ -280,6 +280,8 @@ jobs:
           node tests/accounts-v1/family_payment_plan_test.js
           node tests/accounts-v1/salary_payment_amend_ui_test.js
           node tests/accounts-v1/fi_tags_read_only_test.js
+          php tests/accounts-v1/monthly_tax_source_test.php
+          python3 tests/accounts-v1/monthly_tax_http_test.py
           php tests/accounts-v1/sales_tax_source_test.php
           python3 tests/accounts-v1/sales_tax_endpoint_test.py
           python3 tests/accounts-v1/shipment_archive_read_test.py
@@ -290,6 +292,9 @@ jobs:
           python3 tests/accounts-v1/tg_pending_fi_endpoint_test.py
           node tests/accounts-v1/report_filter_drilldown_test.js
           node tests/accounts-v1/commodity_quantity_ui_test.js
+          node tests/accounts-v1/monthly_tax_ui_test.js
+          node tests/accounts-v1/monthly_tax_invoice_fixture.js
+          node tests/accounts-v1/monthly_tax_pack_browser_test.js
           node tests/accounts-v1/sales_tax_output_ui_test.js
           node tests/accounts-v1/group_management_ui_test.js
           node tests/accounts-v1/group_daily_ui_test.js
