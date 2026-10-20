@@ -54,6 +54,7 @@ async function restoredPackingPdf(page){
  assert.ok(result,'Restored packing geometry');assert.equal(result.label,'ORIGINAL');assert.equal(result.position,'static');assert.ok(result.height>0);assert.equal(result.overlap,false);
  const pdf=await page.pdf({format:'A4',printBackground:true,displayHeaderFooter:false});assert.equal(pdf.subarray(0,5).toString(),'%PDF-');
 }
+let phase='browser-start';
 (async()=>{
  const browser=await chromium.launch({headless:true});let copy;
  try{
@@ -69,26 +70,26 @@ async function restoredPackingPdf(page){
    return route.continue();
   });
   const ready=await copy.request.get(target+'/__audit/ready',{timeout:30000});assert.equal(ready.status(),200);const manifest=await ready.json();assert.ok(manifest.files>=3);
-  await signIn(original,source);const before=await controls(original,source);
-  const page=await signIn(copy,target);const restored=await controls(copy,target);assert.equal(digest(restored),digest(before),'Source and target controls agree');
-  for(const id of ['exports','milling']){
+  phase='source-signin';await signIn(original,source);phase='source-controls';const before=await controls(original,source);
+  phase='target-signin';const page=await signIn(copy,target);phase='target-controls';const restored=await controls(copy,target);assert.equal(digest(restored),digest(before),'Source and target controls agree');
+  phase='target-native-modules';for(const id of ['exports','milling']){
    await page.goto(target+'/module.php?id='+id,{waitUntil:'domcontentloaded',timeout:90000});
    await page.locator(id==='exports'?'#app':'#homeGrid').waitFor({state:'visible',timeout:45000});
    await page.locator('#ttMasterTop').waitFor({state:'visible',timeout:45000});
   }
-  const rollback=await copy.request.post(target+'/__audit/rollback');assert.equal(rollback.status(),200,'Isolated rollback HTTP status');
+  phase='target-rollback';const rollback=await copy.request.post(target+'/__audit/rollback');assert.equal(rollback.status(),200,'Isolated rollback HTTP status');
   const result=await rollback.json();assert.equal(result.ok,true);assert.equal(result.storesRestored,3);
   // Restored users can still match the existing target session. Clear only
   // this disposable context so re-authentication really uses the restored store.
   await copy.clearCookies();
-  const recovered=await signIn(copy,target);const after=await controls(copy,target);assert.equal(digest(after),digest(before),'Rollback retains every control');
-  await restoredPackingPdf(recovered);
+  phase='restored-signin';const recovered=await signIn(copy,target);const after=await controls(copy,target);assert.equal(digest(after),digest(before),'Rollback retains every control');
+  phase='restored-packing-pdf';await restoredPackingPdf(recovered);
   assert.equal(digest(await controls(copy,target)),digest(before),'Restored PDF leaves original controls unchanged');
-  const unchanged=await controls(original,source);assert.equal(digest(unchanged),digest(before),'Production business controls remain unchanged');
+  phase='final-source-controls';const unchanged=await controls(original,source);assert.equal(digest(unchanged),digest(before),'Production business controls remain unchanged');
   assert.equal(blockedWrites,0,'No attempted business writes');
   console.log('PRIVATE_RECOVERY_REHEARSAL_OK '+JSON.stringify({manifestFiles:manifest.files,manifestBytes:manifest.bytes,operationalKeys:before.keys,companies:3,nativeModules:3,canonicalStoresRestored:3,packingPdfVerified:true,originalLabelOverlaps:false,sourceTargetControlsAgree:true,sourceBusinessWrites:0}));
  }finally{
   if(copy)await copy.request.post(target+'/__audit/finish',{timeout:10000}).catch(()=>{});
   await browser.close();
  }
-})().catch(()=>{console.error('Private rehearsal failed; no production restore or migration was performed. Private payloads are not logged.');process.exitCode=1;});
+})().catch(()=>{console.error('PRIVATE_RECOVERY_FAILURE phase='+phase);console.error('Private rehearsal failed; no production restore or migration was performed. Private payloads are not logged.');process.exitCode=1;});

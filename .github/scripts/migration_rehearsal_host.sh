@@ -17,12 +17,15 @@ trap cleanup EXIT
 trap 'exit 130' HUP INT TERM
 export TT_REHEARSAL_WORK="$task_work"
 mkdir -m 700 "$task_work/app" "$task_work/transtrade_private" "$task_work/preimage"
+printf '%s\n' 'PRIVATE_REHEARSAL_STAGE app_copy_started'
 cp -a "$source_app/." "$task_work/app/"
+printf '%s\n' 'PRIVATE_REHEARSAL_STAGE app_copy_complete'
 # Reject app links rather than exposing any source path through the test server.
 if [ -n "$(find "$task_work/app" -type l -print -quit)" ]; then exit 1; fi
 printf '%s' "$TT_REHEARSAL_GATE_HEX" > "$task_work/gate"
 unset TT_REHEARSAL_GATE_HEX
 export TT_REHEARSAL_SOURCE_APP="$source_app"
+printf '%s\n' 'PRIVATE_REHEARSAL_STAGE private_copy_started'
 php <<'PHP'
 <?php
 $source=dirname(getenv('TT_REHEARSAL_SOURCE_APP')).'/transtrade_private';$work=getenv('TT_REHEARSAL_WORK');$target=$work.'/transtrade_private';
@@ -58,6 +61,7 @@ try{
  file_put_contents($work.'/ready.json',json_encode(['files'=>count($manifest),'bytes'=>$bytes,'manifestDigest'=>hash('sha256',json_encode($manifest,JSON_THROW_ON_ERROR))],JSON_THROW_ON_ERROR));
 }catch(Throwable $error){fwrite(STDERR,"Private rehearsal copy failed its source-consistency checks.\n");exit(1);}
 PHP
+printf '%s\n' 'PRIVATE_REHEARSAL_STAGE private_copy_complete'
 cat > "$task_work/router.php" <<'PHP'
 <?php
 $work=__DIR__;$provided=(string)($_SERVER['HTTP_X_TT_REHEARSAL']??'');
@@ -81,6 +85,13 @@ PHP
 env -u TT_DB_HOST -u TT_DB_NAME -u TT_DB_USER -u TT_DB_PASS php -S "127.0.0.1:$port" -t "$task_work/app" "$task_work/router.php" > "$task_work/server.log" 2>&1 &
 server_pid=$!
 printf '%s\n' 'PRIVATE_REHEARSAL_TARGET_STARTED'
+host_status=000
+for attempt in 1 2 3 4 5; do
+  host_status=$(curl --noproxy 127.0.0.1 --silent --output /dev/null --write-out '%{http_code}' --max-time 2 -H "X-TT-Rehearsal: $(cat "$task_work/gate")" "http://127.0.0.1:$port/__audit/ready") || true
+  [ "$host_status" = 200 ] && break
+  sleep 1
+done
+case "$host_status" in [0-9][0-9][0-9]) printf 'PRIVATE_REHEARSAL_HOST_HTTP status=%s\n' "$host_status" ;; esac
 # TTL also removes the copy if the CI/SSH connection unexpectedly disappears.
 deadline=$(( $(date +%s) + 1200 ))
 while [ ! -e "$task_work/stop" ] && [ "$(date +%s)" -lt "$deadline" ]; do
