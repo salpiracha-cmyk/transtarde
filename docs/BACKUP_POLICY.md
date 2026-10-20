@@ -105,3 +105,10 @@ CRC. A prefix SHA256 is bound to the candidate and rechecked before unlink.
 The original fixed approval cutoff, minimum age, process visibility, exclusive
 lock, file identity and fully verified newer persistent survivor still apply.
 Unknown headers or damaged prefix payloads remain held; no live data is restored.
+
+
+### Private audit restore verification
+
+The file-only audit workflow copies current originals into a private temporary folder on the same host, excludes backup/session/historical-recovery folders, verifies source consistency and restores only the copy's three canonical stores through the actual restore helper. It must verify all original-file hashes, unchanged source business files and cleanup. This is file-recovery evidence and explicitly records `browserAcceptance: false`; it cannot be described as full browser migration, a production restore, a MySQL conversion or office-PC backup acceptance.
+
+The separate browser rehearsal must first prove its gated loopback listener is reachable before copying any application or private data. A failed transport check stays a failed prerequisite. Never reduce hosting protection or claim a browser pass from the file-only result. These implementation-triggered temporary copies are removed on exit; they do not alter retained business backups or their retention policy.
