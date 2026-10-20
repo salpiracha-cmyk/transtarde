@@ -28,7 +28,8 @@ for(const completed of [true,false]){
   w.document.getElementById('printWith').click();assert.deepEqual(prints,[{mode:'with',readOnly:true}]);assert.equal(alerts.length,0);
   output.click();w.document.getElementById('printWithout').click();assert.deepEqual(prints.at(-1),{mode:'without',readOnly:true});
   // A read intent never supplies missing View, and active saves stay protected.
-  permissions.completed=[];output.click();assert.equal(alerts.at(-1),'This icon is not allowed for your login.');assert.equal(prints.length,2);
+  permissions.print=[];output.click();assert.equal(alerts.at(-1),'This icon is not allowed for your login.');assert.equal(prints.length,2);
+  permissions.print=['View'];permissions.completed=[];output.click();assert.equal(alerts.at(-1),'This icon is not allowed for your login.');assert.equal(prints.length,2);
  }else{
   assert.equal(w.document.getElementById('printWith'),null,'Active Print / Save still requires a write grant');
   assert.equal(alerts.at(-1),'Create permission is not allowed for this icon.');assert.equal(prints.length,0);
