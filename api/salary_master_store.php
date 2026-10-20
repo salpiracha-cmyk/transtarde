@@ -17,26 +17,31 @@ function sm_read_store(): array {
     $h=fopen(sm_file(),'r');
     if ($h===false || !flock($h,LOCK_SH)) throw new RuntimeException('Accounts storage unavailable.');
     try { $raw=stream_get_contents($h); } finally { flock($h,LOCK_UN); fclose($h); }
-    $s=$raw?json_decode($raw,true):null;
-    return is_array($s)?array_replace_recursive(sm_default_store(),$s):sm_default_store();
+    $s=json_decode($raw,true,512,JSON_THROW_ON_ERROR);
+    if(!is_array($s)||($s!==[]&&array_is_list($s))||(isset($s['journals'])&&!is_array($s['journals'])))throw new RuntimeException('Accounts storage is invalid.');
+    return array_replace_recursive(sm_default_store(),$s);
 }
 function sm_mutate(callable $callback): mixed {
     tt_ensure_data_dir();
+    $existed=is_file(sm_file());
     $h=fopen(sm_file(),'c+');
     if ($h===false || !flock($h,LOCK_EX)) throw new RuntimeException('Accounts storage unavailable.');
     try {
-        rewind($h); $raw=stream_get_contents($h); $s=$raw?json_decode($raw,true):null;
-        if (!is_array($s)) $s=sm_default_store();
+        rewind($h); $raw=stream_get_contents($h);
+        $s=(!$existed&&$raw==='')?sm_default_store():json_decode($raw,true,512,JSON_THROW_ON_ERROR);
+        if(!is_array($s)||($s!==[]&&array_is_list($s))||(isset($s['journals'])&&!is_array($s['journals'])))throw new RuntimeException('Accounts storage is invalid.');
         $s=array_replace_recursive(sm_default_store(),$s);
         $result=$callback($s);
         $s['revision']=(int)($s['revision']??0)+1;
-        rewind($h); ftruncate($h,0);
-        fwrite($h,json_encode($s,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR));
-        fflush($h);
+        $encoded=json_encode($s,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);
+        rewind($h);
+        if(!ftruncate($h,0)||fwrite($h,$encoded)!==strlen($encoded)||!fflush($h))throw new RuntimeException('Salary Master could not be saved.');
         return $result;
     } finally { flock($h,LOCK_UN); fclose($h); }
 }
 function sm_amount(mixed $value,string $label): float {
+    if($value===null||(is_string($value)&&trim($value)===''))return 0.0;
+    if(!is_scalar($value)||!is_numeric($value)||!is_finite((float)$value))throw new InvalidArgumentException($label.' must be a finite number.');
     $n=round((float)$value,2);
     if ($n<0) throw new InvalidArgumentException($label.' cannot be negative.');
     return $n;
@@ -44,8 +49,7 @@ function sm_amount(mixed $value,string $label): float {
 function sm_date(string $value,string $label,bool $optional=false): string {
     $value=trim($value);
     if ($optional && $value==='') return '';
-    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/',$value)) throw new InvalidArgumentException($label.' is required.');
-    return $value;
+    return tt_master_calendar_date($value,$label,$optional);
 }
 function sm_category(string $value): string {
     $value=strtoupper(trim($value));
