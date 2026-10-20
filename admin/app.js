@@ -787,7 +787,7 @@
   function millMasterFieldsHtml(values = []) {
     const types = ["","Own Mill","Reprocessing Mill","External Mill","Office","Warehouse","Stock Location","Other"];
     const statuses=["Active","Inactive"];
-    return `<section class="master-editor-section"><div class="master-editor-heading"><div><h3>Location identity</h3><p>This is the central location list used by Soda, Milling and stock movement. Use one record per real place.</p></div></div><div class="master-identity-grid"><label>Mill / location<input id="${masterInputId(0)}" data-master-field-index="0" value="${escapeHtml(values[0] || "")}" required></label><label>Code / reference<input id="${masterInputId(1)}" data-master-field-index="1" value="${escapeHtml(values[1] || "")}"></label><label>Location type<select id="${masterInputId(2)}" data-master-field-index="2">${types.map(x=>`<option value="${escapeHtml(x)}" ${x===String(values[2]||"")?"selected":""}>${escapeHtml(x||"Select")}</option>`).join("")}</select></label><label>Status<select id="${masterInputId(5)}" data-master-field-index="5">${statuses.map(x=>`<option ${x===String(values[5]||"Active")?"selected":""}>${x}</option>`).join("")}</select></label></div></section><section class="master-editor-section"><div class="master-form-grid"><label class="full-span">Address<textarea id="${masterInputId(3)}" data-master-field-index="3" rows="3">${escapeHtml(values[3] || "")}</textarea></label><label>Contact / phone<input id="${masterInputId(4)}" data-master-field-index="4" value="${escapeHtml(values[4] || "")}"></label><label class="full-span">Notes<textarea id="${masterInputId(6)}" data-master-field-index="6" rows="3">${escapeHtml(values[6] || "")}</textarea></label></div></section>`;
+    return `<section class="master-editor-section"><div class="master-editor-heading"><div><h3>Location identity</h3><p>This is the central location list used by Soda, Milling and stock movement. Use one record per real place.</p></div></div><div class="master-identity-grid"><label>Mill / location<input id="${masterInputId(0)}" data-master-field-index="0" value="${escapeHtml(values[0] || "")}" required></label><label>Code / reference<input id="${masterInputId(1)}" data-master-field-index="1" value="${escapeHtml(values[1] || "")}"></label><label>Location type<select id="${masterInputId(2)}" data-master-field-index="2">${types.map(x=>`<option value="${escapeHtml(x)}" ${x===String(values[2]||"")?"selected":""}>${escapeHtml(x||"Select")}</option>`).join("")}</select></label><label>Status<select id="${masterInputId(5)}" data-master-field-index="5">${statuses.map(x=>`<option ${x===String(values[5]||"Active")?"selected":""}>${x}</option>`).join("")}</select></label><label>Bills paid by company<select id="${masterInputId(7)}" data-master-field-index="7">${[...new Set(["","TTI","BRM","TG",values[7]||""])].map(code=>`<option value="${escapeHtml(code)}" ${code===String(values[7]||"")?"selected":""}>${escapeHtml(code||"Not assigned")}</option>`).join("")}</select></label></div><p id="locationBillingHelp" class="master-inline-note">Choose which company pays this location's bills. Unassigned locations are not offered for company bills.</p></section><section class="master-editor-section"><div class="master-form-grid"><label class="full-span">Address<textarea id="${masterInputId(3)}" data-master-field-index="3" rows="3">${escapeHtml(values[3] || "")}</textarea></label><label>Contact / phone<input id="${masterInputId(4)}" data-master-field-index="4" value="${escapeHtml(values[4] || "")}"></label><label class="full-span">Notes<textarea id="${masterInputId(6)}" data-master-field-index="6" rows="3">${escapeHtml(values[6] || "")}</textarea></label></div></section>`;
   }
   function linkedCompanyOptions(current = "") {
     const companies=(state.masters?.companies||[]).map(row=>{
@@ -999,9 +999,15 @@
     <section class="master-editor-section purchase-product-use-section"><div class="master-editor-heading"><div><h3>How this is used</h3><p>Variety, rice type and broken grade identify the product. The Soda route decides quality deductions: Ex-Mill loaded to specification has no KAT or Pohanch; delivery to our mill or warehouse uses its approved arrival KAT profile and Pohanch. A saved Ex-Mill container posts the purchase liability in Accounts. Supplier, broker and location come from the Soda.</p></div></div><div class="master-form-grid"><label class="full-span">Notes<textarea id="${masterInputId(9)}" data-master-field-index="9" rows="3">${escapeHtml(v[9]||"")}</textarea></label></div></section>`;
   }
 
+  const REFERENCE_LIST_LABELS={currencies:"Currencies",packing_types:"Packing types",inspection_companies:"Inspection companies",payment_options:"Payment options",party_roles:"Party roles",product_rice_types:"Rice types",product_finishes:"Rice finishes"};
+  const masterDisplayValue=(type,index,value)=>type.id==="reference_lists"&&index===0?(REFERENCE_LIST_LABELS[value]||value):value;
+  function masterToday(){
+    const parts=Object.fromEntries(new Intl.DateTimeFormat("en-GB",{timeZone:"Asia/Karachi",year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(new Date()).map(part=>[part.type,part.value]));
+    return `${parts.year}-${parts.month}-${parts.day}`;
+  }
   function masterFieldsHtml(type, values = []) {
     if (type.id === "salary_staff") {
-      const today = new Date().toISOString().slice(0, 10);
+      const today = masterToday();
       const v = [...values];
       v[1] = v[1] || "TTI"; v[2] = v[2] || "MILL_STAFF"; v[6] = v[6] || today;
       v[8] = v[8] || (v[2] === "HOME_MONTHLY_GIVE" ? "FAMILY_ALLOCATION" : v[2] === "DIRECTOR_REMUNERATION" ? "TO_CONFIRM" : "STAFF_COST");
@@ -1030,7 +1036,7 @@
         return `<div class="check-field${full}"><span>${escapeHtml(field.label)}</span><div class="master-checks">${field.options.map(option => `<label><input type="checkbox" data-master-field-index="${index}" value="${escapeHtml(option)}" ${selected.has(option) ? "checked" : ""}>${escapeHtml(option)}</label>`).join("")}</div></div>`;
       }
       if (field.type === "select") {
-        return `<label class="${full.trim()}">${escapeHtml(field.label)}<select id="${masterInputId(index)}" data-master-field-index="${index}" ${field.required ? "required" : ""}>${field.options.map(option => `<option value="${escapeHtml(option)}" ${option === value ? "selected" : ""}>${escapeHtml(option || "Select")}</option>`).join("")}</select></label>`;
+        return `<label class="${full.trim()}">${escapeHtml(field.label)}<select id="${masterInputId(index)}" data-master-field-index="${index}" ${field.required ? "required" : ""}>${field.options.map(option => `<option value="${escapeHtml(option)}" ${option === value ? "selected" : ""}>${escapeHtml(type.id==="reference_lists"&&index===0?(REFERENCE_LIST_LABELS[option]||option):(option||"Select"))}</option>`).join("")}</select></label>`;
       }
       if (field.type === "textarea") {
         return `<label class="${full.trim()}">${escapeHtml(field.label)}<textarea id="${masterInputId(index)}" data-master-field-index="${index}" rows="3" ${field.required ? "required" : ""}>${escapeHtml(value)}</textarea></label>`;
@@ -1220,7 +1226,7 @@
       return true;
     });
     const permanentlyDeletable=new Set(["export_customers","business_parties","purchase_products","purchase_kat","mills","export_documents","export_terms"]);
-    document.getElementById("masterTableBody").innerHTML = rows.length ? rows.map(row => {const inactive=masterRowStatus(type,row)==="Inactive";return `<tr>${columns.map(index => `<td>${escapeHtml(row.values[index] || "—")}</td>`).join("")}<td><span class="tag ${inactive?'inactive':''}">${escapeHtml(inactive?'Deactivated':masterRowStatus(type, row))}</span></td><td><div class="row-actions">${canMaster(type.id,"Edit")?`<button class="row-action" data-edit-master="${escapeHtml(row.id)}">Edit</button>`:""}${!["commodities","companies"].includes(type.id)&&canMaster(type.id,"Deactivate")?(inactive?`<button class="row-action deactivated" type="button" disabled>Deactivated</button>`:`<button class="row-action delete" data-delete-master="${escapeHtml(row.id)}">Deactivate</button>`):""}${permanentlyDeletable.has(type.id)&&IS_SUPER_ADMIN?`<button class="row-action purge" data-purge-master="${escapeHtml(row.id)}">Delete Permanently</button>`:""}</div></td></tr>`}).join("") : `<tr><td colspan="${columns.length + 2}">No matching records.</td></tr>`;
+    document.getElementById("masterTableBody").innerHTML = rows.length ? rows.map(row => {const inactive=masterRowStatus(type,row)==="Inactive";return `<tr>${columns.map(index => `<td>${escapeHtml(masterDisplayValue(type,index,row.values[index]) || "—")}</td>`).join("")}<td><span class="tag ${inactive?'inactive':''}">${escapeHtml(inactive?'Deactivated':masterRowStatus(type, row))}</span></td><td><div class="row-actions">${canMaster(type.id,"Edit")?`<button class="row-action" data-edit-master="${escapeHtml(row.id)}">Edit</button>`:""}${!["commodities","companies"].includes(type.id)&&canMaster(type.id,"Deactivate")?(inactive?`<button class="row-action deactivated" type="button" disabled>Deactivated</button>`:`<button class="row-action delete" data-delete-master="${escapeHtml(row.id)}">Deactivate</button>`):""}${permanentlyDeletable.has(type.id)&&IS_SUPER_ADMIN?`<button class="row-action purge" data-purge-master="${escapeHtml(row.id)}">Delete Permanently</button>`:""}</div></td></tr>`}).join("") : `<tr><td colspan="${columns.length + 2}">No matching records.</td></tr>`;
     document.querySelectorAll("#masterTableBody tr").forEach((tr,index)=>{if(rows[index]){tr.dataset.openMaster=rows[index].id;tr.tabIndex=0;tr.setAttribute("aria-label",`View ${rows[index].values[0]||type.name}`);}});
     renderMasterDetail();
   }
@@ -1244,7 +1250,7 @@
     const deletion=type.id==="salary_staff"&&canMaster(type.id,"Deactivate")&&!isInactiveMasterRow(type,row)?`<button class="button danger" type="button" data-delete-master="${escapeHtml(row.id)}">Delete Staff</button>`:"";
     const head=`<div class="master-detail-head"><button class="master-back" type="button" data-back-master>← ${escapeHtml(type.name)}</button><div><p class="eyebrow">${escapeHtml(type.name)}</p><h2>${escapeHtml(name)}</h2></div>${canMaster(type.id,"Edit")?`<button class="button secondary" type="button" data-edit-master="${escapeHtml(row.id)}" data-editor-tab="${type.id==="companies"&&companyDetailTab?companyDetailTab:"overview"}">Edit</button>`:""}${deletion}</div>`;
     if(type.id!=="companies"){
-      const fields=type.fields.map((field,index)=>field.type==="hidden"?"":detailField(field.label,row.values?.[index])).join("");
+      const fields=type.fields.map((field,index)=>field.type==="hidden"?"":detailField(field.label,masterDisplayValue(type,index,row.values?.[index]))).join("");
       detail.innerHTML=head+`<dl class="master-detail-grid">${fields}</dl>`;
       return;
     }
@@ -1498,11 +1504,23 @@
       [0,1,2,3].forEach(index=>{const field=document.getElementById(masterInputId(index));field.addEventListener("change",()=>syncPurchaseFields(true));field.addEventListener("input",()=>syncPurchaseFields(true));});
       syncPurchaseFields();
     }
+    if(type.id==="mills"){
+      const locationType=document.getElementById(masterInputId(2)),billing=document.getElementById(masterInputId(7));
+      const syncBilling=()=>{const hidden=["External Mill","Reprocessing Mill"].includes(locationType.value);billing.closest("label").hidden=hidden;document.getElementById("locationBillingHelp").hidden=hidden};
+      locationType.addEventListener("change",syncBilling);syncBilling();
+    }
+    if(type.id==="reference_lists"){
+      const list=document.getElementById(masterInputId(0)),name=document.getElementById(masterInputId(1)),fullName=document.getElementById(masterInputId(2));
+      list.disabled=!!row;
+      if(row)list.title="The list is fixed for an existing option. Add an option separately to use another list.";
+      const syncCurrency=()=>{const currency=list.value==="currencies";fullName.closest("label").hidden=!currency;name.closest("label").firstChild.textContent=currency?"Currency code (3 letters)":"Option name"};
+      list.addEventListener("change",syncCurrency);syncCurrency();
+    }
     if(type.id==="business_parties"){
       const syncBrokerSection=()=>{const checked=[...document.querySelectorAll('[data-master-field-index="2"]:checked')].some(input=>input.value==="Broker");const section=document.getElementById("brokeryProfileSection");if(section)section.hidden=!checked};
       document.querySelectorAll('[data-master-field-index="2"]').forEach(input=>input.addEventListener("change",syncBrokerSection));
       document.querySelectorAll('[data-brokery-tab]').forEach(button=>button.onclick=()=>{document.querySelectorAll('[data-brokery-tab]').forEach(x=>x.classList.toggle("active",x===button));document.querySelectorAll('[data-brokery-panel]').forEach(panel=>panel.hidden=panel.dataset.brokeryPanel!==button.dataset.brokeryTab)});
-      document.querySelectorAll('[data-add-brokery-rate]').forEach(button=>button.onclick=()=>{const kind=button.dataset.addBrokeryRate;document.getElementById(kind==="buying"?"buyingBrokeryRows":"sellingBrokeryRows")?.insertAdjacentHTML("beforeend",brokeryRateRow({effectiveFrom:new Date().toISOString().slice(0,10)},kind))});
+      document.querySelectorAll('[data-add-brokery-rate]').forEach(button=>button.onclick=()=>{const kind=button.dataset.addBrokeryRate;document.getElementById(kind==="buying"?"buyingBrokeryRows":"sellingBrokeryRows")?.insertAdjacentHTML("beforeend",brokeryRateRow({effectiveFrom:masterToday()},kind))});
       document.getElementById("masterFormFields")?.addEventListener("click",event=>{const remove=event.target.closest('[data-remove-brokery-rate]');if(remove)remove.closest('[data-brokery-rate]')?.remove()});
       syncBrokerSection();
     }
@@ -1545,7 +1563,7 @@
     try {
       if(type.id==="reference_lists"){
         const existing=id?(state.masters.reference_lists||[]).find(row=>row.id===id):null;
-        const data=await apiRequest({action:"manage-option",type:"reference_lists",optionAction:existing?"rename":"add",optionKey:values[0],old:existing?.values?.[1]||"",value:values[1],fullName:values[0]==='currencies'?values[2]:''},"masters");
+        const data=await apiRequest({action:"manage-option",type:"reference_lists",optionAction:existing?"rename":"add",optionKey:existing?.values?.[0]||values[0],old:existing?.values?.[1]||"",value:values[1],fullName:(existing?.values?.[0]||values[0])==='currencies'?values[2]:''},"masters");
         if(data.options)state.masterOptions=data.options;state.masters=ensureMasterSections(data.masters,state.masterOptions);saveState();renderMasters();document.getElementById("masterDialog").close();form.reset();savedNotice(existing?"Reference option updated.":"Reference option added.");return;
       }
       const pendingDocuments=type.id==="companies"?[...document.querySelectorAll('.company-document-row')].filter(row=>!row.querySelector('[data-document-id]')?.value&&row.querySelector('[data-document-file]')?.files?.[0]):[];
