@@ -1,0 +1,47 @@
+name: Verify office background backup preparation
+on:
+  pull_request:
+    paths: ['.github/scripts/office_backup_async_deploy.php', '.github/workflows/office-backup-async.yml']
+  push:
+    branches: [main]
+    paths: ['.github/scripts/office_backup_async_deploy.php', '.github/workflows/office-backup-async.yml']
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          php -l .github/scripts/office_backup_async_deploy.php
+  cleanup:
+    needs: validate
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    concurrency:
+      group: transtrade-production-deployment
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check web runtime background request support
+        env:
+          HOSTINGER_HOST: ${{ secrets.HOSTINGER_HOST }}
+          HOSTINGER_PORT: ${{ secrets.HOSTINGER_PORT }}
+          HOSTINGER_USER: ${{ secrets.HOSTINGER_USER }}
+          HOSTINGER_DEPLOY_PATH: ${{ secrets.HOSTINGER_DEPLOY_PATH }}
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+          HOSTINGER_KNOWN_HOSTS: ${{ secrets.HOSTINGER_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -m 700 -d "$RUNNER_TEMP/ssh"
+          printf '%s\n' "$HOSTINGER_SSH_KEY" | tr -d '\r' > "$RUNNER_TEMP/ssh/key"
+          printf '%s\n' "$HOSTINGER_KNOWN_HOSTS" | tr -d '\r' > "$RUNNER_TEMP/ssh/known_hosts"
+          chmod 600 "$RUNNER_TEMP/ssh/key" "$RUNNER_TEMP/ssh/known_hosts"
+          [[ "$HOSTINGER_DEPLOY_PATH" =~ ^/home/[a-zA-Z0-9_-]+/domains/app\.transtradeinternational\.com/public_html$ ]]
+          ssh -o ConnectTimeout=20 -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -i "$RUNNER_TEMP/ssh/key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" -o StrictHostKeyChecking=yes -p "$HOSTINGER_PORT" "$HOSTINGER_USER@$HOSTINGER_HOST" "TT_OFFICE_ASYNC_ROOT='$HOSTINGER_DEPLOY_PATH' php" < .github/scripts/office_backup_async_deploy.php
+      - name: Verify login still responds
+        run: |
+          curl --fail --silent --show-error --max-time 30 https://app.transtradeinternational.com/login.php > "$RUNNER_TEMP/login.html"
+          grep -q 'name="password"' "$RUNNER_TEMP/login.html"
+          echo 'PUBLIC_LOGIN_HEALTH_OK'
