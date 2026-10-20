@@ -66,3 +66,16 @@ observable same-user process and no open reference to the candidate. Newer
 schema 3 copies and incomplete/unknown files receive no exception. The same
 persistent newer survivor, lock and identity checks apply. The cutoff is fixed
 and cannot admit future archives.
+
+Office HTTP transfers use protocol 2: authenticated preparation responds before
+archive generation; the observed LiteSpeed finish-request facility lets the
+worker continue while the agent polls short status requests. The server
+fully verifies the encrypted archive before exposing its size/SHA256. Authenticated
+4 MiB range requests check the bound archive identity; the PC checks each piece
+and the entire ZIP before replacing a completed local copy. A verified local
+acknowledgement removes the transfer archive. One private transfer cache under
+backups/.office-transfer is excluded from business recovery inventories; an
+unsuccessful new generation cannot displace its previous archive. Its staging
+path and state are fixed and bounded. This cache is separate from retained
+server recovery points. The office credential and recovery password never
+appear in public status responses or logs.

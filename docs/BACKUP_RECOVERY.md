@@ -44,3 +44,13 @@ Install the current `scripts/office_backup_agent.py` and `scripts/install_office
 Weekly retention takes the first successful closing-time download in each Monday-starting week; a failed Monday run catches up on the next successful run. Monthly retention takes the first successful weekday closing-time download of each month, with catch-up. Weekdays mean Monday–Friday; no office holiday calendar is currently supplied. These folders reuse the same checksum-verified Daily download rather than requesting separate full downloads.
 
 Complete encrypted downloads use schema 3: compress text and application source before AES-GCM encryption, and reference each uploaded document's encrypted chunks from both readable and technical recovery paths. Every original document remains present and byte-exact after decryption. The reader continues to accept schema 1/2 uncompressed encrypted backups. Schema-3 backups require the updated recovery reader. Streaming clears PHP output buffers and disables HTTP transformations; size and checksum validation remain mandatory. Failed builds remove only their own temporary archive.
+
+Office Agent protocol 2 (20 October 2026): update the Windows agent together
+with the hosted background preparation endpoint. Old synchronous agents get
+HTTP 426 rather than generating another oversized timed-out request. The PC
+prints preparation/verification status, then downloads checked 4 MiB pieces.
+The schedule updater requests the existing Windows account password locally
+when the task uses Password logon. A Windows Hello PIN is insufficient. It
+checks the credential SID and preserves the existing task principal/logon
+type; registration failure stops installation and must never print success.
+Do not enter Windows passwords into chat.

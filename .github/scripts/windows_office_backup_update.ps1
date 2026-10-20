@@ -2,9 +2,9 @@
 # Payloads are pinned to the reviewed commit and verified before installation.
 $ErrorActionPreference = 'Stop'
 $folder = 'D:\transtrade office agent'
-$release = '3dc0aea4f6f46a69b9d5afd64bdec123b583928f'
+$release = 'c9daaff6ff99b4515c0125a22f86c99e703eb863'
 $files = @{
-    'office_backup_agent.py' = '8c467d06702e0268b4b2a341f2a847579feb63aecb27e06eb0a9d30c13cf744f'
+    'office_backup_agent.py' = '756a5f16a73f361e67ea30c5e94712a5ffe49db48fc05525bb0e22a3191612c0'
     'install_office_backup_schedule.ps1' = 'c82d099f80e251807ec7a5bb133770f6b534ca8ba83c2ba74fe08973762d8c0c'
 }
 $task = Get-ScheduledTask -TaskName 'Transtrade_Office_Backup'
@@ -24,6 +24,8 @@ try {
         Start-Sleep -Seconds 3
         if ((Get-ScheduledTask -TaskName $task.TaskName).State -eq 'Running') { throw 'The old task has not stopped. Its installed files were left unchanged.' }
     }
+    $activeAgents = @(Get-CimInstance -ClassName Win32_Process -Filter "Name='python.exe' OR Name='pythonw.exe'" -ErrorAction Stop | Where-Object { $_.CommandLine -match 'office_backup_agent\.py' })
+    if ($activeAgents.Count) { throw 'Another office backup attempt is still running. Press Ctrl+C in its PowerShell window before running this updater again.' }
     foreach ($name in $files.Keys) {
         $target = Join-Path $folder $name
         if (Test-Path -LiteralPath $target) { Copy-Item -LiteralPath $target -Destination ($target + '.previous') -Force }

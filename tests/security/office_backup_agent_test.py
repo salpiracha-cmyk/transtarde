@@ -74,8 +74,8 @@ class OfficeAgentTest(unittest.TestCase):
                 daily.mkdir()
                 survivor = daily / 'TRANSTRADE_FULL_2026-10-09_1004_verified.zip'
                 survivor.write_bytes(b'previous verified recovery copy')
-                with patch.object(agent.request, 'build_opener') as opener:
-                    opener.return_value.open.return_value = response
+                with patch.object(agent, 'open_backup_response') as opener:
+                    opener.return_value = response
                     with self.assertRaisesRegex(ValueError, message):
                         agent.pull(config, root)
                 self.assertEqual(survivor.read_bytes(), b'previous verified recovery copy')
@@ -117,15 +117,15 @@ class OfficeAgentTest(unittest.TestCase):
             for n in range(6): (dest / f'weekly-2026010{n}-000000-{n}.zip').write_bytes(b'old')
             for n in range(4): (dest / f'monthly-20250{n}-{n}.zip').write_bytes(b'old')
             response = lambda *_args, **_kw: FakeResponse(payload, digest)
-            with patch.object(agent.request, 'build_opener') as opener:
-                opener.return_value.open.side_effect = response
+            with patch.object(agent, 'open_backup_response') as opener:
+                opener.side_effect = response
                 path, actual = agent.pull({'url': 'https://app.transtradeinternational.com/api/office_backup.php', 'token': 'x', 'password': 'password123456'}, dest)
             self.assertEqual(len(list((dest / 'Daily').glob('*.zip'))), 1)
             self.assertEqual(len(list((dest / 'Weekly').glob('*.zip'))), 1)
             self.assertEqual(len(list((dest / 'Monthly').glob('*.zip'))), 1)
             # Two Sunday pulls must not create two weekly retention points.
-            with patch.object(agent.request, 'build_opener') as opener, patch.object(agent, 'datetime') as clock:
-                opener.return_value.open.side_effect = response
+            with patch.object(agent, 'open_backup_response') as opener, patch.object(agent, 'datetime') as clock:
+                opener.side_effect = response
                 for hour in (10, 11):
                     clock.now.return_value = datetime(2026, 10, 25, hour, tzinfo=timezone.utc)
                     agent.pull({'url': 'https://app.transtradeinternational.com/api/office_backup.php', 'token': 'x', 'password': 'password123456'}, dest)
@@ -134,8 +134,8 @@ class OfficeAgentTest(unittest.TestCase):
             self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), digest)
             self.assertEqual(len(list(dest.glob('weekly-*.zip'))), 4)
             self.assertEqual(len(list(dest.glob('monthly-*.zip'))), 3)
-            with patch.object(agent.request, 'build_opener') as opener:
-                opener.return_value.open.return_value = FakeResponse(payload, '0' * 64)
+            with patch.object(agent, 'open_backup_response') as opener:
+                opener.return_value = FakeResponse(payload, '0' * 64)
                 with self.assertRaisesRegex(ValueError, 'checksum mismatch'):
                     agent.pull({'url': 'https://app.transtradeinternational.com/api/office_backup.php', 'token': 'x', 'password': 'password123456'}, dest)
             self.assertFalse(list(dest.glob('.downloading-*')))
@@ -145,8 +145,8 @@ class OfficeAgentTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             dest = Path(folder)
             config = {'url':'https://app.transtradeinternational.com/api/office_backup.php','token':'fixture','password':'fixture-password'}
-            with patch.object(agent.request,'build_opener') as opener, patch.object(agent,'datetime') as clock:
-                opener.return_value.open.side_effect = response
+            with patch.object(agent,'open_backup_response') as opener, patch.object(agent,'datetime') as clock:
+                opener.side_effect = response
                 clock.now.return_value = datetime.fromisoformat('2026-11-02T08:00:00+05:00')
                 agent.pull(config,dest,scheduled_for=datetime.fromisoformat('2026-11-01T18:00:00+05:00'))
                 self.assertFalse(list((dest/'Monthly').glob('*.zip')))

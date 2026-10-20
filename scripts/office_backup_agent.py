@@ -8,6 +8,7 @@ the hosted application or browser clients.
 import argparse
 from contextlib import redirect_stderr, redirect_stdout
 import getpass
+from email.message import Message
 import hashlib
 import http.client
 import json
@@ -136,16 +137,100 @@ def scheduled_backup_time(timestamp):
     return due if now >= due else due - timedelta(days=1)
 
 
+def backup_job_request(config, action, values=None):
+    url = config.get('backupUrl') or config.get('url')
+    require_endpoint(url, '/api/office_backup.php')
+    payload = {'password': config['password']}
+    if values: payload.update(values)
+    req = request.Request(url + '?action=' + action, data=json.dumps(payload).encode('utf-8'), headers={
+        'Content-Type': 'application/json', 'Accept-Encoding': 'identity',
+        'X-TT-Backup-Token': config['token']}, method='POST')
+    return opener().open(req, timeout=60)
+
+
+def backup_job_json(config, action, values=None):
+    with backup_job_request(config, action, values) as response:
+        if response.status not in (200, 202) or response.headers.get_content_type() != 'application/json':
+            raise ValueError('Unexpected backup preparation response.')
+        raw = response.read(65537)
+        if len(raw) > 65536: raise ValueError('Backup preparation response is too large.')
+        result = json.loads(raw)
+        if not result.get('ok'): raise RuntimeError('Hosted backup preparation failed.')
+        return result
+
+
+class PreparedBackupResponse:
+    status = 200
+    def __init__(self, config, metadata):
+        self.config, self.metadata = config, metadata
+        self.offset, self.buffer = 0, b''
+        self.length = metadata.get('length')
+        digest = metadata.get('sha256', '')
+        if not isinstance(self.length, int) or not 0 < self.length <= 0xffffffff:
+            raise ValueError('Invalid prepared backup size.')
+        if len(digest) != 64 or any(c not in '0123456789abcdef' for c in digest):
+            raise ValueError('Invalid prepared backup checksum.')
+        self.headers = Message()
+        self.headers['Content-Type'] = 'application/zip'
+        self.headers['Content-Length'] = str(self.length)
+        self.headers['Content-Encoding'] = 'identity'
+        self.headers['X-Backup-SHA256'] = digest
+    def __enter__(self): return self
+    def __exit__(self, *_): self.buffer = b''
+    def read(self, amount):
+        if not self.buffer and self.offset < self.length:
+            length = min(4 * 1024 * 1024, self.length - self.offset)
+            for attempt in range(3):
+                try:
+                    with backup_job_request(self.config, 'chunk', {'job': self.metadata['job'], 'offset': self.offset, 'length': length}) as response:
+                        if response.status != 200 or response.headers.get_content_type() != 'application/octet-stream':
+                            raise ValueError('Unexpected backup chunk response.')
+                        if response.headers.get('Content-Encoding', 'identity').lower() not in ('', 'identity'):
+                            raise ValueError('Backup chunk was transformed by HTTP compression.')
+                        if int(response.headers.get('Content-Length', '0')) != length:
+                            raise ValueError('Backup chunk has the wrong length.')
+                        data = response.read(length + 1)
+                        expected = response.headers.get('X-Backup-Chunk-SHA256', '')
+                        if len(data) != length or hashlib.sha256(data).hexdigest() != expected:
+                            raise ValueError('Backup chunk length or checksum mismatch.')
+                    self.buffer = data; self.offset += length
+                    break
+                except (error.URLError, http.client.IncompleteRead, TimeoutError, ValueError):
+                    if attempt == 2: raise
+                    print('Retrying the current backup piece; completed backups are preserved.', flush=True)
+                    time.sleep(3)
+        chunk, self.buffer = self.buffer[:amount], self.buffer[amount:]
+        return chunk
+    def acknowledge(self):
+        try:
+            backup_job_json(self.config, 'complete', {'job': self.metadata['job'], 'sha256': self.metadata['sha256']})
+        except Exception:
+            print('Local backup verified; server transfer cleanup acknowledgement failed.', flush=True)
+
+
+def open_backup_response(config):
+    result = backup_job_json(config, 'prepare')
+    deadline = time.monotonic() + 1200
+    while result.get('state') == 'preparing':
+        job = result.get('job', '')
+        if len(job) != 32 or any(c not in '0123456789abcdef' for c in job):
+            raise ValueError('Invalid backup preparation job.')
+        if time.monotonic() >= deadline: raise TimeoutError('Hosted backup preparation exceeded 20 minutes.')
+        print('Server is ' + ('verifying' if result.get('stage') == 'verifying' else 'preparing') + ' the encrypted backup...', flush=True)
+        time.sleep(10)
+        result = backup_job_json(config, 'status', {'job': job})
+    if result.get('state') != 'ready': raise RuntimeError('Server could not prepare a verified recovery archive.')
+    return PreparedBackupResponse(config, result)
+
+
 def pull(config, destination, scheduled_for=None):
     url = config.get('backupUrl') or config.get('url')
     require_endpoint(url, '/api/office_backup.php')
     destination.mkdir(parents=True, exist_ok=True)
-    payload = json.dumps({'password': config['password']}).encode('utf-8')
-    req = request.Request(url, data=payload, headers={'Content-Type': 'application/json', 'Accept-Encoding': 'identity', 'X-TT-Backup-Token': config['token']}, method='POST')
     temp = None
     try:
         print('Requesting encrypted backup from the hosted server...', flush=True)
-        with opener().open(req, timeout=300) as response:
+        with open_backup_response(config) as response:
             if response.status != 200 or response.headers.get_content_type() != 'application/zip': raise ValueError('Unexpected backup response.')
             encoding = response.headers.get('Content-Encoding', 'identity').strip().lower()
             if encoding not in ('', 'identity'): raise ValueError('Backup response was transformed by HTTP compression; an unchanged ZIP transfer is required.')
@@ -192,6 +277,7 @@ def pull(config, destination, scheduled_for=None):
         rotate(monthly_dir, 'TRANSTRADE_FULL_*.zip', int(retention.get('monthly', 12)))
         rotate(destination, 'weekly-*.zip', int(retention.get('weekly', 4)))
         rotate(destination, 'monthly-*.zip', int(retention.get('monthly', 3)))
+        if hasattr(response, 'acknowledge'): response.acknowledge()
         return daily, expected
     finally:
         if temp and os.path.exists(temp): os.unlink(temp)
