@@ -61,4 +61,14 @@ foreach($it as$file){if($file->isLink()){$out['symlinksSkipped']++;continue;}if(
 }
 usort($rows,fn($a,$b)=>$b['bytes']<=>$a['bytes']);$out['largestBackups']=array_slice($rows,0,8);usort($inventories,fn($a,$b)=>$b['copies']<=>$a['copies']);$out['manifestInventoryGroups']=['distinctInventories'=>count($inventories),'groupsWithMultipleCopies'=>count(array_filter($inventories,fn($g)=>$g['copies']>1)),'largestGroups'=>array_slice($inventories,0,8),'note'=>'Declared manifest content identity only; not full archive integrity verification'];ksort($out['byDate']);
 $it=new RecursiveIteratorIterator(new RecursiveDirectoryIterator($private,FilesystemIterator::SKIP_DOTS));foreach($it as$file){if(!$file->isFile()||$file->isLink())continue;$rel=substr($file->getPathname(),strlen($private)+1);if(preg_match('~^(backups|sessions)/~',$rel))continue;add($out['livePrivateExcludingBackupsAndSessions'],bucket($rel),$file->getSize());}
+// Current disk usage only: do not create snapshots, prune, or bootstrap the app.
+$out['measuredAtUtc']=gmdate('c');
+$out['ownedTemporaryArchives']=['files'=>0,'bytes'=>0];
+$uid=function_exists('posix_geteuid')?posix_geteuid():null;
+foreach(glob(sys_get_temp_dir().'/tt-backup-*')?:[]as$p)if($uid!==null&&is_file($p)&&!is_link($p)&&fileowner($p)===$uid){$out['ownedTemporaryArchives']['files']++;$out['ownedTemporaryArchives']['bytes']+=filesize($p);}
+$out['deploymentStorage']=['files'=>0,'bytes'=>0];$deploy=dirname($target).'/.transtrade-deploy';
+if(is_dir($deploy)&&!is_link($deploy)&&realpath($deploy)===$deploy){$it=new RecursiveIteratorIterator(new RecursiveDirectoryIterator($deploy,FilesystemIterator::SKIP_DOTS));foreach($it as$f)if($f->isFile()&&!$f->isLink()){$out['deploymentStorage']['files']++;$out['deploymentStorage']['bytes']+=$f->getSize();}}
+$out['applicationStorage']=['files'=>0,'bytes'=>0];$it=new RecursiveIteratorIterator(new RecursiveDirectoryIterator($target,FilesystemIterator::SKIP_DOTS));foreach($it as$f)if($f->isFile()&&!$f->isLink()){$out['applicationStorage']['files']++;$out['applicationStorage']['bytes']+=$f->getSize();}
+$out['backupAndTemporaryBytes']=$out['backupBytes']+$out['ownedTemporaryArchives']['bytes'];
+$out['scopeNote']='Transtrade app, private recovery storage, owned generated temporary archives and deployment directory; excludes provider-managed backups, mail and other websites. Filesystem bytes are not the hosting account quota.';
 echo json_encode($out,JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR)."\n";
