@@ -78,7 +78,9 @@ async function restoredPackingPdf(page){
   }
   const rollback=await copy.request.post(target+'/__audit/rollback');assert.equal(rollback.status(),200,'Isolated rollback HTTP status');
   const result=await rollback.json();assert.equal(result.ok,true);assert.equal(result.storesRestored,3);
-  // Restoring auth invalidates any target login revision; authenticate normally again.
+  // Restored users can still match the existing target session. Clear only
+  // this disposable context so re-authentication really uses the restored store.
+  await copy.clearCookies();
   const recovered=await signIn(copy,target);const after=await controls(copy,target);assert.equal(digest(after),digest(before),'Rollback retains every control');
   await restoredPackingPdf(recovered);
   assert.equal(digest(await controls(copy,target)),digest(before),'Restored PDF leaves original controls unchanged');
