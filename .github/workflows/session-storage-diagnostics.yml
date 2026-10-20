@@ -232,15 +232,20 @@ jobs:
             [ "$task_probe_status" = 200 ] && break
             sleep 1
           done
-          TT_SERVER_PROBE_LOG="$task_probe/server.log" TT_SERVER_PROBE_STATUS="$task_probe_status" TT_SERVER_PROBE_RUNNER="$task_probe_runner" "$task_probe_php" <<'PROBECATEGORY'
+          TT_SERVER_PROBE_LOG="$task_probe/server.log" TT_SERVER_PROBE_STATUS="$task_probe_status" TT_SERVER_PROBE_RUNNER="$task_probe_runner" TT_SERVER_PROBE_PORT="$task_probe_port" TT_SERVER_PROBE_GATE="$task_probe/gate" "$task_probe_php" <<'PROBECATEGORY'
           <?php
           function probe_category(string $log): string { $category='unclassified';
           foreach(['server_started'=>'/Development Server .*started/i','listen_failed'=>'/Failed to listen/i','unsupported_server'=>'/unknown option|invalid option|unrecognized option|not supported|Usage:/i','filesystem_restriction'=>'/open_basedir/i','port_in_use'=>'/Address already in use/i','permission_denied'=>'/Permission denied|Operation not permitted/i','resource_limit'=>'/fork|Resource temporarily unavailable|Too many open files|Cannot allocate memory/i','runtime_crash'=>'/Segmentation fault|core dumped|Aborted/i','command_missing'=>'/command not found|No such file or directory|Could not open input file/i','startup_failure'=>'/PHP (?:Fatal error|Warning:.*Startup)|Fatal error:/i','socket_family'=>'/Address family not supported/i'] as $label=>$pattern)if(preg_match($pattern,$log))$category=$label;return $category;}
           $category=probe_category(file_get_contents(getenv('TT_SERVER_PROBE_LOG')));
           $existing=[];foreach(glob('/tmp/tt-audit-rehearsal-*')?:[] as $dir){if(!preg_match('~/tt-audit-rehearsal-[A-Za-z0-9]{8}$~D',$dir)||!is_readable($dir.'/server.log'))continue;$existing[]=['category'=>probe_category((string)file_get_contents($dir.'/server.log'))];}
           $bind='unavailable';if(function_exists('stream_socket_server')){$socket=@stream_socket_server('tcp://127.0.0.1:0',$errno,$message);$bind=$socket?'allowed':'denied';if($socket)fclose($socket);}
+          $nativeStatus='unavailable';$nativeError=0;
+          if(function_exists('stream_socket_client')){
+            $socket=@stream_socket_client('tcp://127.0.0.1:'.getenv('TT_SERVER_PROBE_PORT'),$nativeError,$nativeMessage,2);
+            $nativeStatus='connect_failed';if($socket){stream_set_timeout($socket,2);$request="GET /ready HTTP/1.1\r\nHost: 127.0.0.1\r\nX-TT-Probe: ".file_get_contents(getenv('TT_SERVER_PROBE_GATE'))."\r\nConnection: close\r\n\r\n";fwrite($socket,$request);$line=(string)fgets($socket);$nativeStatus=preg_match('~^HTTP/1\.[01] ([0-9]{3})~',$line,$match)?$match[1]:'invalid_response';fclose($socket);}
+          }
           $status=getenv('TT_SERVER_PROBE_STATUS');if(!preg_match('/^[0-9]{3}$/D',$status))$status='unclassified';
-          echo 'PRIVATE_PHP_SERVER_PROBE '.json_encode(['runner'=>getenv('TT_SERVER_PROBE_RUNNER'),'httpStatus'=>$status,'serverCategory'=>$category,'nativeLoopbackBind'=>$bind,'existingRehearsalServers'=>$existing,'applicationFilesRead'=>0,'applicationFilesWritten'=>0],JSON_THROW_ON_ERROR)."\n";
+          echo 'PRIVATE_PHP_SERVER_PROBE '.json_encode(['runner'=>getenv('TT_SERVER_PROBE_RUNNER'),'httpStatus'=>$status,'serverCategory'=>$category,'nativeLoopbackBind'=>$bind,'nativeHttpStatus'=>$nativeStatus,'nativeSocketError'=>(int)$nativeError,'existingRehearsalServers'=>$existing,'applicationFilesRead'=>0,'applicationFilesWritten'=>0],JSON_THROW_ON_ERROR)."\n";
           PROBECATEGORY
           kill "$task_probe_pid" 2>/dev/null || true
           wait "$task_probe_pid" 2>/dev/null || true
