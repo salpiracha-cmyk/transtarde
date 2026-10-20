@@ -70,6 +70,7 @@ jobs:
       - name: Build production release archive
         run: |
           set -euo pipefail
+          python3 .github/scripts/original_source_package.py --exact > .tt-deploy-source-verify.php
           tar \
             --exclude='./.git' \
             --exclude='./.github' \
@@ -81,6 +82,7 @@ jobs:
             --exclude='./cache' \
             --exclude='./logs' \
             -czf "$RUNNER_TEMP/transtrade-release.tgz" .
+          rm .tt-deploy-source-verify.php
           sha256sum exports/app.js | cut -d' ' -f1 > "$RUNNER_TEMP/exports-app.sha256"
 
       - name: Configure verified SSH connection
@@ -145,14 +147,19 @@ jobs:
             *[!0-9a-f]*|'') echo "Invalid release SHA."; exit 1 ;;
           esac
           stage="$root/staging/$sha"
+          verifier="$root/staging/source-$sha.php"
+          trap 'rm -f "$verifier"' EXIT
           backup="$root/backups/before-$sha-$(date -u +%Y%m%dT%H%M%SZ).tgz"
           test -f "$archive"
           rm -rf "$stage"
           mkdir -p "$stage"
           tar -xzf "$archive" -C "$stage"
+          test -f "$stage/.tt-deploy-source-verify.php"
+          mv "$stage/.tt-deploy-source-verify.php" "$verifier"
           test -f "$stage/login.php"
           test -f "$stage/module.php"
           test -f "$stage/exports/app.js"
+          php -r '$r=$argv[1];$p=$r."/accounts/accounting_master_v1.json";$m=is_file($p)?json_decode(file_get_contents($p),true):[];$payroll=null;foreach(($m["chart"]??[]) as $a)if((string)($a["code"]??"")==="2230")$payroll=["name"=>$a["name"]??null,"class"=>$a["class"]??null];echo "PRE_DEPLOY_SOURCE ".json_encode(["payrollControl"=>$payroll,"reconciliationEndpoint"=>is_file($r."/api/bank_reconciliation.php"),"chartSha"=>is_file($p)?hash_file("sha256",$p):null]).PHP_EOL;' "$target"
           find "$stage" -type f -name '*.php' -print0 | xargs -0 -n1 php -l >/dev/null
           tar \
             --exclude='./data' \
@@ -194,6 +201,11 @@ jobs:
           if [ "$actual_app_sha" != "$expected_app_sha" ]; then
             tar -xzf "$backup" -C "$target"
             echo "Deployed asset hash mismatch; previous code restored."
+            exit 1
+          fi
+          if ! env TT_SOURCE_ROOT="$target" php "$verifier"; then
+            tar -xzf "$backup" -C "$target"
+            echo "Deployed application source mismatch; previous code restored."
             exit 1
           fi
           # Preserve every existing staff member's effective Master Records

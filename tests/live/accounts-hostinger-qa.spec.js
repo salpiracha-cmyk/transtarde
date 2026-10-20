@@ -222,8 +222,11 @@ test('authenticated Accounts live smoke: professional desk and popup workflows',
   await expect(page.locator('body > .tt-select-menu[data-tt-select-for="ttSdProduct"]')).toBeVisible();
   await page.locator('#ttSdStock').locator('xpath=..').locator(':scope > input').focus();
   await expect(page.locator('body > .tt-select-menu[data-tt-select-for="ttSdProduct"]')).toBeHidden();
-  await activate(page.locator('#ttSodaLayer [data-soda-mode="search"]'));
-  await expect(page.locator('#ttSodaSearch')).toBeVisible();
+  await expect(page.getByRole('textbox', {name:'Search all SODAs'})).toBeVisible();
+  await expect(page.locator('#ttSodaLayer [data-soda-mode="search"]')).toHaveCount(0);
+  await page.getByRole('textbox', {name:'Search all SODAs'}).fill('no-such-audit-soda');
+  await expect(page.locator('#ttSodaLayer')).toContainText(/no.*SODA/i);
+  await page.getByRole('textbox', {name:'Search all SODAs'}).fill('');
   await activate(page.locator('#ttSodaLayer .tt-window-close'));
 
   await deskAction(page, 'commodity', 'Bill Posting');

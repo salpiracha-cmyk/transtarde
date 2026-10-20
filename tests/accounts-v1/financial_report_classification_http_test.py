@@ -59,6 +59,16 @@ define('TT_DATA_DIR',__DIR__.'/data');function tt_require_login(){return ['role'
   assert [(r['journalId'],r['amount']) for r in z['expenseActivity']]==[('Z-PERIOD-RETURN',-5)],'Register hiding must not erase a dated Zakat refund'
   status,z=req('2026-09-01');assert z['profitAndLoss']['profit']==0 and sum(r['amount'] for r in z['expenseActivity'])==0
   books=base;path.write_text(json.dumps(books))
+  # Payroll control remains a named liability after entitlement and partial payment.
+  books['journals']['PAYROLL']=journal('PAYROLL',[line('6210',1000),line('2230',cr=1000)])
+  books['journals']['PAYROLL-PART']=journal('PAYROLL-PART',[line('2230',250),line('1110',cr=250)])
+  path.write_text(json.dumps(books));payroll_before=path.read_bytes();status,payroll=req()
+  assert status==200 and payroll['trialBalance']['balanced']
+  control=next(r for r in payroll['trialBalance']['rows'] if str(r['account'])=='2230')
+  assert control['class']=='Liability' and control['credit']==750 and 'Payables' in control['name'],control
+  assert payroll['dataQuality']['unclassifiedBalances']==[]
+  assert abs(payroll['balanceSheet']['totalAssets']-payroll['balanceSheet']['totalLiabilitiesAndEquity'])<.005
+  assert path.read_bytes()==payroll_before,'Payroll reporting does not rewrite entitlement or payments'
   # Unrecognised accounts remain visible as a concrete review, never hidden by a balancing figure.
   books['journals']['UNKNOWN']=journal('UNKNOWN',[line('1110',5),line('9998',cr=5)]);path.write_text(json.dumps(books));unknown_before=path.read_bytes();status,unknown=req();assert status==200 and unknown['dataQuality']['unclassifiedBalances']==[{'account':'9998','name':'9998','class':'Other','net':-5}]
   assert path.read_bytes()==unknown_before

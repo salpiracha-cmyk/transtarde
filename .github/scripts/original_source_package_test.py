@@ -12,6 +12,15 @@ spec.loader.exec_module(package)
 
 
 class CandidateBoundary(unittest.TestCase):
+    def test_exact_release_never_accepts_or_reads_old_baseline(self):
+        head = 'a' * 40
+        current = {'accounts/accounting_master_v1.json': 'chart', 'api/bank_reconciliation.php': 'endpoint'}
+        with patch.object(package, 'git', return_value=(head + '\n').encode()), patch.object(package, 'manifest', return_value=current) as manifest:
+            result = package.build(exact=True)
+        manifest.assert_called_once_with(head)
+        encoded = re.search(r"base64_decode\('([^']+)'\)", result)[1]
+        self.assertEqual(json.loads(base64.b64decode(encoded)), {head: current})
+
     def candidates(self, old, current):
         head = 'a' * 40
         with patch.object(package, 'git', return_value=(head + '\n').encode()), patch.object(package, 'manifest', side_effect=[current, old]):
