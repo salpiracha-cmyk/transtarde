@@ -972,7 +972,7 @@ test('completed ASAS62 packing reprint uses corrected ORIGINAL layout without ch
   await card.getByRole('button',{name:'VIEW',exact:true}).click();
   await expect(page.getByRole('heading',{name:'TTI/ASAS/62 — TTI/ASAS/62/L01 · Completed',exact:true})).toBeVisible();
   await page.getByRole('row').filter({has:page.getByRole('cell',{name:'Packing List',exact:true})}).getByRole('button',{name:'PRINT / SAVE PDF',exact:true}).click();
-  await page.getByRole('button',{name:/^WITH HEADER/}).click();
+  const withHeader=page.getByRole('button',{name:/^WITH HEADER/});await expect(withHeader).toBeVisible({timeout:10_000});await withHeader.click();
   await page.waitForFunction(()=>!!window.__closedPackingPrint,undefined,{timeout:45_000});
   const captured=await page.evaluate(()=>window.__closedPackingPrint);
   // Re-render captured committed print markup in the same browser/CSS, with no

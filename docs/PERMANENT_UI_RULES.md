@@ -497,3 +497,7 @@ Online Banking payments expose an editable payment date, defaulting from the vou
 - Show preparation/upload progress on the active shipment copy action. Bound a stalled page-render wait and report the failure rather than leaving QUEUING indefinitely.
 - Completed lots offer an explicit Check Office Delivery action for the latest package. Do not poll/rebuild an active form in the background.
 - Queued is not delivered. Mark delivery verified only when the Office Agent reports every expected file exactly once with the matching folder/name, size and SHA256. Old incomplete claims remain stored but display as unverified. These shipment controls do not change the separate PC backup task or retention.
+
+## Completed-document reprint permissions
+
+- Completed shipment reprint buttons and both paper choices explicitly declare their read intent to the module capture guard. View remains required; the label Print / Save PDF must not manufacture a Create requirement for a committed snapshot. Active document print/save controls retain their existing Create/Edit gate and acknowledged-save requirement. No server mutation authority is derived from this presentation marker.
