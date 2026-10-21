@@ -19,14 +19,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $rawIdentity=$username!==''?$username:'unknown';
     $rateIdentity=function_exists('mb_substr')?mb_substr($rawIdentity,0,80):substr($rawIdentity,0,80);
     if (!tt_verify_csrf((string)($_POST['csrf'] ?? ''))) $error = 'Your login session expired. Please refresh and try again.';
-    elseif (($retry=max(
-        tt_auth_retry_after('login-account',$rateIdentity,10,900,false),
-        tt_auth_retry_after('login-address','all-users',20,900,true)
-    ))>0) $error='Too many unsuccessful sign-in attempts. Please wait '.max(1,(int)ceil($retry/60)).' minute(s) and try again.';
+    elseif (($retry=tt_auth_retry_after('login-address','all-users',20,900,true))>0) $error='Too many unsuccessful sign-in attempts. Please wait '.max(1,(int)ceil($retry/60)).' minute(s) and try again.';
     else {
-        // Shared attack traffic may slow a check, but cannot lock every valid
-        // account. Account and address limits above remain hard boundaries.
-        if (tt_auth_retry_after('login-emergency','all-users',120,900,false)>0) usleep(350000);
+        // Account-wide attack pressure adds a bounded delay, never a remote lockout
+        // of a valid password. The originating address retains its hard limit.
+        if (tt_auth_retry_after('login-account',$rateIdentity,10,900,false)>0
+            ||tt_auth_retry_after('login-emergency','all-users',120,900,false)>0) usleep(350000);
         $user = tt_find_user_by_username($username);
         $verifyStarted=hrtime(true);
         $passwordValid=password_verify($password,(string)($user['password_hash']??TT_LOGIN_DUMMY_HASH));
