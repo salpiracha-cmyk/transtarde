@@ -4,7 +4,7 @@ function tt_preview_request_body(array $request): array {unset($request['preview
 
 /** Controllers run their usual authorised validation on their locked in-memory
  * store. A preview exits before any persisted data or follow-up effects. */
-function tt_posting_preview_exit(array $request,array $store,array $before): void {
+function tt_posting_preview_exit(array $request,array $store,array $before,array $extra=[]): void {
     if(empty($request['preview']))return;
     $journals=[];
     foreach((array)($store['journals']??[]) as $id=>$journal){
@@ -12,5 +12,5 @@ function tt_posting_preview_exit(array $request,array $store,array $before): voi
         $journal['id']='PREVIEW';$journals[]=$journal;
     }
     header('Content-Type: application/json; charset=UTF-8');
-    echo json_encode(['ok'=>true,'previews'=>$journals],JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);exit;
+    echo json_encode(['ok'=>true,'previews'=>$journals]+$extra,JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);exit;
 }

@@ -44,7 +44,16 @@ with tempfile.TemporaryDirectory(prefix='tg-customer-receipts-') as tmp:
    assert posted['transaction']['bankVatNative']==.75 and posted['transaction']['rate']==3.67
    assert next(x for x in posted['invoices'] if x['id']==invoice['id'])['outstandingNative']==invoice['outstandingNative']-100
    assert posted['journal']['totalDebit']==posted['journal']['totalCredit']
-  after=json.loads(path.read_text());assert len(after['tgBankTransactions'])==3
+  invoice=posted['invoices'][0];remaining=invoice['outstandingNative']
+  full={'action':'post_receipt','guidedReceipt':True,'date':'2026-10-02','receiptType':'EXPORT_RECEIVABLE','sourceCandidateId':invoice['id'],'contractRef':invoice['contractRef'],'invoiceRef':invoice['reference'],'counterparty':invoice['customer'],'bankAccountId':'TGUSD','settlementAmountNative':remaining,'bankCreditNative':remaining-25,'bankChargeNative':10,'differenceChoice':'CORRESPONDENT_BANK_CHARGES'}
+  snapshot=path.read_bytes();status,rejected=req({**full,'differenceChoice':'LESS_ADVANCE'});assert status==422 and path.read_bytes()==snapshot
+  status,cleared=req(full);assert status==200,(status,cleared)
+  assert cleared['transaction']['correspondentChargeNative']==25 and cleared['transaction']['bankCreditNative']==remaining-25
+  assert next(i for i in cleared['invoices'] if i['id']==invoice['id'])['outstandingNative']==0
+  fee=next(l for l in cleared['journal']['lines'] if l['account']=='6810');assert fee['chargeNative']==25
+  assert cleared['journal']['totalDebit']==cleared['journal']['totalCredit']
+  assert sum(l.get('bankCredit',0) for l in cleared['journal']['lines'] if l['account']=='1110')==10.75,'Correspondent fee must not debit the bank twice'
+  after=json.loads(path.read_text());assert len(after['tgBankTransactions'])==4
   assert after['exportCandidates']['CF-2|BUYER']['pendingValuation'] is False,'Registered native balance is valued once on actual settlement'
   assert sum(j['sourceType']=='CARRY_FORWARD_OPENING' for j in after['journals'].values())==3,'No duplicate opening invoice posting'
   print('PASS TG registered/carry-forward customer selection, missing operational contracts, native partial receipts, master VAT/rate, overpayment rollback and company isolation')

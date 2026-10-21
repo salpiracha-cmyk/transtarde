@@ -2,7 +2,7 @@
 declare(strict_types=1);
 require_once __DIR__.'/accounts_posting_preview.php';
 header('X-TT-Posting-Preview: available');
-require dirname(__DIR__) . '/auth_store.php';
+require_once dirname(__DIR__) . '/auth_store.php';
 require_once __DIR__.'/accounts_bank_payment.php';
 require_once __DIR__.'/salary_month_workflow.php';
 require_once __DIR__.'/salary_flexible_workflow.php';
@@ -104,6 +104,7 @@ function rsv2_opening_advance(array &$s,string $entity,array $b,array $u,array $
 }
 function rsv2_months(string $from,string $to):array{rsv2_month($from);rsv2_month($to);if($to<$from)rsv2_out(['ok'=>false,'error'=>'Rent To Month cannot be before From Month.'],422);$o=[];$d=new DateTimeImmutable($from.'-01');$end=new DateTimeImmutable($to.'-01');while($d<=$end&&count($o)<60){$o[]=$d->format('Y-m');$d=$d->modify('+1 month');}return $o;}
 
+if(defined('TT_RENT_SALARY_FUNCTIONS_ONLY'))return;
 try{
 $u=tt_require_login();if(!tt_user_can_open_module($u,'Accounts'))rsv2_out(['ok'=>false,'error'=>'Accounts permission required.'],403);$entity=rsv2_entity((string)($_GET['entity']??'TTI'));if(!tt_user_can_access_entity($u,$entity,'View'))rsv2_out(['ok'=>false,'error'=>'You do not have permission for this legal entity.'],403);$month=rsv2_month((string)($_GET['month']??gmdate('Y-m')));if($_SERVER['REQUEST_METHOD']==='GET')rsv2_out(rsv2_payload(rsv2_read(),$entity,$month));if($_SERVER['REQUEST_METHOD']!=='POST')rsv2_out(['ok'=>false,'error'=>'Method not allowed.'],405);if(!rsv2_can_write($u))rsv2_out(['ok'=>false,'error'=>'Accounts Create, Edit or Approve permission required.'],403);$b=json_decode((function_exists('tt_accounts_input')?tt_accounts_input():file_get_contents('php://input'))?:'{}',true);if(!is_array($b)||!tt_verify_csrf((string)($b['csrf']??'')))rsv2_out(['ok'=>false,'error'=>'Your session expired. Refresh and try again.'],419);$action=(string)($b['action']??'');$entity=rsv2_entity((string)($b['entity']??$entity));if(!(tt_user_can_access_entity($u,$entity,'Create')||tt_user_can_access_entity($u,$entity,'Edit')||tt_user_can_access_entity($u,$entity,'Approve')))rsv2_out(['ok'=>false,'error'=>'You do not have permission to update this legal entity.'],403);tt_ensure_data_dir();$h=fopen(RSV2_FILE,'c+');if($h===false||!flock($h,LOCK_EX))throw new RuntimeException('Accounts storage unavailable.');try{rewind($h);$raw=stream_get_contents($h);$s=$raw?json_decode($raw,true):null;if($raw!==''&&!is_array($s))throw new RuntimeException('Accounts storage is invalid.');if(!is_array($s))$s=rsv2_def();$s=array_replace_recursive(rsv2_def(),$s);try{$bankTracking=$action==='save_salary_draft_payment'?[]:tt_accounts_bank_payment_details($b);}catch(DomainException $error){rsv2_out(['ok'=>false,'error'=>$error->getMessage()],422);}$bankJournalIds=array_keys((array)$s['journals']);$GLOBALS['rsv2PostingPreview']=!empty($b['preview']);$previewBefore=array_map('strval',array_keys((array)($s['journals']??[])));$names=rsv2_names();$month=rsv2_month((string)($b['month']??$month));
 if(in_array($action,['prepare_month','save_salary_draft_payment','save_salary_transactions','refresh_salary_draft'],true)){

@@ -51,3 +51,16 @@ function tt_accounts_amendment_note(array $journal,array $store=[]): string {
  return 'Edited'.($changes?' — '.implode('; ',$changes):' — correction retained in audit history');
 }
 
+/** Resolve an exact stored/public identity within one company; never guess a numeric search alias. */
+function tt_accounts_resolve_post_key(array $store,string $requested,string $entity=''):string {
+    $direct=$store['journals'][$requested]??null;
+    if(is_array($direct)&&($entity===''||$entity==='ALL'||($direct['entity']??'')===$entity))return $requested;
+    $found=[];foreach((array)($store['journals']??[]) as $key=>$journal){
+        if(!is_array($journal)||($entity!==''&&$entity!=='ALL'&&($journal['entity']??'')!==$entity)||!empty($journal['reversalOf']))continue;
+        if((string)($journal['id']??'')!==$requested&&tt_accounts_public_post($store,$journal)!==$requested)continue;
+        $current=tt_accounts_current_journal($store,(string)$key);if(!$current||!empty($current['reversalOf'])||!empty($current['reversedByPostId']))continue;
+        $currentKey=(string)$key;foreach((array)$store['journals'] as $candidateKey=>$candidate)if($candidate===$current){$currentKey=(string)$candidateKey;break;}$found[$currentKey]=true;
+    }
+    if(count($found)>1)throw new DomainException('This public Post ID matches more than one active posting. Open the exact posting from its company ledger.');
+    return count($found)===1?(string)array_key_first($found):$requested;
+}

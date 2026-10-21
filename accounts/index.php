@@ -35,6 +35,7 @@ $access = [
     'canGroupDaily'=>gm_permission($user,'DAILY','View','Accounts'),
     'canGroupZakat'=>gm_permission($user,'ZAKAT','View','Accounts'),
     'canInventoryReconciliation'=>tt_inv_can_report($user), 'masterAccess' => tt_user_can_access_masters($user),
+    'companyVatRates'=>['TG'=>tt_company_vat_rate('TG',5)],
     'masterPermissions' => $user['master_permissions'] ?? [],
     'masters' => tt_user_visible_masters($user),
 ];

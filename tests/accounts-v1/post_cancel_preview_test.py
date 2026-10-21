@@ -13,6 +13,7 @@ with tempfile.TemporaryDirectory(prefix='tti-cancel-preview-') as directory:
  function tt_ensure_data_dir(){}
  function tt_post_correction_allowed($u,$j){return true;}
  function tt_user_can_access_entity($u,$e,$a){return true;}
+ function tt_accounts_resolve_post_key($s,$id,$e=''){return $id;}
  function tt_accounts_input(){return $GLOBALS['input'];}
  """)
  (base/'api/accounts_post_amend_core.php').write_text('<?php function apa_correct(&$s,$u,$id,$b){throw new RuntimeException("Unexpected correction");}')

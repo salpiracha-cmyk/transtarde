@@ -755,6 +755,15 @@
       "subledger": true
     },
     {
+      "code": "6810",
+      "name": "Correspondent Bank Charges",
+      "class": "Expense",
+      "level": "control",
+      "normal": "Debit",
+      "subledger": true,
+      "parent": "6800"
+    },
+    {
       "code": "6900",
       "name": "Administrative Expenses",
       "class": "Expense",

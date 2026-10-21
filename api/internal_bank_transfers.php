@@ -88,7 +88,7 @@ try{
      $mirror=['id'=>$mirrorId,'entity'=>$destination['entity'],'date'=>$date,'sourceType'=>'INTERCOMPANY_ADVANCE_RECEIPT','reference'=>$reference,'narration'=>$narration,'lines'=>$mirrorLines,'totalDebit'=>$functional,'totalCredit'=>$functional,'status'=>'Posted','meta'=>$record+['counterpartyEntity'=>$entity],'createdAt'=>$createdAt,'createdBy'=>$createdBy,'userId'=>(int)($user['id']??0),'reversalOf'=>null];
      $store['journals'][$mirrorId]=$mirror;
  }
- $store['internalBankTransfers'][$id]=$record;$store['revision']=(int)($store['revision']??0)+1;
+ tt_accounts_track_bank_payment($store,$previewBefore,$tracking);$journal=$store['journals'][$jid];$record=array_merge($record,['additionalAedBankCharge'=>$journal['meta']['additionalAedBankCharge']??null]);$store['internalBankTransfers'][$id]=$record;$store['revision']=(int)($store['revision']??0)+1;
  tt_posting_preview_exit($body,$store,$previewBefore);$encodedAccounts=json_encode($store,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);rewind($h);if(!ftruncate($h,0)||fwrite($h,$encodedAccounts)!==strlen($encodedAccounts)||!fflush($h))throw new RuntimeException('Accounts storage could not be written.');
  }finally{flock($h,LOCK_UN);fclose($h);}ibt_out(ibt_payload($store,$entity,$user)+['transfer'=>$record,'journal'=>$journal,'mirrorJournal'=>$mirror]);
-}catch(Throwable $e){error_log('Internal bank transfer: '.$e->getMessage());ibt_out(['ok'=>false,'error'=>'Bank transfer could not be completed.'],500);}
+}catch(DomainException $e){ibt_out(['ok'=>false,'error'=>$e->getMessage()],422);}catch(Throwable $e){error_log('Internal bank transfer: '.$e->getMessage());ibt_out(['ok'=>false,'error'=>'Bank transfer could not be completed.'],500);}
