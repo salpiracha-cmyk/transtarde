@@ -200,6 +200,8 @@ def run():
   freight={'action':'save_freight_bill','entity':'TTI','vendor':'Fixture Forwarder','invoiceNo':'MULTI-FREIGHT','billDate':'2026-09-30','exchangeRate':280,'shipmentSections':[{'shipmentId':sid,'containerCount':1,'charges':[{'charge':'Freight','currency':'USD','basis':'PER_CONTAINER','billedRate':100,'acceptedRate':90}]} for sid in ['FIXTURE-SHIP','FIXTURE-SHIP-2']]}
   status,recorded=request('/api/accounts_workflows_v1.php',freight);assert status==200,(status,recorded)
   state=json.loads(storefile.read_text());source=state['supplierBills'][recorded['bill']['id']]['sourceRecord'];assert len(source['shipmentSections'])==2 and source['acceptedLiability']==50400 and source['disputedTotal']==5600
+  before_duplicate=storefile.read_bytes();assert request('/api/accounts_workflows_v1.php',{**service,'invoiceNo':'DUPLICATE-SERVICE-NO-FLAG'})[0]==409;assert storefile.read_bytes()==before_duplicate
+  status,billed=request('/api/accounts_shipment_lookup.php?entity=TTI&billKind=FUMIGATION&includeBilled=1&q=FIXTURE-SHIP');assert status==200 and any(r['billing']['fullyBilled'] and r['billing']['bills'] for r in billed['rows'])
   assert request('/api/accounts_workflows_v1.php',{**freight,'invoiceNo':'BAD-DUP-SHIP','shipmentSections':[freight['shipmentSections'][0]]*2})[0]==422
   assert request('/api/accounts_workflows_v1.php',{**service,'invoiceNo':'BAD-FOREIGN-SHIP','shipmentSections':[{'shipmentId':'FOREIGN-SHIP','billLines':sections[0]['billLines']}]})[0]==422
   status,profit=request('/api/shipment_profitability.php?entity=TTI');assert status==200
@@ -228,10 +230,10 @@ def run():
   assert request('/api/accounts_workflows_v1.php',{**agreement,'fromPort':'Other port'})[0]==422
   assert request('/api/accounts_workflows_v1.php',{**agreement,'shippingLine':''})[0]==422
   # New-entry rules consume only their own expense category, never erase history.
-  status,available=request('/api/accounts_shipment_lookup.php?entity=TTI&billKind=FREIGHT&q=FIXTURE-SHIP');assert status==200 and available['rows']==[]
+  status,available=request('/api/accounts_shipment_lookup.php?entity=TTI&billKind=FREIGHT&q=FIXTURE-SHIP');assert status==200 and any(r['id']=='FIXTURE-SHIP' and r['billing']['remainingContainers']==3 for r in available['rows'])
   status,original_lookup=request('/api/accounts_shipment_lookup.php?entity=TTI&q=FIXTURE-SHIP');assert status==200 and any(r['id']=='FIXTURE-SHIP' for r in original_lookup['rows'])
   status,other_kind=request('/api/accounts_shipment_lookup.php?entity=TTI&billKind=INSPECTION&q=FIXTURE-SHIP');assert status==200 and any(r['id']=='FIXTURE-SHIP' for r in other_kind['rows'])
-  before_stale=storefile.read_bytes();assert request('/api/accounts_workflows_v1.php',{**detailed,'invoiceNo':'STALE-NEW-FREIGHT','newEntry':True})[0]==409;assert storefile.read_bytes()==before_stale
+  before_stale=storefile.read_bytes();assert request('/api/accounts_workflows_v1.php',{**detailed,'invoiceNo':'STALE-NEW-FREIGHT','newEntry':False,'shipmentSections':[{**detailed['shipmentSections'][0],'containerCount':4}]})[0]==409;assert storefile.read_bytes()==before_stale
   status,search=request('/api/accounts_search.php?entity=TTI&q='+recorded['bill']['postingJournalIds'][0]);assert status==200 and any(r.get('amendRecord',{}).get('id')==recorded['bill']['id'] for r in search['results'] if r.get('amendRecord'))
   edit=next(r['amendRecord'] for r in search['results'] if r.get('amendRecord') and r['amendRecord'].get('id')==recorded['bill']['id'])
   amended_payload={**detailed,'id':edit['id'],'amendment':True,'updatedAt':edit['updatedAt'],'editVersion':edit['editVersion'],'reason':'Fixture controlled amendment','remarks':'A correction with the same original shipment link'}
@@ -349,6 +351,9 @@ def run():
     assert page.locator('[name=fromPort] option').all_text_contents()==['Choose loading port','Karachi Port, Pakistan','Port Qasim, Pakistan']
     page.locator('#ttFreightAgreement .tt-window-close').click();page.get_by_role('button',name=re.compile('Freight Forwarder')).click();page.locator('#ttFreightInvoice').click()
     page.locator('#ttBillShipmentQuery').fill('FIXTURE-SHIP');page.locator('#ttBillShipmentGo').click();page.locator('[data-tt-pick-shipment="0"]').click()
+    # Real formatted date/number controls align even when the FX label wraps.
+    header_bottoms=page.locator('.tt-shipment-bill-header > label:not(.tt-shipment-vendor)').evaluate_all("labels=>labels.filter(el=>!el.hidden).map(el=>{const input=el.querySelector('input');const visible=input.classList.contains('tt-number-source')?input.parentElement.querySelector('.tt-number-display'):input.type==='date'?(el.querySelector('[data-tt-date-display]')||el.querySelector('input[type=text]')||input):input;return visible.getBoundingClientRect().bottom})")
+    assert max(header_bottoms)-min(header_bottoms)<2,header_bottoms
     page.locator('#ttShipmentBillVendor').fill('Fixture Forwarder');page.locator('[name=invoiceNo]').fill('BROWSER-FREIGHT-USD');page.locator('[name=exchangeRate]').fill('280');page.locator('[data-containers]').fill('3')
     charges=page.locator('.tt-bill-freight');charges.nth(0).locator('[data-amount]').fill('1000');charges.nth(1).locator('[data-amount]').fill('50')
     page.locator('[data-add]').click();charges.nth(2).locator('[data-description]').fill('Handling');charges.nth(2).locator('[data-amount]').fill('25');charges.nth(2).locator('[data-basis]').select_option('PER_CONTAINER',force=True)
@@ -371,7 +376,7 @@ def run():
     stored=json.loads((root/'transtrade_private/accounts.json').read_text());bill=next(x for x in stored['freightBillsV1'].values() if x['invoiceNo']=='BROWSER-FREIGHT-USD');assert bill['billedTotal']==876400 and stored['supplierBills'][bill['id']]['supplierPayableTotal']==876400
     assert page.locator('#ttServiceAddShipment').count()==0
     page.locator('#ttShipmentBillForm [data-another]').click();assert not page.locator('#ttShipmentBillForm').is_visible();page.locator('#ttBillShipmentQuery').wait_for(state='visible')
-    page.locator('#ttBillShipmentQuery').fill('FIXTURE-SHIP');page.locator('#ttBillShipmentGo').click();page.wait_for_function("!document.querySelector('#ttBillShipmentHits').textContent.includes('Searching')");assert 'FIXTURE-SHIP-LOT' not in page.locator('#ttBillShipmentHits').inner_text()
+    page.locator('#ttBillShipmentQuery').fill('FIXTURE-SHIP');page.locator('#ttBillShipmentGo').click();page.wait_for_function("!document.querySelector('#ttBillShipmentHits').textContent.includes('Searching')");assert 'FIXTURE-SHIP-LOT' in page.locator('#ttBillShipmentHits').inner_text() and '3 billed · 7 remaining containers' in page.locator('#ttBillShipmentHits').inner_text().lower(),page.locator('#ttBillShipmentHits').inner_text()
     page.evaluate('id=>TT_ACCOUNTING_DESK.openSearch(id)',bill['id']);page.locator('[data-amend-record]').first.click();page.locator('#ttShipmentBillEntry [name=reason]').wait_for(state='visible')
     assert page.locator('[data-amount]').evaluate_all('els=>els.map(el=>el.value)')==['1000','50','25','10','5'];assert page.locator('[name=exchangeRate]').input_value()=='280'
     page.locator('[data-amount]').first.fill('1010');page.locator('[name=reason]').fill('Fixture freight rate correction');page.locator('#ttShipmentBillEntry [type=submit]').click();confirm_accounting_review(page,'BILL AMENDED');page.get_by_role('heading',name='BILL AMENDED',exact=True).wait_for()

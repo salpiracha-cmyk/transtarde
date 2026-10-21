@@ -35,8 +35,8 @@ try{
         $rows[]=['id'=>'','kind'=>'contract','seller'=>$seller,'lot'=>'Contract planning','contract'=>$ref,'customer'=>$customer,'containers'=>[],'plannedContainers'=>$count,'portOfLoading'=>(string)($contract['pol']??''),'portOfDischarge'=>$port,'loadingProgramme'=>'','shippingLine'=>''];
     }
     foreach(tt_accounts_shipment_rows($root,$entity,$store) as $row){
-        $kind=strtoupper(trim((string)($_GET['billKind']??'')));if(in_array($kind,['FREIGHT','TRANSPORT','CLEARING','FUMIGATION','INSPECTION'],true)&&tt_accounts_source_billed($store,$entity,$kind,$row['id']))continue;
-        $haystack=strtolower(implode(' ',array_map(static fn($item)=>is_array($item)?implode(' ',$item):(string)$item,$row)));
+        $kind=strtoupper(trim((string)($_GET['billKind']??'')));if(in_array($kind,['FREIGHT','TRANSPORT','CLEARING','FUMIGATION','INSPECTION'],true)){$row['billing']=tt_accounts_shipment_billing($store,$entity,$kind,$row);if($row['billing']['fullyBilled']&&empty($_GET['includeBilled']))continue;}
+        $haystack=strtolower(implode(' ',array_map(static fn($item)=>is_array($item)?implode(' ',$item):(string)$item,array_diff_key($row,['billing'=>true]))));
         if(str_contains($haystack,strtolower($term)))$rows[]=$row;
         if(count($rows)>=50)break;
     }

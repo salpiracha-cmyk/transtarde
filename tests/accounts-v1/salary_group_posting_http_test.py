@@ -64,6 +64,26 @@ with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
         before=saved();status,preview=group('OFFICE_STAFF',preview=True);assert status==200,preview;assert preview['previews'];assert saved()==before
         status,posted=group('OFFICE_STAFF');assert status==200,posted
         sheet=posted['salarySheet'];assert sheet['status']=='Draft';assert sheet['rows']['Alice']['groupPosted'];assert not sheet['rows']['Bob'].get('groupPosted')
+        # A posted group is searchable/amendable while other groups remain untouched drafts.
+        isolated_before=saved();records=request()[1]['salaryPayments'];assert len(records)==1,records
+        entry=records[0];changed=json.loads(json.dumps(entry['transaction']));changed['amount']=650;changed['allocations'][0]['amount']=650
+        amendment={'action':'amend_salary_allocated_payment','journalId':entry['journalId'],'transaction':changed,'reason':'Correct posted group fixture payment','snapshot':request()[1]['salaryCorrectionSnapshot'],'requestKey':'group-edit-fixture'}
+        before=saved();assert request({**amendment,'preview':True})[0]==200 and saved()==before
+        status,edited=request(amendment);assert status==200,edited
+        current=saved();assert current['salaryPeriods']['TTI|2026-10|Alice']['outstanding']==100
+        assert current['salarySheets']['TTI|2026-10']['rows']['Alice']['outstanding']==100
+        for who in ['Bob','Cara']:assert current['salarySheets']['TTI|2026-10']['rows'][who]==before['salarySheets']['TTI|2026-10']['rows'][who]
+        assert request(amendment)[1]['result']['duplicate'] and saved()==current
+        bank_balance={'action':'salary_payment','masterId':'Alice','amount':40,'date':'2026-10-03','paymentAccountId':'bank-a','bankPaymentMethod':'CHEQUE','chequeNo':'GROUP-REF','chequeDate':'2026-10-03','requestKey':'group-bank-balance'}
+        status,bank_paid=request(bank_balance);assert status==200,bank_paid
+        bank_before=saved();status,duplicate_bank=request({**bank_balance,'amount':20,'requestKey':'group-bank-duplicate'});assert status==422 and 'reference is already posted' in duplicate_bank['error'],duplicate_bank
+        assert saved()==bank_before,'Duplicate bank reference before month closure must leave books unchanged'
+        balance={'action':'salary_payment','masterId':'Alice','amount':60,'date':'2026-10-03','paymentAccountId':'CASH|TTI','requestKey':'group-balance-fixture'}
+        status,paid=request(balance);assert status==200,paid
+        assert saved()['salarySheets']['TTI|2026-10']['rows']['Alice']['outstanding']==0
+        assert len(request()[1]['salaryPayments'])==3
+        assert request(balance)[1]['result']['duplicate']
+        (root/'data/accounts.json').write_text(json.dumps(isolated_before))
         after=saved();assert after['salaryAdvances']['ADV']['remaining']==0
         periods=after['salaryPeriods'];assert len(periods)==1;assert next(iter(periods.values()))['paidAfterPrepare']==750
         journal_count=len(after['journals']);status,retry=group('OFFICE_STAFF');assert status==200,retry;assert saved()==after
@@ -114,14 +134,14 @@ with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
                 assert page.locator('#rsRefresh,#rsApplyMaster,#rsCollapseGroups,#rsExpandGroups,#rsResetDraft').count()==0
                 assert page.locator('[data-rs-post-group]').count()==3
                 assert page.locator('#rsSalaryComplete').is_disabled()
-                office=page.locator('[data-rs-group="OFFICE_STAFF"]');assert office.get_attribute('open') is not None
+                office=page.locator('[data-rs-group="OFFICE_STAFF"]');assert office.get_attribute('open') is None;office.locator('summary').click();assert office.get_attribute('open') is not None
                 office.locator('[data-rs-post-group]').click()
                 page.get_by_role('dialog',name='Review accounting entries').get_by_role('button',name='Confirm and Post',exact=True).click()
                 page.locator('[data-rs-post-group="OFFICE_STAFF"]:disabled').wait_for()
                 assert office.get_attribute('open') is not None,'Post all must not toggle the expand bar'
                 assert page.locator('[data-rs-post-group="MILL_STAFF"]').is_enabled()
                 assert page.locator('#rsSalaryComplete').is_disabled()
-                page.locator('[data-rs-group="MILL_STAFF"] > summary').click();assert page.locator('[data-rs-group="MILL_STAFF"]').get_attribute('open') is None
+                page.locator('[data-rs-group="MILL_STAFF"] > summary').click();assert page.locator('[data-rs-group="MILL_STAFF"]').get_attribute('open') is not None
                 assert saved()['salarySheets']['TTI|2026-10']['status']=='Draft'
                 browser.close()
         print('PASS independent group posting, read-only preview, advance/cash exactly once, retained balances, no-journal deferral, stale/invalid and incomplete holds, close without reposting')

@@ -94,6 +94,10 @@ function src_correct(array &$s,string $e,string $m,array $b,array $u,array $name
     $next['postingKeys'][$key]=['fingerprint'=>$fingerprint,'result'=>$result,'createdAt'=>gmdate('c')];$s=$next;return $result;
 }
 
+/** Group postings stay editable before month closure without touching other draft groups. */
+function src_payment_groups(array $sheet):array {
+    return array_replace((array)($sheet['postedPaymentGroups']??[]),(array)($sheet['paymentGroups']??[]));
+}
 /** Active source transactions for the payment list. Labels never change journal identity. */
 function src_payments(array $s,string $e,string $m,array $u):array {
     $out=[];$sheet=$s['salarySheets'][$e.'|'.$m]??[];
@@ -104,7 +108,7 @@ function src_payments(array $s,string $e,string $m,array $u):array {
         }
         if(($j['sourceType']??'')!=='SALARY_ALLOCATED_PAYMENT')continue;
         $owner=$j['meta']['paymentGroupOwner']??'';$index=$j['meta']['paymentGroupIndex']??-1;
-        $t=$sheet['paymentGroups'][$owner][$index]??null;if(!$t||($t['status']??'')==='Reversed')continue;
+        $t=src_payment_groups($sheet)[$owner][$index]??null;if(!$t||($t['status']??'')==='Reversed')continue;
         foreach($t['allocations'] as &$a)if(($a['type']??'')==='ASSET_PAYMENT'&&isset($s['managedAssets'][$a['assetId']]))$a['assetVersion']=$s['managedAssets'][$a['assetId']]['version'];unset($a);
         $out[]=['journalId'=>$id,'publicPostId'=>tt_accounts_public_post($s,$j),'owner'=>$owner,'transaction'=>$t,
             'canAmend'=>tt_user_can_access_entity($u,$e,'Edit')&&(!function_exists('tt_post_correction_allowed')||tt_post_correction_allowed($u,$j))];
@@ -121,12 +125,14 @@ function src_amend_payment(array &$s,string $e,string $m,array $b,array $u,array
     if(!$j||($j['sourceType']??'')!=='SALARY_ALLOCATED_PAYMENT'||($j['meta']['salarySheetKey']??'')!==$e.'|'.$m)throw new DomainException('Select a current actual salary payment from this company and month.');
     $reason=trim((string)($b['reason']??''));if(strlen($reason)<5||strlen($reason)>300)throw new DomainException('Enter an amendment reason (5–300 characters).');
     $sk=$e.'|'.$m;$closed=$s['salarySheets'][$sk]??[];
-    if(($closed['status']??'')!=='Completed')throw new DomainException('Use the draft payment editor for an unfinished salary month.');
-    $owner=$j['meta']['paymentGroupOwner'];$index=$j['meta']['paymentGroupIndex'];$original=$closed['paymentGroups'][$owner][$index]??null;
+    $partial=($closed['status']??'')!=='Completed';
+    $owner=$j['meta']['paymentGroupOwner'];$index=$j['meta']['paymentGroupIndex'];$original=src_payment_groups($closed)[$owner][$index]??null;
+    if($partial&&empty($closed['rows'][$owner]['groupPosted']))throw new DomainException('Use the draft payment editor for an unposted salary group.');
+    $pendingGroups=(array)($closed['paymentGroups']??[]);$closed['paymentGroups']=src_payment_groups($closed);
     $tx=$b['transaction']??null;if(!is_array($tx)||!$original)throw new DomainException('The original payment requires review.');
     // The recipient belongs to this source; amendments must not silently change it.
     $tx['recipient']=$original['recipient'];
-    $next=$s;$reverse=sfw_reverse_payment($next,$e,$m,['journalId'=>$id,'reason'=>$reason,'date'=>$j['date']],$u,$names,true);
+    $next=$s;$next['salarySheets'][$sk]=$closed;$reverse=sfw_reverse_payment($next,$e,$m,['journalId'=>$id,'reason'=>$reason,'date'=>$j['date']],$u,$names,true);
     $rid=$reverse['journalId'];$closed=$next['salarySheets'][$sk];
     // Isolate the replacement from other already-posted groups. Current period
     // balances count those payments; revalidating/reposting them would double-pay.
@@ -134,7 +140,7 @@ function src_amend_payment(array &$s,string $e,string $m,array $b,array $u,array
     unset($temp['masterChanged'],$temp['sourceInputsChanged'],$temp['canRefreshFromMaster']);
     $temp['masterSignature']=smw_master_signature($next,$e,$m);
     $temp['advanceSignature']=smw_advance_signature($next,$e,$m);$temp['personalSignature']=smw_personal_signature($next,$e,$m);
-    foreach($temp['rows'] as $mid=>&$row){$p=$next['salaryPeriods'][$row['periodId']]??null;if(!$p)throw new DomainException('The original salary period is unavailable.');
+    foreach($temp['rows'] as $mid=>&$row){$p=$next['salaryPeriods'][$row['periodId']]??null;if(!$p){if($partial){unset($temp['rows'][$mid]);continue;}throw new DomainException('The original salary period is unavailable.');}unset($row['groupPosted']);
         $row['prepared']=true;$row['baseline']=rsv2_fingerprint($p);$row['paidAfterPrepare']=(float)$p['paidAfterPrepare']+(float)($p['personalDeducted']??0);
         $row['advanceApplied']=$row['originalAdvanceApplied']=$row['requestedRecovery']=(float)$p['advanceApplied'];$row['payment']=null;$row['outstanding']=$p['outstanding'];
     }unset($row);
@@ -147,11 +153,21 @@ function src_amend_payment(array &$s,string $e,string $m,array $b,array $u,array
     $ids=sfw_post_groups($next,$e,$m,$valid,$u,$names);if(count($ids)!==1)throw new DomainException('Amend exactly one actual payment.');$nid=$ids[0];$tx=$valid['paymentGroups'][$owner][0];
     foreach($tx['allocations'] as $a)foreach(sea_charges($a) as $c){$pid=rsv2_pid($e,$m,$c['masterId']);$p=&$next['salaryPeriods'][$pid];$p['paidAfterPrepare']=round($p['paidAfterPrepare']+$c['amount'],2);$p['outstanding']=round($p['outstanding']-$c['amount'],2);if($p['outstanding']<-.005)throw new DomainException('Payment exceeds the beneficiary balance.');$p['status']=$p['outstanding']>.005?'Payable':'Paid';unset($p);}
     $closed['paymentGroups'][$owner][$index]=$tx;
+    if($partial){
+        $closed['postedPaymentGroups'][$owner][$index]=$tx;
+        $closed['paymentGroups']=$pendingGroups;
+        foreach($closed['rows'] as $mid=>&$row)if(!empty($row['groupPosted'])){
+            $p=$next['salaryPeriods'][$row['periodId']];$row['paidAfterPrepare']=round($p['paidAfterPrepare']+($p['personalDeducted']??0),2);
+            $row['outstanding']=$p['outstanding'];$row['payment']=null;$row['baseline']=rsv2_fingerprint($p);
+        }unset($row);
+        foreach($closed['postedGroups']??[] as $group=>$posted)$closed['postedGroups'][$group]['paymentPostIds']=array_map(static fn($v)=>$v===$id?$nid:$v,$posted['paymentPostIds']??[]);
+    }else{
     $groupPaid=[];foreach(sfw_groups($closed) as $ts)foreach($ts as $t)if(($t['status']??'')!=='Reversed')foreach($t['allocations'] as $a)foreach(sea_charges($a) as $c)$groupPaid[$c['masterId']]=round(($groupPaid[$c['masterId']]??0)+$c['amount'],2);
     foreach($closed['rows'] as $mid=>&$row){$p=$next['salaryPeriods'][$row['periodId']];$row['paidAfterPrepare']=round($p['paidAfterPrepare']+($p['personalDeducted']??0)-($groupPaid[$mid]??0),2);}unset($row);
     sfw_recalculate($closed);
     // Preserve the completed month's posted recovery and entitlement exactly.
     foreach($closed['rows'] as $mid=>$row)if(abs($row['advanceApplied']-$s['salarySheets'][$sk]['rows'][$mid]['advanceApplied'])>.005)throw new DomainException('A payment amendment cannot change posted advance recovery.');
+    }
     $closed['paymentPostIds']=array_map(static fn($v)=>$v===$id?$nid:$v,$closed['paymentPostIds']);
     $closed['corrections'][array_key_last($closed['corrections'])]['replacementPostId']=$nid;$closed['updatedAt']=gmdate('c');$next['salarySheets'][$sk]=$closed;
     $meta=&$next['journals'][$nid]['meta'];$meta['paymentGroupIndex']=$index;$meta['salaryMonthPostId']=$closed['journalId'];$meta['publicPostId']=tt_accounts_public_post($s,$j);$meta['amendmentOfPostId']=$id;$meta['amendmentReason']=$reason;$meta['reversalPostId']=$rid;$meta['amendmentNote']='Edited '.gmdate('Y-m-d').' by '.($u['full_name']??$u['username']??'Accounts').' — '.$reason;
