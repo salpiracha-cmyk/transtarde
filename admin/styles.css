@@ -679,6 +679,7 @@ legend { margin-bottom: 10px; color: #445469; font-size: .79rem; font-weight: 75
 
 /* Compact access editor and shared Salary Master groups. */
 #userDialog{width:min(1080px,calc(100vw - 32px));max-width:1080px}
+#userDialog .permission-module{min-width:0}
 #userDialog fieldset{min-width:0;border:0;padding:12px 0;margin:0}
 #userDialog legend{font-weight:800;padding:8px 0}
 .permission-module>summary,.salary-master-group>summary{cursor:pointer;padding:14px 16px;background:#edf4f1;border-radius:9px;font-weight:800}
