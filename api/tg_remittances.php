@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require dirname(__DIR__).'/auth_store.php';
+require_once __DIR__.'/accounts_bank_payment.php';
 require_once __DIR__.'/tg_remittance_core.php';
 require_once __DIR__.'/tg_native_currency.php';
 require_once __DIR__.'/accounts_reference.php';

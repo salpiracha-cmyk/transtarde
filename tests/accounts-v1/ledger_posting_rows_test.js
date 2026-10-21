@@ -3,7 +3,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('nod
 const sandbox={window:{},document:{querySelector:()=>null},localStorage:{getItem:()=>null},Intl,TextEncoder,Uint8Array,DataView,Blob};
 vm.createContext(sandbox);
 let source=fs.readFileSync('accounts/all-ledgers-ui.js','utf8');
-source=source.replace('window.TT_ALL_LEDGERS={','window.__ledgerTest={setAccount:a=>account=a,setRows:r=>data={rows:r,accounts:[],currency:"PKR"},statementRows,postingRows,rowsHtml,totals,registerTotals,tableHtml,displayRef};window.TT_ALL_LEDGERS={');
+source=source.replace('window.TT_ALL_LEDGERS={','window.__ledgerTest={setCategory:c=>category=c,setAccount:a=>account=a,setRows:r=>data={rows:r,accounts:[],currency:"PKR"},statementRows,postingRows,rowsHtml,totals,registerTotals,tableHtml,displayRef};window.TT_ALL_LEDGERS={');
 vm.runInContext(source,sandbox);
 const t=sandbox.window.__ledgerTest;
 t.setRows([
@@ -32,3 +32,5 @@ const currencyTotals=t.registerTotals();assert.equal(currencyTotals.length,3);as
 html=t.tableHtml();assert(html.includes('TG · AED'));assert(html.includes('TTI · PKR'));assert(!html.includes('667.00'),'All-company total must never mix AED with PKR');
 const exportRows=Array.from(t.statementRows());assert(exportRows.some(row=>row[0]==='Date'&&row.includes('Book currency')));assert.equal(exportRows.filter(row=>row[0]==='Subtotal').length,3);assert(exportRows.some(row=>row[0]==='Subtotal'&&row[2]==='TG'&&row[3]==='AED'&&row[5]===367));assert(!exportRows.some(row=>row.includes(667)));
 console.log('PASS all-company register currency labels, separate subtotals and shared print/Excel statement');
+
+t.setCategory('bank');t.setAccount('BANK|AED');t.setRows([{voucher:'FEE',date:'2026-07-13',credit:16000,debit:0,balance:-16000},{voucher:'FEE',date:'2026-07-13',credit:30,debit:0,balance:-16030,bankChargeComponent:'Online Banking Charges'},{voucher:'FEE',date:'2026-07-13',credit:1.5,debit:0,balance:-16031.5,bankChargeComponent:'VAT on Online Banking Charges'}]);assert.equal(t.postingRows().length,3,'Bank statement keeps principal, fee and VAT visible separately');assert.deepEqual(Array.from(t.postingRows().map(r=>r.credit)),[16000,30,1.5]);console.log('PASS bank statement preserves separate fee/VAT lines and running balances under one Post ID');

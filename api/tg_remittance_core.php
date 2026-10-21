@@ -89,9 +89,9 @@ function tgr_confirm(array &$s,array $b,array $u,array $banks,array $names,array
  $bankExtra=['bankAccountId'=>$first['bankAccountId'],'bankName'=>$bank['bank'],'bankAccountTitle'=>$bank['title'],'currency'=>$cur,'bankDebit'=>0,'bankCredit'=>round($amount,2),'bankPaymentMethod'=>'ONLINE_BANKING','bankReference'=>$ref];
  $lines[]=tgr_line('1110',0,$amount*$rate,$names,$bankExtra);
  if($charge+$vat>0){$ccy=$chargeBank['currency'];$cb=tgr_bank_balance($s,$chargeBankId,$ccy);$cr=$ccy==='AED'?1:(float)$cb['carryingRate'];if($cr<=0)$cr=(float)($rates[$ccy]??0);if($cr<=0)throw new DomainException('Set the charge-bank exchange rate in Company Master.');
-  if($charge>0)$lines[]=tgr_line('6800',$charge*$cr,0,$names,['currency'=>$ccy,'nativeDebit'=>$charge,'nativeCredit'=>0,'chargeType'=>'OUTGOING REMITTANCE CHARGE']);
+  if($charge>0)$lines[]=tgr_line('6800',$charge*$cr,0,$names,['currency'=>$ccy,'nativeDebit'=>$charge,'nativeCredit'=>0,'chargeType'=>'OUTGOING REMITTANCE CHARGE']+(function_exists('tt_accounts_online_charge_subaccount')?tt_accounts_online_charge_subaccount($s):[]));
   if($vat>0)$lines[]=tgr_line('1140',$vat*$cr,0,$names,['currency'=>$ccy,'nativeDebit'=>$vat,'nativeCredit'=>0,'chargeType'=>'BANK CHARGE INPUT VAT']);
-  $lines[]=tgr_line('1110',0,($charge+$vat)*$cr,$names,['bankAccountId'=>$chargeBankId,'bankName'=>$chargeBank['bank'],'bankAccountTitle'=>$chargeBank['title'],'currency'=>$ccy,'bankDebit'=>0,'bankCredit'=>$charge+$vat,'bankPaymentMethod'=>'ONLINE_BANKING','bankReference'=>$ref]);
+  foreach([['Online Banking Charges',$charge],['VAT on Online Banking Charges',$vat]] as [$component,$part])if($part>0)$lines[]=tgr_line('1110',0,$part*$cr,$names,['bankAccountId'=>$chargeBankId,'bankName'=>$chargeBank['bank'],'bankAccountTitle'=>$chargeBank['title'],'currency'=>$ccy,'bankDebit'=>0,'bankCredit'=>$part,'bankPaymentMethod'=>'ONLINE_BANKING','bankReference'=>$ref,'chargeType'=>$component]);
  }
  $difference=round(array_sum(array_column($lines,'credit'))-array_sum(array_column($lines,'debit')),2);
  if($difference>0)$lines[]=tgr_line('7100',$difference,0,$names,['fxDirection'=>'Loss']);elseif($difference<0)$lines[]=tgr_line('7100',0,-$difference,$names,['fxDirection'=>'Gain']);

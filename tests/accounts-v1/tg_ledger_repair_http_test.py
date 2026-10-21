@@ -68,5 +68,8 @@ require $argv[1];
     assert corrected['totalDebit']==corrected['totalCredit']==16031.5
     assert after['journals']['USD-OPEN']['lines'][1]['nativeCredit']==100 and after['journals']['USD-OPEN']['lines'][1]['credit']==367
     assert [l['currency'] for l in after['journals']['FX']['lines']]==['USD','AED'],'Preserve actual conversion currencies'
+    status,statement=request('accounts_ledger_browser','?entity=TG&account=BANK%7CBANK-1&category=bank&to=2026-10-21');assert status==200,(status,statement)
+    parts=[r for r in statement['rows'] if r.get('bankChargeComponent')];assert {r['bankChargeComponent'] for r in parts}=={'Online Banking Charges','VAT on Online Banking Charges'}
+    assert sorted(r['credit'] for r in parts)==[1.5,30],parts
     status,again=request('tg_ledger_repair');assert status==200 and len(again['plan']['npss'])==0
     print('PASS real TG repair endpoints: preview read-only, stale rejection, NPSS principal preserved, fee/VAT separate, stable Post ID, opening native contra, genuine conversion and Mrs Tayyab unchanged')
