@@ -103,8 +103,9 @@ $sharedBootstrap = <<<'HTML'
   const access=window.TT_MODULE_ACCESS||{}, endpoint='api/operations.mysql.php';
   const cornContract=c=>/\b(?:CORN|MAIZE|MAKAI)\b/i.test([c?.commodity,c?.product,c?.variety,c?.baseVariety].filter(Boolean).join(' '));
   const EXPORT_STORE='transtrade_export_v3_operational';
+  const LOCAL_ONLY_STORES=new Set(['tt39accountsoutbox']);
   const PRIVATE_STORES=new Set(['tt34ghati','tt34nilqueue','tt32processingrecon','tt41bagtransfers']);
-  const allowed=k=>!PRIVATE_STORES.has(k)&&(k===EXPORT_STORE||/^tt[0-9]{2}[a-z0-9_]{2,60}$/.test(k));
+  const allowed=k=>!LOCAL_ONLY_STORES.has(k)&&!PRIVATE_STORES.has(k)&&(k===EXPORT_STORE||/^tt[0-9]{2}[a-z0-9_]{2,60}$/.test(k));
   const originalSet=Storage.prototype.setItem, originalRemove=Storage.prototype.removeItem, originalGet=Storage.prototype.getItem, originalClear=Storage.prototype.clear;
   const cacheFallback=new Map(), committedValues=new Map(), receipts=new Map(), failedKeys=new Set();let saveHolds=0;
   const waiting=()=>document.documentElement.classList.toggle('tt-save-waiting',saveHolds>0||commitWaiters.length>0);
@@ -127,7 +128,7 @@ $sharedBootstrap = <<<'HTML'
   function deferInbound(){clearTimeout(inboundRetry);inboundRetry=setTimeout(checkInbound,1000)}
   function applyRemote(data,initial){
     if(!data?.ok)return;
-    for(const key of data.restrictedKeys||[]){localStorage.removeItem(key);pending.delete(key);remoteKeys.delete(key);keyVersions.delete(key);committedValues.delete(key);receipts.delete(key);}
+    for(const key of data.restrictedKeys||[]){if(LOCAL_ONLY_STORES.has(key))continue;localStorage.removeItem(key);pending.delete(key);remoteKeys.delete(key);keyVersions.delete(key);committedValues.delete(key);receipts.delete(key);}
     // An in-flight response can arrive after an editor opens. Do not replace its
     // data or advance its version: a later save must still detect real conflicts.
     if(!initial&&exportWorkspaceBusy()){deferInbound();return}
@@ -223,7 +224,7 @@ $sharedBootstrap = <<<'HTML'
 
     if(Array.isArray(root.millSync.productionInstructions)){
     let pis=parse('tt30prodinst',[]),oldPis=new Map(pis.filter(x=>x._ttBridge==='exports').map(x=>[x._ttBridgeId,x]));pis=pis.filter(x=>x._ttBridge!=='exports');
-    (root.millSync.productionInstructions||[]).forEach(x=>{const c=contract(x.contractRef),prod=x.production||{};(x.packings||[]).forEach((pk,i)=>{const bid=x.contractRef+'|'+i,old=oldPis.get(bid)||{},specs=x.specifications||[],spec=n=>String(specs.find(v=>String(v.name||'').toLowerCase().includes(n))?.value||''),q=x.quality||c.quality||prod.qualityNotes||'As per export contract';pis.push({...old,id:old.id||stableId('pi|'+bid),_ttBridge:'exports',_ttBridgeId:bid,contractRef:x.contractRef,ref:'PI-'+String(x.contractRef||'').replace(/[^A-Za-z0-9]/g,'-')+(x.packings.length>1?'-'+String.fromCharCode(65+i):''),brand:pk.brand||'UNNAMED BRAND',variety:x.product||c.product||'',productIdentityCode:x.productIdentityCode||c.productIdentityCode||'',baseVariety:x.baseVariety||c.variety||commercialBase(x.product||c.product),riceType:x.riceType||c.riceType||'',productStage:'FINISHED',displayName:x.displayName||x.product||c.product||'',quality:q,requiredMT:Number(pk.containers||0)*Number(pk.weightPer||0),producedMT:Number(old.producedMT||0),packing:`${pk.size||''} ${String(c.packingUnit||'KG').toUpperCase().startsWith('LB')?'lb':'kg'} ${pk.type||'export bags'}`,requiredBy:prod.requiredBy||'',broken:spec('broken')||'As per contract',moisture:spec('moisture')||'As per contract',chalky:spec('chalky')||'As per contract',damage:spec('damage')||spec('yellow')||'As per contract',foreign:spec('foreign')||'As per contract',polish:spec('finish')||prod.qualityNotes||'As per approved sample / contract',special:c.quality||prod.qualityNotes||'Follow Export instructions and keep brand separate.',bagSupplier:'As per Export Bag Order',inspection:prod.inspection||c.inspection||'None',dpp:prod.dpp||'Yes',sentAt:x.sentAt||''})})});put('tt30prodinst',pis);
+    (root.millSync.productionInstructions||[]).forEach(x=>{const c=contract(x.contractRef),prod=x.production||{};(x.packings||[]).forEach((pk,i)=>{const bid=x.contractRef+'|'+i,old=oldPis.get(bid)||{},specs=x.specifications||[],spec=n=>String(specs.find(v=>String(v.name||'').toLowerCase().includes(n))?.value||''),q=x.quality||c.quality||prod.qualityNotes||'As per export contract';pis.push({...old,id:old.id||stableId('pi|'+bid),_ttBridge:'exports',_ttBridgeId:bid,contractRef:x.contractRef,ref:'PI-'+String(x.contractRef||'').replace(/[^A-Za-z0-9]/g,'-')+(x.packings.length>1?'-'+String.fromCharCode(65+i):''),brand:pk.brand||'UNNAMED BRAND',variety:x.product||c.product||'',productIdentityCode:x.productIdentityCode||c.productIdentityCode||'',baseVariety:x.baseVariety||c.variety||commercialBase(x.product||c.product),riceType:x.riceType||c.riceType||'',productStage:'FINISHED',displayName:x.displayName||x.product||c.product||'',quality:q,requiredMT:Number(pk.containers||0)*Number(pk.weightPer||0),producedMT:Number(old.producedMT||0),packing:`${pk.size||''} ${String(c.packingUnit||'KG').toUpperCase().startsWith('LB')?'lb':'kg'} ${pk.type||'export bags'}`,requiredBy:prod.requiredBy||'',broken:spec('broken')||'As per contract',moisture:spec('moisture')||'As per contract',chalky:spec('chalky')||'As per contract',damage:spec('damage')||spec('yellow')||'As per contract',foreign:spec('foreign')||'As per contract',polish:spec('finish')||prod.qualityNotes||'As per approved sample / contract',special:c.quality||prod.qualityNotes||'Follow Export instructions and keep brand separate.',bagSupplier:'As per Export Bag Order',inspection:prod.inspection||c.inspection||'None',dpp:prod.dpp||'Yes',sentAt:x.sentAt||''})})});if(access.moduleId==='exports')put('tt30prodinst',pis);
     }
 
     if(Array.isArray(root.millSync.exportLoading)){
@@ -331,7 +332,7 @@ $brandHead = $id === 'exports' ? '<link rel="stylesheet" href="/export-assets.ph
 $brandHead .= '<link rel="stylesheet" href="/brand-theme.css?v=20261006-number-entry-1">';
 $headPos = stripos($html, '</head>');
 if ($headPos !== false) $html = substr_replace($html, $brandHead.$bootstrap.$sharedBootstrap, $headPos, 0);
-$accountsSourceBridge = '<script src="accounts/source-bridge.js?v=20260924-explicit-actions-1"></script><script src="accounts/loading-programme-sync.js?v=20260924-explicit-actions-1"></script><script src="accounts/bag-control-bridge.js?v=20260924-explicit-actions-1"></script>';
+$accountsSourceBridge = '<script src="mill-duplicate-approvals.js"></script><script src="accounts/source-bridge.js?v=20260924-explicit-actions-1"></script><script src="accounts/loading-programme-sync.js?v=20260924-explicit-actions-1"></script><script src="accounts/bag-control-bridge.js?v=20260924-explicit-actions-1"></script>';
 $brandBody = '<script src="/session-activity.js?v=20260929-1"></script><script src="/brand-theme.js?v=20261006-number-entry-1"></script>';
 $brandBody .= '<script src="/global-validation.js?v=20260909-1"></script>';
 if ($id === 'exports') $brandBody .= '<script src="/customer-contract-options.js?v=20260911-reports-1&fix=20261003-no-legacy-completion-1"></script>';

@@ -3,7 +3,7 @@ const source=fs.readFileSync('admin/app.js','utf8');
 const code=source.slice(source.indexOf('  async function refreshApprovals()'),source.indexOf('  function exportAudit()'));
 const nodes=Object.fromEntries(['refreshApprovals','approvalStatusCount','approvalStatusTitle','approvalStatusDetail'].map(id=>[id,{}]));
 const list={},count={},panel={querySelector:selector=>selector==='.approval-list'?list:count,insertBefore:node=>{nodes[node.id]=node}};
-const context={IS_SUPER_ADMIN:true,pendingDeletionRequests:[],pendingBankDeletionRequests:[],pendingDirectorApprovals:[],approvalsError:'',approvalsLoaded:false,
+const context={window:{TT_MILL_DUPLICATE_APPROVALS:{load:async()=>[]}},IS_SUPER_ADMIN:true,pendingDeletionRequests:[],pendingBankDeletionRequests:[],pendingDirectorApprovals:[],approvalsError:'',approvalsLoaded:false,
   state:{masters:{companies:[{id:'C1',banks:[{id:'old',currency:'PKR',isDefault:true},{id:'new',currency:'PKR',bankName:'Fixture Bank',accountTitle:'TTI',iban:'PK1'},{id:'usd',currency:'USD'}]}]}},
   companyBanks:company=>company?.banks||[],eligibleDefaultBank:()=>true,
   escapeHtml:value=>String(value??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;'),
@@ -34,6 +34,7 @@ vm.createContext(context);vm.runInContext(code,context);
   context.pendingBankDeletionRequests=[];context.apiRequest=async()=>({approvals:[]});
   await context.refreshApprovals();assert.equal(count.textContent,'0 open');assert.ok(list.innerHTML.includes('No pending approvals'));
   assert.equal(nodes.refreshApprovals.disabled,false);
+  context.window.TT_MILL_DUPLICATE_APPROVALS.load=async()=>[{kind:'millduplicate',id:'AR1',title:'Second trip',detail:'Same truck/date'}];await context.refreshApprovals();assert(list.innerHTML.includes('data-review-mill-duplicate="AR1"'));assert(list.innerHTML.includes('data-mill-approval-reason'));assert.equal(count.textContent,'1 open');
   console.log('Director approvals UI: shared count, escaped content, rate reasons, bank replacement and visible failures passed');
 })().catch(error=>{console.error(error);process.exitCode=1;});
 
