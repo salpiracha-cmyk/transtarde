@@ -33,9 +33,14 @@ function smw_prepared_recovery(array $s,array $row,string $entity,string $month)
     // not an inferred second instalment on opening the payment form.
     if($posted>$traced+.005)$extra=0.0;
     $unpaid=max(0,(float)$row['totalDue']-(float)$row['paidAfterPrepare']);
+    $suggested=round(min($unpaid,$posted+$extra),2);
+    // Old prepared forms forced recovery to zero. If its saved payment already
+    // leaves room for the scheduled instalment, retain that payment and require
+    // review of the recovered deduction. New explicit zero choices stay zero.
+    $legacyZero=!array_key_exists('recoveryMaximum',$row)&&(float)($row['originalAdvanceApplied']??0)<.005&&(float)($row['advanceApplied']??0)<.005&&(float)($row['requestedRecovery']??0)<.005;
+    if($legacyZero&&$suggested>.005&&$unpaid-(float)($row['payment']['amount']??0)>=$suggested-.005){$row['reviewed']=false;unset($row['requestedRecovery']);}
     $row['recoveryMaximum']=round(min($unpaid,$posted+(float)$row['advanceOutstanding']),2);
     if(empty($row['reviewed'])&&!array_key_exists('requestedRecovery',$row)){
-        $suggested=round(min($unpaid,$posted+$extra),2);
         if(abs($suggested-(float)$row['advanceApplied'])>.005)$row['advanceReviewRequired']=true;
         $row['advanceApplied']=round(min($suggested,max(0,$unpaid-(float)($row['payment']['amount']??0))),2);
         $row['requestedRecovery']=$suggested;

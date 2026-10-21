@@ -66,14 +66,14 @@ jobs:
           PLAYWRIGHT_HTML_OPEN: never
         run: npx playwright test tests/live/hostinger-qa.spec.js --grep-invert "live deletion survives sign-out and sign-in" --reporter=line,html
 
-      - name: Upload screenshots, video, trace and report
+      - name: Upload screenshots and video only
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: hostinger-live-qa-${{ github.run_id }}
           path: |
-            playwright-report/
-            test-results/
+            test-results/**/*.png
+            test-results/**/*.webm
           retention-days: 14
 
   cleanup:

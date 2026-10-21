@@ -71,6 +71,8 @@ jobs:
           npm install --no-save jsdom@27 playwright@1.55.0
           npx playwright install --with-deps chromium
           sudo apt-get install -y poppler-utils
+      - name: Verify live credential artifact boundary with disposable login
+        run: node tests/security/live_credential_artifact_browser_test.js
       - name: Verify document reader settings controls
         run: node tests/document-ai/settings_ui_test.js
       - name: Verify lot persistence and reopening permissions
@@ -86,6 +88,7 @@ jobs:
           node tests/exports-v3/document_rules_20260917_audit.js
           node tests/exports-v3/document_variant_matrix_test.js
           node tests/exports-v3/customer_reference_linkages_test.js
+          node tests/exports-v3/untrusted_date_currency_test.js
           node tests/exports-v3/shipment_copy_reuse_test.js
       - name: Verify rendered Export document behavior
         run: |
