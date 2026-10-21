@@ -1759,6 +1759,14 @@
       document.getElementById("backupSnapshotSize").textContent = `${backupBytes(data.snapshotBytes)} across all stored archives; available recovery points are listed below`;
       document.getElementById("backupLastOwner").textContent = data.lastOwnerDownload ? backupFriendlyDate(data.lastOwnerDownload) : "Not downloaded yet";
       document.getElementById("officeBackupStatus").textContent = data.officeBackupEnabled ? "Backup-only credential active" : "No office backup credential issued";
+      const security = data.officeSecurity || {};
+      document.getElementById("officeSecurityStatus").textContent = !security.passwordPinned
+        ? "Password protection awaits owner setup. The legacy Office connection remains active."
+        : !security.credentialMatches ? "Office credential changed. Re-enter the existing PC recovery password for the current credential."
+        : security.deliveryRequired ? "Backup password and shipment delivery protection are active."
+        : security.deliveryReady ? "Backups are protected. Updated shipment agent verified; delivery protection is ready to activate."
+        : "Backups are protected. Update and run the shipment agent before activating delivery protection.";
+      document.getElementById("requireOfficeDeliveryProof").disabled = !security.deliveryReady || security.deliveryRequired;
       const choice = document.getElementById("serverSnapshotChoice");
       const selected = choice.value;
       choice.replaceChildren(new Option("Select a snapshot", ""));
@@ -1807,6 +1815,17 @@
       await loadBackupStatus();
     } catch (error) { toast(error.message); }
     finally { button.disabled = false; }
+  }
+  async function protectOfficeConnection(action) {
+    const passwordInput = document.getElementById("officeExistingPassword"), confirmationInput = document.getElementById("officeExistingPasswordConfirm");
+    const button = document.getElementById(action === "pin-office-recovery" ? "pinOfficeRecovery" : "requireOfficeDeliveryProof");
+    button.disabled = true;
+    try {
+      await backupFetchJson("api/backup.php", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({action, csrf:SESSION.csrf,
+        ...(action === "pin-office-recovery" ? {password:passwordInput.value, confirmationPassword:confirmationInput.value} : {})})});
+      toast(action === "pin-office-recovery" ? "Office backups now require the saved PC recovery password." : "Shipment delivery now requires the independently verified PC password.");
+    } catch(error) { toast(error.message); }
+    finally { passwordInput.value=""; confirmationInput.value=""; button.disabled=false; await loadBackupStatus(); }
   }
   let verifiedRestoreSignature = "";
   let verifiedServerSnapshot = "";
@@ -2050,6 +2069,9 @@
   document.getElementById("createServerSnapshot").addEventListener("click", createServerSnapshot);
   document.getElementById("issueOfficeBackupToken").addEventListener("click", () => manageOfficeBackupToken("issue-office-token"));
   document.getElementById("revokeOfficeBackupToken").addEventListener("click", () => manageOfficeBackupToken("revoke-office-token"));
+  document.getElementById("pinOfficeRecovery").addEventListener("click", () => protectOfficeConnection("pin-office-recovery"));
+  document.getElementById("requireOfficeDeliveryProof").addEventListener("click", () => protectOfficeConnection("require-office-delivery-proof"));
+  document.getElementById("refreshOfficeSecurity").addEventListener("click", loadBackupStatus);
   document.getElementById("verifyBackupFile").addEventListener("click", verifyBackupForRestore);
   document.getElementById("verifyServerSnapshot").addEventListener("click", verifyServerSnapshot);
   document.getElementById("serverSnapshotChoice").addEventListener("change", () => { verifiedServerSnapshot = ""; document.getElementById("serverSnapshotConfirmArea").hidden = true; document.getElementById("serverSnapshotVerification").hidden = true; });

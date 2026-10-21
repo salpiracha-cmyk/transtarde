@@ -1,5 +1,5 @@
 """Actual authenticated office delivery projection, scope and receipt acceptance."""
-import copy, hashlib, http.cookiejar, json, os, pathlib, shutil, socket, subprocess, tempfile, time, urllib.error, urllib.request
+import base64, copy, hashlib, http.cookiejar, json, os, pathlib, shutil, socket, subprocess, tempfile, time, urllib.error, urllib.request
 ROOT=pathlib.Path(__file__).resolve().parents[2]
 with tempfile.TemporaryDirectory(prefix='office-delivery-') as folder:
     root=pathlib.Path(folder);app=root/'app'
@@ -46,6 +46,38 @@ with tempfile.TemporaryDirectory(prefix='office-delivery-') as folder:
         assert request('/api/office_agent.php?action=shipment-status&id='+'b'*32)[1]['job']['status']=='UNVERIFIED'
         assert request('/api/office_agent.php?action=shipment-status&id=../auth')[0]==422
         before=pending.read_bytes();headers={'X-Forwarded-Proto':'https','X-TT-Backup-Token':token}
+        # Only authenticated Super Admin can independently enroll the existing PC password.
+        password='fixture-existing-office-§-password'
+        owner={'csrf':'fixture','action':'pin-office-recovery','password':password,'confirmationPassword':password}
+        request('/fixture-session.php?id=2');assert request('/api/backup.php',owner)[0]==403
+        request('/fixture-session.php?id=1');assert request('/api/backup.php',{**owner,'csrf':'bad'})[0]==419
+        assert not (private/'office-backup-policy.json').exists()
+        status,data=request('/api/backup.php',owner);assert status==200 and data['officeSecurity']['passwordPinned'],(status,data)
+        assert password not in (private/'office-backup-policy.json').read_text()
+        activate={'csrf':'fixture','action':'require-office-delivery-proof'}
+        assert request('/api/backup.php',activate)[0]==422
+        # Existing protocol2 requests already contain the configured password.
+        for action in ['prepare','status','chunk','complete']:
+            body={'password':'attacker-chosen-password','job':'d'*32,'offset':0,'length':1,'sha256':'0'*64}
+            status,data=request('/api/office_backup.php?action='+action,body,headers);assert status==403,(action,status,data)
+            good={**body,'password':password}
+            expected=503 if action=='prepare' else 409
+            status,data=request('/api/office_backup.php?action='+action,good,headers);assert status==expected,(action,status,data)
+        # New Python agent sends ASCII-safe independent proof for Unicode passwords.
+        proof={**headers,'X-TT-Office-Recovery':base64.b64encode(password.encode()).decode()}
+        assert request('/api/office_agent.php?action=poll',headers=proof)[0]==200
+        assert request('/api/backup.php',activate)[0]==200
+        policy_before=(private/'office-backup-policy.json').read_bytes()
+        for action in ['poll','file&id='+'c'*32+'&index=0','ack']:
+            body={'id':'c'*32,'status':'COMPLETE','files':[receipt]} if action=='ack' else None
+            status,data=request('/api/office_agent.php?action='+action,body,headers);assert status==403,(action,status,data)
+            assert pending.read_bytes()==before
+        assert request('/api/office_agent.php?action=poll',headers=proof)[0]==200
+        assert (private/'office-backup-policy.json').read_bytes()==policy_before
+        # Bearer requests cannot pin a password or change the enforcement policy.
+        request('/fixture-session.php?id=0');assert request('/api/backup.php',owner,proof)[0]==401
+        assert (private/'office-backup-policy.json').read_bytes()==policy_before
+        request('/fixture-session.php?id=1');headers=proof
         for bad in [[],[dict(receipt,size=11)],[dict(receipt,sha256='0'*64)],[receipt,receipt]]:
             status,data=request('/api/office_agent.php?action=ack',{'id':'c'*32,'status':'COMPLETE','files':bad},headers)
             assert status==422 and not data['ok'] and pending.read_bytes()==before,(status,data)

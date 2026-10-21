@@ -1,4 +1,4 @@
-import hashlib, io, json, unittest
+import base64, hashlib, io, json, unittest
 from email.message import Message
 from unittest.mock import patch
 from office_backup_agent_test import agent
@@ -42,6 +42,18 @@ class ProtocolTest(unittest.TestCase):
         response = agent.PreparedBackupResponse({}, {'job':'a'*32, 'length':4, 'sha256':'0'*64})
         with patch.object(agent, 'backup_job_request', side_effect=lambda *_: Response(b'bad!', encoding='gzip')), patch.object(agent.time, 'sleep'):
             with self.assertRaisesRegex(ValueError, 'HTTP compression'): response.read(4)
+    def test_delivery_independent_unicode_password_header(self):
+        config={'token':'a'*64,'password':'fixture-existing-§-password'}
+        class Client:
+            def open(self, req, timeout):
+                self.req=req
+                return Response(b'{"ok":true}', content_type='application/json')
+        client=Client()
+        with patch.object(agent, 'opener', return_value=client):
+            self.assertTrue(agent.office_agent_request(config,'poll')['ok'])
+        encoded=client.req.get_header('X-tt-office-recovery')
+        self.assertEqual(base64.b64decode(encoded).decode('utf-8'),config['password'])
+        self.assertNotIn(config['password'],client.req.full_url)
     def test_progress_job_id_is_validated(self):
         with patch.object(agent, 'backup_job_json', return_value={'ok':True, 'state':'preparing', 'job':'../bad'}):
             with self.assertRaises(ValueError): agent.open_backup_response({})

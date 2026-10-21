@@ -27,6 +27,7 @@ try{
     // but restoration must preserve current credential rotation and revocation.
     $oldRecovery=tt_rotate_admin_recovery_code();$recoveryHash=file_get_contents(TT_DATA_DIR.'/admin-recovery.hash');
     $oldOffice=tt_office_backup_issue_token();$officeHash=file_get_contents(TT_DATA_DIR.'/office-backup-token.sha256');
+    tt_office_policy_pin('old-existing-office-password');
     $legacyAI='fixture-legacy-document-reader-key';
     file_put_contents(TT_DATA_DIR.'/gemini.key',$legacyAI);
     mkdir(TT_DATA_DIR.'/office_agent_jobs/0123456789abcdef0123456789abcdef',0700,true);
@@ -64,25 +65,30 @@ try{
     $currentRecovery=tt_rotate_admin_recovery_code();
     $currentOffice=tt_office_backup_issue_token();
     file_put_contents(TT_DATA_DIR.'/gemini.key','changed');file_put_contents($jobPath,'changed');
+    tt_office_policy_pin('current-office-password-123');$currentOfficePolicy=file_get_contents(tt_office_policy_file());
     $restoredResult=tt_restore_server_snapshot($snapshot);
     backup_expect(file_get_contents(TT_DATA_DIR.'/documents/large-fixture.txt')===$payload&&$restoredResult['restoredFiles']>=3,'Verified server snapshot must restore stored documents.');
     backup_expect(is_file(tt_backup_dir().'/'.$restoredResult['safetySnapshot']),'Restore must preserve a safety snapshot.');
     backup_expect(tt_recovery_code_valid($currentRecovery)&&!tt_recovery_code_valid($oldRecovery)&&tt_office_backup_token_valid($currentOffice)&&!tt_office_backup_token_valid($oldOffice),'Server restore reactivated historical credentials.');
     backup_expect(file_get_contents(TT_DATA_DIR.'/gemini.key')===$legacyAI&&file_get_contents($jobPath)===$jobBytes,'Server restore lost its legacy reader key or archived Office job.');
+    backup_expect(file_get_contents(tt_office_policy_file())===$currentOfficePolicy,'Server restore replaced the current Office password binding.');
     $fullOldRecovery=$currentRecovery;$fullOldOffice=$currentOffice;
     $full=tt_build_download_backup(true,'test-backup-password-2026');
     $currentRecovery=tt_rotate_admin_recovery_code();
     $currentOffice=tt_office_backup_issue_token();
     file_put_contents(TT_DATA_DIR.'/gemini.key','changed');file_put_contents($jobPath,'changed');
+    tt_office_policy_pin('full-current-office-password-123');$currentOfficePolicy=file_get_contents(tt_office_policy_file());
     $fullResult=tt_restore_complete_backup($full['path'],'test-backup-password-2026');
     backup_expect($fullResult['restoredFiles']>=3&&file_get_contents(TT_DATA_DIR.'/documents/large-fixture.txt')===$payload,'Chunk-encrypted complete backup must restore documents.');
     backup_expect(tt_recovery_code_valid($currentRecovery)&&!tt_recovery_code_valid($fullOldRecovery)&&tt_office_backup_token_valid($currentOffice)&&!tt_office_backup_token_valid($fullOldOffice),'Complete restore reactivated historical credentials.');
     backup_expect(file_get_contents(TT_DATA_DIR.'/gemini.key')===$legacyAI&&file_get_contents($jobPath)===$jobBytes,'Complete recovery lost its legacy reader key or archived Office job.');
+    backup_expect(file_get_contents(tt_office_policy_file())===$currentOfficePolicy,'Complete restore replaced the current Office password binding.');
     foreach(['snapshot','complete'] as $mode){
         if($mode==='snapshot')$snapshot=tt_create_server_snapshot('manual');
-        tt_office_backup_revoke_token();@unlink(TT_DATA_DIR.'/admin-recovery.hash');
+        tt_office_backup_revoke_token();@unlink(TT_DATA_DIR.'/admin-recovery.hash');@unlink(tt_office_policy_file());
         $result=$mode==='snapshot'?tt_restore_server_snapshot($snapshot):tt_restore_complete_backup($full['path'],'test-backup-password-2026');
         backup_expect(!is_file(TT_DATA_DIR.'/admin-recovery.hash')&&!tt_office_backup_enabled()&&!tt_office_backup_token_valid($oldOffice),'Restore must preserve revoked/absent credentials: '.$mode);
+        backup_expect(!is_file(tt_office_policy_file()),'Restore resurrected an absent Office password policy: '.$mode);
         backup_expect(!tt_recovery_code_valid($oldRecovery),'Historical recovery code revived on fresh installation: '.$mode);
         $provisioned=tt_rotate_admin_recovery_code();$token=tt_office_backup_issue_token();
         backup_expect(tt_recovery_code_valid($provisioned)&&tt_office_backup_token_valid($token),'Explicit fresh provisioning failed after '.$mode);

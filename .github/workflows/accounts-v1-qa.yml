@@ -167,6 +167,7 @@ jobs:
           php tests/security/upload_validation_test.php
           php tests/security/office_backup_auth_test.php
           python3 tests/security/office_backup_agent_test.py
+          python3 tests/security/office_backup_protocol_test.py
           python3 tests/security/logout_http_test.py
           node tests/accounts-v1/master_role_mapping_test.js
           node tests/offline_recovery_audit.js

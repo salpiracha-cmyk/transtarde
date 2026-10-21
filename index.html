@@ -178,6 +178,16 @@
             <p id="officeBackupStatus">Checking credential…</p>
             <div class="backup-actions"><button class="button secondary" id="issueOfficeBackupToken">Generate / Rotate Credential</button><button class="button secondary" id="revokeOfficeBackupToken">Revoke Credential</button></div>
             <label class="backup-password" id="officeBackupTokenArea" hidden>Copy this credential now; it is shown only once<input id="officeBackupToken" type="text" readonly autocomplete="off" spellcheck="false"></label>
+            <div class="backup-password"><h3>Protect the existing Office PC connection</h3>
+              <p>Enter the recovery ZIP password already saved on the Office PC. This binds backups to that password without changing its credential or Windows schedule.</p>
+              <label>Existing Office PC recovery password<input id="officeExistingPassword" type="password" minlength="12" maxlength="256" autocomplete="off"></label>
+              <label>Repeat existing password<input id="officeExistingPasswordConfirm" type="password" minlength="12" maxlength="256" autocomplete="off"></label>
+              <button class="button secondary" id="pinOfficeRecovery">Save Existing Password Protection</button>
+              <p id="officeSecurityStatus">Checking password protection…</p>
+              <p>For shipment delivery, update the installed Office Agent while preserving office-backup.json, then run its normal delivery connection. Activate protection after a verified connection appears below.</p>
+              <button class="button secondary" id="requireOfficeDeliveryProof" disabled>Activate Shipment Delivery Protection</button>
+              <button class="button secondary" id="refreshOfficeSecurity">Refresh Connection Status</button>
+            </div>
             <small class="backup-note">The agent uses this credential and a separate ZIP password. Keep both in the office computer's protected configuration. An active credential does not confirm that the office task is installed or running; check its task history and latest verified local file.</small>
           </article>
 
