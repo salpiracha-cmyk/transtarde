@@ -28,6 +28,7 @@ jobs:
       - name: Accounts rule and control audits
         run: |
           python3 tests/security/accounts_integrity_http_test.py
+          python3 tests/security/offline_ledger_test.py
           python3 tests/security/accounts_document_access_test.py
           node tests/security/live_credential_artifact_test.js
           python3 tests/accounts-v1/staff_payment_amend_http_test.py

@@ -160,6 +160,7 @@ jobs:
           test -f "$stage/module.php"
           test -f "$stage/exports/app.js"
           php -r '$r=$argv[1];$p=$r."/accounts/accounting_master_v1.json";$m=is_file($p)?json_decode(file_get_contents($p),true):[];$payroll=null;foreach(($m["chart"]??[]) as $a)if((string)($a["code"]??"")==="2230")$payroll=["name"=>$a["name"]??null,"class"=>$a["class"]??null];echo "PRE_DEPLOY_SOURCE ".json_encode(["payrollControl"=>$payroll,"reconciliationEndpoint"=>is_file($r."/api/bank_reconciliation.php"),"chartSha"=>is_file($p)?hash_file("sha256",$p):null]).PHP_EOL;' "$target"
+          php "$stage/scripts/offline-ledger-readiness.php" "$target"
           find "$stage" -type f -name '*.php' -print0 | xargs -0 -n1 php -l >/dev/null
           tar \
             --exclude='./data' \
