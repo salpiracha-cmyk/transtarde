@@ -17,7 +17,7 @@ function sfw_editable(array $s,string $e,string $m,array $b,bool $sourceAmendmen
     $sheet=$sourceAmendment?$s['salarySheets'][$e.'|'.$m]:smw_sheet($s,$e,$m);
     if(($sheet['status']??'')==='Completed')throw new DomainException('This month is completed. Correct the original Post ID with a reason.');
     if((int)($b['version']??-1)!==(int)$sheet['version']||!empty($sheet['masterChanged']))throw new DomainException('Salary inputs changed. Refresh and review this draft first.');
-    $id=(string)($b['masterId']??'');if(!isset($sheet['rows'][$id]))throw new DomainException('Select a person on this salary sheet.');
+    $id=(string)($b['masterId']??'');if(!empty($sheet['rows'][$id]['groupPosted']))throw new DomainException('This salary group is posted. Open Payments / Amend or its Post ID to correct it.');if(!isset($sheet['rows'][$id]))throw new DomainException('Select a person on this salary sheet.');
     smw_check_baseline($s,$sheet['rows'][$id]);return $sheet;
 }
 function sfw_groups(array $sheet):array {
@@ -30,7 +30,7 @@ function sfw_groups(array $sheet):array {
 function sfw_recalculate(array &$sheet):void {
     $paid=[];
     foreach(sfw_groups($sheet) as $transactions)foreach($transactions as $t)if(($t['status']??'')!=='Reversed')foreach($t['allocations'] as $a)foreach(sea_charges($a) as $charge)$paid[$charge['masterId']]=round(($paid[$charge['masterId']]??0)+$charge['amount'],2);
-    foreach($sheet['rows'] as $id=>&$r){$amount=$paid[$id]??0;$max=round($r['totalDue']-$r['paidAfterPrepare'],2);
+    foreach($sheet['rows'] as $id=>&$r){if(!empty($r['groupPosted']))continue;$amount=$paid[$id]??0;$max=round($r['totalDue']-$r['paidAfterPrepare'],2);
         if($amount>$max+.005)throw new DomainException('Allocations exceed unpaid entitlement for '.$r['name'].'.');
         $recovery=(float)($r['requestedRecovery']??$r['advanceApplied']);
         $r['advanceApplied']=round(min($recovery,max(0,$max-$amount)),2);

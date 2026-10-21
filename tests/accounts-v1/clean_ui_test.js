@@ -32,7 +32,8 @@ requireText(ui, "function stageEditor", 'shared native editor staging');
 requireText(ui, "button.removeAttribute('data-editor-back')", 'legacy editor handler isolation');
 requireText(ui, "tt:accounts-desk-form-opened", 'Accounts desk form close-shell integration');
 
-requireText(read('accounts/rent-salary-ui.js'), "action:'complete_salary_month'", 'single final salary posting');
+requireText(read('accounts/rent-salary-ui.js'), "action:'post_salary_group'", 'independent group posting');
+requireText(read('accounts/rent-salary-ui.js'), "action:'close_salary_month'", 'month completion only closes');
 requireText(salaryApi, "$action==='salary_batch_payment'", 'salary API');
 requireText(salaryApi, "SALARY_BATCH_PAYMENT", 'single salary voucher');
 requireText(salaryApi, "Cheque number is required for a bank salary payment.", 'salary cheque control');

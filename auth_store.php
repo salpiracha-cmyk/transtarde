@@ -1024,9 +1024,9 @@ function tt_api_write_actions(string $endpoint,array $body): ?array {
         'amend_bill_payment','bounce_supplier_cheque','cancel_supplier_cheque','clear_supplier_cheque'=>['Edit'],default=>[],
     };
     if(in_array($endpoint,['rent_salary.php','rent_salary_v2.php'],true))return match($action){
-        'save_salary_master','save_rent_master','pay_rent','record_salary_advance','record_salary_opening_advance','salary_batch_payment','salary_payment','complete_salary_month'=>['Create'],
+        'save_salary_master','save_rent_master','pay_rent','record_salary_advance','record_salary_opening_advance','salary_batch_payment','salary_payment','complete_salary_month','post_salary_group'=>['Create'],
         'prepare_month','save_salary_draft_payment','save_salary_transactions','refresh_salary_draft'=>['Create','Edit'],
-        'update_salary_master','update_rent_master','deactivate_salary_master','deactivate_rent_master','amend_salary_allocated_payment','correct_salary_records','reverse_salary_allocated_payment','adjust_salary_month','edit_salary_sheet_row','apply_salary_master','reverse_salary_staff','reset_salary_draft'=>['Edit'],default=>[],
+        'update_salary_master','update_rent_master','deactivate_salary_master','deactivate_rent_master','amend_salary_allocated_payment','correct_salary_records','reverse_salary_allocated_payment','adjust_salary_month','edit_salary_sheet_row','apply_salary_master','reverse_salary_staff','reset_salary_draft','close_salary_month'=>['Edit'],default=>[],
     };
     if($endpoint==='expenses_v1.php')return match($action){
         'save_card_master','save_utility_master','save_card_statement','post_and_pay_card_statement'=>['Create','Edit'],

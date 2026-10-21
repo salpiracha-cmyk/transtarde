@@ -101,6 +101,7 @@ jobs:
           python3 tests/accounts-v1/salary_opening_http_test.py
           python3 tests/accounts-v1/salary_prepared_advance_http_test.py
           python3 tests/accounts-v1/salary_master_sync_http_test.py
+          python3 tests/accounts-v1/salary_group_posting_http_test.py
           python3 tests/accounts-v1/salary_flexible_http_test.py
           python3 tests/accounts-v1/bank_overdraft_http_test.py
           php tests/accounts-v1/ledger_visibility_test.php
@@ -404,6 +405,7 @@ jobs:
         run: |
           "$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/salary_month_http_test.py
           "$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/salary_flexible_http_test.py
+          "$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/salary_group_posting_http_test.py
       - name: Bank entries, finance and subaccounts browser flow
         env:
           TT_QA_OUTPUT: ${{ runner.temp }}/inventory-evidence
