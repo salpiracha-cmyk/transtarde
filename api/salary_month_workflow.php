@@ -153,7 +153,7 @@ function smw_apply_master(array &$s,string $entity,string $month,array $b,array 
     $journalIds=[];foreach($dated as $date=>$datedLines)$journalIds[]=rsv2_journal($s,$entity,$date,'SALARY_MASTER_ADJUSTMENT','SALARY-MASTER-'.$month,'Salary Master applied — '.$month.' — '.$reason,$datedLines,$u,['month'=>$month,'salarySheetKey'=>$key,'reason'=>$reason]);$jid=$journalIds?end($journalIds):'';
     $fresh=smw_fresh_sheet($s,$entity,$month);$nextSheet=$sheet;$nextSheet['paymentGroups']=$groups;
     foreach($removed as $id){unset($nextSheet['rows'][$id],$nextSheet['paymentGroups'][$id],$nextSheet['masterChanges'][$id]);}
-    foreach($fresh['rows'] as $id=>$current){if($only!==null&&!in_array($id,$only,true))continue;$old=$sheet['rows'][$id]??null;if(!empty($old['groupPosted']))continue;
+    foreach($fresh['rows'] as $id=>$current){if(isset($sheet['postedGroups'][smw_group_key($current)]))continue;if($only!==null&&!in_array($id,$only,true))continue;$old=$sheet['rows'][$id]??null;if(!empty($old['groupPosted']))continue;
         if($old){$different=false;foreach(['name','category','totalDue','netSalary','zakatAmount','otherAllowance','advanceApplied'] as $field){ $before=$old[$field]??null;$after=$current[$field]??null;if(is_numeric($before)&&is_numeric($after)?abs((float)$before-(float)$after)>.005:$before!==$after)$different=true; }$current['reviewed']=!$different&&!empty($old['reviewed']);$current['payment']=$old['payment']??null;if(!empty($old['recoveryChoiceSaved'])){$current['requestedRecovery']=$old['requestedRecovery']??$old['advanceApplied'];$current['recoveryChoiceSaved']=true;}}
         $current['oneOffInactive']=in_array($id,$kept,true);$nextSheet['rows'][$id]=$current;
     }
@@ -198,6 +198,7 @@ function smw_edit_row(array &$s,string $entity,string $month,array $b,array $u):
         $sheet['masterChanges'][$id]=['operation'=>'remove','baseline'=>isset($master)?rsv2_fingerprint($master):''];unset($sheet['rows'][$id]);
     }else{
         $name=trim((string)($b['name']??$row['name']??''));$category=rsv2_cat((string)($b['category']??$row['category']??'OFFICE_STAFF'));
+        if(isset($sheet['postedGroups'][smw_group_key(['category'=>$category])]))throw new DomainException('That salary group is already posted. Add this staff member in a future month or amend the original posting.');
         if($name==='')throw new DomainException('Enter the staff name.');
         if($entity!=='TTI'&&$category==='MILL_STAFF')throw new DomainException('Mill staff belong to TTI.');
         foreach($sheet['rows'] as $otherId=>$other)if($otherId!==$id&&rsv2_norm($other['name'])===rsv2_norm($name))throw new DomainException('This person already appears in this month.');
@@ -224,8 +225,10 @@ function smw_close_month(array &$s,string $entity,string $month,array $b,array $
     if((int)($b['version']??-1)!==$sheet['version'])throw new DomainException('Salary data changed. Reopen Salaries & Staff and review the latest sheet.');
     if(!$sheet['rows'])throw new DomainException('There are no salary records to close.');
     foreach($sheet['rows'] as $row)if(empty($row['groupPosted']))throw new DomainException('Post all payments in '.smw_group_key($row).' before closing this month. Use its green Post all button.');
-    if(!empty($sheet['masterChanged']))throw new DomainException('Salary Master changed. Review the current staff list before closing this month.');
-    $sheet['paymentGroups']=array_replace((array)($sheet['postedPaymentGroups']??[]),(array)($sheet['paymentGroups']??[]));$sheet['status']='Completed';$sheet['completedAt']=gmdate('c');$sheet['closedBy']=$u['id']??0;$sheet['version']++;$s['salarySheets'][$key]=$sheet;
+    $sheet['paymentGroups']=array_replace((array)($sheet['postedPaymentGroups']??[]),(array)($sheet['paymentGroups']??[]));
+    $paid=[];foreach($sheet['paymentGroups'] as $txs)foreach($txs as $tx)if(($tx['status']??'')!=='Reversed')foreach($tx['allocations'] as $allocation)foreach(sea_charges($allocation) as $charge)$paid[$charge['masterId']]=round(($paid[$charge['masterId']]??0)+$charge['amount'],2);
+    foreach($sheet['rows'] as $mid=>&$row){$p=$s['salaryPeriods'][$row['periodId']];$row['paidAfterPrepare']=round((float)$p['paidAfterPrepare']+(float)($p['personalDeducted']??0)-($paid[$mid]??0),2);unset($row['groupPosted']);}unset($row);
+    sfw_recalculate($sheet);$sheet['status']='Completed';$sheet['completedAt']=gmdate('c');$sheet['closedBy']=$u['id']??0;$sheet['version']++;$s['salarySheets'][$key]=$sheet;
     return ['journalId'=>$sheet['journalId'],'monthClosed'=>true];
 }
 function smw_action(array &$s,string $entity,string $month,array $b,array $u,array $names):array {

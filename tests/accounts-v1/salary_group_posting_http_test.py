@@ -78,6 +78,10 @@ with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
         before=saved();status,closed=request({'action':'close_salary_month','version':request()[1]['salarySheet']['version']});assert status==200,closed
         after=saved();assert after['journals']==before['journals'];assert after['salaryAdvances']==before['salaryAdvances'];assert closed['salarySheet']['status']=='Completed'
         assert request({'action':'close_salary_month','version':0})[0]==200;assert saved()==after
+        first_payment=closed['salarySheet']['postedGroups']['OFFICE_STAFF']['paymentPostIds'][0]
+        status,reversed=request({'action':'reverse_salary_allocated_payment','journalId':first_payment,'date':'2026-10-02','reason':'Correct the original salary payment'});assert status==200,reversed
+        row=reversed['salarySheet']['rows']['Alice'];assert row['outstanding']==750,row;assert row['payment']['amount']==0,row
+        assert saved()['salaryPeriods'][row['periodId']]['paidAfterPrepare']==0
         # Legacy accrued group can defer its full balance with no new journal.
         assert request({'action':'prepare_month'},'2026-11')[0]==200
         assert draft('Alice',0,month='2026-11')[0]==200
