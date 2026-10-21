@@ -38,7 +38,9 @@ assert.match(legacy,/Direct JV posting has been retired/);
 
 const donation=read('api/donations.php'),expenses=read('api/expenses_v1.php'),purchases=read('api/other_purchases.php');
 for(const s of [donation,expenses,purchases]){assert.match(s,/\$entity==='TG'\?'AED':'PKR'|\$e==='TG'\?'AED':'PKR'/);}
-for(const s of [read('accounts/donations-ui.js'),read('accounts/other-purchases-ui.js'),read('accounts/reports-ui.js')])assert.match(s,/entity\(\)==='TG'\?'AED':'Rs'/);
+for(const s of [read('accounts/donations-ui.js'),read('accounts/other-purchases-ui.js')])assert.match(s,/entity\(\)==='TG'\?'AED':'Rs'/);
+
+assert.match(read('accounts/reports-ui.js'),/data\?\.currency\|\|q\('#ttReportCurrency'\)/);
 
 const people=Object.fromEntries((master.peopleSubledgers||[]).map(x=>[x.code,x]));
 for(const code of ['FAM-SALMAN','FAM-TALHA','FAM-ABU','FAM-TAYYAB']){assert.equal(people[code].class,'Equity');assert.equal(people[code].normal,'Debit');}
