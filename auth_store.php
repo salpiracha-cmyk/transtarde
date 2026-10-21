@@ -724,6 +724,7 @@ function tt_user_landing_url(array $user): string {
     // The owner-level Super Admin always starts in the Control Centre.
     // Operational users continue directly to their assigned workspace.
     if (($user['role'] ?? '') === 'Super Admin') return 'index.php';
+    if (($user['role'] ?? '') === 'Director') return 'staff-home.php';
     if (tt_user_can_open_module($user, 'Accounts')) return 'accounts/index.php';
     if (tt_user_can_open_module($user, 'Directors')) return 'directors/index.php';
     foreach (['Mill'=>'milling','Exports'=>'exports'] as $name=>$id) {

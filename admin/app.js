@@ -453,16 +453,16 @@
     return Array.isArray(saved?.[icon]) && saved[icon].includes(action);
   }
   function permissionMatrix(permissions = {}) {
-    return Object.entries(MODULE_ICONS).map(([module,icons]) => `<section class="permission-module" style="--tt-permission-actions:${module==="Accounts"?6:3}">
-      <div class="permission-module-head"><strong>${module}</strong><label><input type="checkbox" data-select-module="${module}"> Select all ${module}</label></div>
+    return Object.entries(MODULE_ICONS).map(([module,icons]) => `<details class="permission-module" style="--tt-permission-actions:${module==="Accounts"?6:3}">
+      <summary><strong>${module}</strong><span>Access & actions</span></summary><div class="permission-module-body"><div class="permission-module-head"><label><input type="checkbox" data-select-module="${module}"> Select all ${module}</label></div>
       <div class="permission-row header"><strong>Icon / Screen</strong>${(module==="Accounts"?["View","Create","Edit","Approve","Reports","Delete"]:ICON_ACTIONS).map(action=>`<span>${action}</span>`).join("")}</div>
       ${icons.map(([id,label])=>`<div class="permission-row"><strong>${label}</strong>${(module==="Accounts"?["View","Create","Edit","Approve","Reports","Delete"]:ICON_ACTIONS).map(action=>`<label title="${module} · ${label} · ${action}"><input type="checkbox" data-permission-module="${module}" data-permission-icon="${id}" value="${action}" ${permissionChecked(permissions,module,id,action)?"checked":""}></label>`).join("")}</div>`).join("")}
-    </section>`).join("");
+    </div></details>`).join("");
   }
   function masterPermissionMatrix(user = {}) {
     const saved=user.masterPermissions||{};
     const visibleMasterPermissions=MASTER_TYPES.filter(type=>type.id!=="reference_lists"&&type.id!=="commodities"&&type.id!=="purchase_kat");
-    return `<div class="permission-row header master-permission-row"><strong>Master</strong>${MASTER_PERMISSION_ACTIONS.map(action=>`<span>${action.replace(' Documents',' Docs')}</span>`).join("")}</div>`+visibleMasterPermissions.map(type=>`<div class="permission-row master-permission-row"><strong>${escapeHtml(type.name)}</strong>${MASTER_PERMISSION_ACTIONS.map(action=>`<label title="${escapeHtml(type.name)} · ${action}"><input type="checkbox" data-master-permission="${type.id}" value="${action}" ${Array.isArray(saved[type.id])&&saved[type.id].includes(action)?"checked":""}></label>`).join("")}</div>`).join("");
+    return [...MASTER_GROUPS,["Other",visibleMasterPermissions.map(type=>type.id).filter(id=>!MASTER_GROUPS.some(([,ids])=>ids.includes(id)))]].map(([group,ids])=>{const types=visibleMasterPermissions.filter(type=>ids.includes(type.id));return types.length?`<details class="permission-module"><summary><strong>${escapeHtml(group)}</strong><span>${types.length} sections</span></summary><div class="permission-module-body"><div class="permission-row header master-permission-row"><strong>Master</strong>${MASTER_PERMISSION_ACTIONS.map(action=>`<span>${action.replace(' Documents',' Docs')}</span>`).join("")}</div>${types.map(type=>`<div class="permission-row master-permission-row"><strong>${escapeHtml(type.name)}</strong>${MASTER_PERMISSION_ACTIONS.map(action=>`<label title="${escapeHtml(type.name)} · ${action}"><input type="checkbox" data-master-permission="${type.id}" value="${action}" ${Array.isArray(saved[type.id])&&saved[type.id].includes(action)?"checked":""}></label>`).join("")}</div>`).join("")}</div></details>`:""}).join("");
   }
   let directorPermissionDraft = null;
   function syncUserRoleAccess() {
@@ -1176,6 +1176,9 @@
 
   function renderMasters() {
     state.masters = ensureMasterSections(state.masters,state.masterOptions);
+    const salaryGroupState=new Map([...document.querySelectorAll('[data-salary-master-group]')].map(el=>[el.dataset.salaryMasterGroup,el.open]));
+    document.getElementById('salaryMasterGroups')?.remove();
+    document.getElementById('masterTableBody').closest('.table-wrap').hidden=false;
     if(currentMaster==="purchase_products"&&currentPurchaseSection!=="KAT")currentPurchaseSection="PRODUCTS";
     const allowedTypes=MASTER_TYPES.filter(type=>canMaster(type.id,"View"));
     if (!allowedTypes.some(type=>type.id===currentMaster)) currentMaster=allowedTypes[0]?.id||"companies";
@@ -1225,6 +1228,18 @@
       if(!document.getElementById("masterIncludeInactive").checked&&isInactiveMasterRow(type,row))return false;
       return true;
     });
+    if(type.id==="salary_staff"){
+      const wrapper=document.getElementById('masterTableBody').closest('.table-wrap');
+      wrapper.hidden=true;
+      const groups=document.createElement('div');groups.id='salaryMasterGroups';
+      groups.innerHTML=['TTI','BRM'].map(book=>[['MILL_STAFF','Mill'],['HOME_STAFF','House'],['OFFICE_STAFF','Office'],['DIRECTORS','Directors & Mrs']].map(([key,label])=>{
+        const members=rows.filter(row=>row.values[1]===book&&(key==='DIRECTORS'?['DIRECTOR_REMUNERATION','HOME_MONTHLY_GIVE'].includes(row.values[2]):row.values[2]===key));
+        if(!members.length)return '';
+        const id=book+'-'+key,open=salaryGroupState.get(id)??true;
+        return `<details class="salary-master-group" data-salary-master-group="${id}" ${open?'open':''}><summary>${book} · ${label}<span>${members.length} people</span></summary><div class="table-wrap"><table><thead><tr><th>Name</th><th>Salary / remuneration</th><th>Zakat</th><th>Allowances</th><th>Status</th><th>Actions</th></tr></thead><tbody>${members.map(row=>`<tr data-open-master="${escapeHtml(row.id)}" tabindex="0" aria-label="View ${escapeHtml(row.values[0])}"><td><strong>${escapeHtml(row.values[0])}</strong></td>${[3,4,5].map(i=>`<td>${escapeHtml(masterDisplayValue(type,i,row.values[i])||'0')}</td>`).join('')}<td>${escapeHtml(masterRowStatus(type,row))}</td><td><div class="row-actions">${canMaster(type.id,'Edit')?`<button class="row-action" data-edit-master="${escapeHtml(row.id)}">Edit</button>`:''}${canMaster(type.id,'Deactivate')&&!isInactiveMasterRow(type,row)?`<button class="row-action delete" data-delete-master="${escapeHtml(row.id)}" title="Delete staff" aria-label="Delete ${escapeHtml(row.values[0])}">−</button>`:''}</div></td></tr>`).join('')}</tbody></table></div></details>`;
+      }).join('')).join('')||'<p>No matching staff.</p>';
+      wrapper.before(groups);renderMasterDetail();return;
+    }
     const permanentlyDeletable=new Set(["export_customers","business_parties","purchase_products","purchase_kat","mills","export_documents","export_terms"]);
     document.getElementById("masterTableBody").innerHTML = rows.length ? rows.map(row => {const inactive=masterRowStatus(type,row)==="Inactive";return `<tr>${columns.map(index => `<td>${escapeHtml(masterDisplayValue(type,index,row.values[index]) || "—")}</td>`).join("")}<td><span class="tag ${inactive?'inactive':''}">${escapeHtml(inactive?'Deactivated':masterRowStatus(type, row))}</span></td><td><div class="row-actions">${canMaster(type.id,"Edit")?`<button class="row-action" data-edit-master="${escapeHtml(row.id)}">Edit</button>`:""}${!["commodities","companies"].includes(type.id)&&canMaster(type.id,"Deactivate")?(inactive?`<button class="row-action deactivated" type="button" disabled>Deactivated</button>`:`<button class="row-action delete" data-delete-master="${escapeHtml(row.id)}">Deactivate</button>`):""}${permanentlyDeletable.has(type.id)&&IS_SUPER_ADMIN?`<button class="row-action purge" data-purge-master="${escapeHtml(row.id)}">Delete Permanently</button>`:""}</div></td></tr>`}).join("") : `<tr><td colspan="${columns.length + 2}">No matching records.</td></tr>`;
     document.querySelectorAll("#masterTableBody tr").forEach((tr,index)=>{if(rows[index]){tr.dataset.openMaster=rows[index].id;tr.tabIndex=0;tr.setAttribute("aria-label",`View ${rows[index].values[0]||type.name}`);}});
@@ -1247,7 +1262,7 @@
     document.getElementById("addMasterRecord").hidden=!!row||!canMaster(type.id,"Create");
     if(!row){selectedMasterId="";return;}
     const name=String(row.values?.[type.id==="companies"?0:0]||type.name);
-    const deletion=type.id==="salary_staff"&&canMaster(type.id,"Deactivate")&&!isInactiveMasterRow(type,row)?`<button class="button danger" type="button" data-delete-master="${escapeHtml(row.id)}">Delete Staff</button>`:"";
+    const deletion=type.id==="salary_staff"&&canMaster(type.id,"Deactivate")&&!isInactiveMasterRow(type,row)?`<button class="button danger" type="button" data-delete-master="${escapeHtml(row.id)}" title="Delete staff">− Delete</button>`:"";
     const head=`<div class="master-detail-head"><button class="master-back" type="button" data-back-master>← ${escapeHtml(type.name)}</button><div><p class="eyebrow">${escapeHtml(type.name)}</p><h2>${escapeHtml(name)}</h2></div>${canMaster(type.id,"Edit")?`<button class="button secondary" type="button" data-edit-master="${escapeHtml(row.id)}" data-editor-tab="${type.id==="companies"&&companyDetailTab?companyDetailTab:"overview"}">Edit</button>`:""}${deletion}</div>`;
     if(type.id!=="companies"){
       const fields=type.fields.map((field,index)=>field.type==="hidden"?"":detailField(field.label,masterDisplayValue(type,index,row.values?.[index]))).join("");
@@ -1544,7 +1559,7 @@
       syncSalaryEntity();
     }
     document.getElementById("deleteMasterButton").hidden = !row || !canMaster(type.id,"Deactivate") || ["companies","commodities"].includes(type.id) || (type.id === "salary_staff" && String(row.values?.[10] || "Active") === "Inactive");
-    document.getElementById("deleteMasterButton").textContent = type.id === "salary_staff" ? "Delete Staff" : "Deactivate Record";
+    document.getElementById("deleteMasterButton").textContent = type.id === "salary_staff" ? "− Delete Staff" : "Deactivate Record";
     document.getElementById("saveMasterButton").textContent = row ? "Save Changes" : "Save Record";
     dirtyDialogs.delete("masterDialog");
     document.getElementById("masterDialog").showModal();
@@ -2063,7 +2078,7 @@
   document.getElementById("masterSearch").addEventListener("input", renderMasters);
   document.getElementById("masterIncludeInactive").addEventListener("change",renderMasters);
   document.getElementById("masterDetail").addEventListener("change",event=>{if(event.target.id==="bankIncludeInactive"){document.getElementById("masterIncludeInactive").checked=event.target.checked;renderMasterDetail();}});
-  document.getElementById("masterTableBody").addEventListener("keydown",event=>{if((event.key==="Enter"||event.key===" ")&&event.target.matches('[data-open-master]')){event.preventDefault();selectedMasterId=event.target.dataset.openMaster;companyDetailTab="overview";renderMasters();}});
+  document.getElementById("view-masters").addEventListener("keydown",event=>{if((event.key==="Enter"||event.key===" ")&&event.target.matches('[data-open-master]')){event.preventDefault();selectedMasterId=event.target.dataset.openMaster;companyDetailTab="overview";renderMasters();}});
   document.getElementById("auditSearch").addEventListener("input", resetAuditPage);
   document.getElementById("auditFilter").addEventListener("change", resetAuditPage);
   document.getElementById("exportAudit").addEventListener("click", exportAudit);
