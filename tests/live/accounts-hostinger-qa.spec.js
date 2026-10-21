@@ -526,6 +526,8 @@ test('read-only Exports and Milling loading, errors and Masters navigation', asy
     for(let round=0;round<2;round++){
       const started=Date.now();
       const response=await page.goto(BASE_URL+'/module.php?id='+moduleId,{waitUntil:'domcontentloaded',timeout:90_000});
+      // Capture this navigation body before later browser work can evict it.
+      const body=await response.body();
       console.log('MODULE_STARTUP_STATE '+JSON.stringify(await page.evaluate(()=>({module:window.TT_MODULE_ACCESS?.moduleId,loadError:!!window.TT_EXPORTS_LOAD_ERROR,ready:document.readyState,hasHome:!!document.querySelector('#homeGrid'),hasApp:!!document.querySelector('#app'),runtime:document.querySelector('#exports-app-js')?.getAttribute('src')}))));
       expect(response.status()).toBe(200);
       await expect(page).toHaveTitle(moduleId==='exports'?/Transtrade Exports/:/Transtrade|Milling/i);
@@ -563,7 +565,6 @@ test('read-only Exports and Milling loading, errors and Masters navigation', asy
         await expect(page.locator('#exportReport')).toBeVisible();
         console.log('LIVE_EXPORT_LOADING_ORIGINAL_SCOPE_OK '+JSON.stringify({...loadingReport,sourceWrites:0}));
       }
-      const body=await response.body();
       const metadata=await page.evaluate(()=>({
         domReadyMs:Math.round(performance.getEntriesByType('navigation')[0]?.domContentLoadedEventEnd||0),
         resources:performance.getEntriesByType('resource').filter(r=>new URL(r.name).origin===location.origin).map(r=>({path:new URL(r.name).pathname,ms:Math.round(r.duration),bytes:r.transferSize})),
