@@ -111,7 +111,9 @@ try {
             && $journal['date'] <= $asOf
     ));
     $presentationCurrency=$entity==='TG'?strtoupper(trim((string)($_GET['currency']??'AED'))):'PKR';
-    if($entity==='TG'){
+    // Existing integrations request the historical AED books without a currency
+    // parameter. Explicit currency selection translates report copies only.
+    if($entity==='TG'&&isset($_GET['currency'])){
         if(!in_array($presentationCurrency,(array)(tt_master_options()['currencies']??[]),true))throw new DomainException('Choose a report currency from Currency Master.');
         foreach($journals as &$reportJournal){$reportJournal=tgn_present($reportJournal,$presentationCurrency,$asOf);$store['journals'][$reportJournal['id']]=$reportJournal;}unset($reportJournal);
     }
@@ -251,7 +253,7 @@ try {
         'ok' => true,
         'entity' => $entity,
         'currency' => $presentationCurrency,
-        'currencyBasis' => $entity==='TG'?'Report translation of native currency entries':'Company books',
+        'currencyBasis' => $entity==='TG'&&isset($_GET['currency'])?'Report translation of native currency entries':'Company books',
         'revision' => (int)($store['revision'] ?? 0),
         'from' => $from,
         'asOf' => $asOf,

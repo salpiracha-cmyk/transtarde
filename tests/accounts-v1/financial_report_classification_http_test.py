@@ -14,7 +14,7 @@ define('TT_DATA_DIR',__DIR__.'/data');function tt_require_login(){return ['role'
  log=open(root/'server.log','w');server=subprocess.Popen(['php','-S',f'127.0.0.1:{port}','-t',str(root)],stdout=log,stderr=log)
  def req(from_date='2026-09-01',entity='TTI',currency='AED'):
   try:
-   with urllib.request.urlopen(f'http://127.0.0.1:{port}/api/accounts_reports.php?entity={entity}&currency={currency}&from={from_date}&asOf=2026-10-15') as r:return r.status,json.load(r)
+   with urllib.request.urlopen(f'http://127.0.0.1:{port}/api/accounts_reports.php?entity={entity}'+(f'&currency={currency}' if currency is not None else '')+f'&from={from_date}&asOf=2026-10-15') as r:return r.status,json.load(r)
   except urllib.error.HTTPError as e:return e.code,json.load(e)
  try:
   for _ in range(60):
@@ -88,6 +88,32 @@ define('TT_DATA_DIR',__DIR__.'/data');function tt_require_login(){return ['role'
    assert translated['trialBalance']['balanced'] and translated['trialBalance']['totalDebit']==expected,translated
    assert {r['journalId'] for r in translated['generalLedger']}=={'TG-FEE'}
    assert path.read_bytes()==native_before,'Report dropdown must never revalue or persist the journals'
+  # Historical no-currency callers keep their original AED ledger basis, while
+  # the explicit dropdown uses native amounts translated at the report master.
+  tg['lines'][0]['debit']=tg['lines'][1]['credit']=360
+  tg['totalDebit']=tg['totalCredit']=360
+  path.write_text(json.dumps({'revision':9,'journals':{'TG-FEE':tg}}));historical_before=path.read_bytes()
+  status,book_report=req(entity='TG',currency=None)
+  assert status==200 and book_report['currencyBasis']=='Company books' and book_report['trialBalance']['totalDebit']==360,book_report
+  status,explicit=req(entity='TG',currency='AED')
+  assert status==200 and explicit['trialBalance']['totalDebit']==367,explicit
+  # A known legacy mirrored payment and its consolidation reversal remain
+  # readable, including a report period containing only the dated reversal.
+  legacy=journal('OLD-MIRROR',[line('1250',365.91),{**line('1110',cr=365.91),'currency':'USD','bankDebit':0,'bankCredit':100}],date='2026-08-31')
+  legacy.update(entity='TG',sourceType='TG_BANK_PAYMENT',meta={'currency':'USD','amountNative':100})
+  reversal=json.loads(json.dumps(legacy));reversal.update(id='OLD-REVERSE',date='2026-09-01',sourceType='TG_REMITTANCE_CONSOLIDATION_REVERSAL',reversalOf='OLD-MIRROR')
+  for l in reversal['lines']:
+   l['debit'],l['credit']=l['credit'],l['debit']
+   if 'bankDebit' in l:l['bankDebit'],l['bankCredit']=l['bankCredit'],l['bankDebit']
+  path.write_text(json.dumps({'revision':10,'journals':{j['id']:j for j in [legacy,reversal]}}));legacy_before=path.read_bytes()
+  status,legacy_report=req(entity='TG',currency='USD')
+  assert status==200 and legacy_report['trialBalance']['balanced'],legacy_report
+  assert any(r['journalId']=='OLD-REVERSE' and r['credit']==100 for r in legacy_report['generalLedger']),legacy_report
+  assert path.read_bytes()==legacy_before
+  # Unrecoverable records still fail explicit translation rather than invent FX.
+  legacy['lines'][1]['bankCredit']=1
+  path.write_text(json.dumps({'journals':{'OLD-MIRROR':legacy}}))
+  status,held=req(entity='TG',currency='USD');assert status==422 and 'Native currency detail is missing' in held['error'],held
   path.write_bytes(unknown_before)
   # Damaged or unavailable books must never look like successful zero-balance reports.
   for invalid in ['', '{"journals":', 'null', '[{"journals":[]}]', '{"journals":"invalid"}']:

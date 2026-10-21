@@ -16,6 +16,24 @@ function tgn_line(array $journal,array $line):array {
     if($dr===null&&in_array($line['account']??'',['1210','1250','2500','2510'],true)&&isset($meta['transactionAmount'])){
         $dr=(float)($line['debit']??0)>0?$meta['transactionAmount']:0;$cr=(float)($line['credit']??0)>0?$meta['transactionAmount']:0;
     }
+    // Older mirrored Pakistan receipts recorded the native principal once in
+    // metadata and on the bank leg, rather than on the sole advance/payable leg.
+    // Its consolidation reversal retained the same evidence. Never spread that
+    // total over a split posting or derive an exchange rate from today's master.
+    if($dr===null&&in_array($journal['sourceType']??'',['TG_BANK_PAYMENT','TG_REMITTANCE_CONSOLIDATION_REVERSAL'],true)
+        &&in_array($line['account']??'',['1250','2500'],true)&&(float)($meta['amountNative']??0)>0){
+        $principal=array_values(array_filter((array)($journal['lines']??[]),static fn($l)=>!in_array($l['account']??'',['1110','7100'],true)));
+        $banks=array_values(array_filter((array)($journal['lines']??[]),static fn($l)=>($l['account']??'')==='1110'));
+        if(count($principal)===1&&count($banks)===1){
+            $bank=$banks[0];$amount=(float)$meta['amountNative'];
+            $bankCurrency=strtoupper((string)($bank['currency']??$meta['currency']??''));
+            $bankDr=(float)($bank['bankDebit']??0);$bankCr=(float)($bank['bankCredit']??0);
+            if($bankCurrency===$currency&&((($line['debit']??0)>0&&abs($bankCr-$amount)<.005&&$bankDr===0.0)
+                ||(($line['credit']??0)>0&&abs($bankDr-$amount)<.005&&$bankCr===0.0))){
+                $dr=(float)($line['debit']??0)>0?$amount:0;$cr=(float)($line['credit']??0)>0?$amount:0;
+            }
+        }
+    }
     if($dr===null||$cr===null){
         $rate=$currency==='AED'?1:0;
         foreach([$line['exchangeRate']??0,$line['recognitionRate']??0,$meta['recognitionRate']??0,$meta['functionalRate']??0,$meta['rate']??0,$meta['exchangeRate']??0] as $candidate)if($currency!=='AED'&&(float)$candidate>0){$rate=(float)$candidate;break;}
