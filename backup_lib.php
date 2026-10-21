@@ -781,7 +781,11 @@ function tt_backup_commit_staged(array $staged):int{
     $authLock=tt_open_store_lock(LOCK_EX);$operationsLock=null;$count=0;
     try{
         if(is_file(tt_operations_file())){$operationsLock=fopen(tt_operations_file(),'rb');if($operationsLock===false||!flock($operationsLock,LOCK_EX))throw new RuntimeException('Shared operational storage could not be locked for restore.');}
-        foreach($staged as $rel=>$tmp){$dest=TT_DATA_DIR.'/'.$rel;$dir=dirname($dest);if(!is_dir($dir)&&!mkdir($dir,0700,true)&&!is_dir($dir))throw new RuntimeException('A recovery folder could not be created.');if(!rename($tmp,$dest))throw new RuntimeException('A recovery file could not be replaced.');@chmod($dest,0600);$count++;}
+        foreach($staged as $rel=>$tmp){
+            // Archives may contain historical credentials, but restore must never reactivate them.
+            // Preserve current hashes AND their absence after revocation or a fresh installation.
+            if(in_array($rel,['admin-recovery.hash','office-backup-token.sha256'],true))continue;
+            $dest=TT_DATA_DIR.'/'.$rel;$dir=dirname($dest);if(!is_dir($dir)&&!mkdir($dir,0700,true)&&!is_dir($dir))throw new RuntimeException('A recovery folder could not be created.');if(!rename($tmp,$dest))throw new RuntimeException('A recovery file could not be replaced.');@chmod($dest,0600);$count++;}
     }finally{if(is_resource($operationsLock)){flock($operationsLock,LOCK_UN);fclose($operationsLock);}flock($authLock,LOCK_UN);fclose($authLock);}
     return $count;
 }

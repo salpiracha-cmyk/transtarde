@@ -4,7 +4,7 @@ declare(strict_types=1);
 $root=sys_get_temp_dir().'/tti-backup-'.bin2hex(random_bytes(8));
 $app=$root.'/app';
 if(!mkdir($app,0700,true))throw new RuntimeException('Could not create the disposable backup test directory.');
-foreach(['auth_store.php','master_store.php','product_stage.php','offline_idempotency.php','session_store.php','backup_lib.php'] as $file){
+foreach(['auth_store.php','master_store.php','product_stage.php','offline_idempotency.php','session_store.php','backup_lib.php','office_backup_auth.php'] as $file){
     if(!copy(__DIR__.'/../../'.$file,$app.'/'.$file))throw new RuntimeException('Could not prepare '.$file);
 }
 
@@ -17,18 +17,16 @@ function backup_remove_tree(string $path):void{
 
 try{
     require $app.'/auth_store.php';
-    require_once $app.'/backup_lib.php';
+    require_once $app.'/backup_lib.php';require_once $app.'/office_backup_auth.php';
     tt_mutate_store(static function(array &$data):void{$data['users'][]=['id'=>7,'username'=>'backup-test','role'=>'Super Admin'];});
     file_put_contents(TT_DATA_DIR.'/operations.json',json_encode(['revision'=>1,'values'=>['test'=>'[]'],'meta'=>[]],JSON_THROW_ON_ERROR));
     if(!mkdir(TT_DATA_DIR.'/documents',0700,true)&&!is_dir(TT_DATA_DIR.'/documents'))throw new RuntimeException('Could not create document fixture folder.');
     $payload=str_repeat('Transtrade-stream-test-',140000);
     file_put_contents(TT_DATA_DIR.'/documents/large-fixture.txt',$payload);
-    // Real configured installations retain these exact credential files. They
-    // belong to disaster recovery but must not enable arbitrary hash/file paths.
-    $recoveryHash=password_hash('fixture-offline-recovery-code',PASSWORD_DEFAULT);
-    $officeHash=hash('sha256','fixture-office-token');
-    file_put_contents(TT_DATA_DIR.'/admin-recovery.hash',$recoveryHash);
-    file_put_contents(TT_DATA_DIR.'/office-backup-token.sha256',$officeHash);
+    // Historical archives can contain credential hashes. Verification accepts them,
+    // but restoration must preserve current credential rotation and revocation.
+    $oldRecovery=tt_rotate_admin_recovery_code();$recoveryHash=file_get_contents(TT_DATA_DIR.'/admin-recovery.hash');
+    $oldOffice=tt_office_backup_issue_token();$officeHash=file_get_contents(TT_DATA_DIR.'/office-backup-token.sha256');
     $legacyAI='fixture-legacy-document-reader-key';
     file_put_contents(TT_DATA_DIR.'/gemini.key',$legacyAI);
     mkdir(TT_DATA_DIR.'/office_agent_jobs/0123456789abcdef0123456789abcdef',0700,true);
@@ -63,22 +61,33 @@ try{
     foreach(['../auth.json','/auth.json','sessions/actor.json','backups/old.json','unrecognised.hash','unrecognised.key','documents/gemini.key','documents/office-backup-token.sha256','documents/archive.zip','office_agent_jobs/../archive.zip','office_agent_jobs/code.php','C:/auth.json','folder\\auth.json'] as $unsafe)backup_expect(!tt_backup_restore_allowed($unsafe),'Unsafe/unrecognised recovery path allowed: '.$unsafe);
     backup_expect((int)$serverManifest['recoveryFileCount']>=3,'Super Admin server snapshot verification must check every entry.');
     file_put_contents(TT_DATA_DIR.'/documents/large-fixture.txt','changed after snapshot');
-    file_put_contents(TT_DATA_DIR.'/admin-recovery.hash','changed');
-    file_put_contents(TT_DATA_DIR.'/office-backup-token.sha256','changed');
+    $currentRecovery=tt_rotate_admin_recovery_code();
+    $currentOffice=tt_office_backup_issue_token();
     file_put_contents(TT_DATA_DIR.'/gemini.key','changed');file_put_contents($jobPath,'changed');
     $restoredResult=tt_restore_server_snapshot($snapshot);
     backup_expect(file_get_contents(TT_DATA_DIR.'/documents/large-fixture.txt')===$payload&&$restoredResult['restoredFiles']>=3,'Verified server snapshot must restore stored documents.');
     backup_expect(is_file(tt_backup_dir().'/'.$restoredResult['safetySnapshot']),'Restore must preserve a safety snapshot.');
-    backup_expect(file_get_contents(TT_DATA_DIR.'/admin-recovery.hash')===$recoveryHash&&file_get_contents(TT_DATA_DIR.'/office-backup-token.sha256')===$officeHash,'Server restore lost configured recovery credentials.');
+    backup_expect(tt_recovery_code_valid($currentRecovery)&&!tt_recovery_code_valid($oldRecovery)&&tt_office_backup_token_valid($currentOffice)&&!tt_office_backup_token_valid($oldOffice),'Server restore reactivated historical credentials.');
     backup_expect(file_get_contents(TT_DATA_DIR.'/gemini.key')===$legacyAI&&file_get_contents($jobPath)===$jobBytes,'Server restore lost its legacy reader key or archived Office job.');
+    $fullOldRecovery=$currentRecovery;$fullOldOffice=$currentOffice;
     $full=tt_build_download_backup(true,'test-backup-password-2026');
-    file_put_contents(TT_DATA_DIR.'/admin-recovery.hash','changed');
-    file_put_contents(TT_DATA_DIR.'/office-backup-token.sha256','changed');
+    $currentRecovery=tt_rotate_admin_recovery_code();
+    $currentOffice=tt_office_backup_issue_token();
     file_put_contents(TT_DATA_DIR.'/gemini.key','changed');file_put_contents($jobPath,'changed');
     $fullResult=tt_restore_complete_backup($full['path'],'test-backup-password-2026');
     backup_expect($fullResult['restoredFiles']>=3&&file_get_contents(TT_DATA_DIR.'/documents/large-fixture.txt')===$payload,'Chunk-encrypted complete backup must restore documents.');
-    backup_expect(file_get_contents(TT_DATA_DIR.'/admin-recovery.hash')===$recoveryHash&&file_get_contents(TT_DATA_DIR.'/office-backup-token.sha256')===$officeHash,'Complete recovery silently skipped its configured recovery credentials.');
+    backup_expect(tt_recovery_code_valid($currentRecovery)&&!tt_recovery_code_valid($fullOldRecovery)&&tt_office_backup_token_valid($currentOffice)&&!tt_office_backup_token_valid($fullOldOffice),'Complete restore reactivated historical credentials.');
     backup_expect(file_get_contents(TT_DATA_DIR.'/gemini.key')===$legacyAI&&file_get_contents($jobPath)===$jobBytes,'Complete recovery lost its legacy reader key or archived Office job.');
+    foreach(['snapshot','complete'] as $mode){
+        if($mode==='snapshot')$snapshot=tt_create_server_snapshot('manual');
+        tt_office_backup_revoke_token();@unlink(TT_DATA_DIR.'/admin-recovery.hash');
+        $result=$mode==='snapshot'?tt_restore_server_snapshot($snapshot):tt_restore_complete_backup($full['path'],'test-backup-password-2026');
+        backup_expect(!is_file(TT_DATA_DIR.'/admin-recovery.hash')&&!tt_office_backup_enabled()&&!tt_office_backup_token_valid($oldOffice),'Restore must preserve revoked/absent credentials: '.$mode);
+        backup_expect(!tt_recovery_code_valid($oldRecovery),'Historical recovery code revived on fresh installation: '.$mode);
+        $provisioned=tt_rotate_admin_recovery_code();$token=tt_office_backup_issue_token();
+        backup_expect(tt_recovery_code_valid($provisioned)&&tt_office_backup_token_valid($token),'Explicit fresh provisioning failed after '.$mode);
+    }
+    echo "PASS snapshot and complete restores preserve rotations, revocation and fresh-install credential absence\n";
     @unlink($full['path']);
 
     file_put_contents(TT_DATA_DIR.'/documents/unrecognised.hash','fixture-only');
