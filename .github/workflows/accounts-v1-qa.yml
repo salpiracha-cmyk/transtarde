@@ -113,6 +113,7 @@ jobs:
           node tests/accounts-v1/export_receipt_scope_test.js
           node tests/accounts-v1/product_stage_architecture_test.js
           node tests/accounts-v1/broker_brokery_master_test.js
+          node tests/accounts-v1/planned_voucher_test.js
           php tests/accounts-v1/soda_completion_test.php
           node tests/accounts-v1/soda_milling_routing_test.js
           node tests/accounts-v1/soda_master_compatibility_test.js

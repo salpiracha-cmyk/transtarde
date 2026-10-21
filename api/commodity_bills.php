@@ -227,8 +227,11 @@ try{
         $sodaBroker=trim((string)($soda['broker']??''));$sodaSupplier=trim((string)($soda['party']??''));
         if($brokerInput!==''&&strcasecmp($brokerInput,$sodaBroker)!==0)cb_respond(['ok'=>false,'error'=>'Selected broker does not match the approved Soda.'],422);
         $broker=$sodaBroker;
-        $commodityPayee=$sodaSupplier!==''?$sodaSupplier:$sodaBroker;
-        $commodityRelationship=$sodaSupplier!==''?'SUPPLIER':'BROKER';
+        $settlementMode=(string)($body['settlementMode']??'SEPARATE');
+        if(!in_array($settlementMode,['BROKER_COMBINED','SEPARATE'],true))cb_respond(['ok'=>false,'error'=>'Choose the bill liability treatment.'],422);
+        if($settlementMode==='BROKER_COMBINED'&&$sodaBroker==='')cb_respond(['ok'=>false,'error'=>'A combined broker bill requires a broker.'],422);
+        $commodityPayee=$settlementMode==='BROKER_COMBINED'?$sodaBroker:($sodaSupplier!==''?$sodaSupplier:$sodaBroker);
+        $commodityRelationship=$settlementMode==='BROKER_COMBINED'?'BROKER':($sodaSupplier!==''?'SUPPLIER':'BROKER');
         if($commodityPayee==='')cb_respond(['ok'=>false,'error'=>'Approved Soda must have a supplier or broker payee.'],422);
         if($relationshipType!==$commodityRelationship||strcasecmp($relationshipName,$commodityPayee)!==0)cb_respond(['ok'=>false,'error'=>'Commodity bill payee must be '.$commodityPayee.' from the approved Soda.'],422);
         $expectedRelationship=$relationshipType==='BROKER'?trim((string)($soda['broker']??$broker)):trim((string)($soda['party']??''));
@@ -316,19 +319,19 @@ try{
         $dueDates=array_column($receiptAllocations,'dueDate');sort($dueDates);
         $label=$commodity==='CORN'?'Corn / Maize':($commodity==='RICE'?'Rice':ucfirst(strtolower($commodity)));
         $meta=[
-            'billId'=>$billId,'postingNumber'=>$postingNumber,'commodity'=>$commodity,'sourceKeys'=>$sourceKeys,'sodas'=>$uniqueSodas,'broker'=>$broker,'relationshipType'=>$relationshipType,'relationshipName'=>$relationshipName,'adjustments'=>$adjustments,'adjustmentLines'=>$adjustmentLines,
+            'billId'=>$billId,'postingNumber'=>$postingNumber,'commodity'=>$commodity,'sourceKeys'=>$sourceKeys,'sodas'=>$uniqueSodas,'broker'=>$broker,'relationshipType'=>$relationshipType,'relationshipName'=>$relationshipName,'supplier'=>$sodaSupplier,'payee'=>$commodityPayee,'partyLabel'=>implode(' / ',array_unique(array_filter([$sodaSupplier,$broker]))),'settlementMode'=>$settlementMode,'adjustments'=>$adjustments,'adjustmentLines'=>$adjustmentLines,
             'provisionalValue'=>$provisional,'finalCommodityValue'=>$finalValue,'brokerageGross'=>$brokerageGross,
             'brokerageWithholding'=>$brokerageWithholding,'brokerageRate'=>$enteredBasis!==''?$enteredRate:null,'brokerageBasis'=>$enteredBasis,'brokerageWhtPercent'=>$whtPercent,'supplierPayableTotal'=>$supplierPayableTotal,
             'creditDays'=>$creditDays,'paymentTermType'=>$term,'dueBasis'=>'Unloading Date','receiptAllocations'=>$receiptAllocations,'calculation'=>$calculation
         ];
         $store['journals'][$journalId]=[
             'id'=>$journalId,'entity'=>$entity,'date'=>$date,'sourceType'=>'COMMODITY_BILL_VERIFIED','reference'=>$billNo?:$billId,
-            'narration'=>$label.' purchase bill '.($billNo?:$billId).($broker?' — '.$broker:''),'lines'=>$lines,
+            'narration'=>$label.' purchase bill '.($billNo?:$billId).' — '.implode(' / ',array_unique(array_filter([$sodaSupplier,$broker]))),'lines'=>$lines,
             'totalDebit'=>$dr,'totalCredit'=>$cr,'status'=>'Posted','meta'=>$meta,'createdAt'=>gmdate('c'),
             'createdBy'=>(string)($user['full_name']??$user['username']??'Staff'),'userId'=>(int)($user['id']??0),'reversalOf'=>null
         ];
         $store['commodityBills'][$billId]=[
-            'id'=>$billId,'postingNumber'=>$postingNumber,'entity'=>$entity,'commodity'=>$commodity,'billDate'=>$date,'billNo'=>$billNo,'broker'=>$broker,'relationshipType'=>$relationshipType,'relationshipName'=>$relationshipName,'sourceKeys'=>$sourceKeys,
+            'id'=>$billId,'postingNumber'=>$postingNumber,'entity'=>$entity,'commodity'=>$commodity,'billDate'=>$date,'billNo'=>$billNo,'broker'=>$broker,'relationshipType'=>$relationshipType,'relationshipName'=>$relationshipName,'supplier'=>$sodaSupplier,'payee'=>$commodityPayee,'partyLabel'=>implode(' / ',array_unique(array_filter([$sodaSupplier,$broker]))),'settlementMode'=>$settlementMode,'sourceKeys'=>$sourceKeys,
             'sodas'=>$uniqueSodas,'provisionalValue'=>$provisional,'finalCommodityValue'=>$finalValue,'brokerageGross'=>$brokerageGross,
             'brokerageWithholding'=>$brokerageWithholding,'brokerageRate'=>$enteredBasis!==''?$enteredRate:null,'brokerageBasis'=>$enteredBasis,'brokerageWhtPercent'=>$whtPercent,'supplierPayableTotal'=>$supplierPayableTotal,'journalId'=>$journalId,
             'adjustments'=>$adjustments,'adjustmentLines'=>$adjustmentLines,'calculation'=>$calculation,'remarks'=>$remarks,'creditDays'=>$creditDays,'paymentTermType'=>$term,'dueBasis'=>'Unloading Date',

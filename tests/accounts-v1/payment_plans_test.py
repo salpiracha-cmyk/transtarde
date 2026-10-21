@@ -51,6 +51,7 @@ require $argv[1];
         if brokerage:allocations.append({'sourceKey':identity+'-truck|BROKERAGE','supplierPayableShare':brokerage,'component':'BROKERAGE','payee':broker,'truck':truck,'dueDate':due,'receiptDate':'2026-09-01'})
         return {'id':identity,'entity':'TTI','status':'Posted','commodity':'RICE','billDate':'2026-09-01','broker':broker,'relationshipName':supplier,'billNo':identity,'journalId':'POST-2026-'+identity,'supplierPayableTotal':amount+brokerage,'finalCommodityValue':amount,'brokerageGross':brokerage,'brokerageWithholding':0,'receiptAllocations':allocations}
     store={'revision':0,'journals':{'OPEN':{'id':'OPEN','entity':'TTI','status':'Posted','date':'2026-09-01','sourceType':'OPENING_BALANCE_BF','lines':[{'account':'1110','bankAccountId':'TTI-B','debit':400,'credit':0},{'account':'1110','bankAccountId':'TTI-P','debit':500,'credit':0}]}},'commodityBills':{'A':bill('A','Broker A','Supplier A',100,'2026-09-05','TRUCK-A',20),'B':bill('B','Broker A','Supplier A',200,'2026-09-06','TRUCK-B'),'C':bill('C','','Supplier C',300,'2026-09-07','TRUCK-C')},'supplierAdvances':{},'supplierSettlements':{}}
+    base_store=json.loads(json.dumps(store))
     seed(store)
     counter=0
     def call(body, expected=200):
@@ -128,10 +129,12 @@ require $argv[1];
     user['permissions']['Accounts']['supplier']=['View','Create','Edit'];auth.write_text(json.dumps({'users':[user],'masters':masters,'audit':[]}))
     reopened=call({'action':'reopen','planId':closed['id'],'version':closed['version'],'reason':'Review corrected cheque'})['result']['plan'];assert reopened['status']=='Open'
     # A posted JV settles old trucks, then partially pays the next; the view makes no new journal.
-    store['journals']['ROUND-JV']={'id':'ROUND-JV','entity':'TTI','status':'Posted','sourceType':'JV','date':'2026-09-10','lines':[{'account':'2110','debit':250,'credit':0,'subledger':'Broker A'},{'account':'2170','credit':250,'debit':0,'subledger':'ABC'}]}
+    store['journals']['ROUND-JV']={'id':'ROUND-JV','entity':'TTI','status':'Posted','sourceType':'JV','date':'2026-09-10','lines':[{'account':'2110','debit':250,'credit':0,'subledger':'Supplier A'},{'account':'2170','credit':250,'debit':0,'subledger':'ABC'}]}
     seed(store);payload=read();round_set=payload['adjustments'][0];assert [a['amount'] for a in round_set['allocations']]==[100,150],round_set
     assert round_set['allocations'][-1]['balanceAfter']==50 and round_set['payer']=='ABC',round_set
     assert len(json.loads(books.read_text())['journals'])==2
+    wrong=json.loads(json.dumps(store));wrong['journals']['ROUND-JV']['lines'][0]['subledger']='Broker A';seed(wrong)
+    assert not read()['adjustments'],'Broker JV must not consume a separate supplier liability'
     # Supplier advances are previewed and applied on explicit Confirm, never on GET.
     store['supplierAdvances']={'ADV':{'id':'ADV','entity':'TTI','supplier':'Supplier A','amount':50,'allocatedAmount':0,'date':'2026-09-11','status':'Available / Unallocated','payer':'ABC','payerRelationship':'OTHER_THIRD_PARTY'}}
     seed(store);payload=read();assert any(r['advanceApplied']==50 for r in payload['rows']),payload
@@ -196,6 +199,7 @@ require $argv[1];
     saved=json.loads(books.read_text());assert saved['supplierAdvances'][result['unallocatedAdvanceId']]['availableAmount']==30
     saved['commodityBills']['D']=bill('D','Broker A','Supplier A',50,'2026-10-08','TRUCK-D');books.write_text(json.dumps(saved))
     payload=read();assert next(r for r in payload['rows'] if r['billId']=='D')['outstanding']==20,payload
+    assert next(r for r in payload['tableRows'] if r['billId']=='D')['outstanding']==50,'New table plans cannot spend a broker-only advance against another supplier'
     assert json.loads(books.read_text())['supplierAdvances'][result['unallocatedAdvanceId']]['allocatedAmount']==0,'GET may only preview'
     call({'action':'correct_on_account','settlementId':result['id'],'reason':'Correct advance payment','date':'2026-10-07'})
     assert json.loads(books.read_text())['supplierAdvances'][result['unallocatedAdvanceId']]['status']=='Cancelled'
@@ -238,4 +242,44 @@ require $argv[1];
     saved=json.loads(books.read_text());saved['commodityBills']['D']=bill('D','Broker A','Supplier A',50,'2026-10-08','TRUCK-D');books.write_text(json.dumps(saved));payload=read();keys=[r['rowKey'] for r in payload['rows'] if r['billId']=='D']
     plan=call({'action':'create','mode':'PARTY','bankIds':['TTI-B'],'rowKeys':keys,'date':'2026-10-07'})['result']['plan']
     call({'action':'correct_on_account','settlementId':result['id'],'reason':'Linked advance must be corrected first','date':'2026-10-07'},409)
-    print('Payment plans: bank scope, personal banks, grouping, source splits, replay, correction, oldest JV allocations, advances, denied access and independent brokerage passed.')
+        # Table-first planning can include expected exports but must never spend unposted estimates.
+    seed(base_store)
+    before=json.loads(books.read_text())
+    payload=read();keys=[r['rowKey'] for r in payload['rows']]
+    plan=call({'action':'create','mode':'PARTY','bankIds':['TTI-B'],'rowKeys':keys,'date':'2026-10-22','tablePlanning':True,'expectedReceipts':10000,'throughDate':'2026-09-07'})['result']['plan']
+    assert plan['groupByPayee'] and plan['deferAdvances']
+    assert set(plan['groups'])=={'Supplier A','Broker A','Supplier C'},plan
+    after=json.loads(books.read_text());assert before['journals']==after['journals'],'Opening truck details must not post'
+    assert plan['expectedReceipts']==10000 and plan['throughDate']=='2026-09-07'
+    # No estimate is accepted as actual cash/bank funds.
+    bad={'action':'post','planId':plan['id'],'version':plan['version'],'group':'Supplier C','date':'2026-10-22','rowKeys':plan['groups']['Supplier C']['rowKeys'],'sources':[{'type':'BANK','bankAccountId':'TTI-B','method':'ONLINE_BANKING','amount':10000}]}
+    call(bad,409)
+    assert json.loads(books.read_text())['journals']==after['journals']
+    # Actual creditor grouping cannot be spoofed with another party's truck.
+    call({**bad,'group':'Broker A','rowKeys':plan['groups']['Supplier A']['rowKeys'],'sources':[{'type':'BANK','bankAccountId':'TTI-B','method':'ONLINE_BANKING','amount':300}]},409)
+    result=call({**bad,'group':'Supplier A','rowKeys':plan['groups']['Supplier A']['rowKeys'],'selectedOutstanding':300,'applyPaymentDifferenceAsDiscount':False,'narration':'Selected trucks settlement','sources':[{'type':'BANK','bankAccountId':'TTI-B','method':'ONLINE_BANKING','amount':300}]})['result']
+    journal=json.loads(books.read_text())['journals'][result['settlement']['journalId']]
+    assert {l.get('counterparty') for l in journal['lines'] if l['account']=='2110'}=={'Supplier A'}
+    assert 'Gross dues PKR 300.00' in journal['narration'] and 'net paid PKR 300.00' in journal['narration']
+    # WHT already recorded with a bill is visible, not deducted twice.
+    taxed=json.loads(json.dumps(base_store));taxed['commodityBills']={'T':bill('T','Broker T','',100,'2026-09-05','TAX-TRUCK',85)}
+    taxed['commodityBills']['T'].update(brokerageGross=100,brokerageWithholding=15,brokerageWhtPercent=15)
+    seed(taxed);rs=read()['rows'];assert sum(r['paymentSummary']['brokerageWht'] for r in rs)==15
+    assert sum(r['paymentSummary']['grossDues'] for r in rs)==200
+    assert sum(r['cashOutstanding'] for r in rs)==185
+    dp=call({'action':'create','mode':'PARTY','bankIds':['TTI-B'],'rowKeys':[r['rowKey'] for r in rs],'date':'2026-10-22','tablePlanning':True,'throughDate':'2026-09-05'})['result']['plan']
+    sett=call({'action':'post','planId':dp['id'],'version':dp['version'],'group':'Broker T','date':'2026-10-22','selectedOutstanding':185,'applyPaymentDifferenceAsDiscount':False,'sources':[{'type':'BANK','bankAccountId':'TTI-B','method':'ONLINE_BANKING','amount':185}]})['result']['settlement']
+    assert sett['withholding']==0 and sett['paymentSummary']['brokerageWht']==15
+    assert sett['paymentSummary']['grossDues']==200 and sett['netPayment']==185
+
+    # Unticking an earlier truck must not shift an existing advance onto the later truck.
+    advanced=json.loads(json.dumps(base_store));advanced['supplierAdvances']={'ADV':{'id':'ADV','entity':'TTI','supplier':'Supplier A','amount':50,'allocatedAmount':0,'date':'2026-09-01','status':'Available / Unallocated'}}
+    seed(advanced);rows=read()['rows'];later=next(r for r in rows if r['billId']=='B');assert later['cashOutstanding']==200
+    plan=call({'action':'create','mode':'PARTY','bankIds':['TTI-B'],'rowKeys':[later['rowKey']],'date':'2026-10-22','tablePlanning':True,'throughDate':'2026-09-06'})['result']['plan']
+    assert json.loads(books.read_text())['supplierAdvances']['ADV']['allocatedAmount']==0
+    result=call({'action':'post','planId':plan['id'],'version':plan['version'],'group':'Supplier A','date':'2026-10-22','selectedOutstanding':200,'applyPaymentDifferenceAsDiscount':False,'sources':[{'type':'BANK','bankAccountId':'TTI-B','method':'ONLINE_BANKING','amount':200}]})['result']['settlement']
+    saved=json.loads(books.read_text());assert saved['supplierAdvances']['ADV']['allocatedAmount']==50
+    advance=next(v for v in saved['supplierSettlements'].values() if v.get('advanceId')=='ADV')
+    assert advance['allocations'][0]['billId']=='A' and result['allocations'][0]['billId']=='B'
+
+print('Payment plans: bank scope, personal banks, grouping, source splits, replay, correction, oldest JV allocations, advances, denied access and independent brokerage passed.')
