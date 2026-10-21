@@ -108,7 +108,7 @@ function os_actual_projection(array $u,array $row,bool $allocated,bool $corn): ?
     $shown=os_actual_totals($shown,$own,$corn);$shown['_ttPartialActual']=true;
     return $shown;
 }
-function os_corn(array $contract): bool { return preg_match('/corn|maize/i',(string)($contract['commodity']??$contract['product']??''))===1; }
+function os_corn(array $contract): bool { return preg_match('/\b(?:CORN|MAIZE|MAKAI)\b/i',implode(' ',array_map(static fn($f)=>(string)($contract[$f]??''),['commodity','product','variety','baseVariety'])))===1; }
 function os_activity_icon(string $area): string {
     $v=strtolower($area);
     foreach(['production'=>'production','loading'=>'loading','bag'=>'bags','sales contract'=>'contracts','custom'=>'customs','commercial'=>'commercial','b/l'=>'bl','bl'=>'bl','origin'=>'coo','coo'=>'coo','cover'=>'cover','dispatch'=>'cover','l/c'=>'lcdraft','lc'=>'lcdraft','tg'=>'tg','cert'=>'certs','upload'=>'print'] as $term=>$icon)if($v===$term||str_contains($v,$term))return $icon;
