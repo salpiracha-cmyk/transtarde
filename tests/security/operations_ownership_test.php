@@ -13,7 +13,8 @@ function denied(callable $test,string $name):void{try{$test();}catch(DomainExcep
 $staff=['role'=>'Staff','permissions'=>['Accounts'=>['expenses'=>['Create','Edit']],'Exports'=>'all','Mill'=>'all']];
 verify(operations_can_write($staff,'Accounts') && preg_match('/^tt[0-9]{2}[a-z0-9_]{2,60}$/','tt39salarymaster')===1,'Original browser-module checks alone admit another module target');
 foreach([['Accounts','tt30bags'],['Accounts','tt39salarymaster'],['Exports','tt39salarymaster'],['Mill','tt99fabricated'],['Super Admin','tt30mills']] as [$m,$k])denied(fn()=>operations_validate_key_module($staff,$m,$k),'ownership '.$m.' '.$k);
-foreach([['Mill','tt30mills'],['Milling','tt39salarymaster'],['Exports','tt30bags'],['Accounts','transtrade_export_v3_operational']] as [$m,$k]){operations_validate_key_module($staff,$m,$k);verify(true,'legitimate '.$m.' '.$k);}
+$setupStaff=array_replace($staff,['master_access'=>true,'master_permissions'=>['mills'=>['Create','Edit'],'salary_staff'=>['Create','Edit']]]);
+foreach([['Mill','tt30mills'],['Milling','tt39salarymaster'],['Exports','tt30bags'],['Accounts','transtrade_export_v3_operational']] as [$m,$k]){operations_validate_key_module(in_array($k,['tt30mills','tt39salarymaster'],true)?$setupStaff:$staff,$m,$k);verify(true,'legitimate '.$m.' '.$k);}
 foreach(['tt34ghati','tt34nilqueue','tt32processingrecon','tt40exportreceipts'] as $k)denied(fn()=>operations_validate_key_module(['role'=>'Super Admin'],'Super Admin',$k),'server-owned '.$k);
 foreach(['Accounts','Mill','Milling'] as $m)foreach(['','null','false','{}','[]','{"contracts":null,"shipments":[]}'] as $old)denied(fn()=>operations_merge_export($old,'{"contracts":[{"ref":"FORGED"}],"shipments":[]}',$m),'uninitialized root '.$m.' '.$old);
 $root=['contracts'=>[['ref'=>'KEEP']],'shipments'=>[['id'=>'L1','kind'=>'lot','contractRef'=>'KEEP','millActuals'=>[]]],'accountsReceipts'=>[]];

@@ -68,8 +68,9 @@ function operations_validate_exmill_completion(string $instructionsJson, string 
     }
 }
 
-function operations_can_write(array $user, string $module): bool {
+function operations_can_write(array $user, string $module, string $key=''): bool {
     if (($user['role'] ?? '') === 'Super Admin') return true;
+    if(in_array($module,['Mill','Milling'],true)&&$key==='tt40instructionseen')return tt_user_can_module_action($user,'Mill','instructions','View')||tt_user_can_module_action($user,'Mill','export','View');
     $permissions = (array)($user['permissions'] ?? []);
     $permissionName = strcasecmp($module, 'Milling') === 0 ? 'Mill' : $module;
     $granted = $permissions[$permissionName] ?? [];
@@ -643,7 +644,7 @@ function operations_file_fallback(array $user): never {
     if (!operations_key_allowed($key) || !is_string($value)) operations_respond(['ok'=>false,'error'=>'Invalid operational update.'],422);
     json_decode($value,true); if (json_last_error()!==JSON_ERROR_NONE) operations_respond(['ok'=>false,'error'=>'Operational data must be valid JSON.'],422);
     if (!in_array($sourceModule,['Exports','Mill','Milling','Accounts','Super Admin'],true)) operations_respond(['ok'=>false,'error'=>'Invalid source module.'],422);
-    if (!operations_can_write($user,$sourceModule)) operations_respond(['ok'=>false,'error'=>'Create or Edit permission is required for this module.'],403);
+    if (!operations_can_write($user,$sourceModule,$key)) operations_respond(['ok'=>false,'error'=>'Create or Edit permission is required for this module.'],403);
     operations_validate_key_module($user,$sourceModule,$key);
     if(in_array($key,TT_INV_PRIVATE_KEYS,true))operations_respond(['ok'=>false,'error'=>'Reconciliation is maintained by the server; open the Accounts or Directors report.'],403);
     if($key===TT_INV_CONFIRMATIONS && !tt_inv_has_action($user,'Mill',['stock','export'],'Create') && !tt_inv_has_action($user,'Mill',['stock','export'],'Edit'))operations_respond(['ok'=>false,'error'=>'Stock confirmation permission required.'],403);
@@ -659,9 +660,15 @@ function operations_file_fallback(array $user): never {
             if(str_contains($value,TT_INV_ARTWORK_URL))$value=tt_inv_restore_artwork($value,tt_inv_public_values((array)($store['values']??[]))['values']);
             if(strlen($value)>16*1024*1024)throw new InvalidArgumentException('Operational data is too large.');
             $value=os_prepare_write($user,$key,$value,(array)($store['values']??[]));
+            $value=operations_instruction_ack($user,$key,$old,$value,(array)($store['values']??[]));
+            $value=operations_duplicate_prepare($user,$key,$old,$value,(array)($store['values']??[]));
             operations_validate_export_bridge($key,$old,$value,$sourceModule,(string)($store['values']['transtrade_export_v3_operational']??''));
             operations_validate_mill_cash($user,$sourceModule,$key,$old,$value,(array)($store['values']??[]));
             operations_validate_brand_bags($user,$sourceModule,$key,$old,$value);
+            operations_validate_setup_actions($user,$sourceModule,$key,$old,$value);
+            operations_validate_instruction_owner($sourceModule,$key,$old,$value);
+            operations_validate_row_actions($user,$sourceModule,$key,$old,$value);
+            operations_validate_quarantine($user,$key,$old,$value,(array)($store['values']??[]));
             if ($key==='transtrade_export_v3_operational') { operations_validate_export_permissions($user,$sourceModule,$old,$value); operations_validate_lot_reopening($old,$value,$user,$sourceModule); $value=operations_merge_export($old,$value,$sourceModule,$user); }
             if ($key==='tt30ship') tt_validate_corn_loading($value,$old);
             if ($key==='tt40exinstructions') operations_validate_exmill_completion($value,(string)($store['values']['tt35exload']??'[]'));
@@ -670,6 +677,7 @@ function operations_file_fallback(array $user): never {
             $now=gmdate('c');$beforeValues=(array)($store['values']??[]);
             $value=tt_inv_prepare_write($beforeValues,$key,$value,$user,$now);
             $nextValues=$beforeValues;$nextValues[$key]=$value;
+            $nextValues=operations_duplicate_effects($beforeValues,$nextValues,$user,$key);
             if($key==='tt30prod'){require_once __DIR__.'/production_save_core.php';$nextValues=ps_effects($beforeValues,$nextValues,$user,$now);}
             if(in_array($key,TT_INV_SOURCE_KEYS,true))$nextValues=tt_inv_reconcile($nextValues,$now);
             foreach($nextValues as$changedKey=>$changedValue){
@@ -737,7 +745,7 @@ try {
     if (!in_array($sourceModule, ['Exports', 'Mill', 'Milling', 'Accounts', 'Super Admin'], true)) {
         operations_respond(['ok' => false, 'error' => 'Invalid source module.'], 422);
     }
-    if (!operations_can_write($user, $sourceModule)) {
+    if (!operations_can_write($user, $sourceModule, $key)) {
         operations_respond(['ok' => false, 'error' => 'Create or Edit permission is required for this module.'], 403);
     }
 
@@ -750,6 +758,7 @@ try {
         $lock=$db->prepare('SELECT GET_LOCK(?,10)');$lock->execute(['tt_inventory_'.substr(hash('sha256',operations_env('DB_NAME')),0,24)]);
         if((int)$lock->fetchColumn()!==1)throw new RuntimeException('Inventory is being saved; retry.');$inventoryLock=true;
     }
+    if(in_array($key,['tt30queue','tt30directoralerts'],true)){$pair=$db->prepare('SELECT GET_LOCK(?,10)');$pair->execute(['tt_duplicate_'.substr(hash('sha256',operations_env('DB_NAME')),0,24)]);if((int)$pair->fetchColumn()!==1)throw new RuntimeException('Duplicate-trip decisions are being saved; retry.');}
     $db->beginTransaction();
     $select = $db->prepare('SELECT payload, version FROM tt_operation_records WHERE storage_key = ? FOR UPDATE');
     $select->execute([$key]);
@@ -782,6 +791,8 @@ try {
     };
     $scopeValues=[];foreach($db->query('SELECT storage_key,payload FROM tt_operation_records')->fetchAll() as $r)$scopeValues[(string)$r['storage_key']]=(string)$r['payload'];
     $value=os_prepare_write($user,$key,$value,$scopeValues);
+    $value=operations_instruction_ack($user,$key,$oldPayload,$value,$scopeValues);
+    $value=operations_duplicate_prepare($user,$key,$oldPayload,$value,$scopeValues);
     operations_validate_export_bridge($key, $oldPayload, $value, $sourceModule, $exportRoot);
     $cashValues=[];
     if(in_array($key,['tt30petty','tt33pettyexp'],true)){
@@ -791,6 +802,10 @@ try {
     }
     operations_validate_mill_cash($user,$sourceModule,$key,$oldPayload,$value,$cashValues);
     operations_validate_brand_bags($user,$sourceModule,$key,$oldPayload,$value);
+    operations_validate_setup_actions($user,$sourceModule,$key,$oldPayload,$value);
+    operations_validate_instruction_owner($sourceModule,$key,$oldPayload,$value);
+    operations_validate_row_actions($user,$sourceModule,$key,$oldPayload,$value);
+    operations_validate_quarantine($user,$key,$oldPayload,$value,$scopeValues);
     if ($key === 'transtrade_export_v3_operational') {
         operations_validate_export_permissions($user,$sourceModule,$oldPayload,$value);
         operations_validate_lot_reopening($oldPayload, $value, $user, $sourceModule);
@@ -811,12 +826,14 @@ try {
     $nowIso=gmdate('c');$beforeValues=[];
     if(in_array($key,array_merge(TT_INV_SOURCE_KEYS,['tt30bags','tt33bagreceipts']),true))foreach($db->query('SELECT storage_key,payload FROM tt_operation_records')->fetchAll()as$row)$beforeValues[(string)$row['storage_key']]=(string)$row['payload'];
     else $beforeValues[$key]=$oldPayload;
+    if($key==='tt30queue')foreach(['tt30queue','tt30directoralerts'] as $dependentKey)if(isset($scopeValues[$dependentKey]))$beforeValues[$dependentKey]=$scopeValues[$dependentKey];
     $productionMeta=[];
     if($key==='tt30prod'){
         $dependent=$db->query("SELECT storage_key,payload,version FROM tt_operation_records WHERE storage_key IN ('tt30prodaudit','tt36bagissues') ORDER BY storage_key FOR UPDATE");
         foreach($dependent->fetchAll() as $row){$beforeValues[$row['storage_key']]=$row['payload'];$productionMeta[$row['storage_key']]=['version'=>(int)$row['version']];}
     }
     $value=tt_inv_prepare_write($beforeValues,$key,$value,$user,$nowIso);$nextValues=$beforeValues;$nextValues[$key]=$value;
+    $nextValues=operations_duplicate_effects($beforeValues,$nextValues,$user,$key);
     if($key==='tt30prod'){require_once __DIR__.'/production_save_core.php';$nextValues=ps_effects($beforeValues,$nextValues,$user,$nowIso);}
     if(in_array($key,TT_INV_SOURCE_KEYS,true))$nextValues=tt_inv_reconcile($nextValues,$nowIso);
     $now=(new DateTimeImmutable('now',new DateTimeZone('UTC')))->format('Y-m-d H:i:s.u');

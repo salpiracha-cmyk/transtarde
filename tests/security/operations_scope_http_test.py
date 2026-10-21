@@ -108,6 +108,12 @@ with tempfile.TemporaryDirectory(prefix='tti-operation-scope-') as folder:
  assert '_ttPartialActual' not in saved and 'OTHER_CONTRIBUTION' not in data['value']
  forged=json.loads(data['value']);forged['shipments'][0]['millActuals'][0]['contributions'].append({**other,'bags':999});before=stored()
  status,data=write(k,forged,2);assert status==403 and stored()==before,(status,data)
+ # Match the application's existing Corn/Maize/Makai aliases when projecting joint physical totals.
+ for label in ['CORN','MAIZE','MAKAI']:
+  joint['contracts'][0]['product']=label;initial[k]=json.dumps(joint);seed();status,data=request();assert status==200
+  actual=json.loads(data['values'][k])['shipments'][0]['millActuals'][0]
+  assert actual['netKg']==500 and actual['millNetKg']==500 and actual['contributions']==[own],(label,actual)
+ joint['contracts'][0]['product']='Rice'
  # A second mill can add its first contribution without creating a second physical container.
  lot['millActuals'][0]['contributions']=[other];lot['millActuals'][0].update({'bags':20,'millNetKg':1000,'location':'Other Mill'})
  initial[k]=json.dumps(joint);seed();status,data=request();assert status==200

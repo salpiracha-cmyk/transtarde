@@ -1667,8 +1667,10 @@
     const button=document.getElementById("refreshApprovals");
     if(button)button.disabled=true;
     approvalsError="";
-    const results=await Promise.allSettled([loadServerMasters(),apiRequest(null,"director_approvals")]);
+    const results=await Promise.allSettled([loadServerMasters(),apiRequest(null,"director_approvals"),window.TT_MILL_DUPLICATE_APPROVALS.load()]);
     if(results[1].status==="fulfilled")pendingDirectorApprovals=results[1].value.approvals||[];
+    pendingDirectorApprovals=pendingDirectorApprovals.filter(item=>item.kind!=="millduplicate");
+    if(results[2].status==="fulfilled")pendingDirectorApprovals.push(...results[2].value);
     approvalsError=results.filter(result=>result.status==="rejected").map(result=>result.reason.message).join(" ");
     approvalsLoaded=true;
     renderApprovals();
@@ -1704,11 +1706,11 @@
     document.getElementById("approvalStatusTitle").textContent=uncertain?"Approvals need verification":rows.length?"Pending approvals":"No pending approvals";
     document.getElementById("approvalStatusDetail").textContent=uncertain?"Refresh to verify the complete queue":"Director and Super Admin requests";
     list.innerHTML=(approvalsError?`<div class="admin-empty-state" role="alert"><strong>Approval feed unavailable</strong><span>${escapeHtml(approvalsError)} Existing entries may be out of date.</span></div>`:"")+ (rows.length?rows.map(item=>{
-      const jv=item.kind==="jv";
+      const jv=item.kind==="jv",mill=item.kind==="millduplicate";
       const rate=item.kind==="bag"||item.kind==="nonwoven";
       const replacement=item.replacement;
-      const input=jv?`<table class="approval-jv-lines" style="background:#e8f6ed;width:100%;border:1px solid #b8d3c6;border-radius:8px"><caption>Accounting entries awaiting approval</caption><thead><tr><th>Account / party</th><th>Debit</th><th>Credit</th></tr></thead><tbody>${(item.lines||[]).map(line=>`<tr><td>${escapeHtml(approvalLineIdentity(line))}</td><td style="text-align:right">${Number(line.debit||0).toLocaleString("en-PK")}</td><td style="text-align:right">${Number(line.credit||0).toLocaleString("en-PK")}</td></tr>`).join("")}</tbody></table><label>Rejection reason<input data-jv-approval-reason maxlength="300" placeholder="Required if rejecting"></label>`:rate?`<label>Approval reason<input data-rate-approval-reason maxlength="500" placeholder="Supplier settlement and reason for accepting the bag discrepancy"></label>`:replacement?.required?`<label>Replacement default<select data-bank-approval-replacement="${escapeHtml(item.id)}"><option value="">Choose replacement</option>${replacement.choices.map(bank=>`<option value="${escapeHtml(bank.id)}">${escapeHtml(bank.bankName)} · ${escapeHtml(bank.accountTitle)} · ${escapeHtml(bank.iban)}</option>`).join("")}</select></label>`:"";
-      const attribute=jv?`data-review-jv="${escapeHtml(item.id)}" data-jv-entity="${escapeHtml(item.entity)}"`:rate?`data-review-rate-exception="${escapeHtml(item.billId)}" data-rate-kind="${escapeHtml(item.kind)}" data-rate-entity="${escapeHtml(item.entity)}" data-acceptance-fingerprint="${escapeHtml(item.fingerprint||'')}"`:item.kind==="bank"?`data-review-bank-deletion="${escapeHtml(item.id)}"`:`data-review-master-deletion="${escapeHtml(item.id)}"`;
+      const input=mill?`<label>Decision reason<input data-mill-approval-reason maxlength="500" placeholder="Reason for approving or rejecting this second trip"></label>`:jv?`<table class="approval-jv-lines" style="background:#e8f6ed;width:100%;border:1px solid #b8d3c6;border-radius:8px"><caption>Accounting entries awaiting approval</caption><thead><tr><th>Account / party</th><th>Debit</th><th>Credit</th></tr></thead><tbody>${(item.lines||[]).map(line=>`<tr><td>${escapeHtml(approvalLineIdentity(line))}</td><td style="text-align:right">${Number(line.debit||0).toLocaleString("en-PK")}</td><td style="text-align:right">${Number(line.credit||0).toLocaleString("en-PK")}</td></tr>`).join("")}</tbody></table><label>Rejection reason<input data-jv-approval-reason maxlength="300" placeholder="Required if rejecting"></label>`:rate?`<label>Approval reason<input data-rate-approval-reason maxlength="500" placeholder="Supplier settlement and reason for accepting the bag discrepancy"></label>`:replacement?.required?`<label>Replacement default<select data-bank-approval-replacement="${escapeHtml(item.id)}"><option value="">Choose replacement</option>${replacement.choices.map(bank=>`<option value="${escapeHtml(bank.id)}">${escapeHtml(bank.bankName)} · ${escapeHtml(bank.accountTitle)} · ${escapeHtml(bank.iban)}</option>`).join("")}</select></label>`:"";
+      const attribute=mill?`data-review-mill-duplicate="${escapeHtml(item.id)}"`:jv?`data-review-jv="${escapeHtml(item.id)}" data-jv-entity="${escapeHtml(item.entity)}"`:rate?`data-review-rate-exception="${escapeHtml(item.billId)}" data-rate-kind="${escapeHtml(item.kind)}" data-rate-entity="${escapeHtml(item.entity)}" data-acceptance-fingerprint="${escapeHtml(item.fingerprint||'')}"`:item.kind==="bank"?`data-review-bank-deletion="${escapeHtml(item.id)}"`:`data-review-master-deletion="${escapeHtml(item.id)}"`;
       return `<div class="approval-item"><div><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.detail)}</small>${input}</div><div class="row-actions"><button class="row-action" ${attribute} data-decision="Approve" ${rate&&item.canDecide===false?'disabled title="Accounts must record the supplier settlement first"':replacement?.required&&!replacement.choices.length?'disabled title="Add an eligible replacement default bank first"':''}>Approve</button>${rate?"":`<button class="row-action" ${attribute} data-decision="Reject">Reject</button>`}</div></div>`;
     }).join(""): `<div class="admin-empty-state"><strong>${uncertain?"Checking approvals":"No pending approvals"}</strong><span>Director approval requests also appear here.</span></div>`);
   }
@@ -1965,6 +1967,12 @@
       }).catch(error=>toast(error.message));
     }
     if(event.target.closest("#refreshApprovals"))refreshApprovals();
+    const millApproval=event.target.closest('[data-review-mill-duplicate]');
+    if(millApproval){
+      const item=pendingDirectorApprovals.find(x=>x.kind==='millduplicate'&&x.id===millApproval.dataset.reviewMillDuplicate),reason=millApproval.closest('.approval-item')?.querySelector('[data-mill-approval-reason]')?.value.trim()||'';
+      if(!item||reason.length<5){toast('Enter a decision reason of at least five characters.');return;}
+      millApproval.disabled=true;window.TT_MILL_DUPLICATE_APPROVALS.decide(item,millApproval.dataset.decision,reason,SESSION.csrf).then(async()=>{await refreshApprovals();toast('Truck-trip decision saved.');}).catch(error=>{toast(error.message);millApproval.disabled=false;});
+    }
     const jvApproval=event.target.closest('[data-review-jv]');
     if(jvApproval){
       const reject=jvApproval.dataset.decision==='Reject',reason=jvApproval.closest('.approval-item')?.querySelector('[data-jv-approval-reason]')?.value.trim()||'';

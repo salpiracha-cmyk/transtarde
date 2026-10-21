@@ -100,7 +100,7 @@ assert.match(elements.get('main').innerHTML,/Active Contracts/);assert.match(ele
 
 const css=fs.readFileSync(__dirname+'/../../exports/app.css','utf8');assert.match(css,/\.millPopover\{display:none/);assert.match(css,/\.millHover:hover \.millPopover/);assert.match(css,/\.docLetterhead\{position:absolute;left:0;right:0/);assert.match(css,/@page\{size:A4;margin:0/);
 const names=[...source.matchAll(/^function\s+([\w$]+)\s*\(/gm)].map(m=>m[1]),duplicates=names.filter((n,i)=>names.indexOf(n)!==i);assert.deepEqual(duplicates,[],'duplicate function declarations remain');
-const php=fs.readFileSync(__dirname+'/../../api/operations.mysql.php','utf8');assert.match(php,/SELECT payload, version FROM tt_operation_records WHERE storage_key = \? FOR UPDATE/);assert.match(php,/operations_merge_export/);assert.match(php,/operations_can_write\(\$user, \$sourceModule\)/);
+const php=fs.readFileSync(__dirname+'/../../api/operations.mysql.php','utf8');assert.match(php,/SELECT payload, version FROM tt_operation_records WHERE storage_key = \? FOR UPDATE/);assert.match(php,/operations_merge_export/);assert.match(php,/operations_can_write\(\$user, \$sourceModule, \$key\)/);
 assert.doesNotMatch(php,/in_array\('all', \$permissions/,'one module must never grant write access to another module');
 assert.match(php,/\$baseVersion !== \$version/);assert.match(php,/409/);
 const wrapper=fs.readFileSync(__dirname+'/../../module.php','utf8');assert.match(wrapper,/baseVersion:Number\(queuedBase\.get\(key\)\?\?keyVersions\.get\(key\)\?\?0\)/);assert.match(wrapper,/tt:shared-conflict/);assert.doesNotMatch(wrapper,/Update needs review|ttSyncNotice/);assert.doesNotMatch(wrapper,/queued:true|settleQueued/);

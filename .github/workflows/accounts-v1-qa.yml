@@ -208,6 +208,7 @@ jobs:
           python3 tests/security/mill_cash_authorization_test.py
           python3 tests/security/operations_root_integrity_test.py
           python3 tests/security/operations_scope_http_test.py
+          python3 tests/security/mill_shared_key_permissions_test.py
           node tests/accounts-v1/payee_summary_escape_test.js
           node tests/runtime_security_static_audit.js
 
@@ -397,6 +398,7 @@ jobs:
           python3 tests/security/mill_cash_authorization_test.py
           python3 tests/security/operations_root_integrity_test.py
           python3 tests/security/operations_scope_http_test.py
+          python3 tests/security/mill_shared_key_permissions_test.py
           TT_MSA_TEST_MYSQL=1 python3 tests/accounts-v1/mill_source_amend_endpoint_test.py
           # The later inventory HTTP fixture drops this disposable database in cleanup.
           php tests/accounts-v1/group_daily_mysql_test.php
