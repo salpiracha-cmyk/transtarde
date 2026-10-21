@@ -67,6 +67,23 @@ function tt_next_post_id(array $existing, string $module='Accounts', string $are
         data_file.write_text(json.dumps(after));before=data_file.read_bytes();queue=request()[1]['approvals']
         assert len(queue)==1 and queue[0]['kind']=='jv' and queue[0]['id']=='JVD-1' and len(queue[0]['lines'])==2,queue
         assert data_file.read_bytes()==before,'Loading pending JVs must not post or alter them'
+        # A pending decision must bind the settlement actually shown to its approver.
+        for endpoint, collection, identifier in [('bag_purchases','bagSupplierBills','B1'),('nonwoven_bag_bills','nonWovenBagSupplierBills','N1')]:
+            data_file.write_text(json.dumps(initial))
+            old=next(x['fingerprint'] for x in request()[1]['approvals'] if x['billId']==identifier)
+            code,response=request(endpoint,body={'action':'settle_bag_discrepancy','entity':'TTI','billId':identifier,'csrf':'fixture','reason':'Replacement settlement: supplier now offers a different resolution'})
+            assert code==200,(endpoint,code,response)
+            fresh=next(x['fingerprint'] for x in request()[1]['approvals'] if x['billId']==identifier)
+            assert fresh!=old, endpoint+' settlement edit did not invalidate displayed token'
+            for role in ['Director','Super Admin']:
+                before=data_file.read_bytes()
+                code,response=request(endpoint,role=role,body={**payload,'billId':identifier,'expectedAcceptanceFingerprint':old})
+                assert code==422,(endpoint,role,code,response)
+                assert data_file.read_bytes()==before,'Stale decision changed data, journal, audit or revision'
+            assert request(endpoint,role='Director',body={**payload,'billId':identifier,'expectedAcceptanceFingerprint':fresh})[0]==200
+            posted=json.loads(data_file.read_text())
+            assert posted[collection][identifier]['journalId'] and len(posted['journals'])==1
+        print('PASS both bag routes reject stale settlement decisions for Director and Super Admin; fresh decisions post once')
         data_file.write_text('{broken')
         assert request()[0]==500, 'Corrupt storage must report failure, not an empty queue'
         print('Director approvals HTTP: shared Director/owner feed, CSRF, staff denial, shared owner/Director actions, audit actor and failures passed')

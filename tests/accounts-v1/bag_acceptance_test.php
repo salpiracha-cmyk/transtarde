@@ -28,3 +28,12 @@ check(bqa_assess($s2,$corrected)['issues']===[],'Mixed billing bases accept the 
 check(bqa_mill_line_key(['_ttBridgeId'=>'PO1|2|CONTRACT|BRAND|50|75'])==='L2','Real multi-field Mill bridge maps line two, not the tare at its end');
 check(bqa_mill_line_key(['_ttBridgeId'=>'PO1|2|CONTRACT|BRAND|50|75|MASTER'])==='L2-MASTER','Master bag receipts retain their distinct packing line');
 check(bqa_mill_line_key(['poLineKey'=>'L3-MASTER','_ttBridgeId'=>'legacy'])==='L3-MASTER','Explicit modern line identity wins');
+
+$base=bqa_assess($s2,$bill)['fingerprint'];
+foreach(['id','entity','supplier','sellerInvoiceDate','status','createdBy','supplierSettlement','supplierSettlementBy','supplierSettlementAt','totalWeightKg','billingRate','gstRate','gstAmount','salesTaxInvoice','stockTreatment','bagType','packingSize','brand'] as $field){
+ $changed=$bill;$changed[$field]=in_array($field,['totalWeightKg','billingRate','gstRate','gstAmount'],true)?123.45:'changed';
+ check(bqa_assess($s2,$changed)['fingerprint']!==$base,'Reviewed field must invalidate old decision: '.$field);
+}
+$metadata=$bill;foreach(['acceptanceApprovedAt','acceptanceApprovedBy','acceptanceApprovedFingerprint','acceptanceApprovalReason'] as $key)$metadata[$key]='decision metadata';
+check(bqa_assess($s2,$metadata)['fingerprint']===$base,'The approval must not invalidate itself');
+echo "PASS all reviewed settlement/identity/financial fields bind approval; decision metadata stays stable\n";
