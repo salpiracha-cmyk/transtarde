@@ -199,6 +199,7 @@ function os_root_projection(array $u,array $root): ?array {
     }
     $out['shipments']=$shipments;
     foreach(['newExportBags'=>['bags',['newbags','production']],'productionInstructions'=>['production',['instructions','production']],'exportLoading'=>['loading',['export']]] as $field=>[$icon,$millIcons]){
+        if(!array_key_exists($field,(array)($root['millSync']??[])))continue;
         if(!$full&&!os_any($u,'Exports',[$icon])&&!os_any($u,'Mill',$millIcons))continue;
         $rows=[];
         foreach((array)($root['millSync'][$field]??[]) as $r){if(!is_array($r)||!isset($refs[(string)($r['contractRef']??'')]))continue;
