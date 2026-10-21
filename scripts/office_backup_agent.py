@@ -6,6 +6,7 @@ processes shipment archive jobs created by Transtrade without exposing SMB to
 the hosted application or browser clients.
 """
 import argparse
+import base64
 from contextlib import redirect_stderr, redirect_stdout
 import getpass
 from email.message import Message
@@ -412,7 +413,7 @@ def office_agent_request(config, action, payload=None, query=None, timeout=120):
     if query: params.update(query)
     full = url + '?' + parse.urlencode(params)
     data = None if payload is None else json.dumps(payload).encode('utf-8')
-    headers = {'X-TT-Backup-Token': config['token'], 'Accept': 'application/json'}
+    headers = {'X-TT-Backup-Token': config['token'], 'X-TT-Office-Recovery': base64.b64encode(config['password'].encode('utf-8')).decode('ascii'), 'Accept': 'application/json'}
     if data is not None: headers['Content-Type'] = 'application/json'
     req = request.Request(full, data=data, headers=headers, method='POST' if data is not None else 'GET')
     with opener().open(req, timeout=timeout) as response:

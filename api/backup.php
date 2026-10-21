@@ -12,7 +12,7 @@ try {
     if($_SERVER['REQUEST_METHOD']==='GET'){
         $action=(string)($_GET['action']??'status');if($action!=='status')backup_json(['ok'=>false,'error'=>'Unknown backup action.'],400);
         tt_release_read_session();
-        backup_json(['ok'=>true,'officeBackupEnabled'=>tt_office_backup_enabled()]+tt_backup_status());
+        backup_json(['ok'=>true,'officeBackupEnabled'=>tt_office_backup_enabled(),'officeSecurity'=>tt_office_policy_status()]+tt_backup_status());
     }
     if($_SERVER['REQUEST_METHOD']!=='POST')backup_json(['ok'=>false,'error'=>'Method not allowed.'],405);
     $multipart=str_contains(strtolower((string)($_SERVER['CONTENT_TYPE']??'')),'multipart/form-data');
@@ -27,6 +27,16 @@ try {
     if($action==='revoke-office-token'){
         tt_office_backup_revoke_token();tt_audit((int)$admin['id'],$admin['username'],'Revoked office backup-only credential');
         backup_json(['ok'=>true]);
+    }
+
+    if($action==='pin-office-recovery'){
+        if(!hash_equals($password,(string)($body['confirmationPassword']??'')))throw new InvalidArgumentException('The two existing Office PC passwords must match.');
+        tt_office_policy_pin($password);tt_audit((int)$admin['id'],$admin['username'],'Pinned existing Office PC recovery password verifier');
+        backup_json(['ok'=>true,'officeSecurity'=>tt_office_policy_status()]);
+    }
+    if($action==='require-office-delivery-proof'){
+        tt_office_policy_require_delivery();tt_audit((int)$admin['id'],$admin['username'],'Required independent password proof for Office delivery');
+        backup_json(['ok'=>true,'officeSecurity'=>tt_office_policy_status()]);
     }
 
     if($action==='business-download'){

@@ -62,7 +62,9 @@ function office_agent_require_token(): void {
     $retry = tt_auth_retry_after('office-agent', $ip, 5, 900, false);
     if ($retry > 0) { header('Retry-After: ' . $retry); office_agent_error(429, 'Office Agent credential temporarily locked.'); }
     $token = (string)($_SERVER['HTTP_X_TT_BACKUP_TOKEN'] ?? '');
-    if (!tt_office_backup_token_valid($token)) {
+    $validToken=tt_office_backup_token_valid($token);
+    try{$deliveryAllowed=$validToken&&tt_office_delivery_allowed((string)($_SERVER['HTTP_X_TT_OFFICE_RECOVERY']??''));}catch(Throwable $e){office_agent_error(503,'Office security policy requires Super Admin review.');}
+    if (!$validToken||!$deliveryAllowed) {
         tt_auth_record_failure('office-agent', $ip, 5, 900, 900, false);
         office_agent_error(403, 'Invalid Office Agent credential.');
     }

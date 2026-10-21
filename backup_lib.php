@@ -770,7 +770,7 @@ function tt_backup_verify_full(string $path,string $password):array{
 }
 function tt_backup_atomic_write(string $path,string $data):void{$dir=dirname($path);if(!is_dir($dir)&&!mkdir($dir,0700,true)&&!is_dir($dir))throw new RuntimeException('A recovery folder could not be created.');$tmp=$path.'.restore-'.bin2hex(random_bytes(4));if(file_put_contents($tmp,$data,LOCK_EX)===false)throw new RuntimeException('A recovery file could not be written.');@chmod($tmp,0600);if(!rename($tmp,$path)){@unlink($tmp);throw new RuntimeException('A recovery file could not be replaced.');}}
 function tt_backup_restore_allowed(string $rel):bool{
-    if($rel===''||str_contains($rel,'..')||str_contains($rel,'\\')||str_contains($rel,':')||str_contains($rel,"\0")||str_starts_with($rel,'/')||str_starts_with($rel,'backups/')||str_starts_with($rel,'sessions/')||in_array($rel,['backup_state.json','auth.lock','backup-job.lock','backup-state.lock'],true))return false;
+    if($rel===''||str_contains($rel,'..')||str_contains($rel,'\\')||str_contains($rel,':')||str_contains($rel,"\0")||str_starts_with($rel,'/')||str_starts_with($rel,'backups/')||str_starts_with($rel,'sessions/')||in_array($rel,['backup_state.json','auth.lock','backup-job.lock','backup-state.lock','office-backup-policy.lock'],true))return false;
     // Exact current/legacy credential files belong to existing installations.
     // Office job ZIPs restore as opaque bytes; nothing extracts or executes them.
     if(in_array($rel,['admin-recovery.hash','office-backup-token.sha256','gemini.key'],true))return true;
@@ -784,7 +784,7 @@ function tt_backup_commit_staged(array $staged):int{
         foreach($staged as $rel=>$tmp){
             // Archives may contain historical credentials, but restore must never reactivate them.
             // Preserve current hashes AND their absence after revocation or a fresh installation.
-            if(in_array($rel,['admin-recovery.hash','office-backup-token.sha256'],true))continue;
+            if(in_array($rel,['admin-recovery.hash','office-backup-token.sha256','office-backup-policy.json'],true))continue;
             $dest=TT_DATA_DIR.'/'.$rel;$dir=dirname($dest);if(!is_dir($dir)&&!mkdir($dir,0700,true)&&!is_dir($dir))throw new RuntimeException('A recovery folder could not be created.');if(!rename($tmp,$dest))throw new RuntimeException('A recovery file could not be replaced.');@chmod($dest,0600);$count++;}
     }finally{if(is_resource($operationsLock)){flock($operationsLock,LOCK_UN);fclose($operationsLock);}flock($authLock,LOCK_UN);fclose($authLock);}
     return $count;
