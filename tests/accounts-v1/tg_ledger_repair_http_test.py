@@ -1,5 +1,5 @@
 """Execute real PHP endpoints against disposable sessions and company books."""
-import json, pathlib, shutil, subprocess, tempfile
+import json, os, pathlib, shutil, subprocess, tempfile
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 with tempfile.TemporaryDirectory(prefix='tti-authorization-') as directory:
@@ -37,7 +37,7 @@ require $argv[1];
     def request(endpoint, query='', body=None):
         uri = '/api/' + endpoint + '.php' + query
         req = {'uri':uri,'method':'GET' if body is None else 'POST','body':body}
-        result = subprocess.run(['php',str(harness),str(app/'api'/f'{endpoint}.php'),json.dumps(req),str(root/'sessions')],capture_output=True,text=True)
+        result = subprocess.run(['php',str(harness),str(app/'api'/f'{endpoint}.php'),json.dumps(req),str(root/'sessions')],capture_output=True,text=True,env={k:v for k,v in os.environ.items() if not k.startswith('TT_DB_')})
         assert result.returncode==0,result.stdout+result.stderr
         payload, status = result.stdout.rsplit('\nHTTP_STATUS=',1)
         try: return int(status), json.loads(payload)
