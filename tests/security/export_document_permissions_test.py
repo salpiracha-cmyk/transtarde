@@ -13,7 +13,7 @@ with tempfile.TemporaryDirectory(prefix='tti-api-permissions-') as directory:
     private.mkdir()
     harness = root / 'request.php'
     harness.write_text(r'''<?php
-$req=json_decode($argv[2],true);$_SERVER['REQUEST_URI']=$req['uri'];$_SERVER['REQUEST_METHOD']='POST';$_SERVER['REMOTE_ADDR']='192.0.2.42';
+$req=json_decode($argv[2],true);$_SERVER['REQUEST_URI']=$req['uri'];$_SERVER['REQUEST_METHOD']=$req['method']??'POST';$_SERVER['REMOTE_ADDR']='192.0.2.42';
 parse_str((string)(parse_url($req['uri'],PHP_URL_QUERY)??''),$_GET);$_POST=$req['form']??[];
 session_name('TRANSTRADE_SESSION');session_id('workflow-fixture');session_start();
 $_SESSION=['user_id'=>1,'auth_version'=>1,'last_activity_at'=>time(),'csrf'=>'fixture'];session_write_close();
@@ -37,8 +37,8 @@ require $argv[1];
     def seed(store=None):
         auth.write_text(json.dumps({'users':[user],'masters':masters,'audit':[]}))
         books.write_text(json.dumps(store or {'revision':0,'journals':{}}))
-    def request(endpoint, body, query='?entity=TTI', form=None):
-        req={'uri':'/api/'+endpoint+'.php'+query,'body':{'csrf':'fixture',**body},'form':form or {}}
+    def request(endpoint, body, query='?entity=TTI', form=None, method='POST'):
+        req={'uri':'/api/'+endpoint+'.php'+query,'method':method,'body':{'csrf':'fixture',**body},'form':form or {}}
         status_file=root/'status.txt'
         r=subprocess.run(['php','-d',f'session.save_path={root}',str(harness),str(app/'api'/f'{endpoint}.php'),json.dumps(req),str(status_file)],env=env,text=True,capture_output=True)
         assert r.returncode==0, r.stdout+r.stderr
@@ -65,12 +65,29 @@ if($argv[1]==='seed'){
     def stored():
         if MYSQL:return subprocess.run(['php',str(sql_script),'read'],env=env,check=True,capture_output=True).stdout
         return operations.read_bytes()
+    baseline={}
     def put_base(root_state,grants):
+        baseline.clear();baseline.update(copy.deepcopy(root_state))
         user['permissions']={'Exports':grants};seed()
         operations.write_text(json.dumps({'revision':1,'values':{key:json.dumps(root_state)},'meta':{key:{'version':1}}}))
         if MYSQL:subprocess.run(['php',str(sql_script),'seed',json.dumps({key:json.dumps(root_state)})],env=env,check=True,capture_output=True)
     def save_root(root_state,status=200):
-        before=stored();actual,data=request('operations.mysql',{'key':key,'value':json.dumps(root_state),'baseVersion':1,'sourceModule':'Exports'},'')
+        before=stored();read_status,read_data=request('operations.mysql',{},'',method='GET');assert read_status==200,(read_status,read_data)
+        visible=json.loads(read_data['values'].get(key,'{}'))
+        def apply_changes(old,new,shown):
+            if isinstance(old,dict) and isinstance(new,dict):
+                result=copy.deepcopy(shown) if isinstance(shown,dict) else {}
+                for field,value in new.items():
+                    if field in old and old[field]==value:continue
+                    result[field]=apply_changes(old.get(field),value,result.get(field))
+                for field in old.keys()-new.keys():result.pop(field,None)
+                return result
+            if isinstance(old,list) and isinstance(new,list) and isinstance(shown,list) and all(isinstance(r,dict) and 'id' in r for r in old+new):
+                previous={r['id']:r for r in old};allowed={r['id']:r for r in shown}
+                return [apply_changes(previous.get(r['id']),r,allowed.get(r['id'])) for r in new if r['id'] in allowed or r!=previous.get(r['id'])]
+            return copy.deepcopy(new)
+        submitted=apply_changes(baseline,root_state,visible)
+        actual,data=request('operations.mysql',{'key':key,'value':json.dumps(submitted),'baseVersion':1,'sourceModule':'Exports'},'')
         assert actual==status,(actual,data,root_state)
         if status>=400:assert stored()==before,'Denied document changed shared storage'
         return data

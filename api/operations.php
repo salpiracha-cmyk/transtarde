@@ -56,7 +56,7 @@ try {
         operations_respond([
             'ok' => true,
             'revision' => (int)$store['revision'],
-            ...tt_inv_public_values((array)$store['values'],(array)$store['meta']),
+            ...os_project($user,(array)$store['values'],(array)$store['meta']),
             'serverNow' => gmdate('c'),
         ]);
     }

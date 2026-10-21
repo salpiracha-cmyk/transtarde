@@ -16,7 +16,7 @@ with tempfile.TemporaryDirectory(prefix='tti-root-integrity-') as directory:
     harness = root / 'request.php'
     harness.write_text(r'''<?php
 $cfg=json_decode($argv[2],true);$_SERVER['REQUEST_URI']='/api/operations.mysql.php';
-$_SERVER['REQUEST_METHOD']='POST';$_SERVER['REMOTE_ADDR']='192.0.2.40';
+$_SERVER['REQUEST_METHOD']=$cfg['method']??'POST';$_SERVER['REMOTE_ADDR']='192.0.2.40';
 session_name('TRANSTRADE_SESSION');session_id('root-integrity-fixture');session_start();
 $_SESSION=['user_id'=>1,'auth_version'=>1,'last_activity_at'=>time(),'csrf'=>'fixture'];session_write_close();
 $GLOBALS['fixtureBody']=json_encode($cfg);$GLOBALS['statusFile']=$argv[3];
@@ -74,6 +74,12 @@ if($argv[1]==='seed'){
         result=subprocess.run(['php','-d',f'session.save_path={root}',str(harness),str(app),json.dumps(payload),str(status_file)],env=env,text=True,capture_output=True)
         assert result.returncode==0,result.stdout+result.stderr
         return int(status_file.read_text()),json.loads(result.stdout)
+    def client_root():
+        status_file=root/'status.txt'
+        result=subprocess.run(['php','-d',f'session.save_path={root}',str(harness),str(app),json.dumps({'method':'GET'}),str(status_file)],env=env,text=True,capture_output=True)
+        assert result.returncode==0 and int(status_file.read_text())==200,result.stdout+result.stderr
+        values=json.loads(result.stdout)['values']
+        return json.loads(values.get(key,'{}')) if isinstance(values,dict) else {}
     for module in ['Accounts','Mill','Milling']:
         owner='Mill' if module=='Milling' else module
         for field in ['accountsReceipts','audits','alerts']:
@@ -85,15 +91,15 @@ if($argv[1]==='seed'){
                 assert status==403,(module,field,mutation,status,response)
                 assert stored()==before,(module,field,mutation,'denial changed storage')
         # An unchanged root is harmless; history and old deletion marker survive.
-        seed(owner);status,response=write(module,canonical)
-        assert status==200,(module,status,response)
+        seed(owner);status,response=write(module,client_root())
+        assert status==(403 if owner=='Accounts' else 200),(module,status,response)
         assert read_root()==canonical,(module,read_root())
     # A legitimate Mill physical update produces a server-attributed event. A
     # caller observation cannot choose its trusted message, actor, ID, or time.
     for module,role in [('Mill','Staff'),('Milling','Staff'),('Mill','Director'),('Mill','Super Admin')]:
-        seed('Mill',role);candidate=clone(canonical)
+        seed('Mill',role);candidate=client_root()
         candidate['shipments'][0]['millActuals']=[{'number':'ABCD1234567','seal':'SEAL','bags':500,'netKg':25000,'source':'Milling'}]
-        candidate['alerts'].append({'id':'FORGED-OBSERVATION','area':'MILL ACTUALS','kind':'Mill Update','contractRef':'KEEP','message':'Caller narrative','createdBy':'Forged Owner','createdAt':'2099-01-01'})
+        candidate.setdefault('alerts',[]).append({'id':'FORGED-OBSERVATION','area':'MILL ACTUALS','kind':'Mill Update','contractRef':'KEEP','message':'Caller narrative','createdBy':'Forged Owner','createdAt':'2099-01-01'})
         status,response=write(module,candidate);assert status==200,(module,role,status,response)
         saved=read_root()
         assert saved['accountsReceipts']==canonical['accountsReceipts']
@@ -119,14 +125,14 @@ if($argv[1]==='seed'){
     # Conflict/limit warnings can occur without a physical mutation. Retain
     # them as typed operator reports; retries cannot duplicate the same report.
     for kind in ['Mill Conflict','Container Limit','Migration Review']:
-        seed('Mill');candidate=clone(canonical)
-        candidate['alerts'].append({'id':'CLIENT-ID','area':'MILL ACTUALS','kind':kind,'contractRef':'KEEP','message':'Loading needs review','createdBy':'Forged','createdAt':'2099-01-01'})
+        seed('Mill');candidate=client_root()
+        candidate.setdefault('alerts',[]).append({'id':'CLIENT-ID','area':'MILL ACTUALS','kind':kind,'contractRef':'KEEP','message':'Loading needs review','createdBy':'Forged','createdAt':'2099-01-01'})
         status,response=write('Mill',candidate);assert status==200,response
         saved=read_root();assert saved['audits']==canonical['audits'] and len(saved['alerts'])==2,saved
         report=saved['alerts'][1]
         assert report['source']=='Milling observation' and report['createdBy']=='Actual Operator' and report['id']!='CLIENT-ID' and report['createdAt']!='2099-01-01',report
-    seed('Mill');candidate=clone(canonical)
-    candidate['alerts'].append({'id':'CLIENT-ID','area':'MILL ACTUALS','kind':'Mill Conflict','contractRef':'OTHER','message':'Unknown contract'})
+    seed('Mill');candidate=client_root()
+    candidate.setdefault('alerts',[]).append({'id':'CLIENT-ID','area':'MILL ACTUALS','kind':'Mill Conflict','contractRef':'OTHER','message':'Unknown contract'})
     before=stored();assert write('Mill',candidate)[0]==403;assert stored()==before
     if MYSQL: subprocess.run(['php',str(sql_script),'cleanup'],env=env,check=True,capture_output=True)
     print('PASS root integrity ('+('MySQL' if MYSQL else 'file')+'): receipt/audit/alert forgeries denied without writes; real Mill facts produce server events; deletion marker and canonical history preserved; Director/SA and Milling alias retained')

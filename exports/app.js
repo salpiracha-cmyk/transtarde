@@ -86,7 +86,7 @@ function showExportSaveError(message,button){
  box.textContent=message||'The server did not confirm the save. Check the connection and retry the same action.';
  box.scrollIntoView?.({block:'nearest'});
 }
-function audit__legacy_v0(area,action,detail=''){state.audits.unshift({id:uid('AUD'),at:new Date().toISOString(),user:window.TT_MODULE_ACCESS?.user||'User',area,action,detail});save();window.TT_SHARED_SYNC?.flush()}
+function audit__legacy_v0(area,action,detail=''){const matches=(state.contracts||[]).filter(c=>c.ref&&String(detail).includes(c.ref)),contractRef=matches.length===1?matches[0].ref:(shipment()?.contractRef||'');state.audits.unshift({id:uid('AUD'),at:new Date().toISOString(),user:window.TT_MODULE_ACCESS?.user||'User',area,action,detail,...(contractRef?{contractRef}:{})});save();window.TT_SHARED_SYNC?.flush()}
 function currentUser(){return window.TT_MODULE_ACCESS?.user||'User'}
 function currentRole(){return window.TT_MODULE_ACCESS?.role||'User'}
 function requiredReason(message){const reason=String(prompt(message)||'').trim();if(!reason)alert('A reason is mandatory. No change was made.');return reason}

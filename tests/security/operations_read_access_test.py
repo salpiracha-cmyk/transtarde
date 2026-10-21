@@ -20,7 +20,7 @@ require $argv[1];
     operations = private / 'operations.json'
     books = private / 'accounts.json'
     marker = 'fixture-restricted-business-record'
-    operations.write_text(json.dumps({'revision':7, 'values':{'transtrade_export_v3_operational':json.dumps({'contracts':[{'ref':marker}], 'shipments':[]})}, 'meta':{}}))
+    operations.write_text(json.dumps({'revision':7, 'values':{'transtrade_export_v3_operational':json.dumps({'contracts':[{'ref':'FIXTURE-REF','price':marker}], 'shipments':[]})}, 'meta':{}}))
     books.write_text(json.dumps({'revision':4, 'journals':{}}))
     original = [operations.read_bytes(), books.read_bytes()]
     env = {k:v for k,v in os.environ.items() if not k.startswith('TT_DB_')}
@@ -43,7 +43,11 @@ require $argv[1];
         assert request(endpoint, {}, user_id=0)[0] == 401
         for module in ['Mill', 'Exports', 'Accounts', 'Directors']:
             status, data = request(endpoint, {module:['View']})
-            assert status == 200 and marker in data['values']['transtrade_export_v3_operational'], (endpoint, module, status, data)
+            assert status == 200,(endpoint,module,status,data)
+            if module == 'Exports':assert marker in data['values']['transtrade_export_v3_operational']
+            else:assert marker not in json.dumps(data),(endpoint,module,data)
+        status, data = request(endpoint, {}, role='Director')
+        assert status == 200 and marker in data['values']['transtrade_export_v3_operational']
         status, data = request(endpoint, {}, role='Super Admin')
         assert status == 200 and data['revision'] == 7
     print('PASS operational read access: real auth on both routes; no-module and unrelated grants denied without data; existing application and Super Admin reads retained; canonical bytes unchanged')

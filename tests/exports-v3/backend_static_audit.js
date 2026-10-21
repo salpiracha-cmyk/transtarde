@@ -36,7 +36,7 @@ assert.match(mysql,/operations_history_subset/,'cached history can be a subset w
 assert.match(mysql,/Milling observation/,'typed loading warnings retain explicit operator provenance');
 assert.match(mysql,/16 \* 1024 \* 1024/);
 assert.match(modulePhp,/tt_user_can_open_module/);
-assert.match(modulePhp,/'masters'=>tt_list_masters\(\)/);
+assert.match(modulePhp,/'masters'=>os_bootstrap_masters\(\$user\)/);
 assert.match(modulePhp,/pending\.set\(key,value\)/,'transient shared-save failures remain pending for retry');
 assert.match(modulePhp,/endpoint='api\/operations\.mysql\.php'/);
 assert.match(runtimeAssets,/TG_header\.png/);
