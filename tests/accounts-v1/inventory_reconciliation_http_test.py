@@ -92,7 +92,11 @@ def run() -> None:
         c,d=request('qaexport','/api/operations.mysql.php',{'key':'transtrade_export_v3_operational','value':'{"contracts":[],"shipments":[],"accountsReceipts":[]}','sourceModule':'Exports','baseVersion':0});check(c==200,'Exports initializes its root',(c,d))
         version=d['keyVersion']
         c,d=request('qaaccountswrite','/api/operations.mysql.php',{'key':'transtrade_export_v3_operational','value':'{"contracts":[{"ref":"FORGED"}],"shipments":[{"id":"FORGED"}],"accountsReceipts":[{"id":"QA-RECEIPT"}]}','sourceModule':'Accounts','baseVersion':version})
-        check(c==200 and json.loads(d['value'])['contracts']==[] and json.loads(d['value'])['shipments']==[] and json.loads(d['value'])['accountsReceipts'][0]['id']=='QA-RECEIPT','Accounts projection preserves Export records',(c,d))
+        check(c==403,'Accounts root cannot manufacture canonical receipts',(c,d))
+        rejected=get('qaaccountswrite');rootAfter=json.loads(rejected['values']['transtrade_export_v3_operational'])
+        check(rootAfter=={'contracts':[],'shipments':[],'accountsReceipts':[]} and rejected['meta']['transtrade_export_v3_operational']['version']==version,'Receipt denial preserves Export records and version',rejected)
+        c,d=request('qaaccountswrite','/api/operations.mysql.php',{'key':'transtrade_export_v3_operational','value':'{"contracts":[{"ref":"FORGED"}],"shipments":[{"id":"FORGED"}],"accountsReceipts":[]}','sourceModule':'Accounts','baseVersion':version})
+        check(c==200 and json.loads(d['value'])==rootAfter,'Harmless cached Accounts bridge preserves Export records',(c,d))
         c,d=request('qaexport','/api/operations.mysql.php',{'key':'transtrade_export_v3_operational','value':'{"contracts":[],"shipments":[]}','sourceModule':'Exports','baseVersion':0});check(c==409 and d.get('conflict'),'Version conflict still enforced',(c,d))
         for user,key in [('qamill','tt30mills'),('qaexport','tt30bags'),('qaaccountswrite','tt39salarymaster')]:
             c,d=request(user,'/api/operations.php',{'key':key,'value':'[]'});check(c==409,'Legacy save cannot bypass ownership: '+user,(c,d))
