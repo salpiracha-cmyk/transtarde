@@ -503,3 +503,10 @@ Online Banking payments expose an editable payment date, defaulting from the vou
 ## Completed-document reprint permissions
 
 - Completed shipment reprint buttons and both paper choices explicitly declare their read intent to the module capture guard. View remains required; the label Print / Save PDF must not manufacture a Create requirement for a committed snapshot. Active document print/save controls retain their existing Create/Edit gate and acknowledged-save requirement. No server mutation authority is derived from this presentation marker.
+
+## 21 October TG / Pakistan document pack
+
+- Every TG pack tab shows its actual print document in the right preview: proforma, invoice, packing, covering and relationship letter. Update only the preview during typing; keep focus, scroll and unfinished entry. Stack preview beneath the form on narrow screens.
+- Jazib's approved relationship-letter structure is the standard editable draft. Fill bank/branch, exporter, TG buyer/remitter, final receiver and its address from the selected form fields. The receiver may follow the Commercial Invoice or another explicitly selected party. Never retain another customer's name/address inside the standard draft.
+- Adopt the standard draft only in an open lot editor; retain prior copied wording and preserve closed/issued historical letters. Unrecognised custom wording remains custom until the user explicitly chooses the standard draft.
+- Save TG Pack and Print / Save require an acknowledged server save. Print the exact submitted document snapshot; later typing during a pending save must not change it. Do not guess a missing receiver address or print unresolved draft fields. No background Save or financial posting.

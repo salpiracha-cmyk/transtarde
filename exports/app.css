@@ -456,3 +456,20 @@
 
 /* FI currency amounts stay intact; narrow views scroll inside the register. */
 @media screen{.table.fi-register-table{min-width:1400px;table-layout:auto}.table.fi-register-table .fi-money{text-align:right;white-space:nowrap;overflow-wrap:normal;word-break:normal;font-variant-numeric:tabular-nums;min-width:120px}}
+
+/* TG pack: one editor and the same A4 output beside it. Screen only. */
+@media screen{
+ .tgPackWorkspace .tgPackSplit{grid-template-columns:minmax(300px,.9fr) minmax(0,1.1fr);align-items:start}
+ .tgPackWorkspace .tgTabPanel{padding:14px;border:1px solid var(--line);border-radius:10px;background:#fff}
+ .tgPackWorkspace .tgDocumentTabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+ .tgPackWorkspace .tgDocumentTabs button{min-height:42px;padding:9px;text-align:left;font-size:11px;white-space:normal}
+ .tgPackWorkspace .field{min-width:0}.tgPackWorkspace input,.tgPackWorkspace select,.tgPackWorkspace textarea{width:100%;box-sizing:border-box}
+ .tgPackWorkspace input[readonly],.tgPackWorkspace textarea[readonly]{background:#f3f6f7;color:#344955}
+ .tgPackWorkspace .tgWordingEditor{margin:14px 0;padding:10px;border:1px solid var(--line);border-radius:8px}
+ .tgPackWorkspace .tgWordingEditor summary{cursor:pointer;font-weight:700}.tgPackWorkspace .tgWordingEditor textarea{margin:8px 0}
+ .tgPackWorkspace .tgPreviewPaper{min-height:560px;max-height:760px;overflow:auto}
+ .tgPackWorkspace .tgPreviewPaper>.printDoc{transform:none;margin:0 auto 12px;zoom:var(--tgPreviewScale,.55)}
+ .tgPackWorkspace .lotPreviewHead{gap:10px;align-items:flex-start}.tgPackWorkspace .lotPreviewHead span{text-align:right}
+}
+@media screen and (max-width:1000px){.tgPackWorkspace .tgPackSplit{grid-template-columns:1fr}.tgPackWorkspace .lotPreviewPane{position:static}}
+@media screen and (max-width:600px){.tgPackWorkspace .tgDocumentTabs{grid-template-columns:repeat(2,minmax(0,1fr))}.tgPackWorkspace .tgPackSummary,.tgPackWorkspace .tgRelationshipEditor .grid2{grid-template-columns:1fr}}
