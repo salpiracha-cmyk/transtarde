@@ -112,3 +112,18 @@ Unknown headers or damaged prefix payloads remain held; no live data is restored
 The file-only audit workflow copies current originals into a private temporary folder on the same host, excludes backup/session/historical-recovery folders, verifies source consistency and restores only the copy's three canonical stores through the actual restore helper. It must verify all original-file hashes, unchanged source business files and cleanup. This is file-recovery evidence and explicitly records `browserAcceptance: false`; it cannot be described as full browser migration, a production restore, a MySQL conversion or office-PC backup acceptance.
 
 The separate browser rehearsal must first prove its gated loopback listener is reachable before copying any application or private data. A failed transport check stays a failed prerequisite. Never reduce hosting protection or claim a browser pass from the file-only result. These implementation-triggered temporary copies are removed on exit; they do not alter retained business backups or their retention policy.
+
+Office shipment delivery admission (security hardening, 21 October 2026): retain
+all existing archive jobs and source documents. New jobs are limited to 80 files,
+256 MiB total, 1 GiB retained storage, 1,000 job directories and 100,000 filesystem
+entries. Count all statuses and orphan files under the exclusive admission lock;
+reserve bounded metadata growth for delivery receipts. Reaching capacity holds
+new jobs for Super Admin review; it never triggers age deletion. The PC daily,
+weekly and monthly backup retention is independent of this delivery queue.
+
+Only verified PDF/JPEG/PNG/WebP, application-generated macro-free Word packages,
+and flat stored BAGS document ZIPs may be delivered. Hold unsafe older packages
+without deleting their bytes. Poll in bounded batches and validate each outbound
+file. Original archived files remain available for investigation; requeue a
+corrected package from its original saved shipment when needed. Existing backup
+protocol 2, transfer credentials and Windows task settings are unchanged.
