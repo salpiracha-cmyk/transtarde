@@ -99,6 +99,11 @@ with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
                 browser=pw.chromium.launch(headless=True);page=browser.new_page(viewport={'width':1280,'height':900})
                 page.goto(f'http://127.0.0.1:{port}/accounts/index.html');page.locator('[data-expense="salary"]').click()
                 page.locator('#rsMasterSetup').click();page.locator('#rsMasterPopup').wait_for();assert page.locator('#rsApplyMaster').is_visible()
+                assert page.locator('#rsMasterEntry').get_attribute('open') is None
+                assert page.locator('[data-rs-group^="MASTER_"]').count()==3
+                page.locator('[data-rs-edit="Alice"]').click();assert page.locator('#rsMasterEntry').get_attribute('open') is not None
+                assert page.locator('#rsSalName').input_value()=='Alice'
+                page.locator('#rsCancelSal').click();assert page.locator('#rsMasterEntry').get_attribute('open') is None
                 before=saved();page.locator('#rsApplyMaster').click();confirmation=page.get_by_role('dialog',name='Review salary change');confirmation.wait_for();confirmation.get_by_role('button',name='Cancel',exact=True).click();assert saved()==before
                 page.locator('#rsApplyMaster').click();page.get_by_role('dialog',name='Review salary change').get_by_role('button',name='Continue',exact=True).click()
                 review=page.get_by_role('dialog',name='Review accounting entries');review.wait_for();assert not page.locator('#rsMasterPopup').is_visible()
