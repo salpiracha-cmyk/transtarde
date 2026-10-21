@@ -26,6 +26,14 @@ try{
  tt_ensure_data_dir();$h=fopen(TT_DATA_DIR.'/accounts.json','c+');if(!$h||!flock($h,$write?LOCK_EX:LOCK_SH))throw new RuntimeException('Accounts storage unavailable.');
  try{$raw=stream_get_contents($h);$s=$raw?json_decode($raw,true):[];if(!is_array($s))throw new RuntimeException('Accounts storage unreadable.');
   $s=tt_fi_advice_project($s,tt_fi_advice_root());$result=null;
+  if($write&&($b['action']??'')==='confirm'){
+   $prior=$s['tgRemittanceRequests'][(string)($b['requestKey']??'')]??null;
+   $previous=is_array($prior)?($s['tgRemittances'][$prior['id']??'']??null):null;
+   $sources=is_array($previous)?(array)($previous['reviewSources']??[]):array_values(array_filter(tgr_items($s),static fn($item)=>in_array($item['id'],(array)($b['ids']??[]),true)));
+   $rights=[];foreach($sources as $item)$rights[!empty($item['legacy'])?'Edit':'Create']=true;
+   if(!$rights)$rights[is_array($previous)&&!empty($previous['legacyReversalPostIds'])?'Edit':'Create']=true;
+   foreach(array_keys($rights) as $right)if(!tt_api_icon_write_allowed($u,'tg_remittances.php',$b,$right,'TG'))tgr_out(['ok'=>false,'error'=>'The corresponding TG remittance and company action permission is required.'],403);
+  }
   if($write){if(($b['action']??'')==='reopen')$result=tgr_reopen($s,$b,$u);elseif(($b['action']??'')==='confirm')$result=tgr_confirm($s,$b,$u,$banks,$names,$rates);else throw new DomainException('Choose POST to confirm the remittance.');$s['revision']=(int)($s['revision']??0)+1;
    $encoded=json_encode($s,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR);rewind($h);if(!ftruncate($h,0)||fwrite($h,$encoded)!==strlen($encoded)||!fflush($h))throw new RuntimeException('Could not save remittance.');
   }

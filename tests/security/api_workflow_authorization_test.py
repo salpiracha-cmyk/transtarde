@@ -88,7 +88,8 @@ require $argv[1];
     assert status==200,data
     assert request('local_sales_costing',{'action':'save_rate','entity':'TTI'})[0]==403
     user['permissions']['Accounts']['customer']=customer_grant
-    # Legitimate same-company certificate and customer-review saves still work.
+    # Legitimate same-company certificate creation and customer-review saves still work.
+    user['permissions']['Accounts']['reports']=['View','Create','Edit']
     seed();status,data=request('export_tax_certificates',{'entity':'TTI','action':'save_certificate','financialYear':'2026-27','bankName':'Bank','certificateNo':'CERT','taxCode':'EXP-AWT-NTR','certificateDate':'2026-10-07','certificateAmount':100})
     assert status==200,data
     seed({'revision':0,'journals':{},'localSalesCandidates':{'TTI-S':{'id':'TTI-S','entity':'TTI','status':'Pending Accounts Approval'}}})

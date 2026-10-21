@@ -26,12 +26,17 @@ try{
    $identity=$entity.'|'.($u['id']??0).'|'.$key;$fingerprint=hash('sha256',json_encode($b,JSON_THROW_ON_ERROR));$saved=$s['bankReconciliationRequests'][$identity]??null;
    if($saved){if($saved['fingerprint']!==$fingerprint)br_out(['ok'=>false,'error'=>'Request key already used.'],409);$rec=$saved['result'];}
    else{
+    $savedKey=$entity.'|'.$bankId;
+    $exists=array_key_exists($date,(array)($s['bankReconciliationHistory'][$savedKey]??[]))||($s['bankReconciliations'][$savedKey]['statementDate']??null)===$date;
+    if(!tt_api_upsert_allowed($u,'bank_reconciliation.php',$b,$exists,$entity))br_out(['ok'=>false,'error'=>'The corresponding reconciliation and company Create or Edit permission is required.'],403);
     if((int)($b['revision']??-1)!==(int)($s['revision']??0))br_out(['ok'=>false,'error'=>'Accounts changed. Reload reconciliation before saving.'],409);
     $rec=br_save($s,$entity,$b,$u);$s['bankReconciliationRequests'][$identity]=['fingerprint'=>$fingerprint,'result'=>$rec];$s['revision']=(int)($s['revision']??0)+1;
     $encoded=json_encode($s,JSON_THROW_ON_ERROR);rewind($h);if(!ftruncate($h,0)||fwrite($h,$encoded)!==strlen($encoded)||!fflush($h))throw new RuntimeException('Reconciliation save failed.');
    }
   }
-  $out=br_payload($s,$entity,$bankId,$date)+['canEdit'=>$canWrite,'saved'=>$rec];
+  $savedKey=$entity.'|'.$bankId;$exists=array_key_exists($date,(array)($s['bankReconciliationHistory'][$savedKey]??[]))||($s['bankReconciliations'][$savedKey]['statementDate']??null)===$date;$needed=$exists?'Edit':'Create';
+  $canSave=tt_user_can_access_entity($u,$entity,$needed)&&br_permission($u,$needed);
+  $out=br_payload($s,$entity,$bankId,$date)+['canEdit'=>$canSave,'saved'=>$rec];
  }finally{flock($h,LOCK_UN);fclose($h);}
  br_out($out);
 }catch(DomainException $x){br_out(['ok'=>false,'error'=>$x->getMessage()],422);}catch(Throwable $x){error_log('Bank reconciliation: '.$x->getMessage());br_out(['ok'=>false,'error'=>'Bank reconciliation could not be loaded or saved.'],500);}

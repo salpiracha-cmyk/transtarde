@@ -15,7 +15,7 @@ function bm_can_write(array $u,?string $action=null):bool {
         if($p==='all')return true;
         // Retain the old flat, module-wide write grant. Granular matrices must
         // name Brokerage explicitly; rights on Reports never authorize rates.
-        if(is_array($p)&&array_is_list($p)&&array_intersect(['Create','Edit','Approve'],$p))return true;
+        if(is_array($p)&&array_is_list($p)&&array_intersect($action===null?['Create','Edit']:[$action],$p))return true;
         foreach($action===null?['Create','Edit']:[$action] as $required)if(tt_user_can_module_action($u,$module,'brokerage',$required))return true;
     }
     return false;

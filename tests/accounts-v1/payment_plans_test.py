@@ -119,8 +119,11 @@ require $argv[1];
     # The supplier with no broker uses supplier grouping; whole plan closes only after all groups.
     plan=call({'action':'post','planId':plan['id'],'version':plan['version'],'group':'Supplier C','date':'2026-10-07','rowKeys':plan['groups']['Supplier C']['rowKeys'],'sources':[{'type':'BANK','bankAccountId':'TTI-P','method':'CHEQUE','reference':'1002','amount':300}]})['result']['plan']
     user['permissions']['Accounts']['supplier']=['View','Create'];auth.write_text(json.dumps({'users':[user],'masters':masters,'audit':[]}))
+    call({'action':'close','planId':plan['id'],'version':plan['version']},403)
+    user['permissions']['Accounts']['supplier']=['View','Create','Edit'];auth.write_text(json.dumps({'users':[user],'masters':masters,'audit':[]}))
     closed=call({'action':'close','planId':plan['id'],'version':plan['version']})['result']['plan'];assert closed['status']=='Closed'
     assert read()['plans']==[] and read()['history'][0]['id']==closed['id']
+    user['permissions']['Accounts']['supplier']=['View','Create'];auth.write_text(json.dumps({'users':[user],'masters':masters,'audit':[]}))
     call({'action':'reopen','planId':closed['id'],'version':closed['version'],'reason':'Review corrected cheque'},403)
     user['permissions']['Accounts']['supplier']=['View','Create','Edit'];auth.write_text(json.dumps({'users':[user],'masters':masters,'audit':[]}))
     reopened=call({'action':'reopen','planId':closed['id'],'version':closed['version'],'reason':'Review corrected cheque'})['result']['plan'];assert reopened['status']=='Open'

@@ -32,7 +32,9 @@ with tempfile.TemporaryDirectory(prefix='brokerage-rights-') as directory:
     request(edit,{**base,'ratePer100Kg':110})
     request(edit,{**base,'effectiveFrom':'2026-10-03'},403)
     request({'Directors':'all'},{**base,'effectiveFrom':'2026-10-03'})
-    request({'Accounts':['View','Edit']},{**base,'effectiveFrom':'2026-10-04'})
+    request({'Accounts':['View','Edit']},{**base,'effectiveFrom':'2026-10-04'},403)
+    request({'Accounts':['View','Create']},{**base,'effectiveFrom':'2026-10-04'})
+    request({'Accounts':['View','Edit']},{**base,'effectiveFrom':'2026-10-04','ratePer100Kg':125})
     data=request({'Directors':{'brokerage':['View']}},method='GET');assert not data['canCreate'] and not data['canEdit']
     data=request(edit,method='GET');assert data['canEdit'] and not data['canCreate']
     wht={'action':'save_wht_rate','csrf':'fixture','whtPercent':12,'effectiveFrom':'2026-10-01','active':True}

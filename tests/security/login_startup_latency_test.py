@@ -11,7 +11,7 @@ with tempfile.TemporaryDirectory(prefix='tti-login-latency-') as directory:
 function tt_maybe_auto_backup():void{$GLOBALS['backupCalls']=($GLOBALS['backupCalls']??0)+1;}
 function tt_backup_status():array{if(session_status()===PHP_SESSION_ACTIVE)throw new RuntimeException('Backup held session');tt_maybe_auto_backup();return ['fixtureBackupAvailable'=>true];}
 ''')
- (app/'office_backup_auth.php').write_text('<?php function tt_office_backup_enabled():bool{return false;}')
+ shutil.copy(ROOT/'office_backup_auth.php',app/'office_backup_auth.php')
  (app/'api/director_approvals_core.php').write_text('<?php function tt_pending_director_rate_approvals(array $s):array{return [];} function tt_pending_jv_approvals(array $s):array{return [];}')
  harness=base/'request.php';meta=base/'meta.json'
  harness.write_text('''<?php
