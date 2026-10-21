@@ -247,7 +247,7 @@ try{
             }
         }
         $store['bankAccountSettings'][$id]=$setting;$store['revision']=(int)($store['revision']??0)+1;
-        rewind($h);ftruncate($h,0);fwrite($h,json_encode($store,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR));fflush($h);
+        $encodedAccounts=json_encode($store,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);rewind($h);if(!ftruncate($h,0)||fwrite($h,$encodedAccounts)!==strlen($encodedAccounts)||!fflush($h))throw new RuntimeException('Accounts storage could not be written.');
     }finally{flock($h,LOCK_UN);fclose($h);}
     ba_respond(['ok'=>true,'saved'=>$setting]+ba_payload($store,$entity)+['revision'=>$store['revision']]);
 }catch(InvalidArgumentException $e){ba_respond(['ok'=>false,'error'=>$e->getMessage()],422);}

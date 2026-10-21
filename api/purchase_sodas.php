@@ -332,7 +332,7 @@ try {
             $store['purchaseSodas'][$id] = array_replace($old, ['status'=>$status, 'audit'=>$audit, 'statusChangedAt'=>gmdate('c'), 'statusChangedBy'=>ps_user_name($user)]);
         } else ps_out(['ok'=>false, 'error'=>'Unknown action.'], 422);
         $store['revision'] = (int)($store['revision'] ?? 0) + 1;
-        rewind($handle); ftruncate($handle, 0); fwrite($handle, json_encode($store, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR)); fflush($handle);
+        $encodedAccounts=json_encode($store,JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);rewind($handle);if(!ftruncate($handle,0)||fwrite($handle,$encodedAccounts)!==strlen($encodedAccounts)||!fflush($handle))throw new RuntimeException('Accounts storage could not be written.');
     } finally { flock($handle, LOCK_UN); fclose($handle); }
     ps_out(['ok'=>true, 'sodas'=>ps_rows($store,$entity), 'nextSodaNo'=>ps_next_no((array)$store['purchaseSodas']), 'created'=>$created]+ps_metadata($user));
 } catch (InvalidArgumentException $error) {
