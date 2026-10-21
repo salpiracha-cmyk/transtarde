@@ -56,7 +56,7 @@ with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
         assert wait()[0]==200
         store=saved();store['salaryMasters']['Bob']['category']='MILL_STAFF';store['salaryMasters']['Bob']['productionCostEligible']=True
         store['salaryMasters']['Cara']['category']='HOME_STAFF';(root/'data/accounts.json').write_text(json.dumps(store))
-        assert draft('Alice',750)[0]==200
+        status,result=draft('Alice',750);assert status==200,result
         def group(key,**extra):return request({'action':'post_salary_group','group':key,'version':request()[1]['salarySheet']['version'],**extra})
         before=saved();status,denied=group('MILL_STAFF');assert status==422,denied;assert saved()==before
         assert request({'action':'close_salary_month','version':request()[1]['salarySheet']['version']})[0]==422
