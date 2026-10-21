@@ -49,7 +49,7 @@ function fixture(html,source=''){
 }
 // FOB hides freight; CFR and CIF reveal the applicable components without changing values.
 {
- const w=fixture('<main></main>',`var contractDraft={incoterm:'FOB',packingUnit:'KG',packings:[{brand:'Fixture',size:50,containers:1,freight:7,weightPer:25}]};const priceComponents=()=>({freight:7,insurance:2,finalRate:100,fob:91}),money=v=>String(v);${line('exports/app.js','priceLinesHTML')}`);
+ const w=fixture('<main></main>',`var contractDraft={incoterm:'FOB',packingUnit:'KG',packings:[{brand:'Fixture',size:50,containers:1,freight:7,weightPer:25}]};const priceComponents=()=>({freight:7,insurance:2,finalRate:100,fob:91}),money=v=>String(v);${read('exports/app.js').split('\n').find(row=>row.startsWith('const moneyHTML='))}${line('exports/app.js','priceLinesHTML')}`);
  w.eval('document.querySelector("main").innerHTML=priceLinesHTML()');let freight=w.document.querySelector('[data-freight]');assert.equal(freight.closest('.field').hidden,true);assert.equal(freight.value,'7');
  w.eval('contractDraft.incoterm="CFR";document.querySelector("main").innerHTML=priceLinesHTML()');assert.equal(w.document.querySelector('[data-freight]').closest('.field').hidden,false);assert.equal(w.document.querySelector('[data-ins]'),null);
  w.eval('contractDraft.incoterm="CIF";document.querySelector("main").innerHTML=priceLinesHTML()');assert.ok(w.document.querySelector('[data-ins]'));

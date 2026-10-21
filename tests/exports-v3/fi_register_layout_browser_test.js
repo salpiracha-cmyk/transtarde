@@ -15,7 +15,7 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium}=require('
    window.original=JSON.stringify(state);
   });
   const native=fs.readFileSync('exports/app.js','utf8').split('\n').find(l=>l.startsWith('function renderFI(){'));assert(native,'Use the actual FI renderer');
-  await page.addScriptTag({content:native+'\nrenderFI();'});
+  await page.addScriptTag({content:fs.readFileSync('exports/app.js','utf8').split('\n').filter(line=>line.startsWith('const fmtHTML=')||line.startsWith('const moneyHTML=')).join('\n')+'\n'+native+'\nrenderFI();'});
   const table=page.getByRole('table').first();
   for(const width of [1363,1024,390]){
    await page.setViewportSize({width,height:936});
