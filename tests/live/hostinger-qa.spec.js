@@ -126,7 +126,8 @@ async function signInQa(page) {
 
 test.use({
   viewport: { width: 1440, height: 1000 },
-  trace: 'retain-on-failure',
+  // Production credentials and authenticated request bodies must never enter traces.
+  trace: 'off',
   screenshot: 'only-on-failure',
   video: 'retain-on-failure',
 });
