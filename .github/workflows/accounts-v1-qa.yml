@@ -58,6 +58,7 @@ jobs:
           node tests/accounts-v1/production_source_save_test.js
           node tests/accounts-v1/mill_source_save_test.js
           node tests/accounts-v1/accounts_notifications_test.js
+          node tests/accounts-v1/accounts_startup_recovery_test.js
           node tests/accounts-v1/rules_engine_test.js
           node tests/accounts-v1/salary_donations_test.js
           node tests/accounts-v1/expenses_v1_test.js
