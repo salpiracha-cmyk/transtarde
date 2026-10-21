@@ -28,6 +28,10 @@ function smw_pending_instalment(array $advance,string $month):float {
 function smw_prepared_recovery(array $s,array $row,string $entity,string $month):array {
     $posted=(float)($s['salaryPeriods'][$row['periodId']]['advanceApplied']??0);$extra=0.0;
     foreach(rsv2_open_advances($s,$entity,(string)$row['masterId'],$month) as $advance)$extra+=smw_pending_instalment($advance,$month);
+    $traced=0.0;foreach((array)($s['salaryAdvances']??[]) as $advance)if(($advance['entity']??'')===$entity&&($advance['masterId']??'')===$row['masterId'])foreach((array)($advance['adjustments']??[]) as $adjustment)if(($adjustment['month']??'')===$month)$traced+=(float)$adjustment['amount'];
+    // Historical periods without matching source adjustments need reconciliation,
+    // not an inferred second instalment on opening the payment form.
+    if($posted>$traced+.005)$extra=0.0;
     $unpaid=max(0,(float)$row['totalDue']-(float)$row['paidAfterPrepare']);
     $row['recoveryMaximum']=round(min($unpaid,$posted+(float)$row['advanceOutstanding']),2);
     if(empty($row['reviewed'])&&!array_key_exists('requestedRecovery',$row)){
