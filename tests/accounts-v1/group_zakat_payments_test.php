@@ -27,4 +27,12 @@ $partial=$record;$partial['sections']['gold']['complete']=false;$r=gm_assessment
 $carry=$record;$carry['sections']['header']['data']['openingCarryPKR']=-300;$r=gm_assessment_summary($carry,['journals'=>[$direct]],'2026-10-17');zp_check($r['controlLedger']['balancePKR']===-150.0&&$r['advanceCreditPKR']===150.0,'Prior excess survives annual debit and payments');
 $wrong=$direct;$wrong['entity']='BRM';zp_check(gm_zakat_payments(['journals'=>[$wrong]],'2026-03-01','2026-10-17')['totalPKR']===0.0,'Non-TTI expense does not discharge TTI assessment control');
 $dated=$direct;$dated['lines'][1]['paymentDate']='2026-06-02';$r=gm_zakat_payments(['journals'=>[$dated]],'2026-03-01','2026-10-17');zp_check($r['totalPKR']===0.0&&$r['warnings'],'Conflicting actual/voucher dates require reconciliation');
+$approved=$record;$approved['sections']['header']['data']['openingCarryPKR']=1000;
+$next=$approved;$next['id']='ZAKAT|2027-02-18';$next['date']='2027-02-18';$next['sections']['header']['data']['hijriYear']='1448';$next['sections']['header']['data']['openingCarryPKR']=99999;$next['sections']['financials']['rows']=[['id'=>'W2','label'=>'Next-year fixture wealth','amount'=>20000]];
+$newPayment=zp_post('NEXT-PAY','2027-02-20',[['account'=>'7210','debit'=>70,'credit'=>0],['account'=>'1110','debit'=>0,'credit'=>70]]);
+$carryState=['journals'=>[$direct,$reverse,$newPayment],'groupManagementRecords'=>[$approved,$next]];$unchanged=serialize($carryState);
+$linked=gm_record_summary($next,$carryState,'2027-03-01');$again=gm_record_summary($next,$carryState,'2027-03-01');
+zp_check($linked['openingCarryPKR']===1170.0&&$linked['assessmentPKR']===500.0&&$linked['paidPKR']===70.0&&$linked['balancePKR']===1600.0,'Confirmed opening plus previous assessment less previous paid carries once, then adds new annual assessment and subtracts current payments');
+zp_check(count(array_filter($linked['controlLedger']['rows'],static fn($row)=>$row['reference']===$next['id']))===1&&count($linked['controlLedger']['rows'])===3,'New yearly assessment and current payment appear once in the linked balance ledger');
+zp_check($again===$linked&&serialize($carryState)===$unchanged,'Reopening the form neither duplicates the annual amount nor rewrites the approved opening or financial journals');
 echo "PASS Zakat payment reconciliation: original direct cash/refunds, unpaid/future/non-TTI exclusions, ambiguous payroll and mixed-payment holds, original dates, zero source writes and blocked annual carry until allocation review\n";
