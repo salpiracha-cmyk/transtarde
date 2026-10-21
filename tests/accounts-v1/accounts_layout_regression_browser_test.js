@@ -73,8 +73,8 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium}=require('
  await page.locator('#rsPrepare').click();
  for(const width of [1440,1280,1024,700,390]){
   await page.setViewportSize({width,height:900});await page.waitForTimeout(70);
-  assert.equal(await page.locator('.ttrs-salary-table th').count(),5,'Shared row normalizer preserves the five-column sheet');
-  assert(await page.locator('.ttrs-salary-table').evaluate(el=>el.scrollWidth<=el.clientWidth+2),'No salary horizontal scroll at '+width);
+  assert(await page.locator('.ttrs-salary-table').evaluateAll(tables=>tables.length>0&&tables.every(table=>table.querySelectorAll('th').length===5)),'Each salary group keeps five aligned columns');
+  assert(await page.locator('.ttrs-salary-table').evaluateAll(tables=>tables.every(el=>el.scrollWidth<=el.clientWidth+2)),'No salary horizontal scroll at '+width);
   for(const attr of ['draft-pay','month-adjust','sheet-edit','sheet-remove']){
    const control=page.locator('[data-rs-'+attr+'="S0"]');
    assert(await control.evaluate(el=>{const r=el.getBoundingClientRect();return r.left>=0&&r.right<=innerWidth}),'First person action stays within viewport at '+width);

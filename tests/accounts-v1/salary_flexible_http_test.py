@@ -424,7 +424,7 @@ with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
                 page.locator('#rsDraftCancel').click()
                 for width in [1280,1024,700,390]:
                     page.set_viewport_size({'width':width,'height':900})
-                    assert page.locator('.ttrs-salary-table').evaluate('(el)=>el.scrollWidth<=el.clientWidth+2')
+                    assert page.locator('.ttrs-salary-table').evaluate_all('(tables)=>tables.every(el=>el.scrollWidth<=el.clientWidth+2)')
                     for selector in ['[data-rs-draft-pay="Mrs"]','[data-rs-month-adjust="Mrs"]','[data-rs-sheet-edit="Mrs"]','[data-rs-sheet-remove="Mrs"]']:
                         assert page.locator(selector).evaluate('(el)=>{const r=el.getBoundingClientRect();return r.left>=0&&r.right<=innerWidth}')
                 page.set_viewport_size({'width':1280,'height':900})
