@@ -4,6 +4,7 @@ const {JSDOM} = require('jsdom');
 
 (async () => {
   const requests = [], opened = [];
+  const masters={salary_staff:[['Mill person','TTI','MILL_STAFF'],['House person','TTI','HOME_STAFF'],['Office person','TTI','OFFICE_STAFF'],['Director person','TTI','DIRECTOR_REMUNERATION'],['Mrs person','BRM','HOME_MONTHLY_GIVE']].map((v,i)=>({id:'S'+i,values:[...v,'1000','20','30','2026-10-01','','STAFF_COST','No','Active','']}))};
   const staff = {id:'2',name:'Fixture Director',username:'fixture.director',role:'Accounts',location:'All authorized locations',active:true,modules:['Accounts','Directors'],permissions:{Accounts:{reports:['View']},Directors:{tgmaster:['View','Edit'],future_screen:['View']}},masterAccess:true,masterPermissions:{products:['View'],reference_lists:['Use','View'],product_settings:['View','Edit']},lastActive:'2026-10-16T20:00:00+00:00'};
   const dom = new JSDOM(fs.readFileSync('index.html','utf8'), {url:'https://fixture.test/index.php',runScripts:'outside-only',pretendToBeVisual:true});
   const w = dom.window;
@@ -15,7 +16,7 @@ const {JSDOM} = require('jsdom');
   w.open = (...args) => opened.push(args);
   w.fetch = async (url,options={}) => {
     if(options.body)requests.push(JSON.parse(options.body));
-    return {ok:true,json:async()=>({ok:true,users:[staff],masters:{},options:{},approvals:[],snapshots:[],serverSnapshots:[],office:{}})};
+    return {ok:true,json:async()=>({ok:true,users:[staff],masters,options:{},approvals:[],snapshots:[],serverSnapshots:[],office:{}})};
   };
   w.eval(fs.readFileSync('admin/app.js','utf8').replace('  initialize();','  window.testConsole={openUserDialog,saveUser}; initialize();'));
   await new Promise(resolve=>setTimeout(resolve,50));
@@ -24,6 +25,8 @@ const {JSDOM} = require('jsdom');
   const save = async () => {requests.length=0;await w.testConsole.saveUser({preventDefault(){}});return requests.find(x=>x.action==='update');};
   w.testConsole.openUserDialog('2');
   assert.equal(w.document.querySelectorAll('[data-permission-module="Directors"]').length,30);
+  assert.equal(w.document.querySelectorAll('#permissionMatrix details').length,4);
+  assert.equal(w.document.querySelectorAll('#permissionMatrix details[open]').length,0,'Detailed choices start collapsed');
   for(const module of ['Accounts','Directors'])for(const icon of ['group-reports','costing','zakat'])assert.equal(w.document.querySelectorAll(`[data-permission-module="${module}"][data-permission-icon="${icon}"]:checked`).length,0,'New report permission must not be granted implicitly');
   w.document.getElementById('userName').value='Amended name only';
   let sent=await save();
@@ -64,6 +67,17 @@ const {JSDOM} = require('jsdom');
     w.document.querySelector(`[data-master="${name}"]`).click();
     assert.equal([...w.document.querySelectorAll('#masterTableHead th')].filter(x=>x.textContent==='Status').length,1);
   }
+  w.document.querySelector('[data-master="salary_staff"]').click();
+  const groups=[...w.document.querySelectorAll('[data-salary-master-group]')];assert.equal(groups.length,5);
+  assert.equal(w.document.querySelectorAll('#salaryMasterGroups [data-delete-master]').length,5);
+  for(const button of w.document.querySelectorAll('#salaryMasterGroups [data-delete-master]'))assert.equal(button.textContent,'−');
+  groups[0].open=false;
+  w.document.querySelector('#salaryMasterGroups [data-open-master]').click();
+  assert(!w.document.querySelector('[data-salary-master-group="TTI-MILL_STAFF"]').open,'Opening detail preserves collapsed sections');
+  assert(w.document.querySelector('[data-edit-master="S0"]'),'Grouped row still opens its real staff record');
+  w.document.querySelector('[data-master="export_customers"]').click();
+  assert.equal(w.document.getElementById('salaryMasterGroups'),null);
+  assert(!w.document.getElementById('masterTableBody').closest('.table-wrap').hidden);
   w.close();
   console.log('PASS Console launcher, granular/legacy permission preservation, explicit revocation, master scopes and status columns');
 })().catch(error=>{console.error(error);process.exitCode=1;});

@@ -89,3 +89,20 @@ assert(auth.includes("if (($user['role'] ?? '') === 'Super Admin') return 'index
 assert(auth.includes("if (tt_user_can_open_module($user, 'Accounts')) return 'accounts/index.php'"), 'Accounts staff must still land directly in Accounts');
 
 console.log('Accounts professional desk: passed');
+
+// Exercise the same rendered icons and action menus for both Pakistan books.
+(async()=>{
+  const {JSDOM}=require('jsdom');
+  const dom=new JSDOM('<div id="ttAccountingDesk"><div id="ttDeskWork"></div></div>',{url:'https://fixture.test/accounts/',runScripts:'outside-only'}),w=dom.window;
+  w.TT_ACCOUNT_ACCESS={permissions:'all',canInventoryReconciliation:true,canGroupDaily:true,canGroupZakat:true};
+  w.fetch=async()=>({ok:true,json:async()=>({ok:true,canCreate:true,accounts:[{settings:{retentionAccount:true}}],pendingTg:[{}]})});
+  w.eval(desk.replace("  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init, {once:true}); else init();","  window.parityHome=showAreasHome;"));
+  const render=async book=>{
+    w.localStorage.setItem('tt_accounts_entity',book);w.parityHome();
+    const home=w.document.getElementById('ttDeskWork').innerHTML,keys=[...w.document.querySelectorAll('[data-tt-area]')].map(el=>el.dataset.ttArea),menus={};
+    for(const key of keys){await w.TT_ACCOUNTING_DESK.showArea(key);menus[key]=[...w.document.querySelectorAll('[data-tt-action]')].map(el=>el.outerHTML);}
+    return {home,menus};
+  };
+  assert.deepStrictEqual(await render('TTI'),await render('BRM'),'TTI and BRM must use identical icons, layout and action details for equivalent access and bank facilities');
+  dom.window.close();console.log('PASS rendered TTI/BRM home icons and every Accounts action menu match');
+})().catch(error=>{console.error(error);process.exitCode=1;});

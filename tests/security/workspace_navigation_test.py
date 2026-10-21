@@ -1,5 +1,5 @@
 """Real authenticated home/module delivery uses existing grants without granting owner access."""
-import json, os, pathlib, shutil, subprocess, tempfile
+import http.cookiejar, json, os, pathlib, re, shutil, socket, subprocess, tempfile, time, urllib.error, urllib.parse, urllib.request
 ROOT=pathlib.Path(__file__).resolve().parents[2]
 with tempfile.TemporaryDirectory(prefix='tti-workspaces-') as directory:
  root=pathlib.Path(directory);app=root/'app';shutil.copytree(ROOT,app,ignore=shutil.ignore_patterns('.git','node_modules','__pycache__','tmp','playwright-report','test-results'))
@@ -34,4 +34,24 @@ register_shutdown_function(static function(){echo "\\nHTTP_STATUS=".(http_respon
  status,master=request('/index.php?view=masters');assert status==200 and '"Accounts":"all"' in master and '"masterControlled":true' in master
  user['active']=False;save_user();assert request('/accounts/index.php')[0]==302,'Inactive Director must remain blocked'
  assert books.read_bytes()==before,'Home/module reads changed original financial books'
+ # Exercise the real login POST and its Location header, not just role helpers.
+ user['active']=True;user['password_hash']=subprocess.check_output(['php','-r',"echo password_hash('FixturePass123!',PASSWORD_DEFAULT);"],env=env,text=True);save_user()
+ class NoRedirect(urllib.request.HTTPRedirectHandler):
+  def redirect_request(self,*args,**kwargs):return None
+ with socket.socket() as sock:sock.bind(('127.0.0.1',0));port=sock.getsockname()[1]
+ server=subprocess.Popen(['php','-S',f'127.0.0.1:{port}','-t',str(app)],env=env,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+ try:
+  base=f'http://127.0.0.1:{port}';cookies=http.cookiejar.CookieJar();opener=urllib.request.build_opener(NoRedirect(),urllib.request.HTTPCookieProcessor(cookies))
+  for attempt in range(50):
+   try:login=opener.open(base+'/login.php',timeout=3).read().decode();break
+   except urllib.error.URLError:time.sleep(.1)
+  else:raise AssertionError('Login fixture did not start')
+  csrf=re.search(r'name="csrf" value="([^"]+)"',login).group(1)
+  try:opener.open(base+'/login.php',urllib.parse.urlencode({'csrf':csrf,'username':'fixture','password':'FixturePass123!'}).encode(),timeout=10);raise AssertionError('Expected sign-in redirect')
+  except urllib.error.HTTPError as response:
+   assert response.code==302 and response.headers['Location']=='staff-home.php',('Wrong Director login destination',response.code,response.headers)
+  home=opener.open(base+'/staff-home.php',timeout=10).read().decode()
+  for href in ['/accounts/index.php','/module.php?id=milling','/module.php?id=exports','/directors/index.php','/index.php?view=masters']:assert f'href="{href}"' in home
+  assert 'Create User' not in home and books.read_bytes()==before
+ finally:server.terminate();server.wait()
  print('PASS actual-auth Director workspaces and header delivery, current permission narrowing, owner-console separation and unchanged books')
