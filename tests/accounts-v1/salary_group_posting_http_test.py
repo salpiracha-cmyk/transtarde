@@ -23,6 +23,7 @@ with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
     function tt_require_login(){return ['role'=>'Super Admin','id'=>1,'username'=>'Fixture'];}
     function tt_user_can_open_module($user,$module){return true;}
     function tt_user_can_access_entity($user,$entity,$action){return $entity==='TTI';}
+    function tt_api_upsert_allowed($user,$endpoint,$body,$exists,$entity=null){return tt_user_can_access_entity($user,$entity,$exists?'Edit':'Create');}
     function tt_verify_csrf($csrf){return $csrf==='fixture';}
     function tt_bank_can_transact($id){return in_array($id,['bank-a','bank-b']);}
     function tt_next_post_id(array $existing, string $module='Accounts', string $area='Journal', ?string $date=null): string {
