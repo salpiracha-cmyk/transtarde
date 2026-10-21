@@ -3,7 +3,7 @@ import json,os,pathlib,shutil,socket,subprocess,tempfile,time,urllib.request,url
 ROOT=pathlib.Path(__file__).resolve().parents[2]
 with tempfile.TemporaryDirectory(prefix='tg-remittance-') as tmp:
  root=pathlib.Path(tmp);(root/'api').mkdir();(root/'accounts').mkdir();(root/'data').mkdir()
- for name in ['supplier_opening_core.php','accounts_subaccounts_core.php','accounts_ledger_visibility.php','assets_registry_core.php','export_receipts.php','export_receipt_tg_mirror.php','forward_booking_core.php','accounts_receipt_amend_core.php','tg_remittances.php','tg_remittance_core.php','fi_credit_advice_link.php','receipt_invoice_links.php','accounts_reviews.php','accounts_reviews_core.php','accounts_dashboard.php','tg_liability_projection.php','customer_receivables_core.php','bank_accounts.php','expense_reminders.php','service_ledger_groups.php','accounts_ledger_browser.php','accounts_read_policy.php','accounts_post_delete_core.php','accounts_reference.php']:
+ for name in ['supplier_opening_core.php','accounts_subaccounts_core.php','accounts_ledger_visibility.php','assets_registry_core.php','export_receipts.php','export_receipt_tg_mirror.php','forward_booking_core.php','accounts_receipt_amend_core.php','tg_remittances.php','tg_remittance_core.php','fi_credit_advice_link.php','receipt_invoice_links.php','accounts_reviews.php','accounts_reviews_core.php','accounts_dashboard.php','tg_liability_projection.php','customer_receivables_core.php','bank_accounts.php','expense_reminders.php','service_ledger_groups.php','accounts_ledger_browser.php','accounts_read_policy.php','accounts_post_delete_core.php','accounts_reference.php', 'tg_native_currency.php']:
   shutil.copy(ROOT/'api'/name,root/'api'/name)
  for name in ['accounting_master_v1.json','settlement_policy_v1.json','export_realization_policy_v1.json','tg-remittances-ui.js','export-receipts-ui.js','post-confirmation-ui.js']:
   shutil.copy(ROOT/'accounts'/name,root/'accounts'/name)
@@ -28,6 +28,7 @@ with tempfile.TemporaryDirectory(prefix='tg-remittance-') as tmp:
  function tt_user_can_access_entity($u,$e,$a){return in_array($e,['TTI','TG'],true)&&(($a==='View')||($_SERVER['HTTP_X_FIXTURE_ROLE']??'')!=='readonly');}
  function tt_verify_csrf($v){return $v==='fixture';}function tt_csrf_token(){return 'fixture';}
  function tt_master_options(){return ['currencies'=>['USD','AED','PKR']];}function tt_user_accounts_entities($u){return ['TTI','TG'];}
+ function tt_company_vat_rate($e,$default=5){return 5;}
  function tt_company_fx_rate($e,$f,$t){return $f==='USD'?3.67:1;}
  function tt_read_store(){return ['masters'=>tt_list_masters()];}
  function tt_list_masters(){return ['export_realization_charges'=>[['id'=>'WHT','values'=>['Withholding Tax','EXP-AWT-NTR','Income Tax','NTR','PKR_PAYMENT','','','','Tax','1260','Yes','TTI; BRM','Active']],['id'=>'COMM','values'=>['Bank Commission','EXP-BANK-COMM','Bank Fee','Any','PKR_PAYMENT','','','','Fee','6810','No','TTI; BRM','Active']],['id'=>'FED','values'=>['FED Tax','EXP-FED-BANK','FED','Any','CHARGE:EXP-BANK-COMM','','','','Tax','6820','No','TTI; BRM','Active']]],'banks'=>[['id'=>'PKR','values'=>['Company Account','TTI','','TTI PKR','BANK','','','PKR','789','','','','','Active']],['id'=>'USD','values'=>['Company Account','TG','','TG USD','BANK','','','USD','123','','','','','Active']],['id'=>'AED','values'=>['Company Account','TG','','TG AED','BANK','','','AED','456','','','','','Active']]]];}
@@ -118,6 +119,14 @@ with tempfile.TemporaryDirectory(prefix='tg-remittance-') as tmp:
   assert req(body=confirm,role='readonly')[0]==403
   status,confirmed=req(body=confirm);assert status==200,confirmed
   assert next(x for x in confirmed['banks'] if x['id']=='USD')['balance']['posted']==-350
+  shared_pk=basket['receipt']['journalId'];shared_tg=confirmed['posted']['journalId']
+  for company,own_id,other_id in [('TTI',shared_pk,shared_tg),('TG',shared_tg,shared_pk)]:
+   status,register=req(f'accounts_ledger_browser.php?entity={company}&account=POSTS&to=2026-10-03')
+   assert status==200,register
+   assert all(row['entity']==company for row in register['rows']),'Ordinary register rows must stay within their company'
+   own=next(row for row in register['rows'] if row['voucher']==own_id)
+   assert own['publicPostId']==shared_pk,'Both company sides must retain the same public Post ID'
+   assert not any(row['voucher']==other_id for row in register['rows']),'Shared ID must not copy the other entity journal'
   before=json.loads((root/'data/accounts.json').read_text());assert req(body=confirm)[1]['posted']['id']==confirmed['posted']['id'];after=json.loads((root/'data/accounts.json').read_text());assert set(after['journals'])==set(before['journals']) and all(after['journals'][k]['lines']==v['lines'] for k,v in before['journals'].items())
   # Two parts of one advice use separate rates; blank fees never write off the balance.
   (root/'data/accounts.json').write_text(json.dumps(basket_state))
@@ -188,7 +197,7 @@ with tempfile.TemporaryDirectory(prefix='tg-remittance-') as tmp:
    css=desk[start:desk.index('`;',start)] if start!=-1 else '.tt-layer{position:fixed;inset:0;padding:16px;background:#112233aa}.tt-window{background:#f7fafc;max-height:94vh;overflow:auto;padding:20px}.tt-form-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}label{display:grid}input,select{min-width:0;width:100%;box-sizing:border-box}'
    (root/'accounts/harness.html').write_text('<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><style>'+css+'</style><script>localStorage.setItem("tt_accounts_entity","TG");window.TT_ACCOUNT_ACCESS={csrf:"fixture"};window.TT_FORM_VIEWPORT={open:h=>h.scrollTop=0};</script><script src="tg-remittances-ui.js"></script><button onclick="TT_TG_REMITTANCES.open()">REVIEW</button>')
    with sync_playwright() as pw:
-    browser=pw.chromium.launch();page=browser.new_page(viewport={'width':1280,'height':900});page.goto(f'http://127.0.0.1:{port}/accounts/harness.html');page.get_by_role('button',name='REVIEW',exact=True).click();page.locator('[data-id="DRAFT-1"]').check();page.locator('[name=chargeAmount]').fill('30');page.locator('[name=vatAmount]').fill('1.50');page.locator('[name=sameRemittanceConfirmed]').check();assert '140,000.00' in page.locator('#tgr-total').inner_text();assert '140,031.50' in page.locator('#tgr-debit').inner_text()
+    browser=pw.chromium.launch();page=browser.new_page(viewport={'width':1280,'height':900});page.goto(f'http://127.0.0.1:{port}/accounts/harness.html');page.get_by_role('button',name='REVIEW',exact=True).click();page.locator('[data-id="DRAFT-1"]').check();page.locator('[name=chargeAmount]').fill('30');assert page.locator('[name=vatAmount]').input_value()=='1.50';assert page.locator('[name=vatAmount]').get_attribute('readonly') is not None;assert page.locator('[name=sameRemittanceConfirmed]').count()==0;assert '140,000.00' in page.locator('#tgr-total').inner_text();assert '140,031.50' in page.locator('#tgr-debit').inner_text()
     evidence=pathlib.Path(os.environ.get('TT_QA_OUTPUT',str(root/'evidence')));evidence.mkdir(exist_ok=True,parents=True);page.screenshot(path=str(evidence/'tg-remittance-desktop.png'));page.set_viewport_size({'width':390,'height':844});page.screenshot(path=str(evidence/'tg-remittance-phone.png'));page.get_by_role('button',name='POST TG REMITTANCE').click();page.get_by_role('heading',name='TG REMITTANCE POSTED').wait_for();assert req()[1]['items']==[]
     # The production receipt UI selects multiple invoices and an advance without losing typed advice.
     (root/'data/accounts.json').write_text(json.dumps(basket_state))

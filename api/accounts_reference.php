@@ -35,6 +35,13 @@ function tt_accounts_jv_public_post(array $store,array $journal,string $id):stri
 /** Public transaction identity remains the first journal; internal correction IDs remain auditable. */
 function tt_accounts_public_post(array $store,array $journal): string {
  $id=(string)($journal['meta']['publicPostId']??$journal['id']??'');$seen=[];
+ if(($journal['entity']??'')==='TG'&&empty($journal['meta']['publicPostId'])){
+  $receiptIds=(array)($journal['meta']['receiptIds']??[]);if(!$receiptIds&&!empty($journal['meta']['receiptId']))$receiptIds=[$journal['meta']['receiptId']];
+  if(count($receiptIds)===1){$receipt=$store['exportReceipts'][(string)$receiptIds[0]]??[];$pak=$store['journals'][(string)($receipt['journalId']??'')]??[];
+   if(in_array($pak['entity']??'',['TTI','BRM'],true)&&(($receipt['tgRemittancePostId']??'')===($journal['id']??'')||in_array($journal['id']??'',(array)($receipt['tgMirrorPostIds']??[]),true)))$id=(string)($pak['meta']['publicPostId']??$pak['id']);
+  }
+ }
+
  while($id!==''&&!isset($seen[$id])){$seen[$id]=true;$j=$store['journals'][$id]??null;if(!is_array($j))break;$parent=(string)($j['meta']['amendmentOfPostId']??$j['meta']['amendmentOf']??'');if($parent===''||!isset($store['journals'][$parent]))break;$id=$parent;}return tt_accounts_jv_public_post($store,(array)($store['journals'][$id]??$journal),$id);
 }
 function tt_accounts_amendment_note(array $journal,array $store=[]): string {

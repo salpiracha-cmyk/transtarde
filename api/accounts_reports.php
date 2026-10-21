@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require dirname(__DIR__).'/auth_store.php';
 require_once __DIR__.'/accounts_subaccounts_core.php';
+require_once __DIR__.'/tg_native_currency.php';
 
 header('Content-Type: application/json; charset=UTF-8');
 header('Cache-Control: no-store, no-cache, must-revalidate');
@@ -109,6 +110,11 @@ try {
             && is_string($journal['date'] ?? null)
             && $journal['date'] <= $asOf
     ));
+    $presentationCurrency=$entity==='TG'?strtoupper(trim((string)($_GET['currency']??'AED'))):'PKR';
+    if($entity==='TG'){
+        if(!in_array($presentationCurrency,(array)(tt_master_options()['currencies']??[]),true))throw new DomainException('Choose a report currency from Currency Master.');
+        foreach($journals as &$reportJournal){$reportJournal=tgn_present($reportJournal,$presentationCurrency,$asOf);$store['journals'][$reportJournal['id']]=$reportJournal;}unset($reportJournal);
+    }
     usort(
         $journals,
         static fn(array $a, array $b): int =>
@@ -244,6 +250,8 @@ try {
     ar_out([
         'ok' => true,
         'entity' => $entity,
+        'currency' => $presentationCurrency,
+        'currencyBasis' => $entity==='TG'?'Report translation of native currency entries':'Company books',
         'revision' => (int)($store['revision'] ?? 0),
         'from' => $from,
         'asOf' => $asOf,
@@ -276,6 +284,7 @@ try {
         'dataQuality' => ['skippedMalformedLines' => $skippedMalformedLines,'unclassifiedBalances'=>array_values(array_map(static fn($code)=>['account'=>(string)$code,'name'=>(string)($catalog[$code]['name']??$code),'class'=>(string)($catalog[$code]['class']??'Other'),'net'=>round($balances[$code],2)],array_filter(array_keys($balances),static fn($code)=>abs($balances[$code])>.005&&!in_array((string)($catalog[$code]['class']??'Other'),['Asset','Liability','Equity','Revenue','Income','Expense'],true)&&!in_array((string)$code,['7100','7195'],true))))],
         'serverNow' => gmdate('c'),
     ]);
+} catch (DomainException $error) { ar_out(['ok'=>false,'error'=>$error->getMessage()],422);
 } catch (Throwable $error) {
     error_log('Accounts reports failed: '.$error->getMessage());
     ar_out(['ok' => false, 'error' => 'Accounts reports could not be prepared.'], 500);

@@ -275,7 +275,7 @@
   }
 
   function deskMarkup() {
-    return `<div id="ttAccountingDesk">
+    const markup = `<div id="ttAccountingDesk">
       <div class="tt-desk-main">
         <section id="ttDeskOverview"><div class="tt-desk-heading"><input class="tt-search-main" aria-label="Search previous records" placeholder="Search transactions"></div>
           <div class="tt-position" id="ttSummaryCards"><button class="tt-summary"><small>Bank Balance</small><b>Loading…</b><em>Hover for accounts</em></button><button class="tt-summary"><small>Commodity Bills Due</small><b>Loading…</b><em>Due-date detail</em></button><button class="tt-summary"><small>Local Receivables</small><b>Loading…</b><em>Customer detail</em></button><button class="tt-summary"><small>Customer / Export Receivables</small><b>Loading…</b><em>Currency detail</em></button></div>
@@ -284,6 +284,9 @@
         <section id="ttRecentSection"><div class="tt-work-head"><h2>Recent Transactions</h2><button type="button" class="btn" id="ttRecentRefresh">Refresh</button></div><div id="ttRecentTransactions" class="tt-recent-scroll" role="region" aria-label="Recent transactions" tabindex="0">Loading transactions…</div></section><details id="ttPendingWork" hidden><summary id="ttPendingCount">Pending Work</summary><div class="tt-queue" id="ttAttentionQueue"></div></details>
       </div>
     </div>`;
+    if(entity()!=='TG')return markup;
+    const pending=markup.match(/<details id="ttPendingWork"[\s\S]*?<\/details>/)?.[0]||'';
+    return markup.replace(pending,'').replace('<section id="ttRecentSection">',pending+'<section id="ttRecentSection">');
   }
 
   function iconPicture(kind) {
@@ -377,6 +380,7 @@
   }
 
   function refreshEntityLabels() {
+    const pending=q('#ttPendingWork'),recent=q('#ttRecentSection');if(pending&&recent){if(entity()==='TG')recent.before(pending);else recent.after(pending);}
     const name = q('.entityBtn.active strong')?.textContent || entity();
     qa('[data-tt-entity-name]').forEach(node => { node.textContent = name; });
     showAreasHome();

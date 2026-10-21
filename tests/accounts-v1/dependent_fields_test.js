@@ -21,12 +21,12 @@ function fixture(html,source=''){
  q('bgSalesTaxInvoice').checked=false;w.eval('recalc()');assert.equal(q('bgGstWrap').hidden,true);assert.equal(q('bgTotal').textContent,'Rs 120.00');assert.equal(q('bgQty').value,'10');
  q('bgLine').value='';w.eval('recalc()');assert.equal(q('bgSupplier').closest('label').hidden,true);assert.equal(q('bgQty').value,'10');
 }
-// Native AED uses rate 1 internally; the foreign rate/reason are conditional.
+// TG routine entries use saved master rates internally; rate and override fields stay hidden.
 {
  const w=fixture('<select id="bank"><option>AED</option><option>USD</option></select><label><input id="tgTxRate"></label><label><input id="tgTxRateNote" value="Saved reason"></label>',`const selectedBank=()=>({currency:q('#bank').value}),defaultRate=()=>selectedBank().currency==='AED'?1:3.6725;${line('accounts/tg-bank-transactions-ui.js','syncRateFields')}${line('accounts/tg-bank-transactions-ui.js','setRate')}`);
  w.eval('setRate()');const r=w.document.getElementById('tgTxRate'),note=w.document.getElementById('tgTxRateNote');assert.equal(r.value,'1');assert.equal(r.closest('label').hidden,true);
- w.document.getElementById('bank').value='USD';w.eval('setRate()');assert.equal(r.closest('label').hidden,false);assert.equal(note.closest('label').hidden,true);
- r.value='3.7';w.eval('syncRateFields()');assert.equal(note.closest('label').hidden,false);
+ w.document.getElementById('bank').value='USD';w.eval('setRate()');assert.equal(r.closest('label').hidden,true);assert.equal(note.closest('label').hidden,true);
+ r.value='3.7';w.eval('syncRateFields()');assert.equal(note.closest('label').hidden,true);
  w.document.getElementById('bank').value='AED';w.eval('setRate()');assert.equal(note.closest('label').hidden,true);assert.equal(note.value,'Saved reason');
 }
 // Amendments expose only the chosen asset type, while retaining hidden historical values.

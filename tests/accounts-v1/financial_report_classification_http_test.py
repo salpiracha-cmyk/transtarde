@@ -4,7 +4,7 @@ ROOT=pathlib.Path(__file__).resolve().parents[2]
 with tempfile.TemporaryDirectory(prefix='report-class-') as tmp:
  root=pathlib.Path(tmp);shutil.copytree(ROOT/'api',root/'api');shutil.copytree(ROOT/'accounts',root/'accounts');(root/'data').mkdir()
  (root/'auth_store.php').write_text("""<?php
-define('TT_DATA_DIR',__DIR__.'/data');function tt_require_login(){return ['role'=>'Super Admin','permissions'=>['Accounts'=>'all']];}function tt_user_can_open_module($u,$m){return $m==='Accounts';}function tt_user_can_access_entity($u,$e,$a){return $e==='TTI';}function tt_user_can_module_action($u,$m,$i,$a){return true;}function tt_release_read_session(){}function tt_list_masters(){return [];}
+define('TT_DATA_DIR',__DIR__.'/data');function tt_require_login(){return ['role'=>'Super Admin','permissions'=>['Accounts'=>'all']];}function tt_user_can_open_module($u,$m){return $m==='Accounts';}function tt_user_can_access_entity($u,$e,$a){return in_array($e,['TTI','TG'],true);}function tt_user_can_module_action($u,$m,$i,$a){return true;}function tt_release_read_session(){}function tt_list_masters(){return [];}function tt_master_options(){return ['currencies'=>['AED','USD']];}function tt_company_fx_rate($e,$from,$to){return $from==='USD'&&$to==='AED'?3.67:null;}
 """)
  def line(account,dr=0,cr=0):return {'account':account,'debit':dr,'credit':cr}
  def journal(id,lines,date='2026-09-12'):return {'id':id,'entity':'TTI','status':'Posted','date':date,'sourceType':'FIXTURE','lines':lines,'totalDebit':sum(x['debit'] for x in lines),'totalCredit':sum(x['credit'] for x in lines)}
@@ -12,9 +12,9 @@ define('TT_DATA_DIR',__DIR__.'/data');function tt_require_login(){return ['role'
  path=root/'data/accounts.json';path.write_text(json.dumps(books));before=path.read_bytes()
  with socket.socket() as sock:sock.bind(('127.0.0.1',0));port=sock.getsockname()[1]
  log=open(root/'server.log','w');server=subprocess.Popen(['php','-S',f'127.0.0.1:{port}','-t',str(root)],stdout=log,stderr=log)
- def req(from_date='2026-09-01'):
+ def req(from_date='2026-09-01',entity='TTI',currency='AED'):
   try:
-   with urllib.request.urlopen(f'http://127.0.0.1:{port}/api/accounts_reports.php?entity=TTI&from={from_date}&asOf=2026-10-15') as r:return r.status,json.load(r)
+   with urllib.request.urlopen(f'http://127.0.0.1:{port}/api/accounts_reports.php?entity={entity}&currency={currency}&from={from_date}&asOf=2026-10-15') as r:return r.status,json.load(r)
   except urllib.error.HTTPError as e:return e.code,json.load(e)
  try:
   for _ in range(60):
@@ -79,6 +79,16 @@ define('TT_DATA_DIR',__DIR__.'/data');function tt_require_login(){return ['role'
    except concurrent.futures.TimeoutError:pass
    finally:fcntl.flock(locked,fcntl.LOCK_UN)
    assert future.result(timeout=5)[0]==200
+  # TG reports translate copies of native amounts; their stored journals stay untouched.
+  tg=journal('TG-FEE',[{**line('6800',367),'currency':'USD','nativeDebit':100,'nativeCredit':0},{**line('1110',cr=367),'currency':'USD','bankDebit':0,'bankCredit':100}]);tg['entity']='TG'
+  path.write_text(json.dumps({'revision':8,'journals':{'TG-FEE':tg,'TTI-ONLY':journal('TTI-ONLY',[line('1110',999),line('3100',cr=999)])}}));native_before=path.read_bytes()
+  for ccy,expected in [('USD',100),('AED',367)]:
+   status,translated=req(entity='TG',currency=ccy)
+   assert status==200 and translated['currency']==ccy,translated
+   assert translated['trialBalance']['balanced'] and translated['trialBalance']['totalDebit']==expected,translated
+   assert {r['journalId'] for r in translated['generalLedger']}=={'TG-FEE'}
+   assert path.read_bytes()==native_before,'Report dropdown must never revalue or persist the journals'
+  path.write_bytes(unknown_before)
   # Damaged or unavailable books must never look like successful zero-balance reports.
   for invalid in ['', '{"journals":', 'null', '[{"journals":[]}]', '{"journals":"invalid"}']:
    path.write_text(invalid);saved=path.read_bytes();status,failed=req();assert status==500 and not failed['ok'] and 'trialBalance' not in failed,(invalid,failed);assert path.read_bytes()==saved
