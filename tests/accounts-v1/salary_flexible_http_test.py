@@ -376,7 +376,7 @@ with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
                 page.goto(f'http://127.0.0.1:{port}/accounts/index.html');page.locator('[data-expense="salary"]').click();page.locator('#rsPrepare').click()
                 page.locator('#rsMonth').fill('2027-03');page.locator('#rsMonth').dispatch_event('change')
                 assert action('adjust_salary_month','Mrs',month='2027-03',netSalary=310000,advanceApplied=0)[0]==200
-                page.locator('#rsRefresh').click()
+                page.reload();page.locator('[data-expense="salary"]').click();page.locator('#rsPrepare').click();page.locator('#rsMonth').fill('2027-03');page.locator('#rsMonth').dispatch_event('change')
                 page.locator('[data-rs-draft-pay="Mrs"]').click()
                 assert page.locator('.rs-plan-row').count()==0
                 assert page.locator('#rsFamilyMonthly').input_value()=='310000'
