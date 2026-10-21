@@ -196,6 +196,8 @@ jobs:
           python3 tests/security/entity_icon_authorization_test.py
           python3 tests/security/workspace_navigation_test.py
           python3 tests/security/api_workflow_authorization_test.py
+          php tests/security/api_action_policy_test.php
+          python3 tests/security/api_action_permissions_test.py
           python3 tests/security/operations_read_access_test.py
           python3 tests/security/group_report_access_test.py
           python3 tests/security/exmill_handoff_scope_test.py

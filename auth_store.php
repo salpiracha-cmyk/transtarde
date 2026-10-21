@@ -934,7 +934,8 @@ function tt_api_write_grants(string $endpoint,array $body): ?array {
     if($endpoint==='monthly_tax.php'){if(($body['action']??$_POST['action']??'')==='status')return [['Accounts','purchases','Edit'],['Accounts','expenses','Edit']];return [['Accounts',str_starts_with((string)($body['source']??$_POST['source']??''),'bag:')?'purchases':'expenses','Edit']];}
     if($endpoint==='bag_transfers.php')return [['Mill','newbags','Create']];
     if($endpoint==='mill_source_amend.php')return [['Mill',($body['collection']??'')==='tt38reprocessbills'?'reprocessbill':'labour','Edit']];
-    if(in_array($endpoint,['bank_entries.php','accounts_subaccounts.php'],true)){$right=($body['action']??'')==='reverse'?'Edit':(($body['operation']??'add')==='delete'?'Delete':(in_array($body['operation']??'add',['edit','move_head'],true)?'Edit':'Create'));return [['Accounts',$endpoint==='bank_entries.php'?'cashbank':'masters',$right]];}
+    if($endpoint==='bank_entries.php'){$right=($body['action']??'')==='reverse'?'Edit':(($body['action']??'')==='facility'?(($body['operation']??'add')==='delete'?'Delete':(($body['operation']??'add')==='edit'?'Edit':'Create')):'Create');return [['Accounts','cashbank',$right]];}
+    if($endpoint==='accounts_subaccounts.php'){$right=($body['operation']??'add')==='delete'?'Delete':(in_array($body['operation']??'add',['edit','move_head'],true)?'Edit':'Create');return [['Accounts','masters',$right]];}
     if($endpoint==='bank_direct_entries.php'&&strtoupper((string)($body['type']??''))==='SAVING_PROFIT')return [['Accounts','cashbank'],['Accounts','reconciliation']];
     $routes=[
         'mill_liabilities.php'=>'expenses','rent_salary.php'=>'expenses','rent_salary_v2.php'=>'expenses','expenses_v1.php'=>'expenses','donations.php'=>'expenses',
@@ -956,9 +957,9 @@ function tt_api_write_grants(string $endpoint,array $body): ?array {
     if(in_array($endpoint,['export_costing.php','local_sales_costing.php'],true))return $action==='post_waiting'
         ?[['Accounts','customer'],['Accounts','purchases']]:[['Accounts','customer']];
     if($endpoint==='export_receipts.php'||$endpoint==='accounts_receipt_file.php')return [['Accounts','customer'],['Accounts','cashbank']];
-    if($endpoint==='brokerage_master.php')return [['Accounts','supplier'],['Directors','brokerage']];
+    if($endpoint==='brokerage_master.php')return [['Accounts','brokerage'],['Directors','brokerage']];
     if($endpoint==='accounts_workflows_v1.php'){
-        $icons=['save_soda'=>'purchases','extend_soda'=>'purchases','resolve_soda'=>'purchases','sync_late_holds'=>'purchases',
+        $icons=['save_kat_master'=>'purchases','save_soda'=>'purchases','extend_soda'=>'purchases','resolve_soda'=>'purchases','sync_late_holds'=>'purchases',
             'save_service_bill'=>'services','save_transport_bill'=>'transport','save_transport_route'=>'transport',
             'save_freight_bill'=>'freight','settle_freight_dispute'=>'freight'];
         if(isset($icons[$action]))return [['Accounts',$icons[$action]]];
@@ -1002,7 +1003,66 @@ function tt_api_write_grants(string $endpoint,array $body): ?array {
     return null;
 }
 
-function tt_api_icon_write_allowed(array $user,string $endpoint,array $body): bool {
+/** Business actions are explicit; upserts resolve Create/Edit again under their store lock. */
+function tt_api_write_actions(string $endpoint,array $body): ?array {
+    $action=(string)($body['action']??'');
+    $appendOnly=['donations.php','sales_tax_refunds.php','production_inventory_transfer.php','other_purchases.php',
+        'bank_direct_entries.php','internal_bank_transfers.php','retention_remittances.php','tg_bank_transfer.php',
+        'tg_year_end_revaluation.php','export_bank_shortfall.php','bag_supplier_payments.php','other_supplier_settlements.php',
+        'tg_liabilities.php','brokerage_transactions.php','commodity_bills.php'];
+    if(in_array($endpoint,$appendOnly,true))return ['Create'];
+    if(in_array($endpoint,['management_costing.php','management_costing_attach.php','payables_planning.php','production_fixed_overhead.php'],true))return ['Edit'];
+    if($endpoint==='bank_reconciliation.php')return ['Create','Edit'];
+    if($endpoint==='export_receipts.php')return [!empty($body['amendmentOf'])?'Edit':'Create'];
+    if(in_array($endpoint,['accounts_receipt_file.php','bag_bill_file.php'],true))return ['Create'];
+    if($endpoint==='mill_liabilities.php')return [$action==='post'?'Create':'Edit']; // Reversals also retain their separate approval check.
+    if($endpoint==='production_costing.php')return match($action){'approve_rate'=>['Approve'],'save_byproduct_value'=>['Create'],default=>[]};
+    if(in_array($endpoint,['export_costing.php','local_sales_costing.php'],true))return match($action){'save_rate'=>['Create'],'post_waiting'=>['Create','Edit'],default=>[]};
+    if($endpoint==='local_customer_receipts.php')return [in_array($action,['clear_customer_cheque','bounce_customer_cheque','cancel_customer_cheque'],true)?'Edit':'Create'];
+    if($endpoint==='supplier_settlements.php')return match($action){
+        'post_bill_payment','post_supplier_payment','record_supplier_advance','apply_supplier_advance','issue_supplier_cheque'=>['Create'],
+        'amend_bill_payment','bounce_supplier_cheque','cancel_supplier_cheque','clear_supplier_cheque'=>['Edit'],default=>[],
+    };
+    if(in_array($endpoint,['rent_salary.php','rent_salary_v2.php'],true))return match($action){
+        'save_salary_master','save_rent_master','pay_rent','record_salary_advance','record_salary_opening_advance','salary_batch_payment','salary_payment','complete_salary_month','post_salary_group'=>['Create'],
+        'prepare_month','save_salary_draft_payment','save_salary_transactions','refresh_salary_draft'=>['Create','Edit'],
+        'update_salary_master','update_rent_master','deactivate_salary_master','deactivate_rent_master','amend_salary_allocated_payment','correct_salary_records','reverse_salary_allocated_payment','adjust_salary_month','edit_salary_sheet_row','apply_salary_master','reverse_salary_staff','reset_salary_draft','close_salary_month'=>['Edit'],default=>[],
+    };
+    if($endpoint==='expenses_v1.php')return match($action){
+        'save_card_master','save_utility_master','save_card_statement','post_and_pay_card_statement'=>['Create','Edit'],
+        'capture_expense_invoice','capture_utility_invoice','capture_reimbursement','pay_expense','pay_card_statement','pay_general_expense','pay_export_expense','pay_utility','settle_reimbursement','recover_personal_expense'=>['Create'],
+        'amend_expense','amend_utility','cancel_expense_invoice','delete_expense','add_card_breakdown','remove_card_breakdown','save_card_adjustments','deactivate_card_master','deactivate_utility_master'=>['Edit'],default=>[],
+    };
+    if($endpoint==='payment_plans.php')return match($action){
+        'create','post','on_account'=>['Create'],
+        'preview_on_account'=>[!empty($body['settlementId'])?'Edit':'Create'],
+        'change','close','reopen','correct','correct_on_account','edit_on_account','edit_payment','preview_payment'=>['Edit'],default=>[],
+    };
+    if($endpoint==='local_sales_control.php')return match($action){'queue_candidate'=>['Create','Edit'],'approve_candidate','reject_candidate'=>['Edit'],default=>[]};
+    if($endpoint==='local_sales_payments.php')return match($action){'queue_payment'=>['Create','Edit'],'approve_payment','reject_payment'=>['Edit'],default=>[]};
+    if($endpoint==='local_sales_entity_rule.php')return ['Edit'];
+    if($endpoint==='tg_bank_transactions.php')return in_array($action,['post_payment','post_receipt','apply_advance'],true)?['Create']:[];
+    if($endpoint==='tg_remittances.php')return match($action){'confirm'=>['Create','Edit'],'reopen'=>['Edit'],default=>[]};
+    if(in_array($endpoint,['bag_purchases.php','nonwoven_bag_bills.php'],true))return match($action){
+        'create_historical_bill'=>[!empty($body['amendBillId'])?'Edit':'Create'],
+        'create_bill','create_general_bill','try_post_bill','pay_bill'=>['Create'],
+        'cancel_historical_bill','settle_bag_discrepancy','sync_receipt_snapshot'=>['Edit'],
+        'sync_po','sync_export_usage','save_tax_rate'=>['Create','Edit'],
+        'approve_rate_exception'=>['Approve'],default=>[],
+    };
+    if($endpoint==='milling_purchase_sodas.php')return ['Create','Edit']; // Rebuild only from canonical loading sources.
+    if($endpoint==='brokerage_master.php')return ['Create','Edit']; // Target rates already resolve their key under lock.
+    if($endpoint==='accounts.php')return match($action){'save_reminder','post_event'=>['Create'],'reverse_journal'=>['Approve'],default=>[]};
+    if($endpoint==='export_tax_certificates.php')return match($action){'save_certificate'=>['Create','Edit'],'match_deductions','unmatch_deductions'=>['Edit'],default=>[]};
+    if($endpoint==='bank_accounts.php')return match($action){'save_settings','save_deposit_type'=>['Edit'],'request_delete'=>['Create'],default=>[]};
+    if($endpoint==='accounts_workflows_v1.php')return match($action){
+        'save_soda','save_transport_route','register_loading_program','save_freight_agreement','save_transport_bill','save_freight_bill','save_service_bill'=>['Create','Edit'],
+        'extend_soda','resolve_soda','sync_late_holds','settle_freight_dispute','save_kat_master'=>['Edit'],default=>[],
+    };
+    return null; // Specialized approval, Master and remaining lifecycle guards.
+}
+
+function tt_api_icon_write_allowed(array $user,string $endpoint,array $body,?string $resolvedRight=null,?string $resolvedEntity=null): bool {
     $action=(string)($body['action']??'');
     if(in_array($endpoint,['rent_salary.php','rent_salary_v2.php'],true)&&in_array($action,['save_salary_master','update_salary_master','deactivate_salary_master'],true)){
         $masterAction=match($action){'save_salary_master'=>'Create','update_salary_master'=>'Edit',default=>'Deactivate'};
@@ -1010,9 +1070,39 @@ function tt_api_icon_write_allowed(array $user,string $endpoint,array $body): bo
     }
     $grants=tt_api_write_grants($endpoint,$body);
     if($grants===null)return true;
-    foreach($grants as $grant)foreach(isset($grant[2])?[$grant[2]]:['Create','Edit','Approve'] as $action)
-        if(tt_user_can_module_action($user,$grant[0],$grant[1],$action))return true;
+    $required=tt_api_write_actions($endpoint,$body);
+    if($resolvedRight!==null){if($required!==null&&!in_array($resolvedRight,$required,true))return false;$required=[$resolvedRight];}
+    $requestedEntity=strtoupper(trim((string)($body['entity']??$_POST['entity']??$_GET['entity']??'')));
+    if($resolvedEntity!==null&&$requestedEntity!==''&&$requestedEntity!==$resolvedEntity)return false;
+    $entity=$resolvedEntity??$requestedEntity;
+    foreach($grants as $grant)foreach(isset($grant[2])?[$grant[2]]:($required??['Create','Edit','Approve']) as $right){
+        if($required!==null&&!in_array($right,$required,true))continue;
+        if(!tt_user_can_module_action($user,$grant[0],$grant[1],$right))continue;
+        // The same candidate action must satisfy both the icon and company.
+        // An icon Create grant cannot borrow an entity Edit grant (or vice versa).
+        if($entity!==''&&($grant[0]==='Accounts'||tt_user_can_open_module($user,'Accounts'))&&!tt_user_can_access_entity($user,$entity,$right))continue;
+        return true;
+    }
     return false;
+}
+
+function tt_api_is_upsert(string $endpoint,array $body): bool {
+    if($endpoint==='bank_reconciliation.php')return true;
+    $actions=[
+        'accounts_workflows_v1.php'=>['save_soda','save_transport_route','register_loading_program','save_freight_agreement','save_transport_bill','save_freight_bill','save_service_bill'],
+        'export_tax_certificates.php'=>['save_certificate'],
+        'expenses_v1.php'=>['save_card_master','save_utility_master','save_card_statement','post_and_pay_card_statement'],
+        'rent_salary.php'=>['prepare_month','save_salary_draft_payment','save_salary_transactions','refresh_salary_draft'],
+        'rent_salary_v2.php'=>['prepare_month','save_salary_draft_payment','save_salary_transactions','refresh_salary_draft'],
+        'local_sales_control.php'=>['queue_candidate'],'local_sales_payments.php'=>['queue_payment'],
+        'bag_purchases.php'=>['save_tax_rate'],
+    ];
+    return in_array((string)($body['action']??''),$actions[$endpoint]??[],true);
+}
+
+/** Recheck a target's actual lifecycle while its canonical store lock is held. */
+function tt_api_upsert_allowed(array $user,string $endpoint,array $body,bool $exists,?string $entity=null): bool {
+    return tt_api_is_upsert($endpoint,$body)&&tt_api_icon_write_allowed($user,$endpoint,$body,$exists?'Edit':'Create',$entity);
 }
 
 /** Canonical posting source ownership, shared by reads and corrections. */
@@ -1049,7 +1139,11 @@ function tt_api_record_entity_allowed(array $user,array $body,string $entity): b
     $requested=strtoupper(trim((string)($body['entity']??$_GET['entity']??'')));
     if($requested!==''&&$requested!==$entity)return false;
     if(!tt_user_can_open_module($user,'Accounts'))return true; // separately guarded source/Director workflow
-    foreach(['Create','Edit','Approve'] as $action)if(tt_user_can_access_entity($user,$entity,$action))return true;
+    $endpoint=basename((string)parse_url((string)($_SERVER['REQUEST_URI']??''),PHP_URL_PATH));
+    $rights=tt_api_write_actions($endpoint,$body)??['Create','Edit','Approve'];
+    // A target lookup in an upsert denotes an existing canonical record.
+    if($rights===['Create','Edit']&&tt_api_is_upsert($endpoint,$body))$rights=['Edit'];
+    foreach($rights as $action)if(tt_user_can_access_entity($user,$entity,$action)&&tt_api_icon_write_allowed($user,$endpoint,$body,$action,$entity))return true;
     return false;
 }
 

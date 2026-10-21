@@ -11,7 +11,7 @@ with tempfile.TemporaryDirectory(prefix='tg-remittance-') as tmp:
  (root/'auth_store.php').write_text('''<?php
  define('TT_DATA_DIR',__DIR__.'/data');foreach(['HOST','NAME','USER','PASS'] as $k)define('TT_DB_'.$k,'');
  function tt_ensure_data_dir(){} function tt_accounts_input(){return file_get_contents('php://input');}
- function tt_require_login(){return ['username'=>'FIXTURE','role'=>'Staff','permissions'=>['Accounts'=>($_SERVER['HTTP_X_FIXTURE_ROLE']??'')==='readonly'?['View']:['View','Edit']]];}
+ function tt_require_login(){return ['username'=>'FIXTURE','role'=>'Staff','permissions'=>['Accounts'=>($_SERVER['HTTP_X_FIXTURE_ROLE']??'')==='readonly'?['View']:['View','Create','Edit']]];}
     // This isolated auth fixture has no PHP session; real lock behavior is tested separately.
     function tt_release_read_session(){}
  function tt_user_can_module_action(array $user,string $module,string $icon,string $action): bool {
@@ -37,6 +37,8 @@ with tempfile.TemporaryDirectory(prefix='tg-remittance-') as tmp:
   return $id;
  }
  ''')
+ from permission_fixture import append_permission_helpers
+ append_permission_helpers(root)
  s={'journals':{},'exportReceipts':{},'tgRemittanceDrafts':{},'tgLiabilities':{'BILL-USD':{'id':'BILL-USD','counterparty':'Supplier USD','currency':'USD','reference':'INV-USD','nativeAmount':100,'recognitionRate':3.67},'BILL-AED':{'id':'BILL-AED','counterparty':'Supplier AED','currency':'AED','reference':'INV-AED','nativeAmount':50,'recognitionRate':1}},'tgBankTransactions':{'PAY':{'kind':'Payment','liabilityAllocations':[{'id':'BILL-USD','amountNative':30}]}},'commodityBills':{'WRONG':{'entity':'TG','id':'WRONG','total':99999}}}
  for i,amount in enumerate([108000,32000]):
   rid=f'ER-{i}';jid=f'PK-{i}';did=f'DRAFT-{i}'
