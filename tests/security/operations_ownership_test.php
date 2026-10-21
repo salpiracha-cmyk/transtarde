@@ -18,8 +18,9 @@ foreach(['tt34ghati','tt34nilqueue','tt32processingrecon','tt40exportreceipts'] 
 foreach(['Accounts','Mill','Milling'] as $m)foreach(['','null','false','{}','[]','{"contracts":null,"shipments":[]}'] as $old)denied(fn()=>operations_merge_export($old,'{"contracts":[{"ref":"FORGED"}],"shipments":[]}',$m),'uninitialized root '.$m.' '.$old);
 $root=['contracts'=>[['ref'=>'KEEP']],'shipments'=>[['id'=>'L1','kind'=>'lot','contractRef'=>'KEEP','millActuals'=>[]]],'accountsReceipts'=>[]];
 $incoming=['contracts'=>[['ref'=>'FORGED']],'shipments'=>[['id'=>'FORGED']],'accountsReceipts'=>[['id'=>'R1']],'deletedShipments'=>[['contractRef'=>'KEEP']]];
-$r=json_decode(operations_merge_export(json_encode($root),json_encode($incoming),'Accounts'),true);
-verify($r['contracts']===$root['contracts'] && $r['shipments']===$root['shipments'] && $r['accountsReceipts']===[['id'=>'R1']],'Accounts can add receipt without replacing or deleting Export records');
+denied(fn()=>operations_merge_export(json_encode($root),json_encode($incoming),'Accounts'),'Accounts root cannot manufacture receipts');
+$r=json_decode(operations_merge_export(json_encode($root),json_encode(['contracts'=>[['ref'=>'FORGED']]]),'Accounts'),true);
+verify($r===$root,'Accounts bridge preserves canonical Export root');
 $r=json_decode(operations_merge_export('',json_encode($root),'Exports'),true);verify($r===$root,'Exports initializes root');
 $manual=['id'=>1,'brand'=>'Mill-owned','received'=>12];$bridge=['id'=>2,'_ttBridge'=>'exports','_ttBridgeId'=>'PO-L1','brand'=>'STAR','received'=>20];
 $rows=[$manual,$bridge];$amended=$rows;$amended[1]['brand']='REVISED';operations_validate_export_bridge('tt30bags',json_encode($rows),json_encode($amended),'Exports');verify(true,'Exports amends instruction and preserves receipts');

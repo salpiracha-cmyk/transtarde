@@ -376,7 +376,23 @@ function operations_validate_lot_reopening(string $oldJson, string $incomingJson
     }
 }
 
-function operations_merge_export(string $currentJson, string $incomingJson, string $sourceModule): string {
+/** A cached bridge may omit newer server events, but cannot add or alter one. */
+function operations_history_subset(array $saved,mixed $incoming): bool {
+    if (!is_array($incoming)) return false;
+    $identities=['id','receiptNo','reference'];$indexed=[];$unkeyed=[];
+    $identity=static function(array $row) use($identities): string {
+        foreach($identities as $field)if(isset($row[$field])&&(is_string($row[$field])||is_int($row[$field]))&&(string)$row[$field]!=='')return $field.':'.(string)$row[$field];
+        return '';
+    };
+    foreach($saved as $row){if(!is_array($row)){$unkeyed[]=$row;continue;}$id=$identity($row);if($id==='')$unkeyed[]=$row;else $indexed[$id][]=$row;}
+    foreach($incoming as $row){$id=is_array($row)?$identity($row):'';$matches=$id===''?$unkeyed:($indexed[$id]??[]);$found=false;
+        foreach($matches as $prior)if(operations_same_value($prior,$row)){$found=true;break;}
+        if(!$found)return false;
+    }
+    return true;
+}
+
+function operations_merge_export(string $currentJson, string $incomingJson, string $sourceModule, array $actor = []): string {
     $current = json_decode($currentJson, true);
     $incoming = json_decode($incomingJson, true);
     if (in_array($sourceModule, ['Accounts','Mill','Milling'], true) && (!is_array($current) || !isset($current['contracts'], $current['shipments']) || !is_array($current['contracts']) || !is_array($current['shipments']))) throw new DomainException('Exports must initialize its records before another module can add updates.');
@@ -420,7 +436,7 @@ function operations_merge_export(string $currentJson, string $incomingJson, stri
             if ($ref !== '') $liveContractRefs[$ref] = true;
         }
         $recreatedAt = [];
-        foreach ((array)($merged['audits'] ?? []) as $audit) {
+        foreach ($authoritative ? (array)($merged['audits'] ?? []) : [] as $audit) {
             if (!is_array($audit)) continue;
             $area = (string)($audit['area'] ?? '');
             $action = (string)($audit['action'] ?? '');
@@ -462,15 +478,14 @@ function operations_merge_export(string $currentJson, string $incomingJson, stri
     };
 
     if (strcasecmp($sourceModule, 'Accounts') === 0) {
-        $merged = $current;
-        $merged['accountsReceipts'] = operations_union_rows(
-            (array)($current['accountsReceipts'] ?? []),
-            (array)($incoming['accountsReceipts'] ?? []),
-            ['id', 'receiptNo', 'reference']
-        );
-        $merged['alerts'] = operations_union_rows((array)($current['alerts'] ?? []), (array)($incoming['alerts'] ?? []), ['id', 'at']);
-        $merged['audits'] = operations_union_rows((array)($current['audits'] ?? []), (array)($incoming['audits'] ?? []), ['id', 'at']);
-        return json_encode($applyTombstones($merged), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+        // Canonical receipt posting uses export_receipts.php. No browser bridge
+        // owns receipt or Export history mutations through this shared root.
+        foreach (['accountsReceipts','alerts','audits'] as $field) {
+            if (array_key_exists($field,$incoming) && !operations_history_subset((array)($current[$field] ?? []),$incoming[$field])) {
+                throw new DomainException('Use the owning workflow to change receipt or Export history records.');
+            }
+        }
+        return $currentJson;
     }
 
     if (strcasecmp($sourceModule, 'Mill') === 0 || strcasecmp($sourceModule, 'Milling') === 0) {
@@ -486,8 +501,60 @@ function operations_merge_export(string $currentJson, string $incomingJson, stri
             );
         }
         $merged['shipments'] = array_values($currentShipments);
-        $merged['alerts'] = operations_union_rows((array)($current['alerts'] ?? []), (array)($incoming['alerts'] ?? []), ['id', 'at']);
-        $merged['audits'] = operations_union_rows((array)($current['audits'] ?? []), (array)($incoming['audits'] ?? []), ['id', 'at']);
+        // A Mill bridge submits physical facts, never trusted event records.
+        // Existing identities are immutable. Browser observations use a narrow typed, attributed report;
+        // derive trusted audit events from accepted physical facts below.
+        foreach (['accountsReceipts','audits'] as $field) {
+            if (array_key_exists($field,$incoming) && !operations_history_subset((array)($current[$field] ?? []),$incoming[$field])) {
+                throw new DomainException('Milling cannot change receipt or Export audit records.');
+            }
+        }
+        $savedAlerts=operations_list_by_identity((array)($current['alerts'] ?? []),'id');
+        $observations=[];$contractRefs=[];
+        foreach($currentShipments as $shipment)if(isset($shipment['contractRef']))$contractRefs[(string)$shipment['contractRef']]=true;
+        foreach ((array)($incoming['alerts'] ?? []) as $alert) {
+            if (!is_array($alert)) throw new DomainException('Invalid Milling bridge observation.');
+            $id=(string)($alert['id'] ?? '');
+            if (isset($savedAlerts[$id])) {
+                if (!operations_same_value($savedAlerts[$id],$alert)) throw new DomainException('Saved Export alerts cannot be amended by Milling.');
+                continue;
+            }
+            if (($alert['area'] ?? '') !== 'MILL ACTUALS' || !in_array($alert['kind'] ?? '',['Mill Update','Mill Conflict','Container Limit','Migration Review'],true)) {
+                throw new DomainException('Only Milling loading observations belong to this bridge.');
+            }
+            if (!operations_icon_write($actor,'Mill','export')) throw new DomainException('Mill Export Loading write permission is required for observations.');
+            $ref=(string)($alert['contractRef'] ?? '');$message=$alert['message'] ?? null;
+            if (!isset($contractRefs[$ref]) || !is_string($message) || trim($message)==='' || strlen($message)>2000) throw new DomainException('A loading observation needs a known contract and a bounded message.');
+            // Caller IDs, actors, timestamps and arbitrary extra fields have no
+            // authority. Preserve warnings as explicitly attributed reports.
+            $observations[]=['contractRef'=>$ref,'kind'=>$alert['kind'],'message'=>$message];
+            if(count($observations)>100)throw new DomainException('Too many loading observations in one update.');
+        }
+        $merged['alerts']=(array)($current['alerts'] ?? []);
+        $merged['audits']=(array)($current['audits'] ?? []);
+        foreach($observations as $observation){
+            $by=(string)($actor['full_name'] ?? $actor['username'] ?? 'Milling bridge');
+            $message='Reported by '.$by.': '.$observation['message'];
+            $duplicate=false;
+            foreach($merged['alerts'] as $saved)if(($saved['source']??'')==='Milling observation'&&($saved['userId']??null)===(int)($actor['id']??0)&&($saved['contractRef']??'')===$observation['contractRef']&&($saved['kind']??'')===$observation['kind']&&($saved['message']??'')===$message){$duplicate=true;break;}
+            if($duplicate)continue;
+            $merged['alerts'][]=['id'=>'MILL-OBS-'.bin2hex(random_bytes(12)),'area'=>'MILL ACTUALS',
+                'contractRef'=>$observation['contractRef'],'kind'=>$observation['kind'],'message'=>$message,
+                'createdAt'=>gmdate('c'),'createdBy'=>$by,'userId'=>(int)($actor['id']??0),'seen'=>false,'source'=>'Milling observation'];
+        }
+        $priorShipments=operations_list_by_identity((array)$current['shipments'],'id');
+        foreach ($currentShipments as $id=>$shipment) {
+            $prior=$priorShipments[$id];
+            if (operations_same_value($prior['millActuals'] ?? [],$shipment['millActuals'] ?? [])) continue;
+            $at=gmdate('c');$eventId='MILL-'.bin2hex(random_bytes(12));
+            $by=(string)($actor['full_name'] ?? $actor['username'] ?? 'Milling bridge');
+            $merged['alerts'][]=['id'=>$eventId,'area'=>'MILL ACTUALS','contractRef'=>$shipment['contractRef'] ?? '',
+                'shipmentId'=>$id,'kind'=>'Mill Update','message'=>'Milling loading details updated.',
+                'createdAt'=>$at,'createdBy'=>$by,'userId'=>(int)($actor['id'] ?? 0),'seen'=>false,'source'=>'Server'];
+            $merged['audits'][]=['id'=>$eventId,'area'=>'MILL ACTUALS','action'=>'Loading details updated',
+                'detail'=>(string)($shipment['contractRef'] ?? ''),'shipmentId'=>$id,'at'=>$at,
+                'by'=>$by,'userId'=>(int)($actor['id'] ?? 0),'source'=>'Server'];
+        }
         return json_encode($applyTombstones($merged), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
     }
 
@@ -593,7 +660,7 @@ function operations_file_fallback(array $user): never {
             operations_validate_export_bridge($key,$old,$value,$sourceModule,(string)($store['values']['transtrade_export_v3_operational']??''));
             operations_validate_mill_cash($user,$sourceModule,$key,$old,$value,(array)($store['values']??[]));
             operations_validate_brand_bags($user,$sourceModule,$key,$old,$value);
-            if ($key==='transtrade_export_v3_operational') { operations_validate_export_permissions($user,$sourceModule,$old,$value); operations_validate_lot_reopening($old,$value,$user,$sourceModule); $value=operations_merge_export($old,$value,$sourceModule); }
+            if ($key==='transtrade_export_v3_operational') { operations_validate_export_permissions($user,$sourceModule,$old,$value); operations_validate_lot_reopening($old,$value,$user,$sourceModule); $value=operations_merge_export($old,$value,$sourceModule,$user); }
             if ($key==='tt30ship') tt_validate_corn_loading($value,$old);
             if ($key==='tt40exinstructions') operations_validate_exmill_completion($value,(string)($store['values']['tt35exload']??'[]'));
             if ($key==='tt35exload' && $sourceModule!=='Exports')tt_exmill_corn_loads($value,(string)($store['values']['tt40exinstructions']??'[]'),$old);
@@ -723,7 +790,7 @@ try {
     if ($key === 'transtrade_export_v3_operational') {
         operations_validate_export_permissions($user,$sourceModule,$oldPayload,$value);
         operations_validate_lot_reopening($oldPayload, $value, $user, $sourceModule);
-        $value = operations_merge_export($oldPayload, $value, $sourceModule);
+        $value = operations_merge_export($oldPayload, $value, $sourceModule,$user);
     }
     if ($key === 'tt30ship') tt_validate_corn_loading($value,$oldPayload);
     if ($key === 'tt40exinstructions') {
