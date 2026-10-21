@@ -6,7 +6,7 @@ with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
     for folder in ['api','accounts','data']:(root/folder).mkdir()
     for name in ['rent_salary.php','rent_salary_v2.php','salary_month_workflow.php','salary_flexible_workflow.php','salary_record_corrections.php','salary_extra_allocations.php','accounts_subaccounts_core.php','accounts_reference.php','accounts_ledger_visibility.php','assets_registry_core.php','company_investments_core.php','salary_master_store.php','accounts_bank_payment.php', 'accounts_posting_preview.php']:
         shutil.copy(ROOT/'api'/name,root/'api'/name)
-    for name in ['accounting_master_v1.json','rent-salary-ui.js','cheque-date-ui.js','bank-payment-details.js']:
+    for name in ['accounting_master_v1.json','rent-salary-ui.js','cheque-date-ui.js','bank-payment-details.js','post-confirmation-ui.js']:
         shutil.copy(ROOT/'accounts'/name,root/'accounts'/name)
     masters={'banks':[{'id':'bank-a','values':['Company Account','TTI','','TTI','Fixture Bank','','','PKR','12345','','','','','Active']},{'id':'bank-b','values':['Company Account','TTI','','TTI','Other Bank','','','PKR','67890','','','','','Active']}]}
     (root/'masters.json').write_text(json.dumps(masters))
@@ -31,10 +31,8 @@ with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
         return $id;
     }
     ''')
-    from permission_fixture import append_permission_helpers
-    append_permission_helpers(root)
     popup_css=re.search(r'style.textContent = `([\s\S]*?)`;', (ROOT/'accounts/accounts-clean-ui.js').read_text()).group(1)
-    (root/'accounts/index.html').write_text('<!doctype html><style>'+popup_css+'</style>'+'''<section class="workspace active tt-clean-modal tt-entry-only"><button data-expense="salary">Salaries</button><div id="expenseEditor"></div></section><script>window.TT_ACCOUNT_ACCESS={csrf:'fixture'};localStorage.setItem('tt_accounts_entity','TTI');</script><script src="cheque-date-ui.js"></script><script src="bank-payment-details.js"></script><script src="rent-salary-ui.js"></script>''')
+    (root/'accounts/index.html').write_text('<!doctype html><style>'+popup_css+'</style>'+'''<section class="workspace active tt-clean-modal tt-entry-only"><button data-expense="salary">Salaries</button><div id="expenseEditor"></div></section><script>window.TT_ACCOUNT_ACCESS={csrf:'fixture'};localStorage.setItem('tt_accounts_entity','TTI');</script><script src="cheque-date-ui.js"></script><script src="bank-payment-details.js"></script><script src="post-confirmation-ui.js"></script><script src="rent-salary-ui.js"></script>''')
     with socket.socket() as sock:sock.bind(('127.0.0.1',0));port=sock.getsockname()[1]
     def start():return subprocess.Popen(['php','-S',f'127.0.0.1:{port}','-t',str(root)],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
     server=start()
@@ -93,12 +91,17 @@ with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
             from playwright.sync_api import sync_playwright
             initial['salaryMasters']['Bob']['category']='MILL_STAFF';initial['salaryMasters']['Cara']['category']='HOME_STAFF'
             (root/'data/accounts.json').write_text(json.dumps(initial))
+            assert request({'action':'prepare_month'})[0]==200
             status,result=draft('Alice',750);assert status==200,result
+            store=saved();store['salaryMasters']['Alice']['monthlyAmount']=1100;(root/'data/accounts.json').write_text(json.dumps(store))
             with sync_playwright() as pw:
                 browser=pw.chromium.launch(headless=True);page=browser.new_page(viewport={'width':1280,'height':900})
                 page.goto(f'http://127.0.0.1:{port}/accounts/index.html');page.locator('[data-expense="salary"]').click()
                 page.locator('#rsMasterSetup').click();page.locator('#rsMasterPopup').wait_for();assert page.locator('#rsApplyMaster').is_visible()
                 before=saved();page.locator('#rsApplyMaster').click();confirmation=page.get_by_role('dialog',name='Review salary change');confirmation.wait_for();confirmation.get_by_role('button',name='Cancel',exact=True).click();assert saved()==before
+                page.locator('#rsApplyMaster').click();page.get_by_role('dialog',name='Review salary change').get_by_role('button',name='Continue',exact=True).click()
+                review=page.get_by_role('dialog',name='Review accounting entries');review.wait_for();assert not page.locator('#rsMasterPopup').is_visible()
+                review.get_by_role('button',name='Back to entry',exact=True).click();page.locator('#rsMasterPopup').wait_for();assert saved()==before
                 page.locator('#rsMasterClose').click();page.locator('#rsPrepare').click()
                 page.locator('#rsMonth').fill('2026-10');page.locator('#rsMonth').dispatch_event('change')
                 page.locator('[data-rs-post-group="OFFICE_STAFF"]').wait_for()
@@ -107,6 +110,7 @@ with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
                 assert page.locator('#rsSalaryComplete').is_disabled()
                 office=page.locator('[data-rs-group="OFFICE_STAFF"]');assert office.get_attribute('open') is not None
                 office.locator('[data-rs-post-group]').click()
+                page.get_by_role('dialog',name='Review accounting entries').get_by_role('button',name='Confirm and Post',exact=True).click()
                 page.locator('[data-rs-post-group="OFFICE_STAFF"]:disabled').wait_for()
                 assert office.get_attribute('open') is not None,'Post all must not toggle the expand bar'
                 assert page.locator('[data-rs-post-group="MILL_STAFF"]').is_enabled()
