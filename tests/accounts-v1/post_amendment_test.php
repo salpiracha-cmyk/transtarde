@@ -127,3 +127,15 @@ require_once dirname(__DIR__,2).'/api/tg_liability_projection.php';
 $tgBills=['tgLiabilities'=>['USD-BILL'=>['id'=>'USD-BILL','currency'=>'USD','nativeAmount'=>100,'recognitionRate'=>3.67],'AED-BILL'=>['id'=>'AED-BILL','currency'=>'AED','nativeAmount'=>50,'recognitionRate'=>1]],'tgBankTransactions'=>[['kind'=>'Payment','liabilityAllocations'=>[['id'=>'USD-BILL','amountNative'=>30]]]]];
 $before=$tgBills;$projected=tgl_supplier_rows($tgBills);check($projected[0]['outstandingNative']===70.0&&$projected[0]['outstandingAed']===256.9,'TG supplier balances must deduct linked payments and retain native currency.');check($projected[1]['outstandingNative']===50.0&&$tgBills===$before,'TG projection must preserve books and separate currencies.');
 echo "Shared TG supplier dashboard projection: payments, invoice currencies and read-only storage passed.\n";
+
+$old=source('TTI','POST-2026-000032-JV');$old['sourceType']='JV';$old['meta']=[];
+$book=['journals'=>[$old['id']=>$old],'jvDrafts'=>['LEGACY'=>['id'=>'LEGACY','journalId'=>$old['id'],'status'=>'Posted']]];
+$update=['reason'=>'Correct bank closure amount','date'=>'2026-09-16','reference'=>'ACCOUNT CLOSED','narration'=>'Account closure','lines'=>[['account'=>'1110','bankAccountId'=>'TTI-1','debit'=>80,'credit'=>0],['account'=>'2130','debit'=>0,'credit'=>80]]];
+$corrected=apa_correct($book,$owner,$old['id'],$update);$current=$book['journals'][$corrected['replacementPostId']];
+check(apd_supported($book,$current),'Amended JV must remain cancellable.');check(apd_delete_reason($book,$current,$owner)==='','Amended JV must not report a generic originating-workflow error.');
+$done=apd_delete($book,$owner,$old['id'],['reason'=>'Owner requested cancellation of amended JV']);
+check($done['publicPostId']===$old['id']&&$book['jvDrafts']['LEGACY']['status']==='Reversed','Follow correction chain and update original JV source status.');
+check($done['cancelledPostIds']===[$current['id']],'Cancel only the active replacement, never repeat the old reversal.');
+$undo=$book['journals'][$done['reversalPostIds'][0]];check(abs((float)$undo['totalDebit']-80)<.005&&$undo['date']===$current['date'],'Reverse current amount at its effective posting date.');
+check($book['journals'][$old['id']]['lines']===$old['lines'],'Retain original JV history.');
+echo "PASS amended JV cancellation: current replacement, stable public ID, correct amount, source status and immutable original history.\n";

@@ -6,6 +6,7 @@
   const buttons=[...(root.matches?.('button')?[root]:[]),...(root.querySelectorAll?.('button')||[])];
   for(const button of buttons){if(button.dataset.ttRowControl)continue;const text=button.textContent.trim(),label=button.getAttribute('aria-label')||button.title||text;
    if(/^Edit\b|^Amend\b/i.test(text))button.classList.add('tt-account-edit');if(/^Print\b/i.test(text))button.classList.add('tt-account-print');if(/^Reverse\b/i.test(text))button.classList.add('tt-account-reverse');
+   if(button.dataset.ttControlStyle==='action'){if(/^(Delete|Reverse)\b/i.test(text))button.classList.add('tt-account-reverse');continue;}
    if(/close|dismiss|logout/i.test(label)||button.closest('#tt-accounts-error'))continue;
    const remove=/^[×✕✖−–-]$/.test(text)||/^(Remove|Delete)\b/i.test(text)||[...button.attributes].some(a=>/^data-(?:remove|delete|ded-remove)(?:-|$)/.test(a.name));
    const add=/^[+＋]/.test(text)||button.hasAttribute('data-add-payer');

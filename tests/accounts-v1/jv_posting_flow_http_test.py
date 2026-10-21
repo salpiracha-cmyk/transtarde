@@ -76,6 +76,7 @@ require __DIR__.'/auth_store.php';$h=fopen(TT_DATA_DIR.'/accounts.json','r+');fl
         assert request({'action':'approve_jv','id':pending['jvId']},user=2,role='Reviewer')[0]==403,'A preparer cannot self-approve'
         approved=request({'action':'approve_jv','id':pending['jvId']})[1]['result'];assert approved['journalId']=='POST-2026-00043'
         staff_feed=request(user=2,role='Accountant',query='&notices=1&after=0')[1];assert len(staff_feed['notices'])==1 and staff_feed['notices'][0]['publicPostId']=='POST-2026-00043',staff_feed
+        assert len(staff_feed['notices'][0]['lines'])==2 and staff_feed['notices'][0]['narration']
         assert request(user=3,role='Accountant',query='&notices=1&after=0')[1]['notices']==[],'Decisions are private to their preparer/submitter'
         assert request(user=2,role='Accountant',query='&notices=1&after=0',extra={'X-QA-No-View':'1'})[0]==403
         pending2=request(submit('rejected'),user=2,role='Accountant')[1]['result'];reason='Amount does not match the original invoice'

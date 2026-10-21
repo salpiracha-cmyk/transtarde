@@ -5,7 +5,13 @@
   function dismiss(){clearTimeout(timer);if(panel){if(panel.hidePopover&&panel.matches(':popover-open'))panel.hidePopover();panel.hidden=true;}persistent=false;}
   function position(){if(panel){const bottom=document.querySelector?.('.topbar')?.getBoundingClientRect?.().bottom||0;panel.style.top=Math.max(12,bottom+12)+'px';}}
   window.addEventListener?.('resize',position);
+  function guidance(message){
+    const text=String(message||'The action could not be completed.');if(/Next step:/i.test(text))return text;
+    const rules=[[/Salary inputs changed|Salary Master changed|This month already has prepared/i,'Close the payment form and open Expenses → Salaries & Staff → Apply Salary Master. Review the current staff and saved allocations, then reopen the person.'],[/Salary balances changed|Salary data changed|stale.*salary/i,'Close the payment form, press Refresh in Salaries & Staff, then reopen the person. Saved payment drafts are retained.'],[/already.*(?:amended|reversed)|replacement Post ID/i,'Open Ledgers → Post IDs, search the public Post ID and use its current entry. The original and reversals remain in audit history.'],[/original workflow.*permission|Company.*permission.*delete|approval permission.*Journal Voucher/i,'Ask a Director or Super Admin to open the same company and original workflow. Director has full business access; staff access follows the assigned permissions.'],[/session expired|signed out|sign in again/i,'Sign in again, reopen this screen and refresh its saved record before retrying.'],[/Accounts storage|temporarily unavailable|network connection/i,'Keep your entry open, check the connection and retry once. If it continues, give Super Admin the screen name and Post ID; do not create a duplicate posting.']];
+    const match=rules.find(([pattern])=>pattern.test(text));return match?text+'\n\nNext step: '+match[1]:text;
+  }
   function error(message,options={}){
+    message=guidance(message);
     const same=panel&&!panel.hidden&&panel.querySelector('[data-error-text]')?.textContent===String(message);
     persistent=options.persistent===true||(same&&persistent);
     clearTimeout(timer);

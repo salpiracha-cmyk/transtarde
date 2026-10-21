@@ -8,6 +8,7 @@ require_once __DIR__.'/opening_balance_core.php';
 /** Journal-level correction shared by every Accounts posting source. Caller holds the accounts.json lock. */
 function apa_correct(array &$store, array $user, string $postId, array $input): array {
     $original=$store['journals'][$postId]??null;
+    if(($original['sourceType']??'')==='SALARY_MASTER_ADJUSTMENT')throw new DomainException('Correct this adjustment in Expenses → Salaries & Staff → Apply Salary Master. Update Salary Master first; the same salary payable and entitlement must stay linked.');
     if(!empty($original['meta']['expenseInvoiceId']))throw new DomainException('Correct this invoice in Expense Invoices so supplier balances and linked payments remain consistent.');
     if(!empty($original['meta']['settlementId'])&&isset($store['supplierSettlements'][$original['meta']['settlementId']]))throw new DomainException('Amend this payment through Party Payments so its invoice and B/F allocations remain linked.');
     if(in_array($original['meta']['originalSourceType']??$original['sourceType']??'',['EX_MILL_PURCHASE_LIABILITY','EX_MILL_LIFTING_REVERSAL'],true))throw new DomainException('Correct this receipt through its native Milling loading form so physical quantities and supplier-bill sources stay linked.');
