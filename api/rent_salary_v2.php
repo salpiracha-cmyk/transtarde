@@ -87,13 +87,15 @@ function rsv2_opening_advance(array &$s,string $entity,array $b,array $u,array $
     // The explicit opening save changes only this person's unfinished draft rows.
     // Preserve every saved payment and all other staff; require renewed review.
     foreach((array)($s['salarySheets']??[]) as $sheetKey=>$sheet){
-        if(($sheet['entity']??'')!==$entity||($sheet['status']??'')==='Completed'||($sheet['month']??'')<substr($date,0,7)||!isset($sheet['rows'][$mid])||!empty($sheet['rows'][$mid]['prepared']))continue;
+        if(($sheet['entity']??'')!==$entity||($sheet['status']??'')==='Completed'||($sheet['month']??'')<substr($date,0,7)||!isset($sheet['rows'][$mid]))continue;
         $row=$sheet['rows'][$mid];$current=rsv2_salary_row($s,$m,(string)$sheet['month']);
         $row['advanceOutstanding']=$current['advanceOutstanding'];$row['advanceSuggested']=$current['advanceSuggested'];
-        $row['originalAdvanceApplied']=min($row['totalDue'],$current['advanceSuggested']);
+        if(!empty($row['prepared'])){
+            smw_check_baseline($s,$row);$row['reviewed']=false;unset($row['requestedRecovery']);$row=smw_prepared_recovery($s,$row,$entity,(string)$sheet['month']);
+        }else{$row['originalAdvanceApplied']=min($row['totalDue'],$current['advanceSuggested']);$row['requestedRecovery']=$row['originalAdvanceApplied'];
         $row['advanceApplied']=round(min($row['originalAdvanceApplied'],max(0,$row['totalDue']-$row['paidAfterPrepare']-(float)($row['payment']['amount']??0))),2);
         $row['outstanding']=round(max(0,$row['totalDue']-$row['paidAfterPrepare']-$row['advanceApplied']-(float)($row['payment']['amount']??0)),2);
-        $row['reviewed']=false;$row['advanceReviewRequired']=true;
+        }$row['reviewed']=false;$row['advanceReviewRequired']=true;
         $s['salarySheets'][$sheetKey]['rows'][$mid]=$row;
         $s['salarySheets'][$sheetKey]['advanceSignature']=smw_advance_signature($s,$entity,(string)$sheet['month']);
         $s['salarySheets'][$sheetKey]['version']=(int)$sheet['version']+1;
