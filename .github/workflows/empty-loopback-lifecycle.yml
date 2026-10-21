@@ -1,0 +1,40 @@
+name: Empty loopback lifecycle diagnostic
+on:
+  pull_request:
+    paths: ['.github/scripts/empty_loopback_lifecycle.php', '.github/workflows/empty-loopback-lifecycle.yml']
+  push:
+    branches: [main]
+    paths: ['.github/scripts/empty_loopback_lifecycle.php', '.github/workflows/empty-loopback-lifecycle.yml']
+permissions:
+  contents: read
+jobs:
+  fixture:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: php -l .github/scripts/empty_loopback_lifecycle.php
+      - name: Verify real empty-server connections and cleanup
+        run: php .github/scripts/empty_loopback_lifecycle.php --require-connect
+  hosted:
+    needs: fixture
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: live-qa
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - name: Diagnose only temporary empty loopback processes
+        env:
+          HOSTINGER_HOST: ${{ secrets.HOSTINGER_HOST }}
+          HOSTINGER_PORT: ${{ secrets.HOSTINGER_PORT }}
+          HOSTINGER_USER: ${{ secrets.HOSTINGER_USER }}
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+          HOSTINGER_KNOWN_HOSTS: ${{ secrets.HOSTINGER_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          umask 077
+          task_keys=$(mktemp -d "$RUNNER_TEMP/empty-loopback-XXXXXXXX")
+          trap 'rm -rf -- "$task_keys"' EXIT
+          printf '%s\n' "$HOSTINGER_SSH_KEY" | tr -d '\r' > "$task_keys/key"
+          printf '%s\n' "$HOSTINGER_KNOWN_HOSTS" | tr -d '\r' > "$task_keys/known_hosts"
+          ssh -o ConnectTimeout=20 -o ServerAliveInterval=10 -o ServerAliveCountMax=3 -i "$task_keys/key" -o UserKnownHostsFile="$task_keys/known_hosts" -o StrictHostKeyChecking=yes -p "$HOSTINGER_PORT" "$HOSTINGER_USER@$HOSTINGER_HOST" php < .github/scripts/empty_loopback_lifecycle.php
