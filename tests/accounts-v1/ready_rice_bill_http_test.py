@@ -155,7 +155,9 @@ def run():
   assert any(l['account']=='2130' and l['debit']==100 for l in tg['journal']['lines'])
   assert all(r['id']!='BF:TG-OPENING:0' for r in tg['openLiabilities'])
   assert request('/api/tg_bank_transactions.php',tg_bf,user='fixtureowner')[1]['transaction']['id']==tg['transaction']['id']
-  status,ledger=request('/api/accounts_ledger_browser.php?entity=TTI&category=supplier&party=Fixture%20Vendor&from=2026-09-01&to=2026-09-30');assert status==200 and ledger['opening']==-300 and ledger['closing']==-150,(status,ledger)
+  # Anonymous historical openings cannot borrow a granular workflow grant.
+  status,scoped=request('/api/accounts_ledger_browser.php?entity=TTI&category=supplier&party=Fixture%20Vendor&from=2026-09-01&to=2026-09-30');assert status==200 and scoped['visibilityScope']=='Permitted workflows' and scoped['opening']==0 and scoped['closing']==150,(status,scoped)
+  status,ledger=request('/api/accounts_ledger_browser.php?entity=TTI&category=supplier&party=Fixture%20Vendor&from=2026-09-01&to=2026-09-30',user='fixtureowner');assert status==200 and ledger['opening']==-300 and ledger['closing']==-150,(status,ledger)
   assert ledger['rows'][0]['party']=='Fixture Vendor'
   status,extra=request('/api/supplier_settlements.php',{**pay,'requestKey':'payment-fixture-advance','amount':200,'allowAdvance':True});assert status==200,(status,extra)
   assert extra['result']['advanceAmount']==50 and extra['result']['netPayment']==200

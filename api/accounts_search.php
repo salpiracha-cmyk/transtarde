@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require dirname(__DIR__) . '/auth_store.php';
 require_once __DIR__.'/accounts_reference.php';
+require_once __DIR__.'/accounts_read_policy.php';
 require_once __DIR__.'/fi_credit_advice_link.php';
 header('Content-Type: application/json; charset=UTF-8');
 header('Cache-Control: no-store, no-cache, must-revalidate');
@@ -96,6 +97,7 @@ try {
     $store = $raw ? json_decode($raw, true) : null;
     if (!is_array($store)) as_out(['ok'=>true, 'results'=>[]]);
     $store=tt_fi_advice_project($store,tt_fi_advice_root());
+    $store=acr_project($user,$store);
     $results = []; $needle = strtolower($query);
     foreach ($store as $collection => $records) {
         // Private asset details are served only by the permission-filtered registry.
@@ -105,7 +107,7 @@ try {
             if (!is_array($row)) continue;
             if (as_source_has_post($store, (string)$collection, (string)$key, $row)) continue;
             $rowEntity = strtoupper((string)($row['entity'] ?? $row['legalEntity'] ?? ''));
-            if ($rowEntity !== '' && $rowEntity !== $entity) continue;
+            if ($rowEntity !== $entity) continue;
             $haystack = as_search_text($store, (string)$collection, (string)$key, $row);
             $references=[$key,$row['meta']['chequeNo']??'',$row['meta']['bankReference']??''];foreach(['id','journalId','billNo','invoiceNo','reference','voucherNo','chequeNo'] as $field)$references[]=$row[$field]??'';$numeric=preg_match('/^(?:\d{4}-)?\d+$/',$query);$match=!$numeric&&str_contains($haystack,$needle);foreach($references as $reference)if(tt_accounts_reference_matches($query,$reference)||($numeric&&!preg_match('/^(?:[A-Z]+-)?\d{4}-\d+$/i',(string)$reference)&&str_contains(strtolower((string)$reference),$needle))){$match=true;break;}if(!$match)continue;
             $amount = as_first($row, ['amount','total','netAmount','finalCommodityValue','supplierPayableTotal','grossPkr','totalDebit']);

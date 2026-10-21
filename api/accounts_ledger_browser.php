@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require dirname(__DIR__).'/auth_store.php';
 require_once __DIR__.'/accounts_reference.php';
+require_once __DIR__.'/accounts_read_policy.php';
 require_once __DIR__.'/service_ledger_groups.php';
 require_once __DIR__.'/accounts_post_delete_core.php';
 require_once __DIR__.'/accounts_subaccounts_core.php';
@@ -69,6 +70,8 @@ $nativeCurrency=$entity==='TG'?strtoupper(trim((string)($_GET['currency']??'AED'
 $party=trim((string)($_GET['party']??''));$parties=[];
 $query=strtolower(trim((string)($_GET['q']??'')));
 $postEntries=$account==='POSTS';
+$workflowRegister=!acr_reports($user);
+
 $registerEntity=$postEntries?strtoupper(trim((string)($_GET['registerEntity']??''))):'';
 if($registerEntity!==''&&(!in_array($registerEntity,['TTI','BRM','TG'],true)||!tt_user_can_access_entity($user,$registerEntity,'View')))alb_fail('Company access denied.',403);
 $bankId=str_starts_with($account,'BANK|')?substr($account,5):'';
@@ -102,6 +105,7 @@ foreach(['settlement_policy_v1.json','export_realization_policy_v1.json'] as $po
 }
 $file=TT_DATA_DIR.'/accounts.json';
 $store=tt_fi_advice_project(tt_fi_advice_read_json($file),tt_fi_advice_root());
+if($workflowRegister){$store=acr_project($user,$store,true);if($postEntries)$catalog=['POSTS'=>'Post ID Register'];$partyAliases=[];$partyNames=[];}
 $directorMembers=[];
 foreach((array)($store['salaryMasters']??[]) as $id=>$person){
     if(($person['entity']??'')!==$entity||!in_array($person['category']??'',['DIRECTOR_REMUNERATION','HOME_MONTHLY_GIVE'],true))continue;
@@ -112,7 +116,7 @@ foreach((array)($store['salaryMasters']??[]) as $id=>$person){
 }
 foreach($directorMembers as $group=>$members)$catalog['DIRECTOR|'.$group]='Director accounts · '.ucwords(strtolower($group)).' · Combined';
 if($payrollId!=='')$payrollIds=[$payrollId=>true];elseif($directorGroup!=='')$payrollIds=$directorMembers[$directorGroup]??[];
-$invoiceRegister=$category==='party'&&$serviceGroup===''?tt_customer_receivables($store,tt_fi_advice_root(),[$entity],$to):['rows'=>[],'drafts'=>[]];
+$invoiceRegister=(!$workflowRegister||acr_icon($user,['customer']))&&$category==='party'&&$serviceGroup===''?tt_customer_receivables($store,tt_fi_advice_root(),[$entity],$to):['rows'=>[],'drafts'=>[]];
 $partyInvoices=[];$invoiceTotals=[];
 foreach($invoiceRegister['rows'] as $invoice){$name=$partyNames[$invoice['label']]??$partyNames[alb_party_key($invoice['label'])]??$invoice['label'];if($name==='')continue;$parties[$name]=true;if($party!==''&&alb_party_key($name)===alb_party_key($party)&&$invoice['date']>=$from){$invoice['label']=$name;$partyInvoices[]=$invoice;$cur=$invoice['currency'];$invoiceTotals[$cur]=round(($invoiceTotals[$cur]??0)+$invoice['amount'],2);}}
 $headCodes=$headId!==''?sac_descendants($headId,$store,$entity):[];
@@ -157,12 +161,14 @@ if($requestedPost!==''){
     }
     echo json_encode(['ok'=>true,'entity'=>$posting['entity'],'post'=>$posting,'bankAccounts'=>$postBanks],JSON_UNESCAPED_UNICODE);exit;
 }
+if($workflowRegister&&$postEntries)$catalog=['POSTS'=>'Post ID Register'];
 $ledgerHidden=alv_hidden($store,$postEntries?'':$to);
 $journals=array_values(array_filter((array)($store['journals']??[]),static fn($j)=>is_array($j)&&($entity==='ALL'?tt_user_can_access_entity($user,(string)($j['entity']??''),'View'):($j['entity']??'')===$entity)&&($registerEntity===''||($j['entity']??'')===$registerEntity)&&alv_posted($j)&&($j['date']??'')<=$to));
 foreach($journals as $journal)foreach((array)($journal['lines']??[]) as $line)if(is_array($line)&&isset($line['account'])){
     $code=(string)$line['account'];if(!isset($catalog[$code]))$catalog[$code]=(string)($line['accountName']??$code);
 }
 if($account!==''&&!isset($catalog[$account]))alb_fail('Select an account from All Ledgers.');
+if($workflowRegister&&$postEntries)$catalog=['POSTS'=>'Post ID Register'];
 ksort($catalog,SORT_NATURAL);
 usort($journals,static fn($a,$b)=>strcmp((string)$a['date'],(string)$b['date'])?:strcmp((string)($a['id']??''),(string)($b['id']??'')));
 $opening=0.0;$rows=[];$deleteRecordIndex=apd_record_index($store);
@@ -283,13 +289,14 @@ if(($_GET['format']??'')==='csv'){
     header('Content-Disposition: attachment; filename="'.preg_replace('/[^A-Z0-9_-]/i','',$entity.'-ledger-'.$from.'-'.$to).'.csv"');
     $out=fopen('php://output','w');fwrite($out,"\xEF\xBB\xBF");
     if($postEntries){
-        fputcsv($out,['Post ID Register',$registerEntity?:'All authorised companies','From',$from,'To',$to]);
+        fputcsv($out,[$workflowRegister?'Post ID Register · Permitted workflows':'Post ID Register',$registerEntity?:'All authorised companies','From',$from,'To',$to]);
         fputcsv($out,['Date','Post ID','Company','Book currency','Reference','Narration','Party','Debit','Credit']);
         $subtotals=[];foreach($rows as $row){fputcsv($out,array_map('alb_cell',[preg_replace('/^(\d{4})-(\d{2})-(\d{2})$/','$3-$2-$1',$row['date']),$row['publicPostId']??$row['voucher'],$row['entity'],$row['bookCurrency'],$row['reference'],$row['narration'],$row['party'],$row['debit'],$row['credit']]));$key=$row['entity'].'|'.$row['bookCurrency'];$subtotals[$key]??=['entity'=>$row['entity'],'currency'=>$row['bookCurrency'],'debit'=>0,'credit'=>0];$subtotals[$key]['debit']+=(int)round(100*$row['debit']);$subtotals[$key]['credit']+=(int)round(100*$row['credit']);}
         foreach($subtotals as $total)fputcsv($out,['Subtotal','',$total['entity'],$total['currency'],'','','',$total['debit']/100,$total['credit']/100]);
         fclose($out);exit;
     }
     fputcsv($out,['Company',$entity,$category==='party'?'Party':'Account',$category==='party'?$party:($account!==''?$account.' '.$catalog[$account]:'All Ledgers'),'From',$from,'To',$to]);
+    if($workflowRegister)fputcsv($out,['Scope','Amounts and balances include permitted workflows only']);
     fputcsv($out,['Opening Balance','','','','','','','','',($account!==''||$party!=='')?($opening===null?'Unavailable':round($opening,2)):'']);
     fputcsv($out,['Date','Post ID','Account','Account Name','Reference','Narration','Party','Debit','Credit','Balance','Expense paid']);
     foreach($rows as $row)fputcsv($out,array_map('alb_cell',[preg_replace('/^(\d{4})-(\d{2})-(\d{2})$/','$3-$2-$1',$row['date']),$row['publicPostId']??$row['voucher'],$row['account'],$row['accountName'],$row['reference'],$row['narration'],$row['party'],$row['debit'],$row['credit'],$row['balance']??'',$row['expenseAmount']??'']));
@@ -298,6 +305,6 @@ if(($_GET['format']??'')==='csv'){
     fclose($out);exit;
 }
 header('Content-Type: application/json; charset=UTF-8');
-echo json_encode(['ok'=>true,'entity'=>$entity,'revision'=>(int)($store['revision']??0),'accounts'=>array_map(static fn($code,$name)=>['code'=>(string)$code,'name'=>$name],array_keys($catalog),array_values($catalog)),'from'=>$from,'to'=>$to,'account'=>$account,'registerEntity'=>$registerEntity,'registerEntities'=>$postEntries?array_values(array_filter(['TTI','BRM','TG'],static fn($e)=>tt_user_can_access_entity($user,$e,'View'))):[],'currency'=>$entity==='ALL'?($registerEntity===''?'MIXED':($registerEntity==='TG'?'AED':'PKR')):($bankId!==''?($banks[$bankId]['currency']??''):($entity==='TG'?$nativeCurrency:'PKR')),'pendingRemittances'=>$entity==='TG'&&$bankId!==''?tgr_reserved($store,$bankId):0,'availableBalance'=>$entity==='TG'&&$bankId!==''?tgr_bank_balance($store,$bankId,$banks[$bankId]['currency'])['available']:null,'opening'=>$opening===null?null:round($opening,2),'closing'=>($account!==''||$party!=='')&&!$postEntries?$closing:null,'partyAliases'=>$partyAliases,'parties'=>array_keys($parties),'category'=>$category,'party'=>$party,'homeLedger'=>$homeLedger,'expenseTotal'=>$expenseTotal,'expenseCurrency'=>$entity==='TG'?'AED':'PKR','missingPartyLines'=>$category==='party'?$missingPartyLines:0,'unmatchedPartyRows'=>$category==='party'?$unmatchedPartyRows:[],'balanceUnavailable'=>in_array($category,['party','bank'],true)&&$balanceUnavailable,'invoiceRows'=>$partyInvoices,'invoiceTotals'=>$invoiceTotals,'serviceGroup'=>$serviceGroup,'serviceGroups'=>slg_groups(),'serviceClassificationReviews'=>slg_reviews($store,$entity,$partyMasters),'rows'=>$rows],JSON_UNESCAPED_UNICODE);
+echo json_encode(['ok'=>true,'entity'=>$entity,'revision'=>(int)($store['revision']??0),'accounts'=>array_map(static fn($code,$name)=>['code'=>(string)$code,'name'=>$name],array_keys($catalog),array_values($catalog)),'from'=>$from,'to'=>$to,'account'=>$account,'registerEntity'=>$registerEntity,'visibilityScope'=>$workflowRegister?'Permitted workflows':'All permitted company books','registerEntities'=>$postEntries?array_values(array_filter(['TTI','BRM','TG'],static fn($e)=>tt_user_can_access_entity($user,$e,'View'))):[],'currency'=>$entity==='ALL'?($registerEntity===''?'MIXED':($registerEntity==='TG'?'AED':'PKR')):($bankId!==''?($banks[$bankId]['currency']??''):($entity==='TG'?$nativeCurrency:'PKR')),'pendingRemittances'=>!$workflowRegister&&$entity==='TG'&&$bankId!==''?tgr_reserved($store,$bankId):0,'availableBalance'=>!$workflowRegister&&$entity==='TG'&&$bankId!==''?tgr_bank_balance($store,$bankId,$banks[$bankId]['currency'])['available']:null,'opening'=>$opening===null?null:round($opening,2),'closing'=>($account!==''||$party!=='')&&!$postEntries?$closing:null,'partyAliases'=>$partyAliases,'parties'=>array_keys($parties),'category'=>$category,'party'=>$party,'homeLedger'=>$homeLedger,'expenseTotal'=>$expenseTotal,'expenseCurrency'=>$entity==='TG'?'AED':'PKR','missingPartyLines'=>$category==='party'?$missingPartyLines:0,'unmatchedPartyRows'=>$category==='party'?$unmatchedPartyRows:[],'balanceUnavailable'=>in_array($category,['party','bank'],true)&&$balanceUnavailable,'invoiceRows'=>$partyInvoices,'invoiceTotals'=>$invoiceTotals,'serviceGroup'=>$serviceGroup,'serviceGroups'=>slg_groups(),'serviceClassificationReviews'=>slg_reviews($store,$entity,$partyMasters),'rows'=>$rows],JSON_UNESCAPED_UNICODE);
 
 

@@ -1015,9 +1015,10 @@ function tt_api_icon_write_allowed(array $user,string $endpoint,array $body): bo
     return false;
 }
 
-function tt_post_correction_allowed(array $user,array $journal): bool {
+/** Canonical posting source ownership, shared by reads and corrections. */
+function tt_post_workflow_icons(array $journal): array {
     $source=(string)($journal['meta']['originalSourceType']??$journal['sourceType']??'');
-    if($source==='BANK_RECON_DIRECT_ENTRY'&&($journal['meta']['bankDirectType']??'')==='SAVING_PROFIT')return tt_user_can_module_action($user,'Accounts','cashbank','Edit')||tt_user_can_module_action($user,'Accounts','reconciliation','Edit');
+    if($source==='BANK_RECON_DIRECT_ENTRY'&&($journal['meta']['bankDirectType']??'')==='SAVING_PROFIT')return ['cashbank','reconciliation'];
     $groups=[
         'expenses'=>['EXPENSE_INVOICE','UTILITY_INVOICE','UTILITY_PAYMENT','EXPENSE_REIMBURSEMENT_CAPTURE','EXPENSE_REIMBURSEMENT_SETTLE','CREDIT_CARD_PAYMENT','CREDIT_CARD_STATEMENT','CREDIT_CARD_STATEMENT_AMENDMENT','EXPORT_EXPENSE_PAYMENT','GENERAL_EXPENSE_PAYMENT','DONATION_PAYMENT','RENT_MONTHLY_ACCRUAL','RENT_PAYMENT','SALARY_ADVANCE','SALARY_BATCH_PAYMENT','SALARY_MONTHLY_ACCRUAL','SALARY_PAYMENT','SALARY_MONTH_COMPLETED'],
         'purchases'=>['COMMODITY_RECEIPT_ACCEPTED','COMMODITY_BILL_VERIFIED','EX_MILL_PURCHASE_LIABILITY','BAG_HISTORICAL_OPENING','BAG_HISTORICAL_REVERSAL','EXPORT_BAG_SUPPLIER_BILL','NON_WOVEN_BAG_SUPPLIER_BILL','OTHER_PURCHASE','FIXED_ASSET_PURCHASE','PRODUCTION_INVENTORY_TRANSFER','AUTO_PRODUCTION_COST','ACCOUNTS_BYPRODUCT_VALUATION','SALES_TAX_REFUND_RECEIPT'],
@@ -1028,7 +1029,14 @@ function tt_post_correction_allowed(array $user,array $journal): bool {
         'services'=>['CLEARING_BILL','FUMIGATION_BILL','INSPECTION_BILL'],
         'tg'=>['TG_INTERCOMPANY_PAKISTAN','TG_INTERCOMPANY_TG','TG_INTERCOMPANY_PAYABLE_RECOGNIZED'],
     ];
-    foreach($groups as $icon=>$sources)if(in_array($source,$sources,true))return tt_user_can_module_action($user,'Accounts',$icon,'Edit');
+    foreach($groups as $icon=>$sources)if(in_array($source,$sources,true))return [$icon];
+    return [];
+}
+
+function tt_post_correction_allowed(array $user,array $journal): bool {
+    $source=(string)($journal['meta']['originalSourceType']??$journal['sourceType']??'');
+    $icons=tt_post_workflow_icons($journal);
+    if($icons){foreach($icons as $icon)if(tt_user_can_module_action($user,'Accounts',$icon,'Edit'))return true;return false;}
     if(!in_array($source,['JV','JV_REVERSAL'],true)&&in_array('Edit',(array)($user['permissions']['Accounts']??[]),true))return true;
     // Approved JVs and unclassified historical journals require the controlled
     // journal approval authority rather than borrowing an unrelated icon.

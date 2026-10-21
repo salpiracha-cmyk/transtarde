@@ -318,10 +318,8 @@ try {
         $forEntity = static fn(array $row): bool => strtoupper((string)($row['entity'] ?? '')) === $entity;
         accounts_respond([
             'ok'=>true,'entity'=>$entity,'entities'=>tt_user_accounts_entities($user),'revision'=>(int)$store['revision'],
-            'journals'=>array_filter((array)$store['journals'], $forEntity),
-            'events'=>array_filter((array)$store['events'], $forEntity),
-            'reminders'=>array_filter((array)$store['reminders'], $forEntity),
-            'masters'=>$store['masters'],'accountingMaster'=>$master,'serverNow'=>gmdate('c')
+            'reminders'=>array_map(static fn(array $row):array=>['entity'=>$entity,'status'=>(string)($row['status']??'')],array_filter((array)$store['reminders'], $forEntity)),
+            'accountingMaster'=>$master,'serverNow'=>gmdate('c')
         ]);
     }
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') accounts_respond(['ok'=>false,'error'=>'Method not allowed.'], 405);

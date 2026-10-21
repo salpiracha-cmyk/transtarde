@@ -4,7 +4,7 @@ ROOT=pathlib.Path(__file__).resolve().parents[2]
 with tempfile.TemporaryDirectory(prefix='assets-registry-qa-') as temp:
     root=pathlib.Path(temp)
     for folder in ['api','accounts','data']:(root/folder).mkdir()
-    for name in ['tg_remittance_core.php', 'receipt_invoice_links.php', 'fi_credit_advice_link.php', 'assets_registry.php','assets_registry_core.php','accounts_bank_payment.php','accounts_search.php','accounts_reference.php','fi_credit_advice_link.php']:shutil.copy(ROOT/'api'/name,root/'api'/name)
+    for name in ['tg_remittance_core.php', 'receipt_invoice_links.php', 'fi_credit_advice_link.php', 'assets_registry.php','assets_registry_core.php','accounts_bank_payment.php','accounts_search.php','accounts_read_policy.php','accounts_reference.php','fi_credit_advice_link.php']:shutil.copy(ROOT/'api'/name,root/'api'/name)
     for name in ['accounting_master_v1.json','assets-registry-ui.js']:shutil.copy(ROOT/'accounts'/name,root/'accounts'/name)
     (root/'auth_store.php').write_text('''<?php
 define('TT_DATA_DIR',__DIR__.'/data');define('TT_DB_HOST','');define('TT_DB_NAME','');define('TT_DB_USER','');function tt_ensure_data_dir(){}
@@ -28,6 +28,13 @@ function tt_next_post_id(array $existing, string $module='Accounts', string $are
  return $id;
 }
 ''')
+    # Search shares production workflow ownership and icon checks.
+    import re
+    source=(ROOT/'auth_store.php').read_text()
+    for function in ['tt_user_can_module_action','tt_post_workflow_icons']:
+        helper=re.search(r'function '+function+r'\([^\n]*\n.*?\n}',source,re.S).group(0)
+        with (root/'auth_store.php').open('a') as fixture: fixture.write('\n'+helper+'\n')
+
     initial={'journals':{},'bankAccountSettings':{'B1':{'defaultPaymentAccount':True}}}
     (root/'data/accounts.json').write_text(json.dumps(initial))
     (root/'accounts/index.html').write_text('''<!doctype html><button id="openAssets">Assets</button><script>window.TT_ACCOUNT_ACCESS={csrf:'fixture'};localStorage.setItem('tt_accounts_entity','TTI');</script><script src="assets-registry-ui.js"></script><script>document.querySelector('#openAssets').onclick=()=>TT_ASSETS_UI.open();</script>''')

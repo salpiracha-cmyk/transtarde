@@ -7,7 +7,7 @@ with tempfile.TemporaryDirectory(prefix='party-ledger-qa-') as temp:
     root = pathlib.Path(temp)
     for folder in ['api', 'data', 'accounts']:
         (root/folder).mkdir()
-    for name in ['supplier_opening_core.php','accounts_subaccounts_core.php','accounts_ledger_visibility.php','assets_registry_core.php','service_ledger_groups.php','accounts_ledger_browser.php','accounts_post_delete_core.php', 'accounts_reference.php', 'tg_remittance_core.php', 'fi_credit_advice_link.php', 'receipt_invoice_links.php','customer_receivables_core.php']:
+    for name in ['supplier_opening_core.php','accounts_subaccounts_core.php','accounts_ledger_visibility.php','assets_registry_core.php','service_ledger_groups.php','accounts_ledger_browser.php','accounts_read_policy.php','accounts_post_delete_core.php', 'accounts_reference.php', 'tg_remittance_core.php', 'fi_credit_advice_link.php', 'receipt_invoice_links.php','customer_receivables_core.php']:
         shutil.copy(ROOT/'api'/name, root/'api'/name)
     for path in (ROOT/'accounts').glob('*.json'):
         shutil.copy(path, root/'accounts'/path.name)
@@ -17,11 +17,15 @@ with tempfile.TemporaryDirectory(prefix='party-ledger-qa-') as temp:
     window.TT_ALL_LEDGERS.open('','party');</script></body></html>''')
     (root/'auth_store.php').write_text('''<?php
     define('TT_DATA_DIR',__DIR__.'/data');
-    function tt_require_login(){return ['id'=>1,'role'=>'Accounts'];}
+    function tt_require_login(){return ['id'=>1,'role'=>'Staff','permissions'=>['Accounts'=>'all']];}
     function tt_user_can_open_module($u,$m){return ($_GET['denyModule']??'')!=='1';}
     function tt_user_can_access_entity($u,$e,$a){return $e!=='BRM';}
     function tt_list_masters(){return ['business_parties'=>[['id'=>'P1','values'=>['ACME Rice','HKM']]]];}
     ''')
+    # Exercise the actual production permission helper with this disposable identity.
+    import re
+    permission_helper=re.search(r'function tt_user_can_module_action\([^\n]*\n.*?\n}',(ROOT/'auth_store.php').read_text(),re.S).group(0)
+    with (root/'auth_store.php').open('a') as auth_fixture: auth_fixture.write('\n'+permission_helper+'\n')
     def line(account, debit=0, credit=0, **extra):
         return dict(account=account, debit=debit, credit=credit, **extra)
     def journal(id, date, lines, entity='TTI', **extra):
