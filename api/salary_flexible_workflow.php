@@ -104,7 +104,7 @@ function sfw_save(array &$s,string $e,string $m,array $b,array $u,array $names,b
     }
     $affected=[];foreach(array_merge($old,$transactions) as $t)foreach($t['allocations'] as $a)foreach(sea_charges($a) as $charge)$affected[$charge['masterId']]=true;
     foreach(array_keys($affected) as $target){$sheet['rows'][$target]['reviewed']=false;if($family&&!empty($b['companyHomeExpense'])&&$sheet['rows'][$target]['category']==='HOME_MONTHLY_GIVE')$sheet['rows'][$target]['companyHomeExpense']=true;}
-    $recovery=sfw_money($b['advanceApplied']??$owner['advanceApplied'],'advance recovery');$max=$owner['prepared']?$owner['originalAdvanceApplied']:min($owner['totalDue'],$owner['advanceOutstanding']);
+    $recovery=sfw_money($b['advanceApplied']??$owner['advanceApplied'],'advance recovery');$max=$owner['prepared']?($owner['recoveryMaximum']??$owner['originalAdvanceApplied']):min($owner['totalDue'],$owner['advanceOutstanding']);
     if($recovery>$max+.005)throw new DomainException('Recovery exceeds the eligible advance balance.');
     $sheet['rows'][$id]['requestedRecovery']=$recovery;if($owner['category']==='HOME_MONTHLY_GIVE'&&!empty($b['companyHomeExpense']))$sheet['rows'][$id]['companyHomeExpense']=true;sfw_recalculate($sheet);$sheet['rows'][$id]['reviewed']=true;unset($sheet['rows'][$id]['advanceReviewRequired']);
     $sheet['version']++;$sheet['updatedAt']=gmdate('c');$s['salarySheets'][$e.'|'.$m]=$sheet;return ['saved'=>true,'masterId'=>$id];

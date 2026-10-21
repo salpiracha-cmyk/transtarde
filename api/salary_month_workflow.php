@@ -19,6 +19,30 @@ function smw_personal_signature(array $s,string $entity,string $month=''):string
     $rows=[];foreach((array)($s['expensePersonalLinks']??[]) as $link){if(($link['entity']??'')!==$entity)continue;foreach((array)$link['rows'] as $r)if(($r['personalTreatment']??'')==='REMUNERATION'&&($month===''||sfw_recovery_month($r)<=$month))$rows[]=[$link['key'],$r['expenseFor'],$r['amount'],$r['advanceId'],$r['periods']];}
     return hash('sha256',json_encode($rows,JSON_THROW_ON_ERROR));
 }
+// A prepared entitlement may predate an advance opening. Suggest only this
+// month's unapplied instalment; never repeat a recovery already posted for it.
+function smw_pending_instalment(array $advance,string $month):float {
+    $used=0.0;foreach((array)($advance['adjustments']??[]) as $adjustment)if(($adjustment['month']??'')===$month)$used+=(float)$adjustment['amount'];
+    return round(max(0,rsv2_advance_suggestion([$advance])-$used),2);
+}
+function smw_prepared_recovery(array $s,array $row,string $entity,string $month):array {
+    $posted=(float)($s['salaryPeriods'][$row['periodId']]['advanceApplied']??0);$extra=0.0;
+    foreach(rsv2_open_advances($s,$entity,(string)$row['masterId'],$month) as $advance)$extra+=smw_pending_instalment($advance,$month);
+    $traced=0.0;foreach((array)($s['salaryAdvances']??[]) as $advance)if(($advance['entity']??'')===$entity&&($advance['masterId']??'')===$row['masterId'])foreach((array)($advance['adjustments']??[]) as $adjustment)if(($adjustment['month']??'')===$month)$traced+=(float)$adjustment['amount'];
+    // Historical periods without matching source adjustments need reconciliation,
+    // not an inferred second instalment on opening the payment form.
+    if($posted>$traced+.005)$extra=0.0;
+    $unpaid=max(0,(float)$row['totalDue']-(float)$row['paidAfterPrepare']);
+    $row['recoveryMaximum']=round(min($unpaid,$posted+(float)$row['advanceOutstanding']),2);
+    if(empty($row['reviewed'])&&!array_key_exists('requestedRecovery',$row)){
+        $suggested=round(min($unpaid,$posted+$extra),2);
+        if(abs($suggested-(float)$row['advanceApplied'])>.005)$row['advanceReviewRequired']=true;
+        $row['advanceApplied']=round(min($suggested,max(0,$unpaid-(float)($row['payment']['amount']??0))),2);
+        $row['requestedRecovery']=$suggested;
+        $row['outstanding']=round(max(0,$unpaid-$row['advanceApplied']-(float)($row['payment']['amount']??0)),2);
+    }
+    return $row;
+}
 function smw_fresh_sheet(array $s,string $entity,string $month):array {
     $rows=[];
     foreach((array)$s['salaryMasters'] as $m){
@@ -31,6 +55,7 @@ function smw_fresh_sheet(array $s,string $entity,string $month):array {
         $row['advanceApplied']=$period===null?min($row['totalDue'],$row['advanceSuggested']):$row['advanceApplied'];
         $row['outstanding']=round(max(0,$row['totalDue']-$row['advanceApplied']-$row['paidAfterPrepare']),2);
         $row['originalAdvanceApplied']=$row['advanceApplied'];$row['reviewed']=false;$row['payment']=null;
+        if($period!==null)$row=smw_prepared_recovery($s,$row,$entity,$month);
         $rows[$row['masterId']]=$row;
     }
     $sheet=['entity'=>$entity,'month'=>$month,'version'=>0,'status'=>'Draft','rows'=>$rows,'advanceSignature'=>smw_advance_signature($s,$entity,$month),'personalSignature'=>smw_personal_signature($s,$entity,$month),'masterSignature'=>smw_master_signature($s,$entity,$month)];
@@ -43,6 +68,8 @@ function smw_sheet(array $s,string $entity,string $month):array {
     $stored=$s['salarySheets'][$key]??null;
     if(!is_array($stored))return smw_fresh_sheet($s,$entity,$month);
     if(($stored['status']??'Draft')==='Completed')return $stored;
+    foreach($stored['rows'] as &$row)if(!empty($row['prepared'])&&($row['baseline']??'')===rsv2_fingerprint($s['salaryPeriods'][$row['periodId']]??[]))$row=smw_prepared_recovery($s,$row,$entity,$month);
+    unset($row);
     $fresh=smw_fresh_sheet($s,$entity,$month);
     if(($stored['personalSignature']??smw_personal_signature([],$entity,$month))!==$fresh['personalSignature']){$stored['sourceInputsChanged']=true;$stored['masterChanged']=true;$stored['canRefreshFromMaster']=!array_filter((array)$stored['rows'],static fn($row)=>!empty($row['prepared']));return $stored;}
     if(($stored['advanceSignature']??'')!==$fresh['advanceSignature']){
@@ -162,7 +189,7 @@ function smw_action(array &$s,string $entity,string $month,array $b,array $u,arr
             if($cash>.005){rsv2_pay_line($s,$entity,'CASH|'.$entity,$cash,$names);$parts[]=['amount'=>$cash,'paymentAccountId'=>'CASH|'.$entity];}
             if($bank>.005){if(str_starts_with($source,'CASH|'))throw new DomainException('Choose a bank account for the bank portion.');rsv2_pay_line($s,$entity,$source,$bank,$names);$tracking=tt_accounts_bank_payment_details($b);$parts[]=['amount'=>$bank,'paymentAccountId'=>$source]+$tracking;}
         }elseif($amount>.005){rsv2_pay_line($s,$entity,$source,$amount,$names);if(!str_starts_with($source,'CASH|'))$tracking=tt_accounts_bank_payment_details($b);$parts[]=['amount'=>$amount,'paymentAccountId'=>$source]+$tracking;}
-        $row['advanceApplied']=round(min($row['prepared']?$row['originalAdvanceApplied']:min($row['totalDue'],$row['advanceSuggested']),max(0,$maximum-$amount)),2);
+        $row['advanceApplied']=round(min($row['prepared']?$row['advanceApplied']:min($row['totalDue'],$row['advanceSuggested']),max(0,$maximum-$amount)),2);
         $row['outstanding']=round(max(0,$maximum-$row['advanceApplied']-$amount),2);
         $row['reviewed']=true;unset($row['advanceReviewRequired']);$row['payment']=['amount'=>$amount,'date'=>$date,'paymentAccountId'=>$source,'parts'=>$parts]+$tracking;
         $sheet['rows'][$mid]=$row;$sheet['version']++;$sheet['updatedAt']=gmdate('c');
@@ -188,6 +215,11 @@ function smw_action(array &$s,string $entity,string $month,array $b,array $u,arr
             if($companyHome&&empty($s['salaryPeriods'][$row['periodId']]['companyHomeExpense'])){$base=round($row['netSalary']+(float)($row['monthlyAddition']??0)-(float)($row['monthlyReduction']??0)+(float)$row['otherAllowance'],2);$old=$row['accountingTreatment']==='FAMILY_ALLOCATION'?'3200':'6210';if($base>.005){$lines[]=rsv2_line('6910',$base,0,$names,$meta+$homeMeta);if($old==='3200')$lines[]=rsv2_line('3200',0,$base,$names,$meta);else{foreach([['6210',$base-$row['otherAllowance']],['6220',$row['otherAllowance']]] as [$code,$part])if($part>.005)$lines[]=rsv2_line($code,0,$part,$names,$meta);}}}
             $previous=(float)$s['salaryPeriods'][$row['periodId']]['advanceApplied'];$restore=round($previous-$applied,2);
             if($restore>.005){$lines[]=rsv2_line('1230',$restore,0,$names,$meta);$lines[]=rsv2_line('2230',0,$restore,$names,$meta);}
+            if($restore<-.005){
+                $available=array_sum(array_column(rsv2_open_advances($s,$entity,$mid,$month),'remaining'));
+                if(-$restore>$available+.005)throw new DomainException('Advance balance changed for '.$row['name'].'. Refresh before completing.');
+                $lines[]=rsv2_line('2230',-$restore,0,$names,$meta);$lines[]=rsv2_line('1230',0,-$restore,$names,$meta+['salaryAdvanceApplied'=>-$restore]);
+            }
         }
         $payment=$row['payment'];
         if(!isset($sheet['paymentGroups'])&&$payment['amount']>.005){
@@ -215,6 +247,13 @@ function smw_action(array &$s,string $entity,string $month,array $b,array $u,arr
             foreach(rsv2_open_advances($s,$entity,$mid,$month) as $advance){if($left<=.005)break;$id=$advance['id'];$take=min($left,$s['salaryAdvances'][$id]['remaining']);$s['salaryAdvances'][$id]['remaining']=round($s['salaryAdvances'][$id]['remaining']-$take,2);$s['salaryAdvances'][$id]['monthsRemaining']=max(0,(int)($s['salaryAdvances'][$id]['monthsRemaining']??1)-1);$s['salaryAdvances'][$id]['adjustments'][]=['month'=>$month,'amount'=>$take,'journalId'=>$jid];$left=round($left-$take,2);}
         }else{
             $restore=round($s['salaryPeriods'][$pid]['advanceApplied']-$applied,2);
+            if($restore<-.005){
+                $left=-$restore;
+                foreach([true,false] as $scheduled)foreach(rsv2_open_advances($s,$entity,$mid,$month) as $advance){if($left<=.005)break;$id=$advance['id'];$take=min($left,$scheduled?smw_pending_instalment($advance,$month):(float)$advance['remaining']);if($take<=.005)continue;$already=false;foreach((array)$advance['adjustments'] as $adjustment)if(($adjustment['month']??'')===$month&&(float)$adjustment['amount']>.005)$already=true;
+                    $s['salaryAdvances'][$id]['remaining']=round($s['salaryAdvances'][$id]['remaining']-$take,2);if(!$already)$s['salaryAdvances'][$id]['monthsRemaining']=max(0,(int)($advance['monthsRemaining']??1)-1);$s['salaryAdvances'][$id]['adjustments'][]=['month'=>$month,'amount'=>$take,'journalId'=>$jid];$left=round($left-$take,2);
+                }
+                if($left>.005)throw new DomainException('Advance recovery could not be allocated. Refresh this salary period.');
+            }
             foreach($s['salaryAdvances'] as &$advance){if(($advance['entity']??'')!==$entity||($advance['masterId']??'')!==$mid)continue;foreach($advance['adjustments'] as &$adjustment){if($restore<=.005)break;if(($adjustment['month']??'')!==$month)continue;$take=min($restore,(float)$adjustment['amount']);$adjustment['amount']=round($adjustment['amount']-$take,2);$advance['remaining']=round($advance['remaining']+$take,2);$restore=round($restore-$take,2);}unset($adjustment);}unset($advance);
             if($restore>.005)throw new DomainException('The original advance adjustment cannot be restored. Review this salary period.');
         }
