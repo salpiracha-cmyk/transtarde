@@ -120,6 +120,14 @@ def run():
   assert request('/api/commodity_bills.php',p)[0]==422,'Raw cannot combine Pohanch'
   p['sourceKeys']=['POHANCH|26002|1'];p['finalCommodityValue']=2400000
   status,result=request('/api/commodity_bills.php',p);assert status==200 and result['bill']['brokerageGross']==1200 and result['bill']['dueDateFrom']=='2026-09-13'
+  # Explicit combined bill routes both creditor legs to the broker, preserving supplier identity.
+  combined=payload('26002',['POHANCH|26002|2'],2400000);combined.pop('readyRiceCalculation')
+  combined.update(settlementMode='BROKER_COMBINED',relationshipType='BROKER',relationshipName='JJ',billNo='COMBINED-BROKER-2')
+  status,result=request('/api/commodity_bills.php',combined);assert status==200,(status,result)
+  assert result['bill']['supplier']=='Indus Rice' and result['bill']['partyLabel']=='Indus Rice / JJ'
+  assert all(a['payee']=='JJ' for a in result['bill']['receiptAllocations'])
+  assert {l['counterparty'] for l in result['journal']['lines'] if l['account'] in ['2110','2120']}=={'JJ'}
+  assert result['journal']['totalDebit']==result['journal']['totalCredit']
   assert (root/'transtrade_private/operations.json').read_bytes()==original,'Milling must remain unchanged'
   # Shared non-commodity payments preserve native registers and allocate oldest bill first.
   storefile=root/'transtrade_private/accounts.json';fixture=json.loads(storefile.read_text())
