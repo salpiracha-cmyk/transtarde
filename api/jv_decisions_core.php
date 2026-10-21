@@ -20,6 +20,9 @@ function jvd_feed(array $store,array $user,?int $after):array {
     if($after!==null&&$uid>0)foreach((array)($store['jvNotices']??[]) as $notice){
         if(!is_array($notice)||(int)($notice['id']??0)<=$after||!in_array($uid,(array)($notice['recipientIds']??[]),true)
             ||!tt_user_can_module_action($user,'Accounts','jv','View')||!tt_user_can_access_entity($user,(string)($notice['entity']??''),'View'))continue;
+        $journal=$store['journals'][(string)($notice['postId']??'')]??$store['jvDrafts'][(string)($notice['jvId']??'')]??[];
+        $notice['date']=(string)($journal['date']??'');$notice['reference']=(string)($journal['reference']??'');$notice['narration']=(string)($journal['narration']??'');
+        $notice['lines']=array_values((array)($journal['lines']??[]));$notice['totalDebit']=(float)($journal['totalDebit']??0);$notice['totalCredit']=(float)($journal['totalCredit']??0);
         unset($notice['recipientIds']);$items[]=$notice;
     }
     return ['ok'=>true,'cursor'=>$latest,'notices'=>$items];

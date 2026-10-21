@@ -12,6 +12,15 @@ function tt_accounts_reference_matches(string $query, mixed $reference): bool {
     return false;
 }
 
+/** Resolve current correction without changing the public ID or source history. */
+function tt_accounts_current_journal(array $store,string $id):array {
+    $seen=[];$journal=$store['journals'][$id]??[];
+    while(!empty($journal['amendedByPostId'])){
+        if(isset($seen[$id]))throw new DomainException('Correction history has a loop. Open Ledgers → Post IDs and ask Super Admin to review this posting.');
+        $seen[$id]=true;$id=(string)$journal['amendedByPostId'];$journal=$store['journals'][$id]??[];
+    }
+    return is_array($journal)?$journal:[];
+}
 /** Historical JV labels preserve their old voucher number; persisted links stay unchanged. */
 function tt_accounts_jv_public_post(array $store,array $journal,string $id):string {
     if(!in_array($journal['sourceType']??'',['JV','JV_REVERSAL'],true)||!empty($journal['meta']['sharedPostSequence']))return $id;
