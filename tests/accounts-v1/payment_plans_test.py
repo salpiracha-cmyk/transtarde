@@ -199,6 +199,7 @@ require $argv[1];
     saved=json.loads(books.read_text());assert saved['supplierAdvances'][result['unallocatedAdvanceId']]['availableAmount']==30
     saved['commodityBills']['D']=bill('D','Broker A','Supplier A',50,'2026-10-08','TRUCK-D');books.write_text(json.dumps(saved))
     payload=read();assert next(r for r in payload['rows'] if r['billId']=='D')['outstanding']==20,payload
+    assert next(r for r in payload['tableRows'] if r['billId']=='D')['outstanding']==50,'New table plans cannot spend a broker-only advance against another supplier'
     assert json.loads(books.read_text())['supplierAdvances'][result['unallocatedAdvanceId']]['allocatedAmount']==0,'GET may only preview'
     call({'action':'correct_on_account','settlementId':result['id'],'reason':'Correct advance payment','date':'2026-10-07'})
     assert json.loads(books.read_text())['supplierAdvances'][result['unallocatedAdvanceId']]['status']=='Cancelled'
@@ -270,5 +271,15 @@ require $argv[1];
     sett=call({'action':'post','planId':dp['id'],'version':dp['version'],'group':'Broker T','date':'2026-10-22','selectedOutstanding':185,'applyPaymentDifferenceAsDiscount':False,'sources':[{'type':'BANK','bankAccountId':'TTI-B','method':'ONLINE_BANKING','amount':185}]})['result']['settlement']
     assert sett['withholding']==0 and sett['paymentSummary']['brokerageWht']==15
     assert sett['paymentSummary']['grossDues']==200 and sett['netPayment']==185
+
+    # Unticking an earlier truck must not shift an existing advance onto the later truck.
+    advanced=json.loads(json.dumps(base_store));advanced['supplierAdvances']={'ADV':{'id':'ADV','entity':'TTI','supplier':'Supplier A','amount':50,'allocatedAmount':0,'date':'2026-09-01','status':'Available / Unallocated'}}
+    seed(advanced);rows=read()['rows'];later=next(r for r in rows if r['billId']=='B');assert later['cashOutstanding']==200
+    plan=call({'action':'create','mode':'PARTY','bankIds':['TTI-B'],'rowKeys':[later['rowKey']],'date':'2026-10-22','tablePlanning':True,'throughDate':'2026-09-06'})['result']['plan']
+    assert json.loads(books.read_text())['supplierAdvances']['ADV']['allocatedAmount']==0
+    result=call({'action':'post','planId':plan['id'],'version':plan['version'],'group':'Supplier A','date':'2026-10-22','selectedOutstanding':200,'applyPaymentDifferenceAsDiscount':False,'sources':[{'type':'BANK','bankAccountId':'TTI-B','method':'ONLINE_BANKING','amount':200}]})['result']['settlement']
+    saved=json.loads(books.read_text());assert saved['supplierAdvances']['ADV']['allocatedAmount']==50
+    advance=next(v for v in saved['supplierSettlements'].values() if v.get('advanceId')=='ADV')
+    assert advance['allocations'][0]['billId']=='A' and result['allocations'][0]['billId']=='B'
 
 print('Payment plans: bank scope, personal banks, grouping, source splits, replay, correction, oldest JV allocations, advances, denied access and independent brokerage passed.')
