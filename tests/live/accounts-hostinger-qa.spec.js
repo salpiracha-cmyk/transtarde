@@ -253,12 +253,28 @@ test('authenticated Accounts live smoke: professional desk and popup workflows',
   expect(await page.locator('.ttrs-salary-table').evaluateAll(tables => tables.every(el => el.scrollWidth <= el.clientWidth + 2))).toBeTruthy();
   const firstSalaryActions = page.locator('.ttrs-salary-table tbody tr').first().locator('button');
   expect(await firstSalaryActions.evaluateAll(buttons => buttons.every(button => { const box = button.getBoundingClientRect(); return box.left >= 0 && box.right <= innerWidth; }))).toBeTruthy();
-  const salaryPay = page.locator('[data-rs-person]').filter({hasText:'Pay'}).first();
-  if (await salaryPay.count()) {
-    await activate(salaryPay);
-    await expect(page.locator('#rsPaymentPopup')).toBeVisible();
-    await expect(page.locator('#rsFamilyMonthly')).toBeVisible();
-    await expect(page.locator('#rsPaySalBtn')).toHaveText('Save payment');
+  const salaryAction = page.locator('[data-rs-group][open] [data-rs-person]').first();
+  if (await salaryAction.count()) {
+    const action = (await salaryAction.innerText()).trim();
+    expect(['Pay', 'Edit payment']).toContain(action);
+    await activate(salaryAction);
+    const simplePayment = page.locator('#rsPaymentPopup');
+    if (action === 'Pay' || await page.locator('#rsFamilyMonthly').count()) {
+      await expect(simplePayment).toBeVisible();
+      await expect(page.locator('#rsFamilyMonthly')).toBeVisible();
+      await expect(page.locator('#rsPaySalBtn')).toHaveText('Save payment');
+      await activate(simplePayment.locator('[data-close]'));
+    } else {
+      const payments = page.getByRole('dialog', {name: /^(Payments \/ Amend|Saved payments) ·/});
+      await expect(payments).toBeVisible();
+      if ((await payments.getAttribute('aria-label')).startsWith('Payments / Amend')) {
+        await expect(payments.locator('[data-search]')).toBeVisible();
+        await expect(payments.locator('thead th')).toHaveText(['Person', 'Date', 'Paid from', 'Amount (PKR)', '']);
+      } else {
+        await expect(payments).toContainText('Edit each without combining them.');
+      }
+      await activate(payments.locator('[data-close]'));
+    }
   }
   await closeWorkspace(page);
 
