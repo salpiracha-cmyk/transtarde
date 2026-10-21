@@ -94,7 +94,9 @@ with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
             status,result=draft('Alice',750);assert status==200,result
             with sync_playwright() as pw:
                 browser=pw.chromium.launch(headless=True);page=browser.new_page(viewport={'width':1280,'height':900})
-                page.goto(f'http://127.0.0.1:{port}/accounts/index.html');page.locator('[data-expense="salary"]').click();page.locator('#rsPrepare').click()
+                page.goto(f'http://127.0.0.1:{port}/accounts/index.html');page.locator('[data-expense="salary"]').click()
+                page.locator('#rsMasterSetup').click();page.locator('#rsMasterPopup').wait_for();assert page.locator('#rsApplyMaster').is_visible()
+                page.locator('#rsMasterClose').click();page.locator('#rsPrepare').click()
                 page.locator('#rsMonth').fill('2026-10');page.locator('#rsMonth').dispatch_event('change')
                 page.locator('[data-rs-post-group="OFFICE_STAFF"]').wait_for()
                 assert page.locator('#rsRefresh,#rsApplyMaster,#rsCollapseGroups,#rsExpandGroups,#rsResetDraft').count()==0
