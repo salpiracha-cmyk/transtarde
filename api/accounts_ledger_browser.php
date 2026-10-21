@@ -79,6 +79,7 @@ $bankId=str_starts_with($account,'BANK|')?substr($account,5):'';
 $headId=str_starts_with($account,'HEAD|')?substr($account,5):'';
 $headCodes=[];
 $payrollId=str_starts_with($account,'PAYROLL|')?substr($account,8):'';
+$salaryCostCategory=str_starts_with($account,'SALARY_COST|')?substr($account,12):'';
 $directorGroup=str_starts_with($account,'DIRECTOR|')?substr($account,9):'';
 $payrollIds=[];
 $subaccountId=str_starts_with($account,'SUB|')?substr($account,4):'';
@@ -107,9 +108,13 @@ foreach(['settlement_policy_v1.json','export_realization_policy_v1.json'] as $po
 $file=TT_DATA_DIR.'/accounts.json';
 $store=tt_fi_advice_project(tt_fi_advice_read_json($file),tt_fi_advice_root());
 if($workflowRegister){$store=acr_project($user,$store,true);if($postEntries)$catalog=['POSTS'=>'Post ID Register'];$partyAliases=[];$partyNames=[];}
-$directorMembers=[];
+$directorMembers=[];foreach(['MILL_STAFF'=>'Mill salaries','OFFICE_STAFF'=>'Office salaries','HOME_STAFF'=>'Household staff salaries','DIRECTOR_REMUNERATION'=>'Directors remuneration'] as $key=>$label)$catalog['SALARY_COST|'.$key]='Salary expense · '.$label;
 foreach((array)($store['salaryMasters']??[]) as $id=>$person){
-    if(($person['entity']??'')!==$entity||!in_array($person['category']??'',['DIRECTOR_REMUNERATION','HOME_MONTHLY_GIVE'],true))continue;
+    if(($person['entity']??'')!==$entity)continue;
+    if(!in_array($person['category']??'',['DIRECTOR_REMUNERATION','HOME_MONTHLY_GIVE'],true)){
+        $group=match($person['category']??''){'MILL_STAFF'=>'Mill salaries','OFFICE_STAFF'=>'Office salaries','HOME_STAFF'=>'Household staff salaries',default=>'Staff salaries'};
+        $catalog['PAYROLL|'.$id]=$group.' · '.(string)$person['name'];continue;
+    }
     $name=(string)$person['name'];$normal=strtoupper((string)preg_replace('/[^A-Z0-9]/i','',$name));
     $group=str_contains($normal,'TALHA')?'TALHA':(str_contains($normal,'TAYYAB')?'TAYYAB':(str_contains($normal,'SALMAN')||$normal==='MRSSRP'?'SALMAN':$normal));
     $directorMembers[$group][(string)$id]=true;
@@ -197,8 +202,9 @@ foreach($journals as $journal){
         if($bankId!==''&&($code!=='1110'||$lineBank!==$bankId))continue;
         if($headId!==''&&!in_array($code,$headCodes,true))continue;
         if($subaccountId!==''&&!in_array((string)($line['subaccountId']??''),$subaccountIds,true))continue;
+        if($salaryCostCategory!==''&&(!in_array($code,['6200','6210','6220'],true)||($line['category']??$journal['meta']['category']??'')!==$salaryCostCategory))continue;
         if(($payrollId!==''||$directorGroup!=='')&&(!isset($payrollIds[(string)($line['salaryMasterId']??$journal['meta']['salaryMasterId']??'')])||!in_array($code,['1230','2140','2230'],true)))continue;
-        if($account!==''&&$payrollId===''&&$directorGroup===''&&$bankId===''&&$subaccountId===''&&$headId===''&&!$serviceAccount&&$code!==$account)continue;
+        if($account!==''&&$salaryCostCategory===''&&$payrollId===''&&$directorGroup===''&&$bankId===''&&$subaccountId===''&&$headId===''&&!$serviceAccount&&$code!==$account)continue;
         $lineParty=trim((string)($line['supplier']??$line['broker']??$line['customer']??$line['counterparty']??$line['party']??''));
         $meta=(array)($journal['meta']??[]);
         $candidateId=(string)($line['candidateId']??$line['sourceCandidateId']??$meta['candidateId']??'');

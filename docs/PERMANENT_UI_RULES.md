@@ -503,3 +503,14 @@ Online Banking payments expose an editable payment date, defaulting from the vou
 ## Completed-document reprint permissions
 
 - Completed shipment reprint buttons and both paper choices explicitly declare their read intent to the module capture guard. View remains required; the label Print / Save PDF must not manufacture a Create requirement for a committed snapshot. Active document print/save controls retain their existing Create/Edit gate and acknowledged-save requirement. No server mutation authority is derived from this presentation marker.
+
+
+## Salary simplification and shipment billing — owner approval, 21 October 2026
+
+- Salary payment groups start collapsed. Keep a compact person row and one Pay/Edit payment action; open a centred popup. Keep recurring staff changes in Staff Master and month-only adjustment behind More options.
+- Ordinary employees start with net salary after advance/recovery in petty cash, editable with bank splitting. Do not show recipient, repeated allocation, additional-payment or Retain with company controls. Any unpaid difference remains that employee's salary payable.
+- Directors and Mrs retain the entitlement, optional Pay for + Amount additions and cash/bank/retain split. Do not enter source amounts twice or silently combine saved payments with separate dates/references.
+- Posted groups must expose their saved payments before month closure. Amend a payment through its original link with the normal green accounting preview and immutable reversal/replacement trail; preserve all other drafts and postings.
+- Salary cost views and employee payable ledgers must stay separate from supplier ledgers. Group mill, office and household costs using recorded categories; do not rewrite historical journals merely to relabel reports.
+- Explicit exception: do not edit, amend or repost Mrs Tayyab's existing entry. The owner will post through Edit after the work and links are ready.
+- Shipment selection excludes fully billed sources for the selected charge type. Show already billed sources on request with the original invoice link. Freight may use remaining container coverage; reject excess coverage on the server regardless of browser flags. Other charge types stay independent.

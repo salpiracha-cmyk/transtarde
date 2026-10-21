@@ -201,19 +201,18 @@ with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
                 assert page.locator('#rsAdvanceAccountDetails [data-method]').input_value()=='CHEQUE'
                 assert page.locator('#rsAdvanceAccountDetails [data-method] option').count()==2
                 page.evaluate("TT_RENT_SALARY_UI.open('salary')");page.locator('#rsPrepare').click();page.locator('#rsMonth').fill('2027-01');page.locator('#rsMonth').dispatch_event('change')
-                page.locator('[data-rs-draft-pay="Bob"]').click()
-                page.locator('#rsAddTransaction').click()
-                tx=page.locator('.rs-transaction').last
-                tx.locator('[data-tx-amount]').fill('250');tx.locator('[data-allocation-amount]').fill('250')
-                page.locator('#rsAddTransaction').click();tx=page.locator('.rs-transaction').last
-                tx.locator('[data-tx-amount]').fill('250');tx.locator('[data-allocation-amount]').fill('250')
-                tx.locator('[data-tx-source]').select_option('bank-b');tx.locator('[data-method]').select_option('ONLINE_BANKING')
-                page.locator('#rsPaySalBtn').click()
-                page.get_by_role('button',name='Amend',exact=True).wait_for();page.locator('[data-rs-draft-pay="Bob"]').click()
-                assert page.locator('.rs-transaction').count()==2
-                assert page.locator('[data-tx-source]').nth(0).input_value()=='CASH|TTI'
-                assert page.locator('[data-tx-source]').nth(1).input_value()=='bank-b'
-                assert page.locator('[data-tx-amount]').nth(1).input_value()=='250'
+                page.locator('[data-rs-group="OFFICE_STAFF"] > summary').click()
+                page.locator('[data-rs-person="Bob"]').click();page.locator('#rsPaymentPopup').wait_for()
+                assert page.locator('#rsFamilyCash').input_value()=='500'
+                assert page.locator('[data-tx-recipient],[data-allocation-amount],#rsFamilyUseRetain').count()==0
+                page.locator('#rsFamilyCash').fill('250');page.locator('#rsFamilyUseBank').check()
+                assert page.locator('#rsFamilyBankAmount').input_value()=='250'
+                page.locator('#rsFamilyBank').select_option('bank-b');page.locator('[data-method]').select_option('ONLINE_BANKING')
+                page.locator('#rsPaySalBtn').click();page.locator('#rsPaymentPopup').wait_for(state='detached')
+                page.locator('[data-rs-person="Bob"]').click()
+                assert page.locator('#rsFamilyCash').input_value()=='250' and page.locator('#rsFamilyBankAmount').input_value()=='250'
+                assert page.locator('#rsFamilyBank').input_value()=='bank-b'
+                page.locator('#rsDraftCancel').click()
                 page.evaluate("TT_RENT_SALARY_UI.open('salary')");page.locator('#rsAdvanceIcon').click()
                 page.locator('#rsAdvanceKind').select_option('BF')
                 assert not page.locator('#rsAdvanceAccount').is_visible()

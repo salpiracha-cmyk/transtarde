@@ -1,0 +1,19 @@
+'use strict';
+const fs=require('node:fs'),assert=require('node:assert/strict'),{JSDOM}=require('jsdom');
+(async()=>{
+const dom=new JSDOM('<div id="expenseEditor"></div>',{url:'https://fixture.test/accounts/',runScripts:'outside-only',pretendToBeVisual:true}),w=dom.window;
+w.structuredClone=structuredClone;w.localStorage.setItem('tt_accounts_entity','TTI');w.HTMLDialogElement.prototype.showModal=function(){this.open=true};w.HTMLDialogElement.prototype.close=function(){this.open=false};
+w.eval(fs.readFileSync('accounts/bank-payment-details.js','utf8'));
+w.eval(fs.readFileSync('accounts/rent-salary-ui.js','utf8').replace('window.TT_RENT_SALARY_UI={refresh,open};',`window.TT_RENT_SALARY_UI={refresh,open};window.simple={set(d){data=d;month='2026-10';mode='salary';salaryView='sheet';render()},open:openPersonPayment};`));
+const row={masterId:'Worker',name:'Worker',category:'OFFICE_STAFF',categoryName:'Office Staff',netSalary:5000,totalDue:5000,advanceApplied:1000,advanceOutstanding:1000,advanceSuggested:1000,paidAfterPrepare:0,reviewed:false,outstanding:4000};
+let data={salaryMasters:[],salaryAdvances:[],salarySheet:{version:1,status:'Draft',paymentGroups:{},rows:{Worker:row}},paymentAccounts:[{id:'bank',label:'Fixture bank'},{id:'CASH|TTI',label:'Petty cash'}]};
+let sent=[],fail=false;w.fetch=async(url,opts)=>{const body=JSON.parse(opts.body);sent.push(body);if(fail)return {ok:false,json:async()=>({error:'Fixture save failed'})};data.salarySheet.paymentGroups.Worker=body.transactions;row.reviewed=true;row.payment={amount:body.transactions.reduce((n,t)=>n+t.amount,0)};return {ok:true,json:async()=>({ok:true,...data})};};
+const q=s=>w.document.querySelector(s),change=(s,value)=>{q(s).checked=value;q(s).dispatchEvent(new w.Event('change',{bubbles:true}));},input=(s,value)=>{q(s).value=value;q(s).dispatchEvent(new w.Event('input',{bubbles:true}));};
+w.simple.set(data);assert.equal(w.document.querySelectorAll('[data-rs-group][open]').length,0);assert.equal(w.document.querySelectorAll('[data-rs-sheet-edit],[data-rs-sheet-remove],[data-rs-month-adjust]').length,0);
+w.simple.open('Worker');assert(q('#rsPaymentPopup').open);assert.equal(q('#rsFamilyCash').value,'4000');assert.equal(q('#rsFamilyMonthly').value,'4000');assert(q('#rsFamilyUseCash').checked);assert(!q('#rsFamilyUseBank').checked);assert.equal(q('#rsFamilyUseRetain'),null);assert.equal(q('[data-tx-recipient],[data-allocation-amount]'),null);
+input('#rsFamilyCash','2500');change('#rsFamilyUseBank',true);assert.equal(q('#rsFamilyBankAmount').value,'1500');q('#rsFamilyBank').value='bank';q('#rsFamilyBank').dispatchEvent(new w.Event('change'));q('#rsFamilyBankDetails [data-reference]').value='CHECK-1';
+q('#rsPaySalBtn').click();await new Promise(r=>setTimeout(r,30));assert.equal(sent.length,1);assert.equal(q('#rsPaymentPopup'),null);assert.deepEqual(sent[0].transactions.map(t=>t.amount),[2500,1500]);for(const t of sent[0].transactions){assert.equal(t.allocations.length,1);assert.equal(t.allocations[0].amount,t.amount);assert.equal(t.allocations[0].masterId,'Worker');}assert.equal(row.advanceApplied,1000);
+w.simple.open('Worker');assert.equal(q('#rsFamilyCash').value,'2500');assert.equal(q('#rsFamilyBankAmount').value,'1500');assert.equal(q('#rsFamilyBankDetails [data-reference]').value,'CHECK-1');
+fail=true;input('#rsFamilyCash','2000');q('#rsPaySalBtn').click();await new Promise(r=>setTimeout(r,30));assert(q('#rsPaymentPopup').open);assert.equal(q('#rsFamilyCash').value,'2000','Failed save retains entered fields');q('#rsDraftCancel').click();assert.equal(q('#rsPaymentPopup'),null);
+assert.equal(w.document.querySelector('[data-rs-group="OFFICE_STAFF"]').open,false);w.close();console.log('PASS compact collapsed sheet, employee net auto-fill, one amount per source, no recipient/allocation/retain controls, exact split/recovery, saved restore, failure preservation and close');
+})().catch(e=>{console.error(e);process.exitCode=1;});

@@ -200,6 +200,8 @@ def run():
   freight={'action':'save_freight_bill','entity':'TTI','vendor':'Fixture Forwarder','invoiceNo':'MULTI-FREIGHT','billDate':'2026-09-30','exchangeRate':280,'shipmentSections':[{'shipmentId':sid,'containerCount':1,'charges':[{'charge':'Freight','currency':'USD','basis':'PER_CONTAINER','billedRate':100,'acceptedRate':90}]} for sid in ['FIXTURE-SHIP','FIXTURE-SHIP-2']]}
   status,recorded=request('/api/accounts_workflows_v1.php',freight);assert status==200,(status,recorded)
   state=json.loads(storefile.read_text());source=state['supplierBills'][recorded['bill']['id']]['sourceRecord'];assert len(source['shipmentSections'])==2 and source['acceptedLiability']==50400 and source['disputedTotal']==5600
+  before_duplicate=storefile.read_bytes();assert request('/api/accounts_workflows_v1.php',{**service,'invoiceNo':'DUPLICATE-SERVICE-NO-FLAG'})[0]==409;assert storefile.read_bytes()==before_duplicate
+  status,billed=request('/api/accounts_shipment_lookup.php?entity=TTI&billKind=FUMIGATION&includeBilled=1&q=FIXTURE-SHIP');assert status==200 and any(r['billing']['fullyBilled'] and r['billing']['bills'] for r in billed['rows'])
   assert request('/api/accounts_workflows_v1.php',{**freight,'invoiceNo':'BAD-DUP-SHIP','shipmentSections':[freight['shipmentSections'][0]]*2})[0]==422
   assert request('/api/accounts_workflows_v1.php',{**service,'invoiceNo':'BAD-FOREIGN-SHIP','shipmentSections':[{'shipmentId':'FOREIGN-SHIP','billLines':sections[0]['billLines']}]})[0]==422
   status,profit=request('/api/shipment_profitability.php?entity=TTI');assert status==200
@@ -228,10 +230,10 @@ def run():
   assert request('/api/accounts_workflows_v1.php',{**agreement,'fromPort':'Other port'})[0]==422
   assert request('/api/accounts_workflows_v1.php',{**agreement,'shippingLine':''})[0]==422
   # New-entry rules consume only their own expense category, never erase history.
-  status,available=request('/api/accounts_shipment_lookup.php?entity=TTI&billKind=FREIGHT&q=FIXTURE-SHIP');assert status==200 and available['rows']==[]
+  status,available=request('/api/accounts_shipment_lookup.php?entity=TTI&billKind=FREIGHT&q=FIXTURE-SHIP');assert status==200 and any(r['id']=='FIXTURE-SHIP' and r['billing']['remainingContainers']==3 for r in available['rows'])
   status,original_lookup=request('/api/accounts_shipment_lookup.php?entity=TTI&q=FIXTURE-SHIP');assert status==200 and any(r['id']=='FIXTURE-SHIP' for r in original_lookup['rows'])
   status,other_kind=request('/api/accounts_shipment_lookup.php?entity=TTI&billKind=INSPECTION&q=FIXTURE-SHIP');assert status==200 and any(r['id']=='FIXTURE-SHIP' for r in other_kind['rows'])
-  before_stale=storefile.read_bytes();assert request('/api/accounts_workflows_v1.php',{**detailed,'invoiceNo':'STALE-NEW-FREIGHT','newEntry':True})[0]==409;assert storefile.read_bytes()==before_stale
+  before_stale=storefile.read_bytes();assert request('/api/accounts_workflows_v1.php',{**detailed,'invoiceNo':'STALE-NEW-FREIGHT','newEntry':False,'shipmentSections':[{**detailed['shipmentSections'][0],'containerCount':4}]})[0]==409;assert storefile.read_bytes()==before_stale
   status,search=request('/api/accounts_search.php?entity=TTI&q='+recorded['bill']['postingJournalIds'][0]);assert status==200 and any(r.get('amendRecord',{}).get('id')==recorded['bill']['id'] for r in search['results'] if r.get('amendRecord'))
   edit=next(r['amendRecord'] for r in search['results'] if r.get('amendRecord') and r['amendRecord'].get('id')==recorded['bill']['id'])
   amended_payload={**detailed,'id':edit['id'],'amendment':True,'updatedAt':edit['updatedAt'],'editVersion':edit['editVersion'],'reason':'Fixture controlled amendment','remarks':'A correction with the same original shipment link'}

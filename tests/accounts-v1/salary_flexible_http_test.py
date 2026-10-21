@@ -379,7 +379,8 @@ with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
                 page.locator('#rsMonth').fill('2027-03');page.locator('#rsMonth').dispatch_event('change')
                 assert action('adjust_salary_month','Mrs',month='2027-03',netSalary=310000,advanceApplied=0)[0]==200
                 page.reload();page.locator('[data-expense="salary"]').click();page.locator('#rsPrepare').click();page.locator('#rsMonth').fill('2027-03');page.locator('#rsMonth').dispatch_event('change')
-                page.locator('[data-rs-draft-pay="Mrs"]').click()
+                if not page.locator('[data-rs-group="DIRECTORS"]').get_attribute('open'):page.locator('[data-rs-group="DIRECTORS"] > summary').click()
+                page.locator('[data-rs-person="Mrs"]').click()
                 assert page.locator('.rs-plan-row').count()==0
                 assert page.locator('#rsFamilyMonthly').input_value()=='310000'
                 assert page.locator('#rsFamilyUseRetain').is_checked() and page.locator('#rsFamilyRetained').input_value()=='310000'
@@ -405,10 +406,10 @@ with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
                 page.locator('#rsFamilyUseBank').check()
                 assert page.locator('#rsFamilyBankAmount').input_value()=='120000'
                 page.locator('#rsFamilyDate').fill('2027-03-10');page.locator('#rsFamilyBank').select_option('bank-b');page.locator('[data-reference]').fill('MRS-100');page.locator('[data-cheque-date]').fill('2027-03-10')
-                page.locator('#rsPaySalBtn').click();page.locator('[data-rs-draft-pay="Mrs"]').filter(has_text='Amend').wait_for()
+                page.locator('#rsPaySalBtn').click();page.locator('[data-rs-person="Mrs"]').filter(has_text='Edit payment').wait_for()
                 assert request(month='2027-03')[1]['salarySheet']['rows']['Mrs']['payment']['amount']==310000
                 assert request(month='2027-03')[1]['salarySheet']['rows']['Salman']['payment']['amount']==10000
-                page.locator('[data-rs-draft-pay="Mrs"]').click();assert page.locator('.rs-plan-row').count()==2
+                page.locator('[data-rs-person="Mrs"]').click();assert page.locator('.rs-plan-row').count()==2
                 assert page.locator('.rs-plan-row').nth(0).locator('[data-plan-ledger]').input_value()=='BROKER_FUND|BMA'
                 assert page.locator('.rs-plan-row').nth(1).locator('[data-plan-ledger]').input_value()=='SALARY|Salman'
                 assert page.locator('#rsFamilyCash').input_value()=='210000' and page.locator('#rsFamilyBankAmount').input_value()=='120000'
@@ -422,16 +423,16 @@ with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
                 assert saved_response.value.json()['ok']
                 groups=request(month='2027-03')[1]['salarySheet']['paymentGroups']['Mrs'];assert len(groups)==2
                 bank_group=next(t for t in groups if t['paymentAccountId']=='bank-b');assert bank_group['amount']==120000 and len(bank_group['allocations'])==3
-                page.locator('[data-rs-draft-pay="Mrs"]').click();assert page.locator('.rs-plan-row').count()==2
+                page.locator('[data-rs-person="Mrs"]').click();assert page.locator('.rs-plan-row').count()==2
                 page.locator('#rsDraftCancel').click()
                 for width in [1280,1024,700,390]:
                     page.set_viewport_size({'width':width,'height':900})
                     assert page.locator('.ttrs-salary-table').evaluate_all('(tables)=>tables.every(el=>el.scrollWidth<=el.clientWidth+2)')
-                    for selector in ['[data-rs-draft-pay="Mrs"]','[data-rs-month-adjust="Mrs"]','[data-rs-sheet-edit="Mrs"]','[data-rs-sheet-remove="Mrs"]']:
+                    for selector in ['[data-rs-person="Mrs"]']:
                         assert page.locator(selector).evaluate('(el)=>{const r=el.getBoundingClientRect();return r.left>=0&&r.right<=innerWidth}')
                 page.set_viewport_size({'width':1280,'height':900})
-                page.locator('[data-rs-draft-pay="Salman"]').click();assert 'Already allocated through another recipient' in page.locator('#rsDraftForm').inner_text()
-                page.locator('[data-rs-month-adjust="Worker"]').click();page.locator('[name=monthlyAddition]').fill('5000');page.locator('[name=adjustmentReason]').fill('One-off bonus');assert page.locator('[data-month-total]').input_value()=='55000';page.locator('[data-month-total]').fill('56000');
+                page.locator('[data-rs-person="Salman"]').click();assert 'Already allocated through another recipient' in page.locator('#rsDraftForm').inner_text()
+                page.locator('#rsDraftCancel').click();page.locator('[data-rs-group="OFFICE_STAFF"] > summary').click();page.locator('[data-rs-person="Worker"]').click();page.locator('#rsPaymentPopup details').filter(has=page.locator('#rsAdjustThisMonth')).locator('summary').click();page.locator('#rsAdjustThisMonth').click();page.locator('[name=monthlyAddition]').fill('5000');page.locator('[name=adjustmentReason]').fill('One-off bonus');assert page.locator('[data-month-total]').input_value()=='55000';page.locator('[data-month-total]').fill('56000');
                 if os.getenv('TT_QA_OUTPUT'):page.locator('dialog').screenshot(path=str(pathlib.Path(os.environ['TT_QA_OUTPUT'])/'salary-month-adjustment.png'))
                 page.get_by_role('button',name='Save month adjustment',exact=True).click()
                 assert request(month='2027-03')[1]['salarySheet']['rows']['Worker']['totalDue']==56000
