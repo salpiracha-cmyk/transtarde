@@ -89,6 +89,6 @@ try{
      $store['journals'][$mirrorId]=$mirror;
  }
  $store['internalBankTransfers'][$id]=$record;$store['revision']=(int)($store['revision']??0)+1;
- tt_posting_preview_exit($body,$store,$previewBefore);rewind($h);ftruncate($h,0);fwrite($h,json_encode($store,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR));fflush($h);
+ tt_posting_preview_exit($body,$store,$previewBefore);$encodedAccounts=json_encode($store,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);rewind($h);if(!ftruncate($h,0)||fwrite($h,$encodedAccounts)!==strlen($encodedAccounts)||!fflush($h))throw new RuntimeException('Accounts storage could not be written.');
  }finally{flock($h,LOCK_UN);fclose($h);}ibt_out(ibt_payload($store,$entity,$user)+['transfer'=>$record,'journal'=>$journal,'mirrorJournal'=>$mirror]);
 }catch(Throwable $e){error_log('Internal bank transfer: '.$e->getMessage());ibt_out(['ok'=>false,'error'=>'Bank transfer could not be completed.'],500);}

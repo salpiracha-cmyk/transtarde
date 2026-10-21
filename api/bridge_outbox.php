@@ -91,10 +91,7 @@ function bo_read_locked(int $lock, callable $callback): mixed {
         $result = $callback($store);
         if ($lock === LOCK_EX) {
             $store['revision'] = (int)($store['revision'] ?? 0) + 1;
-            rewind($handle);
-            ftruncate($handle, 0);
-            fwrite($handle, json_encode($store, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR));
-            fflush($handle);
+            $encodedAccounts=json_encode($store,JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);rewind($handle);if(!ftruncate($handle,0)||fwrite($handle,$encodedAccounts)!==strlen($encodedAccounts)||!fflush($handle))throw new RuntimeException('Accounts storage could not be written.');
         }
         return ['result' => $result, 'revision' => (int)($store['revision'] ?? 0)];
     } finally {

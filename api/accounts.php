@@ -122,14 +122,14 @@ function accounts_normalize_lines(mixed $raw): array {
         $account = accounts_resolve_account((string)($line['account'] ?? ''));
         $debit = round((float)($line['debit'] ?? 0), 2);
         $credit = round((float)($line['credit'] ?? 0), 2);
-        if ($debit < 0 || $credit < 0 || ($debit > 0 && $credit > 0) || ($debit <= 0 && $credit <= 0)) {
+        if (!is_finite($debit) || !is_finite($credit) || $debit < 0 || $credit < 0 || ($debit > 0 && $credit > 0) || ($debit <= 0 && $credit <= 0)) {
             accounts_respond(['ok'=>false,'error'=>'Every journal line needs either a debit or a credit, not both.'], 422);
         }
         $lines[] = ['account'=>(string)$account['code'],'accountName'=>(string)$account['name'],'debit'=>$debit,'credit'=>$credit];
         $dr += $debit; $cr += $credit;
     }
     $dr = round($dr, 2); $cr = round($cr, 2);
-    if ($dr <= 0 || abs($dr - $cr) > 0.005) accounts_respond(['ok'=>false,'error'=>'Journal is not balanced.'], 422);
+    if (!is_finite($dr) || !is_finite($cr) || $dr <= 0 || abs($dr - $cr) > 0.005) accounts_respond(['ok'=>false,'error'=>'Journal is not balanced.'], 422);
     return [$lines,$dr,$cr];
 }
 
@@ -146,15 +146,14 @@ function accounts_write_locked(callable $mutator): array {
     if ($h === false || !flock($h, LOCK_EX)) throw new RuntimeException('Accounts storage unavailable.');
     try {
         rewind($h); $raw = stream_get_contents($h); $store = $raw ? json_decode($raw, true) : null;
+        if ($raw !== '' && !is_array($store)) throw new RuntimeException('Accounts storage is invalid.');
         if (!is_array($store)) $store = accounts_store_default();
         $store = array_replace_recursive(accounts_store_default(), $store);
         $result = $mutator($store);
         $store['revision'] = (int)($store['revision'] ?? 0) + 1;
-        rewind($h);
-        if (!ftruncate($h, 0)) throw new RuntimeException('Accounts storage could not be updated.');
         $encoded = json_encode($store, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
-        if (fwrite($h, $encoded) === false) throw new RuntimeException('Accounts storage could not be written.');
-        fflush($h);
+        rewind($h);
+        if (!ftruncate($h, 0) || fwrite($h, $encoded) !== strlen($encoded) || !fflush($h)) throw new RuntimeException('Accounts storage could not be written.');
         return ['store'=>$store,'result'=>$result];
     } finally { flock($h, LOCK_UN); fclose($h); }
 }
@@ -170,7 +169,7 @@ function accounts_valid_date(string $date): string {
 
 function accounts_positive_amount(mixed $value, string $label = 'Amount'): float {
     $amount = round((float)$value, 2);
-    if ($amount <= 0) accounts_respond(['ok'=>false,'error'=>$label.' must be greater than zero.'], 422);
+    if (!is_finite($amount) || $amount <= 0) accounts_respond(['ok'=>false,'error'=>$label.' must be a finite value greater than zero.'], 422);
     return $amount;
 }
 
@@ -405,11 +404,13 @@ try {
         $label = trim((string)($body['label'] ?? ''));
         $dueDate = accounts_valid_date((string)($body['dueDate'] ?? ''));
         if ($label === '') accounts_respond(['ok'=>false,'error'=>'Reminder label is required.'], 422);
-        $written = accounts_write_locked(function(array &$store) use ($user,$entity,$label,$dueDate,$body) {
+        $expectedAmount = round((float)($body['expectedAmount'] ?? 0), 2);
+        if (!is_finite($expectedAmount)) accounts_respond(['ok'=>false,'error'=>'Expected amount must be finite.'],422);
+        $written = accounts_write_locked(function(array &$store) use ($user,$entity,$label,$dueDate,$body,$expectedAmount) {
             $id = accounts_next_id((array)$store['reminders'], 'REM');
             $store['reminders'][$id] = [
                 'id'=>$id,'entity'=>$entity,'label'=>$label,'dueDate'=>$dueDate,'type'=>trim((string)($body['type'] ?? 'General')),
-                'expectedAmount'=>round((float)($body['expectedAmount'] ?? 0),2),'status'=>'Open','ledgerPosted'=>false,
+                'expectedAmount'=>$expectedAmount,'status'=>'Open','ledgerPosted'=>false,
                 'createdAt'=>gmdate('c'),'createdBy'=>(string)($user['full_name'] ?? $user['username'] ?? 'Staff'),
             ];
             return $store['reminders'][$id];

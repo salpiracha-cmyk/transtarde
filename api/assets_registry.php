@@ -44,7 +44,7 @@ try {
                     }$s['managedAssets'][$id]=$a;
                 }else throw new DomainException('Unknown asset action.');
                 $s['assetRequestKeys'][$identity]=['fingerprint'=>$fingerprint,'result'=>$result];$s['revision']=(int)($s['revision']??0)+1;
-                rewind($h);if(!ftruncate($h,0)||fwrite($h,json_encode($s,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR))===false||!fflush($h))throw new RuntimeException('Save failed.');
+                $encodedAccounts=json_encode($s,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR);rewind($h);if(!ftruncate($h,0)||fwrite($h,$encodedAccounts)!==strlen($encodedAccounts)||!fflush($h))throw new RuntimeException('Save failed.');
             }
         }
         $payload=far_payload($s,$e,$director);$requested=(string)($_GET['assetId']??'');

@@ -346,8 +346,8 @@ try{
             $store['events'][$eventId]['supplierPayableShare']=$a['supplierPayableShare'];
         }
         tt_posting_preview_exit($body,$store,$previewBefore);$store['revision']=(int)($store['revision']??0)+1;
-        rewind($h);if(!ftruncate($h,0))throw new RuntimeException('Accounts storage could not be updated.');
-        $enc=json_encode($store,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);
+        $enc=json_encode($store,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);rewind($h);if(!ftruncate($h,0))throw new RuntimeException('Accounts storage could not be updated.');
+
         if(fwrite($h,$enc)===false)throw new RuntimeException('Accounts storage could not be written.');
         fflush($h);
     }finally{flock($h,LOCK_UN);fclose($h);}
