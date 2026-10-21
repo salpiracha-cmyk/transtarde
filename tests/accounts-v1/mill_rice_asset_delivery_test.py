@@ -4,10 +4,11 @@ ROOT=pathlib.Path(__file__).resolve().parents[2]
 with tempfile.TemporaryDirectory(prefix='rice-module-delivery-') as directory:
  root=pathlib.Path(directory);(root/'api').mkdir();(root/'milling').mkdir();(root/'exports').mkdir()
  for file in ['module.php','runtime_html.php']:shutil.copy(ROOT/file,root/file)
+ for file in ['operations_read_policy.php','operations_scope.php','export_permission_policy.php']:shutil.copy(ROOT/'api'/file,root/'api'/file)
  for file in ['Transtrade_Master_Milling_V3_3_2_AUDITED.html','production-recovery-entry.js','rice-ledger.js','maize-labour.js','lifting-review.js','.htaccess']:shutil.copy(ROOT/'milling'/file,root/'milling'/file)
  for file in ['index.html','app.css','app.js','tg-accounts-receipts.js','shipment-files.js','office-agent-shipment-hooks.js','.htaccess']:shutil.copy(ROOT/'exports'/file,root/'exports'/file)
  (root/'auth_store.php').write_text('''<?php
- function tt_require_login(){return ['full_name'=>'Fixture','role'=>'Staff','permissions'=>['Mill'=>['reports'=>['View']]]];}
+ function tt_require_login(){return ['id'=>1,'full_name'=>'Fixture','role'=>'Staff','permissions'=>['Mill'=>['reports'=>['View']]]];}
  function tt_user_can_open_module($u,$m){return in_array($m,['Mill','Exports'],true)&&getenv('TT_FIXTURE_DENIED')!=='1';}
  function tt_release_read_session(){} function tt_csrf(){return 'fixture';}
  function tt_user_can_access_masters($u){return false;} function tt_list_masters(){return [];}
@@ -15,6 +16,9 @@ with tempfile.TemporaryDirectory(prefix='rice-module-delivery-') as directory:
  ''')
  auth_source=(ROOT/'auth_store.php').read_text();start=auth_source.index('function tt_user_workspaces(');end=auth_source.index('function tt_user_landing_url(',start)
  with (root/'auth_store.php').open('a') as fixture:fixture.write(auth_source[start:end])
+ with (root/'auth_store.php').open('a') as fixture:
+  for source,name in [(auth_source,'tt_user_can_master'),((ROOT/'master_store.php').read_text(),'tt_default_master_options'),((ROOT/'master_store.php').read_text(),'tt_export_finish_options')]:
+   a=source.index('function '+name+'(');b=source.find('\nfunction ',a+9);fixture.write(source[a:b if b!=-1 else None])
  (root/'api/carry_forward_core.php').write_text('<?php function job_authorized($u){return false;}')
  (root/'request.php').write_text("<?php $_GET=['id'=>$argv[1]??'milling'];register_shutdown_function(function(){file_put_contents(__DIR__.'/status.json',json_encode(http_response_code()?:200));});require __DIR__.'/module.php';")
  def run(denied=False,module='milling'):

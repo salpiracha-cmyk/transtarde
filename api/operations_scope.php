@@ -284,6 +284,8 @@ function os_prepare_write(array $u,string $key,string $incomingJson,array $value
     if(!array_key_exists($key,$visible)&&isset($values[$key]))throw new DomainException('This workflow is outside your shared record access.');
     if($key!=='transtrade_export_v3_operational'&&!os_key_visible($u,$key))throw new DomainException('This workflow is outside your shared record access.');
     $incoming=json_decode($incomingJson,true,512,JSON_THROW_ON_ERROR);if(!is_array($incoming))throw new InvalidArgumentException('Shared records must be JSON objects or lists.');
+    // Physical confirmation baselines are server-computed; legacy clients may still send a stale display snapshot.
+    if($key===TT_INV_CONFIRMATIONS)$incoming=json_decode(tt_inv_public_values([$key=>$incomingJson])['values'][$key],true,512,JSON_THROW_ON_ERROR);
     $old=json_decode((string)($public[$key]??($key==='transtrade_export_v3_operational'?'{}':'[]')),true);
     $shown=json_decode((string)($visible[$key]??'[]'),true);
     $partial=[];
