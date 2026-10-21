@@ -12,6 +12,16 @@ with tempfile.TemporaryDirectory(prefix='fi-advice-qa-') as temp:
     (root/'auth_store.php').write_text('''<?php
     define('TT_DATA_DIR',__DIR__.'/data');
     function tt_require_login(){return ['role'=>'Super Admin','id'=>1,'username'=>'Fixture'];}
+    function tt_user_can_module_action(array $user,string $module,string $icon,string $action): bool {
+    if (($user['role']??'')==='Super Admin') return true;
+    if (($user['role']??'')==='Director') return in_array($module,tt_business_modules(),true)
+        && in_array($action,['View','Create','Edit','Approve','Reports','Delete'],true);
+    $permissions=$user['permissions'][$module]??[];
+    if ($permissions==='all') return true;
+    if (!is_array($permissions)) return false;
+    if (in_array($action,$permissions,true)) return true; // legacy module-wide grant, including entity-scoped records
+    return in_array($action,(array)($permissions[$icon]??[]),true);
+}
     function tt_user_can_open_module($u,$m){return ($_GET['denied']??'')!=='1'&&!($m==='Accounts'&&($_GET['exports_only']??'')==='1');}
     function tt_user_can_access_entity($u,$e,$a){return $e==='TTI';}
     function tt_user_accounts_entities($u){return ['TTI'];}

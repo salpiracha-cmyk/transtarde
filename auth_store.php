@@ -561,7 +561,7 @@ function tt_reset_admin_with_recovery(string $newPassword): int {
 function tt_business_modules(): array { return ['Mill','Exports','Accounts','Directors']; }
 
 function tt_director_master_permissions(): array {
-    $types=array_unique(array_merge(array_keys(tt_default_masters()),['salary_staff','reference_lists','export_realization_charges']));
+    $types=array_unique(array_merge(array_keys(tt_default_masters()),['salary_staff','reference_lists','export_realization_charges','tg_currency_rates','tg_compliance_documents']));
     return array_fill_keys($types,['Use','View','Create','Edit','Deactivate','View Documents','Download Documents']);
 }
 
