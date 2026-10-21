@@ -123,12 +123,13 @@ function smw_apply_master(array &$s,string $entity,string $month,array $b,array 
     if((int)($b['version']??-1)!==(int)$sheet['version'])throw new DomainException('Salary data changed. Close the payment form, press Refresh, then reopen the person. Your saved payments are retained.');
     $reason=trim((string)($b['reason']??''));if(strlen($reason)<5)throw new DomainException('Enter why the current Salary Master applies to this month.');
     $groups=sfw_groups($sheet);$paid=[];foreach($groups as $txs)foreach($txs as $tx)if(($tx['status']??'')!=='Reversed')foreach($tx['allocations'] as $allocation)foreach(sea_charges($allocation) as $charge)$paid[$charge['masterId']]=round(($paid[$charge['masterId']]??0)+$charge['amount'],2);
-    $lines=[];$changed=[];$removed=[];$baselineSignature=smw_master_signature($s,$entity,$month);
+    $lines=[];$changed=[];$removed=[];$kept=[];$baselineSignature=smw_master_signature($s,$entity,$month);
     foreach($sheet['rows'] as $id=>&$row){
         if($only!==null&&!in_array($id,$only,true))continue;
         $master=$s['salaryMasters'][$id]??null;$active=is_array($master)&&rsv2_active($master,$month);
         smw_check_baseline($s,$row);$period=$s['salaryPeriods'][$row['periodId']]??null;
         if(!$active){
+            if(in_array($id,(array)($b['keepInactivePlans']??[]),true)&&((float)($paid[$id]??0)>.005||(float)$row['paidAfterPrepare']>.005||(float)$row['advanceApplied']>.005)){$kept[]=$id;continue;}
             if(array_filter((array)($groups[$id]??[]),static fn($tx)=>($tx['status']??'')!=='Reversed'&&(float)($tx['amount']??0)>.005)||($paid[$id]??0)>.005||(float)$row['paidAfterPrepare']>.005||(float)$row['advanceApplied']>.005)throw new DomainException($row['name'].' has a payment or advance recovery. Open Salaries & Staff → Payments / Amend, clear or reallocate that person’s payment/recovery, then remove the person.');
             $next=['netSalary'=>0,'zakatAmount'=>0,'otherAllowance'=>0];$removed[]=$id;
         }else $next=['netSalary'=>(float)$master['monthlyAmount'],'zakatAmount'=>(float)($master['zakatAmount']??0),'otherAllowance'=>(float)($master['otherAllowance']??0)];
@@ -153,12 +154,13 @@ function smw_apply_master(array &$s,string $entity,string $month,array $b,array 
     foreach($removed as $id){unset($nextSheet['rows'][$id],$nextSheet['paymentGroups'][$id],$nextSheet['masterChanges'][$id]);}
     foreach($fresh['rows'] as $id=>$current){if($only!==null&&!in_array($id,$only,true))continue;$old=$sheet['rows'][$id]??null;
         if($old){$different=false;foreach(['name','category','totalDue','netSalary','zakatAmount','otherAllowance','advanceApplied'] as $field){ $before=$old[$field]??null;$after=$current[$field]??null;if(is_numeric($before)&&is_numeric($after)?abs((float)$before-(float)$after)>.005:$before!==$after)$different=true; }$current['reviewed']=!$different&&!empty($old['reviewed']);$current['payment']=$old['payment']??null;if(!empty($old['recoveryChoiceSaved'])){$current['requestedRecovery']=$old['requestedRecovery']??$old['advanceApplied'];$current['recoveryChoiceSaved']=true;}}
-        $nextSheet['rows'][$id]=$current;
+        $current['oneOffInactive']=in_array($id,$kept,true);$nextSheet['rows'][$id]=$current;
     }
+    foreach($kept as $id)if(isset($nextSheet['rows'][$id]))$nextSheet['rows'][$id]['oneOffInactive']=true;
     sfw_recalculate($nextSheet);$nextSheet['version']=(int)$sheet['version']+1;$nextSheet['updatedAt']=gmdate('c');
     if($only===null){unset($nextSheet['masterChanges']);$nextSheet['masterSignature']=$fresh['masterSignature'];$nextSheet['advanceSignature']=$fresh['advanceSignature'];$nextSheet['personalSignature']=$fresh['personalSignature'];unset($nextSheet['masterChanged'],$nextSheet['canRefreshFromMaster'],$nextSheet['sourceInputsChanged']);}
-    $s['salaryMasterApplications'][]=['entity'=>$entity,'month'=>$month,'journalId'=>$jid,'reason'=>$reason,'by'=>$u['username']??'','at'=>gmdate('c'),'removed'=>$removed,'changed'=>$changed,'beforeSheet'=>$sheet];$s['salarySheets'][$key]=$nextSheet;
-    return ['masterApplied'=>true,'journalId'=>$jid,'journalIds'=>$journalIds,'removed'=>$removed,'paymentsPreserved'=>true];
+    $s['salaryMasterApplications'][]=['entity'=>$entity,'month'=>$month,'journalId'=>$jid,'reason'=>$reason,'by'=>$u['username']??'','at'=>gmdate('c'),'removed'=>$removed,'changed'=>$changed,'keptInactive'=>$kept,'beforeSheet'=>$sheet];$s['salarySheets'][$key]=$nextSheet;
+    return ['masterApplied'=>true,'journalId'=>$jid,'journalIds'=>$journalIds,'removed'=>$removed,'keptInactive'=>$kept,'paymentsPreserved'=>true];
 }
 function smw_leave(array &$s,string $entity,string $month,array $b,array $u,array $names):array {
     if(!src_allowed($u,$entity))throw new DomainException('Ask a Director or Super Admin to remove staff from future salary months.');

@@ -73,6 +73,15 @@ with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
         adjustment=result['journals'][data['result']['journalId']]
         assert sum(l['debit']-l['credit'] for l in adjustment['lines'] if l['account']=='6210')==200
         assert sum(l['credit']-l['debit'] for l in adjustment['lines'] if l['account']=='2230')==200
+        # Existing inactive-person payments can be retained explicitly for this
+        # month only without silently dropping money or reactivating the Master.
+        inactive=saved();inactive['salaryMasters']['Cara']['status']='Inactive';inactive['salaryMasters']['Cara']['effectiveTo']='2026-09-30';(root/'data/accounts.json').write_text(json.dumps(inactive))
+        current=request()[1]['salarySheet'];status,held=request({'action':'apply_salary_master','version':current['version'],'reason':'Keep already recorded one-off payment','keepInactivePlans':['Cara']});assert status==200,held
+        assert held['salarySheet']['rows']['Cara']['oneOffInactive'] and held['salarySheet']['rows']['Cara']['payment']['amount']==100
+        assert saved()['salaryMasters']['Cara']['status']=='Inactive'
+        restored=saved();restored['salaryMasters']['Cara']['status']='Active';restored['salaryMasters']['Cara']['effectiveTo']='';(root/'data/accounts.json').write_text(json.dumps(restored))
+        current=request()[1]['salarySheet'];status,held=request({'action':'apply_salary_master','version':current['version'],'reason':'Restore fixture Master status'});assert status==200,held
+        sheet=held['salarySheet']
         # A paid/planned person cannot be removed without source correction.
         removal={'action':'reverse_salary_staff','masterId':'Cara','version':sheet['version'],'reason':'Left before October'}
         prior=saved();status,error=request(removal);assert status==422,error
