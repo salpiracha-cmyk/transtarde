@@ -36,11 +36,12 @@ function operations_respond(array $data, int $status = 200): never {
 }
 
 /** Save acknowledgements have the same visibility boundary as operational GETs. */
-function operations_production_related(array $values,array $meta): array {
-    $out=[];foreach(['tt36bagissues','tt30prodaudit'] as $key)if(isset($values[$key]))$out[$key]=['value'=>operations_public_value($key,(string)$values[$key]),'version'=>$meta[$key]['version']??null];return $out;
+function operations_production_related(array $values,array $meta,array $actor=[]): array {
+    $visible=os_project($actor,$values,$meta);$values=$visible['values'];$meta=$visible['meta'];
+    $out=[];foreach(['tt36bagissues','tt30prodaudit'] as $key)if(isset($values[$key]))$out[$key]=['value'=>(string)$values[$key],'version'=>$meta[$key]['version']??null];return $out;
 }
-function operations_public_value(string $key,string $value): string {
-    $visible=tt_inv_public_values([$key=>$value]);
+function operations_public_value(string $key,string $value,array $actor=[],array $context=[]): string {
+    $context[$key]=$value;$visible=os_project($actor,$context);
     if(!array_key_exists($key,$visible['values']))throw new DomainException('This source has no public operational representation.');
     return (string)$visible['values'][$key];
 }
@@ -624,14 +625,14 @@ function operations_file_fallback(array $user): never {
     $path = rtrim((string)TT_DATA_DIR, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'operations.json';
     tt_ensure_data_dir();
     if ($_SERVER['REQUEST_METHOD'] === 'GET') {
-        if (!is_file($path)) operations_respond(['ok'=>true,'revision'=>0,'serverNow'=>gmdate('c')]+tt_inv_public_values([]));
+        if (!is_file($path)) operations_respond(['ok'=>true,'revision'=>0,'serverNow'=>gmdate('c')]+os_project($user,[]));
         $handle = fopen($path, 'r');
         if ($handle === false || !flock($handle, LOCK_SH)) throw new RuntimeException('Shared operational storage is unavailable.');
         try { $raw = stream_get_contents($handle); }
         finally { flock($handle, LOCK_UN); fclose($handle); }
         $store = $raw ? json_decode($raw, true) : null;
         if (!is_array($store)) $store = ['revision'=>0,'values'=>[],'meta'=>[]];
-        operations_respond(['ok'=>true,'revision'=>(int)($store['revision']??0),'serverNow'=>gmdate('c')]+tt_inv_public_values((array)($store['values']??[]),(array)($store['meta']??[])));
+        operations_respond(['ok'=>true,'revision'=>(int)($store['revision']??0),'serverNow'=>gmdate('c')]+os_project($user,(array)($store['values']??[]),(array)($store['meta']??[])));
     }
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') operations_respond(['ok'=>false,'error'=>'Method not allowed.'],405);
     $raw = file_get_contents('php://input') ?: '';
@@ -657,6 +658,7 @@ function operations_file_fallback(array $user): never {
         else {
             if(str_contains($value,TT_INV_ARTWORK_URL))$value=tt_inv_restore_artwork($value,tt_inv_public_values((array)($store['values']??[]))['values']);
             if(strlen($value)>16*1024*1024)throw new InvalidArgumentException('Operational data is too large.');
+            $value=os_prepare_write($user,$key,$value,(array)($store['values']??[]));
             operations_validate_export_bridge($key,$old,$value,$sourceModule,(string)($store['values']['transtrade_export_v3_operational']??''));
             operations_validate_mill_cash($user,$sourceModule,$key,$old,$value,(array)($store['values']??[]));
             operations_validate_brand_bags($user,$sourceModule,$key,$old,$value);
@@ -686,7 +688,7 @@ function operations_file_fallback(array $user): never {
     } finally { flock($handle,LOCK_UN); fclose($handle); }
     if ($conflict) operations_respond(['ok'=>false,'conflict'=>true,'error'=>'A newer shared update is available. Refresh before saving again.','keyVersion'=>$keyVersion],409);
     if($key==='transtrade_export_v3_operational')try{tt_receipt_invoice_sync();}catch(Throwable $linkError){error_log('Invoice narration link: '.$linkError->getMessage());}
-    operations_respond(['ok'=>true,'revision'=>$revision,'keyVersion'=>$keyVersion,'updatedAt'=>gmdate('c'),'value'=>operations_public_value($key,(string)($store['values'][$key]??$value)), 'related'=>$key==='tt30prod'?operations_production_related($store['values'],$store['meta']):[]]);
+    operations_respond(['ok'=>true,'revision'=>$revision,'keyVersion'=>$keyVersion,'updatedAt'=>gmdate('c'),'value'=>operations_public_value($key,(string)($store['values'][$key]??$value),$user,(array)$store['values']), 'related'=>$key==='tt30prod'?operations_production_related($store['values'],$store['meta'],$user):[]]);
 }
 
 try {
@@ -716,7 +718,7 @@ try {
                 'module' => (string)$row['updated_by_module'],
             ];
         }
-        operations_respond(['ok'=>true,'revision'=>$revision,'serverNow'=>gmdate('c')]+tt_inv_public_values($values,$meta));
+        operations_respond(['ok'=>true,'revision'=>$revision,'serverNow'=>gmdate('c')]+os_project($user,$values,$meta));
     }
 
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') operations_respond(['ok' => false, 'error' => 'Method not allowed.'], 405);
@@ -778,6 +780,8 @@ try {
         $rootRead->execute(['transtrade_export_v3_operational']);
         return $json=(string)($rootRead->fetchColumn()?:'');
     };
+    $scopeValues=[];foreach($db->query('SELECT storage_key,payload FROM tt_operation_records')->fetchAll() as $r)$scopeValues[(string)$r['storage_key']]=(string)$r['payload'];
+    $value=os_prepare_write($user,$key,$value,$scopeValues);
     operations_validate_export_bridge($key, $oldPayload, $value, $sourceModule, $exportRoot);
     $cashValues=[];
     if(in_array($key,['tt30petty','tt33pettyexp'],true)){
@@ -831,7 +835,7 @@ try {
     $db->commit();
     if($key==='transtrade_export_v3_operational')try{tt_receipt_invoice_sync();}catch(Throwable $linkError){error_log('Invoice narration link: '.$linkError->getMessage());}
     if($inventoryLock){$release=$db->prepare('SELECT RELEASE_LOCK(?)');$release->execute(['tt_inventory_'.substr(hash('sha256',operations_env('DB_NAME')),0,24)]);$inventoryLock=false;}
-    operations_respond(['ok' => true, 'revision' => $version, 'keyVersion' => $version, 'updatedAt' => gmdate('c'), 'value' => operations_public_value($key,(string)($nextValues[$key]??$value)), 'related'=>$key==='tt30prod'?operations_production_related($nextValues,$productionMeta):[]]);
+    operations_respond(['ok' => true, 'revision' => $version, 'keyVersion' => $version, 'updatedAt' => gmdate('c'), 'value' => operations_public_value($key,(string)($nextValues[$key]??$value),$user,array_replace($scopeValues,$nextValues)), 'related'=>$key==='tt30prod'?operations_production_related(array_replace($scopeValues,$nextValues),$productionMeta,$user):[]]);
 } catch (DomainException|InvalidArgumentException $e) {
     if(isset($db)&&$db instanceof PDO&&$db->inTransaction())$db->rollBack();
     operations_respond(['ok'=>false,'error'=>$e->getMessage()],$e instanceof DomainException?403:422);

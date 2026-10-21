@@ -1,0 +1,10 @@
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
+const source=fs.readFileSync('module.php','utf8');
+const root={contracts:[{ref:'C1',product:'Rice',packings:[{brand:'A',size:50}]}],shipments:[{id:'S1',kind:'lot',contractRef:'C1',lotId:'L1',containers:2}],millSync:{exportLoading:[{contractRef:'C1',shipmentId:'S1',lotId:'L1',production:{dryOn:'Yes',craftPaper:'Yes',inspection:'SGS',dpp:'Yes'},plan:{allocations:[{name:'TTI Rice Mills',type:'Mill',packIndex:0,containers:1,weightPer:20,_ttAllocationIndex:1}]}}]}};
+const old={id:'CARD-KEEP',_ttBridge:'exports',_ttBridgeId:'S1|C1|L1|1',_ttBridgeIndex:1,contractRef:'C1',_ttLotId:'L1',ref:'L1',containers:[{container:'ABCD1234567',bags:20,weight:1000}]};
+const values=new Map([['root',root],['tt30ship',[old]]]);
+const context={EXPORT_STORE:'root',parse:(k,f)=>values.get(k)??f,put:(k,v)=>values.set(k,v),stableId:k=>'NEW-'+k,cornContract:()=>false,saveNow:async()=>{},setTimeout,console,Date,Map,Set,Number,String};vm.createContext(context);
+vm.runInContext(source.slice(source.indexOf('  function exportsToMill(){'),source.indexOf('  function millToExports(){')),context);context.exportsToMill();
+const rows=values.get('tt30ship');assert.equal(rows.length,1);assert.equal(rows[0].id,'CARD-KEEP');assert.equal(rows[0]._ttBridgeIndex,1);assert.equal(rows[0]._ttBridgeId,'S1|C1|L1|1');assert.deepEqual(rows[0].containers,old.containers);
+assert.equal(rows[0].dryon,'Yes');assert.equal(rows[0].craft,'Yes');assert.equal(rows[0].inspection,'SGS');assert.equal(rows[0].dpp,'Yes');
+console.log('PASS scoped allocation retains canonical bridge identity, committed containers and inherited physical instructions');

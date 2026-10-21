@@ -92,12 +92,16 @@ if($argv[1]==='seed'){
     for key,icon,row in [('tt30petty','oldbags',receipt),('tt33pettyexp','labour',expense)]:
         seed({icon:['View','Create']});before=stored()
         assert write(key, originals[key]+[{**row,'ref':'Forged'}])[0]==403
-        assert write(key, [row])[0]==403,'Linked writer removed old cash rows'
         assert write(key, [{**originals[key][0],'amount':100},row])[0]==403
         assert stored()==before
-        assert write(key,originals[key]+[row])[0]==200,'Legitimate linked cash entry rejected'
+        assert write(key,[row])[0]==200,'Legitimate partial linked cash entry rejected'
+        canonical=json.loads(stored())
+        if MYSQL: values={r['storage_key']:r['payload'] for r in canonical}
+        else: values=canonical['values']
+        assert originals[key][0] in json.loads(values[key]),'Omitting hidden cash rows removed them'
+
         committed=stored()
-        assert write(key, originals[key]+[row,{**row,'id':9}],base=2)[0]==403,'Duplicate derived cash entry accepted'
+        assert write(key, [row,{**row,'id':9}],base=2)[0]==403,'Duplicate derived cash entry accepted'
         assert stored()==committed
     seed({'petty':['View','Create']});before=stored()
     assert write('tt30petty',[{**originals['tt30petty'][0],'credit':999}])[0]==403
