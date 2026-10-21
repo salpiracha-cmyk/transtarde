@@ -54,7 +54,7 @@ try{
  $sets=['bank'=>array_values($bank),'commodity'=>ad_rows($commodity),'local'=>ad_rows($local),'export'=>ad_rows($export),'expenses'=>ad_rows($expenses),'due'=>ad_rows($due)];foreach($sets as&$rows)if(is_array($rows))foreach($rows as&$row)$row['dateDisplay']=preg_match('/^(\d{4})-(\d{2})-(\d{2})$/',(string)($row['date']??''),$m)?$m[3].'-'.$m[2].'-'.$m[1]:'';unset($row);unset($rows);
  usort($sets['due'],static fn($a,$b)=>strcmp((string)($a['date']??''),(string)($b['date']??'')));
  if(!acr_reports($u)){
-   if(!acr_icon($u,['cashbank','reconciliation']))$sets['bank']=[];
+   if(!acr_icon($u,['cashbank','reconciliation','supplier','customer','expenses']))$sets['bank']=[];
    if(!acr_icon($u,['purchases','supplier']))$sets['commodity']=[];
    if(!acr_icon($u,['customer'])){$sets['local']=[];$sets['export']=[];$receivables=['rows'=>[],'drafts'=>[],'entities'=>[]];}
    $attentionIcons=['LATE'=>['purchases'],'SODA'=>['purchases'],'HOLD'=>['supplier'],'FREIGHT'=>['freight'],'SALE'=>['customer'],'PAYMENT'=>['customer'],'REMITTANCE'=>['cashbank'],'REMINDER'=>['expenses']];
