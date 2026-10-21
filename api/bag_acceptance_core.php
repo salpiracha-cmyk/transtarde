@@ -102,7 +102,9 @@ function bqa_assess(array $store,array $bill):array {
     $allowedKg=$averageKg!==null?max(0,min($weight-$prior['kg']-max(0,$prior['bags']-$prior['kgBags'])*$averageKg,(int)($bill['bags']??0)*$averageKg)):null;
     if($invoiceKg!==null&&$allowedKg!==null&&$invoiceKg>$allowedKg+.0005)$issues[]='Invoice weight '.number_format($invoiceKg,3,'.','').' kg exceeds actual received weight '.number_format($allowedKg,3,'.','').' kg';
     if(!empty($acceptance['tareMismatch'])&&($actual<=0||$agreed<=0||$actual>=$agreed||$invoiceKg===null))$issues[]='Tare weight differs from the PO; supplier settlement requires review';
-    $fingerprint=hash('sha256',json_encode([$bill['poNo']??'',$bill['lineKey']??'',$bill['sellerInvoice']??'',$bill['bags']??0,$bill['billingBasis']??'BAG',$bill['bagWeightGrams']??0,$bill['baseAmount']??0,$bill['totalAmount']??0,$line['agreedTareGrams']??null,$line['orderedQty']??0,$line['receivedQty']??0,$prior,$acceptance,$issues],JSON_THROW_ON_ERROR));
+    // Bind the decision to the exact reviewed bill, excluding metadata added by approval itself.
+    $review=[];foreach(['id', 'entity', 'supplier', 'sellerInvoice', 'sellerInvoiceDate', 'poNo', 'lineKey', 'status', 'createdBy', 'supplierSettlement', 'supplierSettlementBy', 'supplierSettlementAt', 'bags', 'billingBasis', 'bagWeightGrams', 'totalWeightKg', 'billingRate', 'ratePerBag', 'baseAmount', 'gstRate', 'gstAmount', 'salesTaxInvoice', 'totalAmount', 'billPurpose', 'stockTreatment', 'bagType', 'packingSize', 'brand'] as $field)$review[$field]=$bill[$field]??null;
+    $fingerprint=hash('sha256',json_encode([$review,$line['agreedTareGrams']??null,$line['orderedQty']??0,$line['receivedQty']??0,$prior,$acceptance,$issues],JSON_THROW_ON_ERROR));
     return ['issues'=>$issues,'fingerprint'=>$fingerprint,'receivedWeightKg'=>$allowedKg];
 }
 
