@@ -351,6 +351,9 @@ def run():
     assert page.locator('[name=fromPort] option').all_text_contents()==['Choose loading port','Karachi Port, Pakistan','Port Qasim, Pakistan']
     page.locator('#ttFreightAgreement .tt-window-close').click();page.get_by_role('button',name=re.compile('Freight Forwarder')).click();page.locator('#ttFreightInvoice').click()
     page.locator('#ttBillShipmentQuery').fill('FIXTURE-SHIP');page.locator('#ttBillShipmentGo').click();page.locator('[data-tt-pick-shipment="0"]').click()
+    # Real formatted date/number controls align even when the FX label wraps.
+    header_bottoms=page.locator('.tt-shipment-bill-header > label:not(.tt-shipment-vendor)').evaluate_all("labels=>labels.filter(el=>!el.hidden).map(el=>{const input=el.querySelector('input');const visible=input.classList.contains('tt-number-source')?input.parentElement.querySelector('.tt-number-display'):input.type==='date'?(el.querySelector('[data-tt-date-display]')||el.querySelector('input[type=text]')||input):input;return visible.getBoundingClientRect().bottom})")
+    assert max(header_bottoms)-min(header_bottoms)<2,header_bottoms
     page.locator('#ttShipmentBillVendor').fill('Fixture Forwarder');page.locator('[name=invoiceNo]').fill('BROWSER-FREIGHT-USD');page.locator('[name=exchangeRate]').fill('280');page.locator('[data-containers]').fill('3')
     charges=page.locator('.tt-bill-freight');charges.nth(0).locator('[data-amount]').fill('1000');charges.nth(1).locator('[data-amount]').fill('50')
     page.locator('[data-add]').click();charges.nth(2).locator('[data-description]').fill('Handling');charges.nth(2).locator('[data-amount]').fill('25');charges.nth(2).locator('[data-basis]').select_option('PER_CONTAINER',force=True)

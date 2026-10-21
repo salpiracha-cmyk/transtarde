@@ -94,7 +94,7 @@
     const style = document.createElement('style');
     style.id = 'ttAccountingDeskStyle';
     style.textContent = `
-      .tt-shipment-bill-header{grid-template-columns:repeat(3,minmax(0,1fr))!important;align-items:start}.tt-shipment-bill-header .tt-shipment-vendor{grid-column:1/-1}.tt-shipment-bill-header label>input{margin-top:0!important}.tt-shipment-bill-header label{display:grid;grid-template-rows:minmax(24px,auto) 44px;gap:6px}@media(max-width:600px){.tt-shipment-bill-header{grid-template-columns:1fr!important}}
+      .tt-shipment-bill-header{grid-template-columns:repeat(3,minmax(0,1fr))!important;align-items:end!important}.tt-shipment-bill-header .tt-shipment-vendor{grid-column:1/-1}.tt-shipment-bill-header label input{height:44px!important;min-height:44px!important;margin:0!important;box-sizing:border-box}.tt-shipment-bill-header label{display:grid;grid-template-rows:minmax(24px,auto) 44px;gap:6px}@media(max-width:600px){.tt-shipment-bill-header{grid-template-columns:1fr!important}}
       body{background:#edf1f4!important;color:#172433}
       body.tt-workspace-opening .workspace.active{visibility:hidden!important}
       #ttExpenseFilters[hidden]{display:none!important}
