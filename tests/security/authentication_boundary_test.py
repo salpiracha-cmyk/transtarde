@@ -19,7 +19,7 @@ with tempfile.TemporaryDirectory(prefix='tti-auth-boundary-') as directory:
     script = base / 'request.php'
     script.write_text(r'''<?php
 $cfg=json_decode($argv[2],true);$_SERVER['REQUEST_METHOD']=$cfg['method']??'GET';
-$_SERVER['REQUEST_URI']=$cfg['path']??'/login.php';$_SERVER['REMOTE_ADDR']='192.0.2.40';
+$_SERVER['REQUEST_URI']=$cfg['path']??'/login.php';$_SERVER['REMOTE_ADDR']=$cfg['address']??'192.0.2.40';
 $_COOKIE['TRANSTRADE_SESSION']=$cfg['sid']??'';$_GET=$cfg['query']??[];$_POST=$cfg['form']??[];
 if(isset($cfg['csrf']))$_SERVER['HTTP_X_CSRF_TOKEN']=$cfg['csrf'];
 register_shutdown_function(static function()use($argv){file_put_contents($argv[3],json_encode([
@@ -28,6 +28,7 @@ register_shutdown_function(static function()use($argv){file_put_contents($argv[3
 $app=$argv[1];
 if(($cfg['action']??'')==='seed'){
  require $app.'/auth_store.php';
+ if(!empty($cfg['clearPressure']))tt_auth_rate_mutate(static function(&$s){$s=[];});
  tt_mutate_store(static function(&$s)use($cfg){$s['users']=[[
   'id'=>1,'username'=>'fixture','full_name'=>'Fixture','role'=>'Accounts','active'=>$cfg['active']??true,
   'password_hash'=>password_hash('FixturePass123!',PASSWORD_DEFAULT),'session_version'=>2,
@@ -91,13 +92,34 @@ if(($cfg['action']??'')==='seed'){
     seed, _ = run(action='seed', authenticated=True, flag=True)
     assert run(path='/logout.php', sid=seed['sid'])[0]['user'] is None
 
-    # Only global pressure becomes a delay. Account and address hard limits remain.
-    for locks, allowed in [(['login-emergency'], True), (['login-account'], False),
+    seed, _ = run(action='seed', clearPressure=True)
+    form={'csrf':seed['csrf'],'username':'fixture','password':'wrong-password'}
+    for _ in range(10):
+        assert run(path='/login.php',method='POST',sid=seed['sid'],address='192.0.2.50',form=form)[0]['user'] is None
+    assert run(path='/login.php',method='POST',sid=seed['sid'],address='192.0.2.51',form={**form,'password':'FixturePass123!'})[0]['user']==1
+    seed, _ = run(action='seed')
+    form['csrf']=seed['csrf']
+    for _ in range(10):
+        assert run(path='/login.php',method='POST',sid=seed['sid'],address='192.0.2.50',form=form)[0]['user'] is None
+    assert run(path='/login.php',method='POST',sid=seed['sid'],address='192.0.2.50',form={**form,'password':'FixturePass123!'})[0]['user'] is None,'Address limit remains a hard boundary'
+    assert run(path='/login.php',method='POST',sid=seed['sid'],address='192.0.2.51',form={**form,'password':'FixturePass123!'})[0]['user']==1
+    print('PASS real incorrect-password attack: other address can authenticate; twenty-failure originating address stays blocked')
+    run(action='seed',clearPressure=True)
+    # Account/global pressure delays checks; address hard limits remain.
+    for locks, allowed in [(['login-emergency'], True), (['login-account'], True),
                            (['login-address'], False)]:
         seed, _ = run(action='seed', locks=locks)
         meta, _ = run(path='/login.php', method='POST', sid=seed['sid'],
                       form={'csrf': seed['csrf'], 'username': 'fixture', 'password': 'FixturePass123!'})
         assert (meta['user'] == 1) is allowed, (locks, meta)
+    # A different address remains usable even while account-wide pressure is active.
+    seed, _ = run(action='seed', locks=['login-account','login-address'])
+    meta, _ = run(path='/login.php', method='POST', sid=seed['sid'],address='192.0.2.41',
+                  form={'csrf': seed['csrf'], 'username':'fixture','password':'wrong-password'})
+    assert meta['user'] is None
+    meta, _ = run(path='/login.php', method='POST', sid=seed['sid'],address='192.0.2.41',
+                  form={'csrf': seed['csrf'], 'username':'fixture','password':'FixturePass123!'})
+    assert meta['user']==1,'Attacker account lock must not deny valid credentials from another address'
     seed, _ = run(action='seed', locks=['login-emergency'])
     meta, _ = run(path='/login.php', method='POST', sid=seed['sid'],
                   form={'csrf': 'wrong', 'username': 'fixture', 'password': 'FixturePass123!'})
