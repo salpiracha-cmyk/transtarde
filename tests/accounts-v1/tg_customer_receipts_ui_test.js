@@ -9,6 +9,7 @@ const fs=require('fs'),assert=require('assert'),{JSDOM}=require('jsdom');
  assert.equal(q('#tgRcCustomer').options.length,4,'Registered invoice customers need no operational contract');
  for(const i of invoices){change('#tgRcCustomer',i.customer);assert.equal(q('#tgRcTarget').options.length,2);change('#tgRcTarget','INV|'+i.id);assert.equal(q('#tgRcBank').value,'USD');assert(!q('[data-receipt-details]').hidden);}
  assert.equal(q('#tgRcVatPct').value,'7.5');assert(q('#tgRcVatPct').readOnly);
+ q('#tgRcCredit').value='90';q('#tgRcCredit').dispatchEvent(new w.Event('input'));q('#tgRcPartial').checked=true;q('#tgRcPartial').dispatchEvent(new w.Event('change'));q('#tgRcCorrespondent').checked=true;q('#tgRcCorrespondent').dispatchEvent(new w.Event('change'));assert(!q('#tgRcPartial').checked);assert.equal(q('#tgRcGross').value,'100.00');q('#tgRcCorrespondent').checked=false;
  q('#tgRcCredit').value='100';q('#tgRcCharge').value='10';q('#tgRcCharge').dispatchEvent(new w.Event('input'));assert.equal(q('#tgRcVat').value,'0.75');
  await q('#tgRcPost').onclick();assert.equal(posted.length,1);assert.equal(posted[0].receiptType,'EXPORT_RECEIVABLE');assert.equal(posted[0].sourceCandidateId,invoices[2].id);assert.equal(posted[0].counterparty,'GLOBAL TRANSIT');assert.equal(posted[0].settlementAmountNative,100);
  dom.window.close();console.log('PASS TG registered customer dropdown, invoice selection without operational contract, master VAT and linked receipt payload');

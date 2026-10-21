@@ -10,6 +10,18 @@
     const options=[...source.options].sort((a,b)=>rank(a)-rank(b)||(rank(a)===1?Number(byId.get(b.value)?.availableBalance??byId.get(b.value)?.bookBalance??byId.get(b.value)?.balance??0)-Number(byId.get(a.value)?.availableBalance??byId.get(a.value)?.bookBalance??byId.get(a.value)?.balance??0):0));
     for(const option of options){const a=byId.get(option.value);if(a){option.dataset.bankBalance=String(Number(a.availableBalance??a.bookBalance??a.balance??0));option.dataset.bankDefault=String(!!a.isDefault);}source.append(option);}source.value=saved;
   }
+  const chargeVat=()=>Number(window.TT_ACCOUNT_ACCESS?.companyVatRates?.TG??5);
+  function mountCharge(id,accounts=[],vatRate=chargeVat()) {
+    const source=find(id);if(!source||find(id+'AedCharge'))return;
+    const box=document.createElement('div');box.id=id+'AedCharge';box.style.cssText='grid-column:1/-1;padding:10px;border:1px solid #dbe5df;border-radius:8px';
+    box.innerHTML='<label style="display:flex;align-items:center;gap:8px"><input type="checkbox" data-add-charge style="width:auto"> Add bank charge</label><div data-charge-fields hidden style="margin-top:8px;display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px"><label>Bank charge (AED)<input data-extra-charge type="number" min="0.01" step="0.01" inputmode="decimal"></label><label>VAT on bank charge (AED)<input data-charge-vat readonly></label><label>Total additional bank debit (AED)<input data-charge-total readonly></label></div>';
+    source.closest('label').after(box);
+    const update=()=>{const account=accountFor(source,accounts),eligible=String(account?.entity||localStorage.getItem('tt_accounts_entity')||'').toUpperCase()==='TG'&&String(account?.currency||'').toUpperCase()==='AED'&&!/^(CASH|CARD)\|/.test(source.value);box.hidden=!eligible;box.style.display=eligible?'block':'none';const tick=box.querySelector('[data-add-charge]');if(!eligible)tick.checked=false;const fields=box.querySelector('[data-charge-fields]');fields.hidden=!tick.checked;fields.style.display=tick.checked?'grid':'none';const fee=Math.max(0,Number(box.querySelector('[data-extra-charge]').value)||0),vat=Math.round(fee*vatRate)/100;box.querySelector('[data-charge-vat]').value=vat.toFixed(2)+' ('+vatRate+'%)';box.querySelector('[data-charge-total]').value=(fee+vat).toFixed(2);};
+    source.addEventListener('change',update);box.addEventListener('change',update);box.addEventListener('input',update);update();
+  }
+  function readCharge(id) {const box=find(id+'AedCharge');if(!box||box.hidden||!box.querySelector('[data-add-charge]').checked)return {};const amount=Number(box.querySelector('[data-extra-charge]').value);if(!Number.isFinite(amount)||amount<=0)throw Error('Enter a bank charge greater than zero.');return {addBankCharge:true,extraBankChargeNative:Math.round(amount*100)/100};}
+  function restoreCharge(id,details={}) {const box=find(id+'AedCharge');if(!box)return;box.querySelector('[data-add-charge]').checked=!!details.addBankCharge;box.querySelector('[data-extra-charge]').value=details.extraBankChargeNative||'';box.dispatchEvent(new Event('change',{bubbles:true}));}
+  window.TT_TG_AED_CHARGE={mount:mountCharge,read:readCharge,restore:restoreCharge};
   function mount(id,accounts=[]) {
     const source=find(id);if(!source||find(id+'Details'))return;orderChoices(source,accounts);
     const preferred=[...accounts].sort((a,b)=>Number(b.isDefault||0)-Number(a.isDefault||0)).find(a=>a.isDefault&&!String(a.id).startsWith('CASH|')&&[...source.options].some(o=>o.value===a.id));
@@ -18,7 +30,7 @@
     box.innerHTML='<label>Bank payment method<select data-method><option value="CHEQUE">Cheque</option><option value="ONLINE_BANKING">Online Banking</option></select></label><label><span data-reference-label>Bank transaction reference</span><input data-reference maxlength="180"></label><label data-cheque-date-wrap><span data-payment-date-label>Cheque date</span><input data-cheque-date type="date"></label><details data-narration-override><summary>Separate payment narration (optional)</summary><label>Payment narration<input data-narration maxlength="300" placeholder="Only if different from the expense purpose"></label></details>';
     source.closest('label').after(box);
     const paymentDate=box.querySelector('[data-cheque-date]'),voucher=window.TT_CHEQUE_DATES?.voucherFor(paymentDate)||source.closest('form')?.querySelector('input[type=date]:not([data-cheque-date])');paymentDate.value=voucher?.value||'';
-    box.querySelector('[data-method]').value=defaultMethod(source,accounts);
+    box.querySelector('[data-method]').value=defaultMethod(source,accounts);mountCharge(id,accounts);
     const update=()=>{const bank=source.value&&!/^(CASH|CARD)\|/.test(source.value);box.hidden=!bank;box.style.display=bank?'grid':'none';const cheque=box.querySelector('[data-method]').value==='CHEQUE';box.querySelector('[data-reference-label]').textContent=cheque?'Cheque number':'Online banking transaction reference (optional)';box.querySelector('[data-reference]').required=!!bank&&cheque;box.querySelector('[data-cheque-date-wrap]').hidden=!bank;box.querySelector('[data-payment-date-label]').textContent=cheque?'Cheque date':'Online Banking payment date';box.querySelector('[data-cheque-date]').required=!!bank;};
     source.addEventListener('change',()=>{box.querySelector('[data-method]').value=defaultMethod(source,accounts);update()});box.querySelector('[data-method]').addEventListener('change',update);update();window.TT_CHEQUE_DATES?.bind(box.querySelector('[data-cheque-date]'));
   }
@@ -27,7 +39,7 @@
     const method=box.querySelector('[data-method]').value,reference=box.querySelector('[data-reference]').value.trim(),narration=box.querySelector('[data-narration]').value.trim();
     if(!['CHEQUE','ONLINE_BANKING'].includes(method))throw Error('Choose the bank payment method.');
     if(method==='CHEQUE'&&!reference)throw Error('Enter the cheque number.');
-    return {bankPaymentMethod:method,bankReference:reference,chequeNo:method==='CHEQUE'?reference:'',chequeDate:method==='CHEQUE'?(box.querySelector('[data-cheque-date]').value||date):'',bankPaymentDate:method==='ONLINE_BANKING'?(box.querySelector('[data-cheque-date]').value||date):'',paymentNarration:narration};
+    return {...readCharge(id),bankPaymentMethod:method,bankReference:reference,chequeNo:method==='CHEQUE'?reference:'',chequeDate:method==='CHEQUE'?(box.querySelector('[data-cheque-date]').value||date):'',bankPaymentDate:method==='ONLINE_BANKING'?(box.querySelector('[data-cheque-date]').value||date):'',paymentNarration:narration};
   }
   function restore(id,details={},date='') {
     const source=find(id),box=find(id+'Details');if(!source||!box)return;
@@ -42,7 +54,7 @@
     box.querySelector('[data-cheque-date]').value=(savedMethod==='CHEQUE'?details.chequeDate:details.bankPaymentDate)||date;
     box.querySelector('[data-narration]').value=details.paymentNarration||'';
     method.dispatchEvent(new Event('change',{bubbles:true}));
-    const narration=box.querySelector('[data-narration-override]');if(narration)narration.open=!!details.paymentNarration;
+    restoreCharge(id,details);const narration=box.querySelector('[data-narration-override]');if(narration)narration.open=!!details.paymentNarration;
     window.TT_ACCOUNTS_CLEAN_UI?.syncSelects?.(box);
   }
   // Resolve a display label without changing the saved journal's posting account.

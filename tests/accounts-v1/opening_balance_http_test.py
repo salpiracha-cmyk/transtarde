@@ -6,7 +6,7 @@ ROOT=pathlib.Path(__file__).resolve().parents[2]
 with tempfile.TemporaryDirectory(prefix='opening-jv-qa-') as tmp:
     root=pathlib.Path(tmp)
     for folder in ['api','accounts','data']: (root/folder).mkdir()
-    for name in ['supplier_opening_core.php','accounts_subaccounts_core.php','accounts_ledger_visibility.php','assets_registry_core.php','jv_decisions_core.php','journal_vouchers.php','opening_balance_core.php','accounts_chart_word.php','accounts_chart_word_core.php','service_ledger_groups.php','accounts_ledger_browser.php','accounts_read_policy.php','customer_receivables_core.php','accounts_post_delete_core.php','accounts_reference.php','tg_remittance_core.php','fi_credit_advice_link.php','receipt_invoice_links.php', 'tg_native_currency.php']:
+    for name in ['supplier_opening_core.php','accounts_subaccounts_core.php','accounts_ledger_visibility.php','assets_registry_core.php','jv_decisions_core.php','journal_vouchers.php','opening_balance_core.php','accounts_chart_word.php','accounts_chart_word_core.php','service_ledger_groups.php','accounts_ledger_browser.php','accounts_read_policy.php','customer_receivables_core.php','accounts_post_delete_core.php','accounts_post_delete_tg.php','tg_native_currency.php','accounts_reference.php','tg_remittance_core.php','fi_credit_advice_link.php','receipt_invoice_links.php', 'tg_native_currency.php']:
         shutil.copy(ROOT/'api'/name,root/'api'/name)
     for path in (ROOT/'accounts').glob('*.json'): shutil.copy(path,root/'accounts'/path.name)
     (root/'auth_store.php').write_text('''<?php

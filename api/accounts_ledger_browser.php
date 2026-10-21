@@ -148,6 +148,7 @@ $expenseActivity=($category==='party'||$homeLedger)&&$serviceGroup===''?sac_expe
 foreach($expenseActivity as $activity){if($activity['recipient']!=='')$parties[$activity['recipient']]=true;if(($activity['expenseFor']??'SHARED')!=='SHARED')$parties[$activity['expenseForName']]=true;}
 $requestedPost=trim((string)($_GET['postId']??''));
 if($requestedPost!==''){
+    $requestedPost=tt_accounts_resolve_post_key($store,$requestedPost,$entity);
     $posting=$store['journals'][$requestedPost]??null;$seen=[];while(is_array($posting)&&(!empty($posting['amendedByPostId'])||!empty($store['exMillPostReplacements'][$posting['id']]))&&!isset($seen[$posting['id']])){$seen[$posting['id']]=true;$next=$store['journals'][$posting['amendedByPostId']??$store['exMillPostReplacements'][$posting['id']]]??null;if(!is_array($next))break;$posting=$next;}if(is_array($posting)){$posting['publicPostId']=tt_accounts_public_post($store,$posting);$posting['amendmentNote']=tt_accounts_amendment_note($posting,$store);}
     if(!is_array($posting)||!alv_posted($posting)||($entity!=='ALL'&&($posting['entity']??'')!==$entity)||!tt_user_can_access_entity($user,(string)($posting['entity']??''),'View'))$posting=null;
     if(!$posting)alb_fail('Post ID was not found in these company books.',404);

@@ -1,11 +1,14 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__.'/supplier_opening_core.php';
+require_once __DIR__.'/accounts_post_delete_tg.php';
+require_once __DIR__.'/tg_native_currency.php';
 
 /** Cancellation capabilities; linked workflows use their own reversal routines under the caller's lock. */
 function apd_record_index(array $s):array { $records=[];foreach(['utilityPayments','generalExpenses','reimbursements','creditCardStatements','donations'] as $collection)foreach((array)($s[$collection]??[]) as $r)foreach(array_merge([$r['journalId']??'', $r['captureJournalId']??'', $r['statementJournalId']??''],(array)($r['postingJournalIds']??[])) as $post)if($post!=='')$records[$post]=true;return $records; }
 function apd_supported(array $s,array $j,?array $recordIndex=null):bool {
     if(!empty($j['reversalOf'])||!empty($j['reversedByPostId'])||!empty($j['meta']['reversedByPostId'])||!empty($j['meta']['deletedFromBooks']))return false;
+    if(apd_tg_supported($j)||($j['sourceType']??'')==='SALARY_ALLOCATED_PAYMENT')return true;
     $records=$recordIndex??apd_record_index($s);if(isset($records[$j['id']]))return true;
     if(!empty($j['meta']['historicalBagBillId']))return true;
     return (($j['sourceType']??'')==='POST_AMENDMENT_CORRECTION'&&in_array($j['meta']['originalSourceType']??'',['JV','OPENING_BALANCE_BF'],true))||in_array($j['sourceType']??'',['JV','OPENING_BALANCE_BF','BANK_ENTRY','SALARY_ADVANCE'],true)||($j['sourceType']??'')==='FORWARD_BOOKING_SETTLEMENT'||!empty($j['meta']['investmentTransactionId'])||!empty($j['meta']['receiptId'])||!empty($j['meta']['tgRemittanceId'])||!empty($j['meta']['settlementId']);
@@ -18,13 +21,23 @@ function apd_delete_reason(array $s,array $j,array $u,?array $recordIndex=null):
     return '';
 }
 function apd_delete(array &$s,array $u,string $id,array $b):array {
+    $fingerprint=hash('sha256',json_encode([$s,$id,$b['reason']??''],JSON_THROW_ON_ERROR));
+    if(!empty($b['deletionFingerprint'])&&!hash_equals($fingerprint,(string)$b['deletionFingerprint']))throw new DomainException('The posting or its links changed. Review the deletion impact again.');
+    $working=$s;$result=apd_delete_working($working,$u,$id,$b);$impact=[];
+    foreach($result['cancelledPostIds'] as $cancelled){$journal=$s['journals'][$cancelled];$lines=[];foreach($journal['lines'] as $line){$native=($journal['entity']??'')==='TG'?tgn_line($journal,$line):['currency'=>'PKR','debit'=>$line['debit'],'credit'=>$line['credit']];$lines[]=['account'=>$line['account'],'name'=>$line['subaccountName']??$line['accountName']??$line['account'],'party'=>$line['counterparty']??$line['subledger']??'','bankAccountId'=>$line['bankAccountId']??'','currency'=>$native['currency'],'debit'=>$native['debit'],'credit'=>$native['credit']];}$impact[]=['postId'=>tt_accounts_public_post($s,$journal),'date'=>$journal['date'],'entity'=>$journal['entity'],'source'=>$journal['sourceType'],'narration'=>$journal['narration']??'','lines'=>$lines];}
+    $sources=[];foreach($working as $collection=>$records){if(in_array($collection,['journals','postDeletions'],true)||!is_array($records))continue;foreach($records as $key=>$record)if(is_array($record)&&isset($s[$collection][$key])&&$record!==$s[$collection][$key])$sources[]=['register'=>$collection,'id'=>(string)$key,'beforeStatus'=>$s[$collection][$key]['status']??'','afterStatus'=>$record['status']??'Updated','effect'=>'Linked balances and allocations recalculated'];}
+    $s=$working;return $result+['fingerprint'=>$fingerprint,'impact'=>$impact,'sources'=>$sources];
+}
+function apd_delete_working(array &$s,array $u,string $id,array $b):array {
     $j=$s['journals'][$id]??null;$seen=[];while(is_array($j)&&!empty($j['amendedByPostId'])){if(isset($seen[$id]))throw new DomainException('The correction history needs review.');$seen[$id]=true;$id=$j['amendedByPostId'];$j=$s['journals'][$id]??null;}
     if(!is_array($j)||($j['status']??'')!=='Posted'||!apd_supported($s,$j))throw new DomainException('This posting has already been cancelled, or requires cancellation in its originating workflow.');
     $e=$j['entity'];if(!tt_post_correction_allowed($u,$j)||!tt_user_can_access_entity($u,$e,'Edit'))throw new DomainException('Original workflow and company Edit permission required.');
     $reason=trim((string)($b['reason']??''));if(mb_strlen($reason)<5||mb_strlen($reason)>300)throw new DomainException('Enter a deletion reason of 5 to 300 characters.');
     if(($j['sourceType']??'')==='OPENING_BALANCE_BF')sop_assert_unpaid($s,$id);
     $before=$s;$journalIds=array_keys((array)$s['journals']);$date=$j['date'];$handled=false;
-    foreach(['utilityPayments','generalExpenses','reimbursements','creditCardStatements','donations'] as $collection){foreach((array)($s[$collection]??[]) as $rid=>$r){if(!in_array($id,array_merge([$r['journalId']??'', $r['captureJournalId']??'', $r['statementJournalId']??''],(array)($r['postingJournalIds']??[])),true))continue;
+    if(apd_tg_supported($j)){$seen=[];apd_tg_cancel($s,$u,$id,$reason,$seen);$handled=true;}
+    if(!$handled&&($j['sourceType']??'')==='SALARY_ALLOCATED_PAYMENT'){if(!defined('TT_RENT_SALARY_FUNCTIONS_ONLY'))define('TT_RENT_SALARY_FUNCTIONS_ONLY',true);require_once __DIR__.'/rent_salary_v2.php';sfw_reverse_payment($s,$e,substr((string)$j['meta']['salarySheetKey'],strlen($e)+1),['journalId'=>$id,'date'=>$date,'reason'=>$reason],$u,rsv2_names());$handled=true;}
+    foreach(['utilityPayments','generalExpenses','reimbursements','creditCardStatements','donations'] as $collection){foreach((array)($s[$collection]??[]) as $rid=>$r){if($handled||!in_array($id,array_merge([$r['journalId']??'', $r['captureJournalId']??'', $r['statementJournalId']??''],(array)($r['postingJournalIds']??[])),true))continue;
         if(!defined('TT_EXPENSES_FUNCTIONS_ONLY'))define('TT_EXPENSES_FUNCTIONS_ONLY',true);require_once __DIR__.'/expenses_v1.php';ev1_delete_expense($s,['collection'=>$collection,'id'=>$rid,'reason'=>$reason],$e,$u,ev1_names());$handled=true;break 2;
     }}
     if(!$handled&&!empty($j['meta']['investmentTransactionId'])){require_once __DIR__.'/company_investments_core.php';inv_reverse($s,$e,['transactionId'=>$j['meta']['investmentTransactionId'],'date'=>$date,'reason'=>$reason],$u);$handled=true;}

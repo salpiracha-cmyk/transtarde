@@ -9,7 +9,7 @@ function tt_next_post_id(array $rows,string $module='Accounts',string $area='Jou
 require __DIR__.'/../../api/bank_entries_core.php';
 $store=['journals'=>[]];
 $setup=sac_master($store,'TG',['operation'=>'add','name'=>'Remittance fee','parentCode'=>'6800'],[]);$id=$setup['subaccountId'];
-check(!array_filter(sac_accounts([],'TG'),static fn($r)=>$r['parentCode']==='6800'&&$r['active']),'TG must not offer Pakistan seeded charges');
+check(!array_filter(sac_accounts([],'TG'),static fn($r)=>$r['parentCode']==='6800'&&$r['active']&&$r['id']!=='TG-DEFAULT-ONLINE-BANKING'),'TG must not offer Pakistan seeded charges');
 check((bool)array_filter(sac_accounts([],'TTI'),static fn($r)=>$r['parentCode']==='6800'&&$r['active']),'TTI retains its charge setup');
 try{sac_resolve($store,'TTI',$id);throw new RuntimeException('Cross-company category was accepted');}catch(DomainException $expected){}
 $result=ben_post($store,'TG',['type'=>'BANK_CHARGE','bankId'=>'TGUSD','date'=>'2026-10-01','amount'=>100,'subaccountId'=>$id,'exchangeRate'=>999],[]);$j=$result['journal'];
