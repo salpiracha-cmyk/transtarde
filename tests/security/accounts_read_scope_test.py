@@ -26,7 +26,7 @@ require $argv[1];
     for id,source in [('S1','SUPPLIER_PAYMENT'),('T1','TRANSPORT_BILL'),('V1','CLEARING_BILL'),('P1','SALARY_PAYMENT'),('K1','BANK_RECON_DIRECT_ENTRY')]:
         journals[id]=journal(id,source,id+'_SECRET')
     journals['K1']['meta']['bankDirectType']='SAVING_PROFIT'
-    native_sources={'DX':'DIRECT_EXPENSE_PAYMENT','SAL':'SALARY_ALLOCATED_PAYMENT','ADV':'SALARY_ADVANCE_OPENING','MILL':'MILL_BILL_LIABILITY','TGREM':'TG_REMITTANCE_CONFIRMED'}
+    native_sources={'DX':'DIRECT_EXPENSE_PAYMENT','SAL':'SALARY_ALLOCATED_PAYMENT','ADV':'SALARY_ADVANCE_OPENING','MILL':'MILL_BILL_LIABILITY','TGREM':'TG_REMITTANCE_CONFIRMED','INV':'COMPANY_INVESTMENT_BROKER_DEPOSIT'}
     for id,source in native_sources.items():journals[id]=journal(id,source,id+'_NATIVE_SECRET')
 
 
@@ -79,7 +79,7 @@ require $argv[1];
             st,data=request('accounts_ledger_browser.php',grant(icon),query+'&postId='+post);assert st==expected,(icon,post,st,data)
         st,limited=request('accounts_ledger_browser.php',grant(icon),'entity=TTI&account=6700&from=2026-01-01&to=2026-12-31')
         assert st==200 and limited['visibilityScope']=='Permitted workflows' and not any(hidden==row['voucher'] for row in limited['rows']),(st,limited)
-    for icon,post in [('supplier','S1'),('transport','T1'),('services','V1'),('expenses','P1'),('cashbank','K1'),('reconciliation','K1'),('expenses','DX'),('expenses','SAL'),('expenses','ADV'),('expenses','MILL'),('tg','TGREM')]:
+    for icon,post in [('supplier','S1'),('transport','T1'),('services','V1'),('expenses','P1'),('cashbank','K1'),('reconciliation','K1'),('expenses','DX'),('expenses','SAL'),('expenses','ADV'),('expenses','MILL'),('tg','TGREM'),('assets','INV')]:
         st,data=request('accounts_ledger_browser.php',grant(icon),'entity=TTI&account=POSTS&postId='+post)
         assert st==200 and data['post']['id']==post,(icon,st,data)
     # Reversal ownership resolves the authoritative parent in the same company.
@@ -90,7 +90,7 @@ require $argv[1];
     del initial['journals']['REV'];books.write_text(json.dumps(initial));before=books.read_bytes()
     for permissions,role in [(grant('reports'),'Staff'),({'Accounts':['View']},'Staff'),({'Accounts':'all'},'Staff'),({},'Director'),({},'Super Admin')]:
         st,data=request('accounts_reports.php',permissions,'entity=TTI&from=2026-01-01&asOf=2026-12-31',role)
-        assert st==200 and data['trialBalance']['balanced'] and data['trialBalance']['totalDebit']==1300,(role,st,data)
+        assert st==200 and data['trialBalance']['balanced'] and data['trialBalance']['totalDebit']==1400,(role,st,data)
         st,data=request('accounts_ledger_browser.php',permissions,'entity=TTI&account=POSTS&from=2026-01-01&to=2026-12-31',role)
         assert st==200 and {r['voucher'] for r in data['rows']}==set(journals)-{'B1'},(role,st,data)
     st,data=request('bank_accounts.php',grant('supplier'))
