@@ -245,19 +245,20 @@ test('authenticated Accounts live smoke: professional desk and popup workflows',
   await closeWorkspace(page);
   await deskAction(page, 'routine', 'Salaries & Staff');
   await activate(page.locator('#rsPrepare'));
-  await expect(page.locator('#expenseEditor h1')).toContainText('TOTAL MONTHLY ENTITLEMENT PKR');
+  await expect(page.locator('#expenseEditor')).toContainText('Entitlement PKR');
+  await expect(page.locator('[data-rs-group][open]')).toHaveCount(0);
+  await activate(page.locator('[data-rs-group] > summary').first());
   await expect(page.locator('#rsMonth')).toBeVisible();
   expect(await page.locator('.ttrs-salary-table').evaluateAll(tables=>tables.length>0&&tables.every(table=>table.querySelectorAll('th').length===5))).toBeTruthy();
   expect(await page.locator('.ttrs-salary-table').evaluateAll(tables => tables.every(el => el.scrollWidth <= el.clientWidth + 2))).toBeTruthy();
   const firstSalaryActions = page.locator('.ttrs-salary-table tbody tr').first().locator('button');
   expect(await firstSalaryActions.evaluateAll(buttons => buttons.every(button => { const box = button.getBoundingClientRect(); return box.left >= 0 && box.right <= innerWidth; }))).toBeTruthy();
-  const salaryPay = page.locator('[data-rs-draft-pay]').first();
+  const salaryPay = page.locator('[data-rs-person]').filter({hasText:'Pay'}).first();
   if (await salaryPay.count()) {
     await activate(salaryPay);
-    await expect(page.locator('#rsDraftForm h3')).toContainText(/Actual payments|Monthly payment|Payment plan/);
-    await expect(page.locator('#rsDraftForm')).toContainText('Saving retains a draft; complete the month to post.');
-    await expect(page.locator('#rsAddTransaction')).toBeVisible();
-    await expect(page.locator('#rsPaySalBtn')).toHaveText('Save payment draft');
+    await expect(page.locator('#rsPaymentPopup')).toBeVisible();
+    await expect(page.locator('#rsFamilyMonthly')).toBeVisible();
+    await expect(page.locator('#rsPaySalBtn')).toHaveText('Save payment');
   }
   await closeWorkspace(page);
 

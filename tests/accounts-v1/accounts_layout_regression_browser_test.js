@@ -68,17 +68,17 @@ const fs=require('fs'),assert=require('node:assert/strict'),{chromium}=require('
  assert.equal(await page.locator('.ttrs-table-wrap').evaluate(el=>getComputedStyle(el).overflowX),'auto','Advance history scrolls independently when wider than a mobile screen');
  assert.equal(await page.evaluate(()=>posted.length),writesBefore,'Changing payment/opening controls makes no posting');
  await page.setViewportSize({width:1440,height:1000});
- await page.evaluate(()=>{document.querySelector('#ws-jv').classList.remove('active');document.querySelector('#ws-expenses').classList.add('active');return TT_RENT_SALARY_UI.open('salary');});await page.waitForSelector('#rsPrepare');assert.equal(await page.locator('#rsMasterSetup,#rsSalaryBack').count(),0);await page.locator('#rsPrepare').click();assert.equal(await page.locator('#rsSalaryBack').count(),0);await shot(page.locator('.ttrs'),'salary-sheet');const plus=await page.locator('#rsAddSheetPerson').boundingBox();assert(plus.x<page.viewportSize().width/2,'Salary add is below rows on the left');
+ await page.evaluate(()=>{document.querySelector('#ws-jv').classList.remove('active');document.querySelector('#ws-expenses').classList.add('active');return TT_RENT_SALARY_UI.open('salary');});await page.waitForSelector('#rsPrepare');assert.equal(await page.locator('#rsMasterSetup,#rsSalaryBack').count(),0);await page.locator('#rsPrepare').click();assert.equal(await page.locator('#rsSalaryBack').count(),1);assert.equal(await page.locator('[data-rs-group][open]').count(),0);await shot(page.locator('.ttrs'),'salary-sheet');assert.equal(await page.locator('#rsMasterSetup').count(),1);
 
  // A long real salary list must keep every person's actions beside their name;
  // the shared control normalizer must not move removal into a new column.
  await page.evaluate(()=>{fixture.salarySheet.rows=Object.fromEntries(Array.from({length:31},(_,i)=>{const id='S'+i;return [id,{masterId:id,name:'Staff member '+i,category:'OFFICE_STAFF',categoryName:'Office Staff',netSalary:50000,zakatAmount:1000,otherAllowance:2000,totalDue:53000,advanceApplied:1000,paidAfterPrepare:0,outstanding:52000}]}));return TT_RENT_SALARY_UI.open('salary');});
- await page.locator('#rsPrepare').click();
+ await page.locator('#rsPrepare').click();await page.locator('[data-rs-group="OFFICE_STAFF"] > summary').click();
  for(const width of [1440,1280,1024,700,390]){
   await page.setViewportSize({width,height:900});await page.waitForTimeout(70);
   assert(await page.locator('.ttrs-salary-table').evaluateAll(tables=>tables.length>0&&tables.every(table=>table.querySelectorAll('th').length===5)),'Each salary group keeps five aligned columns');
   assert(await page.locator('.ttrs-salary-table').evaluateAll(tables=>tables.every(el=>el.scrollWidth<=el.clientWidth+2)),'No salary horizontal scroll at '+width);
-  for(const attr of ['draft-pay','month-adjust','sheet-edit','sheet-remove']){
+  for(const attr of ['person']){
    const control=page.locator('[data-rs-'+attr+'="S0"]');
    assert(await control.evaluate(el=>{const r=el.getBoundingClientRect();return r.left>=0&&r.right<=innerWidth}),'First person action stays within viewport at '+width);
   }
