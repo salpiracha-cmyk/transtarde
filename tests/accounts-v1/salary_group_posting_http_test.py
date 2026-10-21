@@ -74,10 +74,14 @@ with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
         assert current['salarySheets']['TTI|2026-10']['rows']['Alice']['outstanding']==100
         for who in ['Bob','Cara']:assert current['salarySheets']['TTI|2026-10']['rows'][who]==before['salarySheets']['TTI|2026-10']['rows'][who]
         assert request(amendment)[1]['result']['duplicate'] and saved()==current
-        balance={'action':'salary_payment','masterId':'Alice','amount':100,'date':'2026-10-03','paymentAccountId':'CASH|TTI','requestKey':'group-balance-fixture'}
+        bank_balance={'action':'salary_payment','masterId':'Alice','amount':40,'date':'2026-10-03','paymentAccountId':'bank-a','bankPaymentMethod':'CHEQUE','chequeNo':'GROUP-REF','chequeDate':'2026-10-03','requestKey':'group-bank-balance'}
+        status,bank_paid=request(bank_balance);assert status==200,bank_paid
+        bank_before=saved();status,duplicate_bank=request({**bank_balance,'amount':20,'requestKey':'group-bank-duplicate'});assert status==422 and 'reference is already posted' in duplicate_bank['error'],duplicate_bank
+        assert saved()==bank_before,'Duplicate bank reference before month closure must leave books unchanged'
+        balance={'action':'salary_payment','masterId':'Alice','amount':60,'date':'2026-10-03','paymentAccountId':'CASH|TTI','requestKey':'group-balance-fixture'}
         status,paid=request(balance);assert status==200,paid
         assert saved()['salarySheets']['TTI|2026-10']['rows']['Alice']['outstanding']==0
-        assert len(request()[1]['salaryPayments'])==2
+        assert len(request()[1]['salaryPayments'])==3
         assert request(balance)[1]['result']['duplicate']
         (root/'data/accounts.json').write_text(json.dumps(isolated_before))
         after=saved();assert after['salaryAdvances']['ADV']['remaining']==0
