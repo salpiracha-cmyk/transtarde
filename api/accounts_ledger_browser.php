@@ -259,7 +259,9 @@ foreach($journals as $journal){
         }
         if($party!==''&&!in_array($category,['party','bank'],true)&&strcasecmp($lineParty,$party)!==0)continue;
         $date=(string)$journal['date'];
-        $usdView=$entity==='TG'&&$bankId==='';if($usdView&&$code==='7100')continue;if($usdView&&tgn_line($journal,$line)['currency']!==$nativeCurrency)continue;
+        // Match the historical AED reports for existing API consumers. The UI
+        // explicitly selects a currency to request the separate native ledger.
+        $usdView=$entity==='TG'&&$bankId===''&&isset($_GET['currency']);if($usdView&&$code==='7100')continue;if($usdView&&tgn_line($journal,$line)['currency']!==$nativeCurrency)continue;
         $native=$bankId!==''&&($banks[$bankId]['currency']??'')!==($entity==='TG'?'AED':'PKR');
         $debit=round((float)($native?($line['bankDebit']??0):($line['debit']??0)),2);$credit=round((float)($native?($line['bankCredit']??0):($line['credit']??0)),2);
         $nativeMissing=$native&&!isset($line['bankDebit'])&&!isset($line['bankCredit']);if($category==='bank'&&$nativeMissing)$balanceUnavailable=true;if($usdView){$nativeLine=tgn_line($journal,$line);$nativeMissing=$nativeLine['unavailable'];$debit=(float)$nativeLine['debit'];$credit=(float)$nativeLine['credit'];}

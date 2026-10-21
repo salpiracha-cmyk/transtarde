@@ -24,6 +24,19 @@ check(round(array_sum(array_column($aed['lines'],'debit')),2)===394.53,'AED repo
 check(serialize($j)===$before,'Report translation never mutates a saved journal');
 check(tgn_line(['meta'=>['transactionCurrency'=>'USD','transactionAmount'=>123]],['account'=>'1250','debit'=>451.41,'credit'=>0])['debit']===123.0,'Legacy trade principal retains explicit transaction amount');
 check(tgn_line(['meta'=>['currency'=>'USD']],['account'=>'6900','debit'=>100,'credit'=>0])['unavailable'],'Never invent a missing historical rate');
+$legacy=['id'=>'LEGACY-MIRROR','sourceType'=>'TG_BANK_PAYMENT','meta'=>['currency'=>'USD','amountNative'=>100],
+ 'lines'=>[['account'=>'1250','debit'=>365.91,'credit'=>0],['account'=>'1110','debit'=>0,'credit'=>365.91,'currency'=>'USD','bankDebit'=>0,'bankCredit'=>100]]];
+$legacyBefore=serialize($legacy);
+check(tgn_line($legacy,$legacy['lines'][0])['debit']===100.0,'Legacy mirrored advance uses the matching recorded native bank payment');
+check(array_sum(array_column(tgn_present($legacy,'USD','2026-10-01')['lines'],'debit'))===100.0,'Legacy payment translates without a guessed historical rate');
+$reverse=$legacy;$reverse['sourceType']='TG_REMITTANCE_CONSOLIDATION_REVERSAL';
+foreach($reverse['lines'] as &$l){[$l['debit'],$l['credit']]=[$l['credit'],$l['debit']];if(isset($l['bankDebit']))[$l['bankDebit'],$l['bankCredit']]=[$l['bankCredit'],$l['bankDebit']];}unset($l);
+check(tgn_line($reverse,$reverse['lines'][0])['credit']===100.0,'Consolidation reversal uses its matching reversed native bank evidence');
+$split=$legacy;$split['lines'][]=['account'=>'2500','debit'=>1,'credit'=>0];
+check(tgn_line($split,$split['lines'][0])['unavailable'],'A native total is never assigned to several principal allocations');
+$mismatch=$legacy;$mismatch['lines'][1]['bankCredit']=1;
+check(tgn_line($mismatch,$mismatch['lines'][0])['unavailable'],'Conflicting native evidence remains unavailable');
+check(serialize($legacy)===$legacyBefore,'Legacy presentation does not repair or rewrite the original voucher');
 sac_master($store,'TG',['operation'=>'delete','id'=>$id],[]);
 check(sac_resolve($store,'TG',$id,false)['active']===false&&isset($store['journals'][$j['id']]),'Deleting charge type archives it and preserves its posted ledger');
 $shared=['journals'=>['PK'=>['id'=>'PK','entity'=>'TTI'],'TG'=>['id'=>'TG','entity'=>'TG','meta'=>['receiptIds'=>['R']]],'OTHER'=>['id'=>'OTHER','entity'=>'TG']],'exportReceipts'=>['R'=>['journalId'=>'PK','tgRemittancePostId'=>'TG']]];

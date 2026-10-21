@@ -121,6 +121,8 @@ with tempfile.TemporaryDirectory(prefix='party-ledger-qa-') as temp:
         assert status==200 and tg['balanceUnavailable'] and tg['closing'] is None, tg
         assert all(r['balance'] is None for r in tg['rows'])
         assert get(entity='TG',party='TTI',currency='AED')[1]['closing']==0,'AED native ledger must exclude USD postings'
+        status,tg_books=get(entity='TG',category='other',account='2500')
+        assert status==200 and abs(tg_books['closing']-(-330.3))<.005,'Existing no-currency integrations retain the historical AED account balance'
         assert path.read_bytes()==original,'Party ledger reads must not change journals or book balances'
         books['exportCandidates']={'CF-BUYER':{'id':'CF-BUYER','entity':'TTI','candidateType':'CUSTOMER_EXPORT_SALE','transactionCurrency':'USD','transactionAmount':600,'pendingValuation':True,'journalId':'','counterparty':'Ali Sulaiman','meta':{'customer':'Ali Sulaiman','contractRef':'CF-1','commercialInvoiceNo':'CF-INV-1','commercialInvoiceDate':'2026-06-30','invoiceOriginalAmount':1000,'receivedBeforeCutoff':400,'carryForwardShipmentId':'CF-1','invoiceStage':'Final'}}}
         books['exportReceipts']={'R1':{'id':'R1','entity':'TTI','status':'Accounts Approved / Posted','receiptDate':'2026-07-10','transactionCurrency':'USD','allocations':[{'targetType':'EXPORT_RECEIVABLE','targetId':'CF-BUYER','foreignAmount':100}]}}
