@@ -69,14 +69,19 @@ with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
         # A legacy unfinished sheet predating the fix is projected correctly on
         # read without migrating financial records or clearing another plan.
         legacy=saved();legacy_row=legacy['salarySheets']['TTI|2026-10']['rows']['Bob']
-        legacy_row.pop('requestedRecovery',None);legacy_row.pop('recoveryMaximum',None)
-        legacy_row['advanceApplied']=0;legacy_row['outstanding']=1050
+        legacy_row['requestedRecovery']=0;legacy_row.pop('recoveryMaximum',None)
+        legacy_row['reviewed']=True;legacy_row['payment']={'amount':50,'date':'2026-10-03','paymentAccountId':'CASH|TTI'}
+        legacy_row['advanceApplied']=0;legacy_row['outstanding']=1000
         (root/'data/accounts.json').write_text(json.dumps(legacy))
-        assert request()[1]['salarySheet']['rows']['Bob']['advanceApplied']==1000
+        projected=request()[1]['salarySheet']['rows']['Bob']
+        assert projected['advanceApplied']==1000 and projected['outstanding']==0 and projected['payment']['amount']==50 and not projected['reviewed'],projected
         assert saved()==legacy,'Opening legacy draft must remain read-only'
         # Saving another person's transaction must not reset Bob's recovery to zero.
         assert draft('Alice',0)[0]==200
         row=request()[1]['salarySheet']['rows']['Bob'];assert row['advanceApplied']==1000,row
+        sheet=request()[1]['salarySheet']
+        assert request({'action':'save_salary_transactions','masterId':'Bob','version':sheet['version'],'advanceApplied':0,'transactions':[]})[0]==200
+        assert request()[1]['salarySheet']['rows']['Bob']['advanceApplied']==0,'New deliberate zero recovery remains zero'
         sheet=request()[1]['salarySheet']
         payload={'action':'save_salary_transactions','masterId':'Bob','version':sheet['version'],'advanceApplied':1000,'transactions':[{'amount':50,'date':'2026-10-03','paymentAccountId':'CASH|TTI','recipient':'Bob','allocations':[{'type':'SALARY','masterId':'Bob','amount':50}]}]}
         assert request(payload)[0]==200
