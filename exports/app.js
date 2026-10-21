@@ -1099,7 +1099,10 @@ function tgRelationshipParty(s,c,x=s.tgdocs?.relationship||{}){
 }
 function tgRelationshipValues(s,c){
  const x=s.tgdocs?.relationship||{},dc=pakistanCustomsContext(s,c),party=tgRelationshipParty(s,c,x),bank=coveringPresentedBank(s,c,s.tgdocs?.covering||{},true);
- return {bank:x.bank??bank.bank,bankAddress:x.bankAddress??bank.bankAddress,exporter:x.exporter||sellerOf(dc).name,buyer:x.buyer||SELLER_DETAILS.TG.name,finalBuyer:party.name||'',finalBuyerAddress:party.address||'',otherParty:x.otherParty||''}
+ const selected=String(x.bank??bank.bank).trim(),normal=value=>String(value||'').trim().toLowerCase();
+ const label=row=>[row[1]||SELLERS[dc.seller]||dc.seller,row[4],row[5],row[8]||row[9]].filter(Boolean).join(' · ');
+ const rows=contractSellerBanks(dc),exact=rows.find(row=>normal(label(row))===normal(selected)),named=rows.filter(row=>normal(row[4])===normal(selected)),matched=exact||(named.length===1?named[0]:null);
+ return {bank:matched?String(matched[4]):selected,bankAddress:x.bankAddress??(bank.bankAddress||matched?.[5]||''),exporter:x.exporter||sellerOf(dc).name,buyer:x.buyer||SELLER_DETAILS.TG.name,finalBuyer:party.name||'',finalBuyerAddress:party.address||'',otherParty:x.otherParty||''}
 }
 function tgRelationshipWording(s,c){
  const x=s.tgdocs?.relationship||{};if(!x.template)return String(x.wording||'');
