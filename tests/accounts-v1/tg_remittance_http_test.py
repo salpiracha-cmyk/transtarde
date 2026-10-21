@@ -14,7 +14,17 @@ with tempfile.TemporaryDirectory(prefix='tg-remittance-') as tmp:
  function tt_require_login(){return ['username'=>'FIXTURE','role'=>'Staff','permissions'=>['Accounts'=>($_SERVER['HTTP_X_FIXTURE_ROLE']??'')==='readonly'?['View']:['View','Edit']]];}
     // This isolated auth fixture has no PHP session; real lock behavior is tested separately.
     function tt_release_read_session(){}
- function tt_user_can_open_module($u,$m){return true;}
+ function tt_user_can_module_action(array $user,string $module,string $icon,string $action): bool {
+    if (($user['role']??'')==='Super Admin') return true;
+    if (($user['role']??'')==='Director') return in_array($module,tt_business_modules(),true)
+        && in_array($action,['View','Create','Edit','Approve','Reports','Delete'],true);
+    $permissions=$user['permissions'][$module]??[];
+    if ($permissions==='all') return true;
+    if (!is_array($permissions)) return false;
+    if (in_array($action,$permissions,true)) return true; // legacy module-wide grant, including entity-scoped records
+    return in_array($action,(array)($permissions[$icon]??[]),true);
+}
+    function tt_user_can_open_module($u,$m){return true;}
  function tt_user_can_access_entity($u,$e,$a){return in_array($e,['TTI','TG'],true)&&(($a==='View')||($_SERVER['HTTP_X_FIXTURE_ROLE']??'')!=='readonly');}
  function tt_verify_csrf($v){return $v==='fixture';}function tt_csrf_token(){return 'fixture';}
  function tt_master_options(){return ['currencies'=>['USD','AED','PKR']];}function tt_user_accounts_entities($u){return ['TTI','TG'];}
