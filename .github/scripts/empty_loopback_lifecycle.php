@@ -15,9 +15,10 @@ register_shutdown_function(static function()use($work,$stop):void{
 });
 file_put_contents($work.'/router.php',"<?php if(!hash_equals((string)getenv('TT_EMPTY_GATE'),(string)(\$_SERVER['HTTP_X_TT_EMPTY']??''))){http_response_code(404);exit;} echo '{}';");
 $selfServer=@stream_socket_server('tcp://127.0.0.1:0',$errno,$message);
-$selfConnect=false;
-if($selfServer){$self=@stream_socket_client('tcp://'.stream_socket_get_name($selfServer,false),$errno,$message,1);$selfConnect=(bool)$self;if($self)fclose($self);fclose($selfServer);}
-echo 'EMPTY_LOOPBACK_PARENT '.json_encode(['bind'=>(bool)$selfServer,'connectToOwnSocket'=>$selfConnect,'applicationFilesRead'=>0,'applicationFilesWritten'=>0])."\n";
+$selfConnect=false;$selfError=0;$portAssigned=false;
+if($selfServer){$address=stream_socket_get_name($selfServer,false);$portAssigned=(int)substr(strrchr($address,':'),1)>0;$self=@stream_socket_client('tcp://'.$address,$selfError,$message,1);$selfConnect=(bool)$self;if($self)fclose($self);fclose($selfServer);}
+echo 'EMPTY_LOOPBACK_PARENT '.json_encode(['bind'=>(bool)$selfServer,'portAssigned'=>$portAssigned,'connectToOwnSocket'=>$selfConnect,'socketError'=>(int)$selfError,'processCreationAvailable'=>function_exists('proc_open'),'applicationFilesRead'=>0,'applicationFilesWritten'=>0])."\n";
+if(!function_exists('proc_open')){echo "EMPTY_LOOPBACK_CHILD {\"status\":\"process_creation_unavailable\",\"browserAcceptance\":false}\n";if(in_array('--require-connect',$argv??[],true))exit(1);return;}
 $allConnected=true;
 foreach(['configured','no-ini']as$mode){
  $reserved=@stream_socket_server('tcp://127.0.0.1:0',$errno,$message);if(!$reserved)throw new RuntimeException('Temporary port unavailable');
@@ -40,4 +41,4 @@ foreach(['configured','no-ini']as$mode){
  echo 'EMPTY_LOOPBACK_CHILD '.json_encode(['mode'=>$mode,'running'=>(bool)$status['running'],'httpStatus'=>$http,'wrongGateStatus'=>$wrongGate,'socketError'=>(int)$error,'networkNamespace'=>$namespace,'serverCategory'=>$category,'applicationFilesRead'=>0,'applicationFilesWritten'=>0])."\n";
  $allConnected=$allConnected&&$http==='200';$stop();
 }
-if(in_array('--require-connect',$argv,true)&&!$allConnected)exit(1);
+if(in_array('--require-connect',$argv??[],true)&&!$allConnected)exit(1);
