@@ -107,6 +107,7 @@ jobs:
           node tests/exports-v3/completed_print_permissions_test.js
           node tests/exports-v3/final_documents_20260930_browser_qa.js
           node tests/exports-v3/shipment_package_20261001_browser_qa.js
+          php tests/security/office_generated_pdf_test.php
       - name: Preserve Export visual QA evidence
         continue-on-error: true # Screenshot storage quota must not override functional test results.
         if: always()

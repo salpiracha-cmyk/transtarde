@@ -2,6 +2,7 @@
 declare(strict_types=1);
 require_once __DIR__.'/export_permission_policy.php';
 require_once __DIR__.'/office_agent_delivery.php';
+require_once __DIR__.'/office_document_policy.php';
 require dirname(__DIR__) . '/auth_store.php';
 require dirname(__DIR__) . '/office_backup_auth.php';
 
@@ -71,6 +72,7 @@ function office_agent_require_token(): void {
 function office_agent_read_job(string $id): array {
     $path = office_agent_manifest_path($id);
     if (!is_file($path)) office_agent_error(404, 'Office Agent job not found.');
+    if(is_link($path)||is_link(dirname($path))||filesize($path)>524288)office_agent_error(500,'Office Agent metadata requires review.');
     $raw = file_get_contents($path);
     $job = $raw ? json_decode($raw, true) : null;
     if (!is_array($job)) office_agent_error(500, 'Office Agent job metadata is damaged.');
@@ -83,6 +85,7 @@ function office_agent_write_job(array $job): void {
     if (!is_dir($dir) && !mkdir($dir, 0700, true) && !is_dir($dir)) throw new RuntimeException('Office Agent job folder is unavailable.');
     $tmp = $dir . DIRECTORY_SEPARATOR . '.job-' . bin2hex(random_bytes(4)) . '.tmp';
     $json = json_encode($job, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+    if(strlen($json)>524288)throw new InvalidArgumentException('Office job metadata exceeds its bounded size.');
     if (file_put_contents($tmp, $json, LOCK_EX) === false) throw new RuntimeException('Office Agent job could not be saved.');
     @chmod($tmp, 0600);
     if (!rename($tmp, office_agent_manifest_path($id))) { @unlink($tmp); throw new RuntimeException('Office Agent job could not be committed.'); }
@@ -95,7 +98,8 @@ function office_agent_enqueue_shipment(): never {
     if (!tt_user_can_open_module($user, 'Exports') || !(ep_can($user,'print','Create')||ep_can($user,'print','Edit'))) office_agent_error(403, 'Exports Create or Edit permission is required.');
     if (!tt_verify_csrf((string)($_POST['csrf'] ?? ''))) office_agent_error(419, 'Your session expired. Refresh and try again.');
 
-    $manifest = json_decode((string)($_POST['manifest'] ?? ''), true);
+    $manifestRaw=(string)($_POST['manifest']??'');if(strlen($manifestRaw)>262144)office_agent_error(422,'Office archive metadata is too large.');
+    $manifest = json_decode($manifestRaw, true);
     if (!is_array($manifest) || ($manifest['type'] ?? '') !== 'shipment_archive') office_agent_error(422, 'Invalid shipment archive package.');
     ep_require_document_target($user,(string)($manifest['contract']??''),(string)($manifest['lot']??''),'custom-output','View');
     $files = $_FILES['files'] ?? null;
@@ -103,24 +107,31 @@ function office_agent_enqueue_shipment(): never {
     $count = count($files['name']);
     if ($count < 1 || $count > 80 || $count !== count((array)($manifest['files'] ?? []))) office_agent_error(422, 'Shipment archive file manifest is incomplete.');
 
+    $parts=$manifest['folderParts']??[];if(!is_array($parts)||!array_is_list($parts)||count($parts)!==3)office_agent_error(422,'Archive requires customer, contract and lot folders.');
+    if(is_link(office_agent_root().'/.admission.lock'))office_agent_error(503,'Office storage needs review.');
+    $admission=fopen(office_agent_root().'/.admission.lock','c+b');if($admission===false||!flock($admission,LOCK_EX))office_agent_error(503,'Office archive admission is unavailable.');
+    try{foreach($parts as $part)office_document_name((string)$part);$incomingBytes=array_sum(array_map('intval',(array)($files['size']??[])));office_jobs_admit(office_agent_root(),$incomingBytes,$count);}
+    catch(Throwable $error){flock($admission,LOCK_UN);fclose($admission);office_agent_error($error instanceof InvalidArgumentException?422:503,$error->getMessage());}
     $id = bin2hex(random_bytes(16));
     $dir = office_agent_job_dir($id);
     $fileDir = office_agent_file_dir($id);
-    if (!mkdir($fileDir, 0700, true)) office_agent_error(500, 'Office Agent job storage is unavailable.');
+    if (!mkdir($fileDir, 0700, true)){flock($admission,LOCK_UN);fclose($admission);office_agent_error(500, 'Office Agent job storage is unavailable.');}
 
     try {
-        $jobFiles = [];
+        $jobFiles = [];$destinations=[];
         foreach ((array)$manifest['folderParts'] as $part) office_agent_safe_component((string)$part);
         foreach ((array)$manifest['files'] as $index => $row) {
             if (!is_array($row)) throw new InvalidArgumentException('Shipment archive file metadata is invalid.');
             if (($files['error'][$index] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) throw new InvalidArgumentException('A shipment archive file did not upload completely.');
-            $stored = office_agent_safe_component((string)($row['storedName'] ?? ('file-' . $index)));
-            $name = office_agent_safe_component((string)($row['name'] ?? 'Document'));
+            $name=(string)($row['name']??'');office_document_name($name);
+            $stored='file-'.bin2hex(random_bytes(12)).'.'.strtolower(pathinfo($name,PATHINFO_EXTENSION));
             $folder = trim((string)($row['folder'] ?? ''));
-            if ($folder !== '') $folder = office_agent_safe_component($folder);
+            if ($folder !== '') office_document_name($folder);
+            $destination=($folder!==''?office_document_name($folder).'/':'').office_document_name($name);if(isset($destinations[$destination]))throw new InvalidArgumentException('Archive repeats a Windows document destination.');$destinations[$destination]=true;
             $tmp = (string)$files['tmp_name'][$index];
             $size = (int)($files['size'][$index] ?? 0);
-            if ($size <= 0 || $size > 75 * 1024 * 1024 || !is_uploaded_file($tmp)) throw new InvalidArgumentException('A shipment archive file is invalid or too large.');
+            if ($size <= 0 || $size > 75 * 1024 * 1024 || !is_uploaded_file($tmp) || filesize($tmp)!==$size) throw new InvalidArgumentException('A shipment archive file is invalid or too large.');
+            office_document_validate($tmp,$name);
             $target = $fileDir . DIRECTORY_SEPARATOR . $stored;
             if (!move_uploaded_file($tmp, $target)) throw new RuntimeException('A shipment archive file could not be stored.');
             @chmod($target, 0600);
@@ -139,25 +150,29 @@ function office_agent_enqueue_shipment(): never {
             'customer' => (string)($manifest['customer'] ?? ''),
             'contract' => (string)($manifest['contract'] ?? ''),
             'lot' => (string)($manifest['lot'] ?? ''),
-            'folderParts' => array_values(array_map(static fn($x): string => office_agent_safe_component((string)$x), (array)$manifest['folderParts'])),
+            'folderParts' => array_values($parts),
             'files' => $jobFiles,
             'attempts' => 0,
         ];
-        office_agent_write_job($job);
+        office_agent_write_job($job);flock($admission,LOCK_UN);fclose($admission);
         office_agent_respond(['ok' => true, 'job' => ['id' => $id, 'status' => 'PENDING']]);
     } catch (Throwable $error) {
         foreach (glob($fileDir . DIRECTORY_SEPARATOR . '*') ?: [] as $path) @unlink($path);
-        @rmdir($fileDir); @rmdir($dir);
+        @rmdir($fileDir); @rmdir($dir);flock($admission,LOCK_UN);fclose($admission);
         office_agent_error($error instanceof InvalidArgumentException ? 422 : 500, $error->getMessage());
     }
 }
 
 function office_agent_poll(): never {
     office_agent_require_token();
-    $jobs = [];
-    foreach (glob(office_agent_root() . DIRECTORY_SEPARATOR . '*/job.json') ?: [] as $path) {
+    $jobs=[];$validationBytes=0;$paths=array_slice(glob(office_agent_root().DIRECTORY_SEPARATOR.'*/job.json')?:[],0,1000);
+    $cursorFile=office_agent_root().'/.poll.lock';if(is_link($cursorFile))office_agent_error(503,'Office queue cursor requires review.');$cursor=fopen($cursorFile,'c+b');if($cursor===false||!flock($cursor,LOCK_EX))office_agent_error(503,'Office queue cursor unavailable.');
+    $rawCursor=stream_get_contents($cursor,20);$start=$paths&&ctype_digit((string)$rawCursor)?(int)$rawCursor%count($paths):0;$next=$start;$paths=array_merge(array_slice($paths,$start),array_slice($paths,0,$start));
+    foreach($paths as $index=>$path){$next=($start+$index+1)%count($paths);
+        if(is_link($path)||is_link(dirname($path))||filesize($path)>524288)continue;
         $job = json_decode((string)file_get_contents($path), true);
         if (!is_array($job) || !in_array((string)($job['status'] ?? ''), ['PENDING','ERROR'], true)) continue;
+        try{$jobBytes=array_sum(array_map(static fn($f)=>(int)($f['size']??0),(array)($job['files']??[])));if($jobBytes<1||$jobBytes>OFFICE_JOB_MAX_BYTES)continue;if($validationBytes+$jobBytes>OFFICE_JOB_MAX_BYTES){$next=($start+$index)%count($paths);break;}$validationBytes+=$jobBytes;office_job_document_paths($job,dirname($path).'/files');}catch(Throwable){continue;}
         $jobs[] = [
             'id' => (string)$job['id'],
             'type' => (string)$job['type'],
@@ -172,7 +187,10 @@ function office_agent_poll(): never {
             'attempts' => (int)($job['attempts'] ?? 0),
             'lastError' => $job['lastError'] ?? null,
         ];
+        if(count($jobs)>=25)break;
     }
+    rewind($cursor);ftruncate($cursor,0);fwrite($cursor,(string)$next);fflush($cursor);flock($cursor,LOCK_UN);fclose($cursor);
+    $jobs=array_slice($jobs,0,25);
     usort($jobs, static fn(array $a, array $b): int => strcmp((string)$a['createdAt'], (string)$b['createdAt']));
     office_agent_respond(['ok' => true, 'jobs' => $jobs]);
 }
@@ -187,6 +205,7 @@ function office_agent_file(): never {
     if (!$match) office_agent_error(404, 'Office Agent job file not found.');
     $path = office_agent_file_dir($id) . DIRECTORY_SEPARATOR . basename($name);
     if (!is_file($path)) office_agent_error(404, 'Office Agent job file is unavailable.');
+    try{office_job_document_paths($job,office_agent_file_dir($id),$name);}catch(Throwable){office_agent_error(409,'This archive package requires document review before office delivery.');}
     header('Content-Type: application/octet-stream');
     header('Content-Length: ' . filesize($path));
     header('X-File-SHA256: ' . (string)$match['sha256']);
@@ -205,7 +224,7 @@ function office_agent_shipment_status(): never {
         $paths=$id!==''?[$root.'/'.$id.'/job.json']:(glob($root.'/*/job.json')?:[]);
         if(count($paths)>5000)office_agent_error(409,'Select the exact package reference to check delivery.');
         foreach($paths as $path){
-            if(!is_file($path)||is_link($path)||is_link(dirname($path))||!preg_match('/^[a-f0-9]{32}$/D',basename(dirname($path))))continue;
+            if(!is_file($path)||is_link($path)||is_link(dirname($path))||filesize($path)>524288||!preg_match('/^[a-f0-9]{32}$/D',basename(dirname($path))))continue;
             $job=json_decode((string)file_get_contents($path),true);
             if(!is_array($job)||($job['type']??'')!=='shipment_archive'||($job['id']??'')!==basename(dirname($path)))continue;
             if($id===''&&(($job['contract']??'')!==$contract||($job['lot']??'')!==$lot))continue;
@@ -231,7 +250,7 @@ function office_agent_ack(): never {
     $job['attempts'] = (int)($job['attempts'] ?? 0) + 1;
     $job['agent'] = ['host' => substr((string)($body['host'] ?? ''), 0, 120), 'reportedAt' => gmdate('c')];
     $job['lastError'] = $status === 'ERROR' ? substr((string)($body['error'] ?? 'Office Agent could not complete the job.'), 0, 500) : null;
-    $job['verifiedFiles'] = is_array($body['files'] ?? null) ? $body['files'] : [];
+    $job['verifiedFiles'] = $status==='COMPLETE'?array_map(static fn($f)=>['name'=>(string)$f['name'],'folder'=>(string)($f['folder']??''),'size'=>(int)$f['size'],'sha256'=>(string)$f['sha256']],$body['files']):[];
     office_agent_write_job($job);
     office_agent_respond(['ok' => true, 'job' => ['id' => $id, 'status' => $job['status']]]);
 }
