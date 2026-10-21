@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require dirname(__DIR__).'/auth_store.php';
 require_once __DIR__.'/accounts_reference.php';
+require_once __DIR__.'/tg_native_currency.php';
 require_once __DIR__.'/accounts_read_policy.php';
 require_once __DIR__.'/service_ledger_groups.php';
 require_once __DIR__.'/accounts_post_delete_core.php';
@@ -159,6 +160,7 @@ if($requestedPost!==''){
             (str_contains($linked,'TRANSTRADE INTERNATIONAL')||preg_match('/(^|\W)TTI($|\W)/',$linked)));
         if($belongs)$postBanks[]=['id'=>(string)($bank['id']??''),'currency'=>strtoupper((string)($v[7]??'')),'label'=>implode(' · ',array_filter([$v[4]??'',(trim((string)($v[8]??''))!==''?(string)$v[8]:(string)($v[9]??'')),$v[7]??'',$v[3]??'']))];
     }
+    if($posting['entity']==='TG')foreach($posting['lines'] as &$displayLine){$displayLine['nativeDisplay']=tgn_line($posting,$displayLine);}unset($displayLine);
     echo json_encode(['ok'=>true,'entity'=>$posting['entity'],'post'=>$posting,'bankAccounts'=>$postBanks],JSON_UNESCAPED_UNICODE);exit;
 }
 if($workflowRegister&&$postEntries)$catalog=['POSTS'=>'Post ID Register'];
@@ -177,7 +179,12 @@ foreach($journals as $journal){
     if($postEntries){if(!empty($journal['meta']['deletedFromBooks']))continue;
         if(!empty($journal['amendedByPostId'])||(!empty($journal['reversalOf'])&&(!empty($store['journals'][$journal['reversalOf']]['amendedByPostId']))))continue;
         $date=(string)$journal['date'];if($date<$from)continue;
-        $rows[]=['entity'=>(string)$journal['entity'],'bookCurrency'=>$journal['entity']==='TG'?'AED':'PKR','sourceType'=>(string)($journal['sourceType']??''),'deleteReason'=>apd_delete_reason($store,$journal,$user,$deleteRecordIndex),'canDelete'=>apd_supported($store,$journal,$deleteRecordIndex)&&function_exists('tt_post_correction_allowed')&&tt_post_correction_allowed($user,$journal)&&tt_user_can_access_entity($user,(string)$journal['entity'],'Edit'),'date'=>$date,'voucher'=>(string)($journal['id']??''),'account'=>'POSTS','accountName'=>(string)$journal['entity'],'reference'=>(string)($journal['reference']??''),'narration'=>(string)($journal['narration']??'').(str_starts_with((string)($journal['meta']['notes']??''),'Mirrored settlement for Pakistan receipt ')?' · '.(string)$journal['meta']['notes']:''),'publicPostId'=>tt_accounts_public_post($store,$journal),'amendmentNote'=>tt_accounts_amendment_note($journal,$store),'party'=>alb_register_party($store,$journal).(!empty($store['exportReceipts'][(string)($journal['meta']['receiptId']??'')]['replacementReceiptId'])?' · Corrected by '.$store['exportReceipts'][(string)$journal['meta']['receiptId']]['replacementReceiptId']:''),'debit'=>round((float)($journal['totalDebit']??0),2),'credit'=>round((float)($journal['totalCredit']??0),2),'balance'=>null];
+        $registerRow=['entity'=>(string)$journal['entity'],'bookCurrency'=>$journal['entity']==='TG'?'AED':'PKR','sourceType'=>(string)($journal['sourceType']??''),'deleteReason'=>apd_delete_reason($store,$journal,$user,$deleteRecordIndex),'canDelete'=>apd_supported($store,$journal,$deleteRecordIndex)&&function_exists('tt_post_correction_allowed')&&tt_post_correction_allowed($user,$journal)&&tt_user_can_access_entity($user,(string)$journal['entity'],'Edit'),'date'=>$date,'voucher'=>(string)($journal['id']??''),'account'=>'POSTS','accountName'=>(string)$journal['entity'],'reference'=>(string)($journal['reference']??''),'narration'=>(string)($journal['narration']??'').(str_starts_with((string)($journal['meta']['notes']??''),'Mirrored settlement for Pakistan receipt ')?' · '.(string)$journal['meta']['notes']:''),'publicPostId'=>tt_accounts_public_post($store,$journal),'amendmentNote'=>tt_accounts_amendment_note($journal,$store),'party'=>alb_register_party($store,$journal).(!empty($store['exportReceipts'][(string)($journal['meta']['receiptId']??'')]['replacementReceiptId'])?' · Corrected by '.$store['exportReceipts'][(string)$journal['meta']['receiptId']]['replacementReceiptId']:''),'debit'=>round((float)($journal['totalDebit']??0),2),'credit'=>round((float)($journal['totalCredit']??0),2),'balance'=>null];
+        if(($journal['entity']??'')==='TG'){
+            $totals=[];
+            foreach((array)$journal['lines'] as $line){if(($line['account']??'')==='7100')continue;$nativeLine=tgn_line($journal,$line);$cur=$nativeLine['currency'];$totals[$cur]??=['debit'=>0.0,'credit'=>0.0,'unavailable'=>false];$totals[$cur]['unavailable']=$totals[$cur]['unavailable']||$nativeLine['unavailable'];$totals[$cur]['debit']+=(float)$nativeLine['debit'];$totals[$cur]['credit']+=(float)$nativeLine['credit'];}
+            foreach($totals as $cur=>$total)$rows[]=array_replace($registerRow,['currency'=>$cur,'bookCurrency'=>$cur,'debit'=>round($total['debit'],2),'credit'=>round($total['credit'],2),'nativeMissing'=>$total['unavailable']]);
+        }else $rows[]=$registerRow;
         continue;
     }
     foreach(slg_lines($store,$journal,$partyMasters) as $line){
@@ -252,15 +259,15 @@ foreach($journals as $journal){
         }
         if($party!==''&&!in_array($category,['party','bank'],true)&&strcasecmp($lineParty,$party)!==0)continue;
         $date=(string)$journal['date'];
-        $usdView=$entity==='TG'&&$bankId===''&&$nativeCurrency==='USD';if($usdView&&$code==='7100')continue;if($usdView&&strtoupper((string)($line['currency']??$journal['meta']['currency']??$journal['meta']['transactionCurrency']??''))!=='USD')continue;
+        $usdView=$entity==='TG'&&$bankId==='';if($usdView&&$code==='7100')continue;if($usdView&&tgn_line($journal,$line)['currency']!==$nativeCurrency)continue;
         $native=$bankId!==''&&($banks[$bankId]['currency']??'')!==($entity==='TG'?'AED':'PKR');
         $debit=round((float)($native?($line['bankDebit']??0):($line['debit']??0)),2);$credit=round((float)($native?($line['bankCredit']??0):($line['credit']??0)),2);
-        $nativeMissing=$native&&!isset($line['bankDebit'])&&!isset($line['bankCredit']);if($category==='bank'&&$nativeMissing)$balanceUnavailable=true;if($usdView){$nd=$line['nativeDebit']??null;$nc=$line['nativeCredit']??null;if($code==='1110'){$nd=$line['bankDebit']??null;$nc=$line['bankCredit']??null;}elseif($nd===null&&isset($line['chargeNative'])){$nd=(float)$line['chargeNative'];$nc=0;}elseif($nd===null&&isset($line['vatNative'])){$nd=(float)$line['vatNative'];$nc=0;}elseif($nd===null&&($journal['meta']['targetAccount']??'')===$code&&isset($journal['meta']['settlementAmountNative'])){$nd=(float)($line['debit']??0)>0?$journal['meta']['settlementAmountNative']:0;$nc=(float)($line['credit']??0)>0?$journal['meta']['settlementAmountNative']:0;}elseif($nd===null&&in_array($code,['1250','2500'],true)&&isset($journal['meta']['amountNative'])){$nd=(float)($line['debit']??0)>0?$journal['meta']['amountNative']:0;$nc=(float)($line['credit']??0)>0?$journal['meta']['amountNative']:0;}if($nd===null&&in_array($code,['1210','1250','2500','2510'],true)&&isset($journal['meta']['transactionAmount'])){$nd=(float)($line['debit']??0)>0?$journal['meta']['transactionAmount']:0;$nc=(float)($line['credit']??0)>0?$journal['meta']['transactionAmount']:0;}$nativeMissing=$nd===null||$nc===null;$debit=round((float)($nd??0),2);$credit=round((float)($nc??0),2);}
+        $nativeMissing=$native&&!isset($line['bankDebit'])&&!isset($line['bankCredit']);if($category==='bank'&&$nativeMissing)$balanceUnavailable=true;if($usdView){$nativeLine=tgn_line($journal,$line);$nativeMissing=$nativeLine['unavailable'];$debit=(float)$nativeLine['debit'];$credit=(float)$nativeLine['credit'];}
         if($category==='party'&&$nativeMissing)$balanceUnavailable=true;
         if($date<$from){if($account!==''||$party!=='')$opening+=$debit-$credit;continue;}
         $linkedNote=(string)($journal['meta']['notes']??'');$tracking=trim(implode(' · ',array_filter([(string)($journal['meta']['bankPaymentMethod']??''),!empty($journal['meta']['chequeNo'])?'Cheque '.$journal['meta']['chequeNo']:''])));
         $row=['deleteReason'=>apd_delete_reason($store,$journal,$user,$deleteRecordIndex),'canDelete'=>apd_supported($store,$journal,$deleteRecordIndex)&&function_exists('tt_post_correction_allowed')&&tt_post_correction_allowed($user,$journal)&&tt_user_can_access_entity($user,(string)$journal['entity'],'Edit'),'date'=>$date,'voucher'=>(string)($journal['id']??''),'account'=>$bankId!==''?$account:$code,'serviceGroup'=>$line['serviceGroup']??'OTHER','accountName'=>$bankId!==''?$catalog[$account]:($code==='2130'?$catalog[$code]:(string)($line['accountName']??$catalog[$code]??$code)),'reference'=>(string)($journal['reference']??''),'narration'=>(string)($journal['narration']??'').(str_starts_with($linkedNote,'Mirrored settlement for Pakistan receipt ')?' · '.$linkedNote:''),'party'=>$lineParty!==''?$lineParty:(string)($line['subledger']??$line['bankName']??''),'debit'=>$debit,'credit'=>$credit];
-        if($usdView){$row['nativeMissing']=$nativeMissing;$row['bookCurrency']='AED';$row['bookDebit']=(float)($line['debit']??0);$row['bookCredit']=(float)($line['credit']??0);}
+        if($usdView){$row['currency']=$nativeCurrency;$row['nativeMissing']=$nativeMissing;$row['bookCurrency']='AED';$row['bookDebit']=(float)($line['debit']??0);$row['bookCredit']=(float)($line['credit']??0);}
         if($native){$row['bookCurrency']=$entity==='TG'?'AED':'PKR';$row['bookDebit']=round((float)($line['debit']??0),2);$row['bookCredit']=round((float)($line['credit']??0),2);$row['nativeMissing']=!isset($line['bankDebit'])&&!isset($line['bankCredit']);}
         $rows[]=$row;
     }

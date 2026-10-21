@@ -7,7 +7,7 @@ with tempfile.TemporaryDirectory(prefix='party-ledger-qa-') as temp:
     root = pathlib.Path(temp)
     for folder in ['api', 'data', 'accounts']:
         (root/folder).mkdir()
-    for name in ['supplier_opening_core.php','accounts_subaccounts_core.php','accounts_ledger_visibility.php','assets_registry_core.php','service_ledger_groups.php','accounts_ledger_browser.php','accounts_read_policy.php','accounts_post_delete_core.php', 'accounts_reference.php', 'tg_remittance_core.php', 'fi_credit_advice_link.php', 'receipt_invoice_links.php','customer_receivables_core.php']:
+    for name in ['supplier_opening_core.php','accounts_subaccounts_core.php','accounts_ledger_visibility.php','assets_registry_core.php','service_ledger_groups.php','accounts_ledger_browser.php','accounts_read_policy.php','accounts_post_delete_core.php', 'accounts_reference.php', 'tg_remittance_core.php', 'fi_credit_advice_link.php', 'receipt_invoice_links.php','customer_receivables_core.php', 'tg_native_currency.php']:
         shutil.copy(ROOT/'api'/name, root/'api'/name)
     for path in (ROOT/'accounts').glob('*.json'):
         shutil.copy(path, root/'accounts'/path.name)
@@ -106,11 +106,11 @@ with tempfile.TemporaryDirectory(prefix='party-ledger-qa-') as temp:
         assert get(entity='ALL')[0]==403
         status,all_posts=get(entity='ALL',category='other',account='POSTS');assert status==200 and all_posts['currency']=='MIXED',all_posts
         assert set(all_posts['registerEntities'])=={'TTI','TG'} and all(row['entity']!='BRM' for row in all_posts['rows'])
-        assert any(row['entity']=='TG' and row['bookCurrency']=='AED' and row['debit']==367 for row in all_posts['rows'])
+        assert any(row['entity']=='TG' and row['bookCurrency']=='USD' and row['credit']==100 for row in all_posts['rows'])
         assert all(row['bookCurrency']=='PKR' for row in all_posts['rows'] if row['entity']=='TTI')
         status,tg_posts=get(entity='ALL',category='other',account='POSTS',registerEntity='TG');assert status==200 and tg_posts['currency']=='AED' and all(row['entity']=='TG' for row in tg_posts['rows'])
         assert get(entity='ALL',category='other',account='POSTS',registerEntity='BRM')[0]==403
-        status,post_csv=get(entity='ALL',category='other',account='POSTS',format='csv');assert status==200 and 'Book currency' in post_csv and 'AED' in post_csv and 'PKR' in post_csv and 'Subtotal' in post_csv and 'SECRET BRM' not in post_csv
+        status,post_csv=get(entity='ALL',category='other',account='POSTS',format='csv');assert status==200 and 'Book currency' in post_csv and 'USD' in post_csv and 'PKR' in post_csv and 'Subtotal' in post_csv and 'SECRET BRM' not in post_csv
         assert get(denyModule='1')[0]==403
         assert get(party='ACME Rice',account='2110')[0]==422
         assert get(from_='2026-08-01',to='2026-07-01')[0]==422
@@ -120,7 +120,7 @@ with tempfile.TemporaryDirectory(prefix='party-ledger-qa-') as temp:
         status,tg=get(entity='TG',party='TTI',currency='USD')
         assert status==200 and tg['balanceUnavailable'] and tg['closing'] is None, tg
         assert all(r['balance'] is None for r in tg['rows'])
-        assert get(entity='TG',party='TTI',currency='AED')[1]['closing']==-330.3
+        assert get(entity='TG',party='TTI',currency='AED')[1]['closing']==0,'AED native ledger must exclude USD postings'
         assert path.read_bytes()==original,'Party ledger reads must not change journals or book balances'
         books['exportCandidates']={'CF-BUYER':{'id':'CF-BUYER','entity':'TTI','candidateType':'CUSTOMER_EXPORT_SALE','transactionCurrency':'USD','transactionAmount':600,'pendingValuation':True,'journalId':'','counterparty':'Ali Sulaiman','meta':{'customer':'Ali Sulaiman','contractRef':'CF-1','commercialInvoiceNo':'CF-INV-1','commercialInvoiceDate':'2026-06-30','invoiceOriginalAmount':1000,'receivedBeforeCutoff':400,'carryForwardShipmentId':'CF-1','invoiceStage':'Final'}}}
         books['exportReceipts']={'R1':{'id':'R1','entity':'TTI','status':'Accounts Approved / Posted','receiptDate':'2026-07-10','transactionCurrency':'USD','allocations':[{'targetType':'EXPORT_RECEIVABLE','targetId':'CF-BUYER','foreignAmount':100}]}}
