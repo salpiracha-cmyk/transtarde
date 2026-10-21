@@ -253,6 +253,8 @@ jobs:
           "$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/salary_month_http_test.py
           "$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/salary_flexible_http_test.py
           "$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/salary_group_posting_http_test.py
+      - name: Ready rice bill browser and HTTP flow
+        run: '"$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/ready_rice_bill_http_test.py'
       - name: Native Director Home and persistent decisions
         env:
           TT_QA_OUTPUT: ${{ runner.temp }}/inventory-evidence
@@ -416,8 +418,6 @@ jobs:
           "$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/inventory_reconciliation_http_test.py
           "$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/mill_source_handoff_browser_test.py
           "$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/group_daily_browser_test.py
-      - name: Ready rice bill browser and HTTP flow
-        run: '"$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/ready_rice_bill_http_test.py'
       - name: Bank entries, finance and subaccounts browser flow
         env:
           TT_QA_OUTPUT: ${{ runner.temp }}/inventory-evidence
