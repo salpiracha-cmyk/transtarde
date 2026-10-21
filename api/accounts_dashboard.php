@@ -4,6 +4,7 @@ require_once __DIR__.'/expense_reminders.php';
 require_once dirname(__DIR__).'/auth_store.php';
 define('TT_BANK_FUNCTIONS_ONLY',true);require_once __DIR__.'/bank_accounts.php';
 require_once __DIR__.'/accounts_reviews_core.php';
+require_once __DIR__.'/accounts_read_policy.php';
 require_once __DIR__.'/fi_credit_advice_link.php';
 require_once __DIR__.'/customer_receivables_core.php';
 require_once __DIR__.'/tg_liability_projection.php';
@@ -22,17 +23,17 @@ try{
  foreach((array)($s['journals']??[])as$j){if(!is_array($j)||($j['status']??'')!=='Posted'||($j['entity']??'')!==$e)continue;$jm=is_array($j['meta']??null)?$j['meta']:[];foreach((array)($j['lines']??[])as$l){if(!is_array($l))continue;$a=(string)($l['account']??'');$delta=round((float)($l['debit']??0)-(float)($l['credit']??0),2);if($a==='1110'||$a==='1120'){$id=(string)($l['bankAccountId']??$jm['bankAccountId']??($a==='1120'?'CASH|'.$e:'UNASSIGNED'));$name=(string)($l['bankAccountTitle']??$l['bankName']??$jm['bankAccountTitle']??$jm['bankName']??($a==='1120'?'Cash / Petty Cash':'Bank account'));$cur=strtoupper((string)($l['currency']??$jm['currency']??($e==='TG'?'AED':'PKR')));$bankDelta=$a==='1110'&&$cur!=='PKR'&&array_key_exists('bankDebit',$l)?round((float)($l['bankDebit']??0)-(float)($l['bankCredit']??0),2):$delta;$key=$cur.'|'.$id;if(!isset($bank[$key]))$bank[$key]=['label'=>$name,'currency'=>$cur,'amount'=>0.0];$bank[$key]['amount']=round($bank[$key]['amount']+$bankDelta,2);}if($a==='1220'){$name=(string)($l['party']??$jm['party']??'Local customer');$key=strtolower($name).'|'.(string)($l['soda']??$jm['soda']??'');if(!isset($local[$key]))$local[$key]=['label'=>$name,'reference'=>(string)($l['soda']??$jm['soda']??''),'currency'=>'PKR','amount'=>0.0];$local[$key]['amount']=round($local[$key]['amount']+$delta,2);}if($a==='1210'){$name=(string)($l['party']??$l['customer']??$jm['customer']??$j['narration']??'Export customer');$cur='PKR';$key=strtolower($name).'|'.$cur;if(!isset($export[$key]))$export[$key]=['label'=>$name,'currency'=>$cur,'amount'=>0.0];$export[$key]['amount']=round($export[$key]['amount']+$delta,2);}}}
  $commodity=[];$expenses=[];
  foreach((array)($s['commodityBills']??[])as$b){if(!is_array($b)||($b['entity']??'')!==$e)continue;$out=round(max(0,(float)($b['supplierPayableTotal']??$b['total']??0)-ad_paid($s,(string)($b['id']??''))),2);if($out>.005)$commodity[]=['label'=>(string)($b['broker']??$b['party']??'Commodity supplier'),'reference'=>(string)($b['billNo']??$b['id']??''),'date'=>(string)($b['dueDateFrom']??$b['billDate']??''),'currency'=>'PKR','amount'=>$out];}
- foreach((array)($s['supplierBills']??[])as$b){if(!is_array($b)||($b['entity']??'')!==$e)continue;$out=round(max(0,(float)($b['supplierPayableTotal']??0)-ad_paid($s,(string)($b['id']??''))),2);if($out>.005)$expenses[]=['label'=>(string)($b['vendor']??$b['broker']??'Supplier'),'reference'=>(string)($b['billNo']??$b['id']??''),'date'=>(string)($b['dueDate']??$b['billDate']??''),'currency'=>'PKR','amount'=>$out];}
+ foreach((array)($s['supplierBills']??[])as$b){if(!is_array($b)||($b['entity']??'')!==$e||(!acr_reports($u)&&!acr_icon($u,['supplier'])&&!acr_record($u,$s,'supplierBills',(string)($b['id']??''),$b)))continue;$out=round(max(0,(float)($b['supplierPayableTotal']??0)-ad_paid($s,(string)($b['id']??''))),2);if($out>.005)$expenses[]=['label'=>(string)($b['vendor']??$b['broker']??'Supplier'),'reference'=>(string)($b['billNo']??$b['id']??''),'date'=>(string)($b['dueDate']??$b['billDate']??''),'currency'=>'PKR','amount'=>$out];}
  if($e==='TG'){$commodity=[];foreach(tgl_supplier_rows($s) as $bill)if($bill['outstandingNative']>.005)$commodity[]=['label'=>(string)($bill['counterparty']??'Supplier'),'reference'=>(string)($bill['reference']??$bill['id']),'date'=>(string)($bill['dueDate']??$bill['date']??''),'currency'=>(string)($bill['currency']??'AED'),'amount'=>$bill['outstandingNative']];}
  if($e==='TG'){foreach(tgr_items($s) as $draft){if(!empty($draft['legacy']))continue;$key=$draft['currency'].'|'.$draft['bankAccountId'];if(!isset($bank[$key]))$bank[$key]=['label'=>$draft['bank'],'currency'=>$draft['currency'],'amount'=>0.0];$bank[$key]['pending']=round((float)($bank[$key]['pending']??0)+(float)$draft['amountNative'],2);}foreach($bank as &$row){$row['postedAmount']=$row['amount'];$row['amount']=round($row['amount']-(float)($row['pending']??0),2);$row['label'].=' · AVAILABLE';}unset($row);}
  $attention=ar_items($s,$e);foreach(tt_expense_due_reminders($s,$e) as $reminder)$attention[]=['kind'=>'REMINDER','type'=>$reminder['type']==='UTILITY'?'Utility Bill':'Credit Card','reference'=>$reminder['label'],'message'=>$reminder['status'].' · due '.$reminder['dueDate'],'target'=>['expense'=>$reminder['type']==='UTILITY'?'utility':'card','month'=>$reminder['month']]];
  $due=$expenses;
  foreach((array)($s['creditCardStatements']??[]) as $statement){
-   if(!is_array($statement)||($statement['entity']??'')!==$e||in_array(($statement['status']??'Pending'),['Paid','Deleted'],true))continue;
+   if((!acr_reports($u)&&!acr_icon($u,['expenses']))||!is_array($statement)||($statement['entity']??'')!==$e||in_array(($statement['status']??'Pending'),['Paid','Deleted'],true))continue;
    $due[]=['label'=>(string)($statement['cardName']??'Credit card').' credit card','reference'=>(string)($statement['id']??''),'date'=>(string)($statement['dueDate']??''),'currency'=>$e==='TG'?'AED':'PKR','amount'=>(float)($statement['total']??0)];
  }
  foreach((array)($s['rentMasters']??[]) as $rent){
-   if(!is_array($rent)||($rent['entity']??'')!==$e||($rent['status']??'Active')!=='Active')continue;
+   if((!acr_reports($u)&&!acr_icon($u,['expenses']))||!is_array($rent)||($rent['entity']??'')!==$e||($rent['status']??'Active')!=='Active')continue;
    $month=(new DateTimeImmutable('now',new DateTimeZone('Asia/Karachi')))->format('Y-m');
    if((string)($rent['effectiveFrom']??'9999-12-31')>$month.'-31'||((string)($rent['effectiveTo']??'')!==''&&(string)$rent['effectiveTo']<$month.'-01'))continue;
    $first=(string)($rent['firstPaymentMonth']??substr((string)($rent['effectiveFrom']??''),0,7));
@@ -52,6 +53,13 @@ try{
  usort($bank,static fn($a,$b)=>((!empty($a['isDefault'])?0:(!empty($a['isCash'])?1:2))<=>(!empty($b['isDefault'])?0:(!empty($b['isCash'])?1:2)))?:((float)$b['amount']<=>(float)$a['amount'])?:strcmp((string)$a['label'],(string)$b['label']));
  $sets=['bank'=>array_values($bank),'commodity'=>ad_rows($commodity),'local'=>ad_rows($local),'export'=>ad_rows($export),'expenses'=>ad_rows($expenses),'due'=>ad_rows($due)];foreach($sets as&$rows)if(is_array($rows))foreach($rows as&$row)$row['dateDisplay']=preg_match('/^(\d{4})-(\d{2})-(\d{2})$/',(string)($row['date']??''),$m)?$m[3].'-'.$m[2].'-'.$m[1]:'';unset($row);unset($rows);
  usort($sets['due'],static fn($a,$b)=>strcmp((string)($a['date']??''),(string)($b['date']??'')));
+ if(!acr_reports($u)){
+   if(!acr_icon($u,['cashbank','reconciliation']))$sets['bank']=[];
+   if(!acr_icon($u,['purchases','supplier']))$sets['commodity']=[];
+   if(!acr_icon($u,['customer'])){$sets['local']=[];$sets['export']=[];$receivables=['rows'=>[],'drafts'=>[],'entities'=>[]];}
+   $attentionIcons=['LATE'=>['purchases'],'SODA'=>['purchases'],'HOLD'=>['supplier'],'FREIGHT'=>['freight'],'SALE'=>['customer'],'PAYMENT'=>['customer'],'REMITTANCE'=>['cashbank'],'REMINDER'=>['expenses']];
+   $attention=array_values(array_filter($attention,static fn($item)=>acr_icon($u,$attentionIcons[$item['kind']??'']??[])));
+ }
  ad_out(['ok'=>true,'entity'=>$e,'summaries'=>$sets,'customerReceivables'=>$receivables,'attention'=>$attention,'serverNow'=>gmdate('c')]);
 }catch(Throwable $x){error_log('Accounts dashboard: '.$x->getMessage());ad_out(['ok'=>false,'error'=>'Accounts summary is temporarily unavailable.'],500);}
 

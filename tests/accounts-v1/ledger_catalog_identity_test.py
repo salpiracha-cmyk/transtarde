@@ -13,7 +13,7 @@ with tempfile.TemporaryDirectory(prefix='ledger-catalog-') as directory:
         (root / folder).mkdir()
     dependencies = ['supplier_opening_core.php', 'accounts_subaccounts_core.php',
         'accounts_ledger_visibility.php', 'assets_registry_core.php', 'service_ledger_groups.php',
-        'accounts_ledger_browser.php', 'accounts_post_delete_core.php', 'accounts_reference.php',
+        'accounts_ledger_browser.php','accounts_read_policy.php', 'accounts_post_delete_core.php', 'accounts_reference.php',
         'tg_remittance_core.php', 'fi_credit_advice_link.php', 'receipt_invoice_links.php',
         'customer_receivables_core.php', 'accounts_reports.php']
     for name in dependencies:
@@ -32,6 +32,10 @@ with tempfile.TemporaryDirectory(prefix='ledger-catalog-') as directory:
       ['id'=>'PRIVATE','values'=>['Company Account','BRM','','Other company','Meezan Bank','','','PKR','778899']]
     ]];}
     ''')
+    # Exercise the actual production permission helper with this disposable identity.
+    import re
+    permission_helper=re.search(r'function tt_user_can_module_action\([^\n]*\n.*?\n}',(ROOT/'auth_store.php').read_text(),re.S).group(0)
+    with (root/'auth_store.php').open('a') as auth_fixture: auth_fixture.write('\n'+permission_helper+'\n')
     books = root / 'data/accounts.json'
     books.write_text(json.dumps({'revision': 1, 'journals': {
         'POST-2026-00001': {'id': 'POST-2026-00001', 'entity': 'TTI', 'status': 'Posted',

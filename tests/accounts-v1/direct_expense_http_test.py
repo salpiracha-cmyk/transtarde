@@ -12,7 +12,7 @@ with tempfile.TemporaryDirectory(prefix='tti-authorization-') as directory:
     private.mkdir()
     for name in ['auth_store.php', 'master_store.php', 'product_stage.php', 'offline_idempotency.php','session_store.php']:
         shutil.copy(ROOT / name, app / name)
-    for name in ['supplier_opening_core.php','accounts_subaccounts.php','accounts_subaccounts_core.php','accounts_ledger_visibility.php','assets_registry_core.php','expenses_v1.php','direct_expense_core.php','accounts_bank_payment.php','expense_locations.php','expense_reminders.php','expense_reversals.php','donations.php','rent_salary_v2.php','salary_month_workflow.php','salary_flexible_workflow.php','salary_record_corrections.php','salary_extra_allocations.php','company_investments_core.php','salary_master_store.php','accounts_reports.php','service_ledger_groups.php','accounts_ledger_browser.php','customer_receivables_core.php','accounts_post_delete_core.php','accounts_post_amend.php','accounts_post_amend_core.php','opening_balance_core.php','accounts_reference.php','tg_remittance_core.php','fi_credit_advice_link.php','receipt_invoice_links.php', 'accounts_posting_preview.php']:
+    for name in ['supplier_opening_core.php','accounts_subaccounts.php','accounts_subaccounts_core.php','accounts_ledger_visibility.php','assets_registry_core.php','expenses_v1.php','direct_expense_core.php','accounts_bank_payment.php','expense_locations.php','expense_reminders.php','expense_reversals.php','donations.php','rent_salary_v2.php','salary_month_workflow.php','salary_flexible_workflow.php','salary_record_corrections.php','salary_extra_allocations.php','company_investments_core.php','salary_master_store.php','accounts_reports.php','service_ledger_groups.php','accounts_ledger_browser.php','accounts_read_policy.php','customer_receivables_core.php','accounts_post_delete_core.php','accounts_post_amend.php','accounts_post_amend_core.php','opening_balance_core.php','accounts_reference.php','tg_remittance_core.php','fi_credit_advice_link.php','receipt_invoice_links.php', 'accounts_posting_preview.php']:
         shutil.copy(ROOT / 'api' / name, app / 'api' / name)
     shutil.copy(ROOT / 'accounts/accounting_master_v1.json', app / 'accounts/accounting_master_v1.json')
     harness = root / 'request.php'
@@ -75,10 +75,13 @@ require $argv[1];
     current=next(r for r in register['rows'] if r['publicPostId']==first['journalId'])
     assert current['voucher']==replacement['journalId'] and current['amendmentNote'] and current['party']
     assert len([r for r in register['rows'] if r['publicPostId']==first['journalId']])==1
+    assert request('accounts_reports','?entity=TTI&from=2026-07-01&asOf=2026-12-31')[0]==403,'Expense View does not grant complete financial reports'
+    permissions['reports']=['View'];set_user()
     before_report=books.read_bytes();status,report=request('accounts_reports','?entity=TTI&from=2026-07-01&asOf=2026-12-31');assert status==200,(status,report)
     assert all(row['publicPostId']==first['journalId'] for row in report['generalLedger'] if row['journalId']==replacement['journalId'])
     assert any(row['publicPostId']==first['journalId'] and row['journalId']==replacement['journalId'] for row in report['expenseActivity'])
     assert books.read_bytes()==before_report,'Reporting identity must not renumber or rewrite a posting'
+    permissions.pop('reports');set_user()
     status,details=request('accounts_ledger_browser','?entity=TTI&account=POSTS&postId='+first['journalId']+'&to=2026-12-31')
     assert status==200 and details['post']['id']==replacement['journalId'] and details['post']['publicPostId']==first['journalId']
 
@@ -113,6 +116,7 @@ require $argv[1];
     assert journal['lines'][1]['assetId']=='CAR-TTI' and journal['lines'][2]['registrationNo']=='ABC-123'
     status,person=request('accounts_ledger_browser','?entity=TTI&category=party&party=Talha&from=2026-10-01&to=2026-10-31');assert status==200,(status,person)
     assert len(person['rows'])==3 and person['expenseTotal']==90 and person['expenseCurrency']=='PKR' and person['closing']==0
+    permissions['reports']=['View'];set_user()
     status,report=request('accounts_reports','?entity=TTI&from=2026-10-01&asOf=2026-10-31');assert status==200,(status,report)
     assert sum(x['amount'] for x in report['expenseActivity'] if x['assetId']=='CAR-TTI')==70
     assert report['trialBalance']['balanced']
@@ -147,6 +151,7 @@ require $argv[1];
     school_id=result['result']['generalExpenseId']
     status,person=request('accounts_ledger_browser','?entity=TTI&category=party&party=Talha&from=2026-10-01&to=2026-10-31');assert status==200,(status,person)
     assert any('CAS' in r['narration'] and r.get('expenseAmount')==10000 for r in person['rows'])
+    permissions['reports']=['View'];set_user()
     status,report=request('accounts_reports','?entity=TTI&from=2026-10-01&asOf=2026-10-31');assert status==200
     assert any(r['recipient']=='CAS' and r['expenseForName']=='Talha' and r['expenseArea']=='HOME' for r in report['expenseActivity'])
     # Stable type editing and ARP subsidiaries are available alongside every standard type.

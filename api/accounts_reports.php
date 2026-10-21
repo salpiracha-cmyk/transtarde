@@ -61,8 +61,8 @@ function ar_sum_rows(array $rows, string $column): float {
 
 try {
     $user = tt_require_login();
-    if (!tt_user_can_open_module($user, 'Accounts')) {
-        ar_out(['ok' => false, 'error' => 'Accounts permission required.'], 403);
+    if (!tt_user_can_module_action($user, 'Accounts','reports','View')) {
+        ar_out(['ok' => false, 'error' => 'Accounts Reports View permission required.'], 403);
     }
 
     $entity = strtoupper(trim((string)($_GET['entity'] ?? '')));
