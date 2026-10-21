@@ -162,6 +162,19 @@ with tempfile.TemporaryDirectory(prefix='party-ledger-qa-') as temp:
         assert bank['rows'] and all(r['account']=='1110' and 'ACME Rice' in r['party'] for r in bank['rows'])
         assert len({r['voucher'] for r in bank['rows']})==len(bank['rows']),'A party filter must never duplicate bank movements'
         path.write_bytes(original)
+        # Salary cost and individual payable views do not mix office, mill or home expenses.
+        previous=path.read_bytes()
+        books['salaryMasters']={key:{'id':key,'entity':'TTI','name':key,'category':category} for key,category in [('Office worker','OFFICE_STAFF'),('Mill worker','MILL_STAFF'),('Home worker','HOME_STAFF')]}
+        for index,(person,category) in enumerate([('Office worker','OFFICE_STAFF'),('Mill worker','MILL_STAFF'),('Home worker','HOME_STAFF')]):
+            books['journals']['SALARY-'+str(index)]=journal('SALARY-'+str(index),'2026-07-15',[line('6210',debit=100+index,category=category,salaryMasterId=person),line('2140',credit=100+index,category=category,salaryMasterId=person)],sourceType='SALARY_MONTH')
+        path.write_text(json.dumps(books));salary_bytes=path.read_bytes()
+        for index,(person,category) in enumerate([('Office worker','OFFICE_STAFF'),('Mill worker','MILL_STAFF'),('Home worker','HOME_STAFF')]):
+            status,cost=get(category='other',account='SALARY_COST|'+category);assert status==200 and len(cost['rows'])==1 and cost['closing']==100+index,cost
+            status,payable=get(category='other',account='PAYROLL|'+person);assert status==200 and len(payable['rows'])==1 and payable['closing']==-(100+index),payable
+            assert any(a['code']=='PAYROLL|'+person for a in payable['accounts'])
+        assert path.read_bytes()==salary_bytes,'Salary views must not rewrite historical journal accounts'
+        path.write_bytes(previous)
+        print('Separate salary cost groups and employee payable views passed without changing journals')
         print('Cancellation projection, historical date, ascending CSV, correct broker/supplier scope and party-wise bank movements passed')
         print('Party ledgers: opening/running balances, cross-head links, master IDs, native-currency gaps, scope, search, CSV and read-only books passed')
         try:
