@@ -6,7 +6,7 @@ const fs=require('node:fs'),os=require('node:os'),path=require('node:path'),http
  assert.equal(captured[0].trace,'off');
  const secret='LOCAL-CANARY-'+require('node:crypto').randomBytes(20).toString('hex');
  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'live-artifact-canary-'));
- const server=http.createServer((req,res)=>{if(req.method==='POST'){let body='';req.on('data',chunk=>body+=chunk);req.on('end',()=>{assert.equal(new URLSearchParams(body).get('password'),secret);res.end('<h1>Signed in</h1>')});}else res.end('<form method="POST"><input name="username"><input type="password" name="password"><button>Sign in</button></form>')});
+ const server=http.createServer((req,res)=>{res.setHeader('Content-Type','text/html; charset=utf-8');if(req.method==='POST'){let body='';req.on('data',chunk=>body+=chunk);req.on('end',()=>{assert.equal(new URLSearchParams(body).get('password'),secret);res.end('<h1>Signed in</h1>')});}else res.end('<form method="POST"><input name="username"><input type="password" name="password"><button>Sign in</button></form>')});
  let browser;
  try{
   await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));browser=await chromium.launch({headless:true});
