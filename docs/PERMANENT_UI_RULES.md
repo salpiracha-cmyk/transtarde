@@ -514,3 +514,10 @@ Online Banking payments expose an editable payment date, defaulting from the vou
 - Salary cost views and employee payable ledgers must stay separate from supplier ledgers. Group mill, office and household costs using recorded categories; do not rewrite historical journals merely to relabel reports.
 - Explicit exception: do not edit, amend or repost Mrs Tayyab's existing entry. The owner will post through Edit after the work and links are ready.
 - Shipment selection excludes fully billed sources for the selected charge type. Show already billed sources on request with the original invoice link. Freight may use remaining container coverage; reject excess coverage on the server regardless of browser flags. Other charge types stay independent.
+
+## 21 October TG / Pakistan document pack
+
+- Every TG pack tab shows its actual print document in the right preview: proforma, invoice, packing, covering and relationship letter. Update only the preview during typing; keep focus, scroll and unfinished entry. Stack preview beneath the form on narrow screens.
+- Jazib's approved relationship-letter structure is the standard editable draft. Fill bank/branch, exporter, TG buyer/remitter, final receiver and its address from the selected form fields. The receiver may follow the Commercial Invoice or another explicitly selected party. Never retain another customer's name/address inside the standard draft.
+- Adopt the standard draft only in an open lot editor; retain prior copied wording and preserve closed/issued historical letters. Unrecognised custom wording remains custom until the user explicitly chooses the standard draft.
+- Save TG Pack and Print / Save require an acknowledged server save. Print the exact submitted document snapshot; later typing during a pending save must not change it. Do not guess a missing receiver address or print unresolved draft fields. No background Save or financial posting.

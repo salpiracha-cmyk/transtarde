@@ -1091,9 +1091,31 @@ function tgImporterParty(s,c){c=shipmentDocumentContext(s,c);
  if(shipmentPartyDetailsClosed(s))return selected.party||tgImporterOptions(s,c).find(row=>row.value===selected.choice)?.party||null;
  return tgImporterOptions(s,c).find(row=>row.value===selected.choice)?.party||selected.party||null
 }
+const TG_RELATIONSHIP_TEMPLATE='TO,\n{{bank}}\n{{bankAddress}}\n\nOur Importer {{buyer}} is a trader and they have sold this cargo to {{finalBuyer}}, {{finalBuyerAddress}} being the importer of the cargo.\n\n{{finalBuyer}} is the final receiver of this cargo.\n\nWe have Business Relationship with all parties in this Contract.';
+function tgRelationshipParty(s,c,x=s.tgdocs?.relationship||{}){
+ const choice=x.finalPartyChoice||'INVOICE';
+ if(choice==='CUSTOM')return{name:x.finalBuyer||'',address:x.finalBuyerAddress||''};
+ return choice==='INVOICE'?(tgImporterParty(s,c)||buyerOf(shipmentDocumentContext(s,c))):(tgImporterOptions(s,c).find(row=>row.value===choice)?.party||{name:x.finalBuyer||'',address:x.finalBuyerAddress||''})
+}
+function tgRelationshipValues(s,c){
+ const x=s.tgdocs?.relationship||{},dc=pakistanCustomsContext(s,c),party=tgRelationshipParty(s,c,x),bank=coveringPresentedBank(s,c,s.tgdocs?.covering||{},true);
+ return {bank:x.bank??bank.bank,bankAddress:x.bankAddress??bank.bankAddress,exporter:x.exporter||sellerOf(dc).name,buyer:x.buyer||SELLER_DETAILS.TG.name,finalBuyer:party.name||'',finalBuyerAddress:party.address||'',otherParty:x.otherParty||''}
+}
+function tgRelationshipWording(s,c){
+ const x=s.tgdocs?.relationship||{};if(!x.template)return String(x.wording||'');
+ const values=tgRelationshipValues(s,c);
+ return String(x.wording??TG_RELATIONSHIP_TEMPLATE).replace(/\{\{(bank|bankAddress|exporter|buyer|finalBuyer|finalBuyerAddress|otherParty)\}\}/g,(_,key)=>values[key]||'')
+}
+function tgRelationshipValidation(s,c){
+ const x=s.tgdocs?.relationship||{};if(!String(x.wording||'').trim())return 'Enter the approved wording before printing this letter.';
+ if(!x.template)return '';
+ const v=tgRelationshipValues(s,c);for(const [key,label] of [['bank','bank'],['buyer','buyer / remitter'],['finalBuyer','final receiver'],['finalBuyerAddress','final receiver address']])if(!String(v[key]||'').trim())return 'Complete the '+label+' before printing this letter.';
+ if(/\{\{[^}]+\}\}/.test(tgRelationshipWording(s,c)))return 'Check the field names in the relationship letter draft.';
+ return ''
+}
 function tgRelationshipLetterDoc(s,c){c=shipmentDocumentContext(s,c);
- const x=s.tgdocs?.relationship||{};if(!String(x.wording||'').trim())return'';const dc=pakistanCustomsContext(s,c),parties=[['EXPORTER / SELLER',x.exporter||sellerOf(dc).name],['BUYER / REMITTER',x.buyer||SELLER_DETAILS.TG.name],['FINAL BUYER / IMPORTER',x.finalBuyer||buyerOf(c).name],['OTHER PARTY',x.otherParty]].filter(row=>String(row[1]||'').trim());
- return pageDoc(dc,x.title||'RELATIONSHIP BETWEEN PARTIES',`${ttApprovedInvoiceReference(s.customs?.invoiceNo||dc.ref,s.customs?.date||x.date)}<p>${fmtHTML(x.date||TODAY())}</p><div class="relationshipParties">${parties.map(row=>`<div><b>${esc(row[0])}</b><span>${esc(ttProperNounOutput(row[1]))}</span></div>`).join('')}</div><div class="relationshipWording">${esc(x.wording).replace(/\n/g,'<br>')}</div>${conditionalOutputSignature(dc)}`)
+ const x=s.tgdocs?.relationship||{},wording=tgRelationshipWording(s,c);if(!wording.trim())return'';const dc=pakistanCustomsContext(s,c),v=x.template?tgRelationshipValues(s,c):x,parties=[['EXPORTER / SELLER',v.exporter||sellerOf(dc).name],['BUYER / REMITTER',v.buyer||SELLER_DETAILS.TG.name],['FINAL BUYER / IMPORTER',v.finalBuyer||buyerOf(c).name],['OTHER PARTY',v.otherParty]].filter(row=>String(row[1]||'').trim());
+ return pageDoc(dc,x.title||'RELATIONSHIP BETWEEN PARTIES',`${ttApprovedInvoiceReference(s.customs?.invoiceNo||dc.ref,s.customs?.date||x.date)}<p>${fmtHTML(x.date||TODAY())}</p><div class="relationshipParties">${parties.map(row=>`<div><b>${esc(row[0])}</b><span>${esc(ttProperNounOutput(row[1]))}</span></div>`).join('')}</div><div class="relationshipWording">${esc(wording).replace(/\n/g,'<br>')}</div>${conditionalOutputSignature(dc)}`)
 }
 function tgInternalDoc(s,c){const settings=s.tgdocs?.covering||s.covering;return tgProformaDoc(s,c)+tgInternalCommercialInvoiceDoc(s,c)+packingListDoc(s,c,true,true)+coveringDoc(s,c,settings,true)+tgRelationshipLetterDoc(s,c)}
 function tgPakistanCoveringDoc(s,c){return coveringDoc(s,c,s.tgdocs?.covering||s.covering,true)}
@@ -1145,8 +1167,14 @@ function renderTG(d){
  const s=shipment(),c=contractByRef(s.contractRef),refs=fiGdRows(s),currency=customsCurrencyFor(s,c),seller=pakistanExporterKey(s);
  const tabs=[['proforma','SALES CONTRACT / PROFORMA'],['invoice','COMMERCIAL INVOICE'],['packing','PACKING LIST'],['cover','BANK COVERING LETTER'],['relationship','RELATIONSHIP LETTER']];
  s.tgdocs=s.tgdocs||{};s.tgdocs.activeTab=tabs.some(([key])=>key===s.tgdocs.activeTab)?s.tgdocs.activeTab:'proforma';s.tgdocs.covering=s.tgdocs.covering||{};s.tgdocs.relationship=s.tgdocs.relationship||{};s.tgdocs.importer=s.tgdocs.importer||{enabled:false,choice:'BUYER',party:null};
+ const relationship=s.tgdocs.relationship;
+ if(!shipmentPartyDetailsClosed(s)&&!relationship.template&&(!String(relationship.wording||'').trim()||/Our Importer[\s\S]*is a trader and they have sold this cargo to[\s\S]*is the final receiver of this cargo[\s\S]*We have Business Relationship with all parties in this Contract\./i.test(relationship.wording))){
+  if(relationship.wording)relationship.previousWording=relationship.wording;
+  Object.assign(relationship,{template:true,wording:TG_RELATIONSHIP_TEMPLATE,finalPartyChoice:'INVOICE'});
+ }
+ if(!relationship.template&&String(relationship.wording||'').trim())relationship.finalPartyChoice=relationship.finalPartyChoice||'CUSTOM';
  const q=selector=>d.querySelector(selector);let coverEditor=null;
- d.innerHTML=`<div class="section tgPackWorkspace"><div class="toolbar"><div><h3>TTI / BRM → TG DOCUMENT PACK</h3><div class="metaText">Customs value · FI ${esc(refs.fi||'NOT UTILISED')} · GD ${esc(refs.gd||'PENDING')}</div></div><div class="spacer"></div><button class="btn navy" id="saveTGPack">SAVE TG PACK</button><button class="btn green" id="printTGPack">PRINT / SAVE COMPLETE PACK</button></div><div class="grid3 tgPackSummary"><div class="field"><label>Pakistan Exporter</label><input readonly value="${esc(SELLERS[seller])}"></div><div class="field"><label>Buyer / Remitter</label><input readonly value="${esc(SELLER_DETAILS.TG.name)}"></div><div class="field"><label>Customs Invoice Price / MT</label><input readonly value="${esc(money(s.customs.rate,currency))}"></div></div><div class="tgDocumentTabs">${tabs.map(([key,label],index)=>`<button type="button" data-tg-tab="${key}" class="${key===s.tgdocs.activeTab?'active':''}">${index+1}. ${label}</button>`).join('')}</div><div id="tgTabBody"></div></div>`;
+ d.innerHTML=`<div class="section tgPackWorkspace"><div class="toolbar"><div><h3>TTI / BRM → TG DOCUMENT PACK</h3><div class="metaText">Customs value · FI ${esc(refs.fi||'NOT UTILISED')} · GD ${esc(refs.gd||'PENDING')}</div></div><div class="spacer"></div><button class="btn navy" id="saveTGPack">SAVE TG PACK</button><button class="btn green" id="printTGPack">PRINT / SAVE COMPLETE PACK</button></div><div class="grid3 tgPackSummary"><div class="field"><label>Pakistan Exporter</label><input readonly value="${esc(SELLERS[seller])}"></div><div class="field"><label>Buyer / Remitter</label><input readonly value="${esc(SELLER_DETAILS.TG.name)}"></div><div class="field"><label>Customs Invoice Price / MT</label><input readonly value="${esc(money(s.customs.rate,currency))}"></div></div><div class="tgDocumentTabs">${tabs.map(([key,label],index)=>`<button type="button" data-tg-tab="${key}" class="${key===s.tgdocs.activeTab?'active':''}">${index+1}. ${label}</button>`).join('')}</div><div class="lotSplitWorkspace tgPackSplit"><div class="lotFormPane" id="tgTabBody"></div><aside class="lotPreviewPane"><div class="lotPreviewHead"><b id="tgPreviewTitle">Document preview</b><span>Preview · changes save only on Save</span></div><div class="lotPreviewPaper tgPreviewPaper" id="tgPreviewPaper"></div></aside></div></div>`;
  const body=q('#tgTabBody');
  const readTab=()=>{
   const key=s.tgdocs.activeTab;
@@ -1156,12 +1184,18 @@ function renderTG(d){
    const party=old.choice===choice&&old.party?old.party:tgImporterOptions(s,c).find(row=>row.value===choice)?.party;
    s.tgdocs.importer={enabled,choice,party:party?structuredClone(party):null}
   }
-  if(key==='relationship')Object.assign(s.tgdocs.relationship,{title:q('#tgRelTitle').value.trim(),date:q('#tgRelDate').value,exporter:q('#tgRelExporter').value.trim(),buyer:q('#tgRelBuyer').value.trim(),finalBuyer:q('#tgRelFinal').value.trim(),otherParty:q('#tgRelOther').value.trim(),wording:q('#tgRelWording').value.trim()})
+  if(key==='relationship')Object.assign(s.tgdocs.relationship,{title:q('#tgRelTitle').value.trim(),date:q('#tgRelDate').value,exporter:q('#tgRelExporter').value.trim(),buyer:q('#tgRelBuyer').value.trim(),finalPartyChoice:q('#tgRelParty').value,finalBuyer:q('#tgRelFinal').value.trim(),finalBuyerAddress:q('#tgRelAddress').value.trim(),bank:q('#tgRelBank').value.trim(),bankAddress:q('#tgRelBankAddress').value.trim(),otherParty:q('#tgRelOther').value.trim(),wording:q('#tgRelWording').value.trim()})
  };
  const docs=key=>({proforma:['SALES CONTRACT / PROFORMA INVOICE',()=>tgProformaDoc(s,c)],invoice:['COMMERCIAL INVOICE',()=>tgInternalCommercialInvoiceDoc(s,c)],packing:['PACKING LIST',()=>packingListDoc(s,c,true,true)],relationship:['RELATIONSHIP BETWEEN PARTIES',()=>tgRelationshipLetterDoc(s,c)]}[key]);
+ const preview=()=>{
+  const key=s.tgdocs.activeTab,paper=q('#tgPreviewPaper');if(!paper)return;
+  const doc=key==='cover'?['BANK COVERING LETTER',()=>coveringDoc(s,c,s.tgdocs.covering,true)]:docs(key);
+  q('#tgPreviewTitle').textContent=doc[0];paper.innerHTML=doc[1]()||'<div class="previewEmpty">Enter the approved relationship-letter wording to preview this letter.</div>';
+  paper.style.setProperty('--tgPreviewScale',String(Math.min(1,Math.max(.2,(paper.clientWidth-24)/794))));
+ };
  const renderTab=()=>{
   coverEditor=null;const key=s.tgdocs.activeTab,relationship=s.tgdocs.relationship;
-  if(key==='cover'){coverEditor=renderBankCoveringEditor(body,s,c,s.tgdocs.covering,true);return}
+  if(key==='cover'){coverEditor=renderBankCoveringEditor(body,s,c,s.tgdocs.covering,true);preview();return}
   if(key==='proforma')body.innerHTML='<div class="tgTabPanel"><div class="notice">One-page Sales Contract / Proforma. TG is the buyer; values use Customs prices. Payment, delivery and other terms follow the original Sales Contract. No vessel, voyage or B/L fields.</div><button class="btn green" id="tgPrintCurrent">PRINT / SAVE SALES CONTRACT / PROFORMA</button></div>';
   if(key==='invoice'){
    const selected=s.tgdocs.importer,options=tgImporterOptions(s,c);
@@ -1174,12 +1208,24 @@ function renderTG(d){
    const party=tgImporterParty(s,c);
    body.innerHTML=`<div class="tgTabPanel"><div class="notice">${party?`Consignee carried from the Commercial Invoice: <b>${esc(party.name)}</b><br>${esc(party.address||'')}`:'TG remains the Consignee because no Importer / Receiver was selected on the Commercial Invoice.'}<br>Notify Party is not added as a separate box.</div><button class="btn green" id="tgPrintCurrent">PRINT / SAVE PACKING LIST</button></div>`
   }
-  if(key==='relationship')body.innerHTML=`<div class="tgTabPanel"><div class="notice warn">Use the approved relationship-letter wording only. No wording is invented.</div><div class="grid2"><div class="field"><label>Letter title</label><input id="tgRelTitle" value="${esc(relationship.title||'RELATIONSHIP BETWEEN PARTIES')}"></div><div class="field"><label>Date</label><input id="tgRelDate" type="date" value="${esc(relationship.date||TODAY())}"></div><div class="field"><label>Exporter / seller</label><input id="tgRelExporter" value="${esc(relationship.exporter||SELLERS[seller])}"></div><div class="field"><label>Buyer / remitter</label><input id="tgRelBuyer" value="${esc(relationship.buyer||SELLER_DETAILS.TG.name)}"></div><div class="field"><label>Final buyer / importer</label><input id="tgRelFinal" value="${esc(relationship.finalBuyer||buyerOf(c).name)}"></div><div class="field"><label>Other party, if applicable</label><input id="tgRelOther" value="${esc(relationship.otherParty||'')}"></div><div class="field full"><label>Approved exact wording</label><textarea id="tgRelWording" rows="10">${esc(relationship.wording||'')}</textarea></div></div><button class="btn green" id="tgPrintCurrent">PRINT / SAVE RELATIONSHIP LETTER</button></div>`;
-  q('#tgPrintCurrent').onclick=()=>{readTab();if(key==='relationship'&&!s.tgdocs.relationship.wording)return alert('Enter the approved wording before printing this letter.');const doc=docs(key);printShipmentDoc(doc[0],doc[1](),seller)}
+  if(key==='relationship'){
+   const values=tgRelationshipValues(s,c),choice=relationship.finalPartyChoice||'INVOICE';
+   body.innerHTML=`<div class="tgTabPanel tgRelationshipEditor"><div class="notice">Use the approved relationship-letter wording only. The standard draft fills the selected parties and bank automatically.</div><div class="grid2"><div class="field"><label for="tgRelTitle">Letter title</label><input id="tgRelTitle" value="${esc(relationship.title||'RELATIONSHIP BETWEEN PARTIES')}"></div><div class="field"><label for="tgRelDate">Date</label><input id="tgRelDate" type="date" value="${esc(relationship.date||TODAY())}"></div><div class="field"><label for="tgRelBank">Bank</label><input id="tgRelBank" value="${esc(values.bank||'')}"></div><div class="field"><label for="tgRelBankAddress">Branch / address</label><textarea id="tgRelBankAddress">${esc(values.bankAddress||'')}</textarea></div><div class="field"><label for="tgRelExporter">Exporter / seller</label><input id="tgRelExporter" value="${esc(values.exporter)}"></div><div class="field"><label for="tgRelBuyer">Buyer / remitter</label><input id="tgRelBuyer" value="${esc(values.buyer)}"></div><div class="field full"><label for="tgRelParty">Final receiver</label><select id="tgRelParty"><option value="INVOICE" ${choice==='INVOICE'?'selected':''}>Use Commercial Invoice receiver</option>${tgImporterOptions(s,c).map(row=>`<option value="${esc(row.value)}" ${choice===row.value?'selected':''}>${esc(row.label)}</option>`).join('')}<option value="CUSTOM" ${choice==='CUSTOM'?'selected':''}>Enter another receiver</option></select></div><div class="field"><label for="tgRelFinal">Final buyer / importer</label><input id="tgRelFinal" value="${esc(values.finalBuyer)}" ${choice==='CUSTOM'?'':'readonly'}></div><div class="field"><label for="tgRelAddress">Receiver address</label><textarea id="tgRelAddress" ${choice==='CUSTOM'?'':'readonly'}>${esc(values.finalBuyerAddress)}</textarea></div><div class="field full"><label for="tgRelOther">Other party, if applicable</label><input id="tgRelOther" value="${esc(relationship.otherParty||'')}"></div></div><details class="tgWordingEditor"><summary>Edit letter draft</summary><p class="metaText">Fields such as {{buyer}}, {{finalBuyer}} and {{finalBuyerAddress}} fill from the selections above.</p><label for="tgRelWording">Approved exact wording</label><textarea id="tgRelWording" rows="10">${esc(relationship.wording||'')}</textarea><button type="button" class="btn soft" id="tgUseStandard">Use standard draft</button></details><button class="btn green" id="tgPrintCurrent">PRINT / SAVE RELATIONSHIP LETTER</button></div>`;
+   q('#tgRelParty').onchange=()=>{readTab();const party=tgRelationshipParty(s,c);q('#tgRelFinal').value=party.name||'';q('#tgRelAddress').value=party.address||'';q('#tgRelFinal').readOnly=q('#tgRelAddress').readOnly=q('#tgRelParty').value!=='CUSTOM';preview()};
+   q('#tgUseStandard').onclick=()=>{readTab();if(!confirm('Replace this draft wording with the standard relationship letter?'))return;Object.assign(relationship,{template:true,wording:TG_RELATIONSHIP_TEMPLATE});q('#tgRelWording').value=TG_RELATIONSHIP_TEMPLATE;preview()}
+  }
+  q('#tgPrintCurrent').onclick=async()=>{readTab();if(key==='relationship'){const error=tgRelationshipValidation(s,c);if(error)return alert(error);}const button=q('#tgPrintCurrent');button.disabled=true;try{const doc=docs(key),html=doc[1]();await persistPack();printShipmentDoc(doc[0],html,seller)}catch(error){showExportSaveError(error.message,button)}finally{button.disabled=false}};preview()
  };
  d.querySelectorAll('[data-tg-tab]').forEach(button=>button.onclick=()=>{readTab();s.tgdocs.activeTab=button.dataset.tgTab;d.querySelectorAll('[data-tg-tab]').forEach(tab=>tab.classList.toggle('active',tab===button));renderTab()});
- q('#saveTGPack').onclick=()=>{readTab();if(num(s.customs.rate)<=0)return alert('Save the Customs Invoice price first.');if(s.tgdocs.importer.enabled&&!tgImporterParty(s,c)?.name)return alert('Select the Importer / Receiver of Goods.');Object.assign(s.tgdocs,{saved:true,at:new Date().toISOString(),exporter:seller,rate:num(s.customs.rate),currency,customsInvoiceNo:s.customs.invoiceNo,invoiceValue:num(s.customs.invoiceValue)});audit('TG Documents','TG pack saved',`${s.contractRef} · ${s.lotId}`);save();renderShipmentWorkspace()};
- q('#printTGPack').onclick=()=>{readTab();const error=coveringValidation(s,c,s.tgdocs.covering,true);if(error)return alert(error);printShipmentDoc('TTI / BRM TO TG DOCUMENT PACK',tgInternalDoc(s,c),seller)};
+ const persistPack=async()=>{
+  readTab();if(num(s.customs.rate)<=0)throw new Error('Save the Customs Invoice price first.');if(s.tgdocs.importer.enabled&&!tgImporterParty(s,c)?.name)throw new Error('Select the Importer / Receiver of Goods.');
+  if(!window.TT_SHARED_SYNC?.saveNow)throw new Error('Server saving is unavailable.');
+  Object.assign(s.tgdocs,{saved:true,at:new Date().toISOString(),exporter:seller,rate:num(s.customs.rate),currency,customsInvoiceNo:s.customs.invoiceNo,invoiceValue:num(s.customs.invoiceValue)});audit('TG Documents','TG pack saved',`${s.contractRef} · ${s.lotId}`);save();await window.TT_SHARED_SYNC.saveNow()
+ };
+ q('#saveTGPack').onclick=async()=>{const button=q('#saveTGPack');button.disabled=true;try{await persistPack();closeLotEditor()}catch(error){showExportSaveError(error.message,button)}finally{button.disabled=false}};
+ q('#printTGPack').onclick=async()=>{readTab();if(String(s.tgdocs.relationship.wording||'').trim()){const relationshipError=tgRelationshipValidation(s,c);if(relationshipError)return alert(relationshipError);}const error=coveringValidation(s,c,s.tgdocs.covering,true);if(error)return alert(error);const button=q('#printTGPack');button.disabled=true;try{const html=tgInternalDoc(s,c);await persistPack();printShipmentDoc('TTI / BRM TO TG DOCUMENT PACK',html,seller)}catch(error){showExportSaveError(error.message,button)}finally{button.disabled=false}};
+ for(const event of ['input','change','click'])body.addEventListener(event,()=>{readTab();preview()});
+ d._tgPreviewResize?.disconnect();if(typeof ResizeObserver!=='undefined'){d._tgPreviewResize=new ResizeObserver(()=>{const paper=q('#tgPreviewPaper');if(paper)paper.style.setProperty('--tgPreviewScale',String(Math.min(1,Math.max(.2,(paper.clientWidth-24)/794))))});d._tgPreviewResize.observe(q('#tgPreviewPaper'));}
  renderTab()
 }
 
