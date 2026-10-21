@@ -403,6 +403,7 @@ jobs:
         run: |
           "$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/salary_month_http_test.py
           "$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/salary_flexible_http_test.py
+          "$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/salary_group_posting_http_test.py
       - name: Bank entries, finance and subaccounts browser flow
         env:
           TT_QA_OUTPUT: ${{ runner.temp }}/inventory-evidence
