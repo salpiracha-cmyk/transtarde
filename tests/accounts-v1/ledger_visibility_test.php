@@ -44,3 +44,10 @@ $bad=$s;$bad['journals']['B']['entity']='TG';check(alv_amendment_books($bad)===$
 $bad=$s;$bad['journals']['R']['lines'][1]['bankDebit']=100;check(alv_amendment_books($bad)===$bad,'Native bank amounts must cancel too');
 $bad=$s;$bad['journals']['RR']=journal('RR','2026-10-12',$lines,'R');check(alv_amendment_books($bad)===$bad,'Reversal of reversal must retain its actual date');
 echo "Historical amendment cancellation, strict linked identity, native amounts and immutable projection passed\n";
+
+$s=$before;$s['journals']['R']['sourceType']='EXPENSE_DELETION';$s['journals']['R']['meta']['reason']='Wrong dates';$s['journals']['A']['reversedByPostId']='R';$raw=$s;
+check(alv_amendment_books($s)['journals']['R']['date']==='2026-09-01','Explicit expense deletion removes original at its own date');
+check(isset(alv_hidden($s,'2026-09-03')['A']),'Deleted expense does not survive in an earlier ledger');
+check($s===$raw,'Deletion audit dates remain stored unchanged');
+unset($s['journals']['A']['reversedByPostId']);check(alv_amendment_books($s)===$s,'Unverified deletion link must not change historical dates');
+echo "PASS verified legacy expense deletion and unchanged ordinary financial reversals\n";

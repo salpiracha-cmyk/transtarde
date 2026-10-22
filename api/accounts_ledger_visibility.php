@@ -3,10 +3,10 @@ declare(strict_types=1);
 
 function alv_posted(array $journal):bool {return ($journal['status']??'')==='Posted'||(($journal['status']??'')==='Posted / Bill Pending'&&($journal['sourceType']??'')==='EX_MILL_PURCHASE_LIABILITY');}
 
-/** Correct the effective cancellation date of a proven amendment in report copies.
+/** Correct effective cancellation dates of proven amendments/deletions in report copies.
  * Legacy expense edits cancelled on the edit day, double-counting backdated
  * replacements in earlier reports. Stored dates, createdAt and audit stay intact.
- * Ordinary deletions/reversals and unverified links retain their dated effect.
+ * Ordinary financial reversals and unverified links retain their dated effect.
  */
 function alv_amendment_books(array $store):array {
     $journals=(array)($store['journals']??[]);$reversals=[];
@@ -16,11 +16,18 @@ function alv_amendment_books(array $store):array {
     }
     foreach($journals as $id=>$original){
         if(!is_array($original)||!alv_posted($original)||!empty($original['reversalOf']))continue;
-        $next=(string)($original['amendedByPostId']??'');$replacement=$journals[$next]??null;
-        if(!is_array($replacement)||!alv_posted($replacement)||!empty($replacement['reversalOf'])||($original['entity']??'')!==($replacement['entity']??''))continue;
-        $parent=(string)($replacement['meta']['amendmentOfPostId']??$replacement['meta']['amendmentOf']??'');
-        if($parent!==(string)$id||count($reversals[(string)$id]??[])!==1)continue;
+        if(count($reversals[(string)$id]??[])!==1)continue;
         $rid=$reversals[(string)$id][0];$reverse=$journals[$rid];
+        // Native expense deletion is an explicit removal from books, not a later refund.
+        $deleted=($reverse['sourceType']??'')==='EXPENSE_DELETION'
+            &&($original['reversedByPostId']??'')===$rid
+            &&trim((string)($reverse['meta']['reason']??''))!=='';
+        if(!$deleted){
+            $next=(string)($original['amendedByPostId']??'');$replacement=$journals[$next]??null;
+            if(!is_array($replacement)||!alv_posted($replacement)||!empty($replacement['reversalOf'])||($original['entity']??'')!==($replacement['entity']??''))continue;
+            $parent=(string)($replacement['meta']['amendmentOfPostId']??$replacement['meta']['amendmentOf']??'');
+            if($parent!==(string)$id)continue;
+        }
         if(!alv_posted($reverse)||($reverse['entity']??'')!==($original['entity']??'')||!empty($reverse['amendedByPostId'])||!empty($reversals[$rid]))continue;
         $date=(string)($original['date']??'');$parsed=DateTimeImmutable::createFromFormat('!Y-m-d',$date);
         if(!$parsed||$parsed->format('Y-m-d')!==$date)continue;
