@@ -173,6 +173,7 @@ function sac_payload(array $s,string $e,string $from='',string $to=''):array {
 
 /** Expense activity is linked to the recipient, never an artificial receivable. */
 function sac_expense_activity(array $s,string $e,string $from,string $to):array {
+ $s=alv_amendment_books($s);
  $chart=sac_chart();$out=[];$hidden=alv_hidden($s,$to);$zakat=gm_zakat_payments($s,$from,$to,$e);$paid=array_column($zakat['rows'],'amountPKR','postId');
  foreach((array)($s['journals']??[]) as $j){
   $hiddenJournal=isset($hidden[(string)($j['id']??'')]);

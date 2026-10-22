@@ -58,7 +58,7 @@ echo json_encode(['bank'=>ba_balance($s,'TTI','B1','PKR',$d),'next'=>ba_balance(
             assert len(matches) == 1 and matches[0].endswith('}'), function
             declarations.append(matches[0])
     picker = root / 'pickers.php'
-    picker.write_text("<?php require __DIR__.'/api/accounts_bank_payment.php';\n" + '\n'.join(declarations) + "\n" + r'''$s=json_decode(stream_get_contents(STDIN),true,512,JSON_THROW_ON_ERROR);$before=serialize($s);$d=$s['_asOf']??null;
+    picker.write_text("<?php require __DIR__.'/api/accounts_bank_payment.php';require __DIR__.'/api/accounts_ledger_visibility.php';\n" + '\n'.join(declarations) + "\n" + r'''$s=json_decode(stream_get_contents(STDIN),true,512,JSON_THROW_ON_ERROR);$before=serialize($s);$d=$s['_asOf']??null;
 echo json_encode(['expense'=>ev1_balance($s,'TTI','1110','B1',$d),'expenseCash'=>ev1_balance($s,'TTI','1120','',$d),'salary'=>rsv2_bank_bal($s,'TTI','B1',$d),'salaryCash'=>rsv2_cash_bal($s,'TTI',$d),'unchanged'=>$before===serialize($s)],JSON_THROW_ON_ERROR);
 ''')
     def check_pickers(as_of):

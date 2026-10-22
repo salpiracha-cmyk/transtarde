@@ -3,11 +3,55 @@ declare(strict_types=1);
 
 function alv_posted(array $journal):bool {return ($journal['status']??'')==='Posted'||(($journal['status']??'')==='Posted / Bill Pending'&&($journal['sourceType']??'')==='EX_MILL_PURCHASE_LIABILITY');}
 
+/** Correct effective cancellation dates of proven amendments/deletions in report copies.
+ * Legacy expense edits cancelled on the edit day, double-counting backdated
+ * replacements in earlier reports. Stored dates, createdAt and audit stay intact.
+ * Ordinary financial reversals and unverified links retain their dated effect.
+ */
+function alv_amendment_books(array $store):array {
+    $journals=(array)($store['journals']??[]);$reversals=[];
+    foreach($journals as $id=>$j)if(is_array($j)){
+        $parent=(string)($j['reversalOf']??$j['meta']['reversalOf']??'');
+        if($parent!=='')$reversals[$parent][]=(string)$id;
+    }
+    foreach($journals as $id=>$original){
+        if(!is_array($original)||!alv_posted($original)||!empty($original['reversalOf']))continue;
+        if(count($reversals[(string)$id]??[])!==1)continue;
+        $rid=$reversals[(string)$id][0];$reverse=$journals[$rid];
+        // Native expense deletion is an explicit removal from books, not a later refund.
+        $deleted=($reverse['sourceType']??'')==='EXPENSE_DELETION'
+            &&($original['reversedByPostId']??'')===$rid
+            &&trim((string)($reverse['meta']['reason']??''))!=='';
+        if(!$deleted){
+            $next=(string)($original['amendedByPostId']??'');$replacement=$journals[$next]??null;
+            if(!is_array($replacement)||!alv_posted($replacement)||!empty($replacement['reversalOf'])||($original['entity']??'')!==($replacement['entity']??''))continue;
+            $parent=(string)($replacement['meta']['amendmentOfPostId']??$replacement['meta']['amendmentOf']??'');
+            if($parent!==(string)$id)continue;
+        }
+        if(!alv_posted($reverse)||($reverse['entity']??'')!==($original['entity']??'')||!empty($reverse['amendedByPostId'])||!empty($reversals[$rid]))continue;
+        $date=(string)($original['date']??'');$parsed=DateTimeImmutable::createFromFormat('!Y-m-d',$date);
+        if(!$parsed||$parsed->format('Y-m-d')!==$date)continue;
+        $legs=[];
+        foreach([$original,$reverse] as $entry)foreach((array)($entry['lines']??[]) as $line){
+            if(!is_array($line))continue;
+            $meta=(array)($entry['meta']??[]);
+            $key=json_encode([(string)($line['account']??''),(string)($line['bankAccountId']??$meta['bankAccountId']??''),(string)($line['cashAccountId']??''),(string)($line['subaccountId']??''),(string)($line['currency']??$meta['currency']??''),strtolower(trim((string)($line['supplier']??$line['broker']??$line['customer']??$line['counterparty']??$line['party']??$line['subledger']??$line['person']??'')))]);
+            foreach([['debit','credit'],['bankDebit','bankCredit'],['nativeDebit','nativeCredit']] as [$dr,$cr]){
+                $k=$key.'|'.$dr;$legs[$k]=($legs[$k]??0)+(int)round(100*((float)($line[$dr]??0)-(float)($line[$cr]??0)));
+            }
+        }
+        if(!$legs||array_filter($legs,static fn($net)=>$net!==0))continue;
+        $store['journals'][$rid]['date']=$date;
+    }
+    return $store;
+}
+
 /** Read-only cancellation projection. Never removes or changes audit journals.
  * A later reversal does not suppress the original on an earlier as-of date.
  * Only complete, same-entity, opposite accounting legs are suppressed together.
  */
 function alv_hidden(array $store, string $asOf = ''): array {
+    $store=alv_amendment_books($store);
     $journals=(array)($store['journals']??[]);$hidden=[];
     foreach($journals as $id=>$j)if(is_array($j)&&!empty($j['meta']['deletedFromBooks']))$hidden[(string)($j['id']??$id)]=true;
     uasort($journals,static fn($a,$b)=>strcmp((string)($b['date']??''),(string)($a['date']??''))?:strnatcmp((string)($b['id']??''),(string)($a['id']??'')));

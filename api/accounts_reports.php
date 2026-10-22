@@ -81,7 +81,7 @@ try {
         ar_out(['ok' => false, 'error' => 'From date cannot be after the as-of date.'], 422);
     }
 
-    $store = ar_read(AR_FILE);
+    $store = alv_amendment_books(ar_read(AR_FILE));
     $master = ar_read(AR_MASTER);
     if(isset($store['journals'])&&!is_array($store['journals']))throw new RuntimeException('Journal source is invalid.');
     if(!is_array($master['chart']??null)||!$master['chart'])throw new RuntimeException('Account catalog is unavailable.');

@@ -32,3 +32,10 @@ check($projection['bookBalance']===-30.0&&$multi===$original,'Tracking projectio
 $corrected=$multi;$corrected['journals']['REPLACEMENT']=$corrected['journals']['MULTI'];unset($corrected['journals']['MULTI']);$corrected['journals']['REPLACEMENT']['id']='REPLACEMENT';$corrected['journals']['REPLACEMENT']['meta']['reconciliationPostId']='MULTI';
 $projection=br_txns($corrected,'TTI','BANK','2026-10-15','PKR');check(array_column($projection['rows'],'key')===['MULTI|0','MULTI|1'],'Date/account-only salary corrections retain the original bank clearing keys.');
 echo "PASS reconciliation PKR/native amounts, dated cancellation projection and incomplete reversals\n";
+
+$store=['journals'=>['PAY'=>entry('PAY','2026-07-10',0,15000,0,15000),'REV'=>entry('REV','2026-10-22',15000,0,15000,0,'PAY'),'EDIT'=>entry('EDIT','2026-07-10',0,15000,0,15000)]];
+$store['journals']['PAY']['amendedByPostId']='EDIT';$store['journals']['EDIT']['meta']['amendmentOf']='PAY';$before=$store;
+$rows=br_txns($store,'TTI','BANK','2026-10-05','PKR');
+check($rows['bookBalance']===-15000.0&&count($rows['rows'])===1,'Historical reconciliation counts only the corrected payment once');
+check($store===$before,'Reconciliation retains raw amendment audit bytes');
+echo "PASS legacy historical amendment counted once in reconciliation\n";

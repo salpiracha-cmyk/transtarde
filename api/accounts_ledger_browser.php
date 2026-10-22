@@ -170,6 +170,7 @@ if($requestedPost!==''){
     echo json_encode(['ok'=>true,'entity'=>$posting['entity'],'post'=>$posting,'bankAccounts'=>$postBanks],JSON_UNESCAPED_UNICODE);exit;
 }
 if($workflowRegister&&$postEntries)$catalog=['POSTS'=>'Post ID Register'];
+$store=alv_amendment_books($store);
 $ledgerHidden=alv_hidden($store,$postEntries?'':$to);
 $journals=array_values(array_filter((array)($store['journals']??[]),static fn($j)=>is_array($j)&&($entity==='ALL'?tt_user_can_access_entity($user,(string)($j['entity']??''),'View'):($j['entity']??'')===$entity)&&($registerEntity===''||($j['entity']??'')===$registerEntity)&&alv_posted($j)&&($j['date']??'')<=$to));
 foreach($journals as $journal)foreach((array)($journal['lines']??[]) as $line)if(is_array($line)&&isset($line['account'])){
