@@ -1,0 +1,50 @@
+name: TG Save Live Verification
+on:
+  push:
+    branches: [verify/tg-save-live-20261022]
+    paths: [.github/workflows/tg-save-diagnostic.yml]
+permissions:
+  contents: read
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      HOSTINGER_HOST: ${{ secrets.HOSTINGER_HOST }}
+      HOSTINGER_PORT: ${{ secrets.HOSTINGER_PORT }}
+      HOSTINGER_USER: ${{ secrets.HOSTINGER_USER }}
+      HOSTINGER_DEPLOY_PATH: ${{ secrets.HOSTINGER_DEPLOY_PATH }}
+    steps:
+      - name: Configure verified SSH
+        env:
+          HOSTINGER_SSH_KEY: ${{ secrets.HOSTINGER_SSH_KEY }}
+          HOSTINGER_KNOWN_HOSTS: ${{ secrets.HOSTINGER_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -m 700 -d "$RUNNER_TEMP/ssh"
+          printf '%s\n' "$HOSTINGER_SSH_KEY" | tr -d '\r' > "$RUNNER_TEMP/ssh/key"
+          printf '%s\n' "$HOSTINGER_KNOWN_HOSTS" | tr -d '\r' > "$RUNNER_TEMP/ssh/known_hosts"
+          chmod 600 "$RUNNER_TEMP/ssh/key" "$RUNNER_TEMP/ssh/known_hosts"
+      - name: Inspect identity metadata without changing records
+        run: |
+          set -euo pipefail
+          case "$HOSTINGER_DEPLOY_PATH" in /home/*/domains/app.transtradeinternational.com/public_html) ;; *) exit 1;; esac
+          ssh -i "$RUNNER_TEMP/ssh/key" -o UserKnownHostsFile="$RUNNER_TEMP/ssh/known_hosts" -o StrictHostKeyChecking=yes -p "$HOSTINGER_PORT" "$HOSTINGER_USER@$HOSTINGER_HOST" php -- "$HOSTINGER_DEPLOY_PATH" <<'PHP'
+          <?php
+          $target=$argv[1];require $target.'/auth_store.php';require $target.'/api/export_permission_policy.php';
+          $root=ep_operations_root();
+          $check=static function($rows,$identity,$path){$seen=[];$missing=0;$duplicates=0;$invalid=0;$keys=[];foreach((array)$rows as $row){if(!is_array($row)){$invalid++;continue;}$id=(string)($row[$identity]??'');if(trim($id)===''){$missing++;$keys=array_keys($row);}elseif(isset($seen[$id])){$duplicates++;$keys=array_keys($row);}else $seen[$id]=true;}if($missing||$duplicates||$invalid)echo json_encode(['path'=>$path,'identity'=>$identity,'rows'=>count((array)$rows),'missing'=>$missing,'duplicates'=>$duplicates,'invalid'=>$invalid,'problemRowFields'=>$keys],JSON_THROW_ON_ERROR).PHP_EOL;};
+          foreach(['customers','suppliers','fi','contracts','shipments','audits'] as $field)$check($root[$field]??[],'id',$field);
+          $check($root['contracts']??[],'ref','contracts');
+          foreach((array)($root['shipments']??[]) as $i=>$lot){foreach(['certs'=>'id','bagOrders'=>'poNo','uploadedDocuments'=>'id','finalUploads'=>'id'] as $field=>$identity)$check($lot[$field]??[],$identity,'shipments.'.$i.'.'.$field);$check($lot['loading']['lots']??[],'lotRecordId','shipments.'.$i.'.loading.lots');}
+          foreach((array)(tt_read_store()['users']??[]) as $user)if(strtolower((string)($user['username']??''))==='jazib'){
+            try{$raw=json_encode($root,JSON_THROW_ON_ERROR);operations_validate_export_permissions($user,'Exports',$raw,$raw);echo "UNCHANGED_STAFF_ROOT_OK\n";
+            $next=$root;$matched=false;
+            foreach($next['shipments'] as &$lot)if(($lot['kind']??'')==='lot'&&($lot['contractRef']??'')==='TG/AMT/13'&&empty($lot['completed'])){$lot['tgdocs']['saved']=true;$lot['tgdocs']['at']=gmdate('c');$matched=true;break;}unset($lot);
+            if(!$matched)throw new RuntimeException('Requested active TG lot unavailable for read-only verification.');
+            $next['audits'][]=['id'=>'AUD-READONLY-'.bin2hex(random_bytes(12)),'area'=>'TG Documents','action'=>'TG pack saved','contractRef'=>'TG/AMT/13'];
+            operations_validate_export_permissions($user,'Exports',$raw,json_encode($next,JSON_THROW_ON_ERROR));
+            echo "STAFF_TG_SAVE_VALIDATION_OK simulated_only=true records_changed=0\n";}catch(Throwable $e){echo 'STAFF_VALIDATION '.json_encode(['message'=>$e->getMessage(),'trace'=>array_map(static fn($t)=>['function'=>$t['function']??'','line'=>$t['line']??0],$e->getTrace())],JSON_THROW_ON_ERROR).PHP_EOL;}
+          }
+          echo "READ_ONLY_DIAGNOSIS_COMPLETE records_changed=0\n";
+          PHP
