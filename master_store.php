@@ -175,7 +175,7 @@ function tt_post_id_digits(int|string $value): string {
 }
 
 function tt_format_post_id(int|string $value, ?int $year = null): string {
-    return TT_POST_ID_PREFIX . '-' . tt_post_id_year($year) . '-' . tt_post_id_digits($value);
+    return TT_POST_ID_PREFIX . '-' . str_pad((string)tt_post_id_year($year), 4, '0', STR_PAD_LEFT) . '-' . tt_post_id_digits($value);
 }
 
 function tt_post_id_matches_search(string $postId, string $query): bool {
@@ -236,7 +236,7 @@ function tt_next_post_id(array $existing = [], string $module = 'Accounts', stri
     $minimum = 0;
     foreach ($existing as $key => $record) {
         $candidate = is_array($record) ? (string)($record['id'] ?? $key) : (string)$key;
-        if (preg_match('/^POST-' . $year . '-(\d{5})$/', $candidate, $idMatch)) {
+        if (preg_match('/^POST-' . str_pad((string)$year, 4, '0', STR_PAD_LEFT) . '-(\d{5})$/', $candidate, $idMatch)) {
             $minimum = max($minimum, (int)$idMatch[1]);
         }
     }
