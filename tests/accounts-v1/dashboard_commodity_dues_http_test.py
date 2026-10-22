@@ -44,9 +44,10 @@ with tempfile.TemporaryDirectory(prefix='dashboard-dues-') as directory:
         fixture['commodityBills']['ROUND']=bill('ROUND','TTI',500);fixture['commodityBills']['ADVANCE']=bill('ADVANCE','TTI',700)
         fixture['journals']['JV-PAID']={'id':'JV-PAID','entity':'TTI','status':'Posted','sourceType':'JV','date':'2026-09-21','lines':[{'account':'2110','debit':500,'credit':0,'counterparty':'Indus Rice Mill'},{'account':'1110','debit':0,'credit':500}]}
         fixture['supplierAdvances']={'ADV':{'id':'ADV','entity':'TTI','supplier':'Indus Rice Mill','amount':300,'allocatedAmount':0,'availableAmount':300,'allocationScope':'COMMODITY_GROUP','status':'Available / Unallocated'}}
-        books.write_text(json.dumps(fixture));before=books.read_bytes();status,data=request('/api/accounts_dashboard.php?entity=TTI');assert status==200,(status,data)
+        books.write_text(json.dumps(fixture));before=books.read_bytes();sequence=json.loads(auth.read_text()).get('post_sequence');status,data=request('/api/accounts_dashboard.php?entity=TTI');assert status==200,(status,data)
         assert sum(r['amount'] for r in data['summaries']['commodity'])==400,data['summaries']['commodity']
         assert books.read_bytes()==before,'JV/advance display projection must not persist allocations or journals'
+        assert json.loads(auth.read_text()).get('post_sequence')==sequence,'Read-only projections must not reserve Post IDs'
         print('PASS dashboard source-linked settlements, paid/cancelled/draft exclusion, partial/held balances, company separation and zero financial writes')
     finally:
         server.terminate();server.wait(timeout=10);log.close()
