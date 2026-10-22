@@ -91,6 +91,7 @@ jobs:
           node tests/exports-v3/commercial_documents_20260915_audit.js
           node tests/exports-v3/document_rules_20260917_audit.js
           TT_TG_PACK_BROWSER=1 node tests/exports-v3/tg_pack_preview_test.js
+          python3 tests/exports-v3/tg_bank_stamp_registration_test.py
           node tests/exports-v3/tg_cover_output_test.js
           node tests/exports-v3/document_variant_matrix_test.js
           node tests/exports-v3/customer_reference_linkages_test.js

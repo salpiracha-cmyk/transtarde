@@ -487,3 +487,5 @@
 .bankCoveringPage[data-tg-cover="true"]>.docLetterhead{height:50mm}
 
 .bankCoveringPage[data-tg-cover="true"] .docAutoSign img{height:27mm}
+
+.tgProformaBuyerSign .tgPakistanBankStamp{display:block;height:18mm;max-width:45mm;object-fit:contain;margin-top:1mm}.tgProformaBuyerSign:has(.tgPakistanBankStamp)>div{margin-top:0}
