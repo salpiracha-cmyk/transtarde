@@ -169,6 +169,12 @@ function pl_project_rows(array $s,string $e,array $original,bool $byPayee):array
  foreach($original as $mode=>&$rows){$left=array_column(pl_raw_rows($preview,$e,$mode),'outstanding','rowKey');foreach($rows as &$r){$r['beforeAdvance']=$r['outstanding'];$r['advanceApplied']=round($r['outstanding']-(float)($left[$r['rowKey']]??0),2);$r['outstanding']=$left[$r['rowKey']]??0.0;$prepared=$r['outstanding']>.005?pl_prepare($preview,$e,[['billId'=>$r['billId'],'sourceKey'=>$r['sourceKey'],'amount'=>$r['outstanding']]]):['rows'=>[],'total'=>0.0,'netPayment'=>0.0,'withholding'=>0.0];$r['cashOutstanding']=$prepared['netPayment'];$r['paymentSummary']=pl_payment_summary($preview,$prepared);}unset($r);}unset($rows);
  return $original;
 }
+/** Dashboard reads the same JV/advance projection as the planning table, on an isolated copy. */
+function pl_dashboard_commodity_rows(array $s,string $e):array{
+ pl_link_round_journals($s,$e);
+ $projected=pl_project_rows($s,$e,['PARTY'=>pl_raw_rows($s,$e,'PARTY')],true);
+ return array_values(array_filter($projected['PARTY'],static fn($r)=>isset($s['commodityBills'][$r['billId']])&&(float)$r['outstanding']>.005));
+}
 function pl_payload(array $s,string $e):array{
  pl_link_round_journals($s,$e);$plans=[];foreach((array)($s['paymentPlans']??[]) as $p)if($p['entity']===$e&&$p['status']==='Open')$plans[]=$p;
  $raw=['PARTY'=>pl_raw_rows($s,$e,'PARTY'),'BROKER'=>pl_raw_rows($s,$e,'BROKER')];$table=pl_project_rows($s,$e,$raw,true);$original=pl_project_rows($s,$e,$raw,false);
