@@ -14,7 +14,7 @@ const storage=new Map(),localStorage={getItem:k=>storage.get(k)||null,setItem:(k
 const window={document,localStorage,TT_MODULE_ACCESS:{user:'Audit',module:'Exports'},addEventListener(){},print(){}};
 const context={window,document,localStorage,console,structuredClone,alert:m=>{throw Error(m)},confirm:()=>true,location:{href:''},setTimeout:fn=>fn(),setInterval:()=>0,clearTimeout(){},FileReader:class{},Date,Intl};context.globalThis=context;
 let source=fs.readFileSync(__dirname+'/../../exports/app.js','utf8');
-source=source.replace('mount();',`window.__TG_AUDIT__={state,makeShipment,makeLotRecord,commercialInvoiceDoc,packingListDoc,phytoInvoiceDoc,blDraftDoc,cooDoc,tgInternalDoc,tgPakistanCoveringDoc,SELLERS};mount();`);
+source=source.replace('mount();',`window.__TG_AUDIT__={state,makeShipment,makeLotRecord,commercialInvoiceDoc,packingListDoc,phytoInvoiceDoc,blDraftDoc,cooDoc,coveringDoc,tgInternalDoc,tgPakistanCoveringDoc,SELLERS};mount();`);
 vm.runInNewContext(source,context,{filename:'app.js'});
 const t=window.__TG_AUDIT__;
 
@@ -65,3 +65,13 @@ for(const html of [internalPack,bankCover]){
   assert.doesNotMatch(html,/intercompany|intra[- ]?group/i);
 }
 console.log('PASS TG route audit: TG customer pack and BRM/TTI Pakistan pack remain legally and financially separate');
+
+// 100% advance is already received; do not make FI/GD settlement conditional again.
+for(const [seller,exporter] of [['TTI','TTI'],['BRM','BRM'],['TG','TTI'],['TG','BRM']])for(const code of ['ADV100','ADV_CAD','CAD100','ADV_SCAN'])for(const refs of ['both','fi','gd','neither']){
+ const c={...structuredClone(contract),seller,paymentCode:code},s=structuredClone(lot);s.seller=seller;
+ Object.assign(s.customs,{exporter,customsPaymentCode:code,fiAllocations:refs==='both'||refs==='fi'?[{number:'FI-QA',amount:100}]:[],gdRefs:refs==='both'||refs==='gd'?[{number:'GD-QA',date:'2026-10-22'}]:[]});
+ const html=t.coveringDoc(s,c,s.covering,seller==='TG'),closing=html.match(/<p class="coverCloseControl">([^<]*)<\/p>/)[1],names={both:'F.I AND GD',fi:'F.I',gd:'GD',neither:''}[refs];
+ const expected='KINDLY RECORD THE ENCLOSED DOCUMENTS'+(names?' AND SETTLE/UTILIZE THE APPLICABLE '+names:'')+(code==='ADV100'?'':' UPON RECEIPT OF PAYMENT')+'.';
+ assert.equal(closing,expected,[seller,exporter,code,refs].join(' / '));if(code==='ADV100')assert.doesNotMatch(html,/UPON RECEIPT OF PAYMENT/);
+}
+console.log('PASS 64 direct/TG advance closing cases: only 100% advance omits the future-payment condition, including FI-only/GD-only/no-reference letters');
