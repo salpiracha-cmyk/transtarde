@@ -28,10 +28,10 @@ with tempfile.TemporaryDirectory(prefix="tt-export-assets-") as folder:
     shutil.copy(root/"exports/runtime_assets.php",target/"exports/runtime_assets.php")
     for name in ["inventory_reconciliation.php","product_stage.php"]:
         shutil.copy(root/name,target/name)
-    (target/"exports/app.js").write_text("const image='assets/TG_sign.png'; const literal='$1';")
+    (target/"exports/app.js").write_text("const image='assets/TG_sign.png'; const bank='assets/TG_pakistan_bank_stamp.png'; const literal='$1';")
     (target/"exports/app.css").write_text("body{color:#222}")
     (target/"exports/release-theme.css").write_text("body{background:white}")
-    for name in ["TTI_header.png","TTI_sign.png","BRM_header.png","BRM_sign.png","TG_header.png","TG_footer.png","TG_sign.png","KCCI_COO_letterpad.jpg"]:
+    for name in ["TTI_header.png","TTI_sign.png","BRM_header.png","BRM_sign.png","TG_header.png","TG_footer.png","TG_sign.png","TG_pakistan_bank_stamp.png","KCCI_COO_letterpad.jpg"]:
         (target/"exports/assets"/name).write_bytes(pixel)
     (target/"auth_store.php").write_text("""<?php
 define('TT_DATA_DIR',__DIR__.'/private');
@@ -71,6 +71,10 @@ function tt_release_read_session():void{}
         assert status==200
         assert b"/export-assets.php?name=TG_sign.png&v=" in script
         assert b"$1" in script
+        assert b"/export-assets.php?name=TG_pakistan_bank_stamp.png&v=" in script
+        assert request("name=TG_pakistan_bank_stamp.png",role="")[0]==401
+        assert request("name=TG_pakistan_bank_stamp.png",role="Mill")[0]==403
+        assert request("name=TG_pakistan_bank_stamp.png")[2]==pixel
         assert headers["Content-Type"].startswith("application/javascript")
         assert request("name=app.js",extra={"If-None-Match":headers["ETag"]})[0]==304
         assert request("name=../auth_store.php")[0]==404
