@@ -59,6 +59,26 @@ with tempfile.TemporaryDirectory(prefix='tti-operation-scope-') as folder:
  saved=json.loads(stored()['tt30queue']);assert saved[1:]==queue[1:] and saved[0]['truck']=='AMENDED'
  for bad in [[{**queue[1],'truck':'FORGED'}],[{**queue[0],'millName':'Other Mill'}],[{**queue[0],'entity':'BRM'}]]:
   before=stored();status,data=write('tt30queue',bad,2);assert status==403 and stored()==before,(bad,status,data)
+ # A stale browser may echo hidden records verbatim; those are not write intents.
+ seed();grant('Mill','queue')
+ status,data=write('tt30queue',[{**queue[0],'truck':'EDITED'},*queue[1:]])
+ assert status==200,(status,data)
+ assert json.loads(data['value'])==[{**queue[0],'truck':'EDITED'}],data
+ assert json.loads(stored()['tt30queue'])==[{**queue[0],'truck':'EDITED'},*queue[1:]]
+ seed();grant('Mill','queue');before=stored()
+ status,data=write('tt30queue',[queue[0],queue[1],queue[1]])
+ assert status==403 and stored()==before,('Duplicate hidden echoes must still fail',status,data)
+ # The same safe carry-through works in nested shipment collections for document saves.
+ seed();grant('Exports','commercial');status,data=request();projected=json.loads(data['values'][k])
+ projected['shipments'][0]['commercial']['invoiceNo']='AMENDED'
+ projected['accountsReceipts']=copy_receipts=json.loads(json.dumps(export['accountsReceipts']))
+ projected['contracts'].append(json.loads(json.dumps(export['contracts'][1])))
+ status,data=write(k,projected,module='Exports');assert status==200,(status,data)
+ assert 'PRIVATE_RECEIPT' not in data['value'] and 'FOREIGN_CONTRACT' not in data['value']
+ saved=json.loads(stored()[k]);assert saved['accountsReceipts']==copy_receipts and saved['contracts'][1]==export['contracts'][1]
+ seed();grant('Exports','commercial');status,data=request();projected=json.loads(data['values'][k])
+ projected['accountsReceipts']=[{**copy_receipts[0],'amount':1}];before=stored()
+ status,data=write(k,projected,module='Exports');assert status==403 and stored()==before,(status,data)
  # Exact workflow View plus company/location restriction applies to root and its ACK.
  seed();grant('Exports','loading')
  status,data=request();assert status==200;visible=json.loads(data['values'][k])

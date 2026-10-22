@@ -257,25 +257,37 @@ function os_identity(mixed $row): string {
     return 'value|'.hash('sha256',tt_inv_json($row));
 }
 /** Rebuild only omitted protected facts; visible omissions retain existing deletion semantics. */
-function os_rebuild(mixed $old,mixed $visible,mixed $incoming): mixed {
+function os_rebuild(mixed $old,mixed $visible,mixed &$incoming): mixed {
     if(!is_array($old)||!is_array($visible)||!is_array($incoming))return $incoming;
     if(array_is_list($old)&&array_is_list($visible)&&array_is_list($incoming)){
         if(operations_same_value($old,$visible))return $incoming;
         if(count($old)===count($visible)&&count($old)===count($incoming)&&!array_filter($old,static fn($r)=>!str_starts_with(os_identity($r),'value|'))){
-            $out=[];foreach($incoming as $i=>$row)$out[]=os_rebuild($old[$i],$visible[$i],$row);return $out;
+            $out=[];foreach($incoming as $i=>&$row)$out[]=os_rebuild($old[$i],$visible[$i],$row);unset($row);return $out;
         }
-        $before=$seen=$submitted=[];
+        $before=$seen=$submitted=$identities=[];
         foreach($old as $row){$id=os_identity($row);if(isset($before[$id]))throw new DomainException('Shared record identities need review.');$before[$id]=$row;}
         foreach($visible as $row)$seen[os_identity($row)]=$row;
-        foreach($incoming as $row){$id=os_identity($row);if(isset($submitted[$id]))throw new DomainException('Shared record identities must be unique.');if(isset($before[$id])&&!isset($seen[$id]))throw new DomainException('A hidden shared record cannot be submitted.');$submitted[$id]=$row;}
+        foreach($incoming as $index=>$row){
+            $id=os_identity($row);if(isset($identities[$id]))throw new DomainException('Shared record identities must be unique.');$identities[$id]=true;
+            if(isset($before[$id])&&!isset($seen[$id])){
+                // An older tab can echo unchanged records after its access narrows.
+                // Keep the server original, discard the echo from the write intent,
+                // and never return it in the actor-scoped acknowledgement.
+                if(!operations_same_value($before[$id],$row))throw new DomainException('A cached record is outside your current access and cannot be changed. Reopen this module and retry your entry. No changes were saved.');
+                unset($incoming[$index]);continue;
+            }
+            $submitted[$id]=$row;
+        }
+        $incoming=array_values($incoming);
         if(count($old)===count($visible)&&operations_same_value($old,$visible))return $incoming;
-        $out=[];foreach($old as $row){$id=os_identity($row);if(!isset($seen[$id]))$out[]=$row;elseif(isset($submitted[$id])){$out[]=os_rebuild($row,$seen[$id],$submitted[$id]);unset($submitted[$id]);}}
-        foreach($submitted as $row)$out[]=$row;return $out;
+        $out=[];$accepted=[];foreach($old as $row){$id=os_identity($row);if(!isset($seen[$id]))$out[]=$row;elseif(isset($submitted[$id])){$out[]=os_rebuild($row,$seen[$id],$submitted[$id]);$accepted[$id]=$submitted[$id];unset($submitted[$id]);}}
+        foreach($submitted as $id=>$row){$out[]=$row;$accepted[$id]=$row;}
+        foreach($incoming as &$row)$row=$accepted[os_identity($row)];unset($row);return $out;
     }
     if($old!==[]&&array_is_list($old)!==array_is_list($incoming)&&$incoming!==[])throw new DomainException('Shared record shape cannot change.');
     $out=$incoming;
     foreach($old as $key=>$value){
-        if(!array_key_exists($key,$visible)){if(array_key_exists($key,$incoming)&&!ep_empty($incoming[$key])&&!operations_same_value($value,$incoming[$key]))throw new DomainException('A hidden shared field cannot be changed.');$out[$key]=$value;}
+        if(!array_key_exists($key,$visible)){if(array_key_exists($key,$incoming)&&!ep_empty($incoming[$key])&&!operations_same_value($value,$incoming[$key]))throw new DomainException('A cached field is outside your current access and cannot be changed. Reopen this module and retry your entry. No changes were saved.');unset($incoming[$key]);$out[$key]=$value;}
         elseif(array_key_exists($key,$incoming))$out[$key]=os_rebuild($value,$visible[$key],$incoming[$key]);
     }
     return $out;
