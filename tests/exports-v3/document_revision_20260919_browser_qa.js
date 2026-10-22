@@ -81,7 +81,7 @@ const reports=[];
  }
  for(const code of ['ADV100','CAD100','ADV_CAD']){
   await fixture('TG','ADV_SCAN',code);await mutate(({s})=>{s.tgdocs.covering.dispatchOriginals=true});
-  const r=await render(await html('cover',true),'TG-cover-'+code,true);assert.equal(r.images.length,0);assert.equal(r.pages,1);assert.ok(r.text.includes('QA-CUSTOMS-601'));assert.equal(r.text.toUpperCase().includes('QA ORIGINAL BANK'),code!=='ADV100');
+  const r=await render(await html('cover',true),'TG-cover-'+code,true);assert.equal(r.images.length,2);assert.ok(r.images.some(image=>image.source.includes('TTI_header')));assert.ok(r.images.some(image=>image.source.includes('TTI_sign')));assert.equal(r.pages,1);assert.ok(r.text.includes('QA-CUSTOMS-601'));assert.equal(r.text.toUpperCase().includes('QA ORIGINAL BANK'),code!=='ADV100');
   assert.ok(r.text.includes('KINDLY RECORD THE ENCLOSED DOCUMENTS AND SETTLE/UTILIZE THE APPLICABLE F.I AND GD UPON RECEIPT OF PAYMENT.'));
   if(code==='ADV_CAD')assert.ok(r.text.includes('USD 15,120.00'));
  }
