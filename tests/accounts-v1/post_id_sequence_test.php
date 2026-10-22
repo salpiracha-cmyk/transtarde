@@ -40,3 +40,6 @@ post_id_check(end($GLOBALS['postIdMutations'])===false,'No backup may run under 
 post_id_check($block[0]==='POST-'.date('Y').'-00081'&&$block[3]==='POST-'.date('Y').'-00084','Batch uses the shared yearly counter');
 post_id_check(tt_next_post_id([], 'Mill','Arrival')==='POST-'.date('Y').'-00085','Other modules continue after the reserved block');
 echo "Universal post ID sequence test passed.\n";
+
+post_id_check(tt_format_post_id(2,26)==='POST-0026-00002','Year always has four digits');
+post_id_check(tt_next_post_id(['POST-0026-00008'=>['id'=>'POST-0026-00008']], 'Accounts','Journal','0026-09-22')==='POST-0026-00009','Existing padded-year IDs set the sequence minimum');

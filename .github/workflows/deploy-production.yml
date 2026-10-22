@@ -223,6 +223,7 @@ jobs:
           # Convert historical journals and their links; keep supplier references.
           if ! post_id_migration_result=$(php -d display_errors=stderr -d zend.exception_ignore_args=1 "$target/scripts/migrate_accounts_post_ids.php" --apply); then
             tar -xzf "$backup" -C "$target"
+            printf '%s\n' "$post_id_migration_result"
             echo "Post ID migration failed; code restored. Check migration output for private-data restoration status."
             exit 1
           fi

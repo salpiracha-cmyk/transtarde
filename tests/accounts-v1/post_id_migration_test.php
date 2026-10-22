@@ -32,3 +32,13 @@ migration_check($migrated['supplierBills']['205']['journalId']==='POST-2026-0005
 migration_check($migrated['journals']['POST-2026-00049']['legacyPostId']==='AUTO-2026-00049','Legacy ID must remain available for audit.');
 migration_check(tt_post_migration_plan($migrated)['map']===[],'Migration must be idempotent.');
 echo "Post ID migration test passed.\n";
+
+// A date typed as 0026 previously produced POST-26 and blocked every deploy.
+$shortYear=['journals'=>['POST-26-00002'=>['id'=>'POST-26-00002','date'=>'0026-09-22','lines'=>[['account'=>'1110','credit'=>115]]]],'expenses'=>[['journalId'=>'POST-26-00002']]];
+$shortPlan=tt_post_migration_plan($shortYear);$fixed=tt_post_migration_apply($shortYear,$shortPlan);tt_post_migration_validate($fixed,$shortPlan);
+migration_check(isset($fixed['journals']['POST-0026-00002']),'Normalize the year without changing its serial.');
+migration_check($fixed['journals']['POST-0026-00002']['date']==='0026-09-22','Do not silently correct a business date.');
+migration_check($fixed['journals']['POST-0026-00002']['lines']===$shortYear['journals']['POST-26-00002']['lines'],'Preserve financial lines.');
+migration_check($fixed['expenses'][0]['journalId']==='POST-0026-00002','Preserve source links.');
+migration_check(tt_post_migration_plan($fixed)['map']===[],'Padded year migration is idempotent.');
+echo "Short-year Post ID migration regression passed.\n";

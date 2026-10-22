@@ -2,7 +2,7 @@
 declare(strict_types=1);
 
 function tt_post_migration_year(string $legacyId, array $journal): int {
-    if (preg_match('/^[A-Z][A-Z0-9_]*-(\d{4})-\d+$/i', $legacyId, $match)) return (int)$match[1];
+    if (preg_match('/^[A-Z][A-Z0-9_]*-(\d{1,4})-\d+$/i', $legacyId, $match)) return (int)$match[1];
     foreach (['date', 'createdAt'] as $field) {
         if (preg_match('/^(\d{4})-/', (string)($journal[$field] ?? ''), $match)) return (int)$match[1];
     }
@@ -10,14 +10,14 @@ function tt_post_migration_year(string $legacyId, array $journal): int {
 }
 
 function tt_post_migration_number(string $legacyId): ?int {
-    if (!preg_match('/^[A-Z][A-Z0-9_]*-\d{4}-(\d+)$/i', $legacyId, $match)) return null;
+    if (!preg_match('/^[A-Z][A-Z0-9_]*-\d{1,4}-(\d+)$/i', $legacyId, $match)) return null;
     $number=(int)$match[1];
     return $number > 0 && $number <= 99999 ? $number : null;
 }
 
 function tt_post_migration_format(int $year, int $number): string {
     if ($number < 1 || $number > 99999) throw new RuntimeException('Yearly Post ID limit reached during migration.');
-    return 'POST-'.$year.'-'.str_pad((string)$number, 5, '0', STR_PAD_LEFT);
+    return 'POST-'.str_pad((string)$year,4,'0',STR_PAD_LEFT).'-'.str_pad((string)$number, 5, '0', STR_PAD_LEFT);
 }
 
 function tt_post_migration_plan(array $accounts): array {
@@ -44,7 +44,7 @@ function tt_post_migration_plan(array $accounts): array {
         $old=$entry['id'];$year=tt_post_migration_year($old,$entry['journal']);
         // AUTO IDs came from the first universal sequence and retain their
         // number. Module-local IDs are assigned above the universal maximum.
-        $preferred=str_starts_with($old,'AUTO-')?tt_post_migration_number($old):null;
+        $preferred=(str_starts_with($old,'AUTO-')||preg_match('/^POST-\d{1,3}-\d{5}$/',$old))?tt_post_migration_number($old):null;
         if ($preferred !== null) {
             $candidate=tt_post_migration_format($year,$preferred);
             if (isset($used[$candidate])) $preferred=null;
