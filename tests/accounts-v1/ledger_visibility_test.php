@@ -28,3 +28,19 @@ check(array_sum(array_column($trial,'debit'))===array_sum(array_column($trial,'c
 check(in_array('MAPCO',array_column($trial,'party'),true),'Party is read from its own leg');
 check(in_array('Unassigned / company',array_column($trial,'party'),true),'Bank is not incorrectly attributed to MAPCO');
 echo "Cancellation pairs, earlier as-of dates, incomplete reversals, immutable audit and party trial balance passed\n";
+
+// A backdated expense amendment must cancel the old payment at its own date.
+$s=$before;$s['journals']['A']['amendedByPostId']='B';
+$s['journals']['B']['meta']['amendmentOf']='A';
+$s['journals']['B']['date']='2026-09-02';
+$stored=$s;$projected=alv_amendment_books($s);
+check($s===$stored,'Legacy correction projection never rewrites stored audit data');
+check($projected['journals']['R']['date']==='2026-09-01','Legacy edit-day reversal takes original effective posting date');
+check(isset(alv_hidden($s,'2026-09-03')['A'],alv_hidden($s,'2026-09-03')['R']),'Historical report suppresses both original and correction reversal');
+check(alv_amendment_books($projected)===$projected,'Projection is idempotent');
+$bad=$s;$bad['journals']['B']['meta']['amendmentOf']='UNRELATED';check(alv_amendment_books($bad)===$bad,'Public IDs alone must never deduplicate unrelated payments');
+$bad=$s;$bad['journals']['R']['lines'][0]['credit']=40;check(alv_amendment_books($bad)===$bad,'Incomplete cancellation remains visible for review');
+$bad=$s;$bad['journals']['B']['entity']='TG';check(alv_amendment_books($bad)===$bad,'Cross-entity replacement cannot change cancellation dates');
+$bad=$s;$bad['journals']['R']['lines'][1]['bankDebit']=100;check(alv_amendment_books($bad)===$bad,'Native bank amounts must cancel too');
+$bad=$s;$bad['journals']['RR']=journal('RR','2026-10-12',$lines,'R');check(alv_amendment_books($bad)===$bad,'Reversal of reversal must retain its actual date');
+echo "Historical amendment cancellation, strict linked identity, native amounts and immutable projection passed\n";

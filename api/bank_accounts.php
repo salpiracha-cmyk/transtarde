@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__.'/tg_remittance_core.php';
+require_once __DIR__.'/accounts_ledger_visibility.php';
 
 require_once dirname(__DIR__) . '/auth_store.php';
 header('Content-Type: application/json; charset=UTF-8');
@@ -95,6 +96,7 @@ function ba_journal_as_of(array $journal,string $entity,string $date): bool {
     return ($journal['status']??'')==='Posted'&&($journal['entity']??'')===$entity&&$parsed&&$parsed->format('Y-m-d')===$day&&$day<=$date;
 }
 function ba_balance(array $store,string $entity,string $bankId,string $currency,?string $asOf=null): float {
+    $store=alv_amendment_books($store);
     $bal=0.0;$currency=strtoupper(trim($currency));$date=ba_balance_date($asOf);
     foreach((array)($store['journals']??[]) as $j){
         if(!is_array($j)||!ba_journal_as_of($j,$entity,$date))continue;
@@ -109,6 +111,7 @@ function ba_balance(array $store,string $entity,string $bankId,string $currency,
     return round($bal,2);
 }
 function ba_cash_balance(array $store,string $entity,?string $asOf=null): float {
+    $store=alv_amendment_books($store);
     $bal=0.0;$date=ba_balance_date($asOf);
     foreach((array)($store['journals']??[]) as $j){
         if(!is_array($j)||!ba_journal_as_of($j,$entity,$date))continue;
@@ -117,6 +120,7 @@ function ba_cash_balance(array $store,string $entity,?string $asOf=null): float 
     return round($bal,2);
 }
 function ba_unassigned_bank_balance(array $store,string $entity,?string $asOf=null): float {
+    $store=alv_amendment_books($store);
     $bal=0.0;$date=ba_balance_date($asOf);
     foreach((array)($store['journals']??[]) as $j){
         if(!is_array($j)||!ba_journal_as_of($j,$entity,$date))continue;

@@ -360,6 +360,27 @@ require $argv[1];
     before=books.read_bytes();status,retry=request('expenses_v1','?entity=TTI',correction)
     assert status==200 and retry['result']['journalId']==fixed['journalId'] and books.read_bytes()==before
     print('Future expense amendment preview, original-date cancellation, cutoffs, identity and retry passed.')
+    # Editing an old expense today must not double it in the 5 October books.
+    books.write_text(json.dumps(initial))
+    past={**future,'requestKey':'historical-original','paymentDate':'2026-07-10','bankPaymentDate':'2026-07-10','reference':'HISTORICAL-1','amount':15000,'expenseLines':[{'category':'HOME','purpose':'Water tanker','amount':15000}]}
+    status,ack=request('expenses_v1','?entity=TTI',past);assert status==200,(status,ack)
+    original=ack['result']
+    edit={**past,'action':'amend_expense','id':original['generalExpenseId'],'requestKey':'historical-edit','reason':'Correct recipient spelling','payee':'Talha'}
+    status,ack=request('expenses_v1','?entity=TTI',edit);assert status==200,(status,ack)
+    fixed=ack['result'];saved=json.loads(books.read_text());rid=fixed['reversalJournalIds'][0]
+    assert saved['journals'][rid]['date']=='2026-07-10'
+    # Simulate a pre-fix amendment on disk, preserving its original audit bytes.
+    saved['journals'][rid]['date']='2026-10-22';books.write_text(json.dumps(saved));before=books.read_bytes()
+    status,ledger=request('accounts_ledger_browser','?entity=TTI&category=bank&account=BANK|BANK-1&from=2026-07-01&to=2026-10-05');assert status==200,(status,ledger)
+    assert ledger['closing']==-15000,ledger
+    assert len([r for r in ledger['rows'] if r.get('publicPostId')==original['journalId']])==1,ledger
+    status,report=request('accounts_reports','?entity=TTI&from=2026-07-01&asOf=2026-10-05');assert status==200,(status,report)
+    assert report['trialBalance']['balanced']
+    bank=next((r for r in report['trialBalance']['rows'] if str(r['account'])=='1110'), None)
+    assert bank is not None,report['trialBalance']
+    assert bank['credit']-bank['debit']==15000,bank
+    assert books.read_bytes()==before,'Read-only repair must preserve historical audit bytes'
+    print('Historical expense edit counted once at bank/report cutoff; legacy audit preserved')
     # Director payable/recovery subledgers remain distinct under their combined parent.
     store={'journals':{},'salaryMasters':{'D':{'id':'D','entity':'TTI','name':'SALMAN','category':'DIRECTOR_REMUNERATION','monthlyAmount':75000,'zakatAmount':0,'otherAllowance':0,'accountingTreatment':'STAFF_COST','status':'Active','effectiveFrom':'2026-07-01'},'H':{'id':'H','entity':'TTI','name':'MRS SRP','category':'HOME_MONTHLY_GIVE','monthlyAmount':300000,'zakatAmount':0,'otherAllowance':0,'accountingTreatment':'FAMILY_ALLOCATION','status':'Active','effectiveFrom':'2026-07-01'}}}
     books.write_text(json.dumps(store));status,result=request('rent_salary_v2','?entity=TTI&month=2027-02',{'action':'prepare_month','csrf':'fixture','entity':'TTI','month':'2027-02'});assert status==200,(status,result)

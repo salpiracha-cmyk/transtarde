@@ -18,6 +18,7 @@ function br_banks(array $s,string $entity):array {
  }usort($out,static fn($a,$b)=>strcmp($a['display'],$b['display']));return $out;
 }
 function br_txns(array $s,string $entity,string $bankId,string $toDate,string $currency=''):array {
+ $s=alv_amendment_books($s);
  $rows=[];$book=0.0;$missing=false;$base=$entity==='TG'?'AED':'PKR';$hidden=alv_hidden($s,$toDate);
  foreach((array)($s['journals']??[]) as $jid=>$j){
   if(!is_array($j)||($j['status']??'')!=='Posted'||($j['entity']??'')!==$entity)continue;

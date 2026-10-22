@@ -26,3 +26,10 @@ check(!tt_accounts_reference_matches('10','AUTO-2026-000009'),'Wrong reference s
 $optional=tt_accounts_bank_payment_details(['paymentAccountId'=>'bank-a','date'=>'2026-10-01','bankPaymentMethod'=>'ONLINE_BANKING']);check($optional['bankReference']==='','Online reference must be optional.');
 $legacy=tt_accounts_bank_payment_details(['paymentAccountId'=>'bank-a','date'=>'2026-10-01','bankPaymentMethod'=>'BANK_TRANSFER']);check($legacy['bankPaymentMethod']==='ONLINE_BANKING','Legacy method must normalize to online banking.');
 try{tt_accounts_bank_payment_details(['paymentAccountId'=>'bank-a','date'=>'2026-10-01']);throw new RuntimeException('Default cheque accepted without number.');}catch(DomainException){}
+
+foreach(['239','0239','00239','2026-239'] as $term)check(tt_accounts_reference_matches($term,'POST-2026-00239'),'Post 239 must be found without its prefix or leading zeros');
+foreach(['239','1239'] as $term)check(tt_accounts_reference_matches($term,'POST-2026-01239'),'Last three/four digits must find the posting');
+check(tt_accounts_reference_matches('1239','POST-2026-11239-JV'),'Four digit suffix finds historical JV labels');
+check(!tt_accounts_reference_matches('1240','POST-2026-01239'),'Different suffix must not match');
+check(!tt_accounts_reference_matches('2026','POST-2026-01239'),'A bare year must not match a serial suffix');
+echo "PASS zero-padded Post IDs and three/four digit suffix search\n";

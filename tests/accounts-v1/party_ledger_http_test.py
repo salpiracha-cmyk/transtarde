@@ -7,7 +7,7 @@ with tempfile.TemporaryDirectory(prefix='party-ledger-qa-') as temp:
     root = pathlib.Path(temp)
     for folder in ['api', 'data', 'accounts']:
         (root/folder).mkdir()
-    for name in ['supplier_opening_core.php','accounts_subaccounts_core.php','accounts_ledger_visibility.php','assets_registry_core.php','service_ledger_groups.php','accounts_ledger_browser.php','accounts_read_policy.php','accounts_post_delete_core.php','accounts_post_delete_tg.php','tg_native_currency.php', 'accounts_reference.php', 'tg_remittance_core.php', 'fi_credit_advice_link.php', 'receipt_invoice_links.php','customer_receivables_core.php', 'tg_native_currency.php']:
+    for name in ['supplier_opening_core.php','accounts_subaccounts_core.php','accounts_ledger_visibility.php','assets_registry_core.php','service_ledger_groups.php','accounts_ledger_browser.php','accounts_read_policy.php','accounts_post_delete_core.php','accounts_post_delete_tg.php','tg_native_currency.php', 'accounts_reference.php', 'accounts_search.php', 'tg_remittance_core.php', 'fi_credit_advice_link.php', 'receipt_invoice_links.php','customer_receivables_core.php', 'tg_native_currency.php']:
         shutil.copy(ROOT/'api'/name, root/'api'/name)
     for path in (ROOT/'accounts').glob('*.json'):
         shutil.copy(path, root/'accounts'/path.name)
@@ -20,6 +20,7 @@ with tempfile.TemporaryDirectory(prefix='party-ledger-qa-') as temp:
     function tt_require_login(){return ['id'=>1,'role'=>'Staff','permissions'=>['Accounts'=>'all']];}
     function tt_user_can_open_module($u,$m){return ($_GET['denyModule']??'')!=='1';}
     function tt_user_can_access_entity($u,$e,$a){return $e!=='BRM';}
+    function tt_user_accounts_entities($u){return ['TTI','TG'];}
     function tt_list_masters(){return ['business_parties'=>[['id'=>'P1','values'=>['ACME Rice','HKM']]]];}
     ''')
     # Exercise the actual production permission helper with this disposable identity.
@@ -94,6 +95,19 @@ with tempfile.TemporaryDirectory(prefix='party-ledger-qa-') as temp:
         assert result['rows'][-1]['voucher']=='POST-2026-00006'
         assert result['rows'][-1]['balance']==-35
         assert get(party='ACME Rice',q='2')[1]['rows'][0]['voucher']=='POST-2026-00002'
+        fixture=json.loads(path.read_text())
+        j=journal('POST-2026-01999','2026-07-15',[line('1110',credit=12,bankAccountId='BANK-1'),line('6900',debit=12)],meta={'publicPostId':'POST-2026-01239'})
+        fixture['journals'][j['id']]=j;path.write_text(json.dumps(fixture));snapshot=path.read_bytes()
+        for term in ['239','1239','01239']:
+            status,found=get(category='other',account='POSTS',q=term)
+            assert status==200 and any(r['voucher']==j['id'] for r in found['rows']),(term,found)
+            url=f'http://127.0.0.1:{port}/api/accounts_search.php?'+urllib.parse.urlencode({'entity':'TTI','q':term})
+            with urllib.request.urlopen(url,timeout=5) as response: searched=json.load(response)
+            assert any(r['data'].get('id')==j['id'] for r in searched['results']),(term,searched)
+
+        assert path.read_bytes()==snapshot,'Suffix search must not change saved vouchers'
+        path.write_bytes(original)
+
         assert get(party='ACME Rice',postId='POST-2026-00002')[1]['post']['lines'][1]['account']=='1110'
         assert get(party='HKM')[1]['closing']==-35, 'Saved party codes resolve to the same canonical ledger'
         status,register=get(category='other',account='POSTS');assert status==200 and any(r['voucher']=='POST-2026-00003' for r in register['rows']), 'Non-cash journals must be in the Post ID Register'
