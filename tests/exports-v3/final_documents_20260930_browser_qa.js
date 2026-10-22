@@ -51,6 +51,7 @@ assert.equal(lot.certs.find(row=>row.type==='Phytosanitary Certificate').referen
 assert.ok(t.finalShipmentDocuments(lot,contract).some(row=>row.name==='Phytosanitary Certificate'&&row.ready));
 assert.equal(t.finalShipmentDocuments(lot,contract).filter(row=>row.name==='Certificate of Origin').length,1);
 assert.ok(!t.finalShipmentDocuments(lot,contract).some(row=>/Origin Draft|Phytosanitary Invoice|Custom Packing/i.test(row.name)));
+const savedTGPack={...lot,seller:'TG',tgdocs:{saved:true,covering:{saved:false}}};assert.ok(t.finalShipmentDocuments(savedTGPack,{...contract,seller:'TG'}).find(row=>row.key==='tgCover').ready,'Saved TG pack includes its covering letter despite a stale separate saved flag and no dispatch date');
 // Folder routing uses the buyer customer for every exporter, independent of the TG remitter.
 for(const route of ['TTI','BRM','TG']){
  const fixture=structuredClone(lot),agreement=structuredClone(contract);fixture.seller=agreement.seller=route;
