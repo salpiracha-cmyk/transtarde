@@ -67,6 +67,7 @@ jobs:
           python3 tests/accounts-v1/expense_invoice_http_test.py
           python3 tests/accounts-v1/financial_report_classification_http_test.py
           python3 tests/accounts-v1/master_family_roundtrip_http_test.py
+          python3 tests/accounts-v1/dashboard_commodity_dues_http_test.py
           python3 tests/security/office_delivery_http_test.py
           python3 tests/security/office_document_policy_test.py
           python3 tests/security/office_document_http_test.py
