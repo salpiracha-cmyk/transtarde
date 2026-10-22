@@ -96,6 +96,35 @@ with tempfile.TemporaryDirectory(prefix='tti-operation-scope-') as folder:
  status,data=write(k,forged,2,module='Exports');assert status==403 and stored()==before,(status,data)
  grant('Exports','commercial');status,data=request();assert 'PRIVATE_EXPORT_PRICE' in data['values'][k] and 'PRIVATE_COMMERCIAL' in data['values'][k] and 'PRIVATE_RECEIPT' not in data['values'][k]
 
+ # TG commercial shipments have a proven TTI/BRM physical exporter on their lot.
+ # Their loading sources must not disappear from a permitted user's projection.
+ import copy
+ cross=copy.deepcopy(export);cross['contracts'][0]['seller']='TG';cross['shipments'][0]['seller']='TG';cross['shipments'][0]['customs']['exporter']='TTI'
+ original_root=initial[k];initial[k]=json.dumps(cross)
+ instruction={'id':'TG-LOAD','_ttBridge':'exports','_ttBridgeId':'L1|TTI-C|L01|0','entity':'TTI','contractRef':'TTI-C','shipmentId':'L1','mill':'TTI Rice Mills','loadingComplete':False,'baseVariety':'Rice'}
+ initial['tt40exinstructions']=json.dumps([instruction])
+ mill_source={**instruction,'id':'TG-MILL','_ttShipmentId':'L1'};mill_source.pop('shipmentId');initial['tt30ship']=json.dumps([mill_source])
+ for role in ['Staff','Director','Super Admin']:
+  seed();user['role']=role;grant('Exports','loading')
+  user['permissions']['Accounts']['entity-tg']=['View','Create','Edit'];auth.write_text(json.dumps({'users':[user],'masters':{},'audit':[],'settings':{'master_permission_schema':2,'qa_account_seeded':True}}))
+  status,data=request();assert status==200,(role,status,data)
+  assert json.loads(data['values']['tt40exinstructions'])==[instruction],(role,data)
+  assert json.loads(data['values']['tt30ship'])==[mill_source],(role,data)
+  # A derived refresh may amend the same authorized physical source.
+  status,data=write('tt40exinstructions',[{**instruction,'baseVariety':'Updated Rice'}],module='Exports')
+  assert status==200,(role,status,data)
+ user['role']='Staff';seed();grant('Exports','loading');status,data=request()
+ for invalid in [{**instruction,'entity':'BRM'},{**instruction,'shipmentId':'UNKNOWN'},{**instruction,'contractRef':'FOREIGN_CONTRACT'}]:
+  before=stored();status,data=write('tt40exinstructions',[invalid],module='Exports')
+  assert status==403 and stored()==before,(status,data)
+ # The BRM exporter is also valid when the linked lot selects BRM.
+ initial.pop('tt30ship')
+ cross['shipments'][0]['customs']['exporter']='BRM'
+ initial[k]=json.dumps(cross);initial['tt40exinstructions']=json.dumps([{**instruction,'entity':'BRM'}])
+ seed();grant('Exports','loading');user['permissions']['Exports']['fi']=['View'];user['permissions']['Accounts']['entity-brm']=['View','Create','Edit'];user['permissions']['Accounts']['entity-tg']=['View','Create','Edit']
+ auth.write_text(json.dumps({'users':[user],'masters':{},'audit':[],'settings':{'master_permission_schema':2,'qa_account_seeded':True}}))
+ status,data=request();assert status==200 and json.loads(data['values']['tt40exinstructions'])[0]['entity']=='BRM',(status,data)
+ initial[k]=original_root;initial.pop('tt40exinstructions');seed();grant('Exports','loading')
  # Copied production instructions remain physical, including inherited loading options.
  seed();grant('Exports','production');status,data=request();assert status==200
  projected=json.loads(data['values'][k]);assert 'PRIVATE_' not in json.dumps(projected),projected
