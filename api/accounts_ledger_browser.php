@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once dirname(__DIR__).'/document_filenames.php';
 
 require dirname(__DIR__).'/auth_store.php';
 require_once __DIR__.'/accounts_reference.php';
@@ -304,7 +305,7 @@ usort($rows,static function(array $a,array $b)use($postEntries):int{
 if(($_GET['format']??'')==='csv'){
     usort($rows,static fn($a,$b)=>strcmp($a['date'],$b['date'])?:strnatcmp($a['voucher'],$b['voucher']));
     header('Content-Type: text/csv; charset=UTF-8');
-    header('Content-Disposition: attachment; filename="'.preg_replace('/[^A-Z0-9_-]/i','',$entity.'-ledger-'.$from.'-'.$to).'.csv"');
+    tt_document_disposition(tt_document_name(['party'=>$party?:($banks[$bankId]['name']??''),'company'=>$entity,'title'=>$postEntries?'Post ID Register':'Ledger','from'=>$from,'to'=>$to,'extension'=>'csv']),true);
     $out=fopen('php://output','w');fwrite($out,"\xEF\xBB\xBF");
     if($postEntries){
         fputcsv($out,[$workflowRegister?'Post ID Register · Permitted workflows':'Post ID Register',$registerEntity?:'All authorised companies','From',$from,'To',$to]);

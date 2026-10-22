@@ -1735,7 +1735,7 @@
     const data=[header,...filteredAuditEntries().map(item=>[userActivityStamp(item.date),item.user,item.area,item.action,item.detail,item.ref,item.source])];
     const csv=data.map(row=>row.map(cell=>`"${(/^[=+@\-\t\r]/.test(String(cell??""))?"'":"")+String(cell??"").replaceAll('"','""')}"`).join(",")).join("\n");
     const url=URL.createObjectURL(new Blob([csv],{type:"text/csv"}));
-    const link=document.createElement("a");link.href=url;link.download=`Transtrade_Audit_${new Date().toISOString().slice(0,10)}.csv`;link.click();URL.revokeObjectURL(url);
+    const link=document.createElement("a");link.href=url;link.download=(window.TT_DOCUMENT_NAME?.clean(`Transtrade_Audit_${new Date().toISOString().slice(0,10)}.csv`,220)||(`Transtrade_Audit_${new Date().toISOString().slice(0,10)}.csv`));link.click();URL.revokeObjectURL(url);
     toast("Audit download prepared.");
   }
 
@@ -1804,7 +1804,7 @@
       }
       const blob = await response.blob();
       const url = URL.createObjectURL(blob); const link = document.createElement("a");
-      link.href = url; link.download = backupFileName(response, isFull ? "TRANSTRADE_FULL_BACKUP.zip" : "TRANSTRADE_BUSINESS_DATA.zip");
+      link.href = url; link.download =(window.TT_DOCUMENT_NAME?.clean( backupFileName(response, isFull ? "TRANSTRADE_FULL_BACKUP.zip" : "TRANSTRADE_BUSINESS_DATA.zip"),220)||(backupFileName(response, isFull ? 'TRANSTRADE_FULL_BACKUP.zip' : 'TRANSTRADE_BUSINESS_DATA.zip')));
       document.body.appendChild(link); link.click(); link.remove(); window.setTimeout(() => URL.revokeObjectURL(url), 1000);
       addAudit("Backup", "Downloaded", isFull ? "Complete Transtrade recovery backup downloaded" : "Readable business-data backup downloaded", isFull ? "FULL-BACKUP" : "BUSINESS-DATA");
       saveState(); renderAudit(); toast(isFull ? "Complete encrypted backup downloaded." : "Business data downloaded.");

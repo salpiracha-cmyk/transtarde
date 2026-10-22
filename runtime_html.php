@@ -17,6 +17,10 @@ function tt_replace_html_once(string $pattern, callable $replacement, string $ht
 function tt_version_local_assets(string $html, string $basePath='/', ?string $assetRoot=null): string {
     $root=realpath($assetRoot ?? __DIR__);
     if($root===false)throw new RuntimeException('Application asset directory is unavailable.');
+    // All live modules share the same user-facing download/print naming rules.
+    if(is_file($root.'/document-filenames.js')&&!str_contains($html,'src="/document-filenames.js')){
+        $html=preg_replace_callback('/<head\b[^>]*>/i',static fn($m)=>$m[0].'<script src="/document-filenames.js"></script>',$html,1)??$html;
+    }
     $versions=[];$offset=0;$result='';
     // Scan opening tags only. Large inline modules must not hit PCRE's
     // backtracking limit, and script strings must never be treated as HTML.

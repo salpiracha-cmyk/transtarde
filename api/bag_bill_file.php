@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once dirname(__DIR__).'/document_filenames.php';
 require dirname(__DIR__).'/auth_store.php';
 require dirname(__DIR__).'/upload_validation.php';
 require __DIR__.'/accounts_document_access.php';
@@ -10,9 +11,9 @@ try{
  if($_SERVER['REQUEST_METHOD']==='GET'){
    if(!tt_accounts_document_view($u,['purchases']))bf_out(['ok'=>false,'error'=>'Bag purchases View permission required.'],403);
    $token=(string)($_GET['file']??'');if($token==='')bf_out(['ok'=>false,'error'=>'File reference required.'],422);
-   tt_accounts_document_owner($u,$token,'bagSupplierBills','attachmentToken');
+   $owner=tt_accounts_document_owner($u,$token,'bagSupplierBills','attachmentToken','',$documentRecord);
    $path=TT_BAG_UPLOAD_DIR.'/'.$token;if(!is_file($path)){http_response_code(404);exit('File not found.');}
-   $ext=strtolower(pathinfo($path,PATHINFO_EXTENSION));$types=['pdf'=>'application/pdf','jpg'=>'image/jpeg','jpeg'=>'image/jpeg','png'=>'image/png'];header('Content-Type: '.($types[$ext]??'application/octet-stream'));header('Content-Disposition: inline; filename="'.basename($path).'"');header('Content-Length: '.filesize($path));tt_uploaded_document_headers();readfile($path);exit;
+   $ext=strtolower(pathinfo($path,PATHINFO_EXTENSION));$types=['pdf'=>'application/pdf','jpg'=>'image/jpeg','jpeg'=>'image/jpeg','png'=>'image/png'];header('Content-Type: '.($types[$ext]??'application/octet-stream'));tt_document_disposition(tt_document_name(['party'=>$documentRecord['supplier']??$documentRecord['seller']??'','company'=>$owner,'title'=>'Bag Supplier Invoice','reference'=>$documentRecord['sellerInvoice']??$documentRecord['sellerInvoiceNo']??$documentRecord['invoiceNo']??$documentRecord['id']??'','date'=>$documentRecord['sellerInvoiceDate']??'','extension'=>$ext]));header('Content-Length: '.filesize($path));tt_uploaded_document_headers();readfile($path);exit;
  }
  if($_SERVER['REQUEST_METHOD']!=='POST')bf_out(['ok'=>false,'error'=>'Method not allowed.'],405);
  $entity=strtoupper(trim((string)($_POST['entity']??'')));if(!in_array($entity,['TTI','BRM'],true)||!tt_api_record_entity_allowed($u,['entity'=>$entity],$entity))bf_out(['ok'=>false,'error'=>'Select an authorized company for the bill upload.'],403);

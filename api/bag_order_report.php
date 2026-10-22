@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once dirname(__DIR__).'/document_filenames.php';
 require dirname(__DIR__).'/auth_store.php';
 require_once __DIR__.'/accounts_shipment_source.php';
 require_once __DIR__.'/bag_order_report_core.php';
@@ -25,7 +26,7 @@ try{
     $orders=bor_original_dates((array)($store['bagPurchaseOrders']??[]),(array)($values['transtrade_export_v3_operational']??[]),$entity);
     $report=bor_report($orders,(array)($values['tt30bags']??[]),(array)($values['tt33bagreceipts']??[]),$entity,$filters,(array)($values['tt41bagtransfers']['receiptDispositions']??[]));
     if(($_GET['format']??'')==='csv'){
-        header('Content-Type: text/csv; charset=UTF-8');header('Content-Disposition: attachment; filename="bag-orders-'.$entity.'-'.$filters['from'].'-'.$filters['to'].'.csv"');$file=fopen('php://output','w');fwrite($file,"\xEF\xBB\xBF");
+        header('Content-Type: text/csv; charset=UTF-8');tt_document_disposition(tt_document_name(['party'=>$filters['supplier'],'company'=>$entity,'title'=>'Bag Orders and Receipts','from'=>$filters['from'],'to'=>$filters['to'],'extension'=>'csv']),true);$file=fopen('php://output','w');fwrite($file,"\xEF\xBB\xBF");
         $write=static function(array $cells)use($file):void{fputcsv($file,array_map(static fn($value)=>is_string($value)&&preg_match('/^[\s]*[=+@-]/',$value)?"'".$value:$value,$cells),',','"','');};
         $write(['Company',$entity,'From',$filters['from'],'To',$filters['to'],'Basis',$filters['basis']]);foreach(['brand','supplier','bagType','packingSize','q'] as $key)$write([$key,$filters[$key]]);foreach($report['warnings'] as $warning)$write(['Review',$warning]);
         $keys=['orderDate','poNo','lineKey','supplier','brand','bagType','packingSize','shipment','orderedInPeriod','receivedInPeriod','receivedThroughEnd','netReceivedThroughEnd','returnedInPeriod','returnedCurrent','quarantinedCurrent','ordered','receivedCurrent','outstandingCurrent','undatedReceived'];
