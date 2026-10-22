@@ -11,3 +11,19 @@ data.salaryPayments[0].transaction.paymentAccountId='UNAVAILABLE';w.testSalary.s
 data.salaryMasters=[['M','MILL_STAFF'],['H','HOME_STAFF'],['O','OFFICE_STAFF'],['D','DIRECTOR_REMUNERATION'],['W','HOME_MONTHLY_GIVE']].map(([id,category])=>({id,name:id,category,monthlyAmount:1000,status:'Active'}));
 q('#expenseEditor').innerHTML=w.testSalary.masters();assert.equal(w.document.querySelectorAll('[data-rs-group]').length,4);assert.equal(w.document.querySelectorAll('[data-rs-remove]').length,5);assert.equal(w.document.querySelector('[data-rs-group="MASTER_DIRECTORS"] tbody').rows.length,2);
 w.close();console.log('PASS compact completed sheet, searchable payment list, focused amendment, saved reference, editable allocations, cancel preservation and unavailable-bank protection');
+
+// The real Save handler must not dismiss the modal before server acknowledgement.
+(async()=>{
+ const t=new JSDOM('<dialog id="rsPaymentPopup" open><form id="rsDraftForm"><input id="rsRecovery" value="0"><input id="savedCash" value="250"><button id="rsPaySalBtn">Save payment</button><button id="rsDraftCancel">Cancel</button></form></dialog>',{runScripts:'outside-only'}),v=t.window;
+ v.HTMLDialogElement.prototype.close=function(){this.open=false};
+ const source=fs.readFileSync('accounts/rent-salary-ui.js','utf8');
+ const handler=source.slice(source.indexOf('async function saveTransactions(){'),source.indexOf('\n\nfunction confirmSalaryChange'));
+ let acknowledge,calls=0;v.q=s=>v.document.querySelector(s);v.data={salarySheet:{version:1}};v.busy=false;v.payingMaster='Bob';v.directorPlan=()=>false;v.familyTransactions=()=>[{amount:250}];v.toast=()=>{};
+ v.post=async(body,msg,onSaved)=>{calls++;v.busy=true;try{const result=await new Promise(resolve=>{acknowledge=resolve});if(result)onSaved(result);return result}finally{v.busy=false}};
+ v.eval(handler+';window.saveDraft=saveTransactions');
+ const dialog=v.q('#rsPaymentPopup');dialog.addEventListener('cancel',()=>dialog.remove());let pending=v.saveDraft();assert(dialog.open&&dialog.isConnected,'Save must retain the modal while waiting');assert(v.q('#rsPaySalBtn').disabled);assert(v.q('#savedCash').disabled);assert(v.q('#rsDraftCancel').disabled);
+ const cancel=new v.Event('cancel',{cancelable:true});dialog.dispatchEvent(cancel);assert(cancel.defaultPrevented&&dialog.isConnected,'Escape must not discard an in-flight save');await v.saveDraft();assert.equal(calls,1,'Repeated clicks must not save twice');
+ acknowledge(null);await pending;assert(dialog.open&&dialog.isConnected,'Rejected save must retain draft');assert.equal(v.q('#savedCash').value,'250');assert(!v.q('#savedCash').disabled);assert.equal(v.payingMaster,'Bob');
+ pending=v.saveDraft();assert(dialog.isConnected);acknowledge({ok:true});await pending;assert.equal(v.q('#rsPaymentPopup'),null,'Close only after acknowledged success');assert.equal(v.payingMaster,'');
+ v.close();console.log('PASS salary Save waits for acknowledgement, blocks duplicate clicks/cancel, preserves rejected draft and closes after success');
+})().catch(e=>{console.error(e);process.exitCode=1});
