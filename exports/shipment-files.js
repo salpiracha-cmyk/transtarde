@@ -160,6 +160,7 @@ function zip(entries,type){const encoder=new TextEncoder();return zipBytes(Objec
 	function cleanUploadName(name){return component(String(name||'Document').replace(/^uploaded\s*[-_ ]*/i,''))}
 	function docCategory(name,key=''){
 	 const text=(String(key||'')+' '+String(name||'')).toLowerCase();
+	 if(/\btgproforma|pakistan.*(?:sales contract|proforma)/.test(text))return'tgProforma';
 	 if(/\btg(?:invoice|internal)|pakistan.*commercial invoice/.test(text))return'tgInvoice';
 	 if(/\btg(?:packing)|pakistan.*packing list/.test(text))return'tgPacking';
 	 if(/relationship/.test(text))return'relationship';
@@ -194,7 +195,7 @@ function zip(entries,type){const encoder=new TextEncoder();return zipBytes(Objec
 	 const out=[],commercial=firstDoc(docs,'commercial'),packing=firstDoc(docs,'packing');
 	 for(const row of documentRows(c)){
 	  const total=num(row.original)+num(row.copies),category=docCategory(row.name);
-	  if(category==='cover'&&String(c?.seller||'').toUpperCase()==='TG')continue;
+	  if(['cover','tgProforma'].includes(category)&&String(c?.seller||'').toUpperCase()==='TG')continue;
 	  if(category==='commercial')out.push(...await labelledCommercialBlobs(commercial,row,fit,num(row.original),num(row.copies)));
 	  else if(category==='packing')out.push(...await labelledCommercialBlobs(packing,row,fit,num(row.original),num(row.copies)));
 	  else appendDoc(out,firstDoc(docs,category),total||1);
@@ -218,7 +219,7 @@ function zip(entries,type){const encoder=new TextEncoder();return zipBytes(Objec
 	   const pdfBlob=await pdf(markup,fit),blob=kind==='cover'?await word(markup):pdfBlob;
 	   prepared++;docs.push({category,name:row.name,key:row.key,folder,blob:pdfBlob,render:row.render});
 	   if(!strictFinal&&(kind||folder||row.key==='commercialDraft'))files.push({folder,name:component(row.name)+(kind==='cover'?'.docx':'.pdf'),blob});
-	   else if(strictFinal&&folder==='CUSTOM DOCUMENTS')files.push({folder,name:component(row.name)+'.pdf',blob:pdfBlob});
+	   else if(strictFinal&&(folder==='CUSTOM DOCUMENTS'||row.key==='tgProforma'))files.push({folder,name:component(row.name)+'.pdf',blob:pdfBlob});
    if(kind==='cover'&&/data-tg-cover="true"/.test(markup)){
     if(strictFinal)files.push({folder:folder||'TG docs',name:component(row.name)+'.docx',blob});
     files.push({folder:folder||'TG docs',name:component(row.name)+'.pdf',blob:pdfBlob});
@@ -245,7 +246,7 @@ function zip(entries,type){const encoder=new TextEncoder();return zipBytes(Objec
 	  if(master.length)files.unshift({folder:'',name:'Master Shipment Documents.pdf',blob:await mergedPdf(master)});
 	  progress('Preparing bank document copies');
 	  const bank=[];
-	  if(hasTgBank)appendDoc(bank,firstDoc(docs,'cover'));
+	  if(hasTgBank){appendDoc(bank,firstDoc(docs,'cover'));appendDoc(bank,firstDoc(docs,'tgProforma'));}
 	  if(!isTG||hasTgBank){
 	  if(isLcContract(c))bank.push(...await bankBlobsForDocuments(c,docs,fit));
 	  else if(isTG)for(const category of ['bl','tgInvoice','tgPacking','phyto','relationship','gd'])appendDoc(bank,firstDoc(docs,category));
