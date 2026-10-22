@@ -99,6 +99,23 @@ if($argv[1]==='seed'){
         put_base(change,{icon:['View','Create']});save_root(amend,403)
         put_base(change,{icon:['View','Edit']});save_root(amend)
         put_base(original,{'bags':['View','Create','Edit']});save_root(change,403)
+    # Historical Accounts freight events lacked IDs. They must not block an
+    # unrelated staff TG save, and must remain immutable without being rewritten.
+    before=copy.deepcopy(original)
+    legacy={'at':'2026-10-01T10:00:00Z','by':'Accounts','type':'FREIGHT AGREEMENT','action':'Updated loading metadata from Accounts','detail':'TTI/BUYER/01','before':{'shippingLine':'Old line'},'after':{'shippingLine':'Saved line'}}
+    before['audits']=[copy.deepcopy(legacy),dict(copy.deepcopy(legacy),at='2026-10-02T10:00:00Z')]
+    change=copy.deepcopy(before);change['shipments'][0]['tgdocs']={'saved':True,'rate':400}
+    change['audits'].append({'id':'AUD-TG-1','area':'TG Documents','action':'TG pack saved','contractRef':'TTI/BUYER/01'})
+    grants={'tg':['View','Create'],'history':['View']}
+    put_base(before,grants);save_root(change)
+    _,saved=request('operations.mysql',{},'',method='GET')
+    saved_root=json.loads(saved['values'][key]);assert all(row in saved_root['audits'] for row in before['audits']),'Historical freight audit was lost or rewritten'
+    altered=copy.deepcopy(change);altered['audits'][0]['after']['shippingLine']='Forged history'
+    put_base(before,grants);save_root(altered,403)
+    forged=copy.deepcopy(change);forged['audits'].append(dict(copy.deepcopy(legacy),at='2026-10-03T10:00:00Z'))
+    put_base(before,grants);save_root(forged,403)
+    duplicate=copy.deepcopy(change);duplicate['audits'].append(copy.deepcopy(duplicate['audits'][-1]))
+    put_base(before,grants);save_root(duplicate,403)
     # A saved, unissued contract remains a creation draft through the wizard.
     before=copy.deepcopy(original);before['contracts'][0].update(issued=False,status='Draft',draftStep=1)
     change=copy.deepcopy(before);change['contracts'][0]['draftStep']=2

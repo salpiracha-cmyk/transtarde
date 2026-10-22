@@ -11,6 +11,7 @@ $root=['customers'=>[['id'=>'C','name'=>'Customer']], 'contracts'=>[['ref'=>'A',
  ],'millSync'=>['exportLoading'=>[['shipmentId'=>'L','plan'=>['allocations'=>[['containers'=>2]]],'production'=>['keep'=>true]]]]];
 $a=['id'=>'FRA-1','entity'=>'TTI','shipmentId'=>'L','contractRef'=>'A','destinationPort'=>'Jeddah','loadingProgrammeNo'=>'SHARED','shippingLine'=>'New line','fromPort'=>'Karachi Port, Pakistan'];$user=['id'=>1,'full_name'=>'Disposable QA'];
 $before=$root['shipments'][1];$next=tt_accounts_freight_metadata($root,$a,$user);
+check(preg_match('/^AUD-FREIGHT-[a-f0-9]{24}$/',$next['audits'][0]['id']??'')===1&&$next['audits'][0]['contractRef']==='A'&&$next['audits'][0]['area']==='FREIGHT AGREEMENT','Freight audit needs a unique scoped identity for later staff document saves');
 check($next['shipments'][1]['millActuals']===$before['millActuals']&&$next['shipments'][1]['loadingPlan']['allocations']===$before['loadingPlan']['allocations'],'Quantities changed');
 check($next['shipments'][1]['bl']['blNo']==='KEEP-BL'&&$next['shipments'][1]['bl']['shippingLine']==='New line','BL metadata');
 check($next['shipments'][0]['loading']['lots'][0]['loadingProgrammeNo']==='SHARED'&&$next['millSync']['exportLoading'][0]['loadingProgrammeNo']==='SHARED','Loading and Milling links');
