@@ -5,7 +5,7 @@ require __DIR__.'/../exports/runtime_assets.php';
 function check(bool $condition,string $message): void {
     if(!$condition)throw new RuntimeException($message);
 }
-$assets=['TTI_header.png','TTI_sign.png','BRM_header.png','BRM_sign.png','TG_header.png','TG_footer.png','TG_sign.png','KCCI_COO_letterpad.jpg'];
+$assets=['TTI_header.png','TTI_sign.png','BRM_header.png','BRM_sign.png','TG_header.png','TG_footer.png','TG_sign.png','TG_pakistan_bank_stamp.png','KCCI_COO_letterpad.jpg'];
 $raw=(string)file_get_contents(__DIR__.'/../exports/app.js');
 $expected=$raw;
 foreach($assets as $asset){
