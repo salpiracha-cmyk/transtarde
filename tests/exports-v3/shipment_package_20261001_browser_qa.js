@@ -82,6 +82,11 @@ root=E.fromstring(z.read('word/document.xml'));ns={'w':'http://schemas.openxmlfo
 assert len(root.findall('.//w:drawing',ns))==2;assert root.findall('.//w:tbl',ns)
 assert b'Authorised Signatory' in z.read('word/document.xml')
 assert z.read('word/media/image1.png').startswith(bytes([137,80,78,71]))`,path.join(out,'TG_Branded_Cover.docx')]);
+ // Protected phytosanitary PDFs remain byte-exact standalone attachments, with no blank merged pages.
+ const protectedPdf=fs.readFileSync(path.join(root,'tests/exports-v3/fixtures/protected-phyto.pdf')).toString('base64');
+ const protectedResult=await page.evaluate(async encoded=>{window.__files={};const uploads=window.__args.uploads.map(doc=>doc.type==='Phytosanitary Certificate'?{...doc,dataUrl:'data:application/pdf;base64,'+encoded}:doc);const result=await TT_SHIPMENT_FILES.save({...window.__args,uploads,strictFinal:true});const files=window.__files,bankKey=Object.keys(files).find(k=>k.endsWith('Bank Shipment Documents INV-TG-0042.pdf')),bank=await PDFLib.PDFDocument.load(new Uint8Array(files[bankKey]));return{warnings:result.warnings,pages:bank.getPageCount(),files};},protectedPdf);
+ assert.equal(protectedResult.pages,6,'Protected phytosanitary pages are not merged as blank pages');assert.match(protectedResult.warnings.join(' '),/Send the saved original separately/);
+ const standalone=Object.keys(protectedResult.files).find(k=>k.endsWith('SEPARATE BANK ATTACHMENTS/Phyto.pdf'));assert.ok(standalone);assert.equal(Buffer.from(protectedResult.files[standalone]).toString('base64'),protectedPdf,'Protected original preserved byte for byte');assert.ok(Object.keys(protectedResult.files).some(k=>k.endsWith('READ ME - send phytosanitary separately.pdf')));
  await page.evaluate(()=>window.__fail=true);const failure=await page.evaluate(async()=>{try{await TT_SHIPMENT_FILES.save(window.__args);return''}catch(error){return error.message}});assert.match(failure,/0 of \d+ files saved/);
  // All module form families: control tops align, names fit their cells, and print styles are untouched.
  const shared=fs.readFileSync(path.join(root,'brand-theme.css'),'utf8');

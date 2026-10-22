@@ -57,7 +57,7 @@ async function postJob(manifest,files){
 async function asPdf(blob){
  await libraries();const bytes=new Uint8Array(await blob.arrayBuffer());
  if(String.fromCharCode(...bytes.slice(0,4))==='%PDF'){
-  await window.PDFLib.PDFDocument.load(bytes,{ignoreEncryption:true});return blob;
+  await window.PDFLib.PDFDocument.load(bytes);return blob;
  }
  const image=await createImageBitmap(blob);try{
   const canvas=document.createElement('canvas');canvas.width=image.width;canvas.height=image.height;canvas.getContext('2d').drawImage(image,0,0);
@@ -68,7 +68,7 @@ async function asPdf(blob){
 }
 async function mergedPdf(blobs){
  await libraries();const output=await window.PDFLib.PDFDocument.create();
- for(const blob of blobs){const input=await window.PDFLib.PDFDocument.load(await blob.arrayBuffer(),{ignoreEncryption:true});for(const page of await output.copyPages(input,input.getPageIndices()))output.addPage(page)}
+ for(const blob of blobs){const input=await window.PDFLib.PDFDocument.load(await blob.arrayBuffer());for(const page of await output.copyPages(input,input.getPageIndices()))output.addPage(page)}
  return new Blob([await output.save()],{type:'application/pdf'});
 }
 async function legacyDir(root,names){
@@ -206,7 +206,7 @@ function zip(entries,type){const encoder=new TextEncoder();return zipBytes(Objec
 	 if(busy&&legacyQa())busy=false;
 	 busy=true;
 	 try{
-	  const parts=folderParts(customer,contract,lot),files=[],docs=[],seen=new Set();
+	  const parts=folderParts(customer,contract,lot),files=[],docs=[],seen=new Set(),warnings=[];
 	  const c=contractSnapshot(committedSnapshot,contract),isTG=String(c?.seller||'').toUpperCase()==='TG'||rows.some(row=>/^tg/.test(row.key||''));
 	  const bankCover=rows.find(row=>row.key==='tgCover')||rows.find(row=>row.key==='cover');
 	  const hasTgBank=isTG&&(rows.some(row=>/^tg(?:Invoice|Packing)$/.test(row.key||'')&&row.ready)||!!bankCover?.ready);
@@ -231,8 +231,10 @@ function zip(entries,type){const encoder=new TextEncoder();return zipBytes(Objec
 	   if(!strictFinal&&kind==='contract')files.push({folder,name:'Signed Sales Contract - '+uploadName,blob:original});
 	   else if(!strictFinal&&kind==='cover')files.push({folder,name:uploadName,blob:original});
 	   else{let converted=null;try{converted=await asPdf(original)}catch(error){
-	     const isPdf=/pdf/i.test(original.type||'')||/\.pdf$/i.test(doc.name||'');
-	     if(!isPdf)throw new Error('Cannot add '+(doc.name||doc.type||'this upload')+' to the PDF package. Upload a readable PDF or image. '+error.message);
+	     if(category==='phyto'){
+      const warning='Phytosanitary certificate '+(doc.name||'')+' could not be merged safely. Send the saved original separately to the bank. It remains listed on the covering letter.';warnings.push(warning);
+      files.push({folder:'SEPARATE BANK ATTACHMENTS',name:uploadName,blob:original});
+     }else throw new Error('Cannot add '+(doc.name||doc.type||'this upload')+' to the PDF package. Upload a readable PDF or image. '+error.message);
 	    }
 	    if(!strictFinal&&kind==='gd'&&converted)files.push({folder,name:'GD - '+component(String(doc.name||'Document').replace(/\.[^.]+$/,''))+'.pdf',blob:converted});
 	    if(converted)docs.push({category,name:doc.type||doc.name,folder,blob:converted});
@@ -252,6 +254,7 @@ function zip(entries,type){const encoder=new TextEncoder();return zipBytes(Objec
 	  const shipment=(committedSnapshot?.shipments||[]).find(row=>String(row.lotId||'')===String(lot)&&String(row.contractRef||'')===String(contract)),invoiceReference=shipment?.tgdocs?.customsInvoiceNo||shipment?.customs?.invoiceNo||shipment?.commercial?.invoiceNo||contract;
 	  if(bank.length)files.unshift({folder:'',name:isTG?'Bank Shipment Documents '+component(invoiceReference)+'.pdf':'DOCUMENTS FOR BANK.pdf',blob:await mergedPdf(bank)});
 	  if(!files.length)throw new Error('No saved documents are available for this lot.');
+  if(warnings.length){const escape=text=>text.replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));files.push({folder:'SEPARATE BANK ATTACHMENTS',name:'READ ME - send phytosanitary separately.pdf',blob:await pdf('<section class="docPage"><h1>Separate bank attachment required</h1>'+warnings.map(w=>'<p>'+escape(w)+'</p>').join('')+'</section>')});}
   progress('Assembling office package');
   let archiveFiles=files,cleanupFolders=[];
   if(!optional)({files:archiveFiles,cleanupFolders}=await finalizeFolderZips(files));
@@ -260,11 +263,11 @@ function zip(entries,type){const encoder=new TextEncoder();return zipBytes(Objec
   const manifest={type:'shipment_archive',customer,contract,lot,folderParts:parts,createdAt:new Date().toISOString(),finalize:!optional,cleanupFolders,files:archiveFiles.map(file=>({folder:file.folder||'',name:file.name,storedName:file.storedName,size:file.blob.size,type:file.blob.type||'application/octet-stream'}))};
   if(legacyQa()&&legacyRoot&&!window.TT_MODULE_ACCESS?.csrf){
    let saved=0;try{saved=await legacyWrite(legacyRoot,parts,archiveFiles)}catch(error){throw new Error(saved+' of '+archiveFiles.length+' files saved. '+error.message)}
-   return{count:archiveFiles.length,path:parts.join(' / '),status:'SAVED'}
+   return{count:archiveFiles.length,path:parts.join(' / '),status:'SAVED',warnings}
   }
   progress('Uploading office package');
   const job=await withTimeout(postJob(manifest,archiveFiles),120000,'Office archive job upload timed out. Retry Queue Office Folder.');
-  return{count:archiveFiles.length,path:parts.join(' / '),jobId:job.id,status:job.status||'PENDING'};
+  return{count:archiveFiles.length,path:parts.join(' / '),jobId:job.id,status:job.status||'PENDING',warnings};
  }finally{busy=false}
 }
 

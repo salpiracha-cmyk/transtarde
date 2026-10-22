@@ -553,3 +553,10 @@ Online Banking payments expose an editable payment date, defaulting from the vou
 
 - Keep consultants, auditors and lawyers as canonical Business Parties with the Service Provider role and a saved default expense head. Professional fees use 6700; each provider retains its own payable identity. Store the profession and expense mapping alongside the existing party profile without discarding broker rates.
 - Master Records and inline service-provider creation expose the same mapping. New expense rows may suggest it on explicit recipient selection; preserve entered rows, manual choices and reopened historical vouchers. Record invoice creates expense/payable once; later settlement clears the original liability. Never create a duplicate Expense Recipient for a service party or rewrite old postings to change its classification.
+
+## Pakistan bank pack — owner instruction, 22 October 2026
+
+- Both direct and TG covering-letter document tables show the allocated FI numbers on the FI row. Keep phytosanitary in that table even when its protected original must be sent separately.
+- Never ignore PDF encryption when merging attachments. Preserve an unreadable/protected phytosanitary original under SEPARATE BANK ATTACHMENTS and include a clear send-separately note; omit its pages from combined PDFs rather than producing blank pages. Other unreadable attachments block preparation with an error.
+- The TG Pakistan-bank proforma uses Customs invoice rate, currency, value, payment terms, FI allocation and date. Do not copy the original customer's financial clauses, advance percentage, payment deadline or validity deadline. The customer contract stays unchanged.
+- The owner-supplied transparent TG stamp for Pakistan bank is the TG buyer acceptance stamp on that bank-purpose proforma. Keep the Pakistan exporter's signature on the seller side and preserve the ordinary TG signature elsewhere. Register the distinct purpose-specific stamp in TG company Document Identity without replacing other defaults.
