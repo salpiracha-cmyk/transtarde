@@ -25,6 +25,7 @@ with tempfile.TemporaryDirectory(prefix='opening-jv-qa-') as tmp:
     function tt_verify_csrf($v){return $v==='fixture';}
     function tt_next_post_id($existing,$module='Accounts',$area='Journal',$date=null){$n=count($existing)+1;do{$id='2026-'.str_pad((string)$n++,5,'0',STR_PAD_LEFT);}while(isset($existing[$id]));return $id;}
     function tt_business_party_categories($v){return array_filter(array_map('trim',preg_split('/[;,|]/',(string)$v)));}
+    function tt_company_fx_rate($entity,$from,$to){return empty($_GET['missingRate'])&&$entity==='TG'&&$from==='USD'&&$to==='AED'?3.67:null;}
     function tt_list_masters(){return ['business_parties'=>[['id'=>'P1','values'=>['ACME RICE','','Supplier']],['id'=>'LAB','values'=>['MILL LABOUR','','Labour Contractor']]],'banks'=>[
       ['id'=>'B1','values'=>['Company Account','TTI','','TTI','PK BANK','','Pakistan','PKR','123','','','','','Active']],
       ['id'=>'B2','values'=>['Company Account','TG','','TG','UAE BANK','','UAE','USD','456','','','','','Active']],
@@ -104,14 +105,30 @@ with tempfile.TemporaryDirectory(prefix='opening-jv-qa-') as tmp:
         assert j['lines'][0]['bankAccountId']=='B1' and j['lines'][0]['bankDebit']==1000
         assert call(post(account='1110',bankId='B2',party=''))[0]==422,'Bank must belong to selected company'
         assert not [l for journal in json.loads(books.read_text())['journals'].values() for l in journal['lines'] if l.get('bankAccountId')=='AED'], 'USD opening cannot alter the separate AED bank'
-        assert call(post(account='1110',bankId='B2',party='',amount=100),entity='TG')[0]==422,'Foreign bank needs opening rate'
-        status,data=call(post(account='1110',bankId='B2',party='',side='Debit',amount=100,rate=3.67),entity='TG');assert status==200,data
+        # Ordinary first-day bank charges do not count as an imported opening balance.
+        state=json.loads(books.read_text());state['journals']['DAY-ONE-FEE']={'id':'DAY-ONE-FEE','entity':'TG','date':'2026-07-01','status':'Posted','sourceType':'BANK_ENTRY','lines':[{'account':'6800','debit':18.28,'credit':0,'currency':'USD','nativeDebit':4.98,'nativeCredit':0},{'account':'1110','bankAccountId':'B2','currency':'USD','bankDebit':0,'bankCredit':4.98,'debit':0,'credit':18.28}]};books.write_text(json.dumps(state));stable=books.read_bytes()
+        assert not [b for b in call(entity='TG')[1]['opening']['balances'] if b['bankId']=='B2']
+        missing=call(post(account='1110',bankId='B2',party='',amount=100),entity='TG',missingRate='1');assert missing[0]==422 and 'Super Admin' in missing[1]['error'] and books.read_bytes()==stable,missing
+        assert call(entity='TG')[1]['opening']['ratesByCurrency']['USD']==3.67
+        stale=call(post(account='1110',bankId='B2',party='',amount=100,expectedOpeningRate=3.65,expectedOpeningCurrency='USD'),entity='TG');assert stale[0]==422 and 'review' in stale[1]['error'] and books.read_bytes()==stable,stale
+
+        status,data=call(post(account='1110',bankId='B2',party='',side='Debit',amount=100,rate=999),entity='TG');assert status==200,data
         j=json.loads(books.read_text())['journals'][data['result']['journalId']]
         assert j['lines'][0]['debit']==367 and j['lines'][0]['bankDebit']==j['lines'][0]['nativeDebit']==100
-        assert j['lines'][1]['credit']==367
-        status,ledger=call(endpoint='accounts_ledger_browser.php',scope=False,entity='TG',category='bank',account='BANK|B2',**{'from':'2026-07-01','to':'2026-10-06'});assert status==200 and ledger['closing']==100,ledger
+        assert j['lines'][1]['credit']==367 and j['lines'][1]['currency']=='USD' and j['lines'][1]['nativeCredit']==100
+        assert j['meta']['openingRate']==3.67,'TG ignores a forged manual rate and reads the approved master'
+        stable=books.read_bytes();assert call(post(account='1110',bankId='B2',party='',amount=10),entity='TG')[0]==409 and books.read_bytes()==stable
+        bf=next(b for b in call(entity='TG')[1]['opening']['balances'] if b['bankId']=='B2');assert bf['nativeBalance']==100 and bf['currency']=='USD',bf
+        party=call(post(account='1210',party='USD Customer',currency='USD',side='Debit',amount=200),entity='TG');assert party[0]==200,party
+        pj=json.loads(books.read_text())['journals'][party[1]['result']['journalId']];assert pj['lines'][0]['nativeDebit']==200 and pj['lines'][0]['debit']==734
+        assert call(post(account='1210',party='USD Customer',currency='AED',side='Debit',amount=50),entity='TG')[0]==200,'Independent currency B/F is allowed without mixing totals'
+        stable=books.read_bytes();assert call(post(account='1210',party='USD Customer',currency='USD',amount=200),entity='TG')[0]==409 and books.read_bytes()==stable
+        assert call(post(account='1210',party='Invalid Currency',currency='ZZZ',amount=100),entity='TG')[0]==422 and books.read_bytes()==stable
+
+        status,ledger=call(endpoint='accounts_ledger_browser.php',scope=False,entity='TG',category='bank',account='BANK|B2',**{'from':'2026-07-01','to':'2026-10-06'});assert status==200 and ledger['closing']==95.02,ledger
         status,ledger=call(endpoint='accounts_ledger_browser.php',scope=False,entity='TG',category='bank',account='BANK|AED',**{'from':'2026-07-01','to':'2026-10-06'});assert status==200 and ledger['closing']==0,ledger
         status,ledger=call(endpoint='accounts_ledger_browser.php',scope=False,category='bank',account='BANK|PERSONAL',**{'from':'2026-07-01','to':'2026-10-06'});assert status==200,ledger
+        state=json.loads(books.read_text());state['journals']['PRIOR-CLOSING']={'id':'PRIOR-CLOSING','entity':'TTI','date':'2026-06-30','status':'Posted','sourceType':'JV','lines':[{'account':'1230','subledger':'Prior Party','debit':100,'credit':0},{'account':'3200','debit':0,'credit':100}]};books.write_text(json.dumps(state));stable=books.read_bytes();assert call(post(account='1230',party='Prior Party',side='Debit',amount=100))[0]==409 and books.read_bytes()==stable
         setting={'action':'set_opening_balance_enabled','enabled':False,'requestKey':'disable-test-1'}
         assert call(setting,user='director')[0]==403
         assert call(setting)[0]==200

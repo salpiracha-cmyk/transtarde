@@ -73,21 +73,37 @@ function job_targets(string $e): array {
     foreach(job_banks($e) as $b)$out[]=['key'=>'bank:'.$b['id'],'label'=>$b['name'],'name'=>$b['name'],'account'=>'1110','party'=>'','bankId'=>$b['id'],'kind'=>'bank'];
     usort($out,static fn($a,$b)=>strcasecmp($a['label'],$b['label']));return $out;
 }
+/** The opening boundary excludes ordinary business transactions on 1 July itself. */
 function job_balances(array $s, string $e): array {
+    if($e==='TG')require_once __DIR__.'/tg_native_currency.php';
     $out = [];
     foreach ((array)($s['journals'] ?? []) as $j) {
         if (($j['entity'] ?? '') !== $e || ($j['status'] ?? '') !== 'Posted' || (string)($j['date'] ?? '') > JOB_DATE) continue;
+        $opening=(string)($j['date']??'')<JOB_DATE||!empty($j['meta']['openingBalance'])||in_array($j['meta']['originalSourceType']??$j['sourceType']??'',['OPENING_BALANCE_BF','OPENING_BALANCE_REVERSAL','CARRY_FORWARD_OPENING'],true);
+        // Historical imports and their reversals retain the opening-clearing leg.
+        if(!$opening)foreach((array)($j['lines']??[]) as $line)if(($line['account']??'')===JOB_CLEARING){$opening=true;break;}
+        if(!$opening)continue;
         foreach ((array)($j['lines'] ?? []) as $l) {
             $code = (string)($l['account'] ?? ''); if ($code === JOB_CLEARING) continue;
             $party = in_array($code,['1110','1120'],true)||empty(jvw_catalog()[$code]['subledger'])?'':job_party_name($l,(array)($j['meta']??[]));
             $bank = (string)($l['bankAccountId'] ?? $j['meta']['bankAccountId'] ?? '');
-            $key = $code.'|'.job_key($party).'|'.$bank;
-            $out[$key] ??= ['account'=>$code, 'party'=>$party, 'bankId'=>$bank, 'balance'=>0, 'postIds'=>[]];
+            $native=$e==='TG'?tgn_line($j,$l):['currency'=>'PKR','debit'=>$l['debit']??0,'credit'=>$l['credit']??0,'unavailable'=>false];
+            $key = $code.'|'.job_key($party).'|'.$bank.($e==='TG'?'|'.$native['currency']:'');
+            $out[$key] ??= ['account'=>$code, 'party'=>$party, 'bankId'=>$bank, 'balance'=>0, 'currency'=>$native['currency'],'nativeBalance'=>0,'postIds'=>[]];
             $out[$key]['balance'] = round($out[$key]['balance'] + (float)($l['debit'] ?? 0) - (float)($l['credit'] ?? 0), 2);
+            $out[$key]['nativeBalance']=$native['unavailable']||$out[$key]['nativeBalance']===null?null:round($out[$key]['nativeBalance']+$native['debit']-$native['credit'],2);
             $out[$key]['postIds'][] = (string)($j['id'] ?? '');
         }
     }
     return array_values($out);
+}
+function job_tg_rate(string $currency):?float {
+    require_once __DIR__.'/tg_native_currency.php';
+    return tgn_master_rate($currency,'AED',JOB_DATE);
+}
+function job_currencies(string $entity):array {
+    if($entity!=='TG')return ['PKR'];
+    return array_values(array_unique(array_merge(['AED','USD'],function_exists('tt_master_options')?(array)(tt_master_options()['currencies']??[]):[],array_map(static fn($b)=>$b['currency'],job_banks($entity)))));
 }
 function job_payload(array $s, string $e, array $u): array {
     if (!job_authorized($u)) return ['allowed'=>false];
@@ -97,7 +113,8 @@ function job_payload(array $s, string $e, array $u): array {
     usort($entries, static fn($a,$b) => strcmp($b['id'], $a['id']));
     $accounts = [];
     foreach (jvw_catalog() as $a) if ((string)$a['code'] !== JOB_CLEARING) $accounts[] = ['code'=>(string)$a['code'], 'name'=>$a['name'], 'requiresSubledger'=>!in_array((string)$a['code'],['1110','1120'],true)&&!empty($a['subledger'])];
-    return ['allowed'=>true, 'enabled'=>($s['openingBalanceSettings'][$e]['enabled'] ?? true) === true, 'canDisable'=>($u['role'] ?? '') === 'Super Admin', 'date'=>JOB_DATE, 'currency'=>$e==='TG'?'AED':'PKR', 'entities'=>job_entities($u), 'accounts'=>$accounts, 'banks'=>job_banks($e), 'parties'=>job_parties($s,$e), 'targets'=>job_targets($e), 'balances'=>job_balances($s,$e), 'entries'=>$entries];
+    $currencies=job_currencies($e);$rates=[];if($e==='TG')foreach($currencies as $currency)$rates[$currency]=job_tg_rate($currency);
+    return ['currencies'=>$currencies,'ratesByCurrency'=>$rates,'allowed'=>true, 'enabled'=>($s['openingBalanceSettings'][$e]['enabled'] ?? true) === true, 'canDisable'=>($u['role'] ?? '') === 'Super Admin', 'date'=>JOB_DATE, 'currency'=>$e==='TG'?'AED':'PKR', 'entities'=>job_entities($u), 'accounts'=>$accounts, 'banks'=>job_banks($e), 'parties'=>job_parties($s,$e), 'targets'=>job_targets($e), 'balances'=>job_balances($s,$e), 'entries'=>$entries];
 }
 function job_amount(mixed $v, string $label): float {
     if (!is_numeric($v) || !is_finite((float)$v) || (float)$v <= 0 || (float)$v > 100000000000) throw new DomainException($label.' must be a positive amount.');
@@ -116,7 +133,8 @@ function job_post(array &$s, string $e, array $b, array $u): array {
     if ($code === JOB_CLEARING || !isset($catalog[$code])) throw new DomainException('Select an approved opening account.');
     $side = (string)($b['side'] ?? ''); if (!in_array($side,['Debit','Credit'],true)) throw new DomainException('Select Debit or Credit.');
     if (isset($b['lines']) || isset($b['debit']) || isset($b['credit'])) throw new DomainException('Use one amount and select Debit or Credit.');
-    $amount = job_amount($b['amount'] ?? null, 'Amount'); $base = $e==='TG'?'AED':'PKR'; $currency = $base;
+    $amount = job_amount($b['amount'] ?? null, 'Amount'); $base = $e==='TG'?'AED':'PKR'; $currency = $e==='TG'?strtoupper(trim((string)($b['currency']??$base))):$base;
+    if(!in_array($currency,job_currencies($e),true))throw new DomainException('Choose an opening currency configured for this company.');
     $party = jvw_text($b['party'] ?? '',120,'Party / subsidiary');
     foreach (job_parties($s,$e) as $name) if (job_key($name) === job_key($party)) {$party=$name;break;}
     if (!empty($catalog[$code]['subledger']) && !in_array($code,['1110','1120'],true) && $party === '') throw new DomainException('Enter the party or subsidiary for this account.');
@@ -129,20 +147,23 @@ function job_post(array &$s, string $e, array $b, array $u): array {
     } elseif ($bankId !== '') throw new DomainException('A bank account is only applicable to Bank opening balances.');
     $native = $amount; $rate = 1.0;
     if ($currency !== $base) {
-        $rate = $b['rate'] ?? null;
+        $rate = $e==='TG'?job_tg_rate($currency):($b['rate']??null);
+        if($e==='TG'&&$rate===null)throw new DomainException('Configure '.$currency.' / AED in Super Admin → Companies → Trans Grains → Exchange rates, then reopen Opening Balance.');
         if (!is_numeric($rate) || !is_finite((float)$rate) || (float)$rate <= 0 || (float)$rate > 1000000) throw new DomainException('Enter the opening exchange rate to '.$base.'.');
         $rate=(float)$rate;$amount=job_amount($native*$rate,'Book amount');
     }
-    foreach (job_balances($s,$e) as $existing) if ($existing['account']===$code && (job_key($existing['party'])===job_key($party) || ($party!==''&&in_array($code,['2110','2120','2130','2140','2190'],true)&&function_exists('tt_master_names_conflict')&&tt_master_names_conflict($party,$existing['party'],'business_parties'))) && $existing['bankId']===$bankId && abs($existing['balance'])>.005) {
-        jvw_out(['ok'=>false,'error'=>'This account / party already has a balance at 1 July 2026. Review its existing Post IDs before adding an opening balance.','existing'=>$existing],409);
+    if((isset($b['expectedOpeningRate'])&&(!is_numeric($b['expectedOpeningRate'])||abs((float)$b['expectedOpeningRate']-$rate)>.00000001))||(isset($b['expectedOpeningCurrency'])&&$b['expectedOpeningCurrency']!==$currency))throw new DomainException('The opening currency or master rate changed. Reopen Opening Balance and review its entries again. No opening was posted.');
+    foreach (job_balances($s,$e) as $existing) if ($existing['account']===$code && (job_key($existing['party'])===job_key($party) || ($party!==''&&in_array($code,['2110','2120','2130','2140','2190'],true)&&function_exists('tt_master_names_conflict')&&tt_master_names_conflict($party,$existing['party'],'business_parties'))) && $existing['bankId']===$bankId && ($e!=='TG'||$existing['currency']===$currency) && abs($existing['balance'])>.005) {
+        jvw_out(['ok'=>false,'error'=>'An opening balance already exists for this account / party and currency. Open Ledgers → Post ID Register and amend its existing Post ID instead of adding another B/F.','existing'=>$existing],409);
     }
     $note=jvw_text($b['note'] ?? '',400,'Details');$ref=jvw_text($b['reference'] ?? '',120,'Reference');jvw_duplicate($s,$e,$ref);
     $narr='OPENING BALANCE B/F'.($note!==''?' — '.$note:'');
     $extra=['subledger'=>$party,'counterparty'=>$party,'memo'=>$narr,'currency'=>$currency,'nativeCurrency'=>$currency,'nativeDebit'=>$side==='Debit'?$native:0,'nativeCredit'=>$side==='Credit'?$native:0];
     if ($bank) $extra+=['bankAccountId'=>$bankId,'bankName'=>$bank['bankName'],'bankAccountTitle'=>$bank['accountTitle'],'bankDebit'=>$side==='Debit'?$native:0,'bankCredit'=>$side==='Credit'?$native:0,'rate'=>$rate];
     if ($code==='1120') $extra['paymentAccountId']='CASH|'.$e;
+    $clearingCurrency=$e==='TG'?$currency:$base;$clearingNative=$e==='TG'?$native:$amount;
     $lines=[['account'=>$code,'accountName'=>$catalog[$code]['name'],'debit'=>$side==='Debit'?$amount:0,'credit'=>$side==='Credit'?$amount:0]+$extra,
-        ['account'=>JOB_CLEARING,'accountName'=>'Opening Balance Clearing','debit'=>$side==='Credit'?$amount:0,'credit'=>$side==='Debit'?$amount:0,'memo'=>$narr,'currency'=>$base,'nativeCurrency'=>$base,'nativeDebit'=>$side==='Credit'?$amount:0,'nativeCredit'=>$side==='Debit'?$amount:0]];
+        ['account'=>JOB_CLEARING,'accountName'=>'Opening Balance Clearing','debit'=>$side==='Credit'?$amount:0,'credit'=>$side==='Debit'?$amount:0,'memo'=>$narr,'currency'=>$clearingCurrency,'nativeCurrency'=>$clearingCurrency,'nativeDebit'=>$side==='Credit'?$clearingNative:0,'nativeCredit'=>$side==='Debit'?$clearingNative:0]];
     $id=tt_next_post_id((array)$s['journals'],'Accounts','Journal',JOB_DATE);$now=gmdate('c');$by=(string)($u['full_name']??$u['username']??'Management');
     $s['journals'][$id]=['id'=>$id,'entity'=>$e,'date'=>JOB_DATE,'sourceType'=>'OPENING_BALANCE_BF','reference'=>$ref?:$id,'narration'=>$narr,'lines'=>$lines,'totalDebit'=>$amount,'totalCredit'=>$amount,'status'=>'Posted','meta'=>['openingBalance'=>true,'bankAccountId'=>$bankId,'openingAccount'=>$code,'openingParty'=>$party,'transactionCurrency'=>$currency,'openingRate'=>$rate],'createdAt'=>$now,'createdBy'=>$by,'userId'=>(int)($u['id']??0),'approvedAt'=>$now,'approvedBy'=>$by,'approvedByUserId'=>(int)($u['id']??0),'reversalOf'=>null];
     $draft=jvw_next((array)$s['jvDrafts'],'JVD');$s['jvDrafts'][$draft]=$s['journals'][$id];$s['jvDrafts'][$draft]['id']=$draft;$s['jvDrafts'][$draft]['journalId']=$id;$s['jvDrafts'][$draft]['openingBalance']=true;$s['jvDrafts'][$draft]['updatedAt']=$now;
