@@ -22,10 +22,10 @@ function office_zip_documents(string $path,bool $docx): void {
             $r=unpack('Vsignature/vmade/vneeded/vflags/vmethod/vtime/vdate/Vcrc/Vcompressed/Vsize/vnameLength/vextraLength/vcommentLength/vdisk/vattributes/Vexternal/Voffset',$header);
             if($r['signature']!==0x02014b50||$r['needed']>20||($r['flags']&~0x800)!==0||$r['method']!==0||$r['compressed']!==$r['size']||$r['size']<1||$r['size']>75*1024*1024||$r['disk']||$r['extraLength']||$r['commentLength']||$r['nameLength']<1||$r['nameLength']>800||(($r['external']>>16)&0170000)!==0&&(($r['external']>>16)&0170000)!==0100000)throw new InvalidArgumentException('Compressed, linked, encrypted or unsupported package members are not permitted.');
             $name=fread($h,$r['nameLength']);if(strlen($name)!==$r['nameLength'])throw new InvalidArgumentException('Package name is incomplete.');
-            if($docx){if(!in_array($name,$required,true))throw new InvalidArgumentException('Word package contains unsupported or active content.');$key=strtolower($name);}else{$key=office_document_name($name);if(!in_array(strtolower(pathinfo($name,PATHINFO_EXTENSION)),['pdf','jpg','jpeg','png','webp'],true))throw new InvalidArgumentException('BAGS package may contain only PDF and image documents.');}
+            if($docx){if(!in_array($name,$required,true)&&!preg_match('~^word/media/image[1-9][0-9]{0,2}\.(?:png|jpg)$~D',$name))throw new InvalidArgumentException('Word package contains unsupported or active content.');$key=strtolower($name);}else{$key=office_document_name($name);if(!in_array(strtolower(pathinfo($name,PATHINFO_EXTENSION)),['pdf','jpg','jpeg','png','webp'],true))throw new InvalidArgumentException('BAGS package may contain only PDF and image documents.');}
             if(isset($seen[$key]))throw new InvalidArgumentException('Package repeats a document name.');$seen[$key]=true;$rows[]=[$name,$r];
         }
-        if(ftell($h)!==$size-22||($docx&&count($seen)!==count($required)))throw new InvalidArgumentException('Package directory does not match its documents.');
+        if(ftell($h)!==$size-22||($docx&&array_diff(array_map('strtolower',$required),array_keys($seen))))throw new InvalidArgumentException('Package directory does not match its documents.');
         $offset=0;
         foreach($rows as [$name,$r]){
             if($r['offset']!==$offset)throw new InvalidArgumentException('Package has overlapping or hidden members.');fseek($h,$offset);$header=fread($h,30);if(strlen($header)!==30)throw new InvalidArgumentException('Package member is incomplete.');
@@ -37,14 +37,18 @@ function office_zip_documents(string $path,bool $docx): void {
             try{while($remaining>0){$chunk=fread($h,min(65536,$remaining));if($chunk===false||$chunk==='')throw new InvalidArgumentException('Package document is incomplete.');$remaining-=strlen($chunk);hash_update($crc,$chunk);if(fwrite($out,$chunk)!==strlen($chunk))throw new RuntimeException('Document validation failed.');}}finally{fclose($out);}
             if(hash_final($crc)!==sprintf('%08x',$r['crc']))throw new InvalidArgumentException('Package document checksum is invalid.');
             if(!$docx){office_document_validate($tmp,$name,false);continue;}
+            if(str_starts_with($name,'word/media/')){office_document_validate($tmp,basename($name),false);continue;}
             if($r['size']>2097152)throw new InvalidArgumentException('Word package XML exceeds the permitted size.');$xml=file_get_contents($tmp);
             if($xml===false||preg_match('/<!DOCTYPE|<!ENTITY/i',$xml))throw new InvalidArgumentException('Word package entities are not permitted.');
             $previous=libxml_use_internal_errors(true);try{$dom=new DOMDocument();$valid=$dom->loadXML($xml,LIBXML_NONET);libxml_clear_errors();}finally{libxml_use_internal_errors($previous);}
             if(!$valid||$dom->doctype)throw new InvalidArgumentException('Word document XML is invalid.');
             foreach($dom->getElementsByTagName('*') as $node){
                 if(in_array($node->localName,['altChunk','object','OLEObject','fldSimple','instrText','hyperlink'],true)||strcasecmp($node->getAttribute('TargetMode'),'External')===0)throw new InvalidArgumentException('Word package active or external content is not permitted.');
-                if($node->localName==='Relationship'&&!in_array($node->getAttribute('Target'),['word/document.xml','styles.xml'],true))throw new InvalidArgumentException('Word relationship is unsupported.');
-                if($node->hasAttribute('ContentType')&&!in_array($node->getAttribute('ContentType'),['application/xml','application/vnd.openxmlformats-package.relationships+xml','application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml','application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml'],true))throw new InvalidArgumentException('Word content type is unsupported.');
+                if($node->localName==='Relationship'&&!in_array($node->getAttribute('Target'),['word/document.xml','styles.xml'],true)){
+                    $target=$node->getAttribute('Target');
+                    if(!preg_match('~^media/image[1-9][0-9]{0,2}\.(?:png|jpg)$~D',$target)||!isset($seen['word/'.$target])||$node->getAttribute('Type')!=='http://schemas.openxmlformats.org/officeDocument/2006/relationships/image')throw new InvalidArgumentException('Word relationship is unsupported.');
+                }
+                if($node->hasAttribute('ContentType')&&!in_array($node->getAttribute('ContentType'),['image/png','image/jpeg','application/xml','application/vnd.openxmlformats-package.relationships+xml','application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml','application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml'],true))throw new InvalidArgumentException('Word content type is unsupported.');
             }
         }
         if($offset!==$e['centralOffset'])throw new InvalidArgumentException('Package contains hidden bytes.');

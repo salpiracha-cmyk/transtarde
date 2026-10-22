@@ -61,6 +61,22 @@ assert root.findall('.//w:tbl',ns);assert not root.findall('.//w:altChunk',ns)`,
 	 assert.equal(lcBank,6,'LC bank PDF follows Documents to be Presented originals and copies');
 	 await page.evaluate(()=>window.__files={});
 	 const repeated=await page.evaluate(()=>TT_SHIPMENT_FILES.save(window.__args));assert.equal(repeated.count,result.count);assert.equal(Object.keys(await page.evaluate(()=>window.__files)).length,result.count);
+ // TG canonical archive retains branded PDF and editable Word, even in strict final mode.
+ const brandedFiles=await page.evaluate(async()=>{
+  window.__files={};
+  const canvas=document.createElement('canvas');canvas.width=60;canvas.height=20;const ctx=canvas.getContext('2d');ctx.fillStyle='#145b38';ctx.fillRect(0,0,60,20);const image=canvas.toDataURL('image/png');
+  const markup='<div class="printDoc"><section class="docPage bankCoveringPage" data-tg-cover="true"><div class="docLetterhead"><img src="'+image+'"></div><h1>BANK COVERING LETTER</h1><table><tr><td>Commercial Invoice</td></tr></table><div class="docAutoSign">For <b>Transtrade International</b><img src="'+image+'"><div>Authorised Signatory</div></div></section></div>';
+  await TT_SHIPMENT_FILES.save({...window.__args,strictFinal:true,rows:[{key:'tgCover',name:'Pakistan → TG — Bank Covering Letter',folder:'TG docs',ready:true,render:()=>markup}],uploads:[]});return window.__files;
+ });
+ const brandedDoc=prefix+'TG docs/Pakistan → TG — Bank Covering Letter.docx';assert.ok(brandedFiles[brandedDoc]);assert.ok(brandedFiles[prefix+'TG docs/Pakistan → TG — Bank Covering Letter.pdf']);
+ fs.writeFileSync(path.join(out,'TG_Branded_Cover.docx'),Buffer.from(brandedFiles[brandedDoc]));
+ execFileSync('python3',['-c',`import zipfile,xml.etree.ElementTree as E,sys
+z=zipfile.ZipFile(sys.argv[1]);assert z.testzip() is None
+assert len([n for n in z.namelist() if n.startswith('word/media/')])==2
+root=E.fromstring(z.read('word/document.xml'));ns={'w':'http://schemas.openxmlformats.org/wordprocessingml/2006/main'}
+assert len(root.findall('.//w:drawing',ns))==2;assert root.findall('.//w:tbl',ns)
+assert b'Authorised Signatory' in z.read('word/document.xml')
+assert z.read('word/media/image1.png').startswith(bytes([137,80,78,71]))`,path.join(out,'TG_Branded_Cover.docx')]);
  await page.evaluate(()=>window.__fail=true);const failure=await page.evaluate(async()=>{try{await TT_SHIPMENT_FILES.save(window.__args);return''}catch(error){return error.message}});assert.match(failure,/0 of \d+ files saved/);
  // All module form families: control tops align, names fit their cells, and print styles are untouched.
  const shared=fs.readFileSync(path.join(root,'brand-theme.css'),'utf8');

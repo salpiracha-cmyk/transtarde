@@ -86,15 +86,31 @@ async function legacyWrite(root,parts,files){
  }
  return saved;
 }
-function word(markup){
+async function word(markup){
  const xml=text=>String(text||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c])).replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g,'');
  const root=document.createElement('div');root.innerHTML=markup;
  const paragraph=(text,bold=false)=>'<w:p><w:pPr><w:spacing w:after="120"/></w:pPr><w:r>'+ (bold?'<w:rPr><w:b/></w:rPr>':'')+'<w:t xml:space="preserve">'+xml(text)+'</w:t></w:r></w:p>';
  const text=node=>{const clone=node.cloneNode(true);clone.querySelectorAll('br').forEach(br=>br.replaceWith('\n'));clone.querySelectorAll('p,div,h1,h2,h3,h4,ol,ul,li').forEach(block=>{block.before(document.createTextNode('\n'));block.after(document.createTextNode('\n'))});return clone.textContent.trim()};
+ const media={},relationships=[];let imageIndex=0;
+ const imageParagraph=async(image,signature=false)=>{
+  const url=new URL(image.getAttribute('src'),location.href);
+  if(url.protocol!=='data:'&&url.origin!==location.origin)throw new Error('The company artwork must be stored on this server.');
+  const response=await fetch(url.href);if(!response.ok)throw new Error('Company letterhead or signature could not be loaded. Please retry.');
+  const bytes=new Uint8Array(await response.arrayBuffer()),png=bytes[0]===137&&bytes[1]===80&&bytes[2]===78&&bytes[3]===71,jpeg=bytes[0]===255&&bytes[1]===216;
+  if(!png&&!jpeg)throw new Error('Company artwork must be a readable PNG or JPEG.');
+  const art=new Image();art.src=url.href;await art.decode();if(!art.naturalWidth||!art.naturalHeight)throw new Error('Company artwork is unreadable.');
+  const scale=Math.min((signature?45:178)/art.naturalWidth,(signature?27:50)/art.naturalHeight),cx=Math.round(art.naturalWidth*scale*36000),cy=Math.round(art.naturalHeight*scale*36000),index=++imageIndex,id='art'+index,name='image'+index+(png?'.png':'.jpg');
+  media['word/media/'+name]=bytes;relationships.push('<Relationship Id="'+id+'" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/'+name+'"/>');
+  return '<w:p><w:pPr><w:spacing w:after="0"/><w:jc w:val="'+(signature?'left':'center')+'"/></w:pPr><w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="'+cx+'" cy="'+cy+'"/><wp:docPr id="'+index+'" name="Company artwork '+index+'"/><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic><pic:nvPicPr><pic:cNvPr id="'+index+'" name="'+name+'"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="'+id+'"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="'+cx+'" cy="'+cy+'"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>';
+ };
  let body='';for(const page of root.querySelectorAll('.docPage')){
   if(body)body+='<w:p><w:r><w:br w:type="page"/></w:r></w:p>';
   for(const node of page.children){
-   if(node.tagName==='TABLE'){
+   if(page.dataset.tgCover==='true'&&node.querySelector('img')&&node.matches('.docLetterhead,.docFooterArt,.docAutoSign')){
+    if(node.matches('.docAutoSign'))body+=paragraph('For '+(node.querySelector('b')?.textContent||''),true);
+    for(const image of node.querySelectorAll('img'))body+=await imageParagraph(image,node.matches('.docAutoSign'));
+    if(node.matches('.docAutoSign'))body+=paragraph('Authorised Signatory');
+   }else if(node.tagName==='TABLE'){
     const rows=[...node.querySelectorAll('tr')],columns=Math.max(...rows.map(row=>row.children.length)),widths=columns===4?[900,6100,1600,1600]:Array(columns).fill(Math.floor(10200/columns));
     body+='<w:tbl><w:tblPr><w:tblW w:w="10200" w:type="dxa"/><w:tblLayout w:type="fixed"/><w:tblBorders>'+['top','left','bottom','right','insideH','insideV'].map(side=>'<w:'+side+' w:val="single" w:sz="4" w:color="999999"/>').join('')+'</w:tblBorders></w:tblPr><w:tblGrid>'+widths.map(width=>'<w:gridCol w:w="'+width+'"/>').join('')+'</w:tblGrid>'+rows.map(row=>'<w:tr>'+[...row.children].map((cell,index)=>'<w:tc><w:tcPr><w:tcW w:w="'+widths[index]+'" w:type="dxa"/></w:tcPr>'+text(cell).split('\n').map(line=>paragraph(line,cell.tagName==='TH')).join('')+'</w:tc>').join('')+'</w:tr>').join('')+'</w:tbl>';
    }else body+=text(node).split('\n').filter(line=>line.trim()).map(line=>paragraph(line,/^H[1-6]$/.test(node.tagName)||node.classList.contains('coverSubject'))).join('');
@@ -107,6 +123,12 @@ function word(markup){
  'word/styles.xml':'<?xml version="1.0" encoding="UTF-8"?><w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="Arial" w:hAnsi="Arial"/><w:sz w:val="20"/></w:rPr></w:rPrDefault><w:pPrDefault><w:pPr><w:spacing w:after="120" w:line="240" w:lineRule="auto"/></w:pPr></w:pPrDefault></w:docDefaults></w:styles>',
  'word/document.xml':'<?xml version="1.0" encoding="UTF-8"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>'+body+'<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1700" w:right="850" w:bottom="850" w:left="850"/></w:sectPr></w:body></w:document>'
  };
+ if(imageIndex){
+  entries['[Content_Types].xml']=entries['[Content_Types].xml'].replace('</Types>','<Default Extension="png" ContentType="image/png"/><Default Extension="jpg" ContentType="image/jpeg"/></Types>');
+  entries['word/_rels/document.xml.rels']=entries['word/_rels/document.xml.rels'].replace('</Relationships>',relationships.join('')+'</Relationships>');
+  entries['word/document.xml']=entries['word/document.xml'].replace('<w:document xmlns:w=', '<w:document xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture" xmlns:w=').replace('w:top="1700"','w:top="397"');
+  Object.assign(entries,media);
+ }
  return zip(entries,'application/vnd.openxmlformats-officedocument.wordprocessingml.document');
 }
 function zipBytes(entries,type){
@@ -120,7 +142,7 @@ function zipBytes(entries,type){
  }
  const length=central.reduce((sum,bytes)=>sum+bytes.length,0),end=header(22);end.view.setUint32(0,0x06054b50,true);end.view.setUint16(8,entries.length,true);end.view.setUint16(10,entries.length,true);end.view.setUint32(12,length,true);end.view.setUint32(16,offset,true);return new Blob([...chunks,...central,end.bytes],{type});
 }
-function zip(entries,type){const encoder=new TextEncoder();return zipBytes(Object.entries(entries).map(([name,value])=>({name,bytes:encoder.encode(value)})),type)}
+function zip(entries,type){const encoder=new TextEncoder();return zipBytes(Object.entries(entries).map(([name,value])=>({name,bytes:typeof value==='string'?encoder.encode(value):value})),type)}
 	async function zipFiles(files){return zipBytes(await Promise.all(files.map(async file=>({name:file.name,bytes:new Uint8Array(await file.blob.arrayBuffer())}))), 'application/zip')}
 	function separate(name,key=''){
 	 if(/^(cover|tgCover)$/.test(key)||/bank covering letter/i.test(name))return'cover';
@@ -154,7 +176,7 @@ function zip(entries,type){const encoder=new TextEncoder();return zipBytes(Objec
 	 if(/packing list|packing/.test(text))return'packing';
 	 return'';
 	}
-	function firstDoc(docs,...categories){for(const category of categories){const match=docs.find(doc=>doc.category===category&&doc.blob);if(match)return match}return null}
+	function firstDoc(docs,...categories){for(const category of categories){const match=(category==='cover'?docs.find(doc=>doc.key==='tgCover'&&doc.blob):null)||docs.find(doc=>doc.category===category&&doc.blob);if(match)return match}return null}
 	function appendDoc(out,doc,count=1){if(!doc)return;for(let i=0;i<Math.max(1,count);i++)out.push(doc.blob)}
 	function contractSnapshot(snapshot,ref){return(snapshot?.contracts||[]).find(row=>String(row.ref||'')===String(ref))}
 	function isLcContract(c){return /^LC_/i.test(String(c?.paymentCode||''))}
@@ -188,10 +210,14 @@ function zip(entries,type){const encoder=new TextEncoder();return zipBytes(Objec
 	  for(const row of generatedRows){
 	   progress('Preparing '+row.name);
 	   const kind=separate(row.name,row.key),markup=row.render(),folder=row.folder?component(normalizedFolder(row.folder)):'',category=docCategory(row.name,row.key);
-	   const pdfBlob=await pdf(markup,fit),blob=kind==='cover'?word(markup):pdfBlob;
+	   const pdfBlob=await pdf(markup,fit),blob=kind==='cover'?await word(markup):pdfBlob;
 	   prepared++;docs.push({category,name:row.name,key:row.key,folder,blob:pdfBlob,render:row.render});
 	   if(!strictFinal&&(kind||folder||row.key==='commercialDraft'))files.push({folder,name:component(row.name)+(kind==='cover'?'.docx':'.pdf'),blob});
 	   else if(strictFinal&&folder==='CUSTOM DOCUMENTS')files.push({folder,name:component(row.name)+'.pdf',blob:pdfBlob});
+   if(kind==='cover'&&/data-tg-cover="true"/.test(markup)){
+    if(strictFinal)files.push({folder:folder||'TG docs',name:component(row.name)+'.docx',blob});
+    files.push({folder:folder||'TG docs',name:component(row.name)+'.pdf',blob:pdfBlob});
+   }
 	  }
 	  progress('Reading saved original documents');
 	  for(const doc of uploads){

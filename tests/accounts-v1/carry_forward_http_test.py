@@ -5,6 +5,7 @@ import urllib.request, urllib.error, urllib.parse
 ROOT=pathlib.Path(__file__).resolve().parents[2]
 with tempfile.TemporaryDirectory(prefix='carry-forward-qa-') as tmp:
  root=pathlib.Path(tmp)
+ shutil.copy(ROOT/'document_filenames.php',root/'document_filenames.php')
  shutil.copytree(ROOT/'api',root/'api');shutil.copytree(ROOT/'accounts',root/'accounts');shutil.copytree(ROOT/'exports',root/'exports')
  (root/'data').mkdir()
  (root/'runtime_html.php').write_text('<?php function tt_version_local_assets($s,$p){return $s;}')

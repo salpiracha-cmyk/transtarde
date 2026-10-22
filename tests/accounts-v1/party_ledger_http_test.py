@@ -5,6 +5,7 @@ import urllib.request, urllib.error, urllib.parse
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 with tempfile.TemporaryDirectory(prefix='party-ledger-qa-') as temp:
     root = pathlib.Path(temp)
+    shutil.copy(ROOT/'document_filenames.php',root/'document_filenames.php')
     for folder in ['api', 'data', 'accounts']:
         (root/folder).mkdir()
     for name in ['supplier_opening_core.php','accounts_subaccounts_core.php','accounts_ledger_visibility.php','assets_registry_core.php','service_ledger_groups.php','accounts_ledger_browser.php','accounts_read_policy.php','accounts_post_delete_core.php','accounts_post_delete_tg.php','tg_native_currency.php', 'accounts_reference.php', 'accounts_search.php', 'tg_remittance_core.php', 'fi_credit_advice_link.php', 'receipt_invoice_links.php','customer_receivables_core.php', 'tg_native_currency.php']:

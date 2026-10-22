@@ -584,8 +584,8 @@ function coveringDoc(s,c,settings=s.covering,internalTG=false){c=shipmentDocumen
  const courier=rules.originals&&settings.sentThrough&&settings.sentThrough!=='Pakistan Bank'?`<p><b>DISPATCH THROUGH:</b> ${esc(settings.sentThrough==='Other'?settings.otherCourier:settings.sentThrough)}${settings.tracking?` - AWB / TRACKING: ${esc(settings.tracking)}`:''}</p>`:'';
  const close=`KINDLY RECORD THE ENCLOSED DOCUMENTS${referenceNames?` AND SETTLE/UTILIZE THE APPLICABLE ${referenceNames}`:''} UPON RECEIPT OF PAYMENT.`;
  const branch=presented.bankAddress.replace(/[,\s-]*KARACHI\s*[,\s-]*PAKISTAN[.\s]*$/i,'');
- // Physical letterhead only. Never call pageDoc/letterhead/signature here.
- return`<div class="printDoc"><section class="docPage bankCoveringPage"><h1 class="docTitle">BANK COVERING LETTER</h1><p class="coverDate">${esc(fmt(settings.dispatchDate||TODAY()))}</p><div class="docPartyBox coverAddressee">TO,<br>MANAGER,<br>${esc(presented.bank)}${branch?`<br>${esc(branch).replace(/\n/g,'<br>')}`:''}<br>KARACHI, PAKISTAN</div><div class="coverSubject">${esc(subject)}</div><p>Dear Sir/Madam,</p><p>${intro}</p>${refIntro}${refsLine}${table}${originals}${copies}${notesBlock}${courier}<p class="coverCloseControl">${close}</p><p>THANKING YOU.</p></section></div>`
+ // Physical letterhead only for ordinary covers; TG saved outputs include the Pakistan exporter artwork.
+ return`<div class="printDoc"><section class="docPage bankCoveringPage"${internalTG?' data-tg-cover="true"':''}>${internalTG?letterhead(dc)+footerArt(dc):''}<h1 class="docTitle">BANK COVERING LETTER</h1><p class="coverDate">${esc(fmt(settings.dispatchDate||TODAY()))}</p><div class="docPartyBox coverAddressee">TO,<br>MANAGER,<br>${esc(presented.bank)}${branch?`<br>${esc(branch).replace(/\n/g,'<br>')}`:''}<br>KARACHI, PAKISTAN</div><div class="coverSubject">${esc(subject)}</div><p>Dear Sir/Madam,</p><p>${intro}</p>${refIntro}${refsLine}${table}${originals}${copies}${notesBlock}${courier}<p class="coverCloseControl">${close}</p><p>THANKING YOU.</p>${internalTG?signature(dc):''}</section></div>`
 }
 const commercialInvoiceDocEntityAware=commercialInvoiceDoc__legacy_v1;
 function commercialInvoiceDoc__legacy_v2(s,c,custom=false){return commercialInvoiceDocEntityAware(s,custom?customsDocumentContext(s,c):c,custom)}
@@ -1127,9 +1127,23 @@ function tgRelationshipLetterDoc(s,c){c=shipmentDocumentContext(s,c);
 function tgInternalDoc(s,c){const settings=s.tgdocs?.covering||s.covering;return tgProformaDoc(s,c)+tgInternalCommercialInvoiceDoc(s,c)+packingListDoc(s,c,true,true)+coveringDoc(s,c,settings,true)+tgRelationshipLetterDoc(s,c)}
 function tgPakistanCoveringDoc(s,c){return coveringDoc(s,c,s.tgdocs?.covering||s.covering,true)}
 
+function tgCoverPrintMarkup(html,includeLetterhead=true){
+ const template=document.createElement('template');template.innerHTML=html;
+ if(!includeLetterhead)template.content.querySelectorAll('[data-tg-cover="true"]').forEach(page=>page.querySelectorAll('.docLetterhead,.docLetterheadText,.docFooterArt,.docAutoSign').forEach(node=>node.remove()));
+ return template.innerHTML
+}
+function tgCoverOutput(title,html,readOnly=false){
+ const modal=openModal('Bank Covering Letter',`<div class="tgCoverOutput"><div><p class="metaText">TG document pack</p><label class="tgCoverChoice"><input id="tgCoverLetterhead" type="checkbox" checked> Include company letterhead</label><p>Includes signature and stamp.</p><p class="metaText">Tick for plain paper. Untick for preprinted letterhead.</p><p class="metaText">Saved copies always include letterhead, signature and stamp.</p><div id="tgCoverOutputError" class="notice danger" role="alert" hidden></div></div><div class="tgCoverOutputPreview" aria-label="Bank covering letter preview"><div id="tgCoverOutputPaper"></div></div></div>`,`<button class="btn" data-modal-close>Cancel</button><button class="btn navy" id="tgCoverSavePDF" ${readOnly?'data-tt-completed-reprint="true"':''}>Save PDF</button><button class="btn green" id="tgCoverPrint" ${readOnly?'data-tt-completed-reprint="true"':''}>Print</button>`);
+ const q=selector=>modal.querySelector(selector),checkbox=q('#tgCoverLetterhead'),preview=()=>{const template=document.createElement('template');template.innerHTML=tgCoverPrintMarkup(html,checkbox.checked);q('#tgCoverOutputPaper').innerHTML=template.content.querySelector('[data-tg-cover="true"]').outerHTML;};
+ checkbox.onchange=preview;preview();
+ q('#tgCoverPrint').onclick=()=>{const output=tgCoverPrintMarkup(html,checkbox.checked);closeModal();directPrint(title,output,'with',readOnly)};
+ q('#tgCoverSavePDF').onclick=async()=>{const button=q('#tgCoverSavePDF'),error=q('#tgCoverOutputError');button.disabled=true;error.hidden=true;let url;try{if(!readOnly){if(!window.TT_SHARED_SYNC?.saveNow)throw new Error('Server saving is unavailable.');await window.TT_SHARED_SYNC.saveNow()}if(!window.TT_SHIPMENT_FILES?.pdf)throw new Error('PDF saving is unavailable. Please reload and try again.');const blob=await window.TT_SHIPMENT_FILES.pdf(html,fitTGProformaPages);url=URL.createObjectURL(blob);const link=document.createElement('a');link.href=url;const namingRoot=document.createElement('div');namingRoot.innerHTML=html;const printedContracts=state.contracts.filter(c=>c.ref&&namingRoot.textContent.includes(c.ref)),printedContract=printedContracts.length===1?printedContracts[0]:null,inferred=window.TT_DOCUMENT_NAME?.infer({querySelector:selector=>namingRoot.querySelector(selector),body:namingRoot,title})||{};link.download=window.TT_DOCUMENT_NAME?.name({party:inferred.party||(printedContract?buyerOf(printedContract).name:''),company:printedContract?.seller||'Transtrade',title,reference:inferred.reference||printedContract?.ref||'',extension:'pdf'})||title.replace(/[^a-z0-9 _-]/gi,'-')+'.pdf';document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),60000)}catch(e){error.textContent=e.message;error.hidden=false}finally{button.disabled=false}};
+ return modal
+}
 const printShipmentDocBeforePlainBL=printShipmentDoc__legacy_v0;
 function printShipmentDoc(title,html,seller='TTI',readOnly=false){
  const template=document.createElement('template');template.innerHTML=html;
+ if(template.content.querySelector('[data-tg-cover="true"]'))return tgCoverOutput(title,html,readOnly);
  const pages=template.content.querySelectorAll('.docPage'),covers=template.content.querySelectorAll('.bankCoveringPage');
  if(covers.length&&covers.length===pages.length)return directPrint(title,html,'with',readOnly);
  if(/^B\/L (?:DRAFT|INSTRUCTIONS)/i.test(title))return directPrint(title,html,'with',readOnly);
@@ -1233,6 +1247,7 @@ function renderTG(d){
  const persistPack=async()=>{
   readTab();if(num(s.customs.rate)<=0)throw new Error('Save the Customs Invoice price first.');if(s.tgdocs.importer.enabled&&!tgImporterParty(s,c)?.name)throw new Error('Select the Importer / Receiver of Goods.');
   if(!window.TT_SHARED_SYNC?.saveNow)throw new Error('Server saving is unavailable.');
+  s.tgdocs.covering.saved=!coveringValidation(s,c,s.tgdocs.covering,true);s.tgdocs.covering.frozen=false;
   Object.assign(s.tgdocs,{saved:true,at:new Date().toISOString(),exporter:seller,rate:num(s.customs.rate),currency,customsInvoiceNo:s.customs.invoiceNo,invoiceValue:num(s.customs.invoiceValue)});audit('TG Documents','TG pack saved',`${s.contractRef} · ${s.lotId}`);save();await window.TT_SHARED_SYNC.saveNow()
  };
  q('#saveTGPack').onclick=async()=>{const button=q('#saveTGPack');button.disabled=true;try{await persistPack();closeLotEditor()}catch(error){showExportSaveError(error.message,button)}finally{button.disabled=false}};
@@ -1945,7 +1960,7 @@ async function directPrint(title,html,mode='with',readOnly=false,downloadMeta={}
  // Completed VIEW routes render committed snapshots and must never resave the workspace.
  if(!readOnly)try{if(!window.TT_SHARED_SYNC?.saveNow)throw new Error('Server saving is unavailable.');await window.TT_SHARED_SYNC.saveNow()}catch(error){showExportSaveError(error.message);return false}
  const template=document.createElement('template');template.innerHTML=html;
- if(template.content.querySelector('.bankCoveringPage')&&!window.confirm('Did you put the original letterhead in the printer?'))return Promise.resolve(false);
+ if(template.content.querySelector('.bankCoveringPage:not([data-tg-cover="true"])')&&!window.confirm('Did you put the original letterhead in the printer?'))return Promise.resolve(false);
  const root=document.getElementById('printRoot'),old=document.title;
  root.className=mode==='without'?'printModeWithout':'printModeWith';root.innerHTML=html;root.setAttribute('aria-hidden','false');for(const key of Object.keys(root.dataset))if(key.startsWith('download'))delete root.dataset[key];const printedContracts=state.contracts.filter(c=>c.ref&&root.textContent.includes(c.ref)),printContract=printedContracts.length===1?printedContracts[0]:null,inferred=window.TT_DOCUMENT_NAME?.infer({querySelector:selector=>root.querySelector(selector),body:root,title})||{};Object.assign(root.dataset,{downloadTitle:downloadMeta.title||title,downloadParty:downloadMeta.party||inferred.party||(printContract?buyerOf(printContract).name||'':''),downloadReference:downloadMeta.reference||inferred.reference||printContract?.ref||'',downloadCompany:downloadMeta.company||printContract?.seller||''});document.title='';
  const cleanup=()=>{root.innerHTML='';root.className='';root.setAttribute('aria-hidden','true');document.title=old};
