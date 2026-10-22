@@ -3,6 +3,7 @@ import json,pathlib,shutil,socket,subprocess,tempfile,time,urllib.request,urllib
 ROOT=pathlib.Path(__file__).resolve().parents[2]
 with tempfile.TemporaryDirectory(prefix='historical-bags-') as tmp:
  root=pathlib.Path(tmp);shutil.copytree(ROOT/'api',root/'api');shutil.copytree(ROOT/'accounts',root/'accounts');(root/'data').mkdir()
+ shutil.copy(ROOT/'document_filenames.php',root/'document_filenames.php')
  (root/'auth_store.php').write_text('''<?php
  define('TT_DATA_DIR',__DIR__.'/data');function tt_ensure_data_dir(){}function tt_accounts_input(){return file_get_contents('php://input');}
  function tt_require_login(){return ['id'=>1,'username'=>'Fixture','role'=>empty($_SERVER['HTTP_X_READONLY'])?'Super Admin':'Staff','permissions'=>['Accounts'=>empty($_SERVER['HTTP_X_READONLY'])?'all':['View']]];}

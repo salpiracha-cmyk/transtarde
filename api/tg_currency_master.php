@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once dirname(__DIR__).'/document_filenames.php';
 
 require dirname(__DIR__) . '/auth_store.php';
 require dirname(__DIR__) . '/upload_validation.php';
@@ -96,7 +97,7 @@ function tg_save_uploaded_file(array $file): array {
 }
 function tg_doc_download(array $u,string $id): never {
     if(!tt_user_can_master($u,TT_TG_DOC_MASTER_TYPE,'View Documents'))tgfx_out(['ok'=>false,'error'=>'TG document View Documents permission required.'],403);
-    $docs=tg_docs();$d=null;foreach($docs as $x)if((string)$x['id']===$id){$d=$x;break;}if(!$d||empty($d['storedFile'])){http_response_code(404);exit('Document copy not found.');}$path=TT_TG_DOC_DIR.'/'.basename((string)$d['storedFile']);if(!is_file($path)){http_response_code(404);exit('Document file is unavailable.');}$mime=(string)($d['mime']??'application/octet-stream');$name=tt_upload_original_name((string)($d['originalFile']??'TG-document'));header('Content-Type: '.$mime);header('Content-Length: '.filesize($path));header('Content-Disposition: inline; filename="'.$name.'"');tt_uploaded_document_headers();readfile($path);exit;
+    $docs=tg_docs();$d=null;foreach($docs as $x)if((string)$x['id']===$id){$d=$x;break;}if(!$d||empty($d['storedFile'])){http_response_code(404);exit('Document copy not found.');}$path=TT_TG_DOC_DIR.'/'.basename((string)$d['storedFile']);if(!is_file($path)){http_response_code(404);exit('Document file is unavailable.');}$mime=(string)($d['mime']??'application/octet-stream');$name=tt_upload_original_name((string)($d['originalFile']??'TG-document'));header('Content-Type: '.$mime);header('Content-Length: '.filesize($path));tt_document_disposition(tt_document_name(['party'=>$d['holder']??'Trans Grains','title'=>$d['documentType']??'Compliance Document','reference'=>$d['documentNumber']??'','date'=>$d['expiryDate']??'','extension'=>tt_document_extension($name,$mime)]));tt_uploaded_document_headers();readfile($path);exit;
 }
 function tgfx_payload(array $u): array {
     $rows=tgfx_seed($u);usort($rows,static function($a,$b){$av=(array)($a['values']??[]);$bv=(array)($b['values']??[]);return strcmp((string)($bv[6]??''),(string)($av[6]??''));});$docs=tt_user_can_master($u,TT_TG_DOC_MASTER_TYPE,'View Documents')?tg_docs():[];

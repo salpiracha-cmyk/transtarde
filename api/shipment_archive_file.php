@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once dirname(__DIR__).'/document_filenames.php';
 require dirname(__DIR__).'/auth_store.php';
 require_once dirname(__DIR__).'/upload_validation.php';
 require_once __DIR__.'/export_permission_policy.php';
@@ -31,7 +32,7 @@ try {
             sa_error(409,'Stored shipment pack failed verification. Review its original archive.');
         rewind($handle);
         header('Content-Type: application/pdf'); header('Content-Length: '.(int)$file['size']);
-        header('Content-Disposition: attachment; filename="Master Shipment Documents.pdf"');
+        tt_document_disposition(tt_export_document_name(ep_operations_root(),(string)($job['contract']??''),(string)($job['lot']??''),'Master Shipment Documents','pdf'),true);
         tt_uploaded_document_headers(); fpassthru($handle);
     } finally {flock($handle,LOCK_UN); fclose($handle);}
 } catch (InvalidArgumentException $e) {sa_error(422,$e->getMessage());

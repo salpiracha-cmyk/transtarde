@@ -9,6 +9,7 @@ import tempfile
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 with tempfile.TemporaryDirectory(prefix='ledger-catalog-') as directory:
     root = pathlib.Path(directory)
+    shutil.copy(ROOT/'document_filenames.php',root/'document_filenames.php')
     for folder in ['api', 'data', 'accounts']:
         (root / folder).mkdir()
     dependencies = ['supplier_opening_core.php', 'accounts_subaccounts_core.php',

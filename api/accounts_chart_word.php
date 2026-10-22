@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once dirname(__DIR__).'/document_filenames.php';
 require dirname(__DIR__).'/auth_store.php';
 require_once __DIR__.'/accounts_chart_word_core.php';
 header('Cache-Control: no-store');
@@ -22,6 +23,6 @@ require_once __DIR__.'/accounts_subaccounts_core.php';
 $master=json_decode((string)file_get_contents(dirname(__DIR__).'/accounts/accounting_master_v1.json'),true);
 $doc=acw_document($master,$store,tt_list_masters(),$entities,$date);
 header('Content-Type: application/vnd.openxmlformats-officedocument.wordprocessingml.document');
-header('Content-Disposition: attachment; filename="Transtrade_Chart_Accounts_Balances_'.$date.'.docx"');
+tt_document_disposition(tt_document_name(['company'=>implode(' and ',$entities),'title'=>'Chart of Accounts and Balances','date'=>$date,'extension'=>'docx']),true);
 header('Content-Length: '.strlen($doc));echo $doc;
 

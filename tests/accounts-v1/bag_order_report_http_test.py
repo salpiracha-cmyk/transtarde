@@ -3,6 +3,7 @@ import csv,io,json,pathlib,shutil,socket,subprocess,tempfile,time,urllib.request
 ROOT=pathlib.Path(__file__).resolve().parents[2]
 with tempfile.TemporaryDirectory(prefix='bag-report-') as tmp:
  root=pathlib.Path(tmp);(root/'api').mkdir();(root/'data').mkdir()
+ shutil.copy(ROOT/'document_filenames.php',root/'document_filenames.php')
  for name in ['bag_order_report.php','bag_order_report_core.php','accounts_shipment_source.php','bag_receipt_quantities.php','bag_transfer_core.php']:shutil.copy(ROOT/'api'/name,root/'api'/name)
  (root/'auth_store.php').write_text("""<?php
 define('TT_DATA_DIR',__DIR__.'/data');function tt_require_login(){return [];}function tt_user_can_open_module($u,$m){return $m==='Accounts';}function tt_user_can_access_entity($u,$e,$a){return $e==='TTI';}function tt_user_can_module_action($u,$m,$i,$a){return empty($_SERVER['HTTP_X_DENY']);}function tt_release_read_session(){}

@@ -1,5 +1,12 @@
 # Transtrade Permanent UI Rules
 
+## User-facing download filenames — 22 October 2026
+
+- Every document download and Print / Save PDF uses the actual party, document title, and saved invoice/SODA/bill/Post ID reference. Ledger and report filenames include their displayed date range and company/currency where needed to distinguish books. Example: `Shams Broker - SODA - SODA-2026-001 - TTI.pdf`.
+- Mixed-party reports use the company and report title rather than the first party in the table. Files without a party use the company, document title and available reference/date. Uploaded originals keep their file type; download names come from their authorised source record. Closed documents use their issued party snapshot.
+- Use the shared browser/server filename helpers. Preserve Unicode names, remove invalid filesystem/header characters, bound filename length and retain extensions. A presentation filename must never become a storage key, authorisation target or substitute for a record ID. Naming must not post, save, change document wording or modify financial records.
+- Print titles are temporary and restore after printing/cancellation. Keep company/party/reference selection bound to the generated document, not another open workspace or an unrelated first report row. Internal Office Agent manifest filenames and backup recovery identities retain their established contracts.
+
 ## Header / logout rule
 
 This rule applies across Super Admin, Milling, Exports, Accounts, Directors, staff landing pages and all future Transtrade modules.

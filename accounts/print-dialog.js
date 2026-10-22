@@ -4,7 +4,7 @@
  function create(){
   if(active)active.remove();const frame=document.createElement('iframe');frame.title='Print document';frame.setAttribute('aria-hidden','true');frame.style.cssText='position:fixed;left:-10000px;top:0;width:800px;height:1000px;border:0';document.body.appendChild(frame);active=frame;
   const w=frame.contentWindow;w.addEventListener('afterprint',()=>{frame.remove();if(active===frame)active=null;});w.__nativePrint=w.print.bind(w);let requested=false;
-  w.print=()=>{if(requested)return;requested=true;const walker=w.document.createTreeWalker(w.document.body,4);let node;while(node=walker.nextNode()){if(!node.parentElement?.closest('script,style,textarea'))node.data=dates(node.data);}setTimeout(()=>{if(!frame.isConnected)return;w.focus();frame.contentWindow.__nativePrint();},50);};
+  w.print=()=>{if(requested)return;requested=true;const walker=w.document.createTreeWalker(w.document.body,4);let node;while(node=walker.nextNode()){if(!node.parentElement?.closest('script,style,textarea'))node.data=dates(node.data);}setTimeout(()=>{if(!frame.isConnected)return;window.TT_DOCUMENT_NAME?.prepare(w.document);w.focus();frame.contentWindow.__nativePrint();},50);};
   // Save native print before overriding it.
   return w;
  }

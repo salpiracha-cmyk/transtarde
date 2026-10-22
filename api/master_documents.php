@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once dirname(__DIR__).'/document_filenames.php';
 require dirname(__DIR__) . '/auth_store.php';
 require dirname(__DIR__) . '/upload_validation.php';
 
@@ -21,7 +22,7 @@ try {
         $path=TT_DATA_DIR.'/master-documents/'.basename((string)$document['storageName']);
         if (!is_file($path)) md_reply(['ok'=>false,'error'=>'Document file not found.'],404);
         header('Content-Type: '.((string)($document['mime']??'application/octet-stream')));
-        header('Content-Disposition: '.($download?'attachment':'inline').'; filename="'.tt_upload_original_name((string)($document['originalName']??'document')).'"');
+        tt_document_disposition(tt_document_name(['party'=>$company['values'][0]??'','title'=>$document['label']??$document['type']??'Company Document','reference'=>$document['version']??'','extension'=>tt_document_extension((string)($document['originalName']??''),(string)($document['mime']??''))]),$download);
         tt_uploaded_document_headers();readfile($path);exit;
     }
     if ($method==='GET') {

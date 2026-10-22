@@ -1,14 +1,15 @@
 <?php
 declare(strict_types=1);
+require_once dirname(__DIR__).'/document_filenames.php';
 require_once __DIR__.'/monthly_tax_source.php';
 require_once dirname(__DIR__).'/upload_validation.php';
 try {
  $u=tt_require_login();$e=strtoupper(trim((string)($_GET['entity']??$_POST['entity']??'')));mt_access($u,$e);$month=mt_month((string)($_GET['month']??$_POST['month']??''));$rows=mt_rows($e,$month);
  if(($_SERVER['REQUEST_METHOD']??'GET')==='GET'){
-  $file=null;$path='';
-  if(!empty($_GET['bagFile']))foreach($rows['bags'] as $b)if($b['id']===(string)$_GET['bagFile']){$s=ast_accounts();$token=(string)($s['bagSupplierBills'][$b['id']]['attachmentToken']??'');if(preg_match('/^bagbill-[a-zA-Z0-9.-]+\.(pdf|png|jpe?g)$/D',$token)){$path=TT_DATA_DIR.'/bag-bill-uploads/'.$token;$file=['name'=>'Sales tax invoice '.$b['invoice'].'.'.pathinfo($token,PATHINFO_EXTENSION),'mime'=>str_ends_with($token,'.pdf')?'application/pdf':(str_ends_with($token,'.png')?'image/png':'image/jpeg')];}}
-  if(!empty($_GET['file']))foreach(mt_meta()['files']??[] as $key=>$d)if(str_starts_with($key,$e.'|'.$month.'|')&&($d['id']??'')===(string)$_GET['file']){$file=$d;$path=TT_DATA_DIR.'/monthly-tax-uploads/'.basename((string)$d['stored']);break;}
-  if(isset($_GET['file'])||isset($_GET['bagFile'])){if(!$file||!is_file($path))ast_out(['ok'=>false,'error'=>'The document is unavailable in this company and month.'],404);tt_release_read_session();header('Content-Type: '.$file['mime']);header('Content-Disposition: inline; filename="'.preg_replace('/[^A-Za-z0-9_. -]/','_',basename($file['name'])).'"');header('Content-Length: '.filesize($path));tt_uploaded_document_headers();readfile($path);exit;}
+  $file=null;$path='';$fileParty='';
+  if(!empty($_GET['bagFile']))foreach($rows['bags'] as $b)if($b['id']===(string)$_GET['bagFile']){$fileParty=(string)($b['supplier']??'');$s=ast_accounts();$token=(string)($s['bagSupplierBills'][$b['id']]['attachmentToken']??'');if(preg_match('/^bagbill-[a-zA-Z0-9.-]+\.(pdf|png|jpe?g)$/D',$token)){$path=TT_DATA_DIR.'/bag-bill-uploads/'.$token;$file=['name'=>'Sales tax invoice '.$b['invoice'].'.'.pathinfo($token,PATHINFO_EXTENSION),'mime'=>str_ends_with($token,'.pdf')?'application/pdf':(str_ends_with($token,'.png')?'image/png':'image/jpeg')];}}
+  if(!empty($_GET['file']))foreach(mt_meta()['files']??[] as $key=>$d)if(str_starts_with($key,$e.'|'.$month.'|')&&($d['id']??'')===(string)$_GET['file']){$file=$d;foreach(array_merge($rows['bags'],$rows['utilities']) as $source)if(str_ends_with($key,'|'.$source['key']))$fileParty=(string)($source['supplier']??$source['provider']??'');$path=TT_DATA_DIR.'/monthly-tax-uploads/'.basename((string)$d['stored']);break;}
+  if(isset($_GET['file'])||isset($_GET['bagFile'])){if(!$file||!is_file($path))ast_out(['ok'=>false,'error'=>'The document is unavailable in this company and month.'],404);tt_release_read_session();header('Content-Type: '.$file['mime']);tt_document_disposition(tt_document_name(['party'=>$fileParty,'company'=>$e,'title'=>pathinfo((string)$file['name'],PATHINFO_FILENAME),'date'=>$month,'extension'=>pathinfo((string)$file['name'],PATHINFO_EXTENSION)]));header('Content-Length: '.filesize($path));tt_uploaded_document_headers();readfile($path);exit;}
   $csrf=tt_csrf();tt_release_read_session();ast_out(['ok'=>true]+$rows+['fingerprint'=>hash('sha256',json_encode($rows)),'csrf'=>$csrf,'canAttach'=>['bag'=>tt_user_can_access_entity($u,$e,'Edit')&&tt_user_can_module_action($u,'Accounts','purchases','Edit'),'utility'=>tt_user_can_access_entity($u,$e,'Edit')&&tt_user_can_module_action($u,'Accounts','expenses','Edit')]]);
  }
  if(($_SERVER['REQUEST_METHOD']??'')!=='POST')ast_out(['ok'=>false,'error'=>'Method not allowed.'],405);

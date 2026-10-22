@@ -5,6 +5,8 @@ on:
     branches: [main]
   pull_request:
     paths:
+      - 'document-filenames.js'
+      - 'document_filenames.php'
       - 'index.html'
       - 'index.php'
       - 'jv_notice_ui.php'
@@ -82,6 +84,8 @@ jobs:
           node tests/exports-v3/lot_completion_persistence_browser_qa.js
       - name: Verify exact September document-output acceptance
         run: |
+          TT_FILENAME_BROWSER=1 node tests/document_filenames_test.js
+          php tests/document_filenames_test.php
           node tests/exports-v3/exports_acceptance_20260914_audit.js
           node tests/exports-v3/exports_sol4_handover_audit.js
           node tests/exports-v3/commercial_documents_20260915_audit.js
