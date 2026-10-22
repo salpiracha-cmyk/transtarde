@@ -19,7 +19,7 @@ w.close();console.log('PASS compact completed sheet, searchable payment list, fo
  const source=fs.readFileSync('accounts/rent-salary-ui.js','utf8');
  const handler=source.slice(source.indexOf('async function saveTransactions(){'),source.indexOf('\n\nfunction confirmSalaryChange'));
  let acknowledge,calls=0;v.q=s=>v.document.querySelector(s);v.data={salarySheet:{version:1}};v.busy=false;v.payingMaster='Bob';v.directorPlan=()=>false;v.familyTransactions=()=>[{amount:250}];v.toast=()=>{};
- v.post=async()=>{calls++;v.busy=true;try{return await new Promise(resolve=>{acknowledge=resolve})}finally{v.busy=false}};
+ v.post=async(body,msg,onSaved)=>{calls++;v.busy=true;try{const result=await new Promise(resolve=>{acknowledge=resolve});if(result)onSaved(result);return result}finally{v.busy=false}};
  v.eval(handler+';window.saveDraft=saveTransactions');
  const dialog=v.q('#rsPaymentPopup');dialog.addEventListener('cancel',()=>dialog.remove());let pending=v.saveDraft();assert(dialog.open&&dialog.isConnected,'Save must retain the modal while waiting');assert(v.q('#rsPaySalBtn').disabled);assert(v.q('#savedCash').disabled);assert(v.q('#rsDraftCancel').disabled);
  const cancel=new v.Event('cancel',{cancelable:true});dialog.dispatchEvent(cancel);assert(cancel.defaultPrevented&&dialog.isConnected,'Escape must not discard an in-flight save');await v.saveDraft();assert.equal(calls,1,'Repeated clicks must not save twice');
