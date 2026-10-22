@@ -10,7 +10,7 @@ with tempfile.TemporaryDirectory(prefix='tti-authorization-') as directory:
     (root / 'sessions').mkdir()
     private = root / 'transtrade_private'
     private.mkdir()
-    for name in ['auth_store.php', 'master_store.php', 'product_stage.php', 'offline_idempotency.php','session_store.php']:
+    for name in ['document_filenames.php','auth_store.php', 'master_store.php', 'product_stage.php', 'offline_idempotency.php','session_store.php']:
         shutil.copy(ROOT / name, app / name)
     for source in (ROOT/'api').glob('*.php'):
         shutil.copy(source,app/'api'/source.name)
