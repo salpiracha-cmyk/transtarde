@@ -17,6 +17,8 @@ labelled.tgdocs.relationship.bank='Manually entered bank';assert.equal(t.tgRelat
 const d=w.document.getElementById('editor'),q=x=>d.querySelector(x),input=(id,value)=>{q(id).value=value;q(id).dispatchEvent(new w.Event('input',{bubbles:true}));},tab=key=>q(`[data-tg-tab="${key}"]`).click();
 const before=JSON.stringify(s.tgdocs.relationship);assert.match(t.tgRelationshipLetterDoc(s,c),/OLD BUYER/);assert.equal(JSON.stringify(s.tgdocs.relationship),before,'Reading historical letter does not migrate or rewrite it');
 t.renderTG(d);assert.equal(syncs,0);assert.equal(d.querySelectorAll('.lotSplitWorkspace').length,1);assert.ok(q('#tgPreviewPaper .docPage'),'First tab renders a real document');
+assert.ok(s.tgdocs.covering.dispatchDate,'The whole pack has its bank date before the covering tab is ever opened');
+assert.equal(s.tgdocs.covering.bank,'Fixture Bank');
 for(const key of ['invoice','packing','cover','relationship','proforma']){tab(key);assert.ok(q('#tgPreviewPaper .docPage'),key+' preview');}
 tab('relationship');assert.match(q('#tgPreviewPaper').textContent,/New Buyer Address/);assert.doesNotMatch(q('#tgPreviewPaper').textContent,/OLD BUYER/);assert.match(s.tgdocs.relationship.previousWording,/OLD BUYER/);
 input('#tgRelBank','Another Bank');input('#tgRelBuyer','Trader <img src=x onerror=bad()>');assert.match(q('#tgPreviewPaper').textContent,/Another Bank/);assert.equal(q('#tgPreviewPaper [onerror]'),null,'Party fields are escaped');
@@ -30,7 +32,19 @@ assert.equal(syncs,0,'Typing, selecting and switching tabs never save');
  const errorBox=q('#exportSaveError');assert.equal(errorBox.getAttribute('role'),'alert');assert.equal(errorBox.textContent,'Fixture save refused');assert.equal(w.getComputedStyle(errorBox).color,'rgb(165, 29, 36)','Save errors must use red wording despite the shared green theme');failSave=false;
  tab('invoice');q('#tgShowImporter').checked=true;q('#tgShowImporter').dispatchEvent(new w.Event('change',{bubbles:true}));q('#tgImporterChoice').value='NOTIFY:0';q('#tgImporterChoice').dispatchEvent(new w.Event('change',{bubbles:true}));assert.match(q('#tgPreviewPaper').textContent,/Receiver Two/);tab('packing');assert.match(q('#tgPreviewPaper').textContent,/Receiver Two/);
  tab('relationship');q('#tgRelParty').value='INVOICE';q('#tgRelParty').dispatchEvent(new w.Event('change',{bubbles:true}));assert.match(q('#tgPreviewPaper').textContent,/Receiver Two Address/);
- q('#tgRelParty').value='CUSTOM';q('#tgRelParty').dispatchEvent(new w.Event('change',{bubbles:true}));input('#tgRelAddress','');const count=printed.length;await q('#tgPrintCurrent').onclick();assert.equal(printed.length,count);assert.ok(alerts.some(a=>a.includes('receiver address')),'Missing receiver address prevents an incomplete print');
+ q('#tgRelParty').value='CUSTOM';q('#tgRelParty').dispatchEvent(new w.Event('change',{bubbles:true}));input('#tgRelAddress','');const count=printed.length;await q('#tgPrintCurrent').onclick();assert.equal(printed.length,count);assert.match(q('#exportSaveError').textContent,/Relationship Letter:.*receiver address/,'Validation is red and identifies the document');
+ // A complete pack can print without visiting the bank tab first.
+ q('#tgRelParty').value='INVOICE';q('#tgRelParty').dispatchEvent(new w.Event('change',{bubbles:true}));
+ s.tgdocs.covering={};s.tgdocs.activeTab='relationship';t.renderTG(d);
+ const beforeComplete=printed.length;await q('#printTGPack').onclick();assert.equal(printed.length,beforeComplete+1,'A new pack must not depend on visiting all tabs');
+ assert.match(printed.at(-1).html,/BANK COVERING LETTER/);assert.match(printed.at(-1).html,/RELATIONSHIP BETWEEN PARTIES/);
+ const date='2026-07-06';s.tgdocs.covering.dispatchDate=date;t.renderTG(d);assert.equal(s.tgdocs.covering.dispatchDate,date,'Saved historical dates are preserved');
+ // A cleared date opens the actual Bank Covering Letter rather than marking the relationship date.
+ tab('cover');input('#cvDate','');tab('relationship');const beforeBlocked=syncs;await q('#printTGPack').onclick();
+ assert.equal(syncs,beforeBlocked);assert.equal(s.tgdocs.activeTab,'cover');assert.equal(q('#cvDate').value,'','An explicitly cleared bank date is not silently replaced during validation');
+ assert.match(q('#exportSaveError').textContent,/Bank Covering Letter: Letter \/ dispatch date is required/);
+ input('#cvDate',date);tab('relationship');await q('#printTGPack').onclick();assert.equal(printed.length,beforeComplete+2,'Correcting the named field allows retry');
+ assert.equal(alerts.length,0,'TG pack validation uses inline red feedback, without an unrelated field alert');
  if(process.env.TT_TG_PACK_BROWSER==='1'){
   const {chromium}=require('playwright'),browser=await chromium.launch({headless:true}),page=await browser.newPage({viewport:{width:1450,height:1000}});
   try{
