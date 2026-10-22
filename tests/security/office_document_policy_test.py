@@ -17,6 +17,14 @@ with tempfile.TemporaryDirectory(prefix='office-document-policy-') as temp:
  check('Bank.docx',package(entries+[('word/vbaProject.bin',b'macro')]),False)
  evil=[(name,xml.replace(b'Fixture covering letter',b'<w:fldSimple w:instr="DDEAUTO evil"/>')) for name,xml in entries];check('Bank.docx',package(evil),False)
  check('Bank.docx',package([(name,xml.replace(b'Target="styles.xml"',b'TargetMode="External" Target="https://evil.test"')) for name,xml in entries]),False)
+ # Native Word permits only validated embedded PNG/JPEG assets and internal image relationships.
+ branded=[(name,xml.replace(b'</Relationships>',b'<Relationship Id="art1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image1.png"/></Relationships>') if name=='word/_rels/document.xml.rels' else xml) for name,xml in entries]+[('word/media/image1.png',PNG)]
+ check('TG branded.docx',package(branded))
+ check('TG corrupt.docx',package([(name,b'not an image' if name=='word/media/image1.png' else data) for name,data in branded]),False)
+ check('TG external.docx',package([(name,data.replace(b'Target="media/image1.png"',b'TargetMode="External" Target="media/image1.png"')) for name,data in branded]),False)
+ check('TG missing.docx',package(branded[:-1]),False)
+ check('TG traversal.docx',package(entries+[('word/media/../image1.png',PNG)]),False)
+ check('TG script.docx',package(entries+[('word/media/image1.svg',b'<svg/>')]),False)
  # All statuses and orphan files count; admission never deletes prior archives.
  jobs=root/'jobs';jobs.mkdir();orphan=jobs/'orphan';orphan.write_text('retain me');before=orphan.read_bytes()
  for size in [0,268435457]:assert run('admit',jobs,size).returncode!=0

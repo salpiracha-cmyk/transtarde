@@ -532,3 +532,10 @@ Online Banking payments expose an editable payment date, defaulting from the vou
 - Show gross selected dues, brokerage WHT and net payment prominently before payment-source inputs. Distinguish tax already recorded on a bill from tax newly withheld at payment; never deduct or post it twice. Include the authoritative totals in voucher narration. Bank, Cash and Third party reveal only relevant details. Review accounting entries precedes final posting.
 - New commodity bills explicitly choose Broker bill includes brokerage (commodity creditor and brokerage payable both belong to the broker) or Supplier bill with automatic separate brokerage (commodity creditor belongs to supplier, brokerage payable belongs to broker). A missing supplier falls back to the broker. Preserve existing journals and their saved payees. Never allocate a broker-only JV debit to another supplier just because that supplier shares the planning broker.
 - Planned payment vouchers place the selected truck/SODA/bill Post ID table and payment/WHT totals immediately before signatures. Reprints use committed allocations, without ticks, expand controls or design commentary.
+
+## TG bank covering letter — owner approval, 22 October 2026
+
+- TG Pakistan exporter bank covering letters save with the selected TTI/BRM letterhead and stored signature/stamp. Canonical system, PDF and editable Word copies, including the TTI office archive, retain all artwork.
+- Print opens a checked **Include company letterhead** tick. Unticking removes letterhead, footer and signature/stamp from TG covering pages for physical letterhead printing; other pages in the set retain their artwork. The print choice never changes saved copies.
+- Strict final archives retain the TG covering letter as both PDF and native editable Word in TG docs. Ordinary non-TG covering letters retain their existing physical-letterhead workflow.
+- Saving or printing does not mark actual dispatch or lock the pack. Existing source validation and server-save acknowledgement still apply.
