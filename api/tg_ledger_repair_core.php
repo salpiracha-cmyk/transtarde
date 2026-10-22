@@ -60,8 +60,11 @@ function tglr_apply(array &$store,array $user,string $fingerprint):array {
             $audit['npss'][]=['postId'=>$item['postId'],'date'=>$item['date'],'payee'=>$item['payee'],'principal'=>$item['principal'],'charge'=>$item['charge'],'vat'=>$item['vat'],'bankDebit'=>round($item['principal']+$item['charge']+$item['vat'],2),'before'=>$old,'replacement'=>$result];
         }
     }
-    foreach($plan['native'] as $item){
-        // Expense correction already supplies a new native journal; retain its old source unchanged.
+    // Include replacement fee/VAT journals created above, so one reviewed action completes the repair.
+    $nativePlan=$plan['npss']?tglr_plan($working)['native']:$plan['native'];
+    foreach($nativePlan as $item){
+        // Historical originals remain immutable; only their active replacements can be stamped.
+
         if(!tglr_active($working['journals'][$item['journalId']]))continue;
         foreach($item['changes'] as $change)$working['journals'][$item['journalId']]['lines'][$change['line']]=array_replace($change['before'],$change['fields']);
         $working['journals'][$item['journalId']]['meta']['nativeCurrencyRepairAt']=$audit['at'];$audit['native'][]=$item;
