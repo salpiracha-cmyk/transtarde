@@ -53,6 +53,14 @@ with tempfile.TemporaryDirectory(prefix='master-family-') as directory:
             status,data=request(); row=next(r for r in data['masters'][kind] if r['id']==record_id)
             assert row['values'][note_index]=='Amended fixture text',(kind,row)
             assert json.loads(books.read_text())['journals']==original_journals,'Master edits must not post financial entries'
+        service=['Fixture Tax Consultant','','Service Provider','','','','','','','','Active','',json.dumps({'service':{'expenseAccountCode':'6700','type':'Tax consultant'}})]
+        stable=books.read_bytes();status,data=save('business_parties',service);assert status==200,(status,data)
+        service_id=data['id'];saved_service=next(r for r in data['masters']['business_parties'] if r['id']==service_id)
+        assert json.loads(saved_service['values'][12])['service']['expenseAccountCode']=='6700' and books.read_bytes()==stable
+        assert any(h['code']=='6700' for h in data['options']['service_expense_heads'])
+        for code in ['1110','2130','6000','UNKNOWN']:
+            bad=copy.deepcopy(service);bad[12]=json.dumps({'service':{'expenseAccountCode':code}});unchanged_failure('business_parties',bad,service_id)
+        bad=copy.deepcopy(service);bad[2]='Supplier';unchanged_failure('business_parties',bad,service_id)
         kat=['CORN','Fixture Maize','','RAW','Fixture KAT','2026-07-01','','Active','Fixture notes',json.dumps([{'name':'Moisture','ranges':[{'from':'0','to':'15','value':'0'},{'from':'15','to':'','value':'1'}]}])]
         status,data=save('purchase_kat',kat); assert status==200,(status,data); ids['purchase_kat']=data['id']
         kat[8]='Amended fixture text'; status,data=save('purchase_kat',kat,ids['purchase_kat']); assert status==200,(status,data)

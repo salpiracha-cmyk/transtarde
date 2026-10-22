@@ -19,7 +19,7 @@ function eiv_capture(array &$s,string $entity,array $b,array $u,array $names,boo
     if($due<$date)throw new InvalidArgumentException('Due date cannot precede the invoice date.');
     $number=trim((string)($b['invoiceNo']??''));$payee=trim((string)($b['payee']??''));
     if($number===''||strlen($number)>180||$payee===''||strlen($payee)>180)throw new InvalidArgumentException('Enter the supplier and original invoice number (up to 180 characters each).');
-    $profile=null;foreach(sac_payees($s,$entity,'EXPENSE') as $p)if(sac_normal($p['name'])===sac_normal($payee)){$profile=$p;$payee=$p['name'];break;}
+    $profile=null;foreach(sac_expense_recipients($s,$entity) as $p)if(sac_normal($p['name'])===sac_normal($payee)){$profile=$p;$payee=$p['name'];break;}
     if(!empty($b['payeeId'])&&(!$profile||$profile['id']!==$b['payeeId']))throw new InvalidArgumentException('Choose the current supplier identity.');
     $notes=trim((string)($b['notes']??''));if(strlen($notes)>1000)throw new InvalidArgumentException('Notes must be no longer than 1000 characters.');
     $extra=['notes'=>$notes];
@@ -116,7 +116,7 @@ function dex_check_cheque(array $store,string $entity,string $bankId,array $trac
 function dex_post(array &$store,string $entity,array $body,array $user,array $names,array $tracking): array {
     $narration=trim((string)($body['paymentNarration']??''));if(strlen($narration)>900)throw new InvalidArgumentException('Narration is too long.');$tracking=array_replace(['paymentNarration'=>$narration],$tracking);
     $payee=trim((string)($body['payee']??''));if($payee===''||strlen($payee)>180)throw new InvalidArgumentException('Enter who receives this payment.');
-    $profile=null;foreach(sac_payees($store,$entity,'EXPENSE') as $candidate)if(sac_normal($candidate['name'])===sac_normal($payee)){$profile=$candidate;break;}
+    $profile=null;foreach(sac_expense_recipients($store,$entity) as $candidate)if(sac_normal($candidate['name'])===sac_normal($payee)){$profile=$candidate;break;}
     if($profile)$payee=$profile['name'];if(!empty($body['payeeId'])&&(!$profile||$profile['id']!==(string)$body['payeeId']))throw new InvalidArgumentException('Choose the current expense recipient.');
     $date=ev1_date((string)($body['paymentDate']??''),'Payment date');$reference=trim((string)($body['reference']??''));if(strlen($reference)>180)throw new InvalidArgumentException('Reference is too long.');
     [$rows,$total]=dex_rows($body['expenseLines']??null,$names,$store,$entity);$paymentId=trim((string)($body['paymentAccountId']??''));
@@ -124,7 +124,7 @@ function dex_post(array &$store,string $entity,array $body,array $user,array $na
     foreach((array)($store['generalExpenses']??[]) as $previous)if(($previous['entity']??'')===$entity&&!in_array(($previous['status']??''),['Deleted','Amended'],true)&&$reference!==''&&strcasecmp((string)($previous['reference']??''),$reference)===0&&strcasecmp((string)($previous['payee']??''),$payee)===0)throw new InvalidArgumentException('This expense reference is already recorded for the recipient.');
     eiv_assert_not_captured($store,$entity,$payee,$reference);
     $credit=ev1_card_charge_credit($store,$entity,$paymentId,$total,$date,$names);dex_check_cheque($store,$entity,$paymentId,$tracking);
-    $recipientId=$profile['id']??'EXP|'.sac_normal($payee);if(!isset($store['paymentPayees'][$entity.'|'.$recipientId]))$store['paymentPayees'][$entity.'|'.$recipientId]=['id'=>$recipientId,'entity'=>$entity,'kind'=>'EXPENSE','name'=>$payee,'active'=>true,'configured'=>true,'accountCode'=>'6900','subaccountId'=>'','expenseCategory'=>'OFFICE'];
+    $recipientId=$profile['id']??'EXP|'.sac_normal($payee);if(empty($profile['serviceProvider'])&&!isset($store['paymentPayees'][$entity.'|'.$recipientId]))$store['paymentPayees'][$entity.'|'.$recipientId]=['id'=>$recipientId,'entity'=>$entity,'kind'=>'EXPENSE','name'=>$payee,'active'=>true,'configured'=>true,'accountCode'=>'6900','subaccountId'=>'','expenseCategory'=>'OFFICE'];
     $id=ev1_id((array)($store['generalExpenses']??[]),'GEX');$meta=['generalExpenseId'=>$id,'directExpense'=>true,'payee'=>$payee,'payeeId'=>$recipientId,'paymentAccountId'=>$paymentId,'expenseLines'=>$rows,'paymentNarration'=>$narration];$lines=[];
     foreach($rows as $row)$lines[]=ev1_line($row['account'],$row['amount'],0,$names,array_intersect_key($row,array_flip(['subaccountId','subaccountName','parentAccount','taxCategory','accountClass','expenseClassification','subledger','assetId','assetName','registrationNo','periodFrom','periodTo','challanReference','expenseFor','expenseForName','personalTreatment','expenseArea']))+['counterparty'=>$payee,'expenseRecipientId'=>$recipientId,'generalExpenseId'=>$id,'subledger'=>$row['purpose'],'expenseCategory'=>$row['category'],'expensePurpose'=>$row['purpose'],'medicalFor'=>$row['medicalFor'],'rentFor'=>$row['rentFor'],'donationType'=>$row['donationType'],'location'=>$row['expenseArea']?: (($row['expenseClassification']??'')==='MILL'||$row['category']==='MILL'||$row['rentFor']==='MILL'?'MILL':(($row['expenseClassification']??'')==='HOME'||$row['category']==='HOME'||$row['medicalFor']==='HOUSEHOLD'||$row['rentFor']==='HOME'?'HOME':'OFFICE'))]);
     $lines[]=array_merge($credit,$tracking);$description=implode(' / ',array_filter(array_column($rows,'purpose'),static fn($purpose)=>$purpose!==''));

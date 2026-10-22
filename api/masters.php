@@ -16,6 +16,8 @@ function master_all(?array $user=null): array {
 }
 function master_options_for_console(): array {
     $options=tt_master_options();
+    $chart=json_decode((string)file_get_contents(__DIR__.'/../accounts/accounting_master_v1.json'),true);
+    $options['service_expense_heads']=array_values(array_filter((array)($chart['chart']??[]),static fn($a)=>($a['class']??'')==='Expense'&&!in_array($a['level']??'',['heading','system'],true)));
     return $options;
 }
 function master_bank_can_be_default(array $bank): bool {
@@ -467,6 +469,17 @@ try {
         // Non-broker parties have no Brokery profile. Schema padding leaves this field blank.
         $profileText=trim((string)($values[12]??''));if($profileText===''){$profileText='{}';$values[12]=$profileText;}
         $profile=json_decode($profileText,true);if(!is_array($profile))throw new InvalidArgumentException('The Brokery profile could not be read. Reopen the broker and try again.');
+        if(isset($profile['service'])){
+            $service=$profile['service'];if(!is_array($service))throw new InvalidArgumentException('The service provider setup could not be read.');
+            $code=trim((string)($service['expenseAccountCode']??''));
+            if($code!==''){
+                if(!tt_business_party_has_category($values[2],'Service Provider'))throw new InvalidArgumentException('Select the Service Provider role before linking an expense head.');
+                $heads=master_options_for_console()['service_expense_heads'];
+                if(!array_filter($heads,static fn($a)=>(string)$a['code']===$code))throw new InvalidArgumentException('Choose a valid service provider expense head.');
+            }
+            $profile['service']=['expenseAccountCode'=>$code,'type'=>substr(trim((string)($service['type']??'')),0,120)];
+            $values[12]=json_encode($profile,JSON_UNESCAPED_SLASHES);
+        }
         $allowedBasis=['PER_100_KG','PER_50_KG_BAG','PER_BAG','PER_MAUND','PER_TON'];
         foreach(['buying'=>'Buying Brokery','selling'=>'Selling Brokery']as$kind=>$label){$rows=$profile[$kind]??[];if(!is_array($rows))throw new InvalidArgumentException($label.' must be a valid list.');$seen=[];foreach($rows as$row){if(!is_array($row))throw new InvalidArgumentException($label.' contains an invalid row.');$amount=(float)($row['amount']??0);$basis=(string)($row['basis']??'');$from=(string)($row['effectiveFrom']??'');if(!is_finite($amount)||$amount<=0)throw new InvalidArgumentException($label.' figure must be a finite number greater than zero.');if(!in_array($basis,$allowedBasis,true))throw new InvalidArgumentException('Select a valid '.$label.' calculation basis.');tt_master_calendar_date($from,$label.' Effective From');if(isset($seen[$from]))throw new InvalidArgumentException($label.' already has a rate starting on '.$from.'.');$seen[$from]=true;}}
         if(!array_filter($categories,static fn($category)=>strcasecmp($category,'Broker')===0)&&(!empty($profile['buying'])||!empty($profile['selling'])))throw new InvalidArgumentException('Select the Broker category before saving Brokery.');

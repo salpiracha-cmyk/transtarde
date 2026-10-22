@@ -32,6 +32,18 @@ function sac_payees(array $s,string $e,string $kind=''):array {
  foreach((array)($s['paymentPayees']??[]) as $r)if(is_array($r)&&($r['entity']??'')===$e&&(($r['kind']??'')==='EXPENSE'||isset($out[$r['id']])))$out[$r['id']]=array_replace($r,['configured'=>true],($r['kind']??'')==='BUSINESS'?['name'=>$out[$r['id']]['name']]:[]);
  $out=array_values(array_filter($out,static fn($r)=>($kind===''||$r['kind']===$kind)&&!empty($r['active'])));usort($out,static fn($a,$b)=>strnatcasecmp($a['name'],$b['name']));return $out;
 }
+/** Expense forms share canonical service-party identities; bank mappings stay separate. */
+function sac_expense_recipients(array $s,string $e):array {
+ $out=sac_payees($s,$e,'EXPENSE');
+ foreach((array)(tt_list_masters()['business_parties']??[]) as $r){
+  $v=(array)($r['values']??[]);if(strcasecmp((string)($v[10]??'Active'),'Active')!==0||!tt_business_party_has_category($v[2]??'','Service Provider'))continue;
+  $profile=json_decode((string)($v[12]??'{}'),true);$code=(string)($profile['service']['expenseAccountCode']??'');$chart=sac_entity_chart($s,$e);
+  if($code===''||($chart[$code]['class']??'')!=='Expense'||in_array($chart[$code]['level']??'',['heading','system'],true))continue;
+  $category='OTHER';foreach(sac_expense_defaults() as $key=>$default)if($default[1]===$code){$category=$key;break;}
+  $out[]=['id'=>'PARTY|'.$r['id'],'entity'=>$e,'kind'=>'BUSINESS','name'=>(string)$v[0],'serviceProvider'=>true,'accountCode'=>$code,'expenseCategory'=>$category,'active'=>true,'configured'=>true];
+ }
+ usort($out,static fn($a,$b)=>strnatcasecmp($a['name'],$b['name']));return $out;
+}
 function sac_payee(array $s,string $e,string $id):array {
  foreach(sac_payees($s,$e) as $p)if($p['id']===$id){if(empty($p['configured']))throw new DomainException('Set up the recipient account before posting.');return $p;}
  throw new DomainException('Choose an active recipient in these company books.');
