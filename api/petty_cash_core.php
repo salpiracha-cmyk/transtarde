@@ -2,11 +2,12 @@
 declare(strict_types=1);
 
 /** Stable cash identities; names are snapshots, never keys or reassigned staff identities. */
+// Salary effective dates describe remuneration periods, not cash custody.
 function pc_staff(array $s,string $e):array {
-    $out=[];$today=(new DateTimeImmutable('now',new DateTimeZone('Asia/Karachi')))->format('Y-m-d');
+    $out=[];
     foreach(array_replace(sm_seed_masters(),(array)($s['salaryMasters']??[])) as $id=>$m){
         if(!is_array($m)||($m['entity']??'')!==$e||!in_array($m['category']??'',['MILL_STAFF','OFFICE_STAFF','HOME_STAFF'],true))continue;
-        $out[(string)$id]=['id'=>(string)$id,'name'=>(string)$m['name'],'active'=>($m['status']??'Active')==='Active'&&(($m['effectiveFrom']??'')===''||$m['effectiveFrom']<=$today)&&(($m['effectiveTo']??'')===''||$m['effectiveTo']>=(new DateTimeImmutable('now',new DateTimeZone('Asia/Karachi')))->format('Y-m-d'))];
+        $out[(string)$id]=['id'=>(string)$id,'name'=>(string)$m['name'],'active'=>($m['status']??'Active')==='Active'];
     }
     return $out;
 }
