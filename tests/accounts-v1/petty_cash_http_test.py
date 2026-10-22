@@ -66,7 +66,7 @@ with tempfile.TemporaryDirectory(prefix='petty-cash-') as directory:
         d=get();assert next(x for x in d['holders'] if x['id']==ah)['balance']==200
         b={**b,'requestKey':'overdraw-ahmed','amount':201,'expenseLines':[{**b['expenseLines'][0],'amount':201}]}
         stable=books.read_bytes();st,res=request('/api/expenses_v1.php?entity=TTI',b);assert st in (403,422) and books.read_bytes()==stable,(st,res)
-        st,res=request('/api/expenses_v1.php?entity=TTI');assert st==200 and any(x['id']==ah for x in res['paymentAccounts']) and not any(x['id']==h for x in res['paymentAccounts'])
+        st,res=request('/api/expenses_v1.php?entity=TTI');assert st==200 and any(x['id']==ah for x in res['paymentAccounts']) and not any(x['id']==h for x in res['paymentAccounts']) and any(x['id']==h for x in res['historicalCashSources'])
         assert next(x for x in res['paymentAccounts'] if x['id']=='CASH|TTI')['bookBalance']==3000
         stale={'entity':'TTI','revision':0,'action':'manage','requestKey':'stale-holder-request','operation':'add','staffId':'AHMED'};st,res=request('/api/petty_cash.php',stale);assert st==409
         st,res=request('/api/petty_cash.php?entity=BRM');assert st==200 and not res['holders'] and not res['rows']
