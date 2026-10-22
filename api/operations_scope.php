@@ -28,10 +28,21 @@ function os_contract(array $root,string $ref): ?array {
     foreach((array)($root['contracts']??[]) as $row)if(is_array($row)&&(string)($row['ref']??'')===$ref)return $row;
     return null;
 }
-function os_scope(array $u,array $row,array $root,bool $physical=true): bool {
+function os_scope(array $u,array $row,array $root,bool $physical=true,bool $linkedPhysical=false): bool {
     $ref=trim((string)($row['contractRef']??$row['_ttContractRef']??''));$contract=$ref!==''?os_contract($root,$ref):null;
     $entity=strtoupper(trim((string)($row['entity']??$row['seller']??$row['exporter']??$contract['seller']??'TTI')));
-    if($contract&&isset($row['entity'])&&strtoupper((string)($contract['seller']??'TTI'))!==$entity)return false;
+    if($contract&&isset($row['entity'])&&strtoupper((string)($contract['seller']??'TTI'))!==$entity){
+        // TG sells the shipment, but its linked Pakistan loading source belongs
+        // to the exporter selected on that lot. Prove the lot before accepting
+        // this physical-company difference; financial contexts stay unchanged.
+        $linked=false;$shipment=(string)($row['_ttShipmentId']??$row['shipmentId']??'');
+        if($linkedPhysical&&strtoupper((string)($contract['seller']??''))==='TG'&&$shipment!=='')foreach((array)($root['shipments']??[]) as $lot){
+            if((string)($lot['id']??'')!==$shipment||(string)($lot['contractRef']??'')!==$ref)continue;
+            $exporter=strtoupper((string)($lot['documentParties']['exporterKey']??$lot['customs']['exporter']??'TTI'));
+            if(in_array($exporter,['TTI','BRM'],true)&&$entity===$exporter)$linked=true;
+        }
+        if(!$linked)return false;
+    }
     if(!os_entity($u,$entity))return false;
     if(!$physical)return true;
     return os_location($u,(string)($row['millName']??$row['locationName']??$row['mill']??$row['stockLocation']??$row['deliverTo']??'TTI Rice Mills'));
@@ -235,7 +246,7 @@ function os_project(array $u,array $values,array $meta=[]): array {
         $data=json_decode((string)$json,true);if(!is_array($data)){$restricted[]=$key;continue;}
         if($key==='tt40instructionseen'&&!os_owner($u)){$name=strtolower(trim((string)($u['full_name']??$u['username']??'')));$data=array_intersect_key($data,[$name=>true]);}
         elseif(array_is_list($data)){
-            $data=array_values(array_filter($data,static fn($r)=>is_array($r)&&os_scope($u,$r,$root,!os_export_key_visible($u,$key))));
+            $data=array_values(array_filter($data,static fn($r)=>is_array($r)&&os_scope($u,$r,$root,!os_export_key_visible($u,$key),in_array($key,['tt30ship','tt32exportsync','tt35exmill','tt35exload','tt40exinstructions'],true))));
             if(in_array($key,['tt35localsales','tt35exportersale'],true)&&!os_any($u,'Mill',['local','reports'])&&!os_owner($u))$data=array_map(static fn($r)=>os_fields($r,'id entity mill millName locationName commodity product variety brand date bags kg qty quantity loads'),$data);
             if(in_array($key,['tt30petty','tt33pettyexp'],true)&&!os_any($u,'Mill',['petty'])&&!os_owner($u)){
                 $source=$key==='tt30petty'?'tt37usedbags':'tt37processingexpenses';$prefix=$key==='tt30petty'?'UB-':'PE-';$vouchers=[];
@@ -306,7 +317,10 @@ function os_prepare_write(array $u,string $key,string $incomingJson,array $value
         foreach((array)($shown['shipments']??[]) as $lot)foreach((array)($lot['millActuals']??[]) as $actual)if(!empty($actual['_ttPartialActual']))$partial[(string)($lot['id']??'')][os_identity($actual)]=true;
         foreach($old['shipments']??[] as $i=>$lot)foreach($lot['millActuals']??[] as $j=>$actual)if(isset($partial[(string)($lot['id']??'')][os_identity($actual)]))$old['shipments'][$i]['millActuals'][$j]['contributions']=os_actual_contributions($actual);
     }
-    $rebuilt=os_rebuild($old,$shown,$incoming);
+    try{$rebuilt=os_rebuild($old,$shown,$incoming);}catch(DomainException $error){
+        $label=['transtrade_export_v3_operational'=>'Shipment documents','tt40exinstructions'=>'Linked loading instructions','tt30ship'=>'Linked Mill loading','tt30bags'=>'Linked bag orders','tt30prodinst'=>'Linked production instructions'][$key]??'Shared workflow';
+        throw new DomainException($label.': '.$error->getMessage(),0,$error);
+    }
     foreach($rebuilt['shipments']??[] as $i=>$lot)foreach($lot['millActuals']??[] as $j=>$actual)if(isset($partial[(string)($lot['id']??'')][os_identity($actual)]))$rebuilt['shipments'][$i]['millActuals'][$j]=os_actual_totals($actual,(array)($actual['contributions']??[]),os_corn(os_contract($rebuilt,(string)($lot['contractRef']??''))??[]));
     $next=$values;$next[$key]=tt_inv_json($rebuilt);
     $projected=os_project($u,$next)['values'][$key]??null;
