@@ -329,6 +329,7 @@ jobs:
           node tests/accounts-v1/delete_impact_ui_test.js
           node tests/accounts-v1/tg_aed_charge_ui_test.js
           node tests/accounts-v1/tg_bank_charge_ui_test.js
+          node tests/accounts-v1/bank_sales_tax_refund_ui_test.js
           node tests/accounts-v1/tg_customer_receipts_ui_test.js
           node tests/accounts-v1/tg_remittance_menu_test.js
           node tests/accounts-v1/tg_pending_fi_ui_test.js
