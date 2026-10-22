@@ -26,7 +26,7 @@ with tempfile.TemporaryDirectory(prefix='dashboard-dues-') as directory:
             except urllib.error.URLError: time.sleep(.05)
         fixture=json.loads(books.read_text())
         def bill(id,entity,share,status='Posted',source=None):
-            return {'id':id,'entity':entity,'status':status,'broker':'JJ Broker','billNo':id,'commodity':'RICE','supplierPayableTotal':share,'billDate':'2026-09-14','receiptAllocations':[{'sourceKey':source or id+'-TRUCK','supplierPayableShare':share,'dueDate':'2026-09-20','payee':'Indus Rice Mill'}]}
+            return {'id':id,'entity':entity,'status':status,'broker':'JJ Broker','billNo':id,'commodity':'RICE','supplierPayableTotal':share,'finalCommodityValue':share,'brokerageGross':0,'brokerageWithholding':0,'billDate':'2026-09-14','receiptAllocations':[{'sourceKey':source or id+'-TRUCK','supplierPayableShare':share,'component':'COMMODITY','dueDate':'2026-09-20','payee':'Indus Rice Mill'}]}
         fixture['commodityBills']={'CLOSED':bill('CLOSED','TTI',6800000),'PART':bill('PART','TTI',1000),'HELD':bill('HELD','TTI',25),'OTHER':bill('OTHER','BRM',90),'CANCELLED':bill('CANCELLED','TTI',700,'Cancelled'),'DRAFT':bill('DRAFT','TTI',800,'Draft')}
         # Historical allocation IDs differ from current bill IDs, but retain their source/truck links.
         fixture['supplierSettlements']={'HIST':{'entity':'TTI','status':'Posted','allocations':[{'billId':'HISTORICAL-ID','sourceKey':'CLOSED-TRUCK','amount':6800000},{'billId':'PART','sourceKey':'PART-TRUCK','amount':400}]},'REVERSED':{'entity':'TTI','status':'Reversed','allocations':[{'billId':'PART','sourceKey':'PART-TRUCK','amount':600}]},'CROSS':{'entity':'BRM','status':'Posted','allocations':[{'sourceKey':'PART-TRUCK','amount':600}]}}
@@ -40,6 +40,13 @@ with tempfile.TemporaryDirectory(prefix='dashboard-dues-') as directory:
         fixture['supplierSettlements']['FINAL']={'entity':'TTI','status':'Posted','allocations':[{'billId':'PART','sourceKey':'PART-TRUCK','amount':600},{'billId':'HELD','sourceKey':'HELD-TRUCK','amount':25}]};books.write_text(json.dumps(fixture));before=books.read_bytes()
         status,data=request('/api/accounts_dashboard.php?entity=TTI');assert status==200 and data['summaries']['commodity']==[],(status,data)
         assert books.read_bytes()==before
+        # Manual JV settlement and an on-account advance are projected exactly as in Payment Planning.
+        fixture['commodityBills']['ROUND']=bill('ROUND','TTI',500);fixture['commodityBills']['ADVANCE']=bill('ADVANCE','TTI',700)
+        fixture['journals']['JV-PAID']={'id':'JV-PAID','entity':'TTI','status':'Posted','sourceType':'JV','date':'2026-09-21','lines':[{'account':'2110','debit':500,'credit':0,'counterparty':'Indus Rice Mill'},{'account':'1110','debit':0,'credit':500}]}
+        fixture['supplierAdvances']={'ADV':{'id':'ADV','entity':'TTI','supplier':'Indus Rice Mill','amount':300,'allocatedAmount':0,'availableAmount':300,'allocationScope':'COMMODITY_GROUP','status':'Available / Unallocated'}}
+        books.write_text(json.dumps(fixture));before=books.read_bytes();status,data=request('/api/accounts_dashboard.php?entity=TTI');assert status==200,(status,data)
+        assert sum(r['amount'] for r in data['summaries']['commodity'])==400,data['summaries']['commodity']
+        assert books.read_bytes()==before,'JV/advance display projection must not persist allocations or journals'
         print('PASS dashboard source-linked settlements, paid/cancelled/draft exclusion, partial/held balances, company separation and zero financial writes')
     finally:
         server.terminate();server.wait(timeout=10);log.close()
