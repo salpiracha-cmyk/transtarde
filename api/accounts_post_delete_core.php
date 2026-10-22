@@ -6,9 +6,36 @@ require_once __DIR__.'/tg_native_currency.php';
 
 /** Cancellation capabilities; linked workflows use their own reversal routines under the caller's lock. */
 function apd_record_index(array $s):array { $records=[];foreach(['utilityPayments','generalExpenses','reimbursements','creditCardStatements','donations'] as $collection)foreach((array)($s[$collection]??[]) as $r)foreach(array_merge([$r['journalId']??'', $r['captureJournalId']??'', $r['statementJournalId']??''],(array)($r['postingJournalIds']??[])) as $post)if($post!=='')$records[$post]=true;return $records; }
+/** Only the current invoice journal owns the live supplier obligation. */
+function apd_expense_invoice(array $s,array $j):string {
+    $id=(string)($j['meta']['expenseInvoiceId']??'');$bill=$s['supplierBills'][$id]??[];
+    if($id!==''&&!empty($bill['expenseInvoice'])&&($bill['entity']??'')===($j['entity']??'')&&($bill['status']??'')==='Posted'&&($bill['journalId']??'')===($j['id']??''))return (string)$id;
+    return '';
+}
+/** Reuse payment cancellation, including advance applications and cheque clearance. */
+function apd_cancel_allocations(array &$s,array $u,string $entity,callable $matches,string $reason,array $path):void {
+    foreach(array_keys((array)($s['supplierSettlements']??[])) as $sid){
+        $payment=$s['supplierSettlements'][$sid];
+        if(($payment['entity']??'')!==$entity||!in_array($payment['status']??'',['Posted','Approved / Posted','Approved'],true)||!$matches($payment))continue;
+        $post=(string)($payment['journalId']??'');
+        if(($payment['type']??'')==='Round JV Allocation')throw new DomainException('Payment '.$sid.' is a round JV allocation. Open Journal Vouchers and correct its original Post ID '.$post.' first. No deletion was saved.');
+        if($post===''||!isset($s['journals'][$post]))throw new DomainException('Linked supplier payment '.$sid.' has no journal. Open Party Payments and repair that payment before deleting this posting.');
+        apd_delete_working($s,$u,$post,['reason'=>$reason],$path);
+    }
+}
+function apd_cancel_settlement(array &$s,array $u,string $entity,string $sid,string $date,string $reason,array $path):void {
+    if(!defined('TT_SETTLEMENTS_FUNCTIONS_ONLY'))define('TT_SETTLEMENTS_FUNCTIONS_ONLY',true);require_once __DIR__.'/supplier_settlements.php';require_once __DIR__.'/payment_plan_core.php';
+    $payment=$s['supplierSettlements'][$sid];$created=[];
+    foreach((array)($s['supplierAdvances']??[]) as $aid=>$advance)if(($advance['entity']??'')===$entity&&($advance['journalId']??'')===($payment['journalId']??'')){
+        $created[]=$aid;apd_cancel_allocations($s,$u,$entity,static fn($later)=>($later['id']??'')!==$sid&&($later['advanceId']??'')===$aid,$reason,$path);
+    }
+    pl_reverse($s,$u,$entity,$sid,$date,$reason);
+    foreach($created as $aid){$s['supplierAdvances'][$aid]['status']='Cancelled';$s['supplierAdvances'][$aid]['availableAmount']=0.0;$s['supplierAdvances'][$aid]['allocatedAmount']=0.0;$s['supplierAdvances'][$aid]['correctionReason']=$reason;}
+    foreach((array)($s['paymentPlans']??[]) as $pid=>$plan)foreach((array)($plan['groups']??[]) as $key=>$group)if(($group['settlementId']??'')===$sid){unset($s['paymentPlans'][$pid]['groups'][$key]['settlementId']);$s['paymentPlans'][$pid]['status']='Open';}
+}
 function apd_supported(array $s,array $j,?array $recordIndex=null):bool {
     if(!empty($j['reversalOf'])||!empty($j['reversedByPostId'])||!empty($j['meta']['reversedByPostId'])||!empty($j['meta']['deletedFromBooks']))return false;
-    if(apd_tg_supported($j)||($j['sourceType']??'')==='SALARY_ALLOCATED_PAYMENT')return true;
+    if(apd_tg_supported($j)||($j['sourceType']??'')==='SALARY_ALLOCATED_PAYMENT'||apd_expense_invoice($s,$j)!=='')return true;
     $records=$recordIndex??apd_record_index($s);if(isset($records[$j['id']]))return true;
     if(!empty($j['meta']['historicalBagBillId']))return true;
     return (($j['sourceType']??'')==='POST_AMENDMENT_CORRECTION'&&in_array($j['meta']['originalSourceType']??'',['JV','OPENING_BALANCE_BF'],true))||in_array($j['sourceType']??'',['JV','OPENING_BALANCE_BF','BANK_ENTRY','SALARY_ADVANCE'],true)||($j['sourceType']??'')==='FORWARD_BOOKING_SETTLEMENT'||!empty($j['meta']['investmentTransactionId'])||!empty($j['meta']['receiptId'])||!empty($j['meta']['tgRemittanceId'])||!empty($j['meta']['settlementId']);
@@ -28,13 +55,23 @@ function apd_delete(array &$s,array $u,string $id,array $b):array {
     $sources=[];foreach($working as $collection=>$records){if(in_array($collection,['journals','postDeletions'],true)||!is_array($records))continue;foreach($records as $key=>$record)if(is_array($record)&&isset($s[$collection][$key])&&$record!==$s[$collection][$key])$sources[]=['register'=>$collection,'id'=>(string)$key,'beforeStatus'=>$s[$collection][$key]['status']??'','afterStatus'=>$record['status']??'Updated','effect'=>'Linked balances and allocations recalculated'];}
     $s=$working;return $result+['fingerprint'=>$fingerprint,'impact'=>$impact,'sources'=>$sources];
 }
-function apd_delete_working(array &$s,array $u,string $id,array $b):array {
+function apd_delete_working(array &$s,array $u,string $id,array $b,array $path=[]):array {
     $j=$s['journals'][$id]??null;$seen=[];while(is_array($j)&&!empty($j['amendedByPostId'])){if(isset($seen[$id]))throw new DomainException('The correction history needs review.');$seen[$id]=true;$id=$j['amendedByPostId'];$j=$s['journals'][$id]??null;}
     if(!is_array($j)||($j['status']??'')!=='Posted'||!apd_supported($s,$j))throw new DomainException('This posting has already been cancelled, or requires cancellation in its originating workflow.');
     $e=$j['entity'];if(!tt_post_correction_allowed($u,$j)||!tt_user_can_access_entity($u,$e,'Edit'))throw new DomainException('Original workflow and company Edit permission required.');
     $reason=trim((string)($b['reason']??''));if(mb_strlen($reason)<5||mb_strlen($reason)>300)throw new DomainException('Enter a deletion reason of 5 to 300 characters.');
-    if(($j['sourceType']??'')==='OPENING_BALANCE_BF')sop_assert_unpaid($s,$id);
+    if(isset($path[$id]))throw new DomainException('The linked payment history contains a cycle at '.$id.'. Open Party Payments to repair its allocations before deleting.');$path[$id]=true;
     $before=$s;$journalIds=array_keys((array)$s['journals']);$date=$j['date'];$handled=false;
+    if(($j['sourceType']??'')==='OPENING_BALANCE_BF'){
+        $prefix='BF:'.$id.':';apd_cancel_allocations($s,$u,$e,static function($payment)use($prefix){foreach((array)($payment['allocations']??[]) as $a)if(str_starts_with((string)($a['billId']??''),$prefix))return true;return false;},$reason,$path);
+        sop_assert_unpaid($s,$id);
+    }
+    $invoiceId=apd_expense_invoice($s,$j);
+    if($invoiceId!==''){
+        apd_cancel_allocations($s,$u,$e,static function($payment)use($invoiceId){foreach((array)($payment['allocations']??[]) as $a)if(($a['billId']??'')===$invoiceId)return true;return false;},$reason,$path);
+        if(!defined('TT_EXPENSES_FUNCTIONS_ONLY'))define('TT_EXPENSES_FUNCTIONS_ONLY',true);require_once __DIR__.'/expenses_v1.php';
+        eiv_cancel($s,$e,['invoiceId'=>$invoiceId,'expectedJournalId'=>$id,'reason'=>$reason],$u,ev1_names());$handled=true;
+    }
     if(apd_tg_supported($j)){$seen=[];apd_tg_cancel($s,$u,$id,$reason,$seen);$handled=true;}
     if(!$handled&&($j['sourceType']??'')==='SALARY_ALLOCATED_PAYMENT'){if(!defined('TT_RENT_SALARY_FUNCTIONS_ONLY'))define('TT_RENT_SALARY_FUNCTIONS_ONLY',true);require_once __DIR__.'/rent_salary_v2.php';sfw_reverse_payment($s,$e,substr((string)$j['meta']['salarySheetKey'],strlen($e)+1),['journalId'=>$id,'date'=>$date,'reason'=>$reason],$u,rsv2_names());$handled=true;}
     foreach(['utilityPayments','generalExpenses','reimbursements','creditCardStatements','donations'] as $collection){foreach((array)($s[$collection]??[]) as $rid=>$r){if($handled||!in_array($id,array_merge([$r['journalId']??'', $r['captureJournalId']??'', $r['statementJournalId']??''],(array)($r['postingJournalIds']??[])),true))continue;
@@ -46,7 +83,7 @@ function apd_delete_working(array &$s,array $u,string $id,array $b):array {
     if(!$handled&&($j['sourceType']??'')==='BANK_ENTRY'){require_once __DIR__.'/assets_registry_core.php';require_once __DIR__.'/bank_entries_core.php';ben_reverse($s,$e,['journalId'=>$id,'date'=>$date,'reason'=>$reason],$u);$handled=true;}
     if(!$handled&&!empty($j['meta']['tgRemittanceId'])){require_once __DIR__.'/tg_remittance_core.php';tgr_reopen($s,['remittanceId'=>$j['meta']['tgRemittanceId'],'date'=>$date,'reason'=>$reason],$u);$handled=true;}
     if(!$handled&&!empty($j['meta']['receiptId'])&&isset($s['exportReceipts'][$j['meta']['receiptId']])){require_once __DIR__.'/accounts_receipt_amend_core.php';$receipt=$s['exportReceipts'][$j['meta']['receiptId']];foreach(array_unique(array_merge([$receipt['entity']],!empty($receipt['tgMirrorPostIds'])?['TG']:[])) as $company)if(!tt_user_can_access_entity($u,$company,'Edit'))throw new DomainException('Edit permission for every linked company is required.');er_reverse_receipt_store($s,$j['meta']['receiptId'],$receipt['entity'],$date,$reason,$u);$handled=true;}
-    if(!$handled&&!empty($j['meta']['settlementId'])&&isset($s['supplierSettlements'][$j['meta']['settlementId']])){if(!defined('TT_SETTLEMENTS_FUNCTIONS_ONLY'))define('TT_SETTLEMENTS_FUNCTIONS_ONLY',true);require_once __DIR__.'/supplier_settlements.php';require_once __DIR__.'/payment_plan_core.php';$sid=$j['meta']['settlementId'];pl_reverse($s,$u,$e,$sid,$date,$reason);foreach((array)($s['paymentPlans']??[]) as $pid=>$plan)foreach((array)($plan['groups']??[]) as $key=>$group)if(($group['settlementId']??'')===$sid){unset($s['paymentPlans'][$pid]['groups'][$key]['settlementId']);$s['paymentPlans'][$pid]['status']='Open';}$handled=true;}
+    if(!$handled&&!empty($j['meta']['settlementId'])&&isset($s['supplierSettlements'][$j['meta']['settlementId']])){apd_cancel_settlement($s,$u,$e,(string)$j['meta']['settlementId'],$date,$reason,$path);$handled=true;}
     if(!$handled&&($j['sourceType']??'')==='SALARY_ADVANCE'){
         $aid=(string)($j['meta']['salaryAdvanceId']??'');$advance=$s['salaryAdvances'][$aid]??null;
         if(!is_array($advance)||($advance['journalId']??'')!==$id||($advance['entity']??'')!==$e)throw new DomainException('The salary advance source needs review before cancellation.');
