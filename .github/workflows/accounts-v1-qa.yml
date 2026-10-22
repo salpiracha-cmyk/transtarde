@@ -325,6 +325,7 @@ jobs:
           php tests/accounts-v1/tg_aed_payment_charge_test.php
           php tests/accounts-v1/tg_delete_cascade_test.php
           python3 tests/accounts-v1/tg_ledger_repair_http_test.py
+          node tests/accounts-v1/opening_balance_ui_test.js
           node tests/accounts-v1/delete_impact_ui_test.js
           node tests/accounts-v1/tg_aed_charge_ui_test.js
           node tests/accounts-v1/tg_bank_charge_ui_test.js

@@ -19,3 +19,11 @@ Current expense and utility invoice Post IDs can cancel their supplier payments 
 Broken payment links and dependency cycles reject the entire operation with a Party Payments repair instruction. Round JV allocations require correction of the named original voucher through Journal Vouchers. Validation errors from native invoice cancellation return their actual guidance instead of a generic server failure. Physical-stock and other unsupported source types still require their own native cancellation route; this change does not remove those integrity checks.
 
 Authenticated controller tests cover paid invoice deletion with two payments, read-only review, stale confirmation, restricted supplier permissions, B/F/payment cancellation, on-account advance/application cancellation, reopened plans, immutable originals, broken links and dependency cycles. Historical TG repairs have not been applied by these tests.
+
+## TG USD opening entry — 22 October 2026
+
+The B/F duplicate check previously included every transaction dated 1 July. Ordinary first-day bank charges therefore disabled initial B/F entry without a clear validation message. The check now counts prior-period closing balances and explicit/legacy opening journals, including their reversals, while keeping ordinary 1 July activity separate. Genuine duplicate B/F entries remain blocked by account, party, bank and original currency.
+
+TG opening forms use the approved currency master and retain native amounts on both the target and opening-clearing leg. Bank currency is fixed by the selected account; party openings offer the configured currencies. Missing master rates and other posting blockers show explicit guidance beside Post. The green review shows both accounting legs before committing; cancellation leaves the form intact. A changed master rate/currency rejects the reviewed request. The dedicated opening page can select its company without changing another Accounts tab, and an already-open JV/B/F form keeps its original company.
+
+Controller/UI coverage includes first-day fees, prior-period/duplicate guards, native bank and party B/F, separate currencies, automatic/forged/missing master rates, stale review, cancel-without-posting, cross-tab company changes, fixed date, retries, permissions and unchanged other banks. No production B/F is inserted by these tests.

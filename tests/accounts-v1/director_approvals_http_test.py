@@ -7,7 +7,7 @@ with tempfile.TemporaryDirectory(prefix='director-approvals-') as temp:
     (root / 'api').mkdir()
     (root / 'data').mkdir()
     (root / 'accounts').mkdir()
-    for name in ['director_approvals.php', 'director_approvals_core.php', 'opening_balance_core.php','historical_bag_core.php','bag_acceptance_core.php','supplier_opening_core.php','bag_purchases.php', 'nonwoven_bag_bills.php', 'accounts_posting_preview.php']:
+    for name in ['director_approvals.php', 'director_approvals_core.php', 'opening_balance_core.php','tg_native_currency.php','historical_bag_core.php','bag_acceptance_core.php','supplier_opening_core.php','bag_purchases.php', 'nonwoven_bag_bills.php', 'accounts_posting_preview.php']:
         shutil.copy(ROOT / 'api' / name, root / 'api' / name)
     shutil.copy(ROOT / 'accounts/accounting_master_v1.json', root / 'accounts/accounting_master_v1.json')
     (root / 'auth_store.php').write_text('''<?php
