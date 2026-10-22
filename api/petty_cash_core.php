@@ -26,7 +26,7 @@ function pc_line_id(array $line,string $e):string {
 function pc_rows(array $s,string $e):array {
     $s=alv_amendment_books($s);$out=[];
     foreach((array)($s['journals']??[]) as $key=>$j){
-        if(!is_array($j)||($j['entity']??'')!==$e||!alv_posted($j))continue;
+        if(!is_array($j)||($j['entity']??'')!==$e||!tt_accounts_journal_as_of($j,$e,'9999-12-31'))continue;
         // Current source rows only. Amendments retain their public ID and immutable audit elsewhere.
         if(!empty($j['reversalOf'])||!empty($j['meta']['reversalOf'])||!empty($j['reversedByPostId'])||!empty($j['amendedByPostId']))continue;
         foreach((array)($j['lines']??[]) as $i=>$line)if(($line['account']??'')==='1120'){

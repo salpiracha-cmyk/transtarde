@@ -28,6 +28,8 @@ with tempfile.TemporaryDirectory(prefix='petty-cash-') as directory:
         fixture['salaryMasters']={'HASSAN':{'id':'HASSAN','entity':'TTI','name':'Hassan','category':'OFFICE_STAFF','status':'Active'},'BALOCH':{'id':'BALOCH','entity':'TTI','name':'Baloch','category':'OFFICE_STAFF','status':'Active'},'AHMED':{'id':'AHMED','entity':'TTI','name':'Ahmed','category':'OFFICE_STAFF','status':'Active'},'OTHER':{'id':'OTHER','entity':'BRM','name':'Other','category':'OFFICE_STAFF','status':'Active'}}
         fixture['journals']['CASH']={'id':'CASH','entity':'TTI','status':'Posted','date':'2026-07-01','lines':[{'account':'1120','debit':10000,'credit':0},{'account':'3400','debit':0,'credit':10000}]}
         fixture['journals']['MILL']={'id':'MILL','entity':'TTI','status':'Posted','date':'2026-07-02','lines':[{'account':'1120','millLocationId':'M1','debit':2000,'credit':0},{'account':'1120','debit':0,'credit':2000}]}
+        fixture['journals']['UNDATED']={'id':'UNDATED','entity':'TTI','status':'Posted','date':'','lines':[{'account':'1120','debit':900,'credit':0}]}
+        fixture['journals']['BAD-DATE']={'id':'BAD-DATE','entity':'TTI','status':'Posted','date':'20260-01-01','lines':[{'account':'1120','debit':900,'credit':0}]}
         books.write_text(json.dumps(fixture))
         def get():
             st,d=request('/api/petty_cash.php?entity=TTI');assert st==200,(st,d);return d
