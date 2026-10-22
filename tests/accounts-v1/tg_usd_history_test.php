@@ -3,6 +3,8 @@ declare(strict_types=1);
 require dirname(__DIR__,2).'/api/tg_usd_history_core.php';
 function expect(bool $ok,string $message):void { if(!$ok)throw new RuntimeException($message); }
 function rejects(callable $test,string $message):void {try{$test();}catch(DomainException){return;}throw new RuntimeException($message);}
+$route=file_get_contents(dirname(__DIR__,2).'/accounts/tg-usd-history.php');
+expect(str_contains($route,'tt_reserve_post_id_block(')&&!str_contains($route,'tt_next_post_id('),'Bulk commits must reserve once without invoking backup under the Accounts lock');
 $u=['role'=>'Super Admin','id'=>9,'full_name'=>'Test Admin'];
 $bank=['id'=>'banks-2','currency'=>'USD','bankName'=>'Test USD Bank','accountTitle'=>'Test TG','accountNumber'=>'TEST'];
 $opening=['id'=>'OLD','entity'=>'TG','status'=>'Posted','date'=>'2026-07-01','sourceType'=>'OPENING_BALANCE_BF','lines'=>[['account'=>'1110','currency'=>'USD','bankAccountId'=>'banks-2','debit'=>367,'credit'=>0,'nativeDebit'=>100,'nativeCredit'=>0,'bankDebit'=>100,'bankCredit'=>0],['account'=>'3400','currency'=>'USD','debit'=>0,'credit'=>367,'nativeDebit'=>0,'nativeCredit'=>100]]];

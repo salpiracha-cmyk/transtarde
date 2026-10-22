@@ -33,8 +33,12 @@ try {
             else {
                 $next=$review['store'];$mapped=[];$postIds=[];
                 foreach(array_keys($review['journals']) as $temporary) unset($next['journals'][$temporary]);
+                // A normal single-ID reservation may start a backup which reads Accounts.
+                // Reserve the whole block without backup while this Accounts lock is held.
+                $reservedIds=tt_reserve_post_id_block((array)$next['journals'],count($review['journals']),'Accounts','TG USD historical reconstruction');
+                $reservedIndex=0;
                 foreach($review['journals'] as $temporary=>$journal) {
-                    $id=tt_next_post_id((array)$next['journals'],'Accounts','Journal',(string)$journal['date']);
+                    $id=$reservedIds[$reservedIndex++];
                     $mapped[$temporary]=$id; $journal['id']=$id;
                     if(($journal['meta']['kind']??'')==='OPENING'&&($journal['lines'][0]['account']??'')==='1110') $journal['sourceType']='OPENING_BALANCE_BF';
                     $next['journals'][$id]=$journal;$postIds[]=$id;
