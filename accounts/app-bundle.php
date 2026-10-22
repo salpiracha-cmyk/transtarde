@@ -32,6 +32,7 @@ $files = [
     'mill-liabilities-ui.js',
     'mill-reference-ui.js',
     'expense-desk-ui.js',
+    'petty-cash-ui.js',
     'jv-workflow-ui.js',
     'jv-notices-ui.js',
     'export-realization-master-bootstrap.js',

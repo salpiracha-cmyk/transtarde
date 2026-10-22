@@ -561,3 +561,12 @@ Online Banking payments expose an editable payment date, defaulting from the vou
 - The TG Pakistan-bank proforma uses Customs invoice rate, currency, value, payment terms and date. FI allocation alone must not be described as an advance payment. Do not copy the original customer's financial clauses, advance percentage, payment deadline or validity deadline. The customer contract stays unchanged.
 - The owner-supplied transparent TG stamp for Pakistan bank is the TG buyer acceptance stamp on that bank-purpose proforma. Keep the Pakistan exporter's signature on the seller side and preserve the ordinary TG signature elsewhere. Register the distinct purpose-specific stamp in TG company Document Identity without replacing other defaults.
 - Include the Customs-purpose TG proforma in the merged Pakistan bank pack and retain its own PDF in TG docs, including strict final archives and L/C packs. It is distinct from the original customer Sales Contract.
+
+
+## Staff petty cash — owner approval, 23 October 2026
+
+- Petty Cash on Accounts home keeps the full cash register. Office cash and each explicitly enabled Staff Master cash holder have separate stable identities under the same cash control account. No opening amount is invented when enabling a holder.
+- Transfers to staff or between holders move cash, never expense it. Confirmed staff spending uses the original expense engine, with an explicit amount, expense head, narration and green accounting review. Large Expenses payments can use the same active holder sources and appear in this register once.
+- A departing employee is marked inactive, never renamed to a replacement. Retain history and keep an inactive holder with an outstanding balance visible until settled or returned. New staff are enabled separately; reactivate the same identity rather than making another balance.
+- Preview and register reads write no financial data or Post ID reservations. Explicit posting enforces company/workflow rights, stale revision rejection, retry identity and nonnegative staff cash by date. Preserve original/reversal history on correction.
+- Wider home/inside icon alignment and removal remains a separate follow-up; do not restructure other navigation as part of this screen.

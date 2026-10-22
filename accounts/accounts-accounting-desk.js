@@ -45,6 +45,7 @@
       {title:'Bank Finance', note:'Drawdown, principal repayment and markup', special:'bank-finance'},
       {title:'Bank Ledgers by Party',special:'all-ledgers',ledgerCategory:'bank'},{title:'Bank Accounts & Balances', native:'bank'}, {title:'Bank Reconciliation', native:'reconciliation'}
     ]},
+    {key:'petty-cash',title:'Petty Cash',actions:[{title:'Petty Cash',special:'petty-cash'}]},
     {key:'routine', glyph:'◇', title:'Expenses', note:'Pay expenses, utilities, cards or salaries', actions:[
       {title:'Pay Expense', note:'Pay anyone; combine several expenses in one cheque or payment', native:'expenses', special:'expense-pay'},
 
@@ -164,6 +165,7 @@
     if(action.special==='expense-recipients')return window.TT_ACCOUNT_PAYEES.open('EXPENSE');
     if(action.special==='withholding-report')return window.TT_SUBACCOUNTS.open('tax');
     if(action.special==='mill-liabilities')return window.TT_MILL_LIABILITIES.open();
+    if(action.special==='petty-cash')return window.TT_PETTY_CASH.open();
     if(action.special==='expense-pay')return window.TT_EXPENSE_DESK.open();
     if(action.special==='expense-bills')return window.TT_EXPENSE_DESK.bills();
     if(action.special==='expense-salary')return window.TT_EXPENSE_DESK.openNative('salary','Salaries & Staff');
@@ -295,6 +297,7 @@
       jv:'<rect x="4" y="2" width="16" height="20" rx="2"/><path d="M8 7h8M8 11h8M8 15h3m4 0h1"/>',
       exports:'<path d="M3 19h18M5 19V9l5-4 5 4v10M15 10h6v9M9 12v3m9-1h1"/><path d="M14 3l3 2-3 2"/>',
       commodity:'<path d="M3 9l9-5 9 5v11H3zM3 9l9 5 9-5M12 14v6M6 12v5m12-5v5"/>',
+      'petty-cash':'<rect x="3" y="6" width="18" height="14" rx="2"/><path d="M7 6V3h10v3M3 11h18M15 15h3"/>',
       routine:'<path d="M4 7h16v13H4zM4 10h16M7 4h10v3M8 15h4m3 0h2"/>',
       ledgers:'<path d="M5 3h12a2 2 0 012 2v16H7a2 2 0 01-2-2zM5 18a2 2 0 012-2h12M9 8h6m-6 4h6"/>',
       reports:'<path d="M4 20V4h16v16zM8 16v-4m4 4V8m4 8v-6"/>',
@@ -316,7 +319,7 @@
     q('#ttAccountingDesk')?.classList.remove('tt-inside-area');
     work.innerHTML = `<div class="tt-area-grid"><button type="button" class="tt-area-card" id="ttMainJV"><span class="tt-area-glyph">${iconPicture('jv')}</span><b>Journal Voucher</b></button>${items.map(area=>`<button type="button" class="tt-area-card" data-tt-area="${area.key}"><span class="tt-area-glyph">${iconPicture(area.key.startsWith('tg-')?area.key.slice(3):area.key)}</span><b>${esc(area.title)}</b></button>`).join('')}</div>`;
     q('#ttMainJV',work).onclick=()=>launch({native:'jv'});
-    qa('[data-tt-area]', work).forEach(button=>button.onclick=()=>button.dataset.ttArea==='assets'?window.TT_ASSETS_UI?.open?.():showArea(button.dataset.ttArea));
+    qa('[data-tt-area]', work).forEach(button=>button.onclick=()=>button.dataset.ttArea==='petty-cash'?launch({special:'petty-cash'}):button.dataset.ttArea==='assets'?window.TT_ASSETS_UI?.open?.():showArea(button.dataset.ttArea));
     window.TT_ACCOUNT_BADGE_REFRESH?.();
   }
 

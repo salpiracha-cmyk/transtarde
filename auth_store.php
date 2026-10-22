@@ -939,7 +939,7 @@ function tt_api_write_grants(string $endpoint,array $body): ?array {
     if($endpoint==='accounts_subaccounts.php'){$right=($body['operation']??'add')==='delete'?'Delete':(in_array($body['operation']??'add',['edit','move_head'],true)?'Edit':'Create');return [['Accounts','masters',$right]];}
     if($endpoint==='bank_direct_entries.php'&&strtoupper((string)($body['type']??''))==='SAVING_PROFIT')return [['Accounts','cashbank'],['Accounts','reconciliation']];
     $routes=[
-        'mill_liabilities.php'=>'expenses','rent_salary.php'=>'expenses','rent_salary_v2.php'=>'expenses','expenses_v1.php'=>'expenses','donations.php'=>'expenses',
+        'mill_liabilities.php'=>'expenses','rent_salary.php'=>'expenses','rent_salary_v2.php'=>'expenses','expenses_v1.php'=>'expenses','petty_cash.php'=>'expenses','donations.php'=>'expenses',
         'sales_tax_refunds.php'=>'purchases','production_costing.php'=>'purchases','production_fixed_overhead.php'=>'purchases',
         'production_inventory_transfer.php'=>'purchases','commodity_bills.php'=>'purchases','other_purchases.php'=>'purchases',
         'management_costing.php'=>'purchases','management_costing_attach.php'=>'purchases',
@@ -1029,6 +1029,7 @@ function tt_api_write_actions(string $endpoint,array $body): ?array {
         'prepare_month','save_salary_draft_payment','save_salary_transactions','refresh_salary_draft'=>['Create','Edit'],
         'update_salary_master','update_rent_master','deactivate_salary_master','deactivate_rent_master','amend_salary_allocated_payment','correct_salary_records','reverse_salary_allocated_payment','adjust_salary_month','edit_salary_sheet_row','apply_salary_master','reverse_salary_staff','reset_salary_draft','close_salary_month'=>['Edit'],default=>[],
     };
+    if($endpoint==='petty_cash.php')return match($action){'manage','reverse'=>['Edit'],'post'=>['Create'],default=>[]};
     if($endpoint==='expenses_v1.php')return match($action){
         'save_card_master','save_utility_master','save_card_statement','post_and_pay_card_statement'=>['Create','Edit'],
         'capture_expense_invoice','capture_utility_invoice','capture_reimbursement','pay_expense','pay_card_statement','pay_general_expense','pay_export_expense','pay_utility','settle_reimbursement','recover_personal_expense'=>['Create'],
