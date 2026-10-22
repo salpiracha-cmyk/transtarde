@@ -1,0 +1,29 @@
+'use strict';
+const fs=require('fs'),assert=require('assert'),{chromium}=require('playwright');
+(async()=>{
+ const browser=await chromium.launch({headless:true,...(process.env.TT_BROWSER_EXECUTABLE?{executablePath:process.env.TT_BROWSER_EXECUTABLE,args:['--no-sandbox']}:{})});
+ const page=await browser.newPage({viewport:{width:1440,height:1000}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.route('http://fixture.test/**',r=>r.fulfill({contentType:'text/html',body:'<!doctype html><html><head></head><body></body></html>'}));await page.goto('http://fixture.test/');
+ await page.evaluate(()=>{
+  localStorage.setItem('tt_accounts_entity','TTI');window.TT_ACCOUNT_ACCESS={csrf:'fixture'};window.posts=[];window.reviewAllow=false;window.prints=[];
+  window.TT_POST_CONFIRMATION={review:async d=>{window.reviewed=d;return reviewAllow},showJournal:j=>window.posted=j,show:ids=>window.vouchers=ids};window.TT_PRINT={html:s=>prints.push(s)};
+  const h='CASH|TTI|STAFF|HASSAN',b='CASH|TTI|STAFF|BALOCH';window.books={ok:true,revision:1,canCreate:true,canEdit:true,officeBalance:25000,holders:[{id:h,name:'Hassan',active:false,balance:300},{id:b,name:'Baloch',active:true,balance:1000},{id:'CASH|TTI|STAFF|LEFT',name:'Old employee',active:false,balance:0}],staff:[{id:'AHMED',name:'Ahmed',active:true}],expenseHeads:[{id:'6900',name:'Office and general expenses'},{id:'6700',name:'Professional fees'}],rows:[{id:'row1',journalId:'POST-2026-00239',postId:'POST-2026-00239',date:'2026-10-01',cashId:'CASH|TTI',payee:'Tea supplier',narration:'Refreshments',received:0,paid:450,balance:25000,source:'DIRECT_EXPENSE_PAYMENT',expenseId:'EXP1'}]};
+  window.fetch=async(url,init={})=>{if(!init.body)return {ok:true,json:async()=>structuredClone(books)};const b=JSON.parse(init.body);posts.push(b);if(b.preview)return {ok:true,json:async()=>({ok:true,previews:[{id:'PREVIEW',entity:'TTI',lines:[{account:'6900',debit:50,credit:0},{account:'1120',debit:0,credit:50}]}]})};return {ok:true,json:async()=>({...structuredClone(books),journal:{id:'POST-2026-02326',entity:'TTI',lines:[]}})};};
+ });
+ for(const file of ['accounts/accounts-form-layout.js','accounts/master-autocomplete.js','accounts/petty-cash-ui.js'])await page.addScriptTag({content:fs.readFileSync(file,'utf8')});
+ await page.evaluate(()=>TT_PETTY_CASH.open());await page.waitForSelector('[data-register]');
+ assert.equal(await page.locator('.pc-card').count(),3);assert(await page.locator('.pc-card').filter({hasText:'Hassan'}).textContent().then(s=>s.includes('Settlement pending')));assert.equal(await page.locator('.pc-card').filter({hasText:'Old employee'}).count(),0);
+ await page.locator('[data-search]').fill('239');assert.equal(await page.locator('[data-register] tbody tr').count(),1);assert.equal(await page.locator('[data-search]').getAttribute('role'),null);
+ await page.getByRole('button',{name:'Print register',exact:true}).click();assert((await page.evaluate(()=>prints[0])).includes('POST-2026-00239'));
+ await page.locator('[data-settle="CASH|TTI|STAFF|HASSAN"]').click();assert.equal(await page.locator('[data-settlement-entry] [name=payee]').inputValue(),'Hassan');await page.locator('[data-settlement-entry] [name=amount]').fill('50');await page.locator('[data-settlement-entry] [name=confirmed]').check();
+ assert((await page.locator('[data-settlement-entry] [data-summary]').textContent()).includes('250.00'));
+ await page.locator('[data-settlement-entry]').getByRole('button',{name:'Review & post',exact:true}).click();assert.equal(await page.evaluate(()=>posts.length),1,'settlement preview should run before posting');assert.equal(await page.evaluate(()=>posts[0].preview),true);assert.equal(await page.locator('[data-settlement-entry] [name=amount]').inputValue(),'50');
+ await page.evaluate(()=>reviewAllow=true);await page.locator('[data-settlement-entry]').getByRole('button',{name:'Review & post',exact:true}).click();await page.waitForFunction(()=>!!window.posted);
+ assert.equal(await page.evaluate(()=>posts.filter(x=>!x.preview).length),1);assert.equal(await page.evaluate(()=>posts[0].requestKey===posts[2].requestKey),true);
+ await page.getByRole('button',{name:'Manage cash holders',exact:true}).click();await page.locator('[name=staff]').selectOption('AHMED');await page.getByRole('button',{name:'Add cash holder',exact:true}).click();await page.waitForFunction(()=>posts.some(x=>x.action==='manage'));
+ assert.equal(await page.evaluate(()=>posts.filter(x=>x.action==='manage').length),1);
+ // Switching companies after entry blocks the write and preserves entered values.
+ await page.locator('[name=payee]').fill('Office recipient');await page.locator('[name=amount]').fill('50');await page.locator('[name=narration]').fill('Sample expense');await page.evaluate(()=>localStorage.setItem('tt_accounts_entity','BRM'));const count=await page.evaluate(()=>posts.length);await page.getByRole('button',{name:'Review & post',exact:true}).click();assert.equal(await page.evaluate(()=>posts.length),count);assert((await page.locator('[data-error]').textContent()).includes('Company changed'));assert.equal(await page.locator('[name=payee]').inputValue(),'Office recipient');
+ await page.evaluate(()=>{localStorage.setItem('tt_accounts_entity','TTI');document.querySelector('[data-error]').textContent='';});await page.screenshot({path:'/tmp/petty-cash-desktop.png',fullPage:true});await page.setViewportSize({width:390,height:844});await page.screenshot({path:'/tmp/petty-cash-mobile.png',fullPage:true});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);assert.deepEqual(errors,[]);
+ await browser.close();console.log('Petty cash browser: dynamic cards, search, print, settlement review/cancel, staff activation, company guard, responsive layout passed');
+})().catch(e=>{console.error(e);process.exit(1)});
