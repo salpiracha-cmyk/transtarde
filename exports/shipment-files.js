@@ -209,7 +209,8 @@ function zip(entries,type){const encoder=new TextEncoder();return zipBytes(Objec
 	  const parts=folderParts(customer,contract,lot),files=[],docs=[],seen=new Set();
 	  const c=contractSnapshot(committedSnapshot,contract),isTG=String(c?.seller||'').toUpperCase()==='TG'||rows.some(row=>/^tg/.test(row.key||''));
 	  const bankCover=rows.find(row=>row.key==='tgCover')||rows.find(row=>row.key==='cover');
-	  if(isTG&&!(bankCover?.render&&bankCover.ready))throw new Error('Save the TG bank covering letter before preparing Bank Shipment Documents. No incomplete bank PDF was queued.');
+	  const hasTgBank=isTG&&(rows.some(row=>/^tg(?:Invoice|Packing)$/.test(row.key||'')&&row.ready)||!!bankCover?.ready);
+	  if(hasTgBank&&!(bankCover?.render&&bankCover.ready))throw new Error('Save the TG bank covering letter before preparing Bank Shipment Documents. No incomplete bank PDF was queued.');
 	  const generatedRows=rows.filter(row=>row.render&&row.ready);let prepared=0;const progress=stage=>{try{onProgress?.({stage,completed:prepared,total:generatedRows.length})}catch{}};
 	  for(const row of generatedRows){
 	   progress('Preparing '+row.name);
@@ -242,10 +243,12 @@ function zip(entries,type){const encoder=new TextEncoder();return zipBytes(Objec
 	  if(master.length)files.unshift({folder:'',name:'Master Shipment Documents.pdf',blob:await mergedPdf(master)});
 	  progress('Preparing bank document copies');
 	  const bank=[];
-	  if(isTG)appendDoc(bank,firstDoc(docs,'cover'));
+	  if(hasTgBank)appendDoc(bank,firstDoc(docs,'cover'));
+	  if(!isTG||hasTgBank){
 	  if(isLcContract(c))bank.push(...await bankBlobsForDocuments(c,docs,fit));
 	  else if(isTG)for(const category of ['bl','tgInvoice','tgPacking','phyto','relationship','gd'])appendDoc(bank,firstDoc(docs,category));
 	  else for(const category of ['cover','gd'])appendDoc(bank,firstDoc(docs,category));
+	  }
 	  const shipment=(committedSnapshot?.shipments||[]).find(row=>String(row.lotId||'')===String(lot)&&String(row.contractRef||'')===String(contract)),invoiceReference=shipment?.tgdocs?.customsInvoiceNo||shipment?.customs?.invoiceNo||shipment?.commercial?.invoiceNo||contract;
 	  if(bank.length)files.unshift({folder:'',name:isTG?'Bank Shipment Documents '+component(invoiceReference)+'.pdf':'DOCUMENTS FOR BANK.pdf',blob:await mergedPdf(bank)});
 	  if(!files.length)throw new Error('No saved documents are available for this lot.');
