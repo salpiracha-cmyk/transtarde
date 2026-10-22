@@ -10,7 +10,7 @@ if(!tt_user_can_open_module($user,'Exports')&&($name!=='legacy'||!tt_user_can_op
     http_response_code(403);exit('Exports permission required.');
 }
 tt_release_read_session();
-$types=['app.js'=>'application/javascript','app.css'=>'text/css','release-theme.css'=>'text/css','TTI_header.png'=>'image/png','TTI_sign.png'=>'image/png','BRM_header.png'=>'image/png','BRM_sign.png'=>'image/png','TG_header.png'=>'image/png','TG_footer.png'=>'image/png','TG_sign.png'=>'image/png','KCCI_COO_letterpad.jpg'=>'image/jpeg','legacy'=>'application/octet-stream'];
+$types=['app.js'=>'application/javascript','app.css'=>'text/css','release-theme.css'=>'text/css','TTI_header.png'=>'image/png','TTI_sign.png'=>'image/png','BRM_header.png'=>'image/png','BRM_sign.png'=>'image/png','TG_header.png'=>'image/png','TG_footer.png'=>'image/png','TG_sign.png'=>'image/png','TG_pakistan_bank_stamp.png'=>'image/png','KCCI_COO_letterpad.jpg'=>'image/jpeg','legacy'=>'application/octet-stream'];
 if(!isset($types[$name])){http_response_code(404);exit('Asset not found.');}
 try{
     if($name==='legacy'){
