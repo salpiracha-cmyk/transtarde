@@ -28,16 +28,16 @@ button:not(.danger):not(.red):not(.xBtn):not(.optionMinus).active{
 .workspaceIcon.active,.card.clickable:hover,.entityBtn.active,.subCard:hover,
 .appCard:hover,input:focus,select:focus,textarea:focus{border-color:var(--tt-brand-main)!important}
 .workspaceIcon.active{box-shadow:inset 0 0 0 2px rgba(79,118,80,.16)!important}
-.appIcon,.workspaceGlyph,.status.green,.pill.green,.notice:not(.warn):not(.red):not(.error):not(.bad){
+.appIcon,.workspaceGlyph,.status.green,.pill.green,.notice:not(.warn):not(.red):not(.error):not(.bad):not(.danger){
   background:var(--tt-brand-soft)!important;
   color:var(--tt-brand-main)!important;
 }
-.notice.bad,.notice.error,.notice.red{
+.notice.bad,.notice.error,.notice.red,.notice.danger{
   background:#fff0f0!important;
   border-color:#edc9c9!important;
   color:#a51d24!important;
 }
-.notice.bad *,.notice.error *,.notice.red *{color:inherit!important}
+.notice.bad *,.notice.error *,.notice.red *,.notice.danger *{color:inherit!important}
 .panel,.card,.appCard,.subCard,.section,.metric,.formCard,.infoCard{border-color:var(--tt-brand-line)!important}
 .eyebrow,.good,.balanceOk{color:var(--tt-brand-main)!important}
 
