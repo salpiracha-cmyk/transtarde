@@ -66,7 +66,7 @@ function updateOpening(){
  const bank=a?.code==='1110',party=!!a?.requiresSubledger&&!bank;
  q('#jvwOpeningPartyBox').hidden=!party||!!target;q('#jvwOpeningBankBox').hidden=!bank||!!target;
  const b=bank?data.opening.banks.find(b=>b.id===q('#jvwOpeningBank').value):null,currency=q('#jvwOpeningCurrency');
- if(currency){currency.disabled=bank;if(b)currency.value=b.currency;}
+ if(currency){currency.disabled=bank||a?.code==='1120';if(b)currency.value=b.currency;else if(a?.code==='1120')currency.value=data.opening.currency;}
  const ccy=b?.currency||currency?.value||data.opening.currency,foreign=ccy!==data.opening.currency,managed=foreign&&data.opening.currency==='AED';
  q('#jvwOpeningRateBox').hidden=!foreign||managed;q('#jvwOpeningAmountLabel').textContent='Amount ('+ccy+')';
  const p=party?q('#jvwOpeningParty').value:'',bid=bank?q('#jvwOpeningBank').value:'';
@@ -91,7 +91,7 @@ function bindOpening(){
    const body={targetKey:openingTarget()?.key||'',action:'post_opening_balance',requestKey:openingRequest,date:data.opening.date,account:a.code,side:q('#jvwOpeningSide').value,amount:q('#jvwOpeningAmount').value,party:a.requiresSubledger&&a.code!=='1110'?q('#jvwOpeningParty').value:'',bankId:a.code==='1110'?q('#jvwOpeningBank').value:'',currency:q('#jvwOpeningCurrency')?.value||data.opening.banks.find(b=>b.id===q('#jvwOpeningBank').value)?.currency||data.opening.currency,rate:q('#jvwOpeningRate').value,reference:q('#jvwOpeningReference').value,note:q('#jvwOpeningNote').value};
    try{busy=true;q('#jvwOpeningPost').disabled=true;
     if(!window.TT_POST_CONFIRMATION?.review)throw Error('Posting review is unavailable. Reload Opening Balance and try again.');
-    const bank=data.opening.banks.find(b=>b.id===body.bankId),native=Number(body.amount),currency=body.currency,base=data.opening.currency,rate=currency===base?1:base==='AED'?Number(data.opening.ratesByCurrency?.[currency]||0):Number(body.rate),book=Math.round(native*rate*100)/100,debit=body.side==='Debit',clearingCurrency=base==='AED'?currency:base,clearingNative=base==='AED'?native:book;
+    const bank=data.opening.banks.find(b=>b.id===body.bankId),native=Math.round((Number(body.amount)+Number.EPSILON)*100)/100,currency=body.currency,base=data.opening.currency,rate=currency===base?1:base==='AED'?Number(data.opening.ratesByCurrency?.[currency]||0):Number(body.rate),book=Math.round(native*rate*100)/100,debit=body.side==='Debit',clearingCurrency=base==='AED'?currency:base,clearingNative=base==='AED'?native:book;
     body.expectedOpeningRate=rate;body.expectedOpeningCurrency=currency;
     const detail={currency,nativeCurrency:currency,nativeDebit:debit?native:0,nativeCredit:debit?0:native,counterparty:body.party};if(bank)Object.assign(detail,{bankAccountId:bank.id,bankName:bank.bankName,bankAccountTitle:bank.accountTitle,bankDebit:debit?native:0,bankCredit:debit?0:native});
     if(!await window.TT_POST_CONFIRMATION.review({entity:entity(),date:body.date,narration:'OPENING BALANCE B/F'+(body.note?' — '+body.note:''),lines:[{account:a.code,accountName:a.name,debit:debit?book:0,credit:debit?0:book,...detail},{account:'3400',accountName:'Opening Balance Clearing',debit:debit?0:book,credit:debit?book:0,currency:clearingCurrency,nativeDebit:debit?0:clearingNative,nativeCredit:debit?clearingNative:0}]}))return;

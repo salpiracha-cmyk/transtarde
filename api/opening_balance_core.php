@@ -145,6 +145,7 @@ function job_post(array &$s, string $e, array $b, array $u): array {
         if (!$bank) throw new DomainException('Select an active bank account belonging to this company.');
         $party='';$currency=$bank['currency'];
     } elseif ($bankId !== '') throw new DomainException('A bank account is only applicable to Bank opening balances.');
+    if($code==='1120'&&$currency!==$base)throw new DomainException('Company Petty Cash uses '.$base.'. Choose a bank or party account for a foreign-currency B/F.');
     $native = $amount; $rate = 1.0;
     if ($currency !== $base) {
         $rate = $e==='TG'?job_tg_rate($currency):($b['rate']??null);

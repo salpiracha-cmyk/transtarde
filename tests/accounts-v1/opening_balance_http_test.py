@@ -123,6 +123,7 @@ with tempfile.TemporaryDirectory(prefix='opening-jv-qa-') as tmp:
         pj=json.loads(books.read_text())['journals'][party[1]['result']['journalId']];assert pj['lines'][0]['nativeDebit']==200 and pj['lines'][0]['debit']==734
         assert call(post(account='1210',party='USD Customer',currency='AED',side='Debit',amount=50),entity='TG')[0]==200,'Independent currency B/F is allowed without mixing totals'
         stable=books.read_bytes();assert call(post(account='1210',party='USD Customer',currency='USD',amount=200),entity='TG')[0]==409 and books.read_bytes()==stable
+        assert call(post(account='1120',party='',currency='USD',amount=100),entity='TG')[0]==422 and books.read_bytes()==stable
         assert call(post(account='1210',party='Invalid Currency',currency='ZZZ',amount=100),entity='TG')[0]==422 and books.read_bytes()==stable
 
         status,ledger=call(endpoint='accounts_ledger_browser.php',scope=False,entity='TG',category='bank',account='BANK|B2',**{'from':'2026-07-01','to':'2026-10-06'});assert status==200 and ledger['closing']==95.02,ledger
