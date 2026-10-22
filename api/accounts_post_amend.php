@@ -34,5 +34,5 @@ try{
         rewind($handle);if(!ftruncate($handle,0)||fwrite($handle,$encoded)===false)throw new RuntimeException('Accounts storage could not be updated.');fflush($handle);
     }finally{flock($handle,LOCK_UN);fclose($handle);}
     apa_out(['ok'=>true,'result'=>$result]);
-}catch(DomainException $error){apa_out(['ok'=>false,'error'=>$error->getMessage()],422);}
-catch(Throwable $error){error_log('Post amendment: '.$error->getMessage());apa_out(['ok'=>false,'error'=>'The amendment could not be saved. No correction was posted.'],500);}
+}catch(DomainException|InvalidArgumentException $error){apa_out(['ok'=>false,'error'=>$error->getMessage()],422);}
+catch(Throwable $error){error_log('Post amendment: '.$error->getMessage());apa_out(['ok'=>false,'error'=>(($body['action']??'')==='delete_post'?'The deletion could not be saved. No records were changed. Refresh the Post ID register and try again; if it persists, give the administrator this Post ID: '.($body['postId']??'unknown'):'The amendment could not be saved. No correction was posted.')],500);}

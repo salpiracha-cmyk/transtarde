@@ -87,4 +87,46 @@ with tempfile.TemporaryDirectory(prefix='staff-payment-amend-') as temp:
  direct_utility={**utility,'action':'pay_utility','location':'MILL','locationName':'Fixture Mill','requestKey':'manual-paid-utility-01','reference':'KE-DIRECT-001','billMonth':'2026-10','paymentDate':'2026-10-03','paymentAccountId':'B1','bankPaymentMethod':'ONLINE_BANKING','bankPaymentDate':'2026-10-03','accountReference':'MANUAL-PAID-ACCOUNT'}
  st,res=request(direct_utility);assert st==200,(st,res);uid=res['result']['utilityPaymentId'];state=json.loads(books.read_text());assert state['utilityPayments'][uid]['accountReference']=='MANUAL-PAID-ACCOUNT'
  assert state['journals'][res['result']['journalId']]['meta']['accountReference']=='MANUAL-PAID-ACCOUNT'
- print('PASS actual expense invoices: full recognition, precise partial/final payments, no second expense, unpaid corrections, stable public IDs, cancellation, replay, stale/paid-source holds, utility tax month/bank linkage, preview and staff scope')
+ # Post ID deletion previews and cancels the invoice plus its two payments atomically.
+ deletion={'entity':'TTI','action':'delete_post','postId':new,'reason':'Supplier reversed the entire invoice'}
+ stable=books.read_bytes();original_state=json.loads(stable);original_invoice_lines=original_state['journals'][new]['lines']
+ st,impact=request({**deletion,'preview':True},query='',endpoint='accounts_post_amend');assert st==200,(st,impact)
+ assert books.read_bytes()==stable,'Deletion review must be read-only'
+ expected={new,paid['result']['journalId'],final['result']['journalId']}
+ assert {r['postId'] for r in impact['deletionImpact']}=={jid,paid['result']['journalId'],final['result']['journalId']},impact
+ assert any(r['register']=='supplierBills' and r['id']==bid and r['afterStatus']=='Cancelled' for r in impact['affectedSources'])
+ # Expense access alone must not grant cancellation of linked supplier payments.
+ fixture=json.loads(auth.read_text());fixture['users'][0]['permissions']['Accounts']['supplier']=['View'];auth.write_text(json.dumps(fixture))
+ st,denied=request({**deletion,'preview':True},query='',endpoint='accounts_post_amend');assert st==422,(st,denied);assert books.read_bytes()==stable
+ auth.write_bytes(good_auth)
+ # Stale confirmation and failed dependencies leave every source untouched.
+ st,res=request({**deletion,'deletionFingerprint':'stale'},query='',endpoint='accounts_post_amend');assert st==422 and books.read_bytes()==stable,(st,res)
+ st,res=request({**deletion,'deletionFingerprint':impact['deletionFingerprint']},query='',endpoint='accounts_post_amend');assert st==200,(st,res)
+ state=json.loads(books.read_text());assert set(res['result']['cancelledPostIds'])==expected
+ assert state['supplierBills'][bid]['status']=='Cancelled' and state['journals'][new]['lines']==original_invoice_lines
+ assert all(state['supplierSettlements'][sid]['status']=='Reversed' for sid in [paid['result']['id'],final['result']['id']])
+ # Management can also cancel a B/F and its linked supplier payment in one review.
+ fixture=json.loads(auth.read_text());fixture['users'][0]['role']='Super Admin';auth.write_text(json.dumps(fixture))
+ deletion={'entity':'TTI','action':'delete_post','postId':opening,'reason':'Incorrect supplier opening balance'}
+ stable=books.read_bytes();st,impact=request({**deletion,'preview':True},query='',endpoint='accounts_post_amend');assert st==200,(st,impact)
+ assert books.read_bytes()==stable and {r['postId'] for r in impact['deletionImpact']}=={opening,pay}
+ st,res=request({**deletion,'deletionFingerprint':impact['deletionFingerprint']},query='',endpoint='accounts_post_amend');assert st==200,(st,res)
+ state=json.loads(books.read_text());assert state['supplierSettlements']['S1']['status']=='Reversed' and state['journals'][opening]['openingReversalId']
+ # An on-account payment owns its unused advance; cancel later applications first.
+ source_post='POST-2026-00090';apply_post='POST-2026-00091'
+ on_account=journal(source_post,'2026-10-01','SUPPLIER_PAYMENT',[{'account':'2130','debit':100,'credit':0},{'account':'1250','debit':50,'credit':0},{'account':'1110','bankAccountId':'B1','currency':'PKR','bankDebit':0,'bankCredit':150,'debit':0,'credit':150}],{'settlementId':'ON'})
+ applied=journal(apply_post,'2026-10-02','SUPPLIER_ADVANCE_APPLIED',[{'account':'2130','debit':30,'credit':0},{'account':'1250','debit':0,'credit':30}],{'settlementId':'APPLY','advanceId':'A1'})
+ state={**initial,'journals':{source_post:on_account,apply_post:applied},'supplierSettlements':{'ON':{'id':'ON','entity':'TTI','status':'Posted','type':'Bank / Cash Supplier Payment','date':'2026-10-01','journalId':source_post,'amount':150,'advanceId':'A1','advanceAmount':50,'allocations':[]},'APPLY':{'id':'APPLY','entity':'TTI','status':'Posted','type':'Supplier Advance Applied','date':'2026-10-02','journalId':apply_post,'amount':30,'advanceId':'A1','allocations':[]}},'supplierAdvances':{'A1':{'id':'A1','entity':'TTI','journalId':source_post,'amount':50,'allocatedAmount':30,'availableAmount':20,'status':'Partly Applied'}},'paymentPlans':{'P1':{'status':'Posted','groups':{'Vendor':{'settlementId':'ON'}}}}}
+ books.write_text(json.dumps(state));stable=books.read_bytes();deletion={'entity':'TTI','action':'delete_post','postId':source_post,'reason':'Wrong on account payment'}
+ st,impact=request({**deletion,'preview':True},query='',endpoint='accounts_post_amend');assert st==200,(st,impact)
+ assert books.read_bytes()==stable and {r['postId'] for r in impact['deletionImpact']}=={source_post,apply_post}
+ st,res=request({**deletion,'deletionFingerprint':impact['deletionFingerprint']},query='',endpoint='accounts_post_amend');assert st==200,(st,res)
+ after=json.loads(books.read_text());assert after['supplierAdvances']['A1']['status']=='Cancelled' and after['supplierAdvances']['A1']['availableAmount']==after['supplierAdvances']['A1']['allocatedAmount']==0
+ assert all(p['status']=='Reversed' for p in after['supplierSettlements'].values()) and after['paymentPlans']['P1']['status']=='Open' and 'settlementId' not in after['paymentPlans']['P1']['groups']['Vendor']
+ assert after['journals'][source_post]['lines']==on_account['lines'] and after['journals'][apply_post]['lines']==applied['lines']
+ # Broken or cyclic linked journals provide a repair route and roll back the whole cascade.
+ state['supplierSettlements']['APPLY']['journalId']='MISSING';books.write_text(json.dumps(state));stable=books.read_bytes()
+ st,res=request({**deletion,'preview':True},query='',endpoint='accounts_post_amend');assert st==422 and 'Party Payments' in res['error'] and books.read_bytes()==stable,(st,res)
+ state['supplierSettlements']['APPLY']['journalId']=source_post;books.write_text(json.dumps(state));stable=books.read_bytes()
+ st,res=request({**deletion,'preview':True},query='',endpoint='accounts_post_amend');assert st==422 and 'cycle' in res['error'] and books.read_bytes()==stable,(st,res)
+ print('PASS actual expense invoices: full recognition, precise partial/final payments, no second expense, unpaid corrections, stable public IDs, cancellation, replay, stale/paid-source holds, utility tax month/bank linkage, preview, staff scope, linked Post ID deletion and advance cancellation')
