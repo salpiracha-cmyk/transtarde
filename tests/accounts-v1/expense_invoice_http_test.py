@@ -24,6 +24,15 @@ with tempfile.TemporaryDirectory(prefix='staff-payment-amend-') as temp:
   assert r.returncode==0,r.stdout+r.stderr
   payload,status=r.stdout.rsplit('\n__STATUS__',1);return int(status),json.loads(payload)
 
+ # Canonical service providers are offered with their expense mapping, without a second Expense Recipient.
+ fixture=json.loads(auth.read_text());fixture['masters']['business_parties'].append({'id':'NAVED','values':['Naveed — Sales Tax Consultant','','Service Provider','','','','','','','','Active','',json.dumps({'service':{'expenseAccountCode':'6700','type':'Tax consultant'}})]});auth.write_text(json.dumps(fixture))
+ st,payload=request();provider=next(p for p in payload['recipientProfiles'] if p['id']=='PARTY|NAVED');assert provider['accountCode']=='6700' and provider['expenseCategory']=='PROFESSIONAL' and provider['kind']=='BUSINESS'
+ service={'entity':'TTI','action':'capture_expense_invoice','requestKey':'provider-invoice-01','payee':provider['name'],'payeeId':provider['id'],'invoiceNo':'NAVED-001','invoiceDate':'2026-09-01','dueDate':'2026-09-15','billMonth':'2026-09','amount':2000,'expenseLines':[{'category':'PROFESSIONAL','purpose':'Monthly return filing','amount':2000,'expenseArea':'OFFICE','expenseFor':'SHARED','personalTreatment':'COMPANY'}]}
+ stable=books.read_bytes();st,preview=request({**service,'preview':True});assert st==200,(st,preview);assert books.read_bytes()==stable
+ assert [(l['account'],l['debit'],l['credit']) for l in preview['previews'][0]['lines']]==[('6700',2000,0),('2130',0,2000)]
+ st,res=request(service);assert st==200,(st,res);state=json.loads(books.read_text());assert state['supplierBills'][res['result']['invoiceId']]['payeeId']=='PARTY|NAVED'
+ assert not any(p['id']=='PARTY|NAVED' for p in state.get('paymentPayees',{}).values())
+ books.write_text(json.dumps(initial))
  # Start from original balanced books with a separate B/F and original payment.
  fixture=json.loads(auth.read_text());fixture['masters']['business_parties'].append({'id':'KE','values':['K-Electric','','Service Provider','','','','','','','','Active']});fixture['masters']['mills']=[{'id':'MILL','values':['Fixture Mill','','Own Mill','','','Active','','TTI']},{'id':'OFFICE','values':['Fixture Office','','Office','','','Active','','TTI']}];auth.write_text(json.dumps(fixture))
  invoice={'entity':'TTI','action':'capture_expense_invoice','requestKey':'expense-invoice-capture-01','payee':'Fixture Shipping Services','invoiceNo':'EXP-001','invoiceDate':'2026-09-01','dueDate':'2026-09-15','billMonth':'2026-09','amount':1000.08,'expenseLines':[{'category':'PROFESSIONAL','purpose':'Original service','amount':1000.08,'expenseArea':'OFFICE','expenseFor':'SHARED','personalTreatment':'COMPANY'}]}

@@ -42,9 +42,17 @@
     const chosenRoles=categories(row);
     const typeFields=kind==='party'&&!row?'<label>Create as<select name="newPartyType"><option value="party">Business Party</option><option value="buyer">Export Customer</option></select></label>':'';
     const roleFields=kind==='party'&&(canEdit||!row)?'<fieldset class="tt-party-roles"><legend>Party categories</legend>'+partyRoles.map(role=>'<label class="tt-party-role"><input type="checkbox" name="partyRole" value="'+role+'" '+(chosenRoles.includes(role.toLowerCase())?'checked':'')+'> '+role+'</label>').join('')+'</fieldset>':'';
+    let serviceProfile={};try{serviceProfile=JSON.parse(values[12]||'{}').service||{};}catch(_){}
+    const serviceFields=type==='business_parties'?'<fieldset data-service-accounting hidden><legend>Service provider accounting</legend><label>Service / profession<input name="serviceType" maxlength="120" data-master-ignore></label><label>Default expense head<select name="serviceExpense"><option value="">Choose expense head</option></select></label><p>New expenses use this head. Existing invoices are paid against their outstanding balance.</p></fieldset>':'';
     dialog.replaceChildren();
     const form = document.createElement('form'); form.method = 'dialog';
-    form.innerHTML = `<h3>${row ? 'Edit' : 'Add'} ${label}</h3><p>Saved in Super Admin ${type === 'export_customers' ? 'Export Customers' : 'Business Parties'}.</p>${row&&!canEdit?'<p>Changes to this name require Master Edit permission.</p>':`<label>Name<input name="partyName" required maxlength="180"></label>${type === 'export_customers' ? '<label>Document address<textarea name="address" required rows="3"></textarea></label>' : ''}`}${typeFields}${roleFields}<p class="tt-party-editor-error" role="alert"></p><div style="display:flex;justify-content:flex-end;gap:8px">${row?((access.super||(access.masterPermissions?.[type]||[]).includes('Deactivate'))?'<button type="button" data-delete>Delete</button>':'<button type="button" data-request-removal>Request removal</button>'):''}<button type="button" data-cancel>Cancel</button>${row&&!canEdit?'':'<button type="submit">Save</button>'}</div>`;
+    form.innerHTML = `<h3>${row ? 'Edit' : 'Add'} ${label}</h3><p>Saved in Super Admin ${type === 'export_customers' ? 'Export Customers' : 'Business Parties'}.</p>${row&&!canEdit?'<p>Changes to this name require Master Edit permission.</p>':`<label>Name<input name="partyName" required maxlength="180"></label>${type === 'export_customers' ? '<label>Document address<textarea name="address" required rows="3"></textarea></label>' : ''}`}${typeFields}${roleFields}${serviceFields}<p class="tt-party-editor-error" role="alert"></p><div style="display:flex;justify-content:flex-end;gap:8px">${row?((access.super||(access.masterPermissions?.[type]||[]).includes('Deactivate'))?'<button type="button" data-delete>Delete</button>':'<button type="button" data-request-removal>Request removal</button>'):''}<button type="button" data-cancel>Cancel</button>${row&&!canEdit?'':'<button type="submit">Save</button>'}</div>`;
+    if(form.elements.serviceExpense){
+      form.elements.serviceType.value=serviceProfile.type||'';
+      const syncService=()=>{const selected=kind==='service'||(kind==='party'?Array.from(form.querySelectorAll('[name=partyRole]:checked')).some(i=>i.value==='Service Provider'):chosenRoles.includes('service provider'));form.querySelector('[data-service-accounting]').hidden=!selected;form.elements.serviceExpense.required=selected;};
+      form.querySelectorAll('[name=partyRole]').forEach(i=>i.addEventListener('change',syncService));syncService();
+      fetch('../api/masters.php',{credentials:'same-origin',headers:{Accept:'application/json'}}).then(r=>r.json()).then(result=>{if(!result.ok)throw Error(result.error);form.elements.serviceExpense.replaceChildren(new Option('Choose expense head',''));for(const a of result.options?.service_expense_heads||[])form.elements.serviceExpense.add(new Option(a.code+' · '+a.name,a.code));form.elements.serviceExpense.value=serviceProfile.expenseAccountCode||'';}).catch(()=>{form.querySelector('.tt-party-editor-error').textContent='Expense heads could not be loaded. Reopen this form.';});
+    }
     if(form.elements.newPartyType)form.elements.newPartyType.onchange=()=>{if(form.elements.newPartyType.value==='buyer'){input.value=clean(form.elements.partyName.value);openEditor(input,'buyer')}};
     if (form.elements.partyName) form.elements.partyName.value = values[0] || name;
     if (form.elements.address) form.elements.address.value = values[3] || '';
@@ -70,6 +78,7 @@
       values[0] = newName;
       if (type === 'export_customers') { values[3] = clean(form.elements.address.value); values[10] = values[10] || 'Active'; }
       else { const roles = new Set(clean(values[2]).split(/[;,]/).filter(Boolean).map(value => value.trim())); if(kind==='party'){roles.clear();form.querySelectorAll('[name=partyRole]:checked').forEach(input=>roles.add(input.value));if(!roles.size){form.querySelector('.tt-party-editor-error').textContent='Select at least one category.';return}}else if(roleFor(kind))roles.add(roleFor(kind)); values[2] = [...roles].join('; '); values[10] = values[10] || 'Active'; }
+      if(type==='business_parties'&&form.elements.serviceExpense){let profile={};try{profile=JSON.parse(values[12]||'{}');}catch(_){}const service=values[2].split('; ').includes('Service Provider');profile.service={type:clean(form.elements.serviceType.value),expenseAccountCode:service?form.elements.serviceExpense.value:''};values[12]=JSON.stringify(profile);}
       const save = form.querySelector('[type="submit"]'); save.disabled = true;
       try {
         const response = await fetch('../api/masters.php',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({action:row?'update':'create',type,id:row?.id || '',values,csrf:access.csrf})});
@@ -174,6 +183,7 @@
     manageRole: (kind,name,onSaved) => openEditor({value:clean(name),dispatchEvent(){onSaved?.(this.value)}},kind),
     attachPartyMenu,
     manageInput(input,config){if(input&&!input.dataset.ttMasterManage){input.dataset.ttMasterManage='1';attachPartyMenu(input,'parties',config);}},
+    manageServiceProvider: (name,onSaved) => openEditor({value:clean(name),dispatchEvent(){onSaved?.(this.value)}},'service'),
     manageParty: (name,onSaved) => openEditor({value:clean(name),dispatchEvent(){onSaved?.(this.value)}},'party'),
     manageCustomer: (name,onSaved) => openEditor({value:clean(name),dispatchEvent(){onSaved?.(this.value)}},'buyer')
   };

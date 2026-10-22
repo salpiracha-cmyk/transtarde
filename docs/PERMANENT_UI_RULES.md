@@ -548,3 +548,8 @@ Online Banking payments expose an editable payment date, defaulting from the vou
 - Saving or printing does not mark actual dispatch or lock the pack. Existing source validation and server-save acknowledgement still apply.
 
 - Owner clarification, 22 October 2026: the combined TG bank PDF begins with the Pakistan exporter bank covering letter, including L/C packs. Save it as `Bank Shipment Documents <invoice reference>.pdf`, using the committed TG/customs invoice reference and filename-safe separators. Never silently queue a bank pack without its covering letter; preserve the separate branded PDF and editable Word copies in TG docs.
+
+## Service provider expense mapping — owner approval, 22 October 2026
+
+- Keep consultants, auditors and lawyers as canonical Business Parties with the Service Provider role and a saved default expense head. Professional fees use 6700; each provider retains its own payable identity. Store the profession and expense mapping alongside the existing party profile without discarding broker rates.
+- Master Records and inline service-provider creation expose the same mapping. New expense rows may suggest it on explicit recipient selection; preserve entered rows, manual choices and reopened historical vouchers. Record invoice creates expense/payable once; later settlement clears the original liability. Never create a duplicate Expense Recipient for a service party or rewrite old postings to change its classification.
