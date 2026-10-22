@@ -1167,7 +1167,7 @@ function finalShipmentDocuments(s,c){
   generated('tgProforma','Pakistan → TG — Sales Contract / Proforma',()=>tgProformaDoc(s,c),!!s.tgdocs?.saved);
   generated('tgInvoice','Pakistan → TG — Commercial Invoice',()=>tgInternalCommercialInvoiceDoc(s,c),!!s.tgdocs?.saved);
   generated('tgPacking','Pakistan → TG — Packing List',()=>packingListDoc(s,c,true,true),!!s.tgdocs?.saved);
-  generated('tgCover','Pakistan → TG — Bank Covering Letter',()=>coveringDoc(s,c,s.tgdocs?.covering||s.covering,true),!!s.tgdocs?.saved&&!coveringValidation(s,c,s.tgdocs?.covering||s.covering,true));
+  generated('tgCover','Pakistan → TG — Bank Covering Letter',()=>coveringDoc(s,c,s.tgdocs?.covering||s.covering,true),!!s.tgdocs?.saved);
   if(String(s.tgdocs?.relationship?.wording||'').trim())generated('tgRelation','Pakistan → TG — Relationship Letter',()=>tgRelationshipLetterDoc(s,c),!!s.tgdocs?.saved);
   for(const row of rows)if(row.key.startsWith('tg'))row.folder='TG docs';
  }
