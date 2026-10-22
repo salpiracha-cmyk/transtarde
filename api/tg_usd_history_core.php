@@ -39,7 +39,7 @@ function tgh_prepare(array $store, array $plan, array $user, array $bank, float 
     $created = [];
     $keys = [];
     $bridgeSources = [];
-    $names = ['1110'=>'Bank Accounts','1210'=>'Customer / Export Receivables','2110'=>'Commodity Supplier / Broker Payables','2510'=>'Customer Advances / Unapplied Receipts','1230'=>'Own-bank Currency Transfer Clearing','3400'=>'Opening Balance Clearing'];
+    $names = ['1110'=>'Bank Accounts','1210'=>'Customer / Export Receivables','2110'=>'Commodity Supplier / Broker Payables','2510'=>'Customer Advances / Unapplied Receipts','1230'=>'Own-bank Currency Transfer Clearing','3400'=>'Opening Balance Clearing','6810'=>'Correspondent Bank Charges'];
     $now = gmdate('c');
     foreach ($entries as $entry) {
         if (!is_array($entry)) throw new DomainException('Invalid historical entry.');
@@ -50,14 +50,15 @@ function tgh_prepare(array $store, array $plan, array $user, array $bank, float 
         $kind = (string)($entry['kind'] ?? '');
         $date = (string)($entry['date'] ?? '');
         $parsed = DateTimeImmutable::createFromFormat('!Y-m-d', $date);
-        if (!$parsed || $parsed->format('Y-m-d') !== $date || $date < '2026-01-01' || $date > ($kind === 'BRIDGE' ? '2026-07-01' : '2026-06-30') || ($kind === 'BRIDGE' && $date !== '2026-07-01')) throw new DomainException('Use January–June 2026 dates; migration bridges use 1 July only.');
+        $lastDate = $kind === 'SHORTFALL' ? '2026-12-31' : ($kind === 'BRIDGE' ? '2026-07-01' : '2026-06-30');
+        if (!$parsed || $parsed->format('Y-m-d') !== $date || $date < '2026-01-01' || $date > $lastDate || ($kind === 'BRIDGE' && $date !== '2026-07-01')) throw new DomainException('Historical entries use January–June; bridges use 1 July; shortfalls use their actual linked receipt date.');
         $cents = tgh_cents($entry['amount'] ?? null);
         if ($cents <= 0) throw new DomainException('Every entry needs a positive USD amount.');
         $party = tgh_text($entry['party'] ?? '', 180);
         $reference = tgh_text($entry['reference'] ?? '', 180);
         $note = tgh_text($entry['narration'] ?? '', 500);
         if ($reference === '' || $note === '') throw new DomainException('Every entry needs its original reference and explanation.');
-        $bankSide = null; $bridgeBook = null;
+        $bankSide = null; $bridgeBook = null; $shortfall = null;
         switch ($kind) {
             case 'OPENING':
                 if ($date !== '2026-01-01') throw new DomainException('Historical opening balances use 1 January 2026.');
@@ -66,6 +67,20 @@ function tgh_prepare(array $store, array $plan, array $user, array $bank, float 
             case 'RECEIPT': $debit = '1110'; $credit = !empty($entry['advance']) ? '2510' : '1210'; $bankSide = 'debit'; break;
             case 'PAYMENT': $debit = '2110'; $credit = '1110'; $bankSide = 'credit'; break;
             case 'TRANSFER_CLEARING': $debit = '1110'; $credit = '1230'; $bankSide = 'debit'; break;
+            case 'SHORTFALL':
+                if ($cents > 100000) throw new DomainException('A historical correspondent-bank shortfall cannot exceed USD 1,000.');
+                $source = tgh_text($entry['sourcePostId'] ?? '',100); $receipt = null;
+                foreach ($store['tgBankTransactions'] ?? [] as $row) if (($row['journalId'] ?? '') === $source && ($row['kind'] ?? '') === 'Receipt' && ($row['receiptType'] ?? '') === 'EXPORT_RECEIVABLE' && !in_array($row['status'] ?? '',['Deleted','Reversed','Reversed for Amendment'],true)) { if($receipt)throw new DomainException('The linked bank receipt is ambiguous.');$receipt=$row; }
+                $candidateId=(string)($receipt['sourceCandidateId']??'');$candidate=$store['exportCandidates'][$candidateId]??null;
+                if (!$receipt || !$candidate || ($candidate['entity']??'')!=='TG' || ($candidate['candidateType']??'')!=='CUSTOMER_EXPORT_SALE' || ($candidate['transactionCurrency']??'')!=='USD' || ($receipt['currency']??'')!=='USD' || ($receipt['bankAccountId']??'')!=='banks-2' || ($receipt['date']??'')!==$date || strcasecmp((string)($receipt['counterparty']??''),$party)!==0) throw new DomainException('Link the actual TG USD customer receipt with its original date and customer.');
+                $invoice=(string)($candidate['meta']['commercialInvoiceNo']??$candidate['reference']??'');
+                if ($invoice !== ($entry['invoiceRef']??'')) throw new DomainException('The shortfall invoice does not match the linked receipt.');
+                $remaining=(int)round((float)($candidate['transactionAmount']??0)*100);
+                foreach($store['tgBankTransactions']??[] as $row) if(($row['sourceCandidateId']??'')===$candidateId&&($row['kind']??'')==='Receipt'&&($row['receiptType']??'')==='EXPORT_RECEIVABLE'&&!in_array($row['status']??'',['Deleted','Reversed','Reversed for Amendment'],true)) $remaining-=(int)round((float)($row['settlementAmountNative']??0)*100);
+                foreach($store['tgAdvanceApplications']??[] as $row) if(($row['candidateId']??'')===$candidateId&&!in_array($row['status']??'',['Deleted','Reversed','Reversed for Amendment'],true)) $remaining-=(int)round((float)($row['amountNative']??0)*100);
+                if($remaining!==$cents) throw new DomainException('The charge must equal the current remaining invoice amount: USD '.number_format($remaining/100,2).'.');
+                $shortfall=['receipt'=>$receipt,'candidateId'=>$candidateId,'invoice'=>$invoice,'contractRef'=>(string)($candidate['meta']['contractRef']??$receipt['contractRef']??'')];
+                $debit='6810';$credit='1210';break;
             case 'BRIDGE':
                 if (($entry['account'] ?? '') === '1210') { $debit = '3400'; $credit = '1210'; }
                 elseif (($entry['account'] ?? '') === '2510') { $debit = '2510'; $credit = '3400'; }
@@ -97,6 +112,12 @@ function tgh_prepare(array $store, array $plan, array $user, array $bank, float 
         $id = 'TG-HISTORY-PREVIEW-'.(count($created)+1);
         $journal = ['id'=>$id,'entity'=>'TG','date'=>$date,'status'=>'Posted','sourceType'=>'TG_USD_HISTORY_RECONSTRUCTION','reference'=>$reference,'narration'=>$note,'lines'=>$lines,'totalDebit'=>$book,'totalCredit'=>$book,'meta'=>['tgHistoryBatch'=>$batch,'tgHistorySourceKey'=>$key,'kind'=>$kind,'currency'=>'USD','historicalOnly'=>true,'noIntercompanyMirror'=>true,'sourcePostId'=>$entry['sourcePostId']??''],'createdAt'=>$now,'createdBy'=>$user['full_name']??$user['username']??'Super Admin','userId'=>(int)($user['id']??0),'approvedAt'=>$now,'approvedBy'=>$user['full_name']??'Super Admin','approvedByUserId'=>(int)($user['id']??0),'reversalOf'=>null];
         $created[$id] = $journal; $store['journals'][$id] = $journal;
+        if($shortfall){
+            $adjustmentId='TGHC-'.substr(hash('sha256',$batch.'|'.$key),0,24);
+            if(isset($store['tgBankTransactions'][$adjustmentId]))throw new DomainException('This shortfall is already registered.');
+            $created[$id]['meta']['tgBankTransactionId']=$adjustmentId;$store['journals'][$id]['meta']['tgBankTransactionId']=$adjustmentId;
+            $store['tgBankTransactions'][$adjustmentId]=['id'=>$adjustmentId,'kind'=>'Receipt','receiptType'=>'EXPORT_RECEIVABLE','status'=>'Posted','adjustmentOnly'=>true,'date'=>$date,'currency'=>'USD','counterparty'=>$party,'bankAccountId'=>'banks-2','bank'=>$bank['bankName'],'sourceCandidateId'=>$shortfall['candidateId'],'contractRef'=>$shortfall['contractRef'],'invoiceRef'=>$shortfall['invoice'],'settlementAmountNative'=>$native,'bankCreditNative'=>0,'correspondentChargeNative'=>$native,'bankChargeNative'=>0,'bankVatNative'=>0,'targetAccount'=>'1210','settlementAed'=>$book,'bankReference'=>$reference,'differenceChoice'=>'CORRESPONDENT_BANK_CHARGES','journalId'=>$id,'linkedActualReceiptId'=>$shortfall['receipt']['id'],'tgHistoryBatch'=>$batch,'createdAt'=>$now,'createdBy'=>$user['full_name']??'Super Admin'];
+        }
     }
     // Reuse the normal opening reversal shape, preserving the old voucher and its audit trail.
     $openingId = tgh_text($plan['reverseOpeningPostId'] ?? '', 100);

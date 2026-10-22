@@ -36,4 +36,16 @@ $bridgePlan=$p;$bridgePlan['entries'][]=['key'=>'bridge-1','kind'=>'BRIDGE','dat
 $bridged=tgh_prepare($withBridge,$bridgePlan,$u,$bank,3.67);$bridgeJournal=array_values($bridged['journals'])[3];
 expect($bridgeJournal['lines'][1]['credit']===60.0,'Bridge must offset original functional carrying value, not a new FX valuation');
 $bridgePlan['entries'][3]['party']='DIFFERENT CUSTOMER';rejects(fn()=>tgh_prepare($withBridge,$bridgePlan,$u,$bank,3.67),'Bridge may not use another customer opening');
+$shortfallStore=$s;
+$shortfallStore['exportCandidates']['C1']=['entity'=>'TG','candidateType'=>'CUSTOMER_EXPORT_SALE','transactionCurrency'=>'USD','transactionAmount'=>25,'meta'=>['commercialInvoiceNo'=>'INV-1','contractRef'=>'CONTRACT-1']];
+$actualReceipt=['id'=>'ACTUAL','kind'=>'Receipt','receiptType'=>'EXPORT_RECEIVABLE','status'=>'Posted','date'=>'2026-07-12','currency'=>'USD','bankAccountId'=>'banks-2','counterparty'=>'CUSTOMER','sourceCandidateId'=>'C1','settlementAmountNative'=>20,'bankCreditNative'=>20,'journalId'=>'JULY-KEEP'];
+$shortfallStore['tgBankTransactions']['ACTUAL']=$actualReceipt;
+$shortfallPlan=$p;$shortfallPlan['entries'][]=['key'=>'confirmed-shortfall','kind'=>'SHORTFALL','date'=>'2026-07-12','amount'=>'5.00','party'=>'CUSTOMER','reference'=>'SHORTFALL-INV-1','narration'=>'Owner-confirmed correspondent bank shortfall','sourcePostId'=>'JULY-KEEP','invoiceRef'=>'INV-1'];
+$cleared=tgh_prepare($shortfallStore,$shortfallPlan,$u,$bank,3.67);
+expect($cleared['currentClosing']===$r['currentClosing'],'Shortfall must not move bank money');
+expect($cleared['store']['tgBankTransactions']['ACTUAL']===$actualReceipt,'Original receipt must remain unchanged');
+$settled=0;foreach($cleared['store']['tgBankTransactions'] as $tx)$settled+=(float)$tx['settlementAmountNative'];expect($settled===25.0,'Shortfall must clear the linked invoice in the receipt register');
+$charge=array_values($cleared['journals'])[3];expect($charge['lines'][0]['account']==='6810'&&$charge['lines'][1]['account']==='1210','Shortfall debits correspondent charges and credits receivables');
+$bad=$shortfallPlan;$bad['entries'][3]['amount']='6.00';rejects(fn()=>tgh_prepare($shortfallStore,$bad,$u,$bank,3.67),'Shortfall must equal the remaining invoice balance');
+$bad=$shortfallPlan;$bad['entries'][3]['date']='2026-07-13';rejects(fn()=>tgh_prepare($shortfallStore,$bad,$u,$bank,3.67),'Shortfall must retain the linked receipt date');
 echo "TG USD history: isolation, exact reconciliation, retained July records and idempotency passed.\n";
