@@ -46,7 +46,7 @@ function tt_accounts_freight_metadata(array $root,array $agreement,array $user):
         }
     }unset($shipment);
     foreach((array)($root['millSync']['exportLoading']??[]) as $i=>$handoff)if($id!==''&&($handoff['shipmentId']??'')===$id){$handoff=array_replace($handoff,$fields);$handoff['plan']=array_replace((array)($handoff['plan']??[]),$fields);$root['millSync']['exportLoading'][$i]=$handoff;}
-    if($root!==$original)$root['audits'][]=['at'=>gmdate('c'),'by'=>(string)($user['full_name']??$user['username']??'Accounts'),'type'=>'FREIGHT AGREEMENT','action'=>'Updated loading metadata from Accounts','detail'=>$ref.' · '.$id.' · '.$agreement['id'],'before'=>$old,'after'=>$fields];
+    if($root!==$original)$root['audits'][]=['id'=>'AUD-FREIGHT-'.bin2hex(random_bytes(12)),'contractRef'=>$ref,'area'=>'FREIGHT AGREEMENT','at'=>gmdate('c'),'by'=>(string)($user['full_name']??$user['username']??'Accounts'),'type'=>'FREIGHT AGREEMENT','action'=>'Updated loading metadata from Accounts','detail'=>$ref.' · '.$id.' · '.$agreement['id'],'before'=>$old,'after'=>$fields];
     return $root;
 }
 function tt_accounts_sync_freight(array $agreement,array $user):void{

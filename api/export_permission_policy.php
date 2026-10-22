@@ -37,6 +37,28 @@ function ep_record_changed(array $before,array $after): bool {
 function ep_index(array $rows,string $identity='id'): array {
     $out=[];foreach($rows as $row){if(!is_array($row)||trim((string)($row[$identity]??''))===''||isset($out[(string)$row[$identity]]))throw new DomainException('Export record identities must be unique.');$out[(string)$row[$identity]]=$row;}return $out;
 }
+/** Legacy server freight events have no ID. Accept only unchanged saved copies;
+ * new events still need unique IDs and all identified history stays immutable. */
+function ep_validate_audits(array $user,array $old,array $next): void {
+    $identified=[];$legacy=[];
+    foreach($old as $row){
+        if(is_array($row)&&trim((string)($row['id']??''))==='')$legacy[]=$row;
+        else $identified[]=$row;
+    }
+    $before=ep_index($identified);$identified=[];
+    foreach($next as $row){
+        if(is_array($row)&&trim((string)($row['id']??''))===''){
+            $matched=false;
+            foreach($legacy as $index=>$saved)if(ep_equal($saved,$row)){unset($legacy[$index]);$matched=true;break;}
+            if(!$matched)throw new DomainException('New export audit records require a unique ID; saved history cannot be amended.');
+        }else $identified[]=$row;
+    }
+    foreach(ep_index($identified) as $id=>$row){
+        if(isset($before[$id])){if(!ep_equal($before[$id],$row))throw new DomainException('Saved export audit records cannot be amended.');continue;}
+        if(stripos((string)($row['action']??''),'cancel')!==false&&($row['area']??'')==='Sales Contract')ep_require($user,'contracts','Edit');
+    }
+    // Omitted history is retained by the existing additive server merge.
+}
 function ep_collection(array $user,array $old,array $next,string $icon,string $identity='id'): void {
     $before=ep_index($old,$identity);$after=ep_index($next,$identity);
     foreach($after as $id=>$row)if(!isset($before[$id])||!ep_equal($before[$id],$row))ep_require($user,$icon,isset($before[$id])?'Edit':'Create');
@@ -160,8 +182,7 @@ function operations_validate_export_permissions(array $user,string $module,strin
     foreach(['newExportBags'=>'bags','productionInstructions'=>'production','exportLoading'=>'loading'] as $field=>$icon)if(!ep_equal($old['millSync'][$field]??[],$next['millSync'][$field]??[]))ep_sync_rows($user,$field,$icon,(array)($old['millSync'][$field]??[]),(array)($next['millSync'][$field]??[]));
     if(!ep_equal($old['deletedShipments']??[],$next['deletedShipments']??[]))ep_require($user,'active','Edit');
     if(!ep_equal($old['cancelledContracts']??[],$next['cancelledContracts']??[]))ep_require($user,'contracts','Edit');
-    $oldAudits=ep_index((array)($old['audits']??[]));
-    foreach(ep_index((array)($next['audits']??[])) as $auditId=>$audit){if(isset($oldAudits[$auditId])){if(!ep_equal($oldAudits[$auditId],$audit))throw new DomainException('Saved export audit records cannot be amended.');continue;}if(stripos((string)($audit['action']??''),'cancel')!==false&&($audit['area']??'')==='Sales Contract')ep_require($user,'contracts','Edit');}
+    ep_validate_audits($user,(array)($old['audits']??[]),(array)($next['audits']??[]));
     $rootFields=['version','customers','suppliers','fi','contracts','shipments','accountsReceipts','millSync','audits','alerts','settings','deletedShipments','cancelledContracts'];
     foreach(array_unique(array_merge(array_keys($old),array_keys($next))) as $field)if(!in_array($field,$rootFields,true)&&!ep_equal($old[$field]??null,$next[$field]??null))throw new DomainException('Unknown export storage field cannot be changed.');
     if(!ep_equal($old['settings']??[],$next['settings']??[]))ep_require($user,'contracts','Edit');

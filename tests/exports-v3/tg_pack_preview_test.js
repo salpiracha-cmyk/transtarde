@@ -1,6 +1,7 @@
 'use strict';
 const assert=require('node:assert/strict'),fs=require('node:fs'),{JSDOM}=require('jsdom');
 const dom=new JSDOM('<div id="app"></div><div id="editor"></div><div id="printRoot"></div>',{url:'https://fixture.test/exports/',runScripts:'outside-only'}),w=dom.window;
+const theme=w.document.createElement('style');theme.textContent=fs.readFileSync('brand-theme.css','utf8');w.document.head.append(theme);
 w.structuredClone=structuredClone;w.setInterval=()=>0;w.confirm=()=>true;let alerts=[];w.alert=s=>alerts.push(s);w.TT_MODULE_ACCESS={user:'Fixture',masters:{}};
 let syncs=0,failSave=false,printed=[],delaySave=false,releaseSave;w.TT_SHARED_SYNC={flush(){},saveNow:async()=>{syncs++;if(failSave)throw Error('Fixture save refused');if(delaySave)await new Promise(resolve=>releaseSave=resolve);}};
 let source=fs.readFileSync('exports/app.js','utf8');source=source.replace('mount();restoreContractCheckpoint();','window.__tg={state,makeShipment,renderTG,tgRelationshipLetterDoc,tgRelationshipWording,tgRelationshipValidation,tgRelationshipValues,tgInternalCommercialInvoiceDoc,packingListDoc,coveringDoc,setCurrent:id=>{currentShipmentId=id},printer:fn=>{printShipmentDoc=fn}};');w.eval(source);
@@ -25,7 +26,8 @@ assert.equal(syncs,0,'Typing, selecting and switching tabs never save');
 (async()=>{
  await q('#tgPrintCurrent').onclick();assert.equal(syncs,1);assert.equal(printed.length,1);assert.equal(printed[0].html,q('#tgPreviewPaper').innerHTML,'Print uses exactly the reviewed preview');assert.match(printed[0].html,/Receiver Two Address/);
  delaySave=true;const pending=q('#tgPrintCurrent').onclick();input('#tgRelBank','Unsaved during request');releaseSave();await pending;delaySave=false;assert.equal(printed.length,2);assert.match(printed[1].html,/Another Bank/);assert.doesNotMatch(printed[1].html,/Unsaved during request/,'An in-flight print uses the acknowledged snapshot');
- failSave=true;await q('#tgPrintCurrent').onclick();assert.equal(printed.length,2,'Failed server acknowledgement must not print');failSave=false;
+ failSave=true;await q('#tgPrintCurrent').onclick();assert.equal(printed.length,2,'Failed server acknowledgement must not print');
+ const errorBox=q('#exportSaveError');assert.equal(errorBox.getAttribute('role'),'alert');assert.equal(errorBox.textContent,'Fixture save refused');assert.equal(w.getComputedStyle(errorBox).color,'rgb(165, 29, 36)','Save errors must use red wording despite the shared green theme');failSave=false;
  tab('invoice');q('#tgShowImporter').checked=true;q('#tgShowImporter').dispatchEvent(new w.Event('change',{bubbles:true}));q('#tgImporterChoice').value='NOTIFY:0';q('#tgImporterChoice').dispatchEvent(new w.Event('change',{bubbles:true}));assert.match(q('#tgPreviewPaper').textContent,/Receiver Two/);tab('packing');assert.match(q('#tgPreviewPaper').textContent,/Receiver Two/);
  tab('relationship');q('#tgRelParty').value='INVOICE';q('#tgRelParty').dispatchEvent(new w.Event('change',{bubbles:true}));assert.match(q('#tgPreviewPaper').textContent,/Receiver Two Address/);
  q('#tgRelParty').value='CUSTOM';q('#tgRelParty').dispatchEvent(new w.Event('change',{bubbles:true}));input('#tgRelAddress','');const count=printed.length;await q('#tgPrintCurrent').onclick();assert.equal(printed.length,count);assert.ok(alerts.some(a=>a.includes('receiver address')),'Missing receiver address prevents an incomplete print');
@@ -35,6 +37,7 @@ assert.equal(syncs,0,'Typing, selecting and switching tabs never save');
    await page.route('http://fixture.test/**',route=>route.fulfill({contentType:'text/html',body:'<html><body></body></html>'}));await page.goto('http://fixture.test');
    await page.setContent('<div class="lotEditorShell"><div id="editor"></div></div><div id="printRoot"></div>');
    await page.addStyleTag({content:fs.readFileSync('exports/app.css','utf8')});
+   await page.addStyleTag({content:fs.readFileSync('brand-theme.css','utf8')});
    await page.evaluate(()=>{window.TT_MODULE_ACCESS={user:'Fixture',masters:{}};window.TT_SHARED_SYNC={flush(){},saveNow:async()=>{}};window.setInterval=()=>0;});
    await page.addScriptTag({content:source});
    const fixture=JSON.parse(JSON.stringify(t.state));fixture.shipments[0].tgdocs.relationship.finalPartyChoice='INVOICE';
@@ -46,6 +49,8 @@ assert.equal(syncs,0,'Typing, selecting and switching tabs never save');
     const sizes=await page.evaluate(()=>({overflow:document.documentElement.scrollWidth-innerWidth,preview:document.querySelector('#tgPreviewPaper').scrollWidth-document.querySelector('#tgPreviewPaper').clientWidth}));
     assert.ok(sizes.overflow<=2&&sizes.preview<=2,JSON.stringify({width,...sizes}));
    }
+   await page.evaluate(()=>{window.TT_SHARED_SYNC.saveNow=async()=>{throw new Error('Fixture save refused')}});await page.locator('#tgPrintCurrent').click();await page.locator('#exportSaveError').waitFor({state:'visible'});
+   assert.equal(await page.locator('#exportSaveError').evaluate(el=>getComputedStyle(el).color),'rgb(165, 29, 36)','Actual browser error text must be red');
    fs.mkdirSync('tmp/qa/tg-pack',{recursive:true});await page.setViewportSize({width:1450,height:1000});await page.screenshot({path:'tmp/qa/tg-pack/relationship-preview.png',fullPage:true});
   }finally{await browser.close();}
  }

@@ -522,6 +522,9 @@ Online Banking payments expose an editable payment date, defaulting from the vou
 - Adopt the standard draft only in an open lot editor; retain prior copied wording and preserve closed/issued historical letters. Unrecognised custom wording remains custom until the user explicitly chooses the standard draft.
 - Save TG Pack and Print / Save require an acknowledged server save. Print the exact submitted document snapshot; later typing during a pending save must not change it. Do not guess a missing receiver address or print unresolved draft fields. No background Save or financial posting.
 
+- Save failures and error notices use red wording and a red error treatment; the shared green brand styling must never override `.notice.bad`, `.notice.error` or `.notice.red`.
+- Historical freight audit entries without IDs remain unchanged and cannot block an unrelated authorised document save. Accept only unchanged saved copies of those legacy entries; new audit events require unique IDs. Accounts freight metadata updates must create an identified, contract-linked audit event.
+
 ## Payment planning and commodity creditor treatment — 22 October 2026
 
 - Start with a daily net-dues table and final total. Default bank and optional expected export receipts provide planning funds only. Date selection reveals supplier/broker rows; open the chosen payee in a popup. Preparing this table plan creates no financial journal or advance allocation. Apply advances atomically only during the copied accounting review or explicit final posting; estimates never increase spendable bank/cash balances.
