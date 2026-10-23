@@ -38,6 +38,7 @@ $r=json_decode(stream_get_contents(STDIN),true);$_GET=$r['query'];$_SERVER['REQU
  status,d=req(area='costing',mode='cost');assert status==200 and 'deals' not in d and 'cashflow' not in d and 'banks' not in d,d
  assert req(origin='exports',mode='exports-restricted',entity='BRM')[0]==403,'Explicit company scope was bypassed'
  status,d=req(origin='exports',mode='exports');assert status==200 and 'costings' not in d and 'banks' not in d,d
+ assert 'contractPrice' not in d['lots'][0] and set(d['lots'][0])=={'id','contract','lot','invoice','invoiceDate','quantityMT','invoiceSaved'},'Loading-only scope exposed financial/unsupported source fields'
  deal={'action':'save_deal','date':'2026-10-01','partyId':'KAS','direction':'PURCHASE','arrangement':'FIXED','price':400,'quantityMT':100,'incoterm':'FOB','fx':280,'coverageMT':100,'contractRef':'TTI/AMT/1','reference':'KAS-1','requestKey':'create-contract-fixed'}
  assert req(deal,mode='read')[0]==403
  assert req({**deal,'csrf':'bad'})[0]==419
