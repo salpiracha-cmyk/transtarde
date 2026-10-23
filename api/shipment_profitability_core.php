@@ -100,6 +100,9 @@ function sp_sale_evidence(array $state,array $candidate,string $entity,array $hi
     $sale=sp_source_post($state,$saleId,$entity,$type,'candidateId',$id,$hidden,$activeReversals);
     $revenue=sp_amount($candidate['functionalAmount']??null);$account=$type==='TG_INTERCOMPANY_PAKISTAN'?'4500':'4200';
     if($revenue<=0||abs(-sp_post_net($sale,$account)-$revenue)>.005||abs(sp_amount($sale['meta']['functionalAmount']??null)-$revenue)>.005)throw new DomainException('Accepted sale amount does not reconcile to its revenue posting.');
+    if($costId===''&&($candidate['costMethod']??'')==='EXTERNAL_NO_STOCK'){
+        $meta=(array)($candidate['meta']??[]);$qty=(float)($candidate['meta']['actualQtyMT']??0);$external=0.;foreach((array)($state['exporterDeals']??[]) as $d)if(($d['entity']??'')===$entity&&($d['direction']??'')==='PURCHASE')foreach((array)($d['loadings']??[]) as $l)if(($l['sourceSnapshot']['contract']??'')===($meta['contractRef']??'')&&in_array($meta['lotRef']??'',[$l['shipmentId'],$l['sourceSnapshot']['lot']??''],true))$external+=$l['quantityMT'];if($qty<=0||abs($external-$qty)>.000001)throw new DomainException('Reconcile the all-external shipment quantities.');return ['revenue'=>$revenue,'stockCost'=>0.];
+    }
     if($costId===''){
         if(isset($candidate['costAmount'])&&sp_amount($candidate['costAmount'])!=0)throw new DomainException('Stock cost has no linked posting.');
         return ['revenue'=>$revenue,'stockCost'=>null];
@@ -159,4 +162,28 @@ function sp_bill_evidence(array $state,array $bill,string $entity):void {
     }elseif(!empty($record['shipmentSections'])){
         foreach($record['shipmentSections'] as $section)sp_amount($section['amount']??null);
     }
+}
+
+/** Other-exporter settlements join the same shipment summary from verified posts, once. */
+function sp_fellow_costs(array $state,string $entity,array $hidden,array $activeReversals):array {
+    $out=[];$holds=[];$seen=[];
+    foreach((array)($state['exporterDeals']??[]) as $d){if(($d['entity']??'')!==$entity)continue;$loads=array_column((array)($d['loadings']??[]),null,'id');
+        foreach((array)($d['settlementPosts']??[]) as $p){$id=(string)($p['postId']??'');if(isset($hidden[$id]))continue;try{if(isset($seen[$id]))throw new DomainException('Repeated exporter settlement Post ID.');$j=sp_source_post($state,$id,$entity,'FELLOW_EXPORTER_SETTLEMENT','exporterDealId',$d['id'],$hidden,$activeReversals);$seen[$id]=true;$amount=sp_amount($p['amountPKR']??null);$purchase=$d['direction']==='PURCHASE';if(abs(sp_post_net($j,$purchase?'2140':'1230')-($purchase?-$amount:$amount))>.005)throw new DomainException('Exporter settlement control does not match its saved allocation.');
+            if(!$purchase){$own=round(array_sum((array)($p['costDeltaByAccount']??[])),2);if(abs(sp_post_net($j,'5100')-$own)>.005||abs(-sp_post_net($j,'4100')-$amount)>.005)throw new DomainException('Own exporter sale/cost does not reconcile.');$key='OTHER-EXPORTER|'.$d['id'];$out[]=['key'=>$key,'contractRef'=>$d['reference']?:$d['id'],'lotRef'=>'Other exporter · '.$d['party'],'stockCost'=>$own,'revenue'=>$amount,'external'=>false];continue;}
+            if(abs(sp_post_net($j,'5100')-$amount)>.005)throw new DomainException('External goods cost does not reconcile.');$deltas=$p['settlementByLoadingDelta']??null;if(!is_array($deltas)||abs(array_sum($deltas)-$amount)>.005)throw new DomainException('External cost needs its original invoice allocation.');
+            foreach($deltas as $loadId=>$value){$l=$loads[$loadId]??null;$contract=$l['sourceSnapshot']['contract']??'';$lot=$l['sourceSnapshot']['lot']??'';if(!$l||$contract===''||$lot==='')throw new DomainException('External cost has no original shipment link.');$out[]=['key'=>$contract.'|'.$lot,'contractRef'=>$contract,'lotRef'=>$lot,'stockCost'=>sp_amount($value),'revenue'=>0.,'external'=>true];}
+        }catch(DomainException $e){$holds[]='Exporter settlement '.$id.': '.$e->getMessage();}}
+        if($d['direction']==='PURCHASE'){ $covered=[];foreach((array)($d['settlementPosts']??[]) as $p){$j=$state['journals'][$p['postId']]??[];if(($j['status']??'')!=='Posted'||!empty($j['reversedByPostId'])||isset($hidden[$p['postId']]))continue;foreach((array)($p['working']['rows']??[]) as $r)$covered[$r['loadingId']]=$r['quantityMT'];}foreach($loads as $l)if(abs(($covered[$l['id']]??0)-$l['quantityMT'])>.000001)$holds[]='External exporter cost is not posted for invoice '.$l['invoiceRef'].'.';}
+    }return ['rows'=>$out,'holds'=>array_values(array_unique($holds))];
+}
+
+function sp_fellow_shared_expenses(array $state,string $entity,array $hidden,array $activeReversals):array {
+    $out=[];$holds=[];$used=[];foreach((array)($state['exporterExpenseAllocations']??[]) as $a)if(($a['active']??true)&&($a['entity']??'')===$entity)$used[$a['sourceId']]=($used[$a['sourceId']]??0)+(float)$a['amountPKR'];
+    foreach((array)($state['exporterExpenseAllocations']??[]) as $a){if(($a['entity']??'')!==$entity||!($a['active']??true))continue;try{$j=sp_posted_journal($state,(string)$a['postId'],$entity,$hidden,$activeReversals);$source=(string)$a['sourceId'];$capacity=0.;
+        if(str_starts_with($source,'BAG|')){$b=$state['bagSupplierBills'][substr($source,4)]??null;if(!$b||($b['entity']??'')!==$entity||($b['status']??'')!=='Posted'||($b['journalId']??'')!==$a['postId'])throw new DomainException('Original bag invoice/post does not match its allocation.');$capacity=sp_amount($b['baseAmount']??null);}
+        elseif($source==='POST|'.$a['postId']){foreach((array)($state['supplierBills']??[]) as $bill)if(in_array($a['postId'],(array)($bill['postingJournalIds']??[]),true))throw new DomainException('This supplier expense is already included in shipment costs.');foreach($j['lines'] as $line)if(in_array($line['account'],['5300','5550','5510','5520','5530','5540','5560','6700'],true))$capacity+=(float)$line['debit']-(float)$line['credit'];}
+        else throw new DomainException('Unknown original shared expense source.');
+        $amount=sp_amount($a['amountPKR']);if($amount<=0||($used[$source]??0)>$capacity+.005)throw new DomainException('Shared invoice allocations exceed the original posted amount.');$links=[];foreach((array)($state['exporterDeals']??[]) as $d)if(($d['entity']??'')===$entity)foreach((array)($d['loadings']??[]) as $l)if(($l['shipmentId']??'')===($a['shipmentId']??'')){$contract=(string)($l['sourceSnapshot']['contract']??'');$lot=(string)($l['sourceSnapshot']['lot']??'');if($contract!==''&&$lot!=='')$links[$contract.'|'.$lot]=['contractRef'=>$contract,'lotRef'=>$lot];}if(count($links)!==1)throw new DomainException('Shared expense requires one original company shipment identity.');$key=array_key_first($links);$field=match($a['category']??''){'FREIGHT'=>'freight','INSURANCE','FOB','BAGS','OTHER'=>'otherPostedCost',default=>throw new DomainException('Unknown shared shipment charge category.')};$out[]=['key'=>$key,'amountPKR'=>$amount,'field'=>$field]+$links[$key];
+    }catch(DomainException $e){$holds[]='Shared exporter expense '.($a['id']??'Unknown').': '.$e->getMessage();}}
+    return ['rows'=>$out,'holds'=>$holds];
 }

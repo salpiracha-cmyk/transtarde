@@ -151,7 +151,7 @@ function tt_inv_stock(array $values,array $scope, ?callable $observe=null): arra
     }
     foreach(tt_inv_rows($values,'tt35exportersale')as$i=>$r)if(tt_inv_same_scope($scope,$r)){$source('tt35exportersale',$r,$i,'Sale to exporter');$context['parts']=array_map(static fn($x)=>['date'=>(string)($x['date']??(substr((string)($x['gateTime']??''),0,10)?:($r['date']??''))),'kg'=>-(float)($x['net']??0)],(array)($r['containers']??[]));
         $kg=array_sum(array_map(static fn($x)=>(float)($x['net']??0),(array)($r['containers']??[])));
-        $add(($r['product']??'')==='Ready Rice'?tt_inv_resolve_stock($m,$r):(string)($r['brand']??$r['product']??'Unknown'),-$kg);
+        $add(!empty($r['stockSourceName'])?(string)$r['stockSourceName']:(($r['product']??'')==='Ready Rice'?tt_inv_resolve_stock($m,$r):(string)($r['brand']??$r['product']??'Unknown')),-$kg);
     }
     foreach(tt_inv_rows($values,'tt30ship')as$i=>$r)if(tt_inv_same_scope($scope,$r)){$source('tt30ship',$r,$i,'Export loading');$context['parts']=array_map(static fn($x)=>['date'=>(string)($x['date']??(substr((string)($x['gateTime']??''),0,10)?:($r['date']??''))),'kg'=>-(float)($x['weight']??0)],(array)($r['containers']??[]));
         $kg=array_sum(array_map(static fn($x)=>(float)($x['weight']??0),(array)($r['containers']??[])));$add(tt_inv_resolve_stock($m,$r),-$kg);

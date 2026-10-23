@@ -97,4 +97,12 @@ require $argv[1];
     assert st==200 and any(row['id']=='BANK-CHOICE' for row in data['accounts']),(st,data)
     st,data=request('accounts_dashboard.php',grant())
     assert st==200 and all(not rows for rows in data['summaries'].values()) and not data['attention'],(st,data)
+    # A new exporter settlement must appear in real Accounts outputs by party,
+    # while its revenue/cost legs must not cancel the receivable in Party Ledgers.
+    initial['journals']['FELLOW']={'id':'FELLOW','entity':'TTI','status':'Posted','date':'2026-10-02','sourceType':'FELLOW_EXPORTER_SETTLEMENT','reference':'OTHER-INV','narration':'Exporter settlement','totalDebit':120,'totalCredit':120,'meta':{'exporterDealId':'SALE1','counterparty':'HKM Fixture'},'lines':[{'account':'1230','accountName':'Other Receivables','debit':100,'credit':0,'counterparty':'HKM Fixture','exporterDealId':'SALE1'},{'account':'4100','accountName':'Export Sales','debit':0,'credit':100,'counterparty':'HKM Fixture','exporterDealId':'SALE1'},{'account':'5100','accountName':'Cost of Sales','debit':20,'credit':0,'counterparty':'HKM Fixture','exporterDealId':'SALE1'},{'account':'1320','accountName':'Inventory','debit':0,'credit':20,'counterparty':'HKM Fixture','exporterDealId':'SALE1'}]}
+    books.write_text(json.dumps(initial));exporter_before=books.read_bytes();before=exporter_before
+    st,party=request('accounts_ledger_browser.php',{},'entity=TTI&category=party&party=HKM%20Fixture&from=2026-01-01&to=2026-12-31','Director');assert st==200 and len(party['rows'])==1 and party['rows'][0]['debit']==100,(st,party)
+    st,post=request('accounts_ledger_browser.php',{},'entity=TTI&account=POSTS&postId=FELLOW','Director');assert st==200 and len(post['post']['lines'])==4,(st,post)
+    st,report=request('accounts_reports.php',{},'entity=TTI&from=2026-01-01&asOf=2026-12-31','Director');assert st==200 and report['trialBalance']['balanced'] and report['trialBalance']['totalDebit']==1520,(st,report)
+    assert books.read_bytes()==exporter_before,'Exporter ledger/register/financial report reads wrote Accounts'
     print('PASS Accounts read boundaries: safe bootstrap, exact Reports View, own-workflow search and register/detail, private/unknown/entityless/other-company isolation; full financial totals and legacy/Director/SA preserved; books unchanged')

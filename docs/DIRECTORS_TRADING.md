@@ -40,8 +40,9 @@ when original invoice inventory cost is already posted until Accounts reconciles
 that cost. No existing SODA, invoice or opening balance is automatically deleted.
 
 Explicit settlement posts debit/credit party controls 1230/2140 against 4100/5100;
-external goods do not use inventory accounts. Part/full PKR cash/bank settlements
-clear that same control. Foreign-bank conversion remains in Accounts. Posted
+external goods do not use inventory accounts. Part/full cash/bank settlements clear that same control. Foreign-bank settlements
+retain native currency and actual exchange rate, with the difference from the
+cleared PKR book amount posted to realized exchange gain/loss (7100). Posted
 balances are already in Group books. Only the additional unposted forecast is
 added to expected cash flow, preventing replacement actuals from counting twice.
 
@@ -115,3 +116,29 @@ replace newer results. There is no Calculate button and no automatic save.
 Finance details, exact stock mappings and dated-rate administration are behind
 Options. Standard desktop layouts fit one viewport at 1440x900, 1280x800 and
 1366x768; mobile stacks the panels. Only explicit Save persists a scenario.
+
+
+## Linkage review — 23 October 2026
+
+| Requirement | Authoritative source and visible output | Verification |
+| --- | --- | --- |
+| Our goods sold through another exporter | Milling → Sale to Exporter → Load against a Directors sale; original dated loading and exact stock source; Directors shows committed MT and approved cost | Original dispatch, date/quantity guards and approved 1310/1320/1330 COGS tests |
+| Fellow exporter supplies our shipment | Exports → Other-exporter invoice quantities links the saved commercial invoice; external contribution is never a physical Mill receipt | Commercial-quantity reconciliation and unchanged stock fixtures |
+| Both operational directions | Exports sees agreement/invoice identities and quantities only; Directors confirms external selling price and statement | Financial-injection refusal, company restrictions and UI conditional fields |
+| KAS / HKM | Fixed FOB protection or quantity settlement; original TG end-buyer rate and actual receipt deductions | Calculation, revised-source and advice coverage tests |
+| Invoice-wise shipment results | Settlement journals carry loading/invoice/contract/lot identities; original bag/expense allocations enter the exact shipment once | Verified posting/source evidence, reversal, allocation caps and no-GST duplication tests |
+| Own-sale accounting once | Director-linked native loading cannot also queue, approve or post a Local Sale; old posted local sales are held for reconciliation | Bridge and actual endpoint duplicate-refusal tests |
+| Party books and payment | Same exporter identity in party ledger, public Post ID details and trial balance; original control survives refunds | Actual read endpoints, balanced settlement/cost, part receipt/refund, native USD bank and FX tests |
+| Quantities and cash flow | Commodity Quantity includes both exporter directions; Group Daily shows our remaining sale commitment and external coverage; forecast replaced by posted balance once | Dated quantity reports, duplicate-parent omission, legacy kg-to-MT and forecast tests |
+| Printing | Directors settlement shows invoices, shares, charges and settlement; Mill prints a party-named own dispatch note with dates/trucks/containers/weight and waits for server acknowledgement | UI output and acknowledged-print tests; no invented zero-priced sale bill |
+| Simple costing | Separate compact Costing icon, automatic right-side results, cash/udhaar/finance, conditional options | Themed desktop browser fit at 1440×900, 1280×800, 1366×768 and 1343×713; mobile overflow checks |
+
+A historical Mill loading is linked explicitly through the agreement's migration
+option; it is never guessed by similar party name. Old undated physical loads
+require their actual date to be confirmed. Existing local-sale postings require
+Accounts reconciliation before a second settlement can post. KAS's old SODA
+remains unchanged for the owner's planned migration.
+
+All financial verification above uses disposable test books. This release does
+not insert sample invoices, bank transactions, stock or exporter agreements into
+live company records. Source/report reads are checked for byte-preserving behavior.

@@ -85,5 +85,6 @@ foreach(['Create','Edit','Approve'] as $right){
 $savedGet=$_GET;$_GET=['area'=>'costing'];
 action_assert(tt_api_write_grants('directors_trading.php',['action'=>'preview_costing'])===[['Directors','costing','View']],'Automatic costing preview must use View rather than a posting grant');
 action_assert(tt_api_write_grants('directors_trading.php',['action'=>'save_costing'])===[['Directors','costing','Create']],'Save remains an explicit Create action');
+$_GET=['origin'=>'mill'];action_assert(tt_api_write_grants('directors_trading.php',['action'=>'loading'])===[['Mill','local','View']],'Mill operational feed owns only its existing local View route; endpoint rejects writes');
 $_GET=$savedGet;
 echo 'PASS action policy: '.$count." exact action, company pairing, upsert, alternative-owner and owner-role checks; no storage writes.\n";
