@@ -16,6 +16,7 @@ on:
       - 'exports/**'
       - 'accounts/**'
       - 'milling/**'
+      - 'exporter-loading.php'
       - 'module.php'
       - 'brand-theme.css'
       - 'brand-theme.js'

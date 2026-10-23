@@ -24,7 +24,7 @@ the existing forward bookings.
   review, forecasts retain the allowance, explicitly separate from posted money.
   A quantity settlement payable cannot be posted with incomplete invoice advice.
 - Invoice allocation is capped at commercial invoice quantity and agreement
-  quantity. Exports staff use `/exports/exporter-loading.php`, linked from Loading
+  quantity. Exports staff use `/exporter-loading.php`, linked from Loading
   Instructions. That scope returns contribution identities/quantities, without
   Directors' price, costing, bank or settlement data.
 
