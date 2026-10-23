@@ -14,8 +14,8 @@ function tt_release_read_session(){}function tt_verify_csrf($v){return $v==='fix
  (root/'runner.php').write_text("""<?php
 $r=json_decode(stream_get_contents(STDIN),true);$_GET=$r['query'];$_SERVER['REQUEST_METHOD']=$r['body']===null?'GET':'POST';$GLOBALS['fixtureBody']=json_encode($r['body']);register_shutdown_function(function(){fwrite(STDERR,'STATUS:'.(http_response_code()?:200));});require __DIR__.'/api/group_management.php';
 """)
- def req(body=None,mode='all',kind='CASHFLOW',origin='accounts',postId=None):
-  query={'kind':kind,'date':'2026-10-17','mode':mode,'origin':origin};data=None if body is None else {'csrf':'fixture','kind':kind,'date':'2026-10-17',**body}
+ def req(body=None,mode='all',kind='CASHFLOW',origin='accounts',postId=None,date='2026-10-17'):
+  query={'kind':kind,'date':date,'mode':mode,'origin':origin};data=None if body is None else {'csrf':'fixture','kind':kind,'date':date,**body}
   if postId is not None:query['postId']=postId
   r=subprocess.run(['php',str(root/'runner.php')],input=json.dumps({'query':query,'body':data}),text=True,capture_output=True,check=True)
   return int(r.stderr.rsplit('STATUS:',1)[1]),json.loads(r.stdout)
@@ -64,5 +64,10 @@ $r=json_decode(stream_get_contents(STDIN),true);$_GET=$r['query'];$_SERVER['REQU
   assert ledger['rows'][1]['reference']=='ZAKAT|2026-10-17' and ledger['rows'][1]['debitPKR']==250
   saved_report=(root/'data/group-management.json').read_bytes();status,replay=req(save('adjustments',requestKey='zakat-adjustments-001',rows=[],complete=True,reviewConfirmed=True),kind='ZAKAT');assert status==200 and replay['result']['duplicate'] and (root/'data/group-management.json').read_bytes()==saved_report
   assert path.read_bytes()==before and (root/'data/operations.json').read_bytes()==ops_before,'Annual control debit must not duplicate monetary journals or stock'
+  status,d=req(save('header',requestKey='compare-header-001',data={'rates':{'AED':76,'USD':280}}),date='2026-10-18');assert status==200,d
+  status,d=req(save('financials',requestKey='compare-financials-001',rows=[{'id':'NEW-REPORT','label':'Reviewed position','amount':400,'currency':'PKR'}]),date='2026-10-18');assert status==200,d
+  comparison=d['record']['cashflowComparison'];assert comparison['available'] and comparison['previousDate']=='2026-10-17' and comparison['previousTotalPKR']==50 and comparison['currentTotalPKR']==400,comparison
+  frozen_report=(root/'data/group-management.json').read_bytes();status,d=req(date='2026-10-18');assert status==200 and d['record']['cashflowComparison']==comparison and (root/'data/group-management.json').read_bytes()==frozen_report
+  assert path.read_bytes()==before,'Comparison must not create journal entries'
   print('PASS shared group report GET zero writes; own atomic store; row persistence, section conflicts, permission/CSRF checks, duplicate protection and original books unchanged')
  finally:pass

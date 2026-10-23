@@ -71,6 +71,7 @@ jobs:
           cp api/operations.mysql.php api/export_documents.php tests/main/api/
       - name: Install browser and DOM test dependencies
         run: |
+          sudo python3 .github/scripts/browser-download-setup.py
           npm install --no-save jsdom@27 playwright@1.55.0
           npx playwright install --with-deps chromium
           sudo apt-get install -y poppler-utils

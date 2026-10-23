@@ -198,3 +198,10 @@ function dt_entity_permission(array $u,string $entity,string $action,bool $loadi
 }
 
 require_once __DIR__.'/directors_trading_links.php';
+
+/** Dated principal aggregates only; no journal, party or payment details leave this projection. */
+function dt_finance_preview(array $s,string $entity):array {
+ $out=[];foreach((array)($s['bankFacilities']??[]) as $f)if(($f['entity']??'')===$entity&&($f['currency']??'')==='PKR')$out[$f['id']]=['id'=>$f['id'],'moves'=>[]];
+ foreach((array)($s['journals']??[]) as $j)if(($j['entity']??'')===$entity&&($j['status']??'')==='Posted'&&mr_valid_date((string)($j['date']??'')))foreach((array)($j['lines']??[]) as $l){$id=$l['bankFacilityId']??$j['meta']['bankFacilityId']??'';if(($l['account']??'')==='2610'&&isset($out[$id]))$out[$id]['moves'][$j['date']]=($out[$id]['moves'][$j['date']]??0)+(float)($l['credit']??0)-(float)($l['debit']??0);}
+ foreach($out as &$f)if(!$f['moves'])$f['moves']=(object)[];unset($f);return array_values($out);
+}

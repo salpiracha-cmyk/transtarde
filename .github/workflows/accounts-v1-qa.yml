@@ -253,6 +253,7 @@ jobs:
           coverage: none
       - name: Install isolated browser runtime
         run: |
+          sudo python3 .github/scripts/browser-download-setup.py
           python3 -m venv "$RUNNER_TEMP/inventory-venv"
           "$RUNNER_TEMP/inventory-venv/bin/pip" -q install playwright==1.55.0
           "$RUNNER_TEMP/inventory-venv/bin/playwright" install --with-deps chromium

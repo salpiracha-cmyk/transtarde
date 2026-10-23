@@ -11,6 +11,7 @@ try {
     if(!is_array($body))throw new DomainException('Invalid request.');$kind=strtoupper(gm_text($body['kind']??$_GET['kind']??'CASHFLOW',20));
     if(!in_array($kind,['CASHFLOW','ZAKAT','DAILY','COSTING'],true))throw new DomainException('Select a report.');
     if($kind==='DAILY')require_once __DIR__.'/group_daily_core.php';
+    if(in_array($kind,['DAILY','CASHFLOW'],true))require_once __DIR__.'/group_cashflow_comparison.php';
     if(!gm_permission($user,$kind,'View',$origin))gm_out(['ok'=>false,'error'=>'Shared group report permission and all company books are required.'],403);
     if($write){if(!tt_verify_csrf((string)($body['csrf']??'')))gm_out(['ok'=>false,'error'=>'Session expired. Refresh and try again.'],419);if(!gm_permission($user,$kind,'Create',$origin)&&!gm_permission($user,$kind,'Edit',$origin))gm_out(['ok'=>false,'error'=>'Report Create or Edit permission is required.'],403);}
     $date=gm_date($body['date']??$_GET['date']??(new DateTimeImmutable('now',new DateTimeZone('Asia/Karachi')))->format('Y-m-d'));
@@ -66,6 +67,7 @@ try {
                 if($kind!=='COSTING'){ // Duplicate source IDs are never permitted across the saved assessment sections.
                     $seen=[];foreach($record['sections'] as $part)foreach((array)($part['rows']??[]) as $r){if(isset($seen[$r['id']]))throw new DomainException('A source row already exists in another section.');$seen[$r['id']]=true;}
                 }
+                if(in_array($kind,['CASHFLOW','DAILY'],true)){try{$capture=gcf_capture($record,$state);$comparison=gcf_comparison($record,$state,$capture);$record['cashflowSnapshotHistory'][]=['before'=>isset($record['cashflowSnapshot'])?array_intersect_key($record['cashflowSnapshot'],array_flip(['date','totalPKR','cashPKR','capturedAt'])):null,'savedAt'=>gmdate('c'),'savedBy'=>$user['username']??''];$record['cashflowSnapshot']=$capture;$record['cashflowComparison']=$comparison;}catch(DomainException $e){unset($record['cashflowSnapshot']);$record['cashflowComparison']=['available'=>false,'message'=>$e->getMessage()];}}
                 $state['groupManagementRecords'][$id]=$record;$state['groupManagementRequests'][$requestId]=['fingerprint'=>$fingerprint,'sectionVersion'=>$saved['version']];$state['revision']=(int)($state['revision']??0)+1;
                 $reportState=['groupManagementRecords'=>$state['groupManagementRecords'],'groupManagementRequests'=>$state['groupManagementRequests'],'revision'=>$state['revision']];
                 $encoded=json_encode($reportState,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR);$temp=tempnam(TT_DATA_DIR,'gm-save-');if($temp===false)throw new RuntimeException('Report save unavailable.');
