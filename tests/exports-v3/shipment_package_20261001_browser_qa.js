@@ -27,14 +27,21 @@ const root=path.resolve(__dirname,'../..'),out=path.join(root,'tmp/qa/package-20
 	 const files=await page.evaluate(()=>window.__files),prefix='QA Customer/SHIPMENT #01/LOT #01/';
 	 for(const name of ['Master Shipment Documents.pdf','BANK DOCUMENTS/Bank Shipment Documents INV-TG-0042.pdf','BANK DOCUMENTS/Sales Contract.pdf','GD - GD-1.pdf','Signed Sales Contract - Signed.pdf','CUSTOM DOCUMENTS/Customs Invoice.pdf','CUSTOM DOCUMENTS/Customs Packing List.pdf','CUSTOM DOCUMENTS/Phytosanitary Invoice.pdf','BANK DOCUMENTS/Sales Contract - Proforma INV-TG-0042.pdf','BANK DOCUMENTS/Phyto.pdf'])assert.ok(files[prefix+name],name+' must be saved');
 	 const master=await page.evaluate(async prefix=>{const doc=await PDFLib.PDFDocument.load(new Uint8Array(window.__files[prefix+'Master Shipment Documents.pdf']));return doc.getPageCount()},prefix);assert.equal(master,7,'master includes one original commercial invoice, B/L, one original packing list, COO pages, fumigation and phyto');
-	 const bank=await page.evaluate(async prefix=>{const doc=await PDFLib.PDFDocument.load(new Uint8Array(window.__files[prefix+'BANK DOCUMENTS/Bank Shipment Documents INV-TG-0042.pdf']));return doc.getPageCount()},prefix);assert.equal(bank,8,'TG bank PDF follows covering, Customs bank proforma, B/L, TG invoice, TG packing, phyto, relationship and GD');
+	 const bank=await page.evaluate(async prefix=>{const doc=await PDFLib.PDFDocument.load(new Uint8Array(window.__files[prefix+'BANK DOCUMENTS/Bank Shipment Documents INV-TG-0042.pdf']));return doc.getPageCount()},prefix);assert.equal(bank,7,'TG bank PDF follows covering, Customs bank proforma, B/L, TG invoice, TG packing, relationship and GD; phyto stays separate');
 	 for(const name of ['Master Shipment Documents.pdf','BANK DOCUMENTS/Bank Shipment Documents INV-TG-0042.pdf','GD - GD-1.pdf','CUSTOM DOCUMENTS/Customs Invoice.pdf'])fs.writeFileSync(path.join(out,name.replace(/[ /]/g,'_')),Buffer.from(files[prefix+name]));
 	 const {execFileSync}=require('node:child_process');
 	 const masterText=execFileSync('pdftotext',[path.join(out,'Master_Shipment_Documents.pdf'),'-'],{encoding:'utf8'});assert.match(masterText,/INCLUDED ORIGINAL COO/);assert.match(masterText,/INCLUDED PHYTO/);assert.doesNotMatch(masterText,/BANK GD|EXCLUDED SIGNED CONTRACT|CUSTOMS INVOICE|PHYTOSANITARY INVOICE/);
 
 		 assert.ok(Buffer.from(files[prefix+'CUSTOM DOCUMENTS/Customs Invoice.pdf']).subarray(0,4).equals(Buffer.from('%PDF')),'custom documents are saved separately, not zipped');
 		 await page.evaluate(()=>window.__files={});
-		 const strictResult=await page.evaluate(()=>TT_SHIPMENT_FILES.save({...window.__args,strictFinal:true}));
+		 const strictResult=await page.evaluate(async()=>{
+       const native=window.html2canvas;window.__rendered=[];
+       window.html2canvas=(element,options)=>{window.__rendered.push(element.textContent);return native(element,options)};
+       try{return await TT_SHIPMENT_FILES.save({...window.__args,strictFinal:true})}finally{window.html2canvas=native}
+     });
+     const renders=await page.evaluate(()=>window.__rendered);
+     assert.ok(!renders.some(text=>text.includes('SEPARATE SALES CONTRACT')),'Strict output never renders the unused customer contract');
+     assert.equal(renders.filter(text=>text.includes('TG PACK INVOICE')).length,1,'Identical bank invoice markup is rendered once per save');
 		 assert.equal(strictResult.count,7,'final lot archive should only queue master PDF, bank PDF and three custom documents');
 		 const strictFiles=await page.evaluate(()=>Object.keys(window.__files).sort());
 		 assert.deepEqual(strictFiles,[
@@ -80,16 +87,16 @@ const root=path.resolve(__dirname,'../..'),out=path.join(root,'tmp/qa/package-20
   const result=await TT_SHIPMENT_FILES.save({...window.__args,strictFinal:true,uploads:[...window.__args.uploads,upload],bankDocumentRows});
   const file=window.__files[Object.keys(window.__files).find(key=>key.includes('Bank Shipment Documents'))],pdf=await PDFLib.PDFDocument.load(new Uint8Array(file));return{pages:pdf.getPageCount(),file,warnings:result.warnings};
  });
- assert.equal(ordered.pages,12,'Cover first, covering-table enclosures and copy counts, FI included, no TG fumigation');assert.equal(ordered.warnings.length,0);
+ assert.equal(ordered.pages,11,'Cover first, covering-table enclosures and copy counts, FI included, no TG fumigation');assert.equal(ordered.warnings.length,0);
  fs.writeFileSync(path.join(out,'Ordered_Bank.pdf'),Buffer.from(ordered.file));const orderedText=execFileSync('pdftotext',[path.join(out,'Ordered_Bank.pdf'),'-'],{encoding:'utf8'});
- const markers=['INCLUDED PHYTO','BANK GD','INCLUDED BL','INCLUDED ORIGINAL COO','INCLUDED FI SCREENSHOT'];for(let i=1;i<markers.length;i++)assert.ok(orderedText.indexOf(markers[i-1])<orderedText.indexOf(markers[i]),markers.join(' -> '));assert.doesNotMatch(orderedText,/INCLUDED FUMIGATION/);
+ const markers=['BANK GD','INCLUDED BL','INCLUDED ORIGINAL COO','INCLUDED FI SCREENSHOT'];for(let i=1;i<markers.length;i++)assert.ok(orderedText.indexOf(markers[i-1])<orderedText.indexOf(markers[i]),markers.join(' -> '));assert.doesNotMatch(orderedText,/INCLUDED FUMIGATION|INCLUDED PHYTO/,'Bank PDF excludes both TG fumigation and separately supplied phyto');
  const directOrder=await page.evaluate(async()=>{window.__files={};const args={...window.__args,rows:window.__args.rows.filter(row=>!row.key.startsWith('tg')),uploads:[...window.__args.uploads,window.__fi],committedSnapshot:{contracts:[{ref:'TTI/QA/01',seller:'TTI'}],shipments:[]},bankDocumentRows:[{name:'FI',originals:0,copies:1},{name:'Goods Declaration',originals:0,copies:1}]};const r=await TT_SHIPMENT_FILES.save(args),file=window.__files[Object.keys(window.__files).find(key=>key.includes('Bank Shipment Documents'))],pdf=await PDFLib.PDFDocument.load(new Uint8Array(file));return{pages:pdf.getPageCount(),file,warnings:r.warnings}});
  assert.equal(directOrder.pages,3);assert.equal(directOrder.warnings.length,0);fs.writeFileSync(path.join(out,'Direct_Ordered_Bank.pdf'),Buffer.from(directOrder.file));const directText=execFileSync('pdftotext',[path.join(out,'Direct_Ordered_Bank.pdf'),'-'],{encoding:'utf8'});assert.ok(directText.indexOf('INCLUDED FI SCREENSHOT')<directText.indexOf('BANK GD'),'Direct pack follows its own covering table');
- // Protected phytosanitary PDFs remain byte-exact standalone attachments, with no blank merged pages.
+ // Phyto originals always remain standalone, protected or readable, without bank merging or warnings.
  const protectedPdf=fs.readFileSync(path.join(root,'tests/exports-v3/fixtures/protected-phyto.pdf')).toString('base64');
  const protectedResult=await page.evaluate(async encoded=>{window.__files={};const uploads=window.__args.uploads.map(doc=>doc.type==='Phytosanitary Certificate'?{...doc,dataUrl:'data:application/pdf;base64,'+encoded}:doc);const result=await TT_SHIPMENT_FILES.save({...window.__args,uploads,strictFinal:true});const files=window.__files,bankKey=Object.keys(files).find(k=>k.endsWith('BANK DOCUMENTS/Bank Shipment Documents INV-TG-0042.pdf')),bank=await PDFLib.PDFDocument.load(new Uint8Array(files[bankKey]));return{warnings:result.warnings,pages:bank.getPageCount(),files};},protectedPdf);
- assert.equal(protectedResult.pages,7,'Protected phytosanitary pages are not merged as blank pages');assert.match(protectedResult.warnings.join(' '),/Send the saved original separately/);
- const standalone=Object.keys(protectedResult.files).find(k=>k.endsWith('BANK DOCUMENTS/Phyto.pdf'));assert.ok(standalone);assert.equal(Buffer.from(protectedResult.files[standalone]).toString('base64'),protectedPdf,'Protected original preserved byte for byte');assert.ok(Object.keys(protectedResult.files).some(k=>k.endsWith('Bank documents - attention required.pdf')));
+ assert.equal(protectedResult.pages,7,'Protected phytosanitary pages are not merged as blank pages');assert.equal(protectedResult.warnings.length,0,'Protected standalone phyto is expected, not a merge error');
+ const standalone=Object.keys(protectedResult.files).find(k=>k.endsWith('BANK DOCUMENTS/Phyto.pdf'));assert.ok(standalone);assert.equal(Buffer.from(protectedResult.files[standalone]).toString('base64'),protectedPdf,'Protected original preserved byte for byte');assert.equal(Object.keys(protectedResult.files).some(k=>k.endsWith('Bank documents - attention required.pdf')),false,'No phyto merge-warning PDF');
  await page.evaluate(()=>window.__fail=true);const failure=await page.evaluate(async()=>{try{await TT_SHIPMENT_FILES.save(window.__args);return''}catch(error){return error.message}});assert.match(failure,/0 of \d+ files saved/);
  // All module form families: control tops align, names fit their cells, and print styles are untouched.
  const shared=fs.readFileSync(path.join(root,'brand-theme.css'),'utf8');

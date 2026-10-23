@@ -695,7 +695,7 @@ function operations_file_fallback(array $user): never {
         $revision=(int)($store['revision']??0);
     } finally { flock($handle,LOCK_UN); fclose($handle); }
     if ($conflict) operations_respond(['ok'=>false,'conflict'=>true,'error'=>'A newer shared update is available. Refresh before saving again.','keyVersion'=>$keyVersion],409);
-    if($key==='transtrade_export_v3_operational')try{tt_receipt_invoice_sync();}catch(Throwable $linkError){error_log('Invoice narration link: '.$linkError->getMessage());}
+    if($key==='transtrade_export_v3_operational'&&tt_receipt_invoice_source_changed($old,(string)($store['values'][$key]??$value)))try{tt_receipt_invoice_sync();}catch(Throwable $linkError){error_log('Invoice narration link: '.$linkError->getMessage());}
     operations_respond(['ok'=>true,'revision'=>$revision,'keyVersion'=>$keyVersion,'updatedAt'=>gmdate('c'),'value'=>operations_public_value($key,(string)($store['values'][$key]??$value),$user,(array)$store['values']), 'related'=>$key==='tt30prod'?operations_production_related($store['values'],$store['meta'],$user):[]]);
 }
 
@@ -850,7 +850,7 @@ try {
         $history->execute([$changedKey,$newVersion,hash('sha256',$changedValue),$now,$name,$userId,$writer]);
     }
     $db->commit();
-    if($key==='transtrade_export_v3_operational')try{tt_receipt_invoice_sync();}catch(Throwable $linkError){error_log('Invoice narration link: '.$linkError->getMessage());}
+    if($key==='transtrade_export_v3_operational'&&tt_receipt_invoice_source_changed($oldPayload,(string)($nextValues[$key]??$value)))try{tt_receipt_invoice_sync();}catch(Throwable $linkError){error_log('Invoice narration link: '.$linkError->getMessage());}
     if($inventoryLock){$release=$db->prepare('SELECT RELEASE_LOCK(?)');$release->execute(['tt_inventory_'.substr(hash('sha256',operations_env('DB_NAME')),0,24)]);$inventoryLock=false;}
     operations_respond(['ok' => true, 'revision' => $version, 'keyVersion' => $version, 'updatedAt' => gmdate('c'), 'value' => operations_public_value($key,(string)($nextValues[$key]??$value),$user,array_replace($scopeValues,$nextValues)), 'related'=>$key==='tt30prod'?operations_production_related(array_replace($scopeValues,$nextValues),$productionMeta,$user):[]]);
 } catch (DomainException|InvalidArgumentException $e) {

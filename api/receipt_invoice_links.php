@@ -36,6 +36,23 @@ function tt_receipt_invoice_project(array $s,array $root,array $fiLinks):array {
  }
  return $s;
 }
+/** Status-only shipment actions cannot change FI/invoice utilisation metadata.
+ * Compare all other facts conservatively so new document fields still trigger linking.
+ */
+function tt_receipt_invoice_source_changed(string $before,string $after):bool {
+ $project=static function(string $json):?array {
+  $root=json_decode($json,true);if(!is_array($root))return null;
+  unset($root['audits']);
+  foreach(['shipments','contracts'] as $collection)foreach((array)($root[$collection]??[]) as $i=>$record){
+   if(!is_array($record))return null;
+   foreach(['status','completed','completedAt','completedBy','reopenedAt','reopenedBy','reopenReason','reopenHistory'] as $field)unset($record[$field]);
+   $root[$collection][$i]=$record;
+  }
+  return $root;
+ };
+ $old=$project($before);$next=$project($after);
+ return $old===null||$next===null||$old!==$next;
+}
 /** Called after an explicit successful Exports commit; updates metadata only. */
 function tt_receipt_invoice_sync():void {
  $path=TT_DATA_DIR.'/accounts.json';if(!is_file($path))return;$h=fopen($path,'r+');if(!$h||!flock($h,LOCK_EX))throw new RuntimeException('Invoice linking storage unavailable.');

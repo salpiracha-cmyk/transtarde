@@ -191,21 +191,22 @@ function zip(entries,type){const encoder=new TextEncoder();return zipBytes(Objec
 	function isLcContract(c){return /^LC_/i.test(String(c?.paymentCode||''))}
 	function documentRows(c){const source=Array.isArray(c?.documentsPresented)&&c.documentsPresented.length?c.documentsPresented:(c?.docs||[]).map((name,i)=>({sequence:i+1,name,original:1,copies:0}));return source.map((row,index)=>({sequence:num(row.sequence)||index+1,name:String(row.name||row.documentName||'').trim(),original:Math.max(0,num(row.original)),copies:Math.max(0,num(row.copies))})).filter(row=>row.name).sort((a,b)=>a.sequence-b.sequence)}
 	function relabelCopy(markup,label){return String(markup||'').replace(/(<div class="commercialCopyLabel">)([\s\S]*?)(<\/div>)/,`$1${label}$3`)}
-	async function labelledCommercialBlobs(doc,row,fit,originals,copies){
+	async function labelledCommercialBlobs(doc,row,fit,originals,copies,renderPdf=markup=>pdf(markup,fit)){
 	 if(!doc?.render)return doc?.blob?[...Array(Math.max(1,originals+copies))].map(()=>doc.blob):[];
 	 const labels=[];for(let i=0;i<originals;i++)labels.push('ORIGINAL');for(let i=0;i<copies;i++)labels.push('COPY');
 	 if(!labels.length)labels.push('ORIGINAL');
 	 const base=doc.render();
 	 const rendered=new Map();
-	 return Promise.all(labels.map(label=>{if(!rendered.has(label))rendered.set(label,pdf(relabelCopy(base,label),fit));return rendered.get(label)}));
+	 return Promise.all(labels.map(label=>{if(!rendered.has(label))rendered.set(label,renderPdf(relabelCopy(base,label)));return rendered.get(label)}));
 	}
-	async function bankBlobsForDocuments(c,docs,fit){
+	async function bankBlobsForDocuments(c,docs,fit,renderPdf){
 	 const out=[],commercial=firstDoc(docs,'commercial'),packing=firstDoc(docs,'packing');
 	 for(const row of documentRows(c)){
 	  const total=num(row.original)+num(row.copies),category=docCategory(row.name);
+     if(category==='phyto')continue; // The issued original travels as a separate bank attachment.
 	  if(['cover','tgProforma'].includes(category)&&String(c?.seller||'').toUpperCase()==='TG')continue;
-	  if(category==='commercial')out.push(...await labelledCommercialBlobs(commercial,row,fit,num(row.original),num(row.copies)));
-	  else if(category==='packing')out.push(...await labelledCommercialBlobs(packing,row,fit,num(row.original),num(row.copies)));
+	  if(category==='commercial')out.push(...await labelledCommercialBlobs(commercial,row,fit,num(row.original),num(row.copies),renderPdf));
+	  else if(category==='packing')out.push(...await labelledCommercialBlobs(packing,row,fit,num(row.original),num(row.copies),renderPdf));
 	  else appendDoc(out,firstDoc(docs,category),total||1);
 	 }
 	 return out
@@ -221,11 +222,13 @@ function zip(entries,type){const encoder=new TextEncoder();return zipBytes(Objec
 	  const hasTgBank=isTG&&(rows.some(row=>/^tg(?:Invoice|Packing)$/.test(row.key||'')&&row.ready)||!!bankCover?.ready);
 	  if(hasTgBank&&!(bankCover?.render&&bankCover.ready))throw new Error('Save the TG bank covering letter before preparing Bank Shipment Documents. No incomplete bank PDF was queued.');
     if(refreshExisting&&!bankCover?.ready)throw new Error('Save the bank covering letter before refreshing this lot.');
-	  const generatedRows=rows.filter(row=>row.render&&row.ready);let prepared=0;const progress=stage=>{try{onProgress?.({stage,completed:prepared,total:generatedRows.length})}catch{}};
+	  // Reuse only identical markup inside this confirmed snapshot; never cache across saves.
+      const renderedPdfs=new Map(),renderPdf=markup=>{if(!renderedPdfs.has(markup))renderedPdfs.set(markup,pdf(markup,fit));return renderedPdfs.get(markup)};
+      const generatedRows=rows.filter(row=>row.render&&row.ready&&(!strictFinal||docCategory(row.name,row.key)!=='salesContract'));let prepared=0;const progress=stage=>{try{onProgress?.({stage,completed:prepared,total:generatedRows.length})}catch{}};
 	  for(const row of generatedRows){
 	   progress('Preparing '+row.name);
 	   const kind=separate(row.name,row.key),markup=row.render(),folder=row.folder?component(normalizedFolder(row.folder)):'',category=docCategory(row.name,row.key);
-	   const pdfBlob=await pdf(markup,fit),blob=pdfBlob;
+	   const pdfBlob=await renderPdf(markup),blob=pdfBlob;
 	   prepared++;docs.push({category,name:row.name,key:row.key,folder,blob:pdfBlob,render:row.render});
        if(folder==='CUSTOM DOCUMENTS')files.push({folder,name:component(row.name)+'.pdf',blob:pdfBlob});
        else if(category==='tgProforma')files.push({folder:'BANK DOCUMENTS',name:'Sales Contract - Proforma '+component(c?.ref||contract)+'.pdf',blob:pdfBlob});
@@ -239,7 +242,7 @@ function zip(entries,type){const encoder=new TextEncoder();return zipBytes(Objec
 	   else if(!strictFinal&&kind==='cover')files.push({folder,name:uploadName,blob:original});
 	   else{let converted=null;try{converted=await asPdf(original)}catch(error){
 	     if(category==='phyto'){
-      const warning='Phytosanitary certificate '+(doc.name||'')+' could not be merged safely. Send the saved original separately to the bank. It remains listed on the covering letter.';warnings.push(warning);
+      // The bank always receives the byte-exact standalone original; encryption is not a bank-pack error.
       files.push({folder:'BANK DOCUMENTS',name:uploadName,blob:original});
      }else throw new Error('Cannot add '+(doc.name||doc.type||'this upload')+' to the PDF package. Upload a readable PDF or image. '+error.message);
 	    }
@@ -263,7 +266,7 @@ function zip(entries,type){const encoder=new TextEncoder();return zipBytes(Objec
        if(isTG&&category==='commercial')category='tgInvoice';
        if(isTG&&category==='packing')category='tgPacking';
        if(isTG&&category==='salesContract')category='tgProforma';
-       if(isTG&&category==='fumigation')continue;
+       if(category==='phyto'||(isTG&&category==='fumigation'))continue;
        const doc=(category?firstDoc(docs,category):null)||docs.find(doc=>doc.name.trim().toLowerCase()===String(row.name).trim().toLowerCase());
        if(!doc){
         const warning='Missing bank enclosure: '+row.name+'. Upload it and refresh this bank pack.';
@@ -271,14 +274,14 @@ function zip(entries,type){const encoder=new TextEncoder();return zipBytes(Objec
        }
        // A single upload can contain every allocated GD/FI; never repeat the whole file for each number.
        if(['gd','fi'].includes(category)){if(combined.has(doc.blob))continue;combined.add(doc.blob)}
-       if(['commercial','packing','tgInvoice','tgPacking'].includes(category))bank.push(...await labelledCommercialBlobs(doc,row,fit,num(row.originals),num(row.copies)));
+       if(['commercial','packing','tgInvoice','tgPacking'].includes(category))bank.push(...await labelledCommercialBlobs(doc,row,fit,num(row.originals),num(row.copies),renderPdf));
        else appendDoc(bank,doc,count);
       }
      }else{
       // Compatibility for older offline callers; the application always supplies its actual covering table.
       if(isTG)appendDoc(bank,firstDoc(docs,'tgProforma'));
-      if(isLcContract(c))bank.push(...await bankBlobsForDocuments(c,docs,fit));
-      else for(const category of (isTG?['bl','tgInvoice','tgPacking','phyto','relationship','gd']:['commercial','bl','packing','coo','phyto','fumigation','gd','fi']))appendDoc(bank,firstDoc(docs,category));
+      if(isLcContract(c))bank.push(...await bankBlobsForDocuments(c,docs,fit,renderPdf));
+      else for(const category of (isTG?['bl','tgInvoice','tgPacking','relationship','gd']:['commercial','bl','packing','coo','fumigation','gd','fi']))appendDoc(bank,firstDoc(docs,category));
      }
     }
     const shipment=(committedSnapshot?.shipments||[]).find(row=>String(row.lotId||'')===String(lot)&&String(row.contractRef||'')===String(contract)),invoiceReference=isTG?(shipment?.tgdocs?.customsInvoiceNo||shipment?.customs?.invoiceNo||contract):(shipment?.commercial?.invoiceNo||contract);

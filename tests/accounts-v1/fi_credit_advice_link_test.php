@@ -24,3 +24,17 @@ $books['exportReceipts']['ER1']['foreignAmount']=100000;check(tt_fi_advice_match
 $other=$root;$other['fi'][0]['customer']='Amt Enterprise';$books=$store;$books['exportReceipts']['ER1']['remitter']='AMT ENTERPRISE';check(tt_fi_advice_matches($other,$books)['F1']['status']==='Matched','Direct buyer matches case-insensitively');
 check(str_contains(tt_fi_advice_label($links['F1']),'01-10-2026'),'Displayed dates DD-MM-YYYY');
 echo "Automatic FI/credit advice matching, ambiguity, amendment and read-only projection checks passed.\n";
+
+// Reopening must not lock/rewrite the Accounts book when its invoice inputs are identical.
+$base=['fi'=>[$fi],'contracts'=>[['ref'=>'C1','status'=>'Completed']],
+ 'shipments'=>[['id'=>'L1','kind'=>'lot','contractRef'=>'C1','seller'=>'TG','completed'=>true,'status'=>'Completed',
+ 'customs'=>['saved'=>true,'invoiceNo'=>'INV1','currency'=>'USD','fiAllocations'=>[]],
+ 'tgdocs'=>['saved'=>true,'customsInvoiceNo'=>'TG1']]],'audits'=>[]];
+$reopened=$base;$reopened['shipments'][0]=array_replace($base['shipments'][0],['completed'=>false,'status'=>'Open','reopenedAt'=>'2026-10-23','reopenedBy'=>'Director','reopenReason'=>'Correction','reopenHistory'=>[['reason'=>'Correction']]]);$reopened['contracts'][0]['status']='Open';$reopened['audits'][]=['action'=>'Reopened'];
+check(!tt_receipt_invoice_source_changed(json_encode($base),json_encode($reopened)),'Status-only reopen skips Accounts linking');
+check(tt_fi_advice_project($store,$base)===tt_fi_advice_project($store,$reopened),'Skipped reopening projection produces identical Accounts metadata');
+foreach(['customs'=>['saved'=>true,'invoiceNo'=>'INV2'],'tgdocs'=>['saved'=>true,'customsInvoiceNo'=>'TG2'],'cancelled'=>true,'seller'=>'TTI','contractRef'=>'C2','id'=>'L2','futureDocumentField'=>'new'] as $field=>$value){$changed=$reopened;$changed['shipments'][0][$field]=$value;check(tt_receipt_invoice_source_changed(json_encode($base),json_encode($changed)),'Document/party change still links: '.$field);}
+$changed=$base;$changed['fi'][0]['status']='Cancelled';check(tt_receipt_invoice_source_changed(json_encode($base),json_encode($changed)),'FI status remains a linking input');
+check(tt_receipt_invoice_source_changed('',json_encode($base)),'Initial source still links');
+check(tt_receipt_invoice_source_changed('invalid','invalid'),'Invalid snapshots cannot bypass linking');
+echo "PASS reopening skips only irrelevant Accounts metadata work\n";

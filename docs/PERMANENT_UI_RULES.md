@@ -582,7 +582,7 @@ Online Banking payments expose an editable payment date, defaulting from the vou
 
 - Every direct/TG covering table includes one FI copy and its allocated numbers. TG bank defaults omit fumigation and append FI, Relationship Letter (one copy), Sales Contract / Proforma (one copy) after the existing enclosures. The PDF begins with the covering letter and follows that exact table, including upload pages and its original/copy counts. Do not invent extra document rows to force numbering when a shipment has fewer enclosures. Identify missing uploads explicitly.
 - TG bank proforma optionally shows Notify Party / Cargo Receiver below buyer/seller and leaves both signature spaces for Exports. This bank-purpose document uses Customs values and does not rewrite the customer contract. FI upload has its own TG tab and is also available to direct shipments through Upload Documents.
-- Office output retains CUSTOM DOCUMENTS and the master PDF's existing composition. BANK DOCUMENTS holds the combined Bank Shipment Documents <invoice>.pdf, standalone phytosanitary original and TG proforma PDF. Do not create loose TG Word/cover copies in this canonical archive. Protected phyto remains byte-exact with an explicit send-separately warning in BANK DOCUMENTS; never ignore encryption.
+- Office output retains CUSTOM DOCUMENTS and the master PDF's existing composition. BANK DOCUMENTS holds the combined Bank Shipment Documents <invoice>.pdf, standalone phytosanitary original and TG proforma PDF. Do not create loose TG Word/cover copies in this canonical archive. Phyto remains byte-exact in BANK DOCUMENTS, without a merge-failure warning; never ignore encryption.
 - Owner-authorized bulk output refresh reads acknowledged snapshots, includes closed lots without reopening them, changes no accounting and distinguishes queued jobs from verified TTI Server delivery. The compatible agent removes only known generated old bank outputs after verifying the replacement, migrates unrelated originals with checksum checks, and retains collisions for review. Never claim physical cleanup until the compatible PC agent has processed it.
 
 
@@ -592,3 +592,9 @@ Online Banking payments expose an editable payment date, defaulting from the vou
 - TG expense choices show the subsidiary name, with their hierarchy available in Accounts Setup. Use business rent/medical choices in TG; do not default to household treatment.
 - TG transfer, customer receipt and bill screens use the shared popup layout, aligned fields, one close control, heading-first opening, and green review/compact Edit-Print result flow. Date changes and late requests must preserve drafts and cannot reopen closed/superseded forms.
 - Recent transactions show one row per public posting, with each original currency explicitly labelled. Presentation cleanup never changes journal amounts.
+
+## Bank phyto separation and shipment performance — 23 October 2026
+
+- Owner correction, 23 October 2026: phyto is always an original standalone file in BANK DOCUMENTS, for both TG and direct/L/C bank packs. Do not merge it into Bank Shipment Documents and do not classify a separately supplied or protected phyto as a missing/failed bank enclosure. Preserve the covering-table row and the existing Master Shipment PDF composition; this correction concerns the bank pack only.
+
+- Shipment PDF preparation may reuse identical markup only within one explicit committed snapshot. Do not reuse PDFs across saves or render an excluded customer Sales Contract for the strict office archive. Status-only reopening keeps durable confirmation and permissions, but skips the unrelated Accounts FI/invoice metadata rewrite; every other changed source fact still invokes linking.
