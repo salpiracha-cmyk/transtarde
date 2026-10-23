@@ -6,7 +6,7 @@ require_once __DIR__.'/group_daily_core.php';
 function cq_report(array $books,array $ops,string $entity,string $from,string $to):array {
     gm_date($from);gm_date($to);if($from>$to||!in_array($entity,['TTI','BRM','TG'],true))throw new DomainException('Select a valid company and period.');
     $scoped=['revision'=>(int)($books['revision']??0)];
-    foreach(['purchaseSodas','purchaseSodasV2','purchaseSodaLiftings'] as $key)$scoped[$key]=array_filter((array)($books[$key]??[]),static fn($r)=>is_array($r)&&($r['entity']??'')===$entity);
+    foreach(['purchaseSodas','purchaseSodasV2','purchaseSodaLiftings','exporterDeals'] as $key)$scoped[$key]=array_filter((array)($books[$key]??[]),static fn($r)=>is_array($r)&&($r['entity']??'')===$entity);
     $values=(array)($ops['values']??[]);$holds=[];
     $raw=$values['transtrade_export_v3_operational']??null;
     if($raw===null)throw new DomainException('The saved Export source is unavailable.');
@@ -17,7 +17,7 @@ function cq_report(array $books,array $ops,string $entity,string $from,string $t
     // An outside load's original native Soda can identify its commitment company.
     // Keep the saved rows untouched; this is a scoped join, not stock ownership repair.
     $outsideParents=[];foreach(gd_rows($values,'tt35exmill') as $parent){$id=(string)($parent['id']??'');if($id!=='')$outsideParents[$id][]=$parent;}
-    foreach(['tt30slips','tt30ship','tt35exload','tt35exmill'] as $key){
+    foreach(['tt30slips','tt30ship','tt35exload','tt35exmill','tt35exportersale'] as $key){
         $safeRows=[];foreach(gd_rows($values,$key) as $row){
             $owner=strtoupper(trim((string)($row['entity']??'')));
             if($key==='tt35exmill'&&count($outsideParents[(string)($row['id']??'')]??[])!==1){if($owner===$entity||$owner==='')$holds['AMBIGUOUS|tt35exmill']=['sourceId'=>'tt35exmill','message'=>'Duplicate or missing native outside Soda identities require reconciliation.'];continue;}
@@ -35,6 +35,7 @@ function cq_report(array $books,array $ops,string $entity,string $from,string $t
     $before=(new DateTimeImmutable($from))->modify('-1 day')->format('Y-m-d');$prior=gd_sources($scoped,$snapshot,$before,false);
     $previous=[];foreach(array_merge($prior['purchaseOrders'],$prior['salesContracts']) as $r)$previous[$r['id']]=$r;
     $details=[];foreach(['purchaseSodas','purchaseSodasV2'] as $collection)foreach($scoped[$collection] as $id=>$r)$details['PURCHASE|'.$entity.'|'.($r['id']??$id)]=$r;
+    foreach((array)($scoped['exporterDeals']??[]) as $r)if($r['direction']==='SALE')$details['FELLOW-SALE|'.$entity.'|'.$r['id']]=$r;
     foreach($contracts as $r)$details['SALE|'.$entity.'|'.$r['ref']]=$r;
     $missing=[];
     foreach(['tt30slips','tt30ship','tt35exload','tt35localsales','tt35exportersale'] as $key)if(!array_key_exists($key,$values)){
@@ -43,16 +44,16 @@ function cq_report(array $books,array $ops,string $entity,string $from,string $t
     $rows=[];
     foreach(array_merge($current['purchaseOrders'],$current['salesContracts']) as $r){
         $purchase=isset($r['receivedMT']);$original=$details[$r['id']]??[];$old=$previous[$r['id']]??[];
-        $known=$purchase?($r['receivedKnown']&&!isset($missing['tt30slips'])):($r['loadedKnown']&&!isset($missing['tt30ship'])&&!isset($missing['tt35exload']));$amount=$purchase?$r['receivedMT']:$r['loadedMT'];
+        $fellow=isset($r['exporterDealId']);$known=$purchase?($r['receivedKnown']&&!isset($missing['tt30slips'])):($r['loadedKnown']&&($fellow?!isset($missing['tt35exportersale']):(!isset($missing['tt30ship'])&&!isset($missing['tt35exload']))));$amount=$purchase?$r['receivedMT']:$r['loadedMT'];
         $oldKnown=$purchase?($old['receivedKnown']??true):($old['loadedKnown']??true);$oldAmount=$purchase?($old['receivedMT']??0):($old['loadedMT']??0);
-        $rows[]=['type'=>$purchase?'Purchase':'Export sale','sourceId'=>$r['id'],'date'=>$r['date'],'reference'=>$r['number']??$r['ref'],'party'=>(string)($original['party']??$original['buyer']??$original['customer']??''),'commodity'=>$r['commodity'],'product'=>$r['product'],'brand'=>(string)($original['brand']??$original['brandName']??''),'orderedMinMT'=>$purchase?($r['quantityKnown']?$r['contractedMinMT']:null):($r['contractedMT']>0?$r['contractedMT']:null),'orderedMaxMT'=>$purchase?($r['quantityKnown']?$r['contractedMaxMT']:null):($r['contractedMT']>0?$r['contractedMT']:null),'movedBeforeMT'=>$known&&$oldKnown?$oldAmount:null,'movedPeriodMT'=>$known&&$oldKnown?round($amount-$oldAmount,6):null,'movedToDateMT'=>$known?$amount:null,'outstandingMinMT'=>$r['closed']?0.:($known?($r['undeliveredMinMT']??($purchase?null:$r['outstandingMT'])):null),'outstandingMaxMT'=>$r['closed']?0.:($known?($r['undeliveredMaxMT']??($purchase?null:$r['outstandingMT'])):null),'status'=>$r['closed']?'Closed':($r['status']??'Open'),'movementSourceIds'=>$r['receiptIds']??$r['loadingIds'],'sourceFingerprint'=>$r['sourceFingerprint']];
+        $rows[]=['type'=>$purchase?'Purchase':($fellow?'Sale to exporter':'Export sale'),'sourceId'=>$r['id'],'date'=>$r['date'],'reference'=>$r['number']??$r['ref'],'party'=>(string)($original['party']??$original['buyer']??$original['customer']??''),'commodity'=>$r['commodity'],'product'=>$r['product'],'brand'=>(string)($original['brand']??$original['brandName']??''),'orderedMinMT'=>$purchase?($r['quantityKnown']?$r['contractedMinMT']:null):($r['contractedMT']>0?$r['contractedMT']:null),'orderedMaxMT'=>$purchase?($r['quantityKnown']?$r['contractedMaxMT']:null):($r['contractedMT']>0?$r['contractedMT']:null),'movedBeforeMT'=>$known&&$oldKnown?$oldAmount:null,'movedPeriodMT'=>$known&&$oldKnown?round($amount-$oldAmount,6):null,'movedToDateMT'=>$known?$amount:null,'outstandingMinMT'=>$r['closed']?0.:($known?($r['undeliveredMinMT']??($purchase?null:$r['outstandingMT'])):null),'outstandingMaxMT'=>$r['closed']?0.:($known?($r['undeliveredMaxMT']??($purchase?null:$r['outstandingMT'])):null),'status'=>$r['closed']?'Closed':($r['status']??'Open'),'movementSourceIds'=>$r['receiptIds']??$r['loadingIds'],'sourceFingerprint'=>$r['sourceFingerprint']];
     }
     foreach(['tt35localsales'=>['Local sale','tons','loads','kg'],'tt35exportersale'=>['Sale to exporter','qty','containers','net']] as $key=>$schema){
         $seen=[];foreach(gd_rows($values,$key) as $r){
             if(($r['entity']??'')!==$entity){if(empty($r['entity']))$holds['UNASSIGNED|'.$key]=['sourceId'=>$key,'message'=>'Some sale references have no confirmed company. Their quantities have not been assigned.'];continue;}
-            $id=(string)($r['id']??$r['soda']??$r['ref']??'');if($id===''||isset($seen[$id]))throw new DomainException('A local sale has a duplicate or missing original identity.');$seen[$id]=true;
+            $id=(string)($r['id']??$r['soda']??$r['ref']??'');if($key==='tt35exportersale'){ $owned=false;foreach((array)($scoped['exporterDeals']??[]) as $deal)if($deal['direction']==='SALE'&&dt_native_parent_matches($deal,$r))$owned=true;if($owned)continue;}if($id===''||isset($seen[$id]))throw new DomainException('A local sale has a duplicate or missing original identity.');$seen[$id]=true;
             $on=gd_date($r['date']??'');if($on===''||$on>$to){if($on==='')$holds[$key.'|'.$id]=['sourceId'=>$key.'|'.$id,'message'=>'Confirm the original local sale date.'];continue;}
-            $ordered=gm_number($r[$schema[1]]??0,'sale tonnes');$known=$ordered>0;$moved=0.;$priorKg=0.;$ids=[];$loadIds=[];
+            $ordered=gm_number($r[$schema[1]]??0,'sale quantity')/($key==='tt35exportersale'?1000:1);$known=$ordered>0;$moved=0.;$priorKg=0.;$ids=[];$loadIds=[];
             if(!is_array($r[$schema[2]]??null)||!array_is_list($r[$schema[2]]))throw new DomainException('A local sale loading list is invalid.');
             foreach($r[$schema[2]] as $load){
                 if(!is_array($load))throw new DomainException('A local sale loading is invalid.');
@@ -67,6 +68,7 @@ function cq_report(array $books,array $ops,string $entity,string $from,string $t
             $rows[]=['type'=>$schema[0],'sourceId'=>$key.'|'.$id,'date'=>$on,'reference'=>$id,'party'=>(string)($r['party']??$r['buyer']??''),'commodity'=>gd_commodity($r['commodity']??(preg_match('/\b(?:MAKAI|MAIZE|CORN)\b/i',(string)($r['displayName']??$r['product']??''))?'CORN':'RICE')),'product'=>(string)($r['displayName']??$r['product']??''),'brand'=>(string)($r['brand']??''),'orderedMinMT'=>$ordered>0?$ordered:null,'orderedMaxMT'=>$ordered>0?$ordered:null,'movedBeforeMT'=>$known?$priorKg/1000:null,'movedPeriodMT'=>$known?($moved-$priorKg)/1000:null,'movedToDateMT'=>$known?$moved/1000:null,'outstandingMinMT'=>$closed?0.:($known?max(0,$ordered-$moved/1000):null),'outstandingMaxMT'=>$closed?0.:($known?max(0,$ordered-$moved/1000):null),'status'=>$closed?'Closed':'Open','movementSourceIds'=>$ids,'sourceFingerprint'=>hash('sha256',json_encode($r,JSON_THROW_ON_ERROR))];
         }
     }
+    foreach((array)($scoped['exporterDeals']??[]) as $d){if($d['direction']!=='PURCHASE'||$d['date']>$to)continue;$beforeMT=0.;$during=0.;$ids=[];foreach((array)($d['loadings']??[]) as $l){if($l['date']>$to)continue;if($l['date']<$from)$beforeMT+=$l['quantityMT'];else $during+=$l['quantityMT'];$ids[]=$l['id'];}$moved=$beforeMT+$during;$rows[]=['type'=>'Exporter purchase (external)','sourceId'=>'FELLOW-PURCHASE|'.$entity.'|'.$d['id'],'date'=>$d['date'],'reference'=>$d['reference']?:$d['id'],'party'=>$d['party'],'commodity'=>$d['commodity'],'product'=>$d['product'],'brand'=>'','orderedMinMT'=>$d['quantityMT'],'orderedMaxMT'=>$d['quantityMT'],'movedBeforeMT'=>$beforeMT,'movedPeriodMT'=>$during,'movedToDateMT'=>$moved,'outstandingMinMT'=>max(0,$d['quantityMT']-$moved),'outstandingMaxMT'=>max(0,$d['quantityMT']-$moved),'status'=>'External — no mill stock','movementSourceIds'=>$ids,'sourceFingerprint'=>hash('sha256',json_encode($d,JSON_THROW_ON_ERROR))];}
     foreach($current['holds'] as $hold)$holds[$hold['sourceId'].'|'.$hold['message']]=$hold;
     usort($rows,static fn($a,$b)=>strcmp($a['date'],$b['date'])?:strcmp($a['sourceId'],$b['sourceId']));
     return ['rows'=>$rows,'sourceHolds'=>array_values($holds),'basis'=>'MT (1,000 kg). Current saved commitments through the as-of date; movements are split before/within the selected period. Closed contracts have no new requirement. Financial B/F creates no physical rice or bag quantity. Historical amendments and missing source ownership require review.','accountsRevision'=>(int)($books['revision']??0),'operationsRevision'=>(int)($ops['revision']??0)];

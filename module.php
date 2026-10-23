@@ -21,7 +21,7 @@ header('X-LiteSpeed-Cache-Control: no-cache');
 $html = (string)file_get_contents($modules[$id]);
 $millingTaskScripts = '';
 if ($id === 'milling') {
-    foreach (['maize-labour', 'lifting-review'] as $task) {
+    foreach (['maize-labour', 'lifting-review', 'directors-exporter-links'] as $task) {
         $taskFile = __DIR__.'/milling/'.$task.'.js';
         if (!is_file($taskFile) || ($taskScript = file_get_contents($taskFile)) === false) { http_response_code(503); exit('Milling task assets are unavailable.'); }
         $millingTaskScripts .= '<script id="milling-'.$task.'">'.str_replace('</script', '<\\/script', $taskScript).'</script>';

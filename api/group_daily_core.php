@@ -124,6 +124,10 @@ function gd_sources(array $books,array $ops,string $date,bool $includeAncillary=
     }
     foreach($sales as &$row){$row['loadedMT']=round($row['loadedMT'],6);$row['outstandingMT']=$row['loadedKnown']&&$row['contractedMT']>0?($row['closed']?0.:max(0,$row['contractedMT']-$row['loadedMT'])):null;}unset($row);
 
+    // Directors own-goods sales consume commitments, while native Mill records alone move stock.
+    $nativeSales=gd_rows($values,'tt35exportersale');
+    foreach((array)($books['exporterDeals']??[]) as $deal){if(($deal['direction']??'')!=='SALE'||$deal['date']>$date)continue;$n=dt_native_state($deal,$nativeSales,$date);$id='FELLOW-SALE|'.$deal['entity'].'|'.$deal['id'];foreach($n['issues'] as $issue)gd_hold($holds,$id,$issue);$sales[$id]=['id'=>$id,'ref'=>$deal['reference']?:$deal['id'],'exporterDealId'=>$deal['id'],'party'=>$deal['party'],'entity'=>$deal['entity'],'date'=>$deal['date'],'product'=>$deal['product'],'commodity'=>$deal['commodity'],'productIdentityCode'=>'','broken'=>'','signed'=>true,'closed'=>false,'contractedMT'=>$deal['quantityMT'],'loadedMT'=>$n['loadedMT'],'loadedKnown'=>$n['known'],'loadingIds'=>array_column($n['loads'],'id'),'outstandingMT'=>$n['known']?max(0,$deal['quantityMT']-$n['loadedMT']):null,'externalCoverageMT'=>0.,'sourceFingerprint'=>hash('sha256',json_encode([$deal,$n],JSON_THROW_ON_ERROR))];}
+
     $stock=[];$scopes=[];$safe=$values;
     if($includeAncillary){
     foreach(array_slice(TT_INV_SOURCE_KEYS,0,6) as $key){$safeRows=[];foreach(gd_rows($values,$key) as $row){$entity=strtoupper((string)($row['entity']??''));$mill=trim((string)($row['millName']??$row['locationName']??$row['mill']??''));$rid=$key.'|'.(string)($row['id']??'');if(!in_array($entity,['TTI','BRM'],true)||$mill===''){gd_hold($holds,$rid,'Confirm physical stock owner and location; no default company or mill was assumed.');continue;}$safeRows[]=$row;$scopes[$entity.'|'.$mill]=['entity'=>$entity,'millName'=>$mill];}$safe[$key]=json_encode($safeRows,JSON_THROW_ON_ERROR);}
@@ -132,7 +136,7 @@ function gd_sources(array $books,array $ops,string $date,bool $includeAncillary=
     foreach($sales as &$sale){$sale['externalCoverageMT']=min(max(0,(float)($sale['outstandingMT']??0)),dt_coverage($books,$sale['ref'],$date));}unset($sale);
     $source=['asOf'=>$date,'purchaseOrders'=>array_values($purchase),'salesContracts'=>array_values($sales),'stocks'=>array_values($stock),'financials'=>$includeAncillary?gm_financial_source($books,$date):[],'holds'=>array_values($holds),'operationsRevision'=>(int)($ops['revision']??0),'operationsVersions'=>(array)($ops['versions']??$ops['meta']??[]),'sourceBackend'=>(string)($ops['sourceBackend']??'supplied'),'accountsRevision'=>(int)($books['revision']??0),'basis'=>'Original committed quantities through the selected date, using current saved contract versions. Review historical amendments and every missing source; no opening quantity is inferred.'];
     $source['stockValuation']=dt_stock_valuation(array_values($stock),(array)($source['financials']['rows']??[]),$books,$date);
-    $source['exporterCashflow']=[];foreach(['TTI','BRM'] as $e)$source['exporterCashflow']=array_merge($source['exporterCashflow'],dt_cashflow($books,dt_lots($root,$e),$e,$date));
+    $source['exporterCashflow']=[];foreach(['TTI','BRM'] as $e)$source['exporterCashflow']=array_merge($source['exporterCashflow'],dt_cashflow($books,dt_lots($root,$e),$e,$date,$nativeSales));
     $source['fingerprint']=hash('sha256',json_encode($source,JSON_THROW_ON_ERROR));return $source;
 }
 

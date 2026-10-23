@@ -4,15 +4,19 @@ ROOT=pathlib.Path(__file__).resolve().parents[2]
 with tempfile.TemporaryDirectory(prefix='directors-trading-') as tmp:
  root=pathlib.Path(tmp)
  for name in ['api','accounts','directors']:shutil.copytree(ROOT/name,root/name)
+ fixture_local=root/'api/local_sales_control.php';fixture_local.write_text(fixture_local.read_text().replace('catch(Throwable $e){ls_respond',"catch(Throwable $e){fwrite(STDERR,'FIXTURE ERROR: '.$e->getMessage());ls_respond"))
  (root/'data').mkdir()
  (root/'auth_store.php').write_text('''<?php
 define('TT_DATA_DIR',__DIR__.'/data');define('TT_DB_HOST','');
-function tt_require_login(){return ['id'=>1,'username'=>'Fixture','role'=>'Staff','permissions'=>($_GET['mode']??'')==='exports-restricted'?['Exports'=>['loading'=>['View','Edit']],'Accounts'=>['entity-tti'=>['View','Edit']]]:['Exports'=>['loading'=>['View','Edit']]]];}
+function tt_require_login(){if(($_GET['mode']??'')==='mill')return ['id'=>1,'username'=>'Mill','role'=>'Staff','permissions'=>['Mill'=>['local'=>['View','Edit']]]];return ['id'=>1,'username'=>'Fixture','role'=>'Staff','permissions'=>(($_GET['mode']??'all')==='all'?['Accounts'=>'all','Exports'=>['loading'=>['View','Edit']]]:(($_GET['mode']??'')==='exports-restricted'?['Exports'=>['loading'=>['View','Edit']],'Accounts'=>['entity-tti'=>['View','Edit']]]:['Exports'=>['loading'=>['View','Edit']]]))];}
 function tt_user_can_open_module($u,$m){return !empty($u['permissions'][$m]);}
-function tt_user_can_module_action($u,$m,$i,$a){$mode=$_GET['mode']??'all';if($mode==='deny')return false;if($mode==='read')return $a==='View';if($mode==='cost')return $m==='Directors'&&$i==='costing';if(in_array($mode,['exports','exports-restricted']))return $m==='Exports'&&$i==='loading';return true;}
+function tt_user_can_module_action($u,$m,$i,$a){$mode=$_GET['mode']??'all';if($mode==='mill')return $m==='Mill'&&$i==='local';if($mode==='deny')return false;if($mode==='read')return $a==='View';if($mode==='cost')return $m==='Directors'&&$i==='costing';if(in_array($mode,['exports','exports-restricted']))return $m==='Exports'&&$i==='loading';return true;}
 function tt_user_can_access_entity($u,$e,$a){return $e==='TTI';}
 function tt_ensure_data_dir(){}function tt_release_read_session(){}function tt_verify_csrf($v){return $v==='fixture';}function tt_accounts_input(){return $GLOBALS['fixtureBody'];}
-function tt_list_masters(){return ['banks'=>[],'business_parties'=>[['id'=>'KAS','values'=>['KAS Commodities','','Supplier']]]];}
+function tt_list_masters(){return ['banks'=>[['id'=>'USD1','values'=>['Company Account','TTI','','TTI','Own bank','','','USD','123','']]],'business_parties'=>[['id'=>'KAS','values'=>['KAS Commodities','','Supplier']]]];}
+function tt_api_upsert_allowed($u,$endpoint,$body,$exists,$entity){return $entity==='TTI';}function tt_api_record_entity_allowed($u,$body,$entity){return $entity==='TTI';}
+function tt_bank_can_transact($id){return $id==='USD1';}
+function tt_brokery_amount($rate,$kg,$bags){if($rate!==null)throw new RuntimeException('Fixture has no broker');return 0;}
 function tt_next_post_id($rows,...$args){return 'POST-'.(count($rows)+1);}
 ''')
  contract={'ref':'TTI/AMT/1','seller':'TTI','date':'2026-10-01','product':'IRRI-6','qty':100,'currency':'USD','incoterm':'FOB','packings':[{'price':500}]}
@@ -21,7 +25,7 @@ function tt_next_post_id($rows,...$args){return 'POST-'.(count($rows)+1);}
  (root/'data/operations.json').write_text(json.dumps(operations));ops_before=(root/'data/operations.json').read_bytes()
  path=root/'data/accounts.json';path.write_text(json.dumps({'revision':0,'journals':{}}));before=path.read_bytes()
  (root/'runner.php').write_text('''<?php
-$r=json_decode(stream_get_contents(STDIN),true);$_GET=$r['query'];$_SERVER['REQUEST_METHOD']=$r['body']===null?'GET':'POST';$GLOBALS['fixtureBody']=json_encode($r['body']);register_shutdown_function(function(){fwrite(STDERR,'STATUS:'.(http_response_code()?:200));});require __DIR__.'/api/directors_trading.php';
+$r=json_decode(stream_get_contents(STDIN),true);$_GET=$r['query'];$_SERVER['REQUEST_METHOD']=$r['body']===null?'GET':'POST';$GLOBALS['fixtureBody']=json_encode($r['body']);register_shutdown_function(function(){fwrite(STDERR,'STATUS:'.(http_response_code()?:200));});require __DIR__.'/api/'.(($_GET['_endpoint']??'')==='local'?'local_sales_control.php':'directors_trading.php');
 ''')
  seq=0
  def req(body=None,**query):
@@ -56,6 +60,11 @@ $r=json_decode(stream_get_contents(STDIN),true);$_GET=$r['query'];$_SERVER['REQU
  status,d=req({'action':'payment','id':deal_id,'version':3,'amountPKR':79000,'bankId':'CASH|TTI','reference':'CASH-1'});assert status==200,d
  assert d['deals'][0]['bookBalancePKR']==-4401000,d
  assert req({'action':'payment','id':deal_id,'version':4,'amountPKR':5000000,'bankId':'CASH|TTI','reference':'CASH-2'})[0]==422
+ status,d=req({'action':'payment','id':deal_id,'version':4,'amountPKR':28000,'bankId':'USD1','nativeAmount':100,'exchangeRate':281,'reference':'USD-PART'});assert status==200,d
+ assert d['deals'][0]['bookBalancePKR']==-4373000,d
+ foreign_post=json.loads(path.read_text())['journals'][d['result']['postId']] if 'result' in d else list(json.loads(path.read_text())['journals'].values())[-1]
+ assert foreign_post['lines'][1]['bankCurrency']=='USD' and foreign_post['lines'][1]['bankCredit']==100,foreign_post
+ assert foreign_post['lines'][2]['account']=='7100' and foreign_post['lines'][2]['debit']==100,foreign_post
  profile=json.loads((ROOT/'directors/costing-profiles.json').read_text())[0]
  costing={**profile,'date':'2026-10-23','fx':280,'whtPct':1.25,'bankPct':.1,'quantityMT':100,'incoterm':'FOB','packingAdjustment':0,'millVariety':'IRRI-6'}
  preview_before=path.read_bytes()
@@ -68,7 +77,27 @@ $r=json_decode(stream_get_contents(STDIN),true);$_GET=$r['query'];$_SERVER['REQU
  status,d=req({'action':'save_costing','input':costing},area='costing',mode='cost');assert status==200,d
  assert d['costings'][0]['calculation']['costs']['udhaar'] is None
  assert req({'action':'save_deal',**deal},area='costing',mode='cost')[0]==403
- store=json.loads(path.read_text());assert len(store['journals'])==2 and store['managementCostingInputs'],store
+ store=json.loads(path.read_text());assert len(store['journals'])==3 and store['managementCostingInputs'],store
  for journal in store['journals'].values():assert sum(l['debit'] for l in journal['lines'])==sum(l['credit'] for l in journal['lines'])
  assert (root/'data/operations.json').read_bytes()==ops_before,'Exporter entry changed original mill/exports stocks'
+ # New operational Mill feed is read-only, finance-free, company scoped.
+ sale={**deal,'direction':'SALE','contractRef':'','coverageMT':0,'reference':'OUR-SALE','requestKey':'our-sale-fixture','fobEstimateUSDPerMT':0}
+ status,d=req(sale);assert status==200,d;sale_id=d['result']['id']
+ status,feed=req(origin='mill',mode='mill');assert status==200 and feed['deals'][0]['id']==sale_id,feed
+ assert not any(k in feed['deals'][0] for k in ['price','fx','payments','working','settlementPosts']),'Mill feed leaked financial workings'
+ feed_before=path.read_bytes();assert req({'action':'save_deal'},origin='mill',mode='mill')[0]==403 and path.read_bytes()==feed_before
+ assert req(origin='mill',mode='mill',entity='TG')[0]==422
+ own={'ref':sale_id+'|MILL|M1','id':sale_id+'|MILL|M1','exporterDealId':sale_id,'entity':'TTI','millId':'M1','millName':'Own Mill','date':'2026-10-01','qty':100000,'displayName':'IRRI READY','stockSourceName':'IRRI READY','product':'Ready Rice','containers':[{'id':'OWN1','date':'2026-10-02','net':40000}]}
+ operations['values']['tt35exportersale']=json.dumps([own]);(root/'data/operations.json').write_text(json.dumps(operations));ops_before=(root/'data/operations.json').read_bytes()
+ status,feed=req(origin='mill',mode='mill');assert feed['deals'][0]['millPlannedMT']==100,feed
+ assert req({'action':'loading','id':sale_id,'version':1,'date':'2026-10-02','invoiceRef':'OTHER-INV','quantityMT':40,'totalInvoiceMT':100,'contractPrice':500},origin='exports',mode='exports')[0]==403,'Exports injected financial contract price'
+ status,d=req({'action':'loading','id':sale_id,'version':1,'date':'2026-10-02','invoiceRef':'OTHER-INV','quantityMT':40,'totalInvoiceMT':100},origin='exports',mode='exports');assert status==200,d
+ assert req({'action':'post_settlement','id':sale_id,'version':2})[0]==422,'Missing approved own-goods cost was treated as zero'
+ stored=json.loads(path.read_text());stored['inventoryCostRates']={'R':{'id':'R','entity':'TTI','product':'IRRI READY','effectiveFrom':'2026-10-01','costPerKg':100,'inventoryAccount':'1320'}};path.write_text(json.dumps(stored))
+ status,d=req({'action':'review_loading','id':sale_id,'version':2,'loadingId':json.loads(path.read_text())['exporterDeals'][sale_id]['loadings'][0]['id'],'reviewConfirmed':True});assert status==200,d
+ status,d=req({'action':'post_settlement','id':sale_id,'version':3});assert status==200,d
+ lines=json.loads(path.read_text())['journals'][d['result']['postId']]['lines'];assert any(x['account']=='1320' and x['credit']==4000000 for x in lines),lines
+ before_duplicate=path.read_bytes()
+ status,error=req({'action':'queue_candidate','sourceKey':'EXPORTER|'+own['ref'],'saleDate':'2026-10-02','entity':'TTI','product':'IRRI READY','loadedKg':40000,'ratePerKg':100,'amount':4000000},_endpoint='local');assert status==422 and 'Directors' in error['error'],(status,error)
+ assert path.read_bytes()==before_duplicate and (root/'data/operations.json').read_bytes()==ops_before,'Duplicate protection or settlement changed original Mill stock'
  print('PASS Directors trading endpoint: scoped reads, original stores, CSRF, permissions, company restrictions, duplicate keys, stale versions, posted settlement, partial payment and cost linkage')
