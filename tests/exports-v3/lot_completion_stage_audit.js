@@ -25,7 +25,7 @@ assert.match(app,/function millActualsIssues\(s\)[\s\S]*seal number\(s\) missing
 assert.match(operations,/function operations_merge_mill_actuals/,'server merge refreshes stale partial Mill actuals instead of preserving old blockers');
 assert.equal((operations.match(/operations_merge_mill_actuals/g)||[]).length,3,'Milling and Export saves both use the dedicated Mill actuals merge');
 assert.match(app,/phyto:\{label:'Phytosanitary Certificate'[\s\S]*phytosanitary/,'Phytosanitary uploads satisfy phyto certificate requirements');
-const uploadHandler=app.slice(app.indexOf('button.onclick=async()=>',app.indexOf('function renderUploadDocuments')),app.indexOf('\n };\n}',app.indexOf('function renderUploadDocuments')));
+const uploadHandler=app.slice(app.indexOf('button.onclick=async()=>',app.lastIndexOf('function renderUploadDocuments(d)')),app.indexOf('\n };\n}',app.lastIndexOf('function renderUploadDocuments(d)')));
 assert.doesNotMatch(uploadHandler,/saveShipmentFolder/,'document uploads must not build the full office shipment package during normal saves');
 
 console.log('PASS lot completion stage audit: final-output-only placement, upload gates, exact mill/doc checks, completed-lot hiding, click-time revalidation');
