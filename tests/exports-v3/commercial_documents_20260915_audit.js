@@ -13,7 +13,7 @@ const finalCoo=app.slice(app.lastIndexOf('function cooDoc('),app.lastIndexOf('fu
 
 assert.match(app,/data-commercial-tab="invoice"/);
 assert.match(app,/data-commercial-tab="packing"/);
-assert.match(app,/Commercial Invoice is the master/);
+assert.match(app,/Saved invoice details also update Packing List and COO/);
 assert.match(finalInvoice,/commercialWeightSummary\(t,invoiceValue,currency\)/);
 assert.match(app,/function commercialWeightSummary[\s\S]*TOTAL INVOICE VALUE/);
 assert.match(finalInvoice,/BALANCE RECEIVABLE/);
