@@ -130,11 +130,24 @@ function ps_next_no(array $sodas): string {
 }
 
 function ps_paid_for_bill(array $store, string $billId): float {
+    $bill = $store['commodityBills'][$billId] ?? [];
+    $sources = [];
+    foreach ((array)($bill['receiptAllocations'] ?? []) as $row) {
+        $source = trim((string)($row['sourceKey'] ?? ''));
+        if ($source !== '') $sources[$source] = true;
+    }
     $total = 0.0;
     foreach ((array)($store['supplierSettlements'] ?? []) as $settlement) {
-        if (!is_array($settlement) || (string)($settlement['entity'] ?? '') !== (string)($store['commodityBills'][$billId]['entity'] ?? '') || !in_array((string)($settlement['status'] ?? ''), ['Posted','Approved / Posted'], true)) continue;
+        if (!is_array($settlement) || (string)($settlement['entity'] ?? '') !== (string)($bill['entity'] ?? '') || !in_array((string)($settlement['status'] ?? ''), ['Posted','Approved / Posted','Approved'], true)) continue;
         foreach ((array)($settlement['allocations'] ?? []) as $allocation) {
-            if (is_array($allocation) && (string)($allocation['billId'] ?? '') === $billId) $total += (float)($allocation['amount'] ?? 0);
+            if (!is_array($allocation)) continue;
+            $source = trim((string)($allocation['sourceKey'] ?? ''));
+            // Historical bill IDs can change; the committed truck/source link survives.
+            // A source-bearing allocation must not settle a different truck just because
+            // an old internal bill ID happens to match. Count each allocation once.
+            $matchesSource = $source !== '' && isset($sources[$source]);
+            $matchesBill = !$sources && (string)($allocation['billId'] ?? '') === $billId;
+            if ($matchesSource || $matchesBill) $total += max(0, (float)($allocation['amount'] ?? 0));
         }
     }
     return round($total, 2);
