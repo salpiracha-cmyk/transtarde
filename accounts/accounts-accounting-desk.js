@@ -15,7 +15,7 @@
   const searchApi = '../api/accounts_search.php';
   let sodaData = {sodas:[], nextSodaNo:'Generated automatically'};
   let activeSoda = null, launchGeneration = 0;
-  document.addEventListener('click',event=>{if(event.target.closest?.('.entityBtn,[data-tt-entity],[data-tt-area],.tt-back-areas,[data-back],.tt-clean-close')){launchGeneration++;document.body.classList.remove('tt-workspace-opening','tt-arrival-opening');}},true);
+  document.addEventListener('click',event=>{if(event.target.closest?.('.entityBtn,[data-tt-entity],[data-tt-area],.tt-back-areas,[data-back],.tt-clean-close')){launchGeneration++;transitionGeneration++;q('#ttDeskTransition')?.remove();document.body.classList.remove('tt-workspace-opening','tt-arrival-opening');}},true);
 
   const pakistanAreas = [
     {key:'exports', glyph:'⇄', title:'Export Receipts & Payments', note:'Every export receipt, document and shipment expense', actions:[
@@ -134,7 +134,21 @@
     return q(`#ttNativeLaunchers .appCard[data-key="${key}"], #homeGrid .appCard[data-key="${key}"]`);
   }
 
+  let transitionGeneration=0;
   async function launch(action) {
+    const transition=++transitionGeneration;
+    q('#ttDeskTransition')?.remove();
+    // Cover retired editors synchronously; their asynchronous replacements own the next paint.
+    const loading=document.createElement('div');loading.id='ttDeskTransition';
+    loading.setAttribute('role','status');loading.setAttribute('aria-live','polite');
+    loading.style.cssText='position:fixed;inset:60px 0 0;z-index:100300;background:#f5f8fa;display:grid;place-items:center;color:#173c31;font:700 16px Arial';
+    loading.textContent='Loading '+(action.title||'Accounts form')+'…';document.body.appendChild(loading);
+    for(const id of ['amWindow','ttExpenseDesk','ttBankAccountsDesk','ibtDialog'])q('#'+id)?.remove();
+    try { return await launchAction(action); }
+    finally { if(transition===transitionGeneration)loading.remove(); }
+  }
+
+  async function launchAction(action) {
     window.TT_ACCOUNTS_NAVIGATION?.captureOrigin?.();
     const token=++launchGeneration,company=entity();
     const current=()=>token===launchGeneration&&company===entity();

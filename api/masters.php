@@ -469,6 +469,11 @@ try {
         // Non-broker parties have no Brokery profile. Schema padding leaves this field blank.
         $profileText=trim((string)($values[12]??''));if($profileText===''){$profileText='{}';$values[12]=$profileText;}
         $profile=json_decode($profileText,true);if(!is_array($profile))throw new InvalidArgumentException('The Brokery profile could not be read. Reopen the broker and try again.');
+        if(isset($profile['accountingCompanies'])){
+            if(!is_array($profile['accountingCompanies'])||!$profile['accountingCompanies']||array_filter($profile['accountingCompanies'],static fn($code)=>!is_string($code)||!in_array($code,['TTI','BRM','TG'],true)))throw new InvalidArgumentException('Choose the companies where this party is available in Accounts.');
+            $profile['accountingCompanies']=array_values(array_unique($profile['accountingCompanies']));
+            $values[12]=json_encode($profile,JSON_UNESCAPED_SLASHES);
+        }
         if(isset($profile['service'])){
             $service=$profile['service'];if(!is_array($service))throw new InvalidArgumentException('The service provider setup could not be read.');
             $code=trim((string)($service['expenseAccountCode']??''));

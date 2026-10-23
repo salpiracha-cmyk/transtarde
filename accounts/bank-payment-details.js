@@ -60,6 +60,7 @@
   // Resolve a display label without changing the saved journal's posting account.
   window.TT_VOUCHER_ACCOUNT_LABEL=(line,journal={},masters=window.TT_ACCOUNT_ACCESS?.masters||{})=>{
     const code=String(line.account),m=journal.meta||{};
+    if(code==='1140')return 'VAT';
     if(code==='1120')return line.cashAccountName||line.paymentAccountName||'Petty Cash';
     if(code!=='1110'){
       const named=[line.personName,line.person,line.party,line.counterparty,line.supplier,line.customer,line.vendor,line.broker,line.subledger].find(value=>value&&String(value)!==String(line.accountName)&&!/^\d{4}$/.test(String(value)));
