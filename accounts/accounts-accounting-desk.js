@@ -335,6 +335,7 @@
     q('#ttMainJV',work).onclick=()=>launch({native:'jv'});
     qa('[data-tt-area]', work).forEach(button=>button.onclick=()=>button.dataset.ttArea==='petty-cash'?launch({special:'petty-cash'}):button.dataset.ttArea==='assets'?window.TT_ASSETS_UI?.open?.():showArea(button.dataset.ttArea));
     window.TT_ACCOUNT_BADGE_REFRESH?.();
+    void loadDashboardSummary();
   }
 
   let bankMenuGeneration=0;
@@ -402,7 +403,6 @@
     const name = q('.entityBtn.active strong')?.textContent || entity();
     qa('[data-tt-entity-name]').forEach(node => { node.textContent = name; });
     showAreasHome();
-    loadDashboardSummary();
     loadRecentTransactions();
   }
 

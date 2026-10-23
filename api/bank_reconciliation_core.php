@@ -25,7 +25,7 @@ function br_txns(array $s,string $entity,string $bankId,string $toDate,string $c
   $date=(string)($j['date']??'');if($date===''||$date>$toDate)continue;$jm=(array)($j['meta']??[]);
   foreach((array)($j['lines']??[]) as $i=>$l){
    if(!is_array($l)||(string)($l['account']??'')!=='1110'||(string)($l['bankAccountId']??$jm['bankAccountId']??'')!==$bankId)continue;
-   $amt=null;if($currency==='PKR')$amt=(float)($l['debit']??0)-(float)($l['credit']??0);
+   $amt=null;if($currency===$base)$amt=(float)($l['debit']??0)-(float)($l['credit']??0);
    elseif(isset($l['bankDebit'])||isset($l['bankCredit']))$amt=(float)($l['bankDebit']??0)-(float)($l['bankCredit']??0);
    elseif($currency===''||$currency===$base)$amt=(float)($l['debit']??0)-(float)($l['credit']??0);
    else $missing=true;

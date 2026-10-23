@@ -24,7 +24,7 @@ function tt_list_masters(){return ['banks'=>[['id'=>'B1','values'=>['Company Acc
     runner.write_text('''<?php
 define('TT_BANK_FUNCTIONS_ONLY',true);require __DIR__.'/api/bank_accounts.php';require __DIR__.'/api/bank_reconciliation_core.php';
 $s=json_decode(stream_get_contents(STDIN),true,512,JSON_THROW_ON_ERROR);$before=serialize($s);$d='2026-10-18';
-echo json_encode(['bank'=>ba_balance($s,'TTI','B1','PKR',$d),'next'=>ba_balance($s,'TTI','B1','PKR','2026-10-19'),'cash'=>ba_cash_balance($s,'TTI',$d),'unassigned'=>ba_unassigned_bank_balance($s,'TTI',$d),'usd'=>ba_balance($s,'TTI','USD1','USD',$d),'reconciled'=>br_txns($s,'TTI','B1',$d,'PKR')['bookBalance'],'aed'=>ba_balance($s,'TG','AED1','AED',$d),'unchanged'=>$before===serialize($s)],JSON_THROW_ON_ERROR);
+echo json_encode(['bank'=>ba_balance($s,'TTI','B1','PKR',$d),'next'=>ba_balance($s,'TTI','B1','PKR','2026-10-19'),'cash'=>ba_cash_balance($s,'TTI',$d),'unassigned'=>ba_unassigned_bank_balance($s,'TTI',$d),'usd'=>ba_balance($s,'TTI','USD1','USD',$d),'reconciled'=>br_txns($s,'TTI','B1',$d,'PKR')['bookBalance'],'aed'=>ba_balance($s,'TG','AED1','AED',$d),'aedReconciled'=>br_txns($s,'TG','AED1',$d,'AED')['bookBalance'],'unchanged'=>$before===serialize($s)],JSON_THROW_ON_ERROR);
 ''')
     def journal(date, account, debit=0, credit=0, bank='B1', **extra):
         return dict(date=date, entity='TTI', status='Posted', lines=[dict(account=account, debit=debit, credit=credit, bankAccountId=bank, **extra)])
@@ -49,7 +49,7 @@ echo json_encode(['bank'=>ba_balance($s,'TTI','B1','PKR',$d),'next'=>ba_balance(
     env = {k: v for k, v in os.environ.items() if not k.startswith('TT_DB_')}
     result = subprocess.run(['php', str(runner)], input=json.dumps(store), text=True, capture_output=True, check=True, env=env)
     data = json.loads(result.stdout)
-    assert data == dict(bank=950, next=-9777, cash=200, unassigned=30, usd=100, reconciled=950, aed=75, unchanged=True), data
+    assert data == dict(bank=950, next=-9777, cash=200, unassigned=30, usd=100, reconciled=950, aed=75, aedReconciled=75, unchanged=True), data
     # Execute the actual expense/salary balance helpers against identical dated books.
     # Extract declarations only, avoiding their production controller/auth side effects.
     declarations = []
