@@ -570,3 +570,10 @@ Online Banking payments expose an editable payment date, defaulting from the vou
 - A departing employee is marked inactive, never renamed to a replacement. Retain history and keep an inactive holder with an outstanding balance visible until settled or returned. New staff are enabled separately; reactivate the same identity rather than making another balance.
 - Preview and register reads write no financial data or Post ID reservations. Explicit posting enforces company/workflow rights, stale revision rejection, retry identity and nonnegative staff cash by date. Preserve original/reversal history on correction.
 - Wider home/inside icon alignment and removal remains a separate follow-up; do not restructure other navigation as part of this screen.
+
+
+## Receipt sources and bank identity — owner approval, 23 October 2026
+
+- Bank selectors identify bank, account title, currency and full account number, falling back to the saved IBAN. Never invent an account number for a linked virtual retention ledger. Current company/currency and existing account eligibility remain authoritative. Receiving-bank selectors omit balances; outgoing payment sources retain their existing balance information.
+- Petty Cash offers one Receive cash from bank / others form. Bank funding credits the selected bank once and requires existing Bank & Cash rights. Other receipts explicitly credit the chosen capital/liability/income/recovery account; receipt subledgers belong to that head. Expense heads are available only after explicit Expense refund selection. Cash receipts, transfers and Expenses share the same cash register without duplicate journals.
+- Sales Tax Refund retains its Bank debit / Sales Tax Recoverable credit treatment, uses a zero-write green accounting review, retry identity and acknowledged posting. The resulting green Post ID dialog appears in front; close the entry dialog after success. Never repost a Government refund merely to correct a presentation problem.

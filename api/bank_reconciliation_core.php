@@ -14,7 +14,7 @@ function br_banks(array $s,string $entity):array {
   $id=(string)($r['id']??'');if(br_entity_from_linked((string)$v[1])!==$entity||!in_array(trim((string)$v[0]),['Company Account','Proprietor / Owner Account','Personal Account'],true))continue;
   $set=(array)($s['bankAccountSettings'][$id]??[]);if(array_key_exists('reconciliationEnabled',$set)&&empty($set['reconciliationEnabled']))continue;
   $raw=preg_replace('/\W+/','',trim((string)($v[8]?:$v[9])))??'';$currency=strtoupper(trim((string)$v[7]))?:($entity==='TG'?'AED':'PKR');
-  $out[]=['id'=>$id,'isDefault'=>!empty($set['defaultPaymentAccount']),'bankName'=>(string)$v[4],'accountTitle'=>(string)$v[3],'currency'=>$currency,'display'=>(function_exists('tt_bank_choice_label')?tt_bank_choice_label((string)$v[4],$currency,(string)$v[8],(string)$v[9]):implode(' · ',array_filter([(string)$v[4],$currency,(string)$v[8],(string)$v[9]])))];
+  $out[]=['id'=>$id,'isDefault'=>!empty($set['defaultPaymentAccount']),'bankName'=>(string)$v[4],'accountTitle'=>(string)$v[3],'currency'=>$currency,'display'=>(function_exists('tt_bank_choice_label')?tt_bank_choice_label((string)$v[4],$currency,(string)$v[8],(string)$v[9],(string)$v[3]):implode(' · ',array_filter([(string)$v[4],$currency,(string)$v[8],(string)$v[9]])))];
  }usort($out,static fn($a,$b)=>strcmp($a['display'],$b['display']));return $out;
 }
 function br_txns(array $s,string $entity,string $bankId,string $toDate,string $currency=''):array {

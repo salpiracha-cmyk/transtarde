@@ -8,7 +8,7 @@ require_once __DIR__.'/opening_balance_core.php';
 /** Journal-level correction shared by every Accounts posting source. Caller holds the accounts.json lock. */
 function apa_correct(array &$store, array $user, string $postId, array $input): array {
     $original=$store['journals'][$postId]??null;
-    if(($original['meta']['originalSourceType']??$original['sourceType']??'')==='PETTY_CASH_TRANSFER')throw new DomainException('Correct this transfer through Petty Cash so staff cash balances stay linked.');
+    if(in_array($original['meta']['originalSourceType']??$original['sourceType']??'',['PETTY_CASH_TRANSFER','PETTY_CASH_RECEIPT'],true))throw new DomainException('Correct this transfer through Petty Cash so staff cash balances stay linked.');
     if(($original['sourceType']??'')==='SALARY_MASTER_ADJUSTMENT')throw new DomainException('Correct this adjustment in Expenses → Salaries & Staff → Apply Salary Master. Update Salary Master first; the same salary payable and entitlement must stay linked.');
     if(!empty($original['meta']['expenseInvoiceId']))throw new DomainException('Correct this invoice in Expense Invoices so supplier balances and linked payments remain consistent.');
     if(!empty($original['meta']['settlementId'])&&isset($store['supplierSettlements'][$original['meta']['settlementId']]))throw new DomainException('Amend this payment through Party Payments so its invoice and B/F allocations remain linked.');

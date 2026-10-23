@@ -72,9 +72,18 @@ function pc_manage(array &$s,string $e,array $b,array $u):array {
     $s['pettyCashAudit'][]=['action'=>'HOLDER_'.$op,'before'=>$old,'after'=>$h,'by'=>$u['username']??'','at'=>gmdate('c')];return ['holderId'=>$id];
 }
 function pc_post(array &$s,string $e,array $b,array $u,array $names):array {
-    $date=ev1_date((string)($b['date']??''));$type=(string)($b['type']??'');$from=(string)($b['from']??'');$source=pc_account($s,$e,$from);$amount=ev1_amount($b['amount']??0);
+    $date=ev1_date((string)($b['date']??''));$type=(string)($b['type']??'');$from=(string)($b['from']??'');$source=$type==='RECEIPT'?null:pc_account($s,$e,$from);$amount=ev1_amount($b['amount']??0);
     $note=trim((string)($b['narration']??''));if($note===''||strlen($note)>500)throw new DomainException('Enter a narration of up to 500 characters.');
-    if($type==='EXPENSE'){
+    if($type==='RECEIPT'){
+        $to=(string)($b['to']??'');$destination=pc_account($s,$e,$to,true);$label=$to==='CASH|'.$e?'Office Petty Cash':'Cash with '.$destination['name'];
+        $payee=trim((string)($b['payee']??''));$ref=trim((string)($b['reference']??''));if($payee===''||strlen($payee)>180||strlen($ref)>180)throw new DomainException('Enter who the cash was received from (up to 180 characters).');
+        $debit=ev1_line('1120',$amount,0,$names,['cashAccountId'=>$to,'paymentAccountId'=>$to,'cashAccountName'=>$label,'subledger'=>$label,'currency'=>'PKR','counterparty'=>$payee]);
+        $receiptSource=(string)($b['receiptSource']??'');$meta=['pettyCash'=>true,'payee'=>$payee,'receiptSource'=>$receiptSource,'toCashId'=>$to];
+        if($receiptSource==='BANK'){$bank=ben_bank($s,$e,(string)($b['bankId']??''));if($bank['currency']!=='PKR')throw new DomainException('Choose a PKR bank for this cash receipt.');$tracking=(!empty($b['bankPaymentMethod'])||!empty($b['chequeNo']))?ben_tracking($s,$e,$bank,$b):[];$credit=ben_bank_line($bank,(int)round($amount*100),1,false,$tracking);$meta['bankAccountId']=$bank['id'];}
+        elseif($receiptSource==='OTHER')$credit=arc_credit($s,$e,$b,$amount)+['currency'=>'PKR'];
+        else throw new DomainException('Choose receipt from bank or others.');
+        $id=ev1_journal($s,$e,$date,'PETTY_CASH_RECEIPT',$ref,$note,[$debit,$credit],$u,$meta);$result=['journalId'=>$id];
+    }elseif($type==='EXPENSE'){
         if(str_contains($from,'|STAFF|')&&empty($b['confirmed']))throw new DomainException('Confirm the staff spending amount before settling.');
         $payee=trim((string)($b['payee']??''));if($payee==='')throw new DomainException('Enter who was paid, or the cash holder for a verbal settlement.');
         $result=dex_post($s,$e,['paymentDate'=>$date,'paymentAccountId'=>$from,'payee'=>$payee,'paymentNarration'=>$note,'expenseLines'=>[['category'=>'OFFICE','accountCode'=>(string)($b['accountCode']??''),'amount'=>$amount,'purpose'=>$note,'expenseArea'=>'OFFICE','expenseFor'=>'SHARED','personalTreatment'=>'COMPANY']]],$u,$names,[]);
@@ -90,5 +99,5 @@ function pc_post(array &$s,string $e,array $b,array $u,array $names):array {
 function pc_payload(array $s,string $e,array $u):array {
     $holders=[];foreach(pc_holders($s,$e) as $h)$holders[]=$h+['balance'=>pc_balance($s,$e,$h['id'])];
     $chart=[];$names=ev1_names();foreach(sac_entity_chart($s,$e) as $code=>$head)if(($head['class']??'')==='Expense'&&!in_array($head['level']??'',['heading','system'],true)&&isset($names[(string)$code]))$chart[]=['id'=>(string)$code,'name'=>$head['name']];
-    return ['ok'=>true,'entity'=>$e,'revision'=>(int)($s['revision']??0),'officeBalance'=>pc_balance($s,$e,'CASH|'.$e),'holders'=>$holders,'staff'=>array_values(pc_staff($s,$e)),'rows'=>pc_rows($s,$e),'expenseHeads'=>$chart,'canCreate'=>tt_user_can_module_action($u,'Accounts','expenses','Create')&&tt_user_can_access_entity($u,$e,'Create'),'canEdit'=>tt_user_can_module_action($u,'Accounts','expenses','Edit')&&tt_user_can_access_entity($u,$e,'Edit')];
+    return ['ok'=>true,'entity'=>$e,'revision'=>(int)($s['revision']??0),'officeBalance'=>pc_balance($s,$e,'CASH|'.$e),'holders'=>$holders,'staff'=>array_values(pc_staff($s,$e)),'rows'=>pc_rows($s,$e),'receiptBanks'=>array_values(array_map(static fn($b)=>['id'=>$b['id'],'name'=>tt_bank_choice_label($b['bankName'],$b['currency'],$b['accountNumber'],$b['iban'],$b['accountTitle'])],array_filter(ev1_banks(),static fn($b)=>$b['entity']===$e&&in_array($b['accountType'],['Company Account','Proprietor / Owner Account','Personal Account'],true)&&$b['currency']==='PKR'&&tt_bank_can_transact($b['id'])))),'receiptHeads'=>arc_heads($s,$e),'receiptRefundHeads'=>arc_heads($s,$e,'EXPENSE_REFUND'),'receiptSubaccounts'=>array_values(array_filter(array_map(static fn($a)=>sac_resolve($s,$e,$a['id'],false),sac_accounts($s,$e)),static fn($a)=>$a['active'])),'expenseHeads'=>$chart,'canCreate'=>tt_user_can_module_action($u,'Accounts','expenses','Create')&&tt_user_can_access_entity($u,$e,'Create'),'canEdit'=>tt_user_can_module_action($u,'Accounts','expenses','Edit')&&tt_user_can_access_entity($u,$e,'Edit')];
 }

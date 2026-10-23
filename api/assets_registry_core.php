@@ -74,7 +74,7 @@ function far_banks(array $s,string $e):array {
     $out=[];foreach((array)(tt_list_masters()['banks']??[]) as $r){$v=array_values((array)($r['values']??[]));$link=strtoupper((string)($v[1]??''));
         $owner=preg_match('/(^|\W)TG($|\W)/',$link)||str_contains($link,'TRANS GRAINS')?'TG':(str_contains($link,'BUKSH')||preg_match('/(^|\W)BRM($|\W)/',$link)?'BRM':(str_contains($link,'TRANSTRADE INTERNATIONAL')||preg_match('/(^|\W)TTI($|\W)/',$link)?'TTI':''));
         $id=(string)($r['id']??'');if($owner!==$e||($v[0]??'')!=='Company Account'||!tt_bank_can_transact($id))continue;
-        $set=$s['bankAccountSettings'][$id]??[];$out[]=['id'=>$id,'label'=>trim((string)($v[4]??'')).' · '.trim((string)($v[3]??'')).' · '.(string)($v[7]??''),'currency'=>strtoupper((string)($v[7]??'')),'isDefault'=>!empty($set['defaultPaymentAccount'])?2:(!empty($set['defaultReceiptAccount'])?1:(!empty($v[11])&&in_array(strtolower((string)$v[11]),['yes','true','1','default'],true)?1:0))];
+        $set=$s['bankAccountSettings'][$id]??[];$out[]=['id'=>$id,'label'=>(function_exists('tt_bank_choice_label')?tt_bank_choice_label((string)($v[4]??''),(string)($v[7]??''),(string)($v[8]??''),(string)($v[9]??''),(string)($v[3]??'')):implode(' · ',array_filter([$v[4]??'',$v[3]??'',$v[7]??'',($v[8]??'')?:($v[9]??'')])) ),'currency'=>strtoupper((string)($v[7]??'')),'isDefault'=>!empty($set['defaultPaymentAccount'])?2:(!empty($set['defaultReceiptAccount'])?1:(!empty($v[11])&&in_array(strtolower((string)$v[11]),['yes','true','1','default'],true)?1:0))];
     }usort($out,static fn($a,$b)=>$b['isDefault']<=>$a['isDefault']);return $out;
 }
 function far_payment(array &$s,array &$a,array $b,array $u):array {
