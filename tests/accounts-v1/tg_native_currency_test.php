@@ -46,3 +46,5 @@ check(tt_accounts_public_post($shared,$shared['journals']['PK'])==='PK','TTI ret
 check(tt_accounts_public_post($shared,$shared['journals']['OTHER'])==='OTHER','Unrelated TG posting stays independent');
 check(serialize($shared)===$before,'Sharing a public ID must never duplicate or modify financial entries');
 echo "TG native ledgers, master VAT/rates, separate charge types, report-only translation and linked public IDs passed\n";
+
+check(tgn_line(['entity'=>'TG'],['account'=>'1110','currency'=>'AED','debit'=>0,'credit'=>3890,'bankDebit'=>0,'bankCredit'=>389000])['credit']===3890.0,'AED display agrees with canonical ledger despite legacy cents metadata');

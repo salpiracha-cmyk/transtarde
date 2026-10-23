@@ -91,7 +91,7 @@
     if(l.nativeDisplay)return l.nativeDisplay;
     const m=j.meta||{},currency=String(l.currency||l.bankCurrency||m.currency||m.transactionCurrency||'AED').toUpperCase();
     let debit=l.nativeDebit,credit=l.nativeCredit;
-    if(String(l.account)==='1110'){debit=l.bankDebit??debit;credit=l.bankCredit??credit;}
+    if(String(l.account)==='1110'){debit=currency==='AED'?(l.debit||0):(l.bankDebit??debit);credit=currency==='AED'?(l.credit||0):(l.bankCredit??credit);}
     const amount=l.chargeNative??l.vatNative??(m.targetAccount===l.account?(m.settlementAmountNative??m.amountNative):undefined)??(['1210','1250','2500','2510'].includes(String(l.account))?m.transactionAmount:undefined);
     if(debit==null&&amount!=null){debit=l.debit?amount:0;credit=l.credit?amount:0;}
     if(debit==null||credit==null){const rate=currency==='AED'?1:[l.exchangeRate,l.recognitionRate,m.recognitionRate,m.functionalRate,m.rate,m.exchangeRate].map(Number).find(v=>v>0);if(!rate)return {currency,unavailable:true};debit=Number(l.debit||0)/rate;credit=Number(l.credit||0)/rate;}
