@@ -3,6 +3,11 @@
   // Screen controls only: printed vouchers and document geometry retain their own styles.
   const style=document.createElement('style');style.id='ttAccountsFormLayout';
   style.textContent=`@media screen {
+    #tgTransferDialog .tt-window{width:min(950px,96vw)}
+    #tgTransferDialog .panelHead{padding:18px;background:white}
+    body:has(#tgTransferDialog) #ws-bank{visibility:hidden!important}
+    :is(.tg-receipt-grid,.ibt-grid)>label{min-width:0;line-height:1.45}
+    :is(.tg-receipt-grid,.ibt-grid) :is(input:not([type=checkbox]),select){min-height:42px;font-size:15px}
     /* Explicit form state wins over grid/flex layout, including tick labels. */
     [hidden][hidden]:not([hidden="until-found"]){display:none!important}
     :is(.workspace,.tt-window,.tt-layer,.tt-plan-window,.tte,.ttrs,.ttst-box,.am-box,.ttbr-box) :is(.tt-form-grid,.ttv-grid,.ttst-grid,.tte-grid,.ttrs-grid,.ttdon-form,.ttbk-grid,.ttbag-grid,.tt-plan-actions,.grid2,.grid3)>label{min-width:0;box-sizing:border-box;line-height:1.45}

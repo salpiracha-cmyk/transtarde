@@ -584,3 +584,11 @@ Online Banking payments expose an editable payment date, defaulting from the vou
 - TG bank proforma optionally shows Notify Party / Cargo Receiver below buyer/seller and leaves both signature spaces for Exports. This bank-purpose document uses Customs values and does not rewrite the customer contract. FI upload has its own TG tab and is also available to direct shipments through Upload Documents.
 - Office output retains CUSTOM DOCUMENTS and the master PDF's existing composition. BANK DOCUMENTS holds the combined Bank Shipment Documents <invoice>.pdf, standalone phytosanitary original and TG proforma PDF. Do not create loose TG Word/cover copies in this canonical archive. Protected phyto remains byte-exact with an explicit send-separately warning in BANK DOCUMENTS; never ignore encryption.
 - Owner-authorized bulk output refresh reads acknowledged snapshots, includes closed lots without reopening them, changes no accounting and distinguishes queued jobs from verified TTI Server delivery. The compatible agent removes only known generated old bank outputs after verifying the replacement, migrates unrelated originals with checksum checks, and retains collisions for review. Never claim physical cleanup until the compatible PC agent has processed it.
+
+
+## TG company accounts and UI — 23 October 2026
+
+- TG uses its own trading-business accounts. Do not seed Pakistan home/director household subsidiary accounts or Pakistan withholding-tax defaults into TG new-entry choices. TTI/BRM retain their existing setup. Preserve any actual TG historical postings and their account lineage; keep historical-only household accounts in a collapsed historical section rather than the active setup.
+- TG expense choices show the subsidiary name, with their hierarchy available in Accounts Setup. Use business rent/medical choices in TG; do not default to household treatment.
+- TG transfer, customer receipt and bill screens use the shared popup layout, aligned fields, one close control, heading-first opening, and green review/compact Edit-Print result flow. Date changes and late requests must preserve drafts and cannot reopen closed/superseded forms.
+- Recent transactions show one row per public posting, with each original currency explicitly labelled. Presentation cleanup never changes journal amounts.

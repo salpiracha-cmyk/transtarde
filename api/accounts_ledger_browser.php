@@ -109,7 +109,8 @@ foreach(['settlement_policy_v1.json','export_realization_policy_v1.json'] as $po
 $file=TT_DATA_DIR.'/accounts.json';
 $store=tt_fi_advice_project(tt_fi_advice_read_json($file),tt_fi_advice_root());
 if($workflowRegister){$store=acr_project($user,$store,true);if($postEntries)$catalog=['POSTS'=>'Post ID Register'];$partyAliases=[];$partyNames=[];}
-$directorMembers=[];foreach(['MILL_STAFF'=>'Mill salaries','OFFICE_STAFF'=>'Office salaries','HOME_STAFF'=>'Household staff salaries','DIRECTOR_REMUNERATION'=>'Directors remuneration'] as $key=>$label)$catalog['SALARY_COST|'.$key]='Salary expense · '.$label;
+if($entity==='TG'){ $usedCodes=[];foreach((array)($store['journals']??[]) as $j)if(($j['entity']??'')==='TG')foreach((array)($j['lines']??[]) as $l)$usedCodes[(string)($l['account']??'')]=true;foreach($catalog as $code=>$name)if((str_starts_with((string)$code,'FAM-')||str_starts_with((string)$code,'REIMB-')||(string)$code==='6910')&&!isset($usedCodes[$code]))unset($catalog[$code]); }
+$directorMembers=[];foreach(['MILL_STAFF'=>'Mill salaries','OFFICE_STAFF'=>'Office salaries','HOME_STAFF'=>'Household staff salaries','DIRECTOR_REMUNERATION'=>'Directors remuneration'] as $key=>$label)if($entity!=='TG'||$key==='OFFICE_STAFF')$catalog['SALARY_COST|'.$key]='Salary expense · '.$label;
 foreach((array)($store['salaryMasters']??[]) as $id=>$person){
     if(($person['entity']??'')!==$entity)continue;
     if(!in_array($person['category']??'',['DIRECTOR_REMUNERATION','HOME_MONTHLY_GIVE'],true)){

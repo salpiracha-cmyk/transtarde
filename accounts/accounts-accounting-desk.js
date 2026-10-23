@@ -143,7 +143,7 @@
     loading.setAttribute('role','status');loading.setAttribute('aria-live','polite');
     loading.style.cssText='position:fixed;inset:60px 0 0;z-index:100300;background:#f5f8fa;display:grid;place-items:center;color:#173c31;font:700 16px Arial';
     loading.textContent='Loading '+(action.title||'Accounts form')+'…';document.body.appendChild(loading);
-    for(const id of ['amWindow','ttExpenseDesk','ttBankAccountsDesk','ibtDialog'])q('#'+id)?.remove();
+    for(const id of ['amWindow','ttExpenseDesk','ttBankAccountsDesk','ibtDialog','tgReceiptDialog','tgTransferDialog','tgLiabilityDialog'])q('#'+id)?.remove();
     try { return await launchAction(action); }
     finally { if(transition===transitionGeneration)loading.remove(); }
   }
@@ -164,6 +164,7 @@
     if(action.special==='customer-receivables'){const company=entity();try{const data=await json(`../api/accounts_dashboard.php?entity=${encodeURIComponent(company)}`);if(current())openCustomerReceivables(data.customerReceivables);}catch(error){alert(error.message);}return;}
     if(action.native==='reports'&&['Receivables','Commodity','Shipment'].includes(action.find))return window.TT_REPORTS.open({Receivables:'balances',Commodity:'commodity',Shipment:'shipment'}[action.find]);
     if(action.native==='reports'&&['Trial Balance','Profit','Balance Sheet'].includes(action.find))return window.TT_REPORTS.open(({Trial:'tb',Profit:'pl',Balance:'bs'})[String(action.find||'').split(' ')[0]]||'tb');
+    if(entity()==='TG'&&action.native==='payables'&&!action.special)return window.TT_TG_LIABILITIES_UI.open();
     if(action.native==='bank'&&!action.special)return window.TT_BANK_ACCOUNTS_UI.open();
     if(action.special==='expense-report')return window.TT_REPORTS.open('expenses');
     if(action.special==='vehicle-report')return window.TT_REPORTS.open('vehicles');
@@ -439,8 +440,8 @@
     try{
       const result=await json('../api/accounts_ledger_browser.php?'+new URLSearchParams({entity:company,account:'POSTS',from:'0001-01-01',to:today()}));
       if(request!==recentLoad||company!==entity()||!box.isConnected)return;
-      const rows=result.rows||[];
-      box.innerHTML=rows.length?rows.map(row=>`<button type="button" class="tt-recent-row" data-recent-post="${esc(row.voucher)}"><span>${esc(window.TT_DATE?.display(row.date)||row.date)}</span><b>${esc(displayRef(row.publicPostId||row.voucher))}</b><span><strong>${esc(row.party)}</strong><small>${esc(row.narration||row.reference)}</small></span><b>${esc(company==='TG'?'AED':'PKR')} ${money(row.debit)}</b></button>`).join(''):'<p>No posted transactions.</p>';
+      const grouped=new Map();for(const row of result.rows||[]){const id=row.publicPostId||row.voucher;if(!grouped.has(id))grouped.set(id,{...row,amounts:[]});grouped.get(id).amounts.push((row.currency||row.bookCurrency||(company==='TG'?'AED':'PKR'))+' '+(row.nativeMissing?'Unavailable':money(Math.max(Number(row.debit||0),Number(row.credit||0)))));}const rows=[...grouped.values()];
+      box.innerHTML=rows.length?rows.map(row=>`<button type="button" class="tt-recent-row" data-recent-post="${esc(row.voucher)}"><span>${esc(window.TT_DATE?.display(row.date)||row.date)}</span><b>${esc(displayRef(row.publicPostId||row.voucher))}</b><span><strong>${esc(row.party)}</strong><small>${esc(row.narration||row.reference)}</small></span><b>${esc(row.amounts.join(' · '))}</b></button>`).join(''):'<p>No posted transactions.</p>';
       qa('[data-recent-post]',box).forEach(button=>button.onclick=()=>window.TT_ALL_LEDGERS?.openPosting?.(button.dataset.recentPost));
     }catch(error){if(request===recentLoad&&company===entity()&&box.isConnected)box.textContent='Transactions unavailable: '+error.message;}
   }
