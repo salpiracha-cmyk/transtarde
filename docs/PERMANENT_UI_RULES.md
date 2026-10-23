@@ -598,3 +598,9 @@ Online Banking payments expose an editable payment date, defaulting from the vou
 - Owner correction, 23 October 2026: phyto is always an original standalone file in BANK DOCUMENTS, for both TG and direct/L/C bank packs. Do not merge it into Bank Shipment Documents and do not classify a separately supplied or protected phyto as a missing/failed bank enclosure. Preserve the covering-table row and the existing Master Shipment PDF composition; this correction concerns the bank pack only.
 
 - Shipment PDF preparation may reuse identical markup only within one explicit committed snapshot. Do not reuse PDFs across saves or render an excluded customer Sales Contract for the strict office archive. Status-only reopening keeps durable confirmation and permissions, but skips the unrelated Accounts FI/invoice metadata rewrite; every other changed source fact still invokes linking.
+
+
+## TG bank pack correction — owner approval, 23 October 2026
+
+- Preserve the current one-page TG Pakistan-bank proforma layout and contents. Restore the selected TTI/BRM seller signature/stamp and the purpose-specific TG Pakistan-bank acceptance stamp. When a notify party is selected, include its escaped name and a blank signature/company-stamp area beside the existing acceptance blocks. Do not adopt the proposed image layout.
+- Exclude Certificate of Origin from TG Pakistan-bank covering enclosures, the bank-purpose proforma document list and the combined Bank Shipment Documents PDF, including saved legacy enclosure lists. Preserve the uploaded COO original and the existing Master Shipment Documents PDF; direct-shipment packs remain unchanged.

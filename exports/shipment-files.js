@@ -267,7 +267,7 @@ function zip(entries,type){const encoder=new TextEncoder();return zipBytes(Objec
        if(isTG&&category==='commercial')category='tgInvoice';
        if(isTG&&category==='packing')category='tgPacking';
        if(isTG&&category==='salesContract')category='tgProforma';
-       if(category==='phyto'||(isTG&&category==='fumigation'))continue;
+       if(category==='phyto'||(isTG&&['fumigation','coo'].includes(category)))continue;
        const doc=(category?firstDoc(docs,category):null)||docs.find(doc=>doc.name.trim().toLowerCase()===String(row.name).trim().toLowerCase());
        if(!doc){
         const warning='Missing bank enclosure: '+row.name+'. Upload it and refresh this bank pack.';
