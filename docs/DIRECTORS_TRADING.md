@@ -34,7 +34,7 @@ External goods never create physical inventory entries. Our actual dispatch
 remains in the existing Mill loading workflow. Group Daily reconciles own native
 loading plus the external contribution to invoice quantity; incorrect native
 classification is held for review rather than silently changing original stock.
-Remaining external coverage offsets uncovered sales commitments, never adds to
+Agreements can link a sales contract before its first lot exists. Remaining external coverage offsets uncovered sales commitments, never adds to
 physical stock. Export COGS excludes external quantities. Allocation is blocked
 when original invoice inventory cost is already posted until Accounts reconciles
 that cost. No existing SODA, invoice or opening balance is automatically deleted.
@@ -49,7 +49,7 @@ Posted supplier shipment sections supply actual logistics charges. Bags and
 other shared posted expenses can be explicitly allocated from original sources,
 within each source's remaining amount. These allocations do not post the bill
 again. Amended/reversed source costs invalidate review. The history-weighted FOB
-comparison and above-allowance warnings are visible on review/open/refresh; there
+comparison and above-allowance warnings are visible on review/open/refresh; a committed logistics bill also derives a Director home cost-review alert. There
 is no timed transaction refresh or automatic save.
 
 ## Costing rules
