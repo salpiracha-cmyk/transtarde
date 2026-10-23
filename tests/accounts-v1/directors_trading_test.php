@@ -44,3 +44,5 @@ $s['exporterDeals']['HK']=$hk;$s['supplierBills']['B1']['supplierPayableTotal']=
 echo "PASS source-save Director budget alerts and resolution\n";
 $mixedContract=$originalContract+['currency'=>'USD','incoterm'=>'FOB','packings'=>[['brand'=>'STAR','size'=>50,'price'=>500],['brand'=>'STAR','size'=>25,'price'=>520]]];$mixedInvoice=$actual;$mixedInvoice['millActuals']=[['number'=>'A','netKg'=>60000,'millNetKg'=>61000,'brand'=>'STAR','packing'=>'50 KG'],['number'=>'B','netKg'=>40000,'brand'=>'STAR','packing'=>'25 KG']];$mixed=dt_lots(['contracts'=>[$mixedContract],'shipments'=>[$mixedInvoice]],'TTI')['LOT1'];near($mixed['quantityMT'],100,'Contribution denominator follows commercial document weight');near($mixed['contractPrice'],508,'Mixed packing rates weighted by commercial invoice quantity, not Customs price');
 echo "PASS mixed packing contract prices use commercial invoice weights\n";
+
+$oversize=$w;$oversize['settlementPKR']=1e20;reject(fn()=>dt_post_settlement($s,$d,$oversize,$u,'2026-10-23'),'Calculated money is bounded before conversion to minor units');
