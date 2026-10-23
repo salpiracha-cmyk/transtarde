@@ -69,10 +69,10 @@ function tt_master_calendar_date(string $value,string $label,bool $optional=fals
     return $value;
 }
 
-/** Consistent concise picker identity. Full account details stay in Company Master and bank views. */
-function tt_bank_choice_label(string $bank,string $currency,string $number='',string $iban=''):string {
+/** Pickers identify the bank, account title, currency and full account number. */
+function tt_bank_choice_label(string $bank,string $currency,string $number='',string $iban='',string $title=''):string {
  $raw=preg_replace('/\s+/','',trim($number!==''?$number:$iban))??'';
- return implode(' · ',array_filter([trim($bank),strtoupper(trim($currency)),$raw!==''?'…'.substr($raw,-6):''],static fn($part)=>$part!==''));
+ return implode(' · ',array_filter([trim($bank),trim($title),strtoupper(trim($currency)),$raw],static fn($part)=>$part!==''));
 }
 
 

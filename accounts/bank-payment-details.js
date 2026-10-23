@@ -1,6 +1,6 @@
 (() => {
   'use strict';
-  window.TT_BANK_LABEL=account=>{const raw=String(account.accountNumber||account.number||account.iban||'').replace(/\s/g,'');return [account.bankName||account.bank||account.title||'Bank',account.currency,raw?'…'+raw.slice(-6):''].filter(Boolean).join(' · ');};
+  window.TT_BANK_LABEL=account=>{const raw=String(account.accountNumber||account.number||account.iban||'').replace(/\s/g,'');return [account.bankName||account.bank||account.name||'Bank',account.accountTitle||account.title,account.currency,raw].filter(Boolean).join(' · ');};
   const find=id=>document.getElementById(id);
   const accountFor=(source,accounts)=>accounts.find(account=>String(account.id)===String(source.value));
   const defaultMethod=(source,accounts)=>String(accountFor(source,accounts)?.entity||localStorage.getItem('tt_accounts_entity')||'').toUpperCase()==='TG'?'ONLINE_BANKING':'CHEQUE';

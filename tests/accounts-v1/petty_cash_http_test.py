@@ -72,6 +72,29 @@ with tempfile.TemporaryDirectory(prefix='petty-cash-') as directory:
         assert next(x for x in res['paymentAccounts'] if x['id']=='CASH|TTI')['bookBalance']==3000
         stale={'entity':'TTI','revision':0,'action':'manage','requestKey':'stale-holder-request','operation':'add','staffId':'AHMED'};st,res=request('/api/petty_cash.php',stale);assert st==409
         st,res=request('/api/petty_cash.php?entity=BRM');assert st==200 and not res['holders'] and not res['rows']
+        # Bank identities distinguish same-name banks without exposing balances in receipt labels.
+        a=json.loads(auth.read_text());a['masters']={'banks':[{'id':'ASKARI-TTI','values':['Company Account','TTI','','Transtrade International','Askari Bank','','Pakistan','PKR','001122334455','','','','','Active']},{'id':'ASKARI-PERSONAL','values':['Personal Account','TTI','','Salman Piracha','Askari Bank','','Pakistan','PKR','009988776655','','','','','Active']}]};auth.write_text(json.dumps(a))
+        d=get();label=next(x['name'] for x in d['receiptBanks'] if x['id']=='ASKARI-TTI');assert 'Transtrade International' in label and '001122334455' in label and 'balance' not in label.lower(),label
+        assert not any(x['class']=='Expense' for x in d['receiptHeads'])
+        r,b=post('post',type='RECEIPT',date='2026-08-04',to='CASH|TTI',receiptSource='OTHER',amount=500,payee='Owner',creditAccountCode='3100',receiptKind='OTHER',narration='Cash introduced by owner')
+        assert [(x['account'],x['debit'],x['credit']) for x in r['journal']['lines']]==[('1120',500,0),('3100',0,500)]
+        r,b=post('post',expected=422,type='RECEIPT',date='2026-08-04',to='CASH|TTI',receiptSource='OTHER',amount=5,payee='Shop refund',creditAccountCode='6900',receiptKind='OTHER',narration='Expense is not an ordinary receipt')
+        r,b=post('post',type='RECEIPT',date='2026-08-04',to='CASH|TTI',receiptSource='OTHER',amount=5,payee='Shop refund',creditAccountCode='6900',receiptKind='EXPENSE_REFUND',narration='Explicit expense refund')
+        assert r['journal']['lines'][1]['account']=='6900' and r['journal']['lines'][1]['credit']==5
+        r,b=post('post',type='RECEIPT',date='2026-08-04',to='CASH|TTI',receiptSource='BANK',bankId='ASKARI-TTI',amount=50,payee='Askari Transtrade',narration='Bank withdrawal to petty cash')
+        assert r['journal']['lines'][1]['bankAccountId']=='ASKARI-TTI' and r['journal']['lines'][1]['credit']==50
+        # The same receipt-credit validation applies to Bank Entry, without expense dropdown defaults.
+        st,bank=request('/api/bank_entries.php?entity=TTI');assert st==200 and not any(x['class']=='Expense' for x in bank['receiptHeads']),(st,bank)
+        bankbody={'entity':'TTI','revision':bank['revision'],'action':'post','type':'RECEIPT','requestKey':'bank-other-receipt','date':'2026-08-05','bankId':'ASKARI-TTI','amount':100,'payee':'Owner','creditAccountCode':'3100','receiptKind':'OTHER','reference':'OWNER-RECEIPT','narration':'Owner funds'}
+        st,res=request('/api/bank_entries.php',bankbody);assert st==200,(st,res)
+        assert any(l['account']=='3100' and l['credit']==100 for l in res['result']['journal']['lines'])
+        # Sales tax preview is zero-write; final receipt/retry preserves one public Post ID.
+        st,tax=request('/api/sales_tax_refunds.php?entity=TTI');assert st==200,(st,tax)
+        taxbody={'entity':'TTI','revision':tax['revision'],'requestKey':'government-refund-once','receiptDate':'2026-08-06','bankAccountId':'ASKARI-TTI','amount':1250,'reference':'FBR-REFUND','note':'Historical receipt'}
+        stable=books.read_bytes();seq=json.loads(auth.read_text()).get('post_sequence');st,pre=request('/api/sales_tax_refunds.php',{**taxbody,'preview':True});assert st==200 and books.read_bytes()==stable and json.loads(auth.read_text()).get('post_sequence')==seq,(st,pre)
+        assert [(l['account'],l['debit'],l['credit']) for l in pre['previews'][0]['lines']]==[('1110',1250,0),('1230',0,1250)]
+        st,refund=request('/api/sales_tax_refunds.php',taxbody);assert st==200,(st,refund);stable=books.read_bytes();st,replay=request('/api/sales_tax_refunds.php',taxbody);assert st==200 and replay['journalId']==refund['journalId'] and books.read_bytes()==stable
+        st,replay=request('/api/sales_tax_refunds.php',{**taxbody,'amount':1300});assert st==409
         # Staff permissions and company scope are enforced on the real endpoint.
         limited={**user,'role':'Staff','permissions':{'Accounts':{'expenses':['View']}},'entities':['TTI']}
         a=json.loads(auth.read_text());a['users']=[limited];auth.write_text(json.dumps(a))

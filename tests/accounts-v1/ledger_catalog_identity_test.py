@@ -12,7 +12,7 @@ with tempfile.TemporaryDirectory(prefix='ledger-catalog-') as directory:
     shutil.copy(ROOT/'document_filenames.php',root/'document_filenames.php')
     for folder in ['api', 'data', 'accounts']:
         (root / folder).mkdir()
-    dependencies = ['supplier_opening_core.php', 'accounts_subaccounts_core.php',
+    dependencies = ['supplier_opening_core.php', 'accounts_subaccounts_core.php','accounts_receipts_core.php',
         'accounts_ledger_visibility.php', 'assets_registry_core.php', 'service_ledger_groups.php',
         'accounts_ledger_browser.php','accounts_read_policy.php', 'accounts_post_delete_core.php','accounts_post_delete_tg.php','tg_native_currency.php', 'accounts_reference.php',
         'tg_remittance_core.php', 'fi_credit_advice_link.php', 'receipt_invoice_links.php',

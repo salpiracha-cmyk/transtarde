@@ -9,7 +9,7 @@ const today=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Karachi'}).forma
 const date=v=>/^\d{4}-\d{2}-\d{2}$/.test(v||'')?v.slice(8)+'-'+v.slice(5,7)+'-'+v.slice(0,4):v||'—';
 const uuid=()=>crypto.randomUUID?.()||'payment-'+Array.from(crypto.getRandomValues(new Uint8Array(16)),v=>v.toString(16).padStart(2,'0')).join('');
 const tail=b=>String(b.accountNumber||b.iban||'').replace(/\W/g,'').slice(-6);
-const bankLabel=b=>`${b.bankName} · …${tail(b)} · PKR ${money(b.availableBalance)}`;
+const bankLabel=b=>`${window.TT_BANK_LABEL?.(b)||[b.bankName,b.accountTitle,b.currency,b.accountNumber||b.iban].filter(Boolean).join(' · ')} · PKR ${money(b.availableBalance)}`;
 let cache=null,screen=null,generation=0,homeGeneration=0,homeEntity='',posting=false;
 function can(action){if(access.role==='Super Admin'||access.superAdmin)return true;const p=access.permissions?.supplier||access.icons?.supplier;return !p||p==='all'||(Array.isArray(p)&&p.includes(action));}
 function style(){if(q('#ttPaymentPlanStyle'))return;const s=document.createElement('style');s.id='ttPaymentPlanStyle';s.textContent=`

@@ -2,6 +2,7 @@
 declare(strict_types=1);
 define('TT_EXPENSES_FUNCTIONS_ONLY',true);
 require_once __DIR__.'/expenses_v1.php';
+require_once __DIR__.'/bank_entries_core.php';
 header('Content-Type: application/json; charset=UTF-8');header('Cache-Control: no-store');
 try {
     $u=tt_require_login();$write=($_SERVER['REQUEST_METHOD']??'GET')==='POST';
@@ -15,6 +16,7 @@ try {
     $action=(string)($b['action']??'');$right=$action==='manage'?'Edit':($action==='reverse'?'Edit':'Create');
     if(!in_array($action,['manage','post','reverse'],true))throw new DomainException('Unknown petty cash action.');
     if(!tt_user_can_module_action($u,'Accounts','expenses',$right)||!tt_user_can_access_entity($u,$e,$right))ev1_out(['ok'=>false,'error'=>'Expenses and company '.$right.' permission are required.'],403);
+    if($action==='post'&&($b['type']??'')==='RECEIPT'&&($b['receiptSource']??'')==='BANK'&&(!tt_user_can_module_action($u,'Accounts','cashbank','Create')||!tt_user_can_module_action($u,'Accounts','cashbank','View')))ev1_out(['ok'=>false,'error'=>'Bank & Cash View and Create permission are required for a bank withdrawal.'],403);
     $key=ev1_request_key($b['requestKey']??'');$fingerprint=ev1_fingerprint($b);$identity=$e.'|'.($u['id']??0).'|'.$key;
     tt_ensure_data_dir();$h=fopen(EV1_FILE,'c+');if(!$h||!flock($h,LOCK_EX))throw new RuntimeException('Accounts storage unavailable.');
     try {
@@ -28,7 +30,8 @@ try {
             elseif($action==='post')$result=pc_post($s,$e,$b,$u,$names);
             else {
                 $id=(string)($b['journalId']??'');$j=$s['journals'][$id]??null;
-                if(!$j||($j['entity']??'')!==$e||($j['sourceType']??'')!=='PETTY_CASH_TRANSFER'||!empty($j['reversedByPostId']))throw new DomainException('Choose an active petty cash transfer. Expenses are corrected through their original expense form.');
+                if(!$j||($j['entity']??'')!==$e||!in_array($j['sourceType']??'',['PETTY_CASH_TRANSFER','PETTY_CASH_RECEIPT'],true)||!empty($j['reversedByPostId']))throw new DomainException('Choose an active petty cash transfer. Expenses are corrected through their original expense form.');
+                if(($j['meta']['receiptSource']??'')==='BANK'&&(!tt_user_can_module_action($u,'Accounts','cashbank','Edit')||!tt_user_can_module_action($u,'Accounts','cashbank','View')))ev1_out(['ok'=>false,'error'=>'Bank & Cash Edit permission required to reverse this bank withdrawal.'],403);
                 $reason=trim((string)($b['reason']??''));if(strlen($reason)<5||strlen($reason)>500)throw new DomainException('Enter a reversal reason of 5 to 500 characters.');
                 $ids=ev1_reverse_journals($s,[$id],$e,$u,$names,$reason);pc_assert_balances($s,$e);$result=['journalId'=>$ids[0]??''];
             }
