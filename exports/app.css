@@ -489,3 +489,8 @@
 .bankCoveringPage[data-tg-cover="true"] .docAutoSign img{height:27mm}
 
 .tgProformaBuyerSign .tgPakistanBankStamp{display:block;height:18mm;max-width:45mm;object-fit:contain;margin-top:1mm}.tgProformaBuyerSign:has(.tgPakistanBankStamp)>div{margin-top:0}
+
+/* Bank-purpose proforma: optional receiver and room for manual signatures. */
+.tgProformaNotify{border:1px solid #222;margin:1.5mm 0;font-size:inherit}.tgProformaNotify .specimenParty{min-height:0;padding:1.5mm 2mm;font-size:inherit}.tgProformaManualSign{margin-top:3mm;font-size:inherit}.tgProformaSignGap{height:20mm}
+
+.tgPackWorkspace .tgNotifyToggle{display:flex!important;align-items:center;gap:8px}.tgPackWorkspace .tgNotifyToggle input{width:auto!important;margin:0}

@@ -57,6 +57,39 @@ class OfficeAgentShipmentJobTest(unittest.TestCase):
             self.assertEqual(acknowledgements[-1]['status'], 'COMPLETE')
             self.assertEqual(len(acknowledgements[-1]['files']), 3)
 
+    def test_layout_cleanup_requires_verified_survivor_and_preserves_originals(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            bank = root / 'BANK DOCUMENTS'
+            bank.mkdir()
+            replacement = bank / 'Bank Shipment Documents INV-1.pdf'
+            replacement.write_bytes(b'new verified combined pdf')
+            digest = hashlib.sha256(replacement.read_bytes()).hexdigest()
+            old = root / 'Bank Shipment Documents OLD.pdf'
+            old.write_bytes(b'old generated pdf')
+            master = root / 'Master Shipment Documents.pdf'
+            master.write_bytes(b'master unchanged')
+            legacy = root / 'TG docs'
+            legacy.mkdir()
+            (legacy / 'Pakistan → TG — Bank Covering Letter.docx').write_bytes(b'generated old letter')
+            (legacy / 'Signed original.pdf').write_bytes(b'signed original')
+            separate = root / 'SEPARATE BANK ATTACHMENTS'
+            separate.mkdir()
+            (separate / 'Protected phyto.pdf').write_bytes(b'protected original')
+            row = {'folder':'BANK DOCUMENTS','name':replacement.name,'sha256':digest}
+            with self.assertRaises(ValueError):
+                agent.clean_legacy_bank_outputs(root, {'layoutVersion':2}, [{**row,'sha256':'0'*64}])
+            self.assertTrue(old.exists())
+            agent.clean_legacy_bank_outputs(root, {'layoutVersion':2}, [row])
+            self.assertFalse(old.exists())
+            self.assertFalse(legacy.exists())
+            self.assertFalse(separate.exists())
+            self.assertEqual((bank/'Signed original.pdf').read_bytes(),b'signed original')
+            self.assertEqual((bank/'Protected phyto.pdf').read_bytes(),b'protected original')
+            self.assertEqual(master.read_bytes(),b'master unchanged')
+            agent.clean_legacy_bank_outputs(root, {'layoutVersion':2}, [row])
+            self.assertEqual(replacement.read_bytes(),b'new verified combined pdf')
+
 
 if __name__ == '__main__':
     unittest.main()

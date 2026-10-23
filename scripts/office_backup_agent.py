@@ -445,6 +445,61 @@ def cleanup_verified_folders(final_dir, folders):
         if target.is_dir(): shutil.rmtree(target)
 
 
+def clean_legacy_bank_outputs(final_dir, job, verified):
+    """Prune known generated outputs only after the new bank file verifies locally.
+
+    Uploaded originals are not deleted. In old bank-only folders they are moved,
+    byte-verified, into BANK DOCUMENTS. Collisions retain the source for review.
+    """
+    if job.get('layoutVersion') != 2:
+        return
+    bank_dir = final_dir / 'BANK DOCUMENTS'
+    packages = [row for row in verified if row['folder'] == 'BANK DOCUMENTS'
+                and row['name'].startswith('Bank Shipment Documents ') and row['name'].endswith('.pdf')]
+    if not packages or bank_dir.is_symlink():
+        return
+    for row in packages:
+        target = bank_dir / row['name']
+        if not target.is_file() or target.is_symlink() or sha256_file(target) != row['sha256']:
+            raise ValueError('New bank package did not verify; legacy outputs retained.')
+    generated = ('Bank Shipment Documents ', 'Pakistan → TG — ')
+    for target in final_dir.iterdir():
+        if target.is_symlink() or not target.is_file():
+            continue
+        if (target.name.startswith('Bank Shipment Documents ') and target.suffix.lower() == '.pdf') or target.name == 'DOCUMENTS FOR BANK.pdf':
+            target.unlink()
+    for folder in ('TG docs', 'SEPARATE BANK ATTACHMENTS'):
+        source = final_dir / folder
+        if source.is_symlink() or not source.is_dir():
+            continue
+        for target in source.iterdir():
+            if target.is_symlink() or not target.is_file():
+                continue
+            # Generated copies are represented in the new consolidated bank PDF.
+            if target.stem in {'Pakistan → TG — Bank Covering Letter', 'Pakistan → TG — Commercial Invoice', 'Pakistan → TG — Packing List', 'Pakistan → TG — Sales Contract - Proforma', 'Pakistan → TG — Sales Contract Proforma', 'Pakistan → TG — Relationship Letter'} and target.suffix.lower() in ('.pdf', '.docx'):
+                target.unlink()
+                continue
+            if target.name == 'READ ME - send phytosanitary separately.pdf':
+                target.unlink()
+                continue
+            dest = bank_dir / target.name
+            if dest.exists():
+                if dest.is_file() and not dest.is_symlink() and sha256_file(dest) == sha256_file(target):
+                    target.unlink()
+                continue
+            staging = dest.with_name('.' + dest.name + '.migration.tmp')
+            shutil.copyfile(target, staging)
+            if sha256_file(staging) != sha256_file(target):
+                staging.unlink(missing_ok=True)
+                raise ValueError('Original bank attachment migration did not verify.')
+            os.replace(staging, dest)
+            if sha256_file(dest) != sha256_file(target):
+                raise ValueError('Migrated bank original did not verify; original retained.')
+            target.unlink()
+        if not any(source.iterdir()):
+            source.rmdir()
+
+
 def process_shipment_job(config, job):
     root = Path(config['shipmentArchiveDestination']).expanduser().resolve()
     root.mkdir(parents=True, exist_ok=True)
@@ -452,6 +507,8 @@ def process_shipment_job(config, job):
     if len(parts) != 3: raise ValueError('Shipment archive folder structure is invalid.')
     final_dir = root
     for part in parts: final_dir = final_dir / part
+    if any(path.is_symlink() for path in [root, final_dir, *final_dir.parents] if path != path.parent):
+        raise ValueError('Linked office destination refused.')
     temp_dir = root / ('.office-agent-' + job['id'])
     if temp_dir.exists(): shutil.rmtree(temp_dir)
     temp_dir.mkdir(parents=True)
@@ -463,6 +520,7 @@ def process_shipment_job(config, job):
             source, actual = download_job_file(config, job['id'], row, temp_dir)
             folder = safe_component(row.get('folder', '')) if row.get('folder') else ''
             target_dir = final_dir / folder if folder else final_dir
+            if target_dir.is_symlink(): raise ValueError('Linked archive subfolder refused.')
             target_dir.mkdir(parents=True, exist_ok=True)
             target = target_dir / safe_component(row['name'])
             tmp = target.with_name('.' + target.name + '.tmp')
@@ -471,8 +529,9 @@ def process_shipment_job(config, job):
             os.replace(tmp, target)
             if sha256_file(target) != actual: raise ValueError('Saved shipment archive checksum mismatch.')
             verified.append({'name': row['name'], 'folder': folder, 'sha256': actual, 'size': target.stat().st_size})
+        clean_legacy_bank_outputs(final_dir, job, verified)
         cleanup_verified_folders(final_dir, job.get('cleanupFolders') if job.get('finalize') else [])
-        office_agent_request(config, 'ack', {'id': job['id'], 'status': 'COMPLETE', 'host': host_name(), 'files': verified})
+        office_agent_request(config, 'ack', {'id': job['id'], 'status': 'COMPLETE', 'host': host_name(), 'files': verified, 'layoutVersion': 2})
         return final_dir, len(verified)
     except Exception as exc:
         office_agent_request(config, 'ack', {'id': job.get('id'), 'status': 'ERROR', 'host': host_name(), 'error': str(exc)})

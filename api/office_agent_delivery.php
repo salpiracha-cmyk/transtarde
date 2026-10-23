@@ -21,5 +21,5 @@ function office_delivery_public_status(array $job): array {
     $reported=is_array($job['verifiedFiles']??null)?$job['verifiedFiles']:[];
     $verified=($job['status']??'')==='VERIFIED'&&office_delivery_receipt_matches($job,$reported);
     $status=(string)($job['status']??'PENDING');if($status==='VERIFIED'&&!$verified)$status='UNVERIFIED';
-    return ['id'=>(string)($job['id']??''),'status'=>$status,'createdAt'=>(string)($job['createdAt']??''),'updatedAt'=>(string)($job['updatedAt']??''),'fileCount'=>count((array)($job['files']??[])),'verifiedFileCount'=>$verified?count($reported):0,'receiptVerified'=>$verified,'lastError'=>$status==='ERROR'?'The office agent could not complete this copy. Check the configured destination on the office computer.':''];
+    return ['layoutVersion'=>(int)($job['layoutVersion']??1),'id'=>(string)($job['id']??''),'status'=>$status,'createdAt'=>(string)($job['createdAt']??''),'updatedAt'=>(string)($job['updatedAt']??''),'fileCount'=>count((array)($job['files']??[])),'verifiedFileCount'=>$verified?count($reported):0,'receiptVerified'=>$verified,'lastError'=>$status==='ERROR'?'The office agent could not complete this copy. Check the configured destination on the office computer.':''];
 }

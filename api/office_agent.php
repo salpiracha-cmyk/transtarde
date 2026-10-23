@@ -155,8 +155,13 @@ function office_agent_enqueue_shipment(): never {
             'folderParts' => array_values($parts),
             'files' => $jobFiles,
             'attempts' => 0,
+            'layoutVersion' => (int)($manifest['layoutVersion'] ?? 1) === 2 ? 2 : 1,
+            'refreshExisting' => !empty($manifest['refreshExisting']),
         ];
-        office_agent_write_job($job);flock($admission,LOCK_UN);fclose($admission);
+        office_agent_write_job($job);
+        // A refreshed lot replaces pending generated packages; preserve their audit metadata.
+        foreach(array_slice(glob(office_agent_root().'/*/job.json')?:[],0,1000) as $oldPath){if($oldPath===office_agent_manifest_path($id)||is_link($oldPath)||is_link(dirname($oldPath))||filesize($oldPath)>524288)continue;$older=json_decode((string)file_get_contents($oldPath),true);if(is_array($older)&&($older['id']??'')===basename(dirname($oldPath))&&($older['contract']??'')===$job['contract']&&($older['lot']??'')===$job['lot']&&in_array($older['status']??'',['PENDING','ERROR','COPIED_LAYOUT_PENDING'],true)){$older['status']='SUPERSEDED';$older['supersededBy']=$id;$older['updatedAt']=$now;try{office_agent_write_job($older);}catch(Throwable $e){error_log('Office queue supersession requires retry: '.$e->getMessage());}}}
+        flock($admission,LOCK_UN);fclose($admission);
         office_agent_respond(['ok' => true, 'job' => ['id' => $id, 'status' => 'PENDING']]);
     } catch (Throwable $error) {
         foreach (glob($fileDir . DIRECTORY_SEPARATOR . '*') ?: [] as $path) @unlink($path);
@@ -173,7 +178,7 @@ function office_agent_poll(): never {
     foreach($paths as $index=>$path){$next=($start+$index+1)%count($paths);
         if(is_link($path)||is_link(dirname($path))||filesize($path)>524288)continue;
         $job = json_decode((string)file_get_contents($path), true);
-        if (!is_array($job) || !in_array((string)($job['status'] ?? ''), ['PENDING','ERROR'], true)) continue;
+        if (!is_array($job) || !in_array((string)($job['status'] ?? ''), ['PENDING','ERROR','COPIED_LAYOUT_PENDING'], true)) continue;
         try{$jobBytes=array_sum(array_map(static fn($f)=>(int)($f['size']??0),(array)($job['files']??[])));if($jobBytes<1||$jobBytes>OFFICE_JOB_MAX_BYTES)continue;if($validationBytes+$jobBytes>OFFICE_JOB_MAX_BYTES){$next=($start+$index)%count($paths);break;}$validationBytes+=$jobBytes;office_job_document_paths($job,dirname($path).'/files');}catch(Throwable){continue;}
         $jobs[] = [
             'id' => (string)$job['id'],
@@ -187,6 +192,8 @@ function office_agent_poll(): never {
             'folderParts' => $job['folderParts'] ?? [],
             'files' => $job['files'] ?? [],
             'attempts' => (int)($job['attempts'] ?? 0),
+            'layoutVersion' => (int)($job['layoutVersion'] ?? 1),
+            'refreshExisting' => !empty($job['refreshExisting']),
             'lastError' => $job['lastError'] ?? null,
         ];
         if(count($jobs)>=25)break;
@@ -247,7 +254,9 @@ function office_agent_ack(): never {
     if (!in_array($status, ['COMPLETE','ERROR'], true)) office_agent_error(422, 'Invalid Office Agent job status.');
     $job = office_agent_read_job($id);
     if($status==='COMPLETE'&&!office_delivery_receipt_matches($job,is_array($body['files']??null)?$body['files']:[]))office_agent_error(422,'Office delivery receipt does not match every expected file.');
-    $job['status'] = $status === 'COMPLETE' ? 'VERIFIED' : 'ERROR';
+    $layoutReady=(int)($job['layoutVersion']??1)<2||(int)($body['layoutVersion']??0)===2;
+    $job['status'] = $status === 'COMPLETE' ? ($layoutReady?'VERIFIED':'COPIED_LAYOUT_PENDING') : 'ERROR';
+    $job['agentLayoutVersion']=(int)($body['layoutVersion']??0);
     $job['updatedAt'] = gmdate('c');
     $job['attempts'] = (int)($job['attempts'] ?? 0) + 1;
     $job['agent'] = ['host' => substr((string)($body['host'] ?? ''), 0, 120), 'reportedAt' => gmdate('c')];
