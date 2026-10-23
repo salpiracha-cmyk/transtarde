@@ -13,7 +13,7 @@ const masters = {
   ],
   export_customers:[{id:'buyer',values:['Buyer XYZ','','','Address','','','','','','','Active']}],
 };
-const context = {window:{TT_ACCOUNT_ACCESS:{masters}},document:{readyState:'loading',addEventListener(){}},MutationObserver:class{}};
+const context = {localStorage:{getItem:()=> 'TTI'},window:{TT_ACCOUNT_ACCESS:{masters}},document:{readyState:'loading',addEventListener(){}},MutationObserver:class{}};
 vm.runInNewContext(fs.readFileSync('accounts/master-autocomplete.js','utf8'),context);
 const names = (...roles) => [...context.window.TT_ACCOUNTS_MASTER_CHOICES.partyNames(...roles)];
 assert.deepEqual(names('Supplier'),['Packing Bags Ltd','Rice Supplier']);

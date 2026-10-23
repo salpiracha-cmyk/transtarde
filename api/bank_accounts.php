@@ -104,7 +104,7 @@ function ba_balance(array $store,string $entity,string $bankId,string $currency,
         foreach((array)($j['lines']??[]) as $line){
             if(!is_array($line)||(string)($line['account']??'')!=='1110')continue;
             $lineBank=(string)($line['bankAccountId']??$jm['bankAccountId']??'');if($lineBank!==$bankId)continue;
-            if($currency==='PKR'){$bal+=(float)($line['debit']??0)-(float)($line['credit']??0);continue;}
+            if($currency===($entity==='TG'?'AED':'PKR')){$bal+=(float)($line['debit']??0)-(float)($line['credit']??0);continue;}
             $bal+=(float)($line['bankDebit']??0)-(float)($line['bankCredit']??0);
         }
     }
