@@ -11,7 +11,7 @@ function sac_chart():array {
  foreach($out as $code=>&$a){if(!empty($a['parent'])||($a['level']??'')==='heading')continue;if(ctype_digit((string)$code)){$control=(string)(intdiv((int)$code,100)*100);$heading=(string)(intdiv((int)$code,1000)*1000);if($control!==(string)$code&&isset($out[$control]))$a['parent']=$control;elseif($heading!==(string)$code&&isset($out[$heading]))$a['parent']=$heading;elseif(($a['class']??'')==='Expense')$a['parent']='6000';}}unset($a);return $out;
 }
 function sac_entity_chart(array $store,string $entity):array {
- $chart=sac_chart();foreach((array)($store['accountHierarchy'][$entity]??[]) as $code=>$parent)if(isset($chart[$code],$chart[$parent]))$chart[$code]['parent']=(string)$parent;return $chart;
+ $chart=sac_chart();foreach((array)($store['accountHierarchy'][$entity]??[]) as $code=>$parent)if(isset($chart[$code],$chart[$parent]))$chart[$code]['parent']=(string)$parent;if($entity==='TG'){$used=[];foreach((array)($store['journals']??[]) as $j)if(($j['entity']??'')==='TG')foreach((array)($j['lines']??[]) as $l)$used[(string)($l['account']??'')]=true;foreach($chart as $code=>$row)if(((string)$code==='6910'||str_starts_with((string)$code,'FAM-')||str_starts_with((string)$code,'REIMB-'))&&!isset($used[$code]))unset($chart[$code]);}return $chart;
 }
 function sac_descendants(string $head,array $store=[],string $entity=''):array {
  $chart=sac_entity_chart($store,$entity);$codes=[$head];foreach($chart as $code=>$a){$parent=(string)($a['parent']??'');$seen=[];while($parent!==''&&!isset($seen[$parent])){if($parent===$head){$codes[]=(string)$code;break;}$seen[$parent]=true;$parent=(string)($chart[$parent]['parent']??'');}}return $codes;
@@ -37,7 +37,7 @@ function sac_party_company_allowed(array $row,string $e,array $used):bool {
 }
 function sac_payees(array $s,string $e,string $kind=''):array {
  $out=[];$used=sac_party_company_names($s,$e);
- foreach(['Talha','Tayyab','Salman','ARP'] as $name){$id='EXP|'.sac_normal($name);$out[$id]=['id'=>$id,'entity'=>$e,'kind'=>'EXPENSE','name'=>$name,'active'=>true,'configured'=>false];}
+ foreach(['Talha','Tayyab','Salman','ARP'] as $name){if($e==='TG'&&!isset($used[sac_normal($name)]))continue;$id='EXP|'.sac_normal($name);$out[$id]=['id'=>$id,'entity'=>$e,'kind'=>'EXPENSE','name'=>$name,'active'=>true,'configured'=>false];}
  $seedFile=__DIR__.'/../accounts/salary_master_seed_v1.json';$seed=is_file($seedFile)?(array)(json_decode((string)file_get_contents($seedFile),true)['salaryMasters']??[]):[];
  foreach(array_replace($seed,(array)($s['salaryMasters']??[])) as $r)if(is_array($r)&&($r['entity']??'')===$e&&($r['status']??'Active')==='Active'){$name=trim((string)($r['name']??''));if($name!==''){$id='EXP|'.sac_normal($name);$out[$id]=['id'=>$id,'entity'=>$e,'kind'=>'EXPENSE','name'=>$name,'active'=>true,'configured'=>false];}}
  foreach((array)(tt_list_masters()['business_parties']??[]) as $r){if(!sac_party_company_allowed($r,$e,$used))continue;$v=(array)($r['values']??[]);if(strcasecmp((string)($v[10]??'Active'),'Active')!==0)continue;$name=trim((string)($v[0]??''));if($name==='')continue;$id='PARTY|'.(string)$r['id'];$out[$id]=['id'=>$id,'entity'=>$e,'kind'=>'BUSINESS','name'=>$name,'active'=>true,'configured'=>false,'roles'=>(string)($v[2]??'')];}
@@ -90,7 +90,15 @@ function sac_accounts(array $s,string $e):array {
  foreach(['FAM-SALMAN','FAM-TALHA','FAM-TAYYAB','SHARED'] as $person){$id=sac_home_id($e,$person);$out[$id]=['id'=>$id,'entity'=>$e,'name'=>sac_home_name($person),'parentCode'=>'6910','parentId'=>$e.'-EXPENSE-TYPE-HOME','taxCategory'=>'NONE','active'=>true,'homePerson'=>$person];}
  foreach(['FI / Instrument Charges'=>'BANK_INSTRUMENT','Card Charges'=>'BANK_CARD','Transfer Charges'=>'BANK_TRANSFER','Bank Financing Charges'=>'BANK_FINANCING','Bank Finance Markup'=>'FINANCE_MARKUP'] as $name=>$key){$id=$e.'-DEFAULT-'.$key;$out[$id]=['id'=>$id,'entity'=>$e,'name'=>$name,'parentCode'=>'6800','taxCategory'=>'NONE','active'=>$e!=='TG'];}
  foreach(['EXPORT','SAVINGS','BROKERAGE','SERVICES'] as $cat)foreach(['RECOVERABLE'=>'1260','PAYABLE'=>'2300'] as $t=>$code){$id=$e.'-DEFAULT-TAX-'.$cat.'-'.$t;$out[$id]=['id'=>$id,'entity'=>$e,'name'=>ucfirst(strtolower($cat)).' Withholding Tax '.ucfirst(strtolower($t)),'parentCode'=>$code,'taxCategory'=>$cat,'active'=>true];}
- foreach((array)($s['accountSubaccounts']??[]) as $id=>$r)if(is_array($r)&&($r['entity']??'')===$e)$out[$id]=$r;if($e==='TG')foreach($out as $id=>$row)if($id!=='TG-DEFAULT-ONLINE-BANKING'&&($row['parentCode']??'')==='6800'&&!empty($row['active'])&&in_array(strtoupper(trim((string)($row['name']??''))),['WEB BANKING CHARGES','ONLINE BANKING CHARGES','ONLINE / WEB BANKING CHARGES'],true)){unset($out['TG-DEFAULT-ONLINE-BANKING']);break;}return $out;
+ foreach((array)($s['accountSubaccounts']??[]) as $id=>$r)if(is_array($r)&&($r['entity']??'')===$e)$out[$id]=$r;if($e==='TG')foreach($out as $id=>$row)if($id!=='TG-DEFAULT-ONLINE-BANKING'&&($row['parentCode']??'')==='6800'&&!empty($row['active'])&&in_array(strtoupper(trim((string)($row['name']??''))),['WEB BANKING CHARGES','ONLINE BANKING CHARGES','ONLINE / WEB BANKING CHARGES'],true)){unset($out['TG-DEFAULT-ONLINE-BANKING']);break;}
+ if($e==='TG'){
+  $used=[];foreach((array)($s['journals']??[]) as $j)if(($j['entity']??'')==='TG'&&($j['status']??'')==='Posted')foreach((array)($j['lines']??[]) as $line)if(!empty($line['subaccountId']))$used[(string)$line['subaccountId']]=true;
+  foreach(array_keys($used) as $id){$seen=[];while(!empty($out[$id]['parentId'])&&!isset($seen[$id])){$seen[$id]=true;$id=(string)$out[$id]['parentId'];$used[$id]=true;}}
+  foreach($out as $id=>$row){$pakistanTemplate=isset($row['homePerson'])||($row['parentCode']??'')==='6910'||in_array($row['builtinCategory']??'',['HOME','ARP'],true)||str_starts_with((string)$id,'TG-DEFAULT-TAX-');
+   if($pakistanTemplate){if(isset($used[$id])){$out[$id]['active']=false;$out[$id]['historicalOnly']=true;}else unset($out[$id]);}
+  }
+ }
+ return $out;
 }
 function sac_resolve(array $s,string $e,string $id,bool $active=true):array {
  $accounts=sac_accounts($s,$e);$a=$accounts[$id]??null;if(!$a)throw new DomainException('Select a subaccount in these company books.');
