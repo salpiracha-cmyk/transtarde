@@ -224,7 +224,8 @@ function zip(entries,type){const encoder=new TextEncoder();return zipBytes(Objec
     if(refreshExisting&&!bankCover?.ready)throw new Error('Save the bank covering letter before refreshing this lot.');
 	  // Reuse only identical markup inside this confirmed snapshot; never cache across saves.
       const renderedPdfs=new Map(),renderPdf=markup=>{if(!renderedPdfs.has(markup))renderedPdfs.set(markup,pdf(markup,fit));return renderedPdfs.get(markup)};
-      const generatedRows=rows.filter(row=>row.render&&row.ready&&(!strictFinal||docCategory(row.name,row.key)!=='salesContract'));let prepared=0;const progress=stage=>{try{onProgress?.({stage,completed:prepared,total:generatedRows.length})}catch{}};
+      const needsCustomerContract=!isTG&&(bankDocumentRows||(isLcContract(c)?documentRows(c):[])).some(row=>docCategory(row.name)==='salesContract');
+      const generatedRows=rows.filter(row=>row.render&&row.ready&&(!strictFinal||docCategory(row.name,row.key)!=='salesContract'||needsCustomerContract));let prepared=0;const progress=stage=>{try{onProgress?.({stage,completed:prepared,total:generatedRows.length})}catch{}};
 	  for(const row of generatedRows){
 	   progress('Preparing '+row.name);
 	   const kind=separate(row.name,row.key),markup=row.render(),folder=row.folder?component(normalizedFolder(row.folder)):'',category=docCategory(row.name,row.key);
