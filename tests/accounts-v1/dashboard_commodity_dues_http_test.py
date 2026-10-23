@@ -48,6 +48,25 @@ with tempfile.TemporaryDirectory(prefix='dashboard-dues-') as directory:
         assert sum(r['amount'] for r in data['summaries']['commodity'])==400,data['summaries']['commodity']
         assert books.read_bytes()==before,'JV/advance display projection must not persist allocations or journals'
         assert json.loads(auth.read_text()).get('post_sequence')==sequence,'Read-only projections must not reserve Post IDs'
+        # SODA Centre shares that exact read-only projection with the dashboard.
+        fixture['commodityBills']['ROUND']['billDate']='2026-09-13'
+        fixture['commodityBills']['ROUND']['receiptAllocations'][0]['dueDate']='2026-09-19'
+        fixture['purchaseSodas']={};fixture['purchaseSodaLiftings']={};fixture['events']={}
+        for index,bill_id in enumerate(['ROUND','ADVANCE'],1):
+            soda_no='2699'+str(index);sid='S'+str(index);lifting_id='L'+str(index)
+            fixture['commodityBills'][bill_id]['sodas']=[soda_no]
+            fixture['purchaseSodas'][sid]={'id':sid,'entity':'TTI','sodaNo':soda_no,'sodaDate':'2026-09-14','commodity':'RICE','productStage':'READY','qtyFromKg':27000,'qtyToKg':27000,'expectedTrucks':1,'readyRoute':'EX_MILL','status':'Open'}
+            fixture['purchaseSodaLiftings'][lifting_id]={'entity':'TTI','sourceSodaId':sid,'soda':soda_no,'liftingId':lifting_id,'kg':27000,'date':'2026-09-20'}
+            fixture['events'][lifting_id]={'entity':'TTI','sourceKey':'EXMILL|'+sid+'|'+lifting_id,'billId':bill_id,'status':'Accepted / Liability Posted'}
+        books.write_text(json.dumps(fixture));before=books.read_bytes();sequence=json.loads(auth.read_text()).get('post_sequence')
+        status,data=request('/api/purchase_sodas.php?entity=TTI');assert status==200,(status,data)
+        sodas={r['sodaNo']:r for r in data['sodas']}
+        assert sodas['26991']['calculatedStatus']=='Completed' and sodas['26991']['payableOutstanding']==0,sodas
+        assert sodas['26992']['calculatedStatus']=='Payment Pending' and sodas['26992']['payableOutstanding']==400,sodas
+        assert books.read_bytes()==before and json.loads(auth.read_text()).get('post_sequence')==sequence,'SODA read wrote records or reserved Post IDs'
+        fixture['supplierAdvances']['ADV']['amount']=700;books.write_text(json.dumps(fixture));before=books.read_bytes()
+        status,data=request('/api/purchase_sodas.php?entity=TTI');assert status==200 and all(r['calculatedStatus']=='Completed' for r in data['sodas']),(status,data)
+        assert books.read_bytes()==before
         print('PASS dashboard source-linked settlements, paid/cancelled/draft exclusion, partial/held balances, company separation and zero financial writes')
     finally:
         server.terminate();server.wait(timeout=10);log.close()
