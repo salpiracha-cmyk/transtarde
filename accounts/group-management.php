@@ -5,6 +5,7 @@ require_once dirname(__DIR__).'/api/group_management_core.php';
 require_once dirname(__DIR__).'/runtime_html.php';
 $user=tt_require_login();$origin=($_GET['origin']??'accounts')==='directors'?'Directors':'Accounts';$kind=strtoupper((string)($_GET['kind']??'DAILY'));
 if(!in_array($kind,['CASHFLOW','ZAKAT','COSTING','DAILY'],true))$kind='DAILY';
+if($kind==='COSTING'){require_once dirname(__DIR__).'/api/directors_trading_core.php';if(dt_cost_permission($user)){header('Location: /directors/exporter-trading.php?tab=costing');exit;}}
 $allowed=array_values(array_filter(['CASHFLOW','ZAKAT','COSTING','DAILY'],static fn($k)=>gm_permission($user,$k,'View',$origin)));
 // Released Daily and Annual Zakat navigation each opens its own permitted workspace.
 if(in_array($kind,['DAILY','ZAKAT'],true))$allowed=array_values(array_intersect($allowed,[$kind]));

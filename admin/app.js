@@ -22,6 +22,7 @@
       ["tg","TG Documents"],["lcdraft","L/C Exchange Draft"],["print","Document Output"],["history","History & Versions"]
     ],
     Directors: [
+      ["exporter-trading","Exporter Sales & Purchases"],
       ["group-reports","Group Daily / Cashflow"],["costing","Rice / Corn Costing"],["zakat","Annual Zakat Assessment"],
       ["dashboard","Directors Dashboard"],["assets","Assets & Investments"],["tgmaster","TG Master"],
       ["alerts","Alerts & Renewals"],["approvals","Approvals"],["reports","Management Reports"],["brokerage","Brokerage Master"]

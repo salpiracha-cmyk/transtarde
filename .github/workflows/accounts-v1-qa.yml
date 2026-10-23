@@ -33,6 +33,9 @@ jobs:
           python3 tests/security/accounts_read_scope_test.py
           node tests/security/live_credential_artifact_test.js
           python3 tests/accounts-v1/staff_payment_amend_http_test.py
+          php tests/accounts-v1/directors_trading_test.php
+          python3 tests/accounts-v1/directors_trading_endpoint_test.py
+          node tests/accounts-v1/directors_trading_ui_test.js
           php tests/accounts-v1/group_management_test.php
           php tests/accounts-v1/group_zakat_payments_test.php
           php tests/accounts-v1/group_daily_test.php
