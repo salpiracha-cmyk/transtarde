@@ -135,15 +135,16 @@ function dt_payment(array &$s,array &$d,array $b,array $u,string $date):array {
     $lines=[ben_line($incoming?'1230':'2140',$incoming?0:$cents,$incoming?$cents:0,$meta),ben_bank_line($bank,$cents,1,$incoming,$tracking+$meta)];$j=ben_journal($s,$d['entity'],$date,$ref,($incoming?'Receipt from ':'Payment to ').$d['party'],$lines,$u,$meta+$tracking);$s['journals'][$j['id']]['sourceType']='FELLOW_EXPORTER_PAYMENT';$d['payments'][]=['postId'=>$j['id'],'date'=>$date,'amountPKR'=>$amount,'incoming'=>$incoming];return ['postId'=>$j['id']];
 }
 /** Costing market inputs are dated estimates; they never replace approved inventory cost. */
+function dt_market_key(string $product):string {$key=strtoupper(trim((string)preg_replace('/\s+/u',' ',$product)));return preg_match('/^B2\s*CSR$/',$key)?'B2 CSR':$key;}
 function dt_market_prices(array $s,string $date):array {
     $rows=(array)($s['directorCostings']??[]);usort($rows,static fn($a,$b)=>strcmp($a['date'],$b['date'])?:strcmp($a['savedAt']??'',$b['savedAt']??''));$out=[];
-    foreach($rows as $r){if($r['date']>$date)continue;$i=$r['input'];$entity=$r['entity'];$add=static function(string $product,mixed $rate)use(&$out,$r,$entity):void {if($product===''||$rate===null||$rate===''||!is_numeric($rate))return;$out[$entity.'|'.strtoupper(trim($product))]=['product'=>$product,'ratePKRPerKg'=>(float)$rate,'date'=>$r['date'],'costingId'=>$r['id']];};
+    foreach($rows as $r){if($r['date']>$date)continue;$i=$r['input'];$entity=$r['entity'];$add=static function(string $product,mixed $rate)use(&$out,$r,$entity):void {if($product===''||$rate===null||$rate===''||!is_numeric($rate))return;$out[$entity.'|'.dt_market_key($product)]=['product'=>$product,'ratePKRPerKg'=>(float)$rate,'date'=>$r['date'],'costingId'=>$r['id']];};
         foreach((array)($i['outputs']??[]) as $o)if(($o['kind']??'')==='byproduct')$add((string)$o['product'],$o['ratePKRPerKg']??null);
         $kg=match($i['purchaseUnit']??'KG'){'MAUND'=>40.,'MT'=>1000.,default=>1.};$add((string)($i['marketRawProduct']??''),isset($i['cashPrice'])?(float)$i['cashPrice']/$kg:null);$add((string)($i['marketFinishedProduct']??''),$i['marketFinishedPKRPerKg']??null);
     }return $out;
 }
 function dt_stock_valuation(array $stocks,array $financials,array $books,string $date):array {
-    $prices=dt_market_prices($books,$date);$rows=[];$missing=[];$total=0.;foreach($stocks as $stock){$qty=(float)$stock['quantityMT'];if(abs($qty)<.000001)continue;$key=$stock['entity'].'|'.strtoupper(trim((string)$stock['product']));$rate=$prices[$key]??null;
+    $prices=dt_market_prices($books,$date);$rows=[];$missing=[];$total=0.;foreach($stocks as $stock){$qty=(float)$stock['quantityMT'];if(abs($qty)<.000001)continue;$key=$stock['entity'].'|'.dt_market_key((string)$stock['product']);$rate=$prices[$key]??null;
         if(!$rate||empty($stock['known'])||$qty<0){$missing[]=$stock['entity'].' / '.$stock['product'];$value=null;}else{$value=round($qty*1000*$rate['ratePKRPerKg'],2);$total+=$value;}$rows[]=['stockId'=>$stock['id'],'entity'=>$stock['entity'],'product'=>$stock['product'],'quantityMT'=>$qty,'ratePKRPerKg'=>$rate['ratePKRPerKg']??null,'valuePKR'=>$value,'rateDate'=>$rate['date']??'','costingId'=>$rate['costingId']??''];
     }
     $book=0.;foreach($financials as $row)if(in_array($row['entity']??'',['TTI','BRM'],true)&&in_array($row['account']??'',['1310','1320','1330'],true)&&empty($row['excluded']))$book+=(float)$row['amount'];$complete=!$missing&&count($rows)>0;
