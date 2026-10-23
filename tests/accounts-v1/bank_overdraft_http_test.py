@@ -80,7 +80,11 @@ with tempfile.TemporaryDirectory(prefix='bank-overdraft-qa-') as temp:
         assert_post('tg_bank_transfer',action='post_transfer',direction='USD_TO_AED',usdAmount=500,rate=3.67,sourceBankId='usd',destinationBankId='aed',notes='Working capital conversion')
         assert_post('internal_bank_transfers',entity='TG',action='post_transfer',sourceBankId='usd',destinationBankId='usd2',amount=300,narration='Working capital transfer')
         personal=assert_post('internal_bank_transfers',entity='TG',action='post_transfer',sourceBankId='usd',destinationBankId='owner',amount=25,narration='Owner advance')
-        assert personal['journal']['sourceType']=='PERSONAL_BANK_ADVANCE'
+        assert personal['journal']['sourceType']=='INTERNAL_BANK_TRANSFER'
+        assert personal['journal']['lines'][0]['account']=='1110'
+        assert personal['journal']['lines'][0]['bankAccountId']=='owner'
+        assert personal['journal']['lines'][0]['bankDebit']==25
+        assert not any(l['account']=='1230' for l in personal['journal']['lines'])
         cross=assert_post('internal_bank_transfers',entity='BRM',action='post_transfer',sourceBankId='brm',destinationBankId='tti-owner',amount=100,reference='BRM-X-1',narration='Intercompany advance')
         mirror=cross['mirrorJournal'];assert mirror['entity']=='TTI' and mirror['id']!=cross['journal']['id']
         assert [(line['account'],line['debit'],line['credit']) for line in cross['journal']['lines']]==[('1240',100,0),('1110',0,100)]

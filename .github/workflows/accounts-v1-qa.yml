@@ -119,6 +119,7 @@ jobs:
           node tests/accounts-v1/broker_brokery_master_test.js
           node tests/accounts-v1/planned_voucher_test.js
           php tests/accounts-v1/soda_completion_test.php
+          php tests/accounts-v1/company_party_choices_test.php
           node tests/accounts-v1/soda_milling_routing_test.js
           node tests/accounts-v1/soda_master_compatibility_test.js
           python3 tests/accounts-v1/purchase_master_kat_link_test.py
@@ -383,6 +384,8 @@ jobs:
           python3 tests/accounts-v1/shipment_posting_evidence_test.py
           node tests/accounts-v1/party_payment_amend_ui_test.js
           node tests/accounts-v1/party_voucher_display_test.js
+          node tests/accounts-v1/company_party_choices_ui_test.js
+          node tests/accounts-v1/desk_transition_test.js
           node tests/accounts-v1/post_confirmation_ownership_test.js
           node tests/accounts-v1/salary_voucher_review_test.js
           node tests/accounts-v1/workspace_response_ownership_test.js

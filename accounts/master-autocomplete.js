@@ -7,7 +7,11 @@
   const unique = values => [...new Map(values.map(clean).filter(Boolean).map(name=>[identity(name),name])).values()].sort((a,b)=>a.localeCompare(b));
   const active = row => clean(row?.values?.[10] || 'Active').toLowerCase() !== 'inactive';
   const categories = row => clean(row?.values?.[2]).replace(/Shipping Line\s*\/\s*Carrier/ig,'Shipping Line and Carrier').split(/[;,/|]/).map(value => value.trim().toLowerCase().replace('shipping line and carrier','shipping line / carrier'));
-  const partyNames = (...roles) => unique((masters.business_parties || []).filter(row => active(row) && roles.some(role => categories(row).includes(role.toLowerCase()))).map(row => row.values[0]));
+  const scopeCache=new Map(),scopePending=new Set();
+  const selectedCompany=()=>localStorage.getItem('tt_accounts_entity')||'TTI';
+  function companyParty(row){let profile={};try{profile=JSON.parse(row?.values?.[12]||'{}');}catch(_){}const company=selectedCompany();if(Array.isArray(profile.accountingCompanies))return profile.accountingCompanies.includes(company);return company!=='TG'||scopeCache.get(company)?.has(String(row.id));}
+  function loadCompanyScope(){const company=selectedCompany();if(company!=='TG'||scopeCache.has(company)||scopePending.has(company))return;scopePending.add(company);fetch('../api/accounts_party_choices.php?entity='+encodeURIComponent(company),{credentials:'same-origin',headers:{Accept:'application/json'}}).then(r=>r.json()).then(data=>{if(data.ok&&data.entity===company)scopeCache.set(company,new Set(data.businessPartyIds.map(String)));}).catch(()=>{}).finally(()=>scopePending.delete(company));}
+  const partyNames = (...roles) => unique((masters.business_parties || []).filter(row => active(row) && companyParty(row) && roles.some(role => categories(row).includes(role.toLowerCase()))).map(row => row.values[0]));
   const customerNames = () => unique((masters.export_customers || []).filter(active).map(row => row.values[0]));
   const productNames = () => unique((masters.purchase_products || []).filter(row => clean(row?.values?.[8] || 'Active').toLowerCase() === 'active').map(row => {
     const v = row.values || [], legacy = /^(RAW|READY|FINISHED)$/i.test(clean(v[2]));
@@ -18,7 +22,7 @@
     forwarder:partyNames('Freight Forwarder'), freight:partyNames('Freight Forwarder','Shipping Line / Carrier'), clearing:partyNames('Clearing Agent'),
     transporter:partyNames('Transporter'), fumigation:partyNames('Fumigation'), inspection:partyNames('Inspection'),
     service:partyNames('Service Provider'), shipping:partyNames('Shipping Line / Carrier'),
-    parties:unique([...(masters.business_parties || []).filter(active).map(row => row.values[0]),...customerNames()]),
+    parties:unique([...(masters.business_parties || []).filter(row=>active(row)&&companyParty(row)).map(row => row.values[0]),...customerNames()]),
     locations:unique((masters.mills || []).filter(row => clean(row?.values?.[5] || 'Active').toLowerCase() === 'active').map(row => row.values[0])),
     products:productNames(), commodities:unique((masters.commodities || []).map(row => row?.values?.[0]))
   });
@@ -44,9 +48,13 @@
     const roleFields=kind==='party'&&(canEdit||!row)?'<fieldset class="tt-party-roles"><legend>Party categories</legend>'+partyRoles.map(role=>'<label class="tt-party-role"><input type="checkbox" name="partyRole" value="'+role+'" '+(chosenRoles.includes(role.toLowerCase())?'checked':'')+'> '+role+'</label>').join('')+'</fieldset>':'';
     let serviceProfile={};try{serviceProfile=JSON.parse(values[12]||'{}').service||{};}catch(_){}
     const serviceFields=type==='business_parties'?'<fieldset data-service-accounting hidden><legend>Service provider accounting</legend><label>Service / profession<input name="serviceType" maxlength="120" data-master-ignore></label><label>Default expense head<select name="serviceExpense"><option value="">Choose expense head</option></select></label><p>New expenses use this head. Existing invoices are paid against their outstanding balance.</p></fieldset>':'';
+    const currentCompany=window.TT_BANK_WORKSPACE?.entity?.()||localStorage.getItem('tt_accounts_entity')||'TTI';
+    let companyProfile={};try{companyProfile=JSON.parse(values[12]||'{}');}catch(_){}
+    const companyChoices=companyProfile.accountingCompanies||(row?['TTI','BRM',...(currentCompany==='TG'?['TG']:[])]:[currentCompany]);
+    const companyFields=type==='business_parties'&&(canEdit||!row)?'<fieldset><legend>Available in Accounts</legend>'+['TTI','BRM','TG'].map(code=>'<label style="display:inline-flex;align-items:center;gap:6px;margin-right:14px"><input type="checkbox" name="accountingCompany" value="'+code+'" '+(companyChoices.includes(code)?'checked':'')+'> '+code+'</label>').join('')+'</fieldset>':'';
     dialog.replaceChildren();
     const form = document.createElement('form'); form.method = 'dialog';
-    form.innerHTML = `<h3>${row ? 'Edit' : 'Add'} ${label}</h3><p>Saved in Super Admin ${type === 'export_customers' ? 'Export Customers' : 'Business Parties'}.</p>${row&&!canEdit?'<p>Changes to this name require Master Edit permission.</p>':`<label>Name<input name="partyName" required maxlength="180"></label>${type === 'export_customers' ? '<label>Document address<textarea name="address" required rows="3"></textarea></label>' : ''}`}${typeFields}${roleFields}${serviceFields}<p class="tt-party-editor-error" role="alert"></p><div style="display:flex;justify-content:flex-end;gap:8px">${row?((access.super||(access.masterPermissions?.[type]||[]).includes('Deactivate'))?'<button type="button" data-delete>Delete</button>':'<button type="button" data-request-removal>Request removal</button>'):''}<button type="button" data-cancel>Cancel</button>${row&&!canEdit?'':'<button type="submit">Save</button>'}</div>`;
+    form.innerHTML = `<h3>${row ? 'Edit' : 'Add'} ${label}</h3><p>Saved in Super Admin ${type === 'export_customers' ? 'Export Customers' : 'Business Parties'}.</p>${row&&!canEdit?'<p>Changes to this name require Master Edit permission.</p>':`<label>Name<input name="partyName" required maxlength="180"></label>${type === 'export_customers' ? '<label>Document address<textarea name="address" required rows="3"></textarea></label>' : ''}`}${typeFields}${roleFields}${companyFields}${serviceFields}<p class="tt-party-editor-error" role="alert"></p><div style="display:flex;justify-content:flex-end;gap:8px">${row?((access.super||(access.masterPermissions?.[type]||[]).includes('Deactivate'))?'<button type="button" data-delete>Delete</button>':'<button type="button" data-request-removal>Request removal</button>'):''}<button type="button" data-cancel>Cancel</button>${row&&!canEdit?'':'<button type="submit">Save</button>'}</div>`;
     if(form.elements.serviceExpense){
       form.elements.serviceType.value=serviceProfile.type||'';
       const syncService=()=>{const selected=kind==='service'||(kind==='party'?Array.from(form.querySelectorAll('[name=partyRole]:checked')).some(i=>i.value==='Service Provider'):chosenRoles.includes('service provider'));form.querySelector('[data-service-accounting]').hidden=!selected;form.elements.serviceExpense.required=selected;};
@@ -79,6 +87,7 @@
       if (type === 'export_customers') { values[3] = clean(form.elements.address.value); values[10] = values[10] || 'Active'; }
       else { const roles = new Set(clean(values[2]).split(/[;,]/).filter(Boolean).map(value => value.trim())); if(kind==='party'){roles.clear();form.querySelectorAll('[name=partyRole]:checked').forEach(input=>roles.add(input.value));if(!roles.size){form.querySelector('.tt-party-editor-error').textContent='Select at least one category.';return}}else if(roleFor(kind))roles.add(roleFor(kind)); values[2] = [...roles].join('; '); values[10] = values[10] || 'Active'; }
       if(type==='business_parties'&&form.elements.serviceExpense){let profile={};try{profile=JSON.parse(values[12]||'{}');}catch(_){}const service=values[2].split('; ').includes('Service Provider');profile.service={type:clean(form.elements.serviceType.value),expenseAccountCode:service?form.elements.serviceExpense.value:''};values[12]=JSON.stringify(profile);}
+      if(type==='business_parties'&&form.querySelector('[name=accountingCompany]')){let profile={};try{profile=JSON.parse(values[12]||'{}');}catch(_){}profile.accountingCompanies=Array.from(form.querySelectorAll('[name=accountingCompany]:checked')).map(i=>i.value);if(!profile.accountingCompanies.length){form.querySelector('.tt-party-editor-error').textContent='Choose at least one company.';return;}values[12]=JSON.stringify(profile);}
       const save = form.querySelector('[type="submit"]'); save.disabled = true;
       try {
         const response = await fetch('../api/masters.php',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({action:row?'update':'create',type,id:row?.id || '',values,csrf:access.csrf})});
@@ -140,6 +149,7 @@
     input.addEventListener('focus',()=>render(true));input.addEventListener('click',()=>{if(menu.hidden)render(true)});input.addEventListener('input',()=>render(false));input.addEventListener('keydown',event=>{if(event.key==='Escape'&&!menu.hidden){event.preventDefault();event.stopPropagation();close();return;}if(['ArrowDown','ArrowUp'].includes(event.key)){event.preventDefault();event.stopPropagation();if(menu.hidden)render(true);const choices=[...menu.querySelectorAll('.tt-option-row>button:first-child')];if(choices.length){activeIndex=activeIndex<0?(event.key==='ArrowDown'?0:choices.length-1):(activeIndex+(event.key==='ArrowDown'?1:-1)+choices.length)%choices.length;choices.forEach((b,i)=>{b.classList.toggle('tt-keyboard-active',i===activeIndex);b.setAttribute('aria-current',String(i===activeIndex));});const active=choices[activeIndex];input.setAttribute('aria-activedescendant',active.id);active.scrollIntoView({block:'nearest'});}return;}if(event.key==='Enter'&&!menu.hidden){event.preventDefault();event.stopPropagation();const choices=menu.querySelectorAll('.tt-option-row>button:first-child');(choices[activeIndex]||choices[0])?.click()}});input.addEventListener('blur',()=>setTimeout(()=>{if(!menu.contains(document.activeElement))close()},150));
   }
   function refresh() {
+    loadCompanyScope();
     for (const [name,items] of Object.entries(lists())) {
       let list = document.getElementById('tt-master-' + name);
       if (!list) { list = document.createElement('datalist'); list.id = 'tt-master-' + name; document.body.appendChild(list); }
@@ -162,7 +172,7 @@
   }
   let queued = false;
   const observer = new MutationObserver(records => { if(!records.some(r=>[...r.addedNodes].some(n=>n.nodeType===1&&(n.matches?.('input,select')||n.querySelector?.('input,select')))))return; if (queued) return; queued = true; requestAnimationFrame(() => { queued = false; refresh(); }); });
-  const start = () => { refresh(); observer.observe(document.body,{childList:true,subtree:true}); };
+  const start = () => { loadCompanyScope(); refresh(); observer.observe(document.body,{childList:true,subtree:true}); };
   document.addEventListener('change',event => { if (event.target?.id === 'svKind') refresh(); });
   window.TT_ACCOUNTS_MASTER_CHOICES = {
     refresh: newMasters => { if (newMasters) { masters = newMasters; access.masters = newMasters; } refresh(); },
