@@ -85,10 +85,39 @@
   for(const areas of [pakistanAreas,tgAreas])for(const area of areas)if(area.key.endsWith('reports'))area.actions=area.actions.filter(a=>!(a.native==='reports'&&a.find==='Trial Balance')&&!(areas===tgAreas&&a.special==='withholding-report'));
   if(access.canGroupDaily)for(const areas of [pakistanAreas,tgAreas])areas.find(area=>area.key.endsWith('reports')).actions.unshift({title:'Group Daily Position',note:'Shared bank balances, stock and original purchase/sale commitments',special:'group-daily'});
   if(access.canGroupZakat)for(const areas of [pakistanAreas,tgAreas])areas.find(area=>area.key.endsWith('reports')).actions.push({title:'Annual Zakat',note:'Yearly assessment, TTI control ledger, actual payments and carry-forward',special:'group-zakat'});
-  const currentAreas = () => entity() === 'TG' ? tgAreas : pakistanAreas;
 
   const assetPermission=access.super||access.permissions==='all'||(Array.isArray(access.permissions)?access.permissions.includes('View'):(access.permissions?.assets||[]).includes('View'));
   if(assetPermission)for(const areas of [pakistanAreas,tgAreas])areas.splice(3,0,{key:'assets',title:'Assets & Investments',note:'Properties, vehicles, company stockbrokers and share investments',actions:[]});
+
+  const areaLabels = {
+    bank:['BANK',''], 'petty-cash':['PETTY CASH',''], commodity:['PURCHASES','local sales'],
+    routine:['EXPENSES','salary/utility/credit cards'], exports:['EXPORT','receipts & expenses'],
+    assets:['ASSETS & INVESTMENTS',''], ledgers:['LEDGERS',''], reports:['REPORTS',''],
+    'tg-bank':['BANK',''], 'tg-routine':['EXPENSES',''], 'tg-receipts':['EXPORT','receipts & expenses'],
+    'tg-payments':['PURCHASES','party bills & payments'], 'tg-ledgers':['LEDGERS',''], 'tg-reports':['REPORTS','']
+  };
+  for (const areas of [pakistanAreas,tgAreas]) {
+    for (const area of areas) {
+      if (area.key==='exports'||area.key==='tg-payments') area.actions=area.actions.filter(a=>a.special!=='carry-forward'&&a.special!=='customer-receivables');
+      if (area.key==='bank'||area.key==='tg-bank') {
+        const order=['bank-entry','internal-bank-transfer','bank-finance','forward-booking','retention-remittance','reconciliation'];
+        area.actions=order.map(key=>area.actions.find(a=>(a.special||a.native)===key)).filter(Boolean);
+        const names=['BANK ENTRY','INTER ACCOUNT TRANSFER','BANK FINANCING','FORWARD BOOKING','RETENTION ACCOUNT','BANK RECONCILIATION'];
+        area.actions.forEach(a=>a.title=names[order.indexOf(a.special||a.native)]);
+      }
+      if (area.key.endsWith('reports')) area.actions.push({title:'CHANGE LOGS',special:'change-logs'});
+      if (areaLabels[area.key]) area.title=areaLabels[area.key][0]+(areaLabels[area.key][1]?' ('+areaLabels[area.key][1]+')':'');
+    }
+  }
+  // Keep TG expense and remittance workflows accessible in their relevant menus.
+  tgAreas.push({key:'tg-routine',title:'EXPENSES',actions:[{title:'Pay Expense',special:'expense-pay'}]});
+  tgAreas.find(a=>a.key==='tg-receipts').actions=tgAreas.find(a=>a.key==='tg-receipts').actions.filter(a=>a.special!=='customer-receivables');
+  tgAreas.find(a=>a.key==='tg-receipts').actions.push({title:'Review TG Remittances',special:'tg-remittances'});
+  const currentAreas = () => {
+    const areas=entity()==='TG'?tgAreas:pakistanAreas;
+    const order=entity()==='TG'?['tg-bank','tg-payments','tg-routine','tg-receipts','jv','assets','tg-ledgers','tg-reports']:['bank','petty-cash','commodity','routine','exports','jv','assets','ledgers','reports'];
+    return order.map(key=>key==='jv'?{key:'jv',title:'J.V',actions:[]}:areas.find(a=>a.key===key)).filter(Boolean);
+  };
 
   function installStyle() {
     if (q('#ttAccountingDeskStyle')) return;
@@ -127,6 +156,32 @@
     style.textContent += `.tt-area-card,.tt-action{transition:transform .18s ease,box-shadow .18s ease,background .18s ease}.tt-area-card{border-color:var(--tile-border,#d9e2e9);background:linear-gradient(145deg,var(--tile-tint,#fff),#fff 76%)}.tt-area-card .tt-area-glyph{background:var(--tile-icon,#e9f1ec);color:var(--tile-color,#28523d)}.tt-area-card:nth-child(6n+1){--tile-tint:#fff5ef;--tile-icon:#ffe3d0;--tile-color:#ad5d37;--tile-border:#f1d9c8}.tt-area-card:nth-child(6n+2){--tile-tint:#f0f9f5;--tile-icon:#d9f1e3;--tile-color:#287455;--tile-border:#d3e8d9}.tt-area-card:nth-child(6n+3){--tile-tint:#f1f6ff;--tile-icon:#deeaff;--tile-color:#375fa6;--tile-border:#d6e1f4}.tt-area-card:nth-child(6n+4){--tile-tint:#fff9e9;--tile-icon:#ffedbc;--tile-color:#9b7126;--tile-border:#f0e4bf}.tt-area-card:nth-child(6n+5){--tile-tint:#f7f2ff;--tile-icon:#eadffc;--tile-color:#6a50a0;--tile-border:#e5daf3}.tt-area-card:nth-child(6n){--tile-tint:#ecfafb;--tile-icon:#d3f1f4;--tile-color:#237b8c;--tile-border:#cfe9ec}.tt-action-list[data-area-palette] .tt-action{margin:5px;border:1px solid #dfe8eb;background:linear-gradient(100deg,var(--action-tint,#f8fcfd),#fff 62%);border-radius:12px;min-height:88px;align-items:center}.tt-action-list[data-area-palette] .tt-action:hover{box-shadow:0 7px 20px #162f4317;transform:translateY(-1px)}.tt-action-list[data-area-palette] .tt-action-mark{width:44px;height:44px;flex-basis:44px;background:var(--action-icon,#dff2ed);color:var(--action-color,#286e5f);border-radius:12px}.tt-action:nth-child(5n+1){--action-tint:#f0f9f5;--action-icon:#d9f1e3;--action-color:#287455}.tt-action:nth-child(5n+2){--action-tint:#f1f6ff;--action-icon:#deeaff;--action-color:#375fa6}.tt-action:nth-child(5n+3){--action-tint:#fff9ed;--action-icon:#ffedc8;--action-color:#97702a}.tt-action:nth-child(5n+4){--action-tint:#f8f3ff;--action-icon:#eadffc;--action-color:#6a50a0}.tt-action:nth-child(5n){--action-tint:#eefafb;--action-icon:#d3f1f4;--action-color:#237b8c}.tt-action-mark svg{width:24px;height:24px}`;
     style.textContent+='@keyframes ttDuePulse{50%{box-shadow:0 0 0 3px #e5a63788}}.tt-due-alert{animation:ttDuePulse 1.8s ease-in-out infinite}.tt-summary[data-summary="due"] b{font-size:18px;line-height:1.4}';
     style.textContent+=`.tt-inside-area #ttSummaryCards,.tt-inside-area #ttRecentSection,.tt-inside-area #ttPendingWork{display:none!important}.tt-desk-heading{padding:10px 16px;justify-content:flex-end}.tt-recent-scroll{max-height:340px;overflow:auto}.tt-recent-row{display:grid;grid-template-columns:100px 155px minmax(180px,1fr) 150px;align-items:center;gap:12px;width:100%;height:68px;overflow:hidden;border:0;border-bottom:1px solid #e3e9ed;background:white;padding:10px 16px;text-align:left;cursor:pointer}.tt-recent-row:hover,.tt-recent-row:focus-visible{background:#edf5f1}.tt-recent-row small{display:block;color:#657582;white-space:nowrap;text-overflow:ellipsis;overflow:hidden;max-width:100%}.tt-recent-row>span{min-width:0}.tt-recent-row>b:last-child{text-align:right}#ttPendingWork>summary{padding:14px 18px;cursor:pointer;font-weight:800}#ttRecentRefresh{margin-left:auto}@media(max-width:700px){.tt-recent-scroll{max-height:430px}.tt-recent-row{grid-template-columns:90px 1fr;gap:6px;height:86px}.tt-recent-row>b:last-child{text-align:left}}`;
+    style.textContent+=`
+      #ttAccountingDesk .tt-area-grid{gap:9px;padding:12px}
+      #ttAccountingDesk .tt-area-card{min-height:74px;padding:11px 14px;display:flex;align-items:center;gap:12px}
+      #ttAccountingDesk .tt-area-glyph{width:34px;height:34px;flex:0 0 34px;margin:0;border-radius:9px}
+      #ttAccountingDesk .tt-area-glyph svg{width:23px;height:23px}
+      #ttAccountingDesk .tt-area-card b{font-size:16px;line-height:1.25}
+      #ttAccountingDesk .tt-area-card small{font-size:12px;margin-top:3px;color:#425561}
+      #ttAccountingDesk .tt-action-list[data-area-palette] .tt-action{min-height:66px;padding:10px}
+      #ttAccountingDesk .tt-action b{font-size:16px}
+      #ttAccountingDesk .tt-action-list[data-area-palette] .tt-action-mark{width:34px;height:34px;flex-basis:34px}
+      #ttAccountingDesk .tt-summary{padding:10px 14px}
+      #ttAccountingDesk .tt-summary small{font-size:12px}
+      #ttAccountingDesk .tt-desk-main>section{margin-bottom:10px}
+      .tt-home-activity{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px}
+      .tt-home-activity>section{min-width:0;background:#fff;border:1px solid #dfe5ea;border-radius:12px;overflow:hidden}
+      .tt-home-activity .tt-work-head{min-height:46px;padding:8px 12px}
+      .tt-home-activity .tt-recent-scroll,.tt-home-activity .tt-queue{height:clamp(160px,24vh,260px);overflow:auto;overscroll-behavior:contain}
+      .tt-home-activity .tt-queue{padding:0 12px}
+      .tt-home-activity .tt-recent-row{grid-template-columns:78px 116px minmax(90px,1fr) 110px;height:66px;gap:8px;padding:8px;font-size:12px}
+      .tt-home-activity .tt-queue-row{grid-template-columns:72px minmax(0,1fr) auto;gap:8px}
+      .tt-home-activity .tt-queue-row b,.tt-home-activity .tt-queue-row span{font-size:13px;overflow-wrap:anywhere}
+      .tt-inside-area .tt-home-activity{display:none}
+      @media(max-width:1000px){.tt-home-activity .tt-recent-row{grid-template-columns:78px minmax(0,1fr);height:auto;min-height:86px}.tt-home-activity .tt-recent-row>b:last-child{text-align:left}}
+      @media(max-width:700px){.tt-home-activity{grid-template-columns:1fr}#ttAccountingDesk .tt-area-grid{grid-template-columns:repeat(2,minmax(0,1fr))}#ttAccountingDesk .tt-area-card{padding:10px;gap:8px}#ttAccountingDesk .tt-area-card b{font-size:14px}.tt-home-activity .tt-recent-scroll,.tt-home-activity .tt-queue{height:240px}}
+      @media(max-width:400px){#ttAccountingDesk .tt-area-grid{grid-template-columns:1fr}}
+`;
     document.head.appendChild(style);
   }
 
@@ -176,6 +231,7 @@
     if(action.special==='bank-entry')return window.TT_BANK_ENTRIES.open();
     if(action.special==='bank-finance')return window.TT_BANK_ENTRIES.open('','FINANCE');
     if(action.special==='subaccounts')return window.TT_SUBACCOUNTS.open('manage');
+    if(action.special==='change-logs')return openChangeLogs();
     if(action.special==='account-heads')return window.TT_SUBACCOUNTS.open('heads');
     if(action.special==='expense-recipients')return window.TT_ACCOUNT_PAYEES.open('EXPENSE');
     if(action.special==='withholding-report')return window.TT_SUBACCOUNTS.open('tax');
@@ -293,18 +349,16 @@
   }
 
   function deskMarkup() {
-    const markup = `<div id="ttAccountingDesk">
+    return `<div id="ttAccountingDesk">
       <div class="tt-desk-main">
         <section id="ttDeskOverview"><div class="tt-desk-heading"><input class="tt-search-main" aria-label="Search previous records" placeholder="Search transactions"></div>
-          <div class="tt-position" id="ttSummaryCards"><button class="tt-summary"><small>Bank Balance</small><b>Loading…</b><em>Hover for accounts</em></button><button class="tt-summary"><small>Commodity Bills Due</small><b>Loading…</b><em>Due-date detail</em></button><button class="tt-summary"><small>Local Receivables</small><b>Loading…</b><em>Customer detail</em></button><button class="tt-summary"><small>Customer / Export Receivables</small><b>Loading…</b><em>Currency detail</em></button></div>
+          <div class="tt-position" id="ttSummaryCards"><button class="tt-summary"><small>Bank Balance</small><b>Loading…</b></button><button class="tt-summary"><small>Commodity Bills Due</small><b>Loading…</b></button><button class="tt-summary"><small>Local Receivables</small><b>Loading…</b></button><button class="tt-summary"><small>Customer / Export Receivables</small><b>Loading…</b></button></div>
         </section>
         <section id="ttDeskWork"></section>
-        <section id="ttRecentSection"><div class="tt-work-head"><h2>Recent Transactions</h2><button type="button" class="btn" id="ttRecentRefresh">Refresh</button></div><div id="ttRecentTransactions" class="tt-recent-scroll" role="region" aria-label="Recent transactions" tabindex="0">Loading transactions…</div></section><details id="ttPendingWork" hidden><summary id="ttPendingCount">Pending Work</summary><div class="tt-queue" id="ttAttentionQueue"></div></details>
+        <div class="tt-home-activity"><section id="ttRecentSection"><div class="tt-work-head"><h2>Recent Transactions</h2><button type="button" class="btn" id="ttRecentRefresh">Refresh</button></div><div id="ttRecentTransactions" class="tt-recent-scroll" role="region" aria-label="Recent transactions" tabindex="0">Loading transactions…</div></section><section id="ttPendingWork"><div class="tt-work-head"><h2 id="ttPendingCount">Pending Work</h2></div><div class="tt-queue" id="ttAttentionQueue" role="region" aria-label="Pending work" tabindex="0"></div></section></div>
       </div>
     </div>`;
-    if(entity()!=='TG')return markup;
-    const pending=markup.match(/<details id="ttPendingWork"[\s\S]*?<\/details>/)?.[0]||'';
-    return markup.replace(pending,'').replace('<section id="ttRecentSection">',pending+'<section id="ttRecentSection">');
+
   }
 
   function iconPicture(kind) {
@@ -332,7 +386,7 @@
     const work = q('#ttDeskWork'); if (!work) return;
     const items = currentAreas();
     q('#ttAccountingDesk')?.classList.remove('tt-inside-area');
-    work.innerHTML = `<div class="tt-area-grid"><button type="button" class="tt-area-card" id="ttMainJV"><span class="tt-area-glyph">${iconPicture('jv')}</span><b>Journal Voucher</b></button>${items.map(area=>`<button type="button" class="tt-area-card" data-tt-area="${area.key}"><span class="tt-area-glyph">${iconPicture(area.key.startsWith('tg-')?area.key.slice(3):area.key)}</span><b>${esc(area.title)}</b></button>`).join('')}</div>`;
+    work.innerHTML = `<div class="tt-area-grid">${items.map(area=>{const [title,subtitle]=areaLabels[area.key]||[area.title,''];return `<button type="button" class="tt-area-card" ${area.key==='jv'?'id="ttMainJV"':`data-tt-area="${area.key}"`}><span class="tt-area-glyph">${iconPicture(area.key.startsWith('tg-')?area.key.slice(3):area.key)}</span><span><b>${esc(title)}</b>${subtitle?`<small><strong>(${esc(subtitle)})</strong></small>`:''}</span></button>`;}).join('')}</div>`;
     q('#ttMainJV',work).onclick=()=>launch({native:'jv'});
     qa('[data-tt-area]', work).forEach(button=>button.onclick=()=>button.dataset.ttArea==='petty-cash'?launch({special:'petty-cash'}):button.dataset.ttArea==='assets'?window.TT_ASSETS_UI?.open?.():showArea(button.dataset.ttArea));
     window.TT_ACCOUNT_BADGE_REFRESH?.();
@@ -373,7 +427,7 @@
       const reveal=special=>{if(!alive())return;const index=area.actions.findIndex(action=>action.special===special),slot=q('[data-pending-bank-action="'+index+'"]',work);if(!slot)return;slot.outerHTML=actionMarkup(area.actions[index],index);const button=q('[data-tt-action="'+index+'"]',work);if(button)button.onclick=()=>launch(area.actions[index]);};
       let failed=false;
       await Promise.allSettled(urls.map(async(url,index)=>{try{const response=await fetch(url,{credentials:'same-origin'});if(!response.ok)throw new Error('Bank option unavailable');const data=await response.json();if(!data.ok)throw new Error('Bank option unavailable');if(index===0&&(data.canCreate||(data.facilities||[]).some(f=>f.active)))reveal('bank-finance');if(index===1&&data.accounts?.some(a=>a.settings?.retentionAccount))reveal('retention-remittance');if(index===2&&(menuCompany==='TG'?(data.items||[]).length:((data.pendingTg||[]).length||(data.sources?.tgPackInvoices||[]).length||(data.receipts||[]).some(r=>r.remitter==='TG'))))reveal('tg-remittances');}catch{failed=true;}}));
-      if(failed&&alive()){const note=document.createElement('p');note.setAttribute('role','status');note.textContent='Some optional bank tools could not be checked. Reopen Bank & Cash to retry.';work.append(note);}
+      if(failed&&alive()){const note=document.createElement('p');note.setAttribute('role','status');note.textContent='Some optional bank tools could not be checked. Reopen BANK to retry.';work.append(note);}
     }
   }
 
@@ -400,7 +454,6 @@
   }
 
   function refreshEntityLabels() {
-    const pending=q('#ttPendingWork'),recent=q('#ttRecentSection');if(pending&&recent){if(entity()==='TG')recent.before(pending);else recent.after(pending);}
     const name = q('.entityBtn.active strong')?.textContent || entity();
     qa('[data-tt-entity-name]').forEach(node => { node.textContent = name; });
     showAreasHome();
@@ -426,10 +479,10 @@
         const headline=def.key==='bank'?(defaultBank?`${esc(defaultBank.currency||'PKR')} ${money(defaultBank.amount)}`:'No default account'):def.key==='due'?(first?`${esc(first.label)} · ${esc(first.currency||'PKR')} ${money(first.amount)} · ${esc(first.dateDisplay||first.date||'')}`:'No due payments'):Object.keys(totals).length?Object.entries(totals).map(([cur,value])=>`${esc(cur)} ${money(value)}`).join(' · '):(company==='TG'?'AED':'PKR')+' 0.00';
         let detail=rows.length?rows.slice(0,20).map(row=>`<div><b>${esc(row.entity?row.entity+' · ':'')}${esc(row.label||row.reference||'Account')}</b><br>${esc(row.reference||'')}${row.dateDisplay?' · '+esc(row.dateDisplay):''} · ${esc(row.currency||'PKR')} ${money(row.amount)}</div>`).join(''):'<div>No open balance.</div>';
         if(def.key==='export'){detail+=`<div>Companies: ${esc((data.customerReceivables?.entities||[]).join(', '))}</div>`;if(data.customerReceivables?.drafts?.length)detail+=`<div>${data.customerReceivables.drafts.length} draft invoice(s) excluded from the due total.</div>`;}
-        return `<button type="button" class="tt-summary ${def.key==='due'&&first&&first.date<=today()?'tt-due-alert':''}" data-summary="${def.key}"><small>${esc(def.label)}</small><b>${headline}</b><em>${esc(def.note)}</em><span class="tt-summary-pop">${detail}</span></button>`;
+        return `<button type="button" class="tt-summary ${def.key==='due'&&first&&first.date<=today()?'tt-due-alert':''}" data-summary="${def.key}"><small>${esc(def.label)}</small><b>${headline}</b><span class="tt-summary-pop">${detail}</span></button>`;
       }).join('');
        qa('[data-summary]',host).forEach(button=>button.onclick=()=>{const key=button.dataset.summary;if(key==='bank')launch({native:'bank'});else if(key==='due')showArea('routine');else if(key==='commodity'){if(entity()!=='TG')window.TT_PAYMENT_PLANS?.choose?.();else launch({native:'payables'});}else if(key==='export')openCustomerReceivables(data.customerReceivables);else launch({native:'receivables'});});
-      if(queue){const rows=data.attention||[];q('#ttPendingWork').hidden=!rows.length;q('#ttPendingCount').textContent='Pending Work ('+rows.length+')';queue.innerHTML=rows.length?rows.slice(0,12).map((row,i)=>`<div class="tt-queue-row"><span>${esc(row.type)}</span><b>${esc(row.message)}${row.reference?' · '+esc(row.reference):''}</b><button type="button" data-attention-review="${i}">Review</button></div>`).join(''):'<div class="tt-queue-row"><span>Current</span><b>No held or incomplete entries need attention.</b></div>';qa('[data-attention-review]',queue).forEach(button=>button.onclick=()=>reviewAttention(rows[Number(button.dataset.attentionReview)]));}
+      if(queue){const rows=data.attention||[];q('#ttPendingWork').hidden=false;q('#ttPendingCount').textContent='Pending Work ('+rows.length+')';queue.innerHTML=rows.length?rows.map((row,i)=>`<div class="tt-queue-row"><span>${esc(row.type)}</span><b>${esc(row.message)}${row.reference?' · '+esc(row.reference):''}</b><button type="button" data-attention-review="${i}">Review</button></div>`).join(''):'<div class="tt-queue-row"><span>Current</span><b>No held or incomplete entries need attention.</b></div>';qa('[data-attention-review]',queue).forEach(button=>button.onclick=()=>reviewAttention(rows[Number(button.dataset.attentionReview)]));}
     }catch(error){if(request!==dashboardLoad||company!==entity())return;qa('.tt-summary b',host).forEach(node=>node.textContent='Unavailable');if(queue){q('#ttPendingWork').hidden=false;q('#ttPendingCount').textContent='Pending Work · unavailable';queue.innerHTML='<div class="tt-queue-row" role="alert"><b>Refresh to load pending work.</b></div>';}console.warn('Accounts dashboard summary',error);}
   }
 
@@ -497,6 +550,20 @@
     return host;
   }
 
+  async function openChangeLogs(){
+    const company=entity(),host=layer('ttChangeLogs','Change Logs'),body=q('.tt-window-body',host);
+    body.innerHTML=`<div class="tt-action-list"><button type="button" class="tt-action" data-log-posts><b>Post ID Register &amp; Amendment History</b></button>${company!=='TG'?'<button type="button" class="tt-action" data-log-sodas><b>SODA Change History</b></button>':''}${access.super?'<button type="button" class="tt-action" data-log-admin><b>System &amp; Master Audit</b></button>':''}</div><p>Open a posting or SODA to see its recorded changes.</p><div data-log-content></div>`;
+    q('[data-log-posts]',body).onclick=()=>{q('.tt-window-close',host).click();window.TT_ALL_LEDGERS?.open?.('POSTS');};
+    const sodas=q('[data-log-sodas]',body);if(sodas)sodas.onclick=()=>{q('.tt-window-close',host).click();launch({special:'soda'});};
+    const admin=q('[data-log-admin]',body);if(admin)admin.onclick=async()=>{
+      const content=q('[data-log-content]',body);content.textContent='Loading audit…';admin.disabled=true;
+      try{const data=await json('../api/admin_audit.php');if(host.hidden||company!==entity())return;
+        content.innerHTML='<label>Search audit<input type="search" data-log-search></label><div class="tableWrap" style="max-height:55vh;overflow:auto"><table><thead><tr><th>Date</th><th>User</th><th>Area</th><th>Change</th></tr></thead><tbody>'+ (data.entries||[]).map(row=>'<tr data-log-row><td>'+esc(row.date)+'</td><td>'+esc(row.user)+'</td><td>'+esc(row.area)+'</td><td>'+esc(row.detail)+'</td></tr>').join('')+'</tbody></table></div>'+(data.entries?.length?'':'<p>No recorded administrative changes.</p>');
+        q('[data-log-search]',content).oninput=event=>qa('[data-log-row]',content).forEach(row=>row.hidden=!row.textContent.toLowerCase().includes(event.target.value.toLowerCase()));
+      }catch(error){if(!host.hidden&&company===entity())content.textContent=error.message;}finally{admin.disabled=false;}
+    };
+  }
+
   async function json(url, options) {
     const response = await fetch(url, {credentials:'same-origin', headers:{Accept:'application/json', ...(options?.headers || {})}, ...options});
     let data = {};
@@ -558,7 +625,7 @@
         <label class="wide">Remarks<textarea id="ttSdRemarks">${value('remarks')}</textarea></label>
         ${record ? '<label class="wide">Reason for Amendment<textarea id="ttSdReason" placeholder="Required. This is stored with the old and new values in the audit log." required></textarea></label>' : ''}
       </div>
-      <div class="tt-treatment"><strong>Accounting treatment before posting</strong><div class="tt-note">Saving a Soda creates an open purchase commitment only. It does not create a General Ledger entry.</div><div class="tt-note" id="ttSdPaymentHelp"></div><div class="tt-treatment-row"><span>Later</span><span>Approved arrival bill: Inventory / Purchase</span><b>Debit</b></div><div class="tt-treatment-row"><span>Later</span><span>Supplier Payable</span><b>Credit</b></div></div>
+      <div class="tt-treatment"><strong>Accounting treatment before posting</strong><div class="tt-note">A SODA records the purchase commitment. The bill is posted separately.</div><div class="tt-note" id="ttSdPaymentHelp"></div><div class="tt-treatment-row"><span>Later</span><span>Approved arrival bill: Inventory / Purchase</span><b>Debit</b></div><div class="tt-treatment-row"><span>Later</span><span>Supplier Payable</span><b>Credit</b></div></div>
       <div class="tt-form-actions"><button type="button" class="btn" id="ttSdReset">Cancel</button><button type="submit" class="btn green">${record ? 'Save Amendment' : 'Save Soda'}</button></div>
     </form>`;
   }
