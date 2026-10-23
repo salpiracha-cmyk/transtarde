@@ -11,6 +11,7 @@ try {
     if(!is_array($body))throw new DomainException('Invalid request.');$kind=strtoupper(gm_text($body['kind']??$_GET['kind']??'CASHFLOW',20));
     if(!in_array($kind,['CASHFLOW','ZAKAT','DAILY','COSTING'],true))throw new DomainException('Select a report.');
     if($kind==='DAILY')require_once __DIR__.'/group_daily_core.php';
+    if(in_array($kind,['DAILY','CASHFLOW'],true))require_once __DIR__.'/group_cashflow_comparison.php';
     if(!gm_permission($user,$kind,'View',$origin))gm_out(['ok'=>false,'error'=>'Shared group report permission and all company books are required.'],403);
     if($write){if(!tt_verify_csrf((string)($body['csrf']??'')))gm_out(['ok'=>false,'error'=>'Session expired. Refresh and try again.'],419);if(!gm_permission($user,$kind,'Create',$origin)&&!gm_permission($user,$kind,'Edit',$origin))gm_out(['ok'=>false,'error'=>'Report Create or Edit permission is required.'],403);}
     $date=gm_date($body['date']??$_GET['date']??(new DateTimeImmutable('now',new DateTimeZone('Asia/Karachi')))->format('Y-m-d'));

@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require __DIR__.'/../../api/group_management_core.php';
+require_once __DIR__.'/../../api/group_cashflow_comparison.php';
 function near(float $a,float $b,string $label):void {if(abs($a-$b)>.0001)throw new RuntimeException($label.': '.$a.' != '.$b);}
 function reject(callable $fn,string $label):void {try{$fn();}catch(DomainException $e){return;}throw new RuntimeException('Expected rejection: '.$label);}
 near(gm_property_value(['valuationBasis'=>'PREMIUM_PLUS_PAID','marketValue'=>7000000,'instalmentsPaid'=>3000000]),10000000.,'Owner premium plus actual instalments');
