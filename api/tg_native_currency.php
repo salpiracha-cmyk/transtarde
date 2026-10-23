@@ -7,7 +7,7 @@ function tgn_line(array $journal,array $line):array {
     $currency=strtoupper((string)($line['currency']??$line['bankCurrency']??$meta['currency']??$meta['transactionCurrency']??'AED'));
     if($currency==='')$currency='AED';
     $dr=$line['nativeDebit']??null;$cr=$line['nativeCredit']??null;
-    if(($line['account']??'')==='1110'){$dr=$line['bankDebit']??$dr;$cr=$line['bankCredit']??$cr;}
+    if(($line['account']??'')==='1110'){$dr=$currency==='AED'?($line['debit']??0):($line['bankDebit']??$dr);$cr=$currency==='AED'?($line['credit']??0):($line['bankCredit']??$cr);}
     if($dr===null&&isset($line['chargeNative'])){$dr=(float)($line['debit']??0)>0?$line['chargeNative']:0;$cr=(float)($line['credit']??0)>0?$line['chargeNative']:0;}
     if($dr===null&&isset($line['vatNative'])){$dr=(float)($line['debit']??0)>0?$line['vatNative']:0;$cr=(float)($line['credit']??0)>0?$line['vatNative']:0;}
     if($dr===null&&($meta['targetAccount']??'')===($line['account']??'')&&(isset($meta['settlementAmountNative'])||isset($meta['amountNative']))){

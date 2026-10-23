@@ -103,7 +103,7 @@ function far_payment(array &$s,array &$a,array $b,array $u):array {
                 $tracking=tt_accounts_bank_payment_details($b+['date'=>$date]);
                 // Free text references remain private. Cheque number is retained for bank reconciliation.
                 $publicTracking=$tracking;unset($publicTracking['paymentNarration'],$publicTracking['bankReference']);
-                $lines[]=far_line('1110',0,$bank,['bankAccountId'=>$id,'currency'=>$base,'bankDebit'=>0,'bankCredit'=>$bank]+$publicTracking);
+                $lines[]=far_line('1110',0,$bank,['bankAccountId'=>$id,'currency'=>$base,'bankDebit'=>0,'bankCredit'=>round($bank/100,2)]+$publicTracking);
             }
             $publicTracking=$tracking;unset($publicTracking['paymentNarration'],$publicTracking['bankReference']);
             $jid=far_journal($s,$a['entity'],$date,'ASSET_PAYMENT',$lines,$u,$publicTracking);
