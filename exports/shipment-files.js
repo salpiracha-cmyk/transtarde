@@ -203,7 +203,7 @@ function zip(entries,type){const encoder=new TextEncoder();return zipBytes(Objec
 	 const out=[],commercial=firstDoc(docs,'commercial'),packing=firstDoc(docs,'packing');
 	 for(const row of documentRows(c)){
 	  const total=num(row.original)+num(row.copies),category=docCategory(row.name);
-     if(category==='phyto')continue; // The issued original travels as a separate bank attachment.
+     if(category==='phyto'||(category==='coo'&&String(c?.seller||'').toUpperCase()==='TG'))continue; // Phyto stays separate; TG bank packs never include COO.
 	  if(['cover','tgProforma'].includes(category)&&String(c?.seller||'').toUpperCase()==='TG')continue;
 	  if(category==='commercial')out.push(...await labelledCommercialBlobs(commercial,row,fit,num(row.original),num(row.copies),renderPdf));
 	  else if(category==='packing')out.push(...await labelledCommercialBlobs(packing,row,fit,num(row.original),num(row.copies),renderPdf));
