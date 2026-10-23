@@ -163,9 +163,14 @@ function pl_payment_summary(array $s,array $p):array{
  foreach($p['rows'] as $a){$bill=$s['commodityBills'][$a['billId']]??$s['brokerageBills'][$a['billId']]??[];$billWht=(float)($bill['brokerageWithholding']??$bill['whtAmount']??0);$net=max(0,(float)($bill['brokerageGross']??$bill['acceptedBrokerage']??$bill['grossBrokerage']??0)-$billWht);$part=(float)($a['brokerageAmount']??0)+(($a['payableAccount']??'')==='2120'?(float)($a['logisticsAmount']??0):0);$tax=$net>.005?round($billWht*$part/$net,2):0;$atBill+=$tax;$brokerage+=$part+$tax;}
  return ['grossDues'=>round($p['total']+$atBill,2),'brokerageGross'=>round($brokerage,2),'whtAtBill'=>round($atBill,2),'whtNow'=>round($p['withholding'],2),'brokerageWht'=>round($atBill+$p['withholding'],2),'netPayment'=>$p['netPayment']];
 }
-function pl_project_rows(array $s,string $e,array $original,bool $byPayee):array{
+/** Read-only settlement projection shared by payment planning and SODA completion. */
+function pl_project_settlement_store(array $s,string $e,array $original,bool $byPayee):array{
  $preview=$s;
  foreach($original as $mode=>$rows){$groups=[];foreach($rows as $r)if(!$r['held'])$groups[$byPayee?$r['broker']:$r['group']][]=$r['rowKey'];foreach($groups as $group=>$keys)pl_apply_advances($preview,['username'=>'Advance allocation preview'],$e,$mode,$keys,$group,(new DateTimeImmutable('now',new DateTimeZone('Asia/Karachi')))->format('Y-m-d'),$byPayee,true);}
+ return $preview;
+}
+function pl_project_rows(array $s,string $e,array $original,bool $byPayee):array{
+ $preview=pl_project_settlement_store($s,$e,$original,$byPayee);
  foreach($original as $mode=>&$rows){$left=array_column(pl_raw_rows($preview,$e,$mode),'outstanding','rowKey');foreach($rows as &$r){$r['beforeAdvance']=$r['outstanding'];$r['advanceApplied']=round($r['outstanding']-(float)($left[$r['rowKey']]??0),2);$r['outstanding']=$left[$r['rowKey']]??0.0;$prepared=$r['outstanding']>.005?pl_prepare($preview,$e,[['billId'=>$r['billId'],'sourceKey'=>$r['sourceKey'],'amount'=>$r['outstanding']]]):['rows'=>[],'total'=>0.0,'netPayment'=>0.0,'withholding'=>0.0];$r['cashOutstanding']=$prepared['netPayment'];$r['paymentSummary']=pl_payment_summary($preview,$prepared);}unset($r);}unset($rows);
  return $original;
 }

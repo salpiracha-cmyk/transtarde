@@ -2,6 +2,11 @@
 declare(strict_types=1);
 
 require dirname(__DIR__) . '/auth_store.php';
+if(!defined('TT_SETTLEMENTS_FUNCTIONS_ONLY'))define('TT_SETTLEMENTS_FUNCTIONS_ONLY',true);
+require_once __DIR__.'/supplier_settlements.php';
+if(!defined('TT_PAYABLES_FUNCTIONS_ONLY'))define('TT_PAYABLES_FUNCTIONS_ONLY',true);
+require_once __DIR__.'/payables_planning.php';
+require_once __DIR__.'/payment_plan_core.php';
 header('Content-Type: application/json; charset=UTF-8');
 header('Cache-Control: no-store, no-cache, must-revalidate');
 
@@ -154,6 +159,10 @@ function ps_paid_for_bill(array $store, string $billId): float {
 }
 
 function ps_rows(array $store, string $entity): array {
+    // Match the payment dashboard on a copy: never post journals or save on reads.
+    $settlementStore = $store;
+    pl_link_round_journals($settlementStore, $entity);
+    $settlementStore = pl_project_settlement_store($settlementStore, $entity, ['PARTY'=>pl_raw_rows($settlementStore, $entity, 'PARTY')], true);
     $rows = [];
     foreach ((array)($store['purchaseSodas'] ?? []) as $id => $soda) {
         if (!is_array($soda) || strtoupper((string)($soda['entity'] ?? '')) !== $entity) continue;
@@ -167,7 +176,7 @@ function ps_rows(array $store, string $entity): array {
             if (strtoupper((string)($bill['commodity'] ?? $commodity)) !== $commodity || !in_array((string)($bill['status'] ?? ''), ['Verified / Posted','Posted','Approved / Posted'], true)) continue;
             $postedBills[(string)$billId] = $bill;
             $amount = round((float)($bill['supplierPayableTotal'] ?? $bill['finalCommodityValue'] ?? 0), 2);
-            $settled = ps_paid_for_bill($store, (string)$billId);
+            $settled = ps_paid_for_bill($settlementStore, (string)$billId);
             $billed += $amount; $paid += min($amount, $settled);
             $outstanding += max(0, round($amount - $settled, 2));
         }

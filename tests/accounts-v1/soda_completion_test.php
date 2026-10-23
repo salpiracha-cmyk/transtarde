@@ -1,5 +1,8 @@
 <?php
 declare(strict_types=1);
+define('TT_SETTLEMENTS_FUNCTIONS_ONLY',true);require_once __DIR__.'/../../api/supplier_settlements.php';
+define('TT_PAYABLES_FUNCTIONS_ONLY',true);require_once __DIR__.'/../../api/payables_planning.php';
+require_once __DIR__.'/../../api/payment_plan_core.php';
 // Execute the actual read projection, isolated from login/endpoint dispatch.
 $code=file_get_contents(__DIR__.'/../../api/purchase_sodas.php');
 $a=strpos($code,'function ps_paid_for_bill(');$b=strpos($code,'function ps_validate(',$a);
@@ -7,7 +10,7 @@ eval(substr($code,$a,$b-$a));
 define('PS_TRUCK_DOUBLE_KG',35000);define('PS_MAX_OVER_KG',950);
 function check_soda(bool $ok,string $why):void {if(!$ok)throw new RuntimeException($why);}
 $soda=['entity'=>'TTI','sodaNo'=>'26002','sodaDate'=>'2026-09-11','commodity'=>'RICE','productStage'=>'READY','qtyFromKg'=>81000,'qtyToKg'=>81000,'expectedTrucks'=>3,'readyRoute'=>'EX_MILL','status'=>'Open'];
-$s=['purchaseSodas'=>['P1'=>$soda],'commodityBills'=>['B1'=>['entity'=>'TTI','sodas'=>['26002'],'commodity'=>'RICE','status'=>'Verified / Posted','supplierPayableTotal'=>9000]],'supplierSettlements'=>['S1'=>['entity'=>'TTI','status'=>'Posted','allocations'=>[['billId'=>'B1','amount'=>9000,'paidAmount'=>8990,'discountAmount'=>10]]]]];
+$s=['purchaseSodas'=>['P1'=>$soda],'commodityBills'=>['B1'=>['id'=>'B1','broker'=>'Fixture Supplier','entity'=>'TTI','sodas'=>['26002'],'commodity'=>'RICE','status'=>'Verified / Posted','supplierPayableTotal'=>9000]],'supplierSettlements'=>['S1'=>['entity'=>'TTI','status'=>'Posted','allocations'=>[['billId'=>'B1','amount'=>9000,'paidAmount'=>8990,'discountAmount'=>10]]]]];
 for($i=1;$i<=3;$i++){$source='EXMILL|P1|L'.$i;$s['purchaseSodaLiftings']['L'.$i]=['entity'=>'TTI','sourceSodaId'=>'P1','soda'=>'26002','liftingId'=>'L'.$i,'kg'=>27000,'date'=>'2026-09-22'];$s['events']['E'.$i]=['entity'=>'TTI','sourceKey'=>$source,'status'=>'Accepted / Liability Posted','billId'=>'B1'];}
 $before=serialize($s);$r=ps_rows($s,'TTI')[0];check_soda($r['calculatedStatus']==='Completed'&&$r['payableOutstanding']===0.&&$r['completionBlockers']===[],'Fully delivered, posted and settled closes, including recorded discount');check_soda(serialize($s)===$before,'Read changed source');
 // Source/truck references remain authoritative when an earlier bill ID was replaced.
@@ -26,10 +29,19 @@ $t=$s;$t['events']['E3']['billId']='';$r=ps_rows($t,'TTI')[0];check_soda($r['cal
 $t=$s;$t['commodityBills']['B1']['status']='Reversed';check_soda(ps_rows($t,'TTI')[0]['calculatedStatus']==='Received / Bill Pending','Reversed bill counted');
 $t=$s;$t['purchaseSodaLiftings']['L3']['reversed']=true;check_soda(ps_rows($t,'TTI')[0]['calculatedStatus']==='Part Received','Reversed lifting counted');
 $t=$s;$t['purchaseSodaLiftings']['L3']['kg']=33000;check_soda(ps_rows($t,'TTI')[0]['calculatedStatus']==='Over Maximum — Review','Over maximum closes');
-$t=$s;$t['commodityBills']['B2']=$t['commodityBills']['B1'];$t['commodityBills']['B2']['supplierPayableTotal']=10;$t['supplierSettlements']['S1']['allocations'][0]['amount']=9010;check_soda(ps_rows($t,'TTI')[0]['payableOutstanding']===10.,'Overpaid bill masks another unpaid bill');
+$t=$s;$t['commodityBills']['B2']=$t['commodityBills']['B1'];$t['commodityBills']['B2']['id']='B2';$t['commodityBills']['B2']['supplierPayableTotal']=10;$t['supplierSettlements']['S1']['allocations'][0]['amount']=9010;check_soda(ps_rows($t,'TTI')[0]['payableOutstanding']===10.,'Overpaid bill masks another unpaid bill');
 $t=$s;$t['purchaseSodas']['P1']['readyRoute']='DELIVER_TO_STOCK';$t['purchaseSodaLiftings']=[];
 for($i=1;$i<=3;$i++){$t['events']['E'.$i]=['entity'=>'TTI','eventType'=>'COMMODITY_RECEIPT_ACCEPTED','journalId'=>'J'.$i,'billId'=>'B1'];$t['journals']['J'.$i]=['entity'=>'TTI','status'=>'Posted','meta'=>['soda'=>'26002','commodity'=>'RICE','payableWeightKg'=>27000]];}
 check_soda(ps_rows($t,'TTI')[0]['calculatedStatus']==='Completed','Delivered-to-stock completion failed');$t['events']['E3']['status']='Reversed';check_soda(ps_rows($t,'TTI')[0]['calculatedStatus']==='Part Received','Reversed receipt counted');
 foreach(['Completed','Short Closed','Cancelled'] as $status){$t=$s;$t['purchaseSodas']['P1']['status']=$status;check_soda(ps_rows($t,'TTI')[0]['calculatedStatus']===$status,'Explicit historical closure changed');}
+// SODA closure must include the same existing JV and advance projection as Planning.
+$t=$s;$t['supplierSettlements']=[];$t['commodityBills']['B1']['finalCommodityValue']=9000;
+$t['commodityBills']['B1']['receiptAllocations']=[['sourceKey'=>'EXMILL|P1|L1','supplierPayableShare'=>9000,'component'=>'COMMODITY','payee'=>'Fixture Supplier']];
+$t['journals']['JV-SETTLED']=['id'=>'JV-SETTLED','entity'=>'TTI','date'=>'2026-09-22','status'=>'Posted','sourceType'=>'JV','lines'=>[['account'=>'2110','counterparty'=>'Fixture Supplier','debit'=>5000,'credit'=>0],['account'=>'1110','debit'=>0,'credit'=>5000]]];
+$t['supplierAdvances']['ADV']=['id'=>'ADV','entity'=>'TTI','supplier'=>'Fixture Supplier','amount'=>4000,'allocatedAmount'=>0,'date'=>'2026-09-21','status'=>'Available / Unallocated'];
+$before=serialize($t);$r=ps_rows($t,'TTI')[0];check_soda($r['calculatedStatus']==='Completed'&&$r['payableOutstanding']===0.&&$r['paidAmount']===9000.,'JV and advance coverage omitted');check_soda(serialize($t)===$before,'JV/advance SODA projection persisted financial writes');
+$t['supplierAdvances']['ADV']['amount']=3999;$r=ps_rows($t,'TTI')[0];check_soda($r['calculatedStatus']==='Payment Pending'&&$r['payableOutstanding']===1.,'Partial advance closed SODA');
+$t['supplierAdvances']['ADV']['amount']=4000;$t['journals']['JV-SETTLED']['status']='Reversed';check_soda(ps_rows($t,'TTI')[0]['payableOutstanding']===5000.,'Reversed JV closed SODA');
+$t['journals']['JV-SETTLED']['status']='Posted';$t['journals']['JV-SETTLED']['entity']='BRM';check_soda(ps_rows($t,'TTI')[0]['payableOutstanding']===5000.,'Other entity JV closed SODA');
 check_soda(ps_rows($s,'BRM')===[],'Company scope leaked');
 echo "PASS SODA completion: committed receipts, individual bills, settled allocations, reversals, company scope, blockers, historical statuses and no writes\n";
