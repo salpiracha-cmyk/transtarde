@@ -59,7 +59,7 @@ for(const route of ['TTI','BRM','TG']){
  fixture.customs.invoiceValue=fixture.customs.openAccount=t.customsInvoiceValue(fixture,agreement);fixture.tgdocs={saved:true};
  const rows=t.shipmentFolderDocuments(fixture,agreement);
  assert.equal(rows.filter(row=>row.folder==='Custom documents'&&row.ready).length,3,route+' must include all reviewed Customs PDFs');
- assert.equal(rows.filter(row=>row.folder==='TG docs').length,route==='TG'?4:0,'optional empty relationship must not create an empty PDF');
+ assert.equal(rows.filter(row=>row.folder==='TG docs').length,route==='TG'?5:0,'TG defaults include a populated relationship letter');
  assert.ok(rows.filter(row=>['commercial','packing'].includes(row.key)).every(row=>!row.folder));
 }
 assert.deepEqual(JSON.parse(JSON.stringify(t.shipmentGDReferences({customs:{gdRefs:[]},bl:{gdRefs:[{number:'KPEX-SB-37338',date:'12-09-2026'}]}}))),[{number:'KPEX-SB-37338',date:'2026-09-12'}]);
@@ -176,7 +176,7 @@ const {chromium}=require('playwright'),path=require('path'),out=path.resolve(__d
 	  assert.equal(Buffer.from(await page.evaluate(path=>window.__savedFiles[path],savedPath)).subarray(0,4).toString(),'%PDF');
 	 }
   assert.ok(paths.some(path=>path.endsWith('/GD - GD.pdf')),route+' GD must be a separate PDF');
-  if(route==='TG')for(const name of ['Sales Contract / Proforma','Commercial Invoice','Packing List'])assert.ok(paths.some(path=>path.includes('/TG docs/')&&path.includes(name.replaceAll('/','-'))),name+' must be in TG docs');
+  if(route==='TG'){assert.ok(paths.some(path=>path.includes('/BANK DOCUMENTS/Sales Contract - Proforma ')),'Standalone TG bank proforma belongs in BANK DOCUMENTS');assert.ok(paths.some(path=>path.includes('/BANK DOCUMENTS/Bank Shipment Documents ')),'Combined TG pack belongs in BANK DOCUMENTS');assert.ok(!paths.some(path=>path.includes('/TG docs/')),'No loose legacy TG copies');}
  }
  // Completed reprints must bypass workspace writes; active documents still save before print.
  await page.evaluate(()=>{window.__qa.restorePrint();window.__reprintSaves=0;window.TT_SHARED_SYNC.saveNow=async()=>{window.__reprintSaves++;return{ok:true}};window.print=()=>{const label=document.querySelector('#printRoot .commercialCopyLabel'),buyer=document.querySelector('#printRoot .packingParties');window.__reprintResult={label:label?.textContent,clear:label&&buyer?label.getBoundingClientRect().bottom<=buyer.getBoundingClientRect().top:true};};});
