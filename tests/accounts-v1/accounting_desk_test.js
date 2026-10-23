@@ -23,7 +23,7 @@ const billTerms = fs.readFileSync('accounts/bill-payment-terms.js', 'utf8');
 assert(bundle.includes("'accounts-accounting-desk.js'"), 'professional Accounts desk must be loaded last');
 assert(desk.includes("master.id = 'ttMasterTop'"), 'Masters must be available through top-bar M');
 assert(desk.includes('New SODA') && desk.includes('Recent SODAs') && desk.includes('Search all SODAs') && !desk.includes('Search / Amend Soda'), 'Soda Centre must have one searchable recent register');
-assert(desk.includes('Saving a Soda creates an open purchase commitment only'), 'Soda form must explain that no GL entry is made');
+assert(desk.includes('A SODA records the purchase commitment. The bill is posted separately.'), 'Soda form must explain that no GL entry is made');
 assert(desk.includes('Reason for Amendment'), 'Soda amendment reason must be visible and compulsory');
 assert(desk.includes("title:'Bill Posting'") && !desk.includes("title:'Arrival / Rice Bill'"), 'purchase entry must use the approved Bill Posting label');
 assert(!desk.includes('class="btn tt-prev-direct"'), 'duplicate Search Previous button must not appear in the Purchases workspace');
