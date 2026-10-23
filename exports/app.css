@@ -494,3 +494,6 @@
 .tgProformaNotify{border:1px solid #222;margin:1.5mm 0;font-size:inherit}.tgProformaNotify .specimenParty{min-height:0;padding:1.5mm 2mm;font-size:inherit}.tgProformaManualSign{margin-top:3mm;font-size:inherit}.tgProformaSignGap{height:20mm}
 
 .tgPackWorkspace .tgNotifyToggle{display:flex!important;align-items:center;gap:8px}.tgPackWorkspace .tgNotifyToggle input{width:auto!important;margin:0}
+
+/* Existing TG proforma: stored acceptance artwork and optional receiver signing space. */
+.tgProformaAcceptance.hasNotifyParty{grid-template-columns:repeat(3,minmax(0,1fr));gap:4mm}.tgProformaAcceptance.hasNotifyParty .docAutoSign img{max-width:100%;object-fit:contain}.tgProformaAcceptance.hasNotifyParty>div{min-width:0;overflow-wrap:anywhere}
