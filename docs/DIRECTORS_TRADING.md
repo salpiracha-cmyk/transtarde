@@ -107,11 +107,14 @@ and forecast assumptions are collapsed. Saved costing supplies the latest dated
 FX estimate. External purchase coverage follows the linked agreed quantity.
 
 Costing is a separate compact sheet with inputs left and Cash, Udhaar and
-Financed Cash cost per MT on the right. Each input change requests a debounced,
-CSRF-protected read-only preview using the same calculation as Save. Preview
-requires View, uses a shared lock, returns only the result, and never changes
-records, revisions, rates, journals or request logs. Stale preview responses cannot
-replace newer results. There is no Calculate button and no automatic save.
+Financed Cash cost per MT on the right. Each input change calculates locally using the explicitly loaded recipe, dated
+rules and aggregate daily facility-principal snapshot. Typing makes no preview
+requests and does not depend on connectivity after loading the screen. Explicit
+Save still validates all figures against current server sources, permissions,
+CSRF, stale versions and retry identity. Connection failures preserve the form and
+never confirm a save. The legacy read-only preview endpoint remains compatible.
+PHP/JavaScript parity checks cover all source profiles, terms, packing, cash,
+udhaar, manual and facility finance, and dated assumptions.
 
 Finance details, exact stock mappings and dated-rate administration are behind
 Options. Standard desktop layouts fit one viewport at 1440x900, 1280x800 and
@@ -142,3 +145,22 @@ remains unchanged for the owner's planned migration.
 All financial verification above uses disposable test books. This release does
 not insert sample invoices, bank transactions, stock or exporter agreements into
 live company records. Source/report reads are checked for byte-preserving behavior.
+
+
+## Cash-flow comparison
+
+Group Cashflow and Group Daily Position capture their comparison only on an
+explicit report save. Each dated report compares with the nearest earlier saved
+report of the same kind. On-screen and printed summaries show previous/new totals,
+major party-wise payments/receipts and their public Post IDs, with remaining rows
+expandable. CSV output carries the same comparison.
+
+Cash movement and other changes reconcile exactly to the change in report total.
+Paying an existing payable reduces cash and liability together; it does not charge
+an expense twice. Stock/receivable/payable/forecast changes and FX revaluation are
+identified separately. Snapshot identities detect backdated entries, amendments,
+removed transactions and reversals; transfers within a posting net to zero.
+Historical reports without transaction snapshots are labelled explicitly and use
+only movements dated after that historical report. Read/Print never refreshes or
+rewrites a saved comparison. Comparison history keeps compact summary metadata;
+no second accounting journal or physical-stock change is created.
