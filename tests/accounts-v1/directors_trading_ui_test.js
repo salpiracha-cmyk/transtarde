@@ -1,4 +1,5 @@
 const fs=require('node:fs'),assert=require('node:assert/strict'),{JSDOM}=require('jsdom');
+assert.ok(fs.existsSync('exporter-loading.php'),'Contribution page uses an authenticated root route');assert.equal(fs.readFileSync('exports/.htaccess','utf8').trim(),'Require all denied','Protected Exports source directory stays denied');assert.ok(!fs.readFileSync('exports/app.js','utf8').includes('/exports/exporter-loading.php'),'No dead contribution links under the denied directory');
 const profiles=JSON.parse(fs.readFileSync('directors/costing-profiles.json'));
 const html='<main><select id="dtEntity"><option>TTI</option><option>BRM</option></select><input id="dtDate" value="2026-10-23"><button id="dtRefresh">Refresh</button><nav id="dtTabs"><button data-tab="deals">Agreements</button><button data-tab="costing">Costing</button><button data-tab="cashflow">Cashflow</button><button data-tab="rules">Rules</button></nav><p id="dtMessage"></p><section id="dtWorkspace"></section></main>';
 const dom=new JSDOM(html,{url:'https://fixture.invalid/directors/exporter-trading.php?tab=costing',runScripts:'outside-only'}),w=dom.window,d=w.document;
