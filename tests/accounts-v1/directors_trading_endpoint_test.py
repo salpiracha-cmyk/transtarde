@@ -58,6 +58,13 @@ $r=json_decode(stream_get_contents(STDIN),true);$_GET=$r['query'];$_SERVER['REQU
  assert req({'action':'payment','id':deal_id,'version':4,'amountPKR':5000000,'bankId':'CASH|TTI','reference':'CASH-2'})[0]==422
  profile=json.loads((ROOT/'directors/costing-profiles.json').read_text())[0]
  costing={**profile,'date':'2026-10-23','fx':280,'whtPct':1.25,'bankPct':.1,'quantityMT':100,'incoterm':'FOB','packingAdjustment':0,'millVariety':'IRRI-6'}
+ preview_before=path.read_bytes()
+ status,preview=req({'action':'preview_costing','input':costing},area='costing',mode='read');assert status==200,preview
+ assert set(preview)=={'ok','calculation'} and path.read_bytes()==preview_before,'Automatic preview persisted or exposed records'
+ assert req({'action':'preview_costing','input':costing,'csrf':'bad'},area='costing',mode='read')[0]==419
+ assert req({'action':'preview_costing','input':costing},origin='exports',mode='exports')[0]==403
+ status,preview2=req({'action':'preview_costing','input':{**costing,'cashPrice':101}},area='costing',mode='read');assert status==200 and preview2['calculation']['costs']['cash']['costUSDPerMT']>preview['calculation']['costs']['cash']['costUSDPerMT'],preview2
+ assert path.read_bytes()==preview_before,'Preview changed revision, records, or journals'
  status,d=req({'action':'save_costing','input':costing},area='costing',mode='cost');assert status==200,d
  assert d['costings'][0]['calculation']['costs']['udhaar'] is None
  assert req({'action':'save_deal',**deal},area='costing',mode='cost')[0]==403

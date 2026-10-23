@@ -82,4 +82,8 @@ foreach(['Create','Edit','Approve'] as $right){
     $user=['role'=>'Staff','permissions'=>['Accounts'=>['View',$right]]];
     action_assert(tt_api_icon_write_allowed($user,'donations.php',['entity'=>'TTI'])===($right==='Create'),'Legacy flat '.$right.' lost its exact action');
 }
+$savedGet=$_GET;$_GET=['area'=>'costing'];
+action_assert(tt_api_write_grants('directors_trading.php',['action'=>'preview_costing'])===[['Directors','costing','View']],'Automatic costing preview must use View rather than a posting grant');
+action_assert(tt_api_write_grants('directors_trading.php',['action'=>'save_costing'])===[['Directors','costing','Create']],'Save remains an explicit Create action');
+$_GET=$savedGet;
 echo 'PASS action policy: '.$count." exact action, company pairing, upsert, alternative-owner and owner-role checks; no storage writes.\n";

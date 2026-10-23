@@ -1,8 +1,8 @@
 # Directors exporter agreements and costings
 
 Owner-approved implementation, 23 October 2026. The workspace is
-`/directors/exporter-trading.php`. Directors has two tiles: Exporter Sales &
-Purchases and Rice & Maize Costing. The same saved records are used for Accounts
+`/directors/exporter-trading.php`. Directors has separate Other Exporter
+Sale/Purchase and Costing tiles. Costing opens `/directors/costing.php`. The same saved records are used for Accounts
 journals, Exports contributions and Group Daily; no duplicate register replaces
 the existing forward bookings.
 
@@ -97,3 +97,21 @@ remain in CI. Desktop/mobile browser checks exercise layout and overflow.
 The new feature adds no live business agreements automatically. KAS's old SODA is
 retained for the owner to review/migrate after verifying the new agreement and
 linked postings, as requested. No live financial sample postings are used for QA.
+
+## Output-first Directors screens
+
+Other Exporter Sale/Purchase opens a read-only receivable/payable/quantity overview
+and register. New and amendment forms show commercial essentials; shipment links
+and forecast assumptions are collapsed. Saved costing supplies the latest dated
+FX estimate. External purchase coverage follows the linked agreed quantity.
+
+Costing is a separate compact sheet with inputs left and Cash, Udhaar and
+Financed Cash cost per MT on the right. Each input change requests a debounced,
+CSRF-protected read-only preview using the same calculation as Save. Preview
+requires View, uses a shared lock, returns only the result, and never changes
+records, revisions, rates, journals or request logs. Stale preview responses cannot
+replace newer results. There is no Calculate button and no automatic save.
+
+Finance details, exact stock mappings and dated-rate administration are behind
+Options. Standard desktop layouts fit one viewport at 1440x900, 1280x800 and
+1366x768; mobile stacks the panels. Only explicit Save persists a scenario.
