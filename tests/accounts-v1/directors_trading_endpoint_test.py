@@ -7,8 +7,9 @@ with tempfile.TemporaryDirectory(prefix='directors-trading-') as tmp:
  (root/'data').mkdir()
  (root/'auth_store.php').write_text('''<?php
 define('TT_DATA_DIR',__DIR__.'/data');define('TT_DB_HOST','');
-function tt_require_login(){return ['id'=>1,'username'=>'Fixture','role'=>'Staff'];}
-function tt_user_can_module_action($u,$m,$i,$a){$mode=$_GET['mode']??'all';if($mode==='deny')return false;if($mode==='read')return $a==='View';if($mode==='cost')return $m==='Directors'&&$i==='costing';if($mode==='exports')return $m==='Exports'&&$i==='loading';return true;}
+function tt_require_login(){return ['id'=>1,'username'=>'Fixture','role'=>'Staff','permissions'=>($_GET['mode']??'')==='exports-restricted'?['Exports'=>['loading'=>['View','Edit']],'Accounts'=>['entity-tti'=>['View','Edit']]]:['Exports'=>['loading'=>['View','Edit']]]];}
+function tt_user_can_open_module($u,$m){return !empty($u['permissions'][$m]);}
+function tt_user_can_module_action($u,$m,$i,$a){$mode=$_GET['mode']??'all';if($mode==='deny')return false;if($mode==='read')return $a==='View';if($mode==='cost')return $m==='Directors'&&$i==='costing';if(in_array($mode,['exports','exports-restricted']))return $m==='Exports'&&$i==='loading';return true;}
 function tt_user_can_access_entity($u,$e,$a){return $e==='TTI';}
 function tt_ensure_data_dir(){}function tt_release_read_session(){}function tt_verify_csrf($v){return $v==='fixture';}function tt_accounts_input(){return $GLOBALS['fixtureBody'];}
 function tt_list_masters(){return ['banks'=>[],'business_parties'=>[['id'=>'KAS','values'=>['KAS Commodities','','Supplier']]]];}
@@ -35,6 +36,7 @@ $r=json_decode(stream_get_contents(STDIN),true);$_GET=$r['query'];$_SERVER['REQU
  assert req(mode='deny')[0]==403
  assert req(entity='BRM')[0]==403
  status,d=req(area='costing',mode='cost');assert status==200 and 'deals' not in d and 'cashflow' not in d and 'banks' not in d,d
+ assert req(origin='exports',mode='exports-restricted',entity='BRM')[0]==403,'Explicit company scope was bypassed'
  status,d=req(origin='exports',mode='exports');assert status==200 and 'costings' not in d and 'banks' not in d,d
  deal={'action':'save_deal','date':'2026-10-01','partyId':'KAS','direction':'PURCHASE','arrangement':'FIXED','price':400,'quantityMT':100,'incoterm':'FOB','fx':280,'coverageMT':100,'contractRef':'TTI/AMT/1','reference':'KAS-1','requestKey':'create-contract-fixed'}
  assert req(deal,mode='read')[0]==403
@@ -44,6 +46,7 @@ $r=json_decode(stream_get_contents(STDIN),true);$_GET=$r['query'];$_SERVER['REQU
  assert req({**deal,'price':401})[0]==409
  assert req(deal,origin='exports',mode='exports')[0]==403
  load={'action':'loading','id':deal_id,'version':1,'shipmentId':'L1','quantityMT':40,'date':'2026-10-02'}
+ assert req({**load,'adjustments':[{'reason':'forged charge','amountPKR':1000}]},origin='exports',mode='exports')[0]==403,'Loading scope changed financial charges'
  status,d=req(load,origin='exports',mode='exports');assert status==200,d
  assert 'price' not in d['deals'][0] and 'working' not in d['deals'][0],d
  assert req({**load,'requestKey':'stale-version-request'})[0]==409

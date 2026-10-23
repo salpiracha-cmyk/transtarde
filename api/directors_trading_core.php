@@ -178,3 +178,13 @@ function dt_validate_coverage(array $s,array $d,array $root):void {
     if($d['coverageMT']<=0)return;$qty=0.;foreach((array)($root['contracts']??[]) as $c)if(($c['ref']??'')===$d['contractRef']){$qty=(float)($c['qty']??0);if($qty<=0)$qty=(float)($c['containers']??0)*(float)($c['weightPer']??0);}
     if($qty<=0)throw new DomainException('Record the original sales contract quantity before assigning external coverage.');$total=$d['coverageMT'];foreach((array)($s['exporterDeals']??[]) as $old)if(($old['id']??'')!==($d['id']??'')&&$old['direction']==='PURCHASE'&&$old['contractRef']===$d['contractRef'])$total+=$old['coverageMT'];if($total>$qty+.000001)throw new DomainException('External coverage agreements exceed the original sales contract quantity.');
 }
+/** Exports-only staff retain their existing operational company scope, not Accounts access. */
+function dt_entity_permission(array $u,string $entity,string $action,bool $loadingOnly=false):bool {
+    if(!$loadingOnly)return tt_user_can_access_entity($u,$entity,$action);
+    if(!tt_user_can_module_action($u,'Exports','loading',$action)||!in_array($entity,['TTI','BRM'],true))return false;
+    $p=$u['permissions']['Accounts']??[];$explicit=false;if(is_array($p))foreach(['entity-tti','entity-brm','entity-tg'] as $key)if(array_key_exists($key,$p))$explicit=true;
+    // An existing Accounts company matrix still restricts this user. Without one,
+    // Exports already authorizes the saved operational contracts across these books.
+    if($explicit||tt_user_can_open_module($u,'Accounts'))return tt_user_can_access_entity($u,$entity,$action);
+    return true;
+}
