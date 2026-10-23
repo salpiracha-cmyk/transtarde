@@ -19,7 +19,7 @@ jobs:
         with: {node-version: '22'}
       - name: JavaScript and JSON syntax
         run: |
-          find accounts exports admin tests/accounts-v1 -name '*.js' -print0 | xargs -0 -n1 node --check
+          find accounts exports admin directors tests/accounts-v1 -name '*.js' -print0 | xargs -0 -n1 node --check
           node -e "JSON.parse(require('fs').readFileSync('accounts/accounting_master_v1.json','utf8'))"
       - name: Document reader routing and backend checks
         run: |
@@ -33,6 +33,8 @@ jobs:
           python3 tests/security/accounts_read_scope_test.py
           node tests/security/live_credential_artifact_test.js
           python3 tests/accounts-v1/staff_payment_amend_http_test.py
+          php tests/accounts-v1/directors_trading_test.php
+          python3 tests/accounts-v1/directors_trading_endpoint_test.py
           php tests/accounts-v1/group_management_test.php
           php tests/accounts-v1/group_zakat_payments_test.php
           php tests/accounts-v1/group_daily_test.php
@@ -343,6 +345,7 @@ jobs:
           node tests/accounts-v1/monthly_tax_invoice_fixture.js
           node tests/accounts-v1/monthly_tax_pack_browser_test.js
           node tests/accounts-v1/sales_tax_output_ui_test.js
+          node tests/accounts-v1/directors_trading_ui_test.js
           node tests/accounts-v1/group_management_ui_test.js
           node tests/accounts-v1/group_daily_ui_test.js
           node tests/accounts-v1/withholding_ui_test.js

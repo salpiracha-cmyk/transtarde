@@ -1,0 +1,947 @@
+[
+  {
+    "id": "P1",
+    "name": "IRRI-6 5% silky",
+    "commodity": "RICE",
+    "cashPrice": 95,
+    "creditPrice": null,
+    "millingPKRPerKg": 3,
+    "otherFOBUSDPerMT": 18,
+    "otherFOBPKRPerMT": 0,
+    "purchaseUnit": "KG",
+    "outputs": [
+      {
+        "product": "Finished",
+        "kind": "finished",
+        "recoveryPct": 60.7,
+        "ratePKRPerKg": 0
+      },
+      {
+        "product": "B2",
+        "kind": "byproduct",
+        "recoveryPct": 34.0,
+        "ratePKRPerKg": 84
+      },
+      {
+        "product": "Powder",
+        "kind": "byproduct",
+        "recoveryPct": 2.0,
+        "ratePKRPerKg": 70
+      },
+      {
+        "product": "CSR",
+        "kind": "byproduct",
+        "recoveryPct": 3.0,
+        "ratePKRPerKg": 78
+      },
+      {
+        "product": "B1",
+        "kind": "byproduct",
+        "recoveryPct": 0,
+        "ratePKRPerKg": 0
+      },
+      {
+        "product": "B2 CSR",
+        "kind": "byproduct",
+        "recoveryPct": 0,
+        "ratePKRPerKg": null
+      },
+      {
+        "product": "B3",
+        "kind": "byproduct",
+        "recoveryPct": 0,
+        "ratePKRPerKg": null
+      },
+      {
+        "product": "Loss",
+        "kind": "waste",
+        "recoveryPct": 0.3,
+        "ratePKRPerKg": 0
+      }
+    ],
+    "source": "Salman: COSTING latest with makai(1).xlsx / milling cash ( DUBAI )",
+    "sourceExample": true
+  },
+  {
+    "id": "P2",
+    "name": "IRRI-6 10% silky",
+    "commodity": "RICE",
+    "cashPrice": 95,
+    "creditPrice": null,
+    "millingPKRPerKg": 3,
+    "otherFOBUSDPerMT": 18,
+    "otherFOBPKRPerMT": 0,
+    "purchaseUnit": "KG",
+    "outputs": [
+      {
+        "product": "Finished",
+        "kind": "finished",
+        "recoveryPct": 69.0,
+        "ratePKRPerKg": 0
+      },
+      {
+        "product": "B2",
+        "kind": "byproduct",
+        "recoveryPct": 25.0,
+        "ratePKRPerKg": 84
+      },
+      {
+        "product": "Powder",
+        "kind": "byproduct",
+        "recoveryPct": 3.0,
+        "ratePKRPerKg": 70
+      },
+      {
+        "product": "CSR",
+        "kind": "byproduct",
+        "recoveryPct": 3.0,
+        "ratePKRPerKg": 78
+      },
+      {
+        "product": "B1",
+        "kind": "byproduct",
+        "recoveryPct": 0,
+        "ratePKRPerKg": 0
+      },
+      {
+        "product": "B2 CSR",
+        "kind": "byproduct",
+        "recoveryPct": 0,
+        "ratePKRPerKg": null
+      },
+      {
+        "product": "B3",
+        "kind": "byproduct",
+        "recoveryPct": 0,
+        "ratePKRPerKg": null
+      },
+      {
+        "product": "Loss",
+        "kind": "waste",
+        "recoveryPct": 0,
+        "ratePKRPerKg": 0
+      }
+    ],
+    "source": "Salman: COSTING latest with makai(1).xlsx / milling cash ( DUBAI )",
+    "sourceExample": true
+  },
+  {
+    "id": "P3",
+    "name": "IRRI-6 15% silky",
+    "commodity": "RICE",
+    "cashPrice": 95,
+    "creditPrice": null,
+    "millingPKRPerKg": 3,
+    "otherFOBUSDPerMT": 18,
+    "otherFOBPKRPerMT": 0,
+    "purchaseUnit": "KG",
+    "outputs": [
+      {
+        "product": "Finished",
+        "kind": "finished",
+        "recoveryPct": 70.0,
+        "ratePKRPerKg": 0
+      },
+      {
+        "product": "B2",
+        "kind": "byproduct",
+        "recoveryPct": 24.0,
+        "ratePKRPerKg": 84
+      },
+      {
+        "product": "Powder",
+        "kind": "byproduct",
+        "recoveryPct": 3.0,
+        "ratePKRPerKg": 70
+      },
+      {
+        "product": "CSR",
+        "kind": "byproduct",
+        "recoveryPct": 3.0,
+        "ratePKRPerKg": 78
+      },
+      {
+        "product": "B1",
+        "kind": "byproduct",
+        "recoveryPct": 0,
+        "ratePKRPerKg": 0
+      },
+      {
+        "product": "B2 CSR",
+        "kind": "byproduct",
+        "recoveryPct": 0,
+        "ratePKRPerKg": null
+      },
+      {
+        "product": "B3",
+        "kind": "byproduct",
+        "recoveryPct": 0,
+        "ratePKRPerKg": null
+      },
+      {
+        "product": "Loss",
+        "kind": "waste",
+        "recoveryPct": 0,
+        "ratePKRPerKg": 0
+      }
+    ],
+    "source": "Salman: COSTING latest with makai(1).xlsx / milling cash ( DUBAI )",
+    "sourceExample": true
+  },
+  {
+    "id": "P4",
+    "name": "IRRI-6 25% silky",
+    "commodity": "RICE",
+    "cashPrice": 95,
+    "creditPrice": null,
+    "millingPKRPerKg": 3,
+    "otherFOBUSDPerMT": 18,
+    "otherFOBPKRPerMT": 0,
+    "purchaseUnit": "KG",
+    "outputs": [
+      {
+        "product": "Finished",
+        "kind": "finished",
+        "recoveryPct": 78.0,
+        "ratePKRPerKg": 0
+      },
+      {
+        "product": "B2",
+        "kind": "byproduct",
+        "recoveryPct": 16.0,
+        "ratePKRPerKg": 84
+      },
+      {
+        "product": "Powder",
+        "kind": "byproduct",
+        "recoveryPct": 3.0,
+        "ratePKRPerKg": 70
+      },
+      {
+        "product": "CSR",
+        "kind": "byproduct",
+        "recoveryPct": 3.0,
+        "ratePKRPerKg": 78
+      },
+      {
+        "product": "B1",
+        "kind": "byproduct",
+        "recoveryPct": 0,
+        "ratePKRPerKg": 0
+      },
+      {
+        "product": "B2 CSR",
+        "kind": "byproduct",
+        "recoveryPct": 0,
+        "ratePKRPerKg": null
+      },
+      {
+        "product": "B3",
+        "kind": "byproduct",
+        "recoveryPct": 0,
+        "ratePKRPerKg": null
+      },
+      {
+        "product": "Loss",
+        "kind": "waste",
+        "recoveryPct": 0,
+        "ratePKRPerKg": 0
+      }
+    ],
+    "source": "Salman: COSTING latest with makai(1).xlsx / milling cash ( DUBAI )",
+    "sourceExample": true
+  },
+  {
+    "id": "P5",
+    "name": "Maize",
+    "commodity": "CORN",
+    "cashPrice": 2600,
+    "creditPrice": null,
+    "millingPKRPerKg": 0,
+    "otherFOBUSDPerMT": 0,
+    "otherFOBPKRPerMT": 3940,
+    "purchaseUnit": "MAUND",
+    "outputs": [
+      {
+        "product": "Finished",
+        "kind": "finished",
+        "recoveryPct": 100,
+        "ratePKRPerKg": 0
+      },
+      {
+        "product": "B2",
+        "kind": "byproduct",
+        "recoveryPct": 0,
+        "ratePKRPerKg": 0
+      },
+      {
+        "product": "Powder",
+        "kind": "byproduct",
+        "recoveryPct": 0,
+        "ratePKRPerKg": 0
+      },
+      {
+        "product": "CSR",
+        "kind": "byproduct",
+        "recoveryPct": 0,
+        "ratePKRPerKg": 0
+      },
+      {
+        "product": "B1",
+        "kind": "byproduct",
+        "recoveryPct": 0,
+        "ratePKRPerKg": 0
+      },
+      {
+        "product": "B2 CSR",
+        "kind": "byproduct",
+        "recoveryPct": 0,
+        "ratePKRPerKg": 0
+      },
+      {
+        "product": "B3",
+        "kind": "byproduct",
+        "recoveryPct": 0,
+        "ratePKRPerKg": 0
+      },
+      {
+        "product": "Loss",
+        "kind": "waste",
+        "recoveryPct": 0,
+        "ratePKRPerKg": 0
+      }
+    ],
+    "source": "Salman: COSTING latest with makai(1).xlsx / MAKAI; 40kg maund; treatment 36000/25 separately included",
+    "sourceExample": true
+  },
+  {
+    "id": "P6",
+    "name": "C9 white",
+    "commodity": "RICE",
+    "cashPrice": 180.0,
+    "creditPrice": 185.0,
+    "millingPKRPerKg": 4.0,
+    "otherFOBUSDPerMT": 18.0,
+    "otherFOBPKRPerMT": 0,
+    "purchaseUnit": "KG",
+    "outputs": [
+      {
+        "product": "Finished",
+        "kind": "finished",
+        "recoveryPct": 88.0,
+        "ratePKRPerKg": 0
+      },
+      {
+        "product": "B2",
+        "kind": "byproduct",
+        "recoveryPct": 7.5,
+        "ratePKRPerKg": 110.0
+      },
+      {
+        "product": "Powder",
+        "kind": "byproduct",
+        "recoveryPct": 2.5,
+        "ratePKRPerKg": 75.0
+      },
+      {
+        "product": "CSR",
+        "kind": "byproduct",
+        "recoveryPct": 1.5,
+        "ratePKRPerKg": 95.0
+      },
+      {
+        "product": "B1",
+        "kind": "byproduct",
+        "recoveryPct": 0.0,
+        "ratePKRPerKg": 0
+      },
+      {
+        "product": "B2 CSR",
+        "kind": "byproduct",
+        "recoveryPct": 0,
+        "ratePKRPerKg": null
+      },
+      {
+        "product": "B3",
+        "kind": "byproduct",
+        "recoveryPct": 0,
+        "ratePKRPerKg": null
+      },
+      {
+        "product": "Loss",
+        "kind": "waste",
+        "recoveryPct": 0.5,
+        "ratePKRPerKg": 0
+      }
+    ],
+    "source": "TRP: COSTING 2026.xlsx / IRRI-6 + C9 RATES M5; MILLING RECOVERY I",
+    "sourceExample": true
+  },
+  {
+    "id": "P7",
+    "name": "C9 sella",
+    "commodity": "RICE",
+    "cashPrice": 170.0,
+    "creditPrice": 175.0,
+    "millingPKRPerKg": 4.0,
+    "otherFOBUSDPerMT": 18.0,
+    "otherFOBPKRPerMT": 0,
+    "purchaseUnit": "KG",
+    "outputs": [
+      {
+        "product": "Finished",
+        "kind": "finished",
+        "recoveryPct": 90.0,
+        "ratePKRPerKg": 0
+      },
+      {
+        "product": "B2",
+        "kind": "byproduct",
+        "recoveryPct": 6.0,
+        "ratePKRPerKg": 80.0
+      },
+      {
+        "product": "Powder",
+        "kind": "byproduct",
+        "recoveryPct": 1.5,
+        "ratePKRPerKg": 75.0
+      },
+      {
+        "product": "CSR",
+        "kind": "byproduct",
+        "recoveryPct": 2.0,
+        "ratePKRPerKg": 90.0
+      },
+      {
+        "product": "B1",
+        "kind": "byproduct",
+        "recoveryPct": 0.0,
+        "ratePKRPerKg": 0
+      },
+      {
+        "product": "B2 CSR",
+        "kind": "byproduct",
+        "recoveryPct": 0,
+        "ratePKRPerKg": null
+      },
+      {
+        "product": "B3",
+        "kind": "byproduct",
+        "recoveryPct": 0,
+        "ratePKRPerKg": null
+      },
+      {
+        "product": "Loss",
+        "kind": "waste",
+        "recoveryPct": 0.5,
+        "ratePKRPerKg": 0
+      }
+    ],
+    "source": "TRP: COSTING 2026.xlsx / IRRI-6 + C9 RATES Q5; MILLING RECOVERY J",
+    "sourceExample": true
+  },
+  {
+    "id": "P8",
+    "name": "PK-386 lal",
+    "commodity": "RICE",
+    "cashPrice": 200.0,
+    "creditPrice": 205.0,
+    "millingPKRPerKg": 3.5,
+    "otherFOBUSDPerMT": 20.0,
+    "otherFOBPKRPerMT": 0,
+    "purchaseUnit": "KG",
+    "outputs": [
+      {
+        "product": "Finished",
+        "kind": "finished",
+        "recoveryPct": 92.0,
+        "ratePKRPerKg": 0
+      },
+      {
+        "product": "B2",
+        "kind": "byproduct",
+        "recoveryPct": 4.0,
+        "ratePKRPerKg": 150.0
+      },
+      {
+        "product": "Powder",
+        "kind": "byproduct",
+        "recoveryPct": 2.0,
+        "ratePKRPerKg": 75.0
+      },
+      {
+        "product": "CSR",
+        "kind": "byproduct",
+        "recoveryPct": 1.5,
+        "ratePKRPerKg": 170.0
+      },
+      {
+        "product": "B1",
+        "kind": "byproduct",
+        "recoveryPct": 0.0,
+        "ratePKRPerKg": 0
+      },
+      {
+        "product": "B2 CSR",
+        "kind": "byproduct",
+        "recoveryPct": 0,
+        "ratePKRPerKg": null
+      },
+      {
+        "product": "B3",
+        "kind": "byproduct",
+        "recoveryPct": 0,
+        "ratePKRPerKg": null
+      },
+      {
+        "product": "Loss",
+        "kind": "waste",
+        "recoveryPct": 0.5,
+        "ratePKRPerKg": 0
+      }
+    ],
+    "source": "TRP: COSTING 2026.xlsx / PK- 386 RATES E4; MILLING RECOVERY L",
+    "sourceExample": true
+  },
+  {
+    "id": "P9",
+    "name": "PK-386 sella",
+    "commodity": "RICE",
+    "cashPrice": 210.0,
+    "creditPrice": 215.0,
+    "millingPKRPerKg": 3.5,
+    "otherFOBUSDPerMT": 20.0,
+    "otherFOBPKRPerMT": 0,
+    "purchaseUnit": "KG",
+    "outputs": [
+      {
+        "product": "Finished",
+        "kind": "finished",
+        "recoveryPct": 93.0,
+        "ratePKRPerKg": 0
+      },
+      {
+        "product": "B2",
+        "kind": "byproduct",
+        "recoveryPct": 4.0,
+        "ratePKRPerKg": 90.0
+      },
+      {
+        "product": "Powder",
+        "kind": "byproduct",
+        "recoveryPct": 1.5,
+        "ratePKRPerKg": 70.0
+      },
+      {
+        "product": "CSR",
+        "kind": "byproduct",
+        "recoveryPct": 1.0,
+        "ratePKRPerKg": 95.0
+      },
+      {
+        "product": "B1",
+        "kind": "byproduct",
+        "recoveryPct": 0.0,
+        "ratePKRPerKg": 0
+      },
+      {
+        "product": "B2 CSR",
+        "kind": "byproduct",
+        "recoveryPct": 0,
+        "ratePKRPerKg": null
+      },
+      {
+        "product": "B3",
+        "kind": "byproduct",
+        "recoveryPct": 0,
+        "ratePKRPerKg": null
+      },
+      {
+        "product": "Loss",
+        "kind": "waste",
+        "recoveryPct": 0.5,
+        "ratePKRPerKg": 0
+      }
+    ],
+    "source": "TRP: COSTING 2026.xlsx / PK- 386 RATES I4; MILLING RECOVERY M",
+    "sourceExample": true
+  },
+  {
+    "id": "P10",
+    "name": "Super kernel",
+    "commodity": "RICE",
+    "cashPrice": 285.0,
+    "creditPrice": 290.0,
+    "millingPKRPerKg": 4.0,
+    "otherFOBUSDPerMT": 0.0,
+    "otherFOBPKRPerMT": 0,
+    "purchaseUnit": "KG",
+    "outputs": [
+      {
+        "product": "Finished",
+        "kind": "finished",
+        "recoveryPct": 83.5,
+        "ratePKRPerKg": 0
+      },
+      {
+        "product": "B2",
+        "kind": "byproduct",
+        "recoveryPct": 7.000000000000001,
+        "ratePKRPerKg": 130.0
+      },
+      {
+        "product": "Powder",
+        "kind": "byproduct",
+        "recoveryPct": 2.0,
+        "ratePKRPerKg": 75.0
+      },
+      {
+        "product": "CSR",
+        "kind": "byproduct",
+        "recoveryPct": 1.5,
+        "ratePKRPerKg": 220.0
+      },
+      {
+        "product": "B1",
+        "kind": "byproduct",
+        "recoveryPct": 5.0,
+        "ratePKRPerKg": 170.0
+      },
+      {
+        "product": "B2 CSR",
+        "kind": "byproduct",
+        "recoveryPct": 0,
+        "ratePKRPerKg": null
+      },
+      {
+        "product": "B3",
+        "kind": "byproduct",
+        "recoveryPct": 0,
+        "ratePKRPerKg": null
+      },
+      {
+        "product": "Loss",
+        "kind": "waste",
+        "recoveryPct": 1.0,
+        "ratePKRPerKg": 0
+      }
+    ],
+    "source": "TRP: COSTING 2026.xlsx / BASMATI RATES E4; MILLING RECOVERY O",
+    "sourceExample": true
+  },
+  {
+    "id": "P11",
+    "name": "1121 white",
+    "commodity": "RICE",
+    "cashPrice": 290.0,
+    "creditPrice": 295.0,
+    "millingPKRPerKg": 4.0,
+    "otherFOBUSDPerMT": 0.0,
+    "otherFOBPKRPerMT": 0,
+    "purchaseUnit": "KG",
+    "outputs": [
+      {
+        "product": "Finished",
+        "kind": "finished",
+        "recoveryPct": 85.0,
+        "ratePKRPerKg": 0
+      },
+      {
+        "product": "B2",
+        "kind": "byproduct",
+        "recoveryPct": 6.0,
+        "ratePKRPerKg": 135.0
+      },
+      {
+        "product": "Powder",
+        "kind": "byproduct",
+        "recoveryPct": 2.0,
+        "ratePKRPerKg": 75.0
+      },
+      {
+        "product": "CSR",
+        "kind": "byproduct",
+        "recoveryPct": 1.5,
+        "ratePKRPerKg": 230.0
+      },
+      {
+        "product": "B1",
+        "kind": "byproduct",
+        "recoveryPct": 5.0,
+        "ratePKRPerKg": 175.0
+      },
+      {
+        "product": "B2 CSR",
+        "kind": "byproduct",
+        "recoveryPct": 0,
+        "ratePKRPerKg": null
+      },
+      {
+        "product": "B3",
+        "kind": "byproduct",
+        "recoveryPct": 0,
+        "ratePKRPerKg": null
+      },
+      {
+        "product": "Loss",
+        "kind": "waste",
+        "recoveryPct": 0.5,
+        "ratePKRPerKg": 0
+      }
+    ],
+    "source": "TRP: COSTING 2026.xlsx / BASMATI RATES I4; MILLING RECOVERY P",
+    "sourceExample": true
+  },
+  {
+    "id": "P12",
+    "name": "1121 steam",
+    "commodity": "RICE",
+    "cashPrice": 330.0,
+    "creditPrice": 335.0,
+    "millingPKRPerKg": 4.5,
+    "otherFOBUSDPerMT": 0.0,
+    "otherFOBPKRPerMT": 0,
+    "purchaseUnit": "KG",
+    "outputs": [
+      {
+        "product": "Finished",
+        "kind": "finished",
+        "recoveryPct": 88.0,
+        "ratePKRPerKg": 0
+      },
+      {
+        "product": "B2",
+        "kind": "byproduct",
+        "recoveryPct": 5.0,
+        "ratePKRPerKg": 140.0
+      },
+      {
+        "product": "Powder",
+        "kind": "byproduct",
+        "recoveryPct": 1.5,
+        "ratePKRPerKg": 75.0
+      },
+      {
+        "product": "CSR",
+        "kind": "byproduct",
+        "recoveryPct": 1.0,
+        "ratePKRPerKg": 240.0
+      },
+      {
+        "product": "B1",
+        "kind": "byproduct",
+        "recoveryPct": 4.0,
+        "ratePKRPerKg": 185.0
+      },
+      {
+        "product": "B2 CSR",
+        "kind": "byproduct",
+        "recoveryPct": 0,
+        "ratePKRPerKg": null
+      },
+      {
+        "product": "B3",
+        "kind": "byproduct",
+        "recoveryPct": 0,
+        "ratePKRPerKg": null
+      },
+      {
+        "product": "Loss",
+        "kind": "waste",
+        "recoveryPct": 0.5,
+        "ratePKRPerKg": 0
+      }
+    ],
+    "source": "TRP: COSTING 2026.xlsx / BASMATI RATES O4; MILLING RECOVERY Q",
+    "sourceExample": true
+  },
+  {
+    "id": "P13",
+    "name": "1121 creamy sella",
+    "commodity": "RICE",
+    "cashPrice": 300.0,
+    "creditPrice": 305.0,
+    "millingPKRPerKg": 4.5,
+    "otherFOBUSDPerMT": 0.0,
+    "otherFOBPKRPerMT": 0,
+    "purchaseUnit": "KG",
+    "outputs": [
+      {
+        "product": "Finished",
+        "kind": "finished",
+        "recoveryPct": 91.0,
+        "ratePKRPerKg": 0
+      },
+      {
+        "product": "B2",
+        "kind": "byproduct",
+        "recoveryPct": 2.0,
+        "ratePKRPerKg": 110.0
+      },
+      {
+        "product": "Powder",
+        "kind": "byproduct",
+        "recoveryPct": 1.5,
+        "ratePKRPerKg": 70.0
+      },
+      {
+        "product": "CSR",
+        "kind": "byproduct",
+        "recoveryPct": 1.5,
+        "ratePKRPerKg": 200.0
+      },
+      {
+        "product": "B1",
+        "kind": "byproduct",
+        "recoveryPct": 4.0,
+        "ratePKRPerKg": 140.0
+      },
+      {
+        "product": "B2 CSR",
+        "kind": "byproduct",
+        "recoveryPct": 0,
+        "ratePKRPerKg": null
+      },
+      {
+        "product": "B3",
+        "kind": "byproduct",
+        "recoveryPct": 0,
+        "ratePKRPerKg": null
+      },
+      {
+        "product": "Loss",
+        "kind": "waste",
+        "recoveryPct": 0.0,
+        "ratePKRPerKg": 0
+      }
+    ],
+    "source": "TRP: COSTING 2026.xlsx / BASMATI RATES I21; MILLING RECOVERY R",
+    "sourceExample": true
+  },
+  {
+    "id": "P14",
+    "name": "1121 golden sella",
+    "commodity": "RICE",
+    "cashPrice": 328.0,
+    "creditPrice": 333.0,
+    "millingPKRPerKg": 4.5,
+    "otherFOBUSDPerMT": 0.0,
+    "otherFOBPKRPerMT": 0,
+    "purchaseUnit": "KG",
+    "outputs": [
+      {
+        "product": "Finished",
+        "kind": "finished",
+        "recoveryPct": 91.0,
+        "ratePKRPerKg": 0
+      },
+      {
+        "product": "B2",
+        "kind": "byproduct",
+        "recoveryPct": 2.0,
+        "ratePKRPerKg": 110.0
+      },
+      {
+        "product": "Powder",
+        "kind": "byproduct",
+        "recoveryPct": 1.5,
+        "ratePKRPerKg": 29.0
+      },
+      {
+        "product": "CSR",
+        "kind": "byproduct",
+        "recoveryPct": 1.5,
+        "ratePKRPerKg": 89.0
+      },
+      {
+        "product": "B1",
+        "kind": "byproduct",
+        "recoveryPct": 4.0,
+        "ratePKRPerKg": 85.0
+      },
+      {
+        "product": "B2 CSR",
+        "kind": "byproduct",
+        "recoveryPct": 0,
+        "ratePKRPerKg": null
+      },
+      {
+        "product": "B3",
+        "kind": "byproduct",
+        "recoveryPct": 0,
+        "ratePKRPerKg": null
+      },
+      {
+        "product": "Loss",
+        "kind": "waste",
+        "recoveryPct": 0.0,
+        "ratePKRPerKg": 0
+      }
+    ],
+    "source": "TRP: COSTING 2026.xlsx / BASMATI RATES O21; MILLING RECOVERY S",
+    "sourceExample": true
+  },
+  {
+    "id": "BROKEN-OWN",
+    "name": "100% broken — own process",
+    "commodity": "RICE",
+    "cashPrice": null,
+    "creditPrice": null,
+    "millingPKRPerKg": null,
+    "otherFOBUSDPerMT": null,
+    "otherFOBPKRPerMT": null,
+    "purchaseUnit": "KG",
+    "outputs": [
+      {
+        "product": "Finished",
+        "kind": "finished",
+        "recoveryPct": 100,
+        "ratePKRPerKg": 0
+      },
+      {
+        "product": "B2",
+        "kind": "byproduct",
+        "recoveryPct": 0,
+        "ratePKRPerKg": null
+      },
+      {
+        "product": "Powder",
+        "kind": "byproduct",
+        "recoveryPct": 0,
+        "ratePKRPerKg": null
+      },
+      {
+        "product": "CSR",
+        "kind": "byproduct",
+        "recoveryPct": 0,
+        "ratePKRPerKg": null
+      },
+      {
+        "product": "B1",
+        "kind": "byproduct",
+        "recoveryPct": 0,
+        "ratePKRPerKg": null
+      },
+      {
+        "product": "B2 CSR",
+        "kind": "byproduct",
+        "recoveryPct": 0,
+        "ratePKRPerKg": null
+      },
+      {
+        "product": "B3",
+        "kind": "byproduct",
+        "recoveryPct": 0,
+        "ratePKRPerKg": null
+      },
+      {
+        "product": "Loss",
+        "kind": "waste",
+        "recoveryPct": 0,
+        "ratePKRPerKg": 0
+      }
+    ],
+    "source": "Independent process: enter and confirm all prices and costs; no IRRI-6 formula inputs copied",
+    "sourceExample": false
+  }
+]
