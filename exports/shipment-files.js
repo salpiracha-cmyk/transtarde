@@ -149,7 +149,7 @@ function zip(entries,type){const encoder=new TextEncoder();return zipBytes(Objec
 	 if(/sales contract|customer contract|signed.*contract|contract.*signed|proforma/i.test(name))return'contract';
 	 if(/goods declaration|^gd\b/i.test(name))return'gd';return'';
 	}
-	function normalizedFolder(folder){const clean=String(folder||'').trim().toLowerCase();if(clean==='custom documents')return'CUSTOM DOCUMENTS';if(clean==='tg docs')return'TG docs';if(clean==='bags')return'BAGS';return folder}
+	function normalizedFolder(folder){const clean=String(folder||'').trim().toLowerCase();if(clean==='custom documents')return'CUSTOM DOCUMENTS';if(clean==='tg docs'||clean==='bank documents')return'BANK DOCUMENTS';if(clean==='bags')return'BAGS';return folder}
 	function finalZipFolderName(folder){const clean=String(folder||'').trim().toLowerCase();if(clean==='bags')return'BAGS';return''}
 	async function finalizeFolderZips(files){
 	 const out=[],groups=new Map();
@@ -164,8 +164,11 @@ function zip(entries,type){const encoder=new TextEncoder();return zipBytes(Objec
 	 if(/\btg(?:invoice|internal)|pakistan.*commercial invoice/.test(text))return'tgInvoice';
 	 if(/\btg(?:packing)|pakistan.*packing list/.test(text))return'tgPacking';
 	 if(/relationship/.test(text))return'relationship';
+	 if(/(?:^|\s)(?:fi(?:\s|$|[—:-])|financial instrument)/.test(text))return'fi';
+	 if(/exchange draft|bill of exchange/.test(text))return'draft';
 	 if(/cover|bank covering letter/.test(text))return'cover';
 	 if(/goods declaration|\bgd\b/.test(text))return'gd';
+	 if(/b\/l draft|carrier draft|shipping instructions/.test(text))return'blDraft';
 	 if(/bill of lading|final.*b\/l|\bb\/l\b/.test(text))return'bl';
 	 if(/certificate of origin|\bcoo\b/.test(text))return'coo';
 	 if(/fumigation/.test(text))return'fumigation';
@@ -173,8 +176,13 @@ function zip(entries,type){const encoder=new TextEncoder();return zipBytes(Objec
 	 if(/customs?\s+packing|custompacking/.test(text))return'customPacking';
 	 if(/phytoinvoice|phytosanitary invoice/.test(text))return'customPhytoInvoice';
 	 if(/phyto/.test(text))return'phyto';
-	 if(/commercial invoice|commercial/.test(text))return'commercial';
+	 if(/sales contract|proforma/.test(text))return'salesContract';
 	 if(/packing list|packing/.test(text))return'packing';
+	 if(/commercial invoice|commercial/.test(text))return'commercial';
+	 if(/insurance/.test(text))return'insurance';
+	 if(/inspection|sgs/.test(text))return'inspection';
+	 if(/health/.test(text))return'health';
+	 if(/laboratory/.test(text))return'laboratory';
 	 return'';
 	}
 	function firstDoc(docs,...categories){for(const category of categories){const match=(category==='cover'?docs.find(doc=>doc.key==='tgCover'&&doc.blob):null)||docs.find(doc=>doc.category===category&&doc.blob);if(match)return match}return null}
@@ -202,7 +210,7 @@ function zip(entries,type){const encoder=new TextEncoder();return zipBytes(Objec
 	 }
 	 return out
 	}
-	async function save({customer,contract,lot,rows,uploads,fit,optional=false,committedSnapshot=null,strictFinal=false,onProgress=null}){
+	async function save({customer,contract,lot,rows,uploads,fit,optional=false,committedSnapshot=null,strictFinal=false,onProgress=null,bankDocumentRows=null,refreshExisting=false}){
 	 if(busy&&!legacyQa())throw new Error('Shipment files are already being prepared.');
 	 if(busy&&legacyQa())busy=false;
 	 busy=true;
@@ -212,18 +220,16 @@ function zip(entries,type){const encoder=new TextEncoder();return zipBytes(Objec
 	  const bankCover=rows.find(row=>row.key==='tgCover')||rows.find(row=>row.key==='cover');
 	  const hasTgBank=isTG&&(rows.some(row=>/^tg(?:Invoice|Packing)$/.test(row.key||'')&&row.ready)||!!bankCover?.ready);
 	  if(hasTgBank&&!(bankCover?.render&&bankCover.ready))throw new Error('Save the TG bank covering letter before preparing Bank Shipment Documents. No incomplete bank PDF was queued.');
+    if(refreshExisting&&!bankCover?.ready)throw new Error('Save the bank covering letter before refreshing this lot.');
 	  const generatedRows=rows.filter(row=>row.render&&row.ready);let prepared=0;const progress=stage=>{try{onProgress?.({stage,completed:prepared,total:generatedRows.length})}catch{}};
 	  for(const row of generatedRows){
 	   progress('Preparing '+row.name);
 	   const kind=separate(row.name,row.key),markup=row.render(),folder=row.folder?component(normalizedFolder(row.folder)):'',category=docCategory(row.name,row.key);
-	   const pdfBlob=await pdf(markup,fit),blob=kind==='cover'?await word(markup):pdfBlob;
+	   const pdfBlob=await pdf(markup,fit),blob=pdfBlob;
 	   prepared++;docs.push({category,name:row.name,key:row.key,folder,blob:pdfBlob,render:row.render});
-	   if(!strictFinal&&(kind||folder||row.key==='commercialDraft'))files.push({folder,name:component(row.name)+(kind==='cover'?'.docx':'.pdf'),blob});
-	   else if(strictFinal&&(folder==='CUSTOM DOCUMENTS'||row.key==='tgProforma'))files.push({folder,name:component(row.name)+'.pdf',blob:pdfBlob});
-   if(kind==='cover'&&/data-tg-cover="true"/.test(markup)){
-    if(strictFinal)files.push({folder:folder||'TG docs',name:component(row.name)+'.docx',blob});
-    files.push({folder:folder||'TG docs',name:component(row.name)+'.pdf',blob:pdfBlob});
-   }
+       if(folder==='CUSTOM DOCUMENTS')files.push({folder,name:component(row.name)+'.pdf',blob:pdfBlob});
+       else if(category==='tgProforma')files.push({folder:'BANK DOCUMENTS',name:'Sales Contract - Proforma '+component(c?.ref||contract)+'.pdf',blob:pdfBlob});
+       else if(!strictFinal&&!['cover','tgInvoice','tgPacking','relationship'].includes(category)&&(kind||folder||row.key==='commercialDraft'))files.push({folder:folder||'BANK DOCUMENTS',name:component(row.name)+'.pdf',blob:pdfBlob});
 	  }
 	  progress('Reading saved original documents');
 	  for(const doc of uploads){
@@ -234,41 +240,65 @@ function zip(entries,type){const encoder=new TextEncoder();return zipBytes(Objec
 	   else{let converted=null;try{converted=await asPdf(original)}catch(error){
 	     if(category==='phyto'){
       const warning='Phytosanitary certificate '+(doc.name||'')+' could not be merged safely. Send the saved original separately to the bank. It remains listed on the covering letter.';warnings.push(warning);
-      files.push({folder:'SEPARATE BANK ATTACHMENTS',name:uploadName,blob:original});
+      files.push({folder:'BANK DOCUMENTS',name:uploadName,blob:original});
      }else throw new Error('Cannot add '+(doc.name||doc.type||'this upload')+' to the PDF package. Upload a readable PDF or image. '+error.message);
 	    }
 	    if(!strictFinal&&kind==='gd'&&converted)files.push({folder,name:'GD - '+component(String(doc.name||'Document').replace(/\.[^.]+$/,''))+'.pdf',blob:converted});
 	    if(converted)docs.push({category,name:doc.type||doc.name,folder,blob:converted});
-	    if(!strictFinal)files.push({folder,name:uploadName,blob:original});
+    if(category==='phyto'&&converted)files.push({folder:'BANK DOCUMENTS',name:uploadName,blob:original});
+	    if(!strictFinal&&category!=='phyto')files.push({folder:folder||'BANK DOCUMENTS',name:uploadName,blob:original});
 	   }
 	  }
 	  const master=[firstDoc(docs,'commercial'),firstDoc(docs,'bl'),firstDoc(docs,'packing'),firstDoc(docs,'coo'),firstDoc(docs,'fumigation'),firstDoc(docs,'phyto')].filter(Boolean).map(doc=>doc.blob);
 	  if(master.length)files.unshift({folder:'',name:'Master Shipment Documents.pdf',blob:await mergedPdf(master)});
 	  progress('Preparing bank document copies');
-	  const bank=[];
-	  if(hasTgBank){appendDoc(bank,firstDoc(docs,'cover'));appendDoc(bank,firstDoc(docs,'tgProforma'));}
-	  if(!isTG||hasTgBank){
-	  if(isLcContract(c))bank.push(...await bankBlobsForDocuments(c,docs,fit));
-	  else if(isTG)for(const category of ['bl','tgInvoice','tgPacking','phyto','relationship','gd'])appendDoc(bank,firstDoc(docs,category));
-	  else for(const category of ['cover','gd'])appendDoc(bank,firstDoc(docs,category));
-	  }
-	  const shipment=(committedSnapshot?.shipments||[]).find(row=>String(row.lotId||'')===String(lot)&&String(row.contractRef||'')===String(contract)),invoiceReference=shipment?.tgdocs?.customsInvoiceNo||shipment?.customs?.invoiceNo||shipment?.commercial?.invoiceNo||contract;
-	  if(bank.length)files.unshift({folder:'',name:isTG?'Bank Shipment Documents '+component(invoiceReference)+'.pdf':'DOCUMENTS FOR BANK.pdf',blob:await mergedPdf(bank)});
+    const bank=[],enclosures=Array.isArray(bankDocumentRows)?bankDocumentRows:null;
+    if((!isTG&&bankCover?.ready)||hasTgBank){
+     appendDoc(bank,firstDoc(docs,'cover'));
+     if(enclosures){
+      const combined=new Set();
+      for(const row of enclosures){
+       const count=Math.max(0,num(row.originals)+num(row.copies));if(!count)continue;
+       let category=docCategory(row.name);
+       if(isTG&&category==='commercial')category='tgInvoice';
+       if(isTG&&category==='packing')category='tgPacking';
+       if(isTG&&category==='salesContract')category='tgProforma';
+       if(isTG&&category==='fumigation')continue;
+       const doc=(category?firstDoc(docs,category):null)||docs.find(doc=>doc.name.trim().toLowerCase()===String(row.name).trim().toLowerCase());
+       if(!doc){
+        const warning='Missing bank enclosure: '+row.name+'. Upload it and refresh this bank pack.';
+        if(!warnings.includes(warning))warnings.push(warning);continue;
+       }
+       // A single upload can contain every allocated GD/FI; never repeat the whole file for each number.
+       if(['gd','fi'].includes(category)){if(combined.has(doc.blob))continue;combined.add(doc.blob)}
+       if(['commercial','packing','tgInvoice','tgPacking'].includes(category))bank.push(...await labelledCommercialBlobs(doc,row,fit,num(row.originals),num(row.copies)));
+       else appendDoc(bank,doc,count);
+      }
+     }else{
+      // Compatibility for older offline callers; the application always supplies its actual covering table.
+      if(isTG)appendDoc(bank,firstDoc(docs,'tgProforma'));
+      if(isLcContract(c))bank.push(...await bankBlobsForDocuments(c,docs,fit));
+      else for(const category of (isTG?['bl','tgInvoice','tgPacking','phyto','relationship','gd']:['commercial','bl','packing','coo','phyto','fumigation','gd','fi']))appendDoc(bank,firstDoc(docs,category));
+     }
+    }
+    const shipment=(committedSnapshot?.shipments||[]).find(row=>String(row.lotId||'')===String(lot)&&String(row.contractRef||'')===String(contract)),invoiceReference=isTG?(shipment?.tgdocs?.customsInvoiceNo||shipment?.customs?.invoiceNo||contract):(shipment?.commercial?.invoiceNo||contract);
+    for(const file of files)if(file.folder==='BANK DOCUMENTS'&&file.name.startsWith('Sales Contract - Proforma '))file.name='Sales Contract - Proforma '+component(invoiceReference)+'.pdf';
+    if(bank.length)files.unshift({folder:'BANK DOCUMENTS',name:'Bank Shipment Documents '+component(invoiceReference)+'.pdf',blob:await mergedPdf(bank)});
 	  if(!files.length)throw new Error('No saved documents are available for this lot.');
-  if(warnings.length){const escape=text=>text.replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));files.push({folder:'SEPARATE BANK ATTACHMENTS',name:'READ ME - send phytosanitary separately.pdf',blob:await pdf('<section class="docPage"><h1>Separate bank attachment required</h1>'+warnings.map(w=>'<p>'+escape(w)+'</p>').join('')+'</section>')});}
+  if(warnings.length){const escape=text=>text.replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));files.push({folder:'BANK DOCUMENTS',name:'Bank documents - attention required.pdf',blob:await pdf('<section class="docPage"><h1>Bank document checks</h1>'+warnings.map(w=>'<p>'+escape(w)+'</p>').join('')+'</section>')});}
   progress('Assembling office package');
   let archiveFiles=files,cleanupFolders=[];
   if(!optional)({files:archiveFiles,cleanupFolders}=await finalizeFolderZips(files));
   const used=new Set();for(const file of archiveFiles){const base=file.name;let index=2;while(used.has(file.folder+'/'+file.name)){const at=base.lastIndexOf('.');file.name=base.slice(0,at)+' ('+index+++')'+base.slice(at)}used.add(file.folder+'/'+file.name)}
   archiveFiles.forEach((file,index)=>file.storedName=String(index).padStart(3,'0')+'-'+file.name.replace(/[^A-Za-z0-9._-]+/g,'-'));
-  const manifest={type:'shipment_archive',customer,contract,lot,folderParts:parts,createdAt:new Date().toISOString(),finalize:!optional,cleanupFolders,files:archiveFiles.map(file=>({folder:file.folder||'',name:file.name,storedName:file.storedName,size:file.blob.size,type:file.blob.type||'application/octet-stream'}))};
+  const manifest={layoutVersion:2,refreshExisting:!!refreshExisting,type:'shipment_archive',customer,contract,lot,folderParts:parts,createdAt:new Date().toISOString(),finalize:!optional,cleanupFolders,files:archiveFiles.map(file=>({folder:file.folder||'',name:file.name,storedName:file.storedName,size:file.blob.size,type:file.blob.type||'application/octet-stream'}))};
   if(legacyQa()&&legacyRoot&&!window.TT_MODULE_ACCESS?.csrf){
    let saved=0;try{saved=await legacyWrite(legacyRoot,parts,archiveFiles)}catch(error){throw new Error(saved+' of '+archiveFiles.length+' files saved. '+error.message)}
-   return{count:archiveFiles.length,path:parts.join(' / '),status:'SAVED',warnings}
+   return{count:archiveFiles.length,path:parts.join(' / '),status:'SAVED',warnings,bankPdf:files.find(file=>file.name.startsWith('Bank Shipment Documents '))?.blob,bankFilename:files.find(file=>file.name.startsWith('Bank Shipment Documents '))?.name}
   }
   progress('Uploading office package');
   const job=await withTimeout(postJob(manifest,archiveFiles),120000,'Office archive job upload timed out. Retry Queue Office Folder.');
-  return{count:archiveFiles.length,path:parts.join(' / '),jobId:job.id,status:job.status||'PENDING',warnings};
+  return{count:archiveFiles.length,path:parts.join(' / '),jobId:job.id,status:job.status||'PENDING',warnings,bankPdf:files.find(file=>file.name.startsWith('Bank Shipment Documents '))?.blob,bankFilename:files.find(file=>file.name.startsWith('Bank Shipment Documents '))?.name};
  }finally{busy=false}
 }
 

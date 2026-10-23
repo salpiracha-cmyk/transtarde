@@ -25,29 +25,26 @@ const root=path.resolve(__dirname,'../..'),out=path.join(root,'tmp/qa/package-20
 	 assert.ok((await page.evaluate(()=>window.__progress)).includes('Assembling office package'),'native office copy reports its preparation stages');
 	 assert.match(result.path,/QA Customer \/ SHIPMENT #01 \/ LOT #01/);
 	 const files=await page.evaluate(()=>window.__files),prefix='QA Customer/SHIPMENT #01/LOT #01/';
-	 for(const name of ['Master Shipment Documents.pdf','Bank Shipment Documents INV-TG-0042.pdf','Sales Contract.pdf','Bank Covering Letter.docx','GD - GD-1.pdf','Signed Sales Contract - Signed.pdf','CUSTOM DOCUMENTS/Customs Invoice.pdf','CUSTOM DOCUMENTS/Customs Packing List.pdf','CUSTOM DOCUMENTS/Phytosanitary Invoice.pdf','TG docs/Pakistan → TG — Packing List.pdf'])assert.ok(files[prefix+name],name+' must be saved');
+	 for(const name of ['Master Shipment Documents.pdf','BANK DOCUMENTS/Bank Shipment Documents INV-TG-0042.pdf','BANK DOCUMENTS/Sales Contract.pdf','GD - GD-1.pdf','Signed Sales Contract - Signed.pdf','CUSTOM DOCUMENTS/Customs Invoice.pdf','CUSTOM DOCUMENTS/Customs Packing List.pdf','CUSTOM DOCUMENTS/Phytosanitary Invoice.pdf','BANK DOCUMENTS/Sales Contract - Proforma INV-TG-0042.pdf','BANK DOCUMENTS/Phyto.pdf'])assert.ok(files[prefix+name],name+' must be saved');
 	 const master=await page.evaluate(async prefix=>{const doc=await PDFLib.PDFDocument.load(new Uint8Array(window.__files[prefix+'Master Shipment Documents.pdf']));return doc.getPageCount()},prefix);assert.equal(master,7,'master includes one original commercial invoice, B/L, one original packing list, COO pages, fumigation and phyto');
-	 const bank=await page.evaluate(async prefix=>{const doc=await PDFLib.PDFDocument.load(new Uint8Array(window.__files[prefix+'Bank Shipment Documents INV-TG-0042.pdf']));return doc.getPageCount()},prefix);assert.equal(bank,8,'TG bank PDF follows covering, Customs bank proforma, B/L, TG invoice, TG packing, phyto, relationship and GD');
-	 for(const name of ['Master Shipment Documents.pdf','Bank Shipment Documents INV-TG-0042.pdf','Bank Covering Letter.docx','GD - GD-1.pdf','CUSTOM DOCUMENTS/Customs Invoice.pdf'])fs.writeFileSync(path.join(out,name.replace(/[ /]/g,'_')),Buffer.from(files[prefix+name]));
+	 const bank=await page.evaluate(async prefix=>{const doc=await PDFLib.PDFDocument.load(new Uint8Array(window.__files[prefix+'BANK DOCUMENTS/Bank Shipment Documents INV-TG-0042.pdf']));return doc.getPageCount()},prefix);assert.equal(bank,8,'TG bank PDF follows covering, Customs bank proforma, B/L, TG invoice, TG packing, phyto, relationship and GD');
+	 for(const name of ['Master Shipment Documents.pdf','BANK DOCUMENTS/Bank Shipment Documents INV-TG-0042.pdf','GD - GD-1.pdf','CUSTOM DOCUMENTS/Customs Invoice.pdf'])fs.writeFileSync(path.join(out,name.replace(/[ /]/g,'_')),Buffer.from(files[prefix+name]));
 	 const {execFileSync}=require('node:child_process');
 	 const masterText=execFileSync('pdftotext',[path.join(out,'Master_Shipment_Documents.pdf'),'-'],{encoding:'utf8'});assert.match(masterText,/INCLUDED ORIGINAL COO/);assert.match(masterText,/INCLUDED PHYTO/);assert.doesNotMatch(masterText,/BANK GD|EXCLUDED SIGNED CONTRACT|CUSTOMS INVOICE|PHYTOSANITARY INVOICE/);
- execFileSync('python3',['-c',`import zipfile,xml.etree.ElementTree as E,sys
-z=zipfile.ZipFile(sys.argv[1]);assert z.testzip() is None
-root=E.fromstring(z.read('word/document.xml'));ns={'w':'http://schemas.openxmlformats.org/wordprocessingml/2006/main'}
-text=' '.join(n.text or '' for n in root.findall('.//w:t',ns));assert 'BANK COVERING LETTER' in text and 'Commercial Invoice' in text
-assert root.findall('.//w:tbl',ns);assert not root.findall('.//w:altChunk',ns)`,path.join(out,'Bank_Covering_Letter.docx')]);
+
 		 assert.ok(Buffer.from(files[prefix+'CUSTOM DOCUMENTS/Customs Invoice.pdf']).subarray(0,4).equals(Buffer.from('%PDF')),'custom documents are saved separately, not zipped');
 		 await page.evaluate(()=>window.__files={});
 		 const strictResult=await page.evaluate(()=>TT_SHIPMENT_FILES.save({...window.__args,strictFinal:true}));
-		 assert.equal(strictResult.count,6,'final lot archive should only queue master PDF, bank PDF and three custom documents');
+		 assert.equal(strictResult.count,7,'final lot archive should only queue master PDF, bank PDF and three custom documents');
 		 const strictFiles=await page.evaluate(()=>Object.keys(window.__files).sort());
 		 assert.deepEqual(strictFiles,[
 		  prefix+'CUSTOM DOCUMENTS/Customs Invoice.pdf',
 		  prefix+'CUSTOM DOCUMENTS/Customs Packing List.pdf',
 		  prefix+'CUSTOM DOCUMENTS/Phytosanitary Invoice.pdf',
-		  prefix+'TG docs/Pakistan → TG — Sales Contract Proforma.pdf',
+		  prefix+'BANK DOCUMENTS/Sales Contract - Proforma INV-TG-0042.pdf',
+          prefix+'BANK DOCUMENTS/Phyto.pdf',
 		  prefix+'Master Shipment Documents.pdf',
-		  prefix+'Bank Shipment Documents INV-TG-0042.pdf'
+		  prefix+'BANK DOCUMENTS/Bank Shipment Documents INV-TG-0042.pdf'
 		 ].sort(),'strict final archive must not leave loose originals, Sales Contract, GD copies, TG docs or Word files');
 		 const lcResult=await page.evaluate(async()=>{
 		  window.__files={};
@@ -58,12 +55,12 @@ assert root.findall('.//w:tbl',ns);assert not root.findall('.//w:altChunk',ns)`,
 	 });
 	 assert.match(lcResult.path,/LC Customer \/ SHIPMENT #01 \/ LOT #01/);
 	 const lcPrefix='LC Customer/SHIPMENT #01/LOT #01/';
-	 const lcBank=await page.evaluate(async prefix=>{const doc=await PDFLib.PDFDocument.load(new Uint8Array(window.__files[prefix+'DOCUMENTS FOR BANK.pdf']));return doc.getPageCount()},lcPrefix);
-	 assert.equal(lcBank,6,'LC bank PDF follows Documents to be Presented originals and copies');
+	 const lcBank=await page.evaluate(async prefix=>{const doc=await PDFLib.PDFDocument.load(new Uint8Array(window.__files[prefix+'BANK DOCUMENTS/Bank Shipment Documents TTI-LC-01.pdf']));return doc.getPageCount()},lcPrefix);
+	 assert.equal(lcBank,7,'LC bank PDF follows Documents to be Presented originals and copies');
 	 await page.evaluate(()=>window.__files={});
 	 const repeated=await page.evaluate(()=>TT_SHIPMENT_FILES.save(window.__args));assert.equal(repeated.count,result.count);assert.equal(Object.keys(await page.evaluate(()=>window.__files)).length,result.count);
  // A TG L/C pack must include the cover even when the L/C list omits it.
- const tgLcPages=await page.evaluate(async()=>{window.__files={};const args={...window.__args,committedSnapshot:{...window.__args.committedSnapshot,contracts:[{ref:'TTI/QA/01',seller:'TG',paymentCode:'LC_SIGHT',documentsPresented:[{sequence:1,name:'Commercial Invoice',original:1,copies:0}]}]}};await TT_SHIPMENT_FILES.save(args);const key=Object.keys(window.__files).find(k=>k.endsWith('Bank Shipment Documents INV-TG-0042.pdf'));const pdf=await PDFLib.PDFDocument.load(new Uint8Array(window.__files[key]));return pdf.getPageCount()});assert.equal(tgLcPages,3,'Cover and Customs bank proforma first, then L/C commercial invoice');
+ const tgLcPages=await page.evaluate(async()=>{window.__files={};const args={...window.__args,committedSnapshot:{...window.__args.committedSnapshot,contracts:[{ref:'TTI/QA/01',seller:'TG',paymentCode:'LC_SIGHT',documentsPresented:[{sequence:1,name:'Commercial Invoice',original:1,copies:0}]}]}};await TT_SHIPMENT_FILES.save(args);const key=Object.keys(window.__files).find(k=>k.endsWith('BANK DOCUMENTS/Bank Shipment Documents INV-TG-0042.pdf'));const pdf=await PDFLib.PDFDocument.load(new Uint8Array(window.__files[key]));return pdf.getPageCount()});assert.equal(tgLcPages,3,'Cover and Customs bank proforma first, then L/C commercial invoice');
  const missingCover=await page.evaluate(async()=>{window.__files={};try{await TT_SHIPMENT_FILES.save({...window.__args,rows:window.__args.rows.filter(row=>row.key!=='cover'&&row.key!=='tgCover')});return ''}catch(e){return e.message}});assert.match(missingCover,/Save the TG bank covering letter/);assert.equal(Object.keys(await page.evaluate(()=>window.__files)).length,0,'Do not queue an incomplete bank PDF');
  const wrongCover=await page.evaluate(async()=>{try{await TT_SHIPMENT_FILES.save({...window.__args,rows:[...window.__args.rows,{key:'tgCover',name:'Pakistan → TG — Bank Covering Letter',ready:false,render:()=>''}]});return ''}catch(e){return e.message}});assert.match(wrongCover,/Save the TG bank covering letter/,'Do not substitute the customer bank letter for an unready Pakistan-to-TG letter');
  const partialFiles=await page.evaluate(async()=>{window.__files={};await TT_SHIPMENT_FILES.save({...window.__args,rows:window.__args.rows.filter(r=>r.key==='commercial'),uploads:[]});return Object.keys(window.__files)});assert(partialFiles.some(k=>k.endsWith('Master Shipment Documents.pdf')));assert(!partialFiles.some(k=>k.includes('Bank Shipment Documents')),'An unprepared TG pack does not block ordinary document copies or create a partial bank PDF');
@@ -74,20 +71,25 @@ assert root.findall('.//w:tbl',ns);assert not root.findall('.//w:altChunk',ns)`,
   const markup='<div class="printDoc"><section class="docPage bankCoveringPage" data-tg-cover="true"><div class="docLetterhead"><img src="'+image+'"></div><h1>BANK COVERING LETTER</h1><table><tr><td>Commercial Invoice</td></tr></table><div class="docAutoSign">For <b>Transtrade International</b><img src="'+image+'"><div>Authorised Signatory</div></div></section></div>';
   await TT_SHIPMENT_FILES.save({...window.__args,strictFinal:true,rows:[{key:'tgCover',name:'Pakistan → TG — Bank Covering Letter',folder:'TG docs',ready:true,render:()=>markup}],uploads:[]});return window.__files;
  });
- const brandedDoc=prefix+'TG docs/Pakistan → TG — Bank Covering Letter.docx';assert.ok(brandedFiles[brandedDoc]);assert.ok(brandedFiles[prefix+'TG docs/Pakistan → TG — Bank Covering Letter.pdf']);
- fs.writeFileSync(path.join(out,'TG_Branded_Cover.docx'),Buffer.from(brandedFiles[brandedDoc]));
- execFileSync('python3',['-c',`import zipfile,xml.etree.ElementTree as E,sys
-z=zipfile.ZipFile(sys.argv[1]);assert z.testzip() is None
-assert len([n for n in z.namelist() if n.startswith('word/media/')])==2
-root=E.fromstring(z.read('word/document.xml'));ns={'w':'http://schemas.openxmlformats.org/wordprocessingml/2006/main'}
-assert len(root.findall('.//w:drawing',ns))==2;assert root.findall('.//w:tbl',ns)
-assert b'Authorised Signatory' in z.read('word/document.xml')
-assert z.read('word/media/image1.png').startswith(bytes([137,80,78,71]))`,path.join(out,'TG_Branded_Cover.docx')]);
+ const brandedBank=prefix+'BANK DOCUMENTS/Bank Shipment Documents INV-TG-0042.pdf';assert.ok(brandedFiles[brandedBank]);assert.equal(Object.keys(brandedFiles).some(key=>/TG docs|\.docx$/.test(key)),false,'Canonical bank folder contains consolidated PDF, without loose covering copies');
+ // Actual covering table controls every enclosure, for TG and direct packs, including FI.
+ const ordered=await page.evaluate(async()=>{
+  window.__files={};const fi=await PDFLib.PDFDocument.create();fi.addPage().drawText('INCLUDED FI SCREENSHOT');const upload={id:'FI-QA',name:'FI.pdf',type:'FI',dataUrl:'data:application/pdf;base64,'+btoa(String.fromCharCode(...await fi.save()))};
+  window.__fi=upload;
+  const bankDocumentRows=['Phytosanitary Certificate','Goods Declaration (GD)','Bill of Lading','Certificate of Origin','Commercial Invoice','Commercial Packing List','FI — TEST-123','Relationship Letter','Sales Contract / Proforma Invoice','Fumigation Certificate'].map(name=>({name,originals:0,copies:name==='Commercial Invoice'?2:1}));
+  const result=await TT_SHIPMENT_FILES.save({...window.__args,strictFinal:true,uploads:[...window.__args.uploads,upload],bankDocumentRows});
+  const file=window.__files[Object.keys(window.__files).find(key=>key.includes('Bank Shipment Documents'))],pdf=await PDFLib.PDFDocument.load(new Uint8Array(file));return{pages:pdf.getPageCount(),file,warnings:result.warnings};
+ });
+ assert.equal(ordered.pages,12,'Cover first, covering-table enclosures and copy counts, FI included, no TG fumigation');assert.equal(ordered.warnings.length,0);
+ fs.writeFileSync(path.join(out,'Ordered_Bank.pdf'),Buffer.from(ordered.file));const orderedText=execFileSync('pdftotext',[path.join(out,'Ordered_Bank.pdf'),'-'],{encoding:'utf8'});
+ const markers=['INCLUDED PHYTO','BANK GD','INCLUDED BL','INCLUDED ORIGINAL COO','INCLUDED FI SCREENSHOT'];for(let i=1;i<markers.length;i++)assert.ok(orderedText.indexOf(markers[i-1])<orderedText.indexOf(markers[i]),markers.join(' -> '));assert.doesNotMatch(orderedText,/INCLUDED FUMIGATION/);
+ const directOrder=await page.evaluate(async()=>{window.__files={};const args={...window.__args,rows:window.__args.rows.filter(row=>!row.key.startsWith('tg')),uploads:[...window.__args.uploads,window.__fi],committedSnapshot:{contracts:[{ref:'TTI/QA/01',seller:'TTI'}],shipments:[]},bankDocumentRows:[{name:'FI',originals:0,copies:1},{name:'Goods Declaration',originals:0,copies:1}]};const r=await TT_SHIPMENT_FILES.save(args),file=window.__files[Object.keys(window.__files).find(key=>key.includes('Bank Shipment Documents'))],pdf=await PDFLib.PDFDocument.load(new Uint8Array(file));return{pages:pdf.getPageCount(),file,warnings:r.warnings}});
+ assert.equal(directOrder.pages,3);assert.equal(directOrder.warnings.length,0);fs.writeFileSync(path.join(out,'Direct_Ordered_Bank.pdf'),Buffer.from(directOrder.file));const directText=execFileSync('pdftotext',[path.join(out,'Direct_Ordered_Bank.pdf'),'-'],{encoding:'utf8'});assert.ok(directText.indexOf('INCLUDED FI SCREENSHOT')<directText.indexOf('BANK GD'),'Direct pack follows its own covering table');
  // Protected phytosanitary PDFs remain byte-exact standalone attachments, with no blank merged pages.
  const protectedPdf=fs.readFileSync(path.join(root,'tests/exports-v3/fixtures/protected-phyto.pdf')).toString('base64');
- const protectedResult=await page.evaluate(async encoded=>{window.__files={};const uploads=window.__args.uploads.map(doc=>doc.type==='Phytosanitary Certificate'?{...doc,dataUrl:'data:application/pdf;base64,'+encoded}:doc);const result=await TT_SHIPMENT_FILES.save({...window.__args,uploads,strictFinal:true});const files=window.__files,bankKey=Object.keys(files).find(k=>k.endsWith('Bank Shipment Documents INV-TG-0042.pdf')),bank=await PDFLib.PDFDocument.load(new Uint8Array(files[bankKey]));return{warnings:result.warnings,pages:bank.getPageCount(),files};},protectedPdf);
+ const protectedResult=await page.evaluate(async encoded=>{window.__files={};const uploads=window.__args.uploads.map(doc=>doc.type==='Phytosanitary Certificate'?{...doc,dataUrl:'data:application/pdf;base64,'+encoded}:doc);const result=await TT_SHIPMENT_FILES.save({...window.__args,uploads,strictFinal:true});const files=window.__files,bankKey=Object.keys(files).find(k=>k.endsWith('BANK DOCUMENTS/Bank Shipment Documents INV-TG-0042.pdf')),bank=await PDFLib.PDFDocument.load(new Uint8Array(files[bankKey]));return{warnings:result.warnings,pages:bank.getPageCount(),files};},protectedPdf);
  assert.equal(protectedResult.pages,7,'Protected phytosanitary pages are not merged as blank pages');assert.match(protectedResult.warnings.join(' '),/Send the saved original separately/);
- const standalone=Object.keys(protectedResult.files).find(k=>k.endsWith('SEPARATE BANK ATTACHMENTS/Phyto.pdf'));assert.ok(standalone);assert.equal(Buffer.from(protectedResult.files[standalone]).toString('base64'),protectedPdf,'Protected original preserved byte for byte');assert.ok(Object.keys(protectedResult.files).some(k=>k.endsWith('READ ME - send phytosanitary separately.pdf')));
+ const standalone=Object.keys(protectedResult.files).find(k=>k.endsWith('BANK DOCUMENTS/Phyto.pdf'));assert.ok(standalone);assert.equal(Buffer.from(protectedResult.files[standalone]).toString('base64'),protectedPdf,'Protected original preserved byte for byte');assert.ok(Object.keys(protectedResult.files).some(k=>k.endsWith('Bank documents - attention required.pdf')));
  await page.evaluate(()=>window.__fail=true);const failure=await page.evaluate(async()=>{try{await TT_SHIPMENT_FILES.save(window.__args);return''}catch(error){return error.message}});assert.match(failure,/0 of \d+ files saved/);
  // All module form families: control tops align, names fit their cells, and print styles are untouched.
  const shared=fs.readFileSync(path.join(root,'brand-theme.css'),'utf8');
@@ -101,5 +103,5 @@ assert z.read('word/media/image1.png').startswith(bytes([137,80,78,71]))`,path.j
  await page.setContent('<style>'+accountStyle+shared+'</style><div class="ttv-grid" style="width:760px"><label>Bank<input></label><label>Complete Branch / Address<textarea></textarea></label><label>Date<input type="date"></label></div>');await page.addScriptTag({content:fs.readFileSync(path.join(root,'brand-theme.js'),'utf8')});
  await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
  const direct=await page.locator('.ttv-grid input,.ttv-grid textarea').evaluateAll(nodes=>nodes.map(node=>node.getBoundingClientRect().top));assert.ok(Math.max(...direct)-Math.min(...direct)<=1,'Accounts direct-label fields align');
- await browser.close();console.log('PASS master PDF page preservation/exclusions, separate GD PDFs, editable Word covering, separate contracts, nested Customs/TG files, retry safety and three-module rows');
+ await browser.close();console.log('PASS unchanged master contents, clean bank folder, TG/direct table order, FI screenshot, counts, protected phyto, retry safety and three-module rows');
 })().catch(error=>{console.error(error);process.exit(1)});
