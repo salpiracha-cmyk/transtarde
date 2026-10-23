@@ -124,7 +124,7 @@ require $argv[1];
     # Valid tax-refund permission cannot select a foreign/nonexistent bank.
     user['permissions']={'Accounts':{'entity-tti':['View','Create','Edit'],'purchases':['View','Create']}}
     seed();before=books.read_bytes()
-    refund={'entity':'TTI','receiptDate':'2026-10-07','amount':100,'bankAccountId':'BRM-B'}
+    refund={'entity':'TTI','requestKey':'refund-authorization-fixture','receiptDate':'2026-10-07','amount':100,'bankAccountId':'BRM-B'}
     assert request('sales_tax_refunds',refund)[0]==422
     assert books.read_bytes()==before
     status,data=request('sales_tax_refunds',{**refund,'bankAccountId':'TTI-B'})
