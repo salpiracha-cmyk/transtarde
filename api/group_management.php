@@ -30,7 +30,7 @@ try {
         $state['groupManagementRecords']=(array)($reportState['groupManagementRecords']??[]);$state['groupManagementRequests']=(array)($reportState['groupManagementRequests']??[]);$state['revision']=(int)($reportState['revision']??0);
         $record=$state['groupManagementRecords'][$id]??['id'=>$id,'kind'=>$kind,'date'=>$date,'sections'=>[],'history'=>[],'createdAt'=>gmdate('c')];$result=[];
         if($write){
-            if($action!=='save-section')throw new DomainException('Select a valid report action.');
+            if($action!=='save-section'&&!($action==='save-sheet'&&$kind==='DAILY'&&$section==='daily'))throw new DomainException('Select a valid report action.');
             $allowed=$kind==='ZAKAT'?['header','financials','properties','gold','shares','adjustments']:($kind==='COSTING'?['header','costing']:($kind==='DAILY'?['header','daily','adjustments']:['header','financials','adjustments']));
             if(!in_array($section,$allowed,true))throw new DomainException('Select a valid section.');
             $needed=isset($record['sections'][$section])?'Edit':'Create';if(!gm_permission($user,$kind,$needed,$origin))gm_out(['ok'=>false,'error'=>$needed.' permission is required for this section.'],403);
@@ -40,6 +40,20 @@ try {
             else {
                 if((int)($body['version']??-1)!==(int)$old['version'])gm_out(['ok'=>false,'error'=>'Another user changed this section. Your entry has not been overwritten. Refresh deliberately and compare before saving.'],409);
                 $reason=gm_text($body['reason']??'',1000);if(!empty($old['complete'])&&$reason==='')throw new DomainException('Enter a reason to amend a completed section.');
+                if($action==='save-sheet'){
+                    foreach(['header'=>'sheetHeader','adjustments'=>'sheetAdjustments'] as $part=>$field){
+                        $before=$record['sections'][$part]??['version'=>0];$input=(array)($body[$field]??[]);
+                        if(!gm_permission($user,$kind,isset($record['sections'][$part])?'Edit':'Create',$origin))gm_out(['ok'=>false,'error'=>'Permission required for '.$part],403);
+                        if((int)($input['version']??-1)!==(int)$before['version'])gm_out(['ok'=>false,'error'=>'Another user changed this cash flow. Refresh and compare before saving.'],409);
+                        if(!empty($before['complete'])&&$reason==='')throw new DomainException('Enter a reason to amend the completed cash flow.');
+                        $partRows=[];$partData=[];
+                        if($part==='header'){$rates=(array)($input['data']['rates']??[]);$clean=['PKR'=>1.];foreach(['USD','AED'] as $currency)if(isset($rates[$currency])&&$rates[$currency]!=='')$clean[$currency]=gm_fx($rates,$currency);$partData=['rates'=>$clean,'notes'=>gm_text($input['data']['notes']??'',2000)];}
+                        else {$partRows=gm_rows((array)($input['rows']??[]));foreach($partRows as $row)if($row['type']!=='ADJUSTMENT'||str_starts_with($row['id'],'BOOK-'))throw new DomainException('Add only separately identified cash-flow adjustments.');}
+                        $record['history'][]=['section'=>$part,'before'=>$before,'savedAt'=>gmdate('c'),'savedBy'=>$user['full_name']??$user['username']??'','reason'=>$reason];
+                        $record['sections'][$part]=['version'=>(int)$before['version']+1,'rows'=>$partRows,'data'=>$partData,'calculation'=>null,'complete'=>false,'savedAt'=>gmdate('c'),'savedBy'=>$user['full_name']??$user['username']??'','userId'=>(int)($user['id']??0),'reason'=>$reason];
+                    }
+                    gm_total(array_merge(gm_financial_source($state,$date)['rows'],$record['sections']['adjustments']['rows']),$record['sections']['header']['data']['rates']);
+                }
                 $data=[];$rows=[];$calculation=null;
                 if($section==='header'){
                     $rates=(array)($body['data']['rates']??[]);$clean=['PKR'=>1.];foreach(['USD','AED'] as $currency)if(isset($rates[$currency])&&$rates[$currency]!=='')$clean[$currency]=gm_fx($rates,$currency);
