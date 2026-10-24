@@ -18,7 +18,7 @@ function fixture():array {
         'tgBankTransactions'=>['TX'=>['status'=>'Posted','kind'=>'Payment','journalId'=>'TG-BANK','amountNative'=>400,'liabilityAllocations'=>[]]]];
 }
 $request=['receiptId'=>'ADVICE','candidateId'=>'SALE','entity'=>'TTI','date'=>'2026-01-03','note'=>'Owner confirms shipment allocation.','expectedRevision'=>5];
-$names=array_fill_keys(['1110','2510','1240','2110','1250','2500'],'Example');$user=['username'=>'Example'];
+$names=array_fill_keys(['1110','2510','1240','2110','1250','2500','7195'],'Example');$user=['username'=>'Example'];
 $s=fixture();$original=$s['journals'];$a=ica_apply($s,$request,$user,$names);
 check(count($s['journals'])===6,'exactly two noncash journals');
 foreach($original as $id=>$j)check($s['journals'][$id]===$j,'original bank and recognition journals are immutable');
@@ -28,7 +28,10 @@ check($s['tgBankTransactions']['TX']['amountNative']===400,'original payment pre
 check($s['tgBankTransactions']['TX']['liabilityAllocations'][0]['amountNative']===300.0,'TG native payable settled');
 check(ica_sources($s,'TTI')===[],'applied source cannot be offered twice');
 check(ica_apply($s,$request,$user,$names)===$a&&count($s['journals'])===6,'retry is idempotent');
-foreach(['stale','early','currency','entity','mirror','valuation','reversed','already-paid','reserved','used','contract'] as $case){
+$s=fixture();$s['journals']['TG-BANK']['lines'][0]['debit']=1199.96;$s['journals']['TG-BANK']['lines'][1]['credit']=1199.96;
+$a=ica_apply($s,$request,$user,$names);$lines=$s['journals'][$a['tgJournalId']]['lines'];
+check($a['roundingAed']===.03&&$lines[2]['account']==='7195'&&$lines[2]['credit']===.03,'three-fils original carrying residual disclosed without changing bank');
+foreach(['stale','early','currency','entity','mirror','valuation','tg-valuation','reversed','already-paid','reserved','used','contract'] as $case){
     $s=fixture();$b=$request;
     switch($case){
         case 'stale':$b['expectedRevision']=4;break;
@@ -36,6 +39,7 @@ foreach(['stale','early','currency','entity','mirror','valuation','reversed','al
         case 'currency':$s['exportCandidates']['BILL']['transactionCurrency']='AED';break;
         case 'entity':$b['entity']='BRM';break;
         case 'mirror':$s['exportCandidates']['BILL']['linkedCandidateId']='OTHER';break;
+        case 'tg-valuation':$s['exportCandidates']['BILL']['functionalAmount']=901;break;
         case 'valuation':$s['exportCandidates']['SALE']['functionalAmount']=76000;break;
         case 'reversed':$s['journals']['REV']=['reversalOf'=>'TG-BANK'];break;
         case 'already-paid':$s['tgBankTransactions']['TX']['liabilityAllocations'][]=['id'=>'BILL','amountNative'=>1];break;

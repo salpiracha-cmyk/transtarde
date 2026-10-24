@@ -75,12 +75,17 @@ function ica_apply(array &$s,array $b,array $u,array $names):array {
     $used=0.0;foreach((array)($s['intercompanyAdvanceApplications']??[]) as $app)if(($app['tgRemittanceId']??'')===$remitId)$used+=(float)$app['amountNative'];
     if($amount>$advanceNative-$used+.001)throw new DomainException('Application exceeds the TG remittance advance remaining.');
     $tgBook=round((float)($m['functionalAmount']??0),2);$tgAdvancePart=round($amount*$tgAdvance/$advanceNative,2);
-    if($tgBook<=0||abs($tgBook-$tgAdvancePart)>.011)throw new DomainException('Review TG advance and payable carrying rates before application.');
-    $meta=['intercompanyAdvanceApplicationId'=>$id,'receiptId'=>$rid,'candidateId'=>$cid,'mirrorCandidateId'=>$mid,'tgRemittanceId'=>$remitId,'transactionCurrency'=>$currency,'transactionAmount'=>$amount,'nonCash'=>true,'excludeFromManagementCashflow'=>true,'note'=>$note];
+    $roundingAed=round($tgBook-$tgAdvancePart,2);
+    // Bank carrying rates can differ from the approved invoice rate by a few
+    // fils. Preserve both original valuations and disclose the actual residual.
+    // Larger valuation differences still require review rather than a plug.
+    if($tgBook<=0||abs($roundingAed)>.05)throw new DomainException('Review TG advance and payable carrying rates before application.');
+    $meta=['intercompanyAdvanceApplicationId'=>$id,'receiptId'=>$rid,'candidateId'=>$cid,'mirrorCandidateId'=>$mid,'tgRemittanceId'=>$remitId,'transactionCurrency'=>$currency,'transactionAmount'=>$amount,'nonCash'=>true,'roundingAed'=>$roundingAed,'excludeFromManagementCashflow'=>true,'note'=>$note];
     $pakLines=[ica_line('2510',$pakAdvance,0,$names,['counterparty'=>'TG','currency'=>$currency,'nativeDebit'=>$amount,'nativeCredit'=>0]),ica_line('1240',0,$pakBook,$names,['counterparty'=>'TG','sourceCandidateId'=>$cid,'currency'=>$currency,'nativeDebit'=>0,'nativeCredit'=>$amount])];
     $tgLines=[ica_line('2500',$tgBook,0,$names,['counterparty'=>$entity,'sourceCandidateId'=>$mid,'currency'=>$currency,'nativeDebit'=>$amount,'nativeCredit'=>0]),ica_line($advanceAccount,0,$tgAdvancePart,$names,['counterparty'=>$entity,'currency'=>$currency,'nativeDebit'=>0,'nativeCredit'=>$amount])];
+    if($roundingAed>0)$tgLines[]=ica_line('7195',0,$roundingAed,$names,['roundingBasis'=>'Original bank advance carrying value versus approved shipment rate']);elseif($roundingAed<0)$tgLines[]=ica_line('7195',-$roundingAed,0,$names,['roundingBasis'=>'Original bank advance carrying value versus approved shipment rate']);
     $ref=(string)($c['reference']??$cid);$pak=ica_journal($s,$u,$entity,$date,$ref,$pakLines,$meta);$tg=ica_journal($s,$u,'TG',$date,$ref,$tgLines,$meta);
-    $allocation=$a;$allocation['targetType']='INTERCOMPANY_RECEIVABLE';$allocation['targetId']=$cid;$allocation['invoiceRef']=$ref;$allocation['contractRef']=(string)($c['meta']['contractRef']??'');$allocation['customer']='TG';$allocation['carryingPkr']=$pakBook;$allocation['applicationDate']=$date;$allocation['intercompanyAdvanceApplicationId']=$id;
+    $allocation=$a;$allocation['targetType']='INTERCOMPANY_RECEIVABLE';$allocation['targetId']=$cid;$allocation['invoiceRef']=(string)(($c['meta']['commercialInvoiceNo']??'')?:$ref);$allocation['contractRef']=(string)($c['meta']['contractRef']??'');$allocation['customer']='TG';$allocation['carryingPkr']=$pakBook;$allocation['applicationDate']=$date;$allocation['intercompanyAdvanceApplicationId']=$id;
     $s['exportReceipts'][$rid]['allocations']=[$allocation];$s['exportReceipts'][$rid]['advanceApplicationId']=$id;
     $s['tgBankTransactions'][$txid]['liabilityAllocations'][]=['id'=>$mid,'amountNative'=>$amount,'applicationDate'=>$date,'intercompanyAdvanceApplicationId'=>$id];
     $record=$meta+['id'=>$id,'entity'=>$entity,'date'=>$date,'amountNative'=>$amount,'originalAllocation'=>$a,'pakJournalId'=>$pak['id'],'tgJournalId'=>$tg['id'],'tgBankTransactionId'=>$txid,'requestHash'=>$hash,'status'=>'Posted','createdAt'=>gmdate('c'),'createdBy'=>(string)($u['full_name']??$u['username']??'Accounts')];
