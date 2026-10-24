@@ -41,7 +41,7 @@ function cfn_source(array $source,array $state,string $date,array $masters):arra
         foreach((array)($j['lines']??[]) as $lineIndex=>$line){
             $base=$bases[cfn_identity($j,$line)]??null;if(!$base||!empty($base['excluded']))continue;
             $line=cfn_receivable_line($state,$j,$line,$lineIndex);$targetId=cfn_identity($j,$line);
-            if(($line['account']??'')==='1110'){$identityLine=$line;unset($identityLine['party'],$identityLine['partyName'],$identityLine['supplier'],$identityLine['broker'],$identityLine['customer']);$identityLine['counterparty']='';$targetId=cfn_identity($j,$identityLine);$base['party']='';$base['label']=$base['bankLabel']!==''?'Bank Accounts — '.$base['bankLabel']:'Bank Accounts';}
+            if(($line['account']??'')==='1110'&&!empty($base['bankAccountId'])){$identityLine=$line;unset($identityLine['party'],$identityLine['partyName'],$identityLine['supplier'],$identityLine['broker'],$identityLine['customer']);$identityLine['counterparty']='';$targetId=cfn_identity($j,$identityLine);$base['party']='';$base['label']=$base['bankLabel']!==''?'Bank Accounts — '.$base['bankLabel']:$base['label'];}
             if(($line['account']??'')==='1210'&&empty($base['party'])&&!empty($line['counterparty'])){$base['party']=$line['counterparty'];$base['label'].=' — '.$line['counterparty'];}
             $book=round((float)($line['debit']??0),2)-round((float)($line['credit']??0),2);$code=(string)($line['account']??'');
             // Inventory is replaced by its reviewed PKR market valuation once.
