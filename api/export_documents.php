@@ -11,10 +11,50 @@ function export_docs_db_configured(): bool {return export_docs_env('DB_HOST')!==
 function export_docs_db(): PDO {return new PDO('mysql:host='.export_docs_env('DB_HOST').';dbname='.export_docs_env('DB_NAME').';charset=utf8mb4',export_docs_env('DB_USER'),export_docs_env('DB_PASS'),[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC,PDO::ATTR_EMULATE_PREPARES=>false]);}
 function export_docs_base(): string {tt_ensure_data_dir();$base=rtrim((string)TT_DATA_DIR,DIRECTORY_SEPARATOR).DIRECTORY_SEPARATOR.'export_documents';if(!is_dir($base)&&!mkdir($base,0700,true)&&!is_dir($base))throw new RuntimeException('Document storage directory is unavailable.');return$base;}
 function export_docs_index_path(): string {return export_docs_base().DIRECTORY_SEPARATOR.'index.json';}
-function export_docs_index_read(): array {$path=export_docs_index_path();if(!is_file($path))return[];$h=fopen($path,'r');if(!$h||!flock($h,LOCK_SH))return[];try{$raw=stream_get_contents($h);}finally{flock($h,LOCK_UN);fclose($h);} $d=$raw?json_decode($raw,true):[];return is_array($d)?$d:[];}
-function export_docs_index_write(array $rows): void {$path=export_docs_index_path();$h=fopen($path,'c+');if(!$h||!flock($h,LOCK_EX))throw new RuntimeException('Document metadata storage is unavailable.');try{rewind($h);if(!ftruncate($h,0))throw new RuntimeException('Document metadata could not be updated.');$json=json_encode($rows,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);if(fwrite($h,$json)===false)throw new RuntimeException('Document metadata could not be written.');fflush($h);}finally{flock($h,LOCK_UN);fclose($h);}}
+/** All fallback index mutations share one stable lock across atomic replacement. */
+function export_docs_index_lock(int $mode) {
+    $h=fopen(export_docs_index_path().'.lock','c+b');
+    if($h===false)throw new RuntimeException('Document metadata lock is unavailable.');
+    if(!flock($h,$mode)){fclose($h);throw new RuntimeException('Document metadata is busy.');}
+    return $h;
+}
+function export_docs_index_read_locked(): array {
+    $path=export_docs_index_path();if(!is_file($path))return [];
+    $raw=file_get_contents($path);
+    if($raw===false||trim($raw)==='')throw new RuntimeException('Document metadata is empty or unavailable.');
+    $rows=json_decode($raw,true,512,JSON_THROW_ON_ERROR);
+    if(!is_array($rows)||($rows!==[]&&array_is_list($rows)))throw new RuntimeException('Document metadata has an invalid format.');
+    foreach($rows as $row)if(!is_array($row))throw new RuntimeException('Document metadata contains an invalid record.');
+    // Reject nonfinite JSON numbers before any destructive follow-up action.
+    json_encode($rows,JSON_THROW_ON_ERROR);return $rows;
+}
+function export_docs_index_commit_locked(array $rows): void {
+    $json=json_encode($rows,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);
+    $path=export_docs_index_path();$temp=dirname($path).'/.index-'.bin2hex(random_bytes(12)).'.tmp';
+    $h=fopen($temp,'x+b');if($h===false)throw new RuntimeException('Document metadata could not be prepared.');
+    try{
+        @chmod($temp,0600);$written=0;$length=strlen($json);
+        while($written<$length){$n=fwrite($h,substr($json,$written));if($n===false||$n===0)throw new RuntimeException('Document metadata could not be written.');$written+=$n;}
+        if(!fflush($h)||(function_exists('fsync')&&!fsync($h)))throw new RuntimeException('Document metadata could not be synchronized.');
+        fclose($h);$h=null;
+        if(!rename($temp,$path))throw new RuntimeException('Document metadata could not be committed.');
+    }finally{if(is_resource($h))fclose($h);if(is_file($temp))@unlink($temp);}
+}
+function export_docs_index_read(): array {
+    $lock=export_docs_index_lock(LOCK_SH);
+    try{return export_docs_index_read_locked();}finally{flock($lock,LOCK_UN);fclose($lock);}
+}
+function export_docs_index_mutate(callable $change): mixed {
+    $lock=export_docs_index_lock(LOCK_EX);
+    try{$rows=export_docs_index_read_locked();$before=$rows;$result=$change($rows);if($rows!==$before)export_docs_index_commit_locked($rows);return $result;}
+    finally{flock($lock,LOCK_UN);fclose($lock);}
+}
 function export_docs_file_find(string $id): ?array {$rows=export_docs_index_read();$r=$rows[$id]??null;return is_array($r)&&empty($r['deleted_at'])?$r:null;}
-function export_docs_file_insert(array $row): void {$rows=export_docs_index_read();$rows[(string)$row['id']]=$row;export_docs_index_write($rows);}
+function export_docs_file_insert(array $row): void {
+    export_docs_index_mutate(static function(array &$rows)use($row):void{
+        $id=(string)$row['id'];if(isset($rows[$id])&&$rows[$id]!==$row)throw new RuntimeException('Document reference already exists.');$rows[$id]=$row;
+    });
+}
 function export_docs_find(string $id): ?array {
     if(export_docs_db_configured())try{$db=export_docs_db();$q=$db->prepare('SELECT id,contract_ref,lot_ref,category,original_name,stored_name,mime_type,file_size,uploaded_at,uploaded_by,uploaded_by_user,deleted_at FROM tt_export_documents WHERE id=? AND deleted_at IS NULL');$q->execute([$id]);$row=$q->fetch();if($row)return$row;}catch(Throwable $e){error_log('Export document DB lookup fallback: '.$e->getMessage());}
     return export_docs_file_find($id);
@@ -24,9 +64,24 @@ function export_docs_insert(array $row): void {
     export_docs_file_insert($row);
 }
 function export_docs_delete_contract(string $contractRef): int {
-    $deleted=0;$base=export_docs_base();
-    if(export_docs_db_configured())try{$db=export_docs_db();$q=$db->prepare('SELECT id,stored_name FROM tt_export_documents WHERE contract_ref=? AND deleted_at IS NULL');$q->execute([$contractRef]);$found=$q->fetchAll();if($found){$u=$db->prepare('UPDATE tt_export_documents SET deleted_at=UTC_TIMESTAMP(6) WHERE contract_ref=? AND deleted_at IS NULL');$u->execute([$contractRef]);foreach($found as $row){$path=$base.DIRECTORY_SEPARATOR.basename((string)$row['stored_name']);if(is_file($path)&&!@unlink($path))throw new RuntimeException('A protected shipment document could not be removed.');}$deleted+=count($found);}}catch(Throwable $e){error_log('Export document DB deletion fallback: '.$e->getMessage());}
-    $rows=export_docs_index_read();$changed=false;foreach($rows as &$row){if(!is_array($row)||!empty($row['deleted_at'])||(string)($row['contract_ref']??'')!==$contractRef)continue;$path=$base.DIRECTORY_SEPARATOR.basename((string)($row['stored_name']??''));if(is_file($path)&&!@unlink($path))throw new RuntimeException('A protected shipment document could not be removed.');$row['deleted_at']=gmdate('c');$changed=true;$deleted++;}unset($row);if($changed)export_docs_index_write($rows);return$deleted;
+    // Validate the fallback source before marking any database/file originals.
+    export_docs_index_read();$deleted=0;$base=export_docs_base();$paths=[];
+    if(export_docs_db_configured())try{
+        $db=export_docs_db();$q=$db->prepare('SELECT id,stored_name,deleted_at FROM tt_export_documents WHERE contract_ref=?');$q->execute([$contractRef]);$found=$q->fetchAll();
+        if($found){$u=$db->prepare('UPDATE tt_export_documents SET deleted_at=UTC_TIMESTAMP(6) WHERE contract_ref=? AND deleted_at IS NULL');$u->execute([$contractRef]);$deleted+=$u->rowCount();foreach($found as $row)$paths[]=$base.DIRECTORY_SEPARATOR.basename((string)$row['stored_name']);}
+    }catch(Throwable $e){error_log('Export document DB deletion fallback: '.$e->getMessage());}
+    $result=export_docs_index_mutate(static function(array &$rows)use($contractRef,$base):array{
+        $count=0;$paths=[];
+        foreach($rows as &$row){
+            if((string)($row['contract_ref']??'')!==$contractRef)continue;
+            $paths[]=$base.DIRECTORY_SEPARATOR.basename((string)($row['stored_name']??''));
+            if(empty($row['deleted_at'])){$row['deleted_at']=gmdate('c');$count++;}
+        }unset($row);return ['count'=>$count,'paths'=>$paths];
+    });
+    // Commit tombstones before removing bytes. A retry can finish file cleanup
+    // even when the earlier metadata change succeeded but deletion did not.
+    foreach(array_unique(array_merge($paths,$result['paths'])) as $path)if(is_file($path)&&!@unlink($path))throw new RuntimeException('A protected shipment document could not be removed.');
+    return $deleted+$result['count'];
 }
 function export_docs_upload_error(int $code): string {return match($code){UPLOAD_ERR_INI_SIZE,UPLOAD_ERR_FORM_SIZE=>'The selected file is larger than the server upload limit.',UPLOAD_ERR_PARTIAL=>'The file upload was interrupted. Please choose the file again.',UPLOAD_ERR_NO_FILE=>'Choose a PDF, JPEG, PNG or WebP file.',UPLOAD_ERR_NO_TMP_DIR,UPLOAD_ERR_CANT_WRITE,UPLOAD_ERR_EXTENSION=>'Document storage is temporarily unavailable. The file was not saved.',default=>'The selected file could not be uploaded.'};}
 

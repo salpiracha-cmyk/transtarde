@@ -90,6 +90,10 @@ with tempfile.TemporaryDirectory(prefix='company-investments-') as tmp:
   free_sell,_=good(action='post',date='2026-10-07',reference='SELL-NO-COMMISSION',type='SELL',brokerId=bid,symbol='FREE',quantity=10,price=1,fees='')
   assert [l['account'] for l in free_sell['voucher']['lines']]==['1430','1610']
   before=books.read_bytes();books.write_text('{broken-json');assert req()[0]==500;assert req(body)[0]==500 and books.read_text()=='{broken-json';books.write_bytes(before)
+  for invalid in ['', '[]', '{}', 'null', '{"journals":"invalid"}']:
+   books.write_text(invalid);assert req()[0]==500 and req(body)[0]==500 and books.read_text()==invalid,invalid
+  books.unlink();assert req()[0]==500 and req(body)[0]==500 and not books.exists()
+  books.write_bytes(before)
   editable,_=good(action='post',date='2026-10-07',reference='EDIT-FUND',type='FUND_DIRECT',brokerId=bid,amount=25,paymentAccountId='BANK-1',bankPaymentMethod='ONLINE_BANKING',bankPaymentDate='2026-10-08',paymentNarration='Original funding')
   original=json.loads(books.read_text())['journals'][editable['journalId']]
   before=books.read_bytes();status,preview,_=post(action='amend',transactionId=editable['transactionId'],preview=True,date='2026-10-07',reference='EDIT-FUND',type='FUND_DIRECT',brokerId=bid,amount=30,paymentAccountId='BANK-1',bankPaymentMethod='ONLINE_BANKING',bankPaymentDate='2026-10-09',reason='Preview the corrected transfer amount')

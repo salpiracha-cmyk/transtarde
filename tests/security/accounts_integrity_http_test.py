@@ -24,12 +24,13 @@ with tempfile.TemporaryDirectory(prefix='accounts-integrity-') as temp:
     harness = root / 'request.php'
     harness.write_text(r'''<?php
 $req=json_decode($argv[2],true);$_SERVER['REQUEST_URI']='/api/'.$req['endpoint'].'.php?entity=TTI';$_SERVER['REQUEST_METHOD']='POST';$_SERVER['REMOTE_ADDR']='192.0.2.81';$_GET=['entity'=>'TTI'];
+if(isset($req['transaction']))$_SERVER['HTTP_X_TT_TRANSACTION_ID']=$req['transaction'];
 session_name('TRANSTRADE_SESSION');session_id('integrity-'.$req['session']);session_start();$_SESSION=['user_id'=>1,'auth_version'=>1,'last_activity_at'=>time(),'csrf'=>'fixture'];session_write_close();
 $GLOBALS['fixtureBody']=json_encode($req['body']);
 class FixtureInput{public $context;private $offset=0;function stream_open($p,$m,$o,&$opened){return $p==='php://input';}function stream_read($n){$s=substr($GLOBALS['fixtureBody'],$this->offset,$n);$this->offset+=strlen($s);return $s;}function stream_eof(){return $this->offset>=strlen($GLOBALS['fixtureBody']);}function stream_stat(){return [];}}
 stream_wrapper_unregister('php');stream_wrapper_register('php',FixtureInput::class);
 function fixture_barrier():void{$dir=getenv('INTEGRITY_BARRIER');if(!$dir)return;file_put_contents($dir.'/ready-'.getmypid(),'1');$until=microtime(true)+8;while(count(glob($dir.'/ready-*'))<2){if(microtime(true)>$until)throw new RuntimeException('Fixture barrier timeout');usleep(10000);}}
-register_shutdown_function(static function(){echo "\n__STATUS__".(http_response_code()?:200);});require $argv[1];
+register_shutdown_function(static function()use($req){file_put_contents($req['statusFile'],(string)(http_response_code()?:200));});require $argv[1];
 ''')
     # The test copy adds only a rendezvous immediately before the endpoint's
     # first exclusive Accounts lock. On the old code, both stale calculations
@@ -43,16 +44,17 @@ register_shutdown_function(static function(){echo "\n__STATUS__".(http_response_
         assert needle in source, endpoint
         path.write_text(source.replace(needle, 'fixture_barrier();' + needle))
 
-    def request(endpoint, body, session='one', barrier=None):
+    def request(endpoint, body, session='one', barrier=None, transaction=None):
         req = {'endpoint': endpoint, 'session': session,
                'body': {'entity': 'TTI', 'csrf': 'fixture', **body}}
+        status_file=root/('status-'+os.urandom(8).hex());req['statusFile']=str(status_file)
+        if transaction is not None:req['transaction']=transaction
         current_env = {**env, **({'INTEGRITY_BARRIER': str(barrier)} if barrier else {})}
         run = subprocess.run(['php', '-d', f'session.save_path={root}', str(harness),
             str(app / 'api' / (endpoint + '.php')), json.dumps(req)],
             text=True, capture_output=True, env=current_env, timeout=20)
         assert run.returncode == 0, run.stdout + run.stderr
-        payload, status = run.stdout.rsplit('\n__STATUS__', 1)
-        return int(status), json.loads(payload)
+        return int(status_file.read_text()), json.loads(run.stdout)
 
     def race(endpoint, initial, bodies):
         books.write_text(json.dumps(initial))
@@ -161,4 +163,19 @@ register_shutdown_function(static function(){echo "\n__STATUS__".(http_response_
     for body in [{**receipt, 'amount': '1e309'}, {**receipt, 'csrf': 'bad'}, {**receipt, 'entity': 'BRM'}]:
         status, _ = request('local_customer_receipts', body)
         assert status in [403, 419, 422] and books.read_bytes() == before, status
-    print('PASS actual-auth Accounts nonfinite/encoding byte preservation, positive saves, deterministic supplier/receipt races, case aliases, cheque controls and advance capacity in disposable storage')
+    # Use real authentication and the real universal sequence, rather than an
+    # ID stub: an accounting review must not reserve IDs or change replay state.
+    books.write_text(json.dumps({'revision':0,'journals':{}}))
+    status, broker=request('company_investments',{'action':'master','kind':'broker','operation':'add','name':'Preview fixture broker','requestKey':'preview-fixture-broker','revision':0})
+    assert status==200,broker
+    funding={'action':'post','type':'FUND_DIRECT','brokerId':broker['result']['id'],'date':'2026-10-21','reference':'PREVIEW-ONLY','amount':100,'paymentAccountId':'B1','bankPaymentMethod':'ONLINE_BANKING','requestKey':'preview-funding-request','revision':broker['revision']}
+    before=books.read_bytes();sequence=json.loads((private/'auth.json').read_text()).get('post_sequence');replay=private/'offline_transactions.json';replay_before=replay.read_bytes()
+    transaction='PREVIEW-CONFIRM-TRANSACTION-001'
+    status, preview=request('company_investments',{**funding,'preview':True},transaction=transaction)
+    assert status==200 and len(preview['previews'])==1,preview
+    assert books.read_bytes()==before and json.loads((private/'auth.json').read_text()).get('post_sequence')==sequence,'Preview changed financial books or reserved a universal Post ID'
+    assert replay.read_bytes()==replay_before,'Preview changed the resource/retry acknowledgement state'
+    status, actual=request('company_investments',funding,transaction=transaction);assert status==200 and len(json.loads(books.read_text())['journals'])==1,actual
+    before=books.read_bytes();status, retry=request('company_investments',funding,transaction=transaction)
+    assert status==200 and retry.get('result',{}).get('journalId')==actual['result']['journalId'] and books.read_bytes()==before,(status,retry,json.loads(replay.read_text())['transactions'].get('1|'+transaction))
+    print('PASS actual-auth Accounts nonfinite/encoding byte preservation, positive saves, deterministic races, cheque/advance controls, zero-write preview/sequence/retry state and one confirmed posting')

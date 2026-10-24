@@ -195,6 +195,11 @@ function tt_post_id_matches_search(string $postId, string $query): bool {
 function tt_reserve_post_id(string $module, string $area, array $context = []): string {
     $year = tt_post_id_year(isset($context['year']) ? (int)$context['year'] : null);
     $minimum = max(0, (int)($context['minimum'] ?? 0));
+    if(function_exists('tt_posting_preview_mode')&&tt_posting_preview_mode()){
+        $next=max($minimum,(int)($GLOBALS['ttPreviewPostSequence'][$year]??0))+1;
+        $id=tt_format_post_id($next,$year);$GLOBALS['ttPreviewPostSequence'][$year]=$next;
+        return $id;
+    }
     $next = 1;
     tt_mutate_store(function (&$data) use ($year, $module, $area, $context, $minimum, &$next) {
         $data['post_sequence'] = $data['post_sequence'] ?? [];
@@ -212,7 +217,7 @@ function tt_reserve_post_id(string $module, string $area, array $context = []): 
             'context' => $context,
             'created_at' => date(DATE_ATOM)
         ];
-    });
+    },false); // Callers may hold Accounts; never start a secondary Accounts reader here.
     return tt_format_post_id($next, $year);
 }
 
@@ -222,6 +227,12 @@ function tt_reserve_post_id_block(array $existing,int $count,string $module='Acc
     if($count<1||$count>2000)throw new InvalidArgumentException('Invalid posting batch size.');
     $year=tt_post_id_year();$minimum=0;$ids=[];
     foreach($existing as $key=>$j){$id=(string)($j['id']??$key);if(preg_match('/^POST-'.$year.'-(\\d{5})$/',$id,$m))$minimum=max($minimum,(int)$m[1]);}
+    if(function_exists('tt_posting_preview_mode')&&tt_posting_preview_mode()){
+        $last=max($minimum,(int)($GLOBALS['ttPreviewPostSequence'][$year]??0));
+        tt_format_post_id($last+$count,$year);
+        for($i=1;$i<=$count;$i++)$ids[]=tt_format_post_id($last+$i,$year);
+        $GLOBALS['ttPreviewPostSequence'][$year]=$last+$count;return $ids;
+    }
     tt_mutate_store(function(&$data)use($year,$minimum,$count,$module,$area,&$ids){
         $last=max($minimum,(int)($data['post_sequence']['years'][(string)$year]['last']??0));
         tt_format_post_id($last+$count,$year);

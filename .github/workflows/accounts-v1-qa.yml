@@ -183,6 +183,7 @@ jobs:
           php tests/security/session_web_hardening_test.php
           php tests/security/server_backup_hardening_test.php
           php tests/security/upload_validation_test.php
+          python3 tests/security/export_document_index_integrity_test.py
           php tests/security/office_backup_auth_test.php
           python3 tests/security/office_backup_agent_test.py
           python3 tests/security/office_backup_protocol_test.py

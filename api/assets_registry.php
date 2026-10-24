@@ -3,6 +3,7 @@ declare(strict_types=1);
 require dirname(__DIR__).'/auth_store.php';
 require_once __DIR__.'/assets_registry_core.php';
 require_once __DIR__.'/accounts_bank_payment.php';
+require_once __DIR__.'/accounts_posting_preview.php';header('X-TT-Posting-Preview: available');
 header('Content-Type: application/json; charset=UTF-8');header('Cache-Control: private, no-store');
 function far_out(array $v,int $status=200):never {http_response_code($status);echo json_encode($v,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR);exit;}
 try {
@@ -14,14 +15,14 @@ try {
     if(!$director&&!tt_user_can_access_entity($u,$e,'View'))far_out(['ok'=>false,'error'=>'Company access denied.'],403);
     $write=$_SERVER['REQUEST_METHOD']==='POST';if(!$write&&$_SERVER['REQUEST_METHOD']!=='GET')far_out(['ok'=>false,'error'=>'Method not allowed.'],405);
     if($write){if(!tt_verify_csrf((string)($body['csrf']??'')))far_out(['ok'=>false,'error'=>'Session expired. Refresh and try again.'],419);
-        if(!far_permission($u,$module,'Create')&&!far_permission($u,$module,'Edit')&&!far_permission($u,$module,'Approve'))far_out(['ok'=>false,'error'=>'Assets write permission required.'],403);
-        if(!$director&&!tt_user_can_access_entity($u,$e,'Create')&&!tt_user_can_access_entity($u,$e,'Edit')&&!tt_user_can_access_entity($u,$e,'Approve'))far_out(['ok'=>false,'error'=>'Company write permission required.'],403);
+        $action=(string)($body['action']??'');$right=in_array($action,['amend','reopen'],true)?'Edit':($action==='location'&&($body['operation']??'')==='delete'?'Delete':'Create');
+        if(!far_permission($u,$module,$right)||(!$director&&!tt_user_can_access_entity($u,$e,$right)))far_out(['ok'=>false,'error'=>'Assets and company '.$right.' permission required.'],403);
     }
-    tt_ensure_data_dir();$file=TT_DATA_DIR.'/accounts.json';$h=fopen($file,'c+');if($h===false||!flock($h,$write?LOCK_EX:LOCK_SH))throw new RuntimeException('Storage unavailable.');
+    $file=TT_DATA_DIR.'/accounts.json';$h=@fopen($file,$write?'r+b':'rb');if($h===false||!flock($h,$write?LOCK_EX:LOCK_SH))throw new RuntimeException('Storage unavailable.');
     try {
-        rewind($h);$raw=stream_get_contents($h);$s=$raw!==''?json_decode($raw,true,512,JSON_THROW_ON_ERROR):[];if(!is_array($s))throw new RuntimeException('Invalid Accounts storage.');$result=[];
+        rewind($h);$raw=stream_get_contents($h);if($raw===false||trim($raw)==='')throw new RuntimeException('Accounts storage is empty.');$s=json_decode($raw,true,512,JSON_THROW_ON_ERROR);if(!is_array($s)||!is_array($s['journals']??null))throw new RuntimeException('Invalid Accounts storage.');$result=[];$previewBefore=array_map('strval',array_keys($s['journals']));
         if($write){$key=(string)($body['requestKey']??'');if(!preg_match('/^[A-Za-z0-9._:-]{8,128}$/',$key))throw new DomainException('Refresh the form before saving.');
-            $identity=$module.'|'.$e.'|'.(string)($u['id']??0).'|'.$key;$fingerprint=hash('sha256',json_encode($body));$saved=$s['assetRequestKeys'][$identity]??null;
+            $identity=$module.'|'.$e.'|'.(string)($u['id']??0).'|'.$key;$fingerprint=hash('sha256',json_encode(tt_preview_request_body($body)));$saved=$s['assetRequestKeys'][$identity]??null;
             if($saved){if($saved['fingerprint']!==$fingerprint)throw new DomainException('This request has already been used. Reopen the form.');$result=$saved['result'];}
             else {
                 $action=(string)($body['action']??'');
@@ -43,6 +44,8 @@ try {
                         $a['amendments'][]=['date'=>gmdate('c'),'reason'=>$reason,'by'=>(string)($u['full_name']??$u['username']??'Accounts')];$a['version']++;$a['reopened']=false;$result=['postId'=>$id,'message'=>'ASSET RECORD AMENDED'];
                     }$s['managedAssets'][$id]=$a;
                 }else throw new DomainException('Unknown asset action.');
+                tt_posting_preview_exit($body,$s,$previewBefore);
+                $result['journalIds']=array_values(array_diff(array_map('strval',array_keys($s['journals'])),$previewBefore));
                 $s['assetRequestKeys'][$identity]=['fingerprint'=>$fingerprint,'result'=>$result];$s['revision']=(int)($s['revision']??0)+1;
                 $encodedAccounts=json_encode($s,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR);rewind($h);if(!ftruncate($h,0)||fwrite($h,$encodedAccounts)!==strlen($encodedAccounts)||!fflush($h))throw new RuntimeException('Save failed.');
             }
@@ -50,6 +53,8 @@ try {
         $payload=far_payload($s,$e,$director);$requested=(string)($_GET['assetId']??'');
         if($requested!==''){$a=$s['managedAssets'][$requested]??null;if(!is_array($a)||$a['entity']!==$e||!far_visible($a,$director))far_out(['ok'=>false,'error'=>'Asset was not found.'],404);$payload['asset']=far_view($a,$director);}
         $payload['banks']=far_banks($s,$e);$payload['result']=$result;
+        foreach(['Create','Edit','Delete'] as $right)$payload['can'.$right]=far_permission($u,$module,$right)&&($director||tt_user_can_access_entity($u,$e,$right));
+        $payload['journals']=array_values(array_map(static fn($id)=>array_replace($s['journals'][$id],['canEdit'=>false]),array_filter((array)($result['journalIds']??[]),static fn($id)=>isset($s['journals'][$id]))));
     } finally {flock($h,LOCK_UN);fclose($h);}
     far_out($payload);
 }catch(DomainException $ex){far_out(['ok'=>false,'error'=>$ex->getMessage()],422);}catch(Throwable $ex){error_log('Assets registry: '.$ex->getMessage());far_out(['ok'=>false,'error'=>'Asset could not be saved or loaded.'],500);}
