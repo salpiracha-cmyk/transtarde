@@ -2,7 +2,6 @@
 declare(strict_types=1);
 require_once __DIR__.'/mill_recovery_core.php';
 require_once __DIR__.'/accounts_subaccounts_core.php';
-require_once __DIR__.'/cashflow_native_source.php';
 
 /** Management calculations. All amounts are explicit; no financial posting side effects. */
 function gm_number(mixed $value,string $label,bool $signed=false):float {
@@ -164,6 +163,7 @@ function gm_financial_source(array $state,string $date,?array $bankMasters=null,
 
 /** Owner cash-flow scope; presentation only, never a journal or trial-balance change. */
 function gm_cashflow_source(array $state,string $date,?array $bankMasters=null):array {
+    require_once __DIR__.'/cashflow_native_source.php';
     $bankMasters??=function_exists('tt_list_masters')?(array)(tt_list_masters()['banks']??[]):[];
     return gm_cashflow_offset_suppliers(cfn_source(gm_cashflow_scope(gm_financial_source($state,$date,$bankMasters,true)),$state,$date,$bankMasters));
 }
