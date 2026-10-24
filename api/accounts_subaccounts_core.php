@@ -309,11 +309,24 @@ function zp_balanced_source(array $journal):bool {
     foreach($lines as $line){if(!is_array($line))return false;foreach(['debit','credit'] as $side){$amount=$line[$side]??0;if(!is_numeric($amount)||!is_finite((float)$amount)||(float)$amount<0)return false;}$debits+=(float)($line['debit']??0);$credits+=(float)($line['credit']??0);}
     return abs($debits-$credits)<.005;
 }
+/** A captured monthly breakdown may be dated after its early actual payment.
+ * This is classification evidence only: it never includes future cash or accrues
+ * the monthly expense early in the ledger/trial balance.
+ */
+function zp_salary_evidence_date(array $journal,string $to):bool {
+    $date=(string)($journal['date']??'');if(!zp_valid_date($date))return false;
+    if($date<=$to)return true;
+    if(($journal['sourceType']??'')!=='SALARY_MONTHLY_ACCRUAL'||!empty($journal['reversalOf'])||!empty($journal['amendedByPostId'])||!empty($journal['reversedByPostId']))return false;
+    $month=(string)($journal['meta']['month']??'');$id=(string)($journal['meta']['salaryMasterId']??'');
+    if($id===''||!preg_match('/^\d{4}-(0[1-9]|1[0-2])$/',$month)||(new DateTimeImmutable($month.'-01'))->format('Y-m-t')!==$date)return false;
+    foreach($journal['lines']??[] as $line)if(!is_array($line)||zp_salary_key($line,$journal)!==$id.'|'.$month||!in_array((string)($line['account']??''),['6210','6220','7210','3200','6910','2140','2230','1230'],true))return false;
+    return true;
+}
 function gm_zakat_payments(array $state,string $from,string $to,string $entity='TTI'):array {
     $rows=[];$total=0.;$warnings=[];$salary=[];$salaryGross=[];$salaryCashPaid=[];
     // An accrual is not payment. Payroll cash can settle several components and
     // must not be allocated to Zakat by an assumed payment order or proportion.
-    foreach((array)($state['journals']??[]) as $j){if(!is_array($j)||($j['entity']??'')!==$entity||($j['status']??'')!=='Posted'||!zp_valid_date((string)($j['date']??''))||$j['date']>$to||!zp_balanced_source($j))continue;foreach((array)($j['lines']??[]) as $line){if(!is_array($line))continue;$key=zp_salary_key($line,$j);if($key===''||!in_array((string)($line['account']??''),['6210','6220','7210','3200','6910'],true))continue;$salary[$key]??=0.;$net=(float)($line['debit']??0)-(float)($line['credit']??0);$salaryGross[$key]=($salaryGross[$key]??0)+$net;if((string)($line['account']??'')==='7210')$salary[$key]+=$net;}}
+    foreach((array)($state['journals']??[]) as $j){if(!is_array($j)||($j['entity']??'')!==$entity||($j['status']??'')!=='Posted'||!zp_salary_evidence_date($j,$to)||!zp_balanced_source($j))continue;foreach((array)($j['lines']??[]) as $line){if(!is_array($line))continue;$key=zp_salary_key($line,$j);if($key===''||!in_array((string)($line['account']??''),['6210','6220','7210','3200','6910'],true))continue;$salary[$key]??=0.;$net=(float)($line['debit']??0)-(float)($line['credit']??0);$salaryGross[$key]=($salaryGross[$key]??0)+$net;if((string)($line['account']??'')==='7210')$salary[$key]+=$net;}}
     foreach((array)($state['journals']??[]) as $j){
         if(!is_array($j)||($j['entity']??'')!==$entity||($j['status']??'')!=='Posted'||!zp_valid_date((string)($j['date']??''))||$j['date']>$to||!zp_balanced_source($j))continue;
         $cash=0.;$parts=[];foreach((array)($j['lines']??[]) as $line){if(!is_array($line))continue;$net=(float)($line['debit']??0)-(float)($line['credit']??0);$code=(string)($line['account']??'');if(in_array($code,['1110','1120'],true))$cash-=$net;elseif(in_array($code,['2140','2230'],true)&&($key=zp_salary_key($line,$j))!=='')$parts[$key]=($parts[$key]??0)+$net;}
