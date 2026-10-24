@@ -316,10 +316,11 @@ function zp_balanced_source(array $journal):bool {
 function zp_salary_evidence_date(array $journal,string $to):bool {
     $date=(string)($journal['date']??'');if(!zp_valid_date($date))return false;
     if($date<=$to)return true;
-    if(($journal['sourceType']??'')!=='SALARY_MONTHLY_ACCRUAL'||!empty($journal['reversalOf'])||!empty($journal['amendedByPostId'])||!empty($journal['reversedByPostId']))return false;
+    $source=(string)($journal['sourceType']??'');$group=$source==='SALARY_MONTH_COMPLETED'&&!empty($journal['meta']['paymentPostIds']);
+    if(($source!=='SALARY_MONTHLY_ACCRUAL'&&!$group)||!empty($journal['reversalOf'])||!empty($journal['amendedByPostId'])||!empty($journal['reversedByPostId']))return false;
     $month=(string)($journal['meta']['month']??'');$id=(string)($journal['meta']['salaryMasterId']??'');
-    if($id===''||!preg_match('/^\d{4}-(0[1-9]|1[0-2])$/',$month)||(new DateTimeImmutable($month.'-01'))->format('Y-m-t')!==$date)return false;
-    foreach($journal['lines']??[] as $line)if(!is_array($line)||zp_salary_key($line,$journal)!==$id.'|'.$month||!in_array((string)($line['account']??''),['6210','6220','7210','3200','6910','2140','2230','1230'],true))return false;
+    if((!$group&&$id==='')||!preg_match('/^\d{4}-(0[1-9]|1[0-2])$/',$month)||(new DateTimeImmutable($month.'-01'))->format('Y-m-t')!==$date)return false;
+    foreach($journal['lines']??[] as $line){if(!is_array($line)||!in_array((string)($line['account']??''),['6210','6220','7210','3200','6910','2140','2230','1230'],true))return false;$key=zp_salary_key($line,$journal);if($key===''||($group?substr($key,-7)!==$month:$key!==$id.'|'.$month))return false;}
     return true;
 }
 function gm_zakat_payments(array $state,string $from,string $to,string $entity='TTI'):array {
