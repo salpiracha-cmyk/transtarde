@@ -6,9 +6,9 @@ const root=path.resolve(__dirname,'../..');
 const read=p=>fs.readFileSync(path.join(root,p),'utf8');
 const output=path.join(root,'tmp/qa');fs.mkdirSync(output,{recursive:true});
 const bank={id:'UI-BANK',bankName:'Test Bank',accountTitle:'Test Company',currency:'USD',accountNumber:'123456',iban:'TEST-IBAN',swift:'TESTSWIFT',accountType:'Company Account',depositType:'SAVING',isDefault:true,retentionAccount:true,status:'Active',country:'Pakistan',customHistory:'preserve'};
-const company={id:'UI-COMPANY',values:['Test Company','TTI','Pakistan','Test address','Exporter','','',JSON.stringify([{name:'Test Owner',share:100}]),'123','','','','',JSON.stringify([bank]),'[]','[]','[]','{}']};
+const company={id:'companies-1',values:['Test Company','TTI','Pakistan','Test address','Exporter','','',JSON.stringify([{name:'Test Owner',share:100}]),'123','','','','',JSON.stringify([bank]),'[]','[]','[]','{}']};
 const session={id:'ui-super',name:'UI Test',username:'ui-test',role:'Super Admin',csrf:'test',permissions:{},masterAccess:true};
-let posted;
+let posted,masterReads=0,releaseMasters;const mastersGate=new Promise(resolve=>releaseMasters=resolve);
 (async()=>{
  const browser=await chromium.launch({headless:true,...(process.env.TT_PLAYWRIGHT_EXECUTABLE?{executablePath:process.env.TT_PLAYWRIGHT_EXECUTABLE}:{})});
  try{
@@ -18,6 +18,7 @@ let posted;
    const url=new URL(route.request().url());
    if(url.pathname.includes('/api/')){
     const body=route.request().postDataJSON();
+    if(url.pathname==='/api/masters.php'&&!body){masterReads++;await mastersGate;}
     if(body?.type==='companies'&&body.action==='update'){posted=body;company.values=body.values;}
     const data={ok:true,masters:{companies:[company]},options:{currencies:['PKR','USD'],countries:['Pakistan']},users:[],requests:[],approvals:[]};
     return route.fulfill({json:data});
@@ -40,7 +41,16 @@ let posted;
   await page.locator('#uiNumericFixture').evaluate(el=>el.remove());
 
   await page.addScriptTag({content:read('admin/app.js')});
-  await page.waitForSelector('[data-edit-master="UI-COMPANY"]');
+  await page.locator('[data-edit-master="companies-1"]').click();
+  assert.equal(await page.locator('#masterDialog').evaluate(el=>el.open),false,'An early edit must wait for authoritative records, never open cached empty banks');
+  assert.equal(posted,undefined,'Opening during loading must not save');
+  releaseMasters();await page.locator('#masterDialog').waitFor({state:'visible'});
+  await page.locator('[data-company-editor-tab="banks"]').click();
+  assert.equal(await page.locator('#companyBankRows tbody tr').count(),1);
+  assert.equal(await page.locator('#companyBankRows [data-edit-company-bank="UI-BANK"]').count(),1,'Early edit must use the saved server bank list');
+  assert.equal(masterReads,1,'Early edit shares the pending startup read');
+  await page.locator('#masterDialog [data-close-dialog]').first().click();
+  await page.waitForSelector('[data-edit-master="companies-1"]');
   // Drawer is reachable in a half-window and its controls are above the dismiss overlay.
   await page.locator('#menuButton').click();
   await page.waitForTimeout(250);
@@ -51,7 +61,7 @@ let posted;
   assert.equal(await page.locator('#menuButton').getAttribute('aria-expanded'),'false');
   assert.equal(await page.evaluate(()=>document.activeElement.id),'menuButton');
   // Both master routes use the same bank table and popup.
-  await page.locator('[data-edit-master="UI-COMPANY"]:visible').click();
+  await page.locator('[data-edit-master="companies-1"]:visible').click();
   // Actual company owner rows must keep destructive controls aligned with inputs.
   const checkOwners=async()=>{
    const geometry=await page.locator('.company-owner-row').evaluateAll(rows=>rows.map(row=>{
@@ -101,9 +111,9 @@ let posted;
   assert.equal(saved.depositType,'SAVING');assert.equal(JSON.parse(posted.values[13])[1].depositType,'CURRENT');assert.equal(saved.branch,'Updated branch');assert.equal(saved.isDefault,true);assert.equal(saved.customHistory,'preserve');assert.equal(saved.retentionAccount,true);
   assert.equal(JSON.parse(posted.values[13])[1].accountNumber,'');
   // Opening Edit from the company detail Banks tab opens the same Banks editor.
-  await page.locator('[data-open-master="UI-COMPANY"]').click();
+  await page.locator('[data-open-master="companies-1"]').click();
   await page.locator('[data-company-tab="banks"]').click();
-  await page.locator('[data-edit-master="UI-COMPANY"]:visible').click();
+  await page.locator('[data-edit-master="companies-1"]:visible').click();
   await page.locator('#companyBankRows tbody tr').first().waitFor({state:'visible'});
   await page.screenshot({path:path.join(output,'company-banks-edit.png'),fullPage:true});
   await page.locator('[data-close-dialog="masterDialog"]').first().click();

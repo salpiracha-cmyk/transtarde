@@ -225,6 +225,7 @@
 
   let state = loadState();
   let currentMaster = "companies";
+  let serverMastersReady=false,serverMastersLoading=null,masterEditorSequence=0;
   let selectedMasterId = "";
   let companyDetailTab = "overview";
   const dirtyDialogs=new Set();
@@ -333,13 +334,22 @@
 
   async function loadServerMasters() {
     if (!hasMasterAccess) return;
-    const data = await apiRequest(null, "masters");
-    state.masters = ensureMasterSections(data.masters,data.options||state.masterOptions);
-    pendingDeletionRequests = (data.deletionRequests || []).filter(item => item.status === 'Pending');
-    pendingBankDeletionRequests = (data.bankDeletionRequests || []).filter(item => item.status === 'Pending');
-    if (data.options) state.masterOptions = data.options;
-    renderMasters();
-    renderApprovals();
+    if(serverMastersLoading)return serverMastersLoading;
+    serverMastersLoading=(async()=>{
+      const data = await apiRequest(null, "masters");
+      state.masters = ensureMasterSections(data.masters,data.options||state.masterOptions);
+      pendingDeletionRequests = (data.deletionRequests || []).filter(item => item.status === 'Pending');
+      pendingBankDeletionRequests = (data.bankDeletionRequests || []).filter(item => item.status === 'Pending');
+      if (data.options) state.masterOptions = data.options;
+      serverMastersReady=true;
+      renderMasters();
+      renderApprovals();
+    })();
+    try{return await serverMastersLoading;}finally{serverMastersLoading=null;}
+  }
+  async function waitForMasterRecords(){
+    try{await loadServerMasters();return serverMastersReady;}
+    catch(error){toast('Master records could not load. Reopen after retrying: '+error.message);return false;}
   }
 
   function applySessionAccess() {
@@ -1293,7 +1303,10 @@
     }
     detail.innerHTML=head+tabbar+`<div class="master-detail-body">${content}</div>`;
   }
-  function openBankDialog(bankId="") {
+  async function openBankDialog(bankId="") {
+    const requestedCompany=selectedMasterId,attempt=++masterEditorSequence;
+    if((!serverMastersReady||serverMastersLoading)&&!await waitForMasterRecords())return;
+    if(attempt!==masterEditorSequence||requestedCompany!==selectedMasterId)return;
     const inEditor=document.getElementById('masterDialog').open;
     const companyId=inEditor?document.getElementById('editMasterId').value:selectedMasterId;
     const company=(state.masters.companies||[]).find(row=>row.id===companyId);
@@ -1301,6 +1314,7 @@
     if((!company&&!draft)||!canMaster("companies",draft?"Create":"Edit"))return;
     const banks=draft?JSON.parse(document.getElementById(masterInputId(13)).value||'[]'):companyBanks(company);
     const bank=banks.find(item=>item.id===bankId)||{};
+    if(bankId&&!bank.id){toast("This bank account is no longer available. Reopen the current company record.");return;}
     const form=document.getElementById("bankForm");form.reset();
     showBankSaveError("");
     document.getElementById("bankEditId").value=bankId;
@@ -1436,9 +1450,13 @@
     document.querySelectorAll('[data-company-editor-tab]').forEach(button=>{button.classList.toggle('active',button.dataset.companyEditorTab===tab);button.setAttribute('aria-selected',String(button.dataset.companyEditorTab===tab));});
     const dialog=document.getElementById('masterDialog');if(dialog?.open)window.TT_FORM_VIEWPORT?.open(dialog);
   }
-  function openMasterDialog(id = "",editorTab="overview") {
+  async function openMasterDialog(id = "",editorTab="overview") {
+    const requestedMaster=currentMaster,attempt=++masterEditorSequence;
+    if((!serverMastersReady||serverMastersLoading)&&!await waitForMasterRecords())return;
+    if(attempt!==masterEditorSequence||requestedMaster!==currentMaster)return;
     const type = activeMasterType();
     const row = (state.masters[type.id] || []).find(item => item.id === id);
+    if(id&&!row){toast("This master record is no longer available. Reopen the current list.");return;}
     document.getElementById("masterForm").reset();
     document.getElementById("masterForm").dataset.purchaseCommodity=type.id==="purchase_products"?String(row?.values?.[0]||"").toUpperCase():"";
     document.getElementById("editMasterId").value = row?.id || "";
@@ -1911,6 +1929,7 @@
   }
 
   function showView(id) {
+    if(id!=="masters")masterEditorSequence++;
     if (!IS_SUPER_ADMIN && !(id==="masters"&&hasMasterAccess)) { toast("Master Records access required."); return; }
     document.querySelectorAll(".view").forEach(view => view.classList.toggle("active", view.id === `view-${id}`));
     document.querySelectorAll(".nav-item[data-view]").forEach(item => item.classList.toggle("active", item.dataset.view === id));
