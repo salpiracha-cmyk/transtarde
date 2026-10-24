@@ -49,8 +49,9 @@ try {
                         $partRows=[];$partData=[];
                         if($part==='header'){$rates=(array)($input['data']['rates']??[]);$clean=['PKR'=>1.];foreach(['USD','AED'] as $currency)if(isset($rates[$currency])&&$rates[$currency]!=='')$clean[$currency]=gm_fx($rates,$currency);$stockPrices=[];foreach((array)($input['data']['stockPrices']??[]) as $stockId=>$price){if($price!==''&&$price!==null)$stockPrices[gm_text($stockId,200)]=dt_positive($price,'stock market rate per kg');}$partData=['stockPrices'=>$stockPrices,'rates'=>$clean,'notes'=>gm_text($input['data']['notes']??'',2000)];}
                         else {$partRows=gm_rows((array)($input['rows']??[]));foreach($partRows as $row)if($row['type']!=='ADJUSTMENT'||str_starts_with($row['id'],'BOOK-'))throw new DomainException('Add only separately identified cash-flow adjustments.');}
+                        if($part==='adjustments'&&$partRows&&!empty($body['complete'])&&empty($body['adjustmentsReviewConfirmed']))throw new DomainException('Review the cash-flow adjustments before completing this sheet.');
                         $record['history'][]=['section'=>$part,'before'=>$before,'savedAt'=>gmdate('c'),'savedBy'=>$user['full_name']??$user['username']??'','reason'=>$reason];
-                        $record['sections'][$part]=['version'=>(int)$before['version']+1,'rows'=>$partRows,'data'=>$partData,'calculation'=>null,'complete'=>false,'savedAt'=>gmdate('c'),'savedBy'=>$user['full_name']??$user['username']??'','userId'=>(int)($user['id']??0),'reason'=>$reason];
+                        $record['sections'][$part]=['version'=>(int)$before['version']+1,'rows'=>$partRows,'data'=>$partData,'calculation'=>null,'complete'=>!empty($body['complete']),'savedAt'=>gmdate('c'),'savedBy'=>$user['full_name']??$user['username']??'','userId'=>(int)($user['id']??0),'reason'=>$reason];
                     }
                     gm_total(array_merge(gm_financial_source($state,$date)['rows'],$record['sections']['adjustments']['rows']),$record['sections']['header']['data']['rates']);
                 }
