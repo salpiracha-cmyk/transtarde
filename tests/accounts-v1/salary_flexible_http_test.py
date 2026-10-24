@@ -371,6 +371,24 @@ with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
         assert not any(l['account'] in ['1110','1120','2140'] for l in new[0]['lines'])
         (root/'data/accounts.json').write_text(json.dumps(original_plan))
         print('PASS exact Rs330,000 plan; company Home expense; partial remuneration/home deductions; credit-card debit and unpaid director receivable; no duplicate cash and atomic reversal')
+        # Zakat selected or stated in an additional salary payment uses the one
+        # Zakat head, without creating a subsidiary or a second salary expense.
+        prior_zakat_state=saved()
+        zakat_state=json.loads(json.dumps(initial));zakat_state['salaryAdvances']={};zakat_state['salaryMasters']={'Salman':{**staff('Salman',1000),'category':'DIRECTOR_REMUNERATION','zakatAmount':0,'otherAllowance':0}}
+        (root/'data/accounts.json').write_text(json.dumps(zakat_state))
+        for index,extra in enumerate([{'subaccountId':'ZAKAT','purpose':'Charity payment'},{'subaccountId':'','purpose':'Zakat paid to recipient'}]):
+            month='2027-0'+str(index+4)
+            tx={'amount':75,'date':month+'-05','paymentAccountId':'CASH|TTI','recipient':'Salman','allocations':[{'type':'EXPENSE','amount':75,**extra}]}
+            status,result=action('save_salary_transactions','Salman',month=month,transactions=[tx],advanceApplied=0);assert status==200,result
+            assert len(saved()['journals'])==index*2,'Saving Zakat payment is draft-only'
+            sheet=request(month=month)[1]['salarySheet'];payload={'action':'complete_salary_month','version':sheet['version'],'date':month+'-30'}
+            before=saved();status,preview=request({**payload,'preview':True},month=month);assert status==200 and saved()==before,preview
+            status,posted=request(payload,month=month);assert status==200,posted
+            payment=next(j for j in saved()['journals'].values() if j['date']==tx['date'])
+            assert [l['account'] for l in payment['lines']]==['7210','1120'] and payment['totalDebit']==payment['totalCredit']==75,payment
+            assert payment['lines'][0]['subaccountId']=='','Zakat has no artificial subsidiary'
+        (root/'data/accounts.json').write_text(json.dumps(prior_zakat_state))
+        print('PASS salary extra Zakat choice/purpose, draft-only save, atomic preview/post and one Zakat debit/cash credit')
         if os.getenv('TT_QA_BROWSER')=='1':
             from playwright.sync_api import sync_playwright
             with sync_playwright() as pw:

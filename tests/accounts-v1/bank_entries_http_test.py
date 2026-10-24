@@ -116,6 +116,8 @@ require $argv[1];
     before=books.read_bytes();assert mutate('bank_entries',**{**bankpay,'reference':'BAD-SPLIT','amount':31})[0]==422 and books.read_bytes()==before
     assert mutate('bank_entries',**{**bankpay,'reference':'UNCONFIGURED','debitRows':[{'payeeId':'EXP|talha','amount':30}]})[0]==422
     purpose,_=good(**{**bankpay,'reference':'MIXED-PURPOSE','debitRows':[{'payeeId':pid,'accountCode':'7210','amount':10},{'payeeId':pid,'accountCode':'6900','amount':20}]});assert [l['account'] for l in purpose['result']['journal']['lines']]==['7210','6900','1110']
+    zakat_note,_=good(**{**bankpay,'reference':'ZAKAT-NARRATION','narration':'Zakat distribution','debitRows':[{'payeeId':pid,'accountCode':'6900','amount':30}]});assert [l['account'] for l in zakat_note['result']['journal']['lines']]==['7210','1110']
+    zakat_row,_=good(**{**bankpay,'reference':'ZAKAT-ROW','narration':'Mixed payment','debitRows':[{'payeeId':pid,'accountCode':'6900','amount':10,'narration':'Zakat'},{'payeeId':pid,'accountCode':'6900','amount':20,'narration':'Office stationery'}]});assert [l['account'] for l in zakat_row['result']['journal']['lines']]==['7210','6900','1110']
     assert mutate('bank_entries',**{**bankpay,'reference':'WRONG-EXPENSE-TYPE','debitRows':[{'payeeId':pid,'accountCode':'1110','amount':30}]})[0]==422
     permissions['cashbank']=['View'];set_user();assert mutate('accounts_payees',kind='BUSINESS',name='Denied',accountCode='2190')[0]==403;permissions['cashbank']=['View','Create','Edit','Delete'];set_user()
     args={'action':'post','date':'2026-10-07','bankId':'BANK-1','reference':'PROFIT-1','narration':'Monthly gross saving profit','type':'SAVING_PROFIT','amount':1000,'withholdingTax':150}

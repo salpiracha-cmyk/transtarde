@@ -73,6 +73,12 @@ function dex_rows(mixed $input,array $names,array $store=[],string $entity='TTI'
     foreach($input as $row){
         if(!is_array($row))throw new InvalidArgumentException('An expense row is invalid.');
         $category=strtoupper(trim((string)($row['category']??'')));$purpose=trim((string)($row['purpose']??''));
+        // Owner rule: an explicitly identified Zakat amount always uses 7210,
+        // including an expense entered through petty cash with an old Office default.
+        if(strtoupper((string)($row['donationType']??''))==='ZAKAT'||zp_zakat_text($purpose)){
+            $category='DONATION';$row['donationType']='ZAKAT';$row['accountCode']='7210';
+            unset($row['subaccountId']);$row['personalTreatment']='COMPANY';
+        }
         $value=$row['amount']??null;if(!is_numeric($value)||!is_finite((float)$value)||(float)$value<=0||(float)$value>100000000000)throw new InvalidArgumentException('Enter a positive amount for each expense.');
         $amount=round((float)$value,2);if($amount<=0)throw new InvalidArgumentException('Each expense must be at least 0.01.');
         if(strlen($purpose)>500)throw new InvalidArgumentException('Purpose must be no longer than 500 characters.');
@@ -119,7 +125,9 @@ function dex_post(array &$store,string $entity,array $body,array $user,array $na
     $profile=null;foreach(sac_expense_recipients($store,$entity) as $candidate)if(sac_normal($candidate['name'])===sac_normal($payee)){$profile=$candidate;break;}
     if($profile)$payee=$profile['name'];if(!empty($body['payeeId'])&&(!$profile||$profile['id']!==(string)$body['payeeId']))throw new InvalidArgumentException('Choose the current expense recipient.');
     $date=ev1_date((string)($body['paymentDate']??''),'Payment date');$reference=trim((string)($body['reference']??''));if(strlen($reference)>180)throw new InvalidArgumentException('Reference is too long.');
-    [$rows,$total]=dex_rows($body['expenseLines']??null,$names,$store,$entity);$paymentId=trim((string)($body['paymentAccountId']??''));
+    $input=$body['expenseLines']??null;
+    if(is_array($input)&&count($input)===1&&is_array($input[0])&&trim((string)($input[0]['purpose']??''))===''&&zp_zakat_text($narration))$input[0]['purpose']=$narration;
+    [$rows,$total]=dex_rows($input,$names,$store,$entity);$paymentId=trim((string)($body['paymentAccountId']??''));
     if(isset($body['amount'])&&(!is_numeric($body['amount'])||abs(round((float)$body['amount'],2)-$total)>.005))throw new InvalidArgumentException('Payment total must equal all expense rows.');
     foreach((array)($store['generalExpenses']??[]) as $previous)if(($previous['entity']??'')===$entity&&!in_array(($previous['status']??''),['Deleted','Amended'],true)&&$reference!==''&&strcasecmp((string)($previous['reference']??''),$reference)===0&&strcasecmp((string)($previous['payee']??''),$payee)===0)throw new InvalidArgumentException('This expense reference is already recorded for the recipient.');
     eiv_assert_not_captured($store,$entity,$payee,$reference);

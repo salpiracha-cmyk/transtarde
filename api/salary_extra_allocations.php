@@ -3,7 +3,7 @@ declare(strict_types=1);
 require_once __DIR__.'/accounts_subaccounts_core.php';
 /** Canonical choices only: extra payments never change monthly entitlement. */
 function sea_choices(array $s,string $e,array $u):array {
-    $expenses=[];$capital=[];
+    $expenses=[['id'=>'ZAKAT','name'=>'Zakat','parentCode'=>'7210']];$capital=[];
     foreach(sac_accounts($s,$e) as $id=>$unused){try{$a=sac_resolve($s,$e,(string)$id);if($a['class']==='Expense'&&$a['expenseClassification']!=='MILL')$expenses[]=['id'=>$id,'name'=>$a['name'],'parentCode'=>$a['parentCode']];}catch(DomainException $ignore){}}
     usort($expenses,static fn($a,$b)=>strnatcasecmp($a['name'],$b['name']));
     if(far_permission($u,'Accounts','Create')){
@@ -15,6 +15,7 @@ function sea_choices(array $s,string $e,array $u):array {
     return ['allocationExpenses'=>$expenses,'allocationCapital'=>$capital,'allocationVehicles'=>array_values(array_map(static fn($a)=>['id'=>$a['id'],'name'=>$a['name'].' · '.($a['registrationNo']??'')],array_filter((array)($s['managedAssets']??[]),static fn($a)=>($a['entity']??'')===$e&&in_array($a['type']??'',['VEHICLE','MOTORCYCLE'],true))))];
 }
 function sea_validate(array $s,string $e,array $a,array $u,string $date):array {
+    if(($a['type']??'')==='EXPENSE'&&(($a['subaccountId']??'')==='ZAKAT'||zp_zakat_text((string)($a['purpose']??''))))return ['id'=>'','name'=>'Zakat','parentCode'=>'7210','taxCategory'=>'NONE','class'=>'Expense','expenseClassification'=>'OFFICE','paymentExtra'=>[]];
     if($a['type']==='EXPENSE'){$sub=sac_resolve($s,$e,(string)($a['subaccountId']??''));if($sub['class']!=='Expense'||$sub['expenseClassification']==='MILL')throw new DomainException('Choose an expense subledger; production costs use the Milling workflow.');
         $extra=[];if(in_array($sub['parentCode'],['6410','6610','6620'],true)){$vehicle=$s['managedAssets'][$a['assetId']??'']??null;if(!$vehicle||($vehicle['entity']??'')!==$e||!in_array($vehicle['type']??'',['VEHICLE','MOTORCYCLE'],true))throw new DomainException('Choose the vehicle and registration number.');$extra=['assetId'=>$vehicle['id'],'assetName'=>$vehicle['name'],'registrationNo'=>$vehicle['registrationNo']??''];}
         if($sub['parentCode']==='6620'){$from=rsv2_date((string)($a['periodFrom']??''));$to=rsv2_date((string)($a['periodTo']??''));if($to<$from)throw new DomainException('Tax period end must follow its start.');$extra+=['periodFrom'=>$from,'periodTo'=>$to,'challanReference'=>$a['challanReference']??''];}
