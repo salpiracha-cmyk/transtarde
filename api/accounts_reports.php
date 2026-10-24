@@ -195,9 +195,12 @@ try {
     // Presentation follows actual payments, not the chart's legacy Expense label.
     // Never create a balancing figure or alter original opening/payment journals.
     if(isset($periodBalances['7210'])||$zakat['rows']||$zakat['warnings'])$periodBalances['7210']=$zakat['totalPKR'];
-    $zakatClassificationComplete=abs($zakatControlNet-$zakatAllPaid['totalPKR'])<.005&&!$zakatAllPaid['warnings'];
+    $zakatStatement=zp_statement_adjustments($journals,$zakatAllPaid,$catalog);
+    $statementBalances=$balances;
+    foreach($zakatStatement['adjustments'] as $code=>$amount)$statementBalances[$code]=($statementBalances[$code]??0)+$amount;
+    $zakatClassificationComplete=!$zakatStatement['warnings']&&abs(($statementBalances['7210']??0)-$zakatAllPaid['totalPKR'])<.005;
     $statementWarnings=$zakat['warnings'];
-    $balanceSheetWarnings=$zakatClassificationComplete?[]:['Zakat 7210 includes unpaid or opening control amounts. This is the original posted-books balance sheet; reconcile the annual control and its approved counterpart before finalising its classification. No reclassification journal or balancing equity has been assumed.'];
+    $balanceSheetWarnings=$zakatStatement['warnings'];
 
     $income = [];
     $expenses = [];
@@ -211,7 +214,7 @@ try {
             $profit += $amount;
         } elseif ($class === 'Expense' || in_array((string)$code, ['7100','7195'], true)) {
             $amount = round($net, 2);
-            $expenses[] = ['account' => $code, 'name' => (string)($account['name'] ?? $code), 'amount' => (string)$code==='7210'&&$zakat['warnings']?null:$amount];
+            $expenses[] = ['account' => $code, 'name' => (string)$code==='7210'?'Donations — Zakat paid':(string)($account['name'] ?? $code), 'amount' => (string)$code==='7210'&&$zakat['warnings']?null:$amount];
             $profit -= $amount;
         }
     }
@@ -223,7 +226,7 @@ try {
     $liabilities = [];
     $equity = [];
     $cumulativeProfit = 0.0;
-    foreach ($balances as $code => $net) {
+    foreach ($statementBalances as $code => $net) {
         $account = $catalog[$code] ?? [];
         $class = (string)($account['class'] ?? 'Other');
         $name = (string)($account['name'] ?? $code);
@@ -275,6 +278,8 @@ try {
         ],
         'zakatReporting' => ['basis'=>'Actual paid Zakat less verified refunds; unpaid assessments and financial opening balances are excluded from expense.','bookNetPeriod'=>$zakatBookNet,'paidExpense'=>$zakat['warnings']?null:$zakat['totalPKR'],'verifiedPaidSubtotal'=>$zakat['totalPKR'],'paymentRows'=>$zakat['rows'],'warnings'=>$statementWarnings,'controlBookNet'=>$zakatControlNet,'classificationComplete'=>$zakatClassificationComplete],
         'balanceSheet' => [
+            'basis' => 'Paid Zakat is donation expense in earnings; opening and unpaid Zakat remain in the separate annual control only. Original Trial Balance and General Ledger are unchanged.',
+            'zakatPresentationAdjustments' => $zakatStatement['sources'],
             'classificationComplete' => $zakatClassificationComplete,
             'warnings' => $balanceSheetWarnings,
             'assets' => $assets,

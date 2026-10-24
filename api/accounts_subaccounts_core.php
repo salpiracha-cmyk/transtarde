@@ -369,3 +369,57 @@ function gm_zakat_payments(array $state,string $from,string $to,string $entity='
     }
     usort($rows,static fn($a,$b)=>strcmp($a['date'].'|'.$a['postId'],$b['date'].'|'.$b['postId']));return ['totalPKR'=>round($total,2),'rows'=>$rows,'warnings'=>array_values(array_unique($warnings))];
 }
+
+/** Owner's paid-donation presentation. Original journals, TB and GL stay intact.
+ * Every adjustment removes/reclassifies an evidenced pair of source legs; no
+ * balancing equity, bank movement or annual financial liability is invented.
+ */
+function zp_statement_adjustments(array $journals,array $payments,array $catalog):array {
+    $paid=[];$adjustments=[];$warnings=(array)($payments['warnings']??[]);$sources=[];
+    foreach((array)($payments['rows']??[]) as $row)$paid[(string)$row['postId']]=$row;
+    foreach($journals as $j){
+        $id=(string)($j['id']??'');$z=0.;$zParts=[];$net=[];$controls=[];
+        foreach((array)($j['lines']??[]) as $line){
+            $code=(string)($line['account']??'');$amount=(float)($line['debit']??0)-(float)($line['credit']??0);
+            $net[$code]=($net[$code]??0)+$amount;
+            if($code==='7210'){$z+=$amount;$key=zp_salary_key($line,$j);$zParts[$key]=($zParts[$key]??0)+$amount;}
+            if(in_array($code,['2140','2230'],true)){$key=zp_salary_key($line,$j);$controls[$key][$code]=($controls[$key][$code]??0)+$amount;}
+        }
+        $payment=$paid[$id]??[];$p=(float)($payment['amountPKR']??0);
+        if(abs($z-$p)<.005)continue;
+        $delta=[];$supported=zp_balanced_source($j);
+        $nonzero=array_filter($net,static fn($v)=>abs($v)>.005);
+        $source=(string)($j['sourceType']??'');
+        $opening=in_array($source,['OPENING_BALANCE_BF','OPENING_BALANCE_REVERSAL'],true)||!empty($j['meta']['openingBalance']);
+        if($supported&&$opening&&abs($p)<.005&&count(array_diff(array_keys($nonzero),['7210','3400']))===0&&abs(($net['3400']??0)+$z)<.005){
+            $delta=['7210'=>-$z,'3400'=>$z];
+        }elseif($supported&&abs($p)<.005&&abs($net['1110']??0)<.005&&abs($net['1120']??0)<.005){
+            // Remove the Zakat component of an unpaid entitlement from its
+            // recorded payable, leaving salary, allowances and advances alone.
+            $delta=['7210'=>-$z];
+            foreach($zParts as $key=>$amount){
+                if(abs($amount)<.005)continue;
+                $candidates=array_filter($controls[$key]??[],static fn($v)=>$v*$amount<0&&abs($v)+.005>=abs($amount));
+                if(count($candidates)!==1){$supported=false;break;}
+                $code=(string)array_key_first($candidates);$delta[$code]=($delta[$code]??0)+$amount;
+            }
+            // A standalone non-payroll accrual can use another named payable.
+            if(!$supported&&count($nonzero)===2&&isset($nonzero['7210'])){
+                $other=array_diff(array_keys($nonzero),['7210']);$code=(string)reset($other);
+                if(($catalog[$code]['class']??'')==='Liability'&&abs($net[$code]+$z)<.005){$delta=['7210'=>-$z,$code=>$z];$supported=true;}
+            }
+        }elseif($supported&&abs($z)<.005&&!empty($payment['payrollComponents'])){
+            $delta=['7210'=>$p];
+            foreach($payment['payrollComponents'] as $part){
+                $key=$part['salaryMasterId'].'|'.$part['month'];$amount=(float)$part['amountPKR'];
+                $candidates=array_filter($controls[$key]??[],static fn($v)=>$v*$amount>0&&abs($v)+.005>=abs($amount));
+                if(count($candidates)!==1){$supported=false;break;}
+                $code=(string)array_key_first($candidates);$delta[$code]=($delta[$code]??0)-$amount;
+            }
+        }else{$supported=false;}
+        if(!$supported||!$delta||abs(array_sum($delta))>.005){$warnings[]='Review the original Zakat statement counterpart of Post '.$id.'; no balancing amount has been assumed.';continue;}
+        foreach($delta as $code=>$amount)$adjustments[$code]=round(($adjustments[$code]??0)+$amount,2);
+        $sources[]=['postId'=>$id,'adjustments'=>$delta];
+    }
+    return ['adjustments'=>$adjustments,'sources'=>$sources,'warnings'=>array_values(array_unique($warnings))];
+}
