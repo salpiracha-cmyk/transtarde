@@ -41,12 +41,42 @@ define('TT_DATA_DIR',__DIR__.'/data');function tt_require_login(){return ['role'
   status,z=req('2026-07-01');assert status==200,z
   assert next(x for x in z['profitAndLoss']['expenses'] if str(x['account'])=='7210')['amount']==103250
   assert abs(z['profitAndLoss']['profit']-(296268.82-103250))<.005,z
-  assert not z['balanceSheet']['classificationComplete'] and z['balanceSheet']['warnings']
+  assert z['balanceSheet']['classificationComplete'] and not z['balanceSheet']['warnings']
+  assert abs(z['balanceSheet']['totalAssets']-z['balanceSheet']['totalLiabilitiesAndEquity'])<.005
+  assert next(x for x in z['balanceSheet']['equity'] if x['account']=='CURRENT-EARNINGS')['amount']==round(296268.82-103250,2)
+  assert not any(str(x['account'])=='3400' for x in z['balanceSheet']['equity'])
+  assert not any(str(x['account']) in ['7210','2140'] for x in z['balanceSheet']['liabilities'])
+  assert next(x for x in z['profitAndLoss']['expenses'] if str(x['account'])=='7210')['name']=='Donations — Zakat paid'
   assert z['zakatReporting']['paidExpense']==103250 and z['zakatReporting']['controlBookNet']==-749447
   assert {x['journalId'] for x in z['expenseActivity'] if str(x['account'])=='7210'}=={'Z-PAID','Z-REFUND'}
   assert sum(x['amount'] for x in z['expenseActivity'] if str(x['account'])=='7210')==103250
   assert [(x['recipient'],x['amount']) for x in z['expenseActivity'] if x['journalId']=='Z-PAID']==[('Recipient A',100000),('Recipient B',3350)],'Paid expense must preserve separate original recipients and purpose lines'
   assert path.read_bytes()==zbefore,'Paid-basis presentation must never reclassify or duplicate journals'
+  # Paid donations affect earnings; unpaid payroll Zakat is excluded from
+  # financial payables and stays solely in the annual assessment control.
+  identity={'salaryMasterId':'EMP-TEST','month':'2026-09'}
+  accrual=journal('Z-SAL-ACCRUAL',[{**line('6210',1000),**identity},{**line('7210',100),**identity},{**line('2230',cr=1100),**identity}],'2026-09-30')
+  accrual.update(sourceType='SALARY_MONTHLY_ACCRUAL',meta=identity)
+  salpay=journal('Z-SAL-PAID',[{**line('2230',1100),**identity},line('1110',cr=1100)],'2026-10-02');salpay['sourceType']='SALARY_ALLOCATED_PAYMENT'
+  for paid in [False,True]:
+   fixture={'journals':{accrual['id']:accrual,**({salpay['id']:salpay} if paid else {})}};path.write_text(json.dumps(fixture));saved=path.read_bytes();status,statement=req('2026-07-01')
+   assert status==200 and statement['balanceSheet']['classificationComplete'],statement
+   assert abs(statement['balanceSheet']['totalAssets']-statement['balanceSheet']['totalLiabilitiesAndEquity'])<.005
+   assert statement['zakatReporting']['paidExpense']==(100 if paid else 0)
+   liability=next((x['amount'] for x in statement['balanceSheet']['liabilities'] if str(x['account'])=='2230'),0)
+   assert liability==(0 if paid else 1000),(paid,statement)
+   assert statement['trialBalance']['balanced'] and path.read_bytes()==saved
+  # The payment may precede a captured month-end breakdown. No future salary
+  # expense is pulled into the report just to classify its paid donation part.
+  early=json.loads(json.dumps(accrual));early['date']='2026-10-31';early['meta']['month']='2026-10'
+  for l in early['lines']:l['month']='2026-10'
+  for l in salpay['lines']:
+   if 'month' in l:l['month']='2026-10'
+  path.write_text(json.dumps({'journals':{early['id']:early,salpay['id']:salpay}}));saved=path.read_bytes();status,statement=req('2026-07-01')
+  assert status==200 and statement['balanceSheet']['classificationComplete'] and statement['zakatReporting']['paidExpense']==100,statement
+  assert not any(str(x['account'])=='6210' for x in statement['profitAndLoss']['expenses'])
+  assert abs(statement['balanceSheet']['totalAssets']-statement['balanceSheet']['totalLiabilitiesAndEquity'])<.005 and path.read_bytes()==saved
+  path.write_bytes(zbefore)
   mixed=journal('Z-MIXED',[line('7210',100),line('1120',cr=50),line('2140',cr=50)])
   books['journals']['Z-MIXED']=mixed;path.write_text(json.dumps(books));status,z=req();assert z['profitAndLoss']['profit'] is None and z['zakatReporting']['paidExpense'] is None and 'Z-MIXED' in ' '.join(z['profitAndLoss']['warnings'])
   bad=journal('Z-BAD',[line('7210',100),line('1120',cr=90)]);books['journals']['Z-BAD']=bad;path.write_text(json.dumps(books));assert 'Z-BAD' in ' '.join(req()[1]['profitAndLoss']['warnings'])
