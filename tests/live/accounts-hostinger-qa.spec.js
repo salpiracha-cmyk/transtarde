@@ -213,7 +213,7 @@ test('authenticated Accounts live smoke: professional desk and popup workflows',
   await deskAction(page, 'commodity', 'Soda Centre');
   await expect(page.locator('#ttSodaLayer')).toBeVisible();
   await expect(page.locator('#ttSodaForm')).toBeVisible({ timeout: 30_000 });
-  await expect(page.locator('#ttSodaForm').getByText(/does not create a General Ledger entry/i)).toBeVisible();
+  await expect(page.locator('#ttSodaForm')).toContainText('A SODA records the purchase commitment. The bill is posted separately.');
   await expect(page.locator('#ttSdProduct')).not.toHaveValue('');
   await expect(page.locator('#ttSdProduct option:checked')).toContainText(/IRRI-6.*White.*Raw/i);
   await expect(page.locator('#ttSdStock')).not.toHaveValue('');
@@ -471,7 +471,7 @@ test('Accounts repair: clear held-entry label and ledger survives focus changes'
   await signIn(page);
   await expect(page.locator('#ttAccountingDesk')).toBeVisible({ timeout: 30_000 });
   await expect(page.getByRole('heading', { name: 'Recent Transactions', exact: true })).toBeVisible();
-  expect(await page.locator('#ttPendingWork').evaluate(el=>el.open)).toBe(false);
+  await expect(page.getByRole('region', {name:'Pending work',exact:true})).toBeVisible();
   await expect(page.locator('.tt-desk-heading h1')).toHaveCount(0);
   await expect.poll(()=>page.locator('#ttRecentTransactions').textContent()).not.toMatch(/^Loading/);
   if(await page.locator('[data-recent-post]').count()){await page.locator('[data-recent-post]').first().click();await expect(page.locator('#tal-print-voucher')).toBeVisible();await expect(page.locator('#tal-edit-post')).toBeDisabled();await page.locator('#tal-back').click();await page.locator('#tal-close').click();}
@@ -941,7 +941,7 @@ test('WHT period and category screen, CSV and print agree with original postings
  // Capture the actual application's print markup, avoiding a native printer dialog.
  await page.evaluate(()=>{window.__whtPrint='';window.TT_PRINT.html=html=>{window.__whtPrint=html;};});await form.locator('[data-tax-print]').click();
  const printed=await page.evaluate(()=>{const doc=new DOMParser().parseFromString(window.__whtPrint,'text/html');return [...doc.querySelectorAll('table')].at(-1)?[...([...doc.querySelectorAll('table')].at(-1).querySelectorAll('tbody tr'))].map(tr=>[...tr.cells].map(c=>c.textContent)):[];});expect(printed.length).toBe(expected.length);
- const downloading=page.waitForEvent('download');await form.locator('[data-tax-csv]').click();const download=await downloading;expect(download.suggestedFilename()).toBe('Withholding-Tax-TTI-2026-09-01-2026-09-30.csv');
+ const downloading=page.waitForEvent('download');await form.locator('[data-tax-csv]').click();const download=await downloading;expect(download.suggestedFilename()).toBe('TTI - Withholding Tax - 2026-09-01 to 2026-09-30.csv');
  const stream=await download.createReadStream();const chunks=[];for await(const chunk of stream)chunks.push(chunk);const csv=Buffer.concat(chunks).toString('utf8').replace(/^\uFEFF/,'');
  // General CSV parser retains embedded commas, quotes and line breaks in original narratives.
  const records=[];let record=[],field='',quoted=false;
