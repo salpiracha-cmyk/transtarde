@@ -109,7 +109,7 @@ function tgr_confirm(array &$s,array $b,array $u,array $banks,array $names,array
 
 /** A reasoned correction reverses the complete remittance and returns its principal to review. */
 function tgr_reopen(array &$s,array $b,array $u):array {
- $id=(string)($b['remittanceId']??'');$r=$s['tgRemittances'][$id]??null;$reason=strtoupper(trim((string)($b['reason']??'')));$date=tgr_date((string)($b['date']??''));
+ $id=(string)($b['remittanceId']??'');foreach((array)($s['intercompanyAdvanceApplications']??[]) as $app)if(($app['tgRemittanceId']??'')===$id&&($app['status']??'')==='Posted')throw new DomainException('This remittance has a posted non-cash advance application. Review that application before changing its original payment.');$r=$s['tgRemittances'][$id]??null;$reason=strtoupper(trim((string)($b['reason']??'')));$date=tgr_date((string)($b['date']??''));
  if(!$r||($r['status']??'')!=='Posted')throw new DomainException('This remittance has already changed. Reopen its current review.');
  if(strlen($reason)<5)throw new DomainException('Enter a valid reason for reopening this remittance.');
  if($date<$r['date'])throw new DomainException('Correction date cannot precede the original TG remittance.');
