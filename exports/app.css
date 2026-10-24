@@ -497,3 +497,11 @@
 
 /* Existing TG proforma: stored acceptance artwork and optional receiver signing space. */
 .tgProformaAcceptance.hasNotifyParty{grid-template-columns:repeat(3,minmax(0,1fr));gap:4mm}.tgProformaAcceptance.hasNotifyParty .docAutoSign img{max-width:100%;object-fit:contain}.tgProformaAcceptance.hasNotifyParty>div{min-width:0;overflow-wrap:anywhere}
+
+/* Preserve invoice wording and signature size while keeping bank details inside A4. */
+.commercialInvoiceOnePage .commercialBankTable th,.commercialInvoiceOnePage .commercialBankTable td{padding:.7mm 1.5mm}
+.commercialInvoiceOnePage .amountWords{padding:1mm 2mm}
+.commercialInvoiceOnePage .docAutoSign{margin-top:1.5mm}
+
+.commercialInvoiceOnePage .commercialRemittanceHeading{padding:.8mm 2mm}
+.commercialInvoiceOnePage .specimenParty,.commercialInvoiceOnePage .specimenRoute{padding:6px 8px}

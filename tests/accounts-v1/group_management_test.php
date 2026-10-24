@@ -26,6 +26,20 @@ $books=['journals'=>[
 $before=serialize($books);$source=gm_financial_source($books,'2026-10-17');$by=[];foreach($source['rows'] as $row)$by[$row['account']]=$row;
 near($by['1110']['amount'],1000.,'Report cutoff retains only dated actual cash');near($by['2210']['amount'],-500.,'Accepted unbilled liability cannot disappear');if(!str_contains($by['1210']['label'],'Buyer A'))throw new RuntimeException('Counterparty omitted');if(isset($by['1510']))throw new RuntimeException('Operating fixed assets in cashflow');if(!$by['1240']['excluded']||!$source['warnings'])throw new RuntimeException('Unreconciled intercompany elimination must be explicit');if($before!==serialize($books))throw new RuntimeException('Source report mutated original books');
 echo "PASS financial source uses party and bank identities, accepted unbilled liabilities, date cutoff and explicit provisional eliminations; reads preserve books\n";
+$roundBooks=['journals'=>['FX'=>['id'=>'FX','entity'=>'TG','status'=>'Posted','date'=>'2026-10-01','lines'=>[
+ ['account'=>'1110','bankAccountId'=>'HBZ-USD','debit'=>10.005,'credit'=>0],
+ ['account'=>'1110','bankAccountId'=>'HBZ-USD','debit'=>10.005,'credit'=>0]
+]]]];
+$masterBanks=[['id'=>'HBZ-USD','values'=>['Company Account','TG TRANS GRAINS','','Trans Grains','Habib Bank AG Zurich','','','USD','123456','AE-IBAN']]];
+$roundBefore=serialize($roundBooks);$rounded=gm_financial_source($roundBooks,'2026-10-17',$masterBanks)['rows'][0];near($rounded['amount'],20.02,'Cash flow rounds each line exactly like the ledger');
+foreach(['Habib Bank AG Zurich','USD','123456'] as $part)if(!str_contains($rounded['label'],$part))throw new RuntimeException('Readable bank identity missing: '.$part);
+if(str_contains($rounded['label'],'HBZ-USD'))throw new RuntimeException('Known bank label exposes its internal ID');
+$record=['kind'=>'CASHFLOW','date'=>'2026-10-17','sections'=>['header'=>['data'=>['rates'=>['AED'=>1]]],'financials'=>['rows'=>[]]]];
+near(gcf_capture($record,$roundBooks)['cashPKR'],20.02,'Saved cash comparison shares ledger rounding');
+if(serialize($roundBooks)!==$roundBefore)throw new RuntimeException('Report presentation changed journals');
+if(!str_contains(gm_source_bank_label([],'HBZ-USD','TTI',$masterBanks),'Unresolved bank'))throw new RuntimeException('A bank from another company must not be relabelled into these books');
+if(!str_contains(gm_source_bank_label(['bankName'=>'Historical bank','accountNumber'=>'987'],'OLD','TTI',[]),'987'))throw new RuntimeException('Historical bank snapshot fallback lost');
+echo "PASS readable company-scoped bank labels, historical fallback, ledger-consistent rounding and immutable journals\n";
 
 $partial=['id'=>'ZAKAT|2026-03-01','kind'=>'ZAKAT','date'=>'2026-03-01','sections'=>['header'=>['data'=>['rates'=>[], 'hijriYear'=>'1447','ramadanDateConfirmed'=>true]],'financials'=>['complete'=>true,'rows'=>[['id'=>'F1','label'=>'Eligible financial wealth','amount'=>10000]]]]];
 $summary=gm_assessment_summary($partial,[],'2026-10-17');
