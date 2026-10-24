@@ -458,6 +458,8 @@ jobs:
       - name: Company investments and routed-funds browser flow
         run: '"$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/company_investments_test.py'
       - name: Property registration and instalment browser flow
+        env:
+          NODE_PATH: ${{ runner.temp }}/expense-review-node/node_modules
         run: '"$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/assets_registry_http_test.py'
       - name: TG remittance review browser flow
         env:

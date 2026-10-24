@@ -1,5 +1,7 @@
 # Transtrade migration readiness — 19 October 2026
 
+> 25 October continuation: [remaining software review and repairs](../software-audit-2026-10-25/REMAINING_SYSTEM_REVIEW.md), with exact release proof in PR577. The paid-only Zakat statement/control decision is resolved by PR576. Older counts below combine original-source/device qualifications with software acceptance; they are historical checkpoints, not a current count of unfixed software defects. Backup/restore is excluded from this continuation.
+
 Latest consolidated evidence: [Full audit continuation and exact release closeout](FINAL_REVIEW_2026-10-20.md). The156-scope business-acceptance register is125passed,24partial,1not tested,3source/document failures,2blocked and1intermittent. These statuses are retained rather than inflated by repeated test runs.
 
 Latest afternoon evidence: [Authorised party correction, deployed protections and partial-payment plan](PARTY_CORRECTION_2026-10-20.md). Scope37 advances from not tested to partial;125passed and31open remain unchanged.

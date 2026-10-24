@@ -5,6 +5,8 @@ or turn missing business facts into passed production transactions. Backup/resto
 is excluded by the owner. No production test payment, stock, approval, master,
 assessment or uploaded original is created by this continuation.
 
+Release and final validation are tracked in [PR577](https://github.com/salpiracha-cmyk/transtarde/pull/577).
+
 ## Reproduced software defects and repairs
 
 | ID | Trigger and original result | Repair and evidence |
@@ -48,6 +50,15 @@ the software flow; it is not a claim that an actual business payment was made.
 - Remaining export/report regression run and exact-release CI/deployment/live
   verification are recorded at closeout; this checkpoint alone is not release
   or whole-audit completion.
+- The export/report run passed 68 checks; its one local database guard correctly
+  refused to run without a disposable database. The five concurrently updated
+  cash-flow checks also pass. Real multipart upload/download and native asset
+  preview/cancel/confirmation pass locally.
+- First hosted release candidate: core Accounts and Milling/Exports passed.
+  The native job passed its database checks, then failed because the asset
+  browser child process lacked the Node package path already installed in an
+  earlier step. The asset step now receives that same isolated runtime path;
+  the test and its assertions remain enabled. The failed run is retained.
 
 ## Owner/source decisions retained
 
