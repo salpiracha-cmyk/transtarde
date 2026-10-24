@@ -30,7 +30,7 @@ check(ica_sources($s,'TTI')===[],'applied source cannot be offered twice');
 check(ica_apply($s,$request,$user,$names)===$a&&count($s['journals'])===6,'retry is idempotent');
 $s=fixture();$s['journals']['TG-BANK']['lines'][0]['debit']=1199.96;$s['journals']['TG-BANK']['lines'][1]['credit']=1199.96;
 $a=ica_apply($s,$request,$user,$names);$lines=$s['journals'][$a['tgJournalId']]['lines'];
-check($a['roundingAed']===.03&&$lines[2]['account']==='7195'&&$lines[2]['credit']===.03,'three-fils original carrying residual disclosed without changing bank');
+check($a['roundingAed']===.03&&$lines[2]['account']==='7195'&&$lines[2]['credit']===.03&&$lines[2]['currency']==='AED'&&$lines[2]['nativeCredit']===.03,'three-fils original carrying residual disclosed without changing bank');
 foreach(['stale','early','currency','entity','mirror','valuation','tg-valuation','reversed','already-paid','reserved','used','contract'] as $case){
     $s=fixture();$b=$request;
     switch($case){
