@@ -70,6 +70,10 @@ function tt_offline_request_guard(array $user): void {
     static $started=false;if($started)return;$started=true;
     $path=(string)parse_url((string)($_SERVER['REQUEST_URI']??''),PHP_URL_PATH);if(!str_starts_with($path,'/api/'))return;
     $method=strtoupper((string)($_SERVER['REQUEST_METHOD']??'GET'));$write=in_array($method,['POST','PUT','PATCH','DELETE'],true);
+    // Preview-capable controllers still enforce login, CSRF and workflow rights.
+    // Their validated in-memory review is not a committed resource mutation and
+    // must not consume the transaction ID intended for Confirm and Post.
+    if($write&&function_exists('tt_posting_preview_mode')&&tt_posting_preview_mode())return;
     $raw=$write?(file_get_contents('php://input')?:''):'';$body=[];
     if($raw!==''&&str_contains(strtolower((string)($_SERVER['CONTENT_TYPE']??'')),'application/json')){$decoded=json_decode($raw,true);if(is_array($decoded))$body=$decoded;}
     $resource=tt_offline_resource_key($path,$body);tt_ensure_data_dir();$file=tt_offline_store_file();$tx=$write?tt_offline_header('X-TT-Transaction-ID'):'';

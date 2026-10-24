@@ -43,3 +43,17 @@ echo "Universal post ID sequence test passed.\n";
 
 post_id_check(tt_format_post_id(2,26)==='POST-0026-00002','Year always has four digits');
 post_id_check(tt_next_post_id(['POST-0026-00008'=>['id'=>'POST-0026-00008']], 'Accounts','Journal','0026-09-22')==='POST-0026-00009','Existing padded-year IDs set the sequence minimum');
+
+require dirname(__DIR__,2).'/api/accounts_posting_preview.php';
+function tt_accounts_input():string {return json_encode(['preview'=>$GLOBALS['sequencePreview']??false]);}
+$_SERVER['REQUEST_METHOD']='POST';$GLOBALS['sequencePreview']=true;
+$original=serialize($store);$mutations=count($GLOBALS['postIdMutations']);
+$tentative=tt_next_post_id(['POST-2026-00090'=>['id'=>'POST-2026-00090']],'Accounts','Review','2026-10-07');
+$block=tt_reserve_post_id_block([],2);
+post_id_check(serialize($store)===$original&&count($GLOBALS['postIdMutations'])===$mutations,'Preview must not reserve Post IDs or write the shared sequence');
+post_id_check($tentative==='POST-2026-00091'&&count(array_unique(array_merge([$tentative],$block)))===3,'Preview journal and batch identities remain distinct');
+$GLOBALS['sequencePreview']=false;
+$real=tt_reserve_post_id('Accounts','Actual commit',['year'=>2026]);
+post_id_check($real==='POST-2026-00086','The real sequence does not consume tentative review IDs');
+post_id_check(end($GLOBALS['postIdMutations'])===false,'Post ID allocation must not start a secondary reader under the financial lock');
+echo "Posting preview leaves the real universal sequence unchanged.\n";

@@ -183,6 +183,7 @@ jobs:
           php tests/security/session_web_hardening_test.php
           php tests/security/server_backup_hardening_test.php
           php tests/security/upload_validation_test.php
+          python3 tests/security/export_document_index_integrity_test.py
           php tests/security/office_backup_auth_test.php
           python3 tests/security/office_backup_agent_test.py
           python3 tests/security/office_backup_protocol_test.py
@@ -457,6 +458,8 @@ jobs:
       - name: Company investments and routed-funds browser flow
         run: '"$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/company_investments_test.py'
       - name: Property registration and instalment browser flow
+        env:
+          NODE_PATH: ${{ runner.temp }}/expense-review-node/node_modules
         run: '"$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/assets_registry_http_test.py'
       - name: TG remittance review browser flow
         env:

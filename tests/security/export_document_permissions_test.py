@@ -170,11 +170,15 @@ if($argv[1]==='seed'){
     before=stored();status,data=request('operations.mysql',{'key':key,'value':json.dumps(change),'baseVersion':1,'sourceModule':'Mill'},'')
     assert status==403 and stored()==before,(status,data)
     if os.environ.get('TT_QA_HTTP_DOCS')=='1':
-        import socket, time, urllib.request, urllib.error
+        import hashlib, socket, time, urllib.request, urllib.error
+        session_id='workflow-http-fixture'
+        records=private/'sessions'/'records';records.mkdir(parents=True,exist_ok=True)
+        session_file=records/(hashlib.sha256(session_id.encode()).hexdigest()+'.json')
+        session_file.write_text(json.dumps({'user_id':1,'auth_version':1,'last_activity_at':int(time.time()),'csrf':'fixture'}));session_file.chmod(0o600)
+        cookie={'Cookie':'TRANSTRADE_SESSION='+session_id}
         bridge=app/'api'/'document-fixture.php'
         bridge.write_text(r"""<?php
-$_SERVER['REQUEST_URI']='/api/export_documents.php';session_name('TRANSTRADE_SESSION');session_id('workflow-fixture');session_start();
-$_SESSION=['user_id'=>1,'auth_version'=>1,'last_activity_at'=>time(),'csrf'=>'fixture'];require __DIR__.'/export_documents.php';
+$_SERVER['REQUEST_URI']='/api/export_documents.php';require __DIR__.'/export_documents.php';
 """)
         probe=socket.socket();probe.bind(('127.0.0.1',0));port=probe.getsockname()[1];probe.close()
         server=subprocess.Popen(['php','-d',f'session.save_path={root}','-S',f'127.0.0.1:{port}','-t',str(app)],env=env,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
@@ -185,9 +189,12 @@ $_SESSION=['user_id'=>1,'auth_version'=>1,'last_activity_at'=>time(),'csrf'=>'fi
                 parts.append(f'--{boundary}\r\nContent-Disposition: form-data; name="{name}"\r\n\r\n{value}\r\n'.encode())
             pdf=b'%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\n%%EOF\n'
             parts.append(f'--{boundary}\r\nContent-Disposition: form-data; name="file"; filename="fixture.pdf"\r\nContent-Type: application/pdf\r\n\r\n'.encode()+pdf+f'\r\n--{boundary}--\r\n'.encode())
-            req=urllib.request.Request(base_url,data=b''.join(parts),headers={'Content-Type':'multipart/form-data; boundary='+boundary})
+            req=urllib.request.Request(base_url,data=b''.join(parts),headers={**cookie,'Content-Type':'multipart/form-data; boundary='+boundary})
             try:
-                with urllib.request.urlopen(req) as response:return response.status,json.load(response)
+                with urllib.request.urlopen(req) as response:
+                    raw=response.read()
+                    try:return response.status,json.loads(raw)
+                    except ValueError:raise AssertionError((response.status,response.url,response.headers.get('Content-Type'),raw[:1200]))
             except urllib.error.HTTPError as error:return error.code,json.load(error)
         try:
             for attempt in range(100):
@@ -199,9 +206,9 @@ $_SESSION=['user_id'=>1,'auth_version'=>1,'last_activity_at'=>time(),'csrf'=>'fi
             status,data=upload('final-bl');assert status==200,(status,data)
             document=data['document'];index=private/'export_documents'/'index.json'
             before=index.read_bytes();user['system_qa']=True;seed();status,data=upload('final-bl');assert status==403 and index.read_bytes()==before,(status,data);user.pop('system_qa');seed();status,data=upload('final-coo');assert status==403 and index.read_bytes()==before,(status,data)
-            with urllib.request.urlopen(base_url+'?id='+document['id']) as response:assert response.read().startswith(b'%PDF'),response.status
+            with urllib.request.urlopen(urllib.request.Request(base_url+'?id='+document['id'],headers=cookie)) as response:assert response.read().startswith(b'%PDF'),response.status
             put_base(original,{'customs':['View','Create']})
-            try:urllib.request.urlopen(base_url+'?id='+document['id']);raise AssertionError('Unrelated icon downloaded B/L')
+            try:urllib.request.urlopen(urllib.request.Request(base_url+'?id='+document['id'],headers=cookie));raise AssertionError('Unrelated icon downloaded B/L')
             except urllib.error.HTTPError as error:assert error.code==403,error.code
             put_base(closed,{'bl':['View','Create','Edit']});status,data=upload('final-bl');assert status==403 and index.read_bytes()==before,(status,data)
             print('PASS real multipart B/L upload/download, unrelated-document upload/download denial, and closed-lot upload denial')

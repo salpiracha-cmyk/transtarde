@@ -1,5 +1,12 @@
 <?php
 declare(strict_types=1);
+/** Only controllers that load this preview contract can simulate Post IDs. */
+function tt_posting_preview_mode():bool {
+    if(($_SERVER['REQUEST_METHOD']??'')!=='POST')return false;
+    $raw=function_exists('tt_accounts_input')?tt_accounts_input():file_get_contents('php://input');
+    $request=is_string($raw)?json_decode($raw,true):null;
+    return is_array($request)&&!empty($request['preview']);
+}
 function tt_preview_request_body(array $request): array {unset($request['preview']);return $request;}
 
 /** Controllers run their usual authorised validation on their locked in-memory

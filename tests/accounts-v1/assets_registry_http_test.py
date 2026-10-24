@@ -4,19 +4,22 @@ ROOT=pathlib.Path(__file__).resolve().parents[2]
 with tempfile.TemporaryDirectory(prefix='assets-registry-qa-') as temp:
     root=pathlib.Path(temp)
     for folder in ['api','accounts','data']:(root/folder).mkdir()
-    for name in ['tg_remittance_core.php', 'receipt_invoice_links.php', 'fi_credit_advice_link.php', 'assets_registry.php','assets_registry_core.php','accounts_bank_payment.php','accounts_search.php','accounts_read_policy.php','accounts_reference.php','fi_credit_advice_link.php']:shutil.copy(ROOT/'api'/name,root/'api'/name)
-    for name in ['accounting_master_v1.json','assets-registry-ui.js']:shutil.copy(ROOT/'accounts'/name,root/'accounts'/name)
+    for name in ['accounts_posting_preview.php','tg_remittance_core.php', 'receipt_invoice_links.php', 'fi_credit_advice_link.php', 'assets_registry.php','assets_registry_core.php','accounts_bank_payment.php','accounts_search.php','accounts_read_policy.php','accounts_reference.php','fi_credit_advice_link.php']:shutil.copy(ROOT/'api'/name,root/'api'/name)
+    for name in ['accounting_master_v1.json','assets-registry-ui.js','post-confirmation-ui.js']:shutil.copy(ROOT/'accounts'/name,root/'accounts'/name)
     (root/'auth_store.php').write_text('''<?php
 define('TT_DATA_DIR',__DIR__.'/data');define('TT_DB_HOST','');define('TT_DB_NAME','');define('TT_DB_USER','');function tt_ensure_data_dir(){}
 function tt_require_login(){
  $role=$_GET['role']??'accounts';
- $p=['Accounts'=>['assets'=>['View','Create','Edit']],'Directors'=>[]];
+ $p=['Accounts'=>['assets'=>['View','Create','Edit','Delete']],'Directors'=>[]];
+ $only=['creator'=>'Create','editor'=>'Edit','deleter'=>'Delete','approver'=>'Approve'];
+ if(isset($only[$role]))$p['Accounts']['assets']=['View',$only[$role]];
+ if($role==='mixed')$p['Accounts']['assets']=['View','Create'];
  if($role==='readonly')$p['Accounts']['assets']=['View'];
  if($role==='director')$p=['Accounts'=>[],'Directors'=>['assets'=>['View','Create','Edit']]];
  if($role==='unrelated')$p=['Directors'=>['tgmaster'=>['View']]];
  return ['id'=>1,'role'=>'Staff','username'=>'Fixture','permissions'=>$p];
 }
-function tt_user_can_access_entity($u,$e,$a){return $e==='TTI'&&($a==='View'||($_GET['role']??'')!=='readonly');}
+function tt_user_can_access_entity($u,$e,$a){$role=$_GET['role']??'';$only=['creator'=>'Create','editor'=>'Edit','deleter'=>'Delete','approver'=>'Approve','mixed'=>'Edit'];return $e==='TTI'&&($a==='View'||(isset($only[$role])?$a===$only[$role]:$role!=='readonly'));}
 function tt_verify_csrf($csrf){return $csrf==='fixture';}
 function tt_user_can_open_module($u,$m){return true;}
 function tt_user_accounts_entities($u){return ['TTI'];}
@@ -37,7 +40,7 @@ function tt_next_post_id(array $existing, string $module='Accounts', string $are
 
     initial={'journals':{},'bankAccountSettings':{'B1':{'defaultPaymentAccount':True}}}
     (root/'data/accounts.json').write_text(json.dumps(initial))
-    (root/'accounts/index.html').write_text('''<!doctype html><button id="openAssets">Assets</button><script>window.TT_ACCOUNT_ACCESS={csrf:'fixture'};localStorage.setItem('tt_accounts_entity','TTI');</script><script src="assets-registry-ui.js"></script><script>document.querySelector('#openAssets').onclick=()=>TT_ASSETS_UI.open();</script>''')
+    (root/'accounts/index.html').write_text('''<!doctype html><button id="openAssets">Assets</button><script>window.TT_ACCOUNT_ACCESS={csrf:'fixture'};localStorage.setItem('tt_accounts_entity','TTI');</script><script src="post-confirmation-ui.js"></script><script src="assets-registry-ui.js"></script><script>document.querySelector('#openAssets').onclick=()=>TT_ASSETS_UI.open();</script>''')
     with socket.socket() as sock:sock.bind(('127.0.0.1',0));port=sock.getsockname()[1]
     server=subprocess.Popen(['php','-S',f'127.0.0.1:{port}','-t',str(root)],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
     def call(body=None,role='accounts',entity='TTI',asset='',scope=''):
@@ -101,21 +104,30 @@ function tt_next_post_id(array $existing, string $module='Accounts', string $are
         for body in [{'kind':'countries','operation':'add','name':'Oman'},{'kind':'cities','operation':'delete','id':'DXB'}]:
             assert call({'action':'location','requestKey':'location-'+body['kind'],**body})[0]==200
         assert call(role='director',asset=id,scope='directors')[1]['asset']['city']=='DUBAI'
-        if os.environ.get('TT_QA_BROWSER')=='1':
-            from playwright.sync_api import sync_playwright
-            with sync_playwright() as p:
-                browser=p.chromium.launch();page=browser.new_page(viewport={'width':1440,'height':1000});errors=[];page.on('pageerror',lambda e:errors.append(str(e)))
-                page.goto(f'http://127.0.0.1:{port}/accounts/index.html');page.click('#openAssets');page.wait_for_selector('#faNew');page.click('#faNew');assert page.locator('#faPay').count()==0, 'Entry form replaces the list inside the window'
-                page.fill('[name=name]','Karachi Property');page.fill('[name=assetTag]','BROWSER-001');page.fill('[name=ownerName]','Director One');page.select_option('[name=countryId]','PK');page.select_option('[name=cityId]','KHI');page.fill('[name=unitNo]','Plot 17');page.fill('[name=address]','Karachi project');page.fill('[name=purchaseDate]','2025-01-01');page.fill('[name=cost]','1000');page.select_option('[name=paymentPattern]','MONTHLY');page.fill('[name=firstDueDate]','2026-10-31');page.fill('[name=monthlyAmount]','300');page.fill('[name=instalmentCount]','2')
-                page.click('#faAddHistory');page.fill('[data-number]','1');page.fill('[data-date]','2026-06-30');page.fill('[data-amount]','400');page.fill('[data-source]','Previous bank payment')
-                evidence=pathlib.Path(os.environ.get('RUNNER_TEMP',temp))/'inventory-evidence';evidence.mkdir(exist_ok=True)
-                page.locator('#ttAssetsWindow .tt-window').evaluate('(el)=>el.scrollTop=0');page.screenshot(path=str(evidence/'property-form-desktop.png'))
-                page.set_viewport_size({'width':390,'height':844});page.locator('#ttAssetsWindow .tt-window').evaluate('(el)=>el.scrollTop=0');page.screenshot(path=str(evidence/'property-form-phone.png'))
-                assert page.locator('#ttAssetsWindow .tt-window').evaluate('(el)=>el.scrollWidth<=el.clientWidth'), 'Property form must fit phone width'
-                page.set_viewport_size({'width':1440,'height':1000});page.click('#faRegister [type=submit]');page.wait_for_selector('#faConfirmHome');page.click('#faConfirmHome');page.click('#faPay');page.select_option('[name=assetId]',label='BROWSER-001 · KARACHI PROPERTY · PKR 600.00 remaining')
-                assert page.input_value('#faBankId')=='B1' and page.input_value('#faMethod')=='CHEQUE'
-                page.check('#faCash');page.fill('#faCashAmount','150');page.fill('#faBankAmount','150');page.select_option('#faMethod','ONLINE_BANKING');page.click('#faPayment [type=submit]');page.wait_for_selector('#faConfirmHome');assert not errors,errors
-                page.click('#faConfirmHome');page.click('#faPay');page.select_option('[name=assetId]',label='BROWSER-001 · KARACHI PROPERTY · PKR 300.00 remaining');page.select_option('#faMethod','ONLINE_BANKING');page.click('#faPayment [type=submit]');page.wait_for_selector('#faConfirmHome');page.click('#faConfirmHome');assert 'KARACHI PROPERTY' not in page.locator('#ttAssetsWindow').inner_text()
-                browser.close()
+        # Create, Edit, Delete and entity grants must match the actual action.
+        for role in ['creator','editor','approver','mixed']:
+            before=(root/'data/accounts.json').read_bytes()
+            status,d=call({'action':'location','kind':'countries','operation':'delete','id':'PK','requestKey':'denied-location-'+role},role=role)
+            assert status==403 and (root/'data/accounts.json').read_bytes()==before,(role,status,d)
+        for role in ['editor','deleter','approver','mixed']:
+            before=(root/'data/accounts.json').read_bytes()
+            status,d=call(register('DENIED-'+role),role=role)
+            assert status==403 and (root/'data/accounts.json').read_bytes()==before,(role,status,d)
+        # Successful previews run the real purchase engine without committing it.
+        purchase=register('PREVIEW-PURCHASE',countryId='PK',cityId='KHI',requestKey='preview-purchase-fixture',type='MACHINERY',ownerType='COMPANY',ownerName='TTI',purchaseDate='2026-10-07',accountingMode='NEW_PURCHASE',paymentPattern='FLEXIBLE',payments=[])
+        before=(root/'data/accounts.json').read_bytes();status,preview=call({**purchase,'preview':True})
+        assert status==200 and len(preview['previews'])==1 and preview['previews'][0]['totalDebit']==1000 and (root/'data/accounts.json').read_bytes()==before,(status,preview)
+        status,posted=call(purchase);assert status==200 and len(posted['journals'])==1,(status,posted)
+        before=(root/'data/accounts.json').read_bytes();assert call(purchase)[0]==200 and (root/'data/accounts.json').read_bytes()==before
+        # Missing/damaged books must neither appear empty nor be recreated.
+        valid=(root/'data/accounts.json').read_bytes()
+        for raw in [b'',b'[]',b'{}',b'null',b'{"journals":"invalid"}',b'{broken']:
+            (root/'data/accounts.json').write_bytes(raw)
+            assert call()[0]==500 and call(register('INVALID-BOOKS'))[0]==500 and (root/'data/accounts.json').read_bytes()==raw,raw
+        (root/'data/accounts.json').unlink()
+        assert call()[0]==500 and call(register('MISSING-BOOKS'))[0]==500 and not (root/'data/accounts.json').exists()
+        (root/'data/accounts.json').write_bytes(valid)
+        if os.environ.get('TT_QA_BROWSER')=='1' or os.environ.get('TT_QA_NODE_BROWSER')=='1':
+            subprocess.run(['node',str(ROOT/'tests/accounts-v1/assets_registry_browser_test.js'),f'http://127.0.0.1:{port}',str(root/'data/accounts.json')],check=True)
         print('Assets HTTP/browser: durable history, 1 July boundary, full-payment privacy, direct access, reasoned amendments, existing Post IDs and split payment passed')
     finally:server.terminate();server.wait(timeout=5)
