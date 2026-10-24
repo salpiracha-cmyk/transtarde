@@ -2,6 +2,7 @@
 declare(strict_types=1);
 require_once __DIR__.'/mill_recovery_core.php';
 require_once __DIR__.'/accounts_subaccounts_core.php';
+require_once __DIR__.'/cashflow_native_source.php';
 
 /** Management calculations. All amounts are explicit; no financial posting side effects. */
 function gm_number(mixed $value,string $label,bool $signed=false):float {
@@ -134,7 +135,7 @@ function gm_source_bank_label(array $line,string $bank,string $entity,array $mas
     $parts=array_values(array_unique(array_filter(array_map('trim',[(string)($line['bankName']??''),(string)($line['accountTitle']??''),(string)($line['bankCurrency']??$line['currency']??''),$number]),static fn($part)=>$part!=='')));
     return $parts?implode(' · ',$parts):'Unresolved bank — '.$bank;
 }
-function gm_financial_source(array $state,string $date,?array $bankMasters=null):array {
+function gm_financial_source(array $state,string $date,?array $bankMasters=null,bool $keepZero=false):array {
     $bankMasters??=function_exists('tt_list_masters')?(array)(tt_list_masters()['banks']??[]):[];
     $chart=sac_chart();$names=[];$classes=[];
     foreach($chart as $r){$names[(string)$r['code']]=$r['name'];$classes[(string)$r['code']]=$r['class'];}
@@ -149,21 +150,22 @@ function gm_financial_source(array $state,string $date,?array $bankMasters=null)
             if(preg_match('/^(15|16)/',$code))continue; // Fixed assets and shares have separate market-valuation sections.
             $party=(string)($line['counterparty']??$line['party']??$line['partyName']??$line['supplier']??$line['broker']??$line['customer']??'');$bank=(string)($line['bankAccountId']??$line['paymentAccountId']??($code==='1110'?($journal['meta']['bankAccountId']??$journal['meta']['paymentAccountId']??''):''));
             $subaccount=(string)($line['subaccountId']??'');$identity=$entity.'|'.$code.'|'.$bank.'|'.$party.'|'.$subaccount;$id='BOOK-'.substr(hash('sha256',$identity),0,24);
-            if(!isset($rows[$id]))$rows[$id]=['id'=>$id,'type'=>'FINANCIAL','entity'=>$entity,'label'=>trim($name.($party!==''?' — '.$party:'').($bank!==''?' — '.($code==='1110'?gm_source_bank_label($line,$bank,$entity,$bankMasters):$bank):'')),'account'=>$code,'bankAccountId'=>$code==='1110'?$bank:'','bankLabel'=>$code==='1110'&&$bank!==''?gm_source_bank_label($line,$bank,$entity,$bankMasters):'','subaccountId'=>$subaccount,'currency'=>$entity==='TG'?'AED':'PKR','amount'=>0.,'source'=>'Accounts journals','postIds'=>[],'basis'=>str_starts_with($code,'13')?'Book inventory value — market valuation review required':'Posted book balance','excluded'=>false,'reason'=>''];
+            if(!isset($rows[$id]))$rows[$id]=['id'=>$id,'type'=>'FINANCIAL','entity'=>$entity,'label'=>trim($name.($party!==''?' — '.$party:'').($bank!==''?' — '.($code==='1110'?gm_source_bank_label($line,$bank,$entity,$bankMasters):$bank):'')),'account'=>$code,'party'=>$party,'bankAccountId'=>$code==='1110'?$bank:'','bankLabel'=>$code==='1110'&&$bank!==''?gm_source_bank_label($line,$bank,$entity,$bankMasters):'','subaccountId'=>$subaccount,'currency'=>$entity==='TG'?'AED':'PKR','amount'=>0.,'source'=>'Accounts journals','postIds'=>[],'basis'=>str_starts_with($code,'13')?'Book inventory value — market valuation review required':'Posted book balance','excluded'=>false,'reason'=>''];
             // Match the ledger/balance sheet's per-line two-decimal book amounts.
             $rows[$id]['amount']+=round(gm_number($line['debit']??0,'journal debit'),2)-round(gm_number($line['credit']??0,'journal credit'),2);$rows[$id]['postIds'][(string)($journal['id']??$postId)]=true;
             if(in_array($code,['1240','2500'],true)){$rows[$id]['excluded']=true;$rows[$id]['reason']='Group intercompany elimination; reconcile counterpart balances and exchange differences.';$intercompany[$id]=true;}
         }
     }
     if($intercompany)$unclassified[]='Intercompany balances are excluded provisionally. Reconcile both sides and exchange differences before completing the group report.';$pending=gm_pending_tg_remittances($state,$date);$unclassified=array_merge($unclassified,$pending['warnings']);if($pending['rows'])$unclassified[]='TG bank confirmation is pending for '.count($pending['rows']).' saved remittances. Review the original TG remittance and Pakistan advice references below; no payment has been assumed.';
-    $out=[];foreach($rows as $row){$row['amount']=round($row['amount'],2);if(abs($row['amount'])<.005)continue;$row['postIds']=array_keys($row['postIds']);$row['originalAmount']=$row['amount'];$row['originalCurrency']=$row['currency'];$row['sourceDate']=$date;$row['sourceFingerprint']=hash('sha256',json_encode($row,JSON_THROW_ON_ERROR));$out[]=$row;}
+    $out=[];foreach($rows as $row){$row['amount']=round($row['amount'],2);if(!$keepZero&&abs($row['amount'])<.005)continue;$row['postIds']=array_keys($row['postIds']);$row['originalAmount']=$row['amount'];$row['originalCurrency']=$row['currency'];$row['sourceDate']=$date;$row['sourceFingerprint']=hash('sha256',json_encode($row,JSON_THROW_ON_ERROR));$out[]=$row;}
     usort($out,static fn($a,$b)=>(str_contains(strtolower($a['label']),'sales tax')||str_contains(strtolower($a['label']),'gst'))<=>(str_contains(strtolower($b['label']),'sales tax')||str_contains(strtolower($b['label']),'gst'))?:strcmp($a['entity'].'|'.$a['account'].'|'.$a['label'],$b['entity'].'|'.$b['account'].'|'.$b['label']));
     return ['rows'=>$out,'pendingTgRemittances'=>$pending,'warnings'=>array_values(array_unique($unclassified)),'accountsRevision'=>(int)($state['revision']??0),'asOf'=>$date,'basis'=>'Committed journals through the selected date. Excludes fixed assets and share holdings. Inventory is book cost until reviewed at market value. Unposted operational liabilities and shipment estimates require separate review.'];
 }
 
 /** Owner cash-flow scope; presentation only, never a journal or trial-balance change. */
-function gm_cashflow_source(array $state,string $date):array {
-    return gm_cashflow_scope(gm_financial_source($state,$date));
+function gm_cashflow_source(array $state,string $date,?array $bankMasters=null):array {
+    $bankMasters??=function_exists('tt_list_masters')?(array)(tt_list_masters()['banks']??[]):[];
+    return gm_cashflow_offset_suppliers(cfn_source(gm_cashflow_scope(gm_financial_source($state,$date,$bankMasters,true)),$state,$date,$bankMasters));
 }
 function gm_cashflow_scope(array $source):array {
     foreach($source['rows'] as &$row){
@@ -172,11 +174,21 @@ function gm_cashflow_scope(array $source):array {
         elseif(in_array($code,['1250','2110','2120','2130','2140','2190','2510'],true)&&preg_match('/(?:\bTTI\b|\bBRM\b|\bTG\b|TRANSTRADE INTERNATIONAL|TRANS GRAINS|BUKSH RICE)/i',$label))$reason='Internal group party; excluded from consolidated cash flow.';
         elseif($code==='1120')$reason='Petty cash excluded from this management cash-flow view by owner instruction.';
         elseif($code==='2230')$reason='Personal, staff, transfer-clearing or investment control; excluded from management cash flow. Salary forecast follows its due date separately.';
+        elseif($code==='1230'&&preg_match('/\b(?:JAZIB|YAR AZAM|RAMZAN|HASSAN|BALOCH|BALOUCH)\b|SALARY ADVANCE/i',$label)&&!preg_match('/NASEEM|ZAFAR/i',$label))$reason='Staff advance balance excluded from management cash flow; original payroll and bank entries retained.';
         elseif($code==='1230'&&preg_match('/TG OWN|OWN HABIB|CURRENCY TRANSFER CLEARING/i',$label))$reason='Own-bank transfer clearing; excluded from cash flow.';
         elseif(in_array($code,['1230','2140','2190'],true)&&preg_match('/(?:\bTRP\b|\bSRP\b|\bARP\b|\bTALHA\b|\bTAYYAB\b|\bSALMAN\b|\bMRS\b)/i',$label))$reason='Family or remuneration balance; excluded from management cash flow.';
         if($reason!==''){$row['excluded']=true;$row['reason']=$reason;}
     }unset($row);
+    $source['warnings']=array_values(array_filter($source['warnings']??[],static fn($w)=>!str_starts_with($w,'Intercompany balances are excluded provisionally.')));
     $source['basis'].=' Management cash flow excludes group intercompany, petty cash, staff/personal and remuneration control balances. Company ledgers, trial balances and balance sheets retain their original postings.';return $source;
+}
+
+function gm_cashflow_offset_suppliers(array $source):array {
+    // An equal supplier advance and payable are one funded position, not a
+    // future receipt plus another supplier payment. Preserve both book controls.
+    $offsets=[];foreach($source['rows'] as $i=>$r){$party=strtoupper(trim((string)($r['party']??'')));if($party===''||!empty($r['excluded'])||!in_array($r['account'],['1250','2110','2130','2140'],true))continue;$k=($r['entity']??'').'|'.($r['currency']??'').'|'.$party;$offsets[$k][]=$i;}
+    foreach($offsets as $ids){$advance=0.;$payable=0.;foreach($ids as $i){$r=$source['rows'][$i];if($r['account']==='1250'&&$r['amount']>0)$advance+=$r['amount'];elseif($r['account']!=='1250'&&$r['amount']<0)$payable-=$r['amount'];}if($advance>0&&abs($advance-$payable)<.005)foreach($ids as $i){$source['rows'][$i]['excluded']=true;$source['rows'][$i]['reason']='Matching supplier advance and payable offset in full; no net external cash requirement. Original invoice allocations remain in Accounts.';}}
+    return $source;
 }
 
 /** A partial assessment must never silently become next year's opening balance. */
