@@ -72,6 +72,7 @@ function ben_post(array &$s,string $e,array $b,array $u):array {
   if($vat>0)$lines[]=ben_line('1140',$vatBook,0,['currency'=>$bank['currency'],'nativeDebit'=>$vat/100,'nativeCredit'=>0,'subledger'=>'TG Bank Charge Input VAT']);
   $meta+=['bankChargeNative'=>$amount/100,'bankVatNative'=>$vat/100,'bankDebitNative'=>$total/100,'bankVatPct'=>tt_company_vat_rate('TG',5)];
  }
+ if($type==='PAYMENT')$lines=zp_route_expense_lines($lines,$note);
  $j=ben_journal($s,$e,$date,$ref,$note,$lines,$u,$meta);if(!empty($b['addBankCharge'])){if($incoming||$type==='BANK_CHARGE')throw new DomainException('Add a bank charge only to an outgoing payment or transfer.');$feeTracking=tt_accounts_bank_payment_details($b+['paymentAccountId'=>$bank['id'],'bankPaymentMethod'=>'ONLINE_BANKING']);if(!tt_accounts_apply_aed_bank_charge($s,$s['journals'][$j['id']],$feeTracking))throw new DomainException('Additional bank charges require a TG AED bank payment.');$j=$s['journals'][$j['id']];}ben_validate_finance($s,$e);
  // A repayment cannot be inserted ahead of a later foreign-currency repayment:
  // its historical carrying cost would become inconsistent. Dates after the

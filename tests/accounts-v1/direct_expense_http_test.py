@@ -392,6 +392,28 @@ require $argv[1];
         balances.append(ledger['closing'])
     assert balances[0]+balances[1]==balances[2]
     print('Separate Director remuneration/home payable ledgers reconcile to their combined parent without rewriting historical lines.')
+    # Explicit Zakat wording wins over the ordinary Office/Home defaults, on
+    # both the read-only accounting preview and the final original workflow.
+    permissions['expenses']=['View','Create','Edit'];permissions['reports']=['View'];set_user()
+    books.write_text(json.dumps(initial))
+    for index,fields in enumerate([
+        {'paymentNarration':'Zakat paid to recipient','expenseLines':[{'category':'OFFICE','accountCode':'6900','purpose':'','amount':75}]},
+        {'expenseLines':[{'category':'HOME','purpose':'ZAKAT distribution','amount':75,'personalTreatment':'REMUNERATION'}]},
+        {'expenseLines':[{'category':'OFFICE','purpose':'زکوٰۃ','amount':75}]},
+    ]):
+        zakat={**body,**fields,'requestKey':'zakat-routing-'+str(index),'reference':'ZAKAT-'+str(index),'amount':75}
+        before=books.read_bytes();status,review=request('expenses_v1','?entity=TTI',{**zakat,'preview':True})
+        assert status==200 and books.read_bytes()==before,(status,review)
+        assert [l['account'] for l in review['previews'][0]['lines']]==['7210','1120'],review
+        status,posted=request('expenses_v1','?entity=TTI',zakat);assert status==200,(status,posted)
+        saved=json.loads(books.read_text());journal=saved['journals'][posted['result']['journalId']]
+        assert [l['account'] for l in journal['lines']]==['7210','1120'] and journal['totalDebit']==journal['totalCredit']==75
+    ordinary={**body,'requestKey':'ordinary-word-boundary','reference':'NON-ZAKAT','amount':75,'expenseLines':[{'category':'OFFICE','purpose':'Zakatpur stationery shop','amount':75}]}
+    status,posted=request('expenses_v1','?entity=TTI',ordinary);assert status==200,(status,posted)
+    assert json.loads(books.read_text())['journals'][posted['result']['journalId']]['lines'][0]['account']=='6900'
+    status,report=request('accounts_reports','?entity=TTI&from=2026-07-01&asOf=2026-12-31');assert status==200,(status,report)
+    assert report['zakatReporting']['paidExpense']==225 and sum(r['amount'] for r in report['expenseActivity'] if r['account']=='7210')==225
+    print('Zakat narration/purpose routing, Urdu wording, zero-write previews, single cash credit, ordinary-word boundary and matching paid reports passed.')
     for endpoint in ['expenses_v1','donations','rent_salary_v2']:
         books.write_text('{broken JSON');bad=books.read_bytes();assert request(endpoint,'?entity=TTI')[0]==500;assert books.read_bytes()==bad
     print('Direct expense endpoint, correction, deletion, retry and permissions passed.')

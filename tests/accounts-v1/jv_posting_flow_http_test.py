@@ -38,7 +38,9 @@ function job_banks($e){return [];}
 function job_targets($e){return [];}
 function job_payload($s,$e,$u){return ['allowed'=>false];}
 ''')
-    (root/'api/accounts_subaccounts_core.php').write_text('<?php function sac_accounts($s,$e){return [];}')
+    core=(repo/'api/accounts_subaccounts_core.php').read_text()
+    routing=core[core.index('function zp_zakat_text('):core.index('function zp_balanced_source(')]
+    (root/'api/accounts_subaccounts_core.php').write_text('<?php function sac_accounts($s,$e){return [];} function sac_chart(){return array_column(json_decode(file_get_contents(__DIR__."/../accounts/accounting_master_v1.json"),true)["chart"],null,"code");}'+routing)
     (root/'other_post.php').write_text('''<?php
 require __DIR__.'/auth_store.php';$h=fopen(TT_DATA_DIR.'/accounts.json','r+');flock($h,LOCK_EX);$s=json_decode(stream_get_contents($h),true);$id=tt_next_post_id($s['journals'],'Mill','Arrival','2026-10-15');$s['journals'][$id]=['id'=>$id,'sourceType'=>'OTHER','entity'=>'TTI','date'=>'2026-10-15','status'=>'Posted'];rewind($h);ftruncate($h,0);fwrite($h,json_encode($s));fflush($h);flock($h,LOCK_UN);fclose($h);echo json_encode(['id'=>$id]);
 ''')
@@ -102,6 +104,13 @@ require __DIR__.'/auth_store.php';$h=fopen(TT_DATA_DIR.'/accounts.json','r+');fl
         director=request(submit('director'),user=4,role='Director')[1];assert director['canPostDirectly'] and director['result']['status']=='Posted','Director with explicit JV approval permission posts directly'
         limited=request(submit('limited-director'),user=4,role='Director',extra={'X-QA-No-Approve':'1'})[1];assert not limited['canPostDirectly'] and limited['result']['status']=='Pending Approval'
         approved_own=request({'action':'approve_jv','id':limited['result']['jvId']},user=4,role='Director')[1];assert approved_own['result']['status']=='Posted','Existing own pending JV can be completed after approval authority is granted'
+        zakat={**submit('zakat-narration'),'narration':'Zakat paid to recipient'}
+        status,posted=request(zakat);assert status==200,(status,posted)
+        entry=json.loads(data_file.read_text())['journals'][posted['result']['journalId']]
+        assert [l['account'] for l in entry['lines']]==['7210','1120'] and entry['totalDebit']==entry['totalCredit']==25
+        memo={**submit('zakat-memo'),'narration':'Two expenses','lines':[{'account':'6900','memo':'Zakat','debit':10,'credit':0},{'account':'6900','subledger':'Office','memo':'Office supplies','debit':15,'credit':0},{'account':'1120','debit':0,'credit':25}]}
+        status,posted=request(memo);assert status==200,(status,posted)
+        assert [l['account'] for l in json.loads(data_file.read_text())['journals'][posted['result']['journalId']]['lines']]==['7210','6900','1120']
         print('PASS direct Super Admin post, shared +1 IDs across modules/concurrent JVs, retry protection, preparer approval, private notices/rejection and unchanged historical books')
     except Exception:
         server_log.flush();print((root/'server.log').read_text()[-5000:]);raise
