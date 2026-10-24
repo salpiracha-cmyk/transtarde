@@ -53,7 +53,7 @@ try {
                         $record['history'][]=['section'=>$part,'before'=>$before,'savedAt'=>gmdate('c'),'savedBy'=>$user['full_name']??$user['username']??'','reason'=>$reason];
                         $record['sections'][$part]=['version'=>(int)$before['version']+1,'rows'=>$partRows,'data'=>$partData,'calculation'=>null,'complete'=>!empty($body['complete']),'savedAt'=>gmdate('c'),'savedBy'=>$user['full_name']??$user['username']??'','userId'=>(int)($user['id']??0),'reason'=>$reason];
                     }
-                    gm_total(array_merge(gm_financial_source($state,$date)['rows'],$record['sections']['adjustments']['rows']),$record['sections']['header']['data']['rates']);
+                    gm_total(array_merge(gm_cashflow_source($state,$date)['rows'],$record['sections']['adjustments']['rows']),$record['sections']['header']['data']['rates']);
                 }
                 $data=[];$rows=[];$calculation=null;
                 if($section==='header'){
@@ -97,7 +97,7 @@ try {
                 $result=['sectionVersion'=>$saved['version'],'message'=>!empty($saved['complete'])?('Section completed.'.($kind==='ZAKAT'?' Assessment control updated; no new expense posted.':'')):'Section saved.'];
             }
         }
-        $source=gm_financial_source($state,$date);$source['accountsRevision']=$booksRevision;$summary=null;$summaryError='';
+        $source=$kind==='DAILY'?gm_cashflow_source($state,$date):gm_financial_source($state,$date);$source['accountsRevision']=$booksRevision;$summary=null;$summaryError='';
         try{$through=(new DateTimeImmutable('now',new DateTimeZone('Asia/Karachi')))->format('Y-m-d');$summary=$kind==='DAILY'?gd_summary($record):gm_record_summary($record,$state,$through);}catch(DomainException $e){$summaryError=$e->getMessage();}
         $records=[];foreach((array)($state['groupManagementRecords']??[]) as $r)if(($r['kind']??'')===$kind)$records[]=['id'=>$r['id'],'date'=>$r['date'],'hijriYear'=>$r['sections']['header']['data']['hijriYear']??''];
         $dailySource=$kind==='DAILY'?gd_sources(array_replace($state,['revision'=>$booksRevision]),gd_read_operations(TT_DATA_DIR.'/operations.json'),$date):null;

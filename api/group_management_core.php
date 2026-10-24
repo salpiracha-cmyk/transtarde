@@ -161,6 +161,24 @@ function gm_financial_source(array $state,string $date,?array $bankMasters=null)
     return ['rows'=>$out,'pendingTgRemittances'=>$pending,'warnings'=>array_values(array_unique($unclassified)),'accountsRevision'=>(int)($state['revision']??0),'asOf'=>$date,'basis'=>'Committed journals through the selected date. Excludes fixed assets and share holdings. Inventory is book cost until reviewed at market value. Unposted operational liabilities and shipment estimates require separate review.'];
 }
 
+/** Owner cash-flow scope; presentation only, never a journal or trial-balance change. */
+function gm_cashflow_source(array $state,string $date):array {
+    return gm_cashflow_scope(gm_financial_source($state,$date));
+}
+function gm_cashflow_scope(array $source):array {
+    foreach($source['rows'] as &$row){
+        $code=(string)$row['account'];$label=(string)$row['label'];$reason='';
+        if(in_array($code,['1240','2500'],true))$reason='Intercompany balance already embedded; excluded from consolidated cash flow.';
+        elseif(in_array($code,['1250','2110','2120','2130','2140','2190','2510'],true)&&preg_match('/(?:\bTTI\b|\bBRM\b|\bTG\b|TRANSTRADE INTERNATIONAL|TRANS GRAINS|BUKSH RICE)/i',$label))$reason='Internal group party; excluded from consolidated cash flow.';
+        elseif($code==='1120')$reason='Petty cash excluded from this management cash-flow view by owner instruction.';
+        elseif($code==='2230')$reason='Personal, staff, transfer-clearing or investment control; excluded from management cash flow. Salary forecast follows its due date separately.';
+        elseif($code==='1230'&&preg_match('/TG OWN|OWN HABIB|CURRENCY TRANSFER CLEARING/i',$label))$reason='Own-bank transfer clearing; excluded from cash flow.';
+        elseif(in_array($code,['1230','2140','2190'],true)&&preg_match('/(?:\bTRP\b|\bSRP\b|\bARP\b|\bTALHA\b|\bTAYYAB\b|\bSALMAN\b|\bMRS\b)/i',$label))$reason='Family or remuneration balance; excluded from management cash flow.';
+        if($reason!==''){$row['excluded']=true;$row['reason']=$reason;}
+    }unset($row);
+    $source['basis'].=' Management cash flow excludes group intercompany, petty cash, staff/personal and remuneration control balances. Company ledgers, trial balances and balance sheets retain their original postings.';return $source;
+}
+
 /** A partial assessment must never silently become next year's opening balance. */
 function gm_assessment_progress(array $record):array {
     $required=['header','financials','properties','gold','shares','adjustments'];$missing=[];
