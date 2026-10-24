@@ -83,7 +83,7 @@
   ];
   if(access.canInventoryReconciliation) pakistanAreas.find(area=>area.key==='reports').actions.push({title:'Ghati & Stock Reconciliation',note:'Accounts / Directors only; never adds stock or another purchase',special:'stock-reconciliation'});
   for(const areas of [pakistanAreas,tgAreas])for(const area of areas)if(area.key.endsWith('reports'))area.actions=area.actions.filter(a=>!(a.native==='reports'&&a.find==='Trial Balance')&&!(areas===tgAreas&&a.special==='withholding-report'));
-  if(access.canGroupDaily)for(const areas of [pakistanAreas,tgAreas])areas.find(area=>area.key.endsWith('reports')).actions.unshift({title:'Group Daily Position',note:'Shared bank balances, stock and original purchase/sale commitments',special:'group-daily'});
+  if(access.canGroupDaily)for(const areas of [pakistanAreas,tgAreas])areas.find(area=>area.key.endsWith('reports')).actions.unshift({title:'Cash Flow',note:'Cash, balances and previous-position comparison',special:'cash-flow'},{title:'Group Daily Position',note:'Shared bank balances, stock and original purchase/sale commitments',special:'group-daily'});
   if(access.canGroupZakat)for(const areas of [pakistanAreas,tgAreas])areas.find(area=>area.key.endsWith('reports')).actions.push({title:'Annual Zakat',note:'Yearly assessment, TTI control ledger, actual payments and carry-forward',special:'group-zakat'});
 
   const assetPermission=access.super||access.permissions==='all'||(Array.isArray(access.permissions)?access.permissions.includes('View'):(access.permissions?.assets||[]).includes('View'));
@@ -225,6 +225,7 @@
     if(action.special==='vehicle-report')return window.TT_REPORTS.open('vehicles');
     if(action.native==='reconciliation')return window.TT_BANK_RECONCILIATION.open();
     if(action.special==='forward-booking')return window.TT_FORWARD_BOOKINGS.open();
+    if(action.special==='cash-flow'){window.location.href='/accounts/cash-flow.php';return;}
     if(action.special==='group-daily'){window.location.href='/accounts/group-management.php?kind=DAILY';return;}
     if(action.special==='group-zakat'){window.location.href='/accounts/group-management.php?kind=ZAKAT';return;}
     if(action.special==='forward-register')return window.TT_FORWARD_BOOKINGS.open(true);

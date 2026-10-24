@@ -895,7 +895,7 @@ function tt_api_entity_policy(string $path): array {
     $entityIndependent=['operations.php','operations.mysql.php','export_documents.php','shipment_archive_file.php','export_customers.php','export_realization_master.php','masters.php','master_documents.php','users.php','backup.php','accounts_bulk_test_cleanup.php','location-master.php','commodity_lookup.php','bag_bill_file.php','bridge_outbox.php'];
     // Shared Assets and Group Management enforce their own module/icon and company scope.
     // Its endpoint enforces module/icon rights and company scope on every request.
-    if(in_array($endpoint,['assets_registry.php','group_management.php'],true))return['required'=>false,'fixed'=>''];
+    if(in_array($endpoint,['assets_registry.php','group_management.php','directors_cost_defaults.php'],true))return['required'=>false,'fixed'=>''];
     // Read-only aggregate; the endpoint filters each approval by company authority.
     if($endpoint==='director_approvals.php')return['required'=>false,'fixed'=>''];
     if(in_array($endpoint,$entityIndependent,true))return['required'=>false,'fixed'=>''];
@@ -930,6 +930,7 @@ function tt_user_can_director_approve(array $user): bool {
 
 /** Route ownership is server-defined; company grants never substitute for an icon. */
 function tt_api_write_grants(string $endpoint,array $body): ?array {
+    if($endpoint==='directors_cost_defaults.php')return [['Directors','costing','Create'],['Directors','costing','Edit'],['Directors','exporter-trading','Create'],['Directors','exporter-trading','Edit']];
     if($endpoint==='directors_trading.php'){if(($_GET['origin']??'')==='mill')return [['Mill','local','View']];if(($_GET['origin']??'')==='exports')return [['Exports','loading','Edit']];$icon=($_GET['area']??'')==='costing'?'costing':'exporter-trading';$right=($body['action']??'')==='preview_costing'?'View':(($body['action']??'')==='save_costing'&&!empty($body['id'])?'Edit':(in_array($body['action']??'',['post_settlement','payment'],true)?'Approve':(in_array($body['action']??'',['amend_deal','loading','amend_loading','allocate_expense','remove_expense','review_loading'],true)?'Edit':'Create')));return [['Directors',$icon,$right]];}
     if($endpoint==='group_management.php'){$origin=($_GET['origin']??'accounts')==='directors'?'Directors':'Accounts';$kind=strtoupper((string)($body['kind']??$_GET['kind']??'CASHFLOW'));$icon=$kind==='ZAKAT'?'zakat':($kind==='COSTING'?'costing':'group-reports');return [[$origin,$icon,'Create'],[$origin,$icon,'Edit']];}
     if($endpoint==='mill_reference_reconciliation.php')return [['Accounts','expenses','Edit']];
