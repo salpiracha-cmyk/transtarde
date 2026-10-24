@@ -338,6 +338,12 @@ function gm_zakat_payments(array $state,string $from,string $to,string $entity='
         // A full single-voucher settlement proves all its recorded components.
         // Partial payments, advance recovery and unknown beneficiaries remain unallocated.
         $fullyFunded=!$advanceLabel&&($hasZakat||$salaryKnown)&&(($cash>.005&&$nonCashCredit<.005&&$cash+.005>=$nonCashDebit)||($cash<-.005&&$nonCashDebit<.005&&-$cash+.005>=$nonCashCredit));
+        if($fullyFunded&&!$hasZakat&&$salaryZakat&&$cash<0){
+            $originalId=(string)($j['reversalOf']??$j['meta']['reversalOf']??'');$original=null;
+            foreach((array)($state['journals']??[]) as $originalKey=>$candidate)if(is_array($candidate)&&(string)($candidate['id']??$originalKey)===$originalId){$original=$candidate;break;}
+            $opposite=$original?alv_hidden(['journals'=>[$originalId=>$original,$postId=>$j]],$to):[];
+            if($originalId===''||!isset($opposite[$originalId],$opposite[$postId]))$fullyFunded=false;
+        }
         if($fullyFunded&&!$hasZakat&&$salaryZakat){foreach($payrollKeys as $key=>$unused){if(($salary[$key]??0)<=.005)continue;$settled=$settlements[$key]??0;$gross=$salaryGross[$key]??0;if($settled*$cash<=0||abs(abs($settled)-$gross)>.005||($salaryCashPaid[$key]??0)>$gross+.005){$fullyFunded=false;break;}$components[]=['salaryMasterId'=>explode('|',$key)[0],'month'=>explode('|',$key)[1],'amountPKR'=>round($salary[$key]*($settled>0?1:-1),2)];}if($fullyFunded)$amount=round(array_sum(array_column($components,'amountPKR')),2);}
         if(abs($cash)>.005&&($cashInPeriod||!zp_valid_date($date))&&$payroll&&($amount>.005||$salaryZakat||!$salaryKnown)&&!($fullyFunded&&abs($amount)>.005)){$warnings[]='Review the original Zakat component of payroll cash Post '.$postId.'; no salary payment allocation has been guessed.';continue;}
         if(abs($amount)<.005)continue;
