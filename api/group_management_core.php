@@ -121,7 +121,21 @@ function gm_pending_tg_remittances(array $state,string $date):array {
     usort($rows,static fn($a,$b)=>strcmp($a['date'].'|'.$a['id'],$b['date'].'|'.$b['id']));
     return ['rows'=>$rows,'totals'=>$totals,'warnings'=>array_values(array_unique($warnings)),'basis'=>'Pakistan credit advices already posted; TG remittances await their separate original-bank review. Pending amounts do not settle TG payables or reduce its bank balances.'];
 }
-function gm_financial_source(array $state,string $date):array {
+/** Display identity only: never substitute a master ID for a journal's bank identity. */
+function gm_source_bank_label(array $line,string $bank,string $entity,array $masters):string {
+    foreach($masters as $master){
+        if(!is_array($master)||(string)($master['id']??'')!==$bank)continue;
+        $v=array_values((array)($master['values']??[]));$linked=strtoupper((string)($v[1]??''));
+        $company=str_contains($linked,'BRM')||str_contains($linked,'BUKSH RICE')?'BRM':(str_contains($linked,'TTI')||str_contains($linked,'TRANSTRADE INTERNATIONAL')?'TTI':(str_contains($linked,'TG')||str_contains($linked,'TRANS GRAINS')?'TG':''));
+        if($company!==$entity)continue;
+        $line=['bankName'=>$v[4]??'','accountTitle'=>$v[3]??'','bankCurrency'=>$v[7]??'','accountNumber'=>$v[8]??'','iban'=>$v[9]??''];break;
+    }
+    $number=trim((string)($line['accountNumber']??''));if($number==='')$number=trim((string)($line['iban']??''));
+    $parts=array_values(array_unique(array_filter(array_map('trim',[(string)($line['bankName']??''),(string)($line['accountTitle']??''),(string)($line['bankCurrency']??$line['currency']??''),$number]),static fn($part)=>$part!=='')));
+    return $parts?implode(' · ',$parts):'Unresolved bank — '.$bank;
+}
+function gm_financial_source(array $state,string $date,?array $bankMasters=null):array {
+    $bankMasters??=function_exists('tt_list_masters')?(array)(tt_list_masters()['banks']??[]):[];
     $chart=sac_chart();$names=[];$classes=[];
     foreach($chart as $r){$names[(string)$r['code']]=$r['name'];$classes[(string)$r['code']]=$r['class'];}
     $rows=[];$unclassified=[];$intercompany=[];
@@ -135,8 +149,9 @@ function gm_financial_source(array $state,string $date):array {
             if(preg_match('/^(15|16)/',$code))continue; // Fixed assets and shares have separate market-valuation sections.
             $party=(string)($line['counterparty']??$line['party']??$line['partyName']??$line['supplier']??$line['broker']??$line['customer']??'');$bank=(string)($line['bankAccountId']??$line['paymentAccountId']??($code==='1110'?($journal['meta']['bankAccountId']??$journal['meta']['paymentAccountId']??''):''));
             $subaccount=(string)($line['subaccountId']??'');$identity=$entity.'|'.$code.'|'.$bank.'|'.$party.'|'.$subaccount;$id='BOOK-'.substr(hash('sha256',$identity),0,24);
-            if(!isset($rows[$id]))$rows[$id]=['id'=>$id,'type'=>'FINANCIAL','entity'=>$entity,'label'=>trim($name.($party!==''?' — '.$party:'').($bank!==''?' — '.$bank:'')),'account'=>$code,'subaccountId'=>$subaccount,'currency'=>$entity==='TG'?'AED':'PKR','amount'=>0.,'source'=>'Accounts journals','postIds'=>[],'basis'=>str_starts_with($code,'13')?'Book inventory value — market valuation review required':'Posted book balance','excluded'=>false,'reason'=>''];
-            $rows[$id]['amount']+=gm_number($line['debit']??0,'journal debit')-gm_number($line['credit']??0,'journal credit');$rows[$id]['postIds'][(string)($journal['id']??$postId)]=true;
+            if(!isset($rows[$id]))$rows[$id]=['id'=>$id,'type'=>'FINANCIAL','entity'=>$entity,'label'=>trim($name.($party!==''?' — '.$party:'').($bank!==''?' — '.($code==='1110'?gm_source_bank_label($line,$bank,$entity,$bankMasters):$bank):'')),'account'=>$code,'subaccountId'=>$subaccount,'currency'=>$entity==='TG'?'AED':'PKR','amount'=>0.,'source'=>'Accounts journals','postIds'=>[],'basis'=>str_starts_with($code,'13')?'Book inventory value — market valuation review required':'Posted book balance','excluded'=>false,'reason'=>''];
+            // Match the ledger/balance sheet's per-line two-decimal book amounts.
+            $rows[$id]['amount']+=round(gm_number($line['debit']??0,'journal debit'),2)-round(gm_number($line['credit']??0,'journal credit'),2);$rows[$id]['postIds'][(string)($journal['id']??$postId)]=true;
             if(in_array($code,['1240','2500'],true)){$rows[$id]['excluded']=true;$rows[$id]['reason']='Group intercompany elimination; reconcile counterpart balances and exchange differences.';$intercompany[$id]=true;}
         }
     }
