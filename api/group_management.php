@@ -2,6 +2,7 @@
 declare(strict_types=1);
 require dirname(__DIR__).'/auth_store.php';
 require_once __DIR__.'/group_management_core.php';
+require_once __DIR__.'/directors_cost_defaults_core.php';
 header('Content-Type: application/json; charset=UTF-8');header('Cache-Control: private, no-store');
 function gm_out(array $data,int $status=200):never {http_response_code($status);echo json_encode($data,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR);exit;}
 try {
@@ -79,7 +80,7 @@ try {
         try{$through=(new DateTimeImmutable('now',new DateTimeZone('Asia/Karachi')))->format('Y-m-d');$summary=$kind==='DAILY'?gd_summary($record):gm_record_summary($record,$state,$through);}catch(DomainException $e){$summaryError=$e->getMessage();}
         $records=[];foreach((array)($state['groupManagementRecords']??[]) as $r)if(($r['kind']??'')===$kind)$records[]=['id'=>$r['id'],'date'=>$r['date'],'hijriYear'=>$r['sections']['header']['data']['hijriYear']??''];
         $dailySource=$kind==='DAILY'?gd_sources(array_replace($state,['revision'=>$booksRevision]),gd_read_operations(TT_DATA_DIR.'/operations.json'),$date):null;
-        $payload=['dailySource'=>$dailySource,'ok'=>true,'record'=>$record,'source'=>$source,'summary'=>$summary,'summaryError'=>$summaryError,'records'=>$records,'result'=>$result,'revision'=>(int)($state['revision']??0),'canCreate'=>gm_permission($user,$kind,'Create',$origin),'canEdit'=>gm_permission($user,$kind,'Edit',$origin),'canWrite'=>gm_permission($user,$kind,'Create',$origin)||gm_permission($user,$kind,'Edit',$origin)];
+        $payload=['dailyRateDefaults'=>dcd_group_rates($state,$date),'dailySource'=>$dailySource,'ok'=>true,'record'=>$record,'source'=>$source,'summary'=>$summary,'summaryError'=>$summaryError,'records'=>$records,'result'=>$result,'revision'=>(int)($state['revision']??0),'canCreate'=>gm_permission($user,$kind,'Create',$origin),'canEdit'=>gm_permission($user,$kind,'Edit',$origin),'canWrite'=>gm_permission($user,$kind,'Create',$origin)||gm_permission($user,$kind,'Edit',$origin)];
     }finally{if($h){flock($h,LOCK_UN);fclose($h);}}
     gm_out($payload);
 }catch(DomainException|JsonException $e){gm_out(['ok'=>false,'error'=>$e->getMessage()],422);}catch(Throwable $e){error_log('Group management: '.$e->getMessage());gm_out(['ok'=>false,'error'=>'Group report could not be loaded or saved. No success has been confirmed.'],500);}
