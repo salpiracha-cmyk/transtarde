@@ -33,7 +33,8 @@ stream_wrapper_unregister('php');stream_wrapper_register('php',FixtureGroupInput
  for u,visible in [(viewer,True),(limited,False),(wrong,False)]:
   status,html=request(u,'accounts/index.php');assert status==200,(status,html);assert ('"canGroupDaily":true' in html)==visible
  for u,visible in [(director,True),(user(entities,{'reports':['View']}),False)]:
-  status,html=request(u,'directors/index.php',origin='directors');assert status==200,(status,html);assert ('Group Daily Position' in html)==visible
+  status,html=request(u,'directors/index.php',origin='directors');assert status==200,(status,html);assert ('Stock &amp; Commitments' in html)==visible;assert ('<h3>Cash Flow</h3>' in html)==visible
+  status,html=request(u,'accounts/cash-flow.php',origin='directors');assert (status==200)==visible,(status,html)
  # Annual Zakat has its own exact icon, native links, all-company scope and focused form.
  for u,origin,visible in [(user({**entities,'zakat':['View']}),'accounts',True),(user({'entity-tti':['View'],'zakat':['View']}),'accounts',False),(viewer,'accounts',False),(user(entities,{'zakat':['View']}),'directors',True),(director,'directors',False)]:
   status,text=request(u,kind='ZAKAT',origin=origin);assert (status==200)==visible,(status,text)
