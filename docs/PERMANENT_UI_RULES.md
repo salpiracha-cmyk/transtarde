@@ -632,3 +632,10 @@ Online Banking payments expose an editable payment date, defaulting from the vou
 - Chart balances, subsidiary ledgers and Word exports use the same effective amendment dates, valid reporting cutoff and posted/bill-pending Mill rules as financial reports. Proven source withholding categories also identify their canonical subsidiary; unknown or explicit historical identities must not be guessed or replaced. All such reads leave journals unchanged.
 - A named subaccount or subtree with posted history cannot be moved to another posting head by editing a master. Rename/archive and rearrangement within the same posting head remain available; create a new subaccount for future postings under a different head and use the original reviewed correction workflow for any monetary reclassification.
 - Payroll party lookup includes the recorded person identity. Do not expose private asset identity in general supplier/party ledgers to fill an intentionally anonymous control line.
+
+
+## Manual rent withholding and government deposits
+- Rent payments in Pakistan expose an optional manually entered WHT amount; never infer a rate or prefill a calculated deduction. Show gross rent, entered WHT and net landlord payment distinctly.
+- Settle/accrue the gross rent amount, credit only the net landlord payment to the selected bank/cash source and credit the named Rent Withholding Tax Payable subsidiary under2300. Prepaid allocations use gross rent.
+- Government challan deposits debit the appropriate rent/brokerage withholding payable and credit the actual payment source. They never create a second rent or commission expense. Require the challan/CPR reference; brokerage deposits identify the broker and reconcile the same native withholding register.
+- Never reinterpret a narration keyword as a government tax deposit. Use explicit payment-type choices and canonical subsidiary IDs. Preserve preview, retry safety, original history and existing bank/cheque details.
