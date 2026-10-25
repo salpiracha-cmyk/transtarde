@@ -428,6 +428,7 @@ require $argv[1];
         invalid={**rent,'requestKey':'invalid-rent-wht-'+str(value),'reference':'BAD-'+str(value),'expenseLines':[{**rent['expenseLines'][0],'withholdingTax':value}]}
         before=books.read_bytes();assert request('expenses_v1','?entity=TTI',invalid)[0]==422 and books.read_bytes()==before
     deposit={**body,'requestKey':'rent-wht-deposit-01','reference':'RENT-CPR-1','payee':'Government of Pakistan / FBR','amount':100,'expenseLines':[{'category':'WHT_RENT','amount':100,'purpose':'Rent tax deposit','challanReference':'CPR-FIXTURE-1'}]}
+    before=books.read_bytes();assert request('expenses_v1','?entity=TTI',{**deposit,'paymentAccountId':'CARD|not-a-bank'})[0]==422 and books.read_bytes()==before
     status,result=request('expenses_v1','?entity=TTI',deposit);assert status==200,(status,result)
     journal=json.loads(books.read_text())['journals'][result['result']['journalId']]
     assert [(l['account'],l['debit'],l['credit']) for l in journal['lines']]==[('2300',100,0),('1120',0,100)]
