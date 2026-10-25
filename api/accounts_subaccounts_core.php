@@ -90,6 +90,7 @@ function sac_accounts(array $s,string $e):array {
  foreach(['FAM-SALMAN','FAM-TALHA','FAM-TAYYAB','SHARED'] as $person){$id=sac_home_id($e,$person);$out[$id]=['id'=>$id,'entity'=>$e,'name'=>sac_home_name($person),'parentCode'=>'6910','parentId'=>$e.'-EXPENSE-TYPE-HOME','taxCategory'=>'NONE','active'=>true,'homePerson'=>$person];}
  foreach(['FI / Instrument Charges'=>'BANK_INSTRUMENT','Card Charges'=>'BANK_CARD','Transfer Charges'=>'BANK_TRANSFER','Bank Financing Charges'=>'BANK_FINANCING','Bank Finance Markup'=>'FINANCE_MARKUP'] as $name=>$key){$id=$e.'-DEFAULT-'.$key;$out[$id]=['id'=>$id,'entity'=>$e,'name'=>$name,'parentCode'=>'6800','taxCategory'=>'NONE','active'=>$e!=='TG'];}
  foreach(['EXPORT','SAVINGS','BROKERAGE','SERVICES'] as $cat)foreach(['RECOVERABLE'=>'1260','PAYABLE'=>'2300'] as $t=>$code){$id=$e.'-DEFAULT-TAX-'.$cat.'-'.$t;$out[$id]=['id'=>$id,'entity'=>$e,'name'=>ucfirst(strtolower($cat)).' Withholding Tax '.ucfirst(strtolower($t)),'parentCode'=>$code,'taxCategory'=>$cat,'active'=>true];}
+ if($e!=='TG'){$id=$e.'-DEFAULT-TAX-RENT-PAYABLE';$out[$id]=['id'=>$id,'entity'=>$e,'name'=>'Rent Withholding Tax Payable','parentCode'=>'2300','taxCategory'=>'OTHER','active'=>true];}
  foreach((array)($s['accountSubaccounts']??[]) as $id=>$r)if(is_array($r)&&($r['entity']??'')===$e)$out[$id]=$r;if($e==='TG')foreach($out as $id=>$row)if($id!=='TG-DEFAULT-ONLINE-BANKING'&&($row['parentCode']??'')==='6800'&&!empty($row['active'])&&in_array(strtoupper(trim((string)($row['name']??''))),['WEB BANKING CHARGES','ONLINE BANKING CHARGES','ONLINE / WEB BANKING CHARGES'],true)){unset($out['TG-DEFAULT-ONLINE-BANKING']);break;}
  if($e==='TG'){
   $used=[];foreach((array)($s['journals']??[]) as $j)if(($j['entity']??'')==='TG'&&($j['status']??'')==='Posted')foreach((array)($j['lines']??[]) as $line)if(!empty($line['subaccountId']))$used[(string)$line['subaccountId']]=true;
@@ -440,3 +441,19 @@ function zp_statement_adjustments(array $journals,array $payments,array $catalog
     }
     return ['adjustments'=>$adjustments,'sources'=>$sources,'warnings'=>array_values(array_unique($warnings))];
 }
+
+/** Manual amount only: never infer a rent tax rate or change historical journals. */
+function sac_rent_wht(mixed $value,float $gross,string $entity):float {
+ if($value===null||$value==='')return 0.0;
+ if(!is_numeric($value)||!is_finite((float)$value)||(float)$value<0)throw new InvalidArgumentException('Enter a non-negative rent WHT amount.');
+ $tax=round((float)$value,2);
+ if($tax>0&&(!in_array($entity,['TTI','BRM'],true)||$tax>=$gross))throw new InvalidArgumentException('Rent WHT must be less than gross Pakistan rent.');
+ return $tax;
+}
+function sac_rent_wht_extra(array $s,string $entity):array {
+ $a=sac_resolve($s,$entity,$entity.'-DEFAULT-TAX-RENT-PAYABLE');
+ if($a['parentCode']!=='2300'||$a['taxCategory']!=='OTHER')throw new InvalidArgumentException('Rent withholding payable setup has changed. Review it before paying.');
+ return sac_extra($a);
+}
+
+function sac_brokerage_wht_rows(array $s,string $entity,string $broker):array{$rows=[];foreach((array)($s['commodityBills']??[]) as $id=>$b){if(!is_array($b)||($b['entity']??'')!==$entity||strcasecmp((string)($b['broker']??''),$broker)!==0)continue;$w=round((float)($b['brokerageWithholding']??0),2);if($w<=0)continue;$rows[]=['key'=>'AUTO|'.$id,'date'=>(string)($b['billDate']??''),'wht'=>$w,'source'=>'Purchase Bill'];}foreach((array)($s['brokerageBills']??[]) as $id=>$b){if(!is_array($b)||($b['entity']??'')!==$entity||strcasecmp((string)($b['broker']??''),$broker)!==0||($b['status']??'Posted')==='Cancelled')continue;$w=round((float)($b['whtAmount']??0),2);if($w<=0)continue;$rows[]=['key'=>'SEPARATE|'.$id,'date'=>(string)($b['billDate']??''),'wht'=>$w,'source'=>'Separate Brokerage Bill'];}$paid=[];foreach((array)($s['brokerageWhtDeposits']??[]) as $d){if(!is_array($d)||($d['entity']??'')!==$entity||strcasecmp((string)($d['broker']??''),$broker)!==0||!in_array((string)($d['status']??'Posted'),['Posted','Approved / Posted','Approved'],true))continue;foreach((array)($d['allocations']??[]) as $a){if(!is_array($a))continue;$k=(string)($a['sourceKey']??'');$paid[$k]=round(($paid[$k]??0)+(float)($a['amount']??0),2);}}foreach($rows as &$r){$r['deposited']=round((float)($paid[$r['key']]??0),2);$r['outstanding']=max(0,round($r['wht']-$r['deposited'],2));}unset($r);$direct=0.0;foreach((array)($s['generalExpenses']??[]) as $payment){if(($payment['entity']??'')!==$entity||($payment['status']??'Posted')!=='Posted')continue;foreach((array)($payment['expenseLines']??[]) as $line)if(($line['category']??'')==='WHT_BROKERAGE'&&strcasecmp(trim((string)($line['broker']??'')),trim($broker))===0)$direct+=(float)$line['amount'];}usort($rows,static fn($a,$b)=>strcmp((string)$a['date'],(string)$b['date'])?:strcmp((string)$a['key'],(string)$b['key']));foreach($rows as &$r){$use=min($direct,$r['outstanding']);$r['deposited']=round($r['deposited']+$use,2);$r['outstanding']=round($r['outstanding']-$use,2);$direct=round($direct-$use,2);}unset($r);$rows=array_values(array_filter($rows,fn($r)=>$r['outstanding']>.005));usort($rows,static fn($a,$b)=>strcmp((string)$a['date'],(string)$b['date'])?:strcmp((string)$a['key'],(string)$b['key']));return $rows;}

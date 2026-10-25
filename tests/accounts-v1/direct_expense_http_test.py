@@ -12,7 +12,7 @@ with tempfile.TemporaryDirectory(prefix='tti-authorization-') as directory:
     private.mkdir()
     for name in ['document_filenames.php','auth_store.php', 'master_store.php', 'product_stage.php', 'offline_idempotency.php','session_store.php']:
         shutil.copy(ROOT / name, app / name)
-    for name in ['supplier_opening_core.php','accounts_subaccounts.php','accounts_subaccounts_core.php','accounts_receipts_core.php','accounts_ledger_visibility.php','assets_registry_core.php','expenses_v1.php','petty_cash_core.php','direct_expense_core.php','accounts_bank_payment.php','expense_locations.php','expense_reminders.php','expense_reversals.php','donations.php','rent_salary_v2.php','salary_month_workflow.php','salary_flexible_workflow.php','salary_record_corrections.php','salary_extra_allocations.php','company_investments_core.php','salary_master_store.php','accounts_reports.php','service_ledger_groups.php','accounts_ledger_browser.php','accounts_read_policy.php','customer_receivables_core.php','accounts_post_delete_core.php','accounts_post_delete_tg.php','tg_native_currency.php','accounts_post_amend.php','accounts_post_amend_core.php','opening_balance_core.php','accounts_reference.php','tg_remittance_core.php','fi_credit_advice_link.php','receipt_invoice_links.php', 'accounts_posting_preview.php', 'tg_native_currency.php']:
+    for name in ['brokerage_transactions.php','supplier_opening_core.php','accounts_subaccounts.php','accounts_subaccounts_core.php','accounts_receipts_core.php','accounts_ledger_visibility.php','assets_registry_core.php','expenses_v1.php','petty_cash_core.php','direct_expense_core.php','accounts_bank_payment.php','expense_locations.php','expense_reminders.php','expense_reversals.php','donations.php','rent_salary_v2.php','salary_month_workflow.php','salary_flexible_workflow.php','salary_record_corrections.php','salary_extra_allocations.php','company_investments_core.php','salary_master_store.php','accounts_reports.php','service_ledger_groups.php','accounts_ledger_browser.php','accounts_read_policy.php','customer_receivables_core.php','accounts_post_delete_core.php','accounts_post_delete_tg.php','tg_native_currency.php','accounts_post_amend.php','accounts_post_amend_core.php','opening_balance_core.php','accounts_reference.php','tg_remittance_core.php','fi_credit_advice_link.php','receipt_invoice_links.php', 'accounts_posting_preview.php', 'tg_native_currency.php']:
         shutil.copy(ROOT / 'api' / name, app / 'api' / name)
     shutil.copy(ROOT / 'accounts/accounting_master_v1.json', app / 'accounts/accounting_master_v1.json')
     harness = root / 'request.php'
@@ -414,6 +414,47 @@ require $argv[1];
     status,report=request('accounts_reports','?entity=TTI&from=2026-07-01&asOf=2026-12-31');assert status==200,(status,report)
     assert report['zakatReporting']['paidExpense']==225 and sum(r['amount'] for r in report['expenseActivity'] if r['account']=='7210')==225
     print('Zakat narration/purpose routing, Urdu wording, zero-write previews, single cash credit, ordinary-word boundary and matching paid reports passed.')
+    # Manual rent withholding: the gross obligation is settled once; bank receives net only.
+    user['role']='Super Admin';set_user()
+    rent={**body,'requestKey':'manual-rent-wht-001','reference':'RENT-WHT-1','payee':'Fixture landlord','amount':1000,'expenseLines':[{'category':'RENT','rentFor':'OFFICE','purpose':'Office rent','amount':1000,'withholdingTax':100}]}
+    before=books.read_bytes();status,preview=request('expenses_v1','?entity=TTI',{**rent,'preview':True});assert status==200,(status,preview)
+    assert books.read_bytes()==before
+    assert [(l['account'],l['debit'],l['credit']) for l in preview['previews'][0]['lines']]==[('6300',1000,0),('2300',0,100),('1120',0,900)]
+    status,result=request('expenses_v1','?entity=TTI',rent);assert status==200,(status,result)
+    saved=json.loads(books.read_text());journal=saved['journals'][result['result']['journalId']]
+    assert journal['lines'][1]['subaccountId']=='TTI-DEFAULT-TAX-RENT-PAYABLE'
+    before=books.read_bytes();assert request('expenses_v1','?entity=TTI',rent)[0]==200 and books.read_bytes()==before
+    for value in [-1,1000,1001,'bad']:
+        invalid={**rent,'requestKey':'invalid-rent-wht-'+str(value),'reference':'BAD-'+str(value),'expenseLines':[{**rent['expenseLines'][0],'withholdingTax':value}]}
+        before=books.read_bytes();assert request('expenses_v1','?entity=TTI',invalid)[0]==422 and books.read_bytes()==before
+    deposit={**body,'requestKey':'rent-wht-deposit-01','reference':'RENT-CPR-1','payee':'Government of Pakistan / FBR','amount':100,'expenseLines':[{'category':'WHT_RENT','amount':100,'purpose':'Rent tax deposit','challanReference':'CPR-FIXTURE-1'}]}
+    before=books.read_bytes();assert request('expenses_v1','?entity=TTI',{**deposit,'paymentAccountId':'CARD|not-a-bank'})[0]==422 and books.read_bytes()==before
+    status,result=request('expenses_v1','?entity=TTI',deposit);assert status==200,(status,result)
+    journal=json.loads(books.read_text())['journals'][result['result']['journalId']]
+    assert [(l['account'],l['debit'],l['credit']) for l in journal['lines']]==[('2300',100,0),('1120',0,100)]
+    assert journal['lines'][0]['subaccountId']=='TTI-DEFAULT-TAX-RENT-PAYABLE' and journal['lines'][0]['challanReference']=='CPR-FIXTURE-1'
+    # Dedicated prepaid-rent workflow allocates gross, keeps manual tax and prevents changed retries.
+    store=json.loads(books.read_text());store.setdefault('rentMasters',{})['RENT-FIXTURE']={'id':'RENT-FIXTURE','entity':'TTI','mill':'Fixture premises','payee':'Fixture landlord','monthlyAmount':1000,'status':'Active','effectiveFrom':'2026-11-01','paymentPattern':'Monthly'};books.write_text(json.dumps(store))
+    pay={'action':'pay_rent','csrf':'fixture','masterId':'RENT-FIXTURE','fromMonth':'2026-11','toMonth':'2026-11','amount':1000,'withholdingTax':75,'date':'2026-10-25','paymentAccountId':'CASH|TTI','requestKey':'scheduled-rent-wht-1'}
+    before=books.read_bytes();status,preview=request('rent_salary_v2','?entity=TTI&month=2026-11',{**pay,'preview':True});assert status==200 and books.read_bytes()==before,(status,preview)
+    status,result=request('rent_salary_v2','?entity=TTI&month=2026-11',pay);assert status==200,(status,result)
+    store=json.loads(books.read_text());journal=store['journals'][result['result']['journalId']]
+    assert [(l['account'],l['debit'],l['credit']) for l in journal['lines']]==[('1400',1000,0),('2300',0,75),('1120',0,925)]
+    assert store['rentPrepayments']['RENT-FIXTURE|2026-11']['remaining']==1000
+    before=books.read_bytes();assert request('rent_salary_v2','?entity=TTI&month=2026-11',pay)[0]==200 and books.read_bytes()==before
+    assert request('rent_salary_v2','?entity=TTI&month=2026-11',{**pay,'withholdingTax':76})[0]==409 and books.read_bytes()==before
+    # A payment from Pay Expense must also clear the native broker withholding register.
+    store=json.loads(books.read_text());store.setdefault('brokerageBills',{})['BROKER-FIXTURE']={'entity':'TTI','broker':'Fixture broker','billDate':'2026-10-01','whtAmount':100,'status':'Posted'};books.write_text(json.dumps(store))
+    status,register=request('brokerage_transactions','?entity=TTI');assert status==200 and register['brokers'][0]['outstanding']==100,(status,register)
+    broker_deposit={**deposit,'requestKey':'broker-wht-deposit-1','reference':'BROKER-CPR-1','expenseLines':[{'category':'WHT_BROKERAGE','amount':100,'purpose':'Broker tax deposit','broker':'Fixture broker','challanReference':'CPR-BROKER-1'}]}
+    status,result=request('expenses_v1','?entity=TTI',broker_deposit);assert status==200,(status,result)
+    record=result['result']['generalExpenseId'];journal=json.loads(books.read_text())['journals'][result['result']['journalId']]
+    assert journal['lines'][0]['account']=='2300' and journal['lines'][0]['subaccountId']=='TTI-DEFAULT-TAX-BROKERAGE-PAYABLE'
+    status,register=request('brokerage_transactions','?entity=TTI');assert status==200 and register['brokers']==[],(status,register)
+    before=books.read_bytes();assert request('expenses_v1','?entity=TTI',{**broker_deposit,'reference':'OVERPAY','requestKey':'broker-wht-overpay-1'})[0]==422 and books.read_bytes()==before
+    status,result=request('expenses_v1','?entity=TTI',{'action':'delete_expense','csrf':'fixture','entity':'TTI','collection':'generalExpenses','id':record,'reason':'Reverse fixture deposit'});assert status==200,(status,result)
+    assert request('brokerage_transactions','?entity=TTI')[1]['brokers'][0]['outstanding']==100
+    print('Manual rent WHT, net payment, separate challan liability clearance, prepaid allocation and zero-write retry/preview passed.')
     for endpoint in ['expenses_v1','donations','rent_salary_v2']:
         books.write_text('{broken JSON');bad=books.read_bytes();assert request(endpoint,'?entity=TTI')[0]==500;assert books.read_bytes()==bad
     print('Direct expense endpoint, correction, deletion, retry and permissions passed.')
