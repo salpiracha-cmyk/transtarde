@@ -40,6 +40,7 @@
     {key:'bank', glyph:'▦', title:'Bank & Cash', note:'Bank payments, receipts, transfers and reconciliation', actions:[
       {title:'Forward Booking',note:'USD/PKR calendar-day contracts, utilisation and expiry settlement',special:'forward-booking'},
       {title:'Bank Entry', note:'Bank payment first; pay parties or expenses, and record other bank entries', special:'bank-entry'},
+      {title:'Pay WHT',note:'Rent, brokerage or other withholding against a challan',special:'wht-payment'},
       {title:'Inter Account Transfer', note:'Move PKR between company accounts or to a personal account with a reason', special:'internal-bank-transfer'},
       {title:'Foreign Retention Account', note:'Settle foreign commissions and other linked outward remittances', special:'retention-remittance'},
       {title:'Bank Finance', note:'Drawdown, principal repayment and markup', special:'bank-finance'},
@@ -237,6 +238,7 @@
     if(action.special==='expense-recipients')return window.TT_ACCOUNT_PAYEES.open('EXPENSE');
     if(action.special==='withholding-report')return window.TT_SUBACCOUNTS.open('tax');
     if(action.special==='mill-liabilities')return window.TT_MILL_LIABILITIES.open();
+    if(action.special==='wht-payment')return window.TT_EXPENSE_DESK.openWithholding({source:'BANK'});
     if(action.special==='petty-cash')return window.TT_PETTY_CASH.open();
     if(action.special==='expense-pay')return window.TT_EXPENSE_DESK.open();
     if(action.special==='expense-bills')return window.TT_EXPENSE_DESK.bills();
