@@ -476,6 +476,7 @@ require $argv[1];
         bad={**custom_rent,'requestKey':'bad-wht-'+invalid_sub,'reference':'BAD-WHT-'+invalid_sub,'expenseLines':[{**custom_rent['expenseLines'][0],'whtSubaccountId':invalid_sub}]}
         before=books.read_bytes();status,rejected=request('expenses_v1','?entity=TTI',bad);assert status==(403 if invalid_sub.startswith('BRM-') else 422) and books.read_bytes()==before,(invalid_sub,status,rejected)
     before=books.read_bytes();assert request('expenses_v1','?entity=TTI',other)[0]==200 and books.read_bytes()==before
+    assert not any(p.get('name')=='Government of Pakistan / FBR' and p.get('accountCode')=='6900' for p in json.loads(books.read_text()).get('paymentPayees',{}).values()),'WHT-only deposits must not create an ordinary-expense default for the government'
     print('Custom rent/other WHT subsidiaries, bank/cash sources, tax-category/company guards, preview and retry passed.')
     print('Manual rent WHT, net payment, separate challan liability clearance, prepaid allocation and zero-write retry/preview passed.')
     for endpoint in ['expenses_v1','donations','rent_salary_v2']:

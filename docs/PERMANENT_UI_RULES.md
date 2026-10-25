@@ -642,3 +642,4 @@ Online Banking payments expose an editable payment date, defaulting from the vou
 
 - Pay WHT is available from Bank and Petty Cash, using one shared tax-payment form with bank-only or cash-only sources respectively. Offer Brokerage, Rent and Other categories and matching active payable subsidiary dropdowns; never substitute an expense or recoverable-tax ledger.
 - Add/Edit WHT subsidiary controls use the existing Accounts Masters rights and revision-safe master endpoint. Creation keeps the ledger under the selected tax group's2300 hierarchy and does not submit the pending payment. Saved subsidiary IDs are retained for correction and reporting; incompatible company/category selections are rejected by the backend.
+- WHT-only deposits must not create an ordinary-expense recipient default for the government. Selecting a tax payment always retains its explicit payable subledger.
