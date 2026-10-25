@@ -101,9 +101,9 @@
     for (const area of areas) {
       if (area.key==='exports'||area.key==='tg-payments') area.actions=area.actions.filter(a=>a.special!=='carry-forward'&&a.special!=='customer-receivables');
       if (area.key==='bank'||area.key==='tg-bank') {
-        const order=['bank-entry','internal-bank-transfer','bank-finance','forward-booking','retention-remittance','reconciliation'];
+        const order=['bank-entry','wht-payment','internal-bank-transfer','bank-finance','forward-booking','retention-remittance','reconciliation'];
         area.actions=order.map(key=>area.actions.find(a=>(a.special||a.native)===key)).filter(Boolean);
-        const names=['BANK ENTRY','INTER ACCOUNT TRANSFER','BANK FINANCING','FORWARD BOOKING','RETENTION ACCOUNT','BANK RECONCILIATION'];
+        const names=['BANK ENTRY','PAY WHT','INTER ACCOUNT TRANSFER','BANK FINANCING','FORWARD BOOKING','RETENTION ACCOUNT','BANK RECONCILIATION'];
         area.actions.forEach(a=>a.title=names[order.indexOf(a.special||a.native)]);
       }
       if (area.key.endsWith('reports')) area.actions.push({title:'CHANGE LOGS',special:'change-logs'});
