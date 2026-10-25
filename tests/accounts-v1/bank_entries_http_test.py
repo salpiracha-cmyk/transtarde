@@ -135,11 +135,17 @@ require $argv[1];
     payment_result,_=good(**payment);j=payment_result['result']['journal'];assert j['lines'][0]['account']=='6900' and j['lines'][0]['subaccountId']==sid and j['lines'][1]['credit']==100
     before=books.read_bytes();assert mutate('bank_entries',**{**payment,'reference':'DUPLICATE-CHEQUE'})[0]==422 and books.read_bytes()==before
     assert mutate('bank_entries',**{**payment,'reference':'WRONG-COMPANY','bankId':'BANK-BRM'})[0]==422
-    moved,_=good('accounts_subaccounts',operation='edit',id=sid,name='Stationery and maintenance',parentCode='6400',taxCategory='NONE')
+    # A master move must not detach a posted subsidiary balance from its head.
+    before_move=books.read_bytes()
+    status,blocked,_=mutate('accounts_subaccounts',operation='edit',id=sid,name='Stationery and maintenance',parentCode='6400',taxCategory='NONE')
+    assert status==422 and 'posted history' in blocked['error'] and books.read_bytes()==before_move,(status,blocked)
     old=json.loads(books.read_text())['journals'][j['id']]['lines'][0];assert old['account']=='6900' and old['subaccountName']=='OFFICE STATIONERY'
+    good('accounts_subaccounts',operation='edit',id=sid,name='Office stationery renamed',parentCode='6900',taxCategory='NONE')
     good(**{**payment,'reference':'PAYMENT-2','bankPaymentMethod':'ONLINE_BANKING','chequeNo':''})
     _,ledger=request('accounts_ledger_browser','?entity=TTI&account=SUB|'+sid+'&from=2026-01-01&to=2026-10-07');assert ledger['closing']==200 and len(ledger['rows'])==2
-    assert {l['account'] for l in ledger['rows']}=={'6900','6400'}
+    assert {l['account'] for l in ledger['rows']}=={'6900'}
+    snapshot=request('accounts_subaccounts','?entity=TTI&to=2026-10-07')[1]
+    assert next(a for a in snapshot['subaccounts'] if a['id']==sid)['balance']==200
     status,report=request('accounts_reports','?entity=TTI&asOf=2026-10-07&from=2026-01-01');assert status==200 and report['trialBalance']['totalDebit']==report['trialBalance']['totalCredit']
     tax=request('accounts_subaccounts','?entity=TTI&from=2026-01-01&to=2026-10-07')[1]['taxReport'];assert next(r for r in tax if r['category']=='SAVINGS' and r['treatment']=='Recoverable')['debit']==150
     before_tax=books.read_bytes();detail=request('accounts_subaccounts','?entity=TTI&from=2026-01-01&to=2026-10-07&report=withholding');assert detail[0]==200 and any(r['debit']==150 for r in detail[1]['taxEntries'])
@@ -172,7 +178,7 @@ require $argv[1];
     _,finance_ledger=request('accounts_ledger_browser','?entity=TTI&account=HEAD|2600&from=2026-01-01&to=2026-10-07');assert finance_ledger['closing']==-500
     # One expense payment uses a named subaccount and keeps its single bank credit.
     ex={'action':'pay_expense','csrf':'fixture','entity':'TTI','requestKey':'expense-subaccount-01','paymentDate':'2026-10-07','payee':'Stationery shop','paymentAccountId':'BANK-1','reference':'EXP-SUB','amount':25,'bankPaymentMethod':'ONLINE_BANKING','expenseLines':[{'category':'OFFICE','purpose':'Repairs materials','amount':25,'subaccountId':sid}]}
-    status,expense=request('expenses_v1','?entity=TTI',ex);assert status==200,(status,expense);j=json.loads(books.read_text())['journals'][expense['result']['journalId']];assert j['lines'][0]['account']=='6400' and j['lines'][0]['subaccountId']==sid and len(j['lines'])==2
+    status,expense=request('expenses_v1','?entity=TTI',ex);assert status==200,(status,expense);j=json.loads(books.read_text())['journals'][expense['result']['journalId']];assert j['lines'][0]['account']=='6900' and j['lines'][0]['subaccountId']==sid and len(j['lines'])==2
     # Named accounts also work in the controlled JV, carrying their head snapshot.
     draft={'action':'save_draft','csrf':'fixture','entity':'TTI','date':'2026-10-07','reference':'JV-SUB','narration':'Accrued repairs','lines':[{'account':'SUB|'+sid,'debit':10,'credit':0},{'account':'2140','subledger':'Supplier','debit':0,'credit':10}]}
     status,jv=request('journal_vouchers','?entity=TTI',draft);assert status==200,(status,jv);assert next(v for v in jv['jvs'] if v['id']==jv['result']['jvId'])['lines'][0]['subaccountId']==sid
@@ -180,9 +186,9 @@ require $argv[1];
     good('accounts_subaccounts',operation='delete',id=sid)
     assert mutate('bank_entries',**{**payment,'reference':'ARCHIVED-SUB','chequeNo':'CH-99'})[0]==422
     _,ledger=request('accounts_ledger_browser','?entity=TTI&account=SUB|'+sid+'&from=2026-01-01&to=2026-10-07');assert ledger['closing']==225
-    good('accounts_subaccounts',operation='edit',id=sid,name='Stationery and maintenance',parentCode='6400',taxCategory='NONE',active=True)
-    child,_=good('accounts_subaccounts',operation='add',name='Printer supplies',parentCode='6400',parentId=sid,taxCategory='NONE');cid=child['result']['subaccountId']
-    grand,_=good('accounts_subaccounts',operation='add',name='Toner supplies',parentCode='6400',parentId=cid,taxCategory='NONE');gid=grand['result']['subaccountId']
+    good('accounts_subaccounts',operation='edit',id=sid,name='Stationery and maintenance',parentCode='6900',taxCategory='NONE',active=True)
+    child,_=good('accounts_subaccounts',operation='add',name='Printer supplies',parentCode='6900',parentId=sid,taxCategory='NONE');cid=child['result']['subaccountId']
+    grand,_=good('accounts_subaccounts',operation='add',name='Toner supplies',parentCode='6900',parentId=cid,taxCategory='NONE');gid=grand['result']['subaccountId']
     before=books.read_bytes();assert mutate('accounts_subaccounts',operation='edit',id=sid,name='Stationery and maintenance',parentCode='6400',parentId=gid,taxCategory='NONE')[0]==422 and books.read_bytes()==before
     historical=json.loads(books.read_text())['journals']
     good('accounts_subaccounts',operation='edit',id=sid,name='Stationery and maintenance',parentCode='6900',taxCategory='NONE')

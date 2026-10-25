@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__.'/opening_balance_core.php';
+require_once __DIR__.'/accounts_subaccounts_core.php';
 function acw_xml(string $s): string{return htmlspecialchars($s,ENT_XML1|ENT_QUOTES,'UTF-8');}
 function acw_p(string $s,bool $bold=false,int $size=20): string{return '<w:p><w:pPr><w:spacing w:after="80"/></w:pPr><w:r><w:rPr>'.($bold?'<w:b/>':'').'<w:sz w:val="'.$size.'"/></w:rPr><w:t xml:space="preserve">'.acw_xml($s).'</w:t></w:r></w:p>';}
 function acw_table(array $rows): string{
@@ -21,13 +22,14 @@ function acw_party(array $line,array $journal,array $store,array $masters): stri
  return '';
 }
 function acw_document(array $master,array $store,array $masters,array $entities,string $date): string{
+ $store=alv_amendment_books($store);
  $catalog=[];foreach(array_merge((array)($master['chart']??[]),(array)($master['peopleSubledgers']??[])) as $a)$catalog[(string)$a['code']]=$a;
  $body=acw_p('Transtrade Chart of Accounts and Balances',true,32).acw_p('Posted balances as at '.$date.'. Debit and credit balances are shown separately. Each company has its own books. Bank subaccounts show their account currency; TG account heads show AED book values. Bank subaccount figures in different currencies must not be added together.');
  foreach($entities as $e){
   if(function_exists('sac_entity_chart'))$catalog=sac_entity_chart($store,$e);
   $base=$e==='TG'?'AED':'PKR';$heads=[];$subs=[];$native=[];$nativeMissing=[];$banks=[];
   foreach((array)($masters['banks']??[]) as $b){$v=(array)($b['values']??[]);$link=strtoupper((string)($v[1]??''));$owner=str_contains($link,'TRANS GRAINS')||preg_match('/\bTG\b/',$link)?'TG':(str_contains($link,'BUKSH RICE')||preg_match('/\bBRM\b/',$link)?'BRM':(str_contains($link,'TRANSTRADE INTERNATIONAL')||preg_match('/\bTTI\b/',$link)?'TTI':''));if($owner!==$e||!in_array($v[0]??'',['Company Account','Proprietor / Owner Account','Personal Account'],true))continue;$id=(string)$b['id'];$banks[$id]=['name'=>trim(($v[4]??'').' / '.(($v[8]??'')?:($v[9]??'')).' / '.($v[7]??'').' / '.($v[3]??'')),'currency'=>strtoupper((string)($v[7]??$base))];$native[$id]=0.0;}
-  foreach((array)($store['journals']??[]) as $j){if(($j['entity']??'')!==$e||($j['status']??'')!=='Posted'||(string)($j['date']??'')>$date)continue;foreach((array)($j['lines']??[]) as $l){$code=(string)($l['account']??'');if(!$code)continue;$catalog[$code]??=['code'=>$code,'name'=>$l['accountName']??$code];$delta=(float)($l['debit']??0)-(float)($l['credit']??0);$heads[$code]=($heads[$code]??0)+$delta;
+  foreach((array)($store['journals']??[]) as $j){if(($j['entity']??'')!==$e||!alv_posted($j)||!zp_valid_date((string)($j['date']??''))||(string)($j['date']??'')>$date)continue;foreach((array)($j['lines']??[]) as $l){$code=(string)($l['account']??'');if(!$code)continue;$catalog[$code]??=['code'=>$code,'name'=>$l['accountName']??$code];$delta=(float)($l['debit']??0)-(float)($l['credit']??0);$heads[$code]=($heads[$code]??0)+$delta;
    if($code==='1110'){$id=(string)($l['bankAccountId']??$j['meta']['bankAccountId']??'');if($id===''){$subs[$code]['Unassigned bank entries']=($subs[$code]['Unassigned bank entries']??0)+$delta;continue;}$banks[$id]??=['name'=>$l['bankName']??$id,'currency'=>$l['currency']??$base];if($banks[$id]['currency']===$base)$native[$id]=($native[$id]??0)+$delta;elseif(isset($l['bankDebit'])||isset($l['bankCredit']))$native[$id]=($native[$id]??0)+(float)($l['bankDebit']??0)-(float)($l['bankCredit']??0);else $nativeMissing[$id]=true;continue;}
    if(empty($catalog[$code]['subledger'])||!empty($l['subaccountId'])||!in_array($catalog[$code]['class']??'',['Asset','Liability'],true)||in_array($code,['1260','2300'],true))continue;$party=acw_party($l,$j,$store,$masters);if($party!=='')$subs[$code][$party]=($subs[$code][$party]??0)+$delta;
   }}

@@ -70,7 +70,7 @@ function sac_save_payee(array &$s,string $e,array $b,array $u):array {
  foreach(sac_payees($s,$e) as $p)if($p['id']===$id)$old=$p;
  if($kind==='BUSINESS'){if(!$old||$old['kind']!=='BUSINESS')throw new DomainException('Add this Business Party in Master Records first.');$name=$old['name'];}
  $code=(string)($b['accountCode']??'');if($kind==='EXPENSE'&&$code==='')$code='6900';$chart=sac_entity_chart($s,$e);$a=$chart[$code]??null;
- if(!$a||in_array($a['level']??'',['heading','system'],true)||in_array($code,['1110','1120','1130','1430','1440','1610','2610'],true))throw new DomainException('Choose the recipient posting account.');
+ if(!$a||!empty($a['legacyOnly'])||in_array($a['level']??'',['heading','system'],true)||in_array($code,['1110','1120','1130','1430','1440','1610','2610'],true))throw new DomainException('Choose the recipient posting account.');
  if($kind==='EXPENSE'&&($a['class']??'')!=='Expense')throw new DomainException('Expense recipients must use an expense or manufacturing cost account.');
  $subId=(string)($b['subaccountId']??'');if($subId!==''){$sub=sac_resolve($s,$e,$subId);if($sub['parentCode']!==$code)throw new DomainException('Choose a subaccount under the selected head.');}
  $category=(string)($b['expenseCategory']??'OFFICE');if(!in_array($category,['HOME','OFFICE','MILL','MEDICAL','RENT','DONATION','OTHER'],true))throw new DomainException('Choose the usual expense type.');
@@ -116,6 +116,17 @@ function sac_display_path(array $names):string {
  $parts=[];foreach($names as $name){$name=trim((string)$name);if($name!==''&&(!$parts||strcasecmp($parts[count($parts)-1],$name)!==0))$parts[]=$name;}return implode(' / ',$parts);
 }
 function sac_extra(array $a):array {return ['subaccountId'=>$a['id'],'subaccountName'=>$a['name'],'subledger'=>$a['name'],'parentAccount'=>$a['parentCode'],'taxCategory'=>$a['taxCategory'],'accountClass'=>$a['class'],'expenseClassification'=>$a['expenseClassification']??'OFFICE'];}
+/** Resolve a missing native WHT subsidiary from proven saved source facts only.
+ * No journal is mutated. Explicit IDs and unresolved/foreign tax identities stay intact.
+ */
+function sac_line_subaccount_id(array $state,array $journal,array $line):string {
+ $saved=(string)($line['subaccountId']??'');if($saved!=='')return $saved;
+ $code=(string)($line['account']??'');$entity=(string)($journal['entity']??'');
+ if(!in_array($code,['1260','2300'],true)||!in_array($entity,['TTI','BRM'],true))return '';
+ $category=sac_tax_category($state,$journal,$line);
+ if(!in_array($category,['EXPORT','SAVINGS','BROKERAGE','SERVICES'],true))return '';
+ return $entity.'-DEFAULT-TAX-'.$category.'-'.($code==='1260'?'RECOVERABLE':'PAYABLE');
+}
 function sac_master(array &$s,string $e,array $b,array $u):array {
  $op=(string)($b['operation']??'add');$id=(string)($b['id']??'');
  if($op==='move_head'){
@@ -137,9 +148,14 @@ function sac_master(array &$s,string $e,array $b,array $u):array {
    $destination=sac_resolve($s,$e,$parentId);$parent=$destination['parentCode'];
   }
   $head=$chart[$parent]??null;
-  if(!$head||in_array($head['level']??'',['heading','system'],true)||in_array($parent,['1110','1120','1130','1430','1440','1610','2610'],true))throw new DomainException('Select a valid posting head. Bank, investment and finance registers manage their own accounts.');
+  if(!$head||(!empty($head['legacyOnly'])&&(!$old||$old['parentCode']!==$parent))||in_array($head['level']??'',['heading','system'],true)||in_array($parent,['1110','1120','1130','1430','1440','1610','2610'],true))throw new DomainException('Select a valid posting head. Bank, investment and finance registers manage their own accounts.');
   $classification=(string)($b['expenseClassification']??$old['expenseClassification']??'');if(!empty($b['expenseType'])){if(!in_array($classification,['MILL','HOME','OFFICE','EXPORT'],true)||$head['class']!=='Expense')throw new DomainException('Choose Milling / Production, Home, Office or General Export.');$valid=match($classification){'EXPORT'=>$parent==='5550','MILL'=>str_starts_with($parent,'5')&&$parent!=='5550','HOME'=>$parent==='6910','OFFICE'=>!str_starts_with($parent,'5')&&$parent!=='6910'};if(!$valid)throw new DomainException('Choose a parent under the selected expense classification.');}
   if(!empty($old['builtinCategory'])&&($parent!==$old['parentCode']||$parentId!==''))throw new DomainException('Standard expense types keep their posting head. Add a new type for a different classification.');
+  if($old&&$parent!==$old['parentCode']){
+   $subtree=sac_subtree($s,$e,$id);
+   foreach((array)($s['journals']??[]) as $journal)if(($journal['entity']??'')===$e&&alv_posted($journal))foreach((array)($journal['lines']??[]) as $line)
+    if(in_array((string)($line['subaccountId']??''),$subtree,true))throw new DomainException('This subaccount has posted history under its original head. Create a separate subaccount for the new head; any financial reclassification must use the original posting correction workflow.');
+  }
   if(isset($old['homePerson'])&&($parent!=='6910'||$parentId!==$e.'-EXPENSE-TYPE-HOME'))throw new DomainException('Keep Home ledgers under Home Expense.');
   $tax=strtoupper((string)($b['taxCategory']??'NONE'));if(!in_array($tax,['NONE','EXPORT','SAVINGS','BROKERAGE','SERVICES','OTHER'],true)||(!in_array($parent,['1260','2300'],true)&&$tax!=='NONE'))throw new DomainException('Tax category applies to recoverable tax or tax payable heads.');
   foreach(sac_accounts($s,$e) as $other)if($other['id']!==$id&&sac_normal($other['name'])===sac_normal($name))throw new DomainException('This subaccount name already exists. Edit or reactivate it.');
@@ -189,10 +205,11 @@ function sac_tax_entries(array $state,string $entity,string $from='',string $to=
  usort($rows,static fn($a,$b)=>strcmp($a['date'].'|'.$a['journalId'],$b['date'].'|'.$b['journalId'])?:($a['lineIndex']<=>$b['lineIndex']));return $rows;
 }
 function sac_payload(array $s,string $e,string $from='',string $to=''):array {
+ $s=alv_amendment_books($s);
  $chart=sac_entity_chart($s,$e);$heads=[];$subs=sac_accounts($s,$e);$tax=[];
  foreach($chart as $code=>$r)$heads[(string)$code]=$r+['balance'=>0,'subaccounts'=>[]];
  foreach($subs as $id=>$r){$a=sac_resolve($s,$e,$id,false);$subs[$id]=$a+['balance'=>0];}
- foreach((array)($s['journals']??[]) as $j)if(($j['entity']??'')===$e&&($j['status']??'')==='Posted'&&($to===''||($j['date']??'')<=$to))foreach((array)($j['lines']??[]) as $l){$code=(string)($l['account']??'');$n=round((float)($l['debit']??0)-(float)($l['credit']??0),2);if(isset($heads[$code]))$heads[$code]['balance']+=$n;$id=(string)($l['subaccountId']??'');if(isset($subs[$id]))$subs[$id]['balance']+=$n;
+ foreach((array)($s['journals']??[]) as $j)if(($j['entity']??'')===$e&&alv_posted($j)&&zp_valid_date((string)($j['date']??''))&&($to===''||($j['date']??'')<=$to))foreach((array)($j['lines']??[]) as $l){$code=(string)($l['account']??'');$n=round((float)($l['debit']??0)-(float)($l['credit']??0),2);if(isset($heads[$code]))$heads[$code]['balance']+=$n;$id=sac_line_subaccount_id($s,$j,$l);if(isset($subs[$id]))$subs[$id]['balance']+=$n;
 
  }
  foreach($heads as &$head)$head['directBalance']=$head['balance'];unset($head);foreach($heads as $code=>$head){$parent=(string)($head['parent']??'');$seen=[];while($parent!==''&&isset($heads[$parent])&&!isset($seen[$parent])){$heads[$parent]['balance']+=$head['directBalance'];$seen[$parent]=true;$parent=(string)($heads[$parent]['parent']??'');}}

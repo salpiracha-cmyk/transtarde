@@ -50,6 +50,9 @@ with tempfile.TemporaryDirectory(prefix='ledger-catalog-') as directory:
         (4,'2026-10-02',[('M2',300,0),('',0,300)]),
         (5,'2026-10-03',[('M1',0,100),('M2',100,0)])]:
         key=f'POST-2026-{number:05d}';seeded['journals'][key]={'id':key,'entity':'TTI','status':'Posted','date':date,'sourceType':'JV','lines':[{'account':'1110' if bank else '1120','bankAccountId':bank,'debit':debit,'credit':credit} for bank,debit,credit in entries]}
+    seeded['journals']['PERSON-ONLY']={'id':'PERSON-ONLY','entity':'TTI','status':'Posted','date':'2026-10-01','sourceType':'SALARY_ALLOCATED_PAYMENT','lines':[{'account':'2230','debit':8,'credit':0,'person':'Fixture Employee','salaryMasterId':'EMP1','month':'2026-10'},{'account':'1120','debit':0,'credit':8}]}
+    seeded['journals']['NATIVE-TAX']={'id':'NATIVE-TAX','entity':'TTI','status':'Posted','date':'2026-10-01','sourceType':'COMMODITY_BILL_VERIFIED','meta':{'brokerageWithholding':100},'lines':[{'account':'1310','debit':100,'credit':0},{'account':'2300','debit':0,'credit':100}]}
+    seeded['journals']['TAX-DEPOSIT']={'id':'TAX-DEPOSIT','entity':'TTI','status':'Posted','date':'2026-10-02','sourceType':'BROKERAGE_WHT_DEPOSIT','lines':[{'account':'2300','debit':100,'credit':0,'subaccountId':'TTI-DEFAULT-TAX-BROKERAGE-PAYABLE'},{'account':'1120','debit':0,'credit':100}]}
     books.write_text(json.dumps(seeded))
     original = books.read_bytes()
     harness = root / 'request.php'
@@ -83,5 +86,9 @@ with tempfile.TemporaryDirectory(prefix='ledger-catalog-') as directory:
     assert second['opening']==0 and second['closing']==400 and len(second['rows'])==2
     assert {r['account'] for r in first['rows']}=={'BANK|M1'} and {r['account'] for r in second['rows']}=={'BANK|M2'}
     zero=request('accounts_ledger_browser',category='bank',account='BANK|ZERO');assert zero['rows']==[] and zero['currency']=='USD' and zero['closing']==0
+    employee=request('accounts_ledger_browser',category='party',account='',party='Fixture Employee')
+    assert employee['closing']==8 and len(employee['rows'])==1 and employee['rows'][0]['party']=='Fixture Employee',employee
+    tax=request('accounts_ledger_browser',category='other',account='SUB|TTI-DEFAULT-TAX-BROKERAGE-PAYABLE')
+    assert tax['closing']==0 and len(tax['rows'])==2 and sum(r['debit'] for r in tax['rows'])==sum(r['credit'] for r in tax['rows'])==100,tax
     assert books.read_bytes()==original,'Bank search and individual ledger reads changed journals'
     print('PASS ledger and P&L keep the same canonical account identity, separate same-bank accounts/openings/transfers, company-scoped unused banks, native currency and byte-unchanged journals')
