@@ -454,6 +454,29 @@ require $argv[1];
     before=books.read_bytes();assert request('expenses_v1','?entity=TTI',{**broker_deposit,'reference':'OVERPAY','requestKey':'broker-wht-overpay-1'})[0]==422 and books.read_bytes()==before
     status,result=request('expenses_v1','?entity=TTI',{'action':'delete_expense','csrf':'fixture','entity':'TTI','collection':'generalExpenses','id':record,'reason':'Reverse fixture deposit'});assert status==200,(status,result)
     assert request('brokerage_transactions','?entity=TTI')[1]['brokers'][0]['outstanding']==100
+    # Selectable WHT subsidiaries: generic government deposits stay on the selected liability.
+    def add_wht(name,parent,category):
+        current=json.loads(books.read_text())['revision']
+        status,result=request('accounts_subaccounts','?entity=TTI',{'entity':'TTI','csrf':'fixture','operation':'add','name':name,'parentCode':'2300','parentId':parent,'taxCategory':category,'revision':current,'requestKey':'subledger-'+name.replace(' ','-')})
+        assert status==200,(status,result)
+        return result['result']['subaccountId']
+    rent_sub=add_wht('Fixture premises rent WHT','TTI-DEFAULT-TAX-RENT-PAYABLE','OTHER')
+    other_sub=add_wht('Fixture other WHT','TTI-DEFAULT-TAX-OTHER-PAYABLE','OTHER')
+    other={**deposit,'requestKey':'other-wht-bank-payment','reference':'OTHER-CPR','paymentAccountId':'BANK-1','bankPaymentMethod':'ONLINE_BANKING','bankReference':'OTHER-CPR','amount':25,'expenseLines':[{'category':'WHT_OTHER','whtSubaccountId':other_sub,'amount':25,'purpose':'Other withholding deposit','challanReference':'CPR-OTHER'}]}
+    before=books.read_bytes();status,preview=request('expenses_v1','?entity=TTI',{**other,'preview':True});assert status==200 and books.read_bytes()==before,(status,preview)
+    assert preview['previews'][0]['lines'][0]['subaccountId']==other_sub and preview['previews'][0]['lines'][1]['account']=='1110'
+    status,result=request('expenses_v1','?entity=TTI',other);assert status==200,(status,result)
+    journal=json.loads(books.read_text())['journals'][result['result']['journalId']]
+    assert journal['lines'][0]['account']=='2300' and journal['lines'][0]['subaccountId']==other_sub and journal['lines'][1]['bankAccountId']=='BANK-1'
+    custom_rent={**deposit,'requestKey':'rent-custom-cash-payment','reference':'CUSTOM-RENT-CPR','expenseLines':[{**deposit['expenseLines'][0],'whtSubaccountId':rent_sub}]}
+    status,result=request('expenses_v1','?entity=TTI',custom_rent);assert status==200,(status,result)
+    journal=json.loads(books.read_text())['journals'][result['result']['journalId']]
+    assert journal['lines'][0]['subaccountId']==rent_sub and journal['lines'][1]['account']=='1120'
+    for invalid_sub in ['TTI-EXPENSE-TYPE-OFFICE',other_sub,'BRM-DEFAULT-TAX-RENT-PAYABLE']:
+        bad={**custom_rent,'requestKey':'bad-wht-'+invalid_sub,'reference':'BAD-WHT-'+invalid_sub,'expenseLines':[{**custom_rent['expenseLines'][0],'whtSubaccountId':invalid_sub}]}
+        before=books.read_bytes();status,rejected=request('expenses_v1','?entity=TTI',bad);assert status==(403 if invalid_sub.startswith('BRM-') else 422) and books.read_bytes()==before,(invalid_sub,status,rejected)
+    before=books.read_bytes();assert request('expenses_v1','?entity=TTI',other)[0]==200 and books.read_bytes()==before
+    print('Custom rent/other WHT subsidiaries, bank/cash sources, tax-category/company guards, preview and retry passed.')
     print('Manual rent WHT, net payment, separate challan liability clearance, prepaid allocation and zero-write retry/preview passed.')
     for endpoint in ['expenses_v1','donations','rent_salary_v2']:
         books.write_text('{broken JSON');bad=books.read_bytes();assert request(endpoint,'?entity=TTI')[0]==500;assert books.read_bytes()==bad
