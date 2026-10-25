@@ -35,7 +35,7 @@ function alb_party_key(string $value): string {
     return function_exists('mb_strtolower')?mb_strtolower($value,'UTF-8'):strtolower($value);
 }
 function alb_party_name(array $row): string {
-    foreach(['supplier','broker','customer','counterparty','party','vendor','subledger'] as $field){
+    foreach(['supplier','broker','customer','counterparty','party','vendor','subledger','person'] as $field){
         $value=trim((string)($row[$field]??''));if($value!=='')return $value;
     }
     return '';
@@ -205,7 +205,7 @@ foreach($journals as $journal){
         $lineBank=(string)($line['bankAccountId']??$journal['meta']['bankAccountId']??'');
         if($bankId!==''&&($code!=='1110'||$lineBank!==$bankId))continue;
         if($headId!==''&&!in_array($code,$headCodes,true))continue;
-        if($subaccountId!==''&&!in_array((string)($line['subaccountId']??''),$subaccountIds,true))continue;
+        if($subaccountId!==''&&!in_array(sac_line_subaccount_id($store,$journal,$line),$subaccountIds,true))continue;
         if($salaryCostCategory!==''&&(!in_array($code,['6200','6210','6220'],true)||($line['category']??$journal['meta']['category']??'')!==$salaryCostCategory))continue;
         if(($payrollId!==''||$directorGroup!=='')&&(!isset($payrollIds[(string)($line['salaryMasterId']??$journal['meta']['salaryMasterId']??'')])||!in_array($code,['1230','2140','2230'],true)))continue;
         if($account!==''&&$salaryCostCategory===''&&$payrollId===''&&$directorGroup===''&&$bankId===''&&$subaccountId===''&&$headId===''&&!$serviceAccount&&$code!==$account)continue;

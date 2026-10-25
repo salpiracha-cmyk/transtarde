@@ -268,7 +268,7 @@ function ss_person_account(string $person): string {
     if(!isset($map[$k]))ss_respond(['ok'=>false,'error'=>'This family/staff payer is not configured for reimbursement.'],422);return $map[$k];
 }
 function ss_advance_credit_account(string $relationship,string $person): string {
-    return match($relationship){'OWN_BANK'=>'1110','OWN_CASH'=>'1120','CUSTOMER_RECEIVABLE'=>'1220','CUSTOMER_ADVANCE'=>'2160','OTHER_THIRD_PARTY'=>'2170','FAMILY_STAFF'=>ss_person_account($person),'GROUP_ENTITY'=>ss_respond(['ok'=>false,'error'=>'Group-entity payments must use the Intercompany workflow, not Third Party Settlement.'],422),default=>ss_respond(['ok'=>false,'error'=>'Select the payer relationship for this supplier advance.'],422)};
+    return match($relationship){'OWN_BANK'=>'1110','OWN_CASH'=>'1120','CUSTOMER_RECEIVABLE'=>'1220','CUSTOMER_ADVANCE'=>'2510','OTHER_THIRD_PARTY'=>'2520','FAMILY_STAFF'=>ss_person_account($person),'GROUP_ENTITY'=>ss_respond(['ok'=>false,'error'=>'Group-entity payments must use the Intercompany workflow, not Third Party Settlement.'],422),default=>ss_respond(['ok'=>false,'error'=>'Select the payer relationship for this supplier advance.'],422)};
 }
 
 /** Inspect one original payment; never infer or rewrite an invoice allocation. */

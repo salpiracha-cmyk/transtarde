@@ -106,7 +106,7 @@ require $argv[1];
     post={'action':'post','planId':plan['id'],'version':plan['version'],'group':'Broker A','date':'2026-10-07','rowKeys':plan['groups']['Broker A']['rowKeys'],'sources':[{'type':'BANK','bankAccountId':'TTI-B','method':'CHEQUE','reference':'1001','amount':120},{'type':'BANK','bankAccountId':'TTI-P','method':'ONLINE_BANKING','reference':'REF-1','amount':100},{'type':'THIRD_PARTY','relationship':'OTHER_THIRD_PARTY','payer':'ABC','reference':'ABC-CHEQUE','amount':100}],'drafts':{'Supplier C':{'date':'2026-10-07','rowKeys':plan['groups']['Supplier C']['rowKeys'],'sources':[{'type':'BANK','bankAccountId':'TTI-P','method':'CHEQUE','reference':'1002','amount':300}]}},'requestKey':'post-party-replay-fixture-0001'}
     result=call(post)['result'];plan=result['plan'];sett=result['settlement'];assert plan['drafts']['Supplier C']['sources'][0]['reference']=='1002';assert sett['netPayment']==320 and len(sett['allocations'])==3,sett
     saved=json.loads(books.read_text());j=saved['journals'][sett['journalId']];assert j['totalDebit']==j['totalCredit']==320,j
-    assert {l['account'] for l in j['lines']}=={'2110','2120','1110','2170'},j
+    assert {l['account'] for l in j['lines']}=={'2110','2120','1110','2520'},j
     assert {l['counterparty'] for l in j['lines'] if l['account']=='2110'}=={'Supplier A'},j
     assert {l['counterparty'] for l in j['lines'] if l['account']=='2120'}=={'Broker A'},j
     count=len(saved['journals']);assert call(post)['result']['settlement']['id']==sett['id'];assert len(json.loads(books.read_text())['journals'])==count

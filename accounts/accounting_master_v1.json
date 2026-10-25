@@ -81,7 +81,8 @@
       "class": "Asset",
       "level": "general",
       "normal": "Debit",
-      "subledger": true
+      "subledger": true,
+      "parent": "1200"
     },
     {
       "code": "1200",
@@ -398,7 +399,8 @@
       "level": "general",
       "normal": "Credit",
       "subledger": true,
-      "note": "Use when customer/intercompany money is received before the related sale/receivable is recognized or before Accounts can identify the invoice allocation. Never misuse a receivable asset for this credit balance."
+      "note": "Use when customer/intercompany money is received before the related sale/receivable is recognized or before Accounts can identify the invoice allocation. Never misuse a receivable asset for this credit balance.",
+      "parent": "2100"
     },
     {
       "code": "2520",
@@ -407,7 +409,8 @@
       "level": "general",
       "normal": "Credit",
       "subledger": true,
-      "note": "Use when an external third party pays a company obligation on the company's behalf and the company owes that payer. Group legal-entity settlements use Intercompany Payables instead."
+      "note": "Use when an external third party pays a company obligation on the company's behalf and the company owes that payer. Group legal-entity settlements use Intercompany Payables instead.",
+      "parent": "2100"
     },
     {
       "code": "3000",
@@ -954,6 +957,27 @@
         "BRM",
         "TG"
       ]
+    },
+    {
+      "code": "2160",
+      "name": "Customer Advances — Legacy Control",
+      "class": "Liability",
+      "level": "general",
+      "normal": "Credit",
+      "subledger": true,
+      "parent": "2100",
+      "legacyOnly": true,
+      "note": "Preserve historical journals; new unallocated customer receipts use 2510."
+    },
+    {
+      "code": "7300",
+      "name": "Income Tax / Final or Fixed Tax Expense",
+      "class": "Expense",
+      "level": "control",
+      "normal": "Debit",
+      "subledger": true,
+      "parent": "6000",
+      "note": "Distinct from Donations 7200. Payment of an already-recognized tax liability settles the tax payable instead of charging this expense again."
     }
   ],
   "peopleSubledgers": [

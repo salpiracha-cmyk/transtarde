@@ -22,7 +22,7 @@
     {"code":"6810","name":"Export Realization / Foreign Banking Charges","class":"Expense","normal":"Debit","purpose":"FDBC, collection, negotiation, L/C discrepancy, service, handling, correspondent/foreign-bank shortfalls, courier and similar export-realization bank charges after Accounts confirmation."},
     {"code":"6820","name":"FED / Indirect Tax on Bank Charges","class":"Expense","normal":"Debit","purpose":"FED or similar indirect tax identified separately on export/bank service charges unless an effective-dated master later maps it as recoverable."},
     {"code":"6830","name":"Export Development Surcharge","class":"Expense","normal":"Debit","purpose":"EDS or successor export-development surcharge when applicable; inactive when current master says not charged."},
-    {"code":"7200","name":"Income Tax / Final or Fixed Tax Expense","class":"Tax","normal":"Debit","purpose":"Legacy FTR final-tax treatment and fixed/non-adjustable withholding components where the effective-dated tax master and auditor-approved policy require expense classification."}
+    {"code":"7300","name":"Income Tax / Final or Fixed Tax Expense","class":"Expense","normal":"Debit","purpose":"Legacy FTR final-tax treatment and fixed/non-adjustable withholding components where the effective-dated tax master and auditor-approved policy require expense classification."}
   ],
   "taxCertificateRegister": {
     "requiredForCodes": ["EXP-WHT-FTR", "EXP-WHT-FIXED", "EXP-AWT-NTR"],

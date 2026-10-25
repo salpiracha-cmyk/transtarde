@@ -337,6 +337,7 @@ jobs:
           python3 tests/accounts-v1/sales_tax_endpoint_test.py
           python3 tests/accounts-v1/shipment_archive_read_test.py
           php tests/accounts-v1/withholding_source_test.php
+          php tests/accounts-v1/chart_posting_lineage_test.php
           node tests/accounts-v1/accounting_desk_test.js
           php tests/accounts-v1/tg_aed_payment_charge_test.php
           php tests/accounts-v1/tg_delete_cascade_test.php
