@@ -3,7 +3,7 @@ import json, pathlib, shutil, subprocess, tempfile, concurrent.futures
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 with tempfile.TemporaryDirectory(prefix='tti-sessions-') as directory:
     root=pathlib.Path(directory); app=root/'app';app.mkdir()
-    for name in ['auth_store.php','master_store.php','product_stage.php','offline_idempotency.php','backup_lib.php','backup_report_exports.php','session_store.php']:
+    for name in ['auth_store.php','master_store.php','product_stage.php','offline_idempotency.php','backup_lib.php','pending_uploads.php','backup_report_exports.php','session_store.php']:
         shutil.copy(ROOT/name,app/name)
     old_a=root/'legacy-a';old_b=root/'legacy-b';old_a.mkdir();old_b.mkdir()
     script=root/'request.php'

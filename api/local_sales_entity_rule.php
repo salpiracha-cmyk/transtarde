@@ -2,6 +2,7 @@
 declare(strict_types=1);
 require dirname(__DIR__) . '/auth_store.php';
 require_once __DIR__.'/accounts_source_store.php';
+require_once __DIR__.'/local_sales_scope.php';
 header('Content-Type: application/json; charset=UTF-8');
 header('Cache-Control: no-store, no-cache, must-revalidate');
 
@@ -21,11 +22,21 @@ try{
  if(!lser_can_write($u,'Mill')&&!lser_can_write($u,'Accounts'))lser_out(['ok'=>false,'error'=>'Mill or Accounts permission required.'],403);
  $target=strtoupper(trim((string)($b['targetEntity']??'')));$soda=trim((string)($b['soda']??''));
  if(!in_array($target,['TTI','BRM'],true)||$soda==='')lser_out(['ok'=>false,'error'=>'Valid Local Soda and company are required.'],422);
- if(tt_user_can_open_module($u,'Accounts')&&!tt_user_can_access_entity($u,$target,'Edit'))lser_out(['ok'=>false,'error'=>'Edit permission for the target company is required.'],403);
+ if(!tt_user_business_entity($u,$target,'Edit'))lser_out(['ok'=>false,'error'=>'Edit permission for the target company is required.'],403);
  $h=@fopen(TT_LSER_FILE,'r+b');if($h===false||!flock($h,LOCK_EX))throw new RuntimeException('Accounts storage unavailable.');
  try{
   rewind($h);$raw=stream_get_contents($h);$s=tt_accounts_source_decode((string)$raw,lser_def());
   $groups=[['key'=>'localSalesCandidates','kind'=>'LOCAL_SALE'],['key'=>'localSalesPaymentCandidates','kind'=>'LOCAL_PAYMENT']];$conflicts=[];
+  $values=tt_inv_read_values();
+  // Authorize every source and destination before exposing conflicts or writing.
+  foreach($groups as $g)foreach((array)$s[$g['key']] as $r){
+      if(!is_array($r)||trim((string)($r['soda']??''))!==$soda)continue;
+      if(!lss_allowed($u,$r,$s,$values,'Edit'))lser_out(['ok'=>false,'error'=>'Company and location Edit permission required.'],403);
+      $destination=$s[$g['key']][lser_target_id($target,$g['kind'],$r)]??null;
+      if(is_array($destination)&&!lss_allowed($u,$destination,$s,$values,'Edit'))lser_out(['ok'=>false,'error'=>'Destination company and location Edit permission required.'],403);
+      if(is_array($destination)&&lser_posted($destination)&&($r['entity']??'')!==$target)lser_out(['ok'=>false,'error'=>'The destination already has a posted record. Review it in Accounts.'],409);
+  }
+
   foreach($groups as $g){foreach((array)$s[$g['key']] as $id=>$r){if(!is_array($r)||trim((string)($r['soda']??''))!==$soda)continue;$entity=strtoupper((string)($r['entity']??''));if($entity===$target)continue;if(tt_user_can_open_module($u,'Accounts')&&!tt_user_can_access_entity($u,$entity,'Edit'))lser_out(['ok'=>false,'error'=>'Edit permission for the original company is required.'],403);if(lser_posted($r))$conflicts[]=['id'=>$id,'entity'=>$entity,'status'=>(string)($r['status']??''),'journalId'=>(string)($r['journalId']??'')];}}
   if($conflicts)lser_out(['ok'=>false,'error'=>'This Local Soda already has an Accounts posting under another company. Accounts must correct that posting before the company can change.','conflicts'=>$conflicts],409);
   $moved=['sales'=>0,'payments'=>0];

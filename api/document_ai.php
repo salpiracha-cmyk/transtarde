@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__.'/document_ai_limits.php';
 if(!defined('TT_DOCUMENT_AI_FUNCTIONS_ONLY')||!TT_DOCUMENT_AI_FUNCTIONS_ONLY){
     require dirname(__DIR__) . '/auth_store.php';
     require dirname(__DIR__) . '/upload_validation.php';
@@ -146,6 +147,7 @@ function ai_normalize_schema(mixed $value,array $schema): mixed {
     return $text;
 }
 function ai_gemini_request(string $url,string $key,array $payload): array {
+    $payload['generationConfig']['maxOutputTokens']=6000;
     $ch=curl_init($url);
     if($ch===false) throw new RuntimeException('Gemini connection could not be initialized.');
     curl_setopt_array($ch,[
@@ -154,7 +156,7 @@ function ai_gemini_request(string $url,string $key,array $payload): array {
         CURLOPT_HTTPHEADER=>['Content-Type: application/json','x-goog-api-key: '.$key],
         CURLOPT_POSTFIELDS=>json_encode($payload,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR),
     ]);
-    $raw=curl_exec($ch);$status=(int)curl_getinfo($ch,CURLINFO_RESPONSE_CODE);$err=curl_error($ch);curl_close($ch);
+    $raw=tt_ai_metered($payload,static fn()=>curl_exec($ch));$status=(int)curl_getinfo($ch,CURLINFO_RESPONSE_CODE);$err=curl_error($ch);curl_close($ch);
     if($raw===false||$err!=='') throw new RuntimeException('Gemini request failed: '.$err);
     $response=json_decode((string)$raw,true);
     if(!is_array($response)) {
@@ -240,6 +242,7 @@ try{
     tt_audit(isset($user['id'])?(int)$user['id']:null,(string)($user['username']??'user'),
         'Document '.$kind.' extracted for review: '.$result['provider'].' / '.$result['model'].' (returned '.($result['returnedModel']??$result['model']).') tier '.$result['tier'].' usage '.json_encode($result['usage']??[]));
     ai_respond(['ok'=>true]+$result);
+}catch(TTDocumentAiLimit $e){header('Retry-After: 60');ai_respond(['ok'=>false,'error'=>$e->getMessage()],429);
 }catch(InvalidArgumentException $e){ai_respond(['ok'=>false,'error'=>$e->getMessage()],422);
 }catch(Throwable $e){
     error_log('Transtrade document reader: '.$e->getMessage());

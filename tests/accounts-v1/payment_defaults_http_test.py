@@ -23,6 +23,8 @@ with tempfile.TemporaryDirectory(prefix='bank-defaults-qa-') as temp:
     function tt_user_can_open_module($user,$module){return true;}
     function tt_verify_csrf($csrf){return $csrf==='fixture';}
     ''')
+    from permission_fixture import append_permission_helpers
+    append_permission_helpers(root)
     with socket.socket() as sock:
         sock.bind(('127.0.0.1',0)); port=sock.getsockname()[1]
     server=subprocess.Popen(['php','-S',f'127.0.0.1:{port}','-t',str(root)],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)

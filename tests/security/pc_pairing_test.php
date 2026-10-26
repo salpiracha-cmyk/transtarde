@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 $root=sys_get_temp_dir().'/tti-pc-pair-'.bin2hex(random_bytes(8));$app=$root.'/app';mkdir($app,0700,true);
-foreach(['auth_store.php','session_store.php','master_store.php','product_stage.php','offline_idempotency.php','office_backup_auth.php','office_pc_pairing.php','backup_lib.php','backup_report_exports.php']as$f)copy(__DIR__.'/../../'.$f,$app.'/'.$f);
+foreach(['auth_store.php','session_store.php','master_store.php','product_stage.php','offline_idempotency.php','office_backup_auth.php','office_pc_pairing.php','backup_lib.php','pending_uploads.php','backup_report_exports.php']as$f)copy(__DIR__.'/../../'.$f,$app.'/'.$f);
 function pair_check(bool $ok,string $why):void{if(!$ok)throw new RuntimeException($why);}
 function pair_rejected(Closure $f):bool{try{$f();return false;}catch(InvalidArgumentException){return true;}}
 try{

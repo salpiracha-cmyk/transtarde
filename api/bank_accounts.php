@@ -168,13 +168,28 @@ function ba_payload(array $store,string $entity): array {
     ];
 }
 
+function ba_read_projection(array $user,array $payload): array {
+    $full=tt_user_can_module_action($user,'Accounts','masters','View')&&tt_user_can_master($user,'banks','View');
+    if($full)return $payload;
+    $financial=tt_user_any_icon($user,'Accounts',['supplier','customer','cashbank','expenses','purchases','tax','reconciliation','tg']);
+    if(!$financial&&!tt_user_can_module_action($user,'Accounts','reports','View'))ba_respond(['ok'=>false,'error'=>'Bank payment or receipt workflow permission required.'],403);
+    foreach($payload['accounts'] as &$row){
+        $row=array_intersect_key($row,array_flip(['id','entity','bankName','accountTitle','accountNumber','iban','currency','accountType','linkedRetentionAccount','settings','bookBalance','availableBalance','pendingRemittances','needsCompletion']));
+        foreach(['accountNumber','iban'] as $field)$row[$field]=tt_mask_bank_identifier((string)($row[$field]??''));
+        unset($row['settings']['notes'],$row['settings']['updatedBy']);
+        if(!$financial)unset($row['settings'],$row['bookBalance'],$row['availableBalance'],$row['pendingRemittances']);
+    }unset($row);
+    unset($payload['cash']['settings']['notes'],$payload['cash']['settings']['updatedBy']);
+    if(!$financial)unset($payload['cash'],$payload['unassignedBankBalance'],$payload['unassignedBankBalanceCurrency']);
+    return $payload;
+}
 if(defined('TT_BANK_FUNCTIONS_ONLY'))return;
 try{
     $user=tt_require_login();
     if(!tt_user_can_open_module($user,'Accounts'))ba_respond(['ok'=>false,'error'=>'Accounts permission required.'],403);
     if($_SERVER['REQUEST_METHOD']==='GET'){
         $entity=ba_entity((string)($_GET['entity']??'TTI'));tt_release_read_session();$store=ba_read();
-        ba_respond(['ok'=>true,'entity'=>$entity]+ba_payload($store,$entity)+['revision'=>(int)($store['revision']??0),'serverNow'=>gmdate('c')]);
+        ba_respond(['ok'=>true,'entity'=>$entity]+ba_read_projection($user,ba_payload($store,$entity))+['revision'=>(int)($store['revision']??0),'serverNow'=>gmdate('c')]);
     }
     if($_SERVER['REQUEST_METHOD']!=='POST')ba_respond(['ok'=>false,'error'=>'Method not allowed.'],405);
     if(!ba_can_write($user))ba_respond(['ok'=>false,'error'=>'Accounts Create / Edit / Approve permission required.'],403);

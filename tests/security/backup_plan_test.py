@@ -11,7 +11,7 @@ class SplitRecoveryTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.temp=tempfile.TemporaryDirectory();cls.root=Path(cls.temp.name);source=cls.root/'app';source.mkdir();cls.password='fixture-split-backup-password'
-        for n in ['auth_store.php','session_store.php','master_store.php','product_stage.php','offline_idempotency.php','backup_lib.php','backup_report_exports.php']:shutil.copy(ROOT/n,source/n)
+        for n in ['auth_store.php','session_store.php','master_store.php','product_stage.php','offline_idempotency.php','backup_lib.php','pending_uploads.php','backup_report_exports.php']:shutil.copy(ROOT/n,source/n)
         driver=source/'fixture.php';driver.write_text("""<?php
 require __DIR__.'/auth_store.php';require __DIR__.'/backup_lib.php';
 tt_mutate_store(static function(array &$s){$s['masters']['fixture']=[['values'=>['Matching master']]];});

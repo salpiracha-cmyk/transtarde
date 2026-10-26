@@ -30,6 +30,8 @@ with tempfile.TemporaryDirectory(prefix='carry-forward-qa-') as tmp:
  ['id'=>'USD','values'=>['Company Account','TG','','TG USD','BANK','','','USD','456','','','','','Active']],
  ['id'=>'AED','values'=>['Company Account','TG','','TG AED','BANK','','','AED','789','','','','','Active']]]];}
  ''')
+ from permission_fixture import append_permission_helpers
+ append_permission_helpers(root)
  operations={'values':{'transtrade_export_v3_operational':json.dumps({'shipments':[],'contracts':[],'fi':[],'inventorySentinel':{'riceKg':12345}})}}
  ops=root/'data/operations.json';ops.write_text(json.dumps(operations))
  initial={'revision':1,'journals':{'BANK':{'id':'BANK','entity':'TTI','status':'Posted','date':'2026-07-01','lines':[{'account':'1110','debit':1000000,'credit':0,'bankAccountId':'PKR','bankDebit':1000000,'bankCredit':0}]}},'inventorySentinel':{'riceKg':12345},'bankAccountSettings':{'PKR':{'active':True,'allowPayments':True},'USD':{'active':True,'allowPayments':True},'AED':{'active':True,'allowPayments':True}}}

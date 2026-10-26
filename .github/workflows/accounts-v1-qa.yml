@@ -219,6 +219,9 @@ jobs:
           python3 tests/security/entity_icon_authorization_test.py
           python3 tests/security/workspace_navigation_test.py
           python3 tests/security/api_workflow_authorization_test.py
+          python3 tests/security/security_report_boundary_test.py
+          python3 tests/security/security_resource_limits_test.py
+          python3 tests/security/setup_throttle_http_test.py
           php tests/security/api_action_policy_test.php
           python3 tests/security/api_action_permissions_test.py
           python3 tests/security/operations_read_access_test.py
@@ -387,6 +390,7 @@ jobs:
           node tests/accounts-v1/historical_bags_ui_test.js
           node tests/accounts-v1/completed_instruction_ui_test.js
           node tests/accounts-v1/local_sales_scope_ui_test.js
+          node tests/security/security_report_rendering_test.js
           node tests/accounts-v1/bag_linked_supplier_ui_test.js
           node tests/accounts-v1/forward_bookings_ui_test.js
           node tests/accounts-v1/pay_to_unique_choice_test.js

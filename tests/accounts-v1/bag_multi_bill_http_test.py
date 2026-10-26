@@ -5,10 +5,13 @@ with tempfile.TemporaryDirectory(prefix='bag-multi-bill-') as tmp:
  root=pathlib.Path(tmp)
  for d in ['api','accounts','data']:(root/d).mkdir()
  for n in ['bag_purchases.php','nonwoven_bag_bills.php','bag_acceptance_core.php','opening_balance_core.php','tg_native_currency.php','historical_bag_core.php','supplier_opening_core.php','accounts_posting_preview.php']:shutil.copy(ROOT/'api'/n,root/'api'/n)
+ shutil.copy(ROOT/'pending_uploads.php',root/'pending_uploads.php')
+ for helper in ['bag_read_scope.php','operations_scope.php','export_permission_policy.php','bag_transfers_store.php','bag_receipt_quantities.php','bag_transfer_core.php','bag_inventory_core.php']:shutil.copy(ROOT/'api'/helper,root/'api'/helper)
  shutil.copy(ROOT/'accounts/accounting_master_v1.json',root/'accounts/accounting_master_v1.json')
  (root/'auth_store.php').write_text('''<?php
  define('TT_DATA_DIR',__DIR__.'/data');function tt_ensure_data_dir(){}function tt_accounts_input(){return file_get_contents('php://input');}
  function tt_require_login(){return ['id'=>7,'username'=>'fixture','full_name'=>($_SERVER['HTTP_X_ROLE']??'Staff'),'role'=>($_SERVER['HTTP_X_ROLE']??'Staff'),'permissions'=>['Accounts'=>'all']];}
+ function tt_user_can_module_action($u,$m,$i,$a){$p=$u['permissions'][$m]??[];return $p==='all'||in_array($a,(array)$p,true);}
  function tt_user_can_open_module($u,$m){return true;}function tt_verify_csrf($v){return $v==='fixture';}
  function tt_list_masters(){return ['business_parties'=>[['id'=>'BAG','values'=>['BAG SUPPLIER']]]];}
  function tt_active_business_party_for_role($n,$r){return $n==='BAG SUPPLIER'?['id'=>'BAG','values'=>[$n]]:null;}
@@ -59,12 +62,13 @@ with tempfile.TemporaryDirectory(prefix='bag-multi-bill-') as tmp:
   assert saved['bagAcceptanceAudit'][-1]['issues'],'Approval retains the exact excess evidence'
   # A late genuine invoice may use an administratively closed PO, without fabricated receipts.
   datafile.write_text(json.dumps(before))
-  ops={'values':{'tt30bags':json.dumps([{'id':11,'_ttBridge':'exports','_ttBridgeId':'PO1|1|CONTRACT|BRAND|50|75','poNo':'PO1','ordered':3000,'received':3000,'tare':75,'keepReceiptOpen':False}]),'tt33bagreceipts':json.dumps([{'id':1,'bagId':11,'qty':3000,'actualTareGrams':75}])}}
+  ops={'values':{'tt30bags':json.dumps([{'id':11,'entity':'TTI','_ttBridge':'exports','_ttBridgeId':'PO1|1|CONTRACT|BRAND|50|75','poNo':'PO1','ordered':3000,'received':3000,'tare':75,'keepReceiptOpen':False}]),'tt33bagreceipts':json.dumps([{'id':1,'bagId':11,'qty':3000,'actualTareGrams':75}])}}
   (root/'data/operations.json').write_text(json.dumps(ops))
   late=bill(15,'LATE-15');assert late['status']=='Posted',late
   assert req()[1]['purchaseOrders'][0]['receiptClosure']['reason']=='Fully received'
   # Keep-open is a user choice, independently read from the committed Mill state.
-  ops['values']['tt30bags']=json.dumps([{'id':11,'_ttBridge':'exports','_ttBridgeId':'PO1|1|CONTRACT|BRAND|50|75','poNo':'PO1','ordered':3000,'received':2985,'tare':75,'keepReceiptOpen':True}])
+  ops['values']['tt30bags']=json.dumps([{'id':11,'entity':'TTI','_ttBridge':'exports','_ttBridgeId':'PO1|1|CONTRACT|BRAND|50|75','poNo':'PO1','ordered':3000,'received':2985,'tare':75,'keepReceiptOpen':True}])
+  ops['values']['tt33bagreceipts']=json.dumps([{'id':1,'bagId':11,'qty':2985,'actualTareGrams':75}])
   (root/'data/operations.json').write_text(json.dumps(ops));assert not req()[1]['purchaseOrders'][0]['receiptClosure']['closed']
   # Bad evidence cannot be treated as a clean receipt or overwrite the Accounts file.
   (root/'data/operations.json').write_text('{broken');snapshot=datafile.read_bytes()

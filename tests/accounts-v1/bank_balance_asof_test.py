@@ -20,6 +20,8 @@ function tt_ensure_data_dir(){}
 function tt_read_store(){return [];}
 function tt_list_masters(){return ['banks'=>[['id'=>'B1','values'=>['Company Account','TTI','','Fixture','Fixture Bank','','Pakistan','PKR','123','','','','','Active']]]];}
 ''')
+    from permission_fixture import append_permission_helpers
+    append_permission_helpers(root)
     runner = root / 'check.php'
     runner.write_text('''<?php
 define('TT_BANK_FUNCTIONS_ONLY',true);require __DIR__.'/api/bank_accounts.php';require __DIR__.'/api/bank_reconciliation_core.php';

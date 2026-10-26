@@ -5,6 +5,7 @@ with tempfile.TemporaryDirectory(prefix='directors-trading-') as tmp:
  root=pathlib.Path(tmp)
  for name in ['api','accounts','directors']:shutil.copytree(ROOT/name,root/name)
  fixture_local=root/'api/local_sales_control.php';fixture_local.write_text(fixture_local.read_text().replace('catch(Throwable $e){ls_respond',"catch(Throwable $e){fwrite(STDERR,'FIXTURE ERROR: '.$e->getMessage());ls_respond"))
+ for name in ['inventory_reconciliation.php','product_stage.php']:shutil.copy(ROOT/name,root/name)
  (root/'data').mkdir()
  (root/'auth_store.php').write_text('''<?php
 define('TT_DATA_DIR',__DIR__.'/data');define('TT_DB_HOST','');
@@ -19,6 +20,8 @@ function tt_bank_can_transact($id){return $id==='USD1';}
 function tt_brokery_amount($rate,$kg,$bags){if($rate!==null)throw new RuntimeException('Fixture has no broker');return 0;}
 function tt_next_post_id($rows,...$args){return 'POST-'.(count($rows)+1);}
 ''')
+ from permission_fixture import append_permission_helpers
+ append_permission_helpers(root)
  contract={'ref':'TTI/AMT/1','seller':'TTI','date':'2026-10-01','product':'IRRI-6','qty':100,'currency':'USD','incoterm':'FOB','packings':[{'price':500}]}
  lot={'id':'L1','kind':'lot','contractRef':'TTI/AMT/1','lotId':'TTI/AMT/1/L01','seller':'TTI','commercial':{'invoiceNo':'INV1','date':'2026-10-02','saved':True},'millActuals':[{'netKg':100000}]}
  operations={'values':{'transtrade_export_v3_operational':json.dumps({'contracts':[contract],'shipments':[lot]})}}

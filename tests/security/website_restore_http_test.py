@@ -18,7 +18,7 @@ with tempfile.TemporaryDirectory(prefix='tti-restore-http-') as temp:
     app = base / 'app'
     (app / 'api').mkdir(parents=True)
     for name in ['auth_store.php', 'session_store.php', 'master_store.php', 'product_stage.php',
-                 'offline_idempotency.php', 'backup_lib.php', 'backup_report_exports.php',
+                 'offline_idempotency.php', 'pending_uploads.php', 'backup_lib.php', 'backup_report_exports.php',
                  'restore_jobs.php', 'restore.php', 'login.php', 'qa_account.php', 'api/restore.php']:
         shutil.copy(ROOT / name, app / name)
     (app / 'api/probe.php').write_text("<?php require dirname(__DIR__).'/auth_store.php'; tt_require_login(); echo 'BUSINESS-REACHED';")

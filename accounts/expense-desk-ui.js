@@ -1,5 +1,11 @@
 (() => {
   'use strict';
+
+  function csvCell(value){
+    let text=String(value??'');
+    if(typeof value!=='number'&&(/^[\s\u0000-\u001f\u007f\ufeff]*[=+@-]/u.test(text)||/^[\t\r\n]/.test(text)))text="'"+text;
+    return '"'+text.replace(/"/g,'""')+'"';
+  }
   const access=window.TT_ACCOUNT_ACCESS||{}, q=(s,r=document)=>r.querySelector(s), entity=()=>localStorage.getItem('tt_accounts_entity')||'TTI', today=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Karachi',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date()), esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])), money=v=>Number(v||0).toLocaleString('en-PK',{minimumFractionDigits:2,maximumFractionDigits:2});
   const dateLabel=v=>window.TT_DATE?.display(v)||String(v||'').replace(/^(\d{4})-(\d{2})-(\d{2})$/,'$3-$2-$1');
   let generation=0, disposeShell=()=>{};
@@ -107,7 +113,7 @@
     body.querySelectorAll('[data-filter-party],[data-filter-number]').forEach(e=>e.oninput=render);body.querySelectorAll('select,input[type=date],input[type=month]').forEach(e=>e.onchange=render);
     q('[data-new-general]',body).onclick=async()=>{await open();const select=q('[data-invoice-mode]');if(select){select.value='INVOICE';select.dispatchEvent(new Event('change'));}};
     q('[data-new-utility]',body).onclick=async()=>{await open('','utility');const select=q('#evInvoiceMode');if(select){select.value='INVOICE';select.dispatchEvent(new Event('change'));}};
-    q('[data-csv]',body).onclick=()=>{const csv=[headings,...lines()].map(row=>row.map(v=>'"'+String(v).replace(/"/g,'""')+'"').join(',')).join('\r\n'),url=URL.createObjectURL(new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'})),a=document.createElement('a');a.href=url;a.download=(window.TT_DOCUMENT_NAME?.name({party:[...new Set(matches().map(b=>b.vendor))].length===1?matches()[0]?.vendor:'',company,title:'Expense Invoices',from:q('[data-filter-from]',body).value,to:q('[data-filter-to]',body).value,date:q('[data-filter-month]',body).value,extension:'csv'})||(company+'-expense-invoices.csv'));a.click();URL.revokeObjectURL(url);};
+    q('[data-csv]',body).onclick=()=>{const csv=[headings,...lines()].map(row=>row.map(csvCell).join(',')).join('\r\n'),url=URL.createObjectURL(new Blob(['\ufeff'+csv],{type:'text/csv;charset=utf-8'})),a=document.createElement('a');a.href=url;a.download=(window.TT_DOCUMENT_NAME?.name({party:[...new Set(matches().map(b=>b.vendor))].length===1?matches()[0]?.vendor:'',company,title:'Expense Invoices',from:q('[data-filter-from]',body).value,to:q('[data-filter-to]',body).value,date:q('[data-filter-month]',body).value,extension:'csv'})||(company+'-expense-invoices.csv'));a.click();URL.revokeObjectURL(url);};
     q('[data-print-report]',body).onclick=()=>{const popup=window.open('','_blank');if(!popup){q('[data-error]',body).textContent='Allow the report print window.';return;}popup.document.write('<!doctype html><title data-tt-filename>'+esc(window.TT_DOCUMENT_NAME?.name({party:[...new Set(matches().map(b=>b.vendor))].length===1?matches()[0]?.vendor:'',company,title:'Expense Invoices',from:q('[data-filter-from]',body).value,to:q('[data-filter-to]',body).value,date:q('[data-filter-month]',body).value})||company+' Expense Invoices')+'</title><style>body{font:12px Arial}table{width:100%;border-collapse:collapse}td,th{border:1px solid #bbb;padding:5px}</style><h1>'+esc(company)+' Expense Invoices</h1><p>'+esc(q('[data-invoice-totals]',body).textContent)+'</p><table><tr>'+headings.map(h=>'<th>'+esc(h)+'</th>').join('')+'</tr>'+lines().map(row=>'<tr>'+row.map((v,i)=>'<td>'+esc(i===3||i===4?dateLabel(v):v)+'</td>').join('')+'</tr>').join('')+'</table>');popup.document.close();popup.print();};
     if(!can('Create')||company==='TG')for(const sel of ['[data-new-general]','[data-new-utility]'])q(sel,body).disabled=true;render();window.TT_FORM_VIEWPORT?.open(host);
   }

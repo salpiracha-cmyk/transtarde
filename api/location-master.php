@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require dirname(__DIR__) . '/auth_store.php';
+require_once __DIR__.'/operations_scope.php';
 header('Content-Type: application/json; charset=UTF-8');
 function location_respond(array $data,int $status=200): never { http_response_code($status); echo json_encode($data,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE); exit; }
 function location_can_write(array $user): bool {
@@ -19,7 +20,15 @@ function location_rows_for_entity(string $entity): array {
 }
 try {
     $user=tt_require_login();
-    if ($_SERVER['REQUEST_METHOD']==='GET') {$entity=(string)($_GET['entity']??'');location_respond(['ok'=>true,'locations'=>location_rows_for_entity($entity)]);}
+    if ($_SERVER['REQUEST_METHOD']==='GET') {
+        $view=tt_user_can_master($user,'mills','View');
+        if(!$view&&!tt_user_can_master($user,'mills','Use'))location_respond(['ok'=>false,'error'=>'Location Master View or Use permission required.'],403);
+        $entity=strtoupper(trim((string)($_GET['entity']??'')));
+        if($entity!==''&&!tt_user_business_entity($user,$entity))location_respond(['ok'=>false,'error'=>'Company access required.'],403);
+        $rows=array_values(array_filter(location_rows_for_entity($entity),static fn($r)=>os_location($user,(string)($r['values'][0]??''))));
+        if(!$view)foreach($rows as &$row){$v=(array)$row['values'];$row=['id'=>$row['id'],'values'=>[$v[0]??'',$v[1]??'',$v[2]??'']];}unset($row);
+        location_respond(['ok'=>true,'locations'=>$rows]);
+    }
     if ($_SERVER['REQUEST_METHOD']!=='POST') location_respond(['ok'=>false,'error'=>'Method not allowed.'],405);
     if (!location_can_write($user)) location_respond(['ok'=>false,'error'=>'Create or Edit permission is required.'],403);
     $body=json_decode((function_exists('tt_accounts_input')?tt_accounts_input():file_get_contents('php://input')) ?: '{}',true);

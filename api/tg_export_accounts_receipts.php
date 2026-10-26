@@ -7,7 +7,7 @@ header('Cache-Control: no-store, no-cache, must-revalidate');
 
 try {
     $user=tt_require_login();
-    if(!tt_user_can_open_module($user,'Exports')&&!tt_user_can_open_module($user,'Accounts')) {
+    if(!tt_user_business_entity($user,'TG')||(!tt_user_any_icon($user,'Exports',['commercial','tg'])&&!tt_user_any_icon($user,'Accounts',['customer','cashbank']))) {
         http_response_code(403);echo json_encode(['ok'=>false,'error'=>'Exports or Accounts permission required.']);exit;
     }
     $file=TT_DATA_DIR.'/accounts.json';
@@ -31,6 +31,7 @@ try {
         $exportPayload=$operations['values'][$key]??'';
     }
     $exportRoot=is_string($exportPayload)?json_decode($exportPayload,true):null;
+    $allowedRefs=[];foreach((array)($exportRoot['contracts']??[]) as $contract)if(tt_user_business_entity($user,strtoupper((string)($contract['seller']??'TTI'))))$allowedRefs[(string)($contract['ref']??'')]=true;
     $invoiceLots=[];
     foreach((array)($exportRoot['shipments']??[]) as $shipment) {
         if(!is_array($shipment)||!empty($shipment['cancelled']))continue;
@@ -41,7 +42,7 @@ try {
     foreach((array)($store['tgBankTransactions']??[]) as $row) {
         if(!is_array($row)||($row['kind']??'')!=='Receipt'||!in_array(($row['receiptType']??''),['CUSTOMER_ADVANCE','EXPORT_RECEIVABLE'],true)||($row['status']??'')==='Reversed for Amendment')continue;
         $contract=trim((string)($row['contractRef']??''));
-        if($contract==='')continue;
+        if($contract===''||!isset($allowedRefs[$contract]))continue;
         $invoiceRef=(string)($row['invoiceRef']??'');
         $receipts[]=[
             'id'=>(string)($row['id']??''),'receiptNo'=>(string)($row['bankReference']??''),

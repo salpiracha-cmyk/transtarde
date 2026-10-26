@@ -45,7 +45,7 @@ assert(receiptUi.includes('id="erAdviceFile"') && receiptUi.includes('uploadAdvi
 assert(desk.includes("special:'export-receipt'") && receiptUi.includes('window.TT_EXPORT_RECEIPTS_UI={openForm,'), 'the Accounts icon must open the complete export receipt form directly');
 assert(receiptUi.includes('ttExportReceiptDialog') && !receiptUi.includes("?.click()"), 'the credit advice must open its own form without flashing the old Bank workspace');
 assert(!receiptUi.includes('<details class="tter-section"') && receiptUi.includes('id="erAccountingRows"'), 'all credit-advice information and its Debit/Credit preview must remain visible in one full form');
-assert(receiptUi.includes('accounts_receipt_file.php') && receiptFileApi.includes('move_uploaded_file'), 'credit advice uploads must use the protected Accounts document endpoint');
+assert(receiptUi.includes('accounts_receipt_file.php') && receiptFileApi.includes('tt_pending_save') && fs.readFileSync('pending_uploads.php','utf8').includes('move_uploaded_file'), 'credit advice uploads must use the protected Accounts document endpoint');
 assert(receiptUi.includes('bankAdvicePaperRef') && fs.readFileSync('api/export_receipts.php', 'utf8').includes('bankAdvicePaperRef'), 'optional paper advice references must be retained separately from uploaded files');
 assert(receiptUi.includes('Default Receipt') || fs.readFileSync('accounts/bank-accounts-ui.js','utf8').includes('Default Receipt Account'), 'receipt workflow must support a company default receipt account');
 assert(!receiptUi.includes('function fiAllocations') && !fs.readFileSync('api/export_receipts.php','utf8').includes('function er_prepare_fi'), 'FI allocation must remain outside Accounts');

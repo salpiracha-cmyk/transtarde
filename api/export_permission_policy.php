@@ -204,6 +204,8 @@ function ep_require_document_target(array $user,string $contractRef,string $lotR
     if($lotRef!==''){foreach((array)($root['shipments']??[]) as $row)if(($row['contractRef']??'')===$contractRef&&(($row['lotId']??'')===$lotRef||($row['id']??'')===$lotRef))$lot=$row;if(!$lot)throw new DomainException('Select an existing shipment lot.');}
     if($action!=='View'&&($lot&&(!empty($lot['completed'])||!empty($lot['cancelled']))))throw new DomainException('Reopen this lot before changing its documents.');
     $icon=ep_document_icon($category);
+    $right=$action==='Create'?ep_workspace_action($user,$icon,false):$action;
+    if(!tt_user_business_entity($user,strtoupper((string)($contract['seller']??'TTI')),$right))throw new DomainException('Company document access is required.');
     if($action==='View'&&tt_user_can_open_module($user,'Accounts')){if(!tt_user_can_access_entity($user,strtoupper((string)($contract['seller']??'TTI')),'View'))throw new DomainException('Company document access is required.');return;}
     ep_require($user,$icon,$action==='Create'?ep_workspace_action($user,$icon,false):$action);
 }

@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 $root=sys_get_temp_dir().'/tti-owner-jobs-'.bin2hex(random_bytes(8));$app=$root.'/app';mkdir($app,0700,true);
-foreach(['auth_store.php','session_store.php','master_store.php','product_stage.php','offline_idempotency.php','backup_lib.php','backup_report_exports.php','owner_backup_jobs.php']as$f)copy(__DIR__.'/../../'.$f,$app.'/'.$f);
+foreach(['auth_store.php','session_store.php','master_store.php','product_stage.php','offline_idempotency.php','backup_lib.php','pending_uploads.php','backup_report_exports.php','owner_backup_jobs.php']as$f)copy(__DIR__.'/../../'.$f,$app.'/'.$f);
 function owner_expect(bool $value,string $why):void{if(!$value)throw new RuntimeException($why);}
 function owner_clean(string $path):void{if(is_dir($path)&&!is_link($path)){foreach(scandir($path)as$n)if($n!=='.'&&$n!=='..')owner_clean($path.'/'.$n);rmdir($path);}elseif(file_exists($path))unlink($path);}
 try{

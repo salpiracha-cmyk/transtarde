@@ -32,6 +32,8 @@ with tempfile.TemporaryDirectory(prefix='salary-month-qa-') as temp:
         return $id;
     }
     ''')
+    from permission_fixture import append_permission_helpers
+    append_permission_helpers(root)
     popup_css=re.search(r'style.textContent = `([\s\S]*?)`;', (ROOT/'accounts/accounts-clean-ui.js').read_text()).group(1)
     (root/'accounts/index.html').write_text('<!doctype html><style>'+popup_css+'</style>'+'''<section class="workspace active tt-clean-modal tt-entry-only"><button data-expense="salary">Salaries</button><div id="expenseEditor"></div></section><script>window.TT_ACCOUNT_ACCESS={csrf:'fixture'};localStorage.setItem('tt_accounts_entity','TTI');</script><script src="cheque-date-ui.js"></script><script src="bank-payment-details.js"></script><script src="post-confirmation-ui.js"></script><script src="rent-salary-ui.js"></script>''')
     with socket.socket() as sock:sock.bind(('127.0.0.1',0));port=sock.getsockname()[1]

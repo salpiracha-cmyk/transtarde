@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once dirname(__DIR__).'/pending_uploads.php';
 require_once dirname(__DIR__).'/document_filenames.php';
 require dirname(__DIR__).'/auth_store.php';
 require dirname(__DIR__).'/upload_validation.php';
@@ -20,5 +21,5 @@ try{
  if(!tt_verify_csrf((string)($_POST['csrf']??'')))bf_out(['ok'=>false,'error'=>'Your session expired. Refresh and try again.'],419);
  if(!isset($_FILES['billFile'])||!is_array($_FILES['billFile']))bf_out(['ok'=>false,'error'=>'Select the supplier bill file.'],422);$f=$_FILES['billFile'];if((int)($f['error']??UPLOAD_ERR_NO_FILE)!==UPLOAD_ERR_OK)bf_out(['ok'=>false,'error'=>'Supplier bill upload failed.'],422);$size=(int)($f['size']??0);if($size<=0||$size>15*1024*1024)bf_out(['ok'=>false,'error'=>'Supplier bill must be smaller than 15 MB.'],422);
  $orig=tt_upload_original_name((string)($f['name']??''),'bill');$ext=strtolower(pathinfo($orig,PATHINFO_EXTENSION));if(!in_array($ext,['pdf','jpg','jpeg','png'],true))bf_out(['ok'=>false,'error'=>'Upload PDF, JPG or PNG only.'],422);$valid=tt_validate_document_upload($f,15*1024*1024,['application/pdf'=>'pdf','image/jpeg'=>'jpg','image/png'=>'png']);
- if(!is_dir(TT_BAG_UPLOAD_DIR)&&!mkdir(TT_BAG_UPLOAD_DIR,0700,true)&&!is_dir(TT_BAG_UPLOAD_DIR))throw new RuntimeException('Upload storage unavailable.');$token='bagbill-'.gmdate('YmdHis').'-'.bin2hex(random_bytes(5)).'.'.$valid['extension'];$dest=TT_BAG_UPLOAD_DIR.'/'.$token;if(!move_uploaded_file($valid['path'],$dest))throw new RuntimeException('Could not save supplier bill.');bf_out(['ok'=>true,'token'=>$token,'originalName'=>$orig,'size'=>$size]);
+ if(!is_dir(TT_BAG_UPLOAD_DIR)&&!mkdir(TT_BAG_UPLOAD_DIR,0700,true)&&!is_dir(TT_BAG_UPLOAD_DIR))throw new RuntimeException('Upload storage unavailable.');$token='bagbill-'.gmdate('YmdHis').'-'.bin2hex(random_bytes(5)).'.'.$valid['extension'];$dest=TT_BAG_UPLOAD_DIR.'/'.$token;tt_pending_save($u,$entity,'bagbill',$valid['path'],$token,$size);bf_out(['ok'=>true,'token'=>$token,'originalName'=>$orig,'size'=>$size]);
 }catch(InvalidArgumentException $e){bf_out(['ok'=>false,'error'=>$e->getMessage()],422);}catch(Throwable $e){bf_out(['ok'=>false,'error'=>'The supplier bill file could not be saved.'],500);}

@@ -735,6 +735,31 @@ function tt_user_accounts_entities(array $user): array {
     return array_values(array_filter(['TTI','BRM','TG'], static fn(string $entity): bool => tt_user_can_access_entity($user, $entity, 'View')));
 }
 
+/** Operational staff need no Accounts grant, but explicit company limits apply everywhere. */
+function tt_user_business_entity(array $user,string $entity,string $action='View'): bool {
+    $entity=strtoupper(trim($entity));
+    if(!in_array($entity,['TTI','BRM','TG'],true))return false;
+    if(in_array($user['role']??'',['Super Admin','Director'],true))return true;
+    $p=$user['permissions']['Accounts']??[];
+    if(is_array($p))foreach(['entity-tti','entity-brm','entity-tg'] as $key)
+        if(array_key_exists($key,$p))return tt_user_can_access_entity($user,$entity,$action);
+    foreach(tt_business_modules() as $module){
+        $grants=$user['permissions'][$module]??[];if($grants==='all')return true;
+        if(!is_array($grants))continue;
+        if(array_intersect(['View','Create','Edit','Approve'],array_filter($grants,'is_string')))return true;
+        foreach($grants as $rights)if(is_array($rights)&&array_intersect(['View','Create','Edit','Approve'],$rights))return true;
+    }
+    return false;
+}
+
+function tt_user_any_icon(array $user,string $module,array $icons,string $action='View'): bool {
+    foreach($icons as $icon)if(tt_user_can_module_action($user,$module,$icon,$action))return true;
+    return false;
+}
+function tt_mask_bank_identifier(string $value): string {
+    $value=trim($value);return $value===''?'':'••••'.substr($value,-4);
+}
+
 /** Navigation reflects existing grants; it grants no new module authority. */
 function tt_user_workspaces(array $user): array {
     $choices=['Accounts'=>['label'=>'Accounts','url'=>'/accounts/index.php'],'Mill'=>['label'=>'Mill','url'=>'/module.php?id=milling'],'Exports'=>['label'=>'Exports','url'=>'/module.php?id=exports'],'Directors'=>['label'=>'Directors','url'=>'/directors/index.php']];
@@ -915,6 +940,8 @@ function tt_managed_qa_write_blocked(array $user): bool {
 
 function tt_api_entity_policy(string $path): array {
     $endpoint=basename($path);
+    // These routes authorize canonical source/target rows, including aggregate bridge reads.
+    if(in_array($endpoint,['local_sales_entity_rule.php','export_accounting.php'],true)||(($_SERVER['REQUEST_METHOD']??'GET')==='GET'&&in_array($endpoint,['local_sales_payments.php','milling_purchase_sodas.php'],true)))return ['required'=>false,'fixed'=>''];
     $entityIndependent=['operations.php','operations.mysql.php','export_documents.php','shipment_archive_file.php','export_customers.php','export_realization_master.php','masters.php','master_documents.php','users.php','backup.php','accounts_bulk_test_cleanup.php','location-master.php','commodity_lookup.php','bag_bill_file.php','bridge_outbox.php'];
     // Shared Assets and Group Management enforce their own module/icon and company scope.
     // Its endpoint enforces module/icon rights and company scope on every request.

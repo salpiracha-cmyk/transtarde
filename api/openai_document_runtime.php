@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__.'/document_ai_limits.php';
 function tt_ai_strict_schema(array $schema): array {
     if(($schema['type']??'')==='object') {
         $schema['additionalProperties']=false;
@@ -27,7 +28,7 @@ function tt_ai_call_openai(string $key,string $model,array $parts,array $schema)
     curl_setopt_array($ch,[CURLOPT_POST=>true,CURLOPT_RETURNTRANSFER=>true,CURLOPT_CONNECTTIMEOUT=>10,CURLOPT_TIMEOUT=>45,
         CURLOPT_HTTPHEADER=>['Content-Type: application/json','Authorization: Bearer '.$key],
         CURLOPT_POSTFIELDS=>json_encode($payload,JSON_THROW_ON_ERROR)]);
-    $raw=curl_exec($ch);$status=(int)curl_getinfo($ch,CURLINFO_RESPONSE_CODE);curl_close($ch);
+    $raw=tt_ai_metered($payload,static fn()=>curl_exec($ch));$status=(int)curl_getinfo($ch,CURLINFO_RESPONSE_CODE);curl_close($ch);
     if($raw===false||$status<200||$status>=300){
         $message=match($status){401,403=>'OpenAI credentials are not authorized.',404=>'The selected OpenAI model is unavailable.',429=>'OpenAI quota or rate limit reached.',default=>'OpenAI document request failed.'};
         throw new RuntimeException($message,$status);

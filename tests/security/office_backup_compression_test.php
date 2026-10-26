@@ -2,7 +2,7 @@
 declare(strict_types=1);
 $root=sys_get_temp_dir().'/tti-office-compression-'.bin2hex(random_bytes(8));
 $app=$root.'/app';mkdir($app,0700,true);
-foreach(['auth_store.php','master_store.php','product_stage.php','offline_idempotency.php','session_store.php','backup_lib.php','backup_report_exports.php']as$file)copy(__DIR__.'/../../'.$file,$app.'/'.$file);
+foreach(['auth_store.php','master_store.php','product_stage.php','offline_idempotency.php','session_store.php','backup_lib.php','pending_uploads.php','backup_report_exports.php']as$file)copy(__DIR__.'/../../'.$file,$app.'/'.$file);
 function office_expect(bool $condition,string $message):void{if(!$condition)throw new RuntimeException($message);}
 function office_remove(string $path):void{if(is_dir($path)){foreach(scandir($path)?:[]as$name)if($name!=='.'&&$name!=='..')office_remove($path.'/'.$name);rmdir($path);}else @unlink($path);}
 try{
