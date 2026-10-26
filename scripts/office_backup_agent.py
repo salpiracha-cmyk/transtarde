@@ -7,7 +7,8 @@ the hosted application or browser clients.
 """
 import argparse
 import base64
-from contextlib import redirect_stderr, redirect_stdout
+from contextlib import contextmanager, nullcontext, redirect_stderr, redirect_stdout
+import errno
 import getpass
 from email.message import Message
 import hashlib
@@ -43,6 +44,19 @@ def protect(path):
         path.chmod(0o600)
 
 
+def replace_json_file(temp, path):
+    # Windows scanners/readers can briefly deny replacement of an open file.
+    # Retry only this local commit; never repeat a verified backup download.
+    for attempt in range(5):
+        try:
+            os.replace(temp, path)
+            return
+        except OSError as exc:
+            if getattr(exc, 'winerror', None) not in (5, 32, 33) or attempt == 4:
+                raise
+            time.sleep(0.1 * (2 ** attempt))
+
+
 def write_json(path, value, sensitive=False):
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, temp = tempfile.mkstemp(prefix='.office-', dir=path.parent)
@@ -51,10 +65,42 @@ def write_json(path, value, sensitive=False):
             json.dump(value, out, indent=2)
             out.flush(); os.fsync(out.fileno())
         if sensitive: protect(Path(temp))
-        os.replace(temp, path)
+        replace_json_file(temp, path)
         if sensitive: protect(path)
     finally:
         if os.path.exists(temp): os.unlink(temp)
+
+
+@contextmanager
+def backup_run_lock(config):
+    """One backup/retention writer per configuration, including manual runs."""
+    config.parent.mkdir(parents=True, exist_ok=True)
+    path = config.with_name('office-backup-run.lock')
+    if path.is_symlink(): raise OSError('Linked backup run lock refused.')
+    with open(path, 'a+b') as handle:
+        if os.fstat(handle.fileno()).st_size == 0:
+            handle.write(b'0'); handle.flush()
+        handle.seek(0)
+        try:
+            if os.name == 'nt':
+                import msvcrt
+                msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+            else:
+                import fcntl
+                fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError as exc:
+            if exc.errno not in (errno.EACCES, errno.EAGAIN) and getattr(exc, 'winerror', None) not in (32, 33):
+                raise
+            yield False
+            return
+        try:
+            yield True
+        finally:
+            handle.seek(0)
+            if os.name == 'nt':
+                msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+            else:
+                fcntl.flock(handle, fcntl.LOCK_UN)
 
 
 def sha256_file(path):
@@ -563,14 +609,22 @@ def main():
     parser.add_argument('--scheduled', action='store_true', help='Once per 18:00 Pakistan-time slot, catching up missed runs')
     parser.add_argument('--log-file', type=Path, help='Write the latest scheduled run output to this file')
     args = parser.parse_args()
-    if args.log_file is not None:
-        try:
+    try:
+        # Lock before opening the shared log so a skipped duplicate cannot
+        # truncate or interleave the active run's evidence. Shipment-only
+        # delivery retains its independent task and does not write backup state.
+        lock = nullcontext(True) if args.init or args.shipments_only else backup_run_lock(args.config)
+        with lock as acquired:
+            if not acquired:
+                print('Another backup run is active; this duplicate run was skipped.')
+                return 0
+            if args.log_file is None:
+                return run(args)
             with args.log_file.open('w',encoding='utf-8',buffering=1) as log, redirect_stdout(log), redirect_stderr(log):
                 return run(args)
-        except OSError as exc:
-            print('Office backup log could not be opened:', str(exc), file=sys.stderr)
-            return 1
-    return run(args)
+    except OSError as exc:
+        print('Office backup local lock or log could not be opened:', str(exc), file=sys.stderr)
+        return 1
 
 
 def run(args):
@@ -602,19 +656,29 @@ def run(args):
             current = last_success <= now and same_day
         if not args.force and current and last_file.is_file():
             print('Daily backup is current.'); return 0
+        # Prove this account can atomically update its existing state before
+        # requesting a large archive. Preserve the previous successful values.
+        try:
+            write_json(state_path, state)
+        except OSError as exc:
+            raise RuntimeError('Cannot update the local backup success record; no new download was requested. Check for a file lock or task-owner access.') from exc
         for attempt in range(3):
             try:
                 path, digest = pull(config, destination, scheduled_for=scheduled_for) if scheduled_for is not None else pull(config, destination)
-                new_state = {'last_success': time.time(), 'last_file': path.name, 'sha256': digest}
-                if scheduled_for is not None: new_state['scheduled_for'] = scheduled_for.isoformat()
-                write_json(state_path, new_state)
-                print('Verified encrypted backup saved:', path.name)
-                return 0
+                break
             except (error.URLError, OSError, ValueError, RuntimeError, zipfile.BadZipFile) as exc:
                 if attempt == 2: raise
                 detail = f'HTTP {exc.code}' if isinstance(exc, error.HTTPError) else str(exc)
                 print('Backup attempt failed; retrying shortly:', type(exc).__name__, detail, file=sys.stderr, flush=True)
                 time.sleep(2 ** attempt * 5)
+        new_state = {'last_success': time.time(), 'last_file': path.name, 'sha256': digest}
+        if scheduled_for is not None: new_state['scheduled_for'] = scheduled_for.isoformat()
+        print('Verified encrypted backup saved:', path.name, flush=True)
+        try:
+            write_json(state_path, new_state)
+        except OSError as exc:
+            raise RuntimeError('The verified ZIP was preserved, but its local success record could not be saved. No repeat download was started; check for a Windows file lock or task-owner access.') from exc
+        return 0
     except (error.URLError, OSError, ValueError, RuntimeError, KeyError, json.JSONDecodeError, zipfile.BadZipFile) as exc:
         print('Office backup failed:', type(exc).__name__, str(exc) if not isinstance(exc, error.HTTPError) else f'HTTP {exc.code}', file=sys.stderr)
         return 1
