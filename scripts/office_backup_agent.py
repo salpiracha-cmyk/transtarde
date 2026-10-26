@@ -38,7 +38,7 @@ def protect(path):
     if os.name == 'nt':
         import subprocess
         identity = os.environ.get('USERDOMAIN', '') + '\\' + os.environ.get('USERNAME', '')
-        result = subprocess.run(['icacls', str(path), '/inheritance:r', '/grant:r', identity + ':F'], capture_output=True, text=True)
+        result = subprocess.run(['icacls', str(path), '/inheritance:r', '/grant:r', identity + ':F'], capture_output=True, text=True, creationflags=getattr(subprocess,'CREATE_NO_WINDOW',0))
         if result.returncode: raise RuntimeError('Could not restrict configuration permissions: ' + result.stderr.strip())
     else:
         path.chmod(0o600)
