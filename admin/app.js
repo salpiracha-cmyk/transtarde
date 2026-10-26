@@ -1822,28 +1822,33 @@
     } catch (error) { toast(error.message); }
   }
   async function downloadBackup(kind) {
-    const isFull = kind === "full-download";
-    const password = isFull ? document.getElementById("recoveryBackupPassword").value : "";
-    if (!sharedBackupPasswordConfigured) { selectBackupTab("security", true); toast("Set your backup protection password once in Passwords & Security, then download your backup."); return; }
-    const button = document.getElementById(isFull ? "downloadFullBackup" : "downloadBusinessBackup");
-    const status = document.getElementById(isFull ? "fullDownloadStatus" : "businessDownloadStatus");
-    status.textContent = "Preparing and checking your encrypted backup. Large copies can take several minutes; keep this page open.";
-    const old = button.textContent; button.disabled = true; button.textContent = "Preparing backup…";
+    const isFull = kind === 'full-download'; const type = isFull ? 'full' : 'business';
+    if (!sharedBackupPasswordConfigured) { selectBackupTab('security',true); toast('Set your backup protection password first.'); return; }
+    const button = document.getElementById(isFull ? 'downloadFullBackup' : 'downloadBusinessBackup');
+    const status = document.getElementById(isFull ? 'fullDownloadStatus' : 'businessDownloadStatus');
+    const old = button.textContent; button.disabled = true; button.textContent = 'Preparing backup…';
+    const call = (action, job) => backupFetchJson('api/owner_backup.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,kind:type,job,csrf:SESSION.csrf})});
     try {
-      const response = await fetch("api/backup.php", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: kind, password, csrf: SESSION.csrf }) });
-      if (!response.ok) {
-        const data = await response.json().catch(() => ({})); throw new Error(data.error || "The backup could not be prepared.");
+      status.textContent = 'Preparing your encrypted backup in the background. Keep this page open; large copies can take several minutes.';
+      let job = await call('prepare');
+      for (let attempt=0;job.state==='preparing' && attempt<600;attempt++) {
+        status.textContent = job.stage==='verifying' ? 'Checking the encrypted archive before download…' : 'Building your encrypted backup in the background…';
+        await new Promise(resolve=>window.setTimeout(resolve,2000)); job = await call('status',job.job);
       }
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob); const link = document.createElement("a");
-      link.href = url; link.download =(window.TT_DOCUMENT_NAME?.clean( backupFileName(response, isFull ? "TRANSTRADE_FULL_BACKUP.zip" : "TRANSTRADE_BUSINESS_DATA.zip"),220)||(backupFileName(response, isFull ? 'TRANSTRADE_FULL_BACKUP.zip' : 'TRANSTRADE_BUSINESS_DATA.zip')));
-      document.body.appendChild(link); link.click(); link.remove(); window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-      addAudit("Backup", "Downloaded", isFull ? "Complete Transtrade recovery backup downloaded" : "Readable business-data backup downloaded", isFull ? "FULL-BACKUP" : "BUSINESS-DATA");
-      status.textContent = "Backup prepared. Download requested in this browser; check its Downloads list for completion.";
-      saveState(); renderAudit(); toast(isFull ? "Complete encrypted backup downloaded." : "Business data downloaded.");
-      await loadBackupStatus();
-    } catch (error) { status.textContent = "Download did not complete: " + error.message; toast(error.message); }
-    finally { button.disabled = false; button.textContent = old; }
+      if (job.state!=='ready') throw new Error(job.error || 'Backup preparation did not finish. Previous backups remain available.');
+      if (!Number.isSafeInteger(job.length)||job.length<1||!/^[a-f0-9]{64}$/.test(job.sha256)) throw new Error('The prepared backup could not be verified.');
+      // Native download avoids keeping a large ZIP in browser memory. No password,
+      // session token or setup credential is put into a URL.
+      const frame = document.createElement('iframe'); frame.name='ownerBackupDownload-'+type; frame.hidden=true; frame.title='Encrypted '+type+' backup download';
+      const previous=document.getElementsByName(frame.name)[0]; if(previous)previous.remove(); document.body.appendChild(frame);
+      frame.addEventListener('load',()=>{try{const text=frame.contentDocument?.body?.textContent; if(text){const data=JSON.parse(text);if(data.error)status.textContent='Download did not complete: '+data.error;}}catch(_){} });
+      const form=document.createElement('form'); form.method='POST'; form.action='api/owner_backup.php'; form.enctype='multipart/form-data'; form.target=frame.name; form.hidden=true;
+      for(const [name,value] of Object.entries({action:'file',kind:type,job:job.job,csrf:SESSION.csrf})){const input=document.createElement('input');input.name=name;input.value=value;form.appendChild(input);}
+      document.body.appendChild(form);form.submit();form.remove();
+      status.textContent='Encrypted archive verified ('+backupBytes(job.length)+'). Download requested; check your browser Downloads list for completion.';
+      toast('Verified backup is ready. Your browser will download it now.');
+    } catch(error) {status.textContent='Download did not complete: '+error.message;toast(error.message);}
+    finally {button.disabled=false;button.textContent=old;}
   }
   async function createServerSnapshot() {
     const button = document.getElementById("createServerSnapshot"); const old = button.textContent; button.disabled = true; button.textContent = "Creating…";

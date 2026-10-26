@@ -42,3 +42,22 @@ assert.equal(d.getElementById('sharedBackupPassword').value,'fixture-draft-passw
 assert.ok([...d.querySelectorAll('iframe[data-security-src]')].every(f=>!f.getAttribute('src')));
 w.close();
 console.log('PASS owner backup/security tab separation, keyboard navigation and retained drafts without credential submission');
+
+(async()=>{
+  const testDom=new JSDOM(html,{url:'https://fixture.test/',runScripts:'outside-only'}),win=testDom.window;
+  const submitted=[],actions=[];
+  win.HTMLFormElement.prototype.submit=function(){submitted.push({action:this.action,method:this.method,target:this.target,fields:Object.fromEntries([...this.elements].map(x=>[x.name,x.value]))});};
+  win.sharedBackupPasswordConfigured=true;win.SESSION={csrf:'fixture-csrf'};win.toast=()=>{};win.selectBackupTab=()=>{};win.backupBytes=n=>n+' bytes';win.setTimeout=fn=>{fn();return 0;};
+  win.backupFetchJson=async(url,options)=>{assert.equal(url,'api/owner_backup.php');const data=JSON.parse(options.body);actions.push(data);return data.action==='prepare'?{job:'a'.repeat(32),state:'preparing',stage:'building'}:{job:'a'.repeat(32),state:'ready',length:1000,sha256:'b'.repeat(64)};};
+  win.eval(app.slice(app.indexOf('  async function downloadBackup(kind) {'),app.indexOf('  async function createServerSnapshot()')));
+  await win.downloadBackup('business-download');
+  assert.deepEqual(actions.map(x=>x.action),['prepare','status']);assert.equal(submitted.length,1);
+  assert.equal(submitted[0].action,'https://fixture.test/api/owner_backup.php');assert.equal(submitted[0].method,'post');
+  assert.deepEqual(submitted[0].fields,{action:'file',kind:'business',job:'a'.repeat(32),csrf:'fixture-csrf'});
+  assert.match(win.document.getElementById('businessDownloadStatus').textContent,/verified.*Download requested/);
+  win.backupFetchJson=async()=>({job:'a'.repeat(32),state:'failed',error:'fixture preparation failure'});
+  await win.downloadBackup('full-download');assert.equal(submitted.length,1);
+  assert.match(win.document.getElementById('fullDownloadStatus').textContent,/fixture preparation failure/);
+  assert.equal(win.document.getElementById('downloadFullBackup').disabled,false);
+  testDom.window.close();console.log('PASS background preparation progress, native POST download without password URLs, and persistent failure state');
+})().catch(error=>{console.error(error);process.exitCode=1;});
