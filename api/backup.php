@@ -25,6 +25,10 @@ try {
         tt_backup_password_set($password);tt_audit((int)$admin['id'],$admin['username'],'Updated owner-managed backup ZIP password');
         backup_json(['ok'=>true]);
     }
+    if($action==='download-office-setup'){
+        $path=tt_office_setup_archive();tt_audit((int)$admin['id'],$admin['username'],'Prepared one-use Office PC connection setup');
+        backup_stream($path,'TRANSTRADE_CONNECT_OFFICE_PC.zip');
+    }
     if($action==='issue-office-token'){
         $token=tt_office_backup_issue_token();tt_audit((int)$admin['id'],$admin['username'],'Rotated office backup-only credential');
         backup_json(['ok'=>true,'token'=>$token]);
