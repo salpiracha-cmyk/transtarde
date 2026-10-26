@@ -2,6 +2,8 @@
 import json, os, pathlib, shutil, socket, subprocess, tempfile, time, urllib.request
 from playwright.sync_api import sync_playwright
 ROOT=pathlib.Path(__file__).resolve().parents[2]
+def stock_working(page):
+ if not page.locator('details[data-stock-working]').evaluate('(el)=>el.open'):page.get_by_text('Stock and commitment working · excluded from this cash-flow total',exact=True).click()
 with tempfile.TemporaryDirectory(prefix='daily-browser-') as tmp:
  root=pathlib.Path(tmp);shutil.copytree(ROOT/'api',root/'api');shutil.copytree(ROOT/'accounts',root/'accounts');(root/'data').mkdir()
  for name in ['inventory_reconciliation.php','product_stage.php','runtime_html.php','brand-theme.css']:shutil.copyfile(ROOT/name,root/name)
@@ -28,23 +30,23 @@ function tt_release_read_session(){}function tt_verify_csrf($v){return $v==='fix
     browser=pw.chromium.launch(headless=True,**({'executable_path':os.environ['PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH']} if os.environ.get('PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH') else {}));page=browser.new_page(viewport={'width':1440,'height':950},accept_downloads=True);errors=[];posts=[]
     page.on('pageerror',lambda e:errors.append(str(e)));page.on('request',lambda r:posts.append(r.url) if r.method=='POST' else None)
     page.goto(url);page.locator('#gmDate').fill('2026-10-17');page.locator('#gmOpen').click();page.get_by_text('Saved report opened.',exact=False).wait_for();page.locator('[data-field="rates.USD"]').fill('280');page.locator('[data-field="rates.AED"]').fill('76');page.locator('#gmSave').click();page.get_by_text('Cash Flow saved.',exact=False).wait_for()
-    page.locator('#gmDailyAdd').click();page.locator('[data-daily-label]').fill('Test Rice reviewed');page.locator('[data-daily-selected]').check();page.locator('[data-daily-recovery]').fill('60');assert len(posts)==1,'Entry caused a background write'
-    page.locator('#gmReviewed').check();page.locator('#gmSave').click();page.get_by_text('Cash Flow saved.',exact=False).wait_for();page.locator('#gmEditor').get_by_text('SHORT',exact=False).wait_for();assert len(posts)==2
+    stock_working(page);page.locator('#gmDailyAdd').click();page.locator('[data-daily-label]').fill('Test Rice reviewed');page.locator('[data-daily-selected]').check();page.locator('[data-daily-recovery]').fill('60');assert len(posts)==1,'Entry caused a background write'
+    page.locator('#gmReviewed').check();page.locator('#gmSave').click();page.get_by_text('Cash Flow saved.',exact=False).wait_for();stock_working(page);page.locator('#gmEditor').get_by_text('SHORT',exact=False).wait_for();assert len(posts)==2
     saved=json.loads((root/'data/group-management.json').read_text());part=saved['groupManagementRecords']['DAILY|2026-10-17']['sections']['daily'];assert part['complete'] and part['calculation']['positions'][0]['positionMinMT']==round(-100/.6,6);assert all(saved['groupManagementRecords']['DAILY|2026-10-17']['sections'][k]['complete'] for k in ['header','daily','adjustments'])
     with page.expect_download() as downloaded:page.locator('#gmCSV').click()
-    csv=pathlib.Path(downloaded.value.path()).read_text(encoding='utf-8-sig');assert 'Test Rice reviewed' in csv and 'SHORT' in csv and 'Book balance' in csv and 'BOOK1' in csv
+    csv=pathlib.Path(downloaded.value.path()).read_text(encoding='utf-8-sig');assert 'SHORT' not in csv and 'Physical stock' not in csv and 'Party balance' in csv and 'BOOK1' in csv
     # Capture the actual print DOM without invoking the OS dialog.
     page.add_init_script('window.print=()=>{}')
     with page.expect_popup() as popup:page.locator('#gmPrint').click()
-    printed=popup.value;printed.wait_for_load_state();assert 'SHORT' in printed.locator('body').inner_text() and 'BOOK1' in printed.locator('body').inner_text();assert printed.locator('details:not([open])').count()==0;printed.close()
+    printed=popup.value;printed.wait_for_load_state();assert 'SHORT' not in printed.locator('body').inner_text() and 'BOOK1' in printed.locator('body').inner_text();assert printed.locator('details:not([open])').count()==0;printed.close()
     # Real endpoint source conflict leaves the native input and its draft untouched.
     page.locator('[data-daily-recovery]').fill('65');page.locator('#gmReason').fill('Review changed recovery');ops['revision']=5;op.write_text(json.dumps(ops));page.locator('#gmSave').click();page.get_by_text('Daily sources changed.',exact=False).wait_for();assert page.locator('[data-daily-recovery]').input_value()=='65';assert page.locator('#gmReason').input_value()=='Review changed recovery'
     assert (bp.read_bytes(),before[1])==before,'Report flow changed canonical books'
     assert op.read_text()==json.dumps(ops),'Report flow changed physical stock source'
     # Pending TG evidence is captured on explicit save and shown as unconfirmed in all outputs.
     books['tgRemittanceDrafts']={'TGRD1':{'id':'TGRD1','status':'Pending','date':'2026-10-01','currency':'USD','amountNative':100,'pakJournalIds':['BOOK1']}};books['revision']=8;bp.write_text(json.dumps(books));pending_before=(bp.read_bytes(),op.read_bytes())
-    page.reload();page.locator('#gmDate').fill('2026-10-17');page.locator('#gmOpen').click();page.get_by_text('Saved report opened.',exact=False).wait_for();assert 'Pending TG remittance confirmations' in page.locator('#gmEditor').inner_text();page.locator('#gmReason').fill('Review pending original TG confirmation');page.locator('#gmReviewed').uncheck();page.locator('#gmSave').click();page.get_by_text('Cash Flow saved.',exact=False).wait_for();page.locator('#gmEditor').get_by_text('Pending TG remittance confirmations (1)',exact=True).first.click();page.locator('#gmEditor').get_by_text('TGRD1',exact=True).first.wait_for()
-    page.locator('#gmReviewed').check();page.locator('#gmSave').click();page.get_by_text('Review every source hold',exact=False).wait_for();assert not json.loads((root/'data/group-management.json').read_text())['groupManagementRecords']['DAILY|2026-10-17']['sections']['daily']['complete']
+    page.reload();page.locator('#gmDate').fill('2026-10-17');page.locator('#gmOpen').click();page.get_by_text('Saved report opened.',exact=False).wait_for();stock_working(page);assert 'Pending TG remittance confirmations' in page.locator('#gmEditor').inner_text();page.locator('#gmReason').fill('Review pending original TG confirmation');page.locator('#gmReviewed').uncheck();page.locator('#gmSave').click();page.get_by_text('Cash Flow saved.',exact=False).wait_for();stock_working(page);page.locator('#gmEditor').get_by_text('Pending TG remittance confirmations (1)',exact=True).first.click();page.locator('#gmEditor').get_by_text('TGRD1',exact=True).first.wait_for()
+    page.locator('#gmReviewed').check();page.locator('#gmSave').click();page.get_by_text('Review the party source warnings',exact=False).wait_for();assert not json.loads((root/'data/group-management.json').read_text())['groupManagementRecords']['DAILY|2026-10-17']['sections']['daily']['complete']
     with page.expect_download() as downloaded:page.locator('#gmCSV').click()
     pending_csv=pathlib.Path(downloaded.value.path()).read_text(encoding='utf-8-sig');assert 'Pending TG remittance' in pending_csv and 'TGRD1' in pending_csv and 'Awaiting TG bank confirmation' in pending_csv and 'BOOK1' in pending_csv and 'pending only' in pending_csv
     with page.expect_popup() as popup:page.locator('#gmPrint').click()
