@@ -6,7 +6,7 @@ const chart=JSON.parse(read('accounts/accounting_master_v1.json')).chart;
 assert.equal(chart.find(a=>a.code==='7210').subledger,false,'Zakat has one account without subsidiaries');
 const salaryApi=read('api/rent_salary_v2.php');
 const donationsApi=read('api/donations.php');
-const reportsApi=read('api/accounts_reports.php');
+const reportsApi=(read('api/accounts_reports.php')+'\n'+read('api/accounts_reports_core.php'));
 const rows=Object.values(seed.salaryMasters||{});
 const sum=(items,key)=>items.reduce((total,row)=>total+Number(row[key]||0),0);
 const total=row=>Number(row.monthlyAmount||0)+Number(row.zakatAmount||0)+Number(row.otherAllowance||0);

@@ -11,7 +11,7 @@ with tempfile.TemporaryDirectory(prefix='tti-auth-boundary-') as directory:
     app = base / 'app'
     app.mkdir()
     for name in ['auth_store.php', 'session_store.php', 'master_store.php', 'product_stage.php',
-                 'offline_idempotency.php', 'backup_lib.php', 'qa_account.php', 'login.php',
+                 'offline_idempotency.php', 'backup_lib.php','backup_report_exports.php', 'qa_account.php', 'login.php',
                  'change-password.php', 'logout.php', 'recover-admin.php']:
         shutil.copy(ROOT / name, app / name)
     (app / 'api').mkdir()

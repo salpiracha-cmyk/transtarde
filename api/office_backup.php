@@ -36,6 +36,7 @@ tt_auth_clear_failures('office-backup',$ip,false);
 if(session_status()===PHP_SESSION_ACTIVE)session_write_close();
 $action=(string)($_GET['action']??'');
 if(!in_array($action,['prepare','status','chunk','complete'],true))office_backup_error(426,'Install the updated Office Agent for background backup preparation.');
+$scope=(string)($body['scope']??'full');if(!in_array($scope,['full','data','software'],true))office_backup_error(400,'Invalid backup scope.');$GLOBALS['ttOfficeBackupScope']=$scope;
 $client=hash_hmac('sha256',$password,$token);
 function office_backup_json(array $value,int $status=200):void {
     http_response_code($status);header('Content-Type: application/json; charset=UTF-8');echo json_encode($value,JSON_THROW_ON_ERROR);

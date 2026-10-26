@@ -1,3 +1,17 @@
+# Current owner-approved plan — 26 October 2026
+
+This section supersedes the older scheduled hosting and PC tier replacement rules below. Those sections describe legacy installations and retained recovery points.
+
+- PC data: a complete cumulative snapshot of every saved module, uploaded document, users, masters and settings at backup time. Retain one verified copy per latest seven successful Pakistan dates. On the eighth successful date, remove the oldest only after verifying its replacement. A monthly copy is independent, with twelve monthly points. No new weekly data copies; legacy FULL/Weekly archives remain held.
+- PC software: a separate Monday 18:00 Pakistan-time archive of application code, design, users, master records and settings. Manual Backup Now and the Software Weekly task also refresh it. It excludes business journals and shipment documents. Keep two recent software dates plus compatible code versions required by retained data archives. Unknown/unreadable files are held. Each data archive retains its own matching users/masters so newly-created IDs remain recoverable.
+- Code compatibility: archive manifests record the deployed software revision. Combining Data + Software for hosting requires equal revisions; a mismatch stops without publishing a partial recovery. Refresh Backup Now after a software deployment. Software versions referenced by retained data points are protected from pruning.
+- Hosting: no routine snapshot schedule. Preserve existing hosted recovery points. Manual and pre-restore safety snapshots remain available under their verified retention rules. Private transfer caches are transient and removed after the PC acknowledges a verified download. A running website or its edit history is not an independent backup.
+- Recovery: Accounts, Mill, Exports and Directors contain readable CSV reports/records and documents. Complete Website Restore contains public_html code and sibling transtrade_private canonical data. Data-only recovery explicitly requires compatible Software and Setup before hosting. Never place the private folder inside public_html. Preparing files is not a live website restore.
+- Upgrade: hosting deployment does not change the existing PC. Use the current EXE → Update existing PC settings (keep connection), after any current backup finishes. Preserve credentials, old archives and shipment delivery. Verify first Software, Daily and Monthly copies before declaring the PC updated.
+- Failed creation, transfer, verification or recovery must preserve prior valid copies. Do not delete live records or original documents. Prune only known regular single-link archives after identity and full survivor hash checks.
+
+## Earlier policies and technical history
+
 # Automatic backup storage rules
 
 Owner-approved on 20 October 2026: Hostinger keeps seven daily business-data recovery

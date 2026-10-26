@@ -219,6 +219,7 @@ def backup_job_request(config, action, values=None):
     url = config.get('backupUrl') or config.get('url')
     require_endpoint(url, '/api/office_backup.php')
     payload = {'password': config.get('password', '')}
+    if config.get('scope') in ('data','software'):payload['scope']=config['scope']
     if values: payload.update(values)
     req = request.Request(url + '?action=' + action, data=json.dumps(payload).encode('utf-8'), headers={
         'Content-Type': 'application/json', 'Accept-Encoding': 'identity',
@@ -336,6 +337,12 @@ def pull(config, destination, scheduled_for=None, refresh_tiers=False):
             if digest.hexdigest() != expected: raise ValueError(f'Backup transfer checksum mismatch after receiving all {received:,} bytes. Existing verified backups were preserved.')
         validate_zip(temp)
         stamp = datetime.now(timezone(timedelta(hours=5)))
+        if config.get('scope') in ('data','software'):
+            from scripts.backup_plan import commit_received
+            target=commit_received(sys.modules[__name__],temp,destination,expected,config['scope'],stamp,refresh_tiers,config.get('backupDestination'))
+            temp=None
+            if hasattr(response,'acknowledge'):response.acknowledge()
+            return target,expected
         bucket_stamp = scheduled_for if scheduled_for is not None else stamp
         retention = config.get('retention') or {}
         daily_dir, weekly_dir, monthly_dir = destination / 'Daily', destination / 'Weekly', destination / 'Monthly'
@@ -637,6 +644,7 @@ def main():
     parser.add_argument('--force', action='store_true', help='Pull now even if a daily backup succeeded recently')
     parser.add_argument('--shipments-only', action='store_true', help='Only process pending shipment archive jobs')
     parser.add_argument('--backup-only', action='store_true', help='Only pull the encrypted system backup')
+    parser.add_argument('--software', action='store_true', help='Update the separate software, masters and settings archive')
     parser.add_argument('--scheduled', action='store_true', help='Once per 18:00 Pakistan-time slot, catching up missed runs')
     parser.add_argument('--log-file', type=Path, help='Write the latest scheduled run output to this file')
     args = parser.parse_args()
@@ -649,7 +657,7 @@ def main():
         with lock as acquired:
             if not acquired:
                 print('Another backup run is active; this duplicate run was skipped.')
-                return 1 if args.connect_setup or args.refresh_tiers else 0
+                return 1 if args.connect_setup or args.refresh_tiers or getattr(args,'software',False) else 0
             if args.log_file is None:
                 return run(args)
             with args.log_file.open('w',encoding='utf-8',buffering=1) as log, redirect_stdout(log), redirect_stderr(log):
@@ -683,12 +691,16 @@ def run(args):
             process_shipments(config)
             if args.shipments_only: return 0
         destination = Path(config.get('backupDestination') or config.get('destination')).expanduser().resolve()
-        state_path = args.config.with_name('office-backup-state.json')
+        if getattr(args,'software',False) and config.get('scope') not in ('data','software'):
+            raise ValueError('Update existing PC settings in the current Windows app before using the separate software backup.')
+        if config.get('scope')=='data' and getattr(args,'software',False):
+            config=dict(config,scope='software');destination=Path(config.get('softwareDestination',destination.parent/'SoftwareBackups'))
+        state_path = args.config.with_name('software-backup-state.json' if config.get('scope')=='software' else 'office-backup-state.json')
         state = json.loads(state_path.read_text(encoding='utf-8')) if state_path.exists() else {}
         now = time.time()
         last_success = float(state.get('last_success', 0))
         same_day = datetime.fromtimestamp(now, timezone.utc).date() == datetime.fromtimestamp(last_success, timezone.utc).date()
-        last_file = destination / 'Daily' / Path(str(state.get('last_file', ''))).name
+        last_file = destination / ('' if config.get('scope')=='software' else 'Daily') / Path(str(state.get('last_file', ''))).name
         scheduled_for = scheduled_backup_time(now) if args.scheduled else None
         if scheduled_for is not None:
             recorded_slot = state.get('scheduled_for')

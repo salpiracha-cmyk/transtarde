@@ -544,6 +544,7 @@ function tt_backup_business_payloads(): array {
     $lines=tt_backup_summary_lines($datasets);$docx=tt_backup_make_docx($lines);$temps[]=$docx;$payloads['Business_Data/Transtrade_Backup_Summary.docx']=file_get_contents($docx)?:'';$pdf=tt_backup_make_pdf($lines);$temps[]=$pdf;$payloads['Business_Data/Transtrade_Backup_Summary.pdf']=file_get_contents($pdf)?:'';
     foreach($temps as $t)@unlink($t);
     $payloads += tt_backup_module_payloads();
+    require_once __DIR__.'/backup_report_exports.php';$payloads += tt_backup_readable_reports();
     return [$payloads,$datasets];
 }
 
@@ -601,12 +602,27 @@ function tt_backup_portable_database_files(array $private,array $tables,array &$
     return $private;
 }
 
-function tt_build_download_backup(bool $full,string $password=''):array{
+function tt_build_download_backup(bool $full,string $password='',string $scope='full'):array{
+    if(!in_array($scope,['full','data','software'],true))throw new InvalidArgumentException('Invalid backup scope.');
     // Compression and encryption happen before streaming; allow the same bounded
     // build time as the verified office preparation worker.
     @set_time_limit(900);
     $portableTemps=[];register_shutdown_function(static function()use(&$portableTemps):void{foreach($portableTemps as$temp)if(is_file($temp))@unlink($temp);});
-    [$business,$datasets]=tt_backup_business_payloads();$private=tt_backup_portable_database_files(tt_backup_private_files(),tt_backup_database_rows(),$portableTemps);$appFiles=$full?tt_backup_app_files():[];$documents=[];
+    [$business,$datasets]=$scope==='software'?[[],[]]:tt_backup_business_payloads();$private=tt_backup_portable_database_files(tt_backup_private_files(),tt_backup_database_rows(),$portableTemps);$appFiles=$full&&$scope!=='data'?tt_backup_app_files():[];$documents=[];
+    if($scope==='software')$private=array_filter($private,static fn($path,$rel)=>$rel==='auth.json'||str_starts_with($rel,'master-documents/')||preg_match('/(^|[_.-])(settings|config|master)([_.-]|$)/i',$rel),ARRAY_FILTER_USE_BOTH);
+    if($scope==='software'){
+        // Masters embedded in operational stores are references, never journals.
+        // The Data archive remains authoritative when the two are combined.
+        $booksPath=TT_DATA_DIR.'/accounts.json';$books=is_file($booksPath)?json_decode((string)file_get_contents($booksPath),true,512,JSON_THROW_ON_ERROR):[];
+        $setup=array_intersect_key((array)$books,array_flip(['masters','accountHierarchy','accountSubaccounts','paymentPayees','salaryMasters','expenseRecipientDefaults','settings']));
+        $business['System_Recovery/setup/Accounts Masters.json']=json_encode($setup,JSON_PRETTY_PRINT|JSON_THROW_ON_ERROR);
+        $ops=tt_backup_read_operations();$values=(array)($ops['values']??[]);
+        foreach(tt_backup_database_rows()['tt_operation_records']??[]as$row)$values[(string)$row['storage_key']]=(string)$row['payload'];
+        $export=$values['transtrade_export_v3_operational']??'{}';$export=is_string($export)?json_decode($export,true,512,JSON_THROW_ON_ERROR):$export;
+        $business['System_Recovery/setup/Export Masters.json']=json_encode(array_intersect_key((array)$export,array_flip(['customers','suppliers','settings'])),JSON_PRETTY_PRINT|JSON_THROW_ON_ERROR);
+        $mill=[];foreach($values as$key=>$value)if(preg_match('/(master|settings|rates)$/i',(string)$key))$mill[$key]=is_string($value)?json_decode($value,true,512,JSON_THROW_ON_ERROR):$value;
+        $business['System_Recovery/setup/Mill Settings.json']=json_encode($mill,JSON_PRETTY_PRINT|JSON_THROW_ON_ERROR);
+    }
     foreach($private as $rel=>$path)if(preg_match('#^(documents|uploads)/(.*)$#i',$rel,$m))$documents['Documents/'.$m[2]]=$path;
     $estimate=0;foreach($private as $path)$estimate+=filesize($path)?:0;foreach($appFiles as $path)$estimate+=filesize($path)?:0;
     $tmp=tempnam(sys_get_temp_dir(),'tt-backup-');if($tmp===false)throw new RuntimeException('Temporary backup file could not be created.');
@@ -653,7 +669,13 @@ function tt_build_download_backup(bool $full,string $password=''):array{
     foreach($private as $rel=>$path)$addEncryptedFile('System_Recovery/private/'.$rel,$path);
     foreach($appFiles as $rel=>$path)$addEncryptedFile('Application_Code/'.$rel,$path);
     $appInventory=[];foreach($appFiles as $rel=>$path)$appInventory[]=['path'=>$rel,'size'=>filesize($path)?:0,'sha256'=>hash_file('sha256',$path)?:''];
-    $manifest=tt_backup_manifest('full_recovery',$private,['businessSheets'=>count($datasets),'containsTechnicalSecrets'=>true,'appFileCount'=>count($appFiles),'applicationFiles'=>$appInventory,'encryption'=>['algorithm'=>'AES-256-GCM','kdf'=>'PBKDF2-HMAC-SHA256','iterations'=>$iterations,'salt'=>base64_encode($salt)],'encryptedEntries'=>$map]);
+    // Bind separate data/software archives to the same deployed application.
+    $revision=trim((string)@file_get_contents(__DIR__.'/.transtrade-release'));
+    if(!preg_match('/^[a-f0-9]{40}$/D',$revision)){
+        $code=[];foreach($appFiles?:tt_backup_app_files() as$rel=>$path)$code[$rel]=hash_file('sha256',$path);
+        ksort($code);$revision=hash('sha256',json_encode($code,JSON_THROW_ON_ERROR));
+    }
+    $manifest=tt_backup_manifest('full_recovery',$private,['scope'=>$scope,'softwareRevision'=>$revision,'businessSheets'=>count($datasets),'containsTechnicalSecrets'=>true,'appFileCount'=>count($appFiles),'applicationFiles'=>$appInventory,'encryption'=>['algorithm'=>'AES-256-GCM','kdf'=>'PBKDF2-HMAC-SHA256','iterations'=>$iterations,'salt'=>base64_encode($salt)],'encryptedEntries'=>$map]);
     $zip->addString('README.txt',"TRANSTRADE COMPLETE RECOVERY BACKUP\n\nSensitive contents are encrypted with the password chosen by the owner. Restore through Transtrade Super Admin > Backup & Data Export.\nThe password is not stored in this ZIP.\n");$zip->addString('backup-manifest.json',json_encode($manifest,JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR));$zip->close();return ['path'=>$tmp,'manifest'=>$manifest];
     }catch(Throwable $error){try{$zip->close();}catch(Throwable){}@unlink($tmp);throw $error;}finally{foreach($portableTemps as$temp)if(is_file($temp))unlink($temp);}
 }

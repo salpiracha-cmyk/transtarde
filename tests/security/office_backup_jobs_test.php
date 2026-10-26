@@ -41,5 +41,9 @@ try{
  $staged=tt_office_job_generate($m,$password,$build);ensure_job(tt_office_job_verify_step($staged,'wrong-password-123')['state']==='failed','wrong password refused');
  ensure_job(!is_file($root.'/candidate.zip')&&!is_file(tt_office_job_dir().'/incoming.tmp'),'cleanup own generation work');
  file_put_contents($target,'changed');$failed=false;try{tt_office_job_chunk($ready,0,10);}catch(RuntimeException){$failed=true;}ensure_job($failed,'refuse changed transfer');
- flock($lock,LOCK_UN);fclose($lock);echo "OFFICE_BACKGROUND_BATCH_VERIFICATION_OK\n";
+ flock($lock,LOCK_UN);fclose($lock);
+ $dirs=[];foreach(['full','data','software']as$scope){$GLOBALS['ttOfficeBackupScope']=$scope;$dirs[$scope]=tt_office_job_dir();tt_office_job_write(['scope'=>$scope]);}
+ ensure_job(count(array_unique($dirs))===3,'separate scoped caches cannot displace one another');
+ foreach(['full','data','software']as$scope){$GLOBALS['ttOfficeBackupScope']=$scope;ensure_job(tt_office_job_read()['scope']===$scope,'status reads remain bound to requested scope');}
+ unset($GLOBALS['ttOfficeBackupScope']);echo "OFFICE_BACKGROUND_BATCH_VERIFICATION_OK\n";
 }finally{clean_job($root);}

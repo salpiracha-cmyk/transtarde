@@ -26,7 +26,7 @@ class UniversalAppTest(unittest.TestCase):
                 value=app.configure(root,'a'*64,{'password':'fixture-keep-old-archive-password','oldSetting':True})
             self.assertEqual(value['password'],'fixture-keep-old-archive-password')
             self.assertTrue(value['oldSetting']);self.assertEqual(value['token'],'a'*64)
-            for name in ['SystemBackups/Daily','SystemBackups/Weekly','SystemBackups/Monthly','ShipmentArchives','RecoveryTests']:self.assertTrue((root/name).is_dir())
+            for name in ['SystemBackups/Daily','SystemBackups/Monthly','SoftwareBackups','ShipmentArchives','RecoveryTests']:self.assertTrue((root/name).is_dir())
             self.assertEqual(json.loads(path.read_text()),value)
             sentinel=root/'SystemBackups/Daily/existing.zip';sentinel.write_bytes(b'keep')
             with patch.object(app.agent,'config_path',return_value=path):app.configure(root,'b'*64,value)
@@ -48,6 +48,10 @@ class UniversalAppTest(unittest.TestCase):
         self.assertEqual(tree.find('.//t:LogonType',n).text,'InteractiveToken')
         self.assertIn('--scheduled',tree.find('.//t:Arguments',n).text)
         self.assertEqual(tree.find('.//t:MultipleInstancesPolicy',n).text,'IgnoreNew')
+        software=ET.fromstring(app.task_xml(Path('C:/fixture/Backup.exe'),'software','S-1-5-21-123'))
+        self.assertIsNotNone(software.find('.//t:ScheduleByWeek/t:DaysOfWeek/t:Monday',n))
+        self.assertIsNone(software.find('.//t:LogonTrigger',n))
+        self.assertIn('--software --force',software.find('.//t:Arguments',n).text)
     def test_untrusted_paths_refused(self):
         for value in ['../escape','/absolute','x\\y','C:/outside','a/../b','a//b','a./file','CON.txt','x/NUL','x\x00y']:
             with self.subTest(value=value),self.assertRaises(ValueError):reader.safe_name(value)
@@ -57,7 +61,7 @@ class PhpRecoveryTest(unittest.TestCase):
     def setUpClass(cls):
         if not shutil.which('php'):raise RuntimeError('PHP is required for actual encrypted recovery interoperability tests.')
         cls.tmp=tempfile.TemporaryDirectory(prefix='tti-php-recovery-');cls.root=Path(cls.tmp.name);source=cls.root/'source';source.mkdir()
-        for name in ['auth_store.php','session_store.php','master_store.php','product_stage.php','offline_idempotency.php','backup_lib.php']:shutil.copy(ROOT/name,source/name)
+        for name in ['auth_store.php','session_store.php','master_store.php','product_stage.php','offline_idempotency.php','backup_lib.php','backup_report_exports.php']:shutil.copy(ROOT/name,source/name)
         cls.backup=cls.root/'fixture.zip'
         driver=source/'fixture.php';driver.write_text("""<?php
 require __DIR__.'/auth_store.php';require __DIR__.'/backup_lib.php';
@@ -74,9 +78,9 @@ $built=tt_build_download_backup(true,'fixture-backup-password-2026');copy($built
     def test_actual_php_complete_backup_recovers_and_preserves_source(self):
         before=hashlib.sha256(self.backup.read_bytes()).hexdigest()
         result=reader.recover_copy(self.backup,'fixture-backup-password-2026',self.root/'recovered')
-        self.assertEqual((result/'System_Recovery/private/documents/fixture.pdf').read_bytes(),b'original fixture bytes')
-        self.assertEqual(json.loads((result/'System_Recovery/private/accounts.json').read_text())['journals']['FIXTURE']['amount'],17)
-        self.assertFalse((result/'System_Recovery/private/office-backup-token.sha256').exists())
+        self.assertEqual((result/'Complete Website Restore/transtrade_private/documents/fixture.pdf').read_bytes(),b'original fixture bytes')
+        self.assertEqual(json.loads((result/'Complete Website Restore/transtrade_private/accounts.json').read_text())['journals']['FIXTURE']['amount'],17)
+        self.assertFalse((result/'Complete Website Restore/transtrade_private/office-backup-token.sha256').exists())
         self.assertEqual(hashlib.sha256(self.backup.read_bytes()).hexdigest(),before)
         self.assertFalse(json.loads((result/'RECOVERY_RESULT.json').read_text())['liveWebsiteChanged'])
     def test_wrong_password_and_tamper_never_publish_partial_recovery(self):
@@ -113,17 +117,17 @@ class WindowsTaskTest(unittest.TestCase):
             value=original(*args,**kwargs)
             import re
             return re.sub(r'<StartBoundary>.*?</StartBoundary>','<StartBoundary>2099-01-01T13:00:00Z</StartBoundary>',value)
-        with patch.object(app,'TASK_NAME',name),patch.object(app,'SHIPMENT_TASK',name+'_Shipments'),patch.object(app,'task_xml',side_effect=future_xml):
+        with patch.object(app,'TASK_NAME',name),patch.object(app,'SHIPMENT_TASK',name+'_Shipments'),patch.object(app,'SOFTWARE_TASK',name+'_Software'),patch.object(app,'task_xml',side_effect=future_xml):
             try:
                 app.register_tasks(Path(sys.executable))
-                rows=app.tasks_preflight((name,name+'_Shipments'))
-                self.assertEqual({x['name'] for x in rows},{name,name+'_Shipments'})
+                rows=app.tasks_preflight((name,name+'_Shipments',name+'_Software'))
+                self.assertEqual({x['name'] for x in rows},{name,name+'_Shipments',name+'_Software'})
                 with tempfile.TemporaryDirectory(prefix='tti-shortcuts-') as folder:
                     app.shortcuts(Path(sys.executable),[Path(folder)])
                     result=app.ps(r"$shell=New-Object -ComObject WScript.Shell;$result=@();Get-ChildItem -LiteralPath $d.folder -Filter '*.lnk' | ForEach-Object {$result+=@{target=$shell.CreateShortcut($_.FullName).TargetPath;arguments=$shell.CreateShortcut($_.FullName).Arguments}};ConvertTo-Json -InputObject @($result) -Compress",{'folder':folder})
                     self.assertEqual(len(result),3)
                     self.assertEqual({row['arguments'] for row in result},{'--backup-now','--restore','--status'})
                     self.assertTrue(all(Path(row['target'])==Path(sys.executable) for row in result))
-            finally:app.ps("foreach($name in $d.names){Unregister-ScheduledTask -TaskName $name -Confirm:$false -ErrorAction SilentlyContinue};'{}'",{'names':[name,name+'_Shipments']})
+            finally:app.ps("foreach($name in $d.names){Unregister-ScheduledTask -TaskName $name -Confirm:$false -ErrorAction SilentlyContinue};'{}'",{'names':[name,name+'_Shipments',name+'_Software']})
 
 if __name__=='__main__':unittest.main()
