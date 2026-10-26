@@ -583,7 +583,7 @@ function tt_backup_decrypt_entry(TT_SimpleZipReader $zip,array $meta,string $key
     foreach(isset($meta['chunks']) ? (array)$meta['chunks'] : [$meta] as $chunk){
         $cipher=$zip->get((string)($chunk['stored']??''));if($cipher===false)throw new InvalidArgumentException('An encrypted recovery entry is missing.');
         $plain=tt_backup_decrypt($cipher,(array)$chunk,$key);$size+=strlen($plain);hash_update($digest,$plain);
-        if(fwrite($destination,$plain)!==strlen($plain))throw new RuntimeException('A recovery file could not be staged.');
+        if($destination!==null&&fwrite($destination,$plain)!==strlen($plain))throw new RuntimeException('A recovery file could not be staged.');
     }
     if(isset($meta['chunks'])&&($size!==(int)($meta['size']??-1)||!hash_equals((string)($meta['sha256']??''),hash_final($digest))))throw new InvalidArgumentException('An encrypted recovery file failed its integrity check.');
 }
@@ -620,7 +620,17 @@ function tt_build_download_backup(bool $full,string $password=''):array{
     $zip=new TT_SimpleZipWriter($tmp);
     try {
     $salt=random_bytes(16);$iterations=200000;$key=tt_backup_derive_key($password,$salt,$iterations);$map=[];$counter=1;$encryptedFiles=[];
-    $addEncrypted=function(string $logical,string $data)use($zip,$key,&$map,&$counter):void{$enc=tt_backup_encrypt($data,$key,true);$stored='Encrypted/'.str_pad((string)$counter++,6,'0',STR_PAD_LEFT).'.bin';$zip->addString($stored,$enc['cipher'],false);unset($enc['cipher']);$enc['stored']=$stored;$map[$logical]=$enc;};
+    $addEncrypted=function(string $logical,string $data)use($zip,$key,&$map,&$counter):void{
+        // Generated ledgers/CSVs use the same bounded encryption chunks as files.
+        // Verification must not inflate an entire large CSV into one buffer.
+        $chunks=[];$length=strlen($data);
+        for($offset=0;$offset<$length||$offset===0;$offset+=1048576){
+            $enc=tt_backup_encrypt(substr($data,$offset,1048576),$key,true);
+            $stored='Encrypted/'.str_pad((string)$counter++,6,'0',STR_PAD_LEFT).'.bin';
+            $zip->addString($stored,$enc['cipher'],false);unset($enc['cipher']);$enc['stored']=$stored;$chunks[]=$enc;
+        }
+        $map[$logical]=['size'=>$length,'sha256'=>hash('sha256',$data),'chunks'=>$chunks];
+    };
     $addEncryptedFile=function(string $logical,string $path)use($zip,$key,&$map,&$counter,&$encryptedFiles):void{
         if(isset($encryptedFiles[$path])){$map[$logical]=$encryptedFiles[$path];return;}
         $compress=(bool)preg_match('/\.(json|txt|csv|log|sql)([.-]|$)/i',$path);
@@ -883,8 +893,8 @@ function tt_backup_verify_full(string $path,string $password):array{
     [$zip,$manifest,$key]=tt_backup_open_verified($path,$password);
     try{
         foreach((array)($manifest['encryptedEntries']??[]) as $meta){
-            $sink=fopen('php://temp/maxmemory:1048576','w+');if($sink===false)throw new RuntimeException('Backup verification storage is unavailable.');
-            try{tt_backup_decrypt_entry($zip,(array)$meta,$key,$sink);}finally{fclose($sink);}
+            // Decrypt/authenticate/hash every byte without writing plaintext to disk.
+            tt_backup_decrypt_entry($zip,(array)$meta,$key,null);
         }
         return $manifest;
     }finally{$zip->close();}
