@@ -6,6 +6,8 @@ with tempfile.TemporaryDirectory() as temp:
 define('TT_DATA_DIR',__DIR__.'/data');
 function tt_require_login(){return ['id'=>1,'role'=>'Super Admin'];}function tt_user_can_open_module($u,$m){return true;}function tt_verify_csrf($x){return $x==='fixture';}function tt_ensure_data_dir(){}function tt_read_store(){return ['masters'=>[]];}function tt_master_options(){return ['currencies'=>['USD','AED']];}function tt_company_fx_rate($e,$f,$t){return $f===$t?1:3.67;}function tt_accounts_input(){return file_get_contents(__DIR__.'/input.json');}function tt_next_post_id($rows,...$args){return 'POST-FIXTURE';}
 """)
+ from permission_fixture import append_permission_helpers
+ append_permission_helpers(r)
  candidate={'id':'C1','entity':'TG','candidateType':'TG_INTERCOMPANY_PAYABLE','transactionAmount':100,'transactionCurrency':'USD','counterparty':'Supplier','reference':'INV1'}
  initial={'revision':7,'journals':{},'tgLiabilities':{},'exportCandidates':{'C1':candidate}}
  books=r/'data/accounts.json';env={k:v for k,v in os.environ.items() if not k.startswith('TT_DB_')}

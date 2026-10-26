@@ -12,6 +12,8 @@ with tempfile.TemporaryDirectory(prefix='forward-booking-http-') as tmp:
  function tt_list_masters(){return ['banks'=>[['id'=>'A','values'=>['Company Account','TTI','','Company','Bank A','','','PKR','111','','','','','Active']],['id'=>'B','values'=>['Company Account','TTI','','Company','Bank B','','','PKR','222','','','','','Active']]],'export_realization_charges'=>[]];}
  function tt_next_post_id($rows,$module='Accounts',$area='Journal',$date=null){$n=count($rows)+1;do{$id='POST-2026-'.str_pad((string)$n++,5,'0',STR_PAD_LEFT);}while(isset($rows[$id]));return $id;}
  ''')
+ from permission_fixture import append_permission_helpers
+ append_permission_helpers(root)
  state={'revision':0,'journals':{},'exportCandidates':{'INV':{'id':'INV','entity':'TTI','candidateType':'CUSTOMER_EXPORT_SALE','journalId':'SALE','transactionCurrency':'USD','transactionAmount':200,'functionalAmount':54000,'reference':'INV-001','counterparty':'Fixture Buyer','meta':{'customer':'Fixture Buyer','commercialInvoiceNo':'INV-001','contractRef':'SHIP-1'}}}}
  books=root/'data/accounts.json';books.write_text(json.dumps(state));(root/'data/operations.json').write_text(json.dumps({'values':{'transtrade_export_v3_operational':json.dumps({})}}))
  with socket.socket() as sock:sock.bind(('127.0.0.1',0));port=sock.getsockname()[1]

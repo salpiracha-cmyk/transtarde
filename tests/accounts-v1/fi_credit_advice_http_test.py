@@ -35,6 +35,8 @@ with tempfile.TemporaryDirectory(prefix='fi-advice-qa-') as temp:
         return $id;
     }
     ''')
+    from permission_fixture import append_permission_helpers
+    append_permission_helpers(root)
     fi = {'id':'F1','number':'FI-QA-1','exporter':'TTI','customer':'TRANS GRAINS FOODSTUFF TRADING L.L.C','date':'2026-10-01','currency':'USD','value':100000,'allocations':[{'amount':40000}]}
     receipt = {'id':'ER1','entity':'TTI','remitter':'TG','date':'2026-10-03','transactionCurrency':'USD','foreignAmount':99990,'bankAdviceRef':'QA-ADVICE','journalId':'J1','status':'Accounts Approved / Posted','allocations':[]}
     journal = {'id':'J1','entity':'TTI','status':'Posted','date':'2026-10-03','sourceType':'EXPORT_BANK_RECEIPT','reference':'QA-ADVICE','meta':{'receiptId':'ER1'},'narration':'RECEIPT ORIGINAL','totalDebit':100,'totalCredit':100,'lines':[{'account':'1110','accountName':'BANK','debit':100,'credit':0},{'account':'2510','accountName':'TG ADVANCE','debit':0,'credit':100}]}
