@@ -1826,6 +1826,8 @@
     const password = isFull ? document.getElementById("recoveryBackupPassword").value : "";
     if (!sharedBackupPasswordConfigured) { selectBackupTab("security", true); toast("Set your backup protection password once in Passwords & Security, then download your backup."); return; }
     const button = document.getElementById(isFull ? "downloadFullBackup" : "downloadBusinessBackup");
+    const status = document.getElementById(isFull ? "fullDownloadStatus" : "businessDownloadStatus");
+    status.textContent = "Preparing and checking your encrypted backup. Large copies can take several minutes; keep this page open.";
     const old = button.textContent; button.disabled = true; button.textContent = "Preparing backup…";
     try {
       const response = await fetch("api/backup.php", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: kind, password, csrf: SESSION.csrf }) });
@@ -1837,9 +1839,10 @@
       link.href = url; link.download =(window.TT_DOCUMENT_NAME?.clean( backupFileName(response, isFull ? "TRANSTRADE_FULL_BACKUP.zip" : "TRANSTRADE_BUSINESS_DATA.zip"),220)||(backupFileName(response, isFull ? 'TRANSTRADE_FULL_BACKUP.zip' : 'TRANSTRADE_BUSINESS_DATA.zip')));
       document.body.appendChild(link); link.click(); link.remove(); window.setTimeout(() => URL.revokeObjectURL(url), 1000);
       addAudit("Backup", "Downloaded", isFull ? "Complete Transtrade recovery backup downloaded" : "Readable business-data backup downloaded", isFull ? "FULL-BACKUP" : "BUSINESS-DATA");
+      status.textContent = "Backup prepared. Download requested in this browser; check its Downloads list for completion.";
       saveState(); renderAudit(); toast(isFull ? "Complete encrypted backup downloaded." : "Business data downloaded.");
       await loadBackupStatus();
-    } catch (error) { toast(error.message); }
+    } catch (error) { status.textContent = "Download did not complete: " + error.message; toast(error.message); }
     finally { button.disabled = false; button.textContent = old; }
   }
   async function createServerSnapshot() {
