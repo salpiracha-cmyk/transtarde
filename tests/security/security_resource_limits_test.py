@@ -44,4 +44,31 @@ $_SERVER['REMOTE_ADDR']='192.0.2.3';session_name('TRANSTRADE_SESSION');session_i
     statefile=private/'backups/.security-limits/ai.json';state=json.loads(statefile.read_text());assert state['count']==4;state['leases']={};state['calls']=[];state['bytes']=128*1024*1024;statefile.write_text(json.dumps(state));assert acquire(33)=='limited'
     state['bytes']=0;state['count']=300;statefile.write_text(json.dumps(state));assert acquire(33)=='limited'
     state['count']=0;state['users']={};statefile.write_text(json.dumps(state));assert acquire(44)!='limited' and acquire(44)!='limited' and acquire(44)=='limited'
-    print('PASS actual uploads: bounded pending bytes, actor/company claims, claimed file preservation and expired orphan cleanup; concurrent AI leases, per-user and installation daily ceilings')
+    # Run the actual CLI entry point without a browser identity. Substitute only
+    # its provider health operation so this regression never spends API credits.
+    monitor=root/'monitor';(monitor/'scripts').mkdir(parents=True);(monitor/'api').mkdir()
+    shutil.copy2(app/'scripts/diagnose_document_reader.php',monitor/'scripts/diagnose_document_reader.php')
+    (monitor/'auth_store.php').write_text("<?php define('TT_DATA_DIR',"+json.dumps(str(private))+");function tt_current_user(){return null;}")
+    (monitor/'api/document_ai_health.php').write_text("<?php require "+json.dumps(str(app/'api/document_ai_limits.php'))+";function tt_ai_check_connections(){return tt_ai_metered(['sample'=>'connection-check'],static fn()=>['fixture'=>['linked'=>true]]);}")
+    state['count']=0;state['bytes']=0;state['users']={};state['calls']=[];state['leases']={};statefile.write_text(json.dumps(state))
+    probe=subprocess.run(['php',str(monitor/'scripts/diagnose_document_reader.php')],env=env,text=True,capture_output=True)
+    assert probe.returncode==0 and json.loads(probe.stdout)['providers']['fixture']['linked'],probe
+    state=json.loads(statefile.read_text());assert state['count']==1 and len(state['users'])==1 and not state['leases'],state
+    state['count']=300;statefile.write_text(json.dumps(state))
+    probe=subprocess.run(['php',str(monitor/'scripts/diagnose_document_reader.php')],env=env,text=True,capture_output=True)
+    assert probe.returncode!=0 and 'could not be completed' in probe.stderr,probe
+    # Even a forged diagnostic flag must not authorize a sessionless HTTP call.
+    anonymous=app/'anonymous_ai.php';anonymous.write_text("<?php define('TT_DATA_DIR',"+json.dumps(str(private))+");define('TT_DOCUMENT_AI_CONNECTION_DIAGNOSTIC',true);require __DIR__.'/api/document_ai_limits.php';try{tt_ai_metered([],static fn()=>print('provider-called'));}catch(RuntimeException $e){http_response_code(403);echo $e->getMessage();}")
+    server=subprocess.Popen(['php','-d',f'session.save_path={root}','-S',f'127.0.0.1:{port}',str(router)],env=env,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
+    try:
+        for _ in range(50):
+            try:
+                with socket.create_connection(('127.0.0.1',port),timeout=.1):break
+            except OSError:time.sleep(.05)
+        for route,expected in [('anonymous_ai.php',403),('scripts/diagnose_document_reader.php',404)]:
+            try:urllib.request.urlopen(f'http://127.0.0.1:{port}/{route}',timeout=5);raise AssertionError('Anonymous diagnostic unexpectedly allowed')
+            except urllib.error.HTTPError as e:
+                body=e.read().decode();assert e.code==expected and 'provider-called' not in body,(e.code,body)
+                if expected==403:assert 'Authenticated AI principal required' in body,body
+    finally:server.terminate();server.wait(timeout=5)
+    print('PASS actual uploads: bounded pending bytes, actor/company claims, claimed file preservation and expired orphan cleanup; concurrent AI leases, daily ceilings, metered CLI health check and anonymous HTTP denial')
