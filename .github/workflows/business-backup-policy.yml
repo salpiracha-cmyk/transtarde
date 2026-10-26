@@ -29,7 +29,7 @@ jobs:
           php tests/security/master_migration_noop_backup_test.php
   maintain:
     needs: boundaries
-    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'schedule' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -52,7 +52,7 @@ jobs:
           [[ "$HOSTINGER_DEPLOY_PATH" =~ ^/home/[A-Za-z0-9_-]+/domains/app\.transtradeinternational\.com/public_html$ ]]
           python3 - <<'PYBUILD'
           import pathlib,hashlib,base64,json
-          old={'backup_lib.php':'c6874eedfabf2f6d9191638e45d2778e944f6270b11243687d9a9bd14dfe6a1a','index.html':'56dec9ec4e795f0aa7b3c531f5e49dd4fc124cf747619cb89efce6c8d7823ac4'}
+          old={'backup_lib.php':'e7c8da7036ddd7ac072bbd0082a79a8ed35aa3f9564558d1a834d8a4b96adc9e','index.html':'4c49348d818c47e78fb497af99176c52f9ddb00ccdb2f7481113dedfb3d21a34'}
           package={}
           for path,digest in old.items():
               source=pathlib.Path(path).read_bytes()

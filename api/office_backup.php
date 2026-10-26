@@ -26,8 +26,10 @@ $length=(int)($_SERVER['CONTENT_LENGTH']??0);
 if ($length < 12 || $length > 1024) office_backup_error(400, 'Invalid backup request.');
 $body=json_decode(file_get_contents('php://input') ?: '',true);
 $password=is_array($body) ? (string)($body['password']??'') : '';
+$managedPassword=tt_backup_password_get();
+if($managedPassword!==null)$password=$managedPassword;
 if (strlen($password)<12 || strlen($password)>256) office_backup_error(400, 'A recovery password of 12–256 characters is required.');
-try{$passwordAllowed=tt_office_password_allowed($password);}catch(Throwable $e){office_backup_error(503,'Office security policy requires Super Admin review.');}
+try{$passwordAllowed=$managedPassword!==null||tt_office_password_allowed($password);}catch(Throwable $e){office_backup_error(503,'Office security policy requires Super Admin review.');}
 if(!$passwordAllowed){tt_auth_record_failure('office-backup',$ip,5,900,900,false);office_backup_error(403,'Invalid Office PC recovery password.');}
 tt_auth_clear_failures('office-backup',$ip,false);
 

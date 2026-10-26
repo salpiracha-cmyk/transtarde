@@ -20,6 +20,11 @@ try {
     else{$body=json_decode(file_get_contents('php://input')?:'{}',true);if(!is_array($body))$body=[];$action=(string)($body['action']??'');$csrf=(string)($body['csrf']??'');$password=(string)($body['password']??'');}
     if(!tt_verify_csrf($csrf))backup_json(['ok'=>false,'error'=>'Your session expired. Refresh and try again.'],419);
 
+    if($action==='set-backup-password'){
+        if(!hash_equals($password,(string)($body['confirmationPassword']??'')))throw new InvalidArgumentException('The backup passwords do not match.');
+        tt_backup_password_set($password);tt_audit((int)$admin['id'],$admin['username'],'Updated owner-managed backup ZIP password');
+        backup_json(['ok'=>true]);
+    }
     if($action==='issue-office-token'){
         $token=tt_office_backup_issue_token();tt_audit((int)$admin['id'],$admin['username'],'Rotated office backup-only credential');
         backup_json(['ok'=>true,'token'=>$token]);
@@ -40,11 +45,12 @@ try {
     }
 
     if($action==='business-download'){
-        $built=tt_build_download_backup(false);tt_backup_write_state(['last_owner_download_at'=>gmdate('c'),'last_owner_download_type'=>'business']);tt_audit((int)$admin['id'],$admin['username'],'Downloaded readable business-data backup');
+        $savedPassword=tt_backup_password_get();if($savedPassword===null)throw new InvalidArgumentException('Set your backup protection password in Passwords & Security first.');
+        $built=tt_build_download_backup(false,$savedPassword);tt_backup_write_state(['last_owner_download_at'=>gmdate('c'),'last_owner_download_type'=>'business']);tt_audit((int)$admin['id'],$admin['username'],'Downloaded readable business-data backup');
         backup_stream($built['path'],'TRANSTRADE_BUSINESS_DATA_'.gmdate('Y-m-d_His').'.zip');
     }
     if($action==='full-download'){
-        $built=tt_build_download_backup(true,$password);tt_backup_write_state(['last_owner_download_at'=>gmdate('c'),'last_owner_download_type'=>'full']);tt_audit((int)$admin['id'],$admin['username'],'Downloaded complete encrypted recovery backup');
+        $built=tt_build_download_backup(true,tt_backup_password_get()??$password);tt_backup_write_state(['last_owner_download_at'=>gmdate('c'),'last_owner_download_type'=>'full']);tt_audit((int)$admin['id'],$admin['username'],'Downloaded complete encrypted recovery backup');
         backup_stream($built['path'],'TRANSTRADE_FULL_BACKUP_'.gmdate('Y-m-d_His').'.zip');
     }
     if($action==='snapshot'){

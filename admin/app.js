@@ -1785,6 +1785,7 @@
     if (!response.ok || !data.ok) throw new Error(data.error || "The backup action could not be completed.");
     return data;
   }
+  let sharedBackupPasswordConfigured = false;
   async function loadBackupStatus() {
     if (!IS_SUPER_ADMIN) return;
     try {
@@ -1800,6 +1801,12 @@
       document.getElementById("backupLastOwner").textContent = data.lastOwnerDownload ? backupFriendlyDate(data.lastOwnerDownload) : "Not downloaded yet";
       document.getElementById("officeBackupStatus").textContent = data.officeBackupEnabled ? "Backup-only credential active" : "No office backup credential issued";
       const security = data.officeSecurity || {};
+      const managed = security.sharedPasswordConfigured === true;
+      sharedBackupPasswordConfigured = managed;
+      document.getElementById('manualBackupPasswordArea').hidden = true;
+      document.getElementById('legacyOfficePassword').hidden = true;
+      document.getElementById('sharedBackupPasswordStatus').textContent = managed ? 'Backup password is set. Future complete backups use it automatically. Keep it saved separately.' : 'Set a backup protection password here to use one password for future complete backups. Existing PC settings remain active until you do.';
+
       document.getElementById("officeSecurityStatus").textContent = !security.passwordPinned
         ? "Password protection awaits owner setup. The legacy Office connection remains active."
         : !security.credentialMatches ? "Office credential changed. Re-enter the existing PC recovery password for the current credential."
@@ -1817,7 +1824,7 @@
   async function downloadBackup(kind) {
     const isFull = kind === "full-download";
     const password = isFull ? document.getElementById("recoveryBackupPassword").value : "";
-    if (isFull && password.length < 12) { toast("Enter a recovery ZIP password of at least 12 characters."); return; }
+    if (!sharedBackupPasswordConfigured) { selectBackupTab("security", true); toast("Set your backup protection password once in Passwords & Security, then download your backup."); return; }
     const button = document.getElementById(isFull ? "downloadFullBackup" : "downloadBusinessBackup");
     const old = button.textContent; button.disabled = true; button.textContent = "Preparing backup…";
     try {
@@ -1844,6 +1851,11 @@
     finally { button.disabled = false; button.textContent = old; }
   }
   async function manageOfficeBackupToken(action) {
+    const message = action === "issue-office-token"
+      ? "Replace the office PC connection key? The old key stops immediately. You must save the new key on TTI-SERVER before automatic backups can connect again. This does not change your ZIP password."
+      : "Disconnect the office PC? Automatic PC downloads will stop until a replacement key is installed. Existing ZIPs remain usable.";
+    if (!window.confirm(message)) return;
+
     const button = document.getElementById(action === "issue-office-token" ? "issueOfficeBackupToken" : "revokeOfficeBackupToken");
     button.disabled = true;
     try {
@@ -2110,6 +2122,37 @@
   document.getElementById("auditSource").addEventListener("change",resetAuditPage);
   document.getElementById("auditPrevious").addEventListener("click",()=>{auditPage=Math.max(0,auditPage-1);renderAudit();});
   document.getElementById("auditNext").addEventListener("click",()=>{auditPage++;renderAudit();});
+  function selectBackupTab(name, focus = false) {
+    document.querySelectorAll('[data-backup-tab]').forEach(button => {
+      const selected = button.dataset.backupTab === name;
+      button.setAttribute('aria-selected', String(selected)); button.tabIndex = selected ? 0 : -1;
+      button.classList.toggle('primary', selected); button.classList.toggle('secondary', !selected);
+      if (selected && focus) button.focus();
+    });
+    document.getElementById('backup-files').hidden = name !== 'files';
+    document.getElementById('backup-security').hidden = name !== 'security';
+  }
+  document.querySelectorAll('[data-backup-tab]').forEach(button => {
+    button.addEventListener('click', () => selectBackupTab(button.dataset.backupTab));
+    button.addEventListener('keydown', event => {
+      if (!['ArrowLeft','ArrowRight','Home','End'].includes(event.key)) return;
+      event.preventDefault(); selectBackupTab(event.key === 'Home' ? 'files' : event.key === 'End' ? 'security' : button.dataset.backupTab === 'files' ? 'security' : 'files', true);
+    });
+  });
+  document.querySelectorAll('.backup-security-details').forEach(detail => detail.addEventListener('toggle', () => {
+    const frame = detail.querySelector('iframe[data-security-src]');
+    if (detail.open && frame && !frame.getAttribute('src')) frame.src = frame.dataset.securitySrc;
+  }));
+  document.getElementById('saveSharedBackupPassword').addEventListener('click', async () => {
+    const password = document.getElementById('sharedBackupPassword'), confirmation = document.getElementById('sharedBackupPasswordConfirm');
+    const button = document.getElementById('saveSharedBackupPassword');
+    if (password.value.length < 12 || password.value !== confirmation.value) { toast('Use at least 12 characters and enter the same password twice.'); return; }
+    if (!window.confirm('Use this password for future complete backups? Older ZIPs still need their original password. Let any current backup run finish before changing it.')) return;
+    button.disabled = true;
+    try { await backupFetchJson('api/backup.php', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({action:'set-backup-password',password:password.value,confirmationPassword:confirmation.value,csrf:SESSION.csrf})}); toast('Backup protection password saved. Keep it separate from your ZIP files.'); }
+    catch(error) { toast(error.message); }
+    finally { password.value=''; confirmation.value=''; button.disabled=false; await loadBackupStatus(); }
+  });
   document.getElementById("refreshBackupStatus").addEventListener("click", loadBackupStatus);
   document.getElementById("downloadBusinessBackup").addEventListener("click", () => downloadBackup("business-download"));
   document.getElementById("downloadFullBackup").addEventListener("click", () => downloadBackup("full-download"));
