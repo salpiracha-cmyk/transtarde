@@ -71,9 +71,11 @@ try {
                         unset($stockRow);$valuation['unpriced']=$missing;$valuation['complete']=!$missing&&count($valuation['rows'])>0;$valuation['marketValuePKR']=round($sum,2);$valuation['valuationAdjustmentPKR']=$valuation['complete']?round($sum-$valuation['bookInventoryPKR'],2):null;$fresh['stockValuation']=$valuation;
                     }
                     $config=gd_clean_config((array)($body['data']['config']??[]));$calculation=gd_positions($fresh,$config);
-                    if(!empty($body['complete'])&&(!$calculation['complete']||empty($body['reviewConfirmed'])))throw new DomainException('Review every source hold and unmapped commitment, and confirm the product specifications, before completing the Daily section.');
+                    $cashOnly=$action==='save-sheet'&&!empty($body['cashOnly'])&&($fresh['financials']['cashflowBasis']??'')==='PARTY_V2';
+                    if($cashOnly&&!empty($body['complete'])&&(!empty($fresh['financials']['warnings'])||empty($body['reviewConfirmed'])))throw new DomainException('Review the party source warnings and confirm the cash-flow balances before completing.');
+                    if(!$cashOnly&&!empty($body['complete'])&&(!$calculation['complete']||empty($body['reviewConfirmed'])))throw new DomainException('Review every source hold and unmapped commitment, and confirm the product specifications, before completing the Daily section.');
                     if(!empty($body['complete'])){if(!isset($record['sections']['header']))throw new DomainException('Save the Daily date and exchange-rate header first.');gm_total(array_merge($fresh['financials']['rows'],(array)($record['sections']['adjustments']['rows']??[])),(array)($record['sections']['header']['data']['rates']??[]));}
-                    $data=['config'=>$config,'source'=>$fresh];
+                    $data=['config'=>$config,'source'=>$fresh,'cashOnly'=>$cashOnly];
                 }elseif($section==='costing'){$data=(array)($body['data']??[]);$calculation=gm_costing($data);unset($data['actualComparison']);if(!empty($data['actualSelection']['enabled'])){$ops=mr_read_operations_source(TT_DATA_DIR.'/operations.json');$data['actualComparison']=gm_actual_comparison((array)$data['actualSelection'],$ops,array_replace($state,['revision'=>$booksRevision]),$calculation,(string)($data['commodity']??'RICE'));}}
                 else {
                     $rows=gm_rows((array)($body['rows']??[]));
@@ -99,6 +101,7 @@ try {
         }
         $source=$kind==='DAILY'?gm_cashflow_source($state,$date):gm_financial_source($state,$date);$source['accountsRevision']=$booksRevision;$summary=null;$summaryError='';
         try{$through=(new DateTimeImmutable('now',new DateTimeZone('Asia/Karachi')))->format('Y-m-d');$summary=$kind==='DAILY'?gd_summary($record):gm_record_summary($record,$state,$through);}catch(DomainException $e){$summaryError=$e->getMessage();}
+        if($kind==='DAILY'&&isset($record['sections']['daily'])&&($record['sections']['daily']['data']['source']['financials']['cashflowBasis']??'')!=='PARTY_V2'){$summary=null;$summaryError='This saved position uses the earlier ledger basis. Prepare and save a new party-wise cash flow; the historical snapshot is retained.';}
         $records=[];foreach((array)($state['groupManagementRecords']??[]) as $r)if(($r['kind']??'')===$kind)$records[]=['id'=>$r['id'],'date'=>$r['date'],'hijriYear'=>$r['sections']['header']['data']['hijriYear']??''];
         $dailySource=$kind==='DAILY'?gd_sources(array_replace($state,['revision'=>$booksRevision]),gd_read_operations(TT_DATA_DIR.'/operations.json'),$date):null;
         $payload=['dailyRateDefaults'=>dcd_group_rates($state,$date),'dailySource'=>$dailySource,'ok'=>true,'record'=>$record,'source'=>$source,'summary'=>$summary,'summaryError'=>$summaryError,'records'=>$records,'result'=>$result,'revision'=>(int)($state['revision']??0),'canCreate'=>gm_permission($user,$kind,'Create',$origin),'canEdit'=>gm_permission($user,$kind,'Edit',$origin),'canWrite'=>gm_permission($user,$kind,'Create',$origin)||gm_permission($user,$kind,'Edit',$origin)];

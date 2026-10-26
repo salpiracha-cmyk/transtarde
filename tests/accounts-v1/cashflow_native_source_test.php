@@ -24,13 +24,13 @@ $find=static function($code,$currency)use($active){return array_values(array_fil
 check($find('1110','USD')[0]['amount']===80.0,'USD bank stays USD80, not AED293.40');
 check($find('1110','AED')[0]['amount']===1000.0,'AED bank stays AED');
 check($find('1210','USD')[0]['amount']===400.0,'customer advance applied once in native USD');
-check($find('1260','PKR')[0]['amount']===25.0,'local WHT remains PKR');
+check(!$find('1260','PKR'),'tax ledger stays outside operational cash-flow receipts');
 check(!$find('1250','PKR')&&!$find('2110','PKR'),'fully offset supplier controls have no net cash requirement');
 check($find('2210','PKR')[0]['amount']===-60.0,'new uninvoiced liability remains included');
-check(count($find('1230','PKR'))===1&&str_contains($find('1230','PKR')[0]['label'],'NASEEM'),'settled staff excluded; genuine receivable retained');
+check(count($find('1230','PKR'))===2,'genuine receivables and current staff advances retained');
 check($state===$before,'source journals are immutable');
 check(count(array_filter($book['rows'],static fn($r)=>$r['account']==='1110'&&$r['currency']==='USD'))===0,'ordinary financial source remains functional currency');
-$sum=gm_total($cash['rows'],['USD'=>280,'AED'=>76]);check($sum['totalPKR']===212375.0,'native USD and AED convert to PKR exactly once');
+$sum=gm_total($cash['rows'],['USD'=>280,'AED'=>76]);check($sum['totalPKR']===212360.0,'native USD and AED convert to PKR exactly once');
 $parties=$state;$parties['journals']['USD-IN']['lines'][0]['counterparty']='Example Buyer';$parties['journals']['USD-OUT']['lines'][0]['counterparty']='Example Supplier';
 $grouped=gm_cashflow_source($parties,'2026-01-02',[]);$bankRows=array_values(array_filter($grouped['rows'],static fn($r)=>$r['account']==='1110'&&$r['currency']==='USD'));
 check(count($bankRows)===1&&$bankRows[0]['amount']===80.0,'one native bank balance across counterparties, one PKR conversion');
@@ -69,3 +69,5 @@ $state['journals']['UNKNOWN']=$j('UNKNOWN','TG',[['account'=>'1110','currency'=>
 $cash=gm_cashflow_source($state,'2026-01-02',[]);check(count(array_filter($cash['rows'],static fn($r)=>$r['amount']===null))===1,'missing native amount stays missing');
 check(count(array_filter($cash['warnings'],static fn($r)=>str_contains($r,'UNKNOWN')))===1,'original Post ID identifies missing evidence');
 echo "PASS native USD/AED cash-flow source, PKR conversion, matched controls, missing evidence, immutable books\n";
+
+require __DIR__.'/cashflow_party_source_test.php';

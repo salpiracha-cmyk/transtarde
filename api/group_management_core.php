@@ -165,7 +165,9 @@ function gm_financial_source(array $state,string $date,?array $bankMasters=null,
 function gm_cashflow_source(array $state,string $date,?array $bankMasters=null):array {
     require_once __DIR__.'/cashflow_native_source.php';
     $bankMasters??=function_exists('tt_list_masters')?(array)(tt_list_masters()['banks']??[]):[];
-    return gm_cashflow_offset_suppliers(cfn_source(gm_cashflow_scope(gm_financial_source($state,$date,$bankMasters,true)),$state,$date,$bankMasters));
+    require_once __DIR__.'/cashflow_party_core.php';
+    $masters=function_exists('tt_list_masters')?(array)tt_list_masters():[];$state=cfp_books($state,$masters);
+    return cfp_rows(cfn_source(gm_cashflow_scope(gm_financial_source($state,$date,$bankMasters,true)),$state,$date,$bankMasters));
 }
 function gm_cashflow_scope(array $source):array {
     foreach($source['rows'] as &$row){
@@ -174,7 +176,7 @@ function gm_cashflow_scope(array $source):array {
         elseif(in_array($code,['1250','2110','2120','2130','2140','2190','2510'],true)&&preg_match('/(?:\bTTI\b|\bBRM\b|\bTG\b|TRANSTRADE INTERNATIONAL|TRANS GRAINS|BUKSH RICE)/i',$label))$reason='Internal group party; excluded from consolidated cash flow.';
         elseif($code==='1120')$reason='Petty cash excluded from this management cash-flow view by owner instruction.';
         elseif($code==='2230')$reason='Personal, staff, transfer-clearing or investment control; excluded from management cash flow. Salary forecast follows its due date separately.';
-        elseif($code==='1230'&&preg_match('/\b(?:JAZIB|YAR AZAM|RAMZAN|HASSAN|BALOCH|BALOUCH)\b|SALARY ADVANCE/i',$label)&&!preg_match('/NASEEM|ZAFAR/i',$label))$reason='Staff advance balance excluded from management cash flow; original payroll and bank entries retained.';
+        elseif($code==='1230'&&preg_match('/\b(?:RAMZAN|HASSAN|BALOCH|BALOUCH)\b/i',$label)&&!preg_match('/NASEEM|ZAFAR/i',$label))$reason='Staff advance balance excluded from management cash flow; original payroll and bank entries retained.';
         elseif($code==='1230'&&preg_match('/TG OWN|OWN HABIB|CURRENCY TRANSFER CLEARING/i',$label))$reason='Own-bank transfer clearing; excluded from cash flow.';
         elseif(in_array($code,['1230','2140','2190'],true)&&preg_match('/(?:\bTRP\b|\bSRP\b|\bARP\b|\bTALHA\b|\bTAYYAB\b|\bSALMAN\b|\bMRS\b)/i',$label))$reason='Family or remuneration balance; excluded from management cash flow.';
         if($reason!==''){$row['excluded']=true;$row['reason']=$reason;}
