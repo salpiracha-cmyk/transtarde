@@ -8,11 +8,7 @@ function os_any(array $u,string $module,array $icons,string $action='View'): boo
 }
 function os_owner(array $u): bool { return in_array($u['role']??'',['Super Admin','Director'],true); }
 function os_entity(array $u,string $entity): bool {
-    $entity=strtoupper(trim($entity));if(!in_array($entity,['TTI','BRM','TG'],true))return false;
-    if(os_owner($u))return true;
-    $p=(array)($u['permissions']['Accounts']??[]);
-    foreach(['entity-tti','entity-brm','entity-tg'] as $key)if(array_key_exists($key,$p))return tt_user_can_access_entity($u,$entity,'View');
-    return true; // Mill/Exports staff do not acquire an Accounts module requirement.
+    return tt_user_business_entity($u,$entity,'View');
 }
 function os_location(array $u,string $location): bool {
     if(os_owner($u))return true;

@@ -3,7 +3,7 @@ declare(strict_types=1);
 $root=sys_get_temp_dir().'/tt-noop-migration-'.bin2hex(random_bytes(6));$app=$root.'/app';mkdir($app.'/scripts',0700,true);
 function rm_noop_fixture(string $p):void{foreach(scandir($p)?:[]as$n){if($n==='.'||$n==='..')continue;$f=$p.'/'.$n;is_dir($f)?rm_noop_fixture($f):unlink($f);}rmdir($p);}
 try{
- foreach(['auth_store.php','master_store.php','product_stage.php','offline_idempotency.php','session_store.php','backup_lib.php','backup_report_exports.php']as$n)copy(__DIR__.'/../../'.$n,$app.'/'.$n);
+ foreach(['auth_store.php','master_store.php','product_stage.php','offline_idempotency.php','session_store.php','backup_lib.php','pending_uploads.php','backup_report_exports.php']as$n)copy(__DIR__.'/../../'.$n,$app.'/'.$n);
  copy(__DIR__.'/../../scripts/migrate_master_permissions.php',$app.'/scripts/migrate_master_permissions.php');
  require $app.'/auth_store.php';
  tt_mutate_store(static function(&$data):void{$data['settings']['master_permission_schema']=2;},false);

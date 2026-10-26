@@ -6,6 +6,8 @@ with tempfile.TemporaryDirectory(prefix="approval-integrity-") as tmp:
     (root/"api").mkdir(); (root/"data").mkdir(); (root/"accounts").mkdir()
     for name in ("accounts_posting_preview.php","opening_balance_core.php","historical_bag_core.php","bag_acceptance_core.php","supplier_opening_core.php","bag_purchases.php", "nonwoven_bag_bills.php"):
         shutil.copy(ROOT/"api"/name, root/"api"/name)
+    shutil.copy(ROOT/'pending_uploads.php',root/'pending_uploads.php')
+    for helper in ['bag_read_scope.php','operations_scope.php','export_permission_policy.php']:shutil.copy(ROOT/'api'/helper,root/'api'/helper)
     shutil.copy(ROOT/"accounts/accounting_master_v1.json", root/"accounts/accounting_master_v1.json")
     (root/"auth_store.php").write_text("""<?php
 define('TT_DATA_DIR',__DIR__.'/data');

@@ -13,6 +13,7 @@ try {
     $method=strtoupper((string)($_SERVER['REQUEST_METHOD']??'GET'));
     $companyId=trim((string)($_GET['companyId']??$_POST['companyId']??''));
     if ($companyId==='' || !($company=md_company($companyId))) throw new InvalidArgumentException('Select a valid company.');
+    if(!tt_user_business_entity($user,strtoupper(trim((string)($company['values'][1]??''))),$method==='GET'?'View':'Edit'))md_reply(['ok'=>false,'error'=>'Company document access required.'],403);
     if ($method==='GET' && isset($_GET['documentId'])) {
         $download=!empty($_GET['download']);
         if (!tt_user_can_master($user,'companies',$download?'Download Documents':'View Documents')) md_reply(['ok'=>false,'error'=>'Document permission required.'],403);

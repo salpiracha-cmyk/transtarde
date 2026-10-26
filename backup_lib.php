@@ -280,7 +280,9 @@ function tt_backup_write_state(array $patch): void {
     }
 }
 
-function tt_backup_private_files(): array {
+function tt_backup_private_files(?array $books=null): array {
+    require_once __DIR__.'/pending_uploads.php';
+    $pending=tt_pending_unclaimed($books);
     tt_ensure_data_dir();
     $files = [];
     $root = rtrim(TT_DATA_DIR, '/\\');
@@ -291,10 +293,29 @@ function tt_backup_private_files(): array {
         $path = $file->getPathname();
         $rel = str_replace('\\', '/', substr($path, strlen($root) + 1));
         if ($rel === '' || str_starts_with($rel, 'backups/') || str_starts_with($rel, 'sessions/') || $rel === 'backup_state.json' || in_array($rel,['backup-password.key','backup-password.json','office-setup.json','office-pairing.json'],true) || str_ends_with($rel, '.lock') || str_contains($rel, '.tmp-') || str_contains($rel, '.restore-')) continue;
+        if(isset($pending[$rel]))continue;
         $files[$rel] = $path;
     }
     ksort($files);
     return $files;
+}
+
+/** Freeze Accounts and attachment claims together, before long archive compression. */
+function tt_backup_snapshot_private_files(array &$temps): array {
+    $path=TT_DATA_DIR.'/accounts.json';
+    if(!is_file($path))return tt_backup_private_files([]);
+    $lock=fopen($path,'rb');if(!$lock||!flock($lock,LOCK_SH))throw new RuntimeException('Accounts storage unavailable for backup.');
+    try{
+        $raw=stream_get_contents($lock);if($raw===false)throw new RuntimeException('Accounts snapshot could not be read.');
+        $books=$raw===''?[]:json_decode($raw,true,512,JSON_THROW_ON_ERROR);
+        if(!is_array($books))throw new RuntimeException('Accounts snapshot is invalid.');
+        // Uploads and claims take this same Accounts lock before the quota lock.
+        $files=tt_backup_private_files($books);
+        $temp=tempnam(sys_get_temp_dir(),'tt-accounts-snapshot-');if($temp===false)throw new RuntimeException('Accounts snapshot storage unavailable.');
+        $temps[]=$temp;chmod($temp,0600);
+        if(file_put_contents($temp,$raw)!==strlen($raw))throw new RuntimeException('Accounts snapshot could not be saved.');
+        $files['accounts.json']=$temp;return $files;
+    }finally{flock($lock,LOCK_UN);fclose($lock);}
 }
 
 
@@ -609,12 +630,12 @@ function tt_build_download_backup(bool $full,string $password='',string $scope='
     // build time as the verified office preparation worker.
     @set_time_limit(900);
     $portableTemps=[];register_shutdown_function(static function()use(&$portableTemps):void{foreach($portableTemps as$temp)if(is_file($temp))@unlink($temp);});
-    [$business,$datasets]=$scope==='software'?[[],[]]:tt_backup_business_payloads();$private=tt_backup_portable_database_files(tt_backup_private_files(),tt_backup_database_rows(),$portableTemps);$appFiles=$full&&$scope!=='data'?tt_backup_app_files():[];$documents=[];
+    [$business,$datasets]=$scope==='software'?[[],[]]:tt_backup_business_payloads();$private=tt_backup_portable_database_files(tt_backup_snapshot_private_files($portableTemps),tt_backup_database_rows(),$portableTemps);$appFiles=$full&&$scope!=='data'?tt_backup_app_files():[];$documents=[];
     if($scope==='software')$private=array_filter($private,static fn($path,$rel)=>$rel==='auth.json'||str_starts_with($rel,'master-documents/')||preg_match('/(^|[_.-])(settings|config|master)([_.-]|$)/i',$rel),ARRAY_FILTER_USE_BOTH);
     if($scope==='software'){
         // Masters embedded in operational stores are references, never journals.
         // The Data archive remains authoritative when the two are combined.
-        $booksPath=TT_DATA_DIR.'/accounts.json';$books=is_file($booksPath)?json_decode((string)file_get_contents($booksPath),true,512,JSON_THROW_ON_ERROR):[];
+        $booksPath=$private['accounts.json']??TT_DATA_DIR.'/accounts.json';$books=is_file($booksPath)?json_decode((string)file_get_contents($booksPath),true,512,JSON_THROW_ON_ERROR):[];
         $setup=array_intersect_key((array)$books,array_flip(['masters','accountHierarchy','accountSubaccounts','paymentPayees','salaryMasters','expenseRecipientDefaults','settings']));
         $business['System_Recovery/setup/Accounts Masters.json']=json_encode($setup,JSON_PRETTY_PRINT|JSON_THROW_ON_ERROR);
         $ops=tt_backup_read_operations();$values=(array)($ops['values']??[]);
@@ -732,6 +753,7 @@ function tt_create_server_snapshot(string $kind='auto'): string {
     $temp = '';
     $authLock = null;
     $operationsLock = null;
+    $snapshotTemps = [];
     try {
         if ($kind === 'auto') {
             $state = tt_backup_read_state();
@@ -758,7 +780,7 @@ function tt_create_server_snapshot(string $kind='auto'): string {
         $name = tt_backup_safe_name($kind) . '-' . $stamp . '-' . substr(bin2hex(random_bytes(4)), 0, 8) . '.zip';
         $path = tt_backup_dir() . '/' . $name;
         $temp = tt_backup_dir() . '/.snapshot-' . bin2hex(random_bytes(8)) . '.tmp';
-        $sources = tt_backup_private_files();
+        $sources = tt_backup_snapshot_private_files($snapshotTemps);
         $estimate = 0;
         foreach ($sources as $file) $estimate += filesize($file) ?: 0;
         tt_backup_require_space(tt_backup_dir(), $estimate);
@@ -808,6 +830,7 @@ function tt_create_server_snapshot(string $kind='auto'): string {
         } catch (Throwable) {}
         throw $error;
     } finally {
+        foreach($snapshotTemps as $snapshotTemp)if(is_file($snapshotTemp))@unlink($snapshotTemp);
         if (is_resource($operationsLock)) { flock($operationsLock, LOCK_UN); fclose($operationsLock); }
         if (is_resource($authLock)) { flock($authLock, LOCK_UN); fclose($authLock); }
         flock($jobLock, LOCK_UN);

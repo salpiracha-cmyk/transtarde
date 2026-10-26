@@ -75,6 +75,7 @@ function tt_ai_route(array $settings,callable $attempt): array {
             $result=$attempt($tier);
             return $result+['provider'=>$tier['provider'],'model'=>$tier['model'],'tier'=>$i+1,'attempts'=>$attempts];
         }catch(RuntimeException $e){
+            if($e instanceof TTDocumentAiLimit)throw $e;
             error_log('Document reader tier '.($i+1).' failed: '.$tier['provider'].' / '.$tier['model'].' code '.$e->getCode());
             $attempts[]=['tier'=>$i+1,'provider'=>$tier['provider'],'model'=>$tier['model'],'status'=>'failed','code'=>$e->getCode()];
             if(!$settings['fallback'])break;

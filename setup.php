@@ -4,6 +4,8 @@ require __DIR__ . '/auth_store.php';
 try{if(tt_setup_locked()){header('Location: login.php');exit;}}catch(Throwable $e){http_response_code(503);exit('Secure storage is unavailable. Restore the last valid backup before continuing.');}
 $error = '';
 $setupAvailable=tt_setup_token_configured();
+$setupIdentity=(string)($_SERVER['REMOTE_ADDR']??'unknown');
+$setupRetry=tt_auth_retry_after('initial-setup',$setupIdentity,5,900,false);
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $username = strtolower(trim($_POST['username'] ?? 'salman'));
     $password = (string)($_POST['password'] ?? '');
@@ -11,7 +13,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $setupToken=(string)($_POST['setup_token']??'');
     if(!$setupAvailable)$error='Initial setup is locked. Configure a private one-time setup token before continuing.';
     elseif(!tt_verify_csrf((string)($_POST['csrf'] ?? ''))) $error = 'Your setup session expired. Please refresh and try again.';
-    elseif(!tt_setup_token_valid($setupToken))$error='The one-time setup token is invalid.';
+    elseif($setupRetry>0){http_response_code(429);header('Retry-After: '.$setupRetry);$error='Too many setup attempts. Try again later.';}
+    elseif(!tt_setup_token_valid($setupToken)){tt_auth_record_failure('initial-setup',$setupIdentity,5,900,900,false);$error='The one-time setup token is invalid.';}
     elseif (!preg_match('/^[a-z0-9._-]{3,40}$/', $username)) $error = 'Use 3–40 letters, numbers, dots, dashes or underscores for the username.';
     elseif (strlen($password) < 10 || !preg_match('/[A-Z]/', $password) || !preg_match('/[a-z]/', $password) || !preg_match('/\d/', $password)) $error = 'Use at least 10 characters with an uppercase letter, lowercase letter and number.';
     elseif ($password !== $confirm) $error = 'The two passwords do not match.';
@@ -19,6 +22,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         try {
             $id = tt_create_admin($username, $password);
             tt_lock_setup();
+            tt_auth_clear_failures('initial-setup',$setupIdentity,false);
             $admin=tt_find_user_by_id($id); if(!$admin)throw new RuntimeException('Super Admin account not found.');
             tt_bind_user_session($admin);
             tt_audit($id, $username, 'Super Admin account created');

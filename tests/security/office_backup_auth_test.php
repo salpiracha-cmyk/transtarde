@@ -13,7 +13,7 @@ try {
     if(!tt_office_password_allowed($long)||tt_office_password_allowed(str_repeat('x',72).'changed-suffix'))throw new RuntimeException('Long password suffix was ignored.');
     unlink(tt_office_policy_file());
     $password='fixture-recovery-password-§-2026';
-    if(!tt_office_password_allowed('legacy-password-123'))throw new RuntimeException('Unenrolled legacy migration was broken.');
+    if(tt_office_password_allowed('legacy-password-123'))throw new RuntimeException('Unconfigured password custody accepted a caller-selected password.');
     tt_office_policy_pin($password);
     if(!tt_office_password_allowed($password)||tt_office_password_allowed('attacker-password-123'))throw new RuntimeException('Pinned password boundary failed.');
     if(str_contains(file_get_contents(tt_office_policy_file()),$password))throw new RuntimeException('Plaintext recovery password persisted.');

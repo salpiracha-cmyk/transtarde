@@ -61,7 +61,7 @@ class PhpRecoveryTest(unittest.TestCase):
     def setUpClass(cls):
         if not shutil.which('php'):raise RuntimeError('PHP is required for actual encrypted recovery interoperability tests.')
         cls.tmp=tempfile.TemporaryDirectory(prefix='tti-php-recovery-');cls.root=Path(cls.tmp.name);source=cls.root/'source';source.mkdir()
-        for name in ['auth_store.php','session_store.php','master_store.php','product_stage.php','offline_idempotency.php','backup_lib.php','backup_report_exports.php']:shutil.copy(ROOT/name,source/name)
+        for name in ['auth_store.php','session_store.php','master_store.php','product_stage.php','offline_idempotency.php','backup_lib.php','pending_uploads.php','backup_report_exports.php']:shutil.copy(ROOT/name,source/name)
         cls.backup=cls.root/'fixture.zip'
         driver=source/'fixture.php';driver.write_text("""<?php
 require __DIR__.'/auth_store.php';require __DIR__.'/backup_lib.php';

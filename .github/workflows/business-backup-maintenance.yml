@@ -17,6 +17,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
       - run: |
           php -l backup_lib.php
           php -l .github/scripts/business_backup_maintenance.php
@@ -25,11 +27,13 @@ jobs:
           php tests/security/master_migration_noop_backup_test.php
   optimise:
     needs: boundaries
-    if: github.event_name != 'pull_request'
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
       - name: Create and verify complete recovery before bounded backup cleanup
         env:
           HOSTINGER_HOST: ${{ secrets.HOSTINGER_HOST }}

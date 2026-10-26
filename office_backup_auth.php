@@ -75,7 +75,7 @@ function tt_office_policy_pin(string $password): void {
 }
 function tt_office_password_allowed(string $password): bool {
     $p=tt_office_policy_read();
-    return $p===null||(strlen($password)>=12&&strlen($password)<=256&&tt_office_policy_active($p)&&password_verify(hash('sha256',$password),$p['passwordHash']));
+    return $p!==null&&strlen($password)>=12&&strlen($password)<=256&&tt_office_policy_active($p)&&password_verify(hash('sha256',$password),$p['passwordHash']);
 }
 function tt_office_delivery_allowed(string $encoded): bool {
     if(tt_backup_password_get()!==null)return true; // This owner-selected mode uses the authenticated PC key.

@@ -16,14 +16,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
       - run: php -l .github/scripts/private_backup_inventory.php
   inspect:
     needs: boundaries
-    if: github.event_name != 'pull_request'
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
       - name: Inventory backup metadata without loading the application
         env:
           HOSTINGER_HOST: ${{ secrets.HOSTINGER_HOST }}
