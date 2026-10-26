@@ -2,7 +2,7 @@
 (() => {
   'use strict';
   const $ = id => document.getElementById(id), piece = 1048576;
-  let state = { state: 'empty' }, busy = false;
+  let state = { state: 'empty' }, busy = false, selectionChanged = false;
   const active = s => ['safety', 'applying', 'database', 'finishing', 'rollback', 'rollback_database'].includes(s);
   const hex = data => Array.from(new Uint8Array(data), b => b.toString(16).padStart(2, '0')).join('');
   const tell = text => { const box = $('restoreVerification'); box.hidden = false; box.textContent = text; };
@@ -17,10 +17,10 @@
     state = data; return data;
   }
   function enable() {
-    $('restoreBackupNow').disabled = busy || state.state !== 'verified' || $('restoreConfirmation').value.trim().toUpperCase() !== 'RESTORE';
+    $('restoreBackupNow').disabled = busy || selectionChanged || state.state !== 'verified' || $('restoreConfirmation').value.trim().toUpperCase() !== 'RESTORE';
   }
   function render() {
-    $('restoreConfirmArea').hidden = state.state !== 'verified';
+    $('restoreConfirmArea').hidden = selectionChanged || state.state !== 'verified';
     $('continueRestore').hidden = !active(state.state);
     $('clearRestore').hidden = state.state === 'empty' || active(state.state);
     $('verifyBackupFile').disabled = busy || active(state.state);
@@ -44,6 +44,7 @@
     finally { busy = false; $('verifyBackupFile').disabled = active(state.state); $('restoreBackupFile').disabled = active(state.state); $('restoreBackupPassword').disabled = active(state.state); $('continueRestore').disabled = false; $('clearRestore').disabled = false; enable(); }
   }
   async function verify() {
+    selectionChanged = true; $('restoreConfirmation').value = '';
     await run(async () => {
       const file = $('restoreBackupFile').files?.[0], password = $('restoreBackupPassword').value;
       if (!file || !file.size || file.size > 0xffffffff) throw new Error('Select a Data or older Complete ZIP smaller than 4 GB.');
@@ -60,17 +61,18 @@
         tell(`Uploading: ${Math.round(100 * state.received / file.size)}% (${state.received.toLocaleString()} of ${file.size.toLocaleString()} bytes).`);
       }
       while (['uploading', 'verifying'].includes(state.state)) { await request({ action: 'verify', id: state.id, password }); render(); }
-      $('restoreBackupPassword').value = ''; render();
+      selectionChanged = false; $('restoreBackupPassword').value = ''; render();
     });
   }
   async function advance() { while (active(state.state)) { await request({ action: 'step', id: state.id }); render(); } }
   async function confirm() {
-    if ($('restoreBackupNow').disabled || !window.confirm(`Replace website records with the backup dated ${state.createdAt}? A safety copy will be checked first. All users must sign in again afterward.`)) return;
+    if ($('restoreBackupNow').disabled || !window.confirm(`Restore ${state.name}, dated ${state.createdAt}, and replace website records? A safety copy will be checked first. All users must sign in again afterward.`)) return;
     await run(async () => { await request({ action: 'confirm', id: state.id, confirmation: 'RESTORE' }); render(); await advance(); });
   }
   async function load() { await run(async () => { await request(null); render(); }); }
   window.TT_RESTORE = { verify, confirm, enable, load };
   if (document.body.hasAttribute('data-standalone-restore')) {
+    $('restoreBackupFile').addEventListener('change', () => { selectionChanged = true; $('restoreConfirmation').value = ''; render(); });
     $('verifyBackupFile').addEventListener('click', verify);
     $('restoreBackupNow').addEventListener('click', confirm);
     $('restoreConfirmation').addEventListener('input', enable);
