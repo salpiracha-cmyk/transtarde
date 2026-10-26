@@ -403,7 +403,11 @@ test('TG customer receipt reads the live Exports and bank links without posting'
   expect(Array.isArray(exportsReceipts.body.receipts)).toBe(true);
   const contracts = source.body.contracts || [];
   expect(contracts.length, 'A saved TG Exports contract must reach TG Accounts').toBeGreaterThan(0);
-  await page.evaluate(() => { localStorage.setItem('tt_accounts_entity', 'TG'); window.TT_TG_CUSTOMER_RECEIPTS.open(); });
+  await activate(page.locator('#ttChangeCompanyDesk'));
+  await activate(page.locator('#ttCompanyMenu [data-entity="TG"]'));
+  await expect(page.locator('.entityBtn.active')).toHaveAttribute('data-entity', 'TG');
+  await expect(page.locator('#ttCompanyChanged')).toHaveCount(0);
+  await deskAction(page, 'exports', 'Customer Receipt');
   await expect(page.locator('#tgRcCustomer')).toBeAttached();
   await expect(page.locator('#tgRcTarget')).toBeAttached();
   await expect(page.locator('#tgRcContract')).toHaveCount(0);
