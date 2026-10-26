@@ -407,7 +407,7 @@ test('TG customer receipt reads the live Exports and bank links without posting'
   await activate(page.locator('#ttCompanyMenu [data-entity="TG"]'));
   await expect(page.locator('.entityBtn.active')).toHaveAttribute('data-entity', 'TG');
   await expect(page.locator('#ttCompanyChanged')).toHaveCount(0);
-  await deskAction(page, 'exports', 'Customer Receipt');
+  await deskAction(page, 'tg-receipts', 'Customer Receipt');
   await expect(page.locator('#tgRcCustomer')).toBeAttached();
   await expect(page.locator('#tgRcTarget')).toBeAttached();
   await expect(page.locator('#tgRcContract')).toHaveCount(0);
