@@ -208,6 +208,20 @@ with mod.backup_run_lock(Path(sys.argv[2])) as acquired:
                 if pulls:
                     self.assertEqual(json.loads((root / 'office-backup-state.json').read_text())['last_success'], 1_000_000)
 
+    def test_manual_refresh_uses_pakistan_month_even_on_a_pc_in_another_timezone(self):
+        contents=io.BytesIO()
+        with zipfile.ZipFile(contents,'w') as archive:
+            archive.writestr('Encrypted/000001.bin',b'ciphertext')
+            archive.writestr('backup-manifest.json',json.dumps({'application':'Transtrade','type':'full_recovery','encryption':{'algorithm':'AES-256-GCM'},'encryptedEntries':{'System_Recovery/private/auth.json':{'stored':'Encrypted/000001.bin'}}}))
+        payload=contents.getvalue();digest=hashlib.sha256(payload).hexdigest()
+        instant=datetime.fromisoformat('2026-10-31T19:30:00+00:00')
+        with tempfile.TemporaryDirectory() as folder,patch.object(agent,'open_backup_response',side_effect=lambda *_:FakeResponse(payload,digest)),patch.object(agent,'datetime') as clock:
+            clock.now.side_effect=lambda tz:instant.astimezone(tz)
+            daily,_=agent.pull({'url':'https://app.transtradeinternational.com/api/office_backup.php','token':'x'},Path(folder),refresh_tiers=True)
+            self.assertTrue(daily.name.startswith('TRANSTRADE_FULL_2026-11-01_0030_'))
+            self.assertTrue(list((Path(folder)/'Monthly').glob('TRANSTRADE_FULL_2026-11_*.zip')))
+            self.assertFalse(list((Path(folder)/'Monthly').glob('TRANSTRADE_FULL_2026-10_*.zip')))
+
     def test_verified_pull_and_retention(self):
         contents = io.BytesIO()
         with zipfile.ZipFile(contents, 'w') as archive:
