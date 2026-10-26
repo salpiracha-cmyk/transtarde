@@ -12,7 +12,8 @@ function sections(rows){const included=bankBalances(rows.filter(r=>!r.excluded))
  {key:'receivables',title:'Customer receipts · by party',rows:included.filter(r=>r.cashflowSection==='customers')},
  {key:'advances',title:'Advances recoverable · by party',rows:included.filter(r=>r.cashflowSection==='advances'||r.cashflowSection==='suppliers'&&r.amount>0)},
  {key:'liabilities',title:'Payments outstanding · by party',rows:included.filter(r=>r.cashflowSection==='suppliers'&&(r.amount===null||r.amount<0))},
- {key:'estimates',title:'Estimated bills outstanding',rows:included.filter(r=>r.cashflowSection==='estimates')}
+ {key:'estimates',title:'Estimated bills outstanding',rows:included.filter(r=>r.cashflowSection==='estimates')},
+ {key:'adjustments',title:'Reviewed adjustments',rows:included.filter(r=>!r.cashflowSection)}
  ].filter(s=>s.rows.length);return [
  {key:'banks',title:'Bank balances',rows:included.filter(r=>['1110','1120'].includes(r.account))},
  {key:'receivables',title:'Recorded receivables',rows:included.filter(r=>r.account?.startsWith('12'))},
