@@ -2157,6 +2157,7 @@
   async function initialize() {
     applySessionAccess(); renderModules(); renderUsers(); renderMasters(); renderLocks(); renderAudit(); renderRecentActivity(); renderApprovals(); loadBackupStatus();
     if (new URLSearchParams(location.search).get('view')==='masters' && hasMasterAccess) showView('masters');
+    if (new URLSearchParams(location.search).get('view')==='backup' && IS_SUPER_ADMIN) showView('backup');
     if (IS_SUPER_ADMIN) {
       try { await Promise.all([loadServerUsers(),refreshApprovals(),loadServerAudit()]); } catch (error) { toast(error.message); }
     } else if (hasMasterAccess) {
