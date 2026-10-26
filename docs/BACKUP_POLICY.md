@@ -73,6 +73,18 @@ path and state are fixed and bounded. This cache is separate from retained
 server recovery points. The office credential and recovery password never
 appear in public status responses or logs.
 
+Office verification reliability (26 October 2026): the background worker stages
+one encrypted candidate and releases its lock. Authenticated status requests
+verify bounded batches, recording a cursor only after complete AES authentication,
+ZIP CRC, size and SHA256 checks for each logical file. Candidate identity is bound
+across batches. Only after every logical entry verifies may an atomic rename
+replace the previous verified transfer. Verification hashes plaintext in memory
+without writing temporary plaintext copies. Generated workbook/CSV payloads use
+1 MiB encryption chunks, just like source files. Fatal errors and a stopped build
+worker produce a failed status instead of indefinite "verifying" messages. This
+keeps protocol 2 and the installed Windows EXE compatible; retained backups,
+original records/documents, device authorization and passwords do not change.
+
 TTI-SERVER Windows tier replacement (owner request, 20 October 2026): after a
 weekly copy is verified against the full server SHA256, remove identifiable
 daily copies with strictly earlier manifest creation times. After a monthly

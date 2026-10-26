@@ -9,6 +9,21 @@ if (!is_dir($private) || is_link($private) || realpath($private) !== $private) t
 $out = ['mode'=>'read_only', 'utc'=>gmdate('c'), 'phpVersion'=>PHP_VERSION, 'zipAesAvailable'=>class_exists('ZipArchive')&&defined('ZipArchive::EM_AES_256'), 'cliLimits'=>[], 'installedCode'=>[], 'sourceGroups'=>[], 'temporaryArchives'=>['count'=>0,'bytes'=>0], 'logSignals'=>[], 'webOverrides'=>[]];
 foreach (['memory_limit','max_execution_time','output_buffering','zlib.output_compression'] as $key) $out['cliLimits'][$key] = ini_get($key);
 foreach (['api/office_backup.php','backup_lib.php'] as $path) if (is_file($root.'/'.$path) && !is_link($root.'/'.$path)) $out['installedCode'][$path] = hash_file('sha256', $root.'/'.$path);
+$transfer=$private.'/backups/.office-transfer';$stateFile=$transfer.'/state.json';
+if(is_file($stateFile)&&!is_link($stateFile)&&filesize($stateFile)<32768){
+    $state=json_decode((string)file_get_contents($stateFile),true);
+    if(is_array($state)){
+        // Never return the device credential, client HMAC, job ID or archive data.
+        $view=[];foreach(['state','stage','createdAt','verificationStartedAt','progressAt','readyAt','verifiedFiles','totalFiles','length']as$key)if(isset($state[$key])&&(is_int($state[$key])||in_array($key,['state','stage'],true)))$view[$key]=$state[$key];
+        if(isset($state['errorCode'])&&preg_match('/^[A-Za-z0-9_.:-]{1,160}$/D',(string)$state['errorCode']))$view['errorCode']=$state['errorCode'];
+        $view['candidatePresent']=is_file($transfer.'/candidate.zip')&&!is_link($transfer.'/candidate.zip');
+        $view['verifiedTransferPresent']=is_file($transfer.'/transfer.zip')&&!is_link($transfer.'/transfer.zip');
+        if(is_file($transfer.'/job.lock')&&!is_link($transfer.'/job.lock')){
+            $h=fopen($transfer.'/job.lock','rb');if($h){$available=flock($h,LOCK_EX|LOCK_NB);$view['workerLockActive']=!$available;if($available)flock($h,LOCK_UN);fclose($h);}
+        }
+        $out['officeTransfer']=$view;
+    }
+}
 $out['temporaryFreeBytes'] = disk_free_space(sys_get_temp_dir());
 $out['privateFreeBytes'] = disk_free_space($private);
 foreach (['private'=>$private,'application'=>$root] as $scope=>$folder) {

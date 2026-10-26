@@ -49,7 +49,9 @@ try {
             if(hash_equals((string)($m['client']??''),$client)&&isset($m['id'])){office_backup_json(tt_office_job_public($m),202);exit;}
             office_backup_error(409,'Another office backup is being prepared. Retry shortly.');
         }
-        if(($m['state']??'')==='ready'&&hash_equals((string)($m['client']??''),$client)&&time()-(int)$m['readyAt']<900&&tt_office_job_identity(tt_office_job_dir().'/transfer.zip')===$m['identity']){
+        if(($m['state']??'')==='preparing'&&($m['stage']??'')==='verifying'&&hash_equals((string)($m['client']??''),$client)){
+            office_backup_json(tt_office_job_public($m),202);
+        }elseif(($m['state']??'')==='ready'&&hash_equals((string)($m['client']??''),$client)&&time()-(int)$m['readyAt']<900&&tt_office_job_identity(tt_office_job_dir().'/transfer.zip')===$m['identity']){
             office_backup_json(tt_office_job_public($m));
         }else{
             $m=['id'=>bin2hex(random_bytes(16)),'client'=>$client,'state'=>'preparing','stage'=>'building','createdAt'=>time()];tt_office_job_write($m);
@@ -63,7 +65,19 @@ try {
     }else{
         $m=tt_office_job_read();$id=(string)($body['job']??'');
         if(!tt_office_job_matches($m,$id,$client))office_backup_error(409,'Backup job changed. Start a fresh preparation request.');
-        if($action==='status'){office_backup_json(tt_office_job_public($m));}
+        if($action==='status'){
+            if(($m['state']??'')==='preparing'){
+                $jobLock=tt_office_job_lock(LOCK_EX);
+                if($jobLock){
+                    $m=tt_office_job_read();if(!tt_office_job_matches($m,$id,$client))office_backup_error(409,'Backup job changed.');
+                    if(($m['state']??'')==='preparing'){
+                        if(($m['stage']??'')==='verifying')$m=tt_office_job_verify_step($m,$password);
+                        else{$m['state']=$m['stage']='failed';$m['errorCode']='WORKER_STOPPED';tt_office_job_write($m);}
+                    }
+                }
+            }
+            office_backup_json(tt_office_job_public($m));
+        }
         else{
             $jobLock=tt_office_job_lock($action==='chunk'?LOCK_SH:LOCK_EX);if(!$jobLock)office_backup_error(409,'Backup transfer is busy. Retry shortly.');
             $m=tt_office_job_read();if(!tt_office_job_matches($m,$id,$client))office_backup_error(409,'Backup job changed.');
