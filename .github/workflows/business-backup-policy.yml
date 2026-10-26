@@ -1,9 +1,7 @@
-name: Seven daily business data backups
+name: Hosted recovery policy (routine schedule disabled)
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '0 16 * * *'
   pull_request:
     paths: ['backup_lib.php', 'index.html', 'tests/security/backup_expiry_safety_test.php', 'tests/security/backup_compression_retention_test.php', 'tests/security/server_backup_hardening_test.php', '.github/scripts/business_backup_policy.php', '.github/workflows/business-backup-policy.yml']
   push:

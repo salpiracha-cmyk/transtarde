@@ -2,7 +2,7 @@
 declare(strict_types=1);
 // One bounded, private, encrypted transfer cache; never a business-data source.
 function tt_office_job_dir():string {
-    tt_backup_ensure_dirs();$parent=realpath(tt_backup_dir());if($parent===false||is_link(tt_backup_dir()))throw new RuntimeException('Unsafe backup directory');$dir=$parent.'/.office-transfer';
+    tt_backup_ensure_dirs();$parent=realpath(tt_backup_dir());if($parent===false||is_link(tt_backup_dir()))throw new RuntimeException('Unsafe backup directory');$scope=$GLOBALS['ttOfficeBackupScope']??'full';if(!in_array($scope,['full','data','software'],true))throw new RuntimeException('Invalid transfer scope');$dir=$parent.'/.office-transfer'.($scope==='full'?'':'-'.$scope);
     if(is_link($dir)||(!is_dir($dir)&&!mkdir($dir,0700))||realpath($dir)!==$dir)throw new RuntimeException('Unsafe office transfer directory');
     chmod($dir,0700);return $dir;
 }
@@ -51,7 +51,7 @@ function tt_office_job_generate(array $m,string $password,?callable $build=null)
     tt_office_job_shutdown_guard($m,$finished,$reserve);
     try{
         if(is_link($stage))throw new RuntimeException('Unsafe transfer stage');
-        $built=$build?$build($password):tt_build_download_backup(true,$password);$path=$built['path'];
+        $built=$build?$build($password):tt_build_download_backup(true,$password,(string)($GLOBALS['ttOfficeBackupScope']??'full'));$path=$built['path'];
         $candidate=tt_office_job_dir().'/candidate.zip';if(is_link($candidate))throw new RuntimeException('Unsafe candidate path');
         $size=filesize($path);if(!$size)throw new RuntimeException('Invalid prepared archive');
         tt_backup_require_space(tt_office_job_dir(),$size*2);

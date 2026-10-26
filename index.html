@@ -150,12 +150,12 @@
           </div>
           <div id="backup-files" role="tabpanel" aria-labelledby="backup-tab-files">
           <div class="summary-cards backup-summary">
-            <div><span>Last automatic server backup</span><strong id="backupLastAuto">Checking…</strong><small id="backupAutoDetail">Verified server-side recovery copy</small></div>
+            <div><span>Last hosted snapshot</span><strong id="backupLastAuto">Checking…</strong><small id="backupAutoDetail">Verified server-side recovery copy</small></div>
             <div><span>Stored backup archives</span><strong id="backupSnapshotCount">—</strong><small id="backupSnapshotSize">All retained archives; available recovery points are listed below</small></div>
             <div><span>Last owner download</span><strong id="backupLastOwner">Not downloaded yet</strong><small>Independent copy saved by an owner</small></div>
           </div>
 
-          <p class="muted">Backup policy: one business data backup daily around 9 pm Pakistan time. Keep the latest seven daily recovery points; the next verified backup replaces the oldest. Each includes all saved business data, settings and uploaded documents. Complete software recovery copies remain on the office PC. Hourly backups are disabled. PC daily/weekly/monthly retention is separate. Saved records and original documents do not expire.</p>
+          <p class="muted">PC backup plan: seven daily complete data snapshots and monthly data copies; no weekly data. Software, design, users, masters and settings have a separate weekly copy, also refreshed by Backup Now. Routine hosted snapshots are disabled; existing hosted recovery points and pre-restore safety copies remain. Install the updated Windows app to apply this plan on the PC. Saved records and original documents do not expire.</p>
 
           <div class="backup-grid">
             <article class="panel backup-card">
@@ -181,12 +181,12 @@
           </div>
 
           <article class="panel backup-policy-panel">
-            <div class="panel-heading"><div><h2>Automatic server protection</h2><p>Transtrade commits each snapshot only after its manifest, file hashes and ZIP contents pass verification.</p></div><button class="button secondary" id="createServerSnapshot">Create Snapshot Now</button></div>
+            <div class="panel-heading"><div><h2>Hosted recovery points</h2><p>Transtrade commits each snapshot only after its manifest, file hashes and ZIP contents pass verification.</p></div><button class="button secondary" id="createServerSnapshot">Create Snapshot Now</button></div>
             <div class="backup-policy-grid">
-              <div><strong>Schedule</strong><span>Daily around 9 pm Pakistan time; no hourly backups</span></div>
-              <div><strong>History</strong><span>Latest seven daily recovery points; replace the oldest after verification</span></div>
+              <div><strong>Schedule</strong><span>Routine hosted schedule disabled; manual and pre-restore copies remain available</span></div>
+              <div><strong>History</strong><span>Existing hosted recovery points retained; no deletion merely from this schedule change</span></div>
               <div><strong>Contents</strong><span>All business data, settings and original documents</span></div>
-              <div><strong>Office PC</strong><span>Separate daily, weekly and monthly copies</span></div>
+              <div><strong>Office PC</strong><span>Seven daily data dates, monthly data, separate weekly software</span></div>
             </div>
           </article>
 
@@ -243,7 +243,7 @@
             <p>One Windows app for a new, existing or replacement PC. It creates the backup folders, installs the 6 pm Pakistan-time schedule, adds desktop shortcuts and runs the first backup.</p>
             <div class="backup-actions"><button class="button primary" id="downloadOfficeSetup">Download Windows Backup &amp; Recovery app</button></div>
             <p>Open the downloaded EXE and choose Install / Connect. Approve the matching number on this website — no key to copy. Python is included. Windows 10 / 11, 64-bit.</p>
-            <p>Default folders: E:\TranstradeBackup\SystemBackups (Daily / Weekly / Monthly), ShipmentArchives and RecoveryTests. If E: is unavailable, choose another folder once. Keep the Windows user signed in; locking the screen is fine.</p>
+            <p>Default folders: E:\TranstradeBackup\SystemBackups (Daily / Monthly), SoftwareBackups, ShipmentArchives and RecoveryTests. If E: is unavailable, choose another folder once. Keep the Windows user signed in; locking the screen is fine.</p>
             <p>The Recovery tab verifies a Complete Backup using its password and recovers files into a new folder. Keep another backup copy on a separate drive or computer.</p>
             <details class="backup-security-details"><summary>Disconnect office PC</summary><p>Use this only to stop the office PC from downloading new backups. Existing backup files remain available.</p><div class="backup-actions"><button class="button secondary" id="revokeOfficeBackupToken">Disconnect office PC</button></div>
             </details><div class="backup-password" id="legacyOfficePassword" hidden><h3>Protect the existing Office PC connection</h3>

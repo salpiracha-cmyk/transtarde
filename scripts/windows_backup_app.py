@@ -26,6 +26,7 @@ from scripts.backup_recovery_reader import recover_copy
 APP_TITLE='Transtrade Backup & Recovery'
 TASK_NAME='Transtrade_Office_Backup'
 SHIPMENT_TASK='Transtrade_Office_Shipments'
+SOFTWARE_TASK='Transtrade_Software_Weekly'
 URL='https://app.transtradeinternational.com/api/office_pc_pair.php'
 PK=timezone(timedelta(hours=5))
 
@@ -51,7 +52,7 @@ def ps(script,data=None):
     return json.loads(result.stdout) if result.stdout.strip() else None
 
 
-def tasks_preflight(names=(TASK_NAME,SHIPMENT_TASK)):
+def tasks_preflight(names=(TASK_NAME,SHIPMENT_TASK,SOFTWARE_TASK)):
     return ps(r'''$sid=[Security.Principal.WindowsIdentity]::GetCurrent().User.Value;$out=@();
 foreach($name in $d.names){$t=Get-ScheduledTask -TaskName $name -ErrorAction SilentlyContinue;if(!$t){continue}
 $owner=$t.Principal.UserId;if($owner -notmatch '^S-1-'){if(!$owner.Contains('\') -and !$owner.Contains('@')){$owner=$env:COMPUTERNAME+'\'+$owner};$owner=([Security.Principal.NTAccount]::new($owner)).Translate([Security.Principal.SecurityIdentifier]).Value}
@@ -63,15 +64,18 @@ ConvertTo-Json -InputObject @($out) -Depth 8 -Compress''',{'names':list(names)})
 
 def task_xml(executable,kind='backup',sid=''):
     # A UTC daily trigger gives 18:00 Pakistan time even if the PC uses another zone.
-    now=datetime.now(timezone.utc);start=now.replace(hour=13 if kind=='backup' else 0,minute=0,second=0,microsecond=0)
+    now=datetime.now(timezone.utc);start=now.replace(hour=13 if kind in ('backup','software') else 0,minute=0,second=0,microsecond=0)
     boundary=start.strftime('%Y-%m-%dT%H:%M:%SZ')
-    options='--backup-only --scheduled' if kind=='backup' else '--shipments-only'
-    log=agent.config_path().with_name('office-backup-latest.log' if kind=='backup' else 'shipment-archive-latest.log')
+    options='--backup-only --software --force' if kind=='software' else ('--backup-only --scheduled' if kind=='backup' else '--shipments-only')
+    log=agent.config_path().with_name('software-backup-latest.log' if kind=='software' else ('office-backup-latest.log' if kind=='backup' else 'shipment-archive-latest.log'))
     args='--agent '+options+' --log-file "'+str(log)+'"'
     repeat='<Repetition><Interval>PT30M</Interval><Duration>PT4H</Duration><StopAtDurationEnd>false</StopAtDurationEnd></Repetition>' if kind=='backup' else '<Repetition><Interval>PT5M</Interval><Duration>P1D</Duration><StopAtDurationEnd>false</StopAtDurationEnd></Repetition>'
+    schedule='<ScheduleByWeek><WeeksInterval>1</WeeksInterval><DaysOfWeek><Monday/></DaysOfWeek></ScheduleByWeek>' if kind=='software' else '<ScheduleByDay><DaysInterval>1</DaysInterval></ScheduleByDay>'
+    if kind=='software':repeat=''
+    logon='' if kind=='software' else '<LogonTrigger><Enabled>true</Enabled><UserId>'+escape(sid)+'</UserId></LogonTrigger>'
     return '<?xml version="1.0" encoding="UTF-16"?>'+f'''<Task version="1.4" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
 <RegistrationInfo><Description>Transtrade verified encrypted backups. Keep this Windows user signed in; locking the screen is fine.</Description></RegistrationInfo>
-<Triggers><CalendarTrigger>{repeat}<StartBoundary>{boundary}</StartBoundary><Enabled>true</Enabled><ScheduleByDay><DaysInterval>1</DaysInterval></ScheduleByDay></CalendarTrigger><LogonTrigger><Enabled>true</Enabled><UserId>{escape(sid)}</UserId></LogonTrigger></Triggers>
+<Triggers><CalendarTrigger>{repeat}<StartBoundary>{boundary}</StartBoundary><Enabled>true</Enabled>{schedule}</CalendarTrigger>{logon}</Triggers>
 <Principals><Principal id="Author"><UserId>{escape(sid)}</UserId><LogonType>InteractiveToken</LogonType><RunLevel>LeastPrivilege</RunLevel></Principal></Principals>
 <Settings><MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy><DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries><StopIfGoingOnBatteries>false</StopIfGoingOnBatteries><StartWhenAvailable>true</StartWhenAvailable><WakeToRun>true</WakeToRun><Enabled>true</Enabled><ExecutionTimeLimit>PT4H</ExecutionTimeLimit><RestartOnFailure><Interval>PT30M</Interval><Count>3</Count></RestartOnFailure></Settings>
 <Actions Context="Author"><Exec><Command>{escape(str(executable))}</Command><Arguments>{escape(args)}</Arguments><WorkingDirectory>{escape(str(executable.parent))}</WorkingDirectory></Exec></Actions></Task>'''
@@ -79,7 +83,7 @@ def task_xml(executable,kind='backup',sid=''):
 
 def register_tasks(executable):
     sid=ps('[Security.Principal.WindowsIdentity]::GetCurrent().User.Value | ConvertTo-Json -Compress')
-    tasks=[{'name':TASK_NAME,'xml':task_xml(executable,'backup',sid)},{'name':SHIPMENT_TASK,'xml':task_xml(executable,'shipments',sid)}]
+    tasks=[{'name':TASK_NAME,'xml':task_xml(executable,'backup',sid)},{'name':SHIPMENT_TASK,'xml':task_xml(executable,'shipments',sid)},{'name':SOFTWARE_TASK,'xml':task_xml(executable,'software',sid)}]
     ps(r'''foreach($t in $d.tasks){Register-ScheduledTask -TaskName $t.name -Xml $t.xml -Force | Out-Null}
 foreach($t in $d.tasks){$saved=Get-ScheduledTask -TaskName $t.name;if($saved.Principal.LogonType -ne 'Interactive'){throw 'Windows task sign-in mode was not verified.'};if($saved.Actions.Execute -ne $d.executable){throw 'Windows task program was not verified.'}}
 '{}' ''',{'tasks':tasks,'executable':str(executable)})
@@ -109,7 +113,7 @@ def pair_call(action,device):
 def validate_root(root):
     root=Path(root)
     if not root.is_absolute() or root.is_symlink():raise ValueError('Choose a regular full backup folder path.')
-    for name in ['SystemBackups/Daily','SystemBackups/Weekly','SystemBackups/Monthly','ShipmentArchives','RecoveryTests']:
+    for name in ['SystemBackups/Daily','SystemBackups/Monthly','SoftwareBackups','ShipmentArchives','RecoveryTests']:
         folder=root/name
         if folder.is_symlink():raise ValueError('Linked backup folders are not supported.')
         folder.mkdir(parents=True,exist_ok=True)
@@ -122,7 +126,7 @@ def configure(root,token,previous=None):
     root=validate_root(root)
     config=dict(previous or {})
     config.update({'backupUrl':'https://app.transtradeinternational.com/api/office_backup.php','officeAgentUrl':'https://app.transtradeinternational.com/api/office_agent.php',
-        'backupDestination':str(root/'SystemBackups'),'shipmentArchiveDestination':str(root/'ShipmentArchives'),'token':token,'retention':{'daily':7,'weekly':4,'monthly':12}})
+        'backupDestination':str(root/'SystemBackups'),'shipmentArchiveDestination':str(root/'ShipmentArchives'),'token':token,'scope':'data','softwareDestination':str(root/'SoftwareBackups'),'retention':{'daily':7,'monthly':12}})
     config.setdefault('password','') # New PCs use the owner's server-managed password.
     agent.write_json(agent.config_path(),config,sensitive=True)
     return config
@@ -146,7 +150,9 @@ class QueueWriter:
 def status_text():
     path=agent.config_path()
     if not path.exists():return 'Not installed on this Windows user. Choose Install / Connect.'
-    config=json.loads(path.read_text(encoding='utf-8'));dest=Path(config.get('backupDestination') or config.get('destination'))
+    config=json.loads(path.read_text(encoding='utf-8'))
+    if config.get('scope')=='data':return plan_status(config)
+    dest=Path(config.get('backupDestination') or config.get('destination'))
     lines=['Backup folder: '+str(dest),'Shipment folder: '+str(config.get('shipmentArchiveDestination','')),'Schedule: 6 pm Pakistan time, with missed-run catch-up.','Windows user must stay signed in. Locking the screen is fine.','']
     state=path.with_name('office-backup-state.json')
     if state.exists():
@@ -216,11 +222,56 @@ def install(root,events):
             if not saved.exists():saved.write_text(item['xml'],encoding='utf-16');agent.protect(saved)
         register_tasks(executable);shortcuts(executable)
         agent.write_json(folder/'installed.json',{'executable':str(executable),'backupRoot':str(root),'installedAt':datetime.now(PK).isoformat()},sensitive=True)
-    events.put(('log','Installation and connection complete. Starting the first verified daily, weekly and monthly backups…'))
-    result=call_agent(['--backup-only','--refresh-tiers'],QueueWriter(events))
+    events.put(('log','Installation and connection complete. Starting the first verified daily / monthly data and separate software backups…'))
+    result=run_plan(events,refresh=True)
     if result:raise RuntimeError('Installed and connected, but the first backup needs attention. The details remain in this window. Use Backup Now to retry.')
     prune_installed_apps(folder,executable)
-    events.put(('done','SUCCESS: Installed, connected, scheduled and first daily / weekly / monthly backups completed.'))
+    events.put(('done','SUCCESS: Installed, connected, scheduled and daily / monthly data and separate software backups completed.'))
+
+
+def plan_status(config):
+    lines=['Data: '+str(config['backupDestination']),'Software and setup: '+str(config['softwareDestination']),'Daily data: latest 7 successful Pakistan dates. Monthly data: 12 points. No weekly data.','Software and setup: Monday 6 pm Pakistan time; manual Backup Now updates it too.','Keep this Windows user signed in; locking is fine.']
+    revisions={}
+    for label,folder in [('Daily data',Path(config['backupDestination'])/'Daily'),('Monthly data',Path(config['backupDestination'])/'Monthly'),('Software and setup',Path(config['softwareDestination']))]:
+        receipt=folder/'latest-verified.json'
+        if label=='Daily data':receipt=folder.parent/'latest-verified.json'
+        if not receipt.exists():lines+=['',label+': no successful copy recorded under the new plan.'];continue
+        proof=json.loads(receipt.read_text());file=folder/Path(proof['name']).name
+        revisions[label]=proof.get('softwareRevision')
+        good=file.is_file() and agent.sha256_file(file)==proof.get('sha256')
+        lines+=['',label+': '+file.name,'Checksum: '+('VERIFIED now' if good else 'Missing or changed; needs attention.')]
+    if revisions.get('Daily data') and revisions.get('Daily data')!=revisions.get('Software and setup'):
+        lines+=['','Software changed since the latest software backup. Use Backup Now to refresh the matching software copy.']
+    return '\n'.join(lines)
+
+
+def run_plan(events,refresh=False):
+    writer=QueueWriter(events)
+    if call_agent(['--backup-only','--software','--force'],writer):return 1
+    return call_agent(['--backup-only','--refresh-tiers' if refresh else '--force'],writer)
+
+
+def upgrade_existing(root,events):
+    if not getattr(sys,'frozen',False):raise RuntimeError('Use the downloaded Windows EXE.')
+    old=json.loads(agent.config_path().read_text(encoding='utf-8'));snapshots=tasks_preflight();validate_root(root)
+    folder=app_dir();folder.mkdir(parents=True,exist_ok=True)
+    with agent.backup_run_lock(agent.config_path()) as acquired:
+        if not acquired:raise RuntimeError('Let the current backup finish before updating.')
+        agent.write_json(agent.config_path().with_name('office-backup.before-plan-update.json'),old,sensitive=True)
+        configure(root,old['token'],old)
+        digest=agent.sha256_file(Path(sys.executable));executable=folder/('TranstradeBackup-'+digest[:12]+'.exe')
+        if executable.resolve()!=Path(sys.executable).resolve():
+            stage=executable.with_suffix('.installing');shutil.copyfile(sys.executable,stage)
+            if agent.sha256_file(stage)!=digest:raise RuntimeError('Program copy verification failed.')
+            stage.replace(executable)
+        for row in snapshots:
+            saved=folder/('task-before-plan-'+hashlib.sha256(row['name'].encode()).hexdigest()[:12]+'.xml')
+            if not saved.exists():saved.write_text(row['xml'],encoding='utf-16');agent.protect(saved)
+        register_tasks(executable);shortcuts(executable)
+        agent.write_json(folder/'installed.json',{'executable':str(executable),'backupRoot':str(root),'installedAt':datetime.now(PK).isoformat(),'plan':'data7-monthly-software-weekly'},sensitive=True)
+    events.put(('log','Settings updated. Old backups and connection preserved. Saving software/setup and daily/monthly data…'))
+    if run_plan(events,refresh=True):raise RuntimeError('Settings updated, but a backup needs attention. Previous copies were preserved; see log.')
+    prune_installed_apps(folder,executable);events.put(('done','SUCCESS: New backup plan installed; separate software and daily/monthly data verified.'))
 
 
 def icon_file(path):
@@ -246,12 +297,12 @@ def gui(mode='setup'):
     for title in ['Install / Connect','Backup Now','Recovery','Status']:
         page=ttk.Frame(tabs,padding=14);tabs.add(page,text=title);pages[title]=page
     events=queue.Queue();busy=False;buttons=[];approval_url='';output_path=None
-    folder=tk.StringVar(value=root_default());backup=tk.StringVar();password=tk.StringVar();code=tk.StringVar(value='')
+    folder=tk.StringVar(value=root_default());backup=tk.StringVar();password=tk.StringVar();software=tk.StringVar();code=tk.StringVar(value='')
     setup=pages['Install / Connect'];ttk.Label(setup,text='Backup location (use an external or separate drive when available):').pack(anchor='w')
     line=ttk.Frame(setup);line.pack(fill='x',pady=6);ttk.Entry(line,textvariable=folder).pack(side='left',fill='x',expand=True)
     ttk.Button(line,text='Choose folder',command=lambda:folder.set(filedialog.askdirectory() or folder.get())).pack(side='left')
     paths=ttk.Label(setup,text='');paths.pack(anchor='w',pady=5)
-    def folder_label(*_):paths.config(text=str(Path(folder.get())/'SystemBackups')+' → Daily / Weekly / Monthly\n'+str(Path(folder.get())/'ShipmentArchives')+'\n'+str(Path(folder.get())/'RecoveryTests') if folder.get() else 'Choose a backup folder before installing.')
+    def folder_label(*_):paths.config(text=str(Path(folder.get())/'SystemBackups')+' → 7 Daily / Monthly\n'+str(Path(folder.get())/'SoftwareBackups')+' → Weekly software and setup\n'+str(Path(folder.get())/'ShipmentArchives')+'\n'+str(Path(folder.get())/'RecoveryTests') if folder.get() else 'Choose a backup folder before installing.')
     folder.trace_add('write',folder_label);folder_label()
     ttk.Label(setup,text='6 pm Pakistan time, with catch-up. Keep this Windows user signed in; locking is fine.\nApprove this PC on the website once. Existing backup files stay in place.').pack(anchor='w',pady=8)
     code_label=ttk.Label(setup,textvariable=code,font=('Segoe UI',15,'bold'))
@@ -274,15 +325,19 @@ def gui(mode='setup'):
         if not folder.get():folder.set(filedialog.askdirectory(title='Choose your Transtrade backup folder') or '')
         if folder.get():start(lambda:install(Path(folder.get()),events))
     b=ttk.Button(setup,text='Install / Reconnect this PC',command=install_click);b.pack(anchor='w',pady=8);buttons.append(b)
+    b=ttk.Button(setup,text='Update existing PC settings (keep connection)',command=lambda:start(lambda:upgrade_existing(Path(folder.get()),events)));b.pack(anchor='w',pady=4);buttons.append(b)
     def backup_now():
-        result=call_agent(['--backup-only','--force'],QueueWriter(events))
+        result=run_plan(events)
         if result:raise RuntimeError('Backup did not complete. Check the message above. Previous backups were preserved.')
         events.put(('done','SUCCESS: The requested backup run completed.'))
-    ttk.Label(pages['Backup Now'],text='Create a fresh encrypted backup using the password saved on your website.\nNo connection key or ZIP password needs typing here.').pack(anchor='w')
+    ttk.Label(pages['Backup Now'],text='Save fresh data and a separate software/setup archive using your saved password.\nAutomatic plan: 7 daily data points, monthly data, weekly software. No weekly data.').pack(anchor='w')
     b=ttk.Button(pages['Backup Now'],text='Back up now',command=lambda:start(backup_now));b.pack(anchor='w',pady=12);buttons.append(b)
-    recovery=pages['Recovery'];ttk.Label(recovery,text='Verify and recover a Complete Backup into a new private folder.\nYour original ZIP is preserved. This creates a recovery copy; it does not replace the live website.').pack(anchor='w')
+    recovery=pages['Recovery'];ttk.Label(recovery,text='Recover Accounts, Mill, Exports, Directors and a Complete Website Restore folder.\nYour original ZIP and live website stay unchanged.').pack(anchor='w')
     row=ttk.Frame(recovery);row.pack(fill='x',pady=8);ttk.Entry(row,textvariable=backup).pack(side='left',fill='x',expand=True)
     ttk.Button(row,text='Choose backup ZIP',command=lambda:backup.set(filedialog.askopenfilename(filetypes=[('Complete backup ZIP','*.zip')]) or '')).pack(side='left')
+    extra=ttk.Frame(recovery);extra.pack(fill='x',pady=3)
+    ttk.Button(extra,text='Add weekly software ZIP for hosting (optional)',command=lambda:software.set(filedialog.askopenfilename(filetypes=[('Software backup ZIP','*.zip')]) or '')).pack(side='left')
+    ttk.Label(extra,textvariable=software,wraplength=300).pack(side='left',padx=5)
     recovery_folder=tk.StringVar(value=str(Path(folder.get())/'RecoveryTests') if folder.get() else '')
     ttk.Label(recovery,text='Create the new recovery folder inside:').pack(anchor='w')
     destination_row=ttk.Frame(recovery);destination_row.pack(fill='x',pady=5);ttk.Entry(destination_row,textvariable=recovery_folder).pack(side='left',fill='x',expand=True)
@@ -295,9 +350,9 @@ def gui(mode='setup'):
             selected=filedialog.askdirectory(title='Choose where to create a NEW recovery folder')
             if not selected:return
             parent=Path(selected)
-        secret=password.get();selected_backup=Path(backup.get());password.set('')
+        secret=password.get();selected_backup=Path(backup.get());companion=Path(software.get()) if software.get() else None;password.set('')
         def recover():
-            result=recover_copy(selected_backup,secret,parent,lambda text:events.put(('log',text)))
+            result=recover_copy(selected_backup,secret,parent,lambda text:events.put(('log',text)),companion=companion)
             events.put(('recovered',str(result)))
         start(recover)
     b=ttk.Button(recovery,text='Verify & recover to a new folder',command=restore_click);b.pack(anchor='w',pady=6);buttons.append(b)

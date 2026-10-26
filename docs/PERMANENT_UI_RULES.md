@@ -665,3 +665,9 @@ This replaces the former manual `--connect` key-copy instructions for normal own
 ## Reusable Windows backup installer — 26 October 2026
 
 Normal owner setup uses one Windows EXE, not key-copy fields, ZIP extraction, CMD or repeated PowerShell commands. The GUI must support a new PC as well as an existing one, create and display the backup root/folders, install the signed-in-user schedule and shortcuts, and retain visible success/failure messages. Initial website approval must show a matching device code and require an authenticated Super Admin's explicit action; downloading a reusable public installer grants no access. The recovery tab creates a new verified private copy and must never imply that extracting files has restored the running website. Preserve original archives and existing saved data during installation and failures.
+
+## Split backup plan — owner clarification 26 October 2026
+
+- Current PC plan is seven cumulative daily data dates, twelve monthly data points, no new weekly data, and a separate weekly software/design/users/masters/settings archive. Manual Backup Now refreshes both. Preserve existing FULL archives and the connection on upgrade. Retain software revisions needed by surviving data points.
+- Disable the routine hosted snapshot schedule; retain existing hosted recovery points and pre-restore safety copies. Never represent live records/history as an independent backup. Temporary verified PC transfers are not permanent hosted snapshots.
+- Recovery presents Accounts, Mill, Exports, Directors and Complete Website Restore. Named reports use the canonical accounting/stock engines; include saved input fields and explicit report notes. Combining split archives requires matching software revisions and must preserve the newer data masters. Preparing verified files never implies the website was restored.

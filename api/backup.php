@@ -72,6 +72,7 @@ try {
         if(!$multipart||empty($_FILES['backup']['tmp_name'])||!is_uploaded_file($_FILES['backup']['tmp_name']))throw new InvalidArgumentException('Select a Complete Transtrade Backup ZIP.');
         if((int)($_FILES['backup']['size']??0)>512*1024*1024)throw new InvalidArgumentException('The selected backup exceeds the 512 MB restore limit.');
         $tmp=(string)$_FILES['backup']['tmp_name'];$manifest=tt_backup_verify_full($tmp,$password);
+        if(($manifest['scope']??'full')==='software')throw new InvalidArgumentException('Choose a Data or legacy Complete backup here. Software and Setup is combined offline through the Recovery app.');
         if($action==='verify')backup_json(['ok'=>true,'createdAt'=>$manifest['createdAt']??null,'appVersion'=>$manifest['appVersion']??null,'recoveryFileCount'=>(int)($manifest['recoveryFileCount']??0)]);
         if(strtoupper(trim((string)($_POST['confirmation']??'')))!=='RESTORE')throw new InvalidArgumentException('Type RESTORE to confirm recovery.');
         $result=tt_restore_complete_backup($tmp,$password);tt_audit((int)$admin['id'],$admin['username'],'Restored complete Transtrade backup created '.($manifest['createdAt']??'unknown'));

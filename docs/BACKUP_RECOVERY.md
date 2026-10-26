@@ -1,3 +1,19 @@
+# Current split backup and recovery — 26 October 2026
+
+This section supersedes older routine schedule and folder instructions below. Python is bundled in TranstradeBackupSetup.exe.
+
+For the existing PC, let the active run finish, open the latest EXE, choose Install / Connect → Update existing PC settings (keep connection). Do not approve a replacement PC connection. It preserves the saved connection, old ZIPs and shipment folders, installs the three tasks, and verifies a first Software archive plus Daily and Monthly data. A failure stays visible; installation alone is not backup success.
+
+New folders: SystemBackups/Daily (seven successful Pakistan dates), SystemBackups/Monthly (twelve monthly points), SoftwareBackups (Monday software/setup), ShipmentArchives and RecoveryTests. No new Weekly data. Legacy FULL archives stay untouched. Daily data is cumulative from the beginning through the snapshot, including every module and original private data/documents; it omits application source. Software contains code/design plus users/masters/settings. Data keeps its own matching user/master snapshot too. Backup Now refreshes both; refresh it after a software deployment. Scheduled closing data remains 18:00 Pakistan time and shipments every five minutes. Keep the task-owning Windows user signed in; locking is fine.
+
+To inspect records: Recovery → choose Data ZIP → enter that ZIP password → Recover to a new folder. Read START HERE and each module Report Notes.csv. The four business folders are Accounts, Mill, Exports and Directors; CSVs open in Excel. Reports use the application’s canonical calculations; original input records remain separately available. Missing inputs/rates produce explicit notes, not invented balances. Decrypted output is sensitive and no longer password-protected; keep it private.
+
+For hosting preparation: additionally select the matching Software ZIP. The reader rejects unequal source revisions and damaged entries. Complete Website Restore then contains public_html (code/design) and sibling transtrade_private (latest canonical data, documents, users and masters). The older software settings never overwrite the data snapshot. A Data ZIP alone clearly says SOFTWARE COPY REQUIRED. A legacy FULL ZIP remains independently recoverable in the clean layout without a companion. No recovery button deploys, starts or replaces the live website. A technician must validate a private test installation, storage/database configuration and fresh installation security before any real hosting cutover.
+
+Status hashes the latest Software, Daily and Monthly copies. Keep matching Data + Software ZIPs and the password separately on removable storage. Existing hosted snapshots remain available, but their routine creation schedule is now disabled. Manual/pre-restore snapshots and transient encrypted PC transfers remain supported. Offline recovery has been demonstrated for the owner’s original FULL archive (6,098 entries); a replacement-hosting browser rehearsal is still required.
+
+## Earlier runbook and technical reference
+
 # Transtrade recovery runbook
 
 Access: Super Admin only. Keep production data and uploaded documents on the server; do not copy QA fixtures into production.

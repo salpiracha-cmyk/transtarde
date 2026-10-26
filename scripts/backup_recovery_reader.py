@@ -11,6 +11,7 @@ import tempfile
 import unicodedata
 import zipfile
 import zlib
+from scripts.recovery_layout import organize
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 
 MAX_ENTRY = 512 * 1024 * 1024
@@ -88,7 +89,7 @@ def write_entry(archive, meta, key, output):
     if size!=meta.get('size') or digest.hexdigest()!=meta.get('sha256'): raise ValueError('Complete recovery file integrity check failed.')
 
 
-def recover_copy(backup, password, parent, progress=lambda text: None):
+def recover_copy(backup, password, parent, progress=lambda text: None, companion=None):
     backup=Path(backup); parent=Path(parent)
     if backup.is_symlink() or not backup.is_file(): raise ValueError('Choose a regular backup ZIP file.')
     if len(password.encode('utf-8'))<12: raise ValueError('Enter the password used when this backup was created.')
@@ -122,10 +123,33 @@ def recover_copy(backup, password, parent, progress=lambda text: None):
                 if i%25==0 or i==len(entries):progress(f'Verified {i:,} of {len(entries):,} recovered files.')
             after=backup.stat()
             if (after.st_dev,after.st_ino,after.st_size,after.st_mtime_ns)!=(before.st_dev,before.st_ino,before.st_size,before.st_mtime_ns): raise ValueError('The source backup changed during recovery.')
-            receipt={'result':'verified_recovery_copy','sourceSha256':source_hash.hexdigest(),'backupCreatedAt':manifest.get('createdAt'),'verifiedEntries':len(entries),'liveWebsiteChanged':False,'originalBackupChanged':False}
+            organize(stage,manifest,progress)
+            companion_hash=None
+            if companion is not None:
+                if manifest.get('scope')!='data':raise ValueError('Add a software ZIP only when recovering a separate data backup.')
+                with zipfile.ZipFile(companion) as companion_zip:
+                    companion_manifest,_,_=read_manifest(companion_zip)
+                    if companion_manifest.get('scope')!='software':raise ValueError('Choose a Software and Setup backup as the companion.')
+                    revision=manifest.get('softwareRevision')
+                    if not revision or revision!=companion_manifest.get('softwareRevision'):
+                        raise ValueError('This software ZIP does not match the data snapshot version. Use its matching software backup; for current data, refresh both through Backup Now.')
+                extra_parent=stage/'.software-check'
+                extra=recover_copy(companion,password,extra_parent,progress)
+                code=extra/'Complete Website Restore/public_html'
+                if not code.is_dir():raise ValueError('The software archive contains no website application.')
+                shutil.copytree(code,stage/'Complete Website Restore/public_html')
+                companion_hash=json.loads((extra/'RECOVERY_RESULT.json').read_text())['sourceSha256']
+                shutil.rmtree(extra_parent)
+                missing=stage/'Complete Website Restore/SOFTWARE COPY REQUIRED.txt'
+                if missing.exists():missing.unlink()
+            receipt={'result':'verified_recovery_copy','sourceSha256':source_hash.hexdigest(),'scope':manifest.get('scope','full'),'backupCreatedAt':manifest.get('createdAt'),'verifiedEntries':len(entries),'liveWebsiteChanged':False,'originalBackupChanged':False}
+            receipt['layout']='five-folders-v1'
+            receipt['softwareRevision']=manifest.get('softwareRevision')
+            if companion_hash:receipt['softwareSourceSha256']=companion_hash
             (stage/'RECOVERY_RESULT.json').write_text(json.dumps(receipt,indent=2),encoding='utf-8')
-            (stage/'READ_ME.txt').write_text('Verified recovery copy. Original backup preserved.\nApplication_Code contains the software. System_Recovery/private contains recovered business data.\nThis copy has not been started or installed on a website. Active backup-PC and emergency credentials were not restored.\nKeep this folder private.\n',encoding='utf-8')
             from datetime import datetime
+            after=backup.stat()
+            if (after.st_dev,after.st_ino,after.st_size,after.st_mtime_ns)!=(before.st_dev,before.st_ino,before.st_size,before.st_mtime_ns):raise ValueError('The source backup changed during recovery.')
             final=parent/('Recovery_'+datetime.now().strftime('%Y-%m-%d_%H%M%S')+'_'+os.urandom(3).hex())
             stage.rename(final);stage=None;return final
     finally:
