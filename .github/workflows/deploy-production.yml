@@ -67,6 +67,27 @@ jobs:
           echo "Accounts QA did not pass for this commit; deployment stopped."
           exit 1
 
+      - name: Download the Windows app built for this approved release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          QA_RUN_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          set -euo pipefail
+          if [ -z "$QA_RUN_ID" ]; then
+            QA_RUN_ID=$(gh api "/repos/$GITHUB_REPOSITORY/actions/workflows/milling-exports-qa.yml/runs?head_sha=$DEPLOY_SHA&status=completed&per_page=20" --jq '.workflow_runs | map(select(.conclusion == "success")) | first | .id')
+          fi
+          test -n "$QA_RUN_ID" && test "$QA_RUN_ID" != null
+          mkdir -p downloads
+          gh run download "$QA_RUN_ID" --repo "$GITHUB_REPOSITORY" --name transtrade-windows-setup --dir downloads
+          python3 - <<'PYAPP'
+          import hashlib,json,os,pathlib
+          app=pathlib.Path('downloads/TranstradeBackupSetup.exe')
+          metadata=json.loads(pathlib.Path('downloads/TranstradeBackupSetup.manifest.json').read_text(encoding='utf-8-sig'))
+          assert metadata['releaseCommit']==os.environ['DEPLOY_SHA'], 'Installer must match the release commit'
+          assert app.read_bytes()[:2]==b'MZ' and hashlib.sha256(app.read_bytes()).hexdigest()==metadata['sha256'], 'Installer hash failed'
+          print('WINDOWS_INSTALLER_RELEASE_HASH_VERIFIED')
+          PYAPP
+
       - name: Build production release archive
         run: |
           set -euo pipefail
@@ -312,6 +333,15 @@ jobs:
           done
           echo "Production login health check failed."
           exit 1
+
+      - name: Verify the public Windows installer download against the built release
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location --max-time 120 "$PRODUCTION_URL/downloads/TranstradeBackupSetup.exe" -o "$RUNNER_TEMP/installer-download.exe"
+          expected=$(sha256sum downloads/TranstradeBackupSetup.exe | cut -d' ' -f1)
+          actual=$(sha256sum "$RUNNER_TEMP/installer-download.exe" | cut -d' ' -f1)
+          test "$actual" = "$expected"
+          echo "WINDOWS_INSTALLER_PUBLIC_DOWNLOAD_VERIFIED sha256=$actual"
 
       - name: Retain one verified code rollback after production health succeeds
         run: |

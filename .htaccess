@@ -9,7 +9,7 @@ Options -Indexes
   RewriteRule ^(?:data|docs|scripts|tests|\.github)(?:/|$) - [F,L,NC]
 </IfModule>
 
-<FilesMatch "^(index\.html|auth\.php|auth_store\.php|master_store\.php|backup_lib\.php|office_backup_auth\.php|upload_validation\.php|inventory_reconciliation\.php|offline_idempotency\.php|owner_master_cleanup\.php|product_stage\.php|qa_account\.php|runtime_html\.php)$">
+<FilesMatch "^(index\.html|auth\.php|auth_store\.php|master_store\.php|backup_lib\.php|office_backup_auth\.php|office_pc_pairing\.php|owner_backup_jobs\.php|upload_validation\.php|inventory_reconciliation\.php|offline_idempotency\.php|owner_master_cleanup\.php|product_stage\.php|qa_account\.php|runtime_html\.php)$">
   Require all denied
 </FilesMatch>
 
@@ -25,4 +25,13 @@ Options -Indexes
   Header always set Permissions-Policy "camera=(), microphone=(), geolocation=()"
   Header always set Cross-Origin-Resource-Policy "same-origin"
   Header always set Content-Security-Policy-Report-Only "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; object-src 'self' blob:; base-uri 'self'; frame-ancestors 'self'; form-action 'self'"
+</IfModule>
+
+<IfModule mod_mime.c>
+  AddType application/octet-stream .exe
+</IfModule>
+<IfModule mod_headers.c>
+  <FilesMatch "^TranstradeBackupSetup\.(exe|manifest\.json)$">
+    Header always set Cache-Control "no-store"
+  </FilesMatch>
 </IfModule>

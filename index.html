@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="Transtrade unified Super Admin control centre">
   <title>Transtrade Super Admin Console</title>
-  <link rel="stylesheet" href="admin/styles.css?v=20261026-background-owner-4">
+  <link rel="stylesheet" href="admin/styles.css?v=20261026-universal-windows-5">
   <link rel="stylesheet" href="brand-theme.css?v=20260914-control-centre-1-20261006-number-entry-1">
 </head>
 <body>
@@ -240,9 +240,11 @@
           <article class="panel backup-policy-panel">
             <div class="panel-heading"><div><h2>Office PC connection</h2><p>Connect without typing a password or copying a key. Your backup files stay password protected.</p></div></div>
             <p id="officeBackupStatus">Checking connection authorization…</p>
-            <p>On TTI-SERVER, download the setup, choose Extract All, then open <strong>Connect_Office_PC.cmd</strong>. It reconnects your existing agent, preserves your folders and schedule, and requests fresh daily, weekly and monthly backups.</p>
-            <div class="backup-actions"><button class="button primary" id="downloadOfficeSetup">Connect office PC — download setup</button></div>
-            <p>The setup works once and expires after one hour. Downloading it does not disconnect the current PC. Keep it private and download a fresh copy when you are ready.</p>
+            <p>One Windows app for a new, existing or replacement PC. It creates the backup folders, installs the 6 pm Pakistan-time schedule, adds desktop shortcuts and runs the first backup.</p>
+            <div class="backup-actions"><button class="button primary" id="downloadOfficeSetup">Download Windows Backup &amp; Recovery app</button></div>
+            <p>Open the downloaded EXE and choose Install / Connect. Approve the matching number on this website — no key to copy. Python is included. Windows 10 / 11, 64-bit.</p>
+            <p>Default folders: E:\TranstradeBackup\SystemBackups (Daily / Weekly / Monthly), ShipmentArchives and RecoveryTests. If E: is unavailable, choose another folder once. Keep the Windows user signed in; locking the screen is fine.</p>
+            <p>The Recovery tab verifies a Complete Backup using its password and recovers files into a new folder. Keep another backup copy on a separate drive or computer.</p>
             <details class="backup-security-details"><summary>Disconnect office PC</summary><p>Use this only to stop the office PC from downloading new backups. Existing backup files remain available.</p><div class="backup-actions"><button class="button secondary" id="revokeOfficeBackupToken">Disconnect office PC</button></div>
             </details><div class="backup-password" id="legacyOfficePassword" hidden><h3>Protect the existing Office PC connection</h3>
               <p>Enter the recovery ZIP password already saved on the Office PC. This binds backups to that password without changing its credential or Windows schedule.</p>
@@ -341,7 +343,7 @@
 
   <div class="toast-region" id="toastRegion" aria-live="polite"></div>
 <script src="mill-duplicate-approvals.js"></script>
-<script src="admin/app.js?v=20261026-background-owner-4"></script>
+<script src="admin/app.js?v=20261026-universal-windows-5"></script>
 <script src="brand-theme.js?v=20261006-number-entry-1"></script>
 </body>
 </html>

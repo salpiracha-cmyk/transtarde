@@ -1859,15 +1859,8 @@
     finally { button.disabled = false; button.textContent = old; }
   }
   async function downloadOfficeSetup() {
-    const button = document.getElementById('downloadOfficeSetup'); button.disabled = true;
-    try {
-      const response = await fetch('api/backup.php', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'download-office-setup',csrf:SESSION.csrf})});
-      if (!response.ok) { const data = await response.json().catch(()=>({})); throw new Error(data.error || 'PC setup could not be prepared.'); }
-      const url = URL.createObjectURL(await response.blob()); const link = document.createElement('a');
-      link.href = url; link.download = 'TRANSTRADE_CONNECT_OFFICE_PC.zip'; document.body.appendChild(link); link.click(); link.remove();
-      window.setTimeout(()=>URL.revokeObjectURL(url),1000);
-      toast('On TTI-SERVER: Extract All, then open Connect_Office_PC.cmd. No password or key to type. Setup expires in one hour.');
-    } catch (error) { toast(error.message); } finally { button.disabled = false; }
+    const link=document.createElement('a');link.href='downloads/TranstradeBackupSetup.exe';link.download='TranstradeBackupSetup.exe';document.body.appendChild(link);link.click();link.remove();
+    toast('Open TranstradeBackupSetup.exe. Choose Install / Connect, then approve this PC on the website. No keys or passwords to copy.');
   }
   async function manageOfficeBackupToken(action) {
     if (action !== 'revoke-office-token' || !window.confirm('Disconnect the office PC? Automatic PC downloads will stop until you run a new connection setup. Existing backups remain usable.')) return;

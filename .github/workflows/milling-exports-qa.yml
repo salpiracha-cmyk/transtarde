@@ -37,6 +37,12 @@ on:
       - 'backup_lib.php'
       - 'office_backup_auth.php'
       - 'scripts/office_backup_agent.py'
+      - 'scripts/windows_backup_app.py'
+      - 'scripts/backup_recovery_reader.py'
+      - 'office_pc_pairing.php'
+      - 'connect-backup-pc.php'
+      - 'tests/security/windows_backup_app_test.py'
+      - 'tests/security/pc_pairing_test.php'
       - 'qa_account.php'
       - 'customer-master.js'
       - 'admin/app.js'
@@ -199,6 +205,8 @@ jobs:
           php tests/security/module_business_backup_test.php
           php tests/security/server_backup_hardening_test.php
           php tests/security/upload_validation_test.php
+          php tests/security/pc_pairing_test.php
+          python3 tests/security/pc_pairing_http_test.py
           php tests/security/owner_backup_jobs_test.php
           php tests/security/office_backup_auth_test.php
           python3 tests/security/office_backup_agent_test.py
@@ -219,3 +227,39 @@ jobs:
             tmp/qa/final-files-20260930/packing-copy-label-flow.pdf
           if-no-files-found: ignore
           retention-days: 7
+
+  windows-backup-installer:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12', architecture: 'x64'}
+      - uses: shivammathur/setup-php@v2
+        with: {php-version: '8.3', extensions: 'openssl, mbstring, zip'}
+      - name: Install pinned build dependencies
+        run: python -m pip install pyinstaller==6.22.3 cryptography==50.0.2
+      - name: Check Windows tasks, shortcuts and actual PHP recovery interoperability
+        env:
+          TT_QA_WINDOWS_TASKS: '1'
+        run: python tests/security/windows_backup_app_test.py
+      - name: Build one-file Windows app with its original icon
+        shell: pwsh
+        run: |
+          python scripts/windows_backup_app.py --build-icon backup-app.ico
+          python -m PyInstaller --noconfirm --clean --onefile --windowed --paths . --name TranstradeBackupSetup --icon backup-app.ico scripts/windows_backup_app.py
+          if ($LASTEXITCODE -ne 0) { throw 'Windows app build failed.' }
+          $report = Join-Path $env:RUNNER_TEMP 'backup-app-self-test.json'
+          $process = Start-Process -FilePath '.\dist\TranstradeBackupSetup.exe' -ArgumentList @('--self-test-report', ('"' + $report + '"')) -Wait -PassThru
+          if ($process.ExitCode -ne 0 -or !(Test-Path $report)) { throw 'Built EXE could not start.' }
+          $proof = Get-Content $report -Raw | ConvertFrom-Json
+          if (!$proof.frozen -or !$proof.tkinter -or !$proof.encryption -or !$proof.guiLayout -or $proof.platform -ne 'Windows') { throw 'Built EXE runtime check failed.' }
+          @{sha256=(Get-FileHash dist/TranstradeBackupSetup.exe -Algorithm SHA256).Hash.ToLowerInvariant(); releaseCommit=(git rev-parse HEAD).Trim()} | ConvertTo-Json | Set-Content dist/TranstradeBackupSetup.manifest.json -Encoding UTF8
+      - uses: actions/upload-artifact@v4
+        with:
+          name: transtrade-windows-setup
+          path: |
+            dist/TranstradeBackupSetup.exe
+            dist/TranstradeBackupSetup.manifest.json
+          retention-days: 14
+          if-no-files-found: error

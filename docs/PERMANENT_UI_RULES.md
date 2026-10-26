@@ -660,3 +660,8 @@ The owner downloads **Connect office PC** from Backup & Recovery → Passwords &
 Downloading does not revoke the current connection. Setup expires after one hour; replacing the download invalidates the previous setup, and disconnecting invalidates pending setup. Connection rotation occurs only when the PC redeems it. Keep the ZIP private and delete it after successful use. The new backup ZIP password is never sent to the PC; the hosted server uses it for future archives. Older archives retain their previous password. Authorization status does not prove an actual successful PC backup; check the agent result and verified receipts.
 
 This replaces the former manual `--connect` key-copy instructions for normal owner use. The legacy CLI remains for compatibility. Website deployment cannot execute the Windows setup or prove actual PC recovery.
+
+
+## Reusable Windows backup installer — 26 October 2026
+
+Normal owner setup uses one Windows EXE, not key-copy fields, ZIP extraction, CMD or repeated PowerShell commands. The GUI must support a new PC as well as an existing one, create and display the backup root/folders, install the signed-in-user schedule and shortcuts, and retain visible success/failure messages. Initial website approval must show a matching device code and require an authenticated Super Admin's explicit action; downloading a reusable public installer grants no access. The recovery tab creates a new verified private copy and must never imply that extracting files has restored the running website. Preserve original archives and existing saved data during installation and failures.
