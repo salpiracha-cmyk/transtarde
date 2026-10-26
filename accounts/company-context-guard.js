@@ -11,6 +11,7 @@
       dialog.setAttribute('aria-labelledby','ttCompanyChangedTitle');
       dialog.style.cssText='box-sizing:border-box;width:min(500px,calc(100vw - 32px));max-height:calc(100vh - 32px);overflow:auto;border:2px solid #4f7650;border-radius:14px;padding:24px;color:#172b24;background:white';
       dialog.innerHTML='<h2 id="ttCompanyChangedTitle">Company changed in another tab</h2><p data-company-message></p><p>Actions are paused. Your unsaved entries remain here; reloading discards them.</p><button type="button">Reload Accounts</button>';
+      dialog.querySelector('button').style.cssText='min-height:44px;padding:10px 16px;border:0;border-radius:8px;background:#315c47;color:white;font:inherit;font-weight:700;cursor:pointer';
       dialog.querySelector('button').onclick=()=>location.reload();
       dialog.addEventListener('cancel',event=>event.preventDefault());
       document.body.append(dialog);dialog.showModal();
