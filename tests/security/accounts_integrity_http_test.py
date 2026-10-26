@@ -3,6 +3,7 @@ import concurrent.futures
 import json
 import os
 import pathlib
+import re
 import shutil
 import subprocess
 import tempfile
@@ -40,9 +41,10 @@ register_shutdown_function(static function()use($req){file_put_contents($req['st
                                ('local_customer_receipts', 'TT_LCR_FILE')]:
         path = app / 'api' / (endpoint + '.php')
         source = path.read_text()
-        needle = "tt_ensure_data_dir();$h=fopen(" + constant + ",'c+');"
-        assert needle in source, endpoint
-        path.write_text(source.replace(needle, 'fixture_barrier();' + needle))
+        lock_open = r"(tt_ensure_data_dir\(\);\$h=@?fopen\(" + re.escape(constant) + r",'(?:c\+|r\+b)'\);)"
+        source, count = re.subn(lock_open, r'fixture_barrier();\1', source)
+        assert count > 0, endpoint
+        path.write_text(source)
 
     def request(endpoint, body, session='one', barrier=None, transaction=None):
         req = {'endpoint': endpoint, 'session': session,
