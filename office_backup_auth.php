@@ -19,8 +19,12 @@ function tt_office_backup_issue_token(): string {
 }
 
 function tt_office_backup_revoke_token(): void {
-    $path = tt_office_backup_token_file();
-    if (is_file($path) && !unlink($path)) throw new RuntimeException('The office backup credential could not be revoked.');
+    tt_office_setup_lock(static function(){
+        $pending=tt_office_setup_file();
+        if(is_file($pending)&&!unlink($pending))throw new RuntimeException('Pending PC setup could not be revoked.');
+        $path=tt_office_backup_token_file();
+        if(is_file($path)&&!unlink($path))throw new RuntimeException('The office backup credential could not be revoked.');
+    });
 }
 
 function tt_office_backup_token_valid(string $token): bool {
@@ -125,4 +129,55 @@ function tt_backup_password_set(string $password):void {
         if($cipher===false)throw new RuntimeException('Backup password encryption failed.');
         tt_backup_password_write(TT_DATA_DIR.'/backup-password.json',json_encode(['schema'=>1,'nonce'=>base64_encode($nonce),'tag'=>base64_encode($tag),'cipher'=>base64_encode($cipher),'changedAt'=>gmdate('c')],JSON_THROW_ON_ERROR));
     }finally{flock($lock,LOCK_UN);fclose($lock);}
+}
+
+
+// A downloadable setup authorizes one PC connection without displaying its key.
+// Only the owner endpoint can issue it; issuance leaves the current PC working.
+function tt_office_setup_file(): string { return TT_DATA_DIR.'/office-setup.json'; }
+function tt_office_setup_lock(Closure $change): mixed {
+    tt_ensure_data_dir();$h=fopen(TT_DATA_DIR.'/office-setup.lock','c+');
+    if(!$h||!flock($h,LOCK_EX))throw new RuntimeException('PC setup is busy.');
+    try{return $change();}finally{flock($h,LOCK_UN);fclose($h);}
+}
+function tt_office_setup_issue(): string {
+    if(tt_backup_password_get()===null)throw new InvalidArgumentException('Save your backup protection password first.');
+    return tt_office_setup_lock(static function(){
+        $ticket=bin2hex(random_bytes(32));
+        $state=['hash'=>hash('sha256',$ticket),'expiresAt'=>time()+3600,
+            'previousHash'=>(string)(@file_get_contents(tt_office_backup_token_file())?:'')];
+        tt_backup_password_write(tt_office_setup_file(),json_encode($state,JSON_THROW_ON_ERROR));
+        return $ticket;
+    });
+}
+function tt_office_setup_redeem(string $ticket): string {
+    if(!preg_match('/^[a-f0-9]{64}$/D',$ticket))throw new InvalidArgumentException('Download a fresh PC setup from Backup & Recovery.');
+    return tt_office_setup_lock(static function()use($ticket){
+        $path=tt_office_setup_file();
+        $state=is_file($path)&&!is_link($path)?json_decode((string)file_get_contents($path),true):null;
+        $current=(string)(@file_get_contents(tt_office_backup_token_file())?:'');
+        if(!is_array($state)||(int)($state['expiresAt']??0)<time()||
+           !hash_equals((string)($state['hash']??''),hash('sha256',$ticket))||
+           !hash_equals((string)($state['previousHash']??''),$current)||tt_backup_password_get()===null)
+            throw new InvalidArgumentException('This setup has expired or was replaced. Download a fresh PC setup.');
+        // Consume before rotation. A replay never creates another credential.
+        if(!unlink($path))throw new RuntimeException('PC setup could not be consumed.');
+        return tt_office_backup_issue_token();
+    });
+}
+function tt_office_setup_archive(): string {
+    if(!class_exists('ZipArchive'))throw new RuntimeException('PC setup ZIP support is unavailable.');
+    $base=__DIR__;$ticket=tt_office_setup_issue();
+    $path=tempnam(sys_get_temp_dir(),'tt-pc-setup-');if($path===false)throw new RuntimeException('PC setup could not be prepared.');
+    chmod($path,0600);$zip=new ZipArchive();
+    try{
+        if($zip->open($path,ZipArchive::OVERWRITE)!==true)throw new RuntimeException('PC setup ZIP could not open.');
+        foreach(['scripts/connect_office_pc.ps1'=>'Connect_Office_PC.ps1','scripts/office_backup_agent.py'=>'office_backup_agent.py'] as $source=>$name){
+            if(!$zip->addFile($base.'/'.$source,$name))throw new RuntimeException('PC setup source missing.');
+        }
+        $config=json_encode(['ticket'=>$ticket,'agentSha256'=>hash_file('sha256',$base.'/scripts/office_backup_agent.py')],JSON_THROW_ON_ERROR);
+        if(!$zip->addFromString('connection.json',$config)||!$zip->addFromString('Connect_Office_PC.cmd',"@echo off\r\npowershell.exe -NoProfile -ExecutionPolicy Bypass -File \"%~dp0Connect_Office_PC.ps1\"\r\npause\r\n"))throw new RuntimeException('PC setup package failed.');
+        if(!$zip->addFromString('READ_ME.txt',"On TTI-SERVER: Extract All, then open Connect_Office_PC.cmd. No password or key to type.\r\nUse within one hour. Your existing folders and Windows schedule are preserved.\r\nThe setup connects the PC and requests fresh daily, weekly and monthly backups.\r\nKeep this setup private; it can authorize one PC connection. Delete the extracted setup after success.\r\n"))throw new RuntimeException('PC setup instructions failed.');
+        if(!$zip->close())throw new RuntimeException('PC setup ZIP could not finish.');return $path;
+    }catch(Throwable $e){@$zip->close();@unlink($path);throw $e;}
 }

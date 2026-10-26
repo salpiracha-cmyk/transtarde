@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="Transtrade unified Super Admin control centre">
   <title>Transtrade Super Admin Console</title>
-  <link rel="stylesheet" href="admin/styles.css?v=20261026-backup-workspace-1">
+  <link rel="stylesheet" href="admin/styles.css?v=20261026-pc-setup-2">
   <link rel="stylesheet" href="brand-theme.css?v=20260914-control-centre-1-20261006-number-entry-1">
 </head>
 <body>
@@ -236,10 +236,12 @@
               <details class="backup-security-details"><summary>Create a replacement recovery code</summary><iframe class="backup-security-frame" title="Emergency admin recovery code" data-security-src="recovery-settings.php?embedded=1"></iframe></details>
             </article>
           <article class="panel backup-policy-panel">
-            <div class="panel-heading"><div><h2>Office PC connection</h2><p>Use a separate backup-only credential for the office agent. It cannot open the app or restore data.</p></div></div>
-            <p id="officeBackupStatus">Checking credential…</p>
-            <details class="backup-security-details"><summary>Reconnect or disconnect the office PC</summary><p>Replacing this key immediately stops the old connection. On TTI-SERVER, stop backup runs and use the updated Office Agent with --connect to paste the replacement key once. This preserves your folders and schedule. No ZIP password is needed for the connection after the backup protection password above is set.</p><div class="backup-actions"><button class="button secondary" id="issueOfficeBackupToken">Replace PC connection key</button><button class="button secondary" id="revokeOfficeBackupToken">Disconnect office PC</button></div>
-            <label class="backup-password" id="officeBackupTokenArea" hidden>New PC connection key — copy it into the office agent; shown only once<input id="officeBackupToken" type="text" readonly autocomplete="off" spellcheck="false"></label>
+            <div class="panel-heading"><div><h2>Office PC connection</h2><p>Connect without typing a password or copying a key. Your backup files stay password protected.</p></div></div>
+            <p id="officeBackupStatus">Checking connection authorization…</p>
+            <p>On TTI-SERVER, download the setup, choose Extract All, then open <strong>Connect_Office_PC.cmd</strong>. It reconnects your existing agent, preserves your folders and schedule, and requests fresh daily, weekly and monthly backups.</p>
+            <div class="backup-actions"><button class="button primary" id="downloadOfficeSetup">Connect office PC — download setup</button></div>
+            <p>The setup works once and expires after one hour. Downloading it does not disconnect the current PC. Keep it private and download a fresh copy when you are ready.</p>
+            <details class="backup-security-details"><summary>Disconnect office PC</summary><p>Use this only to stop the office PC from downloading new backups. Existing backup files remain available.</p><div class="backup-actions"><button class="button secondary" id="revokeOfficeBackupToken">Disconnect office PC</button></div>
             </details><div class="backup-password" id="legacyOfficePassword" hidden><h3>Protect the existing Office PC connection</h3>
               <p>Enter the recovery ZIP password already saved on the Office PC. This binds backups to that password without changing its credential or Windows schedule.</p>
               <label>Existing Office PC recovery password<input id="officeExistingPassword" type="password" minlength="12" maxlength="256" autocomplete="off"></label>
@@ -337,7 +339,7 @@
 
   <div class="toast-region" id="toastRegion" aria-live="polite"></div>
 <script src="mill-duplicate-approvals.js"></script>
-<script src="admin/app.js?v=20261026-backup-workspace-1"></script>
+<script src="admin/app.js?v=20261026-pc-setup-2"></script>
 <script src="brand-theme.js?v=20261006-number-entry-1"></script>
 </body>
 </html>

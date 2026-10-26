@@ -164,6 +164,34 @@ def require_endpoint(url, path):
     return parsed
 
 
+def connect_setup(config_file, setup_file):
+    """Redeem a one-use owner-authorized setup without showing the PC key."""
+    config = json.loads(config_file.read_text(encoding='utf-8'))
+    require_endpoint(config.get('backupUrl') or config.get('url'), '/api/office_backup.php')
+    setup = json.loads(setup_file.read_text(encoding='utf-8-sig'))
+    ticket = setup.get('ticket', '')
+    if not isinstance(ticket, str) or not re.fullmatch(r'[a-f0-9]{64}', ticket):
+        raise ValueError('Download and extract a fresh PC connection setup.')
+    # Confirm that the protected configuration can be committed before consuming
+    # the one-use authorization. The existing local writer lock is held here.
+    write_json(config_file, config, sensitive=True)
+    req = request.Request('https://app.transtradeinternational.com/api/office_backup_connect.php',
+        data=json.dumps({'ticket': ticket}).encode(), headers={'Content-Type': 'application/json'}, method='POST')
+    try:
+        with opener().open(req, timeout=60) as response:
+            raw = response.read(4097)
+            if len(raw) > 4096: raise ValueError('PC setup returned an invalid response.')
+            data = json.loads(raw)
+    except error.HTTPError:
+        raise ValueError('PC setup expired, was replaced, or was refused. Download a fresh setup and try again.') from None
+    token = data.get('token', '')
+    if data.get('ok') is not True or not isinstance(token, str) or not re.fullmatch(r'[a-f0-9]{64}', token):
+        raise ValueError('PC setup returned an invalid connection authorization.')
+    config['token'] = token
+    write_json(config_file, config, sensitive=True)
+    print('PC connected. Existing folders, password and Windows schedule were preserved.')
+
+
 def validate_zip(path):
     with zipfile.ZipFile(path) as archive:
         names = set(archive.namelist())
@@ -601,6 +629,7 @@ def process_shipments(config):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--config', type=Path, default=config_path())
+    parser.add_argument('--connect-setup', type=Path, help='Connect with the one-use website setup; no password or key prompt')
     parser.add_argument('--connect', action='store_true', help='Update only the saved PC connection key; preserve passwords, folders and schedules')
     parser.add_argument('--init', action='store_true', help='Save backup-only credentials and destination securely')
     parser.add_argument('--retention-only', action='store_true', help='Apply verified weekly/monthly replacement cleanup without downloading')
@@ -620,7 +649,7 @@ def main():
         with lock as acquired:
             if not acquired:
                 print('Another backup run is active; this duplicate run was skipped.')
-                return 0
+                return 1 if args.connect_setup or args.refresh_tiers else 0
             if args.log_file is None:
                 return run(args)
             with args.log_file.open('w',encoding='utf-8',buffering=1) as log, redirect_stdout(log), redirect_stderr(log):
@@ -633,6 +662,7 @@ def main():
 def run(args):
     try:
         if args.init: initialize(args.config); return 0
+        if args.connect_setup: connect_setup(args.config, args.connect_setup); return 0
         config = json.loads(args.config.read_text(encoding='utf-8'))
         if args.connect:
             token = getpass.getpass('Paste the new PC connection key (hidden): ').strip()

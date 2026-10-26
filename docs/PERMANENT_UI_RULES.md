@@ -651,3 +651,12 @@ Online Banking payments expose an editable payment date, defaulting from the vou
 - In this explicitly selected managed mode the PC uses its saved service connection key without independent password proof. Token validation, TLS, entity restrictions and revocation remain enforced. Pair/reconnect is a one-time local action; the website must not claim it silently updated Windows.
 - Store the managed password encrypted in private installation storage. Exclude its vault/key from backups and refuse their restoration. Retain legacy security behavior until the owner explicitly sets the shared backup password. Never return passwords in status, audit or error output.
 - Business Data is one AES-protected ZIP containing a combined workbook, per-module CSVs and original documents. Include all canonical Accounts input, operational values and master records, including nested fields, and a source index. Keep unknown module mappings in Shared rather than inventing a classification. Complete Recovery contains the same business layout plus encrypted technical recovery/code.
+
+
+## Office PC setup without manual keys — 26 October 2026
+
+The owner downloads **Connect office PC** from Backup & Recovery → Passwords & Security. On the existing TTI-SERVER backup user, extract the ZIP and open `Connect_Office_PC.cmd`. No connection password or key is typed. The setup updates the agent, preserves existing configuration and Windows task settings, connects using a one-use HTTPS authorization, then requests fresh verified daily/weekly/monthly copies. It requires the existing agent/task/Python installation; it is not a new-PC installer.
+
+Downloading does not revoke the current connection. Setup expires after one hour; replacing the download invalidates the previous setup, and disconnecting invalidates pending setup. Connection rotation occurs only when the PC redeems it. Keep the ZIP private and delete it after successful use. The new backup ZIP password is never sent to the PC; the hosted server uses it for future archives. Older archives retain their previous password. Authorization status does not prove an actual successful PC backup; check the agent result and verified receipts.
+
+This replaces the former manual `--connect` key-copy instructions for normal owner use. The legacy CLI remains for compatibility. Website deployment cannot execute the Windows setup or prove actual PC recovery.

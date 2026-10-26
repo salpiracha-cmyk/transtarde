@@ -1799,7 +1799,7 @@
       document.getElementById("backupSnapshotCount").textContent = String(data.snapshotCount ?? 0);
       document.getElementById("backupSnapshotSize").textContent = `${backupBytes(data.snapshotBytes)} across all stored archives; available recovery points are listed below`;
       document.getElementById("backupLastOwner").textContent = data.lastOwnerDownload ? backupFriendlyDate(data.lastOwnerDownload) : "Not downloaded yet";
-      document.getElementById("officeBackupStatus").textContent = data.officeBackupEnabled ? "Backup-only credential active" : "No office backup credential issued";
+      document.getElementById("officeBackupStatus").textContent = data.officeBackupEnabled ? "PC connection is authorized. This does not confirm a recent successful PC backup." : "PC is disconnected. Download the connection setup on TTI-SERVER.";
       const security = data.officeSecurity || {};
       const managed = security.sharedPasswordConfigured === true;
       sharedBackupPasswordConfigured = managed;
@@ -1850,23 +1850,24 @@
     } catch (error) { toast(error.message); }
     finally { button.disabled = false; button.textContent = old; }
   }
-  async function manageOfficeBackupToken(action) {
-    const message = action === "issue-office-token"
-      ? "Replace the office PC connection key? The old key stops immediately. You must save the new key on TTI-SERVER before automatic backups can connect again. This does not change your ZIP password."
-      : "Disconnect the office PC? Automatic PC downloads will stop until a replacement key is installed. Existing ZIPs remain usable.";
-    if (!window.confirm(message)) return;
-
-    const button = document.getElementById(action === "issue-office-token" ? "issueOfficeBackupToken" : "revokeOfficeBackupToken");
-    button.disabled = true;
+  async function downloadOfficeSetup() {
+    const button = document.getElementById('downloadOfficeSetup'); button.disabled = true;
     try {
-      const data = await backupFetchJson("api/backup.php", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, csrf: SESSION.csrf }) });
-      const area = document.getElementById("officeBackupTokenArea"), input = document.getElementById("officeBackupToken");
-      input.value = data.token || ""; area.hidden = !data.token;
-      if (data.token) input.select();
-      toast(data.token ? "Copy the new backup credential now. The old one has stopped working." : "Office backup credential revoked.");
-      await loadBackupStatus();
-    } catch (error) { toast(error.message); }
-    finally { button.disabled = false; }
+      const response = await fetch('api/backup.php', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'download-office-setup',csrf:SESSION.csrf})});
+      if (!response.ok) { const data = await response.json().catch(()=>({})); throw new Error(data.error || 'PC setup could not be prepared.'); }
+      const url = URL.createObjectURL(await response.blob()); const link = document.createElement('a');
+      link.href = url; link.download = 'TRANSTRADE_CONNECT_OFFICE_PC.zip'; document.body.appendChild(link); link.click(); link.remove();
+      window.setTimeout(()=>URL.revokeObjectURL(url),1000);
+      toast('On TTI-SERVER: Extract All, then open Connect_Office_PC.cmd. No password or key to type. Setup expires in one hour.');
+    } catch (error) { toast(error.message); } finally { button.disabled = false; }
+  }
+  async function manageOfficeBackupToken(action) {
+    if (action !== 'revoke-office-token' || !window.confirm('Disconnect the office PC? Automatic PC downloads will stop until you run a new connection setup. Existing backups remain usable.')) return;
+    const button = document.getElementById('revokeOfficeBackupToken'); button.disabled = true;
+    try {
+      await backupFetchJson('api/backup.php', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,csrf:SESSION.csrf})});
+      toast('Office PC disconnected.'); await loadBackupStatus();
+    } catch (error) { toast(error.message); } finally { button.disabled = false; }
   }
   async function protectOfficeConnection(action) {
     const passwordInput = document.getElementById("officeExistingPassword"), confirmationInput = document.getElementById("officeExistingPasswordConfirm");
@@ -2157,7 +2158,7 @@
   document.getElementById("downloadBusinessBackup").addEventListener("click", () => downloadBackup("business-download"));
   document.getElementById("downloadFullBackup").addEventListener("click", () => downloadBackup("full-download"));
   document.getElementById("createServerSnapshot").addEventListener("click", createServerSnapshot);
-  document.getElementById("issueOfficeBackupToken").addEventListener("click", () => manageOfficeBackupToken("issue-office-token"));
+  document.getElementById('downloadOfficeSetup').addEventListener('click', downloadOfficeSetup);
   document.getElementById("revokeOfficeBackupToken").addEventListener("click", () => manageOfficeBackupToken("revoke-office-token"));
   document.getElementById("pinOfficeRecovery").addEventListener("click", () => protectOfficeConnection("pin-office-recovery"));
   document.getElementById("requireOfficeDeliveryProof").addEventListener("click", () => protectOfficeConnection("require-office-delivery-proof"));

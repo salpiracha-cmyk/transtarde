@@ -28,7 +28,9 @@ const tabs=app.slice(app.indexOf('  function selectBackupTab('),app.indexOf('  d
 w.eval(tabs);
 const d=w.document;
 assert.equal(d.getElementById('backup-security').hidden,true);
-assert.equal(d.getElementById('backup-files').contains(d.getElementById('issueOfficeBackupToken')),false);
+assert.equal(d.getElementById('backup-security').contains(d.getElementById('downloadOfficeSetup')),true);
+assert.equal(d.getElementById('issueOfficeBackupToken'),null);
+assert.equal(d.getElementById('officeBackupToken'),null);
 d.getElementById('sharedBackupPassword').value='fixture-draft-password';
 d.getElementById('backup-tab-security').click();
 assert.equal(d.getElementById('backup-files').hidden,true);

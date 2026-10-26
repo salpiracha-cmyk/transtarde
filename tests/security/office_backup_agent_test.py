@@ -33,6 +33,32 @@ class FakeResponse(io.BytesIO):
 
 
 class OfficeAgentTest(unittest.TestCase):
+    def test_setup_connect_preserves_config_and_never_prints_secrets(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder); config = root / 'office-backup.json'; setup = root / 'connection.json'
+            original = {'url': 'https://app.transtradeinternational.com/api/office_backup.php', 'token': 'a'*64,
+                        'password': 'fixture-keep-password', 'destination': 'E:/keep', 'retention': {'monthly': 12}}
+            config.write_text(json.dumps(original)); setup.write_text(json.dumps({'ticket': 'b'*64}))
+            output = io.StringIO()
+            response = FakeResponse(json.dumps({'ok': True, 'token': 'c'*64}).encode(), '')
+            with patch.object(agent, 'opener') as op, patch.object(agent.sys, 'stdout', output):
+                op.return_value.open.return_value = response
+                agent.connect_setup(config, setup)
+                sent = op.return_value.open.call_args.args[0]
+                self.assertEqual(sent.full_url, 'https://app.transtradeinternational.com/api/office_backup_connect.php')
+                self.assertEqual(json.loads(sent.data), {'ticket': 'b'*64})
+            self.assertEqual(json.loads(config.read_text()), {**original, 'token': 'c'*64})
+            self.assertNotIn('c'*64, output.getvalue()); self.assertNotIn(original['password'], output.getvalue())
+
+    def test_setup_preflight_failure_does_not_consume_ticket(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder); config = root / 'config.json'; setup = root / 'setup.json'
+            config.write_text(json.dumps({'url': 'https://app.transtradeinternational.com/api/office_backup.php', 'token': 'a'*64}))
+            setup.write_text(json.dumps({'ticket': 'b'*64}))
+            with patch.object(agent, 'write_json', side_effect=PermissionError('fixture locked')), patch.object(agent, 'opener') as op:
+                with self.assertRaises(PermissionError): agent.connect_setup(config, setup)
+                op.assert_not_called()
+
     def test_duplicate_process_preserves_active_log_and_lock_releases(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)

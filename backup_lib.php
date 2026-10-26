@@ -289,7 +289,7 @@ function tt_backup_private_files(): array {
         if (!$file->isFile() || $file->isLink()) continue;
         $path = $file->getPathname();
         $rel = str_replace('\\', '/', substr($path, strlen($root) + 1));
-        if ($rel === '' || str_starts_with($rel, 'backups/') || str_starts_with($rel, 'sessions/') || $rel === 'backup_state.json' || in_array($rel,['backup-password.key','backup-password.json'],true) || str_ends_with($rel, '.lock') || str_contains($rel, '.tmp-') || str_contains($rel, '.restore-')) continue;
+        if ($rel === '' || str_starts_with($rel, 'backups/') || str_starts_with($rel, 'sessions/') || $rel === 'backup_state.json' || in_array($rel,['backup-password.key','backup-password.json','office-setup.json'],true) || str_ends_with($rel, '.lock') || str_contains($rel, '.tmp-') || str_contains($rel, '.restore-')) continue;
         $files[$rel] = $path;
     }
     ksort($files);
@@ -888,7 +888,7 @@ function tt_backup_verify_full(string $path,string $password):array{
 }
 function tt_backup_atomic_write(string $path,string $data):void{$dir=dirname($path);if(!is_dir($dir)&&!mkdir($dir,0700,true)&&!is_dir($dir))throw new RuntimeException('A recovery folder could not be created.');$tmp=$path.'.restore-'.bin2hex(random_bytes(4));if(file_put_contents($tmp,$data,LOCK_EX)===false)throw new RuntimeException('A recovery file could not be written.');@chmod($tmp,0600);if(!rename($tmp,$path)){@unlink($tmp);throw new RuntimeException('A recovery file could not be replaced.');}}
 function tt_backup_restore_allowed(string $rel):bool{
-    if(in_array($rel,['backup-password.key','backup-password.json'],true))return false;
+    if(in_array($rel,['backup-password.key','backup-password.json','office-setup.json'],true))return false;
     if($rel===''||str_contains($rel,'..')||str_contains($rel,'\\')||str_contains($rel,':')||str_contains($rel,"\0")||str_starts_with($rel,'/')||str_starts_with($rel,'backups/')||str_starts_with($rel,'sessions/')||in_array($rel,['backup_state.json','auth.lock','backup-job.lock','backup-state.lock','office-backup-policy.lock'],true))return false;
     // Exact current/legacy credential files belong to existing installations.
     // Office job ZIPs restore as opaque bytes; nothing extracts or executes them.

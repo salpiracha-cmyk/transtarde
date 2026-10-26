@@ -103,3 +103,12 @@ Download Business Data produces a standard AES-encrypted ZIP readable by an AES-
 Changing the password affects future ZIPs only. Create and verify fresh daily, weekly and monthly recovery copies before retiring older ones. The central setting does not itself prove Windows scheduling, local retention, server/PC connectivity or a successful recovery rehearsal.
 
 After setting a new backup protection password and reconnecting the current PC key, run the updated agent once with --backup-only --refresh-tiers. This forces a fresh verified download and verified current-week/current-month copies even if those buckets already exist. It preserves the closing-time schedule, reuses the one checked download, and applies existing retention only after verification. Older retained ZIPs still need their original passwords.
+
+
+## Office PC setup without manual keys — 26 October 2026
+
+The owner downloads **Connect office PC** from Backup & Recovery → Passwords & Security. On the existing TTI-SERVER backup user, extract the ZIP and open `Connect_Office_PC.cmd`. No connection password or key is typed. The setup updates the agent, preserves existing configuration and Windows task settings, connects using a one-use HTTPS authorization, then requests fresh verified daily/weekly/monthly copies. It requires the existing agent/task/Python installation; it is not a new-PC installer.
+
+Downloading does not revoke the current connection. Setup expires after one hour; replacing the download invalidates the previous setup, and disconnecting invalidates pending setup. Connection rotation occurs only when the PC redeems it. Keep the ZIP private and delete it after successful use. The new backup ZIP password is never sent to the PC; the hosted server uses it for future archives. Older archives retain their previous password. Authorization status does not prove an actual successful PC backup; check the agent result and verified receipts.
+
+This replaces the former manual `--connect` key-copy instructions for normal owner use. The legacy CLI remains for compatibility. Website deployment cannot execute the Windows setup or prove actual PC recovery.
