@@ -20,6 +20,16 @@ Access: Super Admin only. Keep production data and uploaded documents on the ser
 2. Type `RESTORE` and confirm. A pre-restore snapshot is taken before stored data changes. Uploaded documents are processed in bounded chunks; application code inside the ZIP is for offline recovery, and the in-app restore does not overwrite the deployed application code.
 3. Reload and repeat the checks above. If the primary server has been lost, restore the application code and private configuration on a new secure server using the established GitHub→Hostinger deployment path, then use the ZIP recovery workflow. Keep the original ZIP untouched until the new installation and data are verified.
 
+Complete-archive verification and the filesystem restore helper accept ZIP32
+archives up to 4 GiB minus one byte. They process encrypted document chunks
+individually; the 512 MiB per-entry/decompression ceiling remains separate.
+This also allows the Office background worker to verify larger completed
+archives before transferring them to the PC. The browser multipart upload
+still has a 512 MiB application limit and may have lower hosting limits; do
+not describe a large-archive helper test as a browser upload acceptance test.
+Larger off-server recovery needs a technician-controlled private staging path,
+the matching password and an isolated-installation rehearsal before live use.
+
 Restoring either backup type preserves the currently configured recovery code and office-backup credential, and independently enrolled Office password policy, including their absence after revocation. Historical hashes in an archive are verified but never activated. On a replacement installation, provision a fresh recovery code in **Recovery Security** and issue a fresh office credential in **Backup & Data Export**, then update the PC agent configuration. Do not manually copy `admin-recovery.hash`, `office-backup-token.sha256` or `office-backup-policy.json` from an old archive into the new installation.
 
 ## Office computer agent setup

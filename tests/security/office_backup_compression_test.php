@@ -35,9 +35,30 @@ try{
     $legacyManifest=['schema'=>2,'application'=>'Transtrade','type'=>'full_recovery','encryption'=>['algorithm'=>'AES-256-GCM','salt'=>base64_encode($salt),'iterations'=>200000],'encryptedEntries'=>['System_Recovery/private/auth.json'=>$entry]];
     $writer->addString('backup-manifest.json',json_encode($legacyManifest));$writer->close();
     office_expect(tt_backup_verify_full($legacy,$password)['schema']===2,'Existing uncompressed encrypted backups must remain recoverable.');
+    // A sparse, structurally valid ZIP exercises the actual archive-size gate
+    // without allocating hundreds of megabytes or relaxing any entry check.
+    $large=$root.'/large-recovery.zip';$source=fopen($legacy,'rb');
+    fseek($source,-22,SEEK_END);$end=fread($source,22);
+    $directory=unpack('Vsize/Voffset',substr($end,12,8));rewind($source);
+    $target=fopen($large,'w+b');
+    stream_copy_to_stream($source,$target,$directory['offset']);
+    $largeDirectory=513*1024*1024;fseek($target,$largeDirectory);
+    stream_copy_to_stream($source,$target,$directory['size']);
+    fwrite($target,substr_replace($end,pack('V',$largeDirectory),16,4));
+    fclose($source);fclose($target);
+    office_expect(filesize($large)>512*1024*1024,'Fixture must cross the old complete-archive limit.');
+    office_expect(tt_backup_verify_full($large,$password)['schema']===2,'Office verification must accept complete archives above 512 MiB.');
+    $wrong=false;try{tt_backup_verify_full($large,'another-fixture-password');}catch(InvalidArgumentException){$wrong=true;}
+    office_expect($wrong,'Large archives must still reject the wrong password.');
+    $restored=tt_restore_complete_backup($large,$password);
+    office_expect($restored['restoredFiles']>=1&&is_file(tt_backup_dir().'/'.$restored['safetySnapshot']),'Large complete archives must restore in a disposable installation with a safety snapshot.');
+    $authBefore=file_get_contents(TT_STORE_FILE);
+    $bad=fopen($large,'r+b');fseek($bad,30+strlen('Encrypted/000001.bin'));$byte=fread($bad,1);fseek($bad,-1,SEEK_CUR);fwrite($bad,chr(ord($byte)^1));fclose($bad);
+    $rejected=false;try{tt_restore_complete_backup($large,$password);}catch(InvalidArgumentException){$rejected=true;}
+    office_expect($rejected&&file_get_contents(TT_STORE_FILE)===$authBefore,'Damaged large archives must not change the current data.');
     $before=glob(sys_get_temp_dir().'/tt-backup-*')?:[];
     $bad=false;try{tt_build_download_backup(true,'short');}catch(InvalidArgumentException){$bad=true;}
     office_expect($bad&&!(array_diff(glob(sys_get_temp_dir().'/tt-backup-*')?:[],$before)),'Failed generation must not leave new temporary archives.');
     @unlink($built['path']);
-    echo "PASS smaller encrypted recovery, exact documents, legacy compatibility, tamper rejection and failed-build cleanup\n";
+    echo "PASS compressed recovery, exact documents, legacy compatibility, >512 MiB verify/restore, tamper rejection and failed-build cleanup\n";
 }finally{if(session_status()===PHP_SESSION_ACTIVE)session_write_close();office_remove($root);}

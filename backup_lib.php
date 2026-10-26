@@ -4,6 +4,9 @@ declare(strict_types=1);
 const TT_BACKUP_SCHEMA = 3;
 const TT_BACKUP_APP_VERSION = 'Transtrade V1';
 const TT_BACKUP_MAX_RESTORE_BYTES = 536870912; // 512 MB
+// Complete Office archives are verified entry by entry, rather than loaded as
+// one string. Keep the ZIP32 archive bound separate from upload/entry limits.
+const TT_BACKUP_MAX_ARCHIVE_BYTES = 0xffffffff;
 
 final class TT_SimpleZipWriter {
     private $fh;
@@ -196,6 +199,7 @@ final class TT_SimpleZipReader {
     public function get(string $name): string|false {
         $e = $this->entries[$name] ?? null;
         if (!$e) return false;
+        if ((int)$e['csize'] > TT_BACKUP_MAX_RESTORE_BYTES || (int)$e['usize'] > TT_BACKUP_MAX_RESTORE_BYTES) throw new InvalidArgumentException('A backup entry exceeds the supported in-memory size.');
         fseek($this->fh, (int)$e['offset']);
         $local = $this->readExact(30);
         if (substr($local, 0, 4) !== "PK\x03\x04") throw new InvalidArgumentException('The backup ZIP entry is invalid.');
@@ -757,7 +761,7 @@ function tt_backup_status(): array {
     ];
 }
 
-function tt_backup_open_verified(string $path,string $password=''):array{$zip=new TT_SimpleZipReader($path);$manifestRaw=$zip->get('backup-manifest.json');$manifest=$manifestRaw?json_decode($manifestRaw,true):null;if(!is_array($manifest)||($manifest['application']??'')!=='Transtrade'||($manifest['type']??'')!=='full_recovery'){$zip->close();throw new InvalidArgumentException('This is not a Complete Transtrade Recovery Backup.');}if((int)($manifest['schema']??0)>TT_BACKUP_SCHEMA){$zip->close();throw new InvalidArgumentException('This backup was created by a newer Transtrade backup format.');}$enc=(array)($manifest['encryption']??[]);$salt=base64_decode((string)($enc['salt']??''),true);if($salt===false||($enc['algorithm']??'')!=='AES-256-GCM'){$zip->close();throw new InvalidArgumentException('The recovery backup encryption information is invalid.');}$key=tt_backup_derive_key($password,$salt,(int)($enc['iterations']??200000));$map=(array)($manifest['encryptedEntries']??[]);$authMeta=(array)($map['System_Recovery/private/auth.json']??[]);if(!$authMeta||empty($authMeta['stored'])&&empty($authMeta['chunks'])){$zip->close();throw new InvalidArgumentException('The recovery backup does not contain auth.json.');}$stream=fopen('php://temp','w+');try{tt_backup_decrypt_entry($zip,$authMeta,$key,$stream);rewind($stream);$auth=stream_get_contents($stream);}finally{fclose($stream);}if(!is_array(json_decode($auth,true))){$zip->close();throw new InvalidArgumentException('The backup contains invalid recovery data.');}return[$zip,$manifest,$key];}
+function tt_backup_open_verified(string $path,string $password=''):array{$zip=new TT_SimpleZipReader($path,TT_BACKUP_MAX_ARCHIVE_BYTES);$manifestRaw=$zip->get('backup-manifest.json');$manifest=$manifestRaw?json_decode($manifestRaw,true):null;if(!is_array($manifest)||($manifest['application']??'')!=='Transtrade'||($manifest['type']??'')!=='full_recovery'){$zip->close();throw new InvalidArgumentException('This is not a Complete Transtrade Recovery Backup.');}if((int)($manifest['schema']??0)>TT_BACKUP_SCHEMA){$zip->close();throw new InvalidArgumentException('This backup was created by a newer Transtrade backup format.');}$enc=(array)($manifest['encryption']??[]);$salt=base64_decode((string)($enc['salt']??''),true);if($salt===false||($enc['algorithm']??'')!=='AES-256-GCM'){$zip->close();throw new InvalidArgumentException('The recovery backup encryption information is invalid.');}$key=tt_backup_derive_key($password,$salt,(int)($enc['iterations']??200000));$map=(array)($manifest['encryptedEntries']??[]);$authMeta=(array)($map['System_Recovery/private/auth.json']??[]);if(!$authMeta||empty($authMeta['stored'])&&empty($authMeta['chunks'])){$zip->close();throw new InvalidArgumentException('The recovery backup does not contain auth.json.');}$stream=fopen('php://temp','w+');try{tt_backup_decrypt_entry($zip,$authMeta,$key,$stream);rewind($stream);$auth=stream_get_contents($stream);}finally{fclose($stream);}if(!is_array(json_decode($auth,true))){$zip->close();throw new InvalidArgumentException('The backup contains invalid recovery data.');}return[$zip,$manifest,$key];}
 function tt_backup_verify_full(string $path,string $password):array{
     [$zip,$manifest,$key]=tt_backup_open_verified($path,$password);
     try{
