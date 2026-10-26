@@ -11,6 +11,7 @@ if (!tt_user_can_open_module($user, 'Accounts')) {
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET') tt_release_read_session();
 
 $files = [
+    'company-context-guard.js',
     'accounts-notifications.js',
     'accounts-row-controls.js',
     'accounts-form-layout.js',

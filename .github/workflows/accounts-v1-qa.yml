@@ -419,6 +419,7 @@ jobs:
           node tests/accounts-v1/cancellation_reason_ui_test.js
           node tests/accounts-v1/post_register_browser_test.js
           node tests/accounts-v1/bank_ledger_name_search_browser_test.js
+          node tests/accounts-v1/company_context_guard_browser_test.js
           node tests/accounts-v1/direct_expense_browser_test.js
           node tests/accounts-v1/petty_cash_ui_test.js
           node tests/accounts-v1/unified_expense_browser_test.js
