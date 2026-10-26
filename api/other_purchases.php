@@ -4,14 +4,15 @@ require_once __DIR__.'/accounts_posting_preview.php';
 require_once __DIR__.'/accounts_bank_payment.php';
 header('X-TT-Posting-Preview: available');
 require dirname(__DIR__).'/auth_store.php';
+require_once __DIR__ . '/accounts_source_store.php';
 header('Content-Type: application/json; charset=UTF-8');
 header('Cache-Control: no-store, no-cache, must-revalidate');
 const TT_OP_FILE=TT_DATA_DIR.'/accounts.json';
 const TT_OP_MASTER=__DIR__.'/../accounts/accounting_master_v1.json';
 function op_out(array $d,int $s=200):never{http_response_code($s);echo json_encode($d,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);exit;}
 function op_def():array{return ['revision'=>0,'journals'=>[],'otherPurchases'=>[],'fixedAssets'=>[],'bankAccountSettings'=>[]];}
-function op_read():array{tt_ensure_data_dir();if(!is_file(TT_OP_FILE))return op_def();$h=fopen(TT_OP_FILE,'r');if($h===false||!flock($h,LOCK_SH))throw new RuntimeException('Accounts storage unavailable.');try{$raw=stream_get_contents($h);}finally{flock($h,LOCK_UN);fclose($h);} $v=$raw?json_decode($raw,true):null;return is_array($v)?array_replace_recursive(op_def(),$v):op_def();}
-function op_write(array $s):void{tt_ensure_data_dir();$h=fopen(TT_OP_FILE,'c+');if($h===false||!flock($h,LOCK_EX))throw new RuntimeException('Accounts storage unavailable.');try{$encodedAccounts=json_encode($s,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);rewind($h);if(!ftruncate($h,0)||fwrite($h,$encodedAccounts)!==strlen($encodedAccounts)||!fflush($h))throw new RuntimeException('Accounts storage could not be written.');}finally{flock($h,LOCK_UN);fclose($h);}}
+function op_read():array{tt_ensure_data_dir();$h=@fopen(TT_OP_FILE,'rb');if($h===false||!flock($h,LOCK_SH))throw new RuntimeException('Accounts storage unavailable.');try{$raw=stream_get_contents($h);}finally{flock($h,LOCK_UN);fclose($h);} return tt_accounts_source_decode($raw,op_def());}
+function op_write(array $s):void{tt_ensure_data_dir();$h=@fopen(TT_OP_FILE,'r+b');if($h===false||!flock($h,LOCK_EX))throw new RuntimeException('Accounts storage unavailable.');try{$encodedAccounts=json_encode($s,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);rewind($h);if(!ftruncate($h,0)||fwrite($h,$encodedAccounts)!==strlen($encodedAccounts)||!fflush($h))throw new RuntimeException('Accounts storage could not be written.');}finally{flock($h,LOCK_UN);fclose($h);}}
 function op_can(array $u):bool{if(($u['role']??'')==='Super Admin')return true;$p=$u['permissions']['Accounts']??null;if($p==='all')return true;if(!is_array($p))return false;if(in_array('Create',$p,true)||in_array('Edit',$p,true)||in_array('Approve',$p,true))return true;foreach($p as $a)if(is_array($a)&&(in_array('Create',$a,true)||in_array('Edit',$a,true)||in_array('Approve',$a,true)))return true;return false;}
 function op_ent(string $v):string{$v=strtoupper(trim($v));if(!in_array($v,['TTI','BRM','TG'],true))op_out(['ok'=>false,'error'=>'Select valid company books.'],422);return $v;}
 function op_require_entity(array $u,string $e,bool $write=false):void{if(($u['role']??'')==='Super Admin')return;$allowed=$write?(tt_user_can_access_entity($u,$e,'Create')||tt_user_can_access_entity($u,$e,'Edit')||tt_user_can_access_entity($u,$e,'Approve')):tt_user_can_access_entity($u,$e,'View');if(!$allowed)op_out(['ok'=>false,'error'=>'You do not have permission for this legal entity.'],403);}
@@ -41,9 +42,9 @@ $settlement=strtoupper(trim((string)($b['settlement']??'')));if(!in_array($settl
 $tracking=[];if($settlement==='BANK'&&trim((string)($b['bankPaymentMethod']??''))!=='')$tracking=tt_accounts_bank_payment_details(array_replace($b,['paymentAccountId'=>(string)($b['bankId']??'')]));
 $assetName=trim((string)($b['assetName']??''));$assetTag=strtoupper(trim((string)($b['assetTag']??'')));$custodian=trim((string)($b['custodian']??''));$inServiceDate=trim((string)($b['inServiceDate']??''));$usefulLife=0;
 if($type==='FIXED_ASSET'){if($assetName===''||$assetTag===''||$inServiceDate==='')op_out(['ok'=>false,'error'=>'Asset name, unique asset tag and in-service date are required.'],422);op_date($inServiceDate,'in-service date');$usefulLife=op_years($b['usefulLifeYears']??0);}
-tt_ensure_data_dir();$h=fopen(TT_OP_FILE,'c+');if($h===false||!flock($h,LOCK_EX))throw new RuntimeException('Accounts storage unavailable.');
+tt_ensure_data_dir();$h=@fopen(TT_OP_FILE,'r+b');if($h===false||!flock($h,LOCK_EX))throw new RuntimeException('Accounts storage unavailable.');
 try{
-rewind($h);$raw=stream_get_contents($h);$s=$raw?json_decode($raw,true):null;if(!is_array($s))$s=op_def();$s=array_replace_recursive(op_def(),$s);$previewBefore=array_map('strval',array_keys((array)($s['journals']??[])));
+rewind($h);$raw=stream_get_contents($h);$s=tt_accounts_source_decode($raw,op_def());$previewBefore=array_map('strval',array_keys((array)($s['journals']??[])));
 if($inv!=='')foreach((array)$s['otherPurchases']as$old)if(is_array($old)&&($old['entity']??'')===$e&&strcasecmp((string)($old['supplier']??''),$supplier)===0&&strcasecmp((string)($old['invoiceNo']??''),$inv)===0)op_out(['ok'=>false,'error'=>'This supplier invoice is already recorded in these company books.'],409);
 if($type==='FIXED_ASSET')foreach((array)$s['fixedAssets']as$old)if(is_array($old)&&($old['entity']??'')===$e&&strcasecmp((string)($old['assetTag']??''),$assetTag)===0)op_out(['ok'=>false,'error'=>'This asset tag already exists in these company books.'],409);
 $names=op_names();$debit=op_account($type,$sub);$purchaseId=op_next((array)$s['otherPurchases'],'OP');$meta=['otherPurchaseId'=>$purchaseId,'purchaseType'=>$type,'purchaseSubtype'=>$sub,'supplier'=>$supplier,'invoiceNo'=>$inv,'description'=>$desc,'location'=>$location];

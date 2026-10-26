@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require dirname(__DIR__) . '/auth_store.php';
+require_once __DIR__ . '/accounts_source_store.php';
 if(!defined('TT_SETTLEMENTS_FUNCTIONS_ONLY'))define('TT_SETTLEMENTS_FUNCTIONS_ONLY',true);
 require_once __DIR__.'/supplier_settlements.php';
 if(!defined('TT_PAYABLES_FUNCTIONS_ONLY'))define('TT_PAYABLES_FUNCTIONS_ONLY',true);
@@ -94,13 +95,12 @@ function ps_user_name(array $user): string {
 
 function ps_read(): array {
     tt_ensure_data_dir();
-    if (!is_file(PS_FILE)) return ps_default();
-    $handle = fopen(PS_FILE, 'r');
+
+    $handle = @fopen(PS_FILE,'rb');
     if ($handle === false || !flock($handle, LOCK_SH)) throw new RuntimeException('store');
     try { $raw = stream_get_contents($handle); }
     finally { flock($handle, LOCK_UN); fclose($handle); }
-    $store = $raw ? json_decode($raw, true) : null;
-    return is_array($store) ? array_replace_recursive(ps_default(), $store) : ps_default();
+    return tt_accounts_source_decode($raw,ps_default());
 }
 
 function ps_date(string $value, string $label): string {
@@ -305,12 +305,10 @@ try {
     if (!in_array($entity, ['TTI','BRM'], true)) ps_out(['ok'=>false, 'error'=>'Invalid legal entity.'], 422);
     $entityAction=$action==='create'?'Create':'Edit';if(!tt_user_can_access_entity($user,$entity,$entityAction))ps_out(['ok'=>false,'error'=>'You do not have permission for this legal entity.'],403);
     tt_ensure_data_dir();
-    $handle = fopen(PS_FILE, 'c+');
+    $handle = @fopen(PS_FILE,'r+b');
     if ($handle === false || !flock($handle, LOCK_EX)) throw new RuntimeException('store');
     try {
-        rewind($handle); $raw = stream_get_contents($handle); $store = $raw ? json_decode($raw, true) : null;
-        if (!is_array($store)) $store = ps_default();
-        $store = array_replace_recursive(ps_default(), $store); $created = null;
+        rewind($handle); $raw = stream_get_contents($handle); $store=tt_accounts_source_decode($raw,ps_default()); $created = null;
         if ($action === 'create') {
             $requestKey=ps_request_key($body['requestKey']??'');$postingKey=$entity.'|PURCHASE_SODA|'.$requestKey;$fingerprint=ps_fingerprint($body);$prior=$store['postingKeys'][$postingKey]??null;
             if(is_array($prior)){if(!hash_equals((string)($prior['fingerprint']??''),$fingerprint))ps_out(['ok'=>false,'error'=>'This request key was already used for a different Soda.'],409);$created=$store['purchaseSodas'][(string)($prior['sodaId']??'')]??null;ps_out(['ok'=>true,'sodas'=>ps_rows($store,$entity),'nextSodaNo'=>ps_next_no((array)$store['purchaseSodas']),'created'=>$created,'duplicate'=>true]+ps_metadata($user));}

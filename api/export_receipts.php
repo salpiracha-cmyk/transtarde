@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require dirname(__DIR__) . '/auth_store.php';
+require_once __DIR__ . '/accounts_source_store.php';
 require __DIR__ . '/export_receipt_tg_mirror.php';
 require __DIR__ . '/accounts_receipt_amend_core.php';
 require_once __DIR__.'/fi_credit_advice_link.php';
@@ -26,8 +27,8 @@ function er_can_write(array $user): bool {
 }
 function er_default_store(): array {return ['revision'=>0,'journals'=>[],'exportCandidates'=>[],'exportReceipts'=>[],'bankAccountSettings'=>[]];}
 function er_read_accounts(): array {
-    tt_ensure_data_dir();if(!is_file(TT_EXPORT_RECEIPTS_FILE))return er_default_store();$h=fopen(TT_EXPORT_RECEIPTS_FILE,'r');if($h===false||!flock($h,LOCK_SH))throw new RuntimeException('Accounts storage unavailable.');
-    try{$raw=stream_get_contents($h);}finally{flock($h,LOCK_UN);fclose($h);}$s=$raw?json_decode($raw,true):null;return is_array($s)?array_replace_recursive(er_default_store(),$s):er_default_store();
+    tt_ensure_data_dir();$h=@fopen(TT_EXPORT_RECEIPTS_FILE,'rb');if($h===false||!flock($h,LOCK_SH))throw new RuntimeException('Accounts storage unavailable.');
+    try{$raw=stream_get_contents($h);}finally{flock($h,LOCK_UN);fclose($h);}return tt_accounts_source_decode($raw,er_default_store());
 }
 function er_ops_env(string $name): string {$constant='TT_'.$name;if(defined($constant))return(string)constant($constant);$value=getenv($constant);return$value===false?'':(string)$value;}
 function er_ops_db_configured(): bool {return er_ops_env('DB_HOST')!==''&&er_ops_env('DB_NAME')!==''&&er_ops_env('DB_USER')!=='';}
@@ -235,9 +236,9 @@ try{
     if($_SERVER['REQUEST_METHOD']!=='POST')er_respond(['ok'=>false,'error'=>'Method not allowed.'],405);if(!er_can_write($user))er_respond(['ok'=>false,'error'=>'Accounts Create / Edit / Approve permission required.'],403);
     $body=json_decode((function_exists('tt_accounts_input')?tt_accounts_input():file_get_contents('php://input'))?:'{}',true);if(!is_array($body)||!tt_verify_csrf((string)($body['csrf']??'')))er_respond(['ok'=>false,'error'=>'Your session expired. Refresh and try again.'],419);if((string)($body['action']??'')!=='post_receipt')er_respond(['ok'=>false,'error'=>'Unknown export receipt action.'],422);
     $entity=er_entity((string)($body['entity']??''));if(function_exists('tt_user_can_access_entity')&&!tt_user_can_access_entity($user,$entity,'Create')&&!tt_user_can_access_entity($user,$entity,'Edit')&&!tt_user_can_access_entity($user,$entity,'Approve'))er_respond(['ok'=>false,'error'=>'Company posting permission required.'],403);$date=er_date((string)($body['date']??''));$currency=er_currency((string)($body['transactionCurrency']??''));$foreign=er_money($body['foreignAmount']??0,'Foreign receipt amount');$forwardId=trim((string)($body['forwardBookingId']??''));$rate=$forwardId!==''?fwb_number($body['realizationRate']??null,'forward rate',6):er_money($body['realizationRate']??0,'Bank realization rate');$gross=er_money($body['grossPkrEquivalent']??($foreign*$rate),'Gross PKR equivalent');$bankCredit=er_money($body['pkrBankCredit']??0,'Actual PKR bank credit',true);$bankId=trim((string)($body['bankAccountId']??''));$bankRef=trim((string)($body['bankAdviceRef']??''));if($bankRef==='')er_respond(['ok'=>false,'error'=>'Bank advice / transaction reference is required to prevent duplicate posting.'],422);$retentionForeign=er_money($body['retentionForeignAmount']??0,'Retention foreign amount',true);if($retentionForeign>$foreign+.0001)er_respond(['ok'=>false,'error'=>'Retention amount cannot exceed the foreign receipt.'],422);$retentionPkr=round($retentionForeign*$rate,2);$retentionBankId=trim((string)($body['retentionBankAccountId']??''));$shortfallClassification=strtoupper(trim((string)($body['shortfallClassification']??'')));$shortfallNote=trim((string)($body['shortfallNote']??''));if($shortfallClassification!==''&&!in_array($shortfallClassification,['PARTIAL','CORRESPONDENT','OTHER'],true))er_respond(['ok'=>false,'error'=>'Select a valid shortfall treatment.'],422);if($shortfallClassification==='OTHER'&&$shortfallNote==='')er_respond(['ok'=>false,'error'=>'Explain the other shortfall reason.'],422);$catalog=er_catalog();$partialReceipt=filter_var($body['partialReceipt']??false,FILTER_VALIDATE_BOOLEAN);$paymentPartRef=trim((string)($body['paymentPartRef']??''));if($partialReceipt&&($paymentPartRef===''||strlen($paymentPartRef)>40))er_respond(['ok'=>false,'error'=>'Enter a payment part reference (for example 1 or 2).'],422);
-    tt_ensure_data_dir();$h=fopen(TT_EXPORT_RECEIPTS_FILE,'c+');if($h===false||!flock($h,LOCK_EX))throw new RuntimeException('Accounts storage unavailable.');
+    tt_ensure_data_dir();$h=@fopen(TT_EXPORT_RECEIPTS_FILE,'r+b');if($h===false||!flock($h,LOCK_EX))throw new RuntimeException('Accounts storage unavailable.');
     try{
-        rewind($h);$raw=stream_get_contents($h);$store=$raw?json_decode($raw,true):null;if(!is_array($store))$store=er_default_store();$store=array_replace_recursive(er_default_store(),$store);
+        rewind($h);$raw=stream_get_contents($h);$store=tt_accounts_source_decode($raw,er_default_store());
         $amendmentOf=trim((string)($body['amendmentOf']??''));$amendmentReason=trim((string)($body['amendmentReason']??''));$reversedReceipt=null;
         if($amendmentOf!==''){
             if(!tt_user_can_access_entity($user,$entity,'Edit'))er_respond(['ok'=>false,'error'=>'Accounts Edit access to this company is required.'],403);
