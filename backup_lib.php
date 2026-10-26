@@ -602,6 +602,9 @@ function tt_backup_portable_database_files(array $private,array $tables,array &$
 }
 
 function tt_build_download_backup(bool $full,string $password=''):array{
+    // Compression and encryption happen before streaming; allow the same bounded
+    // build time as the verified office preparation worker.
+    @set_time_limit(900);
     $portableTemps=[];register_shutdown_function(static function()use(&$portableTemps):void{foreach($portableTemps as$temp)if(is_file($temp))@unlink($temp);});
     [$business,$datasets]=tt_backup_business_payloads();$private=tt_backup_portable_database_files(tt_backup_private_files(),tt_backup_database_rows(),$portableTemps);$appFiles=$full?tt_backup_app_files():[];$documents=[];
     foreach($private as $rel=>$path)if(preg_match('#^(documents|uploads)/(.*)$#i',$rel,$m))$documents['Documents/'.$m[2]]=$path;

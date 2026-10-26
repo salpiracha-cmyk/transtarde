@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="Transtrade unified Super Admin control centre">
   <title>Transtrade Super Admin Console</title>
-  <link rel="stylesheet" href="admin/styles.css?v=20261026-pc-setup-2">
+  <link rel="stylesheet" href="admin/styles.css?v=20261026-backup-build-3">
   <link rel="stylesheet" href="brand-theme.css?v=20260914-control-centre-1-20261006-number-entry-1">
 </head>
 <body>
@@ -164,6 +164,7 @@
                 <span>✓ Real Excel workbook (.xlsx)</span><span>✓ Mill / Exports / Accounts CSV folders with all saved input fields</span><span>✓ Word backup summary (.docx)</span><span>✓ PDF backup summary</span><span>✓ Original stored documents where available</span>
               </div>
               <button class="button primary" id="downloadBusinessBackup">Download Business Data</button>
+              <p id="businessDownloadStatus" role="status"></p>
               <small class="backup-note">Uses your saved backup protection password. Open with an AES-compatible ZIP tool, such as 7-Zip.</small>
             </article>
 
@@ -174,6 +175,7 @@
                 <span>✓ Business Data package</span><span>✓ Raw auth / master / audit data</span><span>✓ Shared Mill / Export operational data</span><span>✓ Private stored documents / uploads</span><span>✓ Backup manifest and integrity hashes</span><span>✓ Encrypted application-code snapshot for your offline computer copy</span>
               </div>
               <button class="button primary" id="downloadFullBackup">Download Complete Backup</button>
+              <p id="fullDownloadStatus" role="status"></p>
               <small class="backup-note">Encrypted using the backup protection password set in Passwords &amp; Security. Keep that password saved separately for recovery.</small>
             </article>
           </div>
@@ -339,7 +341,7 @@
 
   <div class="toast-region" id="toastRegion" aria-live="polite"></div>
 <script src="mill-duplicate-approvals.js"></script>
-<script src="admin/app.js?v=20261026-pc-setup-2"></script>
+<script src="admin/app.js?v=20261026-backup-build-3"></script>
 <script src="brand-theme.js?v=20261006-number-entry-1"></script>
 </body>
 </html>
