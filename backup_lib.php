@@ -501,12 +501,18 @@ function tt_backup_module_payloads():array {
     return $payloads;
 }
 function tt_backup_module_documents(array $private):array {
-    $files=[];
+    $files=[];$metadata=[];
+    if(isset($private['export_documents/index.json'])){foreach((array)json_decode((string)file_get_contents($private['export_documents/index.json']),true,512,JSON_THROW_ON_ERROR)as$row)if(is_array($row)&&isset($row['stored_name']))$metadata[(string)$row['stored_name']]=$row;}
+    foreach(tt_backup_database_rows()['tt_export_documents']??[]as$row)$metadata[(string)$row['stored_name']]=$row;
+
     foreach($private as$rel=>$path){
         if(preg_match('~^(documents|uploads)/(.*)$~i',$rel,$m)){
             $module=tt_backup_module($m[2]);$files[$module.'/Documents/'.$rel]=$path;
         }elseif(str_starts_with($rel,'export_documents/')){
-            $files['Exports/Shipment_Documents/'.$rel]=$path;
+            $row=$metadata[substr($rel,strlen('export_documents/'))]??null;
+            if(is_array($row)){$folder='Exports/Shipment_Folders/'.tt_backup_safe_name((string)($row['contract_ref']??'Unassigned')).'/'.tt_backup_safe_name((string)($row['lot_ref']??'No lot')).'/'.tt_backup_safe_name((string)($row['category']??'Documents'));
+                $files[$folder.'/'.tt_backup_safe_name((string)($row['id']??basename($rel))).'-'.tt_backup_safe_name((string)($row['original_name']??basename($rel)))]=$path;
+            }else $files['Exports/Shipment_Documents/'.$rel]=$path;
         }elseif(str_starts_with($rel,'master-documents/')){
             $files['Shared/Master_Documents/'.$rel]=$path;
         }elseif(str_starts_with($rel,'office_agent_jobs/')){
