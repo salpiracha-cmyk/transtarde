@@ -168,7 +168,7 @@ function gm_cashflow_source(array $state,string $date,?array $bankMasters=null,?
     require_once __DIR__.'/cashflow_party_core.php';
     $masters=function_exists('tt_list_masters')?(array)tt_list_masters():[];$state=cfp_books($state,$masters);
     if($exports===null){require_once __DIR__.'/fi_credit_advice_link.php';$exports=defined('TT_DATA_DIR')?tt_fi_advice_root():[];}
-    return cfp_invoices(cfp_rows(cfn_source(gm_cashflow_scope(gm_financial_source($state,$date,$bankMasters,true)),$state,$date,$bankMasters),$state),$state,$date,$exports);
+    return cfp_invoices(cfp_rows(cfn_source(gm_cashflow_scope(gm_financial_source($state,$date,$bankMasters,true)),$state,$date,$bankMasters),$state,$masters),$state,$date,$exports);
 }
 function gm_cashflow_scope(array $source):array {
     foreach($source['rows'] as &$row){

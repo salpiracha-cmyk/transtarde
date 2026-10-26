@@ -26,8 +26,8 @@ function cfp_books(array $state,array $masters):array {
 function cfp_key(string $v):string{return strtolower(preg_replace('/[^\p{L}\p{N}]/u','',$v)??'');}
 /** One net external position per company/party/currency. Estimates remain
  * separate from actual bills. Unknown identities are held for review. */
-function cfp_rows(array $source,array $state=[]):array {
-    $groups=[];$out=[];
+function cfp_rows(array $source,array $state=[],array $masters=[]):array {
+    $groups=[];$out=[];$labour=[];foreach((array)($masters['business_parties']??[]) as $master)if(preg_match('/Labour Contractor/i',(string)($master['values'][2]??'')))$labour[cfp_key((string)($master['values'][0]??''))]=true;
     foreach($source['rows'] as $r){
         if(!empty($r['excluded'])){$out[]=$r;continue;}
         $code=(string)$r['account'];$party=trim((string)($r['party']??''));
@@ -40,7 +40,7 @@ function cfp_rows(array $source,array $state=[]):array {
         if(!isset($groups[$key])){$groups[$key]=$r;$groups[$key]['id']='PARTY-'.substr(hash('sha256',$key),0,24);$groups[$key]['label']=$party.($section==='estimates'?' — Estimated / unbilled':'');$groups[$key]['amount']=0.;$groups[$key]['postIds']=[];$groups[$key]['cashflowSection']=$section;$groups[$key]['sourceAccounts']=[];}
         $g=&$groups[$key];$g['amount']=$r['amount']===null||$g['amount']===null?null:round($g['amount']+$r['amount'],2);$g['postIds']=array_values(array_unique(array_merge($g['postIds'],(array)$r['postIds'])));$g['sourceAccounts'][]=$code;unset($g);
     }
-    foreach($groups as $r){if($r['cashflowSection']==='suppliers'&&$r['amount']>0&&!in_array('2190',$r['sourceAccounts'],true)){$r['excluded']=true;$r['reason']='Supplier debit balance requires advance / settlement reconciliation; no expected cash receipt has been assumed.';$source['warnings'][]=$r['party'].' · '.$r['reason'].' · '.implode(', ',$r['postIds']);}
+    foreach($groups as $r){if($r['cashflowSection']==='suppliers'&&$r['amount']>0&&!in_array('2190',$r['sourceAccounts'],true)&&empty($labour[cfp_key($r['party'])])){$r['excluded']=true;$r['reason']='Supplier debit balance requires advance / settlement reconciliation; no expected cash receipt has been assumed.';$source['warnings'][]=$r['party'].' · '.$r['reason'].' · '.implode(', ',$r['postIds']);}
         if($r['amount']!==null&&abs($r['amount'])<.005)continue;$r['originalAmount']=$r['amount'];$r['sourceAccounts']=array_values(array_unique($r['sourceAccounts']));$r['sourceFingerprint']=hash('sha256',json_encode($r,JSON_THROW_ON_ERROR));$out[]=$r;}
     $source['rows']=$out;$source['warnings']=array_values(array_unique($source['warnings']??[]));$source['cashflowBasis']='PARTY_V2';$source['basis']='Party-wise cash position: bank balances plus customer receipts and recoverable advances, less net supplier payables and separately identified estimates. Other ledger controls and inventory are excluded. Source journals are unchanged.';return $source;
 }
