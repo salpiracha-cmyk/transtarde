@@ -335,7 +335,7 @@ def pull(config, destination, scheduled_for=None, refresh_tiers=False):
             if received != length: raise ValueError(f'Backup transfer incomplete: received {received:,} of {length:,} bytes. Existing verified backups were preserved.')
             if digest.hexdigest() != expected: raise ValueError(f'Backup transfer checksum mismatch after receiving all {received:,} bytes. Existing verified backups were preserved.')
         validate_zip(temp)
-        stamp = datetime.now(timezone(timedelta(hours=5))) if scheduled_for is not None else datetime.now(timezone.utc)
+        stamp = datetime.now(timezone(timedelta(hours=5)))
         bucket_stamp = scheduled_for if scheduled_for is not None else stamp
         retention = config.get('retention') or {}
         daily_dir, weekly_dir, monthly_dir = destination / 'Daily', destination / 'Weekly', destination / 'Monthly'
