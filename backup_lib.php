@@ -953,6 +953,7 @@ function tt_backup_stage_file(string $rel,callable $write):string{
 function tt_restore_complete_backup(string $path,string $password):array{
     [$zip,$manifest,$key]=tt_backup_open_verified($path,$password);$staged=[];
     try{
+        if(($manifest['scope']??'full')==='software')throw new InvalidArgumentException('This is Software and Setup only. Choose a Data or legacy Complete backup to restore business records.');
         foreach((array)($manifest['encryptedEntries']??[]) as $logical=>$meta){
             if(!str_starts_with((string)$logical,'System_Recovery/private/'))continue;
             $rel=substr((string)$logical,strlen('System_Recovery/private/'));if(!tt_backup_restore_allowed($rel))continue;

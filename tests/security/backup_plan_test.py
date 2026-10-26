@@ -18,6 +18,9 @@ tt_mutate_store(static function(array &$s){$s['masters']['fixture']=[['values'=>
 file_put_contents(TT_DATA_DIR.'/accounts.json',json_encode(['journals'=>['DATA-ENTRY'=>['amount'=>19]],'accountSubaccounts'=>['MASTER-1'=>['name'=>'Fixture setup']]]));
 mkdir(TT_DATA_DIR.'/documents');file_put_contents(TT_DATA_DIR.'/documents/original.pdf','preserved original');
 foreach(['data','software']as$scope){$b=tt_build_download_backup(true,'fixture-split-backup-password',$scope);copy($b['path'],$argv[1].'/'.$scope.'.zip');unlink($b['path']);}
+$before=[hash_file('sha256',TT_STORE_FILE),hash_file('sha256',TT_DATA_DIR.'/accounts.json')];$rejected=false;
+try{tt_restore_complete_backup($argv[1].'/software.zip','fixture-split-backup-password');}catch(InvalidArgumentException $e){$rejected=str_contains($e->getMessage(),'Software and Setup only');}
+if(!$rejected||$before!==[hash_file('sha256',TT_STORE_FILE),hash_file('sha256',TT_DATA_DIR.'/accounts.json')])throw new RuntimeException('Software-only restore must be refused before changing any store.');
 """)
         subprocess.run(['php',str(driver),str(cls.root)],check=True,capture_output=True)
     @classmethod
