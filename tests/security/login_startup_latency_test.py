@@ -7,7 +7,7 @@ with tempfile.TemporaryDirectory(prefix='tti-login-latency-') as directory:
   shutil.copy(ROOT/name,app/name)
  for name in ['backup.php','users.php','director_approvals.php']:
   shutil.copy(ROOT/'api'/name,app/'api'/name)
- (app/'backup_lib.php','backup_report_exports.php').write_text('''<?php
+ (app/'backup_lib.php').write_text('''<?php
 function tt_maybe_auto_backup():void{$GLOBALS['backupCalls']=($GLOBALS['backupCalls']??0)+1;}
 function tt_backup_status():array{if(session_status()===PHP_SESSION_ACTIVE)throw new RuntimeException('Backup held session');tt_maybe_auto_backup();return ['fixtureBackupAvailable'=>true];}
 ''')
