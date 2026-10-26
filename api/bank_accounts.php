@@ -4,6 +4,7 @@ require_once __DIR__.'/tg_remittance_core.php';
 require_once __DIR__.'/accounts_ledger_visibility.php';
 
 require_once dirname(__DIR__) . '/auth_store.php';
+require_once __DIR__ . '/accounts_source_store.php';
 header('Content-Type: application/json; charset=UTF-8');
 header('Cache-Control: no-store, no-cache, must-revalidate');
 
@@ -33,12 +34,11 @@ function ba_default_store(): array {
 }
 function ba_read(): array {
     tt_ensure_data_dir();
-    if(!is_file(TT_BANK_ACCOUNTS_FILE))return ba_default_store();
-    $h=fopen(TT_BANK_ACCOUNTS_FILE,'r');
+
+    $h=@fopen(TT_BANK_ACCOUNTS_FILE,'rb');
     if($h===false||!flock($h,LOCK_SH))throw new RuntimeException('Accounts storage unavailable.');
     try{$raw=stream_get_contents($h);}finally{flock($h,LOCK_UN);fclose($h);}
-    $s=$raw?json_decode($raw,true):null;
-    return is_array($s)?array_replace_recursive(ba_default_store(),$s):ba_default_store();
+    return tt_accounts_source_decode($raw,ba_default_store());
 }
 function ba_entity_from_linked(string $linked): string {
     $u=strtoupper($linked);
@@ -237,9 +237,9 @@ try{
         if(strcasecmp((string)($a['masterStatus']??'Active'),'Active')!==0)ba_respond(['ok'=>false,'error'=>'Activate this bank inside Super Admin Company Master before enabling payments or receipts.'],422);
         if(empty($a['linkedRetentionAccount'])&&trim((string)$a['accountNumber'])===''&&trim((string)$a['iban'])==='')ba_respond(['ok'=>false,'error'=>'Complete the account number or IBAN in the Company Master before enabling payments or receipts.'],422);
     }
-    tt_ensure_data_dir();$h=fopen(TT_BANK_ACCOUNTS_FILE,'c+');if($h===false||!flock($h,LOCK_EX))throw new RuntimeException('Accounts storage unavailable.');
+    tt_ensure_data_dir();$h=@fopen(TT_BANK_ACCOUNTS_FILE,'r+b');if($h===false||!flock($h,LOCK_EX))throw new RuntimeException('Accounts storage unavailable.');
     try{
-        rewind($h);$raw=stream_get_contents($h);$store=$raw?json_decode($raw,true):null;if(!is_array($store))$store=ba_default_store();$store=array_replace_recursive(ba_default_store(),$store);
+        rewind($h);$raw=stream_get_contents($h);$store=tt_accounts_source_decode($raw,ba_default_store());
         if($setting['defaultReceiptAccount']||$setting['defaultPaymentAccount']){
             foreach((array)($store['bankAccountSettings']??[]) as $otherId=>$otherSetting){
                 if($otherId===$id||!is_array($otherSetting))continue;

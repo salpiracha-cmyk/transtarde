@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__.'/mill_recovery_core.php';
+require_once __DIR__.'/accounts_source_store.php';
 
 const TT_MC_ACCOUNTS = TT_DATA_DIR . '/accounts.json';
 const TT_MC_OPERATIONS = TT_DATA_DIR . '/operations.json';
@@ -10,7 +11,7 @@ function mc_out(array $d,int $s=200):never{http_response_code($s);echo json_enco
 function mc_can_write(array $u):bool{if(($u['role']??'')==='Super Admin')return true;$p=$u['permissions']['Accounts']??null;if($p==='all')return true;if(!is_array($p))return false;if(in_array('Create',$p,true)||in_array('Edit',$p,true)||in_array('Approve',$p,true))return true;foreach($p as $a)if(is_array($a)&&(in_array('Create',$a,true)||in_array('Edit',$a,true)||in_array('Approve',$a,true)))return true;return false;}
 function mc_require_entity(array $u,string $entity,bool $write=false):void{if(($u['role']??'')==='Super Admin')return;$allowed=$write?(tt_user_can_access_entity($u,$entity,'Create')||tt_user_can_access_entity($u,$entity,'Edit')||tt_user_can_access_entity($u,$entity,'Approve')):tt_user_can_access_entity($u,$entity,'View');if(!$allowed)mc_out(['ok'=>false,'error'=>'You do not have permission for this legal entity.'],403);}
 function mc_def():array{return ['revision'=>0,'journals'=>[],'events'=>[],'commodityBills'=>[],'managementCostingInputs'=>[],'managementCostingSheets'=>[],'managementCostingSheetHistory'=>[],'managementCostRates'=>[]];}
-function mc_read_accounts():array{tt_ensure_data_dir();if(!is_file(TT_MC_ACCOUNTS))return mc_def();$h=fopen(TT_MC_ACCOUNTS,'r');if($h===false||!flock($h,LOCK_SH))throw new RuntimeException('Accounts storage unavailable.');try{$raw=stream_get_contents($h);}finally{flock($h,LOCK_UN);fclose($h);}$v=mr_decode_store((string)$raw,mc_def());return array_replace_recursive(mc_def(),$v);}
+function mc_read_accounts():array{$h=@fopen(TT_MC_ACCOUNTS,'rb');if($h===false||!flock($h,LOCK_SH))throw new RuntimeException('Accounts storage unavailable.');try{$raw=stream_get_contents($h);}finally{flock($h,LOCK_UN);fclose($h);}return tt_accounts_source_decode((string)$raw,mc_def());}
 function mc_read_ops():array{return mr_read_operations_source(TT_MC_OPERATIONS);}
 function mc_op(array $ops,string $key):array{$raw=$ops['values'][$key]??'';if(!is_string($raw)||$raw==='')return [];$v=json_decode($raw,true,512,JSON_THROW_ON_ERROR);if(!is_array($v)||!array_is_list($v))throw new RuntimeException('Invalid operational rows.');return $v;}
 function mc_entity(string $v):string{$v=strtoupper(trim($v));if(!in_array($v,['TTI','BRM'],true))mc_out(['ok'=>false,'error'=>'Costing sheet is available for TTI / BRM.'],422);return $v;}

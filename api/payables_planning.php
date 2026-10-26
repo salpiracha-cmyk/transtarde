@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/auth_store.php';
+require_once __DIR__ . '/accounts_source_store.php';
 header('Content-Type: application/json; charset=UTF-8');
 header('Cache-Control: no-store, no-cache, must-revalidate');
 
@@ -17,12 +18,10 @@ function pp_default_store(): array {
 }
 function pp_read(): array {
     tt_ensure_data_dir();
-    if(!is_file(TT_PAYABLES_FILE))return pp_default_store();
-    $h=fopen(TT_PAYABLES_FILE,'r');
+    $h=@fopen(TT_PAYABLES_FILE,'rb');
     if($h===false||!flock($h,LOCK_SH))throw new RuntimeException('Accounts storage unavailable.');
     try{$raw=stream_get_contents($h);}finally{flock($h,LOCK_UN);fclose($h);}
-    $s=$raw?json_decode($raw,true):null;
-    return is_array($s)?array_replace_recursive(pp_default_store(),$s):pp_default_store();
+    return tt_accounts_source_decode($raw,pp_default_store());
 }
 function pp_can_accounts_write(array $user): bool {
     if(($user['role']??'')==='Super Admin')return true;
@@ -174,6 +173,6 @@ try{
     if($action!=='set_hold')pp_respond(['ok'=>false,'error'=>'Unknown Payables action.'],422);
     $entity=pp_entity((string)($body['entity']??''));if(!tt_user_can_access_entity($user,$entity,'Edit'))pp_respond(['ok'=>false,'error'=>'You do not have permission for this legal entity.'],403);$sourceKey=trim((string)($body['sourceKey']??''));if($sourceKey==='')pp_respond(['ok'=>false,'error'=>'Truck / payable reference is required.'],422);
     $active=(bool)($body['active']??false);$reason=trim((string)($body['reason']??''));if($active&&$reason==='')pp_respond(['ok'=>false,'error'=>'Reason is required when a payable is put on hold.'],422);
-    tt_ensure_data_dir();$h=fopen(TT_PAYABLES_FILE,'c+');if($h===false||!flock($h,LOCK_EX))throw new RuntimeException('Accounts storage unavailable.');
-    try{rewind($h);$raw=stream_get_contents($h);$store=$raw?json_decode($raw,true):null;if(!is_array($store))$store=pp_default_store();$store=array_replace_recursive(pp_default_store(),$store);$key=$entity.'|'.$sourceKey;$store['payableHolds'][$key]=['entity'=>$entity,'sourceKey'=>$sourceKey,'active'=>$active,'reason'=>$reason,'createdAt'=>gmdate('c'),'createdBy'=>(string)($user['full_name']??$user['username']??'Accounts')];$store['revision']=(int)($store['revision']??0)+1;$encodedAccounts=json_encode($store,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);rewind($h);if(!ftruncate($h,0)||fwrite($h,$encodedAccounts)!==strlen($encodedAccounts)||!fflush($h))throw new RuntimeException('Accounts storage could not be written.');}finally{flock($h,LOCK_UN);fclose($h);}pp_respond(['ok'=>true,'hold'=>$store['payableHolds'][$key],'revision'=>$store['revision']]);
+    tt_ensure_data_dir();$h=@fopen(TT_PAYABLES_FILE,'r+b');if($h===false||!flock($h,LOCK_EX))throw new RuntimeException('Accounts storage unavailable.');
+    try{rewind($h);$raw=stream_get_contents($h);$store=tt_accounts_source_decode($raw,pp_default_store());$key=$entity.'|'.$sourceKey;$store['payableHolds'][$key]=['entity'=>$entity,'sourceKey'=>$sourceKey,'active'=>$active,'reason'=>$reason,'createdAt'=>gmdate('c'),'createdBy'=>(string)($user['full_name']??$user['username']??'Accounts')];$store['revision']=(int)($store['revision']??0)+1;$encodedAccounts=json_encode($store,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);rewind($h);if(!ftruncate($h,0)||fwrite($h,$encodedAccounts)!==strlen($encodedAccounts)||!fflush($h))throw new RuntimeException('Accounts storage could not be written.');}finally{flock($h,LOCK_UN);fclose($h);}pp_respond(['ok'=>true,'hold'=>$store['payableHolds'][$key],'revision'=>$store['revision']]);
 }catch(Throwable $e){pp_respond(['ok'=>false,'error'=>'Payables planning could not be completed.'],500);}

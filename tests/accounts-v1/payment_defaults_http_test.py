@@ -4,7 +4,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[2]
 with tempfile.TemporaryDirectory(prefix='bank-defaults-qa-') as temp:
     root = pathlib.Path(temp)
     (root/'api').mkdir(); (root/'data').mkdir()
-    for name in ['bank_accounts.php','tg_remittance_core.php','accounts_ledger_visibility.php']:shutil.copy(ROOT/'api'/name,root/'api'/name)
+    for name in ['bank_accounts.php','accounts_source_store.php','tg_remittance_core.php','accounts_ledger_visibility.php']:shutil.copy(ROOT/'api'/name,root/'api'/name)
     def bank(id, company='TTI', currency='PKR', number='12345', iban='', status='Active'):
         return {'id':id,'values':['Company Account',company,'','Fixture Account','Fixture Bank','','',currency,number,iban,'','','',''+status]}
     masters = {'banks':[bank('a',iban='PK00BOTH'),bank('b'),bank('usd',currency='USD'),bank('brm',company='BRM'),bank('inactive',status='Inactive'),bank('incomplete',number=''),bank('iban-only',number='',iban='PK00ONLY')]}

@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require dirname(__DIR__) . '/auth_store.php';
+require_once __DIR__ . '/accounts_source_store.php';
 header('Content-Type: application/json; charset=UTF-8');
 header('Cache-Control: no-store, no-cache, must-revalidate');
 
@@ -8,7 +9,7 @@ const TT_LCR_FILE = TT_DATA_DIR . '/accounts.json';
 const TT_LCR_MASTER = __DIR__ . '/../accounts/accounting_master_v1.json';
 
 function lcr_out(array $d,int $s=200):never{http_response_code($s);echo json_encode($d,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);exit;}
-function lcr_read():array{tt_ensure_data_dir();if(!is_file(TT_LCR_FILE))return []; $h=fopen(TT_LCR_FILE,'r');if($h===false||!flock($h,LOCK_SH))throw new RuntimeException('Accounts storage unavailable.');try{$raw=stream_get_contents($h);}finally{flock($h,LOCK_UN);fclose($h);} $v=$raw?json_decode($raw,true):null;return is_array($v)?$v:[];}
+function lcr_read():array{tt_ensure_data_dir(); $h=@fopen(TT_LCR_FILE,'rb');if($h===false||!flock($h,LOCK_SH))throw new RuntimeException('Accounts storage unavailable.');try{$raw=stream_get_contents($h);}finally{flock($h,LOCK_UN);fclose($h);} return tt_accounts_source_decode($raw,[]);}
 function lcr_can_write(array $u):bool{if(($u['role']??'')==='Super Admin')return true;$p=$u['permissions']['Accounts']??null;if($p==='all')return true;if(!is_array($p))return false;if(in_array('Create',$p,true)||in_array('Edit',$p,true)||in_array('Approve',$p,true))return true;foreach($p as $a)if(is_array($a)&&(in_array('Create',$a,true)||in_array('Edit',$a,true)||in_array('Approve',$a,true)))return true;return false;}
 function lcr_names():array{$raw=file_get_contents(TT_LCR_MASTER);$m=$raw?json_decode($raw,true):null;if(!is_array($m))throw new RuntimeException('Accounting master unavailable.');$o=[];foreach((array)($m['chart']??[]) as $a)if(is_array($a)&&isset($a['code']))$o[(string)$a['code']]=(string)($a['name']??$a['code']);return $o;}
 function lcr_line(string $a,float $dr,float $cr,array $names,array $extra=[]):array{if(!isset($names[$a]))lcr_out(['ok'=>false,'error'=>'Approved account '.$a.' is unavailable.'],422);return array_merge(['account'=>$a,'accountName'=>$names[$a],'debit'=>round($dr,2),'credit'=>round($cr,2)],$extra);}
@@ -38,9 +39,9 @@ try{
  if(in_array($chequeAction,['clear_customer_cheque','bounce_customer_cheque','cancel_customer_cheque'],true)){
   $entity=strtoupper(trim((string)($b['entity']??'')));if(!in_array($entity,['TTI','BRM'],true)||!tt_user_can_access_entity($u,$entity,'Edit'))lcr_out(['ok'=>false,'error'=>'Company permission required.'],403);
   $date=lcr_date((string)($b['date']??''));$id=trim((string)($b['chequeId']??''));$names=lcr_names();
-  tt_ensure_data_dir();$h=fopen(TT_LCR_FILE,'c+');if($h===false||!flock($h,LOCK_EX))throw new RuntimeException('Accounts storage unavailable.');
+  tt_ensure_data_dir();$h=@fopen(TT_LCR_FILE,'r+b');if($h===false||!flock($h,LOCK_EX))throw new RuntimeException('Accounts storage unavailable.');
   try{
-   rewind($h);$raw=stream_get_contents($h);$store=$raw?json_decode($raw,true):null;if(!is_array($store))$store=[];$cheque=$store['localCustomerCheques'][$id]??null;
+   rewind($h);$raw=stream_get_contents($h);$store=tt_accounts_source_decode($raw,[]);$cheque=$store['localCustomerCheques'][$id]??null;
    if(!is_array($cheque)||($cheque['entity']??'')!==$entity)lcr_out(['ok'=>false,'error'=>'Customer cheque was not found in these books.'],404);
    $status=(string)($cheque['status']??'');$amount=(float)$cheque['amount'];$bank=['id'=>(string)$cheque['bankAccountId'],'bankName'=>(string)($cheque['bankName']??''),'accountTitle'=>(string)($cheque['bankAccountTitle']??''),'entity'=>$entity];
    if(($bank['entity']??'')!==$entity)lcr_out(['ok'=>false,'error'=>'Cheque bank belongs to another company.'],403);
@@ -63,7 +64,7 @@ try{
   }finally{flock($h,LOCK_UN);fclose($h);}lcr_out(['ok'=>true,'cheque'=>$cheque]);
  }
  $soda=trim((string)($b['soda']??''));$party=trim((string)($b['party']??''));$product=trim((string)($b['product']??''));$date=trim((string)($b['date']??''));$amount=round((float)($b['amount']??0),2);$type=strtoupper(trim((string)($b['receiptType']??'')));if($soda===''||$party===''||!preg_match('/^\d{4}-\d{2}-\d{2}$/',$date)||!is_finite($amount)||$amount<=0)lcr_out(['ok'=>false,'error'=>'Customer, Soda, date and receipt amount are required.'],422);if(!in_array($type,['BANK','CASH','ADJUSTMENT','CHEQUE'],true))lcr_out(['ok'=>false,'error'=>'Receipt type must be Bank, Cash, Cheque or Adjustment.'],422);
- tt_ensure_data_dir();$h=fopen(TT_LCR_FILE,'c+');if($h===false||!flock($h,LOCK_EX))throw new RuntimeException('Accounts storage unavailable.');try{rewind($h);$raw=stream_get_contents($h);$s=$raw!==''?json_decode($raw,true):[];if(!is_array($s))throw new RuntimeException('Accounts storage is invalid.');$rows=lcr_open_rows($s);$matches=array_values(array_filter($rows,static fn($x)=>strcasecmp((string)$x['soda'],$soda)===0&&strcasecmp((string)$x['party'],$party)===0));if(!$matches)lcr_out(['ok'=>false,'error'=>'This customer / Soda is not available for receipt posting.'],404);$sale=$matches[0];$soda=(string)$sale['soda'];$party=(string)$sale['party'];$entity=(string)$sale['entity'];if(strtoupper(trim((string)($b['entity']??'')))!==$entity||!tt_user_can_access_entity($u,$entity,'Create'))lcr_out(['ok'=>false,'error'=>'Selected Soda belongs to another company.'],403);$banks=lcr_banks($s);$bank=null;
+ tt_ensure_data_dir();$h=@fopen(TT_LCR_FILE,'r+b');if($h===false||!flock($h,LOCK_EX))throw new RuntimeException('Accounts storage unavailable.');try{rewind($h);$raw=stream_get_contents($h);$s=tt_accounts_source_decode($raw,[]);$rows=lcr_open_rows($s);$matches=array_values(array_filter($rows,static fn($x)=>strcasecmp((string)$x['soda'],$soda)===0&&strcasecmp((string)$x['party'],$party)===0));if(!$matches)lcr_out(['ok'=>false,'error'=>'This customer / Soda is not available for receipt posting.'],404);$sale=$matches[0];$soda=(string)$sale['soda'];$party=(string)$sale['party'];$entity=(string)$sale['entity'];if(strtoupper(trim((string)($b['entity']??'')))!==$entity||!tt_user_can_access_entity($u,$entity,'Create'))lcr_out(['ok'=>false,'error'=>'Selected Soda belongs to another company.'],403);$banks=lcr_banks($s);$bank=null;
  if(in_array($type,['BANK','CHEQUE'],true)){$bank=lcr_find_bank($banks,trim((string)($b['bankAccountId']??'')));$bankEntity=(string)$bank['entity'];if($bankEntity!==$entity){lcr_out(['ok'=>false,'error'=>'This Soda is currently posted under '.$entity.' but the selected bank belongs to '.$bankEntity.'. The Local Sale company must be corrected first so one Soda never mixes TTI and BRM.'],409);}}
  if(in_array($type,['CASH','ADJUSTMENT'],true)&&$entity!=='BRM')$entity='TTI';
  $open=round((float)$sale['openReceivable'],2);if($type==='CHEQUE'&&$amount>$open+.005)lcr_out(['ok'=>false,'error'=>'A customer cheque must be allocated to the open Soda receivable; enter the amount up to the current balance.'],422);$toAr=min($amount,$open);$extra=round($amount-$toAr,2);$names=lcr_names();$lines=[];$meta=['soda'=>$soda,'party'=>$party,'product'=>$product,'receiptType'=>$type,'receivableApplied'=>$toAr,'customerAdvance'=>$extra];

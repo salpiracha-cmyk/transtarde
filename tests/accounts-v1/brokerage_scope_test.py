@@ -5,6 +5,7 @@ ROOT=Path(__file__).resolve().parents[2]
 auth=(ROOT/'auth_store.php').read_text();a=auth.index('function tt_business_modules(');b=auth.index('function tt_user_can_access_masters(',a);helpers=auth[a:b]
 with tempfile.TemporaryDirectory(prefix='brokerage-rights-') as directory:
     root=Path(directory);(root/'api').mkdir();(root/'data').mkdir();shutil.copy(ROOT/'api/brokerage_master.php',root/'api/brokerage_master.php')
+    shutil.copy(ROOT/'api/accounts_source_store.php',root/'api/accounts_source_store.php')
     store=root/'data/accounts.json';store.write_text(json.dumps({'revision':0,'brokerageMaster':{'productRates':{},'whtRates':{}}}))
     (root/'auth_store.php').write_text('''<?php
     define('TT_DATA_DIR',__DIR__.'/data');

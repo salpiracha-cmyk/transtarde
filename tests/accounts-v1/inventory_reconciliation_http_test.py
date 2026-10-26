@@ -24,6 +24,8 @@ foreach(['qaowner'=>['Super Admin',['Mill'=>'all','Accounts'=>'all','Directors'=
 $users[]=['id'=>1000+count($users),'username'=>$name,'full_name'=>$name,'role'=>$role,'permissions'=>$p,'active'=>true,'must_change_password'=>false,'password_hash'=>password_hash($pw,PASSWORD_DEFAULT),'master_access'=>false];
 $masters=tt_default_masters();$masters['mills'][]=['id'=>'QA-MILL-2','values'=>['QA Second Mill','','Own Mill','','','Active','','TTI']];$masters['business_parties'][]=['id'=>'QA-BROKER','values'=>['QA Broker','QA','Broker','','','','','','','','Active','','{"buying":[],"selling":[]}']];
 tt_ensure_data_dir();file_put_contents(TT_STORE_FILE,json_encode(['users'=>$users,'masters'=>$masters,'settings'=>['qa_account_seeded'=>true],'master_options'=>tt_default_master_options(),'audit'=>[]]));
+// This integration fixture represents an initialized installation with valid books.
+file_put_contents(TT_DATA_DIR.'/accounts.json',json_encode(['revision'=>0,'journals'=>(object)[]]));
 file_put_contents($root.'/credentials.json',json_encode(['password'=>$pw,'users'=>array_column($users,'username')]));
 file_put_contents(TT_DATA_DIR.'/operations.json',json_encode(['revision'=>0,'values'=>['tt32processingrecon'=>'[{"id":"private-legacy","narration":"MANAGEMENT_PRIVATE_SENTINEL","rate":987654321}]'],'meta'=>[]]));
 '''
@@ -42,6 +44,7 @@ def run() -> None:
         app=root/'repo';shutil.copytree(SOURCE,app,ignore=shutil.ignore_patterns('.git','node_modules','tmp','playwright-report','test-results'))
         sessions=root/'sessions';sessions.mkdir();(root/'seed.php').write_text(SEED)
         subprocess.run(['php','-d',f'session.save_path={sessions}',str(root/'seed.php')],check=True,capture_output=True)
+        seeded_accounts=(root/'transtrade_private/accounts.json').read_bytes()
         with socket.socket() as sock:sock.bind(('127.0.0.1',0));port=sock.getsockname()[1]
         base=f'http://127.0.0.1:{port}'
         log=open(root/'server.log','w+');env={**os.environ}
@@ -167,7 +170,7 @@ def run() -> None:
         view=get();check(not any(r.get('systemFixed') for p in json.loads(view['values']['tt30prod']) for r in p['rows']),'Mill production contains no fixed management row')
         counts=(len(json.loads(pv['tt34ghati'])),len(json.loads(pv['tt32stockadj'])))
         post('tt30prod',json.loads(view['values']['tt30prod']));pv=private();check(counts==(len(json.loads(pv['tt34ghati'])),len(json.loads(pv['tt32stockadj']))),'Report replay does not adjust stock again')
-        check(not (root/'transtrade_private/accounts.json').exists(),'Reconciliation creates no duplicate purchase/accounting journal')
+        check((root/'transtrade_private/accounts.json').read_bytes()==seeded_accounts,'Reconciliation preserves the initialized books without duplicate purchase/accounting journals')
         if os.environ.get('TT_QA_BROWSER')=='1':
             browser_checks(base,clients,request,get,post,private,scope,output)
         # Exercise the management review endpoint against the same real file/MySQL backend.

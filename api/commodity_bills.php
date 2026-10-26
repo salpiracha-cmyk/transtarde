@@ -4,6 +4,7 @@ require_once __DIR__.'/accounts_posting_preview.php';
 header('X-TT-Posting-Preview: available');
 
 require dirname(__DIR__) . '/auth_store.php';
+require_once __DIR__ . '/accounts_source_store.php';
 require_once __DIR__ . '/commodity_bill_calculation.php';
 header('Content-Type: application/json; charset=UTF-8');
 header('Cache-Control: no-store, no-cache, must-revalidate');
@@ -39,12 +40,11 @@ function cb_default_store(): array {
 }
 function cb_read(): array {
     tt_ensure_data_dir();
-    if(!is_file(TT_COMMODITY_ACCOUNTS_FILE)) return cb_default_store();
-    $h=fopen(TT_COMMODITY_ACCOUNTS_FILE,'r');
+
+    $h=@fopen(TT_COMMODITY_ACCOUNTS_FILE,'rb');
     if($h===false||!flock($h,LOCK_SH)) throw new RuntimeException('Accounts storage unavailable.');
     try{$raw=stream_get_contents($h);}finally{flock($h,LOCK_UN);fclose($h);}
-    $s=$raw?json_decode($raw,true):null;
-    return is_array($s)?array_replace_recursive(cb_default_store(),$s):cb_default_store();
+    return tt_accounts_source_decode($raw,cb_default_store());
 }
 function cb_account_names(): array {
     $out=[];
@@ -182,12 +182,10 @@ try{
     $names=cb_account_names();
 
     tt_ensure_data_dir();
-    $h=fopen(TT_COMMODITY_ACCOUNTS_FILE,'c+');
+    $h=@fopen(TT_COMMODITY_ACCOUNTS_FILE,'r+b');
     if($h===false||!flock($h,LOCK_EX)) throw new RuntimeException('Accounts storage unavailable.');
     try{
-        rewind($h);$raw=stream_get_contents($h);$store=$raw?json_decode($raw,true):null;
-        if(!is_array($store))$store=cb_default_store();
-        $store=array_replace_recursive(cb_default_store(),$store);$previewBefore=array_map('strval',array_keys((array)($store['journals']??[])));
+        rewind($h);$raw=stream_get_contents($h);$store=tt_accounts_source_decode($raw,cb_default_store());$previewBefore=array_map('strval',array_keys((array)($store['journals']??[])));
 
         $events=[];$receiptRows=[];$provisional=0.0;$brokeryWeightKg=0.0;$brokeryBags=0.0;$sodas=[];$brokers=[];$commodities=[];
         foreach($sourceKeys as $key){

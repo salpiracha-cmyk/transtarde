@@ -4,6 +4,8 @@ ROOT=pathlib.Path(__file__).resolve().parents[2]
 with tempfile.TemporaryDirectory(prefix='tti-outside-corn-') as directory:
  root=pathlib.Path(directory);app=root/'app';shutil.copytree(ROOT,app,ignore=shutil.ignore_patterns('.git','node_modules','__pycache__'))
  private=root/'transtrade_private';private.mkdir();books=private/'accounts.json';ops=private/'operations.json'
+ # Start from initialized books; missing-source refusal has its own integrity regression.
+ books.write_text(json.dumps({'revision':0,'journals':{}}))
  env={k:v for k,v in os.environ.items() if not k.startswith('TT_DB_')}
  seed=root/'seed.php';seed.write_text(r'''<?php
  require $argv[1].'/auth_store.php';$masters=tt_default_masters();
