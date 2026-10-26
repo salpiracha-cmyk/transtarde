@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 if(PHP_SAPI!=='cli'){http_response_code(404);exit;}
+define('TT_DOCUMENT_AI_CONNECTION_DIAGNOSTIC',true);
 require dirname(__DIR__).'/auth_store.php';
 require dirname(__DIR__).'/api/document_ai_health.php';
 try{echo json_encode(['ok'=>true,'providers'=>tt_ai_check_connections()],JSON_UNESCAPED_SLASHES).PHP_EOL;}

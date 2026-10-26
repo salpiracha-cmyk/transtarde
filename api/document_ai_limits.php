@@ -23,6 +23,11 @@ function tt_ai_limit_acquire(int $userId,int $bytes): string {
 function tt_ai_limit_release(string $id):void {tt_ai_limit_state(static function(array &$s)use($id):void{unset($s['leases'][$id]);});}
 function tt_ai_metered(array $payload,callable $call):mixed {
     $user=function_exists('tt_current_user')?tt_current_user():null;
-    $lease=tt_ai_limit_acquire((int)($user['id']??0),strlen(json_encode($payload,JSON_THROW_ON_ERROR)));
+    $principal=(int)($user['id']??0);
+    // The deployment connection probe has no browser session. Give that
+    // explicit CLI entry point its own budget, including the shared ceilings.
+    // An HTTP request cannot select this principal, even if the flag is set.
+    if($principal<=0&&PHP_SAPI==='cli'&&defined('TT_DOCUMENT_AI_CONNECTION_DIAGNOSTIC')&&TT_DOCUMENT_AI_CONNECTION_DIAGNOSTIC===true)$principal=PHP_INT_MAX;
+    $lease=tt_ai_limit_acquire($principal,strlen(json_encode($payload,JSON_THROW_ON_ERROR)));
     try{return $call();}finally{tt_ai_limit_release($lease);}
 }
