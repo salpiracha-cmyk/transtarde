@@ -3,7 +3,7 @@ import json,pathlib,shutil,socket,subprocess,tempfile,time,urllib.request,urllib
 ROOT=pathlib.Path(__file__).resolve().parents[2]
 with tempfile.TemporaryDirectory(prefix='actual-cost-http-') as tmp:
  root=pathlib.Path(tmp);(root/'api').mkdir();(root/'data').mkdir()
- for f in ['production_fixed_overhead.php','production_costing.php','production_costing_core.php','management_costing.php','management_costing_core.php','mill_recovery_core.php']:shutil.copy(ROOT/'api'/f,root/'api'/f)
+ for f in ['production_fixed_overhead.php','production_costing.php','production_costing_core.php','management_costing.php','management_costing_core.php','accounts_source_store.php','mill_recovery_core.php']:shutil.copy(ROOT/'api'/f,root/'api'/f)
  (root/'auth_store.php').write_text('''<?php
 define('TT_DATA_DIR',__DIR__.'/data');function tt_ensure_data_dir(){}function tt_release_read_session(){}
 function tt_require_login(){return ['role'=>($_SERVER['HTTP_X_ROLE']??'owner')==='owner'?'Super Admin':'Staff','permissions'=>['Accounts'=>['View']],'full_name'=>'Disposable QA'];}
