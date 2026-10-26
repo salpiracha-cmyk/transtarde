@@ -208,6 +208,15 @@ with mod.backup_run_lock(Path(sys.argv[2])) as acquired:
                 if pulls:
                     self.assertEqual(json.loads((root / 'office-backup-state.json').read_text())['last_success'], 1_000_000)
 
+    def test_legacy_success_cannot_skip_first_split_data_backup(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root=Path(folder);config=root/'office-backup.json';config.write_text(json.dumps({'destination':str(root),'scope':'data'}))
+            daily=root/'Daily/legacy.zip';daily.parent.mkdir();daily.write_bytes(b'previous full backup')
+            state=root/'office-backup-state.json';state.write_text(json.dumps({'last_success':999999,'last_file':daily.name}))
+            with patch.object(agent.sys,'argv',['agent','--config',str(config),'--backup-only']),patch.object(agent.time,'time',return_value=1000000),patch.object(agent,'pull',return_value=(daily,'a'*64))as pull:
+                self.assertEqual(agent.main(),0);self.assertEqual(pull.call_count,1)
+            self.assertEqual(json.loads(state.read_text())['scope'],'data')
+
     def test_manual_refresh_uses_pakistan_month_even_on_a_pc_in_another_timezone(self):
         contents=io.BytesIO()
         with zipfile.ZipFile(contents,'w') as archive:

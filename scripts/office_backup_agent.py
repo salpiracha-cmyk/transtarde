@@ -707,6 +707,7 @@ def run(args):
             current = recorded_slot == scheduled_for.isoformat() if recorded_slot else scheduled_for.timestamp() <= last_success <= now
         else:
             current = last_success <= now and same_day
+        current=current and state.get('scope','full')==config.get('scope','full')
         if not args.force and current and last_file.is_file():
             print('Daily backup is current.'); return 0
         # Prove this account can atomically update its existing state before
@@ -727,7 +728,7 @@ def run(args):
                 detail = f'HTTP {exc.code}' if isinstance(exc, error.HTTPError) else str(exc)
                 print('Backup attempt failed; retrying shortly:', type(exc).__name__, detail, file=sys.stderr, flush=True)
                 time.sleep(2 ** attempt * 5)
-        new_state = {'last_success': time.time(), 'last_file': path.name, 'sha256': digest}
+        new_state = {'last_success': time.time(), 'last_file': path.name, 'sha256': digest,'scope':config.get('scope','full')}
         if scheduled_for is not None: new_state['scheduled_for'] = scheduled_for.isoformat()
         print('Verified encrypted backup saved:', path.name, flush=True)
         try:
