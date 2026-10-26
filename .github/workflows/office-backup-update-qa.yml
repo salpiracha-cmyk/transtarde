@@ -1,10 +1,10 @@
 name: Windows office backup updater syntax
 on:
   pull_request:
-    paths: ['.github/scripts/windows_office_backup_update.ps1', 'scripts/install_office_backup_schedule.ps1', 'tests/security/office_backup_task_owner_test.ps1', '.github/workflows/office-backup-update-qa.yml']
+    paths: ['.github/scripts/windows_office_backup_update.ps1', 'scripts/install_office_backup_schedule.ps1', 'scripts/office_backup_agent.py', 'tests/security/office_backup_agent_test.py', 'tests/security/office_backup_task_owner_test.ps1', '.github/workflows/office-backup-update-qa.yml']
   push:
     branches: [main]
-    paths: ['.github/scripts/windows_office_backup_update.ps1', 'scripts/install_office_backup_schedule.ps1', 'tests/security/office_backup_task_owner_test.ps1', '.github/workflows/office-backup-update-qa.yml']
+    paths: ['.github/scripts/windows_office_backup_update.ps1', 'scripts/install_office_backup_schedule.ps1', 'scripts/office_backup_agent.py', 'tests/security/office_backup_agent_test.py', 'tests/security/office_backup_task_owner_test.ps1', '.github/workflows/office-backup-update-qa.yml']
 permissions:
   contents: read
 jobs:
@@ -12,6 +12,8 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Verify actual Windows backup locking and state commits
+        run: python tests/security/office_backup_agent_test.py
       - shell: pwsh
         run: |
           $tokens = $null

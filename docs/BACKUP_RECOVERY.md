@@ -69,6 +69,22 @@ Do not enter Windows passwords into chat.
 
 ## Protect an existing Office PC connection
 
+The updated Office agent takes an operating-system lock per configuration before
+opening its shared backup log. A manual run and the scheduled backup cannot
+write success state or transfer receipts concurrently; shipment-only delivery
+remains independent. Keep the persistent `office-backup-run.lock` file in place:
+its presence alone does not mean a run is active, and Windows releases the actual
+lock when the process exits.
+
+Before requesting a due backup, the agent checks that it can atomically save the
+existing success record. It retries a brief Windows sharing/access conflict for
+at most five local replacement attempts without changing permissions. If saving
+the success record fails after a verified download, it preserves the ZIP, reports
+its filename and exits unsuccessfully without downloading the whole backup again.
+Resolve the local lock/access cause before retrying. Updating hosting does not
+install this Python change on the PC; replace only the agent program while all
+backup runs are stopped, preserving the protected configuration and task.
+
 1. In Super Admin → Backup & Data Export → Office computer backup, enter and repeat the **existing recovery ZIP password already configured on the PC**. Save Existing Password Protection. Do not create a different password, rotate the token, rerun `--init` or change the Windows task. The server stores a slow verifier of the full password and requires it on every protocol-2 backup action; existing backups continue using their original configured password.
 2. Replace only `office_backup_agent.py` on the PC with the current repository version. Preserve its protected `office-backup.json`, destinations, retention and scheduled task. Run the existing shipment delivery command once. It now sends independently checked password proof as an ASCII-safe header over verified HTTPS.
 3. Refresh Connection Status in Super Admin. A password-verified delivery connection within 15 minutes enables Activate Shipment Delivery Protection. Activate it. Token-only poll, file downloads and delivery acknowledgements are then rejected. A client version flag cannot disable this policy.

@@ -4,6 +4,8 @@ import io
 import json
 from pathlib import Path
 import tempfile
+import subprocess
+import sys
 import unittest
 from unittest.mock import patch
 import zipfile
@@ -31,6 +33,81 @@ class FakeResponse(io.BytesIO):
 
 
 class OfficeAgentTest(unittest.TestCase):
+    def test_duplicate_process_preserves_active_log_and_lock_releases(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            config = root / 'office-backup.json'
+            config.write_text('{}')
+            log = root / 'latest.log'
+            log.write_text('active backup evidence')
+            with agent.backup_run_lock(config) as acquired:
+                self.assertTrue(acquired)
+                child = subprocess.run([sys.executable, str(SCRIPT), '--config', str(config), '--backup-only', '--log-file', str(log)], capture_output=True, text=True, timeout=20)
+                self.assertEqual(child.returncode, 0, child.stderr)
+                self.assertIn('duplicate run was skipped', child.stdout)
+                self.assertEqual(log.read_text(), 'active backup evidence')
+            # A persistent lock file must not block the next process once the
+            # OS lock has been released, including on Windows.
+            code = '''import importlib.util,sys
+from pathlib import Path
+spec=importlib.util.spec_from_file_location('agent',sys.argv[1])
+mod=importlib.util.module_from_spec(spec);spec.loader.exec_module(mod)
+with mod.backup_run_lock(Path(sys.argv[2])) as acquired:
+    sys.exit(0 if acquired else 2)
+'''
+            child = subprocess.run([sys.executable, '-c', code, str(SCRIPT), str(config)], capture_output=True, text=True, timeout=20)
+            self.assertEqual(child.returncode, 0, child.stderr)
+
+    def test_state_write_failure_never_repeats_verified_download(self):
+        for preflight_fails in (False, True):
+            with self.subTest(preflight=preflight_fails), tempfile.TemporaryDirectory() as folder:
+                root = Path(folder)
+                config = root / 'office-backup.json'
+                config.write_text(json.dumps({'destination': str(root)}))
+                state = root / 'office-backup-state.json'
+                state.write_text('{"last_success":1}')
+                verified = root / 'verified.zip'
+                verified.write_bytes(b'completed verified fixture')
+                failures = [PermissionError('fixture locked')] if preflight_fails else [None, PermissionError('fixture locked')]
+                argv = ['agent', '--config', str(config), '--backup-only', '--force']
+                output, errors = io.StringIO(), io.StringIO()
+                with patch.object(agent.sys, 'argv', argv), patch.object(agent, 'write_json', side_effect=failures), patch.object(agent, 'pull', return_value=(verified, 'a'*64)) as pull, patch.object(agent.time, 'sleep') as sleep, patch.object(agent.sys, 'stdout', output), patch.object(agent.sys, 'stderr', errors):
+                    self.assertEqual(agent.main(), 1)
+                self.assertEqual(pull.call_count, 0 if preflight_fails else 1)
+                sleep.assert_not_called()
+                self.assertEqual(verified.read_bytes(), b'completed verified fixture')
+                self.assertEqual(state.read_text(), '{"last_success":1}')
+                self.assertNotIn('retrying shortly', errors.getvalue())
+                if not preflight_fails:
+                    self.assertIn('Verified encrypted backup saved:', output.getvalue())
+                    self.assertIn('No repeat download was started', errors.getvalue())
+
+    def test_windows_state_commit_retries_are_bounded_and_atomic(self):
+        for failures in (2, 5):
+            with self.subTest(failures=failures), tempfile.TemporaryDirectory() as folder:
+                root = Path(folder)
+                state = root / 'office-backup-state.json'
+                state.write_text('{"previous":true}')
+                real_replace = agent.os.replace
+                attempts = []
+                def replace(source, target):
+                    attempts.append(1)
+                    if len(attempts) <= failures:
+                        exc = PermissionError('fixture Windows sharing conflict')
+                        exc.winerror = 32
+                        raise exc
+                    return real_replace(source, target)
+                with patch.object(agent.os, 'replace', side_effect=replace), patch.object(agent.time, 'sleep') as sleep:
+                    if failures == 5:
+                        with self.assertRaises(PermissionError): agent.write_json(state, {'updated':True})
+                        self.assertEqual(state.read_text(), '{"previous":true}')
+                    else:
+                        agent.write_json(state, {'updated':True})
+                        self.assertEqual(json.loads(state.read_text()), {'updated':True})
+                self.assertEqual(len(attempts), min(5, failures+1))
+                self.assertEqual(sleep.call_count, min(4, failures))
+                self.assertFalse(list(root.glob('.office-*')))
+
     def test_closing_backup_and_missed_run_catchup(self):
         cases = [
             ('2026-10-20T18:00:00+05:00', '2026-10-20T15:00:00+05:00', None, 1),
