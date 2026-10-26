@@ -4,8 +4,8 @@ require __DIR__ . '/auth_store.php';
 require_once __DIR__ . '/qa_account.php';
 header('Cache-Control: no-store, no-cache, must-revalidate, private');
 if (!tt_has_admin()) { header('Location: setup.php'); exit; }
-tt_ensure_qa_account();
-if ($current=tt_current_user()) { header('Location: ' . tt_user_landing_url($current)); exit; }
+if(!is_file(TT_DATA_DIR.'/restore-maintenance.lock'))tt_ensure_qa_account();
+if ($current=tt_current_user()) { header('Location: ' . (is_file(TT_DATA_DIR.'/restore-maintenance.lock')?'restore.php':tt_user_landing_url($current))); exit; }
 if (session_status()!==PHP_SESSION_ACTIVE) { session_id(''); session_start(); }
 $error = '';
 $notice=match((string)($_GET['expired']??'')){
@@ -33,7 +33,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             tt_auth_clear_failures('login-account',$rateIdentity,false);
             tt_bind_user_session($user);
             tt_record_sign_in((int)$user['id'], $user['username']);
-            header('Location: ' . (!empty($user['must_change_password']) ? 'change-password.php' : tt_user_landing_url($user))); exit;
+            header('Location: ' . (!empty($user['must_change_password']) ? 'change-password.php' : (is_file(TT_DATA_DIR.'/restore-maintenance.lock')?'restore.php':tt_user_landing_url($user)))); exit;
         }
         tt_auth_record_failure('login-account',$rateIdentity,10,900,900,false);
         tt_auth_record_failure('login-address','all-users',20,900,900,true);

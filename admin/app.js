@@ -1877,7 +1877,6 @@
     } catch(error) { toast(error.message); }
     finally { passwordInput.value=""; confirmationInput.value=""; button.disabled=false; await loadBackupStatus(); }
   }
-  let verifiedRestoreSignature = "";
   let verifiedServerSnapshot = "";
   async function verifyServerSnapshot() {
     const name = document.getElementById("serverSnapshotChoice").value;
@@ -1904,38 +1903,6 @@
       alert(`Server snapshot restored. ${data.restoredFiles} files recovered. Safety snapshot: ${data.safetySnapshot}. The page will now reload.`);
       window.location.reload();
     } catch (error) { toast(error.message); button.textContent = "Restore Server Snapshot"; button.disabled = false; }
-  }
-  async function verifyBackupForRestore() {
-    const file = document.getElementById("restoreBackupFile").files?.[0];
-    const password = document.getElementById("restoreBackupPassword").value;
-    const box = document.getElementById("restoreVerification"); const confirmArea = document.getElementById("restoreConfirmArea");
-    verifiedRestoreSignature = ""; confirmArea.hidden = true; box.hidden = false; box.classList.remove("error"); box.textContent = "Verifying backup…";
-    if (!file) { box.classList.add("error"); box.textContent = "Select a complete Transtrade backup ZIP first."; return; }
-    const form = new FormData(); form.append("action", "verify"); form.append("csrf", SESSION.csrf); form.append("password", password); form.append("backup", file);
-    try {
-      const data = await backupFetchJson("api/backup.php", { method: "POST", body: form });
-      verifiedRestoreSignature = `${file.name}|${file.size}|${file.lastModified}`;
-      box.innerHTML = `<strong>Verified Transtrade recovery backup.</strong><br>Created: ${escapeHtml(backupFriendlyDate(data.createdAt))}<br>Application version: ${escapeHtml(data.appVersion || "Recorded in manifest")}<br>Recovery files: ${escapeHtml(data.recoveryFileCount)}<br>Integrity manifest: valid`;
-      confirmArea.hidden = false; document.getElementById("restoreConfirmation").value = ""; document.getElementById("restoreBackupNow").disabled = true;
-    } catch (error) { box.classList.add("error"); box.textContent = error.message; }
-  }
-  function updateRestoreEnablement() {
-    const file = document.getElementById("restoreBackupFile").files?.[0];
-    const signature = file ? `${file.name}|${file.size}|${file.lastModified}` : "";
-    document.getElementById("restoreBackupNow").disabled = !(verifiedRestoreSignature && signature === verifiedRestoreSignature && document.getElementById("restoreConfirmation").value.trim().toUpperCase() === "RESTORE");
-  }
-  async function restoreBackupNow() {
-    const file = document.getElementById("restoreBackupFile").files?.[0]; const password = document.getElementById("restoreBackupPassword").value;
-    if (!file || document.getElementById("restoreBackupNow").disabled) return;
-    if (!window.confirm("Restore this verified backup? Transtrade will first create a safety snapshot of the current data, then replace the recovery data from the selected backup.")) return;
-    const button = document.getElementById("restoreBackupNow"); const old = button.textContent; button.disabled = true; button.textContent = "Restoring…";
-    const form = new FormData(); form.append("action", "restore"); form.append("csrf", SESSION.csrf); form.append("password", password); form.append("confirmation", "RESTORE"); form.append("backup", file);
-    try {
-      const data = await backupFetchJson("api/backup.php", { method: "POST", body: form });
-      addAudit("Backup", "Restored", `Complete backup restored from ${file.name}`, "FULL-RESTORE"); saveState();
-      alert(`Transtrade backup restored successfully.\n\nSafety snapshot: ${data.safetySnapshot || "created"}\n\nThe page will now reload.`);
-      window.location.reload();
-    } catch (error) { toast(error.message); button.disabled = false; button.textContent = old; }
   }
 
   function showView(id) {
@@ -2160,14 +2127,10 @@
   document.getElementById("pinOfficeRecovery").addEventListener("click", () => protectOfficeConnection("pin-office-recovery"));
   document.getElementById("requireOfficeDeliveryProof").addEventListener("click", () => protectOfficeConnection("require-office-delivery-proof"));
   document.getElementById("refreshOfficeSecurity").addEventListener("click", loadBackupStatus);
-  document.getElementById("verifyBackupFile").addEventListener("click", verifyBackupForRestore);
   document.getElementById("verifyServerSnapshot").addEventListener("click", verifyServerSnapshot);
   document.getElementById("serverSnapshotChoice").addEventListener("change", () => { verifiedServerSnapshot = ""; document.getElementById("serverSnapshotConfirmArea").hidden = true; document.getElementById("serverSnapshotVerification").hidden = true; });
   document.getElementById("serverSnapshotConfirmation").addEventListener("input", () => { document.getElementById("restoreServerSnapshot").disabled = !(verifiedServerSnapshot && verifiedServerSnapshot === document.getElementById("serverSnapshotChoice").value && document.getElementById("serverSnapshotConfirmation").value.trim().toUpperCase() === "RESTORE"); });
   document.getElementById("restoreServerSnapshot").addEventListener("click", restoreServerSnapshot);
-  document.getElementById("restoreConfirmation").addEventListener("input", updateRestoreEnablement);
-  document.getElementById("restoreBackupFile").addEventListener("change", () => { verifiedRestoreSignature = ""; document.getElementById("restoreConfirmArea").hidden = true; document.getElementById("restoreVerification").hidden = true; updateRestoreEnablement(); });
-  document.getElementById("restoreBackupNow").addEventListener("click", restoreBackupNow);
   document.getElementById("notificationButton").addEventListener("click", () => openNotifications(true));
   function setNavigationOpen(open,returnFocus=false) {
     const sidebar=document.getElementById("sidebar"),button=document.getElementById("menuButton");

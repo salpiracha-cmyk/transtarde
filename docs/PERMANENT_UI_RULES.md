@@ -671,3 +671,8 @@ Normal owner setup uses one Windows EXE, not key-copy fields, ZIP extraction, CM
 - Current PC plan is seven cumulative daily data dates, twelve monthly data points, no new weekly data, and a separate weekly software/design/users/masters/settings archive. Manual Backup Now refreshes both. Preserve existing FULL archives and the connection on upgrade. Retain software revisions needed by surviving data points.
 - Disable the routine hosted snapshot schedule; retain existing hosted recovery points and pre-restore safety copies. Never represent live records/history as an independent backup. Temporary verified PC transfers are not permanent hosted snapshots.
 - Recovery presents Accounts, Mill, Exports, Directors and Complete Website Restore. Named reports use the canonical accounting/stock engines; include saved input fields and explicit report notes. Combining split archives requires matching software revisions and must preserve the newer data masters. Preparing verified files never implies the website was restored.
+
+
+## Website data restore
+
+Backup & Recovery opens a simple dedicated restore page that remains reachable during maintenance. Show selected ZIP/date, upload and verification progress, then a separate Confirm Restore action. Require typed RESTORE and final confirmation. Never run restore on file selection, upload, page load or verification alone. Clearly distinguish Data/legacy Complete ZIPs from software installation and offline recovery. Resume only the owner-confirmed job; never save stale Console state after a restore.

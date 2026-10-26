@@ -196,19 +196,20 @@ final class TT_SimpleZipReader {
         return ['size'=>(int)$e['usize'], 'sha256'=>hash_final($sha)];
     }
 
-    public function get(string $name): string|false {
+    public function get(string $name, int $maxBytes = TT_BACKUP_MAX_RESTORE_BYTES): string|false {
         $e = $this->entries[$name] ?? null;
         if (!$e) return false;
-        if ((int)$e['csize'] > TT_BACKUP_MAX_RESTORE_BYTES || (int)$e['usize'] > TT_BACKUP_MAX_RESTORE_BYTES) throw new InvalidArgumentException('A backup entry exceeds the supported in-memory size.');
+        if ((int)$e['csize'] > min($maxBytes,TT_BACKUP_MAX_RESTORE_BYTES) || (int)$e['usize'] > min($maxBytes,TT_BACKUP_MAX_RESTORE_BYTES)) throw new InvalidArgumentException('A backup entry exceeds the supported in-memory size.');
         fseek($this->fh, (int)$e['offset']);
         $local = $this->readExact(30);
         if (substr($local, 0, 4) !== "PK\x03\x04") throw new InvalidArgumentException('The backup ZIP entry is invalid.');
         $u = unpack('vneed/vflags/vmethod/vtime/vdate/Vcrc/Vcsize/Vusize/vnlen/velen', substr($local, 4));
-        if ((int)$u['nlen'] > 0) $this->readExact((int)$u['nlen']);
+        $localName=$this->readExact((int)$u['nlen']);
+        if($localName!==$name||(int)$u['method']!==(int)$e['method'])throw new InvalidArgumentException('The backup ZIP entry name or format is invalid.');
         if ((int)$u['elen'] > 0) $this->readExact((int)$u['elen']);
         $compressed = $this->readExact((int)$e['csize']);
         if ((int)$e['method'] === 0) $data = $compressed;
-        elseif ((int)$e['method'] === 8) { $data = gzinflate($compressed); if ($data === false) throw new InvalidArgumentException('A compressed backup entry is damaged.'); }
+        elseif ((int)$e['method'] === 8) { $data = gzinflate($compressed,max(1,(int)$e['usize'])); if ($data === false) throw new InvalidArgumentException('A compressed backup entry is damaged.'); }
         else throw new InvalidArgumentException('This ZIP compression method is not supported.');
         if (strlen($data) !== (int)$e['usize'] || sprintf('%u', crc32($data)) !== sprintf('%u', (int)$e['crc'])) throw new InvalidArgumentException('A backup entry failed its ZIP integrity check.');
         return $data;

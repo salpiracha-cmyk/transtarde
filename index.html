@@ -204,18 +204,10 @@
           </article>
 
           <article class="panel restore-panel">
-            <div class="panel-heading"><div><h2>Restore a Complete Backup</h2><p>Owner-only disaster recovery. Transtrade creates a safety snapshot of the current data before any restore.</p></div><span class="danger-pill">Protected action</span></div>
-            <div class="restore-grid">
-              <label>Complete backup ZIP<input id="restoreBackupFile" type="file" accept=".zip,application/zip"></label>
-              <label>Backup password<input id="restoreBackupPassword" type="password" autocomplete="off"></label>
-              <button class="button secondary" id="verifyBackupFile" type="button">Verify Backup</button>
-            </div>
-            <div class="restore-verification" id="restoreVerification" hidden></div>
-            <div class="restore-confirm" id="restoreConfirmArea" hidden>
-              <label>Type <strong>RESTORE</strong> to enable recovery<input id="restoreConfirmation" autocomplete="off" placeholder="RESTORE"></label>
-              <button class="button danger" id="restoreBackupNow" type="button" disabled>Restore This Backup</button>
-            </div>
-            <small class="backup-note">Restore never runs just because a ZIP is selected. The file must first pass Transtrade verification and then receive explicit owner confirmation.</small>
+            <div class="panel-heading"><div><h2>Restore website data</h2><p>Upload one Data or older Complete ZIP. Interrupted uploads can continue from their saved position.</p></div><span class="danger-pill">Owner confirmation required</span></div>
+            <p>Transtrade checks the backup first. You then review its date and click <strong>Confirm Restore</strong>. Current records are protected by a verified safety copy before replacement.</p>
+            <a class="button primary" href="restore.php">Open Restore / Continue recovery</a>
+            <small class="backup-note">Restores Accounts, Mill, Exports, Directors, masters and documents. Install software separately when moving to new hosting. Selecting or uploading a file never starts a restore.</small>
           </article>
           </div>
           <div id="backup-security" role="tabpanel" aria-labelledby="backup-tab-security" hidden>
