@@ -19,6 +19,29 @@ const TT_STORE_FILE = TT_DATA_DIR . '/auth.json';
 const TT_STORE_LOCK_FILE = TT_DATA_DIR . '/auth.lock';
 const TT_SETUP_LOCK_FILE = TT_DATA_DIR . '/setup.lock';
 const TT_ADMIN_RECOVERY_HASH_FILE = TT_DATA_DIR . '/admin-recovery.hash';
+// Hold a shared request lock until shutdown. Restore takes the exclusive side
+// before pausing the site, so requests already saving must finish first.
+function tt_restore_request_gate(): void {
+    if (defined('TT_RESTORE_CONTROL') && TT_RESTORE_CONTROL === true) return;
+    tt_ensure_data_dir();
+    $path=TT_DATA_DIR.'/restore-request.lock';
+    if(is_link($path))throw new RuntimeException('Recovery request lock is unsafe.');
+    $lock=fopen($path,'c+');
+    $login=realpath((string)($_SERVER['SCRIPT_FILENAME']??''))===__DIR__.'/login.php';
+    if(!$lock||!flock($lock,LOCK_SH|LOCK_NB)||(!$login&&is_file(TT_DATA_DIR.'/restore-maintenance.lock'))){
+        if(is_resource($lock))fclose($lock);
+        http_response_code(503);header('Retry-After: 10');header('Cache-Control: no-store');
+        if(str_starts_with((string)($_SERVER['REQUEST_URI']??''),'/api/')){
+            header('Content-Type: application/json');echo json_encode(['ok'=>false,'error'=>'Website recovery is in progress. Changes are paused. The owner can continue at /restore.php.']);
+        }else{header('Content-Type: text/html; charset=UTF-8');echo '<h1>Website recovery is in progress</h1><p>Changes are temporarily paused.</p><p><a href="/restore.php">Owner: continue recovery</a></p>';}
+        exit;
+    }
+    @chmod($path,0600);
+    // Keep it through all shutdown callbacks (including replay acknowledgements).
+    // PHP closes the resource only after those callbacks have completed.
+    $GLOBALS['ttRestoreRequestLock']=$lock;
+}
+tt_restore_request_gate();
 // Capture only fatal error classifications while investigating intermittent
 // hosting failures. Never persist exception messages, arguments or session IDs.
 register_shutdown_function(static function(): void {
@@ -1169,7 +1192,9 @@ function tt_require_login(): array {
     if(str_starts_with($path,'/api/')&&tt_managed_qa_write_blocked($user)){
         tt_api_json_error(403,'The production QA account is read-only. Use disposable test storage for write testing.');
     }
-    tt_offline_request_guard($user);
+    // Recovery has its own durable, idempotent journal. It must not write a
+    // stale ordinary-entry acknowledgement after replacing business records.
+    if(!(defined('TT_RESTORE_CONTROL')&&TT_RESTORE_CONTROL===true))tt_offline_request_guard($user);
     $body=null;
     $apiWrite=str_starts_with($path,'/api/')&&!in_array(strtoupper((string)($_SERVER['REQUEST_METHOD']??'GET')),['GET','HEAD','OPTIONS'],true);
     if($apiWrite){

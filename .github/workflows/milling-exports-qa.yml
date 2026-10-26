@@ -35,6 +35,9 @@ on:
       - 'logout.php'
       - 'master_store.php'
       - 'backup_lib.php'
+      - 'restore_jobs.php'
+      - 'restore.php'
+      - 'admin/restore.js'
       - 'office_backup_auth.php'
       - 'scripts/office_backup_agent.py'
       - 'scripts/windows_backup_app.py'
@@ -206,6 +209,10 @@ jobs:
           php tests/security/readable_backup_reports_test.php
           python3 tests/security/backup_plan_test.py
           php tests/security/server_backup_hardening_test.php
+          php tests/security/website_restore_test.php
+          php -d memory_limit=512M tests/security/website_restore_large_test.php
+          python3 tests/security/website_restore_http_test.py
+          node tests/security/website_restore_ui_test.js
           php tests/security/upload_validation_test.php
           php tests/security/pc_pairing_test.php
           python3 tests/security/pc_pairing_http_test.py

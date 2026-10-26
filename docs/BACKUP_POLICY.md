@@ -10,6 +10,16 @@ This section supersedes the older scheduled hosting and PC tier replacement rule
 - Upgrade: hosting deployment does not change the existing PC. Use the current EXE → Update existing PC settings (keep connection), after any current backup finishes. Preserve credentials, old archives and shipment delivery. Verify first Software, Daily and Monthly copies before declaring the PC updated.
 - Failed creation, transfer, verification or recovery must preserve prior valid copies. Do not delete live records or original documents. Prune only known regular single-link archives after identity and full survivor hash checks.
 
+## Confirmed resumable website restore — 26 October 2026
+
+- One owner-bound private upload, 1 MiB pieces, content fingerprints and per-piece SHA256; no saved plaintext password or encryption key. Data and legacy Full archives below 4 GiB are supported; Software-only archives are refused.
+- Verification stages private files in the excluded backup workspace. Live business data changes only after the owner types RESTORE and clicks Confirm Restore. Authentication, CSRF and role checks remain mandatory on every request.
+- A shared request lock drains existing requests; a persistent maintenance marker keeps ordinary requests blocked across restore steps and process loss. The owner can sign in and resume from restore.php. Recovery has a separate idempotent journal, not ordinary offline-entry acknowledgements.
+- All affected originals are copied and checked before mutation. Replace in bounded batches, validate restored files, and use transactional InnoDB replacement for the three configured business tables. Incompatible MySQL snapshots/schemas are refused before replacement. Failures after mutation switch to a resumable rollback, with the site remaining paused until completed.
+- Preserve current user identities, passwords, permissions, security credentials, device authorization and existing offline-entry receipts; invalidate old sessions after completion. Never execute recovered application code. Restored masters/settings and all four business modules come from the selected snapshot.
+- Pre-restore safety folders remain private and excluded from ordinary archives. Permit at most seven recognized-name safety folders, then hold new restores for review. Never automatically age-delete these originals. Clearing an inactive upload removes only that upload and its staged files; retained safety copies survive.
+- This is website data restore, separate from preparing offline folders or installing software on new hosting. See WEBSITE_DATA_RESTORE.txt for the owner procedure. Implementation tests use disposable data only; deployment must never trigger a real business restore.
+
 ## Earlier policies and technical history
 
 # Automatic backup storage rules
