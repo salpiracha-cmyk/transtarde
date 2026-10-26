@@ -112,3 +112,8 @@ The owner downloads **Connect office PC** from Backup & Recovery → Passwords &
 Downloading does not revoke the current connection. Setup expires after one hour; replacing the download invalidates the previous setup, and disconnecting invalidates pending setup. Connection rotation occurs only when the PC redeems it. Keep the ZIP private and delete it after successful use. The new backup ZIP password is never sent to the PC; the hosted server uses it for future archives. Older archives retain their previous password. Authorization status does not prove an actual successful PC backup; check the agent result and verified receipts.
 
 This replaces the former manual `--connect` key-copy instructions for normal owner use. The legacy CLI remains for compatibility. Website deployment cannot execute the Windows setup or prove actual PC recovery.
+
+
+## Large manual downloads — 26 October 2026
+
+Business Data and Complete Backup are prepared and verified in background workers. The owner page polls short authenticated POST requests, then requests a native browser download; it does not buffer the entire archive in browser memory. Keep the page open through preparation and check the browser Downloads list for completion. Two private bounded caches (one per type) sit under backups and never enter recovery inventories. A failed replacement preserves the preceding verified archive. The cache is session/password bound; changing the backup password prevents reuse of an old-password prepared file. No password or authorization key is placed in a download URL. Neither a ready archive nor a requested browser transfer proves the office PC has received its daily/weekly/monthly copies.
