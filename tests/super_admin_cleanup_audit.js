@@ -19,3 +19,24 @@ assert.match(workflow, /workflow_run:[\s\S]*Manual Hostinger Live QA/, 'cleanup 
 assert.match(workflow, /workflow_run\.conclusion == 'success'/, 'failed QA cannot trigger cleanup');
 assert.match(workflow, /POST_CLEANUP_RECOVERY_AUDIT/, 'cleanup proves no business contract became missing');
 console.log('PASS Super Admin placeholders removed and scoped QA cleanup protected');
+
+// Exercise the actual tab controller against the rendered owner markup.
+const {JSDOM}=require('jsdom');
+const dom=new JSDOM(html,{url:'https://fixture.test/',runScripts:'outside-only'}),w=dom.window;
+w.loadBackupStatus=()=>{};w.toast=()=>{};w.backupFetchJson=()=>{throw new Error('Tabs must never submit credentials');};
+const tabs=app.slice(app.indexOf('  function selectBackupTab('),app.indexOf('  document.getElementById("refreshBackupStatus").addEventListener'));
+w.eval(tabs);
+const d=w.document;
+assert.equal(d.getElementById('backup-security').hidden,true);
+assert.equal(d.getElementById('backup-files').contains(d.getElementById('issueOfficeBackupToken')),false);
+d.getElementById('sharedBackupPassword').value='fixture-draft-password';
+d.getElementById('backup-tab-security').click();
+assert.equal(d.getElementById('backup-files').hidden,true);
+assert.equal(d.getElementById('backup-security').hidden,false);
+assert.equal(d.getElementById('backup-tab-security').getAttribute('aria-selected'),'true');
+d.getElementById('backup-tab-security').dispatchEvent(new w.KeyboardEvent('keydown',{key:'ArrowLeft',bubbles:true}));
+assert.equal(d.getElementById('backup-files').hidden,false);
+assert.equal(d.getElementById('sharedBackupPassword').value,'fixture-draft-password');
+assert.ok([...d.querySelectorAll('iframe[data-security-src]')].every(f=>!f.getAttribute('src')));
+w.close();
+console.log('PASS owner backup/security tab separation, keyboard navigation and retained drafts without credential submission');

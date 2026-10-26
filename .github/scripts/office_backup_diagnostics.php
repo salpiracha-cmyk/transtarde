@@ -6,7 +6,7 @@ if (getenv('TT_OFFICE_BACKUP_FIXTURE') !== '1' && !preg_match('~^/home/[a-zA-Z0-
 if (!is_dir($root) || is_link($root) || realpath($root) !== $root) throw new RuntimeException('Unsafe target');
 $private = dirname($root) . '/transtrade_private';
 if (!is_dir($private) || is_link($private) || realpath($private) !== $private) throw new RuntimeException('Unsafe private root');
-$out = ['mode'=>'read_only', 'utc'=>gmdate('c'), 'phpVersion'=>PHP_VERSION, 'cliLimits'=>[], 'installedCode'=>[], 'sourceGroups'=>[], 'temporaryArchives'=>['count'=>0,'bytes'=>0], 'logSignals'=>[], 'webOverrides'=>[]];
+$out = ['mode'=>'read_only', 'utc'=>gmdate('c'), 'phpVersion'=>PHP_VERSION, 'zipAesAvailable'=>class_exists('ZipArchive')&&defined('ZipArchive::EM_AES_256'), 'cliLimits'=>[], 'installedCode'=>[], 'sourceGroups'=>[], 'temporaryArchives'=>['count'=>0,'bytes'=>0], 'logSignals'=>[], 'webOverrides'=>[]];
 foreach (['memory_limit','max_execution_time','output_buffering','zlib.output_compression'] as $key) $out['cliLimits'][$key] = ini_get($key);
 foreach (['api/office_backup.php','backup_lib.php'] as $path) if (is_file($root.'/'.$path) && !is_link($root.'/'.$path)) $out['installedCode'][$path] = hash_file('sha256', $root.'/'.$path);
 $out['temporaryFreeBytes'] = disk_free_space(sys_get_temp_dir());

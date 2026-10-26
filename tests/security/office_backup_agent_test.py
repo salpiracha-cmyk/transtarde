@@ -207,6 +207,12 @@ with mod.backup_run_lock(Path(sys.argv[2])) as acquired:
                     clock.now.return_value = datetime(2026, 10, 25, hour, tzinfo=timezone.utc)
                     agent.pull({'url': 'https://app.transtradeinternational.com/api/office_backup.php', 'token': 'x', 'password': 'password123456'}, dest)
             self.assertEqual(len(list((dest / 'Weekly').glob('TRANSTRADE_FULL_2026-W43_*.zip'))), 1)
+            with patch.object(agent, 'open_backup_response') as opener, patch.object(agent, 'datetime') as clock:
+                opener.side_effect = response
+                clock.now.return_value = datetime(2026, 10, 25, 12, tzinfo=timezone.utc)
+                agent.pull({'url': 'https://app.transtradeinternational.com/api/office_backup.php', 'token': 'x', 'password': 'password123456'}, dest, refresh_tiers=True)
+            self.assertEqual(len(list((dest / 'Weekly').glob('TRANSTRADE_FULL_2026-W43_*.zip'))), 2)
+            self.assertEqual(len(list((dest / 'Monthly').glob('TRANSTRADE_FULL_2026-10_*.zip'))), 2)
             self.assertEqual(actual, digest)
             self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), digest)
             self.assertEqual(len(list(dest.glob('weekly-*.zip'))), 4)

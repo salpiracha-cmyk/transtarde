@@ -5,6 +5,8 @@ $user=tt_require_login();
 if (($user['role']??'')!=='Super Admin') { http_response_code(403); exit('Super Admin access required.'); }
 header('Cache-Control: no-store, no-cache, must-revalidate, private');
 $error='';
+$embedded=($_GET['embedded']??'')==='1';
+$success=false;
 $code='';
 if ($_SERVER['REQUEST_METHOD']==='POST') {
     $current=(string)($_POST['current_password']??'');
@@ -23,9 +25,9 @@ if ($_SERVER['REQUEST_METHOD']==='POST') {
 }
 ?>
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Recovery Security</title><link rel="stylesheet" href="admin/auth.css?v=20260907-2"></head>
-<body><main class="auth-card"><div class="brand">TT</div><p class="eyebrow">SUPER ADMIN SECURITY</p><h1>Offline recovery code</h1>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Recovery Security</title><link rel="stylesheet" href="admin/auth.css?v=20261026-backup-workspace-1"></head>
+<body class="<?=$embedded?'embedded-auth':''?>"><main class="auth-card"><div class="brand">TT</div><p class="eyebrow">SUPER ADMIN SECURITY</p><h1>Offline recovery code</h1>
 <?php if($error):?><div class="error"><?=htmlspecialchars($error,ENT_QUOTES,'UTF-8')?></div><?php endif;?>
 <?php if($code):?><div class="success"><strong>New recovery code created.</strong><p>Save this code offline now. It will not be shown again.</p><p style="font-family:monospace;font-size:16px;overflow-wrap:anywhere;user-select:all"><?=htmlspecialchars($code,ENT_QUOTES,'UTF-8')?></p></div><?php else:?><p class="intro">Create a fresh recovery code without changing your normal login password. The previous recovery code will stop working immediately.</p><form method="post"><input type="hidden" name="csrf" value="<?=htmlspecialchars(tt_csrf(),ENT_QUOTES,'UTF-8')?>"><label>Current Super Admin password<input name="current_password" type="password" required autocomplete="current-password"></label><button type="submit">Create and show new recovery code once</button></form><?php endif;?>
-<p class="note"><a href="index.php">Return to Control Centre</a></p></main>
+<?php if(!$embedded):?><p class="note"><a href="index.php">Return to Control Centre</a></p><?php endif;?></main>
 <script>window.TT_SESSION={csrf:<?=json_encode(tt_csrf(),JSON_HEX_TAG|JSON_HEX_AMP|JSON_HEX_APOS|JSON_HEX_QUOT)?>};</script><script src="/session-activity.js?v=20260929-1"></script></body></html>

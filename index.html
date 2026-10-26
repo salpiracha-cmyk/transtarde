@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="Transtrade unified Super Admin control centre">
   <title>Transtrade Super Admin Console</title>
-  <link rel="stylesheet" href="admin/styles.css?v=20261005-company-banks-1">
+  <link rel="stylesheet" href="admin/styles.css?v=20261026-backup-workspace-1">
   <link rel="stylesheet" href="brand-theme.css?v=20260914-control-centre-1-20261006-number-entry-1">
 </head>
 <body>
@@ -35,7 +35,7 @@
         <button class="nav-item" data-view="masters"><span class="nav-icon">◆</span><span>Master Records</span></button>
         <button class="nav-item" data-view="locks"><span class="nav-icon">L</span><span>Module Locks</span></button>
         <button class="nav-item" data-view="audit"><span class="nav-icon">≡</span><span>Audit Trail</span></button>
-        <button class="nav-item" data-view="backup"><span class="nav-icon">B</span><span>Backup & Data Export</span></button>
+        <button class="nav-item" data-view="backup"><span class="nav-icon">B</span><span>Backup & Recovery</span></button>
       </nav>
 
       <div class="sidebar-user">
@@ -140,10 +140,15 @@
 
         <section class="view" id="view-backup">
           <div class="page-heading">
-            <div><p class="eyebrow">DATA PROTECTION</p><h1>Backup & Data Export</h1><p>Keep a readable owner copy on your computer and a separate technical recovery copy of Transtrade.</p></div>
+            <div><p class="eyebrow">DATA PROTECTION</p><h1>Backup & Recovery</h1><p>Save and restore your records, or manage the passwords that protect them.</p></div>
             <button class="button secondary" id="refreshBackupStatus">Refresh Status</button>
           </div>
 
+          <div class="backup-tabs" role="tablist" aria-label="Backup and recovery sections">
+            <button type="button" class="button primary" role="tab" id="backup-tab-files" aria-controls="backup-files" aria-selected="true" data-backup-tab="files">Backup &amp; Restore</button>
+            <button type="button" class="button secondary" role="tab" id="backup-tab-security" aria-controls="backup-security" aria-selected="false" tabindex="-1" data-backup-tab="security">Passwords &amp; Security</button>
+          </div>
+          <div id="backup-files" role="tabpanel" aria-labelledby="backup-tab-files">
           <div class="summary-cards backup-summary">
             <div><span>Last automatic server backup</span><strong id="backupLastAuto">Checking…</strong><small id="backupAutoDetail">Verified server-side recovery copy</small></div>
             <div><span>Stored backup archives</span><strong id="backupSnapshotCount">—</strong><small id="backupSnapshotSize">All retained archives; available recovery points are listed below</small></div>
@@ -154,42 +159,24 @@
 
           <div class="backup-grid">
             <article class="panel backup-card">
-              <div class="backup-card-head"><span class="backup-symbol excel">X</span><div><h2>Download Business Data</h2><p>A human-readable owner copy that can be opened even if Transtrade is unavailable.</p></div></div>
+              <div class="backup-card-head"><span class="backup-symbol excel">X</span><div><h2>Download Business Data</h2><p>One password-protected ZIP with a combined workbook, module CSV folders and original documents.</p></div></div>
               <div class="backup-file-list">
-                <span>✓ Real Excel workbook (.xlsx)</span><span>✓ CSV copies of data tables</span><span>✓ Word backup summary (.docx)</span><span>✓ PDF backup summary</span><span>✓ Original stored documents where available</span>
+                <span>✓ Real Excel workbook (.xlsx)</span><span>✓ Mill / Exports / Accounts CSV folders with all saved input fields</span><span>✓ Word backup summary (.docx)</span><span>✓ PDF backup summary</span><span>✓ Original stored documents where available</span>
               </div>
               <button class="button primary" id="downloadBusinessBackup">Download Business Data</button>
-              <small class="backup-note">This copy deliberately excludes password hashes and technical login secrets.</small>
+              <small class="backup-note">Uses your saved backup protection password. Open with an AES-compatible ZIP tool, such as 7-Zip.</small>
             </article>
 
             <article class="panel backup-card recovery-card">
               <div class="backup-card-head"><span class="backup-symbol recovery">R</span><div><h2>Download Complete Transtrade Backup</h2><p>Everything required for disaster recovery, plus the readable Excel / Word / PDF owner files.</p></div></div>
-              <label class="backup-password">Recovery ZIP password<input id="recoveryBackupPassword" type="password" minlength="12" autocomplete="new-password" placeholder="Minimum 12 characters"></label>
+              <label class="backup-password" id="manualBackupPasswordArea" hidden>Password for this download<input id="recoveryBackupPassword" type="password" minlength="12" autocomplete="new-password" placeholder="Minimum 12 characters"></label>
               <div class="backup-file-list">
                 <span>✓ Business Data package</span><span>✓ Raw auth / master / audit data</span><span>✓ Shared Mill / Export operational data</span><span>✓ Private stored documents / uploads</span><span>✓ Backup manifest and integrity hashes</span><span>✓ Encrypted application-code snapshot for your offline computer copy</span>
               </div>
               <button class="button primary" id="downloadFullBackup">Download Complete Backup</button>
-              <small class="backup-note">Sensitive recovery contents are AES-encrypted with the password you enter. Transtrade does not save that password.</small>
+              <small class="backup-note">Encrypted using the backup protection password set in Passwords &amp; Security. Keep that password saved separately for recovery.</small>
             </article>
           </div>
-
-          <article class="panel backup-policy-panel">
-            <div class="panel-heading"><div><h2>Office computer backup</h2><p>Use a separate backup-only credential for the office agent. It cannot open the app or restore data.</p></div></div>
-            <p id="officeBackupStatus">Checking credential…</p>
-            <div class="backup-actions"><button class="button secondary" id="issueOfficeBackupToken">Generate / Rotate Credential</button><button class="button secondary" id="revokeOfficeBackupToken">Revoke Credential</button></div>
-            <label class="backup-password" id="officeBackupTokenArea" hidden>Copy this credential now; it is shown only once<input id="officeBackupToken" type="text" readonly autocomplete="off" spellcheck="false"></label>
-            <div class="backup-password"><h3>Protect the existing Office PC connection</h3>
-              <p>Enter the recovery ZIP password already saved on the Office PC. This binds backups to that password without changing its credential or Windows schedule.</p>
-              <label>Existing Office PC recovery password<input id="officeExistingPassword" type="password" minlength="12" maxlength="256" autocomplete="off"></label>
-              <label>Repeat existing password<input id="officeExistingPasswordConfirm" type="password" minlength="12" maxlength="256" autocomplete="off"></label>
-              <button class="button secondary" id="pinOfficeRecovery">Save Existing Password Protection</button>
-              <p id="officeSecurityStatus">Checking password protection…</p>
-              <p>For shipment delivery, update the installed Office Agent while preserving office-backup.json, then run its normal delivery connection. Activate protection after a verified connection appears below.</p>
-              <button class="button secondary" id="requireOfficeDeliveryProof" disabled>Activate Shipment Delivery Protection</button>
-              <button class="button secondary" id="refreshOfficeSecurity">Refresh Connection Status</button>
-            </div>
-            <small class="backup-note">The agent uses this credential and a separate ZIP password. Keep both in the office computer's protected configuration. An active credential does not confirm that the office task is installed or running; check its task history and latest verified local file.</small>
-          </article>
 
           <article class="panel backup-policy-panel">
             <div class="panel-heading"><div><h2>Automatic server protection</h2><p>Transtrade commits each snapshot only after its manifest, file hashes and ZIP contents pass verification.</p></div><button class="button secondary" id="createServerSnapshot">Create Snapshot Now</button></div>
@@ -228,6 +215,45 @@
             </div>
             <small class="backup-note">Restore never runs just because a ZIP is selected. The file must first pass Transtrade verification and then receive explicit owner confirmation.</small>
           </article>
+          </div>
+          <div id="backup-security" role="tabpanel" aria-labelledby="backup-tab-security" hidden>
+            <p class="backup-explainer">These are separate protections. Changing your login password does not change a backup ZIP password. Old ZIPs always need the password used when they were created.</p>
+            <article class="panel backup-card">
+              <h2>1. Software login password</h2><p>Used to sign into Transtrade.</p>
+              <details class="backup-security-details"><summary>Change my login password</summary><iframe class="backup-security-frame" title="Change software login password" data-security-src="change-password.php?embedded=1"></iframe></details>
+            </article>
+            <article class="panel backup-card">
+              <h2>2. Backup ZIP password</h2><p>Used to encrypt a complete backup and to open it during recovery. Save it separately from your ZIP files.</p>
+              <p>Set this once for future automatic and manual complete backups. The office PC connects using its saved connection key and needs no separate connection password.</p>
+              <label class="backup-password">New backup protection password<input id="sharedBackupPassword" type="password" minlength="12" maxlength="256" autocomplete="new-password"></label>
+              <label class="backup-password">Confirm backup protection password<input id="sharedBackupPasswordConfirm" type="password" minlength="12" maxlength="256" autocomplete="new-password"></label>
+              <button class="button primary" id="saveSharedBackupPassword" type="button">Save backup protection password</button>
+              <p id="sharedBackupPasswordStatus" role="status">Checking backup password…</p>
+              <p>Keep the old password for older ZIPs. Changing this setting protects future backups; it does not rewrite existing files. User and Super Admin login passwords stay separate.</p>
+            </article>
+            <article class="panel backup-card">
+              <h2>3. Emergency admin recovery code</h2><p>Used to recover Super Admin access if the login password is forgotten. It cannot unlock a backup ZIP.</p>
+              <details class="backup-security-details"><summary>Create a replacement recovery code</summary><iframe class="backup-security-frame" title="Emergency admin recovery code" data-security-src="recovery-settings.php?embedded=1"></iframe></details>
+            </article>
+          <article class="panel backup-policy-panel">
+            <div class="panel-heading"><div><h2>Office PC connection</h2><p>Use a separate backup-only credential for the office agent. It cannot open the app or restore data.</p></div></div>
+            <p id="officeBackupStatus">Checking credential…</p>
+            <details class="backup-security-details"><summary>Reconnect or disconnect the office PC</summary><p>Replacing this key immediately stops the old connection. On TTI-SERVER, stop backup runs and use the updated Office Agent with --connect to paste the replacement key once. This preserves your folders and schedule. No ZIP password is needed for the connection after the backup protection password above is set.</p><div class="backup-actions"><button class="button secondary" id="issueOfficeBackupToken">Replace PC connection key</button><button class="button secondary" id="revokeOfficeBackupToken">Disconnect office PC</button></div>
+            <label class="backup-password" id="officeBackupTokenArea" hidden>New PC connection key — copy it into the office agent; shown only once<input id="officeBackupToken" type="text" readonly autocomplete="off" spellcheck="false"></label>
+            </details><div class="backup-password" id="legacyOfficePassword" hidden><h3>Protect the existing Office PC connection</h3>
+              <p>Enter the recovery ZIP password already saved on the Office PC. This binds backups to that password without changing its credential or Windows schedule.</p>
+              <label>Existing Office PC recovery password<input id="officeExistingPassword" type="password" minlength="12" maxlength="256" autocomplete="off"></label>
+              <label>Repeat existing password<input id="officeExistingPasswordConfirm" type="password" minlength="12" maxlength="256" autocomplete="off"></label>
+              <button class="button secondary" id="pinOfficeRecovery">Match website protection to the PC password</button>
+              <p id="officeSecurityStatus">Checking password protection…</p>
+              <p>For shipment delivery, update the installed Office Agent while preserving office-backup.json, then run its normal delivery connection. Activate protection after a verified connection appears below.</p>
+              <button class="button secondary" id="requireOfficeDeliveryProof" disabled>Activate Shipment Delivery Protection</button>
+              <button class="button secondary" id="refreshOfficeSecurity">Refresh Connection Status</button>
+            </div>
+            <small class="backup-note">The agent uses this credential and a separate ZIP password. Keep both in the office computer's protected configuration. An active credential does not confirm that the office task is installed or running; check its task history and latest verified local file.</small>
+          </article>
+
+          </div>
         </section>
 
         <section class="view" id="view-locks">
@@ -311,7 +337,7 @@
 
   <div class="toast-region" id="toastRegion" aria-live="polite"></div>
 <script src="mill-duplicate-approvals.js"></script>
-<script src="admin/app.js?v=20261014-jv-approval-queue-1"></script>
+<script src="admin/app.js?v=20261026-backup-workspace-1"></script>
 <script src="brand-theme.js?v=20261006-number-entry-1"></script>
 </body>
 </html>

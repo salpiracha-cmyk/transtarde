@@ -83,5 +83,22 @@ with tempfile.TemporaryDirectory(prefix='office-delivery-') as folder:
             assert status==422 and not data['ok'] and pending.read_bytes()==before,(status,data)
         status,data=request('/api/office_agent.php?action=ack',{'id':'c'*32,'status':'COMPLETE','files':[receipt]},headers);assert status==200 and data['job']['status']=='VERIFIED',(status,data)
         assert (private/'operations.json').read_text()==json.dumps({'revision':1,'values':{'transtrade_export_v3_operational':json.dumps(original)},'meta':{}})
+        managed='fixture-central-backup-password'
+        setting={'action':'set-backup-password','csrf':'fixture','password':managed,'confirmationPassword':managed}
+        request('/fixture-session.php?id=2');assert request('/api/backup.php',setting)[0]==403
+        request('/fixture-session.php?id=1');assert request('/api/backup.php',{**setting,'csrf':'bad'})[0]==419
+        assert request('/api/backup.php',{**setting,'confirmationPassword':'different'})[0]==422
+        assert not (private/'backup-password.json').exists()
+        assert request('/api/backup.php',setting)[0]==200
+        status,data=request('/api/backup.php?action=status');assert status==200 and data['officeSecurity']['sharedPasswordConfigured']
+        assert managed not in json.dumps(data) and managed not in (private/'backup-password.json').read_text() and managed not in (private/'auth.json').read_text()
+        request('/fixture-session.php?id=0')
+        token_only={'X-Forwarded-Proto':'https','X-TT-Backup-Token':token}
+        assert request('/api/office_agent.php?action=poll',headers=token_only)[0]==200
+        assert request('/api/office_agent.php?action=poll',headers={**token_only,'X-TT-Backup-Token':'0'*64})[0]==403
+        body={'protocol':2,'password':'old-PC-password'}
+        assert request('/api/office_backup.php?action=prepare',body,token_only)[0]==503
+        assert request('/api/office_backup.php?action=prepare',body,{**token_only,'X-TT-Backup-Token':'0'*64})[0]==403
+        assert request('/api/backup.php',setting,token_only)[0]==401
         print('PASS actual-auth office delivery: pending versus matching receipt, latest package, company denial, invalid claims unchanged, complete acknowledgement and zero financial/source writes')
     finally:server.terminate();server.wait(timeout=10);log.close()

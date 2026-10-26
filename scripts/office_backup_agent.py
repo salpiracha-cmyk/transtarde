@@ -190,7 +190,7 @@ def scheduled_backup_time(timestamp):
 def backup_job_request(config, action, values=None):
     url = config.get('backupUrl') or config.get('url')
     require_endpoint(url, '/api/office_backup.php')
-    payload = {'password': config['password']}
+    payload = {'password': config.get('password', '')}
     if values: payload.update(values)
     req = request.Request(url + '?action=' + action, data=json.dumps(payload).encode('utf-8'), headers={
         'Content-Type': 'application/json', 'Accept-Encoding': 'identity',
@@ -273,7 +273,7 @@ def open_backup_response(config):
     return PreparedBackupResponse(config, result)
 
 
-def pull(config, destination, scheduled_for=None):
+def pull(config, destination, scheduled_for=None, refresh_tiers=False):
     url = config.get('backupUrl') or config.get('url')
     require_endpoint(url, '/api/office_backup.php')
     destination.mkdir(parents=True, exist_ok=True)
@@ -315,13 +315,13 @@ def pull(config, destination, scheduled_for=None):
         daily = daily_dir / ('TRANSTRADE_FULL_' + stamp.strftime('%Y-%m-%d_%H%M') + '_' + expected[:12] + '.zip')
         os.replace(temp, daily); temp = None
         promotions = []
-        if not list(weekly_dir.glob('TRANSTRADE_FULL_' + bucket_stamp.strftime('%G-W%V') + '_*.zip')):
+        if refresh_tiers or not list(weekly_dir.glob('TRANSTRADE_FULL_' + bucket_stamp.strftime('%G-W%V') + '_*.zip')):
             weekly = weekly_dir / ('TRANSTRADE_FULL_' + bucket_stamp.strftime('%G-W%V') + stamp.strftime('_%H%M') + '_' + expected[:12] + '.zip')
             copy_verified(daily, weekly, expected)
             promotions.append(('weekly', weekly, expected))
         # Scheduled monthly points wait for a weekday, with catch-up on the first
         # successful working-day run. No office holiday calendar is available.
-        if (scheduled_for is None or bucket_stamp.weekday() < 5) and not list(monthly_dir.glob('TRANSTRADE_FULL_' + bucket_stamp.strftime('%Y-%m') + '_*.zip')):
+        if refresh_tiers or (scheduled_for is None or bucket_stamp.weekday() < 5) and not list(monthly_dir.glob('TRANSTRADE_FULL_' + bucket_stamp.strftime('%Y-%m') + '_*.zip')):
             monthly = monthly_dir / ('TRANSTRADE_FULL_' + bucket_stamp.strftime('%Y-%m') + stamp.strftime('_%H%M') + '_' + expected[:12] + '.zip')
             copy_verified(daily, monthly, expected)
             promotions.append(('monthly', monthly, expected))
@@ -601,14 +601,17 @@ def process_shipments(config):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--config', type=Path, default=config_path())
+    parser.add_argument('--connect', action='store_true', help='Update only the saved PC connection key; preserve passwords, folders and schedules')
     parser.add_argument('--init', action='store_true', help='Save backup-only credentials and destination securely')
     parser.add_argument('--retention-only', action='store_true', help='Apply verified weekly/monthly replacement cleanup without downloading')
+    parser.add_argument('--refresh-tiers', action='store_true', help='Make one fresh verified backup and fresh current weekly/monthly copies, such as after a password change')
     parser.add_argument('--force', action='store_true', help='Pull now even if a daily backup succeeded recently')
     parser.add_argument('--shipments-only', action='store_true', help='Only process pending shipment archive jobs')
     parser.add_argument('--backup-only', action='store_true', help='Only pull the encrypted system backup')
     parser.add_argument('--scheduled', action='store_true', help='Once per 18:00 Pakistan-time slot, catching up missed runs')
     parser.add_argument('--log-file', type=Path, help='Write the latest scheduled run output to this file')
     args = parser.parse_args()
+    if args.refresh_tiers: args.force = True
     try:
         # Lock before opening the shared log so a skipped duplicate cannot
         # truncate or interleave the active run's evidence. Shipment-only
@@ -631,6 +634,14 @@ def run(args):
     try:
         if args.init: initialize(args.config); return 0
         config = json.loads(args.config.read_text(encoding='utf-8'))
+        if args.connect:
+            token = getpass.getpass('Paste the new PC connection key (hidden): ').strip()
+            if not re.fullmatch(r'[a-f0-9]{64}', token): raise ValueError('The connection key must contain exactly 64 lowercase hexadecimal characters.')
+            config['token'] = token
+            write_json(args.config, config, sensitive=True)
+            print('PC connection key updated. Existing password, folders and task settings were preserved.')
+            return 0
+
         if args.retention_only:
             destination = Path(config.get('backupDestination') or config.get('destination')).expanduser().resolve()
             state_path = args.config.with_name('office-backup-state.json')
@@ -664,7 +675,10 @@ def run(args):
             raise RuntimeError('Cannot update the local backup success record; no new download was requested. Check for a file lock or task-owner access.') from exc
         for attempt in range(3):
             try:
-                path, digest = pull(config, destination, scheduled_for=scheduled_for) if scheduled_for is not None else pull(config, destination)
+                options = {}
+                if scheduled_for is not None: options['scheduled_for'] = scheduled_for
+                if args.refresh_tiers: options['refresh_tiers'] = True
+                path, digest = pull(config, destination, **options)
                 break
             except (error.URLError, OSError, ValueError, RuntimeError, zipfile.BadZipFile) as exc:
                 if attempt == 2: raise

@@ -91,3 +91,15 @@ backup runs are stopped, preserving the protected configuration and task.
 4. Verify the next scheduled encrypted backup and a shipment delivery receipt on the actual PC. The hosted status does not prove Windows scheduling or local retention. Until the owner completes these steps, the console explicitly displays the remaining legacy/migration state.
 
 Do not enter passwords in chat, task arguments, logs or source control. Rotating the token after enrollment requires the owner to bind the existing PC recovery password to the replacement credential before Office pulls resume. Password policy remains enforced through restore and cannot be downgraded through an agent request. A compromised protected PC configuration contains both secrets; password proof protects against theft of the service token alone.
+
+## Simplified owner-managed backup password (26 October 2026)
+
+The owner may opt into one backup protection password in Backup & Recovery → Passwords & Security. This is separate from all user/Super Admin logins and the emergency login recovery code. The server stores it encrypted with a private installation key; neither vault nor key enters a backup or is replaced by an old restore. Preserve the owner’s separately saved password: the installation key is not a disaster recovery substitute.
+
+Once configured, automatic PC downloads and manual backup downloads use this password without requiring the PC to supply an independent connection password. The PC must still have its current service connection key. Stop runs, update the Office Agent and use --connect to replace that key locally when needed; this retains destinations and schedules. Revoked or wrong keys remain denied. The legacy password-proof policy remains unchanged until this owner opt-in.
+
+Download Business Data produces a standard AES-encrypted ZIP readable by an AES-capable ZIP tool, including the combined workbook, per-module CSVs and original saved documents. Complete Backup retains the supported Transtrade encrypted recovery format and includes the same logical business folders plus technical data/code. Original documents with unknown module attribution stay under Shared; shipment delivery folders retain their source paths. CSV exports include saved drafts/reversals with status and raw input fields; they are not a new financial-statement certification.
+
+Changing the password affects future ZIPs only. Create and verify fresh daily, weekly and monthly recovery copies before retiring older ones. The central setting does not itself prove Windows scheduling, local retention, server/PC connectivity or a successful recovery rehearsal.
+
+After setting a new backup protection password and reconnecting the current PC key, run the updated agent once with --backup-only --refresh-tiers. This forces a fresh verified download and verified current-week/current-month copies even if those buckets already exist. It preserves the closing-time schedule, reuses the one checked download, and applies existing retention only after verification. Older retained ZIPs still need their original passwords.

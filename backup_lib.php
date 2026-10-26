@@ -289,7 +289,7 @@ function tt_backup_private_files(): array {
         if (!$file->isFile() || $file->isLink()) continue;
         $path = $file->getPathname();
         $rel = str_replace('\\', '/', substr($path, strlen($root) + 1));
-        if ($rel === '' || str_starts_with($rel, 'backups/') || str_starts_with($rel, 'sessions/') || $rel === 'backup_state.json' || str_ends_with($rel, '.lock') || str_contains($rel, '.tmp-') || str_contains($rel, '.restore-')) continue;
+        if ($rel === '' || str_starts_with($rel, 'backups/') || str_starts_with($rel, 'sessions/') || $rel === 'backup_state.json' || in_array($rel,['backup-password.key','backup-password.json'],true) || str_ends_with($rel, '.lock') || str_contains($rel, '.tmp-') || str_contains($rel, '.restore-')) continue;
         $files[$rel] = $path;
     }
     ksort($files);
@@ -439,11 +439,105 @@ function tt_backup_make_pdf(array $lines): string {$content="BT\n/F1 16 Tf\n50 7
 function tt_backup_summary_lines(array $datasets): array {$lines=['Transtrade Backup Summary','Created: '.gmdate('d M Y H:i').' UTC','This package contains readable owner data plus original stored documents where available.',''];foreach($datasets as $name=>$table)$lines[]=$name.': '.count((array)($table['rows']??[])).' data rows';$lines[]='';$lines[]='The Complete Recovery Backup additionally contains encrypted raw system recovery files. Keep it confidential and retain its password separately.';return $lines;}
 function tt_backup_safe_name(string $name): string {$name=preg_replace('/[^A-Za-z0-9._ -]+/u','_',trim($name))?:'data';return trim($name,' ._')?:'data';}
 
+function tt_backup_database_rows():array {
+    static $cached=null;if($cached!==null)return $cached;
+    $get=static function(string $name):string{$key='TT_'.$name;return defined($key)?(string)constant($key):(string)(getenv($key)?:'');};
+    $host=$get('DB_HOST');$name=$get('DB_NAME');$user=$get('DB_USER');
+    if($host===''&&$name===''&&$user==='')return $cached=[];
+    if($host===''||$name===''||$user==='')throw new RuntimeException('Database export configuration is incomplete.');
+    $db=new PDO('mysql:host='.$host.';dbname='.$name.';charset=utf8mb4',$user,$get('DB_PASS'),[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC,PDO::ATTR_EMULATE_PREPARES=>false]);
+    $db->exec('SET TRANSACTION READ ONLY');$db->beginTransaction();
+    try{$rows=[];foreach(['tt_operation_records','tt_operation_history','tt_export_documents']as$table)$rows[$table]=$db->query('SELECT * FROM '.$table)->fetchAll();$db->commit();return $cached=$rows;}
+    catch(Throwable $error){if($db->inTransaction())$db->rollBack();throw new RuntimeException('The configured business database could not be exported completely.');}
+}
+function tt_backup_module(string $key):string {
+    if(preg_match('/account|ledger|bank|salary|soda|expense|payment|receipt|tax|cash|broker/i',$key))return 'Accounts';
+    if(preg_match('/export|shipment|shipping|booking|invoice|credit_advice/i',$key)&&!preg_match('/^tt\d+/',$key))return 'Exports';
+    if(preg_match('/mill|stock|inward|outward|production|recovery|arrival|^tt\d+/i',$key))return 'Mill';
+    if(preg_match('/director|asset|cashflow/i',$key))return 'Directors';
+    return 'Shared';
+}
+function tt_backup_field_csv(mixed $data):string {
+    $out=fopen('php://temp/maxmemory:1048576','w+');if(!$out)throw new RuntimeException('CSV export storage unavailable.');
+    fwrite($out,"\xEF\xBB\xBF");fputcsv($out,['Field path','Type','Value']);
+    $walk=function($value,string $path,int $depth)use(&$walk,$out):void{
+        if($depth>128)throw new RuntimeException('Business data nesting exceeds export limits.');
+        if(is_array($value)&&$value){foreach($value as$key=>$child)$walk($child,$path.'/'.str_replace(['~','/'],['~0','~1'],(string)$key),$depth+1);return;}
+        $text=is_bool($value)?($value?'true':'false'):(is_array($value)?'[]':($value===null?'':(string)$value));
+        fputcsv($out,[$path,gettype($value),tt_backup_safe_cell($text)]);
+    };
+    try{$walk($data,'',0);rewind($out);return stream_get_contents($out)?:'';}finally{fclose($out);}
+}
+function tt_backup_module_payloads():array {
+    $payloads=[];$index=[];
+    $emit=function(string $module,string $name,mixed $value,string $source)use(&$payloads,&$index):void{
+        $base=$module.'/Data/'.tt_backup_safe_name($name).'-'.substr(hash('sha256',$source),0,10);
+        $payloads[$base.'-all-fields.csv']=tt_backup_field_csv($value);
+        if(is_array($value))foreach($value as$section=>$rows)if(is_array($rows)){
+            $table=array_is_list($rows)?$rows:array_map(static fn($id,$row)=>is_array($row)?['Record key'=>(string)$id]+$row:['Record key'=>(string)$id,'Value'=>$row],array_keys($rows),array_values($rows));
+            $payloads[$base.'/'.tt_backup_safe_name((string)$section).'-'.substr(hash('sha256',(string)$section),0,8).'.csv']=tt_backup_csv(tt_backup_table_from_rows($table));
+        }
+        $index[]=['Source'=>$source,'Module'=>$module,'All fields CSV'=>$base.'-all-fields.csv'];
+    };
+    foreach(tt_backup_database_rows()as$table=>$rows){$emit('Shared','Database '.$table,$rows,'database/'.$table);if($table==='tt_operation_records')foreach($rows as$row){$key=(string)$row['storage_key'];$emit(tt_backup_module($key),'Database '.$key,json_decode((string)$row['payload'],true,512,JSON_THROW_ON_ERROR),'database/'.$table.'/'.$key);}}
+    $chart=__DIR__.'/accounts/accounting_master_v1.json';if(is_file($chart))$emit('Accounts','Chart of Accounts',json_decode((string)file_get_contents($chart),true,512,JSON_THROW_ON_ERROR),'application/accounts/accounting_master_v1.json');
+    foreach(['export_documents/index.json'=>'Exports','office_agent_jobs'=>null]as$rel=>$module)if($module!==null&&is_file(TT_DATA_DIR.'/'.$rel))$emit($module,'Original document index',json_decode((string)file_get_contents(TT_DATA_DIR.'/'.$rel),true,512,JSON_THROW_ON_ERROR),$rel);
+    $operations=tt_backup_read_operations();
+    foreach((array)($operations['values']??[])as$key=>$raw){
+        $value=is_string($raw)?json_decode($raw,true):$raw;
+        if(is_string($raw)&&json_last_error()!==JSON_ERROR_NONE)$value=$raw;
+        $emit(tt_backup_module((string)$key),(string)$key,$value,'operations.json/values/'.$key);
+    }
+    $path=TT_DATA_DIR.'/accounts.json';
+    if(is_file($path)){$data=json_decode((string)file_get_contents($path),true,512,JSON_THROW_ON_ERROR);$emit('Accounts','Accounts',$data,'accounts.json');
+        $lines=[];foreach((array)($data['journals']??[])as$id=>$journal)foreach((array)($journal['lines']??[])as$line)$lines[]=['Post ID'=>$id,'Entity'=>$journal['entity']??'','Date'=>$journal['date']??'','Status'=>$journal['status']??'','Narration'=>$journal['narration']??'']+(array)$line;
+        $payloads['Accounts/Ledgers/All_Posting_Lines.csv']=tt_backup_csv(tt_backup_table_from_rows($lines));
+        $ledgers=[];foreach($lines as$row){$identity=(string)($row['Entity']??'').'/'.(string)($row['account']??'').'/'.(string)($row['subaccountId']??'Unassigned');$ledgers[$identity][]=$row;}
+        foreach($ledgers as$identity=>$rows)$payloads['Accounts/Ledgers/'.tt_backup_safe_name($identity).'-'.substr(hash('sha256',$identity),0,10).'.csv']=tt_backup_csv(tt_backup_table_from_rows($rows));
+    }
+    $store=tt_read_store();foreach((array)($store['masters']??[])as$type=>$rows)$emit(tt_backup_module((string)$type),'Master '.$type,$rows,'auth.json/masters/'.$type);
+    $payloads['Export_Index.csv']=tt_backup_csv(tt_backup_table_from_rows($index));
+    $payloads['READ_ME.txt']="Password-protected business export.\nData folders contain a CSV per saved table and an all-fields CSV containing every nested input value. Field paths preserve parent/child identities and array positions.\nAccounts/Ledgers/All_Posting_Lines.csv contains every saved journal line with entity, date, status and Post ID; retained reversals and drafts are labelled, not silently omitted.\nOriginal documents retain their paths. Shared holds records/documents whose module cannot be identified reliably. Export_Index.csv lists every exported source.\nThis is saved input data, not a certification of financial statements or physical stocks.\n";
+    return $payloads;
+}
+function tt_backup_module_documents(array $private):array {
+    $files=[];
+    foreach($private as$rel=>$path){
+        if(preg_match('~^(documents|uploads)/(.*)$~i',$rel,$m)){
+            $module=tt_backup_module($m[2]);$files[$module.'/Documents/'.$rel]=$path;
+        }elseif(str_starts_with($rel,'export_documents/')){
+            $files['Exports/Shipment_Documents/'.$rel]=$path;
+        }elseif(str_starts_with($rel,'master-documents/')){
+            $files['Shared/Master_Documents/'.$rel]=$path;
+        }elseif(str_starts_with($rel,'office_agent_jobs/')){
+            $files['Exports/Shipment_Folders/'.$rel]=$path;
+        }
+    }
+    return $files;
+}
+function tt_backup_encrypted_business_zip(string $path,array $payloads,array $documents,string $password):array {
+    if(!class_exists('ZipArchive')||!method_exists('ZipArchive','setEncryptionName'))throw new RuntimeException('Encrypted business exports require the server ZIP encryption extension.');
+    if(strlen($password)<12||strlen($password)>256)throw new InvalidArgumentException('Use a backup password of 12–256 characters.');
+    $zip=new ZipArchive();if($zip->open($path,ZipArchive::OVERWRITE)!==true)throw new RuntimeException('Business ZIP could not be created.');
+    try{
+        if(!$zip->setPassword($password))throw new RuntimeException('ZIP password could not be set.');
+        foreach($payloads as$name=>$bytes)if(!$zip->addFromString($name,$bytes)||!$zip->setEncryptionName($name,ZipArchive::EM_AES_256))throw new RuntimeException('CSV encryption failed.');
+        foreach($documents as$name=>$file)if(!$zip->addFile($file,$name)||!$zip->setEncryptionName($name,ZipArchive::EM_AES_256))throw new RuntimeException('Document encryption failed.');
+        if(!$zip->close())throw new RuntimeException('Encrypted business ZIP could not be completed.');
+    }catch(Throwable $error){@$zip->close();throw $error;}
+    $check=new ZipArchive();if($check->open($path)!==true)throw new RuntimeException('Business ZIP verification failed.');
+    try{$check->setPassword($password);foreach($payloads as$name=>$bytes){$in=$check->getStream($name);if(!$in)throw new RuntimeException('Encrypted CSV verification failed.');$hash=hash_init('sha256');hash_update_stream($hash,$in);fclose($in);if(!hash_equals(hash('sha256',$bytes),hash_final($hash)))throw new RuntimeException('CSV integrity failed.');}
+        foreach($documents as$name=>$file){$in=$check->getStream($name);if(!$in)throw new RuntimeException('Encrypted document verification failed.');$hash=hash_init('sha256');hash_update_stream($hash,$in);fclose($in);if(!hash_equals(hash_file('sha256',$file),hash_final($hash)))throw new RuntimeException('Document integrity failed.');}
+    }finally{$check->close();}
+    return ['path'=>$path,'manifest'=>['application'=>'Transtrade','type'=>'encrypted_business_data','createdAt'=>gmdate('c')]];
+}
+
 function tt_backup_business_payloads(): array {
     $datasets=tt_backup_datasets();$payloads=[];$temps=[];$xlsx=tt_backup_make_xlsx($datasets);$temps[]=$xlsx;$payloads['Business_Data/Transtrade_Business_Data.xlsx']=file_get_contents($xlsx)?:'';
     foreach($datasets as $name=>$table)$payloads['Business_Data/CSV/'.tt_backup_safe_name((string)$name).'.csv']=tt_backup_csv($table);
     $lines=tt_backup_summary_lines($datasets);$docx=tt_backup_make_docx($lines);$temps[]=$docx;$payloads['Business_Data/Transtrade_Backup_Summary.docx']=file_get_contents($docx)?:'';$pdf=tt_backup_make_pdf($lines);$temps[]=$pdf;$payloads['Business_Data/Transtrade_Backup_Summary.pdf']=file_get_contents($pdf)?:'';
     foreach($temps as $t)@unlink($t);
+    $payloads += tt_backup_module_payloads();
     return [$payloads,$datasets];
 }
 
@@ -488,8 +582,22 @@ function tt_backup_decrypt_entry(TT_SimpleZipReader $zip,array $meta,string $key
     if(isset($meta['chunks'])&&($size!==(int)($meta['size']??-1)||!hash_equals((string)($meta['sha256']??''),hash_final($digest))))throw new InvalidArgumentException('An encrypted recovery file failed its integrity check.');
 }
 
+function tt_backup_portable_database_files(array $private,array $tables,array &$temps):array {
+    if(!$tables)return $private;
+    $ops=tt_backup_read_operations();
+    foreach($tables['tt_operation_records']??[]as$row){$key=(string)$row['storage_key'];$ops['values'][$key]=(string)$row['payload'];$ops['meta'][$key]=['version'=>$row['version'],'updatedAt'=>$row['updated_at'],'updatedBy'=>$row['updated_by']];}
+    $index=[];foreach($tables['tt_export_documents']??[]as$row)$index[(string)$row['id']]=$row;
+    foreach(['operations.json'=>$ops,'export_documents/index.json'=>$index,'database-business-snapshot.json'=>$tables]as$rel=>$data){
+        $temp=tempnam(sys_get_temp_dir(),'tt-portable-');if($temp===false)throw new RuntimeException('Portable recovery storage unavailable.');$temps[]=$temp;chmod($temp,0600);
+        $json=json_encode($data,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR);
+        if(file_put_contents($temp,$json)!==strlen($json))throw new RuntimeException('Portable recovery snapshot failed.');$private[$rel]=$temp;
+    }
+    return $private;
+}
+
 function tt_build_download_backup(bool $full,string $password=''):array{
-    [$business,$datasets]=tt_backup_business_payloads();$private=tt_backup_private_files();$appFiles=$full?tt_backup_app_files():[];$documents=[];
+    $portableTemps=[];register_shutdown_function(static function()use(&$portableTemps):void{foreach($portableTemps as$temp)if(is_file($temp))@unlink($temp);});
+    [$business,$datasets]=tt_backup_business_payloads();$private=tt_backup_portable_database_files(tt_backup_private_files(),tt_backup_database_rows(),$portableTemps);$appFiles=$full?tt_backup_app_files():[];$documents=[];
     foreach($private as $rel=>$path)if(preg_match('#^(documents|uploads)/(.*)$#i',$rel,$m))$documents['Documents/'.$m[2]]=$path;
     $estimate=0;foreach($private as $path)$estimate+=filesize($path)?:0;foreach($appFiles as $path)$estimate+=filesize($path)?:0;
     $tmp=tempnam(sys_get_temp_dir(),'tt-backup-');if($tmp===false)throw new RuntimeException('Temporary backup file could not be created.');
@@ -499,9 +607,9 @@ function tt_build_download_backup(bool $full,string $password=''):array{
     register_shutdown_function(static function()use($tmp):void{if(is_file($tmp))@unlink($tmp);});
     try { tt_backup_require_space(dirname($tmp),$full ? $estimate*2 : array_sum(array_map('filesize',$documents))); }
     catch(Throwable $error) { @unlink($tmp); throw $error; }
+    if(!$full){try{return tt_backup_encrypted_business_zip($tmp,$business,tt_backup_module_documents($private),$password);}catch(Throwable $error){@unlink($tmp);throw $error;}finally{foreach($portableTemps as$temp)if(is_file($temp))unlink($temp);}}
     $zip=new TT_SimpleZipWriter($tmp);
     try {
-    if(!$full){foreach($business as $entry=>$data)$zip->addString($entry,$data);foreach($documents as $entry=>$path)$zip->addFile($entry,$path);$manifest=tt_backup_manifest('business_data',[],['businessSheets'=>count($datasets),'containsTechnicalSecrets'=>false]);$zip->addString('backup-manifest.json',json_encode($manifest,JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR));$zip->close();return ['path'=>$tmp,'manifest'=>$manifest];}
     $salt=random_bytes(16);$iterations=200000;$key=tt_backup_derive_key($password,$salt,$iterations);$map=[];$counter=1;$encryptedFiles=[];
     $addEncrypted=function(string $logical,string $data)use($zip,$key,&$map,&$counter):void{$enc=tt_backup_encrypt($data,$key,true);$stored='Encrypted/'.str_pad((string)$counter++,6,'0',STR_PAD_LEFT).'.bin';$zip->addString($stored,$enc['cipher'],false);unset($enc['cipher']);$enc['stored']=$stored;$map[$logical]=$enc;};
     $addEncryptedFile=function(string $logical,string $path)use($zip,$key,&$map,&$counter,&$encryptedFiles):void{
@@ -522,13 +630,13 @@ function tt_build_download_backup(bool $full,string $password=''):array{
         $encryptedFiles[$path]=$map[$logical];
     };
     foreach($business as $entry=>$data)$addEncrypted($entry,$data);
-    foreach($documents as $entry=>$path)$addEncryptedFile($entry,$path);
+    foreach($documents+tt_backup_module_documents($private) as $entry=>$path)$addEncryptedFile($entry,$path);
     foreach($private as $rel=>$path)$addEncryptedFile('System_Recovery/private/'.$rel,$path);
     foreach($appFiles as $rel=>$path)$addEncryptedFile('Application_Code/'.$rel,$path);
     $appInventory=[];foreach($appFiles as $rel=>$path)$appInventory[]=['path'=>$rel,'size'=>filesize($path)?:0,'sha256'=>hash_file('sha256',$path)?:''];
     $manifest=tt_backup_manifest('full_recovery',$private,['businessSheets'=>count($datasets),'containsTechnicalSecrets'=>true,'appFileCount'=>count($appFiles),'applicationFiles'=>$appInventory,'encryption'=>['algorithm'=>'AES-256-GCM','kdf'=>'PBKDF2-HMAC-SHA256','iterations'=>$iterations,'salt'=>base64_encode($salt)],'encryptedEntries'=>$map]);
     $zip->addString('README.txt',"TRANSTRADE COMPLETE RECOVERY BACKUP\n\nSensitive contents are encrypted with the password chosen by the owner. Restore through Transtrade Super Admin > Backup & Data Export.\nThe password is not stored in this ZIP.\n");$zip->addString('backup-manifest.json',json_encode($manifest,JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR));$zip->close();return ['path'=>$tmp,'manifest'=>$manifest];
-    }catch(Throwable $error){try{$zip->close();}catch(Throwable){}@unlink($tmp);throw $error;}
+    }catch(Throwable $error){try{$zip->close();}catch(Throwable){}@unlink($tmp);throw $error;}finally{foreach($portableTemps as$temp)if(is_file($temp))unlink($temp);}
 }
 
 function tt_backup_stream_file(string $path,string $filename,string $sha256=''):void{
@@ -774,6 +882,7 @@ function tt_backup_verify_full(string $path,string $password):array{
 }
 function tt_backup_atomic_write(string $path,string $data):void{$dir=dirname($path);if(!is_dir($dir)&&!mkdir($dir,0700,true)&&!is_dir($dir))throw new RuntimeException('A recovery folder could not be created.');$tmp=$path.'.restore-'.bin2hex(random_bytes(4));if(file_put_contents($tmp,$data,LOCK_EX)===false)throw new RuntimeException('A recovery file could not be written.');@chmod($tmp,0600);if(!rename($tmp,$path)){@unlink($tmp);throw new RuntimeException('A recovery file could not be replaced.');}}
 function tt_backup_restore_allowed(string $rel):bool{
+    if(in_array($rel,['backup-password.key','backup-password.json'],true))return false;
     if($rel===''||str_contains($rel,'..')||str_contains($rel,'\\')||str_contains($rel,':')||str_contains($rel,"\0")||str_starts_with($rel,'/')||str_starts_with($rel,'backups/')||str_starts_with($rel,'sessions/')||in_array($rel,['backup_state.json','auth.lock','backup-job.lock','backup-state.lock','office-backup-policy.lock'],true))return false;
     // Exact current/legacy credential files belong to existing installations.
     // Office job ZIPs restore as opaque bytes; nothing extracts or executes them.

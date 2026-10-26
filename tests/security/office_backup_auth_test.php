@@ -31,6 +31,15 @@ try {
     if(!tt_office_policy_status()['deliveryRequired'])throw new RuntimeException('Owner repin silently disabled delivery protection.');
     tt_office_backup_revoke_token();
     if(tt_office_backup_enabled()||tt_office_backup_token_valid($second))throw new RuntimeException('Revocation failed.');
+    if(tt_backup_password_get()!==null)throw new RuntimeException('Managed password must be opt-in.');
+    $managed='fixture-master-password-2026';tt_backup_password_set($managed);
+    if(tt_backup_password_get()!==$managed||!tt_office_policy_status()['sharedPasswordConfigured'])throw new RuntimeException('Managed password did not round-trip.');
+    $vault=TT_DATA_DIR.'/backup-password.json';$key=TT_DATA_DIR.'/backup-password.key';
+    if(str_contains(file_get_contents($vault),$managed)||(fileperms($vault)&0777)!==0600||(fileperms($key)&0777)!==0600)throw new RuntimeException('Managed password storage leaked or permissions failed.');
+    $replacement='fixture-next-password-2026';tt_backup_password_set($replacement);
+    if(tt_backup_password_get()!==$replacement||!tt_office_delivery_allowed(''))throw new RuntimeException('Managed password rotation or token-only owner-selected mode failed.');
+    $data=json_decode(file_get_contents($vault),true);$data['tag']=base64_encode(str_repeat('x',16));file_put_contents($vault,json_encode($data));
+    $rejected=false;try{tt_backup_password_get();}catch(RuntimeException){$rejected=true;}if(!$rejected)throw new RuntimeException('Tampered vault accepted.');
     echo "PASS isolated office backup credential lifecycle\n";
 } finally {
     if(session_status()===PHP_SESSION_ACTIVE)session_write_close();

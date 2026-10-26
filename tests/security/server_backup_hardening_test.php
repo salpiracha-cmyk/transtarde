@@ -34,6 +34,10 @@ try{
     $jobPath=TT_DATA_DIR.'/office_agent_jobs/0123456789abcdef0123456789abcdef/package.zip';
     $jobBytes='fixture-archived-office-package';file_put_contents($jobPath,$jobBytes);
 
+    tt_backup_password_set('fixture-current-backup-password');
+    $managedVault=file_get_contents(TT_DATA_DIR.'/backup-password.json');
+    backup_expect(!isset(tt_backup_private_files()['backup-password.json'])&&!isset(tt_backup_private_files()['backup-password.key']),'Current password vault must stay outside archives.');
+    backup_expect(!tt_backup_restore_allowed('backup-password.json')&&!tt_backup_restore_allowed('backup-password.key'),'Restore must never replace current password settings.');
     $stateBefore=tt_backup_read_state();tt_maybe_auto_backup();backup_expect(tt_backup_read_state()===$stateBefore,'Page activity must not create backups.');
     $snapshot=tt_create_server_snapshot('manual');
     $path=tt_backup_dir().'/'.$snapshot;
