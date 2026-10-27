@@ -112,6 +112,8 @@ jobs:
           node tests/exports-v3/customer_reference_linkages_test.js
           node tests/exports-v3/untrusted_date_currency_test.js
           node tests/exports-v3/shipment_copy_reuse_test.js
+          node tests/exports-v3/office_delivery_browser_test.js
+          python3 tests/security/office_delivery_http_test.py
       - name: Verify rendered Export document behavior
         run: |
           node tests/accounts-v1/dependent_fields_test.js
