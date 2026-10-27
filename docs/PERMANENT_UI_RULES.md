@@ -676,3 +676,8 @@ Normal owner setup uses one Windows EXE, not key-copy fields, ZIP extraction, CM
 ## Website data restore
 
 Backup & Recovery opens a simple dedicated restore page that remains reachable during maintenance. Show selected ZIP/date, upload and verification progress, then a separate Confirm Restore action. Require typed RESTORE and final confirmation. Never run restore on file selection, upload, page load or verification alone. Clearly distinguish Data/legacy Complete ZIPs from software installation and offline recovery. Resume only the owner-confirmed job; never save stale Console state after a restore.
+
+## Retired shipment B/F — owner instruction, 27 October 2026
+
+- Remove shipment carry-forward entry links from Exports and Accounts. Both old form URLs are retired, and the dedicated API accepts historical reads/document downloads only. No new shipment draft, post, publication, bill or upload through that retired route. Retain all saved rows, documents, receivables, payables and settlement/reporting links. Unposted shipment drafts must not be offered as receipt sources.
+- Keep Accounts Balance B/F. Physical opening by-product quantities are recorded separately from monetary JVs, through the protected Accounts opening workspace, with the original opening date, company, mill and variety. Do not fabricate purchase/production activity or monetary valuation. Preserve existing adjustments, prevent duplicate openings and audit the actual owner.
