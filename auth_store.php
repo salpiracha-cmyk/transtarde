@@ -1083,6 +1083,8 @@ function tt_api_write_actions(string $endpoint,array $body): ?array {
     };
     if($endpoint==='petty_cash.php')return match($action){'manage','reverse'=>['Edit'],'post'=>['Create'],default=>[]};
     if($endpoint==='expenses_v1.php')return match($action){
+        'save_estimated_bill'=>[!empty($body['estimateId'])?'Edit':'Create'],
+        'resolve_estimated_bill','cancel_estimated_bill'=>['Edit'],
         'save_card_master','save_utility_master','save_card_statement','post_and_pay_card_statement'=>['Create','Edit'],
         'capture_expense_invoice','capture_utility_invoice','capture_reimbursement','pay_expense','pay_card_statement','pay_general_expense','pay_export_expense','pay_utility','settle_reimbursement','recover_personal_expense'=>['Create'],
         'amend_expense','amend_utility','cancel_expense_invoice','delete_expense','add_card_breakdown','remove_card_breakdown','save_card_adjustments','deactivate_card_master','deactivate_utility_master'=>['Edit'],default=>[],
