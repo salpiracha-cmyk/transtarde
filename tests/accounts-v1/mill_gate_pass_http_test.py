@@ -5,6 +5,8 @@ with tempfile.TemporaryDirectory(prefix='mill-gate-http-') as tmp:
  root=pathlib.Path(tmp);(root/'api').mkdir();(root/'data').mkdir()
  for f in ['mill_gate_pass.php','mill_gate_pass_core.php','mill_recovery_core.php','operations_scope.php']:shutil.copy(ROOT/'api'/f,root/'api'/f)
  (root/'auth_store.php').write_text('''<?php
+ // This file-backed fixture must not inherit the CI MySQL service.
+ define('TT_DB_HOST','');define('TT_DB_NAME','');define('TT_DB_USER','');
  define('TT_DATA_DIR',__DIR__.'/data');function tt_release_read_session(){}function tt_ensure_data_dir(){}
  function tt_require_login(){return ['role'=>'Staff','username'=>'qa','location'=>$_SERVER['HTTP_X_LOCATION']??'TTI Rice Mills','entity'=>$_SERVER['HTTP_X_ENTITY']??'TTI'];}
  function tt_user_can_open_module($u,$m){return true;}function tt_user_can_module_action($u,$m,$i,$a){return ($_SERVER['HTTP_X_PRINT']??'yes')==='yes';}

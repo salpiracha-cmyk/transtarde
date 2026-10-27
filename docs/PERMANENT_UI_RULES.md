@@ -689,3 +689,5 @@ Backup & Recovery opens a simple dedicated restore page that remains reachable d
 - Recovery means final ready rice output divided by independently recorded raw input. By-products are separate. Total output/input is a mass-balance measure, never labelled total recovery.
 - Milling's Production, Recovery and Reports screens, printouts and CSVs omit Rs/kg, monetary values and cost summaries even for owners. Accounts and Directors retain authorised costs and existing stock-cost links.
 - Daily Production includes recovery and actual input tons/hour, alongside the previous calendar shift at the same mill. Missing input/time stays unavailable. Brand and Contract Recovery consolidate by lot/product/packing/brand/contract without date/shift detail rows, and retain separate raw material, ready rice and by-product sections.
+
+- Owner size clarification: gate passes and Arrival / Pohanch use approximately the top half of portrait A4, with readable details and manual signature/stamp space. Production and recovery reports may fill A4 and continue across pages; do not force long reports onto a single sheet.
