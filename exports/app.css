@@ -509,3 +509,23 @@
 /* Keep contract references, buyers and actions readable on narrow screens. */
 .table.sales-contract-register{min-width:1080px}
 .table.sales-contract-register td:first-child{white-space:nowrap}
+
+
+/* Bags PO print: details first, approved marking artwork uses the remaining page area. */
+.poOnePage[data-po-mark-count]{display:flex;flex-direction:column}
+.poOnePage[data-po-mark-count] .poOrderTable th:nth-child(1){width:6%}
+.poOnePage[data-po-mark-count] .poOrderTable th:nth-child(2){width:42%}
+.poOnePage[data-po-mark-count] .poOrderTable th:nth-child(3){width:14%}
+.poOnePage[data-po-mark-count] .poOrderTable th:nth-child(4){width:18%}
+.poOnePage[data-po-mark-count] .poOrderTable th:nth-child(5){width:20%}
+.poOnePage[data-po-mark-count] .poOrderTable td{height:auto!important;min-height:0!important;padding:1.8mm 2mm}
+.poOnePage[data-po-mark-count] .poOrderTable td:nth-child(5) strong{font-size:14px;color:#173c29}
+.poMarkings{flex:1;min-height:55mm;margin:4mm 0 5mm;display:grid;align-items:center;justify-items:center;gap:7mm;overflow:hidden;break-inside:avoid;page-break-inside:avoid}
+.poMarkingsOne{grid-template-columns:1fr}
+.poMarkingsTwo,.poMarkingsMany{grid-template-columns:repeat(2,minmax(0,1fr))}
+.poMarkingFigure{width:100%;height:100%;min-height:0;margin:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;overflow:hidden}
+.poMarkingFigure figcaption{flex:0 0 auto;margin:0 0 2mm;font-size:9px;font-weight:900;letter-spacing:.03em;color:#173c29}
+.poMarkingFigure img{display:block;width:auto;height:auto;max-width:100%;object-fit:contain;margin:0 auto}
+.poMarkingsOne .poMarkingFigure img{max-width:176mm;max-height:112mm}
+.poMarkingsTwo .poMarkingFigure img{max-width:84mm;max-height:108mm}
+.poMarkingsMany .poMarkingFigure img{max-width:84mm;max-height:52mm}
