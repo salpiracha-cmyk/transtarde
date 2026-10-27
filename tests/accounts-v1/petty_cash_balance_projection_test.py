@@ -50,6 +50,8 @@ with tempfile.TemporaryDirectory(prefix='cash-projection-') as directory:
         status,petty=read('/api/petty_cash.php',entity='TTI');assert status==200 and isinstance(petty,dict),(status,petty[:500] if isinstance(petty,str) else petty)
         status,bank=read('/api/bank_accounts.php',entity='TTI');assert status==200,(status,bank)
         status,home=read('/api/accounts_dashboard.php',entity='TTI');assert status==200,(status,home)
+        status,salary=read('/api/rent_salary_v2.php',entity='TTI',month='2026-10');assert status==200,(status,salary)
+        assert next(r['bookBalance'] for r in salary['paymentAccounts'] if r['id']=='CASH|TTI')==57180,salary['paymentAccounts']
         office=ledger('CASH|TTI')
         assert petty['officeBalance']==bank['cash']['bookBalance']==office['closing']==57180,(petty['officeBalance'],bank['cash'],office)
         assert next(x['amount'] for x in home['summaries']['bank'] if x.get('isCash'))==57180,home
