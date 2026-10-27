@@ -21,6 +21,13 @@ header('X-LiteSpeed-Cache-Control: no-cache');
 $html = (string)file_get_contents($modules[$id]);
 $millingTaskScripts = '';
 if ($id === 'milling') {
+    $gatePassFile = __DIR__.'/milling/gate-pass.js';
+    if (!is_file($gatePassFile) || ($gatePass = file_get_contents($gatePassFile)) === false) { http_response_code(503); exit('Gate pass assets are unavailable.'); }
+    $html = tt_replace_html_once(
+        '~<script\b[^>]*src=["\']/milling/gate-pass\.js[^"\']*["\'][^>]*>\s*</script>~i',
+        static fn(): string => '<script id="milling-gate-pass">' . str_replace('</script', '<\\/script', $gatePass) . '</script>',
+        $html
+    );
     foreach (['maize-labour', 'lifting-review', 'directors-exporter-links'] as $task) {
         $taskFile = __DIR__.'/milling/'.$task.'.js';
         if (!is_file($taskFile) || ($taskScript = file_get_contents($taskFile)) === false) { http_response_code(503); exit('Milling task assets are unavailable.'); }
