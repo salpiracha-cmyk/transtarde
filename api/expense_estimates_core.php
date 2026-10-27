@@ -46,11 +46,15 @@ function ee_actual(array $s,array $r,?array $user=null):?array {
     return null;
 }
 function ee_payload(array $s,string $entity,?array $user=null):array {
+    $history=ee_actuals($s,$entity,$user);$visible=array_fill_keys(array_column($history,'key'),true);
     $rows=[];foreach((array)($s['estimatedExpenseBills']??[]) as $r)if(($r['entity']??'')===$entity){
         if($r['status']==='Replaced'){$a=ee_actual($s,$r);$r['replacementValid']=$a!==null;$r['actualBillAmount']=$a['amount']??null;$r['variance']=$a?round($a['amount']-$r['grossAmount'],2):null;}
+        // A saved proof snapshot must not bypass the source workflow's read rights.
+        if($user!==null&&!empty($r['rateSource'])&&!isset($visible[$r['rateSource']])){unset($r['rateSourceSnapshot']);$r['rateSourceRestricted']=true;}
+        if($user!==null&&!empty($r['actualBillKey'])&&!isset($visible[$r['actualBillKey']])){unset($r['actualBillSnapshot']);$r['actualBillAmount']=null;$r['variance']=null;$r['replacementRestricted']=!empty($r['replacementValid']);}
         $rows[]=$r;
     }
-    return ['estimatedBills'=>$rows,'estimateRateHistory'=>ee_actuals($s,$entity,$user)];
+    return ['estimatedBills'=>$rows,'estimateRateHistory'=>$history];
 }
 function ee_save(array &$s,string $entity,array $b,array $u):array {
     $id=ee_text($b,'estimateId');$old=$id!==''?($s['estimatedExpenseBills'][$id]??null):null;
