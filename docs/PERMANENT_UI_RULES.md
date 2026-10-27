@@ -681,3 +681,13 @@ Backup & Recovery opens a simple dedicated restore page that remains reachable d
 
 - Remove shipment carry-forward entry links from Exports and Accounts. Both old form URLs are retired, and the dedicated API accepts historical reads/document downloads only. No new shipment draft, post, publication, bill or upload through that retired route. Retain all saved rows, documents, receivables, payables and settlement/reporting links. Unposted shipment drafts must not be offered as receipt sources.
 - Keep Accounts Balance B/F. Physical opening by-product quantities are recorded separately from monetary JVs, through the protected Accounts opening workspace, with the original opening date, company, mill and variety. Do not fabricate purchase/production activity or monetary valuation. Preserve existing adjustments, prevent duplicate openings and audit the actual owner.
+
+
+## Milling gate passes and recovery reports - 27 October 2026
+
+- Export, local sale, and local sale to exporter gate passes share the mill letterhead and physical loading layout, with the appropriate title and blank receiver/exporter signature and stamp spaces. The server assigns a unique global `GP-` sequence on the first explicit print/issue; retries and reprints reuse the loading identity's number. Keep original loading references as historical references. Never allocate numbers in browser storage or reset numbering per shipment.
+- Recovery means final ready rice output divided by independently recorded raw input. By-products are separate. Total output/input is a mass-balance measure, never labelled total recovery.
+- Milling's Production, Recovery and Reports screens, printouts and CSVs omit Rs/kg, monetary values and cost summaries even for owners. Accounts and Directors retain authorised costs and existing stock-cost links.
+- Daily Production includes recovery and actual input tons/hour, alongside the previous calendar shift at the same mill. Missing input/time stays unavailable. Brand and Contract Recovery consolidate by lot/product/packing/brand/contract without date/shift detail rows, and retain separate raw material, ready rice and by-product sections.
+
+- Owner size clarification: gate passes and Arrival / Pohanch use approximately the top half of portrait A4, with readable details and manual signature/stamp space. Production and recovery reports may fill A4 and continue across pages; do not force long reports onto a single sheet.

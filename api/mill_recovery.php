@@ -21,7 +21,8 @@ try{
     tt_release_read_session();$ops=mr_read_operations_source(TT_DATA_DIR.'/operations.json');$values=$ops['values']??[];if(!is_array($values))throw new RuntimeException('Invalid operations values.');$raw=$values['tt30prod']??'[]';if(!is_string($raw))throw new RuntimeException('Invalid production source.');$rows=json_decode($raw,true,512,JSON_THROW_ON_ERROR);if(!is_array($rows)||!array_is_list($rows)||count(array_filter($rows,'is_array'))!==count($rows))throw new RuntimeException('Invalid production rows.');
     $location=trim((string)($u['location']??'All authorized locations'));$restricted=($u['role']??'')!=='Super Admin'&&!in_array(strtolower($location),['','all locations','all authorized locations'],true);
     if($restricted)$rows=array_values(array_filter($rows,static fn($r)=>tt_inv_location($r)===tt_inv_norm($location)));
-    $report=mr_report($rows,$filters);$report['canViewCosts']=$financial&&!$restricted;
+    $surface=$_GET['surface']??'finance';if(!is_string($surface)||!in_array($surface,['mill','finance'],true))mrr_out(['ok'=>false,'error'=>'Invalid report surface.'],422);
+    $report=mr_report($rows,$filters);$report['surface']=$surface;$report['canViewCosts']=$surface!=='mill'&&$financial&&!$restricted;
     if($report['canViewCosts']){require_once __DIR__.'/mill_recovery_cost.php';$store=mrr_read(TT_DATA_DIR.'/accounts.json');$report=mr_attach_costs($report,$rows,mr_cost_sources($store,$ops,$e));$report['accountsRevision']=$store['revision']??0;}
     $report['entities']=array_values(array_filter(['TTI','BRM'],static fn($company)=>!$accounts||tt_user_can_access_entity($u,$company,'View')));$report['sourceBackend']=$ops['sourceBackend']??'file';$report['operationsRevision']=$ops['revision']??0;$report['generatedAt']=gmdate('c');mrr_out($report);
 }catch(Throwable $e){error_log('Mill recovery report: '.$e->getMessage());mrr_out(['ok'=>false,'error'=>'Recovery source could not be read. No figures have been estimated.'],500);}
