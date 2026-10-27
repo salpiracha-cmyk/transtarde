@@ -83,7 +83,7 @@ def run():
             local.locator('[onclick="tab(\'l\')"]').click();local.locator('#truck').fill('QA-202');local.locator('#loadKg').fill('1000');local.locator('#loadBags').fill('20');local.locator('[onclick="saveLoad()"]').click();mill.wait_for_function("document.querySelector('#partySaleWrap iframe').contentDocument.querySelector('#loadKg').value === ''")
             op=context.request.get(base+'/api/operations.mysql.php').json();sales=json.loads(op['values']['tt35localsales']);assert len(sales[0]['loads'])==1 and sales[0]['loads'][0]['bridgeId']
             with context.expect_page() as printed:local.get_by_role('button',name='Print Gate Pass',exact=True).click()
-            popup=printed.value;popup.locator('body').filter(has_text='Fixture local buyer').wait_for();assert 'Fixture local buyer' in popup.locator('body').inner_text();assert '1,000' in popup.locator('body').inner_text();popup.close()
+            popup=printed.value;popup.locator('body').filter(has_text='Fixture local buyer').wait_for();assert 'Fixture local buyer' in popup.locator('body').inner_text();assert '1,000' in popup.locator('body').inner_text();assert 'Fixture local buyer' in popup.title() and not re.search(r'\d{4}-\d{2}-\d{2}',popup.locator('body').inner_text());popup.close()
             local.locator('[onclick="closeMill()"]').click();local.locator('#activeBody').filter(has_text='Closed by Mill').wait_for()
             mill.reload();mill.locator('.mill-card[onclick="chooseMill(1)"]').click();mill.evaluate("openPanel('local')");local=mill.frame_locator('#partySaleWrap iframe');local.locator('#activeBody').filter(has_text='Closed by Mill').wait_for()
             mill.evaluate("openPanel('local');saleType('exporter')")
