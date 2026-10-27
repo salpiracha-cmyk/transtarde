@@ -38,6 +38,13 @@ $pay['lines']=[['account'=>'6210','accountName'=>'Salary','debit'=>100,'credit'=
 $salary=['journals'=>['SALARY'=>$pay]];
 $input=['reason'=>'Salary payment correction','date'=>'2026-10-01','lines'=>[['account'=>'6210','debit'=>100,'credit'=>0],['account'=>'1110','bankAccountId'=>'TTI-1','nativeAmount'=>100,'debit'=>0,'credit'=>100,'bankPaymentMethod'=>'CHEQUE','bankReference'=>'']]];
 try{apa_correct($salary,$user,'SALARY',$input);throw new RuntimeException('Cheque correction without number accepted.');}catch(DomainException){}
+$legacyPay=$pay;$legacyPay['id']='LEGACY-CHEQUE';$legacyPay['lines'][1]['bankPaymentMethod']='CHEQUE';$legacyPay['lines'][1]['chequeDate']='2026-09-25';
+$legacy=['journals'=>['LEGACY-CHEQUE'=>$legacyPay]];
+$legacyInput=['reason'=>'Narration correction only','date'=>'2026-09-25','narration'=>'Corrected narration','lines'=>[['account'=>'6210','debit'=>100,'credit'=>0],['account'=>'1110','bankAccountId'=>'TTI-1','nativeAmount'=>100,'debit'=>0,'credit'=>100,'bankPaymentMethod'=>'CHEQUE','bankReference'=>'','chequeDate'=>'2026-09-25','paymentNarration'=>'']]];
+$legacyDone=apa_correct($legacy,$user,'LEGACY-CHEQUE',$legacyInput);
+check($legacy['journals'][$legacyDone['replacementPostId']]['narration']==='Corrected narration','Narration-only amendment must preserve unchanged legacy cheque tracking without demanding a missing historic number.');
+$numbered=$legacyPay;$numbered['id']='NUMBERED-CHEQUE';$numbered['lines'][1]['chequeNo']='12345';$numbered['lines'][1]['bankReference']='12345';$numberedBook=['journals'=>['NUMBERED-CHEQUE'=>$numbered]];$removeNumber=$legacyInput;$removeNumber['reason']='Attempt to remove cheque number';
+try{apa_correct($numberedBook,$user,'NUMBERED-CHEQUE',$removeNumber);throw new RuntimeException('Existing cheque number removal accepted.');}catch(DomainException){}
 $input['lines'][1]['bankPaymentMethod']='ONLINE_BANKING';$done=apa_correct($salary,$user,'SALARY',$input);
 check($salary['journals'][$done['replacementPostId']]['lines'][1]['bankPaymentMethod']==='ONLINE_BANKING','Online amendment tracking missing.');
 $large=[];for($i=0;$i<61;$i++){ $large[]=['account'=>'6210','debit'=>1,'credit'=>0];$large[]=['account'=>'2140','debit'=>0,'credit'=>1]; }
