@@ -25,7 +25,8 @@ assert.match(activeIssue, /tare weight greater than zero for every required mast
 
 const millSource = app.slice(app.indexOf('function millLocations'), app.indexOf('function mount'));
 assert.match(millSource, /masterValues\('mills'\)/, 'mill locations must come from Master Data');
-assert.doesNotMatch(millSource, /MILL_STORE|TTI Rice Mills|localStorage/, 'deleted or hard-coded mills must not reappear');
+assert.doesNotMatch(millSource, /MILL_STORE|localStorage/, 'deleted external mills and browser-only locations must not reappear');
+assert.match(millSource, /add\('TTI Rice Mills','Own \/ Default'\)/, 'the approved own-mill default remains available');
 assert.doesNotMatch(millSource, /location-master\.php|fetch\(/, 'Loading Instructions must not write ad-hoc entries back into Master Data');
 
 assert.match(app, /x\.openAccount=Math\.max\(0,invoice-allocated-amount\)/, 'FI allocation must immediately recalculate Open Account');

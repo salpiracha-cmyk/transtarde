@@ -91,6 +91,10 @@ jobs:
       - name: Verify lot persistence and reopening permissions
         run: |
           node tests/exports-v3/shared_save_persistence_test.js
+          node tests/exports-v3/fi_action_ack_browser_test.js
+          php tests/exports-v3/contract_cancellation_merge_test.php
+          node tests/exports-v3/export_corrections_20260916_audit.js
+          node tests/exports-v3/export_operational_input_audit.js
           node tests/exports-v3/lot_reopen_permission_test.js
           node tests/exports-v3/lot_completion_persistence_browser_qa.js
       - name: Verify exact September document-output acceptance
