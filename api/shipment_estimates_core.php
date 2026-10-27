@@ -5,7 +5,7 @@ function se_rows(array $values,string $key):array {
  $raw=$values[$key]??[];if(is_string($raw))$raw=json_decode($raw,true,512,JSON_THROW_ON_ERROR);if(!is_array($raw))throw new RuntimeException('Invalid estimate source: '.$key);return $raw;
 }
 function se_day(mixed $v):string {
- $v=preg_replace('/[\x{00A0}\x{202F}]/u',' ',trim((string)$v))??'';$zone=new DateTimeZone('Asia/Karachi');
+ $v=preg_replace('/[\x{00A0}\x{202F}]/u',' ',trim((string)$v))??'';$v=preg_replace('/^(\d{2}) Sept (\d{4},)/','$1 Sep $2',$v)??'';$zone=new DateTimeZone('Asia/Karachi');
  if(preg_match('/^\d{2} [A-Z][a-z]{2} \d{4}, \d{2}:\d{2}:\d{2} (am|pm) PKT$/D',$v)){
   $d=DateTimeImmutable::createFromFormat('!d M Y, h:i:s a \\P\\K\\T',$v,$zone);$errors=DateTimeImmutable::getLastErrors();
   return $d&&(!$errors||!($errors['warning_count']||$errors['error_count']))&&$d->format('d M Y, h:i:s a').' PKT'===$v?$d->format('Y-m-d'):'';
@@ -49,9 +49,9 @@ function se_freight(array $state,array $root,array $values,string $date):array {
  $agreements=(array)($state['freightAgreements']??[]);$capacity=[];foreach($agreements as $id=>$a)$capacity[(string)$id]=max(0,(int)($a['containerCount']??0));
  $ships=[];foreach(['TTI','BRM'] as $e)foreach(tt_accounts_shipment_rows($root,$e,$sourceState) as $ship){if(($ship['pakistanExporter']??'')!==$e)continue;$ship['estimateEntity']=$e;$ships[]=$ship;}usort($ships,static fn($a,$b)=>strcmp($a['contract'].'|'.$a['id'],$b['contract'].'|'.$b['id']));
  foreach($ships as $ship){$sid=$ship['id'];$native=$loads[$sid]??[];if(!$native)continue;$complete=true;$on='';$numbers=[];
-  foreach($native as [$key,$r]){if(($key==='tt30ship'?($r['status']??'')!=='Completed':empty($r['loadingComplete']))){$complete=false;break;}$day=se_day($r['completedAt']??'');if($day===''||$day>$date){$complete=false;break;}$on=max($on,$day);
+  foreach($native as [$key,$r]){if(($key==='tt30ship'?($r['status']??'')!=='Completed':empty($r['loadingComplete']))){$complete=false;break;}$day=se_day($r['completedAt']??'');if($day===''){$warnings[]=$sid.' — loading is marked complete but its completion date needs review.';$complete=false;break;}if($day>$date){$complete=false;break;}$on=max($on,$day);
    $containers=$key==='tt30ship'?(array)($r['containers']??[]):array_values(array_filter(se_rows($values,'tt35exload'),static fn($c)=>(string)($c['instructionId']??'')===(string)($r['id']??'')&&se_active($c)));
-   if(count($containers)!==(int)($r['totalContainers']??0)||!$containers){$complete=false;break;}foreach($containers as $c){$n=strtoupper(preg_replace('/[^a-z0-9]/i','',(string)($c['container']??'')));if($n===''){ $complete=false;break;}$numbers[$n]=true;}
+   if(count($containers)!==(int)($r['totalContainers']??0)||!$containers){$warnings[]=$sid.' — completed loading container quantities need reconciliation.';$complete=false;break;}foreach($containers as $c){$n=strtoupper(preg_replace('/[^a-z0-9]/i','',(string)($c['container']??'')));if($n===''){$warnings[]=$sid.' — completed loading has a missing container identity.';$complete=false;break;}$numbers[$n]=true;}
   }if(!$complete)continue;
   $expected=(array)($rawShipments[$sid]['loadingPlan']['allocations']??[]);if($expected&&count($native)!==count($expected)){$warnings[]=$sid.' — loading allocations do not all have completion records.';continue;}
   $entity=$ship['estimateEntity'];$count=count($numbers);$matches=[];foreach($agreements as $aid=>$a){if(!se_active($a)||(($a['entity']??'')!==$entity&&!(($ship['seller']??'')==='TG'&&($a['entity']??'')==='TG'))||($a['dateAgreed']??'')>$date)continue;$exact=($a['shipmentId']??'')===$sid;$contract=empty($a['shipmentId'])&&($a['contractRef']??'')===$ship['contract'];$programme=empty($a['shipmentId'])&&empty($a['contractRef'])&&($a['loadingProgrammeNo']??'')!==''&&($a['loadingProgrammeNo']??'')===($ship['loadingProgramme']??'');if($exact||$contract||$programme)$matches[(string)$aid]=$a;}

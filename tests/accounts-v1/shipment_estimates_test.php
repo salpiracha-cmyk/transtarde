@@ -41,3 +41,7 @@ echo "PASS estimate review safeguards: posted bridge cutoff, reversals, valid da
 
 $nativeText=$seValues;$nativeText['tt30ship'][0]['completedAt']='20 Sep 2026, 04:30:00 pm PKT';se_check(se_freight($seState,$seRoot,$nativeText,'2026-09-30')['rows'][0]['amount']===-2400.,'native Mill PKT completion timestamp is authoritative');
 se_check(se_day('27 Oct 2026, 04:30:00 pm PKT')==='2026-10-27'&&se_day('30 Feb 2026, 04:30:00 pm PKT')===''&&se_day('27 Oct 2026, 14:30:00 pm PKT')==='','known native timestamp parses strictly');
+
+se_check(se_day('20 Sept 2026, 04:30:00 pm PKT')==='2026-09-20','native en-GB September abbreviation is supported');
+$nativeSept=$seValues;$nativeSept['tt30ship'][0]['completedAt']='20 Sept 2026, 04:30:00 pm PKT';se_check(se_freight($seState,$seRoot,$nativeSept,'2026-09-30')['rows'][0]['amount']===-2400.,'actual native September loading creates freight');
+$nativeSept['tt30ship'][0]['completedAt']='';$missingDate=se_freight($seState,$seRoot,$nativeSept,'2026-09-30');se_check(!$missingDate['rows']&&count($missingDate['warnings'])===1,'completed loading with an unknown date cannot silently disappear');
