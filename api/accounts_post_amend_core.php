@@ -100,7 +100,18 @@ function apa_correct(array &$store, array $user, string $postId, array $input): 
             if($entity!=='TG'&&$currency==='PKR'&&abs($native-($dr+$cr))>.005)throw new DomainException('PKR bank amount must equal the book amount.');
             $line['bankAccountId']=$bankId;$line['bankName']=(string)($values[4]??'');$line['bankAccountTitle']=(string)($values[3]??'');$line['currency']=$currency;
             $line['bankDebit']=$dr>0?$native:0;$line['bankCredit']=$cr>0?$native:0;if($opening){$line['nativeDebit']=$line['bankDebit'];$line['nativeCredit']=$line['bankCredit'];}
-            if($cr>0&&!empty($entry['bankPaymentMethod'])){$method=(string)$entry['bankPaymentMethod'];$tracking=tt_accounts_bank_payment_details(['paymentAccountId'=>$bankId,'date'=>$date,'bankPaymentMethod'=>$method,'bankReference'=>$entry['bankReference']??'','chequeNo'=>$method==='CHEQUE'?($entry['bankReference']??''):'','chequeDate'=>$entry['chequeDate']??$date,'bankPaymentDate'=>$entry['bankPaymentDate']??$date,'paymentNarration'=>$entry['paymentNarration']??'']);$line=array_merge($line,$tracking);}
+            if($cr>0&&!empty($entry['bankPaymentMethod'])){
+                $method=(string)$entry['bankPaymentMethod'];$submittedMethod=$method==='BANK_TRANSFER'?'ONLINE_BANKING':$method;
+                $originalMethod=(string)($line['bankPaymentMethod']??($original['meta']['bankPaymentMethod']??''));if($originalMethod==='BANK_TRANSFER')$originalMethod='ONLINE_BANKING';
+                $originalReference='';foreach([$line['chequeNo']??'',$line['bankReference']??'',$original['meta']['chequeNo']??'',$original['meta']['bankReference']??''] as $candidate){$candidate=trim((string)$candidate);if($candidate!==''){$originalReference=$candidate;break;}}
+                $originalPaymentDate='';foreach([$line['bankPaymentDate']??'',$line['chequeDate']??'',$original['meta']['bankPaymentDate']??'',$original['meta']['chequeDate']??'',$date] as $candidate){$candidate=trim((string)$candidate);if($candidate!==''){$originalPaymentDate=$candidate;break;}}
+                $submittedReference=trim((string)($entry['bankReference']??''));$submittedPaymentDate=$submittedMethod==='CHEQUE'?(string)($entry['chequeDate']??$date):(string)($entry['bankPaymentDate']??$date);
+                if($submittedMethod===$originalMethod&&$submittedReference===$originalReference&&$submittedPaymentDate===$originalPaymentDate){
+                    if(array_key_exists('paymentNarration',$entry))$line['paymentNarration']=mb_substr(trim((string)$entry['paymentNarration']),0,900);
+                }else{
+                    $tracking=tt_accounts_bank_payment_details(['paymentAccountId'=>$bankId,'date'=>$date,'bankPaymentMethod'=>$method,'bankReference'=>$entry['bankReference']??'','chequeNo'=>$method==='CHEQUE'?($entry['bankReference']??''):'','chequeDate'=>$entry['chequeDate']??$date,'bankPaymentDate'=>$entry['bankPaymentDate']??$date,'paymentNarration'=>$entry['paymentNarration']??'']);$line=array_merge($line,$tracking);
+                }
+            }
         }
         $lines[]=$line;$debit+=(int)round($dr*100);$credit+=(int)round($cr*100);
     }
