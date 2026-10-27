@@ -1,4 +1,4 @@
-"""Carry-forward register, opening links, real bill payments and TG pack receipts in disposable books."""
+"""Retired carry-forward entry, preserved historical settlements and read access in disposable books."""
 import copy, json, os, pathlib, shutil, socket, subprocess, tempfile, time
 import urllib.request, urllib.error, urllib.parse
 
@@ -62,10 +62,16 @@ with tempfile.TemporaryDirectory(prefix='carry-forward-qa-') as tmp:
  def balance(number='CI-1',value=1000,received=0,currency='USD',rate=280,**extra):return {'invoiceNo':number,'invoiceDate':'2026-06-25','invoiceAmount':value,'receivedBefore':received,'currency':currency,'rate':rate,'mode':'NEW',**extra}
  def shipment(**extra):return {'entity':'TTI','customerId':'BUYER','contractRef':'OLD-SHIPMENT','lotRef':'LOT-1','shipmentDate':'2026-06-28','blNo':'BL-OLD','containerCount':2,'containers':['ABC1','ABC2'],'loadingProgrammeNo':'LP-OLD','goods':'RICE','quantityMT':50,'portOfDischarge':'MANILA','buyerBalance':balance(),'fiRefs':[{'number':'FI-OLD','date':'2026-07-03','amount':1000}],'gdRefs':[{'number':'GD-OLD','date':'2026-06-28'}],'ricePaymentReferences':'BANK RICE PAYMENT ALREADY POSTED 2026-12345','bills':[],**extra}
  def bill(kind='FREIGHT',entity='TTI',number='BILL-1',currency='PKR',**extra):return {'entity':entity,'kind':kind,'partyId':'VENDOR','invoiceNo':number,'billDate':'2026-07-03','dueDate':'2026-07-10','currency':currency,'amount':100,'rate':1 if currency in ['PKR','AED'] else 3.6725,'treatment':'CURRENT',**extra}
+ (root/'seed.php').write_text("""<?php require __DIR__.'/auth_store.php';require __DIR__.'/api/carry_forward_core.php';$p=TT_DATA_DIR.'/accounts.json';$s=json_decode(file_get_contents($p),true);try{$r=cf_action($s,json_decode(getenv('CF_SEED'),true),tt_require_login());file_put_contents($p,json_encode($s));echo json_encode(['ok'=>true,'result'=>$r]);}catch(Throwable $e){fwrite(STDERR,$e->getMessage());exit(1);}""")
+ def seed(body):
+  r=subprocess.run(['php',str(root/'seed.php')],env={**env,'CF_SEED':json.dumps(body)},capture_output=True,text=True)
+  assert r.returncode==0,(r.stdout,r.stderr,body)
+  return json.loads(r.stdout)
  def ok(body,**kw):
+  if not kw:return seed(body)
   status,d=request(body=body,**kw);assert status==200,(status,d,body);return d
  def publish(id):
-  r=request(id=id)[1]['rows'][0];return ok(action('publish',id,version=r['version']))
+  r=request(id=id)[1]['rows'][0];return seed(action('publish',id,version=r['version']))
  try:
   for _ in range(50):
    try:status,d=request();break
@@ -73,19 +79,16 @@ with tempfile.TemporaryDirectory(prefix='carry-forward-qa-') as tmp:
   assert status==200,d
   assert request(user='readonly')[1]['canManage'] is False
   assert request(entity='BRM',user='services')[0]==403
-  assert request(body=action('save',**shipment()),user='services')[0]==403
-  assert request(body=action('save',csrf='bad',**shipment()))[0]==419
-  assert request(body=action('save',**shipment(shipmentDate='2026-10-02')))[0]==422
-  assert request(body=action('save',**shipment(bills=[bill('RICE')])))[0]==422
-  late=shipment(contractRef='OCT-OLD',lotRef='OCT-1',shipmentDate='2026-10-01',buyerBalance={k:v for k,v in balance('OCT-CI').items() if k!='rate'},containers=[],containerCount=0,bagPoNo='',fiRefs=[],gdRefs=[])
-  late['buyerBalance']['invoiceDate']='2026-10-01'
-  late_id=ok(action('save',**late))['result']['id'];publish(late_id)
-  assert request(id=late_id)[1]['rows'][0]['status']=='Ready for Accounts'
-  assert request(body=action('save',**shipment(contractRef='BAD-INV',buyerBalance={**balance(),'invoiceDate':'2026-10-02'})))[0]==422
+  before=books.read_bytes();before_ops=ops.read_bytes()
+  for verb in ['save','post','publish','add_bill','post_bill','upload']:
+   for who in ['admin','services','readonly']:
+    assert request(body=action(verb,**shipment()),user=who)[0]==410
+  assert books.read_bytes()==before and ops.read_bytes()==before_ops,'Retired actions must not write any source'
+  assert d['retired'] and not d['canManage'] and not d['canAddBills'] and not d['openingLines']
   saved=ok(action('save',**shipment()));id=saved['result']['id'];assert books.exists()
   assert len(json.loads(books.read_text())['journals'])==1,'Information save must not post money'
   assert not any(r['id']==id for r in request(user='services')[1]['rows']),'Staff must not see management drafts'
-  before=books.read_bytes();assert request(body=action('publish',id,version=999))[0]==422;assert books.read_bytes()==before
+  before=books.read_bytes();assert request(body=action('publish',id,version=999))[0]==410;assert books.read_bytes()==before
   body=action('publish',id,version=1);ok(body);assert ok(body)['result']['replayed']
   state=json.loads(books.read_text());c=state['exportCandidates'][id+'|BUYER'];assert c['transactionAmount']==1000 and c['functionalAmount']==0 and c['pendingValuation']
   assert not c['journalId'] and len(state['journals'])==1,'Invoice registration must not invent a conversion or monetary journal'
@@ -95,7 +98,7 @@ with tempfile.TemporaryDirectory(prefix='carry-forward-qa-') as tmp:
   for i,kind in enumerate(kinds):
    ok(action('add_bill',id,bill=bill(kind,number=f'BILL-{i}')))
    b=request(id=id)[1]['rows'][0]['bills'][-1]
-   if kind=='FREIGHT':assert request(body=action('post_bill',id,billId=b['id']),user='services')[0]==403
+   if kind=='FREIGHT':assert request(body=action('post_bill',id,billId=b['id']),user='services')[0]==410
    body=action('post_bill',id,billId=b['id']);ok(body);snapshot=books.read_bytes();ok(body);assert books.read_bytes()==snapshot,'Retries must not post twice'
    payable=id+'-'+b['id'];rows=request('supplier_settlements.php')[1]['payables'];assert any(x['billId']==payable for x in rows)
    payment={'action':'post_bill_payment','entity':'TTI','date':'2026-07-05','supplier':'TEST SERVICES','amount':100,'selectedBills':[payable+'|CARRY|'+payable],'paymentMode':'BANK','bankAccountId':'PKR','bankPaymentMethod':'ONLINE_BANKING','reference':f'PAY-{i}','requestKey':f'carry-payment-fixture-{i:04}'}
@@ -106,8 +109,8 @@ with tempfile.TemporaryDirectory(prefix='carry-forward-qa-') as tmp:
    b=request(id=id)[1]['rows'][0]['bills'][-1];assert b['paymentOutstanding']==0
   state=json.loads(books.read_text());assert state['inventorySentinel']==initial['inventorySentinel'];assert ops.read_text()==json.dumps(operations),'Bills/payments must not alter Exports or stock'
   assert all(x.get('category')!='RICE' for x in state['supplierBills'].values())
-  assert request(body=action('add_bill',id,bill=bill(number='BILL-0')))[0]==200
-  dupe=request(id=id)[1]['rows'][0]['bills'][-1];before=books.read_bytes();assert request(body=action('post_bill',id,billId=dupe['id']))[0]==422;assert books.read_bytes()==before
+  assert seed(action('add_bill',id,bill=bill(number='BILL-0')))['ok']
+  dupe=request(id=id)[1]['rows'][0]['bills'][-1];before=books.read_bytes();assert request(body=action('post_bill',id,billId=dupe['id']))[0]==410;assert books.read_bytes()==before
   # TG opening pack has matched 1240 / 2500 sides and a separate external buyer balance.
   tg=shipment(contractRef='OLD-TG',lotRef='TG-LOT',tgPack=True,fiRefs=[{'number':'FI-TG','date':'2026-07-03','amount':900}],buyerBalance=balance('TG-BUYER',1200,0,rate=3.6725),pakistanBalance=balance('PK-TG',1000,100),tgPayableBalance=balance('PK-TG',1000,100,rate=3.6725))
   tid=ok(action('save',**tg))['result']['id'];publish(tid);state=json.loads(books.read_text());p=state['exportCandidates'][tid+'|PAKISTAN'];t=state['exportCandidates'][tid+'|TG'];assert p['transactionAmount']==t['transactionAmount']==900;assert p['mirrorCandidateId']==t['id'];assert t['linkedCandidateId']==p['id'];assert t['pendingValuation'] and t['functionalRate']==0
@@ -127,26 +130,17 @@ with tempfile.TemporaryDirectory(prefix='carry-forward-qa-') as tmp:
   posted=ok(tg_customer_receipt,endpoint='tg_bank_transactions.php',entity='TG');assert posted['journal']['totalDebit']==posted['journal']['totalCredit']
   state=json.loads(books.read_text());assert not state['exportCandidates'][tid+'|BUYER']['pendingValuation']
   response=request('export_receipts.php');assert response[0]==200,response;pack=response[1]['sources']['tgPackInvoices'];assert any(x['candidateId']==tid+'|PAKISTAN' and x['invoiceRef']=='PK-TG' for x in pack)
-  # Saved TG carry-forward invoices remain visible and cannot be mistaken for an advance.
+  # Saved drafts remain in the books, but cannot be selected/published as new receipt sources.
   draft_tg=shipment(contractRef='SAVED-TG',lotRef='SAVED-TG-LOT',fiRefs=[],gdRefs=[],tgPack=True,buyerBalance=balance('SAVED-BUYER',1500),pakistanBalance=balance('SAVED-PACK',1100),tgPayableBalance=balance('SAVED-PACK',1100,rate=3.6725))
-  did=ok(action('save',**draft_tg))['result']['id'];before=books.read_bytes()
-  preview=request('export_receipts.php')[1]['sources']['tgPackInvoices'];saved_pack=next(x for x in preview if x.get('carryForwardDraftId')==did)
-  assert saved_pack['invoiceRef']=='SAVED-PACK' and saved_pack['outstandingForeign']==1100 and not saved_pack['recognized'] and not saved_pack['candidateId']
-  assert books.read_bytes()==before,'Reading saved invoices must not publish or value them'
-  assert not any(x.get('carryForwardDraftId')==did for x in request('export_receipts.php',user='readonly')[1]['sources']['tgPackInvoices'])
-  assert request(body=action('publish',did,version=999))[0]==422 and books.read_bytes()==before
-  posted_body=action('post',did,version=1,**draft_tg);posted=ok(posted_body);state=json.loads(books.read_text())
-  assert state['carryForwardShipments'][did]['status']=='Ready for Accounts' and state['exportCandidates'][did+'|PAKISTAN']['pendingValuation']
-  before=books.read_bytes();assert ok(posted_body)['result']['replayed'] and books.read_bytes()==before
-  sources=request('export_receipts.php')[1]['sources']['tgPackInvoices'];assert len([x for x in sources if x['id']==did])==1 and next(x for x in sources if x['id']==did)['recognized']
-  # A new, unfinished form can be posted atomically without Save/refresh first.
-  nid=ok(action('post',**shipment(contractRef='ONE-POST',lotRef='ONE-POST-LOT',fiRefs=[],gdRefs=[],buyerBalance=balance('ONE-POST-CI',300))))['result']['id']
-  assert json.loads(books.read_text())['carryForwardShipments'][nid]['status']=='Ready for Accounts'
+  did=seed(action('save',**draft_tg))['result']['id'];before=books.read_bytes()
+  assert not any(x.get('carryForwardDraftId')==did for x in request('export_receipts.php')[1]['sources']['tgPackInvoices'])
+  assert request(id=did)[1]['rows'][0]['status']=='Draft'
+  assert request(body=action('publish',did,version=1))[0]==410 and books.read_bytes()==before
   # Existing opening assignment links only the exact native capacity, without a second journal.
   state=json.loads(books.read_text());state['journals']['OPEN-EXISTING']={'id':'OPEN-EXISTING','entity':'TTI','date':'2026-07-01','sourceType':'OPENING_BALANCE_BF','status':'Posted','lines':[{'account':'1210','subledger':'TEST BUYER','nativeCurrency':'USD','nativeDebit':1000,'nativeCredit':0,'debit':280000,'credit':0}]};books.write_text(json.dumps(state))
   linked=shipment(contractRef='LINKED-OLD',lotRef='LINK-1',buyerBalance=balance('CI-LINK',500,0,mode='LINK',journalId='OPEN-EXISTING',lineIndex=0))
   lid=ok(action('save',**linked))['result']['id'];before_count=len(json.loads(books.read_text())['journals']);publish(lid);state=json.loads(books.read_text());assert len(state['journals'])==before_count;assert state['exportCandidates'][lid+'|BUYER']['journalId']=='OPEN-EXISTING'
-  too_much=shipment(contractRef='LINK-OVER',lotRef='LINK-2',buyerBalance=balance('CI-OVER',600,0,mode='LINK',journalId='OPEN-EXISTING',lineIndex=0));oid=ok(action('save',**too_much))['result']['id'];before=books.read_bytes();assert request(body=action('publish',oid,version=1))[0]==422;assert books.read_bytes()==before
+  too_much=shipment(contractRef='LINK-OVER',lotRef='LINK-2',buyerBalance=balance('CI-OVER',600,0,mode='LINK',journalId='OPEN-EXISTING',lineIndex=0));oid=ok(action('save',**too_much))['result']['id'];before=books.read_bytes();assert request(body=action('publish',oid,version=1))[0]==410;assert books.read_bytes()==before
   # A 100% advance has no opening receivable, and no recreated rice transaction.
   advance=shipment(contractRef='ADV-OLD',lotRef='ADV-1',fiRefs=[{'number':'FI-ADV','date':'2026-06-15','amount':100}],advance100=True,advanceReceiptDate='2026-06-15',buyerBalance=balance('ADV-CI',100,100));aid=ok(action('save',**advance))['result']['id'];before_count=len(json.loads(books.read_text())['journals']);publish(aid);assert len(json.loads(books.read_text())['journals'])==before_count
   assert ops.read_text()==json.dumps(operations)
@@ -185,36 +179,15 @@ with tempfile.TemporaryDirectory(prefix='carry-forward-qa-') as tmp:
    from playwright.sync_api import sync_playwright
    with sync_playwright() as p:
     browser=p.chromium.launch();page=browser.new_page(viewport={'width':1440,'height':1000})
-    page.goto(f'http://127.0.0.1:{port}/accounts/carry-forward.php?entity=TTI');page.locator('#cf-new').wait_for();page.locator('#cf-new').click()
-    page.locator('[name=customerId]').select_option('BUYER');page.locator('[name=contractRef]').fill('BROWSER-OLD');page.locator('[name=lotRef]').fill('BROWSER-LOT');page.locator('[name=blNo]').fill('BROWSER-BL')
-    page.locator('[name=tgPack]').check();assert page.locator('#cf-tg-pack').is_visible()
-    page.locator('[name=shipmentDate]').evaluate("el=>{el.value='2026-06-28';el.dispatchEvent(new Event('change',{bubbles:true}));}")
-    for prefix,invoice,value,rate in [('buyerBalance','BROWSER-BUYER','1200','3.6725'),('pakistanBalance','BROWSER-TG','1000','280'),('tgPayableBalance','BROWSER-TG','1000','3.6725')]:
-     page.locator(f'[name="{prefix}.invoiceNo"]').fill(invoice);page.locator(f'[name="{prefix}.invoiceAmount"]').fill(value)
-    assert page.get_by_text('Opening carrying rate',exact=True).count()==0
-    page.locator('[name=ricePaymentReferences]').fill('RICE BANK POST 2026-12345');page.locator('[name=notes]').fill('Keep both sides and all entered values')
-    page.locator('#cf-add-draft-bill').click();bill_form=page.locator('#cf-draft-bills .cf-bill-row').last
-    bill_form.locator('[name=partyId]').select_option('VENDOR');bill_form.locator('[name=invoiceNo]').fill('BROWSER-FREIGHT');bill_form.locator('[name=amount]').fill('55')
-    bill_form.locator('[name=billDate]').evaluate("el=>{el.value='2026-07-03';el.dispatchEvent(new Event('change',{bubbles:true}));}")
-    page.locator('#cf-add-draft-bill').click();bill_form=page.locator('#cf-draft-bills .cf-bill-row').last;bill_form.locator('[name=entity]').select_option('TG');bill_form=page.locator('#cf-draft-bills .cf-bill-row').last
-    bill_form.locator('[name=partyId]').select_option('VENDOR');bill_form.locator('[name=invoiceNo]').fill('BROWSER-TG-FREIGHT');bill_form.locator('[name=amount]').fill('77');bill_form.locator('[name=currency]').select_option('AED')
-    bill_form.locator('[name=billDate]').evaluate("el=>{el.value='2026-07-03';el.dispatchEvent(new Event('change',{bubbles:true}));}")
-    before_revision=json.loads(books.read_text())['revision'];page.wait_for_timeout(250);assert json.loads(books.read_text())['revision']==before_revision,'Typing must not save'
-    page.locator('#cf-form button[type=submit]').click();page.get_by_text('Shipment information saved.',exact=True).wait_for()
-    saved=next(r for r in json.loads(books.read_text())['carryForwardShipments'].values() if r['contractRef']=='BROWSER-OLD');assert saved['entity']=='TTI' and saved['tgPack'] and len(saved['bills'])==2 and saved['bills'][1]['entity']=='TG';assert saved['notes']=='Keep both sides and all entered values'
-    page.wait_for_function("()=>{const y=document.querySelector('.cf-sheet h1')?.getBoundingClientRect().top;return y>=0&&y<500}")
-    heading=page.locator('.cf-sheet h1').bounding_box();assert heading['y']>=0 and heading['y']<500
-    page.locator('[name=advance100]').check();assert page.locator('#cf-advance-date').is_visible();page.locator('[name=advance100]').uncheck();assert not page.locator('#cf-advance-date').is_visible()
-    page.locator('textarea[name=notes]').fill('Post includes my latest unsaved entry')
-    page.once('dialog',lambda dialog:dialog.accept());page.locator('#cf-publish').click()
-    page.get_by_text('Ready for Accounts',exact=True).wait_for()
-    posted_ui=next(r for r in json.loads(books.read_text())['carryForwardShipments'].values() if r['contractRef']=='BROWSER-OLD')
-    assert posted_ui['notes']=='Post includes my latest unsaved entry' and posted_ui['status']=='Ready for Accounts'
+    for path in ['accounts/carry-forward.php','exports/carry-forward.php']:
+     response=page.goto(f'http://127.0.0.1:{port}/{path}?entity=TTI')
+     assert response.status==410 and page.locator('#cf-form').count()==0
+     assert 'retired' in page.locator('body').inner_text()
     page.goto(f'http://127.0.0.1:{port}/accounts/?entity=TTI&cfBill={urllib.parse.quote(ui_payable)}');page.locator('#ttSimpleBills [data-payee]').wait_for();assert page.locator('#ttSimpleBills [data-payee]').input_value()=='TEST SERVICES'
     page.locator('#ttSimpleBills [data-bank-method]').select_option('ONLINE_BANKING');page.locator('#ttSimpleBills [data-reference]').fill('BROWSER-CARRY-PAY');page.locator('#ttSimpleBills [type=submit]').click();page.locator('[data-review-post]').click();page.locator('#tt-post-confirmation').wait_for();assert page.locator('#ttSimpleBills').count()==0;assert page.locator('#tt-post-confirmation').count()==1
     assert next(b for b in request(id=id)[1]['rows'][0]['bills'] if b['id']==ui_bill['id'])['paymentOutstanding']==0
-    browser.close();print('Carry-forward browser: one-page form, dependent TG/advance fields, mixed-company bill save and manual-only persistence passed')
-  print('Carry-forward: all 7 expense categories posted and paid in Pakistan and TG; openings, exact links, duplicate/retry/overpayment guards, permissions and unchanged rice/stock passed')
+    browser.close();print('Retired carry-forward pages and preserved existing bill payment deep link passed')
+  print('Retirement: blocked entry, preserved historical payments/receipts in Pakistan and TG, report reads, company scopes and unchanged stock passed')
  finally:
   if server is not None:server.terminate();server.wait(timeout=5)
   log.close()

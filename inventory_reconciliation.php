@@ -51,9 +51,9 @@ function tt_inv_is_private_row(array $row): bool {
 }
 function tt_inv_public_adjustment(array $row): array {
     $keys=['id','entity','millId','millName','locationId','locationName','brand','stockName','rawStockName',
-        'readyRiceKg','rawRiceKg','arrivalKg','byProducts','managedReconciliation','date','time','ref'];
+        'readyRiceKg','rawRiceKg','arrivalKg','byProducts','managedReconciliation','openingStock','baseVariety','commodity','date','time','ref'];
     $out=array_intersect_key($row,array_flip($keys));
-    $out['type']='Physical stock confirmation';
+    $out['type']=!empty($row['openingStock'])?'Opening stock':'Physical stock confirmation';
     return $out;
 }
 /** Never return management stores through the operational shared-state route. */
@@ -156,7 +156,7 @@ function tt_inv_stock(array $values,array $scope, ?callable $observe=null): arra
     foreach(tt_inv_rows($values,'tt30ship')as$i=>$r)if(tt_inv_same_scope($scope,$r)){$source('tt30ship',$r,$i,'Export loading');$context['parts']=array_map(static fn($x)=>['date'=>(string)($x['date']??(substr((string)($x['gateTime']??''),0,10)?:($r['date']??''))),'kg'=>-(float)($x['weight']??0)],(array)($r['containers']??[]));
         $kg=array_sum(array_map(static fn($x)=>(float)($x['weight']??0),(array)($r['containers']??[])));$add(tt_inv_resolve_stock($m,$r),-$kg);
     }
-    foreach(tt_inv_rows($values,'tt32stockadj')as$i=>$r){if(!tt_inv_same_scope($scope,$r))continue;$source('tt32stockadj',$r,$i,'Stock adjustment');
+    foreach(tt_inv_rows($values,'tt32stockadj')as$i=>$r){if(!tt_inv_same_scope($scope,$r))continue;$source('tt32stockadj',$r,$i,!empty($r['openingStock'])?'Opening stock':'Stock adjustment');
         if(($r['type']??'')==='Paltai Transfer'){$add((string)$r['from'],-(float)($r['sourceDeductionKg']??$r['weightKg']??0));$add((string)$r['to'],(float)($r['weightKg']??0));$add((string)($r['rawStockName']??'RAW RICE'),(float)($r['sweepingKg']??0));continue;}
         if(!empty($r['readyRiceKg']))$add((string)($r['stockName']??$r['brand']??'Unknown'),(float)$r['readyRiceKg']);
         if(!empty($r['rawRiceKg']))$add((string)($r['rawStockName']??'RAW RICE'),(float)$r['rawRiceKg']);

@@ -19,7 +19,6 @@
 
   const pakistanAreas = [
     {key:'exports', glyph:'⇄', title:'Export Receipts & Payments', note:'Every export receipt, document and shipment expense', actions:[
-      {title:'Carry-forward Shipments', note:'Historical shipment information, TG Pack and linked expense bills', special:'carry-forward'},
       {title:'Customer / Export Receivables', note:'Group customer invoices, receipts and outstanding balances', special:'customer-receivables'},
       {title:'Bank Receipt / Credit Advice', note:'One linked form for the advice, outstanding item, bank charges, WHT and Advance WHT; FI remains in Exports', special:'export-receipt'},
       {title:'Freight Forwarder / Shipping', note:'Agreed freight and shipment-linked invoice', special:'freight-desk'},
@@ -69,7 +68,7 @@
       {title:'Customer Receipt', special:'tg-customer-receipt'}, {title:'Customer / Export Receivables', special:'customer-receivables'}
     ]},
     {key:'tg-payments', glyph:'↑', title:'Party Payments', note:'Party liabilities and payments', actions:[
-      {title:'Carry-forward Shipments', note:'TG Pack opening balances and shipment expense bills', special:'carry-forward'}, {title:'Post Bill', native:'payables'}, {title:'Payment', special:'bill-payment'}
+      {title:'Post Bill', native:'payables'}, {title:'Payment', special:'bill-payment'}
     ]},
     {key:'tg-bank', glyph:'▦', title:'Bank & Local Expenses', note:'Bank transfers, payments and local operating expense', actions:[
       {title:'Inter Account Transfer', note:'Choose the source and destination; currency direction and the TG Master rate are automatic', special:'internal-bank-transfer'},
@@ -211,7 +210,6 @@
     window.TT_POST_CONFIRMATION?.dismiss?.();
     if(action.special==='production-recovery'){sessionStorage.setItem('tt_accounts_production_report_return',JSON.stringify({company:entity(),area:sessionStorage.getItem('tt_accounts_current_area')||'reports',scroll:window.scrollY}));location.href='/accounts/production-reports.php?entity='+encodeURIComponent(entity());return;}
     if(action.special==='bag-report'||action.special==='bag-files'){sessionStorage.setItem('tt_accounts_bag_report_return',JSON.stringify({company:entity(),area:sessionStorage.getItem('tt_accounts_current_area')||'reports',scroll:window.scrollY}));location.href='/accounts/bag-reports.php?view='+(action.special==='bag-report'?'report':'print')+'&entity='+encodeURIComponent(entity());return;}
-    if(action.special==='carry-forward'){sessionStorage.setItem('tt_accounts_carry_return',JSON.stringify({company:entity(),area:sessionStorage.getItem('tt_accounts_current_area')||'',scroll:window.scrollY}));location.href='/accounts/carry-forward.php?entity='+encodeURIComponent(entity());return;}
     // One desk owns navigation. Retire the previous workspace before opening another form.
     qa('.workspace.active').forEach(w=>w.classList.remove('active','tt-clean-modal','tt-editor-open'));
     qa('.tt-editor-stage').forEach(e=>e.classList.remove('tt-editor-stage'));

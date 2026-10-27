@@ -197,6 +197,34 @@ def run() -> None:
         check(json.loads(reviewed['tt34stockreviewaudit'])[-1]['by']=='qaowner','Actual management reviewer is recorded')
         c,d=request('qaowner','/api/stock_reconciliation_review.php',review);check(c==409 and private()==reviewed,'Stale review replay is a no-op',(c,d))
         check((account_file.read_bytes() if account_file.exists() else None)==accounts_before,'Review leaves accounting books unchanged and creates no duplicate journal')
+        # The protected Accounts opening uses the same canonical file/MySQL source.
+        path='/accounts/opening-stock.php'
+        for user in ['qamill','qaexport','qaaccounts','qaaccountswrite','qaview']:
+            c,d=request(user,path);check(c==403,'Stock opening denies operational users: '+user,c)
+        for user in ['qaowner','qadirector']:
+            c,d=request(user,path);check(c==200 and 'Confirm opening stock' in d,'Management can review the unsaved stock opening: '+user,c)
+        before_open=private();before_books=account_file.read_bytes()
+        revision=hashlib.sha256(before_open.get('tt32stockadj','[]').encode()).hexdigest()
+        opening={'csrf':tokens['qaowner'],'date':'2026-07-01','revision':revision,'tonnes[B3]':'9','tonnes[CSR]':'4','tonnes[B2 CSR]':'3','tonnes[Sweeping]':'2'}
+        def open_post(body,user='qaowner'):
+            req=urllib.request.Request(base+path,data=urllib.parse.urlencode(body).encode())
+            try:r=clients[user].open(req,timeout=20);return r.status,r.read().decode()
+            except urllib.error.HTTPError as e:return e.code,e.read().decode()
+        for bad,expected in [({'csrf':'bad'},419),({'date':'2026-07-02'},422),({'revision':'stale'},409),({'tonnes[B3]':'-1'},422),({'tonnes[B3]':'0.00001'},422)]:
+            c,d=open_post({**opening,**bad});check(c==expected and private()==before_open,'Invalid opening cannot change stock: '+str(bad),(c,d[:100]))
+        c,d=open_post(opening);check(c==200 and 'Opening stock saved' in d,'Opening stock saves and reads back',(c,d[:100]))
+        recorded=private();rows=json.loads(recorded['tt32stockadj']);added=[r for r in rows if r.get('openingStock')]
+        check(len(added)==1 and added[0]['byProducts']=={'B3':9000,'CSR':4000,'B2 CSR':3000,'Sweeping':2000},'Exactly four opening quantities in kilograms',added)
+        check(added[0]['date']=='2026-07-01' and added[0]['baseVariety']=='IRRI-6' and added[0]['createdBy']=='qaowner','Opening date, variety and author preserved')
+        check([r for r in rows if not r.get('openingStock')]==json.loads(before_open['tt32stockadj']),'Existing stock adjustments preserved')
+        check(all(recorded.get(k)==v for k,v in before_open.items() if k!='tt32stockadj') and account_file.read_bytes()==before_books,'Opening creates no production, purchase or monetary journal')
+        c,d=open_post(opening);check(c==200 and private()==recorded,'Retry with the original form is an exact no-op')
+        c,d=open_post({**opening,'tonnes[B3]':'6'});check(c==422 and private()==recorded,'Different quantities cannot overwrite the saved opening')
+        public=get();row=next(r for r in json.loads(public['values']['tt32stockadj']) if r.get('openingStock'))
+        check(row['type']=='Opening stock' and row['baseVariety']=='IRRI-6','Mill reads opening with its correct label and variety')
+        edits=json.loads(public['values']['tt32stockadj']);next(r for r in edits if r.get('openingStock'))['byProducts']['B3']=1
+        post('tt32stockadj',edits,expected=403);check(private()==recorded,'Mill cannot amend a protected opening')
+        c,d=request('qaowner',path);check(c==200 and 'Confirm opening stock' not in d and '9,000' in d,'Saved page replaces the entry form with the verified quantities')
         print(f'PASS {"MySQL" if mysql else "file-backed"} inventory HTTP: {len(checks)} assertions')
     finally:
         if server:

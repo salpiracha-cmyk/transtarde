@@ -80,7 +80,6 @@ if ($id === 'exports') {
         $html
     );
 }
-require_once __DIR__.'/api/carry_forward_core.php';
 require_once __DIR__.'/api/operations_read_policy.php';
 $modulePermissions = $user['permissions'][$permissionName] ?? [];
 $access = [
@@ -88,7 +87,6 @@ $access = [
     'role'=>(string)$user['role'], 'permissions'=>$modulePermissions,
     'workspaces'=>tt_user_workspaces($user),
     'super'=>(($user['role'] ?? '')==='Super Admin'), 'csrf'=>tt_csrf(),
-    'canCarryForward'=>job_authorized($user),
     'masterAccess'=>tt_user_can_access_masters($user), 'masterPermissions'=>$user['master_permissions'] ?? [],
     'masters'=>os_bootstrap_masters($user), 'masterOptions'=>(tt_user_can_master($user,'reference_lists','Use')||tt_user_can_master($user,'reference_lists','View')?tt_master_options():tt_default_master_options()),
 ];
