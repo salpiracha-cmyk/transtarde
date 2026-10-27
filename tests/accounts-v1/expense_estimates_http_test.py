@@ -68,6 +68,7 @@ with tempfile.TemporaryDirectory(prefix='staff-payment-amend-') as temp:
  st,res=request(cancel);assert st==200,(st,res);assert next(r for r in res['estimatedBills'] if r['id']==eid)['status']=='Cancelled'
  # Source invoice visibility remains under the original Purchases permission.
  user['permissions']['Accounts']['purchases']=[];set_user();st,res=request();assert res['estimateRateHistory']==[]
+ hidden=next(r for r in res['estimatedBills'] if r['id']==bid);assert hidden['rateSourceRestricted'] and hidden['replacementRestricted'] and not any(k in hidden for k in ['rateSourceSnapshot','actualBillSnapshot']) and hidden['actualBillAmount'] is None and hidden['variance'] is None
  stable=books.read_bytes();assert request({**resolve,'version':3,'actualBillKey':'bagSupplierBills|B50','requestKey':'estimate-hidden-source'})[0]==422 and books.read_bytes()==stable
  # Read-only and Create-only staff cannot edit, replace, cancel, or cross entities.
  user['permissions']['Accounts']['expenses']=['View','Create'];user['permissions']['Accounts']['entity-tti']=['View','Create'];set_user();stable=books.read_bytes()
