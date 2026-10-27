@@ -91,6 +91,25 @@ if($argv[1]==='seed'){
         assert actual==status,(actual,data,root_state)
         if status>=400:assert stored()==before,'Denied document changed shared storage'
         return data
+    # Cancellation uses explicit immutable markers, with the same contract/entity
+    # permissions as its editor. Exercise the actual locked endpoint and reload.
+    cancellable=copy.deepcopy(original);cancellable['shipments']=[]
+    cancelled=copy.deepcopy(cancellable);cancelled['contracts']=[]
+    marker={'id':'CC1','contractId':'C1','contractRef':'TTI/BUYER/01','seller':'TTI','reason':'Wrong draft','cancelledAt':'2026-10-27T12:00:00Z','cancelledBy':'Fixture','processIds':[]}
+    cancelled['cancelledContracts']=[marker]
+    cancelled['audits']=[{'id':'AUD-CANCEL','at':'2026-10-27T12:00:00Z','user':'Fixture','area':'Sales Contract','action':'Cancelled and removed; reference released','detail':'TTI/BUYER/01 · Wrong draft','contractRef':'TTI/BUYER/01'}]
+    put_base(cancellable,{'contracts':['View']});save_root(cancelled,403)
+    put_base(cancellable,{'contracts':['View','Edit']});save_root(cancelled)
+    status,data=request('operations.mysql',{},'',method='GET');reloaded=json.loads(data['values'][key]);assert status==200 and reloaded['contracts']==[] and reloaded['cancelledContracts'][0]['reason']=='Wrong draft'
+    for role in ['Director','Super Admin']:
+        user['role']=role;put_base(cancellable,{});save_root(cancelled)
+    user['role']='Staff'
+    # An entity label on the marker cannot authorize cancellation of a foreign contract.
+    foreign=copy.deepcopy(cancellable);foreign['contracts'][0]['seller']='BRM'
+    put_base(foreign,{'contracts':['View','Edit']});user['permissions']['Accounts']={'entity-tti':['View']};auth.write_text(json.dumps({'users':[user],'masters':masters,'audit':[]}))
+    save_root(cancelled,403)
+    put_base(original,{'contracts':['View','Edit'],'active':['View','Edit']});save_root(cancelled,403)
+    print('PASS contract cancellation endpoint: staff Edit, entity scope, Director/Super Admin parity, reload history and downstream denial')
     for field,icon in [('customs','customs'),('bl','bl'),('commercial','commercial'),('coo','coo'),('covering','cover'),('lc','lcdraft'),('tgdocs','tg'),('production','production')]:
         change=copy.deepcopy(original);change['shipments'][0][field]={'draftSaved':True,'description':'Saved first document'} if field=='bl' else {'sentToMill':True} if field=='production' else {'saved':True,'description':'Saved first document'}
         change['shipments'][0]['documentActivity']=[{'at':'2026-10-07','document':field,'action':'Saved'}]

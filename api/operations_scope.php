@@ -229,7 +229,20 @@ function os_root_projection(array $u,array $root): ?array {
         $out['suppliers']=array_values(array_filter((array)$out['suppliers'],static fn($r)=>is_array($r)&&(isset($ids[(string)($r['id']??'')])||isset($ids[(string)($r['name']??'')]))));
     }
     // Root-wide financial/history collections need a full company scope until a row carries a provable owner.
-    foreach(['fi','audits','alerts','deletedShipments','cancelledContracts'] as $field)if(isset($out[$field])&&!os_owner($u))$out[$field]=array_values(array_filter((array)$out[$field],static function($r)use($u,$refs,$root){if(!is_array($r))return false;$ref=(string)($r['contractRef']??'');if($ref!=='')return isset($refs[$ref]);if(isset($r['entity'])||isset($r['exporter'])||isset($r['seller']))return os_scope($u,$r,$root,false);return os_entity($u,'TTI')&&os_entity($u,'BRM')&&os_entity($u,'TG');}));
+    foreach(['fi','audits','alerts','deletedShipments','cancelledContracts'] as $field)if(isset($out[$field])&&!os_owner($u))$out[$field]=array_values(array_filter((array)$out[$field],static function($r)use($u,$refs,$root,$field){
+        if(!is_array($r))return false;
+        if($field==='cancelledContracts'&&isset($r['seller']))return os_scope($u,$r,$root,false);
+        $ref=(string)($r['contractRef']??'');
+        if($ref!==''){
+            if(isset($refs[$ref]))return true;
+            // The contract row is gone after cancellation. Its immutable marker
+            // retains the entity proof for the cancellation's audit event.
+            if($field==='audits')foreach((array)($root['cancelledContracts']??[]) as $marker)if(is_array($marker)&&($marker['contractRef']??'')===$ref&&isset($marker['seller'])&&os_scope($u,$marker,$root,false))return true;
+            return false;
+        }
+        if(isset($r['entity'])||isset($r['exporter'])||isset($r['seller']))return os_scope($u,$r,$root,false);
+        return os_entity($u,'TTI')&&os_entity($u,'BRM')&&os_entity($u,'TG');
+    }));
     if($mill&&!$exports)$out['alerts']=array_values(array_filter((array)($root['alerts']??[]),static fn($r)=>is_array($r)&&($r['area']??'')==='MILL ACTUALS'&&isset($refs[(string)($r['contractRef']??'')])&&(!isset($r['userId'])||(int)$r['userId']===(int)($u['id']??0))));
     if(isset($root['version']))$out['version']=$root['version'];
     return $out;

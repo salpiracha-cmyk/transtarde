@@ -505,3 +505,7 @@
 
 .commercialInvoiceOnePage .commercialRemittanceHeading{padding:.8mm 2mm}
 .commercialInvoiceOnePage .specimenParty,.commercialInvoiceOnePage .specimenRoute{padding:6px 8px}
+
+/* Keep contract references, buyers and actions readable on narrow screens. */
+.table.sales-contract-register{min-width:1080px}
+.table.sales-contract-register td:first-child{white-space:nowrap}

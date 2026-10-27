@@ -11,7 +11,7 @@ assert.match(app,/deletedShipments/);
 assert.match(operations,/applyTombstones/);
 assert.match(operations,/contractRef/);
 assert.match(app,/Your login session expired\. Please sign in again/);
-assert.match(api,/tt_current_user\(\)/);
+assert.match(api,/tt_require_login\(\)/);
 assert.match(api,/downloadUrl'=>'\/api\/export_documents\.php/);
 assert.match(app,/P\.P\. Bags/);
 assert.match(app,/BOPP laminated Bags/);

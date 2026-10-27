@@ -400,8 +400,48 @@ function operations_merge_export(string $currentJson, string $incomingJson, stri
     if (in_array($sourceModule, ['Accounts','Mill','Milling'], true) && (!is_array($current) || !isset($current['contracts'], $current['shipments']) || !is_array($current['contracts']) || !is_array($current['shipments']))) throw new DomainException('Exports must initialize its records before another module can add updates.');
     if (!is_array($current)) return $incomingJson;
     if (!is_array($incoming)) return $currentJson;
-    $applyTombstones = static function (array $merged) use ($current, $incoming, $sourceModule): array {
+    $applyTombstones = static function (array $merged) use ($current, $incoming, $sourceModule, $actor): array {
         $authoritative = strcasecmp($sourceModule, 'Exports') === 0 || strcasecmp($sourceModule, 'Super Admin') === 0;
+        // Omission is not deletion. Retain immutable, identity-based cancellation
+        // markers so old browser copies cannot resurrect a cancelled contract,
+        // while a new contract may legitimately reuse its released reference.
+        $cancellations = (array)($current['cancelledContracts'] ?? []);
+        $known = operations_list_by_identity($cancellations, 'id');
+        foreach ($authoritative ? (array)($incoming['cancelledContracts'] ?? []) : [] as $marker) {
+            if (!is_array($marker)) throw new DomainException('Invalid contract cancellation.');
+            $id = (string)($marker['id'] ?? '');
+            if (isset($known[$id])) {
+                if (!operations_same_value($known[$id], $marker)) throw new DomainException('Contract cancellation history cannot be changed.');
+                continue;
+            }
+            $contractId = (string)($marker['contractId'] ?? '');
+            $contracts = operations_list_by_identity((array)($current['contracts'] ?? []), 'id');
+            $contract = $contracts[$contractId] ?? null;
+            if ($id === '' || !$contract || (string)($marker['contractRef'] ?? '') !== (string)($contract['ref'] ?? '') || trim((string)($marker['reason'] ?? '')) === '' || !strtotime((string)($marker['cancelledAt'] ?? ''))) throw new DomainException('Cancellation requires a saved contract, date and reason.');
+            if ($actor && !tt_user_business_entity($actor, (string)($contract['seller'] ?? 'TTI'), 'View')) throw new DomainException('This contract is outside your company access.');
+            if ($actor && (string)($marker['cancelledBy'] ?? '') !== (string)($actor['full_name'] ?? $actor['username'] ?? 'User')) throw new DomainException('The cancellation actor must match the signed-in user.');
+            $ref = (string)$contract['ref'];$processIds = [];
+            foreach (array_merge((array)($current['shipments'] ?? []), (array)($incoming['shipments'] ?? [])) as $shipment) {
+                if (!is_array($shipment) || ($shipment['contractRef'] ?? '') !== $ref) continue;
+                if (($shipment['kind'] ?? '') === 'lot' || !empty($shipment['bagOrders']) || !empty($shipment['production']['sentToMill']) || !empty($shipment['loading']['lots']) || !empty($shipment['millActuals'])) throw new DomainException('Reverse or delete downstream shipment work before cancelling this contract.');
+                $processIds[(string)($shipment['id'] ?? '')] = true;
+            }
+            foreach ((array)($current['accountsReceipts'] ?? []) as $receipt) if (is_array($receipt) && ($receipt['contractRef'] ?? '') === $ref) throw new DomainException('Review the linked Accounts receipts before cancelling this contract.');
+            foreach ((array)($current['fi'] ?? []) as $fi) foreach ((array)($fi['allocations'] ?? []) as $allocation) if (is_array($allocation) && ($allocation['contractRef'] ?? '') === $ref) throw new DomainException('Reverse the linked FI allocations before cancelling this contract.');
+            $submitted = array_values(array_unique(array_map('strval', (array)($marker['processIds'] ?? []))));
+            $expected = array_keys($processIds);sort($submitted);sort($expected);
+            if ($submitted !== $expected) throw new DomainException('The shipment list changed. Reload before cancelling this contract.');
+            $known[$id] = $marker;$cancellations[] = $marker;
+        }
+        if ($cancellations || array_key_exists('cancelledContracts', $incoming)) $merged['cancelledContracts'] = $cancellations;
+        $cancelledIds = [];$cancelledProcesses = [];
+        foreach ($cancellations as $marker) {
+            if (!is_array($marker)) continue;
+            $cancelledIds[(string)($marker['contractId'] ?? '')] = true;
+            foreach ((array)($marker['processIds'] ?? []) as $id) $cancelledProcesses[(string)$id] = true;
+        }
+        $merged['contracts'] = array_values(array_filter((array)($merged['contracts'] ?? []), static fn($row) => is_array($row) && !isset($cancelledIds[(string)($row['id'] ?? '')])));
+        $merged['shipments'] = array_values(array_filter((array)($merged['shipments'] ?? []), static fn($row) => is_array($row) && !isset($cancelledProcesses[(string)($row['id'] ?? '')]) && !isset($cancelledProcesses[(string)($row['parentProcessId'] ?? '')])));
         $currentTombstones = (array)($current['deletedShipments'] ?? []);
         $incomingTombstones = (array)($incoming['deletedShipments'] ?? []);
         $tombstones = $authoritative
