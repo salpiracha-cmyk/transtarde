@@ -72,3 +72,9 @@ check(count(array_filter($cash['warnings'],static fn($r)=>str_contains($r,'UNKNO
 echo "PASS native USD/AED cash-flow source, PKR conversion, matched controls, missing evidence, immutable books\n";
 
 require __DIR__.'/cashflow_party_source_test.php';
+
+require __DIR__."/expense_estimates_cashflow_test.php";
+
+require __DIR__."/bag_estimates_test.php";
+
+require __DIR__."/shipment_estimates_test.php";

@@ -139,3 +139,5 @@ with tempfile.TemporaryDirectory(prefix='staff-payment-amend-') as temp:
  state['supplierSettlements']['APPLY']['journalId']=source_post;books.write_text(json.dumps(state));stable=books.read_bytes()
  st,res=request({**deletion,'preview':True},query='',endpoint='accounts_post_amend');assert st==422 and 'cycle' in res['error'] and books.read_bytes()==stable,(st,res)
  print('PASS actual expense invoices: full recognition, precise partial/final payments, no second expense, unpaid corrections, stable public IDs, cancellation, replay, stale/paid-source holds, utility tax month/bank linkage, preview, staff scope, linked Post ID deletion and advance cancellation')
+
+subprocess.run([os.sys.executable,str(ROOT/"tests/accounts-v1/expense_estimates_http_test.py")],check=True)

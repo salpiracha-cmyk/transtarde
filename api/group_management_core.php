@@ -162,19 +162,22 @@ function gm_financial_source(array $state,string $date,?array $bankMasters=null,
 }
 
 /** Owner cash-flow scope; presentation only, never a journal or trial-balance change. */
-function gm_cashflow_source(array $state,string $date,?array $bankMasters=null,?array $exports=null):array {
+function gm_cashflow_source(array $state,string $date,?array $bankMasters=null,?array $exports=null,?array $operationValues=null):array {
     require_once __DIR__.'/cashflow_native_source.php';
     $bankMasters??=function_exists('tt_list_masters')?(array)(tt_list_masters()['banks']??[]):[];
     require_once __DIR__.'/cashflow_party_core.php';
     $masters=function_exists('tt_list_masters')?(array)tt_list_masters():[];$state=cfp_books($state,$masters);
     if($exports===null){require_once __DIR__.'/fi_credit_advice_link.php';$exports=defined('TT_DATA_DIR')?tt_fi_advice_root():[];}
-    return cfp_invoices(cfp_rows(cfn_source(gm_cashflow_scope(gm_financial_source($state,$date,$bankMasters,true)),$state,$date,$bankMasters),$state,$masters),$state,$date,$exports);
+    require_once __DIR__.'/expense_estimates_core.php';
+    require_once __DIR__.'/shipment_estimates_core.php';
+    $operationValues??=se_read_values();
+    return gm_cashflow_scope(ee_cashflow(shipment_estimates_source(cfp_invoices(cfp_rows(cfn_source(gm_cashflow_scope(gm_financial_source($state,$date,$bankMasters,true)),$state,$date,$bankMasters),$state,$masters),$state,$date,$exports),$state,$exports,$operationValues,$date),$state,$date));
 }
 function gm_cashflow_scope(array $source):array {
     foreach($source['rows'] as &$row){
         $code=(string)$row['account'];$label=(string)$row['label'];$reason='';
         if(in_array($code,['1240','2500'],true))$reason='Intercompany balance already embedded; excluded from consolidated cash flow.';
-        elseif(in_array($code,['1250','2110','2120','2130','2140','2190','2510'],true)&&preg_match('/(?:\bTTI\b|\bBRM\b|\bTG\b|TRANSTRADE INTERNATIONAL|TRANS GRAINS|BUKSH RICE)/i',$label))$reason='Internal group party; excluded from consolidated cash flow.';
+        elseif(in_array($code,['1250','2110','2120','2130','2140','2190','2210','2510'],true)&&preg_match('/(?:\bTTI\b|\bBRM\b|\bTG\b|TRANSTRADE INTERNATIONAL|TRANS GRAINS|BUKSH RICE)/i',trim((string)($row['party']??''))?:$label))$reason='Internal group party; excluded from consolidated cash flow.';
         elseif($code==='1120')$reason='Petty cash excluded from this management cash-flow view by owner instruction.';
         elseif($code==='2230')$reason='Personal, staff, transfer-clearing or investment control; excluded from management cash flow. Salary forecast follows its due date separately.';
         elseif($code==='1230'&&preg_match('/\b(?:RAMZAN|HASSAN|BALOCH|BALOUCH)\b/i',$label)&&!preg_match('/NASEEM|ZAFAR/i',$label))$reason='Staff advance balance excluded from management cash flow; original payroll and bank entries retained.';
