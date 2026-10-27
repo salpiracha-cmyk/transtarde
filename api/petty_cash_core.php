@@ -20,9 +20,7 @@ function pc_holders(array $s,string $e):array {
     return $out;
 }
 function pc_line_id(array $line,string $e):string {
-    if(!empty($line['millLocationId']))return 'CASH|'.$e.'|MILL|'.$line['millLocationId'];
-    $id=(string)($line['cashAccountId']??$line['paymentAccountId']??'');
-    return str_starts_with($id,'CASH|'.$e)?$id:'CASH|'.$e;
+    return alv_cash_id($line,$e);
 }
 function pc_rows(array $s,string $e):array {
     $s=alv_amendment_books($s);$out=[];
