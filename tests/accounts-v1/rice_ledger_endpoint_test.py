@@ -6,7 +6,7 @@ auth=(ROOT/'auth_store.php').read_text();a=auth.index('function tt_business_modu
 a=auth.index('function tt_user_can_access_entity(');b=auth.index('function tt_user_landing_url(',a);helpers+=auth[a:b]
 with tempfile.TemporaryDirectory(prefix='rice-ledger-endpoint-') as directory:
  root=Path(directory);(root/'api').mkdir();(root/'data').mkdir()
- for file in ['arrival_withdrawal_core.php','rice_ledger.php','rice_ledger_core.php','mill_recovery_core.php']:shutil.copy(ROOT/'api'/file,root/'api'/file)
+ for file in ['arrival_withdrawal_core.php','paltai_core.php','rice_ledger.php','rice_ledger_core.php','mill_recovery_core.php']:shutil.copy(ROOT/'api'/file,root/'api'/file)
  for file in ['inventory_reconciliation.php','product_stage.php']:shutil.copy(ROOT/file,root/file)
  (root/'auth_store.php').write_text("<?php define('TT_DATA_DIR',__DIR__.'/data');function tt_release_read_session(){} function tt_require_login(){return json_decode(file_get_contents(__DIR__.'/user.json'),true);}"+helpers)
  (root/'request.php').write_text("<?php $_SERVER['REQUEST_METHOD']=$argv[1];$_GET=json_decode(file_get_contents(__DIR__.'/query.json'),true);register_shutdown_function(function(){file_put_contents(__DIR__.'/status.json',json_encode(http_response_code()?:200));});require __DIR__.'/api/rice_ledger.php';")

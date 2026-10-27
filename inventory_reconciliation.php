@@ -3,6 +3,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/product_stage.php';
 require_once __DIR__.'/api/mill_recovery_core.php';
 require_once __DIR__.'/api/arrival_withdrawal_core.php';
+require_once __DIR__.'/api/paltai_core.php';
 
 /** Server-owned reconciliation. Operational staff submit facts, never a Ghati balance. */
 const TT_INV_PRIVATE_KEYS = ['tt34ghati','tt34nilqueue','tt32processingrecon','tt34stockreviewaudit'];
@@ -183,6 +184,7 @@ function tt_inv_prepare_write(array $values,string $key,string $json,array $user
         $seen=[];foreach($incoming as &$row){if(!is_array($row))throw new DomainException('Production history must contain records.');$id=$identity($row);if(isset($managed[$id])){if(isset($seen[$id])||($public[$id]??null)!=$row)throw new DomainException('Saved production history is maintained by its explicit source save.');$row=$managed[$id];$seen[$id]=true;}elseif(!empty($row['serverManaged']))throw new DomainException('Production history cannot be attributed by a client.');}unset($row);
         if(array_diff_key($managed,$seen))throw new DomainException('Saved production history cannot be removed from an operational collection.');$json=tt_inv_json($incoming);
     }
+    if($key==='tt32labourfeed')return pt_guard_labour($values,$json);
     if(in_array($key,TT_BAG_SERVER_KEYS,true))throw new DomainException('Bag movement acknowledgements are server-owned. Use the explicit bag movement workflow.');
     if($key==='tt30prod'){require_once __DIR__.'/api/bag_inventory_core.php';$decoded=json_decode($json,true);$versioned=false;foreach(array_merge(is_array($decoded)?$decoded:[],tt_inv_rows($values,$key)) as $row)if(is_array($row)&&!empty($row['bagAllocationVersion'])){$versioned=true;break;}if($versioned)$json=bti_prepare_production($values,$json,tt_list_masters(),$user,$now);}
     if(in_array($key,['tt38labourbills','tt38kebills','tt38reprocessbills','tt37processingexpenses'],true)){require_once __DIR__.'/api/mill_source_amend_core.php';return msa_guard_append($values,$key,$json,$user);}
@@ -228,6 +230,7 @@ function tt_inv_prepare_write(array $values,string $key,string $json,array $user
                 $r['containers'][$i]=$container;
             }
         }elseif($key==='tt32stockadj'){
+            if(($r['type']??'')==='Paltai Transfer'||($before['type']??'')==='Paltai Transfer')$r=pt_prepare($values,$r,$before,array_merge($old,array_values(array_filter($out,static fn($x)=>!isset($index[(string)$x['id']])))));
             if((tt_inv_is_private_row($r)||str_contains((string)($r['type']??''),'Physical Nil'))&&!$before)throw new DomainException('A client cannot create a management stock adjustment.');
             if($before&&(tt_inv_is_private_row($before)||str_contains((string)($before['type']??''),'Physical Nil'))){
                 if(tt_inv_public_adjustment($before)!==tt_inv_public_adjustment($r))throw new DomainException('Reconciled stock adjustments cannot be changed from Milling.');
@@ -262,10 +265,12 @@ function tt_inv_prepare_write(array $values,string $key,string $json,array $user
         $changed=[];foreach($out as$r){$b=$index[(string)$r['id']]??null;$a=$r;unset($a['createdAt'],$a['updatedAt'],$a['serverSequence']);if($b){unset($b['createdAt'],$b['updatedAt'],$b['serverSequence']);}if($a!==$b)$changed[]=$r;}
         foreach($changed as$r)foreach($out as&$other)if((string)$other['id']!==(string)$r['id']&&tt_inv_same_scope($r,$other)&&($r['date']??'')===($other['date']??'')&&tt_inv_shift_name((string)($r['shift']??''))===tt_inv_shift_name((string)($other['shift']??'')))$other['shiftEntriesComplete']=false;unset($other);
     }
+    if($key==='tt32stockadj')foreach($old as$r)if(($r['type']??'')==='Paltai Transfer'&&!isset($seen[(string)$r['id']]))throw new DomainException('Saved Paltai transfers cannot be removed.');
     return tt_inv_json($out);
 }
 /** Pure transform, called inside the same lock/transaction as the source save. */
 function tt_inv_reconcile(array $values,string $now): array {
+    $values=pt_effects($values);
     $confirmations=tt_inv_rows($values,TT_INV_CONFIRMATIONS);$adjustments=tt_inv_rows($values,'tt32stockadj');
     $events=tt_inv_rows($values,'tt34ghati');$queue=tt_inv_rows($values,'tt34nilqueue');$productions=tt_inv_rows($values,'tt30prod');
     $eventsByRef=[];foreach($events as$e)$eventsByRef[(string)($e['ref']??'')]=true;

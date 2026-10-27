@@ -275,6 +275,13 @@ function operations_duplicate_effects(array $before,array $next,array $user,stri
         if(isset($trips[$trip])){$found=false;foreach($alerts as &$a)if(($a['status']??'')==='Approved Once'&&operations_trip_identity($a)===$trip){$a['status']='Approval Used';$a['usedAt']=gmdate('c');$a['usedByUser']=(int)($user['id']??0);$a['usedQueueId']=(string)($r['id']??'');$found=$changed=true;break;}unset($a);if(!$found)throw new DomainException('This truck already has a trip on that date. Refresh and obtain a one-time Director approval.');}
         $trips[$trip]=true;
     }
+    $audit=json_decode((string)($before['tt37arrivalaudit']??'[]'),true);$auditChanged=false;
+    $slips=json_decode((string)($before['tt30slips']??'[]'),true);
+    foreach($rows as$r){$prior=$oldById[(string)($r['id']??'')]??null;if(!$prior||operations_same_value($prior,$r))continue;
+        $linked=array_values(array_filter($slips,static fn($slip)=>(string)($slip['queueId']??'')===(string)$r['id']));if(!$linked)continue;
+        $audit[]=['id'=>'QUEUE|'.$r['id'].'|'.hash('sha256',json_encode($r)), 'queueId'=>$r['id'],'time'=>gmdate('c'),'before'=>$prior,'after'=>$r,'linkedPohanch'=>array_column($linked,'slip'),'completedHistoryPreserved'=>true,'directorAlert'=>true,'userId'=>(int)($user['id']??0)];$auditChanged=true;
+    }
+    if($auditChanged)$next['tt37arrivalaudit']=json_encode($audit,JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);
     if($changed)$next['tt30directoralerts']=json_encode($alerts,JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);
     return $next;
 }

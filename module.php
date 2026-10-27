@@ -269,6 +269,18 @@ $sharedBootstrap = <<<'HTML'
     try{const saved=await window.TT_BAG_RECEIPTS.commit(intent);for(const key of keys){const row=saved.sourceValues?.[key];if(!row||typeof row.value!=='string'||pending.has(key)||localStorage.getItem(key)!==originals.get(key))continue;directSet(key,row.value);committedValues.set(key,row.value);receipts.set(key,row.value);keyVersions.set(key,Number(row.version||0));remoteKeys.add(key);}return saved;}
     finally{keys.forEach(key=>inFlight.delete(key));saveHolds--;waiting();}
   }
+  async function commitMillAction(key,record,before=null,prefix=''){
+    if(access.moduleId!=='milling'||!['tt30queue','tt30slips','tt30directoralerts','tt37usedbags','tt33pettyexp','tt32stockadj','tt35localsales','tt35exportersale'].includes(key))throw new Error('Unsupported Milling action.');
+    const keys=key==='tt32stockadj'?[key,'tt32labourfeed']:[key];
+    if(keys.some(k=>pending.has(k)||inFlight.has(k)))throw new Error('This collection has an unfinished change. Reload and review it before saving.');
+    keys.forEach(k=>inFlight.add(k));saveHolds++;waiting();
+    try{const result=await window.TT_MILL_ACTION_SAVE.commit({endpoint,access,key,record,before,prefix});
+      for(const [k,row] of Object.entries({[key]:{value:result.value,version:result.version},...result.related})){
+        if(!keys.includes(k)||pending.has(k))continue;directSet(k,row.value);committedValues.set(k,row.value);receipts.set(k,row.value);keyVersions.set(k,Number(row.version||0));remoteKeys.add(k);
+      }
+      dispatchEvent(new CustomEvent('tt:shared-saved',{detail:{key}}));return result.record;
+    }finally{keys.forEach(k=>inFlight.delete(k));saveHolds--;waiting()}
+  }
   async function appendMillBill(key,record,prefix=''){
     if(access.moduleId!=='milling'||!['tt38labourbills','tt38kebills','tt38reprocessbills','tt37processingexpenses','tt39rentpayments','tt39salaryadvances'].includes(key))throw new Error('Unsupported Mill bill.');
     if(pending.has(key)||inFlight.has(key))throw new Error('This bill collection has an unfinished local change. Review it before saving.');
@@ -293,7 +305,7 @@ $sharedBootstrap = <<<'HTML'
       return result;
     }finally{inFlight.delete(key);saveHolds--;waiting()}
   }
-  window.TT_SHARED_SYNC={commitProduction,commitBagReceipt,appendMillBill,amendMillBill,flush,saveNow,refresh:refreshNow,bridge,poll:checkInbound,hold:()=>{saveHolds++;waiting();let released=false;return()=>{if(!released){released=true;saveHolds--;waiting()}}},readCommitted:key=>committedValues.get(key)??null,restoreStaged:(key,before,attempted)=>{if(localStorage.getItem(key)!==attempted)return false;if(pending.get(key)===attempted){pending.delete(key);queuedBase.delete(key)}directSet(key,before);return true}};
+  window.TT_SHARED_SYNC={commitMillAction,commitProduction,commitBagReceipt,appendMillBill,amendMillBill,flush,saveNow,refresh:refreshNow,bridge,poll:checkInbound,hold:()=>{saveHolds++;waiting();let released=false;return()=>{if(!released){released=true;saveHolds--;waiting()}}},readCommitted:key=>committedValues.get(key)??null,restoreStaged:(key,before,attempted)=>{if(localStorage.getItem(key)!==attempted)return false;if(pending.get(key)===attempted){pending.delete(key);queuedBase.delete(key)}directSet(key,before);return true}};
   // Permanent rule: only explicit application actions save. Inbound checks are read-only and run when staff return to a tab.
   // Remote changes are staged locally and announced through an internal event without persistent interface notices.
   // Exports must reconcile Mill actuals before app.js reads state. Milling must finish its legacy startup first,
@@ -307,6 +319,14 @@ HTML;
 
 $guard = <<<'HTML'
 <style>#ttUserBar{position:fixed;right:12px;top:12px;z-index:99999;display:flex;align-items:center;gap:9px;background:#102a46;color:#fff;padding:6px 7px 6px 11px;border-radius:10px;box-shadow:0 5px 18px #0004;font:12px Arial}#ttUserBar.ttHeaderUser{position:static;z-index:auto;flex:0 0 auto;background:rgba(255,255,255,.09);padding:5px 6px 5px 11px;border:1px solid rgba(255,255,255,.16);border-radius:12px;box-shadow:none;font:700 12px Arial;white-space:nowrap}.topbar.ttHasHeaderControls{padding-right:18px}#ttUserBar .ttPower{width:31px;height:31px;display:grid;place-items:center;border-radius:8px;background:#fff;color:#b42318;text-decoration:none;font-size:18px;font-weight:900;line-height:1}#ttUserBar .ttPower:hover{background:#fff0ee}#ttMasterTop{position:static;flex:0 0 auto;width:34px;height:34px;padding:0;border:1px solid rgba(255,255,255,.5);border-radius:8px;background:rgba(255,255,255,.12);color:#fff;display:grid;place-items:center;font:900 18px/1 Arial;cursor:pointer}#ttMasterTop:hover,#ttMasterTop:focus{background:#fff;color:#102a46;outline:none}.ttHeaderDate{color:#fff;font:700 12px Arial;white-space:nowrap}.tt-no-access{display:none!important}@media(max-width:1000px){#ttUserBar.ttHeaderUser{font-size:11px}}@media(max-width:900px){.topbar.ttHasHeaderControls{flex-wrap:wrap}.topbar.ttHasHeaderControls .spacer{display:none}}</style>
+<style>
+@media screen and (max-width:700px){
+  header.ttHasHeaderControls{height:auto;min-height:66px;padding:10px 13px;gap:8px;flex-wrap:wrap}
+  header.ttHasHeaderControls>.brand{flex:1 0 100%;min-width:0;overflow-wrap:anywhere}
+  header.ttHasHeaderControls>#ttUserBar{margin-left:auto;max-width:100%;min-width:0}
+  header.ttHasHeaderControls #ttUserName{white-space:normal;overflow-wrap:anywhere}
+}
+</style>
 <div id="ttUserBar"><span id="ttUserName"></span><a class="ttPower" href="logout.php" title="Log out" aria-label="Log out">⏻</a></div>
 <style>#ttConsoleTop{height:34px;padding:0 11px;border:1px solid rgba(255,255,255,.5);border-radius:8px;background:rgba(255,255,255,.12);color:#fff;display:inline-flex;align-items:center;text-decoration:none;font:800 12px/1 Arial}#ttConsoleTop:hover,#ttConsoleTop:focus{background:#fff;color:#102a46;outline:none}</style>
 <script>
@@ -334,7 +354,7 @@ $accountsSourceBridge = '<script src="mill-duplicate-approvals.js"></script><scr
 $brandBody = '<script src="/session-activity.js?v=20260929-1"></script><script src="/brand-theme.js?v=20261006-number-entry-1"></script>';
 $brandBody .= '<script src="/global-validation.js?v=20260909-1"></script>';
 if ($id === 'exports') $brandBody .= '<script src="/customer-contract-options.js?v=20260911-reports-1&fix=20261003-no-legacy-completion-1"></script>';
-if ($id === 'milling') $brandBody .= '<script src="/milling-quality-identity.js?v=20260910-1"></script><script src="/accounts/mill-liability-status.js?v=20261017-1"></script><script src="/accounts/mill-source-save.js?v=20261017-1"></script><script src="/accounts/production-source-save.js?v=20261017-1"></script><script src="/accounts/production-bag-allocation.js?v=20261017-1"></script><script src="/accounts/bag-transfers-ui.js?v=20261017-1"></script><script src="/accounts/bag-receipts-ui.js?v=20261017-1"></script><script src="/accounts/mill-source-amend-ui.js?v=20261017-1"></script>' . $millingTaskScripts;
+if ($id === 'milling') $brandBody .= '<script src="/milling-quality-identity.js?v=20260910-1"></script><script src="/accounts/mill-liability-status.js?v=20261017-1"></script><script src="/accounts/mill-source-save.js?v=20261017-1"></script><script src="/accounts/mill-action-save.js"></script><script src="/accounts/production-source-save.js?v=20261017-1"></script><script src="/accounts/production-bag-allocation.js?v=20261017-1"></script><script src="/accounts/bag-transfers-ui.js?v=20261017-1"></script><script src="/accounts/bag-receipts-ui.js?v=20261017-1"></script><script src="/accounts/mill-source-amend-ui.js?v=20261017-1"></script>' . $millingTaskScripts;
 $bodyPos = strripos($html, '</body>');
 if ($bodyPos !== false) $html = substr_replace($html, $accountsSourceBridge.$guard.$brandBody, $bodyPos, 0); else $html .= $accountsSourceBridge.$guard.$brandBody;
 echo tt_version_local_assets($html);
