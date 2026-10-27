@@ -2634,7 +2634,7 @@ function purchaseOrderPrint(po){
  const addMarking=(src,label)=>{const value=String(src||'').trim();if(!value||markingSeen.has(value))return;markingSeen.add(value);markings.push({src:value,label:ttOutputEnglish(label||'Bag Marking')})};
  for(const line of lines){
   const unit=String(line.unit||'KG').toUpperCase(),quantity=num(line.totalBags),brand=outputBrand(line.brand);
-  normal.push(`<tr><td>${serial++}</td><td><b>${esc(brand)}</b><br>${esc(ttOutputEnglish(line.type))}${String(line.handle||'').toLowerCase()==='yes'?'<br><b>WITH HANDLE</b>':''}</td><td>${num(line.tare)} g</td><td><b>${num(line.size)} ${esc(unit)}</b></td><td><strong>${quantity.toLocaleString()}</strong></td></tr>`);addSummary(line.type,line.size,unit,quantity);addMarking(line.artworkData,brand+' — BAG MARKING')
+  normal.push(`<tr><td>${serial++}</td><td><b>${esc(brand)}</b><br>${esc(ttOutputEnglish(line.type))}${String(line.handle||'').toLowerCase()==='yes'?'<br><b>WITH HANDLE</b>':''}</td><td>${num(line.tare)} g</td><td><b>${num(line.size)} ${esc(unit)}</b></td><td><strong>${quantity.toLocaleString()}</strong></td></tr>`);addSummary(line.type,line.size,unit,quantity);addMarking(line.artworkData,brand+' — APPROVED BAG MARKING')
  }
  for(const line of lines){
   if(!line.masterBag?.enabled)continue;
