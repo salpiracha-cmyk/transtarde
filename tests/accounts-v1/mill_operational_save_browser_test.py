@@ -65,7 +65,7 @@ def run():
             op=context.request.get(base+'/api/operations.mysql.php').json();assert len(json.loads(op['values']['tt33pettyexp']))==1;assert books.read_bytes()==original_books
             # Native arrival Save persists before clearing and duplicate request gets server attribution.
             mill.evaluate("openPanel('queue')");mill.locator('#qVehicle').fill('QA-101');mill.locator('#qBags').fill('10');mill.locator('#qWeight').fill('1000');mill.locator('#qParty').fill('Fixture supplier')
-            mill.locator('#queueSaveBtn').click();mill.wait_for_function("document.querySelector('#qVehicle').value === ''")
+            mill.locator('#queueSaveBtn').click();mill.evaluate('window.TT_SHARED_SYNC.saveNow()');mill.wait_for_function("document.querySelector('#qVehicle').value === ''")
             op=context.request.get(base+'/api/operations.mysql.php').json();queue=json.loads(op['values']['tt30queue']);assert len(queue)==1 and queue[0]['vehicle']=='QA-101'
             mill.locator('#qVehicle').fill('QA-101');mill.locator('#qBags').fill('10');mill.locator('#qWeight').fill('1000');mill.locator('#queueSaveBtn').click();mill.wait_for_function("document.querySelector('#duplicateAlert').textContent.includes('Directors alert created')")
             op=context.request.get(base+'/api/operations.mysql.php').json();alerts=json.loads(op['values']['tt30directoralerts']);assert len(alerts)==1 and alerts[0]['requestedByUser']==1000

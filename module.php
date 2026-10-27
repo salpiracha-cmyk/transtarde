@@ -279,7 +279,8 @@ $sharedBootstrap = <<<'HTML'
         if(!keys.includes(k)||pending.has(k))continue;directSet(k,row.value);committedValues.set(k,row.value);receipts.set(k,row.value);keyVersions.set(k,Number(row.version||0));remoteKeys.add(k);
       }
       dispatchEvent(new CustomEvent('tt:shared-saved',{detail:{key}}));return result.record;
-    }finally{keys.forEach(k=>inFlight.delete(k));saveHolds--;waiting()}
+    }catch(error){settleCommits(error.message||'The Milling action was not confirmed.');throw error;}
+    finally{keys.forEach(k=>inFlight.delete(k));saveHolds--;settleCommits();waiting()}
   }
   async function appendMillBill(key,record,prefix=''){
     if(access.moduleId!=='milling'||!['tt38labourbills','tt38kebills','tt38reprocessbills','tt37processingexpenses','tt39rentpayments','tt39salaryadvances'].includes(key))throw new Error('Unsupported Mill bill.');
