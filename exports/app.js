@@ -2639,7 +2639,7 @@ function purchaseOrderPrint(po){
  for(const line of lines){
   if(!line.masterBag?.enabled)continue;
   const master=line.masterBag,unit=String(line.unit||'KG').toUpperCase(),quantity=num(master.quantity||master.qty),size=num(master.weight)||num(master.bagsPerMaster)*num(line.size),printed=master.printed?'PRINTED':'UNPRINTED';
-  masters.push(`<tr class="masterBagOrderRow"><td>${serial++}</td><td><b>MASTER P.P. BAG — ${esc(printed)}</b><br>${num(master.bagsPerMaster)} × ${num(line.size)} ${esc(unit)} bags in one master</td><td>${num(master.tare)} g</td><td><b>${size} ${esc(unit)}</b></td><td><strong>${quantity.toLocaleString()}</strong></td></tr>`);addSummary('Master P.P. Bags',size,unit,quantity);if(master.printed)addMarking(master.artworkData,(line.brand||'')+' — MASTER BAG MARKING')
+  masters.push(`<tr class="masterBagOrderRow"><td>${serial++}</td><td><b>MASTER BAG — P.P. — ${esc(printed)}</b><br>${num(master.bagsPerMaster)} × ${num(line.size)} ${esc(unit)} bags in one master</td><td>${num(master.tare)} g</td><td><b>${size} ${esc(unit)}</b></td><td><strong>${quantity.toLocaleString()}</strong></td></tr>`);addSummary('Master P.P. Bags',size,unit,quantity);if(master.printed)addMarking(master.artworkData,(line.brand||'')+' — MASTER BAG MARKING')
  }
  const totals=[...summaries.values()].map(row=>`<div><span>${esc(row.type)} · ${row.size} ${esc(row.unit)}</span><strong>${row.quantity.toLocaleString()} BAGS</strong></div>`).join('');
  const rowCount=normal.length+masters.length,markCount=markings.length;
