@@ -115,7 +115,7 @@ function ba_cash_balance(array $store,string $entity,?string $asOf=null): float 
     $bal=0.0;$date=ba_balance_date($asOf);
     foreach((array)($store['journals']??[]) as $j){
         if(!is_array($j)||!ba_journal_as_of($j,$entity,$date))continue;
-        foreach((array)($j['lines']??[]) as $line)if(is_array($line)&&(string)($line['account']??'')==='1120')$bal+=(float)($line['debit']??0)-(float)($line['credit']??0);
+        foreach((array)($j['lines']??[]) as $line)if(is_array($line)&&(string)($line['account']??'')==='1120'&&alv_cash_id($line,$entity)==='CASH|'.$entity)$bal+=(float)($line['debit']??0)-(float)($line['credit']??0);
     }
     return round($bal,2);
 }
@@ -154,7 +154,7 @@ function ba_payload(array $store,string $entity): array {
     usort($rows,static fn($a,$b)=>((int)(!empty($b['settings']['defaultPaymentAccount'])||!empty($b['settings']['defaultReceiptAccount']))<=>(int)(!empty($a['settings']['defaultPaymentAccount'])||!empty($a['settings']['defaultReceiptAccount'])))?:((float)$b['availableBalance']<=>(float)$a['availableBalance'])?:strcmp((string)$a['bankName'],(string)$b['bankName']));
     $cashKey='CASH|'.$entity;$cashCurrency=$entity==='TG'?'AED':'PKR';$cashSetting=array_replace([
         'active'=>true,'allowPayments'=>true,'allowReceipts'=>true,'includeInPaymentPlanning'=>false,'visibleToMill'=>false,
-        'reconciliationEnabled'=>true,'retentionAccount'=>false,'defaultReceiptAccount'=>false,'defaultPaymentAccount'=>false,'displayName'=>'Cash / Petty Cash','notes'=>'','updatedAt'=>null,'updatedBy'=>null
+        'reconciliationEnabled'=>true,'retentionAccount'=>false,'defaultReceiptAccount'=>false,'defaultPaymentAccount'=>false,'displayName'=>'Office Petty Cash','notes'=>'','updatedAt'=>null,'updatedBy'=>null
     ],is_array($store['bankAccountSettings'][$cashKey]??null)?$store['bankAccountSettings'][$cashKey]:[]);
     $cashSetting['active']=true;$cashSetting['allowPayments']=true;$cashSetting['allowReceipts']=true;$cashSetting['defaultReceiptAccount']=false;$cashSetting['defaultPaymentAccount']=false;
     $cash=ba_cash_balance($store,$entity);$balances[$cashCurrency]=round(($balances[$cashCurrency]??0)+$cash,2);
@@ -162,7 +162,7 @@ function ba_payload(array $store,string $entity): array {
     ksort($balances);
     return [
         'balanceAsOfDate'=>ba_balance_date(),'accounts'=>$rows,'balancesByCurrency'=>$balances,
-        'cash'=>['id'=>$cashKey,'entity'=>$entity,'accountTitle'=>'Cash / Petty Cash','currency'=>$cashCurrency,'bookBalance'=>$cash,'settings'=>$cashSetting],
+        'cash'=>['id'=>$cashKey,'entity'=>$entity,'accountTitle'=>'Office Petty Cash','currency'=>$cashCurrency,'bookBalance'=>$cash,'settings'=>$cashSetting],
         'paymentPlanningCurrency'=>$planningCurrency,'paymentPlanningFunds'=>round($planning,2),
         'unassignedBankBalance'=>ba_unassigned_bank_balance($store,$entity),'unassignedBankBalanceCurrency'=>'PKR'
     ];

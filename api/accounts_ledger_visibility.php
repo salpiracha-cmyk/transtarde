@@ -1,6 +1,15 @@
 <?php
 declare(strict_types=1);
 
+/** Cash custody identity shared by office balances and individual cash ledgers.
+ * Unlabelled historical cash belongs to the office; mill/staff custody stays separate.
+ */
+function alv_cash_id(array $line,string $entity):string {
+    if(!empty($line['millLocationId']))return 'CASH|'.$entity.'|MILL|'.$line['millLocationId'];
+    $id=(string)($line['cashAccountId']??$line['paymentAccountId']??'');
+    return $id==='CASH|'.$entity||str_starts_with($id,'CASH|'.$entity.'|')?$id:'CASH|'.$entity;
+}
+
 function alv_posted(array $journal):bool {return ($journal['status']??'')==='Posted'||(($journal['status']??'')==='Posted / Bill Pending'&&($journal['sourceType']??'')==='EX_MILL_PURCHASE_LIABILITY');}
 
 /** Correct effective cancellation dates of proven amendments/deletions in report copies.
