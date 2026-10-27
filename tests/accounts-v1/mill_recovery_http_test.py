@@ -33,6 +33,8 @@ with tempfile.TemporaryDirectory(prefix='mill-recovery-http-') as tmp:
   assert req(role='denied')[0]==403
   status,data=req(role='mill');assert status==200 and not data['canViewCosts'] and 'costTotals' not in data,data
   status,data=req(role='accounts',location='TTI Rice Mills');assert status==200,data;assert data['totals']['inputKg']==100 and data['brands']==['A'] and data['contracts']==['C1'] and not data['canViewCosts'],data
+  status,data=req('entity=TTI&surface=mill');assert status==200 and not data['canViewCosts'] and 'costTotals' not in data,'Mill surface omits costs even for owner'
+  assert req('entity=TTI&surface[]=mill')[0]==422
   assert req('entity=TTI&from=2026-02-30')[0]==422
   assert req('entity=TTI&from=2026-10-10&to=2026-10-01')[0]==422
   assert req('entity=TTI&mode=wrong')[0]==422
