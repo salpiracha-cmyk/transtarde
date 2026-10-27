@@ -1228,21 +1228,47 @@ function finalShipmentDocuments(s,c){
 
 function renderOfficeDocumentRefresh(){
  const main=document.getElementById('main');main.innerHTML=`<div class="panel"><h2>Refresh office shipment documents</h2><p>Update office document copies for active and completed lots.</p><button class="btn navy" id="startOfficeRefresh">REFRESH ALL SHIPMENT FOLDERS</button><button class="btn soft" id="checkOfficeRefresh">CHECK DELIVERY</button><p id="officeRefreshProgress" role="status"></p><div class="tableWrap"><table class="table"><thead><tr><th>Shipment / Lot</th><th>Result</th></tr></thead><tbody id="officeRefreshResults"></tbody></table></div></div>`;
- const result=main.querySelector('#officeRefreshResults'),progress=main.querySelector('#officeRefreshProgress'),button=main.querySelector('#startOfficeRefresh');
+ const result=main.querySelector('#officeRefreshResults'),progress=main.querySelector('#officeRefreshProgress'),button=main.querySelector('#startOfficeRefresh'),check=main.querySelector('#checkOfficeRefresh');
  window.TT_OFFICE_REFRESH_RESULTS=window.TT_OFFICE_REFRESH_RESULTS||[];
  const draw=()=>{result.innerHTML=window.TT_OFFICE_REFRESH_RESULTS.map(row=>`<tr><td>${esc(row.contract)} / ${esc(row.lot)}</td><td>${esc(row.message)}</td></tr>`).join('')};draw();
  button.onclick=async()=>{
-  if(button.disabled)return;button.disabled=true;window.TT_OFFICE_REFRESH_RESULTS=[];
+  if(button.disabled)return;button.disabled=true;check.disabled=true;window.TT_OFFICE_REFRESH_RESULTS=[];
   try{
    const raw=window.TT_SHARED_SYNC?.readCommitted?.(STORE);if(!raw)throw new Error('Reload Exports to load the confirmed server records.');
    const saved=normalize(JSON.parse(raw)),lots=saved.shipments.filter(row=>row.kind==='lot'&&!row.cancelled);let index=0;
    for(const lot of lots){const contract=saved.contracts.find(row=>row.ref===lot.contractRef),row={contract:lot.contractRef,lot:lot.lotId};window.TT_OFFICE_REFRESH_RESULTS.push(row);
-    try{if(!contract)throw new Error('Contract missing');progress.textContent=`${++index} of ${lots.length}: ${lot.contractRef} / ${lot.lotId}`;const queued=await saveShipmentFolder(lot,contract,false,p=>{progress.textContent=`${index} of ${lots.length}: ${lot.contractRef} / ${lot.lotId} — ${p.stage}`},true);row.jobId=queued.jobId;row.warnings=queued.warnings||[];row.message='Queued for TTI Server'+(queued.warnings?.length?' — '+queued.warnings.join(' '):'')}catch(e){row.message='Needs attention: '+e.message}draw();
+    try{if(!contract)throw new Error('Contract missing');progress.textContent=`${++index} of ${lots.length}: ${lot.contractRef} / ${lot.lotId}`;const queued=await saveShipmentFolder(lot,contract,false,p=>{progress.textContent=`${index} of ${lots.length}: ${lot.contractRef} / ${lot.lotId} — ${p.stage}`},true);row.jobId=queued.jobId;row.warnings=queued.warnings||[];row.message='Queued for TTI Server'+(queued.warnings?.length?' — '+queued.warnings.join(' '):'')}catch(e){row.preparationError=e.message;row.message='Needs attention: '+e.message}draw();
    }
    progress.textContent='Refresh preparation finished. Check delivery to verify which copies have reached TTI Server.';
-  }catch(e){progress.textContent=e.message}finally{button.disabled=false}
+  }catch(e){progress.textContent=e.message}finally{button.disabled=false;check.disabled=false}
  };
- main.querySelector('#checkOfficeRefresh').onclick=async()=>{const check=main.querySelector('#checkOfficeRefresh');check.disabled=true;try{for(const row of window.TT_OFFICE_REFRESH_RESULTS){if(!row.jobId)continue;const response=await fetch('/api/office_agent.php?action=shipment-status&id='+encodeURIComponent(row.jobId),{credentials:'same-origin'}),data=await response.json();if(!response.ok||!data.ok)throw new Error(data.error||'Delivery check failed');row.message=(data.job?.receiptVerified?'Files verified on TTI Server':data.job?.status==='COPIED_LAYOUT_PENDING'?'Copied — PC agent update required':data.job?.status||'Pending')+(row.warnings?.length?' — Attention: '+row.warnings.join(' '):'');draw()}}catch(e){progress.textContent=e.message}finally{check.disabled=false}};
+ check.onclick=async()=>{
+  if(check.disabled)return;check.disabled=true;button.disabled=true;
+  try{
+   const raw=window.TT_SHARED_SYNC?.readCommitted?.(STORE);if(!raw)throw new Error('Reload Exports to load the confirmed server records.');
+   const saved=normalize(JSON.parse(raw)),previous=window.TT_OFFICE_REFRESH_RESULTS;
+   // Delivery is a read of saved lots and the latest server job, including after a browser reload.
+   const rows=saved.shipments.filter(lot=>lot.kind==='lot'&&!lot.cancelled).map(lot=>{const prior=previous.find(row=>row.contract===lot.contractRef&&row.lot===lot.lotId);return{contract:lot.contractRef,lot:lot.lotId,preparedJobId:prior?.jobId||'',warnings:prior?.warnings||[],preparationError:prior?.preparationError||'',message:'Checking latest queued package…'}});
+   window.TT_OFFICE_REFRESH_RESULTS=rows;draw();let index=0,verified=0,failed=0;
+   for(const row of rows){
+    progress.textContent=`Checking ${++index} of ${rows.length}: ${row.contract} / ${row.lot}`;
+    try{
+     const query=new URLSearchParams({action:'shipment-status',contract:row.contract,lot:row.lot}),response=await fetch('/api/office_agent.php?'+query,{credentials:'same-origin',signal:AbortSignal.timeout(15000)}),data=await response.json();
+     if(!response.ok||!data.ok)throw new Error(data.error||'Delivery check failed');
+     const job=data.job;row.jobId=job?.id||'';
+     if(!data.found||!job)row.message='No office package queued';
+     else if(job.receiptVerified){verified++;row.message=`Latest package verified on TTI Server: ${num(job.verifiedFileCount)} of ${num(job.fileCount)} files`}
+     else row.message=({PENDING:'Queued — awaiting office PC',PROCESSING:'Office PC is copying files',COPIED_LAYOUT_PENDING:'Copied — PC agent update required',UNVERIFIED:'Copy reported — file verification incomplete',ERROR:'Office copy failed',SUPERSEDED:'Replaced by a newer package'})[job.status]||'Delivery not verified';
+     if(job?.lastError)row.message+=' — '+job.lastError;
+     if(job?.id===row.preparedJobId&&row.warnings.length)row.message+=' — Attention: '+row.warnings.join(' ');
+     else row.warnings=[];
+    }catch(e){failed++;row.message='Unable to check delivery: '+e.message}
+    if(row.preparationError)row.message+=' — Latest refresh failed: '+row.preparationError;
+    draw();
+   }
+   progress.textContent=rows.length?`Delivery check finished: ${verified} of ${rows.length} latest packages verified.${failed?` ${failed} delivery checks failed.`:''}`:'No saved shipment lots to check.';
+  }catch(e){progress.textContent=e.message}finally{check.disabled=false;button.disabled=false}
+ };
  window.TT_FORM_VIEWPORT?.open(main);
 }
 
