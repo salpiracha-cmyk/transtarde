@@ -10,11 +10,15 @@ function ss_lots(array $root):array {
 }
 function ss_link(array $r,array $lot,array $candidateIds=[]):bool {
     foreach(['shipmentId','operationalShipmentId'] as $f)if(!empty($r[$f]))return $r[$f]===$lot['id'];
-    foreach(['candidateId','exportCandidateId','sourceCandidateId'] as $f)if(!empty($r[$f])&&in_array($r[$f],$candidateIds,true))return true;
+    foreach(['candidateId','exportCandidateId','sourceCandidateId','sourceLiabilityId','pakistanCandidateId'] as $f)if(!empty($r[$f])&&in_array($r[$f],$candidateIds,true))return true;
     if(($r['contractRef']??'')===$lot['contract']&&in_array((string)($r['lotRef']??''),[$lot['lot'],$lot['id']],true))return true;
     foreach(['invoiceRef','commercialInvoiceNo','actualBlNo','loadingProgrammeNo'] as $f){$expected=match($f){'invoiceRef','commercialInvoiceNo'=>$lot['invoice']??'','actualBlNo'=>$lot['bl']??'',default=>$lot['loadingProgramme']??''};if($expected!==''&&($r[$f]??'')===$expected&&(!isset($r['contractRef'])||$r['contractRef']===$lot['contract']))return true;}return false;
 }
 function ss_line(string $label,?float $usd,?float $pkr,float $mt,string $source,string $basis='Actual'):array {return ['label'=>$label,'usd'=>$usd===null?null:round($usd,2),'pkr'=>$pkr===null?null:round($pkr,2),'perMT'=>$pkr===null||$mt<=0?null:round($pkr/$mt,2),'source'=>$source,'basis'=>$basis];}
+function ss_expense_share(array $meta,array $lot,array $ids):float {
+    if(!empty($meta['liabilityAllocations'])){$all=0.;$matched=0.;foreach($meta['liabilityAllocations'] as $a){$amount=(float)($a['amountNative']??0);$all+=$amount;if(in_array($a['id']??$a['sourceLiabilityId']??'',$ids,true))$matched+=$amount;}return $all>0?$matched/$all:0.;}
+    return ss_link($meta,$lot,$ids)?1.:0.;
+}
 function ss_live_post(array $s,string $id,string $entity,string $date):array {$j=sp_posted_journal($s,$id,$entity,alv_hidden($s),sp_active_reversals($s,alv_hidden($s)));if(($j['date']??'')===''||$j['date']>$date)throw new DomainException('Post '.$id.' is outside the report date.');return $j;}
 /** Only original, allocated credit-advice slices determine realised FX and deductions. */
 function ss_realization(array $s,array $root,array $lot,array $ship,array $candidates,string $date,array $rates):array {
@@ -57,7 +61,7 @@ function ss_expenses(array $s,array $lot,array $candidates,string $date,array $r
     foreach((array)($s['supplierBills']??[]) as $b){if(!in_array($b['entity']??'',[ $lot['costEntity'],$lot['seller']],true)||alv_record_hidden($b,$hidden)||($b['billDate']??'')>$date)continue;$record=(array)($b['sourceRecord']??[]);$parts=(array)($record['shipmentSections']??$record['lines']??[]);$amount=0.;$matched=false;
         if($parts){foreach($parts as $part)if(ss_link($part,$lot,$ids)){$amount+=(float)($part['amount']??0);$matched=true;}}elseif(ss_link($record,$lot,$ids)||ss_link($b,$lot,$ids)){$amount=(float)($b['supplierPayableTotal']??0);$matched=true;}
         if(!$matched)continue;$posts=(array)($b['postingJournalIds']??(!empty($b['journalId'])?[$b['journalId']]:[]));
-        try{sp_bill_evidence($s,$b,$b['entity']);foreach($posts as $pid){$j=$s['journals'][$pid]??[];if(($j['date']??'')>$date)throw new DomainException('Bill '.$b['id'].' has a later amendment; historical allocation requires review.');$used[$pid]=true;}}catch(DomainException $e){$holds[]=$e->getMessage();continue;}
+        try{sp_bill_evidence($s,$b,$b['entity']);foreach($posts as $pid){$j=$s['journals'][$pid]??[];if(empty($b['billDate'])||empty($j['date'])||$j['date']>$date)throw new DomainException('Bill '.$b['id'].' has an undated or later posting; historical allocation requires review.');$used[$pid]=true;}}catch(DomainException $e){$holds[]=$e->getMessage();continue;}
         if($parts&&count($parts)===1)$amount=(float)$b['supplierPayableTotal'];elseif($parts&&abs(array_sum(array_column($parts,'amount'))-(float)$b['supplierPayableTotal'])>.005)$holds[]='Bill '.$b['id'].' has an unallocated invoice adjustment.';
         $cur=$b['entity']==='TG'?'AED':'PKR';$fx=$cur==='PKR'?1:($rates[$cur]??null);if(!$fx)$holds[]='TG expense '.$b['id'].' needs AED/PKR conversion.';
         $rows[]=ss_line(ucfirst(strtolower($b['category']??'Shipment expense')).' · '.($b['vendor']??$b['supplier']??$b['id']),null,$fx?-$amount*$fx:null,$mt,implode(', ',$posts),$cur==='PKR'?'Posted bill':'Posted AED bill / saved report FX');
@@ -68,13 +72,13 @@ function ss_expenses(array $s,array $lot,array $candidates,string $date,array $r
         if($shared['holds']){$holds=array_merge($holds,$shared['holds']);continue;}
         $used[$a['postId']]=true;$rows[]=ss_line('Allocated '.strtolower($a['category']).' expense',null,-(float)$a['amountPKR'],$mt,$a['sourceId'].' · '.$a['postId'],'Original posted shared cost / explicit allocation');
     }
-    foreach((array)($s['journals']??[]) as $id=>$j){if(isset($used[$id])||!in_array($j['entity']??'',[$lot['costEntity'],$lot['seller']],true)||($j['date']??'')>$date||isset($hidden[$id])||!ss_link((array)($j['meta']??[]),$lot,$ids))continue;
+    foreach((array)($s['journals']??[]) as $id=>$j){$share=ss_expense_share((array)($j['meta']??[]),$lot,$ids);if(isset($used[$id])||!in_array($j['entity']??'',[$lot['costEntity'],$lot['seller']],true)||($j['date']??'')>$date||isset($hidden[$id])||$share<=0)continue;
         // Credit-advice charges and goods costs have their own workings above/below.
         if(in_array($j['sourceType']??'',['EXPORT_FOREIGN_RECEIPT','EXPORT_REALIZATION_BANK_DEBITS','EXPORT_COGS','TG_INTERCOMPANY_PAYABLE_RECOGNIZED','EXPORT_SALE_RECOGNIZED','TG_INTERCOMPANY_PAKISTAN'],true))continue;
-        $cost=0.;foreach((array)($j['lines']??[]) as $l)if(preg_match('/^[567]/',(string)($l['account']??''))&&($l['account']??'')!=='5100')$cost+=(float)($l['debit']??0)-(float)($l['credit']??0);if(abs($cost)<.005)continue;
+        $cost=0.;foreach((array)($j['lines']??[]) as $l)if(preg_match('/^[567]/',(string)($l['account']??''))&&!in_array(($l['account']??''),['5100','7100'],true))$cost+=(float)($l['debit']??0)-(float)($l['credit']??0);if(abs($cost)<.005)continue;
         try{ss_live_post($s,(string)$id,$j['entity'],$date);}catch(DomainException $e){$holds[]=$e->getMessage();continue;}
         $cur=$j['entity']==='TG'?'AED':'PKR';$fx=$cur==='PKR'?1:($rates[$cur]??null);$native=(string)($j['meta']['nativeCurrency']??'');$usd=$native==='USD'&&isset($j['meta']['nativeAmount'])?(float)$j['meta']['nativeAmount']:null;
-        $rows[]=ss_line((string)($j['narration']??'Linked shipment expense'),$usd===null?null:-$usd,$fx?-$cost*$fx:null,$mt,(string)$id,$cur==='PKR'?'Posted':'Posted AED / saved report FX');if(!$fx)$holds[]='Post '.$id.' needs AED/PKR conversion.';
+        $rows[]=ss_line((string)($j['narration']??'Linked shipment expense'),$usd===null?null:-$usd*$share,$fx?-$cost*$fx*$share:null,$mt,(string)$id,($cur==='PKR'?'Posted':'Posted AED / saved report FX').($share<1?' / proportional invoice allocation':''));if(!$fx)$holds[]='Post '.$id.' needs AED/PKR conversion.';
     }
     return ['rows'=>$rows,'totalPKR'=>br_sum($rows,'pkr'),'holds'=>$holds];
 }
@@ -96,7 +100,11 @@ function ss_contract_goods(array $s,array $ops,array $lot,string $date,float $mt
     return ['amountPKR'=>$amount,'source'=>implode(', ',array_column($group['runs'],'id')),'basis'=>$cost['status'],'finishedKg'=>$qty,'rawKg'=>$group['inputKg']*$scale,'recoveryPct'=>$group['readyKg']/$group['inputKg']*100,'rawRate'=>$cost['rawAverageCostPerKg'],'rawValue'=>$cost['rawValue']*$scale,'millingValue'=>$cost['fixedOverheadValue']*$scale,'processingValue'=>$cost['conversionValue']*$scale,'byproductValue'=>$cost['byProductValue']*$scale,'byproducts'=>$by,'costPerKg'=>$qty>0?$amount/$qty:null,'costPerMT'=>$mt>0?$amount/$mt:null,'millingLabel'=>'Allocated fixed mill overhead','processingLabel'=>'Recorded conversion costs / labelled management fallback'];
 }
 function ss_goods(array $s,array $ops,array $lot,array $candidates,string $date,string $costingId):array {
-    $mt=(float)$lot['quantityMT'];$externalMT=0.;foreach((array)($s['exporterDeals']??[]) as $d)if(($d['entity']??'')===$lot['costEntity']&&($d['direction']??'')==='PURCHASE')foreach((array)($d['loadings']??[]) as $l)if(($l['shipmentId']??'')===$lot['id']&&($l['date']??'')<=$date)$externalMT+=(float)$l['quantityMT'];
+    $mt=(float)$lot['quantityMT'];$externalMT=0.;foreach((array)($s['exporterDeals']??[]) as $d){
+        if(($d['entity']??'')!==$lot['costEntity']||($d['direction']??'')!=='PURCHASE')continue;$relevant=false;
+        foreach((array)($d['loadings']??[]) as $l)if(($l['shipmentId']??'')===$lot['id']){if(empty($l['date'])||$l['date']>$date)throw new DomainException('External loading requires a verified date within this report.');$externalMT+=(float)$l['quantityMT'];$relevant=true;}
+        if($relevant)foreach((array)($d['settlementPosts']??[]) as $p)if(empty($p['date'])||$p['date']>$date)throw new DomainException('External settlement changed after this date; historical cost requires review.');
+    }
     if($externalMT>$mt+.000001)throw new DomainException('External loading exceeds shipment quantity.');
     $externalCost=0.;if($externalMT>0){$fellow=sp_fellow_costs($s,$lot['costEntity'],alv_hidden($s),sp_active_reversals($s,alv_hidden($s)));if($fellow['holds'])throw new DomainException(implode(' ', $fellow['holds']));foreach($fellow['rows'] as $r)if($r['external']&&$r['contractRef']===$lot['contract']&&$r['lotRef']===$lot['lot'])$externalCost+=$r['stockCost'];if($externalCost<=0)throw new DomainException('Posted external supplier cost needs the exact invoice allocation.');}
     $ownMT=max(0,$mt-$externalMT);$out=null;$cost=0.;$posts=[];
@@ -111,7 +119,7 @@ function ss_goods(array $s,array $ops,array $lot,array $candidates,string $date,
 }
 
 function ss_report(array $s,array $ops,array $root,string $date,string $id,bool $includeGoods,string $costingId,array $rates):array {
-    $lots=ss_lots($root);$choices=array_values(array_map(static fn($r)=>array_intersect_key($r,array_flip(['id','contract','lot','customer','seller','costEntity','quantityMT','invoice'])), $lots));
+    $lots=array_filter(ss_lots($root),static fn($r)=>($r['invoiceDate']??'')<=$date);$choices=array_values(array_map(static fn($r)=>array_intersect_key($r,array_flip(['id','contract','lot','customer','seller','costEntity','quantityMT','invoice'])), $lots));
     if($id==='')return ['shipments'=>$choices,'statement'=>null];if(!isset($lots[$id]))throw new DomainException('Shipment not found in accessible group sources.');$lot=$lots[$id];$ship=array_column($root['shipments'],null,'id')[$id];$candidates=[];
     foreach((array)($s['exportCandidates']??[]) as $cid=>$c)if(($c['sourceKey']??'')==='EXPORT|'.$id||ss_link((array)($c['meta']??[]),$lot))$candidates[$cid]=$c;
     if(($lot['invoiceDate']??'')>$date)throw new DomainException('This shipment invoice is later than the selected report date.');
