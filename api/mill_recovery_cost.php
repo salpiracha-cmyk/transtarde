@@ -15,7 +15,7 @@ function mr_cost_sources(array $accounts,array $ops,string $entity):array {
             $available=true;$basis='Calculated base cost — awaiting Accounts approval';$raw=(float)$g['rawCost']/max(.001,(float)$g['inputKg']);$conversion=(float)$g['conversionCost']/max(.001,(float)$g['inputKg']);$by=$g['byProducts'];
         }elseif(!$saved){
             $m=$management[$g['date'].'|'.$g['varietyKey']]??null;
-            if($m&&!empty($m['ready'])){$available=true;$basis='Management estimate — '.$m['rawRiceRateSource'].'; processing: '.$m['millingRateSource'].'; final Accounts cost pending';$status='Estimate';$raw=(float)$m['rawRiceRate'];$conversion=(float)$m['millingRatePerKg'];$by=array_map(static fn($b)=>['product'=>$b['product'],'costPerKg'=>$b['rate'],'value'=>$b['value'],'kg'=>$b['kg']],$m['byProducts']);}
+            if($m&&!empty($m['ready'])){$available=true;$basis='Management estimate — '.$m['rawRiceRateSource'].'; milling: '.$m['millingRateSource'].'; final Accounts cost pending';$status='Estimate';$raw=(float)$m['rawRiceRate'];$conversion=(float)$m['millingRatePerKg']+(float)($m['processingRatePerKg']??0);$by=array_map(static fn($b)=>['product'=>$b['product'],'costPerKg'=>$b['rate'],'value'=>$b['value'],'kg'=>$b['kg']],$m['byProducts']);}
         }
         $rates=[];foreach($by as $b){$rate=$b['costPerKg']??null;if($rate!==null&&($b['kg']??0)>0&&isset($b['value']))$rate=(float)$b['value']/(float)$b['kg'];$rates[(string)($b['product']??'')]=$rate;}
         foreach($g['runIds'] as $id)$map[(string)$id]=['available'=>$available,'basis'=>$basis,'status'=>$status,'groupId'=>$g['id'],'rawRate'=>$raw,'conversionRate'=>$conversion,'fixedReadyRate'=>$fixed,'byProductRates'=>$rates,'rateId'=>$saved['rateId']??null];

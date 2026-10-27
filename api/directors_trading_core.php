@@ -32,12 +32,18 @@ function dt_finance(array $s,string $entity,array $i):array {
     }else{$balanceDays=gm_number($i['principalPKR']??null,'principal financed')*$days;$label='Entered principal estimate';}
     return ['costPKR'=>round($balanceDays*$rate/$basis+$fees,4),'days'=>$days,'basis'=>$label,'balanceDaysPKR'=>$balanceDays];
 }
+/** A fixed period budget is spread over actual/reviewed input kg, never output kg. */
+function dt_milling_rate(array $i):float {
+    $basis=dt_enum($i['millingCostBasis']??'PER_KG',['PER_KG','TOTAL_INPUT'],'milling cost basis');
+    if($basis==='TOTAL_INPUT')return gm_number($i['millingTotalPKR']??null,'total milling budget')/dt_positive($i['millingInputKg']??null,'milling input kilograms');
+    return gm_number($i['millingPKRPerKg']??0,'milling charge');
+}
 function dt_cost(array $s,string $entity,array $i):array {
     if(!is_array($i['outputs']??null)||!array_is_list($i['outputs'])||count($i['outputs'])>40)throw new DomainException('Invalid costing output rows.');$date=gm_date($i['date']??'');$fx=dt_positive($i['fx']??null,'USD/PKR rate');$rule=($i['useDatedRule']??true)?dt_rules($s,$entity,$date):null;
     $wht=gm_number($rule['whtPct']??$i['whtPct']??null,'WHT assumption')/100;$bank=gm_number($rule['bankPct']??$i['bankPct']??null,'bank deduction assumption')/100;if($wht+$bank>=1)throw new DomainException('Total deductions must be below 100%.');$netFX=$fx*(1-$wht-$bank);
     $commodity=dt_enum($i['commodity']??'RICE',['RICE','CORN'],'Rice or Maize');$factor=match(dt_enum($i['purchaseUnit']??'KG',['KG','MAUND','MT'],'purchase unit')){'KG'=>1000.,'MAUND'=>25.,'MT'=>1.};
     $raw=gm_number($i['cashPrice']??null,'cash purchase price')*$factor;$credit=isset($i['creditPrice'])&&$i['creditPrice']!==''?gm_number($i['creditPrice'],'udhaar purchase price')*$factor:null;
-    $mill=gm_number($i['millingPKRPerKg']??0,'milling charge')*1000;if($commodity==='CORN'&&$mill>0)throw new DomainException('Maize has no rice milling charge.');$sum=0.;$recovery=0.;$byvalue=0.;$names=[];
+    $mill=dt_milling_rate($i)*1000;$processing=gm_number($i['processingPKRPerKg']??0,'separate processing charge')*1000;if($commodity==='CORN'&&$mill>0)throw new DomainException('Maize has no rice milling charge.');$sum=0.;$recovery=0.;$byvalue=0.;$names=[];
     foreach((array)($i['outputs']??[]) as $r){$name=gm_text($r['product']??'',80);if($name===''||isset($names[strtoupper($name)]))throw new DomainException('Use unique output names.');$names[strtoupper($name)]=true;$yield=gm_number($r['recoveryPct']??null,'output recovery');$sum+=$yield;$kind=dt_enum($r['kind']??'',['finished','byproduct','waste'],'output kind');
         if($kind==='finished')$recovery+=$yield/100;elseif($kind==='byproduct'&&$yield>0){if($commodity==='CORN')throw new DomainException('Direct-loading maize has no milling by-products.');$byvalue+=10*$yield*gm_number($r['ratePKRPerKg']??null,$name.' price');}elseif($kind==='waste'&&(float)($r['ratePKRPerKg']??0)!==0.)throw new DomainException('Loss has no sale value.');
     }if(abs($sum-100)>.00001||$recovery<=0)throw new DomainException('Finished output, by-products and loss must total 100%.');
@@ -46,8 +52,8 @@ function dt_cost(array $s,string $entity,array $i):array {
     $thc=gm_number($i['thcUSDPerMT']??0,'THC');$freight=$basis==='FOB'?0:gm_number($i['freightUSDPerContainer']??null,'freight per container')/dt_positive($i['payloadMT']??null,'container payload');$insurance=$basis==='CIF'?gm_number($i['insuranceUSDPerMT']??null,'insurance'):0;
     $otherUSD+=!empty($i['masterBagEnabled'])?gm_number($i['masterBagUSDPerMT']??null,'master bag addition per MT'):0;
     $finance=dt_finance($s,$entity,(array)($i['finance']??[]));$out=[];
-    foreach(['cash'=>$raw,'udhaar'=>$credit,'financedCash'=>$raw] as $k=>$purchase){if($purchase===null){$out[$k]=null;continue;}$material=($purchase+$mill-$byvalue)/$recovery;if($material<0)throw new DomainException('By-product credit exceeds purchase and milling cost.');$funding=$k==='financedCash'?$finance['costPKR']/$qty:0;$cost=($material+$otherPKR+$funding)/$netFX+$otherUSD+$thc+$freight+$insurance;if($cost<0)throw new DomainException('Review the packing adjustment.');$out[$k]=['materialPKRPerMT'=>round($material,4),'financingPKRPerMT'=>round($funding,4),'costUSDPerMT'=>round($cost,4),'costPKRPerMT'=>round($cost*$fx,4),'shipmentUSD'=>round($cost*$qty,2)];}
-    return ['date'=>$date,'effectiveFX'=>$netFX,'finishedRecoveryPct'=>$recovery*100,'byproductCreditPKRPerInputMT'=>$byvalue,'finance'=>$finance,'costs'=>$out,'ruleId'=>$rule['id']??'Entered assumptions','basis'=>'Cost only; entered rates and dated rule snapshot. No accounting posting.'];
+    foreach(['cash'=>$raw,'udhaar'=>$credit,'financedCash'=>$raw] as $k=>$purchase){if($purchase===null){$out[$k]=null;continue;}$material=($purchase+$mill+$processing-$byvalue)/$recovery;if($material<0)throw new DomainException('By-product credit exceeds purchase and milling cost.');$funding=$k==='financedCash'?$finance['costPKR']/$qty:0;$cost=($material+$otherPKR+$funding)/$netFX+$otherUSD+$thc+$freight+$insurance;if($cost<0)throw new DomainException('Review the packing adjustment.');$out[$k]=['materialPKRPerMT'=>round($material,4),'financingPKRPerMT'=>round($funding,4),'costUSDPerMT'=>round($cost,4),'costPKRPerMT'=>round($cost*$fx,4),'shipmentUSD'=>round($cost*$qty,2)];}
+    return ['date'=>$date,'effectiveFX'=>$netFX,'finishedRecoveryPct'=>$recovery*100,'millingPKRPerInputKg'=>$mill/1000,'processingPKRPerInputKg'=>$processing/1000,'byproductCreditPKRPerInputMT'=>$byvalue,'finance'=>$finance,'costs'=>$out,'ruleId'=>$rule['id']??'Entered assumptions','basis'=>'Cost only; entered rates and dated rule snapshot. No accounting posting.'];
 }
 function dt_lots(array $root,string $entity):array {
     $out=[];$contracts=array_column((array)($root['contracts']??[]),null,'ref');

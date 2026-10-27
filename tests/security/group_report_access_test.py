@@ -35,6 +35,15 @@ stream_wrapper_unregister('php');stream_wrapper_register('php',FixtureGroupInput
  for u,visible in [(director,True),(user(entities,{'reports':['View']}),False)]:
   status,html=request(u,'directors/index.php',origin='directors');assert status==200,(status,html);assert ('Stock &amp; Commitments' in html)==visible;assert ('<h3>Cash Flow</h3>' in html)==visible
   status,html=request(u,'accounts/cash-flow.php',origin='directors');assert (status==200)==visible,(status,html)
+ # Read-only business reports share the exact group permission and original sources.
+ for u,origin,visible in [(viewer,'accounts',True),(limited,'accounts',False),(wrong,'accounts',False),(director,'directors',True),(user(role='Super Admin'),'accounts',True)]:
+  status,text=request(u,'api/business_reports.php',origin=origin);assert (status==200)==visible,(status,text)
+  if visible: assert json.loads(text)['ok'] is True
+  else: assert 'GROUP_PRIVATE_SENTINEL' not in text
+  status,html=request(u,'accounts/business-reports.php',origin=origin);assert (status==200)==visible,(status,html)
+ assert request(user(role='Super Admin'),'api/business_reports.php',body={})[0] in (403,405)
+ assert (books.read_bytes(),ops.read_bytes())==before,'Business reports changed canonical source records'
+ prior=ops.read_bytes();ops.write_text('{invalid');status,text=request(viewer,'api/business_reports.php');assert status in (422,500) and not json.loads(text)['ok'];assert ops.read_text()=='{invalid';ops.write_bytes(prior)
  # Annual Zakat has its own exact icon, native links, all-company scope and focused form.
  for u,origin,visible in [(user({**entities,'zakat':['View']}),'accounts',True),(user({'entity-tti':['View'],'zakat':['View']}),'accounts',False),(viewer,'accounts',False),(user(entities,{'zakat':['View']}),'directors',True),(director,'directors',False)]:
   status,text=request(u,kind='ZAKAT',origin=origin);assert (status==200)==visible,(status,text)

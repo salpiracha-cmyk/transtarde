@@ -134,6 +134,7 @@ jobs:
           node tests/accounts-v1/linkage_regressions_test.js
           php tests/accounts-v1/customer_receivables_test.php
           php tests/accounts-v1/fi_credit_advice_link_test.php
+          php tests/accounts-v1/business_reports_test.php
           python3 tests/accounts-v1/fi_credit_advice_http_test.py
           php tests/accounts-v1/tg_receipt_mirror_test.php
           python3 tests/accounts-v1/tg_customer_receipts_http_test.py
@@ -167,6 +168,7 @@ jobs:
           python3 tests/accounts-v1/post_cancel_preview_test.py
           php tests/accounts-v1/bank_payment_tracking_test.php
           php tests/accounts-v1/fi_credit_advice_link_test.php
+          php tests/accounts-v1/business_reports_test.php
           python3 tests/accounts-v1/fi_credit_advice_http_test.py
           php tests/accounts-v1/freight_metadata_test.php
           python3 tests/accounts-v1/ready_rice_bill_http_test.py
@@ -369,6 +371,7 @@ jobs:
           node tests/accounts-v1/directors_trading_ui_test.js
           node tests/accounts-v1/director_simple_costing_test.js
           node tests/accounts-v1/director_cashflow_output_test.js
+          node tests/accounts-v1/business_reports_browser_test.js
           node tests/accounts-v1/group_management_ui_test.js
           node tests/accounts-v1/group_daily_ui_test.js
           node tests/accounts-v1/withholding_ui_test.js
