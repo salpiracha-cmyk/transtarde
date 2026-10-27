@@ -419,6 +419,7 @@ function operations_merge_export(string $currentJson, string $incomingJson, stri
             $contract = $contracts[$contractId] ?? null;
             if ($id === '' || !$contract || (string)($marker['contractRef'] ?? '') !== (string)($contract['ref'] ?? '') || trim((string)($marker['reason'] ?? '')) === '' || !strtotime((string)($marker['cancelledAt'] ?? ''))) throw new DomainException('Cancellation requires a saved contract, date and reason.');
             if ($actor && !tt_user_business_entity($actor, (string)($contract['seller'] ?? 'TTI'), 'View')) throw new DomainException('This contract is outside your company access.');
+            if ($actor && (string)($marker['cancelledBy'] ?? '') !== (string)($actor['full_name'] ?? $actor['username'] ?? 'User')) throw new DomainException('The cancellation actor must match the signed-in user.');
             $ref = (string)$contract['ref'];$processIds = [];
             foreach (array_merge((array)($current['shipments'] ?? []), (array)($incoming['shipments'] ?? [])) as $shipment) {
                 if (!is_array($shipment) || ($shipment['contractRef'] ?? '') !== $ref) continue;

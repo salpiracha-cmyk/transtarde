@@ -97,6 +97,7 @@ if($argv[1]==='seed'){
     cancelled=copy.deepcopy(cancellable);cancelled['contracts']=[]
     marker={'id':'CC1','contractId':'C1','contractRef':'TTI/BUYER/01','seller':'TTI','reason':'Wrong draft','cancelledAt':'2026-10-27T12:00:00Z','cancelledBy':'Fixture','processIds':[]}
     cancelled['cancelledContracts']=[marker]
+    cancelled['audits']=[{'id':'AUD-CANCEL','at':'2026-10-27T12:00:00Z','user':'Fixture','area':'Sales Contract','action':'Cancelled and removed; reference released','detail':'TTI/BUYER/01 · Wrong draft','contractRef':'TTI/BUYER/01'}]
     put_base(cancellable,{'contracts':['View']});save_root(cancelled,403)
     put_base(cancellable,{'contracts':['View','Edit']});save_root(cancelled)
     status,data=request('operations.mysql',{},'',method='GET');reloaded=json.loads(data['values'][key]);assert status==200 and reloaded['contracts']==[] and reloaded['cancelledContracts'][0]['reason']=='Wrong draft'
