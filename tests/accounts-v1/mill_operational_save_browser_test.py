@@ -40,8 +40,8 @@ def run():
         server=subprocess.Popen(['php','-d',f'session.save_path={sessions}','-S',f'127.0.0.1:{port}','-t',str(app)],env=env,stdout=log,stderr=log)
         time.sleep(.3)
         with sync_playwright() as pw:
-            browser=pw.chromium.launch(headless=True);context=browser.new_context(accept_downloads=True);mill=context.new_page();errors=[]
-            mill.on('pageerror',lambda e:errors.append(str(e)));mill.on('dialog',lambda d:d.accept())
+            browser=pw.chromium.launch(headless=True);context=browser.new_context(accept_downloads=True);mill=context.new_page();errors=[];dialogs=[]
+            mill.on('pageerror',lambda e:errors.append(str(e)));mill.on('dialog',lambda d:(dialogs.append(d.message),d.accept()))
             mill.goto(base+'/login.php');mill.locator('[name="username"]').fill('qaowner');mill.locator('[name="password"]').fill(credentials['password']);mill.locator('button[type="submit"]').click();mill.wait_for_load_state('domcontentloaded')
             mill.goto(base+'/module.php?id=milling');mill.locator('.mill-card[onclick="chooseMill(1)"]').click()
             original_books=books.read_bytes();posts=[];blocked=[True]
@@ -83,7 +83,10 @@ def run():
             local.locator('[onclick="tab(\'l\')"]').click();local.locator('#truck').fill('QA-202');local.locator('#loadKg').fill('1000');local.locator('#loadBags').fill('20');local.locator('[onclick="saveLoad()"]').click();mill.wait_for_function("document.querySelector('#partySaleWrap iframe').contentDocument.querySelector('#loadKg').value === ''")
             op=context.request.get(base+'/api/operations.mysql.php').json();sales=json.loads(op['values']['tt35localsales']);assert len(sales[0]['loads'])==1 and sales[0]['loads'][0]['bridgeId']
             with context.expect_page() as printed:local.get_by_role('button',name='Print Gate Pass',exact=True).click()
-            popup=printed.value;popup.locator('body').filter(has_text='Fixture local buyer').wait_for();assert 'Fixture local buyer' in popup.locator('body').inner_text();assert '1,000' in popup.locator('body').inner_text();assert 'Fixture local buyer' in popup.title() and not re.search(r'\d{4}-\d{2}-\d{2}',popup.locator('body').inner_text());popup.close()
+            popup=printed.value;
+            try:popup.locator('body').filter(has_text='Fixture local buyer').wait_for()
+            except Exception:raise AssertionError({'dialogs':dialogs,'errors':errors})
+            assert 'Fixture local buyer' in popup.locator('body').inner_text();assert '1,000' in popup.locator('body').inner_text();assert 'Fixture local buyer' in popup.title() and not re.search(r'\d{4}-\d{2}-\d{2}',popup.locator('body').inner_text());popup.close()
             local.locator('[onclick="closeMill()"]').click();local.locator('#activeBody').filter(has_text='Closed by Mill').wait_for()
             mill.reload();mill.locator('.mill-card[onclick="chooseMill(1)"]').click();mill.evaluate("openPanel('local')");local=mill.frame_locator('#partySaleWrap iframe');local.locator('#activeBody').filter(has_text='Closed by Mill').wait_for()
             mill.evaluate("openPanel('local');saleType('exporter')")
@@ -91,6 +94,8 @@ def run():
             mill.locator('[onclick="saveExporterSale()"]').click();mill.locator('#savedExporterSales').filter(has_text='Fixture fellow exporter').wait_for()
             mill.locator('#exTruck').fill('QA-303');mill.locator('#exBags').fill('10');mill.locator('#exGross').fill('501');mill.locator('[onclick="addExporterContainer()"]').click();mill.wait_for_function("document.querySelector('#exTruck').value === ''")
             op=context.request.get(base+'/api/operations.mysql.php').json();exporter=json.loads(op['values']['tt35exportersale']);assert len(exporter)==1 and len(exporter[0]['containers'])==1 and exporter[0]['containers'][0]['net']==500
+            with context.expect_page() as printed:mill.locator('#exContainerTable').get_by_role('button',name='Print Gate Pass',exact=True).click()
+            popup=printed.value;popup.locator('.serial').filter(has_text='GP-000002').wait_for();body=popup.locator('body').inner_text().lower();assert 'local sale to exporter gate pass' in body and 'fixture fellow exporter' in body,body;assert popup.locator('.pass').evaluate('e=>e.getBoundingClientRect().height*25.4/96')<140;popup.close()
             mill.locator('[onclick="closeExporterSale()"]').click();mill.locator('#savedExporterSales').filter(has_text='Closed').wait_for()
             mill.reload();mill.locator('.mill-card[onclick="chooseMill(1)"]').click();mill.evaluate("openPanel('local');saleType('exporter')");mill.locator('#savedExporterSales').filter(has_text='Closed').wait_for()
             # PALTAI commits the physical source and labour together, then a lost acknowledgement replays once.
@@ -117,10 +122,15 @@ def run():
             mill.locator('#savePohanchButton').click();mill.locator('#pohanchFeedback').filter(has_text='Pohanch saved').wait_for()
             op=context.request.get(base+'/api/operations.mysql.php').json();slips=json.loads(op['values']['tt30slips']);assert len(slips)==1 and slips[0]['payableWeight']==990
             with context.expect_page() as printed:mill.get_by_role('button',name='Print Pohanch',exact=True).first.click()
-            popup=printed.value;body=popup.locator('body').inner_text();assert '990 kg' in body and re.search(r'\d{2}-\d{2}-\d{4}',body) and not re.search(r'\d{4}-\d{2}-\d{2}',body);popup.close()
-            # Exercise the runtime print wrapper, which previously mislabeled net weight as weighbridge weight.
-            with context.expect_page() as printed:mill.evaluate("printGate({container:'MSCU123456-6',weight:26950,weighbridgeKg:27000,packingKg:50,bags:1000,gate:'FIXTURE-GP'},{brand:'Fixture'})")
-            popup=printed.value;body=popup.locator('body').inner_text();assert 'Mill Weighbridge Weight: 27000 kg' in body and 'Net Commodity Weight: 26950 kg' in body and 'Packing deduction: 50 kg' in body;assert popup.title();popup.close()
+            popup=printed.value;popup.locator('.pohanch').wait_for();assert popup.locator('.pohanch').evaluate('e=>e.getBoundingClientRect().height*25.4/96')<140;body=popup.locator('body').inner_text();assert '990 kg' in body and re.search(r'\d{2}-\d{2}-\d{4}',body) and not re.search(r'\d{4}-\d{2}-\d{2}',body);popup.close()
+            # The authenticated native print uses committed loading and the shared half-A4 template.
+            container={'id':'QA-GATE-LOAD','container':'MSCU123456-6','seal':'QA-SEAL','truck':'QA-404','date':'2026-10-27','weight':26950,'weighbridgeKg':27000,'packingKg':50,'bags':1000,'gate':'FIXTURE-GP','loadingComplete':True}
+            shipment={'id':'QA-GATE-SHIP','entity':'TTI','millName':'TTI Rice Mills','brand':'Fixture','contractRef':'QA-CONTRACT','lotRef':'QA-LOT','brokenPct':5,'containers':[container]}
+            operations=json.loads((data/'operations.json').read_text());operations['values']['tt30ship']=json.dumps([shipment]);(data/'operations.json').write_text(json.dumps(operations))
+            with context.expect_page() as printed:mill.evaluate("s=>printGate(s.containers[0],s)",shipment)
+            popup=printed.value;popup.locator('.pass').wait_for();body=popup.locator('body').inner_text();assert 'Weighbridge weight (kg)' in body and '27,000' in body and '26,950' in body and 'Packing deduction (kg)' in body and '50' in body;assert '5% BROKEN' in body and 'QA-LOT' in body and 'GP-000003' in body;assert popup.title();assert popup.locator('.pass').evaluate('e=>e.getBoundingClientRect().height*25.4/96')<140;popup.close()
+            with context.expect_page() as printed:mill.evaluate("s=>printGate(s.containers[0],s)",shipment)
+            popup=printed.value;popup.locator('.serial').filter(has_text='GP-000003').wait_for();popup.close()
             assert not errors,errors
             browser.close()
         print('PASS native Used Bags failure/retry/reload, operational petty expense, arrival and duplicate-request persistence, Local Sales save/payment/load/printed gate/close/reload, exporter close/reload, atomic PALTAI lost-ack replay, native Pohanch retry and print weights/dates; fixture only')

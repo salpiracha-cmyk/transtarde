@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 function tt_user_can_open_module($u,$m){return $u['allowed']??true;}
-function tt_user_can_module_action($u,$m,$i,$a){return $u['print']??true;}
+function tt_user_can_module_action($u,$m,$i,$a){return $a==='View'&&($u['print']??true);}
 function tt_user_business_entity($u,$e,$a){return ($u['entity']??$e)===$e;}
 require dirname(__DIR__,2).'/api/mill_gate_pass_core.php';
 function check($b,$m){if(!$b)throw new RuntimeException($m);}

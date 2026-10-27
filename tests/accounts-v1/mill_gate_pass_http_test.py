@@ -7,9 +7,9 @@ with tempfile.TemporaryDirectory(prefix='mill-gate-http-') as tmp:
  (root/'auth_store.php').write_text('''<?php
  // This file-backed fixture must not inherit the CI MySQL service.
  define('TT_DB_HOST','');define('TT_DB_NAME','');define('TT_DB_USER','');
- define('TT_DATA_DIR',__DIR__.'/data');function tt_release_read_session(){}function tt_ensure_data_dir(){}
+ define('TT_DATA_DIR',__DIR__.'/data');function tt_release_read_session(){throw new LogicException('Read-session release is not valid for POST issuance.');}function tt_ensure_data_dir(){}
  function tt_require_login(){return ['role'=>'Staff','username'=>'qa','location'=>$_SERVER['HTTP_X_LOCATION']??'TTI Rice Mills','entity'=>$_SERVER['HTTP_X_ENTITY']??'TTI'];}
- function tt_user_can_open_module($u,$m){return true;}function tt_user_can_module_action($u,$m,$i,$a){return ($_SERVER['HTTP_X_PRINT']??'yes')==='yes';}
+ function tt_user_can_open_module($u,$m){return true;}function tt_user_can_module_action($u,$m,$i,$a){return $a==='View'&&($_SERVER['HTTP_X_PRINT']??'yes')==='yes';}
  function tt_user_business_entity($u,$e,$a){return $u['entity']===$e;}function tt_verify_csrf($s){return $s==='test';}
  ''')
  ship={'id':1,'entity':'TTI','millName':'TTI Rice Mills','containers':[{'id':2,'container':'FBIU012323-5','truck':'TR-1','seal':'S1','weight':25000,'loadingComplete':True}]}
@@ -43,5 +43,5 @@ with tempfile.TemporaryDirectory(prefix='mill-gate-http-') as tmp:
   with concurrent.futures.ThreadPoolExecutor(max_workers=8) as pool:serials=list(pool.map(issue,range(24)))
   assert len(set(serials))==6 and set(serials)=={f'GP-{i:06d}' for i in range(1,7)}
   for i in range(6):assert len({serials[k] for k in range(i,24,6)})==1
-  print('PASS gate HTTP: CSRF, module Print/company/location scope, saved-source-only output, stable reprints, no operational mutations, and 24 concurrent requests / 6 unique serials')
+  print('PASS gate HTTP: CSRF, loading View/company/location scope, saved-source-only output, stable reprints, no operational mutations, and 24 concurrent requests / 6 unique serials')
  finally:server.terminate();server.wait(timeout=5);log.close()
