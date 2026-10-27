@@ -14,8 +14,8 @@ with tempfile.TemporaryDirectory(prefix='cash-projection-') as directory:
     # Unlabelled legacy office opening; transfers retain both control-account legs.
     post('OPEN',[cash(100000),dict(account='3100',credit=100000,debit=0)])
     post('STAFF',[cash(-5000,cashAccountId='CASH|TTI'),cash(2000,cashAccountId='CASH|TTI|STAFF|H'),cash(3000,paymentAccountId='CASH|TTI|STAFF|B')])
-    post('MILL',[cash(-10000),cash(10000,millLocationId='M1',millLocationName='Fixture Mill')])
-    post('SPEND',[cash(-27820),dict(account='6900',debit=27820,credit=0)],date='2026-10-01')
+    post('MILL',[cash(-10000),cash(10000,millLocationId='M1',millName='Fixture Mill')])
+    post('SPEND',[cash(-27820),dict(account='6900',debit=27820,credit=0)],date='2026-10-01',meta={'payee':'Household spending','expenseFor':'SALMAN'})
     post('MILL-OPEN',[cash(81100,millLocationId='M1'),dict(account='3100',credit=81100,debit=0)])
     # Proven amendment pair cancels on the original date in report copies.
     post('OLD',[cash(-100),dict(account='6900',debit=100,credit=0)],date='2026-09-01',amendedByPostId='NEW',reversedByPostId='REV')
@@ -56,7 +56,10 @@ with tempfile.TemporaryDirectory(prefix='cash-projection-') as directory:
         assert all(r['account']=='CASH|TTI' and r['accountName']=='Office Petty Cash' for r in office['rows'])
         assert ledger('CASH|TTI|STAFF|H')['closing']==2000
         assert ledger('CASH|TTI|STAFF|B')['closing']==3000 # inactive holders retain custody
-        assert ledger('CASH|TTI|MILL|M1')['closing']==91100
+        mill=ledger('CASH|TTI|MILL|M1');assert mill['closing']==91100
+        assert next(r['name'] for r in mill['accounts'] if r['code']=='CASH|TTI|MILL|M1')=='Mill Petty Cash · Fixture Mill'
+        assert ledger('6900',category='other')['closing']==27820 # household spending stays expense
+        assert not any('HOME' in r['code'] for r in office['accounts'] if r['code'].startswith('CASH|'))
         control=ledger('1120');assert control['closing']==153280,control
         assert next(r['name'] for r in control['accounts'] if r['code']=='1120')=='All Cash · Office, Staff and Mills'
         historical=ledger('CASH|TTI',**{'from':'2026-10-01','to':'2026-10-27'})

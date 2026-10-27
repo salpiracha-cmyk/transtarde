@@ -11,6 +11,7 @@ Read-only live Chrome review of TTI showed Office Petty Cash at PKR 57,180, cash
 - Use the existing office/staff/mill cash identity convention in a shared read helper. Unlabelled historical cash remains office cash; mill location and staff identities remain distinct.
 - Home and the bank cash card explicitly show Office Petty Cash and its balance. The office payment-planning choice uses only office cash.
 - The cash card opens `CASH|TTI` (or the selected company's office identity). All Ledgers supports office, staff and mill custody ledgers with date/opening/running balances, print and Excel. Inactive holders retain their history. The 1120 combined control remains available and is explicitly labelled All Cash · Office, Staff and Mills.
+- Household spending remains an expense paid from its actual cash source. No household petty-cash account is created; “Home” above means the Accounts landing screen.
 - Preserve company/workflow permissions, journal source identity, correction/reversal projection, the general cash control total and functional currency. No adjustment, migration or journal rewrite is included.
 
 ## Verification before PR

@@ -155,7 +155,7 @@ if($entity!=='ALL'){
         foreach((array)($journal['lines']??[]) as $line){
             if(!is_array($line)||(string)($line['account']??'')!=='1120')continue;
             $id=alv_cash_id($line,$entity);if(isset($catalog[$id]))continue;
-            $catalog[$id]=!empty($line['millLocationId'])?'Mill Petty Cash · '.(string)($line['millLocationName']??$line['millLocationId']):(string)($line['cashAccountName']??$line['subledger']??$id);
+            $catalog[$id]=!empty($line['millLocationId'])?'Mill Petty Cash · '.(string)($line['millName']??$line['millLocationName']??$line['millLocationId']):(string)($line['cashAccountName']??$line['subledger']??$id);
         }
     }
 }
