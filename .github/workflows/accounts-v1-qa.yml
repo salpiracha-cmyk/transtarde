@@ -198,6 +198,7 @@ jobs:
       - name: Private stock reconciliation rules
         run: |
           php tests/security/operations_ownership_test.php
+          php tests/accounts-v1/paltai_test.php
           php tests/accounts-v1/inventory_reconciliation_test.php
           php tests/accounts-v1/opening_stock_test.php
           php tests/accounts-v1/rice_ledger_test.php
@@ -299,6 +300,7 @@ jobs:
           node tests/accounts-v1/bag_receipts_ui_test.js
           node tests/accounts-v1/production_bag_allocation_ui_test.js
           node tests/accounts-v1/production_source_save_ui_test.js
+          node tests/accounts-v1/mill_action_save_test.js
           node tests/accounts-v1/mill_source_save_ui_test.js
           node tests/accounts-v1/mill_source_amend_ui_test.js
           node tests/accounts-v1/console_access_preservation_test.js
@@ -465,6 +467,7 @@ jobs:
           python3 tests/security/export_document_permissions_test.py
           "$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/inventory_reconciliation_http_test.py
           "$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/mill_source_handoff_browser_test.py
+          "$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/mill_operational_save_browser_test.py
           "$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/group_daily_browser_test.py
       - name: Bank entries, finance and subaccounts browser flow
         env:

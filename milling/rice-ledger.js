@@ -3,15 +3,16 @@
  'use strict';
  let sequence=0,committed=null;
  const el=id=>document.getElementById(id),esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+ const displayDate=v=>window.TT_DATE?.display(v)||v;
  const num=v=>Number(v||0).toLocaleString(undefined,{maximumFractionDigits:3});
  function filters(){return {entity:stockEntityForView(),mill:currentMill?.name||'',from:el('riceLedgerMode').value==='range'?el('ledgerFrom').value:'',to:el('ledgerTo').value,product:el('riceLedgerProduct').value,movement:el('riceLedgerMovement').value};}
  const key=f=>JSON.stringify(f);
  function table(d){
-  let out='<p>'+esc(d.scope.entity)+' · '+esc(d.scope.millName)+' · '+esc(d.filters.from||'Beginning')+' to '+esc(d.filters.to||'Latest')+' · '+esc(d.filters.movement)+' · '+esc(d.filters.product||'All products')+'</p><p>'+esc(d.note)+'</p>';
+  let out='<p>'+esc(d.scope.entity)+' · '+esc(d.scope.millName)+' · '+esc(displayDate(d.filters.from)||'Beginning')+' to '+esc(displayDate(d.filters.to)||'Latest')+' · '+esc(d.filters.movement)+' · '+esc(d.filters.product||'All products')+'</p><p>'+esc(d.note)+'</p>';
   out+='<table><thead><tr><th>Product</th><th>Opening Kg</th><th>Inward Kg</th><th>Outward Kg</th><th>Closing Kg</th><th>Status</th></tr></thead><tbody>';
   out+=d.summaries.map(s=>'<tr>'+[s.product,num(s.openingKg),num(s.inwardKg),num(s.outwardKg),num(s.closingKg),s.status].map(v=>'<td>'+esc(v)+'</td>').join('')+'</tr>').join('')||'<tr><td colspan="6">No stock movements recorded for this scope.</td></tr>';
   out+='</tbody></table><h4>Dated movements</h4><table><thead><tr><th>Date</th><th>Product</th><th>Movement</th><th>Inward Kg</th><th>Outward Kg</th><th>Product Balance Kg</th><th>Source / Basis</th></tr></thead><tbody>';
-  out+=d.rows.map(r=>'<tr>'+[r.date,r.product,r.kind,r.kg>0?num(r.kg):'—',r.kg<0?num(-r.kg):'—',num(r.balanceKg),r.source+' / '+r.sourceId+(r.part?' / part '+r.part:'')+' · '+r.basis+' · '+r.status].map(v=>'<td>'+esc(v)+'</td>').join('')+'</tr>').join('')||'<tr><td colspan="7">No dated movements match the filters.</td></tr>';
+  out+=d.rows.map(r=>'<tr>'+[displayDate(r.date),r.product,r.kind,r.kg>0?num(r.kg):'—',r.kg<0?num(-r.kg):'—',num(r.balanceKg),r.source+' / '+r.sourceId+(r.part?' / part '+r.part:'')+' · '+r.basis+' · '+r.status].map(v=>'<td>'+esc(v)+'</td>').join('')+'</tr>').join('')||'<tr><td colspan="7">No dated movements match the filters.</td></tr>';
   out+='</tbody></table>';
   if(d.undated.length)out+='<h4>Undated history — excluded from dated balances</h4><table><thead><tr><th>Product</th><th>Movement</th><th>Signed Kg</th><th>Source</th><th>Basis</th></tr></thead><tbody>'+d.undated.map(r=>'<tr>'+[r.product,r.kind,num(r.kg),r.source+' / '+r.sourceId+(r.part?' / part '+r.part:''),r.basis].map(v=>'<td>'+esc(v)+'</td>').join('')+'</tr>').join('')+'</tbody></table>';
   return out;

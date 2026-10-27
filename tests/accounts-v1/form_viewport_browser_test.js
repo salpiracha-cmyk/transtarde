@@ -41,6 +41,26 @@ const {chromium}=require('playwright');
    await page.waitForTimeout(150);
    assert.equal(await page.locator('.panel h2').evaluate(el=>el.getBoundingClientRect().top>=document.querySelector('.topbar').getBoundingClientRect().bottom+4),true,'new form heading stays below a header that becomes sticky during opening');
    assert.equal(await page.locator('#exportFirst').evaluate(el=>el.getBoundingClientRect().top>=74&&el.getBoundingClientRect().bottom<=innerHeight),true,'Exports first field remains visible');
+   // Render the actual Milling header CSS together with its authenticated wrapper.
+   // A fixed-height, non-wrapping header previously hid logout outside a phone viewport.
+   const milling=fs.readFileSync('milling/Transtrade_Master_Milling_V3_3_2_AUDITED.html','utf8');
+   const moduleSource=fs.readFileSync('module.php','utf8');
+   const millingStyles=[...milling.matchAll(/<style>([\s\S]*?)<\/style>/g)].map(x=>x[1]).join('\n');
+   const wrapperStyles=[...moduleSource.matchAll(/<style>([\s\S]*?)<\/style>/g)].map(x=>x[1]).join('\n');
+   await page.setContent(`<style>${millingStyles}\n${wrapperStyles}</style>${milling.match(/<header>[\s\S]*?<\/header>/)[0]}<main><h2>Arrival List</h2><input aria-label="Truck number"></main>`);
+   await page.evaluate(()=>{
+    const header=document.querySelector('header');header.classList.add('ttHasHeaderControls');
+    header.querySelector(':scope>div:not(.brand)').remove();
+    header.insertAdjacentHTML('beforeend','<a id="ttConsoleTop" href="#">Console</a><button id="ttMasterTop">M</button><span class="ttHeaderDate">27-10-2026</span><div id="ttUserBar" class="ttHeaderUser"><span id="ttUserName">Fixture Milling Administrator · Super Admin</span><a class="ttPower" aria-label="Log out" href="#">⏻</a></div>');
+   });
+   await page.addStyleTag({content:fs.readFileSync('brand-theme.css','utf8')});
+   const headerLayout=await page.evaluate(()=>{
+    const header=document.querySelector('header').getBoundingClientRect(),controls=[...document.querySelectorAll('header .brand,header #ttConsoleTop,header #ttMasterTop,header .ttHeaderDate,header #ttUserBar,header .ttPower')].map(e=>{const r=e.getBoundingClientRect();return {left:r.left,right:r.right,top:r.top,bottom:r.bottom}});
+    return {width:innerWidth,scrollWidth:document.documentElement.scrollWidth,bottom:header.bottom,heading:document.querySelector('main h2').getBoundingClientRect().top,controls};
+   });
+   assert.ok(headerLayout.scrollWidth<=viewport.width,'Milling header must not widen the page');
+   assert.ok(headerLayout.controls.every(r=>r.left>=0&&r.right<=viewport.width&&r.top>=0&&r.bottom<=headerLayout.bottom),'Milling identity and logout stay within the header');
+   assert.ok(headerLayout.heading>=headerLayout.bottom,'Milling heading stays below the complete header');
    await page.close();
   }
   console.log('Desktop and phone: first input, reused popup, delayed load, focus and background stability passed');

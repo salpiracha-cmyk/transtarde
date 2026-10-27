@@ -17,7 +17,7 @@ const stores={ships:[
  {sodaId:99,container:'UNLINKED',date:'2026-09-26',kg:10},
  {sodaId:9,container:'DUPLICATE-PARENT',date:'2026-09-26',kg:20}
 ]};
-stores.instructions=[{id:'I7',entity:'TTI',localSodaId:7,shipmentId:'S7',contractRef:'C7',lotRef:'L7',loadingComplete:true},{id:'I8',entity:'TTI',localSodaId:7,shipmentId:'S8',contractRef:'C8',lotRef:'L8',loadingComplete:false},{id:'CONFLICT',entity:'TTI',localSodaId:99,shipmentId:'S7',contractRef:'C7',lotRef:'L7',loadingComplete:true},{id:'DUP-INSTRUCTION',localSodaId:7,loadingComplete:true},{id:'DUP-INSTRUCTION',localSodaId:7,loadingComplete:true}];
+stores.instructions=[{id:'I7',entity:'TTI',brand:'EXPORT BRAND',localSodaId:7,shipmentId:'S7',contractRef:'C7',lotRef:'L7',loadingComplete:true},{id:'I8',entity:'TTI',localSodaId:7,shipmentId:'S8',contractRef:'C8',lotRef:'L8',loadingComplete:false},{id:'CONFLICT',entity:'TTI',localSodaId:99,shipmentId:'S7',contractRef:'C7',lotRef:'L7',loadingComplete:true},{id:'DUP-INSTRUCTION',localSodaId:7,loadingComplete:true},{id:'DUP-INSTRUCTION',localSodaId:7,loadingComplete:true}];
 w.STORE_SHIP='ships';w.STORE_EXLOAD='loads';w.STORE_EXINSTR='instructions';w.get=(key,fallback)=>stores[key]||fallback;w.exMillSodas=()=>stores.sodas;w.defaultShipments=()=>[];w.stockEntityForView=()=>entity;
 w.today=()=>{throw Error('A report must not invent a loading date');};w.set=()=>{throw Error('A report must not save');};
 w.escHtml=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));w.eval(source.slice(a,b));
@@ -25,13 +25,13 @@ const q=id=>w.document.getElementById(id),text=()=>q('exportReportBody').textCon
 render();assert.match(row('OWN-IN').textContent,/Indus Rice Mill — RICE/);assert.doesNotMatch(text(),/TTI Rice Mills|BRM-ONLY|BRM-EX|999,999|FUTURE/);
 assert.match(row('UNKNOWN-DATE').textContent,/Undated.*load date not recorded/);assert.match(row('IMPOSSIBLE-DATE').textContent,/Undated.*invalid/);
 assert.match(row('ZERO-BAG-BULK').textContent,/Second Warehouse — MAKAI/);assert.equal(row('ZERO-BAG-BULK').cells[6].textContent,'0');
-assert.match(row('EX-IN').textContent,/Outside Mill — MAKAI/);assert.match(row('EX-IN').cells[9].textContent,/^Completed · Quality: OK$/);assert.match(row('EX-PENDING').cells[9].textContent,/^Loading · Quality: HOLD$/);assert.match(row('EX-CONFLICT').cells[9].textContent,/^Loading.*instruction conflicts with source/);assert.match(row('EX-DUP-INSTRUCTION').cells[9].textContent,/^Loading.*ambiguous loading instruction/);assert.match(row('NO-OWNER-OR-MILL').textContent,/Mill not recorded.*company not recorded; mill not recorded/);
+assert.match(row('EX-IN').textContent,/Outside Mill — EXPORT BRAND/);assert.match(row('EX-IN').cells[9].textContent,/^Completed · Quality: OK$/);assert.match(row('EX-PENDING').cells[9].textContent,/^Loading · Quality: HOLD$/);assert.match(row('EX-CONFLICT').cells[9].textContent,/^Loading.*instruction conflicts with source/);assert.match(row('EX-DUP-INSTRUCTION').cells[9].textContent,/^Loading.*ambiguous loading instruction/);assert.match(row('NO-OWNER-OR-MILL').textContent,/Mill not recorded.*company not recorded; mill not recorded/);
 assert.match(row('UNLINKED').textContent,/missing Soda link/);assert.match(row('DUPLICATE-PARENT').textContent,/ambiguous Soda link/);assert.doesNotMatch(text(),/AMBIGUOUS ONE|AMBIGUOUS TWO/);
 q('exportReportMill').value='Indus Rice Mill';render();assert(row('OWN-IN'));assert(!row('EX-IN'));assert(!row('ZERO-BAG-BULK'));
 q('exportReportMill').value='All';q('exportReportSource').value='Ex-Mill';render();assert(row('EX-IN'));assert(!row('OWN-IN'));
 q('exportReportSource').value='All';q('exportReportStatus').value='Completed';render();assert(row('OWN-IN'));assert(row('EX-IN'));assert(!row('EX-PENDING'));assert(!row('EX-CONFLICT'));assert(!row('EX-DUP-INSTRUCTION'));
 q('exportReportStatus').value='Loading';render();assert(!row('OWN-IN'));assert(!row('EX-IN'));assert(row('EX-PENDING'));assert(row('EX-CONFLICT'));
-q('exportReportStatus').value='All';q('exportReportBrand').value='MAKAI';render();assert(row('EX-IN'));assert(row('ZERO-BAG-BULK'));assert(!row('OWN-IN'));
+q('exportReportStatus').value='All';q('exportReportBrand').value='EXPORT BRAND';render();assert(row('EX-IN'));assert(!row('ZERO-BAG-BULK'));q('exportReportBrand').value='MAKAI';render();assert(!row('EX-IN'));assert(row('ZERO-BAG-BULK'));assert(!row('OWN-IN'));
 q('exportReportBrand').value='All Brands';entity='BRM';render();assert(row('BRM-ONLY'));assert(row('BRM-EX'));assert(!row('OWN-IN'));assert(!row('NO-OWNER-OR-MILL'));assert(!row('UNLINKED'));
 entity='TTI';q('exportReportFrom').value='2026-10-01';q('exportReportTo').value='2026-09-01';render();assert.match(text(),/valid From/);
 q('exportReportFrom').value='2026-09-01';q('exportReportTo').value='2026-09-23';render();assert(row('OWN-IN'));assert(!row('EX-IN'));assert(row('UNKNOWN-DATE'),'Undated history stays explicit instead of acquiring a date');

@@ -112,7 +112,7 @@ assert.equal(katContext.katFromMaster('broken',30),10,'Ready rice received at ou
 assert.match(mill,/ready=identity\.productStage==='READY'/);
 assert.match(mill,/brokenKat:katValue\('broken'/);
 assert.match(mill,/applyReadyKat=ready&&linked\.readyRoute==='DELIVER_TO_STOCK'/);
-assert.match(mill,/completedHistoryPreserved:true/);
+assert.match(fs.readFileSync('api/operations_policy.php','utf8'),/completedHistoryPreserved'\s*=>true/);
 assert.match(mill,/_ttPurchaseSodaId/);
 assert.doesNotMatch(mill,/const demo=\{'Shams Broker'/);
 assert.match(bridge,/sourceSodaId:saved\.sourceSodaId/);
