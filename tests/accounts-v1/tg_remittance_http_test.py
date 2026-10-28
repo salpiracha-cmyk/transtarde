@@ -81,7 +81,7 @@ with tempfile.TemporaryDirectory(prefix='tg-remittance-') as tmp:
   usd=next(x for x in posted['banks'] if x['id']=='USD');assert usd['balance']['posted']==-140031.5 and usd['balance']['pending']==0
   assert req(body=payload)[1]['posted']['id']==posted['posted']['id']
   assert req('accounts_dashboard.php?entity=TG')[1]['attention']==[]
-  ledger=req('accounts_ledger_browser.php?entity=TG&account=BANK%7CUSD&to=2026-10-03')[1];assert ledger['currency']=='USD' and sum(x['credit'] for x in ledger['rows'])==140031.5,ledger
+  ledger=req('accounts_ledger_browser.php?entity=TG&account=BANK%7CUSD&to=2026-10-03')[1];assert ledger['currency']=='USD' and sum(x['credit'] for x in ledger['rows'])==140031.5,ledger;assert all(x.get('currency')=='USD' and x.get('bookCurrency')=='AED' for x in ledger['rows']),ledger
   # Actual Pakistan POST must atomically create its receipt and a pending TG deduction only.
   (root/'data/accounts.json').write_text(json.dumps({'journals':{},'exportReceipts':{}}))
   (root/'data/operations.json').write_text(json.dumps({'values':{'transtrade_export_v3_operational':json.dumps({'fi':[],'contracts':[],'shipments':[]})}}))
