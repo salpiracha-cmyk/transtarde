@@ -12,6 +12,7 @@ function arc_heads(array $s,string $e,string $kind='OTHER'):array {
     }return $out;
 }
 function arc_credit(array $s,string $e,array $b,float $amount):array {
+    $typeId=trim((string)($b['receiptTypeId']??''));if($typeId!==''){if(($b['receiptKind']??'OTHER')!=='OTHER')throw new DomainException('Other receipt types apply only to Other receipt.');$type=sac_resolve($s,$e,$typeId);if(empty($type['receiptType']))throw new DomainException('Select an active Other Receipt type.');if(!empty($b['creditAccountCode'])&&$b['creditAccountCode']!==$type['parentCode'])throw new DomainException('Receipt credit account does not match its saved type.');$b['creditAccountCode']=$type['parentCode'];$b['subaccountId']=$typeId;}
     $payee=trim((string)($b['payee']??''));if(strlen($payee)>180)throw new DomainException('Received from must be at most 180 characters.');$kind=(string)($b['receiptKind']??'OTHER');$sub=trim((string)($b['subaccountId']??''));$a=$sub!==''?sac_resolve($s,$e,$sub):null;
     $code=trim((string)($b['creditAccountCode']??($a['parentCode']??'')));$head=null;foreach(arc_heads($s,$e,$kind) as $h)if($h['id']===$code){$head=$h;break;}
     if(!$head)throw new DomainException('Select a valid receipt credit account. Expense accounts require Expense refund.');

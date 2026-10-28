@@ -1066,7 +1066,7 @@ function tt_api_write_actions(string $endpoint,array $body): ?array {
     if(in_array($endpoint,$appendOnly,true))return ['Create'];
     if(in_array($endpoint,['management_costing.php','management_costing_attach.php','payables_planning.php','production_fixed_overhead.php'],true))return ['Edit'];
     if($endpoint==='bank_reconciliation.php')return ['Create','Edit'];
-    if($endpoint==='export_receipts.php')return [!empty($body['amendmentOf'])?'Edit':'Create'];
+    if($endpoint==='export_receipts.php')return [($action==='correct_date'||!empty($body['amendmentOf']))?'Edit':'Create'];
     if(in_array($endpoint,['accounts_receipt_file.php','bag_bill_file.php'],true))return ['Create'];
     if($endpoint==='mill_liabilities.php')return [$action==='post'?'Create':'Edit']; // Reversals also retain their separate approval check.
     if($endpoint==='production_costing.php')return match($action){'approve_rate'=>['Approve'],'save_byproduct_value'=>['Create'],default=>[]};
@@ -1164,6 +1164,8 @@ function tt_api_upsert_allowed(array $user,string $endpoint,array $body,bool $ex
 /** Canonical posting source ownership, shared by reads and corrections. */
 function tt_post_workflow_icons(array $journal): array {
     $source=(string)($journal['meta']['originalSourceType']??$journal['sourceType']??'');
+    if(in_array($source,['EXPORT_FOREIGN_RECEIPT','EXPORT_REALIZATION_BANK_DEBITS'],true))return ['customer','cashbank'];
+    if($source==='TG_REMITTANCE_CONFIRMED')return ['tg'];
     if($source==='BANK_RECON_DIRECT_ENTRY'&&($journal['meta']['bankDirectType']??'')==='SAVING_PROFIT')return ['cashbank','reconciliation'];
     $groups=[
         'expenses'=>['EXPENSE_INVOICE','UTILITY_INVOICE','UTILITY_PAYMENT','EXPENSE_REIMBURSEMENT_CAPTURE','EXPENSE_REIMBURSEMENT_SETTLE','CREDIT_CARD_PAYMENT','CREDIT_CARD_STATEMENT','CREDIT_CARD_STATEMENT_AMENDMENT','EXPORT_EXPENSE_PAYMENT','GENERAL_EXPENSE_PAYMENT','DONATION_PAYMENT','RENT_MONTHLY_ACCRUAL','RENT_PAYMENT','SALARY_ADVANCE','SALARY_BATCH_PAYMENT','SALARY_MONTHLY_ACCRUAL','SALARY_PAYMENT','SALARY_MONTH_COMPLETED'],

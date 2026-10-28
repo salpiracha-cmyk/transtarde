@@ -23,5 +23,31 @@
   const reason=prompt('Reason for reopening this remittance:');if(!reason?.trim())return;
   try{const r=await fetch('../api/tg_remittances.php',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'reopen',entity:'TG',csrf:window.TT_ACCOUNT_ACCESS?.csrf,remittanceId:id,reason,date:new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Karachi',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date())})}),data=await r.json();if(!r.ok||!data.ok)throw Error(data.error||'Could not reopen this remittance.');await open(data.posted.draftIds[0]);window.TT_ACCOUNTING_DESK?.refreshAttention?.();}catch(e){alert(e.message);}
  }
- window.TT_TG_REMITTANCES={open,amend};
+ function correctDate(post,{onSaved}={}){
+  const owner=company();if(post.entity!==owner)return alert('Switch to '+post.entity+' to correct this posting date.');
+  document.querySelector('#tt-linked-post-date')?.remove();const host=document.createElement('div');host.id='tt-linked-post-date';host.className='tt-layer';
+  host.innerHTML=`<div class="tt-window" role="dialog" aria-modal="true" aria-label="Correct linked posting date" style="width:min(680px,96vw)"><div class="tt-window-head"><h2>Correct posting date</h2><button type="button" class="btn" data-close aria-label="Close date correction">×</button></div><div class="tt-window-body"><p><b>${esc(post.entity)} · ${esc(window.TT_ALL_LEDGERS?.displayRef?.(post.publicPostId||post.id)||post.publicPostId||post.id)}</b></p><p>${esc(post.narration)}</p><p>Correct this posting's date. The other linked posts keep their own dates. Amounts, bank charges and invoice allocations are retained.</p><p data-error role="alert" style="color:#a31313;font-weight:bold"></p><form><label style="display:block;margin:14px 0">Posting date<input name="date" type="date" value="${esc(post.date)}" required style="display:block;min-height:42px;width:100%;box-sizing:border-box"></label><label style="display:block;margin:14px 0">Correction reason<input name="reason" minlength="5" maxlength="300" required style="display:block;min-height:42px;width:100%;box-sizing:border-box"></label><button type="submit" class="btn green">Review date correction</button></form></div></div>`;
+  document.body.append(host);const form=host.querySelector('form'),error=host.querySelector('[data-error]'),button=form.querySelector('[type=submit]');let busy=false,saved=false;
+  host.querySelector('[data-close]').onclick=()=>{if(!busy)host.remove();};window.TT_FORM_VIEWPORT?.open(host.querySelector('.tt-window'));
+  form.onsubmit=async event=>{
+   event.preventDefault();if(busy||saved)return;busy=true;button.disabled=true;error.textContent='';
+   const endpoint=post.entity==='TG'?'../api/accounts_post_amend.php':'../api/export_receipts.php';
+   const request={action:'correct_date',entity:owner,postId:post.id,datesOnly:true,expectedDate:post.date,date:form.elements.date.value,reason:form.elements.reason.value.trim(),csrf:window.TT_ACCOUNT_ACCESS?.csrf};
+   const current=()=>host.isConnected&&company()===owner;
+   const send=async preview=>{const r=await fetch(endpoint,{method:'POST',credentials:'same-origin',ttConfirmation:'workflow',headers:{'Content-Type':'application/json'},body:JSON.stringify({...request,...(preview?{preview:true}:{})})}),d=await r.json();if(!r.ok||!d.ok)throw Error(d.error||'The date correction could not be saved.');return d;};
+   try{
+    if(!current())throw Error('Company changed. Reopen the posting in its original company.');
+    const preview=await send(true);if(!current())return;
+    if(!Array.isArray(preview.previews)||!preview.previews.length)throw Error('Correction review is unavailable. No correction was saved.');
+    if(!window.TT_POST_CONFIRMATION?.review)throw Error('Posting review is unavailable. Reopen this screen.');
+    if(!await window.TT_POST_CONFIRMATION.review({journals:preview.previews}))return;
+    if(!current())return;const result=await send(false);saved=true;if(!current())return;
+    if(result.sourceSynced===false){error.textContent='The Accounts date was saved. Its Exports copy still needs synchronising; reopen Credit Advice to retry. Do not post this correction again.';button.textContent='Date saved';return;}
+    host.remove();try{await onSaved?.(result.result);}catch{alert('The date was saved. Reopen the ledger to see the updated posting.');}
+    window.TT_BANK_ACCOUNTS_UI?.reload?.();window.TT_ACCOUNTING_DESK?.refreshAttention?.();window.TT_POST_CONFIRMATION?.show?.([result.result.replacementPostId]);
+   }catch(e){if(current()){error.textContent=e.message;window.TT_FORM_VIEWPORT?.open(host.querySelector('.tt-window'));}}
+   finally{busy=false;if(!saved&&host.isConnected)button.disabled=false;}
+  };
+ }
+ window.TT_TG_REMITTANCES={open,amend,correctDate};
 })();

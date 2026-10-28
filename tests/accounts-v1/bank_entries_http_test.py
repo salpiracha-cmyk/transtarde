@@ -231,6 +231,21 @@ require $argv[1];
     assert [(l['account'],l['debit'],l['credit']) for l in distribution['result']['journal']['lines']]==[('2100',75,0),('1110',0,75)]
     assert request('accounts_reports',report_query)[1]['profitAndLoss']==before_pl,'Collection and fund distribution must not create or refund the owner Zakat expense'
     _,fund_ledger=request('accounts_ledger_browser','?entity=TTI&account=SUB|'+fund_id+'&from=2026-10-01&to=2026-10-31');assert fund_ledger['closing']==-125 and len(fund_ledger['rows'])==2
+    # Other Receipt types use the shared Add/Edit/Delete subaccount lifecycle.
+    receipt_type,_=good('accounts_subaccounts',operation='add',name='Auction proceeds',parentCode='4400',taxCategory='NONE',receiptType=True)
+    receipt_type_id=receipt_type['result']['subaccountId']
+    assert next(a for a in receipt_type['subaccounts'] if a['id']==receipt_type_id)['receiptType']
+    before=books.read_bytes();assert mutate('accounts_subaccounts',operation='add',name='Invalid receipt expense',parentCode='6900',receiptType=True)[0]==422 and books.read_bytes()==before
+    typed,typed_body=good(action='post',type='RECEIPT',bankId='BANK-1',date='2026-10-13',amount=750,reference='OTHER-TYPED-RECEIPT',receiptKind='OTHER',receiptTypeId=receipt_type_id,payee='Auction buyer')
+    typed_journal=typed['result']['journal'];assert typed_journal['meta']['receiptTypeId']==receipt_type_id
+    assert typed_journal['lines'][0]['account']=='4400' and typed_journal['lines'][0]['subaccountId']==receipt_type_id
+    before=books.read_bytes();assert request('bank_entries','?entity=TTI',typed_body)[0]==200 and books.read_bytes()==before
+    good('accounts_subaccounts',operation='edit',id=receipt_type_id,name='Auction receipts',parentCode='4400',taxCategory='NONE',receiptType=True)
+    assert json.loads(books.read_text())['journals'][typed_journal['id']]==typed_journal,'Editing receipt types must preserve historical receipts'
+    before=books.read_bytes();assert mutate('accounts_subaccounts',operation='edit',id=receipt_type_id,name='Wrong accounting treatment',parentCode='3100',receiptType=True)[0]==422 and books.read_bytes()==before
+    good('accounts_subaccounts',operation='delete',id=receipt_type_id)
+    before=books.read_bytes();assert mutate('bank_entries',action='post',type='RECEIPT',bankId='BANK-1',date='2026-10-13',amount=1,reference='DELETED-TYPE',receiptKind='OTHER',receiptTypeId=receipt_type_id,payee='Buyer')[0]==422 and books.read_bytes()==before
+    assert json.loads(books.read_text())['journals'][typed_journal['id']]==typed_journal
     # Linked receipts must update the original SODA, including advances, with one bank movement.
     user['permissions']['Accounts']['customer']=['View','Create','Edit']
     user['permissions']['Accounts']['group-reports']=['View','Approve']

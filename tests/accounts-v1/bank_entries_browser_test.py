@@ -100,6 +100,17 @@ with tempfile.TemporaryDirectory(prefix='bank-entries-browser-') as tmp:
      if kind=='FELLOW_EXPORTER':assert all(l.get('exporterDealId')=='HK' for l in j['lines']) and stored['exporterDeals']['HK']['payments'][0]['postId']==j['id']
      else:assert next(l for l in j['lines'] if l['account']=='2510')['soda']=='LS-BROWSER'
      page.locator('#tt-post-confirmation [data-close]').click();before=(root/'data/accounts.json').read_bytes()
+    # Other Receipt type manager keeps the bank draft open and uses the shared master lifecycle.
+    page.evaluate("TT_BANK_ENTRIES.open('BANK-1','RECEIPT')");f=page.locator('#amBankForm');f.locator('[name=amount]').fill('750');f.locator('[name=reference]').fill('BROWSER-OTHER-RECEIPT');f.locator('[name=payee]').fill('Other receipt payer');f.locator('[data-receipt-types]').click()
+    manager=page.locator('#amReceiptTypesWindow');manager.get_by_role('button',name='+ Add Receipt Type',exact=True).click();manager.locator('[name=name]').fill('Browser other collections');manager.locator('[name=parentCode]').select_option('4400');manager.get_by_role('button',name='Save Receipt Type',exact=True).click();manager.locator('[data-type-edit]').wait_for()
+    stored=json.loads((root/'data/accounts.json').read_text());type_id=next(id for id,a in stored['accountSubaccounts'].items() if a.get('receiptType'))
+    assert f.locator('[name=amount]').input_value() in ['750','750.00'] and f.locator('[name=receiptTypeId]').input_value()==type_id
+    manager.locator('[data-types-close]').click();assert f.locator('[name=payee]').is_visible() and f.locator('[name=creditAccountCode]').is_hidden()
+    page.screenshot(path=str(output/'other-bank-receipt-type.png'),full_page=True);f.get_by_role('button',name='Post',exact=True).click();page.locator('[data-review-post]').click();page.locator('#amWindow').wait_for(state='detached');page.locator('#tt-post-confirmation [data-close]').click()
+    stored=json.loads((root/'data/accounts.json').read_text());typed_j=next(j for j in stored['journals'].values() if j['reference']=='BROWSER-OTHER-RECEIPT');assert typed_j['meta']['receiptTypeId']==type_id and typed_j['lines'][0]['account']=='4400'
+    page.evaluate("TT_BANK_ENTRIES.open('BANK-1','RECEIPT')");page.locator('[data-receipt-types]').click();manager=page.locator('#amReceiptTypesWindow');manager.locator('[data-type-edit]').click();manager.locator('[name=name]').fill('Browser other receipts renamed');manager.get_by_role('button',name='Save Receipt Type',exact=True).click();manager.locator('[data-type-delete]').wait_for();manager.locator('[data-type-delete]').click();manager.get_by_text('BROWSER OTHER RECEIPTS RENAMED (Deleted)',exact=False).wait_for()
+    stored=json.loads((root/'data/accounts.json').read_text());assert not stored['accountSubaccounts'][type_id]['active'] and stored['journals'][typed_j['id']]==typed_j
+    assert page.locator('#amBankForm [name=receiptTypeId] option').count()==1
     assert not errors,errors;browser.close()
    print('Bank Entry browser: subaccount creation, profit/tax, facility, drawdown, repayment, conditional fields, vouchers and mobile passed.')
  finally:server.terminate();server.wait()

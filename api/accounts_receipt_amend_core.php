@@ -20,7 +20,7 @@ function er_reverse_receipt_store(array &$store, string $receiptId, string $enti
     $ids=array_values(array_filter(array_merge([(string)($receipt['journalId']??''),(string)($receipt['separateChargeJournalId']??'')],(array)($receipt['indentorPayableJournalIds']??[]),(array)($receipt['tgMirrorPostIds']??[]))));
     if(!$ids||count($ids)!==count(array_unique($ids)))throw new DomainException('Receipt journal links are incomplete; accounting review is required.');
     foreach((array)($store['journals']??[]) as $linked)
-        if(is_array($linked)&&($linked['status']??'')==='Posted'&&($linked['meta']['receiptId']??'')===$receiptId&&!in_array((string)($linked['id']??''),$ids,true))
+        if(is_array($linked)&&($linked['status']??'')==='Posted'&&empty($linked['amendedByPostId'])&&($linked['meta']['receiptId']??'')===$receiptId&&!in_array((string)($linked['id']??''),$ids,true))
             throw new DomainException('Another posted entry depends on this advice. Correct that linked entry first.');
     foreach($ids as $id){$journal=$store['journals'][$id]??null;if(!is_array($journal)||($journal['status']??'')!=='Posted'||!in_array((string)($journal['entity']??''),[$entity,'TG'],true)||($journal['meta']['receiptId']??'')!==$receiptId)throw new DomainException('A linked posting cannot be verified; accounting review is required.');
         foreach((array)($store['journals']??[]) as $existing)if(is_array($existing)&&($existing['reversalOf']??'')===$id)throw new DomainException('A linked posting is already reversed.');}
