@@ -97,9 +97,11 @@ def run():
             director.locator('#dtDealForm [name=partyId]').select_option('QA-EXPORTER')
             for field,value in {'price':'10','quantityMT':'0.5','product':'QA BRAND','terms':'Exporter handles bags and collection; Mill records physical dispatch only.'}.items():director.locator('#dtDealForm [name='+field+']').fill(value)
             director.get_by_role('button',name='Save SODA',exact=True).click();director.locator('#dtMessage').filter(has_text='Saved.').wait_for()
-            mill.locator('#directorExporterCompany').select_option('TTI');mill.locator('#directorExporterRefresh').click()
+            director.get_by_role('button',name='View',exact=True).click();director.get_by_role('button',name='Production / mill specification',exact=True).click();director.locator('#dtProductionForm').wait_for()
+            director.locator('[name=productionMillId]').select_option(label='TTI Rice Mills');director.locator('#dtProductionForm [name=brand]').fill('QA BRAND');director.locator('[name=productionStockName]').fill('QA BRAND');director.locator('[name=specificationMode]').select_option('FULL');director.locator('[name=fullSpecification]').fill('Fixture full rice specification: broken 5%, moisture 14% maximum.');director.locator('[name=productionNotes]').fill('Produce and dispatch the assigned QA BRAND output.');director.get_by_role('button',name='Send instruction to mill',exact=True).click();director.locator('#dtMessage').filter(has_text='Saved.').wait_for()
+            mill.locator('#directorExporterRefresh').click()
             choice=mill.locator('#directorExporterDeal option').filter(has_text='Fixture fellow exporter');choice.wait_for(state='attached');soda_id=choice.get_attribute('value');mill.locator('#directorExporterDeal').select_option(soda_id)
-            mill.locator('#directorExporterStock').select_option('QA BRAND');mill.locator('#directorExporterBagTare').fill('100');mill.locator('#directorExporterUse').click()
+            mill.locator('#directorExporterInstruction').filter(has_text='Fixture full rice specification').wait_for();assert not json.loads(context.request.get(base+'/api/operations.mysql.php').json()['values'].get('tt35exportersale','[]')),'Selecting a SODA must not save or move stock'
             try:mill.locator('#savedExporterSales').filter(has_text='Fixture fellow exporter').wait_for(timeout=10000)
             except Exception:raise AssertionError({'handoff':mill.locator('#directorExporterStatus').inner_text(),'errors':errors,'dialogs':dialogs})
             director.close()
