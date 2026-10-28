@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   accounts-audit:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
@@ -242,7 +242,7 @@ jobs:
           node tests/runtime_security_static_audit.js
 
   inventory-runtime:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     services:
       mysql:
