@@ -25,12 +25,12 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),{chromium}=requ
  await page.addScriptTag({content:fs.readFileSync('brand-theme.js','utf8')});
  await page.addScriptTag({content:fs.readFileSync('accounts/third-party-register.js','utf8')});
  await page.locator('#newRecord').waitFor({state:'visible'});await page.locator('#newRecord').click();
- await page.locator('[name=amount]').fill('1,500.50');await page.locator('[name=receivedFrom]').fill('<img src=x onerror=alert(1)>');await page.locator('[name=paidTo]').fill('Freight Company');await page.locator('[name=category]').selectOption('Freight Forwarder');
+ await page.locator('[name=amount] + .tt-number-display').fill('1,500.50');await page.locator('[name=receivedFrom]').fill('<img src=x onerror=alert(1)>');await page.locator('[name=paidTo]').fill('Freight Company');await page.locator('[name=category]').selectOption('Freight Forwarder');
  assert.equal(await page.evaluate(()=>calls.filter(c=>c.method==='POST').length),0,'Typing never writes');
  await page.locator('#search').fill('nothing');await page.locator('#filters button').first().click();
  assert.equal(await page.locator('[name=paidTo]').inputValue(),'Freight Company','Filters preserve the open draft');
  await page.locator('#clearFilters').click();await page.evaluate(()=>failSave=true);await page.locator('#save').click();await page.locator('#formError').getByText('Please try again').waitFor();
- assert.equal(await page.locator('[name=amount]').inputValue(),'1,500.50','Failed save preserves values');
+ assert.equal(await page.locator('[name=amount]').inputValue(),'1500.50','Failed save preserves values');
  const key=await page.evaluate(()=>calls.at(-1).body.requestKey);await page.evaluate(()=>failSave=false);await page.locator('#save').click();await page.locator('#entryPanel').waitFor({state:'hidden'});
  assert.equal(await page.evaluate(()=>calls.at(-1).body.requestKey),key,'Explicit retry keeps the save identity');
  assert.equal(await page.locator('#rows img').count(),0,'Party names are escaped');assert.match(await page.locator('#rows').innerText(),/1,500.50/);
