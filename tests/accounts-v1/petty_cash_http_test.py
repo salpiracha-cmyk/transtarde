@@ -102,6 +102,30 @@ with tempfile.TemporaryDirectory(prefix='petty-cash-') as directory:
         assert [(l['account'],l['debit'],l['credit']) for l in pre['previews'][0]['lines']]==[('1110',1250,0),('1230',0,1250)]
         st,refund=request('/api/sales_tax_refunds.php',taxbody);assert st==200,(st,refund);stable=books.read_bytes();st,replay=request('/api/sales_tax_refunds.php',taxbody);assert st==200 and replay['journalId']==refund['journalId'] and books.read_bytes()==stable
         st,replay=request('/api/sales_tax_refunds.php',{**taxbody,'amount':1300});assert st==409
+        # Petty household payments have exactly the same accounting as Pay Expense.
+        saved_books=json.loads(books.read_text());saved_books['salaryMasters']['SALMAN-DIRECTOR']={'id':'SALMAN-DIRECTOR','entity':'TTI','name':'Salman','category':'DIRECTOR_REMUNERATION','status':'Active'};books.write_text(json.dumps(saved_books))
+        d=get();assert {x['id'] for x in d['homeLedgers']}=={'SHARED','FAM-SALMAN','FAM-TALHA','FAM-TAYYAB'}
+        assert any(x['id']=='TTI-EXPENSE-TYPE-ARP' for x in d['arpSubaccounts'])
+        def amounts(preview):
+            return [[{k:l.get(k) for k in ['account','debit','credit','expenseFor','personalTreatment','subaccountId','cashAccountId','paymentAccountId']} for l in j['lines']] for j in preview['previews']]
+        for n,(person,treatment) in enumerate([('SHARED','COMPANY'),('FAM-SALMAN','COMPANY'),('FAM-TALHA','CASH'),('FAM-SALMAN','REMUNERATION')]):
+            d=get();body={'entity':'TTI','revision':d['revision'],'action':'post','type':'EXPENSE','requestKey':f'petty-household-{n}','date':'2026-08-08','from':'CASH|TTI','amount':20,'payee':'Grocery fixture','narration':'Household groceries','expenseCategory':'HOME','expenseFor':person,'personalTreatment':treatment}
+            stable=books.read_bytes();sequence=json.loads(auth.read_text()).get('post_sequence');st,pre=request('/api/petty_cash.php',{**body,'preview':True});assert st==200,(st,pre)
+            standard={'entity':'TTI','action':'pay_expense','requestKey':f'standard-household-{n}','paymentDate':body['date'],'paymentAccountId':body['from'],'payee':body['payee'],'paymentNarration':body['narration'],'expenseLines':[{'category':'HOME','accountCode':'6910','subaccountId':'TTI-HOME-'+person,'amount':20,'purpose':body['narration'],'expenseArea':'HOME','expenseFor':person,'personalTreatment':treatment}],'preview':True}
+            st,regular=request('/api/expenses_v1.php?entity=TTI',standard);assert st==200 and amounts(pre)==amounts(regular),(st,pre,regular)
+            assert books.read_bytes()==stable and json.loads(auth.read_text()).get('post_sequence')==sequence
+            old_balance=d['officeBalance'];st,paid=request('/api/petty_cash.php',body);assert st==200 and paid['officeBalance']==old_balance-20,(st,paid)
+            stable=books.read_bytes();st,retry=request('/api/petty_cash.php',body);assert st==200 and books.read_bytes()==stable and retry['result']==paid['result']
+            state=json.loads(books.read_text());record=state['generalExpenses'][paid['result']['generalExpenseId']];row=record['expenseLines'][0]
+            assert row['account']=='6910' and row['subaccountId']=='TTI-HOME-'+person and row['expenseFor']==person and row['personalTreatment']==treatment
+            assert len(record['personalJournalIds'])==(0 if treatment=='COMPANY' else 1)
+            if treatment=='REMUNERATION':assert any(a.get('personalLink')==record['personalLink'] and a['recoveryFromMonth']=='2026-09' and a['remaining']==20 for a in state['salaryAdvances'].values())
+        for patch in [{'expenseFor':'OTHER'},{'expenseFor':'SHARED','personalTreatment':'CASH'},{'expenseCategory':'ARP','arpSubaccountId':'BRM-EXPENSE-TYPE-ARP'},{'expenseCategory':'UNKNOWN'}]:
+            bad={**body,**patch,'revision':get()['revision'],'requestKey':'invalid-household-'+str(time.time_ns())};stable=books.read_bytes();st,rejected=request('/api/petty_cash.php',bad);assert st==422 and books.read_bytes()==stable,(st,rejected)
+        r,b=post('post',type='EXPENSE',date='2026-08-08',**{'from':ah},amount=20,payee='Home shop',expenseCategory='HOME',expenseFor='FAM-TAYYAB',personalTreatment='COMPANY',narration='Staff home errand',confirmed=True)
+        assert next(x for x in r['holders'] if x['id']==ah)['balance']==180 and r['journal']['lines'][-1]['cashAccountId']==ah
+        r,b=post('post',type='EXPENSE',date='2026-08-08',**{'from':'CASH|TTI'},amount=10,payee='ARP shop',expenseCategory='ARP',personalTreatment='COMPANY',narration='ARP household expense')
+        assert r['journal']['lines'][0]['expenseFor']=='FAM-ABU' and r['journal']['lines'][0]['subaccountId']=='TTI-EXPENSE-TYPE-ARP'
         # Staff permissions and company scope are enforced on the real endpoint.
         limited={**user,'role':'Staff','permissions':{'Accounts':{'expenses':['View']}},'entities':['TTI']}
         a=json.loads(auth.read_text());a['users']=[limited];auth.write_text(json.dumps(a))
