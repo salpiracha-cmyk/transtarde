@@ -417,7 +417,8 @@ require $argv[1];
         assert statement['familyStatement'] and statement['closing']==expected,(code,statement)
         assert all((r['debit']>0) != (r['credit']>0) for r in statement['rows'])
         assert not any(r['voucher'] in ['INTERNAL','ZERO'] for r in statement['rows'])
-        catalog=[a['code'] for a in statement['accounts']]
+        catalog=[a['code'] for a in statement['accounts'] if not a.get('hiddenFamilyLedger')]
+        assert any(a['code']=='REIMB-SALMAN' and a['hiddenFamilyLedger'] for a in statement['accounts']),'Original reimbursement account must remain available to posting/correction tools'
         assert len([c for c in catalog if c.startswith('FAMILY|SALMAN|')])==2
         assert 'PAYROLL|D' not in catalog and 'PAYROLL|H' not in catalog and 'PAYROLL|OFFICE-SALMAN' in catalog and not any(c.startswith('DIRECTOR|') for c in catalog)
         assert any(r['type']=='Zero-value posting line' for r in statement['ledgerReviews'])
