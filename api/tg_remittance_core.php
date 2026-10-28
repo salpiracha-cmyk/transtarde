@@ -48,7 +48,7 @@ function tgr_bank_balance(array $s,string $id,string $currency):array {
  $pending=tgr_reserved($s,$id);return ['posted'=>round($native,2),'pending'=>$pending,'available'=>round($native-$pending,2),'carryingRate'=>abs($native)>.0001?$book/$native:0];
 }
 function tgr_fingerprint(array $x):string {return hash('sha256',json_encode($x,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE));}
-function tgr_confirm(array &$s,array $b,array $u,array $banks,array $names,array $rates):array {
+function tgr_confirm(array &$s,array $b,array $u,array $banks,array $names,array $rates,array $internal=[]):array {
  $key=(string)($b['requestKey']??'');if(!preg_match('/^[a-zA-Z0-9-]{16,80}$/',$key))throw new DomainException('Reopen the remittance review to obtain its posting ID.');
  $hash=hash('sha256',json_encode($b));$prior=$s['tgRemittanceRequests'][$key]??null;
  if($prior){if($prior['hash']!==$hash)throw new DomainException('This review has already posted with different details.');return $s['tgRemittances'][$prior['id']];}
@@ -62,7 +62,7 @@ function tgr_confirm(array &$s,array $b,array $u,array $banks,array $names,array
  $date=tgr_date((string)($b['date']??''));$ref=strtoupper(trim((string)($b['bankReference']??'')));$bank=$banks[$first['bankAccountId']]??null;
  if(!$bank||$bank['currency']!==$first['currency'])throw new DomainException('Complete and activate the selected TG bank in Company Master.');
  foreach($chosen as $source)if(!empty($source['reopenedFrom'])&&$date<$source['date'])throw new DomainException('Reposting date cannot precede the correction reversal.');
- $cur=$first['currency'];$balance=tgr_bank_balance($s,$first['bankAccountId'],$cur);$rate=$cur==='AED'?1:(float)$balance['carryingRate'];if($rate<=0)$rate=(float)($rates[$cur]??0);if($rate<=0)throw new DomainException('Set the TG '.$cur.'/AED exchange rate in Company Master.');
+ $cur=$first['currency'];$balance=tgr_bank_balance($s,$first['bankAccountId'],$cur);$rate=$cur==='AED'?1:(float)($internal['principalRate']??$balance['carryingRate']);if($rate<=0)$rate=(float)($rates[$cur]??0);if($rate<=0)throw new DomainException('Set the TG '.$cur.'/AED exchange rate in Company Master.');
  $charge=tgr_money($b['chargeAmount']??0,'bank charge');$vat=tgr_money($b['vatAmount']??0,'VAT');$chargeBankId=(string)($b['chargeBankAccountId']??$first['bankAccountId']);$chargeBank=$banks[$chargeBankId]??null;
  if(($charge+$vat)>0&&!$chargeBank)throw new DomainException('Choose the TG bank actually debited for charges and VAT.');
  $reason=strtoupper(trim((string)($b['reason']??'')));$hasLegacy=(bool)array_filter($chosen,static fn($x)=>!empty($x['legacy']));if($hasLegacy&&strlen($reason)<5)throw new DomainException('Enter a reason to consolidate the previously posted TG mirrors.');
@@ -88,7 +88,7 @@ function tgr_confirm(array &$s,array $b,array $u,array $banks,array $names,array
  }
  $bankExtra=['bankAccountId'=>$first['bankAccountId'],'bankName'=>$bank['bank'],'bankAccountTitle'=>$bank['title'],'currency'=>$cur,'bankDebit'=>0,'bankCredit'=>round($amount,2),'bankPaymentMethod'=>'ONLINE_BANKING','bankReference'=>$ref];
  $lines[]=tgr_line('1110',0,$amount*$rate,$names,$bankExtra);
- if($charge+$vat>0){$ccy=$chargeBank['currency'];$cb=tgr_bank_balance($s,$chargeBankId,$ccy);$cr=$ccy==='AED'?1:(float)$cb['carryingRate'];if($cr<=0)$cr=(float)($rates[$ccy]??0);if($cr<=0)throw new DomainException('Set the charge-bank exchange rate in Company Master.');
+ if($charge+$vat>0){$ccy=$chargeBank['currency'];$cb=tgr_bank_balance($s,$chargeBankId,$ccy);$cr=$ccy==='AED'?1:(float)($internal['chargeRate']??$cb['carryingRate']);if($cr<=0)$cr=(float)($rates[$ccy]??0);if($cr<=0)throw new DomainException('Set the charge-bank exchange rate in Company Master.');
   if($charge>0)$lines[]=tgr_line('6800',$charge*$cr,0,$names,['currency'=>$ccy,'nativeDebit'=>$charge,'nativeCredit'=>0,'chargeType'=>'OUTGOING REMITTANCE CHARGE']+(function_exists('tt_accounts_online_charge_subaccount')?tt_accounts_online_charge_subaccount($s):[]));
   if($vat>0)$lines[]=tgr_line('1140',$vat*$cr,0,$names,['currency'=>$ccy,'nativeDebit'=>$vat,'nativeCredit'=>0,'chargeType'=>'BANK CHARGE INPUT VAT']);
   foreach([['Online Banking Charges',$charge],['VAT on Online Banking Charges',$vat]] as [$component,$part])if($part>0)$lines[]=tgr_line('1110',0,$part*$cr,$names,['bankAccountId'=>$chargeBankId,'bankName'=>$chargeBank['bank'],'bankAccountTitle'=>$chargeBank['title'],'currency'=>$ccy,'bankDebit'=>0,'bankCredit'=>$part,'bankPaymentMethod'=>'ONLINE_BANKING','bankReference'=>$ref,'chargeType'=>$component]);

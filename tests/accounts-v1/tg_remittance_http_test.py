@@ -4,7 +4,7 @@ ROOT=pathlib.Path(__file__).resolve().parents[2]
 with tempfile.TemporaryDirectory(prefix='tg-remittance-') as tmp:
  root=pathlib.Path(tmp);(root/'api').mkdir();(root/'accounts').mkdir();(root/'data').mkdir()
  shutil.copy(ROOT/'document_filenames.php',root/'document_filenames.php')
- for name in ['supplier_opening_core.php','accounts_subaccounts_core.php','accounts_receipts_core.php','accounts_ledger_visibility.php','assets_registry_core.php','export_receipts.php','export_receipt_tg_mirror.php','forward_booking_core.php','accounts_receipt_amend_core.php','accounts_bank_payment.php','tg_remittances.php','tg_remittance_core.php','fi_credit_advice_link.php','receipt_invoice_links.php','accounts_reviews.php','accounts_reviews_core.php','accounts_dashboard.php','payables_planning.php','accounts_source_store.php','supplier_settlements.php','accounts_posting_preview.php','payment_plan_core.php','tg_liability_projection.php','customer_receivables_core.php','bank_accounts.php','expense_reminders.php','service_ledger_groups.php','accounts_ledger_browser.php','accounts_read_policy.php','accounts_post_delete_core.php','accounts_post_delete_tg.php','tg_native_currency.php','accounts_reference.php', 'tg_native_currency.php']:
+ for name in ['supplier_opening_core.php','accounts_subaccounts_core.php','accounts_receipts_core.php','accounts_ledger_visibility.php','assets_registry_core.php','accounts_linked_edit_core.php','intercompany_advance_core.php','export_receipts.php','export_receipt_tg_mirror.php','forward_booking_core.php','accounts_receipt_amend_core.php','accounts_bank_payment.php','tg_remittances.php','tg_remittance_core.php','fi_credit_advice_link.php','receipt_invoice_links.php','accounts_reviews.php','accounts_reviews_core.php','accounts_dashboard.php','payables_planning.php','accounts_source_store.php','supplier_settlements.php','accounts_posting_preview.php','payment_plan_core.php','tg_liability_projection.php','customer_receivables_core.php','bank_accounts.php','expense_reminders.php','service_ledger_groups.php','accounts_ledger_browser.php','accounts_read_policy.php','accounts_post_delete_core.php','accounts_post_delete_tg.php','tg_native_currency.php','accounts_reference.php', 'tg_native_currency.php']:
   shutil.copy(ROOT/'api'/name,root/'api'/name)
  for name in ['accounting_master_v1.json','settlement_policy_v1.json','export_realization_policy_v1.json','tg-remittances-ui.js','export-receipts-ui.js','post-confirmation-ui.js']:
   shutil.copy(ROOT/'accounts'/name,root/'accounts'/name)
@@ -226,7 +226,14 @@ with tempfile.TemporaryDirectory(prefix='tg-remittance-') as tmp:
      assert visible_input.bounding_box()['width']>=180, 'Full TG amount needs a readable mobile column'
      assert visible_input.evaluate('el=>el.scrollWidth<=el.clientWidth+1'), 'TG amount text must fit without horizontal clipping'
 
-    page.locator('#erPost').click();page.locator('#ttExportReceiptToast').filter(has_text='posted').wait_for()
+    page.locator('#erPost').click()
+    try:
+     page.wait_for_function("""() => document.querySelector('#ttExportReceiptToast')?.textContent.includes('posted') || document.querySelector('[data-er-error]')?.textContent.trim()""")
+    except Exception as failure:
+     raise AssertionError('Receipt result missing. Inline error: '+str(page.locator('[data-er-error]').all_text_contents())+'; status: '+str(page.locator('#erPostStatus').all_text_contents())+'; button: '+str(page.locator('#erPost').all_text_contents())) from failure
+    inline_error=page.locator('[data-er-error]').inner_text()
+    assert not inline_error, 'Actual receipt form failed: '+inline_error
+    page.locator('#ttExportReceiptToast').filter(has_text='posted').wait_for()
     saved_ui=json.loads((root/'data/accounts.json').read_text());receipt_ui=next(x for x in saved_ui['exportReceipts'].values() if x['bankAdviceRef']=='BASKET-UI')
     assert receipt_ui['tgPaymentTotal']==350 and receipt_ui['foreignAmount']==340 and receipt_ui['correspondentPkrAmount']==2800
     assert req()[1]['items'][0]['amountNative']==350 and next(x for x in req()[1]['banks'] if x['id']=='USD')['balance']['posted']==0
