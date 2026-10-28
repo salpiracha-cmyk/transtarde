@@ -330,8 +330,11 @@ require $argv[1];
     fixture=json.loads(books.read_text());tracking={'bankPaymentMethod':'ONLINE_BANKING','bankReference':'SAVED-ONLINE','chequeNo':'','chequeDate':'','bankPaymentDate':'2026-10-08','paymentNarration':'Saved separate narration'}
     fixture['journals']['UTILITY-READ-FIXTURE']={'id':'UTILITY-READ-FIXTURE','entity':'TTI','date':'2026-10-13','status':'Posted','lines':[],'totalDebit':0,'totalCredit':0,'meta':tracking}
     fixture['utilityPayments']['UTILITY-READ-FIXTURE']={'id':'UTILITY-READ-FIXTURE','entity':'TTI','paymentDate':'2026-10-13','journalId':'UTILITY-READ-FIXTURE','status':'Posted'}
+    fixture['generalExpenses']['DIRECT-READ-FIXTURE']={'id':'DIRECT-READ-FIXTURE','entity':'TTI','expenseType':'DIRECT','paymentDate':'2026-10-13','journalId':'UTILITY-READ-FIXTURE','status':'Posted'}
     books.write_text(json.dumps(fixture));before=books.read_bytes()
     status,payload=request('expenses_v1','?entity=TTI');assert status==200,(status,payload)
+    direct=next(row for row in payload['generalExpenses'] if row['id']=='DIRECT-READ-FIXTURE')
+    for key,value in tracking.items():assert direct[key]==value,(key,direct)
     payment=next(row for row in payload['utilityPayments'] if row['id']=='UTILITY-READ-FIXTURE')
     for key,value in tracking.items():assert payment[key]==value,(key,payment)
     assert books.read_bytes()==before,'Edit hydration GET must not rewrite source or journals'
