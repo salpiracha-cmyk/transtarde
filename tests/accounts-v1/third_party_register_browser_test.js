@@ -19,7 +19,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),{chromium}=requ
    if(b?.action==='create')saved.push({...b,id:'TPR-fixture',version:1});
    if(b?.action==='edit')saved=saved.map(r=>r.id===b.id?{...r,...b,version:r.version+1}:r);
    if(b?.action==='delete')saved=saved.filter(r=>r.id!==b.id);
-   return {ok:true,json:async()=>({ok:true,rows:saved.filter(r=>r.entity===new URL(url,location.href).searchParams.get('entity')),canCreate:true,canEdit:true})};
+   return {ok:true,json:async()=>({ok:true,rows:saved.filter(r=>r.entity===new URL(url,location.href).searchParams.get('entity')),canCreate:true,canEdit:true,canDelete:true})};
   };
  });
  await page.addScriptTag({content:fs.readFileSync('brand-theme.js','utf8')});

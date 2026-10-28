@@ -8,8 +8,8 @@ with tempfile.TemporaryDirectory(prefix='third-party-register-') as directory:
 define('TT_DATA_DIR',__DIR__.'/data');
 function tt_require_login(){return ['id'=>1,'full_name'=>'Register fixture','role'=>$_SERVER['HTTP_X_ROLE']??'owner'];}
 function tt_user_can_open_module($u,$m){return $u['role']!=='denied';}
-function tt_user_can_module_action($u,$m,$icon,$action){return $u['role']==='owner'||($u['role']==='viewer'&&$action==='View');}
-function tt_user_can_access_entity($u,$e,$a){return $u['role']==='owner'||($u['role']==='viewer'&&$e==='TTI'&&$a==='View');}
+function tt_user_can_module_action($u,$m,$icon,$action){return $u['role']==='owner'||($u['role']==='viewer'&&$action==='View')||($u['role']==='editor'&&in_array($action,['View','Edit'],true));}
+function tt_user_can_access_entity($u,$e,$a){return $u['role']==='owner'||($u['role']==='viewer'&&$e==='TTI'&&$a==='View')||($u['role']==='editor'&&$e==='TTI'&&in_array($a,['View','Edit'],true));}
 function tt_verify_csrf($v){return $v==='fixture';}function tt_release_read_session(){}function tt_ensure_data_dir(){}
 ''')
  originals={}
@@ -38,6 +38,7 @@ function tt_verify_csrf($v){return $v==='fixture';}function tt_release_read_sess
   status,data=request(edit);assert status==200 and data['record']['reference']=='CHQ-12',(status,data)
   assert request(edit)[0]==422 and request({**edit,'entity':'BRM'},entity='BRM')[0]==422
   delete={'action':'delete','entity':'TTI','csrf':'fixture','id':record['id'],'version':2,'reason':'Entered twice'}
+  assert request(delete,role='editor')[0]==403
   status,data=request(delete);assert status==200 and data['rows']==[],(status,data)
   saved=json.loads((root/'data/third-party-payments-register.json').read_text());assert saved['rows'][record['id']]['status']=='Deleted' and len(saved['rows'][record['id']]['history'])==2
   for name,content in originals.items():assert (root/'data'/name).read_bytes()==content,'Financial/source file changed: '+name
