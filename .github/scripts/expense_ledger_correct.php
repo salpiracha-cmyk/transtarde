@@ -57,13 +57,14 @@ function elc_apply(array &$s,array $manifest,string $batch):array {
         if(!in_array($entity,['TTI','BRM'],true)||($old['expenseType']??'')!=='DIRECT'||!is_array($original)||!empty($old['cardStatementId'])||!empty($original['reversedByPostId'])||!empty($original['amendedByPostId']))throw new RuntimeException('Expense requires its original linked workflow.');
         $public=tt_accounts_public_post($s,$original);if(str_ends_with($public,'-03046'))throw new RuntimeException('Protected posting is outside this maintenance batch.');
         $rows=(array)$old['expenseLines'];foreach($rows as &$row){if(($row['personalTreatment']??'COMPANY')!=='COMPANY')throw new RuntimeException('Personal recovery requires separate review.');$row['accountCode']=(string)$row['account'];}unset($row);
-        $monthly=false;$reasons=[];
+        $monthly=false;$reasons=[];$narrationOverride=null;
         foreach($entries as $entry){
+            if(array_key_exists('narration',$entry)){if(!is_string($entry['narration'])||strlen($entry['narration'])>900||($narrationOverride!==null&&$narrationOverride!==$entry['narration']))throw new RuntimeException('Invalid or conflicting owner-approved narration.');$narrationOverride=$entry['narration'];}
             $index=$entry['row']??null;if(!is_int($index)||!isset($rows[$index]))throw new RuntimeException('Reviewed expense row is unavailable.');
             $change=(array)($entry['changes']??[]);$allowed=['account','category','expenseFor','personalTreatment','expenseArea','assetId','namedSubledger','monthlyFee'];
             if(array_diff(array_keys($change),$allowed)||($change['personalTreatment']??'COMPANY')!=='COMPANY')throw new RuntimeException('Unexpected reclassification fields.');
             $from=(string)$rows[$index]['account'];$to=(string)($change['account']??$from);$amount=(int)round(100*(float)$rows[$index]['amount']);
-            if(!in_array($to,['6910','5550','6400','6410','6610','6900','6700'],true))throw new RuntimeException('Posting head is outside the owner-approved rules.');
+            if(!in_array($to,['6910','5550','6400','6410','6610','6900','6700','7210'],true))throw new RuntimeException('Posting head is outside the owner-approved rules.');
             $expected[$entity.'|'.$from]=($expected[$entity.'|'.$from]??0)-$amount;$expected[$entity.'|'.$to]=($expected[$entity.'|'.$to]??0)+$amount;
             $monthly=$monthly||!empty($change['monthlyFee']);$named=(string)($change['namedSubledger']??'');unset($change['monthlyFee'],$change['namedSubledger']);
             $rows[$index]=array_replace($rows[$index],$change,['accountCode'=>$to,'subaccountId'=>'']);
@@ -76,6 +77,7 @@ function elc_apply(array &$s,array $manifest,string $batch):array {
         }
         $narration=(string)($old['paymentNarration']??$old['description']??'');
         if($monthly&&!str_contains(strtolower($narration),'monthly fee'))$narration='Monthly fee — Paid to '.(string)$old['payee'].($narration!==''?' — '.$narration:'');
+        if($narrationOverride!==null)$narration=$narrationOverride;
         $tracking=[];foreach(['bankPaymentMethod','bankReference','chequeNo','chequeDate','bankPaymentDate','paymentNarration'] as $key){if(array_key_exists($key,$old))$tracking[$key]=$old[$key];elseif(array_key_exists($key,(array)($original['meta']??[])))$tracking[$key]=$original['meta'][$key];}
         $tracking['paymentNarration']=$narration;
         $body=['id'=>$id,'recipientInNarration'=>true,'payee'=>$old['payee'],'paymentDate'=>$old['paymentDate'],'paymentAccountId'=>$old['paymentAccountId'],'reference'=>$old['reference']??'','amount'=>$old['amount'],'expenseLines'=>$rows,'paymentNarration'=>$narration,'reason'=>substr('Owner-approved reclassification: '.implode('; ',array_unique($reasons)),0,490)];
