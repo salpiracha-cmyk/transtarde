@@ -735,3 +735,9 @@ Backup & Recovery opens a simple dedicated restore page that remains reachable d
 - Preserve stored recipient references on historical amendments. Unpaid invoices retain their supplier-ledger identity for later settlement.
 - Fuel and car repairs can be posted without specifying a vehicle. A supplied vehicle must still belong to the company. Vehicle tax retains its vehicle and tax-period validation.
 
+
+
+## Previously reopened TG remittance corrections
+
+- A pending amendment from the older Reopen workflow may retain or correct its actual historical remittance date. The date of the later correction reversal must not force a fictitious bank transaction date.
+- Restore the original bank reference, charges, charge bank and date when opening that review. Require Edit, current revision, all original credit advices, server preview and final confirmation. Preserve the original journals and reversal audit date, link the replacement to both, and use the shared effective amendment projection in historical reports. Do not post or repair a live pending amendment merely by opening, previewing or deploying the form.

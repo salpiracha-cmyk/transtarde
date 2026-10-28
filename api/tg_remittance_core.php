@@ -61,11 +61,27 @@ function tgr_confirm(array &$s,array $b,array $u,array $banks,array $names,array
  if(empty($b['sameRemittanceConfirmed']))throw new DomainException('Confirm the selected advices belong to one actual remittance.');
  $date=tgr_date((string)($b['date']??''));$ref=strtoupper(trim((string)($b['bankReference']??'')));$bank=$banks[$first['bankAccountId']]??null;
  if(!$bank||$bank['currency']!==$first['currency'])throw new DomainException('Complete and activate the selected TG bank in Company Master.');
- foreach($chosen as $source)if(!empty($source['reopenedFrom'])&&$date<$source['date'])throw new DomainException('Reposting date cannot precede the correction reversal.');
+ // A reopened correction may retain the actual historical bank date. Link its
+ // complete original/reversal/replacement so amendment-aware reports cancel the
+ // original at its effective date without rewriting either immutable journal.
+ $reopened=array_values(array_unique(array_filter(array_column($chosen,'reopenedFrom'))));$correction=null;
+ if($reopened){
+  if(count($reopened)!==1||count(array_filter($chosen,static fn($x)=>!empty($x['reopenedFrom'])))!==count($chosen))throw new DomainException('Complete one reopened remittance separately from other credit advices.');
+  $old=$s['tgRemittances'][$reopened[0]]??[];$original=$s['journals'][$old['journalId']??'']??[];$reverse=$s['journals'][$old['reversalJournalId']??'']??[];
+  if(($old['status']??'')!=='Reversed for Amendment'||($original['status']??'')!=='Posted'||($reverse['status']??'')!=='Posted'||($reverse['reversalOf']??'')!==($original['id']??'')||!empty($original['amendedByPostId'])||!function_exists('ale_link'))throw new DomainException('The original remittance correction changed. Reopen its review.');
+  $pending=[];foreach($items as $x)if(($x['reopenedFrom']??'')===$old['id'])$pending[]=$x['id'];sort($pending);$selected=$ids;sort($selected);
+  $expected=(array)($old['receiptIds']??[]);$actual=$receiptIds;sort($expected);sort($actual);
+  if($pending!==$selected||$expected!==$actual)throw new DomainException('Select all credit advices from the reopened remittance before posting its correction.');
+  if(($original['entity']??'')!=='TG'||($reverse['entity']??'')!=='TG'||($original['sourceType']??'')!=='TG_REMITTANCE_CONFIRMED')throw new DomainException('The original remittance journals require review.');
+  foreach((array)($s['journals']??[]) as $entry)if(($entry['reversalOf']??'')===($reverse['id']??''))throw new DomainException('The correction reversal has already changed. Reopen its review.');
+  $opposite=(array)($original['lines']??[]);foreach($opposite as &$line)foreach([['debit','credit'],['bankDebit','bankCredit'],['nativeDebit','nativeCredit']] as [$dr,$cr])if(isset($line[$dr])||isset($line[$cr]))[$line[$dr],$line[$cr]]=[$line[$cr]??0,$line[$dr]??0];unset($line);
+  if(!$opposite||$opposite!=($reverse['lines']??[]))throw new DomainException('The correction reversal does not fully cancel the original remittance. Review its Post ID.');
+  $correction=$old;
+ }
  $cur=$first['currency'];$balance=tgr_bank_balance($s,$first['bankAccountId'],$cur);$rate=$cur==='AED'?1:(float)($internal['principalRate']??$balance['carryingRate']);if($rate<=0)$rate=(float)($rates[$cur]??0);if($rate<=0)throw new DomainException('Set the TG '.$cur.'/AED exchange rate in Company Master.');
  $charge=tgr_money($b['chargeAmount']??0,'bank charge');$vat=tgr_money($b['vatAmount']??0,'VAT');$chargeBankId=(string)($b['chargeBankAccountId']??$first['bankAccountId']);$chargeBank=$banks[$chargeBankId]??null;
  if(($charge+$vat)>0&&!$chargeBank)throw new DomainException('Choose the TG bank actually debited for charges and VAT.');
- $reason=strtoupper(trim((string)($b['reason']??'')));$hasLegacy=(bool)array_filter($chosen,static fn($x)=>!empty($x['legacy']));if($hasLegacy&&strlen($reason)<5)throw new DomainException('Enter a reason to consolidate the previously posted TG mirrors.');
+ $reason=strtoupper(trim((string)($b['reason']??($correction['reopenReason']??''))));$hasLegacy=(bool)array_filter($chosen,static fn($x)=>!empty($x['legacy']));if(($hasLegacy||$correction)&&strlen($reason)<5)throw new DomainException('Enter a reason for correcting the previously posted remittance.');
  foreach((array)($s['tgRemittances']??[]) as $r)if(($r['status']??'')==='Posted'&&$ref!==''&&$r['bankAccountId']===$first['bankAccountId']&&strcasecmp($r['bankReference'],$ref)===0)throw new DomainException('This remittance bank reference is already posted.');
  foreach((array)($s['tgBankTransactions']??[]) as $tx)if($ref!==''&&($tx['status']??'')!=='Reversed for Amendment'&&($tx['bankAccountId']??'')===$first['bankAccountId']&&strcasecmp((string)($tx['bankReference']??''),$ref)===0)throw new DomainException('That bank reference is already posted. Link its existing payment rather than posting again.');
  if(count($receiptIds)!==count(array_unique($receiptIds)))throw new DomainException('A credit advice cannot appear twice in the same remittance.');
@@ -104,6 +120,11 @@ function tgr_confirm(array &$s,array $b,array $u,array $banks,array $names,array
  foreach($record['receiptIds'] as $id){$s['exportReceipts'][$id]['tgRemittanceId']=$rid;$s['exportReceipts'][$id]['tgRemittancePostId']=$j['id'];$pj=$s['exportReceipts'][$id]['journalId'];$s['journals'][$pj]['meta']['tgRemittanceId']=$rid;$s['journals'][$pj]['meta']['tgPostIds']=[$j['id']];}
  foreach((array)($s['tgBankTransactions']??[]) as $id=>$tx)if(isset($legacy[$tx['journalId']??''])){$s['tgBankTransactions'][$id]['status']='Reversed for Amendment';$s['tgBankTransactions'][$id]['reversalJournalId']=$legacy[$tx['journalId']];}
  $s['tgRemittances'][$rid]['reviewSources']=$chosen;
+ if($correction){
+  ale_link($s,$correction['journalId'],$j['id'],$correction['reversalJournalId'],$reason);
+  $s['tgRemittances'][$correction['id']]['replacementRemittanceId']=$rid;$s['tgRemittances'][$rid]['amendmentOfRemittanceId']=$correction['id'];
+  $record=$s['tgRemittances'][$rid];
+ }
  $s['tgRemittanceRequests'][$key]=['hash'=>$hash,'id'=>$rid];$s['workflowAudit'][]=['type'=>'TG_REMITTANCE','action'=>'POST','id'=>$rid,'user'=>$record['createdBy'],'at'=>gmdate('c'),'sourceIds'=>$ids,'reason'=>$reason];return $record;
 }
 

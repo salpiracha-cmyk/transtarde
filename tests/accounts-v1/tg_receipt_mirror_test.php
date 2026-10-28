@@ -11,6 +11,8 @@ function er_bank_master(string $id,string $entity):array{return ['id'=>$id,'acco
 function tt_company_fx_rate(string $entity,string $from,string $to):?float{return 3.67;}
 require dirname(__DIR__,2).'/api/export_receipt_tg_mirror.php';
 require dirname(__DIR__,2).'/api/fi_credit_advice_link.php';
+require dirname(__DIR__,2).'/api/accounts_linked_edit_core.php';
+require dirname(__DIR__,2).'/api/accounts_ledger_visibility.php';
 function check(bool $v,string $m):void{if(!$v)throw new RuntimeException($m);}
 $s=['journals'=>[],'exportReceipts'=>[],'exportCandidates'=>[]];$names=array_fill_keys(['1110','1250','2500','7100','6800','1140'],'ACCOUNT');$banks=['USD'=>['id'=>'USD','bank'=>'TG BANK','title'=>'USD BANK','currency'=>'USD'],'AED'=>['id'=>'AED','bank'=>'TG BANK','title'=>'AED BANK','currency'=>'AED']];
 foreach([108000,32000] as $i=>$amount){$rid='ER-'.$i;$pj='PK-'.$i;$s['journals'][$pj]=['id'=>$pj,'entity'=>'TTI','status'=>'Posted','meta'=>['receiptId'=>$rid],'narration'=>'CREDIT ADVICE'];$alloc=[['targetType'=>'UNAPPLIED_TG','foreignAmount'=>$amount]];
@@ -30,6 +32,19 @@ check(tgr_reserved($corrected,'USD')===140000.0&&tgr_bank_balance($corrected,'US
 check(empty($corrected['exportReceipts']['ER-0']['tgRemittanceId'])&&count($opened['draftIds'])===2,'Reasoned reopening releases both receipt links together');
 $review=tgr_items($corrected);$repost=$body;$repost['date']='2026-10-02';$repost['requestKey']='corrected-request-123456';$repost['ids']=array_column($review,'id');$repost['fingerprints']=array_combine(array_column($review,'id'),array_map('tgr_fingerprint',$review));
 $new=tgr_confirm($corrected,$repost,[],$banks,$names,['USD'=>3.67,'AED'=>1]);check($new['bankReference']==='SWIFT-140000'&&tgr_bank_balance($corrected,'USD','USD')['posted']===-140031.5,'Corrected remittance reuses its bank reference without doubling money');
+// Historical corrections keep immutable audit dates but cancel the old bank
+// movement at its original effective date in all amendment-aware reports.
+$historical=$s;tgr_reopen($historical,['remittanceId'=>$r['id'],'date'=>'2026-10-02','reason'=>'CORRECT HISTORICAL BANK DATE'],[]);
+$pending=tgr_items($historical);$backdated=$body;$backdated['requestKey']='historical-repost-123456';$backdated['date']='2026-09-19';$backdated['ids']=array_column($pending,'id');$backdated['fingerprints']=array_combine(array_column($pending,'id'),array_map('tgr_fingerprint',$pending));
+$partial=$backdated;$partial['ids']=[$pending[0]['id']];$before=$historical;
+try{tgr_confirm($historical,$partial,[],$banks,$names,['USD'=>3.67]);throw new RuntimeException('Partial reopened group accepted');}catch(DomainException $e){}
+check($historical===$before,'Incomplete reopened group leaves journals untouched');
+$replacement=tgr_confirm($historical,$backdated,[],$banks,$names,['USD'=>3.67]);$reverseId=$historical['tgRemittances'][$r['id']]['reversalJournalId'];
+check($historical['journals'][$reverseId]['date']==='2026-10-02','Original reversal audit date remains immutable');
+check($historical['journals'][$r['journalId']]['amendedByPostId']===$replacement['journalId'],'Reopened correction links old and new posting');
+$books=alv_amendment_books($historical);check($books['journals'][$reverseId]['date']==='2026-10-01','Reports use original effective reversal date');
+foreach(['2026-09-19','2026-10-01','2026-10-02'] as $cutoff){$asof=$books;$asof['journals']=array_filter($books['journals'],static fn($j)=>($j['date']??'')<=$cutoff);check(tgr_bank_balance($asof,'USD','USD')['posted']===-140031.5,'Historical bank cutoff contains one corrected deduction');}
+$before=$historical;check(tgr_confirm($historical,$backdated,[],$banks,$names,['USD'=>3.67])['id']===$replacement['id']&&$historical===$before,'Historical correction retry is idempotent');
 // Exact matched FI utilisation adds invoice number and amount only after Customs is saved.
 $receipt=$s['exportReceipts']['ER-0'];$receipt['date']='2026-10-01';$receipt['remitter']='TG';$receipt['foreignAmount']=108000;$s['exportReceipts']['ER-0']=$receipt;
 $root=['fi'=>[['id'=>'FI1','number'=>'FI-108','date'=>'2026-10-01','customer'=>'TG','exporter'=>'TTI','currency'=>'USD','value'=>108000,'allocations'=>[['id'=>'A1','lotId'=>'LOT1','contractRef'=>'TG/C1','amount'=>50000]]]],'shipments'=>[['id'=>'LOT1','seller'=>'TG','contractRef'=>'TG/C1','customs'=>['saved'=>true,'invoiceNo'=>'CUSTOM-1','currency'=>'USD','exporter'=>'TTI','fiAllocations'=>[['fiId'=>'FI1','allocationId'=>'A1','amount'=>50000]]],'tgdocs'=>['saved'=>true,'customsInvoiceNo'=>'TG-PACK-1','currency'=>'USD','exporter'=>'TTI']]]];

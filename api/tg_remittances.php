@@ -36,7 +36,8 @@ try{
    $prior=$s['tgRemittanceRequests'][(string)($b['requestKey']??'')]??null;
    $previous=is_array($prior)?($s['tgRemittances'][$prior['id']??'']??null):null;
    $sources=is_array($previous)?(array)($previous['reviewSources']??[]):array_values(array_filter(tgr_items($s),static fn($item)=>in_array($item['id'],(array)($b['ids']??[]),true)));
-   $rights=[];foreach($sources as $item)$rights[!empty($item['legacy'])?'Edit':'Create']=true;
+   if(!$prior&&array_filter($sources,static fn($item)=>!empty($item['reopenedFrom']))&&(int)($b['expectedRevision']??-1)!==(int)($s['revision']??0))throw new DomainException('Accounts changed. Reopen the remittance review before posting its correction.');
+   $rights=[];foreach($sources as $item)$rights[(!empty($item['legacy'])||!empty($item['reopenedFrom']))?'Edit':'Create']=true;
    if(!$rights)$rights[is_array($previous)&&!empty($previous['legacyReversalPostIds'])?'Edit':'Create']=true;
    foreach(array_keys($rights) as $right)if(!tt_api_icon_write_allowed($u,'tg_remittances.php',$b,$right,'TG'))tgr_out(['ok'=>false,'error'=>'The corresponding TG remittance and company action permission is required.'],403);
   }
@@ -51,7 +52,7 @@ try{
    $s['revision']=(int)($s['revision']??0)+1;$s['tgRemittanceAmendmentRequests'][$identity]=['hash'=>$hash,'response'=>['ok'=>true,'posted'=>$result,'revision'=>$s['revision']]];
    $encoded=json_encode($s,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR);rewind($h);if(!ftruncate($h,0)||fwrite($h,$encoded)!==strlen($encoded)||!fflush($h))throw new RuntimeException('Could not save remittance correction.');
   }
-  elseif($write){if(($b['action']??'')==='reopen')$result=tgr_reopen($s,$b,$u);elseif(($b['action']??'')==='confirm')$result=tgr_confirm($s,$b,$u,$banks,$names,$rates);else throw new DomainException('Choose POST to confirm the remittance.');$s['revision']=(int)($s['revision']??0)+1;
+  elseif($write){$before=array_keys((array)($s['journals']??[]));if(($b['action']??'')==='reopen')$result=tgr_reopen($s,$b,$u);elseif(($b['action']??'')==='confirm')$result=tgr_confirm($s,$b,$u,$banks,$names,$rates);else throw new DomainException('Choose POST to confirm the remittance.');tt_posting_preview_exit($b,$s,$before);$s['revision']=(int)($s['revision']??0)+1;
    $encoded=json_encode($s,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_THROW_ON_ERROR);rewind($h);if(!ftruncate($h,0)||fwrite($h,$encoded)!==strlen($encoded)||!fflush($h))throw new RuntimeException('Could not save remittance.');
   }
   if(is_array($result)&&isset($result['journalId'],$s['journals'][$result['journalId']]))$result['publicPostId']=tt_accounts_public_post($s,$s['journals'][$result['journalId']]);
