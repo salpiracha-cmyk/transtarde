@@ -533,6 +533,20 @@ function sac_family_statement(array $s,string $entity,string $account,string $fr
  if($allocationWarnings)foreach($rows as &$r)$r['balance']=null;unset($r);
  return ['rows'=>$rows,'warnings'=>array_values(array_unique($allocationWarnings)),'balanceUnavailable'=>(bool)$allocationWarnings,'opening'=>$allocationWarnings?null:$opening,'closing'=>$allocationWarnings?null:$balance,'balanceMeaning'=>$allocationWarnings?'Allocation review required':($kind==='REMUNERATION'?($balance>0?'Payable to company':($balance<0?'Company owes family member':'Settled')):'Company-borne expenses'),'familyStatement'=>true];
 }
+/** Historical expense recipients are payment details unless they also have a balance account. */
+function sac_expense_history_only(array $s,string $entity):array {
+ $expenses=[];$balances=[];$chart=sac_entity_chart($s,$entity);$hidden=alv_hidden($s);
+ foreach((array)($s['journals']??[]) as $j){
+  if(!is_array($j)||($j['entity']??'')!==$entity||!alv_posted($j)||isset($hidden[(string)($j['id']??'')]))continue;
+  foreach((array)($j['lines']??[]) as $l){
+   $name=trim((string)($l['counterparty']??$l['party']??$l['supplier']??$l['vendor']??$l['customer']??$l['broker']??$j['meta']['payee']??''));$key=sac_normal($name);if($key==='')continue;
+   $code=(string)($l['account']??'');$class=$chart[$code]['class']??'';
+   if($class==='Expense')$expenses[$key]=$name;
+   elseif(!in_array($code,['1110','1120'],true)&&in_array($class,['Asset','Liability','Equity'],true))$balances[$key]=true;
+  }
+ }
+ return array_diff_key($expenses,$balances);
+}
 function sac_ledger_reviews(array $s,string $entity):array {
  $reviews=[];$names=[];$chart=sac_chart();$balances=[];$recipients=[];
  foreach(sac_accounts($s,$entity) as $a){$key=sac_normal((string)$a['name']);if($key!=='')$names[$key][]=$a;}
@@ -554,7 +568,7 @@ function sac_ledger_reviews(array $s,string $entity):array {
    if($type!=='')$reviews[]=['type'=>$type,'reference'=>tt_accounts_public_post($s,$j),'detail'=>$purpose.($recipient!==''?' · Paid to '.$recipient:''),'postId'=>(string)$j['id']];
   }
  }
- foreach($recipients as $key=>$name)if(!isset($balances[$key])&&sac_family_person($name)==='')$reviews[]=['type'=>'Expense recipient history','reference'=>$name,'detail'=>'No separate party balance identified. Review as payment history under its expense heads, not a new balance ledger.'];
+ // Recipient-only histories are automatically omitted from ledger choices; no owner review is required.
  return $reviews;
 }
 

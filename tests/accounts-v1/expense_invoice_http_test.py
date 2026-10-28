@@ -24,6 +24,45 @@ with tempfile.TemporaryDirectory(prefix='staff-payment-amend-') as temp:
   assert r.returncode==0,r.stdout+r.stderr
   payload,status=r.stdout.rsplit('\n__STATUS__',1);return int(status),json.loads(payload)
 
+ # A single expense save atomically records a bill and the editable first payment.
+ base=json.loads(json.dumps(initial));base['paymentPayees']={'TTI|EXP|ahmedacservices':{'id':'EXP|ahmedacservices','entity':'TTI','kind':'EXPENSE','name':'Ahmed AC Services','active':True,'configured':True,'accountCode':'6400','expenseCategory':'REPAIRS'}};books.write_text(json.dumps(base))
+ bill={'entity':'TTI','action':'record_expense_bill','requestKey':'simple-expense-bill-01','payee':'Ahmed AC Services','maintainPartyAccount':True,'paymentDate':'2026-10-01','paymentAccountId':'B1','bankPaymentMethod':'ONLINE_BANKING','bankPaymentDate':'2026-10-01','paidNow':7000,'amount':15000,'paymentNarration':'AC repair bill, initial payment','expenseLines':[{'category':'REPAIRS','accountCode':'6400','amount':15000,'purpose':'AC repair','expenseArea':'OFFICE','expenseFor':'SHARED','personalTreatment':'COMPANY'}]}
+ original=books.read_bytes()
+ for change in [{'paidNow':-1},{'paidNow':15001},{'paidNow':'1e309'},{'maintainPartyAccount':False},{'payee':'Uncreated random recipient'},{'paymentAccountId':'INVALID'},{'payeeId':'EXP|different'},{'amount':14999}]:
+  st,res=request({**bill,**change});assert st==422,(change,st,res);assert books.read_bytes()==original
+ st,preview=request({**bill,'preview':True});assert st==200,(st,preview);assert books.read_bytes()==original
+ assert len(preview['previews'])==2,preview
+ st,res=request(bill);assert st==200,(st,res);bid=res['result']['invoiceId'];state=json.loads(books.read_text());bill_jid=res['result']['journalId'];payment_jid=res['result']['paymentJournalId']
+ assert [(l['account'],l['debit'],l['credit']) for l in state['journals'][bill_jid]['lines']]==[('6400',15000,0),('2130',0,15000)]
+ assert [(l['account'],l['debit'],l['credit']) for l in state['journals'][payment_jid]['lines']]==[('2130',7000,0),('1110',0,7000)]
+ row=next(r for r in res['expenseInvoices'] if r['id']==bid);assert row['outstanding']==8000 and row['cashPaid']==7000 and row['paymentStatus']=='Part-paid',row
+ stable=books.read_bytes();assert request(bill)[1]['result']['invoiceId']==bid and books.read_bytes()==stable
+ assert request({**bill,'paidNow':8000})[0]==409 and books.read_bytes()==stable
+ later={'entity':'TTI','action':'post_bill_payment','requestKey':'simple-expense-final-01','supplier':'Ahmed AC Services','category':'SERVICE','selectedBills':[bid+'|EXPENSE|'+bid],'explicitBillSelection':True,'paymentIntent':'PARTIAL','selectedOutstanding':8000,'amount':8000,'paymentMode':'BANK','bankAccountId':'B1','bankPaymentMethod':'ONLINE_BANKING','bankPaymentDate':'2026-10-02','date':'2026-10-02'}
+ st,res=request(later,endpoint='supplier_settlements');assert st==200,(st,res)
+ state=json.loads(books.read_text());assert sum(l.get('debit',0)-l.get('credit',0) for j in state['journals'].values() for l in j['lines'] if l['account']=='6400')==15000
+ row=next(r for r in request()[1]['expenseInvoices'] if r['id']==bid);assert row['outstanding']==0 and row['cashPaid']==15000,row
+ for paid in [0,15000]:
+  books.write_text(json.dumps(base));payload={**bill,'requestKey':'simple-expense-paid-'+str(paid),'paidNow':paid}
+  if not paid:payload['paymentAccountId']='';payload.pop('bankPaymentMethod');payload.pop('bankPaymentDate')
+  st,res=request(payload);assert st==200,(st,res);row=next(r for r in res['expenseInvoices'] if r['id']==res['result']['invoiceId']);assert row['outstanding']==15000-paid and row['cashPaid']==paid,row
+  assert len(json.loads(books.read_text())['journals'])==len(base['journals'])+(2 if paid else 1)
+ # Old recipient-only pseudo-ledgers disappear; real supplier accounts survive and original journals do not change.
+ state=json.loads(books.read_text());state['journals']['OLD-FEE']=journal('OLD-FEE','2026-10-01','DIRECT_EXPENSE_PAYMENT',[{'account':'6800','debit':1000,'credit':0,'counterparty':'Meezan Bank'},{'account':'1110','bankAccountId':'B1','debit':0,'credit':1000}],{'payee':'Meezan Bank'})
+ books.write_text(json.dumps(state));stable=books.read_bytes();st,ledger=request(query='?entity=TTI&category=party&from=2026-07-01&to=2026-12-31',endpoint='accounts_ledger_browser');assert st==200,(st,ledger);assert 'Meezan Bank' not in ledger['parties'] and 'Ahmed AC Services' in ledger['parties'];assert books.read_bytes()==stable
+ st,party=request(query='?entity=TTI&category=party&party=Ahmed%20AC%20Services&from=2026-07-01&to=2026-12-31',endpoint='accounts_ledger_browser');assert st==200,(st,party);assert all(not r.get('activityOnly') for r in party['rows']),party
+ assert sum(r['credit']-r['debit'] for r in party['rows'])==0 and len(party['rows'])==2,party
+ # Source-preserving corrections also retain a staff cash holder or credit card, not Office Cash.
+ for source in ['CASH|TTI|STAFF|STAFF1','CARD|CARD1']:
+  extra=json.loads(json.dumps(base));extra['salaryMasters']={'STAFF1':{'id':'STAFF1','entity':'TTI','name':'Fixture cash holder','category':'OFFICE_STAFF','status':'Active'}};extra['pettyCashHolders']={'CASH|TTI|STAFF|STAFF1':{'id':'CASH|TTI|STAFF|STAFF1','entity':'TTI','staffId':'STAFF1','name':'Fixture cash holder','active':True}};extra['creditCardMasters']={'CARD1':{'id':'CARD1','entity':'TTI','cardName':'Fixture card','status':'Active'}};extra['journals']['STAFF-FUND']=journal('STAFF-FUND','2026-09-30','JV',[{'account':'1120','cashAccountId':'CASH|TTI|STAFF|STAFF1','debit':20000,'credit':0},{'account':'3400','credit':20000,'debit':0}]);books.write_text(json.dumps(extra))
+  payload={**bill,'requestKey':'expense-original-source-'+source.split('|')[0],'paymentAccountId':source};payload.pop('bankPaymentMethod');payload.pop('bankPaymentDate');st,res=request(payload);assert st==200,(source,st,res);bid=res['result']['invoiceId'];sid=res['result']['settlementId'];original_jid=res['result']['paymentJournalId']
+  correction={'entity':'TTI','action':'amend_bill_payment','settlementId':sid,'expectedJournalId':original_jid,'reason':'Correct initial payment amount','supplier':'Ahmed AC Services','category':'SERVICE','selectedBills':[bid+'|EXPENSE|'+bid],'explicitBillSelection':True,'paymentIntent':'PARTIAL','selectedOutstanding':15000,'amount':7500,'paymentMode':'EXPENSE_SOURCE','date':'2026-10-01','requestKey':'expense-source-correction-'+source.split('|')[0]}
+  stable=books.read_bytes();st,res=request({**correction,'preview':True},endpoint='supplier_settlements');assert st==200,(source,st,res);assert books.read_bytes()==stable
+  st,res=request(correction,endpoint='supplier_settlements');assert st==200,(source,st,res);state=json.loads(books.read_text());assert res['result']['publicPostId']==original_jid;credit=state['journals'][res['result']['journalId']]['lines'][-1];assert credit['paymentAccountId']==source and credit['credit']==7500 and isinstance(credit['accountName'],str),credit
+  row=next(r for r in request()[1]['expenseInvoices'] if r['id']==bid);assert row['outstanding']==7500 and row['cashPaid']==7500,row
+ books.write_text(json.dumps(initial))
+ print('PASS simple expense bill: 15000/7000/8000, atomic validation and preview, later settlement without second expense, zero/full payment and retry protection')
+
  # Canonical service providers are offered with their expense mapping, without a second Expense Recipient.
  fixture=json.loads(auth.read_text());fixture['masters']['business_parties'].append({'id':'NAVED','values':['Naveed — Sales Tax Consultant','','Service Provider','','','','','','','','Active','',json.dumps({'service':{'expenseAccountCode':'6700','type':'Tax consultant'}})]});auth.write_text(json.dumps(fixture))
  st,payload=request();provider=next(p for p in payload['recipientProfiles'] if p['id']=='PARTY|NAVED');assert provider['accountCode']=='6700' and provider['expenseCategory']=='PROFESSIONAL' and provider['kind']=='BUSINESS'

@@ -162,6 +162,7 @@ if($entity!=='ALL'){
 $catalog['2130']='Transport, Freight & Clearing Payables';foreach(slg_groups() as $kind=>$name)$catalog['SERVICE|'.$kind]=$name.' Payables';
 $catalog['POSTS']='Post ID Register';
 foreach($banks as $bank)$catalog[$bank['code']]=$bank['name'];
+$historyOnly=sac_expense_history_only($store,$entity);
 $expenseActivity=($category==='party'||$homeLedger)&&$serviceGroup===''?sac_expense_activity($store,$entity,$from,$to):[];
 foreach($expenseActivity as $activity){if($activity['recipient']!=='')$parties[$activity['recipient']]=true;if(($activity['expenseFor']??'SHARED')!=='SHARED')$parties[$activity['expenseForName']]=true;}
 $requestedPost=trim((string)($_GET['postId']??''));
@@ -314,7 +315,7 @@ $closing=in_array($category,['party','bank'],true)&&$balanceUnavailable?null:$ba
 if(in_array($category,['party','bank'],true)&&$balanceUnavailable){$opening=null;foreach($rows as &$row)$row['balance']=null;unset($row);}
 if($category==='bank'&&$party!=='')$rows=array_values(array_filter($rows,static function($row)use($party){foreach(explode(' · ',(string)$row['party']) as $name)if(alb_party_key($name)===alb_party_key($party))return true;return false;}));
 $expenseTotal=0.0;
-if($homeLedger||($category==='party'&&$party!==''))foreach($expenseActivity as $activity)if(($homeLedger&&($activity['homeLedgerId']??'')===$subaccountId)||(!$homeLedger&&(alb_party_key($activity['recipient'])===alb_party_key($party)||(($activity['expenseFor']??'SHARED')!=='SHARED'&&alb_party_key($activity['expenseForName'])===alb_party_key($party))))){
+if($homeLedger||($category==='party'&&$party!==''&&isset($historyOnly[sac_normal($party)])))foreach($expenseActivity as $activity)if(($homeLedger&&($activity['homeLedgerId']??'')===$subaccountId)||(!$homeLedger&&(alb_party_key($activity['recipient'])===alb_party_key($party)||(($activity['expenseFor']??'SHARED')!=='SHARED'&&alb_party_key($activity['expenseForName'])===alb_party_key($party))))){
  $expenseTotal=round($expenseTotal+$activity['amount'],2);
  $rows[]=['publicPostId'=>tt_accounts_public_post($store,$store['journals'][$activity['voucher']]??[]),'amendmentNote'=>tt_accounts_amendment_note($store['journals'][$activity['voucher']]??[],$store),'date'=>$activity['date'],'voucher'=>$activity['voucher'],'account'=>$activity['account'],'accountName'=>$activity['accountName'],'reference'=>$activity['reference'],'narration'=>$activity['accountName'].' · '.$activity['purpose'].' · Paid to '.$activity['recipient'].' · For '.($activity['expenseForName']??'Shared–Common').($activity['assetName']!==''?' · '.$activity['assetName'].' '.$activity['registrationNo']:''),'party'=>$activity['recipient'],'debit'=>0,'credit'=>0,'balance'=>null,'activityOnly'=>true,'expenseAmount'=>$activity['amount'],'chequeNo'=>'','bankReference'=>''];
 }
@@ -325,6 +326,9 @@ usort($rows,static function(array $a,array $b)use($postEntries):int{
  $parts=static function(string $id):array{return preg_match('/^[A-Z]+-(\d{4})-(\d+)$/i',$id,$m)?[(int)$m[1],(int)$m[2]]:[0,0];};
  $ak=$parts((string)$a['voucher']);$bk=$parts((string)$b['voucher']);return ($postEntries?-1:1)*(strcmp((string)$a['date'],(string)$b['date'])?:($ak[0]<=>$bk[0])?:($ak[1]<=>$bk[1])?:strcmp((string)$a['voucher'],(string)$b['voucher']));
 });
+// Retire recipient-only choices for old and new posts without changing saved journals.
+$parties=array_filter($parties,static fn($name)=>!isset($historyOnly[sac_normal((string)$name)]),ARRAY_FILTER_USE_KEY);
+$partyAliases=array_values(array_filter($partyAliases,static fn($alias)=>!isset($historyOnly[sac_normal((string)$alias['name'])])));
 if(($_GET['format']??'')==='csv'){
     usort($rows,static fn($a,$b)=>strcmp($a['date'],$b['date'])?:strnatcmp($a['voucher'],$b['voucher']));
     header('Content-Type: text/csv; charset=UTF-8');
