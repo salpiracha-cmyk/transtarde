@@ -43,7 +43,9 @@ function alv_amendment_books(array $store):array {
         $legs=[];
         foreach([$original,$reverse] as $entry)foreach((array)($entry['lines']??[]) as $line){
             if(!is_array($line))continue;
-            $meta=(array)($entry['meta']??[]);
+            // Legacy reopen reversals omit the original journal's bank/currency
+            // context. Inherit missing context only inside this proven pair.
+            $meta=(array)($entry['meta']??[])+(array)($original['meta']??[]);
             $key=json_encode([(string)($line['account']??''),(string)($line['bankAccountId']??$meta['bankAccountId']??''),(string)($line['cashAccountId']??''),(string)($line['subaccountId']??''),(string)($line['currency']??$meta['currency']??''),strtolower(trim((string)($line['supplier']??$line['broker']??$line['customer']??$line['counterparty']??$line['party']??$line['subledger']??$line['person']??'')))]);
             foreach([['debit','credit'],['bankDebit','bankCredit'],['nativeDebit','nativeCredit']] as [$dr,$cr]){
                 $k=$key.'|'.$dr;$legs[$k]=($legs[$k]??0)+(int)round(100*((float)($line[$dr]??0)-(float)($line[$cr]??0)));

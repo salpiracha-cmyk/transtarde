@@ -12,7 +12,7 @@ with tempfile.TemporaryDirectory(prefix='tg-remittance-') as tmp:
  (root/'auth_store.php').write_text('''<?php
  define('TT_DATA_DIR',__DIR__.'/data');foreach(['HOST','NAME','USER','PASS'] as $k)define('TT_DB_'.$k,'');
  function tt_ensure_data_dir(){} function tt_accounts_input(){return file_get_contents('php://input');}
- function tt_require_login(){return ['username'=>'FIXTURE','role'=>'Staff','permissions'=>['Accounts'=>($_SERVER['HTTP_X_FIXTURE_ROLE']??'')==='readonly'?['View']:['View','Create','Edit']]];}
+ function tt_require_login(){return ['username'=>'FIXTURE','role'=>'Staff','permissions'=>['Accounts'=>($_SERVER['HTTP_X_FIXTURE_ROLE']??'')==='readonly'?['View']:(($_SERVER['HTTP_X_FIXTURE_ROLE']??'')==='createonly'?['View','Create']:['View','Create','Edit'])]];}
     // This isolated auth fixture has no PHP session; real lock behavior is tested separately.
     function tt_release_read_session(){}
  function tt_user_can_module_action(array $user,string $module,string $icon,string $action): bool {
@@ -82,6 +82,24 @@ with tempfile.TemporaryDirectory(prefix='tg-remittance-') as tmp:
   assert req(body=payload)[1]['posted']['id']==posted['posted']['id']
   assert req('accounts_dashboard.php?entity=TG')[1]['attention']==[]
   ledger=req('accounts_ledger_browser.php?entity=TG&account=BANK%7CUSD&to=2026-10-03')[1];assert ledger['currency']=='USD' and sum(x['credit'] for x in ledger['rows'])==140031.5,ledger;assert all(x.get('currency')=='USD' and x.get('bookCurrency')=='AED' for x in ledger['rows']),ledger
+  # Legacy reopened reviews may post at the actual historical bank date.
+  original=posted['posted'];status,reopened=req(body={'action':'reopen','csrf':'fixture','remittanceId':original['id'],'date':'2026-10-03','reason':'CORRECT HISTORICAL BANK DATE'});assert status==200,reopened
+  before=(root/'data/accounts.json').read_bytes()
+  corrected={**payload,'requestKey':'historical-http-correction-12345','expectedRevision':reopened['revision'],'date':'2026-09-19','ids':[x['id'] for x in reopened['items']],'fingerprints':{x['id']:x['fingerprint'] for x in reopened['items']},'reason':'CORRECT HISTORICAL BANK DATE'}
+  assert req(body=corrected,role='createonly')[0]==403,'A reopened correction requires Edit rather than Create'
+  assert req(body={**corrected,'expectedRevision':-1})[0]==422
+  assert req(body={**corrected,'ids':corrected['ids'][:1]})[0]==422
+  status,preview=req(body={**corrected,'preview':True});assert status==200 and preview['previews'],preview
+  assert (root/'data/accounts.json').read_bytes()==before,'Preview and rejected correction must not persist money or links'
+  status,replacement=req(body=corrected);assert status==200,replacement
+  new= replacement['posted'];assert new['date']=='2026-09-19' and new['publicPostId']==original['publicPostId']
+  stored=json.loads((root/'data/accounts.json').read_text());reverse_id=stored['tgRemittances'][original['id']]['reversalJournalId'];assert stored['journals'][reverse_id]['date']=='2026-10-03'
+  for cutoff in ['2026-09-19','2026-10-01','2026-10-03']:
+   report=req('accounts_ledger_browser.php?entity=TG&account=BANK%7CUSD&to='+cutoff)[1]
+   assert report['closing']==-140031.5,(cutoff,report)
+  assert next(x for x in replacement['banks'] if x['id']=='USD')['balance']['posted']==-140031.5
+  assert req(body=corrected)[1]['posted']['id']==new['id']
+  assert set(json.loads((root/'data/accounts.json').read_text())['journals'])==set(stored['journals']),'Correction retry cannot create a duplicate deduction'
   # Actual Pakistan POST must atomically create its receipt and a pending TG deduction only.
   (root/'data/accounts.json').write_text(json.dumps({'journals':{},'exportReceipts':{}}))
   (root/'data/operations.json').write_text(json.dumps({'values':{'transtrade_export_v3_operational':json.dumps({'fi':[],'contracts':[],'shipments':[]})}}))
