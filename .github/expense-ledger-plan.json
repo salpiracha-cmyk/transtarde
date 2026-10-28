@@ -2,33 +2,32 @@
   "version": 1,
   "rows": [
     {
-      "fingerprint": "069c5055b603c0e1ae17202f8fbe45afdef720f16621b69e70527cd065e1ac5b",
+      "fingerprint": "6c50e49ad366ff1737c18644c34c500b4a805fe35240647ab2359b0c7b74ddf8",
       "row": 0,
       "changes": {
         "account": "6910",
         "category": "HOME",
         "expenseFor": "FAM-SALMAN",
         "personalTreatment": "COMPANY",
-        "expenseArea": "HOME",
-        "monthlyFee": true
+        "expenseArea": "HOME"
       },
-      "reason": "Owner-confirmed historical expense classification"
+      "reason": "Owner-confirmed household allocation and original payment treatment"
     },
     {
-      "fingerprint": "4f17b8e6e9005cb4805e0221eaebde6c1b86cb807ce1bfeef6466195109d4c06",
+      "fingerprint": "04c0ae804d8ecab342dd1ab26c5e6bfae9f899927117d49c516cc3fe57aaef68",
       "row": 0,
       "changes": {
-        "account": "6910",
-        "category": "HOME",
-        "expenseFor": "FAM-SALMAN",
+        "account": "7210",
+        "category": "DONATION",
+        "expenseFor": "SHARED",
         "personalTreatment": "COMPANY",
-        "expenseArea": "HOME",
-        "monthlyFee": true
+        "expenseArea": "OFFICE"
       },
-      "reason": "Owner-confirmed historical expense classification"
+      "reason": "Owner-confirmed household allocation and original payment treatment",
+      "narration": "Paid to Mochie"
     },
     {
-      "fingerprint": "4e266a6ea812926d360523f8c6ca40f05b22df50196bc662297ee61cd73d8dd6",
+      "fingerprint": "cf2301602c54d380b31bfced20bddefb3eab20cc9bbccac32a3468897491059f",
       "row": 0,
       "changes": {
         "account": "6910",
@@ -37,201 +36,107 @@
         "personalTreatment": "COMPANY",
         "expenseArea": "HOME"
       },
-      "reason": "Owner-confirmed historical expense classification"
+      "reason": "Owner-confirmed household allocation and original payment treatment"
     },
     {
-      "fingerprint": "1f99b8637efb4ab5b47784cdc770093e0eaf61a850424cc8a8c78e467db7e808",
+      "fingerprint": "be836d5dc757a9ee6e879b2dbe116a3b9368bdda743f1651dfd52bec0e5f424a",
+      "row": 0,
+      "changes": {
+        "account": "6910",
+        "category": "ARP",
+        "expenseFor": "FAM-ABU",
+        "personalTreatment": "COMPANY",
+        "expenseArea": "HOME"
+      },
+      "reason": "Owner-confirmed household allocation and original payment treatment"
+    },
+    {
+      "fingerprint": "c224d9c46c54fb90362bb42aa6219061b0cb9b4f8005d0ca4d9b54f6f13c8140",
+      "row": 0,
+      "changes": {
+        "account": "6910",
+        "category": "ARP",
+        "expenseFor": "FAM-ABU",
+        "personalTreatment": "COMPANY",
+        "expenseArea": "HOME"
+      },
+      "reason": "Owner-confirmed household allocation and original payment treatment"
+    },
+    {
+      "fingerprint": "7afe08ba228e3ef11665b1cebda2b3d572d692d16f235d14400fa89461f58f9e",
+      "row": 0,
+      "changes": {
+        "account": "6910",
+        "category": "ARP",
+        "expenseFor": "FAM-ABU",
+        "personalTreatment": "COMPANY",
+        "expenseArea": "HOME"
+      },
+      "reason": "Owner-confirmed household allocation and original payment treatment"
+    },
+    {
+      "fingerprint": "e435f513f71eafe9d829217e48d76f243461990b48b6711db7d208c2bf9b1bd9",
       "row": 0,
       "changes": {
         "account": "6910",
         "category": "HOME",
         "expenseFor": "FAM-SALMAN",
         "personalTreatment": "COMPANY",
-        "expenseArea": "HOME",
-        "monthlyFee": true
+        "expenseArea": "HOME"
       },
-      "reason": "Owner-confirmed historical expense classification"
+      "reason": "Owner-confirmed household allocation and original payment treatment"
     },
     {
-      "fingerprint": "1ce3d869a0782911b84e7c773799ae98726e3d4197a9e2e3eb6f013ac861a35c",
+      "fingerprint": "d2c25b7395934d3dd449331b7cf26acb4dd0709f003baef11545c524bacf6e20",
       "row": 0,
       "changes": {
-        "account": "6400",
-        "category": "REPAIRS",
+        "account": "6910",
+        "category": "HOME",
         "expenseFor": "SHARED",
         "personalTreatment": "COMPANY",
-        "expenseArea": "OFFICE"
+        "expenseArea": "HOME"
       },
-      "reason": "Owner-confirmed historical expense classification"
+      "allocations": [
+        {
+          "expenseFor": "FAM-TALHA",
+          "percent": 50
+        },
+        {
+          "expenseFor": "FAM-TAYYAB",
+          "percent": 25
+        },
+        {
+          "expenseFor": "FAM-SALMAN",
+          "percent": 25
+        }
+      ],
+      "reason": "Owner-confirmed 50/25/25 company-borne household fee allocation"
     },
     {
-      "fingerprint": "1c5ec3c721cd57ae2f93b7a04650a979b740c770342921ebfd718f6ea6daa1ce",
+      "fingerprint": "d685bb69e501568907a28cbfc5aa381d6e67411f2507e5d1549a65666c32326d",
       "row": 0,
       "changes": {
-        "account": "6400",
-        "category": "REPAIRS",
+        "account": "6910",
+        "category": "HOME",
         "expenseFor": "SHARED",
         "personalTreatment": "COMPANY",
-        "expenseArea": "OFFICE"
+        "expenseArea": "HOME"
       },
-      "reason": "Owner-confirmed historical expense classification"
-    },
-    {
-      "fingerprint": "323dc7ef7959e8bc51f5511f37d9befd0f8d9404d5808dfe61293d315a7d8606",
-      "row": 0,
-      "changes": {
-        "account": "6400",
-        "category": "REPAIRS",
-        "expenseFor": "SHARED",
-        "personalTreatment": "COMPANY",
-        "expenseArea": "OFFICE"
-      },
-      "reason": "Owner-confirmed historical expense classification"
-    },
-    {
-      "fingerprint": "8fa2148d23cb9c26a44fa42ea156a76cd2b65dccdded0f1c610d8843967c197e",
-      "row": 0,
-      "changes": {
-        "account": "6610",
-        "category": "FUEL",
-        "expenseFor": "SHARED",
-        "personalTreatment": "COMPANY",
-        "expenseArea": "OFFICE"
-      },
-      "reason": "Owner-confirmed historical expense classification"
-    },
-    {
-      "fingerprint": "0bb4af5ab270b3a7f8b89f9b86cd577f37b9acd92aa21127e497e2909f2a486e",
-      "row": 0,
-      "changes": {
-        "account": "6400",
-        "category": "REPAIRS",
-        "expenseFor": "SHARED",
-        "personalTreatment": "COMPANY",
-        "expenseArea": "OFFICE"
-      },
-      "reason": "Owner-confirmed historical expense classification"
-    },
-    {
-      "fingerprint": "a828ed55c31744a9aa2032351dec1f2fe05d09e3c0f92168a5a5a37ca8361b2a",
-      "row": 0,
-      "changes": {
-        "account": "6400",
-        "category": "REPAIRS",
-        "expenseFor": "SHARED",
-        "personalTreatment": "COMPANY",
-        "expenseArea": "OFFICE"
-      },
-      "reason": "Owner-confirmed historical expense classification"
-    },
-    {
-      "fingerprint": "96617b6fa0fe00e0ea4295e3e8f348376dce3e7283b96218b6ee1e3592cd556b",
-      "row": 0,
-      "changes": {
-        "account": "6400",
-        "category": "REPAIRS",
-        "expenseFor": "SHARED",
-        "personalTreatment": "COMPANY",
-        "expenseArea": "OFFICE"
-      },
-      "reason": "Owner-confirmed historical expense classification"
-    },
-    {
-      "fingerprint": "172db770b1d318e067265658d824e348729e72b548796fc41e30b3d773764fee",
-      "row": 0,
-      "changes": {
-        "account": "6400",
-        "category": "REPAIRS",
-        "expenseFor": "SHARED",
-        "personalTreatment": "COMPANY",
-        "expenseArea": "OFFICE"
-      },
-      "reason": "Owner-confirmed historical expense classification"
-    },
-    {
-      "fingerprint": "abc016e32e0c47dd0036bb0a74531f05760816f742bf56269c3b27ff3e48a72e",
-      "row": 0,
-      "changes": {
-        "account": "6400",
-        "category": "REPAIRS",
-        "expenseFor": "SHARED",
-        "personalTreatment": "COMPANY",
-        "expenseArea": "OFFICE"
-      },
-      "reason": "Owner-confirmed historical expense classification"
-    },
-    {
-      "fingerprint": "cad3fde894ef2f882c39f77266414ef4cd36a02b7fc29f6681d9dfde06d68dc0",
-      "row": 0,
-      "changes": {
-        "account": "6400",
-        "category": "REPAIRS",
-        "expenseFor": "SHARED",
-        "personalTreatment": "COMPANY",
-        "expenseArea": "OFFICE"
-      },
-      "reason": "Owner-confirmed historical expense classification"
-    },
-    {
-      "fingerprint": "14499fecf334f94629b798cf5ac9230d619dbab2a8456e8626411446601f9799",
-      "row": 0,
-      "changes": {
-        "account": "6900",
-        "category": "OFFICE",
-        "expenseFor": "SHARED",
-        "personalTreatment": "COMPANY",
-        "expenseArea": "OFFICE"
-      },
-      "reason": "Owner-confirmed historical expense classification"
-    },
-    {
-      "fingerprint": "69ae84b005929616dbdec950aa4b1f344b9d4571615e5a639253638c561655af",
-      "row": 0,
-      "changes": {
-        "account": "6400",
-        "category": "REPAIRS",
-        "expenseFor": "SHARED",
-        "personalTreatment": "COMPANY",
-        "expenseArea": "OFFICE"
-      },
-      "reason": "Owner-confirmed historical expense classification"
-    },
-    {
-      "fingerprint": "25f8d0d8764271be3e9fa616dfc6e67f1b11ef5a10e08a7e2ac6002fff241fbf",
-      "row": 1,
-      "changes": {
-        "account": "6610",
-        "category": "FUEL",
-        "expenseFor": "SHARED",
-        "personalTreatment": "COMPANY",
-        "expenseArea": "OFFICE"
-      },
-      "reason": "Owner-confirmed historical expense classification"
-    },
-    {
-      "fingerprint": "cd0742b6468c40f092ccebf0d876d7cfd0ab594f40dba426331b662284ccc430",
-      "row": 0,
-      "changes": {
-        "account": "6610",
-        "category": "FUEL",
-        "expenseFor": "SHARED",
-        "personalTreatment": "COMPANY",
-        "expenseArea": "OFFICE"
-      },
-      "reason": "Owner-confirmed historical expense classification"
-    },
-    {
-      "fingerprint": "3ca3ba0c55d723b7a9a39a4f35bb5acea8557454abb4276b6cafdaf48874e5b7",
-      "row": 1,
-      "changes": {
-        "account": "6700",
-        "category": "PROFESSIONAL",
-        "expenseFor": "SHARED",
-        "personalTreatment": "COMPANY",
-        "expenseArea": "OFFICE",
-        "namedSubledger": "NAVEED SALES TAX"
-      },
-      "reason": "Owner-confirmed historical expense classification"
+      "allocations": [
+        {
+          "expenseFor": "FAM-TALHA",
+          "percent": 50
+        },
+        {
+          "expenseFor": "FAM-TAYYAB",
+          "percent": 25
+        },
+        {
+          "expenseFor": "FAM-SALMAN",
+          "percent": 25
+        }
+      ],
+      "reason": "Owner-confirmed 50/25/25 company-borne household fee allocation"
     }
   ],
   "archiveExpenseOnlyRecipients": false
