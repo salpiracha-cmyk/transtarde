@@ -287,6 +287,10 @@ jobs:
           python3 -m venv "$RUNNER_TEMP/inventory-venv"
           "$RUNNER_TEMP/inventory-venv/bin/pip" -q install playwright==1.55.0
           "$RUNNER_TEMP/inventory-venv/bin/playwright" install --with-deps chromium
+      - name: TG remittance review browser flow
+        env:
+          TT_QA_OUTPUT: ${{ runner.temp }}/inventory-evidence
+        run: '"$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/tg_remittance_http_test.py'
       - name: Native Mill SODA handoff and gate passes
         run: |
           "$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/mill_operational_save_browser_test.py
@@ -505,10 +509,6 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/expense-review-node/node_modules
         run: '"$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/assets_registry_http_test.py'
-      - name: TG remittance review browser flow
-        env:
-          TT_QA_OUTPUT: ${{ runner.temp }}/inventory-evidence
-        run: '"$RUNNER_TEMP/inventory-venv/bin/python" tests/accounts-v1/tg_remittance_http_test.py'
       - name: Retain sanitized test evidence
         continue-on-error: true # Evidence uploads are best effort; every functional check remains required.
         if: always()
