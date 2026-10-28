@@ -34,6 +34,13 @@ function ald_correct(array &$store,array $u,string $id,array $b):array {
         if(count($ids)!==count(array_unique($ids)))throw new DomainException('Receipt journal links need review before correcting the date.');
         foreach($ids as $linked){$j=ald_live($store,$linked,$entity);if(($j['meta']['receiptId']??'')!==$rid||$j['date']!==$original['date'])throw new DomainException('A linked receipt journal has a different source or date. Review it before correcting this advice.');}
     }
+    $taxMatches=[];
+    if($isReceipt)foreach((array)($store['exportTaxCertificateMatches']??[]) as $key=>$certificateId)foreach($ids as $linked)if(str_starts_with((string)$key,$linked.'|')&&$certificateId!==''){
+        $certificate=is_string($certificateId)?($store['exportTaxCertificates'][$certificateId]??null):null;
+        $year=(int)substr($date,0,4)-((int)substr($date,5,2)<7?1:0);$fy=sprintf('%d-%02d',$year,($year+1)%100);
+        if(!is_array($certificate)||($certificate['entity']??'')!==$entity||($certificate['financialYear']??'')!==$fy||(!empty($certificate['periodFrom'])&&$date<$certificate['periodFrom'])||(!empty($certificate['periodTo'])&&$date>$certificate['periodTo']))throw new DomainException('Unmatch the linked tax certificate before moving this receipt outside its certified period.');
+        $taxMatches[(string)$key]=['journalId'=>$linked,'certificateId'=>$certificateId];
+    }
     // Validate every dependency first; any later failure still leaves the caller unchanged.
     $next=$store;$map=[];$reversals=[];$now=gmdate('c');$actor=(string)($u['full_name']??$u['username']??'Accounts');
     foreach($ids as $oldId){
@@ -44,10 +51,12 @@ function ald_correct(array &$store,array $u,string $id,array $b):array {
         [$reverse['totalDebit'],$reverse['totalCredit']]=[$old['totalCredit'],$old['totalDebit']];$reverse['createdAt']=$now;$reverse['createdBy']=$actor;$reverse['userId']=(int)($u['id']??0);$next['journals'][$reverseId]=$reverse;
         $new=$old;$newId=tt_next_post_id((array)$next['journals'],'Accounts','Journal',$date);$new['id']=$newId;$new['date']=$date;$new['createdAt']=$now;$new['createdBy']=$actor;$new['userId']=(int)($u['id']??0);
         $new['meta']['publicPostId']=tt_accounts_public_post($store,$old);$new['meta']['amendmentOfPostId']=$oldId;$new['meta']['amendmentReason']=$reason;$new['meta']['reversalPostId']=$reverseId;
+        $new['meta']['reconciliationPostId']=(string)($old['meta']['reconciliationPostId']??$oldId);
         $new['meta']['amendmentNote']='Posting date: '.$old['date'].' → '.$date.' — '.$reason;
         $next['journals'][$newId]=$new;$next['journals'][$oldId]['amendedByPostId']=$newId;$next['journals'][$oldId]['amendmentReversalPostId']=$reverseId;$map[$oldId]=$newId;$reversals[$oldId]=$reverseId;
         $next['postAmendments'][]=['originalPostId'=>$oldId,'replacementPostId'=>$newId,'reversalPostId'=>$reverseId,'reason'=>$reason,'date'=>$date,'actor'=>$actor,'at'=>$now,'entity'=>$entity,'datesOnly'=>true];
     }
+    foreach($taxMatches as $key=>$match){$nextKey=$map[$match['journalId']].substr($key,strlen($match['journalId']));$next['exportTaxCertificateMatches'][$nextKey]=$match['certificateId'];unset($next['exportTaxCertificateMatches'][$key]);}
     if($isReceipt){
         $r=&$next['exportReceipts'][$rid];$r['date']=$date;$r['journalId']=$map[$id];
         if(!empty($r['separateChargeJournalId']))$r['separateChargeJournalId']=$map[$r['separateChargeJournalId']];
@@ -65,7 +74,7 @@ function ald_correct(array &$store,array $u,string $id,array $b):array {
             $next['journals'][$pj]['meta']['tgPostIds']=array_map(static fn($key)=>$map[$key]??$key,(array)($next['journals'][$pj]['meta']['tgPostIds']??[]));
         }
     }
-    $next['workflowAudit'][]=['type'=>'LINKED_POST_DATE','action'=>'CORRECT','postId'=>$id,'replacementPostId'=>$map[$id],'entity'=>$entity,'oldDate'=>$original['date'],'date'=>$date,'reason'=>$reason,'actor'=>$actor,'at'=>$now];
+    $next['workflowAudit'][]=['type'=>'LINKED_POST_DATE','action'=>'CORRECT','postId'=>$id,'replacementPostId'=>$map[$id],'entity'=>$entity,'oldDate'=>$original['date'],'date'=>$date,'reason'=>$reason,'actor'=>$actor,'at'=>$now,'taxCertificateLinks'=>$taxMatches];
     $store=$next;
     return ['originalPostId'=>$id,'replacementPostId'=>$map[$id],'reversalPostId'=>$reversals[$id],'publicPostId'=>$next['journals'][$map[$id]]['meta']['publicPostId'],'entity'=>$entity,'receiptId'=>$isReceipt?$rid:'','datesOnly'=>true];
 }
