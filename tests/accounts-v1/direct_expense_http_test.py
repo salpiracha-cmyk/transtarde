@@ -558,6 +558,15 @@ require $argv[1];
     saved=json.loads(books.read_text());replacement=saved['generalExpenses'][result['result']['generalExpenseId']]
     assert replacement['expenseLines'][0]['subaccountId']==named_id and replacement['paymentAccountId']=='CASH|TTI'
     assert saved['generalExpenses'][record['id']]['status']=='Amended'
+    status,setup=request('accounts_subaccounts','?entity=TTI');assert status==200
+    home_parent=next(a for a in setup['subaccounts'] if a.get('homePerson')=='FAM-SALMAN')
+    status,setup=request('accounts_subaccounts','?entity=TTI',{'csrf':'fixture','entity':'TTI','operation':'add','name':'Fixture home tuition ledger','parentCode':'6910','parentId':home_parent['id'],'taxCategory':'NONE','active':True,'revision':setup['revision'],'requestKey':'home-tuition-child'})
+    assert status==200,(status,setup)
+    home_id=setup['result'].get('subaccountId') or setup['result'].get('id')
+    home_payment={**named,'requestKey':'named-home-child','reference':'NARRATION-HOME-1','paymentNarration':'Company-borne home tuition','expenseLines':[{'category':'HOME','accountCode':'6910','subaccountId':home_id,'purpose':'Home tuition','amount':25,'expenseFor':'SHARED','personalTreatment':'COMPANY'}]}
+    status,result=request('expenses_v1','?entity=TTI',home_payment);assert status==200,(status,result)
+    saved=json.loads(books.read_text());row=saved['generalExpenses'][result['result']['generalExpenseId']]['expenseLines'][0]
+    assert row['expenseFor']=='FAM-SALMAN' and row['personalTreatment']=='COMPANY' and row['subaccountId']==home_id
     print('Narration-only recipient, explicit named subledger, ledger projection, no fabricated payee, retry and amendment passed.')
     for endpoint in ['expenses_v1','donations','rent_salary_v2']:
         books.write_text('{broken JSON');bad=books.read_bytes();assert request(endpoint,'?entity=TTI')[0]==500;assert books.read_bytes()==bad
