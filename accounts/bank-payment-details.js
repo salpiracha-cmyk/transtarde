@@ -36,7 +36,7 @@
     source.addEventListener('change',()=>{box.querySelector('[data-method]').value=defaultMethod(source,accounts);update()});box.querySelector('[data-method]').addEventListener('change',update);update();window.TT_CHEQUE_DATES?.bind(box.querySelector('[data-cheque-date]'));
   }
   function read(id,date) {
-    const source=find(id),box=find(id+'Details');if(!source||!box||box.hidden)return {};
+    const source=find(id),box=find(id+'Details');if(!source||!box||box.hidden||source.disabled||!source.value||/^(CASH|CARD)\|/.test(source.value))return {};
     const method=box.querySelector('[data-method]').value,reference=box.querySelector('[data-reference]').value.trim(),narration=box.querySelector('[data-narration]').value.trim();
     if(!['CHEQUE','ONLINE_BANKING'].includes(method))throw Error('Choose the bank payment method.');
     if(method==='CHEQUE'&&!reference)throw Error('Enter the cheque number.');

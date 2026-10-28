@@ -65,6 +65,13 @@ with tempfile.TemporaryDirectory(prefix='petty-cash-') as directory:
         b={'entity':'TTI','action':'pay_expense','requestKey':'large-expense-ahmed','paymentDate':'2026-08-03','paymentAccountId':ah,'payee':'Stationery shop','amount':100,'expenseLines':[{'category':'OFFICE','amount':100,'purpose':'Stationery','expenseArea':'OFFICE','expenseFor':'SHARED','personalTreatment':'COMPANY'}]}
         stable=books.read_bytes();seq=json.loads(auth.read_text()).get('post_sequence');st,pre=request('/api/expenses_v1.php?entity=TTI',{**b,'preview':True});assert st==200 and books.read_bytes()==stable and json.loads(auth.read_text()).get('post_sequence')==seq,(st,pre)
         st,res=request('/api/expenses_v1.php?entity=TTI',b);assert st==200,(st,res)
+        original_expense=res['result']['generalExpenseId'];original_post=res['result']['journalId']
+        amendment={**b,'action':'amend_expense','id':original_expense,'reason':'Correct narration only','paymentNarration':'Amended stationery narration','requestKey':'staff-narration-amend'}
+        st,res=request('/api/expenses_v1.php?entity=TTI',amendment);assert st==200,(st,res)
+        amended=json.loads(books.read_text());assert amended['generalExpenses'][original_expense]['status']=='Amended'
+        replacement=amended['generalExpenses'][res['result']['generalExpenseId']];assert replacement['paymentAccountId']==ah and replacement['paymentDate']=='2026-08-03'
+        assert res['result']['publicPostId']==original_post
+        stable=books.read_bytes();st,replay=request('/api/expenses_v1.php?entity=TTI',amendment);assert st==200 and books.read_bytes()==stable,(st,replay)
         d=get();assert next(x for x in d['holders'] if x['id']==ah)['balance']==200
         b={**b,'requestKey':'overdraw-ahmed','amount':201,'expenseLines':[{**b['expenseLines'][0],'amount':201}]}
         stable=books.read_bytes();st,res=request('/api/expenses_v1.php?entity=TTI',b);assert st in (403,422) and books.read_bytes()==stable,(st,res)
