@@ -2,6 +2,7 @@
 declare(strict_types=1);
 define('TT_DATA_DIR',sys_get_temp_dir().'/unused-buying-fifo-fixture');
 require dirname(__DIR__,2).'/api/shipment_statement_core.php';
+require_once dirname(__DIR__,2).'/api/raw_fifo_core.php';
 function assertTrue(bool $v,string $m):void {if(!$v)throw new RuntimeException($m);}
 function closeTo(float $a,float $b,string $m):void {assertTrue(abs($a-$b)<.01,$m.' '.json_encode([$a,$b]));}
 function invalid(callable $fn,string $m):void {try{$fn();}catch(InvalidArgumentException){return;}throw new RuntimeException($m);}
